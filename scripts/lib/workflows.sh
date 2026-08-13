@@ -1787,7 +1787,7 @@ _octopus_tangle_prune_pid_ledger() {
     [[ -n "${PID_FILE:-}" && -f "$PID_FILE" ]] || return 0
     if command -v flock >/dev/null 2>&1; then
         (
-            flock -x 200
+            flock -x 200 || exit $?
             _octopus_tangle_prune_pid_ledger_unlocked "$task_group"
         ) 200>"${PID_FILE}.lock"
     else

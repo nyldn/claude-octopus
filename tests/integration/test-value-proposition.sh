@@ -145,7 +145,7 @@ test_quality_gates_validation() {
     fi
 
     ((TESTS_RUN++)) || true
-    if echo "$tangle_code" | grep -qE "validation|validate"; then
+    if grep -cE "validation|validate" >/dev/null <<< "$tangle_code"; then
         echo -e "${GREEN}✓${NC} Tangle includes validation step"
         ((TESTS_PASSED++)) || true
     else
@@ -154,7 +154,7 @@ test_quality_gates_validation() {
     fi
 
     ((TESTS_RUN++)) || true
-    if echo "$tangle_code" | grep -qE "decompose|subtask"; then
+    if grep -cE "decompose|subtask" >/dev/null <<< "$tangle_code"; then
         echo -e "${GREEN}✓${NC} Tangle decomposes tasks for parallel execution"
         ((TESTS_PASSED++)) || true
     else

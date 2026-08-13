@@ -77,6 +77,23 @@ else
     test_fail "Tangle PID ledger pruning is not serialized with spawn appends"
 fi
 
+test_case "PID ledger pruning stops when lock acquisition fails"
+PID_FILE="$TEST_TMP_DIR/lock-failure-pids"
+printf '%s\n' '101:codex:tangle-lock-failure-0' '202:qwen:other-task' > "$PID_FILE"
+flock() { return 1; }
+set +e
+_octopus_tangle_prune_pid_ledger 'lock-failure'
+lock_failure_rc=$?
+set -e
+unset -f flock
+if [[ "$lock_failure_rc" -ne 0 ]] \
+   && grep -q 'tangle-lock-failure-0' "$PID_FILE" \
+   && grep -q 'other-task' "$PID_FILE"; then
+    test_pass
+else
+    test_fail "failed lock returned $lock_failure_rc or allowed PID ledger pruning"
+fi
+
 test_case "workflow loader reports missing cancellation helpers and clears its path variable"
 workflow_loader="$(sed -n '1,28p' "$PROJECT_ROOT/scripts/lib/workflows.sh")"
 if grep -Fq 'missing Tangle cancellation helpers' <<< "$workflow_loader" \

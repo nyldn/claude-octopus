@@ -11,10 +11,6 @@ eval "$(sed -n '/^_octopus_prune_task_id_reservations() {/,/^}/p' "$PROJECT_ROOT
 eval "$(sed -n '/^_octopus_next_spawn_task_id() {/,/^}/p' "$PROJECT_ROOT/scripts/lib/spawn.sh")"
 eval "$(sed -n '/^spawn_agent_capture_pid() {/,/^}/p' "$PROJECT_ROOT/scripts/lib/spawn.sh")"
 
-TEST_TMP_DIR="/tmp/octopus-tests-$$"
-mkdir -p "$TEST_TMP_DIR"
-trap 'rm -rf "$TEST_TMP_DIR"' EXIT INT TERM
-
 # Keep per-id reservation files inside the test sandbox instead of the real
 # ~/.claude-octopus.
 export WORKSPACE_DIR="$TEST_TMP_DIR"
