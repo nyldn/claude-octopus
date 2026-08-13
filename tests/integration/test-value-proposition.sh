@@ -131,21 +131,27 @@ test_quality_gates_validation() {
     echo "Validates that tangle phase includes quality validation"
     echo ""
 
-    # Check both the public wrapper and its workspace implementation. Extract
-    # complete top-level functions so wrapper growth cannot push the actual
-    # decomposition and validation behavior beyond an arbitrary line window.
-    local tangle_code=""
+    # Check the public wrapper and its delegated implementation contract. The
+    # wrapper owns isolation/safety preflight; _tangle_develop_in_workspace owns
+    # decomposition and validation, so line-proximity to tangle_develop() is not
+    # a stable integration boundary.
+    local tangle_entry_code="" tangle_workspace_code=""
     if [[ -f "$ALL_SRC" ]]; then
-        tangle_code=$(
-            sed -n \
-                -e '/^tangle_develop() {/,/^}/p' \
-                -e '/^_tangle_develop_in_workspace() {/,/^}/p' \
-                "$ALL_SRC" 2>/dev/null
-        ) || tangle_code=""
+        tangle_entry_code=$(awk '
+            /^tangle_develop\(\) \{/ { capture=1 }
+            capture { print }
+            capture && /^}$/ { exit }
+        ' "$ALL_SRC")
+        tangle_workspace_code=$(awk '
+            /^_tangle_develop_in_workspace\(\) \{/ { capture=1 }
+            capture { print }
+            capture && /^}$/ { exit }
+        ' "$ALL_SRC")
     fi
 
     ((TESTS_RUN++)) || true
-    if grep -cE "validation|validate" >/dev/null <<< "$tangle_code"; then
+    if grep -c "_tangle_develop_in_workspace" >/dev/null <<< "$tangle_entry_code" && \
+       grep -c 'validate_tangle_results "$task_group"' >/dev/null <<< "$tangle_workspace_code"; then
         echo -e "${GREEN}✓${NC} Tangle includes validation step"
         ((TESTS_PASSED++)) || true
     else
@@ -154,7 +160,8 @@ test_quality_gates_validation() {
     fi
 
     ((TESTS_RUN++)) || true
-    if grep -cE "decompose|subtask" >/dev/null <<< "$tangle_code"; then
+    if grep -c "_tangle_develop_in_workspace" >/dev/null <<< "$tangle_entry_code" && \
+       grep -c 'Decompose this task into subtasks that can be executed in parallel' >/dev/null <<< "$tangle_workspace_code"; then
         echo -e "${GREEN}✓${NC} Tangle decomposes tasks for parallel execution"
         ((TESTS_PASSED++)) || true
     else
