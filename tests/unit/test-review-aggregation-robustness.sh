@@ -84,6 +84,82 @@ else
     test_fail "non-array findings escaped extraction: $non_array_out"
 fi
 
+test_case "findings normalizer accepts one document and deduplicates findings"
+single_document='{"findings":[{"file":"CHANGELOG.md","line":1,"category":"docs","title":"Duplicate"},{"file":"CHANGELOG.md","line":1,"category":"docs","title":"Duplicate"}]}'
+single_normalized="$(printf '%s' "$single_document" | review_normalize_findings_json 2>/dev/null || true)"
+if [[ "$(printf '%s' "$single_normalized" | jq -r '.findings | length' 2>/dev/null || true)" == "1" ]]; then
+    test_pass
+else
+    test_fail "single-document findings were not normalized and deduplicated: $single_normalized"
+fi
+
+test_case "findings normalizer preserves synthesis ranking while deduplicating"
+ranked_document='{"findings":[{"file":"z-last-path.js","line":9,"severity":"normal","title":"Highest-ranked"},{"file":"a-first-path.js","line":1,"severity":"nit","title":"Lower-ranked"},{"file":"z-last-path.js","line":9,"severity":"normal","title":"Highest-ranked"}]}'
+ranked_normalized="$(printf '%s' "$ranked_document" | review_normalize_findings_json 2>/dev/null || true)"
+ranked_titles="$(printf '%s' "$ranked_normalized" | jq -r '.findings[].title' 2>/dev/null || true)"
+if [[ "$ranked_titles" == $'Highest-ranked\nLower-ranked' ]]; then
+    test_pass
+else
+    test_fail "normalization reordered synthesized findings: $ranked_titles"
+fi
+
+test_case "findings normalizer rejects multiple JSON documents"
+multi_document_file="$TEST_TMP_DIR/multi-document-findings.json"
+printf '%s\n%s\n' \
+    '{"findings":[{"title":"Duplicate"}]}' \
+    '{"findings":[{"title":"Duplicate"}]}' > "$multi_document_file"
+if review_normalize_findings_json < "$multi_document_file" >/dev/null 2>&1; then
+    test_fail "multi-document findings were accepted"
+else
+    test_pass
+fi
+
+test_case "findings count returns one integer or fails without output"
+valid_count="$(review_findings_count "$single_normalized" 2>/dev/null || true)"
+invalid_count_file="$TEST_TMP_DIR/invalid-count.out"
+if review_findings_count "$(cat "$multi_document_file")" > "$invalid_count_file" 2>/dev/null; then
+    invalid_count_rc=0
+else
+    invalid_count_rc=$?
+fi
+if [[ "$valid_count" == "1" && "$invalid_count_rc" -ne 0 && ! -s "$invalid_count_file" ]]; then
+    test_pass
+else
+    test_fail "count helper returned valid='$valid_count' invalid_rc='$invalid_count_rc' invalid_output='$(cat "$invalid_count_file")'"
+fi
+
+test_case "terminal rendering fails closed on multi-document findings"
+multi_render_output="$TEST_TMP_DIR/multi-render.out"
+if render_terminal_report "$multi_document_file" > "$multi_render_output" 2>&1; then
+    multi_render_rc=0
+else
+    multi_render_rc=$?
+fi
+if [[ "$multi_render_rc" -ne 0 ]] &&
+   grep -q 'invalid findings artifact' "$multi_render_output" &&
+   [[ "$(grep -c 'Duplicate' "$multi_render_output" 2>/dev/null || true)" == "0" ]] &&
+   ! grep -q 'syntax error in expression' "$multi_render_output"; then
+    test_pass
+else
+    test_fail "multi-document rendering did not fail closed: $(tr '\n' ' ' < "$multi_render_output")"
+fi
+
+test_case "missing repository fallback renders the terminal report once"
+original_render_terminal_report="$(declare -f render_terminal_report)"
+gh() { return 1; }
+render_terminal_report() { printf '%s\n' "rendered-once"; }
+missing_repo_file="$TEST_TMP_DIR/missing-repo.json"
+printf '%s\n' "$single_normalized" > "$missing_repo_file"
+missing_repo_output="$(post_inline_comments 123 "$missing_repo_file" 2>/dev/null || render_terminal_report "$missing_repo_file")"
+unset -f gh
+unset -f render_terminal_report
+eval "$original_render_terminal_report"
+if [[ "$(grep -c '^rendered-once$' <<< "$missing_repo_output" 2>/dev/null || true)" == "1" ]]; then
+    test_pass
+else
+    test_fail "missing-repository fallback rendered more than once: $missing_repo_output"
+fi
+
 test_case "progress fingerprint ignores unrelated result artifacts"
 progress_dir="$TEST_TMP_DIR/progress"
 mkdir -p "$progress_dir"
@@ -341,6 +417,6 @@ test_case "review uses stall watchdog"
 if grep -q "OCTOPUS_REVIEW_STALL_WINDOW" "$REVIEW_SH"; then test_pass; else test_fail "missing review stall window"; fi
 
 test_case "invalid synthesis has local fallback"
-if grep -q "synthesis returned invalid findings JSON" "$REVIEW_SH"; then test_pass; else test_fail "missing local fallback"; fi
+if grep -q "synthesis returned invalid.*findings JSON" "$REVIEW_SH"; then test_pass; else test_fail "missing local fallback"; fi
 
 test_summary

@@ -658,10 +658,55 @@ PYEXTRACT
     return 1
 }
 
+# Provider output is untrusted and may contain multiple top-level JSON values.
+# Canonicalize exactly one findings document before any arithmetic, rendering,
+# or persistence. Multiple documents are rejected rather than concatenated,
+# and exact duplicate findings collapse to one deterministic entry.
+review_normalize_findings_json() {
+    jq -cse '
+        if length == 1
+           and (.[0] | type == "object")
+           and (.[0].findings | type == "array")
+        then .[0]
+             | .findings |= (
+                 reduce .[] as $finding
+                   ({seen:{}, ordered:[]};
+                    ($finding | [
+                      (.file // ""),
+                      ((.line // 0) | tostring),
+                      (.category // ""),
+                      (.title // .message // "")
+                    ] | @json) as $key
+                    | if .seen[$key]
+                      then .
+                      else .seen[$key] = true | .ordered += [$finding]
+                      end)
+                 | .ordered
+               )
+        else error("expected exactly one object with a findings array")
+        end
+    '
+}
+
+# Print exactly one validated non-negative integer for a canonical findings
+# document. Invalid or multi-document input fails with no stdout so callers can
+# choose an explicit fail-closed behavior without creating a `0\n0` scalar.
+review_findings_count() {
+    local findings_json="$1"
+    printf '%s' "$findings_json" | jq -er -s '
+        if length == 1
+           and (.[0] | type == "object")
+           and (.[0].findings | type == "array")
+        then (.[0].findings | length)
+        else error("invalid findings document")
+        end
+    ' 2>/dev/null
+}
+
 review_local_synthesis_json() {
     local findings_json="$1"
     local warning="${2:-}"
-    local sort_filter='def severity_rank: if .severity == "normal" then 0 elif .severity == "nit" then 1 elif .severity == "pre-existing" then 2 else 3 end; sort_by(severity_rank)'
+    local sort_filter='def severity_rank: if .severity == "normal" then 0 elif .severity == "nit" then 1 elif .severity == "pre-existing" then 2 else 3 end; unique_by([(.file // ""), ((.line // 0) | tostring), (.category // ""), (.title // .message // "")]) | sort_by(severity_rank)'
     if [[ -n "$warning" ]]; then
         printf '%s' "$findings_json" | jq -c --arg warning "$warning" "{findings:(. // [] | ${sort_filter}), warning:\$warning}" 2>/dev/null \
             || printf '{"findings":[],"warning":%s}\n' "$(printf '%s' "$warning" | jq -R .)"
@@ -1349,6 +1394,15 @@ Return ONLY valid JSON with 'findings' array including verdict field."
     fi
     # v9.3.1: Strip markdown fences that LLMs wrap around JSON responses (#188)
     verified_findings=$(echo "$verified_findings" | sed '/^```json$/d; /^```JSON$/d; /^```$/d')
+    local normalized_verified_findings
+    if normalized_verified_findings=$(printf '%s' "$verified_findings" | review_normalize_findings_json 2>/dev/null); then
+        verified_findings="$normalized_verified_findings"
+    else
+        log WARN "review_run: verification returned invalid or multi-document findings JSON; preserving Round 1 findings"
+        verified_findings=$(printf '{"findings":%s}' "$(
+            echo "$all_findings" | jq 'map(. + {"verdict":"confirmed"})' 2>/dev/null || echo "[]"
+        )")
+    fi
 
     # Filter false positives
     local confirmed_findings
@@ -1362,7 +1416,10 @@ Return ONLY valid JSON with 'findings' array including verdict field."
         debate_candidates=$(echo "$confirmed_findings" | \
             jq '[.[] | select(.verdict == "needs-debate")]' 2>/dev/null || echo "[]")
         local debate_count
-        debate_count=$(echo "$debate_candidates" | jq 'length' 2>/dev/null || echo "0")
+        if ! debate_count=$(printf '{"findings":%s}' "$debate_candidates" | review_findings_count); then
+            log WARN "review_run: invalid debate candidates; skipping debate gate and preserving confirmed findings"
+            debate_count=0
+        fi
         if [[ "$debate_count" -gt 0 ]]; then
             log INFO "review_run: debating $debate_count contested findings"
             local debate_prompt="Challenge these $debate_count contested code review findings. For each, state whether it is a real bug (include) or false positive (exclude). Be adversarial.
@@ -1414,17 +1471,27 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
 
     # v9.3.1: Strip markdown fences from synthesis result (#188)
     final_json=$(echo "$final_json" | sed '/^```json$/d; /^```JSON$/d; /^```$/d')
-    if ! printf '%s' "$final_json" | jq -e '.findings | type == "array"' >/dev/null 2>&1; then
-        log WARN "review_run: synthesis returned invalid findings JSON, using local fallback"
+    local normalized_final_json
+    if ! normalized_final_json=$(printf '%s' "$final_json" | review_normalize_findings_json 2>/dev/null); then
+        log WARN "review_run: synthesis returned invalid or multi-document findings JSON, using local fallback"
         final_json=$(review_local_synthesis_json "$confirmed_findings" "$round1_warning")
         synth_ok="false"
-    elif [[ -n "$round1_warning" ]]; then
-        final_json=$(printf '%s' "$final_json" | jq -c --arg warning "$round1_warning" '. + {warning:$warning}' 2>/dev/null \
-            || review_local_synthesis_json "$confirmed_findings" "$round1_warning")
+    else
+        final_json="$normalized_final_json"
+    fi
+    if [[ -n "$round1_warning" ]]; then
+        local warned_final_json
+        if warned_final_json=$(printf '%s' "$final_json" | \
+            jq -c --arg warning "$round1_warning" '. + {warning:$warning}' 2>/dev/null); then
+            final_json="$warned_final_json"
+        else
+            final_json=$(review_local_synthesis_json "$confirmed_findings" "$round1_warning")
+            synth_ok="false"
+        fi
     fi
 
     # Write findings file
-    echo "$final_json" > "$findings_file"
+    printf '%s\n' "$final_json" > "$findings_file"
     log INFO "review_run: findings saved to $findings_file"
 
     # #498: emit a synthesis lifecycle event when Round 3 synthesis succeeds.
@@ -1432,7 +1499,9 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
     # attribution would be wrong there (per design-review verification).
     if [[ "$synth_ok" == "true" ]] && declare -f octo_event_emit >/dev/null 2>&1; then
         local _synth_count
-        _synth_count=$(printf '%s' "$final_json" | jq '.findings | length' 2>/dev/null || echo 0)
+        if ! _synth_count=$(review_findings_count "$final_json"); then
+            _synth_count=0
+        fi
         octo_event_emit "synthesis" phase="review" provider="$synthesis_provider" provider_label_kind="legacy-alias" executor_alias="$synthesis_provider" configured_provider="$(octo_provider_identity_from_agent_type "$synthesis_provider")" configured_model="$(get_agent_model "$synthesis_provider" "review" "synthesizer" 2>/dev/null || echo unresolved)" runtime_provider="unknown" runtime_model="unknown" council_role="synthesizer" synthesis_strategy="review" count="${_synth_count:-0}" || true
     fi
 
@@ -1491,7 +1560,9 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
 
     if [[ -n "$proof_dir" ]]; then
         local proof_finding_count proof_warning proof_verdict proof_summary
-        proof_finding_count=$(jq '.findings | length' "$findings_file" 2>/dev/null || echo "0")
+        if ! proof_finding_count=$(review_findings_count "$(<"$findings_file")"); then
+            proof_finding_count=0
+        fi
         proof_warning=$(jq -r '.warning // empty' "$findings_file" 2>/dev/null || true)
         if [[ -n "$proof_warning" ]]; then
             proof_verdict="fail"
@@ -1517,12 +1588,16 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
 post_inline_comments() {
     local pr_number="$1"
     local findings_file="$2"
+    local findings_json
+    if ! findings_json=$(review_normalize_findings_json < "$findings_file" 2>/dev/null); then
+        log ERROR "post_inline_comments: invalid findings artifact: $findings_file"
+        return 1
+    fi
 
     local repo=""
     repo=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)
     if [[ -z "$repo" ]]; then
         log ERROR "post_inline_comments: could not determine repo (is gh auth configured?)"
-        render_terminal_report "$findings_file"
         return 1
     fi
 
@@ -1542,10 +1617,13 @@ post_inline_comments() {
     gh pr review "$pr_number" --comment --body "$summary" 2>/dev/null || true
 
     local finding_count
-    finding_count=$(jq '.findings | length' "$findings_file" 2>/dev/null || echo "0")
+    if ! finding_count=$(review_findings_count "$findings_json"); then
+        log ERROR "post_inline_comments: invalid findings count: $findings_file"
+        return 1
+    fi
     log INFO "post_inline_comments: posting $finding_count inline comments to PR #$pr_number"
 
-    jq -c '.findings[]' "$findings_file" 2>/dev/null | while IFS= read -r finding; do
+    printf '%s' "$findings_json" | jq -c '.findings[]' 2>/dev/null | while IFS= read -r finding; do
         local file line severity title detail
         file=$(echo "$finding"     | jq -r '.file')
         line=$(echo "$finding"     | jq -r '.line')
@@ -1589,12 +1667,14 @@ review_emit_finding_events() {
     local findings_file="$1"
     declare -f octo_event_emit >/dev/null 2>&1 || return 0
     [[ -f "$findings_file" ]] || return 0
+    local findings_json
+    findings_json=$(review_normalize_findings_json < "$findings_file" 2>/dev/null) || return 1
 
     local sentinel="${findings_file}.events-emitted"
     [[ -e "$sentinel" ]] && return 0
     : > "$sentinel" 2>/dev/null || true
 
-    jq -c '.findings[]?' "$findings_file" 2>/dev/null | while IFS= read -r _rf; do
+    printf '%s' "$findings_json" | jq -c '.findings[]?' 2>/dev/null | while IFS= read -r _rf; do
         octo_event_emit "review.finding" \
             severity="$(printf '%s' "$_rf" | jq -r '.severity // "unknown"')" \
             file="$(printf '%s' "$_rf" | jq -r '.file // "unknown"')" \
@@ -1607,11 +1687,14 @@ review_emit_finding_events() {
 
 render_terminal_report() {
     local findings_file="$1"
-
-    review_emit_finding_events "$findings_file"
-
-    local finding_count
-    finding_count=$(jq '.findings | length' "$findings_file" 2>/dev/null || echo "0")
+    local findings_json="" finding_count="0"
+    local findings_valid=true
+    if ! findings_json=$(review_normalize_findings_json < "$findings_file" 2>/dev/null); then
+        findings_valid=false
+    elif ! finding_count=$(review_findings_count "$findings_json"); then
+        findings_valid=false
+        finding_count=0
+    fi
 
     echo ""
     echo "+-----------------------------------------------------------------+"
@@ -1619,10 +1702,18 @@ render_terminal_report() {
     echo "+-----------------------------------------------------------------+"
     echo ""
 
+    if [[ "$findings_valid" != "true" ]]; then
+        echo "WARNING: invalid findings artifact; expected exactly one JSON document."
+        echo "Review output was not rendered."
+        return 1
+    fi
+
+    review_emit_finding_events "$findings_file" || true
+
     if [[ "$finding_count" -eq 0 ]]; then
         # v9.20.1: Distinguish "clean review" from "all providers failed" (#255)
         local warning_msg
-        warning_msg=$(jq -r '.warning // empty' "$findings_file" 2>/dev/null)
+        warning_msg=$(printf '%s' "$findings_json" | jq -r '.warning // empty' 2>/dev/null)
         if [[ -n "$warning_msg" ]]; then
             echo "⚠️  WARNING: $warning_msg"
             echo ""
@@ -1637,7 +1728,7 @@ render_terminal_report() {
     echo "Found $finding_count issue(s):"
     echo ""
 
-    jq -c '.findings[]' "$findings_file" 2>/dev/null | while IFS= read -r finding; do
+    printf '%s' "$findings_json" | jq -c '.findings[]' 2>/dev/null | while IFS= read -r finding; do
         local severity title file line detail
         severity=$(echo "$finding" | jq -r '.severity')
         title=$(echo "$finding"    | jq -r '.title')
@@ -1663,10 +1754,17 @@ render_terminal_report() {
 # render_review_summary: short markdown summary for PR-level comment
 render_review_summary() {
     local findings_file="$1"
+    local findings_json
+    if ! findings_json=$(review_normalize_findings_json < "$findings_file" 2>/dev/null); then
+        echo "## /octo:review - Invalid findings artifact"
+        echo ""
+        echo "Review output was not published because it was not exactly one valid JSON document."
+        return 1
+    fi
     local normal_count nit_count preexisting_count
-    normal_count=$(jq '[.findings[] | select(.severity=="normal")] | length' "$findings_file" 2>/dev/null || echo "0")
-    nit_count=$(jq '[.findings[] | select(.severity=="nit")] | length' "$findings_file" 2>/dev/null || echo "0")
-    preexisting_count=$(jq '[.findings[] | select(.severity=="pre-existing")] | length' "$findings_file" 2>/dev/null || echo "0")
+    normal_count=$(printf '%s' "$findings_json" | jq '[.findings[] | select(.severity=="normal")] | length')
+    nit_count=$(printf '%s' "$findings_json" | jq '[.findings[] | select(.severity=="nit")] | length')
+    preexisting_count=$(printf '%s' "$findings_json" | jq '[.findings[] | select(.severity=="pre-existing")] | length')
 
     echo "## /octo:review - Multi-LLM Code Review"
     echo ""
