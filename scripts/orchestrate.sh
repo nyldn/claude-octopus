@@ -549,7 +549,46 @@ mkdir -p "$RESULTS_DIR" "$LOGS_DIR" "$PLANS_DIR" 2>/dev/null || true
 
 # Secure temporary directory (cleaned up on exit)
 OCTOPUS_TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/claude-octopus.XXXXXX")
-trap 'rm -rf "$OCTOPUS_TMP_DIR"' EXIT INT TERM
+octopus_cleanup_tmp() {
+    rm -rf "${OCTOPUS_TMP_DIR:?}" 2>/dev/null || true
+}
+
+octopus_orchestrator_cancel_active() {
+    local signal_name="${1:-TERM}"
+    if [[ -n "${OCTOPUS_ACTIVE_TANGLE_TASK_GROUP:-}" ]] \
+       && declare -F octopus_tangle_cancel_active >/dev/null 2>&1; then
+        octopus_tangle_cancel_active "$signal_name" || true
+    elif [[ -n "${OCTOPUS_ACTIVE_PROBE_TASK_GROUP:-}" ]] \
+         && declare -F octopus_probe_cancel_active >/dev/null 2>&1; then
+        octopus_probe_cancel_active "$signal_name" || true
+    fi
+}
+
+octopus_orchestrator_handle_exit() {
+    local exit_code="${1:-0}"
+    trap - EXIT
+    octopus_orchestrator_cancel_active TERM
+    octopus_cleanup_tmp
+    return "$exit_code"
+}
+
+octopus_orchestrator_handle_signal() {
+    local signal_name="${1:-TERM}"
+    local exit_code=143
+    [[ "$signal_name" == "INT" ]] && exit_code=130
+    trap - INT TERM
+
+    octopus_orchestrator_cancel_active "$signal_name"
+    if declare -F review_kill_descendants_frozen >/dev/null 2>&1; then
+        review_kill_descendants_frozen "$$" || true
+    fi
+    octopus_cleanup_tmp
+    exit "$exit_code"
+}
+
+trap 'octopus_orchestrator_handle_exit "$?"' EXIT
+trap 'octopus_orchestrator_handle_signal INT' INT
+trap 'octopus_orchestrator_handle_signal TERM' TERM
 
 # Performance: Preflight check cache (avoids repeated CLI checks)
 PREFLIGHT_CACHE_FILE="${WORKSPACE_DIR}/.preflight-cache"
@@ -2175,7 +2214,13 @@ kill_agents() {
         log INFO "Killing all tracked agents..."
         while IFS=: read -r pid agent task_id; do
             if kill -0 "$pid" 2>/dev/null; then
-                kill "$pid" 2>/dev/null && log INFO "Killed $agent ($pid)"
+                if declare -F review_kill_process_tree_frozen >/dev/null 2>&1; then
+                    review_kill_process_tree_frozen "$pid"
+                else
+                    kill "$pid" 2>/dev/null || true
+                fi
+                wait "$pid" 2>/dev/null || true
+                log INFO "Killed $agent ($pid)"
             fi
         done < "$PID_FILE"
         : > "$PID_FILE"
@@ -2183,7 +2228,13 @@ kill_agents() {
         log INFO "Killing agent: $target"
         while IFS=: read -r pid agent task_id; do
             if [[ "$pid" == "$target" || "$task_id" == "$target" ]]; then
-                kill "$pid" 2>/dev/null && log INFO "Killed $agent ($pid)"
+                if declare -F review_kill_process_tree_frozen >/dev/null 2>&1; then
+                    review_kill_process_tree_frozen "$pid"
+                else
+                    kill "$pid" 2>/dev/null || true
+                fi
+                wait "$pid" 2>/dev/null || true
+                log INFO "Killed $agent ($pid)"
             fi
         done < "$PID_FILE"
     fi

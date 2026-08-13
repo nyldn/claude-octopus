@@ -145,6 +145,7 @@ fi
 # orphaning the descendant. Load review.sh's tree-kill helper the same way
 # spawn.sh's fixed code path resolves it, and prove the descendant is reaped.
 test_case "descendant of a failed spawn is reaped, not left orphaned (#736)"
+eval "$(sed -n '/^review_child_pids() {/,/^}/p' "$PROJECT_ROOT/scripts/lib/review.sh")"
 eval "$(sed -n '/^review_process_tree_depth_first() {/,/^}/p' "$PROJECT_ROOT/scripts/lib/review.sh")"
 eval "$(sed -n '/^review_terminate_process_tree() {/,/^}/p' "$PROJECT_ROOT/scripts/lib/review.sh")"
 eval "$(sed -n '/^review_process_is_running() {/,/^}/p' "$PROJECT_ROOT/scripts/lib/review.sh")"

@@ -66,6 +66,25 @@ mkdir -p "$WORKSPACE_DIR/.octo/agents"
 DECOMPOSE_CAPTURE_FILE="$RESULTS_DIR/decompose.prompt"
 trap 'rm -rf "$RESULTS_DIR"' EXIT
 
+test_case "default Tangle run IDs stay unique within the same second"
+date() {
+    if [[ "${1:-}" == "+%s" ]]; then
+        printf '%s\n' "1234567890"
+        return 0
+    fi
+    command date "$@"
+}
+first_run_id=$(tangle_next_run_id)
+second_run_id=$(tangle_next_run_id)
+unset -f date
+if [[ "$first_run_id" != "$second_run_id" ]] && \
+   [[ "$first_run_id" == 1234567890-* ]] && \
+   [[ "$second_run_id" == 1234567890-* ]]; then
+    test_pass
+else
+    test_fail "same-second Tangle run IDs collided: $first_run_id"
+fi
+
 log() { :; }
 octopus_phase_banner() { :; }
 design_review_ceremony() { :; }

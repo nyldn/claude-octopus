@@ -7,6 +7,10 @@ if ! type probe_result_file_status >/dev/null 2>&1; then
     _octo_probe_results_lib="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/probe-results.sh"
     [[ -f "$_octo_probe_results_lib" ]] && source "$_octo_probe_results_lib"
 fi
+if ! type review_kill_process_tree_frozen >/dev/null 2>&1; then
+    _octo_review_lib="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/review.sh"
+    [[ -f "$_octo_review_lib" ]] && source "$_octo_review_lib"
+fi
 
 # v8.54.0: Single-agent probe for multi-agentic skill dispatch
 # Runs one probe perspective synchronously and writes result to RESULTS_DIR.
@@ -1734,6 +1738,135 @@ tangle_process_is_active_non_zombie() {
     return 0
 }
 
+# Active Tangle state is process-global because INT/TERM can arrive while the
+# controller is blocked in spawn PID capture or the completion watcher.
+OCTOPUS_ACTIVE_TANGLE_TASK_GROUP=""
+OCTOPUS_ACTIVE_TANGLE_TMUX="false"
+OCTOPUS_ACTIVE_TANGLE_PIDS=()
+OCTOPUS_ACTIVE_TANGLE_AGENTS=()
+OCTOPUS_ACTIVE_TANGLE_TASK_IDS=()
+
+octopus_tangle_clear_active() {
+    OCTOPUS_ACTIVE_TANGLE_TASK_GROUP=""
+    OCTOPUS_ACTIVE_TANGLE_TMUX="false"
+    OCTOPUS_ACTIVE_TANGLE_PIDS=()
+    OCTOPUS_ACTIVE_TANGLE_AGENTS=()
+    OCTOPUS_ACTIVE_TANGLE_TASK_IDS=()
+}
+
+_octopus_tangle_restore_traps() {
+    local previous_int_trap="${1:-}"
+    local previous_term_trap="${2:-}"
+
+    octopus_tangle_clear_active
+    if [[ -n "$previous_int_trap" ]]; then eval "$previous_int_trap"; else trap - INT; fi
+    if [[ -n "$previous_term_trap" ]]; then eval "$previous_term_trap"; else trap - TERM; fi
+}
+
+_octopus_tangle_prune_pid_ledger() {
+    local task_group="$1"
+    [[ -n "${PID_FILE:-}" && -f "$PID_FILE" ]] || return 0
+    local tmp_file="${PID_FILE}.cancel.$$"
+    if awk -F: -v prefix="tangle-${task_group}-" \
+        'index($3, prefix) != 1 { print }' "$PID_FILE" > "$tmp_file"; then
+        mv -f "$tmp_file" "$PID_FILE"
+    else
+        rm -f "$tmp_file" 2>/dev/null || true
+    fi
+}
+
+octopus_tangle_cancel_active() {
+    local signal_name="${1:-TERM}"
+    local task_group="${OCTOPUS_ACTIVE_TANGLE_TASK_GROUP:-}"
+    [[ -n "$task_group" ]] || return 0
+
+    local exit_code=143
+    [[ "$signal_name" == "INT" ]] && exit_code=130
+    local -a cancel_pids=("${OCTOPUS_ACTIVE_TANGLE_PIDS[@]+"${OCTOPUS_ACTIVE_TANGLE_PIDS[@]}"}")
+    local -a cancel_agents=("${OCTOPUS_ACTIVE_TANGLE_AGENTS[@]+"${OCTOPUS_ACTIVE_TANGLE_AGENTS[@]}"}")
+    local -a cancel_tasks=("${OCTOPUS_ACTIVE_TANGLE_TASK_IDS[@]+"${OCTOPUS_ACTIVE_TANGLE_TASK_IDS[@]}"}")
+    local ledger_pid ledger_agent ledger_task idx found found_idx
+
+    # The ledger closes the race between spawn_agent's append and the caller's
+    # assignment of the returned PID into the active in-memory arrays.
+    if [[ -n "${PID_FILE:-}" && -f "$PID_FILE" ]]; then
+        while IFS=: read -r ledger_pid ledger_agent ledger_task; do
+            [[ "$ledger_task" == "tangle-${task_group}-"* ]] || continue
+            found=false
+            found_idx=""
+            for idx in "${!cancel_tasks[@]}"; do
+                if [[ "${cancel_tasks[$idx]:-}" == "$ledger_task" ]]; then
+                    found=true
+                    found_idx="$idx"
+                    break
+                fi
+            done
+            if [[ "$found" == "true" ]]; then
+                [[ -n "${cancel_pids[$found_idx]:-}" ]] || cancel_pids[$found_idx]="$ledger_pid"
+                [[ -n "${cancel_agents[$found_idx]:-}" ]] || cancel_agents[$found_idx]="$ledger_agent"
+            else
+                cancel_pids+=("$ledger_pid")
+                cancel_agents+=("$ledger_agent")
+                cancel_tasks+=("$ledger_task")
+            fi
+        done < "$PID_FILE"
+    fi
+
+    local pid agent task_id result_file done_dir done_file
+    done_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents"
+    mkdir -p "$done_dir" 2>/dev/null || true
+    for idx in "${!cancel_tasks[@]}"; do
+        pid="${cancel_pids[$idx]:-}"
+        agent="${cancel_agents[$idx]:-unknown}"
+        task_id="${cancel_tasks[$idx]:-tangle-${task_group}-${idx}}"
+        result_file="${RESULTS_DIR:-}/$agent-$task_id.md"
+        done_file="$done_dir/${task_id}.done"
+
+        if [[ "$pid" =~ ^[0-9]+$ ]]; then
+            review_kill_process_tree_frozen "$pid"
+            wait "$pid" 2>/dev/null || true
+            rm -f "$done_dir/${pid}.heartbeat" 2>/dev/null || true
+        fi
+        [[ -f "$done_file" ]] || printf '%s\n' "cancelled" > "$done_file" 2>/dev/null || true
+        if [[ -f "$result_file" ]] \
+           && ! grep -Eq '^## Status: (SUCCESS|FAILED|TIMEOUT|CANCELLED)' "$result_file" 2>/dev/null; then
+            {
+                echo ""
+                echo "## Status: CANCELLED - PARTIAL RESULTS"
+                echo ""
+                echo "Tangle interrupted by SIG${signal_name}; partial output above was preserved."
+            } >> "$result_file"
+        fi
+        if declare -F _octopus_agent_lifecycle_event >/dev/null 2>&1; then
+            _octopus_agent_lifecycle_event "cancelled" "$agent" "$task_id" \
+                "implementer" "tangle" "$pid" "$result_file" "$exit_code" "cancelled"
+        fi
+    done
+
+    # A signal can arrive after the provider process exists but before the spawn
+    # helper appends it to the PID ledger. The active orchestrator owns all of
+    # its direct descendants, so sweep any unregistered child trees as the final
+    # race-closing step before clearing lifecycle state.
+    review_kill_descendants_frozen "$$"
+
+    _octopus_tangle_prune_pid_ledger "$task_group"
+    if [[ "${OCTOPUS_ACTIVE_TANGLE_TMUX:-false}" == "true" ]] \
+       && declare -F tmux_cleanup >/dev/null 2>&1; then
+        tmux_cleanup 2>/dev/null || true
+    fi
+    declare -F fleet_dispatch_end >/dev/null 2>&1 && fleet_dispatch_end
+    octopus_tangle_clear_active
+}
+
+octopus_tangle_handle_signal() {
+    local signal_name="${1:-TERM}"
+    local exit_code=143
+    [[ "$signal_name" == "INT" ]] && exit_code=130
+    trap - INT TERM
+    octopus_tangle_cancel_active "$signal_name"
+    exit "$exit_code"
+}
+
 tangle_scope_contamination_summary() {
     local repo_root
     repo_root=$(tangle_resolve_repo_root 2>/dev/null || git rev-parse --show-toplevel 2>/dev/null || pwd)
@@ -2404,6 +2537,24 @@ tangle_run_worktree_enabled() {
     [[ "${OCTOPUS_TANGLE_RUN_WORKTREE:-true}" == "true" ]]
 }
 
+# Reserve a collision-free default run ID. Tangle can be invoked repeatedly in
+# the same shell and second (especially in tests and scripted workflows), so a
+# timestamp plus $$ is not unique enough. Reuse the spawn-layer allocator when
+# available; workflows.sh is also sourced directly by tests and integrations,
+# so retain an atomic mktemp-based fallback here.
+tangle_next_run_id() {
+    if declare -F _octopus_next_spawn_task_id >/dev/null 2>&1; then
+        _octopus_next_spawn_task_id
+        return $?
+    fi
+
+    local reservation_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/task-ids"
+    local reservation unique_suffix
+    mkdir -p "$reservation_dir" 2>/dev/null || true
+    reservation=$(mktemp "${reservation_dir}/XXXXXX" 2>/dev/null) && unique_suffix="${reservation##*/}"
+    printf '%s-%s\n' "$(date +%s)" "${unique_suffix:-${BASHPID:-$$}${RANDOM}}"
+}
+
 tangle_extract_plan_file_ref() {
     local prompt="$1"
     local token candidate_ref candidate_basename raw_file_ref
@@ -2557,7 +2708,10 @@ tangle_develop() {
         return $?
     fi
 
-    local task_group="${OCTOPUS_TANGLE_RUN_ID:-$(date +%s)-$$}"
+    local task_group="${OCTOPUS_TANGLE_RUN_ID:-}"
+    if [[ -z "$task_group" ]]; then
+        task_group=$(tangle_next_run_id) || return 1
+    fi
     local original_project_root="${PROJECT_ROOT:-$PWD}"
     local original_pwd="$PWD"
     local resolved_grasp_file="$grasp_file"
@@ -2867,6 +3021,17 @@ Every [CODING] line must include a same-line Files: clause."
         fi
     fi
 
+    local tangle_previous_int_trap tangle_previous_term_trap
+    tangle_previous_int_trap="$(trap -p INT)"
+    tangle_previous_term_trap="$(trap -p TERM)"
+    OCTOPUS_ACTIVE_TANGLE_TASK_GROUP="$task_group"
+    OCTOPUS_ACTIVE_TANGLE_TMUX="$TMUX_MODE"
+    OCTOPUS_ACTIVE_TANGLE_PIDS=()
+    OCTOPUS_ACTIVE_TANGLE_AGENTS=()
+    OCTOPUS_ACTIVE_TANGLE_TASK_IDS=()
+    trap 'octopus_tangle_handle_signal INT' INT
+    trap 'octopus_tangle_handle_signal TERM' TERM
+
     fleet_dispatch_begin
     for line in "${subtask_lines[@]}"; do
         local subtask
@@ -2884,6 +3049,10 @@ Every [CODING] line must include a same-line Files: clause."
         local pane_title="$pane_icon Subtask $((subtask_num+1))"
         local subtask_prompt
         subtask_prompt=$(build_tangle_subtask_prompt "$resolved_prompt" "$subtask")
+        local active_idx="${#OCTOPUS_ACTIVE_TANGLE_TASK_IDS[@]}"
+        OCTOPUS_ACTIVE_TANGLE_PIDS+=("")
+        OCTOPUS_ACTIVE_TANGLE_AGENTS+=("$agent")
+        OCTOPUS_ACTIVE_TANGLE_TASK_IDS+=("$task_id")
 
         # Tangle uses the legacy spawn path in this parallel loop so .done
         # markers are written for the completion watcher. This also allows
@@ -2892,14 +3061,25 @@ Every [CODING] line must include a same-line Files: clause."
         if [[ "$TMUX_MODE" == "true" ]]; then
             # Use async+tmux spawning
             local pid
-            pid=$(spawn_agent_async "$agent" "$subtask_prompt" "$task_id" "$role" "tangle" "$pane_title")
+            if ! pid=$(spawn_agent_async "$agent" "$subtask_prompt" "$task_id" "$role" "tangle" "$pane_title"); then
+                log ERROR "Failed to spawn Tangle task $task_id"
+                octopus_tangle_cancel_active TERM
+                _octopus_tangle_restore_traps "$tangle_previous_int_trap" "$tangle_previous_term_trap"
+                return 1
+            fi
             pids+=("$pid")
         else
             # Standard spawning
             local pid
-            pid=$(spawn_agent_capture_pid "$agent" "$subtask_prompt" "$task_id" "$role" "tangle")
+            if ! pid=$(spawn_agent_capture_pid "$agent" "$subtask_prompt" "$task_id" "$role" "tangle"); then
+                log ERROR "Failed to spawn Tangle task $task_id"
+                octopus_tangle_cancel_active TERM
+                _octopus_tangle_restore_traps "$tangle_previous_int_trap" "$tangle_previous_term_trap"
+                return 1
+            fi
             pids+=("$pid")
         fi
+        OCTOPUS_ACTIVE_TANGLE_PIDS[$active_idx]="$pid"
         task_ids+=("$task_id")
         ((subtask_num++)) || true
     done
@@ -2910,6 +3090,8 @@ Every [CODING] line must include a same-line Files: clause."
     # quality gates can validate a partial dispatch as a complete tangle run.
     if [[ $subtask_num -ne ${#subtask_lines[@]} ]]; then
         log ERROR "Spawned $subtask_num development threads for ${#subtask_lines[@]} parsed subtasks; refusing partial tangle execution"
+        octopus_tangle_cancel_active TERM
+        _octopus_tangle_restore_traps "$tangle_previous_int_trap" "$tangle_previous_term_trap"
         return 1
     fi
 
@@ -2922,6 +3104,8 @@ Every [CODING] line must include a same-line Files: clause."
     [[ "$_tangle_max_wait" =~ ^[0-9]+$ ]] || _tangle_max_wait=0
     local _missing_marker_grace="${OCTOPUS_TANGLE_MISSING_MARKER_GRACE:-180}"
     [[ "$_missing_marker_grace" =~ ^[0-9]+$ ]] || _missing_marker_grace=180
+    local _idle_worker_grace="${OCTOPUS_TANGLE_IDLE_WORKER_GRACE:-180}"
+    [[ "$_idle_worker_grace" =~ ^[0-9]+$ ]] || _idle_worker_grace=180
     local _deadline=0
     if [[ "$_tangle_max_wait" -gt 0 ]]; then
         _deadline=$(( $(date +%s) + _tangle_max_wait ))
@@ -2930,6 +3114,8 @@ Every [CODING] line must include a same-line Files: clause."
     local _failed_tasks=()
     local _terminal_task_ids=""
     local _missing_marker_since=()
+    local _idle_worker_since=()
+    local _last_progress=-1
     while [[ $completed -lt ${#task_ids[@]} ]]; do
         completed=0
         for i in "${!task_ids[@]}"; do
@@ -2939,22 +3125,19 @@ Every [CODING] line must include a same-line Files: clause."
             elif [[ " $_terminal_task_ids " == *" ${task_ids[$i]} "* ]]; then
                 ((completed++)) || true
             else
-                local _wrapper_pid="${pids[$i]:-}"
+                local _worker_pid="${pids[$i]:-}"
                 if [[ "$_tangle_max_wait" -gt 0 ]] && (( $(date +%s) > _deadline )); then
                     log WARN "Thread ${task_ids[$i]} deadline exceeded — killing and marking timeout"
-                    if [[ -n "$_wrapper_pid" ]]; then
-                        pkill -TERM -P "$_wrapper_pid" 2>/dev/null || true
-                        kill -TERM "$_wrapper_pid" 2>/dev/null || true
-                        sleep 1
-                        pkill -KILL -P "$_wrapper_pid" 2>/dev/null || true
-                        kill -KILL "$_wrapper_pid" 2>/dev/null || true
+                    if [[ -n "$_worker_pid" ]]; then
+                        review_kill_process_tree_frozen "$_worker_pid"
+                        wait "$_worker_pid" 2>/dev/null || true
                     fi
                     mkdir -p "$_done_dir" 2>/dev/null || true
                     if [[ ! -f "$_done_file" ]] && ! echo "timeout" > "$_done_file" 2>/dev/null; then
                         log WARN "Failed to write timeout marker for ${task_ids[$i]} at $_done_file"
                     fi
                     [[ " $_terminal_task_ids " == *" ${task_ids[$i]} "* ]] || _terminal_task_ids="${_terminal_task_ids:+$_terminal_task_ids }${task_ids[$i]}"
-                elif [[ -n "$_wrapper_pid" ]] && ! tangle_process_is_active_non_zombie "$_wrapper_pid"; then
+                elif [[ -n "$_worker_pid" ]] && ! tangle_process_is_active_non_zombie "$_worker_pid"; then
                     local _now
                     _now=$(date +%s)
                     if [[ -z "${_missing_marker_since[$i]:-}" ]]; then
@@ -2981,13 +3164,48 @@ Every [CODING] line must include a same-line Files: clause."
                             fi
                         fi
                     fi
+                elif [[ -n "$_worker_pid" ]] \
+                     && ! review_process_has_active_descendant "$_worker_pid"; then
+                    local _idle_now
+                    _idle_now=$(date +%s)
+                    if [[ -z "${_idle_worker_since[$i]:-}" ]]; then
+                        _idle_worker_since[$i]="$_idle_now"
+                        log WARN "Thread ${task_ids[$i]} worker is alive without provider descendants — waiting up to ${_idle_worker_grace}s for completion"
+                    fi
+                    if [[ "$_idle_worker_grace" -eq 0 ]] \
+                       || (( _idle_now - ${_idle_worker_since[$i]} >= _idle_worker_grace )); then
+                        log WARN "Thread ${task_ids[$i]} remained idle without provider descendants for ${_idle_worker_grace}s — killing and marking stalled"
+                        review_kill_process_tree_frozen "$_worker_pid"
+                        wait "$_worker_pid" 2>/dev/null || true
+                        mkdir -p "$_done_dir" 2>/dev/null || true
+                        [[ -f "$_done_file" ]] || printf '%s\n' "stalled-worker" > "$_done_file" 2>/dev/null || true
+                        [[ " $_terminal_task_ids " == *" ${task_ids[$i]} "* ]] \
+                            || _terminal_task_ids="${_terminal_task_ids:+$_terminal_task_ids }${task_ids[$i]}"
+                        local _idle_result_file
+                        _idle_result_file=$(find "${RESULTS_DIR:-${HOME}/.claude-octopus/results}" -maxdepth 1 -type f -name "*-${task_ids[$i]}.md" 2>/dev/null | head -1 || true)
+                        if [[ -n "$_idle_result_file" ]] \
+                           && ! grep -q '^## Status:' "$_idle_result_file" 2>/dev/null; then
+                            {
+                                echo ""
+                                echo "## Status: FAILED (Stalled worker without provider descendants)"
+                                echo "# Completed: $(date)"
+                            } >> "$_idle_result_file" 2>/dev/null || true
+                        fi
+                    fi
+                else
+                    unset "_idle_worker_since[$i]"
                 fi
             fi
         done
-        echo -ne "\r${CYAN}Progress: $completed/${#task_ids[@]} subtasks complete${NC}"
-        sleep 2
+        if [[ -t 1 ]]; then
+            echo -ne "\r${CYAN}Progress: $completed/${#task_ids[@]} subtasks complete${NC}"
+        elif [[ "$completed" -ne "$_last_progress" ]]; then
+            echo "Progress: $completed/${#task_ids[@]} subtasks complete"
+        fi
+        _last_progress="$completed"
+        [[ $completed -ge ${#task_ids[@]} ]] || sleep 2
     done
-    echo ""
+    [[ -t 1 ]] && echo ""
 
     # Final artifact reconciliation: providers can write the result and .done
     # marker after the wrapper PID disappears. Trust a latest SUCCESS status
@@ -3032,6 +3250,7 @@ Every [CODING] line must include a same-line Files: clause."
     if [[ "$TMUX_MODE" == "true" ]]; then
         tmux_cleanup
     fi
+    _octopus_tangle_restore_traps "$tangle_previous_int_trap" "$tangle_previous_term_trap"
 
     # v7.25.0: Record agent completion metrics
     if command -v record_agents_batch_complete &> /dev/null; then

@@ -113,7 +113,14 @@ test_timeout_env_override() {
 test_heartbeat_in_spawn_agent() {
     test_case "Heartbeat monitor started in spawn_agent"
 
-    if grep -B 5 -A 5 'local pid=\$!' "$ALL_SRC" | grep -q "start_heartbeat_monitor"; then
+    local spawn_body pid_line heartbeat_line
+    spawn_body=$(sed -n '/^spawn_agent()/,/^spawn_agent_capture_pid()/p' \
+        "$PROJECT_ROOT/scripts/lib/spawn.sh")
+    pid_line=$(printf '%s\n' "$spawn_body" | awk '/local pid=\$!/{print NR; exit}')
+    heartbeat_line=$(printf '%s\n' "$spawn_body" | \
+        awk '/start_heartbeat_monitor "\$pid" "\$task_id"/{print NR; exit}')
+
+    if [[ -n "$pid_line" && -n "$heartbeat_line" && "$heartbeat_line" -gt "$pid_line" ]]; then
         test_pass
     else
         test_fail "start_heartbeat_monitor not called after PID assignment"

@@ -56,6 +56,7 @@ assert_contains "$WORKFLOWS" "Skipping ink/deliver because tangle validation gat
 assert_contains "$HELP" "Contextual code review" "develop help documents contextual review"
 assert_contains "$HELP" "OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE" "develop help documents bounded mode"
 assert_contains "$HELP" "OCTOPUS_TANGLE_CORRECTION_STALL_WINDOW" "develop help documents stall window"
+assert_contains "$HELP" "OCTOPUS_TANGLE_IDLE_WORKER_GRACE" "develop help documents idle worker recovery"
 assert_contains "$WORKFLOWS" "OCTOPUS_INK_REVIEW_TIMEOUT:-0" "ink review has no wall timeout by default"
 
 test_case "generated review context stays inside the workspace"

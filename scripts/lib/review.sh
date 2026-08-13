@@ -281,6 +281,20 @@ review_progress_fingerprint_since() {
     done | sort | review_hash_stdin
 }
 
+# Enumerate direct children portably. procps pgrep is preferred, while the ps
+# fallback covers minimal Linux images and macOS without adding a dependency.
+review_child_pids() {
+    local parent_pid="$1" child_pid child_parent
+    if command -v pgrep >/dev/null 2>&1; then
+        pgrep -P "$parent_pid" 2>/dev/null || true
+        return 0
+    fi
+    command -v ps >/dev/null 2>&1 || return 0
+    while read -r child_pid child_parent; do
+        [[ "$child_parent" == "$parent_pid" ]] && printf '%s\n' "$child_pid"
+    done < <(ps -ax -o pid= -o ppid= 2>/dev/null)
+}
+
 # Snapshot descendants depth-first before signaling. Re-walking after TERM is
 # unsafe because a TERM-ignoring child can be reparented when its wrapper exits,
 # making it invisible to the later KILL pass.
@@ -290,7 +304,7 @@ review_process_tree_depth_first() {
     while IFS= read -r child; do
         [[ "$child" =~ ^[0-9]+$ ]] || continue
         review_process_tree_depth_first "$child"
-    done < <(pgrep -P "$pid" 2>/dev/null || true)
+    done < <(review_child_pids "$pid")
     printf '%s\n' "$pid"
 }
 
@@ -322,6 +336,56 @@ review_terminate_process_tree() {
         [[ "$target_pid" =~ ^[0-9]+$ ]] || continue
         kill -KILL "$target_pid" 2>/dev/null || true
     done <<< "$process_tree"
+}
+
+# Cancellation is stricter than ordinary timeout cleanup. Freeze each root
+# before walking it so a shell cannot advance to another provider attempt while
+# teardown is enumerating descendants, then kill the frozen tree bottom-up.
+review_kill_process_tree_frozen() {
+    local root_pid="$1" child
+    [[ "$root_pid" =~ ^[0-9]+$ ]] || return 0
+
+    # spawn_agent places each worker in a dedicated process group whose PGID is
+    # the recorded worker PID. Signaling the group is atomic and still works if
+    # the group leader exited after spawning a provider child. Legacy callers
+    # are not group leaders, so a missing -PGID safely falls through to the
+    # portable descendant walk below.
+    if kill -STOP -- "-$root_pid" 2>/dev/null; then
+        kill -KILL -- "-$root_pid" 2>/dev/null || true
+        return 0
+    fi
+
+    kill -STOP "$root_pid" 2>/dev/null || return 0
+    while IFS= read -r child; do
+        [[ "$child" =~ ^[0-9]+$ ]] || continue
+        review_kill_process_tree_frozen "$child"
+    done < <(review_child_pids "$root_pid")
+    kill -KILL "$root_pid" 2>/dev/null || true
+}
+
+review_kill_descendants_frozen() {
+    local root_pid="$1" child children
+    [[ "$root_pid" =~ ^[0-9]+$ ]] || return 0
+    children="$(review_child_pids "$root_pid")"
+    while IFS= read -r child; do
+        [[ "$child" =~ ^[0-9]+$ ]] || continue
+        kill -STOP "$child" 2>/dev/null || true
+    done <<< "$children"
+    while IFS= read -r child; do
+        [[ "$child" =~ ^[0-9]+$ ]] || continue
+        review_kill_process_tree_frozen "$child"
+    done <<< "$children"
+}
+
+review_process_has_active_descendant() {
+    local root_pid="$1" child
+    [[ "$root_pid" =~ ^[0-9]+$ ]] || return 1
+    while IFS= read -r child; do
+        [[ "$child" =~ ^[0-9]+$ ]] || continue
+        review_process_is_running "$child" && return 0
+        review_process_has_active_descendant "$child" && return 0
+    done < <(review_child_pids "$root_pid")
+    return 1
 }
 
 review_run_agent_sync_progress() {

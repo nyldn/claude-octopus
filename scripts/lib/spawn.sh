@@ -703,7 +703,14 @@ ${heuristic_ctx}"
     # LEGACY PATH: Execute an external agent in a Bash subprocess when teams are unavailable.
     # ═══════════════════════════════════════════════════════════════════════════
 
-    # Execute agent in background
+    # Execute each worker in a dedicated process group. The recorded PID is also
+    # its PGID, allowing cancellation to atomically stop every provider
+    # descendant even if the Bash group leader exits during teardown (#900).
+    # Preserve a caller that already enabled monitor mode rather than forcing it
+    # off after the spawn.
+    local _spawn_monitor_was_enabled=false
+    [[ "$-" == *m* ]] && _spawn_monitor_was_enabled=true
+    set -m
     (
         cd "$PROJECT_ROOT" || exit 1
         set -f  # Disable glob expansion
@@ -1190,6 +1197,7 @@ ${heuristic_ctx}"
     ) &
 
     local pid=$!
+    [[ "$_spawn_monitor_was_enabled" == "true" ]] || set +m
 
     _octopus_agent_lifecycle_event "spawned" "$agent_type" "$task_id" "$role" "$phase" "$pid" "$result_file" "" "running"
 
