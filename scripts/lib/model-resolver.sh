@@ -132,10 +132,19 @@ validate_agy_model_name() {
         return 1
     fi
 
-    local line=""
+    local line="" catalog_id="" catalog_label=""
     while IFS= read -r line; do
         line="${line%$'\r'}"
-        if [[ "$line" == "$model" ]]; then
+        catalog_id="$line"
+        catalog_label="$line"
+        if [[ "$line" == *$'\t'* ]]; then
+            catalog_id="${line%%$'\t'*}"
+            catalog_label="${line#*$'\t'}"
+            while [[ "$catalog_label" == $'\t'* ]]; do
+                catalog_label="${catalog_label#$'\t'}"
+            done
+        fi
+        if [[ "$catalog_id" == "$model" || "$catalog_label" == "$model" ]]; then
             return 0
         fi
     done <<< "$available_models"

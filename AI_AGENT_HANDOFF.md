@@ -112,6 +112,31 @@ Merge and release are deferred.
   matching-head checks and review before merge. The separate `pr-review` job is
   red because Claude hit its weekly limit and the Copilot fallback hit its
   monthly quota; it reported no code finding.
+## Issue #904: AGY Catalog IDs and Preflight
+
+- Root cause: current `agy models` emits `model-id<TAB>display label`, but
+  `validate_agy_model_name` compared a requested pin against the entire row.
+  Both `gemini-3.1-pro-high` and `Gemini 3.1 Pro (High)` were therefore rejected
+  even while the error output displayed them.
+- Catalog contract: exact model IDs and exact display labels are accepted;
+  partial matches remain rejected. Legacy one-label-per-line output remains
+  compatible.
+- Preflight contract: the effective AGY pin comes from `OCTOPUS_AGY_MODEL`, then
+  `providers.agy.default`, then `default`. An absent catalog entry reports
+  `AGY_STATUS=model-invalid`, excludes AGY from available providers, and prints
+  a corrective `agy models`/`default` instruction.
+- Provider boundary: retired direct Gemini execution remains disabled. AGY is
+  the supported Antigravity CLI seat even when that service exposes Gemini
+  models.
+- Evidence: the real installed catalog reproduces the tab-separated shape; both
+  the live ID and label now validate. The AGY provider suite passes 43/43, and
+  AGY research defaults, resolver, council selection, and provider-detection
+  suites pass. `make sync` and `make sync-check` are clean. The final
+  non-interactive `make ci-local` passes 16/16 smoke suites, 267/267 unit
+  suites, 7/7 integration suites, and the CI-only verifications.
+- Tracking blocker: Beads remains unreadable on schema v49 because its reserved
+  v65 migration has not been applied. No migration was run; GitHub issue #904
+  is the temporary tracker.
 
 ## Issue #898: Explicit Activation and Hook Latency
 

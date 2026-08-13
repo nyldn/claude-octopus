@@ -388,10 +388,10 @@ test_agy_dynamic_model_validation() {
     cat > "$tmp_bin/agy" <<'MOCK_AGY'
 #!/usr/bin/env bash
 if [[ "${1:-}" == "models" ]]; then
-    printf '%s\n' \
-        'Gemini 3.5 Flash (Low)' \
-        'Gemini 3.5 Flash (Medium)' \
-        'Claude Sonnet 4.6 (Thinking)'
+    printf '%s\t%s\n' \
+        'gemini-3.5-flash-low' 'Gemini 3.5 Flash (Low)' \
+        'gemini-3.5-flash-medium' 'Gemini 3.5 Flash (Medium)' \
+        'claude-sonnet-4-6' 'Claude Sonnet 4.6 (Thinking)'
     exit 0
 fi
 printf '%s\n' "$@" > "${AGY_ARG_CAPTURE:?}"
@@ -428,6 +428,11 @@ MOCK_AGY
     if ! validate_agy_model_name 'Gemini 3.5 Flash (Low)'; then
         restore_agy_dynamic_model_env
         test_fail "real agy labels from agy models should be accepted"
+        return
+    fi
+    if ! validate_agy_model_name 'gemini-3.5-flash-low'; then
+        restore_agy_dynamic_model_env
+        test_fail "real agy model IDs from tab-separated agy models output should be accepted"
         return
     fi
     if validate_model_name 'Gemini 3.5 Flash (Low)'; then
@@ -473,7 +478,7 @@ MOCK_AGY
     local config_dir="$TEST_TMP_DIR/agy-config-home"
     mkdir -p "$config_dir/.claude-octopus/config"
     cat > "$config_dir/.claude-octopus/config/providers.json" <<'JSON'
-{"providers":{"agy":{"default":"Gemini 3.5 Flash (Medium)"}}}
+{"providers":{"agy":{"default":"gemini-3.5-flash-medium"}}}
 JSON
     HOME="$config_dir"
     if ! resolved="$(resolve_octopus_model agy-research agy tangle decomposer)"; then
@@ -483,9 +488,30 @@ JSON
         return
     fi
     HOME="$old_home"
-    if [[ "$resolved" != 'Gemini 3.5 Flash (Medium)' ]]; then
+    if [[ "$resolved" != 'gemini-3.5-flash-medium' ]]; then
         restore_agy_dynamic_model_env
-        test_fail "config-resolved agy-research labels should use agy-specific provider lookups"
+        test_fail "config-resolved agy-research IDs should use agy-specific provider lookups"
+        return
+    fi
+
+    HOME="$config_dir"
+    source "$PROJECT_ROOT/scripts/lib/preflight.sh"
+    local preflight_status=""
+    preflight_status="$(_preflight_agy_model_status 2>/dev/null || true)"
+    HOME="$old_home"
+    if [[ "$preflight_status" != "ok" ]]; then
+        restore_agy_dynamic_model_env
+        test_fail "preflight should admit an installed agy provider with a valid configured model ID"
+        return
+    fi
+    printf '%s\n' '{"providers":{"agy":{"default":"gemini-9-unknown"}}}' \
+        > "$config_dir/.claude-octopus/config/providers.json"
+    HOME="$config_dir"
+    preflight_status="$(_preflight_agy_model_status 2>/dev/null || true)"
+    HOME="$old_home"
+    if [[ "$preflight_status" != "model-invalid" ]]; then
+        restore_agy_dynamic_model_env
+        test_fail "preflight should mark agy unavailable when its configured model is absent from the live catalog"
         return
     fi
 
@@ -688,13 +714,15 @@ test_agy_smoke_defaults() {
 }
 
 test_agy_preflight_visibility() {
-    test_case "preflight reports Antigravity provider"
+    test_case "preflight reports Antigravity availability from model validation"
 
-    if grep -q 'AGY_STATUS=ok' "$PROJECT_ROOT/scripts/lib/preflight.sh" && \
-       grep -q 'Antigravity: Installed' "$PROJECT_ROOT/scripts/lib/preflight.sh"; then
+    if grep -q '_preflight_agy_model_status' "$PROJECT_ROOT/scripts/lib/preflight.sh" && \
+       grep -q 'AGY_STATUS=\$detected_agy_status' "$PROJECT_ROOT/scripts/lib/preflight.sh" && \
+       grep -q 'Antigravity: Installed' "$PROJECT_ROOT/scripts/lib/preflight.sh" && \
+       grep -q 'Antigravity: Installed but unavailable' "$PROJECT_ROOT/scripts/lib/preflight.sh"; then
         test_pass
     else
-        test_fail "preflight should report Antigravity provider"
+        test_fail "preflight should distinguish valid and invalid Antigravity model configuration"
     fi
 }
 

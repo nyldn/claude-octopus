@@ -22,9 +22,34 @@ _preflight_commandcode_auth_mode() {
     return 1
 }
 
+_preflight_agy_configured_model() {
+    local model="${OCTOPUS_AGY_MODEL:-}"
+    local config_file="${HOME}/.claude-octopus/config/providers.json"
+    if [[ -z "$model" && -f "$config_file" ]] && command -v jq >/dev/null 2>&1; then
+        model=$(jq -r '.providers.agy.default // empty' "$config_file" 2>/dev/null || true)
+    fi
+    printf '%s\n' "${model:-default}"
+}
+
+_preflight_agy_model_status() {
+    local model
+    model="$(_preflight_agy_configured_model)"
+    if ! declare -f validate_agy_model_name >/dev/null 2>&1; then
+        printf '%s\n' "unchecked"
+        return 0
+    fi
+    if validate_agy_model_name "$model" >/dev/null 2>&1; then
+        printf '%s\n' "ok"
+    else
+        printf '%s\n' "model-invalid"
+    fi
+}
+
 # Command: detect-providers
 # Output parseable provider status for Claude Code skill
 cmd_detect_providers() {
+    local detected_agy_status="not-installed"
+    local detected_agy_model="none"
     echo "Detecting Claude Code version..."
     echo ""
 
@@ -101,13 +126,12 @@ cmd_detect_providers() {
 
     # Check Antigravity CLI (agy)
     if command -v agy &>/dev/null; then
-        echo "AGY_STATUS=ok"
+        detected_agy_model="$(_preflight_agy_configured_model)"
+        detected_agy_status="$(_preflight_agy_model_status)"
+        [[ "$detected_agy_status" == "unchecked" ]] && detected_agy_status="ok"
+        echo "AGY_STATUS=$detected_agy_status"
         echo "AGY_AUTH=cli"
-        if declare -f agy_current_model >/dev/null 2>&1; then
-            echo "AGY_MODEL=$(agy_current_model)"
-        else
-            echo "AGY_MODEL=${OCTOPUS_AGY_MODEL:-}"
-        fi
+        echo "AGY_MODEL=$detected_agy_model"
     else
         echo "AGY_STATUS=not-installed"
         echo "AGY_AUTH=none"
@@ -225,12 +249,9 @@ cmd_detect_providers() {
     elif command -v command-code >/dev/null 2>&1; then commandcode_status="unauthenticated"
     else commandcode_status="missing"; commandcode_auth="none"
     fi
-    local agy_status=$(command -v agy &>/dev/null && echo "ok" || echo "not-installed")
-    local agy_auth=$([[ "$agy_status" == "ok" ]] && echo "cli" || echo "none")
-    local agy_model="${OCTOPUS_AGY_MODEL:-}"
-    if [[ "$agy_status" == "ok" ]] && declare -f agy_current_model >/dev/null 2>&1; then
-        agy_model="$(agy_current_model)"
-    fi
+    local agy_status="$detected_agy_status"
+    local agy_auth=$([[ "$agy_status" != "not-installed" ]] && echo "cli" || echo "none")
+    local agy_model="$detected_agy_model"
     local perplexity_status=$([[ -n "${PERPLEXITY_API_KEY:-}" ]] && echo "ok" || echo "not-configured")
     local perplexity_auth=$([[ -n "${PERPLEXITY_API_KEY:-}" ]] && echo "api-key" || echo "none")
     local ollama_status=$(command -v ollama &>/dev/null && { curl -sf http://localhost:11434/api/tags &>/dev/null && echo "running" || echo "stopped"; } || echo "not-installed")
@@ -307,6 +328,8 @@ EOF
 
     if [[ "$agy_status" == "ok" ]]; then
         echo "  ✓ Antigravity: Installed (model: ${agy_model:-agy default}) — agy provider enabled"
+    elif [[ "$agy_status" == "model-invalid" ]]; then
+        echo "  ⚠ Antigravity: Installed but unavailable — configured model '${agy_model}' is absent from 'agy models'"
     else
         echo "  ○ Antigravity: Not installed (optional — install agy from Google Antigravity)"
     fi
@@ -356,7 +379,7 @@ EOF
     echo ""
 
     # Provide guidance based on results
-    if [[ "$codex_status" == "missing" && "$agy_status" != "ok" && "$cursor_agent_status" != "ok" ]]; then
+    if [[ "$codex_status" == "missing" && "$agy_status" == "not-installed" && "$cursor_agent_status" != "ok" ]]; then
         echo "⚠ No providers installed. You need at least ONE provider to use Claude Octopus."
         echo ""
         echo "Next steps:"
@@ -368,7 +391,7 @@ EOF
         echo ""
         echo "Then configure authentication - see: /claude-octopus:setup"
     elif ! { [[ "$codex_status" == "ok" && "$codex_auth" != "none" ]] || [[ "$agy_status" == "ok" ]] || [[ "$cursor_agent_status" == "ok" && "$cursor_agent_auth" != "none" ]]; }; then
-        echo "⚠ Provider(s) installed but not authenticated."
+        echo "⚠ Provider(s) installed but not ready."
         echo ""
         echo "Next steps:"
         if [[ "$codex_status" == "ok" && "$codex_auth" == "none" ]]; then
@@ -376,6 +399,9 @@ EOF
         fi
         if [[ "$cursor_agent_status" == "ok" && "$cursor_agent_auth" == "none" ]]; then
             echo "  Cursor Agent: export CURSOR_API_KEY=\"...\" (or run: agent login)"
+        fi
+        if [[ "$agy_status" == "model-invalid" ]]; then
+            echo "  Antigravity: choose an exact ID or label from 'agy models', or use 'default'"
         fi
         echo ""
         echo "See: /claude-octopus:setup for full instructions"
@@ -429,6 +455,8 @@ preflight_check() {
     local has_cursor_agent=false
     local codex_auth=false
     local agy_auth=false
+    local agy_model_status="not-installed"
+    local agy_configured_model="default"
     local cursor_agent_auth=false
 
     # Check Codex CLI
@@ -443,8 +471,14 @@ preflight_check() {
     # Check Antigravity CLI. A present AGY binary owns Google-seat auth.
     if command -v agy &>/dev/null; then
         has_agy=true
-        agy_auth=true
         log DEBUG "Antigravity CLI: $(command -v agy)"
+        agy_configured_model="$(_preflight_agy_configured_model)"
+        agy_model_status="$(_preflight_agy_model_status)"
+        if [[ "$agy_model_status" == "ok" || "$agy_model_status" == "unchecked" ]]; then
+            agy_auth=true
+        else
+            log ERROR "Antigravity unavailable: configured model '$agy_configured_model' is absent from 'agy models'"
+        fi
     fi
 
     # Check Cursor Agent CLI
@@ -486,7 +520,7 @@ preflight_check() {
     if [[ "$codex_auth" == "false" && "$agy_auth" == "false" && "$cursor_agent_auth" == "false" ]]; then
         echo ""
         echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════════╗${NC}"
-        echo -e "${YELLOW}║  ⚠️  PROVIDERS FOUND BUT NOT AUTHENTICATED                    ║${NC}"
+        echo -e "${YELLOW}║  ⚠️  PROVIDERS FOUND BUT NOT READY                            ║${NC}"
         echo -e "${YELLOW}╚═══════════════════════════════════════════════════════════════╝${NC}"
         echo ""
         if [[ "$has_codex" == "true" ]]; then
@@ -499,6 +533,12 @@ preflight_check() {
             echo -e "${CYAN}Cursor Agent CLI installed but needs authentication:${NC}"
             echo -e "  agent login  ${DIM}# Cursor session${NC}"
             echo -e "  ${DIM}OR export CURSOR_API_KEY=\"...\"${NC}"
+            echo ""
+        fi
+        if [[ "$has_agy" == "true" && "$agy_model_status" == "model-invalid" ]]; then
+            echo -e "${CYAN}Antigravity CLI installed but its configured model is unavailable:${NC}"
+            echo -e "  Configured: ${YELLOW}$agy_configured_model${NC}"
+            echo -e "  Run ${CYAN}agy models${NC}, then choose an exact ID or label; use ${CYAN}default${NC} to follow AGY's selection."
             echo ""
         fi
         echo -e "Run ${GREEN}/octo:setup${NC} for guided configuration."
