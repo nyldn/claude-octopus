@@ -6,19 +6,25 @@ validation accepts the exact machine ID or display label from the live catalog,
 preflight excludes invalid configured models, review-sized prompts no longer
 stall in Bash before the CLI launches, and an opt-in live doctor verifies the
 installed CLI, catalog/keyring auth, configured model, and real print dispatch.
-[PR #912](https://github.com/nyldn/claude-octopus/pull/912) carries both fixes;
-the current branch head is pushed. Release is deferred.
+[PR #912](https://github.com/nyldn/claude-octopus/pull/912) carries both fixes.
+It is rebased onto merged PR #913, the matching changed-scope gate selected and
+passed the full matrix, and the real authenticated AGY health probe passed all
+four stages. The rebased head still needs its lease-protected push, provider
+review, and matching remote checks. Release is deferred.
 Branch: `fix/904-agy-model`
 Current release: [v9.64.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.64.0)
 Tracking: [issue #904](https://github.com/nyldn/claude-octopus/issues/904),
 [issue #915](https://github.com/nyldn/claude-octopus/issues/915)
 PR: [#912](https://github.com/nyldn/claude-octopus/pull/912)
-Next action: after PR #913 lands, rebase PR #912 onto the new changed-scope QA
-baseline, run the matching gate and review, then merge if they remain green.
-Release is deferred.
+Next action: force-push the verified rebased head with an explicit lease, run the
+AGY review against that exact PR head, verify every finding, then merge only if
+matching remote checks and review permit it. Release is deferred.
 
 ## Issue #910: Fail-Closed Changed-Scope Local Gate
 
+- Current state: [PR #913](https://github.com/nyldn/claude-octopus/pull/913)
+  was squash-merged as `25a2e80c`; issue #910 is closed. The `make ci-changed`
+  baseline is now on `upstream/main` and selected the full matrix for PR #912.
 - Root cause: repository instructions required all unit and integration suites
   before every code push. The complete unit sweep reached 267-268 suites, and
   the unrelated Council suite alone took 188-218 seconds during recent focused
@@ -131,9 +137,11 @@ Release is deferred.
   `cmd_detect_providers` output/cache checks for valid and invalid models. The
   AGY research defaults, resolver, council selection, and provider-detection
   suites pass. `make sync` and `make sync-check` are clean. The final
-  non-interactive `make ci-local` after review hardening passes 16/16 smoke
+  non-interactive `make ci-local` after review hardening passed 16/16 smoke
   suites, 267/267 unit suites, 7/7 integration suites, and the CI-only
-  verifications.
+  verifications. After rebasing onto PR #913, `make ci-changed` correctly failed
+  closed to the full matrix and passed 16/16 smoke suites, 268/268 unit suites,
+  7/7 integration suites, and the CI-only verifications.
 - Tracking blocker: Beads remains unreadable on schema v49 because its reserved
   v65 migration has not been applied. No migration was run; GitHub issue #904
   is the temporary tracker.
@@ -163,9 +171,12 @@ Release is deferred.
   four doctor stages with `gemini-3.1-pro-high`. The repaired adapter then ran a
   full three-round AGY-only review of PR #913; its three findings were checked
   against the code and rejected as false positives rather than applied blindly.
-- Verification: AGY provider coverage passes 48/48. `make sync-check` passes,
-  and a fresh `make ci-local` passes 16/16 smoke suites, 267/267 unit suites,
-  7/7 integration suites, and the CI-only verifications.
+- Verification: AGY provider coverage passes 48/48. `make sync-check` passes.
+  On the post-#913 rebased head, `make ci-changed` selected the full matrix and
+  passed 16/16 smoke suites, 268/268 unit suites, 7/7 integration suites, and
+  the CI-only verifications. The real `doctor providers --live --json` probe
+  then passed CLI install/version, catalog/keyring auth, exact model resolution,
+  and substantive print dispatch for `gemini-3.1-pro-high`.
 - Tracking blocker: Beads remains unreadable on schema v49 because its reserved
   v65 migration has not been applied. No migration was run; GitHub issue #915
   is the temporary tracker.
