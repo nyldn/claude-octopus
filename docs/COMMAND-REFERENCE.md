@@ -239,6 +239,7 @@ Run environment diagnostics across 9 check categories.
 ```
 /octo:doctor                    # Run all checks
 /octo:doctor providers          # Check provider installation only
+/octo:doctor providers --live   # Run a bounded live AGY catalog/model/dispatch probe
 /octo:doctor auth --verbose     # Detailed auth status
 /octo:doctor config             # Plugin install/version plus Claude Code feature flags
 /octo:doctor skills             # Skill loading plus modern plugin capability notes
@@ -258,6 +259,12 @@ Run environment diagnostics across 9 check categories.
 | `scheduler` | Scheduler daemon, jobs, budget gates, kill switches |
 | `skills` | Skill files loaded and valid |
 | `conflicts` | Conflicting plugin detection |
+
+`/octo:doctor providers --live` is opt-in because it sends one small real AGY
+request. It checks the installed version, live `agy models` catalog and keyring
+authentication, the configured model against that catalog, and a bounded
+print-mode response. Normal doctor and startup checks do not spend provider
+quota or trigger interactive authentication.
 
 **Modern Claude Code checks:** On Claude Code v2.1.126+, `/octo:doctor` reports which newer runtime capabilities Octopus can safely use. Current checks cover gateway model discovery opt-in, reserved MCP server names, experimental manifest key placement, `skillOverrides`, plugin zip archives, `--plugin-url`, stream-json plugin load errors, force-synchronized output, and package-manager auto-update prompts.
 

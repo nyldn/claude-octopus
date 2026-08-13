@@ -61,7 +61,7 @@ show_config_summary() {
     else
         echo -e "  ${CYAN}│${NC}  ${RED}✗${NC} Not configured"
         echo -e "  ${CYAN}│${NC}  ${YELLOW}→${NC} Install the Antigravity CLI from Google"
-        echo -e "  ${CYAN}│${NC}  ${YELLOW}→${NC} Configure: ${CYAN}agy login${NC}"
+        echo -e "  ${CYAN}│${NC}  ${YELLOW}→${NC} Configure: launch plain ${CYAN}agy${NC} and complete browser sign-in"
     fi
     echo ""
 
@@ -344,7 +344,7 @@ setup_wizard() {
         echo -e "  ${GREEN}✓${NC} Antigravity CLI already installed: $(command -v agy)"
     else
         echo -e "  ${YELLOW}✗${NC} Antigravity CLI not found"
-        echo -e "  Install ${CYAN}agy${NC} from Google Antigravity, then run ${CYAN}agy login${NC}."
+        echo -e "  Install ${CYAN}agy${NC} from Google Antigravity, then launch it and complete browser sign-in."
     fi
     echo ""
 
@@ -397,7 +397,7 @@ setup_wizard() {
 
     if command -v agy &>/dev/null; then
         echo -e "  ${GREEN}✓${NC} Antigravity CLI is available"
-        echo -e "  If needed, refresh its session with: ${CYAN}agy login${NC}"
+        echo -e "  If needed, refresh its session by launching plain ${CYAN}agy${NC} and completing browser sign-in."
     else
         echo -e "  ${YELLOW}✗${NC} Antigravity CLI is not installed"
     fi

@@ -244,7 +244,7 @@ handle_auth_command() {
             echo ""
             if command -v agy &>/dev/null; then
                 echo -e "  Antigravity: ${GREEN}✓ CLI installed${NC}"
-                echo "               Run 'agy login' if its session needs refreshing"
+                echo "               Launch plain 'agy' and complete browser sign-in if its session needs refreshing"
             else
                 echo -e "  Antigravity: ${YELLOW}○ Not configured${NC}"
                 echo "               Install agy from Google Antigravity"

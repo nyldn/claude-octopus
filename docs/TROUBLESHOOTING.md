@@ -3,7 +3,8 @@
 The most common failure is a provider that will not authenticate or is silently skipped. Start with the two built-in diagnostics, then use the per-provider table.
 
 ```bash
-/octo:doctor          # full health check: install, auth, version, connectivity per provider
+/octo:doctor                    # local install, auth signals, versions, and configuration
+/octo:doctor providers --live   # bounded live AGY catalog/model/dispatch check
 octopus <cmd> --verbose   # per-dispatch detail: which provider, which model, why skipped
 ```
 
@@ -16,8 +17,7 @@ A provider is used only when its CLI is installed AND its auth check passes. If 
 | Provider | Availability check | Fix |
 |----------|-------------------|-----|
 | 🔴 Codex | `codex` on PATH, auth configured | `codex login` (ChatGPT subscription) or set `OPENAI_API_KEY` |
-| 🧭 Antigravity | `agy` on PATH, auth configured | Run `agy login`; retired `gemini` provider IDs are migrated to AGY automatically |
-| 🧭 Antigravity | `agy` on PATH | Install the Antigravity CLI and sign in; verify with `agy models` |
+| 🧭 Antigravity | `agy` on PATH; opt-in live check verifies catalog, model, and dispatch | Launch plain `agy` and finish its browser sign-in, then run `/octo:doctor providers --live`. There is no separate login shell subcommand. On macOS keyring errors, open Keychain Access, find the Antigravity CLI item, and allow `agy` under Access Control. See the official [install/auth](https://antigravity.google/docs/cli/install) and [troubleshooting](https://antigravity.google/docs/cli/troubleshooting) guides. |
 | 🟢 Copilot | `copilot` on PATH plus one of: `COPILOT_GITHUB_TOKEN`, `GH_TOKEN`, `GITHUB_TOKEN`, `~/.copilot/config.json`, or `gh auth status` passing | `gh auth login` is the simplest path |
 | 🟤 Qwen | `qwen` on PATH plus `~/.qwen/oauth_creds.json` or `QWEN_API_KEY` | Free OAuth ended 2026-04-15; set `QWEN_API_KEY` or Coding-Plan auth (`OPENAI_API_KEY` + `OPENAI_BASE_URL`) |
 | ⚫ Ollama | `ollama` on PATH AND server responding at `http://localhost:11434` | `ollama serve`; a missing model is NOT auto-pulled (see below) |

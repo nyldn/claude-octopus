@@ -19,6 +19,6 @@ Use this before `/octo:embrace`, `/octo:research`, or `/octo:council` to confirm
 **Common issues:**
 - `Ollama` shows unavailable → start it with `ollama serve`
 - `Codex CLI` unavailable → run `codex login` or `npm install -g @openai/codex`
-- `Antigravity CLI` unavailable → verify `agy` is on PATH, then run `agy login` or reinstall Antigravity CLI
+- `Antigravity CLI` unavailable → verify `agy` is on PATH, then launch plain `agy` and complete its browser sign-in or reinstall Antigravity CLI
 
 Run `/octo:setup` to install or configure any missing provider.

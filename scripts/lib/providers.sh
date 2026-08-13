@@ -1371,7 +1371,7 @@ detect_providers() {
     if [[ -z "$result" ]]; then
         log WARN "No AI providers detected. Install at least one:"
         log WARN "  - Codex: npm i -g @openai/codex"
-        log WARN "  - Antigravity (Google seat): install agy, then run agy login"
+        log WARN "  - Antigravity (Google seat): install agy, then launch plain agy and complete browser sign-in"
         log WARN "  - Claude: Available in Claude Code context"
         log WARN "  - OpenRouter: Set OPENROUTER_API_KEY environment variable"
         log WARN "  - Atlas Cloud: Set ATLASCLOUD_API_KEY and ATLASCLOUD_MODEL"

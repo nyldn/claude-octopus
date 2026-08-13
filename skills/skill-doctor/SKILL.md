@@ -86,6 +86,7 @@ resolved in the same Bash call.
 
 ```bash
 bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor providers
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor providers --live
 bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor companions
 bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor auth
 bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor config
@@ -132,6 +133,14 @@ bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor --json
 # Combine: specific category + verbose
 bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor auth --verbose
 ```
+
+The `providers --live` variant is an explicit, bounded AGY capability check. It
+uses one small real request to verify the CLI version, live model catalog and
+keyring authentication, configured model, and print-mode dispatch. Do not run
+it from startup hooks or routine preflight. If its catalog/auth stage fails,
+tell the user to launch plain `agy` and complete the browser sign-in; AGY has no
+separate login shell subcommand. On macOS keyring errors, direct them to Keychain
+Access, the Antigravity CLI item, and its Access Control settings.
 
 ### Step 5: Interactive Remediation (MANDATORY for fixable issues)
 
@@ -235,7 +244,7 @@ All checks pass — no action needed.
 | Codex CLI not found | `npm install -g @openai/codex` or install via `codex login` |
 | Antigravity CLI not found | Install `agy`, then verify with `agy --version` and `agy models` |
 | Perplexity not configured | `export PERPLEXITY_API_KEY="pplx-..."` (optional) |
-| Auth expired | Re-run `codex login` or `agy login` |
+| Auth expired | Re-run `codex login`; for AGY, launch plain `agy` and complete its browser sign-in |
 | Circuit breaker OPEN | Provider had 3+ consecutive transient failures — wait for cooldown or check provider status |
 | Stale state | Delete `.octo/state.json` and re-initialize |
 | Invalid hooks.json | Check `hooks.json` syntax — must be valid JSON |

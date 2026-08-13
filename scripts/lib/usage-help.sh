@@ -734,7 +734,7 @@ ${YELLOW}Environment:${NC}
   OCTOPUS_PROJECT_PERSISTENCE Set true to opt into project-local .octo/ lifecycle files
   OPENAI_API_KEY            Codex CLI (or 'codex login' OAuth)
   COMMAND_CODE_API_KEY       Command Code CLI (or authenticated CLI session)
-  AGY_AUTH_TOKEN            Antigravity CLI auth token (optional; run 'agy login' instead when possible)
+  AGY_AUTH_TOKEN            Antigravity CLI auth token (optional; launch plain 'agy' for browser sign-in)
   PERPLEXITY_API_KEY        Perplexity Sonar web search
   OPENROUTER_API_KEY        OpenRouter models
   QWEN_API_KEY              Qwen CLI (Coding-Plan: OPENAI_API_KEY + OPENAI_BASE_URL also works;

@@ -1,21 +1,21 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-13
-Status: Issue #904 is implemented on `fix/904-agy-model`. AGY model validation
-now accepts the exact machine ID or display label from the live tab-separated
-catalog, and preflight excludes an installed AGY seat when its configured model
-is unavailable. Commit `5da09982` is pushed to both remotes and
-[PR #912](https://github.com/nyldn/claude-octopus/pull/912) is open. The first
-full gate passed; the review response now bounds catalog lookup and replaces a
-static visibility assertion with behavior/cache coverage. Review-response
-commit `2d41eea0` passes the final full gate and is pushed to both remotes;
-review replies and rerun checks remain. Release is deferred.
+Status: Issues #904 and #915 are implemented on `fix/904-agy-model`. AGY model
+validation accepts the exact machine ID or display label from the live catalog,
+preflight excludes invalid configured models, review-sized prompts no longer
+stall in Bash before the CLI launches, and an opt-in live doctor verifies the
+installed CLI, catalog/keyring auth, configured model, and real print dispatch.
+[PR #912](https://github.com/nyldn/claude-octopus/pull/912) carries both fixes;
+the current branch head is pushed. Release is deferred.
 Branch: `fix/904-agy-model`
 Current release: [v9.64.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.64.0)
-Tracking: [issue #904](https://github.com/nyldn/claude-octopus/issues/904)
+Tracking: [issue #904](https://github.com/nyldn/claude-octopus/issues/904),
+[issue #915](https://github.com/nyldn/claude-octopus/issues/915)
 PR: [#912](https://github.com/nyldn/claude-octopus/pull/912)
-Next action: answer both PR #912 threads, then review rerun checks. Merge and
-release are deferred.
+Next action: after PR #913 lands, rebase PR #912 onto the new changed-scope QA
+baseline, run the matching gate and review, then merge if they remain green.
+Release is deferred.
 
 ## Issue #910: Fail-Closed Changed-Scope Local Gate
 
@@ -126,7 +126,7 @@ release are deferred.
   the supported Antigravity CLI seat even when that service exposes Gemini
   models.
 - Evidence: the real installed catalog reproduces the tab-separated shape; both
-  the live ID and label now validate. The AGY provider suite passes 44/44,
+  the live ID and label now validate. The AGY provider suite passes 48/48,
   including a red-to-green one-second stalled catalog test and behavioral
   `cmd_detect_providers` output/cache checks for valid and invalid models. The
   AGY research defaults, resolver, council selection, and provider-detection
@@ -136,6 +136,38 @@ release are deferred.
   verifications.
 - Tracking blocker: Beads remains unreadable on schema v49 because its reserved
   v65 migration has not been applied. No migration was run; GitHub issue #904
+  is the temporary tracker.
+
+## Issue #915: Review-Sized AGY Dispatch and Live Health
+
+- Root cause: `scripts/helpers/agy-exec.sh` deleted every whitespace match with
+  Bash global parameter substitution to determine whether a prompt was empty.
+  On macOS Bash 3.2 this became superlinear for review-sized mixed-content
+  prompts and consumed CPU for minutes before `agy` was ever launched. The same
+  pattern also guarded silent-output retry.
+- Dispatch fix: both checks now use Bash 3.2-compatible regular-expression
+  presence tests for a non-whitespace byte. A 64 KiB review-like prompt begins
+  dispatch within the two-second regression bound and arrives byte-for-byte at
+  the fake CLI; the old code failed that test before the child launched.
+- Live diagnostics: `octopus doctor providers --live` is explicit and bounded
+  to 30 seconds by default. It checks the installed version, live `agy models`
+  catalog/keyring access, exact configured model resolution, and a real
+  print-mode response. Normal startup/preflight remains non-billable and never
+  launches this probe.
+- Authentication contract: AGY v1.1.12 has no separate login shell subcommand.
+  Launch plain `agy` and complete its browser sign-in. On macOS keyring errors,
+  use Keychain Access, find the Antigravity CLI item, and allow `agy` under
+  Access Control. Every stale user-facing instruction was corrected and a
+  repository-wide regression prevents that nonexistent command from returning.
+- Live evidence: the installed `/Users/chris/.local/bin/agy` v1.1.12 passed all
+  four doctor stages with `gemini-3.1-pro-high`. The repaired adapter then ran a
+  full three-round AGY-only review of PR #913; its three findings were checked
+  against the code and rejected as false positives rather than applied blindly.
+- Verification: AGY provider coverage passes 48/48. `make sync-check` passes,
+  and a fresh `make ci-local` passes 16/16 smoke suites, 267/267 unit suites,
+  7/7 integration suites, and the CI-only verifications.
+- Tracking blocker: Beads remains unreadable on schema v49 because its reserved
+  v65 migration has not been applied. No migration was run; GitHub issue #915
   is the temporary tracker.
 
 ## Issue #898: Explicit Activation and Hook Latency

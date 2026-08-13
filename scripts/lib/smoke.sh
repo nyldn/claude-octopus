@@ -925,7 +925,7 @@ _display_smoke_test_error() {
             elif [[ "$provider" == "cursor" || "$provider" == "cursor-agent" || "$provider" == "Cursor Agent" ]]; then
                 echo -e "    ${DIM}Fix: agent login  OR  export CURSOR_API_KEY=\"...\"${NC}"
             elif [[ "$provider" == "agy" || "$provider" == "Antigravity" ]]; then
-                echo -e "    ${DIM}Fix: agy login${NC}"
+                echo -e "    ${DIM}Fix: launch plain agy and complete browser sign-in${NC}"
             else
                 echo -e "    ${DIM}Fix: codex login  OR  export OPENAI_API_KEY=\"...\"${NC}"
             fi

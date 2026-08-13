@@ -102,6 +102,77 @@ MOCK_AGY
     fi
 }
 
+test_agy_review_sized_prompt_dispatches_promptly() {
+    test_case "agy-exec dispatches a review-sized prompt without preprocessing stall"
+
+    local tmp_bin="$TEST_TMP_DIR/agy-large-prompt-bin"
+    local capture="$TEST_TMP_DIR/agy-large-prompt.txt"
+    local prompt_file="$TEST_TMP_DIR/agy-large-prompt.input"
+    local stdout_file="$TEST_TMP_DIR/agy-large-prompt.stdout"
+    local prompt='x '
+    local i adapter_pid launched=false
+    mkdir -p "$tmp_bin"
+    rm -f "$capture" "$stdout_file"
+
+    # Double a mixed content/whitespace fragment to a realistic 64 KiB review
+    # prompt. The old Bash 3.2 `${value//[[:space:]]/}` emptiness check becomes
+    # pathologically slow on this input before the real CLI is ever launched.
+    for ((i = 0; i < 15; i++)); do
+        prompt="${prompt}${prompt}"
+    done
+    printf '%s' "$prompt" > "$prompt_file"
+
+    cat > "$tmp_bin/agy" <<'MOCK_AGY'
+#!/usr/bin/env bash
+while (( $# > 0 )); do
+    if [[ "$1" == "--print" && $# -ge 2 ]]; then
+        printf '%s' "$2" > "${AGY_ARG_CAPTURE:?}"
+        printf '%s\n' 'mock-response'
+        exit 0
+    fi
+    shift
+done
+exit 2
+MOCK_AGY
+    chmod +x "$tmp_bin/agy"
+
+    AGY_ARG_CAPTURE="$capture" \
+    OCTOPUS_AGY_FORCE_INLINE=0 \
+    PATH="$tmp_bin:$PATH" \
+        bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" \
+        < "$prompt_file" > "$stdout_file" 2>/dev/null &
+    adapter_pid=$!
+
+    # Poll for at most two seconds. On the regression path no agy child exists,
+    # so terminating the adapter PID is sufficient and avoids leaking a stalled
+    # process into the rest of the suite.
+    for ((i = 0; i < 20; i++)); do
+        if [[ -s "$capture" ]]; then
+            launched=true
+            break
+        fi
+        sleep 0.1
+    done
+
+    if [[ "$launched" != "true" ]]; then
+        kill -TERM "$adapter_pid" 2>/dev/null || true
+        sleep 0.1
+        kill -KILL "$adapter_pid" 2>/dev/null || true
+        wait "$adapter_pid" 2>/dev/null || true
+        test_fail "agy was not launched within 2 seconds for a 64 KiB prompt"
+        return
+    fi
+
+    local adapter_rc=0
+    wait "$adapter_pid" || adapter_rc=$?
+    if [[ "$adapter_rc" -eq 0 ]] && cmp -s "$prompt_file" "$capture" && \
+       grep -Fxq 'mock-response' "$stdout_file"; then
+        test_pass
+    else
+        test_fail "large prompt dispatch failed or did not preserve the prompt (rc=$adapter_rc)"
+    fi
+}
+
 test_agy_force_inline_directive_prepended_by_default() {
     test_case "agy-exec prepends the force-inline directive by default"
 
@@ -692,6 +763,123 @@ test_agy_doctor_provider_check() {
     fi
 }
 
+test_agy_doctor_live_probe() {
+    test_case "doctor providers --live validates AGY catalog, model, and print dispatch"
+
+    local tmp_bin="$TEST_TMP_DIR/agy-doctor-live-bin"
+    local tmp_home="$TEST_TMP_DIR/agy-doctor-live-home"
+    local output
+    mkdir -p "$tmp_bin" "$tmp_home"
+    cat > "$tmp_bin/agy" <<'MOCK_AGY'
+#!/usr/bin/env bash
+case "${1:-}" in
+    --version)
+        printf '%s\n' 'agy version 1.1.12'
+        exit 0
+        ;;
+    models)
+        printf '%s\t%s\n' 'gemini-test' 'Gemini Test'
+        exit 0
+        ;;
+esac
+while (( $# > 0 )); do
+    if [[ "$1" == "--print" && $# -ge 2 ]]; then
+        printf '%s\n' 'OCTOPUS_AGY_HEALTH_OK'
+        printf '%s\n' 'LOCAL_PROVIDER_DISPATCH_WORKS'
+        exit 0
+    fi
+    shift
+done
+exit 2
+MOCK_AGY
+    chmod +x "$tmp_bin/agy"
+
+    output="$(
+        HOME="$tmp_home" \
+        OCTO_ROOT="$PROJECT_ROOT" \
+        OCTOPUS_AGY_MODEL='gemini-test' \
+        PATH="$tmp_bin:$PATH" \
+            bash "$PROJECT_ROOT/scripts/doctor.sh" providers --live --json
+    )"
+
+    if jq -e '
+        ([.[] | select(.name == "agy-live-catalog" and .status == "pass")] | length) == 1 and
+        ([.[] | select(.name == "agy-live-model" and .status == "pass")] | length) == 1 and
+        ([.[] | select(.name == "agy-live-dispatch" and .status == "pass")] | length) == 1
+    ' <<< "$output" >/dev/null; then
+        test_pass
+    else
+        test_fail "live doctor did not report all AGY stages as passing: $output"
+    fi
+}
+
+test_agy_doctor_auth_remediation() {
+    test_case "AGY live doctor gives the real browser and macOS keychain auth path"
+
+    local tmp_bin="$TEST_TMP_DIR/agy-doctor-auth-bin"
+    local tmp_home="$TEST_TMP_DIR/agy-doctor-auth-home"
+    local output detail marker="$TEST_TMP_DIR/agy-doctor-auth-dispatched"
+    mkdir -p "$tmp_bin" "$tmp_home"
+    rm -f "$marker"
+    cat > "$tmp_bin/agy" <<'MOCK_AGY'
+#!/usr/bin/env bash
+case "${1:-}" in
+    --version)
+        printf '%s\n' 'agy version 1.1.12'
+        exit 0
+        ;;
+    models)
+        printf '%s\n' 'keyring authentication unavailable' >&2
+        exit 1
+        ;;
+esac
+printf '%s\n' called > "${AGY_DISPATCH_MARKER:?}"
+exit 2
+MOCK_AGY
+    chmod +x "$tmp_bin/agy"
+
+    output="$(
+        HOME="$tmp_home" \
+        OCTO_ROOT="$PROJECT_ROOT" \
+        AGY_DISPATCH_MARKER="$marker" \
+        PATH="$tmp_bin:$PATH" \
+            bash "$PROJECT_ROOT/scripts/doctor.sh" providers --live --json
+    )"
+    detail="$(jq -r '.[] | select(.name == "agy-live-catalog") | .detail' <<< "$output")"
+
+    if jq -e '.[] | select(.name == "agy-live-catalog" and .status == "warn")' \
+        <<< "$output" >/dev/null && \
+       [[ "$detail" == *"plain 'agy'"* ]] && \
+       [[ "$detail" == *"Keychain Access"* ]] && \
+       [[ "$detail" != *"agy login"* ]] && \
+       [[ ! -e "$marker" ]]; then
+        test_pass
+    else
+        test_fail "AGY auth remediation was inaccurate or dispatch ran after catalog failure: $output"
+    fi
+}
+
+test_agy_auth_guidance_uses_real_cli_flow() {
+    test_case "user-facing AGY auth guidance never advertises a nonexistent login subcommand"
+
+    local stale
+    stale="$(grep -R -n --include='*.sh' --include='*.md' 'agy login' \
+        "$PROJECT_ROOT/.claude/skills" \
+        "$PROJECT_ROOT/.cursor-plugin/commands" \
+        "$PROJECT_ROOT/skills" \
+        "$PROJECT_ROOT/commands" \
+        "$PROJECT_ROOT/scripts" \
+        "$PROJECT_ROOT/docs" 2>/dev/null || true)"
+
+    if [[ -z "$stale" ]] && \
+       grep -q "Launch plain .*agy.*browser sign-in" "$PROJECT_ROOT/docs/TROUBLESHOOTING.md" && \
+       grep -q "Keychain Access" "$PROJECT_ROOT/docs/TROUBLESHOOTING.md"; then
+        test_pass
+    else
+        test_fail "stale AGY login guidance remains or the real browser/keychain flow is missing: $stale"
+    fi
+}
+
 test_agy_setup_visibility() {
     test_case "setup command shows Antigravity provider"
 
@@ -1125,6 +1313,7 @@ test_agy_model_config_provider
 test_agy_dispatch_native_flags
 test_agy_print_timeout_gets_a_unit
 test_agy_print_receives_prompt_argument
+test_agy_review_sized_prompt_dispatches_promptly
 test_agy_force_inline_directive_prepended_by_default
 test_agy_file_prompt_directive_permits_reading_prompt_file
 test_agy_oversize_payload_skips_gracefully
@@ -1144,6 +1333,9 @@ test_agy_sync_bypasses_timeout_wrapper
 test_agy_spawn_cli_uses_sync_dispatch
 test_agy_check_providers
 test_agy_doctor_provider_check
+test_agy_doctor_live_probe
+test_agy_doctor_auth_remediation
+test_agy_auth_guidance_uses_real_cli_flow
 test_agy_setup_visibility
 test_agy_status_visibility
 test_agy_fleet_scoring

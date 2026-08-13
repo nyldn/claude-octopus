@@ -121,7 +121,10 @@ fi
 # size, is what must be non-empty.
 prompt_content=""
 [[ -n "$prompt_file" ]] && prompt_content="$(<"$prompt_file")"
-if [[ -z "${prompt_content//[[:space:]]/}" ]]; then
+# Match for any non-whitespace byte instead of deleting every whitespace match.
+# Bash 3.2's global parameter substitution becomes superlinear on review-sized
+# prompts with many spaces and can stall for minutes before `agy` is launched.
+if [[ ! "$prompt_content" =~ [^[:space:]] ]]; then
     echo "agy-exec.sh: no prompt received on stdin; refusing to dispatch a promptless seat" >&2
     exit 2
 fi
@@ -319,7 +322,7 @@ rc=$?
 # Retry once on a silent-empty success (a documented agy failure mode), replaying
 # the cached prompt. Keyed on emptiness, not on any provider error string.
 content=$(<"$stdout_file")
-if [[ $rc -eq 0 && -z "${content//[$' \t\r\n']/}" && -n "$prompt_file" && "${OCTOPUS_AGY_NO_RETRY:-}" != "1" ]]; then
+if [[ $rc -eq 0 && ! "$content" =~ [^[:space:]] && -n "$prompt_file" && "${OCTOPUS_AGY_NO_RETRY:-}" != "1" ]]; then
     run_agy
     rc=$?
 fi
