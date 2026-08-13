@@ -105,11 +105,29 @@ else
 fi
 
 test_case "Tangle refuses dispatch when cancellation helpers are unavailable"
+dispatch_marker="$TEST_TMP_DIR/unexpected-provider-dispatch"
+rm -f "$dispatch_marker"
+behavioral_guarded=false
+if (
+    unset -f review_kill_process_tree_frozen review_kill_descendants_frozen
+    run_agent_sync() {
+        : > "$dispatch_marker"
+        return 0
+    }
+    DRY_RUN=false
+    _tangle_develop_in_workspace "guard test"
+) >/dev/null 2>&1; then
+    behavioral_guarded=false
+elif [[ ! -e "$dispatch_marker" ]]; then
+    behavioral_guarded=true
+fi
+
 workspace_definition="$(declare -f _tangle_develop_in_workspace)"
 helper_guard_line=$(awk '/declare -F review_kill_process_tree_frozen/ { print NR; exit }' <<< "$workspace_definition")
 dispatch_line=$(awk '/run_agent_sync/ { print NR; exit }' <<< "$workspace_definition")
 trap_line=$(awk "/trap 'octopus_tangle_handle_signal/ { print NR; exit }" <<< "$workspace_definition")
-if [[ "$helper_guard_line" =~ ^[0-9]+$ ]] \
+if [[ "$behavioral_guarded" == "true" ]] \
+   && [[ "$helper_guard_line" =~ ^[0-9]+$ ]] \
    && [[ "$dispatch_line" =~ ^[0-9]+$ ]] \
    && [[ "$trap_line" =~ ^[0-9]+$ ]] \
    && (( helper_guard_line < dispatch_line )) \
@@ -118,7 +136,7 @@ if [[ "$helper_guard_line" =~ ^[0-9]+$ ]] \
    && grep -Fq 'refusing to start provider work' <<< "$workspace_definition"; then
     test_pass
 else
-    test_fail "Tangle does not fail closed before provider dispatch and signal-trap installation"
+    test_fail "Tangle does not behaviorally fail closed before provider dispatch and signal-trap installation"
 fi
 
 test_case "TERM reaps ledger-only worker tree and prevents late writes"

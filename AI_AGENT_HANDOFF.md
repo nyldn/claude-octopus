@@ -54,8 +54,9 @@ remote gates, then merge PR #914. Release remains deferred.
   4/4, run-worktree isolation 16/16, Markdown plan/run-ID resolution 15/15,
   contextual review wiring 54/54, spawn PID capture 10/10, and the
   value-proposition integration test passes 19/19.
-- Full-gate evidence: the latest non-interactive `make ci-local` after all review
-  fixes passed 16/16 smoke suites, 268/268 unit suites, 7/7 integration suites,
+- Historical #900/#902 branch-gate evidence: the final non-interactive
+  `make ci-local` before stacking #901 passed 16/16 smoke suites, 268/268 unit
+  suites, 7/7 integration suites,
   and the CI-only verifications. The earlier 267/268 run exposed only a brittle
   five-line static heartbeat assertion; production ordering was correct, and
   the replacement semantic-order assertion passes in the final sweep. A prior
@@ -310,8 +311,11 @@ remote gates, then merge PR #914. Release remains deferred.
   4/4 live-provider/missing-marker recovery, 27/27 review aggregation, and
   19/19 value-proposition integration. The prior branch head also passed
   Council compatibility at 72 passed with one known macOS PTY skip. A fresh
-  complete `make ci-local` exits 0 with 16/16 smoke suites, 267/267 unit suites,
-  and 7/7 integration suites. The first complete sweep exposed three newly
+  historical branch-only `make ci-local` at `b2ac6790` exited 0 with 16/16
+  smoke suites, 267/267 unit suites, and 7/7 integration suites. Subsequent
+  stacked commits brought the current combined branch to 269 unit suites;
+  matching-head verification is recorded by PR #914 checks and the final
+  session report. The first complete sweep exposed three newly
   documented env vars missing from the accountability manifest; a later sweep
   exposed a stale integration assertion that inspected only 80 lines after the
   Tangle wrapper. Both contracts now map to behavioral tests, and the final
