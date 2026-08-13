@@ -2,16 +2,16 @@
 
 Last updated: 2026-08-13
 Status: Issues #901, #903, and #905 are implemented on a combined branch.
-PR #914 review-response regressions pass; matching-head local and remote gates
-and merge are the remaining steps.
+PR #914 review feedback is resolved and CodeRabbit approved the reviewed code;
+matching-head local and remote gates and merge are the remaining steps.
 Branch: `fix/901-tangle-integrity`
 Current release: [v9.64.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.64.0)
 Tracking: [issue #901](https://github.com/nyldn/claude-octopus/issues/901),
 [issue #903](https://github.com/nyldn/claude-octopus/issues/903), and
 [issue #905](https://github.com/nyldn/claude-octopus/issues/905); implementation
 PR [#914](https://github.com/nyldn/claude-octopus/pull/914)
-Next action: commit and push the final review response, run matching local and
-remote gates, then merge PR #914. Release remains deferred.
+Next action: complete the matching local and remote gates, then merge PR #914.
+Release remains deferred.
 
 ## Issues #900 and #902: Tangle Lifecycle Ownership
 
@@ -324,9 +324,9 @@ remote gates, then merge PR #914. Release remains deferred.
   table requires the reserved v65 migration. No migration was run. These GitHub
   issues are the temporary tracker and this handoff records the blocked `bd`
   state.
-- Push state: the rebased implementation head `6b7718bc` is pushed to both
-  `origin` and `upstream` on `fix/901-tangle-integrity`; the final review-response
-  commit is local until the matching gates begin. PR #914 targets `upstream/main`.
+- Push state: the current `fix/901-tangle-integrity` branch head is pushed to
+  both configured remotes, `origin` and `upstream`; PR #914 targets
+  `upstream/main`.
 
 ## Issue #898: Explicit Activation and Hook Latency
 
