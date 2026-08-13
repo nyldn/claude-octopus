@@ -6,14 +6,15 @@ Status: Issue #908 is implemented and proposed in PR #911 on
 findings now cross a single-document normalization boundary before persistence,
 counting, event emission, rendering, or publishing; non-object entries are
 rejected and duplicate findings collapse without changing synthesis rank or
-equal-severity input order. Review-response commit `878d41d8` and its final full
-gate are complete; push and review-thread responses remain. Release is deferred.
+equal-severity input order. Review-response commit `7134d789` is pushed to both
+remotes and its final full gate passes; review-thread responses remain. Release
+is deferred.
 Branch: `fix/908-review-aggregation`
 Current release: [v9.64.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.64.0)
 Tracking: [issue #908](https://github.com/nyldn/claude-octopus/issues/908)
 PR: [#911](https://github.com/nyldn/claude-octopus/pull/911)
-Next action: push the latest PR #911 review response and answer its three
-threads, then verify rerun checks. Merge and release remain deferred.
+Next action: answer PR #911's three review threads and verify rerun checks.
+Merge and release remain deferred.
 
 ## Issue #908: Canonical Review Findings
 
