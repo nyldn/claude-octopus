@@ -549,6 +549,37 @@ JSON
         test_fail "explicit agy model labels should be one --model argument and the prompt must reach argv via --print"
     fi
 }
+
+test_agy_catalog_lookup_timeout() {
+    test_case "agy model validation bounds a stalled catalog lookup"
+
+    local tmp_bin="$TEST_TMP_DIR/agy-stalled-catalog-bin"
+    local old_path="$PATH"
+    local started elapsed lookup_rc=0
+    mkdir -p "$tmp_bin"
+    cat > "$tmp_bin/agy" <<'MOCK_AGY'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "models" ]]; then
+    sleep 3
+    printf '%s\t%s\n' 'gemini-3.5-flash-low' 'Gemini 3.5 Flash (Low)'
+fi
+MOCK_AGY
+    chmod +x "$tmp_bin/agy"
+
+    PATH="$tmp_bin:$PATH"
+    source "$PROJECT_ROOT/scripts/lib/model-resolver.sh"
+    started=$(date +%s)
+    OCTOPUS_AGY_MODELS_TIMEOUT=1 validate_agy_model_name \
+        'gemini-3.5-flash-low' >/dev/null 2>&1 || lookup_rc=$?
+    elapsed=$(( $(date +%s) - started ))
+    PATH="$old_path"
+
+    if [[ "$lookup_rc" -ne 0 && "$elapsed" -lt 3 ]]; then
+        test_pass
+    else
+        test_fail "stalled agy catalog was not bounded: rc=$lookup_rc elapsed=${elapsed}s"
+    fi
+}
 test_agy_command_validation() {
     test_case "command validator allows agy dispatch"
 
@@ -714,15 +745,59 @@ test_agy_smoke_defaults() {
 }
 
 test_agy_preflight_visibility() {
-    test_case "preflight reports Antigravity availability from model validation"
+    test_case "provider detection emits and caches valid and invalid Antigravity models"
 
-    if grep -q '_preflight_agy_model_status' "$PROJECT_ROOT/scripts/lib/preflight.sh" && \
-       grep -q 'AGY_STATUS=\$detected_agy_status' "$PROJECT_ROOT/scripts/lib/preflight.sh" && \
-       grep -q 'Antigravity: Installed' "$PROJECT_ROOT/scripts/lib/preflight.sh" && \
-       grep -q 'Antigravity: Installed but unavailable' "$PROJECT_ROOT/scripts/lib/preflight.sh"; then
+    local fixture_bin="$TEST_TMP_DIR/agy-preflight-bin"
+    local fixture_home="$TEST_TMP_DIR/agy-preflight-home"
+    local valid_workspace="$TEST_TMP_DIR/agy-preflight-valid"
+    local invalid_workspace="$TEST_TMP_DIR/agy-preflight-invalid"
+    local jq_path valid_output invalid_output
+    mkdir -p "$fixture_bin" "$fixture_home" "$valid_workspace" "$invalid_workspace"
+    jq_path="$(command -v jq)"
+    ln -s "$jq_path" "$fixture_bin/jq"
+    cat > "$fixture_bin/agy" <<'MOCK_AGY'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "models" ]]; then
+    printf '%s\t%s\n' \
+        'gemini-3.5-flash-low' 'Gemini 3.5 Flash (Low)' \
+        'claude-sonnet-4-6' 'Claude Sonnet 4.6 (Thinking)'
+fi
+MOCK_AGY
+    chmod +x "$fixture_bin/agy"
+
+    run_agy_detection_fixture() {
+        local model="$1"
+        local workspace="$2"
+        (
+            PATH="$fixture_bin:/usr/bin:/bin"
+            HOME="$fixture_home"
+            WORKSPACE_DIR="$workspace"
+            OCTOPUS_AGY_MODEL="$model"
+            export PATH HOME WORKSPACE_DIR OCTOPUS_AGY_MODEL
+            check_claude_version() {
+                printf '%s\n' \
+                    'CLAUDE_CODE_STATUS=ok' \
+                    'CLAUDE_CODE_VERSION=2.1.229' \
+                    'CLAUDE_CODE_MINIMUM=2.1.0'
+            }
+            _is_cursor_agent_binary() { return 1; }
+            source "$PROJECT_ROOT/scripts/lib/model-resolver.sh"
+            source "$PROJECT_ROOT/scripts/lib/preflight.sh"
+            cmd_detect_providers
+        )
+    }
+
+    valid_output="$(run_agy_detection_fixture 'gemini-3.5-flash-low' "$valid_workspace" 2>/dev/null)"
+    invalid_output="$(run_agy_detection_fixture 'gemini-9-unknown' "$invalid_workspace" 2>/dev/null)"
+    unset -f run_agy_detection_fixture
+
+    if grep -q '^AGY_STATUS=ok$' <<< "$valid_output" &&
+       grep -q '^AGY_STATUS=ok$' "$valid_workspace/.provider-cache" &&
+       grep -q '^AGY_STATUS=model-invalid$' <<< "$invalid_output" &&
+       grep -q '^AGY_STATUS=model-invalid$' "$invalid_workspace/.provider-cache"; then
         test_pass
     else
-        test_fail "preflight should distinguish valid and invalid Antigravity model configuration"
+        test_fail "provider detection output/cache did not preserve AGY model status"
     fi
 }
 
@@ -1059,6 +1134,7 @@ test_agy_oversize_default_ceiling_dispatches_at_the_limit
 test_agy_pty_fallback_salvages_tty_error
 test_agy_pty_fallback_opt_out
 test_agy_dynamic_model_validation
+test_agy_catalog_lookup_timeout
 test_agy_command_validation
 test_agy_dispatch_not_gemini_wrapper
 test_agy_provider_detection

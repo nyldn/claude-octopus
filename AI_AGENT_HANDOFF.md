@@ -4,14 +4,17 @@ Last updated: 2026-08-13
 Status: Issue #904 is implemented on `fix/904-agy-model`. AGY model validation
 now accepts the exact machine ID or display label from the live tab-separated
 catalog, and preflight excludes an installed AGY seat when its configured model
-is unavailable. Commit `5da09982` is pushed to both remotes, the final full
-local gate passes, and [PR #912](https://github.com/nyldn/claude-octopus/pull/912)
-is open. Release is deferred.
+is unavailable. Commit `5da09982` is pushed to both remotes and
+[PR #912](https://github.com/nyldn/claude-octopus/pull/912) is open. The first
+full gate passed; the review response now bounds catalog lookup and replaces a
+static visibility assertion with behavior/cache coverage. Its final full gate
+passes; commit, push, and review replies remain. Release is deferred.
 Branch: `fix/904-agy-model`
 Current release: [v9.64.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.64.0)
 Tracking: [issue #904](https://github.com/nyldn/claude-octopus/issues/904)
 PR: [#912](https://github.com/nyldn/claude-octopus/pull/912)
-Next action: review PR #912 checks and feedback, then merge when approved.
+Next action: commit and push the PR #912 review response, answer both threads,
+then review checks. Merge and release are deferred.
 
 ## Issue #910: Fail-Closed Changed-Scope Local Gate
 
@@ -111,7 +114,9 @@ Next action: review PR #912 checks and feedback, then merge when approved.
   even while the error output displayed them.
 - Catalog contract: exact model IDs and exact display labels are accepted;
   partial matches remain rejected. Legacy one-label-per-line output remains
-  compatible.
+  compatible. The live lookup has a five-second default total cap through the
+  repository's portable process-group timeout, configurable within the same
+  one-to-thirty-second bound as other startup probes.
 - Preflight contract: the effective AGY pin comes from `OCTOPUS_AGY_MODEL`, then
   `providers.agy.default`, then `default`. An absent catalog entry reports
   `AGY_STATUS=model-invalid`, excludes AGY from available providers, and prints
@@ -120,11 +125,14 @@ Next action: review PR #912 checks and feedback, then merge when approved.
   the supported Antigravity CLI seat even when that service exposes Gemini
   models.
 - Evidence: the real installed catalog reproduces the tab-separated shape; both
-  the live ID and label now validate. The AGY provider suite passes 43/43, and
+  the live ID and label now validate. The AGY provider suite passes 44/44,
+  including a red-to-green one-second stalled catalog test and behavioral
+  `cmd_detect_providers` output/cache checks for valid and invalid models. The
   AGY research defaults, resolver, council selection, and provider-detection
   suites pass. `make sync` and `make sync-check` are clean. The final
-  non-interactive `make ci-local` passes 16/16 smoke suites, 267/267 unit
-  suites, 7/7 integration suites, and the CI-only verifications.
+  non-interactive `make ci-local` after review hardening passes 16/16 smoke
+  suites, 267/267 unit suites, 7/7 integration suites, and the CI-only
+  verifications.
 - Tracking blocker: Beads remains unreadable on schema v49 because its reserved
   v65 migration has not been applied. No migration was run; GitHub issue #904
   is the temporary tracker.
