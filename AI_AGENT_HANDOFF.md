@@ -1,26 +1,17 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-13
-Status: Issue #910 and its full-gate optimization follow-up are implemented on
-`fix/910-ci-changed`. The new `make ci-changed` gate selects audited focused
-suites for mapped surfaces and fails closed to the complete local matrix for
-shared, generated, manifest, or unknown changes. Full-matrix runs now report
-their slowest suites, Council fixtures reuse identical artifacts and skip only
-the separately tested detached transport, and ordinary unit tests cannot leave
-production-style Tangle worktrees in the real repository.
-Implementation commits `63fa6ef8` and `9d9e6bed` are pushed to both remotes and
-[PR #913](https://github.com/nyldn/claude-octopus/pull/913) is open. The code
-commit has prior full-matrix and CodeRabbit evidence, but merge remains deferred
-until required checks and review complete for the eventual branch head. Release
-is deferred.
-Branch: `fix/910-ci-changed`
+Status: Issue #904 is implemented on `fix/904-agy-model`. AGY model validation
+now accepts the exact machine ID or display label from the live tab-separated
+catalog, and preflight excludes an installed AGY seat when its configured model
+is unavailable. Commit `5da09982` is pushed to both remotes, the final full
+local gate passes, and [PR #912](https://github.com/nyldn/claude-octopus/pull/912)
+is open. Release is deferred.
+Branch: `fix/904-agy-model`
 Current release: [v9.64.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.64.0)
-Tracking: [issue #910](https://github.com/nyldn/claude-octopus/issues/910)
-PR: [#913](https://github.com/nyldn/claude-octopus/pull/913)
-Next action: wait for matching-head PR #913 checks and review, then merge only
-if they permit it. The separate multi-provider review workflow is currently
-limited because Claude and Copilot exhausted their weekly and monthly quotas.
-Merge and release are deferred.
+Tracking: [issue #904](https://github.com/nyldn/claude-octopus/issues/904)
+PR: [#912](https://github.com/nyldn/claude-octopus/pull/912)
+Next action: review PR #912 checks and feedback, then merge when approved.
 
 ## Issue #910: Fail-Closed Changed-Scope Local Gate
 
