@@ -7,14 +7,15 @@ catalog, and preflight excludes an installed AGY seat when its configured model
 is unavailable. Commit `5da09982` is pushed to both remotes and
 [PR #912](https://github.com/nyldn/claude-octopus/pull/912) is open. The first
 full gate passed; the review response now bounds catalog lookup and replaces a
-static visibility assertion with behavior/cache coverage. Its final full gate
-passes; commit, push, and review replies remain. Release is deferred.
+static visibility assertion with behavior/cache coverage. Review-response
+commit `2d41eea0` passes the final full gate and is pushed to both remotes;
+review replies and rerun checks remain. Release is deferred.
 Branch: `fix/904-agy-model`
 Current release: [v9.64.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.64.0)
 Tracking: [issue #904](https://github.com/nyldn/claude-octopus/issues/904)
 PR: [#912](https://github.com/nyldn/claude-octopus/pull/912)
-Next action: commit and push the PR #912 review response, answer both threads,
-then review checks. Merge and release are deferred.
+Next action: answer both PR #912 threads, then review rerun checks. Merge and
+release are deferred.
 
 ## Issue #910: Fail-Closed Changed-Scope Local Gate
 
