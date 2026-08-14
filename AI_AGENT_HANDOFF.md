@@ -1,13 +1,14 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-14
-Status: PR #877's OrcaRouter provider and all verified review remediations are
+Status: PR #877's OrcaRouter provider and all current review remediations are
 rebased onto current `upstream/main`; the final combined local gate passes.
 Branch: `fix/877-orcarouter-review`
 Current release: [v9.64.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.64.0)
 Tracking: [PR #877](https://github.com/nyldn/claude-octopus/pull/877)
-Next action: resolve current review threads, wait for matching-head remote
-checks, and merge PR #877. Release remains deferred.
+Next action: commit and push the current review-fix head, resolve the seven
+verified review threads, wait for matching-head remote checks, and merge PR
+#877. Release remains deferred.
 
 ## PR #877: OrcaRouter Provider
 
@@ -28,8 +29,14 @@ checks, and merge PR #877. Release remains deferred.
   new shell function while command validation rejected it; the validator now
   accepts only the two exact OrcaRouter function names and rejects lookalikes.
   The round-trip regression passes 6/6 and command validation passes 44/44.
-  No known review finding remains unaddressed in the local head.
-- Focused evidence: OrcaRouter passes 17/17; release sync 8/8; provider registry
+  CodeRabbit's next review produced seven findings. Each was checked against
+  the current code before editing: provider status and Council now share one
+  explicit enabled-plus-key gate; secret persistence replaces both plain and
+  `export` assignments; Sonnet 4.6 records its verified 1M context; empty API
+  responses fail; interrupt cleanup runs through an isolated EXIT trap; and
+  the resolver/temp-fixture tests use their documented contracts. No known
+  review finding remains unaddressed in the local head.
+- Focused evidence: OrcaRouter passes 22/22; release sync 8/8; provider registry
   contracts 14/14; shipped model resolution 7/7; shared marketplace 17/17; AGY
   50/50; availability 15/15; provider contract audit 4/4; auth validity 18/18;
   and council model selection 10/10. `make sync-check`, ShellCheck error-level
@@ -39,8 +46,8 @@ checks, and merge PR #877. Release remains deferred.
   7/7 integration suites plus all CI-only verifications. Council passed 73/74
   cases with its one documented macOS PTY skip.
 - Delivery constraint: the GitHub PR head belongs to contributor
-  `Marc-oss-hub`. Its pre-update SHA is
-  `32d6ee861cab98bafe2d1d7ee26b974e306fb113`; push only with an exact
+  `Marc-oss-hub`. Its current remote SHA before this review-fix push is
+  `4d61e17ef896b9ade3440bc19a766e1496d6d1ed`; push only with an exact
   force-with-lease after re-verifying that SHA. A contributor-owned branch may
   remain after merge if repository maintainers cannot delete it.
 - Tracking blocker: Beads remains blocked by its pending schema migration. No

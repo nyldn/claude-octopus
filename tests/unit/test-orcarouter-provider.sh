@@ -57,7 +57,7 @@ else
 fi
 
 test_case "suffixed orcarouter agents keep a namespaced OrcaRouter ID"
-if [[ "$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="orcarouter-suffix" resolve_octopus_model orcarouter-reviewer orcarouter 2>/dev/null)" == "anthropic/claude-sonnet-4.6" ]]; then
+if [[ "$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="orcarouter-suffix" resolve_octopus_model orcarouter orcarouter-reviewer 2>/dev/null)" == "anthropic/claude-sonnet-4.6" ]]; then
     test_pass
 else
     test_fail "suffixed OrcaRouter agent fell through to another provider default"
@@ -68,6 +68,7 @@ if is_known_model "anthropic/claude-sonnet-4.6" &&
    is_known_model "anthropic/claude-opus-4.8" &&
    is_known_model "anthropic/claude-haiku-4.5" &&
    [[ "$(get_model_capability "anthropic/claude-sonnet-4.6" provider)" == "orcarouter" ]] &&
+   [[ "$(get_model_capability "anthropic/claude-sonnet-4.6" context_k)" == "1000" ]] &&
    [[ "$(get_model_capability "anthropic/claude-opus-4.8" context_k)" == "1000" ]]; then
     test_pass
 else
@@ -101,6 +102,7 @@ else
     test_fail "blocked model reached execution: ${ORCAROUTER_CAPTURED_MODEL:-none}"
 fi
 unset OCTOPUS_ORCAROUTER_MODEL OCTOPUS_ORCAROUTER_ALLOWED_MODELS
+source "$PROJECT_ROOT/scripts/lib/perplexity.sh"
 
 test_case "orcarouter retry increment is safe under errexit"
 if grep -Ec -- '\(\([[:space:]]*\+\+attempt[[:space:]]*\)\)' \
@@ -112,10 +114,78 @@ else
     test_fail "OrcaRouter retry still uses a zero-valued post-increment"
 fi
 
+test_case "orcarouter execution fails when a successful response has no message content"
+curl() {
+    printf '%s' '{"choices":[{"message":{"content":""}}]}200'
+}
+ORCAROUTER_API_KEY="sk-orca-empty-response-test"
+VERBOSE="false"
+set +e
+empty_response_output=$(orcarouter_execute_model \
+    "anthropic/claude-sonnet-4.6" "review this" review 2 2>/dev/null)
+empty_response_rc=$?
+set -e
+unset -f curl
+unset ORCAROUTER_API_KEY
+if [[ "$empty_response_rc" -ne 0 && "$empty_response_output" == *'"choices"'* ]]; then
+    test_pass
+else
+    test_fail "empty OrcaRouter content returned status=$empty_response_rc"
+fi
+
+test_case "orcarouter execution removes its header file when interrupted"
+interrupt_tmp="$TEST_TMP_DIR/orcarouter-interrupt"
+mkdir -p "$interrupt_tmp"
+TMPDIR="$interrupt_tmp" ORCAROUTER_API_KEY="sk-orca-interrupt-test" \
+    bash -c '
+        log() { :; }
+        json_escape() { printf "%s" "$1"; }
+        curl() {
+            local header_file=""
+            printf "%s\n" "$BASHPID" > "$TMPDIR/request.pid"
+            while [[ $# -gt 0 ]]; do
+                if [[ "$1" == "-D" ]]; then
+                    header_file="$2"
+                    shift 2
+                else
+                    shift
+                fi
+            done
+            printf "Retry-After: 2\r\n" > "$header_file"
+            printf "%s" "{}429"
+        }
+        VERBOSE=false
+        source "$1/scripts/lib/perplexity.sh"
+        orcarouter_execute_model "anthropic/claude-sonnet-4.6" "review this" review 2
+    ' _ "$PROJECT_ROOT" > "$interrupt_tmp/output" 2>&1 &
+interrupt_pid=$!
+header_created="false"
+for _attempt in {1..100}; do
+    if [[ -s "$interrupt_tmp/request.pid" ]] &&
+            find "$interrupt_tmp" -maxdepth 1 -name 'octo-orca-headers.*' -print -quit | grep -q .; then
+        header_created="true"
+        break
+    fi
+    sleep 0.02
+done
+request_pid=""
+[[ -s "$interrupt_tmp/request.pid" ]] && request_pid="$(<"$interrupt_tmp/request.pid")"
+[[ -n "$request_pid" ]] && kill -TERM "$request_pid" 2>/dev/null || true
+set +e
+wait "$interrupt_pid" 2>/dev/null
+interrupt_rc=$?
+set -e
+if [[ "$header_created" == "true" && "$interrupt_rc" -ne 0 ]] &&
+        ! find "$interrupt_tmp" -maxdepth 1 -name 'octo-orca-headers.*' -print -quit | grep -q .; then
+    test_pass
+else
+    test_fail "interrupted OrcaRouter call left a response-header file"
+fi
+
 # Detection: an ORCAROUTER_API_KEY alone must surface orcarouter in the
 # provider inventory, mirroring the openrouter api-key detection.
 test_case "detect_providers surfaces orcarouter with an API key"
-stub_dir=$(mktemp -d)
+stub_dir=$(mktemp -d "$TEST_TMP_DIR/orcarouter-detect.XXXXXX")
 set +e
 detected=$(env "HOME=$stub_dir" "PATH=$PATH" "ORCAROUTER_API_KEY=sk-orca-test" \
     "OCTO_ALLOWED_PROVIDERS=orcarouter" bash -c \
@@ -177,6 +247,65 @@ else
     test_fail "provider status did not resolve the legacy OrcaRouter key"
 fi
 
+test_case "provider status does not advertise disabled OrcaRouter configuration"
+disabled_workspace="$TEST_TMP_DIR/orcarouter-disabled"
+mkdir -p "$disabled_workspace"
+printf '%s\n' \
+    'providers:' \
+    '  orcarouter:' \
+    '    enabled: false' \
+    '    api_key_set: true' \
+    > "$disabled_workspace/.providers-config"
+set +e
+disabled_status=$(env "HOME=$TEST_TMP_DIR" "PATH=$PATH" \
+    "WORKSPACE_DIR=$disabled_workspace" \
+    "ORCAROUTER_API_KEY=sk-orca-disabled-test" \
+    "OCTO_ALLOWED_PROVIDERS=orcarouter" \
+    bash "$PROJECT_ROOT/scripts/helpers/check-providers.sh")
+disabled_status_rc=$?
+set -e
+if [[ "$disabled_status_rc" -eq 0 && "$disabled_status" == *"orcarouter:missing"* ]]; then
+    test_pass
+else
+    test_fail "disabled OrcaRouter configuration was advertised as available"
+fi
+
+test_case "OrcaRouter availability requires api_key_set in explicit configuration"
+old_providers_config_file="${PROVIDERS_CONFIG_FILE:-}"
+printf '%s\n' \
+    'providers:' \
+    '  orcarouter:' \
+    '    enabled: true' \
+    '    api_key_set: false' \
+    > "$disabled_workspace/.providers-config"
+PROVIDERS_CONFIG_FILE="$disabled_workspace/.providers-config"
+ORCAROUTER_API_KEY="sk-orca-unconfigured-test"
+if octo_api_key_provider_is_available "orcarouter" "ORCAROUTER_API_KEY"; then
+    test_fail "api_key_set=false was ignored"
+else
+    test_pass
+fi
+unset ORCAROUTER_API_KEY
+
+source "$PROJECT_ROOT/scripts/lib/council.sh"
+test_case "Council does not seat disabled OrcaRouter configuration"
+printf '%s\n' \
+    'providers:' \
+    '  orcarouter:' \
+    '    enabled: false' \
+    '    api_key_set: true' \
+    > "$disabled_workspace/.providers-config"
+COUNCIL_PROVIDERS="orcarouter"
+ORCAROUTER_API_KEY="sk-orca-disabled-test"
+council_detect_providers
+if [[ "$(jq -r '.orcarouter' <<< "$COUNCIL_PROVIDER_STATUS_JSON")" == "missing" ]]; then
+    test_pass
+else
+    test_fail "Council seated OrcaRouter despite enabled=false"
+fi
+PROVIDERS_CONFIG_FILE="$old_providers_config_file"
+unset ORCAROUTER_API_KEY
+
 test_case "OrcaRouter setup keeps the API key out of terminal output"
 config_display="$PROJECT_ROOT/scripts/lib/config-display.sh"
 if grep -Eq -- 'read -r -s -p .*OrcaRouter API key' "$config_display" &&
@@ -193,7 +322,11 @@ source "$config_display"
 test_case "OrcaRouter secret persistence is private, atomic, and silent"
 secret_env="$TEST_TMP_DIR/provider-secrets.env"
 secret_output="$TEST_TMP_DIR/provider-secrets.out"
-printf '%s\n' 'KEEP_ME=yes' 'ORCAROUTER_API_KEY=old-value' > "$secret_env"
+printf '%s\n' \
+    'KEEP_ME=yes' \
+    'export ORCAROUTER_API_KEY=older-exported-value' \
+    'ORCAROUTER_API_KEY=old-value' \
+    > "$secret_env"
 chmod 644 "$secret_env"
 umask_before=$(umask)
 set +e
@@ -209,7 +342,7 @@ if stat -f '%Lp' "$secret_env" >/dev/null 2>&1; then
 else
     secret_mode=$(stat -c '%a' "$secret_env")
 fi
-secret_count=$(grep -Ec -- '^ORCAROUTER_API_KEY=' "$secret_env")
+secret_count=$(grep -Ec -- '^[[:space:]]*(export[[:space:]]+)?ORCAROUTER_API_KEY=' "$secret_env")
 if [[ "$persist_rc" -eq 0 && ! -s "$secret_output" && \
         "$umask_before" == "$umask_after" && "$secret_mode" == "600" && \
         "$secret_count" -eq 1 ]] && \
@@ -229,12 +362,12 @@ else
     test_fail "only $smoke_guard_count OrcaRouter smoke paths require both flags"
 fi
 
-test_case "Council resolves the OrcaRouter key before availability checks"
+test_case "Council uses the shared OrcaRouter availability gate"
 if grep -A8 -E '^[[:space:]]*orcarouter\)' "$PROJECT_ROOT/scripts/lib/council.sh" |
-        grep -Ec -- 'resolve_provider_env "ORCAROUTER_API_KEY"' >/dev/null; then
+        grep -Ec -- 'octo_api_key_provider_is_available "orcarouter" "ORCAROUTER_API_KEY"' >/dev/null; then
     test_pass
 else
-    test_fail "Council does not resolve profile-backed OrcaRouter credentials"
+    test_fail "Council bypasses the shared enabled-plus-key gate"
 fi
 
 test_summary

@@ -287,7 +287,14 @@ persist_provider_secret() (
     temp_file=$(mktemp "${env_file}.tmp.XXXXXX") || return 1
 
     if [[ -f "$env_file" ]]; then
-        awk -v name="$var_name" 'index($0, name "=") != 1 { print }' \
+        awk -v name="$var_name" '
+            {
+                assignment = $0
+                sub(/^[[:space:]]+/, "", assignment)
+                sub(/^export[[:space:]]+/, "", assignment)
+                if (index(assignment, name "=") != 1) print
+            }
+        ' \
             "$env_file" > "$temp_file" || {
             rm -f "$temp_file"
             return 1

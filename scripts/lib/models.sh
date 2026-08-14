@@ -61,7 +61,7 @@ get_model_catalog() {
         deepseek/deepseek-v4-pro)  echo "1000|yes|no|yes|openrouter|standard|active" ;;
         deepseek/deepseek-r1-0528) echo "164|yes|no|yes|openrouter|standard|legacy" ;;
         # OrcaRouter (gateway exposes anthropic/* namespace)
-        anthropic/claude-sonnet-4.6) echo "200|yes|yes|no|orcarouter|standard|active" ;;
+        anthropic/claude-sonnet-4.6) echo "1000|yes|yes|no|orcarouter|standard|active" ;;
         anthropic/claude-opus-4.8)   echo "1000|yes|yes|yes|orcarouter|premium|active" ;;
         anthropic/claude-haiku-4.5)  echo "200|yes|yes|yes|orcarouter|budget|active" ;;
         # OpenCode (multi-provider router — models use opencode/<model> namespace)

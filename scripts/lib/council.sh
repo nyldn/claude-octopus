@@ -65,6 +65,9 @@ _council_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=scripts/lib/benchmark-routing.sh
 source "${_council_lib_dir}/benchmark-routing.sh" 2>/dev/null || true
 source "${_council_lib_dir}/openai-compatible.sh" 2>/dev/null || true
+if ! declare -f octo_api_key_provider_is_available >/dev/null 2>&1; then
+    source "${_council_lib_dir}/provider-routing.sh" 2>/dev/null || true
+fi
 source "${_council_lib_dir}/agent-sync.sh" 2>/dev/null || true
 source "${_council_lib_dir}/features.sh" 2>/dev/null || true
 unset _council_lib_dir
@@ -2436,11 +2439,9 @@ council_detect_providers() {
                 orcarouter)
                     # API-key provider, not a CLI binary — no `orcarouter` executable
                     # ships with the plugin. Dispatch goes through the shell function
-                    # orcarouter_execute, so probe the key instead of `command -v`.
-                    if [[ -z "${ORCAROUTER_API_KEY:-}" ]] && declare -f resolve_provider_env >/dev/null 2>&1; then
-                        resolve_provider_env "ORCAROUTER_API_KEY" 2>/dev/null || true
-                    fi
-                    if [[ -n "${ORCAROUTER_API_KEY:-}" ]]; then
+                    # orcarouter_execute, so use the shared enabled-plus-key gate.
+                    if declare -f octo_api_key_provider_is_available >/dev/null 2>&1 && \
+                       octo_api_key_provider_is_available "orcarouter" "ORCAROUTER_API_KEY"; then
                         status="available"
                     else
                         status="missing"

@@ -176,7 +176,7 @@ openrouter_execute() {
 # First arg is the fixed model ID, remaining args are prompt/task/complexity/output
 # Features: --max-time 60, HTTP status code handling (429 retry w/ Retry-After,
 #           502/503/524 error reporting)
-orcarouter_execute_model() {
+orcarouter_execute_model() (
     local model="$1"
     local prompt="$2"
     local task_type="${3:-general}"
@@ -212,7 +212,10 @@ EOF
 
     # Temporary file for response headers (needed for Retry-After parsing)
     local header_file
-    header_file=$(mktemp "${TMPDIR:-/tmp}/octo-orca-headers.XXXXXX")
+    header_file=$(mktemp "${TMPDIR:-/tmp}/octo-orca-headers.XXXXXX") || return 1
+    trap 'rm -f "$header_file"' EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
 
     local raw_response http_code response
     local attempt=0
@@ -230,7 +233,6 @@ EOF
             -H "X-Title: Claude Octopus" \
             -d "$payload") || {
             log ERROR "OrcaRouter curl failed (timeout or network error, model=$model)"
-            rm -f "$header_file"
             return 1
         }
 
@@ -243,7 +245,6 @@ EOF
             429)
                 if (( attempt + 1 >= max_attempts )); then
                     log ERROR "OrcaRouter rate limited (429) after retry (model=$model)"
-                    rm -f "$header_file"
                     return 1
                 fi
                 # Parse Retry-After header (seconds); default to 5s if absent
@@ -260,31 +261,25 @@ EOF
                 ;;
             502)
                 log ERROR "OrcaRouter bad gateway (502) — upstream provider down (model=$model)"
-                rm -f "$header_file"
                 return 1
                 ;;
             503)
                 log ERROR "OrcaRouter service unavailable (503) — model may be overloaded (model=$model)"
-                rm -f "$header_file"
                 return 1
                 ;;
             524)
                 log ERROR "OrcaRouter timeout (524) — upstream request took too long (model=$model)"
-                rm -f "$header_file"
                 return 1
                 ;;
             *)
                 if [[ "${http_code:0:1}" != "2" ]]; then
                     log ERROR "OrcaRouter HTTP $http_code (model=$model)"
-                    rm -f "$header_file"
                     return 1
                 fi
                 break ;;
         esac
         (( ++attempt ))
     done
-
-    rm -f "$header_file"
 
     # Extract content from OpenAI-compatible nested path .choices[0].message.content.
     local content=""
@@ -299,6 +294,7 @@ EOF
         fi
         log WARN "Empty response from OrcaRouter ($model)"
         echo "$response"
+        return 1
     else
         local result
         result=$(echo "$content" | sed 's/\\n/\n/g; s/\\t/\t/g; s/\\"/"/g')
@@ -308,7 +304,7 @@ EOF
             echo "$result"
         fi
     fi
-}
+)
 
 # OrcaRouter agent wrapper for spawn_agent compatibility
 # Resolves model from task_type/complexity, then calls the core implementation
