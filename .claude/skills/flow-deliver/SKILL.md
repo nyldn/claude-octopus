@@ -332,13 +332,19 @@ if [[ -n "$PR_NUM" ]]; then
     # Extract summary section from validation file for PR comment
     REVIEW_SUMMARY=$(head -60 "$VALIDATION_FILE")
 
-    gh pr comment "$PR_NUM" --body "## Deliver Phase — Validation Report
+    REPO_SLUG=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+    COMMENT_BODY="## Deliver Phase — Validation Report
 
 ${REVIEW_SUMMARY}
 
----
+___
 *Multi-AI validation by Claude Octopus (/octo:deliver)*
 *Providers: available external providers + 🔵 Claude*"
+    if ! "${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}/scripts/safe-gh-comment.sh" \
+            --repo "$REPO_SLUG" pr-comment "$PR_NUM" - <<< "$COMMENT_BODY"; then
+        echo "Validation report was blocked or failed; nothing was posted." >&2
+        return 1 2>/dev/null || exit 1
+    fi
 
     echo "Validation report posted to PR #${PR_NUM}"
 

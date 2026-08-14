@@ -1318,21 +1318,30 @@ test_council_dispatch_strips_blocked_env_but_sets_disposable_mode() {
     test_case "Council dispatch strips blocked caller env while setting disposable-workspace mode"
     load_council_lib || return 1
 
-    local tmp_dir env_capture
+    local tmp_dir env_capture source_dir
     tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-env.XXXXXX")"
     env_capture="$tmp_dir/env.out"
+    source_dir="$tmp_dir/source"
+    mkdir -p "$source_dir"
 
     run_agent_sync() {
         env > "$env_capture"
         echo "ok"
     }
 
-    OCTOPUS_SECURITY_V870=false \
-    OCTOPUS_AGY_SANDBOX=unsafe \
-    OCTOPUS_CODEX_SANDBOX=caller-danger \
-    CLAUDE_OCTOPUS_AUTONOMY=autonomous \
-    OCTOPUS_COUNCIL_PROVIDER_FIXTURE='codex:available' \
-        council_run --providers codex --depth quick --members 3 --output-dir "$tmp_dir" "Review auth"
+    if ! (
+        cd "$source_dir" || exit 1
+        OCTOPUS_SECURITY_V870=false \
+        OCTOPUS_AGY_SANDBOX=unsafe \
+        OCTOPUS_CODEX_SANDBOX=caller-danger \
+        CLAUDE_OCTOPUS_AUTONOMY=autonomous \
+        OCTOPUS_COUNCIL_PROVIDER_FIXTURE='codex:available' \
+            council_run --providers codex --depth quick --members 3 --output-dir "$tmp_dir/output" "Review auth"
+    ); then
+        unset -f run_agent_sync
+        test_fail "council env-isolation fixture failed"
+        return 1
+    fi
 
     if grep -q '^OCTOPUS_CODEX_SANDBOX=danger-full-access$' "$env_capture" &&
        ! grep -q '^OCTOPUS_SECURITY_V870=' "$env_capture" &&

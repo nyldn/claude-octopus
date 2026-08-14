@@ -49,6 +49,7 @@ Mirror of the "Repo Orientation for Agents" section in `CLAUDE.md` (keep both in
 - **Provider wiring**: 7-point checklist across 5 files, documented in `docs/PROVIDERS.md`. Case globs are order-sensitive (`claude-sdk*` before `claude*`).
 - **Releases**: follow `RELEASING.md`; tag the squash-merge commit on `main`, never the branch head.
 - **Secret-scan quoting**: write `"SOME_API_KEY=${VAR}"`, not `SOME_API_KEY="${VAR}"`.
+- **Outbound GitHub text**: never place generated text or Markdown directly in shell `--body`, `-f body=`, or similar arguments. Stream it to `./scripts/safe-gh-comment.sh --repo OWNER/REPO ... -` on stdin (or pass a private file); the helper snapshots and validates the body before a silent GitHub write.
 - **beads blocked?** If bd writes are blocked by pending schema migrations, do NOT migrate; record work in the session handoff and flag the blockage.
 
 ## Cross-Harness Continuity

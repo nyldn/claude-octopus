@@ -311,13 +311,19 @@ if [[ -n "$CURRENT_BRANCH" && "$CURRENT_BRANCH" != "main" && "$CURRENT_BRANCH" !
 fi
 
 if [[ -n "$PR_NUM" ]]; then
-    # Post combined report as PR comment
-    gh pr comment "$PR_NUM" --body "## Staged Review — Claude Octopus
+    # Post combined report through the outbound credential gate.
+    REPO_SLUG=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+    COMMENT_BODY="## Staged Review — Claude Octopus
 
 ${COMBINED_REPORT}
 
 ---
 *Staged review by Claude Octopus (/octo:staged-review)*"
+    if ! "${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}/scripts/safe-gh-comment.sh" \
+            --repo "$REPO_SLUG" pr-comment "$PR_NUM" - <<< "$COMMENT_BODY"; then
+        echo "Staged review comment was blocked or failed; nothing was posted." >&2
+        return 1 2>/dev/null || exit 1
+    fi
 
     echo "Staged review posted to PR #${PR_NUM}"
 fi

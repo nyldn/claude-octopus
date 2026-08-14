@@ -336,6 +336,7 @@ release, run `make ci-local` (the complete required-check and CI-only matrix).
 - Provider case globs are order-sensitive: `claude-sdk*` must appear before `claude*`. A shadowed arm fails silently.
 - `provider-routing.sh` has TWO provider whitelists (plus two matching error strings). Update all four sites or dispatch rejects the provider inconsistently.
 - In shell, quote env assignments as whole arguments: `"SOME_API_KEY=${VAR}"`, not `SOME_API_KEY="${VAR}"`. The expert-review secret scanner false-positives on the latter.
+- Never put generated text or Markdown directly in shell GitHub-body arguments such as `--body` or `-f body=`. Stream it to `./scripts/safe-gh-comment.sh --repo OWNER/REPO ... -` on stdin (or pass a private file); the helper snapshots and validates outbound text before a silent write.
 - CI waiters must assert the named required checks (Smoke Tests, Unit Tests, Integration Tests) are PRESENT and terminal. `all(.bucket != "pending")` over an empty list is vacuously true and fires instantly.
 - Timeout-test fixtures must run LONGER than the pass bound, or a broken timeout false-passes. A test must be able to fail; prove it can.
 - Tag releases on the squash-merge commit on `main`, never on the branch head. Full release procedure: `RELEASING.md`.

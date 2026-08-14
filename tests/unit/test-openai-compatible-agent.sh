@@ -9,6 +9,9 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "OpenAI-compatible tool-loop agent"
 
+# Keep cache-key assertions independent of the caller's configured cost mode.
+unset OCTOPUS_COST_MODE
+
 pass() { test_case "$1"; test_pass; }
 fail() { test_case "$1"; test_fail "${2:-$1}"; }
 

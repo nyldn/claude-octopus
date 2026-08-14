@@ -287,17 +287,18 @@ echo ""
 # --- 4. Create PR ---
 
 echo "4/8 Creating PR..."
-PR_URL=$(gh pr create \
-    -R "$REPO_SLUG" \
-    --head "$BRANCH" \
-    --title "chore: release v${VERSION}" \
-    --body "## Release v${VERSION}
+PR_BODY="## Release v${VERSION}
 
 ${SUMMARY}
 
 ---
-🤖 Generated with release.sh" \
-    2>&1)
+🤖 Generated with release.sh"
+if ! PR_URL=$("$SCRIPT_DIR/safe-gh-comment.sh" \
+        --repo "$REPO_SLUG" pr-create "chore: release v${VERSION}" \
+        "$BRANCH" - <<< "$PR_BODY"); then
+    echo "   ERROR: PR creation was blocked or failed."
+    exit 1
+fi
 PR_NUM=$(echo "$PR_URL" | grep -oE '[0-9]+$')
 echo "   PR #${PR_NUM}: ${PR_URL}"
 echo ""

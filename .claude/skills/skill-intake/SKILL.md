@@ -79,9 +79,17 @@ with anything in flight.
 
 ### 5. Record it
 
-`gh issue comment` / `gh issue edit --add-label` for the public surface. `bd
-update` for tracked work. If `bd` writes are blocked by pending migrations, say
-so and do not run the migration — see `skill-work-slicing` for that constraint.
+For public comment text, stream the completed note through the outbound gate:
+
+```bash
+printf '%s\n' "$TRIAGE_NOTE" | \
+  "${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}/scripts/safe-gh-comment.sh" \
+    --repo OWNER/REPO issue-comment ISSUE_NUMBER -
+```
+
+Use `gh issue edit --add-label` only for the label mutation. Use `bd update` for
+tracked work. If `bd` writes are blocked by pending migrations, say so and do
+not run the migration — see `skill-work-slicing` for that constraint.
 
 ## Provider Or Data Priority
 

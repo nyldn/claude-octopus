@@ -971,13 +971,15 @@ exit 2
 MOCK_AGY
     chmod +x "$tmp_bin/agy"
 
+    # Keep the wall-clock assertion scoped to the mocked AGY provider. Host
+    # CLIs can add unrelated live/auth work to the full doctor invocation.
     started=$(date +%s)
     output="$(
         HOME="$tmp_home" \
         OCTO_ROOT="$PROJECT_ROOT" \
         OCTOPUS_AGY_MODEL='gemini-test' \
         OCTOPUS_AGY_HEALTH_TIMEOUT=1 \
-        PATH="$tmp_bin:$PATH" \
+        PATH="$tmp_bin:/usr/bin:/bin" \
             bash "$PROJECT_ROOT/scripts/doctor.sh" providers --live --json
     )"
     elapsed=$(( $(date +%s) - started ))

@@ -181,10 +181,9 @@ FEATURE_BRANCH=$(git branch --show-current)
 # Push branch
 git push -u origin $FEATURE_BRANCH
 
-# Create PR with description
-gh pr create \
-  --title "feat: [description]" \
-  --body "$(cat <<'EOF'
+# Create PR with a validated description file
+REPO_SLUG=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+PR_BODY=$(cat <<'EOF'
 ## Summary
 - [What changed]
 - [Why it changed]
@@ -194,7 +193,12 @@ gh pr create \
 - [x] Manual verification done
 - [ ] Code review needed
 EOF
-)"
+)
+if ! "${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}/scripts/safe-gh-comment.sh" \
+    --repo "$REPO_SLUG" pr-create "feat: [description]" "$FEATURE_BRANCH" - <<< "$PR_BODY"; then
+  echo "PR creation was blocked or failed; no PR was created." >&2
+  return 1 2>/dev/null || exit 1
+fi
 ```
 
 **Report:**

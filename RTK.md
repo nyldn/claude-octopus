@@ -33,6 +33,10 @@ the blockage and work in `AI_AGENT_HANDOFF.md`, then flag it to the maintainer.
 - Releases follow `RELEASING.md`. Squash-merge the release PR, verify the exact
   merge commit on `main`, wait for that commit's required CI, and tag that
   commit rather than the branch head.
+- Outbound GitHub comments and reviews never pass generated text or Markdown
+  through inline shell body arguments. Stream the body to
+  `./scripts/safe-gh-comment.sh --repo OWNER/REPO ... -` on stdin (or pass a
+  private file); the helper snapshots, validates, and posts without echoing it.
 - Scripts remain executable. Recheck for mode changes after local tests because
   test fixtures can change modes as a side effect.
 - Run targeted tests while developing and `make ci-changed` before an ordinary

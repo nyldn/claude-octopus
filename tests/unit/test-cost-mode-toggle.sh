@@ -9,6 +9,9 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "Cost mode quick toggles"
 
+# Host configuration must not override the isolated providers.json fixture.
+unset OCTOPUS_COST_MODE
+
 MODEL_CONFIG="$PROJECT_ROOT/scripts/helpers/octo-model-config.sh"
 MODEL_RESOLVER="$PROJECT_ROOT/scripts/lib/model-resolver.sh"
 PLUGIN_MANIFEST="$PROJECT_ROOT/.claude-plugin/plugin.json"

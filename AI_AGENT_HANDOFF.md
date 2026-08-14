@@ -1,15 +1,61 @@
 # AI Agent Handoff
 
-Last updated: 2026-08-13
-Status: All GitHub issues are closed. Issues #901, #903, and #905 were resolved
-by squash-merging PR #914 as `6e84959d`; no release was requested or created.
-Branch: `main`
+Last updated: 2026-08-14
+Status: Issue #916 is implemented and locally verified; the revoked credential
+alert remains open until the fix is merged and the alert is marked resolved.
+Branch: `fix/916-safe-github-comments`
 Current release: [v9.64.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.64.0)
-Tracking: [issue #901](https://github.com/nyldn/claude-octopus/issues/901),
-[issue #903](https://github.com/nyldn/claude-octopus/issues/903), and
-[issue #905](https://github.com/nyldn/claude-octopus/issues/905); implementation
-PR [#914](https://github.com/nyldn/claude-octopus/pull/914)
-Next action: none for the issue backlog. Release remains deferred.
+Tracking: [issue #916](https://github.com/nyldn/claude-octopus/issues/916)
+Next action: commit, push, open and merge the issue-closing PR, then resolve
+GitHub secret-scanning alert #1 as revoked. Release remains deferred.
+
+## Issue #916: Fail-Closed Outbound GitHub Text
+
+- Incident root cause: an agent placed generated Markdown inside a double-quoted
+  shell argument to `gh api -f body=...`. Markdown backticks executed command
+  substitution before GitHub CLI started, inserting the process environment
+  into a public review reply. The comment was deleted after roughly eleven
+  seconds. This was an agent-side GitHub write, not a Claude Octopus provider,
+  AGY, or runtime credential leak. The owner revoked the Perplexity credential.
+- Outbound gate: `scripts/safe-gh-comment.sh` accepts GitHub text only through a
+  private file or bounded standard-input snapshot. It validates UTF-8, control
+  bytes, size, repository/identifier/path arguments, common credential formats,
+  sensitive assignments and structured fields, authenticated URLs, environment
+  dumps, and placeholders before invoking a silent GitHub write. Scanner errors
+  fail closed, and signal handling cancels the child write and removes snapshots.
+- Integration: review comments/replies, inline findings, release PR creation,
+  delivery, staged-review, code-review, finish-branch, and intake guidance all
+  use the gate. Repository-wide agent instructions prohibit generated GitHub
+  text in inline shell body arguments. Generated Codex skills were rebuilt from
+  canonical `.claude/skills/` sources.
+- Review response: two external review rounds were run with publishing disabled
+  and Perplexity removed from the provider environment. Valid parser and signal
+  findings were reproduced before fixes; the claimed PID-assignment signal gap
+  was rejected twice by a deterministic trap regression. Claude and Codex
+  participated; AGY reported exhausted quota, so the fail-closed local fallback
+  preserved review findings.
+- Security evidence: the regression suite failed on uncovered authorization,
+  structured-field, prefixed-name, placeholder, equality, and quoted-option
+  cases before the corresponding changes and now passes 59/59. Review
+  aggregation passes 27/27, review-run 31/31, PR workflow 16/16, and staged
+  review 9/9. ShellCheck, `make sync-check`, and `git diff --check` pass.
+- Full-gate evidence: the final pre-handoff `make ci-local` exited zero with
+  16/16 smoke, 270/270 unit, and 7/7 integration suites plus CI-only
+  verifications. Two unit failures in an earlier run were traced to inherited
+  `OCTOPUS_COST_MODE=premium`; both suites now clear host state and pass.
+- AGY test isolation: a later full run exposed that the stalled-version
+  regression timed the entire live doctor while inheriting every installed host
+  provider CLI. Production AGY timeout code was unchanged; the test now limits
+  PATH to its mock AGY and system tools. It passed three consecutive focused
+  runs, then the final full gate passed the complete AGY suite 50/50.
+- QA throughput: the council environment-isolation regression no longer copies
+  this checkout's multi-gigabyte ignored directories. It runs from a tiny source
+  fixture and takes 5 seconds in isolation without changing production
+  behavior. In the full sequence it still incurred a separate 260-second,
+  state-dependent council timeout, so that remaining latency is not represented
+  as fixed.
+- Tracking blocker: Beads remains blocked by its pending schema migration. No
+  migration was run, and the untracked `.beads.gate.lock` remains excluded.
 
 ## Issues #900 and #902: Tangle Lifecycle Ownership
 

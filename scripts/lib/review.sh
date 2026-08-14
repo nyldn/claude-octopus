@@ -1631,7 +1631,10 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
             echo ""
             echo "PR #$pr_number is open. Post findings as inline comments? (y/N)"
             read -r response
-            [[ "$response" =~ ^[Yy] ]] && { post_inline_comments "$pr_number" "$findings_file" || render_terminal_report "$findings_file"; }
+            if [[ "$response" =~ ^[Yy] ]]; then
+                post_inline_comments "$pr_number" "$findings_file" || \
+                    log WARN "review_run: PR posting was incomplete; terminal report was already shown"
+            fi
         fi
     else
         render_terminal_report "$findings_file"
@@ -1667,8 +1670,32 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
     print_provider_report "$provider_status_file"
 }
 
-# post_inline_comments: posts findings as inline PR comments via gh API
-# WHY: inline line-level comments match CC Code Review UX exactly.
+# review_post_safe_body: stream generated text to the shared helper, which
+# snapshots it privately and applies the credential gate before any GitHub write.
+review_post_safe_body() {
+    local repo="$1"
+    local body="$2"
+    local operation="$3"
+    shift 3
+
+    local plugin_root="${CLAUDE_PLUGIN_ROOT:-${PLUGIN_DIR:-}}"
+    if [[ -z "$plugin_root" || ! -d "$plugin_root/scripts" ]]; then
+        plugin_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+    fi
+
+    local safe_post="$plugin_root/scripts/safe-gh-comment.sh"
+    if [[ ! -x "$safe_post" ]]; then
+        log ERROR "review_post_safe_body: safe GitHub posting helper is unavailable"
+        return 1
+    fi
+
+    local post_rc=0
+    "$safe_post" --repo "$repo" "$operation" "$@" - <<< "$body" || post_rc=$?
+    return "$post_rc"
+}
+
+# post_inline_comments: posts findings as inline PR comments via the validated
+# JSON path. Inline line-level comments match CC Code Review UX exactly.
 post_inline_comments() {
     local pr_number="$1"
     local findings_file="$2"
@@ -1692,13 +1719,31 @@ post_inline_comments() {
         log WARN "post_inline_comments: could not determine commit SHA for PR #$pr_number — posting summary comment only"
         local summary
         summary=$(render_review_summary "$findings_file")
-        gh pr review "$pr_number" --comment --body "$summary" 2>/dev/null || true
-        return 0
+        local summary_rc=0
+        review_post_safe_body "$repo" "$summary" pr-review "$pr_number" || summary_rc=$?
+        if [[ "$summary_rc" -eq 65 ]]; then
+            log ERROR "post_inline_comments: summary body blocked by the credential-safety gate"
+        elif [[ "$summary_rc" -ne 0 ]]; then
+            log WARN "post_inline_comments: failed to post summary comment"
+        fi
+        if [[ "$summary_rc" -eq 0 ]]; then
+            return 0
+        fi
+        return 1
     fi
 
     local summary
     summary=$(render_review_summary "$findings_file")
-    gh pr review "$pr_number" --comment --body "$summary" 2>/dev/null || true
+    local post_failed=0
+    local summary_rc=0
+    review_post_safe_body "$repo" "$summary" pr-review "$pr_number" || summary_rc=$?
+    if [[ "$summary_rc" -eq 65 ]]; then
+        log ERROR "post_inline_comments: summary body blocked by the credential-safety gate"
+        post_failed=1
+    elif [[ "$summary_rc" -ne 0 ]]; then
+        log WARN "post_inline_comments: failed to post summary comment; continuing with inline findings"
+        post_failed=1
+    fi
 
     local finding_count
     if ! finding_count=$(review_findings_count "$findings_json"); then
@@ -1707,7 +1752,7 @@ post_inline_comments() {
     fi
     log INFO "post_inline_comments: posting $finding_count inline comments to PR #$pr_number"
 
-    printf '%s' "$findings_json" | jq -c '.findings[]' 2>/dev/null | while IFS= read -r finding; do
+    while IFS= read -r finding; do
         local file line severity title detail
         file=$(echo "$finding"     | jq -r '.file')
         line=$(echo "$finding"     | jq -r '.line')
@@ -1729,15 +1774,25 @@ ${detail}
 
 _Reviewed by /octo:review (multi-LLM fleet)_"
 
-        gh api "repos/${repo}/pulls/${pr_number}/comments" \
-            --method POST \
-            -f body="$body" \
-            -f commit_id="$commit_id" \
-            -f path="$file" \
-            -F line="$line" \
-            -f side="RIGHT" 2>/dev/null || \
-        log WARN "post_inline_comments: failed to post comment on $file:$line"
-    done
+        local post_rc=0
+        review_post_safe_body "$repo" "$body" review-line \
+            "$pr_number" "$commit_id" "$file" "$line" || post_rc=$?
+        if [[ "$post_rc" -eq 65 ]]; then
+            log ERROR "post_inline_comments: outbound body blocked by the credential-safety gate on $file:$line; continuing"
+            post_failed=1
+        elif [[ "$post_rc" -ge 64 && "$post_rc" -le 70 ]]; then
+            log ERROR "post_inline_comments: invalid or unavailable outbound posting path on $file:$line; continuing"
+            post_failed=1
+        elif [[ "$post_rc" -ne 0 ]]; then
+            log WARN "post_inline_comments: failed to post comment on $file:$line; continuing"
+            post_failed=1
+        fi
+    done < <(printf '%s' "$findings_json" | jq -c '.findings[]' 2>/dev/null)
+
+    if [[ "$post_failed" -eq 0 ]]; then
+        return 0
+    fi
+    return 1
 }
 
 # render_terminal_report: formats findings for terminal display
