@@ -1,15 +1,50 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-14
-Status: Issue #916 and all current review findings are implemented and locally
-verified; the revoked credential alert remains open until the fix is merged and
-the alert is marked resolved.
-Branch: `fix/916-safe-github-comments`
+Status: PR #877's OrcaRouter provider and all verified review remediations are
+rebased onto current `upstream/main`; the final combined local gate passes.
+Branch: `fix/877-orcarouter-review`
 Current release: [v9.64.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.64.0)
-Tracking: [issue #916](https://github.com/nyldn/claude-octopus/issues/916) and
-[PR #918](https://github.com/nyldn/claude-octopus/pull/918)
-Next action: wait for matching-head remote checks, merge PR #918, then resolve
-GitHub secret-scanning alert #1 as revoked. Release remains deferred.
+Tracking: [PR #877](https://github.com/nyldn/claude-octopus/pull/877)
+Next action: resolve current review threads, wait for matching-head remote
+checks, and merge PR #877. Release remains deferred.
+
+## PR #877: OrcaRouter Provider
+
+- Provider contract: OrcaRouter is an explicit, named, API-only integration;
+  it does not auto-activate. Dispatch uses the configured allowlist and
+  cheapest-first model fallback through the OpenAI-compatible gateway.
+- Configuration safety: setup reads keys silently, stores them through the
+  persistent-secret helper with mode `0600`, updates atomically, and does not
+  leak the caller's `umask`. Stale shell configuration is parsed as literal
+  assignments only; dynamic shell expressions are rejected rather than run.
+- Wiring: detection, health, status, council, smoke, routing, quota reporting,
+  marketplace metadata, public provider facts, and generated skill surfaces
+  all share the suffixed `orcarouter*` resolver and enabled-plus-key contract.
+- Review response: model execution is allowlisted, retry arithmetic is safe
+  under `set -e`, provider resolution is loaded before standalone detection,
+  status capture and paths are quoted, and release/documentation assertions
+  are explicit. The first combined gate then exposed that dispatch emitted the
+  new shell function while command validation rejected it; the validator now
+  accepts only the two exact OrcaRouter function names and rejects lookalikes.
+  The round-trip regression passes 6/6 and command validation passes 44/44.
+  No known review finding remains unaddressed in the local head.
+- Focused evidence: OrcaRouter passes 17/17; release sync 8/8; provider registry
+  contracts 14/14; shipped model resolution 7/7; shared marketplace 17/17; AGY
+  50/50; availability 15/15; provider contract audit 4/4; auth validity 18/18;
+  and council model selection 10/10. `make sync-check`, ShellCheck error-level
+  analysis, and `git diff --check` pass.
+- Final-gate evidence: after reproducing and fixing the dispatch-validator gap,
+  a fresh `make ci-local` passed 16/16 smoke suites, 273/273 unit suites, and
+  7/7 integration suites plus all CI-only verifications. Council passed 73/74
+  cases with its one documented macOS PTY skip.
+- Delivery constraint: the GitHub PR head belongs to contributor
+  `Marc-oss-hub`. Its pre-update SHA is
+  `32d6ee861cab98bafe2d1d7ee26b974e306fb113`; push only with an exact
+  force-with-lease after re-verifying that SHA. A contributor-owned branch may
+  remain after merge if repository maintainers cannot delete it.
+- Tracking blocker: Beads remains blocked by its pending schema migration. No
+  migration was run.
 
 ## Issue #916: Fail-Closed Outbound GitHub Text
 

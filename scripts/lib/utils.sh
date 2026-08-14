@@ -344,6 +344,8 @@ validate_agent_command() {
             return 0 ;;
         "openrouter_execute"*) # openrouter_execute and openrouter_execute_model
             return 0 ;;
+        "orcarouter_execute"|"orcarouter_execute "*|"orcarouter_execute_model"|"orcarouter_execute_model "*)
+            return 0 ;;
         "perplexity_execute"*) # v8.24.0: Perplexity Sonar API (Issue #22)
             return 0 ;;
         "copilot "*|"copilot")   # GitHub Copilot CLI

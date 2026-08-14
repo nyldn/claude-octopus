@@ -128,6 +128,21 @@ else
     test_pass
 fi
 
+test_case "validate_agent_command allows OrcaRouter dispatch functions"
+if validate_agent_command "orcarouter_execute" &&
+        validate_agent_command "orcarouter_execute_model anthropic/claude-sonnet-4.5"; then
+    test_pass
+else
+    test_fail "expected OrcaRouter dispatch functions to be accepted"
+fi
+
+test_case "validate_agent_command rejects OrcaRouter lookalike function names"
+if validate_agent_command "orcarouter_execute_attacker payload" >/dev/null 2>&1; then
+    test_fail "expected an OrcaRouter lookalike function name to be rejected"
+else
+    test_pass
+fi
+
 test_case "validate_agent_command allows reasoning flags before cwd"
 if validate_agent_command "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --model minimax/minimax-m3 --reasoning-effort medium --reasoning-policy best_effort --cwd /tmp/test"; then
     test_pass
