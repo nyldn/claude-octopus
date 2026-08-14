@@ -402,6 +402,7 @@ Claude Octopus coordinates ten external provider integrations alongside the buil
 | 🧭 Antigravity CLI (`agy`) | Google Antigravity perspective via native stdin print-mode dispatch |
 | 🟣 Perplexity | Live web search — CVE lookups, dependency research, current docs |
 | 🌐 OpenRouter | Alternative model routing — access 100+ models via single API |
+| 🐋 OrcaRouter | OpenAI-compatible gateway routing with policy enforcement and model fallbacks |
 | 🟢 Copilot (GitHub) | Zero-cost research — uses existing GitHub Copilot subscription |
 | 🟤 Qwen (Alibaba) | Qwen3-Coder research via API-key or Coding-Plan auth |
 | ⚫ Ollama (Local) | Zero-cost local LLM — offline, privacy-sensitive, fallback |

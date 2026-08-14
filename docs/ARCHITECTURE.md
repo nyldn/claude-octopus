@@ -37,6 +37,7 @@ Claude Octopus coordinates **ten external AI integrations** alongside its built-
 | **Claude** | Built-in | Claude Sonnet 5 / Opus 5 | Your Claude Code subscription or API account |
 | **Perplexity** | API-only | Sonar Pro / Sonar | Your `PERPLEXITY_API_KEY` |
 | **OpenRouter** | API-only | 100+ models (GLM-5, Kimi K2.5, DeepSeek R1, etc.) | Your `OPENROUTER_API_KEY` |
+| **OrcaRouter** | API-only | Namespaced Claude models via an OpenAI-compatible gateway | Your `ORCAROUTER_API_KEY` |
 | **Ollama** *(optional)* | `ollama run <model>` | Local models (llama3.3, mistral, etc.) | Free (local) |
 | **Copilot** *(optional)* | `copilot -p` | GitHub models (Claude/GPT/Google models) | GitHub Copilot subscription |
 | **Qwen** *(optional)* | `qwen -p` | Qwen3-Coder | `QWEN_API_KEY` or Coding-Plan auth |
@@ -75,6 +76,7 @@ Role defaults follow the accepted [frontier model routing strategy](./MODEL-ROUT
 | **Claude (Sonnet 5)** | Aggregation, final synthesis, workhorse summarization | `synthesizer`; included where the user's Claude Code subscription covers it |
 | **Perplexity** | Live web search, CVE lookups, current docs | Discover phase research, dependency analysis |
 | **OpenRouter** | Access to 100+ models, cost routing | Alternative perspectives, budget-conscious workflows |
+| **OrcaRouter** | Policy-enforced gateway routing | Governed fallback dispatch and independent model perspectives |
 | **Ollama** *(optional)* | Zero-cost, offline, privacy | Brainstorming, fallback, air-gapped environments |
 | **Qwen** *(optional)* | Qwen3-Coder via API-key or Coding-Plan auth, Chinese language support | Research and code review when Qwen credentials are configured |
 

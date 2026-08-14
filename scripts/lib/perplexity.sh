@@ -113,7 +113,7 @@ EOF
                 fi
                 break ;;
         esac
-        (( attempt++ ))
+        (( ++attempt ))
     done
 
     rm -f "$header_file"
@@ -281,7 +281,7 @@ EOF
                 fi
                 break ;;
         esac
-        (( attempt++ ))
+        (( ++attempt ))
     done
 
     rm -f "$header_file"
@@ -330,6 +330,22 @@ orcarouter_execute() {
         model="$(resolve_octopus_model orcarouter orcarouter "" "" 2>/dev/null || true)"
     fi
     [[ -z "$model" ]] && model=$(get_orcarouter_model "$task_type" "$complexity")
+
+    if declare -f _octopus_allowed_model_or_fallback >/dev/null 2>&1; then
+        model=$(_octopus_allowed_model_or_fallback "orcarouter" "$model") || return 1
+    elif declare -f validate_model_allowed >/dev/null 2>&1; then
+        local fallback=""
+        if fallback=$(validate_model_allowed "orcarouter" "$model"); then
+            : # The configured model is allowed; keep it unchanged.
+        elif [[ -n "$fallback" ]]; then
+            model="$fallback"
+        else
+            return 1
+        fi
+    elif [[ -n "${OCTOPUS_ORCAROUTER_ALLOWED_MODELS:-}" ]]; then
+        log ERROR "Cannot enforce OCTOPUS_ORCAROUTER_ALLOWED_MODELS: validator unavailable"
+        return 1
+    fi
 
     orcarouter_execute_model "$model" "$prompt" "$task_type" "$complexity" "$output_file"
 }

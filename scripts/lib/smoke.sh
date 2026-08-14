@@ -779,7 +779,7 @@ select_provider() {
             echo "agy"
         elif [[ "$PROVIDER_OPENROUTER_ENABLED" == "true" ]]; then
             echo "openrouter"
-        elif [[ "$PROVIDER_ORCAROUTER_ENABLED" == "true" ]]; then
+        elif [[ "$PROVIDER_ORCAROUTER_ENABLED" == "true" && "$PROVIDER_ORCAROUTER_API_KEY_SET" == "true" ]]; then
             echo "orcarouter"
         else
             echo "codex"  # Default fallback
@@ -830,7 +830,7 @@ show_provider_status() {
 
     # OrcaRouter
     local orcarouter_status="${RED}✗${NC}"
-    [[ "$PROVIDER_ORCAROUTER_ENABLED" == "true" ]] && orcarouter_status="${GREEN}✓${NC}"
+    [[ "$PROVIDER_ORCAROUTER_ENABLED" == "true" && "$PROVIDER_ORCAROUTER_API_KEY_SET" == "true" ]] && orcarouter_status="${GREEN}✓${NC}"
     echo -e "${CYAN}║${NC}  OrcaRouter:     $orcarouter_status  [api-key]  pay-per-use  ${CYAN}║${NC}"
 
     # Perplexity (v8.24.0)

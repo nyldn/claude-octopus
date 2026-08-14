@@ -13,6 +13,13 @@ if ! declare -f _is_cursor_agent_binary >/dev/null 2>&1; then
 fi
 source "${_providers_lib_dir}/provider-allowlist.sh" 2>/dev/null || true
 source "${_providers_lib_dir}/provider-registry.sh" 2>/dev/null || true
+# Provider detection can run standalone in tests and helper scripts, before the
+# main orchestrator reaches its later provider-routing import. Load the shared
+# non-interactive credential resolver here so API-backed providers can discover
+# keys persisted in ~/.env without depending on caller source order.
+if ! declare -f resolve_provider_env >/dev/null 2>&1; then
+    source "${_providers_lib_dir}/provider-routing.sh" 2>/dev/null || true
+fi
 source "${_providers_lib_dir}/auth.sh" 2>/dev/null || true
 source "${_providers_lib_dir}/qwen.sh" 2>/dev/null || true
 source "${_providers_lib_dir}/openai-compatible.sh" 2>/dev/null || true
@@ -918,6 +925,9 @@ check_provider_health() {
             fi
             ;;
         orcarouter)
+            if [[ -z "${ORCAROUTER_API_KEY:-}" ]] && declare -f resolve_provider_env >/dev/null 2>&1; then
+                resolve_provider_env "ORCAROUTER_API_KEY" 2>/dev/null || true
+            fi
             if [[ -z "${ORCAROUTER_API_KEY:-}" ]]; then
                 echo "orcarouter: ORCAROUTER_API_KEY not set" >&2
                 return 1
@@ -1282,7 +1292,10 @@ detect_providers() {
         result="${result}openrouter:api-key "
     fi
 
-    # Detect OrcaRouter (API key only)
+    # Detect OrcaRouter (API key only, including ~/.env/profile resolution)
+    if [[ -z "${ORCAROUTER_API_KEY:-}" ]] && declare -f resolve_provider_env >/dev/null 2>&1; then
+        resolve_provider_env "ORCAROUTER_API_KEY" 2>/dev/null || true
+    fi
     if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed orcarouter; } && [[ -n "${ORCAROUTER_API_KEY:-}" ]]; then
         result="${result}orcarouter:api-key "
     fi

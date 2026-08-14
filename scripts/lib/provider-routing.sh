@@ -290,12 +290,20 @@ resolve_provider_env() {
         fi
     fi
 
-    # Try sourcing from project .env or ~/.env
+    # Try static assignments from project/user env files and legacy shell rc
+    # files. Do not source .bashrc/.zshrc: they may contain interactive commands
+    # or arbitrary startup code. Reject dynamic values rather than evaluating
+    # substitutions while recovering credentials from older installations.
     local env_file
-    for env_file in "$PWD/.env" "$HOME/.env"; do
+    for env_file in "$PWD/.env" "$HOME/.env" "$HOME/.bashrc" "$HOME/.zshrc"; do
         if [[ -f "$env_file" ]]; then
-            local val
-            val=$(grep -m1 -E "^${var_name}=" "$env_file" 2>/dev/null | cut -d= -f2- | sed 's/^["'\'']\|["'\''"]$//g')
+            local assignment val
+            assignment=$(grep -m1 -E "^[[:space:]]*(export[[:space:]]+)?${var_name}=" "$env_file" 2>/dev/null || true)
+            val="${assignment#*=}"
+            val=$(printf '%s' "$val" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s/^["'\'']\|["'\''"]$//g')
+            if [[ "$val" == *'$'* || "$val" == *'`'* ]]; then
+                continue
+            fi
             if [[ -n "$val" ]]; then
                 export "$var_name=$val"
                 log DEBUG "Resolved $var_name from $env_file (non-interactive shell fallback)"

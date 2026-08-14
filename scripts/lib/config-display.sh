@@ -268,6 +268,42 @@ toggle_knowledge_work_mode() {
 # Extracted from orchestrate.sh (v9.7.8)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# Persist one provider secret without echoing it to the terminal. The existing
+# non-interactive resolver reads ~/.env, so values stored here are also visible
+# to health checks and provider detection in later sessions.
+persist_provider_secret() (
+    local var_name="$1"
+    local value="$2"
+    local env_file="${OCTOPUS_SECRET_ENV_FILE:-${HOME}/.env}"
+    local env_dir=""
+    local temp_file=""
+
+    [[ "$var_name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 1
+    [[ -n "$value" && "$value" != *$'\n'* && "$value" != *$'\r'* ]] || return 1
+
+    env_dir=$(dirname "$env_file")
+    umask 077
+    mkdir -p "$env_dir" || return 1
+    temp_file=$(mktemp "${env_file}.tmp.XXXXXX") || return 1
+
+    if [[ -f "$env_file" ]]; then
+        awk -v name="$var_name" 'index($0, name "=") != 1 { print }' \
+            "$env_file" > "$temp_file" || {
+            rm -f "$temp_file"
+            return 1
+        }
+    fi
+    printf '%s=%s\n' "$var_name" "$value" >> "$temp_file" || {
+        rm -f "$temp_file"
+        return 1
+    }
+    chmod 600 "$temp_file" || {
+        rm -f "$temp_file"
+        return 1
+    }
+    mv -f "$temp_file" "$env_file"
+)
+
 # Interactive setup wizard
 setup_wizard() {
     # Detect if running in non-interactive mode (e.g., called by Claude Code)
@@ -557,18 +593,27 @@ setup_wizard() {
         if [[ "${NON_INTERACTIVE}" != "true" ]] && [[ $REPLY =~ ^[Yy]$ ]]; then
             echo -e "  ${CYAN}→${NC} Get an API key from: https://www.orcarouter.ai"
             echo ""
-            read -p "  Paste your OrcaRouter API key (starts with 'sk-orca-'): " orcarouter_key
+            read -r -s -p "  Paste your OrcaRouter API key (starts with 'sk-orca-'): " orcarouter_key
+            echo
             if [[ -n "$orcarouter_key" ]]; then
-                export ORCAROUTER_API_KEY="$orcarouter_key"
-                keys_to_add="${keys_to_add}export ORCAROUTER_API_KEY=\"$orcarouter_key\"\n"
+                export "ORCAROUTER_API_KEY=${orcarouter_key}"
                 PROVIDER_ORCAROUTER_ENABLED="true"
                 PROVIDER_ORCAROUTER_API_KEY_SET="true"
                 echo -e "  ${GREEN}✓${NC} ORCAROUTER_API_KEY set for this session"
+                read -p "  Save it to ~/.env with mode 600? [Y/n] " -n 1 -r
+                echo
+                if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+                    if persist_provider_secret "ORCAROUTER_API_KEY" "$orcarouter_key"; then
+                        echo -e "  ${GREEN}✓${NC} Saved ORCAROUTER_API_KEY securely to ~/.env"
+                    else
+                        echo -e "  ${RED}✗${NC} Could not persist ORCAROUTER_API_KEY" >&2
+                    fi
+                fi
             else
                 echo -e "  ${YELLOW}⚠${NC} Skipped OrcaRouter configuration"
             fi
         else
-            echo -e "  ${YELLOW}⚠${NC} OrcaRouter skipped. Add later: export ORCAROUTER_API_KEY=\"your-key\""
+            echo -e "  ${YELLOW}⚠${NC} OrcaRouter skipped. Add later: export \"ORCAROUTER_API_KEY=your-key\""
         fi
     fi
     echo ""
