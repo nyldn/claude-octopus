@@ -8,9 +8,8 @@ Branch: `fix/916-safe-github-comments`
 Current release: [v9.64.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.64.0)
 Tracking: [issue #916](https://github.com/nyldn/claude-octopus/issues/916) and
 [PR #918](https://github.com/nyldn/claude-octopus/pull/918)
-Next action: complete the final local gate for the latest review-response test
-hardening, push it, wait for matching-head remote checks, merge PR #918, then
-resolve GitHub secret-scanning alert #1 as revoked. Release remains deferred.
+Next action: wait for matching-head remote checks, merge PR #918, then resolve
+GitHub secret-scanning alert #1 as revoked. Release remains deferred.
 
 ## Issue #916: Fail-Closed Outbound GitHub Text
 
