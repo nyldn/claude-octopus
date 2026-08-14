@@ -276,7 +276,8 @@ ${REVIEW_SYNTHESIS}
     REPO_SLUG=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
     if ! "${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}/scripts/safe-gh-comment.sh" \
             --repo "$REPO_SLUG" pr-comment "$PR_NUM" - <<< "$REVIEW_BODY"; then
-        echo "Review comment was blocked or failed; nothing was posted." >&2
+        echo "GitHub write state is unknown; check for the review comment before retrying:" >&2
+        gh pr view "$PR_NUM" --repo "$REPO_SLUG" --comments || true
         return 1 2>/dev/null || exit 1
     fi
     echo "Review posted to PR #${PR_NUM}"

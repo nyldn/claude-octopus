@@ -196,10 +196,13 @@ git push -u origin $FEATURE_BRANCH
 
 # Create PR with a validated description file
 REPO_SLUG=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
-PR_BODY=$(cat <<'EOF'
+PR_TITLE=${PR_TITLE:?Complete PR_TITLE before creating the pull request}
+CHANGE_SUMMARY=${CHANGE_SUMMARY:?Complete CHANGE_SUMMARY before creating the pull request}
+CHANGE_REASON=${CHANGE_REASON:?Complete CHANGE_REASON before creating the pull request}
+PR_BODY=$(cat <<EOF
 ## Summary
-- [What changed]
-- [Why it changed]
+- ${CHANGE_SUMMARY}
+- ${CHANGE_REASON}
 
 ## Test Plan
 - [x] Unit tests pass
@@ -208,8 +211,9 @@ PR_BODY=$(cat <<'EOF'
 EOF
 )
 if ! "${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}/scripts/safe-gh-comment.sh" \
-    --repo "$REPO_SLUG" pr-create "feat: [description]" "$FEATURE_BRANCH" - <<< "$PR_BODY"; then
-  echo "PR creation was blocked or failed; no PR was created." >&2
+    --repo "$REPO_SLUG" pr-create "$PR_TITLE" "$FEATURE_BRANCH" - <<< "$PR_BODY"; then
+  echo "GitHub write state is unknown; check for an existing pull request before retrying:" >&2
+  gh pr list --repo "$REPO_SLUG" --head "$FEATURE_BRANCH" --state all --json number,state,url || true
   return 1 2>/dev/null || exit 1
 fi
 ```

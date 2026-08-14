@@ -318,7 +318,8 @@ ${COMBINED_REPORT}
 *Staged review by Claude Octopus (/octo:staged-review)*"
     if ! "${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}/scripts/safe-gh-comment.sh" \
             --repo "$REPO_SLUG" pr-comment "$PR_NUM" - <<< "$COMMENT_BODY"; then
-        echo "Staged review comment was blocked or failed; nothing was posted." >&2
+        echo "GitHub write state is unknown; check for the staged review comment before retrying:" >&2
+        gh pr view "$PR_NUM" --repo "$REPO_SLUG" --comments || true
         return 1 2>/dev/null || exit 1
     fi
 

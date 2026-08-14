@@ -893,12 +893,33 @@ else
         "oversized body did not fail with the input error contract"
 fi
 
-if grep -Eq -- 'head -c.*MAX_BODY_BYTES' "$SAFE_POST" && \
-        ! grep -Eq -- 'cp -- .*body_source|cat > .*snapshot_file' "$SAFE_POST"; then
+if grep -Eq -- 'head -c.*MAX_BODY_BYTES' "$SAFE_POST"; then
     pass "body snapshot reads are hard-bounded before validation"
 else
     fail "body snapshot reads are hard-bounded before validation" \
-        "body source is copied without a pre-validation hard bound"
+        "missing the positive bounded-read contract"
+fi
+
+: > "$GH_ARGS_LOG"
+set +e
+PATH="$MOCK_BIN_DIR:$PATH" "$SAFE_POST" \
+    --repo octopus/example pr-comment 42 - \
+    < "$oversized_body" > "$TEST_TMP_DIR/oversized-stdin-output.log" 2>&1
+oversized_stdin_rc=$?
+set -e
+if [[ "$oversized_stdin_rc" -eq 66 && ! -s "$GH_ARGS_LOG" ]]; then
+    pass "oversized standard input is bounded before GitHub CLI"
+else
+    fail "oversized standard input is bounded before GitHub CLI" \
+        "oversized stdin reached GitHub CLI or returned $oversized_stdin_rc"
+fi
+
+if grep -Eq -- 'grep -Eic -- .*pattern.*body_file.*>/dev/null' "$SAFE_POST" && \
+        ! grep -Eq -- 'grep -Ei?q' "$SAFE_POST"; then
+    pass "credential matching uses the pipefail-safe counting form"
+else
+    fail "credential matching uses the pipefail-safe counting form" \
+        "body_matches does not use grep -Eic redirected to /dev/null"
 fi
 
 binary_body="$TEST_TMP_DIR/binary-body.md"
@@ -1177,6 +1198,37 @@ if [[ -z "$unsafe_skill_posts" && "$safe_skill_files" -eq 10 && \
 else
     fail "GitHub-posting skill guidance uses the safe helper" \
         "source skill guidance still demonstrates inline GitHub bodies"
+fi
+
+unknown_write_guidance=0
+for workflow_file in \
+        "$PROJECT_ROOT/.claude/skills/flow-deliver/SKILL.md" \
+        "$PROJECT_ROOT/.claude/skills/skill-code-review/SKILL.md" \
+        "$PROJECT_ROOT/.claude/skills/skill-staged-review/SKILL.md"; do
+    if grep -Fc -- 'GitHub write state is unknown' "$workflow_file" >/dev/null && \
+            grep -Eq -- 'gh pr view .*--comments' "$workflow_file"; then
+        unknown_write_guidance=$((unknown_write_guidance + 1))
+    fi
+done
+finish_branch_file="$PROJECT_ROOT/.claude/skills/skill-finish-branch/SKILL.md"
+if grep -Fc -- 'GitHub write state is unknown' "$finish_branch_file" >/dev/null && \
+        grep -Eq -- 'gh pr list .*--head' "$finish_branch_file"; then
+    unknown_write_guidance=$((unknown_write_guidance + 1))
+fi
+if [[ "$unknown_write_guidance" -eq 4 ]]; then
+    pass "skill workflows verify unknown GitHub write state before retrying"
+else
+    fail "skill workflows verify unknown GitHub write state before retrying" \
+        "only $unknown_write_guidance of 4 write paths document a read-before-retry check"
+fi
+
+if grep -Eq -- 'PR_TITLE=' "$finish_branch_file" && \
+        grep -Ec -- 'pr-create "[$]PR_TITLE"' "$finish_branch_file" >/dev/null && \
+        ! grep -Eq -- '\[(What changed|Why it changed|description)\]' "$finish_branch_file"; then
+    pass "finish-branch PR creation uses completed title and body values"
+else
+    fail "finish-branch PR creation uses completed title and body values" \
+        "finish-branch still sends placeholder-shaped PR content"
 fi
 
 streaming_guidance_files=0

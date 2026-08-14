@@ -41,7 +41,7 @@ body_matches() {
     local body_file="$2"
     local grep_rc=0
 
-    if LC_ALL=C grep -Eiq -- "$pattern" "$body_file"; then
+    if LC_ALL=C grep -Eic -- "$pattern" "$body_file" >/dev/null; then
         return 0
     else
         grep_rc=$?
