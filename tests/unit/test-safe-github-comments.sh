@@ -18,6 +18,35 @@ GH_STDIN_LOG="$TEST_TMP_DIR/gh-stdin.log"
 pass() { test_case "$1"; test_pass; }
 fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
+multiline_match() {
+    local pattern="$1"
+    shift
+    OCTOPUS_TEST_REGEX="$pattern" python3 -c '
+import os
+from pathlib import Path
+import re
+import sys
+
+pattern = os.environ["OCTOPUS_TEST_REGEX"].replace("[[:space:]]", r"\s")
+targets = [Path(value) for value in sys.argv[1:]]
+if targets:
+    files = []
+    for target in targets:
+        if target.is_dir():
+            files.extend(path for path in target.rglob("*") if path.is_file())
+        elif target.is_file():
+            files.append(target)
+    data = "\n".join(path.read_text(errors="replace") for path in files)
+else:
+    data = sys.stdin.read()
+try:
+    matched = re.search(pattern, data, re.MULTILINE) is not None
+except re.error:
+    raise SystemExit(2)
+raise SystemExit(0 if matched else 1)
+' "$@"
+}
+
 if [[ -x "$SAFE_POST" ]]; then
     pass "safe GitHub comment helper exists and is executable"
 else
@@ -89,7 +118,7 @@ if [[ -f "$GH_ARGS_LOG" ]] && grep -Fxq -- 'pr' "$GH_ARGS_LOG" && \
         grep -Fxq -- 'octopus/example' "$GH_ARGS_LOG" && \
         grep -Fxq -- '--body-file' "$GH_ARGS_LOG" && \
         ! grep -Fxq -- '--body' "$GH_ARGS_LOG" && \
-        ! rg -q 'Fixed: complete' "$GH_ARGS_LOG"; then
+        ! grep -Eq -- 'Fixed: complete' "$GH_ARGS_LOG"; then
     pass "PR comments pass body content by file rather than inline text"
 else
     fail "PR comments pass body content by file rather than inline text" \
@@ -749,7 +778,7 @@ if [[ "$reply_rc" -eq 0 && "$reply_body" == "$(<"$safe_body")" ]] && \
         grep -Fxq -- '--silent' "$GH_ARGS_LOG" && \
         grep -Fxq -- '--input' "$GH_ARGS_LOG" && \
         grep -Fxq -- 'repos/octopus/example/pulls/42/comments/9001/replies' "$GH_ARGS_LOG" && \
-        ! rg -q 'Fixed: complete' "$GH_ARGS_LOG"; then
+        ! grep -Eq -- 'Fixed: complete' "$GH_ARGS_LOG"; then
     pass "review replies use silent JSON input and preserve the body"
 else
     fail "review replies use silent JSON input and preserve the body" \
@@ -864,8 +893,8 @@ else
         "oversized body did not fail with the input error contract"
 fi
 
-if rg -q 'head -c.*MAX_BODY_BYTES' "$SAFE_POST" && \
-        ! rg -q 'cp -- .*body_source|cat > .*snapshot_file' "$SAFE_POST"; then
+if grep -Eq -- 'head -c.*MAX_BODY_BYTES' "$SAFE_POST" && \
+        ! grep -Eq -- 'cp -- .*body_source|cat > .*snapshot_file' "$SAFE_POST"; then
     pass "body snapshot reads are hard-bounded before validation"
 else
     fail "body snapshot reads are hard-bounded before validation" \
@@ -1079,8 +1108,8 @@ batch_rc=$?
 set -e
 batch_call_count=$(wc -l < "$batch_calls" | tr -d '[:space:]')
 if [[ "$batch_rc" -ne 0 && "$batch_call_count" == "3" ]] && \
-        rg -q 'Safe finding' "$batch_posted" && \
-        ! rg -q 'SERVICE_TOKEN=' "$batch_posted"; then
+        grep -Eq -- 'Safe finding' "$batch_posted" && \
+        ! grep -Eq -- 'SERVICE_TOKEN=' "$batch_posted"; then
     pass "blocked review comments do not suppress later safe findings"
 else
     fail "blocked review comments do not suppress later safe findings" \
@@ -1088,9 +1117,9 @@ else
 fi
 unset -f gh review_post_safe_body
 
-if rg -q 'safe-gh-comment\.sh' "$PROJECT_ROOT/scripts/lib/review.sh" && \
-        ! rg -q 'gh pr review .*--body|-f body=' "$PROJECT_ROOT/scripts/lib/review.sh" && \
-        ! rg -q '\[\[ "\$response".*post_inline_comments.*\|\| render_terminal_report' \
+if grep -Eq -- 'safe-gh-comment\.sh' "$PROJECT_ROOT/scripts/lib/review.sh" && \
+        ! grep -Eq -- 'gh pr review .*--body|-f body=' "$PROJECT_ROOT/scripts/lib/review.sh" && \
+        ! grep -Eq -- '\[\[ "\$response".*post_inline_comments.*\|\| render_terminal_report' \
             "$PROJECT_ROOT/scripts/lib/review.sh"; then
     pass "production review posting uses the safe helper"
 else
@@ -1101,7 +1130,7 @@ fi
 instruction_files_ok=0
 for instruction_file in "$PROJECT_ROOT/AGENTS.md" "$PROJECT_ROOT/CLAUDE.md" \
         "$PROJECT_ROOT/RTK.md"; do
-    if rg -q 'safe-gh-comment\.sh' "$instruction_file"; then
+    if grep -Eq -- 'safe-gh-comment\.sh' "$instruction_file"; then
         instruction_files_ok=$((instruction_files_ok + 1))
     fi
 done
@@ -1113,9 +1142,11 @@ else
 fi
 
 unsafe_post_pattern='gh[[:space:]]+(pr|issue)[[:space:]]+(create|comment|review)([^\n]*\n){0,12}[^\n]*["\x27]?(--body-file|--body|-b)["\x27]?([ =]|$)|gh[[:space:]]+api([^\n]*\n){0,12}[^\n]*((["\x27]?(-f|-F)["\x27]?[[:space:]]*|["\x27]?(--field|--raw-field)["\x27]?([[:space:]]+|=))["\x27]?body=|--input([ =]|$))'
-unsafe_skill_posts=$(rg -n -U \
-    "$unsafe_post_pattern" \
-    "$PROJECT_ROOT/.claude/skills" "$PROJECT_ROOT/skills" 2>/dev/null || true)
+unsafe_skill_posts=""
+if multiline_match "$unsafe_post_pattern" \
+        "$PROJECT_ROOT/.claude/skills" "$PROJECT_ROOT/skills"; then
+    unsafe_skill_posts="found"
+fi
 api_alias_matches=0
 for api_alias_fixture in \
         'gh api repos/example/issues/1/comments -F body=value' \
@@ -1128,14 +1159,14 @@ for api_alias_fixture in \
         "gh api repos/example/issues/1/comments --raw-field='body=value'" \
         'gh api repos/example/issues/1/comments "-f" "body=$body"' \
         'gh pr comment 42 "--body" "$body"'; do
-    if printf '%s\n' "$api_alias_fixture" | rg -U -q "$unsafe_post_pattern"; then
+    if printf '%s\n' "$api_alias_fixture" | multiline_match "$unsafe_post_pattern"; then
         api_alias_matches=$((api_alias_matches + 1))
     fi
 done
 safe_skill_files=0
 for skill_root in "$PROJECT_ROOT/.claude/skills" "$PROJECT_ROOT/skills"; do
     for skill_name in skill-code-review skill-staged-review flow-deliver skill-finish-branch skill-intake; do
-        if rg -q 'safe-gh-comment\.sh' "$skill_root/$skill_name/SKILL.md"; then
+        if grep -Eq -- 'safe-gh-comment\.sh' "$skill_root/$skill_name/SKILL.md"; then
             safe_skill_files=$((safe_skill_files + 1))
         fi
     done
@@ -1154,9 +1185,9 @@ for streaming_file in "$PROJECT_ROOT/scripts/release.sh" \
         "$PROJECT_ROOT/.claude/skills/skill-code-review/SKILL.md" \
         "$PROJECT_ROOT/.claude/skills/skill-staged-review/SKILL.md" \
         "$PROJECT_ROOT/.claude/skills/skill-finish-branch/SKILL.md"; do
-    if rg -q 'safe-gh-comment\.sh' "$streaming_file" && \
-            rg -q '<<<' "$streaming_file" && \
-            ! rg -q 'mktemp .*octopus-(release-pr|deliver-report|review-body|staged-review|pr-body)' \
+    if grep -Eq -- 'safe-gh-comment\.sh' "$streaming_file" && \
+            grep -Eq -- '<<<' "$streaming_file" && \
+            ! grep -Eq -- 'mktemp .*octopus-(release-pr|deliver-report|review-body|staged-review|pr-body)' \
                 "$streaming_file"; then
         streaming_guidance_files=$((streaming_guidance_files + 1))
     fi
@@ -1168,11 +1199,11 @@ else
         "only $streaming_guidance_files of 5 posting paths stream directly to the helper"
 fi
 
-if rg -q -U '\n___\n\*Multi-AI validation by Claude Octopus' \
+if multiline_match '\n___\n\*Multi-AI validation by Claude Octopus' \
         "$PROJECT_ROOT/.claude/skills/flow-deliver/SKILL.md" && \
-        rg -q -U '\n___\n\*Multi-AI validation by Claude Octopus' \
+        multiline_match '\n___\n\*Multi-AI validation by Claude Octopus' \
         "$PROJECT_ROOT/.claude/skills/flow-deliver/flow-deliver.tmpl" && \
-        rg -q -U '\n___\n\*Multi-AI validation by Claude Octopus' \
+        multiline_match '\n___\n\*Multi-AI validation by Claude Octopus' \
         "$PROJECT_ROOT/skills/flow-deliver/SKILL.md"; then
     pass "source and portable delivery skills preserve the footer separator"
 else
@@ -1180,8 +1211,8 @@ else
         "delivery footer separator was lost during skill generation"
 fi
 
-if rg -q 'safe-gh-comment\.sh' "$PROJECT_ROOT/scripts/release.sh" && \
-        ! rg -q -U 'gh pr create([^\n]*\n){0,12}[^\n]*--body([ =]|$)' \
+if grep -Eq -- 'safe-gh-comment\.sh' "$PROJECT_ROOT/scripts/release.sh" && \
+        ! multiline_match 'gh pr create([^\n]*\n){0,12}[^\n]*--body([ =]|$)' \
             "$PROJECT_ROOT/scripts/release.sh"; then
     pass "release PR creation uses the outbound credential gate"
 else

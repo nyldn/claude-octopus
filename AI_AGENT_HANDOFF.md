@@ -5,9 +5,11 @@ Status: Issue #916 is implemented and locally verified; the revoked credential
 alert remains open until the fix is merged and the alert is marked resolved.
 Branch: `fix/916-safe-github-comments`
 Current release: [v9.64.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.64.0)
-Tracking: [issue #916](https://github.com/nyldn/claude-octopus/issues/916)
-Next action: commit, push, open and merge the issue-closing PR, then resolve
-GitHub secret-scanning alert #1 as revoked. Release remains deferred.
+Tracking: [issue #916](https://github.com/nyldn/claude-octopus/issues/916) and
+[PR #918](https://github.com/nyldn/claude-octopus/pull/918)
+Next action: push the symlink-path portability follow-up, wait for the remote
+matrix, merge PR #918, then resolve GitHub secret-scanning alert #1 as revoked.
+Release remains deferred.
 
 ## Issue #916: Fail-Closed Outbound GitHub Text
 
@@ -39,6 +41,11 @@ GitHub secret-scanning alert #1 as revoked. Release remains deferred.
   cases before the corresponding changes and now passes 59/59. Review
   aggregation passes 27/27, review-run 31/31, PR workflow 16/16, and staged
   review 9/9. ShellCheck, `make sync-check`, and `git diff --check` pass.
+- Remote portability response: PR #918's first symlink-path job exposed that the
+  new test used `rg`, which is not installed on that Linux image. Production
+  code was unaffected. Static searches now use portable grep plus a Python
+  multiline helper; the 59/59 suite passes through a real symlink with PATH
+  restricted to `/usr/bin:/bin`.
 - Full-gate evidence: the final pre-handoff `make ci-local` exited zero with
   16/16 smoke, 270/270 unit, and 7/7 integration suites plus CI-only
   verifications. Two unit failures in an earlier run were traced to inherited
