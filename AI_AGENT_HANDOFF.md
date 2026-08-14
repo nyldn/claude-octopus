@@ -8,9 +8,9 @@ Branch: `fix/916-safe-github-comments`
 Current release: [v9.64.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.64.0)
 Tracking: [issue #916](https://github.com/nyldn/claude-octopus/issues/916) and
 [PR #918](https://github.com/nyldn/claude-octopus/pull/918)
-Next action: push the rebased review-response commit, wait for matching-head
-remote checks, merge PR #918, then resolve GitHub secret-scanning alert #1 as
-revoked. Release remains deferred.
+Next action: complete the final local gate for the latest review-response test
+hardening, push it, wait for matching-head remote checks, merge PR #918, then
+resolve GitHub secret-scanning alert #1 as revoked. Release remains deferred.
 
 ## Issue #916: Fail-Closed Outbound GitHub Text
 
@@ -39,7 +39,7 @@ revoked. Release remains deferred.
   preserved review findings.
 - Security evidence: the regression suite failed on uncovered authorization,
   structured-field, prefixed-name, placeholder, equality, and quoted-option
-  cases before the corresponding changes. The expanded suite now passes 63/63,
+  cases before the corresponding changes. The expanded suite now passes 64/64,
   including hard-bounded standard input and pipefail-safe credential matching. Review
   aggregation passes 27/27, review-run 31/31, PR workflow 16/16, and staged
   review 9/9. ShellCheck, `make sync-check`, and `git diff --check` pass.
@@ -60,6 +60,13 @@ revoked. Release remains deferred.
   behavioral. Focused coverage passes 63/63, the macOS provider-banner suite
   passes 10/10, and the final `make ci-local` exits zero with all required
   smoke, unit, integration, and CI-only checks.
+- Final test-review response: CodeRabbit's three later findings were verified
+  against the test implementation. Both cancellation tests now require their
+  child-readiness marker before TERM can pass, the launch-gap test observes for
+  two seconds against a 250 ms mock delay, and detector/skill failures report
+  their independent values. The focused security suite passes 64/64. The fresh
+  full local gate for this exact test-only head passed 16/16 smoke, 270/270
+  unit, and 7/7 integration suites plus CI-only verifications.
 - AGY test isolation: a later full run exposed that the stalled-version
   regression timed the entire live doctor while inheriting every installed host
   provider CLI. Production AGY timeout code was unchanged; the test now limits

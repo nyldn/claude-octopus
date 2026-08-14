@@ -979,8 +979,12 @@ TMPDIR="$signal_tmp" GH_DELAY_SECONDS=2 GH_IGNORE_TERM=1 \
     "$SAFE_POST" --repo octopus/example pr-comment 42 "$safe_body" \
     > "$TEST_TMP_DIR/signal-output.log" 2>&1 &
 signal_pid=$!
+signal_ready=0
 for _ in {1..100}; do
-    [[ -s "$GH_ARGS_LOG" ]] && break
+    if [[ -s "$GH_ARGS_LOG" ]]; then
+        signal_ready=1
+        break
+    fi
     sleep 0.02
 done
 kill -TERM "$signal_pid" 2>/dev/null
@@ -988,12 +992,12 @@ wait "$signal_pid"
 signal_rc=$?
 set -e
 signal_temp_count=$(find "$signal_tmp" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d '[:space:]')
-if [[ "$signal_rc" -eq 143 && "$signal_temp_count" == "0" && \
+if [[ "$signal_ready" -eq 1 && "$signal_rc" -eq 143 && "$signal_temp_count" == "0" && \
         ! -e "$signal_completion" ]]; then
     pass "TERM cleans snapshots and cancels the in-flight GitHub write"
 else
     fail "TERM cleans snapshots and cancels the in-flight GitHub write" \
-        "TERM returned $signal_rc with $signal_temp_count snapshots or a completed GitHub write"
+        "ready=$signal_ready, TERM returned $signal_rc with $signal_temp_count snapshots or a completed GitHub write"
 fi
 
 launch_race_env="$TEST_TMP_DIR/launch-race-env.sh"
@@ -1008,13 +1012,16 @@ LAUNCH_RACE_ENV
 : > "$GH_ARGS_LOG"
 set +e
 BASH_ENV="$launch_race_env" OCTOPUS_LAUNCH_RACE_TEST=1 \
-    GH_DELAY_SECONDS=1 GH_IGNORE_TERM=1 \
+    GH_DELAY_SECONDS=0.25 GH_IGNORE_TERM=1 \
     GH_COMPLETION_LOG="$launch_race_completion" \
     PATH="$MOCK_BIN_DIR:$PATH" \
     "$SAFE_POST" --repo octopus/example pr-comment 42 "$safe_body" \
     > "$TEST_TMP_DIR/launch-race-output.log" 2>&1
 launch_race_rc=$?
-sleep 1.2
+for _ in {1..100}; do
+    [[ -e "$launch_race_completion" ]] && break
+    sleep 0.02
+done
 set -e
 if [[ "$launch_race_rc" -eq 143 && ! -e "$launch_race_completion" ]]; then
     pass "TERM in the launch PID-assignment gap cancels the GitHub write"
@@ -1078,8 +1085,12 @@ TMPDIR="$interrupted_tmp" INTEGRATION_DELAY_SECONDS=2 \
     review_post_safe_body octopus/example "$(<"$safe_body")" pr-comment 42 \
     > "$TEST_TMP_DIR/interrupted-review-output.log" 2>&1 &
 interrupted_pid=$!
+interrupted_ready=0
 for _ in {1..100}; do
-    [[ -s "$integration_source_path" ]] && break
+    if [[ -s "$integration_source_path" ]]; then
+        interrupted_ready=1
+        break
+    fi
     sleep 0.02
 done
 kill -TERM "$interrupted_pid" 2>/dev/null
@@ -1087,11 +1098,12 @@ wait "$interrupted_pid" 2>/dev/null
 interrupted_rc=$?
 set -e
 interrupted_file_count=$(find "$interrupted_tmp" -mindepth 1 -type f | wc -l | tr -d '[:space:]')
-if [[ "$interrupted_rc" -eq 143 && "$interrupted_file_count" == "0" ]]; then
+if [[ "$interrupted_ready" -eq 1 && "$interrupted_rc" -eq 143 && \
+        "$interrupted_file_count" == "0" ]]; then
     pass "interrupted review posting leaves no caller-owned body file"
 else
     fail "interrupted review posting leaves no caller-owned body file" \
-        "interrupted review returned $interrupted_rc with $interrupted_file_count caller files"
+        "ready=$interrupted_ready, interrupted review returned $interrupted_rc with $interrupted_file_count caller files"
 fi
 
 batch_findings="$TEST_TMP_DIR/batch-findings.json"
@@ -1192,12 +1204,17 @@ for skill_root in "$PROJECT_ROOT/.claude/skills" "$PROJECT_ROOT/skills"; do
         fi
     done
 done
-if [[ -z "$unsafe_skill_posts" && "$safe_skill_files" -eq 10 && \
-        "$api_alias_matches" -eq 10 ]]; then
+if [[ "$api_alias_matches" -eq 10 ]]; then
+    pass "unsafe-posting detector matches all known inline body forms"
+else
+    fail "unsafe-posting detector matches all known inline body forms" \
+        "matched $api_alias_matches of 10 detector fixtures"
+fi
+if [[ -z "$unsafe_skill_posts" && "$safe_skill_files" -eq 10 ]]; then
     pass "GitHub-posting skill guidance uses the safe helper"
 else
     fail "GitHub-posting skill guidance uses the safe helper" \
-        "source skill guidance still demonstrates inline GitHub bodies"
+        "unsafe posts=${unsafe_skill_posts:-none}; safe files=$safe_skill_files of 10"
 fi
 
 unknown_write_guidance=0
