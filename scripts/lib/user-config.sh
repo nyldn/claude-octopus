@@ -55,12 +55,36 @@ octo_prefs_file() {
   printf '%s/.claude-octopus/preferences.json' "$HOME"
 }
 
+# Portable best-effort exclusive lock, matching scripts/lib/events.sh: flock is
+# Linux-only, while mkdir is atomic on every POSIX filesystem. Bounded spin so a
+# dead holder degrades to "skip the write" rather than hanging setup.
+_octo_pref_lock() {
+  local lockdir="$1.lock"
+  local tries=0
+  while ! mkdir "$lockdir" 2>/dev/null; do
+    tries=$((tries + 1))
+    [[ "$tries" -ge 50 ]] && return 1
+    sleep 0.02 2>/dev/null || return 1
+  done
+  return 0
+}
+
+_octo_pref_unlock() {
+  rmdir "$1.lock" 2>/dev/null || true
+}
+
 # Set a preference key ONLY when it is absent. An explicit user choice, including
 # an opt-out, is never overwritten. Value must be valid JSON (e.g. '"suggest"').
+#
+# The read-check-write sequence holds a lock for its whole duration. Without it,
+# a concurrent writer could set auto_router_mode=off between the has() check and
+# the rename, and this function would silently clobber that opt-out — the exact
+# thing it promises never to do. When the lock cannot be taken, skip the write:
+# leaving the preference unset keeps routing dormant, which is the safe side.
 octo_pref_write_default() {
   local key="$1"
   local value="$2"
-  local prefs_file prefs_dir current updated tmp
+  local prefs_file prefs_dir current updated tmp rc=0
 
   if ! command -v jq &>/dev/null; then
     echo "⚠️  jq not found — preference '$key' not persisted. Install: brew install jq" >&2
@@ -70,6 +94,13 @@ octo_pref_write_default() {
   prefs_file="$(octo_prefs_file)"
   prefs_dir="$(dirname "$prefs_file")"
   mkdir -p "$prefs_dir" || return 0
+
+  if ! _octo_pref_lock "$prefs_file"; then
+    echo "⚠️  $prefs_file is busy — preference '$key' not persisted." >&2
+    return 0
+  fi
+  # Release the lock on any exit path, including an interrupt mid-write.
+  trap '_octo_pref_unlock "$prefs_file"' RETURN
 
   current="{}"
   if [[ -f "$prefs_file" ]]; then
@@ -99,7 +130,9 @@ octo_pref_write_default() {
   else
     rm -f "$tmp" 2>/dev/null || true
     echo "⚠️  Failed to write $prefs_file" >&2
+    rc=1
   fi
+  return "$rc"
 }
 
 octo_config_reset() {

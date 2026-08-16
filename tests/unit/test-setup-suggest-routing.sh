@@ -33,7 +33,7 @@ SETUP_CMD="$PROJECT_ROOT/commands/setup.md"
 resolved_mode() {
     local home_dir="$1" out
     out=$(env -u OCTOPUS_AUTO_ROUTER_MODE -u OCTOPUS_AUTO_INVOKE \
-        HOME="$home_dir" CLAUDE_PLUGIN_ROOT="$PROJECT_ROOT" \
+        "HOME=$home_dir" "CLAUDE_PLUGIN_ROOT=$PROJECT_ROOT" \
         "$SESSION_HOOK" 2>/dev/null) || true
     [[ -n "$out" ]] || { echo "off"; return 0; }
     printf '%s' "$out" | python3 -c '
@@ -87,9 +87,19 @@ check "unrelated preference keys survive the write" "off" "$(pref_key "$H3" OCTO
 check "new key is added alongside existing ones" "suggest" "$(pref_key "$H3" auto_router_mode)"
 
 # --- 5. file is owner-only --------------------------------------------------
-fmode=$(stat -f '%Lp' "$H1/.claude-octopus/preferences.json" 2>/dev/null \
-    || stat -c '%a' "$H1/.claude-octopus/preferences.json" 2>/dev/null || echo "?")
-check "preferences.json is written owner-only" "600" "$fmode"
+# GNU stat -f means "filesystem status" and prints a report to stdout, so trying
+# the BSD format flag first pollutes the captured value on Linux. Probe GNU -c
+# first, and accept a result only when it looks like a mode.
+file_mode() {
+    local f="$1" m
+    m=$(stat -c '%a' "$f" 2>/dev/null) || m=""
+    if [[ ! "$m" =~ ^[0-7]{3,4}$ ]]; then
+        m=$(stat -f '%Lp' "$f" 2>/dev/null) || m=""
+    fi
+    [[ "$m" =~ ^[0-7]{3,4}$ ]] || m="?"
+    printf '%s' "$m"
+}
+check "preferences.json is written owner-only" "600" "$(file_mode "$H1/.claude-octopus/preferences.json")"
 
 # --- 6. a profile that never ran setup stays dormant ------------------------
 H4="$TEST_TMP_DIR/home-never-setup"; mkdir -p "$H4/.claude-octopus"
@@ -101,21 +111,46 @@ check "hook resolves suggest from the written preference" "suggest" "$(resolved_
 # --- 8. an explicit opt-out still reaches the hook as off -------------------
 check "hook honors the preserved opt-out" "off" "$(resolved_mode "$H2")"
 
-# --- 9. invoke is never written automatically -------------------------------
+# --- 9. a corrupt preferences file is left untouched ------------------------
+H5="$TEST_TMP_DIR/home-corrupt"; mkdir -p "$H5/.claude-octopus"
+CORRUPT='{"auto_router_mode": "off"'   # truncated: not valid JSON
+printf '%s' "$CORRUPT" > "$H5/.claude-octopus/preferences.json"
+write_default "$H5"
+check "a corrupt preferences file is not replaced" \
+    "$CORRUPT" "$(cat "$H5/.claude-octopus/preferences.json")"
+check "a corrupt preferences file leaves routing dormant" "off" "$(resolved_mode "$H5")"
+
+# --- 10. a held lock skips the write rather than clobbering -----------------
+H6="$TEST_TMP_DIR/home-locked"; mkdir -p "$H6/.claude-octopus"
+mkdir -p "$H6/.claude-octopus/preferences.json.lock"   # simulate a live holder
+write_default "$H6"
+check "a contended write is skipped, not forced" "" "$(pref_key "$H6" auto_router_mode)"
+rmdir "$H6/.claude-octopus/preferences.json.lock" 2>/dev/null || true
+write_default "$H6"
+check "the write succeeds once the lock clears" "suggest" "$(pref_key "$H6" auto_router_mode)"
+
+# --- 11. the lock is released after a normal write --------------------------
+if [[ -d "$H1/.claude-octopus/preferences.json.lock" ]]; then
+    fail "lock is released after a successful write" "lock directory left behind"
+else
+    pass "lock is released after a successful write"
+fi
+
+# --- 12. invoke is never written automatically ------------------------------
 if grep -nE 'octo_pref_write_default[[:space:]]+"auto_router_mode"[[:space:]]+.?"invoke"' "$SETUP_CMD" >/dev/null 2>&1; then
     fail "setup never auto-enables invoke" "setup writes invoke"
 else
     pass "setup never auto-enables invoke"
 fi
 
-# --- 10. setup persists the preference at its completion point --------------
+# --- 13. setup persists the preference at its completion point --------------
 if grep -q 'octo_pref_write_default "auto_router_mode"' "$SETUP_CMD" 2>/dev/null; then
     pass "setup.md persists auto_router_mode on completion"
 else
     fail "setup.md persists auto_router_mode on completion" "setup.md does not call the helper"
 fi
 
-# --- 11. setup states the consent boundary to the user ----------------------
+# --- 14. setup states the consent boundary to the user ----------------------
 if grep -qi 'suggest' "$SETUP_CMD" 2>/dev/null; then
     pass "setup.md tells the user suggestions were enabled"
 else
