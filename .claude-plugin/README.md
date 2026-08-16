@@ -29,10 +29,10 @@ delegate to Octopus agents. Every command and skill is manual-only: use
 suggestions (`auto_router_mode=suggest`), which name a matching command without
 dispatching any provider; by default a profile that never ran setup stays fully
 dormant, and an existing preference is never overwritten. Either state can be
-overridden explicitly: `export OCTOPUS_AUTO_ROUTER_MODE=off|suggest|invoke` for
-the current shell, or `"auto_router_mode": "off"` in
-`~/.claude-octopus/preferences.json` to persist it. The environment variable
-wins over the stored preference. Automatic invocation stays opt-in behind
+overridden explicitly: `export OCTOPUS_AUTO_ROUTER_MODE=off` for the current
+shell (accepted values are `off`, `suggest`, and `invoke`), or
+`"auto_router_mode": "off"` in `~/.claude-octopus/preferences.json` to persist
+it. The environment variable wins over the stored preference. Automatic invocation stays opt-in behind
 `OCTOPUS_AUTO_ROUTER_MODE=invoke`. That opt-in
 examines ordinary prompts and can route them into paid external-provider
 workflows; use `suggest` unless you intentionally want automatic invocation and

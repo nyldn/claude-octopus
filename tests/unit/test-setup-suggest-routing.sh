@@ -136,21 +136,37 @@ else
     pass "lock is released after a successful write"
 fi
 
-# --- 12. invoke is never written automatically ------------------------------
+# --- 12. the helper leaves no trap behind for the caller --------------------
+# A sourced library must not arm a RETURN trap: under `set -T` plus `set -u` it
+# stays live for later returns and then expands an out-of-scope path, killing
+# the caller. Reproduced as exit 127 "prefs_file: unbound variable" before the
+# locked body was split into its own function.
+H7="$TEST_TMP_DIR/home-trap"; mkdir -p "$H7/.claude-octopus"
+trap_out=$(HOME="$H7" bash -c '
+    set -T -u
+    . "$1"
+    octo_pref_write_default "auto_router_mode" "\"suggest\"" >/dev/null 2>&1
+    later() { :; }
+    later
+    echo CALLER_SURVIVED
+' _ "$LIB" 2>&1 | tail -1) || true
+check "no RETURN trap leaks into the caller under set -T -u" "CALLER_SURVIVED" "$trap_out"
+
+# --- 13. invoke is never written automatically ------------------------------
 if grep -nE 'octo_pref_write_default[[:space:]]+"auto_router_mode"[[:space:]]+.?"invoke"' "$SETUP_CMD" >/dev/null 2>&1; then
     fail "setup never auto-enables invoke" "setup writes invoke"
 else
     pass "setup never auto-enables invoke"
 fi
 
-# --- 13. setup persists the preference at its completion point --------------
+# --- 14. setup persists the preference at its completion point --------------
 if grep -q 'octo_pref_write_default "auto_router_mode"' "$SETUP_CMD" 2>/dev/null; then
     pass "setup.md persists auto_router_mode on completion"
 else
     fail "setup.md persists auto_router_mode on completion" "setup.md does not call the helper"
 fi
 
-# --- 14. setup states the consent boundary to the user ----------------------
+# --- 15. setup states the consent boundary to the user ----------------------
 if grep -qi 'suggest' "$SETUP_CMD" 2>/dev/null; then
     pass "setup.md tells the user suggestions were enabled"
 else

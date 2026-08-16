@@ -81,26 +81,12 @@ _octo_pref_unlock() {
 # the rename, and this function would silently clobber that opt-out — the exact
 # thing it promises never to do. When the lock cannot be taken, skip the write:
 # leaving the preference unset keeps routing dormant, which is the safe side.
-octo_pref_write_default() {
-  local key="$1"
-  local value="$2"
-  local prefs_file prefs_dir current updated tmp rc=0
-
-  if ! command -v jq &>/dev/null; then
-    echo "⚠️  jq not found — preference '$key' not persisted. Install: brew install jq" >&2
-    return 0
-  fi
-
-  prefs_file="$(octo_prefs_file)"
-  prefs_dir="$(dirname "$prefs_file")"
-  mkdir -p "$prefs_dir" || return 0
-
-  if ! _octo_pref_lock "$prefs_file"; then
-    echo "⚠️  $prefs_file is busy — preference '$key' not persisted." >&2
-    return 0
-  fi
-  # Release the lock on any exit path, including an interrupt mid-write.
-  trap '_octo_pref_unlock "$prefs_file"' RETURN
+# Body of the locked write. Never call this directly: octo_pref_write_default
+# owns the lock around it. Multiple early returns live here so the caller can
+# keep exactly one unlock path.
+_octo_pref_write_locked() {
+  local key="$1" value="$2" prefs_file="$3" prefs_dir="$4"
+  local current updated tmp
 
   current="{}"
   if [[ -f "$prefs_file" ]]; then
@@ -127,11 +113,43 @@ octo_pref_write_default() {
   chmod 600 "$tmp" 2>/dev/null || true
   if printf '%s\n' "$updated" > "$tmp" && mv -f "$tmp" "$prefs_file"; then
     chmod 600 "$prefs_file" 2>/dev/null || true
-  else
-    rm -f "$tmp" 2>/dev/null || true
-    echo "⚠️  Failed to write $prefs_file" >&2
-    rc=1
+    return 0
   fi
+  rm -f "$tmp" 2>/dev/null || true
+  echo "⚠️  Failed to write $prefs_file" >&2
+  return 1
+}
+
+octo_pref_write_default() {
+  local key="$1"
+  local value="$2"
+  local prefs_file prefs_dir rc
+
+  if ! command -v jq &>/dev/null; then
+    echo "⚠️  jq not found — preference '$key' not persisted. Install: brew install jq" >&2
+    return 0
+  fi
+
+  prefs_file="$(octo_prefs_file)"
+  prefs_dir="$(dirname "$prefs_file")"
+  mkdir -p "$prefs_dir" || return 0
+
+  if ! _octo_pref_lock "$prefs_file"; then
+    echo "⚠️  $prefs_file is busy — preference '$key' not persisted." >&2
+    return 0
+  fi
+
+  # No trap here, deliberately. A sourced library must not install EXIT/INT/TERM
+  # traps: they replace the caller's. A RETURN trap is worse — under `set -T`
+  # plus `set -u` it stays armed for later returns and then expands an
+  # out-of-scope path, aborting the caller. Instead the locked body is a
+  # separate function so there is exactly one unlock path here. An interrupt
+  # between lock and unlock leaves a stale lock directory; the bounded spin in
+  # _octo_pref_lock degrades that to "skip the write", matching
+  # scripts/lib/events.sh.
+  _octo_pref_write_locked "$key" "$value" "$prefs_file" "$prefs_dir"
+  rc=$?
+  _octo_pref_unlock "$prefs_file"
   return "$rc"
 }
 
