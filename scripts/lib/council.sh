@@ -44,6 +44,7 @@ COUNCIL_ROSTER_JSON=""
 COUNCIL_RESPONSES_RECEIVED=""
 COUNCIL_QUORUM_MET=""
 COUNCIL_CHAIR_RESPONSE_RECEIVED=""
+COUNCIL_CHAIR_HOST_NATIVE=""
 COUNCIL_CHAIR_FALLBACK_USED=""
 COUNCIL_CHAIR_FALLBACK_PERSONA=""
 COUNCIL_IMPLEMENTATION_PLAN_WRITTEN=""
@@ -1893,9 +1894,26 @@ council_note_seat_timeout() {
 }${line}"
 }
 
+council_chair_is_host_native() {
+    # The chair can be the active host runtime (e.g. Claude Code running the
+    # council). A host-native chair cannot self-dispatch, so it never produces a
+    # substantive chair response file — but it IS present and synthesizes the
+    # council in-context. Quorum must treat it as a satisfied chair, otherwise a
+    # run with two cleanly-approving vendors is falsely reported quorum.met=false
+    # purely because chair_received never flipped true.
+    local chair_json chair_provider status
+    chair_json="$(council_chair_member_json 2>/dev/null || true)"
+    [[ -n "$chair_json" ]] || return 1
+    chair_provider="$(jq -r '.provider // ""' <<< "$chair_json" 2>/dev/null)"
+    [[ -n "$chair_provider" ]] || return 1
+    status="$(jq -r --arg p "$chair_provider" '.[$p] // "missing"' <<< "${COUNCIL_PROVIDER_STATUS_JSON:-{}}" 2>/dev/null)"
+    [[ "$status" == "host-native" ]]
+}
+
 council_run_advice_phase() {
     COUNCIL_RESPONSES_RECEIVED="0"
     COUNCIL_CHAIR_RESPONSE_RECEIVED="false"
+    COUNCIL_CHAIR_HOST_NATIVE="false"
     COUNCIL_RESPONDING_PROVIDERS=""
     COUNCIL_SEAT_RECORDS_JSON="[]"
     COUNCIL_TIMEOUT_WARNINGS=""
@@ -2022,7 +2040,21 @@ council_run_advice_phase() {
                 and .status == "responded" and .verdict == "APPROVE"
                 and ($approving | contains(" " + $p + " "))))' <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}")"
 
-    if [[ "$COUNCIL_CHAIR_RESPONSE_RECEIVED" == "true" ]] && (( received_non_chair >= required )) \
+    # Chair presence: a dispatched chair response OR a host-native chair (which
+    # synthesizes in-context and cannot self-dispatch). Gating met on the response
+    # file alone falsely fails a run whose chair IS the host — the reported
+    # quorum.met=false with distinct_approving_providers=2. met now reflects vendor
+    # approvals plus a present (synthesis-capable) chair, not chair receipt.
+    COUNCIL_CHAIR_HOST_NATIVE="false"
+    if [[ "$COUNCIL_CHAIR_RESPONSE_RECEIVED" != "true" ]] && council_chair_is_host_native; then
+        COUNCIL_CHAIR_HOST_NATIVE="true"
+    fi
+    local chair_present="false"
+    if [[ "$COUNCIL_CHAIR_RESPONSE_RECEIVED" == "true" || "$COUNCIL_CHAIR_HOST_NATIVE" == "true" ]]; then
+        chair_present="true"
+    fi
+
+    if [[ "$chair_present" == "true" ]] && (( received_non_chair >= required )) \
         && { (( required < 2 )) || (( COUNCIL_DISTINCT_APPROVING_PROVIDERS >= required )); }; then
         COUNCIL_QUORUM_MET="true"
     else
@@ -2783,6 +2815,7 @@ council_write_summary_json() {
         --arg distinct_approving_providers "${COUNCIL_DISTINCT_APPROVING_PROVIDERS:-0}" \
         --arg approving_providers "${COUNCIL_APPROVING_PROVIDERS:-}" \
         --arg chair_received "$COUNCIL_CHAIR_RESPONSE_RECEIVED" \
+        --arg chair_host_native "${COUNCIL_CHAIR_HOST_NATIVE:-false}" \
         --arg chair_fallback_used "$COUNCIL_CHAIR_FALLBACK_USED" \
         --arg chair_fallback_persona "$COUNCIL_CHAIR_FALLBACK_PERSONA" \
         --arg implementation_plan_written "$COUNCIL_IMPLEMENTATION_PLAN_WRITTEN" \
@@ -2821,6 +2854,7 @@ council_write_summary_json() {
             required_non_chair: (if $depth == "quick" then 1 else 2 end),
             received_non_chair: ($received_non_chair | tonumber),
             chair_received: ($chair_received == "true"),
+            chair_host_native: ($chair_host_native == "true"),
             distinct_providers: ($distinct_providers | tonumber),
             responding_providers: $responding_providers,
             distinct_approving_providers: ($distinct_approving_providers | tonumber),

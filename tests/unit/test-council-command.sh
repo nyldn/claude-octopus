@@ -1419,6 +1419,22 @@ test_council_run_does_not_clobber_healthy_summary() {
     fi
 }
 
+test_council_chair_is_host_native_detects_status() {
+    test_case "council_chair_is_host_native reflects the chair provider's host-native status"
+    load_council_lib || return 1
+    COUNCIL_ROSTER_JSON='[{"persona":"strategy-analyst","seat":"chair","provider":"claude","provider_org":"anthropic","model":"opus"}]'
+    COUNCIL_CHAIR_FALLBACK_USED="false"; COUNCIL_CHAIR_FALLBACK_PERSONA=""
+    local hostnative available
+    COUNCIL_PROVIDER_STATUS_JSON='{"claude":"host-native"}' council_chair_is_host_native && hostnative=yes || hostnative=no
+    COUNCIL_PROVIDER_STATUS_JSON='{"claude":"available"}' council_chair_is_host_native && available=yes || available=no
+    if [[ "$hostnative" == "yes" && "$available" == "no" ]]; then
+        test_pass
+    else
+        test_fail "expected host-native=yes available=no; got host-native=$hostnative available=$available"
+        return 1
+    fi
+}
+
 test_council_run_replaces_malformed_body_summary() {
     test_case "council_run treats an empty/malformed body summary.json as missing and repairs it"
     load_council_lib || return 1
@@ -1534,10 +1550,58 @@ test_council_run_status_beacon_lifecycle() {
     fi
 }
 
+test_council_quorum_met_with_host_native_chair() {
+    test_case "quorum.met is true when a host-native chair + two vendors approve (chair_received stays false)"
+    load_council_lib || return 1
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/council-hnchair.XXXXXX")"; mkdir -p "$d/responses"
+    COUNCIL_RUN_DIR="$d"
+    COUNCIL_DEPTH="standard"   # required_non_chair = 2
+    COUNCIL_FIXTURE=""
+    COUNCIL_CHAIR_FALLBACK_USED="false"; COUNCIL_CHAIR_FALLBACK_PERSONA=""
+    COUNCIL_ROSTER_JSON='[
+      {"persona":"strategy-analyst","seat":"chair","provider":"claude","provider_org":"anthropic","model":"opus"},
+      {"persona":"backend-architect","seat":"member","provider":"codex","provider_org":"openai","model":"gpt"},
+      {"persona":"security-auditor","seat":"member","provider":"agy","provider_org":"google","model":"gemini"}
+    ]'
+    # Non-chair vendors approve; the host-native chair (claude) cannot self-dispatch
+    # (return 1, no substantive file) — mirrors the real host-agent path.
+    council_dispatch_member_detached() {
+        local mj="$1" out="$3" prov
+        prov="$(jq -r '.provider' <<< "$mj")"
+        case "$prov" in
+            codex|agy) printf '## Review by %s\n\nThe change is sound and well tested. No blocking concerns.\n\nVERDICT: APPROVE\n' "$prov" > "$out"; return 0 ;;
+            *) return 1 ;;
+        esac
+    }
+    council_run_chair_fallback() { :; }   # no dispatched fallback available
+
+    COUNCIL_PROVIDER_STATUS_JSON='{"claude":"host-native","codex":"available","agy":"available"}' \
+        council_run_advice_phase >/dev/null 2>&1 || true
+    local met_hn chair_recv_hn hostnative_hn
+    met_hn="$COUNCIL_QUORUM_MET"; chair_recv_hn="$COUNCIL_CHAIR_RESPONSE_RECEIVED"; hostnative_hn="$COUNCIL_CHAIR_HOST_NATIVE"
+
+    # Negative control: same two approvals but the chair provider is merely
+    # "available" and never responded — chair is genuinely absent, met must be false.
+    COUNCIL_PROVIDER_STATUS_JSON='{"claude":"available","codex":"available","agy":"available"}' \
+        council_run_advice_phase >/dev/null 2>&1 || true
+    local met_absent="$COUNCIL_QUORUM_MET"
+
+    unset -f council_dispatch_member_detached council_run_chair_fallback
+
+    if [[ "$met_hn" == "true" && "$chair_recv_hn" == "false" && "$hostnative_hn" == "true" && "$met_absent" == "false" ]]; then
+        test_pass
+    else
+        test_fail "host-native chair quorum wrong: met=$met_hn chair_received=$chair_recv_hn host_native=$hostnative_hn ; absent-chair met=$met_absent"
+        return 1
+    fi
+}
+
 test_council_command_files_are_registered
 test_council_orchestrate_route_exists
 test_council_run_status_beacon_lifecycle
 test_council_benchmark_routing_lib_is_extracted
+test_council_chair_is_host_native_detects_status
+test_council_quorum_met_with_host_native_chair
 test_council_defaults_are_depth_aware
 test_council_rejects_non_usd_budget
 test_council_dry_run_writes_summary_json

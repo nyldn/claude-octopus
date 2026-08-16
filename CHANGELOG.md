@@ -25,6 +25,13 @@
 
 ### Fixed
 
+- Council quorum now treats a host-native chair as present even when it cannot
+  self-dispatch a chair response file. `met` reflects vendor approvals plus a
+  present, synthesis-capable chair (`chair_received` or `chair_host_native`),
+  so a Claude Code-hosted council with two approving vendors is no longer
+  reported as `quorum.met: false`. An unavailable non-host-native chair still
+  fails quorum.
+
 - `orchestrate.sh council` now always emits a valid `summary.json`. The runner
   wrote one only on its four intended exit paths (dry-run, no-quorum, veto-abort,
   completed); if the chair-synthesis seat was SIGKILLed at the timeout cap, a
