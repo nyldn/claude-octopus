@@ -63,6 +63,44 @@ else
     test_pass
 fi
 
+# ── "cannot validate" != "invalid" ─────────────────────────────────────────
+# A restricted sandbox (or an offline host) can make `agy models` return an
+# empty catalog. Treating that like a bad pin turned OCTOPUS_AGY_MODEL resolution
+# into a spawn-time abort even when the pin was valid. Validation must fail OPEN
+# when the catalog is unreachable (agy still rejects a genuinely bad model at
+# dispatch), and only fail closed under an explicit strict opt-in.
+STUB_EMPTY="$TEST_TMP_DIR/bin-empty"
+mkdir -p "$STUB_EMPTY"
+cat > "$STUB_EMPTY/agy" <<'MOCK_AGY_EMPTY'
+#!/usr/bin/env bash
+# Offline/sandboxed: `agy models` yields no catalog.
+[[ "${1:-}" == "models" ]] && exit 0
+exit 0
+MOCK_AGY_EMPTY
+chmod 755 "$STUB_EMPTY/agy"
+
+test_case "agy pin fails open when the catalog is unreachable (sandboxed/offline)"
+if printf 'payload' | env "PATH=$STUB_EMPTY:$PATH" bash -c '
+    log() { :; }
+    source "'"$PROJECT_ROOT"'/scripts/lib/model-resolver.sh" 2>/dev/null
+    validate_agy_model_name "Gemini 3.5 Flash (Low)"
+' 2>/dev/null; then
+    test_pass
+else
+    test_fail "unreachable catalog hard-failed validation instead of failing open"
+fi
+
+test_case "OCTOPUS_AGY_MODEL_STRICT=1 restores fail-closed on an unreachable catalog"
+if printf 'payload' | env "PATH=$STUB_EMPTY:$PATH" "OCTOPUS_AGY_MODEL_STRICT=1" bash -c '
+    log() { :; }
+    source "'"$PROJECT_ROOT"'/scripts/lib/model-resolver.sh" 2>/dev/null
+    validate_agy_model_name "Gemini 3.5 Flash (Low)"
+' 2>/dev/null; then
+    test_fail "strict mode accepted a pin it could not validate"
+else
+    test_pass
+fi
+
 # ── council diversity short-circuit ────────────────────────────────────────
 pick_provider() {
     local roster_json="$1" preferred="$2"

@@ -710,10 +710,15 @@ MOCK_AGY
     elapsed=$(( $(date +%s) - started ))
     PATH="$old_path"
 
-    if [[ "$lookup_rc" -ne 0 && "$elapsed" -lt 3 ]]; then
+    # The invariant under test is the BOUND: the stalled lookup must be killed by
+    # the 1s timeout and never reach the mock's 3s sleep. A stalled (unreachable)
+    # catalog is a "cannot validate" case, so it now fails OPEN (rc=0) — the pin is
+    # trusted and agy rejects a genuinely bad model at dispatch. (OCTOPUS_AGY_MODEL_STRICT=1
+    # would fail closed; the default path is asserted here.)
+    if [[ "$lookup_rc" -eq 0 && "$elapsed" -lt 3 ]]; then
         test_pass
     else
-        test_fail "stalled agy catalog was not bounded: rc=$lookup_rc elapsed=${elapsed}s"
+        test_fail "stalled agy catalog was not bounded or did not fail open: rc=$lookup_rc elapsed=${elapsed}s"
     fi
 }
 test_agy_command_validation() {

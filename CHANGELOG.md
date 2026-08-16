@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+### Added
+
+- `OCTOPUS_COUNCIL_SYNTHESIS_TIMEOUT` bounds the chair-synthesis dispatch
+  independently of the per-seat cap. Synthesis reads every member artifact and
+  writes the final structured document, so it routinely needs more room than a
+  single advice seat — and on a slow chair path (e.g. codex via the
+  chatgpt.com MCP transport) the plain seat cap can expire mid-write. When the
+  override is unset, zero, negative, or non-numeric, synthesis falls back through
+  the chair provider's normal per-seat resolution
+  (`OCTOPUS_COUNCIL_TIMEOUT_<PROVIDER>` → `--seat-timeout` → legacy
+  `OCTOPUS_COUNCIL_AGENT_TIMEOUT` → built-in default), so a malformed value never
+  disables the cap.
+- Council runs now write a `run-status.json` liveness beacon in the run
+  directory, so a backgrounded or detached run is pollable instead of
+  silent-empty. It records `state` (`running` at run-dir creation → `finished`
+  when `summary.json` is written) and the orchestrator `pid`, letting a caller
+  distinguish: no file → died before the run dir existed; `running` with a live
+  pid → in progress; `running` with a dead pid → crashed/killed mid-run;
+  `finished` → done (read `summary.json` for the result). Written atomically so a
+  poller never reads a half-written file.
+
 ### Fixed
 
 - `orchestrate.sh council` now always emits a valid `summary.json`. The runner
@@ -15,6 +36,21 @@
   summary — falling back to a minimal valid `{"status":"incomplete"}` if the rich
   writer also fails — prints the partial-artifact location, and returns nonzero,
   so "runner unhealthy" is a clean signal, never an unbounded wait.
+- `OCTOPUS_AGY_MODEL` validation no longer aborts a run when the agy catalog is
+  unreachable. A restricted sandbox or an offline host makes `agy models` return
+  an empty catalog; the validator treated that "cannot validate" case like a
+  definitively invalid pin and failed model resolution, crashing the council on
+  spawn even when the pin was valid. Validation now fails **open** when the
+  catalog is unreachable (agy still rejects a genuinely bad model at dispatch,
+  with a clear error) and only fails **closed** for a model that is absent from a
+  *reachable* catalog. Set `OCTOPUS_AGY_MODEL_STRICT=1` to require validation and
+  restore the previous fail-closed behavior.
+- Council advice seats killed by their own timeout monitor are now recorded as
+  `timed-out` in `summary.json` instead of a generic `no-response`, and the run
+  prints an actionable warning naming the exact knob to raise
+  (`OCTOPUS_COUNCIL_TIMEOUT_<PROVIDER>`). A codex seat SIGKILLed at the ~5-min cap
+  (exit 137) on the slow chatgpt.com MCP path previously read like an unexplained
+  OOM; it is our own watchdog firing, and the summary/warning now say so.
 
 ## [9.64.0] - 2026-08-13
 

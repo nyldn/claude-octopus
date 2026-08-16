@@ -1479,8 +1479,64 @@ test_council_run_writes_minimal_summary_when_rich_writer_fails() {
     fi
 }
 
+test_council_run_status_beacon_lifecycle() {
+    test_case "council writes a run-status.json beacon: running at run-dir creation, finished at summary"
+    load_council_lib || return 1
+
+    # create_run_dir runs in THIS process, so the staged beacon must record this
+    # shell's own pid — assert the exact value, not merely a positive integer.
+    local expected_pid_running="${BASHPID:-$$}"
+    # Unit: create_run_dir beacons "running" (with run_id + a live pid) BEFORE any
+    # summary.json exists — the signal a poller uses to tell in-progress from
+    # died-on-spawn. Surface a setup failure rather than masking it with `|| true`.
+    local tmp; tmp="$(mktemp -d "$TEST_TMP_DIR/council-runstatus.XXXXXX")"
+    if ! COUNCIL_OUTPUT_DIR="$tmp" council_create_run_dir >/dev/null 2>&1; then
+        test_fail "council_create_run_dir failed"; return 1
+    fi
+    local rs="${COUNCIL_RUN_DIR}/run-status.json" run_id_running="$COUNCIL_RUN_ID"
+    local state_running pid_running rid_running had_summary=no
+    state_running="$(jq -r '.state' "$rs" 2>/dev/null)"
+    pid_running="$(jq -r '.pid' "$rs" 2>/dev/null)"
+    rid_running="$(jq -r '.run_id' "$rs" 2>/dev/null)"
+    [[ -e "${COUNCIL_RUN_DIR}/summary.json" ]] && had_summary=yes
+
+    # #1: a beacon written from a subshell must record the writing process's own
+    # pid (BASHPID), not the parent shell — otherwise a poller watches the wrong
+    # process. Capture the writer's pid and the recorded pid in the SAME subshell
+    # (comparing across two subshells would compare two different pids). On bash
+    # 3.2 (BASHPID unset) both resolve to $$, so this holds on every bash.
+    local sub_result sub_expect sub_pid
+    sub_result="$( ( council_write_run_status "running" >/dev/null 2>&1
+                     printf '%s|%s' "${BASHPID:-$$}" "$(jq -r '.pid' "$rs" 2>/dev/null)" ) )"
+    sub_expect="${sub_result%%|*}"
+    sub_pid="${sub_result##*|}"
+
+    # Integration: a real dry-run flips the beacon to "finished" with the terminal
+    # status, through council_write_summary_json (one hook covers every exit).
+    local tmp2; tmp2="$(mktemp -d "$TEST_TMP_DIR/council-runstatus2.XXXXXX")"
+    if ! council_run --dry-run --goal advice --depth quick --benchmark auto \
+        --output-dir "$tmp2" "Should we cache?" >/dev/null 2>&1; then
+        test_fail "council_run --dry-run failed"; return 1
+    fi
+    local rs2 state_finished status_finished
+    rs2="$(find "$tmp2" -name run-status.json -type f | head -1)"
+    state_finished="$(jq -r '.state' "$rs2" 2>/dev/null)"
+    status_finished="$(jq -r '.status' "$rs2" 2>/dev/null)"
+
+    if [[ "$state_running" == "running" && "$pid_running" == "$expected_pid_running" \
+          && "$rid_running" == "$run_id_running" && "$had_summary" == "no" \
+          && "$sub_pid" == "$sub_expect" \
+          && "$state_finished" == "finished" && "$status_finished" == "dry-run" ]]; then
+        test_pass
+    else
+        test_fail "beacon lifecycle wrong: running(state=$state_running pid=$pid_running run_id=$rid_running/$run_id_running summary=$had_summary subpid=$sub_pid/$sub_expect) finished(state=$state_finished status=$status_finished)"
+        return 1
+    fi
+}
+
 test_council_command_files_are_registered
 test_council_orchestrate_route_exists
+test_council_run_status_beacon_lifecycle
 test_council_benchmark_routing_lib_is_extracted
 test_council_defaults_are_depth_aware
 test_council_rejects_non_usd_budget
@@ -1734,6 +1790,102 @@ test_council_seat_timeout_precedence() {
         test_pass
     else
         test_fail "timeout precedence wrong: default=$d global=$g flag=$f agy=$p codex=$pp invalid=$invalid_provider/$invalid_flag/$invalid_global"
+        return 1
+    fi
+}
+
+test_council_synthesis_timeout_overrides_seat_cap() {
+    test_case "council_synthesis_timeout: env override wins, else falls back to per-seat resolution"
+    load_council_lib || return 1
+    local override fallback per_provider invalid
+    # Explicit synthesis override wins over the seat cap for the chair phase.
+    override="$(OCTOPUS_COUNCIL_SYNTHESIS_TIMEOUT=900 COUNCIL_SEAT_TIMEOUT=300 council_synthesis_timeout codex)"
+    # No override -> chair provider's normal per-seat resolution (default 120).
+    fallback="$(OCTOPUS_COUNCIL_SYNTHESIS_TIMEOUT='' OCTOPUS_COUNCIL_TIMEOUT_CODEX='' COUNCIL_SEAT_TIMEOUT='' OCTOPUS_COUNCIL_AGENT_TIMEOUT='' council_synthesis_timeout codex)"
+    # No override -> existing per-provider tuning still applies through the fallback.
+    per_provider="$(OCTOPUS_COUNCIL_SYNTHESIS_TIMEOUT='' OCTOPUS_COUNCIL_TIMEOUT_CODEX=600 council_synthesis_timeout codex)"
+    # Invalid override falls through to seat resolution rather than disabling the cap.
+    invalid="$(OCTOPUS_COUNCIL_SYNTHESIS_TIMEOUT=0 OCTOPUS_COUNCIL_TIMEOUT_CODEX='' COUNCIL_SEAT_TIMEOUT=300 council_synthesis_timeout codex)"
+    if [[ "$override" == "900" ]] && [[ "$fallback" == "120" ]] &&
+       [[ "$per_provider" == "600" ]] && [[ "$invalid" == "300" ]]; then
+        test_pass
+    else
+        test_fail "synthesis timeout wrong: override=$override fallback=$fallback per_provider=$per_provider invalid=$invalid"
+        return 1
+    fi
+}
+
+test_council_live_response_uses_synthesis_timeout_for_chair() {
+    test_case "council_live_response applies the synthesis timeout only to chair-synthesis"
+    load_council_lib || return 1
+    local captured_advice captured_synth
+    # run_agent_sync_consultative receives the resolved timeout as arg 3; capture it.
+    run_agent_sync_consultative() { printf '%s' "$3" > "$TEST_TMP_DIR/council-synth-cap.txt"; printf 'ok\n'; }
+    council_provider_is_available() { return 0; }
+    COUNCIL_PROVIDER_STATUS_JSON='{"codex":"available"}'
+
+    OCTOPUS_COUNCIL_SYNTHESIS_TIMEOUT=900 OCTOPUS_COUNCIL_TIMEOUT_CODEX=300 \
+        council_live_response codex strategy-analyst "dummy prompt" chair-synthesis >/dev/null 2>&1
+    captured_synth="$(cat "$TEST_TMP_DIR/council-synth-cap.txt" 2>/dev/null)"
+
+    OCTOPUS_COUNCIL_SYNTHESIS_TIMEOUT=900 OCTOPUS_COUNCIL_TIMEOUT_CODEX=300 \
+        council_live_response codex code-reviewer "dummy prompt" independent-advice >/dev/null 2>&1
+    captured_advice="$(cat "$TEST_TMP_DIR/council-synth-cap.txt" 2>/dev/null)"
+
+    unset -f run_agent_sync_consultative council_provider_is_available
+
+    if [[ "$captured_synth" == "900" ]] && [[ "$captured_advice" == "300" ]]; then
+        test_pass
+    else
+        test_fail "expected synthesis=900 advice=300; got synthesis=$captured_synth advice=$captured_advice"
+        return 1
+    fi
+}
+
+test_council_rc_is_timeout_recognizes_cap_kill_codes() {
+    test_case "council_rc_is_timeout matches watchdog kill codes (124/137/143), not other failures"
+    load_council_lib || return 1
+    local ok="" bad=""
+    local c
+    for c in 124 137 143; do council_rc_is_timeout "$c" && ok="${ok}${c} " || bad="${bad}${c}!TIMEOUT "; done
+    for c in 0 1 2 126 127; do council_rc_is_timeout "$c" && bad="${bad}${c}!NONTIMEOUT " || ok="${ok}skip$c "; done
+    if [[ -z "$bad" ]]; then
+        test_pass
+    else
+        test_fail "misclassified: $bad"
+        return 1
+    fi
+}
+
+test_council_advice_marks_timed_out_seat() {
+    test_case "advice phase classifies a seat killed at its cap as timed-out with a knob hint"
+    load_council_lib || return 1
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/council-timeout.XXXXXX")"; mkdir -p "$d/responses"
+    COUNCIL_RUN_DIR="$d"
+    COUNCIL_ROSTER_JSON='[{"persona":"code-reviewer","seat":"member","provider":"codex","provider_org":"openai","model":"gpt"}]'
+    COUNCIL_FIXTURE=""
+    COUNCIL_TIMEOUT_WARNINGS=""
+    # Simulate the reported codex-137 case: dispatch killed at the cap, no response file.
+    council_dispatch_member_detached() { return 137; }
+    council_run_chair_fallback() { :; }
+
+    OCTOPUS_COUNCIL_TIMEOUT_CODEX=300 council_run_advice_phase >/dev/null 2>&1 || true
+
+    local status warns output
+    status="$(jq -r '.[0].status' <<< "$COUNCIL_SEAT_RECORDS_JSON" 2>/dev/null)"
+    warns="$COUNCIL_TIMEOUT_WARNINGS"
+    # Also assert the end-of-run renderer actually prints it, so a regression in
+    # council_print_run_warnings can't pass while the warning silently disappears.
+    output="$(council_print_run_warnings)"
+
+    unset -f council_dispatch_member_detached council_run_chair_fallback
+
+    if [[ "$status" == "timed-out" ]] &&
+       [[ "$warns" == *"OCTOPUS_COUNCIL_TIMEOUT_CODEX"* ]] && [[ "$warns" == *"300s"* ]] &&
+       [[ "$output" == *"rc=137"* ]] && [[ "$output" == *"OCTOPUS_COUNCIL_TIMEOUT_CODEX"* ]]; then
+        test_pass
+    else
+        test_fail "expected timed-out status + printed knob hint; status='$status' warns=[$warns] output=[$output]"
         return 1
     fi
 }
@@ -2162,6 +2314,10 @@ test_council_fixture_dispatch_uses_inline_transport
 test_council_detached_seat_survives_interrupt
 test_council_detached_seat_timeout_is_cancelled
 test_council_seat_timeout_precedence
+test_council_synthesis_timeout_overrides_seat_cap
+test_council_live_response_uses_synthesis_timeout_for_chair
+test_council_rc_is_timeout_recognizes_cap_kill_codes
+test_council_advice_marks_timed_out_seat
 test_council_seat_timeout_rejects_zero_and_nonnumeric
 test_council_response_has_verdict_salvage
 test_council_chair_only_vendor_excluded_from_quorum

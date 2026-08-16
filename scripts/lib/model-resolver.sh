@@ -124,9 +124,22 @@ validate_agy_model_name() {
             ;;
     esac
 
+    # "Cannot validate" (catalog unreachable) is NOT the same as "invalid" (a
+    # model definitively absent from a reachable catalog). Treating them alike
+    # turned a transient/sandboxed `agy models` failure into a spawn-time abort:
+    # OCTOPUS_AGY_MODEL resolution returned 1 and the whole council crashed even
+    # when the pin was perfectly valid. Fail OPEN when the catalog can't be read —
+    # a genuinely bad pin is still caught by agy itself at dispatch, with a clear
+    # error — and keep the strict fail-closed path behind an explicit opt-in.
+    local strict="${OCTOPUS_AGY_MODEL_STRICT:-0}"
+
     if ! command -v agy >/dev/null 2>&1; then
-        log ERROR "Cannot validate OCTOPUS_AGY_MODEL because agy CLI is not installed"
-        return 1
+        if [[ "$strict" == "1" ]]; then
+            log ERROR "Cannot validate OCTOPUS_AGY_MODEL because agy CLI is not installed (OCTOPUS_AGY_MODEL_STRICT=1)"
+            return 1
+        fi
+        log WARN "Skipping OCTOPUS_AGY_MODEL validation: agy CLI not installed; trusting pin '$model' (set OCTOPUS_AGY_MODEL_STRICT=1 to require validation)"
+        return 0
     fi
 
     local available_models=""
@@ -141,8 +154,12 @@ validate_agy_model_name() {
     if ! available_models="$(_octo_run_bare_probe_with_timeout \
         "$catalog_timeout" "$catalog_term_timeout" "$catalog_kill_grace" \
         agy models </dev/null 2>/dev/null)" || [[ -z "$available_models" ]]; then
-        log ERROR "Cannot validate OCTOPUS_AGY_MODEL because 'agy models' returned no models"
-        return 1
+        if [[ "$strict" == "1" ]]; then
+            log ERROR "Cannot validate OCTOPUS_AGY_MODEL because 'agy models' returned no models (OCTOPUS_AGY_MODEL_STRICT=1)"
+            return 1
+        fi
+        log WARN "Skipping OCTOPUS_AGY_MODEL validation: 'agy models' returned no catalog (offline or sandboxed); trusting pin '$model' (set OCTOPUS_AGY_MODEL_STRICT=1 to require validation)"
+        return 0
     fi
 
     local line="" catalog_id="" catalog_label=""

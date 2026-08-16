@@ -53,6 +53,7 @@ COUNCIL_IMPLEMENTATION_HANDOFF_JSON=""
 COUNCIL_ABORTED_FOR_COST=""
 COUNCIL_DIVERSITY_REPLACED=""
 COUNCIL_DIVERSITY_WARNING=""
+COUNCIL_TIMEOUT_WARNINGS=""
 COUNCIL_BENCHMARK_FRESHNESS_WEIGHT=""
 COUNCIL_COST_CHECK_ESTIMATED=""
 COUNCIL_VETO_TRIGGERED=""
@@ -1505,8 +1506,15 @@ EOF
     fi
 
     if declare -f run_agent_sync_consultative >/dev/null 2>&1; then
-        local agent_type="$provider"
-        run_agent_sync_consultative "$agent_type" "$prompt" "$(council_seat_timeout "$agent_type")" "$persona" "council"
+        local agent_type="$provider" _seat_timeout
+        # Synthesis gets its own (usually larger) bound; advice/critique/revision
+        # keep the normal per-seat cap.
+        if [[ "$dispatch_phase" == "chair-synthesis" ]]; then
+            _seat_timeout="$(council_synthesis_timeout "$agent_type")"
+        else
+            _seat_timeout="$(council_seat_timeout "$agent_type")"
+        fi
+        run_agent_sync_consultative "$agent_type" "$prompt" "$_seat_timeout" "$persona" "council"
         return $?
     fi
 
@@ -1831,6 +1839,20 @@ council_seat_timeout() {
     printf '120'
 }
 
+council_synthesis_timeout() {
+    # Chair-synthesis dispatch timeout (seconds). Synthesis reads every member
+    # artifact and writes the final structured document, so it routinely needs
+    # more room than a single advice seat — and on a slow chair path (e.g. codex
+    # via the chatgpt.com MCP transport) the plain seat cap can expire mid-write.
+    # OCTOPUS_COUNCIL_SYNTHESIS_TIMEOUT overrides just this phase; otherwise fall
+    # back to the chair provider's normal per-seat resolution so existing tuning
+    # (OCTOPUS_COUNCIL_TIMEOUT_<PROVIDER>, --seat-timeout, ...) still applies.
+    local provider="$1" candidate
+    candidate="${OCTOPUS_COUNCIL_SYNTHESIS_TIMEOUT:-}"
+    if [[ "$candidate" =~ ^[1-9][0-9]*$ ]]; then printf '%s' "$candidate"; return 0; fi
+    council_seat_timeout "$provider"
+}
+
 council_compute_approving_providers() {
     # Derive the APPROVING vendor set from the space-separated RESPONDING
     # (substantive responders) and DISSENTING (any seat whose verdict != APPROVE)
@@ -1848,11 +1870,35 @@ council_compute_approving_providers() {
     printf '%s' "$approving"
 }
 
+council_rc_is_timeout() {
+    # True when a seat's dispatch rc came from hitting its own timeout cap rather
+    # than a provider-level error. run_with_timeout kills an over-cap seat with the
+    # coreutils convention (124) or, on the macOS bash fallback, SIGTERM then SIGKILL
+    # — so the seat process exits 143 (128+15) or 137 (128+9). Distinguishing these
+    # keeps a codex seat killed at the ~5-min cap from reading as a mysterious
+    # SIGKILL/OOM: it is our own watchdog firing, and the remedy is a larger cap.
+    case "${1:-}" in
+        124|137|143) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+council_note_seat_timeout() {
+    # Accumulate an actionable end-of-run warning for a seat that hit its cap,
+    # naming the exact env knob that would give that provider more time.
+    local provider="$1" persona="$2" rc="$3" cap="$4" knob line
+    knob="OCTOPUS_COUNCIL_TIMEOUT_$(printf '%s' "$provider" | tr '[:lower:]-' '[:upper:]_')"
+    line="seat ${provider} (${persona}) exceeded its ${cap}s cap (rc=${rc}) — raise ${knob} to give it more time"
+    COUNCIL_TIMEOUT_WARNINGS="${COUNCIL_TIMEOUT_WARNINGS:+${COUNCIL_TIMEOUT_WARNINGS}
+}${line}"
+}
+
 council_run_advice_phase() {
     COUNCIL_RESPONSES_RECEIVED="0"
     COUNCIL_CHAIR_RESPONSE_RECEIVED="false"
     COUNCIL_RESPONDING_PROVIDERS=""
     COUNCIL_SEAT_RECORDS_JSON="[]"
+    COUNCIL_TIMEOUT_WARNINGS=""
     local dissenting_providers=""
 
     local index=0 member persona slug output_path seat mprovider verdict
@@ -1919,6 +1965,16 @@ council_run_advice_phase() {
             else
                 seat_status="no-response"
             fi
+        fi
+        # A seat killed by its own timeout monitor (run_with_timeout: 124, or the
+        # macOS SIGTERM->SIGKILL fallback: 143/137) that left no usable response is a
+        # timeout, not a generic provider shortage. Classify it distinctly so
+        # summary.json and the end-of-run warnings say "hit the cap, raise the knob"
+        # instead of surfacing a bare exit 137 that reads like an OOM. (The salvage
+        # path above already keeps a timed-out-but-complete review as "responded".)
+        if [[ "$seat_status" == "no-response" ]] && council_rc_is_timeout "$dispatch_rc"; then
+            seat_status="timed-out"
+            council_note_seat_timeout "$mprovider" "$persona" "$dispatch_rc" "$(council_seat_timeout "$mprovider")"
         fi
         # Per-seat record for summary.json — makes quorum integrity machine-checkable
         # (a chair or degenerate seat can no longer masquerade as a distinct approving
@@ -2598,6 +2654,44 @@ council_parse_args() {
     council_detect_providers || return $?
 }
 
+council_write_run_status() {
+    # Machine-detectable liveness beacon for a (possibly backgrounded) council
+    # run, so a caller polling the run dir can tell these apart instead of seeing
+    # a silent-empty result:
+    #   - no run dir / no run-status.json    -> died before the run dir existed
+    #   - state "running" AND `kill -0 pid`  -> still running
+    #   - state "running" AND pid gone       -> crashed/killed mid-run
+    #   - state "finished"                   -> done; read summary.json for result
+    # summary.json stays the authoritative RESULT; this is only the liveness/pid
+    # signal, written atomically so a poller never reads a half-written file. It
+    # must never crash the run.
+    local state="$1" status="${2:-}"
+    [[ -n "${COUNCIL_RUN_DIR:-}" && -d "${COUNCIL_RUN_DIR}" ]] || return 0
+    # BASHPID is the *current* process; $$ stays the parent shell PID when a
+    # sourced caller runs council_run in a subshell or background job, so a
+    # poller's `kill -0` would watch the wrong process. Prefer BASHPID, fall back
+    # to $$ on bash 3.2 (macOS default) where BASHPID is unset.
+    local pid="${BASHPID:-$$}"
+    local path="${COUNCIL_RUN_DIR}/run-status.json"
+    local tmp="${COUNCIL_RUN_DIR}/run-status.json.tmp"
+    if jq -n --arg state "$state" --arg status "$status" \
+            --arg run_id "${COUNCIL_RUN_ID:-}" --argjson pid "$pid" \
+            '{state:$state, pid:$pid, run_id:$run_id,
+              status:(if $status == "" then null else $status end)}' \
+            > "$tmp" 2>/dev/null && mv -f "$tmp" "$path" 2>/dev/null; then
+        return 0
+    fi
+    # Fall back to a minimal valid beacon — still written atomically (tmp + mv) so
+    # a poller never reads a half-written file and a prior valid beacon is not
+    # clobbered by a partial direct write.
+    if printf '{"state":"%s","pid":%s}\n' "$state" "$pid" > "$tmp" 2>/dev/null; then
+        mv -f "$tmp" "$path" 2>/dev/null || rm -f "$tmp" 2>/dev/null || true
+    else
+        rm -f "$tmp" 2>/dev/null || true
+    fi
+    return 0
+}
+
 council_create_run_dir() {
     local parent="$COUNCIL_OUTPUT_DIR"
     if [[ -z "$parent" ]]; then
@@ -2609,7 +2703,7 @@ council_create_run_dir() {
     local timestamp
     timestamp="$(date -u +%Y%m%d-%H%M%S)"
     local suffix
-    suffix="$(printf '%06x' "$$")"
+    suffix="$(printf '%06x' "${BASHPID:-$$}")"
     COUNCIL_RUN_ID="${timestamp}-${suffix}"
     COUNCIL_RUN_DIR="${parent}/${COUNCIL_RUN_ID}"
 
@@ -2620,7 +2714,23 @@ council_create_run_dir() {
         COUNCIL_RUN_DIR="${parent}/${COUNCIL_RUN_ID}"
     done
 
-    mkdir -p "$COUNCIL_RUN_DIR/responses" "$COUNCIL_RUN_DIR/critiques" "$COUNCIL_RUN_DIR/revisions" || return 1
+    # Publish the run directory atomically WITH its "running" beacon: build the
+    # artifact subdirs and write the beacon under a temporary staging dir in the
+    # SAME parent (so the rename is atomic on one filesystem), then rename it into
+    # place. This guarantees the invariant a poller relies on — a visible run
+    # directory always contains run-status.json — even if the process is killed
+    # mid-setup (the half-built staging dir is never named as the run dir).
+    local staging="${parent}/.staging-${COUNCIL_RUN_ID}.${BASHPID:-$$}"
+    rm -rf "$staging" 2>/dev/null
+    mkdir -p "$staging/responses" "$staging/critiques" "$staging/revisions" || { rm -rf "$staging" 2>/dev/null; return 1; }
+    local _final="$COUNCIL_RUN_DIR"
+    COUNCIL_RUN_DIR="$staging"
+    council_write_run_status "running"
+    COUNCIL_RUN_DIR="$_final"
+    if ! mv "$staging" "$COUNCIL_RUN_DIR" 2>/dev/null; then
+        rm -rf "$staging" 2>/dev/null
+        return 1
+    fi
 }
 
 council_write_summary_json() {
@@ -2765,7 +2875,18 @@ council_write_summary_json() {
             handoff: $handoff
           },
           fixture: (if $fixture == "" then null else $fixture end)
-        }' > "$summary_path"
+        }' > "$summary_path" || {
+        # A failed serialization can leave an empty/partial summary.json. Remove it
+        # and fail so the caller's `|| return 1` fires (and #919's safety net writes
+        # a valid fallback) — never mark the run "finished" over a broken summary.
+        rm -f "$summary_path" 2>/dev/null || true
+        return 1
+    }
+
+    # summary.json is the terminal artifact for every intended exit
+    # (dry-run/partial/aborted/completed) and the incomplete-recovery fallback,
+    # so flip the liveness beacon to "finished" here — one hook covers them all.
+    council_write_run_status "finished" "$status"
 }
 
 council_print_run_warnings() {
@@ -2779,6 +2900,13 @@ council_print_run_warnings() {
 
     if [[ "$COUNCIL_CHAIR_FALLBACK_USED" == "true" ]]; then
         echo "Council warning: chair fallback used (${COUNCIL_CHAIR_FALLBACK_PERSONA})."
+    fi
+
+    if [[ -n "${COUNCIL_TIMEOUT_WARNINGS:-}" ]]; then
+        local _tw
+        while IFS= read -r _tw; do
+            [[ -n "$_tw" ]] && echo "Council warning: $_tw"
+        done <<< "$COUNCIL_TIMEOUT_WARNINGS"
     fi
 }
 
