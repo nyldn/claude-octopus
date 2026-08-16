@@ -157,8 +157,13 @@ request supplied to `/octo:auto` and routes to the optimal workflow.
 
 **Default invocation:** `/octo:auto <request>`
 
-Plain-prompt routing is disabled by default. Users who deliberately want it can
-set `OCTOPUS_AUTO_ROUTER_MODE=suggest` or `invoke`.
+Plain-prompt routing is disabled on install. Completing `/octo:setup` persists
+`auto_router_mode=suggest`, so Octopus names a matching command but never
+dispatches a provider on its own; a profile that never ran setup stays fully
+dormant. `OCTOPUS_AUTO_ROUTER_MODE` overrides the stored preference in either
+direction (`off` to silence suggestions, `invoke` to load matched routes), and
+an `auto_router_mode` value already present in
+`~/.claude-octopus/preferences.json` is never overwritten by setup.
 
 **Usage:**
 ```

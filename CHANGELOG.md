@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Completing `/octo:setup` now persists `auto_router_mode=suggest`, so Octopus
+  names a matching command for a plain prompt instead of staying silent. It
+  still never dispatches a provider on its own; automatic invocation remains
+  opt-in behind `OCTOPUS_AUTO_ROUTER_MODE=invoke`. A profile that never runs
+  setup stays fully dormant, preserving the #898 contract, and an
+  `auto_router_mode` value already present in
+  `~/.claude-octopus/preferences.json` is never overwritten, so a prior opt-out
+  survives. Setup writes the preference file the prompt hooks already read, so
+  no file read is added to the latency-sensitive UserPromptSubmit path. (oco-9yj)
+
 ### Added
 
 - `OCTOPUS_COUNCIL_SYNTHESIS_TIMEOUT` bounds the chair-synthesis dispatch

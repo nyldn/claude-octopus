@@ -48,6 +48,60 @@ octo_config_read() {
   [[ "$val" == "null" ]] && echo "$default" || echo "$val"
 }
 
+# Runtime preferences read by the prompt hooks live in a separate file from the
+# setup choices above. Hooks read preferences.json on the UserPromptSubmit path,
+# so nothing here may add a second file read to that hot path (#898).
+octo_prefs_file() {
+  printf '%s/.claude-octopus/preferences.json' "$HOME"
+}
+
+# Set a preference key ONLY when it is absent. An explicit user choice, including
+# an opt-out, is never overwritten. Value must be valid JSON (e.g. '"suggest"').
+octo_pref_write_default() {
+  local key="$1"
+  local value="$2"
+  local prefs_file prefs_dir current updated tmp
+
+  if ! command -v jq &>/dev/null; then
+    echo "⚠️  jq not found — preference '$key' not persisted. Install: brew install jq" >&2
+    return 0
+  fi
+
+  prefs_file="$(octo_prefs_file)"
+  prefs_dir="$(dirname "$prefs_file")"
+  mkdir -p "$prefs_dir" || return 0
+
+  current="{}"
+  if [[ -f "$prefs_file" ]]; then
+    current=$(cat "$prefs_file" 2>/dev/null) || current="{}"
+    # A corrupt preferences file must not be silently replaced: leaving it alone
+    # keeps the user's other keys recoverable and keeps routing dormant.
+    if ! printf '%s' "$current" | jq empty 2>/dev/null; then
+      echo "⚠️  $prefs_file is not valid JSON — preference '$key' not persisted." >&2
+      return 0
+    fi
+    # Already set (including an explicit opt-out): respect it and stop.
+    if printf '%s' "$current" | jq -e --arg k "$key" 'has($k)' >/dev/null 2>&1; then
+      return 0
+    fi
+  fi
+
+  updated=$(printf '%s' "$current" | jq --arg k "$key" --argjson v "$value" '.[$k] = $v' 2>/dev/null) || {
+    echo "⚠️  Failed to set preference '$key'" >&2
+    return 0
+  }
+
+  # Atomic write at 0600 without leaking the caller's umask.
+  tmp=$(mktemp "${prefs_dir}/.preferences.XXXXXX") || return 0
+  chmod 600 "$tmp" 2>/dev/null || true
+  if printf '%s\n' "$updated" > "$tmp" && mv -f "$tmp" "$prefs_file"; then
+    chmod 600 "$prefs_file" 2>/dev/null || true
+  else
+    rm -f "$tmp" 2>/dev/null || true
+    echo "⚠️  Failed to write $prefs_file" >&2
+  fi
+}
+
 octo_config_reset() {
   rm -f "$OCTO_CONFIG_FILE"
   echo "✓ Octopus user config reset."

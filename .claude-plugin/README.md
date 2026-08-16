@@ -23,10 +23,13 @@ You get:    A structured comparison with three independent viewpoints,
 
 This works for research, escalated code review, debugging, TDD, escalated security audits, UI design, PRDs, and full build-to-ship workflows — 54 commands, 63 skills, 32 specialized personas.
 
-Octopus is dormant by default. Installing it does not route ordinary prompts or
+Octopus is dormant on install. Installing it does not route ordinary prompts or
 delegate to Octopus agents. Every command and skill is manual-only: use
-`/octo:*` when you want escalation. Plain-prompt routing is available only after
-you set `OCTOPUS_AUTO_ROUTER_MODE=suggest` or `invoke`. This legacy opt-in
+`/octo:*` when you want escalation. Completing `/octo:setup` turns on
+suggestions (`auto_router_mode=suggest`), which name a matching command without
+dispatching any provider; a profile that never ran setup stays fully dormant,
+and an existing preference is never overwritten. Automatic invocation stays
+opt-in behind `OCTOPUS_AUTO_ROUTER_MODE=invoke`. That opt-in
 examines ordinary prompts and can route them into paid external-provider
 workflows; use `suggest` unless you intentionally want automatic invocation and
 are comfortable sending the workflow prompt and any context that workflow

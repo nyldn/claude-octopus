@@ -369,7 +369,7 @@ Not sure which command to use? Pick by goal:
 | Reduce token usage | `/octo:doctor` (includes RTK install + token tips) |
 | Just run something quick | `/octo:quick` |
 
-Or type `/octo:auto <what you want>` and the smart router picks for you. Plain-prompt routing stays off unless you explicitly set `OCTOPUS_AUTO_ROUTER_MODE=suggest|invoke`. 🔍
+Or type `/octo:auto <what you want>` and the smart router picks for you. Plain-prompt routing is off until you run `/octo:setup`, which turns on **suggestions** (Octopus names a matching command; it never dispatches a provider on its own). Set `OCTOPUS_AUTO_ROUTER_MODE=off` to silence them, or `invoke` to let a matched route load automatically. 🔍
 
 <details>
 <summary><strong>How does this compare to Superpowers or plain Claude Code?</strong></summary>

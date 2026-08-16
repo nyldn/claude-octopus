@@ -348,9 +348,25 @@ if declare -f octo_config_write >/dev/null 2>&1; then
   octo_config_write "work_mode" "\"${WORK_MODE_VALUE}\""
   octo_config_write "setup_complete" 'true'
 fi
+# Completing setup is an explicit act, so it opts into ROUTING SUGGESTIONS only.
+# This never enables `invoke`: dispatch to a paid provider stays explicit. The
+# write is skipped when the key already exists, so a prior opt-out survives.
+if declare -f octo_pref_write_default >/dev/null 2>&1; then
+  octo_pref_write_default "auto_router_mode" '"suggest"'
+fi
 ```
 
 (Replace `"dev"` with `"knowledge"` or `"both"` based on the user selection.)
+
+Tell the user what that last line changed, in one sentence:
+
+> Octopus now suggests a matching command when your prompt clearly fits one. It
+> never runs a provider on its own. Turn suggestions off with
+> `OCTOPUS_AUTO_ROUTER_MODE=off`, or set `auto_router_mode` in
+> `~/.claude-octopus/preferences.json`.
+
+A user who never runs `/octo:setup` stays fully dormant; that is the #898
+contract and this step is the only thing that relaxes it.
 
 ## STEP 4b: Prompt Cache Optimization (Claude Code v2.1.108+)
 
