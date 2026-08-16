@@ -152,21 +152,64 @@ trap_out=$(HOME="$H7" bash -c '
 ' _ "$LIB" 2>&1 | tail -1) || true
 check "no RETURN trap leaks into the caller under set -T -u" "CALLER_SURVIVED" "$trap_out"
 
-# --- 13. invoke is never written automatically ------------------------------
+# --- 13. an unreadable existing file is never replaced ----------------------
+# Falling back to "{}" on a failed read would let the write discard every key
+# the user has. Skipping the write is the only safe response.
+H8="$TEST_TMP_DIR/home-unreadable"; mkdir -p "$H8/.claude-octopus"
+UNREADABLE="$H8/.claude-octopus/preferences.json"
+printf '{"OCTO_PROACTIVE_SUGGESTIONS":"off","keep_me":"yes"}\n' > "$UNREADABLE"
+chmod 000 "$UNREADABLE" 2>/dev/null || true
+if [[ -r "$UNREADABLE" ]]; then
+    # Running as root, or a filesystem that ignores the mode bits.
+    test_case "an unreadable preferences file is not replaced"
+    test_skip "cannot make the file unreadable in this environment"
+else
+    write_default "$H8"
+    chmod 600 "$UNREADABLE" 2>/dev/null || true
+    check "an unreadable preferences file is not replaced" \
+        "yes" "$(pref_key "$H8" keep_me)"
+    check "an unreadable file leaves the new key unset" \
+        "" "$(pref_key "$H8" auto_router_mode)"
+fi
+
+# --- 14. a failed write releases the lock under set -e ----------------------
+# A bare call plus `rc=$?` would let errexit kill the caller before the unlock,
+# stranding the lock directory and taking setup down with it.
+H9="$TEST_TMP_DIR/home-failwrite"; mkdir -p "$H9/.claude-octopus"
+FAKEBIN="$TEST_TMP_DIR/failbin"; mkdir -p "$FAKEBIN"
+printf '#!/bin/sh\nexit 1\n' > "$FAKEBIN/mv"
+chmod 755 "$FAKEBIN/mv"
+# The call is bare, exactly as commands/setup.md invokes it. Adding `|| true`
+# here would create the condition context that suppresses errexit and make this
+# assertion vacuous.
+fail_out=$(PATH="$FAKEBIN:$PATH" HOME="$H9" bash -c '
+    set -e
+    . "$1"
+    octo_pref_write_default "auto_router_mode" "\"suggest\"" >/dev/null 2>&1
+    echo CALLER_SURVIVED
+' _ "$LIB" 2>&1 | tail -1) || true
+check "a failed write does not kill the caller under set -e" "CALLER_SURVIVED" "$fail_out"
+if [[ -d "$H9/.claude-octopus/preferences.json.lock" ]]; then
+    fail "a failed write still releases the lock" "lock directory stranded"
+else
+    pass "a failed write still releases the lock"
+fi
+
+# --- 15. invoke is never written automatically ------------------------------
 if grep -nE 'octo_pref_write_default[[:space:]]+"auto_router_mode"[[:space:]]+.?"invoke"' "$SETUP_CMD" >/dev/null 2>&1; then
     fail "setup never auto-enables invoke" "setup writes invoke"
 else
     pass "setup never auto-enables invoke"
 fi
 
-# --- 14. setup persists the preference at its completion point --------------
+# --- 16. setup persists the preference at its completion point --------------
 if grep -q 'octo_pref_write_default "auto_router_mode"' "$SETUP_CMD" 2>/dev/null; then
     pass "setup.md persists auto_router_mode on completion"
 else
     fail "setup.md persists auto_router_mode on completion" "setup.md does not call the helper"
 fi
 
-# --- 15. setup states the consent boundary to the user ----------------------
+# --- 17. setup states the consent boundary to the user ----------------------
 if grep -qi 'suggest' "$SETUP_CMD" 2>/dev/null; then
     pass "setup.md tells the user suggestions were enabled"
 else

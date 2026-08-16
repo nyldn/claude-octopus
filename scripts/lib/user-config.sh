@@ -90,7 +90,13 @@ _octo_pref_write_locked() {
 
   current="{}"
   if [[ -f "$prefs_file" ]]; then
-    current=$(cat "$prefs_file" 2>/dev/null) || current="{}"
+    # An unreadable existing file must not be treated as empty. Falling back to
+    # "{}" here would let the write below replace the file and discard every key
+    # the user has, which is the opposite of preserving their settings.
+    if ! current=$(cat "$prefs_file" 2>/dev/null); then
+      echo "⚠️  Failed to read $prefs_file — preference '$key' not persisted." >&2
+      return 0
+    fi
     # A corrupt preferences file must not be silently replaced: leaving it alone
     # keeps the user's other keys recoverable and keeps routing dormant.
     if ! printf '%s' "$current" | jq empty 2>/dev/null; then
@@ -116,8 +122,12 @@ _octo_pref_write_locked() {
     return 0
   fi
   rm -f "$tmp" 2>/dev/null || true
-  echo "⚠️  Failed to write $prefs_file" >&2
-  return 1
+  # Warn but succeed, like every other failure path here and like
+  # octo_config_write. Persisting a preference is best-effort: a caller running
+  # under `set -e` must not have its setup run aborted because one optional
+  # write failed. The original file is untouched either way.
+  echo "⚠️  Failed to write $prefs_file — preference '$key' not persisted." >&2
+  return 0
 }
 
 octo_pref_write_default() {
@@ -147,8 +157,14 @@ octo_pref_write_default() {
   # between lock and unlock leaves a stale lock directory; the bounded spin in
   # _octo_pref_lock degrades that to "skip the write", matching
   # scripts/lib/events.sh.
-  _octo_pref_write_locked "$key" "$value" "$prefs_file" "$prefs_dir"
-  rc=$?
+  # The call sits in an `if` condition so a nonzero return cannot trip the
+  # caller's `set -e` before the unlock below. A bare call followed by `rc=$?`
+  # would exit the shell on a failed write and strand the lock directory.
+  if _octo_pref_write_locked "$key" "$value" "$prefs_file" "$prefs_dir"; then
+    rc=0
+  else
+    rc=$?
+  fi
   _octo_pref_unlock "$prefs_file"
   return "$rc"
 }
