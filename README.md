@@ -664,7 +664,7 @@ Run commands with the `--verbose` flag to get detailed debugging output. Logs ar
 
 Join [r/ClaudeOctopus](https://www.reddit.com/r/ClaudeOctopus/) for help, workflow tips, showcases, and updates.
 
-[![Star History Chart](https://api.star-history.com/image?repos=nyldn/claude-octopus&type=date&legend=top-left)](https://www.star-history.com/?repos=nyldn%2Fclaude-octopus&type=date&legend=top-left)
+[![Star History Chart](https://star-history.dera.page/svg?repos=nyldn/claude-octopus&type=date&legend=top-left)](https://star-history.dera.page/#nyldn/claude-octopus&type=date&legend=top-left)
 
 ### Contributing
 
