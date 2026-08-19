@@ -38,9 +38,13 @@ source "$YAML_LIB"
 
 # Force the awk fallback paths even when yq is installed on the host: the
 # machines this bug bit had no yq, and the fallback must stand on its own.
-# Shadow `command` so `command -v yq` fails inside the sourced functions
+# Shadow `command` so `command -v yq` fails inside the sourced functions.
+# Also force `command -v codex` to fail: provider-availability tests below
+# rely on codex being "not installed" (compensating with OPENAI_API_KEY
+# where they need it available) — a host that happens to have the real
+# codex binary on PATH must not change their outcome.
 command() {
-    if [[ "$1" == "-v" && "$2" == "yq" ]]; then
+    if [[ "$1" == "-v" && ( "$2" == "yq" || "$2" == "codex" ) ]]; then
         return 1
     fi
     builtin command "$@"
