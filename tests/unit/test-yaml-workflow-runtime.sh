@@ -442,24 +442,40 @@ test_case "sequential agent does not start while a parallel sibling is still run
 # sequential-agent wait must catch that itself instead of trusting it.
 #
 # _yaml_wait_for_pids is stubbed to an instant no-op rather than timed
-# against a real sleeping agent: this sandbox's per-fork overhead (YAML
-# parsing, provider-availability checks) between spawning the parallel
-# agent and reaching the wait call is itself multiple seconds and varies
-# by load, so racing a short sleep against a short TIMEOUT here is
-# inherently flaky. Stubbing the wait isolates exactly what's under test —
-# the still-alive check that runs right after it — deterministically.
+# against a real sleeping agent, and the "still running" pid is a process
+# launched directly at this test's own top level rather than backgrounded
+# from inside the stub: whether `pid=$(spawn_agent_capture_pid ...)` itself
+# blocks until a job it backgrounds completes is shell/environment-
+# dependent (it does on some CI runners, not in every sandbox), so a job
+# backgrounded *inside* that command substitution can already be dead by
+# the time the check below runs. A pid from outside that boundary is alive
+# regardless.
 _theta_orig_spawn=$(declare -f spawn_agent_capture_pid)
 _theta_orig_wait=$(declare -f _yaml_wait_for_pids)
+_theta_orig_markers=$(declare -f _yaml_wait_for_done_markers)
+# Stubbed to instant success too, so this test isolates the kill -0
+# liveness check specifically (its name promise) rather than incidentally
+# passing via the separate missing-.done-marker path — codex's stub below
+# never writes a marker either way, since it must appear to run forever.
+_yaml_wait_for_done_markers() { return 0; }
+sleep 60 &
+_theta_long_pid=$!
 spawn_agent_capture_pid() {
     local agent_type="$1" agent_prompt="$2" task_id="$3"
     echo "spawn:$agent_type:$task_id" >> "$SPAWN_LOG"
     echo "$agent_prompt" > "$TEST_TMP_DIR/prompt-${task_id}.txt"
-    (
-        sleep 3
+    if [[ "$agent_type" == "codex" ]]; then
+        # Never writes a result or .done marker — this agent must appear to
+        # still be running for the lifetime of this test case.
+        echo "$_theta_long_pid"
+    else
+        # Only reached if the fix under test fails to halt the phase; spawn
+        # for real so the test fails fast on the assertion below instead of
+        # hanging.
         echo "output of $agent_type for $task_id" > "$RESULTS_DIR/${agent_type}-${task_id}.md"
         echo "0" > "$WORKSPACE_DIR/.octo/agents/${task_id}.done"
-    ) &
-    echo $!
+        echo $$
+    fi
 }
 _yaml_wait_for_pids() { return 0; }
 THETA_YAML="$TEST_TMP_DIR/theta.yaml"
@@ -496,12 +512,11 @@ theta_out=$(
     export "OPENAI_API_KEY=test-key"
     execute_workflow_phase "$THETA_YAML" "theta" "test prompt" "" "tg-theta" 2>&1
 ) || theta_rc=$?
-# execute_workflow_phase returns before the stub's backgrounded job finishes
-# by design (that's what this test proves) — drain it here so it can't still
-# be writing into TEST_TMP_DIR when the suite's EXIT trap removes it.
-wait 2>/dev/null || true
+kill "$_theta_long_pid" 2>/dev/null || true
+wait "$_theta_long_pid" 2>/dev/null || true
 eval "$_theta_orig_spawn"
 eval "$_theta_orig_wait"
+eval "$_theta_orig_markers"
 if [[ $theta_rc -ne 0 && ! -f "$TEST_TMP_DIR/prompt-theta-tg-theta-1.txt" ]]; then
     test_pass
 else
