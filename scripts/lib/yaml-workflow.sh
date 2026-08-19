@@ -322,8 +322,15 @@ execute_workflow_phase() {
     local spawned_providers=()
     # Same-phase sibling outputs already captured, in provider order, for
     # {{<phase>_<provider>}} placeholders (e.g. {{ink_codex}}, {{ink_agy}}).
+    # Rebuilt fresh on every agent iteration (see below), so it only ever
+    # holds completed spawned_tasks entries.
     local sib_providers=()
     local sib_outputs=()
+    # Providers skipped for unavailability never enter spawned_tasks, so
+    # they'd be lost on every sib_providers/sib_outputs rebuild — tracked
+    # separately here and merged back in each time instead.
+    local skipped_providers=()
+    local skipped_outputs=()
     local done_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents"
 
     # Update session state for hooks
@@ -363,8 +370,8 @@ execute_workflow_phase() {
             codex)
                 if ! command -v codex &>/dev/null && [[ -z "${OPENAI_API_KEY:-}" ]]; then
                     log "WARN" "Codex not available, skipping agent in phase $phase_name"
-                    sib_providers+=("codex")
-                    sib_outputs+=("(codex unavailable — skipped this run)")
+                    skipped_providers+=("codex")
+                    skipped_outputs+=("(codex unavailable — skipped this run)")
                     ((agent_idx++)) || true
                     continue
                 fi
@@ -372,8 +379,8 @@ execute_workflow_phase() {
             agy)
                 if ! command -v agy &>/dev/null && [[ -z "${ANTIGRAVITY_API_KEY:-}" ]]; then
                     log "WARN" "Antigravity not available, skipping agent in phase $phase_name"
-                    sib_providers+=("agy")
-                    sib_outputs+=("(antigravity unavailable — skipped this run)")
+                    skipped_providers+=("agy")
+                    skipped_outputs+=("(antigravity unavailable — skipped this run)")
                     ((agent_idx++)) || true
                     continue
                 fi
@@ -423,6 +430,10 @@ execute_workflow_phase() {
         # left out until its own .done marker appears).
         sib_providers=()
         sib_outputs=()
+        if [[ ${#skipped_providers[@]} -gt 0 ]]; then
+            sib_providers=("${skipped_providers[@]}")
+            sib_outputs=("${skipped_outputs[@]}")
+        fi
         local _sib_idx _sib_task _sib_provider _sib_file
         for (( _sib_idx=0; _sib_idx<${#spawned_tasks[@]}; _sib_idx++ )); do
             _sib_task="${spawned_tasks[$_sib_idx]}"

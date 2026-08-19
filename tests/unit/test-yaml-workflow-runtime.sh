@@ -376,6 +376,65 @@ else
     test_fail "expected the phase to halt when a sibling result fails integrity verification: $epsilon_out"
 fi
 
+test_case "unavailable-provider note survives the sib_providers rebuild"
+# sib_providers/sib_outputs are rebuilt from spawned_tasks on every agent
+# iteration (so a later agent can see an earlier one's output). A skipped
+# provider never enters spawned_tasks, so without preserving it separately
+# the rebuild would silently drop the "(unavailable)" note the very next
+# iteration and its placeholder would go unresolved instead.
+KAPPA_YAML="$TEST_TMP_DIR/kappa.yaml"
+cat > "$KAPPA_YAML" <<'EOF'
+name: kappa-workflow
+description: "unavailable-provider note must survive the rebuild"
+version: "1.0.0"
+
+phases:
+  - name: kappa
+    alias: kappa
+    description: "Kappa phase"
+    emoji: "K"
+    agents:
+      - provider: codex
+        role: "Parallel worker"
+        parallel: true
+        prompt_template: |
+          Codex: {{prompt}}
+      - provider: agy
+        role: "Other parallel worker"
+        parallel: true
+        prompt_template: |
+          Agy: {{prompt}}
+      - provider: claude
+        role: "Synthesis"
+        parallel: false
+        prompt_template: |
+          Codex says: {{kappa_codex}}
+          Agy says: {{kappa_agy}}
+    quality_gate:
+      threshold: 0.5
+
+quality_gates:
+  consensus:
+    threshold: 0.75
+EOF
+kappa_stdout=$(
+    export "ANTIGRAVITY_API_KEY=test-key"
+    unset -v OPENAI_API_KEY 2>/dev/null || true
+    execute_workflow_phase "$KAPPA_YAML" "kappa" "test prompt" "" "tg-kappa" 2>/dev/null
+)
+kappa_rc=$?
+kappa_prompt="$TEST_TMP_DIR/prompt-kappa-tg-kappa-2.txt"
+if [[ $kappa_rc -eq 0 \
+      && -f "$kappa_prompt" \
+      && "$(cat "$kappa_prompt")" == *"(codex unavailable — skipped this run)"* \
+      && "$(cat "$kappa_prompt")" == *"output of agy for kappa-tg-kappa-1"* \
+      && "$(cat "$kappa_prompt")" != *"{{kappa_codex}}"* \
+      && "$(cat "$kappa_prompt")" != *"{{kappa_agy}}"* ]]; then
+    test_pass
+else
+    test_fail "rc=$kappa_rc prompt='$(cat "$kappa_prompt" 2>/dev/null)'"
+fi
+
 test_case "sequential agent does not start while a parallel sibling is still running past its wait window"
 # _yaml_wait_for_pids always returns 0, even when it gives up at its
 # max_wait with a pid still alive (it has other bare, unchecked call sites
@@ -437,6 +496,10 @@ theta_out=$(
     export "OPENAI_API_KEY=test-key"
     execute_workflow_phase "$THETA_YAML" "theta" "test prompt" "" "tg-theta" 2>&1
 ) || theta_rc=$?
+# execute_workflow_phase returns before the stub's backgrounded job finishes
+# by design (that's what this test proves) — drain it here so it can't still
+# be writing into TEST_TMP_DIR when the suite's EXIT trap removes it.
+wait 2>/dev/null || true
 eval "$_theta_orig_spawn"
 eval "$_theta_orig_wait"
 if [[ $theta_rc -ne 0 && ! -f "$TEST_TMP_DIR/prompt-theta-tg-theta-1.txt" ]]; then
