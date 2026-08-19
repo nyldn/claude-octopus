@@ -994,6 +994,8 @@ test_council_chair_fallback_preserves_quorum() {
                   | all(type == "string" and length > 0))
              and $fallback.response_bytes > 0
              and $fallback.verdict == "APPROVE"
+             and ($fallback | has("timeout_provenance"))
+             and $fallback.timeout_provenance == null
              and ($fallback.counted_as_approver | type == "boolean"))
     ' "$summary" >/dev/null; then
         test_pass
@@ -2365,7 +2367,8 @@ test_council_detached_seat_timeout_is_cancelled() {
 
     unset OCTOPUS_COUNCIL_TIMEOUT_CODEX COUNCIL_SEAT_TIMEOUT
     unset OCTOPUS_COUNCIL_AGENT_TIMEOUT OCTOPUS_COUNCIL_REAP_GRACE_SECS
-    if [[ $rc -ne 0 ]] && [[ "$timeout_provenance" == "internal-watchdog" ]] && [[ ! -e "$out" ]] && [[ ! -e "$childmark" ]] &&
+    if [[ $rc -ne 0 ]] && council_rc_is_timeout "$rc" "$timeout_provenance" &&
+       [[ "$timeout_provenance" == "internal-watchdog" ]] && [[ ! -e "$out" ]] && [[ ! -e "$childmark" ]] &&
        [[ ! -e "$out.partial" && ! -e "$out.done" && ! -e "$out.done.tmp" ]] &&
        [[ -n "$seat" ]] && ! kill -0 "$seat" 2>/dev/null &&
        [[ -n "$child" ]] && ! kill -0 "$child" 2>/dev/null; then

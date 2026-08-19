@@ -1,13 +1,15 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-19
-Status: recent merged-PR regressions are fixed locally; focused tests and the
-full fail-closed repository matrix are green.
+Status: recent merged-PR regressions and the four verified first-review
+findings are fixed locally; focused tests and the full fail-closed repository
+matrix are green.
 Branch: `fix/recent-pr-audit-regressions`
 Current release: [v9.65.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.65.0)
 Tracking: Beads `oco-0u2` (P1, in progress); [PR #942](https://github.com/nyldn/claude-octopus/pull/942)
-Next action: monitor PR #942's required checks and review threads, address only
-verified findings, then close `oco-0u2` when the protected head is green.
+Next action: push the review-response commit, monitor PR #942's new protected
+head, reply to and resolve the four fixed threads after verification, then
+close `oco-0u2` when checks and review are green.
 
 ## Recent PR Audit Regression Fixes (`oco-0u2`)
 
@@ -39,6 +41,16 @@ verified findings, then close `oco-0u2` when the protected head is green.
   full rule and ran `make ci-local`; it exited 0 with all smoke, unit,
   integration, packaging, sync, and CI-only verifications passed. Council again
   passed 86/87 cases with zero failures and its documented PTY skip.
+- First GitHub review response: CodeRabbit raised four inline findings against
+  protected head `f096cade`. All four were verified before editing. The real
+  detached watchdog now returns a kill-style status that agrees with its
+  `internal-watchdog` provenance; chair-fallback seat records include nullable
+  `timeout_provenance`; the AGY catalog-timeout regression unsets inherited
+  strict mode; and that test now uses a timeout-derived upper bound and proves
+  the stalled process was terminated. RED reproductions covered each behavior.
+  GREEN after the fixes is AGY 50/50 and Council 86/87 with zero failures and
+  the documented PTY skip. A fresh `CI=true GITHUB_ACTIONS=true make
+  ci-changed` again selected and passed the complete `make ci-local` matrix.
 - Review evidence: the independent AGY pass returned only generic conditional
   approval, with no diff-specific finding that survived verification. The
   final Codex reviewer spent its ten-minute window reading the repository and
@@ -56,10 +68,12 @@ verified findings, then close `oco-0u2` when the protected head is green.
   until proportional repository checks are attached and green. Its new chart
   host is a third-party workaround, not the official Star History domain, so
   verify service ownership/reliability before accepting that dependency.
-- Delivery state: implementation commit `78b0c43c` is pushed to
-  `upstream/fix/recent-pr-audit-regressions`; PR #942 is open. Required GitHub
-  checks and review are pending at this handoff update, so Beads `oco-0u2`
-  remains in progress until that protected head is verified.
+- Delivery state: implementation commit `78b0c43c` and initial handoff commit
+  `f096cade` are pushed to `upstream/fix/recent-pr-audit-regressions`; PR #942
+  is open. Its first Test Suite passed, and native review returned no findings,
+  but CodeRabbit requested the four changes recorded above. The review-response
+  commit is local at this handoff update, so Beads `oco-0u2` remains in progress
+  until the new protected head is pushed and verified.
 
 ## Release Currency Audit (post-v9.64.0)
 

@@ -691,14 +691,18 @@ test_agy_catalog_lookup_timeout() {
 
     local tmp_bin="$TEST_TMP_DIR/agy-stalled-catalog-bin"
     local old_path="$PATH"
-    local started_ms elapsed_ms lookup_rc=0
+    local catalog_timeout_secs=1
+    local timeout_upper_ms=$((catalog_timeout_secs * 1000 + 1500))
+    local started_ms elapsed_ms lookup_rc=0 stalled_pid="" process_alive="no"
     local started_marker="$TEST_TMP_DIR/agy-stalled.started"
     local completed_marker="$TEST_TMP_DIR/agy-stalled.completed"
+    local pid_marker="$TEST_TMP_DIR/agy-stalled.pid"
     mkdir -p "$tmp_bin"
     cat > "$tmp_bin/agy" <<'MOCK_AGY'
 #!/usr/bin/env bash
 if [[ "${1:-}" == "models" ]]; then
     : > "${AGY_STALLED_STARTED:?}"
+    printf '%s\n' "$$" > "${AGY_STALLED_PID:?}"
     sleep 6
     : > "${AGY_STALLED_COMPLETED:?}"
     printf '%s\t%s\n' 'gemini-3.5-flash-low' 'Gemini 3.5 Flash (Low)'
@@ -709,13 +713,21 @@ MOCK_AGY
     PATH="$tmp_bin:$PATH"
     export AGY_STALLED_STARTED="$started_marker"
     export AGY_STALLED_COMPLETED="$completed_marker"
+    export AGY_STALLED_PID="$pid_marker"
     source "$PROJECT_ROOT/scripts/lib/model-resolver.sh"
     started_ms="$(python3 -c 'import time; print(int(time.monotonic() * 1000))')"
-    OCTOPUS_AGY_MODELS_TIMEOUT=1 validate_agy_model_name \
-        'gemini-3.5-flash-low' >/dev/null 2>&1 || lookup_rc=$?
+    (
+        unset OCTOPUS_AGY_MODEL_STRICT
+        OCTOPUS_AGY_MODELS_TIMEOUT="$catalog_timeout_secs" \
+            validate_agy_model_name 'gemini-3.5-flash-low'
+    ) >/dev/null 2>&1 || lookup_rc=$?
     elapsed_ms=$(( $(python3 -c 'import time; print(int(time.monotonic() * 1000))') - started_ms ))
+    stalled_pid="$(cat "$pid_marker" 2>/dev/null || true)"
+    if [[ -n "$stalled_pid" ]] && kill -0 "$stalled_pid" 2>/dev/null; then
+        process_alive="yes"
+    fi
     PATH="$old_path"
-    unset AGY_STALLED_STARTED AGY_STALLED_COMPLETED
+    unset AGY_STALLED_STARTED AGY_STALLED_COMPLETED AGY_STALLED_PID
 
     # The invariant under test is the BOUND: the stalled lookup must be killed by
     # the 1s timeout and never complete the mock's 6s sleep. A stalled (unreachable)
@@ -723,10 +735,11 @@ MOCK_AGY
     # trusted and agy rejects a genuinely bad model at dispatch. (OCTOPUS_AGY_MODEL_STRICT=1
     # would fail closed; the default path is asserted here.)
     if [[ "$lookup_rc" -eq 0 && -f "$started_marker" && ! -e "$completed_marker" \
-          && "$elapsed_ms" -ge 700 && "$elapsed_ms" -lt 4000 ]]; then
+          && "$process_alive" == "no" && "$elapsed_ms" -ge 700 \
+          && "$elapsed_ms" -lt "$timeout_upper_ms" ]]; then
         test_pass
     else
-        test_fail "stalled agy catalog was not bounded or did not fail open: rc=$lookup_rc elapsed=${elapsed_ms}ms started=$([[ -f "$started_marker" ]] && echo yes || echo no) completed=$([[ -f "$completed_marker" ]] && echo yes || echo no)"
+        test_fail "stalled agy catalog was not bounded or did not fail open: rc=$lookup_rc elapsed=${elapsed_ms}ms upper=${timeout_upper_ms}ms started=$([[ -f "$started_marker" ]] && echo yes || echo no) completed=$([[ -f "$completed_marker" ]] && echo yes || echo no) process_alive=$process_alive"
     fi
 }
 test_agy_command_validation() {

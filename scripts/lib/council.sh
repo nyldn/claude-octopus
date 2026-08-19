@@ -1729,6 +1729,10 @@ council_dispatch_member_detached() {
         if kill -0 "$seat_pid" 2>/dev/null; then
             COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE="internal-watchdog"
             _council_cancel_tree "$seat_pid"
+            # The parent reaper, not the provider, enforced this cancellation.
+            # Return a kill-style status so the provenance-aware classifier can
+            # surface the timeout and its configuration hint.
+            rc=137
         fi
         rm -f "$output_path"
     fi
@@ -2123,6 +2127,7 @@ council_synthesis_capable_persona() {
 council_run_chair_fallback() {
     local persona provider member_json slug output_path index
     local seat_org seat_model resp_bytes verdict seat_status seat_rec existing_response dispatch_rc
+    local dispatch_timeout_provenance
 
     while IFS= read -r persona; do
         [[ -n "$persona" ]] || continue
@@ -2154,7 +2159,9 @@ council_run_chair_fallback() {
         index="$(jq 'length' <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}")"
         output_path="${COUNCIL_RUN_DIR}/responses/$(printf '%02d' "$index")-chair-fallback-${slug}.md"
         dispatch_rc=0
+        COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE=""
         council_dispatch_member_detached "$member_json" "independent-advice" "$output_path" || dispatch_rc=$?
+        dispatch_timeout_provenance="$COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE"
         if council_response_nonempty "$output_path" \
                 && council_response_is_substantive "$output_path" \
                 && { (( dispatch_rc == 0 )) || council_response_has_verdict "$output_path"; }; then
@@ -2175,11 +2182,14 @@ council_run_chair_fallback() {
             seat_rec="$(jq -cn --argjson idx "$index" --arg persona "$persona" \
                 --arg provider "$provider" --arg org "$seat_org" --arg model "$seat_model" \
                 --argjson bytes "${resp_bytes:-0}" --arg verdict "$verdict" --arg status "$seat_status" \
+                --arg timeout_provenance "$dispatch_timeout_provenance" \
                 '{index:$idx, persona:$persona, seat:"chair", provider:$provider,
                   provider_org:$org, model:$model, response_bytes:$bytes,
                   payload_kind:"full",
                   verdict:(if $verdict=="" then null else $verdict end),
-                  status:$status, counted_as_approver:false}')"
+                  status:$status,
+                  timeout_provenance:(if $timeout_provenance=="" then null else $timeout_provenance end),
+                  counted_as_approver:false}')"
             COUNCIL_SEAT_RECORDS_JSON="$(jq -c ". + [$seat_rec]" <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}")"
             return 0
         fi
