@@ -1,14 +1,64 @@
 # AI Agent Handoff
 
-Last updated: 2026-08-14
-Status: all pull requests open at session start are merged; GitHub reports an
-empty open-PR queue. v9.64.0 is published to production from `upstream/main`,
-and the shared `nyldn/plugins` marketplace now serves v9.64.0.
-Branch: `main`
-Current release: [v9.64.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.64.0)
-Tracking: [PR #877](https://github.com/nyldn/claude-octopus/pull/877)
-Next action: paused at the user's request; do not start new work until the user
-provides the next task.
+Last updated: 2026-08-19
+Status: recent merged-PR regressions are fixed locally; focused tests and the
+full fail-closed repository matrix are green.
+Branch: `fix/recent-pr-audit-regressions`
+Current release: [v9.65.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.65.0)
+Tracking: Beads `oco-0u2` (P1, in progress); pull request not opened yet
+Next action: commit only the intended files, push this branch to `upstream`, and
+open the linked PR; then replace the pending delivery line below with exact
+commit, PR, check, and tracker state.
+
+## Recent PR Audit Regression Fixes (`oco-0u2`)
+
+- Source-of-truth baseline: canonical `nyldn/claude-octopus` main at
+  `242e51d3`, after merged PRs #935 through #939. The live GitHub audit on
+  2026-08-19 found no open GitHub issues. PRs #940 and #941 are open, approved,
+  and unrelated to these code paths.
+- Reproduced defects: design review silently bypassed an empty/invalid provider
+  policy with Claude fallback and admitted explicit env overrides without a
+  final allowlist check; provider-local role defaults overrode explicit
+  `routing.roles`; a minimal incomplete Council summary left `run-status.json`
+  at `running`; raw provider exits 124/137/143 were labeled as internal
+  timeouts; and Tangle lowercased file paths and pipe-joined tuple fields,
+  collapsing distinct blocker identities.
+- Corrections: design review now propagates fleet-policy failure and validates
+  every final seat against the active allowlist before dispatch; explicit
+  role/phase routing precedes provider-local defaults; fallback summaries write
+  a terminal `finished/incomplete` beacon; only the detached reaper's
+  `internal-watchdog` provenance can produce a timed-out seat and that
+  provenance is persisted in `seats[]`; Tangle identities are JSON tuples with
+  case-preserved paths and normalized titles.
+- TDD evidence: each reported behavior was made red before production changes.
+  Focused green results are design review 6/6, model resolution 19/19, Tangle
+  correction loop 16/16, AGY provider 50/50, and Council 86/87 with zero
+  failures and its one documented macOS PTY skip. The AGY catalog-timeout test
+  now proves the stalled provider started, did not complete, and was bounded by
+  a monotonic elapsed-time window.
+- Full-gate evidence: `CI=true GITHUB_ACTIONS=true make ci-changed` selected the
+  full rule and ran `make ci-local`; it exited 0 with all smoke, unit,
+  integration, packaging, sync, and CI-only verifications passed. Council again
+  passed 86/87 cases with zero failures and its documented PTY skip.
+- Review evidence: the independent AGY pass returned only generic conditional
+  approval, with no diff-specific finding that survived verification. The
+  final Codex reviewer spent its ten-minute window reading the repository and
+  rerunning focused suites, then returned empty output; Claude was blocked by
+  spend limits and Copilot by monthly quota. These are recorded as degraded
+  review capacity, not approvals. A local spec/code-quality pass found only a
+  stale test comment (`3s` versus the actual `6s` mock sleep), which was fixed.
+- Repository state: `.beads.gate.lock` remains untracked and untouched because
+  it belongs to another agent. The stable plugin symlink had been left pointing
+  at a deleted review worktree; it was restored to this canonical checkout and
+  provider doctor checks passed with optional-provider warnings only.
+- Live queue caveat: PR #941 is approved, all repository checks pass, and its
+  sole review thread is resolved. PR #940 is approved by CodeRabbit and has no
+  review threads, but GitHub shows no repository Test Suite run; do not merge it
+  until proportional repository checks are attached and green. Its new chart
+  host is a third-party workaround, not the official Star History domain, so
+  verify service ownership/reliability before accepting that dependency.
+- Delivery state: not committed, pushed, or posted yet. Replace this line with
+  the verified commit, remote branch, PR, and CI state before ending the session.
 
 ## Release Currency Audit (post-v9.64.0)
 

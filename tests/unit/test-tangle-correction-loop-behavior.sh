@@ -212,6 +212,34 @@ else
     test_fail "expected unchanged blocker identities to stop at 3 rounds, got '$out'"
 fi
 
+finding_identity_probe() {
+    local findings_json="$1"
+    local findings_file
+    findings_file="$(mktemp "$TMP_DIR/findings.XXXXXX")"
+    printf '%s\n' "$findings_json" > "$findings_file"
+    bash -c 'source "$1/scripts/lib/workflows.sh" 2>/dev/null; tangle_normal_finding_keys "$2"' \
+        _ "$PROJECT_ROOT" "$findings_file"
+}
+
+test_case "case-distinct paths remain distinct blocker identities"
+keys="$(finding_identity_probe '{"findings":[{"severity":"normal","file":"Src/API.ts","title":"Bug"},{"severity":"normal","file":"Src/api.ts","title":"Bug"}]}')"
+if [[ "$(printf '%s\n' "$keys" | sed '/^$/d' | wc -l | tr -d ' ')" -eq 2 ]]; then
+    test_pass
+else
+    test_fail "case-distinct paths collapsed: $(tr '\n' ';' <<< "$keys")"
+fi
+
+test_case "delimiter-containing file and title tuples cannot collide"
+previous_keys="$(finding_identity_probe '{"findings":[{"severity":"normal","file":"src/a|b.ts","title":"c"},{"severity":"normal","file":"src/a","title":"b.ts|c"}]}')"
+current_keys="$(finding_identity_probe '{"findings":[{"severity":"normal","file":"src/a","title":"b.ts|c"}]}')"
+resolved_count="$(bash -c 'source "$1/scripts/lib/workflows.sh" 2>/dev/null; tangle_resolved_finding_count "$2" "$3"' \
+    _ "$PROJECT_ROOT" "$previous_keys" "$current_keys")"
+if [[ "$(printf '%s\n' "$previous_keys" | sed '/^$/d' | wc -l | tr -d ' ')" -eq 2 && "$resolved_count" -eq 1 ]]; then
+    test_pass
+else
+    test_fail "delimiter tuples collided: previous=$(tr '\n' ';' <<< "$previous_keys") resolved=$resolved_count"
+fi
+
 test_case "hard cap stops improving-but-never-zero loop"
 # counts keep improving (each round is a new best), so the convergence guard
 # never fires — only the absolute ceiling can stop this.

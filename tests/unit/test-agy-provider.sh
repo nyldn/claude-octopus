@@ -691,34 +691,42 @@ test_agy_catalog_lookup_timeout() {
 
     local tmp_bin="$TEST_TMP_DIR/agy-stalled-catalog-bin"
     local old_path="$PATH"
-    local started elapsed lookup_rc=0
+    local started_ms elapsed_ms lookup_rc=0
+    local started_marker="$TEST_TMP_DIR/agy-stalled.started"
+    local completed_marker="$TEST_TMP_DIR/agy-stalled.completed"
     mkdir -p "$tmp_bin"
     cat > "$tmp_bin/agy" <<'MOCK_AGY'
 #!/usr/bin/env bash
 if [[ "${1:-}" == "models" ]]; then
-    sleep 3
+    : > "${AGY_STALLED_STARTED:?}"
+    sleep 6
+    : > "${AGY_STALLED_COMPLETED:?}"
     printf '%s\t%s\n' 'gemini-3.5-flash-low' 'Gemini 3.5 Flash (Low)'
 fi
 MOCK_AGY
     chmod +x "$tmp_bin/agy"
 
     PATH="$tmp_bin:$PATH"
+    export AGY_STALLED_STARTED="$started_marker"
+    export AGY_STALLED_COMPLETED="$completed_marker"
     source "$PROJECT_ROOT/scripts/lib/model-resolver.sh"
-    started=$(date +%s)
+    started_ms="$(python3 -c 'import time; print(int(time.monotonic() * 1000))')"
     OCTOPUS_AGY_MODELS_TIMEOUT=1 validate_agy_model_name \
         'gemini-3.5-flash-low' >/dev/null 2>&1 || lookup_rc=$?
-    elapsed=$(( $(date +%s) - started ))
+    elapsed_ms=$(( $(python3 -c 'import time; print(int(time.monotonic() * 1000))') - started_ms ))
     PATH="$old_path"
+    unset AGY_STALLED_STARTED AGY_STALLED_COMPLETED
 
     # The invariant under test is the BOUND: the stalled lookup must be killed by
-    # the 1s timeout and never reach the mock's 3s sleep. A stalled (unreachable)
+    # the 1s timeout and never complete the mock's 6s sleep. A stalled (unreachable)
     # catalog is a "cannot validate" case, so it now fails OPEN (rc=0) — the pin is
     # trusted and agy rejects a genuinely bad model at dispatch. (OCTOPUS_AGY_MODEL_STRICT=1
     # would fail closed; the default path is asserted here.)
-    if [[ "$lookup_rc" -eq 0 && "$elapsed" -lt 3 ]]; then
+    if [[ "$lookup_rc" -eq 0 && -f "$started_marker" && ! -e "$completed_marker" \
+          && "$elapsed_ms" -ge 700 && "$elapsed_ms" -lt 4000 ]]; then
         test_pass
     else
-        test_fail "stalled agy catalog was not bounded or did not fail open: rc=$lookup_rc elapsed=${elapsed}s"
+        test_fail "stalled agy catalog was not bounded or did not fail open: rc=$lookup_rc elapsed=${elapsed_ms}ms started=$([[ -f "$started_marker" ]] && echo yes || echo no) completed=$([[ -f "$completed_marker" ]] && echo yes || echo no)"
     fi
 }
 test_agy_command_validation() {

@@ -14,6 +14,8 @@
 _quality_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=scripts/lib/agent-sync.sh
 source "${_quality_lib_dir}/agent-sync.sh" 2>/dev/null || true
+# shellcheck source=scripts/lib/provider-allowlist.sh
+source "${_quality_lib_dir}/provider-allowlist.sh" 2>/dev/null || true
 unset _quality_lib_dir
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -348,24 +350,25 @@ DECEOF
 design_review_default_agents() {
     local prompt="${1:-design review}"
     local plugin_root="${PLUGIN_DIR:-}"
-    local helper fleet provider pool=""
+    local helper fleet provider pool="" fleet_rc=0
     if [[ -z "$plugin_root" ]]; then
         plugin_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
     fi
     helper="$plugin_root/scripts/helpers/build-fleet.sh"
-    if [[ -x "$helper" ]]; then
-        fleet="$(bash "$helper" review standard "$prompt" 2>/dev/null || true)"
-        while IFS='|' read -r provider _; do
-            [[ -n "$provider" ]] || continue
-            pool="${pool}${pool:+ }${provider}"
-        done <<EOF
+    [[ -x "$helper" ]] || return 1
+    fleet="$(bash "$helper" review standard "$prompt" 2>/dev/null)" || fleet_rc=$?
+    [[ "$fleet_rc" -eq 0 ]] || return "$fleet_rc"
+    while IFS='|' read -r provider _; do
+        [[ -n "$provider" ]] || continue
+        pool="${pool}${pool:+ }${provider}"
+    done <<EOF
 $fleet
 EOF
-    fi
 
-    # Claude is the host runtime and remains the safe compatibility fallback if
-    # discovery cannot produce any admitted council provider.
-    [[ -n "$pool" ]] || pool="claude-sonnet"
+    # No implicit host fallback: an empty admitted pool is a provider-policy
+    # failure. Silently substituting Claude here bypasses OCTO_ALLOWED_PROVIDERS
+    # and turns invalid council policy into a live dispatch.
+    [[ -n "$pool" ]] || return 1
     # shellcheck disable=SC2206
     local providers=($pool)
     local count=${#providers[@]} i
@@ -414,7 +417,10 @@ Be concise and specific. This is a planning exercise, not implementation."
     # env vars remain compatibility aliases only; they no longer define defaults.
     local seat_1_approach="" seat_2_approach="" seat_3_approach=""
     local design_defaults design_implementer_default design_researcher_default design_code_reviewer_default design_synthesizer_default
-    design_defaults="$(design_review_default_agents "$prompt")"
+    if ! design_defaults="$(design_review_default_agents "$prompt")"; then
+        log ERROR "Design review provider discovery failed; refusing to dispatch unadmitted fallback seats"
+        return 1
+    fi
     design_implementer_default="$(printf '%s\n' "$design_defaults" | sed -n '1p')"
     design_researcher_default="$(printf '%s\n' "$design_defaults" | sed -n '2p')"
     design_code_reviewer_default="$(printf '%s\n' "$design_defaults" | sed -n '3p')"
@@ -423,6 +429,15 @@ Be concise and specific. This is a planning exercise, not implementation."
     local design_researcher_agent="${OCTOPUS_DESIGN_REVIEW_RESEARCHER_AGENT:-${OCTOPUS_DESIGN_REVIEW_AGY_AGENT:-${OCTOPUS_DESIGN_REVIEW_GEMINI_AGENT:-$design_researcher_default}}}"
     local design_code_reviewer_agent="${OCTOPUS_DESIGN_REVIEW_CODE_REVIEWER_AGENT:-${OCTOPUS_DESIGN_REVIEW_CLAUDE_AGENT:-$design_code_reviewer_default}}"
     local design_synthesizer_agent="${OCTOPUS_DESIGN_REVIEW_SYNTHESIZER_AGENT:-${OCTOPUS_DESIGN_REVIEW_SYNTH_AGENT:-$design_synthesizer_default}}"
+    local design_agent
+    for design_agent in "$design_implementer_agent" "$design_researcher_agent" \
+        "$design_code_reviewer_agent" "$design_synthesizer_agent"; do
+        if [[ -z "$design_agent" ]] || ! declare -f octo_provider_allowed >/dev/null 2>&1 \
+            || ! octo_provider_allowed "$design_agent"; then
+            log ERROR "Design review provider '$design_agent' is not admitted by the active allowlist"
+            return 1
+        fi
+    done
     local design_timeout="${OCTOPUS_DESIGN_REVIEW_TIMEOUT:-0}"
     local design_synth_timeout="${OCTOPUS_DESIGN_REVIEW_SYNTH_TIMEOUT:-0}"
     if [[ ! "$design_timeout" =~ ^[0-9]+$ ]]; then

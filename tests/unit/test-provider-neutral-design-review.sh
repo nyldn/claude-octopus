@@ -44,7 +44,7 @@ EOF
 
 export HOME="$TMP_HOME"
 export OCTOPUS_PROVIDER_CHECKER="$CHECKER"
-export OCTOPUS_ALLOWED_PROVIDERS="codex commandcode claude"
+export OCTO_ALLOWED_PROVIDERS="codex commandcode claude"
 export PLUGIN_DIR="$PROJECT_ROOT"
 export WORKSPACE_DIR="$TMP_HOME/workspace"
 mkdir -p "$WORKSPACE_DIR"
@@ -52,12 +52,30 @@ source "$PROJECT_ROOT/scripts/lib/quality.sh"
 
 test_case "design review defaults use the provider-neutral council pool"
 defaults="$(design_review_default_agents test)"
-if echo "$defaults" | grep -Eq '^(agy|perplexity)$'; then
-  test_fail "ineligible provider entered design review: $defaults"
-elif echo "$defaults" | grep -q '^commandcode$' && echo "$defaults" | grep -q '^codex$' && echo "$defaults" | grep -q '^claude-sonnet$'; then
+if [[ "$defaults" == $'claude-sonnet\ncodex\ncommandcode\nclaude-sonnet' ]]; then
   test_pass
 else
-  test_fail "expected Claude, Codex and CommandCode in design review defaults: $defaults"
+  test_fail "expected exact admitted provider sequence, got: $(tr '\n' '|' <<< "$defaults")"
+fi
+
+test_case "design review defaults fail closed when the allowlist admits no available provider"
+defaults=""
+if defaults="$(OCTO_ALLOWED_PROVIDERS=agy design_review_default_agents test)"; then
+  test_fail "provider discovery unexpectedly succeeded with no admitted provider: $defaults"
+elif [[ -z "$defaults" ]]; then
+  test_pass
+else
+  test_fail "failed discovery emitted an unadmitted fallback: $defaults"
+fi
+
+test_case "invalid council provider policy prevents design review defaults"
+defaults=""
+if defaults="$(OCTOPUS_COUNCIL_DEFAULT_PROVIDERS=codex,codex design_review_default_agents test)"; then
+  test_fail "invalid duplicate provider policy unexpectedly succeeded: $defaults"
+elif [[ -z "$defaults" ]]; then
+  test_pass
+else
+  test_fail "invalid policy emitted fallback providers: $defaults"
 fi
 
 test_case "design review assigns providers independently from semantic roles"
@@ -76,15 +94,23 @@ run_agent_sync_consultative() {
 design_review_ceremony "test" >/dev/null
 roles="$(cut -d'|' -f2 "$CAPTURE" | tr '\n' '|')"
 providers="$(cut -d'|' -f1 "$CAPTURE" | tr '\n' '|')"
-case "$roles" in
-  implementer\|researcher\|code-reviewer\|synthesizer\|) ;;
-  *) test_fail "semantic roles changed: $roles"; roles_bad=1 ;;
-esac
-if [[ "${roles_bad:-0}" == 1 ]]; then :
-elif echo "$providers" | grep -Eq '(^|\|)(agy|perplexity)(\||$)'; then
-  test_fail "legacy provider default leaked into ceremony: $providers"
-else
+expected_calls=$'claude-sonnet|implementer|ceremony\ncodex|researcher|ceremony\ncommandcode|code-reviewer|ceremony\nclaude-sonnet|synthesizer|ceremony'
+if [[ "$(<"$CAPTURE")" == "$expected_calls" ]]; then
   test_pass
+else
+  test_fail "expected exact provider/role ceremony sequence; roles=$roles providers=$providers calls=$(tr '\n' ';' < "$CAPTURE")"
+fi
+
+test_case "explicit design-review override cannot bypass the provider allowlist"
+: > "$CAPTURE"
+override_rc=0
+OCTO_ALLOWED_PROVIDERS=codex \
+OCTOPUS_DESIGN_REVIEW_RESEARCHER_AGENT=agy \
+  design_review_ceremony "test" >/dev/null 2>&1 || override_rc=$?
+if [[ "$override_rc" -ne 0 && ! -s "$CAPTURE" ]]; then
+  test_pass
+else
+  test_fail "disallowed override was dispatched or ceremony did not fail closed: rc=$override_rc calls=$(tr '\n' ';' < "$CAPTURE")"
 fi
 
 test_case "provider-local model keeps provider identity separate from role model"
