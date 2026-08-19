@@ -130,7 +130,7 @@ _ucfirst() { echo "$1"; }
 spawn_agent_capture_pid() {
     local agent_type="$1" agent_prompt="$2" task_id="$3"
     echo "spawn:$agent_type:$task_id" >> "$SPAWN_LOG"
-    echo "$agent_prompt" > "$TEST_TMP_DIR/prompt-${task_id}.txt"
+    printf '%s\n' "$agent_prompt" > "$TEST_TMP_DIR/prompt-${task_id}.txt"
     (
         sleep 1
         echo "output of $agent_type for $task_id" > "$RESULTS_DIR/${agent_type}-${task_id}.md"
@@ -467,7 +467,7 @@ _theta_long_pid=$!
 spawn_agent_capture_pid() {
     local agent_type="$1" agent_prompt="$2" task_id="$3"
     echo "spawn:$agent_type:$task_id" >> "$SPAWN_LOG"
-    echo "$agent_prompt" > "$TEST_TMP_DIR/prompt-${task_id}.txt"
+    printf '%s\n' "$agent_prompt" > "$TEST_TMP_DIR/prompt-${task_id}.txt"
     if [[ "$agent_type" == "codex" ]]; then
         # Never writes a result or .done marker — this agent must appear to
         # still be running for the lifetime of this test case.
