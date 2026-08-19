@@ -5,10 +5,9 @@ Status: recent merged-PR regressions are fixed locally; focused tests and the
 full fail-closed repository matrix are green.
 Branch: `fix/recent-pr-audit-regressions`
 Current release: [v9.65.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.65.0)
-Tracking: Beads `oco-0u2` (P1, in progress); pull request not opened yet
-Next action: commit only the intended files, push this branch to `upstream`, and
-open the linked PR; then replace the pending delivery line below with exact
-commit, PR, check, and tracker state.
+Tracking: Beads `oco-0u2` (P1, in progress); [PR #942](https://github.com/nyldn/claude-octopus/pull/942)
+Next action: monitor PR #942's required checks and review threads, address only
+verified findings, then close `oco-0u2` when the protected head is green.
 
 ## Recent PR Audit Regression Fixes (`oco-0u2`)
 
@@ -57,8 +56,10 @@ commit, PR, check, and tracker state.
   until proportional repository checks are attached and green. Its new chart
   host is a third-party workaround, not the official Star History domain, so
   verify service ownership/reliability before accepting that dependency.
-- Delivery state: not committed, pushed, or posted yet. Replace this line with
-  the verified commit, remote branch, PR, and CI state before ending the session.
+- Delivery state: implementation commit `78b0c43c` is pushed to
+  `upstream/fix/recent-pr-audit-regressions`; PR #942 is open. Required GitHub
+  checks and review are pending at this handoff update, so Beads `oco-0u2`
+  remains in progress until that protected head is verified.
 
 ## Release Currency Audit (post-v9.64.0)
 
