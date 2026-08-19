@@ -1,15 +1,13 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-19
-Status: recent merged-PR regressions and the four verified first-review
-findings are fixed locally; focused tests and the full fail-closed repository
-matrix are green.
+Status: recent merged-PR regressions and all verified review findings are fixed;
+PR #942 is green, approved, and ready to merge when explicitly authorized.
 Branch: `fix/recent-pr-audit-regressions`
 Current release: [v9.65.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.65.0)
-Tracking: Beads `oco-0u2` (P1, in progress); [PR #942](https://github.com/nyldn/claude-octopus/pull/942)
-Next action: push the review-response commit, monitor PR #942's new protected
-head, reply to and resolve the four fixed threads after verification, then
-close `oco-0u2` when checks and review are green.
+Tracking: Beads `oco-0u2` (P1, closed); [PR #942](https://github.com/nyldn/claude-octopus/pull/942)
+Next action: merge PR #942 only when explicitly authorized; no implementation,
+review, or verification work remains on the protected head.
 
 ## Recent PR Audit Regression Fixes (`oco-0u2`)
 
@@ -68,12 +66,14 @@ close `oco-0u2` when checks and review are green.
   until proportional repository checks are attached and green. Its new chart
   host is a third-party workaround, not the official Star History domain, so
   verify service ownership/reliability before accepting that dependency.
-- Delivery state: implementation commit `78b0c43c` and initial handoff commit
-  `f096cade` are pushed to `upstream/fix/recent-pr-audit-regressions`; PR #942
-  is open. Its first Test Suite passed, and native review returned no findings,
-  but CodeRabbit requested the four changes recorded above. The review-response
-  commit is local at this handoff update, so Beads `oco-0u2` remains in progress
-  until the new protected head is pushed and verified.
+- Delivery state: review-response commit `1d21f65a` is pushed on PR #942. Its
+  exact protected head passed portability, macOS and Ubuntu smoke/unit tests,
+  symlink-path tests, full integration, and the Test Summary in run
+  `32213734617`; native `pr-review` also passed. CodeRabbit approved that SHA,
+  all four verified findings received evidence-specific replies, and GitHub
+  reports zero unresolved threads, `reviewDecision=APPROVED`, and
+  `mergeStateStatus=CLEAN`. Beads `oco-0u2` is closed. The PR remains open
+  because merge authorization was not part of this task.
 
 ## Release Currency Audit (post-v9.64.0)
 
