@@ -196,10 +196,15 @@ yaml_get_agent_prompt() {
 
 # Resolve template variables in prompt
 # Supports: {{prompt}}, {{previous_phase_output}}, {{probe_synthesis}}, etc.
+# Any further "name" "value" argument pairs are substituted as {{name}}
+# placeholders too — used by execute_workflow_phase to wire same-phase
+# sibling outputs (e.g. {{ink_codex}}, {{ink_agy}}) into a later sequential
+# agent's prompt.
 resolve_prompt_template() {
     local template="$1"
     local prompt="$2"
     local previous_output="${3:-}"
+    shift 3 || true
 
     local resolved="$template"
     resolved="${resolved//\{\{prompt\}\}/$prompt}"
@@ -207,6 +212,12 @@ resolve_prompt_template() {
     resolved="${resolved//\{\{probe_synthesis\}\}/$previous_output}"
     resolved="${resolved//\{\{grasp_consensus\}\}/$previous_output}"
     resolved="${resolved//\{\{tangle_implementation\}\}/$previous_output}"
+
+    while [[ $# -ge 2 ]]; do
+        local var_name="$1" var_value="$2"
+        resolved="${resolved//\{\{${var_name}\}\}/$var_value}"
+        shift 2
+    done
 
     echo "$resolved"
 }
@@ -305,6 +316,10 @@ execute_workflow_phase() {
     local pids=()
     local agent_idx=0
     local spawned_tasks=()
+    # Same-phase sibling outputs already captured, in provider order, for
+    # {{<phase>_<provider>}} placeholders (e.g. {{ink_codex}}, {{ink_agy}}).
+    local sib_providers=()
+    local sib_outputs=()
 
     # Update session state for hooks
     local session_dir="${HOME}/.claude-octopus"
@@ -332,22 +347,6 @@ execute_workflow_phase() {
 
         local task_id="${phase_name}-${task_group}-${agent_idx}"
 
-        # Resolve prompt template
-        local agent_prompt
-        agent_prompt=$(yaml_get_agent_prompt "$yaml_file" "$phase_name" "$provider")
-        if [[ -n "$agent_prompt" ]]; then
-            agent_prompt=$(resolve_prompt_template "$agent_prompt" "$prompt" "$previous_output")
-        else
-            # Fallback: construct prompt from role
-            agent_prompt="$role: $prompt"
-            if [[ -n "$previous_output" ]]; then
-                agent_prompt="$agent_prompt
-
-Previous phase output:
-$previous_output"
-            fi
-        fi
-
         # Map provider to agent type
         local agent_type="$provider"
         case "$provider" in
@@ -359,6 +358,8 @@ $previous_output"
             codex)
                 if ! command -v codex &>/dev/null && [[ -z "${OPENAI_API_KEY:-}" ]]; then
                     log "WARN" "Codex not available, skipping agent in phase $phase_name"
+                    sib_providers+=("codex")
+                    sib_outputs+=("(codex unavailable — skipped this run)")
                     ((agent_idx++)) || true
                     continue
                 fi
@@ -366,23 +367,71 @@ $previous_output"
             agy)
                 if ! command -v agy &>/dev/null && [[ -z "${ANTIGRAVITY_API_KEY:-}" ]]; then
                     log "WARN" "Antigravity not available, skipping agent in phase $phase_name"
+                    sib_providers+=("agy")
+                    sib_outputs+=("(antigravity unavailable — skipped this run)")
                     ((agent_idx++)) || true
                     continue
                 fi
                 ;;
         esac
 
+        # Sequential agent - wait for this phase's parallel siblings first, so
+        # their result files are on disk before we resolve this agent's
+        # prompt: a sequential agent's prompt_template may reference a
+        # sibling's own-phase output (e.g. {{ink_codex}}, {{ink_agy}}), and
+        # that placeholder can only resolve to real content once the sibling
+        # has actually finished.
+        if [[ "$is_parallel" != "true" && ${#pids[@]} -gt 0 ]]; then
+            log "DEBUG" "Waiting for ${#pids[@]} parallel agents before sequential agent"
+            _yaml_wait_for_pids "${TIMEOUT:-600}" "${pids[@]}"
+            _yaml_wait_for_done_markers "${OCTOPUS_YAML_DONE_WAIT:-30}" "${spawned_tasks[@]}"
+            pids=()
+
+            local _sib_task _sib_file _sib_base
+            for _sib_task in "${spawned_tasks[@]}"; do
+                _sib_file=$(ls "$RESULTS_DIR"/*-"${_sib_task}".md 2>/dev/null | head -n1)
+                [[ -n "$_sib_file" && -f "$_sib_file" ]] || continue
+                _sib_base=$(basename "$_sib_file")
+                sib_providers+=("${_sib_base%-${_sib_task}.md}")
+                sib_outputs+=("$(cat "$_sib_file")")
+            done
+        fi
+
+        # Resolve prompt template, including any same-phase sibling outputs
+        # gathered above.
+        local agent_prompt
+        agent_prompt=$(yaml_get_agent_prompt "$yaml_file" "$phase_name" "$provider")
+        if [[ -n "$agent_prompt" ]]; then
+            local sibling_args=()
+            local _si
+            for (( _si=0; _si<${#sib_providers[@]}; _si++ )); do
+                sibling_args+=("${phase_name}_${sib_providers[$_si]}" "${sib_outputs[$_si]}")
+            done
+            if [[ ${#sibling_args[@]} -gt 0 ]]; then
+                agent_prompt=$(resolve_prompt_template "$agent_prompt" "$prompt" "$previous_output" "${sibling_args[@]}")
+            else
+                agent_prompt=$(resolve_prompt_template "$agent_prompt" "$prompt" "$previous_output")
+            fi
+            if [[ "$agent_prompt" == *"{{"*"}}"* ]]; then
+                log "ERROR" "Phase $phase_name: unresolved template placeholder in $provider prompt — halting phase"
+                return 1
+            fi
+        else
+            # Fallback: construct prompt from role
+            agent_prompt="$role: $prompt"
+            if [[ -n "$previous_output" ]]; then
+                agent_prompt="$agent_prompt
+
+Previous phase output:
+$previous_output"
+            fi
+        fi
+
         if [[ "$is_parallel" == "true" ]]; then
             local pid
             pid=$(spawn_agent_capture_pid "$agent_type" "$agent_prompt" "$task_id" "$role" "$phase_name")
             pids+=("$pid")
         else
-            # Sequential agent - wait for parallel agents first
-            if [[ ${#pids[@]} -gt 0 ]]; then
-                log "DEBUG" "Waiting for ${#pids[@]} parallel agents before sequential agent"
-                _yaml_wait_for_pids "${TIMEOUT:-600}" "${pids[@]}"
-                pids=()
-            fi
             # spawn_agent backgrounds the provider internally, so capture the
             # PID and block until it exits. Without this the phase synthesized
             # and moved on while its sequential agent was still running, losing

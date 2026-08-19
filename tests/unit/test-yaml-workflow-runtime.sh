@@ -124,8 +124,9 @@ _ucfirst() { echo "$1"; }
 # spawn contract). Sequential agents must be awaited for the file to exist at
 # synthesis time.
 spawn_agent_capture_pid() {
-    local agent_type="$1" task_id="$3"
+    local agent_type="$1" agent_prompt="$2" task_id="$3"
     echo "spawn:$agent_type:$task_id" >> "$SPAWN_LOG"
+    echo "$agent_prompt" > "$TEST_TMP_DIR/prompt-${task_id}.txt"
     (
         sleep 1
         echo "output of $agent_type for $task_id" > "$RESULTS_DIR/${agent_type}-${task_id}.md"
@@ -188,6 +189,98 @@ if grep -q "bridge-complete:alpha-tg1-0:completed" "$SPAWN_LOG" \
     test_pass
 else
     test_fail "bridge_mark_task_complete not called for all tasks: $(grep bridge-complete "$SPAWN_LOG" | tr '\n' ' ')"
+fi
+
+# ── same-phase sibling substitution (issue #944) ─────────────────────────────
+# embrace.yaml's ink phase briefs its sequential synthesis agent with
+# {{ink_codex}} / {{ink_agy}} — the outputs of the two parallel agents in the
+# *same* phase, not a cross-phase variable like {{tangle_implementation}}.
+# resolve_prompt_template never substituted those, so the synthesis agent
+# received the literal placeholder text instead of its siblings' output.
+
+BETA_YAML="$TEST_TMP_DIR/beta.yaml"
+cat > "$BETA_YAML" <<'EOF'
+name: beta-workflow
+description: "same-phase sibling substitution"
+version: "1.0.0"
+
+phases:
+  - name: beta
+    alias: beta
+    description: "Beta phase"
+    emoji: "B"
+    agents:
+      - provider: codex
+        role: "Quality review"
+        parallel: true
+        prompt_template: |
+          Codex: {{prompt}}
+      - provider: agy
+        role: "Security review"
+        parallel: true
+        prompt_template: |
+          Agy: {{prompt}}
+      - provider: claude
+        role: "Synthesis"
+        parallel: false
+        prompt_template: |
+          Quality review: {{beta_codex}}
+          Security review: {{beta_agy}}
+    quality_gate:
+      threshold: 1.0
+
+quality_gates:
+  consensus:
+    threshold: 0.75
+EOF
+
+test_case "sequential agent prompt receives same-phase sibling outputs"
+# Availability checks require a binary or an API key; the sandbox has
+# neither codex nor agy installed, so fake the API keys to reach the spawn.
+export OPENAI_API_KEY="test-key" ANTIGRAVITY_API_KEY="test-key"
+beta_stdout=$(execute_workflow_phase "$BETA_YAML" "beta" "test prompt" "" "tg-sib" 2>/dev/null)
+beta_rc=$?
+synthesis_prompt="$TEST_TMP_DIR/prompt-beta-tg-sib-2.txt"
+if [[ $beta_rc -eq 0 \
+      && -f "$synthesis_prompt" \
+      && "$(cat "$synthesis_prompt")" == *"output of codex for beta-tg-sib-0"* \
+      && "$(cat "$synthesis_prompt")" == *"output of agy for beta-tg-sib-1"* \
+      && "$(cat "$synthesis_prompt")" != *"{{beta_codex}}"* \
+      && "$(cat "$synthesis_prompt")" != *"{{beta_agy}}"* ]]; then
+    test_pass
+else
+    test_fail "rc=$beta_rc prompt='$(cat "$synthesis_prompt" 2>/dev/null)'"
+fi
+
+test_case "phase halts instead of spawning with an unresolved placeholder"
+GAMMA_YAML="$TEST_TMP_DIR/gamma.yaml"
+cat > "$GAMMA_YAML" <<'EOF'
+name: gamma-workflow
+description: "unresolved placeholder"
+version: "1.0.0"
+
+phases:
+  - name: gamma
+    alias: gamma
+    description: "Gamma phase"
+    emoji: "G"
+    agents:
+      - provider: claude
+        role: "Synthesis"
+        parallel: false
+        prompt_template: |
+          Never resolved: {{nonexistent_thing}}
+    quality_gate:
+      threshold: 1.0
+
+quality_gates:
+  consensus:
+    threshold: 0.75
+EOF
+if execute_workflow_phase "$GAMMA_YAML" "gamma" "test prompt" "" "tg-fail" >/dev/null 2>&1; then
+    test_fail "expected non-zero exit for an unresolved template placeholder"
+else
+    test_pass
 fi
 
 test_case "phase fails its gate when no results are produced"
