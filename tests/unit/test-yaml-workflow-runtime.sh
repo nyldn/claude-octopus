@@ -303,6 +303,62 @@ else
     test_fail "rc=$delta_rc prompt='$(cat "$delta_prompt" 2>/dev/null)'"
 fi
 
+test_case "second sequential agent sees the first sequential agent's own output"
+# Sibling gathering must reflect everything completed so far in the phase,
+# not just the most recent parallel batch — otherwise a phase with two
+# sequential agents in a row can never let the second reference the first.
+IOTA_YAML="$TEST_TMP_DIR/iota.yaml"
+cat > "$IOTA_YAML" <<'EOF'
+name: iota-workflow
+description: "two consecutive sequential agents"
+version: "1.0.0"
+
+phases:
+  - name: iota
+    alias: iota
+    description: "Iota phase"
+    emoji: "I"
+    agents:
+      - provider: codex
+        role: "Parallel worker"
+        parallel: true
+        prompt_template: |
+          Codex: {{prompt}}
+      - provider: agy
+        role: "First sequential agent"
+        parallel: false
+        prompt_template: |
+          Parallel sibling: {{iota_codex}}
+      - provider: claude
+        role: "Second sequential agent"
+        parallel: false
+        prompt_template: |
+          Parallel sibling: {{iota_codex}}
+          First sequential sibling: {{iota_agy}}
+    quality_gate:
+      threshold: 1.0
+
+quality_gates:
+  consensus:
+    threshold: 0.75
+EOF
+iota_stdout=$(
+    export "OPENAI_API_KEY=test-key" "ANTIGRAVITY_API_KEY=test-key"
+    execute_workflow_phase "$IOTA_YAML" "iota" "test prompt" "" "tg-iota" 2>/dev/null
+)
+iota_rc=$?
+iota_prompt="$TEST_TMP_DIR/prompt-iota-tg-iota-2.txt"
+if [[ $iota_rc -eq 0 \
+      && -f "$iota_prompt" \
+      && "$(cat "$iota_prompt")" == *"output of codex for iota-tg-iota-0"* \
+      && "$(cat "$iota_prompt")" == *"output of agy for iota-tg-iota-1"* \
+      && "$(cat "$iota_prompt")" != *"{{iota_codex}}"* \
+      && "$(cat "$iota_prompt")" != *"{{iota_agy}}"* ]]; then
+    test_pass
+else
+    test_fail "rc=$iota_rc prompt='$(cat "$iota_prompt" 2>/dev/null)'"
+fi
+
 test_case "tampered sibling result is excluded, not injected into the next prompt"
 verify_result_integrity() {
     [[ "$1" == *"codex-"* ]] && return 1
@@ -318,6 +374,75 @@ if [[ $epsilon_rc -ne 0 ]]; then
     test_pass
 else
     test_fail "expected the phase to halt when a sibling result fails integrity verification: $epsilon_out"
+fi
+
+test_case "sequential agent does not start while a parallel sibling is still running past its wait window"
+# _yaml_wait_for_pids always returns 0, even when it gives up at its
+# max_wait with a pid still alive (it has other bare, unchecked call sites
+# under this file's set -e caller, so its contract can't change here). The
+# sequential-agent wait must catch that itself instead of trusting it.
+#
+# _yaml_wait_for_pids is stubbed to an instant no-op rather than timed
+# against a real sleeping agent: this sandbox's per-fork overhead (YAML
+# parsing, provider-availability checks) between spawning the parallel
+# agent and reaching the wait call is itself multiple seconds and varies
+# by load, so racing a short sleep against a short TIMEOUT here is
+# inherently flaky. Stubbing the wait isolates exactly what's under test —
+# the still-alive check that runs right after it — deterministically.
+_theta_orig_spawn=$(declare -f spawn_agent_capture_pid)
+_theta_orig_wait=$(declare -f _yaml_wait_for_pids)
+spawn_agent_capture_pid() {
+    local agent_type="$1" agent_prompt="$2" task_id="$3"
+    echo "spawn:$agent_type:$task_id" >> "$SPAWN_LOG"
+    echo "$agent_prompt" > "$TEST_TMP_DIR/prompt-${task_id}.txt"
+    (
+        sleep 3
+        echo "output of $agent_type for $task_id" > "$RESULTS_DIR/${agent_type}-${task_id}.md"
+        echo "0" > "$WORKSPACE_DIR/.octo/agents/${task_id}.done"
+    ) &
+    echo $!
+}
+_yaml_wait_for_pids() { return 0; }
+THETA_YAML="$TEST_TMP_DIR/theta.yaml"
+cat > "$THETA_YAML" <<'EOF'
+name: theta-workflow
+description: "sibling still running past its wait window"
+version: "1.0.0"
+
+phases:
+  - name: theta
+    alias: theta
+    description: "Theta phase"
+    emoji: "T"
+    agents:
+      - provider: codex
+        role: "Slow parallel worker"
+        parallel: true
+        prompt_template: |
+          Codex: {{prompt}}
+      - provider: claude
+        role: "Synthesis"
+        parallel: false
+        prompt_template: |
+          Synthesis: {{prompt}}
+    quality_gate:
+      threshold: 1.0
+
+quality_gates:
+  consensus:
+    threshold: 0.75
+EOF
+theta_rc=0
+theta_out=$(
+    export "OPENAI_API_KEY=test-key"
+    execute_workflow_phase "$THETA_YAML" "theta" "test prompt" "" "tg-theta" 2>&1
+) || theta_rc=$?
+eval "$_theta_orig_spawn"
+eval "$_theta_orig_wait"
+if [[ $theta_rc -ne 0 && ! -f "$TEST_TMP_DIR/prompt-theta-tg-theta-1.txt" ]]; then
+    test_pass
+else
+    test_fail "rc=$theta_rc (expected non-zero, and the sequential agent should never have been prompted): $theta_out"
 fi
 
 test_case "literal double-curly-brace text in prompt/previous_output does not false-positive halt"

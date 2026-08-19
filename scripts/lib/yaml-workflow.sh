@@ -389,27 +389,57 @@ execute_workflow_phase() {
         if [[ "$is_parallel" != "true" && ${#pids[@]} -gt 0 ]]; then
             log "DEBUG" "Waiting for ${#pids[@]} parallel agents before sequential agent"
             _yaml_wait_for_pids "${TIMEOUT:-600}" "${pids[@]}"
-            _yaml_wait_for_done_markers "${OCTOPUS_YAML_DONE_WAIT:-30}" "${spawned_tasks[@]}"
-            pids=()
-
-            local _sib_idx _sib_task _sib_provider _sib_file
-            for (( _sib_idx=0; _sib_idx<${#spawned_tasks[@]}; _sib_idx++ )); do
-                _sib_task="${spawned_tasks[$_sib_idx]}"
-                _sib_provider="${spawned_providers[$_sib_idx]}"
-                # Only trust a result written after its .done marker was
-                # observed — a file that exists but whose marker never
-                # appeared may still be mid-write.
-                [[ -f "${done_dir}/${_sib_task}.done" ]] || continue
-                _sib_file=$(ls "$RESULTS_DIR"/*-"${_sib_task}".md 2>/dev/null | head -n1)
-                [[ -n "$_sib_file" && -f "$_sib_file" ]] || continue
-                if ! verify_result_integrity "$_sib_file"; then
-                    log "WARN" "Skipping tampered sibling result: $_sib_file"
-                    continue
-                fi
-                sib_providers+=("$_sib_provider")
-                sib_outputs+=("$(cat "$_sib_file")")
+            # _yaml_wait_for_pids always returns 0 (even on timeout — it has
+            # other bare, unchecked call sites under this file's set -e
+            # caller), so confirm completion ourselves rather than trusting
+            # its return value: a sibling still alive past its wait window
+            # must halt the phase, not silently let the sequential agent
+            # start beside it.
+            local _still_running=false _pid
+            for _pid in "${pids[@]}"; do
+                [[ -z "$_pid" ]] && continue
+                kill -0 "$_pid" 2>/dev/null && _still_running=true
             done
+            if [[ "$_still_running" == "true" ]]; then
+                log "ERROR" "Phase $phase_name: a parallel sibling did not finish within its wait window — halting phase rather than starting the sequential agent early"
+                fleet_dispatch_end
+                return 1
+            fi
+            if ! _yaml_wait_for_done_markers "${OCTOPUS_YAML_DONE_WAIT:-30}" "${spawned_tasks[@]}"; then
+                log "ERROR" "Phase $phase_name: parallel sibling completion marker(s) missing — halting phase rather than starting the sequential agent early"
+                fleet_dispatch_end
+                return 1
+            fi
+            pids=()
         fi
+
+        # Gather same-phase sibling outputs from every task completed so far
+        # in this phase — not only the most recent parallel batch — so a
+        # later agent's {{<phase>_<provider>}} placeholder can also resolve
+        # to an earlier sequential agent's own output. Rebuilt fresh each
+        # iteration rather than accumulated, so it always reflects exactly
+        # what's confirmed done right now (a task still running, e.g. a
+        # third parallel agent spawned but not yet awaited, is correctly
+        # left out until its own .done marker appears).
+        sib_providers=()
+        sib_outputs=()
+        local _sib_idx _sib_task _sib_provider _sib_file
+        for (( _sib_idx=0; _sib_idx<${#spawned_tasks[@]}; _sib_idx++ )); do
+            _sib_task="${spawned_tasks[$_sib_idx]}"
+            _sib_provider="${spawned_providers[$_sib_idx]}"
+            # Only trust a result written after its .done marker was
+            # observed — a file that exists but whose marker never appeared
+            # may still be mid-write.
+            [[ -f "${done_dir}/${_sib_task}.done" ]] || continue
+            _sib_file=$(ls "$RESULTS_DIR"/*-"${_sib_task}".md 2>/dev/null | head -n1)
+            [[ -n "$_sib_file" && -f "$_sib_file" ]] || continue
+            if ! verify_result_integrity "$_sib_file"; then
+                log "WARN" "Skipping tampered sibling result: $_sib_file"
+                continue
+            fi
+            sib_providers+=("$_sib_provider")
+            sib_outputs+=("$(cat "$_sib_file")")
+        done
 
         # Resolve prompt template, including any same-phase sibling outputs
         # gathered above.
