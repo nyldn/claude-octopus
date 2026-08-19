@@ -107,8 +107,8 @@ SPAWN_LOG="$TEST_TMP_DIR/spawn.log"
 : > "$SPAWN_LOG"
 
 # Stub the spawn/bridge/support surface used by execute_workflow_phase
-fleet_dispatch_begin() { :; }
-fleet_dispatch_end() { :; }
+fleet_dispatch_begin() { echo "fleet:begin" >> "$SPAWN_LOG"; }
+fleet_dispatch_end() { echo "fleet:end" >> "$SPAWN_LOG"; }
 bridge_update_current_phase() { :; }
 bridge_inject_gate_task() { :; }
 bridge_generate_phase_summary() { :; }
@@ -237,8 +237,11 @@ EOF
 test_case "sequential agent prompt receives same-phase sibling outputs"
 # Availability checks require a binary or an API key; the sandbox has
 # neither codex nor agy installed, so fake the API keys to reach the spawn.
-export OPENAI_API_KEY="test-key" ANTIGRAVITY_API_KEY="test-key"
-beta_stdout=$(execute_workflow_phase "$BETA_YAML" "beta" "test prompt" "" "tg-sib" 2>/dev/null)
+# Scoped to this subshell so it doesn't leak into later test cases.
+beta_stdout=$(
+    export "OPENAI_API_KEY=test-key" "ANTIGRAVITY_API_KEY=test-key"
+    execute_workflow_phase "$BETA_YAML" "beta" "test prompt" "" "tg-sib" 2>/dev/null
+)
 beta_rc=$?
 synthesis_prompt="$TEST_TMP_DIR/prompt-beta-tg-sib-2.txt"
 if [[ $beta_rc -eq 0 \
@@ -252,7 +255,161 @@ else
     test_fail "rc=$beta_rc prompt='$(cat "$synthesis_prompt" 2>/dev/null)'"
 fi
 
-test_case "phase halts instead of spawning with an unresolved placeholder"
+test_case "sibling placeholder resolves by configured provider, not result-file prefix"
+# claude's result-file prefix is "claude-sonnet" (agent_type), not "claude"
+# (provider). A sibling placeholder like {{delta_claude}} must resolve via
+# the configured provider name, or it never resolves for a claude sibling.
+DELTA_YAML="$TEST_TMP_DIR/delta.yaml"
+cat > "$DELTA_YAML" <<'EOF'
+name: delta-workflow
+description: "provider-name sibling substitution"
+version: "1.0.0"
+
+phases:
+  - name: delta
+    alias: delta
+    description: "Delta phase"
+    emoji: "D"
+    agents:
+      - provider: claude
+        role: "First opinion"
+        parallel: true
+        prompt_template: |
+          Claude: {{prompt}}
+      - provider: codex
+        role: "Synthesis"
+        parallel: false
+        prompt_template: |
+          First opinion: {{delta_claude}}
+    quality_gate:
+      threshold: 1.0
+
+quality_gates:
+  consensus:
+    threshold: 0.75
+EOF
+delta_stdout=$(
+    export "OPENAI_API_KEY=test-key" "ANTIGRAVITY_API_KEY=test-key"
+    execute_workflow_phase "$DELTA_YAML" "delta" "test prompt" "" "tg-provider" 2>/dev/null
+)
+delta_rc=$?
+delta_prompt="$TEST_TMP_DIR/prompt-delta-tg-provider-1.txt"
+if [[ $delta_rc -eq 0 \
+      && -f "$delta_prompt" \
+      && "$(cat "$delta_prompt")" == *"output of claude-sonnet for delta-tg-provider-0"* \
+      && "$(cat "$delta_prompt")" != *"{{delta_claude}}"* ]]; then
+    test_pass
+else
+    test_fail "rc=$delta_rc prompt='$(cat "$delta_prompt" 2>/dev/null)'"
+fi
+
+test_case "tampered sibling result is excluded, not injected into the next prompt"
+verify_result_integrity() {
+    [[ "$1" == *"codex-"* ]] && return 1
+    return 0
+}
+epsilon_rc=0
+epsilon_out=$(
+    export "OPENAI_API_KEY=test-key" "ANTIGRAVITY_API_KEY=test-key"
+    execute_workflow_phase "$BETA_YAML" "beta" "test prompt" "" "tg-tamper" 2>&1
+) || epsilon_rc=$?
+verify_result_integrity() { return 0; }
+if [[ $epsilon_rc -ne 0 ]]; then
+    test_pass
+else
+    test_fail "expected the phase to halt when a sibling result fails integrity verification: $epsilon_out"
+fi
+
+test_case "literal double-curly-brace text in prompt/previous_output does not false-positive halt"
+# {{prompt}} and {{grasp_consensus}}/{{tangle_implementation}} substitute raw
+# text verbatim (a user's own request, or a prior phase's AI output). If that
+# text happens to quote a Jinja/Helm/GH Actions template, it must not be
+# mistaken for one of this mechanism's own unresolved {{<phase>_<provider>}}
+# sibling placeholders.
+ETA_YAML="$TEST_TMP_DIR/eta.yaml"
+cat > "$ETA_YAML" <<'EOF'
+name: eta-workflow
+description: "literal curly braces must not false-positive"
+version: "1.0.0"
+
+phases:
+  - name: eta
+    alias: eta
+    description: "Eta phase"
+    emoji: "E"
+    agents:
+      - provider: claude
+        role: "Synthesis"
+        parallel: false
+        prompt_template: |
+          {{prompt}}
+    quality_gate:
+      threshold: 1.0
+
+quality_gates:
+  consensus:
+    threshold: 0.75
+EOF
+literal_prompt='Explain this Helm snippet: {{ .Release.Name }} and this GH Actions expr: ${{ secrets.TOKEN }}'
+if execute_workflow_phase "$ETA_YAML" "eta" "$literal_prompt" "" "tg-literal" >/dev/null 2>&1; then
+    test_pass
+else
+    test_fail "literal {{...}} text in the prompt incorrectly halted the phase"
+fi
+
+test_case "unresolved-placeholder halt drains parallel siblings and closes fleet_dispatch"
+ZETA_YAML="$TEST_TMP_DIR/zeta.yaml"
+cat > "$ZETA_YAML" <<'EOF'
+name: zeta-workflow
+description: "halt path must not leak pids or dispatch state"
+version: "1.0.0"
+
+phases:
+  - name: zeta
+    alias: zeta
+    description: "Zeta phase"
+    emoji: "Z"
+    agents:
+      - provider: codex
+        role: "Parallel worker"
+        parallel: true
+        prompt_template: |
+          Codex: {{prompt}}
+      - provider: claude
+        role: "Synthesis"
+        parallel: false
+        prompt_template: |
+          Real sibling: {{zeta_codex}}
+          Bogus sibling: {{zeta_bogus}}
+    quality_gate:
+      threshold: 1.0
+
+quality_gates:
+  consensus:
+    threshold: 0.75
+EOF
+fleet_begin_before=$(grep -c "^fleet:begin$" "$SPAWN_LOG" 2>/dev/null || echo 0)
+fleet_end_before=$(grep -c "^fleet:end$" "$SPAWN_LOG" 2>/dev/null || echo 0)
+zeta_rc=0
+(
+    export "OPENAI_API_KEY=test-key"
+    execute_workflow_phase "$ZETA_YAML" "zeta" "test prompt" "" "tg-zeta" >/dev/null 2>&1
+) || zeta_rc=$?
+fleet_begin_after=$(grep -c "^fleet:begin$" "$SPAWN_LOG" 2>/dev/null || echo 0)
+fleet_end_after=$(grep -c "^fleet:end$" "$SPAWN_LOG" 2>/dev/null || echo 0)
+if [[ $zeta_rc -ne 0 \
+      && $(( fleet_begin_after - fleet_begin_before )) -eq 1 \
+      && $(( fleet_end_after - fleet_end_before )) -eq 1 \
+      && -f "$RESULTS_DIR/codex-zeta-tg-zeta-0.md" ]]; then
+    test_pass
+else
+    test_fail "rc=$zeta_rc begin_delta=$(( fleet_begin_after - fleet_begin_before )) end_delta=$(( fleet_end_after - fleet_end_before )) codex_result_exists=$([[ -f "$RESULTS_DIR/codex-zeta-tg-zeta-0.md" ]] && echo yes || echo no)"
+fi
+
+test_case "phase halts instead of spawning with an unresolved sibling placeholder"
+# Shaped like this mechanism's own {{<phase>_<provider>}} convention (unlike
+# an arbitrary {{nonexistent_thing}}, which the halt no longer flags — see
+# the literal-curly-brace false-positive test above).
 GAMMA_YAML="$TEST_TMP_DIR/gamma.yaml"
 cat > "$GAMMA_YAML" <<'EOF'
 name: gamma-workflow
@@ -269,7 +426,7 @@ phases:
         role: "Synthesis"
         parallel: false
         prompt_template: |
-          Never resolved: {{nonexistent_thing}}
+          Never resolved: {{gamma_missingprovider}}
     quality_gate:
       threshold: 1.0
 
@@ -278,7 +435,7 @@ quality_gates:
     threshold: 0.75
 EOF
 if execute_workflow_phase "$GAMMA_YAML" "gamma" "test prompt" "" "tg-fail" >/dev/null 2>&1; then
-    test_fail "expected non-zero exit for an unresolved template placeholder"
+    test_fail "expected non-zero exit for an unresolved sibling-shaped placeholder"
 else
     test_pass
 fi

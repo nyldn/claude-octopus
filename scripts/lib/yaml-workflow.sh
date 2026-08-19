@@ -316,10 +316,15 @@ execute_workflow_phase() {
     local pids=()
     local agent_idx=0
     local spawned_tasks=()
+    # Configured provider name for each entry in spawned_tasks, same index —
+    # the result-file prefix (agent_type) differs for claude (claude-sonnet),
+    # so this can't be recovered by parsing the filename.
+    local spawned_providers=()
     # Same-phase sibling outputs already captured, in provider order, for
     # {{<phase>_<provider>}} placeholders (e.g. {{ink_codex}}, {{ink_agy}}).
     local sib_providers=()
     local sib_outputs=()
+    local done_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents"
 
     # Update session state for hooks
     local session_dir="${HOME}/.claude-octopus"
@@ -387,12 +392,21 @@ execute_workflow_phase() {
             _yaml_wait_for_done_markers "${OCTOPUS_YAML_DONE_WAIT:-30}" "${spawned_tasks[@]}"
             pids=()
 
-            local _sib_task _sib_file _sib_base
-            for _sib_task in "${spawned_tasks[@]}"; do
+            local _sib_idx _sib_task _sib_provider _sib_file
+            for (( _sib_idx=0; _sib_idx<${#spawned_tasks[@]}; _sib_idx++ )); do
+                _sib_task="${spawned_tasks[$_sib_idx]}"
+                _sib_provider="${spawned_providers[$_sib_idx]}"
+                # Only trust a result written after its .done marker was
+                # observed — a file that exists but whose marker never
+                # appeared may still be mid-write.
+                [[ -f "${done_dir}/${_sib_task}.done" ]] || continue
                 _sib_file=$(ls "$RESULTS_DIR"/*-"${_sib_task}".md 2>/dev/null | head -n1)
                 [[ -n "$_sib_file" && -f "$_sib_file" ]] || continue
-                _sib_base=$(basename "$_sib_file")
-                sib_providers+=("${_sib_base%-${_sib_task}.md}")
+                if ! verify_result_integrity "$_sib_file"; then
+                    log "WARN" "Skipping tampered sibling result: $_sib_file"
+                    continue
+                fi
+                sib_providers+=("$_sib_provider")
                 sib_outputs+=("$(cat "$_sib_file")")
             done
         fi
@@ -412,8 +426,23 @@ execute_workflow_phase() {
             else
                 agent_prompt=$(resolve_prompt_template "$agent_prompt" "$prompt" "$previous_output")
             fi
-            if [[ "$agent_prompt" == *"{{"*"}}"* ]]; then
-                log "ERROR" "Phase $phase_name: unresolved template placeholder in $provider prompt — halting phase"
+            # Only flag a placeholder shaped like this phase's own
+            # {{<phase_name>_<provider>}} sibling-var convention — a blind
+            # "any {{...}} left" scan would also trip on literal
+            # double-curly-brace text substituted verbatim via {{prompt}} or
+            # {{grasp_consensus}}/{{tangle_implementation}} (a user's own
+            # request or a prior phase's AI output quoting a Jinja/Helm/GH
+            # Actions template), which is not a resolution failure at all.
+            if [[ "$agent_prompt" =~ \{\{${phase_name}_[A-Za-z0-9_-]+\}\} ]]; then
+                log "ERROR" "Phase $phase_name: unresolved sibling template placeholder in $provider prompt — halting phase"
+                # Drain any parallel siblings already spawned earlier in this
+                # phase and close out fleet_dispatch_begin so this early exit
+                # doesn't orphan background PIDs or leave dispatch state
+                # (e.g. OCTOPUS_FORCE_LEGACY_DISPATCH) stuck for later phases.
+                if [[ ${#pids[@]} -gt 0 ]]; then
+                    _yaml_wait_for_pids "${TIMEOUT:-600}" "${pids[@]}"
+                fi
+                fleet_dispatch_end
                 return 1
             fi
         else
@@ -441,6 +470,7 @@ $previous_output"
             _yaml_wait_for_pids "${TIMEOUT:-600}" "$seq_pid"
         fi
         spawned_tasks+=("$task_id")
+        spawned_providers+=("$provider")
 
         ((agent_idx++)) || true
         sleep 0.1
