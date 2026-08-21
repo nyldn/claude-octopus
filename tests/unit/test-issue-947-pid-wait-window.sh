@@ -157,45 +157,40 @@ test_case "spawn_agent_capture_pid actually uses the derived default window, not
 # compute_dynamic_timeout to 6s, which derives (6*5+60)*10 = 900 attempts —
 # below the 1200 floor, so it silently floors back UP to 1200, the exact old
 # default. That made the test pass identically whether or not the derived
-# value was ever consulted. Here the stub (100s) derives (100*5+60)*10 = 5600
-# attempts, clearly above 1200, and the simulated PID is timed to land only
-# after 1500 real polling attempts (past where the old 1200-attempt cap would
-# already have given up) but comfortably under the derived 5600-attempt cap.
+# value was ever consulted.
 #
-# A wall-clock delay would need ~1500 * 0.1s = 150s at real speed, and scaling
-# the loop's `sleep 0.1` down by a fixed factor turned out not to be portable:
-# each iteration also forks `awk` and `kill -0`, whose process-spawn overhead
-# dominates the loop's actual per-iteration cost (measured ~4ms/iteration in
-# CI, independent of the sleep argument), so a fixed sleep-scaling factor
-# doesn't reliably land the PID's arrival between the two attempt thresholds
-# on every runner. Instead, `awk` — already called exactly once per loop
-# iteration to check the PID file — is shadowed to also tick a counter file,
-# giving an exact, timing-independent count of real loop iterations; the
-# spawn_agent stub polls that same counter and only responds once it crosses
-# the threshold, so the test is portable across however fast or slow a given
-# CI runner executes each iteration.
+# A second version tried to prove the >1200 cap by having spawn_agent race a
+# shared counter file against the outer loop (spawn_agent polling for a
+# threshold tick count while the loop's shadowed `awk` wrote to the same
+# file). That passed on Linux CI but failed on macOS CI (0s, empty pid) —
+# two independently forked processes polling one file for a threshold is
+# exactly the kind of cross-platform timing race this rewrite avoids.
+#
+# This version has no second process and no threshold race at all: the
+# loop's own `sleep 0.1` — called exactly once per iteration, immediately
+# before `((attempts++))` — is shadowed to a no-op that just ticks a counter
+# file instead of waiting, so the loop spins to its true conclusion almost
+# instantly. `spawn_agent` is a single background process that outlives that
+# entire spin (a real, generously long sleep) and never writes a PID, so the
+# loop is guaranteed to run until `attempts` naturally reaches `max_attempts`
+# rather than exiting early via the pid-found or wrapper-died branches. The
+# number of ticks left behind is then an exact, deterministic record of
+# max_attempts: 5600 if the derived value from a 100s dynamic timeout was
+# used, 1200 if the code regressed to the old hardcoded default.
 unset OCTOPUS_SPAWN_PID_WAIT_ATTEMPTS 2>/dev/null || true
-compute_dynamic_timeout() { echo 100; }
-counter_file=$(mktemp "$TEST_TMP_DIR/attempt-counter.XXXXXX")
-: >"$counter_file"
-sleep() { :; }   # collapse the wait; only the *count* of attempts matters here
-awk() { printf 'x' >>"$counter_file"; command awk "$@"; }
-attempt_threshold=1500   # > the old 1200-attempt cap, < the derived 5600-attempt cap
-spawn_agent() {
-    local count=0
-    while [[ "$count" -lt "$attempt_threshold" ]]; do
-        command sleep 0.005   # `command` bypasses this test's no-op sleep shadow
-        count=$(wc -c <"$counter_file" 2>/dev/null || echo 0)
-    done
-    printf '%s\n' 777777
-}
+compute_dynamic_timeout() { echo 100; }   # derives (100*5+60)*10 = 5600 attempts
+tick_file=$(mktemp "$TEST_TMP_DIR/sleep-ticks.XXXXXX")
+: >"$tick_file"
+sleep() { printf 'x' >>"$tick_file"; }   # no real delay; each call just ticks the counter
+spawn_agent() { command sleep 60; }      # outlives the loop's spin; never writes a PID
 pid=$(spawn_agent_capture_pid codex prompt counted-task implementer tangle 2>/dev/null) || true
-unset -f compute_dynamic_timeout sleep awk spawn_agent
-rm -f "$counter_file"
-if [[ "$pid" == "777777" ]]; then
+unset -f compute_dynamic_timeout sleep spawn_agent
+tick_count=$(wc -c <"$tick_file" 2>/dev/null || echo 0)
+rm -f "$tick_file"
+if [[ -z "$pid" && "$tick_count" -eq 5600 ]]; then
     test_pass
 else
-    test_fail "expected the derived (>1200-attempt) window to capture a PID that lands after $attempt_threshold polling attempts (past the old 1200-attempt/120s cap), got: ${pid:-empty}"
+    test_fail "expected an empty pid and exactly 5600 polling attempts (the derived window; 1200 would mean the old hardcoded default is still in effect), got pid='${pid:-empty}' tick_count=$tick_count"
 fi
 
 test_summary
