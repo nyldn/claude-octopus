@@ -2932,15 +2932,31 @@ case "$COMMAND" in
         ;;
     spawn)
         [[ $# -lt 2 ]] && { log ERROR "Usage: spawn <agent> <prompt>"; exit 1; }
-        case "$1" in
+        _spawn_target="$1"
+        _spawn_role=""
+        _spawn_provider="$(resolve_persona_spawn_target "$_spawn_target" 2>/dev/null || true)"
+        if [[ -n "$_spawn_provider" ]]; then
+            _spawn_role="$_spawn_target"
+            _spawn_target="$_spawn_provider"
+        fi
+        case "$_spawn_target" in
             agy|agy-*|antigravity)
-                log INFO "Running $1 synchronously because Antigravity CLI print mode does not emit output from background jobs"
-                run_agent_sync "$1" "$2" "$TIMEOUT" "none" "spawn"
+                if [[ "$DRY_RUN" == "true" ]]; then
+                    spawn_agent "$_spawn_target" "$2" "" "${_spawn_role:-none}" "spawn"
+                else
+                    log INFO "Running $_spawn_target synchronously because Antigravity CLI print mode does not emit output from background jobs"
+                    run_agent_sync "$_spawn_target" "$2" "$TIMEOUT" "${_spawn_role:-none}" "spawn"
+                fi
                 ;;
             *)
-                spawn_agent "$1" "$2"
+                if [[ -n "$_spawn_role" ]]; then
+                    spawn_agent "$_spawn_target" "$2" "" "$_spawn_role" "spawn"
+                else
+                    spawn_agent "$1" "$2"
+                fi
                 ;;
         esac
+        unset _spawn_target _spawn_role _spawn_provider
         ;;
     auto)
         source "${SCRIPT_DIR}/lib/auto-route.sh" 2>/dev/null || true

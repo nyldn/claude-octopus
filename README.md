@@ -95,6 +95,15 @@ Installing Octopus does not route ordinary prompts, launch provider workflows,
 or delegate to Octopus agents. Every shipped command and skill uses Claude
 Code's native manual-invocation gate. Start it with `/octo:*`.
 
+> **Seeing `cannot be used with Skill tool due to disable-model-invocation`?**
+> That is the gate working as intended — the model tried to auto-invoke an
+> Octopus skill. Run the command explicitly instead: type `/octo:doctor` (the
+> command), not a model call to the `skill-doctor` skill. Slash commands are
+> user-invoked, so they bypass this invocation gate; the model will not call
+> Octopus skills on its own unless you opt into the router below. Rule of thumb:
+> **invoke Octopus with
+> `/octo:…`, don't expect Claude to reach for it for you.**
+
 Optional automation remains available, but it is explicit opt-in:
 
 ```bash
