@@ -1,14 +1,46 @@
 # AI Agent Handoff
 
-Last updated: 2026-08-14
-Status: all pull requests open at session start are merged; GitHub reports an
-empty open-PR queue. v9.64.0 is published to production from `upstream/main`,
-and the shared `nyldn/plugins` marketplace now serves v9.64.0.
-Branch: `main`
-Current release: [v9.64.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.64.0)
-Tracking: [PR #877](https://github.com/nyldn/claude-octopus/pull/877)
-Next action: paused at the user's request; do not start new work until the user
-provides the next task.
+Last updated: 2026-08-21
+Status: persona-name spawn routing is fixed and locally verified on an isolated
+branch. The branch still needs its draft PR and remote CI; do not merge without
+the user's explicit authorization.
+Branch: `fix/persona-spawn-routing`
+Current release: [v9.65.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.65.0)
+Tracking: Beads `oco-mpm`
+Next action: push the branch, open a draft PR, inspect its checks and review
+threads, and leave it unmerged pending explicit authorization.
+
+## Persona Spawn Routing and Recent Queue Audit
+
+- Incident: the shipped architecture skill invoked `orchestrate.sh spawn
+  backend-architect`, but the spawn command passed that curated persona name
+  directly to provider validation. The runtime rejected it as an unknown agent
+  even though help and the skill documented persona-name spawning.
+- Fix: `resolve_persona_spawn_target()` resolves curated persona names through
+  `agents/config.yaml`, prefers an available configured primary provider, uses
+  `fallback_cli` only when needed, and leaves direct provider targets on their
+  existing path. The persona name is retained as the runtime role. AGY remains
+  synchronous in live runs and genuinely dry in `--dry-run` mode.
+- Regression evidence: the new persona suite passes 9/9; AGY provider coverage
+  passes 50/50; agent predicates pass 13/13; Bash syntax, ShellCheck error-level
+  analysis, and `git diff --check` pass. A fresh non-PTY `CI=true
+  GITHUB_ACTIONS=true make ci-changed` selected the full `make ci-local` matrix
+  and exited 0 with all smoke, unit, integration, and CI-only checks passing.
+- Live queue correction: PRs #945 and #946 both claimed issue #944. PR #945 was
+  closed as superseded after a credential-gated explanation; #946 is the more
+  complete fail-closed implementation and its focused YAML runtime suite passes
+  18/18 at head `52e0aeee`.
+- Other live queue findings: #940's one-line chart change serves a valid SVG and
+  destination but GitHub still reports it blocked with no Actions checks; #941,
+  #942, and #946 are clean, approved, and have no unresolved review threads.
+  PR #948's code-focused test passes 13/13 and its normal Test Suite is green,
+  but the required PR-review job failed because both the Claude spend limit and
+  Copilot monthly quota were exhausted. Do not treat #940 or #948 as merge-ready.
+- Installed-runtime boundary: `/Users/chris/.claude-octopus/plugin` still points
+  at the installed v9.65.0 source and therefore still contains the persona-spawn
+  defect. Do not claim the installation is fixed until this branch is merged,
+  released or otherwise installed, and the documented architecture command is
+  re-run from the installed path.
 
 ## Release Currency Audit (post-v9.64.0)
 
