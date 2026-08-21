@@ -1,19 +1,16 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-21
-Status: PR #949 is merged. PR #942's conflict-resolved code head `885c2e0b` is
-pushed and passed exact-head Test Suite run `32519797414`; CodeRabbit requested
-this handoff-state update, and the separate `pr-review` job failed because its
-Copilot fallback exceeded monthly quota. The v9.66.0 release is authorized and
-pending required verification, approvals, protected merges, and release
-execution.
-Branch: `fix/recent-pr-audit-regressions`
-Current release: [v9.65.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.65.0)
-Tracking: Beads `oco-27j`; PRs #941, #942, #946, and merged PR #949
-Next action: require fresh exact-head CI, approval, and zero unresolved threads,
-and document the provider-capacity `pr-review` failure without bypassing branch
-protection. Then merge verified PRs #941, #942, and #946 and release v9.66.0
-from the resulting squash commits on `main`.
+Status: v9.66.0 is released from exact tested `main`. The verified queue (PRs
+#941, #942, #946, #948, and #949) is merged; issues #944 and #947 are closed;
+the shared marketplace and development-wrapper submodule are current; and the
+installed plugin resolves `backend-architect` through AGY while preserving the
+persona role.
+Branch: `main` (this handoff update is delivered through a docs-only PR)
+Current release: [v9.66.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.66.0)
+Tracking: Beads `oco-27j`; release commit `28ffb2c5`; Test Suite `32528830703`
+Next action: audit new PR #950 and the still-open external PR #940 independently;
+do not fold either into the completed v9.66.0 release. Issue #943 remains open.
 
 ## Recent PR Audit Regression Fixes (`oco-0u2`)
 
@@ -105,28 +102,38 @@ from the resulting squash commits on `main`.
   and exited 0 with all smoke, unit, integration, and CI-only checks passing.
 - Merge evidence: PR #949 was squash-merged to canonical `main` as
   `b80d82dfe76098032ae57ddf1488ec65329601bd` after exact-head CI passed,
-  CodeRabbit approved, and all review threads were resolved. The installed
-  v9.65.0 runtime still contains the defect until the fix is released and the
-  documented architecture command is re-run from the installed path.
+  CodeRabbit approved, and all review threads were resolved. The fix shipped in
+  v9.66.0. After updating the user-scoped installation, a dry run from
+  `/Users/chris/git/engage` dispatched the installed AGY adapter with
+  `role=backend-architect`, verifying the documented command at the installed
+  runtime boundary.
 
 ## Release Queue
 
-- PRs #945 and #946 both claimed issue #944. PR #945 was
-  closed as superseded after a credential-gated explanation; #946 is the more
-  complete fail-closed implementation and its focused YAML runtime suite passes
-  18/18 at head `52e0aeee`.
-- PRs #941 and #946 were approved with green checks and zero unresolved review
-  threads when last audited; refresh those facts against their exact heads
-  before merging. #946 is the more complete fail-closed fix for issue #944.
-- #940's one-line chart change serves a valid SVG and destination but GitHub
-  still reports it blocked with no Actions checks.
-  PR #948's code-focused test passes 13/13 and its normal Test Suite is green,
-  but the required PR-review job failed because both the Claude spend limit and
-  Copilot monthly quota were exhausted. Do not treat #940 or #948 as merge-ready.
-- Release version: post-v9.65.0 `main` includes the additive vendor-balanced
-  Council feature from PR #932, so repository SemVer policy requires v9.66.0,
-  not v9.65.1. Include verified PRs #941, #942, #946, and #949; exclude #940
-  and #948 unless their independent blockers are resolved.
+- Completed queue: PR #941 merged as `8c0f2a88`, #942 as `ea0226b0`, #946 as
+  `3d905050`, #948 as `44297b61`, and #949 as `b80d82df`. Each was refreshed
+  against its final head, passed protected CI, had explicit approval, and had
+  zero unresolved review threads before merge. PR #946 closed issue #944; PR
+  #948 closed issue #947.
+- Release evidence: release PR #951 was approved with zero unresolved threads
+  and squash-merged as `28ffb2c5eeceab2486cdb84a4c8fd77eee3dbd3a`.
+  Exact-main Test Suite run `32528830703` passed before the annotated
+  `v9.66.0` tag was created. The GitHub release is published (not draft or
+  prerelease), the tag dereferences to that exact commit, and the shared
+  `nyldn-plugins` marketplace advertises octo v9.66.0.
+- Local verification: `make ci-local` passed 278/278 unit suites and 7/7
+  integration suites before the release. The user-scoped Claude Code plugin was
+  updated from 9.65.0 to 9.66.0 and reports enabled. The development wrapper's
+  PR #6 merged as `66fdc786`; its `origin/main` gitlink now points to release
+  commit `28ffb2c5`.
+- Excluded work: PR #940 remains open and unverified by repository Actions; it
+  replaces the official Star History endpoint with a third-party host. PR #950
+  appeared after the release and must be audited on its own exact head. Open
+  issue #943 remains unrelated to this completed release.
+- Review-capacity caveat: release PR #951's separate `pr-review` job returned no
+  review because Claude spend and Copilot monthly quota were exhausted. It was
+  treated as degraded evidence, not approval. CodeRabbit completed successfully,
+  the release PR was approved, and the repository's protected gates passed.
 
 ## Release Currency Audit (post-v9.64.0)
 
