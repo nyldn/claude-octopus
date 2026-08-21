@@ -1,15 +1,18 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-21
-Status: PR #949 is merged. PR #942 now includes current `main` locally and needs
-fresh verification, push, CI, and review before merge. The authorized v9.66.0
-release is in progress.
+Status: PR #949 is merged. PR #942's conflict-resolved code head `885c2e0b` is
+pushed and passed exact-head Test Suite run `32519797414`; CodeRabbit requested
+this handoff-state update, and the separate `pr-review` job failed because its
+Copilot fallback exceeded monthly quota. The authorized v9.66.0 release is in
+progress.
 Branch: `fix/recent-pr-audit-regressions`
 Current release: [v9.65.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.65.0)
 Tracking: Beads `oco-27j`; PRs #941, #942, #946, and merged PR #949
-Next action: verify and push the conflict-resolved #942 head, require exact-head
-CI, approval, and zero unresolved threads, then merge the verified #941, #942,
-and #946 queue and release v9.66.0 from the resulting squash commits on `main`.
+Next action: push this handoff update, require fresh exact-head CI, approval, and
+zero unresolved threads, and resolve the provider-capacity `pr-review` failure
+without bypassing branch protection. Then merge the verified #941, #942, and
+#946 queue and release v9.66.0 from the resulting squash commits on `main`.
 
 ## Recent PR Audit Regression Fixes (`oco-0u2`)
 
@@ -74,6 +77,14 @@ and #946 queue and release v9.66.0 from the resulting squash commits on `main`.
   passed. CodeRabbit approved that SHA, all four verified findings received
   evidence-specific replies, and GitHub reported zero unresolved threads. That
   evidence must be refreshed now that current `main` has been merged locally.
+- Current protected-head evidence: conflict-resolved commit `885c2e0b` was
+  pushed and exact-head Test Suite run `32519797414` passed portability,
+  macOS/Ubuntu smoke and unit tests, symlink-path tests, full integration, and
+  Test Summary. The local working tree retains only the pre-existing modified
+  `.beads/interactions.jsonl` and untracked `.beads.gate.lock`; both belong to
+  other session state and remain untouched. CodeRabbit's only new finding was
+  this missing handoff metadata. The `pr-review` job is not review evidence: its
+  primary path failed and its Copilot fallback reported exhausted monthly quota.
 
 ## Persona Spawn Routing (merged PR #949)
 
