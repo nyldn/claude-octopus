@@ -1,8 +1,9 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-21
-Status: v9.66.0 is released from exact tested `main`. The verified queue (PRs
-#941, #942, #946, #948, and #949) is merged; issues #944 and #947 are closed;
+Status: v9.66.0 is released from exact tested `main`. The verified queue includes
+PRs #941, #942, #946, #948, and #949; all are merged, and issues #944 and #947
+are closed;
 the shared marketplace and development-wrapper submodule are current; and the
 installed plugin resolves `backend-architect` through AGY while preserving the
 persona role.
@@ -103,8 +104,8 @@ do not fold either into the completed v9.66.0 release. Issue #943 remains open.
 - Merge evidence: PR #949 was squash-merged to canonical `main` as
   `b80d82dfe76098032ae57ddf1488ec65329601bd` after exact-head CI passed,
   CodeRabbit approved, and all review threads were resolved. The fix shipped in
-  v9.66.0. After updating the user-scoped installation, a dry run from
-  `/Users/chris/git/engage` dispatched the installed AGY adapter with
+  v9.66.0. After updating the user-scoped installation, a dry run from the
+  engage checkout dispatched the installed AGY adapter with
   `role=backend-architect`, verifying the documented command at the installed
   runtime boundary.
 
