@@ -1,13 +1,15 @@
 # AI Agent Handoff
 
-Last updated: 2026-08-19
-Status: recent merged-PR regressions and all verified review findings are fixed;
-PR #942 is green, approved, and ready to merge when explicitly authorized.
+Last updated: 2026-08-21
+Status: PR #949 is merged. PR #942 now includes current `main` locally and needs
+fresh verification, push, CI, and review before merge. The authorized v9.66.0
+release is in progress.
 Branch: `fix/recent-pr-audit-regressions`
 Current release: [v9.65.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.65.0)
-Tracking: Beads `oco-0u2` (P1, closed); [PR #942](https://github.com/nyldn/claude-octopus/pull/942)
-Next action: merge PR #942 only when explicitly authorized; no implementation,
-review, or verification work remains on the protected head.
+Tracking: Beads `oco-27j`; PRs #941, #942, #946, and merged PR #949
+Next action: verify and push the conflict-resolved #942 head, require exact-head
+CI, approval, and zero unresolved threads, then merge the verified #941, #942,
+and #946 queue and release v9.66.0 from the resulting squash commits on `main`.
 
 ## Recent PR Audit Regression Fixes (`oco-0u2`)
 
@@ -66,14 +68,53 @@ review, or verification work remains on the protected head.
   until proportional repository checks are attached and green. Its new chart
   host is a third-party workaround, not the official Star History domain, so
   verify service ownership/reliability before accepting that dependency.
-- Delivery state: review-response commit `1d21f65a` is pushed on PR #942. Its
-  exact protected head passed portability, macOS and Ubuntu smoke/unit tests,
-  symlink-path tests, full integration, and the Test Summary in run
-  `32213734617`; native `pr-review` also passed. CodeRabbit approved that SHA,
-  all four verified findings received evidence-specific replies, and GitHub
-  reports zero unresolved threads, `reviewDecision=APPROVED`, and
-  `mergeStateStatus=CLEAN`. Beads `oco-0u2` is closed. The PR remains open
-  because merge authorization was not part of this task.
+- Prior protected-head evidence: review-response commit `1d21f65a` passed
+  portability, macOS and Ubuntu smoke/unit tests, symlink-path tests, full
+  integration, and Test Summary run `32213734617`; native `pr-review` also
+  passed. CodeRabbit approved that SHA, all four verified findings received
+  evidence-specific replies, and GitHub reported zero unresolved threads. That
+  evidence must be refreshed now that current `main` has been merged locally.
+
+## Persona Spawn Routing (merged PR #949)
+
+- Incident: the shipped architecture skill invoked `orchestrate.sh spawn
+  backend-architect`, but the spawn command passed that curated persona name
+  directly to provider validation. The runtime rejected it as an unknown agent
+  even though help and the skill documented persona-name spawning.
+- Fix: `resolve_persona_spawn_target()` resolves curated persona names through
+  `agents/config.yaml`, prefers an available configured primary provider, uses
+  `fallback_cli` only when needed, and leaves direct provider targets on their
+  existing path. The persona name is retained as the runtime role. AGY remains
+  synchronous in live runs and genuinely dry in `--dry-run` mode.
+- Regression evidence: the new persona suite passed 9/9; AGY provider coverage
+  passes 50/50; agent predicates pass 13/13; Bash syntax, ShellCheck error-level
+  analysis, and `git diff --check` pass. A fresh non-PTY `CI=true
+  GITHUB_ACTIONS=true make ci-changed` selected the full `make ci-local` matrix
+  and exited 0 with all smoke, unit, integration, and CI-only checks passing.
+- Merge evidence: PR #949 was squash-merged to canonical `main` as
+  `b80d82dfe76098032ae57ddf1488ec65329601bd` after exact-head CI passed,
+  CodeRabbit approved, and all review threads were resolved. The installed
+  v9.65.0 runtime still contains the defect until the fix is released and the
+  documented architecture command is re-run from the installed path.
+
+## Release Queue
+
+- PRs #945 and #946 both claimed issue #944. PR #945 was
+  closed as superseded after a credential-gated explanation; #946 is the more
+  complete fail-closed implementation and its focused YAML runtime suite passes
+  18/18 at head `52e0aeee`.
+- PRs #941 and #946 were approved with green checks and zero unresolved review
+  threads when last audited; refresh those facts against their exact heads
+  before merging. #946 is the more complete fail-closed fix for issue #944.
+- #940's one-line chart change serves a valid SVG and destination but GitHub
+  still reports it blocked with no Actions checks.
+  PR #948's code-focused test passes 13/13 and its normal Test Suite is green,
+  but the required PR-review job failed because both the Claude spend limit and
+  Copilot monthly quota were exhausted. Do not treat #940 or #948 as merge-ready.
+- Release version: post-v9.65.0 `main` includes the additive vendor-balanced
+  Council feature from PR #932, so repository SemVer policy requires v9.66.0,
+  not v9.65.1. Include verified PRs #941, #942, #946, and #949; exclude #940
+  and #948 unless their independent blockers are resolved.
 
 ## Release Currency Audit (post-v9.64.0)
 
