@@ -237,4 +237,26 @@ else
     test_fail "spawn.sh's preflight_candidates (${spawn_preflight_candidates:-not found}) no longer matches dispatch.sh's worst-case summarizer chain length ($dispatch_worst_case, from $dispatch_fixed_count fixed candidates + 1 optional, fixed-candidate line found: $([[ -n "$dispatch_fixed_line" ]] && echo yes || echo no)) — update _octopus_spawn_pid_wait_default_attempts's preflight_candidates in scripts/lib/spawn.sh to match"
 fi
 
+test_case "fallback 360s/candidate estimate in spawn.sh stays in lockstep with heartbeat.sh's complex-case formula"
+# #948 review: the 360s fallback used when heartbeat.sh isn't sourced (an
+# optional dep of spawn.sh, e.g. a test harness loading only this file)
+# approximates compute_dynamic_timeout's worst-case "complex" task-type
+# formula: 300 + leak_safe_boost, boost=60. Nothing ties the two files
+# together the way the lockstep test above does for preflight_candidates —
+# if heartbeat.sh's constants change, this fallback silently goes stale
+# with no failing test to flag it.
+heartbeat_complex_base=$(grep -F -A1 'full|premium|complex)' "$PROJECT_ROOT/scripts/lib/heartbeat.sh" | grep -o '[0-9]\+ + leak_safe_boost' | grep -o '^[0-9]\+') || heartbeat_complex_base=""
+heartbeat_leak_safe_boost=$(grep -m1 'leak_safe_boost=60' "$PROJECT_ROOT/scripts/lib/heartbeat.sh" | grep -o '[0-9]\+') || heartbeat_leak_safe_boost=""
+spawn_fallback_secs=$(grep -m1 'local preflight_secs=' "$PROJECT_ROOT/scripts/lib/spawn.sh" | grep -o '[0-9]\+') || spawn_fallback_secs=""
+if [[ -n "$heartbeat_complex_base" && -n "$heartbeat_leak_safe_boost" ]]; then
+    heartbeat_worst_case=$((heartbeat_complex_base + heartbeat_leak_safe_boost))
+else
+    heartbeat_worst_case=""
+fi
+if [[ -n "$heartbeat_worst_case" && -n "$spawn_fallback_secs" && "$spawn_fallback_secs" == "$heartbeat_worst_case" ]]; then
+    test_pass
+else
+    test_fail "spawn.sh's 360s fallback (${spawn_fallback_secs:-not found}) no longer matches heartbeat.sh's worst-case complex-task formula (${heartbeat_worst_case:-not found}, from base=${heartbeat_complex_base:-not found} + boost=${heartbeat_leak_safe_boost:-not found}) — update _octopus_spawn_pid_wait_default_attempts's fallback in scripts/lib/spawn.sh to match"
+fi
+
 test_summary
