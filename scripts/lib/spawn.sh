@@ -1235,6 +1235,35 @@ ${heuristic_ctx}"
     echo "$pid"
 }
 
+# #947: spawn_agent (below) can legitimately block for a while before it ever
+# prints a provider PID, because it runs enforce_context_budget ->
+# summarize_then_dispatch synchronously on an oversized prompt: up to 5
+# summarizer candidates (lib/dispatch.sh's optional OCTOPUS_OVERSIZE_SUMMARIZER
+# plus its 4-candidate fallback chain), each bounded by compute_dynamic_timeout
+# — which OCTOPUS_AGENT_TIMEOUT overrides directly (lib/heartbeat.sh). A fixed
+# 120s wait window (the old 1200-attempt default) could be shorter than a
+# single candidate's own budget, let alone the full chain, so a wrapper that
+# was still legitimately working had its seat discarded by
+# spawn_agent_capture_pid below. Derive the default window from the same
+# per-candidate budget the summarizer chain actually uses, times the
+# worst-case candidate count, so raising OCTOPUS_AGENT_TIMEOUT to help a slow
+# provider can no longer cause its own spawn to be abandoned instead. Falls
+# back to a fixed value if heartbeat.sh (an optional dep of this file) isn't
+# sourced, e.g. a test harness loading only this function. Split out from
+# spawn_agent_capture_pid so the pure derivation is unit-testable without
+# driving the real polling loop.
+_octopus_spawn_pid_wait_default_attempts() {
+    local preflight_candidates=5
+    local preflight_secs=360
+    if declare -F compute_dynamic_timeout >/dev/null 2>&1; then
+        preflight_secs=$(compute_dynamic_timeout complex 2>/dev/null) || preflight_secs=360
+    fi
+    [[ "$preflight_secs" =~ ^[0-9]+$ ]] || preflight_secs=360
+    local attempts=$(( (preflight_secs * preflight_candidates + 60) * 10 ))
+    (( attempts < 1200 )) && attempts=1200
+    echo "$attempts"
+}
+
 # Launch spawn_agent in the background and return the inner provider PID that
 # spawn_agent prints, not the short-lived wrapper PID from `$!`.
 spawn_agent_capture_pid() {
@@ -1253,10 +1282,15 @@ spawn_agent_capture_pid() {
 
     local pid=""
     local attempts=0
-    local "max_attempts=${OCTOPUS_SPAWN_PID_WAIT_ATTEMPTS:-1200}"
+    local default_max_attempts=1200
+    if declare -F _octopus_spawn_pid_wait_default_attempts >/dev/null 2>&1; then
+        default_max_attempts=$(_octopus_spawn_pid_wait_default_attempts) || default_max_attempts=1200
+    fi
+
+    local "max_attempts=${OCTOPUS_SPAWN_PID_WAIT_ATTEMPTS:-$default_max_attempts}"
     if ! [[ "$max_attempts" =~ ^[1-9][0-9]*$ ]]; then
-        log "WARN" "invalid OCTOPUS_SPAWN_PID_WAIT_ATTEMPTS='$max_attempts'; using default 1200" >&2
-        max_attempts=1200
+        log "WARN" "invalid OCTOPUS_SPAWN_PID_WAIT_ATTEMPTS='$max_attempts'; using default $default_max_attempts" >&2
+        max_attempts=$default_max_attempts
     fi
     while [[ $attempts -lt $max_attempts ]]; do
         pid=$(awk '/^[0-9]+$/ { value=$1 } END { print value }' "$pid_file" 2>/dev/null)
