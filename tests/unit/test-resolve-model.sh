@@ -138,6 +138,29 @@ cat > "$CONFIG_FILE" << EOF
 EOF
 assert_eq "$(resolve_octopus_model "commandcode" "commandcode-research" "probe" "researcher")" "minimaxai/minimax-m3" "Literal object role routing"
 
+# Test 5b.1: Explicit role routing outranks a provider-local role default.
+clear_model_cache
+cat > "$CONFIG_FILE" << EOF
+{
+  "version": "3.0",
+  "providers": {
+    "commandcode": {
+      "default": "deepseek/deepseek-v4-pro",
+      "roles": { "researcher": "deepseek/deepseek-v4-flash" }
+    }
+  },
+  "routing": {
+    "roles": {
+      "researcher": {
+        "provider": "commandcode",
+        "model": "minimaxai/minimax-m3"
+      }
+    }
+  }
+}
+EOF
+assert_eq "$(resolve_octopus_model "commandcode" "commandcode-research" "probe" "researcher")" "minimaxai/minimax-m3" "Explicit role route beats provider-local role default"
+
 # Test 5c: Literal object phase routing preserves exact provider model IDs
 clear_model_cache
 cat > "$CONFIG_FILE" << EOF

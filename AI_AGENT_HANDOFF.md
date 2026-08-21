@@ -1,14 +1,132 @@
 # AI Agent Handoff
 
-Last updated: 2026-08-14
-Status: all pull requests open at session start are merged; GitHub reports an
-empty open-PR queue. v9.64.0 is published to production from `upstream/main`,
-and the shared `nyldn/plugins` marketplace now serves v9.64.0.
-Branch: `main`
-Current release: [v9.64.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.64.0)
-Tracking: [PR #877](https://github.com/nyldn/claude-octopus/pull/877)
-Next action: paused at the user's request; do not start new work until the user
-provides the next task.
+Last updated: 2026-08-21
+Status: PR #949 is merged. PR #942's conflict-resolved code head `885c2e0b` is
+pushed and passed exact-head Test Suite run `32519797414`; CodeRabbit requested
+this handoff-state update, and the separate `pr-review` job failed because its
+Copilot fallback exceeded monthly quota. The v9.66.0 release is authorized and
+pending required verification, approvals, protected merges, and release
+execution.
+Branch: `fix/recent-pr-audit-regressions`
+Current release: [v9.65.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.65.0)
+Tracking: Beads `oco-27j`; PRs #941, #942, #946, and merged PR #949
+Next action: require fresh exact-head CI, approval, and zero unresolved threads,
+and document the provider-capacity `pr-review` failure without bypassing branch
+protection. Then merge verified PRs #941, #942, and #946 and release v9.66.0
+from the resulting squash commits on `main`.
+
+## Recent PR Audit Regression Fixes (`oco-0u2`)
+
+- Source-of-truth baseline: canonical `nyldn/claude-octopus` main at
+  `242e51d3`, after merged PRs #935 through #939. The live GitHub audit on
+  2026-08-19 found no open GitHub issues. PRs #940 and #941 are open, approved,
+  and unrelated to these code paths.
+- Reproduced defects: design review silently bypassed an empty/invalid provider
+  policy with Claude fallback and admitted explicit env overrides without a
+  final allowlist check; provider-local role defaults overrode explicit
+  `routing.roles`; a minimal incomplete Council summary left `run-status.json`
+  at `running`; raw provider exits 124/137/143 were labeled as internal
+  timeouts; and Tangle lowercased file paths and pipe-joined tuple fields,
+  collapsing distinct blocker identities.
+- Corrections: design review now propagates fleet-policy failure and validates
+  every final seat against the active allowlist before dispatch; explicit
+  role/phase routing precedes provider-local defaults; fallback summaries write
+  a terminal `finished/incomplete` beacon; only the detached reaper's
+  `internal-watchdog` provenance can produce a timed-out seat and that
+  provenance is persisted in `seats[]`; Tangle identities are JSON tuples with
+  case-preserved paths and normalized titles.
+- TDD evidence: each reported behavior was made red before production changes.
+  Focused green results are design review 6/6, model resolution 19/19, Tangle
+  correction loop 16/16, AGY provider 50/50, and Council 86/87 with zero
+  failures and its one documented macOS PTY skip. The AGY catalog-timeout test
+  now proves the stalled provider started, did not complete, and was bounded by
+  a monotonic elapsed-time window.
+- Full-gate evidence: `CI=true GITHUB_ACTIONS=true make ci-changed` selected the
+  full rule and ran `make ci-local`; it exited 0 with all smoke, unit,
+  integration, packaging, sync, and CI-only verifications passed. Council again
+  passed 86/87 cases with zero failures and its documented PTY skip.
+- First GitHub review response: CodeRabbit raised four inline findings against
+  protected head `f096cade`. All four were verified before editing. The real
+  detached watchdog now returns a kill-style status that agrees with its
+  `internal-watchdog` provenance; chair-fallback seat records include nullable
+  `timeout_provenance`; the AGY catalog-timeout regression unsets inherited
+  strict mode; and that test now uses a timeout-derived upper bound and proves
+  the stalled process was terminated. RED reproductions covered each behavior.
+  GREEN after the fixes is AGY 50/50 and Council 86/87 with zero failures and
+  the documented PTY skip. A fresh `CI=true GITHUB_ACTIONS=true make
+  ci-changed` again selected and passed the complete `make ci-local` matrix.
+- Review evidence: the independent AGY pass returned only generic conditional
+  approval, with no diff-specific finding that survived verification. The
+  final Codex reviewer spent its ten-minute window reading the repository and
+  rerunning focused suites, then returned empty output; Claude was blocked by
+  spend limits and Copilot by monthly quota. These are recorded as degraded
+  review capacity, not approvals. A local spec/code-quality pass found only a
+  stale test comment (`3s` versus the actual `6s` mock sleep), which was fixed.
+- Repository state: `.beads.gate.lock` remains untracked and untouched because
+  it belongs to another agent. The stable plugin symlink had been left pointing
+  at a deleted review worktree; it was restored to this canonical checkout and
+  provider doctor checks passed with optional-provider warnings only.
+- Live queue caveat: PR #941 is approved, all repository checks pass, and its
+  sole review thread is resolved. PR #940 is approved by CodeRabbit and has no
+  review threads, but GitHub shows no repository Test Suite run; do not merge it
+  until proportional repository checks are attached and green. Its new chart
+  host is a third-party workaround, not the official Star History domain, so
+  verify service ownership/reliability before accepting that dependency.
+- Prior protected-head evidence: review-response commit `1d21f65a` passed
+  portability, macOS and Ubuntu smoke/unit tests, symlink-path tests, full
+  integration, and Test Summary run `32213734617`; native `pr-review` also
+  passed. CodeRabbit approved that SHA, all four verified findings received
+  evidence-specific replies, and GitHub reported zero unresolved threads. That
+  evidence must be refreshed now that current `main` has been merged locally.
+- Current protected-head evidence: conflict-resolved commit `885c2e0b` was
+  pushed and exact-head Test Suite run `32519797414` passed portability,
+  macOS/Ubuntu smoke and unit tests, symlink-path tests, full integration, and
+  Test Summary. The local working tree retains only the pre-existing modified
+  `.beads/interactions.jsonl` and untracked `.beads.gate.lock`; both belong to
+  other session state and remain untouched. CodeRabbit's only new finding was
+  this missing handoff metadata. The `pr-review` job is not review evidence: its
+  primary path failed and its Copilot fallback reported exhausted monthly quota.
+
+## Persona Spawn Routing (merged PR #949)
+
+- Incident: the shipped architecture skill invoked `orchestrate.sh spawn
+  backend-architect`, but the spawn command passed that curated persona name
+  directly to provider validation. The runtime rejected it as an unknown agent
+  even though help and the skill documented persona-name spawning.
+- Fix: `resolve_persona_spawn_target()` resolves curated persona names through
+  `agents/config.yaml`, prefers an available configured primary provider, uses
+  `fallback_cli` only when needed, and leaves direct provider targets on their
+  existing path. The persona name is retained as the runtime role. AGY remains
+  synchronous in live runs and genuinely dry in `--dry-run` mode.
+- Regression evidence: the new persona suite passed 9/9; AGY provider coverage
+  passes 50/50; agent predicates pass 13/13; Bash syntax, ShellCheck error-level
+  analysis, and `git diff --check` pass. A fresh non-PTY `CI=true
+  GITHUB_ACTIONS=true make ci-changed` selected the full `make ci-local` matrix
+  and exited 0 with all smoke, unit, integration, and CI-only checks passing.
+- Merge evidence: PR #949 was squash-merged to canonical `main` as
+  `b80d82dfe76098032ae57ddf1488ec65329601bd` after exact-head CI passed,
+  CodeRabbit approved, and all review threads were resolved. The installed
+  v9.65.0 runtime still contains the defect until the fix is released and the
+  documented architecture command is re-run from the installed path.
+
+## Release Queue
+
+- PRs #945 and #946 both claimed issue #944. PR #945 was
+  closed as superseded after a credential-gated explanation; #946 is the more
+  complete fail-closed implementation and its focused YAML runtime suite passes
+  18/18 at head `52e0aeee`.
+- PRs #941 and #946 were approved with green checks and zero unresolved review
+  threads when last audited; refresh those facts against their exact heads
+  before merging. #946 is the more complete fail-closed fix for issue #944.
+- #940's one-line chart change serves a valid SVG and destination but GitHub
+  still reports it blocked with no Actions checks.
+  PR #948's code-focused test passes 13/13 and its normal Test Suite is green,
+  but the required PR-review job failed because both the Claude spend limit and
+  Copilot monthly quota were exhausted. Do not treat #940 or #948 as merge-ready.
+- Release version: post-v9.65.0 `main` includes the additive vendor-balanced
+  Council feature from PR #932, so repository SemVer policy requires v9.66.0,
+  not v9.65.1. Include verified PRs #941, #942, #946, and #949; exclude #940
+  and #948 unless their independent blockers are resolved.
 
 ## Release Currency Audit (post-v9.64.0)
 

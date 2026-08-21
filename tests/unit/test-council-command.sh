@@ -994,6 +994,8 @@ test_council_chair_fallback_preserves_quorum() {
                   | all(type == "string" and length > 0))
              and $fallback.response_bytes > 0
              and $fallback.verdict == "APPROVE"
+             and ($fallback | has("timeout_provenance"))
+             and $fallback.timeout_provenance == null
              and ($fallback.counted_as_approver | type == "boolean"))
     ' "$summary" >/dev/null; then
         test_pass
@@ -1472,6 +1474,10 @@ test_council_run_writes_minimal_summary_when_rich_writer_fails() {
     local d
     d="$(mktemp -d "$TEST_TMP_DIR/council-writerfail.XXXXXX")"
 
+    COUNCIL_RUN_DIR="$d"
+    COUNCIL_RUN_ID="writer-failure"
+    council_write_run_status "running"
+
     # Body leaves no summary AND the rich writer itself fails (e.g. jq errors) —
     # the wrapper must still guarantee a parseable, machine-detectable artifact.
     _council_run_impl() { COUNCIL_RUN_DIR="$d"; return 1; }
@@ -1481,16 +1487,19 @@ test_council_run_writes_minimal_summary_when_rich_writer_fails() {
     local rc=0
     council_run "dummy task" >/dev/null 2>&1 || rc=$?
 
-    local status valid=1
+    local status valid=1 beacon_state beacon_status
     jq -e . "$d/summary.json" >/dev/null 2>&1 || valid=0
     status="$(jq -r '.status' "$d/summary.json" 2>/dev/null)"
+    beacon_state="$(jq -r '.state' "$d/run-status.json" 2>/dev/null)"
+    beacon_status="$(jq -r '.status' "$d/run-status.json" 2>/dev/null)"
 
     unset -f _council_run_impl council_write_summary_json council_print_run_warnings
 
-    if [[ "$valid" -eq 1 && "$status" == "incomplete" && "$rc" -ne 0 ]]; then
+    if [[ "$valid" -eq 1 && "$status" == "incomplete" && "$rc" -ne 0 \
+          && "$beacon_state" == "finished" && "$beacon_status" == "incomplete" ]]; then
         test_pass
     else
-        test_fail "expected minimal valid incomplete summary + nonzero rc; valid=$valid status='$status' rc=$rc"
+        test_fail "expected minimal valid incomplete summary + finished beacon + nonzero rc; valid=$valid status='$status' rc=$rc beacon=$beacon_state/$beacon_status"
         return 1
     fi
 }
@@ -1958,13 +1967,18 @@ test_council_live_response_uses_synthesis_timeout_for_chair() {
     fi
 }
 
-test_council_rc_is_timeout_recognizes_cap_kill_codes() {
-    test_case "council_rc_is_timeout matches watchdog kill codes (124/137/143), not other failures"
+test_council_rc_is_timeout_requires_watchdog_provenance() {
+    test_case "council_rc_is_timeout requires internal-watchdog provenance for kill-style codes"
     load_council_lib || return 1
     local ok="" bad=""
     local c
-    for c in 124 137 143; do council_rc_is_timeout "$c" && ok="${ok}${c} " || bad="${bad}${c}!TIMEOUT "; done
-    for c in 0 1 2 126 127; do council_rc_is_timeout "$c" && bad="${bad}${c}!NONTIMEOUT " || ok="${ok}skip$c "; done
+    for c in 124 137 143; do
+        council_rc_is_timeout "$c" "" && bad="${bad}${c}!GENERIC " || ok="${ok}generic$c "
+        council_rc_is_timeout "$c" "internal-watchdog" && ok="${ok}watchdog$c " || bad="${bad}${c}!WATCHDOG "
+    done
+    for c in 0 1 2 126 127; do
+        council_rc_is_timeout "$c" "internal-watchdog" && bad="${bad}${c}!NONTIMEOUT " || ok="${ok}skip$c "
+    done
     if [[ -z "$bad" ]]; then
         test_pass
     else
@@ -1982,13 +1996,14 @@ test_council_advice_marks_timed_out_seat() {
     COUNCIL_FIXTURE=""
     COUNCIL_TIMEOUT_WARNINGS=""
     # Simulate the reported codex-137 case: dispatch killed at the cap, no response file.
-    council_dispatch_member_detached() { return 137; }
+    council_dispatch_member_detached() { COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE="internal-watchdog"; return 137; }
     council_run_chair_fallback() { :; }
 
     OCTOPUS_COUNCIL_TIMEOUT_CODEX=300 council_run_advice_phase >/dev/null 2>&1 || true
 
-    local status warns output
+    local status provenance warns output
     status="$(jq -r '.[0].status' <<< "$COUNCIL_SEAT_RECORDS_JSON" 2>/dev/null)"
+    provenance="$(jq -r '.[0].timeout_provenance' <<< "$COUNCIL_SEAT_RECORDS_JSON" 2>/dev/null)"
     warns="$COUNCIL_TIMEOUT_WARNINGS"
     # Also assert the end-of-run renderer actually prints it, so a regression in
     # council_print_run_warnings can't pass while the warning silently disappears.
@@ -1996,12 +2011,39 @@ test_council_advice_marks_timed_out_seat() {
 
     unset -f council_dispatch_member_detached council_run_chair_fallback
 
-    if [[ "$status" == "timed-out" ]] &&
+    if [[ "$status" == "timed-out" && "$provenance" == "internal-watchdog" ]] &&
        [[ "$warns" == *"OCTOPUS_COUNCIL_TIMEOUT_CODEX"* ]] && [[ "$warns" == *"300s"* ]] &&
        [[ "$output" == *"rc=137"* ]] && [[ "$output" == *"OCTOPUS_COUNCIL_TIMEOUT_CODEX"* ]]; then
         test_pass
     else
-        test_fail "expected timed-out status + printed knob hint; status='$status' warns=[$warns] output=[$output]"
+        test_fail "expected timed-out status + watchdog provenance + printed knob hint; status='$status' provenance='$provenance' warns=[$warns] output=[$output]"
+        return 1
+    fi
+}
+
+test_council_advice_does_not_infer_timeout_from_provider_rc() {
+    test_case "advice phase keeps provider-returned 137 as no-response without a timeout hint"
+    load_council_lib || return 1
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/council-provider137.XXXXXX")"; mkdir -p "$d/responses"
+    COUNCIL_RUN_DIR="$d"
+    COUNCIL_ROSTER_JSON='[{"persona":"code-reviewer","seat":"member","provider":"codex","provider_org":"openai","model":"gpt"}]'
+    COUNCIL_FIXTURE=""
+    COUNCIL_TIMEOUT_WARNINGS=""
+    council_dispatch_member_detached() { COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE=""; return 137; }
+    council_run_chair_fallback() { :; }
+
+    council_run_advice_phase >/dev/null 2>&1 || true
+
+    local status provenance warns
+    status="$(jq -r '.[0].status' <<< "$COUNCIL_SEAT_RECORDS_JSON" 2>/dev/null)"
+    provenance="$(jq -r '.[0].timeout_provenance' <<< "$COUNCIL_SEAT_RECORDS_JSON" 2>/dev/null)"
+    warns="$COUNCIL_TIMEOUT_WARNINGS"
+    unset -f council_dispatch_member_detached council_run_chair_fallback
+
+    if [[ "$status" == "no-response" && "$provenance" == "null" && -z "$warns" ]]; then
+        test_pass
+    else
+        test_fail "provider rc was misclassified as an internal timeout: status='$status' provenance='$provenance' warns=[$warns]"
         return 1
     fi
 }
@@ -2317,6 +2359,7 @@ test_council_detached_seat_timeout_is_cancelled() {
 
     local rc=0
     council_dispatch_member_detached "$member" "independent-advice" "$out" || rc=$?
+    local timeout_provenance="$COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE"
     local seat child; seat="$(cat "$pidf" 2>/dev/null)"; child="$(cat "$childpidf" 2>/dev/null)"
     # Wait PAST the stub's natural 3s completion so a late publish / surviving child
     # would have materialized by the time we assert.
@@ -2324,13 +2367,14 @@ test_council_detached_seat_timeout_is_cancelled() {
 
     unset OCTOPUS_COUNCIL_TIMEOUT_CODEX COUNCIL_SEAT_TIMEOUT
     unset OCTOPUS_COUNCIL_AGENT_TIMEOUT OCTOPUS_COUNCIL_REAP_GRACE_SECS
-    if [[ $rc -ne 0 ]] && [[ ! -e "$out" ]] && [[ ! -e "$childmark" ]] &&
+    if [[ $rc -ne 0 ]] && council_rc_is_timeout "$rc" "$timeout_provenance" &&
+       [[ "$timeout_provenance" == "internal-watchdog" ]] && [[ ! -e "$out" ]] && [[ ! -e "$childmark" ]] &&
        [[ ! -e "$out.partial" && ! -e "$out.done" && ! -e "$out.done.tmp" ]] &&
        [[ -n "$seat" ]] && ! kill -0 "$seat" 2>/dev/null &&
        [[ -n "$child" ]] && ! kill -0 "$child" 2>/dev/null; then
         test_pass
     else
-        test_fail "timed-out seat/tree not cancelled: rc=$rc late_file=$([[ -e "$out" ]] && echo yes || echo no) child_marker=$([[ -e "$childmark" ]] && echo yes || echo no) seat_alive=$(kill -0 "$seat" 2>/dev/null && echo yes || echo no) child_alive=$(kill -0 "$child" 2>/dev/null && echo yes || echo no)"
+        test_fail "timed-out seat/tree not cancelled: rc=$rc provenance=$timeout_provenance late_file=$([[ -e "$out" ]] && echo yes || echo no) child_marker=$([[ -e "$childmark" ]] && echo yes || echo no) seat_alive=$(kill -0 "$seat" 2>/dev/null && echo yes || echo no) child_alive=$(kill -0 "$child" 2>/dev/null && echo yes || echo no)"
         return 1
     fi
 }
@@ -2432,8 +2476,9 @@ test_council_detached_seat_timeout_is_cancelled
 test_council_seat_timeout_precedence
 test_council_synthesis_timeout_overrides_seat_cap
 test_council_live_response_uses_synthesis_timeout_for_chair
-test_council_rc_is_timeout_recognizes_cap_kill_codes
+test_council_rc_is_timeout_requires_watchdog_provenance
 test_council_advice_marks_timed_out_seat
+test_council_advice_does_not_infer_timeout_from_provider_rc
 test_council_seat_timeout_rejects_zero_and_nonnumeric
 test_council_response_has_verdict_salvage
 test_council_chair_only_vendor_excluded_from_quorum

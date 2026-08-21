@@ -55,6 +55,7 @@ COUNCIL_ABORTED_FOR_COST=""
 COUNCIL_DIVERSITY_REPLACED=""
 COUNCIL_DIVERSITY_WARNING=""
 COUNCIL_TIMEOUT_WARNINGS=""
+COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE=""
 COUNCIL_BENCHMARK_FRESHNESS_WEIGHT=""
 COUNCIL_COST_CHECK_ESTIMATED=""
 COUNCIL_VETO_TRIGGERED=""
@@ -1645,6 +1646,7 @@ council_dispatch_member_detached() {
     # to fall back to the legacy inline dispatch.
     local member_json="$1" phase="$2" output_path="$3"
     local partial="${output_path}.partial" done_file="${output_path}.done"
+    COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE=""
     rm -f "$partial" "$done_file" "${done_file}.tmp" "$output_path"
 
     # Fixture runs already replace provider dispatch with deterministic in-process
@@ -1725,7 +1727,12 @@ council_dispatch_member_detached() {
         # responses/ and could retroactively satisfy the chair fallback). Kill first,
         # THEN remove output_path, so no surviving mv can recreate it after the rm.
         if kill -0 "$seat_pid" 2>/dev/null; then
+            COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE="internal-watchdog"
             _council_cancel_tree "$seat_pid"
+            # The parent reaper, not the provider, enforced this cancellation.
+            # Return a kill-style status so the provenance-aware classifier can
+            # surface the timeout and its configuration hint.
+            rc=137
         fi
         rm -f "$output_path"
     fi
@@ -1899,12 +1906,11 @@ council_compute_approving_providers() {
 }
 
 council_rc_is_timeout() {
-    # True when a seat's dispatch rc came from hitting its own timeout cap rather
-    # than a provider-level error. run_with_timeout kills an over-cap seat with the
-    # coreutils convention (124) or, on the macOS bash fallback, SIGTERM then SIGKILL
-    # — so the seat process exits 143 (128+15) or 137 (128+9). Distinguishing these
-    # keeps a codex seat killed at the ~5-min cap from reading as a mysterious
-    # SIGKILL/OOM: it is our own watchdog firing, and the remedy is a larger cap.
+    # Kill-style exit codes are not unique to our watchdog: providers can return
+    # 124, OOM can surface as 137, and an external SIGTERM is 143. Only classify a
+    # timeout when the detached reaper records that it actually enforced the cap.
+    local provenance="${2:-}"
+    [[ "$provenance" == "internal-watchdog" ]] || return 1
     case "${1:-}" in
         124|137|143) return 0 ;;
         *) return 1 ;;
@@ -1947,7 +1953,7 @@ council_run_advice_phase() {
     local dissenting_providers=""
 
     local index=0 member persona slug output_path seat mprovider verdict
-    local seat_org seat_model resp_bytes seat_status seat_rec
+    local seat_org seat_model resp_bytes seat_status seat_rec dispatch_timeout_provenance
     while IFS= read -r member; do
         persona="$(jq -r '.persona' <<< "$member")"
         seat="$(jq -r '.seat' <<< "$member")"
@@ -1958,7 +1964,9 @@ council_run_advice_phase() {
         output_path="${COUNCIL_RUN_DIR}/responses/$(printf '%02d' "$index")-${slug}.md"
         verdict=""; seat_status="no-response"; resp_bytes=0
         local dispatch_rc=0
+        COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE=""
         council_dispatch_member_detached "$member" "independent-advice" "$output_path" || dispatch_rc=$?
+        dispatch_timeout_provenance="$COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE"
         # Confirm-finish-before-shortage: a non-zero dispatch (e.g. the per-seat
         # timeout fired) may still have left a COMPLETE, verdict-bearing review that
         # the seat finished writing right at the boundary. Salvage that instead of
@@ -2017,7 +2025,7 @@ council_run_advice_phase() {
         # summary.json and the end-of-run warnings say "hit the cap, raise the knob"
         # instead of surfacing a bare exit 137 that reads like an OOM. (The salvage
         # path above already keeps a timed-out-but-complete review as "responded".)
-        if [[ "$seat_status" == "no-response" ]] && council_rc_is_timeout "$dispatch_rc"; then
+        if [[ "$seat_status" == "no-response" ]] && council_rc_is_timeout "$dispatch_rc" "$dispatch_timeout_provenance"; then
             seat_status="timed-out"
             council_note_seat_timeout "$mprovider" "$persona" "$dispatch_rc" "$(council_seat_timeout "$mprovider")"
         fi
@@ -2028,10 +2036,13 @@ council_run_advice_phase() {
         seat_rec="$(jq -cn --argjson idx "$index" --arg persona "$persona" --arg seat "$seat" \
             --arg provider "$mprovider" --arg org "$seat_org" --arg model "$seat_model" \
             --argjson bytes "${resp_bytes:-0}" --arg verdict "$verdict" --arg status "$seat_status" \
+            --arg timeout_provenance "$dispatch_timeout_provenance" \
             '{index:$idx, persona:$persona, seat:$seat, provider:$provider, provider_org:$org,
               model:$model, response_bytes:$bytes, payload_kind:"full",
               verdict:(if $verdict=="" then null else $verdict end),
-              status:$status, counted_as_approver:false}')"
+              status:$status,
+              timeout_provenance:(if $timeout_provenance=="" then null else $timeout_provenance end),
+              counted_as_approver:false}')"
         COUNCIL_SEAT_RECORDS_JSON="$(jq -c ". + [$seat_rec]" <<< "$COUNCIL_SEAT_RECORDS_JSON")"
         index=$((index + 1))
     done < <(jq -c '.[]' <<< "$COUNCIL_ROSTER_JSON")
@@ -2116,6 +2127,7 @@ council_synthesis_capable_persona() {
 council_run_chair_fallback() {
     local persona provider member_json slug output_path index
     local seat_org seat_model resp_bytes verdict seat_status seat_rec existing_response dispatch_rc
+    local dispatch_timeout_provenance
 
     while IFS= read -r persona; do
         [[ -n "$persona" ]] || continue
@@ -2147,7 +2159,9 @@ council_run_chair_fallback() {
         index="$(jq 'length' <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}")"
         output_path="${COUNCIL_RUN_DIR}/responses/$(printf '%02d' "$index")-chair-fallback-${slug}.md"
         dispatch_rc=0
+        COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE=""
         council_dispatch_member_detached "$member_json" "independent-advice" "$output_path" || dispatch_rc=$?
+        dispatch_timeout_provenance="$COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE"
         if council_response_nonempty "$output_path" \
                 && council_response_is_substantive "$output_path" \
                 && { (( dispatch_rc == 0 )) || council_response_has_verdict "$output_path"; }; then
@@ -2168,11 +2182,14 @@ council_run_chair_fallback() {
             seat_rec="$(jq -cn --argjson idx "$index" --arg persona "$persona" \
                 --arg provider "$provider" --arg org "$seat_org" --arg model "$seat_model" \
                 --argjson bytes "${resp_bytes:-0}" --arg verdict "$verdict" --arg status "$seat_status" \
+                --arg timeout_provenance "$dispatch_timeout_provenance" \
                 '{index:$idx, persona:$persona, seat:"chair", provider:$provider,
                   provider_org:$org, model:$model, response_bytes:$bytes,
                   payload_kind:"full",
                   verdict:(if $verdict=="" then null else $verdict end),
-                  status:$status, counted_as_approver:false}')"
+                  status:$status,
+                  timeout_provenance:(if $timeout_provenance=="" then null else $timeout_provenance end),
+                  counted_as_approver:false}')"
             COUNCIL_SEAT_RECORDS_JSON="$(jq -c ". + [$seat_rec]" <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}")"
             return 0
         fi
@@ -3126,6 +3143,7 @@ council_run() {
         fi
         council_print_run_warnings 2>/dev/null || true
         if council_summary_is_valid "$_summary"; then
+            council_write_run_status "finished" "incomplete"
             _council_warn "Council ended before writing a summary (status=incomplete); review partial artifacts under ${COUNCIL_RUN_DIR}"
         else
             _council_warn "Council ended before writing a summary and a fallback summary could not be created under ${COUNCIL_RUN_DIR}"

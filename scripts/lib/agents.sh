@@ -384,6 +384,38 @@ get_agent_config() {
     ' "$AGENTS_CONFIG"
 }
 
+# Resolve a curated persona name to the provider used by `orchestrate.sh spawn`.
+# Direct provider names return non-zero so the caller preserves its existing path.
+resolve_persona_spawn_target() {
+    local persona="$1"
+    local primary fallback
+
+    case "$persona" in
+        ''|*[!a-zA-Z0-9_-]*) return 1 ;;
+    esac
+    if [[ -n "${AVAILABLE_AGENTS:-}" && " $AVAILABLE_AGENTS " == *" $persona "* ]]; then
+        return 1
+    fi
+
+    primary="$(get_agent_config "$persona" "cli" 2>/dev/null | sed 's/[[:space:]]*#.*$//; s/[[:space:]]*$//' || true)"
+    [[ -n "$primary" ]] || return 1
+
+    if ! declare -f is_agent_available_v2 >/dev/null 2>&1 || is_agent_available_v2 "$primary"; then
+        printf '%s\n' "$primary"
+        return 0
+    fi
+
+    fallback="$(get_agent_config "$persona" "fallback_cli" 2>/dev/null | sed 's/[[:space:]]*#.*$//; s/[[:space:]]*$//' || true)"
+    if [[ -n "$fallback" ]] && is_agent_available_v2 "$fallback"; then
+        printf '%s\n' "$fallback"
+        return 0
+    fi
+
+    # Preserve the configured primary so normal dispatch reports its concrete
+    # availability/authentication failure when no configured fallback can run.
+    printf '%s\n' "$primary"
+}
+
 # v8.2.0: Get agent memory scope from config (project/none)
 get_agent_memory() {
     local agent_name="$1"

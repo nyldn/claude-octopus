@@ -1726,8 +1726,15 @@ tangle_normal_finding_keys() {
     jq -r '''
         .findings[]?
         | select((.severity // "") == "normal")
-        | ((.file // "unknown") | ascii_downcase) + "|" +
-          (((.title // .message // "untitled") | ascii_downcase | gsub("[[:space:]]+"; " ") | sub("^ "; "") | sub(" $"; "")))
+        | [
+            (.file // "unknown"),
+            ((.title // .message // "untitled")
+              | ascii_downcase
+              | gsub("[[:space:]]+"; " ")
+              | sub("^ "; "")
+              | sub(" $"; ""))
+          ]
+        | @json
     ''' "$findings_file" 2>/dev/null | sort -u || true
 }
 

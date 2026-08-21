@@ -346,19 +346,6 @@ resolve_octopus_model() {
             [[ -n "$_trace" ]] && echo "[model-trace] Tier 2 (session override): —" >&2
         fi
 
-        # 2a. Provider-local role model. This selects only the model for a
-        # provider that has already been chosen by the workflow/fleet; it must
-        # never change provider identity. Example:
-        #   providers.commandcode.roles.security-reviewer = "minimaxai/minimax-m3"
-        if [[ ( -z "$resolved_model" || "$resolved_model" == "null" ) && -n "$role" ]]; then
-            resolved_model=$(echo "$config_data" | jq -r --arg p "$canonical_provider" --arg role "$role" '.providers[$p].roles[$role] // empty' 2>/dev/null)
-            if [[ -n "$resolved_model" && "$resolved_model" != "null" ]]; then
-                [[ -n "$_trace" ]] && echo "[model-trace] Tier 3a (provider role model): $resolved_model ← SELECTED" >&2
-            else
-                [[ -n "$_trace" ]] && echo "[model-trace] Tier 3a (provider role model): —" >&2
-            fi
-        fi
-
         # 2. Role/Phase Routing
         # Object routes are literal, explicit provider/model selections. Unlike
         # legacy string routes (for example "codex:spark"), their model field
@@ -479,6 +466,19 @@ resolve_octopus_model() {
                 fi
             else
                 [[ -n "$_trace" ]] && echo "[model-trace] Tier 3 (phase/role routing): —" >&2
+            fi
+        fi
+
+        # Provider-local role defaults apply only after explicit role/phase
+        # routing. They select a model for the provider already chosen by the
+        # workflow, but must never override user/project routing configuration.
+        # Example: providers.commandcode.roles.security-reviewer.
+        if [[ ( -z "$resolved_model" || "$resolved_model" == "null" ) && -n "$role" ]]; then
+            resolved_model=$(echo "$config_data" | jq -r --arg p "$canonical_provider" --arg role "$role" '.providers[$p].roles[$role] // empty' 2>/dev/null)
+            if [[ -n "$resolved_model" && "$resolved_model" != "null" ]]; then
+                [[ -n "$_trace" ]] && echo "[model-trace] Tier 3a (provider role default): $resolved_model ← SELECTED" >&2
+            else
+                [[ -n "$_trace" ]] && echo "[model-trace] Tier 3a (provider role default): —" >&2
             fi
         fi
 
