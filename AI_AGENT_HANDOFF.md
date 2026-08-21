@@ -4,8 +4,9 @@ Last updated: 2026-08-21
 Status: PR #949 is merged. PR #942's conflict-resolved code head `885c2e0b` is
 pushed and passed exact-head Test Suite run `32519797414`; CodeRabbit requested
 this handoff-state update, and the separate `pr-review` job failed because its
-Copilot fallback exceeded monthly quota. The authorized v9.66.0 release is in
-progress.
+Copilot fallback exceeded monthly quota. The v9.66.0 release is authorized and
+pending required verification, approvals, protected merges, and release
+execution.
 Branch: `fix/recent-pr-audit-regressions`
 Current release: [v9.65.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.65.0)
 Tracking: Beads `oco-27j`; PRs #941, #942, #946, and merged PR #949
