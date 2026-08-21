@@ -184,13 +184,24 @@ tick_file=$(mktemp "$TEST_TMP_DIR/sleep-ticks.XXXXXX")
 sleep_pid_file=$(mktemp "$TEST_TMP_DIR/agent-sleep-pid.XXXXXX")
 sleep() { printf 'x' >>"$tick_file"; }   # no real delay; each call just ticks the counter
 spawn_agent() {
-    # Outlives the loop's spin; never writes a PID. `command sleep` (not
-    # `wait`ed on by spawn_agent_capture_pid's own error-path kill, which
-    # only reaches this function's own wrapper PID, not its child) would
-    # otherwise leak a real orphaned sleep process for the rest of its
-    # duration once the loop gives up — backgrounding it here and recording
-    # its own PID lets the test reap it explicitly below instead.
-    command sleep 60 &
+    # Outlives the loop's spin; never writes a PID. This is a ceiling, not a
+    # target: the test's own runtime is bounded by how long the loop's 5600
+    # iterations actually take (awk+kill overhead per iteration — a few
+    # seconds locally, but CI runners vary), and spawn_agent_capture_pid
+    # kills this early via the reaping below the moment the loop finishes.
+    # It only needs to outlast whatever that takes; a short duration risks
+    # the loop being cut off mid-spin on a slower runner, undercounting
+    # tick_count and failing the assertion below for a reason that has
+    # nothing to do with the code under test — so it errs generously long
+    # rather than being tuned tightly to an environment-dependent number.
+    #
+    # `command sleep` (not `wait`ed on by spawn_agent_capture_pid's own
+    # error-path kill, which only reaches this function's own wrapper PID,
+    # not its child) would otherwise leak a real orphaned sleep process for
+    # the rest of its duration once the loop gives up — backgrounding it
+    # here and recording its own PID lets the test reap it explicitly below
+    # instead.
+    command sleep 600 &
     echo $! >"$sleep_pid_file"
     wait
 }
