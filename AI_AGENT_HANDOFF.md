@@ -37,7 +37,7 @@ authorization.
   PR #948's code-focused test passes 13/13 and its normal Test Suite is green,
   but the required PR-review job failed because both the Claude spend limit and
   Copilot monthly quota were exhausted. Do not treat #940 or #948 as merge-ready.
-- Installed-runtime boundary: `/Users/chris/.claude-octopus/plugin` still points
+- Installed-runtime boundary: `~/.claude-octopus/plugin` still points
   at the installed v9.65.0 source and therefore still contains the persona-spawn
   defect. Do not claim the installation is fixed until this branch is merged,
   released or otherwise installed, and the documented architecture command is
