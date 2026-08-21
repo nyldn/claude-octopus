@@ -1259,7 +1259,11 @@ _octopus_spawn_pid_wait_default_attempts() {
         preflight_secs=$(compute_dynamic_timeout complex 2>/dev/null) || preflight_secs=360
     fi
     [[ "$preflight_secs" =~ ^[0-9]+$ ]] || preflight_secs=360
-    local attempts=$(( (preflight_secs * preflight_candidates + 60) * 10 ))
+    # compute_dynamic_timeout echoes OCTOPUS_AGENT_TIMEOUT verbatim when it's
+    # set as an override, so a value like "0900" reaches here unmodified;
+    # 10# forces base-10 so bash arithmetic doesn't misread a leading zero
+    # as an octal prefix (which either errors out or silently truncates).
+    local attempts=$(( (10#$preflight_secs * preflight_candidates + 60) * 10 ))
     (( attempts < 1200 )) && attempts=1200
     echo "$attempts"
 }

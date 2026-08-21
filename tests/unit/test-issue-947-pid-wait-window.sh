@@ -102,6 +102,37 @@ else
 fi
 unset -f compute_dynamic_timeout
 
+test_case "treats a leading-zero OCTOPUS_AGENT_TIMEOUT override as decimal, not octal"
+# compute_dynamic_timeout echoes OCTOPUS_AGENT_TIMEOUT back verbatim when it's
+# set (lib/heartbeat.sh), so a zero-padded override like "0900" reaches this
+# function unmodified. Bash arithmetic treats a leading 0 as an octal prefix;
+# "0900" contains an invalid octal digit (9) and would abort the arithmetic
+# entirely without the 10# base-10 forcing, silently collapsing the derived
+# window back down to the 1200-attempt floor it exists to move past.
+compute_dynamic_timeout() { echo "0900"; }
+result=$(_octopus_spawn_pid_wait_default_attempts)
+if [[ "$result" == "45600" ]]; then
+    test_pass
+else
+    test_fail "expected 45600 attempts (decimal 900s/candidate), got: $result"
+fi
+unset -f compute_dynamic_timeout
+
+test_case "treats a leading-zero value with only valid-octal digits as decimal, not octal"
+# A subtler variant of the above: "0600" is syntactically valid octal (all
+# digits 0-6), so this one wouldn't error — it would silently compute the
+# WRONG (smaller) window instead of failing loudly. Octal 0600 = decimal 384;
+# if this regresses to plain arithmetic, attempts would come out as (384*5+60)*10
+# = 19800 instead of the correct decimal (600*5+60)*10 = 30600.
+compute_dynamic_timeout() { echo "0600"; }
+result=$(_octopus_spawn_pid_wait_default_attempts)
+if [[ "$result" == "30600" ]]; then
+    test_pass
+else
+    test_fail "expected 30600 attempts (decimal 600s/candidate), got: $result (octal misparse gives 19800)"
+fi
+unset -f compute_dynamic_timeout
+
 # ── end-to-end wiring: spawn_agent_capture_pid actually uses the derived
 # default (not just computing and discarding it), exercised at a small, fast
 # timescale so the suite stays quick ──────────────────────────────────────
@@ -110,7 +141,7 @@ test_case "an explicit OCTOPUS_SPAWN_PID_WAIT_ATTEMPTS override still takes prio
 compute_dynamic_timeout() { echo 900; }  # would derive a huge default if it were consulted
 spawn_agent() { sleep 0.2; printf '%s\n' 555555; }
 export "OCTOPUS_SPAWN_PID_WAIT_ATTEMPTS=20"
-pid=$(spawn_agent_capture_pid codex prompt override-task implementer tangle)
+pid=$(spawn_agent_capture_pid codex prompt override-task implementer tangle) || true
 unset OCTOPUS_SPAWN_PID_WAIT_ATTEMPTS
 unset -f compute_dynamic_timeout
 if [[ "$pid" == "555555" ]]; then
@@ -120,20 +151,51 @@ else
 fi
 
 test_case "spawn_agent_capture_pid actually uses the derived default window, not just OCTOPUS_SPAWN_PID_WAIT_ATTEMPTS"
-# No explicit OCTOPUS_SPAWN_PID_WAIT_ATTEMPTS override here: this exercises the
-# real default-derivation path end to end, scaled down (compute_dynamic_timeout
-# stubbed to 6s instead of a realistic 180-900s) so the test finishes fast:
-# (6*5+60)*10 = 900 attempts, a ~90s ceiling that a 0.5s delayed PID clears
-# almost immediately.
+# No explicit OCTOPUS_SPAWN_PID_WAIT_ATTEMPTS override here: this must fail
+# if spawn_agent_capture_pid ignores the derived value and keeps the old
+# hardcoded 1200-attempt/120s default. A prior version of this test stubbed
+# compute_dynamic_timeout to 6s, which derives (6*5+60)*10 = 900 attempts —
+# below the 1200 floor, so it silently floors back UP to 1200, the exact old
+# default. That made the test pass identically whether or not the derived
+# value was ever consulted. Here the stub (100s) derives (100*5+60)*10 = 5600
+# attempts, clearly above 1200, and the simulated PID is timed to land only
+# after 1500 real polling attempts (past where the old 1200-attempt cap would
+# already have given up) but comfortably under the derived 5600-attempt cap.
+#
+# A wall-clock delay would need ~1500 * 0.1s = 150s at real speed, and scaling
+# the loop's `sleep 0.1` down by a fixed factor turned out not to be portable:
+# each iteration also forks `awk` and `kill -0`, whose process-spawn overhead
+# dominates the loop's actual per-iteration cost (measured ~4ms/iteration in
+# CI, independent of the sleep argument), so a fixed sleep-scaling factor
+# doesn't reliably land the PID's arrival between the two attempt thresholds
+# on every runner. Instead, `awk` — already called exactly once per loop
+# iteration to check the PID file — is shadowed to also tick a counter file,
+# giving an exact, timing-independent count of real loop iterations; the
+# spawn_agent stub polls that same counter and only responds once it crosses
+# the threshold, so the test is portable across however fast or slow a given
+# CI runner executes each iteration.
 unset OCTOPUS_SPAWN_PID_WAIT_ATTEMPTS 2>/dev/null || true
-compute_dynamic_timeout() { echo 6; }
-spawn_agent() { sleep 0.5; printf '%s\n' 666666; }
-pid=$(spawn_agent_capture_pid codex prompt default-task implementer tangle 2>/dev/null)
-unset -f compute_dynamic_timeout
-if [[ "$pid" == "666666" ]]; then
+compute_dynamic_timeout() { echo 100; }
+counter_file=$(mktemp "$TEST_TMP_DIR/attempt-counter.XXXXXX")
+: >"$counter_file"
+sleep() { :; }   # collapse the wait; only the *count* of attempts matters here
+awk() { printf 'x' >>"$counter_file"; command awk "$@"; }
+attempt_threshold=1500   # > the old 1200-attempt cap, < the derived 5600-attempt cap
+spawn_agent() {
+    local count=0
+    while [[ "$count" -lt "$attempt_threshold" ]]; do
+        command sleep 0.005   # `command` bypasses this test's no-op sleep shadow
+        count=$(wc -c <"$counter_file" 2>/dev/null || echo 0)
+    done
+    printf '%s\n' 777777
+}
+pid=$(spawn_agent_capture_pid codex prompt counted-task implementer tangle 2>/dev/null) || true
+unset -f compute_dynamic_timeout sleep awk spawn_agent
+rm -f "$counter_file"
+if [[ "$pid" == "777777" ]]; then
     test_pass
 else
-    test_fail "expected the derived default window to capture a delayed provider PID, got: ${pid:-empty}"
+    test_fail "expected the derived (>1200-attempt) window to capture a PID that lands after $attempt_threshold polling attempts (past the old 1200-attempt/120s cap), got: ${pid:-empty}"
 fi
 
 test_summary
