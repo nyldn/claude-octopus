@@ -1,14 +1,15 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-21
-Status: persona-name spawn routing is fixed and locally verified on an isolated
-branch. The branch still needs its draft PR and remote CI; do not merge without
-the user's explicit authorization.
+Status: persona-name spawn routing is fixed, locally verified, pushed, and open
+as draft PR #949. Remote CI and review are pending; do not merge without the
+user's explicit authorization.
 Branch: `fix/persona-spawn-routing`
 Current release: [v9.65.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.65.0)
-Tracking: Beads `oco-mpm`
-Next action: push the branch, open a draft PR, inspect its checks and review
-threads, and leave it unmerged pending explicit authorization.
+Tracking: Beads `oco-mpm`; [PR #949](https://github.com/nyldn/claude-octopus/pull/949)
+Next action: inspect PR #949's checks and review threads after they complete,
+address only reproduced findings, and leave it unmerged pending explicit
+authorization.
 
 ## Persona Spawn Routing and Recent Queue Audit
 
