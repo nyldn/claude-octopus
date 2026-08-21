@@ -9,10 +9,10 @@ progress.
 Branch: `fix/recent-pr-audit-regressions`
 Current release: [v9.65.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.65.0)
 Tracking: Beads `oco-27j`; PRs #941, #942, #946, and merged PR #949
-Next action: push this handoff update, require fresh exact-head CI, approval, and
-zero unresolved threads, and resolve the provider-capacity `pr-review` failure
-without bypassing branch protection. Then merge the verified #941, #942, and
-#946 queue and release v9.66.0 from the resulting squash commits on `main`.
+Next action: require fresh exact-head CI, approval, and zero unresolved threads,
+and document the provider-capacity `pr-review` failure without bypassing branch
+protection. Then merge verified PRs #941, #942, and #946 and release v9.66.0
+from the resulting squash commits on `main`.
 
 ## Recent PR Audit Regression Fixes (`oco-0u2`)
 
