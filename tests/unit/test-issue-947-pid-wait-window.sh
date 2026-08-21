@@ -181,16 +181,49 @@ unset OCTOPUS_SPAWN_PID_WAIT_ATTEMPTS 2>/dev/null || true
 compute_dynamic_timeout() { echo 100; }   # derives (100*5+60)*10 = 5600 attempts
 tick_file=$(mktemp "$TEST_TMP_DIR/sleep-ticks.XXXXXX")
 : >"$tick_file"
+sleep_pid_file=$(mktemp "$TEST_TMP_DIR/agent-sleep-pid.XXXXXX")
 sleep() { printf 'x' >>"$tick_file"; }   # no real delay; each call just ticks the counter
-spawn_agent() { command sleep 60; }      # outlives the loop's spin; never writes a PID
+spawn_agent() {
+    # Outlives the loop's spin; never writes a PID. `command sleep` (not
+    # `wait`ed on by spawn_agent_capture_pid's own error-path kill, which
+    # only reaches this function's own wrapper PID, not its child) would
+    # otherwise leak a real orphaned sleep process for the rest of its
+    # duration once the loop gives up — backgrounding it here and recording
+    # its own PID lets the test reap it explicitly below instead.
+    command sleep 60 &
+    echo $! >"$sleep_pid_file"
+    wait
+}
 pid=$(spawn_agent_capture_pid codex prompt counted-task implementer tangle 2>/dev/null) || true
 unset -f compute_dynamic_timeout sleep spawn_agent
 tick_count=$(wc -c <"$tick_file" 2>/dev/null || echo 0)
-rm -f "$tick_file"
+if [[ -f "$sleep_pid_file" ]]; then
+    kill "$(cat "$sleep_pid_file")" 2>/dev/null || true
+fi
+rm -f "$tick_file" "$sleep_pid_file"
 if [[ -z "$pid" && "$tick_count" -eq 5600 ]]; then
     test_pass
 else
     test_fail "expected an empty pid and exactly 5600 polling attempts (the derived window; 1200 would mean the old hardcoded default is still in effect), got pid='${pid:-empty}' tick_count=$tick_count"
+fi
+
+test_case "preflight_candidates in spawn.sh stays in lockstep with dispatch.sh's summarizer chain length"
+# #948 review: preflight_candidates=5 (used above) hardcodes the assumption
+# that summarize_then_dispatch's candidate chain in dispatch.sh is "optional
+# OCTOPUS_OVERSIZE_SUMMARIZER + 4 fixed candidates" = worst case 5. Nothing
+# ties the two files together — if dispatch.sh's fixed list grows, this
+# constant silently under-counts again, quietly reintroducing the exact
+# #947 abandonment bug this PR fixes, with no test failure to flag the
+# drift. This fails the moment that happens instead of staying silent.
+spawn_preflight_candidates=$(grep -m1 'local preflight_candidates=' "$PROJECT_ROOT/scripts/lib/spawn.sh" | grep -o '[0-9]\+') || spawn_preflight_candidates=""
+dispatch_fixed_line=$(grep -m1 'candidates+=("agy" "codex-mini" "claude-sonnet" "codex")' "$PROJECT_ROOT/scripts/lib/dispatch.sh") || dispatch_fixed_line=""
+dispatch_fixed_count=$(grep -o '"[^"]*"' <<<"$dispatch_fixed_line" | wc -l | tr -d ' ') || dispatch_fixed_count=0
+# +1 for the optional OCTOPUS_OVERSIZE_SUMMARIZER slot prepended ahead of the fixed chain.
+dispatch_worst_case=$((dispatch_fixed_count + 1))
+if [[ -n "$dispatch_fixed_line" && -n "$spawn_preflight_candidates" && "$spawn_preflight_candidates" == "$dispatch_worst_case" ]]; then
+    test_pass
+else
+    test_fail "spawn.sh's preflight_candidates (${spawn_preflight_candidates:-not found}) no longer matches dispatch.sh's worst-case summarizer chain length ($dispatch_worst_case, from $dispatch_fixed_count fixed candidates + 1 optional, fixed-candidate line found: $([[ -n "$dispatch_fixed_line" ]] && echo yes || echo no)) — update _octopus_spawn_pid_wait_default_attempts's preflight_candidates in scripts/lib/spawn.sh to match"
 fi
 
 test_summary
