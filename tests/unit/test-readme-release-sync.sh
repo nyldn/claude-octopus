@@ -12,6 +12,9 @@ test_suite "README Release Sync"
 SYNC_SCRIPT="$PROJECT_ROOT/scripts/sync-readme.py"
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/octo-readme-sync-test.XXXXXX")"
 CURRENT_VERSION="$(jq -r '.version' "$PROJECT_ROOT/.claude-plugin/plugin.json")"
+CURRENT_RELEASE_DATE="$(awk -v version="$CURRENT_VERSION" '
+    $0 ~ "^## \\[" version "\\] - " { print $4; exit }
+' "$PROJECT_ROOT/CHANGELOG.md")"
 
 cleanup() {
     rm -rf "$TMP_DIR"
@@ -116,6 +119,11 @@ product_text = re.sub(
     "Local CI parity: 3 smoke, 7 unit, and 2 integration suites",
     product_text,
 )
+product_text = re.sub(
+    r"\*\*Traction \(as of [0-9-]+\):\*\*",
+    "**Traction (as of 1999-01-01):**",
+    product_text,
+)
 product.write_text(product_text)
 PY
 
@@ -140,6 +148,7 @@ if "$SYNC_SCRIPT" --root "$fixture" >/tmp/octo-readme-sync-update.out 2>&1 &&
    grep -q 'OpenCode CLI, and xAI API key (Grok)' "$fixture/.claude-plugin/README.md" &&
    grep -q 'OrcaRouter' "$fixture/.claude-plugin/README.md" &&
    grep -q 'up to 10 external AI integrations' "$fixture/PRODUCT.md" &&
+   grep -qF "**Traction (as of ${CURRENT_RELEASE_DATE}):**" "$fixture/PRODUCT.md" &&
    grep -qF 'Local CI parity: `make ci-local` runs the same smoke, unit, and integration suites as CI' "$fixture/PRODUCT.md" &&
    ! grep -qE 'Local CI parity: [0-9]+ smoke' "$fixture/PRODUCT.md" &&
    ! grep -qE 'Version-0\.0\.0-blue|stale release copy|v2\.1\.157' "$fixture/README.md"; then

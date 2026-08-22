@@ -410,6 +410,12 @@ def sync_product(text: str, facts: dict[str, object]) -> str:
         text,
         flags=re.MULTILINE,
     )
+    text = re.sub(
+        r"^\*\*Traction \(as of [0-9-]+\):\*\*$",
+        f"**Traction (as of {release_date}):**",
+        text,
+        flags=re.MULTILINE,
+    )
     # Deliberately not a count. The suite totals were derived by globbing the
     # test tree and written here, which made every pair of test-adding PRs
     # conflict on this one line — and neither side of that conflict was ever
