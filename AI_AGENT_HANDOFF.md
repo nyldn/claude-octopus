@@ -1,6 +1,6 @@
 # AI Agent Handoff
 
-Last updated: 2026-08-21
+Last updated: 2026-08-22
 Status: v9.66.1 is released from exact tested `main`. PR #950's OpenClaw tool
 contracts and PR #953's deterministic benchmark-gated council tests are merged
 and shipped. The shared marketplace, development-wrapper submodule, and
@@ -28,11 +28,15 @@ proportional repository evidence. Investigate issue #943 independently.
   suites and 7/7 integration suites. Documentation sync gained fail-closed
   validation for the single PRODUCT traction heading and literal changelog
   version matching.
+- Handoff gate: `CI=true GITHUB_ACTIONS=true make ci-changed` ran separately in
+  focused mode and passed 16/16 smoke suites, the handoff suite 13/13, and the
+  reachability suite 10/10. `make sync-check` passed, generated files stayed
+  current, and the executable-bit comparison found no mode drift.
 - Distribution: the shared `nyldn/plugins` Claude marketplace advertises octo
   v9.66.1. The user-scoped plugin updated from 9.66.0 to 9.66.1 and reports
-  enabled. From `/Users/chris/git/engage`, the installed 9.66.1 wrapper dry-run
-  dispatched `agy-exec.sh` with `role=backend-architect`, proving the incident
-  fix at the installed-release boundary.
+  enabled. From the `engage` repository checkout, an installed 9.66.1 wrapper
+  dry-run dispatched `agy-exec.sh` with `role=backend-architect`, proving the
+  incident fix at the installed-release boundary.
 - Development wrapper: PR #7 updated the private workspace README and gitlink
   to release commit `28d3de9c`; it squash-merged as `87c1dc33` after its exact
   head passed CodeRabbit with zero review threads.
