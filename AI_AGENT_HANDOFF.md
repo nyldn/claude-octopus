@@ -1,17 +1,49 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-21
-Status: v9.66.0 is released from exact tested `main`. The verified queue includes
-PRs #941, #942, #946, #948, and #949; all are merged, and issues #944 and #947
-are closed;
-the shared marketplace and development-wrapper submodule are current; and the
-installed plugin resolves `backend-architect` through AGY while preserving the
-persona role.
+Status: v9.66.1 is released from exact tested `main`. PR #950's OpenClaw tool
+contracts and PR #953's deterministic benchmark-gated council tests are merged
+and shipped. The shared marketplace, development-wrapper submodule, and
+user-scoped installation are current. The installed plugin still resolves
+`backend-architect` through AGY while preserving the persona role.
 Branch: `main` (this handoff update is delivered through a docs-only PR)
-Current release: [v9.66.0](https://github.com/nyldn/claude-octopus/releases/tag/v9.66.0)
-Tracking: Beads `oco-27j`; release commit `28ffb2c5`; Test Suite `32528830703`
-Next action: audit new PR #950 and the still-open external PR #940 independently;
-do not fold either into the completed v9.66.0 release. Issue #943 remains open.
+Current release: [v9.66.1](https://github.com/nyldn/claude-octopus/releases/tag/v9.66.1)
+Tracking: Beads `oco-8ws`; release commit `28d3de9c`; Test Suite `32549434980`
+Next action: keep PR #940 excluded until its third-party chart dependency has
+proportional repository evidence. Investigate issue #943 independently.
+
+## Production Release v9.66.1
+
+- Queue: PR #950 was independently audited, corrected, and squash-merged as
+  `86c9d966`; PR #953 made the benchmark-age tests deterministic and merged as
+  `490d703e`. Release PR #954 was approved at exact head `d43fa457`, had zero
+  unresolved review threads, passed all hosted checks, and squash-merged as
+  `28d3de9c488f80d62ac08b51dbba3d17508e48a8`.
+- Release gate: exact-main Test Suite run `32549434980` passed portability,
+  Ubuntu and macOS smoke/unit suites, the symlink-path suite, full integration,
+  and Test Summary before tagging. The annotated `v9.66.1` tag dereferences to
+  the same `28d3de9c` commit. The GitHub release is published, not a draft or
+  prerelease.
+- Local gate: the final release head passed `make ci-local` with 278/278 unit
+  suites and 7/7 integration suites. Documentation sync gained fail-closed
+  validation for the single PRODUCT traction heading and literal changelog
+  version matching.
+- Distribution: the shared `nyldn/plugins` Claude marketplace advertises octo
+  v9.66.1. The user-scoped plugin updated from 9.66.0 to 9.66.1 and reports
+  enabled. From `/Users/chris/git/engage`, the installed 9.66.1 wrapper dry-run
+  dispatched `agy-exec.sh` with `role=backend-architect`, proving the incident
+  fix at the installed-release boundary.
+- Development wrapper: PR #7 updated the private workspace README and gitlink
+  to release commit `28d3de9c`; it squash-merged as `87c1dc33` after its exact
+  head passed CodeRabbit with zero review threads.
+- Remaining work: external PR #940 is still open and intentionally excluded;
+  it replaces Star History with a third-party chart host and has no repository
+  Test Suite evidence. Issue #943 remains open for intermittent AGY exit 139
+  diagnostics and retry/artifact design.
+- Review-capacity caveat: provider spend/quota failures observed during this
+  audit were recorded as degraded review capacity, never as approval. Release
+  decisions used exact-head protected checks, CodeRabbit approval, and resolved
+  threads.
 
 ## Recent PR Audit Regression Fixes (`oco-0u2`)
 
