@@ -13,7 +13,7 @@ SYNC_SCRIPT="$PROJECT_ROOT/scripts/sync-readme.py"
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/octo-readme-sync-test.XXXXXX")"
 CURRENT_VERSION="$(jq -r '.version' "$PROJECT_ROOT/.claude-plugin/plugin.json")"
 CURRENT_RELEASE_DATE="$(awk -v version="$CURRENT_VERSION" '
-    $0 ~ "^## \\[" version "\\] - " { print $4; exit }
+    $1 == "##" && $2 == "[" version "]" && $3 == "-" { print $4; exit }
 ' "$PROJECT_ROOT/CHANGELOG.md")"
 
 cleanup() {
@@ -132,6 +132,39 @@ if "$SYNC_SCRIPT" --root "$fixture" --check >/tmp/octo-readme-sync-stale.out 2>&
     test_fail "stale fixture unexpectedly passed"
 else
     test_pass
+fi
+
+test_case "sync rejects missing or duplicate PRODUCT traction headings"
+traction_validation_ok=true
+for variant in missing duplicate; do
+    traction_fixture="$TMP_DIR/traction-$variant"
+    make_fixture "$traction_fixture"
+    python3 - "$traction_fixture/PRODUCT.md" "$variant" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+path = Path(sys.argv[1])
+variant = sys.argv[2]
+text = path.read_text()
+pattern = r"^\*\*Traction \(as of [0-9-]+\):\*\*$"
+match = re.search(pattern, text, flags=re.MULTILINE)
+if match is None:
+    raise SystemExit("fixture has no traction heading")
+if variant == "missing":
+    text = text[:match.start()] + text[match.end():]
+else:
+    text = text[:match.end()] + "\n" + match.group(0) + text[match.end():]
+path.write_text(text)
+PY
+    if "$SYNC_SCRIPT" --root "$traction_fixture" >/dev/null 2>&1; then
+        traction_validation_ok=false
+    fi
+done
+if $traction_validation_ok; then
+    test_pass
+else
+    test_fail "sync accepted a missing or duplicate PRODUCT traction heading"
 fi
 
 test_case "sync repairs release, model, count, and capability facts"

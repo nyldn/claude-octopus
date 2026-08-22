@@ -410,12 +410,14 @@ def sync_product(text: str, facts: dict[str, object]) -> str:
         text,
         flags=re.MULTILINE,
     )
-    text = re.sub(
+    text, traction_count = re.subn(
         r"^\*\*Traction \(as of [0-9-]+\):\*\*$",
         f"**Traction (as of {release_date}):**",
         text,
         flags=re.MULTILINE,
     )
+    if traction_count != 1:
+        raise ValueError("PRODUCT traction evidence heading is missing or duplicated")
     # Deliberately not a count. The suite totals were derived by globbing the
     # test tree and written here, which made every pair of test-adding PRs
     # conflict on this one line — and neither side of that conflict was ever
