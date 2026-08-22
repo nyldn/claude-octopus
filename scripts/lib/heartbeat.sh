@@ -133,6 +133,73 @@ cleanup_heartbeat() {
     rm -f "${WORKSPACE_DIR}/.octo/agents/${pid}.heartbeat"
 }
 
+
+# Run an external command under GNU timeout while preserving the caller process
+# group. timeout --foreground intentionally stops managing a separate command
+# process group, so this wrapper owns descendant cleanup on TERM/INT/HUP without
+# ever signalling the caller's PGID.
+_run_with_timeout_preserving_process_group() {
+    local timeout_bin="$1"
+    local timeout_secs="$2"
+    shift 2
+
+    "$timeout_bin" --foreground "$timeout_secs" bash -c '
+        set +e
+        _octo_collect_descendants() {
+            local parent="$1" child
+            while IFS= read -r child; do
+                child="${child//[[:space:]]/}"
+                [[ -n "$child" ]] || continue
+                _octo_collect_descendants "$child"
+                _octo_descendants+=("$child")
+            done < <(ps -eo pid=,ppid= | while read -r pid ppid; do [[ "$ppid" == "$parent" ]] && echo "$pid"; done)
+        }
+        _octo_cleanup_descendants() {
+            _octo_descendants=()
+            _octo_collect_descendants "$child_pid"
+            if ((${#_octo_descendants[@]})); then
+                kill -TERM "${_octo_descendants[@]}" 2>/dev/null || true
+            fi
+            kill -TERM "$child_pid" 2>/dev/null || true
+
+            # Match timeout -k 10 semantics: give the provider subtree the full
+            # 10-second TERM grace period before escalating remaining processes.
+            for _octo_i in $(seq 1 100); do
+                _octo_any_alive=false
+                kill -0 "$child_pid" 2>/dev/null && _octo_any_alive=true
+                for _octo_pid in "${_octo_descendants[@]}"; do
+                    if kill -0 "$_octo_pid" 2>/dev/null; then
+                        _octo_any_alive=true
+                        break
+                    fi
+                done
+                [[ "$_octo_any_alive" == "false" ]] && break
+                sleep 0.1
+            done
+
+            _octo_descendants=()
+            _octo_collect_descendants "$child_pid"
+            if ((${#_octo_descendants[@]})); then
+                kill -KILL "${_octo_descendants[@]}" 2>/dev/null || true
+            fi
+            kill -KILL "$child_pid" 2>/dev/null || true
+            wait "$child_pid" 2>/dev/null || true
+        }
+        _octo_on_signal() {
+            trap - TERM INT HUP
+            _octo_cleanup_descendants
+            exit 143
+        }
+        trap _octo_on_signal TERM INT HUP
+        "$@" <&0 &
+        child_pid=$!
+        wait "$child_pid"
+        status=$?
+        trap - TERM INT HUP
+        exit "$status"
+    ' bash "$@"
+}
+
 # Portable timeout function (works on macOS and Linux)
 # Prefers system timeout commands, falls back to manual implementation
 run_with_timeout() {
@@ -174,10 +241,18 @@ run_with_timeout() {
     # would otherwise outlive the timeout — that is exactly how an expired-token
     # qwen probe hung ~10min instead of dying at the per-agent cap.
     if [[ "$_cmd_is_function" == "false" ]] && command -v gtimeout &>/dev/null; then
-        gtimeout -k 10 "$timeout_secs" "$@"
+        if [[ "${OCTOPUS_PRESERVE_CALLER_PROCESS_GROUP:-false}" == "true" ]]; then
+            _run_with_timeout_preserving_process_group gtimeout "$timeout_secs" "$@"
+        else
+            gtimeout -k 10 "$timeout_secs" "$@"
+        fi
         exit_code=$?
     elif [[ "$_cmd_is_function" == "false" ]] && command -v timeout &>/dev/null; then
-        timeout -k 10 "$timeout_secs" "$@"
+        if [[ "${OCTOPUS_PRESERVE_CALLER_PROCESS_GROUP:-false}" == "true" ]]; then
+            _run_with_timeout_preserving_process_group timeout "$timeout_secs" "$@"
+        else
+            timeout -k 10 "$timeout_secs" "$@"
+        fi
         exit_code=$?
     else
         # Fallback with proper cleanup (also used for shell functions).

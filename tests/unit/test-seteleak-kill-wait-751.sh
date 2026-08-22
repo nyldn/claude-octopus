@@ -105,7 +105,10 @@ test_heartbeat_kill_lines_guarded() {
 
     local file="$PROJECT_ROOT/scripts/lib/heartbeat.sh"
     local snippet
-    snippet=$(sed -n '190,205p' "$file")
+    if ! snippet=$(grep -m1 -A12 -B2 'kill -TERM "\$cmd_pid"' "$file"); then
+        test_fail "could not locate the cmd_pid TERM/KILL cleanup block in heartbeat.sh"
+        return
+    fi
 
     assert_contains "$snippet" 'kill -TERM "$cmd_pid" 2>/dev/null || true' \
         "kill -TERM on cmd_pid must be guarded" || return
