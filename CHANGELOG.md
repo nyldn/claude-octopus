@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [9.66.1] - 2026-08-21
+
+### Changed
+
+- Declare OpenClaw tool contracts and make benchmark-gated council tests deterministic
+
 ## [9.66.0] - 2026-08-21
 
 ### Added

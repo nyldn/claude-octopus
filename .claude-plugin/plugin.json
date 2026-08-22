@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "9.66.0",
-  "description": "v9.66.0 \u2014 Opt-in vendor-balanced councils; reliable persona spawning, workflow synthesis, and review timeouts. Run /octo:setup.",
+  "version": "9.66.1",
+  "description": "v9.66.1 \u2014 Declare OpenClaw tool contracts and make benchmark-gated council tests deterministic. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
