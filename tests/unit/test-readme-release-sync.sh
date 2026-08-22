@@ -157,7 +157,9 @@ else:
     text = text[:match.end()] + "\n" + match.group(0) + text[match.end():]
 path.write_text(text)
 PY
-    if "$SYNC_SCRIPT" --root "$traction_fixture" >/dev/null 2>&1; then
+    traction_output="$TMP_DIR/traction-$variant.out"
+    if "$SYNC_SCRIPT" --root "$traction_fixture" >"$traction_output" 2>&1 ||
+       ! grep -qF 'PRODUCT traction evidence heading is missing or duplicated' "$traction_output"; then
         traction_validation_ok=false
     fi
 done
