@@ -71,6 +71,18 @@ load_council_lib() {
     source "$lib"
 }
 
+council_run_with_snapshot_age() {
+    local snapshot_age_days="$1"
+    shift
+
+    local run_status=0
+    council_snapshot_age_days() { printf '%s\n' "$snapshot_age_days"; }
+    council_run "$@" || run_status=$?
+    # shellcheck disable=SC1090
+    source "$PROJECT_ROOT/scripts/lib/benchmark-routing.sh"
+    return "$run_status"
+}
+
 prepare_cached_quick_dry_run() {
     [[ -f "$CACHED_COUNCIL_QUICK_DRY_RUN_SUMMARY" ]] && return 0
     local tmp_dir
@@ -238,7 +250,8 @@ test_council_dry_run_loads_fresh_benchmark_snapshot() {
     local tmp_dir
     tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-benchmark.XXXXXX")"
 
-    council_run --dry-run --benchmark auto --output-dir "$tmp_dir" "Should we use Redis?"
+    council_run_with_snapshot_age 30 --dry-run --benchmark auto \
+        --output-dir "$tmp_dir" "Should we use Redis?"
 
     local summary
     summary="$(find "$tmp_dir" -name summary.json -type f | head -1)"
@@ -367,7 +380,8 @@ test_council_scores_roster_with_benchmark_signal() {
     tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-score.XXXXXX")"
 
     OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,agy:available' \
-        council_run --dry-run --depth quick --output-dir "$tmp_dir" "Review auth"
+        council_run_with_snapshot_age 30 --dry-run --depth quick \
+            --output-dir "$tmp_dir" "Review auth"
 
     local summary
     summary="$(find "$tmp_dir" -name summary.json -type f | head -1)"
