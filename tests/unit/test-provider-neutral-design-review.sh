@@ -124,4 +124,15 @@ else
   test_fail "expected provider-local MiniMax researcher model, got '$model'"
 fi
 
+test_case "build-fleet keeps multiline prompts in one record per provider"
+multiline_prompt=$'line one\nPROJECT_DOCUMENTATION_PATH:\n/data/example\nline four'
+fleet_output="$(bash "$PROJECT_ROOT/scripts/helpers/build-fleet.sh" review standard "$multiline_prompt" 2>/dev/null)"
+record_count="$(printf '%s\n' "$fleet_output" | grep -c '|')"
+line_count="$(printf '%s\n' "$fleet_output" | wc -l | tr -d ' ')"
+if [[ "$record_count" -eq 4 && "$line_count" -eq 4 ]] && ! printf '%s\n' "$fleet_output" | grep -q '^PROJECT_DOCUMENTATION_PATH:$'; then
+  test_pass
+else
+  test_fail "multiline prompt escaped fleet record boundaries: records=$record_count lines=$line_count"
+fi
+
 test_summary

@@ -145,7 +145,10 @@ build_diverse_order() {
 }
 
 emit() {
-    printf '%s|%s|%s\n' "$1" "$2" "$3"
+    local provider="$1" label="$2" perspective="$3"
+    perspective="${perspective//$'\r'/ }"
+    perspective="${perspective//$'\n'/ }"
+    printf '%s|%s|%s\n' "$provider" "$label" "$perspective"
 }
 
 emit_if_allowed() {
