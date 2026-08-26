@@ -194,11 +194,12 @@ overlong_rc=$?
 set -e
 overlong_elapsed=$((SECONDS - overlong_start))
 overlong_root="$TEST_TMP_DIR/overlong-deadline"
+overlong_attempt_timeout="$(cat "$overlong_root/timeouts" 2>/dev/null || true)"
 if [[ "$overlong_rc" -eq 124 ]] && [[ "$(cat "$overlong_root/attempts")" == "1" ]] && \
-   [[ "$(cat "$overlong_root/timeouts")" == "2" ]] && [[ "$overlong_elapsed" -lt 4 ]]; then
+   [[ "$overlong_attempt_timeout" =~ ^[12]$ ]] && [[ "$overlong_elapsed" -lt 4 ]]; then
     test_pass
 else
-    test_fail "overlong attempt escaped its deadline (rc=$overlong_rc attempts=$(cat "$overlong_root/attempts" 2>/dev/null || echo 0) elapsed=${overlong_elapsed}s)"
+    test_fail "overlong attempt escaped its deadline (rc=$overlong_rc attempts=$(cat "$overlong_root/attempts" 2>/dev/null || echo 0) timeout=${overlong_attempt_timeout:-missing} elapsed=${overlong_elapsed}s)"
 fi
 
 test_summary

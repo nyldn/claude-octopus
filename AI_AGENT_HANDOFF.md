@@ -62,6 +62,14 @@ approval and hosted CI. Tag only the squash-merge commit on `main`, then rerun
   reports 124. The regression now accepts those two proven timeout statuses,
   still requires the spawned PID to be dead, and uses a 30-second loaded-CI
   bound. Its focused suite passes 18/18.
+- Exact-head Test Suite run `32957574121` then proved the production deadline
+  behavior on Ubuntu but exposed an overly exact retry-test oracle: the attempt
+  correctly returned 124 after one attempt in two seconds, while the test
+  required the whole-second remainder to be exactly two. A second-boundary
+  rollover can conservatively reduce that attempt budget to one. The oracle now
+  accepts only the valid one-to-two-second range while preserving the timeout
+  status, single-attempt, and elapsed-deadline assertions; five consecutive
+  focused runs pass 8/8.
 - Focused evidence after the final response includes synchronous contract
   19/19, persistence degradation 6/6, semantic cache alignment 36/36, output
   cap 14/14, agent summary 11/11, version consistency 20/20 and 30/30, and
