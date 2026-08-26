@@ -237,6 +237,7 @@ octo_provider_has_capability() {
     return 1
 }
 
+# shellcheck disable=SC2120 # Optional capability is used by cross-file consumers.
 octo_provider_ids() {
     local capability="${1:-}" id aliases command org caps out=""
     while IFS='|' read -r id aliases command org caps; do
