@@ -369,7 +369,7 @@ octo_probe_cache_dir() {
     if [[ -z "$workspace" ]] && type resolve_octopus_workspace >/dev/null 2>&1; then
         workspace="$(resolve_octopus_workspace 2>/dev/null || true)"
     fi
-    [[ -n "$workspace" ]] || workspace="${HOME}/.claude-octopus"
+    [[ -n "$workspace" ]] || workspace="${HOME:-${TMPDIR:-/tmp}}/.claude-octopus"
     printf '%s/.cache/probe-results\n' "${workspace%/}"
 }
 

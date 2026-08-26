@@ -53,6 +53,31 @@ PY
     test_pass
 }
 
+test_stale_lock_recovery() {
+    test_case "event locks recover a dead stale owner without stealing a live lock"
+    local target="$FIXTURE/stale-event" lockdir="$FIXTURE/stale-event.lock"
+    mkdir -p "$lockdir"
+    printf '99999999\n' > "$lockdir/pid"
+    printf '%s\n' "$(( $(date +%s) - 60 ))" > "$lockdir/ts"
+    if ! OCTO_EVENT_LOCK_STALE_SECS=1 _octo_event_lock "$target"; then
+        test_fail "dead stale lock was not reclaimed"
+        return
+    fi
+    _octo_event_unlock "$target"
+
+    mkdir -p "$lockdir"
+    printf '%s\n' "$$" > "$lockdir/pid"
+    printf '%s\n' "$(( $(date +%s) - 60 ))" > "$lockdir/ts"
+    if OCTO_EVENT_LOCK_STALE_SECS=1 _octo_event_lock "$target"; then
+        _octo_event_unlock "$target"
+        test_fail "live stale-looking lock was stolen"
+        return
+    fi
+    rm -f "$lockdir/pid" "$lockdir/ts"
+    rmdir "$lockdir"
+    test_pass
+}
+
 test_auto_log_path() {
     test_case "OCTO_EVENT_LOG=auto writes under WORKSPACE_DIR/.octo"
     export WORKSPACE_DIR="$FIXTURE/workspace"
@@ -257,6 +282,7 @@ test_provider_selected_event_wired() {
 
 test_no_log_when_disabled
 test_emit_jsonl_event
+test_stale_lock_recovery
 test_auto_log_path
 test_trim_event_log
 test_invalid_event_rejected

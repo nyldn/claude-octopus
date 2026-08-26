@@ -277,6 +277,9 @@ run_agent_sync() {
     fi
     local _sync_seat_id
     _sync_seat_id="sync-${phase:-unknown}-$(octo_agent_spec_slug "$agent_type")-${_progress_unique}"
+    if [[ "${OCTOPUS_PERSISTENCE_AVAILABLE:-true}" == "false" ]]; then
+        log ERROR "Persistence unavailable; refusing untracked provider dispatch for $agent_type"
+    fi
     run_contract_transition "$_sync_seat_id" planned \
         "requested_provider=$agent_type" \
         "requested_model=${OCTOPUS_REQUESTED_MODEL:-}" \
@@ -420,7 +423,6 @@ ${provider_ctx}"
     if [[ "${OCTOPUS_PERSISTENCE_AVAILABLE:-true}" == "false" ]]; then
         run_contract_transition "$_sync_seat_id" failed \
             "reason=Persistence unavailable" >/dev/null 2>&1 || true
-        log ERROR "Persistence unavailable; refusing untracked provider dispatch for $agent_type"
         return 74
     fi
 
@@ -545,35 +547,8 @@ ${provider_ctx}"
         [[ "$exit_code" -eq 0 && "$_sync_retry_count" -gt 0 ]] && _sync_recovered_sigsegv=true
         break
     done
-    output=$(cat "$temp_out")
-
     stop_quota_watcher "$_quota_watcher_pid"
-
-    # Tail-bias: the deliverable summary lives at the end of codex-style output.
-    local _max_bytes="${OCTOPUS_AGENT_MAX_OUTPUT_BYTES:-262144}"
     local _sync_output_truncated=false
-    if [[ -n "$output" && $_max_bytes -gt 0 && ${#output} -gt $_max_bytes ]]; then
-        local _orig_bytes=${#output}
-        # Build the banner first so we can measure it exactly and budget the
-        # head+tail slices against a real number instead of a guess. This keeps
-        # the final `${#output}` <= _max_bytes for any cap, including tiny ones.
-        local _banner=$'\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n⚠️  OUTPUT TRUNCATED — '"${_orig_bytes}"$' bytes captured\n   (override with OCTOPUS_AGENT_MAX_OUTPUT_BYTES=<bytes>; 0 disables cap)\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n'
-        local _banner_bytes=${#_banner}
-        local _budget=$((_max_bytes - _banner_bytes))
-        if [[ $_budget -le 0 ]]; then
-            output="$_banner"
-        else
-            local _head_bytes=$(( _budget / 8 ))     # ~12% head, 88% tail
-            [[ $_head_bytes -gt 4096 ]] && _head_bytes=4096
-            local _tail_bytes=$(( _budget - _head_bytes ))
-            # Positive offset (`${v:s:n}`) keeps bash 3.x compat; `${v: -n}` is 4.2+.
-            local _tail_start=$(( _orig_bytes - _tail_bytes ))
-            [[ $_tail_start -lt 0 ]] && _tail_start=0
-            output="${output:0:$_head_bytes}${_banner}${output:$_tail_start:$_tail_bytes}"
-        fi
-        log WARN "Agent $agent_type output truncated: ${_orig_bytes}B → ${#output}B (cap=${_max_bytes}B)"
-        _sync_output_truncated=true
-    fi
 
     local _elapsed_ms
     _elapsed_ms=$(( ($(date +%s) - _dispatch_start) * 1000 ))
@@ -673,6 +648,38 @@ ${provider_ctx}"
                 _sync_reason="Recovered after AGY exit 139"
             fi
         fi
+        local _sync_artifact_source="$temp_out"
+        if ! _octo_run_output_usable_file "$_sync_artifact_source" && \
+           [[ "$_sync_status" == degraded ]] && \
+           octo_file_has_codex_recoverable_stderr "$temp_err"; then
+            _sync_artifact_source="$temp_err"
+        fi
+
+        # Apply the byte cap after selecting stdout or recoverable stderr so
+        # both the returned text and durable artifact obey the same contract.
+        local _max_bytes="${OCTOPUS_AGENT_MAX_OUTPUT_BYTES:-262144}"
+        local _orig_bytes _banner _banner_bytes _budget _head_bytes _tail_bytes
+        local _head_chunk="" _tail_chunk=""
+        _orig_bytes="$(wc -c < "$_sync_artifact_source" 2>/dev/null | tr -d ' ')"
+        [[ "$_orig_bytes" =~ ^[0-9]+$ ]] || _orig_bytes=0
+        output="$(cat "$_sync_artifact_source")"
+        if [[ "$_max_bytes" =~ ^[0-9]+$ && "$_max_bytes" -gt 0 && "$_orig_bytes" -gt "$_max_bytes" ]]; then
+            _banner=$'\n\n--- OUTPUT TRUNCATED: '"${_orig_bytes}"$' bytes captured ---\n(override with OCTOPUS_AGENT_MAX_OUTPUT_BYTES=<bytes>; 0 disables cap)\n\n'
+            _banner_bytes="$(printf '%s' "$_banner" | wc -c | tr -d ' ')"
+            _budget=$((_max_bytes - _banner_bytes))
+            if [[ "$_budget" -le 0 ]]; then
+                output="${_banner:0:$_max_bytes}"
+            else
+                _head_bytes=$((_budget / 8))
+                [[ "$_head_bytes" -gt 4096 ]] && _head_bytes=4096
+                _tail_bytes=$((_budget - _head_bytes))
+                _head_chunk="$(head -c "$_head_bytes" "$_sync_artifact_source" 2>/dev/null)"
+                _tail_chunk="$(tail -c "$_tail_bytes" "$_sync_artifact_source" 2>/dev/null)"
+                output="${_head_chunk}${_banner}${_tail_chunk}"
+            fi
+            log WARN "Agent $agent_type output truncated: ${_orig_bytes}B (cap=${_max_bytes}B)"
+            _sync_output_truncated=true
+        fi
         if [[ "$_sync_output_truncated" == "true" ]]; then
             _sync_status="degraded"
             if [[ -n "$_sync_reason" ]]; then
@@ -680,14 +687,6 @@ ${provider_ctx}"
             else
                 _sync_reason="Output truncated"
             fi
-        fi
-
-        local _sync_artifact_source="$temp_out"
-        if ! _octo_run_output_usable_file "$_sync_artifact_source" && \
-           [[ "$_sync_status" == degraded ]] && \
-           octo_file_has_codex_recoverable_stderr "$temp_err"; then
-            _sync_artifact_source="$temp_err"
-            output="$(cat "$temp_err")"
         fi
         local _sync_result_artifact="${RESULTS_DIR}/sync-result-${_progress_unique}.md"
         local _sync_result_tmp
@@ -697,7 +696,13 @@ ${provider_ctx}"
             rm -f "$temp_err" "$temp_out"
             return 1
         }
-        if ! (umask 077; cp "$_sync_artifact_source" "$_sync_result_tmp") 2>/dev/null || \
+        local _sync_result_write_rc=0
+        if [[ "$_sync_output_truncated" == true ]]; then
+            (umask 077; printf '%s' "$output" > "$_sync_result_tmp") 2>/dev/null || _sync_result_write_rc=$?
+        else
+            (umask 077; cp "$_sync_artifact_source" "$_sync_result_tmp") 2>/dev/null || _sync_result_write_rc=$?
+        fi
+        if [[ "$_sync_result_write_rc" -ne 0 ]] || \
            ! mv "$_sync_result_tmp" "$_sync_result_artifact" 2>/dev/null; then
             rm -f "$_sync_result_tmp" "$temp_err" "$temp_out"
             run_contract_transition "$_sync_seat_id" failed \

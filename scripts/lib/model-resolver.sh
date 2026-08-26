@@ -361,7 +361,9 @@ resolve_octopus_model() {
     fi
 
     # Config file lookups
+    local config_lookups_applied=false
     if [[ -z "$resolved_model" && -f "$config_file" ]] && command -v jq &> /dev/null; then
+        config_lookups_applied=true
         # Load config once for this resolution tree
         local config_data
         config_data=$(<"$config_file")
@@ -510,9 +512,9 @@ resolve_octopus_model() {
             fi
         fi
 
-        # A recorded eval policy is more specific than generic capability/tier
-        # defaults but remains below explicit environment, session, role/phase,
-        # and provider-role model routes.
+        # An explicitly enabled eval policy is more specific than generic
+        # capability, cost-tier, and provider defaults. It remains below every
+        # environment, session, role/phase, and provider-role route.
         if [[ ( -z "$resolved_model" || "$resolved_model" == "null" ) &&
               "$routing_policy" == "eval" && -n "${OCTOPUS_TASK_CLASS:-}" ]]; then
             resolved_model="$(_octo_eval_model_for_class "$canonical_provider" "$OCTOPUS_TASK_CLASS" 2>/dev/null || true)"
@@ -564,14 +566,14 @@ resolve_octopus_model() {
         fi
     fi
 
-    # Eval-backed task routing applies only when explicitly selected and only
-    # after every user/session/project route and configured default. The task
-    # class is part of the cache key, so a mechanical seat can never poison a
-    # later premium resolution in the same process or persistent cache.
-    if [[ ( -z "$resolved_model" || "$resolved_model" == "null" ) &&
+    # With no readable project config there are no project routes/defaults to
+    # traverse, but an explicitly enabled session eval policy still precedes
+    # release defaults.
+    if [[ "$config_lookups_applied" != true &&
+          ( -z "$resolved_model" || "$resolved_model" == "null" ) &&
           "$routing_policy" == "eval" && -n "${OCTOPUS_TASK_CLASS:-}" ]]; then
         resolved_model="$(_octo_eval_model_for_class "$canonical_provider" "$OCTOPUS_TASK_CLASS" 2>/dev/null || true)"
-        [[ -n "$_trace" && -n "$resolved_model" ]] && echo "[model-trace] Tier 6.5 (eval ${OCTOPUS_TASK_CLASS}): $resolved_model ← SELECTED" >&2
+        [[ -n "$_trace" && -n "$resolved_model" ]] && echo "[model-trace] Tier 3b (eval ${OCTOPUS_TASK_CLASS}): $resolved_model ← SELECTED" >&2
     fi
 
     # Fallback to hard-coded defaults (Priority 7)

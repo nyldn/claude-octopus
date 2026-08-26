@@ -56,7 +56,8 @@ done
 test_pass
 
 test_case "runtime metadata inventory exactly matches canonical provider inventory"
-if declare -f octo_provider_runtime_ids >/dev/null 2>&1 && [[ "$(octo_provider_runtime_ids)" == "$all_ids" ]]; then
+if declare -f octo_provider_runtime_ids >/dev/null 2>&1 &&
+   [[ "$(octo_provider_runtime_ids | tr ' ' '\n' | LC_ALL=C sort)" == "$(printf '%s\n' "$all_ids" | tr ' ' '\n' | LC_ALL=C sort)" ]]; then
     test_pass
 else
     test_fail "runtime metadata inventory is missing or differs from canonical IDs"
@@ -119,7 +120,7 @@ fi
 [[ "$alias_runtime_ok" == true ]] && test_pass
 
 test_case "shared context routing consumes registry metadata"
-if grep -A35 '^get_provider_context_limit() {' "$PROJECT_ROOT/scripts/lib/dispatch.sh" | grep -q 'octo_provider_context_tokens'; then
+if grep -A35 '^get_provider_context_limit() {' "$PROJECT_ROOT/scripts/lib/dispatch.sh" | grep -c 'octo_provider_context_tokens' >/dev/null; then
     test_pass
 else
     test_fail "dispatch context routing still owns a parallel provider list"

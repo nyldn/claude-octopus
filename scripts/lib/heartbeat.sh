@@ -233,6 +233,12 @@ _octo_timeout_signal_snapshot() {
     done <<< "$process_tree"
 }
 
+_octo_timeout_mark_snapshot() {
+    local marker="$1" process_tree="$2"
+    [[ -n "$process_tree" ]] || return 0
+    printf '%s\n' "$process_tree" > "$marker"
+}
+
 # Portable timeout function (works on macOS and Linux)
 # Prefers system timeout commands, falls back to manual implementation
 run_with_timeout() {
@@ -310,7 +316,7 @@ run_with_timeout() {
         (
             sleep "$timeout_secs"
             process_tree="$(_octo_timeout_process_tree_depth_first "$cmd_pid")"
-            printf '%s\n' "$process_tree" > "$timeout_marker"
+            _octo_timeout_mark_snapshot "$timeout_marker" "$process_tree"
             _octo_timeout_signal_snapshot TERM "$process_tree"
 
             local grace_tick target_pid process_started any_running

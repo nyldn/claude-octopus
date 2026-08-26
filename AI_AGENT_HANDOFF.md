@@ -3,17 +3,16 @@
 Last updated: 2026-08-26
 Status: The v10.0.0 reliability release candidate implements the six approved
 modernization additions plus hermetic end-to-end failure injection. The final
-local CI, plugin assembly, strict plugin validation, and staged-review gates are
-green; version preparation, protected PR verification, merge, tag, publication,
-and installed-release checks remain.
-Branch: `feat/v10-reliability-contracts` in
-`/Users/chris/.codex/worktrees/claude-octopus-v10`; implementation review head
-`0f2b98a1`
+review-response tree passes the complete local CI, plugin assembly, strict
+plugin validation, ShellCheck, and staged-review gates. Commit/push, protected
+PR verification, merge, tag, publication, and installed-release checks remain.
+Branch: `release/v10.0.0`; protected release PR #965 is under review.
 Current release: [v9.66.1](https://github.com/nyldn/claude-octopus/releases/tag/v9.66.1)
 Tracking: Beads epic `oco-de9`; children `oco-de9.1` through `oco-de9.8`
-Next action: Rename the clean branch to `release/v10.0.0`, prepare version
-10.0.0, and follow the protected `RELEASING.md` flow. Tag only the squash-merge
-commit on `main`, then rerun `bash scripts/validate-release.sh` against v10.
+Next action: commit and push the verified PR #965 review response, reply to and
+resolve the 34 inline threads plus the four outside-diff findings, then wait for
+exact-head approval and hosted CI. Tag only the squash-merge commit on `main`,
+then rerun `bash scripts/validate-release.sh` against v10.
 
 ## V10 Reliability Release Candidate
 
@@ -23,26 +22,38 @@ commit on `main`, then rerun `bash scripts/validate-release.sh` against v10.
 - The failure-injection integration suite drives the real `orchestrate.sh spawn
   agy` entrypoint with hermetic providers and no credentials. Its 14 scenarios
   plus hermeticity check passed 15/15 with zero skips.
-- The final `make ci-local` gate at `0f2b98a1` passed all 16 smoke suites,
-  289/289 unit suites, and 8/8 integration suites. The v10 failure-injection
-  suite passed all 15 assertions with zero skips. Plugin assembly reported 120
-  skills, 54 commands, 52 agents, and 32 agent-config references; strict Claude
-  plugin validation also passed.
-- That final matrix first exposed two direct-source failures plus non-fatal
-  provider-identity diagnostics. Commit `0f2b98a1` moved prompt-byte measurement
-  to the shared agent specification and configured-provider identity to the
-  authoritative registry, removing orchestrator load-order assumptions. The
-  two formerly failing suites and the wider identity/security surface are green.
+- `CI=true GITHUB_ACTIONS=true make ci-changed` failed closed to `make ci-local`
+  and passed all 16 smoke suites, 289/289 unit suites, and 8/8 integration
+  suites on the final review-response tree. The v10 failure-injection suite
+  passed all 15 assertions with zero skips. Plugin assembly, strict Claude
+  plugin validation, sync checks, packaging checks, and CI-only verifications
+  also passed.
+- The final review response verified every CodeRabbit finding against the
+  current code. Valid fixes include auth-aware Setup/Doctor flow, stale lock
+  recovery, bounded output artifacts and CLI probes, atomic contract snapshots,
+  byte-correct routing, fail-closed cancellation cleanup, semantic sidecar
+  cleanup, exact release-version parity, and an actionable synchronous
+  persistence refusal. The timeout-artifact suggestion was rejected because
+  v10 intentionally permits only contributed or degraded usable artifacts into
+  synthesis; terminal timeouts retain `contribution=none`.
+- Focused evidence after the final response includes synchronous contract
+  19/19, persistence degradation 6/6, semantic cache alignment 36/36, output
+  cap 14/14, agent summary 11/11, version consistency 20/20 and 30/30, and
+  failure injection 15/15. Repository ShellCheck at warning severity and
+  `git diff --check` pass.
 - `bash scripts/validate-release.sh` is intentionally deferred until after the
   v10 tag: before the version bump it correctly rejects candidate HEAD because
   the existing `v9.66.1` tag points to the prior production merge rather than
   this branch.
-- Independent staged review identified four real defects: the v10 latest-run
+- Earlier independent staged review identified four real defects: the v10 latest-run
   pointer collided with the legacy status symlink, Fable received character
   counts instead of UTF-8 byte counts, post-routing model identity was not
   persisted, and model-resolution failures could leave planned seats
   non-terminal. Commit `37b14f07` fixes all four with RED/GREEN coverage. The
   five focused contract suites pass with zero failures.
+- The final independent AGY code-quality review returned `NO FINDINGS`. A
+  low-cost Codex Luna review lane was stopped after ten minutes without a
+  verdict or findings and is recorded as degraded review capacity, not approval.
 - Cancellation suite latency reported inside the reviewer's sandbox was not
   reproducible locally. The test now bounds its own teardown and passes 4/4 in
   about three seconds, so future failure cannot wait for the synthetic

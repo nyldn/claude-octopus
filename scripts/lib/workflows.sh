@@ -123,7 +123,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     model=$(get_agent_model "$agent_type" "$phase" "$role")
 
     local cmd
-    if ! cmd=$(get_agent_command "$agent_type" "$phase" "$role" "${#enhanced_prompt}"); then
+    if ! cmd=$(get_agent_command "$agent_type" "$phase" "$role" "$(octo_prompt_byte_length "$enhanced_prompt")"); then
         log ERROR "Unknown agent type: $agent_type"
         return 1
     fi
@@ -465,7 +465,7 @@ _octopus_probe_terminate_tree() {
     [[ "$pid" =~ ^[0-9]+$ ]] || return 0
 
     if declare -F octo_terminate_process_tree >/dev/null 2>&1; then
-        octo_terminate_process_tree "$pid" 1
+        octo_terminate_process_tree "$pid" 1 || true
     elif ! kill -0 "$pid" 2>/dev/null; then
         OCTO_PROCESS_CLEANUP_RESULT="already-exited"
         return 0

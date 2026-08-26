@@ -41,6 +41,12 @@ case "$FIXTURE_SCENARIO" in
         printf '%s\n' 'Substantive Codex review result.'
         printf '%s\n' 'write_stdin failed: stdin is closed for this session' >&2
         ;;
+    stdin-close-large)
+        printf '%s\n' 'Provider available'
+        printf '%s\n' '## Verification' >&2
+        printf '%0500d\n' 0 | tr '0' 'E' >&2
+        printf '%s\n' 'write_stdin failed: stdin is closed for this session' >&2
+        ;;
     truncated)
         printf '%0500d\n' 0 | tr '0' 'A'
         ;;
@@ -103,6 +109,7 @@ run_fixture() {
     export OCTOPUS_AGENT_MAX_OUTPUT_BYTES=262144
     export OCTOPUS_PERSISTENCE_AVAILABLE=true
     [[ "$scenario" == truncated ]] && export OCTOPUS_AGENT_MAX_OUTPUT_BYTES=120
+    [[ "$scenario" == stdin-close-large ]] && export OCTOPUS_AGENT_MAX_OUTPUT_BYTES=256
     [[ "$scenario" == persistence-fail ]] && export OCTOPUS_PERSISTENCE_AVAILABLE=false
     mkdir -p "$RESULTS_DIR"
 
@@ -178,6 +185,9 @@ assert_scenario sigsegv 0 2 \
 assert_scenario stdin-close 0 1 \
     planned,starting,authenticated,running,output_received,validated,degraded \
     degraded eligible-with-warning 'Codex stdin closed after substantive output was captured'
+assert_scenario stdin-close-large 0 1 \
+    planned,starting,authenticated,running,output_received,validated,degraded \
+    degraded eligible-with-warning 'Codex stdin closed after substantive output was captured; output truncated'
 assert_scenario truncated 0 1 \
     planned,starting,authenticated,running,output_received,validated,degraded \
     degraded eligible-with-warning 'Output truncated'
@@ -205,6 +215,24 @@ if [[ -s "$success_artifact" ]] && grep -q 'Substantive provider result' "$succe
     test_pass
 else
     test_fail "successful output artifact is missing after run_agent_sync cleanup"
+fi
+
+test_case "uncapped synchronous artifacts preserve provider bytes exactly"
+if [[ "$(tail -c 1 "$success_artifact" | od -An -t x1 | tr -d '[:space:]')" == "0a" ]]; then
+    test_pass
+else
+    test_fail "uncapped provider artifact lost its trailing newline"
+fi
+
+test_case "stdout and recovered stderr artifacts obey the byte cap"
+truncated_artifact="$(jq -r '.seats[0].artifacts.output' "$TEST_TMP_DIR/truncated/workspace/runs/sync-truncated/seats.json")"
+stderr_artifact="$(jq -r '.seats[0].artifacts.output' "$TEST_TMP_DIR/stdin-close-large/workspace/runs/sync-stdin-close-large/seats.json")"
+truncated_bytes="$(wc -c < "$truncated_artifact" | tr -d ' ')"
+stderr_bytes="$(wc -c < "$stderr_artifact" | tr -d ' ')"
+if [[ "$truncated_bytes" -le 120 && "$stderr_bytes" -le 256 ]]; then
+    test_pass
+else
+    test_fail "cap=120 stdout=$truncated_bytes recovered-stderr=$stderr_bytes"
 fi
 
 test_case "post-routing model identity is persisted before provider execution"

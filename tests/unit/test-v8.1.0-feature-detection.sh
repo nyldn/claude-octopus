@@ -203,18 +203,25 @@ else
     assert_fail "3.3 marketplace.json version is semantic" "Got: $mj_version"
 fi
 
-# 3.4: CHANGELOG exists with version entries (v8.37.0 trimmed pre-8.22.0 history)
-if [[ -f "$CHANGELOG_MD" ]] && grep -qE '\[[0-9]+\.[0-9]+\.[0-9]+\]' "$CHANGELOG_MD"; then
-    assert_pass "3.4 CHANGELOG.md has version entries"
+# 3.4: CHANGELOG contains the plugin source-of-truth version
+if [[ -f "$CHANGELOG_MD" ]] && grep -F "[${pj_version}]" "$CHANGELOG_MD" >/dev/null; then
+    assert_pass "3.4 CHANGELOG.md contains current version ($pj_version)"
 else
-    assert_fail "3.4 CHANGELOG.md has version entries"
+    assert_fail "3.4 CHANGELOG.md contains current version" "Expected: [$pj_version]"
 fi
 
-# 3.5: README version badge is semantic
-if grep -qE 'Version-[0-9]+\.[0-9]+\.[0-9]+' "$README_MD"; then
-    assert_pass "3.5 README.md version badge is semantic"
+# 3.5: all public release versions match plugin.json
+readme_version=$(python3 - "$README_MD" <<'PY'
+import re, sys
+match = re.search(r"Version-(\d+\.\d+\.\d+)-blue", open(sys.argv[1], encoding="utf-8").read())
+print(match.group(1) if match else "")
+PY
+)
+if [[ "$pkg_version" == "$pj_version" && "$mj_version" == "$pj_version" && "$readme_version" == "$pj_version" ]]; then
+    assert_pass "3.5 release versions agree with plugin.json ($pj_version)"
 else
-    assert_fail "3.5 README.md version badge is semantic"
+    assert_fail "3.5 release versions agree with plugin.json" \
+        "package=$pkg_version marketplace=$mj_version README=$readme_version plugin=$pj_version"
 fi
 
 # 3.6: README Claude Code badge matches the current runtime minimum

@@ -140,6 +140,21 @@ test_heartbeat_macos_linux_compat() {
     fi
 }
 
+test_empty_timeout_snapshot_is_not_a_timeout() {
+    test_case "an empty process snapshot leaves the timeout marker empty"
+    local marker="$TEST_TMP_DIR/empty-timeout-marker"
+    : > "$marker"
+    (
+        source "$PROJECT_ROOT/scripts/lib/heartbeat.sh"
+        _octo_timeout_mark_snapshot "$marker" ""
+    )
+    if [[ ! -s "$marker" ]]; then
+        test_pass
+    else
+        test_fail "empty process tree incorrectly published timeout evidence"
+    fi
+}
+
 test_dynamic_timeout_in_run_agent_sync() {
     test_case "run_agent_sync uses compute_dynamic_timeout"
 
@@ -175,6 +190,7 @@ test_timeout_security_mode
 test_timeout_env_override
 test_heartbeat_in_spawn_agent
 test_heartbeat_macos_linux_compat
+test_empty_timeout_snapshot_is_not_a_timeout
 test_dynamic_timeout_in_run_agent_sync
 test_dry_run_with_heartbeat
 

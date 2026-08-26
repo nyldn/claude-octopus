@@ -127,4 +127,19 @@ else
     test_fail "expected partial synthesis to include only usable output, got: ${partial:-<empty>}"
 fi
 
+test_case "contract evaluation errors are distinct and fail closed"
+ledger="$(octo_run_contract_ledger_path)"
+cp "$ledger" "$ledger.before-malformed"
+printf '{malformed\n' > "$ledger"
+classification="$(probe_result_file_status "$typed_success")"
+evaluation_usable=true
+probe_result_file_is_usable "$typed_success" || evaluation_usable=false
+mv "$ledger.before-malformed" "$ledger"
+if [[ "$classification" == "failed:contract-evaluation-error" ]] &&
+   [[ "$evaluation_usable" == false ]]; then
+    test_pass
+else
+    test_fail "expected distinct fail-closed evaluation error, got ${classification:-empty}"
+fi
+
 test_summary

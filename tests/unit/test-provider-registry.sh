@@ -55,9 +55,12 @@ source "$PROJECT_ROOT/scripts/lib/provider-routing.sh"
 if [[ " $OCTO_MODEL_CONFIG_PROVIDERS " == *" commandcode "* ]] && [[ "$OCTO_MODEL_CONFIG_PROVIDERS" == "$(octo_provider_ids model-config)" ]]; then test_pass; else test_fail "model config list drift"; fi
 
 test_case "registry context defaults and provider overrides drive dispatch"
-default_context=$(env -u OCTOPUS_CONTEXT_BUDGET -u OCTOPUS_COMMANDCODE_CONTEXT_BUDGET bash -c 'source "'$PROJECT_ROOT'/scripts/lib/dispatch.sh"; get_provider_context_limit commandcode-review')
-override_context=$(env -u OCTOPUS_CONTEXT_BUDGET OCTOPUS_COMMANDCODE_CONTEXT_BUDGET=54321 bash -c 'source "'$PROJECT_ROOT'/scripts/lib/dispatch.sh"; get_provider_context_limit commandcode-review')
-sdk_context=$(env -u OCTOPUS_CONTEXT_BUDGET -u OCTOPUS_CLAUDE_SDK_CONTEXT_BUDGET bash -c 'source "'$PROJECT_ROOT'/scripts/lib/dispatch.sh"; get_provider_context_limit claude-sdk-review')
+default_context=$(env -u OCTOPUS_CONTEXT_BUDGET -u OCTOPUS_COMMANDCODE_CONTEXT_BUDGET \
+    bash -c 'source "$1/scripts/lib/dispatch.sh"; get_provider_context_limit commandcode-review' _ "$PROJECT_ROOT")
+override_context=$(env -u OCTOPUS_CONTEXT_BUDGET OCTOPUS_COMMANDCODE_CONTEXT_BUDGET=54321 \
+    bash -c 'source "$1/scripts/lib/dispatch.sh"; get_provider_context_limit commandcode-review' _ "$PROJECT_ROOT")
+sdk_context=$(env -u OCTOPUS_CONTEXT_BUDGET -u OCTOPUS_CLAUDE_SDK_CONTEXT_BUDGET \
+    bash -c 'source "$1/scripts/lib/dispatch.sh"; get_provider_context_limit claude-sdk-review' _ "$PROJECT_ROOT")
 if [[ "$default_context" == "12000" && "$override_context" == "54321" && "$sdk_context" == "1000000" ]]; then
     test_pass
 else
@@ -66,22 +69,22 @@ fi
 
 test_case "registry cost classes preserve dynamic authentication billing"
 bundled_costs=$(env -u OPENAI_API_KEY -u COMMAND_CODE_API_KEY -u QWEN_API_KEY -u OPENAI_BASE_URL bash -c '
-    source "'$PROJECT_ROOT'/scripts/lib/provider-routing.sh"
+    source "$1/scripts/lib/provider-routing.sh"
     for provider in codex commandcode claude ollama qwen; do
         if is_api_based_provider "$provider"; then printf "%s:metered " "$provider"; else printf "%s:included " "$provider"; fi
     done
-')
+' _ "$PROJECT_ROOT")
 metered_costs=$(env OPENAI_API_KEY=test COMMAND_CODE_API_KEY=test QWEN_API_KEY=test bash -c '
-    source "'$PROJECT_ROOT'/scripts/lib/provider-routing.sh"
+    source "$1/scripts/lib/provider-routing.sh"
     for provider in codex commandcode openrouter qwen; do
         if is_api_based_provider "$provider"; then printf "%s:metered " "$provider"; else printf "%s:included " "$provider"; fi
     done
-')
+' _ "$PROJECT_ROOT")
 oauth_qwen_cost=$(env -u QWEN_API_KEY -u OPENAI_API_KEY -u OPENAI_BASE_URL bash -c '
-    source "'$PROJECT_ROOT'/scripts/lib/provider-routing.sh"
+    source "$1/scripts/lib/provider-routing.sh"
     qwen_auth_method() { printf "%s\n" oauth; }
     if is_api_based_provider qwen; then printf "%s" metered; else printf "%s" included; fi
-')
+' _ "$PROJECT_ROOT")
 if [[ "$bundled_costs" == "codex:included commandcode:included claude:included ollama:included qwen:metered " ]] &&
    [[ "$metered_costs" == "codex:metered commandcode:metered openrouter:metered qwen:metered " ]] &&
    [[ "$oauth_qwen_cost" == "included" ]]; then
@@ -99,7 +102,8 @@ else
 fi
 
 test_case "Council default provider policy is configurable"
-overridden=$(env "OCTOPUS_COUNCIL_DEFAULT_PROVIDERS=commandcode,claude" bash -c 'source "'$PROJECT_ROOT'/scripts/lib/council.sh"; printf "%s" "$COUNCIL_DEFAULT_PROVIDERS"')
+overridden=$(env "OCTOPUS_COUNCIL_DEFAULT_PROVIDERS=commandcode,claude" \
+    bash -c 'source "$1/scripts/lib/council.sh"; printf "%s" "$COUNCIL_DEFAULT_PROVIDERS"' _ "$PROJECT_ROOT")
 if [[ "$overridden" == "commandcode,claude" ]]; then test_pass; else test_fail "Council default override ignored: $overridden"; fi
 
 test_case "Council command and organization use registry"

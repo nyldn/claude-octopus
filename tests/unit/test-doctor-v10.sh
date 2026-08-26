@@ -47,7 +47,7 @@ expected_detail='repair \\ safely'
 if [[ "$DOCTOR_FIXTURE_RC" -eq 1 ]] &&
    jq -e --arg expected_detail "$expected_detail" '
       .schema_version == "10.0" and
-      .summary == {passed:0, warnings:0, failures:1, exit_code:1} and
+      .summary == {passed:0, warnings:0, failures:1, info:0, total:1, exit_code:1} and
       (.results | length == 1) and
       .results[0].name == "fixture-failure" and
       .results[0].message == "broken \"provider\"\nline two\u001b" and
@@ -63,7 +63,7 @@ test_case "warnings are structured but do not become failures"
 DOCTOR_FIXTURE=mixed run_doctor_fixture json-mixed --json providers
 if [[ "$DOCTOR_FIXTURE_RC" -eq 0 ]] &&
    jq -e '
-      .summary == {passed:1, warnings:1, failures:0, exit_code:0} and
+      .summary == {passed:1, warnings:1, failures:0, info:1, total:3, exit_code:0} and
       (.results | length == 3) and
       ([.results[].status] == ["pass", "info", "warn"])
    ' <<<"$DOCTOR_FIXTURE_STDOUT" >/dev/null 2>&1; then
@@ -114,19 +114,44 @@ fi
 
 test_case "strict plugin validation is a real failing diagnostic"
 DOCTOR_RESULTS_NAME=() DOCTOR_RESULTS_CAT=() DOCTOR_RESULTS_STATUS=() DOCTOR_RESULTS_MSG=() DOCTOR_RESULTS_DETAIL=()
-claude() {
-    [[ "${1:-}" == plugin && "${2:-}" == validate ]] || return 2
-    printf 'frontmatter schema mismatch\n' >&2
-    return 1
-}
+fake_bin="$TEST_TMP_DIR/doctor-bin"
+mkdir -p "$fake_bin"
+cat > "$fake_bin/claude" <<'SH'
+#!/usr/bin/env bash
+if [[ "${DOCTOR_CLAUDE_MODE:-fail}" == hang ]]; then sleep 30; fi
+[[ "${1:-}" == plugin && "${2:-}" == validate ]] || exit 2
+printf 'frontmatter schema mismatch\n' >&2
+exit 1
+SH
+chmod +x "$fake_bin/claude"
 if declare -f doctor_check_plugin_validation >/dev/null 2>&1; then
-    doctor_check_plugin_validation "$PROJECT_ROOT"
+    PATH="$fake_bin:$PATH" doctor_check_plugin_validation "$PROJECT_ROOT"
 fi
-unset -f claude
 if [[ "${DOCTOR_RESULTS_NAME[0]:-}" == "plugin-validation" && "${DOCTOR_RESULTS_STATUS[0]:-}" == "fail" && "${DOCTOR_RESULTS_DETAIL[0]:-}" == *"frontmatter schema mismatch"* ]]; then
     test_pass
 else
     test_fail "result=${DOCTOR_RESULTS_NAME[0]:-missing}/${DOCTOR_RESULTS_STATUS[0]:-missing} detail=${DOCTOR_RESULTS_DETAIL[0]:-}"
+fi
+
+test_case "strict plugin validation is bounded when Claude stalls"
+DOCTOR_RESULTS_NAME=() DOCTOR_RESULTS_CAT=() DOCTOR_RESULTS_STATUS=() DOCTOR_RESULTS_MSG=() DOCTOR_RESULTS_DETAIL=()
+started_at=$(date +%s)
+PATH="$fake_bin:$PATH" DOCTOR_CLAUDE_MODE=hang OCTOPUS_PLUGIN_VALIDATE_TIMEOUT=1 \
+    doctor_check_plugin_validation "$PROJECT_ROOT"
+elapsed=$(( $(date +%s) - started_at ))
+if [[ "$elapsed" -lt 5 && "${DOCTOR_RESULTS_STATUS[0]:-}" == fail ]]; then
+    test_pass
+else
+    test_fail "elapsed=${elapsed}s result=${DOCTOR_RESULTS_STATUS[0]:-missing}"
+fi
+
+test_case "JSON escaping preserves UTF-8 and control characters"
+escaped_unicode="$(doctor_json_escape $'snowman:☃ next:\u0085')"
+if jq -ne --arg expected $'snowman:☃ next:\u0085' --arg escaped "$escaped_unicode" \
+    '(("\"" + $escaped + "\"") | fromjson) == $expected' >/dev/null 2>&1; then
+    test_pass
+else
+    test_fail "escaped=$escaped_unicode"
 fi
 
 test_case "state health reports writable cache, stale runs, and orphan process evidence"
@@ -135,6 +160,8 @@ mkdir -p "$state_root/runs/stale-run"
 cat > "$state_root/runs/stale-run/seats.json" <<'JSON'
 {"schema_version":"10.0","run_id":"stale-run","seats":[{"seat_id":"spawn-known-task","transition":"running","timestamp":"2000-01-01T00:00:00Z"}],"events":[]}
 JSON
+mkdir -p "$state_root/runs/malformed-run"
+printf '{not-json\n' > "$state_root/runs/malformed-run/seats.json"
 sleep 30 &
 orphan_pid=$!
 printf '%s:fixture:orphan-task\n' "$orphan_pid" > "$state_root/pids"
@@ -146,7 +173,7 @@ fi
 kill "$orphan_pid" 2>/dev/null || true
 wait "$orphan_pid" 2>/dev/null || true
 state_results="$(for ((i=0; i<${#DOCTOR_RESULTS_NAME[@]}; i++)); do printf '%s=%s\n' "${DOCTOR_RESULTS_NAME[$i]}" "${DOCTOR_RESULTS_STATUS[$i]}"; done)"
-if [[ "$state_results" == *"probe-cache-writable=pass"* && "$state_results" == *"stale-running-records=warn"* && "$state_results" == *"orphan-processes=warn"* ]]; then
+if [[ "$state_results" == *"probe-cache-writable=pass"* && "$state_results" == *"invalid-run-snapshots=warn"* && "$state_results" == *"stale-running-records=warn"* && "$state_results" == *"orphan-processes=warn"* ]]; then
     test_pass
 else
     test_fail "results=$state_results"

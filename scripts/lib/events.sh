@@ -81,20 +81,51 @@ PY
 }
 
 # Portable best-effort exclusive lock. flock is Linux-only; mkdir is atomic on
-# every POSIX filesystem. Bounded spin (~1s) so a dead lock holder degrades to a
-# lockless write rather than hanging the caller. Returns 0 if acquired, 1 if not.
+# every POSIX filesystem. Owner metadata lets a later caller reclaim a lock
+# leaked by SIGKILL without stealing a live holder's lock.
+_octo_event_reclaim_stale_lock() {
+    local lockdir="$1" stale_secs="${OCTO_EVENT_LOCK_STALE_SECS:-30}"
+    local owner="" timestamp="" now
+    [[ "$stale_secs" =~ ^[0-9]+$ ]] || stale_secs=30
+    [[ -d "$lockdir" ]] || return 1
+
+    [[ -f "$lockdir/pid" ]] && IFS= read -r owner < "$lockdir/pid" || true
+    if [[ "$owner" =~ ^[0-9]+$ ]] && kill -0 "$owner" 2>/dev/null; then
+        return 1
+    fi
+    [[ -f "$lockdir/ts" ]] && IFS= read -r timestamp < "$lockdir/ts" || true
+    if [[ ! "$timestamp" =~ ^[0-9]+$ ]]; then
+        timestamp="$(stat -f %m "$lockdir" 2>/dev/null || stat -c %Y "$lockdir" 2>/dev/null || printf '0')"
+    fi
+    now="$(date +%s)"
+    [[ "$timestamp" =~ ^[0-9]+$ && $((now - timestamp)) -ge "$stale_secs" ]] || return 1
+
+    rm -f "$lockdir/pid" "$lockdir/ts" 2>/dev/null || return 1
+    rmdir "$lockdir" 2>/dev/null
+}
+
 _octo_event_lock() {
     local lockdir="$1.lock"
     local tries=0
     while ! mkdir "$lockdir" 2>/dev/null; do
         tries=$((tries + 1))
-        [[ "$tries" -ge 50 ]] && return 1
+        if [[ "$tries" -ge 50 ]]; then
+            _octo_event_reclaim_stale_lock "$lockdir" || return 1
+            tries=0
+        fi
         sleep 0.02 2>/dev/null || return 1
     done
+    if ! printf '%s\n' "${BASHPID:-$$}" > "$lockdir/pid" 2>/dev/null ||
+       ! date +%s > "$lockdir/ts" 2>/dev/null; then
+        rm -f "$lockdir/pid" "$lockdir/ts" 2>/dev/null || true
+        rmdir "$lockdir" 2>/dev/null || true
+        return 1
+    fi
     return 0
 }
 
 _octo_event_unlock() {
+    rm -f "$1.lock/pid" "$1.lock/ts" 2>/dev/null || true
     rmdir "$1.lock" 2>/dev/null || true
 }
 

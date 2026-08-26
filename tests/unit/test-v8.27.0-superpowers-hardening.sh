@@ -236,8 +236,16 @@ else
 fi
 
 # 7.4 README.md badge has valid version >= 8.27.0
-if grep -qE 'Version-[89][0-9]*\.[0-9]+\.[0-9]+-blue' "$PLUGIN_DIR/README.md"; then
-  pass "README.md badge shows valid version"
+README_VER=$(python3 - "$PLUGIN_DIR/README.md" <<'PY'
+import re
+import sys
+
+match = re.search(r"Version-(\d+\.\d+\.\d+)-blue", open(sys.argv[1], encoding="utf-8").read())
+print(match.group(1) if match else "")
+PY
+)
+if [[ -n "$README_VER" ]] && python3 -c "exit(0 if tuple(int(x) for x in '$README_VER'.split('.')) >= (8,27,0) else 1)" 2>/dev/null; then
+  pass "README.md badge shows valid version (is $README_VER)"
 else
   fail "README.md badge missing version badge"
 fi

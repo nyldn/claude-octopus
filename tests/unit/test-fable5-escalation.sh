@@ -173,6 +173,20 @@ else
     test_fail "expected fable then opus, got '$first' then '$second'"
 fi
 
+test_case "separate runs sharing one session do not inherit the Fable claim"
+shared_session="shared-session-fixture"
+run_one=$(OCTOPUS_SESSION_ID="$shared_session" OCTOPUS_STATE_DIR="$OCTOPUS_STATE_DIR" WORKSPACE_DIR="$WORKSPACE_DIR" bash -c "
+    source '$FEATURES_LIB'; source '$PROJECT_ROOT/scripts/lib/run-contract.sh'; source '$FABLE_LIB'
+    fable5_maybe_escalate 'claude-opus-5' 'architect' 'claude-opus' 'grasp'")
+run_two=$(OCTOPUS_SESSION_ID="$shared_session" OCTOPUS_STATE_DIR="$OCTOPUS_STATE_DIR" WORKSPACE_DIR="$WORKSPACE_DIR" bash -c "
+    source '$FEATURES_LIB'; source '$PROJECT_ROOT/scripts/lib/run-contract.sh'; source '$FABLE_LIB'
+    fable5_maybe_escalate 'claude-opus-5' 'architect' 'claude-opus' 'grasp'")
+if [[ "$run_one" == "claude-fable-5" && "$run_two" == "claude-fable-5" ]]; then
+    test_pass
+else
+    test_fail "shared session leaked a prior claim: first=$run_one second=$run_two"
+fi
+
 # Fable 5 effort applies per tool call, so xhigh widens each step's scope at 2x
 # cost rather than extending the run.
 test_case "effort clamps xhigh to high for a Fable 5 dispatch"

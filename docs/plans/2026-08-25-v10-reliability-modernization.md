@@ -114,9 +114,13 @@ its prior unrelated dirty state.
 **Step 1: Dispatch the adversarial test review**
 
 ```bash
-OCTOPUS_CODEX_MODEL=gpt-5.6-luna \
-  "$HOME/.claude-octopus/plugin/scripts/orchestrate.sh" spawn codex \
-  "Review docs/plans/2026-08-25-v10-reliability-modernization.md. Find missing failure scenarios, tests that could pass with a stub, and boundary conditions. Return findings only; do not edit files."
+if ! scripts/helpers/check-providers.sh | grep -c '^codex:available$' >/dev/null; then
+  printf '%s\n' 'BLOCKED: Codex unavailable or unauthenticated; run /octo:doctor providers.'
+else
+  OCTOPUS_CODEX_MODEL=gpt-5.6-luna \
+    "$HOME/.claude-octopus/plugin/scripts/orchestrate.sh" spawn codex \
+    "Review docs/plans/2026-08-25-v10-reliability-modernization.md. Find missing failure scenarios, tests that could pass with a stub, and boundary conditions. Return findings only; do not edit files."
+fi
 ```
 
 Expected: a real Codex dispatch artifact containing test-design findings. Verify

@@ -284,18 +284,25 @@ else
     assert_fail "4.3 marketplace.json version is semantic" "Got: $mj_version"
 fi
 
-# 4.4: CHANGELOG exists with version entries (v8.37.0 trimmed pre-8.22.0 history)
-if [[ -f "$CHANGELOG_MD" ]] && grep -qE '\[[0-9]+\.[0-9]+\.[0-9]+\]' "$CHANGELOG_MD"; then
-    assert_pass "4.4 CHANGELOG.md has version entries"
+# 4.4: CHANGELOG contains the plugin source-of-truth version
+if [[ -f "$CHANGELOG_MD" ]] && grep -F "[${pj_version}]" "$CHANGELOG_MD" >/dev/null; then
+    assert_pass "4.4 CHANGELOG.md contains current version ($pj_version)"
 else
-    assert_fail "4.4 CHANGELOG.md has version entries"
+    assert_fail "4.4 CHANGELOG.md contains current version" "Expected: [$pj_version]"
 fi
 
-# 4.5: README badge is semantic
-if grep -qE 'Version-[0-9]+\.[0-9]+\.[0-9]+' "$README_MD"; then
-    assert_pass "4.5 README.md badge is semantic"
+# 4.5: all public release versions match plugin.json
+readme_version=$(python3 - "$README_MD" <<'PY'
+import re, sys
+match = re.search(r"Version-(\d+\.\d+\.\d+)-blue", open(sys.argv[1], encoding="utf-8").read())
+print(match.group(1) if match else "")
+PY
+)
+if [[ "$pkg_version" == "$pj_version" && "$mj_version" == "$pj_version" && "$readme_version" == "$pj_version" ]]; then
+    assert_pass "4.5 release versions agree with plugin.json ($pj_version)"
 else
-    assert_fail "4.5 README.md badge is semantic"
+    assert_fail "4.5 release versions agree with plugin.json" \
+        "package=$pkg_version marketplace=$mj_version README=$readme_version plugin=$pj_version"
 fi
 
 # 4.6: plugin.json description mentions version or key capabilities
@@ -305,11 +312,11 @@ else
     assert_fail "4.6 plugin.json description has key metadata"
 fi
 
-# 4.7: CHANGELOG exists with version entries (v8.37.0 trimmed pre-8.22.0 history)
-if [[ -f "$CHANGELOG_MD" ]] && grep -qE '\[[0-9]+\.[0-9]+\.[0-9]+\]' "$CHANGELOG_MD"; then
-    assert_pass "4.7 CHANGELOG has version entries"
+# 4.7: CHANGELOG exact-version guard remains explicit
+if [[ -f "$CHANGELOG_MD" ]] && grep -F "[${pj_version}]" "$CHANGELOG_MD" >/dev/null; then
+    assert_pass "4.7 CHANGELOG has current release entry"
 else
-    assert_fail "4.7 CHANGELOG has version entries"
+    assert_fail "4.7 CHANGELOG has current release entry"
 fi
 
 # 4.8: CHANGELOG has recent entries

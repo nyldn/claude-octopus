@@ -103,6 +103,17 @@ fi
 assert_terminal "placeholder failure records an exact reason" \
     spawn-task-unusable failed none "Provider returned unusable output"
 
+octo_spawn_contract_begin "task-wrapper-only" codex-standard gpt-5.6-luna low probe reviewer
+wrapper_output="$RESULTS_DIR/wrapper-only.md"
+printf '%s\n' '# Agent: codex' '' '## Status: SUCCESS' > "$wrapper_output"
+test_case "wrapper headers cannot validate unusable provider output"
+if ! octo_spawn_contract_finish "spawn-task-wrapper-only" success "$wrapper_output" "" "" 0 4 "" "$placeholder_output" &&
+   [[ "$(run_contract_latest_transition spawn-task-wrapper-only)" == failed ]]; then
+    test_pass
+else
+    test_fail "rendered headers made placeholder provider output eligible"
+fi
+
 # A native teammate is dispatch evidence only. The real hook must capture and
 # validate the result before it becomes synthesis eligible.
 native_result="$RESULTS_DIR/claude-native-task.md"

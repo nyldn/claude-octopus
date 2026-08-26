@@ -237,8 +237,13 @@ fable5_escalation_candidate() {
 # isolated library tests without a run contract retain the process-local marker.
 fable5_claim_escalation() {
     if declare -f octo_run_contract_dir >/dev/null 2>&1; then
-        local marker
-        marker="$(octo_run_contract_dir)/.fable5-escalated"
+        local marker claim_scope
+        # A session ID can outlive several orchestrator invocations. Use the
+        # explicit run ID when present; otherwise scope the one-seat claim to
+        # this orchestrator process (stable across its subshells/backgrounds).
+        claim_scope="${OCTOPUS_RUN_ID:-process-$$}"
+        claim_scope="$(printf '%s' "$claim_scope" | sed 's/[^A-Za-z0-9_.:-]/_/g')"
+        marker="$(octo_run_contract_dir)/.fable5-escalated-${claim_scope}"
         mkdir -p "$(dirname "$marker")" 2>/dev/null || return 1
         if mkdir "$marker" 2>/dev/null; then
             export _OCTO_FABLE5_ESCALATED=1
@@ -256,40 +261,8 @@ fable5_claim_escalation() {
 # model untouched otherwise. Always succeeds so callers can use it inline.
 fable5_maybe_escalate() {
     local model="${1:-}" role="${2:-}" agent_type="${3:-}" phase="${4:-}"
-
-    # Escalation only ever upgrades the default Opus seat. Anything else (an
-    # explicit pin to another model, a Sonnet seat, an already-Fable model) is
-    # left exactly as resolved.
-    if [[ "$model" != "claude-opus-5" && "$model" != "claude-opus.5" ]]; then
-        printf '%s\n' "$model"; return 0
-    fi
-
-    # An explicit user/session pin is Tier 1 and outranks a release default;
-    # upgrading past it would violate "user config beats defaults".
-    if [[ -n "${OCTOPUS_OPUS_MODEL:-}" ]]; then
-        printf '%s\n' "$model"; return 0
-    fi
-
-    fable5_escalation_consented        || { printf '%s\n' "$model"; return 0; }
-    fable5_escalation_role_eligible "$role" || { printf '%s\n' "$model"; return 0; }
-
-    # Security work never escalates. maybe_reroute would catch it downstream,
-    # but refusing here keeps the reason in one place and avoids a pointless
-    # upgrade-then-downgrade in the logs.
-    if fable5_is_security_dispatch "$role" "$agent_type" "$phase"; then
-        printf '%s\n' "$model"; return 0
-    fi
-
-    # Headroom is reactive: there is no endpoint that reports remaining Fable 5
-    # usage on a Claude seat, so a rate-limited dispatch marks the model dead
-    # (quota-watcher) and escalation stands down for the rest of the TTL.
-    if declare -f octo_quota_is_dead >/dev/null 2>&1 \
-       && octo_quota_is_dead "$FABLE5_MODEL_ID"; then
-        if declare -f log >/dev/null 2>&1; then
-            log "WARN" "Fable 5 headroom exhausted; continuing on ${model} for this session"
-        fi
-        printf '%s\n' "$model"; return 0
-    fi
+    fable5_escalation_candidate "$model" "$role" "$agent_type" "$phase" \
+        || { printf '%s\n' "$model"; return 0; }
 
     # One escalated dispatch per durable run. Councils, debates and review
     # fleets fan out over many seats; escalating each one is precisely the

@@ -33,6 +33,9 @@ probe_result_file_status() {
         if [[ "$contract_rc" -eq 1 ]]; then
             echo "failed:contract-ineligible"
             return 0
+        elif [[ "$contract_rc" -eq 3 ]]; then
+            echo "failed:contract-evaluation-error"
+            return 0
         fi
     fi
 

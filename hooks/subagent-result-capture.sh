@@ -159,7 +159,7 @@ if [[ -n "$CONTRACT_SEAT_ID" ]]; then
         contributed|degraded|skipped|failed|timeout|cancelled) ;;
         *)
             if [[ "$HOOK_CONTRACT_STATUS" == "completed" ]]; then
-                if ! octo_run_contract_finish_background "$CONTRACT_SEAT_ID" success "$RESULT_FILE" "" "" 0 ""; then
+                if ! octo_run_contract_finish_background "$CONTRACT_SEAT_ID" success "$RESULT_FILE" "" "" 0 "" "" "$MESSAGE_CHECK"; then
                     HOOK_CONTRACT_STATUS="failed"
                 fi
             else

@@ -193,7 +193,7 @@ set +e
 sync_output=$(
     source "$PROJECT_ROOT/scripts/lib/state-root.sh"
 
-    log() { :; }
+    log() { printf '%s\n' "$2" >&2; }
     apply_persona() { printf '%s' "$2"; }
     get_persona_override() { return 1; }
     load_earned_skills() { :; }
@@ -213,13 +213,15 @@ sync_output=$(
 
     # shellcheck source=/dev/null
     source "$PROJECT_ROOT/scripts/lib/agent-sync.sh"
-    run_agent_sync claude "Reply exactly SANDBOX_PROVIDER_OK" 30 reviewer review
-) 2>"$TEST_TMP_DIR/sync.stderr"
+    run_agent_sync claude "Reply exactly SANDBOX_PROVIDER_OK" 30 reviewer review \
+        2>"$TEST_TMP_DIR/sync.stderr"
+)
 sync_rc=$?
 set -e
 
 if [[ "$sync_rc" -eq 74 ]] && [[ -z "$sync_output" ]] && \
-   [[ ! -s "$TEST_TMP_DIR/sync.stderr" ]]; then
+   grep -Fxc 'Persistence unavailable; refusing untracked provider dispatch for claude' \
+       "$TEST_TMP_DIR/sync.stderr" >/dev/null; then
     test_pass
 else
     test_fail "restricted synchronous dispatch failed (rc=$sync_rc, output=$sync_output, stderr=$(<"$TEST_TMP_DIR/sync.stderr"))"

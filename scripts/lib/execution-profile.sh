@@ -120,7 +120,9 @@ octo_route_decision() {
 
   provider="$(_octo_route_provider_for_model "$model")"
   if [[ "$requires_independent" == true && "$coverage" != independent ]]; then
-    if [[ -n "$author_model" && "$(octo_model_family "$author_model")" == "$(octo_model_family "$model")" ]]; then
+    if [[ "$model" == retain-current ]]; then
+      coverage="degraded-verifier-unresolved"
+    elif [[ -n "$author_model" && "$(octo_model_family "$author_model")" == "$(octo_model_family "$model")" ]]; then
       coverage="degraded-same-family"
     elif [[ -n "$author_model" ]]; then
       coverage="independent"

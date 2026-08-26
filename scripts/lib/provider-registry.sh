@@ -375,9 +375,10 @@ EOF
     done <<EOF
 $(octo_provider_limitations_rows)
 EOF
-    local runtime_ids auth health detect model_env resolver context cost sandbox independence
-    runtime_ids="$(octo_provider_runtime_ids)"
-    [[ "$runtime_ids" == "$(octo_provider_ids)" ]] || {
+    local runtime_ids registry_ids auth health detect model_env resolver context cost sandbox independence
+    runtime_ids="$(octo_provider_runtime_ids | tr ' ' '\n' | LC_ALL=C sort)"
+    registry_ids="$(octo_provider_ids | tr ' ' '\n' | LC_ALL=C sort)"
+    [[ "$runtime_ids" == "$registry_ids" ]] || {
         echo "provider registry: runtime metadata inventory differs from canonical provider inventory" >&2
         return 1
     }

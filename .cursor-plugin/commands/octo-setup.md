@@ -45,8 +45,25 @@ failed diagnostics exit `1`, capture the status explicitly instead of using it
 as an errexit boundary:
 
 ```bash
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
+if [[ ! -x "$OCTO_ROOT/scripts/orchestrate.sh" ]]; then
+  OCTO_ROOT="${HOME}/.claude-octopus/plugin"
+fi
+if [[ ! -x "$OCTO_ROOT/scripts/orchestrate.sh" ]]; then
+  helper="${HOME}/.claude-octopus/plugin/scripts/helpers/ensure-plugin-root.sh"
+  if [[ ! -x "$helper" ]]; then
+    helper="$(find "${HOME}/.claude/plugins/cache" "${HOME}/Library/Application Support/Claude" "${LOCALAPPDATA:-/dev/null}/Claude" "${XDG_DATA_HOME:-${HOME}/.local/share}/Claude" -maxdepth 8 -path "*/nyldn-plugins/octo/*/scripts/helpers/ensure-plugin-root.sh" -print -quit 2>/dev/null)"
+  fi
+  [[ -x "$helper" ]] && bash "$helper" >/dev/null 2>&1 || true
+fi
+[[ -x "$OCTO_ROOT/scripts/orchestrate.sh" ]] || {
+  echo "plugin-root:missing"
+  exit 1
+}
+export CLAUDE_PLUGIN_ROOT="$OCTO_ROOT"
+
 set +e
-DOCTOR_JSON="$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh" doctor --json 2>/dev/null)"
+DOCTOR_JSON="$(bash "${OCTO_ROOT}/scripts/orchestrate.sh" doctor --json 2>/dev/null)"
 DOCTOR_EXIT=$?
 set -e
 if ! jq -e '.schema_version == "10.0" and (.summary.exit_code == 0 or .summary.exit_code == 1)' \
@@ -66,7 +83,7 @@ set -euo pipefail
 
 echo "=== Provider Detection ==="
 printf "codex:%s\n" "$(command -v codex >/dev/null 2>&1 && echo installed || echo missing)"
-printf "codex_auth:%s\n" "$(codex --version >/dev/null 2>&1 && echo ok || echo none)"
+printf "codex_auth:%s\n" "$(jq -r '[.results[] | select(.name == "codex-auth")][0].status // "unknown"' <<<"${DOCTOR_JSON:-{}}" 2>/dev/null || echo unknown)"
 printf "agy:%s\n" "$(command -v agy >/dev/null 2>&1 && echo installed || echo missing)"
 printf "agy_model:%s\n" "${OCTOPUS_AGY_MODEL:-}"
 printf "perplexity:%s\n" "$([ -n "${PERPLEXITY_API_KEY:-}" ] && echo configured || echo missing)"
@@ -528,10 +545,12 @@ If the output is `plugin-root:missing`, stop and ask the user to reinstall `octo
 ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh detect-providers
 ```
 
-Show final summary:
+Show the final summary only after rerunning Doctor. Use the success heading only
+when its reported exit code is zero; otherwise preserve the warning/failure
+counts and direct the user to the remaining checks:
 
 ```
-✅ Setup Complete!
+[✅ Setup Complete! / ⚠️ Setup Needs Attention]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Providers: X active (Codex, Antigravity, ...)
 RTK: [Active / Not installed]

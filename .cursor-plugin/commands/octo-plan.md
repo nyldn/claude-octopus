@@ -16,6 +16,14 @@ disable-model-invocation: true
 
 ## 🤖 INSTRUCTIONS FOR CLAUDE
 
+### Provider preflight
+
+Before launching any Codex or other provider-backed planning seat, run
+`${CLAUDE_PLUGIN_ROOT}/scripts/helpers/check-providers.sh`. If the selected
+provider is unavailable or unauthenticated, keep the plan in Claude-only mode,
+name the failed preflight, and offer `/octo:setup` or `/octo:doctor providers`
+as the recovery path. Do not describe an unstarted provider seat as completed.
+
 ### MANDATORY: Detect Plan Mode Write Conflict Before Starting
 
 **THIS CHECK RUNS FIRST — before intent capture, before any artifact write.**

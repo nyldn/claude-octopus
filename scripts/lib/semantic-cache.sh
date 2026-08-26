@@ -32,7 +32,7 @@ if ! type octo_probe_cache_dir >/dev/null 2>&1; then
         if [[ -z "$workspace" ]] && type resolve_octopus_workspace >/dev/null 2>&1; then
             workspace="$(resolve_octopus_workspace 2>/dev/null || true)"
         fi
-        [[ -n "$workspace" ]] || workspace="${HOME}/.claude-octopus"
+        [[ -n "$workspace" ]] || workspace="${HOME:-${TMPDIR:-/tmp}}/.claude-octopus"
         printf '%s/.cache/probe-results\n' "${workspace%/}"
     }
 fi
@@ -74,7 +74,7 @@ check_cache_semantic() {
         fi
     done
 
-    if [[ -n "$best_key" ]]; then
+    if [[ -n "$best_key" ]] && check_cache "$best_key" >/dev/null 2>&1; then
         log "DEBUG" "Semantic cache hit: similarity=$best_sim for key=$best_key"
         echo "$best_key"
         return 0
@@ -202,10 +202,16 @@ save_to_cache() {
     }
 
     if ! cp "$result_file" "$cache_tmp" 2>/dev/null ||
-       ! date +%s > "$meta_tmp" 2>/dev/null ||
-       ! mv "$cache_tmp" "$cache_file" 2>/dev/null ||
-       ! mv "$meta_tmp" "$cache_meta" 2>/dev/null; then
+       ! date +%s > "$meta_tmp" 2>/dev/null; then
         rm -f "$cache_tmp" "$meta_tmp"
+        return 1
+    fi
+    if ! mv "$cache_tmp" "$cache_file" 2>/dev/null; then
+        rm -f "$cache_tmp" "$meta_tmp"
+        return 1
+    fi
+    if ! mv "$meta_tmp" "$cache_meta" 2>/dev/null; then
+        rm -f "$cache_file" "$meta_tmp"
         return 1
     fi
 
@@ -232,7 +238,7 @@ cleanup_cache() {
 
         if [[ $age -gt $CACHE_TTL ]]; then
             local base="${meta_file%.meta}"
-            rm -f "$base.md" "$meta_file"
+            rm -f "$base.md" "$base.bigrams" "$meta_file"
             ((cleaned++)) || true
         fi
     done

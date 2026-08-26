@@ -1192,7 +1192,7 @@ ${heuristic_ctx}"
                 local _contract_outcome="success"
                 [[ "$_octo_success_status" == "degraded" ]] && _contract_outcome="degraded"
                 if ! octo_spawn_contract_finish "$_contract_seat_id" "$_contract_outcome" \
-                    "$result_file" "$temp_errors" "$_octo_success_reason" "$exit_code" "$elapsed_ms"; then
+                    "$result_file" "$temp_errors" "$_octo_success_reason" "$exit_code" "$elapsed_ms" "" "$temp_output"; then
                     _octo_success_status="failed"
                     _octo_success_reason="Execution contract persistence failed"
                     exit_code=74

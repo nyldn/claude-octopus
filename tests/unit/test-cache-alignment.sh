@@ -65,6 +65,66 @@ else
   test_fail "rc=$cache_failure_rc output=$cache_failure_output"
 fi
 
+test_case "a failed metadata install removes the uncommitted cache result"
+partial_root="$TEST_TMP_DIR/cache-partial"
+mkdir -p "$partial_root/.cache/probe-results"
+set +e
+partial_output=$(WORKSPACE_DIR="$partial_root" CACHE_TTL=3600 bash -c '
+  log() { :; }
+  source "$1"
+  mv() {
+    [[ "${2:-}" == *.meta ]] && return 1
+    command mv "$@"
+  }
+  save_to_cache fixture "$2"
+' _ "$SEMANTIC_CACHE_SH" "$cache_source_file" 2>&1)
+partial_rc=$?
+set -e
+if [[ "$partial_rc" -ne 0 && ! -e "$partial_root/.cache/probe-results/fixture.md" && ! -e "$partial_root/.cache/probe-results/fixture.meta" ]]; then
+  test_pass
+else
+  test_fail "rc=$partial_rc files=$(find "$partial_root/.cache/probe-results" -maxdepth 1 -type f -print | tr '\n' ' ') output=$partial_output"
+fi
+
+test_case "semantic lookup ignores orphaned bigram sidecars"
+orphan_root="$TEST_TMP_DIR/cache-orphan"
+mkdir -p "$orphan_root/.cache/probe-results"
+printf '%s\n' 'same prompt' > "$orphan_root/.cache/probe-results/orphan.bigrams"
+set +e
+orphan_output=$(WORKSPACE_DIR="$orphan_root" OCTOPUS_SEMANTIC_CACHE=true \
+  bash -c '
+    log() { :; }
+    source "$1"
+    bigram_similarity() { printf "1\n"; }
+    check_cache_semantic "same prompt"
+  ' _ "$SEMANTIC_CACHE_SH" 2>&1)
+orphan_rc=$?
+set -e
+if [[ "$orphan_rc" -ne 0 && -z "$orphan_output" ]]; then
+  test_pass
+else
+  test_fail "rc=$orphan_rc output=$orphan_output"
+fi
+
+test_case "cache expiry removes semantic sidecars"
+expired_root="$TEST_TMP_DIR/cache-expired"
+mkdir -p "$expired_root/.cache/probe-results"
+printf '%s\n' 'expired result' > "$expired_root/.cache/probe-results/expired.md"
+printf '%s\n' '0' > "$expired_root/.cache/probe-results/expired.meta"
+printf '%s\n' 'expired prompt' > "$expired_root/.cache/probe-results/expired.bigrams"
+WORKSPACE_DIR="$expired_root" CACHE_TTL=1 bash -c '
+  log() { :; }
+  source "$1"
+  cleanup_cache
+' _ "$SEMANTIC_CACHE_SH"
+if [[ ! -e "$expired_root/.cache/probe-results/expired.md" && \
+      ! -e "$expired_root/.cache/probe-results/expired.meta" && \
+      ! -e "$expired_root/.cache/probe-results/expired.bigrams" ]]; then
+  test_pass
+else
+  test_fail "expired cache entry left semantic sidecars"
+fi
+
 test_case "failed probe persistence is non-fatal and never claims a cache hit"
 cache_report_manifest="$TEST_TMP_DIR/cache-report-manifest"
 set +e

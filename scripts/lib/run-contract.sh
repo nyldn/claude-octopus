@@ -118,7 +118,8 @@ run_contract_contribution_eligible() {
 
 # Return 0 when exactly one seat owns this artifact and its latest transition
 # permits synthesis, 1 when a matching seat exists but is ineligible or the
-# artifact is ambiguous, and 2 when no v10 contract record owns the file.
+# artifact is ambiguous, 2 when no v10 contract record owns the file, and 3
+# when the contract ledger cannot be evaluated. Evaluation errors fail closed.
 run_contract_output_file_eligible() {
     local output_file="${1:-}" ledger records count
     ledger="$(octo_run_contract_ledger_path)"
@@ -126,14 +127,18 @@ run_contract_output_file_eligible() {
     records="$(jq -sc --arg output "$output_file" '
         reduce .[] as $record ({}; .[$record.seat_id] = $record)
         | [.[] | select(.artifacts.output == $output)]
-    ' "$ledger" 2>/dev/null)" || return 1
-    count="$(jq -r 'length' <<< "$records" 2>/dev/null)" || return 1
+    ' "$ledger" 2>/dev/null)" || return 3
+    count="$(jq -r 'length' <<< "$records" 2>/dev/null)" || return 3
     [[ "$count" -gt 0 ]] || return 2
     [[ "$count" -eq 1 ]] || return 1
     jq -e '
         (.[0].transition == "contributed" and .[0].contribution == "eligible") or
         (.[0].transition == "degraded" and .[0].contribution == "eligible-with-warning")
-    ' <<< "$records" >/dev/null 2>&1
+    ' <<< "$records" >/dev/null 2>&1 || {
+        local rc=$?
+        [[ "$rc" -eq 1 ]] && return 1
+        return 3
+    }
 }
 
 # Finalize a background seat from durable provider artifacts. This lives in the
@@ -143,10 +148,11 @@ octo_run_contract_finish_background() {
     local seat_id="${1:-}" outcome="${2:-failed}" output_file="${3:-}"
     local stderr_file="${4:-}" reason="${5:-}" exit_code="${6:-1}"
     local duration_ms="${7:-}" cleanup_result="${8:-}" terminal_reason
+    local provider_output_file="${9:-$output_file}"
 
     case "$outcome" in
         success|degraded)
-            if ! _octo_run_output_usable_file "$output_file"; then
+            if ! _octo_run_output_usable_file "$provider_output_file"; then
                 terminal_reason="${reason:-Provider returned unusable output}"
                 run_contract_transition "$seat_id" failed \
                     "output_file=$output_file" "stderr_file=$stderr_file" \
@@ -642,11 +648,28 @@ run_contract_transition() (
         }
     ')" || return 1
 
+    local ledger_backup ledger_existed=false
+    ledger_backup="$(mktemp "${ledger}.rollback.XXXXXX")" || return 1
+    if [[ -f "$ledger" ]]; then
+        ledger_existed=true
+        cat "$ledger" > "$ledger_backup" 2>/dev/null || { rm -f "$ledger_backup"; return 1; }
+    fi
+
     if ! printf '%s\n' "$record" >> "$ledger" 2>/dev/null; then
+        rm -f "$ledger_backup"
         return 1
     fi
 
-    _octo_run_contract_snapshot_unlocked >/dev/null || return 1
+    if ! _octo_run_contract_snapshot_unlocked >/dev/null; then
+        if [[ "$ledger_existed" == true ]]; then
+            cat "$ledger_backup" > "$ledger" 2>/dev/null || true
+        else
+            rm -f "$ledger" 2>/dev/null || true
+        fi
+        rm -f "$ledger_backup"
+        return 1
+    fi
+    rm -f "$ledger_backup"
     _octo_event_unlock "$lock_target"
     trap - EXIT
     return 0

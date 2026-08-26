@@ -62,10 +62,14 @@ else
 fi
 
 test_case "Fable input gate rejects a prompt one byte over the ceiling"
-if bash -c 'source "$1"; ! fable5_prompt_within_budget 524289' _ "$FABLE_LIB"; then
+set +e
+bash -c 'source "$1"; fable5_prompt_within_budget 524289' _ "$FABLE_LIB"
+over_rc=$?
+set -e
+if [[ "$over_rc" -eq 1 ]]; then
     test_pass
 else
-    test_fail "524289 bytes must be rejected by the default ceiling"
+    test_fail "524289 bytes must be rejected with status 1, got $over_rc"
 fi
 
 test_case "Fable input gate rejects an invalid configured ceiling"
@@ -93,6 +97,14 @@ if [[ "$agent_spec_bytes" == 4 ]]; then
     test_pass
 else
     test_fail "expected agent-spec to measure two UTF-8 characters as 4 bytes, got ${agent_spec_bytes:-<empty>}"
+fi
+
+test_case "retain-current never claims independent review coverage"
+retain_decision="$(bash -c 'source "$1"; octo_route_decision review off "" "" true gpt-5.6-sol ""' _ "$PROFILE_LIB")"
+if jq -e '.model == "retain-current" and .coverage == "degraded-verifier-unresolved"' <<< "$retain_decision" >/dev/null; then
+    test_pass
+else
+    test_fail "unresolved verifier claimed coverage: $retain_decision"
 fi
 
 test_case "both synchronous and background dispatch pass byte counts to command routing"

@@ -226,7 +226,7 @@ classify_agent_output() {
     local stderr_file="${4:-}"
 
     if [[ "$agent" == codex* ]] && octo_file_has_codex_stdin_closed "$stderr_file"; then
-        if [[ -s "$output_file" ]] && grep -q '[[:alnum:]]' "$output_file" 2>/dev/null; then
+        if [[ -s "$output_file" ]] && grep -c '[[:alnum:]]' "$output_file" >/dev/null 2>&1; then
             echo "degraded:Codex stdin closed after substantive output was captured"
         else
             echo "failed:Codex tool stdin closed (avoid write_stdin in non-interactive sessions)"

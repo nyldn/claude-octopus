@@ -179,9 +179,27 @@ expect_transition_rejected_without_mutation \
     "planned cannot jump directly to running" \
     seat-4 running
 
-# Deterministically hold an older snapshot immediately before publication while
-# a newer transition appends and snapshots. The final snapshot must never move
-# backward to the older view.
+test_case "snapshot publication failure rolls back the appended transition"
+run_contract_transition rollback-seat planned >/dev/null
+rollback_before="$(cksum "$ledger")"
+snapshot_impl="$(declare -f _octo_run_contract_snapshot_unlocked)"
+_octo_run_contract_snapshot_unlocked() { return 1; }
+set +e
+run_contract_transition rollback-seat starting >/dev/null 2>&1
+rollback_rc=$?
+set -e
+unset -f _octo_run_contract_snapshot_unlocked
+eval "$snapshot_impl"
+if [[ "$rollback_rc" -ne 0 && "$(cksum "$ledger")" == "$rollback_before" &&
+      "$(run_contract_latest_transition rollback-seat)" == planned ]]; then
+    test_pass
+else
+    test_fail "failed snapshot left an eligible ledger transition"
+fi
+
+# Hold snapshot publication while a later transition waits on the same contract
+# lock. This verifies the serialization invariant that prevents stale writes on
+# production paths.
 snapshot_gate="$TEST_TMP_DIR/snapshot-publish-entered"
 snapshot_release="$TEST_TMP_DIR/snapshot-publish-release"
 mv() {
@@ -209,11 +227,11 @@ wait "$stale_snapshot_pid"
 wait "$new_transition_pid"
 unset -f mv
 
-test_case "concurrent snapshot publication cannot regress durable state"
+test_case "the contract lock serializes snapshot publication before later transitions"
 if jq -e '.seats | any(.seat_id == "race-seat" and .transition == "planned")' "$snapshot" >/dev/null; then
     test_pass
 else
-    test_fail "an older concurrent snapshot overwrote the newer seat state"
+    test_fail "serialized snapshot publication lost the later seat state"
 fi
 
 terminal_edges='planned skipped

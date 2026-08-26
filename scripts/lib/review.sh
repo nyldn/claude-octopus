@@ -361,6 +361,23 @@ octo_terminate_process_tree() {
     review_terminate_process_tree "$root_pid" "$grace_secs"
     wait "$root_pid" 2>/dev/null || true
 
+    # SIGKILL delivery and reaping are asynchronous for descendants that were
+    # reparented when the root exited. Allow a bounded settle window before
+    # deciding that any member survived.
+    local settle_tick any_running
+    for settle_tick in $(seq 1 50); do
+        any_running=false
+        while IFS= read -r target_pid; do
+            [[ "$target_pid" =~ ^[0-9]+$ ]] || continue
+            if review_process_is_running "$target_pid"; then
+                any_running=true
+                break
+            fi
+        done <<< "$process_tree"
+        [[ "$any_running" == false ]] && break
+        sleep 0.1
+    done
+
     while IFS= read -r target_pid; do
         [[ "$target_pid" =~ ^[0-9]+$ ]] || continue
         if review_process_is_running "$target_pid"; then

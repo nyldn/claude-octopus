@@ -23,7 +23,7 @@ test_output_cap_default() {
 
 test_output_cap_disable_sentinel() {
     test_case "cap honours 0 as disable sentinel"
-    if grep -q '_max_bytes -gt 0' "$AGENT_SYNC"; then
+    if grep -q '"\$_max_bytes" -gt 0' "$AGENT_SYNC"; then
         test_pass
     else
         test_fail "missing '\$_max_bytes -gt 0' guard"
@@ -31,18 +31,18 @@ test_output_cap_disable_sentinel() {
 }
 
 test_output_cap_bash3_compat() {
-    test_case "substring extraction uses bash-3.x-compatible positive offset"
-    if grep -qE 'output:\$_tail_start:\$_tail_bytes' "$AGENT_SYNC" \
-       && ! grep -qE 'output: -' "$AGENT_SYNC"; then
+    test_case "byte extraction uses portable head and tail counts"
+    if grep -q 'head -c "\$_head_bytes"' "$AGENT_SYNC" \
+       && grep -q 'tail -c "\$_tail_bytes"' "$AGENT_SYNC"; then
         test_pass
     else
-        test_fail "must use positive-offset \${output:start:len}, not negative \${output: -n}"
+        test_fail "must use byte-oriented head/tail extraction"
     fi
 }
 
 test_output_cap_tail_bias() {
     test_case "truncation preserves tail (deliverable summary)"
-    if grep -qE '_tail_start=\$\(\( _orig_bytes - _tail_bytes \)\)' "$AGENT_SYNC"; then
+    if grep -q '_tail_bytes=\$((_budget - _head_bytes))' "$AGENT_SYNC"; then
         test_pass
     else
         test_fail "tail-bias start calculation not found"
@@ -51,7 +51,7 @@ test_output_cap_tail_bias() {
 
 test_output_cap_banner_measured() {
     test_case "banner byte-length is measured (not assumed) to bound final output"
-    if grep -q '_banner_bytes=\${#_banner}' "$AGENT_SYNC" \
+    if grep -q '_banner_bytes=.*wc -c' "$AGENT_SYNC" \
        && grep -q '_budget=\$((_max_bytes - _banner_bytes))' "$AGENT_SYNC"; then
         test_pass
     else

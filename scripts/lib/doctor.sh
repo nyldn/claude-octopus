@@ -54,7 +54,7 @@ doctor_add() {
 
 doctor_check_plugin_validation() {
     local plugin_root="${1:-${PLUGIN_DIR:-}}" output="" help_output="" rc=0 detail=""
-    local strict_flag=""
+    local strict_flag="" probe_timeout term_timeout kill_grace=0
     [[ -n "$plugin_root" ]] || plugin_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
     if ! command -v claude >/dev/null 2>&1; then
@@ -63,12 +63,24 @@ doctor_check_plugin_validation() {
         return 0
     fi
 
-    help_output="$(claude plugin validate --help </dev/null 2>&1 || true)"
+    probe_timeout="$(_octo_bare_probe_timeout "${OCTOPUS_PLUGIN_VALIDATE_TIMEOUT:-20}")"
+    term_timeout="$probe_timeout"
+    if [[ "$probe_timeout" -gt 2 ]]; then
+        kill_grace=2
+        term_timeout=$((probe_timeout - kill_grace))
+    fi
+    help_output="$(_octo_run_bare_probe_with_timeout \
+        "$probe_timeout" "$term_timeout" "$kill_grace" \
+        claude plugin validate --help </dev/null 2>&1 || true)"
     [[ "$help_output" == *"--strict"* ]] && strict_flag="--strict"
     if [[ -n "$strict_flag" ]]; then
-        output="$(claude plugin validate "$strict_flag" "$plugin_root" </dev/null 2>&1)" || rc=$?
+        output="$(_octo_run_bare_probe_with_timeout \
+            "$probe_timeout" "$term_timeout" "$kill_grace" \
+            claude plugin validate "$strict_flag" "$plugin_root" </dev/null 2>&1)" || rc=$?
     else
-        output="$(claude plugin validate "$plugin_root" </dev/null 2>&1)" || rc=$?
+        output="$(_octo_run_bare_probe_with_timeout \
+            "$probe_timeout" "$term_timeout" "$kill_grace" \
+            claude plugin validate "$plugin_root" </dev/null 2>&1)" || rc=$?
     fi
     detail="$(printf '%s\n' "$output" | sed -n '1,5p')"
     if [[ "$rc" -eq 0 ]]; then
@@ -93,7 +105,8 @@ _doctor_iso_epoch() {
 doctor_check_v10_state_health() {
     local workspace="${WORKSPACE_DIR:-${HOME}/.claude-octopus}" cache_dir=""
     local now stale_after snapshot seat_id timestamp _transition epoch
-    local running_ids="" running_count=0 stale_count=0
+    local running_ids="" running_count=0 stale_count=0 invalid_snapshot_count=0
+    local snapshot_rows=""
     local pid_file="${PID_FILE:-${workspace}/pids}" pid _agent task
     local orphan_count=0 stale_pid_count=0
 
@@ -115,6 +128,10 @@ doctor_check_v10_state_health() {
     if command -v jq >/dev/null 2>&1 && [[ -d "$workspace/runs" ]]; then
         for snapshot in "$workspace"/runs/*/seats.json; do
             [[ -f "$snapshot" ]] || continue
+            if ! snapshot_rows="$(jq -r '.seats[]? | select(.transition | IN("contributed", "degraded", "skipped", "failed", "timeout", "cancelled") | not) | [.seat_id, .transition, (.timestamp // "")] | @tsv' "$snapshot" 2>/dev/null)"; then
+                ((invalid_snapshot_count++)) || true
+                continue
+            fi
             while IFS=$'\t' read -r seat_id _transition timestamp; do
                 [[ -n "$seat_id" ]] || continue
                 ((running_count++)) || true
@@ -123,8 +140,13 @@ doctor_check_v10_state_health() {
                 if [[ "$epoch" -eq 0 || $((now - epoch)) -gt "$stale_after" ]]; then
                     ((stale_count++)) || true
                 fi
-            done < <(jq -r '.seats[]? | select(.transition | IN("contributed", "degraded", "skipped", "failed", "timeout", "cancelled") | not) | [.seat_id, .transition, (.timestamp // "")] | @tsv' "$snapshot" 2>/dev/null || true)
+            done <<< "$snapshot_rows"
         done
+    fi
+    if [[ "$invalid_snapshot_count" -gt 0 ]]; then
+        doctor_add "invalid-run-snapshots" "state" "warn" \
+            "$invalid_snapshot_count unreadable or malformed run snapshot(s)" \
+            "Inspect ${workspace}/runs; malformed state was excluded from stale-run analysis"
     fi
     if [[ "$stale_count" -gt 0 ]]; then
         doctor_add "stale-running-records" "state" "warn" \
@@ -139,7 +161,8 @@ doctor_check_v10_state_health() {
         while IFS=: read -r pid _agent task; do
             [[ "$pid" =~ ^[0-9]+$ ]] || continue
             if kill -0 "$pid" 2>/dev/null; then
-                if ! grep -Fxq "spawn-${task}" <<< "$running_ids" && ! grep -Fxq "$task" <<< "$running_ids"; then
+                if ! grep -Fxc "spawn-${task}" <<< "$running_ids" >/dev/null && \
+                   ! grep -Fxc "$task" <<< "$running_ids" >/dev/null; then
                     ((orphan_count++)) || true
                 fi
             else
@@ -2038,6 +2061,11 @@ doctor_output_human() {
 # --- Output: JSON ---
 doctor_json_escape() {
     local value="${1:-}"
+    if command -v jq >/dev/null 2>&1; then
+        jq -Rrn --arg value "$value" '$value | tojson | .[1:-1]' && return 0
+    fi
+
+    local LC_ALL=C
     local out="" ch ord escaped i
     for ((i=0; i<${#value}; i++)); do
         ch="${value:i:1}"
@@ -2065,7 +2093,7 @@ doctor_json_escape() {
 
 doctor_output_json() {
     local total=${#DOCTOR_RESULTS_NAME[@]}
-    local pass_count=0 warn_count=0 fail_count=0 exit_code=0
+    local pass_count=0 warn_count=0 fail_count=0 info_count=0 exit_code=0
     local json="["
     for ((i=0; i<total; i++)); do
         [[ $i -gt 0 ]] && json+=","
@@ -2079,13 +2107,14 @@ doctor_output_json() {
             pass) ((++pass_count)) ;;
             warn) ((++warn_count)) ;;
             fail) ((++fail_count)) ;;
+            *) ((++info_count)) ;;
         esac
         json+="{\"name\":\"$name\",\"category\":\"$cat\",\"status\":\"$status\",\"message\":\"$msg\",\"detail\":\"$detail\"}"
     done
     json+="]"
     [[ $fail_count -gt 0 ]] && exit_code=1
-    printf '{"schema_version":"10.0","summary":{"passed":%d,"warnings":%d,"failures":%d,"exit_code":%d},"results":%s}\n' \
-        "$pass_count" "$warn_count" "$fail_count" "$exit_code" "$json"
+    printf '{"schema_version":"10.0","summary":{"passed":%d,"warnings":%d,"failures":%d,"info":%d,"total":%d,"exit_code":%d},"results":%s}\n' \
+        "$pass_count" "$warn_count" "$fail_count" "$info_count" "$total" "$exit_code" "$json"
     return "$exit_code"
 }
 
