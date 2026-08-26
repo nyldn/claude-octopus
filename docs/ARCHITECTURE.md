@@ -84,6 +84,24 @@ Role defaults follow the accepted [frontier model routing strategy](./MODEL-ROUT
 
 ## Execution Flow by Workflow
 
+### V10 execution contract
+
+All synchronous, supervised background, and Agent Teams provider seats share
+one append-only state machine in `scripts/lib/run-contract.sh`. Dispatch records
+requested identity before resolution, the actual provider/model/effort before
+execution, process and source attribution while running, and artifacts plus an
+exact terminal reason at completion. Synthesis accepts only validated eligible
+records; a successful process exit is not proof of a usable result.
+
+Each transition refreshes `runs/<run-id>/run.json`. `runs/latest` is an atomic
+compatibility symlink to the latest complete run directory, so legacy status
+snapshots and the v10 `status` and `explain` readers share one pointer without
+overwriting each other's format.
+
+Shared provider identity and policy come from Provider Registry 2.0. Concrete
+command syntax, credentials, and environment isolation remain provider-specific
+adapters selected by that registry.
+
 ### Discover Phase (probe)
 
 **Trigger:** `octo research X` or `/octo:discover`

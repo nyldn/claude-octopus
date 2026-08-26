@@ -70,9 +70,12 @@ Then run `/octo:setup` — it detects your providers, shows what's available, an
 | Write tests first, then code | `/octo:tdd create user auth` |
 | Go from spec to working software autonomously | `/octo:factory "CSV to JSON converter"` |
 | Check which providers contributed to the current run | `octopus agent-summary` |
+| Inspect or explain a durable v10 run | `octopus status --run latest --json` / `octopus explain --run latest` |
 | Just do something quick | `/octo:quick fix the login bug` |
 
 Don't know the command? Describe what you need — `/octo:auto <anything>` routes to the right workflow.
+
+Upgrading from v9? Read the [v10 migration guide](../docs/V10-MIGRATION.md).
 
 ## Prerequisites
 

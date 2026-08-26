@@ -173,18 +173,18 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 # 3.1: package.json version is current
 pkg_version=$(grep '"version"' "$PACKAGE_JSON" | head -1 | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-if [[ "$pkg_version" =~ ^(8|9)\. ]]; then
-    assert_pass "3.1 package.json version is 8.x/9.x ($pkg_version)"
+if [[ "$pkg_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    assert_pass "3.1 package.json version is semantic ($pkg_version)"
 else
-    assert_fail "3.1 package.json version is 8.x/9.x" "Got: $pkg_version"
+    assert_fail "3.1 package.json version is semantic" "Got: $pkg_version"
 fi
 
 # 3.2: plugin.json version is current
 pj_version=$(grep '"version"' "$PLUGIN_JSON" | head -1 | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-if [[ "$pj_version" =~ ^(8|9)\. ]]; then
-    assert_pass "3.2 plugin.json version is 8.x/9.x ($pj_version)"
+if [[ "$pj_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    assert_pass "3.2 plugin.json version is semantic ($pj_version)"
 else
-    assert_fail "3.2 plugin.json version is 8.x/9.x" "Got: $pj_version"
+    assert_fail "3.2 plugin.json version is semantic" "Got: $pj_version"
 fi
 
 # 3.3: marketplace.json version is current for the octo plugin entry
@@ -197,24 +197,24 @@ for plugin in data.get("plugins", []):
         break
 PY
 )
-if [[ "$mj_version" =~ ^(8|9)\. ]]; then
-    assert_pass "3.3 marketplace.json version is 8.x/9.x ($mj_version)"
+if [[ "$mj_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    assert_pass "3.3 marketplace.json version is semantic ($mj_version)"
 else
-    assert_fail "3.3 marketplace.json version is 8.x/9.x" "Got: $mj_version"
+    assert_fail "3.3 marketplace.json version is semantic" "Got: $mj_version"
 fi
 
 # 3.4: CHANGELOG exists with version entries (v8.37.0 trimmed pre-8.22.0 history)
-if [[ -f "$CHANGELOG_MD" ]] && grep -qE '\[(8|9)\.' "$CHANGELOG_MD"; then
+if [[ -f "$CHANGELOG_MD" ]] && grep -qE '\[[0-9]+\.[0-9]+\.[0-9]+\]' "$CHANGELOG_MD"; then
     assert_pass "3.4 CHANGELOG.md has version entries"
 else
     assert_fail "3.4 CHANGELOG.md has version entries"
 fi
 
-# 3.5: README version badge is current 8.x
-if grep -qE 'Version-(8|9)\.' "$README_MD"; then
-    assert_pass "3.5 README.md version badge is 8.x/9.x"
+# 3.5: README version badge is semantic
+if grep -qE 'Version-[0-9]+\.[0-9]+\.[0-9]+' "$README_MD"; then
+    assert_pass "3.5 README.md version badge is semantic"
 else
-    assert_fail "3.5 README.md version badge is 8.x/9.x"
+    assert_fail "3.5 README.md version badge is semantic"
 fi
 
 # 3.6: README Claude Code badge matches the current runtime minimum

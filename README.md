@@ -66,6 +66,20 @@ Every AI model has blind spots. Claude Octopus supports ten external provider in
 
 [Full changelog →](CHANGELOG.md)
 
+[V10 migration guide →](docs/V10-MIGRATION.md)
+
+<details>
+<summary>Upgrading to v10</summary>
+
+V10 adds a durable execution contract, fail-closed contribution validation,
+Doctor 2.0, Provider Registry 2.0, process-tree cancellation evidence, and
+opt-in eval routing. Existing provider and model pins still win. Automation that
+uses `doctor --json` must handle exit `1` while retaining its valid JSON body;
+invalid arguments return `2`. See the migration guide for compatibility and
+rollback details.
+
+</details>
+
 <details>
 <summary>Upgrading to 9.5x</summary>
 

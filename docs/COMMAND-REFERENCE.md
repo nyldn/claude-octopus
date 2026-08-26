@@ -19,7 +19,7 @@ All slash commands use the `/octo:` namespace. The smart router command is `/oct
 | Command | Description |
 |---------|-------------|
 | `/octo:setup` | Check setup status and configure providers (aliases: `/octo:configure`, `/octo:config`, `/octo:init`, `/octo:wizard`, `/octo:sys-setup`) |
-| `/octo:doctor` | Environment diagnostics across 9 check categories (includes RTK install + token optimization) |
+| `/octo:doctor` | Fail-closed diagnostics across 14 categories with human or JSON output |
 | `/octo:model-config` | Configure provider model selection per workflow phase |
 | `/octo:km` | Toggle Knowledge Work mode |
 | `/octo:dev` | Switch to Dev Work mode |
@@ -240,7 +240,7 @@ You're all set! Try: /octo:auto research OAuth patterns
 
 ### `/octo:doctor`
 
-Run environment diagnostics across 9 check categories.
+Run fail-closed environment diagnostics across 14 check categories.
 
 **Usage:**
 ```
@@ -250,7 +250,7 @@ Run environment diagnostics across 9 check categories.
 /octo:doctor auth --verbose     # Detailed auth status
 /octo:doctor config             # Plugin install/version plus Claude Code feature flags
 /octo:doctor skills             # Skill loading plus modern plugin capability notes
-/octo:doctor --json             # Machine-readable output
+/octo:doctor --json             # Machine-readable Doctor 2.0 output
 ```
 
 **Check categories:**
@@ -258,14 +258,25 @@ Run environment diagnostics across 9 check categories.
 | Category | What it checks |
 |----------|---------------|
 | `providers` | Claude Code version, Codex CLI, Antigravity CLI, and other configured providers |
+| `companions` | Optional companion-tool installation and readiness |
 | `auth` | Authentication status for each provider |
 | `config` | Plugin version, install scope, feature flags |
-| `state` | Project state.json, stale results, workspace writable |
+| `updates` | Loaded, installed, catalog, and cached plugin version drift |
+| `state` | Project state, writable cache, stale run records, and orphan process evidence |
 | `smoke` | Smoke test cache, model configuration |
 | `hooks` | hooks.json validity, hook scripts |
 | `scheduler` | Scheduler daemon, jobs, budget gates, kill switches |
 | `skills` | Skill files loaded and valid |
 | `conflicts` | Conflicting plugin detection |
+| `agents` | Agent definitions and platform projections |
+| `recurrence` | Repeated-failure and recovery evidence |
+| `cache` | Active and stale plugin-cache versions |
+
+Doctor returns `0` for passes and warnings, `1` when one or more checks fail,
+and `2` for invalid options, unknown categories, or multiple category
+arguments. With `--json`, a diagnostic failure still leaves a valid
+`schema_version: "10.0"` report on stdout; capture the exit status separately
+instead of discarding the report under shell `errexit`.
 
 `/octo:doctor providers --live` is opt-in because it sends one small real AGY
 request. It checks the installed version, live `agy models` catalog and keyring

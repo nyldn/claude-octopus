@@ -252,23 +252,23 @@ echo ""
 echo -e "${BLUE}Test Group 4: Version Consistency${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# 4.1: package.json version is 8.x/9.x
+# 4.1: package.json version is semantic
 pkg_version=$(grep '"version"' "$PACKAGE_JSON" | head -1 | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-if [[ "$pkg_version" =~ ^(8|9)\. ]]; then
-    assert_pass "4.1 package.json version is 8.x/9.x ($pkg_version)"
+if [[ "$pkg_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    assert_pass "4.1 package.json version is semantic ($pkg_version)"
 else
-    assert_fail "4.1 package.json version is 8.x/9.x" "Got: $pkg_version"
+    assert_fail "4.1 package.json version is semantic" "Got: $pkg_version"
 fi
 
-# 4.2: plugin.json version is 8.x/9.x
+# 4.2: plugin.json version is semantic
 pj_version=$(grep '"version"' "$PLUGIN_JSON" | head -1 | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-if [[ "$pj_version" =~ ^(8|9)\. ]]; then
-    assert_pass "4.2 plugin.json version is 8.x/9.x ($pj_version)"
+if [[ "$pj_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    assert_pass "4.2 plugin.json version is semantic ($pj_version)"
 else
-    assert_fail "4.2 plugin.json version is 8.x/9.x" "Got: $pj_version"
+    assert_fail "4.2 plugin.json version is semantic" "Got: $pj_version"
 fi
 
-# 4.3: marketplace.json version is 8.x/9.x for the octo plugin entry
+# 4.3: marketplace.json version is semantic for the octo plugin entry
 mj_version=$(python3 - "$MARKETPLACE_JSON" <<'PY'
 import json, sys
 data = json.load(open(sys.argv[1]))
@@ -278,24 +278,24 @@ for plugin in data.get("plugins", []):
         break
 PY
 )
-if [[ "$mj_version" =~ ^(8|9)\. ]]; then
-    assert_pass "4.3 marketplace.json version is 8.x/9.x ($mj_version)"
+if [[ "$mj_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    assert_pass "4.3 marketplace.json version is semantic ($mj_version)"
 else
-    assert_fail "4.3 marketplace.json version is 8.x/9.x" "Got: $mj_version"
+    assert_fail "4.3 marketplace.json version is semantic" "Got: $mj_version"
 fi
 
 # 4.4: CHANGELOG exists with version entries (v8.37.0 trimmed pre-8.22.0 history)
-if [[ -f "$CHANGELOG_MD" ]] && grep -qE '\[(8|9)\.' "$CHANGELOG_MD"; then
+if [[ -f "$CHANGELOG_MD" ]] && grep -qE '\[[0-9]+\.[0-9]+\.[0-9]+\]' "$CHANGELOG_MD"; then
     assert_pass "4.4 CHANGELOG.md has version entries"
 else
     assert_fail "4.4 CHANGELOG.md has version entries"
 fi
 
-# 4.5: README badge shows 8.x/9.x
-if grep -qE 'Version-(8|9)\.' "$README_MD"; then
-    assert_pass "4.5 README.md badge shows 8.x/9.x"
+# 4.5: README badge is semantic
+if grep -qE 'Version-[0-9]+\.[0-9]+\.[0-9]+' "$README_MD"; then
+    assert_pass "4.5 README.md badge is semantic"
 else
-    assert_fail "4.5 README.md badge shows 8.x/9.x"
+    assert_fail "4.5 README.md badge is semantic"
 fi
 
 # 4.6: plugin.json description mentions version or key capabilities
@@ -306,7 +306,7 @@ else
 fi
 
 # 4.7: CHANGELOG exists with version entries (v8.37.0 trimmed pre-8.22.0 history)
-if [[ -f "$CHANGELOG_MD" ]] && grep -qE '\[(8|9)\.' "$CHANGELOG_MD"; then
+if [[ -f "$CHANGELOG_MD" ]] && grep -qE '\[[0-9]+\.[0-9]+\.[0-9]+\]' "$CHANGELOG_MD"; then
     assert_pass "4.7 CHANGELOG has version entries"
 else
     assert_fail "4.7 CHANGELOG has version entries"

@@ -1,16 +1,45 @@
 # AI Agent Handoff
 
-Last updated: 2026-08-23
-Status: The live GitHub queue audit is complete. PR #959 was reconciled,
-validated, and squash-merged as `2f521742`; PRs #956, #957, #958, #960, and
-PR #962 is also resolved. PR #940 was closed without merge, and issue #943 was
-fixed by PR #962 and closed with that squash merge.
-Branch: `main` at `2f5217421fa21b68f8e736687a5eaa69da838d61`
+Last updated: 2026-08-26
+Status: The v10.0.0 reliability release candidate implements the six approved
+modernization additions plus hermetic end-to-end failure injection. Focused
+contract suites and staged-review remediations are green; version preparation,
+the final full matrix, protected PR verification, merge, tag, publication, and
+installed-release checks remain.
+Branch: `feat/v10-reliability-contracts` in
+`/Users/chris/.codex/worktrees/claude-octopus-v10`; implementation review head
+`37b14f07`
 Current release: [v9.66.1](https://github.com/nyldn/claude-octopus/releases/tag/v9.66.1)
-Tracking: Beads `oco-c0v` (discovered from `oco-j08`); PR #959
-Next action: Recheck the live GitHub PR and issue queues before selecting new
-work. Do not cut another release solely for PR #959; release only through the
-normal `RELEASING.md` flow when a release scope is intentionally chosen.
+Tracking: Beads epic `oco-de9`; children `oco-de9.1` through `oco-de9.8`
+Next action: Run `make ci-local` and `bash scripts/validate-release.sh`, then
+prepare version 10.0.0 and follow the protected `RELEASING.md` flow. Tag only
+the squash-merge commit on `main`.
+
+## V10 Reliability Release Candidate
+
+- Additions 1-6 are implemented: truthful seat execution, Setup and Doctor 2.0,
+  Provider Registry 2.0, cache-write truth, cancellation/recovery with durable
+  observability, and eval-backed Claude/Codex/Fable routing.
+- The failure-injection integration suite drives the real `orchestrate.sh spawn
+  agy` entrypoint with hermetic providers and no credentials. Its 14 scenarios
+  plus hermeticity check passed 15/15 with zero skips.
+- The initial full local matrix passed 288/289 unit suites; the sole failure was
+  a stale crash-recovery assertion. After fixing that assertion, its focused
+  suite passed 18/18. A fresh final full matrix is still required after release
+  documentation and version changes.
+- Independent staged review identified four real defects: the v10 latest-run
+  pointer collided with the legacy status symlink, Fable received character
+  counts instead of UTF-8 byte counts, post-routing model identity was not
+  persisted, and model-resolution failures could leave planned seats
+  non-terminal. Commit `37b14f07` fixes all four with RED/GREEN coverage. The
+  five focused contract suites pass with zero failures.
+- Cancellation suite latency reported inside the reviewer's sandbox was not
+  reproducible locally. The test now bounds its own teardown and passes 4/4 in
+  about three seconds, so future failure cannot wait for the synthetic
+  300-second child.
+- Original checkout `/Users/chris/git/claude-octopus-dev` remains untouched;
+  preserve its unrelated dirty state. Do not treat `.octo-continue.md` as
+  authoritative.
 
 ## GitHub Queue Audit (2026-08-23)
 

@@ -143,6 +143,12 @@ accepts the risk when local history cannot be queried.
 
 ## E2E Testing Infrastructure
 
+V10 includes a hermetic failure-injection suite that drives the real
+`scripts/orchestrate.sh spawn` entrypoint. Its expected exit codes, lifecycle
+transitions, provider-call counts, contribution eligibility, and required or
+forbidden artifacts live in `tests/fixtures/v10-failure-oracles.tsv`; do not
+weaken an oracle to accommodate an implementation.
+
 Automated smoke testing runs on a remote VPS, checking for new releases every 2 hours.
 
 - **Phase A (Docker):** Install → structure verify → unit tests → uninstall

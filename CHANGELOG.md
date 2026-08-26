@@ -2,6 +2,42 @@
 
 ## [Unreleased]
 
+### Added
+
+- A schema-versioned execution contract records every synchronous, supervised,
+  and Agent Teams seat from `planned` through a terminal state. New
+  `octopus status --run` and `octopus explain --run` commands reconstruct runs
+  from durable artifacts without calling a provider.
+- Setup and Doctor 2.0 now distinguish installation, authentication, model
+  readiness, plugin assembly, cache/state writability, stale runs, and orphan
+  process evidence. `doctor --json` emits a stable v10 machine-readable report.
+- Provider Registry 2.0 makes canonical identity, aliases, authentication mode,
+  health and detection handlers, model environment, context budget, cost class,
+  sandbox class, and independence organization parity-enforced data.
+- Safe cancellation and recovery track process groups, verify descendant
+  cleanup, reconcile stale running seats, retain source/worktree attribution,
+  and allow retries only as distinct attempts for non-contributed work.
+- Eval-backed routing classifies mechanical, balanced, premium, review, and
+  security work while preserving user and project pins. Fable escalation now
+  has an atomic one-seat-per-run claim, a 524,288-byte default input ceiling,
+  and cross-vendor verification rules.
+- A hermetic end-to-end failure-injection suite drives the real orchestration
+  entrypoint through success, auth and health rejection, unusable output,
+  timeout and partial timeout, child-process cleanup, refusal, signal retry,
+  closed stdin, and persistence failure with zero provider billing.
+
+### Changed
+
+- A provider response contributes to synthesis only after its output is durable
+  and validated. Empty, placeholder, cancelled, timed-out, and unpersisted
+  results remain visible but ineligible.
+- Cache success messages now reflect actual persistence; a cache write failure
+  preserves usable synthesis output and records a warning instead of claiming
+  the result was cached.
+- Doctor returns `1` for diagnostic failures and `2` for invalid arguments.
+  JSON stdout remains valid for diagnostic failures, so scripts should capture
+  the process status separately from the report body.
+
 ### Fixed
 
 - Synchronous Antigravity seats now retry once after an intermittent exit 139
