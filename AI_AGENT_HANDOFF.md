@@ -79,7 +79,7 @@ marketplaces, and rerun `bash scripts/validate-release.sh` plus fresh installs.
 - Exact-main Test Suite run `32961618258` passed Ubuntu unit and symlink-path but
   exposed the remaining macOS-only timing assumption: production returned 124
   after one two-second attempt, while coarse `SECONDS` advanced by four under
-  runner load. The replacement oracle uses a ten-second provider completion
+  runner load. The replacement oracle uses a thirty-second provider completion
   marker to prove the timeout interrupted natural execution, with a broad
   fifteen-second hang bound that is not sensitive to scheduler jitter. Five
   consecutive focused runs pass 8/8, and `make ci-local` passes 16 smoke,

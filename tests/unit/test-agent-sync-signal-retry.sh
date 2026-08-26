@@ -200,9 +200,13 @@ test_case "an overlong attempt is interrupted before an AGY retry can exceed the
 overlong_start=$SECONDS
 overlong_completion="$TEST_TMP_DIR/overlong-completed"
 set +e
-ENFORCE_TIMEOUT=true OVERLONG_FIRST_ATTEMPT=true OVERLONG_SLEEP=10 \
-    OVERLONG_COMPLETION_FILE="$overlong_completion" \
+(
+    export "ENFORCE_TIMEOUT=true"
+    export "OVERLONG_FIRST_ATTEMPT=true"
+    export "OVERLONG_SLEEP=30"
+    export "OVERLONG_COMPLETION_FILE=$overlong_completion"
     run_sync_fixture agy 1 overlong-deadline 2 >/dev/null 2>&1
+)
 overlong_rc=$?
 set -e
 overlong_elapsed=$((SECONDS - overlong_start))
