@@ -11,6 +11,7 @@ test_suite "v10 routing evaluations"
 
 PROFILE_LIB="$PROJECT_ROOT/scripts/lib/execution-profile.sh"
 FABLE_LIB="$PROJECT_ROOT/scripts/lib/fable5.sh"
+DISPATCH_LIB="$PROJECT_ROOT/scripts/lib/dispatch.sh"
 CASES="$PROJECT_ROOT/data/routing/v10-eval-cases.json"
 
 test_case "routing evaluation fixture is valid v10 JSON"
@@ -76,6 +77,22 @@ if [[ "$gate_rc" -eq 2 ]]; then
     test_pass
 else
     test_fail "invalid ceiling must return 2, got $gate_rc"
+fi
+
+test_case "dispatch prompt measurement counts UTF-8 bytes rather than characters"
+byte_count="$(bash -c 'source "$1"; octo_prompt_byte_length "éé"' _ "$DISPATCH_LIB")"
+if [[ "$byte_count" == 4 ]]; then
+    test_pass
+else
+    test_fail "expected two UTF-8 characters to measure 4 bytes, got ${byte_count:-<empty>}"
+fi
+
+test_case "both synchronous and background dispatch pass byte counts to command routing"
+if grep -q 'octo_prompt_byte_length.*enhanced_prompt' "$PROJECT_ROOT/scripts/lib/agent-sync.sh" &&
+   grep -q 'octo_prompt_byte_length.*enhanced_prompt' "$PROJECT_ROOT/scripts/lib/spawn.sh"; then
+    test_pass
+else
+    test_fail "one or more dispatch paths still use a character count"
 fi
 
 test_case "oversized Fable escalation falls back before dispatch"

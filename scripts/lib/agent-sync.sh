@@ -374,7 +374,11 @@ ${provider_ctx}"
     # v10 planned → starting lifecycle. Fable's atomic claim happens later,
     # during command construction, only after health and persistence succeed.
     local model
-    model=$(get_agent_model "$agent_type" "$phase" "$role")
+    if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
+        run_contract_transition "$_sync_seat_id" failed \
+            "reason=Model resolution failed" >/dev/null 2>&1 || true
+        return 1
+    fi
     local _progress_task_id
     _progress_task_id="$_sync_seat_id"
     local _estimated_cost="0.000000"
@@ -420,8 +424,13 @@ ${provider_ctx}"
         return 74
     fi
 
-    local cmd
-    if ! cmd=$(get_agent_command "$agent_type" "$phase" "$role" "${#enhanced_prompt}"); then
+    local cmd _prompt_bytes
+    if ! _prompt_bytes=$(octo_prompt_byte_length "$enhanced_prompt"); then
+        run_contract_transition "$_sync_seat_id" failed \
+            "reason=Prompt byte measurement failed" >/dev/null 2>&1 || true
+        return 1
+    fi
+    if ! cmd=$(get_agent_command "$agent_type" "$phase" "$role" "$_prompt_bytes"); then
         run_contract_transition "$_sync_seat_id" failed \
             "reason=Provider command unavailable" >/dev/null 2>&1 || true
         return 1
@@ -482,7 +491,8 @@ ${provider_ctx}"
     type update_agent_status >/dev/null 2>&1 && update_agent_status \
         "$agent_type" "running" 0 "$_estimated_cost" "$timeout_secs" \
         "$_progress_task_id" "${phase:-unknown}" "" || true
-    run_contract_transition "$_sync_seat_id" running || return 74
+    run_contract_transition "$_sync_seat_id" running \
+        "resolved_model=$model" || return 74
 
     # AGY has an intermittent native SIGSEGV under heterogeneous orchestration
     # (#943). Retry that provider exactly once, while keeping both attempts

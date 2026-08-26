@@ -8,6 +8,7 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "v10 run observability"
 
 source "$PROJECT_ROOT/scripts/lib/run-contract.sh"
+source "$PROJECT_ROOT/scripts/lib/error-tracking.sh"
 
 export WORKSPACE_DIR="$TEST_TMP_DIR/observability-workspace"
 export OCTOPUS_RUN_ID="observable-run"
@@ -49,7 +50,7 @@ run_dir="$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID"
 manifest="$run_dir/run.json"
 
 test_case "atomic run manifest and latest pointer exist"
-if [[ -s "$manifest" && "$(<"$WORKSPACE_DIR/runs/latest")" == "$OCTOPUS_RUN_ID" ]] &&
+if [[ -s "$manifest" && -L "$WORKSPACE_DIR/runs/latest" ]] &&
    jq empty "$manifest" >/dev/null 2>&1; then
     test_pass
 else
@@ -107,6 +108,18 @@ if jq -e '.run_id == "observable-run" and .summary.failed == 1' <<< "$status_jso
     test_pass
 else
     test_fail "status=$status_json explain=$explanation"
+fi
+
+test_case "compatibility status snapshots preserve the latest run pointer contract"
+write_agent_status codex ok 100 50 "" 1200 "$good_output" researcher \
+    implement contributed eligible
+latest_status="$(run_contract_status latest json 2>/dev/null || true)"
+if [[ -L "$WORKSPACE_DIR/runs/latest" ]] &&
+   jq -e '.run_id == "observable-run" and .summary.contributed == 1' \
+      <<< "$latest_status" >/dev/null 2>&1; then
+    test_pass
+else
+    test_fail "compatibility writer broke status --run latest: ${latest_status:-<empty>}"
 fi
 
 test_case "unknown and corrupt runs fail closed"

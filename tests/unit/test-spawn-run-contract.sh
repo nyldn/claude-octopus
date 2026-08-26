@@ -241,10 +241,23 @@ apply_persona() { printf '%s\n' "$2"; }
 load_earned_skills() { :; }
 build_provider_context() { :; }
 enforce_context_budget() { printf '%s\n' "$1"; }
+octo_prompt_byte_length() { LC_ALL=C printf '%s' "$1" | wc -c | tr -d '[:space:]'; }
+octo_dispatch_command_model() {
+    printf '%s\n' "$1" | awk -v fallback="$2" '
+        { for (i = 1; i <= NF; i++) if ($i == "--model" && i < NF) { print $(i + 1); found=1; exit } }
+        END { if (!found) print fallback }
+    '
+}
 is_provider_available() { return 0; }
-get_agent_command() { printf '%s\n' "$fake_provider"; }
+get_agent_command() {
+    printf '%s\n' "${4:-missing}" > "$TEST_TMP_DIR/background-prompt-bytes"
+    printf '%s\n' "$fake_provider --model routed-model"
+}
 validate_agent_command() { return 0; }
-get_agent_model() { printf '%s\n' fixture-model; }
+get_agent_model() {
+    [[ "${FAKE_SCENARIO:-}" == model-fail ]] && return 1
+    printf '%s\n' fixture-model
+}
 record_agent_call() { :; }
 estimate_agent_call_cost() { printf '%s\n' 0.001; }
 update_metrics() { :; }
@@ -292,11 +305,31 @@ run_external_fixture() {
 
 test_case "real supervised success follows the complete contract"
 run_external_fixture success external-success
-if [[ "$(transitions_for spawn-external-success)" == "planned,starting,authenticated,running,output_received,validated,contributed" ]] && \
-   run_contract_contribution_eligible spawn-external-success; then
+external_success_model="$(jq -r '.seats[] | select(.seat_id == "spawn-external-success") | .resolved.model' \
+    "$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID/seats.json")"
+external_success_transitions="$(transitions_for spawn-external-success)"
+external_success_eligible=false
+run_contract_contribution_eligible spawn-external-success && external_success_eligible=true
+external_success_reason="$(jq -r --arg seat spawn-external-success 'select(.seat_id == $seat) | .reason' "$ledger" | tail -n 1)"
+if [[ "$external_success_transitions" == "planned,starting,authenticated,running,output_received,validated,contributed" ]] && \
+   [[ "$external_success_eligible" == true ]] &&
+   [[ "$external_success_model" == routed-model ]]; then
     test_pass
 else
-    test_fail "supervised success did not contribute through the real spawn path"
+    test_fail "supervised success contract mismatch (transitions=${external_success_transitions:-missing}, eligible=$external_success_eligible, model=${external_success_model:-missing}, reason=${external_success_reason:-none})"
+fi
+
+test_case "background model-resolution failure terminalizes before provider execution"
+set +e
+run_external_fixture model-fail external-model-fail
+model_fail_rc=$?
+set -e
+if [[ "$model_fail_rc" -ne 0 ]] &&
+   [[ "$(transitions_for spawn-external-model-fail)" == "planned,failed" ]] &&
+   [[ ! -e "$RESULTS_DIR/fake-api-external-model-fail.md" ]]; then
+    test_pass
+else
+    test_fail "model resolution failure remained non-terminal or produced an artifact"
 fi
 
 test_case "real supervised provider exit terminalizes failed"

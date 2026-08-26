@@ -71,12 +71,16 @@ octo_spawn_contract_authenticated() {
 }
 
 octo_spawn_contract_running() {
-    local seat_id="${1:-}" output_file="${2:-}" pid="${3:-}" pgid=""
+    local seat_id="${1:-}" output_file="${2:-}" pid="${3:-}" model="${4:-}"
+    local effort="${5:-}" pgid=""
+    local -a transition_fields
     if [[ "$pid" =~ ^[0-9]+$ ]]; then
         pgid="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d '[:space:]' || true)"
     fi
-    run_contract_transition "$seat_id" running "output_file=$output_file" \
-        "pid=$pid" "pgid=$pgid"
+    transition_fields=("output_file=$output_file" "pid=$pid" "pgid=$pgid")
+    [[ -n "$model" ]] && transition_fields+=("resolved_model=$model")
+    [[ -n "$effort" ]] && transition_fields+=("resolved_effort=$effort")
+    run_contract_transition "$seat_id" running "${transition_fields[@]}"
 }
 
 octo_spawn_contract_begin() {
@@ -649,7 +653,11 @@ ${heuristic_ctx}"
     declare -f octo_event_emit >/dev/null 2>&1 && octo_event_emit "provider.selected" provider="$provider_prefix" provider_label_kind="legacy-alias" executor_alias="$agent_type" configured_provider="$(octo_provider_identity_from_agent_type "${agent_type:-unknown}")" configured_model="$(get_agent_model "$agent_type" "${phase:-}" "${role:-}" 2>/dev/null || echo unresolved)" runtime_provider="unknown" runtime_model="unknown" agent_type="$agent_type" role="${role:-none}" phase="${phase:-unknown}" || true
 
     local model
-    model=$(get_agent_model "$agent_type" "${phase:-}" "${role:-}")
+    if ! model=$(get_agent_model "$agent_type" "${phase:-}" "${role:-}"); then
+        octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
+            "Model resolution failed" 1 "" >/dev/null 2>&1 || true
+        return 1
+    fi
 
     # Resolve one effective wall-clock budget before selecting a persistence
     # path. The degraded synchronous fallback must enforce the same phase floor
@@ -748,8 +756,13 @@ ${heuristic_ctx}"
 
     # Command construction occurs only after health and persistence pass because
     # an eligible Fable command atomically claims the run's premium seat.
-    local cmd
-    if ! cmd=$(get_agent_command "$agent_type" "${phase:-}" "${role:-}" "${#enhanced_prompt}"); then
+    local cmd _prompt_bytes
+    if ! _prompt_bytes=$(octo_prompt_byte_length "$enhanced_prompt"); then
+        octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
+            "Prompt byte measurement failed" 1 "" >/dev/null 2>&1 || true
+        return 1
+    fi
+    if ! cmd=$(get_agent_command "$agent_type" "${phase:-}" "${role:-}" "$_prompt_bytes"); then
         log ERROR "Unknown agent type: $agent_type"
         log INFO "Available agents: $AVAILABLE_AGENTS"
         octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
@@ -877,7 +890,8 @@ ${heuristic_ctx}"
             echo "# Result-capture: SubagentStop hook" >> "$result_file"
         fi
         echo "" >> "$result_file"
-        if ! octo_spawn_contract_running "$_contract_seat_id" "$result_file"; then
+        if ! octo_spawn_contract_running "$_contract_seat_id" "$result_file" "" \
+            "$model" "${effort_level:-}"; then
             log ERROR "Unable to persist running execution contract for Agent Teams task $task_id"
             return 74
         fi
@@ -973,7 +987,8 @@ ${heuristic_ctx}"
 
         local auth_attempt=0
         local exit_code=0
-        if ! octo_spawn_contract_running "$_contract_seat_id" "$result_file" "$OCTO_CAPTURED_SHELL_PID"; then
+        if ! octo_spawn_contract_running "$_contract_seat_id" "$result_file" \
+            "$OCTO_CAPTURED_SHELL_PID" "$model" "${effort_level:-}"; then
             log ERROR "Unable to persist provider launch for background task $task_id"
             exit 74
         fi

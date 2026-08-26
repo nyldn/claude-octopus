@@ -56,10 +56,22 @@ OCTOPUS_ACTIVE_PROBE_PIDS=("$tree_parent")
 OCTOPUS_ACTIVE_PROBE_AGENTS=(codex)
 OCTOPUS_ACTIVE_PROBE_TASK_IDS=("$task_id")
 octopus_probe_cancel_active TERM
+tree_survived=false
+for _attempt in $(seq 1 100); do
+    if ! kill -0 "$tree_parent" 2>/dev/null && ! kill -0 "$tree_child" 2>/dev/null; then
+        break
+    fi
+    sleep 0.02
+done
+if kill -0 "$tree_parent" 2>/dev/null || kill -0 "$tree_child" 2>/dev/null; then
+    tree_survived=true
+    cleanup_tree
+fi
 wait "$tree_parent" 2>/dev/null || true
 
 snapshot="$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID/seats.json"
-if ! kill -0 "$tree_parent" 2>/dev/null && ! kill -0 "$tree_child" 2>/dev/null &&
+if [[ "$tree_survived" == false ]] &&
+   ! kill -0 "$tree_parent" 2>/dev/null && ! kill -0 "$tree_child" 2>/dev/null &&
    jq -e --arg seat "$seat_id" '
       .seats[] | select(.seat_id == $seat) |
       .transition == "cancelled" and

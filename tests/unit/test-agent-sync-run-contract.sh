@@ -56,10 +56,23 @@ apply_persona() { printf '%s\n' "$2"; }
 load_earned_skills() { :; }
 build_provider_context() { :; }
 enforce_context_budget() { printf '%s\n' "$1"; }
-get_agent_model() { printf '%s\n' fixture-model; }
+octo_prompt_byte_length() { LC_ALL=C printf '%s' "$1" | wc -c | tr -d '[:space:]'; }
+octo_dispatch_command_model() {
+    printf '%s\n' "$1" | awk -v fallback="$2" '
+        { for (i = 1; i <= NF; i++) if ($i == "--model" && i < NF) { print $(i + 1); found=1; exit } }
+        END { if (!found) print fallback }
+    '
+}
+get_agent_model() {
+    [[ "${FIXTURE_SCENARIO:-}" == model-fail ]] && return 1
+    printf '%s\n' fixture-model
+}
 estimate_agent_call_cost() { printf '%s\n' 0.000000; }
 record_agent_call() { :; }
-get_agent_command() { printf '%s\n' "$fixture_provider"; }
+get_agent_command() {
+    printf '%s\n' "${4:-missing}" > "$FIXTURE_ROOT/prompt-bytes"
+    printf '%s\n' "$fixture_provider --model routed-model"
+}
 build_provider_env() { PROVIDER_ENV_ARRAY=(); }
 run_with_timeout() { shift; "$@"; }
 stop_quota_watcher() { :; }
@@ -147,6 +160,8 @@ assert_scenario health-fail-qwen 1 0 planned,starting,failed failed none \
     'Provider unavailable: fixture authentication rejected' qwen
 assert_scenario persistence-fail 74 0 planned,starting,authenticated,failed failed none \
     'Persistence unavailable'
+assert_scenario model-fail 1 0 planned,failed failed none \
+    'Model resolution failed'
 assert_scenario empty 1 1 planned,starting,authenticated,running,failed failed none \
     'Empty output'
 assert_scenario whitespace 1 1 planned,starting,authenticated,running,failed failed none \
@@ -190,6 +205,13 @@ if [[ -s "$success_artifact" ]] && grep -q 'Substantive provider result' "$succe
     test_pass
 else
     test_fail "successful output artifact is missing after run_agent_sync cleanup"
+fi
+
+test_case "post-routing model identity is persisted before provider execution"
+if [[ "$(jq -r '.seats[0].resolved.model' "$success_snapshot")" == routed-model ]]; then
+    test_pass
+else
+    test_fail "manifest retained the pre-routing model identity"
 fi
 
 test_summary

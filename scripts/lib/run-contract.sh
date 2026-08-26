@@ -205,6 +205,7 @@ _octo_run_contract_snapshot_unlocked() {
     tmp="$(mktemp "${manifest}.tmp.XXXXXX")" || return 1
     compat_tmp="$(mktemp "${snapshot}.tmp.XXXXXX")" || { rm -f "$tmp"; return 1; }
     latest_tmp="$(mktemp "${latest}.tmp.XXXXXX")" || { rm -f "$tmp" "$compat_tmp"; return 1; }
+    rm -f "$latest_tmp" 2>/dev/null || { rm -f "$tmp" "$compat_tmp"; return 1; }
 
     seats_json='[]'
     events_json='[]'
@@ -278,13 +279,28 @@ _octo_run_contract_snapshot_unlocked() {
     fi
 
     if ! cp "$tmp" "$compat_tmp" 2>/dev/null ||
-       ! printf '%s\n' "$run_id" > "$latest_tmp" 2>/dev/null ||
+       ! ln -s "$snapshot_dir" "$latest_tmp" 2>/dev/null ||
        ! mv "$tmp" "$manifest" 2>/dev/null ||
-       ! mv "$compat_tmp" "$snapshot" 2>/dev/null ||
-       ! mv "$latest_tmp" "$latest" 2>/dev/null; then
+       ! mv "$compat_tmp" "$snapshot" 2>/dev/null; then
         rm -f "$tmp" "$compat_tmp" "$latest_tmp"
         return 1
     fi
+    # Replace a directory symlink itself instead of following it. GNU mv uses
+    # -T for this operation; BSD/macOS mv uses -h.
+    case "$(uname -s 2>/dev/null || true)" in
+        Darwin|*BSD)
+            mv -fh "$latest_tmp" "$latest" 2>/dev/null || {
+                rm -f "$latest_tmp"
+                return 1
+            }
+            ;;
+        *)
+            mv -fT "$latest_tmp" "$latest" 2>/dev/null || {
+                rm -f "$latest_tmp"
+                return 1
+            }
+            ;;
+    esac
     cat "$manifest"
 }
 
@@ -306,13 +322,22 @@ _octo_run_contract_read_manifest() {
     local requested_run="${1:-latest}" runs_root run_id manifest
     runs_root="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/runs"
     if [[ -z "$requested_run" || "$requested_run" == "latest" ]]; then
-        [[ -r "$runs_root/latest" ]] || return 1
-        IFS= read -r run_id < "$runs_root/latest" || return 1
+        if [[ -d "$runs_root/latest" ]]; then
+            manifest="$runs_root/latest/run.json"
+            [[ -r "$manifest" ]] || return 1
+            run_id="$(jq -er '.run_id' "$manifest" 2>/dev/null)" || return 1
+        else
+            # Backward compatibility for v10 prerelease snapshots that used a
+            # text pointer before the legacy status writer contract was restored.
+            [[ -r "$runs_root/latest" ]] || return 1
+            IFS= read -r run_id < "$runs_root/latest" || return 1
+            manifest="$runs_root/$run_id/run.json"
+        fi
     else
         run_id="$requested_run"
+        manifest="$runs_root/$run_id/run.json"
     fi
     [[ "$run_id" =~ ^[A-Za-z0-9][A-Za-z0-9_.:-]*$ ]] || return 2
-    manifest="$runs_root/$run_id/run.json"
     [[ -r "$manifest" ]] || return 1
     jq -e --arg run_id "$run_id" '
       .schema_version == "10.0" and .run_id == $run_id and
