@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [10.0.0] - 2026-08-26
+
 ### Added
 
 - A schema-versioned execution contract records every synchronous, supervised,

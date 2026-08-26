@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "9.66.1"
+    "version": "10.0.0"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v9.66.1 - Declare OpenClaw tool contracts and make benchmark-gated council tests deterministic. 32 personas, 54 commands, 63 skills. Run /octo:setup.",
-      "version": "9.66.1",
+      "description": "v10.0.0 - Truthful execution, guided diagnostics, safe recovery, and eval-backed routing. 32 personas, 54 commands, 63 skills. Run /octo:setup.",
+      "version": "10.0.0",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"
