@@ -49,7 +49,18 @@ attempt=$((attempt + 1))
 printf '%s\n' "$attempt" > "$ATTEMPT_FILE"
 if [[ "$attempt" -le "$FAIL_COUNT" ]]; then
     if [[ "${OVERLONG_FIRST_ATTEMPT:-false}" == "true" ]] && [[ "$attempt" -eq 1 ]]; then
-        sleep "${OVERLONG_SLEEP:-3}"
+        if [[ -n "${OVERLONG_COMPLETION_FILE:-}" ]]; then
+            python3 -c '
+import pathlib
+import sys
+import time
+
+time.sleep(float(sys.argv[2]))
+pathlib.Path(sys.argv[1]).write_text("completed\\n")
+' "$OVERLONG_COMPLETION_FILE" "${OVERLONG_SLEEP:-3}"
+        else
+            sleep "${OVERLONG_SLEEP:-3}"
+        fi
     fi
     printf 'synthetic provider crash attempt %s\n' "$attempt" >&2
     exit 139
@@ -187,8 +198,10 @@ fi
 
 test_case "an overlong attempt is interrupted before an AGY retry can exceed the deadline"
 overlong_start=$SECONDS
+overlong_completion="$TEST_TMP_DIR/overlong-completed"
 set +e
-ENFORCE_TIMEOUT=true OVERLONG_FIRST_ATTEMPT=true OVERLONG_SLEEP=4 \
+ENFORCE_TIMEOUT=true OVERLONG_FIRST_ATTEMPT=true OVERLONG_SLEEP=10 \
+    OVERLONG_COMPLETION_FILE="$overlong_completion" \
     run_sync_fixture agy 1 overlong-deadline 2 >/dev/null 2>&1
 overlong_rc=$?
 set -e
@@ -196,10 +209,11 @@ overlong_elapsed=$((SECONDS - overlong_start))
 overlong_root="$TEST_TMP_DIR/overlong-deadline"
 overlong_attempt_timeout="$(cat "$overlong_root/timeouts" 2>/dev/null || true)"
 if [[ "$overlong_rc" -eq 124 ]] && [[ "$(cat "$overlong_root/attempts")" == "1" ]] && \
-   [[ "$overlong_attempt_timeout" =~ ^[12]$ ]] && [[ "$overlong_elapsed" -lt 4 ]]; then
+   [[ "$overlong_attempt_timeout" =~ ^[12]$ ]] && [[ ! -e "$overlong_completion" ]] && \
+   [[ "$overlong_elapsed" -lt 15 ]]; then
     test_pass
 else
-    test_fail "overlong attempt escaped its deadline (rc=$overlong_rc attempts=$(cat "$overlong_root/attempts" 2>/dev/null || echo 0) timeout=${overlong_attempt_timeout:-missing} elapsed=${overlong_elapsed}s)"
+    test_fail "overlong attempt escaped its deadline (rc=$overlong_rc attempts=$(cat "$overlong_root/attempts" 2>/dev/null || echo 0) timeout=${overlong_attempt_timeout:-missing} completed=$([[ -e "$overlong_completion" ]] && echo yes || echo no) elapsed=${overlong_elapsed}s)"
 fi
 
 test_summary

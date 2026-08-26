@@ -1,18 +1,18 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-26
-Status: The v10.0.0 reliability release candidate implements the six approved
-modernization additions plus hermetic end-to-end failure injection. The final
-review-response tree passes the complete local CI, plugin assembly, strict
-plugin validation, ShellCheck, and staged-review gates. Commit/push, protected
-PR verification, merge, tag, publication, and installed-release checks remain.
-Branch: `release/v10.0.0`; protected release PR #965 is under review.
+Status: PR #965 merged the six approved v10 modernization additions and
+hermetic end-to-end failure injection to `main` as `dd4cb943`. Exact-main Test
+Suite run `32961618258` correctly blocked tagging after one macOS-only timing
+oracle failure; no `v10.0.0` tag or release exists yet. A deterministic oracle
+fix is in progress on `fix/v10-macos-deadline`.
+Branch: `fix/v10-macos-deadline`, based on exact merged `main` `dd4cb943`.
 Current release: [v9.66.1](https://github.com/nyldn/claude-octopus/releases/tag/v9.66.1)
 Tracking: Beads epic `oco-de9`; children `oco-de9.1` through `oco-de9.8`
-Next action: commit and push the verified third-round PR #965 review response,
-reply to and resolve its one remaining inline thread, then wait for exact-head
-approval and hosted CI. Tag only the squash-merge commit on `main`, then rerun
-`bash scripts/validate-release.sh` against v10.
+Next action: verify the deterministic macOS deadline oracle, run the complete
+local gate, open and merge its protected hotfix PR, then require exact-main CI
+before tagging that squash-merge commit. After tagging, publish v10, sync both
+marketplaces, and rerun `bash scripts/validate-release.sh` plus fresh installs.
 
 ## V10 Reliability Release Candidate
 
@@ -70,6 +70,21 @@ approval and hosted CI. Tag only the squash-merge commit on `main`, then rerun
   accepts only the valid one-to-two-second range while preserving the timeout
   status, single-attempt, and elapsed-deadline assertions; five consecutive
   focused runs pass 8/8.
+- PR #965 exact-head Test Suite run `32960005405` passed Ubuntu and macOS unit,
+  symlink-path, smoke, full integration, and summary jobs at `66104bab`; GitHub
+  reported approval and zero unresolved threads before the normal squash merge.
+  Its non-required native review rerun failed only because Claude organization
+  spend and Copilot monthly quota were both exhausted; CodeRabbit's exact-head
+  check passed, so degraded provider capacity was not treated as approval.
+- Exact-main Test Suite run `32961618258` passed Ubuntu unit and symlink-path but
+  exposed the remaining macOS-only timing assumption: production returned 124
+  after one two-second attempt, while coarse `SECONDS` advanced by four under
+  runner load. The replacement oracle uses a ten-second provider completion
+  marker to prove the timeout interrupted natural execution, with a broad
+  fifteen-second hang bound that is not sensitive to scheduler jitter. Five
+  consecutive focused runs pass 8/8, and `make ci-local` passes 16 smoke,
+  289/289 unit, and 8/8 integration suites with failure injection 15/15 and
+  zero skips.
 - Focused evidence after the final response includes synchronous contract
   19/19, persistence degradation 6/6, semantic cache alignment 36/36, output
   cap 14/14, agent summary 11/11, version consistency 20/20 and 30/30, and
