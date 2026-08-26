@@ -105,6 +105,7 @@ agy_output="$(run_sync_fixture agy 1)" && agy_rc=0 || agy_rc=$?
 agy_root="$TEST_TMP_DIR/agy-1"
 agy_artifact="$(find "$agy_root/results" -maxdepth 1 -name 'sync-failure-*.stderr.log' -print -quit)"
 agy_mode="$(stat -c '%a' "$agy_artifact" 2>/dev/null || stat -f '%Lp' "$agy_artifact" 2>/dev/null || true)"
+agy_result_artifact="$(awk -F'|' '$1 == "agy" && $2 == "degraded" {print $4}' "$agy_root/statuses" | tail -n 1)"
 first_timeout="$(sed -n '1p' "$agy_root/timeouts")"
 retry_timeout="$(sed -n '2p' "$agy_root/timeouts")"
 if [[ "$agy_rc" -eq 0 ]] && [[ "$(cat "$agy_root/attempts")" == "2" ]] && \
@@ -113,7 +114,8 @@ if [[ "$agy_rc" -eq 0 ]] && [[ "$(cat "$agy_root/attempts")" == "2" ]] && \
    [[ "$retry_timeout" -lt "$first_timeout" ]] && \
    [[ -f "$agy_artifact" ]] && grep -q 'synthetic provider crash attempt 1' "$agy_artifact" && \
    [[ "$agy_mode" == "600" ]] && \
-   grep -Fq "agy|degraded|Recovered after AGY exit 139|$agy_artifact" "$agy_root/statuses"; then
+   [[ -s "$agy_result_artifact" ]] && grep -q 'recovered provider output' "$agy_result_artifact" && \
+   grep -Fq "agy|degraded|Recovered after AGY exit 139|$agy_result_artifact" "$agy_root/statuses"; then
     test_pass
 else
     test_fail "AGY retry/artifact contract failed (rc=$agy_rc attempts=$(cat "$agy_root/attempts" 2>/dev/null || echo 0) timeouts=${first_timeout:-missing}/${retry_timeout:-missing} artifact=${agy_artifact:-missing} mode=${agy_mode:-unknown})"
@@ -166,7 +168,9 @@ test_case "recovered crashes preserve an existing degraded classifier reason"
 CLASSIFICATION_RESULT='degraded:Partial output' run_sync_fixture agy 1 degraded >/dev/null
 degraded_root="$TEST_TMP_DIR/degraded"
 degraded_artifact="$(find "$degraded_root/results" -maxdepth 1 -name 'sync-failure-*-attempt-1.stderr.log' -print -quit)"
-if grep -Fq "agy|degraded|Recovered after AGY exit 139; Partial output|$degraded_artifact" "$degraded_root/statuses"; then
+degraded_result_artifact="$(awk -F'|' '$1 == "agy" && $2 == "degraded" {print $4}' "$degraded_root/statuses" | tail -n 1)"
+if [[ -s "$degraded_artifact" ]] && [[ -s "$degraded_result_artifact" ]] && \
+   grep -Fq "agy|degraded|Recovered after AGY exit 139; Partial output|$degraded_result_artifact" "$degraded_root/statuses"; then
     test_pass
 else
     test_fail "recovery status overwrote the classifier's degraded reason"

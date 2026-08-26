@@ -210,7 +210,7 @@ octo_run_transition_valid() {
     local from="${1:-}" to="${2:-}"
     case "${from}:${to}" in
         :planned|planned:starting|starting:authenticated|authenticated:running|running:output_received|output_received:validated|validated:contributed) return 0 ;;
-        planned:skipped|planned:failed|starting:failed|starting:cancelled|authenticated:failed|authenticated:cancelled|running:degraded|running:failed|running:timeout|running:cancelled|output_received:degraded|output_received:failed|output_received:cancelled|validated:degraded|validated:failed|validated:cancelled) return 0 ;;
+        planned:skipped|planned:failed|starting:failed|starting:cancelled|authenticated:failed|authenticated:cancelled|running:degraded|running:skipped|running:failed|running:timeout|running:cancelled|output_received:degraded|output_received:failed|output_received:cancelled|validated:degraded|validated:failed|validated:cancelled) return 0 ;;
         *) return 1 ;;
     esac
 }

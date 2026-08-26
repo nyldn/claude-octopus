@@ -21,6 +21,14 @@ if [[ ! -f "$PROJECT_ROOT/scripts/lib/run-contract.sh" ]]; then
 fi
 source "$PROJECT_ROOT/scripts/lib/run-contract.sh"
 
+test_case "test harness fallback never writes contract state under HOME"
+fallback_path="$(unset WORKSPACE_DIR; octo_run_contract_ledger_path)"
+if [[ "$fallback_path" == "$TEST_TMP_DIR/"* ]]; then
+    test_pass
+else
+    test_fail "expected TEST_TMP_DIR fallback, got $fallback_path"
+fi
+
 ledger="$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID/seats.jsonl"
 snapshot="$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID/seats.json"
 valid_output="$TEST_TMP_DIR/valid-output.md"
@@ -215,6 +223,7 @@ starting cancelled
 authenticated failed
 authenticated cancelled
 running degraded
+running skipped
 running failed
 running timeout
 running cancelled

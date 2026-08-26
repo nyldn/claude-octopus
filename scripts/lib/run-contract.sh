@@ -3,6 +3,9 @@
 # Source-safe: this library does not set shell options or resolve paths at load.
 
 OCTO_RUN_SCHEMA_VERSION="10.0"
+if [[ -z "${OCTO_RUN_CONTRACT_FALLBACK_ID:-}" ]]; then
+    OCTO_RUN_CONTRACT_FALLBACK_ID="run-$(date -u +%Y%m%dT%H%M%SZ)-$$-${RANDOM:-0}"
+fi
 
 if ! type _octo_event_lock >/dev/null 2>&1; then
     _octo_run_events_lib="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/events.sh"
@@ -10,15 +13,20 @@ if ! type _octo_event_lock >/dev/null 2>&1; then
 fi
 
 octo_run_contract_id() {
-    local fallback
-    fallback="run-$(date -u +%Y%m%dT%H%M%SZ)-$$"
-    printf '%s\n' "${OCTOPUS_RUN_ID:-${OCTOPUS_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-${CLAUDE_CODE_SESSION:-$fallback}}}}}"
+    printf '%s\n' "${OCTOPUS_RUN_ID:-${OCTOPUS_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-${CLAUDE_CODE_SESSION:-$OCTO_RUN_CONTRACT_FALLBACK_ID}}}}}"
 }
 
 octo_run_contract_dir() {
-    local run_id
+    local run_id contract_root
     run_id="$(octo_run_contract_id)"
-    printf '%s\n' "${WORKSPACE_DIR:-${HOME}/.claude-octopus}/runs/${run_id}"
+    if [[ -n "${WORKSPACE_DIR:-}" ]]; then
+        contract_root="$WORKSPACE_DIR"
+    elif [[ -n "${TEST_TMP_DIR:-}" ]]; then
+        contract_root="$TEST_TMP_DIR/run-contract-workspace"
+    else
+        contract_root="${HOME}/.claude-octopus"
+    fi
+    printf '%s\n' "${contract_root}/runs/${run_id}"
 }
 
 octo_run_contract_ledger_path() {
@@ -33,7 +41,7 @@ octo_run_transition_valid() {
     local from="${1:-}" to="${2:-}"
     case "${from}:${to}" in
         :planned|planned:starting|starting:authenticated|authenticated:running|running:output_received|output_received:validated|validated:contributed) return 0 ;;
-        planned:skipped|planned:failed|starting:failed|starting:cancelled|authenticated:failed|authenticated:cancelled|running:degraded|running:failed|running:timeout|running:cancelled|output_received:degraded|output_received:failed|output_received:cancelled|validated:degraded|validated:failed|validated:cancelled) return 0 ;;
+        planned:skipped|planned:failed|starting:failed|starting:cancelled|authenticated:failed|authenticated:cancelled|running:degraded|running:skipped|running:failed|running:timeout|running:cancelled|output_received:degraded|output_received:failed|output_received:cancelled|validated:degraded|validated:failed|validated:cancelled) return 0 ;;
         *) return 1 ;;
     esac
 }

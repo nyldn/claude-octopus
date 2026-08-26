@@ -7,6 +7,10 @@ if ! type probe_result_file_status >/dev/null 2>&1; then
     _octo_probe_results_lib="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/probe-results.sh"
     [[ -f "$_octo_probe_results_lib" ]] && source "$_octo_probe_results_lib"
 fi
+if ! type _octo_run_output_usable_file >/dev/null 2>&1; then
+    _octo_run_contract_lib="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/run-contract.sh"
+    [[ -f "$_octo_run_contract_lib" ]] && source "$_octo_run_contract_lib"
+fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # UX ENHANCEMENTS: Feature 1 - Enhanced Spinner Verbs (v7.16.0)
@@ -222,7 +226,11 @@ classify_agent_output() {
     local stderr_file="${4:-}"
 
     if [[ "$agent" == codex* ]] && octo_file_has_codex_stdin_closed "$stderr_file"; then
-        echo "failed:Codex tool stdin closed (avoid write_stdin in non-interactive sessions)"
+        if [[ -s "$output_file" ]] && grep -q '[[:alnum:]]' "$output_file" 2>/dev/null; then
+            echo "degraded:Codex stdin closed after substantive output was captured"
+        else
+            echo "failed:Codex tool stdin closed (avoid write_stdin in non-interactive sessions)"
+        fi
         return 0
     fi
 
@@ -247,6 +255,12 @@ classify_agent_output() {
             return 0
         fi
         echo "failed:Empty output"
+        return 0
+    fi
+
+    if type _octo_run_output_usable_file >/dev/null 2>&1 && \
+       ! _octo_run_output_usable_file "$output_file"; then
+        echo "failed:Empty or placeholder output"
         return 0
     fi
 
@@ -303,6 +317,24 @@ write_agent_status() {
     local duration_ms="${6:-0}"
     local output_file="${7:-}"
     local role="${8:-}"
+    local seat_id="${9:-}"
+    local transition="${10:-}"
+    local contribution="${11:-}"
+
+    if [[ -z "$transition" ]]; then
+        case "$status" in
+            ok|completed) transition=contributed ;;
+            degraded|skipped|failed|timeout|cancelled|running) transition="$status" ;;
+            *) transition="" ;;
+        esac
+    fi
+    if [[ -z "$contribution" ]]; then
+        case "$transition" in
+            contributed) contribution=eligible ;;
+            degraded) contribution=eligible-with-warning ;;
+            *) contribution=none ;;
+        esac
+    fi
 
     local run_id dir
     run_id=$(octo_current_run_id)
@@ -314,17 +346,21 @@ write_agent_status() {
             --arg agent "$agent" \
             --arg role "$role" \
             --arg status "$status" \
+            --arg schema_version "${OCTO_RUN_SCHEMA_VERSION:-10.0}" \
+            --arg seat_id "$seat_id" \
+            --arg transition "$transition" \
+            --arg contribution "$contribution" \
             --arg reason "$reason" \
             --arg output_file "$output_file" \
             --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --argjson tokens_in "${tokens_in:-0}" \
             --argjson tokens_out "${tokens_out:-0}" \
             --argjson duration_ms "${duration_ms:-0}" \
-            '{agent:$agent,role:$role,status:$status,tokens_in:$tokens_in,tokens_out:$tokens_out,duration_ms:$duration_ms,reason:(if ($reason|length)>0 then $reason else "" end),output_file:(if ($output_file|length)>0 then $output_file else "" end),ts:$ts}' \
+            '{agent:$agent,role:$role,status:$status,schema_version:$schema_version,seat_id:$seat_id,transition:$transition,contribution:$contribution,tokens_in:$tokens_in,tokens_out:$tokens_out,duration_ms:$duration_ms,reason:(if ($reason|length)>0 then $reason else "" end),output_file:(if ($output_file|length)>0 then $output_file else "" end),ts:$ts}' \
             >> "$dir/agents.jsonl" 2>/dev/null || true
     else
-        printf '{"agent":"%s","role":"%s","status":"%s","tokens_in":%d,"tokens_out":%d,"duration_ms":%d,"reason":"%s","output_file":"%s","ts":"%s"}\n' \
-            "$agent" "$role" "$status" "$tokens_in" "$tokens_out" "$duration_ms" \
+        printf '{"agent":"%s","role":"%s","status":"%s","schema_version":"%s","seat_id":"%s","transition":"%s","contribution":"%s","tokens_in":%d,"tokens_out":%d,"duration_ms":%d,"reason":"%s","output_file":"%s","ts":"%s"}\n' \
+            "$agent" "$role" "$status" "${OCTO_RUN_SCHEMA_VERSION:-10.0}" "$seat_id" "$transition" "$contribution" "$tokens_in" "$tokens_out" "$duration_ms" \
             "$reason" "$output_file" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$dir/agents.jsonl"
     fi
 
@@ -371,13 +407,18 @@ agent_status_output_files() {
         | .[]
         | [
             .status,
+            (.contribution // ""),
             (.output_file // "")
           ]
         | @tsv
-    ' "$jsonl" 2>/dev/null | while IFS=$'\t' read -r status file; do
+    ' "$jsonl" 2>/dev/null | while IFS=$'\t' read -r status contribution file; do
         [[ -n "$file" && -f "$file" ]] || continue
         [[ -z "$filter" || "$file" == *"$filter"* ]] || continue
-        if [[ "$status" == "ok" || "$status" == "degraded" || "$status" == "timeout" ]]; then
+        if [[ "$status" == "ok" && "$contribution" == "eligible" ]] && \
+           _octo_run_output_usable_file "$file"; then
+            printf '%s\n' "$file"
+        elif [[ "$status" == "degraded" && "$contribution" == "eligible-with-warning" ]] && \
+             _octo_run_output_usable_file "$file"; then
             printf '%s\n' "$file"
         elif [[ "$status" == "running" ]] && probe_result_file_is_usable "$file"; then
             printf '%s\n' "$file"

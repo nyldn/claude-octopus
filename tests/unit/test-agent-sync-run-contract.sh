@@ -1,0 +1,193 @@
+#!/usr/bin/env bash
+# Typed lifecycle coverage for synchronous provider dispatch.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "synchronous v10 run contract"
+
+# shellcheck source=/dev/null
+source "$PROJECT_ROOT/scripts/lib/run-contract.sh"
+# shellcheck source=/dev/null
+source "$PROJECT_ROOT/scripts/lib/error-tracking.sh"
+# shellcheck source=/dev/null
+source "$PROJECT_ROOT/scripts/lib/agent-sync.sh"
+
+fixture_provider="$TEST_TMP_DIR/fixture-provider.sh"
+cat > "$fixture_provider" <<'EOF'
+#!/usr/bin/env bash
+attempt=0
+[[ -f "$FIXTURE_CALLS" ]] && attempt="$(wc -l < "$FIXTURE_CALLS" | tr -d ' ')"
+attempt=$((attempt + 1))
+printf '%s\n' "$attempt" >> "$FIXTURE_CALLS"
+case "$FIXTURE_SCENARIO" in
+    success) printf '%s\n' 'Substantive provider result.' ;;
+    empty) : ;;
+    whitespace) printf ' \n\t\n' ;;
+    placeholder) printf '%s\n' 'Provider available' ;;
+    oversize) printf '%s\n' 'Prompt is too long for the context limit' ;;
+    timeout) printf '%s\n' 'partial output' ; exit 124 ;;
+    sigsegv)
+        if [[ "$attempt" -eq 1 ]]; then
+            printf '%s\n' 'synthetic segfault' >&2
+            exit 139
+        fi
+        printf '%s\n' 'Recovered substantive provider result.'
+        ;;
+    stdin-close)
+        printf '%s\n' 'Substantive Codex review result.'
+        printf '%s\n' 'write_stdin failed: stdin is closed for this session' >&2
+        ;;
+    truncated)
+        printf '%0500d\n' 0 | tr '0' 'A'
+        ;;
+    *) printf '%s\n' "unknown fixture: $FIXTURE_SCENARIO" >&2; exit 2 ;;
+esac
+EOF
+chmod 755 "$fixture_provider"
+
+log() { :; }
+classify_task() { printf '%s\n' standard; }
+get_role_for_context() { printf '%s\n' reviewer; }
+apply_persona() { printf '%s\n' "$2"; }
+load_earned_skills() { :; }
+build_provider_context() { :; }
+enforce_context_budget() { printf '%s\n' "$1"; }
+get_agent_model() { printf '%s\n' fixture-model; }
+estimate_agent_call_cost() { printf '%s\n' 0.000000; }
+record_agent_call() { :; }
+get_agent_command() { printf '%s\n' "$fixture_provider"; }
+build_provider_env() { PROVIDER_ENV_ARRAY=(); }
+run_with_timeout() { shift; "$@"; }
+stop_quota_watcher() { :; }
+update_agent_status() { :; }
+octo_estimate_tokens_for_file() { printf '%s\n' 0; }
+wrap_cli_output() { printf '%s\n' "$2"; }
+write_agent_status() {
+    printf '%s|%s|%s|%s|%s\n' "$1" "$2" "$5" "$7" "$8" >> "$FIXTURE_ROOT/legacy-statuses"
+}
+check_provider_health() {
+    if [[ "$FIXTURE_SCENARIO" == auth-fail ]]; then
+        printf '%s\n' 'fixture authentication rejected'
+        return 1
+    fi
+    return 0
+}
+
+export CODEX_SUBAGENT_PREAMBLE=""
+
+run_fixture() {
+    local scenario="$1" agent_type="${2:-codex}"
+    export FIXTURE_SCENARIO="$scenario"
+    export FIXTURE_ROOT="$TEST_TMP_DIR/$scenario"
+    export FIXTURE_CALLS="$FIXTURE_ROOT/provider-calls"
+    export WORKSPACE_DIR="$FIXTURE_ROOT/workspace"
+    export RESULTS_DIR="$FIXTURE_ROOT/results"
+    export OCTOPUS_RUN_ID="sync-$scenario"
+    export OCTOPUS_AGENT_MAX_OUTPUT_BYTES=262144
+    export OCTOPUS_PERSISTENCE_AVAILABLE=true
+    [[ "$scenario" == truncated ]] && export OCTOPUS_AGENT_MAX_OUTPUT_BYTES=120
+    [[ "$scenario" == persistence-fail ]] && export OCTOPUS_PERSISTENCE_AVAILABLE=false
+    mkdir -p "$RESULTS_DIR"
+
+    set +e
+    run_agent_sync "$agent_type" 'Review the fixture.' 5 reviewer probe \
+        > "$FIXTURE_ROOT/stdout" 2> "$FIXTURE_ROOT/stderr"
+    fixture_rc=$?
+    set -e
+    printf '%s\n' "$fixture_rc" > "$FIXTURE_ROOT/rc"
+}
+
+assert_scenario() {
+    local scenario="$1" expected_rc="$2" expected_calls="$3"
+    local expected_transitions="$4" expected_terminal="$5"
+    local expected_contribution="$6" expected_reason="$7" agent_type="${8:-codex}"
+    local root ledger actual_calls actual_transitions actual_terminal actual_contribution actual_reason
+
+    run_fixture "$scenario" "$agent_type"
+    root="$TEST_TMP_DIR/$scenario"
+    ledger="$root/workspace/runs/sync-$scenario/seats.jsonl"
+    if [[ -f "$root/provider-calls" ]]; then
+        actual_calls="$(wc -l < "$root/provider-calls" | tr -d ' ')"
+    else
+        actual_calls=0
+    fi
+    actual_transitions="$(jq -r '.transition' "$ledger" 2>/dev/null | paste -sd, - || true)"
+    actual_terminal="$(jq -r '.transition' "$ledger" 2>/dev/null | tail -n 1 || true)"
+    actual_contribution="$(jq -r '.contribution' "$ledger" 2>/dev/null | tail -n 1 || true)"
+    actual_reason="$(jq -r '.reason' "$ledger" 2>/dev/null | tail -n 1 || true)"
+
+    test_case "$scenario has an exact synchronous lifecycle oracle"
+    if [[ "$(cat "$root/rc")" == "$expected_rc" ]] && \
+       [[ "$actual_calls" == "$expected_calls" ]] && \
+       [[ "$actual_transitions" == "$expected_transitions" ]] && \
+       [[ "$actual_terminal" == "$expected_terminal" ]] && \
+       [[ "$actual_contribution" == "$expected_contribution" ]] && \
+       [[ "$actual_reason" == "$expected_reason" ]] && \
+       jq -e --arg terminal "$expected_terminal" '
+           .schema_version == "10.0" and
+           (.seats | length == 1) and
+           .seats[0].transition == $terminal
+       ' "$root/workspace/runs/sync-$scenario/seats.json" >/dev/null 2>&1; then
+        test_pass
+    else
+        test_fail "rc=$(cat "$root/rc") calls=$actual_calls transitions=${actual_transitions:-missing} terminal=${actual_terminal:-missing} contribution=${actual_contribution:-missing} reason=${actual_reason:-missing}"
+    fi
+}
+
+assert_scenario success 0 1 \
+    planned,starting,authenticated,running,output_received,validated,contributed \
+    contributed eligible ''
+assert_scenario auth-fail 1 0 planned,starting,failed failed none \
+    'Provider unavailable: fixture authentication rejected'
+assert_scenario persistence-fail 74 0 planned,starting,authenticated,failed failed none \
+    'Persistence unavailable'
+assert_scenario empty 1 1 planned,starting,authenticated,running,failed failed none \
+    'Empty output'
+assert_scenario whitespace 1 1 planned,starting,authenticated,running,failed failed none \
+    'Empty or placeholder output'
+assert_scenario placeholder 1 1 planned,starting,authenticated,running,failed failed none \
+    'Empty or placeholder output'
+assert_scenario oversize 0 1 planned,starting,authenticated,running,skipped skipped none \
+    'Prompt rejected by provider (oversize)'
+assert_scenario timeout 124 1 planned,starting,authenticated,running,timeout timeout none \
+    'Timed out before completion'
+assert_scenario sigsegv 0 2 \
+    planned,starting,authenticated,running,output_received,validated,degraded \
+    degraded eligible-with-warning 'Recovered after AGY exit 139' agy
+assert_scenario stdin-close 0 1 \
+    planned,starting,authenticated,running,output_received,validated,degraded \
+    degraded eligible-with-warning 'Codex stdin closed after substantive output was captured'
+assert_scenario truncated 0 1 \
+    planned,starting,authenticated,running,output_received,validated,degraded \
+    degraded eligible-with-warning 'Output truncated'
+
+test_case "recovery and stdin diagnostics remain durable and attempts are distinct"
+sigsegv_snapshot="$TEST_TMP_DIR/sigsegv/workspace/runs/sync-sigsegv/seats.json"
+stdin_snapshot="$TEST_TMP_DIR/stdin-close/workspace/runs/sync-stdin-close/seats.json"
+sigsegv_stderr="$(jq -r '.seats[0].artifacts.stderr' "$sigsegv_snapshot")"
+stdin_stderr="$(jq -r '.seats[0].artifacts.stderr' "$stdin_snapshot")"
+if [[ -s "$sigsegv_stderr" ]] && grep -q 'synthetic segfault' "$sigsegv_stderr" && \
+   [[ -s "$stdin_stderr" ]] && grep -q 'stdin is closed' "$stdin_stderr" && \
+   [[ "$(jq -r '.seats[0].attempt_id' "$sigsegv_snapshot")" == *-attempt-2 ]]; then
+    test_pass
+else
+    test_fail "retry attempt or durable stderr artifacts were not preserved"
+fi
+
+test_case "successful synchronous output remains durable after temp cleanup"
+success_snapshot="$TEST_TMP_DIR/success/workspace/runs/sync-success/seats.json"
+success_artifact=""
+if [[ -f "$success_snapshot" ]]; then
+    success_artifact="$(jq -r '.seats[0].artifacts.output' "$success_snapshot" 2>/dev/null || true)"
+fi
+if [[ -s "$success_artifact" ]] && grep -q 'Substantive provider result' "$success_artifact"; then
+    test_pass
+else
+    test_fail "successful output artifact is missing after run_agent_sync cleanup"
+fi
+
+test_summary

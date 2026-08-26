@@ -26,6 +26,20 @@ else
     test_fail "expected agents.jsonl and agents.json snapshot"
 fi
 
+test_case "legacy status rows retain keys and expose v10 projection fields"
+if jq -e -s '
+    .[0] as $row |
+    ($row | has("agent") and has("role") and has("status") and
+      has("tokens_in") and has("tokens_out") and has("duration_ms") and
+      has("reason") and has("output_file") and has("ts")) and
+    ($row | has("schema_version") and has("seat_id") and
+      has("transition") and has("contribution"))
+' "$WORKSPACE_DIR/runs/test-run/agents.jsonl" >/dev/null; then
+    test_pass
+else
+    test_fail "legacy or v10 compatibility projection keys are missing"
+fi
+
 test_case "agent_status_output_files excludes failed providers"
 files="$(agent_status_output_files)"
 if [[ "$files" == *"codex.md"* && "$files" != *"agy.md"* ]]; then
@@ -69,6 +83,17 @@ if [[ "$files" == *"copilot-running.md"* ]]; then
     test_pass
 else
     test_fail "expected usable stale running output to be listed, got: ${files:-<empty>}"
+fi
+
+test_case "agent_status_output_files excludes timed-out partial output"
+timeout_file="$WORKSPACE_DIR/results/timed-out-partial.md"
+printf '%s\n' 'partial provider output before timeout' > "$timeout_file"
+write_agent_status "timeout-provider" "timeout" 100 20 "Timed out before completion" 5000 "$timeout_file" "researcher"
+files="$(agent_status_output_files)"
+if [[ "$files" != *"timed-out-partial.md"* ]]; then
+    test_pass
+else
+    test_fail "timed-out partial output was incorrectly eligible for synthesis"
 fi
 
 test_case "classify_agent_output detects Codex closed stdin tool error"
