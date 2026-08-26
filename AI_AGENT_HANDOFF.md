@@ -7,6 +7,8 @@ deterministic macOS deadline oracle as `6265807f`. Exact-main Test Suite run
 `32969018355` passed before the annotated `v10.0.0` tag and GitHub release were
 published from that exact commit.
 Branch: `docs/v10-release-handoff`, based on tagged `main` `6265807f`.
+Handoff publication: evidence commit `c714303b` is pushed as PR #967; every
+review-response commit is pushed and checked for local/remote parity before merge.
 Current release: [v10.0.0](https://github.com/nyldn/claude-octopus/releases/tag/v10.0.0)
 Tracking: Beads epic `oco-de9` and children `oco-de9.1` through `oco-de9.8` are closed.
 Next action: no v10 release action remains. Start from current protected `main`,
