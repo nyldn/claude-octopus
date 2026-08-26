@@ -11,6 +11,7 @@ fi
 # ═══════════════════════════════════════════════════════════════════════════════
 
 _model_resolver_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${_model_resolver_lib_dir}/provider-registry.sh" || { echo "model-resolver: failed to load provider-registry.sh" >&2; return 1 2>/dev/null || exit 1; }
 if ! declare -f octo_model_cache_file >/dev/null 2>&1; then
     source "${_model_resolver_lib_dir}/model-cache-path.sh" 2>/dev/null || true
 fi
@@ -248,7 +249,12 @@ resolve_octopus_model() {
         antigravity|agy-research|gemini|gemini-*) canonical_provider="agy" ;;
     esac
     provider="$canonical_provider"
-    local env_var="OCTOPUS_$(echo "$canonical_provider" | tr '[:lower:]' '[:upper:]' | tr '-' '_')_MODEL"
+    local env_var
+    if declare -f octo_provider_model_env >/dev/null 2>&1; then
+        env_var="$(octo_provider_model_env "$canonical_provider")" || return 1
+    else
+        env_var="OCTOPUS_$(echo "$canonical_provider" | tr '[:lower:]' '[:upper:]' | tr '-' '_')_MODEL"
+    fi
     if [[ -n "${!env_var:-}" ]]; then
         if ! validate_model_name_for_provider "$canonical_provider" "${!env_var}"; then
             log ERROR "Invalid model name in $env_var"

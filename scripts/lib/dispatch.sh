@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 _profile_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_profile_lib_dir}/agent-spec.sh" 2>/dev/null || true
+source "${_profile_lib_dir}/provider-registry.sh" || { echo "dispatch: failed to load provider-registry.sh" >&2; return 1 2>/dev/null || exit 1; }
 if ! declare -f octopus_resolve_reasoning_level >/dev/null 2>&1; then
     source "${_profile_lib_dir}/execution-profile.sh" 2>/dev/null || true
 fi
@@ -508,7 +509,7 @@ get_role_budget_proportion() {
 # opt in without inflating smaller providers.
 get_provider_context_limit() {
     local agent_type="${1:-}"
-    local provider executor
+    local provider executor registry_default model_env context_env
     provider="$(octo_agent_spec_provider "$agent_type")"
     executor="$(octo_agent_spec_executor "$agent_type")"
     local default_budget="${OCTOPUS_CONTEXT_BUDGET:-12000}"
@@ -519,20 +520,16 @@ get_provider_context_limit() {
         claude-opus*|claude-sonnet|claude) echo "${OCTOPUS_CLAUDE_CONTEXT_BUDGET:-${default_budget}}" ; return 0 ;;
     esac
 
-    case "$provider" in
-        codex)      echo "${OCTOPUS_CODEX_CONTEXT_BUDGET:-${default_budget}}" ;;
-        gemini|agy|antigravity) echo "${OCTOPUS_AGY_CONTEXT_BUDGET:-${default_budget}}" ;;
-        claude)     echo "${OCTOPUS_CLAUDE_CONTEXT_BUDGET:-${default_budget}}" ;;
-        perplexity) echo "${OCTOPUS_PERPLEXITY_CONTEXT_BUDGET:-${default_budget}}" ;;
-        openrouter) echo "${OCTOPUS_OPENROUTER_CONTEXT_BUDGET:-${default_budget}}" ;;
-        orcarouter) echo "${OCTOPUS_ORCAROUTER_CONTEXT_BUDGET:-${default_budget}}" ;;
-        atlascloud) echo "${OCTOPUS_ATLASCLOUD_CONTEXT_BUDGET:-${default_budget}}" ;;
-        copilot)    echo "${OCTOPUS_COPILOT_CONTEXT_BUDGET:-${default_budget}}" ;;
-        qwen)       echo "${OCTOPUS_QWEN_CONTEXT_BUDGET:-${default_budget}}" ;;
-        opencode)   echo "${OCTOPUS_OPENCODE_CONTEXT_BUDGET:-${default_budget}}" ;;
-        ollama)     echo "${OCTOPUS_OLLAMA_CONTEXT_BUDGET:-${default_budget}}" ;;
-        *)          echo "$default_budget" ;;
-    esac
+    registry_default="$(octo_provider_context_tokens "$provider" 2>/dev/null || printf '%s' "$default_budget")"
+    model_env="$(octo_provider_model_env "$provider" 2>/dev/null || true)"
+    context_env="${model_env%_MODEL}_CONTEXT_BUDGET"
+    if [[ -n "$model_env" && -n "${!context_env:-}" ]]; then
+        printf '%s\n' "${!context_env}"
+    elif [[ -n "${OCTOPUS_CONTEXT_BUDGET:-}" ]]; then
+        printf '%s\n' "$OCTOPUS_CONTEXT_BUDGET"
+    else
+        printf '%s\n' "$registry_default"
+    fi
 }
 
 summarize_then_dispatch() {
@@ -702,28 +699,11 @@ get_agent_model() {
         migrate_provider_config
     fi
 
-    # Determine base provider type
+    # Determine base provider identity through the canonical registry. Prefix
+    # aliases (including retired gemini-* IDs) are resolved there, so adding a
+    # provider does not require another ordered case list in dispatch.
     local provider=""
-    case "$agent_executor" in
-        codex*)      provider="codex" ;;
-        gemini*)     provider="agy" ;;  # legacy Google-seat IDs migrate to AGY
-        agy*|antigravity) provider="agy" ;;
-        claude-sdk*) provider="claude-sdk" ;;  # v9.50.0: must precede claude* glob
-        claude*)     provider="claude" ;;
-        openrouter*) provider="openrouter" ;;
-        orcarouter*) provider="orcarouter" ;;
-        atlascloud*) provider="atlascloud" ;;
-        openai-compatible|openai-tools|openai-compatible-agent*) provider="openai-compatible-agent" ;;
-        commandcode*) provider="commandcode" ;;
-        perplexity*) provider="perplexity" ;;
-        qwen*)       provider="qwen" ;;
-        cursor-agent*) provider="cursor-agent" ;;
-        grok*)       provider="grok" ;;
-        opencode*)   provider="opencode" ;;
-        ollama*)     provider="ollama" ;;
-        copilot*)    provider="copilot" ;;
-        vibe*)       provider="vibe" ;;
-    esac
+    provider="$(octo_provider_canonical "$agent_executor" 2>/dev/null || true)"
 
     local resolved_model
     # A model-qualified agent spec (provider:model) is an explicit seat identity.

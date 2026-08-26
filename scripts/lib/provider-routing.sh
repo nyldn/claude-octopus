@@ -697,35 +697,29 @@ fi
 
 # Check if provider is using API keys (costs money per call)
 is_api_based_provider() {
-    local provider
+    local provider cost_class
     provider="$(octo_provider_canonical "${1:-}" 2>/dev/null || printf '%s' "${1:-}")"
+    cost_class="$(octo_provider_cost_class "$provider" 2>/dev/null || printf '%s' metered)"
 
+    case "$cost_class" in
+        metered) return 0 ;;
+        bundled|local) return 1 ;;
+        variable) ;;
+        *) return 0 ;;  # Unknown metadata remains cost-conservative.
+    esac
+
+    # Variable providers can use either a subscription/session or a metered
+    # credential. Keep only auth-state decisions here; the provider inventory
+    # and its base cost policy remain registry-owned.
     case "$provider" in
-        codex)
-            # Check if using API key (OPENAI_API_KEY) vs auth
-            [[ -n "${OPENAI_API_KEY:-}" ]] && return 0
-            return 1
-            ;;
-        agy)
-            # Antigravity CLI uses the user's Google seat, not a direct Gemini API key.
-            return 1
-            ;;
-        claude)
-            # Claude Code is subscription-based, not per-call
-            return 1
-            ;;
-        perplexity)
-            # v8.24.0: Perplexity Sonar API (Issue #22)
-            [[ -n "${PERPLEXITY_API_KEY:-}" ]] && return 0
-            return 1
-            ;;
-        atlascloud)
-            [[ -n "${ATLASCLOUD_API_KEY:-}" ]] && return 0
-            return 1
-            ;;
-        *)
-            # Unknown provider, assume API-based for safety
+        codex) [[ -n "${OPENAI_API_KEY:-}" ]] ;;
+        commandcode) [[ -n "${COMMAND_CODE_API_KEY:-}" ]] ;;
+        qwen)
+            if declare -f qwen_auth_method >/dev/null 2>&1 && [[ "$(qwen_auth_method 2>/dev/null || true)" == "oauth" ]]; then
+                return 1
+            fi
             return 0
             ;;
+        *) return 0 ;;  # Variable backend is unknown: assume metered.
     esac
 }

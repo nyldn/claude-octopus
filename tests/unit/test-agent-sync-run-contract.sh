@@ -70,7 +70,7 @@ write_agent_status() {
     printf '%s|%s|%s|%s|%s\n' "$1" "$2" "$5" "$7" "$8" >> "$FIXTURE_ROOT/legacy-statuses"
 }
 check_provider_health() {
-    if [[ "$FIXTURE_SCENARIO" == auth-fail ]]; then
+    if [[ "$FIXTURE_SCENARIO" == auth-fail || "$FIXTURE_SCENARIO" == health-fail-qwen ]]; then
         printf '%s\n' 'fixture authentication rejected'
         return 1
     fi
@@ -143,6 +143,8 @@ assert_scenario success 0 1 \
     contributed eligible ''
 assert_scenario auth-fail 1 0 planned,starting,failed failed none \
     'Provider unavailable: fixture authentication rejected'
+assert_scenario health-fail-qwen 1 0 planned,starting,failed failed none \
+    'Provider unavailable: fixture authentication rejected' qwen
 assert_scenario persistence-fail 74 0 planned,starting,authenticated,failed failed none \
     'Persistence unavailable'
 assert_scenario empty 1 1 planned,starting,authenticated,running,failed failed none \

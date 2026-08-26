@@ -43,6 +43,99 @@ for id in $all_ids; do
 done
 test_pass
 
+test_case "runtime metadata inventory exactly matches canonical provider inventory"
+if declare -f octo_provider_runtime_ids >/dev/null 2>&1 && [[ "$(octo_provider_runtime_ids)" == "$all_ids" ]]; then
+    test_pass
+else
+    test_fail "runtime metadata inventory is missing or differs from canonical IDs"
+fi
+
+test_case "every provider has complete and valid runtime metadata"
+runtime_ok=true
+if ! declare -f octo_provider_runtime_field >/dev/null 2>&1; then
+    runtime_ok=false
+    test_fail "runtime metadata API is missing"
+else
+    for id in $all_ids; do
+        auth=$(octo_provider_auth_mode "$id" 2>/dev/null || true)
+        health=$(octo_provider_health_handler "$id" 2>/dev/null || true)
+        detect=$(octo_provider_detect_handler "$id" 2>/dev/null || true)
+        model_env=$(octo_provider_model_env "$id" 2>/dev/null || true)
+        resolver=$(octo_provider_default_model_resolver "$id" 2>/dev/null || true)
+        context=$(octo_provider_context_tokens "$id" 2>/dev/null || true)
+        cost=$(octo_provider_cost_class "$id" 2>/dev/null || true)
+        sandbox=$(octo_provider_sandbox_class "$id" 2>/dev/null || true)
+        independence=$(octo_provider_independence_org "$id" 2>/dev/null || true)
+        case "$auth" in api-key|cli-session|api-key-or-cli-session|local-runtime|provider-config) ;; *) test_fail "$id has invalid auth mode '$auth'"; runtime_ok=false; break ;; esac
+        case "$health" in check_provider_health|none) ;; *) test_fail "$id has invalid health handler '$health'"; runtime_ok=false; break ;; esac
+        case "$detect" in detect_providers|none) ;; *) test_fail "$id has invalid detect handler '$detect'"; runtime_ok=false; break ;; esac
+        [[ "$model_env" =~ ^[A-Z][A-Z0-9_]*$ ]] || { test_fail "$id has invalid model env '$model_env'"; runtime_ok=false; break; }
+        [[ "$resolver" == "resolve_octopus_model" ]] || { test_fail "$id has invalid model resolver '$resolver'"; runtime_ok=false; break; }
+        [[ "$context" =~ ^[0-9]+$ ]] && [[ "$context" -gt 0 ]] || { test_fail "$id has invalid context ceiling '$context'"; runtime_ok=false; break; }
+        case "$cost" in bundled|metered|local|variable) ;; *) test_fail "$id has invalid cost class '$cost'"; runtime_ok=false; break ;; esac
+        case "$sandbox" in host-managed|plugin-isolated|provider-managed|local-runtime) ;; *) test_fail "$id has invalid sandbox class '$sandbox'"; runtime_ok=false; break ;; esac
+        [[ -n "$independence" ]] || { test_fail "$id missing independence organization"; runtime_ok=false; break; }
+    done
+fi
+[[ "$runtime_ok" == true ]] && test_pass
+
+test_case "aliases share the canonical provider runtime contract"
+alias_runtime_ok=true
+if ! declare -f octo_provider_runtime_field >/dev/null 2>&1; then
+    alias_runtime_ok=false
+    test_fail "runtime metadata API is missing"
+else
+    while IFS='|' read -r id aliases command org caps; do
+        old_ifs="$IFS"; IFS=','
+        for alias in $aliases; do
+            IFS="$old_ifs"
+            [[ -n "$alias" ]] || { IFS=','; continue; }
+            probe="$alias"; case "$alias" in *'*') probe="${alias%\*}probe" ;; esac
+            if [[ "$(octo_provider_runtime_field "$probe" model_env)" != "$(octo_provider_runtime_field "$id" model_env)" ]] ||
+               [[ "$(octo_provider_runtime_field "$probe" independence_org)" != "$(octo_provider_runtime_field "$id" independence_org)" ]]; then
+                test_fail "alias $probe does not share $id runtime metadata"
+                alias_runtime_ok=false
+                break 2
+            fi
+            IFS=','
+        done
+        IFS="$old_ifs"
+    done <<EOF
+$(octo_provider_registry_rows)
+EOF
+fi
+[[ "$alias_runtime_ok" == true ]] && test_pass
+
+test_case "shared context routing consumes registry metadata"
+if grep -A35 '^get_provider_context_limit() {' "$PROJECT_ROOT/scripts/lib/dispatch.sh" | grep -q 'octo_provider_context_tokens'; then
+    test_pass
+else
+    test_fail "dispatch context routing still owns a parallel provider list"
+fi
+
+test_case "sync health selection and model env resolution consume registry metadata"
+health_body=$(sed -n '/# v8.49.0: Pre-dispatch health check/,/run_contract_transition .*authenticated/p' "$PROJECT_ROOT/scripts/lib/agent-sync.sh")
+if grep -q 'octo_provider_health_handler' <<< "$health_body" &&
+   ! grep -Eq 'codex\*\).*_provider_for_health|claude\*\).*_provider_for_health' <<< "$health_body" &&
+   grep -q 'octo_provider_model_env' "$PROJECT_ROOT/scripts/lib/model-resolver.sh"; then
+    test_pass
+else
+    test_fail "shared dispatch/model consumers still own parallel provider identity metadata"
+fi
+
+test_case "dispatch identity cost policy and Council independence consume registry metadata"
+model_body=$(sed -n '/^get_agent_model() {/,/^}/p' "$PROJECT_ROOT/scripts/lib/dispatch.sh")
+cost_body=$(sed -n '/^is_api_based_provider() {/,/^}/p' "$PROJECT_ROOT/scripts/lib/provider-routing.sh")
+council_org_body=$(sed -n '/^council_provider_org() {/,/^}/p' "$PROJECT_ROOT/scripts/lib/council.sh")
+if grep -q 'octo_provider_canonical' <<< "$model_body" &&
+   ! grep -Eq 'codex\*\).*provider=|claude\*\).*provider=' <<< "$model_body" &&
+   grep -q 'octo_provider_cost_class' <<< "$cost_body" &&
+   grep -q 'octo_provider_independence_org' <<< "$council_org_body"; then
+    test_pass
+else
+    test_fail "shared consumers still own provider identity, cost, or independence metadata"
+fi
+
 test_case "model-config consumers exactly match registry capability"
 source "$PROJECT_ROOT/scripts/lib/provider-routing.sh"
 expected=$(octo_provider_ids model-config)

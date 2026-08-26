@@ -542,7 +542,7 @@ council_provider_command() {
 council_provider_org() {
     local provider
     provider="$(octo_agent_spec_provider "$1")"
-    octo_provider_org "$provider" 2>/dev/null || echo "$provider"
+    octo_provider_independence_org "$provider" 2>/dev/null || octo_provider_org "$provider" 2>/dev/null || echo "$provider"
 }
 
 council_model_family() {

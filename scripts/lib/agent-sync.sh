@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 _agent_sync_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_agent_sync_lib_dir}/agent-spec.sh" 2>/dev/null || true
+source "${_agent_sync_lib_dir}/provider-registry.sh" || { echo "agent-sync: failed to load provider-registry.sh" >&2; return 1 2>/dev/null || exit 1; }
 # ═══════════════════════════════════════════════════════════════════════════════
 # agent-sync.sh — Agent synchronous dispatch & Agent Teams routing
 # Extracted from orchestrate.sh (v9.7.4)
@@ -376,19 +377,20 @@ ${provider_ctx}"
         "estimated_cost_usd=$_estimated_cost" || return 74
 
     # v8.49.0: Pre-dispatch health check — verify provider is reachable
-    local _provider_for_health=""
-    case "$agent_type" in
-        codex*)      _provider_for_health="codex" ;;
-        gemini*)     _provider_for_health="agy" ;;
-        agy*|antigravity) _provider_for_health="agy" ;;
-        claude*)     _provider_for_health="claude" ;;
-        openrouter*) _provider_for_health="openrouter" ;;
-        perplexity*) _provider_for_health="perplexity" ;;
-        cursor-agent*) _provider_for_health="cursor-agent" ;;
-    esac
+    local _provider_for_health="" _health_handler="none"
+    _provider_for_health="$(octo_provider_canonical "$(octo_agent_spec_executor "$agent_type")" 2>/dev/null || true)"
     if [[ -n "$_provider_for_health" ]]; then
-        local _health_diag
-        if ! _health_diag=$(check_provider_health "$_provider_for_health" 2>&1); then
+        _health_handler="$(octo_provider_health_handler "$_provider_for_health" 2>/dev/null || printf '%s' none)"
+    fi
+    if [[ "$_health_handler" != "none" ]]; then
+        local _health_diag="" _health_failed=false
+        if ! declare -f "$_health_handler" >/dev/null 2>&1; then
+            _health_diag="registry health handler unavailable: $_health_handler"
+            _health_failed=true
+        elif ! _health_diag=$("$_health_handler" "$_provider_for_health" 2>&1); then
+            _health_failed=true
+        fi
+        if [[ "$_health_failed" == true ]]; then
             log WARN "Provider '$_provider_for_health' health check failed: $_health_diag"
             log WARN "Skipping agent dispatch for $agent_type (provider unavailable)"
             type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" 0 "Provider unavailable: $_health_diag" 0 "" "$role" "$_sync_seat_id" failed none || true
