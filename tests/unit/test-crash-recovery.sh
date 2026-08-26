@@ -211,7 +211,13 @@ test_checkpoint_in_spawn_agent_failure() {
 test_checkpoint_in_spawn_agent_start() {
     test_case "Checkpoint loaded in spawn_agent start"
 
-    if grep -A 70 "spawn_agent()" "$ALL_SRC" | grep -q "load_agent_checkpoint"; then
+    local spawn_body
+    spawn_body="$(awk '
+        /^spawn_agent\(\)/ { in_spawn=1 }
+        in_spawn && /^[[:alnum:]_]+\(\)/ && $0 !~ /^spawn_agent\(\)/ { exit }
+        in_spawn { print }
+    ' "$ALL_SRC")"
+    if grep -q "load_agent_checkpoint" <<< "$spawn_body"; then
         test_pass
     else
         test_fail "Checkpoint not loaded at spawn_agent start"
