@@ -115,6 +115,38 @@ else
     test_fail "model-resolution selection was not proportional: $model_plan"
 fi
 
+test_case "v10 owned surfaces select their focused contract suites"
+run_contract_plan="$(plan_for 'scripts/lib/run-contract.sh')"
+doctor_plan="$(plan_for 'scripts/lib/doctor.sh')"
+registry_plan="$(plan_for 'scripts/lib/provider-registry.sh')"
+observability_plan="$(plan_for 'scripts/lib/error-tracking.sh')"
+routing_plan="$(plan_for 'data/routing/v10-eval-cases.json')"
+if grep -q '^Mode: focused$' <<< "$run_contract_plan" &&
+   grep -q 'test-run-contract-v10.sh' <<< "$run_contract_plan" &&
+   grep -q 'test-v10-cancellation-recovery.sh' <<< "$run_contract_plan" &&
+   grep -q '^Mode: focused$' <<< "$doctor_plan" &&
+   grep -q 'test-doctor-v10.sh' <<< "$doctor_plan" &&
+   grep -q '^Mode: focused$' <<< "$registry_plan" &&
+   grep -q 'test-provider-registry.sh' <<< "$registry_plan" &&
+   grep -q '^Mode: focused$' <<< "$observability_plan" &&
+   grep -q 'test-run-observability-v10.sh' <<< "$observability_plan" &&
+   grep -q '^Mode: focused$' <<< "$routing_plan" &&
+   grep -q 'test-routing-evals-v10.sh' <<< "$routing_plan"; then
+    test_pass
+else
+    test_fail "v10 focused mappings were incomplete or unsafe"
+fi
+
+test_case "shared v10 lifecycle libraries retain the full matrix"
+sync_plan="$(plan_for 'scripts/lib/agent-sync.sh')"
+heartbeat_plan="$(plan_for 'scripts/lib/heartbeat.sh')"
+if grep -q '^Mode: full$' <<< "$sync_plan" &&
+   grep -q '^Mode: full$' <<< "$heartbeat_plan"; then
+    test_pass
+else
+    test_fail "shared lifecycle mappings narrowed below the full matrix"
+fi
+
 test_case "selection output is deterministic"
 first_plan="$(bash "$CI_CHANGED" --list --changed 'scripts/lib/review.sh' --changed 'scripts/lib/model-resolver.sh' 2>&1 || true)"
 second_plan="$(bash "$CI_CHANGED" --list --changed 'scripts/lib/model-resolver.sh' --changed 'scripts/lib/review.sh' 2>&1 || true)"

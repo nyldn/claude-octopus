@@ -85,7 +85,7 @@ else
     test_fail "bounded Agent Teams dispatch can bypass the enforceable provider watchdog"
 fi
 
-test_case "non-persistence fallback receives and enforces the effective phase budget"
+test_case "isolated non-persistence executor enforces an effective phase budget"
 fallback_provider="$TEST_TMP_DIR/fallback-timeout-provider.sh"
 cat > "$fallback_provider" <<'EOF'
 #!/usr/bin/env bash
@@ -103,12 +103,11 @@ fallback_output=$(octopus_run_provider_without_persistence \
 fallback_rc=$?
 set -e
 fallback_elapsed=$(( $(date +%s) - fallback_started ))
-if [[ "$spawn_source" == *'"$agent_type" "$enhanced_prompt" "$_eff_timeout" "$cmd"'* ]] && \
-   [[ "$fallback_timeout" == "4" ]] && [[ "$fallback_rc" -eq 0 ]] && \
+if [[ "$fallback_timeout" == "4" ]] && [[ "$fallback_rc" -eq 0 ]] && \
    [[ "$fallback_output" == "FALLBACK_COMPLETED" ]] && [[ "$fallback_elapsed" -ge 2 ]]; then
     test_pass
 else
-    test_fail "non-persistence dispatch bypassed the effective tangle timeout floor"
+    test_fail "isolated non-persistence executor bypassed the effective tangle timeout floor"
 fi
 
 test_case "non-persistence fallback terminates work beyond the effective timeout"

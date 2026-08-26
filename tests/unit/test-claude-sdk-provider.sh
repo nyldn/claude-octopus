@@ -81,12 +81,14 @@ else
     test_fail "Claude CLI token limit missing: $out"
 fi
 
-test_case "dispatch maps claude-sdk agent types before the claude* glob"
-if grep -q 'claude-sdk\*).*provider="claude-sdk"' "$PROJECT_ROOT/scripts/lib/dispatch.sh" \
-   && awk '/claude-sdk\*\).*claude-sdk/{sdk=NR} /claude\*\).*provider="claude"/{cl=NR} END{exit !(sdk && cl && sdk<cl)}' "$PROJECT_ROOT/scripts/lib/dispatch.sh"; then
+test_case "dispatch resolves claude-sdk identity through the canonical registry"
+source "$PROJECT_ROOT/scripts/lib/provider-registry.sh"
+if grep -q 'octo_provider_canonical "$agent_executor"' "$PROJECT_ROOT/scripts/lib/dispatch.sh" \
+   && [[ "$(octo_provider_canonical claude-sdk-agent)" == "claude-sdk" ]] \
+   && [[ "$(octo_provider_canonical claude-sonnet)" == "claude" ]]; then
     test_pass
 else
-    test_fail "claude-sdk* case must exist and precede claude* in dispatch.sh"
+    test_fail "registry-backed dispatch did not preserve distinct claude-sdk identity"
 fi
 
 test_case "dispatch routes claude-sdk agent types to the shim"
@@ -97,7 +99,6 @@ else
 fi
 
 test_case "provider registry exposes claude-sdk for model configuration"
-source "$PROJECT_ROOT/scripts/lib/provider-registry.sh"
 source "$PROJECT_ROOT/scripts/lib/provider-routing.sh"
 if octo_provider_has_capability claude-sdk model-config && octo_model_config_provider_valid claude-sdk; then
     test_pass
