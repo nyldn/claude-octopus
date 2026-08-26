@@ -276,7 +276,8 @@ get_agent_command() {
                 fable_requested="$(jq -r '.requested_model' <<< "$fable_decision")"
                 opus_model_flag="$(jq -r '.resolved_model' <<< "$fable_decision")"
                 fable_reason="$(jq -r '.reason' <<< "$fable_decision")"
-                if declare -f run_contract_record_event >/dev/null 2>&1; then
+                if [[ "${OCTOPUS_DISPATCH_PREVIEW:-false}" != "true" ]] && \
+                   declare -f run_contract_record_event >/dev/null 2>&1; then
                     run_contract_record_event "routing.decision" \
                         "requested_model=$fable_requested" \
                         "resolved_model=$opus_model_flag" \

@@ -57,13 +57,13 @@ else
 fi
 
 # Test 1.4: Initialization calls exist
-if grep -q "^validate_claude_code_task_features.*2>/dev/null" "$ALL_SRC"; then
+if grep -q "^[[:space:]]*validate_claude_code_task_features.*2>/dev/null" "$ALL_SRC"; then
     pass "validate_claude_code_task_features initialization call exists"
 else
     fail "Initialization call missing"
 fi
 
-if grep -q "^check_ux_dependencies.*2>/dev/null" "$ALL_SRC"; then
+if grep -q "^[[:space:]]*check_ux_dependencies.*2>/dev/null" "$ALL_SRC"; then
     pass "check_ux_dependencies initialization call exists"
 else
     fail "Initialization call missing"

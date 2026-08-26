@@ -330,6 +330,9 @@ fable5_resolve_dispatch_model() {
         if [[ "$preflight_rc" -eq 1 ]]; then
             resolved_model="$(fable5_fallback_model)"
             reason="prompt-budget-fallback"
+        elif [[ "${OCTOPUS_DISPATCH_PREVIEW:-false}" == "true" ]]; then
+            resolved_model="$FABLE5_MODEL_ID"
+            reason="fable-preview"
         elif fable5_claim_escalation; then
             resolved_model="$FABLE5_MODEL_ID"
             reason="fable-selected"

@@ -101,24 +101,23 @@ test_heartbeat_run_with_timeout_survives_early_exit_race() {
 }
 
 test_heartbeat_kill_lines_guarded() {
-    test_case "heartbeat.sh: monitor's kill -TERM/-KILL lines guarded with || true"
+    test_case "heartbeat.sh: snapshot TERM/KILL helper is guarded against set -e leaks"
 
     local file="$PROJECT_ROOT/scripts/lib/heartbeat.sh"
     local snippet
-    if ! snippet=$(grep -m1 -A12 -B2 'kill -TERM "\$cmd_pid"' "$file"); then
-        test_fail "could not locate the cmd_pid TERM/KILL cleanup block in heartbeat.sh"
+    if ! snippet=$(grep -m1 -A10 '^_octo_timeout_signal_snapshot()' "$file"); then
+        test_fail "could not locate the process-snapshot signal helper in heartbeat.sh"
         return
     fi
 
-    assert_contains "$snippet" 'kill -TERM "$cmd_pid" 2>/dev/null || true' \
-        "kill -TERM on cmd_pid must be guarded" || return
-    assert_contains "$snippet" 'pkill -TERM -P "$cmd_pid" 2>/dev/null || true' \
-        "pkill -TERM on cmd_pid children must be guarded" || return
-    assert_contains "$snippet" 'kill -KILL "$cmd_pid" 2>/dev/null || true' \
-        "kill -KILL on cmd_pid must be guarded" || return
-    assert_contains "$snippet" 'pkill -KILL -P "$cmd_pid" 2>/dev/null || true' \
-        "pkill -KILL on cmd_pid children must be guarded" || return
-    test_pass
+    assert_contains "$snippet" 'kill -"$signal_name" "$target_pid" 2>/dev/null || true' \
+        "snapshot signal must be guarded" || return
+    if grep -q '_octo_timeout_signal_snapshot TERM' "$file" && \
+       grep -q '_octo_timeout_signal_snapshot KILL' "$file"; then
+        test_pass
+    else
+        test_fail "timeout fallback must invoke the guarded helper for TERM and KILL"
+    fi
 }
 
 # cursor-agent.sh:55-56 — _cursor_agent_run_with_timeout()'s fallback path.

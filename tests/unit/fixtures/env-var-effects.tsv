@@ -29,6 +29,7 @@ OCTOPUS_COMPACT_BANNERS	skip	changes banner prose only; asserting it would pin c
 OCTOPUS_COST_MODE	covered-by	test-cost-mode-toggle.sh
 OCTOPUS_EFFORT_OVERRIDE	covered-by	test-execution-mechanism.sh
 OCTOPUS_FABLE5_FALLBACK_MODEL	covered-by	test-fable5-mode.sh
+OCTOPUS_FABLE5_MAX_INPUT_BYTES	covered-by	test-routing-evals-v10.sh
 OCTOPUS_FABLE5_MODE	covered-by	test-fable5-mode.sh
 OCTOPUS_FABLE5_NO_RETRY	covered-by	test-fable5-mode.sh
 OCTOPUS_FABLE5_ROUTING	covered-by	test-fable5-escalation.sh
@@ -36,7 +37,6 @@ OCTOPUS_IDE_	placeholder	doc template fragment, not a real variable
 OCTOPUS_JOB_ID	skip	opaque correlation id passed through to logs; no behavioural delta
 OCTOPUS_LEGACY_ROLES	covered-by	test-agy-research-defaults.sh
 OCTOPUS_MAX_COST_USD	skip	aborts a run mid-dispatch; needs a live provider to reach the check
-OCTOPUS_MYPROV_ALLOWED_MODELS	placeholder	doc template fragment, not a real variable
 OCTOPUS_OLLAMA_ALLOW_PULL	covered-by	test-codex-pull-guard.sh
 OCTOPUS_OLLAMA_MAX_PULL_GB	covered-by	test-codex-pull-guard.sh
 OCTOPUS_OPUS5_AUTO_XHIGH	covered-by	test-opus-48-routing.sh
@@ -51,6 +51,7 @@ OCTOPUS_RELEASE_SMOKE_PORT	skip	release-smoke harness only; not reachable from u
 OCTOPUS_REQUIRE_ALL	covered-by	test-agent-summary.sh
 OCTOPUS_RESEARCH_BREADTH	skip	changes how many provider seats a research run fans out to
 OCTOPUS_REVIEWER_FLIP	covered-by	test-fable5-escalation.sh
+OCTOPUS_ROUTING_POLICY	covered-by	test-routing-evals-v10.sh
 OCTOPUS_RUN_ID	covered-by	test-agent-summary.sh
 OCTOPUS_SENTINEL_ENABLED	covered-by	test-sentinel.sh
 OCTOPUS_TANGLE_ALLOW_DB_APPLY	covered-by	test-tangle-subtask-context.sh

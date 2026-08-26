@@ -203,4 +203,22 @@ else
     test_fail "durable one-seat cap was not enforced: $cap_decisions"
 fi
 
+test_case "Fable dispatch preview does not consume the durable one-seat claim"
+preview_workspace="$TEST_TMP_DIR/fable-preview-workspace"
+mkdir -p "$preview_workspace"
+preview_decisions="$(WORKSPACE_DIR="$preview_workspace" OCTOPUS_RUN_ID=preview-run \
+  OCTOPUS_FABLE5_ROUTING=escalate bash -c '
+    source "$1/scripts/lib/run-contract.sh"
+    source "$1/scripts/lib/fable5.sh"
+    preview="$(OCTOPUS_DISPATCH_PREVIEW=true fable5_resolve_dispatch_model claude-opus-5 architect claude-opus define 100)"
+    actual="$(fable5_resolve_dispatch_model claude-opus-5 architect claude-opus define 100)"
+    printf "%s\n%s\n" "$preview" "$actual"
+  ' _ "$PROJECT_ROOT")"
+if [[ "$(sed -n '1p' <<< "$preview_decisions" | jq -r '.resolved_model + ":" + .reason')" == "claude-fable-5:fable-preview" ]] &&
+   [[ "$(sed -n '2p' <<< "$preview_decisions" | jq -r '.resolved_model + ":" + .reason')" == "claude-fable-5:fable-selected" ]]; then
+    test_pass
+else
+    test_fail "preview consumed or misreported the Fable seat: $preview_decisions"
+fi
+
 test_summary

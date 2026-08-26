@@ -194,22 +194,30 @@ echo ""
 echo -e "${BLUE}Test Group 3: spawn_agent Skills Injection${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
+# Extract the complete spawn_agent body. Contract and observability setup made
+# the function longer than the historical fixed-line grep window.
+SPAWN_AGENT_BODY="$(awk '
+    /^spawn_agent\(\)/ { in_spawn=1 }
+    in_spawn && /^[[:alnum:]_]+\(\)/ && $0 !~ /^spawn_agent\(\)/ { exit }
+    in_spawn { print }
+' "$ALL_SRC")"
+
 # 3.1: spawn_agent references build_skill_context
-if grep -A 130 '^spawn_agent()' "$ALL_SRC" | grep 'build_skill_context' >/dev/null; then
+if grep 'build_skill_context' <<< "$SPAWN_AGENT_BODY" >/dev/null; then
     assert_pass "3.1 spawn_agent references build_skill_context"
 else
     assert_fail "3.1 spawn_agent references build_skill_context"
 fi
 
 # 3.2: spawn_agent references select_curated_agent for skill lookup
-if grep -A 150 '^spawn_agent()' "$ALL_SRC" | grep 'select_curated_agent.*prompt.*phase' >/dev/null; then
+if grep 'select_curated_agent.*prompt.*phase' <<< "$SPAWN_AGENT_BODY" >/dev/null; then
     assert_pass "3.2 spawn_agent references select_curated_agent for skill lookup"
 else
     assert_fail "3.2 spawn_agent references select_curated_agent for skill lookup"
 fi
 
 # 3.3: Skills injection gated behind SUPPORTS_AGENT_TYPE_ROUTING
-if grep -A 150 '^spawn_agent()' "$ALL_SRC" | grep 'SUPPORTS_AGENT_TYPE_ROUTING.*true' >/dev/null; then
+if grep 'SUPPORTS_AGENT_TYPE_ROUTING.*true' <<< "$SPAWN_AGENT_BODY" >/dev/null; then
     assert_pass "3.3 Skills injection gated behind SUPPORTS_AGENT_TYPE_ROUTING"
 else
     assert_fail "3.3 Skills injection gated behind SUPPORTS_AGENT_TYPE_ROUTING"
@@ -230,7 +238,7 @@ else
 fi
 
 # 3.6: Skill content appended after persona+prompt (v8.16 cache optimization)
-if grep -A 140 '^spawn_agent()' "$ALL_SRC" | grep 'Agent Skill Context' >/dev/null; then
+if grep 'Agent Skill Context' <<< "$SPAWN_AGENT_BODY" >/dev/null; then
     assert_pass "3.6 Skill content appended after persona+prompt (cache-optimized)"
 else
     assert_fail "3.6 Skill content appended after persona+prompt (cache-optimized)"

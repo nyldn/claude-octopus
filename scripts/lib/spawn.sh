@@ -371,7 +371,16 @@ spawn_agent() {
     fi
 
     if [[ "$DRY_RUN" == "true" ]]; then
-        log INFO "[DRY-RUN] Would dispatch $agent_type with role=${role:-none}"
+        # Validate and render the real command without consuming stateful
+        # routing decisions such as the run's one Fable escalation seat.
+        local preview_cmd
+        if ! preview_cmd=$(OCTOPUS_DISPATCH_PREVIEW=true \
+            get_agent_command "$agent_type" "${phase:-}" "${role:-}" "${#prompt}"); then
+            log ERROR "Unknown agent type: $agent_type"
+            log INFO "Available agents: $AVAILABLE_AGENTS"
+            return 1
+        fi
+        log INFO "[DRY-RUN] Would execute: $preview_cmd with role=${role:-none}"
         return 0
     fi
 

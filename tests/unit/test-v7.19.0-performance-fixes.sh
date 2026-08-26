@@ -408,12 +408,14 @@ test_p23_result_caching() {
 
     test_case "Prompt-based caching with 1-hour TTL"
 
-    # Check for cache directory definition
-    if grep -q "CACHE_DIR=.*cache.*probe-results" "$ALL_SRC"; then
-        echo -e "${GREEN}✓${NC} Found cache directory definition"
+    # Check for the canonical workspace-scoped cache path resolver. v10 removed
+    # the mutable CACHE_DIR global so all consumers resolve the same path.
+    if grep -q '^octo_probe_cache_dir()' "$ALL_SRC" && \
+       grep -q '\.cache/probe-results' "$ALL_SRC"; then
+        echo -e "${GREEN}✓${NC} Found canonical cache directory resolver"
         TESTS_PASSED=$((TESTS_PASSED + 1))
     else
-        echo -e "${RED}✗${NC} Missing cache directory"
+        echo -e "${RED}✗${NC} Missing canonical cache directory resolver"
         TESTS_FAILED=$((TESTS_FAILED + 1))
     fi
 
