@@ -244,8 +244,9 @@ test_fleet_includes_openai_compat_qwen() {
 
 # ── 4. run_with_timeout SIGKILL escalation ───────────────────────────────────
 # A process that traps & ignores SIGTERM must still die via the kill-after
-# SIGKILL backstop. Cap=2s, kill-after=10s → must complete well under 20s and
-# return a non-zero (timeout) exit code.
+# SIGKILL backstop. Cap=2s, kill-after=10s → must complete within a bounded
+# CI window. The in-process fallback normalizes the timeout to 124, while GNU
+# timeout/gtimeout reports 137 when its KILL backstop fires.
 test_timeout_kills_term_ignorer() {
     test_case "run_with_timeout: SIGTERM-ignoring process is SIGKILLed"
     local stubborn="$FIXTURE/stubborn.sh"
@@ -271,10 +272,11 @@ EOF
         still_alive=true
     fi
 
-    if [[ "$ec" -eq 124 && -n "$started_pid" && "$still_alive" == "false" && "$dur_ms" -lt 20000 ]]; then
+    if [[ ("$ec" -eq 124 || "$ec" -eq 137) && -n "$started_pid" &&
+          "$still_alive" == "false" && "$dur_ms" -lt 30000 ]]; then
         test_pass
     else
-        test_fail "stubborn process did not prove normalized timeout + SIGKILL escalation (exit=$ec, pid=${started_pid:-missing}, alive=$still_alive, dur=${dur_ms}ms; expected exit=124, started+dead pid, <20000ms)"
+        test_fail "stubborn process did not prove timeout + SIGKILL escalation (exit=$ec, pid=${started_pid:-missing}, alive=$still_alive, dur=${dur_ms}ms; expected exit=124/137, started+dead pid, <30000ms)"
     fi
 }
 

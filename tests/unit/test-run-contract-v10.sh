@@ -31,6 +31,7 @@ fi
 
 ledger="$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID/seats.jsonl"
 snapshot="$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID/seats.json"
+manifest="$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID/run.json"
 valid_output="$TEST_TMP_DIR/valid-output.md"
 empty_output="$TEST_TMP_DIR/empty-output.md"
 placeholder_output="$TEST_TMP_DIR/placeholder-output.md"
@@ -188,13 +189,52 @@ set +e
 run_contract_transition rollback-seat starting >/dev/null 2>&1
 rollback_rc=$?
 set -e
+rollback_marker_preserved=false
+[[ -e "${ledger}.recovery" ]] && rollback_marker_preserved=true
 unset -f _octo_run_contract_snapshot_unlocked
 eval "$snapshot_impl"
-if [[ "$rollback_rc" -ne 0 && "$(cksum "$ledger")" == "$rollback_before" &&
-      "$(run_contract_latest_transition rollback-seat)" == planned ]]; then
+set +e
+run_contract_transition rollback-seat starting >/dev/null 2>&1
+rollback_retry_rc=$?
+set -e
+if [[ "$rollback_rc" -ne 0 && "$rollback_marker_preserved" == true &&
+      "$rollback_retry_rc" -eq 0 && ! -e "${ledger}.recovery" &&
+      "$(run_contract_latest_transition rollback-seat)" == starting ]]; then
     test_pass
 else
-    test_fail "failed snapshot left an eligible ledger transition"
+    test_fail "failed snapshot was not recoverable (rc=$rollback_rc marker=$rollback_marker_preserved retry=$rollback_retry_rc)"
+fi
+
+test_case "partial snapshot publication stays recoverable until one generation is restored"
+run_contract_transition partial-publish-seat planned >/dev/null
+mv() {
+    if [[ "${OCTO_FAIL_COMPAT_SNAPSHOT_PUBLISH:-false}" == true &&
+          "${1:-}" == "${snapshot}.tmp."* && "${2:-}" == "$snapshot" ]]; then
+        return 1
+    fi
+    command mv "$@"
+}
+set +e
+OCTO_FAIL_COMPAT_SNAPSHOT_PUBLISH=true \
+    run_contract_transition partial-publish-seat starting >/dev/null 2>&1
+partial_publish_rc=$?
+set -e
+unset -f mv
+partial_marker_preserved=false
+[[ -e "${ledger}.recovery" ]] && partial_marker_preserved=true
+set +e
+run_contract_transition partial-publish-seat starting >/dev/null 2>&1
+partial_retry_rc=$?
+set -e
+if [[ "$partial_publish_rc" -ne 0 && "$partial_marker_preserved" == true &&
+      "$partial_retry_rc" -eq 0 && ! -e "${ledger}.recovery" ]] &&
+   jq -e -s --arg seat partial-publish-seat '
+     length == 2 and
+     all(.[]; [.seats[] | select(.seat_id == $seat) | .transition] == ["starting"])
+   ' "$snapshot" "$manifest" >/dev/null; then
+    test_pass
+else
+    test_fail "partial_rc=$partial_publish_rc marker=$partial_marker_preserved retry_rc=$partial_retry_rc recovery=$([[ -e "${ledger}.recovery" ]] && echo yes || echo no)"
 fi
 
 test_case "failed rollback preserves recovery evidence and blocks ledger eligibility"
@@ -237,6 +277,34 @@ if run_contract_transition recovery-seat starting >/dev/null &&
     test_pass
 else
     test_fail "pending ledger rollback did not recover before the next transition"
+fi
+
+test_case "cleanup failure cannot roll back an already published snapshot"
+rm() {
+    local arg
+    if [[ "${OCTO_FAIL_RECOVERY_MARKER_RM:-false}" == true ]]; then
+        for arg in "$@"; do
+            [[ "$arg" == "${ledger}.recovery" ]] && return 1
+        done
+    fi
+    command rm "$@"
+}
+set +e
+OCTO_FAIL_RECOVERY_MARKER_RM=true \
+    run_contract_transition committed-recovery-seat planned >/dev/null 2>&1
+committed_cleanup_rc=$?
+set -e
+unset -f rm
+set +e
+run_contract_transition committed-recovery-seat starting >/dev/null 2>&1
+committed_retry_rc=$?
+set -e
+if [[ "$committed_cleanup_rc" -ne 0 && "$committed_retry_rc" -eq 0 &&
+      "$(run_contract_latest_transition committed-recovery-seat)" == starting &&
+      ! -e "${ledger}.recovery" ]]; then
+    test_pass
+else
+    test_fail "cleanup_rc=$committed_cleanup_rc retry_rc=$committed_retry_rc transition=$(run_contract_latest_transition committed-recovery-seat 2>/dev/null || echo missing) marker=$([[ -e "${ledger}.recovery" ]] && echo yes || echo no)"
 fi
 
 # Hold snapshot publication while a later transition waits on the same contract

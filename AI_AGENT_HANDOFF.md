@@ -9,10 +9,10 @@ PR verification, merge, tag, publication, and installed-release checks remain.
 Branch: `release/v10.0.0`; protected release PR #965 is under review.
 Current release: [v9.66.1](https://github.com/nyldn/claude-octopus/releases/tag/v9.66.1)
 Tracking: Beads epic `oco-de9`; children `oco-de9.1` through `oco-de9.8`
-Next action: commit and push the verified PR #965 review response, reply to and
-resolve the 34 inline threads plus the four outside-diff findings, then wait for
-exact-head approval and hosted CI. Tag only the squash-merge commit on `main`,
-then rerun `bash scripts/validate-release.sh` against v10.
+Next action: commit and push the verified third-round PR #965 review response,
+reply to and resolve its one remaining inline thread, then wait for exact-head
+approval and hosted CI. Tag only the squash-merge commit on `main`, then rerun
+`bash scripts/validate-release.sh` against v10.
 
 ## V10 Reliability Release Candidate
 
@@ -46,6 +46,22 @@ then rerun `bash scripts/validate-release.sh` against v10.
   RED/GREEN coverage proves failed restoration, blocked eligibility, and
   successful retry. The final full matrix remains 16 smoke, 289 unit, and 8
   integration suites with zero failures.
+- CodeRabbit's third review round correctly identified a commit-boundary gap:
+  failure to remove the recovery marker after both snapshots were published
+  could make the next operation restore the pre-transition ledger. Recovery
+  now recognizes a committed generation only when `run.json`, `seats.json`,
+  and the latest-run symlink all agree with the ledger; it then treats the
+  marker as cleanup debt. A staged self-review also exposed the complementary
+  partial-publication case, where `run.json` could advance before `seats.json`
+  failed. Recovery now rebuilds both compatibility snapshots and the latest
+  pointer from the restored ledger before clearing the marker. The run-contract
+  suite passes 54/54, including both failure modes.
+- The prior exact-head hosted run exposed a portability defect in the timeout
+  regression, not in the timeout implementation: GNU timeout legitimately
+  reports 137 when its SIGKILL backstop fires, while the in-process fallback
+  reports 124. The regression now accepts those two proven timeout statuses,
+  still requires the spawned PID to be dead, and uses a 30-second loaded-CI
+  bound. Its focused suite passes 18/18.
 - Focused evidence after the final response includes synchronous contract
   19/19, persistence degradation 6/6, semantic cache alignment 36/36, output
   cap 14/14, agent summary 11/11, version consistency 20/20 and 30/30, and

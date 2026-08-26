@@ -59,6 +59,60 @@ octo_run_contract_recovery_path() {
     printf '%s.recovery\n' "$(octo_run_contract_ledger_path)"
 }
 
+# A published generation is committed only when both durable snapshots contain
+# the same latest-seat projection as the ledger. This lets recovery distinguish
+# a stale cleanup marker from an append whose snapshot never committed.
+_octo_run_contract_snapshot_matches_ledger_unlocked() {
+    local ledger snapshot manifest latest snapshot_dir latest_target
+    ledger="$(octo_run_contract_ledger_path)"
+    snapshot="$(octo_run_contract_snapshot_path)"
+    manifest="$(octo_run_contract_manifest_path)"
+    latest="$(octo_run_contract_latest_path)"
+    snapshot_dir="$(dirname "$snapshot")"
+    [[ -s "$ledger" && -s "$snapshot" && -s "$manifest" && -L "$latest" ]] || return 1
+    latest_target="$(readlink "$latest" 2>/dev/null)" || return 1
+    [[ "$latest_target" == "$snapshot_dir" ]] || return 1
+
+    jq -e -s --slurpfile snapshot "$snapshot" --slurpfile manifest "$manifest" '
+        reduce .[] as $record ({}; .[$record.seat_id] = $record)
+        | ([.[]] | sort_by(.seat_id)) as $ledger_seats
+        | (($snapshot[0].seats // [])
+            | map(del(.started_at, .updated_at, .timeline))
+            | sort_by(.seat_id)) == $ledger_seats
+          and (($manifest[0].seats // [])
+            | map(del(.started_at, .updated_at, .timeline))
+            | sort_by(.seat_id)) == $ledger_seats
+    ' "$ledger" >/dev/null 2>&1
+}
+
+# Rebuild the visible generation from the restored durable inputs. If the
+# failed append was the first durable record, remove any partially published
+# artifacts instead. The recovery marker remains until this step succeeds, so
+# readers never accept a mixed generation.
+_octo_run_contract_restore_snapshots_unlocked() {
+    local ledger events_ledger snapshot manifest latest snapshot_dir latest_target
+    ledger="$(octo_run_contract_ledger_path)"
+    events_ledger="$(octo_run_contract_events_path)"
+    snapshot="$(octo_run_contract_snapshot_path)"
+    manifest="$(octo_run_contract_manifest_path)"
+    latest="$(octo_run_contract_latest_path)"
+    snapshot_dir="$(dirname "$snapshot")"
+
+    if [[ -s "$ledger" || -s "$events_ledger" ]]; then
+        _octo_run_contract_snapshot_unlocked >/dev/null 2>&1
+        return $?
+    fi
+
+    rm -f "$snapshot" "$manifest" 2>/dev/null || return 1
+    if [[ -L "$latest" ]]; then
+        latest_target="$(readlink "$latest" 2>/dev/null)" || return 1
+        if [[ "$latest_target" == "$snapshot_dir" ]]; then
+            rm -f "$latest" 2>/dev/null || return 1
+        fi
+    fi
+    return 0
+}
+
 # Restore a ledger rollback while the contract lock is held. The recovery
 # marker deliberately outlives the ledger write: readers fail closed while it
 # exists, and a later locked operation can retry from the intact backup.
@@ -70,6 +124,15 @@ _octo_run_contract_recover_unlocked() {
 
     IFS=$'\t' read -r existed backup < "$marker" 2>/dev/null || return 1
     [[ "$backup" == "$ledger".rollback.* && -f "$backup" ]] || return 1
+
+    # Snapshot publication is the commit point. If both durable snapshots
+    # already match the ledger, a leftover marker is cleanup debt, not license
+    # to restore the pre-append backup.
+    if _octo_run_contract_snapshot_matches_ledger_unlocked; then
+        rm -f "$marker" 2>/dev/null || return 1
+        rm -f "$backup" 2>/dev/null || true
+        return 0
+    fi
 
     if [[ "$existed" == true ]]; then
         restore_tmp="$(mktemp "${ledger}.restore.XXXXXX")" || return 1
@@ -84,6 +147,7 @@ _octo_run_contract_recover_unlocked() {
         return 1
     fi
 
+    _octo_run_contract_restore_snapshots_unlocked || return 1
     rm -f "$marker" 2>/dev/null || return 1
     rm -f "$backup" 2>/dev/null || true
     return 0
