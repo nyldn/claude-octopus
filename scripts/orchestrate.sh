@@ -222,6 +222,10 @@ if [[ -z "${CLAUDE_PLUGIN_DATA:-}" && -n "${CLAUDE_OCTOPUS_WORKSPACE:-}" ]]; the
     WORKSPACE_DIR="$(validate_workspace_path "$WORKSPACE_DIR")" || exit 1
 fi
 
+# Schema-versioned provider-seat lifecycle. Source after workspace resolution so
+# the library never freezes a source-time path from an unset WORKSPACE_DIR.
+source "${SCRIPT_DIR}/lib/run-contract.sh"
+
 # Re-derive SESSION_FILE now that WORKSPACE_DIR is known
 # (quality.sh sets it at source-time before WORKSPACE_DIR is defined)
 SESSION_FILE="${WORKSPACE_DIR}/session.json"
