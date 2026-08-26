@@ -35,6 +35,18 @@ $(octo_provider_registry_rows)
 EOF
 test_pass
 
+test_case "registry exports configured provider identity for every executor alias"
+if declare -f octo_provider_identity_from_agent_type >/dev/null 2>&1 &&
+   [[ "$(octo_provider_identity_from_agent_type codex-review)" == "codex" ]] &&
+   [[ "$(octo_provider_identity_from_agent_type claude-sonnet)" == "anthropic" ]] &&
+   [[ "$(octo_provider_identity_from_agent_type agy-research)" == "google" ]] &&
+   [[ "$(octo_provider_identity_from_agent_type qwen-review)" == "qwen" ]] &&
+   [[ "$(octo_provider_identity_from_agent_type not-registered)" == "unknown" ]]; then
+    test_pass
+else
+    test_fail "configured provider identity is not registry-owned or complete"
+fi
+
 test_case "all providers expose command organization and capabilities metadata"
 for id in $all_ids; do
     [[ -n "$(octo_provider_command "$id")" ]] || { test_fail "$id missing command"; exit 0; }

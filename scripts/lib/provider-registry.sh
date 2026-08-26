@@ -133,6 +133,23 @@ EOF
     printf '%s\n' "$best_id"
 }
 
+# Preserve the public provider labels emitted by existing runtime artifacts,
+# but resolve every executor alias through the canonical registry first.
+octo_provider_identity_from_agent_type() {
+    local agent_type="${1:-}" canonical
+    agent_type="${agent_type%%:*}"
+    canonical="$(octo_provider_canonical "$agent_type" 2>/dev/null)" || {
+        printf 'unknown\n'
+        return 0
+    }
+    case "$canonical" in
+        openai-compatible|openai-tools|openai-compatible-agent) printf 'openai-compatible\n' ;;
+        claude|claude-sdk) printf 'anthropic\n' ;;
+        agy) printf 'google\n' ;;
+        *) printf '%s\n' "$canonical" ;;
+    esac
+}
+
 octo_provider_valid() {
     octo_provider_canonical "${1:-}" >/dev/null 2>&1
 }

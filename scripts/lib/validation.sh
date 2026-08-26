@@ -15,6 +15,12 @@
 # Extracted from orchestrate.sh (v9.7.8)
 # Source-safe: no main execution block.
 
+_octopus_validation_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${_octopus_validation_lib_dir}/provider-registry.sh" || {
+    echo "validation: failed to load provider-registry.sh" >&2
+    return 1 2>/dev/null || exit 1
+}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # SECURITY: Path validation for workspace directory
 # Prevents path traversal attacks and restricts to safe locations
@@ -211,22 +217,6 @@ EOF
 # SECURITY: CLI output wrapping for untrusted external provider output (v8.7.0)
 # Wraps external provider output in trust markers; passes Claude output unchanged
 # ═══════════════════════════════════════════════════════════════════════════════
-octo_provider_identity_from_agent_type() {
-    local agent_type="$1"
-    agent_type="${agent_type%%:*}"
-    case "$agent_type" in
-        openai-compatible|openai-tools|openai-compatible-agent) echo "openai-compatible" ;;
-        atlascloud-agent|atlascloud) echo "atlascloud" ;;
-        codex*) echo "codex" ;;
-        commandcode*) echo "commandcode" ;;
-        claude*) echo "anthropic" ;;
-        gemini*|agy*|antigravity) echo "google" ;;
-        perplexity*) echo "perplexity" ;;
-        openrouter*) echo "openrouter" ;;
-        *) echo "unknown" ;;
-    esac
-}
-
 octo_extract_runtime_model() {
     local output="$1"
     local value=""

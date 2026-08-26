@@ -144,15 +144,6 @@ octo_dispatch_command_model() {
     printf '%s\n' "${resolved:-$fallback}"
 }
 
-# Provider routing ceilings are byte-based. Bash's ${#value} counts characters
-# in UTF-8 locales, so measure under the C locale before evaluating a provider.
-octo_prompt_byte_length() {
-    local prompt="${1:-}" bytes
-    bytes="$(LC_ALL=C printf '%s' "$prompt" | wc -c | tr -d '[:space:]')" || return 1
-    [[ "$bytes" =~ ^[0-9]+$ ]] || return 1
-    printf '%s\n' "$bytes"
-}
-
 get_agent_command() {
     local agent_type="$1"
     local phase="${2:-}"

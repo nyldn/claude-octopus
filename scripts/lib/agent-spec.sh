@@ -3,6 +3,15 @@
 # or a model-qualified seat (e.g. commandcode:minimaxai/minimax-m3).
 # Source-safe: defines functions only.
 
+# Provider routing ceilings are byte-based. Bash's ${#value} counts characters
+# in UTF-8 locales, so measure under the C locale before evaluating a provider.
+octo_prompt_byte_length() {
+    local prompt="${1:-}" bytes
+    bytes="$(LC_ALL=C printf '%s' "$prompt" | wc -c | tr -d '[:space:]')" || return 1
+    [[ "$bytes" =~ ^[0-9]+$ ]] || return 1
+    printf '%s\n' "$bytes"
+}
+
 octo_agent_spec_executor() {
     local spec="${1:-}"
     printf '%s\n' "${spec%%:*}"

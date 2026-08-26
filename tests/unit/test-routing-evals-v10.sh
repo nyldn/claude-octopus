@@ -87,6 +87,14 @@ else
     test_fail "expected two UTF-8 characters to measure 4 bytes, got ${byte_count:-<empty>}"
 fi
 
+test_case "prompt byte measurement is owned by the shared agent spec"
+agent_spec_bytes="$(bash -c 'source "$1/scripts/lib/agent-spec.sh"; octo_prompt_byte_length "éé"' _ "$PROJECT_ROOT")"
+if [[ "$agent_spec_bytes" == 4 ]]; then
+    test_pass
+else
+    test_fail "expected agent-spec to measure two UTF-8 characters as 4 bytes, got ${agent_spec_bytes:-<empty>}"
+fi
+
 test_case "both synchronous and background dispatch pass byte counts to command routing"
 if grep -q 'octo_prompt_byte_length.*enhanced_prompt' "$PROJECT_ROOT/scripts/lib/agent-sync.sh" &&
    grep -q 'octo_prompt_byte_length.*enhanced_prompt' "$PROJECT_ROOT/scripts/lib/spawn.sh"; then
