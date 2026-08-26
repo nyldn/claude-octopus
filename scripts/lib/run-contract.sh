@@ -37,6 +37,16 @@ octo_run_contract_snapshot_path() {
     printf '%s/seats.json\n' "$(octo_run_contract_dir)"
 }
 
+octo_run_contract_manifest_path() {
+    printf '%s/run.json\n' "$(octo_run_contract_dir)"
+}
+
+octo_run_contract_latest_path() {
+    local contract_dir
+    contract_dir="$(octo_run_contract_dir)"
+    printf '%s/latest\n' "$(dirname "$contract_dir")"
+}
+
 octo_run_contract_events_path() {
     printf '%s/events.jsonl\n' "$(octo_run_contract_dir)"
 }
@@ -180,53 +190,102 @@ octo_run_contract_finish_background() {
 }
 
 _octo_run_contract_snapshot_unlocked() {
-    local ledger events_ledger snapshot run_id snapshot_dir tmp seats_json events_json
+    local ledger events_ledger snapshot manifest latest run_id snapshot_dir
+    local tmp compat_tmp latest_tmp seats_json events_json generated_at
     ledger="$(octo_run_contract_ledger_path)"
     events_ledger="$(octo_run_contract_events_path)"
     snapshot="$(octo_run_contract_snapshot_path)"
+    manifest="$(octo_run_contract_manifest_path)"
+    latest="$(octo_run_contract_latest_path)"
     run_id="$(octo_run_contract_id)"
     snapshot_dir="$(dirname "$snapshot")"
 
     [[ -s "$ledger" || -s "$events_ledger" ]] || return 1
     mkdir -p "$snapshot_dir" 2>/dev/null || return 1
-    tmp="$(mktemp "${snapshot}.tmp.XXXXXX")" || return 1
+    tmp="$(mktemp "${manifest}.tmp.XXXXXX")" || return 1
+    compat_tmp="$(mktemp "${snapshot}.tmp.XXXXXX")" || { rm -f "$tmp"; return 1; }
+    latest_tmp="$(mktemp "${latest}.tmp.XXXXXX")" || { rm -f "$tmp" "$compat_tmp"; return 1; }
 
     seats_json='[]'
     events_json='[]'
     if [[ -s "$ledger" ]]; then
         seats_json="$(jq -s '
-            reduce .[] as $record ({}; .[$record.seat_id] = $record)
-            | [.[]] | sort_by(.seat_id)
+            group_by(.seat_id)
+            | map(
+                . as $records
+                | ($records[-1] + {
+                    started_at: $records[0].timestamp,
+                    updated_at: $records[-1].timestamp,
+                    timeline: [$records[] | {
+                      transition, status, contribution, reason, timestamp
+                    }]
+                  })
+              )
+            | sort_by(.seat_id)
         ' "$ledger" 2>/dev/null)" || {
-            rm -f "$tmp"
+            rm -f "$tmp" "$compat_tmp" "$latest_tmp"
             return 1
         }
     fi
     if [[ -s "$events_ledger" ]]; then
         events_json="$(jq -s '.' "$events_ledger" 2>/dev/null)" || {
-            rm -f "$tmp"
+            rm -f "$tmp" "$compat_tmp" "$latest_tmp"
             return 1
         }
     fi
 
+    generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     if ! jq -n --arg schema_version "$OCTO_RUN_SCHEMA_VERSION" --arg run_id "$run_id" \
-        --argjson seats "$seats_json" --argjson events "$events_json" '
+        --arg generated_at "$generated_at" --argjson seats "$seats_json" \
+        --argjson events "$events_json" '
+        def count_transition($name): [$seats[] | select(.transition == $name)] | length;
+        def phase_rollup:
+          reduce $seats[] as $seat ({};
+            ($seat.execution.phase // "unknown") as $phase
+            | .[$phase] = ((.[$phase] // {
+                total: 0, contributed: 0, degraded: 0, skipped: 0,
+                failed: 0, timeout: 0, cancelled: 0, running: 0
+              })
+              | .total += 1
+              | if ($seat.transition | IN("contributed", "degraded", "skipped", "failed", "timeout", "cancelled"))
+                then .[$seat.transition] += 1
+                else .running += 1
+                end)
+          );
         {
           schema_version: $schema_version,
           run_id: $run_id,
+          generated_at: $generated_at,
           seats: $seats,
-          events: $events
+          events: $events,
+          summary: {
+            total_seats: ($seats | length),
+            contributed: count_transition("contributed"),
+            degraded: count_transition("degraded"),
+            skipped: count_transition("skipped"),
+            failed: count_transition("failed"),
+            timeout: count_transition("timeout"),
+            cancelled: count_transition("cancelled"),
+            running: ([$seats[] | select(.transition | IN("contributed", "degraded", "skipped", "failed", "timeout", "cancelled") | not)] | length),
+            eligible_contributions: ([$seats[] | select(.contribution == "eligible" or .contribution == "eligible-with-warning")] | length),
+            degraded_coverage: (count_transition("degraded") > 0)
+          },
+          phases: phase_rollup
         }
     ' > "$tmp" 2>/dev/null; then
-        rm -f "$tmp"
+        rm -f "$tmp" "$compat_tmp" "$latest_tmp"
         return 1
     fi
 
-    if ! mv "$tmp" "$snapshot" 2>/dev/null; then
-        rm -f "$tmp"
+    if ! cp "$tmp" "$compat_tmp" 2>/dev/null ||
+       ! printf '%s\n' "$run_id" > "$latest_tmp" 2>/dev/null ||
+       ! mv "$tmp" "$manifest" 2>/dev/null ||
+       ! mv "$compat_tmp" "$snapshot" 2>/dev/null ||
+       ! mv "$latest_tmp" "$latest" 2>/dev/null; then
+        rm -f "$tmp" "$compat_tmp" "$latest_tmp"
         return 1
     fi
-    cat "$snapshot"
+    cat "$manifest"
 }
 
 run_contract_snapshot() (
@@ -242,6 +301,55 @@ run_contract_snapshot() (
     trap - EXIT
     printf '%s\n' "$output"
 )
+
+_octo_run_contract_read_manifest() {
+    local requested_run="${1:-latest}" runs_root run_id manifest
+    runs_root="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/runs"
+    if [[ -z "$requested_run" || "$requested_run" == "latest" ]]; then
+        [[ -r "$runs_root/latest" ]] || return 1
+        IFS= read -r run_id < "$runs_root/latest" || return 1
+    else
+        run_id="$requested_run"
+    fi
+    [[ "$run_id" =~ ^[A-Za-z0-9][A-Za-z0-9_.:-]*$ ]] || return 2
+    manifest="$runs_root/$run_id/run.json"
+    [[ -r "$manifest" ]] || return 1
+    jq -e --arg run_id "$run_id" '
+      .schema_version == "10.0" and .run_id == $run_id and
+      (.seats | type == "array") and (.summary | type == "object")
+    ' "$manifest" >/dev/null 2>&1 || return 1
+    cat "$manifest"
+}
+
+run_contract_status() {
+    local run_id="${1:-latest}" format="${2:-human}" manifest
+    manifest="$(_octo_run_contract_read_manifest "$run_id")" || return $?
+    if [[ "$format" == "json" ]]; then
+        printf '%s\n' "$manifest"
+    elif [[ "$format" == "human" ]]; then
+        jq -r '
+          "Run \(.run_id) (schema \(.schema_version))",
+          "Seats: \(.summary.total_seats) total, \(.summary.eligible_contributions) eligible, \(.summary.failed) failed, \(.summary.degraded) degraded",
+          "Updated: \(.generated_at)"
+        ' <<< "$manifest"
+    else
+        return 2
+    fi
+}
+
+run_contract_explain() {
+    local run_id="${1:-latest}" manifest
+    manifest="$(_octo_run_contract_read_manifest "$run_id")" || return $?
+    jq -r '
+      "Run \(.run_id)",
+      (.seats[] |
+        "- \(.seat_id): \(.transition)" +
+        (if (.reason // "") != "" then " - \(.reason)"
+         elif .contribution == "eligible" then " - contribution eligible"
+         elif .contribution == "eligible-with-warning" then " - contribution eligible with warning"
+         else " - no contribution" end))
+    ' <<< "$manifest"
+}
 
 # Record a run-scoped event that is not owned by a provider seat. Attribute
 # values are strings so the append-only ledger stays simple and inspectable.

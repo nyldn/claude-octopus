@@ -5,6 +5,31 @@
 
 set -eo pipefail
 
+# Detect artifact-only run inspection before any persistent self-healing or
+# workspace probing. This is intentionally a small parser for global options;
+# it never guesses from prompt text.
+OCTOPUS_EARLY_ARTIFACT_READ_ONLY=false
+_octo_early_args=("$@")
+_octo_early_index=0
+_octo_early_command=""
+while [[ "$_octo_early_index" -lt "${#_octo_early_args[@]}" ]]; do
+    _octo_early_arg="${_octo_early_args[$_octo_early_index]}"
+    case "$_octo_early_arg" in
+        -p|--parallel|-t|--timeout|-d|--dir|-a|--autonomy|-q|--quality|--tier|--branch|--on-fail|--provider)
+            _octo_early_index=$((_octo_early_index + 2)) ;;
+        -v|--verbose|--debug|-n|--dry-run|-l|--loop|-R|--resume|-Q|--quick|-P|--premium|--no-personas|--skip-smoke-test|--ci|--cost-first|--quality-first|--openrouter-nitro|--openrouter-floor|--async|--no-async|--tmux|--no-tmux)
+            _octo_early_index=$((_octo_early_index + 1)) ;;
+        *)
+            _octo_early_command="$_octo_early_arg"
+            break ;;
+    esac
+done
+if [[ "$_octo_early_command" == "explain" ]] || \
+   [[ "$_octo_early_command" == "status" && "${_octo_early_args[$((_octo_early_index + 1))]:-}" == "--run" ]]; then
+    OCTOPUS_EARLY_ARTIFACT_READ_ONLY=true
+fi
+unset _octo_early_args _octo_early_index _octo_early_arg _octo_early_command
+
 # Resolve the physical path (pwd -P) so SCRIPT_DIR points at the real install
 # directory even when the script is invoked through the ~/.claude-octopus/plugin
 # convenience symlink. Without -P, PLUGIN_DIR would equal the symlink itself,
@@ -18,9 +43,9 @@ source "${SCRIPT_DIR}/lib/plugin-root.sh" 2>/dev/null || true
 # The SessionStart hook normally creates this, but if doctor (or any command)
 # is invoked before the hook fires, the symlink may be missing. (fixes #318)
 # Also handles marketplace installs where the hook may not have fired. (#377)
-if declare -f octo_ensure_stable_plugin_root >/dev/null 2>&1; then
+if [[ "$OCTOPUS_EARLY_ARTIFACT_READ_ONLY" != "true" ]] && declare -f octo_ensure_stable_plugin_root >/dev/null 2>&1; then
     octo_ensure_stable_plugin_root "$PLUGIN_DIR" >/dev/null 2>&1 || true
-elif [[ ! -e "${HOME}/.claude-octopus/plugin" ]]; then
+elif [[ "$OCTOPUS_EARLY_ARTIFACT_READ_ONLY" != "true" && ! -e "${HOME}/.claude-octopus/plugin" ]]; then
     mkdir -p "${HOME}/.claude-octopus"
     ln -sfn "$PLUGIN_DIR" "${HOME}/.claude-octopus/plugin"
 fi
@@ -531,7 +556,12 @@ PID_FILE="${WORKSPACE_DIR}/pids"
 
 # Probe only the state root selected above. Restricted hosts do not get an
 # automatic project/TMPDIR fallback: optional persistence degrades instead.
-octopus_configure_persistence "$WORKSPACE_DIR"
+if [[ "$OCTOPUS_EARLY_ARTIFACT_READ_ONLY" == "true" ]]; then
+    OCTOPUS_PERSISTENCE_AVAILABLE=true
+    export OCTOPUS_PERSISTENCE_AVAILABLE
+else
+    octopus_configure_persistence "$WORKSPACE_DIR"
+fi
 
 # Telemetry: enable the opt-in JSONL event stream by default for every run so
 # provider.status + dispatch lifecycle events are captured (usage data + the
@@ -549,7 +579,9 @@ ANALYTICS_DIR="${WORKSPACE_DIR}/analytics"
 # Ensure the per-session results/logs/plans dirs exist EARLY — before any
 # subcommand (council, debate, …) dispatches provider seats. Codex/agy seats
 # write into RESULTS_DIR and crash if it's missing. Cheap, idempotent.
-mkdir -p "$RESULTS_DIR" "$LOGS_DIR" "$PLANS_DIR" 2>/dev/null || true
+if [[ "$OCTOPUS_EARLY_ARTIFACT_READ_ONLY" != "true" ]]; then
+    mkdir -p "$RESULTS_DIR" "$LOGS_DIR" "$PLANS_DIR" 2>/dev/null || true
+fi
 
 # Secure temporary directory (cleaned up on exit)
 OCTOPUS_TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/claude-octopus.XXXXXX")
@@ -2315,14 +2347,23 @@ init_ci_mode
 # CI initialization may set the mode, so validate its final runtime value too.
 validate_autonomy_mode || exit $?
 
-# Detect Claude Code version for v2.1.12+ features (v7.12.0)
-detect_claude_code_version 2>/dev/null || true
+# Artifact-only run inspection must not invoke even provider version probes.
+OCTOPUS_ARTIFACT_READ_ONLY=false
+if [[ "${1:-}" == "explain" ]] || \
+   [[ "${1:-}" == "status" && "${2:-}" == "--run" ]]; then
+    OCTOPUS_ARTIFACT_READ_ONLY=true
+fi
 
-# Validate Claude Code task integration features (v7.16.0)
-validate_claude_code_task_features 2>/dev/null || true
+if [[ "$OCTOPUS_ARTIFACT_READ_ONLY" != "true" ]]; then
+    # Detect Claude Code version for v2.1.12+ features (v7.12.0)
+    detect_claude_code_version 2>/dev/null || true
 
-# Check UX feature dependencies (v7.16.0)
-check_ux_dependencies 2>/dev/null || true
+    # Validate Claude Code task integration features (v7.16.0)
+    validate_claude_code_task_features 2>/dev/null || true
+
+    # Check UX feature dependencies (v7.16.0)
+    check_ux_dependencies 2>/dev/null || true
+fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # MAIN EXECUTION ENTRY POINT
@@ -2396,20 +2437,20 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 
 # Check for first-run on commands that need setup. Doctor is read-only and its
 # JSON stdout must never be contaminated by setup hints.
-if [[ "$COMMAND" != "help" && "$COMMAND" != "setup" && "$COMMAND" != "preflight" && "$COMMAND" != "doctor" && "$COMMAND" != "-h" && "$COMMAND" != "--help" ]]; then
+if [[ "$OCTOPUS_ARTIFACT_READ_ONLY" != "true" && "$COMMAND" != "help" && "$COMMAND" != "setup" && "$COMMAND" != "preflight" && "$COMMAND" != "doctor" && "$COMMAND" != "-h" && "$COMMAND" != "--help" ]]; then
     check_first_run || true  # Show hint but don't block
 fi
 
 # Initialize usage tracking for cost reporting (v4.1)
 # Skip for cost/usage commands that just read existing data
-if [[ "$COMMAND" != "cost" && "$COMMAND" != "usage" && "$COMMAND" != "cost-json" && "$COMMAND" != "cost-csv" && "$COMMAND" != "cost-clear" && "$COMMAND" != "help" && "$COMMAND" != "doctor" ]]; then
+if [[ "$OCTOPUS_ARTIFACT_READ_ONLY" != "true" && "$COMMAND" != "cost" && "$COMMAND" != "usage" && "$COMMAND" != "cost-json" && "$COMMAND" != "cost-csv" && "$COMMAND" != "cost-clear" && "$COMMAND" != "help" && "$COMMAND" != "doctor" ]]; then
     init_usage_tracking 2>/dev/null || true
     init_metrics_tracking 2>/dev/null || true  # v7.25.0: Enhanced metrics
 fi
 
 # Initialize state management (v7.17.0)
 # Skip for help and non-workflow commands
-if [[ "$COMMAND" != "help" && "$COMMAND" != "setup" && "$COMMAND" != "preflight" && "$COMMAND" != "cost" && "$COMMAND" != "usage" && "$COMMAND" != "doctor" && "$COMMAND" != "-h" && "$COMMAND" != "--help" ]]; then
+if [[ "$OCTOPUS_ARTIFACT_READ_ONLY" != "true" && "$COMMAND" != "help" && "$COMMAND" != "setup" && "$COMMAND" != "preflight" && "$COMMAND" != "cost" && "$COMMAND" != "usage" && "$COMMAND" != "doctor" && "$COMMAND" != "-h" && "$COMMAND" != "--help" ]]; then
     # Keep workflow context outside the project by default, namespaced by a
     # stable project identity. This is deliberately separate from
     # OCTOPUS_STATE_DIR, which owns the user-level feature/advisory ledger.
@@ -2986,7 +3027,27 @@ case "$COMMAND" in
         cmd_update_clis
         ;;
     status)
-        show_status
+        if [[ "${1:-}" == "--run" ]]; then
+            [[ -n "${2:-}" ]] || { printf 'Usage: %s status --run RUN_ID [--json]\n' "$(basename "$0")" >&2; exit 2; }
+            _status_run_id="$2"
+            shift 2
+            _status_format=human
+            if [[ "${1:-}" == "--json" ]]; then
+                _status_format=json
+                shift
+            fi
+            [[ $# -eq 0 ]] || { printf 'Unknown status argument: %s\n' "$1" >&2; exit 2; }
+            run_contract_status "$_status_run_id" "$_status_format"
+        else
+            show_status
+        fi
+        ;;
+    explain)
+        [[ "${1:-}" == "--run" && -n "${2:-}" ]] || { printf 'Usage: %s explain --run RUN_ID\n' "$(basename "$0")" >&2; exit 2; }
+        _explain_run_id="$2"
+        shift 2
+        [[ $# -eq 0 ]] || { printf 'Unknown explain argument: %s\n' "$1" >&2; exit 2; }
+        run_contract_explain "$_explain_run_id"
         ;;
     agent-summary|summary)
         render_agent_summary

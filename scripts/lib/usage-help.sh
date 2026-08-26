@@ -33,7 +33,8 @@ _claude_octopus() {
         'optimize:Auto-detect and route optimization tasks'
         'setup:Interactive configuration wizard'
         'init:Initialize workspace'
-        'status:Show running agents'
+        'status:Show running agents or inspect a durable run'
+        'explain:Explain a durable run without rerunning providers'
         'doctor:Run local environment and update diagnostics'
         'update-plugin:Explicitly update Octopus through the host plugin manager'
         'update-clis:Update external provider CLIs'
@@ -665,6 +666,8 @@ ${MAGENTA}═══════════════════════�
   init --interactive      Full guided setup (7 steps)
   config                  Update preferences (v4.5)
   status                  Show running agents
+  status --run ID --json  Read a durable v10 run manifest
+  explain --run ID        Explain terminal seat decisions offline
   agent-summary           Show current run provider status table
   kill [id|all]           Stop agents
   clean                   Clean workspace

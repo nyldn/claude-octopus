@@ -105,6 +105,8 @@ All slash commands use the `/octo:` namespace. The smart router command is `/oct
 | `/octo:resume` | Resume a previous agent by ID — continue an interrupted task |
 | `/octo:discipline` | Toggle discipline mode — auto-invoke verification and review checks |
 | `octopus agent-summary` | Show the current multi-provider run status table |
+| `octopus status --run RUN_ID --json` | Read a schema-versioned v10 run manifest without provider calls |
+| `octopus explain --run RUN_ID` | Explain contribution, degradation, skip, or failure decisions from durable artifacts |
 
 ### Admin
 
@@ -1370,6 +1372,27 @@ octopus summary
 - Whether synthesis will continue or abort when `OCTOPUS_REQUIRE_ALL=true`
 
 Multi-provider commands call this automatically before synthesis when a run ledger is available.
+
+---
+
+### `octopus status --run` and `octopus explain --run`
+
+Inspect a completed, interrupted, or degraded v10 run without rerunning a
+provider or probing authentication.
+
+```bash
+octopus status --run RUN_ID --json
+octopus status --run latest
+octopus explain --run RUN_ID
+```
+
+Each run writes `~/.claude-octopus/runs/<run-id>/run.json` atomically and updates
+`runs/latest` only after the complete snapshot exists. The manifest contains
+requested and resolved provider/model/effort, source and worktree attribution,
+process cleanup, timing and token metrics, artifact paths, the full seat
+transition timeline, terminal reasons, contribution counts, and phase rollups.
+Unknown or corrupt runs return nonzero. These commands are artifact-only: they
+do not invoke provider CLIs, authentication checks, or repair actions.
 
 ---
 
