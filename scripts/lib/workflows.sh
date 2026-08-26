@@ -450,17 +450,24 @@ _octopus_probe_restore_traps() {
 
 _octopus_probe_terminate_tree() {
     local pid="$1"
+    OCTO_PROCESS_CLEANUP_RESULT="no-process"
     [[ "$pid" =~ ^[0-9]+$ ]] || return 0
-    kill -0 "$pid" 2>/dev/null || return 0
 
-    if declare -F review_terminate_process_tree >/dev/null 2>&1; then
+    if declare -F octo_terminate_process_tree >/dev/null 2>&1; then
+        octo_terminate_process_tree "$pid" 1
+    elif ! kill -0 "$pid" 2>/dev/null; then
+        OCTO_PROCESS_CLEANUP_RESULT="already-exited"
+        return 0
+    elif declare -F review_terminate_process_tree >/dev/null 2>&1; then
         review_terminate_process_tree "$pid" 1
+        OCTO_PROCESS_CLEANUP_RESULT="terminated"
     else
         pkill -TERM -P "$pid" 2>/dev/null || true
         kill -TERM "$pid" 2>/dev/null || true
         sleep 1
         pkill -KILL -P "$pid" 2>/dev/null || true
         kill -KILL "$pid" 2>/dev/null || true
+        OCTO_PROCESS_CLEANUP_RESULT="terminated"
     fi
 }
 
@@ -539,19 +546,27 @@ octopus_probe_cancel_active() {
         wait "$synthesis_pid" 2>/dev/null || true
     fi
 
+    local cleanup_result
     for idx in "${!cancel_tasks[@]}"; do
         ledger_pid="${cancel_pids[$idx]:-}"
         task_id="${cancel_tasks[$idx]:-probe-${task_group}-${idx}}"
         agent="${cancel_agents[$idx]:-unknown}"
         result_file="${RESULTS_DIR:-}/$agent-$task_id.md"
+        cleanup_result="no-process"
+        if [[ "$ledger_pid" =~ ^[0-9]+$ ]]; then
+            if _octopus_probe_terminate_tree "$ledger_pid"; then
+                cleanup_result="${OCTO_PROCESS_CLEANUP_RESULT:-terminated}"
+            else
+                cleanup_result="${OCTO_PROCESS_CLEANUP_RESULT:-survived}"
+            fi
+        fi
         if declare -F octo_spawn_contract_seat_id >/dev/null 2>&1 && \
            declare -F octo_run_contract_finish_background >/dev/null 2>&1; then
             octo_run_contract_finish_background \
                 "$(octo_spawn_contract_seat_id "$task_id")" cancelled \
                 "$result_file" "" "Cancelled by SIG${signal_name}" \
-                "$exit_code" "" >/dev/null 2>&1 || true
+                "$exit_code" "" "$cleanup_result" >/dev/null 2>&1 || true
         fi
-        _octopus_probe_terminate_tree "$ledger_pid"
     done
 
     local result_file done_file completed task_id agent

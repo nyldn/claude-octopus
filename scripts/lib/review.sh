@@ -345,6 +345,35 @@ review_terminate_process_tree() {
     done <<< "$process_tree"
 }
 
+# Strict v10 teardown wrapper. Snapshot first so descendants remain verifiable
+# even if their parent exits and they are reparented during TERM handling.
+octo_terminate_process_tree() {
+    local root_pid="${1:-}" grace_secs="${2:-1}" process_tree="" target_pid
+    OCTO_PROCESS_CLEANUP_RESULT="no-process"
+    [[ "$root_pid" =~ ^[1-9][0-9]*$ && "$root_pid" != "1" ]] || return 0
+
+    if ! review_process_is_running "$root_pid"; then
+        OCTO_PROCESS_CLEANUP_RESULT="already-exited"
+        return 0
+    fi
+
+    process_tree="$(review_process_tree_depth_first "$root_pid")"
+    review_terminate_process_tree "$root_pid" "$grace_secs"
+    wait "$root_pid" 2>/dev/null || true
+
+    while IFS= read -r target_pid; do
+        [[ "$target_pid" =~ ^[0-9]+$ ]] || continue
+        if review_process_is_running "$target_pid"; then
+            OCTO_PROCESS_CLEANUP_RESULT="survived"
+            return 1
+        fi
+    done <<< "$process_tree"
+
+    # shellcheck disable=SC2034 # output contract consumed by cancellation callers
+    OCTO_PROCESS_CLEANUP_RESULT="terminated"
+    return 0
+}
+
 # Cancellation is stricter than ordinary timeout cleanup. Freeze each root
 # before walking it so a shell cannot advance to another provider attempt while
 # teardown is enumerating descendants, then kill the frozen tree bottom-up.

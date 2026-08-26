@@ -132,7 +132,7 @@ run_contract_output_file_eligible() {
 octo_run_contract_finish_background() {
     local seat_id="${1:-}" outcome="${2:-failed}" output_file="${3:-}"
     local stderr_file="${4:-}" reason="${5:-}" exit_code="${6:-1}"
-    local duration_ms="${7:-}" terminal_reason
+    local duration_ms="${7:-}" cleanup_result="${8:-}" terminal_reason
 
     case "$outcome" in
         success|degraded)
@@ -161,10 +161,10 @@ octo_run_contract_finish_background() {
                 run_contract_transition "$seat_id" degraded \
                     contribution=eligible-with-warning \
                     "reason=${reason:-Background provider returned degraded output}" \
-                    "duration_ms=$duration_ms"
+                    "duration_ms=$duration_ms" "cleanup_result=$cleanup_result"
             else
                 run_contract_transition "$seat_id" contributed contribution=eligible \
-                    "duration_ms=$duration_ms"
+                    "duration_ms=$duration_ms" "cleanup_result=$cleanup_result"
             fi
             ;;
         timeout|cancelled|failed|skipped)
@@ -172,7 +172,8 @@ octo_run_contract_finish_background() {
             [[ -n "$terminal_reason" ]] || terminal_reason="Background provider ended with $outcome (exit $exit_code)"
             run_contract_transition "$seat_id" "$outcome" \
                 "output_file=$output_file" "stderr_file=$stderr_file" \
-                "reason=$terminal_reason" "duration_ms=$duration_ms"
+                "reason=$terminal_reason" "duration_ms=$duration_ms" \
+                "cleanup_result=$cleanup_result"
             ;;
         *) return 2 ;;
     esac
@@ -280,6 +281,46 @@ run_contract_record_event() (
     return 0
 )
 
+run_contract_reconcile_stale() {
+    local seat_id="${1:-}" pid="${2:-}" record transition
+    record="$(_octo_run_latest_record "$seat_id")" || return 1
+    transition="$(jq -er '.transition' <<< "$record" 2>/dev/null)" || return 1
+    _octo_run_terminal "$transition" && return 0
+    if [[ "$pid" =~ ^[1-9][0-9]*$ ]] && kill -0 "$pid" 2>/dev/null; then
+        return 1
+    fi
+    run_contract_transition "$seat_id" failed \
+        "reason=Process exited without a terminal record" \
+        "cleanup_result=already-exited"
+}
+
+run_contract_retry_seat() {
+    local seat_id="${1:-}" attempt_id="${2:-}" record transition contribution suffix retry_seat
+    [[ -n "$attempt_id" ]] || return 2
+    record="$(_octo_run_latest_record "$seat_id")" || return 1
+    transition="$(jq -er '.transition' <<< "$record" 2>/dev/null)" || return 1
+    contribution="$(jq -r '.contribution // "none"' <<< "$record" 2>/dev/null)" || return 1
+    _octo_run_terminal "$transition" || return 1
+    [[ "$contribution" == "none" ]] || return 1
+    [[ "$(jq -r '.attempt_id // ""' <<< "$record")" != "$attempt_id" ]] || return 1
+
+    suffix="$(printf '%s' "$attempt_id" | sed 's/[^A-Za-z0-9_.:-]/_/g')"
+    retry_seat="${seat_id}.retry-${suffix}"
+    run_contract_transition "$retry_seat" planned \
+        "attempt_id=$attempt_id" \
+        "requested_provider=$(jq -r '.requested.provider // ""' <<< "$record")" \
+        "requested_model=$(jq -r '.requested.model // ""' <<< "$record")" \
+        "requested_effort=$(jq -r '.requested.effort // ""' <<< "$record")" \
+        "phase=$(jq -r '.execution.phase // ""' <<< "$record")" \
+        "role=$(jq -r '.execution.role // ""' <<< "$record")" \
+        "isolation=$(jq -r '.execution.isolation // ""' <<< "$record")" \
+        "worktree=$(jq -r '.execution.worktree // ""' <<< "$record")" \
+        "checkpoint=$(jq -r '.execution.checkpoint // ""' <<< "$record")" \
+        "source_sha=$(jq -r '.source.sha // ""' <<< "$record")" \
+        "source_dirty=$(jq -r '.source.dirty_decision // ""' <<< "$record")" || return 1
+    printf '%s\n' "$retry_seat"
+}
+
 run_contract_transition() (
     local seat_id="${1:-}" transition="${2:-}"
     shift 2 2>/dev/null || return 2
@@ -305,7 +346,8 @@ run_contract_transition() (
 
     local requested_provider="" requested_model="" requested_effort=""
     local resolved_provider="" resolved_model="" resolved_effort=""
-    local phase="" role="" isolation="" worktree="" attempt_id=""
+    local phase="" role="" isolation="" worktree="" attempt_id="" checkpoint=""
+    local source_sha="" source_dirty="" pid="" pgid="" cleanup_result=""
     local output_file="" stderr_file="" diff_file="" reason=""
     local status="" contribution="" tokens_in="" tokens_out=""
     local duration_ms="" estimated_cost_usd=""
@@ -326,6 +368,12 @@ run_contract_transition() (
             isolation) isolation="$value" ;;
             worktree) worktree="$value" ;;
             attempt_id) attempt_id="$value" ;;
+            checkpoint) checkpoint="$value" ;;
+            source_sha) source_sha="$value" ;;
+            source_dirty) source_dirty="$value" ;;
+            pid) pid="$value" ;;
+            pgid) pgid="$value" ;;
+            cleanup_result) cleanup_result="$value" ;;
             output_file) output_file="$value" ;;
             stderr_file) stderr_file="$value" ;;
             diff_file) diff_file="$value" ;;
@@ -403,6 +451,9 @@ run_contract_transition() (
         --arg resolved_effort "$resolved_effort" \
         --arg phase "$phase" --arg role "$role" \
         --arg isolation "$isolation" --arg worktree "$worktree" \
+        --arg checkpoint "$checkpoint" --arg source_sha "$source_sha" \
+        --arg source_dirty "$source_dirty" --arg pid "$pid" --arg pgid "$pgid" \
+        --arg cleanup_result "$cleanup_result" \
         --arg output_file "$output_file" --arg stderr_file "$stderr_file" \
         --arg diff_file "$diff_file" --arg tokens_in "$tokens_in" \
         --arg tokens_out "$tokens_out" --arg duration_ms "$duration_ms" \
@@ -430,7 +481,17 @@ run_contract_transition() (
             phase: carry($phase; $previous.execution.phase),
             role: carry($role; $previous.execution.role),
             isolation: carry($isolation; $previous.execution.isolation),
-            worktree: carry($worktree; $previous.execution.worktree)
+            worktree: carry($worktree; $previous.execution.worktree),
+            checkpoint: carry($checkpoint; $previous.execution.checkpoint),
+            cleanup_result: carry($cleanup_result; $previous.execution.cleanup_result)
+          },
+          source: {
+            sha: carry($source_sha; $previous.source.sha),
+            dirty_decision: carry($source_dirty; $previous.source.dirty_decision)
+          },
+          process: {
+            pid: carry($pid; $previous.process.pid),
+            pgid: carry($pgid; $previous.process.pgid)
           },
           metrics: {
             tokens_in: carry($tokens_in; $previous.metrics.tokens_in),

@@ -33,12 +33,29 @@ octo_spawn_contract_seat_id() {
 octo_spawn_contract_plan() {
     local task_id="${1:-}" agent_type="${2:-unknown}" model="${3:-}"
     local effort="${4:-}" phase="${5:-unknown}" role="${6:-none}" seat_id
+    local source_root source_sha="" source_dirty="not-a-git-worktree" worktree=""
     seat_id="$(octo_spawn_contract_seat_id "$task_id")"
+    source_root="${OCTOPUS_PROJECT_DIR:-$PWD}"
+    worktree="$(git -C "$source_root" rev-parse --show-toplevel 2>/dev/null || true)"
+    if [[ -n "$worktree" ]]; then
+        source_sha="$(git -C "$worktree" rev-parse HEAD 2>/dev/null || true)"
+        if [[ -n "$(git -C "$worktree" status --porcelain 2>/dev/null)" ]]; then
+            if [[ "${OCTOPUS_ALLOW_DIRTY_SOURCE:-0}" == "1" ]]; then
+                source_dirty="dirty-allowed"
+            else
+                source_dirty="dirty-blocked"
+            fi
+        else
+            source_dirty="clean"
+        fi
+    fi
 
     run_contract_transition "$seat_id" planned \
         "requested_provider=$agent_type" "requested_model=$model" \
         "requested_effort=$effort" "phase=$phase" "role=$role" \
-        "isolation=background" "attempt_id=${seat_id}-attempt-1" || return 74
+        "isolation=background" "attempt_id=${seat_id}-attempt-1" \
+        "checkpoint=$phase" "source_sha=$source_sha" \
+        "source_dirty=$source_dirty" "worktree=$worktree" || return 74
 }
 
 octo_spawn_contract_resolve() {
@@ -54,7 +71,12 @@ octo_spawn_contract_authenticated() {
 }
 
 octo_spawn_contract_running() {
-    run_contract_transition "${1:-}" running "output_file=${2:-}"
+    local seat_id="${1:-}" output_file="${2:-}" pid="${3:-}" pgid=""
+    if [[ "$pid" =~ ^[0-9]+$ ]]; then
+        pgid="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d '[:space:]' || true)"
+    fi
+    run_contract_transition "$seat_id" running "output_file=$output_file" \
+        "pid=$pid" "pgid=$pgid"
 }
 
 octo_spawn_contract_begin() {
@@ -937,7 +959,7 @@ ${heuristic_ctx}"
 
         local auth_attempt=0
         local exit_code=0
-        if ! octo_spawn_contract_running "$_contract_seat_id" "$result_file"; then
+        if ! octo_spawn_contract_running "$_contract_seat_id" "$result_file" "$OCTO_CAPTURED_SHELL_PID"; then
             log ERROR "Unable to persist provider launch for background task $task_id"
             exit 74
         fi
