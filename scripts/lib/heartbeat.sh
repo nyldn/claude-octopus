@@ -200,6 +200,39 @@ _run_with_timeout_preserving_process_group() {
     ' bash "$@"
 }
 
+# Snapshot a process tree before signalling it. A parent can exit and reparent
+# its descendants immediately after TERM, so discovering children after the
+# root is gone is too late for reliable cleanup.
+_octo_timeout_process_tree_depth_first() {
+    local root_pid="$1" child_pid process_started
+    while IFS= read -r child_pid; do
+        child_pid="${child_pid//[[:space:]]/}"
+        [[ "$child_pid" =~ ^[1-9][0-9]*$ ]] || continue
+        _octo_timeout_process_tree_depth_first "$child_pid"
+    done < <(ps -eo pid=,ppid= 2>/dev/null | awk -v parent="$root_pid" '$2 == parent { print $1 }')
+    process_started="$(ps -o lstart= -p "$root_pid" 2>/dev/null)" || return 0
+    printf '%s\t%s\n' "$root_pid" "$process_started"
+}
+
+_octo_timeout_pid_is_running() {
+    local pid="$1" expected_started="${2:-}" process_stat process_started
+    kill -0 "$pid" 2>/dev/null || return 1
+    process_stat="$(ps -o stat= -p "$pid" 2>/dev/null)" || return 1
+    [[ "$process_stat" != *Z* ]] || return 1
+    [[ -z "$expected_started" ]] && return 0
+    process_started="$(ps -o lstart= -p "$pid" 2>/dev/null)" || return 1
+    [[ "$process_started" == "$expected_started" ]]
+}
+
+_octo_timeout_signal_snapshot() {
+    local signal_name="$1" process_tree="$2" target_pid process_started
+    while IFS=$'\t' read -r target_pid process_started; do
+        [[ "$target_pid" =~ ^[1-9][0-9]*$ && "$target_pid" != "1" ]] || continue
+        _octo_timeout_pid_is_running "$target_pid" "$process_started" || continue
+        kill -"$signal_name" "$target_pid" 2>/dev/null || true
+    done <<< "$process_tree"
+}
+
 # Portable timeout function (works on macOS and Linux)
 # Prefers system timeout commands, falls back to manual implementation
 run_with_timeout() {
@@ -260,20 +293,40 @@ run_with_timeout() {
         # otherwise redirects background-job stdin to /dev/null, which starves
         # shell-function providers (perplexity_execute, openrouter_execute)
         # that read their prompt from stdin. See issue #307.
-        local cmd_pid monitor_pid
+        local cmd_pid monitor_pid timeout_marker process_tree=""
 
         "$@" <&0 &
         cmd_pid=$!
 
-        # oco-dar: SIGTERM at the cap, then SIGKILL the process AND its children
-        # 10s later so a TERM-ignoring tree cannot wedge the workflow.
+        timeout_marker="$(umask 077 && mktemp "${TMPDIR:-/tmp}/octo-timeout.XXXXXX")" || {
+            kill -KILL "$cmd_pid" 2>/dev/null || true
+            wait "$cmd_pid" 2>/dev/null || true
+            return 1
+        }
+
+        # Snapshot before TERM: children may be reparented as soon as the root
+        # exits. Persist the frozen PID set before signalling so the parent can
+        # finish cleanup even if it races with and stops this monitor.
         (
             sleep "$timeout_secs"
-            kill -TERM "$cmd_pid" 2>/dev/null || true
-            pkill -TERM -P "$cmd_pid" 2>/dev/null || true
-            sleep 10
-            kill -KILL "$cmd_pid" 2>/dev/null || true
-            pkill -KILL -P "$cmd_pid" 2>/dev/null || true
+            process_tree="$(_octo_timeout_process_tree_depth_first "$cmd_pid")"
+            printf '%s\n' "$process_tree" > "$timeout_marker"
+            _octo_timeout_signal_snapshot TERM "$process_tree"
+
+            local grace_tick target_pid process_started any_running
+            for ((grace_tick=0; grace_tick<100; grace_tick++)); do
+                any_running=false
+                while IFS=$'\t' read -r target_pid process_started; do
+                    if _octo_timeout_pid_is_running "$target_pid" "$process_started"; then
+                        any_running=true
+                        break
+                    fi
+                done <<< "$process_tree"
+                [[ "$any_running" == "false" ]] && break
+                sleep 0.1
+            done
+
+            _octo_timeout_signal_snapshot KILL "$process_tree"
         ) &
         monitor_pid=$!
 
@@ -283,14 +336,22 @@ run_with_timeout() {
             exit_code=$?
         fi
 
-        # Stop the monitor and sweep any stragglers parented to the command.
+        # Stop and join the monitor before examining the marker to close the
+        # timeout-boundary race. A non-empty marker contains the frozen process
+        # tree; sweep it from the parent too in case the monitor was interrupted
+        # during its TERM grace period. Normal completions leave it empty.
         # `kill`/`wait` on a monitor that already exited on its own (race with its
         # sleep) return non-zero — under `set -e` that would kill this function (and
         # the seat's already-captured output with it) after the provider call
         # succeeded. Same class as the subshell kill fixed in #336. (#738)
         kill "$monitor_pid" 2>/dev/null || true
         wait "$monitor_pid" 2>/dev/null || true
-        pkill -KILL -P "$cmd_pid" 2>/dev/null || true
+        if [[ -s "$timeout_marker" ]]; then
+            process_tree="$(< "$timeout_marker")"
+            _octo_timeout_signal_snapshot KILL "$process_tree"
+            exit_code=124
+        fi
+        rm -f "$timeout_marker"
     fi
 
     # Enhanced timeout error messaging (v7.16.0 Feature 3)
@@ -349,6 +410,7 @@ octopus_capture_provider_output() {
 
     local exit_code=0
     if OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="spawn-agent-heartbeat" \
+        OCTOPUS_PRESERVE_CALLER_PROCESS_GROUP="true" \
         run_with_timeout "$timeout_secs" "$@" < "$temp_input" > "$raw_output" 2> "$temp_errors"; then
         exit_code=0
     else

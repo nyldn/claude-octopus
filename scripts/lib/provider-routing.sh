@@ -180,6 +180,24 @@ _octo_build_provider_env_impl() {
                 if [[ -n "${ANTIGRAVITY_API_KEY:-}" ]]; then
                     PROVIDER_ENV_ARRAY+=("ANTIGRAVITY_API_KEY=${ANTIGRAVITY_API_KEY}")
                 fi
+                # The bundled agy adapter runs inside this isolated environment,
+                # so its documented safety and behavior controls must cross the
+                # env -i boundary. These are configuration values, never ambient
+                # credentials or arbitrary parent-shell state.
+                local _agy_adapter_var
+                for _agy_adapter_var in \
+                    OCTOPUS_AGY_MODEL \
+                    OCTOPUS_AGY_PRINT_TIMEOUT \
+                    OCTOPUS_AGY_MAX_PAYLOAD_BYTES \
+                    OCTOPUS_AGY_FORCE_INLINE \
+                    OCTOPUS_AGY_NO_PTY_FALLBACK \
+                    OCTOPUS_AGY_NO_RETRY \
+                    OCTOPUS_AGY_SANDBOX \
+                    OCTOPUS_AGY_INCLUDE_DIRS; do
+                    if [[ -n "${!_agy_adapter_var:-}" ]]; then
+                        PROVIDER_ENV_ARRAY+=("${_agy_adapter_var}=${!_agy_adapter_var}")
+                    fi
+                done
                 if [[ ${#_trace_env[@]} -gt 0 ]]; then
                     PROVIDER_ENV_ARRAY+=("${_trace_env[@]}")
                 fi

@@ -271,10 +271,10 @@ EOF
         still_alive=true
     fi
 
-    if [[ "$ec" -eq 137 && -n "$started_pid" && "$still_alive" == "false" && "$dur_ms" -lt 20000 ]]; then
+    if [[ "$ec" -eq 124 && -n "$started_pid" && "$still_alive" == "false" && "$dur_ms" -lt 20000 ]]; then
         test_pass
     else
-        test_fail "stubborn process did not prove SIGKILL escalation (exit=$ec, pid=${started_pid:-missing}, alive=$still_alive, dur=${dur_ms}ms; expected exit=137, started+dead pid, <20000ms)"
+        test_fail "stubborn process did not prove normalized timeout + SIGKILL escalation (exit=$ec, pid=${started_pid:-missing}, alive=$still_alive, dur=${dur_ms}ms; expected exit=124, started+dead pid, <20000ms)"
     fi
 }
 

@@ -508,7 +508,8 @@ ${provider_ctx}"
             fi
         fi
 
-        if printf '%s' "$enhanced_prompt" | run_with_timeout "$_attempt_timeout" "${cmd_array[@]}" 2>"$temp_err" >"$temp_out"; then
+        if printf '%s' "$enhanced_prompt" | OCTOPUS_PRESERVE_CALLER_PROCESS_GROUP="true" \
+            run_with_timeout "$_attempt_timeout" "${cmd_array[@]}" 2>"$temp_err" >"$temp_out"; then
             exit_code=0
         else
             exit_code=$?

@@ -1,0 +1,15 @@
+# scenario	target	rc	calls	transitions	terminal	contribution	reason	artifact
+success	agy	0	1	planned,starting,authenticated,running,output_received,validated,contributed	contributed	eligible	-	required
+auth-fail	agy	1	1	planned,starting,authenticated,running,failed	failed	none	Exit code 1	forbidden
+health-fail	agy	1	0	planned,starting,failed	failed	none	Provider unavailable: agy CLI not found in PATH	forbidden
+exit-zero-empty	agy	1	2	planned,starting,authenticated,running,failed	failed	none	Empty output	forbidden
+exit-zero-whitespace	agy	1	2	planned,starting,authenticated,running,failed	failed	none	Empty or placeholder output	forbidden
+exit-zero-placeholder	agy	1	1	planned,starting,authenticated,running,failed	failed	none	Empty or placeholder output	forbidden
+oversize	agy	0	0	planned,starting,authenticated,running,skipped	skipped	none	Prompt rejected by provider (oversize)	forbidden
+timeout	agy	124	1	planned,starting,authenticated,running,timeout	timeout	none	Timed out before completion	forbidden
+partial-then-timeout	agy	124	1	planned,starting,authenticated,running,timeout	timeout	none	Timed out before completion	forbidden
+child-tree	agy	124	1	planned,starting,authenticated,running,timeout	timeout	none	Timed out before completion	forbidden
+refusal	agy	1	1	planned,starting,authenticated,running,failed	failed	none	Exit code 1	forbidden
+sigsegv-then-success	agy	0	2	planned,starting,authenticated,running,output_received,validated,degraded	degraded	eligible-with-warning	Recovered after AGY exit 139	required
+output-then-stdin-close	agy	0	1	planned,starting,authenticated,running,output_received,validated,contributed	contributed	eligible	-	required
+persistence-fail	agy	74	0	-	-	-	-	forbidden

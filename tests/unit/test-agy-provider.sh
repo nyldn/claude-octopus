@@ -797,6 +797,45 @@ test_agy_inherits_environment() {
     fi
 }
 
+test_agy_isolated_env_forwards_adapter_controls() {
+    test_case "provider routing forwards documented agy adapter controls through env isolation"
+
+    local output missing="" var
+    output="$(
+        OCTOPUS_AGY_MODEL='agy/test-model' \
+        OCTOPUS_AGY_PRINT_TIMEOUT='7s' \
+        OCTOPUS_AGY_MAX_PAYLOAD_BYTES='32' \
+        OCTOPUS_AGY_FORCE_INLINE='0' \
+        OCTOPUS_AGY_NO_PTY_FALLBACK='1' \
+        OCTOPUS_AGY_NO_RETRY='1' \
+        OCTOPUS_AGY_SANDBOX='off' \
+        OCTOPUS_AGY_INCLUDE_DIRS='/tmp/one,/tmp/two' \
+        bash -c '
+            source "$1/scripts/lib/provider-routing.sh"
+            build_provider_env agy
+            printf "%s\n" "${PROVIDER_ENV_ARRAY[@]}"
+        ' _ "$PROJECT_ROOT"
+    )"
+
+    for var in \
+        'OCTOPUS_AGY_MODEL=agy/test-model' \
+        'OCTOPUS_AGY_PRINT_TIMEOUT=7s' \
+        'OCTOPUS_AGY_MAX_PAYLOAD_BYTES=32' \
+        'OCTOPUS_AGY_FORCE_INLINE=0' \
+        'OCTOPUS_AGY_NO_PTY_FALLBACK=1' \
+        'OCTOPUS_AGY_NO_RETRY=1' \
+        'OCTOPUS_AGY_SANDBOX=off' \
+        'OCTOPUS_AGY_INCLUDE_DIRS=/tmp/one,/tmp/two'; do
+        printf '%s\n' "$output" | grep -Fqx "$var" || missing+=" $var"
+    done
+
+    if [[ -z "$missing" ]]; then
+        test_pass
+    else
+        test_fail "agy adapter controls missing from isolated env:$missing"
+    fi
+}
+
 test_agy_spawn_bypasses_timeout_wrapper() {
     test_case "spawn enforces timeout wrapper for agy"
 
@@ -894,9 +933,9 @@ MOCK_AGY
     )"
 
     if jq -e '
-        ([.[] | select(.name == "agy-live-catalog" and .status == "pass")] | length) == 1 and
-        ([.[] | select(.name == "agy-live-model" and .status == "pass")] | length) == 1 and
-        ([.[] | select(.name == "agy-live-dispatch" and .status == "pass")] | length) == 1
+        ([.results[] | select(.name == "agy-live-catalog" and .status == "pass")] | length) == 1 and
+        ([.results[] | select(.name == "agy-live-model" and .status == "pass")] | length) == 1 and
+        ([.results[] | select(.name == "agy-live-dispatch" and .status == "pass")] | length) == 1
     ' <<< "$output" >/dev/null; then
         test_pass
     else
@@ -946,18 +985,18 @@ MOCK_AGY
         DOCTOR_RESULTS_DETAIL=()
         doctor_check_providers
         doctor_check_auth
-        doctor_output_json
+        doctor_output_json || true
     )"
-    detail="$(jq -r '.[] | select(.name == "agy-live-catalog") | .detail' <<< "$output")"
+    detail="$(jq -r '.results[] | select(.name == "agy-live-catalog") | .detail' <<< "$output")"
 
-    if jq -e '.[] | select(.name == "agy-live-catalog" and .status == "warn")' \
+    if jq -e '.results[] | select(.name == "agy-live-catalog" and .status == "warn")' \
         <<< "$output" >/dev/null && \
        [[ "$detail" == *"plain 'agy'"* ]] && \
        [[ "$detail" == *"Keychain Access"* ]] && \
        [[ "$detail" != *"agy login"* ]] && \
-       ! jq -e '.[] | select(.name == "agy-auth" and .status == "pass")' \
+       ! jq -e '.results[] | select(.name == "agy-auth" and .status == "pass")' \
            <<< "$output" >/dev/null && \
-       jq -e '.[] | select(.name == "any-provider-auth" and .status == "fail")' \
+       jq -e '.results[] | select(.name == "any-provider-auth" and .status == "fail")' \
            <<< "$output" >/dev/null && \
        [[ ! -e "$marker" ]]; then
         test_pass
@@ -1011,7 +1050,7 @@ MOCK_AGY
     elapsed=$(( $(date +%s) - started ))
 
     if [[ "$elapsed" -le 4 ]] && \
-       jq -e '.[] | select(.name == "agy-live-dispatch" and .status == "pass")' \
+       jq -e '.results[] | select(.name == "agy-live-dispatch" and .status == "pass")' \
            <<< "$output" >/dev/null; then
         test_pass
     else
@@ -1489,6 +1528,7 @@ test_agy_command_validation
 test_agy_dispatch_not_gemini_wrapper
 test_agy_provider_detection
 test_agy_inherits_environment
+test_agy_isolated_env_forwards_adapter_controls
 test_agy_spawn_bypasses_timeout_wrapper
 test_agy_sync_bypasses_timeout_wrapper
 test_agy_spawn_cli_uses_sync_dispatch
