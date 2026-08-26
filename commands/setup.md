@@ -18,9 +18,51 @@ offer the command once after installation, but never starts it.
 
 **CRITICAL: This command MUST always run its interactive flow when invoked.** Never silently dismiss the user. Never say "you're already set up" without showing the dashboard and offering choices via AskUserQuestion. Even if everything is configured, the user invoked this command for a reason — show them their status and ask what they want to do.
 
+## v10 Readiness Contract
+
+Setup is a guided configuration flow, not a success-by-binary-presence check.
+Before offering changes, use `/octo:doctor --json` as the authoritative local
+readiness report and keep its stdout even when it exits `1`; that exit means one
+or more checks failed, not that the JSON is unusable. Provider readiness requires
+both usable authentication and a resolvable model. A CLI version command alone
+does not prove either.
+
+Treat every repair as a proposal:
+
+1. Show the exact failing check and the proposed command or file change.
+2. Ask for explicit confirmation before installing, logging in, deleting,
+   replacing, or updating anything.
+3. For configuration files, write a sibling temporary file, validate it, then
+   atomically rename it over the target. Preserve the original if validation or
+   rename fails.
+4. Rerun the affected Doctor category and report its real exit status. Never
+   turn a warning or failed recheck into a success message.
+5. Never print, copy into a manifest, or ask the user to paste a secret into
+   chat. Use each provider's supported login or secure environment path.
+
 ## STEP 1: Detect Current State
 
-Run a SINGLE comprehensive check:
+Run a SINGLE comprehensive check. In addition to the dashboard facts below,
+capture the Doctor 2.0 JSON contract from the resolved plugin root. Because
+failed diagnostics exit `1`, capture the status explicitly instead of using it
+as an errexit boundary:
+
+```bash
+set +e
+DOCTOR_JSON="$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate.sh" doctor --json 2>/dev/null)"
+DOCTOR_EXIT=$?
+set -e
+if ! jq -e '.schema_version == "10.0" and (.summary.exit_code == 0 or .summary.exit_code == 1)' \
+  <<<"$DOCTOR_JSON" >/dev/null 2>&1; then
+  echo "doctor_contract:invalid"
+else
+  printf 'doctor_exit:%s\n' "$DOCTOR_EXIT"
+  printf 'doctor_failures:%s\n' "$(jq -r '.summary.failures' <<<"$DOCTOR_JSON")"
+  printf 'doctor_warnings:%s\n' "$(jq -r '.summary.warnings' <<<"$DOCTOR_JSON")"
+fi
+```
+
+Then run the existing inventory block:
 
 ```bash
 set -euo pipefail

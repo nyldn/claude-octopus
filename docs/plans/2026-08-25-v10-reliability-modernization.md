@@ -472,8 +472,9 @@ bash tests/unit/test-cache-alignment.sh
 - Modify: `scripts/lib/config-display.sh`
 - Modify: `scripts/lib/preflight.sh`
 - Modify: `scripts/lib/plugin-update.sh`
-- Modify: `.claude/commands/setup.md`
-- Modify: `.claude/commands/doctor.md`
+- Modify: `commands/setup.md`
+- Modify: `.claude/skills/skill-doctor/SKILL.md`
+- Generated: `skills/skill-doctor/SKILL.md` via `make sync`
 - Modify: `.claude-plugin/plugin.json` only if supported `userConfig` fields are required
 
 **Step 1: Fix argument and exit semantics**
@@ -504,7 +505,7 @@ bash tests/unit/test-command-registration.sh
 **Step 5: Commit the slice**
 
 ```bash
-git add scripts/lib/doctor.sh scripts/lib/config-display.sh scripts/lib/preflight.sh scripts/lib/plugin-update.sh .claude/commands/setup.md .claude/commands/doctor.md .claude-plugin/plugin.json tests/unit/test-doctor-v10.sh tests/unit/test-cache-alignment.sh
+git add scripts/lib/doctor.sh scripts/lib/config-display.sh scripts/lib/preflight.sh scripts/lib/plugin-update.sh scripts/orchestrate.sh commands/setup.md .claude/skills/skill-doctor/SKILL.md skills/skill-doctor/SKILL.md .claude-plugin/plugin.json tests/unit/test-doctor-v10.sh tests/unit/test-cache-alignment.sh
 git commit -m "feat(setup): add fail-closed Doctor 2.0"
 ```
 

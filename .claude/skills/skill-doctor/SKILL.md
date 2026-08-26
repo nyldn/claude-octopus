@@ -21,7 +21,11 @@ trigger: |
 
 ## Overview
 
-Run environment diagnostics across 14 check categories. Identifies misconfigured providers, stale plugin installations, stale state, broken hooks, and other issues that prevent Claude Octopus from working correctly.
+Run environment diagnostics across 14 check categories. Doctor 2.0 identifies
+misconfigured providers, stale loaded or cached plugin versions, invalid plugin
+assembly, unwritable state, non-terminal run records, orphan process evidence,
+broken hooks, and other issues that prevent Claude Octopus from working
+correctly.
 
 **Core principle:** Detect problems before they surface in workflows.
 
@@ -143,6 +147,21 @@ bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor --json
 bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor auth --verbose
 ```
 
+Doctor 2.0 JSON always uses this outer contract:
+
+```json
+{
+  "schema_version": "10.0",
+  "summary": {"passed": 0, "warnings": 0, "failures": 0, "exit_code": 0},
+  "results": []
+}
+```
+
+A check with status `fail` makes both `summary.exit_code` and the process exit
+code `1`, while stdout remains valid JSON. Warnings remain structured but do not
+make the command fail. Unknown flags, unknown categories, and multiple category
+arguments are usage errors with exit code `2`; do not retry them as full scans.
+
 The `providers --live` variant is an explicit, bounded AGY capability check. It
 uses one small real request to verify the CLI version, live model catalog and
 keyring authentication, configured model, and print-mode dispatch. Do not run
@@ -154,6 +173,13 @@ Access, the Antigravity CLI item, and its Access Control settings.
 ### Step 5: Interactive Remediation (MANDATORY for fixable issues)
 
 After running diagnostics, if ANY fixable issues are found, you MUST use AskUserQuestion to offer fixes. Do NOT just print instructions — offer to execute them.
+
+Before each accepted repair, restate the exact target and action. Configuration
+repairs must use a validated sibling temporary file and atomic rename; if any
+step fails, keep the original and report the failure. Cache cleanup, stale PID
+cleanup, login flows, package installation, and plugin updates always require
+explicit confirmation. After repair, rerun only the affected category first,
+then offer a full scan.
 
 **RTK not installed:**
 
@@ -224,9 +250,9 @@ Offer to run the login command for the expired provider.
 | `providers` | Claude Code version, Codex CLI installed, Antigravity CLI installed, Perplexity API key, Ollama local LLM (server + models), circuit breaker status, provider fallback history |
 | `companions` | Optional companion tools and integrations |
 | `auth` | Authentication status for each provider |
-| `config` | Plugin version, install scope, feature flags |
+| `config` | Plugin version, install scope, feature flags, strict `claude plugin validate` result |
 | `updates` | Loaded, installed, catalog, and cache versions; Claude marketplace auto-update; reload requirement |
-| `state` | Project state.json, stale results, workspace writable |
+| `state` | Project state.json, workspace and probe-cache writability, stale results, non-terminal runs, orphan and stale PID evidence |
 | `smoke` | Smoke test cache, model configuration |
 | `hooks` | hooks.json validity, hook scripts |
 | `scheduler` | Scheduler daemon, jobs, budget gates, kill switches |

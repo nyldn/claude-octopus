@@ -52,6 +52,115 @@ doctor_add() {
     DOCTOR_RESULTS_DETAIL+=("$detail")
 }
 
+doctor_check_plugin_validation() {
+    local plugin_root="${1:-${PLUGIN_DIR:-}}" output="" help_output="" rc=0 detail=""
+    local strict_flag=""
+    [[ -n "$plugin_root" ]] || plugin_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+    if ! command -v claude >/dev/null 2>&1; then
+        doctor_add "plugin-validation" "config" "info" \
+            "Strict Claude plugin validation unavailable" "Install Claude Code to run: claude plugin validate $plugin_root"
+        return 0
+    fi
+
+    help_output="$(claude plugin validate --help </dev/null 2>&1 || true)"
+    [[ "$help_output" == *"--strict"* ]] && strict_flag="--strict"
+    if [[ -n "$strict_flag" ]]; then
+        output="$(claude plugin validate "$strict_flag" "$plugin_root" </dev/null 2>&1)" || rc=$?
+    else
+        output="$(claude plugin validate "$plugin_root" </dev/null 2>&1)" || rc=$?
+    fi
+    detail="$(printf '%s\n' "$output" | sed -n '1,5p')"
+    if [[ "$rc" -eq 0 ]]; then
+        doctor_add "plugin-validation" "config" "pass" \
+            "Strict plugin validation passed" "${detail:-claude plugin validate accepted $plugin_root}"
+    else
+        doctor_add "plugin-validation" "config" "fail" \
+            "Strict plugin validation failed (exit $rc)" "${detail:-Run: claude plugin validate $plugin_root}"
+    fi
+}
+
+_doctor_iso_epoch() {
+    local timestamp="${1:-}" epoch=""
+    [[ -n "$timestamp" ]] || { printf '0\n'; return; }
+    epoch="$(date -u -d "$timestamp" +%s 2>/dev/null)" || epoch=""
+    if [[ ! "$epoch" =~ ^[0-9]+$ ]]; then
+        epoch="$(date -j -u -f '%Y-%m-%dT%H:%M:%SZ' "$timestamp" +%s 2>/dev/null)" || epoch=""
+    fi
+    [[ "$epoch" =~ ^[0-9]+$ ]] && printf '%s\n' "$epoch" || printf '0\n'
+}
+
+doctor_check_v10_state_health() {
+    local workspace="${WORKSPACE_DIR:-${HOME}/.claude-octopus}" cache_dir=""
+    local now stale_after snapshot seat_id timestamp _transition epoch
+    local running_ids="" running_count=0 stale_count=0
+    local pid_file="${PID_FILE:-${workspace}/pids}" pid _agent task
+    local orphan_count=0 stale_pid_count=0
+
+    if type octo_probe_cache_dir >/dev/null 2>&1; then
+        cache_dir="$(octo_probe_cache_dir 2>/dev/null || true)"
+    fi
+    [[ -n "$cache_dir" ]] || cache_dir="${workspace%/}/.cache/probe-results"
+    if [[ -d "$cache_dir" && -w "$cache_dir" ]]; then
+        doctor_add "probe-cache-writable" "state" "pass" "Probe cache writable" "$cache_dir"
+    elif [[ ! -e "$cache_dir" && -d "$workspace" && -w "$workspace" ]]; then
+        doctor_add "probe-cache-writable" "state" "pass" "Probe cache can be created" "$cache_dir"
+    else
+        doctor_add "probe-cache-writable" "state" "fail" "Probe cache is not writable" "$cache_dir"
+    fi
+
+    now="$(date +%s)"
+    stale_after="${OCTOPUS_RUNNING_STALE_SECONDS:-900}"
+    [[ "$stale_after" =~ ^[0-9]+$ ]] || stale_after=900
+    if command -v jq >/dev/null 2>&1 && [[ -d "$workspace/runs" ]]; then
+        for snapshot in "$workspace"/runs/*/seats.json; do
+            [[ -f "$snapshot" ]] || continue
+            while IFS=$'\t' read -r seat_id _transition timestamp; do
+                [[ -n "$seat_id" ]] || continue
+                ((running_count++)) || true
+                running_ids="${running_ids}${running_ids:+$'\n'}${seat_id}"
+                epoch="$(_doctor_iso_epoch "$timestamp")"
+                if [[ "$epoch" -eq 0 || $((now - epoch)) -gt "$stale_after" ]]; then
+                    ((stale_count++)) || true
+                fi
+            done < <(jq -r '.seats[]? | select(.transition | IN("contributed", "degraded", "skipped", "failed", "timeout", "cancelled") | not) | [.seat_id, .transition, (.timestamp // "")] | @tsv' "$snapshot" 2>/dev/null || true)
+        done
+    fi
+    if [[ "$stale_count" -gt 0 ]]; then
+        doctor_add "stale-running-records" "state" "warn" \
+            "$stale_count stale non-terminal run record(s)" \
+            "Inspect ${workspace}/runs; resume or cancel explicitly before retrying"
+    else
+        doctor_add "stale-running-records" "state" "pass" \
+            "No stale non-terminal run records" "${running_count} active non-terminal record(s)"
+    fi
+
+    if [[ -f "$pid_file" ]]; then
+        while IFS=: read -r pid _agent task; do
+            [[ "$pid" =~ ^[0-9]+$ ]] || continue
+            if kill -0 "$pid" 2>/dev/null; then
+                if ! grep -Fxq "spawn-${task}" <<< "$running_ids" && ! grep -Fxq "$task" <<< "$running_ids"; then
+                    ((orphan_count++)) || true
+                fi
+            else
+                ((stale_pid_count++)) || true
+            fi
+        done < "$pid_file"
+    fi
+    if [[ "$orphan_count" -gt 0 ]]; then
+        doctor_add "orphan-processes" "state" "warn" \
+            "$orphan_count live provider process(es) lack a matching run record" \
+            "Inspect $pid_file and cancel by recorded PID only after confirming ownership"
+    else
+        doctor_add "orphan-processes" "state" "pass" "No orphan provider process evidence" "$pid_file"
+    fi
+    if [[ "$stale_pid_count" -gt 0 ]]; then
+        doctor_add "stale-pid-records" "state" "warn" \
+            "$stale_pid_count stale PID record(s)" \
+            "Repair proposal: remove dead entries from $pid_file after explicit confirmation; preserve the original until an atomic replacement succeeds"
+    fi
+}
+
 doctor_check_agy_live() {
     local octo_root="$1"
     local probe_timeout term_timeout kill_grace catalog="" model="" output=""
@@ -859,6 +968,8 @@ doctor_check_config() {
                 "No reserved MCP server name 'workspace' detected" ""
         fi
     fi
+
+    doctor_check_plugin_validation "$PLUGIN_DIR"
 }
 
 # --- Plugin update health (issue #851) ---
@@ -990,6 +1101,8 @@ doctor_check_state() {
         doctor_add "preflight-cache" "state" "pass" \
             "No preflight cache (will create on first run)" ""
     fi
+
+    doctor_check_v10_state_health
 }
 
 # --- Category 5: Hooks ---
@@ -1888,8 +2001,10 @@ doctor_output_human() {
         local icon
         case "$status" in
             pass) icon="${GREEN}✓${NC}" ;;
+            info) icon="${BLUE}ℹ${NC}" ;;
             warn) icon="${YELLOW}⚠${NC}" ;;
             fail) icon="${RED}✗${NC}" ;;
+            *) icon="${RED}?${NC}" ;;
         esac
 
         echo -e "  ${icon} ${msg}"
@@ -1921,21 +2036,73 @@ doctor_output_human() {
 }
 
 # --- Output: JSON ---
+doctor_json_escape() {
+    local value="${1:-}"
+    local out="" ch ord escaped i
+    for ((i=0; i<${#value}; i++)); do
+        ch="${value:i:1}"
+        case "$ch" in
+            '"') out="${out}\\\"" ;;
+            \\) out="${out}\\\\" ;;
+            $'\b') out="${out}\\b" ;;
+            $'\f') out="${out}\\f" ;;
+            $'\n') out="${out}\\n" ;;
+            $'\r') out="${out}\\r" ;;
+            $'\t') out="${out}\\t" ;;
+            *)
+                if [[ "$ch" == [[:cntrl:]] ]]; then
+                    LC_ALL=C printf -v ord '%d' "'$ch"
+                    printf -v escaped '\\u%04x' "$ord"
+                    out="${out}${escaped}"
+                else
+                    out="${out}${ch}"
+                fi
+                ;;
+        esac
+    done
+    printf '%s' "$out"
+}
+
 doctor_output_json() {
     local total=${#DOCTOR_RESULTS_NAME[@]}
+    local pass_count=0 warn_count=0 fail_count=0 exit_code=0
     local json="["
     for ((i=0; i<total; i++)); do
         [[ $i -gt 0 ]] && json+=","
-        # Escape strings for JSON safety
-        local name="${DOCTOR_RESULTS_NAME[$i]}"
-        local cat="${DOCTOR_RESULTS_CAT[$i]}"
-        local status="${DOCTOR_RESULTS_STATUS[$i]}"
-        local msg="${DOCTOR_RESULTS_MSG[$i]//\"/\\\"}"
-        local detail="${DOCTOR_RESULTS_DETAIL[$i]//\"/\\\"}"
+        local name cat status msg detail
+        name="$(doctor_json_escape "${DOCTOR_RESULTS_NAME[$i]}")"
+        cat="$(doctor_json_escape "${DOCTOR_RESULTS_CAT[$i]}")"
+        status="$(doctor_json_escape "${DOCTOR_RESULTS_STATUS[$i]}")"
+        msg="$(doctor_json_escape "${DOCTOR_RESULTS_MSG[$i]}")"
+        detail="$(doctor_json_escape "${DOCTOR_RESULTS_DETAIL[$i]}")"
+        case "${DOCTOR_RESULTS_STATUS[$i]}" in
+            pass) ((++pass_count)) ;;
+            warn) ((++warn_count)) ;;
+            fail) ((++fail_count)) ;;
+        esac
         json+="{\"name\":\"$name\",\"category\":\"$cat\",\"status\":\"$status\",\"message\":\"$msg\",\"detail\":\"$detail\"}"
     done
     json+="]"
-    echo "$json"
+    [[ $fail_count -gt 0 ]] && exit_code=1
+    printf '{"schema_version":"10.0","summary":{"passed":%d,"warnings":%d,"failures":%d,"exit_code":%d},"results":%s}\n' \
+        "$pass_count" "$warn_count" "$fail_count" "$exit_code" "$json"
+    return "$exit_code"
+}
+
+doctor_usage() {
+    cat <<'EOF'
+Usage: octopus doctor [CATEGORY] [--verbose] [--json] [--live]
+
+Categories:
+  providers companions auth config updates state smoke hooks scheduler
+  skills conflicts agents recurrence cache
+
+Options:
+  -v, --verbose  Include details for passing checks
+  --json         Emit the Doctor 2.0 JSON contract
+  --live         Run bounded live provider probes (also enables verbose output)
+  -h, --help     Show this help
+EOF
 }
 
 # --- Main Doctor Runner ---
@@ -1944,6 +2111,7 @@ do_doctor() {
     local verbose=false
     local json_output=false
     local DOCTOR_LIVE_PROBE=false
+    local categories="providers companions auth config updates state smoke hooks scheduler skills conflicts agents recurrence cache"
 
     # Parse arguments
     while [[ $# -gt 0 ]]; do
@@ -1951,8 +2119,28 @@ do_doctor() {
             --verbose|-v) verbose=true ;;
             --json) json_output=true ;;
             --live) DOCTOR_LIVE_PROBE=true; verbose=true ;;
-            -*) ;; # ignore unknown flags
-            *) [[ -z "$category_filter" ]] && category_filter="$1" ;;
+            --help|-h) doctor_usage; return 0 ;;
+            -*)
+                printf 'Unknown doctor option: %s\n' "$1" >&2
+                doctor_usage >&2
+                return 2
+                ;;
+            *)
+                case " $categories " in
+                    *" $1 "*) ;;
+                    *)
+                        printf 'Unknown doctor category: %s\n' "$1" >&2
+                        doctor_usage >&2
+                        return 2
+                        ;;
+                esac
+                if [[ -n "$category_filter" ]]; then
+                    printf 'Only one doctor category may be selected (got %s and %s).\n' "$category_filter" "$1" >&2
+                    doctor_usage >&2
+                    return 2
+                fi
+                category_filter="$1"
+                ;;
         esac
         shift
     done
@@ -1966,8 +2154,8 @@ do_doctor() {
     DOCTOR_AGY_LIVE_AUTH_STATUS="not-run"
 
     # Run checks (filtered if category specified)
-    local categories=(providers companions auth config updates state smoke hooks scheduler skills conflicts agents recurrence cache)
-    for cat in "${categories[@]}"; do
+    local cat
+    for cat in $categories; do
         if [[ -z "$category_filter" || "$category_filter" == "$cat" ]]; then
             "doctor_check_${cat}"
         fi

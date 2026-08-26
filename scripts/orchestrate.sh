@@ -2394,21 +2394,22 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
             ;;
     esac
 
-# Check for first-run on commands that need setup (skip for help/setup/preflight)
-if [[ "$COMMAND" != "help" && "$COMMAND" != "setup" && "$COMMAND" != "preflight" && "$COMMAND" != "-h" && "$COMMAND" != "--help" ]]; then
+# Check for first-run on commands that need setup. Doctor is read-only and its
+# JSON stdout must never be contaminated by setup hints.
+if [[ "$COMMAND" != "help" && "$COMMAND" != "setup" && "$COMMAND" != "preflight" && "$COMMAND" != "doctor" && "$COMMAND" != "-h" && "$COMMAND" != "--help" ]]; then
     check_first_run || true  # Show hint but don't block
 fi
 
 # Initialize usage tracking for cost reporting (v4.1)
 # Skip for cost/usage commands that just read existing data
-if [[ "$COMMAND" != "cost" && "$COMMAND" != "usage" && "$COMMAND" != "cost-json" && "$COMMAND" != "cost-csv" && "$COMMAND" != "cost-clear" && "$COMMAND" != "help" ]]; then
+if [[ "$COMMAND" != "cost" && "$COMMAND" != "usage" && "$COMMAND" != "cost-json" && "$COMMAND" != "cost-csv" && "$COMMAND" != "cost-clear" && "$COMMAND" != "help" && "$COMMAND" != "doctor" ]]; then
     init_usage_tracking 2>/dev/null || true
     init_metrics_tracking 2>/dev/null || true  # v7.25.0: Enhanced metrics
 fi
 
 # Initialize state management (v7.17.0)
 # Skip for help and non-workflow commands
-if [[ "$COMMAND" != "help" && "$COMMAND" != "setup" && "$COMMAND" != "preflight" && "$COMMAND" != "cost" && "$COMMAND" != "usage" && "$COMMAND" != "-h" && "$COMMAND" != "--help" ]]; then
+if [[ "$COMMAND" != "help" && "$COMMAND" != "setup" && "$COMMAND" != "preflight" && "$COMMAND" != "cost" && "$COMMAND" != "usage" && "$COMMAND" != "doctor" && "$COMMAND" != "-h" && "$COMMAND" != "--help" ]]; then
     # Keep workflow context outside the project by default, namespaced by a
     # stable project identity. This is deliberately separate from
     # OCTOPUS_STATE_DIR, which owns the user-level feature/advisory ledger.
