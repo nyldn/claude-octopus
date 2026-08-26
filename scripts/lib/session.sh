@@ -362,10 +362,18 @@ display_rich_progress() {
     echo ""
 }
 
-# v7.19.0 P2.3: Result caching for probe workflows
-# Cache directory
-CACHE_DIR="${WORKSPACE_DIR}/.cache/probe-results"
-CACHE_TTL=3600  # 1 hour in seconds
+# v7.19.0 P2.3: Result caching for probe workflows. Resolve at call time so
+# sourcing this library before WORKSPACE_DIR exists can never target /.cache.
+octo_probe_cache_dir() {
+    local workspace="${WORKSPACE_DIR:-}"
+    if [[ -z "$workspace" ]] && type resolve_octopus_workspace >/dev/null 2>&1; then
+        workspace="$(resolve_octopus_workspace 2>/dev/null || true)"
+    fi
+    [[ -n "$workspace" ]] || workspace="${HOME}/.claude-octopus"
+    printf '%s/.cache/probe-results\n' "${workspace%/}"
+}
+
+CACHE_TTL="${CACHE_TTL:-3600}"  # 1 hour in seconds
 
 # v7.19.0 P2.4: Progressive synthesis flag
 ENABLE_PROGRESSIVE_SYNTHESIS="${OCTOPUS_PROGRESSIVE_SYNTHESIS:-true}"

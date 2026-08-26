@@ -37,6 +37,14 @@ octo_run_contract_snapshot_path() {
     printf '%s/seats.json\n' "$(octo_run_contract_dir)"
 }
 
+octo_run_contract_events_path() {
+    printf '%s/events.jsonl\n' "$(octo_run_contract_dir)"
+}
+
+octo_run_contract_lock_path() {
+    printf '%s/contract\n' "$(octo_run_contract_dir)"
+}
+
 octo_run_transition_valid() {
     local from="${1:-}" to="${2:-}"
     case "${from}:${to}" in
@@ -171,24 +179,44 @@ octo_run_contract_finish_background() {
 }
 
 _octo_run_contract_snapshot_unlocked() {
-    local ledger snapshot run_id snapshot_dir tmp
+    local ledger events_ledger snapshot run_id snapshot_dir tmp seats_json events_json
     ledger="$(octo_run_contract_ledger_path)"
+    events_ledger="$(octo_run_contract_events_path)"
     snapshot="$(octo_run_contract_snapshot_path)"
     run_id="$(octo_run_contract_id)"
     snapshot_dir="$(dirname "$snapshot")"
 
-    [[ -s "$ledger" ]] || return 1
+    [[ -s "$ledger" || -s "$events_ledger" ]] || return 1
     mkdir -p "$snapshot_dir" 2>/dev/null || return 1
     tmp="$(mktemp "${snapshot}.tmp.XXXXXX")" || return 1
 
-    if ! jq -s --arg schema_version "$OCTO_RUN_SCHEMA_VERSION" --arg run_id "$run_id" '
-        reduce .[] as $record ({}; .[$record.seat_id] = $record)
-        | {
-            schema_version: $schema_version,
-            run_id: $run_id,
-            seats: ([.[]] | sort_by(.seat_id))
-          }
-    ' "$ledger" > "$tmp" 2>/dev/null; then
+    seats_json='[]'
+    events_json='[]'
+    if [[ -s "$ledger" ]]; then
+        seats_json="$(jq -s '
+            reduce .[] as $record ({}; .[$record.seat_id] = $record)
+            | [.[]] | sort_by(.seat_id)
+        ' "$ledger" 2>/dev/null)" || {
+            rm -f "$tmp"
+            return 1
+        }
+    fi
+    if [[ -s "$events_ledger" ]]; then
+        events_json="$(jq -s '.' "$events_ledger" 2>/dev/null)" || {
+            rm -f "$tmp"
+            return 1
+        }
+    fi
+
+    if ! jq -n --arg schema_version "$OCTO_RUN_SCHEMA_VERSION" --arg run_id "$run_id" \
+        --argjson seats "$seats_json" --argjson events "$events_json" '
+        {
+          schema_version: $schema_version,
+          run_id: $run_id,
+          seats: $seats,
+          events: $events
+        }
+    ' > "$tmp" 2>/dev/null; then
         rm -f "$tmp"
         return 1
     fi
@@ -201,15 +229,55 @@ _octo_run_contract_snapshot_unlocked() {
 }
 
 run_contract_snapshot() (
-    local ledger output
+    local ledger events_ledger lock_target output
     ledger="$(octo_run_contract_ledger_path)"
-    [[ -s "$ledger" ]] || return 1
-    _octo_event_lock "$ledger" || return 1
-    trap '_octo_event_unlock "$ledger"' EXIT
+    events_ledger="$(octo_run_contract_events_path)"
+    [[ -s "$ledger" || -s "$events_ledger" ]] || return 1
+    lock_target="$(octo_run_contract_lock_path)"
+    _octo_event_lock "$lock_target" || return 1
+    trap '_octo_event_unlock "$lock_target"' EXIT
     output="$(_octo_run_contract_snapshot_unlocked)" || return 1
-    _octo_event_unlock "$ledger"
+    _octo_event_unlock "$lock_target"
     trap - EXIT
     printf '%s\n' "$output"
+)
+
+# Record a run-scoped event that is not owned by a provider seat. Attribute
+# values are strings so the append-only ledger stays simple and inspectable.
+run_contract_record_event() (
+    local event="${1:-}"
+    shift || true
+    [[ "$event" =~ ^[A-Za-z0-9][A-Za-z0-9_.:-]*$ ]] || return 2
+
+    local events_ledger run_dir lock_target attrs='{}' pair key value record timestamp run_id
+    events_ledger="$(octo_run_contract_events_path)"
+    run_dir="$(dirname "$events_ledger")"
+    mkdir -p "$run_dir" 2>/dev/null || return 1
+
+    for pair in "$@"; do
+        [[ "$pair" == *=* ]] || return 2
+        key="${pair%%=*}"
+        value="${pair#*=}"
+        [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_.:-]*$ ]] || return 2
+        attrs="$(jq -cn --argjson attrs "$attrs" --arg key "$key" --arg value "$value" \
+            '$attrs + {($key): $value}')" || return 1
+    done
+
+    timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    run_id="$(octo_run_contract_id)"
+    record="$(jq -cn --arg schema_version "$OCTO_RUN_SCHEMA_VERSION" \
+        --arg run_id "$run_id" --arg event "$event" --arg timestamp "$timestamp" \
+        --argjson attributes "$attrs" \
+        '{schema_version:$schema_version, run_id:$run_id, event:$event, timestamp:$timestamp, attributes:$attributes}')" || return 1
+
+    lock_target="$(octo_run_contract_lock_path)"
+    _octo_event_lock "$lock_target" || return 1
+    trap '_octo_event_unlock "$lock_target"' EXIT
+    printf '%s\n' "$record" >> "$events_ledger" 2>/dev/null || return 1
+    _octo_run_contract_snapshot_unlocked >/dev/null || return 1
+    _octo_event_unlock "$lock_target"
+    trap - EXIT
+    return 0
 )
 
 run_contract_transition() (
@@ -219,12 +287,13 @@ run_contract_transition() (
     [[ "$seat_id" =~ ^[A-Za-z0-9][A-Za-z0-9_.:-]*$ ]] || return 2
     [[ "$transition" =~ ^[a-z_]+$ ]] || return 2
 
-    local previous="{}" previous_record="" from="" ledger run_dir
+    local previous="{}" previous_record="" from="" ledger run_dir lock_target
     ledger="$(octo_run_contract_ledger_path)"
     run_dir="$(dirname "$ledger")"
     mkdir -p "$run_dir" 2>/dev/null || return 1
-    _octo_event_lock "$ledger" || return 1
-    trap '_octo_event_unlock "$ledger"' EXIT
+    lock_target="$(octo_run_contract_lock_path)"
+    _octo_event_lock "$lock_target" || return 1
+    trap '_octo_event_unlock "$lock_target"' EXIT
 
     if previous_record="$(_octo_run_latest_record "$seat_id" 2>/dev/null)"; then
         previous="$previous_record"
@@ -384,7 +453,7 @@ run_contract_transition() (
     fi
 
     _octo_run_contract_snapshot_unlocked >/dev/null || return 1
-    _octo_event_unlock "$ledger"
+    _octo_event_unlock "$lock_target"
     trap - EXIT
     return 0
 )

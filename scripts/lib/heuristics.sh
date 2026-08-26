@@ -511,14 +511,39 @@ EOF
     # v7.19.0 P2.3: Save to cache for reuse
     local cache_key
     cache_key=$(get_cache_key "$original_prompt")
-    save_to_cache "$cache_key" "$synthesis_file"
 
     local _green="${GREEN:-}"
+    local _yellow="${YELLOW:-}"
     local _cyan="${CYAN:-}"
     local _nc="${NC:-}"
     echo ""
     echo -e "${_green}✓${_nc} Probe synthesis saved to: $synthesis_file"
-    echo -e "${_cyan}♻️${_nc}  Cached for 1 hour (reuse if prompt unchanged)"
+    report_probe_cache_result "$cache_key" "$synthesis_file" "$_cyan" "$_yellow" "$_nc"
     echo ""
     guard_output "$(<"$synthesis_file")" "probe-synthesis"
+}
+
+# Persisting the optimization is secondary to returning the completed
+# synthesis. Cache failure is visible and durable, but intentionally non-fatal.
+report_probe_cache_result() {
+    local cache_key="$1" synthesis_file="$2"
+    local cyan="${3:-${CYAN:-}}" yellow="${4:-${YELLOW:-}}" nc="${5:-${NC:-}}"
+
+    if save_to_cache "$cache_key" "$synthesis_file"; then
+        echo -e "${cyan}♻️${nc}  Cached for 1 hour (reuse if prompt unchanged)"
+        return 0
+    fi
+
+    log "WARN" "Probe synthesis usable but cache persistence failed: $synthesis_file"
+    echo -e "${yellow}⚠${nc}  Probe synthesis was not cached; this result remains usable"
+    if type run_contract_record_event >/dev/null 2>&1; then
+        run_contract_record_event cache.write.failed \
+            "artifact=$synthesis_file" "cache_key=$cache_key" \
+            "reason=cache persistence failed" >/dev/null 2>&1 || true
+    elif type octo_event_emit >/dev/null 2>&1; then
+        octo_event_emit cache.write.failed \
+            "artifact=$synthesis_file" "cache_key=$cache_key" \
+            "reason=cache persistence failed" >/dev/null 2>&1 || true
+    fi
+    return 0
 }

@@ -713,7 +713,8 @@ probe_discover() {
 
     if check_cache "$cache_key"; then
         echo -e "${CYAN}♻️  Using cached results from previous run${NC}"
-        local cached_file="${CACHE_DIR}/${cache_key}.md"
+        local cached_file
+        cached_file="$(octo_probe_cache_dir)/${cache_key}.md"
         local synthesis_file="${RESULTS_DIR}/probe-synthesis-${task_group}.md"
 
         # Copy cached result to current synthesis file

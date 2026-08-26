@@ -13,6 +13,10 @@ test_suite "cache-aligned prompt structure in spawn.sh, agent-sync.sh, workflows
 SPAWN_SH="$PROJECT_ROOT/scripts/lib/spawn.sh"
 AGENT_SYNC_SH="$PROJECT_ROOT/scripts/lib/agent-sync.sh"
 WORKFLOWS_SH="$PROJECT_ROOT/scripts/lib/workflows.sh"
+SESSION_SH="$PROJECT_ROOT/scripts/lib/session.sh"
+SEMANTIC_CACHE_SH="$PROJECT_ROOT/scripts/lib/semantic-cache.sh"
+HEURISTICS_SH="$PROJECT_ROOT/scripts/lib/heuristics.sh"
+RUN_CONTRACT_SH="$PROJECT_ROOT/scripts/lib/run-contract.sh"
 
 pass() { test_case "$1"; test_pass; }
 fail() { test_case "$1"; test_fail "${2:-$1}"; }
@@ -27,6 +31,77 @@ for f in "$SPAWN_SH" "$AGENT_SYNC_SH" "$WORKFLOWS_SH"; do
     fail "$fname exists" "file not found"
   fi
 done
+
+# ── v10 runtime cache truth ──────────────────────────────────────────────────
+
+test_case "session source without WORKSPACE_DIR never resolves a root cache path"
+set +e
+cache_source_output=$(env -i HOME="$TEST_TMP_DIR/cache-home" PATH="$PATH" \
+  bash -c 'set -u; source "$1"; octo_probe_cache_dir' _ "$SESSION_SH" 2>&1)
+cache_source_rc=$?
+set -e
+if [[ "$cache_source_rc" -eq 0 && "$cache_source_output" == "$TEST_TMP_DIR/cache-home/"* && "$cache_source_output" != "/.cache/probe-results" ]]; then
+  test_pass
+else
+  test_fail "rc=$cache_source_rc output=$cache_source_output"
+fi
+
+test_case "cache write failure propagates without publishing partial entries"
+cache_failure_root="$TEST_TMP_DIR/cache-parent-file"
+printf 'not a directory\n' > "$cache_failure_root"
+cache_source_file="$TEST_TMP_DIR/cache-source.md"
+printf 'usable synthesis\n' > "$cache_source_file"
+set +e
+cache_failure_output=$(WORKSPACE_DIR="$cache_failure_root" CACHE_TTL=3600 bash -c '
+  log() { :; }
+  source "$1"
+  save_to_cache fixture "$2"
+' _ "$SEMANTIC_CACHE_SH" "$cache_source_file" 2>&1)
+cache_failure_rc=$?
+set -e
+if [[ "$cache_failure_rc" -ne 0 && ! -e "$cache_failure_root/.cache/probe-results/fixture.md" && ! -e "$cache_failure_root/.cache/probe-results/fixture.meta" ]]; then
+  test_pass
+else
+  test_fail "rc=$cache_failure_rc output=$cache_failure_output"
+fi
+
+test_case "failed probe persistence is non-fatal and never claims a cache hit"
+cache_report_manifest="$TEST_TMP_DIR/cache-report-manifest"
+set +e
+cache_report_output=$(WORKSPACE_DIR="$cache_report_manifest" OCTOPUS_RUN_ID="cache-report" bash -c '
+  log() { :; }
+  save_to_cache() { return 73; }
+  source "$1"
+  report_probe_cache_result fixture "$2"
+' _ "$HEURISTICS_SH" "$cache_source_file" 2>&1)
+cache_report_rc=$?
+set -e
+if [[ "$cache_report_rc" -eq 0 && "$cache_report_output" == *"not cached"* && "$cache_report_output" != *"Cached for 1 hour"* ]] &&
+   jq -e '.events[-1].event == "cache.write.failed"' \
+      "$cache_report_manifest/runs/cache-report/seats.json" >/dev/null 2>&1; then
+  test_pass
+else
+  test_fail "rc=$cache_report_rc output=$cache_report_output"
+fi
+
+test_case "run manifest records cache.write.failed"
+manifest_root="$TEST_TMP_DIR/cache-manifest"
+set +e
+manifest_output=$(WORKSPACE_DIR="$manifest_root" OCTOPUS_RUN_ID="cache-failure" bash -c '
+  source "$1"
+  run_contract_record_event cache.write.failed "artifact=/tmp/synthesis.md" "reason=mkdir failed"
+  run_contract_snapshot
+' _ "$RUN_CONTRACT_SH" 2>&1)
+manifest_rc=$?
+set -e
+if [[ "$manifest_rc" -eq 0 ]] && jq -e '
+  .events[-1].event == "cache.write.failed" and
+  .events[-1].attributes.artifact == "/tmp/synthesis.md"
+' <<< "$manifest_output" >/dev/null 2>&1; then
+  test_pass
+else
+  test_fail "rc=$manifest_rc output=$manifest_output"
+fi
 
 # ── Syntax check ──────────────────────────────────────────────────────────────
 

@@ -22,12 +22,28 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 OCTOPUS_SEMANTIC_CACHE="${OCTOPUS_SEMANTIC_CACHE:-false}"
 OCTOPUS_CACHE_SIMILARITY_THRESHOLD="${OCTOPUS_CACHE_SIMILARITY_THRESHOLD:-0.7}"
+CACHE_TTL="${CACHE_TTL:-3600}"
+
+# session.sh normally owns this helper. Keep semantic-cache.sh independently
+# sourceable for focused tests and third-party integrations.
+if ! type octo_probe_cache_dir >/dev/null 2>&1; then
+    octo_probe_cache_dir() {
+        local workspace="${WORKSPACE_DIR:-}"
+        if [[ -z "$workspace" ]] && type resolve_octopus_workspace >/dev/null 2>&1; then
+            workspace="$(resolve_octopus_workspace 2>/dev/null || true)"
+        fi
+        [[ -n "$workspace" ]] || workspace="${HOME}/.claude-octopus"
+        printf '%s/.cache/probe-results\n' "${workspace%/}"
+    }
+fi
 
 check_cache_semantic() {
     local prompt="$1"
+    local cache_dir
+    cache_dir="$(octo_probe_cache_dir)" || return 1
 
     [[ "$OCTOPUS_SEMANTIC_CACHE" != "true" ]] && return 1
-    [[ ! -d "${CACHE_DIR:-}" ]] && return 1
+    [[ ! -d "$cache_dir" ]] && return 1
 
     # Try exact match first
     local cache_key
@@ -40,7 +56,7 @@ check_cache_semantic() {
     # Scan bigram files for fuzzy matches
     local best_key=""
     local best_sim="0"
-    for bigram_file in "${CACHE_DIR}"/*.bigrams; do
+    for bigram_file in "${cache_dir}"/*.bigrams; do
         [[ ! -f "$bigram_file" ]] && continue
 
         local cached_prompt
@@ -73,12 +89,20 @@ save_to_cache_semantic() {
     local prompt="$3"
 
     # Save regular cache entry
-    save_to_cache "$cache_key" "$result_file"
+    save_to_cache "$cache_key" "$result_file" || return 1
 
     # Save bigrams file for semantic matching
     if [[ "$OCTOPUS_SEMANTIC_CACHE" == "true" ]]; then
-        echo "$prompt" > "${CACHE_DIR}/${cache_key}.bigrams"
+        local cache_dir bigram_file bigram_tmp
+        cache_dir="$(octo_probe_cache_dir)" || return 1
+        bigram_file="${cache_dir}/${cache_key}.bigrams"
+        bigram_tmp="$(mktemp "${bigram_file}.tmp.XXXXXX")" || return 1
+        if ! printf '%s\n' "$prompt" > "$bigram_tmp" || ! mv "$bigram_tmp" "$bigram_file"; then
+            rm -f "$bigram_tmp"
+            return 1
+        fi
     fi
+    return 0
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -115,7 +139,7 @@ deduplicate_results() {
 # ═══════════════════════════════════════════════════════════════════════════════
 # CACHE: Core cache operations (v8.0.0)
 # Key generation, freshness checks, storage, and cleanup
-# Config: CACHE_DIR, CACHE_TTL
+# Config: runtime octo_probe_cache_dir(), CACHE_TTL
 # ═══════════════════════════════════════════════════════════════════════════════
 
 get_cache_key() {
@@ -126,8 +150,10 @@ get_cache_key() {
 # Check if cached result exists and is fresh
 check_cache() {
     local cache_key="$1"
-    local cache_file="${CACHE_DIR}/${cache_key}.md"
-    local cache_meta="${CACHE_DIR}/${cache_key}.meta"
+    local cache_dir cache_file cache_meta
+    cache_dir="$(octo_probe_cache_dir)" || return 1
+    cache_file="${cache_dir}/${cache_key}.md"
+    cache_meta="${cache_dir}/${cache_key}.meta"
 
     # Check if cache files exist
     [[ ! -f "$cache_file" ]] && return 1
@@ -136,8 +162,9 @@ check_cache() {
     # Check if cache is still valid (within TTL)
     local cache_time
     cache_time=$(cat "$cache_meta" 2>/dev/null || echo "0")
-    local current_time=$(date +%s)
-    local age=$((current_time - cache_time))
+    local current_time age
+    current_time=$(date +%s)
+    age=$((current_time - cache_time))
 
     if [[ $age -lt $CACHE_TTL ]]; then
         log "INFO" "Cache hit! Age: ${age}s (TTL: ${CACHE_TTL}s)"
@@ -151,7 +178,9 @@ check_cache() {
 # Get cached result
 get_cached_result() {
     local cache_key="$1"
-    local cache_file="${CACHE_DIR}/${cache_key}.md"
+    local cache_dir cache_file
+    cache_dir="$(octo_probe_cache_dir)" || return 1
+    cache_file="${cache_dir}/${cache_key}.md"
     cat "$cache_file"
 }
 
@@ -159,28 +188,42 @@ get_cached_result() {
 save_to_cache() {
     local cache_key="$1"
     local result_file="$2"
-    local cache_file="${CACHE_DIR}/${cache_key}.md"
-    local cache_meta="${CACHE_DIR}/${cache_key}.meta"
+    local cache_dir cache_file cache_meta cache_tmp meta_tmp
+    cache_dir="$(octo_probe_cache_dir)" || return 1
+    cache_file="${cache_dir}/${cache_key}.md"
+    cache_meta="${cache_dir}/${cache_key}.meta"
 
-    mkdir -p "$CACHE_DIR"
+    [[ -f "$result_file" ]] || return 1
+    mkdir -p "$cache_dir" 2>/dev/null || return 1
+    cache_tmp="$(mktemp "${cache_file}.tmp.XXXXXX")" || return 1
+    meta_tmp="$(mktemp "${cache_meta}.tmp.XXXXXX")" || {
+        rm -f "$cache_tmp"
+        return 1
+    }
 
-    # Copy result to cache
-    cp "$result_file" "$cache_file"
-
-    # Store timestamp
-    date +%s > "$cache_meta"
+    if ! cp "$result_file" "$cache_tmp" 2>/dev/null ||
+       ! date +%s > "$meta_tmp" 2>/dev/null ||
+       ! mv "$cache_tmp" "$cache_file" 2>/dev/null ||
+       ! mv "$meta_tmp" "$cache_meta" 2>/dev/null; then
+        rm -f "$cache_tmp" "$meta_tmp"
+        return 1
+    fi
 
     log "DEBUG" "Saved to cache: $cache_key"
+    return 0
 }
 
 # Clean up expired cache entries
 cleanup_cache() {
-    [[ ! -d "$CACHE_DIR" ]] && return 0
+    local cache_dir
+    cache_dir="$(octo_probe_cache_dir)" || return 0
+    [[ ! -d "$cache_dir" ]] && return 0
 
-    local current_time=$(date +%s)
+    local current_time
+    current_time=$(date +%s)
     local cleaned=0
 
-    for meta_file in "$CACHE_DIR"/*.meta; do
+    for meta_file in "$cache_dir"/*.meta; do
         [[ ! -f "$meta_file" ]] && continue
 
         local cache_time
