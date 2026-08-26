@@ -1,24 +1,37 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-26
-Status: PR #965 merged the six approved v10 modernization additions and
-hermetic end-to-end failure injection to `main` as `dd4cb943`. Exact-main Test
-Suite run `32961618258` correctly blocked tagging after one macOS-only timing
-oracle failure; no `v10.0.0` tag or release exists yet. A deterministic oracle
-fix is in progress on `fix/v10-macos-deadline`.
-Branch: `fix/v10-macos-deadline`, based on exact merged `main` `dd4cb943`.
-Current release: [v9.66.1](https://github.com/nyldn/claude-octopus/releases/tag/v9.66.1)
-Tracking: Beads epic `oco-de9`; children `oco-de9.1` through `oco-de9.8`
-Next action: verify the deterministic macOS deadline oracle, run the complete
-local gate, open and merge its protected hotfix PR, then require exact-main CI
-before tagging that squash-merge commit. After tagging, publish v10, sync both
-marketplaces, and rerun `bash scripts/validate-release.sh` plus fresh installs.
+Status: v10 reliability modernization is released. PR #965 merged additions
+1-6 and hermetic end-to-end failure injection as `dd4cb943`; PR #966 merged the
+deterministic macOS deadline oracle as `6265807f`. Exact-main Test Suite run
+`32969018355` passed before the annotated `v10.0.0` tag and GitHub release were
+published from that exact commit.
+Branch: `docs/v10-release-handoff`, based on tagged `main` `6265807f`.
+Current release: [v10.0.0](https://github.com/nyldn/claude-octopus/releases/tag/v10.0.0)
+Tracking: Beads epic `oco-de9` and children `oco-de9.1` through `oco-de9.8` are closed.
+Next action: no v10 release action remains. Start from current protected `main`,
+run `bd ready`, and preserve unrelated dirty state in the coordination checkout.
 
-## V10 Reliability Release Candidate
+## V10 Reliability Release
 
 - Additions 1-6 are implemented: truthful seat execution, Setup and Doctor 2.0,
   Provider Registry 2.0, cache-write truth, cancellation/recovery with durable
   observability, and eval-backed Claude/Codex/Fable routing.
+- PR #966 passed exact-head CodeRabbit and native review with zero unresolved
+  threads. Its Test Suite run `32967352765` passed macOS and Ubuntu smoke/unit,
+  symlink-path, full integration, and summary jobs before a normal squash merge
+  to `6265807f`. Exact-main run `32969018355` then passed the same protected
+  matrix before release.
+- Annotated tag `v10.0.0` dereferences to `6265807f`. The non-draft GitHub
+  release is published, and `bash scripts/validate-release.sh` passes against
+  the tagged checkout, including version parity, provider contracts, Claude
+  plugin validation, packaging, registrations, tag, changelog, and release.
+- Shared marketplace commit `4100b7e8` publishes Claude selector
+  `octo@nyldn-plugins` at v10.0.0 while preserving the stable Codex selector
+  `claude-octopus@nyldn-plugins`. Isolated clean-home installs resolved,
+  installed, and enabled v10.0.0 through both Claude Code 2.1.245 and Codex;
+  the Codex package exposed 59 generated skills. Both temporary homes were
+  moved to Trash after verification.
 - The failure-injection integration suite drives the real `orchestrate.sh spawn
   agy` entrypoint with hermetic providers and no credentials. Its 14 scenarios
   plus hermeticity check passed 15/15 with zero skips.
@@ -90,10 +103,9 @@ marketplaces, and rerun `bash scripts/validate-release.sh` plus fresh installs.
   cap 14/14, agent summary 11/11, version consistency 20/20 and 30/30, and
   failure injection 15/15. Repository ShellCheck at warning severity and
   `git diff --check` pass.
-- `bash scripts/validate-release.sh` is intentionally deferred until after the
-  v10 tag: before the version bump it correctly rejects candidate HEAD because
-  the existing `v9.66.1` tag points to the prior production merge rather than
-  this branch.
+- `bash scripts/validate-release.sh` passed from the exact tagged checkout after
+  publication. Its only plugin-validator warning is informational: root
+  `CLAUDE.md` is project context rather than a plugin skill; validation passed.
 - Earlier independent staged review identified four real defects: the v10 latest-run
   pointer collided with the legacy status symlink, Fable received character
   counts instead of UTF-8 byte counts, post-routing model identity was not
