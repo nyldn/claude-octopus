@@ -55,6 +55,40 @@ octo_run_contract_lock_path() {
     printf '%s/contract\n' "$(octo_run_contract_dir)"
 }
 
+octo_run_contract_recovery_path() {
+    printf '%s.recovery\n' "$(octo_run_contract_ledger_path)"
+}
+
+# Restore a ledger rollback while the contract lock is held. The recovery
+# marker deliberately outlives the ledger write: readers fail closed while it
+# exists, and a later locked operation can retry from the intact backup.
+_octo_run_contract_recover_unlocked() {
+    local ledger marker existed backup restore_tmp
+    ledger="$(octo_run_contract_ledger_path)"
+    marker="$(octo_run_contract_recovery_path)"
+    [[ -f "$marker" ]] || return 0
+
+    IFS=$'\t' read -r existed backup < "$marker" 2>/dev/null || return 1
+    [[ "$backup" == "$ledger".rollback.* && -f "$backup" ]] || return 1
+
+    if [[ "$existed" == true ]]; then
+        restore_tmp="$(mktemp "${ledger}.restore.XXXXXX")" || return 1
+        if ! cp "$backup" "$restore_tmp" 2>/dev/null ||
+           ! mv "$restore_tmp" "$ledger" 2>/dev/null; then
+            rm -f "$restore_tmp" 2>/dev/null || true
+            return 1
+        fi
+    elif [[ "$existed" == false ]]; then
+        rm -f "$ledger" 2>/dev/null || return 1
+    else
+        return 1
+    fi
+
+    rm -f "$marker" 2>/dev/null || return 1
+    rm -f "$backup" 2>/dev/null || true
+    return 0
+}
+
 octo_run_transition_valid() {
     local from="${1:-}" to="${2:-}"
     case "${from}:${to}" in
@@ -86,6 +120,7 @@ _octo_run_output_usable_file() {
 _octo_run_latest_record() {
     local seat_id="${1:-}" ledger record
     ledger="$(octo_run_contract_ledger_path)"
+    [[ ! -e "$(octo_run_contract_recovery_path)" ]] || return 1
     [[ -n "$seat_id" && -s "$ledger" ]] || return 1
     record="$(jq -sc --arg seat_id "$seat_id" \
         '[.[] | select(.seat_id == $seat_id)] | last // empty' \
@@ -123,6 +158,7 @@ run_contract_contribution_eligible() {
 run_contract_output_file_eligible() {
     local output_file="${1:-}" ledger records count
     ledger="$(octo_run_contract_ledger_path)"
+    [[ ! -e "$(octo_run_contract_recovery_path)" ]] || return 3
     [[ -n "$output_file" && -s "$ledger" ]] || return 2
     records="$(jq -sc --arg output "$output_file" '
         reduce .[] as $record ({}; .[$record.seat_id] = $record)
@@ -318,6 +354,7 @@ run_contract_snapshot() (
     lock_target="$(octo_run_contract_lock_path)"
     _octo_event_lock "$lock_target" || return 1
     trap '_octo_event_unlock "$lock_target"' EXIT
+    _octo_run_contract_recover_unlocked || return 1
     output="$(_octo_run_contract_snapshot_unlocked)" || return 1
     _octo_event_unlock "$lock_target"
     trap - EXIT
@@ -413,6 +450,7 @@ run_contract_record_event() (
     lock_target="$(octo_run_contract_lock_path)"
     _octo_event_lock "$lock_target" || return 1
     trap '_octo_event_unlock "$lock_target"' EXIT
+    _octo_run_contract_recover_unlocked || return 1
     printf '%s\n' "$record" >> "$events_ledger" 2>/dev/null || return 1
     _octo_run_contract_snapshot_unlocked >/dev/null || return 1
     _octo_event_unlock "$lock_target"
@@ -474,6 +512,7 @@ run_contract_transition() (
     lock_target="$(octo_run_contract_lock_path)"
     _octo_event_lock "$lock_target" || return 1
     trap '_octo_event_unlock "$lock_target"' EXIT
+    _octo_run_contract_recover_unlocked || return 1
 
     if previous_record="$(_octo_run_latest_record "$seat_id" 2>/dev/null)"; then
         previous="$previous_record"
@@ -648,28 +687,35 @@ run_contract_transition() (
         }
     ')" || return 1
 
-    local ledger_backup ledger_existed=false
+    local ledger_backup ledger_existed=false recovery_marker recovery_marker_tmp
     ledger_backup="$(mktemp "${ledger}.rollback.XXXXXX")" || return 1
     if [[ -f "$ledger" ]]; then
         ledger_existed=true
         cat "$ledger" > "$ledger_backup" 2>/dev/null || { rm -f "$ledger_backup"; return 1; }
     fi
 
+    recovery_marker="$(octo_run_contract_recovery_path)"
+    recovery_marker_tmp="$(mktemp "${recovery_marker}.tmp.XXXXXX")" || {
+        rm -f "$ledger_backup" 2>/dev/null || true
+        return 1
+    }
+    if ! printf '%s\t%s\n' "$ledger_existed" "$ledger_backup" > "$recovery_marker_tmp" 2>/dev/null ||
+       ! mv "$recovery_marker_tmp" "$recovery_marker" 2>/dev/null; then
+        rm -f "$recovery_marker_tmp" "$ledger_backup" 2>/dev/null || true
+        return 1
+    fi
+
     if ! printf '%s\n' "$record" >> "$ledger" 2>/dev/null; then
-        rm -f "$ledger_backup"
+        _octo_run_contract_recover_unlocked >/dev/null 2>&1 || true
         return 1
     fi
 
     if ! _octo_run_contract_snapshot_unlocked >/dev/null; then
-        if [[ "$ledger_existed" == true ]]; then
-            cat "$ledger_backup" > "$ledger" 2>/dev/null || true
-        else
-            rm -f "$ledger" 2>/dev/null || true
-        fi
-        rm -f "$ledger_backup"
+        _octo_run_contract_recover_unlocked >/dev/null 2>&1 || true
         return 1
     fi
-    rm -f "$ledger_backup"
+    rm -f "$recovery_marker" 2>/dev/null || return 1
+    rm -f "$ledger_backup" 2>/dev/null || true
     _octo_event_unlock "$lock_target"
     trap - EXIT
     return 0

@@ -22,11 +22,18 @@ aliases:
 
 ### Provider preflight
 
-Before launching any Codex or other provider-backed planning seat, run
-`${CLAUDE_PLUGIN_ROOT}/scripts/helpers/check-providers.sh`. If the selected
-provider is unavailable or unauthenticated, keep the plan in Claude-only mode,
-name the failed preflight, and offer `/octo:setup` or `/octo:doctor providers`
-as the recovery path. Do not describe an unstarted provider seat as completed.
+Before launching any Codex or other provider-backed planning seat, capture one
+authoritative status snapshot and retain it for the later visualization:
+
+```bash
+PROVIDER_STATUS="$("${CLAUDE_PLUGIN_ROOT}/scripts/helpers/check-providers.sh" 2>/dev/null || true)"
+printf '%s\n' "$PROVIDER_STATUS"
+```
+
+If the selected provider is unavailable or unauthenticated, keep the plan in
+Claude-only mode, name the failed preflight, and offer `/octo:setup` or
+`/octo:doctor providers` as the recovery path. Do not describe an unstarted
+provider seat as completed.
 
 ### MANDATORY: Detect Plan Mode Write Conflict Before Starting
 
@@ -366,6 +373,10 @@ YOUR INVOLVEMENT: [Checkpoints / Semi-autonomous / Hands-off]
 
 Time estimate: [Rough estimate based on scope]
 ```
+
+Render every provider status from `PROVIDER_STATUS`; do not replace the
+preflight snapshot with separate command, environment, or Ollama checks. A
+status other than `available` cannot be displayed as a completed provider seat.
 
 **PROHIBITED: Displaying only "🔵 Claude: Available ✓" without listing all providers.**
 

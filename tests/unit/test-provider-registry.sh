@@ -57,7 +57,7 @@ if [[ " $OCTO_MODEL_CONFIG_PROVIDERS " == *" commandcode "* ]] && [[ "$OCTO_MODE
 test_case "registry context defaults and provider overrides drive dispatch"
 default_context=$(env -u OCTOPUS_CONTEXT_BUDGET -u OCTOPUS_COMMANDCODE_CONTEXT_BUDGET \
     bash -c 'source "$1/scripts/lib/dispatch.sh"; get_provider_context_limit commandcode-review' _ "$PROJECT_ROOT")
-override_context=$(env -u OCTOPUS_CONTEXT_BUDGET OCTOPUS_COMMANDCODE_CONTEXT_BUDGET=54321 \
+override_context=$(env -u OCTOPUS_CONTEXT_BUDGET "OCTOPUS_COMMANDCODE_CONTEXT_BUDGET=54321" \
     bash -c 'source "$1/scripts/lib/dispatch.sh"; get_provider_context_limit commandcode-review' _ "$PROJECT_ROOT")
 sdk_context=$(env -u OCTOPUS_CONTEXT_BUDGET -u OCTOPUS_CLAUDE_SDK_CONTEXT_BUDGET \
     bash -c 'source "$1/scripts/lib/dispatch.sh"; get_provider_context_limit claude-sdk-review' _ "$PROJECT_ROOT")
@@ -74,7 +74,7 @@ bundled_costs=$(env -u OPENAI_API_KEY -u COMMAND_CODE_API_KEY -u QWEN_API_KEY -u
         if is_api_based_provider "$provider"; then printf "%s:metered " "$provider"; else printf "%s:included " "$provider"; fi
     done
 ' _ "$PROJECT_ROOT")
-metered_costs=$(env OPENAI_API_KEY=test COMMAND_CODE_API_KEY=test QWEN_API_KEY=test bash -c '
+metered_costs=$(env "OPENAI_API_KEY=test" "COMMAND_CODE_API_KEY=test" "QWEN_API_KEY=test" bash -c '
     source "$1/scripts/lib/provider-routing.sh"
     for provider in codex commandcode openrouter qwen; do
         if is_api_based_provider "$provider"; then printf "%s:metered " "$provider"; else printf "%s:included " "$provider"; fi

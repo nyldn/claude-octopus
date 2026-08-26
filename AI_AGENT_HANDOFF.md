@@ -36,6 +36,16 @@ then rerun `bash scripts/validate-release.sh` against v10.
   persistence refusal. The timeout-artifact suggestion was rejected because
   v10 intentionally permits only contributed or degraded usable artifacts into
   synthesis; terminal timeouts retain `contribution=none`.
+- CodeRabbit's second review round added six verified fixes. Plan and Setup now
+  reuse one provider-status/root source, Setup reruns Doctor before its final
+  summary, the low-cost review plan fails closed on dispatch/auth failure, and
+  provider-registry test environment arguments are safely quoted. Most
+  importantly, a failed ledger rollback now preserves an atomic recovery marker
+  and intact same-directory backup; eligibility fails closed while recovery is
+  pending, and the next locked operation retries restoration before proceeding.
+  RED/GREEN coverage proves failed restoration, blocked eligibility, and
+  successful retry. The final full matrix remains 16 smoke, 289 unit, and 8
+  integration suites with zero failures.
 - Focused evidence after the final response includes synchronous contract
   19/19, persistence degradation 6/6, semantic cache alignment 36/36, output
   cap 14/14, agent summary 11/11, version consistency 20/20 and 30/30, and

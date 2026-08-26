@@ -117,9 +117,15 @@ its prior unrelated dirty state.
 if ! scripts/helpers/check-providers.sh | grep -c '^codex:available$' >/dev/null; then
   printf '%s\n' 'BLOCKED: Codex unavailable or unauthenticated; run /octo:doctor providers.'
 else
+  set +e
   OCTOPUS_CODEX_MODEL=gpt-5.6-luna \
     "$HOME/.claude-octopus/plugin/scripts/orchestrate.sh" spawn codex \
     "Review docs/plans/2026-08-25-v10-reliability-modernization.md. Find missing failure scenarios, tests that could pass with a stub, and boundary conditions. Return findings only; do not edit files."
+  CODEX_REVIEW_RC=$?
+  set -e
+  if [[ "$CODEX_REVIEW_RC" -ne 0 ]]; then
+    printf '%s\n' 'BLOCKED: Codex dispatch failed authentication or did not produce a durable review artifact.'
+  fi
 fi
 ```
 

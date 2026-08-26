@@ -530,7 +530,10 @@ Re-run provider detection to confirm everything works:
 **Preflight — Ensure plugin root is resolvable (run via Bash tool FIRST):**
 
 ```bash
-OCTO_ROOT="${HOME}/.claude-octopus/plugin"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
+if [[ ! -x "$OCTO_ROOT/scripts/orchestrate.sh" ]]; then
+  OCTO_ROOT="${HOME}/.claude-octopus/plugin"
+fi
 if [[ ! -x "$OCTO_ROOT/scripts/orchestrate.sh" ]]; then
   helper="$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh"
   if [[ ! -x "$helper" ]]; then
@@ -538,21 +541,40 @@ if [[ ! -x "$OCTO_ROOT/scripts/orchestrate.sh" ]]; then
   fi
   [[ -x "$helper" ]] && bash "$helper" >/dev/null 2>&1 || true
 fi
-test -x "$OCTO_ROOT/scripts/orchestrate.sh" && echo "plugin-root:ok" || echo "plugin-root:missing"
+[[ -x "$OCTO_ROOT/scripts/orchestrate.sh" ]] || {
+  echo "plugin-root:missing"
+  exit 1
+}
+export CLAUDE_PLUGIN_ROOT="$OCTO_ROOT"
+echo "plugin-root:ok"
 ```
 
 If the output is `plugin-root:missing`, stop and ask the user to reinstall `octo@nyldn-plugins`, then retry setup.
 
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh detect-providers
+"${OCTO_ROOT}/scripts/orchestrate.sh" detect-providers
+
+set +e
+FINAL_DOCTOR_JSON="$(bash "${OCTO_ROOT}/scripts/orchestrate.sh" doctor --json 2>/dev/null)"
+FINAL_DOCTOR_EXIT=$?
+set -e
+if ! jq -e '.schema_version == "10.0" and (.summary.exit_code == 0 or .summary.exit_code == 1)' \
+  <<<"$FINAL_DOCTOR_JSON" >/dev/null 2>&1; then
+  echo "doctor-final:invalid"
+  exit 1
+fi
+FINAL_FAILURES="$(jq -r '.summary.failures' <<<"$FINAL_DOCTOR_JSON")"
+FINAL_WARNINGS="$(jq -r '.summary.warnings' <<<"$FINAL_DOCTOR_JSON")"
+printf 'doctor-final:exit=%s failures=%s warnings=%s\n' \
+  "$FINAL_DOCTOR_EXIT" "$FINAL_FAILURES" "$FINAL_WARNINGS"
 ```
 
-Show the final summary only after rerunning Doctor. Use the success heading only
-when its reported exit code is zero; otherwise preserve the warning/failure
-counts and direct the user to the remaining checks:
+Show the final summary only from `FINAL_DOCTOR_JSON`. Use the success heading
+only when `FINAL_DOCTOR_EXIT` is zero; otherwise include `FINAL_FAILURES` and
+`FINAL_WARNINGS` and direct the user to the remaining checks:
 
-```
+```text
 [✅ Setup Complete! / ⚠️ Setup Needs Attention]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Providers: X active (Codex, Antigravity, ...)

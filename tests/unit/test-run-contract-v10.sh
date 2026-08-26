@@ -197,6 +197,48 @@ else
     test_fail "failed snapshot left an eligible ledger transition"
 fi
 
+test_case "failed rollback preserves recovery evidence and blocks ledger eligibility"
+run_contract_transition recovery-seat planned output_file="$valid_output" >/dev/null
+snapshot_impl="$(declare -f _octo_run_contract_snapshot_unlocked)"
+_octo_run_contract_snapshot_unlocked() { return 1; }
+cat() {
+    if [[ "${1:-}" == "$ledger".rollback.* ]]; then
+        return 1
+    fi
+    command cat "$@"
+}
+mv() {
+    if [[ "${1:-}" == "$ledger".restore.* && "${2:-}" == "$ledger" ]]; then
+        return 1
+    fi
+    command mv "$@"
+}
+set +e
+run_contract_transition recovery-seat starting >/dev/null 2>&1
+recovery_transition_rc=$?
+run_contract_output_file_eligible "$valid_output" >/dev/null 2>&1
+recovery_eligibility_rc=$?
+set -e
+unset -f cat mv _octo_run_contract_snapshot_unlocked
+eval "$snapshot_impl"
+recovery_backup_count="$(find "$(dirname "$ledger")" -maxdepth 1 -name "$(basename "$ledger").rollback.*" -type f | wc -l | tr -d ' ')"
+if [[ "$recovery_transition_rc" -ne 0 && "$recovery_eligibility_rc" -eq 3 &&
+      -f "${ledger}.recovery" && "$recovery_backup_count" -ge 1 ]]; then
+    test_pass
+else
+    test_fail "rc=$recovery_transition_rc eligibility=$recovery_eligibility_rc marker=$([[ -f "${ledger}.recovery" ]] && echo yes || echo no) backups=$recovery_backup_count"
+fi
+
+test_case "the next locked transition retries the pending rollback"
+if run_contract_transition recovery-seat starting >/dev/null &&
+   [[ ! -e "${ledger}.recovery" ]] &&
+   [[ "$(run_contract_latest_transition recovery-seat)" == starting ]] &&
+   [[ "$(find "$(dirname "$ledger")" -maxdepth 1 -name "$(basename "$ledger").rollback.*" -type f | wc -l | tr -d ' ')" -eq 0 ]]; then
+    test_pass
+else
+    test_fail "pending ledger rollback did not recover before the next transition"
+fi
+
 # Hold snapshot publication while a later transition waits on the same contract
 # lock. This verifies the serialization invariant that prevents stale writes on
 # production paths.

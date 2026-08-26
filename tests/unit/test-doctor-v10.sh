@@ -197,4 +197,28 @@ else
     test_fail "rc=$orchestrator_rc stdout=$orchestrator_json"
 fi
 
+test_case "setup final verification reuses the resolved root and fresh Doctor JSON"
+setup_step5="$(sed -n '/^## STEP 5: Verify & Summarize/,$p' "$PROJECT_ROOT/commands/setup.md")"
+if [[ "$setup_step5" == *'OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-}"'* &&
+      "$setup_step5" == *'doctor --json'* &&
+      "$setup_step5" == *'FINAL_DOCTOR_EXIT'* &&
+      "$setup_step5" == *'FINAL_FAILURES'* &&
+      "$setup_step5" == *'```text'* ]]; then
+    test_pass
+else
+    test_fail "Step 5 must rerun Doctor from the resolved plugin root and render a typed summary"
+fi
+
+test_case "plan provider display reuses preflight output and handles dispatch failure"
+plan_command="$(cat "$PROJECT_ROOT/commands/plan.md")"
+release_plan="$(cat "$PROJECT_ROOT/docs/plans/2026-08-25-v10-reliability-modernization.md")"
+if [[ "$plan_command" == *'PROVIDER_STATUS='* &&
+      "$plan_command" == *'Render every provider status from `PROVIDER_STATUS`'* &&
+      "$release_plan" == *'CODEX_REVIEW_RC'* &&
+      "$release_plan" == *'BLOCKED: Codex dispatch failed'* ]]; then
+    test_pass
+else
+    test_fail "plan must retain one provider-status source and fail closed on Codex dispatch"
+fi
+
 test_summary
