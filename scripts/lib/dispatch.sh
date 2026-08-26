@@ -134,10 +134,21 @@ _octopus_allowed_model_or_fallback() {
     printf '%s\n' "$fallback"
 }
 
+# Extract the concrete model serialized by a generated provider command. The
+# fallback preserves providers whose command shape does not carry --model.
+octo_dispatch_command_model() {
+    local command="${1:-}" fallback="${2:-}" resolved
+    resolved="$(printf '%s\n' "$command" | awk '
+      { for (i = 1; i <= NF; i++) if ($i == "--model" && i < NF) { print $(i + 1); exit } }
+    ')"
+    printf '%s\n' "${resolved:-$fallback}"
+}
+
 get_agent_command() {
     local agent_type="$1"
     local phase="${2:-}"
     local role="${3:-}"
+    local prompt_bytes="${4:-0}"
     local model=""
     local agent_executor
     agent_executor="$(octo_agent_spec_executor "$agent_type")"
@@ -256,11 +267,29 @@ get_agent_command() {
             # rather than in the model resolver because the resolver's cache has
             # no liveness component and would keep serving a cached Fable model
             # after the seat was marked quota-dead.
-            if declare -f fable5_maybe_escalate >/dev/null 2>&1; then
-                opus_model_flag="$(fable5_maybe_escalate "$opus_model_flag" "$role" "$agent_type" "$phase")"
-            fi
-            if declare -f fable5_maybe_reroute >/dev/null 2>&1; then
-                opus_model_flag="$(fable5_maybe_reroute "$opus_model_flag" "$role" "$agent_type" "$phase")"
+            if declare -f fable5_resolve_dispatch_model >/dev/null 2>&1; then
+                local fable_decision fable_requested fable_reason
+                if ! fable_decision="$(fable5_resolve_dispatch_model "$opus_model_flag" "$role" "$agent_type" "$phase" "$prompt_bytes")"; then
+                    log "ERROR" "Invalid Fable 5 input-gate configuration"
+                    return 1
+                fi
+                fable_requested="$(jq -r '.requested_model' <<< "$fable_decision")"
+                opus_model_flag="$(jq -r '.resolved_model' <<< "$fable_decision")"
+                fable_reason="$(jq -r '.reason' <<< "$fable_decision")"
+                if declare -f run_contract_record_event >/dev/null 2>&1; then
+                    run_contract_record_event "routing.decision" \
+                        "requested_model=$fable_requested" \
+                        "resolved_model=$opus_model_flag" \
+                        "reason=$fable_reason" "prompt_bytes=$prompt_bytes" \
+                        "phase=${phase:-unknown}" "role=${role:-none}" >/dev/null 2>&1 || true
+                fi
+            else
+                if declare -f fable5_maybe_escalate >/dev/null 2>&1; then
+                    opus_model_flag="$(fable5_maybe_escalate "$opus_model_flag" "$role" "$agent_type" "$phase")"
+                fi
+                if declare -f fable5_maybe_reroute >/dev/null 2>&1; then
+                    opus_model_flag="$(fable5_maybe_reroute "$opus_model_flag" "$role" "$agent_type" "$phase")"
+                fi
             fi
             # Clamp on the resolved model, so an escalated dispatch is clamped
             # while unrelated Opus 5 work in the same run keeps its effort.

@@ -110,14 +110,25 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         return "$_budget_rc"
     fi
 
+    if declare -f octo_routing_policy >/dev/null 2>&1 &&
+       [[ "$(octo_routing_policy 2>/dev/null || printf '%s' off)" == "eval" ]] &&
+       declare -f octo_route_task_class >/dev/null 2>&1; then
+        local OCTOPUS_TASK_CLASS
+        OCTOPUS_TASK_CLASS="$(octo_route_task_class "$enhanced_prompt" "$role" "$phase")"
+        export OCTOPUS_TASK_CLASS
+    fi
+
     # Resolve model and command
     local model
     model=$(get_agent_model "$agent_type" "$phase" "$role")
 
     local cmd
-    if ! cmd=$(get_agent_command "$agent_type" "$phase" "$role"); then
+    if ! cmd=$(get_agent_command "$agent_type" "$phase" "$role" "${#enhanced_prompt}"); then
         log ERROR "Unknown agent type: $agent_type"
         return 1
+    fi
+    if declare -f octo_dispatch_command_model >/dev/null 2>&1; then
+        model="$(octo_dispatch_command_model "$cmd" "$model")"
     fi
 
     if ! validate_agent_command "$cmd"; then

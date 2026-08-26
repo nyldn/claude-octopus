@@ -56,6 +56,40 @@ fable5_mode_active() {
     fable5_opus_pinned || fable5_sdk_pinned
 }
 
+# fable5_prompt_within_budget <prompt-bytes>
+#
+# Fable has a model-specific pre-dispatch ceiling because its practical input
+# behavior is narrower than the generic provider context limit. The inclusive
+# default is 512 KiB. Invalid configuration is a usage/configuration error (2),
+# not an oversized prompt (1), so callers can fail closed instead of silently
+# routing under an unintended policy.
+fable5_prompt_within_budget() {
+    local prompt_bytes="${1:-0}"
+    local ceiling="${OCTOPUS_FABLE5_MAX_INPUT_BYTES:-524288}"
+    [[ "$prompt_bytes" =~ ^[0-9]+$ ]] || return 2
+    [[ "$ceiling" =~ ^[0-9]+$ ]] || return 2
+    [[ "$prompt_bytes" -le "$ceiling" ]]
+}
+
+# fable5_recovery_decision <requested-model> <failure-kind>
+# Emits the recovery identity and reason used by refusal and quota handling.
+fable5_recovery_decision() {
+    local requested_model="${1:-}" failure_kind="${2:-}"
+    local resolved_model="$requested_model" reason="no-fallback"
+    if [[ "$requested_model" == "$FABLE5_MODEL_ID" ]]; then
+        case "$failure_kind" in
+            refusal) reason="refusal-fallback" ;;
+            quota-exhausted) reason="quota-fallback" ;;
+            *) return 2 ;;
+        esac
+        resolved_model="$(fable5_fallback_model)"
+    fi
+    jq -cn --arg requested_model "$requested_model" \
+        --arg resolved_model "$resolved_model" --arg reason "$reason" \
+        '{schema_version:"10.0", requested_model:$requested_model,
+          resolved_model:$resolved_model, reason:$reason}'
+}
+
 # fable5_clamp_effort <effort> — echo the effort to actually use.
 # Clamps xhigh/max to high when the opus seat is pinned to Fable 5 (the only
 # seat whose dispatch consumes the effort mapping). Pass-through otherwise.
@@ -183,6 +217,40 @@ fable5_escalation_consented() {
     return 1
 }
 
+# Eligibility excludes the one-seat ownership claim so callers can evaluate the
+# prompt-size gate before consuming the run's only Fable escalation.
+fable5_escalation_candidate() {
+    local model="${1:-}" role="${2:-}" agent_type="${3:-}" phase="${4:-}"
+    [[ "$model" == "claude-opus-5" || "$model" == "claude-opus.5" ]] || return 1
+    [[ -z "${OCTOPUS_OPUS_MODEL:-}" ]] || return 1
+    fable5_escalation_consented || return 1
+    fable5_escalation_role_eligible "$role" || return 1
+    fable5_is_security_dispatch "$role" "$agent_type" "$phase" && return 1
+    if declare -f octo_quota_is_dead >/dev/null 2>&1 && octo_quota_is_dead "$FABLE5_MODEL_ID"; then
+        return 1
+    fi
+    return 0
+}
+
+# Atomically claim the single Fable escalation for a durable run. The contract
+# directory makes this survive command substitutions and sibling subprocesses;
+# isolated library tests without a run contract retain the process-local marker.
+fable5_claim_escalation() {
+    if declare -f octo_run_contract_dir >/dev/null 2>&1; then
+        local marker
+        marker="$(octo_run_contract_dir)/.fable5-escalated"
+        mkdir -p "$(dirname "$marker")" 2>/dev/null || return 1
+        if mkdir "$marker" 2>/dev/null; then
+            export _OCTO_FABLE5_ESCALATED=1
+            return 0
+        fi
+        return 1
+    fi
+    [[ -z "${_OCTO_FABLE5_ESCALATED:-}" ]] || return 1
+    export _OCTO_FABLE5_ESCALATED=1
+    return 0
+}
+
 # fable5_maybe_escalate <model> <role> <agent_type> <phase>
 # Echoes the model to dispatch: Fable 5 when every condition holds, the input
 # model untouched otherwise. Always succeeds so callers can use it inline.
@@ -223,22 +291,92 @@ fable5_maybe_escalate() {
         printf '%s\n' "$model"; return 0
     fi
 
-    # One escalated dispatch per process tree. Councils, debates and review
+    # One escalated dispatch per durable run. Councils, debates and review
     # fleets fan out over many seats; escalating each one is precisely the
     # spend the one-owner rule exists to prevent.
-    if [[ -n "${_OCTO_FABLE5_ESCALATED:-}" ]]; then
+    if ! fable5_claim_escalation; then
         if declare -f log >/dev/null 2>&1; then
             log "INFO" "Fable 5 escalation already used this run; ${role} stays on ${model}"
         fi
         printf '%s\n' "$model"; return 0
     fi
-    export _OCTO_FABLE5_ESCALATED=1
 
     if declare -f log >/dev/null 2>&1; then
         log "WARN" "🐙 Fable 5 escalation: ${role} ${model} → ${FABLE5_MODEL_ID} (\$10/\$50 per MTok, 2x Opus 5; /octo:whats-new to disable)"
     fi
     printf '%s\n' "$FABLE5_MODEL_ID"
     return 0
+}
+
+# fable5_resolve_dispatch_model <model> <role> <agent-type> <phase> <bytes>
+#
+# Resolve escalation, security reroute, and the model-specific input ceiling as
+# one auditable pre-dispatch decision. The requested identity is the model after
+# opt-in escalation; the resolved identity is what may be serialized onto the
+# provider command line. No provider command is executed here.
+fable5_resolve_dispatch_model() {
+    local original_model="${1:-}" role="${2:-}" agent_type="${3:-}"
+    local phase="${4:-}" prompt_bytes="${5:-0}"
+    local requested_model resolved_model reason="unchanged"
+
+    # Reject an oversized eligible escalation before the atomic one-seat claim.
+    # This leaves the single premium seat available for a later prompt that can
+    # actually run on Fable.
+    if fable5_escalation_candidate "$original_model" "$role" "$agent_type" "$phase"; then
+        local preflight_rc=0
+        fable5_prompt_within_budget "$prompt_bytes" || preflight_rc=$?
+        [[ "$preflight_rc" -ne 2 ]] || return 2
+        requested_model="$FABLE5_MODEL_ID"
+        if [[ "$preflight_rc" -eq 1 ]]; then
+            resolved_model="$(fable5_fallback_model)"
+            reason="prompt-budget-fallback"
+        elif fable5_claim_escalation; then
+            resolved_model="$FABLE5_MODEL_ID"
+            reason="fable-selected"
+            if declare -f log >/dev/null 2>&1; then
+                log "WARN" "🐙 Fable 5 escalation: ${role} ${original_model} → ${FABLE5_MODEL_ID} (single premium seat for this run)"
+            fi
+        else
+            resolved_model="$original_model"
+            reason="seat-cap-fallback"
+        fi
+        jq -cn --arg original_model "$original_model" \
+            --arg requested_model "$requested_model" \
+            --arg resolved_model "$resolved_model" --arg reason "$reason" \
+            --arg prompt_bytes "$prompt_bytes" \
+            '{schema_version:"10.0", original_model:$original_model,
+              requested_model:$requested_model, resolved_model:$resolved_model,
+              reason:$reason, prompt_bytes:($prompt_bytes | tonumber)}'
+        return 0
+    fi
+
+    requested_model="$(fable5_maybe_escalate "$original_model" "$role" "$agent_type" "$phase")"
+    resolved_model="$(fable5_maybe_reroute "$requested_model" "$role" "$agent_type" "$phase")"
+    if [[ "$resolved_model" != "$requested_model" ]]; then
+        reason="security-fallback"
+    elif [[ "$requested_model" == "$FABLE5_MODEL_ID" ]]; then
+        if fable5_prompt_within_budget "$prompt_bytes"; then
+            reason="fable-selected"
+        else
+            local gate_rc=$?
+            if [[ "$gate_rc" -eq 2 ]]; then
+                return 2
+            fi
+            resolved_model="$(fable5_fallback_model)"
+            reason="prompt-budget-fallback"
+            if declare -f log >/dev/null 2>&1; then
+                log "WARN" "Fable 5 input gate: ${prompt_bytes} bytes exceeds ${OCTOPUS_FABLE5_MAX_INPUT_BYTES:-524288}; using ${resolved_model} before dispatch"
+            fi
+        fi
+    fi
+
+    jq -cn --arg original_model "$original_model" \
+        --arg requested_model "$requested_model" \
+        --arg resolved_model "$resolved_model" --arg reason "$reason" \
+        --arg prompt_bytes "$prompt_bytes" \
+        '{schema_version:"10.0", original_model:$original_model,
+          requested_model:$requested_model, resolved_model:$resolved_model,
+          reason:$reason, prompt_bytes:($prompt_bytes | tonumber)}'
 }
 
 # fable5_clamp_effort_for_model <effort> <model> — clamp xhigh/max to high when

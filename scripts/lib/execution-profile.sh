@@ -3,8 +3,158 @@
 # Backward compatible with string routes (provider:model) and supports object routes:
 # {"provider":"codex","model":"gpt-5.6","reasoning":"medium","reasoningPolicy":"strict"}
 
+# Return a stable vendor family for review-independence decisions. Model names
+# are accepted here instead of provider aliases because run artifacts record the
+# concrete requested and resolved model identities.
+octo_model_family() {
+  case "${1:-}" in
+    claude-*|anthropic/*) printf '%s\n' anthropic ;;
+    gpt-*|o[134]-*|codex*|openai/*) printf '%s\n' openai ;;
+    gemini-*|agy-*|google/*) printf '%s\n' google ;;
+    qwen-*|qwen/*) printf '%s\n' alibaba ;;
+    grok-*|xai/*) printf '%s\n' xai ;;
+    *) printf '%s\n' unknown ;;
+  esac
+}
+
+# octo_route_task_class <prompt> <role> <phase>
+#
+# A deliberately small, deterministic classifier for routing policy evaluation.
+# It does not inspect the filesystem, provider health, auth, or session state.
+# Callers that need different behavior can use explicit role/phase routes, which
+# retain precedence over every eval-backed default.
+octo_route_task_class() {
+  local prompt="${1:-}" role="${2:-}" phase="${3:-}" combined
+  combined="$(printf '%s %s %s' "$role" "$phase" "$prompt" | tr '[:upper:]' '[:lower:]')"
+
+  case "$combined" in
+    *security*|*threat-model*|*threat\ model*|*red-team*|*red\ team*)
+      printf '%s\n' security
+      return 0
+      ;;
+  esac
+  case "$combined" in
+    *reviewer*|*review*)
+      printf '%s\n' review
+      return 0
+      ;;
+  esac
+  case "$combined" in
+    *architect*|*strategist*|*tradeoff*|*trade-off*|*durable\ coordination*|*choose\ the*)
+      printf '%s\n' premium
+      return 0
+      ;;
+  esac
+  case "$combined" in
+    *"find every reference"*|*"report the file"*|*"list every"*|*"rename the same"*|*"without changing behavior"*|*"small parsing change"*|*"mechanical"*)
+      printf '%s\n' mechanical
+      return 0
+      ;;
+  esac
+  printf '%s\n' balanced
+}
+
+_octo_route_provider_for_model() {
+  case "$(octo_model_family "${1:-}")" in
+    anthropic)
+      case "${1:-}" in
+        *haiku*) printf '%s\n' claude-haiku ;;
+        *sonnet*) printf '%s\n' claude-sonnet ;;
+        *) printf '%s\n' claude-opus ;;
+      esac
+      ;;
+    openai) printf '%s\n' codex-standard ;;
+    google) printf '%s\n' agy ;;
+    *) printf '%s\n' unknown ;;
+  esac
+}
+
+# octo_route_decision <class> <policy> <user-pin> <project-pin>
+#                     <requires-independent> <author-model> <candidate-verifier>
+#
+# Emits one JSON decision and never calls a provider. Explicit pins are selected
+# before evaluated defaults. An explicit same-family verifier is honored but its
+# coverage is marked degraded; an unpinned same-family candidate is replaced by
+# a cross-vendor verifier.
+octo_route_decision() {
+  local task_class="${1:-balanced}" policy="${2:-off}"
+  local user_pin="${3:-}" project_pin="${4:-}"
+  local requires_independent="${5:-false}" author_model="${6:-}"
+  local candidate_verifier="${7:-}"
+  local model provider reason coverage="not-required" pinned=false
+
+  if [[ -n "$user_pin" ]]; then
+    model="$user_pin"
+    reason="user-pin"
+    pinned=true
+  elif [[ -n "$project_pin" ]]; then
+    model="$project_pin"
+    reason="project-route"
+    pinned=true
+  elif [[ "$policy" != "eval" ]]; then
+    model="${candidate_verifier:-retain-current}"
+    reason="policy-${policy:-off}"
+  elif [[ "$requires_independent" == true && -n "$author_model" && -n "$candidate_verifier" ]] &&
+       [[ "$(octo_model_family "$author_model")" != "$(octo_model_family "$candidate_verifier")" ]]; then
+    model="$candidate_verifier"
+    reason="independent-verifier"
+    coverage="independent"
+  elif [[ "$requires_independent" == true && -n "$author_model" ]]; then
+    if [[ "$(octo_model_family "$author_model")" == openai ]]; then
+      model="claude-opus-5"
+    else
+      model="gpt-5.6-sol"
+    fi
+    reason="cross-vendor-verifier"
+    coverage="independent"
+  else
+    case "$task_class" in
+      mechanical) model="gpt-5.6-luna"; reason="eval-mechanical" ;;
+      balanced) model="gpt-5.6-terra"; reason="eval-balanced" ;;
+      premium) model="claude-opus-5"; reason="eval-premium" ;;
+      security) model="gpt-5.6-sol"; reason="security-cross-vendor" ;;
+      review) model="gpt-5.6-sol"; reason="eval-review" ;;
+      *) return 2 ;;
+    esac
+  fi
+
+  provider="$(_octo_route_provider_for_model "$model")"
+  if [[ "$requires_independent" == true && "$coverage" != independent ]]; then
+    if [[ -n "$author_model" && "$(octo_model_family "$author_model")" == "$(octo_model_family "$model")" ]]; then
+      coverage="degraded-same-family"
+    elif [[ -n "$author_model" ]]; then
+      coverage="independent"
+    else
+      coverage="degraded-author-unknown"
+    fi
+  fi
+
+  jq -cn \
+    --arg task_class "$task_class" --arg policy "$policy" \
+    --arg provider "$provider" --arg model "$model" --arg reason "$reason" \
+    --arg coverage "$coverage" --argjson pinned "$pinned" \
+    '{schema_version:"10.0", task_class:$task_class, policy:$policy,
+      provider:$provider, model:$model, reason:$reason, coverage:$coverage,
+      explicit_pin:$pinned}'
+}
+
 _octopus_profile_config_file() {
   printf "%s\n" "${OCTOPUS_PROVIDERS_CONFIG:-${HOME}/.claude-octopus/config/providers.json}"
+}
+
+octo_routing_policy() {
+  local policy="${OCTOPUS_ROUTING_POLICY:-}" cfg
+  if [[ -z "$policy" ]]; then
+    cfg="$(_octopus_profile_config_file)"
+    if [[ -f "$cfg" ]]; then
+      policy="$(jq -r '.routing.policy // "off"' "$cfg" 2>/dev/null || printf '%s' off)"
+    fi
+  fi
+  policy="${policy:-off}"
+  case "$policy" in
+    off|eval) printf '%s\n' "$policy" ;;
+    *) return 2 ;;
+  esac
 }
 
 _octopus_profile_route_json() {

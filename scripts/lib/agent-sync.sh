@@ -362,7 +362,17 @@ ${provider_ctx}"
 
     log DEBUG "run_agent_sync: agent=$agent_type, role=${role:-none}, phase=${phase:-none}"
 
-    # Record usage (get model from agent type)
+    if declare -f octo_routing_policy >/dev/null 2>&1 &&
+       [[ "$(octo_routing_policy 2>/dev/null || printf '%s' off)" == "eval" ]] &&
+       declare -f octo_route_task_class >/dev/null 2>&1; then
+        local OCTOPUS_TASK_CLASS
+        OCTOPUS_TASK_CLASS="$(octo_route_task_class "$enhanced_prompt" "$role" "$phase")"
+        export OCTOPUS_TASK_CLASS
+    fi
+
+    # Resolve the baseline seat before provider preflight so failures retain the
+    # v10 planned → starting lifecycle. Fable's atomic claim happens later,
+    # during command construction, only after health and persistence succeed.
     local model
     model=$(get_agent_model "$agent_type" "$phase" "$role")
     local _progress_task_id
@@ -376,7 +386,7 @@ ${provider_ctx}"
         "resolved_effort=${OCTOPUS_RESOLVED_EFFORT:-${OCTOPUS_REQUESTED_EFFORT:-}}" \
         "estimated_cost_usd=$_estimated_cost" || return 74
 
-    # v8.49.0: Pre-dispatch health check — verify provider is reachable
+    # v8.49.0: Pre-dispatch health check — verify provider is reachable.
     local _provider_for_health="" _health_handler="none"
     _provider_for_health="$(octo_provider_canonical "$(octo_agent_spec_executor "$agent_type")" 2>/dev/null || true)"
     if [[ -n "$_provider_for_health" ]]; then
@@ -410,19 +420,22 @@ ${provider_ctx}"
         return 74
     fi
 
+    local cmd
+    if ! cmd=$(get_agent_command "$agent_type" "$phase" "$role" "${#enhanced_prompt}"); then
+        run_contract_transition "$_sync_seat_id" failed \
+            "reason=Provider command unavailable" >/dev/null 2>&1 || true
+        return 1
+    fi
+    if declare -f octo_dispatch_command_model >/dev/null 2>&1; then
+        model="$(octo_dispatch_command_model "$cmd" "$model")"
+    fi
+
     record_agent_call "$agent_type" "$model" "$enhanced_prompt" "${phase:-unknown}" "${role:-none}" "0"
 
     # v7.25.0: Record metrics start
     local metrics_id=""
     if command -v record_agent_start &> /dev/null; then
         metrics_id=$(record_agent_start "$agent_type" "$model" "$enhanced_prompt" "${phase:-unknown}") || true
-    fi
-
-    local cmd
-    if ! cmd=$(get_agent_command "$agent_type" "$phase" "$role"); then
-        run_contract_transition "$_sync_seat_id" failed \
-            "reason=Provider command unavailable" >/dev/null 2>&1 || true
-        return 1
     fi
 
     # SECURITY: Use array-based execution to prevent word-splitting vulnerabilities

@@ -599,6 +599,14 @@ ${heuristic_ctx}"
         return "$_budget_rc"
     fi
 
+    if declare -f octo_routing_policy >/dev/null 2>&1 &&
+       [[ "$(octo_routing_policy 2>/dev/null || printf '%s' off)" == "eval" ]] &&
+       declare -f octo_route_task_class >/dev/null 2>&1; then
+        local OCTOPUS_TASK_CLASS
+        OCTOPUS_TASK_CLASS="$(octo_route_task_class "$enhanced_prompt" "${role:-}" "${phase:-}")"
+        export OCTOPUS_TASK_CLASS
+    fi
+
     # Auto-route claude-opus to fast mode when appropriate.
     # Current Opus fast is 2x standard ($10/$50 vs $5/$25 per MTok); legacy 4.6
     # fast remains 6x standard.
@@ -631,46 +639,14 @@ ${heuristic_ctx}"
     # oco-aek: provider selected for dispatch (circuit closed). Opt-in event.
     declare -f octo_event_emit >/dev/null 2>&1 && octo_event_emit "provider.selected" provider="$provider_prefix" provider_label_kind="legacy-alias" executor_alias="$agent_type" configured_provider="$(octo_provider_identity_from_agent_type "${agent_type:-unknown}")" configured_model="$(get_agent_model "$agent_type" "${phase:-}" "${role:-}" 2>/dev/null || echo unresolved)" runtime_provider="unknown" runtime_model="unknown" agent_type="$agent_type" role="${role:-none}" phase="${phase:-unknown}" || true
 
-    local cmd
-    if ! cmd=$(get_agent_command "$agent_type" "${phase:-}" "${role:-}"); then
-        log ERROR "Unknown agent type: $agent_type"
-        log INFO "Available agents: $AVAILABLE_AGENTS"
-        octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
-            "Provider command unavailable" 1 "" >/dev/null 2>&1 || true
-        return 1
-    fi
-
-    # Validate command to prevent injection
-    if ! validate_agent_command "$cmd"; then
-        log ERROR "Invalid agent command returned: $cmd"
-        octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
-            "Provider command failed validation" 1 "" >/dev/null 2>&1 || true
-        return 1
-    fi
-
-    # Cursor Agent uses a generic `agent` binary name; validate binary identity
-    # and auth at spawn time so all caller paths enforce the same guard.
-    if [[ "$agent_type" == cursor-agent* ]] && ! cursor_agent_is_available; then
-        log ERROR "Cursor Agent is not available or authenticated"
-        octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
-            "Cursor Agent is unavailable or unauthenticated" 1 "" >/dev/null 2>&1 || true
-        return 1
-    fi
+    local model
+    model=$(get_agent_model "$agent_type" "${phase:-}" "${role:-}")
 
     # Resolve one effective wall-clock budget before selecting a persistence
     # path. The degraded synchronous fallback must enforce the same phase floor
     # as the normal subprocess, while TIMEOUT=0 remains unlimited.
     local _eff_timeout
     _eff_timeout=$(octopus_effective_agent_timeout "${TIMEOUT:-0}" "$phase" "$role")
-
-    # A restricted host may deny the selected state root. Preserve the provider
-    # result by degrading this background/persistent path to synchronous stdout.
-    if [[ "${OCTOPUS_PERSISTENCE_AVAILABLE:-true}" == "false" ]]; then
-        octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
-            "Persistence unavailable" 74 "" >/dev/null 2>&1 || true
-        log ERROR "Persistence unavailable; refusing untracked background dispatch for $agent_type"
-        return 74
-    fi
 
     local log_file="${LOGS_DIR}/${agent_slug}-${task_id}.log"
     local result_file="${RESULTS_DIR}/${agent_slug}-${task_id}.md"
@@ -691,13 +667,7 @@ ${heuristic_ctx}"
     fi
 
     log INFO "Spawning $agent_type agent (task: $task_id, role: ${role:-none})"
-    log DEBUG "Command: $cmd"
     log DEBUG "Phase: ${phase:-none}, Role: ${role:-none}"
-
-    # Record usage (get model from agent type, with phase/role context)
-    local model
-    model=$(get_agent_model "$agent_type" "${phase:-}" "${role:-}")
-    log "DEBUG" "Model selected: $model (from agent_type=$agent_type, phase=${phase:-none})"
 
     # v8.35.0: Adaptive reasoning effort per phase
     # get_effort_level() maps phase+complexity to low/medium/high effort
@@ -726,7 +696,6 @@ ${heuristic_ctx}"
         fi
     fi
 
-    record_agent_call "$agent_type" "$model" "$enhanced_prompt" "${phase:-unknown}" "${role:-none}" "0"
     local _estimated_cost="0.000000"
     if type estimate_agent_call_cost >/dev/null 2>&1; then
         _estimated_cost=$(estimate_agent_call_cost "$agent_type" "$model" "$enhanced_prompt")
@@ -756,10 +725,46 @@ ${heuristic_ctx}"
             return 1
         fi
     fi
+
     if ! octo_spawn_contract_authenticated "$_contract_seat_id"; then
         log ERROR "Unable to persist authenticated execution contract for background task $task_id"
         return 74
     fi
+    if [[ "${OCTOPUS_PERSISTENCE_AVAILABLE:-true}" == "false" ]]; then
+        octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
+            "Persistence unavailable" 74 "" >/dev/null 2>&1 || true
+        log ERROR "Persistence unavailable; refusing untracked background dispatch for $agent_type"
+        return 74
+    fi
+
+    # Command construction occurs only after health and persistence pass because
+    # an eligible Fable command atomically claims the run's premium seat.
+    local cmd
+    if ! cmd=$(get_agent_command "$agent_type" "${phase:-}" "${role:-}" "${#enhanced_prompt}"); then
+        log ERROR "Unknown agent type: $agent_type"
+        log INFO "Available agents: $AVAILABLE_AGENTS"
+        octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
+            "Provider command unavailable" 1 "" >/dev/null 2>&1 || true
+        return 1
+    fi
+    if declare -f octo_dispatch_command_model >/dev/null 2>&1; then
+        model="$(octo_dispatch_command_model "$cmd" "$model")"
+    fi
+    if ! validate_agent_command "$cmd"; then
+        log ERROR "Invalid agent command returned: $cmd"
+        octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
+            "Provider command failed validation" 1 "" >/dev/null 2>&1 || true
+        return 1
+    fi
+    if [[ "$agent_type" == cursor-agent* ]] && ! cursor_agent_is_available; then
+        log ERROR "Cursor Agent is not available or authenticated"
+        octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
+            "Cursor Agent is unavailable or unauthenticated" 1 "" >/dev/null 2>&1 || true
+        return 1
+    fi
+    log DEBUG "Command: $cmd"
+    log "DEBUG" "Model selected: $model (from agent_type=$agent_type, phase=${phase:-none})"
+    record_agent_call "$agent_type" "$model" "$enhanced_prompt" "${phase:-unknown}" "${role:-none}" "0"
 
     # v8.14.0: Track provider usage in persistent state. provider_prefix is the
     # canonical provider identity used by circuit-breaker/history/accounting; do

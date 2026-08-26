@@ -230,6 +230,19 @@ _octo_effective_cost_mode() {
     esac
 }
 
+_octo_eval_model_for_class() {
+    local provider="${1:-}" task_class="${2:-}"
+    case "$provider:$task_class" in
+        codex:mechanical) printf '%s\n' "gpt-5.6-luna" ;;
+        codex:balanced) printf '%s\n' "gpt-5.6-terra" ;;
+        codex:premium|codex:review|codex:security) printf '%s\n' "gpt-5.6-sol" ;;
+        claude:mechanical) printf '%s\n' "claude-haiku-4.5" ;;
+        claude:balanced) printf '%s\n' "claude-sonnet-5" ;;
+        claude:premium|claude:review|claude:security) printf '%s\n' "claude-opus-5" ;;
+        *) return 1 ;;
+    esac
+}
+
 # resolve_octopus_model <provider> <agent_type> <phase> <role>
 resolve_octopus_model() {
     local provider="$1"
@@ -238,8 +251,13 @@ resolve_octopus_model() {
     local role="${4:-}"
     local config_file="${HOME}/.claude-octopus/config/providers.json"
     local resolved_model=""
-    local cost_mode
+    local cost_mode routing_policy
     cost_mode="$(_octo_effective_cost_mode "$config_file")"
+    if declare -f octo_routing_policy >/dev/null 2>&1; then
+        routing_policy="$(octo_routing_policy 2>/dev/null || printf '%s' off)"
+    else
+        routing_policy="${OCTOPUS_ROUTING_POLICY:-off}"
+    fi
 
     # Env overrides must bypass caches. A prior default resolution can be cached
     # for the same provider/agent/phase tuple, but explicit user overrides are
@@ -279,12 +297,16 @@ resolve_octopus_model() {
     local safe_ph="${phase//[^a-zA-Z0-9]/_}"
     local safe_r="${role//[^a-zA-Z0-9]/_}"
     local safe_cm="${cost_mode//[^a-zA-Z0-9]/_}"
+    local safe_rp="$routing_policy"
+    local safe_tc="${OCTOPUS_TASK_CLASS:-none}"
+    safe_rp="${safe_rp//[^a-zA-Z0-9]/_}"
+    safe_tc="${safe_tc//[^a-zA-Z0-9]/_}"
     local safe_cfg="no_config"
     if [[ -f "$config_file" ]]; then
         safe_cfg="$(cksum < "$config_file" 2>/dev/null | awk '{print $1 "_" $2}')"
         safe_cfg="${safe_cfg//[^a-zA-Z0-9_]/_}"
     fi
-    cache_key="MC_${safe_p}_A_${safe_a}_P_${safe_ph}_R_${safe_r}_M_${safe_cm}_C_${safe_cfg}"
+    cache_key="MC_${safe_p}_A_${safe_a}_P_${safe_ph}_R_${safe_r}_M_${safe_cm}_RP_${safe_rp}_TC_${safe_tc}_C_${safe_cfg}"
     local cached_val
     eval "cached_val=\"\${_OCTO_MODEL_CACHE_${cache_key}:-}\""
     if [[ -n "$cached_val" ]]; then
@@ -488,6 +510,15 @@ resolve_octopus_model() {
             fi
         fi
 
+        # A recorded eval policy is more specific than generic capability/tier
+        # defaults but remains below explicit environment, session, role/phase,
+        # and provider-role model routes.
+        if [[ ( -z "$resolved_model" || "$resolved_model" == "null" ) &&
+              "$routing_policy" == "eval" && -n "${OCTOPUS_TASK_CLASS:-}" ]]; then
+            resolved_model="$(_octo_eval_model_for_class "$canonical_provider" "$OCTOPUS_TASK_CLASS" 2>/dev/null || true)"
+            [[ -n "$_trace" && -n "$resolved_model" ]] && echo "[model-trace] Tier 3b (eval ${OCTOPUS_TASK_CLASS}): $resolved_model ← SELECTED" >&2
+        fi
+
         # 3. Capability Mapping (providers.codex.spark, etc)
         if [[ -z "$resolved_model" || "$resolved_model" == "null" ]]; then
             local capability=""
@@ -531,6 +562,16 @@ resolve_octopus_model() {
                 [[ -n "$_trace" ]] && echo "[model-trace] Tier 6 (config default): —" >&2
             fi
         fi
+    fi
+
+    # Eval-backed task routing applies only when explicitly selected and only
+    # after every user/session/project route and configured default. The task
+    # class is part of the cache key, so a mechanical seat can never poison a
+    # later premium resolution in the same process or persistent cache.
+    if [[ ( -z "$resolved_model" || "$resolved_model" == "null" ) &&
+          "$routing_policy" == "eval" && -n "${OCTOPUS_TASK_CLASS:-}" ]]; then
+        resolved_model="$(_octo_eval_model_for_class "$canonical_provider" "$OCTOPUS_TASK_CLASS" 2>/dev/null || true)"
+        [[ -n "$_trace" && -n "$resolved_model" ]] && echo "[model-trace] Tier 6.5 (eval ${OCTOPUS_TASK_CLASS}): $resolved_model ← SELECTED" >&2
     fi
 
     # Fallback to hard-coded defaults (Priority 7)

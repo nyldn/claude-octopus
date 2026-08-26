@@ -1,0 +1,114 @@
+{
+  "schema_version": "10.0",
+  "cases": [
+    {
+      "id": "mechanical-search",
+      "prompt": "Find every reference to the deprecated flag and report the file names.",
+      "role": "researcher",
+      "phase": "probe",
+      "policy": "eval",
+      "expected_class": "mechanical",
+      "expected_provider": "codex-standard",
+      "expected_model": "gpt-5.6-luna",
+      "expected_reason": "eval-mechanical"
+    },
+    {
+      "id": "narrow-repetitive-edit",
+      "prompt": "Rename the same local variable in these three files without changing behavior.",
+      "role": "implementer",
+      "phase": "develop",
+      "policy": "eval",
+      "expected_class": "mechanical",
+      "expected_provider": "codex-standard",
+      "expected_model": "gpt-5.6-luna",
+      "expected_reason": "eval-mechanical"
+    },
+    {
+      "id": "broad-implementation",
+      "prompt": "Implement the feature across the CLI, runtime library, tests, and documentation.",
+      "role": "implementer",
+      "phase": "develop",
+      "policy": "eval",
+      "expected_class": "balanced",
+      "expected_provider": "codex-standard",
+      "expected_model": "gpt-5.6-terra",
+      "expected_reason": "eval-balanced"
+    },
+    {
+      "id": "architecture-judgment",
+      "prompt": "Choose the durable coordination architecture and explain the operational tradeoffs.",
+      "role": "architect",
+      "phase": "define",
+      "policy": "eval",
+      "expected_class": "premium",
+      "expected_provider": "claude-opus",
+      "expected_model": "claude-opus-5",
+      "expected_reason": "eval-premium"
+    },
+    {
+      "id": "security-review",
+      "prompt": "Perform an adversarial security review of the authentication boundary.",
+      "role": "security-reviewer",
+      "phase": "review",
+      "policy": "eval",
+      "expected_class": "security",
+      "expected_provider": "codex-standard",
+      "expected_model": "gpt-5.6-sol",
+      "expected_reason": "security-cross-vendor"
+    },
+    {
+      "id": "same-family-review",
+      "prompt": "Independently verify the Fable architecture decision.",
+      "role": "code-reviewer",
+      "phase": "review",
+      "policy": "eval",
+      "author_model": "claude-fable-5",
+      "candidate_verifier": "claude-opus-5",
+      "requires_independent": true,
+      "expected_class": "review",
+      "expected_provider": "codex-standard",
+      "expected_model": "gpt-5.6-sol",
+      "expected_reason": "cross-vendor-verifier",
+      "expected_coverage": "independent"
+    },
+    {
+      "id": "explicit-model-pin",
+      "prompt": "Implement a small parsing change.",
+      "role": "implementer",
+      "phase": "develop",
+      "policy": "eval",
+      "user_pin": "gpt-5.6-sol",
+      "expected_class": "mechanical",
+      "expected_provider": "codex-standard",
+      "expected_model": "gpt-5.6-sol",
+      "expected_reason": "user-pin"
+    },
+    {
+      "id": "project-route-pin",
+      "prompt": "Scan the repository for duplicate configuration.",
+      "role": "researcher",
+      "phase": "probe",
+      "policy": "eval",
+      "project_pin": "claude-sonnet-5",
+      "expected_class": "balanced",
+      "expected_provider": "claude-sonnet",
+      "expected_model": "claude-sonnet-5",
+      "expected_reason": "project-route"
+    },
+    {
+      "id": "cross-vendor-verifier",
+      "prompt": "Verify the Claude-authored implementation against the acceptance criteria.",
+      "role": "code-reviewer",
+      "phase": "review",
+      "policy": "eval",
+      "author_model": "claude-opus-5",
+      "candidate_verifier": "gpt-5.6-sol",
+      "requires_independent": true,
+      "expected_class": "review",
+      "expected_provider": "codex-standard",
+      "expected_model": "gpt-5.6-sol",
+      "expected_reason": "independent-verifier",
+      "expected_coverage": "independent"
+    }
+  ]
+}

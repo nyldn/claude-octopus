@@ -39,6 +39,39 @@ does not count as independent provider diversity.
 4. Model choice never changes permissions, repository rules, or quality gates.
 5. User and project configuration always beats release defaults.
 
+## Eval-backed routing in v10
+
+V10 exposes deterministic routing decisions through
+`octo_route_task_class` and `octo_route_decision`. These functions do not call
+providers or inspect host authentication. Their checked-in oracle is
+`data/routing/v10-eval-cases.json`, so policy changes require a reviewable test
+case rather than an opaque runtime heuristic.
+
+Set `routing.policy` to `"eval"` in `providers.json`, or use the
+`OCTOPUS_ROUTING_POLICY=eval` session override, to apply the evaluated task
+class when no higher-precedence model route exists. The model resolver
+considers the task class only after environment pins, session overrides, role
+and phase routes, and provider role defaults; it is more specific than generic
+capability, cost-tier, and release defaults:
+
+| Task class | Codex seat | Claude seat |
+|---|---|---|
+| Mechanical | GPT-5.6 Luna | Haiku 4.5 |
+| Balanced | GPT-5.6 Terra | Sonnet 5 |
+| Premium | GPT-5.6 Sol | Opus 5 |
+| Review or security | GPT-5.6 Sol | Opus 5 |
+
+The policy and task class are part of the model-cache key. A mechanical result
+therefore cannot be reused for a later premium seat. Routing decisions report a
+reason such as `eval-mechanical`, `user-pin`, `project-route`, or
+`cross-vendor-verifier`.
+
+Independent verification is a vendor-family property, not a model-name
+comparison. Opus and Fable are both Anthropic-family models. If Fable or Opus
+authored a result that requires independent verification, the evaluated route
+selects a non-Anthropic verifier. An explicit same-family verifier pin is still
+honored, but coverage is marked `degraded-same-family`.
+
 Role defaults:
 
 - `architect`, `strategist`, `security-reviewer`, `implementer-heavy`: current
@@ -53,7 +86,16 @@ Role defaults:
 - Sonnet: Sonnet 5 → Sonnet 4.6.
 - Fable refusal/security fallback: Opus 5, overridable with
   `OCTOPUS_FABLE5_FALLBACK_MODEL`.
+- Fable input gate: 524,288 bytes by default, overridable with
+  `OCTOPUS_FABLE5_MAX_INPUT_BYTES`. An oversized prompt falls back before any
+  Fable provider command is invoked and does not consume the run's single
+  Fable escalation seat.
 - GPT-5.6 requires Codex CLI v0.144.0 or newer.
+
+Every Fable dispatch decision is written to the v10 run event ledger with the
+requested model, resolved model, prompt bytes, phase, role, and reason. The
+single escalation claim is atomic in the durable run directory, so sibling
+subprocesses cannot each spend a premium seat.
 
 ## Prompt policy
 
