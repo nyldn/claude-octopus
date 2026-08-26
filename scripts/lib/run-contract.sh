@@ -98,6 +98,78 @@ run_contract_contribution_eligible() {
     ' <<< "$record" >/dev/null 2>&1
 }
 
+# Return 0 when exactly one seat owns this artifact and its latest transition
+# permits synthesis, 1 when a matching seat exists but is ineligible or the
+# artifact is ambiguous, and 2 when no v10 contract record owns the file.
+run_contract_output_file_eligible() {
+    local output_file="${1:-}" ledger records count
+    ledger="$(octo_run_contract_ledger_path)"
+    [[ -n "$output_file" && -s "$ledger" ]] || return 2
+    records="$(jq -sc --arg output "$output_file" '
+        reduce .[] as $record ({}; .[$record.seat_id] = $record)
+        | [.[] | select(.artifacts.output == $output)]
+    ' "$ledger" 2>/dev/null)" || return 1
+    count="$(jq -r 'length' <<< "$records" 2>/dev/null)" || return 1
+    [[ "$count" -gt 0 ]] || return 2
+    [[ "$count" -eq 1 ]] || return 1
+    jq -e '
+        (.[0].transition == "contributed" and .[0].contribution == "eligible") or
+        (.[0].transition == "degraded" and .[0].contribution == "eligible-with-warning")
+    ' <<< "$records" >/dev/null 2>&1
+}
+
+# Finalize a background seat from durable provider artifacts. This lives in the
+# contract library so out-of-process completion hooks do not need to source the
+# full dispatch stack.
+octo_run_contract_finish_background() {
+    local seat_id="${1:-}" outcome="${2:-failed}" output_file="${3:-}"
+    local stderr_file="${4:-}" reason="${5:-}" exit_code="${6:-1}"
+    local duration_ms="${7:-}" terminal_reason
+
+    case "$outcome" in
+        success|degraded)
+            if ! _octo_run_output_usable_file "$output_file"; then
+                terminal_reason="${reason:-Provider returned unusable output}"
+                run_contract_transition "$seat_id" failed \
+                    "output_file=$output_file" "stderr_file=$stderr_file" \
+                    "reason=$terminal_reason" "duration_ms=$duration_ms" >/dev/null 2>&1 || true
+                return 1
+            fi
+            if ! run_contract_transition "$seat_id" output_received \
+                "output_file=$output_file" "stderr_file=$stderr_file" \
+                "duration_ms=$duration_ms"; then
+                run_contract_transition "$seat_id" failed \
+                    "output_file=$output_file" "stderr_file=$stderr_file" \
+                    "reason=Failed to persist background output" \
+                    "duration_ms=$duration_ms" >/dev/null 2>&1 || true
+                return 74
+            fi
+            if ! run_contract_transition "$seat_id" validated contribution=eligible; then
+                run_contract_transition "$seat_id" failed \
+                    "reason=Background output validation failed" >/dev/null 2>&1 || true
+                return 1
+            fi
+            if [[ "$outcome" == degraded ]]; then
+                run_contract_transition "$seat_id" degraded \
+                    contribution=eligible-with-warning \
+                    "reason=${reason:-Background provider returned degraded output}" \
+                    "duration_ms=$duration_ms"
+            else
+                run_contract_transition "$seat_id" contributed contribution=eligible \
+                    "duration_ms=$duration_ms"
+            fi
+            ;;
+        timeout|cancelled|failed|skipped)
+            terminal_reason="$reason"
+            [[ -n "$terminal_reason" ]] || terminal_reason="Background provider ended with $outcome (exit $exit_code)"
+            run_contract_transition "$seat_id" "$outcome" \
+                "output_file=$output_file" "stderr_file=$stderr_file" \
+                "reason=$terminal_reason" "duration_ms=$duration_ms"
+            ;;
+        *) return 2 ;;
+    esac
+}
+
 _octo_run_contract_snapshot_unlocked() {
     local ledger snapshot run_id snapshot_dir tmp
     ledger="$(octo_run_contract_ledger_path)"

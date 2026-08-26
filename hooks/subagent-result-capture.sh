@@ -13,7 +13,15 @@ set -euo pipefail
 # the Claude Code harness error "No stderr output" can never recur. EXIT (not
 # ERR) avoids over-firing on intermediate `grep -o`/`cmd | ...` inside $() that
 # the hook's logic already handles. See issue #313.
-_octo_hook_exit() { local c=$?; if [[ $c -ne 0 ]]; then echo "[hook:$(basename "$0")] exit $c" >&2 2>/dev/null || true; fi; return 0; }
+CAPTURE_LOCK_TARGET=""
+_octo_hook_exit() {
+    local c=$?
+    if [[ -n "$CAPTURE_LOCK_TARGET" ]] && declare -F _octo_event_unlock >/dev/null 2>&1; then
+        _octo_event_unlock "$CAPTURE_LOCK_TARGET"
+    fi
+    if [[ $c -ne 0 ]]; then echo "[hook:$(basename "$0")] exit $c" >&2 2>/dev/null || true; fi
+    return 0
+}
 trap _octo_hook_exit EXIT
 
 
@@ -39,7 +47,6 @@ LAST_MSG=$(printf '%s' "$INPUT" | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
 print(d.get('last_assistant_message', ''))" 2>/dev/null) || true
-[[ -z "$LAST_MSG" ]] && exit 0
 
 AGENT_ID=$(printf '%s' "$INPUT" | python3 -c "
 import sys, json; print(json.load(sys.stdin).get('agent_id', ''))" 2>/dev/null) || true
@@ -51,8 +58,10 @@ import sys, json; print(json.load(sys.stdin).get('agent_type', ''))" 2>/dev/null
 # Find the matching instruction JSON to get result_file path.
 # Match by: agent_id (if populated), else oldest unfinished instruction.
 RESULT_FILE=""
+CONTRACT_RUN_ID=""
+CONTRACT_SEAT_ID=""
 if [[ -d "$TEAMS_DIR" ]]; then
-    RESULT_FILE=$(_OCTOPUS_TEAMS_DIR="$TEAMS_DIR" _OCTOPUS_AGENT_ID="$AGENT_ID" python3 -c "
+    HOOK_MATCH=$(_OCTOPUS_TEAMS_DIR="$TEAMS_DIR" _OCTOPUS_AGENT_ID="$AGENT_ID" python3 -c "
 import json, glob, os, sys
 teams = os.environ['_OCTOPUS_TEAMS_DIR']
 agent_id = os.environ.get('_OCTOPUS_AGENT_ID', '')
@@ -66,14 +75,20 @@ for f in sorted(glob.glob(os.path.join(teams, '*.json'))):
     if not rf:
         continue
     if agent_id and d.get('agent_id') == agent_id:
-        print(rf); sys.exit(0)
+        print('{}\t{}\t{}'.format(rf, d.get('run_id', ''), d.get('seat_id', ''))); sys.exit(0)
     if not d.get('agent_id') and d.get('dispatch_method') in ('agent_teams', 'resume'):
         mtime = os.path.getmtime(f)
         if best_time is None or mtime < best_time:
-            best, best_time = rf, mtime
+            best, best_time = d, mtime
 if best:
-    print(best)
+    print('{}\t{}\t{}'.format(best.get('result_file', ''), best.get('run_id', ''), best.get('seat_id', '')))
 " 2>/dev/null) || true
+    if [[ "$HOOK_MATCH" == *$'\t'* ]]; then
+        RESULT_FILE="${HOOK_MATCH%%$'\t'*}"
+        _hook_meta="${HOOK_MATCH#*$'\t'}"
+        CONTRACT_RUN_ID="${_hook_meta%%$'\t'*}"
+        CONTRACT_SEAT_ID="${_hook_meta#*$'\t'}"
+    fi
 fi
 [[ -z "$RESULT_FILE" ]] && exit 0
 
@@ -85,6 +100,34 @@ case "$RESOLVED_RESULT" in
     *) exit 0 ;; # Path traversal attempt — bail silently
 esac
 
+_octo_hook_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if ! declare -F _octo_event_lock >/dev/null 2>&1; then
+    # shellcheck source=/dev/null
+    source "${_octo_hook_dir}/../scripts/lib/events.sh" 2>/dev/null || true
+fi
+CAPTURE_LOCK_TARGET="${RESOLVED_RESULT}.capture"
+if ! _octo_event_lock "$CAPTURE_LOCK_TARGET"; then
+    CAPTURE_LOCK_TARGET=""
+    exit 0
+fi
+
+HOOK_CONTRACT_STATUS="completed"
+if [[ -n "$CONTRACT_SEAT_ID" ]]; then
+    # shellcheck source=/dev/null
+    source "${_octo_hook_dir}/../scripts/lib/run-contract.sh" 2>/dev/null || true
+    [[ -n "$CONTRACT_RUN_ID" ]] && export OCTOPUS_RUN_ID="$CONTRACT_RUN_ID"
+
+    # Validate the provider-authored message itself. Result headers are wrapper
+    # text and must not make an empty or placeholder response look usable.
+    MESSAGE_CHECK="$(mktemp "${WORKSPACE_DIR}/.subagent-message.XXXXXX")" || MESSAGE_CHECK=""
+    if [[ -n "$MESSAGE_CHECK" ]]; then
+        printf '%s' "$LAST_MSG" > "$MESSAGE_CHECK"
+    fi
+    if [[ -z "$MESSAGE_CHECK" ]] || ! _octo_run_output_usable_file "$MESSAGE_CHECK"; then
+        HOOK_CONTRACT_STATUS="failed"
+    fi
+fi
+
 # Dedup the result body, but continue into progress reconciliation. A prior hook
 # may have captured output while the progress lock was temporarily unavailable.
 RESULT_ALREADY_CAPTURED=false
@@ -94,7 +137,7 @@ if [[ -f "$RESULT_FILE" ]]; then
 fi
 
 # Write the captured message into the result file
-if [[ "$RESULT_ALREADY_CAPTURED" != "true" ]]; then
+if [[ "$RESULT_ALREADY_CAPTURED" != "true" && "$HOOK_CONTRACT_STATUS" == "completed" ]]; then
     {
         echo "## Output"
         echo '```'
@@ -110,6 +153,27 @@ if [[ "$RESULT_ALREADY_CAPTURED" != "true" ]]; then
     } >> "$RESULT_FILE"
 fi
 
+if [[ -n "$CONTRACT_SEAT_ID" ]]; then
+    latest_transition="$(run_contract_latest_transition "$CONTRACT_SEAT_ID" 2>/dev/null || true)"
+    case "$latest_transition" in
+        contributed|degraded|skipped|failed|timeout|cancelled) ;;
+        *)
+            if [[ "$HOOK_CONTRACT_STATUS" == "completed" ]]; then
+                if ! octo_run_contract_finish_background "$CONTRACT_SEAT_ID" success "$RESULT_FILE" "" "" 0 ""; then
+                    HOOK_CONTRACT_STATUS="failed"
+                fi
+            else
+                octo_run_contract_finish_background "$CONTRACT_SEAT_ID" failed "$RESULT_FILE" "" \
+                    "Native teammate returned unusable output" 1 "" >/dev/null 2>&1 || true
+            fi
+            ;;
+    esac
+    [[ -n "${MESSAGE_CHECK:-}" ]] && rm -f "$MESSAGE_CHECK"
+fi
+
+_octo_event_unlock "$CAPTURE_LOCK_TARGET"
+CAPTURE_LOCK_TARGET=""
+
 # Complete the matching task in place. This hook can fire more than once for a
 # native teammate, so counters must be derived from the task ledger rather than
 # incremented blindly.
@@ -119,6 +183,7 @@ if [[ -f "$PROGRESS_FILE" ]] && command -v python3 &>/dev/null; then
     if mkdir -p "${WORKSPACE_DIR}/logs" 2>/dev/null; then
         HOOK_LOG_FILE="${WORKSPACE_DIR}/logs/hook-errors.log"
     fi
+    _OCTOPUS_HOOK_CONTRACT_STATUS="$HOOK_CONTRACT_STATUS" \
     python3 - "$PROGRESS_FILE" "$RESOLVED_RESULT" <<'PYEOF' 2>>"$HOOK_LOG_FILE" || true
 import datetime, json, math, os, shutil, sys, time, uuid
 path, result_file = sys.argv[1:3]
@@ -252,7 +317,7 @@ try:
         if not stored or os.path.realpath(stored) != result_file:
             continue
         if agent.get('status') not in terminal:
-            agent['status'] = 'completed'
+            agent['status'] = 'failed' if os.environ.get('_OCTOPUS_HOOK_CONTRACT_STATUS') == 'failed' else 'completed'
             agent['updated_at'] = now.strftime('%Y-%m-%dT%H:%M:%SZ')
             started = agent.get('started_at', '')
             try:

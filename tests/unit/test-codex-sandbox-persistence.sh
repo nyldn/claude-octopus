@@ -73,7 +73,7 @@ else
     test_fail "debug persistence diagnostic was not one valid JSON record: $diagnostic_output"
 fi
 
-test_case "Codex host streams provider output when legacy state root is denied"
+test_case "Codex host refuses an untracked provider call when state is denied"
 fake_home="$TEST_TMP_DIR/home"
 fake_bin="$TEST_TMP_DIR/bin"
 project_dir="$TEST_TMP_DIR/project"
@@ -111,6 +111,7 @@ chmod +x "$fake_bin/claude"
 # Existing legacy layout, but denied by the outer host. The stable plugin link
 # is created before permissions are removed so startup does not need to heal it.
 chmod 500 "$fake_home" "$fake_home/.claude-octopus"
+spawn_marker="$TEST_TMP_DIR/spawn-provider-invoked"
 
 set +e
 (
@@ -123,15 +124,15 @@ set +e
     CODEX_SANDBOX=workspace-write \
     OCTOPUS_SKIP_PROVIDER_PROBES=true \
     OCTOPUS_DEBUG=false \
+    FAKE_CLAUDE_MARKER="$spawn_marker" \
         bash "$PROJECT_ROOT/scripts/orchestrate.sh" spawn claude \
             "Reply exactly SANDBOX_PROVIDER_OK"
 ) >"$TEST_TMP_DIR/spawn.stdout" 2>"$TEST_TMP_DIR/spawn.stderr"
 spawn_rc=$?
 set -e
 
-if [[ "$spawn_rc" -eq 0 ]] && \
-   grep -q '^SANDBOX_PROVIDER_OK$' "$TEST_TMP_DIR/spawn.stdout" && \
-   [[ ! -s "$TEST_TMP_DIR/spawn.stderr" ]]; then
+if [[ "$spawn_rc" -eq 74 ]] && [[ ! -e "$spawn_marker" ]] && \
+   grep -Fq 'Unable to persist planned execution contract' "$TEST_TMP_DIR/spawn.stderr"; then
     test_pass
 else
     test_fail "restricted Codex dispatch failed (rc=$spawn_rc, stderr=$(<"$TEST_TMP_DIR/spawn.stderr"))"
@@ -187,7 +188,7 @@ else
     test_fail "degraded provider changed caller errexit (shell_rc=$errexit_shell_rc, output=$errexit_output)"
 fi
 
-test_case "synchronous provider path also streams without persistent state"
+test_case "synchronous provider path also refuses untracked execution"
 set +e
 sync_output=$(
     source "$PROJECT_ROOT/scripts/lib/state-root.sh"
@@ -217,8 +218,7 @@ sync_output=$(
 sync_rc=$?
 set -e
 
-if [[ "$sync_rc" -eq 0 ]] && \
-   [[ "$sync_output" == "SANDBOX_PROVIDER_OK" ]] && \
+if [[ "$sync_rc" -eq 74 ]] && [[ -z "$sync_output" ]] && \
    [[ ! -s "$TEST_TMP_DIR/sync.stderr" ]]; then
     test_pass
 else

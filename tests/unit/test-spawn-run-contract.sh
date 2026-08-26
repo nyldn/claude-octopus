@@ -1,0 +1,335 @@
+#!/usr/bin/env bash
+# Contract tests for supervised and Agent Teams background execution.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "v10 background run contract"
+
+export WORKSPACE_DIR="$TEST_TMP_DIR/workspace"
+export OCTOPUS_WORKSPACE="$WORKSPACE_DIR"
+export OCTOPUS_RUN_ID="spawn-contract-test"
+export RESULTS_DIR="$WORKSPACE_DIR/results"
+mkdir -p "$RESULTS_DIR" "$WORKSPACE_DIR/agent-teams"
+
+source "$PROJECT_ROOT/scripts/lib/run-contract.sh"
+source "$PROJECT_ROOT/scripts/lib/spawn.sh"
+source "$PROJECT_ROOT/scripts/lib/workflows.sh"
+octo_provider_identity_from_agent_type() { printf '%s\n' "${1%%-*}"; }
+get_agent_model() { printf '%s\n' fixture-model; }
+
+ledger="$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID/seats.jsonl"
+valid_output="$RESULTS_DIR/valid.md"
+placeholder_output="$RESULTS_DIR/placeholder.md"
+printf '%s\n' 'Substantive background result.' > "$valid_output"
+printf '%s\n' 'Provider available' > "$placeholder_output"
+
+transitions_for() {
+    jq -r --arg seat "$1" 'select(.seat_id == $seat) | .transition' "$ledger" | paste -sd, -
+}
+
+assert_terminal() {
+    local name="$1" seat="$2" transition="$3" contribution="$4" reason="$5"
+    test_case "$name"
+    if jq -e --arg seat "$seat" --arg transition "$transition" \
+        --arg contribution "$contribution" --arg reason "$reason" '
+        select(.seat_id == $seat) |
+        select(.transition == $transition and .contribution == $contribution and .reason == $reason)
+    ' "$ledger" >/dev/null; then
+        test_pass
+    else
+        test_fail "missing exact terminal record for $seat"
+    fi
+}
+
+test_case "background helper begins one truthful running lifecycle"
+if octo_spawn_contract_plan "task-success" codex-standard gpt-5.6-luna low probe reviewer && \
+   [[ "$(transitions_for spawn-task-success)" == "planned" ]] && \
+   octo_spawn_contract_resolve spawn-task-success codex-standard gpt-5.6-luna low && \
+   [[ "$(transitions_for spawn-task-success)" == "planned,starting" ]] && \
+   octo_spawn_contract_authenticated spawn-task-success && \
+   [[ "$(transitions_for spawn-task-success)" == "planned,starting,authenticated" ]] && \
+   octo_spawn_contract_running spawn-task-success && \
+   [[ "$(transitions_for spawn-task-success)" == "planned,starting,authenticated,running" ]]; then
+    test_pass
+else
+    test_fail "background lifecycle did not reach running in order"
+fi
+
+test_case "successful background output becomes contribution eligible"
+if octo_spawn_contract_finish "spawn-task-success" success "$valid_output" "" "" 0 21 && \
+   [[ "$(transitions_for spawn-task-success)" == "planned,starting,authenticated,running,output_received,validated,contributed" ]] && \
+   run_contract_contribution_eligible spawn-task-success; then
+    test_pass
+else
+    test_fail "success did not pass through output validation"
+fi
+
+octo_spawn_contract_begin "task-degraded" codex-standard gpt-5.6-luna low probe reviewer
+octo_spawn_contract_finish "spawn-task-degraded" degraded "$valid_output" "" "recoverable stdin closure" 0 18
+assert_terminal "degraded output is eligible only with warning" \
+    spawn-task-degraded degraded eligible-with-warning "recoverable stdin closure"
+
+octo_spawn_contract_begin "task-timeout" codex-standard gpt-5.6-luna low probe reviewer
+octo_spawn_contract_finish "spawn-task-timeout" timeout "$valid_output" "" "Timed out before completion" 124 50
+assert_terminal "timeout partial output is never contribution eligible" \
+    spawn-task-timeout timeout none "Timed out before completion"
+
+octo_spawn_contract_begin "task-cancelled" codex-standard gpt-5.6-luna low probe reviewer
+cancel_result="$RESULTS_DIR/codex-task-cancelled.md"
+printf '%s\n' '# Agent: codex' '' 'partial provider result' > "$cancel_result"
+OCTOPUS_ACTIVE_PROBE_TASK_GROUP="contract-cancel"
+OCTOPUS_ACTIVE_PROBE_SYNTHESIS_PID=""
+OCTOPUS_ACTIVE_PROBE_TMUX="false"
+OCTOPUS_ACTIVE_PROBE_PIDS=()
+OCTOPUS_ACTIVE_PROBE_AGENTS=(codex)
+OCTOPUS_ACTIVE_PROBE_TASK_IDS=(task-cancelled)
+PID_FILE="$WORKSPACE_DIR/cancel-pids"
+: > "$PID_FILE"
+octopus_probe_cancel_active TERM
+assert_terminal "cancelled partial output is never contribution eligible" \
+    spawn-task-cancelled cancelled none "Cancelled by SIGTERM"
+
+octo_spawn_contract_begin "task-unusable" codex-standard gpt-5.6-luna low probe reviewer
+test_case "placeholder success is terminalized as failed"
+if ! octo_spawn_contract_finish "spawn-task-unusable" success "$placeholder_output" "" "" 0 4 && \
+   [[ "$(run_contract_latest_transition spawn-task-unusable)" == failed ]]; then
+    test_pass
+else
+    test_fail "placeholder output was accepted or left running"
+fi
+assert_terminal "placeholder failure records an exact reason" \
+    spawn-task-unusable failed none "Provider returned unusable output"
+
+# A native teammate is dispatch evidence only. The real hook must capture and
+# validate the result before it becomes synthesis eligible.
+native_result="$RESULTS_DIR/claude-native-task.md"
+native_instruction="$WORKSPACE_DIR/agent-teams/native-task.json"
+octo_spawn_contract_begin "native-task" claude-sonnet claude-sonnet-4-6 medium probe researcher
+octo_spawn_contract_begin "wrong-native-task" claude-sonnet claude-sonnet-4-6 medium probe researcher
+jq -n \
+    --arg result_file "$native_result" \
+    '{result_file:$result_file, run_id:"wrong-run", seat_id:"spawn-wrong-native-task",
+      dispatch_method:"agent_teams", agent_id:"different-agent"}' \
+    > "$WORKSPACE_DIR/agent-teams/000-collision.json"
+jq -n \
+    --arg result_file "$native_result" \
+    --arg run_id "$OCTOPUS_RUN_ID" \
+    --arg seat_id "spawn-native-task" \
+    '{result_file:$result_file, run_id:$run_id, seat_id:$seat_id,
+      dispatch_method:"agent_teams", agent_id:"native-agent"}' > "$native_instruction"
+printf '%s\n' '# Agent: claude-sonnet' '' > "$native_result"
+
+test_case "Agent Teams hook captures then contributes substantive output"
+if printf '%s' '{"agent_id":"native-agent","agent_type":"claude-sonnet","last_assistant_message":"Native teammate completed the requested analysis."}' | \
+     "$PROJECT_ROOT/hooks/subagent-result-capture.sh" && \
+   [[ "$(transitions_for spawn-native-task)" == "planned,starting,authenticated,running,output_received,validated,contributed" ]] && \
+   [[ "$(run_contract_latest_transition spawn-wrong-native-task)" == running ]] && \
+   grep -Fq 'Native teammate completed the requested analysis.' "$native_result"; then
+    test_pass
+else
+    test_fail "hook did not turn native output into a contributed artifact"
+fi
+
+race_result="$RESULTS_DIR/claude-race-task.md"
+octo_spawn_contract_begin "race-task" claude-sonnet claude-sonnet-4-6 medium probe researcher
+jq -n --arg result_file "$race_result" --arg run_id "$OCTOPUS_RUN_ID" '
+  {result_file:$result_file, run_id:$run_id, seat_id:"spawn-race-task",
+   dispatch_method:"agent_teams", agent_id:"race-agent"}' \
+  > "$WORKSPACE_DIR/agent-teams/race-task.json"
+printf '%s\n' '# Agent: claude-sonnet' '' > "$race_result"
+race_input='{"agent_id":"race-agent","agent_type":"claude-sonnet","last_assistant_message":"One atomic native result."}'
+printf '%s' "$race_input" | "$PROJECT_ROOT/hooks/subagent-result-capture.sh" &
+race_pid_one=$!
+printf '%s' "$race_input" | "$PROJECT_ROOT/hooks/subagent-result-capture.sh" &
+race_pid_two=$!
+wait "$race_pid_one"
+wait "$race_pid_two"
+test_case "concurrent native hooks capture and terminalize exactly once"
+if [[ "$(grep -Fc 'One atomic native result.' "$race_result")" -eq 1 ]] && \
+   [[ "$(transitions_for spawn-race-task)" == "planned,starting,authenticated,running,output_received,validated,contributed" ]]; then
+    test_pass
+else
+    test_fail "native result or contract transition was duplicated"
+fi
+
+empty_result="$RESULTS_DIR/claude-empty-task.md"
+empty_instruction="$WORKSPACE_DIR/agent-teams/empty-task.json"
+octo_spawn_contract_begin "empty-task" claude-sonnet claude-sonnet-4-6 medium probe researcher
+jq -n \
+    --arg result_file "$empty_result" \
+    --arg run_id "$OCTOPUS_RUN_ID" \
+    --arg seat_id "spawn-empty-task" \
+    '{result_file:$result_file, run_id:$run_id, seat_id:$seat_id,
+      dispatch_method:"agent_teams", agent_id:"empty-agent"}' > "$empty_instruction"
+printf '%s\n' '# Agent: claude-sonnet' '' > "$empty_result"
+
+test_case "Agent Teams hook terminalizes empty completion as failed"
+if printf '%s' '{"agent_id":"empty-agent","agent_type":"claude-sonnet","last_assistant_message":""}' | \
+     "$PROJECT_ROOT/hooks/subagent-result-capture.sh" && \
+   [[ "$(run_contract_latest_transition spawn-empty-task)" == failed ]]; then
+    test_pass
+else
+    test_fail "empty native completion remained running"
+fi
+
+fallback_result="$RESULTS_DIR/claude-fallback-task.md"
+fallback_instruction="$WORKSPACE_DIR/agent-teams/fallback-task.json"
+octo_spawn_contract_begin "fallback-task" claude-sonnet claude-sonnet-4-6 medium probe researcher
+jq -n --arg result_file "$fallback_result" --arg run_id "$OCTOPUS_RUN_ID" '
+  {result_file:$result_file, run_id:$run_id, seat_id:"spawn-fallback-task",
+   dispatch_method:"agent_teams", agent_id:""}' > "$fallback_instruction"
+printf '%s\n' '# Agent: claude-sonnet' '' > "$fallback_result"
+test_case "native hook claims an initially uncorrelated instruction and backfills agent id"
+if printf '%s' '{"agent_id":"claimed-agent","agent_type":"claude-sonnet","last_assistant_message":"Claimed native result."}' | \
+     "$PROJECT_ROOT/hooks/subagent-result-capture.sh" && \
+   [[ "$(run_contract_latest_transition spawn-fallback-task)" == contributed ]] && \
+   [[ "$(jq -r '.agent_id' "$fallback_instruction")" == claimed-agent ]]; then
+    test_pass
+else
+    test_fail "uncorrelated native instruction was not claimed truthfully"
+fi
+
+# Drive the real supervised spawn path with a hermetic provider. These stubs
+# isolate unrelated routing/telemetry dependencies while retaining spawn's
+# process, output, classification, timeout, and contract code.
+fake_provider="$TEST_TMP_DIR/fake-background-provider.sh"
+printf '%s\n' '#!/usr/bin/env bash' \
+    'cat >/dev/null' \
+    'case "${FAKE_SCENARIO:-success}" in' \
+    '  success) printf "%s\n" "Substantive external provider result." ;;' \
+    '  exit) printf "%s\n" "provider rejected request" >&2; exit 42 ;;' \
+    '  timeout) printf "%s\n" "partial output before timeout"; exit 124 ;;' \
+    'esac' > "$fake_provider"
+chmod +x "$fake_provider"
+
+LOGS_DIR="$WORKSPACE_DIR/logs"
+PID_FILE="$WORKSPACE_DIR/pids"
+TIMEOUT=5
+DRY_RUN=false
+OCTOPUS_PERSISTENCE_AVAILABLE=true
+OCTOPUS_BACKEND=api
+CLAUDE_TASK_ID=""
+SUPPORTS_FORK_CONTEXT=false
+SUPPORTS_WORKTREE_HOOKS=false
+SUPPORTS_FAST_BASH=false
+SUPPORTS_AGENT_TYPE_ROUTING=false
+SUPPORTS_NATIVE_AUTO_MEMORY=false
+SUPPORTS_FAST_OPUS=false
+SUPPORTS_SUBAGENT_MODEL_FIX=true
+SUPPORTS_FULL_MODEL_IDS=false
+SUPPORTS_BG_PARTIAL_RESULTS=false
+SUPPORTS_OPUS_MEDIUM_EFFORT=false
+SUPPORTS_EFFORT_CALLOUT=false
+SUPPORTS_EFFORT_REDESIGN=false
+SUPPORTS_STABLE_AUTH=true
+SUPPORTS_AGENT_MEMORY_GC=false
+SUPPORTS_HOOK_LAST_MESSAGE=false
+SUPPORTS_CONTINUATION=false
+SUPPORTS_AGENT_MODEL_OVERRIDE=false
+PROVIDER_ENV_ARRAY=()
+AVAILABLE_AGENTS=fake-api
+log() { :; }
+octo_provider_identity_from_agent_type() { printf '%s\n' "${1%%-*}"; }
+classify_task() { printf '%s\n' standard; }
+get_role_for_context() { printf '%s\n' reviewer; }
+match_routing_rule() { :; }
+load_agent_checkpoint() { :; }
+apply_persona() { printf '%s\n' "$2"; }
+load_earned_skills() { :; }
+build_provider_context() { :; }
+enforce_context_budget() { printf '%s\n' "$1"; }
+is_provider_available() { return 0; }
+get_agent_command() { printf '%s\n' "$fake_provider"; }
+validate_agent_command() { return 0; }
+get_agent_model() { printf '%s\n' fixture-model; }
+record_agent_call() { :; }
+estimate_agent_call_cost() { printf '%s\n' 0.001; }
+update_metrics() { :; }
+bridge_register_task() { :; }
+record_agent_start() { :; }
+should_use_agent_teams() { return 1; }
+update_agent_status() { :; }
+write_agent_status() { :; }
+build_provider_env() { PROVIDER_ENV_ARRAY=(); }
+start_quota_watcher() { :; }
+stop_quota_watcher() { :; }
+append_provider_history() { :; }
+record_outcome() { :; }
+record_success() { :; }
+record_failure() { :; }
+record_run_pattern() { :; }
+record_task_metric() { :; }
+run_drift_check() { :; }
+record_error() { :; }
+save_agent_checkpoint() { :; }
+record_result_hash() { :; }
+start_heartbeat_monitor() { :; }
+cleanup_heartbeat() { :; }
+_octopus_agent_lifecycle_event() { :; }
+octo_append_runtime_identity() { :; }
+octo_spawn_contract_finish() {
+    if [[ "${FAKE_CONTRACT_PERSISTENCE_FAIL:-false}" == true ]]; then
+        return 74
+    fi
+    octo_run_contract_finish_background "$@"
+}
+octopus_capture_provider_output() {
+    local prompt="$1" _timeout="$2" input="$3" output="$4" errors="$5"
+    shift 5
+    printf '%s' "$prompt" > "$input"
+    "$@" < "$input" > "$output" 2> "$errors"
+}
+
+run_external_fixture() {
+    local scenario="$1" task="$2" pid
+    export FAKE_SCENARIO="$scenario"
+    pid="$(spawn_agent fake-api "External $scenario fixture" "$task" reviewer probe)" || return $?
+    wait "$pid" 2>/dev/null || true
+}
+
+test_case "real supervised success follows the complete contract"
+run_external_fixture success external-success
+if [[ "$(transitions_for spawn-external-success)" == "planned,starting,authenticated,running,output_received,validated,contributed" ]] && \
+   run_contract_contribution_eligible spawn-external-success; then
+    test_pass
+else
+    test_fail "supervised success did not contribute through the real spawn path"
+fi
+
+test_case "real supervised provider exit terminalizes failed"
+run_external_fixture exit external-exit
+if [[ "$(run_contract_latest_transition spawn-external-exit)" == failed ]] && \
+   ! run_contract_contribution_eligible spawn-external-exit; then
+    test_pass
+else
+    test_fail "supervised provider exit did not fail the contract"
+fi
+
+test_case "real supervised timeout terminalizes without contribution"
+run_external_fixture timeout external-timeout
+if [[ "$(run_contract_latest_transition spawn-external-timeout)" == timeout ]] && \
+   ! run_contract_contribution_eligible spawn-external-timeout; then
+    test_pass
+else
+    test_fail "supervised timeout did not terminate truthfully"
+fi
+
+test_case "real supervised success fails closed when contract persistence fails"
+export FAKE_CONTRACT_PERSISTENCE_FAIL=true
+run_external_fixture success external-persistence-fail
+unset FAKE_CONTRACT_PERSISTENCE_FAIL
+persistence_result="$RESULTS_DIR/fake-api-external-persistence-fail.md"
+persistence_done="$WORKSPACE_DIR/.octo/agents/external-persistence-fail.done"
+if [[ "$(run_contract_latest_transition spawn-external-persistence-fail)" == running ]] && \
+   [[ "$(<"$persistence_done")" == 74 ]] && \
+   grep -Fq '## Status: FAILED (Execution contract persistence failed)' "$persistence_result" && \
+   ! probe_result_file_is_usable "$persistence_result"; then
+    test_pass
+else
+    test_fail "persistence failure retained a success projection or synthesis eligibility"
+fi
+
+test_summary

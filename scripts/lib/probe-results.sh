@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Probe result helpers shared by workflow analysis and synthesis.
 
+if ! type run_contract_output_file_eligible >/dev/null 2>&1; then
+    _octo_probe_contract_lib="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/run-contract.sh"
+    [[ -f "$_octo_probe_contract_lib" ]] && source "$_octo_probe_contract_lib"
+fi
+
 probe_result_output_chars() {
     local file="$1"
     [[ -f "$file" ]] || { echo 0; return 0; }
@@ -21,6 +26,15 @@ probe_result_output_chars() {
 probe_result_file_status() {
     local file="$1"
     [[ -f "$file" ]] || { echo "failed:missing-file"; return 0; }
+
+    if type run_contract_output_file_eligible >/dev/null 2>&1; then
+        local contract_rc=0
+        run_contract_output_file_eligible "$file" >/dev/null 2>&1 || contract_rc=$?
+        if [[ "$contract_rc" -eq 1 ]]; then
+            echo "failed:contract-ineligible"
+            return 0
+        fi
+    fi
 
     local output_chars
     output_chars="$(probe_result_output_chars "$file")"

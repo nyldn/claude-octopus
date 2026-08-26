@@ -541,6 +541,16 @@ octopus_probe_cancel_active() {
 
     for idx in "${!cancel_tasks[@]}"; do
         ledger_pid="${cancel_pids[$idx]:-}"
+        task_id="${cancel_tasks[$idx]:-probe-${task_group}-${idx}}"
+        agent="${cancel_agents[$idx]:-unknown}"
+        result_file="${RESULTS_DIR:-}/$agent-$task_id.md"
+        if declare -F octo_spawn_contract_seat_id >/dev/null 2>&1 && \
+           declare -F octo_run_contract_finish_background >/dev/null 2>&1; then
+            octo_run_contract_finish_background \
+                "$(octo_spawn_contract_seat_id "$task_id")" cancelled \
+                "$result_file" "" "Cancelled by SIG${signal_name}" \
+                "$exit_code" "" >/dev/null 2>&1 || true
+        fi
         _octopus_probe_terminate_tree "$ledger_pid"
     done
 

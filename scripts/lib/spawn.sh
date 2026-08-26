@@ -10,12 +10,83 @@ fi
 if ! type octopus_agent_teams_can_honor_timeout >/dev/null 2>&1; then
     source "${_octopus_spawn_lib_dir}/agent-sync.sh" 2>/dev/null || true
 fi
+if ! type run_contract_transition >/dev/null 2>&1; then
+    source "${_octopus_spawn_lib_dir}/run-contract.sh" 2>/dev/null || true
+fi
 
 quota_watcher_kill_spawn_children() {
     local spawn_pid="$1"
     pkill -TERM -P "$spawn_pid" 2>/dev/null || true
     sleep 1
     pkill -KILL -P "$spawn_pid" 2>/dev/null || true
+}
+
+# Background execution contract helpers. Native Agent Teams dispatch and the
+# supervised subprocess path share this lifecycle, so dispatch evidence can
+# never be mistaken for a completed contribution.
+octo_spawn_contract_seat_id() {
+    local task_id="${1:-unknown}"
+    task_id="$(printf '%s' "$task_id" | sed 's/[^A-Za-z0-9_.:-]/_/g')"
+    printf 'spawn-%s\n' "$task_id"
+}
+
+octo_spawn_contract_plan() {
+    local task_id="${1:-}" agent_type="${2:-unknown}" model="${3:-}"
+    local effort="${4:-}" phase="${5:-unknown}" role="${6:-none}" seat_id
+    seat_id="$(octo_spawn_contract_seat_id "$task_id")"
+
+    run_contract_transition "$seat_id" planned \
+        "requested_provider=$agent_type" "requested_model=$model" \
+        "requested_effort=$effort" "phase=$phase" "role=$role" \
+        "isolation=background" "attempt_id=${seat_id}-attempt-1" || return 74
+}
+
+octo_spawn_contract_resolve() {
+    local seat_id="${1:-}" agent_type="${2:-unknown}" model="${3:-unresolved}"
+    local effort="${4:-}" estimated_cost="${5:-}"
+    run_contract_transition "$seat_id" starting \
+        "resolved_provider=$agent_type" "resolved_model=$model" \
+        "resolved_effort=$effort" "estimated_cost_usd=$estimated_cost" || return 74
+}
+
+octo_spawn_contract_authenticated() {
+    run_contract_transition "${1:-}" authenticated
+}
+
+octo_spawn_contract_running() {
+    run_contract_transition "${1:-}" running "output_file=${2:-}"
+}
+
+octo_spawn_contract_begin() {
+    local task_id="${1:-}" agent_type="${2:-unknown}" model="${3:-unresolved}"
+    local effort="${4:-}" phase="${5:-unknown}" role="${6:-none}" seat_id
+    seat_id="$(octo_spawn_contract_seat_id "$task_id")"
+    octo_spawn_contract_plan "$task_id" "$agent_type" "$model" "$effort" "$phase" "$role" || return 74
+    octo_spawn_contract_resolve "$seat_id" "$agent_type" "$model" "$effort" || return 74
+    octo_spawn_contract_authenticated "$seat_id" || return 74
+    octo_spawn_contract_running "$seat_id" || return 74
+}
+
+octo_spawn_contract_finish() {
+    octo_run_contract_finish_background "$@"
+}
+
+# Capture the current Bash process ID without requiring BASHPID (Bash 4+).
+# A directly executed child shell reports this shell as its PPID, including
+# inside a background subshell where $$ remains pinned to the top-level Bash.
+octo_capture_current_shell_pid() {
+    OCTO_CAPTURED_SHELL_PID="${BASHPID:-}"
+    [[ "$OCTO_CAPTURED_SHELL_PID" =~ ^[0-9]+$ ]] && return 0
+
+    local pid_file
+    pid_file="$(mktemp "${TMPDIR:-/tmp}/octo-current-pid.XXXXXX")" || return 1
+    if ! /bin/sh -c 'printf "%s\n" "$PPID" > "$1"' _ "$pid_file" 2>/dev/null; then
+        rm -f "$pid_file"
+        return 1
+    fi
+    IFS= read -r OCTO_CAPTURED_SHELL_PID < "$pid_file" || true
+    rm -f "$pid_file"
+    [[ "$OCTO_CAPTURED_SHELL_PID" =~ ^[0-9]+$ ]]
 }
 
 
@@ -277,6 +348,20 @@ spawn_agent() {
         role="$routed_role"
     fi
 
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log INFO "[DRY-RUN] Would dispatch $agent_type with role=${role:-none}"
+        return 0
+    fi
+
+    local _contract_seat_id
+    _contract_seat_id="$(octo_spawn_contract_seat_id "$task_id")"
+    if ! octo_spawn_contract_plan "$task_id" "$agent_type" \
+        "${OCTOPUS_REQUESTED_MODEL:-}" "${OCTOPUS_REQUESTED_EFFORT:-}" \
+        "${phase:-unknown}" "${role:-none}"; then
+        log ERROR "Unable to persist planned execution contract for background task $task_id"
+        return 74
+    fi
+
     # v8.19.0: Check for checkpoint (crash-recovery)
     local checkpoint_ctx=""
     local checkpoint_data
@@ -486,6 +571,8 @@ ${heuristic_ctx}"
     enhanced_prompt=$(enforce_context_budget "$enhanced_prompt" "${role:-}" "$agent_type")
     local _budget_rc=$?
     if [[ $_budget_rc -ne 0 ]]; then
+        octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
+            "Prompt exceeded context budget" "$_budget_rc" "" >/dev/null 2>&1 || true
         type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" 0 "Prompt exceeded context budget" 0 "" "${role:-}" || true
         return "$_budget_rc"
     fi
@@ -514,6 +601,8 @@ ${heuristic_ctx}"
     if type is_provider_available &>/dev/null && ! is_provider_available "$provider_prefix"; then
         log "WARN" "Circuit open for $provider_prefix — skipping $agent_type (use fallback)"
         record_outcome "$provider_prefix" "$agent_type" "skipped" "${phase:-unknown}" "circuit_open" "0" 2>/dev/null || true
+        octo_spawn_contract_finish "$_contract_seat_id" skipped "" "" \
+            "Provider circuit is open" 1 "" >/dev/null 2>&1 || true
         return 1
     fi
 
@@ -524,12 +613,16 @@ ${heuristic_ctx}"
     if ! cmd=$(get_agent_command "$agent_type" "${phase:-}" "${role:-}"); then
         log ERROR "Unknown agent type: $agent_type"
         log INFO "Available agents: $AVAILABLE_AGENTS"
+        octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
+            "Provider command unavailable" 1 "" >/dev/null 2>&1 || true
         return 1
     fi
 
     # Validate command to prevent injection
     if ! validate_agent_command "$cmd"; then
         log ERROR "Invalid agent command returned: $cmd"
+        octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
+            "Provider command failed validation" 1 "" >/dev/null 2>&1 || true
         return 1
     fi
 
@@ -537,12 +630,9 @@ ${heuristic_ctx}"
     # and auth at spawn time so all caller paths enforce the same guard.
     if [[ "$agent_type" == cursor-agent* ]] && ! cursor_agent_is_available; then
         log ERROR "Cursor Agent is not available or authenticated"
+        octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
+            "Cursor Agent is unavailable or unauthenticated" 1 "" >/dev/null 2>&1 || true
         return 1
-    fi
-
-    if [[ "$DRY_RUN" == "true" ]]; then
-        log INFO "[DRY-RUN] Would execute: $cmd with role=${role:-none}"
-        return 0
     fi
 
     # Resolve one effective wall-clock budget before selecting a persistence
@@ -554,9 +644,10 @@ ${heuristic_ctx}"
     # A restricted host may deny the selected state root. Preserve the provider
     # result by degrading this background/persistent path to synchronous stdout.
     if [[ "${OCTOPUS_PERSISTENCE_AVAILABLE:-true}" == "false" ]]; then
-        octopus_run_provider_without_persistence \
-            "$agent_type" "$enhanced_prompt" "$_eff_timeout" "$cmd"
-        return $?
+        octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
+            "Persistence unavailable" 74 "" >/dev/null 2>&1 || true
+        log ERROR "Persistence unavailable; refusing untracked background dispatch for $agent_type"
+        return 74
     fi
 
     local log_file="${LOGS_DIR}/${agent_slug}-${task_id}.log"
@@ -618,6 +709,35 @@ ${heuristic_ctx}"
     if type estimate_agent_call_cost >/dev/null 2>&1; then
         _estimated_cost=$(estimate_agent_call_cost "$agent_type" "$model" "$enhanced_prompt")
     fi
+    if ! octo_spawn_contract_resolve "$_contract_seat_id" "$agent_type" "$model" \
+        "${effort_level:-${OCTOPUS_RESOLVED_EFFORT:-${OCTOPUS_REQUESTED_EFFORT:-}}}" \
+        "$_estimated_cost"; then
+        log ERROR "Unable to persist resolved execution contract for background task $task_id"
+        return 74
+    fi
+
+    local _provider_for_health=""
+    case "$agent_type" in
+        codex*) _provider_for_health="codex" ;;
+        gemini*|agy*|antigravity) _provider_for_health="agy" ;;
+        claude*) _provider_for_health="claude" ;;
+        openrouter*) _provider_for_health="openrouter" ;;
+        perplexity*) _provider_for_health="perplexity" ;;
+        cursor-agent*) _provider_for_health="cursor-agent" ;;
+    esac
+    if [[ -n "$_provider_for_health" ]] && declare -F check_provider_health >/dev/null 2>&1; then
+        local _health_diag
+        if ! _health_diag=$(check_provider_health "$_provider_for_health" 2>&1); then
+            octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
+                "Provider unavailable: $_health_diag" 1 "" >/dev/null 2>&1 || true
+            log WARN "Provider '$_provider_for_health' health check failed: $_health_diag"
+            return 1
+        fi
+    fi
+    if ! octo_spawn_contract_authenticated "$_contract_seat_id"; then
+        log ERROR "Unable to persist authenticated execution contract for background task $task_id"
+        return 74
+    fi
 
     # v8.14.0: Track provider usage in persistent state. provider_prefix is the
     # canonical provider identity used by circuit-breaker/history/accounting; do
@@ -641,8 +761,11 @@ ${heuristic_ctx}"
         echo "${task_group:-${task_id}}:${metrics_id}:${agent_type}:${model}" >> "$metrics_map"
     fi
 
-    mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
-    touch "$PID_FILE"
+    if ! mkdir -p "$RESULTS_DIR" "$LOGS_DIR" || ! touch "$PID_FILE"; then
+        octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
+            "Background state directory is not writable" 74 "" >/dev/null 2>&1 || true
+        return 74
+    fi
 
     # v8.5: Agent Teams dispatch for Claude agents. Native teammates have no
     # plugin-accessible cancellation handle, so positive bounded work must stay
@@ -661,13 +784,18 @@ ${heuristic_ctx}"
         # Write structured agent instruction for Claude Code's native team dispatch
         # The agent instruction file is picked up by teammate-idle-dispatch.sh
         local teams_dir="${WORKSPACE_DIR}/agent-teams"
-        mkdir -p "$teams_dir"
+        if ! mkdir -p "$teams_dir"; then
+            octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
+                "Agent Teams state directory is not writable" 74 "" >/dev/null 2>&1 || true
+            return 74
+        fi
 
         local agent_instruction_file="${teams_dir}/${task_id}.json"
-        if command -v jq &>/dev/null; then
-            jq -n \
+        if ! command -v jq &>/dev/null || ! jq -n \
                 --arg agent_type "$agent_type" \
                 --arg task_id "$task_id" \
+                --arg run_id "$(octo_run_contract_id)" \
+                --arg seat_id "$_contract_seat_id" \
                 --arg role "${role:-none}" \
                 --arg phase "${phase:-none}" \
                 --arg model "$model" \
@@ -676,14 +804,19 @@ ${heuristic_ctx}"
                 --arg effort "${effort_level:-medium}" \
                 --arg model_override "$SUPPORTS_AGENT_MODEL_OVERRIDE" \
                 --argjson timeout_seconds "$_eff_timeout" \
-                '{agent_type: $agent_type, task_id: $task_id, role: $role,
+                '{agent_type: $agent_type, task_id: $task_id,
+                  run_id: $run_id, seat_id: $seat_id, role: $role,
                   phase: $phase, model: $model, prompt: $prompt,
                   result_file: $result_file, dispatch_method: "agent_teams",
                   effort: $effort,
                   timeout_seconds: $timeout_seconds,
                   model_override_supported: ($model_override == "true"),
                   agent_id: "", dispatched_at: now | todate}' \
-                > "$agent_instruction_file" 2>/dev/null
+                > "$agent_instruction_file" 2>/dev/null; then
+            octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
+                "Failed to persist Agent Teams dispatch instruction" 74 "" >/dev/null 2>&1 || true
+            log ERROR "Failed to persist Agent Teams instruction: $agent_instruction_file"
+            return 74
         fi
 
         # v8.30: Write task_id mapping for agent_id correlation (continuation support)
@@ -697,14 +830,22 @@ ${heuristic_ctx}"
         echo "AGENT_TEAMS_DISPATCH:${agent_type}:${task_id}:${role:-none}:${phase:-none}"
 
         # Write initial result file header
-        write_agent_result_header "$result_file" "$agent_type" "${model:-unresolved}" "$task_id" "${role:-none}" "${phase:-none}" "agent-teams"
+        if ! write_agent_result_header "$result_file" "$agent_type" "${model:-unresolved}" "$task_id" "${role:-none}" "${phase:-none}" "agent-teams"; then
+            octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
+                "Failed to persist Agent Teams result header" 74 "" >/dev/null 2>&1 || true
+            return 74
+        fi
         echo "# Dispatch: Agent Teams (native)" >> "$result_file"
         echo "# Started: $(date)" >> "$result_file"
         if [[ "$SUPPORTS_HOOK_LAST_MESSAGE" == "true" ]]; then
             echo "# Result-capture: SubagentStop hook" >> "$result_file"
         fi
         echo "" >> "$result_file"
-        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "running" "$tokens_in" 0 "Dispatched via Agent Teams" "$_eff_timeout" "$result_file" "${role:-none}" || true
+        if ! octo_spawn_contract_running "$_contract_seat_id" "$result_file"; then
+            log ERROR "Unable to persist running execution contract for Agent Teams task $task_id"
+            return 74
+        fi
+        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "running" "$tokens_in" 0 "Dispatched via Agent Teams" "$_eff_timeout" "$result_file" "${role:-none}" "$_contract_seat_id" running none || true
         update_agent_status "$agent_type" "running" 0 "$_estimated_cost" "$_eff_timeout" "$task_id" "${phase:-unknown}" "$result_file"
 
         log "DEBUG" "Agent Teams instruction written to: $agent_instruction_file"
@@ -731,6 +872,7 @@ ${heuristic_ctx}"
         cd "$PROJECT_ROOT" || exit 1
         set -f  # Disable glob expansion
         set -o pipefail  # v9.15.1: Pipeline exit code = first failure
+        octo_capture_current_shell_pid || OCTO_CAPTURED_SHELL_PID="$$"
 
         write_agent_result_header "$result_file" "$agent_type" "${model:-unresolved}" "$task_id" "${role:-none}" "${phase:-none}" "legacy"
         echo "# Prompt: $prompt" >> "$result_file"
@@ -795,6 +937,10 @@ ${heuristic_ctx}"
 
         local auth_attempt=0
         local exit_code=0
+        if ! octo_spawn_contract_running "$_contract_seat_id" "$result_file"; then
+            log ERROR "Unable to persist provider launch for background task $task_id"
+            exit 74
+        fi
         while true; do
             exit_code=0
             local _attempt_timeout="$_eff_timeout"
@@ -809,7 +955,7 @@ ${heuristic_ctx}"
             # early and marks it quota-dead for the session (oco-cbb), so preflight and
             # is_agent_available skip it instead of re-dispatching into the same failure.
             local _quota_watcher_pid=""
-            local _spawn_pid=$BASHPID
+            local _spawn_pid="$OCTO_CAPTURED_SHELL_PID"
             local _provider_prefix
             _provider_prefix="$(octo_agent_spec_provider "$agent_type")"
             _provider_prefix="$(octo_provider_canonical "$_provider_prefix" 2>/dev/null || printf '%s' "$_provider_prefix")"
@@ -965,18 +1111,6 @@ ${heuristic_ctx}"
             _octo_success_reason="${_classification#*:}"
             _octo_tokens_out=$(octo_estimate_tokens_for_file "$temp_output" 2>/dev/null || echo 0)
 
-            case "$_octo_success_status" in
-                failed)
-                    echo "## Status: FAILED (${_octo_success_reason:-unusable output})" >> "$result_file"
-                    ;;
-                degraded)
-                    echo "## Status: SUCCESS (DEGRADED: ${_octo_success_reason:-partial output})" >> "$result_file"
-                    ;;
-                *)
-                    echo "## Status: SUCCESS" >> "$result_file"
-                    ;;
-            esac
-
             # v8.6.0: Preserve native metrics block for batch completion
             if [[ -s "$raw_output" ]]; then
                 local usage_block
@@ -999,15 +1133,41 @@ ${heuristic_ctx}"
 
             octo_append_runtime_identity "$result_file" "$agent_type" "${model:-unresolved}" "$raw_output"
 
-            # Mark agent as completed (v7.16.0 Feature 2)
             local end_time_ms elapsed_ms
             end_time_ms=$(( $(date +%s) * 1000 ))
             elapsed_ms=$((end_time_ms - start_time_ms))
+
+            if [[ "$_octo_success_status" != "failed" ]]; then
+                local _contract_outcome="success"
+                [[ "$_octo_success_status" == "degraded" ]] && _contract_outcome="degraded"
+                if ! octo_spawn_contract_finish "$_contract_seat_id" "$_contract_outcome" \
+                    "$result_file" "$temp_errors" "$_octo_success_reason" "$exit_code" "$elapsed_ms"; then
+                    _octo_success_status="failed"
+                    _octo_success_reason="Execution contract persistence failed"
+                    exit_code=74
+                fi
+            fi
+
+            case "$_octo_success_status" in
+                failed)
+                    echo "## Status: FAILED (${_octo_success_reason:-unusable output})" >> "$result_file"
+                    ;;
+                degraded)
+                    echo "## Status: SUCCESS (DEGRADED: ${_octo_success_reason:-partial output})" >> "$result_file"
+                    ;;
+                *)
+                    echo "## Status: SUCCESS" >> "$result_file"
+                    ;;
+            esac
+
+            # Mark agent as completed (v7.16.0 Feature 2)
             if [[ "$_octo_success_status" == "failed" ]]; then
                 update_agent_status "$agent_type" "failed" "$elapsed_ms" "$_estimated_cost" "$_eff_timeout" "$task_id" "${phase:-unknown}" "$result_file"
                 record_outcome "$agent_type" "$agent_type" "${task_type:-unknown}" "${phase:-unknown}" "fail" "$elapsed_ms" 2>/dev/null || true
                 type record_failure &>/dev/null && record_failure "$provider_prefix" "provider_rejection" 2>/dev/null || true
                 type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$_octo_tokens_out" "${_octo_success_reason:-unusable output}" "$elapsed_ms" "$result_file" "${role:-none}" || true
+                octo_spawn_contract_finish "$_contract_seat_id" failed "$result_file" "$temp_errors" \
+                    "${_octo_success_reason:-Provider returned unusable output}" "$exit_code" "$elapsed_ms" >/dev/null 2>&1 || true
             else
                 update_agent_status "$agent_type" "$_octo_success_status" "$elapsed_ms" "$_estimated_cost" "$_eff_timeout" "$task_id" "${phase:-unknown}" "$result_file"
                 # v8.18.0: Record provider learning
@@ -1102,6 +1262,13 @@ ${heuristic_ctx}"
             local tokens_out
             tokens_out=$(octo_estimate_tokens_for_file "$_tokens_out_source" 2>/dev/null || echo 0)
             type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "timeout" "$tokens_in" "$tokens_out" "Timed out before completion" "$elapsed_ms" "$result_file" "${role:-none}" || true
+            if ! octo_spawn_contract_finish "$_contract_seat_id" timeout "$result_file" "$temp_errors" \
+                "Timed out before completion" "$exit_code" "$elapsed_ms" >/dev/null 2>&1; then
+                exit_code=74
+                update_agent_status "$agent_type" "failed" "$elapsed_ms" "$_estimated_cost" "$_eff_timeout" "$task_id" "${phase:-unknown}" "$result_file"
+                type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "Execution contract persistence failed" "$elapsed_ms" "$result_file" "${role:-none}" || true
+                echo "## Contract Status: FAILED (persistence error)" >> "$result_file"
+            fi
             # v8.20.0: Record timeout for provider intelligence
             record_outcome "$agent_type" "$agent_type" "${task_type:-unknown}" "${phase:-unknown}" "timeout" "$elapsed_ms" 2>/dev/null || true
             # v9.13: Record timeout as transient failure for circuit breaker
@@ -1147,6 +1314,11 @@ ${heuristic_ctx}"
             local tokens_out
             tokens_out=$(octo_estimate_tokens_for_file "$temp_output" 2>/dev/null || echo 0)
             type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "Exit code $exit_code" "$elapsed_ms" "$result_file" "${role:-none}" || true
+            if ! octo_spawn_contract_finish "$_contract_seat_id" failed "$result_file" "$temp_errors" \
+                "Exit code $exit_code" "$exit_code" "$elapsed_ms" >/dev/null 2>&1; then
+                exit_code=74
+                echo "## Contract Status: FAILED (persistence error)" >> "$result_file"
+            fi
             # v8.20.0: Record failure for provider intelligence
             record_outcome "$agent_type" "$agent_type" "${task_type:-unknown}" "${phase:-unknown}" "fail" "$elapsed_ms" 2>/dev/null || true
             # v9.13: Record failure for circuit breaker (classify from error output if available)
@@ -1207,10 +1379,10 @@ ${heuristic_ctx}"
         elif [[ "${_spawn_exit:-0}" -eq 124 || "${_spawn_exit:-0}" -eq 143 ]]; then
             _hook_final_status="timeout"
         fi
-        _octopus_agent_lifecycle_event "completed" "$agent_type" "$task_id" "$role" "$phase" "$BASHPID" "$result_file" "$_spawn_exit" "$_hook_final_status"
+        _octopus_agent_lifecycle_event "completed" "$agent_type" "$task_id" "$role" "$phase" "$OCTO_CAPTURED_SHELL_PID" "$result_file" "$_spawn_exit" "$_hook_final_status"
 
         # v8.19.0: Cleanup heartbeat (self-terminating monitor handles this too)
-        cleanup_heartbeat "$BASHPID" 2>/dev/null || true
+        cleanup_heartbeat "$OCTO_CAPTURED_SHELL_PID" 2>/dev/null || true
     ) &
 
     local pid=$!

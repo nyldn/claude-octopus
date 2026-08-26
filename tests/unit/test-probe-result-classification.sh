@@ -15,6 +15,9 @@ source "$PROJECT_ROOT/scripts/lib/progressive.sh"
 
 RESULT_DIR="$(mktemp -d)"
 trap 'rm -rf "$RESULT_DIR"' EXIT
+export WORKSPACE_DIR="$RESULT_DIR/workspace"
+export OCTOPUS_RUN_ID="probe-classification-contract"
+mkdir -p "$WORKSPACE_DIR"
 
 header_only="$RESULT_DIR/codex-probe-123-0.md"
 cat > "$header_only" <<'EOF'
@@ -74,6 +77,40 @@ if [[ "$classification" == "success:" ]]; then
     test_pass
 else
     test_fail "expected success for status marker, got: ${classification:-<empty>}"
+fi
+
+typed_timeout="$RESULT_DIR/codex-probe-typed-timeout.md"
+cp "$success_body" "$typed_timeout"
+run_contract_transition typed-timeout planned >/dev/null
+run_contract_transition typed-timeout starting >/dev/null
+run_contract_transition typed-timeout authenticated >/dev/null
+run_contract_transition typed-timeout running >/dev/null
+run_contract_transition typed-timeout timeout output_file="$typed_timeout" \
+    reason="Timed out before completion" >/dev/null
+test_case "typed timeout cannot enter synthesis despite a legacy success marker"
+classification="$(probe_result_file_status "$typed_timeout")"
+if [[ "$classification" == "failed:contract-ineligible" ]] && \
+   ! probe_result_file_is_usable "$typed_timeout"; then
+    test_pass
+else
+    test_fail "typed timeout remained synthesis eligible: $classification"
+fi
+
+typed_success="$RESULT_DIR/codex-probe-typed-success.md"
+cp "$success_body" "$typed_success"
+run_contract_transition typed-success planned >/dev/null
+run_contract_transition typed-success starting >/dev/null
+run_contract_transition typed-success authenticated >/dev/null
+run_contract_transition typed-success running >/dev/null
+run_contract_transition typed-success output_received output_file="$typed_success" >/dev/null
+run_contract_transition typed-success validated contribution=eligible >/dev/null
+run_contract_transition typed-success contributed contribution=eligible >/dev/null
+test_case "typed contribution remains synthesis eligible"
+if [[ "$(probe_result_file_status "$typed_success")" == "success:" ]] && \
+   probe_result_file_is_usable "$typed_success"; then
+    test_pass
+else
+    test_fail "typed contributed artifact was rejected"
 fi
 
 test_case "partial synthesis skips header-only artifacts"
