@@ -2,18 +2,18 @@
 
 Last updated: 2026-08-26
 Status: The v10.0.0 reliability release candidate implements the six approved
-modernization additions plus hermetic end-to-end failure injection. Focused
-contract suites and staged-review remediations are green; version preparation,
-the final full matrix, protected PR verification, merge, tag, publication, and
-installed-release checks remain.
+modernization additions plus hermetic end-to-end failure injection. The final
+local CI, plugin assembly, strict plugin validation, and staged-review gates are
+green; version preparation, protected PR verification, merge, tag, publication,
+and installed-release checks remain.
 Branch: `feat/v10-reliability-contracts` in
 `/Users/chris/.codex/worktrees/claude-octopus-v10`; implementation review head
-`37b14f07`
+`0f2b98a1`
 Current release: [v9.66.1](https://github.com/nyldn/claude-octopus/releases/tag/v9.66.1)
 Tracking: Beads epic `oco-de9`; children `oco-de9.1` through `oco-de9.8`
-Next action: Run `make ci-local` and `bash scripts/validate-release.sh`, then
-prepare version 10.0.0 and follow the protected `RELEASING.md` flow. Tag only
-the squash-merge commit on `main`.
+Next action: Rename the clean branch to `release/v10.0.0`, prepare version
+10.0.0, and follow the protected `RELEASING.md` flow. Tag only the squash-merge
+commit on `main`, then rerun `bash scripts/validate-release.sh` against v10.
 
 ## V10 Reliability Release Candidate
 
@@ -23,10 +23,20 @@ the squash-merge commit on `main`.
 - The failure-injection integration suite drives the real `orchestrate.sh spawn
   agy` entrypoint with hermetic providers and no credentials. Its 14 scenarios
   plus hermeticity check passed 15/15 with zero skips.
-- The initial full local matrix passed 288/289 unit suites; the sole failure was
-  a stale crash-recovery assertion. After fixing that assertion, its focused
-  suite passed 18/18. A fresh final full matrix is still required after release
-  documentation and version changes.
+- The final `make ci-local` gate at `0f2b98a1` passed all 16 smoke suites,
+  289/289 unit suites, and 8/8 integration suites. The v10 failure-injection
+  suite passed all 15 assertions with zero skips. Plugin assembly reported 120
+  skills, 54 commands, 52 agents, and 32 agent-config references; strict Claude
+  plugin validation also passed.
+- That final matrix first exposed two direct-source failures plus non-fatal
+  provider-identity diagnostics. Commit `0f2b98a1` moved prompt-byte measurement
+  to the shared agent specification and configured-provider identity to the
+  authoritative registry, removing orchestrator load-order assumptions. The
+  two formerly failing suites and the wider identity/security surface are green.
+- `bash scripts/validate-release.sh` is intentionally deferred until after the
+  v10 tag: before the version bump it correctly rejects candidate HEAD because
+  the existing `v9.66.1` tag points to the prior production merge rather than
+  this branch.
 - Independent staged review identified four real defects: the v10 latest-run
   pointer collided with the legacy status symlink, Fable received character
   counts instead of UTF-8 byte counts, post-routing model identity was not
