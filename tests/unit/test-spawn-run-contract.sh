@@ -17,6 +17,15 @@ mkdir -p "$RESULTS_DIR" "$WORKSPACE_DIR/agent-teams"
 source "$PROJECT_ROOT/scripts/lib/run-contract.sh"
 source "$PROJECT_ROOT/scripts/lib/spawn.sh"
 source "$PROJECT_ROOT/scripts/lib/workflows.sh"
+source "$PROJECT_ROOT/scripts/lib/validation.sh"
+source "$PROJECT_ROOT/scripts/lib/model-cache-path.sh"
+source "$PROJECT_ROOT/scripts/lib/model-resolver.sh"
+source "$PROJECT_ROOT/scripts/lib/provider-routing.sh"
+source "$PROJECT_ROOT/scripts/lib/agents.sh"
+source "$PROJECT_ROOT/scripts/lib/dispatch.sh"
+source "$PROJECT_ROOT/scripts/lib/utils.sh"
+eval "$(declare -f get_agent_command | sed '1s/get_agent_command/octo_real_get_agent_command/')"
+eval "$(declare -f validate_agent_command | sed '1s/validate_agent_command/octo_real_validate_agent_command/')"
 octo_provider_identity_from_agent_type() { printf '%s\n' "${1%%-*}"; }
 get_agent_model() { printf '%s\n' fixture-model; }
 
@@ -229,6 +238,12 @@ SUPPORTS_FAST_BASH=false
 SUPPORTS_AGENT_TYPE_ROUTING=false
 SUPPORTS_NATIVE_AUTO_MEMORY=false
 SUPPORTS_FAST_OPUS=false
+SUPPORTS_OPUS_5=true
+SUPPORTS_OPUS_4_8=true
+SUPPORTS_OPUS_4_7=true
+SUPPORTS_SDK_MODEL_CAPS=true
+SUPPORTS_EFFORT_COMMAND=true
+SUPPORTS_XHIGH_EFFORT=false
 SUPPORTS_SUBAGENT_MODEL_FIX=true
 SUPPORTS_FULL_MODEL_IDS=false
 SUPPORTS_BG_PARTIAL_RESULTS=false
@@ -242,6 +257,9 @@ SUPPORTS_CONTINUATION=false
 SUPPORTS_AGENT_MODEL_OVERRIDE=false
 PROVIDER_ENV_ARRAY=()
 AVAILABLE_AGENTS=fake-api
+PLUGIN_DIR="$PROJECT_ROOT"
+_BARE_OPT=""
+export OCTOPUS_OPUS_MODEL=claude-opus-5
 log() { :; }
 octo_provider_identity_from_agent_type() { printf '%s\n' "${1%%-*}"; }
 classify_task() { printf '%s\n' standard; }
@@ -261,10 +279,19 @@ octo_dispatch_command_model() {
 }
 is_provider_available() { return 0; }
 get_agent_command() {
+    if [[ "${FAKE_SCENARIO:-}" == claude-contract ]]; then
+        octo_real_get_agent_command "$@"
+        return
+    fi
     printf '%s\n' "${4:-missing}" > "$TEST_TMP_DIR/background-prompt-bytes"
     printf '%s\n' "$fake_provider --model routed-model"
 }
-validate_agent_command() { return 0; }
+validate_agent_command() {
+    if [[ "$1" == "$fake_provider "* || "$1" == "$fake_provider" ]]; then
+        return 0
+    fi
+    octo_real_validate_agent_command "$1"
+}
 get_agent_model() {
     [[ "${FAKE_SCENARIO:-}" == model-fail ]] && return 1
     printf '%s\n' fixture-model
@@ -313,6 +340,42 @@ run_external_fixture() {
     pid="$(spawn_agent fake-api "External $scenario fixture" "$task" reviewer probe)" || return $?
     wait "$pid" 2>/dev/null || true
 }
+
+claude_stub_dir="$TEST_TMP_DIR/claude-contract-bin"
+claude_argv_capture="$TEST_TMP_DIR/spawn-claude-argv"
+mkdir -p "$claude_stub_dir"
+printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    ': > "$CLAUDE_ARGV_CAPTURE"' \
+    'for arg in "$@"; do printf "%s\\n" "$arg" >> "$CLAUDE_ARGV_CAPTURE"; done' \
+    'cat >/dev/null' \
+    'printf "%s\\n" "Substantive Claude contract result."' > "$claude_stub_dir/claude"
+chmod +x "$claude_stub_dir/claude"
+export CLAUDE_ARGV_CAPTURE="$claude_argv_capture"
+
+test_case "real supervised spawn validates and executes the Claude contract"
+export FAKE_SCENARIO=claude-contract
+old_path="$PATH"
+PATH="$claude_stub_dir:$PATH"
+set +e
+claude_pid="$(spawn_agent claude-opus "Claude command contract fixture" external-claude reviewer discover)"
+claude_spawn_rc=$?
+set -e
+PATH="$old_path"
+if [[ "$claude_spawn_rc" -eq 0 && -n "$claude_pid" ]]; then
+    wait "$claude_pid" 2>/dev/null || true
+fi
+if [[ "$claude_spawn_rc" -eq 0 ]] &&
+   [[ -f "$claude_argv_capture" ]] &&
+   [[ "$(grep -cx -- '--print' "$claude_argv_capture")" -eq 1 ]] &&
+   [[ "$(grep -cx -- '--model' "$claude_argv_capture")" -eq 1 ]] &&
+   [[ "$(grep -cx -- '--effort' "$claude_argv_capture")" -eq 1 ]] &&
+   ! grep -qx -- '--fast' "$claude_argv_capture"; then
+    test_pass
+else
+    test_fail "spawn_agent rejected or mis-executed the generated Claude command"
+fi
+unset FAKE_SCENARIO
 
 test_case "real supervised success follows the complete contract"
 run_external_fixture success external-success
