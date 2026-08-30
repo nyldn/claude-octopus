@@ -47,4 +47,39 @@ else
 fi
 rm -rf "$(dirname "$workspace")"
 
+# A nested git work tree (a submodule, or a plain untracked checkout that
+# isn't itself gitignored) is reported by `git ls-files` as a single opaque
+# path. Without recursing into it, a naive tar copy of that path would pull
+# in whatever the nested tree's own .gitignore excludes, defeating the fix
+# one level down.
+test_case "a nested git work tree's own .gitignore is honored too"
+NESTED_ROOT="$TEST_TMP_DIR/nested-source"
+mkdir -p "$NESTED_ROOT/nested-repo/vendor"
+(
+    cd "$NESTED_ROOT"
+    git init -q
+    git config user.email "test@example.com"
+    git config user.name "test"
+    printf 'parent tracked\n' > parent.txt
+    git add parent.txt
+    git commit -q -m init
+
+    cd nested-repo
+    git init -q
+    git config user.email "test@example.com"
+    git config user.name "test"
+    printf 'vendor/\n' > .gitignore
+    printf 'nested tracked\n' > nested.txt
+    printf 'nested vendored\n' > vendor/big.bin
+    git add nested.txt .gitignore
+    git commit -q -m "nested init"
+)
+workspace="$(_octopus_prepare_consultative_workspace "$NESTED_ROOT")"
+if [[ -f "$workspace/parent.txt" && -f "$workspace/nested-repo/nested.txt" && ! -e "$workspace/nested-repo/vendor" ]]; then
+    test_pass
+else
+    test_fail "expected nested-repo/vendor absent, parent.txt and nested-repo/nested.txt present in $workspace"
+fi
+rm -rf "$(dirname "$workspace")"
+
 test_summary

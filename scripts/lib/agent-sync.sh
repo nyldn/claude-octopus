@@ -161,18 +161,46 @@ should_use_agent_teams() {
 # per-seat disposable workspace (#980). Returns non-zero when source_root is
 # not a git work tree, or when any step of the copy fails, so the caller can
 # fall back to a full copy.
+#
+# `git ls-files` reports a submodule, or an untracked nested git checkout
+# that isn't itself gitignored, as a single opaque path rather than
+# descending into it. Left alone, tar would copy that path wholesale,
+# reintroducing whatever the nested work tree's own .gitignore excludes. So
+# after the top-level copy, re-copy every such nested git work tree with this
+# same rule, recursively.
 _octopus_copy_git_tracked_tree() {
     local source_root="$1"
     local workspace="$2"
+    local filelist entry rel
 
     git -C "$source_root" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
 
-    (
+    filelist="$(mktemp "${TMPDIR:-/tmp}/octopus-tracked-tree.XXXXXX")" || return 1
+    git -C "$source_root" ls-files -z --cached --others --exclude-standard >"$filelist" 2>/dev/null || {
+        rm -f "$filelist"
+        return 1
+    }
+
+    if ! (
         set -o pipefail
-        git -C "$source_root" ls-files -z --cached --others --exclude-standard \
-            | tar --null -C "$source_root" -T - -cf - \
-            | tar -xf - -C "$workspace"
-    )
+        tar --null -C "$source_root" -T "$filelist" -cf - | tar -xf - -C "$workspace"
+    ); then
+        rm -f "$filelist"
+        return 1
+    fi
+
+    while IFS= read -r -d '' entry; do
+        rel="${entry%/}"
+        [[ -n "$rel" && -d "${source_root}/${rel}" ]] || continue
+        git -C "${source_root}/${rel}" rev-parse --is-inside-work-tree >/dev/null 2>&1 || continue
+        rm -rf "${workspace:?}/${rel}"
+        mkdir -p "${workspace}/${rel}"
+        _octopus_copy_git_tracked_tree "${source_root}/${rel}" "${workspace}/${rel}" \
+            || cp -a "${source_root}/${rel}/." "${workspace}/${rel}/" 2>/dev/null
+    done < "$filelist"
+
+    rm -f "$filelist"
+    return 0
 }
 
 # Prepare an isolated copy-on-write workspace for advisory agents.
