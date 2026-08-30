@@ -200,174 +200,42 @@ Providers:
 Followed by results from each provider marked with their indicators (for example 🔴 🟡 🧭 🔵).
 
 
-## Prerequisites Check (Automatic - Fast Detection)
+## Prerequisites check
 
-**IMPORTANT:** Once you've determined this skill should activate (user asked to research, build, review, etc.), immediately run the provider detection below. DO NOT ask the user for permission - just check providers and proceed or show welcome message.
-
-### Step 1: Automatic Provider Detection
-
-Silently run this fast detection script (completes in <1 second):
+Once this skill activates, run the local provider check:
 
 ```bash
 ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh detect-providers
 ```
 
-**IMPORTANT - First Time Setup Detection:**
-If the detect-providers command shows both Codex and AGY are missing, this is likely a first-time user. Before showing error messages, provide a friendly welcome message:
+This check reads local commands, credentials, and the one-hour cache. It does not call provider APIs. Current output includes the Claude Code version contract and one status per provider:
 
-> "👋 Welcome to Claude Octopus! I see this is your first time using the plugin.
->
-> To get started, you need to install **one** AI provider (you don't need both):
->
-> **Option 1: OpenAI Codex** (best for code generation)
-> ```
-> npm install -g @openai/codex
-> codex login  # OAuth recommended
-> ```
-> Or set API key: `export OPENAI_API_KEY="sk-..."`
-> Get key from: https://platform.openai.com/api-keys
->
-> **Option 2: Google Antigravity CLI** (best for analysis)
-> ```
-> agy  # complete the browser sign-in when prompted
-> ```
-> Install `agy` from Google Antigravity first if it is not already present.
->
-> Once you've installed one provider, you can start using Claude Octopus by just talking naturally:
-> - 'Research OAuth authentication patterns'
-> - 'Build a user authentication system'
-> - 'Review this code for security issues'
->
-> Need guided setup? Run `/octo:setup`"
-
-After showing this welcome message, STOP and wait for the user to set up a provider. Do not proceed with the original task until at least one provider is configured.
-
-Expected output format:
 ```
 Detecting Claude Code version...
 
-CLAUDE_CODE_VERSION=2.1.9
+CLAUDE_CODE_VERSION=2.1.219
 CLAUDE_CODE_STATUS=ok
-CLAUDE_CODE_MINIMUM=2.1.9
-
-✓ Claude Code version: 2.1.9 (meets minimum 2.1.9)
-
-Detecting providers...
+CLAUDE_CODE_MINIMUM=2.1.14
 
 CODEX_STATUS=ok
-CODEX_AUTH=oauth
-
-AGY_STATUS=ok
-AGY_AUTH=none
-
-Summary:
-  ✓ Codex: Installed and authenticated (oauth)
-  ⚠ Antigravity: Installed but not authenticated
+AGY_STATUS=unauthenticated
 ```
 
-### Step 2: Route Based on Detection Results
+Provider values are `ok`, `unauthenticated`, `quota`, `not-installed`, or a specific reason such as `model-invalid`.
 
-Parse the output and route accordingly:
+### Route based on the result
 
-**Scenario 0: Claude Code version is outdated (CRITICAL - Check First)**
+If Claude Code is outdated, stop and show the version and update instructions reported by the command:
+
 ```
-CLAUDE_CODE_VERSION=2.1.8
+CLAUDE_CODE_VERSION=2.1.13
 CLAUDE_CODE_STATUS=outdated
-CLAUDE_CODE_MINIMUM=2.1.9
+CLAUDE_CODE_MINIMUM=2.1.14
 ```
 
-**Action:** STOP immediately and show this prominent warning:
+If one non-Claude provider reports `ok`, use it. Parallel execution needs at least one ready non-Claude provider, but ordinary Claude-only commands still work without one. If none reports `ok`, stop the parallel workflow, direct the user to `/octo:setup`, and do not simulate provider agreement by running one provider repeatedly. One ready provider can supply an additional perspective, but it is not multi-provider consensus.
 
-> "⚠️ **Claude Code Update Required**
->
-> Your current Claude Code version (2.1.8) is outdated. Claude Octopus requires version 2.1.9 or higher for full functionality.
->
-> **How to update:**
->
-> If installed via npm:
-> ```
-> npm update -g @anthropic/claude-code
-> ```
->
-> If installed via Homebrew:
-> ```
-> brew upgrade claude-code
-> ```
->
-> If installed via download:
-> Visit https://github.com/anthropics/claude-code/releases
->
-> **After updating, please restart Claude Code** and then we can proceed with your task."
-
-Do NOT proceed with the task until the user has updated and restarted. The detect-providers output will show this warning prominently.
-
-**Scenario A: Both providers missing**
-```
-CODEX_STATUS=missing
-CODEX_AUTH=none
-AGY_STATUS=missing
-AGY_AUTH=none
-```
-
-**Action:** STOP and tell the user:
-
-> "Claude Octopus needs at least one AI provider (Codex or Antigravity) to work.
->
-> You have two options:
->
-> **Option 1: Install Codex CLI**
-> ```
-> npm install -g @openai/codex
-> export OPENAI_API_KEY=\"sk-...\"
-> ```
-> Get API key from: https://platform.openai.com/api-keys
->
-> **Option 2: Install Antigravity CLI**
-> ```
-> agy  # complete the browser sign-in when prompted
-> ```
->
-> After installing one, run `/octo:setup` to verify everything works."
-
-**Scenario B: One provider working, one missing/partial**
-```
-CODEX_STATUS=ok
-CODEX_AUTH=oauth (or api-key)
-AGY_STATUS=missing (or ok with AUTH=none)
-```
-
-**Action:** IMMEDIATELY proceed with the user's task using the available provider. No need to announce setup status - just execute the task. The user doesn't care about which provider you're using, they just want their task done.
-
-**Scenario C: Both providers working**
-```
-CODEX_STATUS=ok
-CODEX_AUTH=oauth
-AGY_STATUS=ok
-AGY_AUTH=oauth
-```
-
-**Action:** IMMEDIATELY proceed with the user's task using both providers for comprehensive results. No need to announce setup status - just execute the task.
-
-### Step 3: Graceful Degradation
-
-If only ONE provider is available:
-- Automatically use that provider
-- Tasks that require multiple providers will adapt to use the single provider multiple times
-- Quality results are still achievable with one provider
-
-You do NOT need both providers to proceed. One is sufficient for most tasks.
-
-### Step 4: Cache Results (Optional Optimization)
-
-The detect-providers command writes results to `~/.claude-octopus/.provider-cache` with a timestamp. This cache is valid for 1 hour.
-
-If the cache exists and is fresh (<1 hour old), you can skip re-detection.
-
-### Step 5: Execute Task
-
-Only proceed when at least ONE provider is available and authenticated. Multi-provider tasks will automatically adapt to available providers.
-
-**IMPORTANT:** This detection is fast (~1 second) and non-blocking. Always verify provider availability before running octopus commands, but don't require BOTH providers - one is enough!
+The command writes `~/.claude-octopus/.provider-cache`. Reuse it for up to one hour; after that, run detection again.
 
 ## Double Diamond Workflow
 

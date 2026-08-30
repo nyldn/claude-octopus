@@ -64,7 +64,8 @@ AskUserQuestion({
 
 ### Step 2: Check Provider Availability & Execute
 
-Use the Bash tool to read the shared static readiness snapshot:
+Use the Bash tool to run the shared live readiness check. This command asks for
+multiple providers, so its provider probe is explicit and bounded:
 
 ```bash
 OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"

@@ -26,7 +26,14 @@ Before launching any Codex or other provider-backed planning seat, capture one
 authoritative status snapshot and retain it for the later visualization:
 
 ```bash
-PROVIDER_STATUS="$("${CLAUDE_PLUGIN_ROOT}/scripts/helpers/check-providers.sh" 2>/dev/null || true)"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+provider_helper="$OCTO_ROOT/scripts/helpers/check-providers.sh"
+if [[ ! -x "$provider_helper" ]]; then
+  echo "Claude Octopus provider readiness helper is unavailable; planning in Claude-only mode." >&2
+  PROVIDER_STATUS=""
+else
+  PROVIDER_STATUS="$("$provider_helper" 2>/dev/null || true)"
+fi
 printf '%s\n' "$PROVIDER_STATUS"
 ```
 

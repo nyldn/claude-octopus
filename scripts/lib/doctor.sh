@@ -473,7 +473,8 @@ doctor_check_auth() {
     done
 
     if [[ "$any_auth" == "true" ]]; then
-        doctor_add "any-provider-auth" "auth" "pass" "At least one provider authenticated" ""
+        doctor_add "any-provider-auth" "auth" "pass" \
+            "At least one provider credential is configured" ""
     else
         doctor_add "any-provider-auth" "auth" "fail" \
             "No provider authenticated" "Configure one provider with /octo:setup."

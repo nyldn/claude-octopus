@@ -15,18 +15,6 @@ if ! declare -f _is_cursor_agent_binary >/dev/null 2>&1; then
     source "${_preflight_lib_dir}/cursor-agent.sh" 2>/dev/null || true
 fi
 
-_preflight_commandcode_auth_mode() {
-    if declare -f _commandcode_auth_mode >/dev/null 2>&1; then
-        _commandcode_auth_mode
-        return $?
-    fi
-    if [[ -n "${COMMAND_CODE_API_KEY:-}" ]]; then printf '%s\n' "api-key"; return 0; fi
-    command -v command-code >/dev/null 2>&1 || { printf '%s\n' "missing"; return 1; }
-    command-code status --json >/dev/null 2>&1 && { printf '%s\n' "cli"; return 0; }
-    printf '%s\n' "none"
-    return 1
-}
-
 _preflight_agy_configured_model() {
     local model="${OCTOPUS_AGY_MODEL:-}"
     local config_file="${HOME}/.claude-octopus/config/providers.json"
@@ -34,6 +22,35 @@ _preflight_agy_configured_model() {
         model=$(jq -r '.providers.agy.default // empty' "$config_file" 2>/dev/null || true)
     fi
     printf '%s\n' "${model:-default}"
+}
+
+_octo_readiness_json_field() {
+    local readiness_json="$1" field="$2" jq_bin
+    jq_bin="$(type -P jq 2>/dev/null || true)"
+    if [[ -n "$jq_bin" ]]; then
+        printf '%s' "$readiness_json" | "$jq_bin" -r --arg field "$field" '.[$field] // empty'
+        return
+    fi
+
+    OCTO_READINESS_JSON="$readiness_json" python3 - "$field" <<'PY'
+import json
+import os
+import sys
+
+value = json.loads(os.environ["OCTO_READINESS_JSON"]).get(sys.argv[1], "")
+print("" if value is None else value)
+PY
+}
+
+_preflight_env_value() {
+    local env_text="$1" wanted="$2" key value
+    while IFS='=' read -r key value; do
+        if [[ "$key" == "$wanted" ]]; then
+            printf '%s\n' "$value"
+            return 0
+        fi
+    done <<< "$env_text"
+    return 1
 }
 
 _preflight_agy_model_status() {
@@ -388,8 +405,8 @@ octo_provider_readiness_legacy() {
     printf '%s\n' "PROVIDER_CHECK_START"
     while IFS= read -r result; do
         [[ -n "$result" ]] || continue
-        provider="$(printf '%s' "$result" | jq -r '.provider')"
-        status="$(printf '%s' "$result" | jq -r '.status')"
+        provider="$(_octo_readiness_json_field "$result" provider)"
+        status="$(_octo_readiness_json_field "$result" status)"
         printf '%s:%s\n' "$provider" "$status"
         if declare -f octo_event_emit >/dev/null 2>&1; then
             octo_event_emit "provider.status" provider="$provider" status="$status" source="check-providers" || true
@@ -403,6 +420,39 @@ octo_provider_readiness_legacy() {
 cmd_detect_providers() {
     local readiness_result provider status reason_code env_name env_status
     local cache_file="${WORKSPACE_DIR}/.provider-cache"
+    local version_output claude_status claude_version min_version
+
+    echo "Detecting Claude Code version..."
+    echo ""
+    if declare -f check_claude_version >/dev/null 2>&1; then
+        version_output="$(check_claude_version)"
+    else
+        version_output=$'CLAUDE_CODE_VERSION=unknown\nCLAUDE_CODE_STATUS=unknown\nCLAUDE_CODE_MINIMUM=2.1.14'
+    fi
+    printf '%s\n' "$version_output"
+    echo ""
+
+    claude_status="$(_preflight_env_value "$version_output" CLAUDE_CODE_STATUS 2>/dev/null || printf unknown)"
+    claude_version="$(_preflight_env_value "$version_output" CLAUDE_CODE_VERSION 2>/dev/null || printf unknown)"
+    min_version="$(_preflight_env_value "$version_output" CLAUDE_CODE_MINIMUM 2>/dev/null || printf 2.1.14)"
+
+    if [[ "$claude_status" == "outdated" ]]; then
+        echo "⚠️  WARNING: Claude Code is outdated!"
+        echo ""
+        echo "  Current version: $claude_version"
+        echo "  Required version: $min_version or higher"
+        echo ""
+        echo "How to update:"
+        echo "  npm: npm update -g @anthropic/claude-code"
+        echo "  Homebrew: brew upgrade claude-code"
+        echo "  Download: https://github.com/anthropics/claude-code/releases"
+        echo ""
+        echo "After updating, restart Claude Code."
+        echo ""
+    elif [[ "$claude_status" == "ok" ]]; then
+        echo "✓ Claude Code version: $claude_version (meets minimum $min_version)"
+        echo ""
+    fi
 
     echo "Detecting providers from shared readiness contract..."
     echo ""
@@ -410,11 +460,14 @@ cmd_detect_providers() {
     {
         printf '# Auto-generated on %s\n' "$(date)"
         printf '# Generated from Provider Registry 2.0 readiness results\n\n'
+        printf '%s\n\n' "$version_output"
+    } > "$cache_file"
+    {
         while IFS= read -r readiness_result; do
             [[ -n "$readiness_result" ]] || continue
-            provider="$(jq -r '.provider' <<<"$readiness_result")"
-            status="$(jq -r '.status' <<<"$readiness_result")"
-            reason_code="$(jq -r '.reason_code' <<<"$readiness_result")"
+            provider="$(_octo_readiness_json_field "$readiness_result" provider)"
+            status="$(_octo_readiness_json_field "$readiness_result" status)"
+            reason_code="$(_octo_readiness_json_field "$readiness_result" reason_code)"
             env_name="$(printf '%s' "$provider" | tr '[:lower:]-' '[:upper:]_')"
             case "$status" in
                 available) env_status="ok" ;;
@@ -436,7 +489,7 @@ cmd_detect_providers() {
             fi
         done < <(octo_provider_readiness_all static)
         printf '\nCACHE_TIME=%s\n' "$(date +%s)"
-    } | tee "$cache_file"
+    } | tee -a "$cache_file"
     echo ""
     echo "Detection complete. Cache written to $cache_file"
     return 0

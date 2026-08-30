@@ -48,7 +48,23 @@ else
 fi
 
 test_case "preflight exposes and caches authenticated and unauthenticated commandcode states"
-if grep -q 'COMMANDCODE_STATUS=ok' "$PROJECT_ROOT/scripts/lib/preflight.sh" &&    grep -q 'COMMANDCODE_STATUS=unauthenticated' "$PROJECT_ROOT/scripts/lib/preflight.sh" &&    grep -q 'COMMANDCODE_AUTH=' "$PROJECT_ROOT/scripts/lib/preflight.sh" &&    grep -q '_preflight_commandcode_auth_mode' "$PROJECT_ROOT/scripts/lib/preflight.sh"; then
+preflight_fixture="$TEST_TMP_DIR/preflight-commandcode"
+mkdir -p "$preflight_fixture"
+commandcode_cache="$preflight_fixture/.provider-cache"
+(
+    WORKSPACE_DIR="$preflight_fixture"
+    check_claude_version() {
+        printf '%s\n' 'CLAUDE_CODE_VERSION=2.1.219' 'CLAUDE_CODE_STATUS=ok' 'CLAUDE_CODE_MINIMUM=2.1.14'
+    }
+    source "$PROJECT_ROOT/scripts/lib/preflight.sh"
+    octo_provider_readiness_all() {
+        printf '%s\n' '{"provider":"commandcode","status":"degraded","reason_code":"auth-missing","check_kind":"static","checked_at":"now","duration_ms":0,"remediation":"set key"}'
+    }
+    cmd_detect_providers >/dev/null
+)
+if grep -q '^COMMANDCODE_STATUS=unauthenticated$' "$commandcode_cache" &&
+   grep -q '^COMMANDCODE_AUTH=none$' "$commandcode_cache" &&
+   ! grep -q '_preflight_commandcode_auth_mode' "$PROJECT_ROOT/scripts/lib/preflight.sh"; then
     test_pass
 else
     test_fail "preflight commandcode auth contract missing"

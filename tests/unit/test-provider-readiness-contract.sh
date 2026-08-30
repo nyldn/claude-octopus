@@ -122,7 +122,8 @@ fi
 test_case "plan renders its retained readiness snapshot without raw probes"
 plan_command="$PROJECT_ROOT/commands/plan.md"
 if grep -Fq 'PROVIDER_STATUS' "$plan_command" &&
-   grep -Fq 'scripts/helpers/check-providers.sh' "$plan_command" &&
+   grep -Fq 'OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"' "$plan_command" &&
+   grep -Fq 'if [[ ! -x "$provider_helper" ]]' "$plan_command" &&
    ! grep -Fq 'command -v' "$plan_command" &&
    ! grep -Fq '11434/api/tags' "$plan_command"; then
     test_pass
@@ -136,6 +137,7 @@ dynamic_commands=0
 for provider_command in "${provider_commands[@]}"; do
     if grep -Fq 'scripts/helpers/check-providers.sh' "$provider_command" &&
        grep -Fq 'OCTOPUS_PREFLIGHT_PROBE=1' "$provider_command" &&
+       grep -Fqi 'shared live readiness' "$provider_command" &&
        grep -Fq '$1 !~ /^claude($|-)/ && $2 == "available"' "$provider_command" &&
        ! grep -Fq 'codex|agy|copilot|qwen|opencode|ollama' "$provider_command"; then
         dynamic_commands=$((dynamic_commands + 1))
@@ -145,6 +147,49 @@ if [[ "$dynamic_commands" -eq 2 ]]; then
     test_pass
 else
     test_fail "multi.md and extract.md must use live shared readiness without a provider allowlist"
+fi
+
+test_case "legacy readiness output works without jq when Python is available"
+no_jq_bin="$TEST_TMP_DIR/no-jq-bin"
+mkdir -p "$no_jq_bin"
+ln -s "$(command -v python3)" "$no_jq_bin/python3"
+octo_provider_readiness_all() {
+    printf '%s\n' '{"provider":"codex","status":"available","reason_code":"ready","check_kind":"static","checked_at":"now","duration_ms":0,"remediation":""}'
+}
+unset -f octo_event_emit 2>/dev/null || true
+legacy_no_jq="$(PATH="$no_jq_bin" octo_provider_readiness_legacy static || true)"
+if [[ "$legacy_no_jq" == $'PROVIDER_CHECK_START\ncodex:available\nPROVIDER_CHECK_END' ]]; then
+    test_pass
+else
+    test_fail "jq-less legacy output was truncated or malformed: $legacy_no_jq"
+fi
+
+test_case "detect-providers cache works without jq when Python is available"
+for command_name in date mkdir tee tr; do
+    ln -s "$(command -v "$command_name")" "$no_jq_bin/$command_name"
+done
+check_claude_version() {
+    printf '%s\n' 'CLAUDE_CODE_VERSION=2.1.219' 'CLAUDE_CODE_STATUS=ok' 'CLAUDE_CODE_MINIMUM=2.1.14'
+}
+no_jq_workspace="$TEST_TMP_DIR/no-jq-workspace"
+no_jq_detect="$(PATH="$no_jq_bin" WORKSPACE_DIR="$no_jq_workspace" cmd_detect_providers || true)"
+if grep -q '^CODEX_STATUS=ok$' <<<"$no_jq_detect" &&
+   grep -q '^CLAUDE_CODE_STATUS=ok$' "$no_jq_workspace/.provider-cache" 2>/dev/null; then
+    test_pass
+else
+    test_fail "jq-less provider cache was not complete: $no_jq_detect"
+fi
+
+test_case "parallel-agents skill documents the current cache contract"
+parallel_skill="$PROJECT_ROOT/skills/skill-parallel-agents/SKILL.md"
+if grep -q 'CLAUDE_CODE_MINIMUM=2.1.14' "$parallel_skill" &&
+   grep -q 'CODEX_STATUS=ok' "$parallel_skill" &&
+   grep -q 'AGY_STATUS=unauthenticated' "$parallel_skill" &&
+   ! grep -q 'CODEX_AUTH=' "$parallel_skill" &&
+   ! grep -q 'PERPLEXITY_AUTH=' "$parallel_skill"; then
+    test_pass
+else
+    test_fail "parallel-agents still documents removed provider-cache keys"
 fi
 
 test_summary

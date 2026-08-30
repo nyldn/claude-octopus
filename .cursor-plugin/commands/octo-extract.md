@@ -85,7 +85,8 @@ Reading all pages may use 33,750 tokens (~34 API calls).
 # options: --mode, --scope, --depth, --output, --storybook, --ignore
 ```
 
-**Check Claude Octopus availability with the Bash tool:**
+**Check Claude Octopus availability with the Bash tool.** Run the shared live readiness
+check because extraction may use an external provider:
 ```bash
 OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
 provider_helper="$OCTO_ROOT/scripts/helpers/check-providers.sh"

@@ -13,6 +13,24 @@ mkdir -p "$HOME"
 MAGENTA="" BOLD="" BLUE="" GREEN="" YELLOW="" RED="" DIM="" NC=""
 source "$PROJECT_ROOT/scripts/lib/doctor.sh"
 
+test_case "Perplexity-only auth is described as a credential, not workflow readiness"
+_doctor_collect_provider_readiness() {
+    DOCTOR_PROVIDER_READINESS=('{"provider":"perplexity","status":"available","remediation":""}')
+}
+DOCTOR_RESULTS_NAME=() DOCTOR_RESULTS_CAT=() DOCTOR_RESULTS_STATUS=() DOCTOR_RESULTS_MSG=() DOCTOR_RESULTS_DETAIL=()
+doctor_check_auth
+auth_summary=""
+for i in "${!DOCTOR_RESULTS_NAME[@]}"; do
+    if [[ "${DOCTOR_RESULTS_NAME[$i]}" == "any-provider-auth" ]]; then
+        auth_summary="${DOCTOR_RESULTS_MSG[$i]}"
+    fi
+done
+if [[ "$auth_summary" == "At least one provider credential is configured" ]]; then
+    test_pass
+else
+    test_fail "ambiguous auth summary: $auth_summary"
+fi
+
 # Keep this suite deterministic and limited to the Doctor runner/output layer.
 # Full category implementations retain their own focused suites.
 doctor_check_providers() {
