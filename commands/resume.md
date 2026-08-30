@@ -65,7 +65,7 @@ orchestrate.sh agent-resume abc123 "fix the failing test in auth.ts"
 - Agent must have been a Claude agent (not an external CLI agent — those don't support transcripts)
 - CC v2.1.77+: Resume uses `SendMessage` (auto-resumes stopped agents). The `Agent(resume:)` parameter was removed in v2.1.77.
 
-Run `/octo:doctor` to verify flags are active.
+Run `/octo:skill-doctor` to verify that the required flags are active.
 
 ## Fallback
 

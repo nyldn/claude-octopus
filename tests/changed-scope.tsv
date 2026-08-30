@@ -30,9 +30,10 @@ AGENTS.md	tests/unit/test-v8.2.0-agent-fields.sh tests/integration/test-native-f
 CLAUDE.md	tests/unit/test-v8.2.0-agent-fields.sh tests/integration/test-native-first-docs.sh
 commands/preflight.md	tests/unit/test-command-frontmatter.sh tests/unit/test-provider-readiness-contract.sh
 commands/setup.md	tests/unit/test-command-frontmatter.sh tests/unit/test-setup-first-success.sh tests/unit/test-setup-suggest-routing.sh tests/unit/test-agy-provider.sh tests/unit/test-doctor-v10.sh
+commands/*.md	tests/unit/test-command-frontmatter.sh tests/unit/test-command-registration.sh tests/unit/test-public-reference-integrity.sh
 README.md	tests/unit/test-readme-release-sync.sh tests/integration/test-readme-compliance.sh
 PRODUCT.md	tests/unit/test-readme-release-sync.sh tests/integration/test-readme-compliance.sh
-docs/*	tests/integration/test-native-first-docs.sh tests/integration/test-readme-compliance.sh
+docs/*	tests/integration/test-native-first-docs.sh tests/integration/test-readme-compliance.sh tests/unit/test-public-reference-integrity.sh
 CHANGELOG.md	tests/unit/test-readme-release-sync.sh
 .beads.gate.lock	@ignore
 .octo-continue.md	@ignore

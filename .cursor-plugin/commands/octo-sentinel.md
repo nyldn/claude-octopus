@@ -34,7 +34,7 @@ the user explicitly asks for it.
 | Source | Filter | Recommended Action |
 |--------|--------|--------------------|
 | Issues | `octopus` label | Classified via task type → workflow recommendation |
-| PRs | Review requested | `/octo:ink` for code review |
+| PRs | Review requested | `/octo:review` for code review |
 | CI Runs | Failed status | `/octo:debug` for investigation |
 
 ## Environment Variables

@@ -80,6 +80,9 @@ PUBLIC_DOCTOR_SURFACES=(
     "scripts/install-deps.sh|0"
     "skills/skill-copilot-provider/SKILL.md|0"
     "skills/skill-doctor/SKILL.md|1"
+    "commands/plan.md|0"
+    "commands/resume.md|0"
+    "commands/sentinel.md|0"
 )
 
 for surface in "${PUBLIC_DOCTOR_SURFACES[@]}"; do
