@@ -172,6 +172,7 @@ _octopus_copy_git_tracked_tree() {
     local source_root="$1"
     local workspace="$2"
     local filelist entry rel
+    local nested_copy_failed=0
 
     git -C "$source_root" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
 
@@ -189,18 +190,23 @@ _octopus_copy_git_tracked_tree() {
         return 1
     fi
 
+    # A tracked symlink can also satisfy -d (it is excluded here, not
+    # resolved) and must not be treated as a nested work tree to descend
+    # into — tar already copied it above as the symlink itself, and
+    # resolving it would materialize content from outside source_root.
     while IFS= read -r -d '' entry; do
         rel="${entry%/}"
-        [[ -n "$rel" && -d "${source_root}/${rel}" ]] || continue
+        [[ -n "$rel" && -d "${source_root}/${rel}" && ! -L "${source_root}/${rel}" ]] || continue
         git -C "${source_root}/${rel}" rev-parse --is-inside-work-tree >/dev/null 2>&1 || continue
         rm -rf "${workspace:?}/${rel}"
         mkdir -p "${workspace}/${rel}"
-        _octopus_copy_git_tracked_tree "${source_root}/${rel}" "${workspace}/${rel}" \
-            || cp -a "${source_root}/${rel}/." "${workspace}/${rel}/" 2>/dev/null
+        if ! _octopus_copy_git_tracked_tree "${source_root}/${rel}" "${workspace}/${rel}"; then
+            cp -a "${source_root}/${rel}/." "${workspace}/${rel}/" 2>/dev/null || nested_copy_failed=1
+        fi
     done < "$filelist"
 
     rm -f "$filelist"
-    return 0
+    [[ "$nested_copy_failed" -eq 0 ]]
 }
 
 # Prepare an isolated copy-on-write workspace for advisory agents.

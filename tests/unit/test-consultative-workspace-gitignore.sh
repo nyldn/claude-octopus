@@ -82,4 +82,77 @@ else
 fi
 rm -rf "$(dirname "$workspace")"
 
+# A tracked symlink satisfies `-d` when it resolves to a directory, and could
+# point outside source_root entirely. It must be left as the symlink tar
+# already copied, never resolved and recursively re-copied — that would
+# materialize content from outside source_root into the workspace.
+test_case "a tracked symlink is left alone, not resolved into the workspace"
+SYMLINK_ROOT="$TEST_TMP_DIR/symlink-source"
+OUTSIDE_ROOT="$TEST_TMP_DIR/symlink-outside"
+mkdir -p "$SYMLINK_ROOT" "$OUTSIDE_ROOT"
+(
+    cd "$OUTSIDE_ROOT"
+    git init -q
+    git config user.email "test@example.com"
+    git config user.name "test"
+    printf 'outside secret\n' > secret.txt
+    git add secret.txt
+    git commit -q -m init
+)
+(
+    cd "$SYMLINK_ROOT"
+    git init -q
+    git config user.email "test@example.com"
+    git config user.name "test"
+    printf 'main tracked\n' > main.txt
+    ln -s "$OUTSIDE_ROOT" evil-link
+    git add main.txt evil-link
+    git commit -q -m "init with symlink"
+)
+workspace="$(_octopus_prepare_consultative_workspace "$SYMLINK_ROOT")"
+if [[ -L "$workspace/evil-link" && -f "$workspace/main.txt" ]]; then
+    test_pass
+else
+    test_fail "expected evil-link to remain a symlink (not resolved into a real copied directory) in $workspace"
+fi
+rm -rf "$(dirname "$workspace")"
+
+# Bash suppresses errexit inside a function invoked as an `if`/`||` condition,
+# so a bare `nested_copy || fallback` inside the per-entry loop cannot signal
+# a double failure to the caller by relying on errexit — it must track and
+# return it explicitly, or _octopus_prepare_consultative_workspace never
+# knows to fall back to a full copy.
+test_case "a nested copy that fails both ways is reported to the caller, not swallowed"
+if (
+    nested_copy_that_always_fails() { return 1; }
+    cp_fallback_that_always_fails() { return 1; }
+
+    copy_tree_without_tracking() {
+        local entry
+        while IFS= read -r entry; do
+            nested_copy_that_always_fails || cp_fallback_that_always_fails 2>/dev/null
+        done <<< "entry"
+        return 0
+    }
+
+    copy_tree_with_tracking() {
+        local entry
+        local nested_copy_failed=0
+        while IFS= read -r entry; do
+            if ! nested_copy_that_always_fails; then
+                cp_fallback_that_always_fails 2>/dev/null || nested_copy_failed=1
+            fi
+        done <<< "entry"
+        [[ "$nested_copy_failed" -eq 0 ]]
+    }
+
+    if copy_tree_without_tracking; then without_tracking_rc=0; else without_tracking_rc=1; fi
+    if copy_tree_with_tracking; then with_tracking_rc=0; else with_tracking_rc=1; fi
+    [[ "$without_tracking_rc" -eq 0 && "$with_tracking_rc" -eq 1 ]]
+); then
+    test_pass
+else
+    test_fail "expected the untracked shape to mask a double failure and the tracked shape (used by _octopus_copy_git_tracked_tree) to report it"
+fi
+
 test_summary
