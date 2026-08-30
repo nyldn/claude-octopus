@@ -2,19 +2,22 @@
 
 Last updated: 2026-08-30
 Status: The install, setup, readiness, dispatch, cost, and uninstall experience
-has been simplified on an isolated public feature branch. Compatibility
-redirects remain in place; no release artifact or deployed installation was
-changed.
-Branch: `feat/simplify-install-setup-use`, based on
-`origin/chore/retire-claw-admin` `926f459608c3462e056e5571161de8673615cab4`.
-Delivery: source head `26d2c8abadbdad746ed22507d4328beb56d06801`
-passed the complete local matrix and independent Fable 5 review. The final
-handoff commit and branch push are the remaining session-close actions.
+has been simplified on an isolated public feature branch. The merged claw-admin
+retirement is incorporated, compatibility redirects remain in place, and the
+combined tree has passed the complete local matrix.
+Branch: `feat/simplify-install-setup-use`, reconciled with `origin/main` at
+`f9b8c92aa228a4b3f6bc9132c6c0a06f3142b73e`.
+Delivery: implementation source head
+`26d2c8abadbdad746ed22507d4328beb56d06801` passed independent Fable 5 review;
+merge-reconciled head `837d7dae746c94a011457e5b8f7867d4468b1289`
+passed the complete local matrix.
 Current release: [v10.0.0](https://github.com/nyldn/claude-octopus/releases/tag/v10.0.0)
 Tracking: `bd` is unavailable in this checkout, so no Beads issue was created or
 updated for this cleanup.
-Next action: review the pushed feature branch and open a pull request only when
-separately authorized. Do not merge, tag, publish, or deploy from this branch.
+Next action: push the reconciled feature branch, open its guarded pull request,
+and proceed through reviewed merge and the v10.1.0 release workflow. The user
+authorized merge, release, shared-marketplace publication, and cleanup of only
+the related worktrees proven safe to remove.
 
 ## Install, Setup, and Everyday-Use Simplification
 
@@ -47,17 +50,20 @@ separately authorized. Do not merge, tag, publish, or deploy from this branch.
   `cf08fb48-f01b-48e2-8d6e-e25c09fad087` also returned both verdicts as PASS.
   Review artifacts are retained under the ignored
   `.claude-octopus/simplification-loop/reviews/` directory.
-- Final verification on source head `26d2c8a`:
+- Final source verification on `26d2c8a`:
   `CI=true GITHUB_ACTIONS=true make ci-changed` failed closed to the complete
   local matrix and passed 16/16 smoke, 300/300 unit, and 8/8 integration suites,
   plus CI-only checks. The documented Council macOS PTY case and probe dry-run
   timeout case remained skips rather than failures. Plugin assembly reported
   118 skills, 53 commands, 51 agents, and 31 agent-config references.
   `make sync-check`, `git diff --check`, and the executable-mode check passed.
+  After incorporating the squash-merged claw-admin retirement from `main`, the
+  unchanged implementation tree passed the same complete gate again on
+  `837d7dae`: 16/16 smoke, 300/300 unit, and 8/8 integration suites.
 - `scripts/validate-release.sh` passed on the feature branch and explicitly
   confirmed that the existing `v10.0.0` tag and GitHub release remain unchanged.
-  No pull request, merge, tag, release, marketplace publication, or deployment
-  was performed in this implementation session.
+  At this handoff update, the feature pull request, v10.1.0 tag, GitHub release,
+  and shared-marketplace publication remain pending.
 
 ## Claw Administration Retirement
 
