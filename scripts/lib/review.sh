@@ -1061,7 +1061,7 @@ print_provider_report() {
         done < "$status_file"
     fi
 
-    # Persist failures for Doctor diagnostics.
+    # Persist a bounded local history of review-provider failures.
     if [[ "$had_fallback" == "true" ]]; then
         mkdir -p "$(dirname "$fallback_log")"
         local ts

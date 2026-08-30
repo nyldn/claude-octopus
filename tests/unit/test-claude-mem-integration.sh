@@ -132,23 +132,18 @@ else
     fi
 fi
 
-# ── 11. Persistent fallback log in doctor ────────────────────────────
+# ── 11. Persistent fallback history in review ───────────────────────
 
-if grep -c 'provider-fallbacks.log' "$ORCH" >/dev/null 2>&1; then
-    pass "Doctor: reads provider-fallbacks.log"
+if grep -c 'provider-fallbacks.log' "$PROJECT_ROOT/scripts/lib/review.sh" >/dev/null 2>&1; then
+    pass "Review: records provider-fallbacks.log"
 else
-    fail "Doctor: reads provider-fallbacks.log" "no fallback log reference in doctor"
+    fail "Review: records provider-fallbacks.log" "no fallback log reference in review"
 fi
 
-if grep -c 'provider-fallbacks.*providers.*warn' "$ORCH" >/dev/null 2>&1; then
-    pass "Doctor: warns on recent fallbacks"
+if grep -F -c 'Provider failure details:' "$PROJECT_ROOT/scripts/lib/review.sh" >/dev/null 2>&1; then
+    pass "Review: reports provider fallbacks after output"
 else
-    # Try alternate pattern
-    if grep -c 'doctor_add.*provider-fallback' "$ORCH" >/dev/null 2>&1; then
-        pass "Doctor: warns on recent fallbacks"
-    else
-        fail "Doctor: warns on recent fallbacks" "no doctor_add for fallback warning"
-    fi
+    fail "Review: reports provider fallbacks after output" "no post-output fallback report"
 fi
 
 # ── 12. Review default focus is all areas ────────────────────────────

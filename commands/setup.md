@@ -15,6 +15,9 @@ The default path gets the user to a verified first success. It does not install
 optional companions, tune models, or contact a provider service. Every install,
 login, or configuration write requires an explicit choice first.
 
+Always show the interactive setup choice when this command is invoked, even when
+the current readiness summary is already healthy.
+
 Never ask the user to paste a secret into chat. Use the provider's login command
 or documented environment configuration. Never turn a failed recheck into a
 success message.
