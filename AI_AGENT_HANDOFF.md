@@ -1,18 +1,63 @@
 # AI Agent Handoff
 
-Last updated: 2026-08-29
-Status: The public plugin no longer ships the unused Claw administration
-feature. The opt-in OpenClaw adapter and MCP integration remain supported.
-Branch: `chore/retire-claw-admin`, based on `origin/main` `46d64cba`.
-Delivery: implementation commit `24bd50248fe723f853fcfe86df7c1ecb8b81b430`
-was pushed to `origin/chore/retire-claw-admin`; remote parity was verified before
-the automated review follow-up.
+Last updated: 2026-08-30
+Status: The install, setup, readiness, dispatch, cost, and uninstall experience
+has been simplified on an isolated public feature branch. Compatibility
+redirects remain in place; no release artifact or deployed installation was
+changed.
+Branch: `feat/simplify-install-setup-use`, based on
+`origin/chore/retire-claw-admin` `926f459608c3462e056e5571161de8673615cab4`.
+Delivery: source head `26d2c8abadbdad746ed22507d4328beb56d06801`
+passed the complete local matrix and independent Fable 5 review. The final
+handoff commit and branch push are the remaining session-close actions.
 Current release: [v10.0.0](https://github.com/nyldn/claude-octopus/releases/tag/v10.0.0)
 Tracking: `bd` is unavailable in this checkout, so no Beads issue was created or
 updated for this cleanup.
-Next action: review and merge the public pull request. Do not publish a release
-from the feature branch; follow `RELEASING.md` after the merge if a release is
-approved.
+Next action: review the pushed feature branch and open a pull request only when
+separately authorized. Do not merge, tag, publish, or deploy from this branch.
+
+## Install, Setup, and Everyday-Use Simplification
+
+- Governing plan:
+  `/Users/chris/git/worktrees/claude-octopus-dev/simplification-unattended-plan/docs/superpowers/plans/2026-08-29-claude-octopus-simplification-unattended.md`.
+  The private development checkout and dirty canonical public checkout were not
+  modified.
+- Dispatch exposes bounded, validated CLI controls for working directory,
+  model, permission mode, output format, schema, effort, session continuity,
+  and agent fan-out. Claude effort flags are emitted only when the installed
+  CLI advertises support.
+- Setup and preflight now share auth-aware provider readiness. The public
+  guidance routes users through one setup path, preserves explicit
+  compatibility redirects, reports per-provider outcomes, and avoids claiming
+  that an installed but unauthenticated provider is ready.
+- Parallel work has a bounded fan-out and truthful per-seat outcomes. Cost
+  output uses deterministic usage records instead of estimates detached from
+  actual dispatch. Uninstall guidance distinguishes plugin removal from
+  retained project and user state; automatic purge remains deliberately
+  deferred.
+- Public-reference, provider-readiness, dispatch, compatibility, usage, and
+  uninstall regressions were added or updated. The release validator now treats
+  an existing version-tag mismatch as fatal on `main`, `release/*`, and detached
+  HEAD, while allowing validation-only checks on an ordinary feature branch.
+  Tag creation remains restricted to a clean `main` checkout.
+- Independent review used direct `claude -p` sessions whose runtime model was
+  exactly `claude-fable-5`. Main review session
+  `bec243c0-6146-4a49-a79f-23b40e611a99` returned `SPEC_VERDICT: PASS` and
+  `QUALITY_VERDICT: PASS`. Final release-scope review session
+  `cf08fb48-f01b-48e2-8d6e-e25c09fad087` also returned both verdicts as PASS.
+  Review artifacts are retained under the ignored
+  `.claude-octopus/simplification-loop/reviews/` directory.
+- Final verification on source head `26d2c8a`:
+  `CI=true GITHUB_ACTIONS=true make ci-changed` failed closed to the complete
+  local matrix and passed 16/16 smoke, 300/300 unit, and 8/8 integration suites,
+  plus CI-only checks. The documented Council macOS PTY case and probe dry-run
+  timeout case remained skips rather than failures. Plugin assembly reported
+  118 skills, 53 commands, 51 agents, and 31 agent-config references.
+  `make sync-check`, `git diff --check`, and the executable-mode check passed.
+- `scripts/validate-release.sh` passed on the feature branch and explicitly
+  confirmed that the existing `v10.0.0` tag and GitHub release remain unchanged.
+  No pull request, merge, tag, release, marketplace publication, or deployment
+  was performed in this implementation session.
 
 ## Claw Administration Retirement
 
