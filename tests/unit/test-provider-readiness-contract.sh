@@ -119,4 +119,32 @@ else
     test_fail "preflight JSON does not consume the shared readiness schema"
 fi
 
+test_case "plan renders its retained readiness snapshot without raw probes"
+plan_command="$PROJECT_ROOT/commands/plan.md"
+if grep -Fq 'PROVIDER_STATUS' "$plan_command" &&
+   grep -Fq 'scripts/helpers/check-providers.sh' "$plan_command" &&
+   ! grep -Fq 'command -v' "$plan_command" &&
+   ! grep -Fq '11434/api/tags' "$plan_command"; then
+    test_pass
+else
+    test_fail "plan.md must render PROVIDER_STATUS without binary, env, or Ollama probes"
+fi
+
+test_case "multi and extract accept every ready non-Claude provider dynamically"
+provider_commands=("$PROJECT_ROOT/commands/multi.md" "$PROJECT_ROOT/commands/extract.md")
+dynamic_commands=0
+for provider_command in "${provider_commands[@]}"; do
+    if grep -Fq 'scripts/helpers/check-providers.sh' "$provider_command" &&
+       grep -Fq 'OCTOPUS_PREFLIGHT_PROBE=1' "$provider_command" &&
+       grep -Fq '$1 !~ /^claude($|-)/ && $2 == "available"' "$provider_command" &&
+       ! grep -Fq 'codex|agy|copilot|qwen|opencode|ollama' "$provider_command"; then
+        dynamic_commands=$((dynamic_commands + 1))
+    fi
+done
+if [[ "$dynamic_commands" -eq 2 ]]; then
+    test_pass
+else
+    test_fail "multi.md and extract.md must use live shared readiness without a provider allowlist"
+fi
+
 test_summary

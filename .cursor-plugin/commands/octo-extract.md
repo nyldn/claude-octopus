@@ -94,18 +94,19 @@ if [[ ! -x "$provider_helper" ]]; then
   exit 1
 fi
 
-PROVIDER_STATUS="$("$provider_helper" 2>/dev/null || true)"
+PROVIDER_STATUS="$(OCTOPUS_PREFLIGHT_PROBE=1 "$provider_helper" 2>/dev/null || true)"
 printf '%s\n' "$PROVIDER_STATUS"
 
-if ! printf '%s\n' "$PROVIDER_STATUS" |
-  grep -Eq '^(codex|agy|copilot|qwen|opencode|ollama|perplexity|orcarouter):available$'; then
+READY_EXTERNAL="$(printf '%s\n' "$PROVIDER_STATUS" |
+  awk -F: '$1 !~ /^claude($|-)/ && $2 == "available" { print $1 }')"
+if [[ -z "$READY_EXTERNAL" ]]; then
   echo "No external provider is ready. Continuing extraction with Claude only."
   echo "Run /octo:setup to configure an external provider."
 fi
 ```
 
-Treat the emitted `provider:status` lines as authoritative. Do not re-detect
-binaries or credentials inside this command.
+Treat the emitted `provider:status` lines and `READY_EXTERNAL` as authoritative.
+Do not re-detect binaries or credentials inside this command.
 
 ### Step 2: Intent Capture (Interactive Questions)
 

@@ -75,11 +75,12 @@ if [[ ! -x "$provider_helper" ]]; then
   exit 1
 fi
 
-PROVIDER_STATUS="$("$provider_helper" 2>/dev/null || true)"
+PROVIDER_STATUS="$(OCTOPUS_PREFLIGHT_PROBE=1 "$provider_helper" 2>/dev/null || true)"
 printf '%s\n' "$PROVIDER_STATUS"
 
-if ! printf '%s\n' "$PROVIDER_STATUS" |
-  grep -Eq '^(codex|agy|copilot|qwen|opencode|ollama|perplexity|orcarouter):available$'; then
+READY_EXTERNAL="$(printf '%s\n' "$PROVIDER_STATUS" |
+  awk -F: '$1 !~ /^claude($|-)/ && $2 == "available" { print $1 }')"
+if [[ -z "$READY_EXTERNAL" ]]; then
   echo "No external provider is ready. Multi-provider mode needs at least one supported external provider."
   echo "Run /octo:setup to configure one, or use Claude directly."
   exit 1
@@ -87,7 +88,7 @@ fi
 ```
 
 Treat the emitted `provider:status` lines as authoritative. Execute the task
-with the external providers marked `available`, incorporating the user's intent
+with the providers listed in `READY_EXTERNAL`, incorporating the user's intent
 from Step 1. Do not re-detect binaries or credentials inside this command.
 
 ### Step 3: Adversarial Synthesis (MANDATORY — do NOT skip)

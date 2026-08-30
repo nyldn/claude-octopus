@@ -1289,12 +1289,12 @@ test_agy_slash_command_visibility() {
     test_case "commands and skills include agy in provider-facing prompts"
 
     if grep -q 'Codex and Antigravity' "$PROJECT_ROOT/commands/security.md" && \
-       grep -q 'command -v agy' "$PROJECT_ROOT/commands/plan.md" && \
+       grep -q 'scripts/helpers/check-providers.sh' "$PROJECT_ROOT/commands/plan.md" && \
        grep -q 'command -v agy' "$PROJECT_ROOT/commands/review.md" && \
        grep -q 'command -v agy' "$PROJECT_ROOT/commands/factory.md" && \
        grep -q 'command -v agy' "$PROJECT_ROOT/commands/auto.md" && \
        grep -q 'scripts/helpers/check-providers.sh' "$PROJECT_ROOT/commands/multi.md" && \
-       grep -Fq 'codex|agy' "$PROJECT_ROOT/commands/multi.md" && \
+       grep -Fq '$1 !~ /^claude($|-)/ && $2 == "available"' "$PROJECT_ROOT/commands/multi.md" && \
        grep -q 'Antigravity CLI' "$PROJECT_ROOT/commands/brainstorm.md" && \
        grep -q 'Antigravity (agy)' "$PROJECT_ROOT/commands/model-config.md" && \
        grep -q 'claude,codex,agy' "$PROJECT_ROOT/commands/council.md" && \
@@ -1460,9 +1460,15 @@ test_provider_aware_commands_generate_antigravity_banners() {
         local claude_file="$PROJECT_ROOT/commands/${command}.md"
         local cursor_file="$PROJECT_ROOT/.cursor-plugin/commands/octo-${command}.md"
         for file in "$claude_file" "$cursor_file"; do
-            grep -q 'Do not hand-write or summarize this' "$file" || missing+="${file}: missing generated-banner instruction"$'\n'
-            grep -q 'agy_status="$(status_cli agy)"' "$file" || missing+="${file}: missing agy status assignment"$'\n'
-            grep -q 'Antigravity.*${agy_status}' "$file" || missing+="${file}: missing rendered Antigravity status line"$'\n'
+            if [[ "$command" == "plan" ]]; then
+                grep -q 'PROVIDER_STATUS' "$file" || missing+="${file}: missing retained readiness snapshot"$'\n'
+                grep -q 'scripts/helpers/check-providers.sh' "$file" || missing+="${file}: missing shared readiness helper"$'\n'
+                grep -q 'Preserve provider names exactly' "$file" || missing+="${file}: missing dynamic provider renderer"$'\n'
+            else
+                grep -q 'Do not hand-write or summarize this' "$file" || missing+="${file}: missing generated-banner instruction"$'\n'
+                grep -q 'agy_status="$(status_cli agy)"' "$file" || missing+="${file}: missing agy status assignment"$'\n'
+                grep -q 'Antigravity.*${agy_status}' "$file" || missing+="${file}: missing rendered Antigravity status line"$'\n'
+            fi
         done
     done
 

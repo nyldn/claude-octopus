@@ -293,45 +293,12 @@ recommend debate gates. Include the debate checkpoint markers in the saved plan
 
 ### Step 4: Present the Plan
 
-**MANDATORY: Before presenting the plan, use the Bash tool to check provider availability:**
-
-```bash
-echo "PROVIDER_CHECK_START"
-printf "codex:%s\n" "$(command -v codex >/dev/null 2>&1 && echo available || echo missing)"
-printf "agy:%s\n" "$(command -v agy >/dev/null 2>&1 && echo available || echo missing)"
-printf "perplexity:%s\n" "$([ -n "${PERPLEXITY_API_KEY:-}" ] && echo available || echo missing)"
-printf "opencode:%s\n" "$(command -v opencode >/dev/null 2>&1 && echo available || echo missing)"
-printf "copilot:%s\n" "$(command -v copilot >/dev/null 2>&1 && echo available || echo missing)"
-printf "qwen:%s\n" "$(command -v qwen >/dev/null 2>&1 && echo available || echo missing)"
-printf "ollama:%s\n" "$(command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1 && echo available || echo missing)"
-printf "openrouter:%s\n" "$([ -n "${OPENROUTER_API_KEY:-}" ] && echo available || echo missing)"
-echo "PROVIDER_CHECK_END"
-```
-
-Render provider availability from actual provider checks before the plan visualization. Do not hand-write or summarize this provider block; run this block and include its output exactly in the plan. The output MUST include the Antigravity line even when `agy` is missing.
-
-```bash
-status_cli() { command -v "$1" >/dev/null 2>&1 && echo "Available ✓" || echo "Not installed ✗"; }
-status_env() { [[ -n "${1:-}" ]] && echo "Configured ✓" || echo "Not configured ✗"; }
-codex_status="$(status_cli codex)"
-agy_status="$(status_cli agy)"
-opencode_status="$(status_cli opencode)"
-copilot_status="$(status_cli copilot)"
-qwen_status="$(status_cli qwen)"
-if command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then ollama_status="Available ✓"; else ollama_status="Not installed ✗"; fi
-perplexity_status="$(status_env "${PERPLEXITY_API_KEY:-}")"
-cat <<BANNER
-Provider Availability:
-🔴 Codex CLI: ${codex_status}
-🧭 Antigravity CLI: ${agy_status}
-🟤 OpenCode: ${opencode_status}
-🟢 Copilot CLI: ${copilot_status}
-🟠 Qwen CLI: ${qwen_status}
-⚫ Ollama: ${ollama_status}
-🔵 Claude: Available ✓
-🟣 Perplexity: ${perplexity_status}
-BANNER
-```
+Use the `PROVIDER_STATUS` snapshot captured during Provider preflight. Do not
+run another provider check. Include every `provider:status` line between its
+`PROVIDER_CHECK_START` and `PROVIDER_CHECK_END` markers in the visualization.
+Render `available` as ready, `degraded` as needing attention, and `missing` as
+not configured. Preserve provider names exactly so newly registered providers
+appear without another command edit.
 
 **Display a comprehensive plan visualization with ACTUAL provider status:**
 
@@ -416,10 +383,7 @@ Or execute phases individually:
 - `/octo:deliver` (if Deliver > 20%)
 
 ## Provider Requirements
-🔴 Codex CLI: [Available ✓ / Not installed ✗]
-🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
-🟣 Perplexity: [Configured ✓ / Not configured ✗]
-🔵 Claude: Available ✓
+[Render every provider from the retained PROVIDER_STATUS snapshot.]
 
 ## Success Criteria
 [From intent contract]
