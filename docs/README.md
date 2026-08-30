@@ -12,6 +12,7 @@
 
 ## Setup and Operations
 
+- [TROUBLESHOOTING.md](./TROUBLESHOOTING.md): Provider diagnostics, plugin uninstall, and retained-data review
 - [IDE-INTEGRATION.md](./IDE-INTEGRATION.md) — MCP server setup for VS Code, Cursor, and other IDEs
 - [SCHEDULER.md](./SCHEDULER.md) — Scheduled jobs and daemon management
 - [KNOWLEDGE-WORKERS.md](./KNOWLEDGE-WORKERS.md) — Research and strategy-oriented personas

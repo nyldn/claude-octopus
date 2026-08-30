@@ -46,6 +46,43 @@ A provider is used only when its CLI is installed AND its auth check passes. If 
 
 **Empty results from a dispatch that "succeeded"** — check `~/.claude-octopus/results/` for the raw artifact and `~/.claude-octopus/logs/` for the dispatch log. `--verbose` on the next run shows the constructed command.
 
+## Uninstall the plugin and keep local data
+
+Run this from a terminal:
+
+```bash
+claude plugin uninstall octo
+```
+
+If Claude reports a scope mismatch, rerun it with `--scope project`. Reload or
+restart Claude Code afterward so the removed commands and hooks are no longer
+active.
+
+Plugin uninstall does not delete your data. Results and logs remain in
+`~/.claude-octopus/results/` and `~/.claude-octopus/logs/`. Configuration,
+preferences, and other local state remain under `~/.claude-octopus/`. Each
+project's run state remains in its `.octo/` directory. You can reinstall later
+and keep using this data.
+
+## Review retained data before manual removal
+
+Inventory retained paths before deciding what to keep:
+
+```bash
+du -sh "${HOME}/.claude-octopus" 2>/dev/null
+find "${HOME}/.claude-octopus" -mindepth 1 -maxdepth 2 -print 2>/dev/null
+find . -maxdepth 3 -type d -name '.octo' -prune -print
+```
+
+These commands only list paths and disk use. They do not delete anything.
+Archive results, logs, or configuration that you may need. Then review the
+exact paths and require an explicit confirmation before deleting them with your
+shell or file manager. Avoid wildcards and broad parent directories.
+
+Claude Octopus does not provide an automatic purge command. A purge workflow
+would need its own dry run, archive option, exact-path validation, and
+confirmation gate before it could safely remove retained data.
+
 ## Escalation
 
 If `octopus doctor` is green and a workflow still fails, capture `--verbose` output plus the session log and open an issue: https://github.com/nyldn/claude-octopus/issues

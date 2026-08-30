@@ -585,7 +585,7 @@ A SessionStart hook injects the dispatch profile (prompt anti-patterns, judgment
 
 **Session provider controls** — Temporarily disable exhausted providers without uninstalling them. For example, `/octo:model-config disable codex --session` keeps Codex out of provider detection and multi-LLM fanout for the current session; `/octo:model-config clear-allowlist --session` restores the default.
 
-**Clean uninstall** — Run `claude plugin uninstall octo` from your terminal. If you see a scope error, add `--scope project`. No residual config changes.
+**Uninstall the plugin.** Run `claude plugin uninstall octo` from your terminal. If you see a scope error, add `--scope project`. This removes the plugin but does not delete results, logs, configuration, or local state under `~/.claude-octopus/`, nor project state in `.octo/`. Review [uninstall and retained-data guidance](docs/TROUBLESHOOTING.md#uninstall-the-plugin-and-keep-local-data) before removing any of those paths manually.
 
 ---
 
@@ -672,7 +672,7 @@ The extension registers as an OpenClaw plugin with configurable workflows, auton
 No. One external provider plus Claude gives you multi-AI features. No external providers still gives you personas, workflows, and skills.
 
 **Will this break my existing Claude Code setup?**
-No. Activates only with the `octo` prefix. Results stored separately. Uninstalls cleanly.
+No. It activates only with the `octo` prefix, and results are stored separately. Uninstalling the plugin removes its commands and hooks but preserves local data until you choose to remove it.
 
 **What happens if a provider times out?**
 The workflow continues with available providers. You'll see the status in the visual indicators.
