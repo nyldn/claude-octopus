@@ -357,6 +357,7 @@ if (
     export _BARE_OPT="" SUPPORTS_OPUS_5=true SUPPORTS_OPUS_4_8=true
     export SUPPORTS_OPUS_4_7=true SUPPORTS_SDK_MODEL_CAPS=true
     export SUPPORTS_EFFORT_COMMAND=true SUPPORTS_XHIGH_EFFORT=false
+    export SUPPORTS_EFFORT_CLI_FLAG=true
     log() { :; }
     source "$PROJECT_ROOT/scripts/lib/validation.sh"
     source "$PROJECT_ROOT/scripts/lib/model-cache-path.sh"
@@ -405,6 +406,36 @@ if validate_agent_command "env ATTACKER_VALUE=x claude --print --model claude-op
     test_fail "expected an arbitrary env assignment to be rejected"
 else
     test_pass
+fi
+
+test_case "validate_agent_command allows configured Claude wrapper tokens"
+if OCTOPUS_CLAUDE_BIN="clarp --strict-mcp-config" \
+    validate_agent_command "clarp --strict-mcp-config --print --model claude-opus-5 --effort high --allowed-tools Read,Glob,Grep"; then
+    test_pass
+else
+    test_fail "expected the configured Claude wrapper and its fixed flag to be accepted"
+fi
+
+test_case "validate_agent_command allows configured setting-source wrapper tokens"
+if OCTOPUS_CLAUDE_BIN="claude --setting-sources project,local" \
+    validate_agent_command "claude --setting-sources project,local --print --model claude-opus-5 --effort high --allowed-tools Read,Glob,Grep"; then
+    test_pass
+else
+    test_fail "expected fixed configured setting sources to be accepted"
+fi
+
+test_case "validate_agent_command rejects multiline Claude commands"
+if validate_agent_command $'claude --print --model claude-opus-5 --allowed-tools Read,Glob,Grep\necho pwned' >/dev/null 2>&1; then
+    test_fail "expected a multiline command to be rejected"
+else
+    test_pass
+fi
+
+test_case "validate_agent_command allows Codex-host setting isolation"
+if validate_agent_command "claude --setting-sources project,local --print --model claude-opus-5 --effort high --allowed-tools Read,Glob,Grep"; then
+    test_pass
+else
+    test_fail "expected the fixed project,local setting source to be accepted"
 fi
 
 test_case "validate_agent_command rejects unsafe command"

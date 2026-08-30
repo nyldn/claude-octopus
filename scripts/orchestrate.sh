@@ -405,6 +405,7 @@ SUPPORTS_PLUGIN_DIR_OVERRIDE=false     # v8.56: Claude Code v2.1.74+ (--plugin-d
 SUPPORTS_MCP_ELICITATION=false        # v8.57: Claude Code v2.1.76+ (MCP servers can request structured user input mid-task via interactive dialog)
 SUPPORTS_WORKTREE_SPARSE_PATHS=false  # v8.57: Claude Code v2.1.76+ (worktree.sparsePaths setting for sparse checkout in --worktree mode)
 SUPPORTS_EFFORT_COMMAND=false         # v8.57: Claude Code v2.1.76+ (/effort slash command to set model effort level during session)
+SUPPORTS_EFFORT_CLI_FLAG=false        # Spawned Claude CLI exposes --effort in --help
 SUPPORTS_BG_PARTIAL_RESULTS=false     # v8.57: Claude Code v2.1.76+ (killing background agent preserves partial results in conversation context)
 SUPPORTS_ALLOW_READ_SANDBOX=false     # v9.5: Claude Code v2.1.77+ (allowRead sandbox filesystem setting restricts Read tool path access)
 SUPPORTS_COPY_INDEX=false             # v9.5: Claude Code v2.1.77+ (/copy N copies Nth response from conversation history)

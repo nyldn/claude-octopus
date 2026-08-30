@@ -326,6 +326,10 @@ octopus_timeout_remaining() {
 
 spawn_agent() {
     local agent_type="$1"
+    if [[ "$agent_type" == "claude-opus-fast" ]]; then
+        agent_type="claude-opus"
+        log "WARN" "Legacy claude-opus-fast executor normalized to supported standard Claude dispatch"
+    fi
     local prompt="$2"
     local task_id="${3:-$(_octopus_next_spawn_task_id)}"
     local agent_slug
@@ -632,8 +636,7 @@ ${heuristic_ctx}"
         local opus_mode
         opus_mode=$(select_opus_mode "$phase" "$opus_tier" "$session_autonomy")
         if [[ "$opus_mode" == "fast" ]]; then
-            agent_type="claude-opus-fast"
-            log "INFO" "Auto-routing to Opus Fast mode (phase=$phase, tier=$opus_tier, autonomy=$session_autonomy)"
+            log "INFO" "Opus Fast was selected for this context; using supported standard subprocess dispatch"
             log_opus_fast_pricing_warning "$phase" "${role:-}"
         fi
     fi

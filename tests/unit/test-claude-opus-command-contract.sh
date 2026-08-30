@@ -33,6 +33,7 @@ reset_command_env() {
     export SUPPORTS_OPUS_4_7=true
     export SUPPORTS_SDK_MODEL_CAPS=true
     export SUPPORTS_EFFORT_COMMAND=true
+    export SUPPORTS_EFFORT_CLI_FLAG=true
     export SUPPORTS_XHIGH_EFFORT=false
 }
 
@@ -92,10 +93,31 @@ if [[ "${shape_cmd%% *}" == "claude" ]] &&
    [[ "$(token_count "$shape_cmd" --model)" -eq 1 ]] &&
    [[ "$(token_count "$shape_cmd" --print)" -eq 1 ]] &&
    [[ "$(token_count "$shape_cmd" --effort)" -eq 1 ]] &&
-   [[ "$(token_count "$shape_cmd" --fast)" -eq 0 ]]; then
+   [[ "$(token_count "$shape_cmd" --fast)" -eq 0 ]] &&
+   validate_agent_command "$shape_cmd"; then
     test_pass
 else
     test_fail "Claude argv shape is ambiguous: $shape_cmd"
+fi
+
+test_case "version-only effort support does not emit an unproven CLI flag"
+reset_command_env
+export SUPPORTS_EFFORT_CLI_FLAG=false
+version_only_cmd="$(get_agent_command claude-opus discover reviewer 128)"
+if [[ "$version_only_cmd" != *"--effort"* ]] && validate_agent_command "$version_only_cmd"; then
+    test_pass
+else
+    test_fail "version-only support emitted an unproven effort argv flag: $version_only_cmd"
+fi
+
+test_case "xhigh clamps when the configured CLI lacks xhigh support"
+reset_command_env
+export OCTOPUS_EFFORT_OVERRIDE=xhigh SUPPORTS_XHIGH_EFFORT=false
+xhigh_cmd="$(get_agent_command claude-opus develop reviewer 128)"
+if [[ "$xhigh_cmd" == *"--effort high"* ]] && [[ "$xhigh_cmd" != *"--effort xhigh"* ]]; then
+    test_pass
+else
+    test_fail "unsupported xhigh was not clamped: $xhigh_cmd"
 fi
 
 test_case "stub Claude receives only the validated argv contract"

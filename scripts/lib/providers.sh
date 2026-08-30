@@ -218,6 +218,21 @@ detect_claude_code_version() {
         return 1
     fi
 
+    # Version history proves the interactive /effort command, not necessarily
+    # the spawned CLI's --effort argv flag. Probe the configured executable's
+    # help once during capability detection so dispatch never guesses.
+    SUPPORTS_EFFORT_CLI_FLAG=false
+    local -a _claude_capability_cmd
+    local _claude_capability_help=""
+    read -r -a _claude_capability_cmd <<< "${OCTOPUS_CLAUDE_BIN:-claude}"
+    if [[ "${#_claude_capability_cmd[@]}" -gt 0 ]] &&
+       command -v "${_claude_capability_cmd[0]}" >/dev/null 2>&1; then
+        _claude_capability_help="$("${_claude_capability_cmd[@]}" --help 2>/dev/null || true)"
+        if grep -q -- '--effort' <<< "$_claude_capability_help"; then
+            SUPPORTS_EFFORT_CLI_FLAG=true
+        fi
+    fi
+
     # Check for v2.1.12+ features (bash wildcards, basic task management)
     if version_compare "$CLAUDE_CODE_VERSION" "2.1.12" ">="; then
         SUPPORTS_TASK_MANAGEMENT=true

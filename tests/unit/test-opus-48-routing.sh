@@ -8,7 +8,8 @@ set -euo pipefail
 # blocks and feature flags exist. This file exercises the actual resolution
 # decisions the feature is about:
 #   - opus_default_model() returns the right version for each flag combination
-#   - get_agent_command "claude-opus-fast" emits the right --model on the wire
+#   - get_agent_command "claude-opus-fast" preserves the model while using the
+#     supported standard subprocess shape
 #   - get_agent_command "claude-opus" maps phase+complexity to the right effort
 #
 # A regression that, say, made the resolver return 4.7 when 4.8 is supported
@@ -56,7 +57,8 @@ reset_env() {
     unset SUPPORTS_OPUS_5 SUPPORTS_OPUS_4_8 SUPPORTS_OPUS_4_7
     # orchestrate.sh initializes these to false before detection; mirror that so
     # agents.sh never trips over an unset var (it reads SUPPORTS_SDK_MODEL_CAPS bare).
-    export SUPPORTS_EFFORT_COMMAND=false SUPPORTS_XHIGH_EFFORT=false SUPPORTS_SDK_MODEL_CAPS=false
+    export SUPPORTS_EFFORT_COMMAND=false SUPPORTS_EFFORT_CLI_FLAG=false
+    export SUPPORTS_XHIGH_EFFORT=false SUPPORTS_SDK_MODEL_CAPS=false
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -108,27 +110,27 @@ test_default_respects_override() {
 # ═══════════════════════════════════════════════════════════════════════════════
 
 test_fast_uses_5_when_supported() {
-    test_case "claude-opus-fast → claude-opus-5 --fast on Opus 5 host"
+    test_case "claude-opus-fast compatibility → standard claude-opus-5 dispatch"
     reset_env
     export SUPPORTS_OPUS_5=true SUPPORTS_OPUS_4_8=true
     local got; got="$(get_agent_command claude-opus-fast)"
-    [[ "$got" == *"--model claude-opus-5 --fast"* ]] && test_pass || test_fail "expected Opus 5 fast, got: $got"
+    [[ "$got" == *"--model claude-opus-5"* && "$got" != *"--fast"* ]] && test_pass || test_fail "expected standard Opus 5 compatibility dispatch, got: $got"
 }
 
 test_fast_falls_back_to_48() {
-    test_case "claude-opus-fast → claude-opus-4-8 --fast when Opus 5 unsupported"
+    test_case "claude-opus-fast compatibility → standard 4.8 when Opus 5 unsupported"
     reset_env
     export SUPPORTS_OPUS_5=false SUPPORTS_OPUS_4_8=true
     local got; got="$(get_agent_command claude-opus-fast)"
-    [[ "$got" == *"--model claude-opus-4-8 --fast"* ]] && test_pass || test_fail "expected 4-8 fast, got: $got"
+    [[ "$got" == *"--model claude-opus-4-8"* && "$got" != *"--fast"* ]] && test_pass || test_fail "expected standard 4.8 compatibility dispatch, got: $got"
 }
 
 test_fast_legacy_pin_wins() {
-    test_case "claude-opus-fast → 4-6 fast when OCTOPUS_OPUS_MODEL pins 4.6 even on 4.8 host"
+    test_case "claude-opus-fast compatibility preserves explicit 4.6 pin"
     reset_env
     export SUPPORTS_OPUS_5=true SUPPORTS_OPUS_4_8=true OCTOPUS_OPUS_MODEL="claude-opus-4.6"
     local got; got="$(get_agent_command claude-opus-fast)"
-    [[ "$got" == *"--model claude-opus-4-6 --fast"* ]] && test_pass || test_fail "expected legacy 4-6 fast, got: $got"
+    [[ "$got" == *"--model claude-opus-4-6"* && "$got" != *"--fast"* ]] && test_pass || test_fail "expected standard pinned 4.6 dispatch, got: $got"
 }
 
 test_fast_model_override_rejects_word_split_injection() {
@@ -149,8 +151,8 @@ test_fast_honors_claude_model_allowlist() {
     reset_env
     export SUPPORTS_OPUS_5=true OCTOPUS_CLAUDE_ALLOWED_MODELS="claude-opus-4.6"
     local got; got="$(get_agent_command claude-opus-fast)"
-    [[ "$got" == *"--model claude-opus-4-6 --fast"* ]] &&
-        test_pass || test_fail "expected allowlisted 4.6 fast fallback, got: $got"
+    [[ "$got" == *"--model claude-opus-4-6"* && "$got" != *"--fast"* ]] &&
+        test_pass || test_fail "expected allowlisted standard 4.6 fallback, got: $got"
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -159,28 +161,29 @@ test_fast_honors_claude_model_allowlist() {
 
 # Effort mapping needs the SDK model-caps path live.
 enable_effort() {
-    export SUPPORTS_SDK_MODEL_CAPS=true SUPPORTS_XHIGH_EFFORT=true SUPPORTS_EFFORT_COMMAND=true
+    export SUPPORTS_SDK_MODEL_CAPS=true SUPPORTS_XHIGH_EFFORT=true
+    export SUPPORTS_EFFORT_COMMAND=true SUPPORTS_EFFORT_CLI_FLAG=true
 }
 
 test_effort_discover_is_high() {
     test_case "claude-opus discover → effort high"
     reset_env; enable_effort
     local got; got="$(get_agent_command claude-opus discover)"
-    [[ "$got" == *"CLAUDE_CODE_EFFORT_LEVEL=high "* ]] && test_pass || test_fail "expected high, got: $got"
+    [[ "$got" == *"--effort high"* ]] && test_pass || test_fail "expected high, got: $got"
 }
 
 test_effort_develop_is_high_on_opus5() {
     test_case "claude-opus develop → effort high by default on Opus 5"
     reset_env; enable_effort; export SUPPORTS_OPUS_5=true
     local got; got="$(get_agent_command claude-opus develop)"
-    [[ "$got" == *"CLAUDE_CODE_EFFORT_LEVEL=high "* ]] && test_pass || test_fail "expected high, got: $got"
+    [[ "$got" == *"--effort high"* ]] && test_pass || test_fail "expected high, got: $got"
 }
 
 test_effort_deliver_is_high_on_opus5() {
     test_case "claude-opus deliver → effort high by default on Opus 5"
     reset_env; enable_effort; export SUPPORTS_OPUS_5=true
     local got; got="$(get_agent_command claude-opus deliver)"
-    [[ "$got" == *"CLAUDE_CODE_EFFORT_LEVEL=high "* ]] && test_pass || test_fail "expected high, got: $got"
+    [[ "$got" == *"--effort high"* ]] && test_pass || test_fail "expected high, got: $got"
 }
 
 test_effort_opus5_xhigh_opt_in() {
@@ -188,7 +191,7 @@ test_effort_opus5_xhigh_opt_in() {
     reset_env; enable_effort
     export SUPPORTS_OPUS_5=true OCTOPUS_OPUS5_AUTO_XHIGH=1
     local got; got="$(get_agent_command claude-opus develop)"
-    [[ "$got" == *"CLAUDE_CODE_EFFORT_LEVEL=xhigh "* ]] && test_pass || test_fail "expected xhigh opt-in, got: $got"
+    [[ "$got" == *"--effort xhigh"* ]] && test_pass || test_fail "expected xhigh opt-in, got: $got"
     unset OCTOPUS_OPUS5_AUTO_XHIGH
 }
 
@@ -196,7 +199,7 @@ test_effort_define_is_high() {
     test_case "claude-opus define → effort high (ordinary scoping)"
     reset_env; enable_effort
     local got; got="$(get_agent_command claude-opus define)"
-    [[ "$got" == *"CLAUDE_CODE_EFFORT_LEVEL=high "* ]] && test_pass || test_fail "expected high, got: $got"
+    [[ "$got" == *"--effort high"* ]] && test_pass || test_fail "expected high, got: $got"
 }
 
 test_effort_override_respected() {
@@ -204,16 +207,16 @@ test_effort_override_respected() {
     reset_env; enable_effort
     export OCTOPUS_EFFORT_OVERRIDE=low
     local got; got="$(get_agent_command claude-opus develop)"
-    [[ "$got" == *"CLAUDE_CODE_EFFORT_LEVEL=low "* ]] && test_pass || test_fail "expected low, got: $got"
+    [[ "$got" == *"--effort low"* ]] && test_pass || test_fail "expected low, got: $got"
 }
 
 test_effort_omitted_when_unsupported() {
-    test_case "claude-opus → no effort env prefix when host lacks effort support"
+    test_case "claude-opus → no effort flag when host lacks effort support"
     reset_env
     export SUPPORTS_OPUS_5=true
-    export SUPPORTS_EFFORT_COMMAND=false SUPPORTS_XHIGH_EFFORT=false
+    export SUPPORTS_EFFORT_COMMAND=false SUPPORTS_EFFORT_CLI_FLAG=false SUPPORTS_XHIGH_EFFORT=false
     local got; got="$(get_agent_command claude-opus develop)"
-    if [[ "$got" != *"CLAUDE_CODE_EFFORT_LEVEL="* && "$got" == *"--model claude-opus-5"* ]]; then
+    if [[ "$got" != *"--effort"* && "$got" == *"--model claude-opus-5"* ]]; then
         test_pass
     else
         test_fail "expected plain '--model opus' with no effort prefix, got: $got"
@@ -258,7 +261,7 @@ test_opus_rejects_unsafe_allowlist_fallback() {
 test_effort_override_rejects_word_split_injection() {
     test_case "claude-opus rejects an unsafe effort token before command serialization"
     reset_env
-    export SUPPORTS_OPUS_5=true SUPPORTS_EFFORT_COMMAND=true
+    export SUPPORTS_OPUS_5=true SUPPORTS_EFFORT_COMMAND=true SUPPORTS_EFFORT_CLI_FLAG=true
     export OCTOPUS_EFFORT_OVERRIDE="high EXTRA_ARG"
     # Exercise dispatch.sh's defensive path directly; agents.sh normally rejects
     # this override earlier, but command construction must remain safe on its own.

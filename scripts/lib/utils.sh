@@ -302,11 +302,105 @@ _validate_openai_compatible_agent_command() {
     [[ -n "$provider" && -n "$model" && -n "$cwd" ]]
 }
 
+_validate_claude_agent_command() {
+    local cmd="$1"
+    local configured_bin="${OCTOPUS_CLAUDE_BIN:-claude}"
+    local -a parts configured_parts
+    read -r -a parts <<< "$cmd"
+    read -r -a configured_parts <<< "$configured_bin"
+
+    [[ "$cmd" != *$'\n'* && "$cmd" != *$'\r'* ]] || return 1
+    [[ "${#parts[@]}" -gt 0 && "${#configured_parts[@]}" -gt 0 ]] || return 1
+    [[ "${configured_parts[0]}" =~ ^[A-Za-z0-9_./-]+$ ]] || return 1
+
+    local i=0 configured_index=0
+    while [[ $configured_index -lt ${#configured_parts[@]} ]]; do
+        local configured_token="${configured_parts[$configured_index]}"
+        [[ $i -lt ${#parts[@]} && "${parts[$i]}" == "$configured_token" ]] || return 1
+        if [[ $configured_index -gt 0 ]]; then
+            case "$configured_token" in
+                --strict-mcp-config) ;;
+                --setting-sources)
+                    [[ $((configured_index + 1)) -lt ${#configured_parts[@]} ]] || return 1
+                    [[ "${configured_parts[$((configured_index + 1))]}" == "project,local" ]] || return 1
+                    configured_index=$((configured_index + 1))
+                    i=$((i + 1))
+                    [[ $i -lt ${#parts[@]} && "${parts[$i]}" == "project,local" ]] || return 1
+                    ;;
+                *) return 1 ;;
+            esac
+        fi
+        configured_index=$((configured_index + 1))
+        i=$((i + 1))
+    done
+
+    local saw_print=false saw_model=false saw_effort=false
+    local saw_permission=false saw_tools=false saw_bare=false saw_settings=false
+    while [[ $i -lt ${#parts[@]} ]]; do
+        local flag="${parts[$i]}"
+        case "$flag" in
+            --bare)
+                [[ "$saw_bare" == false ]] || return 1
+                saw_bare=true
+                i=$((i + 1))
+                ;;
+            --setting-sources)
+                [[ "$saw_settings" == false && $((i + 1)) -lt ${#parts[@]} ]] || return 1
+                [[ "${parts[$((i + 1))]}" == "project,local" ]] || return 1
+                saw_settings=true
+                i=$((i + 2))
+                ;;
+            --print)
+                [[ "$saw_print" == false ]] || return 1
+                saw_print=true
+                i=$((i + 1))
+                ;;
+            --model)
+                [[ "$saw_model" == false && $((i + 1)) -lt ${#parts[@]} ]] || return 1
+                [[ "${parts[$((i + 1))]}" =~ ^[A-Za-z0-9][A-Za-z0-9._:/-]*$ ]] || return 1
+                saw_model=true
+                i=$((i + 2))
+                ;;
+            --effort)
+                [[ "$saw_effort" == false && $((i + 1)) -lt ${#parts[@]} ]] || return 1
+                case "${parts[$((i + 1))]}" in
+                    low|medium|high|xhigh|max) ;;
+                    *) return 1 ;;
+                esac
+                saw_effort=true
+                i=$((i + 2))
+                ;;
+            --permission-mode)
+                [[ "$saw_permission" == false && $((i + 1)) -lt ${#parts[@]} ]] || return 1
+                [[ "${parts[$((i + 1))]}" == "acceptEdits" ]] || return 1
+                saw_permission=true
+                i=$((i + 2))
+                ;;
+            --allowed-tools)
+                [[ "$saw_tools" == false && $((i + 1)) -lt ${#parts[@]} ]] || return 1
+                case "${parts[$((i + 1))]}" in
+                    Read,Glob,Grep|Read,Glob,Grep,Edit,Write) ;;
+                    *) return 1 ;;
+                esac
+                saw_tools=true
+                i=$((i + 2))
+                ;;
+            *)
+                return 1
+                ;;
+        esac
+    done
+
+    [[ "$saw_print" == true && "$saw_model" == true && "$saw_tools" == true ]]
+}
+
 # Validate agent command to prevent command injection
 # Only allows whitelisted command prefixes
 validate_agent_command() {
     local cmd="$1"
     local cmd_executable="${cmd%%[[:space:]]*}"
+    local configured_claude="${OCTOPUS_CLAUDE_BIN:-claude}"
+    local configured_claude_executable="${configured_claude%%[[:space:]]*}"
 
     # Allow helper shims only when they are the executable token, not when they
     # appear later in the command string. OpenAI-compatible helper arguments are
@@ -333,14 +427,16 @@ validate_agent_command() {
             return 0
         fi
     fi
+    if [[ "$cmd_executable" == "$configured_claude_executable" ]]; then
+        _validate_claude_agent_command "$cmd"
+        return $?
+    fi
 
     # Whitelist of allowed command prefixes (v7.19.0: tightened to exact patterns)
     case "$cmd" in
         "codex "*|"codex")
             return 0 ;;
         "agy "*|"agy")
-            return 0 ;;
-        "claude "*|"claude")
             return 0 ;;
         "openrouter_execute"*) # openrouter_execute and openrouter_execute_model
             return 0 ;;

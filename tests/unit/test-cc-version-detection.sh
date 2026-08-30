@@ -69,6 +69,20 @@ for flag in SUPPORTS_MCP_ELICITATION SUPPORTS_WORKTREE_SPARSE_PATHS \
     fi
 done
 
+if grep -c 'SUPPORTS_EFFORT_CLI_FLAG=false' "$ORCH" >/dev/null 2>&1; then
+    pass "Declaration: SUPPORTS_EFFORT_CLI_FLAG"
+else
+    fail "Declaration: SUPPORTS_EFFORT_CLI_FLAG" "missing runtime CLI effort capability flag"
+fi
+
+if grep -q -- '--help' "$PROJECT_ROOT/scripts/lib/providers.sh" &&
+   grep -q -- "'--effort'" "$PROJECT_ROOT/scripts/lib/providers.sh" &&
+   grep -q 'SUPPORTS_EFFORT_CLI_FLAG=true' "$PROJECT_ROOT/scripts/lib/providers.sh"; then
+    pass "CLI help detection: SUPPORTS_EFFORT_CLI_FLAG"
+else
+    fail "CLI help detection: SUPPORTS_EFFORT_CLI_FLAG" "missing --help-based effort argv detection"
+fi
+
 # v2.1.77 flags
 for flag in SUPPORTS_ALLOW_READ_SANDBOX SUPPORTS_COPY_INDEX \
             SUPPORTS_COMPOUND_BASH_PERMISSION_FIX SUPPORTS_RESUME_TRUNCATION_FIX \
