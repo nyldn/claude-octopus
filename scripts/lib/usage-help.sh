@@ -5,6 +5,18 @@ _usage_help_registry_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_usage_help_registry_dir}/provider-registry.sh" || { echo "usage-help: failed to load provider-registry.sh" >&2; return 1 2>/dev/null || exit 1; }
 source "${_usage_help_registry_dir}/provider-policy.sh" || { echo "usage-help: failed to load provider-policy.sh" >&2; return 1 2>/dev/null || exit 1; }
 
+# Override the legacy cost.sh renderer after it is sourced by orchestrate.sh.
+# All interactive cost and usage reports now use one parser and pricing table.
+generate_usage_report() {
+    local format="${1:-table}"
+    local helper="${_usage_help_registry_dir}/../helpers/usage-report.sh"
+    if [[ ! -x "$helper" ]]; then
+        echo "usage-report helper is unavailable: $helper" >&2
+        return 1
+    fi
+    bash "$helper" --view costs --format "$format"
+}
+
 generate_zsh_completion() {
     cat << 'ZSH_COMPLETION'
 #compdef orchestrate.sh claude-octopus

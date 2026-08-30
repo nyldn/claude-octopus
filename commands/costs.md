@@ -1,159 +1,32 @@
 ---
 command: costs
 disable-model-invocation: true
-description: "[advanced] Show cost breakdown by provider and workflow for the current session"
-allowed-tools: Bash, Read, Glob, Grep
+description: "[advanced] Compatibility view of the deterministic Octopus usage report"
+allowed-tools: Bash
 ---
 
 # Cost Dashboard (/octo:costs)
 
 **Your first output line MUST be:** `🐙 Octopus Cost Dashboard`
 
-Display a cost breakdown by provider and workflow for the current session (and cumulative history).
+This v10 compatibility command shows the cost-focused view of `/octo:usage`.
+It is scheduled for removal in v11.
 
 ## EXECUTION CONTRACT (Mandatory)
 
-When the user invokes `/octo:costs`, you MUST follow these steps in order.
-
-### STEP 1: Locate Usage Data
-
-Search for session usage data in these locations (check all, use whichever exist):
-
-```text
-~/.claude-octopus/usage/           # Per-session usage logs
-~/.claude-octopus/routing.log      # Routing decisions with timestamps
-~/.claude-octopus/sessions/        # Session state files
-.claude-octopus/                   # Project-local usage data
-```
-
-Use the Bash tool to list and read files:
+When the user invokes `/octo:costs`, run the helper once with the Bash tool:
 
 ```bash
-ls -la ~/.claude-octopus/usage/ 2>/dev/null || echo "No usage directory"
-ls -la ~/.claude-octopus/routing.log 2>/dev/null || echo "No routing log"
-ls -la ~/.claude-octopus/sessions/ 2>/dev/null || echo "No sessions directory"
-ls -la .claude-octopus/ 2>/dev/null || echo "No project-local usage data"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+helper="$OCTO_ROOT/scripts/helpers/usage-report.sh"
+if [[ ! -x "$helper" ]]; then
+  echo "ERROR: Claude Octopus usage report helper is unavailable. Run /octo:setup." >&2
+  exit 1
+fi
+"$helper" --view costs --format table
 ```
 
-### STEP 2: Parse Provider Usage
-
-For each provider found in the usage data, extract:
-- **Tokens in** (input/prompt tokens)
-- **Tokens out** (output/completion tokens)
-- **Query count** (number of invocations)
-- **Estimated cost** (calculated from the Cost Reference table below)
-
-### STEP 3: Display Per-Provider Breakdown
-
-Format as a clean ASCII table:
-
-```text
-Provider Cost Breakdown
-============================================================
-Provider           Tokens In   Tokens Out   Queries   Est Cost
-------------------------------------------------------------
-Claude Opus 5        45,200       12,800         3     $0.55
-Claude Sonnet 5     128,000       34,500        12     $0.90
-Codex CLI                 -            -         8     $0.64
-Perplexity                -            -         2     $0.06
-------------------------------------------------------------
-TOTAL                                           29     $2.23
-============================================================
-```
-
-For providers where only query counts are available (Codex, Antigravity, Perplexity), use the midpoint or included-access estimate from the reference table. Show $0.00 for free providers or unused providers.
-
-### STEP 4: Display Per-Workflow Breakdown
-
-Group costs by workflow/command that triggered them:
-
-```text
-Workflow Cost Breakdown
-============================================================
-Workflow             Providers Used         Queries   Est Cost
-------------------------------------------------------------
-/octo:discover       Claude, Codex, agy           8     $0.42
-/octo:develop        Claude, Codex                 6     $1.01
-/octo:review         Claude, Codex, agy            9     $0.58
-/octo:debate         Claude, Codex, agy            6     $0.22
-------------------------------------------------------------
-TOTAL                                             29     $2.23
-============================================================
-```
-
-### STEP 5: Display Session vs Cumulative View
-
-Show both the current session totals and cumulative totals (if historical data exists):
-
-```text
-Session Summary
-============================================================
-Current Session:   $2.23  (29 queries, started 2h 15m ago)
-Cumulative (7d):   $8.42  (156 queries across 12 sessions)
-Cumulative (30d): $34.18  (612 queries across 47 sessions)
-============================================================
-```
-
-If cumulative data is not available, show only the current session.
-
-### STEP 6: Handle No Data
-
-If no usage data exists at all, display:
-
-```text
-No usage data found.
-
-Claude Octopus tracks provider usage in:
-  ~/.claude-octopus/usage/     (per-session logs)
-  ~/.claude-octopus/routing.log (routing decisions)
-
-Usage data is recorded automatically when you run workflows like:
-  /octo:discover   - Multi-AI research
-  /octo:develop    - Multi-AI implementation
-  /octo:review     - Multi-AI code review
-  /octo:debate     - Multi-AI deliberation
-  /octo:embrace    - Full 4-phase lifecycle
-
-Run any multi-AI workflow to start tracking costs.
-```
-
-## Cost Reference
-
-These are the current per-provider cost estimates used for calculations:
-
-| Provider | Input | Output | Per-Query Estimate |
-|----------|-------|--------|--------------------|
-| Claude Opus 5 | $5/MTok | $25/MTok | varies by tokens |
-| Claude Sonnet 5 | $3/MTok | $15/MTok | varies by tokens |
-| Codex GPT-5.6 Sol | $5/MTok | $30/MTok | varies by tokens or subscription |
-| Codex CLI | - | - | ~$0.01-0.15/query |
-| Antigravity CLI (`agy`) | - | - | Included with user's Antigravity access/subscription |
-| Perplexity | - | - | ~$0.01-0.05/query |
-
-**Notes:**
-- Claude Sonnet 5 and Opus 5 may be included with the user's Claude Code plan; API-key seats use the rates above
-- Codex, Perplexity, and Antigravity usage are charged to the user's own provider credentials, subscriptions, or local auth
-- Fast Opus 5 mode ($10/$50 MTok) is 2x standard pricing; legacy Opus 4.6 fast remains $30/$150
-
-## Examples
-
-```text
-/octo:costs                    # Show current session costs
-/octo:costs                    # After running several workflows
-```
-
-## Validation Gates
-
-- Usage data locations checked (all four paths)
-- Per-provider breakdown displayed with token counts and estimated costs
-- Per-workflow breakdown displayed with provider attribution
-- Session and cumulative views shown when data is available
-- Helpful guidance shown when no data exists
-- All costs formatted to 2 decimal places with $ prefix
-
-## Prohibited Actions
-
-- Fabricating usage data that does not exist in the filesystem
-- Showing only one view (must attempt both provider and workflow breakdowns)
-- Omitting $0.00 entries for available but unused providers
-- Rounding costs to whole dollars (always show cents)
+If the user requests JSON, run the same helper with `--format json`. Show its
+output exactly. The helper owns pricing, session aggregation, provider rows,
+and the workflow cost breakdown. Do not inspect usage files or calculate rates
+inside the model response.

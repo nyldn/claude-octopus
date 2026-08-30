@@ -68,20 +68,14 @@ test_costs_registered_in_plugin_json() {
 
 # ── Content validation ──────────────────────────────────────────────
 
-test_costs_has_provider_cost_references() {
-    test_case "contains provider cost reference table"
-    local content
-    content=$(<"$COSTS_CMD")
-    local found=0
-    for provider in "Claude Opus" "Claude Sonnet" "Codex CLI" "Antigravity" "Perplexity"; do
-        if echo "$content" | grep -c "$provider" >/dev/null 2>&1; then
-            found=$((found + 1))
-        fi
-    done
-    if [[ $found -ge 4 ]]; then
+test_costs_uses_deterministic_helper() {
+    test_case "delegates cost calculation to usage-report.sh"
+    if grep -Fq 'scripts/helpers/usage-report.sh' "$COSTS_CMD" &&
+       grep -Fq -- '--view costs' "$COSTS_CMD" &&
+       ! grep -Eq 'STEP 2: Parse|Per-Query Estimate|calculated from the Cost Reference' "$COSTS_CMD"; then
         test_pass
     else
-        test_fail "expected at least 4 provider cost references, found $found"
+        test_fail "costs.md must delegate to usage-report.sh --view costs without model-side math"
     fi
 }
 
@@ -94,12 +88,12 @@ test_costs_mentions_session_view() {
     fi
 }
 
-test_costs_mentions_cumulative_view() {
-    test_case "mentions cumulative view"
-    if grep -ci 'cumulative' "$COSTS_CMD" >/dev/null 2>&1; then
+test_costs_mentions_compatibility_destination() {
+    test_case "identifies /octo:usage as the canonical destination"
+    if grep -Fq '/octo:usage' "$COSTS_CMD"; then
         test_pass
     else
-        test_fail "no mention of cumulative view"
+        test_fail "costs compatibility command must name /octo:usage"
     fi
 }
 
@@ -139,9 +133,9 @@ test_costs_has_frontmatter
 test_costs_frontmatter_command_field
 test_costs_frontmatter_description
 test_costs_registered_in_plugin_json
-test_costs_has_provider_cost_references
+test_costs_uses_deterministic_helper
 test_costs_mentions_session_view
-test_costs_mentions_cumulative_view
+test_costs_mentions_compatibility_destination
 test_costs_has_workflow_breakdown
 test_costs_no_attribution_references
 

@@ -47,6 +47,14 @@ assert_compatibility_entry "budget-mode" "model-config" "budget"
 assert_compatibility_entry "standard-mode" "model-config" "standard"
 assert_compatibility_entry "premium-mode" "model-config" "premium"
 assert_compatibility_entry "octo" "auto"
+assert_compatibility_entry "costs" "usage"
+
+test_case "/octo:costs preserves the costs view argument"
+if jq -e '.entries[] | select(.command == "costs") | .arguments.view == "costs"' "$TABLE" >/dev/null; then
+  test_pass
+else
+  test_fail "costs must redirect to the costs view of usage"
+fi
 
 for mode in budget standard premium; do
   command_file="$PROJECT_ROOT/commands/${mode}-mode.md"
@@ -76,7 +84,7 @@ while IFS= read -r command_name; do
     printf 'unregistered compatibility command: %s\n' "$command_name"
     unregistered=$((unregistered + 1))
   fi
-done < <(printf '%s\n' budget-mode standard-mode premium-mode octo)
+done < <(printf '%s\n' budget-mode standard-mode premium-mode octo costs)
 
 if [[ "$unregistered" -eq 0 ]]; then
   test_pass

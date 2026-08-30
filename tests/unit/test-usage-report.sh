@@ -32,6 +32,10 @@ report() {
     bash "$HELPER" --format json --usage-dir "$TMP_DIR/usage" --results-dir "$TMP_DIR/results"
 }
 
+cost_report() {
+    bash "$HELPER" --view costs --format json --usage-dir "$TMP_DIR/usage" --results-dir "$TMP_DIR/results"
+}
+
 test_case "json output matches claude-code/usage-v1 schema shape"
 out="$(report)"
 if python3 -c "
@@ -103,12 +107,44 @@ else
     test_fail "skill/mcp grouping wrong: $out"
 fi
 
+test_case "costs view uses the same deterministic totals"
+cost_out="$(cost_report)"
+if python3 -c "
+import json, sys
+usage = json.loads(sys.argv[1])
+costs = json.loads(sys.argv[2])
+assert costs['view'] == 'costs'
+assert usage['totals'] == costs['totals']
+assert usage['byProvider'] == costs['byProvider']
+" "$out" "$cost_out" 2>/dev/null; then
+    test_pass
+else
+    test_fail "costs view diverged from usage calculator: $cost_out"
+fi
+
 test_case "table format prints provider rows"
 table_out="$(bash "$HELPER" --format table --usage-dir "$TMP_DIR/usage" --results-dir "$TMP_DIR/results")"
 if [[ "$table_out" == *"Provider Usage Breakdown"* && "$table_out" == *"codex"* && "$table_out" == *"TOTAL:"* ]]; then
     test_pass
 else
     test_fail "table output missing expected rows: $table_out"
+fi
+
+test_case "costs table uses cost-focused headings"
+cost_table_out="$(bash "$HELPER" --view costs --format table --usage-dir "$TMP_DIR/usage" --results-dir "$TMP_DIR/results")"
+if [[ "$cost_table_out" == *"Provider Cost Breakdown"* && "$cost_table_out" == *"Workflow Cost Breakdown"* ]]; then
+    test_pass
+else
+    test_fail "costs view headings are missing: $cost_table_out"
+fi
+
+test_case "csv export comes from the shared report"
+csv_out="$(bash "$HELPER" --view costs --format csv --usage-dir "$TMP_DIR/usage" --results-dir "$TMP_DIR/results")"
+if [[ "$csv_out" == group,name,queries,tokens_in,tokens_out,est_cost_usd$'\n'* ]] &&
+   [[ "$csv_out" == *$'\ntotal,'* ]]; then
+    test_pass
+else
+    test_fail "csv output is missing its shared schema or total row: $csv_out"
 fi
 
 test_case "empty usage dir reports no records instead of fabricating"
@@ -126,6 +162,21 @@ if bash "$HELPER" --format xml --usage-dir "$TMP_DIR/usage" 2>/dev/null; then
     test_fail "expected nonzero exit for --format xml"
 else
     test_pass
+fi
+
+test_case "rejects unknown view"
+if bash "$HELPER" --view forecast --usage-dir "$TMP_DIR/usage" 2>/dev/null; then
+    test_fail "expected nonzero exit for --view forecast"
+else
+    test_pass
+fi
+
+test_case "shell cost help routes to the deterministic helper"
+if grep -Fq 'usage-report.sh' "$PROJECT_ROOT/scripts/lib/usage-help.sh" &&
+   grep -Fq -- '--view costs' "$PROJECT_ROOT/scripts/lib/usage-help.sh"; then
+    test_pass
+else
+    test_fail "shell cost reporting must delegate to usage-report.sh --view costs"
 fi
 
 test_summary

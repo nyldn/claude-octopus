@@ -17,14 +17,14 @@ Produce a per-provider, per-skill, and per-MCP-server cost and token breakdown f
 
 ```bash
 OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
-"$OCTO_ROOT/scripts/helpers/usage-report.sh" --format table
+"$OCTO_ROOT/scripts/helpers/usage-report.sh" --view usage --format table
 ```
 
 If the user asked for machine-readable output (or passed `--format json`):
 
 ```bash
 OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
-"$OCTO_ROOT/scripts/helpers/usage-report.sh" --format json
+"$OCTO_ROOT/scripts/helpers/usage-report.sh" --view usage --format json
 ```
 
 The helper reads:
@@ -42,6 +42,8 @@ Show the helper's table output directly. Then add a one-paragraph interpretation
 
 If the helper prints `No usage records found`, say so and point the user at `OCTOPUS_SUBAGENT_GATE_STRICT` and the SubagentStop gate hook (`hooks/subagent-stop-gate.sh`), which populates the usage log as subagents complete. Do not fabricate numbers.
 
-## Cost Reference
+## Cost reference
 
-Rates come from the table embedded in `scripts/helpers/usage-report.sh` and mirror the cost table in CLAUDE.md ($/MTok input/output). Providers with subscription or local backends (agy, copilot, ollama, cursor-agent, opencode native) report $0.00.
+Rates come from `config/model-pricing.tsv`. The helper is the only calculator.
+Providers with subscription or local backends such as agy, Copilot, Ollama,
+Cursor Agent, and native OpenCode report $0.00.

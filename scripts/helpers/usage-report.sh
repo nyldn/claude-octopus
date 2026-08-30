@@ -6,10 +6,12 @@
 # (written by hooks/subagent-stop-gate.sh and any provider adapters) plus
 # summary.json artifacts under the results dir.
 #
-# Usage: usage-report.sh [--format table|json] [--usage-dir DIR] [--results-dir DIR]
+# Usage: usage-report.sh [--view usage|costs] [--format table|json|csv]
+#                        [--usage-dir DIR] [--results-dir DIR]
 set -euo pipefail
 
 FORMAT="table"
+VIEW="usage"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODEL_PRICING_FILE="${OCTOPUS_MODEL_PRICING_FILE:-${SCRIPT_DIR}/../../config/model-pricing.tsv}"
 WORKSPACE_DIR="${OCTOPUS_WORKSPACE:-${HOME}/.claude-octopus}"
@@ -25,14 +27,19 @@ log() {
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --format)      FORMAT="${2:-table}"; shift 2 ;;
+        --view)        VIEW="${2:-usage}"; shift 2 ;;
         --usage-dir)   USAGE_DIR="${2:?}"; shift 2 ;;
         --results-dir) RESULTS_DIR="${2:?}"; shift 2 ;;
         *) log ERROR "unknown argument: $1"; exit 64 ;;
     esac
 done
 
-if [[ "$FORMAT" != "table" && "$FORMAT" != "json" ]]; then
-    log ERROR "--format must be 'table' or 'json'"
+if [[ "$FORMAT" != "table" && "$FORMAT" != "json" && "$FORMAT" != "csv" ]]; then
+    log ERROR "--format must be 'table', 'json', or 'csv'"
+    exit 64
+fi
+if [[ "$VIEW" != "usage" && "$VIEW" != "costs" ]]; then
+    log ERROR "--view must be 'usage' or 'costs'"
     exit 64
 fi
 
@@ -49,14 +56,16 @@ env \
 "_OCTOPUS_USAGE_DIR=${USAGE_DIR}" \
 "_OCTOPUS_RESULTS_DIR=${RESULTS_DIR}" \
 "_OCTOPUS_FORMAT=${FORMAT}" \
+"_OCTOPUS_VIEW=${VIEW}" \
 "_OCTOPUS_MODEL_PRICING_FILE=${MODEL_PRICING_FILE}" \
 python3 - <<'PYEOF'
-import glob, json, os, sys
+import csv, glob, json, os, sys
 from collections import defaultdict
 
 usage_dir = os.environ["_OCTOPUS_USAGE_DIR"]
 results_dir = os.environ["_OCTOPUS_RESULTS_DIR"]
 fmt = os.environ["_OCTOPUS_FORMAT"]
+view = os.environ["_OCTOPUS_VIEW"]
 pricing_file = os.environ["_OCTOPUS_MODEL_PRICING_FILE"]
 
 # One checked-in table is shared with scripts/lib/cost.sh. Model-specific rates
@@ -181,6 +190,7 @@ def rows(d):
 
 report = {
     "schema": "claude-code/usage-v1",
+    "view": view,
     "totals": {**totals, "est_cost_usd": round(totals["est_cost_usd"], 4)},
     "byProvider": rows(by_provider),
     "bySkill": rows(by_skill),
@@ -189,6 +199,21 @@ report = {
 
 if fmt == "json":
     print(json.dumps(report, indent=2))
+    sys.exit(0)
+
+if fmt == "csv":
+    writer = csv.writer(sys.stdout, lineterminator="\n")
+    writer.writerow(["group", "name", "queries", "tokens_in", "tokens_out", "est_cost_usd"])
+    for group, items in (("provider", report["byProvider"]),
+                         ("skill", report["bySkill"]),
+                         ("mcp", report["byMcpServer"])):
+        for item in items:
+            writer.writerow([group, item["name"], item["queries"],
+                             item["tokens_in"], item["tokens_out"],
+                             f'{item["est_cost_usd"]:.4f}'])
+    total = report["totals"]
+    writer.writerow(["total", "", total["queries"], total["tokens_in"],
+                     total["tokens_out"], f'{total["est_cost_usd"]:.4f}'])
     sys.exit(0)
 
 def table(title, items):
@@ -205,9 +230,11 @@ if not records:
     print("No usage records found in", usage_dir)
     sys.exit(0)
 
-table("Provider Usage Breakdown", report["byProvider"])
+provider_title = "Provider Cost Breakdown" if view == "costs" else "Provider Usage Breakdown"
+skill_title = "Workflow Cost Breakdown" if view == "costs" else "Skill Usage Breakdown"
+table(provider_title, report["byProvider"])
 if report["bySkill"]:
-    table("Skill Usage Breakdown", report["bySkill"])
+    table(skill_title, report["bySkill"])
 if report["byMcpServer"]:
     table("MCP Server Usage Breakdown", report["byMcpServer"])
 t = report["totals"]

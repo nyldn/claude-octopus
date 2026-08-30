@@ -30,6 +30,14 @@
       "destination": "auto",
       "arguments": {},
       "removal_version": "11.0.0"
+    },
+    {
+      "command": "costs",
+      "destination": "usage",
+      "arguments": {
+        "view": "costs"
+      },
+      "removal_version": "11.0.0"
     }
   ]
 }

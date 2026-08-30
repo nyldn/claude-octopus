@@ -77,7 +77,7 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "brainstorm", description: "Start a creative thought partner brainstorming session", type: "command", file: "brainstorm.md" },
   { name: "budget-mode", description: "Switch Octopus model routing to the configured budget tier", type: "command", file: "budget-mode.md" },
   { name: "careful", description: "[advanced] Activate destructive command warnings for the session", type: "command", file: "careful.md" },
-  { name: "costs", description: "[advanced] Show cost breakdown by provider and workflow for the current session", type: "command", file: "costs.md" },
+  { name: "costs", description: "[advanced] Compatibility view of the deterministic Octopus usage report", type: "command", file: "costs.md" },
   { name: "council", description: "Multi-LLM council for advice, decision support, implementation plans, and gated implementation", type: "command", file: "council.md" },
   { name: "debate", description: "AI Debate Hub - Structured debates across Claude and available external providers", type: "command", file: "debate.md" },
   { name: "debug", description: "Systematic debugging with methodical problem investigation", type: "command", file: "debug.md" },
