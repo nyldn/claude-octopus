@@ -18,6 +18,7 @@ scripts/lib/semantic-cache.sh	tests/unit/test-cache-alignment.sh tests/unit/test
 scripts/lib/error-tracking.sh	tests/unit/test-run-observability-v10.sh tests/unit/test-v10-cancellation-recovery.sh tests/unit/test-agent-lifecycle-events.sh
 scripts/lib/execution-profile.sh	tests/unit/test-run-observability-v10.sh tests/unit/test-routing-evals-v10.sh tests/unit/test-fable5-escalation.sh tests/unit/test-role-mapping-production-reachability.sh
 scripts/lib/fable5.sh	tests/unit/test-fable5-mode.sh tests/unit/test-fable5-escalation.sh tests/unit/test-routing-evals-v10.sh
+scripts/lib/parallel.sh	tests/unit/test-fan-out-bounds.sh tests/unit/test-provider-health-fleet.sh tests/unit/test-quota-fast-fail.sh tests/unit/test-provider-output-capture.sh
 scripts/lib/heuristics.sh	tests/unit/test-routing-evals-v10.sh tests/unit/test-fable5-escalation.sh tests/unit/test-agy-heuristics-synthesis.sh
 data/routing/*	tests/unit/test-routing-evals-v10.sh tests/unit/test-fable5-escalation.sh
 hooks/subagent-result-capture.sh	tests/unit/test-spawn-run-contract.sh tests/unit/test-agent-lifecycle-events.sh

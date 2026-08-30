@@ -131,6 +131,135 @@ validate_agent_type() {
     return 0
 }
 
+# Return success once a tracked PID has exited. A direct child can remain as a
+# zombie until wait(1) collects its status, so kill -0 alone is not sufficient.
+_parallel_pid_has_finished() {
+    local pid="$1" state=""
+    if ! kill -0 "$pid" 2>/dev/null; then
+        return 0
+    fi
+    state=$(ps -o stat= -p "$pid" 2>/dev/null | awk 'NR == 1 { print $1 }') || state=""
+    [[ "$state" == Z* ]]
+}
+
+_parallel_collect_outcome() {
+    local outcome_dir="$1" pid="$2" sequence="$3" id="$4" agent="$5"
+    local child_status marker="" done_file
+    if wait "$pid" 2>/dev/null; then
+        child_status=0
+    else
+        child_status=$?
+    fi
+
+    # spawn_agent_capture_pid returns the provider process, which production
+    # starts below a short-lived wrapper. That PID is not this shell's child, so
+    # wait returns ECHILD. spawn_agent writes the real exit status atomically.
+    done_file="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents/${id}.done"
+    if [[ -f "$done_file" ]]; then
+        marker=$(<"$done_file")
+        rm -f "$done_file" 2>/dev/null || true
+        if [[ "$marker" =~ ^[0-9]+$ ]]; then
+            child_status="$marker"
+        else
+            _parallel_write_outcome "$outcome_dir" "$sequence" "$id" true "$agent" true \
+                "failed" "${marker:-missing-done-marker}" ""
+            return 1
+        fi
+    elif [[ "$child_status" -eq 127 ]]; then
+        _parallel_write_outcome "$outcome_dir" "$sequence" "$id" true "$agent" true \
+            "failed" "missing-done-marker" ""
+        return 1
+    fi
+
+    if [[ "$child_status" -eq 0 ]]; then
+        _parallel_write_outcome "$outcome_dir" "$sequence" "$id" true "$agent" true \
+            "completed" "completed" 0
+        return 0
+    fi
+
+    _parallel_write_outcome "$outcome_dir" "$sequence" "$id" true "$agent" true \
+        "failed" "child-exit" "$child_status"
+    return 1
+}
+
+_parallel_write_outcome() {
+    local outcome_dir="$1" sequence="$2" id="$3" id_present="$4"
+    local agent="$5" agent_present="$6" status="$7" reason="$8"
+    local exit_code="${9:-}" exit_json="null" outcome_file
+    [[ -n "$exit_code" ]] && exit_json="$exit_code"
+    outcome_file=$(printf '%s/%09d.json' "$outcome_dir" "$sequence")
+
+    jq -n \
+        --argjson sequence "$sequence" \
+        --arg id "$id" \
+        --argjson id_present "$id_present" \
+        --arg agent "$agent" \
+        --argjson agent_present "$agent_present" \
+        --arg status "$status" \
+        --arg reason "$reason" \
+        --argjson exit_code "$exit_json" \
+        '{
+            sequence: $sequence,
+            id: (if $id_present then $id else null end),
+            agent: (if $agent_present then $agent else null end),
+            status: $status,
+            reason: $reason,
+            exit_code: $exit_code
+        }' > "$outcome_file"
+}
+
+_parallel_write_report() {
+    local outcome_dir="$1" report_file="$2" overall_status="$3"
+    local total="$4" completed="$5" skipped="$6" failed="$7"
+    local aggregation_exit_code="$8" report_dir report_tmp
+    local outcome_files=("$outcome_dir"/*.json)
+
+    report_dir=$(dirname "$report_file")
+    mkdir -p "$report_dir" || return 1
+    report_tmp="${report_file}.tmp.$$.$RANDOM"
+
+    if [[ -e "${outcome_files[0]}" ]]; then
+        jq -s \
+            --arg status "$overall_status" \
+            --argjson total "$total" \
+            --argjson completed "$completed" \
+            --argjson skipped "$skipped" \
+            --argjson failed "$failed" \
+            --argjson aggregation_exit_code "$aggregation_exit_code" \
+            '{
+                schema_version: 1,
+                status: $status,
+                counts: {
+                    total: $total,
+                    completed: $completed,
+                    skipped: $skipped,
+                    failed: $failed
+                },
+                aggregation_exit_code: $aggregation_exit_code,
+                results: sort_by(.sequence)
+            }' "${outcome_files[@]}" > "$report_tmp" || {
+                rm -f "$report_tmp"
+                return 1
+            }
+    else
+        jq -n \
+            --arg status "$overall_status" \
+            --argjson aggregation_exit_code "$aggregation_exit_code" \
+            '{
+                schema_version: 1,
+                status: $status,
+                counts: {total: 0, completed: 0, skipped: 0, failed: 0},
+                aggregation_exit_code: $aggregation_exit_code,
+                results: []
+            }' > "$report_tmp" || {
+                rm -f "$report_tmp"
+                return 1
+            }
+    fi
+
+    mv "$report_tmp" "$report_file"
+}
+
 parallel_execute() {
     local tasks_file="${1:-$TASKS_FILE}"
     local _parallel_cron_disabled=false
@@ -169,6 +298,12 @@ parallel_execute() {
         return 1
     fi
 
+    if ! jq -e '.tasks | type == "array"' "$tasks_file" >/dev/null 2>&1; then
+        log ERROR "Tasks file must contain a tasks array: $tasks_file"
+        _parallel_cleanup_cron
+        return 1
+    fi
+
     local task_count
     task_count=$(jq '.tasks | length' "$tasks_file" 2>/dev/null) || {
         log ERROR "Failed to read tasks array from file"
@@ -177,58 +312,155 @@ parallel_execute() {
     }
     log INFO "Found $task_count tasks"
 
+    local max_parallel="${MAX_PARALLEL:-3}"
+    if ! [[ "$max_parallel" =~ ^[1-9][0-9]*$ ]]; then
+        log ERROR "MAX_PARALLEL must be a positive integer (got: $max_parallel)"
+        _parallel_cleanup_cron
+        return 1
+    fi
+
+    local outcome_dir report_file
+    outcome_dir=$(mktemp -d "${TMPDIR:-/tmp}/octo-parallel-outcomes.XXXXXX") || {
+        log ERROR "Failed to create parallel outcome directory"
+        _parallel_cleanup_cron
+        return 1
+    }
+    report_file="${OCTOPUS_PARALLEL_REPORT_FILE:-${WORKSPACE_DIR:-${HOME}/.claude-octopus}/state/parallel-report.json}"
+
     local running=0
     local completed=0
     local skipped=0
+    local failed=0
+    local sequence=0
     local pids=()
+    local task_ids=()
+    local task_agents=()
+    local task_sequences=()
 
     while IFS= read -r task; do
-        local task_id agent prompt
+        local task_id="" agent="" prompt="" current_sequence="$sequence"
+        ((sequence++)) || true
+
+        if ! jq -e 'type == "object"' <<< "$task" >/dev/null 2>&1; then
+            log WARN "Skipping malformed task at sequence $current_sequence"
+            _parallel_write_outcome "$outcome_dir" "$current_sequence" "" false "" false \
+                "skipped" "malformed-task" ""
+            ((skipped++)) || true
+            continue
+        fi
+
+        task_id=$(jq -r '.id // empty' <<< "$task" 2>/dev/null) || task_id=""
+        agent=$(jq -r '.agent // empty' <<< "$task" 2>/dev/null) || agent=""
+        prompt=$(jq -r '.prompt // empty' <<< "$task" 2>/dev/null) || prompt=""
 
         # SECURITY: Safe JSON extraction with validation
-        task_id=$(extract_json_field "$task" "id" true) || {
+        if [[ -z "$task_id" ]]; then
             log WARN "Skipping task with invalid/missing id"
+            _parallel_write_outcome "$outcome_dir" "$current_sequence" "" false "$agent" \
+                "$([[ -n "$agent" ]] && echo true || echo false)" "skipped" "missing-id" ""
             ((skipped++)) || true
             continue
-        }
+        fi
 
-        agent=$(extract_json_field "$task" "agent" true) || {
-            log WARN "Skipping task $task_id: invalid/missing agent"
+        # Task IDs become result and completion-marker filenames in spawn.sh.
+        # Reject path separators and traversal before any filesystem use.
+        if [[ ! "$task_id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ || "$task_id" == *..* ]]; then
+            log WARN "Skipping task with unsafe id '$task_id'"
+            _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" \
+                "$([[ -n "$agent" ]] && echo true || echo false)" "skipped" "invalid-id" ""
             ((skipped++)) || true
             continue
-        }
+        fi
+
+        if [[ -z "$agent" ]]; then
+            log WARN "Skipping task $task_id: invalid/missing agent"
+            _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "" false \
+                "skipped" "missing-agent" ""
+            ((skipped++)) || true
+            continue
+        fi
 
         # SECURITY: Validate agent type against allowlist
         validate_agent_type "$agent" || {
             log WARN "Skipping task $task_id: unknown agent '$agent'"
+            _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" true \
+                "skipped" "unknown-agent" ""
             ((skipped++)) || true
             continue
         }
 
-        prompt=$(extract_json_field "$task" "prompt" true) || {
+        if [[ -z "$prompt" ]]; then
             log WARN "Skipping task $task_id: invalid/missing prompt"
+            _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" true \
+                "skipped" "missing-prompt" ""
             ((skipped++)) || true
             continue
-        }
+        fi
 
-        while [[ $running -ge $MAX_PARALLEL ]]; do
+        local provider="$agent"
+        if declare -f octo_agent_spec_provider >/dev/null 2>&1; then
+            provider=$(octo_agent_spec_provider "$agent")
+        fi
+        if declare -f is_provider_available >/dev/null 2>&1 && ! is_provider_available "$provider"; then
+            log WARN "Skipping task $task_id: circuit open for '$provider'"
+            _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" true \
+                "skipped" "circuit-open" ""
+            ((skipped++)) || true
+            continue
+        fi
+        if declare -f octo_quota_is_dead >/dev/null 2>&1 && octo_quota_is_dead "$provider"; then
+            log WARN "Skipping task $task_id: quota dead for '$provider'"
+            _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" true \
+                "skipped" "quota-dead" ""
+            ((skipped++)) || true
+            continue
+        fi
+
+        # A reused task ID must not inherit a completion marker from an earlier
+        # run. IDs are filename-safe by the validation above.
+        rm -f "${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents/${task_id}.done" \
+            2>/dev/null || true
+
+        while [[ $running -ge $max_parallel ]]; do
             for i in "${!pids[@]}"; do
-                if ! kill -0 "${pids[$i]}" 2>/dev/null; then
+                if _parallel_pid_has_finished "${pids[$i]}"; then
+                    if _parallel_collect_outcome "$outcome_dir" "${pids[$i]}" \
+                        "${task_sequences[$i]}" "${task_ids[$i]}" "${task_agents[$i]}"; then
+                        ((completed++)) || true
+                    else
+                        ((failed++)) || true
+                    fi
                     unset 'pids[i]'
-                    ((running--))
-                    ((completed++)) || true
+                    unset 'task_ids[i]' 'task_agents[i]' 'task_sequences[i]'
+                    ((running--)) || true
                 fi
             done
-            sleep 1
+            [[ $running -ge $max_parallel ]] && sleep "${OCTOPUS_PARALLEL_POLL_INTERVAL:-0.2}"
         done
 
-        local pid
-        if pid=$(spawn_agent_capture_pid "$agent" "$prompt" "$task_id"); then
+        local pid="" spawn_status=0 spawn_output
+        spawn_output=$(mktemp "${TMPDIR:-/tmp}/octo-parallel-spawn.XXXXXX") || spawn_status=1
+        if [[ "$spawn_status" -eq 0 ]]; then
+            if spawn_agent_capture_pid "$agent" "$prompt" "$task_id" > "$spawn_output"; then
+                pid=$(awk '/^[0-9]+$/ { value=$1 } END { print value }' "$spawn_output" 2>/dev/null)
+                [[ "$pid" =~ ^[1-9][0-9]*$ ]] || spawn_status=1
+            else
+                spawn_status=$?
+            fi
+            rm -f "$spawn_output"
+        fi
+
+        if [[ "$spawn_status" -eq 0 ]]; then
             pids+=("$pid")
+            task_ids+=("$task_id")
+            task_agents+=("$agent")
+            task_sequences+=("$current_sequence")
             ((running++)) || true
         else
             log WARN "Skipping task $task_id: failed to spawn agent '$agent'"
-            ((skipped++)) || true
+            _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" true \
+                "failed" "failed-spawn" "$spawn_status"
+            ((failed++)) || true
             continue
         fi
 
@@ -239,25 +471,59 @@ parallel_execute() {
     while [[ $running -gt 0 ]]; do
         local saw_completion=false
         for i in "${!pids[@]}"; do
-            if ! kill -0 "${pids[$i]}" 2>/dev/null; then
+            if _parallel_pid_has_finished "${pids[$i]}"; then
+                if _parallel_collect_outcome "$outcome_dir" "${pids[$i]}" \
+                    "${task_sequences[$i]}" "${task_ids[$i]}" "${task_agents[$i]}"; then
+                    ((completed++)) || true
+                else
+                    ((failed++)) || true
+                fi
                 unset 'pids[i]'
+                unset 'task_ids[i]' 'task_agents[i]' 'task_sequences[i]'
                 ((running--)) || true
-                ((completed++)) || true
                 saw_completion=true
             fi
         done
-        [[ "$saw_completion" == "false" ]] && sleep 1
+        [[ "$saw_completion" == "false" ]] && sleep "${OCTOPUS_PARALLEL_POLL_INTERVAL:-0.2}"
     done
 
     if [[ $skipped -gt 0 ]]; then
         log WARN "Completed with $skipped skipped tasks (invalid/malformed)"
     fi
-    log INFO "All $task_count tasks processed ($((task_count - skipped)) executed, $skipped skipped)"
-    type render_agent_summary >/dev/null 2>&1 && render_agent_summary
-    aggregate_results
-    local aggregate_status=$?
+    log INFO "All $task_count tasks processed ($completed completed, $skipped skipped, $failed failed)"
+    if type render_agent_summary >/dev/null 2>&1; then
+        if ! render_agent_summary; then
+            log WARN "Agent summary rendering failed; continuing to structured report"
+        fi
+    fi
+    local aggregate_status=0
+    if aggregate_results; then
+        aggregate_status=0
+    else
+        aggregate_status=$?
+    fi
+
+    local overall_status="complete"
+    if [[ "$aggregate_status" -ne 0 ]] || { [[ "$task_count" -gt 0 ]] && [[ "$completed" -eq 0 ]]; }; then
+        overall_status="failed"
+    elif [[ "$skipped" -gt 0 || "$failed" -gt 0 ]]; then
+        overall_status="degraded"
+    fi
+
+    local report_status=0
+    if ! _parallel_write_report "$outcome_dir" "$report_file" "$overall_status" \
+        "$task_count" "$completed" "$skipped" "$failed" "$aggregate_status"; then
+        log ERROR "Failed to write parallel execution report: $report_file"
+        report_status=1
+    else
+        log INFO "Parallel execution report: $report_file ($overall_status)"
+    fi
+    rm -rf "$outcome_dir"
     _parallel_cleanup_cron
-    return "$aggregate_status"
+    [[ "$report_status" -ne 0 ]] && return "$report_status"
+    [[ "$aggregate_status" -ne 0 ]] && return "$aggregate_status"
+    [[ "$overall_status" == "failed" ]] && return 1
+    return 0
 }
 
 map_reduce() {
