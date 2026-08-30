@@ -5,7 +5,8 @@ disable-model-invocation: true
 
 # /octo:octo → /octo:auto (Legacy Redirect)
 
-This command has been renamed to `/octo:auto`. Invoking `/octo:octo` still works for backward compatibility.
+This v10 compatibility command delegates to `/octo:auto`. It is scheduled for
+removal in v11.
 
 ## EXECUTION CONTRACT (Mandatory)
 

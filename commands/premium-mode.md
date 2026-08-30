@@ -9,6 +9,9 @@ allowed-tools: Bash
 
 **Your first output line MUST be:** `🐙 Octopus Cost Mode: Premium`
 
+This v10 compatibility command selects the Premium option from
+`/octo:model-config`. It is scheduled for removal in v11.
+
 Run this command with the Bash tool:
 
 ```bash

@@ -171,6 +171,16 @@ if [[ -f "$COMMAND_FILE" ]]; then
     fi
 fi
 
+# Test 16: Provider readiness comes from the shared helper
+echo ""
+echo "Test 16: Checking shared provider readiness wiring..."
+if grep -Fq 'scripts/helpers/check-providers.sh' "$COMMAND_FILE" &&
+   ! grep -Fq 'checkCommandAvailable' "$COMMAND_FILE"; then
+    pass "Provider readiness uses check-providers.sh"
+else
+    fail "Provider readiness is fictional or duplicated" "multi.md must call check-providers.sh and remove checkCommandAvailable"
+fi
+
 # Summary
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

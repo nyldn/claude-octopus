@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "entries": [
+    {
+      "command": "budget-mode",
+      "destination": "model-config",
+      "arguments": {
+        "cost_mode": "budget"
+      },
+      "removal_version": "11.0.0"
+    },
+    {
+      "command": "standard-mode",
+      "destination": "model-config",
+      "arguments": {
+        "cost_mode": "standard"
+      },
+      "removal_version": "11.0.0"
+    },
+    {
+      "command": "premium-mode",
+      "destination": "model-config",
+      "arguments": {
+        "cost_mode": "premium"
+      },
+      "removal_version": "11.0.0"
+    },
+    {
+      "command": "octo",
+      "destination": "auto",
+      "arguments": {},
+      "removal_version": "11.0.0"
+    }
+  ]
+}

@@ -65,34 +65,30 @@ AskUserQuestion({
 
 ### Step 2: Check Provider Availability & Execute
 
-Check which AI providers are available:
+Use the Bash tool to read the shared static readiness snapshot:
 
-```javascript
-const codexAvailable = await checkCommandAvailable('codex');
-const agyAvailable = await checkCommandAvailable('agy');
-const copilotAvailable = await checkCommandAvailable('copilot');
-const qwenAvailable = await checkCommandAvailable('qwen');
-const opencodeAvailable = await checkCommandAvailable('opencode');
-const ollamaAvailable = await checkCommandAvailable('ollama');
-const anyProviderAvailable = [
-  codexAvailable,
-  agyAvailable,
-  copilotAvailable,
-  qwenAvailable,
-  opencodeAvailable,
-  ollamaAvailable
-].some(Boolean);
+```bash
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+provider_helper="$OCTO_ROOT/scripts/helpers/check-providers.sh"
+if [[ ! -x "$provider_helper" ]]; then
+  echo "ERROR: Claude Octopus provider readiness helper is unavailable. Run /octo:setup." >&2
+  exit 1
+fi
 
-if (!anyProviderAvailable) {
-  console.log("⚠️ No external providers available. Multi-provider mode requires at least one supported provider.");
-  console.log("Run `/octo:setup` to configure external providers, or use Claude directly.");
-  return;
-}
+PROVIDER_STATUS="$("$provider_helper" 2>/dev/null || true)"
+printf '%s\n' "$PROVIDER_STATUS"
 
-// Proceed with available providers
+if ! printf '%s\n' "$PROVIDER_STATUS" |
+  grep -Eq '^(codex|agy|copilot|qwen|opencode|ollama|perplexity|orcarouter):available$'; then
+  echo "No external provider is ready. Multi-provider mode needs at least one supported external provider."
+  echo "Run /octo:setup to configure one, or use Claude directly."
+  exit 1
+fi
 ```
 
-Execute the task with all available providers, incorporating user intent from Step 1.
+Treat the emitted `provider:status` lines as authoritative. Execute the task
+with the external providers marked `available`, incorporating the user's intent
+from Step 1. Do not re-detect binaries or credentials inside this command.
 
 ### Step 3: Adversarial Synthesis (MANDATORY — do NOT skip)
 

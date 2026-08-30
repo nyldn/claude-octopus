@@ -89,17 +89,27 @@ Reading all pages may use 33,750 tokens (~34 API calls).
 # options: --mode, --scope, --depth, --output, --storybook, --ignore
 ```
 
-**Check Claude Octopus availability:**
-```javascript
-// Check if multi-AI providers are available
-const codexAvailable = await checkCommandAvailable('codex');
-const agyAvailable = await checkCommandAvailable('agy');
+**Check Claude Octopus availability with the Bash tool:**
+```bash
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+provider_helper="$OCTO_ROOT/scripts/helpers/check-providers.sh"
+if [[ ! -x "$provider_helper" ]]; then
+  echo "ERROR: Claude Octopus provider readiness helper is unavailable. Run /octo:setup." >&2
+  exit 1
+fi
 
-if (!codexAvailable && !agyAvailable) {
-  console.log("⚠️ Multi-AI providers not detected. Running in single-provider mode.");
-  console.log("For best results, run `/octo:setup` to configure Codex, Antigravity, or another provider.");
-}
+PROVIDER_STATUS="$("$provider_helper" 2>/dev/null || true)"
+printf '%s\n' "$PROVIDER_STATUS"
+
+if ! printf '%s\n' "$PROVIDER_STATUS" |
+  grep -Eq '^(codex|agy|copilot|qwen|opencode|ollama|perplexity|orcarouter):available$'; then
+  echo "No external provider is ready. Continuing extraction with Claude only."
+  echo "Run /octo:setup to configure an external provider."
+fi
 ```
+
+Treat the emitted `provider:status` lines as authoritative. Do not re-detect
+binaries or credentials inside this command.
 
 ### Step 2: Intent Capture (Interactive Questions)
 
