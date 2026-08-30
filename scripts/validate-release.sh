@@ -479,6 +479,10 @@ can_create_release_artifacts() {
     [[ "$CURRENT_BRANCH" == "main" && -z "$WORKTREE_DIRTY" ]]
 }
 
+tag_mismatch_is_fatal() {
+    [[ -z "$CURRENT_BRANCH" || "$CURRENT_BRANCH" == "main" || "$CURRENT_BRANCH" == release/* ]]
+}
+
 # ============================================================================
 # 9. GIT TAG CHECK & AUTO-CREATE
 # ============================================================================
@@ -491,12 +495,15 @@ if git tag -l "$EXPECTED_TAG" | grep -q "$EXPECTED_TAG"; then
 
     if [[ "$TAG_COMMIT" == "$HEAD_COMMIT" ]]; then
         echo -e "  ${GREEN}✓ Tag $EXPECTED_TAG exists and points to HEAD${NC}"
-    else
+    elif tag_mismatch_is_fatal; then
         echo -e "  ${RED}ERROR: Tag $EXPECTED_TAG exists but doesn't point to HEAD${NC}"
         echo -e "  ${RED}  Tag points to: ${TAG_COMMIT:0:7}${NC}"
         echo -e "  ${RED}  HEAD is:       ${HEAD_COMMIT:0:7}${NC}"
         echo -e "  ${RED}  Refusing to move an existing release tag automatically${NC}"
         ((errors++)) || true
+    else
+        echo -e "  ${YELLOW}NOTE: Tag $EXPECTED_TAG points to a different commit; this branch is validation-only${NC}"
+        echo -e "  ${GREEN}✓ Existing release tag remains unchanged${NC}"
     fi
 else
     echo -e "  ${YELLOW}NOTE: Tag $EXPECTED_TAG not yet created${NC}"
