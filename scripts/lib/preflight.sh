@@ -5,6 +5,11 @@
 _preflight_registry_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_preflight_registry_dir}/provider-registry.sh" 2>/dev/null || true
 
+for _preflight_dependency in provider-allowlist auth provider-routing qwen openai-compatible grok copilot quota-watcher events; do
+    # shellcheck source=/dev/null
+    source "${_preflight_registry_dir}/${_preflight_dependency}.sh" 2>/dev/null || true
+done
+
 if ! declare -f _is_cursor_agent_binary >/dev/null 2>&1; then
     _preflight_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     source "${_preflight_lib_dir}/cursor-agent.sh" 2>/dev/null || true
@@ -45,391 +50,396 @@ _preflight_agy_model_status() {
     fi
 }
 
+_octo_provider_readiness_emit() {
+    local provider="$1" status="$2" reason_code="$3" check_kind="$4"
+    local checked_at="$5" duration_ms="$6" remediation="$7"
+
+    if command -v jq >/dev/null 2>&1; then
+        jq -cn \
+            --arg provider "$provider" \
+            --arg status "$status" \
+            --arg reason_code "$reason_code" \
+            --arg check_kind "$check_kind" \
+            --arg checked_at "$checked_at" \
+            --argjson duration_ms "$duration_ms" \
+            --arg remediation "$remediation" \
+            '{provider:$provider,status:$status,reason_code:$reason_code,
+              check_kind:$check_kind,checked_at:$checked_at,
+              duration_ms:$duration_ms,remediation:$remediation}'
+        return
+    fi
+
+    OCTO_READINESS_PROVIDER="$provider" \
+    OCTO_READINESS_STATUS="$status" \
+    OCTO_READINESS_REASON="$reason_code" \
+    OCTO_READINESS_KIND="$check_kind" \
+    OCTO_READINESS_CHECKED_AT="$checked_at" \
+    OCTO_READINESS_DURATION_MS="$duration_ms" \
+    OCTO_READINESS_REMEDIATION="$remediation" \
+        python3 - <<'PY'
+import json
+import os
+
+print(json.dumps({
+    "provider": os.environ["OCTO_READINESS_PROVIDER"],
+    "status": os.environ["OCTO_READINESS_STATUS"],
+    "reason_code": os.environ["OCTO_READINESS_REASON"],
+    "check_kind": os.environ["OCTO_READINESS_KIND"],
+    "checked_at": os.environ["OCTO_READINESS_CHECKED_AT"],
+    "duration_ms": int(os.environ["OCTO_READINESS_DURATION_MS"]),
+    "remediation": os.environ["OCTO_READINESS_REMEDIATION"],
+}, separators=(",", ":")))
+PY
+}
+
+_octo_provider_static_readiness() {
+    local provider="$1" status="missing" reason_code="not-installed" remediation=""
+    local command_name=""
+
+    if declare -f octo_provider_allowed >/dev/null 2>&1 && ! octo_provider_allowed "$provider"; then
+        printf '%s|%s|%s\n' "missing" "disabled" "Enable $provider in the provider allowlist."
+        return
+    fi
+
+    # Shell/profile fallback is local configuration metadata, not a live probe.
+    # Resolve only the credential used by the provider currently being checked.
+    if declare -f resolve_provider_env >/dev/null 2>&1; then
+        case "$provider" in
+            commandcode) [[ -n "${COMMAND_CODE_API_KEY:-}" ]] || resolve_provider_env COMMAND_CODE_API_KEY 2>/dev/null || true ;;
+            orcarouter) [[ -n "${ORCAROUTER_API_KEY:-}" ]] || resolve_provider_env ORCAROUTER_API_KEY 2>/dev/null || true ;;
+            atlascloud) [[ -n "${ATLASCLOUD_API_KEY:-}" ]] || resolve_provider_env ATLASCLOUD_API_KEY 2>/dev/null || true ;;
+            grok) [[ -n "${XAI_API_KEY:-}" ]] || resolve_provider_env XAI_API_KEY 2>/dev/null || true ;;
+            vibe) [[ -n "${MISTRAL_API_KEY:-}" ]] || resolve_provider_env MISTRAL_API_KEY 2>/dev/null || true ;;
+        esac
+    fi
+
+    case "$provider" in
+        codex)
+            remediation="Install Codex, then run: codex login"
+            if command -v codex >/dev/null 2>&1; then
+                if [[ -f "${HOME}/.codex/auth.json" ]] || _octo_value_has_nonwhitespace "${OPENAI_API_KEY:-}"; then
+                    status="available"; reason_code="ready"; remediation=""
+                else
+                    status="degraded"; reason_code="auth-missing"; remediation="Run: codex login, or set OPENAI_API_KEY."
+                fi
+            fi
+            ;;
+        commandcode)
+            command_name="${OCTOPUS_COMMANDCODE_BIN:-}"
+            if [[ -z "$command_name" ]]; then
+                command -v command-code >/dev/null 2>&1 && command_name="command-code"
+                [[ -z "$command_name" ]] && command -v cmd >/dev/null 2>&1 && command_name="cmd"
+            fi
+            remediation="Install Command Code and configure its API key or CLI session."
+            if [[ -n "$command_name" ]] && { [[ -x "$command_name" ]] || command -v "$command_name" >/dev/null 2>&1; }; then
+                if _octo_value_has_nonwhitespace "${COMMAND_CODE_API_KEY:-}"; then
+                    status="available"; reason_code="ready"; remediation=""
+                else
+                    status="degraded"; reason_code="live-check-required"; remediation="Run a live preflight to verify the Command Code CLI session."
+                fi
+            fi
+            ;;
+        claude)
+            remediation="Install Claude Code."
+            if command -v claude >/dev/null 2>&1; then
+                status="available"; reason_code="ready"; remediation=""
+            fi
+            ;;
+        claude-sdk)
+            remediation="Install claude-agent or Claude Code, then set CLAUDE_SDK_API_KEY."
+            if command -v claude-agent >/dev/null 2>&1 || command -v claude >/dev/null 2>&1; then
+                if _octo_value_has_nonwhitespace "${CLAUDE_SDK_API_KEY:-}"; then
+                    status="available"; reason_code="ready"; remediation=""
+                else
+                    status="degraded"; reason_code="auth-missing"; remediation="Set CLAUDE_SDK_API_KEY."
+                fi
+            fi
+            ;;
+        agy)
+            remediation="Install Antigravity CLI, then launch plain agy to sign in."
+            if command -v agy >/dev/null 2>&1; then
+                status="available"; reason_code="ready"; remediation=""
+            fi
+            ;;
+        perplexity)
+            remediation="Set PERPLEXITY_API_KEY."
+            if _octo_value_has_nonwhitespace "${PERPLEXITY_API_KEY:-}"; then
+                status="available"; reason_code="ready"; remediation=""
+            fi
+            ;;
+        openrouter)
+            remediation="Set OPENROUTER_API_KEY."
+            if _octo_value_has_nonwhitespace "${OPENROUTER_API_KEY:-}"; then
+                status="available"; reason_code="ready"; remediation=""
+            fi
+            ;;
+        orcarouter)
+            remediation="Set ORCAROUTER_API_KEY."
+            if declare -f octo_api_key_provider_is_available >/dev/null 2>&1 &&
+               octo_api_key_provider_is_available orcarouter ORCAROUTER_API_KEY; then
+                status="available"; reason_code="ready"; remediation=""
+            elif _octo_value_has_nonwhitespace "${ORCAROUTER_API_KEY:-}"; then
+                status="missing"; reason_code="disabled"; remediation="Enable OrcaRouter in provider configuration."
+            fi
+            ;;
+        atlascloud)
+            remediation="Set ATLASCLOUD_API_KEY and ATLASCLOUD_MODEL."
+            if _octo_value_has_nonwhitespace "${ATLASCLOUD_API_KEY:-}"; then
+                if _octo_value_has_nonwhitespace "${ATLASCLOUD_MODEL:-${OCTOPUS_ATLASCLOUD_MODEL:-${OPENAI_COMPAT_MODEL:-}}}"; then
+                    status="available"; reason_code="ready"; remediation=""
+                else
+                    status="degraded"; reason_code="model-missing"; remediation="Set ATLASCLOUD_MODEL or OCTOPUS_ATLASCLOUD_MODEL."
+                fi
+            fi
+            ;;
+        openai-compatible)
+            remediation="Set OPENAI_COMPAT_BASE_URL and an API key."
+            if declare -f openai_compatible_is_available >/dev/null 2>&1 && openai_compatible_is_available; then
+                status="available"; reason_code="ready"; remediation=""
+            elif _octo_value_has_nonwhitespace "${OPENAI_COMPAT_BASE_URL:-}" ||
+                 _octo_value_has_nonwhitespace "${OPENAI_COMPAT_API_KEY:-}"; then
+                status="degraded"; reason_code="config-incomplete"
+            fi
+            ;;
+        cursor-agent)
+            remediation="Install Cursor Agent, then run: agent login"
+            if declare -f _is_cursor_agent_binary >/dev/null 2>&1 && _is_cursor_agent_binary; then
+                if _octo_value_has_nonwhitespace "${CURSOR_API_KEY:-}" ||
+                   grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
+                    status="available"; reason_code="ready"; remediation=""
+                else
+                    status="degraded"; reason_code="auth-missing"; remediation="Run: agent login, or set CURSOR_API_KEY."
+                fi
+            fi
+            ;;
+        grok)
+            remediation="Install Grok CLI, then run: grok login"
+            if command -v grok >/dev/null 2>&1; then
+                if _octo_value_has_nonwhitespace "${XAI_API_KEY:-}" || [[ -f "${HOME}/.grok/auth.json" ]]; then
+                    status="available"; reason_code="ready"; remediation=""
+                else
+                    status="degraded"; reason_code="auth-missing"; remediation="Run: grok login, or set XAI_API_KEY."
+                fi
+            fi
+            ;;
+        qwen)
+            remediation="Install Qwen, then set QWEN_API_KEY or configure Coding-Plan."
+            if command -v qwen >/dev/null 2>&1; then
+                if declare -f qwen_is_usable >/dev/null 2>&1 && qwen_is_usable; then
+                    status="available"; reason_code="ready"; remediation=""
+                elif [[ "$(qwen_auth_method 2>/dev/null || true)" == "oauth-expired" ]]; then
+                    status="degraded"; reason_code="auth-expired"; remediation="Set QWEN_API_KEY or configure Coding-Plan; the retired free OAuth token cannot refresh."
+                else
+                    status="degraded"; reason_code="auth-missing"
+                fi
+            fi
+            ;;
+        ollama)
+            remediation="Install Ollama and run: ollama serve"
+            if command -v ollama >/dev/null 2>&1; then
+                status="degraded"; reason_code="live-check-required"; remediation="Run an explicit live preflight to verify the local Ollama server."
+            fi
+            ;;
+        copilot)
+            remediation="Install Copilot CLI, then run: copilot login"
+            if command -v copilot >/dev/null 2>&1; then
+                if _octo_value_has_nonwhitespace "${COPILOT_GITHUB_TOKEN:-${GH_TOKEN:-${GITHUB_TOKEN:-}}}" ||
+                   [[ -f "${HOME}/.copilot/config.json" ]]; then
+                    status="available"; reason_code="ready"; remediation=""
+                else
+                    status="degraded"; reason_code="auth-missing"
+                fi
+            fi
+            ;;
+        vibe)
+            remediation="Install Vibe, then run: vibe --setup"
+            if command -v vibe >/dev/null 2>&1; then
+                if _octo_value_has_nonwhitespace "${MISTRAL_API_KEY:-}" ||
+                   _octo_assignment_has_nonempty_value "${HOME}/.vibe/.env" "MISTRAL_API_KEY" ||
+                   _octo_assignment_has_nonempty_value "${HOME}/.vibe/config.toml" "api_key"; then
+                    status="available"; reason_code="ready"; remediation=""
+                else
+                    status="degraded"; reason_code="auth-missing"
+                fi
+            fi
+            ;;
+        opencode)
+            remediation="Install OpenCode, then run: opencode auth login"
+            if command -v opencode >/dev/null 2>&1; then
+                if [[ -f "${HOME}/.local/share/opencode/auth.json" ]] ||
+                   _octo_value_has_nonwhitespace "${GITHUB_TOKEN:-${OPENROUTER_API_KEY:-${Z_AI_API_KEY:-${MINIMAX_API_KEY:-}}}}"; then
+                    status="available"; reason_code="ready"; remediation=""
+                else
+                    status="degraded"; reason_code="auth-missing"
+                fi
+            fi
+            ;;
+        *)
+            status="missing"; reason_code="unsupported"; remediation="Provider readiness is not registered."
+            ;;
+    esac
+
+    if [[ "$status" == "available" ]] && declare -f octo_quota_is_dead >/dev/null 2>&1 && octo_quota_is_dead "$provider"; then
+        status="degraded"
+        reason_code="quota"
+        remediation="Wait for the provider quota window to reset or choose another provider."
+    fi
+
+    printf '%s|%s|%s\n' "$status" "$reason_code" "$remediation"
+}
+
+octo_provider_readiness_result() {
+    local requested="${1:-}" check_kind="${2:-static}" provider=""
+    local auth_mode health_handler detect_handler static_state status reason_code remediation
+    local checked_at started_at finished_at duration_ms=0 live_timeout live_rc=0
+
+    provider="$(octo_provider_canonical "$requested" 2>/dev/null || true)"
+    if [[ -z "$provider" ]]; then
+        _octo_provider_readiness_emit "${requested:-unknown}" "missing" "unsupported" "$check_kind" \
+            "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" 0 "Use a provider registered in Provider Registry 2.0."
+        return 0
+    fi
+    case "$check_kind" in static|live) ;; *) check_kind="static" ;; esac
+
+    # These lookups are the authority for readiness participation and live-probe routing.
+    auth_mode="$(octo_provider_auth_mode "$provider" 2>/dev/null || printf 'none')"
+    health_handler="$(octo_provider_health_handler "$provider" 2>/dev/null || printf 'none')"
+    detect_handler="$(octo_provider_detect_handler "$provider" 2>/dev/null || printf 'none')"
+    checked_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    started_at="$(date +%s)"
+
+    if [[ "$detect_handler" == "none" ]] || ! octo_provider_has_capability "$provider" detect; then
+        status="missing"; reason_code="not-detectable"; remediation="This provider is not exposed by provider detection."
+    else
+        static_state="$(_octo_provider_static_readiness "$provider")"
+        IFS='|' read -r status reason_code remediation <<EOF
+$static_state
+EOF
+    fi
+
+    if [[ "$check_kind" == "live" && "$health_handler" != "none" ]] &&
+       { [[ "$status" == "available" ]] || [[ "$reason_code" == "live-check-required" ]]; }; then
+        # Live mode is explicit. Execute the registry-selected health handler in
+        # a fresh bounded shell so a provider CLI cannot stall setup or Doctor.
+        source "${_preflight_registry_dir}/providers.sh" 2>/dev/null || true
+        live_timeout="${OCTOPUS_PROVIDER_LIVE_TIMEOUT:-5}"
+        case "$live_timeout" in ''|*[!0-9]*) live_timeout=5 ;; esac
+        (( live_timeout > 30 )) && live_timeout=30
+        (( live_timeout < 1 )) && live_timeout=1
+        if declare -f _octo_run_bare_probe_with_timeout >/dev/null 2>&1; then
+            _octo_run_bare_probe_with_timeout "$live_timeout" "$live_timeout" 0 \
+                bash -c 'source "$1" 2>/dev/null; "$2" "$3"' _ \
+                "${_preflight_registry_dir}/providers.sh" "$health_handler" "$provider" \
+                >/dev/null || live_rc=$?
+        else
+            live_rc=125
+        fi
+        if [[ "$live_rc" -eq 0 ]]; then
+            status="available"
+            reason_code="ready"
+            remediation=""
+            case "$provider" in
+                perplexity|openrouter|orcarouter)
+                    _octo_run_bare_probe_with_timeout "$live_timeout" "$live_timeout" 0 \
+                        bash -c 'source "$1" 2>/dev/null; octo_provider_probe "$2"' _ \
+                        "${_preflight_registry_dir}/quota-watcher.sh" "$provider" \
+                        >/dev/null || live_rc=$?
+                    if [[ "$live_rc" -ne 0 ]]; then
+                        status="degraded"
+                        reason_code="quota"
+                        remediation="Verify the provider credential or wait for its quota window to reset."
+                    fi
+                    ;;
+            esac
+        fi
+        if [[ "$live_rc" -ne 0 && "$reason_code" != "quota" ]]; then
+            status="degraded"
+            reason_code="health-failed"
+            remediation="Run the provider's authentication or service check, then retry the live preflight."
+        fi
+        if [[ "$live_rc" -ne 0 ]]; then
+            printf 'provider live check failed: %s (exit %s)\n' "$provider" "$live_rc" >&2
+        fi
+    fi
+
+    # auth_mode is intentionally consulted even though credentials never enter output.
+    : "$auth_mode"
+    finished_at="$(date +%s)"
+    duration_ms=$(( (finished_at - started_at) * 1000 ))
+    _octo_provider_readiness_emit "$provider" "$status" "$reason_code" "$check_kind" \
+        "$checked_at" "$duration_ms" "$remediation"
+}
+
+octo_provider_readiness_all() {
+    local check_kind="${1:-static}" provider result
+    for provider in $(octo_provider_ids detect); do
+        result="$(octo_provider_readiness_result "$provider" "$check_kind" 2> >(cat >&2))" || result=""
+        if [[ -n "$result" ]]; then
+            printf '%s\n' "$result"
+        else
+            _octo_provider_readiness_emit "$provider" "degraded" "check-failed" "$check_kind" \
+                "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" 0 "Retry preflight and inspect stderr diagnostics."
+        fi
+    done
+}
+
+octo_provider_readiness_legacy() {
+    local check_kind="${1:-static}" result provider status
+    printf '%s\n' "PROVIDER_CHECK_START"
+    while IFS= read -r result; do
+        [[ -n "$result" ]] || continue
+        provider="$(printf '%s' "$result" | jq -r '.provider')"
+        status="$(printf '%s' "$result" | jq -r '.status')"
+        printf '%s:%s\n' "$provider" "$status"
+        if declare -f octo_event_emit >/dev/null 2>&1; then
+            octo_event_emit "provider.status" provider="$provider" status="$status" source="check-providers" || true
+        fi
+    done < <(octo_provider_readiness_all "$check_kind")
+    printf '%s\n' "PROVIDER_CHECK_END"
+}
+
 # Command: detect-providers
 # Output parseable provider status for Claude Code skill
 cmd_detect_providers() {
-    local detected_agy_status="not-installed"
-    local detected_agy_model="none"
-    echo "Detecting Claude Code version..."
+    local readiness_result provider status reason_code env_name env_status
+    local cache_file="${WORKSPACE_DIR}/.provider-cache"
+
+    echo "Detecting providers from shared readiness contract..."
     echo ""
-
-    # Check Claude Code version first
-    check_claude_version
-    echo ""
-
-    # If outdated, show prominent warning
-    local claude_status=$(check_claude_version | grep CLAUDE_CODE_STATUS | cut -d= -f2)
-    local claude_version=$(check_claude_version | grep CLAUDE_CODE_VERSION | cut -d= -f2)
-    local min_version=$(check_claude_version | grep CLAUDE_CODE_MINIMUM | cut -d= -f2)
-
-    if [[ "$claude_status" == "outdated" ]]; then
-        echo "⚠️  WARNING: Claude Code is outdated!"
-        echo ""
-        echo "  Current version: $claude_version"
-        echo "  Required version: $min_version or higher"
-        echo ""
-        echo "Claude Octopus requires Claude Code $min_version+ for full functionality."
-        echo ""
-        echo "How to update:"
-        echo ""
-        echo "  If installed via npm:"
-        echo "    npm update -g @anthropic/claude-code"
-        echo ""
-        echo "  If installed via brew:"
-        echo "    brew upgrade claude-code"
-        echo ""
-        echo "  If installed via download:"
-        echo "    Visit https://github.com/anthropics/claude-code/releases"
-        echo ""
-        echo "After updating, please restart Claude Code for changes to take effect."
-        echo ""
-        echo "═══════════════════════════════════════════════════════════════════"
-        echo ""
-    elif [[ "$claude_status" == "ok" ]]; then
-        echo "✓ Claude Code version: $claude_version (meets minimum $min_version)"
-        echo ""
-    fi
-
-    echo "Detecting providers..."
-    echo ""
-
-    # Check Codex CLI
-    if command -v codex &>/dev/null; then
-        echo "CODEX_STATUS=ok"
-        if [[ -f "$HOME/.codex/auth.json" ]]; then
-            echo "CODEX_AUTH=oauth"
-        elif [[ -n "${OPENAI_API_KEY:-}" ]]; then
-            echo "CODEX_AUTH=api-key"
-        else
-            echo "CODEX_AUTH=none"
-        fi
-    else
-        echo "CODEX_STATUS=missing"
-        echo "CODEX_AUTH=none"
-    fi
-    echo ""
-
-    # Check Command Code CLI
-    local commandcode_auth
-    commandcode_auth="$(_preflight_commandcode_auth_mode 2>/dev/null || true)"
-    if [[ "$commandcode_auth" == "api-key" || "$commandcode_auth" == "cli" ]]; then
-        echo "COMMANDCODE_STATUS=ok"
-        echo "COMMANDCODE_AUTH=$commandcode_auth"
-    elif command -v command-code >/dev/null 2>&1; then
-        echo "COMMANDCODE_STATUS=unauthenticated"
-        echo "COMMANDCODE_AUTH=none"
-    else
-        echo "COMMANDCODE_STATUS=missing"
-        echo "COMMANDCODE_AUTH=none"
-    fi
-    echo ""
-
-    # Check Antigravity CLI (agy)
-    if command -v agy &>/dev/null; then
-        detected_agy_model="$(_preflight_agy_configured_model)"
-        detected_agy_status="$(_preflight_agy_model_status)"
-        [[ "$detected_agy_status" == "unchecked" ]] && detected_agy_status="ok"
-        echo "AGY_STATUS=$detected_agy_status"
-        echo "AGY_AUTH=cli"
-        echo "AGY_MODEL=$detected_agy_model"
-    else
-        echo "AGY_STATUS=not-installed"
-        echo "AGY_AUTH=none"
-        echo "AGY_MODEL=none"
-    fi
-    echo ""
-
-    # Check Perplexity API (v8.24.0 - Issue #22)
-    if [[ -n "${PERPLEXITY_API_KEY:-}" ]]; then
-        echo "PERPLEXITY_STATUS=ok"
-        echo "PERPLEXITY_AUTH=api-key"
-    else
-        echo "PERPLEXITY_STATUS=not-configured"
-        echo "PERPLEXITY_AUTH=none"
-    fi
-    echo ""
-
-    # Check Ollama (optional — local LLM, v9.9.0)
-    if command -v ollama &>/dev/null; then
-        if curl -sf http://localhost:11434/api/tags &>/dev/null; then
-            local model_count
-            model_count=$(curl -sf http://localhost:11434/api/tags 2>/dev/null | grep -c '"name"' 2>/dev/null) || model_count=0
-            echo "OLLAMA_STATUS=running"
-            echo "OLLAMA_MODELS=$model_count"
-        else
-            echo "OLLAMA_STATUS=stopped"
-            echo "OLLAMA_MODELS=0"
-        fi
-    else
-        echo "OLLAMA_STATUS=not-installed"
-        echo "OLLAMA_MODELS=0"
-    fi
-    echo ""
-
-    # Check Copilot CLI (optional — zero-cost via GitHub subscription, v9.9.0)
-    if command -v copilot &>/dev/null; then
-        local copilot_auth="none"
-        if [[ -n "${COPILOT_GITHUB_TOKEN:-}" ]]; then
-            copilot_auth="pat"
-        elif [[ -n "${GH_TOKEN:-}" ]] || [[ -n "${GITHUB_TOKEN:-}" ]]; then
-            copilot_auth="env-token"
-        elif [[ -f "${HOME}/.copilot/config.json" ]]; then
-            copilot_auth="keychain"
-        elif command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
-            copilot_auth="gh-cli"
-        fi
-        echo "COPILOT_STATUS=ok"
-        echo "COPILOT_AUTH=$copilot_auth"
-    else
-        echo "COPILOT_STATUS=not-installed"
-        echo "COPILOT_AUTH=none"
-    fi
-    echo ""
-
-    # Check OpenCode CLI (optional — multi-provider router, v9.11.0)
-    if command -v opencode &>/dev/null; then
-        local opencode_auth="none"
-        if [[ -f "${HOME}/.local/share/opencode/auth.json" ]]; then
-            # Verify auth is valid (with timeout to prevent interactive prompts)
-            if timeout 3 opencode auth list &>/dev/null 2>&1; then
-                opencode_auth="multi"
-            else
-                opencode_auth="expired"
-            fi
-        fi
-        echo "OPENCODE_STATUS=ok"
-        echo "OPENCODE_AUTH=$opencode_auth"
-    else
-        echo "OPENCODE_STATUS=not-installed"
-        echo "OPENCODE_AUTH=none"
-    fi
-    echo ""
-
-    # Check Qwen CLI (optional — free tier via Qwen OAuth, v9.10.0)
-    if command -v qwen &>/dev/null; then
-        local qwen_auth="none"
-        if [[ -f "${HOME}/.qwen/oauth_creds.json" ]]; then
-            qwen_auth="oauth"
-        elif [[ -f "${HOME}/.qwen/config.json" ]]; then
-            qwen_auth="config"
-        elif [[ -n "${QWEN_API_KEY:-}" ]]; then
-            qwen_auth="api-key"
-        fi
-        echo "QWEN_STATUS=ok"
-        echo "QWEN_AUTH=$qwen_auth"
-    else
-        echo "QWEN_STATUS=not-installed"
-        echo "QWEN_AUTH=none"
-    fi
-    echo ""
-
-    # Check Cursor Agent CLI (optional — Grok 4.20 via Cursor subscription, v9.23.0)
-    if declare -f _is_cursor_agent_binary >/dev/null 2>&1 && _is_cursor_agent_binary; then
-        local cursor_auth="none"
-        if [[ -n "${CURSOR_API_KEY:-}" ]]; then
-            cursor_auth="env:CURSOR_API_KEY"
-        elif grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
-            cursor_auth="cursor-session"
-        fi
-        echo "CURSOR_AGENT_STATUS=ok"
-        echo "CURSOR_AGENT_AUTH=$cursor_auth"
-    else
-        echo "CURSOR_AGENT_STATUS=not-installed"
-        echo "CURSOR_AGENT_AUTH=none"
-    fi
-    echo ""
-
-    # Write to cache
     mkdir -p "$WORKSPACE_DIR"
-    local codex_status=$(command -v codex &>/dev/null && echo "ok" || echo "missing")
-    local codex_auth=$([[ -f "$HOME/.codex/auth.json" ]] && echo "oauth" || [[ -n "${OPENAI_API_KEY:-}" ]] && echo "api-key" || echo "none")
-    local commandcode_auth commandcode_status
-    commandcode_auth="$(_preflight_commandcode_auth_mode 2>/dev/null || true)"
-    if [[ "$commandcode_auth" == "api-key" || "$commandcode_auth" == "cli" ]]; then commandcode_status="ok"
-    elif command -v command-code >/dev/null 2>&1; then commandcode_status="unauthenticated"
-    else commandcode_status="missing"; commandcode_auth="none"
-    fi
-    local agy_status="$detected_agy_status"
-    local agy_auth=$([[ "$agy_status" != "not-installed" ]] && echo "cli" || echo "none")
-    local agy_model="$detected_agy_model"
-    local perplexity_status=$([[ -n "${PERPLEXITY_API_KEY:-}" ]] && echo "ok" || echo "not-configured")
-    local perplexity_auth=$([[ -n "${PERPLEXITY_API_KEY:-}" ]] && echo "api-key" || echo "none")
-    local ollama_status=$(command -v ollama &>/dev/null && { curl -sf http://localhost:11434/api/tags &>/dev/null && echo "running" || echo "stopped"; } || echo "not-installed")
-    local copilot_status=$(command -v copilot &>/dev/null && echo "ok" || echo "not-installed")
-    local qwen_status=$(command -v qwen &>/dev/null && echo "ok" || echo "not-installed")
-    local opencode_status=$(command -v opencode &>/dev/null && echo "ok" || echo "not-installed")
-    local cursor_agent_status="not-installed"
-    if declare -f _is_cursor_agent_binary >/dev/null 2>&1 && _is_cursor_agent_binary; then
-        cursor_agent_status="ok"
-    fi
-    local cursor_agent_auth=$([[ -n "${CURSOR_API_KEY:-}" ]] && echo "env:CURSOR_API_KEY" || { grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null && echo "cursor-session"; } || echo "none")
-
-    cat > "$WORKSPACE_DIR/.provider-cache" <<EOF
-# Auto-generated on $(date)
-# Valid for 1 hour - re-run detect-providers to refresh
-
-# Codex Status
-CODEX_STATUS=$(printf '%q' "$codex_status")
-CODEX_AUTH=$(printf '%q' "$codex_auth")
-
-# Command Code Status
-COMMANDCODE_STATUS=$(printf '%q' "$commandcode_status")
-COMMANDCODE_AUTH=$(printf '%q' "$commandcode_auth")
-
-# Antigravity Status
-AGY_STATUS=$(printf '%q' "$agy_status")
-AGY_AUTH=$(printf '%q' "$agy_auth")
-AGY_MODEL=$(printf '%q' "$agy_model")
-
-# Perplexity Status (v8.24.0)
-PERPLEXITY_STATUS=$(printf '%q' "$perplexity_status")
-PERPLEXITY_AUTH=$(printf '%q' "$perplexity_auth")
-
-# Ollama Status (v9.9.0)
-OLLAMA_STATUS=$(printf '%q' "$ollama_status")
-
-# Copilot Status (v9.9.0)
-COPILOT_STATUS=$(printf '%q' "$copilot_status")
-
-# Qwen Status (v9.10.0)
-QWEN_STATUS=$(printf '%q' "$qwen_status")
-
-# OpenCode Status (v9.11.0)
-OPENCODE_STATUS=$(printf '%q' "$opencode_status")
-
-# Cursor Agent Status (v9.23.0)
-CURSOR_AGENT_STATUS=$(printf '%q' "$cursor_agent_status")
-CURSOR_AGENT_AUTH=$(printf '%q' "$cursor_agent_auth")
-
-# Timestamp
-CACHE_TIME=$(date +%s)
-EOF
-
-    echo "Detection complete. Cache written to $WORKSPACE_DIR/.provider-cache"
+    {
+        printf '# Auto-generated on %s\n' "$(date)"
+        printf '# Generated from Provider Registry 2.0 readiness results\n\n'
+        while IFS= read -r readiness_result; do
+            [[ -n "$readiness_result" ]] || continue
+            provider="$(jq -r '.provider' <<<"$readiness_result")"
+            status="$(jq -r '.status' <<<"$readiness_result")"
+            reason_code="$(jq -r '.reason_code' <<<"$readiness_result")"
+            env_name="$(printf '%s' "$provider" | tr '[:lower:]-' '[:upper:]_')"
+            case "$status" in
+                available) env_status="ok" ;;
+                degraded)
+                    case "$reason_code" in
+                        auth-missing|live-check-required) env_status="unauthenticated" ;;
+                        *) env_status="$reason_code" ;;
+                    esac
+                    ;;
+                *) env_status="not-installed" ;;
+            esac
+            printf '%s_STATUS=%s\n' "$env_name" "$env_status"
+            if [[ "$provider" == "agy" ]]; then
+                printf 'AGY_AUTH=%s\n' "$([[ "$status" == "available" ]] && printf cli || printf none)"
+                printf 'AGY_MODEL=%s\n' "$(_preflight_agy_configured_model)"
+            fi
+            if [[ "$provider" == "commandcode" ]]; then
+                printf 'COMMANDCODE_AUTH=%s\n' "$([[ "$status" == "available" ]] && printf api-key || printf none)"
+            fi
+        done < <(octo_provider_readiness_all static)
+        printf '\nCACHE_TIME=%s\n' "$(date +%s)"
+    } | tee "$cache_file"
     echo ""
-
-    # Show summary
-    echo "Summary:"
-    if [[ "$codex_status" == "ok" && "$codex_auth" != "none" ]]; then
-        echo "  ✓ Codex: Installed and authenticated ($codex_auth)"
-    elif [[ "$codex_status" == "ok" ]]; then
-        echo "  ⚠ Codex: Installed but not authenticated (run: codex login  OR  export OPENAI_API_KEY=\"sk-...\")"
-    else
-        echo "  ✗ Codex: Not installed (run: npm install -g @openai/codex)"
-    fi
-
-    if [[ "$commandcode_status" == "ok" ]]; then
-        echo "  ✓ Command Code: Installed and authenticated (${commandcode_auth})"
-    elif [[ "$commandcode_status" == "unauthenticated" ]]; then
-        echo "  ⚠ Command Code: Installed but unauthenticated"
-    else
-        echo "  ○ Command Code: Not installed (optional)"
-    fi
-
-    if [[ "$agy_status" == "ok" ]]; then
-        echo "  ✓ Antigravity: Installed (model: ${agy_model:-agy default}) — agy provider enabled"
-    elif [[ "$agy_status" == "model-invalid" ]]; then
-        echo "  ⚠ Antigravity: Installed but unavailable — configured model '${agy_model}' is absent from 'agy models'"
-    else
-        echo "  ○ Antigravity: Not installed (optional — install agy from Google Antigravity)"
-    fi
-
-    # Perplexity (optional, v8.24.0)
-    if [[ "$perplexity_status" == "ok" ]]; then
-        echo "  ✓ Perplexity: Configured ($perplexity_auth) — web search enabled in discover workflows"
-    else
-        echo "  ○ Perplexity: Not configured (optional — export PERPLEXITY_API_KEY=\"pplx-...\"  # https://www.perplexity.ai/settings/api)"
-    fi
-
-    # Ollama (optional, v9.9.0)
-    if [[ "$ollama_status" == "running" ]]; then
-        echo "  ✓ Ollama: Running — zero-cost local LLM"
-    elif [[ "$ollama_status" == "stopped" ]]; then
-        echo "  ⚠ Ollama: Installed but server not running (run: ollama serve)"
-    else
-        echo "  ○ Ollama: Not installed (optional — brew install ollama)"
-    fi
-
-    # Copilot (optional, v9.9.0)
-    if [[ "$copilot_status" == "ok" ]]; then
-        echo "  ✓ Copilot: Installed — zero-cost research via GitHub subscription"
-    else
-        echo "  ○ Copilot: Not installed (optional — brew install copilot-cli)"
-    fi
-
-    # Qwen (optional, v9.10.0)
-    if [[ "$qwen_status" == "ok" ]]; then
-        echo "  ✓ Qwen: Installed — free-tier research via Qwen OAuth"
-    else
-        echo "  ○ Qwen: Not installed (optional — npm install -g @qwen-code/qwen-code)"
-    fi
-    if [[ "$opencode_status" == "ok" ]]; then
-        echo "  ✓ OpenCode: Installed — multi-provider router (google, openai, openrouter)"
-    else
-        echo "  ○ OpenCode: Not installed (optional — npm install -g opencode)"
-    fi
-    # Cursor Agent (optional, v9.23.0)
-    if [[ "$cursor_agent_status" == "ok" && "$cursor_agent_auth" != "none" ]]; then
-        echo "  ✓ Cursor Agent: Installed and authenticated ($cursor_agent_auth) — Grok 4.20 via Cursor subscription"
-    elif [[ "$cursor_agent_status" == "ok" ]]; then
-        echo "  ⚠ Cursor Agent: Installed but not authenticated (run: agent login  OR  export CURSOR_API_KEY=\"...\")"
-    else
-        echo "  ○ Cursor Agent: Not installed (optional — curl -fsSL https://cursor.com/install | bash)"
-    fi
-    echo ""
-
-    # Provide guidance based on results
-    if [[ "$codex_status" == "missing" && "$agy_status" == "not-installed" && "$cursor_agent_status" != "ok" ]]; then
-        echo "⚠ No providers installed. You need at least ONE provider to use Claude Octopus."
-        echo ""
-        echo "Next steps:"
-        echo "  1. Install Codex CLI: npm install -g @openai/codex"
-        echo "     OR"
-        echo "  2. Install Antigravity CLI, then launch plain agy and complete browser sign-in"
-        echo "     OR"
-        echo "  3. Install Cursor Agent CLI: https://cursor.com/install"
-        echo ""
-        echo "Then configure authentication - see: /claude-octopus:setup"
-    elif ! { [[ "$codex_status" == "ok" && "$codex_auth" != "none" ]] || [[ "$agy_status" == "ok" ]] || [[ "$cursor_agent_status" == "ok" && "$cursor_agent_auth" != "none" ]]; }; then
-        echo "⚠ Provider(s) installed but not ready."
-        echo ""
-        echo "Next steps:"
-        if [[ "$codex_status" == "ok" && "$codex_auth" == "none" ]]; then
-            echo "  Codex: export OPENAI_API_KEY=\"sk-...\" (or run: codex login)"
-        fi
-        if [[ "$cursor_agent_status" == "ok" && "$cursor_agent_auth" == "none" ]]; then
-            echo "  Cursor Agent: export CURSOR_API_KEY=\"...\" (or run: agent login)"
-        fi
-        if [[ "$agy_status" == "model-invalid" ]]; then
-            echo "  Antigravity: choose an exact ID or label from 'agy models', or use 'default'"
-        fi
-        echo ""
-        echo "See: /claude-octopus:setup for full instructions"
-    else
-        echo "✓ You're all set! At least one provider is ready to use."
-        echo ""
-        if [[ "$codex_status" == "ok" && "$codex_auth" != "none" && "$agy_status" == "ok" ]]; then
-            echo "  Both Codex and Antigravity are configured - you'll get the best results!"
-        elif [[ "$codex_status" == "ok" && "$codex_auth" != "none" ]]; then
-            echo "  Codex is configured. You can optionally add Antigravity for multi-provider workflows."
-        elif [[ "$agy_status" == "ok" ]]; then
-            echo "  Antigravity is configured. You can optionally add Codex for multi-provider workflows."
-        elif [[ "$cursor_agent_status" == "ok" && "$cursor_agent_auth" != "none" ]]; then
-            echo "  Cursor Agent is configured. You can optionally add Codex or Antigravity for multi-provider workflows."
-        fi
-        if [[ "$perplexity_status" != "ok" ]]; then
-            echo ""
-            echo "  💡 Optional: Add Perplexity for live web search in research workflows:"
-            echo "     export PERPLEXITY_API_KEY=\"pplx-...\"  # https://www.perplexity.ai/settings/api"
-        fi
-        echo ""
-        echo "What you can do now (just talk naturally in Claude Code):"
-        echo "  • \"Research OAuth authentication patterns\""
-        echo "  • \"Build a user authentication system\""
-        echo "  • \"Review this code for security issues\""
-        echo "  • \"Use adversarial review to critique my implementation\""
-    fi
-    echo ""
+    echo "Detection complete. Cache written to $cache_file"
+    return 0
 }
 
 # Pre-flight dependency validation
@@ -455,39 +465,28 @@ preflight_check() {
     local has_cursor_agent=false
     local codex_auth=false
     local agy_auth=false
-    local agy_model_status="not-installed"
-    local agy_configured_model="default"
     local cursor_agent_auth=false
+    local readiness status reason remediation
 
-    # Check Codex CLI
-    if command -v codex &>/dev/null; then
+    readiness="$(octo_provider_readiness_result codex static)"
+    status="$(jq -r '.status' <<<"$readiness")"
+    if [[ "$status" != "missing" ]]; then
         has_codex=true
-        log DEBUG "Codex CLI: $(command -v codex)"
-        if [[ -f "$HOME/.codex/auth.json" ]] || [[ -n "${OPENAI_API_KEY:-}" ]]; then
-            codex_auth=true
-        fi
+        [[ "$status" == "available" ]] && codex_auth=true
     fi
 
-    # Check Antigravity CLI. A present AGY binary owns Google-seat auth.
-    if command -v agy &>/dev/null; then
+    readiness="$(octo_provider_readiness_result agy static)"
+    status="$(jq -r '.status' <<<"$readiness")"
+    if [[ "$status" != "missing" ]]; then
         has_agy=true
-        log DEBUG "Antigravity CLI: $(command -v agy)"
-        agy_configured_model="$(_preflight_agy_configured_model)"
-        agy_model_status="$(_preflight_agy_model_status)"
-        if [[ "$agy_model_status" == "ok" || "$agy_model_status" == "unchecked" ]]; then
-            agy_auth=true
-        else
-            log ERROR "Antigravity unavailable: configured model '$agy_configured_model' is absent from 'agy models'"
-        fi
+        [[ "$status" == "available" ]] && agy_auth=true
     fi
 
-    # Check Cursor Agent CLI
-    if declare -f _is_cursor_agent_binary >/dev/null 2>&1 && _is_cursor_agent_binary; then
+    readiness="$(octo_provider_readiness_result cursor-agent static)"
+    status="$(jq -r '.status' <<<"$readiness")"
+    if [[ "$status" != "missing" ]]; then
         has_cursor_agent=true
-        log DEBUG "Cursor Agent CLI: $(command -v agent)"
-        if [[ -n "${CURSOR_API_KEY:-}" ]] || grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
-            cursor_agent_auth=true
-        fi
+        [[ "$status" == "available" ]] && cursor_agent_auth=true
     fi
 
     # v7.9.1: Only need ONE provider to work
@@ -523,24 +522,14 @@ preflight_check() {
         echo -e "${YELLOW}║  ⚠️  PROVIDERS FOUND BUT NOT READY                            ║${NC}"
         echo -e "${YELLOW}╚═══════════════════════════════════════════════════════════════╝${NC}"
         echo ""
-        if [[ "$has_codex" == "true" ]]; then
-            echo -e "${CYAN}Codex CLI installed but needs authentication:${NC}"
-            echo -e "  codex login  ${DIM}# OAuth (recommended)${NC}"
-            echo -e "  ${DIM}OR export OPENAI_API_KEY=\"sk-...\"${NC}"
-            echo ""
-        fi
-        if [[ "$has_cursor_agent" == "true" ]]; then
-            echo -e "${CYAN}Cursor Agent CLI installed but needs authentication:${NC}"
-            echo -e "  agent login  ${DIM}# Cursor session${NC}"
-            echo -e "  ${DIM}OR export CURSOR_API_KEY=\"...\"${NC}"
-            echo ""
-        fi
-        if [[ "$has_agy" == "true" && "$agy_model_status" == "model-invalid" ]]; then
-            echo -e "${CYAN}Antigravity CLI installed but its configured model is unavailable:${NC}"
-            echo -e "  Configured: ${YELLOW}$agy_configured_model${NC}"
-            echo -e "  Run ${CYAN}agy models${NC}, then choose an exact ID or label; use ${CYAN}default${NC} to follow AGY's selection."
-            echo ""
-        fi
+        for provider in codex agy cursor-agent; do
+            readiness="$(octo_provider_readiness_result "$provider" static)"
+            status="$(jq -r '.status' <<<"$readiness")"
+            [[ "$status" == "degraded" ]] || continue
+            remediation="$(jq -r '.remediation' <<<"$readiness")"
+            echo -e "${CYAN}${provider}:${NC} ${remediation}"
+        done
+        echo ""
         echo -e "Run ${GREEN}/octo:setup${NC} for guided configuration."
         echo ""
         preflight_cache_write "1"

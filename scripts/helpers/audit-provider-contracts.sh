@@ -43,11 +43,11 @@ not_contains() {
 
 contains "${ROOT}/scripts/helpers/check-providers.sh" '^set -euo pipefail$' \
     "check-providers uses strict mode"
-contains "${ROOT}/scripts/helpers/check-providers.sh" 'name:degraded' \
-    "provider status contract documents degraded"
-contains "${ROOT}/scripts/helpers/check-providers.sh" 'qwen_state="degraded"' \
+contains "${ROOT}/scripts/helpers/check-providers.sh" 'octo_provider_readiness_legacy' \
+    "provider checker renders the shared readiness contract"
+contains "${ROOT}/scripts/lib/preflight.sh" 'auth-expired' \
     "qwen binary-with-bad-auth fails closed in provider banner"
-contains "${ROOT}/scripts/helpers/check-providers.sh" 'octo_event_emit "provider\.status"' \
+contains "${ROOT}/scripts/lib/preflight.sh" 'octo_event_emit "provider\.status"' \
     "provider banner can emit opt-in lifecycle events"
 
 contains "${ROOT}/scripts/lib/qwen.sh" 'oauth-unvalidated' \

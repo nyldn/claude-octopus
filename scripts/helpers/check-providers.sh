@@ -1,246 +1,46 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Claude Octopus — Provider Availability Check
-# Single-source script for checking which AI providers are available.
-# Used by skills (via Bash tool) to populate the activation banner.
-#
-# Output format: one line per provider:
-#   name:available — provider can be dispatched
-#   name:missing   — provider is absent, disallowed, or lacks required config
-#   name:degraded  — provider binary exists but fails a health/auth gate
-# Consumers that dispatch providers should match only ":available".
-# Exit code: always 0 (availability is informational, not an error)
+# Claude Octopus — provider availability compatibility renderer.
+# The shared readiness evaluator owns installation, auth/config, allowlist,
+# quota, and live-health decisions. This script preserves the documented
+# PROVIDER_CHECK_START / name:state / PROVIDER_CHECK_END protocol.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
-# Self-heal: ensure ~/.claude-octopus/plugin symlink exists before proceeding.
-# Marketplace installs may not have the symlink yet if SessionStart hook hasn't
-# fired. This is a no-op when the symlink is already healthy. (fixes #377)
+# Marketplace installs may not have the plugin-root symlink until SessionStart.
 bash "${SCRIPT_DIR}/ensure-plugin-root.sh" 2>/dev/null || true
 
-source "${SCRIPT_DIR}/../lib/cursor-agent.sh" 2>/dev/null || true
-source "${SCRIPT_DIR}/../lib/grok.sh" 2>/dev/null || true
-source "${SCRIPT_DIR}/../lib/provider-allowlist.sh" 2>/dev/null || true
-source "${SCRIPT_DIR}/../lib/auth.sh" 2>/dev/null || true   # octo_oauth_token_valid (oco-dar)
-# provider-routing owns the non-interactive shell/profile credential resolver.
-# It normally logs through orchestrate.sh; this standalone status helper stays
-# quiet because its stdout is a machine-readable provider-state protocol.
 if ! declare -f log >/dev/null 2>&1; then
     log() { :; }
 fi
-source "${SCRIPT_DIR}/../lib/provider-routing.sh" 2>/dev/null || true
-source "${SCRIPT_DIR}/../lib/qwen.sh" 2>/dev/null || true   # qwen_is_usable (oco-dar)
-source "${SCRIPT_DIR}/../lib/openai-compatible.sh" 2>/dev/null || true
-source "${SCRIPT_DIR}/../lib/copilot.sh" 2>/dev/null || true
-source "${SCRIPT_DIR}/../lib/events.sh" 2>/dev/null || true  # opt-in JSONL lifecycle stream
-source "${SCRIPT_DIR}/../lib/quota-watcher.sh" 2>/dev/null || true  # octo_quota_is_dead (oco-cbb)
 
-# oco-cbb: report degraded when a key/binary-present provider was marked
-# quota/auth-dead earlier this session, so it
-# is skipped instead of re-dispatched into the same failure + timeout.
+source "${SCRIPT_DIR}/../lib/preflight.sh"
+
+# Compatibility helpers retained for sourced third-party consumers. Readiness
+# already applies these policies; repeating them is idempotent and keeps the
+# legacy provider_status API from silently changing behavior.
 _octo_provider_state() {
     local provider="$1" present_state="$2"
-    if [[ "$present_state" == "available" ]] && declare -f octo_quota_is_dead >/dev/null 2>&1 \
-       && octo_quota_is_dead "$provider"; then
-        echo "degraded"
+    if [[ "$present_state" == "available" ]] &&
+       declare -f octo_quota_is_dead >/dev/null 2>&1 && octo_quota_is_dead "$provider"; then
+        printf '%s\n' "degraded"
     else
-        echo "$present_state"
+        printf '%s\n' "$present_state"
     fi
 }
 
 provider_status() {
-    local provider="$1"
-    local status="$2"
-    # Apply the quota/auth-dead downgrade here, centrally, rather than at each
-    # call site. It used to be opt-in per provider and only four of thirteen
-    # opted in, so a seat marked dead at dispatch (agy hitting its account-wide
-    # "Individual quota reached") still advertised itself as `available` and was
-    # seated again. Routing it through the single choke point every provider
-    # already passes through makes the downgrade impossible to forget.
+    local provider="$1" status="$2"
     status="$(_octo_provider_state "$provider" "$status")"
-    if declare -f octo_provider_allowed >/dev/null 2>&1 && ! octo_provider_allowed "$provider"; then
-        status="missing"
-    fi
-    printf "%s:%s\n" "$provider" "$status"
-    if declare -f octo_event_emit >/dev/null 2>&1; then
-        octo_event_emit "provider.status" provider="$provider" status="$status" source="check-providers" || true
-    fi
+    printf '%s:%s\n' "$provider" "$status"
 }
 
-cursor_agent_status="missing"
-if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed "cursor-agent"; } && \
-   declare -f _is_cursor_agent_binary >/dev/null 2>&1 && _is_cursor_agent_binary && \
-   { [ -n "${CURSOR_API_KEY:-}" ] || grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null; }; then
-    cursor_agent_status="available"
-fi
-
-echo "PROVIDER_CHECK_START"
-# codex: binary-only is not enough — an installed-but-unauthenticated CLI
-# would seat and then fail dispatch. Mirror the auth check preflight.sh
-# already does (#799) so the banner and the real dispatch gate agree.
-codex_state="missing"
-if command -v codex >/dev/null 2>&1; then
-    if [[ -f "${HOME}/.codex/auth.json" ]] || [[ -n "${OPENAI_API_KEY:-}" ]]; then
-        codex_state="available"
-    else
-        codex_state="degraded"
-    fi
-fi
-provider_status "codex" "$codex_state"
-commandcode_state="missing"
-[[ -n "${COMMAND_CODE_API_KEY:-}" ]] || resolve_provider_env "COMMAND_CODE_API_KEY" 2>/dev/null || true
-cc_bin="${OCTOPUS_COMMANDCODE_BIN:-}"
-if [[ -z "$cc_bin" ]]; then
-    if command -v command-code >/dev/null 2>&1; then
-        cc_bin="command-code"
-    elif command -v cmd >/dev/null 2>&1; then
-        cc_bin="cmd"
-    fi
-fi
-if [[ -n "$cc_bin" ]] && { [[ -x "$cc_bin" ]] || command -v "$cc_bin" >/dev/null 2>&1; }; then
-    if [[ -n "${COMMAND_CODE_API_KEY:-}" ]]; then
-        commandcode_state="available"
-    else
-        "$cc_bin" status --json >/dev/null 2>&1 && commandcode_state="available" || commandcode_state="degraded"
-    fi
-fi
-provider_status "commandcode" "$commandcode_state"
-# AGY intentionally remains a local binary check. The CLI exposes no bounded,
-# non-interactive auth-status command, and invoking login/model commands from a
-# startup/banner hook can open a browser or keychain prompt. Runtime quota/auth
-# failures are remembered by provider_status() and suppress later dispatches.
-provider_status "agy" "$(command -v agy >/dev/null 2>&1 && echo available || echo missing)"
-# #871: gemini* seats have routed through the `agy` binary, not the `gemini`
-# CLI, since #854 retired direct Gemini dispatch. A host that still has
-# `gemini` on PATH but never installed Antigravity used to get working
-# gemini* seats; now every one of them fails at dispatch with no signal
-# before that point. Warn once on stderr so it reaches interactive preflight
-# banners (skills/blocks/provider-check.md runs this script unredirected)
-# without perturbing the name:state stdout protocol other callers parse.
-# `type -P` deliberately, not the usual `command -v` idiom: this is a PATH
-# presence probe for the warning below, never a dispatch/invocation of
-# gemini, and tests/unit/test-retired-gemini-provider.sh greps scripts/ for
-# that exact idiom applied to gemini as a tripwire against direct Gemini
-# paths reappearing post-#854.
+# Warn about the retired direct Gemini route without changing machine output.
 if type -P gemini >/dev/null 2>&1 && ! command -v agy >/dev/null 2>&1; then
-    echo "WARNING: gemini CLI found but Antigravity (agy) is not installed — gemini* seats route through agy since #854 and will fail. Install Antigravity (agy) to restore Google seats." >&2
+    echo "WARNING: gemini CLI found but Antigravity (agy) is not installed — gemini* seats route through agy. Install Antigravity to restore Google seats." >&2
 fi
-# oco-cbb: opt-in proactive probe for API-key providers (perplexity, openrouter).
-# Only runs when OCTOPUS_PREFLIGHT_PROBE=1; result cached via quota-dead marker
-# so subsequent octo_quota_is_dead reads pick it up automatically.
-if [[ "${OCTOPUS_PREFLIGHT_PROBE:-0}" == "1" ]] && declare -f octo_provider_probe >/dev/null 2>&1 \
-   && { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed "perplexity"; }; then
-    [ -n "${PERPLEXITY_API_KEY:-}" ] && octo_provider_probe "perplexity" || true
-fi
-provider_status "perplexity" "$([ -n "${PERPLEXITY_API_KEY:-}" ] && echo available || echo missing)"
-atlascloud_state="missing"
-if [ -n "${ATLASCLOUD_API_KEY:-}" ]; then
-    if [ -n "${ATLASCLOUD_MODEL:-}" ] || [ -n "${OCTOPUS_ATLASCLOUD_MODEL:-}" ] || [ -n "${OPENAI_COMPAT_MODEL:-}" ]; then
-        atlascloud_state="available"
-    else
-        atlascloud_state="degraded"
-    fi
-fi
-provider_status "atlascloud" "$atlascloud_state"
 
-claude_sdk_state="missing"
-if command -v claude-agent >/dev/null 2>&1 || command -v claude >/dev/null 2>&1; then
-    if _octo_value_has_nonwhitespace "${CLAUDE_SDK_API_KEY:-}"; then
-        claude_sdk_state="available"
-    else
-        claude_sdk_state="degraded"
-    fi
-fi
-provider_status "claude-sdk" "$claude_sdk_state"
-
-vibe_state="missing"
-if command -v vibe >/dev/null 2>&1; then
-    if ! _octo_value_has_nonwhitespace "${MISTRAL_API_KEY:-}" && \
-       declare -f resolve_provider_env >/dev/null 2>&1; then
-        resolve_provider_env "MISTRAL_API_KEY" 2>/dev/null || true
-    fi
-    if _octo_value_has_nonwhitespace "${MISTRAL_API_KEY:-}" || \
-       _octo_assignment_has_nonempty_value "${HOME}/.vibe/.env" "MISTRAL_API_KEY" || \
-       _octo_assignment_has_nonempty_value "${HOME}/.vibe/config.toml" "api_key"; then
-        vibe_state="available"
-    else
-        vibe_state="degraded"
-    fi
-fi
-provider_status "vibe" "$vibe_state"
-
-openai_compatible_state="missing"
-openai_compatible_key_value="$(openai_compatible_api_key_value 2>/dev/null || true)"
-if [[ -n "${OPENAI_COMPAT_BASE_URL:-}" || -n "${OPENAI_COMPAT_API_KEY:-}" || \
-      -n "$openai_compatible_key_value" ]]; then
-    if openai_compatible_is_available; then
-        openai_compatible_state="available"
-    else
-        openai_compatible_state="degraded"
-    fi
-fi
-provider_status "openai-compatible" "$openai_compatible_state"
-
-# opencode/copilot: same fail-open gap as codex (#799) — reuse the auth
-# signals preflight.sh already checks instead of trusting binary presence.
-opencode_state="missing"
-if command -v opencode >/dev/null 2>&1; then
-    if [[ -f "${HOME}/.local/share/opencode/auth.json" ]]; then
-        if command -v timeout >/dev/null 2>&1; then
-            timeout 3 opencode auth list >/dev/null 2>&1 && opencode_state="available" || opencode_state="degraded"
-        elif command -v gtimeout >/dev/null 2>&1; then
-            gtimeout 3 opencode auth list >/dev/null 2>&1 && opencode_state="available" || opencode_state="degraded"
-        else
-            # An auth file alone is not proof that its credentials are still
-            # valid. Without a bounded probe, fail closed instead of either
-            # hanging on an interactive prompt or advertising a dead seat.
-            opencode_state="degraded"
-        fi
-    else
-        opencode_state="degraded"
-    fi
-fi
-provider_status "opencode" "$opencode_state"
-copilot_state="missing"
-if command -v copilot >/dev/null 2>&1; then
-    if declare -f copilot_is_available >/dev/null 2>&1 && copilot_is_available; then
-        copilot_state="available"
-    else
-        copilot_state="degraded"
-    fi
-fi
-provider_status "copilot" "$copilot_state"
-# qwen: binary-only is not enough — an expired OAuth token (free tier EOL
-# 2026-04-15) would dispatch and hang on interactive device-auth (oco-dar).
-# Report "degraded" when the binary is present but auth is expired/missing so
-# consumers (which match ":available") skip it and the banner can say why.
-qwen_state="missing"
-if command -v qwen >/dev/null 2>&1; then
-    if declare -f qwen_is_usable >/dev/null 2>&1; then
-        qwen_is_usable && qwen_state="available" || qwen_state="degraded"
-    else
-        qwen_state="degraded"   # validator unavailable: fail closed
-    fi
-fi
-provider_status "qwen" "$qwen_state"
-provider_status "cursor-agent" "$cursor_agent_status"
-provider_status "grok" "$({ ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed grok; } && declare -f grok_is_available >/dev/null 2>&1 && grok_is_available && echo available || echo missing)"
-provider_status "ollama" "$({ ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed "ollama"; } && command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1 && echo available || echo missing)"
-if [[ "${OCTOPUS_PREFLIGHT_PROBE:-0}" == "1" ]] && declare -f octo_provider_probe >/dev/null 2>&1 \
-   && { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed "openrouter"; }; then
-    [ -n "${OPENROUTER_API_KEY:-}" ] && octo_provider_probe "openrouter" || true
-fi
-provider_status "openrouter" "$([ -n "${OPENROUTER_API_KEY:-}" ] && echo available || echo missing)"
-# orcarouter: API-key gateway (OpenAI-compatible), same shape as openrouter.
-orcarouter_state="missing"
-if declare -f octo_api_key_provider_is_available >/dev/null 2>&1 && \
-   octo_api_key_provider_is_available "orcarouter" "ORCAROUTER_API_KEY"; then
-    orcarouter_state="available"
-fi
-if [[ "${OCTOPUS_PREFLIGHT_PROBE:-0}" == "1" ]] && declare -f octo_provider_probe >/dev/null 2>&1 \
-   && [[ "$orcarouter_state" == "available" ]]; then
-    octo_provider_probe "orcarouter" || true
-fi
-provider_status "orcarouter" "$orcarouter_state"
-echo "PROVIDER_CHECK_END"
+check_kind="static"
+[[ "${OCTOPUS_PREFLIGHT_PROBE:-0}" == "1" ]] && check_kind="live"
+octo_provider_readiness_legacy "$check_kind"

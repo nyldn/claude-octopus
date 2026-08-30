@@ -78,13 +78,13 @@ test_json_versions_has_floor_field() {
 }
 
 test_json_results_entries_well_formed() {
-    test_case "--json results entries have name+status fields"
+    test_case "--json results entries expose the shared readiness schema"
     local out
     out=$(bash "$PREFLIGHT" --json 2>/dev/null)
-    if echo "$out" | python3 -c 'import json,sys; data=json.load(sys.stdin); results=data.get("results", []); assert results and all("name" in r and "status" in r for r in results)' 2>/dev/null; then
+    if echo "$out" | python3 -c 'import json,sys; data=json.load(sys.stdin); results=data.get("results", []); required={"provider","status","reason_code","check_kind","checked_at","duration_ms","remediation"}; assert results and all(required <= set(r) for r in results)' 2>/dev/null; then
         test_pass
     else
-        test_fail "No well-formed name+status entries found"
+        test_fail "No well-formed shared readiness entries found"
     fi
 }
 

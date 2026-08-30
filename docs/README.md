@@ -27,5 +27,15 @@ Provider-specific configuration is in `config/providers/`:
 
 ## Quick Start
 
-Run `/octo:setup` in Claude Code for guided setup. For diagnostics, invoke
-`/octo:skill-doctor` in Claude Code or run `octopus doctor` in a shell.
+Run `/octo:setup` in Claude Code. It shows one shared provider-readiness
+summary, lets you start with Claude alone or configure one additional provider,
+and finishes with a local no-billing verification. Optional developer tools,
+model tuning, and automation stay under Advanced setup.
+
+After setup, the three useful entry points are:
+
+- `/octo:auto` — route a task
+- `/octo:skill-doctor` — diagnose Octopus skills inside Claude Code
+- `/octo:setup` — change setup choices
+
+For shell-level environment diagnostics, run `octopus doctor`.

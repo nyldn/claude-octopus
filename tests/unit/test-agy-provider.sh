@@ -734,9 +734,12 @@ MOCK_AGY
     # catalog is a "cannot validate" case, so it now fails OPEN (rc=0) — the pin is
     # trusted and agy rejects a genuinely bad model at dispatch. (OCTOPUS_AGY_MODEL_STRICT=1
     # would fail closed; the default path is asserted here.)
+    # Do not require a minimum elapsed time. Other bounded probes in this suite
+    # can terminate a fixture process early; the contract is that this probe
+    # starts, never completes its six-second sleep, leaves no process behind,
+    # and returns before the upper bound.
     if [[ "$lookup_rc" -eq 0 && -f "$started_marker" && ! -e "$completed_marker" \
-          && "$process_alive" == "no" && "$elapsed_ms" -ge 700 \
-          && "$elapsed_ms" -lt "$timeout_upper_ms" ]]; then
+          && "$process_alive" == "no" && "$elapsed_ms" -lt "$timeout_upper_ms" ]]; then
         test_pass
     else
         test_fail "stalled agy catalog was not bounded or did not fail open: rc=$lookup_rc elapsed=${elapsed_ms}ms upper=${timeout_upper_ms}ms started=$([[ -f "$started_marker" ]] && echo yes || echo no) completed=$([[ -f "$completed_marker" ]] && echo yes || echo no) process_alive=$process_alive"
@@ -870,12 +873,13 @@ test_agy_spawn_cli_uses_sync_dispatch() {
 }
 
 test_agy_check_providers() {
-    test_case "check-providers reports agy"
+    test_case "check-providers reports agy through shared readiness"
 
-    if grep -q 'provider_status "agy"' "$PROJECT_ROOT/scripts/helpers/check-providers.sh"; then
+    if grep -q 'octo_provider_readiness_legacy' "$PROJECT_ROOT/scripts/helpers/check-providers.sh" &&
+       grep -q '^agy|' "$PROJECT_ROOT/scripts/lib/provider-registry.sh"; then
         test_pass
     else
-        test_fail "check-providers.sh should report agy status"
+        test_fail "check-providers.sh should render registry-backed agy readiness"
     fi
 }
 
@@ -1082,11 +1086,11 @@ test_agy_auth_guidance_uses_real_cli_flow() {
 test_agy_setup_visibility() {
     test_case "setup command shows Antigravity provider"
 
-    if grep -q 'printf "agy:%s' "$PROJECT_ROOT/commands/setup.md" && \
-       grep -q 'Antigravity CLI (agy)' "$PROJECT_ROOT/commands/setup.md"; then
+    if grep -q 'scripts/helpers/preflight.sh.*--json' "$PROJECT_ROOT/commands/setup.md" && \
+       grep -q 'Antigravity (`agy`)' "$PROJECT_ROOT/commands/setup.md"; then
         test_pass
     else
-        test_fail "setup should detect and offer Antigravity CLI"
+        test_fail "setup should render and offer Antigravity through shared readiness"
     fi
 }
 
@@ -1132,7 +1136,7 @@ test_agy_smoke_defaults() {
 }
 
 test_agy_preflight_visibility() {
-    test_case "provider detection emits and caches valid and invalid Antigravity models"
+    test_case "static provider detection caches AGY without probing the live model catalog"
 
     local fixture_bin="$TEST_TMP_DIR/agy-preflight-bin"
     local fixture_home="$TEST_TMP_DIR/agy-preflight-home"
@@ -1180,11 +1184,13 @@ MOCK_AGY
 
     if grep -q '^AGY_STATUS=ok$' <<< "$valid_output" &&
        grep -q '^AGY_STATUS=ok$' "$valid_workspace/.provider-cache" &&
-       grep -q '^AGY_STATUS=model-invalid$' <<< "$invalid_output" &&
-       grep -q '^AGY_STATUS=model-invalid$' "$invalid_workspace/.provider-cache"; then
+       grep -q '^AGY_STATUS=ok$' <<< "$invalid_output" &&
+       grep -q '^AGY_STATUS=ok$' "$invalid_workspace/.provider-cache" &&
+       grep -q '^AGY_MODEL=gemini-3.5-flash-low$' "$valid_workspace/.provider-cache" &&
+       grep -q '^AGY_MODEL=gemini-9-unknown$' "$invalid_workspace/.provider-cache"; then
         test_pass
     else
-        test_fail "provider detection output/cache did not preserve AGY model status"
+        test_fail "static detection should preserve configured AGY models without claiming live validation"
     fi
 }
 
@@ -1460,9 +1466,9 @@ test_provider_aware_commands_generate_antigravity_banners() {
     done
 
     for file in "$PROJECT_ROOT/commands/setup.md" "$PROJECT_ROOT/.cursor-plugin/commands/octo-setup.md"; do
-        grep -q 'Do not hand-write or summarize this provider block' "$file" || missing+="${file}: missing generated setup table instruction"$'\n'
-        grep -q 'agy_status="$(status_installed agy)"' "$file" || missing+="${file}: missing setup agy status assignment"$'\n'
-        grep -q '🧭 Antigravity:    ${agy_status}' "$file" || missing+="${file}: missing setup Antigravity status line"$'\n'
+        grep -q 'scripts/helpers/preflight.sh.*--json' "$file" || missing+="${file}: missing shared readiness input"$'\n'
+        grep -q 'Render only those shared objects' "$file" || missing+="${file}: missing shared-object renderer instruction"$'\n'
+        grep -q 'Antigravity (`agy`)' "$file" || missing+="${file}: missing setup Antigravity option"$'\n'
     done
 
     if [[ -z "$missing" ]]; then

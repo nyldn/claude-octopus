@@ -133,6 +133,22 @@ Without indicators, users have no visibility into what's happening or what they'
 
 ---
 
+## Provider Readiness Contract
+
+Provider Registry 2.0 is the authority for provider identity, capabilities,
+authentication mode, detection, and health routing. Use
+`scripts/helpers/check-providers.sh` for the documented machine-readable
+admission protocol or `scripts/helpers/preflight.sh --json` for structured
+readiness objects.
+
+Static checks are local-only. Live checks run only after an explicit `--live`
+request and must remain bounded. Doctor, setup, preflight, and provider
+detection render the shared result objects; they must not independently probe
+binaries, credentials, models, quota, or provider services. Diagnostics belong
+on stderr, and readiness output must never contain credential values.
+
+---
+
 ## File Creation Policy (CRITICAL)
 
 **NEVER create temporary, progress, or working files in the plugin directory.**

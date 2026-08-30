@@ -1,7 +1,7 @@
 ---
 command: setup
 disable-model-invocation: true
-description: Interactive setup wizard — install providers, configure auth, RTK, token optimization
+description: Get Claude Octopus ready, verify it locally, or open advanced setup
 aliases:
   - sys-setup
 allowed-tools: Bash, Read, Glob, Grep, AskUserQuestion
@@ -11,589 +11,196 @@ allowed-tools: Bash, Read, Glob, Grep, AskUserQuestion
 
 **Your first output line MUST be:** `🐙 Octopus Setup`
 
-Interactive setup wizard. Detects what's installed, offers to install what's missing, configures auth, and optimizes token usage.
+The default path gets the user to a verified first success. It does not install
+optional companions, tune models, or contact a provider service. Every install,
+login, or configuration write requires an explicit choice first.
 
-**This command runs only when the user invokes `/octo:setup`.** SessionStart may
-offer the command once after installation, but never starts it.
+Never ask the user to paste a secret into chat. Use the provider's login command
+or documented environment configuration. Never turn a failed recheck into a
+success message.
 
-**CRITICAL: This command MUST always run its interactive flow when invoked.** Never silently dismiss the user. Never say "you're already set up" without showing the dashboard and offering choices via AskUserQuestion. Even if everything is configured, the user invoked this command for a reason — show them their status and ask what they want to do.
+## Default path
 
-## v10 Readiness Contract
+### 1. Resolve the installed plugin
 
-Setup is a guided configuration flow, not a success-by-binary-presence check.
-Before offering changes, use `/octo:doctor --json` as the authoritative local
-readiness report and keep its stdout even when it exits `1`; that exit means one
-or more checks failed, not that the JSON is unusable. Provider readiness requires
-both usable authentication and a resolvable model. A CLI version command alone
-does not prove either.
-
-Treat every repair as a proposal:
-
-1. Show the exact failing check and the proposed command or file change.
-2. Ask for explicit confirmation before installing, logging in, deleting,
-   replacing, or updating anything.
-3. For configuration files, write a sibling temporary file, validate it, then
-   atomically rename it over the target. Preserve the original if validation or
-   rename fails.
-4. Rerun the affected Doctor category and report its real exit status. Never
-   turn a warning or failed recheck into a success message.
-5. Never print, copy into a manifest, or ask the user to paste a secret into
-   chat. Use each provider's supported login or secure environment path.
-
-## STEP 1: Detect Current State
-
-Run a SINGLE comprehensive check. In addition to the dashboard facts below,
-capture the Doctor 2.0 JSON contract from the resolved plugin root. Because
-failed diagnostics exit `1`, capture the status explicitly instead of using it
-as an errexit boundary:
+Use the active plugin root when available, then the stable Octopus symlink. The
+fallback search is read-only; setup must not repair paths before the user has
+made a choice.
 
 ```bash
 OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
-if [[ ! -x "$OCTO_ROOT/scripts/orchestrate.sh" ]]; then
+if [[ ! -x "$OCTO_ROOT/scripts/helpers/preflight.sh" ]]; then
   OCTO_ROOT="${HOME}/.claude-octopus/plugin"
 fi
-if [[ ! -x "$OCTO_ROOT/scripts/orchestrate.sh" ]]; then
-  helper="${HOME}/.claude-octopus/plugin/scripts/helpers/ensure-plugin-root.sh"
-  if [[ ! -x "$helper" ]]; then
-    helper="$(find "${HOME}/.claude/plugins/cache" "${HOME}/Library/Application Support/Claude" "${LOCALAPPDATA:-/dev/null}/Claude" "${XDG_DATA_HOME:-${HOME}/.local/share}/Claude" -maxdepth 8 -path "*/nyldn-plugins/octo/*/scripts/helpers/ensure-plugin-root.sh" -print -quit 2>/dev/null)"
-  fi
-  [[ -x "$helper" ]] && bash "$helper" >/dev/null 2>&1 || true
+if [[ ! -x "$OCTO_ROOT/scripts/helpers/preflight.sh" ]]; then
+  OCTO_ROOT="$(find "${HOME}/.claude/plugins/cache" "${HOME}/Library/Application Support/Claude" "${LOCALAPPDATA:-/dev/null}/Claude" "${XDG_DATA_HOME:-${HOME}/.local/share}/Claude" -maxdepth 8 -path '*/nyldn-plugins/octo/*/scripts/helpers/preflight.sh' -print -quit 2>/dev/null | sed 's#/scripts/helpers/preflight.sh$##')"
 fi
-[[ -x "$OCTO_ROOT/scripts/orchestrate.sh" ]] || {
-  echo "plugin-root:missing"
+[[ -x "$OCTO_ROOT/scripts/helpers/preflight.sh" ]] || {
+  echo "Octopus installation not found. Reinstall octo@nyldn-plugins, then run /octo:setup again."
   exit 1
 }
-export CLAUDE_PLUGIN_ROOT="$OCTO_ROOT"
-
-set +e
-DOCTOR_JSON="$(bash "${OCTO_ROOT}/scripts/orchestrate.sh" doctor --json 2>/dev/null)"
-DOCTOR_EXIT=$?
-set -e
-if ! jq -e '.schema_version == "10.0" and (.summary.exit_code == 0 or .summary.exit_code == 1)' \
-  <<<"$DOCTOR_JSON" >/dev/null 2>&1; then
-  echo "doctor_contract:invalid"
-else
-  printf 'doctor_exit:%s\n' "$DOCTOR_EXIT"
-  printf 'doctor_failures:%s\n' "$(jq -r '.summary.failures' <<<"$DOCTOR_JSON")"
-  printf 'doctor_warnings:%s\n' "$(jq -r '.summary.warnings' <<<"$DOCTOR_JSON")"
-fi
+export OCTO_ROOT
 ```
 
-Then run the existing inventory block:
+### 2. Show shared readiness
+
+Run one static, local-only readiness check. This is the same Provider Registry
+2.0 contract used by Doctor, `detect-providers`, and workflow admission.
 
 ```bash
-set -euo pipefail
-
-echo "=== Provider Detection ==="
-printf "codex:%s\n" "$(command -v codex >/dev/null 2>&1 && echo installed || echo missing)"
-printf "codex_auth:%s\n" "$(jq -r '[.results[] | select(.name == "codex-auth")][0].status // "unknown"' <<<"${DOCTOR_JSON:-{}}" 2>/dev/null || echo unknown)"
-printf "agy:%s\n" "$(command -v agy >/dev/null 2>&1 && echo installed || echo missing)"
-printf "agy_model:%s\n" "${OCTOPUS_AGY_MODEL:-}"
-printf "perplexity:%s\n" "$([ -n "${PERPLEXITY_API_KEY:-}" ] && echo configured || echo missing)"
-printf "copilot:%s\n" "$(command -v copilot >/dev/null 2>&1 && echo installed || echo missing)"
-printf "qwen:%s\n" "$(command -v qwen >/dev/null 2>&1 && echo installed || echo missing)"
-printf "ollama:%s\n" "$(command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1 && echo running || command -v ollama >/dev/null 2>&1 && echo installed || echo missing)"
-printf "opencode:%s\n" "$(command -v opencode >/dev/null 2>&1 && echo installed || echo missing)"
-printf "vibe:%s\n" "$(command -v vibe >/dev/null 2>&1 && echo installed || echo missing)"
-printf "vibe_auth:%s\n" "$(if ! command -v vibe >/dev/null 2>&1; then echo n/a; elif [ -f "${HOME}/.vibe/.env" ] && grep -Eq '^[[:space:]]*MISTRAL_API_KEY=' "${HOME}/.vibe/.env" 2>/dev/null; then echo env-file; elif [ -n "${MISTRAL_API_KEY:-}" ]; then echo api-key; elif [ -f "${HOME}/.vibe/config.toml" ] && grep -Eq '^[[:space:]]*api_key[[:space:]]*=' "${HOME}/.vibe/config.toml" 2>/dev/null; then echo config; else echo none; fi)"
-printf "remote_session:%s\n" "$([[ "${CLAUDE_CODE_REMOTE:-}" == "true" || "${OCTOPUS_REMOTE_SESSION:-}" == "true" ]] && echo true || echo false)"
-printf "octo_tier:%s\n" "${OCTO_TIER:-unset}"
-echo "=== Companions ==="
-printf "graphify:%s\n" "$(command -v graphify >/dev/null 2>&1 && echo installed || echo missing)"
-GRAPHIFY_OUT_DIR="${GRAPHIFY_OUT:-graphify-out}"
-printf "graphify_graph:%s\n" "$([ -f "${GRAPHIFY_OUT_DIR}/graph.json" ] && [ -f "${GRAPHIFY_OUT_DIR}/GRAPH_REPORT.md" ] && echo available || echo missing)"
-printf "agentmemory:%s\n" "$(command -v agentmemory >/dev/null 2>&1 && echo installed || echo missing)"
-printf "agentmemory_server:%s\n" "$(curl -sf --max-time 1 "${AGENTMEMORY_URL:-http://localhost:3111}/agentmemory/livez" >/dev/null 2>&1 && echo running || echo missing)"
-echo "=== Token Optimization ==="
-printf "rtk:%s\n" "$(command -v rtk >/dev/null 2>&1 && echo "installed $(rtk --version 2>&1 | head -1)" || echo missing)"
-printf "rtk_hook:%s\n" "$(if grep -q 'rtk' "${HOME}/.claude/settings.json" 2>/dev/null; then echo active; else echo missing; fi)"
-printf "octo_compress:%s\n" "$(command -v octo-compress >/dev/null 2>&1 && echo available || echo missing)"
-echo "=== System ==="
-printf "node:%s\n" "$(node --version 2>/dev/null || echo missing)"
-printf "jq:%s\n" "$(command -v jq >/dev/null 2>&1 && echo installed || echo missing)"
-printf "os:%s\n" "$(uname -s)"
-```
-
-## STEP 2: Display Status Summary
-
-Render the setup status table from actual detection output. Do not hand-write or summarize this provider block; run this block and display its output exactly. The output MUST include the Antigravity line even when `agy` is missing.
-
-```bash
-status_installed() { command -v "$1" >/dev/null 2>&1 && echo "Installed ✓" || echo "Missing ✗"; }
-status_optional() { command -v "$1" >/dev/null 2>&1 && echo "Installed ✓" || echo "Not installed"; }
-status_env() { [[ -n "${1:-}" ]] && echo "Configured ✓" || echo "Not set ✗"; }
-codex_status="$(status_installed codex)"
-agy_status="$(status_installed agy)"
-agy_model_note=""
-if [[ "$agy_status" == "Installed ✓" ]]; then
-  agy_model_note=" (model: ${OCTOPUS_AGY_MODEL:-agy default})"
+READINESS_JSON="$(bash "${OCTO_ROOT}/scripts/helpers/preflight.sh" --json 2>/dev/null)"
+if ! jq -e '
+  .check_kind == "static" and
+  (.results | type == "array" and length > 0) and
+  all(.results[];
+    has("provider") and has("status") and has("reason_code") and
+    has("checked_at") and has("duration_ms") and has("remediation"))
+' <<<"$READINESS_JSON" >/dev/null 2>&1; then
+  echo "Provider readiness report is invalid. Run /octo:skill-doctor in Claude Code or 'octopus doctor providers --json' in a shell."
+  exit 1
 fi
-perplexity_status="$(status_env "${PERPLEXITY_API_KEY:-}")"
-copilot_status="$(status_optional copilot)"
-qwen_status="$(status_optional qwen)"
-opencode_status="$(status_optional opencode)"
-vibe_status="$(status_optional vibe)"
-graphify_status="$(status_optional graphify)"
-GRAPHIFY_OUT_DIR="${GRAPHIFY_OUT:-graphify-out}"
-if [[ -f "${GRAPHIFY_OUT_DIR}/graph.json" && -f "${GRAPHIFY_OUT_DIR}/GRAPH_REPORT.md" ]]; then graphify_graph_status="Graph available ✓"; else graphify_graph_status="Graph missing"; fi
-agentmemory_status="$(status_optional agentmemory)"
-if curl -sf --max-time 1 "${AGENTMEMORY_URL:-http://localhost:3111}/agentmemory/livez" >/dev/null 2>&1; then agentmemory_server_status="Running ✓"; else agentmemory_server_status="Not running"; fi
-if command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then ollama_status="Running ✓"; elif command -v ollama >/dev/null 2>&1; then ollama_status="Installed"; else ollama_status="Not installed"; fi
-cat <<BANNER
-🐙 Octopus Setup
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Providers:
-  🔴 Codex CLI:      ${codex_status}
-  🧭 Antigravity:    ${agy_status}${agy_model_note}
-  🟣 Perplexity:     ${perplexity_status}
-  🟢 Copilot CLI:    ${copilot_status}
-  🟠 Qwen CLI:       ${qwen_status}
-  🟤 OpenCode:       ${opencode_status}
-  🔶 Vibe (Mistral): ${vibe_status}
-  ⚫ Ollama:         ${ollama_status}
-  🔵 Claude:         Available ✓
 
-Companions:
-  Graphify:         ${graphify_status} (${graphify_graph_status})
-  agentmemory:      ${agentmemory_status} (${agentmemory_server_status})
-BANNER
+printf 'Provider readiness:\n'
+jq -r '.results[] | "  \(.provider): \(.status) [\(.reason_code)]"' <<<"$READINESS_JSON"
 ```
 
-The rendered setup table must look like this shape, with ACTUAL statuses:
+Render only those shared objects. Do not run separate binary, auth, model,
+quota, or network checks while explaining the result. Use each object's
+`remediation` when a provider needs attention.
 
-```
-🐙 Octopus Setup
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Providers:
-  🔴 Codex CLI:     [Installed ✓ / Missing ✗]
-  🧭 Antigravity:   [Installed ✓ (model: OCTOPUS_AGY_MODEL/agy default) / Missing ✗]
-  🟣 Perplexity:    [Configured ✓ / Not set ✗]
-  🟢 Copilot CLI:   [Installed ✓ / Not installed]
-  🟠 Qwen CLI:      [Installed ✓ / Not installed]
-  🟤 OpenCode:      [Installed ✓ / Not installed]
-  🔶 Vibe (Mistral): [Installed ✓ (auth: env-file/api-key/config) / Not installed]
-  ⚫ Ollama:        [Running ✓ / Installed / Not installed]
-  🔵 Claude:        Available ✓
-
-Token Optimization:
-  RTK:              [Installed + Hook active ✓ / Installed ✓ / Missing ✗]
-  octo-compress:    [Available ✓ / Not in PATH]
-
-Companions:
-  Graphify:         [CLI installed ✓ / Missing] [Graph available ✓ / Missing]
-  agentmemory:      [CLI installed ✓ / Missing] [Server running ✓ / Not running]
-
-Session:
-  Remote/Web:       [Yes / No]
-  Project tier:     [unset / prototype / mvp / production]
-```
-
-## STEP 2a: v9.29 Migration Prompt (one-time, existing users only)
-
-**Before showing the main menu, check if this is an existing user upgrading from ≤9.28.**
-
-Run this bash check — skip migration if state is fresh (first-run) or already ≥9.29:
-
-```bash
-STATE_FILE="${HOME}/.claude-octopus/state.json"
-if [[ -f "$STATE_FILE" ]] && command -v jq >/dev/null 2>&1; then
-  LAST_VERSION=$(jq -r '.last_version // "0.0.0"' "$STATE_FILE" 2>/dev/null)
-  MODEL_DEFAULTS_V2=$(jq -r '.model_defaults_v2 // "unset"' "$STATE_FILE" 2>/dev/null)
-  # Version compare: show migration only if last_version is between 1.x and 9.28
-  if [[ "$LAST_VERSION" != "0.0.0" ]] && [[ "$MODEL_DEFAULTS_V2" == "unset" ]]; then
-    printf "MIGRATION_PROMPT_NEEDED\nlast_version=%s\n" "$LAST_VERSION"
-  fi
-fi
-```
-
-**If `MIGRATION_PROMPT_NEEDED` appears**, show this AskUserQuestion BEFORE the main menu:
+### 3. Choose the shortest useful path
 
 ```javascript
 AskUserQuestion({
   questions: [{
-    question: "v9.29.0 refreshed model defaults based on April 2026 benchmarks. Planning + security reviews now use Claude Opus 4.7 (best on SWE-bench Pro + LMArena). Code review + implementation stay on GPT-5.4 (best on Terminal-Bench + edge cases). Opus is ~2x the cost of GPT-5.4 per MTok — this will increase planning-phase cost. How would you like to proceed?",
-    header: "v9.29 Models",
-    multiSelect: false,
-    options: [
-      {label: "Accept new defaults (Recommended)", description: "Use Opus 4.7 for planning/strategy/security, GPT-5.4 for review/implementation"},
-      {label: "Keep v9.28 defaults (GPT-5.4 everywhere)", description: "Sets OCTOPUS_LEGACY_ROLES=1 in your shell profile"},
-      {label: "Open /octo:model-config", description: "Customize per-role routing directly"},
-      {label: "See the diff", description: "Show before/after routing table, then ask again"}
-    ]
-  }]
-})
-```
-
-**Route based on selection:**
-
-- **Accept new defaults** → Write `model_defaults_v2=accepted` and `last_version=9.29.0` to `~/.claude-octopus/state.json`. Continue to STEP 3.
-- **Keep v9.28 defaults** → Append `export OCTOPUS_LEGACY_ROLES=1` to the user's shell profile (detect `~/.zshrc` vs `~/.bashrc` via `$SHELL`), notify them to reload the shell, then write `model_defaults_v2=legacy` + `last_version=9.29.0`. Continue to STEP 3.
-- **Open /octo:model-config** → Invoke that command. Do NOT write state — defer to whatever the user picks there.
-- **See the diff** → Print the routing table below, then re-ask the question.
-
-**Diff table to show:**
-
-```
-Role                 v9.28 (old)                v9.29 (new)
-architect            codex:gpt-5.4              claude-opus:claude-opus-4.7   (was GPT-5.4)
-reviewer             codex-review:gpt-5.4       codex-review:gpt-5.4          (alias → code-reviewer)
-code-reviewer        —                          codex-review:gpt-5.4          (NEW, same as reviewer)
-security-reviewer    —                          claude-opus:claude-opus-4.7   (NEW, split from reviewer)
-implementer          codex:gpt-5.4              codex:gpt-5.4                 (unchanged)
-implementer-heavy    —                          claude-opus:claude-opus-4.7   (NEW, opt-in via role name)
-synthesizer          claude:claude-sonnet-4.6   claude:claude-sonnet-5        (current default)
-strategist           claude-opus:claude-opus-4.6 claude-opus:claude-opus-4.7  (already on 4.7 via resolver)
-researcher           gemini:gemini-3.1-pro      agy:default                    (migrated to Antigravity)
-
-Cost impact (per MTok): Opus 4.7 $5/$25 vs GPT-5.4 $2.50/$15 — roughly 2x for planning phases.
-Graceful fallback: roles requiring Opus silently downshift to GPT-5.4 if no Anthropic auth.
-Opt-out anytime: OCTOPUS_LEGACY_ROLES=1
-```
-
-**WHY:** Existing users should not silently inherit the new defaults without a chance to opt out. The one-time prompt gates the behavior change on explicit consent, surfaces cost impact, and writes state so the prompt doesn't recur. Skip entirely for fresh installs (they have no prior mental model to migrate).
-
-## STEP 3: Interactive Menu (ALWAYS show — even for returning users)
-
-**Always present this menu after the dashboard, regardless of current setup state:**
-
-```javascript
-AskUserQuestion({
-  questions: [{
-    question: "What would you like to do?",
+    question: "How would you like to finish setup?",
     header: "Setup",
     multiSelect: false,
     options: [
-      {label: "Use Claude alone (recommended)", description: "Start immediately — Claude is built in. No extra setup needed. Add providers anytime via this menu."},
-      {label: "Add or configure a provider", description: "Install Codex, Antigravity, Perplexity, Copilot, Qwen, OpenCode, or Vibe (Mistral)"},
-      {label: "Configure models", description: "Set which models are used for each workflow phase → launches /octo:model-config"},
-      {label: "Set up token optimization (RTK)", description: "Install RTK for 60-90% token savings on bash output"},
-      {label: "Set up Graphify companion", description: "Detect or install Graphify for optional knowledge-graph context"},
-      {label: "Set up memory companion", description: "Install or connect agentmemory for persistent cross-agent memory"},
-      {label: "Change work mode", description: "Switch between Dev mode and Knowledge Work mode"},
-      {label: "Set project tier", description: "Set OCTO_TIER=prototype|mvp|production as a routing hint"},
-      {label: "Fine-tune preferences", description: "Auto-routing, banner verbosity, telemetry, cost mode"},
-      {label: "Troubleshoot an issue", description: "Diagnose a problem → launches /octo:doctor"},
-      {label: "Done — everything looks good", description: "Exit setup"}
+      {label: "Use Claude alone (Recommended)", description: "Finish now with Claude Code's built-in model; add a provider later if useful."},
+      {label: "Configure one provider", description: "Choose one external provider and follow its exact readiness remediation."},
+      {label: "Open Advanced setup", description: "Configure optional tools, routing, models, or project preferences."}
     ]
   }]
 })
 ```
 
-Route based on selection:
-- **Use Claude alone (recommended)** → Show "Run /octo:setup anytime to change these settings" and exit
-- **Add or configure a provider** → Continue to the provider install flow below
-- **Configure models** → Invoke `/octo:model-config` (the interactive model config wizard)
-- **Set up RTK** → Jump to the RTK section below
-- **Set up Graphify companion** → Jump to the Graphify Companion section below
-- **Set up memory companion** → Jump to the Memory Companion section below
-- **Change work mode** → Jump to the Work Mode section (STEP 4)
-- **Set project tier** → Jump to Project Tier Hint (STEP 4c)
-- **Fine-tune preferences** → Jump to the Fine-tune section (STEP 5)
-- **Troubleshoot** → Suggest `/octo:doctor`
-- **Done** → Show "Run /octo:setup anytime to change these settings" and exit
+If the user chooses **Use Claude alone**, make no provider changes and continue
+to verification.
 
-## STEP 3a: Provider Install (if selected above, or if core providers are missing on first run)
+If the user chooses **Configure one provider**, show providers from
+`READINESS_JSON`, prioritizing `degraded` before `missing`. Ask which single
+provider they want. Registered options include Codex, Antigravity (`agy`),
+Perplexity, and the other providers present in the shared result. Then show its
+`remediation` and the exact proposed command or file change. Ask for
+confirmation before running it. Authentication commands that open a browser
+must be run by the user in their shell; remote sessions must never launch them
+automatically.
 
-**If optional external providers are missing:**
-
-```javascript
-AskUserQuestion({
-  questions: [{
-    question: "Which providers do you want to install?",
-    header: "Providers",
-    multiSelect: true,
-    options: [
-      {label: "Codex CLI (Recommended)", description: "npm install -g @openai/codex — OpenAI's coding agent"},
-      {label: "Antigravity CLI (agy)", description: "Install Google Antigravity CLI — adds the agy provider"},
-      {label: "Skip", description: "Continue with what's already installed"}
-    ]
-  }]
-})
-```
-
-Execute installs for each selected option. After each npm install completes, refresh PATH:
+After the selected provider is configured, rerun only:
 
 ```bash
-hash -r 2>/dev/null || rehash 2>/dev/null || true
+bash "${OCTO_ROOT}/scripts/helpers/preflight.sh" --json
 ```
 
-This ensures the installed CLI (for example, `codex`) is immediately available in the current shell without a restart.
+Confirm that provider's shared result is `available`. If it is not, show its
+new `reason_code` and `remediation`, then stop without claiming success.
 
-For **Antigravity CLI (agy)**, first check whether `agy install` is available:
+If the user chooses **Open Advanced setup**, jump to the Advanced setup section.
+
+### 4. Run a deterministic no-billing verification
+
+This validates the captured contract and shipped shell entry points. It makes
+no provider request and cannot incur provider usage.
 
 ```bash
-if command -v agy >/dev/null 2>&1; then
-  agy install
-  hash -r 2>/dev/null || rehash 2>/dev/null || true
-  agy models
-else
-  echo "agy CLI not found; install Google Antigravity CLI first, then run: agy --version && agy models"
-fi
+jq -e '.results | length > 0' <<<"$READINESS_JSON" >/dev/null
+bash -n \
+  "${OCTO_ROOT}/scripts/helpers/check-providers.sh" \
+  "${OCTO_ROOT}/scripts/helpers/preflight.sh" \
+  "${OCTO_ROOT}/scripts/orchestrate.sh"
+printf 'setup-verification:pass (no provider request)\n'
 ```
 
-If `agy` is not available yet, direct the user to install Google Antigravity CLI, then verify with `agy --version` and `agy models`. Octopus uses `OCTOPUS_AGY_MODEL` when set; when unset, `agy` uses its own built-in default model.
-
-After install, offer auth:
-
-```javascript
-AskUserQuestion({
-  questions: [{
-    question: "How do you want to authenticate Codex?",
-    header: "Codex Auth",
-    multiSelect: false,
-    options: [
-      {label: "OAuth login (Recommended)", description: "codex login — opens browser, no API key needed"},
-      {label: "API key", description: "I'll set OPENAI_API_KEY manually"},
-      {label: "Skip", description: "I'll configure auth later"}
-    ]
-  }]
-})
-```
-
-If user chooses OAuth, tell them to run `! codex login` (the `!` prefix runs it in this session).
-
-**If RTK is missing:**
-
-```javascript
-AskUserQuestion({
-  questions: [{
-    question: "RTK saves 60-90% on bash output tokens. Install it?",
-    header: "RTK",
-    multiSelect: false,
-    options: [
-      {label: "Install via brew (Recommended)", description: "brew install rtk — fast, macOS"},
-      {label: "Install via cargo", description: "cargo install --git https://github.com/rtk-ai/rtk"},
-      {label: "Skip", description: "Continue without RTK"}
-    ]
-  }]
-})
-```
-
-After install, auto-configure the hook: `rtk init -g`, then add the PreToolUse hook to settings.json.
-
-**If RTK is installed but hook not active:**
-
-Offer `rtk init -g` directly.
-
-## STEP 4: Work Mode Selection
-
-```javascript
-AskUserQuestion({
-  questions: [{
-    question: "What kind of work will you primarily do?",
-    header: "Work Mode",
-    multiSelect: false,
-    options: [
-      {label: "Dev Work (Default)", description: "Software development — building, debugging, reviewing code"},
-      {label: "Knowledge Work", description: "Research, analysis, writing, strategy — recommends document-skills plugin"},
-      {label: "Both", description: "I'll switch between them"}
-    ]
-  }]
-})
-```
-
-If Knowledge Work selected, offer to install document-skills plugin.
-
-After work mode is confirmed, persist the choice:
+Only after the user selected a completion path and this verification passed,
+persist setup completion. Completing setup enables routing suggestions, never
+automatic provider invocation, and preserves an existing opt-out.
 
 ```bash
-OCTO_ROOT="${OCTO_ROOT:-${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
-PLUGIN_FALLBACK_ROOT="${HOME}/.claude-octopus/plugin"
-if ! source "${OCTO_ROOT}/scripts/lib/user-config.sh" 2>/dev/null; then
-  source "${PLUGIN_FALLBACK_ROOT}/scripts/lib/user-config.sh" 2>/dev/null || echo "Warning: could not load Octopus user-config helpers; setup preferences were not persisted."
-fi
-WORK_MODE_VALUE="dev"  # dev, knowledge, or both based on user selection
-if declare -f octo_config_write >/dev/null 2>&1; then
-  octo_config_write "work_mode" "\"${WORK_MODE_VALUE}\""
+if source "${OCTO_ROOT}/scripts/lib/user-config.sh" 2>/dev/null; then
   octo_config_write "setup_complete" 'true'
-fi
-# Completing setup is an explicit act, so it opts into ROUTING SUGGESTIONS only.
-# This never enables `invoke`: dispatch to a paid provider stays explicit. The
-# write is skipped when the key already exists, so a prior opt-out survives.
-if declare -f octo_pref_write_default >/dev/null 2>&1; then
   octo_pref_write_default "auto_router_mode" '"suggest"'
 fi
 ```
 
-(Replace `"dev"` with `"knowledge"` or `"both"` based on the user selection.)
+Tell the user:
 
-Tell the user what that last line changed, in one sentence:
+> Octopus can now suggest a matching command when a prompt clearly fits. It
+> never runs a provider on its own. Set `OCTOPUS_AUTO_ROUTER_MODE=off` to turn
+> suggestions off.
 
-> Octopus now suggests a matching command when your prompt clearly fits one. It
-> never runs a provider on its own. Turn suggestions off with
-> `OCTOPUS_AUTO_ROUTER_MODE=off`, or set `auto_router_mode` in
-> `~/.claude-octopus/preferences.json`.
+Finish with exactly this quick-start block:
 
-A user who never runs `/octo:setup` stays fully dormant; that is the #898
-contract and this step is the only thing that relaxes it.
-
-## STEP 4b: Prompt Cache Optimization (Claude Code v2.1.108+)
-
-Skip this step when `SUPPORTS_PROMPT_CACHE_1H=false`. Otherwise:
-
-```javascript
-AskUserQuestion({
-  questions: [{
-    question: "Enable 1-hour prompt cache TTL? (Saves tokens on long /octo:embrace and /octo:loop sessions — the default is 5 minutes.)",
-    header: "Prompt Cache",
-    multiSelect: false,
-    options: [
-      {label: "Yes, enable 1-hour cache", description: "Adds ENABLE_PROMPT_CACHING_1H=1 to your shell profile — applies to Claude API/Bedrock/Vertex/Foundry."},
-      {label: "No, keep 5-minute default", description: "Simpler mental model; lower cost ceiling if you only run short sessions."}
-    ]
-  }]
-})
-```
-
-If "Yes", append `export ENABLE_PROMPT_CACHING_1H=1` to `~/.bashrc` (or `~/.zshrc` per `$SHELL`), only if not already present. Note to the user: this only affects Claude-to-Claude round-trips inside Claude Code. External CLI subshells (Codex, Antigravity, Perplexity) are unaffected — their providers manage caching independently.
-
-## STEP 4c: Project Tier Hint
-
-`OCTO_TIER` is a routing and verification hint, not a hard policy.
-
-```javascript
-AskUserQuestion({
-  questions: [{
-    question: "What project tier should Octopus optimize for?",
-    header: "Tier",
-    multiSelect: false,
-    options: [
-      {label: "MVP (Recommended)", description: "Balanced checks, normal review, consensus on risky changes"},
-      {label: "Prototype", description: "Prefer speed, light review, lower provider spend"},
-      {label: "Production", description: "Full verification, security review, stronger consensus before merge/release"},
-      {label: "Leave unset", description: "Use default balanced behavior without a project hint"}
-    ]
-  }]
-})
-```
-
-If a tier is selected, append `export OCTO_TIER=<prototype|mvp|production>` to the user's shell profile or project-local environment, only if not already present.
-
-## Graphify Companion
-
-Graphify is optional and is not a provider. If `graphify-out/GRAPH_REPORT.md` already exists, Octopus uses it as a compact architecture map for escalated workflows such as `/octo:review`; it does not build or refresh graphs automatically.
-
-To install and initialize Graphify when the user opts in:
-
-```bash
-uv tool install graphifyy
-graphify extract .
-graphify claude install
-graphify codex install
-graphify hook install
-```
-
-Use `OCTOPUS_GRAPHIFY=0` to disable passive Graphify context injection.
-
-## Memory Companion
-
-agentmemory is optional and is not a provider. Octopus works without it. If agentmemory is installed and connected as an MCP server, Octopus can use it through the existing memory contract for cross-session context; if MCP tools are unavailable, Octopus falls back to the local REST bridge at `${AGENTMEMORY_URL:-http://localhost:3111}`.
-
-To install and connect agentmemory when the user opts in:
-
-```bash
-npm install -g @agentmemory/agentmemory
-agentmemory --version
-agentmemory connect claude-code
-```
-
-For Codex or Cursor installs, use the matching connector instead:
-
-```bash
-agentmemory connect codex
-agentmemory connect cursor
-```
-
-Start or verify the local server:
-
-```bash
-agentmemory &
-curl -fsS "${AGENTMEMORY_URL:-http://localhost:3111}/agentmemory/health"
-```
-
-If the user prefers not to install globally, use `npx -y @agentmemory/agentmemory@latest` in place of `agentmemory`. Use `OCTOPUS_MEMORY_BACKEND=agentmemory` to force Octopus to prefer agentmemory; `OCTOPUS_MEMORY_BACKEND=auto` detects an agentmemory MCP registration or `AGENTMEMORY_URL`.
-
-## Remote/Web Session Defaults
-
-If `remote_session:true` appears in the detection output, assume the user is in a Claude Code web/remote session. Do not launch interactive provider logins from this command. Explain that Octopus defaults to autonomous mode, skips provider probe calls, and uses the lightweight statusline unless overridden with:
-
-```bash
-export OCTOPUS_REMOTE_STATUSLINE=full
-export OCTOPUS_REMOTE_STATUSLINE=off
-```
-
-## STEP 5: Verify & Summarize
-
-Re-run provider detection to confirm everything works:
-
-
-**Preflight — Ensure plugin root is resolvable (run via Bash tool FIRST):**
-
-```bash
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
-if [[ ! -x "$OCTO_ROOT/scripts/orchestrate.sh" ]]; then
-  OCTO_ROOT="${HOME}/.claude-octopus/plugin"
-fi
-if [[ ! -x "$OCTO_ROOT/scripts/orchestrate.sh" ]]; then
-  helper="$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh"
-  if [[ ! -x "$helper" ]]; then
-    helper="$(find "${HOME}/.claude/plugins/cache" "${HOME}/Library/Application Support/Claude" "${LOCALAPPDATA:-/dev/null}/Claude" "${XDG_DATA_HOME:-${HOME}/.local/share}/Claude" -maxdepth 8 -path "*/nyldn-plugins/octo/*/scripts/helpers/ensure-plugin-root.sh" -print -quit 2>/dev/null)"
-  fi
-  [[ -x "$helper" ]] && bash "$helper" >/dev/null 2>&1 || true
-fi
-[[ -x "$OCTO_ROOT/scripts/orchestrate.sh" ]] || {
-  echo "plugin-root:missing"
-  exit 1
-}
-export CLAUDE_PLUGIN_ROOT="$OCTO_ROOT"
-echo "plugin-root:ok"
-```
-
-If the output is `plugin-root:missing`, stop and ask the user to reinstall `octo@nyldn-plugins`, then retry setup.
-
-
-```bash
-"${OCTO_ROOT}/scripts/orchestrate.sh" detect-providers
-
-set +e
-FINAL_DOCTOR_JSON="$(bash "${OCTO_ROOT}/scripts/orchestrate.sh" doctor --json 2>/dev/null)"
-FINAL_DOCTOR_EXIT=$?
-set -e
-if ! jq -e '.schema_version == "10.0" and (.summary.exit_code == 0 or .summary.exit_code == 1)' \
-  <<<"$FINAL_DOCTOR_JSON" >/dev/null 2>&1; then
-  echo "doctor-final:invalid"
-  exit 1
-fi
-FINAL_FAILURES="$(jq -r '.summary.failures' <<<"$FINAL_DOCTOR_JSON")"
-FINAL_WARNINGS="$(jq -r '.summary.warnings' <<<"$FINAL_DOCTOR_JSON")"
-printf 'doctor-final:exit=%s failures=%s warnings=%s\n' \
-  "$FINAL_DOCTOR_EXIT" "$FINAL_FAILURES" "$FINAL_WARNINGS"
-```
-
-Show the final summary only from `FINAL_DOCTOR_JSON`. Use the success heading
-only when `FINAL_DOCTOR_EXIT` is zero; otherwise include `FINAL_FAILURES` and
-`FINAL_WARNINGS` and direct the user to the remaining checks:
+Next commands:
 
 ```text
-[✅ Setup Complete! / ⚠️ Setup Needs Attention]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Providers: X active (Codex, Antigravity, ...)
-RTK: [Active / Not installed]
-Mode: [Dev / Knowledge / Both]
-
-Quick start:
-  Just describe what you need — "research X", "build Y", "review Z"
-  Or use /octo:auto for the smart router
-  Run /octo:doctor anytime for diagnostics
+/octo:auto
+/octo:skill-doctor
+/octo:setup
 ```
 
-## IMPORTANT: This Replaces Passive Setup
+`/octo:auto` routes a task, `/octo:skill-doctor` diagnoses plugin skills inside
+Claude Code, and `/octo:setup` returns here. From a shell, use `octopus doctor`
+for environment diagnostics.
 
-The old setup just printed instructions. This new setup:
-- Uses AskUserQuestion for every decision
-- Executes installs directly (with user consent via option selection)
-- Configures auth interactively
-- Sets up RTK + token optimization
-- Remembers preferences via auto-memory
+## Advanced setup
 
-Everything `/octo:doctor` can fix, `/octo:setup` should also offer to configure on first run.
+Advanced setup is opt-in. Show this menu only when the user chose it from the
+default path. Each option must display its proposed commands and ask for
+confirmation before making a change.
+
+```javascript
+AskUserQuestion({
+  questions: [{
+    question: "What would you like to configure?",
+    header: "Advanced",
+    multiSelect: false,
+    options: [
+      {label: "Models and routing", description: "Open /octo:model-config or adjust routing, cost mode, and project tier."},
+      {label: "Developer tools", description: "Configure RTK, Graphify, or the optional memory companion."},
+      {label: "Automation", description: "Configure scheduler behavior, remote-session defaults, or prompt caching."}
+    ]
+  }]
+})
+```
+
+### Models and routing
+
+- Use `/octo:model-config` for model overrides.
+- Explain cost impact before changing cost mode.
+- Treat `OCTO_TIER=prototype|mvp|production` as a routing hint, not policy.
+- Never change routing, model, or tier configuration without confirmation.
+
+### Developer tools
+
+- **RTK:** show the detected install state, then offer its documented install
+  and hook commands. Do not install or initialize it automatically.
+- **Graphify:** optional architecture context. Offer `uv tool install graphifyy`
+  and `graphify extract .` only after confirmation.
+- **Memory companion:** optional cross-session context. Explain where its data
+  is stored and obtain confirmation before installing or connecting it. After
+  confirmation, connect Claude Code with `agentmemory connect claude-code`;
+  users who want to force this backend can set
+  `OCTOPUS_MEMORY_BACKEND=agentmemory`.
+
+### Automation
+
+- Scheduler setup must state what runs, when it runs, and which providers it
+  may contact before enabling anything.
+- In a remote session, do not launch browser login flows.
+- Prompt-cache settings affect Claude traffic only; external providers manage
+  their own caching.
+
+After any advanced change, return to the default readiness summary. Use
+`/octo:skill-doctor` inside Claude Code or `octopus doctor` in a shell for
+troubleshooting.

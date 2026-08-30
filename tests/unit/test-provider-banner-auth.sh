@@ -105,46 +105,22 @@ printf '{}\n' > "$FAKE_HOME/.local/share/opencode/auth.json"
 test_case "OpenCode auth file plus successful auth check is available"
 if [[ "$(provider_state opencode)" == "opencode:available" ]]; then test_pass; else test_fail "OpenCode auth was not recognized"; fi
 
-test_case "OpenCode failed auth check remains degraded"
-if [[ "$(provider_state opencode failure)" == "opencode:degraded" ]]; then test_pass; else test_fail "failed OpenCode auth was advertised as available"; fi
-
-test_case "OpenCode slow auth check is bounded and degraded"
+test_case "OpenCode static readiness does not invoke its interactive auth command"
 SECONDS=0
 SLOW_OPENCODE_STATE="$(provider_state opencode slow)"
 SLOW_OPENCODE_ELAPSED="$SECONDS"
-if [[ "$SLOW_OPENCODE_STATE" == "opencode:degraded" && "$SLOW_OPENCODE_ELAPSED" -lt 5 ]]; then
+if [[ "$SLOW_OPENCODE_STATE" == "opencode:available" && "$SLOW_OPENCODE_ELAPSED" -lt 5 ]]; then
     test_pass
 else
-    test_fail "slow OpenCode auth escaped the timeout (state=$SLOW_OPENCODE_STATE elapsed=${SLOW_OPENCODE_ELAPSED}s)"
+    test_fail "static OpenCode readiness invoked a live auth command (state=$SLOW_OPENCODE_STATE elapsed=${SLOW_OPENCODE_ELAPSED}s)"
 fi
 
-test_case "OpenCode stays degraded when no bounded auth command is usable"
+test_case "OpenCode static readiness uses safe config metadata without a timeout utility"
 mv "$FAKE_BIN/timeout" "$FAKE_BIN/timeout.disabled"
 printf '#!/usr/bin/env bash\nexit 127\n' > "$FAKE_BIN/timeout"
 chmod +x "$FAKE_BIN/timeout"
-if [[ "$(provider_state opencode)" == "opencode:degraded" ]]; then test_pass; else test_fail "OpenCode auth file was trusted without a usable bounded check"; fi
+if [[ "$(provider_state opencode)" == "opencode:available" ]]; then test_pass; else test_fail "OpenCode safe auth metadata required a live timeout utility"; fi
 mv "$FAKE_BIN/timeout.disabled" "$FAKE_BIN/timeout"
-
-test_case "OpenCode uses gtimeout when timeout is unavailable"
-GTIMEOUT_BIN="$TEST_TMP_DIR/gtimeout-bin"
-mkdir -p "$GTIMEOUT_BIN"
-for utility in bash cat date dirname head mkdir sed sleep tr; do
-    utility_path="$(command -v "$utility")"
-    ln -s "$utility_path" "$GTIMEOUT_BIN/$utility"
-done
-ln -s "$FAKE_BIN/opencode" "$GTIMEOUT_BIN/opencode"
-cat > "$GTIMEOUT_BIN/gtimeout" <<'EOF'
-#!/usr/bin/env bash
-[[ "${1:-}" =~ ^[0-9]+$ ]] || exit 64
-shift
-exec "$@"
-EOF
-chmod +x "$GTIMEOUT_BIN/gtimeout"
-if [[ "$(provider_state opencode success "$GTIMEOUT_BIN")" == "opencode:available" ]]; then
-    test_pass
-else
-    test_fail "OpenCode did not use the gtimeout fallback"
-fi
 
 test_case "installed Copilot without auth is degraded"
 if [[ "$(provider_state copilot)" == "copilot:degraded" ]]; then test_pass; else test_fail "Copilot binary alone must not be available"; fi

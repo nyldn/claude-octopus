@@ -8,6 +8,9 @@ scripts/lib/model-resolver.sh	tests/unit/test-resolve-model.sh tests/unit/test-a
 scripts/lib/preflight.sh	tests/unit/test-agy-provider.sh tests/unit/test-provider-availability-parity.sh tests/unit/test-provider-banner-auth.sh tests/unit/test-provider-registry*.sh tests/test-version-check.sh
 scripts/lib/run-contract.sh	tests/unit/test-run-contract-v10.sh tests/unit/test-agent-sync-run-contract.sh tests/unit/test-spawn-run-contract.sh tests/unit/test-v10-cancellation-recovery.sh tests/unit/test-run-observability-v10.sh
 scripts/lib/doctor.sh	tests/unit/test-doctor-v10.sh tests/unit/test-agy-provider.sh tests/unit/test-windows-doctor-compat.sh
+scripts/helpers/check-providers.sh	tests/unit/test-provider-readiness-contract.sh tests/unit/test-provider-contract-audit.sh tests/unit/test-provider-auth-validity.sh tests/unit/test-provider-availability-parity.sh tests/unit/test-provider-health-probe.sh tests/unit/test-agy-provider.sh
+scripts/helpers/audit-provider-contracts.sh	tests/unit/test-provider-contract-audit.sh
+scripts/helpers/preflight.sh	tests/unit/test-provider-readiness-contract.sh tests/smoke/test-preflight-json.sh tests/unit/test-agy-provider.sh
 scripts/lib/provider-registry.sh	tests/unit/test-provider-registry*.sh tests/unit/test-provider-availability-parity.sh tests/unit/test-current-provider-model-defaults.sh
 scripts/lib/provider-routing.sh	tests/unit/test-provider-registry*.sh tests/unit/test-routing-evals-v10.sh tests/unit/test-model-config-role-routing.sh tests/unit/test-agy-provider.sh
 scripts/lib/probe-results.sh	tests/unit/test-probe-result-classification.sh tests/unit/test-cache-alignment.sh tests/unit/test-run-observability-v10.sh
@@ -25,6 +28,8 @@ AI_AGENT_HANDOFF.md	tests/unit/test-handoff.sh
 RTK.md	tests/unit/test-rtk-detection.sh tests/unit/test-handoff.sh
 AGENTS.md	tests/unit/test-v8.2.0-agent-fields.sh tests/integration/test-native-first-docs.sh
 CLAUDE.md	tests/unit/test-v8.2.0-agent-fields.sh tests/integration/test-native-first-docs.sh
+commands/preflight.md	tests/unit/test-command-frontmatter.sh tests/unit/test-provider-readiness-contract.sh
+commands/setup.md	tests/unit/test-command-frontmatter.sh tests/unit/test-setup-first-success.sh tests/unit/test-setup-suggest-routing.sh tests/unit/test-agy-provider.sh tests/unit/test-doctor-v10.sh
 README.md	tests/unit/test-readme-release-sync.sh tests/integration/test-readme-compliance.sh
 PRODUCT.md	tests/unit/test-readme-release-sync.sh tests/integration/test-readme-compliance.sh
 docs/*	tests/integration/test-native-first-docs.sh tests/integration/test-readme-compliance.sh

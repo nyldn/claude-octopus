@@ -142,7 +142,7 @@ Safety guards that prevent invalid direct Codex, Qwen, or retired Gemini CLI
 dispatch remain available, but host-side command filters keep them out of
 unrelated tool calls.
 
-Claude Code **v2.1.14+** is the minimum supported runtime. Newer Claude Code releases unlock additional Octopus diagnostics and release checks automatically; the current plugin tracks 182 Claude Code capability flags through **Claude Code v2.1.219**.
+Claude Code **v2.1.14+** is the minimum supported runtime. Newer Claude Code releases unlock additional Octopus diagnostics and release checks automatically; the current plugin tracks 183 Claude Code capability flags through **Claude Code v2.1.219**.
 
 <details>
 <summary>Install for Codex CLI</summary>

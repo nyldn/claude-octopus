@@ -197,16 +197,25 @@ else
     test_fail "rc=$orchestrator_rc stdout=$orchestrator_json"
 fi
 
-test_case "setup final verification reuses the resolved root and fresh Doctor JSON"
-setup_step5="$(sed -n '/^## STEP 5: Verify & Summarize/,$p' "$PROJECT_ROOT/commands/setup.md")"
-if [[ "$setup_step5" == *'OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-}"'* &&
-      "$setup_step5" == *'doctor --json'* &&
-      "$setup_step5" == *'FINAL_DOCTOR_EXIT'* &&
-      "$setup_step5" == *'FINAL_FAILURES'* &&
-      "$setup_step5" == *'```text'* ]]; then
+test_case "setup verification is local-only and points to current Doctor entry points"
+setup_default="$(sed -n '/^## Default path/,/^## Advanced setup/p' "$PROJECT_ROOT/commands/setup.md")"
+if [[ "$setup_default" == *'setup-verification:pass (no provider request)'* &&
+      "$setup_default" == *'/octo:skill-doctor'* &&
+      "$setup_default" == *'octopus doctor'* &&
+      "$setup_default" != *'/octo:doctor'* ]]; then
     test_pass
 else
-    test_fail "Step 5 must rerun Doctor from the resolved plugin root and render a typed summary"
+    test_fail "setup must use deterministic no-billing verification and current Doctor entry points"
+fi
+
+test_case "Doctor providers and auth reuse one shared readiness collection"
+doctor_source="$(cat "$PROJECT_ROOT/scripts/lib/doctor.sh")"
+if [[ "$doctor_source" == *'_doctor_collect_provider_readiness'* &&
+      "$doctor_source" == *'octo_provider_readiness_all'* &&
+      "$doctor_source" == *'DOCTOR_PROVIDER_READINESS_KIND'* ]]; then
+    test_pass
+else
+    test_fail "Doctor does not consume the shared provider readiness contract"
 fi
 
 test_case "plan provider display reuses preflight output and handles dispatch failure"

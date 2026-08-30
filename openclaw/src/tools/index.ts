@@ -118,7 +118,7 @@ export const SKILL_REGISTRY: SkillRegistryEntry[] = [
   { name: "schedule", description: "[advanced] Manage scheduled workflow jobs (add via wizard, dashboard, list, remove, enable, disable, logs)", type: "command", file: "schedule.md" },
   { name: "security", description: "Enhanced multi-LLM or adversarial security audit — escalation path beyond Claude-native /security-review", type: "command", file: "security.md" },
   { name: "sentinel", description: "GitHub-aware work monitor - triages issues, PRs, and CI failures", type: "command", file: "sentinel.md" },
-  { name: "setup", description: "Interactive setup wizard — install providers, configure auth, RTK, token optimization", type: "command", file: "setup.md" },
+  { name: "setup", description: "Get Claude Octopus ready, verify it locally, or open advanced setup", type: "command", file: "setup.md" },
   { name: "spec", description: "NLSpec authoring - Structured specification from multi-AI research", type: "command", file: "spec.md" },
   { name: "staged-review", description: "[advanced] Two-stage review: spec compliance then code quality", type: "command", file: "staged-review.md" },
   { name: "standard-mode", description: "Switch Octopus model routing to the configured standard tier", type: "command", file: "standard-mode.md" },
