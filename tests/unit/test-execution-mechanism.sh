@@ -154,7 +154,7 @@ for develop_file in "$PROJECT_ROOT/commands/develop.md" "$PROJECT_ROOT/.cursor-p
 
         if grep -q 'OCTOPUS_EFFORT_OVERRIDE' "$develop_file" \
            && grep -q 'OCTOPUS_OPUS_MODE' "$develop_file" \
-           && grep -q 'Fast Opus 5 mode is 2x standard cost' "$develop_file" \
+           && grep -qi 'legacy.*standard.*dispatch' "$develop_file" \
            && grep -q 'project memory' "$develop_file"; then
             pass "$develop_name documents model effort and memory policy"
         else

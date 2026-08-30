@@ -110,9 +110,8 @@ AskUserQuestion({
 ### Model and Effort Policy
 
 - For develop/tangle work on Opus 5, use `high` by default. Raise effort only for a bounded capability-sensitive step; `OCTOPUS_OPUS5_AUTO_XHIGH=1` restores legacy automatic xhigh routing.
-- Fast Opus 5 mode is 2x standard cost ($10/$50 per MTok vs $5/$25 standard) and trades cost for lower latency. Legacy Opus 4.6 fast remains 6x standard cost.
-- Default to Opus 5 standard mode for multi-phase workflows; use fast mode only for interactive single-shot requests when explicitly selected.
-- Respect user overrides: `OCTOPUS_OPUS_MODE`, `OCTOPUS_OPUS_MODEL`, and `OCTOPUS_EFFORT_OVERRIDE`.
+- `OCTOPUS_OPUS_MODE=fast` is a recognized legacy preference. It logs a compatibility warning and uses standard subprocess dispatch because Claude's spawned CLI has no supported `--fast` flag.
+- Respect `OCTOPUS_OPUS_MODEL` and `OCTOPUS_EFFORT_OVERRIDE`. Treat `OCTOPUS_OPUS_MODE` only as the legacy compatibility preference described above.
 - Record durable project memory for autonomy mode, provider availability, frequently used commands, prior project context, and model preferences.
 - If Claude Code dynamic workflows are available and the task is a huge single-Claude migration, prefer the native workflow path. Use Octopus develop when multi-provider implementation or validation is the value.
 

@@ -37,6 +37,15 @@ _octopus_is_safe_env_var_name() {
     [[ "${1:-}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]
 }
 
+_octopus_claude_reasoning_fragment() {
+    local level="$1" policy="${2:-best_effort}"
+    if [[ "${SUPPORTS_EFFORT_COMMAND:-false}" != "true" ||
+          "${SUPPORTS_EFFORT_CLI_FLAG:-false}" != "true" ]]; then
+        return 0
+    fi
+    octopus_reasoning_cli_fragment claude "$level" "$policy"
+}
+
 _octopus_openai_compatible_runtime_config() {
     local provider="$1"
     local config_provider="$provider" base_url api_key_env credential_value
@@ -227,7 +236,7 @@ get_agent_command() {
             local reasoning_level reasoning_policy reasoning_fragment
             reasoning_level="$(octopus_resolve_reasoning_level claude "$phase" "$role")" || return 1
             reasoning_policy="$(octopus_resolve_reasoning_policy claude "$phase" "$role")" || return 1
-            reasoning_fragment="$(octopus_reasoning_cli_fragment claude "$reasoning_level" "$reasoning_policy")" || return 1
+            reasoning_fragment="$(_octopus_claude_reasoning_fragment "$reasoning_level" "$reasoning_policy")" || return 1
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                 return 1
             fi
@@ -237,7 +246,7 @@ get_agent_command() {
             local reasoning_level reasoning_policy reasoning_fragment
             reasoning_level="$(octopus_resolve_reasoning_level claude "$phase" "$role")" || return 1
             reasoning_policy="$(octopus_resolve_reasoning_policy claude "$phase" "$role")" || return 1
-            reasoning_fragment="$(octopus_reasoning_cli_fragment claude "$reasoning_level" "$reasoning_policy")" || return 1
+            reasoning_fragment="$(_octopus_claude_reasoning_fragment "$reasoning_level" "$reasoning_policy")" || return 1
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                 return 1
             fi
@@ -320,10 +329,7 @@ get_agent_command() {
             esac
             opus_model_flag="${opus_model_flag//./-}"
             local opus_reasoning_fragment=""
-            if [[ "${SUPPORTS_EFFORT_COMMAND:-false}" == "true" &&
-                  "${SUPPORTS_EFFORT_CLI_FLAG:-false}" == "true" ]]; then
-                opus_reasoning_fragment="$(octopus_reasoning_cli_fragment claude "$opus_effort" best_effort)" || return 1
-            fi
+            opus_reasoning_fragment="$(_octopus_claude_reasoning_fragment "$opus_effort" best_effort)" || return 1
             echo "${_claude_bin}${_BARE_OPT} --print --model ${opus_model_flag}${opus_reasoning_fragment:+ ${opus_reasoning_fragment}} ${claude_perm}"
             ;;
         claude-opus-legacy) echo "${_claude_bin}${_BARE_OPT} --print --model claude-opus-4-6 ${claude_perm}" ;; # v9.23: explicit 4.6 opt-in

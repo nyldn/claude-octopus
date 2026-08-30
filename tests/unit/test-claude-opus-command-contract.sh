@@ -27,6 +27,7 @@ source "$PROJECT_ROOT/scripts/lib/dispatch.sh"
 
 reset_command_env() {
     unset OCTOPUS_OPUS_MODEL OCTOPUS_EFFORT_OVERRIDE OCTOPUS_OPUS_MODE
+    unset OCTOPUS_REASONING_LEVEL OCTOPUS_REASONING_POLICY
     unset OCTOPUS_FABLE5_FALLBACK_MODEL OCTOPUS_CLAUDE_ALLOWED_MODELS
     export SUPPORTS_OPUS_5=true
     export SUPPORTS_OPUS_4_8=true
@@ -108,6 +109,42 @@ if [[ "$version_only_cmd" != *"--effort"* ]] && validate_agent_command "$version
     test_pass
 else
     test_fail "version-only support emitted an unproven effort argv flag: $version_only_cmd"
+fi
+
+test_case "base Claude and Sonnet omit effort when CLI help lacks the flag"
+reset_command_env
+export OCTOPUS_REASONING_LEVEL=high SUPPORTS_EFFORT_CLI_FLAG=false
+claude_cmd="$(get_agent_command claude develop implementer 128)"
+sonnet_cmd="$(get_agent_command claude-sonnet develop implementer 128)"
+if [[ "$claude_cmd" != *"--effort"* ]] &&
+   [[ "$sonnet_cmd" != *"--effort"* ]] &&
+   validate_agent_command "$claude_cmd" &&
+   validate_agent_command "$sonnet_cmd"; then
+    test_pass
+else
+    test_fail "unsupported effort flag leaked into Claude command: $claude_cmd / $sonnet_cmd"
+fi
+
+test_case "base Claude and Sonnet retain effort on a capability-proven CLI"
+reset_command_env
+export OCTOPUS_REASONING_LEVEL=medium
+claude_cmd="$(get_agent_command claude develop implementer 128)"
+sonnet_cmd="$(get_agent_command claude-sonnet develop implementer 128)"
+if [[ "$claude_cmd" == *"--effort medium"* ]] &&
+   [[ "$sonnet_cmd" == *"--effort medium"* ]]; then
+    test_pass
+else
+    test_fail "capability-proven effort was dropped: $claude_cmd / $sonnet_cmd"
+fi
+
+test_case "public Fast Opus guidance matches standard subprocess dispatch"
+claude_guidance="$(tr '\n' ' ' < "$PROJECT_ROOT/CLAUDE.md")"
+if ! grep -q 'Set `OCTOPUS_OPUS_MODE=fast` to force fast mode' "$PROJECT_ROOT/CLAUDE.md" &&
+   grep -qi 'legacy.*standard.*dispatch' <<<"$claude_guidance" &&
+   grep -qi 'legacy.*standard.*dispatch' "$PROJECT_ROOT/commands/develop.md"; then
+    test_pass
+else
+    test_fail "public guidance still claims OCTOPUS_OPUS_MODE can force a fast subprocess"
 fi
 
 test_case "xhigh clamps when the configured CLI lacks xhigh support"

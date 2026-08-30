@@ -279,19 +279,14 @@ When a `claude-fable-5` pin is detected (`OCTOPUS_OPUS_MODEL` or `OCTOPUS_CLAUDE
 
 **Prompt hygiene (not machine-enforced):** never ask Fable 5 to reveal or transcribe its reasoning (triggers the `reasoning_extraction` refusal), avoid token countdowns, and drop "CRITICAL"/"MUST" emphasis unless strict compliance is required. Full profile: `skills/blocks/fable5-prompting.md`.
 
-### Fast Opus Mode
+### Legacy Fast Opus preference
 
-Fast mode is a latency control, not a reasoning-effort control. On Opus 5 it costs $10/$50 per MTok (2x standard) and should be used only when a human is actively waiting. Legacy Opus 4.6 fast remains much more expensive at $30/$150 per MTok.
-
-When `SUPPORTS_FAST_OPUS=true` is detected, orchestrate.sh routes conservatively:
-- **Default: Opus 5 standard** for all multi-phase workflows (embrace, discover, develop, etc.)
-- **Fast mode: only** for interactive single-shot Opus queries where the user is actively waiting and latency matters
-- **Never fast in autonomous/background mode** (no human waiting = no latency benefit)
-- **User override**: Set `OCTOPUS_OPUS_MODE=fast` to force fast mode when supported
-- **User override**: Set `OCTOPUS_OPUS_MODE=standard` to force standard Opus everywhere (default behavior)
-- **User override**: Set `OCTOPUS_OPUS_MODEL=claude-opus-4.6` to pin legacy 4.6 standard across the board
-
-Always warn users about the cost difference before enabling fast mode.
+Claude's spawned `--print` CLI does not expose a supported `--fast` flag.
+`OCTOPUS_OPUS_MODE=fast` remains recognized as a legacy preference, but it logs
+a compatibility warning and uses standard subprocess dispatch. It does not
+select a faster or higher-priced subprocess tier. `OCTOPUS_OPUS_MODE=standard`
+also uses the standard command contract. Use `OCTOPUS_OPUS_MODEL` to pin a
+specific supported model.
 
 ### Dynamic Workflows (Claude Code v2.1.154+)
 
