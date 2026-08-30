@@ -156,6 +156,25 @@ should_use_agent_teams() {
     return 1
 }
 
+# Copy only the tracked plus untracked-but-not-ignored files from a git work
+# tree into workspace, so gitignored build/vendor trees never enter the
+# per-seat disposable workspace (#980). Returns non-zero when source_root is
+# not a git work tree, or when any step of the copy fails, so the caller can
+# fall back to a full copy.
+_octopus_copy_git_tracked_tree() {
+    local source_root="$1"
+    local workspace="$2"
+
+    git -C "$source_root" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
+
+    (
+        set -o pipefail
+        git -C "$source_root" ls-files -z --cached --others --exclude-standard \
+            | tar --null -C "$source_root" -T - -cf - \
+            | tar -xf - -C "$workspace"
+    )
+}
+
 # Prepare an isolated copy-on-write workspace for advisory agents.
 # GNU cp uses reflinks when the backing filesystem supports them; otherwise it
 # falls back to an ordinary private copy. This protects the source checkout from
@@ -165,6 +184,13 @@ _octopus_prepare_consultative_workspace() {
     local temp_root workspace
     temp_root="$(mktemp -d "${TMPDIR:-/tmp}/octopus-consultative.XXXXXX")" || return 1
     workspace="${temp_root}/workspace"
+    mkdir -p "$workspace" || { rm -rf "$temp_root"; return 1; }
+
+    if _octopus_copy_git_tracked_tree "$source_root" "$workspace"; then
+        printf '%s\n' "$workspace"
+        return 0
+    fi
+    rm -rf "$workspace"
     mkdir -p "$workspace" || { rm -rf "$temp_root"; return 1; }
 
     if ! cp -a --reflink=auto "${source_root}/." "${workspace}/" 2>/dev/null; then
