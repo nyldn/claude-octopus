@@ -1,5 +1,5 @@
 ---
-description: "\"Design System & Product Reverse-Engineering - Extract tokens, components, architecture, and PRDs from codebases or live products\""
+description: "Design System & Product Reverse-Engineering - Extract tokens, components, architecture, and PRDs from codebases or live products"
 disable-model-invocation: true
 ---
 
@@ -87,6 +87,7 @@ Reading all pages may use 33,750 tokens (~34 API calls).
 
 **Check Claude Octopus availability with the Bash tool.** Run the shared live readiness
 check because extraction may use an external provider:
+
 ```bash
 OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
 provider_helper="$OCTO_ROOT/scripts/helpers/check-providers.sh"

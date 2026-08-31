@@ -1,5 +1,5 @@
 ---
-description: "\"[advanced] Generate an optimized prompt for any task using meta-prompting techniques\""
+description: "[advanced] Generate an optimized prompt for any task using meta-prompting techniques"
 disable-model-invocation: true
 ---
 

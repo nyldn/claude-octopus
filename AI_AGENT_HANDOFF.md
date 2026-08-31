@@ -1,30 +1,30 @@
 # AI Agent Handoff
 
 Last updated: 2026-08-30
-Status: The install, setup, readiness, dispatch, cost, and uninstall experience
-has been simplified on an isolated public feature branch. The merged claw-admin
-retirement is incorporated, compatibility redirects remain in place, and the
-combined tree has passed the complete local matrix.
+Status: PR #984 contains the install, setup, readiness, dispatch, cost, and
+uninstall simplification. All current review findings have verified fixes in
+the working tree, independent Fable 5 review returned PASS/PASS, and the
+complete local matrix is green. The fixes still need to be committed, pushed,
+and accepted by exact-head hosted review before merge.
 Branch: `feat/simplify-install-setup-use`, reconciled with `origin/main` at
 `f9b8c92aa228a4b3f6bc9132c6c0a06f3142b73e`.
-Delivery: implementation source head
-`26d2c8abadbdad746ed22507d4328beb56d06801` passed independent Fable 5 review;
-merge-reconciled head `837d7dae746c94a011457e5b8f7867d4468b1289`
-passed the complete local matrix.
+Delivery: PR [#984](https://github.com/nyldn/claude-octopus/pull/984) is open.
+Its last pushed head is `44b73c1cc55dd7f30dc94a5dc97d0d3cc7c88a7e`;
+the reviewed follow-up is currently uncommitted.
 Current release: [v10.0.0](https://github.com/nyldn/claude-octopus/releases/tag/v10.0.0)
 Tracking: `bd` is unavailable in this checkout, so no Beads issue was created or
 updated for this cleanup.
-Next action: push the reconciled feature branch, open its guarded pull request,
-and proceed through reviewed merge and the v10.1.0 release workflow. The user
-authorized merge, release, shared-marketplace publication, and cleanup of only
-the related worktrees proven safe to remove.
+Next action: commit and push the review follow-up, resolve the verified review
+threads, wait for exact-head checks and approval, then squash-merge PR #984 and
+run the guarded v10.1.0 release workflow. The user authorized merge, release,
+shared-marketplace publication, and cleanup of only the related worktrees
+proven safe to remove.
 
 ## Install, Setup, and Everyday-Use Simplification
 
-- Governing plan:
-  `/Users/chris/git/worktrees/claude-octopus-dev/simplification-unattended-plan/docs/superpowers/plans/2026-08-29-claude-octopus-simplification-unattended.md`.
-  The private development checkout and dirty canonical public checkout were not
-  modified.
+- The private governing plan remains in the development repository. This
+  handoff contains the durable public implementation context; the private
+  development checkout and dirty canonical public checkout were not modified.
 - Dispatch exposes bounded, validated CLI controls for working directory,
   model, permission mode, output format, schema, effort, session continuity,
   and agent fan-out. Claude effort flags are emitted only when the installed
@@ -50,6 +50,12 @@ the related worktrees proven safe to remove.
   `cf08fb48-f01b-48e2-8d6e-e25c09fad087` also returned both verdicts as PASS.
   Review artifacts are retained under the ignored
   `.claude-octopus/simplification-loop/reviews/` directory.
+- Review follow-up session `cc4d537b-0cb8-4e0c-868e-7664f63a54e3` ran on
+  exactly `claude-fable-5` after the corrected `$ARGUMENTS` command contract
+  and returned `SPEC_VERDICT: PASS` and `QUALITY_VERDICT: PASS` with no
+  blockers. The earlier review session
+  `c8c74e5f-a0b0-40ab-b9b5-3b4f2332a4e7` identified that blocker before it
+  was fixed.
 - Final source verification on `26d2c8a`:
   `CI=true GITHUB_ACTIONS=true make ci-changed` failed closed to the complete
   local matrix and passed 16/16 smoke, 300/300 unit, and 8/8 integration suites,
@@ -64,6 +70,13 @@ the related worktrees proven safe to remove.
   confirmed that the existing `v10.0.0` tag and GitHub release remain unchanged.
   At this handoff update, the feature pull request, v10.1.0 tag, GitHub release,
   and shared-marketplace publication remain pending.
+- Review-follow-up verification: `CI=true GITHUB_ACTIONS=true make
+  ci-changed` selected the full matrix and passed 16/16 smoke, 300/300 unit,
+  and 8/8 integration suites, plus CI-only checks. The documented Council
+  macOS PTY case and probe dry-run timeout case remained skips rather than
+  failures. `make sync-check`, `git diff --check`, and the executable-mode
+  guard passed before the full run; re-run them after the handoff edit and
+  before committing.
 
 ## Claw Administration Retirement
 
@@ -84,8 +97,8 @@ the related worktrees proven safe to remove.
   synchronization checks, and one stale release-guide boundary. Each finding
   was verified against the current tree and covered by a failing test before
   correction.
-- The dirty canonical public checkout was not modified. Work was isolated in
-  `/Users/chris/git/worktrees/claude-octopus/retire-claw-admin`.
+- The dirty canonical public checkout was not modified. Work was isolated in a
+  dedicated public-repository worktree.
 
 ## Reported-Issue Pattern UAT
 
@@ -256,9 +269,8 @@ the related worktrees proven safe to remove.
   reproducible locally. The test now bounds its own teardown and passes 4/4 in
   about three seconds, so future failure cannot wait for the synthetic
   300-second child.
-- Original checkout `/Users/chris/git/claude-octopus-dev` remains untouched;
-  preserve its unrelated dirty state. Do not treat `.octo-continue.md` as
-  authoritative.
+- The original private coordination checkout remains untouched; preserve its
+  unrelated dirty state. Do not treat `.octo-continue.md` as authoritative.
 
 ## GitHub Queue Audit (2026-08-23)
 

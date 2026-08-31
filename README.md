@@ -672,7 +672,7 @@ The extension registers as an OpenClaw plugin with configurable workflows, auton
 No. One external provider plus Claude gives you multi-AI features. No external providers still gives you personas, workflows, and skills.
 
 **Will this break my existing Claude Code setup?**
-No. It activates only with the `octo` prefix, and results are stored separately. Uninstalling the plugin removes its commands and hooks but preserves local data until you choose to remove it.
+No. Its commands are namespaced under the `octo` prefix, and results are stored separately. Lifecycle hooks still attach to Claude Code. If you explicitly set `OCTOPUS_AUTO_ROUTER_MODE=invoke`, ordinary prompts can also route through Octopus. Uninstalling the plugin removes its commands and hooks but preserves local data until you choose to remove it.
 
 **What happens if a provider times out?**
 The workflow continues with available providers. You'll see the status in the visual indicators.

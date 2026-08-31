@@ -1,5 +1,5 @@
 ---
-description: "\"Definition phase - Clarify and scope problems with multi-AI consensus\""
+description: "Definition phase - Clarify and scope problems with multi-AI consensus"
 disable-model-invocation: true
 ---
 

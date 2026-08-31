@@ -79,6 +79,45 @@ test_costs_uses_deterministic_helper() {
     fi
 }
 
+test_costs_selects_one_output_format() {
+    test_case "table and JSON formats share one mutually exclusive helper invocation"
+    local invocation_count
+    invocation_count="$(grep -Fc '"$helper" --view costs --format "$format"' "$COSTS_CMD" || true)"
+    if [[ "$invocation_count" -eq 1 ]] &&
+       grep -Fq 'format="table"' "$COSTS_CMD" &&
+       grep -Fq 'format="json"' "$COSTS_CMD" &&
+       grep -Fq 'case " $ARGUMENTS " in' "$COSTS_CMD" &&
+       ! grep -Fq '${ARGUMENTS' "$COSTS_CMD" &&
+       grep -Fq 'For JSON, emit only the helper output' "$COSTS_CMD"; then
+        test_pass
+    else
+        test_fail "costs must select one format before invoking the helper, with banner-free JSON"
+    fi
+}
+
+test_costs_rendered_arguments_select_format() {
+    test_case "rendered command arguments select table and JSON behavior"
+    local runtime_root command_script table_script json_script table_output json_output
+    runtime_root="$TEST_TMP_DIR/costs-runtime"
+    mkdir -p "$runtime_root/scripts/helpers"
+    cat > "$runtime_root/scripts/helpers/usage-report.sh" <<'HELPER'
+#!/usr/bin/env bash
+printf '%s\n' "$*"
+HELPER
+    chmod +x "$runtime_root/scripts/helpers/usage-report.sh"
+    command_script="$(awk '/^```bash$/{capture=1; next} capture && /^```$/{exit} capture{print}' "$COSTS_CMD")"
+    table_script="$(sed 's/\$ARGUMENTS//g' <<<"$command_script")"
+    json_script="$(sed 's/\$ARGUMENTS/--format json/g' <<<"$command_script")"
+    table_output="$(CLAUDE_PLUGIN_ROOT="$runtime_root" bash -c "$table_script")"
+    json_output="$(CLAUDE_PLUGIN_ROOT="$runtime_root" bash -c "$json_script")"
+    if [[ "$table_output" == "--view costs --format table" ]] &&
+       [[ "$json_output" == "--view costs --format json" ]]; then
+        test_pass
+    else
+        test_fail "rendered formats diverged: table=$table_output json=$json_output"
+    fi
+}
+
 test_costs_mentions_session_view() {
     test_case "mentions session-level view"
     if grep -ci 'session' "$COSTS_CMD" >/dev/null 2>&1; then
@@ -134,6 +173,8 @@ test_costs_frontmatter_command_field
 test_costs_frontmatter_description
 test_costs_registered_in_plugin_json
 test_costs_uses_deterministic_helper
+test_costs_selects_one_output_format
+test_costs_rendered_arguments_select_format
 test_costs_mentions_session_view
 test_costs_mentions_compatibility_destination
 test_costs_has_workflow_breakdown

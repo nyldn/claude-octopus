@@ -136,15 +136,17 @@ test_quota_dead_mark_expires() {
 }
 
 test_check_providers_applies_dead_marker_to_every_provider() {
-    test_case "check-providers routes every provider through the quota-dead downgrade"
-    # The downgrade used to be opt-in per call site (4 of 13 providers), so a
-    # seat marked dead still advertised itself as available.
-    local src="$PROJECT_ROOT/scripts/helpers/check-providers.sh"
-    if grep -q '_octo_provider_state "$provider" "$status"' "$src" \
-       && [[ "$(grep -c '_octo_provider_state' "$src")" -le 2 ]]; then
+    test_case "shared readiness routes every available provider through the quota-dead downgrade"
+    # The downgrade used to be opt-in per renderer. It now belongs to the
+    # registry-backed readiness evaluator consumed by check-providers.sh.
+    local checker="$PROJECT_ROOT/scripts/helpers/check-providers.sh"
+    local readiness="$PROJECT_ROOT/scripts/lib/preflight.sh"
+    if grep -Fq 'octo_provider_readiness_legacy' "$checker" &&
+       grep -Fq 'octo_quota_is_dead "$provider"' "$readiness" &&
+       ! grep -Eq '^(_octo_provider_state|provider_status)\(\)' "$checker"; then
         test_pass
     else
-        test_fail "expected a single central _octo_provider_state call inside provider_status"
+        test_fail "quota-dead policy is not centralized in shared readiness"
     fi
 }
 

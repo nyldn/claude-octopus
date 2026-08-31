@@ -1,5 +1,5 @@
 ---
-description: "\"[advanced] Manage scheduled workflow jobs (add via wizard, dashboard, list, remove, enable, disable, logs)\""
+description: "[advanced] Manage scheduled workflow jobs (add via wizard, dashboard, list, remove, enable, disable, logs)"
 disable-model-invocation: true
 ---
 

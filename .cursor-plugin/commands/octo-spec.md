@@ -1,5 +1,5 @@
 ---
-description: "\"NLSpec authoring - Structured specification from multi-AI research\""
+description: "NLSpec authoring - Structured specification from multi-AI research"
 disable-model-invocation: true
 ---
 

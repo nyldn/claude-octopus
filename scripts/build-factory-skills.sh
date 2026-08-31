@@ -43,6 +43,26 @@ yaml_quote() {
   printf '"%s"' "$value"
 }
 
+# Frontmatter extraction reads scalar text rather than parsing YAML. Remove one
+# matching quote layer before re-encoding it for Factory so a quoted source
+# description does not become a string containing quote characters.
+yaml_unquote_scalar() {
+  local value="$1"
+  case "$value" in
+    \"*\")
+      value="${value#\"}"
+      value="${value%\"}"
+      value="${value//\\\"/\"}"
+      ;;
+    \'*\')
+      value="${value#\'}"
+      value="${value%\'}"
+      value="${value//\'\'/\'}"
+      ;;
+  esac
+  printf '%s' "$value"
+}
+
 # Octopus-only frontmatter keys to strip (Factory doesn't understand these)
 STRIP_KEYS="agent|aliases|category|context|cost_optimization|created|execution_mode|invocation|pattern|pre_execution_contract|providers|tags|task_dependencies|task_management|trigger|updated|use_native_tasks|validation_gates|version"
 
@@ -93,6 +113,7 @@ generate_cursor_command() {
     local cmd_desc
     cmd_desc="$(echo "$frontmatter" | grep "^description:" | head -1 | sed 's/^description: *//')"
     cmd_desc="$(normalize_single_line "$cmd_desc")"
+    cmd_desc="$(yaml_unquote_scalar "$cmd_desc")"
     if [[ -z "$cmd_desc" ]]; then
       log WARN "SKIP (no description): $filename"
       return 1
@@ -102,6 +123,7 @@ generate_cursor_command() {
     local arg_hint disable_model allowed_tools
     arg_hint="$(echo "$frontmatter" | grep "^argument-hint:" | head -1 | sed 's/^argument-hint: *//' || true)"
     arg_hint="$(normalize_single_line "$arg_hint")"
+    arg_hint="$(yaml_unquote_scalar "$arg_hint")"
     disable_model="$(echo "$frontmatter" | grep "^disable-model-invocation:" | head -1 | sed 's/^disable-model-invocation: *//' || true)"
     allowed_tools="$(echo "$frontmatter" | grep "^allowed-tools:" | head -1 | sed 's/^allowed-tools: *//' || true)"
     [[ -n "$allowed_tools_override" ]] && allowed_tools="$allowed_tools_override"
@@ -205,6 +227,7 @@ if [[ -d "$AGENTS_SRC" ]]; then
     # Extract key fields
     desc="$(echo "$frontmatter" | grep "^description:" | head -1 | sed 's/^description: *//')"
     desc="$(normalize_single_line "$desc")"
+    desc="$(yaml_unquote_scalar "$desc")"
     model="$(echo "$frontmatter" | grep "^model:" | head -1 | sed 's/^model: *//')"
 
     # Extract body

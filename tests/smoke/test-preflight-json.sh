@@ -98,6 +98,59 @@ test_exit_code_mode_returns_zero() {
     fi
 }
 
+test_human_guidance_matches_ready_provider_count() {
+    test_case "human guidance distinguishes zero, Claude-only, single, and multi-provider readiness"
+    local fixture_root="$TEST_TMP_DIR/preflight-guidance"
+    local fixture_script="$fixture_root/helpers/preflight.sh"
+    local output failures=""
+    mkdir -p "$fixture_root/helpers" "$fixture_root/lib"
+    cp "$PREFLIGHT" "$fixture_script"
+    cat > "$fixture_root/lib/preflight.sh" <<'STUB'
+octo_provider_readiness_all() {
+    printf '%s\n' "$PREFLIGHT_FIXTURE_RESULTS"
+}
+STUB
+
+    output="$(PREFLIGHT_FIXTURE_RESULTS='' bash "$fixture_script" 2>/dev/null)"
+    [[ "$output" == *"No provider is ready."* ]] || failures+="zero-ready guidance missing; "
+
+    output="$(PREFLIGHT_FIXTURE_RESULTS='{"provider":"claude","status":"available","reason_code":"ready"}' \
+        bash "$fixture_script" 2>/dev/null)"
+    [[ "$output" == *"Claude-only mode is available."* ]] || failures+="Claude-only guidance missing; "
+
+    output="$(PREFLIGHT_FIXTURE_RESULTS='{"provider":"codex","status":"available","reason_code":"ready"}' \
+        bash "$fixture_script" 2>/dev/null)"
+    [[ "$output" == *"One provider is ready: codex."* ]] || failures+="single-provider guidance missing; "
+
+    output="$(PREFLIGHT_FIXTURE_RESULTS=$'{"provider":"claude","status":"available","reason_code":"ready"}\n{"provider":"codex","status":"available","reason_code":"ready"}' \
+        bash "$fixture_script" 2>/dev/null)"
+    [[ "$output" == *"Multi-provider mode is ready."* ]] || failures+="two-provider guidance missing; "
+
+    if [[ -z "$failures" ]]; then
+        test_pass
+    else
+        test_fail "$failures"
+    fi
+}
+
+test_missing_jq_reports_clean_error() {
+    test_case "missing jq reports a clean installation error"
+    local no_jq_bin="$TEST_TMP_DIR/no-jq-bin" no_jq_output no_jq_rc
+    mkdir -p "$no_jq_bin"
+    ln -s "$(command -v dirname)" "$no_jq_bin/dirname"
+    set +e
+    no_jq_output="$(PATH="$no_jq_bin" /bin/bash "$PREFLIGHT" --json 2>&1)"
+    no_jq_rc=$?
+    set -e
+    if [[ "$no_jq_rc" -eq 1 ]] &&
+       [[ "$no_jq_output" == *"requires jq. Install jq and retry."* ]] &&
+       [[ "$no_jq_output" != *"command not found"* ]]; then
+        test_pass
+    else
+        test_fail "missing-jq diagnostic was unclear: rc=$no_jq_rc output=$no_jq_output"
+    fi
+}
+
 test_preflight_exists
 test_json_mode_exits_zero
 test_json_mode_emits_valid_json
@@ -105,5 +158,7 @@ test_json_required_keys
 test_json_versions_has_floor_field
 test_json_results_entries_well_formed
 test_exit_code_mode_returns_zero
+test_human_guidance_matches_ready_provider_count
+test_missing_jq_reports_clean_error
 
 test_summary

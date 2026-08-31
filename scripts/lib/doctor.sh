@@ -1882,6 +1882,8 @@ do_doctor() {
     DOCTOR_RESULTS_MSG=()
     DOCTOR_RESULTS_DETAIL=()
     DOCTOR_AGY_LIVE_AUTH_STATUS="not-run"
+    DOCTOR_PROVIDER_READINESS=()
+    DOCTOR_PROVIDER_READINESS_KIND=""
 
     # Run checks (filtered if category specified)
     local cat

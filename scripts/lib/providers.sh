@@ -223,12 +223,16 @@ detect_claude_code_version() {
     # help once during capability detection so dispatch never guesses.
     SUPPORTS_EFFORT_CLI_FLAG=false
     local -a _claude_capability_cmd
-    local _claude_capability_help=""
+    local _claude_capability_help="" _claude_capability_timeout
     read -r -a _claude_capability_cmd <<< "${OCTOPUS_CLAUDE_BIN:-claude}"
-    if [[ "${#_claude_capability_cmd[@]}" -gt 0 ]] &&
+    if [[ "${OCTOPUS_SKIP_PROVIDER_PROBES:-false}" != "true" &&
+       "${#_claude_capability_cmd[@]}" -gt 0 ]] &&
        command -v "${_claude_capability_cmd[0]}" >/dev/null 2>&1; then
-        _claude_capability_help="$("${_claude_capability_cmd[@]}" --help 2>/dev/null || true)"
-        if grep -q -- '--effort' <<< "$_claude_capability_help"; then
+        _claude_capability_timeout="$(_octo_bare_probe_timeout "${OCTOPUS_BARE_PROBE_TIMEOUT:-5}")"
+        _claude_capability_help="$(_octo_run_bare_probe_with_timeout \
+            "$_claude_capability_timeout" "$_claude_capability_timeout" 0 \
+            "${_claude_capability_cmd[@]}" --help 2>/dev/null || true)"
+        if grep -c -- '--effort' <<< "$_claude_capability_help" >/dev/null 2>&1; then
             SUPPORTS_EFFORT_CLI_FLAG=true
         fi
     fi

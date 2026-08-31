@@ -1,5 +1,5 @@
 ---
-description: "\"Start a creative thought partner brainstorming session\""
+description: "Start a creative thought partner brainstorming session"
 disable-model-invocation: true
 ---
 

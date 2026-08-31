@@ -1,5 +1,5 @@
 ---
-description: "\"[advanced] Resume a previous agent by ID — continue an interrupted task where it left off\""
+description: "[advanced] Resume a previous agent by ID — continue an interrupted task where it left off"
 disable-model-invocation: true
 ---
 

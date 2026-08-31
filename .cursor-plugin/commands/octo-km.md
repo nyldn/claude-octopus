@@ -1,5 +1,5 @@
 ---
-description: "\"[advanced] Switch to Knowledge Work mode (or toggle with off)\""
+description: "[advanced] Switch to Knowledge Work mode (or toggle with off)"
 disable-model-invocation: true
 ---
 

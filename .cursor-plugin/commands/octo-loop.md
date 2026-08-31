@@ -1,5 +1,5 @@
 ---
-description: "\"[advanced] Execute tasks in loops with conditions, iterative improvements until goals are met\""
+description: "[advanced] Execute tasks in loops with conditions, iterative improvements until goals are met"
 disable-model-invocation: true
 ---
 

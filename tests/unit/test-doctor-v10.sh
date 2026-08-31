@@ -14,6 +14,7 @@ MAGENTA="" BOLD="" BLUE="" GREEN="" YELLOW="" RED="" DIM="" NC=""
 source "$PROJECT_ROOT/scripts/lib/doctor.sh"
 
 test_case "Perplexity-only auth is described as a credential, not workflow readiness"
+original_doctor_collect="$(declare -f _doctor_collect_provider_readiness)"
 _doctor_collect_provider_readiness() {
     DOCTOR_PROVIDER_READINESS=('{"provider":"perplexity","status":"available","remediation":""}')
 }
@@ -30,6 +31,7 @@ if [[ "$auth_summary" == "At least one provider credential is configured" ]]; th
 else
     test_fail "ambiguous auth summary: $auth_summary"
 fi
+eval "$original_doctor_collect"
 
 # Keep this suite deterministic and limited to the Doctor runner/output layer.
 # Full category implementations retain their own focused suites.
@@ -235,6 +237,29 @@ if [[ "$doctor_source" == *'_doctor_collect_provider_readiness'* &&
 else
     test_fail "Doctor does not consume the shared provider readiness contract"
 fi
+
+test_case "each Doctor invocation refreshes the provider readiness snapshot"
+readiness_calls="$TEST_TMP_DIR/doctor-readiness-calls"
+: > "$readiness_calls"
+original_readiness_all="$(declare -f octo_provider_readiness_all)"
+original_doctor_check_providers="$(declare -f doctor_check_providers)"
+original_doctor_output_json="$(declare -f doctor_output_json)"
+octo_provider_readiness_all() {
+    printf 'call\n' >> "$readiness_calls"
+    printf '%s\n' '{"provider":"claude","status":"available","reason_code":"ready"}'
+}
+doctor_check_providers() { _doctor_collect_provider_readiness; }
+doctor_output_json() { :; }
+do_doctor providers --json
+do_doctor providers --json
+if [[ "$(wc -l < "$readiness_calls" | tr -d '[:space:]')" -eq 2 ]]; then
+    test_pass
+else
+    test_fail "Doctor reused readiness from an earlier invocation"
+fi
+eval "$original_readiness_all"
+eval "$original_doctor_check_providers"
+eval "$original_doctor_output_json"
 
 test_case "plan provider display reuses preflight output and handles dispatch failure"
 plan_command="$(cat "$PROJECT_ROOT/commands/plan.md")"

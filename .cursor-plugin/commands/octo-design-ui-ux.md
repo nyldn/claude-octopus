@@ -1,5 +1,5 @@
 ---
-description: "\"Design UI/UX systems with style guides, palettes, typography, and component specs\""
+description: "Design UI/UX systems with style guides, palettes, typography, and component specs"
 disable-model-invocation: true
 ---
 

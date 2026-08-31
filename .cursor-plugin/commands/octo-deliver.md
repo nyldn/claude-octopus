@@ -1,5 +1,5 @@
 ---
-description: "\"Delivery phase - Review, validate, and test with multi-AI quality assurance\""
+description: "Delivery phase - Review, validate, and test with multi-AI quality assurance"
 disable-model-invocation: true
 ---
 

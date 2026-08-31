@@ -1,5 +1,5 @@
 ---
-description: "\"[Legacy] Redirects to /octo:auto — the smart router\""
+description: "[Legacy] Redirects to /octo:auto — the smart router"
 disable-model-invocation: true
 ---
 

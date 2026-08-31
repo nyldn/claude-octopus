@@ -1,5 +1,5 @@
 ---
-description: "\"[advanced] Remove freeze mode edit restriction\""
+description: "[advanced] Remove freeze mode edit restriction"
 disable-model-invocation: true
 ---
 

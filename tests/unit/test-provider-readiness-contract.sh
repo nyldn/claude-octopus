@@ -101,7 +101,9 @@ else
 fi
 
 test_case "documented checker renders the shared readiness evaluator"
-if grep -q 'octo_provider_readiness_legacy' "$PROJECT_ROOT/scripts/helpers/check-providers.sh"; then
+if grep -q 'octo_provider_readiness_legacy' "$PROJECT_ROOT/scripts/helpers/check-providers.sh" &&
+   ! grep -Eq '^(_octo_provider_state|provider_status)\(\)' \
+       "$PROJECT_ROOT/scripts/helpers/check-providers.sh"; then
     test_pass
 else
     test_fail "check-providers.sh still owns independent provider detection"
@@ -125,7 +127,9 @@ if grep -Fq 'PROVIDER_STATUS' "$plan_command" &&
    grep -Fq 'OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"' "$plan_command" &&
    grep -Fq 'if [[ ! -x "$provider_helper" ]]' "$plan_command" &&
    ! grep -Fq 'command -v' "$plan_command" &&
-   ! grep -Fq '11434/api/tags' "$plan_command"; then
+   ! grep -Fq '11434/api/tags' "$plan_command" &&
+   grep -Fq '[one row for each captured provider:status entry]' "$plan_command" &&
+   ! grep -Fq 'Codex CLI: [Available' "$plan_command"; then
     test_pass
 else
     test_fail "plan.md must render PROVIDER_STATUS without binary, env, or Ollama probes"
@@ -157,7 +161,10 @@ octo_provider_readiness_all() {
     printf '%s\n' '{"provider":"codex","status":"available","reason_code":"ready","check_kind":"static","checked_at":"now","duration_ms":0,"remediation":""}'
 }
 unset -f octo_event_emit 2>/dev/null || true
-legacy_no_jq="$(PATH="$no_jq_bin" octo_provider_readiness_legacy static || true)"
+hash -r
+legacy_no_jq="$(PATH="$no_jq_bin:/usr/bin:/bin" octo_provider_readiness_legacy static || true)"
+unset -f octo_provider_readiness_all
+source "$PROJECT_ROOT/scripts/lib/preflight.sh"
 if [[ "$legacy_no_jq" == $'PROVIDER_CHECK_START\ncodex:available\nPROVIDER_CHECK_END' ]]; then
     test_pass
 else
@@ -165,14 +172,15 @@ else
 fi
 
 test_case "detect-providers cache works without jq when Python is available"
-for command_name in date mkdir tee tr; do
+for command_name in cat date mkdir tee tr; do
     ln -s "$(command -v "$command_name")" "$no_jq_bin/$command_name"
 done
 check_claude_version() {
     printf '%s\n' 'CLAUDE_CODE_VERSION=2.1.219' 'CLAUDE_CODE_STATUS=ok' 'CLAUDE_CODE_MINIMUM=2.1.14'
 }
 no_jq_workspace="$TEST_TMP_DIR/no-jq-workspace"
-no_jq_detect="$(PATH="$no_jq_bin" WORKSPACE_DIR="$no_jq_workspace" cmd_detect_providers || true)"
+hash -r
+no_jq_detect="$(PATH="$fake_bin:$no_jq_bin:/usr/bin:/bin" WORKSPACE_DIR="$no_jq_workspace" cmd_detect_providers || true)"
 if grep -q '^CODEX_STATUS=ok$' <<<"$no_jq_detect" &&
    grep -q '^CLAUDE_CODE_STATUS=ok$' "$no_jq_workspace/.provider-cache" 2>/dev/null; then
     test_pass
@@ -180,9 +188,36 @@ else
     test_fail "jq-less provider cache was not complete: $no_jq_detect"
 fi
 
+test_case "workflow preflight consumes readiness JSON without jq"
+octo_provider_readiness_result() {
+    case "$1" in
+        codex) printf '%s\n' '{"provider":"codex","status":"available","reason_code":"ready","remediation":""}' ;;
+        *) printf '%s\n' "{\"provider\":\"$1\",\"status\":\"missing\",\"reason_code\":\"not-installed\",\"remediation\":\"\"}" ;;
+    esac
+}
+preflight_cache_valid() { return 1; }
+preflight_cache_write() { :; }
+check_codex_auth_freshness() { return 0; }
+detect_enterprise_backend() { :; }
+provider_smoke_test() { return 0; }
+hash -r
+if PATH="$no_jq_bin:/usr/bin:/bin" preflight_check true >/dev/null 2>&1; then
+    test_pass
+else
+    test_fail "preflight_check still requires jq for shared readiness fields"
+fi
+unset -f octo_provider_readiness_result preflight_cache_valid preflight_cache_write \
+    check_codex_auth_freshness detect_enterprise_backend provider_smoke_test
+
 test_case "parallel-agents skill documents the current cache contract"
 parallel_skill="$PROJECT_ROOT/skills/skill-parallel-agents/SKILL.md"
-if grep -q 'CLAUDE_CODE_MINIMUM=2.1.14' "$parallel_skill" &&
+required_minimum="$(sed -n 's/^[[:space:]]*local min_version="\([0-9][0-9.]*\)"/\1/p' \
+    "$PROJECT_ROOT/scripts/orchestrate.sh" | head -1)"
+documented_minimum="$(sed -n 's/^CLAUDE_CODE_MINIMUM=\([0-9][0-9.]*\)$/\1/p' \
+    "$parallel_skill" | head -1)"
+source "$PROJECT_ROOT/scripts/lib/providers.sh"
+if [[ -n "$required_minimum" && -n "$documented_minimum" ]] &&
+   version_compare "$documented_minimum" "$required_minimum" ">=" &&
    grep -q 'CODEX_STATUS=ok' "$parallel_skill" &&
    grep -q 'AGY_STATUS=unauthenticated' "$parallel_skill" &&
    ! grep -q 'CODEX_AUTH=' "$parallel_skill" &&
@@ -190,6 +225,17 @@ if grep -q 'CLAUDE_CODE_MINIMUM=2.1.14' "$parallel_skill" &&
     test_pass
 else
     test_fail "parallel-agents still documents removed provider-cache keys"
+fi
+
+test_case "parallel skill resolves readiness from the active plugin root"
+canonical_parallel_skill="$PROJECT_ROOT/.claude/skills/skill-parallel-agents/SKILL.md"
+if grep -Fq 'OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"' \
+       "$canonical_parallel_skill" &&
+   grep -Fq '"$OCTO_ROOT/scripts/orchestrate.sh" detect-providers' \
+       "$canonical_parallel_skill"; then
+    test_pass
+else
+    test_fail "parallel skill hardcodes a potentially stale installed-plugin path"
 fi
 
 test_summary

@@ -1,5 +1,5 @@
 ---
-description: "\"Discovery phase - Multi-AI research and exploration\""
+description: "Discovery phase - Multi-AI research and exploration"
 disable-model-invocation: true
 ---
 

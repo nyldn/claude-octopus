@@ -263,10 +263,79 @@ _parallel_write_report() {
 parallel_execute() {
     local tasks_file="${1:-$TASKS_FILE}"
     local _parallel_cron_disabled=false
+    local outcome_dir="" spawn_output=""
+    local _parallel_previous_int_trap="" _parallel_previous_term_trap=""
+    local _parallel_previous_exit_trap=""
     _parallel_cleanup_cron() {
         if [[ "$_parallel_cron_disabled" == "true" ]]; then
             unset CLAUDE_CODE_DISABLE_CRON 2>/dev/null || true
         fi
+    }
+    _parallel_cleanup_resources() {
+        [[ -z "$spawn_output" ]] || rm -f "$spawn_output" 2>/dev/null || true
+        [[ -z "$outcome_dir" ]] || rm -rf "$outcome_dir" 2>/dev/null || true
+        spawn_output=""
+        outcome_dir=""
+        _parallel_cleanup_cron
+    }
+    _parallel_restore_traps() {
+        if [[ -n "$_parallel_previous_int_trap" ]]; then
+            eval "$_parallel_previous_int_trap"
+        else
+            trap - INT
+        fi
+        if [[ -n "$_parallel_previous_term_trap" ]]; then
+            eval "$_parallel_previous_term_trap"
+        else
+            trap - TERM
+        fi
+        if [[ -n "$_parallel_previous_exit_trap" ]]; then
+            eval "$_parallel_previous_exit_trap"
+        else
+            trap - EXIT
+        fi
+    }
+    _parallel_invoke_saved_trap() {
+        local saved_trap="$1"
+        [[ -n "$saved_trap" ]] || return 0
+        eval "set -- ${saved_trap#trap -- }"
+        eval "$1"
+    }
+    _parallel_handle_signal() {
+        local signal="$1" signal_status=143 saved_trap current_pid
+        [[ "$signal" == "INT" ]] && signal_status=130
+        if [[ "$signal" == "INT" ]]; then
+            saved_trap="$_parallel_previous_int_trap"
+        else
+            saved_trap="$_parallel_previous_term_trap"
+        fi
+        _parallel_cleanup_resources
+        _parallel_restore_traps
+        if [[ -n "$saved_trap" ]]; then
+            _parallel_invoke_saved_trap "$saved_trap"
+        else
+            current_pid="$(sh -c 'printf "%s\n" "$PPID"')"
+            kill -s "$signal" "$current_pid" 2>/dev/null || true
+        fi
+        exit "$signal_status"
+    }
+    _parallel_handle_exit() {
+        local exit_status=$?
+        local saved_trap="$_parallel_previous_exit_trap"
+        _parallel_cleanup_resources
+        if [[ -n "$_parallel_previous_int_trap" ]]; then
+            eval "$_parallel_previous_int_trap"
+        else
+            trap - INT
+        fi
+        if [[ -n "$_parallel_previous_term_trap" ]]; then
+            eval "$_parallel_previous_term_trap"
+        else
+            trap - TERM
+        fi
+        trap - EXIT
+        _parallel_invoke_saved_trap "$saved_trap"
+        exit "$exit_status"
     }
 
     # v8.48.0: Disable cron during parallel execution to prevent interference
@@ -319,13 +388,19 @@ parallel_execute() {
         return 1
     fi
 
-    local outcome_dir report_file
+    local report_file
     outcome_dir=$(mktemp -d "${TMPDIR:-/tmp}/octo-parallel-outcomes.XXXXXX") || {
         log ERROR "Failed to create parallel outcome directory"
         _parallel_cleanup_cron
         return 1
     }
     report_file="${OCTOPUS_PARALLEL_REPORT_FILE:-${WORKSPACE_DIR:-${HOME}/.claude-octopus}/state/parallel-report.json}"
+    _parallel_previous_int_trap="$(trap -p INT)"
+    _parallel_previous_term_trap="$(trap -p TERM)"
+    _parallel_previous_exit_trap="$(trap -p EXIT)"
+    trap '_parallel_handle_signal INT' INT
+    trap '_parallel_handle_signal TERM' TERM
+    trap '_parallel_handle_exit' EXIT
 
     local running=0
     local completed=0
@@ -336,6 +411,7 @@ parallel_execute() {
     local task_ids=()
     local task_agents=()
     local task_sequences=()
+    local seen_task_ids=$'\n'
 
     while IFS= read -r task; do
         local task_id="" agent="" prompt="" current_sequence="$sequence"
@@ -371,6 +447,19 @@ parallel_execute() {
             ((skipped++)) || true
             continue
         fi
+
+        local duplicate_id=false
+        case "$seen_task_ids" in
+            *$'\n'"$task_id"$'\n'*) duplicate_id=true ;;
+        esac
+        if [[ "$duplicate_id" == "true" ]]; then
+            log WARN "Skipping duplicate task id '$task_id'"
+            _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" \
+                "$([[ -n "$agent" ]] && echo true || echo false)" "skipped" "duplicate-id" ""
+            ((skipped++)) || true
+            continue
+        fi
+        seen_task_ids+="$task_id"$'\n'
 
         if [[ -z "$agent" ]]; then
             log WARN "Skipping task $task_id: invalid/missing agent"
@@ -438,7 +527,8 @@ parallel_execute() {
             [[ $running -ge $max_parallel ]] && sleep "${OCTOPUS_PARALLEL_POLL_INTERVAL:-0.2}"
         done
 
-        local pid="" spawn_status=0 spawn_output
+        local pid="" spawn_status=0
+        spawn_output=""
         spawn_output=$(mktemp "${TMPDIR:-/tmp}/octo-parallel-spawn.XXXXXX") || spawn_status=1
         if [[ "$spawn_status" -eq 0 ]]; then
             if spawn_agent_capture_pid "$agent" "$prompt" "$task_id" > "$spawn_output"; then
@@ -448,6 +538,7 @@ parallel_execute() {
                 spawn_status=$?
             fi
             rm -f "$spawn_output"
+            spawn_output=""
         fi
 
         if [[ "$spawn_status" -eq 0 ]]; then
@@ -518,8 +609,8 @@ parallel_execute() {
     else
         log INFO "Parallel execution report: $report_file ($overall_status)"
     fi
-    rm -rf "$outcome_dir"
-    _parallel_cleanup_cron
+    _parallel_cleanup_resources
+    _parallel_restore_traps
     [[ "$report_status" -ne 0 ]] && return "$report_status"
     [[ "$aggregate_status" -ne 0 ]] && return "$aggregate_status"
     [[ "$overall_status" == "failed" ]] && return 1

@@ -1,5 +1,5 @@
 ---
-description: "\"[advanced] Generate engineering retrospectives from git history with trends and team analysis\""
+description: "[advanced] Generate engineering retrospectives from git history with trends and team analysis"
 disable-model-invocation: true
 allowed-tools: Bash, Read, Glob, Grep, Write
 ---

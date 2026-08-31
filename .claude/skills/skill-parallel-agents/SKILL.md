@@ -230,12 +230,13 @@ Followed by results from each provider marked with their indicators (for example
 Once this skill activates, run the local provider check:
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh detect-providers
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+"$OCTO_ROOT/scripts/orchestrate.sh" detect-providers
 ```
 
 This check reads local commands, credentials, and the one-hour cache. It does not call provider APIs. Current output includes the Claude Code version contract and one status per provider:
 
-```
+```text
 Detecting Claude Code version...
 
 CLAUDE_CODE_VERSION=2.1.219
@@ -252,7 +253,7 @@ Provider values are `ok`, `unauthenticated`, `quota`, `not-installed`, or a spec
 
 If Claude Code is outdated, stop and show the version and update instructions reported by the command:
 
-```
+```text
 CLAUDE_CODE_VERSION=2.1.13
 CLAUDE_CODE_STATUS=outdated
 CLAUDE_CODE_MINIMUM=2.1.14

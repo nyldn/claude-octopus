@@ -1,5 +1,5 @@
 ---
-description: "\"[advanced] Restrict file edits to a specific directory boundary\""
+description: "[advanced] Restrict file edits to a specific directory boundary"
 disable-model-invocation: true
 ---
 

@@ -1,5 +1,5 @@
 ---
-description: "\"Review and enable Claude Octopus features added since you installed\""
+description: "Review and enable Claude Octopus features added since you installed"
 disable-model-invocation: true
 allowed-tools: Bash, Read
 ---

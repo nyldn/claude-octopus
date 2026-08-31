@@ -1,5 +1,5 @@
 ---
-description: "\"[advanced] Team of Teams - Decompose compound tasks across independent claude instances\""
+description: "[advanced] Team of Teams - Decompose compound tasks across independent claude instances"
 disable-model-invocation: true
 ---
 

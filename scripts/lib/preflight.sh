@@ -222,7 +222,7 @@ _octo_provider_static_readiness() {
             remediation="Install Cursor Agent, then run: agent login"
             if declare -f _is_cursor_agent_binary >/dev/null 2>&1 && _is_cursor_agent_binary; then
                 if _octo_value_has_nonwhitespace "${CURSOR_API_KEY:-}" ||
-                   grep -Eq '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" 2>/dev/null; then
+                   grep -Ec '"authInfo"[[:space:]]*:[[:space:]]*\{' "${HOME}/.cursor/cli-config.json" >/dev/null 2>&1; then
                     status="available"; reason_code="ready"; remediation=""
                 else
                     status="degraded"; reason_code="auth-missing"; remediation="Run: agent login, or set CURSOR_API_KEY."
@@ -522,21 +522,21 @@ preflight_check() {
     local readiness status reason remediation
 
     readiness="$(octo_provider_readiness_result codex static)"
-    status="$(jq -r '.status' <<<"$readiness")"
+    status="$(_octo_readiness_json_field "$readiness" status)"
     if [[ "$status" != "missing" ]]; then
         has_codex=true
         [[ "$status" == "available" ]] && codex_auth=true
     fi
 
     readiness="$(octo_provider_readiness_result agy static)"
-    status="$(jq -r '.status' <<<"$readiness")"
+    status="$(_octo_readiness_json_field "$readiness" status)"
     if [[ "$status" != "missing" ]]; then
         has_agy=true
         [[ "$status" == "available" ]] && agy_auth=true
     fi
 
     readiness="$(octo_provider_readiness_result cursor-agent static)"
-    status="$(jq -r '.status' <<<"$readiness")"
+    status="$(_octo_readiness_json_field "$readiness" status)"
     if [[ "$status" != "missing" ]]; then
         has_cursor_agent=true
         [[ "$status" == "available" ]] && cursor_agent_auth=true
@@ -577,9 +577,9 @@ preflight_check() {
         echo ""
         for provider in codex agy cursor-agent; do
             readiness="$(octo_provider_readiness_result "$provider" static)"
-            status="$(jq -r '.status' <<<"$readiness")"
+            status="$(_octo_readiness_json_field "$readiness" status)"
             [[ "$status" == "degraded" ]] || continue
-            remediation="$(jq -r '.remediation' <<<"$readiness")"
+            remediation="$(_octo_readiness_json_field "$readiness" remediation)"
             echo -e "${CYAN}${provider}:${NC} ${remediation}"
         done
         echo ""

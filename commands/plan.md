@@ -334,14 +334,8 @@ Validate quality — Review and refine
 → /octo:deliver
 
 Provider Availability:
-🔴 Codex CLI: [Available ✓ / Not installed ✗]
-🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
-🟤 OpenCode: [Available ✓ / Not installed ✗]
-🟢 Copilot CLI: [Available ✓ / Not installed ✗]
-🟠 Qwen CLI: [Available ✓ / Not installed ✗]
-⚫ Ollama: [Available ✓ / Not installed ✗]
-🔵 Claude: Available ✓
-🟣 Perplexity: [Configured ✓ / Not configured ✗]
+[one row for each captured provider:status entry]
+[provider name exactly]: [ready / needing attention / not configured]
 
 YOUR INVOLVEMENT: [Checkpoints / Semi-autonomous / Hands-off]
 

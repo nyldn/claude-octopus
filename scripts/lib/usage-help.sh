@@ -11,7 +11,11 @@ generate_usage_report() {
     local format="${1:-table}"
     local helper="${_usage_help_registry_dir}/../helpers/usage-report.sh"
     if [[ ! -x "$helper" ]]; then
-        echo "usage-report helper is unavailable: $helper" >&2
+        if declare -f log >/dev/null 2>&1; then
+            log ERROR "usage-report helper is unavailable: $helper"
+        else
+            printf '[ERROR] usage-report helper is unavailable: %s\n' "$helper" >&2
+        fi
         return 1
     fi
     bash "$helper" --view costs --format "$format"

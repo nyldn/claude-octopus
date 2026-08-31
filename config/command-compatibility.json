@@ -1,5 +1,6 @@
 {
   "schema_version": 1,
+  "minimum_removal_version": "11.0.0",
   "entries": [
     {
       "command": "budget-mode",

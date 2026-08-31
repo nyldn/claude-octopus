@@ -1380,7 +1380,7 @@ test_user_facing_docs_route_external_provider_dispatch() {
 }
 
 test_provider_aware_commands_show_core_provider_status() {
-    test_case "provider-aware slash commands show Codex, Antigravity, and Perplexity status"
+    test_case "provider-aware slash commands show core or registry-driven provider status"
 
     local missing=""
     local commands=(
@@ -1406,16 +1406,22 @@ test_provider_aware_commands_show_core_provider_status() {
                 continue
             fi
 
-            grep -q 'Codex CLI: \[Available ✓ / Not installed ✗\]' "$file" || missing+="${file}: missing Codex status"$'\n'
-            grep -q 'Antigravity CLI: \[Available ✓ / Not installed ✗\]' "$file" || missing+="${file}: missing Antigravity status"$'\n'
-            grep -q 'Perplexity: \[Configured ✓ / Not configured ✗\]' "$file" || missing+="${file}: missing Perplexity status"$'\n'
+            if [[ "$command" == "plan" ]]; then
+                grep -q 'PROVIDER_STATUS' "$file" || missing+="${file}: missing retained readiness snapshot"$'\n'
+                grep -q 'Include every `provider:status` line' "$file" || missing+="${file}: missing all-provider rendering contract"$'\n'
+                grep -q 'Preserve provider names exactly' "$file" || missing+="${file}: missing registry-driven provider labels"$'\n'
+            else
+                grep -q 'Codex CLI: \[Available ✓ / Not installed ✗\]' "$file" || missing+="${file}: missing Codex status"$'\n'
+                grep -q 'Antigravity CLI: \[Available ✓ / Not installed ✗\]' "$file" || missing+="${file}: missing Antigravity status"$'\n'
+                grep -q 'Perplexity: \[Configured ✓ / Not configured ✗\]' "$file" || missing+="${file}: missing Perplexity status"$'\n'
+            fi
         done
     done
 
     if [[ -z "$missing" ]]; then
         test_pass
     else
-        test_fail "provider-aware slash command banners must show core provider statuses: $missing"
+        test_fail "provider-aware slash command banners must show complete provider status: $missing"
     fi
 }
 

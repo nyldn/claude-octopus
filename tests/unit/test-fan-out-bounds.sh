@@ -14,7 +14,8 @@ source "$PROJECT_ROOT/scripts/lib/parallel.sh"
 
 export WORKSPACE_DIR="$TEST_TMP_DIR/workspace"
 export OCTOPUS_PARALLEL_REPORT_FILE="$TEST_TMP_DIR/parallel-report.json"
-mkdir -p "$WORKSPACE_DIR/state"
+export TMPDIR="$TEST_TMP_DIR/parallel-tmp"
+mkdir -p "$WORKSPACE_DIR/state" "$TMPDIR"
 
 AVAILABLE_AGENTS="codex agy openrouter qwen perplexity copilot ollama"
 MAX_PARALLEL=2
@@ -285,6 +286,88 @@ if [[ "$PARALLEL_RC" -eq 0 ]] && jq -e '
     test_pass
 else
     test_fail "empty task list did not report a complete no-op"
+fi
+
+reset_run_state
+MAX_PARALLEL=1
+run_parallel '{"tasks":[
+  {"id":"duplicate","agent":"agy","prompt":"first"},
+  {"id":"duplicate","agent":"ollama","prompt":"second"}
+]}'
+
+test_case "duplicate task IDs are rejected before a second spawn"
+if [[ "$PARALLEL_RC" -eq 0 ]] && jq -e '
+    .status == "degraded" and
+    .counts == {total:2,completed:1,skipped:1,failed:0} and
+    .results[0].status == "completed" and
+    .results[1] == {sequence:1,id:"duplicate",agent:"ollama",status:"skipped",reason:"duplicate-id",exit_code:null}
+  ' "$OCTOPUS_PARALLEL_REPORT_FILE" >/dev/null 2>&1 &&
+   [[ "$(cut -f1 "$PID_FILE" | grep -c '^duplicate$' || true)" -eq 1 ]]; then
+    test_pass
+else
+    test_fail "duplicate IDs spawned more than once or shared a completion marker"
+fi
+
+test_case "parallel temp resources are cleaned before normal return"
+if find "$TMPDIR" -maxdepth 1 \( -name 'octo-parallel-outcomes.*' -o -name 'octo-parallel-spawn.*' \) \
+    -print | grep -c . >/dev/null 2>&1; then
+    test_fail "parallel execution left normal-exit temp resources"
+else
+    test_pass
+fi
+
+test_case "TERM cleanup preserves the caller trap and removes parallel temp resources"
+interrupt_runner="$TEST_TMP_DIR/parallel-interrupt-runner.sh"
+interrupt_tasks="$TEST_TMP_DIR/interrupt-tasks.json"
+interrupt_marker="$TEST_TMP_DIR/previous-term-handler"
+interrupt_child="$TEST_TMP_DIR/interrupt-child"
+cat > "$interrupt_tasks" <<'JSON'
+{"tasks":[{"id":"interrupt","agent":"agy","prompt":"wait"}]}
+JSON
+cat > "$interrupt_runner" <<'RUNNER'
+#!/usr/bin/env bash
+set -euo pipefail
+source "$PROJECT_ROOT/scripts/lib/agent-spec.sh"
+source "$PROJECT_ROOT/scripts/lib/parallel.sh"
+log() { :; }
+render_agent_summary() { :; }
+aggregate_results() { :; }
+is_provider_available() { return 0; }
+octo_quota_is_dead() { return 1; }
+spawn_agent_capture_pid() {
+    ( sleep 30 ) &
+    child_pid=$!
+    printf '%s\n' "$child_pid" > "$INTERRUPT_CHILD"
+    printf '%s\n' "$child_pid"
+}
+trap 'printf previous > "$INTERRUPT_MARKER"; exit 143' TERM
+AVAILABLE_AGENTS=agy
+MAX_PARALLEL=1
+SUPPORTS_DISABLE_CRON_ENV=false
+parallel_execute "$INTERRUPT_TASKS"
+RUNNER
+chmod +x "$interrupt_runner"
+PROJECT_ROOT="$PROJECT_ROOT" INTERRUPT_MARKER="$interrupt_marker" \
+INTERRUPT_CHILD="$interrupt_child" INTERRUPT_TASKS="$interrupt_tasks" \
+WORKSPACE_DIR="$WORKSPACE_DIR" OCTOPUS_PARALLEL_REPORT_FILE="$OCTOPUS_PARALLEL_REPORT_FILE" \
+TMPDIR="$TMPDIR" "$interrupt_runner" &
+interrupt_pid=$!
+for _ in $(seq 1 100); do
+    [[ -f "$interrupt_child" ]] && break
+    sleep 0.05
+done
+kill -TERM "$interrupt_pid" 2>/dev/null || true
+if wait "$interrupt_pid"; then interrupt_rc=0; else interrupt_rc=$?; fi
+if [[ -f "$interrupt_child" ]]; then
+    child_pid="$(<"$interrupt_child")"
+    kill "$child_pid" 2>/dev/null || true
+    wait "$child_pid" 2>/dev/null || true
+fi
+leftovers="$(find "$TMPDIR" -maxdepth 1 \( -name 'octo-parallel-outcomes.*' -o -name 'octo-parallel-spawn.*' \) -print)"
+if [[ "$interrupt_rc" -eq 143 && -f "$interrupt_marker" && -z "$leftovers" ]]; then
+    test_pass
+else
+    test_fail "TERM cleanup rc=$interrupt_rc prior_handler=$([[ -f "$interrupt_marker" ]] && echo yes || echo no) leftovers=$leftovers"
 fi
 
 reset_run_state

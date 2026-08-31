@@ -11,6 +11,22 @@ test_suite "command compatibility redirects"
 
 TABLE="$PROJECT_ROOT/config/command-compatibility.json"
 
+semver_ge() {
+  local current="$1" minimum="$2" current_part minimum_part index
+  local old_ifs="$IFS" current_parts minimum_parts
+  IFS='.' read -r -a current_parts <<< "$current"
+  IFS='.' read -r -a minimum_parts <<< "$minimum"
+  IFS="$old_ifs"
+  for index in 0 1 2; do
+    current_part="${current_parts[$index]:-0}"
+    minimum_part="${minimum_parts[$index]:-0}"
+    [[ "$current_part" =~ ^[0-9]+$ && "$minimum_part" =~ ^[0-9]+$ ]] || return 1
+    (( current_part > minimum_part )) && return 0
+    (( current_part < minimum_part )) && return 1
+  done
+  return 0
+}
+
 test_case "Compatibility table exists and parses"
 if [[ -f "$TABLE" ]] && jq -e '.schema_version == 1 and (.entries | type == "array")' "$TABLE" >/dev/null; then
   test_pass
@@ -26,15 +42,18 @@ assert_compatibility_entry() {
     return
   fi
 
-  local count
+  local count minimum_removal removal_version
   count="$(jq --arg command "$command_name" '[.entries[] | select(.command == $command)] | length' "$TABLE")"
+  minimum_removal="$(jq -r '.minimum_removal_version // empty' "$TABLE")"
+  removal_version="$(jq -r --arg command "$command_name" \
+      '.entries[] | select(.command == $command) | .removal_version' "$TABLE")"
   if [[ "$count" -ne 1 ]]; then
     test_fail "expected one entry for $command_name, found $count"
   elif ! jq -e --arg command "$command_name" --arg destination "$destination" \
       '.entries[] | select(.command == $command) |
-       .destination == $destination and
-       .removal_version == "11.0.0"' "$TABLE" >/dev/null; then
-    test_fail "$command_name must target $destination and defer removal to 11.0.0"
+       .destination == $destination' "$TABLE" >/dev/null ||
+       [[ -z "$minimum_removal" ]] || ! semver_ge "$removal_version" "$minimum_removal"; then
+    test_fail "$command_name must target $destination and meet the shared removal-version floor"
   elif [[ -n "$cost_mode" ]] && ! jq -e --arg command "$command_name" --arg cost_mode "$cost_mode" \
       '.entries[] | select(.command == $command) | .arguments.cost_mode == $cost_mode' "$TABLE" >/dev/null; then
     test_fail "$command_name must preserve cost mode $cost_mode"

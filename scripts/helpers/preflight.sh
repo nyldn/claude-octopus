@@ -23,6 +23,11 @@ for arg in "$@"; do
     esac
 done
 
+if ! command -v jq >/dev/null 2>&1; then
+    echo "ERROR: /octo:preflight requires jq. Install jq and retry." >&2
+    exit 1
+fi
+
 results_json="$({ octo_provider_readiness_all "$CHECK_KIND"; } | jq -s '.')"
 providers_ready="$(jq '[.[] | select(.status == "available")] | length' <<<"$results_json")"
 providers_degraded="$(jq '[.[] | select(.status != "available")] | length' <<<"$results_json")"
@@ -61,23 +66,25 @@ fi
 echo ""
 echo "🐙 Octopus Provider Readiness (${CHECK_KIND})"
 echo "────────────────────────────────────"
-while IFS= read -r result; do
-    provider="$(jq -r '.provider' <<<"$result")"
-    status="$(jq -r '.status' <<<"$result")"
-    reason="$(jq -r '.reason_code' <<<"$result")"
+while IFS=$'\t' read -r provider status reason; do
     case "$status" in
         available) icon="✅" ;;
         degraded) icon="⚠️ " ;;
         *) icon="○ " ;;
     esac
     printf '  %s %-18s %s\n' "$icon" "$provider" "$reason"
-done < <(jq -c '.[]' <<<"$results_json")
+done < <(jq -r '.[] | [.provider, .status, .reason_code] | @tsv' <<<"$results_json")
 echo ""
 echo "  Ready: $providers_ready  |  Needs attention: $providers_degraded"
 echo ""
-if [[ "$providers_ready" -le 1 ]]; then
+ready_provider_names="$(jq -r '.[] | select(.status == "available") | .provider' <<<"$results_json")"
+if [[ "$providers_ready" -eq 0 ]]; then
+    echo "  No provider is ready. Run /octo:setup to configure one provider."
+elif [[ "$providers_ready" -eq 1 && "$ready_provider_names" == "claude" ]]; then
     echo "  Claude-only mode is available. Run /octo:setup to add one provider."
-elif [[ "$providers_ready" -ge 3 ]]; then
+elif [[ "$providers_ready" -eq 1 ]]; then
+    echo "  One provider is ready: $ready_provider_names. Run /octo:setup to add another."
+else
     echo "  Multi-provider mode is ready. Run /octo:embrace for full orchestration."
 fi
 

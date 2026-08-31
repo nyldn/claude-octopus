@@ -1,5 +1,5 @@
 ---
-description: "\"[advanced] Activate both careful mode and freeze mode together\""
+description: "[advanced] Activate both careful mode and freeze mode together"
 disable-model-invocation: true
 ---
 

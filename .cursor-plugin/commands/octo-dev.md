@@ -1,5 +1,5 @@
 ---
-description: "\"[advanced] Switch to Dev Work mode - optimized for software development\""
+description: "[advanced] Switch to Dev Work mode - optimized for software development"
 disable-model-invocation: true
 ---
 

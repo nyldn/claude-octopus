@@ -1,5 +1,5 @@
 ---
-description: "\"AI Debate Hub - Structured debates across Claude and available external providers\""
+description: "AI Debate Hub - Structured debates across Claude and available external providers"
 disable-model-invocation: true
 ---
 

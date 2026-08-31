@@ -1,5 +1,5 @@
 ---
-description: "\"[advanced] Dark Factory Mode - Spec-in, software-out autonomous pipeline\""
+description: "[advanced] Dark Factory Mode - Spec-in, software-out autonomous pipeline"
 disable-model-invocation: true
 ---
 

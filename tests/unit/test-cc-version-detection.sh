@@ -83,6 +83,49 @@ else
     fail "CLI help detection: SUPPORTS_EFFORT_CLI_FLAG" "missing --help-based effort argv detection"
 fi
 
+test_case "CLI capability help probe is skippable and wall-clock bounded"
+capability_bin="$TEST_TMP_DIR/capability-bin"
+capability_marker="$TEST_TMP_DIR/capability-help-called"
+mkdir -p "$capability_bin"
+cat > "$capability_bin/claude" <<'FAKE_CLAUDE'
+#!/usr/bin/env bash
+case "${1:-}" in
+    --version) printf '%s\n' '2.1.219' ;;
+    --help)
+        printf 'called\n' > "$CAPABILITY_MARKER"
+        sleep 3
+        printf '%s\n' 'usage: claude --effort high'
+        ;;
+esac
+FAKE_CLAUDE
+chmod +x "$capability_bin/claude"
+source "$PROJECT_ROOT/scripts/lib/providers.sh"
+log() { :; }
+OCTOPUS_HOST=claude
+CLAUDE_CODE_VERSION=""
+rm -f "$capability_marker"
+PATH="$capability_bin:$PATH" CAPABILITY_MARKER="$capability_marker" \
+    OCTOPUS_CLAUDE_BIN=claude OCTOPUS_SKIP_PROVIDER_PROBES=true \
+    detect_claude_code_version >/dev/null 2>&1
+skip_ok=false
+[[ ! -e "$capability_marker" && "$SUPPORTS_EFFORT_CLI_FLAG" == "false" ]] && skip_ok=true
+
+CLAUDE_CODE_VERSION=""
+rm -f "$capability_marker"
+started_at=$(date +%s)
+PATH="$capability_bin:$PATH" CAPABILITY_MARKER="$capability_marker" \
+    OCTOPUS_CLAUDE_BIN=claude OCTOPUS_SKIP_PROVIDER_PROBES=false \
+    OCTOPUS_BARE_PROBE_TIMEOUT=1 detect_claude_code_version >/dev/null 2>&1
+elapsed=$(( $(date +%s) - started_at ))
+if [[ "$skip_ok" == true && -e "$capability_marker" && "$elapsed" -lt 3 &&
+      "$SUPPORTS_EFFORT_CLI_FLAG" == "false" ]] &&
+   grep -Fq '_octo_run_bare_probe_with_timeout' "$PROJECT_ROOT/scripts/lib/providers.sh" &&
+   ! grep -Eq 'grep -q -- .--effort.' "$PROJECT_ROOT/scripts/lib/providers.sh"; then
+    test_pass
+else
+    test_fail "capability help ignored probe controls (skip=$skip_ok elapsed=${elapsed}s effort=$SUPPORTS_EFFORT_CLI_FLAG)"
+fi
+
 # v2.1.77 flags
 for flag in SUPPORTS_ALLOW_READ_SANDBOX SUPPORTS_COPY_INDEX \
             SUPPORTS_COMPOUND_BASH_PERMISSION_FIX SUPPORTS_RESUME_TRUNCATION_FIX \
