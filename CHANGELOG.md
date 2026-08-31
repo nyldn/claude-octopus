@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [10.1.0] - 2026-08-30
+
 ### Removed
 
 - Retire the `/octo:claw` command, `skill-claw`, OpenClaw administration

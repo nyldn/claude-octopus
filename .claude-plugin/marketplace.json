@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "10.0.0"
+    "version": "10.1.0"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v10.0.0 - Truthful execution, guided diagnostics, safe recovery, and eval-backed routing. 31 personas, 53 commands, 62 skills. Run /octo:setup.",
-      "version": "10.0.0",
+      "description": "v10.1.0 - Simplify setup, provider readiness, dispatch controls, cost reporting, and uninstall guidance. 31 personas, 53 commands, 62 skills. Run /octo:setup.",
+      "version": "10.1.0",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"
