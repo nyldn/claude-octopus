@@ -292,7 +292,7 @@ parallel_execute() {
     }
     _parallel_terminate_tracked_processes() {
         local pid handoff_pid="" wrapper_pid="" capture_file=""
-        local capture_pid="" tracked_pids=""
+        local capture_pid="" tracked_pids="" pgid=""
         if [[ -n "$spawn_pid_handoff" && -f "$spawn_pid_handoff" ]]; then
             wrapper_pid=$(awk -F: '$1 == "wrapper" && $2 ~ /^[0-9]+$/ { value=$2 } END { print value }' \
                 "$spawn_pid_handoff" 2>/dev/null)
@@ -348,10 +348,14 @@ parallel_execute() {
             if ! _parallel_pid_has_finished "$pid"; then
                 if declare -f review_kill_process_tree_frozen >/dev/null 2>&1; then
                     review_kill_process_tree_frozen "$pid"
-                elif ! kill -STOP -- "-$pid" 2>/dev/null; then
-                    kill -KILL "$pid" 2>/dev/null || true
                 else
-                    kill -KILL -- "-$pid" 2>/dev/null || true
+                    pgid=$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d '[:space:]') \
+                        || pgid=""
+                    if [[ "$pgid" == "$pid" ]] && kill -STOP -- "-$pid" 2>/dev/null; then
+                        kill -KILL -- "-$pid" 2>/dev/null || true
+                    else
+                        kill -KILL "$pid" 2>/dev/null || true
+                    fi
                 fi
             fi
             wait "$pid" 2>/dev/null || true

@@ -316,6 +316,18 @@ else
     test_pass
 fi
 
+test_case "fallback group signalling requires the provider PID to own its process group"
+if awk '
+    /pgid=.*ps -o pgid=/ { saw_lookup = 1 }
+    /\[\[ "\$pgid" == "\$pid" \]\] && kill -STOP -- "-\$pid"/ { saw_guard = 1 }
+    /kill -KILL -- "-\$pid"/ { saw_group_kill = 1 }
+    END { exit !(saw_lookup && saw_guard && saw_group_kill) }
+' "$PROJECT_ROOT/scripts/lib/parallel.sh"; then
+    test_pass
+else
+    test_fail "negative-PID signals are not guarded by a matching process-group lookup"
+fi
+
 test_case "TERM cleanup preserves the caller trap and removes parallel temp resources"
 interrupt_runner="$TEST_TMP_DIR/parallel-interrupt-runner.sh"
 interrupt_tasks="$TEST_TMP_DIR/interrupt-tasks.json"

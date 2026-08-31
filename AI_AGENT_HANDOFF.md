@@ -2,15 +2,15 @@
 
 Last updated: 2026-08-30
 Status: PR #984 contains the install, setup, readiness, dispatch, cost, and
-uninstall simplification. All current review findings have verified fixes in
-the working tree, independent Fable 5 review returned PASS/PASS, and the
-complete local matrix is green. The fixes still need to be committed, pushed,
-and accepted by exact-head hosted review before merge.
+uninstall simplification. Two findings from the latest exact-head CodeRabbit
+round have verified fixes in the branch head, independent Fable 5 review
+returned PASS/PASS, and the complete local matrix is green. The final head
+still needs exact-head hosted review before merge.
 Branch: `feat/simplify-install-setup-use`, reconciled with `origin/main` at
 `f9b8c92aa228a4b3f6bc9132c6c0a06f3142b73e`.
 Delivery: PR [#984](https://github.com/nyldn/claude-octopus/pull/984) is open.
-Its last pushed head is `0469f4f577324eb2f7835a59a473d7618b61b55b`;
-the reviewed follow-up is currently uncommitted.
+Its branch head includes the final reviewed follow-up after
+`d412469ce7345496793849b88b1803a0b23c4d28`.
 Current release: [v10.0.0](https://github.com/nyldn/claude-octopus/releases/tag/v10.0.0)
 Tracking: `bd` is unavailable in this checkout, so no Beads issue was created or
 updated for this cleanup.
@@ -101,6 +101,20 @@ proven safe to remove.
   the corrected full matrix passes. `make sync-check`, `git diff --check`, and
   the executable-mode check also pass. Re-run those short checks after this
   handoff edit and before committing.
+- Exact-head Test Suite run `33350545805` passed every hosted job on
+  `d412469c`, including macOS smoke and unit, Ubuntu smoke and unit, symlinked
+  path, full integration, and summaries. Native review run `33350545819`
+  passed. This confirms the macOS timeout correction on the target platform.
+- CodeRabbit then opened two new findings, both verified against the current
+  code. The parallel cleanup fallback now reads the process group and sends a
+  negative-PID signal only when the provider is its group leader; otherwise it
+  signals only the known PID. The v8.48 assertion now leaves the target scope
+  at every top-level function definition rather than only at `}`. Focused
+  suites pass 21/21 and 28/28 respectively.
+- Fresh verification after those final fixes ran `CI=true GITHUB_ACTIONS=true
+  make ci-changed`, which again failed closed to the complete local matrix and
+  passed 16/16 smoke, 300/300 unit, and 8/8 integration suites, plus CI-only
+  checks. Thread resolution and exact-head hosted review remain pending.
 
 ## Claw Administration Retirement
 

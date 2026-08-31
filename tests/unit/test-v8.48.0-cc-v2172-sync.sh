@@ -154,8 +154,9 @@ else
 fi
 
 if awk '
-    /^parallel_execute\(\)/ { in_parallel = 1 }
-    /^map_reduce\(\)/ { in_parallel = 0 }
+    /^[A-Za-z_][A-Za-z0-9_]*\(\)[[:space:]]*\{/ {
+      in_parallel = ($0 ~ /^parallel_execute\(\)/)
+    }
     in_parallel && /CLAUDE_CODE_DISABLE_CRON/ { found = 1 }
     END { exit !found }
 ' "$PLUGIN_DIR/scripts/lib/parallel.sh"; then
