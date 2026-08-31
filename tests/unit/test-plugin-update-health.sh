@@ -141,6 +141,44 @@ EOF
     chmod +x "$FAKE_BIN/$command_name"
 done
 
+cat > "$FAKE_BIN/ps" <<'EOF'
+#!/usr/bin/env bash
+format="$2"
+pid="$4"
+case "${OCTO_TEST_PS_MODE:-}:$pid:$format" in
+    codex-tree:410:comm=) printf '/bin/zsh\n' ;;
+    codex-tree:410:ppid=) printf '420\n' ;;
+    codex-tree:420:comm=) printf '/usr/local/bin/codex\n' ;;
+    codex-tree:420:ppid=) printf '1\n' ;;
+    terminal-tree:410:comm=) printf '/bin/zsh\n' ;;
+    terminal-tree:410:ppid=) printf '420\n' ;;
+    terminal-tree:420:comm=) printf '/usr/sbin/sshd\n' ;;
+    terminal-tree:420:ppid=) printf '1\n' ;;
+    *) exit 1 ;;
+esac
+EOF
+chmod +x "$FAKE_BIN/ps"
+
+PROCESS_TEST_PATH="$PATH"
+PATH="$FAKE_BIN:$PATH"
+OCTO_TEST_PS_MODE=codex-tree
+export OCTO_TEST_PS_MODE
+test_case "process ancestry detects a running Codex session"
+if octo_plugin_running_inside_codex 410; then test_pass; else test_fail "Codex ancestor was not detected"; fi
+
+OCTO_TEST_PS_MODE=terminal-tree
+export OCTO_TEST_PS_MODE
+test_case "ordinary terminal ancestry is not a Codex session"
+if octo_plugin_running_inside_codex 410; then test_fail "ordinary terminal was mistaken for Codex"; else test_pass; fi
+unset OCTO_TEST_PS_MODE
+PATH="$PROCESS_TEST_PATH"
+
+CODEX_SANDBOX=workspace-write
+export CODEX_SANDBOX
+test_case "Codex runtime environment identifies an active session"
+if octo_plugin_running_inside_codex 410; then test_pass; else test_fail "CODEX_SANDBOX was not detected"; fi
+unset CODEX_SANDBOX
+
 write_marketplace_state '{"nyldn-plugins":{"autoUpdate":false}}'
 touch "$STATE_DIR/.setup-complete"
 HOOK_OUTPUT=$(env \
@@ -221,7 +259,23 @@ octo_plugin_update_load "$PLUGIN_ROOT" claude
 if assert_equals "1.2.0" "$OCTO_PLUGIN_INSTALLED_VERSION"; then test_pass; fi
 
 : > "$CALL_LOG"
+OCTOPUS_CODEX_ACTIVE_SESSION=true
+export OCTOPUS_CODEX_ACTIVE_SESSION
+CODEX_ACTIVE_OUTPUT=""
+test_case "active Codex session refuses cache-replacing update"
+if CODEX_ACTIVE_OUTPUT="$(octo_plugin_update_run "$PLUGIN_ROOT" codex 2>&1)"; then
+    test_fail "active Codex session unexpectedly replaced its loaded plugin"
+elif [[ -s "$CALL_LOG" ]]; then
+    test_fail "active Codex session invoked the host package manager"
+elif assert_contains "$CODEX_ACTIVE_OUTPUT" "outside the running Codex session"; then
+    test_pass
+fi
+unset OCTOPUS_CODEX_ACTIVE_SESSION
+
+OCTOPUS_CODEX_ACTIVE_SESSION=false
+export OCTOPUS_CODEX_ACTIVE_SESSION
 octo_plugin_update_run "$PLUGIN_ROOT" codex >/dev/null
+unset OCTOPUS_CODEX_ACTIVE_SESSION
 CODEX_CALLS="$(cat "$CALL_LOG")"
 test_case "explicit Codex update refreshes marketplace"
 if assert_contains "$CODEX_CALLS" "plugin marketplace upgrade nyldn-plugins"; then test_pass; fi

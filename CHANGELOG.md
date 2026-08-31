@@ -16,6 +16,9 @@
   isolates normal sessions while treating fallback and checksum collisions as a
   best-effort edge case; an explicit `--output-dir` is honored unchanged. Set
   `OCTOPUS_COUNCIL_SHARED_POOL=1` to restore the flat shared pool.
+- Refuse Codex plugin updates from inside the Codex session using the loaded
+  version. This prevents cache replacement from deleting hook and skill paths
+  that remain bound to the running session.
 
 ## [10.1.0] - 2026-08-30
 

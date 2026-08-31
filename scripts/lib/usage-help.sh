@@ -170,8 +170,9 @@ plugin manager. This command performs network and package-manager work, so it
 only runs when explicitly requested; SessionStart hooks and doctor diagnostics
 never invoke it.
 
-After Claude Code updates, run /reload-plugins or restart. After Codex updates,
-restart Codex. A stale process cannot replace the plugin code it already loaded.
+After Claude Code updates, run /reload-plugins or restart. For Codex, exit the
+active session first, run this command from a separate terminal, and then start
+Codex again. The updater refuses to replace files used by its own Codex session.
 EOF
             ;;
         embrace)

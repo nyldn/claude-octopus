@@ -80,6 +80,35 @@ octo_plugin_detect_host() {
     fi
 }
 
+octo_plugin_running_inside_codex() {
+    local override="${OCTOPUS_CODEX_ACTIVE_SESSION:-auto}"
+    local process_pid="${1:-${PPID:-}}" process_name="" parent_pid="" depth=0
+
+    case "$override" in
+        true|1|yes) return 0 ;;
+        false|0|no) return 1 ;;
+    esac
+
+    [[ -n "${CODEX_SANDBOX:-}" || -n "${CODEX_PLUGIN_ROOT:-}" ]] && return 0
+
+    command -v ps >/dev/null 2>&1 || return 1
+    while [[ "$process_pid" =~ ^[0-9]+$ && "$process_pid" -gt 1 && "$depth" -lt 12 ]]; do
+        process_name="$(ps -o comm= -p "$process_pid" 2>/dev/null || true)"
+        process_name="${process_name##*/}"
+        case "$process_name" in
+            codex|codex.exe) return 0 ;;
+        esac
+
+        parent_pid="$(ps -o ppid= -p "$process_pid" 2>/dev/null || true)"
+        parent_pid="${parent_pid//[[:space:]]/}"
+        [[ "$parent_pid" =~ ^[0-9]+$ && "$parent_pid" != "$process_pid" ]] || break
+        process_pid="$parent_pid"
+        depth=$((depth + 1))
+    done
+
+    return 1
+}
+
 octo_plugin_update_load() {
     local plugin_root="${1:-${CLAUDE_PLUGIN_ROOT:-}}"
     local requested_host="${2:-}"
@@ -198,6 +227,14 @@ ${OCTO_PLUGIN_CATALOG_VERSION}")"
             printf 'Run /reload-plugins or restart Claude Code before continuing.\n'
             ;;
         codex)
+            if octo_plugin_running_inside_codex ""; then
+                printf '%s\n' \
+                    'Claude Octopus will not replace its plugin cache from inside the running Codex session.' \
+                    'Exit Codex, run the update outside the running Codex session, then start Codex again:' \
+                    '  codex plugin marketplace upgrade nyldn-plugins' \
+                    '  codex plugin add claude-octopus@nyldn-plugins' >&2
+                return 2
+            fi
             if ! command -v codex >/dev/null 2>&1; then
                 printf 'Codex CLI is not available; update through the Codex plugin manager instead.\n' >&2
                 return 1
