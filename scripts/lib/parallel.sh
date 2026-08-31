@@ -262,10 +262,20 @@ _parallel_write_report() {
 
 parallel_execute() {
     local tasks_file="${1:-$TASKS_FILE}"
+    local _parallel_lib_dir
+    _parallel_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if ! declare -f review_kill_process_tree_frozen >/dev/null 2>&1; then
+        # shellcheck source=/dev/null
+        source "${_parallel_lib_dir}/review.sh" 2>/dev/null || true
+    fi
     local _parallel_cron_disabled=false
-    local outcome_dir="" spawn_output=""
+    local outcome_dir="" spawn_output="" spawn_pid_handoff=""
     local _parallel_previous_int_trap="" _parallel_previous_term_trap=""
     local _parallel_previous_exit_trap=""
+    local pids=()
+    local task_ids=()
+    local task_agents=()
+    local task_sequences=()
     _parallel_cleanup_cron() {
         if [[ "$_parallel_cron_disabled" == "true" ]]; then
             unset CLAUDE_CODE_DISABLE_CRON 2>/dev/null || true
@@ -273,10 +283,82 @@ parallel_execute() {
     }
     _parallel_cleanup_resources() {
         [[ -z "$spawn_output" ]] || rm -f "$spawn_output" 2>/dev/null || true
+        [[ -z "$spawn_pid_handoff" ]] || rm -f "$spawn_pid_handoff" 2>/dev/null || true
         [[ -z "$outcome_dir" ]] || rm -rf "$outcome_dir" 2>/dev/null || true
         spawn_output=""
+        spawn_pid_handoff=""
         outcome_dir=""
         _parallel_cleanup_cron
+    }
+    _parallel_terminate_tracked_processes() {
+        local pid handoff_pid="" wrapper_pid="" capture_file=""
+        local capture_pid="" tracked_pids=""
+        if [[ -n "$spawn_pid_handoff" && -f "$spawn_pid_handoff" ]]; then
+            wrapper_pid=$(awk -F: '$1 == "wrapper" && $2 ~ /^[0-9]+$/ { value=$2 } END { print value }' \
+                "$spawn_pid_handoff" 2>/dev/null)
+            handoff_pid=$(awk -F: '$1 == "provider" && $2 ~ /^[0-9]+$/ { value=$2 } END { print value }' \
+                "$spawn_pid_handoff" 2>/dev/null)
+            capture_file=$(sed -n 's/^capture-file://p' "$spawn_pid_handoff" 2>/dev/null | tail -1)
+            # Accept the original numeric-only handoff for third-party capture
+            # implementations that adopted the first version of this contract.
+            if [[ -z "$handoff_pid" ]]; then
+                handoff_pid=$(awk '/^[0-9]+$/ { value=$1 } END { print value }' \
+                    "$spawn_pid_handoff" 2>/dev/null)
+            fi
+            [[ "$handoff_pid" =~ ^[1-9][0-9]*$ ]] && tracked_pids="$handoff_pid"
+        fi
+        case "$capture_file" in
+            "${TMPDIR:-/tmp}/octo-spawn-pid."*)
+                if [[ -f "$capture_file" ]]; then
+                    capture_pid=$(awk '/^[0-9]+$/ { value=$1 } END { print value }' \
+                        "$capture_file" 2>/dev/null)
+                    if [[ "$capture_pid" =~ ^[1-9][0-9]*$ ]]; then
+                        case " $tracked_pids " in
+                            *" $capture_pid "*) ;;
+                            *) tracked_pids="${tracked_pids}${tracked_pids:+ }${capture_pid}" ;;
+                        esac
+                    fi
+                fi
+                ;;
+        esac
+        if [[ "$wrapper_pid" =~ ^[1-9][0-9]*$ ]]; then
+            if declare -f review_kill_process_tree_frozen >/dev/null 2>&1; then
+                review_kill_process_tree_frozen "$wrapper_pid"
+            else
+                kill -KILL "$wrapper_pid" 2>/dev/null || true
+            fi
+            wait "$wrapper_pid" 2>/dev/null || true
+        fi
+        # Bash 3.2 treats "${empty_array[@]}" as unbound under set -u even
+        # when the array was declared, so expand it only when non-empty.
+        if [[ "${#pids[@]}" -gt 0 ]]; then
+            for pid in "${pids[@]}"; do
+                [[ "$pid" =~ ^[1-9][0-9]*$ ]] || continue
+                case " $tracked_pids " in *" $pid "*) ;; *) tracked_pids="${tracked_pids}${tracked_pids:+ }${pid}" ;; esac
+            done
+        fi
+        if [[ -z "$tracked_pids" ]]; then
+            case "$capture_file" in
+                "${TMPDIR:-/tmp}/octo-spawn-pid."*) rm -f "$capture_file" 2>/dev/null || true ;;
+            esac
+            return 0
+        fi
+        for pid in $tracked_pids; do
+            [[ "$pid" =~ ^[1-9][0-9]*$ ]] || continue
+            if ! _parallel_pid_has_finished "$pid"; then
+                if declare -f review_kill_process_tree_frozen >/dev/null 2>&1; then
+                    review_kill_process_tree_frozen "$pid"
+                elif ! kill -STOP -- "-$pid" 2>/dev/null; then
+                    kill -KILL "$pid" 2>/dev/null || true
+                else
+                    kill -KILL -- "-$pid" 2>/dev/null || true
+                fi
+            fi
+            wait "$pid" 2>/dev/null || true
+        done
+        case "$capture_file" in
+            "${TMPDIR:-/tmp}/octo-spawn-pid."*) rm -f "$capture_file" 2>/dev/null || true ;;
+        esac
     }
     _parallel_restore_traps() {
         if [[ -n "$_parallel_previous_int_trap" ]]; then
@@ -309,6 +391,7 @@ parallel_execute() {
         else
             saved_trap="$_parallel_previous_term_trap"
         fi
+        _parallel_terminate_tracked_processes
         _parallel_cleanup_resources
         _parallel_restore_traps
         if [[ -n "$saved_trap" ]]; then
@@ -407,10 +490,6 @@ parallel_execute() {
     local skipped=0
     local failed=0
     local sequence=0
-    local pids=()
-    local task_ids=()
-    local task_agents=()
-    local task_sequences=()
     local seen_task_ids=$'\n'
 
     while IFS= read -r task; do
@@ -529,25 +608,34 @@ parallel_execute() {
 
         local pid="" spawn_status=0
         spawn_output=""
+        spawn_pid_handoff=""
         spawn_output=$(mktemp "${TMPDIR:-/tmp}/octo-parallel-spawn.XXXXXX") || spawn_status=1
         if [[ "$spawn_status" -eq 0 ]]; then
-            if spawn_agent_capture_pid "$agent" "$prompt" "$task_id" > "$spawn_output"; then
+            spawn_pid_handoff=$(mktemp "${TMPDIR:-/tmp}/octo-parallel-pid.XXXXXX") || spawn_status=1
+        fi
+        if [[ "$spawn_status" -eq 0 ]]; then
+            if OCTOPUS_SPAWN_PID_HANDOFF_FD=9 \
+                spawn_agent_capture_pid "$agent" "$prompt" "$task_id" \
+                    9>"$spawn_pid_handoff" > "$spawn_output"; then
                 pid=$(awk '/^[0-9]+$/ { value=$1 } END { print value }' "$spawn_output" 2>/dev/null)
                 [[ "$pid" =~ ^[1-9][0-9]*$ ]] || spawn_status=1
             else
                 spawn_status=$?
             fi
-            rm -f "$spawn_output"
-            spawn_output=""
+            if [[ "$spawn_status" -eq 0 ]]; then
+                pids+=("$pid")
+                task_ids+=("$task_id")
+                task_agents+=("$agent")
+                task_sequences+=("$current_sequence")
+                ((running++)) || true
+            fi
         fi
+        [[ -z "$spawn_output" ]] || rm -f "$spawn_output"
+        [[ -z "$spawn_pid_handoff" ]] || rm -f "$spawn_pid_handoff"
+        spawn_output=""
+        spawn_pid_handoff=""
 
-        if [[ "$spawn_status" -eq 0 ]]; then
-            pids+=("$pid")
-            task_ids+=("$task_id")
-            task_agents+=("$agent")
-            task_sequences+=("$current_sequence")
-            ((running++)) || true
-        else
+        if [[ "$spawn_status" -ne 0 ]]; then
             log WARN "Skipping task $task_id: failed to spawn agent '$agent'"
             _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" true \
                 "failed" "failed-spawn" "$spawn_status"

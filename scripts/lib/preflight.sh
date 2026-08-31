@@ -495,9 +495,21 @@ cmd_detect_providers() {
     return 0
 }
 
+# List external providers that can both dispatch and participate in readiness
+# detection. Claude host runtimes are intentionally excluded: preflight proves
+# that at least one independent provider seat can execute the workflow.
+_preflight_provider_candidates() {
+    local provider
+    for provider in $(octo_provider_ids dispatch); do
+        case "$provider" in claude|claude-sdk) continue ;; esac
+        octo_provider_has_capability "$provider" detect || continue
+        printf '%s\n' "$provider"
+    done
+}
+
 # Pre-flight dependency validation
 # Performance: Uses 1-hour cache to avoid repeated CLI checks
-# Supports single-provider mode (only need one of Codex, AGY, or Cursor Agent).
+# Supports single-provider mode with any detectable dispatch provider.
 preflight_check() {
     local force_check="${1:-false}"
 
@@ -513,37 +525,35 @@ preflight_check() {
 
     log INFO "Running pre-flight checks... 🐙"
     local errors=0
-    local has_codex=false
-    local has_agy=false
-    local has_cursor_agent=false
-    local codex_auth=false
-    local agy_auth=false
-    local cursor_agent_auth=false
-    local readiness status reason remediation
+    local providers_found=0 ready_provider_count=0 codex_auth=false
+    local readiness status reason remediation provider available_providers=""
+    local other_ready_providers=""
+    local candidate_ids=() candidate_statuses=() candidate_remediations=()
+    local candidate_index=0
 
-    readiness="$(octo_provider_readiness_result codex static)"
-    status="$(_octo_readiness_json_field "$readiness" status)"
-    if [[ "$status" != "missing" ]]; then
-        has_codex=true
-        [[ "$status" == "available" ]] && codex_auth=true
-    fi
-
-    readiness="$(octo_provider_readiness_result agy static)"
-    status="$(_octo_readiness_json_field "$readiness" status)"
-    if [[ "$status" != "missing" ]]; then
-        has_agy=true
-        [[ "$status" == "available" ]] && agy_auth=true
-    fi
-
-    readiness="$(octo_provider_readiness_result cursor-agent static)"
-    status="$(_octo_readiness_json_field "$readiness" status)"
-    if [[ "$status" != "missing" ]]; then
-        has_cursor_agent=true
-        [[ "$status" == "available" ]] && cursor_agent_auth=true
-    fi
+    for provider in $(_preflight_provider_candidates); do
+        readiness="$(octo_provider_readiness_result "$provider" static)"
+        status="$(_octo_readiness_json_field "$readiness" status)"
+        remediation="$(_octo_readiness_json_field "$readiness" remediation)"
+        candidate_ids+=("$provider")
+        candidate_statuses+=("$status")
+        candidate_remediations+=("$remediation")
+        if [[ "$status" != "missing" ]]; then
+            ((providers_found++)) || true
+        fi
+        if [[ "$status" == "available" ]]; then
+            ((ready_provider_count++)) || true
+            available_providers="${available_providers}${available_providers:+ }${provider}"
+            if [[ "$provider" == "codex" ]]; then
+                codex_auth=true
+            else
+                other_ready_providers="${other_ready_providers}${other_ready_providers:+ }${provider}"
+            fi
+        fi
+    done
 
     # v7.9.1: Only need ONE provider to work
-    if [[ "$has_codex" == "false" && "$has_agy" == "false" && "$has_cursor_agent" == "false" ]]; then
+    if [[ "$providers_found" -eq 0 ]]; then
         echo ""
         echo -e "${RED}╔═══════════════════════════════════════════════════════════════╗${NC}"
         echo -e "${RED}║  ❌ NO AI PROVIDERS FOUND                                     ║${NC}"
@@ -551,35 +561,35 @@ preflight_check() {
         echo ""
         echo -e "Claude Octopus needs at least ${YELLOW}ONE${NC} external AI provider."
         echo ""
-        echo -e "${CYAN}Option 1: Install Codex CLI (OpenAI)${NC}"
+        echo -e "${CYAN}Quick option 1: Install Codex CLI (OpenAI)${NC}"
         echo -e "  npm install -g @openai/codex"
         echo -e "  codex login  ${DIM}# OAuth recommended${NC}"
         echo ""
-        echo -e "${CYAN}Option 2: Install Antigravity CLI (Google)${NC}"
+        echo -e "${CYAN}Quick option 2: Install Antigravity CLI (Google)${NC}"
         echo -e "  agy          ${DIM}# complete browser sign-in when prompted${NC}"
         echo ""
-        echo -e "${CYAN}Option 3: Install Cursor Agent CLI${NC}"
+        echo -e "${CYAN}Quick option 3: Install Cursor Agent CLI${NC}"
         echo -e "  curl -fsSL https://cursor.com/install | bash"
         echo -e "  agent login  ${DIM}# Cursor session${NC}"
         echo ""
-        echo -e "Run ${GREEN}/octo:setup${NC} for guided configuration."
+        echo -e "Run ${GREEN}/octo:setup${NC} to configure these or another supported provider."
         echo ""
         preflight_cache_write "1"
         return 1
     fi
 
     # Check if at least one provider is authenticated
-    if [[ "$codex_auth" == "false" && "$agy_auth" == "false" && "$cursor_agent_auth" == "false" ]]; then
+    if [[ "$ready_provider_count" -eq 0 ]]; then
         echo ""
         echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════════╗${NC}"
         echo -e "${YELLOW}║  ⚠️  PROVIDERS FOUND BUT NOT READY                            ║${NC}"
         echo -e "${YELLOW}╚═══════════════════════════════════════════════════════════════╝${NC}"
         echo ""
-        for provider in codex agy cursor-agent; do
-            readiness="$(octo_provider_readiness_result "$provider" static)"
-            status="$(_octo_readiness_json_field "$readiness" status)"
+        for ((candidate_index=0; candidate_index<${#candidate_ids[@]}; candidate_index++)); do
+            provider="${candidate_ids[$candidate_index]}"
+            status="${candidate_statuses[$candidate_index]}"
+            remediation="${candidate_remediations[$candidate_index]}"
             [[ "$status" == "degraded" ]] || continue
-            remediation="$(_octo_readiness_json_field "$readiness" remediation)"
             echo -e "${CYAN}${provider}:${NC} ${remediation}"
         done
         echo ""
@@ -590,10 +600,6 @@ preflight_check() {
     fi
 
     # Show what's available
-    local available_providers=""
-    [[ "$codex_auth" == "true" ]] && available_providers="${available_providers}Codex "
-    [[ "$agy_auth" == "true" ]] && available_providers="${available_providers}Antigravity "
-    [[ "$cursor_agent_auth" == "true" ]] && available_providers="${available_providers}Cursor-Agent "
     log INFO "Available providers: $available_providers"
 
     # v8.48: Codex OAuth token freshness check (P1-A)
@@ -601,14 +607,8 @@ preflight_check() {
     if [[ "$codex_auth" == "true" ]]; then
         if ! check_codex_auth_freshness; then
             # Token expired but another authenticated provider may still work — degrade gracefully
-            if [[ "$agy_auth" == "true" ]] || [[ "$cursor_agent_auth" == "true" ]]; then
-                if [[ "$agy_auth" == "true" && "$cursor_agent_auth" == "true" ]]; then
-                    log WARN "Codex OAuth expired; continuing with Antigravity/Cursor Agent only"
-                elif [[ "$agy_auth" == "true" ]]; then
-                    log WARN "Codex OAuth expired; continuing with Antigravity only"
-                else
-                    log WARN "Codex OAuth expired; continuing with Cursor Agent only"
-                fi
+            if [[ "$ready_provider_count" -gt 1 ]]; then
+                log WARN "Codex OAuth expired; continuing with other ready providers: $other_ready_providers"
             else
                 log ERROR "Codex OAuth expired and no other authenticated provider"
                 preflight_cache_write "1"

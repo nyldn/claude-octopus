@@ -32,6 +32,20 @@ else
     test_fail "expected provider PID 424242, got: ${pid:-empty}"
 fi
 
+test_case "writes the provider PID to the opt-in signal handoff"
+handoff_file="$TEST_TMP_DIR/provider-pid-handoff"
+pid=$(OCTOPUS_SPAWN_PID_HANDOFF_FD=9 \
+    spawn_agent_capture_pid codex prompt handoff-task implementer tangle \
+    9>"$handoff_file")
+if [[ "$pid" == "424242" ]] &&
+   grep -Eq '^capture-file:.*/octo-spawn-pid\.' "$handoff_file" &&
+   grep -Eq '^wrapper:[1-9][0-9]*$' "$handoff_file" &&
+   grep -qx 'provider:424242' "$handoff_file"; then
+    test_pass
+else
+    test_fail "provider PID was not published through both capture channels"
+fi
+
 # A failed setup must fail dispatch. Returning the short-lived wrapper PID would
 # make downstream wait loops report a false missing completion marker.
 test_case "fails when spawn_agent exits without provider PID"

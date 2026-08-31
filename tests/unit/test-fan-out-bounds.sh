@@ -321,6 +321,7 @@ interrupt_runner="$TEST_TMP_DIR/parallel-interrupt-runner.sh"
 interrupt_tasks="$TEST_TMP_DIR/interrupt-tasks.json"
 interrupt_marker="$TEST_TMP_DIR/previous-term-handler"
 interrupt_child="$TEST_TMP_DIR/interrupt-child"
+interrupt_ready="$TEST_TMP_DIR/interrupt-ready"
 cat > "$interrupt_tasks" <<'JSON'
 {"tasks":[{"id":"interrupt","agent":"agy","prompt":"wait"}]}
 JSON
@@ -335,10 +336,17 @@ aggregate_results() { :; }
 is_provider_available() { return 0; }
 octo_quota_is_dead() { return 1; }
 spawn_agent_capture_pid() {
-    ( sleep 30 ) &
-    child_pid=$!
-    printf '%s\n' "$child_pid" > "$INTERRUPT_CHILD"
-    printf '%s\n' "$child_pid"
+    (
+        sleep 30 &
+        printf '%s\n' "$!" > "$INTERRUPT_CHILD"
+        wait
+    ) &
+    wrapper_pid=$!
+    if [[ "${OCTOPUS_SPAWN_PID_HANDOFF_FD:-}" == "9" ]]; then
+        printf 'wrapper:%s\n' "$wrapper_pid" >&9
+    fi
+    printf ready > "$INTERRUPT_READY"
+    while :; do sleep 0.05; done
 }
 trap 'printf previous > "$INTERRUPT_MARKER"; exit 143' TERM
 AVAILABLE_AGENTS=agy
@@ -348,26 +356,155 @@ parallel_execute "$INTERRUPT_TASKS"
 RUNNER
 chmod +x "$interrupt_runner"
 PROJECT_ROOT="$PROJECT_ROOT" INTERRUPT_MARKER="$interrupt_marker" \
-INTERRUPT_CHILD="$interrupt_child" INTERRUPT_TASKS="$interrupt_tasks" \
+INTERRUPT_CHILD="$interrupt_child" INTERRUPT_READY="$interrupt_ready" \
+INTERRUPT_TASKS="$interrupt_tasks" \
 WORKSPACE_DIR="$WORKSPACE_DIR" OCTOPUS_PARALLEL_REPORT_FILE="$OCTOPUS_PARALLEL_REPORT_FILE" \
 TMPDIR="$TMPDIR" "$interrupt_runner" &
 interrupt_pid=$!
 for _ in $(seq 1 100); do
-    [[ -f "$interrupt_child" ]] && break
+    [[ -f "$interrupt_ready" && -f "$interrupt_child" ]] && break
     sleep 0.05
 done
 kill -TERM "$interrupt_pid" 2>/dev/null || true
 if wait "$interrupt_pid"; then interrupt_rc=0; else interrupt_rc=$?; fi
+interrupt_child_dead=false
 if [[ -f "$interrupt_child" ]]; then
     child_pid="$(<"$interrupt_child")"
-    kill "$child_pid" 2>/dev/null || true
-    wait "$child_pid" 2>/dev/null || true
+    for _ in $(seq 1 100); do
+        kill -0 "$child_pid" 2>/dev/null || break
+        sleep 0.05
+    done
+    if ! kill -0 "$child_pid" 2>/dev/null; then
+        interrupt_child_dead=true
+    fi
 fi
-leftovers="$(find "$TMPDIR" -maxdepth 1 \( -name 'octo-parallel-outcomes.*' -o -name 'octo-parallel-spawn.*' \) -print)"
-if [[ "$interrupt_rc" -eq 143 && -f "$interrupt_marker" && -z "$leftovers" ]]; then
+leftovers="$(find "$TMPDIR" -maxdepth 1 \( -name 'octo-parallel-outcomes.*' -o -name 'octo-parallel-spawn.*' -o -name 'octo-parallel-pid.*' \) -print)"
+if [[ "$interrupt_rc" -eq 143 && -f "$interrupt_marker" && \
+      "$interrupt_child_dead" == "true" && -z "$leftovers" ]]; then
     test_pass
 else
-    test_fail "TERM cleanup rc=$interrupt_rc prior_handler=$([[ -f "$interrupt_marker" ]] && echo yes || echo no) leftovers=$leftovers"
+    test_fail "TERM cleanup rc=$interrupt_rc prior_handler=$([[ -f "$interrupt_marker" ]] && echo yes || echo no) child_dead=$interrupt_child_dead leftovers=$leftovers"
+fi
+
+test_case "TERM before the first tracked PID is set-u safe"
+early_runner="$TEST_TMP_DIR/parallel-early-interrupt-runner.sh"
+early_marker="$TEST_TMP_DIR/early-previous-term-handler"
+early_ready="$TEST_TMP_DIR/early-spawn-entered"
+cat > "$early_runner" <<'RUNNER'
+#!/usr/bin/env bash
+set -euo pipefail
+source "$PROJECT_ROOT/scripts/lib/agent-spec.sh"
+source "$PROJECT_ROOT/scripts/lib/parallel.sh"
+log() { :; }
+render_agent_summary() { :; }
+aggregate_results() { :; }
+is_provider_available() { return 0; }
+octo_quota_is_dead() { return 1; }
+spawn_agent_capture_pid() {
+    printf ready > "$EARLY_READY"
+    while :; do sleep 0.05; done
+}
+trap 'printf previous > "$EARLY_MARKER"; exit 143' TERM
+AVAILABLE_AGENTS=agy
+MAX_PARALLEL=1
+SUPPORTS_DISABLE_CRON_ENV=false
+parallel_execute "$INTERRUPT_TASKS"
+RUNNER
+chmod +x "$early_runner"
+PROJECT_ROOT="$PROJECT_ROOT" EARLY_MARKER="$early_marker" EARLY_READY="$early_ready" \
+INTERRUPT_TASKS="$interrupt_tasks" WORKSPACE_DIR="$WORKSPACE_DIR" \
+OCTOPUS_PARALLEL_REPORT_FILE="$OCTOPUS_PARALLEL_REPORT_FILE" TMPDIR="$TMPDIR" \
+"$early_runner" &
+early_pid=$!
+for _ in $(seq 1 100); do
+    [[ -f "$early_ready" ]] && break
+    sleep 0.05
+done
+kill -TERM "$early_pid" 2>/dev/null || true
+if wait "$early_pid"; then early_rc=0; else early_rc=$?; fi
+early_leftovers="$(find "$TMPDIR" -maxdepth 1 \( -name 'octo-parallel-outcomes.*' -o -name 'octo-parallel-spawn.*' -o -name 'octo-parallel-pid.*' \) -print)"
+if [[ "$early_rc" -eq 143 && -f "$early_marker" && -z "$early_leftovers" ]]; then
+    test_pass
+else
+    test_fail "early TERM cleanup rc=$early_rc prior_handler=$([[ -f "$early_marker" ]] && echo yes || echo no) leftovers=$early_leftovers"
+fi
+
+test_case "TERM harvests a capture-window provider PID and kills its process group"
+capture_runner="$TEST_TMP_DIR/parallel-capture-interrupt-runner.sh"
+capture_marker="$TEST_TMP_DIR/capture-previous-term-handler"
+capture_ready="$TEST_TMP_DIR/capture-provider-ready"
+capture_provider_file="$TEST_TMP_DIR/capture-provider-pid"
+capture_child_file="$TEST_TMP_DIR/capture-provider-child-pid"
+capture_path_file="$TEST_TMP_DIR/capture-temp-path"
+cat > "$capture_runner" <<'RUNNER'
+#!/usr/bin/env bash
+set -euo pipefail
+source "$PROJECT_ROOT/scripts/lib/agent-spec.sh"
+source "$PROJECT_ROOT/scripts/lib/parallel.sh"
+log() { :; }
+render_agent_summary() { :; }
+aggregate_results() { :; }
+is_provider_available() { return 0; }
+octo_quota_is_dead() { return 1; }
+spawn_agent_capture_pid() {
+    capture_file=$(mktemp "${TMPDIR:-/tmp}/octo-spawn-pid.XXXXXX")
+    printf '%s\n' "$capture_file" > "$CAPTURE_PATH_FILE"
+    set -m
+    (
+        sleep 30 &
+        printf '%s\n' "$!" > "$CAPTURE_CHILD_FILE"
+        wait
+    ) &
+    provider_pid=$!
+    set +m
+    printf '%s\n' "$provider_pid" > "$CAPTURE_PROVIDER_FILE"
+    printf '%s\n' "$provider_pid" > "$capture_file"
+    printf 'capture-file:%s\n' "$capture_file" >&9
+    printf ready > "$CAPTURE_READY"
+    while :; do sleep 0.05; done
+}
+trap 'printf previous > "$CAPTURE_MARKER"; exit 143' TERM
+AVAILABLE_AGENTS=agy
+MAX_PARALLEL=1
+SUPPORTS_DISABLE_CRON_ENV=false
+parallel_execute "$INTERRUPT_TASKS"
+RUNNER
+chmod +x "$capture_runner"
+PROJECT_ROOT="$PROJECT_ROOT" CAPTURE_MARKER="$capture_marker" \
+CAPTURE_READY="$capture_ready" CAPTURE_PROVIDER_FILE="$capture_provider_file" \
+CAPTURE_CHILD_FILE="$capture_child_file" CAPTURE_PATH_FILE="$capture_path_file" \
+INTERRUPT_TASKS="$interrupt_tasks" WORKSPACE_DIR="$WORKSPACE_DIR" \
+OCTOPUS_PARALLEL_REPORT_FILE="$OCTOPUS_PARALLEL_REPORT_FILE" TMPDIR="$TMPDIR" \
+"$capture_runner" &
+capture_runner_pid=$!
+for _ in $(seq 1 100); do
+    [[ -f "$capture_ready" && -f "$capture_child_file" ]] && break
+    sleep 0.05
+done
+kill -TERM "$capture_runner_pid" 2>/dev/null || true
+if wait "$capture_runner_pid"; then capture_rc=0; else capture_rc=$?; fi
+capture_provider_pid="$(<"$capture_provider_file")"
+capture_child_pid="$(<"$capture_child_file")"
+for _ in $(seq 1 100); do
+    if ! kill -0 "$capture_provider_pid" 2>/dev/null && \
+       ! kill -0 "$capture_child_pid" 2>/dev/null; then
+        break
+    fi
+    sleep 0.05
+done
+capture_processes_dead=false
+if ! kill -0 "$capture_provider_pid" 2>/dev/null && \
+   ! kill -0 "$capture_child_pid" 2>/dev/null; then
+    capture_processes_dead=true
+fi
+capture_temp_path="$(<"$capture_path_file")"
+capture_leftovers="$(find "$TMPDIR" -maxdepth 1 \( -name 'octo-parallel-outcomes.*' -o -name 'octo-parallel-spawn.*' -o -name 'octo-parallel-pid.*' \) -print)"
+if [[ "$capture_rc" -eq 143 && -f "$capture_marker" && \
+      "$capture_processes_dead" == "true" && ! -e "$capture_temp_path" && \
+      -z "$capture_leftovers" ]]; then
+    test_pass
+else
+    test_fail "capture TERM rc=$capture_rc prior_handler=$([[ -f "$capture_marker" ]] && echo yes || echo no) processes_dead=$capture_processes_dead capture_temp=$capture_temp_path leftovers=$capture_leftovers"
 fi
 
 reset_run_state

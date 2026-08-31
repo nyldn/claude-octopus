@@ -93,14 +93,33 @@ _octo_run_bare_probe_with_timeout() {
     fi
     cmd_pid=$!
 
-    (
-        sleep "$term_timeout"
-        if [[ "$kill_grace" -gt 0 ]]; then
-            kill -TERM -- "-$cmd_pid" 2>/dev/null || true
-            sleep "$kill_grace"
-        fi
-        kill -KILL -- "-$cmd_pid" 2>/dev/null || true
-    ) &
+    if command -v perl >/dev/null 2>&1; then
+        # Keep the watchdog in one process. A background shell starts sleep(1)
+        # asynchronously; completion can race before that child is visible to
+        # pkill, leaving sleep with the command-substitution pipe open until the
+        # full timeout expires (notably on macOS).
+        perl -e '
+            my ($term_timeout, $kill_grace, $pid) = @ARGV;
+            select undef, undef, undef, $term_timeout;
+            if ($kill_grace > 0) {
+                kill "TERM", -$pid;
+                select undef, undef, undef, $kill_grace;
+            }
+            kill "KILL", -$pid;
+        ' "$term_timeout" "$kill_grace" "$cmd_pid" </dev/null >/dev/null 2>&1 &
+    else
+        # This branch is reachable only when setsid launched the command.
+        # Detach watchdog stdio so an unavoidable shell/sleep race cannot hold
+        # a caller's command-substitution pipe open after the command exits.
+        (
+            sleep "$term_timeout"
+            if [[ "$kill_grace" -gt 0 ]]; then
+                kill -TERM -- "-$cmd_pid" 2>/dev/null || true
+                sleep "$kill_grace"
+            fi
+            kill -KILL -- "-$cmd_pid" 2>/dev/null || true
+        ) </dev/null >/dev/null 2>&1 &
+    fi
     monitor_pid=$!
 
     if wait "$cmd_pid" 2>/dev/null; then

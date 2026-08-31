@@ -52,7 +52,63 @@ yaml_unquote_scalar() {
     \"*\")
       value="${value#\"}"
       value="${value%\"}"
-      value="${value//\\\"/\"}"
+      case "$value" in
+        *\\*) ;;
+        *) printf '%s' "$value"; return ;;
+      esac
+      if ! command -v python3 >/dev/null 2>&1; then
+        log ERROR "python3 is required to decode quoted YAML metadata"
+        return 1
+      fi
+      YAML_QUOTED_SCALAR="$value" python3 - <<'PY'
+import os
+import sys
+
+value = os.environ["YAML_QUOTED_SCALAR"]
+simple = {
+    "a": "\a", "b": "\b", "t": "\t", "n": "\n", "v": "\v",
+    "f": "\f", "r": "\r", "e": "\x1b", " ": " ", '"': '"',
+    "/": "/", "\\": "\\", "_": "\u00a0", "N": "\u0085",
+    "L": "\u2028", "P": "\u2029",
+}
+widths = {"x": 2, "u": 4, "U": 8}
+decoded = []
+i = 0
+try:
+    while i < len(value):
+        if value[i] != "\\":
+            decoded.append(value[i])
+            i += 1
+            continue
+        i += 1
+        if i >= len(value):
+            raise ValueError("trailing backslash")
+        escape = value[i]
+        if escape == "0":
+            raise ValueError(r"\0 cannot be represented by the shell")
+        if escape in simple:
+            decoded.append(simple[escape])
+            i += 1
+            continue
+        if escape in widths:
+            width = widths[escape]
+            digits = value[i + 1:i + 1 + width]
+            if len(digits) != width or any(c not in "0123456789abcdefABCDEF" for c in digits):
+                raise ValueError(f"invalid \\{escape} escape")
+            codepoint = int(digits, 16)
+            if codepoint > 0x10FFFF or 0xD800 <= codepoint <= 0xDFFF:
+                raise ValueError(f"invalid Unicode scalar U+{codepoint:04X}")
+            decoded.append(chr(codepoint))
+            i += width + 1
+            continue
+        raise ValueError(f"unsupported YAML escape \\{escape}")
+except ValueError as error:
+    print(f"ERROR: invalid quoted YAML metadata: {error}", file=sys.stderr)
+    raise SystemExit(1)
+
+sys.stdout.write("".join(decoded))
+PY
+      return
       ;;
     \'*\')
       value="${value#\'}"
@@ -113,7 +169,10 @@ generate_cursor_command() {
     local cmd_desc
     cmd_desc="$(echo "$frontmatter" | grep "^description:" | head -1 | sed 's/^description: *//')"
     cmd_desc="$(normalize_single_line "$cmd_desc")"
-    cmd_desc="$(yaml_unquote_scalar "$cmd_desc")"
+    if ! cmd_desc="$(yaml_unquote_scalar "$cmd_desc")"; then
+      log ERROR "Invalid description metadata: $filename"
+      return 2
+    fi
     if [[ -z "$cmd_desc" ]]; then
       log WARN "SKIP (no description): $filename"
       return 1
@@ -123,7 +182,10 @@ generate_cursor_command() {
     local arg_hint disable_model allowed_tools
     arg_hint="$(echo "$frontmatter" | grep "^argument-hint:" | head -1 | sed 's/^argument-hint: *//' || true)"
     arg_hint="$(normalize_single_line "$arg_hint")"
-    arg_hint="$(yaml_unquote_scalar "$arg_hint")"
+    if ! arg_hint="$(yaml_unquote_scalar "$arg_hint")"; then
+      log ERROR "Invalid argument-hint metadata: $filename"
+      return 2
+    fi
     disable_model="$(echo "$frontmatter" | grep "^disable-model-invocation:" | head -1 | sed 's/^disable-model-invocation: *//' || true)"
     allowed_tools="$(echo "$frontmatter" | grep "^allowed-tools:" | head -1 | sed 's/^allowed-tools: *//' || true)"
     [[ -n "$allowed_tools_override" ]] && allowed_tools="$allowed_tools_override"
@@ -164,7 +226,12 @@ if [[ -d "$COMMANDS_SRC" ]]; then
     if generate_cursor_command "$src" "$out_filename"; then
       cmd_count=$((cmd_count + 1))
     else
-      cmd_skipped=$((cmd_skipped + 1))
+      generate_status=$?
+      if [[ "$generate_status" -eq 1 ]]; then
+        cmd_skipped=$((cmd_skipped + 1))
+      else
+        exit "$generate_status"
+      fi
     fi
   done
 fi
@@ -178,7 +245,12 @@ if [[ -f "$DOCTOR_SKILL_SRC" ]]; then
       "Bash, Read, Glob, Grep, AskUserQuestion"; then
     cmd_count=$((cmd_count + 1))
   else
-    cmd_skipped=$((cmd_skipped + 1))
+    generate_status=$?
+    if [[ "$generate_status" -eq 1 ]]; then
+      cmd_skipped=$((cmd_skipped + 1))
+    else
+      exit "$generate_status"
+    fi
   fi
 fi
 
@@ -227,7 +299,10 @@ if [[ -d "$AGENTS_SRC" ]]; then
     # Extract key fields
     desc="$(echo "$frontmatter" | grep "^description:" | head -1 | sed 's/^description: *//')"
     desc="$(normalize_single_line "$desc")"
-    desc="$(yaml_unquote_scalar "$desc")"
+    if ! desc="$(yaml_unquote_scalar "$desc")"; then
+      log ERROR "Invalid description metadata: $filename"
+      exit 2
+    fi
     model="$(echo "$frontmatter" | grep "^model:" | head -1 | sed 's/^model: *//')"
 
     # Extract body

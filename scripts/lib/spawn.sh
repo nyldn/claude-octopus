@@ -1508,9 +1508,15 @@ spawn_agent_capture_pid() {
 
     local pid_file
     pid_file=$(mktemp "${TMPDIR:-/tmp}/octo-spawn-pid.XXXXXX") || return 1
+    if [[ "${OCTOPUS_SPAWN_PID_HANDOFF_FD:-}" == "9" ]]; then
+        printf 'capture-file:%s\n' "$pid_file" >&9
+    fi
 
     spawn_agent "$agent_type" "$prompt" "$task_id" "$role" "$phase" "$use_fork" >"$pid_file" 2>&1 &
     local wrapper_pid=$!
+    if [[ "${OCTOPUS_SPAWN_PID_HANDOFF_FD:-}" == "9" ]]; then
+        printf 'wrapper:%s\n' "$wrapper_pid" >&9
+    fi
 
     local pid=""
     local attempts=0
@@ -1559,6 +1565,13 @@ spawn_agent_capture_pid() {
         return 1
     fi
 
+    # parallel_execute opens fd 9 to an internal handoff file so its signal
+    # handler can see the provider PID before this function returns. Keep the
+    # channel opt-in so other capture callers retain their existing stdout-only
+    # contract.
+    if [[ "${OCTOPUS_SPAWN_PID_HANDOFF_FD:-}" == "9" ]]; then
+        printf 'provider:%s\n' "$pid" >&9
+    fi
     rm -f "$pid_file"
     echo "$pid"
 }

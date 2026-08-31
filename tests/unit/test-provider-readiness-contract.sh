@@ -162,7 +162,7 @@ octo_provider_readiness_all() {
 }
 unset -f octo_event_emit 2>/dev/null || true
 hash -r
-legacy_no_jq="$(PATH="$no_jq_bin:/usr/bin:/bin" octo_provider_readiness_legacy static || true)"
+legacy_no_jq="$(PATH="$no_jq_bin" octo_provider_readiness_legacy static || true)"
 unset -f octo_provider_readiness_all
 source "$PROJECT_ROOT/scripts/lib/preflight.sh"
 if [[ "$legacy_no_jq" == $'PROVIDER_CHECK_START\ncodex:available\nPROVIDER_CHECK_END' ]]; then
@@ -172,7 +172,7 @@ else
 fi
 
 test_case "detect-providers cache works without jq when Python is available"
-for command_name in cat date mkdir tee tr; do
+for command_name in cat date mkdir sed tee tr; do
     ln -s "$(command -v "$command_name")" "$no_jq_bin/$command_name"
 done
 check_claude_version() {
@@ -180,7 +180,7 @@ check_claude_version() {
 }
 no_jq_workspace="$TEST_TMP_DIR/no-jq-workspace"
 hash -r
-no_jq_detect="$(PATH="$fake_bin:$no_jq_bin:/usr/bin:/bin" WORKSPACE_DIR="$no_jq_workspace" cmd_detect_providers || true)"
+no_jq_detect="$(PATH="$fake_bin:$no_jq_bin" WORKSPACE_DIR="$no_jq_workspace" cmd_detect_providers || true)"
 if grep -q '^CODEX_STATUS=ok$' <<<"$no_jq_detect" &&
    grep -q '^CLAUDE_CODE_STATUS=ok$' "$no_jq_workspace/.provider-cache" 2>/dev/null; then
     test_pass
@@ -201,11 +201,27 @@ check_codex_auth_freshness() { return 0; }
 detect_enterprise_backend() { :; }
 provider_smoke_test() { return 0; }
 hash -r
-if PATH="$no_jq_bin:/usr/bin:/bin" preflight_check true >/dev/null 2>&1; then
+if PATH="$no_jq_bin" preflight_check true >/dev/null 2>&1; then
     test_pass
 else
     test_fail "preflight_check still requires jq for shared readiness fields"
 fi
+
+for only_provider in perplexity openrouter; do
+    test_case "workflow preflight admits a ready ${only_provider}-only configuration"
+    octo_provider_readiness_result() {
+        if [[ "$1" == "$only_provider" ]]; then
+            printf '%s\n' "{\"provider\":\"$1\",\"status\":\"available\",\"reason_code\":\"ready\",\"remediation\":\"\"}"
+        else
+            printf '%s\n' "{\"provider\":\"$1\",\"status\":\"missing\",\"reason_code\":\"not-installed\",\"remediation\":\"configure $1\"}"
+        fi
+    }
+    if PATH="$no_jq_bin" preflight_check true >/dev/null 2>&1; then
+        test_pass
+    else
+        test_fail "preflight rejected the ready ${only_provider}-only configuration"
+    fi
+done
 unset -f octo_provider_readiness_result preflight_cache_valid preflight_cache_write \
     check_codex_auth_freshness detect_enterprise_backend provider_smoke_test
 

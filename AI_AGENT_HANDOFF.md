@@ -9,7 +9,7 @@ and accepted by exact-head hosted review before merge.
 Branch: `feat/simplify-install-setup-use`, reconciled with `origin/main` at
 `f9b8c92aa228a4b3f6bc9132c6c0a06f3142b73e`.
 Delivery: PR [#984](https://github.com/nyldn/claude-octopus/pull/984) is open.
-Its last pushed head is `44b73c1cc55dd7f30dc94a5dc97d0d3cc7c88a7e`;
+Its last pushed head is `0469f4f577324eb2f7835a59a473d7618b61b55b`;
 the reviewed follow-up is currently uncommitted.
 Current release: [v10.0.0](https://github.com/nyldn/claude-octopus/releases/tag/v10.0.0)
 Tracking: `bd` is unavailable in this checkout, so no Beads issue was created or
@@ -56,6 +56,27 @@ proven safe to remove.
   blockers. The earlier review session
   `c8c74e5f-a0b0-40ab-b9b5-3b4f2332a4e7` identified that blocker before it
   was fixed.
+- Exact-head Test Suite run `33344261102` exposed one macOS-only failure in
+  job `99345492361`: `test-agy-provider.sh` passed 50/51 because the portable
+  timeout monitor kept a command-substitution pipe open after the probe
+  returned. The provider helper now uses a one-process Perl watchdog when
+  available and detaches the shell fallback's standard streams. The focused
+  suite passes 51/51 and the formerly slow case finishes in two seconds.
+- CodeRabbit's next round opened five threads. Four findings were valid and
+  fixed: YAML escape decoding, signal-time process cleanup, registry-derived
+  preflight candidates, and a truly jq-free PATH fixture. The proposed removal
+  of the skill-root fallback was rejected because non-Claude and non-Codex
+  hosts still need it; the runtime prefers `CLAUDE_PLUGIN_ROOT`, and the
+  fallback has direct coverage.
+- Fable 5 caught three real lifecycle gaps during review: Bash 3.2 empty-array
+  expansion under `set -u`, an untracked wrapper before provider PID handoff,
+  and a provider process-group child discoverable only through the capture
+  file. Each was fixed and regression-tested. Final exact-model session
+  `512e82b8-6c8f-4332-8c53-fc58e79699d8` returned `SPEC_VERDICT: PASS` and
+  `QUALITY_VERDICT: PASS`. A later whole-diff rerun consumed its analysis but
+  ended with a 429 usage-credit error before verdict text, so it is not counted
+  as a review result. The only change after the successful verdict is the
+  test-harness correction described below.
 - Final source verification on `26d2c8a`:
   `CI=true GITHUB_ACTIONS=true make ci-changed` failed closed to the complete
   local matrix and passed 16/16 smoke, 300/300 unit, and 8/8 integration suites,
@@ -70,13 +91,16 @@ proven safe to remove.
   confirmed that the existing `v10.0.0` tag and GitHub release remain unchanged.
   At this handoff update, the feature pull request, v10.1.0 tag, GitHub release,
   and shared-marketplace publication remain pending.
-- Review-follow-up verification: `CI=true GITHUB_ACTIONS=true make
+- Final review-follow-up verification: `CI=true GITHUB_ACTIONS=true make
   ci-changed` selected the full matrix and passed 16/16 smoke, 300/300 unit,
-  and 8/8 integration suites, plus CI-only checks. The documented Council
-  macOS PTY case and probe dry-run timeout case remained skips rather than
-  failures. `make sync-check`, `git diff --check`, and the executable-mode
-  guard passed before the full run; re-run them after the handoff edit and
-  before committing.
+  and 8/8 integration suites, plus CI-only checks. An earlier run exposed a
+  false-negative v8.48 assertion that searched only the first ten lines of
+  `parallel_execute`; the added lifecycle helpers moved the existing cron
+  export lower in the function. The assertion now checks the complete function
+  with one pipefail-safe `awk` predicate. Its focused suite passes 28/28 and
+  the corrected full matrix passes. `make sync-check`, `git diff --check`, and
+  the executable-mode check also pass. Re-run those short checks after this
+  handoff edit and before committing.
 
 ## Claw Administration Retirement
 

@@ -43,6 +43,14 @@ allowed-tools: Bash
 
 # Missing description
 COMMAND
+cat > "$fixture/commands/escaped.md" <<'COMMAND'
+---
+description: "Path C:\\temp\\octo; line\nnext; tab\tstop; snowman \u2603"
+argument-hint: "quote: \"yes\"; slash: \\"
+---
+
+# Escaped metadata
+COMMAND
 cat > "$fixture/.claude/skills/skill-doctor/SKILL.md" <<'SKILL'
 ---
 name: skill-doctor
@@ -62,12 +70,17 @@ AGENT
 if output="$(bash "$fixture/scripts/build-factory-skills.sh" 2>&1)" &&
    [[ "$output" == *"SKIP (no description): missing.md"* ]] &&
    [[ -f "$fixture/.cursor-plugin/commands/octo-valid.md" ]] &&
+   [[ -f "$fixture/.cursor-plugin/commands/octo-escaped.md" ]] &&
    [[ -f "$fixture/.cursor-plugin/commands/octo-doctor.md" ]] &&
    [[ ! -e "$fixture/.cursor-plugin/commands/octo-missing.md" ]] &&
    grep -Fq 'description: "[advanced] A valid command"' \
        "$fixture/.cursor-plugin/commands/octo-valid.md" &&
    grep -Fq 'argument-hint: "[--format json]"' \
        "$fixture/.cursor-plugin/commands/octo-valid.md" &&
+   grep -Fq 'description: "Path C:\\temp\\octo; line next; tab stop; snowman ☃"' \
+       "$fixture/.cursor-plugin/commands/octo-escaped.md" &&
+   grep -Fq 'argument-hint: "quote: \"yes\"; slash: \\"' \
+       "$fixture/.cursor-plugin/commands/octo-escaped.md" &&
    grep -Fq 'allowed-tools: Bash, Read, Glob, Grep, AskUserQuestion' \
        "$fixture/.cursor-plugin/commands/octo-doctor.md" &&
    grep -Fq 'description: "Review fixture changes"' \
@@ -75,6 +88,26 @@ if output="$(bash "$fixture/scripts/build-factory-skills.sh" 2>&1)" &&
     test_pass
 else
     test_fail "generation skipped a valid command or complete Doctor adapter: $output"
+fi
+
+test_case "unsupported YAML escapes fail explicitly"
+cat > "$fixture/commands/invalid-escape.md" <<'COMMAND'
+---
+description: "invalid \q escape"
+---
+
+# Invalid escape
+COMMAND
+if invalid_output="$(bash "$fixture/scripts/build-factory-skills.sh" 2>&1)"; then
+    test_fail "Factory generation accepted an unsupported YAML escape"
+elif [[ "$invalid_output" == *'unsupported YAML escape \q'* ]]; then
+    test_pass
+else
+    test_fail "Factory generation failed without an actionable YAML escape error: $invalid_output"
+fi
+rm -f "$fixture/commands/invalid-escape.md"
+if ! bash "$fixture/scripts/build-factory-skills.sh" >/dev/null 2>&1; then
+    test_fail "Factory fixture did not recover after removing invalid metadata"
 fi
 
 test_case "generated command descriptions do not retain source quote characters"

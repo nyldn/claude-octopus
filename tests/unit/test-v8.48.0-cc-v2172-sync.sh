@@ -153,7 +153,12 @@ else
   fail "CLAUDE_CODE_DISABLE_CRON cleanup missing (found $embrace_cleanup_count, expected >= 2)"
 fi
 
-if grep -A 10 'parallel_execute()' "$ALL_SRC" | grep -q 'CLAUDE_CODE_DISABLE_CRON'; then
+if awk '
+    /^parallel_execute\(\)/ { in_parallel = 1 }
+    /^map_reduce\(\)/ { in_parallel = 0 }
+    in_parallel && /CLAUDE_CODE_DISABLE_CRON/ { found = 1 }
+    END { exit !found }
+' "$PLUGIN_DIR/scripts/lib/parallel.sh"; then
   pass "CLAUDE_CODE_DISABLE_CRON set in parallel_execute"
 else
   fail "CLAUDE_CODE_DISABLE_CRON not set in parallel_execute"
