@@ -155,6 +155,8 @@ case "${OCTO_TEST_PS_MODE:-}:$pid:$format" in
     terminal-tree:420:comm=) printf '/usr/sbin/sshd\n' ;;
     terminal-tree:420:ppid=) printf '1\n' ;;
     empty-comm:410:comm=) printf '   \n' ;;
+    internal-space:410:comm=) printf '/tmp/code x\n' ;;
+    internal-space:410:ppid=) printf '1\n' ;;
     terminal-any:*:comm=) printf '/bin/zsh\n' ;;
     terminal-any:*:ppid=) printf '1\n' ;;
     *) exit 1 ;;
@@ -194,13 +196,28 @@ octo_plugin_running_inside_codex 410 || process_rc=$?
 if [[ "$process_rc" -eq 2 ]]; then test_pass; else test_fail "expected inspection rc=2, got $process_rc"; fi
 unset -f ps
 
+EMPTY_PROCESS_PATH="$PATH"
+PATH="$FAKE_BIN:$PATH"
 OCTO_TEST_PS_MODE=empty-comm
 export OCTO_TEST_PS_MODE
 empty_process_rc=0
 octo_plugin_running_inside_codex 410 || empty_process_rc=$?
 test_case "empty process inspection is reported as unknown"
 if [[ "$empty_process_rc" -eq 2 ]]; then test_pass; else test_fail "expected empty-process rc=2, got $empty_process_rc"; fi
+
+OCTO_TEST_PS_MODE=internal-space
+export OCTO_TEST_PS_MODE
+internal_space_rc=0
+octo_plugin_running_inside_codex 410 || internal_space_rc=$?
+test_case "internal process-name whitespace does not impersonate Codex"
+if [[ "$internal_space_rc" -eq 1 ]]; then test_pass; else test_fail "expected ordinary-process rc=1, got $internal_space_rc"; fi
 unset OCTO_TEST_PS_MODE
+PATH="$EMPTY_PROCESS_PATH"
+
+initial_pid_rc=0
+octo_plugin_running_inside_codex 1 || initial_pid_rc=$?
+test_case "uninspectable initial parent pid is reported as unknown"
+if [[ "$initial_pid_rc" -eq 2 ]]; then test_pass; else test_fail "expected initial-pid rc=2, got $initial_pid_rc"; fi
 
 CODEX_SANDBOX=workspace-write
 export CODEX_SANDBOX

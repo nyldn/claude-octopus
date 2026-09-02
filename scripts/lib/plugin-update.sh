@@ -96,10 +96,11 @@ octo_plugin_running_inside_codex() {
 
     command -v ps >/dev/null 2>&1 || return 2
     [[ "$process_pid" =~ ^[0-9]+$ ]] || return 2
+    [[ "$process_pid" -gt 1 ]] || return 2
     while [[ "$process_pid" -gt 1 ]]; do
         [[ "$depth" -lt 12 ]] || return 2
         process_name="$(ps -o comm= -p "$process_pid" 2>/dev/null)" || return 2
-        process_name="${process_name//[[:space:]]/}"
+        process_name="$(printf '%s' "$process_name" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
         [[ -n "$process_name" ]] || return 2
         process_name="${process_name##*/}"
         case "$process_name" in
