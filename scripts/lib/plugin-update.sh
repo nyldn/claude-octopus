@@ -86,17 +86,21 @@ octo_plugin_running_inside_codex() {
 
     case "$override" in
         true|1|yes) return 0 ;;
-        false|0|no) return 1 ;;
     esac
 
     [[ -n "${CODEX_SANDBOX:-}" || -n "${CODEX_PLUGIN_ROOT:-}" ]] && return 0
+
+    case "$override" in
+        false|0|no) return 1 ;;
+    esac
 
     command -v ps >/dev/null 2>&1 || return 2
     [[ "$process_pid" =~ ^[0-9]+$ ]] || return 2
     while [[ "$process_pid" -gt 1 ]]; do
         [[ "$depth" -lt 12 ]] || return 2
         process_name="$(ps -o comm= -p "$process_pid" 2>/dev/null)" || return 2
-        [[ -n "${process_name//[[:space:]]/}" ]] || return 2
+        process_name="${process_name//[[:space:]]/}"
+        [[ -n "$process_name" ]] || return 2
         process_name="${process_name##*/}"
         case "$process_name" in
             codex|codex.exe) return 0 ;;

@@ -148,7 +148,7 @@ pid="$4"
 case "${OCTO_TEST_PS_MODE:-}:$pid:$format" in
     codex-tree:410:comm=) printf '/bin/zsh\n' ;;
     codex-tree:410:ppid=) printf '420\n' ;;
-    codex-tree:420:comm=) printf '/usr/local/bin/codex\n' ;;
+    codex-tree:420:comm=) printf '  /usr/local/bin/codex  \n' ;;
     codex-tree:420:ppid=) printf '1\n' ;;
     terminal-tree:410:comm=) printf '/bin/zsh\n' ;;
     terminal-tree:410:ppid=) printf '420\n' ;;
@@ -168,7 +168,7 @@ export OCTO_TEST_PS_MODE
 test_case "process ancestry detects a running Codex session"
 if octo_plugin_running_inside_codex 410; then test_pass; else test_fail "Codex ancestor was not detected"; fi
 
-OCTO_TEST_PS_MODE=terminal-any
+OCTO_TEST_PS_MODE=terminal-tree
 export OCTO_TEST_PS_MODE
 test_case "ordinary terminal ancestry is not a Codex session"
 terminal_rc=0
@@ -293,11 +293,30 @@ fi
 unset OCTOPUS_CODEX_ACTIVE_SESSION
 
 : > "$CALL_LOG"
+OCTOPUS_CODEX_ACTIVE_SESSION=false
+CODEX_SANDBOX=workspace-write
+export OCTOPUS_CODEX_ACTIVE_SESSION CODEX_SANDBOX
+CODEX_MARKER_OUTPUT=""
+test_case "active Codex runtime marker overrides a false session override"
+if CODEX_MARKER_OUTPUT="$(octo_plugin_update_run "$PLUGIN_ROOT" codex 2>&1)"; then
+    test_fail "false override bypassed a definitive Codex runtime marker"
+elif [[ -s "$CALL_LOG" ]]; then
+    test_fail "marker-proven Codex session invoked the host package manager"
+elif assert_contains "$CODEX_MARKER_OUTPUT" "outside the running Codex session"; then
+    test_pass
+fi
+unset OCTOPUS_CODEX_ACTIVE_SESSION CODEX_SANDBOX
+
+: > "$CALL_LOG"
 ps() { return 127; }
 CODEX_INSPECTION_OUTPUT=""
+CODEX_INSPECTION_RC=0
 test_case "unknown Codex ancestry refuses cache-replacing update"
-if CODEX_INSPECTION_OUTPUT="$(octo_plugin_update_run "$PLUGIN_ROOT" codex 2>&1)"; then
+CODEX_INSPECTION_OUTPUT="$(octo_plugin_update_run "$PLUGIN_ROOT" codex 2>&1)" || CODEX_INSPECTION_RC=$?
+if [[ "$CODEX_INSPECTION_RC" -eq 0 ]]; then
     test_fail "update proceeded without a reliable Codex ancestry check"
+elif [[ "$CODEX_INSPECTION_RC" -ne 2 ]]; then
+    test_fail "unknown Codex ancestry returned $CODEX_INSPECTION_RC instead of 2"
 elif [[ -s "$CALL_LOG" ]]; then
     test_fail "unknown Codex ancestry invoked the host package manager"
 elif assert_contains "$CODEX_INSPECTION_OUTPUT" "could not safely determine"; then
