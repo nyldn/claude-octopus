@@ -395,7 +395,8 @@ _octo_run_contract_snapshot_unlocked() {
     # -T for this operation; BSD/macOS mv uses -h.
     case "$(uname -s 2>/dev/null || true)" in
         Darwin|*BSD)
-            mv -fh "$latest_tmp" "$latest" 2>/dev/null || {
+            # Homebrew GNU coreutils may shadow BSD mv on macOS and rejects -h.
+            /bin/mv -fh "$latest_tmp" "$latest" 2>/dev/null || {
                 rm -f "$latest_tmp"
                 return 1
             }
