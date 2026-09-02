@@ -51,6 +51,12 @@ session still has hooks and skills bound to that path. `update-plugin` detects
 this condition and exits before either Codex update command runs. Exit Codex,
 run the printed commands from a separate terminal, and then start Codex again.
 
+If the updater cannot inspect process ancestry from that separate terminal, it
+fails closed without changing the cache. After confirming the terminal is not
+owned by a running Codex session, set
+`OCTOPUS_CODEX_ACTIVE_SESSION=false` for that update command only. Definitive
+Codex runtime markers still block the update even when this override is set.
+
 On the next session, Octopus compares the stable
 `~/.claude-octopus/plugin` entrypoint with the version supplied by the host and
 repairs it when they differ. The check uses physical paths, so an older cache

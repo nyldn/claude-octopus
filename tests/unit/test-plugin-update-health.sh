@@ -154,6 +154,7 @@ case "${OCTO_TEST_PS_MODE:-}:$pid:$format" in
     terminal-tree:410:ppid=) printf '420\n' ;;
     terminal-tree:420:comm=) printf '/usr/sbin/sshd\n' ;;
     terminal-tree:420:ppid=) printf '1\n' ;;
+    empty-comm:410:comm=) printf '   \n' ;;
     terminal-any:*:comm=) printf '/bin/zsh\n' ;;
     terminal-any:*:ppid=) printf '1\n' ;;
     *) exit 1 ;;
@@ -192,6 +193,14 @@ process_rc=0
 octo_plugin_running_inside_codex 410 || process_rc=$?
 if [[ "$process_rc" -eq 2 ]]; then test_pass; else test_fail "expected inspection rc=2, got $process_rc"; fi
 unset -f ps
+
+OCTO_TEST_PS_MODE=empty-comm
+export OCTO_TEST_PS_MODE
+empty_process_rc=0
+octo_plugin_running_inside_codex 410 || empty_process_rc=$?
+test_case "empty process inspection is reported as unknown"
+if [[ "$empty_process_rc" -eq 2 ]]; then test_pass; else test_fail "expected empty-process rc=2, got $empty_process_rc"; fi
+unset OCTO_TEST_PS_MODE
 
 CODEX_SANDBOX=workspace-write
 export CODEX_SANDBOX

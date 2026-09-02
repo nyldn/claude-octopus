@@ -155,12 +155,16 @@ codex plugin add claude-octopus@nyldn-plugins
 Restart Codex. Skills appear automatically — invoke with `$skill-doctor`, `$skill-debug`, etc.
 
 Codex owns the versioned cache. To refresh an existing installation without
-editing cache files or symlinks directly:
+editing cache files or symlinks directly, exit Codex and run these commands in
+a separate terminal:
 
 ```bash
 codex plugin marketplace upgrade nyldn-plugins
 codex plugin add claude-octopus@nyldn-plugins
 ```
+
+Restart Codex after the update. Replacing the cache from the session that is
+using it can leave hooks and skills bound to a removed version directory.
 
 </details>
 
