@@ -156,81 +156,200 @@ should_use_agent_teams() {
     return 1
 }
 
-# Copy only the tracked plus untracked-but-not-ignored files from a git work
-# tree into workspace, so gitignored build/vendor trees never enter the
-# per-seat disposable workspace (#980). Returns non-zero when source_root is
-# not a git work tree, or when any step of the copy fails, so the caller can
-# fall back to a full copy.
-#
-# `git ls-files` reports a submodule, or an untracked nested git checkout
-# that isn't itself gitignored, as a single opaque path rather than
-# descending into it. Left alone, tar would copy that path wholesale,
-# reintroducing whatever the nested work tree's own .gitignore excludes. So
-# after the top-level copy, re-copy every such nested git work tree with this
-# same rule, recursively.
+# Add a small, private Git directory to the disposable workspace. The object
+# database remains read-only through an alternate, while HEAD and the index are
+# local copies so reviewer Git commands work without copying the source .git.
+_octopus_initialize_workspace_git_context() {
+    local source_root="$1"
+    local workspace="$2"
+    local common_dir object_dir head_oid head_ref
+
+    common_dir="$(git -C "$source_root" rev-parse --git-common-dir 2>/dev/null)" || return 1
+    case "$common_dir" in
+        /*) ;;
+        *) common_dir="${source_root}/${common_dir}" ;;
+    esac
+    common_dir="$(cd "$common_dir" 2>/dev/null && pwd -P)" || return 1
+    object_dir="${common_dir}/objects"
+    [[ -d "$object_dir" ]] || return 1
+
+    git -C "$workspace" init -q || return 1
+    mkdir -p "$workspace/.git/objects/info" || return 1
+    printf '%s\n' "$object_dir" > "$workspace/.git/objects/info/alternates" || return 1
+
+    head_oid="$(git -C "$source_root" rev-parse --verify HEAD 2>/dev/null || true)"
+    if [[ -n "$head_oid" ]]; then
+        head_ref="$(git -C "$source_root" symbolic-ref -q HEAD 2>/dev/null || true)"
+        if [[ -n "$head_ref" ]]; then
+            git -C "$workspace" symbolic-ref HEAD "$head_ref" || return 1
+            git -C "$workspace" update-ref "$head_ref" "$head_oid" || return 1
+        else
+            git -C "$workspace" update-ref --no-deref HEAD "$head_oid" || return 1
+        fi
+    fi
+
+    # Rebuild the index from Git's portable stage records. Copying the index
+    # file itself would break split-index and worktree-specific configurations.
+    (
+        set -o pipefail
+        git -C "$source_root" ls-files --stage -z |
+            git -C "$workspace" update-index -z --index-info
+    ) || return 1
+}
+
+# Copy only tracked plus untracked-but-not-ignored files from a Git work tree.
+# Nested repositories are removed from the parent archive list before tar runs,
+# then copied recursively under their own ignore rules. Symlinks must resolve
+# within their source repository. Any failure is fatal for a Git source.
 _octopus_copy_git_tracked_tree() {
     local source_root="$1"
     local workspace="$2"
-    local filelist entry rel
-    local nested_copy_failed=0
+    local filelist copylist nestedlist entry rel entry_path
+    local nested_top nested_rel resolved
 
     git -C "$source_root" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
+    source_root="$(cd "$source_root" 2>/dev/null && pwd -P)" || return 1
 
     filelist="$(mktemp "${TMPDIR:-/tmp}/octopus-tracked-tree.XXXXXX")" || return 1
-    git -C "$source_root" ls-files -z --cached --others --exclude-standard >"$filelist" 2>/dev/null || {
+    copylist="$(mktemp "${TMPDIR:-/tmp}/octopus-copy-tree.XXXXXX")" || {
         rm -f "$filelist"
         return 1
     }
+    nestedlist="$(mktemp "${TMPDIR:-/tmp}/octopus-nested-tree.XXXXXX")" || {
+        rm -f "$filelist" "$copylist"
+        return 1
+    }
+    git -C "$source_root" ls-files -z --cached --others --exclude-standard >"$filelist" 2>/dev/null || {
+        rm -f "$filelist" "$copylist" "$nestedlist"
+        return 1
+    }
+
+    while IFS= read -r -d '' entry; do
+        rel="${entry%/}"
+        [[ -n "$rel" ]] || continue
+        entry_path="${source_root}/${rel}"
+
+        # Deleted tracked paths remain in the index but have no bytes to copy.
+        [[ -e "$entry_path" || -L "$entry_path" ]] || continue
+
+        if [[ -L "$entry_path" ]]; then
+            # An absolute link would still point back into the source checkout
+            # after tar preserves it, so fail closed even when its target is
+            # physically inside source_root.
+            case "$(readlink "$entry_path" 2>/dev/null)" in
+                /*)
+                    rm -f "$filelist" "$copylist" "$nestedlist"
+                    return 1
+                    ;;
+            esac
+            resolved="$(realpath "$entry_path" 2>/dev/null)" || {
+                rm -f "$filelist" "$copylist" "$nestedlist"
+                return 1
+            }
+            case "$resolved" in
+                "$source_root"|"$source_root"/*) ;;
+                *)
+                    rm -f "$filelist" "$copylist" "$nestedlist"
+                    return 1
+                    ;;
+            esac
+        elif [[ -d "$entry_path" ]]; then
+            nested_top="$(git -C "$entry_path" rev-parse --show-toplevel 2>/dev/null || true)"
+            if [[ -n "$nested_top" ]]; then
+                nested_top="$(cd "$nested_top" 2>/dev/null && pwd -P)" || {
+                    rm -f "$filelist" "$copylist" "$nestedlist"
+                    return 1
+                }
+                if [[ "$nested_top" != "$source_root" ]]; then
+                    case "$nested_top" in
+                        "$source_root"/*) nested_rel="${nested_top#"$source_root"/}" ;;
+                        *)
+                            rm -f "$filelist" "$copylist" "$nestedlist"
+                            return 1
+                            ;;
+                    esac
+                    printf '%s\0' "$nested_rel" >> "$nestedlist"
+                    continue
+                fi
+            fi
+        fi
+
+        printf '%s\0' "$rel" >> "$copylist"
+    done < "$filelist"
 
     if ! (
         set -o pipefail
-        tar --null -C "$source_root" -T "$filelist" -cf - | tar -xf - -C "$workspace"
+        tar --null -C "$source_root" -T "$copylist" -cf - | tar -xf - -C "$workspace"
     ); then
-        rm -f "$filelist"
+        rm -f "$filelist" "$copylist" "$nestedlist"
         return 1
     fi
 
-    # A tracked symlink can also satisfy -d (it is excluded here, not
-    # resolved) and must not be treated as a nested work tree to descend
-    # into — tar already copied it above as the symlink itself, and
-    # resolving it would materialize content from outside source_root.
-    while IFS= read -r -d '' entry; do
-        rel="${entry%/}"
-        [[ -n "$rel" && -d "${source_root}/${rel}" && ! -L "${source_root}/${rel}" ]] || continue
-        git -C "${source_root}/${rel}" rev-parse --is-inside-work-tree >/dev/null 2>&1 || continue
-        rm -rf "${workspace:?}/${rel}"
-        mkdir -p "${workspace}/${rel}"
-        if ! _octopus_copy_git_tracked_tree "${source_root}/${rel}" "${workspace}/${rel}"; then
-            cp -a "${source_root}/${rel}/." "${workspace}/${rel}/" 2>/dev/null || nested_copy_failed=1
-        fi
-    done < "$filelist"
+    while IFS= read -r -d '' nested_rel; do
+        mkdir -p "$workspace/$nested_rel" || {
+            rm -f "$filelist" "$copylist" "$nestedlist"
+            return 1
+        }
+        _octopus_copy_git_tracked_tree "$source_root/$nested_rel" "$workspace/$nested_rel" || {
+            rm -f "$filelist" "$copylist" "$nestedlist"
+            return 1
+        }
+    done < "$nestedlist"
 
-    rm -f "$filelist"
-    [[ "$nested_copy_failed" -eq 0 ]]
+    _octopus_initialize_workspace_git_context "$source_root" "$workspace" || {
+        rm -f "$filelist" "$copylist" "$nestedlist"
+        return 1
+    }
+
+    rm -f "$filelist" "$copylist" "$nestedlist"
 }
 
 # Prepare an isolated copy-on-write workspace for advisory agents.
-# GNU cp uses reflinks when the backing filesystem supports them; otherwise it
-# falls back to an ordinary private copy. This protects the source checkout from
-# incidental relative-path mutations by keeping advisory work in a throwaway cwd.
+# Git sources fail closed if their selective copy fails. Non-Git directories
+# retain the original private whole-tree copy because they have no ignore index.
 _octopus_prepare_consultative_workspace() {
     local source_root="$1"
-    local temp_root workspace
+    local temp_root workspace git_root source_prefix
     temp_root="$(mktemp -d "${TMPDIR:-/tmp}/octopus-consultative.XXXXXX")" || return 1
     workspace="${temp_root}/workspace"
     mkdir -p "$workspace" || { rm -rf "$temp_root"; return 1; }
 
-    if _octopus_copy_git_tracked_tree "$source_root" "$workspace"; then
-        printf '%s\n' "$workspace"
-        return 0
-    fi
-    rm -rf "$workspace"
-    mkdir -p "$workspace" || { rm -rf "$temp_root"; return 1; }
+    if git -C "$source_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        source_root="$(cd "$source_root" 2>/dev/null && pwd -P)" || {
+            rm -rf "$temp_root"
+            return 1
+        }
+        git_root="$(git -C "$source_root" rev-parse --show-toplevel 2>/dev/null)" || {
+            rm -rf "$temp_root"
+            return 1
+        }
+        git_root="$(cd "$git_root" 2>/dev/null && pwd -P)" || {
+            rm -rf "$temp_root"
+            return 1
+        }
+        case "$source_root" in
+            "$git_root") source_prefix="" ;;
+            "$git_root"/*) source_prefix="${source_root#"$git_root"/}" ;;
+            *)
+                rm -rf "$temp_root"
+                return 1
+                ;;
+        esac
 
-    if ! cp -a --reflink=auto "${source_root}/." "${workspace}/" 2>/dev/null; then
-        rm -rf "$workspace"
-        mkdir -p "$workspace" || { rm -rf "$temp_root"; return 1; }
-        cp -a "${source_root}/." "${workspace}/" || { rm -rf "$temp_root"; return 1; }
+        _octopus_copy_git_tracked_tree "$git_root" "$workspace" || {
+            rm -rf "$temp_root"
+            return 1
+        }
+        if [[ -n "$source_prefix" ]]; then
+            workspace="${workspace}/${source_prefix}"
+            [[ -d "$workspace" ]] || { rm -rf "$temp_root"; return 1; }
+        fi
+    else
+        if ! cp -a --reflink=auto "${source_root}/." "${workspace}/" 2>/dev/null; then
+            rm -rf "$workspace"
+            mkdir -p "$workspace" || { rm -rf "$temp_root"; return 1; }
+            cp -a "${source_root}/." "${workspace}/" || { rm -rf "$temp_root"; return 1; }
+        fi
     fi
 
     printf '%s\n' "$workspace"
@@ -254,7 +373,7 @@ run_agent_sync_consultative() {
     local old_codex_sandbox="${OCTOPUS_CODEX_SANDBOX:-}"
     local old_autonomy_set="${CLAUDE_OCTOPUS_AUTONOMY+x}"
     local old_autonomy="${CLAUDE_OCTOPUS_AUTONOMY:-}"
-    local source_root source_root_logical workspace temp_root rc original_prompt isolated_prompt agent_output cleanup_note
+    local source_root source_root_logical workspace workspace_root temp_root rc original_prompt isolated_prompt agent_output cleanup_note
     local -a consultative_args
 
     source_root_logical="$PWD"
@@ -263,7 +382,8 @@ run_agent_sync_consultative() {
         log ERROR "Failed to prepare disposable consultative workspace from: $source_root"
         return 1
     }
-    temp_root="$(dirname "$workspace")"
+    workspace_root="$(git -C "$workspace" rev-parse --show-toplevel 2>/dev/null || printf '%s\n' "$workspace")"
+    temp_root="$(dirname "$workspace_root")"
 
     consultative_args=("$@")
     original_prompt="${consultative_args[1]:-}"
