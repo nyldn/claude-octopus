@@ -275,18 +275,29 @@ _octopus_relative_symlink_target_is_confined() {
 _octopus_validate_copy_source_path() {
     local source_root="$1"
     local rel="$2"
-    local entry_path link_target resolved
+    local copy_scope="${3:-}"
+    local entry_path link_target resolved confinement_rel confinement_root
 
     _octopus_source_path_has_safe_ancestry "$source_root" "$rel" || return 1
     entry_path="${source_root}/${rel}"
     [[ -e "$entry_path" || -L "$entry_path" ]] || return 1
 
+    confinement_rel="$rel"
+    confinement_root="$source_root"
+    if [[ -n "$copy_scope" ]]; then
+        case "$rel" in
+            "$copy_scope"/*) confinement_rel="${rel#"$copy_scope"/}" ;;
+            *) return 1 ;;
+        esac
+        confinement_root="${source_root}/${copy_scope}"
+    fi
+
     if [[ -L "$entry_path" ]]; then
         link_target="$(readlink "$entry_path" 2>/dev/null)" || return 1
-        _octopus_relative_symlink_target_is_confined "$rel" "$link_target" || return 1
+        _octopus_relative_symlink_target_is_confined "$confinement_rel" "$link_target" || return 1
         if resolved="$(realpath "$entry_path" 2>/dev/null)"; then
             case "$resolved" in
-                "$source_root"|"$source_root"/*) ;;
+                "$confinement_root"|"$confinement_root"/*) ;;
                 *) return 1 ;;
             esac
         fi
@@ -326,7 +337,7 @@ _octopus_copy_git_tracked_tree() (
     local workspace="$2"
     local copy_scope="${3:-}"
     local list_dir filelist copylist nestedlist entry rel entry_path
-    local nested_top nested_rel scope_pathspec
+    local nested_top nested_rel nested_stage scope_pathspec
 
     _octopus_cleanup_copy_list_dir() {
         local cleanup_rc="$1"
@@ -374,36 +385,41 @@ _octopus_copy_git_tracked_tree() (
 
         # Deleted tracked paths remain in the index but have no bytes to copy.
         [[ -e "$entry_path" || -L "$entry_path" ]] || continue
-        _octopus_validate_copy_source_path "$source_root" "$rel" || {
+        _octopus_validate_copy_source_path "$source_root" "$rel" "$copy_scope" || {
             return 1
         }
 
         if [[ -d "$entry_path" && ! -L "$entry_path" ]]; then
-            nested_top="$(_octopus_git_without_repository_env -C "$entry_path" rev-parse --show-toplevel 2>/dev/null || true)"
-            if [[ -n "$nested_top" ]]; then
+            # Nested repositories appear as directory entries. An exact .git
+            # marker catches embedded and untracked repositories; index mode
+            # 160000 still identifies a registered gitlink if its marker broke.
+            nested_stage=""
+            if [[ ! -e "$entry_path/.git" && ! -L "$entry_path/.git" ]]; then
+                nested_stage="$(_octopus_git_without_repository_env -C "$source_root" ls-files --stage -- ":(literal,top)${rel}" 2>/dev/null)" || {
+                    return 1
+                }
+            fi
+            if [[ -e "$entry_path/.git" || -L "$entry_path/.git" || "$nested_stage" == 160000\ * ]]; then
+                nested_top="$(_octopus_git_without_repository_env -C "$entry_path" rev-parse --show-toplevel 2>/dev/null)" || {
+                    return 1
+                }
                 nested_top="$(cd "$nested_top" 2>/dev/null && pwd -P)" || {
                     return 1
                 }
-                if [[ "$nested_top" != "$source_root" ]]; then
-                    case "$nested_top" in
-                        "$source_root"/*) nested_rel="${nested_top#"$source_root"/}" ;;
-                        *)
-                            return 1
-                            ;;
-                    esac
-                    printf '%s\0' "$nested_rel" >> "$nestedlist"
-                    continue
-                fi
+                [[ "$nested_top" == "$entry_path" ]] || return 1
+                nested_rel="$rel"
+                printf '%s\0' "$nested_rel" >> "$nestedlist" || return 1
+                continue
             fi
         fi
 
-        printf '%s\0' "$rel" >> "$copylist"
+        printf '%s\0' "$rel" >> "$copylist" || return 1
     done < "$filelist"
 
     # Recheck after enumeration and immediately before archive traversal. This
     # closes the path-list-to-copy gap for an ancestor replaced by a symlink.
     while IFS= read -r -d '' rel; do
-        _octopus_validate_copy_source_path "$source_root" "$rel" || {
+        _octopus_validate_copy_source_path "$source_root" "$rel" "$copy_scope" || {
             return 1
         }
     done < "$copylist"

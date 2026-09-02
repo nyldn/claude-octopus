@@ -10,7 +10,7 @@ source "$PROJECT_ROOT/scripts/lib/agent-sync.sh"
 test_suite "Consultative Workspace .gitignore Handling"
 
 SOURCE_ROOT="$TEST_TMP_DIR/gitignore-source"
-mkdir -p "$SOURCE_ROOT/vendor" "$SOURCE_ROOT/subdir"
+mkdir -p "$SOURCE_ROOT/vendor" "$SOURCE_ROOT/subdir" "$SOURCE_ROOT/ordinary-dir"
 (
     cd "$SOURCE_ROOT"
     git init -q
@@ -31,6 +31,7 @@ mkdir -p "$SOURCE_ROOT/vendor" "$SOURCE_ROOT/subdir"
     printf 'staged and modified working tree\n' > staged.txt
     printf 'untracked but not ignored\n' > untracked.txt
     printf 'subdirectory untracked\n' > subdir/untracked.txt
+    printf 'ordinary untracked directory\n' > ordinary-dir/content.txt
 )
 
 test_case "Git sources copy exact eligible working-tree bytes without Git metadata"
@@ -38,12 +39,78 @@ workspace="$(_octopus_prepare_consultative_workspace "$SOURCE_ROOT")"
 if [[ "$(cat "$workspace/tracked.txt" 2>/dev/null)" == "modified working tree" ]] &&
    [[ "$(cat "$workspace/staged.txt" 2>/dev/null)" == "staged and modified working tree" ]] &&
    [[ "$(cat "$workspace/untracked.txt" 2>/dev/null)" == "untracked but not ignored" ]] &&
+   [[ "$(cat "$workspace/ordinary-dir/content.txt" 2>/dev/null)" == "ordinary untracked directory" ]] &&
    [[ ! -e "$workspace/vendor" && ! -e "$workspace/.git" ]]; then
     test_pass
 else
     test_fail "expected exact tracked/untracked-not-ignored bytes, no vendor tree, and no .git"
 fi
 rm -rf "$(dirname "$workspace")"
+
+test_case "broken nested Git discovery fails closed before nested metadata or ignored bytes are archived"
+BROKEN_NESTED_ROOT="$TEST_TMP_DIR/broken-nested-source"
+BROKEN_NESTED_CHILD="$TEST_TMP_DIR/broken-nested-child"
+BROKEN_NESTED_TMPDIR="$TEST_TMP_DIR/broken-nested-tmp"
+mkdir -p "$BROKEN_NESTED_ROOT" "$BROKEN_NESTED_CHILD/vendor" "$BROKEN_NESTED_TMPDIR"
+(
+    cd "$BROKEN_NESTED_CHILD"
+    git init -q
+    git config user.email "test@example.com"
+    git config user.name "test"
+    printf 'vendor/\n' > .gitignore
+    printf 'nested tracked\n' > nested.txt
+    printf 'nested ignored\n' > vendor/ignored.bin
+    git add .gitignore nested.txt
+    git commit -q -m init
+)
+(
+    cd "$BROKEN_NESTED_ROOT"
+    git init -q
+    git config user.email "test@example.com"
+    git config user.name "test"
+    printf 'parent tracked\n' > parent.txt
+    git add parent.txt
+    git commit -q -m init
+    git -c protocol.file.allow=always submodule add -q "$BROKEN_NESTED_CHILD" nested-repo
+    git commit -q -am "add nested repository"
+    printf 'gitdir: /missing/octopus-nested-gitdir\n' > nested-repo/.git
+)
+workspace=""
+if workspace="$(TMPDIR="$BROKEN_NESTED_TMPDIR" _octopus_prepare_consultative_workspace "$BROKEN_NESTED_ROOT" 2>/dev/null)"; then
+    broken_nested_rc=0
+else
+    broken_nested_rc=$?
+fi
+broken_nested_leak=false
+if [[ -n "$workspace" ]] &&
+   { [[ -e "$workspace/nested-repo/.git" ]] || [[ -e "$workspace/nested-repo/vendor/ignored.bin" ]]; }; then
+    broken_nested_leak=true
+fi
+broken_nested_residue="$(find "$BROKEN_NESTED_TMPDIR" -mindepth 1 -maxdepth 1 -print)"
+if [[ "$broken_nested_rc" -ne 0 && "$broken_nested_leak" == "false" && -z "$broken_nested_residue" ]]; then
+    test_pass
+else
+    test_fail "expected broken nested discovery to fail before archive: rc=$broken_nested_rc leak=$broken_nested_leak residue=${broken_nested_residue:-none}"
+fi
+rm -rf "$BROKEN_NESTED_TMPDIR"
+
+test_case "a registered gitlink with missing nested metadata fails closed"
+MISSING_NESTED_TMPDIR="$TEST_TMP_DIR/missing-nested-tmp"
+rm -f "$BROKEN_NESTED_ROOT/nested-repo/.git"
+mkdir -p "$MISSING_NESTED_TMPDIR"
+workspace=""
+if workspace="$(TMPDIR="$MISSING_NESTED_TMPDIR" _octopus_prepare_consultative_workspace "$BROKEN_NESTED_ROOT" 2>/dev/null)"; then
+    missing_nested_rc=0
+else
+    missing_nested_rc=$?
+fi
+missing_nested_residue="$(find "$MISSING_NESTED_TMPDIR" -mindepth 1 -maxdepth 1 -print)"
+if [[ "$missing_nested_rc" -ne 0 && -z "$missing_nested_residue" ]]; then
+    test_pass
+else
+    test_fail "expected a registered gitlink without usable metadata to fail closed: rc=$missing_nested_rc residue=${missing_nested_residue:-none}"
+fi
+rm -rf "$MISSING_NESTED_TMPDIR"
 
 test_case "Git discovery errors fail closed without a whole-tree copy"
 DISCOVERY_GIT_BIN="$TEST_TMP_DIR/discovery-git-bin"
@@ -168,6 +235,33 @@ else
 fi
 rm -rf "$(dirname "$workspace_root")"
 
+test_case "a selected metacharacter subtree uses a literal pathspec"
+METACHAR_ROOT="$TEST_TMP_DIR/metachar-source"
+METACHAR_SCOPE='scope[one]:*?'
+mkdir -p "$METACHAR_ROOT/$METACHAR_SCOPE"
+(
+    cd "$METACHAR_ROOT"
+    git init -q
+    git config user.email "test@example.com"
+    git config user.name "test"
+    printf 'metachar tracked\n' > "$METACHAR_SCOPE/tracked.txt"
+    printf 'unrelated tracked\n' > unrelated.txt
+    git add -- "$METACHAR_SCOPE/tracked.txt" unrelated.txt
+    git commit -q -m init
+    printf 'metachar untracked\n' > "$METACHAR_SCOPE/untracked.txt"
+)
+workspace="$(_octopus_prepare_consultative_workspace "$METACHAR_ROOT/$METACHAR_SCOPE")"
+workspace_root="$(dirname "$workspace")"
+if [[ "${workspace##*/workspace/}" == "$METACHAR_SCOPE" ]] &&
+   [[ "$(cat "$workspace/tracked.txt" 2>/dev/null)" == "metachar tracked" ]] &&
+   [[ "$(cat "$workspace/untracked.txt" 2>/dev/null)" == "metachar untracked" ]] &&
+   [[ ! -e "$workspace_root/unrelated.txt" ]]; then
+    test_pass
+else
+    test_fail "expected literal scoped copy for a directory containing Git pathspec metacharacters"
+fi
+rm -rf "$(dirname "$workspace_root")"
+
 test_case "empty and fully ignored launch directories remain valid working directories"
 mkdir -p "$SOURCE_ROOT/empty-subdir"
 if empty_workspace="$(_octopus_prepare_consultative_workspace "$SOURCE_ROOT/empty-subdir" 2>/dev/null)" &&
@@ -192,6 +286,50 @@ else
     test_fail "expected safe-link to remain a working in-repository symlink"
 fi
 rm -rf "$(dirname "$workspace")"
+
+SCOPED_LINK_ROOT="$TEST_TMP_DIR/scoped-link-source"
+SCOPED_LINK_TMPDIR="$TEST_TMP_DIR/scoped-link-tmp"
+mkdir -p "$SCOPED_LINK_ROOT/selected/deeper" "$SCOPED_LINK_TMPDIR"
+(
+    cd "$SCOPED_LINK_ROOT"
+    git init -q
+    git config user.email "test@example.com"
+    git config user.name "test"
+    printf 'selected target\n' > selected/inside.txt
+    printf 'repository sibling\n' > outside.txt
+    ln -s ../inside.txt selected/deeper/safe-link
+    git add selected/inside.txt selected/deeper/safe-link outside.txt
+    git commit -q -m init
+)
+
+test_case "a relative symlink confined to the selected subtree remains usable"
+workspace="$(_octopus_prepare_consultative_workspace "$SCOPED_LINK_ROOT/selected")"
+workspace_root="$(dirname "$workspace")"
+if [[ -L "$workspace/deeper/safe-link" ]] &&
+   [[ "$(cat "$workspace/deeper/safe-link" 2>/dev/null)" == "selected target" ]] &&
+   [[ ! -e "$workspace_root/outside.txt" ]]; then
+    test_pass
+else
+    test_fail "expected an in-scope relative symlink without repository siblings"
+fi
+rm -rf "$(dirname "$workspace_root")"
+
+test_case "a relative symlink cannot escape the selected subtree into a repository sibling"
+ln -s ../outside.txt "$SCOPED_LINK_ROOT/selected/outside-link"
+git -C "$SCOPED_LINK_ROOT" add selected/outside-link
+workspace=""
+if workspace="$(TMPDIR="$SCOPED_LINK_TMPDIR" _octopus_prepare_consultative_workspace "$SCOPED_LINK_ROOT/selected" 2>/dev/null)"; then
+    scoped_link_rc=0
+else
+    scoped_link_rc=$?
+fi
+scoped_link_residue="$(find "$SCOPED_LINK_TMPDIR" -mindepth 1 -maxdepth 1 -print)"
+if [[ "$scoped_link_rc" -ne 0 && -z "$scoped_link_residue" ]]; then
+    test_pass
+else
+    test_fail "expected selected-subtree symlink escape to fail closed: rc=$scoped_link_rc residue=${scoped_link_residue:-none}"
+fi
+rm -rf "$SCOPED_LINK_TMPDIR"
 
 test_case "a confined dangling tracked relative symlink is preserved"
 DANGLING_ROOT="$TEST_TMP_DIR/dangling-link-source"
@@ -553,6 +691,48 @@ if [[ "$copy_list_rc" -eq 0 && "$copy_list_call_count" == "1" && -z "$copy_list_
     test_pass
 else
     test_fail "expected one cleaned mktemp -d list allocation: rc=$copy_list_rc calls=$copy_list_call_count residue=$copy_list_residue"
+fi
+
+test_case "copy and nested list append failures return nonzero and remove list state"
+append_failure_failed=false
+append_failure_details=""
+for append_failure_kind in copy nested; do
+    APPEND_FAILURE_TMPDIR="$TEST_TMP_DIR/append-failure-${append_failure_kind}-tmp"
+    APPEND_FAILURE_WORKSPACE="$TEST_TMP_DIR/append-failure-${append_failure_kind}-workspace"
+    mkdir -p "$APPEND_FAILURE_TMPDIR" "$APPEND_FAILURE_WORKSPACE"
+    case "$append_failure_kind" in
+        copy) APPEND_FAILURE_SOURCE="$SOURCE_ROOT" ;;
+        nested) APPEND_FAILURE_SOURCE="$NESTED_ROOT" ;;
+    esac
+    if (
+        export TMPDIR="$APPEND_FAILURE_TMPDIR"
+        export APPEND_FAILURE_KIND="$append_failure_kind"
+        printf() {
+            if [[ "${1:-}" == '%s\0' ]]; then
+                case "$APPEND_FAILURE_KIND" in
+                    copy) return 91 ;;
+                    nested) [[ "${2:-}" == "nested-repo" ]] && return 92 ;;
+                esac
+            fi
+            builtin printf "$@"
+        }
+        _octopus_copy_git_tracked_tree "$APPEND_FAILURE_SOURCE" "$APPEND_FAILURE_WORKSPACE"
+    ); then
+        append_failure_rc=0
+    else
+        append_failure_rc=$?
+    fi
+    append_failure_residue="$(find "$APPEND_FAILURE_TMPDIR" -mindepth 1 -maxdepth 1 -print)"
+    if [[ "$append_failure_rc" -eq 0 || -n "$append_failure_residue" ]]; then
+        append_failure_failed=true
+        append_failure_details="${append_failure_details}${append_failure_kind} rc=${append_failure_rc} residue=${append_failure_residue:-none}; "
+    fi
+    rm -rf "$APPEND_FAILURE_TMPDIR" "$APPEND_FAILURE_WORKSPACE"
+done
+if [[ "$append_failure_failed" == "false" ]]; then
+    test_pass
+else
+    test_fail "expected append failures to propagate with no list residue: $append_failure_details"
 fi
 
 test_case "Git copy list directory is removed after archive failure"
