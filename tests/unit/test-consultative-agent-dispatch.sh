@@ -13,12 +13,19 @@ mkdir -p "$SOURCE_ROOT"
 printf '%s\n' original > "$SOURCE_ROOT/protected.txt"
 
 _octopus_prepare_consultative_workspace() {
-    local source_root="$1" temp_root workspace
-    temp_root="$(mktemp -d "$TEST_TMP_DIR/workspace.XXXXXX")"
-    workspace="$temp_root/workspace"
-    mkdir -p "$workspace"
-    cp -a "$source_root/." "$workspace/"
-    printf '%s\n' "$workspace"
+    local source_root="$1" workspace_result_var="${2:-}" temp_root_result_var="${3:-}"
+    local stub_temp_root stub_workspace
+    stub_temp_root="$(mktemp -d "$TEST_TMP_DIR/octopus-consultative.XXXXXX")"
+    stub_temp_root="$(cd "$stub_temp_root" && pwd -P)"
+    stub_workspace="$stub_temp_root/workspace"
+    mkdir -p "$stub_workspace"
+    cp -a "$source_root/." "$stub_workspace/"
+    if [[ -n "$workspace_result_var" && -n "$temp_root_result_var" ]]; then
+        printf -v "$workspace_result_var" '%s' "$stub_workspace"
+        printf -v "$temp_root_result_var" '%s' "$stub_temp_root"
+    else
+        printf '%s\n' "$stub_workspace"
+    fi
 }
 
 STUB_RC=0
@@ -77,8 +84,9 @@ fi
 
 test_case "consultative output does not claim deletion when workspace cleanup fails"
 cleanup_attempt="$TEST_TMP_DIR/cleanup-attempt"
+cleanup_test_root="$(cd "$TEST_TMP_DIR" && pwd -P)"
 rm() {
-    if [[ "${1:-}" == "-rf" && "${2:-}" == "$TEST_TMP_DIR"/workspace.* ]]; then
+    if [[ "${1:-}" == "-rf" && "${2:-}" == "$cleanup_test_root"/octopus-consultative.* ]]; then
         printf '%s\n' "$2" > "$cleanup_attempt"
         return 1
     fi

@@ -156,15 +156,131 @@ should_use_agent_teams() {
     return 1
 }
 
-# Add a small, private Git directory to the disposable workspace. The object
-# database remains read-only through an alternate, while HEAD and the index are
-# local copies so reviewer Git commands work without copying the source .git.
+_octopus_clear_repository_env() {
+    unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY
+    unset GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_NAMESPACE
+    unset GIT_CEILING_DIRECTORIES GIT_PREFIX GIT_SUPER_PREFIX
+    unset GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT GIT_QUARANTINE_PATH
+    unset GIT_DEFAULT_HASH
+}
+
+# Repository-selection environment variables override `git -C`. Clear them for
+# workspace discovery and initialization so an exported GIT_DIR or index path
+# cannot redirect reads, writes, or cleanup decisions to another checkout.
+_octopus_git_without_repository_env() (
+    _octopus_clear_repository_env
+    command git "$@"
+)
+
+_octopus_resolve_git_path() {
+    local worktree_root="$1"
+    local git_path="$2"
+    local path_parent path_name
+
+    case "$git_path" in
+        /*) ;;
+        *) git_path="${worktree_root}/${git_path}" ;;
+    esac
+    path_parent="$(cd "$(dirname "$git_path")" 2>/dev/null && pwd -P)" || return 1
+    path_name="$(basename "$git_path")"
+    printf '%s/%s\n' "$path_parent" "$path_name"
+}
+
+_octopus_copy_workspace_refs() {
+    local source_root="$1"
+    local workspace="$2"
+    local refs_file oid refname symref failed
+
+    refs_file="$(mktemp "${TMPDIR:-/tmp}/octopus-workspace-refs.XXXXXX")" || return 1
+    _octopus_git_without_repository_env -C "$source_root" for-each-ref \
+        --format='%(objectname)%09%(refname)%09%(symref)' > "$refs_file" 2>/dev/null || {
+        rm -f "$refs_file"
+        return 1
+    }
+
+    failed=false
+    while IFS=$'\t' read -r oid refname symref; do
+        [[ -n "$oid" && -n "$refname" ]] || continue
+        _octopus_git_without_repository_env -C "$workspace" update-ref "$refname" "$oid" || {
+            failed=true
+            break
+        }
+    done < "$refs_file"
+
+    if [[ "$failed" == "false" ]]; then
+        while IFS=$'\t' read -r oid refname symref; do
+            [[ -n "$refname" && -n "$symref" ]] || continue
+            _octopus_git_without_repository_env -C "$workspace" symbolic-ref "$refname" "$symref" || {
+                failed=true
+                break
+            }
+        done < "$refs_file"
+    fi
+
+    rm -f "$refs_file"
+    [[ "$failed" == "false" ]]
+}
+
+_octopus_copy_workspace_index() {
+    local source_root="$1"
+    local workspace="$2"
+    local source_index source_shared_index workspace_shared_index
+    local index_before index_after attempt
+
+    source_index="$(_octopus_git_without_repository_env -C "$source_root" rev-parse --git-path index 2>/dev/null)" || return 1
+    source_index="$(_octopus_resolve_git_path "$source_root" "$source_index")" || return 1
+
+    # An unborn empty repository may not have an index yet.
+    [[ -e "$source_index" ]] || return 0
+    [[ -f "$source_index" && ! -L "$source_index" ]] || return 1
+
+    attempt=1
+    while [[ "$attempt" -le 3 ]]; do
+        index_before="$(cksum "$source_index" 2>/dev/null)" || return 1
+        source_shared_index="$(_octopus_git_without_repository_env -C "$source_root" rev-parse --shared-index-path 2>/dev/null)" || return 1
+        workspace_shared_index=""
+        if [[ -n "$source_shared_index" ]]; then
+            source_shared_index="$(_octopus_resolve_git_path "$source_root" "$source_shared_index")" || return 1
+            [[ -f "$source_shared_index" && ! -L "$source_shared_index" ]] || return 1
+            workspace_shared_index="$workspace/.git/$(basename "$source_shared_index")"
+            cp -p "$source_shared_index" "$workspace_shared_index" || return 1
+        fi
+
+        cp -p "$source_index" "$workspace/.git/index" || return 1
+        index_after="$(cksum "$source_index" 2>/dev/null)" || return 1
+        if [[ "$index_after" == "$index_before" ]]; then
+            chmod u+rw "$workspace/.git/index" || return 1
+            [[ -z "$workspace_shared_index" ]] || chmod u+rw "$workspace_shared_index" || return 1
+            return 0
+        fi
+        attempt=$((attempt + 1))
+    done
+
+    return 1
+}
+
+_octopus_copy_workspace_shallow_boundary() {
+    local source_root="$1"
+    local workspace="$2"
+    local source_shallow
+
+    source_shallow="$(_octopus_git_without_repository_env -C "$source_root" rev-parse --git-path shallow 2>/dev/null)" || return 1
+    source_shallow="$(_octopus_resolve_git_path "$source_root" "$source_shallow")" || return 1
+    [[ -e "$source_shallow" ]] || return 0
+    [[ -f "$source_shallow" && ! -L "$source_shallow" ]] || return 1
+    cp -p "$source_shallow" "$workspace/.git/shallow" || return 1
+    chmod u+rw "$workspace/.git/shallow" || return 1
+}
+
+# Add a private Git directory to the disposable workspace. Refs and the exact
+# worktree index are copied locally. Commit objects remain readable through an
+# alternate, so workspace Git writes cannot update source refs or index state.
 _octopus_initialize_workspace_git_context() {
     local source_root="$1"
     local workspace="$2"
-    local common_dir object_dir head_oid head_ref
+    local common_dir object_dir head_oid head_ref object_format
 
-    common_dir="$(git -C "$source_root" rev-parse --git-common-dir 2>/dev/null)" || return 1
+    common_dir="$(_octopus_git_without_repository_env -C "$source_root" rev-parse --git-common-dir 2>/dev/null)" || return 1
     case "$common_dir" in
         /*) ;;
         *) common_dir="${source_root}/${common_dir}" ;;
@@ -173,28 +289,27 @@ _octopus_initialize_workspace_git_context() {
     object_dir="${common_dir}/objects"
     [[ -d "$object_dir" ]] || return 1
 
-    git -C "$workspace" init -q || return 1
+    object_format="$(_octopus_git_without_repository_env -C "$source_root" rev-parse --show-object-format 2>/dev/null || printf 'sha1\n')"
+    if [[ "$object_format" == "sha1" ]]; then
+        _octopus_git_without_repository_env -C "$workspace" init -q || return 1
+    else
+        _octopus_git_without_repository_env -C "$workspace" init -q --object-format="$object_format" || return 1
+    fi
     mkdir -p "$workspace/.git/objects/info" || return 1
     printf '%s\n' "$object_dir" > "$workspace/.git/objects/info/alternates" || return 1
 
-    head_oid="$(git -C "$source_root" rev-parse --verify HEAD 2>/dev/null || true)"
-    if [[ -n "$head_oid" ]]; then
-        head_ref="$(git -C "$source_root" symbolic-ref -q HEAD 2>/dev/null || true)"
-        if [[ -n "$head_ref" ]]; then
-            git -C "$workspace" symbolic-ref HEAD "$head_ref" || return 1
-            git -C "$workspace" update-ref "$head_ref" "$head_oid" || return 1
-        else
-            git -C "$workspace" update-ref --no-deref HEAD "$head_oid" || return 1
-        fi
+    _octopus_copy_workspace_shallow_boundary "$source_root" "$workspace" || return 1
+    _octopus_copy_workspace_refs "$source_root" "$workspace" || return 1
+
+    head_oid="$(_octopus_git_without_repository_env -C "$source_root" rev-parse --verify HEAD 2>/dev/null || true)"
+    head_ref="$(_octopus_git_without_repository_env -C "$source_root" symbolic-ref -q HEAD 2>/dev/null || true)"
+    if [[ -n "$head_ref" ]]; then
+        _octopus_git_without_repository_env -C "$workspace" symbolic-ref HEAD "$head_ref" || return 1
+    elif [[ -n "$head_oid" ]]; then
+        _octopus_git_without_repository_env -C "$workspace" update-ref --no-deref HEAD "$head_oid" || return 1
     fi
 
-    # Rebuild the index from Git's portable stage records. Copying the index
-    # file itself would break split-index and worktree-specific configurations.
-    (
-        set -o pipefail
-        git -C "$source_root" ls-files --stage -z |
-            git -C "$workspace" update-index -z --index-info
-    ) || return 1
+    _octopus_copy_workspace_index "$source_root" "$workspace"
 }
 
 # Copy only tracked plus untracked-but-not-ignored files from a Git work tree.
@@ -207,7 +322,7 @@ _octopus_copy_git_tracked_tree() {
     local filelist copylist nestedlist entry rel entry_path
     local nested_top nested_rel resolved
 
-    git -C "$source_root" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
+    _octopus_git_without_repository_env -C "$source_root" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
     source_root="$(cd "$source_root" 2>/dev/null && pwd -P)" || return 1
 
     filelist="$(mktemp "${TMPDIR:-/tmp}/octopus-tracked-tree.XXXXXX")" || return 1
@@ -219,7 +334,7 @@ _octopus_copy_git_tracked_tree() {
         rm -f "$filelist" "$copylist"
         return 1
     }
-    git -C "$source_root" ls-files -z --cached --others --exclude-standard >"$filelist" 2>/dev/null || {
+    _octopus_git_without_repository_env -C "$source_root" ls-files -z --cached --others --exclude-standard >"$filelist" 2>/dev/null || {
         rm -f "$filelist" "$copylist" "$nestedlist"
         return 1
     }
@@ -254,7 +369,7 @@ _octopus_copy_git_tracked_tree() {
                     ;;
             esac
         elif [[ -d "$entry_path" ]]; then
-            nested_top="$(git -C "$entry_path" rev-parse --show-toplevel 2>/dev/null || true)"
+            nested_top="$(_octopus_git_without_repository_env -C "$entry_path" rev-parse --show-toplevel 2>/dev/null || true)"
             if [[ -n "$nested_top" ]]; then
                 nested_top="$(cd "$nested_top" 2>/dev/null && pwd -P)" || {
                     rm -f "$filelist" "$copylist" "$nestedlist"
@@ -309,50 +424,100 @@ _octopus_copy_git_tracked_tree() {
 # retain the original private whole-tree copy because they have no ignore index.
 _octopus_prepare_consultative_workspace() {
     local source_root="$1"
-    local temp_root workspace git_root source_prefix
-    temp_root="$(mktemp -d "${TMPDIR:-/tmp}/octopus-consultative.XXXXXX")" || return 1
-    workspace="${temp_root}/workspace"
-    mkdir -p "$workspace" || { rm -rf "$temp_root"; return 1; }
+    local workspace_result_var="${2:-}"
+    local temp_root_result_var="${3:-}"
+    local prepared_temp_root prepared_temp_root_raw prepared_workspace git_root source_prefix
 
-    if git -C "$source_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    if [[ -n "$workspace_result_var" || -n "$temp_root_result_var" ]]; then
+        [[ "$workspace_result_var" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || return 1
+        [[ "$temp_root_result_var" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || return 1
+    fi
+
+    prepared_temp_root_raw="$(mktemp -d "${TMPDIR:-/tmp}/octopus-consultative.XXXXXX")" || return 1
+    prepared_temp_root="$(cd "$prepared_temp_root_raw" 2>/dev/null && pwd -P)" || {
+        rm -rf "$prepared_temp_root_raw"
+        return 1
+    }
+    prepared_workspace="${prepared_temp_root}/workspace"
+    mkdir -p "$prepared_workspace" || { rm -rf "$prepared_temp_root"; return 1; }
+
+    if _octopus_git_without_repository_env -C "$source_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
         source_root="$(cd "$source_root" 2>/dev/null && pwd -P)" || {
-            rm -rf "$temp_root"
+            rm -rf "$prepared_temp_root"
             return 1
         }
-        git_root="$(git -C "$source_root" rev-parse --show-toplevel 2>/dev/null)" || {
-            rm -rf "$temp_root"
+        git_root="$(_octopus_git_without_repository_env -C "$source_root" rev-parse --show-toplevel 2>/dev/null)" || {
+            rm -rf "$prepared_temp_root"
             return 1
         }
         git_root="$(cd "$git_root" 2>/dev/null && pwd -P)" || {
-            rm -rf "$temp_root"
+            rm -rf "$prepared_temp_root"
             return 1
         }
         case "$source_root" in
             "$git_root") source_prefix="" ;;
             "$git_root"/*) source_prefix="${source_root#"$git_root"/}" ;;
             *)
-                rm -rf "$temp_root"
+                rm -rf "$prepared_temp_root"
                 return 1
                 ;;
         esac
 
-        _octopus_copy_git_tracked_tree "$git_root" "$workspace" || {
-            rm -rf "$temp_root"
+        _octopus_copy_git_tracked_tree "$git_root" "$prepared_workspace" || {
+            rm -rf "$prepared_temp_root"
             return 1
         }
         if [[ -n "$source_prefix" ]]; then
-            workspace="${workspace}/${source_prefix}"
-            [[ -d "$workspace" ]] || { rm -rf "$temp_root"; return 1; }
+            mkdir -p "${prepared_workspace}/${source_prefix}" || {
+                rm -rf "$prepared_temp_root"
+                return 1
+            }
+            prepared_workspace="${prepared_workspace}/${source_prefix}"
         fi
     else
-        if ! cp -a --reflink=auto "${source_root}/." "${workspace}/" 2>/dev/null; then
-            rm -rf "$workspace"
-            mkdir -p "$workspace" || { rm -rf "$temp_root"; return 1; }
-            cp -a "${source_root}/." "${workspace}/" || { rm -rf "$temp_root"; return 1; }
+        if ! cp -a --reflink=auto "${source_root}/." "${prepared_workspace}/" 2>/dev/null; then
+            rm -rf "$prepared_workspace"
+            mkdir -p "$prepared_workspace" || { rm -rf "$prepared_temp_root"; return 1; }
+            cp -a "${source_root}/." "${prepared_workspace}/" || { rm -rf "$prepared_temp_root"; return 1; }
         fi
     fi
 
-    printf '%s\n' "$workspace"
+    if [[ -n "$workspace_result_var" && -n "$temp_root_result_var" ]]; then
+        printf -v "$workspace_result_var" '%s' "$prepared_workspace"
+        printf -v "$temp_root_result_var" '%s' "$prepared_temp_root"
+    else
+        printf '%s\n' "$prepared_workspace"
+    fi
+}
+
+_octopus_consultative_temp_root_is_safe() {
+    local temp_root="$1"
+    local workspace="$2"
+    local physical_temp_root temp_name
+
+    [[ "$temp_root" == /* && -d "$temp_root" && ! -L "$temp_root" ]] || return 1
+    physical_temp_root="$(cd "$temp_root" 2>/dev/null && pwd -P)" || return 1
+    [[ "$physical_temp_root" == "$temp_root" ]] || return 1
+    temp_name="$(basename "$temp_root")"
+    case "$temp_name" in
+        octopus-consultative.??????) ;;
+        *) return 1 ;;
+    esac
+    case "$workspace" in
+        "$temp_root/workspace"|"$temp_root/workspace"/*) ;;
+        *) return 1 ;;
+    esac
+}
+
+_octopus_remove_consultative_temp_root() {
+    local temp_root="$1"
+    local workspace="$2"
+
+    if [[ ! -e "$temp_root" && ! -L "$temp_root" ]]; then
+        return 0
+    fi
+    _octopus_consultative_temp_root_is_safe "$temp_root" "$workspace" || return 1
+    rm -rf "$temp_root"
 }
 
 # Run a synchronous agent in a strictly consultative context.
@@ -373,17 +538,19 @@ run_agent_sync_consultative() {
     local old_codex_sandbox="${OCTOPUS_CODEX_SANDBOX:-}"
     local old_autonomy_set="${CLAUDE_OCTOPUS_AUTONOMY+x}"
     local old_autonomy="${CLAUDE_OCTOPUS_AUTONOMY:-}"
-    local source_root source_root_logical workspace workspace_root temp_root rc original_prompt isolated_prompt agent_output cleanup_note
+    local source_root source_root_logical workspace temp_root rc original_prompt isolated_prompt agent_output cleanup_note
     local -a consultative_args
 
     source_root_logical="$PWD"
     source_root="$(pwd -P)"
-    workspace="$(_octopus_prepare_consultative_workspace "$source_root")" || {
+    _octopus_prepare_consultative_workspace "$source_root" workspace temp_root || {
         log ERROR "Failed to prepare disposable consultative workspace from: $source_root"
         return 1
     }
-    workspace_root="$(git -C "$workspace" rev-parse --show-toplevel 2>/dev/null || printf '%s\n' "$workspace")"
-    temp_root="$(dirname "$workspace_root")"
+    _octopus_consultative_temp_root_is_safe "$temp_root" "$workspace" || {
+        log ERROR "Refusing unsafe consultative workspace paths"
+        return 1
+    }
 
     consultative_args=("$@")
     original_prompt="${consultative_args[1]:-}"
@@ -403,14 +570,17 @@ Treat ${workspace} as the working copy for this advisory task. Any relative-path
     unset CLAUDE_OCTOPUS_AUTONOMY
     export OCTOPUS_CODEX_SANDBOX="danger-full-access"
 
-    if agent_output=$(cd "$workspace" && run_agent_sync "${consultative_args[@]}"); then
+    if agent_output=$(
+        _octopus_clear_repository_env
+        cd "$workspace" && run_agent_sync "${consultative_args[@]}"
+    ); then
         rc=0
     else
         rc=$?
     fi
 
     cleanup_note="Octopus deleted the workspace before returning."
-    if ! rm -rf "$temp_root" 2>/dev/null; then
+    if ! _octopus_remove_consultative_temp_root "$temp_root" "$workspace" 2>/dev/null; then
         cleanup_note="Octopus attempted cleanup before returning but could not confirm deletion."
         if declare -F log >/dev/null 2>&1; then
             log WARN "Failed to remove consultative workspace: $temp_root"
