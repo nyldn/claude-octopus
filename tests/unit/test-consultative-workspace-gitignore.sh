@@ -30,6 +30,7 @@ mkdir -p "$SOURCE_ROOT/vendor" "$SOURCE_ROOT/subdir"
     git add staged.txt
     printf 'staged and modified working tree\n' > staged.txt
     printf 'untracked but not ignored\n' > untracked.txt
+    printf 'subdirectory untracked\n' > subdir/untracked.txt
 )
 
 test_case "Git sources copy exact eligible working-tree bytes without Git metadata"
@@ -152,15 +153,18 @@ else
     test_fail "expected Git config isolation and unchanged source index, HEAD, and refs"
 fi
 
-test_case "a launch from a repository subdirectory returns its copied subdirectory"
+test_case "a repository subdirectory launch copies only eligible content in that subtree"
 workspace="$(_octopus_prepare_consultative_workspace "$SOURCE_ROOT/subdir")"
 workspace_root="$(dirname "$workspace")"
 if [[ "$workspace" == */workspace/subdir ]] &&
    [[ "$(cat "$workspace/context.txt" 2>/dev/null)" == "subdirectory modified" ]] &&
+   [[ "$(cat "$workspace/untracked.txt" 2>/dev/null)" == "subdirectory untracked" ]] &&
+   [[ ! -e "$workspace_root/tracked.txt" && ! -e "$workspace_root/staged.txt" ]] &&
+   [[ ! -e "$workspace_root/untracked.txt" && ! -e "$workspace_root/inside.txt" ]] &&
    [[ ! -e "$workspace_root/.git" ]]; then
     test_pass
 else
-    test_fail "expected current subdirectory bytes at the matching metadata-free copied path"
+    test_fail "expected only current tracked and nonignored subdirectory bytes at the matching metadata-free copied path"
 fi
 rm -rf "$(dirname "$workspace_root")"
 
@@ -375,6 +379,51 @@ else
     test_fail "expected recursively filtered nested bytes without parent or nested .git metadata"
 fi
 rm -rf "$(dirname "$workspace")"
+
+test_case "a selected subtree retains nested Git content without copying repository siblings"
+NESTED_SUBTREE_ROOT="$TEST_TMP_DIR/nested-subtree-source"
+NESTED_SUBTREE_CHILD="$TEST_TMP_DIR/nested-subtree-child"
+mkdir -p "$NESTED_SUBTREE_ROOT/selected" "$NESTED_SUBTREE_CHILD/vendor"
+(
+    cd "$NESTED_SUBTREE_CHILD"
+    git init -q
+    git config user.email "test@example.com"
+    git config user.name "test"
+    printf 'vendor/\n' > .gitignore
+    printf 'nested tracked\n' > nested.txt
+    git add nested.txt .gitignore
+    git commit -q -m "nested init"
+)
+(
+    cd "$NESTED_SUBTREE_ROOT"
+    git init -q
+    git config user.email "test@example.com"
+    git config user.name "test"
+    printf 'selected tracked\n' > selected/context.txt
+    printf 'unrelated tracked\n' > unrelated.txt
+    git add selected/context.txt unrelated.txt
+    git commit -q -m init
+    git -c protocol.file.allow=always submodule add -q "$NESTED_SUBTREE_CHILD" selected/nested-repo
+    git commit -q -am "add selected nested repository"
+    printf 'selected untracked\n' > selected/local.txt
+    printf 'unrelated untracked\n' > unrelated-local.txt
+    printf 'nested working tree\n' > selected/nested-repo/nested.txt
+    mkdir -p selected/nested-repo/vendor
+    printf 'nested vendored\n' > selected/nested-repo/vendor/big.bin
+)
+workspace="$(_octopus_prepare_consultative_workspace "$NESTED_SUBTREE_ROOT/selected")"
+workspace_root="$(dirname "$workspace")"
+if [[ "$workspace" == */workspace/selected ]] &&
+   [[ "$(cat "$workspace/context.txt" 2>/dev/null)" == "selected tracked" ]] &&
+   [[ "$(cat "$workspace/local.txt" 2>/dev/null)" == "selected untracked" ]] &&
+   [[ "$(cat "$workspace/nested-repo/nested.txt" 2>/dev/null)" == "nested working tree" ]] &&
+   [[ ! -e "$workspace/nested-repo/vendor" && ! -e "$workspace/nested-repo/.git" ]] &&
+   [[ ! -e "$workspace_root/unrelated.txt" && ! -e "$workspace_root/unrelated-local.txt" ]]; then
+    test_pass
+else
+    test_fail "expected scoped parent bytes and recursively filtered nested content without repository siblings"
+fi
+rm -rf "$(dirname "$workspace_root")"
 
 test_case "an empty parent copy list skips tar and still copies nested work trees"
 NESTED_ONLY_ROOT="$TEST_TMP_DIR/nested-only-source"

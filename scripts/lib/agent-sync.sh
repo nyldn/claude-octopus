@@ -314,6 +314,8 @@ _octopus_replace_literal() {
 }
 
 # Copy only tracked plus untracked-but-not-ignored files from a Git work tree.
+# An optional root-relative scope limits enumeration while paths remain rooted at
+# the repository for validation and archive extraction.
 # Nested repositories are removed from the parent archive list before tar runs,
 # then copied recursively under their own ignore rules. Every path ancestor
 # must be a real directory. Symlink leaves must stay lexically within the copied
@@ -322,8 +324,9 @@ _octopus_replace_literal() {
 _octopus_copy_git_tracked_tree() (
     local source_root="$1"
     local workspace="$2"
+    local copy_scope="${3:-}"
     local list_dir filelist copylist nestedlist entry rel entry_path
-    local nested_top nested_rel
+    local nested_top nested_rel scope_pathspec
 
     _octopus_cleanup_copy_list_dir() {
         local cleanup_rc="$1"
@@ -334,6 +337,11 @@ _octopus_copy_git_tracked_tree() (
 
     _octopus_git_without_repository_env -C "$source_root" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
     source_root="$(cd "$source_root" 2>/dev/null && pwd -P)" || return 1
+    if [[ -n "$copy_scope" ]]; then
+        _octopus_source_path_has_safe_ancestry "$source_root" "$copy_scope" || return 1
+        [[ -d "$source_root/$copy_scope" && ! -L "$source_root/$copy_scope" ]] || return 1
+        scope_pathspec=":(literal,top)${copy_scope}"
+    fi
 
     list_dir="$(mktemp -d "${TMPDIR:-/tmp}/octopus-copy-lists.XXXXXX")" || return 1
     trap '_octopus_cleanup_copy_list_dir "$?"' EXIT
@@ -343,13 +351,25 @@ _octopus_copy_git_tracked_tree() (
     copylist="${list_dir}/copy"
     nestedlist="${list_dir}/nested"
     : > "$filelist" && : > "$copylist" && : > "$nestedlist" || return 1
-    _octopus_git_without_repository_env -C "$source_root" ls-files -z --cached --others --exclude-standard >"$filelist" 2>/dev/null || {
-        return 1
-    }
+    if [[ -n "$copy_scope" ]]; then
+        _octopus_git_without_repository_env -C "$source_root" ls-files -z --cached --others --exclude-standard -- "$scope_pathspec" >"$filelist" 2>/dev/null || {
+            return 1
+        }
+    else
+        _octopus_git_without_repository_env -C "$source_root" ls-files -z --cached --others --exclude-standard >"$filelist" 2>/dev/null || {
+            return 1
+        }
+    fi
 
     while IFS= read -r -d '' entry; do
         rel="${entry%/}"
         [[ -n "$rel" ]] || continue
+        if [[ -n "$copy_scope" ]]; then
+            case "$rel" in
+                "$copy_scope"|"$copy_scope"/*) ;;
+                *) return 1 ;;
+            esac
+        fi
         entry_path="${source_root}/${rel}"
 
         # Deleted tracked paths remain in the index but have no bytes to copy.
@@ -456,7 +476,7 @@ _octopus_prepare_consultative_workspace() {
                 ;;
         esac
 
-        _octopus_copy_git_tracked_tree "$git_root" "$prepared_workspace" || {
+        _octopus_copy_git_tracked_tree "$git_root" "$prepared_workspace" "$source_prefix" || {
             rm -rf "$prepared_temp_root"
             return 1
         }
