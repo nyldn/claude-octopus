@@ -220,6 +220,42 @@ else
     test_fail "expected Git config isolation and unchanged source index, HEAD, and refs"
 fi
 
+test_case "Git trace and output sinks are cleared for advisory dispatch"
+TRACE_EVENT_SINK="$TEST_TMP_DIR/git-trace2-event.json"
+TRACE_TEXT_SINK="$TEST_TMP_DIR/git-trace.log"
+TRACE_REDIRECT_SINK="$TEST_TMP_DIR/git-redirect.log"
+TRACE_ENV_MARKER="$TEST_TMP_DIR/git-trace-env-leaked"
+TRACE_GIT_MARKER="$TEST_TMP_DIR/git-command-ran"
+run_agent_sync() {
+    local name
+    while IFS= read -r name; do
+        case "$name" in
+            GIT_TRACE*|GIT_REDIRECT_STDIN|GIT_REDIRECT_STDOUT|GIT_REDIRECT_STDERR)
+                printf '%s\n' "$name" > "$TRACE_ENV_MARKER"
+                ;;
+        esac
+    done < <(compgen -v)
+    git --version > "$TRACE_GIT_MARKER"
+    printf 'review only\n'
+}
+trace_old_pwd="$PWD"
+cd "$SOURCE_ROOT"
+(
+    export GIT_TRACE="$TRACE_TEXT_SINK"
+    export GIT_TRACE2_EVENT="$TRACE_EVENT_SINK"
+    export GIT_REDIRECT_STDERR="$TRACE_REDIRECT_SINK"
+    run_agent_sync_consultative codex "review only" 120 reviewer ceremony >/dev/null 2>&1
+)
+trace_dispatch_rc=$?
+cd "$trace_old_pwd"
+unset -f run_agent_sync
+if [[ "$trace_dispatch_rc" -eq 0 && -s "$TRACE_GIT_MARKER" ]] &&
+   [[ ! -e "$TRACE_ENV_MARKER" && ! -e "$TRACE_EVENT_SINK" && ! -e "$TRACE_TEXT_SINK" && ! -e "$TRACE_REDIRECT_SINK" ]]; then
+    test_pass
+else
+    test_fail "expected Git command execution without inherited trace/output sinks: rc=$trace_dispatch_rc leaked=$(cat "$TRACE_ENV_MARKER" 2>/dev/null || printf none)"
+fi
+
 test_case "a repository subdirectory launch copies only eligible content in that subtree"
 workspace="$(_octopus_prepare_consultative_workspace "$SOURCE_ROOT/subdir")"
 workspace_root="$(dirname "$workspace")"
@@ -812,6 +848,137 @@ else
     test_fail "expected INT and TERM status with no list residue: $copy_list_signal_failures"
 fi
 
+test_case "copy-list cleanup failure preserves TERM status and fails normal success"
+COPY_LIST_RM_FAILURE_TMPDIR="$TEST_TMP_DIR/copy-list-rm-failure-tmp"
+COPY_LIST_RM_FAILURE_WORKSPACE="$TEST_TMP_DIR/copy-list-rm-failure-workspace"
+COPY_LIST_RM_FAILURE_BIN="$TEST_TMP_DIR/copy-list-rm-failure-bin"
+COPY_LIST_RM_FAILURE_PID_FILE="$TEST_TMP_DIR/copy-list-rm-failure.pid"
+REAL_RM="$(command -v rm)"
+mkdir -p "$COPY_LIST_RM_FAILURE_TMPDIR" "$COPY_LIST_RM_FAILURE_WORKSPACE" "$COPY_LIST_RM_FAILURE_BIN"
+cat > "$COPY_LIST_RM_FAILURE_BIN/rm" <<'EOF'
+#!/usr/bin/env bash
+case "${2:-}" in
+    */octopus-copy-lists.??????) exit 95 ;;
+esac
+exec "$REAL_RM" "$@"
+EOF
+chmod +x "$COPY_LIST_RM_FAILURE_BIN/rm"
+if (
+    export TMPDIR="$COPY_LIST_RM_FAILURE_TMPDIR"
+    export PATH="$COPY_LIST_RM_FAILURE_BIN:$PATH"
+    export REAL_RM COPY_LIST_RM_FAILURE_PID_FILE
+    /bin/bash -c '
+        source "$1/scripts/lib/agent-sync.sh"
+        _octopus_validate_copy_source_path() {
+            /bin/sh -c '\''printf "%s\n" "$PPID" > "$1"'\'' _ "$COPY_LIST_RM_FAILURE_PID_FILE" || return 1
+            IFS= read -r copy_pid < "$COPY_LIST_RM_FAILURE_PID_FILE" || return 1
+            kill -TERM "$copy_pid"
+            return 1
+        }
+        _octopus_copy_git_tracked_tree "$2" "$3"
+    ' _ "$PROJECT_ROOT" "$SOURCE_ROOT" "$COPY_LIST_RM_FAILURE_WORKSPACE"
+) >/dev/null 2>&1; then
+    copy_list_rm_signal_rc=0
+else
+    copy_list_rm_signal_rc=$?
+fi
+copy_list_rm_signal_residue="$(find "$COPY_LIST_RM_FAILURE_TMPDIR" -mindepth 1 -maxdepth 1 -type d -name 'octopus-copy-lists.*' -print)"
+command rm -rf "$COPY_LIST_RM_FAILURE_TMPDIR" "$COPY_LIST_RM_FAILURE_WORKSPACE" "$COPY_LIST_RM_FAILURE_PID_FILE"
+
+mkdir -p "$COPY_LIST_RM_FAILURE_TMPDIR" "$COPY_LIST_RM_FAILURE_WORKSPACE"
+if (
+    export TMPDIR="$COPY_LIST_RM_FAILURE_TMPDIR"
+    export PATH="$COPY_LIST_RM_FAILURE_BIN:$PATH"
+    export REAL_RM
+    _octopus_copy_git_tracked_tree "$SOURCE_ROOT" "$COPY_LIST_RM_FAILURE_WORKSPACE"
+) >/dev/null 2>&1; then
+    copy_list_rm_success_rc=0
+else
+    copy_list_rm_success_rc=$?
+fi
+copy_list_rm_success_residue="$(find "$COPY_LIST_RM_FAILURE_TMPDIR" -mindepth 1 -maxdepth 1 -type d -name 'octopus-copy-lists.*' -print)"
+command rm -rf "$COPY_LIST_RM_FAILURE_TMPDIR" "$COPY_LIST_RM_FAILURE_WORKSPACE" "$COPY_LIST_RM_FAILURE_BIN"
+if [[ "$copy_list_rm_signal_rc" -eq 143 && -n "$copy_list_rm_signal_residue" ]] &&
+   [[ "$copy_list_rm_success_rc" -ne 0 && -n "$copy_list_rm_success_residue" ]]; then
+    test_pass
+else
+    test_fail "expected TERM=143 and normal-success cleanup failure: signal_rc=$copy_list_rm_signal_rc success_rc=$copy_list_rm_success_rc"
+fi
+
+test_case "preparation-phase INT and TERM preserve status, cleanup, and caller state"
+prepare_signal_failed=false
+prepare_signal_failures=""
+for prepare_signal in INT TERM; do
+    case "$prepare_signal" in
+        INT) prepare_signal_expected_rc=130 ;;
+        TERM) prepare_signal_expected_rc=143 ;;
+    esac
+    PREPARE_SIGNAL_TMPDIR="$TEST_TMP_DIR/prepare-signal-${prepare_signal}"
+    PREPARE_SIGNAL_PID_FILE="$TEST_TMP_DIR/prepare-signal-${prepare_signal}.pid"
+    PREPARE_SIGNAL_DISPATCH_MARKER="$TEST_TMP_DIR/prepare-signal-${prepare_signal}.dispatched"
+    PREPARE_SIGNAL_INT_MARKER="$TEST_TMP_DIR/prepare-signal-${prepare_signal}.caller-int"
+    PREPARE_SIGNAL_TERM_MARKER="$TEST_TMP_DIR/prepare-signal-${prepare_signal}.caller-term"
+    mkdir -p "$PREPARE_SIGNAL_TMPDIR"
+    if (
+        export TMPDIR="$PREPARE_SIGNAL_TMPDIR"
+        export SIGNAL_NAME="$prepare_signal"
+        export PREPARE_SIGNAL_PID_FILE PREPARE_SIGNAL_DISPATCH_MARKER
+        export PREPARE_SIGNAL_INT_MARKER PREPARE_SIGNAL_TERM_MARKER
+        export OCTOPUS_SECURITY_V870="caller-security"
+        export OCTOPUS_AGY_SANDBOX="caller-agy"
+        export OCTOPUS_CODEX_SANDBOX="caller-codex"
+        export CLAUDE_OCTOPUS_AUTONOMY="caller-autonomy"
+        /bin/bash -c '
+            source "$1/scripts/lib/agent-sync.sh"
+            log() { :; }
+            run_agent_sync() { printf "ran\n" > "$PREPARE_SIGNAL_DISPATCH_MARKER"; }
+            _octopus_copy_git_tracked_tree() {
+                /bin/sh -c '\''printf "%s\n" "$PPID" > "$1"'\'' _ "$PREPARE_SIGNAL_PID_FILE" || return 1
+                IFS= read -r consultative_pid < "$PREPARE_SIGNAL_PID_FILE" || return 1
+                kill -s "$SIGNAL_NAME" "$consultative_pid"
+                return 99
+            }
+            trap '\''printf "caller INT trap ran\n" > "$PREPARE_SIGNAL_INT_MARKER"'\'' INT
+            trap '\''printf "caller TERM trap ran\n" > "$PREPARE_SIGNAL_TERM_MARKER"'\'' TERM
+            caller_int_before="$(trap -p INT)"
+            caller_term_before="$(trap -p TERM)"
+            cd "$2" || exit 98
+            caller_pwd_before="$(pwd -P)"
+            set +e
+            run_agent_sync_consultative codex "review only" 120 reviewer ceremony >/dev/null 2>&1
+            prepare_rc=$?
+            set -e
+            prepare_residue="$(find "$TMPDIR" -mindepth 1 -maxdepth 1 -type d -name "octopus-consultative.*" -print)"
+            [[ "$prepare_rc" -eq "$3" ]] &&
+                [[ -z "$prepare_residue" ]] &&
+                [[ ! -e "$PREPARE_SIGNAL_DISPATCH_MARKER" ]] &&
+                [[ ! -e "$PREPARE_SIGNAL_INT_MARKER" && ! -e "$PREPARE_SIGNAL_TERM_MARKER" ]] &&
+                [[ "$(trap -p INT)" == "$caller_int_before" ]] &&
+                [[ "$(trap -p TERM)" == "$caller_term_before" ]] &&
+                [[ "$(pwd -P)" == "$caller_pwd_before" ]] &&
+                [[ "$OCTOPUS_SECURITY_V870" == "caller-security" ]] &&
+                [[ "$OCTOPUS_AGY_SANDBOX" == "caller-agy" ]] &&
+                [[ "$OCTOPUS_CODEX_SANDBOX" == "caller-codex" ]] &&
+                [[ "$CLAUDE_OCTOPUS_AUTONOMY" == "caller-autonomy" ]]
+        ' _ "$PROJECT_ROOT" "$SOURCE_ROOT" "$prepare_signal_expected_rc"
+    ); then
+        prepare_signal_case_rc=0
+    else
+        prepare_signal_case_rc=$?
+    fi
+    prepare_signal_residue="$(find "$PREPARE_SIGNAL_TMPDIR" -mindepth 1 -maxdepth 1 -print)"
+    if [[ "$prepare_signal_case_rc" -ne 0 || -n "$prepare_signal_residue" ]]; then
+        prepare_signal_failed=true
+        prepare_signal_failures="${prepare_signal_failures}${prepare_signal} case_rc=${prepare_signal_case_rc} residue=${prepare_signal_residue:-none}; "
+    fi
+    command rm -rf "$PREPARE_SIGNAL_TMPDIR" "$PREPARE_SIGNAL_PID_FILE" "$PREPARE_SIGNAL_DISPATCH_MARKER" "$PREPARE_SIGNAL_INT_MARKER" "$PREPARE_SIGNAL_TERM_MARKER"
+done
+if [[ "$prepare_signal_failed" == "false" ]]; then
+    test_pass
+else
+    test_fail "expected preparation signals to preserve status and caller state without residue: $prepare_signal_failures"
+fi
+
 test_case "real Git consultative dispatch removes its full workspace after success and failure"
 dispatch_cleanup_failed=false
 dispatch_cleanup_failures=""
@@ -1053,6 +1220,49 @@ if [[ "$cleanup_tmpdir_isolated" == "true" && -f "$CLEANUP_SENTINEL" && -f "$CLE
 else
     test_fail "expected exact temp-root cleanup without touching the enclosing repository"
 fi
+
+test_case "an in-scope TMPDIR cannot enter or contain the consultative copy"
+IN_SCOPE_TMP_ROOT="$TEST_TMP_DIR/in-scope-tmp-source"
+IN_SCOPE_TMPDIR="$IN_SCOPE_TMP_ROOT/local-tmp"
+IN_SCOPE_OLD_WORKSPACE="$IN_SCOPE_TMPDIR/octopus-consultative.OLD123"
+IN_SCOPE_OLD_LISTS="$IN_SCOPE_TMPDIR/octopus-copy-lists.OLD123"
+IN_SCOPE_TRACKED_LOOKALIKE="$IN_SCOPE_TMPDIR/octopus-consultative.TRK123"
+mkdir -p "$IN_SCOPE_OLD_WORKSPACE/workspace" "$IN_SCOPE_OLD_LISTS" "$IN_SCOPE_TRACKED_LOOKALIKE"
+(
+    cd "$IN_SCOPE_TMP_ROOT"
+    git init -q
+    git config user.email "test@example.com"
+    git config user.name "test"
+    printf 'tracked\n' > tracked.txt
+    printf 'tracked lookalike\n' > "$IN_SCOPE_TRACKED_LOOKALIKE/kept.txt"
+    git add tracked.txt "$IN_SCOPE_TRACKED_LOOKALIKE/kept.txt"
+    git commit -q -m init
+)
+printf 'old workspace payload\n' > "$IN_SCOPE_OLD_WORKSPACE/workspace/leak.txt"
+printf 'old list payload\n' > "$IN_SCOPE_OLD_LISTS/tracked"
+if workspace="$(
+    export TMPDIR="$IN_SCOPE_TMPDIR"
+    _octopus_prepare_consultative_workspace "$IN_SCOPE_TMP_ROOT"
+)"; then
+    in_scope_tmp_rc=0
+else
+    in_scope_tmp_rc=$?
+fi
+case "$workspace" in
+    "$IN_SCOPE_TMP_ROOT"/*) in_scope_destination=false ;;
+    *) in_scope_destination=true ;;
+esac
+if [[ "$in_scope_tmp_rc" -eq 0 && "$in_scope_destination" == "true" ]] &&
+   [[ "$(cat "$workspace/tracked.txt" 2>/dev/null)" == "tracked" ]] &&
+   [[ "$(cat "$workspace/local-tmp/octopus-consultative.TRK123/kept.txt" 2>/dev/null)" == "tracked lookalike" ]] &&
+   [[ ! -e "$workspace/local-tmp/octopus-consultative.OLD123" ]] &&
+   [[ ! -e "$workspace/local-tmp/octopus-copy-lists.OLD123" ]] &&
+   [[ -f "$IN_SCOPE_OLD_WORKSPACE/workspace/leak.txt" && -f "$IN_SCOPE_OLD_LISTS/tracked" ]]; then
+    test_pass
+else
+    test_fail "expected an out-of-scope destination and no copied Octopus temp state: rc=$in_scope_tmp_rc workspace=${workspace:-none}"
+fi
+[[ -z "${workspace:-}" ]] || command rm -rf "$(dirname "$workspace")"
 
 test_case "a Git-aware copy failure never attempts a whole-tree copy"
 COPY_GUARD_BIN="$TEST_TMP_DIR/copy-guard-bin"

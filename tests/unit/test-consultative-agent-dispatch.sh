@@ -116,16 +116,21 @@ rm() {
     command rm "$@"
 }
 STUB_RESPONSE="Advisory result from disposable workspace."
-cleanup_failure_output=$(run_agent_sync_consultative codex "design only" 120 implementer ceremony 2>/dev/null)
+if cleanup_failure_output=$(run_agent_sync_consultative codex "design only" 120 implementer ceremony 2>/dev/null); then
+    cleanup_failure_rc=0
+else
+    cleanup_failure_rc=$?
+fi
 STUB_RESPONSE=""
 unset -f rm
 failed_temp_root="$(cat "$cleanup_attempt")"
 command rm -rf "$failed_temp_root"
-if [[ "$cleanup_failure_output" == *"could not confirm deletion"* \
+if [[ "$cleanup_failure_rc" -ne 0 \
+   && "$cleanup_failure_output" == *"could not confirm deletion"* \
    && "$cleanup_failure_output" != *"deleted before returning"* ]]; then
     test_pass
 else
-    test_fail "cleanup failure produced false provenance: $cleanup_failure_output"
+    test_fail "cleanup failure did not fail a successful dispatch or produced false provenance: rc=$cleanup_failure_rc output=$cleanup_failure_output"
 fi
 
 test_case "consultative dispatch restores existing environment after success"

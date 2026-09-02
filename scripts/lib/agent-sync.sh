@@ -169,10 +169,13 @@ _octopus_clear_repository_env() {
 
     # Git's command-scope config protocol uses numbered variable names. Clear
     # every inherited pair even when GIT_CONFIG_COUNT itself is malformed or
-    # absent, so advisory code cannot reactivate stale injected configuration.
+    # absent. Trace and redirect variables can write to absolute paths, so they
+    # must not cross the advisory boundary either.
     while IFS= read -r git_env_name; do
         case "$git_env_name" in
-            GIT_CONFIG_KEY_*|GIT_CONFIG_VALUE_*) unset "$git_env_name" 2>/dev/null || true ;;
+            GIT_CONFIG_KEY_*|GIT_CONFIG_VALUE_*|GIT_TRACE*|GIT_REDIRECT_STDIN|GIT_REDIRECT_STDOUT|GIT_REDIRECT_STDERR)
+                unset "$git_env_name" 2>/dev/null || true
+                ;;
         esac
     done < <(compgen -v)
 }
@@ -324,6 +327,43 @@ _octopus_replace_literal() {
     printf '%s' "${result}${value}"
 }
 
+# Print a writable temporary-file parent that is not inside the source scope.
+# Physicalize every candidate before comparison so a symlinked TMPDIR cannot
+# place control files or the destination back under the tree being copied.
+_octopus_temp_parent_outside_source() {
+    local source_scope="$1"
+    local candidate physical_candidate
+
+    for candidate in "${TMPDIR:-/tmp}" /tmp /var/tmp; do
+        [[ -d "$candidate" && -w "$candidate" ]] || continue
+        physical_candidate="$(cd "$candidate" 2>/dev/null && pwd -P)" || continue
+        case "$physical_candidate" in
+            "$source_scope"|"$source_scope"/*) continue ;;
+        esac
+        printf '%s\n' "$physical_candidate"
+        return 0
+    done
+    return 1
+}
+
+# Ignore only untracked remnants created by Octopus itself. Tracked paths with
+# the same shape remain eligible so repository contents and selected-subtree
+# semantics are not weakened.
+_octopus_path_is_generated_temp_artifact() {
+    local remaining="$1"
+    local component
+
+    while :; do
+        component="${remaining%%/*}"
+        case "$component" in
+            octopus-consultative.??????|octopus-copy-lists.??????) return 0 ;;
+        esac
+        [[ "$remaining" == */* ]] || break
+        remaining="${remaining#*/}"
+    done
+    return 1
+}
+
 # Copy only tracked plus untracked-but-not-ignored files from a Git work tree.
 # An optional root-relative scope limits enumeration while paths remain rooted at
 # the repository for validation and archive extraction.
@@ -336,13 +376,15 @@ _octopus_copy_git_tracked_tree() (
     local source_root="$1"
     local workspace="$2"
     local copy_scope="${3:-}"
-    local list_dir filelist copylist nestedlist entry rel entry_path
-    local nested_top nested_rel nested_stage scope_pathspec
+    local list_dir filelist untrackedlist copylist nestedlist entry rel entry_path
+    local nested_top nested_rel nested_stage scope_pathspec copy_confinement_root temp_parent
 
     _octopus_cleanup_copy_list_dir() {
         local cleanup_rc="$1"
         trap - EXIT INT TERM
-        command rm -rf "$list_dir" || cleanup_rc=1
+        if ! command rm -rf "$list_dir"; then
+            [[ "$cleanup_rc" -ne 0 ]] || cleanup_rc=1
+        fi
         exit "$cleanup_rc"
     }
 
@@ -352,25 +394,40 @@ _octopus_copy_git_tracked_tree() (
         _octopus_source_path_has_safe_ancestry "$source_root" "$copy_scope" || return 1
         [[ -d "$source_root/$copy_scope" && ! -L "$source_root/$copy_scope" ]] || return 1
         scope_pathspec=":(literal,top)${copy_scope}"
+        copy_confinement_root="$(cd "$source_root/$copy_scope" 2>/dev/null && pwd -P)" || return 1
+    else
+        copy_confinement_root="$source_root"
     fi
 
-    list_dir="$(mktemp -d "${TMPDIR:-/tmp}/octopus-copy-lists.XXXXXX")" || return 1
+    temp_parent="$(_octopus_temp_parent_outside_source "$copy_confinement_root")" || return 1
+    list_dir="$(mktemp -d "${temp_parent}/octopus-copy-lists.XXXXXX")" || return 1
     trap '_octopus_cleanup_copy_list_dir "$?"' EXIT
     trap '_octopus_cleanup_copy_list_dir 130' INT
     trap '_octopus_cleanup_copy_list_dir 143' TERM
     filelist="${list_dir}/tracked"
+    untrackedlist="${list_dir}/untracked"
     copylist="${list_dir}/copy"
     nestedlist="${list_dir}/nested"
-    : > "$filelist" && : > "$copylist" && : > "$nestedlist" || return 1
+    : > "$filelist" && : > "$untrackedlist" && : > "$copylist" && : > "$nestedlist" || return 1
     if [[ -n "$copy_scope" ]]; then
-        _octopus_git_without_repository_env -C "$source_root" ls-files -z --cached --others --exclude-standard -- "$scope_pathspec" >"$filelist" 2>/dev/null || {
+        _octopus_git_without_repository_env -C "$source_root" ls-files -z --cached -- "$scope_pathspec" >"$filelist" 2>/dev/null || {
             return 1
         }
+        _octopus_git_without_repository_env -C "$source_root" \
+            ls-files -z --others --exclude-standard -- "$scope_pathspec" \
+            >"$untrackedlist" 2>/dev/null || return 1
     else
-        _octopus_git_without_repository_env -C "$source_root" ls-files -z --cached --others --exclude-standard >"$filelist" 2>/dev/null || {
+        _octopus_git_without_repository_env -C "$source_root" ls-files -z --cached >"$filelist" 2>/dev/null || {
             return 1
         }
+        _octopus_git_without_repository_env -C "$source_root" \
+            ls-files -z --others --exclude-standard \
+            >"$untrackedlist" 2>/dev/null || return 1
     fi
+    while IFS= read -r -d '' entry; do
+        _octopus_path_is_generated_temp_artifact "${entry%/}" && continue
+        printf '%s\0' "$entry" >> "$filelist" || return 1
+    done < "$untrackedlist"
 
     while IFS= read -r -d '' entry; do
         rel="${entry%/}"
@@ -456,7 +513,7 @@ _octopus_prepare_consultative_workspace() {
     local source_root="$1"
     local workspace_result_var="${2:-}"
     local temp_root_result_var="${3:-}"
-    local prepared_temp_root prepared_temp_root_raw prepared_workspace git_root source_prefix git_source_kind
+    local prepared_temp_root prepared_temp_root_raw prepared_workspace git_root source_prefix git_source_kind temp_parent
 
     if [[ -n "$workspace_result_var" || -n "$temp_root_result_var" ]]; then
         [[ "$workspace_result_var" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || return 1
@@ -466,7 +523,14 @@ _octopus_prepare_consultative_workspace() {
     source_root="$(cd "$source_root" 2>/dev/null && pwd -P)" || return 1
     git_source_kind="$(_octopus_classify_git_source "$source_root")" || return 1
 
-    prepared_temp_root_raw="$(mktemp -d "${TMPDIR:-/tmp}/octopus-consultative.XXXXXX")" || return 1
+    temp_parent="$(_octopus_temp_parent_outside_source "$source_root")" || return 1
+    prepared_temp_root_raw="$(mktemp -d "${temp_parent}/octopus-consultative.XXXXXX")" || return 1
+    prepared_temp_root="$prepared_temp_root_raw"
+    prepared_workspace="${prepared_temp_root}/workspace"
+    if [[ -n "$workspace_result_var" && -n "$temp_root_result_var" ]]; then
+        printf -v "$workspace_result_var" '%s' "$prepared_workspace"
+        printf -v "$temp_root_result_var" '%s' "$prepared_temp_root"
+    fi
     prepared_temp_root="$(cd "$prepared_temp_root_raw" 2>/dev/null && pwd -P)" || {
         rm -rf "$prepared_temp_root_raw"
         return 1
@@ -590,12 +654,13 @@ run_agent_sync_consultative() (
 
     source_root_logical="$PWD"
     source_root="$(pwd -P)"
+    trap '_octopus_handle_consultative_signal 130' INT
+    trap '_octopus_handle_consultative_signal 143' TERM
     _octopus_prepare_consultative_workspace "$source_root" workspace temp_root || {
+        _octopus_remove_consultative_temp_root "$temp_root" "$workspace" 2>/dev/null || true
         log ERROR "Failed to prepare disposable consultative workspace from: $source_root"
         return 1
     }
-    trap '_octopus_handle_consultative_signal 130' INT
-    trap '_octopus_handle_consultative_signal 143' TERM
     _octopus_consultative_temp_root_is_safe "$temp_root" "$workspace" || {
         log ERROR "Refusing unsafe consultative workspace paths"
         return 1
@@ -632,6 +697,7 @@ This copy intentionally contains no Git control-plane metadata. Inspect the copi
     cleanup_note="Octopus deleted the workspace before returning."
     if ! _octopus_remove_consultative_temp_root "$temp_root" "$workspace" 2>/dev/null; then
         cleanup_note="Octopus attempted cleanup before returning but could not confirm deletion."
+        [[ "$rc" -ne 0 ]] || rc=1
         if declare -F log >/dev/null 2>&1; then
             log WARN "Failed to remove consultative workspace: $temp_root"
         else
