@@ -322,16 +322,23 @@ _octopus_replace_literal() {
 _octopus_copy_git_tracked_tree() (
     local source_root="$1"
     local workspace="$2"
-    local list_dir filelist copylist nestedlist entry rel entry_path copy_rc
+    local list_dir filelist copylist nestedlist entry rel entry_path
     local nested_top nested_rel
+
+    _octopus_cleanup_copy_list_dir() {
+        local cleanup_rc="$1"
+        trap - EXIT INT TERM
+        command rm -rf "$list_dir" || cleanup_rc=1
+        exit "$cleanup_rc"
+    }
 
     _octopus_git_without_repository_env -C "$source_root" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
     source_root="$(cd "$source_root" 2>/dev/null && pwd -P)" || return 1
 
     list_dir="$(mktemp -d "${TMPDIR:-/tmp}/octopus-copy-lists.XXXXXX")" || return 1
-    trap 'copy_rc=$?; trap - EXIT INT TERM; command rm -rf "$list_dir" || copy_rc=1; exit "$copy_rc"' EXIT
-    trap 'exit 130' INT
-    trap 'exit 143' TERM
+    trap '_octopus_cleanup_copy_list_dir "$?"' EXIT
+    trap '_octopus_cleanup_copy_list_dir 130' INT
+    trap '_octopus_cleanup_copy_list_dir 143' TERM
     filelist="${list_dir}/tracked"
     copylist="${list_dir}/copy"
     nestedlist="${list_dir}/nested"

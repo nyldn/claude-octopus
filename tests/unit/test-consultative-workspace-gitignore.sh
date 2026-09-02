@@ -537,6 +537,10 @@ test_case "Git copy list directory is removed after INT and TERM"
 copy_list_signal_failed=false
 copy_list_signal_failures=""
 for copy_list_signal in INT TERM; do
+    case "$copy_list_signal" in
+        INT) copy_list_signal_expected_rc=130 ;;
+        TERM) copy_list_signal_expected_rc=143 ;;
+    esac
     COPY_LIST_SIGNAL_TMPDIR="$TEST_TMP_DIR/copy-list-signal-${copy_list_signal}"
     COPY_LIST_SIGNAL_WORKSPACE="$TEST_TMP_DIR/copy-list-signal-workspace-${copy_list_signal}"
     mkdir -p "$COPY_LIST_SIGNAL_TMPDIR" "$COPY_LIST_SIGNAL_WORKSPACE"
@@ -546,21 +550,30 @@ for copy_list_signal in INT TERM; do
         export SIGNAL_NAME="$copy_list_signal"
         /bin/bash -c '
             source "$1/scripts/lib/agent-sync.sh"
+            copy_list_signal_pid_file="$4"
             _octopus_validate_copy_source_path() {
-                kill -s "$SIGNAL_NAME" "${BASHPID:-$$}"
+                local copy_list_subshell_pid
+                /bin/sh -c '\''printf "%s\n" "$PPID" > "$1"'\'' _ "$copy_list_signal_pid_file" || return 1
+                IFS= read -r copy_list_subshell_pid < "$copy_list_signal_pid_file" || return 1
+                rm -f "$copy_list_signal_pid_file" || return 1
+                case "$copy_list_subshell_pid" in
+                    ""|*[!0-9]*) return 1 ;;
+                esac
+                [[ "$copy_list_subshell_pid" != "$$" ]] || return 1
+                kill -s "$SIGNAL_NAME" "$copy_list_subshell_pid"
                 return 1
             }
             _octopus_copy_git_tracked_tree "$2" "$3"
-        ' _ "$PROJECT_ROOT" "$SOURCE_ROOT" "$COPY_LIST_SIGNAL_WORKSPACE"
+        ' _ "$PROJECT_ROOT" "$SOURCE_ROOT" "$COPY_LIST_SIGNAL_WORKSPACE" "$COPY_LIST_SIGNAL_WORKSPACE/subshell.pid"
     ) >/dev/null 2>&1; then
         copy_list_signal_rc=0
     else
         copy_list_signal_rc=$?
     fi
     copy_list_signal_residue="$(find "$COPY_LIST_SIGNAL_TMPDIR" -mindepth 1 -maxdepth 1 -print)"
-    if [[ "$copy_list_signal_rc" -eq 0 || -n "$copy_list_signal_residue" ]]; then
+    if [[ "$copy_list_signal_rc" -ne "$copy_list_signal_expected_rc" || -n "$copy_list_signal_residue" ]]; then
         copy_list_signal_failed=true
-        copy_list_signal_failures="${copy_list_signal_failures}${copy_list_signal} rc=${copy_list_signal_rc} residue=${copy_list_signal_residue:-none}; "
+        copy_list_signal_failures="${copy_list_signal_failures}${copy_list_signal} rc=${copy_list_signal_rc} expected=${copy_list_signal_expected_rc} residue=${copy_list_signal_residue:-none}; "
     fi
     rm -rf "$COPY_LIST_SIGNAL_TMPDIR" "$COPY_LIST_SIGNAL_WORKSPACE"
 done
