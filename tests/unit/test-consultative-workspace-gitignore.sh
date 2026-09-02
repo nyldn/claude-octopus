@@ -723,7 +723,7 @@ fi
 copy_list_call_count="$(wc -l < "$COPY_LIST_MKTEMP_CALLS" | tr -d ' ')"
 copy_list_residue="$(find "$COPY_LIST_TMPDIR" -mindepth 1 -maxdepth 1 -print)"
 if [[ "$copy_list_rc" -eq 0 && "$copy_list_call_count" == "1" && -z "$copy_list_residue" ]] &&
-   grep -Eq '^argc=2 first=-d second=.*/octopus-copy-lists\.XXXXXX$' "$COPY_LIST_MKTEMP_CALLS"; then
+   grep -Eq '^argc=2 first=-d second=.*/octopus-copy-lists\.[0-9]+\.[0-9]+\.XXXXXX$' "$COPY_LIST_MKTEMP_CALLS"; then
     test_pass
 else
     test_fail "expected one cleaned mktemp -d list allocation: rc=$copy_list_rc calls=$copy_list_call_count residue=$copy_list_residue"
@@ -848,6 +848,76 @@ else
     test_fail "expected INT and TERM status with no list residue: $copy_list_signal_failures"
 fi
 
+test_case "copy-list allocation owns real mktemp output before INT and TERM"
+COPY_LIST_ALLOCATION_BIN="$TEST_TMP_DIR/copy-list-allocation-bin"
+COPY_LIST_ALLOCATION_MARKER="$TEST_TMP_DIR/copy-list-allocation-created"
+COPY_LIST_ALLOCATION_INT_MARKER="$TEST_TMP_DIR/copy-list-allocation-caller-int"
+COPY_LIST_ALLOCATION_TERM_MARKER="$TEST_TMP_DIR/copy-list-allocation-caller-term"
+REAL_MKTEMP="$(command -v mktemp)"
+mkdir -p "$COPY_LIST_ALLOCATION_BIN"
+cat > "$COPY_LIST_ALLOCATION_BIN/mktemp" <<'EOF'
+#!/usr/bin/env bash
+allocated="$($REAL_MKTEMP "$@")" || exit 91
+printf '%s\n' "$allocated" > "$COPY_LIST_ALLOCATION_MARKER" || exit 92
+kill -s "$SIGNAL_NAME" "$PPID" || exit 93
+printf '%s\n' "$allocated"
+EOF
+chmod +x "$COPY_LIST_ALLOCATION_BIN/mktemp"
+copy_list_allocation_failed=false
+copy_list_allocation_failures=""
+for copy_list_allocation_signal in INT TERM; do
+    case "$copy_list_allocation_signal" in
+        INT) copy_list_allocation_expected_rc=130 ;;
+        TERM) copy_list_allocation_expected_rc=143 ;;
+    esac
+    COPY_LIST_ALLOCATION_TMPDIR="$TEST_TMP_DIR/copy-list-allocation-${copy_list_allocation_signal}"
+    COPY_LIST_ALLOCATION_WORKSPACE="$TEST_TMP_DIR/copy-list-allocation-workspace-${copy_list_allocation_signal}"
+    rm -f "$COPY_LIST_ALLOCATION_MARKER" "$COPY_LIST_ALLOCATION_INT_MARKER" "$COPY_LIST_ALLOCATION_TERM_MARKER"
+    mkdir -p "$COPY_LIST_ALLOCATION_TMPDIR" "$COPY_LIST_ALLOCATION_WORKSPACE"
+    if (
+        export TMPDIR="$COPY_LIST_ALLOCATION_TMPDIR"
+        export PATH="$COPY_LIST_ALLOCATION_BIN:$PATH"
+        export REAL_MKTEMP COPY_LIST_ALLOCATION_MARKER
+        export SIGNAL_NAME="$copy_list_allocation_signal"
+        export COPY_LIST_ALLOCATION_INT_MARKER COPY_LIST_ALLOCATION_TERM_MARKER
+        export OCTOPUS_ALLOCATION_CALLER_ENV="preserved"
+        trap 'printf "caller INT trap ran\n" > "$COPY_LIST_ALLOCATION_INT_MARKER"' INT
+        trap 'printf "caller TERM trap ran\n" > "$COPY_LIST_ALLOCATION_TERM_MARKER"' TERM
+        caller_int_before="$(trap -p INT)"
+        caller_term_before="$(trap -p TERM)"
+        caller_pwd_before="$(pwd -P)"
+        set +e
+        _octopus_copy_git_tracked_tree "$SOURCE_ROOT" "$COPY_LIST_ALLOCATION_WORKSPACE"
+        allocation_rc=$?
+        set -e
+        allocation_residue="$(find "$TMPDIR" -mindepth 1 -maxdepth 1 -print)"
+        [[ "$allocation_rc" -eq "$copy_list_allocation_expected_rc" ]] &&
+            [[ -f "$COPY_LIST_ALLOCATION_MARKER" ]] &&
+            [[ -z "$allocation_residue" ]] &&
+            [[ ! -e "$COPY_LIST_ALLOCATION_INT_MARKER" && ! -e "$COPY_LIST_ALLOCATION_TERM_MARKER" ]] &&
+            [[ "$(trap -p INT)" == "$caller_int_before" ]] &&
+            [[ "$(trap -p TERM)" == "$caller_term_before" ]] &&
+            [[ "$(pwd -P)" == "$caller_pwd_before" ]] &&
+            [[ "$OCTOPUS_ALLOCATION_CALLER_ENV" == "preserved" ]]
+    ); then
+        copy_list_allocation_case_rc=0
+    else
+        copy_list_allocation_case_rc=$?
+    fi
+    copy_list_allocation_residue="$(find "$COPY_LIST_ALLOCATION_TMPDIR" -mindepth 1 -maxdepth 1 -print)"
+    if [[ "$copy_list_allocation_case_rc" -ne 0 || -n "$copy_list_allocation_residue" ]]; then
+        copy_list_allocation_failed=true
+        copy_list_allocation_failures="${copy_list_allocation_failures}${copy_list_allocation_signal} case_rc=${copy_list_allocation_case_rc} residue=${copy_list_allocation_residue:-none}; "
+    fi
+    command rm -rf "$COPY_LIST_ALLOCATION_TMPDIR" "$COPY_LIST_ALLOCATION_WORKSPACE"
+done
+command rm -rf "$COPY_LIST_ALLOCATION_BIN" "$COPY_LIST_ALLOCATION_MARKER" "$COPY_LIST_ALLOCATION_INT_MARKER" "$COPY_LIST_ALLOCATION_TERM_MARKER"
+if [[ "$copy_list_allocation_failed" == "false" ]]; then
+    test_pass
+else
+    test_fail "expected allocation-time signals to preserve status and caller state without list residue: $copy_list_allocation_failures"
+fi
+
 test_case "copy-list cleanup failure preserves TERM status and fails normal success"
 COPY_LIST_RM_FAILURE_TMPDIR="$TEST_TMP_DIR/copy-list-rm-failure-tmp"
 COPY_LIST_RM_FAILURE_WORKSPACE="$TEST_TMP_DIR/copy-list-rm-failure-workspace"
@@ -858,7 +928,7 @@ mkdir -p "$COPY_LIST_RM_FAILURE_TMPDIR" "$COPY_LIST_RM_FAILURE_WORKSPACE" "$COPY
 cat > "$COPY_LIST_RM_FAILURE_BIN/rm" <<'EOF'
 #!/usr/bin/env bash
 case "${2:-}" in
-    */octopus-copy-lists.??????) exit 95 ;;
+    */octopus-copy-lists.*.*.??????) exit 95 ;;
 esac
 exec "$REAL_RM" "$@"
 EOF
@@ -979,6 +1049,138 @@ else
     test_fail "expected preparation signals to preserve status and caller state without residue: $prepare_signal_failures"
 fi
 
+test_case "consultative root allocation owns real mktemp output before INT and TERM"
+ROOT_ALLOCATION_BIN="$TEST_TMP_DIR/root-allocation-bin"
+ROOT_ALLOCATION_MARKER="$TEST_TMP_DIR/root-allocation-created"
+ROOT_ALLOCATION_DISPATCH_MARKER="$TEST_TMP_DIR/root-allocation-dispatched"
+ROOT_ALLOCATION_INT_MARKER="$TEST_TMP_DIR/root-allocation-caller-int"
+ROOT_ALLOCATION_TERM_MARKER="$TEST_TMP_DIR/root-allocation-caller-term"
+REAL_MKTEMP="$(command -v mktemp)"
+mkdir -p "$ROOT_ALLOCATION_BIN"
+cat > "$ROOT_ALLOCATION_BIN/mktemp" <<'EOF'
+#!/usr/bin/env bash
+allocated="$($REAL_MKTEMP "$@")" || exit 91
+printf '%s\n' "$allocated" > "$ROOT_ALLOCATION_MARKER" || exit 92
+kill -s "$SIGNAL_NAME" "$PPID" || exit 93
+printf '%s\n' "$allocated"
+EOF
+chmod +x "$ROOT_ALLOCATION_BIN/mktemp"
+root_allocation_failed=false
+root_allocation_failures=""
+for root_allocation_signal in INT TERM; do
+    case "$root_allocation_signal" in
+        INT) root_allocation_expected_rc=130 ;;
+        TERM) root_allocation_expected_rc=143 ;;
+    esac
+    ROOT_ALLOCATION_TMPDIR="$TEST_TMP_DIR/root-allocation-${root_allocation_signal}"
+    rm -f "$ROOT_ALLOCATION_MARKER" "$ROOT_ALLOCATION_DISPATCH_MARKER" "$ROOT_ALLOCATION_INT_MARKER" "$ROOT_ALLOCATION_TERM_MARKER"
+    mkdir -p "$ROOT_ALLOCATION_TMPDIR"
+    if (
+        export TMPDIR="$ROOT_ALLOCATION_TMPDIR"
+        export PATH="$ROOT_ALLOCATION_BIN:$PATH"
+        export REAL_MKTEMP ROOT_ALLOCATION_MARKER ROOT_ALLOCATION_DISPATCH_MARKER
+        export SIGNAL_NAME="$root_allocation_signal"
+        export ROOT_ALLOCATION_INT_MARKER ROOT_ALLOCATION_TERM_MARKER
+        export OCTOPUS_SECURITY_V870="caller-security"
+        export OCTOPUS_AGY_SANDBOX="caller-agy"
+        export OCTOPUS_CODEX_SANDBOX="caller-codex"
+        export CLAUDE_OCTOPUS_AUTONOMY="caller-autonomy"
+        log() { :; }
+        run_agent_sync() { printf "ran\n" > "$ROOT_ALLOCATION_DISPATCH_MARKER"; }
+        trap 'printf "caller INT trap ran\n" > "$ROOT_ALLOCATION_INT_MARKER"' INT
+        trap 'printf "caller TERM trap ran\n" > "$ROOT_ALLOCATION_TERM_MARKER"' TERM
+        caller_int_before="$(trap -p INT)"
+        caller_term_before="$(trap -p TERM)"
+        cd "$SOURCE_ROOT" || exit 98
+        source_pwd="$(pwd -P)"
+        set +e
+        run_agent_sync_consultative codex "review only" 120 reviewer ceremony >/dev/null 2>&1
+        allocation_rc=$?
+        set -e
+        allocation_residue="$(find "$TMPDIR" -mindepth 1 -maxdepth 1 -print)"
+        [[ "$allocation_rc" -eq "$root_allocation_expected_rc" ]] &&
+            [[ -f "$ROOT_ALLOCATION_MARKER" ]] &&
+            [[ -z "$allocation_residue" ]] &&
+            [[ ! -e "$ROOT_ALLOCATION_DISPATCH_MARKER" ]] &&
+            [[ ! -e "$ROOT_ALLOCATION_INT_MARKER" && ! -e "$ROOT_ALLOCATION_TERM_MARKER" ]] &&
+            [[ "$(trap -p INT)" == "$caller_int_before" ]] &&
+            [[ "$(trap -p TERM)" == "$caller_term_before" ]] &&
+            [[ "$(pwd -P)" == "$source_pwd" ]] &&
+            [[ "$OCTOPUS_SECURITY_V870" == "caller-security" ]] &&
+            [[ "$OCTOPUS_AGY_SANDBOX" == "caller-agy" ]] &&
+            [[ "$OCTOPUS_CODEX_SANDBOX" == "caller-codex" ]] &&
+            [[ "$CLAUDE_OCTOPUS_AUTONOMY" == "caller-autonomy" ]]
+    ); then
+        root_allocation_case_rc=0
+    else
+        root_allocation_case_rc=$?
+    fi
+    root_allocation_residue="$(find "$ROOT_ALLOCATION_TMPDIR" -mindepth 1 -maxdepth 1 -print)"
+    if [[ "$root_allocation_case_rc" -ne 0 || -n "$root_allocation_residue" ]]; then
+        root_allocation_failed=true
+        root_allocation_failures="${root_allocation_failures}${root_allocation_signal} case_rc=${root_allocation_case_rc} residue=${root_allocation_residue:-none}; "
+    fi
+    command rm -rf "$ROOT_ALLOCATION_TMPDIR"
+done
+command rm -rf "$ROOT_ALLOCATION_BIN" "$ROOT_ALLOCATION_MARKER" "$ROOT_ALLOCATION_DISPATCH_MARKER" "$ROOT_ALLOCATION_INT_MARKER" "$ROOT_ALLOCATION_TERM_MARKER"
+if [[ "$root_allocation_failed" == "false" ]]; then
+    test_pass
+else
+    test_fail "expected allocation-time signals to preserve status and caller state without root residue or dispatch: $root_allocation_failures"
+fi
+
+test_case "failed mktemp calls clean created allocations and prevent dispatch"
+MKTEMP_FAILURE_BIN="$TEST_TMP_DIR/mktemp-failure-bin"
+MKTEMP_FAILURE_MARKER="$TEST_TMP_DIR/mktemp-failure-created"
+MKTEMP_FAILURE_DISPATCH_MARKER="$TEST_TMP_DIR/mktemp-failure-dispatched"
+MKTEMP_FAILURE_COPY_TMPDIR="$TEST_TMP_DIR/mktemp-failure-copy-tmp"
+MKTEMP_FAILURE_ROOT_TMPDIR="$TEST_TMP_DIR/mktemp-failure-root-tmp"
+MKTEMP_FAILURE_WORKSPACE="$TEST_TMP_DIR/mktemp-failure-workspace"
+REAL_MKTEMP="$(command -v mktemp)"
+mkdir -p "$MKTEMP_FAILURE_BIN" "$MKTEMP_FAILURE_COPY_TMPDIR" "$MKTEMP_FAILURE_ROOT_TMPDIR" "$MKTEMP_FAILURE_WORKSPACE"
+cat > "$MKTEMP_FAILURE_BIN/mktemp" <<'EOF'
+#!/usr/bin/env bash
+allocated="$($REAL_MKTEMP "$@")" || exit 91
+printf '%s\n' "$allocated" >> "$MKTEMP_FAILURE_MARKER" || exit 92
+exit 97
+EOF
+chmod +x "$MKTEMP_FAILURE_BIN/mktemp"
+if (
+    export TMPDIR="$MKTEMP_FAILURE_COPY_TMPDIR"
+    export PATH="$MKTEMP_FAILURE_BIN:$PATH"
+    export REAL_MKTEMP MKTEMP_FAILURE_MARKER
+    _octopus_copy_git_tracked_tree "$SOURCE_ROOT" "$MKTEMP_FAILURE_WORKSPACE"
+); then
+    mktemp_failure_copy_rc=0
+else
+    mktemp_failure_copy_rc=$?
+fi
+mktemp_failure_copy_residue="$(find "$MKTEMP_FAILURE_COPY_TMPDIR" -mindepth 1 -maxdepth 1 -print)"
+if (
+    export TMPDIR="$MKTEMP_FAILURE_ROOT_TMPDIR"
+    export PATH="$MKTEMP_FAILURE_BIN:$PATH"
+    export REAL_MKTEMP MKTEMP_FAILURE_MARKER MKTEMP_FAILURE_DISPATCH_MARKER
+    log() { :; }
+    run_agent_sync() { printf 'ran\n' > "$MKTEMP_FAILURE_DISPATCH_MARKER"; }
+    cd "$SOURCE_ROOT" || exit 98
+    run_agent_sync_consultative codex "review only" 120 reviewer ceremony >/dev/null 2>&1
+); then
+    mktemp_failure_root_rc=0
+else
+    mktemp_failure_root_rc=$?
+fi
+mktemp_failure_root_residue="$(find "$MKTEMP_FAILURE_ROOT_TMPDIR" -mindepth 1 -maxdepth 1 -print)"
+mktemp_failure_calls="$(wc -l < "$MKTEMP_FAILURE_MARKER" | tr -d ' ')"
+if [[ "$mktemp_failure_copy_rc" -ne 0 && "$mktemp_failure_root_rc" -ne 0 ]] &&
+   [[ "$mktemp_failure_calls" == "2" ]] &&
+   [[ -z "$mktemp_failure_copy_residue" && -z "$mktemp_failure_root_residue" ]] &&
+   [[ ! -e "$MKTEMP_FAILURE_DISPATCH_MARKER" ]]; then
+    test_pass
+else
+    test_fail "expected both post-create mktemp failures to fail closed without residue or dispatch: copy_rc=$mktemp_failure_copy_rc root_rc=$mktemp_failure_root_rc calls=$mktemp_failure_calls"
+fi
+command rm -rf "$MKTEMP_FAILURE_BIN" "$MKTEMP_FAILURE_MARKER" "$MKTEMP_FAILURE_COPY_TMPDIR" "$MKTEMP_FAILURE_ROOT_TMPDIR" "$MKTEMP_FAILURE_WORKSPACE" "$MKTEMP_FAILURE_DISPATCH_MARKER"
+
 test_case "real Git consultative dispatch removes its full workspace after success and failure"
 dispatch_cleanup_failed=false
 dispatch_cleanup_failures=""
@@ -1008,7 +1210,7 @@ for dispatch_mode in success failure; do
             log() { :; }
             run_agent_sync() {
                 case "$PWD" in
-                    "$TMPDIR"/octopus-consultative.??????/workspace) ;;
+                    "$TMPDIR"/octopus-consultative.*.*.??????/workspace) ;;
                     *) return 96 ;;
                 esac
                 [[ -d "$PWD" ]] || return 96
@@ -1035,7 +1237,7 @@ for dispatch_mode in success failure; do
             dispatch_residue="$(find "$TMPDIR" -mindepth 1 -maxdepth 1 -print)"
             IFS= read -r dispatch_workspace < "$DISPATCH_CLEANUP_STARTED" || exit 1
             dispatch_temp_root="${dispatch_workspace%/workspace}"
-            [[ "$dispatch_workspace" == "$TMPDIR"/octopus-consultative.??????/workspace ]] &&
+            [[ "$dispatch_workspace" == "$TMPDIR"/octopus-consultative.*.*.??????/workspace ]] &&
                 [[ ! -e "$dispatch_temp_root" ]] &&
                 [[ "$dispatch_rc" -eq "$3" ]] &&
                 [[ -z "$dispatch_residue" ]] &&
@@ -1097,7 +1299,7 @@ for dispatch_signal in INT TERM; do
             run_agent_sync() {
                 local command_subshell_pid consultative_pid
                 case "$PWD" in
-                    "$TMPDIR"/octopus-consultative.??????/workspace) ;;
+                    "$TMPDIR"/octopus-consultative.*.*.??????/workspace) ;;
                     *) return 96 ;;
                 esac
                 [[ -d "$PWD" ]] || return 96
@@ -1129,7 +1331,7 @@ for dispatch_signal in INT TERM; do
             dispatch_residue="$(find "$TMPDIR" -mindepth 1 -maxdepth 1 -print)"
             IFS= read -r dispatch_workspace < "$DISPATCH_SIGNAL_STARTED" || exit 1
             dispatch_temp_root="${dispatch_workspace%/workspace}"
-            [[ "$dispatch_workspace" == "$TMPDIR"/octopus-consultative.??????/workspace ]] &&
+            [[ "$dispatch_workspace" == "$TMPDIR"/octopus-consultative.*.*.??????/workspace ]] &&
                 [[ ! -e "$dispatch_temp_root" ]] &&
                 [[ "$dispatch_rc" -eq "$3" ]] &&
                 [[ -z "$dispatch_residue" ]] &&
@@ -1224,9 +1426,9 @@ fi
 test_case "an in-scope TMPDIR cannot enter or contain the consultative copy"
 IN_SCOPE_TMP_ROOT="$TEST_TMP_DIR/in-scope-tmp-source"
 IN_SCOPE_TMPDIR="$IN_SCOPE_TMP_ROOT/local-tmp"
-IN_SCOPE_OLD_WORKSPACE="$IN_SCOPE_TMPDIR/octopus-consultative.OLD123"
-IN_SCOPE_OLD_LISTS="$IN_SCOPE_TMPDIR/octopus-copy-lists.OLD123"
-IN_SCOPE_TRACKED_LOOKALIKE="$IN_SCOPE_TMPDIR/octopus-consultative.TRK123"
+IN_SCOPE_OLD_WORKSPACE="$IN_SCOPE_TMPDIR/octopus-consultative.12345.67890.OLD123"
+IN_SCOPE_OLD_LISTS="$IN_SCOPE_TMPDIR/octopus-copy-lists.12345.67890.OLD123"
+IN_SCOPE_TRACKED_LOOKALIKE="$IN_SCOPE_TMPDIR/octopus-consultative.13579.24680.TRK123"
 mkdir -p "$IN_SCOPE_OLD_WORKSPACE/workspace" "$IN_SCOPE_OLD_LISTS" "$IN_SCOPE_TRACKED_LOOKALIKE"
 (
     cd "$IN_SCOPE_TMP_ROOT"
@@ -1254,9 +1456,9 @@ case "$workspace" in
 esac
 if [[ "$in_scope_tmp_rc" -eq 0 && "$in_scope_destination" == "true" ]] &&
    [[ "$(cat "$workspace/tracked.txt" 2>/dev/null)" == "tracked" ]] &&
-   [[ "$(cat "$workspace/local-tmp/octopus-consultative.TRK123/kept.txt" 2>/dev/null)" == "tracked lookalike" ]] &&
-   [[ ! -e "$workspace/local-tmp/octopus-consultative.OLD123" ]] &&
-   [[ ! -e "$workspace/local-tmp/octopus-copy-lists.OLD123" ]] &&
+   [[ "$(cat "$workspace/local-tmp/octopus-consultative.13579.24680.TRK123/kept.txt" 2>/dev/null)" == "tracked lookalike" ]] &&
+   [[ ! -e "$workspace/local-tmp/octopus-consultative.12345.67890.OLD123" ]] &&
+   [[ ! -e "$workspace/local-tmp/octopus-copy-lists.12345.67890.OLD123" ]] &&
    [[ -f "$IN_SCOPE_OLD_WORKSPACE/workspace/leak.txt" && -f "$IN_SCOPE_OLD_LISTS/tracked" ]]; then
     test_pass
 else

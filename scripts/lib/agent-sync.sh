@@ -346,6 +346,91 @@ _octopus_temp_parent_outside_source() {
     return 1
 }
 
+_octopus_temp_name_matches() {
+    local temp_name="$1"
+    local stem="$2"
+    local remainder owner_pid owner_nonce suffix
+
+    case "$temp_name" in
+        "$stem".??????) return 0 ;;
+    esac
+
+    remainder="${temp_name#"$stem".}"
+    [[ "$remainder" != "$temp_name" && "$remainder" == *.*.* ]] || return 1
+    owner_pid="${remainder%%.*}"
+    remainder="${remainder#*.}"
+    owner_nonce="${remainder%%.*}"
+    suffix="${remainder#*.}"
+    [[ "$suffix" != "$remainder" && "$suffix" != *.* ]] || return 1
+    case "$owner_pid" in
+        ""|*[!0-9]*) return 1 ;;
+    esac
+    case "$owner_nonce" in
+        ""|*[!0-9]*) return 1 ;;
+    esac
+    case "$suffix" in
+        ??????) return 0 ;;
+    esac
+    return 1
+}
+
+# Build a process-owned prefix before mktemp can create anything. Signal
+# cleanup can then identify this invocation's directory even while the mktemp
+# command substitution has not yet assigned its output.
+_octopus_prepare_owned_temp_prefix() {
+    local result_var="$1"
+    local temp_parent="$2"
+    local stem="$3"
+    local owner_pid owner_nonce prefix
+
+    [[ "$result_var" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || return 1
+    case "$stem" in
+        octopus-consultative|octopus-copy-lists) ;;
+        *) return 1 ;;
+    esac
+    [[ "$temp_parent" == /* && -d "$temp_parent" && ! -L "$temp_parent" ]] || return 1
+    [[ "$(cd "$temp_parent" 2>/dev/null && pwd -P)" == "$temp_parent" ]] || return 1
+    owner_pid="$(/bin/sh -c 'printf "%s\n" "$PPID"')" || return 1
+    case "$owner_pid" in
+        ""|*[!0-9]*) return 1 ;;
+    esac
+    owner_nonce="${RANDOM}${RANDOM}"
+    prefix="${temp_parent}/${stem}.${owner_pid}.${owner_nonce}"
+    printf -v "$result_var" '%s' "$prefix"
+}
+
+_octopus_owned_temp_dir_is_safe() {
+    local allocation_prefix="$1"
+    local candidate="$2"
+    local physical_candidate
+
+    [[ -n "$allocation_prefix" && "$allocation_prefix" == /* ]] || return 1
+    case "$candidate" in
+        "$allocation_prefix".??????) ;;
+        *) return 1 ;;
+    esac
+    [[ -d "$candidate" && ! -L "$candidate" ]] || return 1
+    physical_candidate="$(cd "$candidate" 2>/dev/null && pwd -P)" || return 1
+    [[ "$physical_candidate" == "$candidate" ]]
+}
+
+_octopus_remove_owned_temp_dirs() {
+    local allocation_prefix="$1"
+    local candidate cleanup_failed=false
+
+    [[ -n "$allocation_prefix" ]] || return 0
+    [[ "$allocation_prefix" == /* ]] || return 1
+    for candidate in "$allocation_prefix".??????; do
+        [[ -e "$candidate" || -L "$candidate" ]] || continue
+        if ! _octopus_owned_temp_dir_is_safe "$allocation_prefix" "$candidate"; then
+            cleanup_failed=true
+            continue
+        fi
+        command rm -rf "$candidate" || cleanup_failed=true
+    done
+    [[ "$cleanup_failed" == "false" ]]
+}
+
 # Ignore only untracked remnants created by Octopus itself. Tracked paths with
 # the same shape remain eligible so repository contents and selected-subtree
 # semantics are not weakened.
@@ -355,9 +440,8 @@ _octopus_path_is_generated_temp_artifact() {
 
     while :; do
         component="${remaining%%/*}"
-        case "$component" in
-            octopus-consultative.??????|octopus-copy-lists.??????) return 0 ;;
-        esac
+        _octopus_temp_name_matches "$component" "octopus-consultative" && return 0
+        _octopus_temp_name_matches "$component" "octopus-copy-lists" && return 0
         [[ "$remaining" == */* ]] || break
         remaining="${remaining#*/}"
     done
@@ -377,12 +461,12 @@ _octopus_copy_git_tracked_tree() (
     local workspace="$2"
     local copy_scope="${3:-}"
     local list_dir filelist untrackedlist copylist nestedlist entry rel entry_path
-    local nested_top nested_rel nested_stage scope_pathspec copy_confinement_root temp_parent
+    local nested_top nested_rel nested_stage scope_pathspec copy_confinement_root temp_parent list_dir_prefix
 
     _octopus_cleanup_copy_list_dir() {
         local cleanup_rc="$1"
         trap - EXIT INT TERM
-        if ! command rm -rf "$list_dir"; then
+        if ! _octopus_remove_owned_temp_dirs "$list_dir_prefix"; then
             [[ "$cleanup_rc" -ne 0 ]] || cleanup_rc=1
         fi
         exit "$cleanup_rc"
@@ -400,10 +484,15 @@ _octopus_copy_git_tracked_tree() (
     fi
 
     temp_parent="$(_octopus_temp_parent_outside_source "$copy_confinement_root")" || return 1
-    list_dir="$(mktemp -d "${temp_parent}/octopus-copy-lists.XXXXXX")" || return 1
+    list_dir=""
+    list_dir_prefix=""
+    # The handler owns the unique prefix before mktemp can create its directory.
     trap '_octopus_cleanup_copy_list_dir "$?"' EXIT
     trap '_octopus_cleanup_copy_list_dir 130' INT
     trap '_octopus_cleanup_copy_list_dir 143' TERM
+    _octopus_prepare_owned_temp_prefix list_dir_prefix "$temp_parent" "octopus-copy-lists" || return 1
+    list_dir="$(mktemp -d "${list_dir_prefix}.XXXXXX")" || return 1
+    _octopus_owned_temp_dir_is_safe "$list_dir_prefix" "$list_dir" || return 1
     filelist="${list_dir}/tracked"
     untrackedlist="${list_dir}/untracked"
     copylist="${list_dir}/copy"
@@ -513,7 +602,7 @@ _octopus_prepare_consultative_workspace() {
     local source_root="$1"
     local workspace_result_var="${2:-}"
     local temp_root_result_var="${3:-}"
-    local prepared_temp_root prepared_temp_root_raw prepared_workspace git_root source_prefix git_source_kind temp_parent
+    local prepared_temp_root prepared_temp_root_raw prepared_workspace git_root source_prefix git_source_kind temp_parent temp_root_prefix
 
     if [[ -n "$workspace_result_var" || -n "$temp_root_result_var" ]]; then
         [[ "$workspace_result_var" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || return 1
@@ -524,7 +613,22 @@ _octopus_prepare_consultative_workspace() {
     git_source_kind="$(_octopus_classify_git_source "$source_root")" || return 1
 
     temp_parent="$(_octopus_temp_parent_outside_source "$source_root")" || return 1
-    prepared_temp_root_raw="$(mktemp -d "${temp_parent}/octopus-consultative.XXXXXX")" || return 1
+    temp_root_prefix=""
+    _octopus_prepare_owned_temp_prefix temp_root_prefix "$temp_parent" "octopus-consultative" || return 1
+    if [[ -n "${4:-}" ]]; then
+        [[ "$4" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || return 1
+        # Publish ownership before mktemp so the caller's signal trap can clean
+        # a directory whose command substitution has not returned yet.
+        printf -v "$4" '%s' "$temp_root_prefix"
+    fi
+    prepared_temp_root_raw="$(mktemp -d "${temp_root_prefix}.XXXXXX")" || {
+        _octopus_remove_owned_temp_dirs "$temp_root_prefix" >/dev/null 2>&1 || true
+        return 1
+    }
+    _octopus_owned_temp_dir_is_safe "$temp_root_prefix" "$prepared_temp_root_raw" || {
+        _octopus_remove_owned_temp_dirs "$temp_root_prefix" >/dev/null 2>&1 || true
+        return 1
+    }
     prepared_temp_root="$prepared_temp_root_raw"
     prepared_workspace="${prepared_temp_root}/workspace"
     if [[ -n "$workspace_result_var" && -n "$temp_root_result_var" ]]; then
@@ -595,10 +699,7 @@ _octopus_consultative_temp_root_is_safe() {
     physical_temp_root="$(cd "$temp_root" 2>/dev/null && pwd -P)" || return 1
     [[ "$physical_temp_root" == "$temp_root" ]] || return 1
     temp_name="$(basename "$temp_root")"
-    case "$temp_name" in
-        octopus-consultative.??????) ;;
-        *) return 1 ;;
-    esac
+    _octopus_temp_name_matches "$temp_name" "octopus-consultative" || return 1
     case "$workspace" in
         "$temp_root/workspace"|"$temp_root/workspace"/*) ;;
         *) return 1 ;;
@@ -634,15 +735,21 @@ run_agent_sync_consultative() (
     local old_codex_sandbox="${OCTOPUS_CODEX_SANDBOX:-}"
     local old_autonomy_set="${CLAUDE_OCTOPUS_AUTONOMY+x}"
     local old_autonomy="${CLAUDE_OCTOPUS_AUTONOMY:-}"
-    local source_root source_root_logical workspace temp_root rc original_prompt isolated_prompt agent_output cleanup_note
+    local source_root source_root_logical workspace temp_root temp_root_prefix rc original_prompt isolated_prompt agent_output cleanup_note
     local -a consultative_args
 
     _octopus_handle_consultative_signal() {
         local signal_rc="$1"
+        local cleanup_failed=false
 
         # Do not let a second foreground signal interrupt validated cleanup.
         trap '' INT TERM
-        if ! _octopus_remove_consultative_temp_root "$temp_root" "$workspace" 2>/dev/null; then
+        if [[ -n "$temp_root" ]]; then
+            _octopus_remove_consultative_temp_root "$temp_root" "$workspace" 2>/dev/null || cleanup_failed=true
+        else
+            _octopus_remove_owned_temp_dirs "$temp_root_prefix" 2>/dev/null || cleanup_failed=true
+        fi
+        if [[ "$cleanup_failed" == "true" ]]; then
             if declare -F log >/dev/null 2>&1; then
                 log WARN "Failed to remove consultative workspace after signal: $temp_root"
             else
@@ -654,9 +761,12 @@ run_agent_sync_consultative() (
 
     source_root_logical="$PWD"
     source_root="$(pwd -P)"
+    workspace=""
+    temp_root=""
+    temp_root_prefix=""
     trap '_octopus_handle_consultative_signal 130' INT
     trap '_octopus_handle_consultative_signal 143' TERM
-    _octopus_prepare_consultative_workspace "$source_root" workspace temp_root || {
+    _octopus_prepare_consultative_workspace "$source_root" workspace temp_root temp_root_prefix || {
         _octopus_remove_consultative_temp_root "$temp_root" "$workspace" 2>/dev/null || true
         log ERROR "Failed to prepare disposable consultative workspace from: $source_root"
         return 1
