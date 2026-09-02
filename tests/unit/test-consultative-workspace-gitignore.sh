@@ -812,6 +812,188 @@ else
     test_fail "expected INT and TERM status with no list residue: $copy_list_signal_failures"
 fi
 
+test_case "real Git consultative dispatch removes its full workspace after success and failure"
+dispatch_cleanup_failed=false
+dispatch_cleanup_failures=""
+for dispatch_mode in success failure; do
+    DISPATCH_CLEANUP_TMPDIR="$TEST_TMP_DIR/dispatch-cleanup-${dispatch_mode}"
+    DISPATCH_CLEANUP_STARTED="$TEST_TMP_DIR/dispatch-cleanup-${dispatch_mode}-started"
+    DISPATCH_CLEANUP_INT_MARKER="$TEST_TMP_DIR/dispatch-cleanup-${dispatch_mode}-int"
+    DISPATCH_CLEANUP_TERM_MARKER="$TEST_TMP_DIR/dispatch-cleanup-${dispatch_mode}-term"
+    DISPATCH_CLEANUP_EXIT_MARKER="$TEST_TMP_DIR/dispatch-cleanup-${dispatch_mode}-exit"
+    mkdir -p "$DISPATCH_CLEANUP_TMPDIR"
+    DISPATCH_CLEANUP_TMPDIR="$(cd "$DISPATCH_CLEANUP_TMPDIR" && pwd -P)"
+    case "$dispatch_mode" in
+        success) dispatch_expected_rc=0 ;;
+        failure) dispatch_expected_rc=7 ;;
+    esac
+    if (
+        export TMPDIR="$DISPATCH_CLEANUP_TMPDIR"
+        export DISPATCH_MODE="$dispatch_mode"
+        export DISPATCH_CLEANUP_STARTED
+        export DISPATCH_CLEANUP_INT_MARKER DISPATCH_CLEANUP_TERM_MARKER DISPATCH_CLEANUP_EXIT_MARKER
+        export OCTOPUS_SECURITY_V870="caller-security"
+        export OCTOPUS_AGY_SANDBOX="caller-agy"
+        export OCTOPUS_CODEX_SANDBOX="caller-codex"
+        export CLAUDE_OCTOPUS_AUTONOMY="caller-autonomy"
+        /bin/bash -c '
+            source "$1/scripts/lib/agent-sync.sh"
+            log() { :; }
+            run_agent_sync() {
+                case "$PWD" in
+                    "$TMPDIR"/octopus-consultative.??????/workspace) ;;
+                    *) return 96 ;;
+                esac
+                [[ -d "$PWD" ]] || return 96
+                printf "%s\n" "$PWD" > "$DISPATCH_CLEANUP_STARTED"
+                printf "provider ran\n"
+                [[ "$DISPATCH_MODE" == "success" ]] && return 0
+                return 7
+            }
+            trap '\''printf "caller INT trap ran\n" > "$DISPATCH_CLEANUP_INT_MARKER"'\'' INT
+            trap '\''printf "caller TERM trap ran\n" > "$DISPATCH_CLEANUP_TERM_MARKER"'\'' TERM
+            trap '\''printf "caller EXIT trap ran\n" > "$DISPATCH_CLEANUP_EXIT_MARKER"'\'' EXIT
+            caller_int_trap_before="$(trap -p INT)"
+            caller_term_trap_before="$(trap -p TERM)"
+            caller_exit_trap_before="$(trap -p EXIT)"
+            cd "$2" || exit 98
+            caller_pwd_before="$(pwd -P)"
+            set +e
+            run_agent_sync_consultative codex "review only" 120 reviewer ceremony >/dev/null 2>&1
+            dispatch_rc=$?
+            set -e
+            caller_int_trap_after="$(trap -p INT)"
+            caller_term_trap_after="$(trap -p TERM)"
+            caller_exit_trap_after="$(trap -p EXIT)"
+            dispatch_residue="$(find "$TMPDIR" -mindepth 1 -maxdepth 1 -print)"
+            IFS= read -r dispatch_workspace < "$DISPATCH_CLEANUP_STARTED" || exit 1
+            dispatch_temp_root="${dispatch_workspace%/workspace}"
+            [[ "$dispatch_workspace" == "$TMPDIR"/octopus-consultative.??????/workspace ]] &&
+                [[ ! -e "$dispatch_temp_root" ]] &&
+                [[ "$dispatch_rc" -eq "$3" ]] &&
+                [[ -z "$dispatch_residue" ]] &&
+                [[ ! -e "$DISPATCH_CLEANUP_INT_MARKER" && ! -e "$DISPATCH_CLEANUP_TERM_MARKER" && ! -e "$DISPATCH_CLEANUP_EXIT_MARKER" ]] &&
+                [[ "$caller_int_trap_after" == "$caller_int_trap_before" ]] &&
+                [[ "$caller_term_trap_after" == "$caller_term_trap_before" ]] &&
+                [[ "$caller_exit_trap_after" == "$caller_exit_trap_before" ]] &&
+                [[ "$(pwd -P)" == "$caller_pwd_before" ]] &&
+                [[ "$OCTOPUS_SECURITY_V870" == "caller-security" ]] &&
+                [[ "$OCTOPUS_AGY_SANDBOX" == "caller-agy" ]] &&
+                [[ "$OCTOPUS_CODEX_SANDBOX" == "caller-codex" ]] &&
+                [[ "$CLAUDE_OCTOPUS_AUTONOMY" == "caller-autonomy" ]]
+        ' _ "$PROJECT_ROOT" "$SOURCE_ROOT" "$dispatch_expected_rc"
+    ); then
+        dispatch_cleanup_rc=0
+    else
+        dispatch_cleanup_rc=$?
+    fi
+    if [[ "$dispatch_cleanup_rc" -ne 0 ]]; then
+        dispatch_cleanup_failed=true
+        dispatch_cleanup_failures="${dispatch_cleanup_failures}${dispatch_mode} rc=${dispatch_cleanup_rc}; "
+    fi
+    rm -rf "$DISPATCH_CLEANUP_TMPDIR" "$DISPATCH_CLEANUP_STARTED" "$DISPATCH_CLEANUP_INT_MARKER" "$DISPATCH_CLEANUP_TERM_MARKER" "$DISPATCH_CLEANUP_EXIT_MARKER"
+done
+if [[ "$dispatch_cleanup_failed" == "false" ]]; then
+    test_pass
+else
+    test_fail "expected real dispatch cleanup and caller-state preservation: $dispatch_cleanup_failures"
+fi
+
+test_case "real Git consultative dispatch removes its full workspace after INT and TERM"
+dispatch_signal_failed=false
+dispatch_signal_failures=""
+for dispatch_signal in INT TERM; do
+    case "$dispatch_signal" in
+        INT) dispatch_signal_expected_rc=130 ;;
+        TERM) dispatch_signal_expected_rc=143 ;;
+    esac
+    DISPATCH_SIGNAL_TMPDIR="$TEST_TMP_DIR/dispatch-signal-${dispatch_signal}"
+    DISPATCH_SIGNAL_STARTED="$TEST_TMP_DIR/dispatch-signal-${dispatch_signal}-started"
+    DISPATCH_SIGNAL_PID_FILE="$TEST_TMP_DIR/dispatch-signal-${dispatch_signal}-pid"
+    DISPATCH_SIGNAL_INT_MARKER="$TEST_TMP_DIR/dispatch-signal-${dispatch_signal}-caller-int"
+    DISPATCH_SIGNAL_TERM_MARKER="$TEST_TMP_DIR/dispatch-signal-${dispatch_signal}-caller-term"
+    DISPATCH_SIGNAL_EXIT_MARKER="$TEST_TMP_DIR/dispatch-signal-${dispatch_signal}-caller-exit"
+    mkdir -p "$DISPATCH_SIGNAL_TMPDIR"
+    DISPATCH_SIGNAL_TMPDIR="$(cd "$DISPATCH_SIGNAL_TMPDIR" && pwd -P)"
+    if (
+        export TMPDIR="$DISPATCH_SIGNAL_TMPDIR"
+        export SIGNAL_NAME="$dispatch_signal"
+        export DISPATCH_SIGNAL_STARTED DISPATCH_SIGNAL_PID_FILE
+        export DISPATCH_SIGNAL_INT_MARKER DISPATCH_SIGNAL_TERM_MARKER DISPATCH_SIGNAL_EXIT_MARKER
+        export OCTOPUS_SECURITY_V870="caller-security"
+        export OCTOPUS_AGY_SANDBOX="caller-agy"
+        export OCTOPUS_CODEX_SANDBOX="caller-codex"
+        export CLAUDE_OCTOPUS_AUTONOMY="caller-autonomy"
+        /bin/bash -c '
+            source "$1/scripts/lib/agent-sync.sh"
+            log() { :; }
+            run_agent_sync() {
+                local command_subshell_pid consultative_pid
+                case "$PWD" in
+                    "$TMPDIR"/octopus-consultative.??????/workspace) ;;
+                    *) return 96 ;;
+                esac
+                [[ -d "$PWD" ]] || return 96
+                printf "%s\n" "$PWD" > "$DISPATCH_SIGNAL_STARTED"
+                /bin/sh -c '\''printf "%s\n" "$PPID" > "$1"'\'' _ "$DISPATCH_SIGNAL_PID_FILE" || return 1
+                IFS= read -r command_subshell_pid < "$DISPATCH_SIGNAL_PID_FILE" || return 1
+                consultative_pid="$(/bin/ps -o ppid= -p "$command_subshell_pid" | tr -d "[:space:]")" || return 1
+                case "$consultative_pid" in
+                    ""|*[!0-9]*) return 1 ;;
+                esac
+                kill -s "$SIGNAL_NAME" "$consultative_pid" || return 1
+                return 0
+            }
+            trap '\''printf "caller INT trap ran\n" > "$DISPATCH_SIGNAL_INT_MARKER"'\'' INT
+            trap '\''printf "caller TERM trap ran\n" > "$DISPATCH_SIGNAL_TERM_MARKER"'\'' TERM
+            trap '\''printf "caller EXIT trap ran\n" > "$DISPATCH_SIGNAL_EXIT_MARKER"'\'' EXIT
+            caller_int_trap_before="$(trap -p INT)"
+            caller_term_trap_before="$(trap -p TERM)"
+            caller_exit_trap_before="$(trap -p EXIT)"
+            cd "$2" || exit 98
+            caller_pwd_before="$(pwd -P)"
+            set +e
+            run_agent_sync_consultative codex "review only" 120 reviewer ceremony >/dev/null 2>&1
+            dispatch_rc=$?
+            set -e
+            caller_int_trap_after="$(trap -p INT)"
+            caller_term_trap_after="$(trap -p TERM)"
+            caller_exit_trap_after="$(trap -p EXIT)"
+            dispatch_residue="$(find "$TMPDIR" -mindepth 1 -maxdepth 1 -print)"
+            IFS= read -r dispatch_workspace < "$DISPATCH_SIGNAL_STARTED" || exit 1
+            dispatch_temp_root="${dispatch_workspace%/workspace}"
+            [[ "$dispatch_workspace" == "$TMPDIR"/octopus-consultative.??????/workspace ]] &&
+                [[ ! -e "$dispatch_temp_root" ]] &&
+                [[ "$dispatch_rc" -eq "$3" ]] &&
+                [[ -z "$dispatch_residue" ]] &&
+                [[ ! -e "$DISPATCH_SIGNAL_INT_MARKER" && ! -e "$DISPATCH_SIGNAL_TERM_MARKER" && ! -e "$DISPATCH_SIGNAL_EXIT_MARKER" ]] &&
+                [[ "$caller_int_trap_after" == "$caller_int_trap_before" ]] &&
+                [[ "$caller_term_trap_after" == "$caller_term_trap_before" ]] &&
+                [[ "$caller_exit_trap_after" == "$caller_exit_trap_before" ]] &&
+                [[ "$(pwd -P)" == "$caller_pwd_before" ]] &&
+                [[ "$OCTOPUS_SECURITY_V870" == "caller-security" ]] &&
+                [[ "$OCTOPUS_AGY_SANDBOX" == "caller-agy" ]] &&
+                [[ "$OCTOPUS_CODEX_SANDBOX" == "caller-codex" ]] &&
+                [[ "$CLAUDE_OCTOPUS_AUTONOMY" == "caller-autonomy" ]]
+        ' _ "$PROJECT_ROOT" "$SOURCE_ROOT" "$dispatch_signal_expected_rc"
+    ); then
+        dispatch_signal_rc=0
+    else
+        dispatch_signal_rc=$?
+    fi
+    dispatch_signal_residue="$(find "$DISPATCH_SIGNAL_TMPDIR" -mindepth 1 -maxdepth 1 -print)"
+    if [[ "$dispatch_signal_rc" -ne 0 || -n "$dispatch_signal_residue" ]]; then
+        dispatch_signal_failed=true
+        dispatch_signal_failures="${dispatch_signal_failures}${dispatch_signal} rc=${dispatch_signal_rc} residue=${dispatch_signal_residue:-none}; "
+    fi
+    rm -rf "$DISPATCH_SIGNAL_TMPDIR" "$DISPATCH_SIGNAL_STARTED" "$DISPATCH_SIGNAL_PID_FILE" "$DISPATCH_SIGNAL_INT_MARKER" "$DISPATCH_SIGNAL_TERM_MARKER" "$DISPATCH_SIGNAL_EXIT_MARKER"
+done
+if [[ "$dispatch_signal_failed" == "false" ]]; then
+    test_pass
+else
+    test_fail "expected exact signal status, full cleanup, restored environment, and unchanged caller traps: $dispatch_signal_failures"
+fi
+
 test_case "cleanup removes only the allocated temp root when TMPDIR is inside another repository"
 CLEANUP_CONTAINER="$TEST_TMP_DIR/cleanup-container"
 CLEANUP_OUTER_REPO="$CLEANUP_CONTAINER/unrelated-repo"

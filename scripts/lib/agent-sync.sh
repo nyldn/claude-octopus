@@ -561,7 +561,7 @@ _octopus_remove_consultative_temp_root() {
 # writes made during normal advisory work are discarded with that workspace.
 # This is mutation isolation for accidental workspace edits, not a security
 # boundary against deliberate access to absolute paths outside the workspace.
-run_agent_sync_consultative() {
+run_agent_sync_consultative() (
     local old_security_set="${OCTOPUS_SECURITY_V870+x}"
     local old_security="${OCTOPUS_SECURITY_V870:-}"
     local old_agy_sandbox_set="${OCTOPUS_AGY_SANDBOX+x}"
@@ -573,12 +573,29 @@ run_agent_sync_consultative() {
     local source_root source_root_logical workspace temp_root rc original_prompt isolated_prompt agent_output cleanup_note
     local -a consultative_args
 
+    _octopus_handle_consultative_signal() {
+        local signal_rc="$1"
+
+        # Do not let a second foreground signal interrupt validated cleanup.
+        trap '' INT TERM
+        if ! _octopus_remove_consultative_temp_root "$temp_root" "$workspace" 2>/dev/null; then
+            if declare -F log >/dev/null 2>&1; then
+                log WARN "Failed to remove consultative workspace after signal: $temp_root"
+            else
+                printf 'WARN: failed to remove consultative workspace after signal: %s\n' "$temp_root" >&2
+            fi
+        fi
+        exit "$signal_rc"
+    }
+
     source_root_logical="$PWD"
     source_root="$(pwd -P)"
     _octopus_prepare_consultative_workspace "$source_root" workspace temp_root || {
         log ERROR "Failed to prepare disposable consultative workspace from: $source_root"
         return 1
     }
+    trap '_octopus_handle_consultative_signal 130' INT
+    trap '_octopus_handle_consultative_signal 143' TERM
     _octopus_consultative_temp_root_is_safe "$temp_root" "$workspace" || {
         log ERROR "Refusing unsafe consultative workspace paths"
         return 1
@@ -644,7 +661,7 @@ EOF
     fi
 
     return "$rc"
-}
+)
 
 # Synchronous agent execution (for sequential steps within phases)
 run_agent_sync() {
