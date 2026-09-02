@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
-# tests/unit/test-consultative-workspace-gitignore.sh
-# Regression test for #980: the consultative workspace copy must honour
-# .gitignore in a git work tree instead of copying gitignored vendor/build
-# trees into every advisory seat's disposable workspace.
+# Regression tests for #980: advisory copies honor Git ignore rules without
+# exposing source repository control-plane metadata or writable source state.
 set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -26,157 +24,111 @@ mkdir -p "$SOURCE_ROOT/vendor" "$SOURCE_ROOT/subdir"
     printf 'vendored\n' > vendor/big.bin
     git add tracked.txt inside.txt subdir/context.txt safe-link .gitignore
     git commit -q -m init
-    git branch -M main
-    git checkout -q -b feature
-    printf 'feature commit\n' > feature.txt
-    git add feature.txt
-    git commit -q -m feature
-    git update-ref refs/remotes/origin/main refs/heads/main
-    git symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
-    git tag review-base refs/heads/main
-    printf 'modified\n' > tracked.txt
+    printf 'modified working tree\n' > tracked.txt
     printf 'subdirectory modified\n' > subdir/context.txt
     printf 'staged\n' > staged.txt
     git add staged.txt
-    printf 'staged and modified\n' > staged.txt
+    printf 'staged and modified working tree\n' > staged.txt
     printf 'untracked but not ignored\n' > untracked.txt
-    printf 'must not be copied\n' > .git/source-only-sentinel
 )
 
-test_case "gitignored files are excluded from the disposable workspace"
+test_case "Git sources copy exact eligible working-tree bytes without Git metadata"
 workspace="$(_octopus_prepare_consultative_workspace "$SOURCE_ROOT")"
-if [[ -f "$workspace/tracked.txt" && -f "$workspace/untracked.txt" && ! -e "$workspace/vendor" ]]; then
+if [[ "$(cat "$workspace/tracked.txt" 2>/dev/null)" == "modified working tree" ]] &&
+   [[ "$(cat "$workspace/staged.txt" 2>/dev/null)" == "staged and modified working tree" ]] &&
+   [[ "$(cat "$workspace/untracked.txt" 2>/dev/null)" == "untracked but not ignored" ]] &&
+   [[ ! -e "$workspace/vendor" && ! -e "$workspace/.git" ]]; then
     test_pass
 else
-    test_fail "expected tracked.txt and untracked.txt present, vendor/ absent in $workspace"
+    test_fail "expected exact tracked/untracked-not-ignored bytes, no vendor tree, and no .git"
 fi
 rm -rf "$(dirname "$workspace")"
 
-test_case "the disposable workspace retains review base refs"
-workspace="$(_octopus_prepare_consultative_workspace "$SOURCE_ROOT")"
-source_main="$(git -C "$SOURCE_ROOT" rev-parse main)"
-source_origin_main="$(git -C "$SOURCE_ROOT" rev-parse origin/main)"
-source_tag="$(git -C "$SOURCE_ROOT" rev-parse review-base)"
-source_remote_head="$(git -C "$SOURCE_ROOT" symbolic-ref refs/remotes/origin/HEAD)"
-source_review_diff="$(git -C "$SOURCE_ROOT" diff --stat main...HEAD)"
-if [[ "$(git -C "$workspace" rev-parse main 2>/dev/null)" == "$source_main" ]] &&
-   [[ "$(git -C "$workspace" rev-parse origin/main 2>/dev/null)" == "$source_origin_main" ]] &&
-   [[ "$(git -C "$workspace" rev-parse review-base 2>/dev/null)" == "$source_tag" ]] &&
-   [[ "$(git -C "$workspace" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null)" == "$source_remote_head" ]] &&
-   [[ "$(git -C "$workspace" diff --stat main...HEAD 2>/dev/null)" == "$source_review_diff" ]]; then
-    git -C "$workspace" update-ref refs/heads/main HEAD
-    if [[ "$(git -C "$SOURCE_ROOT" rev-parse main)" == "$source_main" ]] &&
-       [[ "$(git -C "$workspace" rev-parse main)" == "$(git -C "$workspace" rev-parse HEAD)" ]] &&
-       [[ "$(git -C "$workspace" rev-parse main)" != "$source_main" ]]; then
-        test_pass
-    else
-        test_fail "workspace ref writes changed the source repository or failed to remain local"
-    fi
+test_case "ambient Git config is ignored and advisory execution cannot mutate source Git state"
+AMBIENT_EXCLUDES="$TEST_TMP_DIR/ambient-excludes"
+AMBIENT_CONFIG="$TEST_TMP_DIR/ambient-gitconfig"
+AMBIENT_MARKER="$TEST_TMP_DIR/ambient-git-env-leaked"
+printf 'untracked.txt\n' > "$AMBIENT_EXCLUDES"
+printf '[core]\n\texcludesFile = %s\n' "$AMBIENT_EXCLUDES" > "$AMBIENT_CONFIG"
+source_index="$(git -C "$SOURCE_ROOT" rev-parse --git-path index)"
+case "$source_index" in /*) ;; *) source_index="$SOURCE_ROOT/$source_index" ;; esac
+source_index_before="$(cksum "$source_index")"
+source_head_before="$(git -C "$SOURCE_ROOT" rev-parse HEAD)"
+if workspace=$(
+    export GIT_CONFIG="$AMBIENT_CONFIG"
+    export GIT_CONFIG_GLOBAL="$AMBIENT_CONFIG"
+    export GIT_CONFIG_SYSTEM="$AMBIENT_CONFIG"
+    export GIT_CONFIG_NOSYSTEM=1
+    _octopus_prepare_consultative_workspace "$SOURCE_ROOT"
+) && [[ -f "$workspace/untracked.txt" && ! -e "$workspace/.git" ]]; then
+    prepare_isolated=true
 else
-    test_fail "expected local, remote-tracking, and symbolic review refs inside $workspace"
-fi
-rm -rf "$(dirname "$workspace")"
-
-test_case "shallow repository history remains coherent in the disposable workspace"
-SHALLOW_ORIGIN="$TEST_TMP_DIR/shallow-origin"
-SHALLOW_ROOT="$TEST_TMP_DIR/shallow-source"
-mkdir -p "$SHALLOW_ORIGIN"
-(
-    cd "$SHALLOW_ORIGIN"
-    git init -q
-    git config user.email "test@example.com"
-    git config user.name "test"
-    printf 'one\n' > history.txt
-    git add history.txt
-    git commit -q -m one
-    printf 'two\n' >> history.txt
-    git commit -qam two
-)
-git -c protocol.file.allow=always clone -q --depth 1 "file://$SHALLOW_ORIGIN" "$SHALLOW_ROOT"
-source_shallow_log="$(git -C "$SHALLOW_ROOT" log --oneline)"
-if workspace="$(_octopus_prepare_consultative_workspace "$SHALLOW_ROOT")" &&
-   workspace_shallow_log="$(git -C "$workspace" log --oneline 2>/dev/null)" &&
-   [[ "$(git -C "$workspace" rev-parse --is-shallow-repository 2>/dev/null)" == "true" ]] &&
-   [[ "$workspace_shallow_log" == "$source_shallow_log" ]]; then
-    test_pass
-else
-    test_fail "expected copied shallow history to stop at the same boundary as the source"
+    prepare_isolated=false
 fi
 [[ -z "${workspace:-}" ]] || rm -rf "$(dirname "$workspace")"
 
-test_case "the disposable workspace retains local Git review context"
-workspace="$(_octopus_prepare_consultative_workspace "$SOURCE_ROOT")"
-source_head="$(git -C "$SOURCE_ROOT" rev-parse HEAD)"
-if [[ "$(git -C "$workspace" rev-parse HEAD 2>/dev/null)" == "$source_head" ]] &&
-   [[ ! -e "$workspace/.git/source-only-sentinel" ]] &&
-   ! git -C "$workspace" diff --quiet -- tracked.txt &&
-   ! git -C "$workspace" diff --cached --quiet -- staged.txt &&
-   ! git -C "$workspace" diff --quiet -- staged.txt &&
-   git -C "$workspace" status --short 2>/dev/null | grep -q '^?? untracked.txt$'; then
-    git -C "$workspace" config octopus.workspace-only true
-    if [[ -z "$(git -C "$SOURCE_ROOT" config --get octopus.workspace-only 2>/dev/null)" ]]; then
-        test_pass
-    else
-        test_fail "workspace Git config mutated the source repository"
-    fi
-else
-    test_fail "expected isolated HEAD, index, worktree changes, and untracked files inside $workspace"
-fi
-rm -rf "$(dirname "$workspace")"
-
-test_case "ambient repository selectors cannot redirect advisory Git writes to the source"
-AMBIENT_ROOT="$TEST_TMP_DIR/ambient-git-source"
-mkdir -p "$AMBIENT_ROOT"
-(
-    cd "$AMBIENT_ROOT"
-    git init -q
-    git config user.email "test@example.com"
-    git config user.name "test"
-    printf 'source\n' > source.txt
-    git add source.txt
-    git commit -q -m init
-)
-AMBIENT_GIT_DIR="$(git -C "$AMBIENT_ROOT" rev-parse --absolute-git-dir)"
 run_agent_sync() {
-    git update-ref refs/heads/advisory-write HEAD
+    local name
+    while IFS= read -r name; do
+        case "$name" in
+            GIT_DIR|GIT_WORK_TREE|GIT_INDEX_FILE|GIT_OBJECT_DIRECTORY|GIT_ALTERNATE_OBJECT_DIRECTORIES|GIT_COMMON_DIR|GIT_NAMESPACE|GIT_CEILING_DIRECTORIES|GIT_PREFIX|GIT_SUPER_PREFIX|GIT_CONFIG|GIT_CONFIG_GLOBAL|GIT_CONFIG_SYSTEM|GIT_CONFIG_NOSYSTEM|GIT_CONFIG_PARAMETERS|GIT_CONFIG_COUNT|GIT_CONFIG_KEY_*|GIT_CONFIG_VALUE_*|GIT_QUARANTINE_PATH|GIT_DEFAULT_HASH)
+                printf '%s\n' "$name" > "$AMBIENT_MARKER"
+                ;;
+        esac
+    done < <(compgen -v)
+    git update-ref refs/heads/advisory-write HEAD >/dev/null 2>&1 || true
     printf 'review only\n'
 }
-ambient_old_pwd="$PWD"
-cd "$AMBIENT_ROOT"
-GIT_DIR="$AMBIENT_GIT_DIR" GIT_WORK_TREE="$AMBIENT_ROOT" run_agent_sync_consultative codex "review only" 120 reviewer ceremony >/dev/null 2>&1 || true
-cd "$ambient_old_pwd"
+ambient_git_dir="$(git -C "$SOURCE_ROOT" rev-parse --absolute-git-dir)"
+old_pwd="$PWD"
+cd "$SOURCE_ROOT"
+GIT_DIR="$ambient_git_dir" \
+GIT_WORK_TREE="$SOURCE_ROOT" \
+GIT_INDEX_FILE="$source_index" \
+GIT_CONFIG="$AMBIENT_CONFIG" \
+GIT_CONFIG_GLOBAL="$AMBIENT_CONFIG" \
+GIT_CONFIG_SYSTEM="$AMBIENT_CONFIG" \
+GIT_CONFIG_NOSYSTEM=1 \
+GIT_CONFIG_COUNT=1 \
+GIT_CONFIG_KEY_0=core.hooksPath \
+GIT_CONFIG_VALUE_0="$TEST_TMP_DIR/hooks" \
+run_agent_sync_consultative codex "review only" 120 reviewer ceremony >/dev/null 2>&1 || true
+cd "$old_pwd"
 unset -f run_agent_sync
-if ! git -C "$AMBIENT_ROOT" show-ref --verify --quiet refs/heads/advisory-write; then
+source_index_after="$(cksum "$source_index")"
+source_head_after="$(git -C "$SOURCE_ROOT" rev-parse HEAD)"
+if [[ "$prepare_isolated" == "true" && ! -e "$AMBIENT_MARKER" ]] &&
+   [[ "$source_index_after" == "$source_index_before" && "$source_head_after" == "$source_head_before" ]] &&
+   ! git -C "$SOURCE_ROOT" show-ref --verify --quiet refs/heads/advisory-write; then
     test_pass
 else
-    test_fail "ambient GIT_DIR redirected an advisory Git write into the source repository"
+    test_fail "expected Git config isolation and unchanged source index, HEAD, and refs"
 fi
 
-test_case "a launch from a repository subdirectory keeps coherent Git context"
-source_status="$(git -C "$SOURCE_ROOT/subdir" status --short)"
+test_case "a launch from a repository subdirectory returns its copied subdirectory"
 workspace="$(_octopus_prepare_consultative_workspace "$SOURCE_ROOT/subdir")"
-workspace_top="$(git -C "$workspace" rev-parse --show-toplevel 2>/dev/null)"
-workspace_status="$(git -C "$workspace" status --short 2>/dev/null)"
-if [[ -f "$workspace/context.txt" ]] &&
-   [[ "$(git -C "$workspace" rev-parse HEAD 2>/dev/null)" == "$(git -C "$SOURCE_ROOT" rev-parse HEAD)" ]] &&
-   [[ "$workspace_status" == "$source_status" ]]; then
+workspace_root="$(dirname "$workspace")"
+if [[ "$workspace" == */workspace/subdir ]] &&
+   [[ "$(cat "$workspace/context.txt" 2>/dev/null)" == "subdirectory modified" ]] &&
+   [[ ! -e "$workspace_root/.git" ]]; then
     test_pass
 else
-    test_fail "expected the copied repository root and returned subdirectory to match source Git status"
+    test_fail "expected current subdirectory bytes at the matching metadata-free copied path"
 fi
-rm -rf "$(dirname "$workspace_top")"
+rm -rf "$(dirname "$workspace_root")"
 
 test_case "empty and fully ignored launch directories remain valid working directories"
 mkdir -p "$SOURCE_ROOT/empty-subdir"
 if empty_workspace="$(_octopus_prepare_consultative_workspace "$SOURCE_ROOT/empty-subdir" 2>/dev/null)" &&
    ignored_workspace="$(_octopus_prepare_consultative_workspace "$SOURCE_ROOT/vendor" 2>/dev/null)" &&
    [[ -d "$empty_workspace" && -d "$ignored_workspace" ]] &&
-   [[ "$(git -C "$empty_workspace" rev-parse --show-toplevel 2>/dev/null)" == "$(dirname "$empty_workspace")" ]] &&
-   [[ "$(git -C "$ignored_workspace" rev-parse --show-toplevel 2>/dev/null)" == "$(dirname "$ignored_workspace")" ]] &&
-   [[ ! -e "$ignored_workspace/big.bin" ]]; then
+   [[ "$empty_workspace" == */workspace/empty-subdir ]] &&
+   [[ "$ignored_workspace" == */workspace/vendor ]] &&
+   [[ ! -e "$ignored_workspace/big.bin" ]] &&
+   [[ ! -e "$(dirname "$empty_workspace")/.git" && ! -e "$(dirname "$ignored_workspace")/.git" ]]; then
     test_pass
 else
-    test_fail "expected empty and ignored source subdirectories to map to empty copied working directories"
+    test_fail "expected empty and ignored source subdirectories to map to empty copied directories"
 fi
 [[ -z "${empty_workspace:-}" ]] || rm -rf "$(dirname "$(dirname "$empty_workspace")")"
 [[ -z "${ignored_workspace:-}" ]] || rm -rf "$(dirname "$(dirname "$ignored_workspace")")"
@@ -189,6 +141,41 @@ else
     test_fail "expected safe-link to remain a working in-repository symlink"
 fi
 rm -rf "$(dirname "$workspace")"
+
+test_case "a symlink in an eligible path's ancestor chain fails closed"
+ANCESTOR_ROOT="$TEST_TMP_DIR/ancestor-link-source"
+ANCESTOR_GIT_BIN="$TEST_TMP_DIR/ancestor-git-bin"
+REAL_GIT="$(command -v git)"
+mkdir -p "$ANCESTOR_ROOT/tracked-dir"
+(
+    cd "$ANCESTOR_ROOT"
+    git init -q
+    git config user.email "test@example.com"
+    git config user.name "test"
+    printf 'tracked\n' > tracked-dir/file.txt
+    git add tracked-dir/file.txt
+    git commit -q -m init
+    mv tracked-dir actual-dir
+    ln -s actual-dir tracked-dir
+)
+mkdir -p "$ANCESTOR_GIT_BIN"
+cat > "$ANCESTOR_GIT_BIN/git" <<'EOF'
+#!/usr/bin/env bash
+for arg in "$@"; do
+    if [[ "$arg" == "ls-files" ]]; then
+        printf 'tracked-dir/file.txt\0'
+        exit 0
+    fi
+done
+exec "$REAL_GIT" "$@"
+EOF
+chmod +x "$ANCESTOR_GIT_BIN/git"
+if PATH="$ANCESTOR_GIT_BIN:$PATH" REAL_GIT="$REAL_GIT" \
+   _octopus_prepare_consultative_workspace "$ANCESTOR_ROOT" >/dev/null 2>&1; then
+    test_fail "expected a tracked path beneath a symlink ancestor to fail closed"
+else
+    test_pass
+fi
 
 test_case "an absolute tracked symlink cannot point back into the source"
 ABSOLUTE_LINK_ROOT="$TEST_TMP_DIR/absolute-link-source"
@@ -209,7 +196,28 @@ else
     test_pass
 fi
 
-test_case "non-git source roots still fall back to a full copy"
+test_case "a tracked symlink outside the source repository is rejected"
+SYMLINK_ROOT="$TEST_TMP_DIR/symlink-source"
+OUTSIDE_ROOT="$TEST_TMP_DIR/symlink-outside"
+mkdir -p "$SYMLINK_ROOT" "$OUTSIDE_ROOT"
+printf 'outside secret\n' > "$OUTSIDE_ROOT/secret.txt"
+(
+    cd "$SYMLINK_ROOT"
+    git init -q
+    git config user.email "test@example.com"
+    git config user.name "test"
+    printf 'main tracked\n' > main.txt
+    ln -s "../symlink-outside/secret.txt" evil-link
+    git add main.txt evil-link
+    git commit -q -m "init with symlink"
+)
+if _octopus_prepare_consultative_workspace "$SYMLINK_ROOT" >/dev/null 2>&1; then
+    test_fail "expected an external tracked symlink to make workspace preparation fail closed"
+else
+    test_pass
+fi
+
+test_case "non-Git source roots still fall back to a full copy"
 PLAIN_ROOT="$TEST_TMP_DIR/plain-source"
 mkdir -p "$PLAIN_ROOT"
 printf 'x\n' > "$PLAIN_ROOT/file.txt"
@@ -221,12 +229,7 @@ else
 fi
 rm -rf "$(dirname "$workspace")"
 
-# A nested git work tree (a submodule, or a plain untracked checkout that
-# isn't itself gitignored) is reported by `git ls-files` as a single opaque
-# path. Without recursing into it, a naive tar copy of that path would pull
-# in whatever the nested tree's own .gitignore excludes, defeating the fix
-# one level down.
-test_case "a nested git work tree's own .gitignore is honored too"
+test_case "nested Git work trees recursively honor their own ignore rules without metadata"
 NESTED_ROOT="$TEST_TMP_DIR/nested-source"
 NESTED_CHILD_ROOT="$TEST_TMP_DIR/nested-child"
 mkdir -p "$NESTED_ROOT" "$NESTED_CHILD_ROOT/vendor"
@@ -250,15 +253,18 @@ mkdir -p "$NESTED_ROOT" "$NESTED_CHILD_ROOT/vendor"
     git commit -q -m init
     git -c protocol.file.allow=always submodule add -q "$NESTED_CHILD_ROOT" nested-repo
     git commit -q -am "add nested repository"
+    printf 'nested working tree\n' > nested-repo/nested.txt
     mkdir -p nested-repo/vendor
     printf 'nested vendored\n' > nested-repo/vendor/big.bin
 )
 workspace="$(_octopus_prepare_consultative_workspace "$NESTED_ROOT")"
-if [[ -f "$workspace/parent.txt" && -f "$workspace/nested-repo/nested.txt" && ! -e "$workspace/nested-repo/vendor" ]] &&
-   [[ "$(git -C "$workspace/nested-repo" log -1 --format=%s 2>/dev/null)" == "nested init" ]]; then
+if [[ "$(cat "$workspace/parent.txt" 2>/dev/null)" == "parent tracked" ]] &&
+   [[ "$(cat "$workspace/nested-repo/nested.txt" 2>/dev/null)" == "nested working tree" ]] &&
+   [[ ! -e "$workspace/nested-repo/vendor" ]] &&
+   [[ ! -e "$workspace/.git" && ! -e "$workspace/nested-repo/.git" ]]; then
     test_pass
 else
-    test_fail "expected nested-repo/vendor absent, parent.txt and nested-repo/nested.txt present in $workspace"
+    test_fail "expected recursively filtered nested bytes without parent or nested .git metadata"
 fi
 rm -rf "$(dirname "$workspace")"
 
@@ -300,134 +306,6 @@ if [[ ! -e "$TAR_GUARD_MARKER" && -f "$workspace/nested-repo/nested.txt" && ! -e
     test_pass
 else
     test_fail "expected the parent archive to omit nested-repo before recursively copying it"
-fi
-rm -rf "$(dirname "$workspace")"
-
-# A tracked symlink that leaves source_root still grants the advisory process
-# access to files outside the disposable workspace, even if tar preserves it
-# as a symlink rather than materializing its target.
-test_case "a tracked symlink outside the source repository is rejected"
-SYMLINK_ROOT="$TEST_TMP_DIR/symlink-source"
-OUTSIDE_ROOT="$TEST_TMP_DIR/symlink-outside"
-mkdir -p "$SYMLINK_ROOT" "$OUTSIDE_ROOT"
-(
-    cd "$OUTSIDE_ROOT"
-    printf 'outside secret\n' > secret.txt
-)
-(
-    cd "$SYMLINK_ROOT"
-    git init -q
-    git config user.email "test@example.com"
-    git config user.name "test"
-    printf 'main tracked\n' > main.txt
-    ln -s "../symlink-outside/secret.txt" evil-link
-    git add main.txt evil-link
-    git commit -q -m "init with symlink"
-)
-if _octopus_prepare_consultative_workspace "$SYMLINK_ROOT" >/dev/null 2>&1; then
-    test_fail "expected an external tracked symlink to make workspace preparation fail closed"
-else
-    test_pass
-fi
-
-test_case "sparse checkout index flags remain exact in the disposable workspace"
-SPARSE_ROOT="$TEST_TMP_DIR/sparse-source"
-mkdir -p "$SPARSE_ROOT/keep" "$SPARSE_ROOT/omit"
-(
-    cd "$SPARSE_ROOT"
-    git init -q
-    git config user.email "test@example.com"
-    git config user.name "test"
-    printf 'keep\n' > keep/file.txt
-    printf 'omit\n' > omit/file.txt
-    git add keep/file.txt omit/file.txt
-    git commit -q -m init
-    git sparse-checkout init --cone
-    git sparse-checkout set keep
-)
-source_sparse_status="$(git -C "$SPARSE_ROOT" status --short)"
-workspace="$(_octopus_prepare_consultative_workspace "$SPARSE_ROOT")"
-workspace_sparse_status="$(git -C "$workspace" status --short 2>/dev/null)"
-if [[ -z "$source_sparse_status" && "$workspace_sparse_status" == "$source_sparse_status" && ! -e "$workspace/omit/file.txt" ]]; then
-    test_pass
-else
-    test_fail "expected sparse index flags to prevent false copied-workspace deletions: ${workspace_sparse_status:-<clean>}"
-fi
-rm -rf "$(dirname "$workspace")"
-
-test_case "intent-to-add state remains exact and workspace index writes stay private"
-INTENT_ROOT="$TEST_TMP_DIR/intent-source"
-mkdir -p "$INTENT_ROOT"
-(
-    cd "$INTENT_ROOT"
-    git init -q
-    git config user.email "test@example.com"
-    git config user.name "test"
-    printf 'base\n' > base.txt
-    git add base.txt
-    git commit -q -m init
-    printf 'intent\n' > intent.txt
-    git add -N intent.txt
-)
-intent_index="$(git -C "$INTENT_ROOT" rev-parse --git-path index)"
-case "$intent_index" in /*) ;; *) intent_index="$INTENT_ROOT/$intent_index" ;; esac
-intent_index_before="$(cksum "$intent_index")"
-source_intent_status="$(git -C "$INTENT_ROOT" status --short)"
-workspace="$(_octopus_prepare_consultative_workspace "$INTENT_ROOT")"
-workspace_intent_status="$(git -C "$workspace" status --short 2>/dev/null)"
-git -C "$workspace" add intent.txt
-intent_index_after="$(cksum "$intent_index")"
-if [[ "$workspace_intent_status" == "$source_intent_status" && "$intent_index_after" == "$intent_index_before" ]]; then
-    test_pass
-else
-    test_fail "expected exact intent-to-add state and an isolated writable workspace index"
-fi
-rm -rf "$(dirname "$workspace")"
-
-test_case "linked worktree split index and shared index stay coherent and private"
-LINKED_REPO="$TEST_TMP_DIR/linked-repo"
-LINKED_ROOT="$TEST_TMP_DIR/linked-worktree"
-mkdir -p "$LINKED_REPO"
-(
-    cd "$LINKED_REPO"
-    git init -q
-    git config user.email "test@example.com"
-    git config user.name "test"
-    printf 'base\n' > tracked.txt
-    git add tracked.txt
-    git commit -q -m init
-    git branch linked-review
-    git worktree add -q "$LINKED_ROOT" linked-review
-)
-(
-    cd "$LINKED_ROOT"
-    git update-index --split-index
-    printf 'unstaged\n' >> tracked.txt
-    printf 'staged then modified\n' > staged.txt
-    git add staged.txt
-    printf 'worktree tail\n' >> staged.txt
-    printf 'untracked\n' > untracked.txt
-)
-linked_index="$(git -C "$LINKED_ROOT" rev-parse --git-path index)"
-linked_shared_index="$(git -C "$LINKED_ROOT" rev-parse --shared-index-path)"
-case "$linked_index" in /*) ;; *) linked_index="$LINKED_ROOT/$linked_index" ;; esac
-case "$linked_shared_index" in /*) ;; *) linked_shared_index="$LINKED_ROOT/$linked_shared_index" ;; esac
-source_linked_status="$(git -C "$LINKED_ROOT" status --short)"
-linked_index_before="$(cksum "$linked_index")"
-linked_shared_before="$(cksum "$linked_shared_index")"
-workspace="$(_octopus_prepare_consultative_workspace "$LINKED_ROOT")"
-workspace_shared_index="$(git -C "$workspace" rev-parse --shared-index-path 2>/dev/null)"
-case "$workspace_shared_index" in ""|/*) ;; *) workspace_shared_index="$workspace/$workspace_shared_index" ;; esac
-workspace_linked_status="$(git -C "$workspace" status --short 2>/dev/null)"
-git -C "$workspace" add tracked.txt
-linked_index_after="$(cksum "$linked_index")"
-linked_shared_after="$(cksum "$linked_shared_index")"
-if [[ -f "$LINKED_ROOT/.git" && -d "$workspace/.git" && -n "$workspace_shared_index" && -f "$workspace_shared_index" ]] &&
-   [[ "$workspace_linked_status" == "$source_linked_status" ]] &&
-   [[ "$linked_index_after" == "$linked_index_before" && "$linked_shared_after" == "$linked_shared_before" ]]; then
-    test_pass
-else
-    test_fail "expected linked-worktree split index state and private workspace index writes: source=[$source_linked_status] workspace=[$workspace_linked_status] shared=${workspace_shared_index:-missing}"
 fi
 rm -rf "$(dirname "$workspace")"
 

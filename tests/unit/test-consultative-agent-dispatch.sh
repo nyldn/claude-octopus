@@ -68,6 +68,29 @@ else
     test_fail "source checkout path remained in the agent task: $output"
 fi
 
+test_case "bracketed source paths are remapped literally"
+BRACKET_SOURCE="$TEST_TMP_DIR/consultative[source]"
+mkdir -p "$BRACKET_SOURCE"
+printf '%s\n' original > "$BRACKET_SOURCE/protected.txt"
+cd "$BRACKET_SOURCE"
+run_agent_sync_consultative codex "inspect $BRACKET_SOURCE/protected.txt" 120 implementer ceremony
+bracket_output="$(cat "$OBSERVED_FILE")"
+cd "$SOURCE_ROOT"
+if [[ "$bracket_output" != *"$BRACKET_SOURCE/protected.txt"* ]] &&
+   [[ "$bracket_output" == *"/workspace/protected.txt"* ]] &&
+   [[ "$(cat "$BRACKET_SOURCE/protected.txt")" == "original" ]]; then
+    test_pass
+else
+    test_fail "bracketed source path was treated as a pattern: $bracket_output"
+fi
+
+test_case "boundary prompt declares the absence of Git control-plane metadata"
+if [[ "$output" == *"intentionally contains no Git control-plane metadata"* ]]; then
+    test_pass
+else
+    test_fail "consultative boundary did not explain the metadata-free copy"
+fi
+
 test_case "consultative output is marked unverified and non-deliverable"
 STUB_RESPONSE="Implemented files in /tmp/disposable and verified 417 tests plus live probes."
 consultative_output=$(run_agent_sync_consultative codex "design only" 120 implementer ceremony)
