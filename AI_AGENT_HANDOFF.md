@@ -1,46 +1,24 @@
 # AI Agent Handoff
 
-Last updated: 2026-08-31
-Status: the Codex updater now refuses to replace its versioned plugin cache
-from inside the Codex session using that cache. The fix is committed and
-pushed, and PR #986 is open. Focused tests pass locally and on a disposable
-Linux ARM64 host, and the complete local matrix is green.
-Branch: `fix/codex-update-cache-lifecycle`, based on public `main` at
-`368def22a832cf640bfc1a96811db6834e20c083` (v10.1.0).
-Delivery: PR [#986](https://github.com/nyldn/claude-octopus/pull/986) is open at
-`77df8ea57cfc8d756ae0ac11734dd2112120b825`. No patch release has been
-authorized for this follow-up.
-Current release: [v10.1.0](https://github.com/nyldn/claude-octopus/releases/tag/v10.1.0)
+Last updated: 2026-08-30
+Status: PR #984 contains the install, setup, readiness, dispatch, cost, and
+uninstall simplification. Two findings from the latest exact-head CodeRabbit
+round have verified fixes in the branch head, independent Fable 5 review
+returned PASS/PASS, and the complete local matrix is green. The final head
+still needs exact-head hosted review before merge.
+Branch: `feat/simplify-install-setup-use`, reconciled with `origin/main` at
+`f9b8c92aa228a4b3f6bc9132c6c0a06f3142b73e`.
+Delivery: PR [#984](https://github.com/nyldn/claude-octopus/pull/984) is open.
+Its branch head includes the final reviewed follow-up after
+`d412469ce7345496793849b88b1803a0b23c4d28`.
+Current release: [v10.0.0](https://github.com/nyldn/claude-octopus/releases/tag/v10.0.0)
 Tracking: `bd` is unavailable in this checkout, so no Beads issue was created or
-updated for this fix.
-Next action: wait for exact-head review and hosted checks, then merge. Release
-only with separate authorization.
-
-## Codex Plugin Cache Update Guard
-
-- Root cause: Codex binds hooks and skills to the versioned cache directory it
-  loaded at session start. Updating the plugin can delete that directory while
-  the session still refers to it, causing hook launch failures before the hook
-  script can run.
-- `update-plugin` now detects a Codex runtime environment or Codex process in
-  its parent chain and exits before invoking either cache-replacing Codex
-  command. The message tells the user to exit Codex, update from a separate
-  terminal, and restart Codex.
-- Regression coverage proves Codex ancestry and runtime detection, ordinary
-  terminal behavior, zero host-package-manager calls on refusal, and the
-  existing update sequence outside an active session. The focused suite passes
-  42/42.
-- Remote verification used a disposable clone of the exact v10.1.0 base plus
-  the current patch. The focused suite passed 42/42 on Linux ARM64; Bash syntax
-  and `git diff --check` also passed. No pre-existing remote checkout was
-  changed, and the disposable directory was removed after verification.
-- `CI=true GITHUB_ACTIONS=true make ci-changed` selected the complete matrix and
-  passed 16/16 smoke, 300/300 unit, and 8/8 integration suites, including the
-  CI-only checks. The existing Council macOS PTY and probe dry-run timeout cases
-  remained documented skips.
-- An attempted independent Codex review seat completed without a usable review
-  because stale handoff context polluted its output. It is not counted as an
-  approval. PR #986 remains subject to exact-head review and hosted checks.
+updated for this cleanup.
+Next action: commit and push the review follow-up, resolve the verified review
+threads, wait for exact-head checks and approval, then squash-merge PR #984 and
+run the guarded v10.1.0 release workflow. The user authorized merge, release,
+shared-marketplace publication, and cleanup of only the related worktrees
+proven safe to remove.
 
 ## Install, Setup, and Everyday-Use Simplification
 
