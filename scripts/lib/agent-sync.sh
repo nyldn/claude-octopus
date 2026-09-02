@@ -319,26 +319,24 @@ _octopus_replace_literal() {
 # must be a real directory. Symlink leaves must stay lexically within the copied
 # tree, and resolved targets must remain in the source. Any failure is fatal for
 # a Git source.
-_octopus_copy_git_tracked_tree() {
+_octopus_copy_git_tracked_tree() (
     local source_root="$1"
     local workspace="$2"
-    local filelist copylist nestedlist entry rel entry_path
+    local list_dir filelist copylist nestedlist entry rel entry_path copy_rc
     local nested_top nested_rel
 
     _octopus_git_without_repository_env -C "$source_root" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
     source_root="$(cd "$source_root" 2>/dev/null && pwd -P)" || return 1
 
-    filelist="$(mktemp "${TMPDIR:-/tmp}/octopus-tracked-tree.XXXXXX")" || return 1
-    copylist="$(mktemp "${TMPDIR:-/tmp}/octopus-copy-tree.XXXXXX")" || {
-        rm -f "$filelist"
-        return 1
-    }
-    nestedlist="$(mktemp "${TMPDIR:-/tmp}/octopus-nested-tree.XXXXXX")" || {
-        rm -f "$filelist" "$copylist"
-        return 1
-    }
+    list_dir="$(mktemp -d "${TMPDIR:-/tmp}/octopus-copy-lists.XXXXXX")" || return 1
+    trap 'copy_rc=$?; trap - EXIT INT TERM; command rm -rf "$list_dir" || copy_rc=1; exit "$copy_rc"' EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    filelist="${list_dir}/tracked"
+    copylist="${list_dir}/copy"
+    nestedlist="${list_dir}/nested"
+    : > "$filelist" && : > "$copylist" && : > "$nestedlist" || return 1
     _octopus_git_without_repository_env -C "$source_root" ls-files -z --cached --others --exclude-standard >"$filelist" 2>/dev/null || {
-        rm -f "$filelist" "$copylist" "$nestedlist"
         return 1
     }
 
@@ -350,7 +348,6 @@ _octopus_copy_git_tracked_tree() {
         # Deleted tracked paths remain in the index but have no bytes to copy.
         [[ -e "$entry_path" || -L "$entry_path" ]] || continue
         _octopus_validate_copy_source_path "$source_root" "$rel" || {
-            rm -f "$filelist" "$copylist" "$nestedlist"
             return 1
         }
 
@@ -358,14 +355,12 @@ _octopus_copy_git_tracked_tree() {
             nested_top="$(_octopus_git_without_repository_env -C "$entry_path" rev-parse --show-toplevel 2>/dev/null || true)"
             if [[ -n "$nested_top" ]]; then
                 nested_top="$(cd "$nested_top" 2>/dev/null && pwd -P)" || {
-                    rm -f "$filelist" "$copylist" "$nestedlist"
                     return 1
                 }
                 if [[ "$nested_top" != "$source_root" ]]; then
                     case "$nested_top" in
                         "$source_root"/*) nested_rel="${nested_top#"$source_root"/}" ;;
                         *)
-                            rm -f "$filelist" "$copylist" "$nestedlist"
                             return 1
                             ;;
                     esac
@@ -382,40 +377,34 @@ _octopus_copy_git_tracked_tree() {
     # closes the path-list-to-copy gap for an ancestor replaced by a symlink.
     while IFS= read -r -d '' rel; do
         _octopus_validate_copy_source_path "$source_root" "$rel" || {
-            rm -f "$filelist" "$copylist" "$nestedlist"
             return 1
         }
     done < "$copylist"
 
-    if ! (
-        set -o pipefail
-        tar --null -C "$source_root" -T "$copylist" -cf - | tar -xf - -C "$workspace"
-    ); then
-        rm -f "$filelist" "$copylist" "$nestedlist"
-        return 1
+    if [[ -s "$copylist" ]]; then
+        if ! (
+            set -o pipefail
+            tar --null -C "$source_root" -T "$copylist" -cf - | tar -xf - -C "$workspace"
+        ); then
+            return 1
+        fi
     fi
 
     while IFS= read -r -d '' nested_rel; do
         _octopus_source_path_has_safe_ancestry "$source_root" "$nested_rel" || {
-            rm -f "$filelist" "$copylist" "$nestedlist"
             return 1
         }
         [[ -d "$source_root/$nested_rel" && ! -L "$source_root/$nested_rel" ]] || {
-            rm -f "$filelist" "$copylist" "$nestedlist"
             return 1
         }
         mkdir -p "$workspace/$nested_rel" || {
-            rm -f "$filelist" "$copylist" "$nestedlist"
             return 1
         }
         _octopus_copy_git_tracked_tree "$source_root/$nested_rel" "$workspace/$nested_rel" || {
-            rm -f "$filelist" "$copylist" "$nestedlist"
             return 1
         }
     done < "$nestedlist"
-
-    rm -f "$filelist" "$copylist" "$nestedlist"
-}
+)
 
 # Prepare an isolated copy-on-write workspace for advisory agents.
 # Git sources fail closed if their selective copy fails. Non-Git directories

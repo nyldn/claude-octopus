@@ -93,6 +93,7 @@ test_case "ambient Git config is ignored and advisory execution cannot mutate so
 AMBIENT_EXCLUDES="$TEST_TMP_DIR/ambient-excludes"
 AMBIENT_CONFIG="$TEST_TMP_DIR/ambient-gitconfig"
 AMBIENT_MARKER="$TEST_TMP_DIR/ambient-git-env-leaked"
+AMBIENT_DISPATCH_MARKER="$TEST_TMP_DIR/ambient-dispatch-ran"
 printf 'untracked.txt\n' > "$AMBIENT_EXCLUDES"
 printf '[core]\n\texcludesFile = %s\n' "$AMBIENT_EXCLUDES" > "$AMBIENT_CONFIG"
 source_index="$(git -C "$SOURCE_ROOT" rev-parse --git-path index)"
@@ -114,6 +115,7 @@ fi
 
 run_agent_sync() {
     local name
+    printf 'dispatched\n' > "$AMBIENT_DISPATCH_MARKER"
     while IFS= read -r name; do
         case "$name" in
             GIT_DIR|GIT_WORK_TREE|GIT_INDEX_FILE|GIT_OBJECT_DIRECTORY|GIT_ALTERNATE_OBJECT_DIRECTORIES|GIT_COMMON_DIR|GIT_NAMESPACE|GIT_CEILING_DIRECTORIES|GIT_PREFIX|GIT_SUPER_PREFIX|GIT_CONFIG|GIT_CONFIG_GLOBAL|GIT_CONFIG_SYSTEM|GIT_CONFIG_NOSYSTEM|GIT_CONFIG_PARAMETERS|GIT_CONFIG_COUNT|GIT_CONFIG_KEY_*|GIT_CONFIG_VALUE_*|GIT_QUARANTINE_PATH|GIT_DEFAULT_HASH)
@@ -142,7 +144,7 @@ cd "$old_pwd"
 unset -f run_agent_sync
 source_index_after="$(cksum "$source_index")"
 source_head_after="$(git -C "$SOURCE_ROOT" rev-parse HEAD)"
-if [[ "$prepare_isolated" == "true" && ! -e "$AMBIENT_MARKER" ]] &&
+if [[ "$prepare_isolated" == "true" && -f "$AMBIENT_DISPATCH_MARKER" && ! -e "$AMBIENT_MARKER" ]] &&
    [[ "$source_index_after" == "$source_index_before" && "$source_head_after" == "$source_head_before" ]] &&
    ! git -C "$SOURCE_ROOT" show-ref --verify --quiet refs/heads/advisory-write; then
     test_pass
@@ -230,7 +232,7 @@ fi
 test_case "a symlink in an eligible path's ancestor chain fails closed"
 ANCESTOR_ROOT="$TEST_TMP_DIR/ancestor-link-source"
 ANCESTOR_GIT_BIN="$TEST_TMP_DIR/ancestor-git-bin"
-REAL_GIT="$(command -v git)"
+ANCESTOR_REAL_GIT="$(command -v git)"
 mkdir -p "$ANCESTOR_ROOT/tracked-dir"
 (
     cd "$ANCESTOR_ROOT"
@@ -255,11 +257,32 @@ done
 exec "$REAL_GIT" "$@"
 EOF
 chmod +x "$ANCESTOR_GIT_BIN/git"
-if PATH="$ANCESTOR_GIT_BIN:$PATH" REAL_GIT="$REAL_GIT" \
-   _octopus_prepare_consultative_workspace "$ANCESTOR_ROOT" >/dev/null 2>&1; then
-    test_fail "expected a tracked path beneath a symlink ancestor to fail closed"
+ancestor_path_before="$PATH"
+ancestor_real_git_before="${REAL_GIT:-}"
+REAL_GIT="caller-real-git-sentinel"
+set -o posix
+if (
+    export PATH="$ANCESTOR_GIT_BIN:$PATH"
+    export REAL_GIT="$ANCESTOR_REAL_GIT"
+    _octopus_prepare_consultative_workspace "$ANCESTOR_ROOT" >/dev/null 2>&1
+); then
+    ancestor_rejected=false
 else
+    ancestor_rejected=true
+fi
+if [[ "$PATH" == "$ancestor_path_before" && "$REAL_GIT" == "caller-real-git-sentinel" ]]; then
+    ancestor_env_isolated=true
+else
+    ancestor_env_isolated=false
+fi
+set +o posix
+PATH="$ancestor_path_before"
+export PATH
+REAL_GIT="$ancestor_real_git_before"
+if [[ "$ancestor_rejected" == "true" && "$ancestor_env_isolated" == "true" ]]; then
     test_pass
+else
+    test_fail "expected a symlink-ancestor rejection without PATH or REAL_GIT leakage"
 fi
 
 test_case "an absolute tracked symlink cannot point back into the source"
@@ -353,10 +376,64 @@ else
 fi
 rm -rf "$(dirname "$workspace")"
 
+test_case "an empty parent copy list skips tar and still copies nested work trees"
+NESTED_ONLY_ROOT="$TEST_TMP_DIR/nested-only-source"
+NESTED_ONLY_TAR_BIN="$TEST_TMP_DIR/nested-only-tar-bin"
+NESTED_ONLY_TAR_MARKER="$TEST_TMP_DIR/nested-only-parent-tar-ran"
+REAL_TAR="$(command -v tar)"
+mkdir -p "$NESTED_ONLY_ROOT" "$NESTED_ONLY_TAR_BIN"
+git -C "$NESTED_ONLY_ROOT" init -q
+git -C "$NESTED_ONLY_ROOT" config user.email "test@example.com"
+git -C "$NESTED_ONLY_ROOT" config user.name "test"
+git clone -q "$NESTED_CHILD_ROOT" "$NESTED_ONLY_ROOT/nested-repo"
+nested_only_oid="$(git -C "$NESTED_ONLY_ROOT/nested-repo" rev-parse HEAD)"
+git -C "$NESTED_ONLY_ROOT" update-index --add --cacheinfo 160000 "$nested_only_oid" nested-repo
+git -C "$NESTED_ONLY_ROOT" commit -q -m "nested-only parent"
+printf 'nested-only working tree\n' > "$NESTED_ONLY_ROOT/nested-repo/nested.txt"
+NESTED_ONLY_ROOT="$(cd "$NESTED_ONLY_ROOT" && pwd -P)"
+cat > "$NESTED_ONLY_TAR_BIN/tar" <<'EOF'
+#!/usr/bin/env bash
+original_args=("$@")
+archive_root=""
+while [[ "$#" -gt 0 ]]; do
+    if [[ "$1" == "-C" ]]; then
+        archive_root="${2:-}"
+        shift
+    fi
+    shift
+done
+if [[ "$archive_root" == "$NESTED_ONLY_ROOT" ]]; then
+    printf 'parent tar ran\n' > "$NESTED_ONLY_TAR_MARKER"
+    exit 97
+fi
+exec "$REAL_TAR" "${original_args[@]}"
+EOF
+chmod +x "$NESTED_ONLY_TAR_BIN/tar"
+nested_only_rc=0
+if workspace="$(
+    export PATH="$NESTED_ONLY_TAR_BIN:$PATH"
+    export REAL_TAR NESTED_ONLY_ROOT NESTED_ONLY_TAR_MARKER
+    _octopus_prepare_consultative_workspace "$NESTED_ONLY_ROOT"
+)"; then
+    nested_only_rc=0
+else
+    nested_only_rc=$?
+fi
+if [[ "$nested_only_rc" -eq 0 && ! -e "$NESTED_ONLY_TAR_MARKER" ]] &&
+   [[ "$(cat "$workspace/nested-repo/nested.txt" 2>/dev/null)" == "nested-only working tree" ]] &&
+   [[ ! -e "$workspace/nested-repo/.git" ]]; then
+    test_pass
+else
+    test_fail "expected nested copy without invoking tar for an empty parent list: rc=$nested_only_rc"
+fi
+[[ -z "${workspace:-}" ]] || rm -rf "$(dirname "$workspace")"
+
 test_case "nested repositories are excluded before the parent archive runs"
+NESTED_ROOT="$(cd "$NESTED_ROOT" && pwd -P)"
 REAL_TAR="$(command -v tar)"
 TAR_GUARD_BIN="$TEST_TMP_DIR/tar-guard-bin"
 TAR_GUARD_MARKER="$TEST_TMP_DIR/tar-saw-nested-root"
+TAR_GUARD_EXECUTED="$TEST_TMP_DIR/tar-guard-executed"
 mkdir -p "$TAR_GUARD_BIN"
 cat > "$TAR_GUARD_BIN/tar" <<'EOF'
 #!/usr/bin/env bash
@@ -373,6 +450,7 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 if [[ "$archive_root" == "$NESTED_ROOT" && -n "$list_file" && "$list_file" != "-" ]]; then
+    printf 'guard executed\n' > "$TAR_GUARD_EXECUTED"
     while IFS= read -r -d '' entry; do
         if [[ "${entry%/}" == "nested-repo" || "$entry" == nested-repo/* ]]; then
             printf 'nested repository reached parent archive\n' > "$TAR_GUARD_MARKER"
@@ -384,15 +462,113 @@ exec "$REAL_TAR" "${original_args[@]}"
 EOF
 chmod +x "$TAR_GUARD_BIN/tar"
 workspace="$(
-    export PATH="$TAR_GUARD_BIN:$PATH" REAL_TAR TAR_GUARD_MARKER NESTED_ROOT
+    export PATH="$TAR_GUARD_BIN:$PATH" REAL_TAR TAR_GUARD_MARKER TAR_GUARD_EXECUTED NESTED_ROOT
     _octopus_prepare_consultative_workspace "$NESTED_ROOT"
 )"
-if [[ ! -e "$TAR_GUARD_MARKER" && -f "$workspace/nested-repo/nested.txt" && ! -e "$workspace/nested-repo/vendor" ]]; then
+if [[ -f "$TAR_GUARD_EXECUTED" && ! -e "$TAR_GUARD_MARKER" ]] &&
+   [[ -f "$workspace/nested-repo/nested.txt" && ! -e "$workspace/nested-repo/vendor" ]]; then
     test_pass
 else
     test_fail "expected the parent archive to omit nested-repo before recursively copying it"
 fi
 rm -rf "$(dirname "$workspace")"
+
+test_case "Git copy lists use one owned directory and clean it after success"
+COPY_LIST_TMPDIR="$TEST_TMP_DIR/copy-list-tmp"
+COPY_LIST_WORKSPACE="$TEST_TMP_DIR/copy-list-workspace"
+COPY_LIST_MKTEMP_BIN="$TEST_TMP_DIR/copy-list-mktemp-bin"
+COPY_LIST_MKTEMP_CALLS="$TEST_TMP_DIR/copy-list-mktemp-calls"
+REAL_MKTEMP="$(command -v mktemp)"
+mkdir -p "$COPY_LIST_TMPDIR" "$COPY_LIST_WORKSPACE" "$COPY_LIST_MKTEMP_BIN"
+cat > "$COPY_LIST_MKTEMP_BIN/mktemp" <<'EOF'
+#!/usr/bin/env bash
+printf 'argc=%s first=%s second=%s\n' "$#" "${1:-}" "${2:-}" >> "$COPY_LIST_MKTEMP_CALLS"
+exec "$REAL_MKTEMP" "$@"
+EOF
+chmod +x "$COPY_LIST_MKTEMP_BIN/mktemp"
+copy_list_rc=0
+if (
+    export TMPDIR="$COPY_LIST_TMPDIR"
+    export PATH="$COPY_LIST_MKTEMP_BIN:$PATH"
+    export COPY_LIST_MKTEMP_CALLS REAL_MKTEMP
+    _octopus_copy_git_tracked_tree "$SOURCE_ROOT" "$COPY_LIST_WORKSPACE"
+); then
+    copy_list_rc=0
+else
+    copy_list_rc=$?
+fi
+copy_list_call_count="$(wc -l < "$COPY_LIST_MKTEMP_CALLS" | tr -d ' ')"
+copy_list_residue="$(find "$COPY_LIST_TMPDIR" -mindepth 1 -maxdepth 1 -print)"
+if [[ "$copy_list_rc" -eq 0 && "$copy_list_call_count" == "1" && -z "$copy_list_residue" ]] &&
+   grep -Eq '^argc=2 first=-d second=.*/octopus-copy-lists\.XXXXXX$' "$COPY_LIST_MKTEMP_CALLS"; then
+    test_pass
+else
+    test_fail "expected one cleaned mktemp -d list allocation: rc=$copy_list_rc calls=$copy_list_call_count residue=$copy_list_residue"
+fi
+
+test_case "Git copy list directory is removed after archive failure"
+COPY_LIST_FAILURE_TMPDIR="$TEST_TMP_DIR/copy-list-failure-tmp"
+COPY_LIST_FAILURE_WORKSPACE="$TEST_TMP_DIR/copy-list-failure-workspace"
+COPY_LIST_FAILURE_BIN="$TEST_TMP_DIR/copy-list-failure-bin"
+mkdir -p "$COPY_LIST_FAILURE_TMPDIR" "$COPY_LIST_FAILURE_WORKSPACE" "$COPY_LIST_FAILURE_BIN"
+cat > "$COPY_LIST_FAILURE_BIN/tar" <<'EOF'
+#!/usr/bin/env bash
+exit 97
+EOF
+chmod +x "$COPY_LIST_FAILURE_BIN/tar"
+copy_list_failure_rc=0
+if (
+    export TMPDIR="$COPY_LIST_FAILURE_TMPDIR"
+    export PATH="$COPY_LIST_FAILURE_BIN:$PATH"
+    _octopus_copy_git_tracked_tree "$SOURCE_ROOT" "$COPY_LIST_FAILURE_WORKSPACE"
+); then
+    copy_list_failure_rc=0
+else
+    copy_list_failure_rc=$?
+fi
+copy_list_failure_residue="$(find "$COPY_LIST_FAILURE_TMPDIR" -mindepth 1 -maxdepth 1 -print)"
+if [[ "$copy_list_failure_rc" -ne 0 && -z "$copy_list_failure_residue" ]]; then
+    test_pass
+else
+    test_fail "expected archive failure to remove its list directory: rc=$copy_list_failure_rc residue=$copy_list_failure_residue"
+fi
+
+test_case "Git copy list directory is removed after INT and TERM"
+copy_list_signal_failed=false
+copy_list_signal_failures=""
+for copy_list_signal in INT TERM; do
+    COPY_LIST_SIGNAL_TMPDIR="$TEST_TMP_DIR/copy-list-signal-${copy_list_signal}"
+    COPY_LIST_SIGNAL_WORKSPACE="$TEST_TMP_DIR/copy-list-signal-workspace-${copy_list_signal}"
+    mkdir -p "$COPY_LIST_SIGNAL_TMPDIR" "$COPY_LIST_SIGNAL_WORKSPACE"
+    copy_list_signal_rc=0
+    if (
+        export TMPDIR="$COPY_LIST_SIGNAL_TMPDIR"
+        export SIGNAL_NAME="$copy_list_signal"
+        /bin/bash -c '
+            source "$1/scripts/lib/agent-sync.sh"
+            _octopus_validate_copy_source_path() {
+                kill -s "$SIGNAL_NAME" "${BASHPID:-$$}"
+                return 1
+            }
+            _octopus_copy_git_tracked_tree "$2" "$3"
+        ' _ "$PROJECT_ROOT" "$SOURCE_ROOT" "$COPY_LIST_SIGNAL_WORKSPACE"
+    ) >/dev/null 2>&1; then
+        copy_list_signal_rc=0
+    else
+        copy_list_signal_rc=$?
+    fi
+    copy_list_signal_residue="$(find "$COPY_LIST_SIGNAL_TMPDIR" -mindepth 1 -maxdepth 1 -print)"
+    if [[ "$copy_list_signal_rc" -eq 0 || -n "$copy_list_signal_residue" ]]; then
+        copy_list_signal_failed=true
+        copy_list_signal_failures="${copy_list_signal_failures}${copy_list_signal} rc=${copy_list_signal_rc} residue=${copy_list_signal_residue:-none}; "
+    fi
+    rm -rf "$COPY_LIST_SIGNAL_TMPDIR" "$COPY_LIST_SIGNAL_WORKSPACE"
+done
+if [[ "$copy_list_signal_failed" == "false" ]]; then
+    test_pass
+else
+    test_fail "expected INT and TERM status with no list residue: $copy_list_signal_failures"
+fi
 
 test_case "cleanup removes only the allocated temp root when TMPDIR is inside another repository"
 CLEANUP_CONTAINER="$TEST_TMP_DIR/cleanup-container"
@@ -425,11 +601,30 @@ run_agent_sync() {
 }
 cleanup_old_pwd="$PWD"
 cd "$CLEANUP_SOURCE"
-TMPDIR="$CLEANUP_TMPDIR" run_agent_sync_consultative codex "review only" 120 reviewer ceremony >/dev/null 2>&1 || true
+cleanup_tmpdir_set="${TMPDIR+x}"
+cleanup_tmpdir_before="${TMPDIR:-}"
+set -o posix
+(
+    export TMPDIR="$CLEANUP_TMPDIR"
+    run_agent_sync_consultative codex "review only" 120 reviewer ceremony >/dev/null 2>&1
+) || true
+if [[ "${TMPDIR+x}" == "$cleanup_tmpdir_set" && "${TMPDIR:-}" == "$cleanup_tmpdir_before" ]]; then
+    cleanup_tmpdir_isolated=true
+else
+    cleanup_tmpdir_isolated=false
+fi
+set +o posix
+if [[ -n "$cleanup_tmpdir_set" ]]; then
+    TMPDIR="$cleanup_tmpdir_before"
+    export TMPDIR
+else
+    unset TMPDIR
+fi
 cd "$cleanup_old_pwd"
 unset -f rm run_agent_sync
 cleanup_residue="$(find "$CLEANUP_TMPDIR" -maxdepth 1 -type d -name 'octopus-consultative.*' -print)"
-if [[ -f "$CLEANUP_SENTINEL" && -f "$CLEANUP_REPO_SENTINEL" && ! -e "$UNSAFE_CLEANUP_MARKER" && -z "$cleanup_residue" ]]; then
+if [[ "$cleanup_tmpdir_isolated" == "true" && -f "$CLEANUP_SENTINEL" && -f "$CLEANUP_REPO_SENTINEL" ]] &&
+   [[ ! -e "$UNSAFE_CLEANUP_MARKER" && -z "$cleanup_residue" ]]; then
     test_pass
 else
     test_fail "expected exact temp-root cleanup without touching the enclosing repository"
