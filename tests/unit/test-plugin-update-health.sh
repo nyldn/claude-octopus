@@ -154,6 +154,8 @@ case "${OCTO_TEST_PS_MODE:-}:$pid:$format" in
     terminal-tree:410:ppid=) printf '420\n' ;;
     terminal-tree:420:comm=) printf '/usr/sbin/sshd\n' ;;
     terminal-tree:420:ppid=) printf '1\n' ;;
+    terminal-any:*:comm=) printf '/bin/zsh\n' ;;
+    terminal-any:*:ppid=) printf '1\n' ;;
     *) exit 1 ;;
 esac
 EOF
@@ -166,12 +168,30 @@ export OCTO_TEST_PS_MODE
 test_case "process ancestry detects a running Codex session"
 if octo_plugin_running_inside_codex 410; then test_pass; else test_fail "Codex ancestor was not detected"; fi
 
-OCTO_TEST_PS_MODE=terminal-tree
+OCTO_TEST_PS_MODE=terminal-any
 export OCTO_TEST_PS_MODE
 test_case "ordinary terminal ancestry is not a Codex session"
-if octo_plugin_running_inside_codex 410; then test_fail "ordinary terminal was mistaken for Codex"; else test_pass; fi
+terminal_rc=0
+octo_plugin_running_inside_codex 410 || terminal_rc=$?
+if [[ "$terminal_rc" -eq 1 ]]; then test_pass; else test_fail "expected outside-session rc=1, got $terminal_rc"; fi
 unset OCTO_TEST_PS_MODE
 PATH="$PROCESS_TEST_PATH"
+
+NO_PS_PATH="$TEST_TMP_DIR/no-ps-bin"
+mkdir -p "$NO_PS_PATH"
+PATH="$NO_PS_PATH"
+missing_ps_rc=0
+octo_plugin_running_inside_codex 410 || missing_ps_rc=$?
+PATH="$PROCESS_TEST_PATH"
+test_case "missing process inspector is reported as unknown"
+if [[ "$missing_ps_rc" -eq 2 ]]; then test_pass; else test_fail "expected missing-ps rc=2, got $missing_ps_rc"; fi
+
+ps() { return 127; }
+test_case "failed process inspection is reported as unknown"
+process_rc=0
+octo_plugin_running_inside_codex 410 || process_rc=$?
+if [[ "$process_rc" -eq 2 ]]; then test_pass; else test_fail "expected inspection rc=2, got $process_rc"; fi
+unset -f ps
 
 CODEX_SANDBOX=workspace-write
 export CODEX_SANDBOX
@@ -272,6 +292,35 @@ elif assert_contains "$CODEX_ACTIVE_OUTPUT" "outside the running Codex session";
 fi
 unset OCTOPUS_CODEX_ACTIVE_SESSION
 
+: > "$CALL_LOG"
+ps() { return 127; }
+CODEX_INSPECTION_OUTPUT=""
+test_case "unknown Codex ancestry refuses cache-replacing update"
+if CODEX_INSPECTION_OUTPUT="$(octo_plugin_update_run "$PLUGIN_ROOT" codex 2>&1)"; then
+    test_fail "update proceeded without a reliable Codex ancestry check"
+elif [[ -s "$CALL_LOG" ]]; then
+    test_fail "unknown Codex ancestry invoked the host package manager"
+elif assert_contains "$CODEX_INSPECTION_OUTPUT" "could not safely determine"; then
+    test_pass
+fi
+unset -f ps
+
+: > "$CALL_LOG"
+AUTOMATIC_UPDATE_PATH="$PATH"
+PATH="$FAKE_BIN:$PATH"
+OCTO_TEST_PS_MODE=terminal-any
+export OCTO_TEST_PS_MODE
+unset CODEX_SANDBOX CODEX_PLUGIN_ROOT OCTOPUS_CODEX_ACTIVE_SESSION
+test_case "automatic ancestry check permits an ordinary terminal update"
+if octo_plugin_update_run "$PLUGIN_ROOT" codex >/dev/null && [[ -s "$CALL_LOG" ]]; then
+    test_pass
+else
+    test_fail "ordinary terminal update did not reach the host package manager"
+fi
+unset OCTO_TEST_PS_MODE
+PATH="$AUTOMATIC_UPDATE_PATH"
+
+: > "$CALL_LOG"
 OCTOPUS_CODEX_ACTIVE_SESSION=false
 export OCTOPUS_CODEX_ACTIVE_SESSION
 octo_plugin_update_run "$PLUGIN_ROOT" codex >/dev/null
