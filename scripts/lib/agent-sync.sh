@@ -185,6 +185,37 @@ _octopus_git_without_repository_env() (
     command git "$@"
 )
 
+_octopus_source_has_git_marker() {
+    local current="$1"
+
+    while :; do
+        [[ -e "$current/.git" || -L "$current/.git" ]] && return 0
+        [[ "$current" == "/" ]] && return 1
+        current="${current%/*}"
+        [[ -n "$current" ]] || current="/"
+    done
+}
+
+# Print git-work-tree or non-git. Any other discovery result is an error.
+_octopus_classify_git_source() {
+    local source_root="$1"
+    local discovery_result discovery_rc
+
+    if discovery_result="$(_octopus_git_without_repository_env -C "$source_root" rev-parse --is-inside-work-tree 2>/dev/null)"; then
+        [[ "$discovery_result" == "true" ]] || return 1
+        printf 'git-work-tree\n'
+        return 0
+    else
+        discovery_rc=$?
+    fi
+
+    # Git uses 128 when no repository exists. A marker in the ancestry means
+    # that the same status came from a broken or unreadable repository instead.
+    [[ "$discovery_rc" -eq 128 ]] || return 1
+    _octopus_source_has_git_marker "$source_root" && return 1
+    printf 'non-git\n'
+}
+
 _octopus_source_path_has_safe_ancestry() {
     local source_root="$1"
     local rel="$2"
@@ -211,6 +242,36 @@ _octopus_source_path_has_safe_ancestry() {
     esac
 }
 
+_octopus_relative_symlink_target_is_confined() {
+    local rel="$1"
+    local link_target="$2"
+    local base combined remaining component
+    local depth=0
+
+    case "$link_target" in
+        ""|/*) return 1 ;;
+    esac
+
+    base="${rel%/*}"
+    [[ "$base" == "$rel" ]] && base=""
+    combined="${base:+$base/}${link_target}"
+    remaining="$combined"
+
+    while :; do
+        component="${remaining%%/*}"
+        case "$component" in
+            ""|.) ;;
+            ..)
+                [[ "$depth" -gt 0 ]] || return 1
+                depth=$((depth - 1))
+                ;;
+            *) depth=$((depth + 1)) ;;
+        esac
+        [[ "$remaining" == */* ]] || break
+        remaining="${remaining#*/}"
+    done
+}
+
 _octopus_validate_copy_source_path() {
     local source_root="$1"
     local rel="$2"
@@ -222,14 +283,13 @@ _octopus_validate_copy_source_path() {
 
     if [[ -L "$entry_path" ]]; then
         link_target="$(readlink "$entry_path" 2>/dev/null)" || return 1
-        case "$link_target" in
-            /*) return 1 ;;
-        esac
-        resolved="$(realpath "$entry_path" 2>/dev/null)" || return 1
-        case "$resolved" in
-            "$source_root"|"$source_root"/*) ;;
-            *) return 1 ;;
-        esac
+        _octopus_relative_symlink_target_is_confined "$rel" "$link_target" || return 1
+        if resolved="$(realpath "$entry_path" 2>/dev/null)"; then
+            case "$resolved" in
+                "$source_root"|"$source_root"/*) ;;
+                *) return 1 ;;
+            esac
+        fi
     elif [[ -f "$entry_path" ]]; then
         [[ -r "$entry_path" ]] || return 1
     elif [[ ! -d "$entry_path" ]]; then
@@ -256,8 +316,9 @@ _octopus_replace_literal() {
 # Copy only tracked plus untracked-but-not-ignored files from a Git work tree.
 # Nested repositories are removed from the parent archive list before tar runs,
 # then copied recursively under their own ignore rules. Every path ancestor
-# must be a real directory, and symlink leaves must resolve within their source
-# repository. Any failure is fatal for a Git source.
+# must be a real directory. Symlink leaves must stay lexically within the copied
+# tree, and resolved targets must remain in the source. Any failure is fatal for
+# a Git source.
 _octopus_copy_git_tracked_tree() {
     local source_root="$1"
     local workspace="$2"
@@ -363,12 +424,15 @@ _octopus_prepare_consultative_workspace() {
     local source_root="$1"
     local workspace_result_var="${2:-}"
     local temp_root_result_var="${3:-}"
-    local prepared_temp_root prepared_temp_root_raw prepared_workspace git_root source_prefix
+    local prepared_temp_root prepared_temp_root_raw prepared_workspace git_root source_prefix git_source_kind
 
     if [[ -n "$workspace_result_var" || -n "$temp_root_result_var" ]]; then
         [[ "$workspace_result_var" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || return 1
         [[ "$temp_root_result_var" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || return 1
     fi
+
+    source_root="$(cd "$source_root" 2>/dev/null && pwd -P)" || return 1
+    git_source_kind="$(_octopus_classify_git_source "$source_root")" || return 1
 
     prepared_temp_root_raw="$(mktemp -d "${TMPDIR:-/tmp}/octopus-consultative.XXXXXX")" || return 1
     prepared_temp_root="$(cd "$prepared_temp_root_raw" 2>/dev/null && pwd -P)" || {
@@ -378,11 +442,7 @@ _octopus_prepare_consultative_workspace() {
     prepared_workspace="${prepared_temp_root}/workspace"
     mkdir -p "$prepared_workspace" || { rm -rf "$prepared_temp_root"; return 1; }
 
-    if _octopus_git_without_repository_env -C "$source_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        source_root="$(cd "$source_root" 2>/dev/null && pwd -P)" || {
-            rm -rf "$prepared_temp_root"
-            return 1
-        }
+    if [[ "$git_source_kind" == "git-work-tree" ]]; then
         git_root="$(_octopus_git_without_repository_env -C "$source_root" rev-parse --show-toplevel 2>/dev/null)" || {
             rm -rf "$prepared_temp_root"
             return 1
@@ -411,12 +471,15 @@ _octopus_prepare_consultative_workspace() {
             }
             prepared_workspace="${prepared_workspace}/${source_prefix}"
         fi
-    else
+    elif [[ "$git_source_kind" == "non-git" ]]; then
         if ! cp -a --reflink=auto "${source_root}/." "${prepared_workspace}/" 2>/dev/null; then
             rm -rf "$prepared_workspace"
             mkdir -p "$prepared_workspace" || { rm -rf "$prepared_temp_root"; return 1; }
             cp -a "${source_root}/." "${prepared_workspace}/" || { rm -rf "$prepared_temp_root"; return 1; }
         fi
+    else
+        rm -rf "$prepared_temp_root"
+        return 1
     fi
 
     if [[ -n "$workspace_result_var" && -n "$temp_root_result_var" ]]; then

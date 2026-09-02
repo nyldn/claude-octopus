@@ -44,6 +44,51 @@ else
 fi
 rm -rf "$(dirname "$workspace")"
 
+test_case "Git discovery errors fail closed without a whole-tree copy"
+DISCOVERY_GIT_BIN="$TEST_TMP_DIR/discovery-git-bin"
+DISCOVERY_CP_MARKER="$TEST_TMP_DIR/discovery-whole-tree-copy"
+DISCOVERY_COUNT="$TEST_TMP_DIR/discovery-count"
+REAL_GIT="$(command -v git)"
+REAL_CP="$(command -v cp)"
+mkdir -p "$DISCOVERY_GIT_BIN"
+cat > "$DISCOVERY_GIT_BIN/git" <<'EOF'
+#!/usr/bin/env bash
+is_discovery=false
+for arg in "$@"; do
+    [[ "$arg" == "--is-inside-work-tree" ]] && is_discovery=true
+done
+if [[ "$is_discovery" == "true" && ! -e "$DISCOVERY_COUNT" ]]; then
+    printf 'failed once\n' > "$DISCOVERY_COUNT"
+    exit 128
+fi
+exec "$REAL_GIT" "$@"
+EOF
+cat > "$DISCOVERY_GIT_BIN/cp" <<'EOF'
+#!/usr/bin/env bash
+for arg in "$@"; do
+    if [[ "$arg" == "$SOURCE_ROOT/." ]]; then
+        printf 'whole-tree copy attempted\n' > "$DISCOVERY_CP_MARKER"
+        exit 91
+    fi
+done
+exec "$REAL_CP" "$@"
+EOF
+chmod +x "$DISCOVERY_GIT_BIN/git" "$DISCOVERY_GIT_BIN/cp"
+if workspace="$(
+    export PATH="$DISCOVERY_GIT_BIN:$PATH"
+    export DISCOVERY_COUNT DISCOVERY_CP_MARKER REAL_GIT REAL_CP SOURCE_ROOT
+    _octopus_prepare_consultative_workspace "$SOURCE_ROOT"
+)"; then
+    discovery_rc=0
+else
+    discovery_rc=$?
+fi
+if [[ "$discovery_rc" -ne 0 && ! -e "$DISCOVERY_CP_MARKER" ]]; then
+    test_pass
+else
+    test_fail "expected discovery failure to prevent copying .git and ignored payloads"
+fi
+
 test_case "ambient Git config is ignored and advisory execution cannot mutate source Git state"
 AMBIENT_EXCLUDES="$TEST_TMP_DIR/ambient-excludes"
 AMBIENT_CONFIG="$TEST_TMP_DIR/ambient-gitconfig"
@@ -141,6 +186,46 @@ else
     test_fail "expected safe-link to remain a working in-repository symlink"
 fi
 rm -rf "$(dirname "$workspace")"
+
+test_case "a confined dangling tracked relative symlink is preserved"
+DANGLING_ROOT="$TEST_TMP_DIR/dangling-link-source"
+mkdir -p "$DANGLING_ROOT/links"
+(
+    cd "$DANGLING_ROOT"
+    git init -q
+    git config user.email "test@example.com"
+    git config user.name "test"
+    ln -s ../future/missing.txt links/pending
+    git add links/pending
+    git commit -q -m "init with confined dangling symlink"
+)
+if workspace="$(_octopus_prepare_consultative_workspace "$DANGLING_ROOT" 2>/dev/null)" &&
+   [[ -L "$workspace/links/pending" ]] &&
+   [[ "$(readlink "$workspace/links/pending")" == "../future/missing.txt" ]] &&
+   [[ ! -e "$workspace/links/pending" ]]; then
+    test_pass
+else
+    test_fail "expected the confined dangling symlink target to remain unchanged"
+fi
+[[ -z "${workspace:-}" ]] || rm -rf "$(dirname "$workspace")"
+
+test_case "a dangling tracked relative symlink with a lexical escape is rejected"
+DANGLING_ESCAPE_ROOT="$TEST_TMP_DIR/dangling-escape-source"
+mkdir -p "$DANGLING_ESCAPE_ROOT/links"
+(
+    cd "$DANGLING_ESCAPE_ROOT"
+    git init -q
+    git config user.email "test@example.com"
+    git config user.name "test"
+    ln -s ../../outside/missing.txt links/escape
+    git add links/escape
+    git commit -q -m "init with escaping dangling symlink"
+)
+if _octopus_prepare_consultative_workspace "$DANGLING_ESCAPE_ROOT" >/dev/null 2>&1; then
+    test_fail "expected a dangling symlink target outside the workspace to fail closed"
+else
+    test_pass
+fi
 
 test_case "a symlink in an eligible path's ancestor chain fails closed"
 ANCESTOR_ROOT="$TEST_TMP_DIR/ancestor-link-source"
