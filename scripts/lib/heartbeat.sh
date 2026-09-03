@@ -333,7 +333,13 @@ run_with_timeout() {
             done
 
             _octo_timeout_signal_snapshot KILL "$process_tree"
-        ) &
+        # Redirect the monitor's stdout away from the caller's: on the shell-
+        # function path this subshell inherits the pipe into spawn_agent's `tee`,
+        # and its `sleep` child is orphaned (reparented) when the monitor is
+        # killed on a normal completion — an orphan holding the pipe's write end
+        # keeps `tee` from ever seeing EOF, so the pipeline blocks for the full
+        # timeout even though the command already produced its output.
+        ) >/dev/null 2>&1 &
         monitor_pid=$!
 
         if wait "$cmd_pid" 2>/dev/null; then

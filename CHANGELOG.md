@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Stop `run_with_timeout`'s in-process watchdog from holding the caller's
+  stdout: its orphaned `sleep` kept the pipe into `spawn_agent`'s `tee` open,
+  so a review could block for the full timeout after the command had already
+  produced output (worst on the shell-function provider path). ([#996](https://github.com/nyldn/claude-octopus/issues/996))
 - Store `/octo:plan` artifacts in unique, resolved run directories and share
   that location with plan-mode hooks and review skills, preventing writes into
   the global `~/.claude/` configuration directory and same-session overwrites.
