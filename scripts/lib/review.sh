@@ -974,7 +974,7 @@ review_extract_output_text() {
         /^## Output$/ { in_output=1; candidate=""; next }
         /^## / { if (in_output) selected=candidate; in_output=0; next }
         in_output && !/^```(json|JSON)?$/ { candidate = candidate (candidate == "" ? "" : "\n") $0 }
-        END { if (in_output && selected == "") selected = candidate; if (selected != "") print selected }
+        END { if (in_output) selected = candidate; if (selected != "") print selected }
     ''' "$review_md" 2>/dev/null
 }
 
@@ -1065,6 +1065,37 @@ ${malformed_output}
     recovered=$(review_extract_findings_text "$recovery_output" 2>/dev/null || true)
     [[ -n "$recovered" && "$recovered" != "[]" ]] || return 1
     printf '%s\n' "$recovered"
+}
+
+# Resolve one Round 1 seat's extracted findings. The resolved value is returned
+# through REVIEW_RESOLVED_AGENT_FINDINGS so logs remain visible to the caller.
+# A non-zero status means a findings signal was present but could not be parsed.
+review_resolve_round1_findings() {
+    local agent_type="$1"
+    local role="$2"
+    local result_file="$3"
+    local agent_findings="$4"
+    local provider_output_text="$5"
+    local recovered_findings=""
+
+    REVIEW_RESOLVED_AGENT_FINDINGS="$agent_findings"
+    if [[ "$agent_findings" != "[]" ]] || ! review_output_has_finding_signal "$provider_output_text"; then
+        return 0
+    fi
+
+    if review_result_completed_successfully "$result_file"; then
+        log WARN "review_run: malformed findings output in $(basename "$result_file"); attempting one format-only recovery with ${agent_type}/${role}"
+        if recovered_findings=$(review_recover_malformed_findings "$agent_type" "$role" "$provider_output_text" "Round 1 ${agent_type}/${role} malformed-output recovery"); then
+            REVIEW_RESOLVED_AGENT_FINDINGS="$recovered_findings"
+            log INFO "review_run: ${agent_type}/${role} malformed-output recovery succeeded"
+            return 0
+        fi
+        log ERROR "review_run: extraction failed for $(basename "$result_file") despite a detected findings signal — format-only recovery also returned no usable findings; this seat's findings were dropped"
+        return 1
+    fi
+
+    log ERROR "review_run: extraction failed for $(basename "$result_file") despite a detected findings signal — extractor returned an empty array; this seat's findings were dropped"
+    return 1
 }
 
 # Provider output is untrusted and may contain multiple top-level JSON values.
@@ -1846,28 +1877,13 @@ ${round1_prompts[$retry_idx]}"
         if ! agent_findings=$(review_extract_findings_array "$f" 2>/dev/null); then
             agent_findings="[]"
         fi
-        local severity_count
         local provider_output_text
         provider_output_text=$(review_extract_output_text "$f" 2>/dev/null || true)
-        if review_output_has_finding_signal "$provider_output_text"; then
-            severity_count=1
-        else
-            severity_count=0
-        fi
-        if [[ "$agent_findings" == "[]" ]] && [[ "$severity_count" -gt 0 ]] && review_result_completed_successfully "$f"; then
-            local recovered_findings=""
-            log WARN "review_run: malformed findings output in $(basename "$f"); attempting one format-only recovery with ${atype}/${round1_roles[$idx]}"
-            if recovered_findings=$(review_recover_malformed_findings "$atype" "${round1_roles[$idx]}" "$provider_output_text" "Round 1 ${atype}/${round1_roles[$idx]} malformed-output recovery"); then
-                agent_findings="$recovered_findings"
-                log INFO "review_run: ${atype}/${round1_roles[$idx]} malformed-output recovery succeeded"
-            else
-                ((round1_parse_miss_count++)) || true
-                log ERROR "review_run: extraction failed for $(basename "$f") despite a detected findings signal — format-only recovery also returned no usable findings; this seat's findings were dropped"
-            fi
-        elif [[ "$agent_findings" == "[]" ]] && [[ "$severity_count" -gt 0 ]]; then
+        if ! review_resolve_round1_findings \
+            "$atype" "${round1_roles[$idx]}" "$f" "$agent_findings" "$provider_output_text"; then
             ((round1_parse_miss_count++)) || true
-            log ERROR "review_run: extraction failed for $(basename "$f") despite a detected findings signal — extractor returned an empty array; this seat's findings were dropped"
         fi
+        agent_findings="$REVIEW_RESOLVED_AGENT_FINDINGS"
         all_findings=$(printf '%s\n%s' "$all_findings" "$agent_findings" |             jq -s 'add' 2>/dev/null || echo "$all_findings")
 
         # v9.3.1: Write provider status for Round 1 agents (#187)
