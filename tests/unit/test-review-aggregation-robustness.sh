@@ -476,6 +476,21 @@ else
     test_fail "extractor lost findings across intervening headers: $intervening_out"
 fi
 
+test_case "extractor captures Output section that ends at EOF with no following header (#1004)"
+printf '%s\n' \
+'# Agent: codex' \
+'## Output' \
+'' \
+'{"findings":[{"file":"src/lib/y.ts","line":10,"severity":"normal","category":"correctness","title":"EOF finding","detail":"d","confidence":0.95}]}' \
+> "$TEST_TMP_DIR/eof-no-trailing-header.md"
+eof_out="$(review_extract_findings_array "$TEST_TMP_DIR/eof-no-trailing-header.md" 2>/dev/null || true)"
+if [[ "$(printf '%s' "$eof_out" | jq -r 'length' 2>/dev/null || true)" == "1" ]] &&
+   [[ "$(printf '%s' "$eof_out" | jq -r '.[0].title' 2>/dev/null || true)" == "EOF finding" ]]; then
+    test_pass
+else
+    test_fail "extractor lost findings when the Output section ended at EOF: $eof_out"
+fi
+
 test_case "malformed unquoted severity key is still recognized as a finding signal"
 if review_output_has_finding_signal '{findings:[{severity:normal,title:"broken"}]}'; then
     test_pass

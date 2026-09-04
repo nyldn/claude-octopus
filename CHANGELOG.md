@@ -5,7 +5,7 @@
 ### Fixed
 
 - Fix `review_extract_output_text` discarding an entire `## Output` section
-  when any other `## ` header follows it before `## Status:`. Codex Round-1
+  when any other level-2 (`##`) header follows it before `## Status:`. Codex Round-1
   seat files routinely contain several intervening headers (e.g.
   `## Warnings/Errors`, `## Agent Skill Context`), which cleared the
   extractor's capture state before it ever reached `## Status:`, so valid
