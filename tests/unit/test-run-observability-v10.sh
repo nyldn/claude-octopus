@@ -195,6 +195,23 @@ else
     test_fail "proof-disabled records diverged: $proof_disabled_result"
 fi
 
+test_case "standalone fallback identity survives command substitutions"
+standalone_ids="$(
+    unset OCTOPUS_RUN_ID OCTOPUS_SESSION_ID CLAUDE_CODE_SESSION_ID \
+        CLAUDE_SESSION_ID CLAUDE_CODE_SESSION
+    unset -f octo_run_contract_id
+    first_standalone_id="$(octo_current_run_id)"
+    second_standalone_id="$(octo_current_run_id)"
+    printf '%s\n%s\n' "$first_standalone_id" "$second_standalone_id"
+)"
+first_standalone_id="$(printf '%s\n' "$standalone_ids" | sed -n '1p')"
+second_standalone_id="$(printf '%s\n' "$standalone_ids" | sed -n '2p')"
+if [[ -n "$first_standalone_id" && "$first_standalone_id" == "$second_standalone_id" ]]; then
+    test_pass
+else
+    test_fail "standalone fallback identity changed across command substitutions"
+fi
+
 test_case "no-jq oversize writer JSON-escapes arbitrary string fields"
 no_jq_run_id=$'run"id\\tail\nnext'
 no_jq_agent=$'codex"agent\\tail\nnext'

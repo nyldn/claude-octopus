@@ -12,6 +12,12 @@ if ! type _octo_run_output_usable_file >/dev/null 2>&1; then
     [[ -f "$_octo_run_contract_lib" ]] && source "$_octo_run_contract_lib"
 fi
 
+# Initialize this in the sourcing shell so command substitutions inherit one
+# stable fallback instead of creating a different run id in each subshell.
+if [[ -z "${OCTO_ERROR_TRACKING_FALLBACK_ID:-}" ]]; then
+    OCTO_ERROR_TRACKING_FALLBACK_ID="run-$(date -u +%Y%m%dT%H%M%SZ)-$$-${RANDOM:-0}"
+fi
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # UX ENHANCEMENTS: Feature 1 - Enhanced Spinner Verbs (v7.16.0)
 # Dynamic task progress updates with context-aware verbs
@@ -173,12 +179,7 @@ octo_current_run_id() {
         return
     fi
 
-    # Standalone compatibility for unusually narrow source harnesses. Keep the
-    # fallback stable for the shell lifetime instead of minting a new run on
-    # every record.
-    if [[ -z "${OCTO_ERROR_TRACKING_FALLBACK_ID:-}" ]]; then
-        OCTO_ERROR_TRACKING_FALLBACK_ID="run-$(date -u +%Y%m%dT%H%M%SZ)-$$-${RANDOM:-0}"
-    fi
+    # Standalone compatibility for unusually narrow source harnesses.
     printf '%s\n' "${OCTOPUS_RUN_ID:-${OCTOPUS_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-${CLAUDE_CODE_SESSION:-$OCTO_ERROR_TRACKING_FALLBACK_ID}}}}}"
 }
 
