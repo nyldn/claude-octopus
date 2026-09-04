@@ -54,12 +54,12 @@ else
 fi
 
 test_case "consolidates transitive overlaps as one component"
-transitive='1. [CODING] Parent — Files: apps/web/ — Task: parent scope
-2. [CODING] Child — Files: apps/web/src/main.jsx — Task: child scope
-3. [CODING] Shared — Files: apps/web/package.json — Task: package scope'
+transitive='1. [CODING] Source — Files: apps/web/src/ — Task: source scope
+2. [CODING] Bridge — Files: apps/web/src/main.jsx, apps/web/package.json — Task: bridge scope
+3. [CODING] Package — Files: apps/web/package.json — Task: package scope'
 result=$(tangle_consolidate_overlapping_subtasks "$transitive")
 if [[ "$(tangle_parseable_coding_subtask_count "$result")" -eq 1 ]] &&
-   [[ "$result" == *"parent scope; child scope; package scope"* ]] &&
+   [[ "$result" == *"source scope; bridge scope; package scope"* ]] &&
    tangle_validate_parallel_write_scopes "$result" >/dev/null; then
     test_pass
 else
