@@ -67,6 +67,19 @@ else
     test_fail "unexpected context routing: default=$default_context override=$override_context sdk=$sdk_context"
 fi
 
+test_case "smoke source order preserves Claude context override"
+source_order_context=$(env -u OCTOPUS_CONTEXT_BUDGET "OCTOPUS_CLAUDE_CONTEXT_BUDGET=200000" \
+    bash -c '
+        source "$1/scripts/lib/dispatch.sh"
+        source "$1/scripts/lib/smoke.sh"
+        get_provider_context_limit claude-opus
+    ' _ "$PROJECT_ROOT")
+if [[ "$source_order_context" == "200000" ]]; then
+    test_pass
+else
+    test_fail "smoke source order changed Claude context override: $source_order_context"
+fi
+
 test_case "registry cost classes preserve dynamic authentication billing"
 bundled_costs=$(env -u OPENAI_API_KEY -u COMMAND_CODE_API_KEY -u QWEN_API_KEY -u OPENAI_BASE_URL bash -c '
     source "$1/scripts/lib/provider-routing.sh"
