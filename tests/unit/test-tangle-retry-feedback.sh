@@ -165,6 +165,20 @@ else
     test_fail "length-framed output extraction used a prompt-local heading"
 fi
 
+test_case "length-framed output rejects an oversized prompt byte count"
+oversized_frame="$TEST_TMP_DIR/framed-oversized.md"
+printf '# Agent: codex\n# Prompt-Format: octopus-length-v1\n# Prompt-Bytes: 999999\nshort prompt\n' \
+    > "$oversized_frame"
+set +e
+oversized_output="$(tangle_result_output_excerpt "$oversized_frame")"
+oversized_rc=$?
+set -e
+if [[ "$oversized_rc" -ne 0 && -z "$oversized_output" ]]; then
+    test_pass
+else
+    test_fail "oversized prompt frame was accepted (rc=$oversized_rc)"
+fi
+
 test_case "length-framed prompt ending in a newline remains readable"
 trailing_prompt=$'Prompt with a legal trailing newline.\n'
 trailing_result="$TEST_TMP_DIR/framed-trailing-newline.md"

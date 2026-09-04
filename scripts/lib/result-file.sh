@@ -7,7 +7,8 @@ write_agent_result_prompt() {
     local result_file="$1"
     local prompt="$2"
     local prompt_bytes
-    prompt_bytes=$(LC_ALL=C printf '%s' "$prompt" | wc -c | tr -d '[:space:]') || return 1
+    local LC_ALL=C
+    prompt_bytes=${#prompt}
     [[ "$prompt_bytes" =~ ^[0-9]+$ ]] || return 1
     printf '# Prompt-Format: octopus-length-v1\n' >> "$result_file" || return 1
     printf '# Prompt-Bytes: %s\n' "$prompt_bytes" >> "$result_file" || return 1

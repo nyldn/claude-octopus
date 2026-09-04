@@ -623,6 +623,7 @@ extract_tangle_retry_prompt() {
 tangle_result_output_excerpt() {
     local result_file="$1"
     local prompt_frame prompt_line prompt_bytes first_prompt_line
+    local -a pipeline_status
     prompt_frame=$(tangle_result_prompt_frame "$result_file")
     if [[ -n "$prompt_frame" ]]; then
         prompt_line="${prompt_frame%%:*}"
@@ -634,12 +635,17 @@ tangle_result_output_excerpt() {
         tail -n "+${first_prompt_line}" "$result_file" 2>/dev/null \
             | dd bs=1 skip="$prompt_bytes" 2>/dev/null \
             | awk '
-                /^# Started:/ { after_started=1; next }
-                after_started && /^## Output$/ { in_output=1; next }
+                /^# Started:/ { saw_started=1; after_started=1; next }
+                after_started && /^## Output$/ { saw_output=1; in_output=1; next }
                 after_started && /^## Status:/ { in_output=0 }
                 in_output { print }
+                END { exit(saw_started && saw_output ? 0 : 1) }
             '
-        return ${PIPESTATUS[0]}
+        pipeline_status=("${PIPESTATUS[@]}")
+        [[ "${pipeline_status[0]}" -eq 0 &&
+           "${pipeline_status[1]}" -eq 0 &&
+           "${pipeline_status[2]}" -eq 0 ]]
+        return
     fi
 
     awk '

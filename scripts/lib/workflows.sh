@@ -202,7 +202,13 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     echo "# Phase: $phase" >> "$result_file"
     printf '# Prompt metadata: original_chars=%s final_chars=%s compression=%s\n' \
         "$_budget_original_chars" "$_budget_final_chars" "$_budget_compression" >> "$result_file"
-    write_agent_result_prompt "$result_file" "$enhanced_prompt" || return 74
+    if ! write_agent_result_prompt "$result_file" "$enhanced_prompt"; then
+        update_agent_status "$agent_type" "failed" 0 "$estimated_cost" "$TIMEOUT" "$task_id" "$phase" "$result_file"
+        type write_agent_status >/dev/null 2>&1 && write_agent_status \
+            "$agent_type" "failed" "$tokens_in" 0 "Failed to persist dispatched prompt" \
+            0 "$result_file" "$role" || true
+        return 74
+    fi
     echo "# Started: $(date)" >> "$result_file"
     echo "" >> "$result_file"
     echo "## Output" >> "$result_file"

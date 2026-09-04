@@ -47,6 +47,12 @@ assert_contains "$PROBE_SINGLE_SRC" \
 assert_contains "$PROBE_SINGLE_SRC" \
   'write_agent_result_prompt.*result_file.*enhanced_prompt' "probe_single_agent: length-frames the dispatched prompt"
 
+assert_contains "$PROBE_SINGLE_SRC" \
+  'update_agent_status.*failed' "probe_single_agent: terminalizes prompt persistence failure"
+
+assert_contains "$PROBE_SINGLE_SRC" \
+  'Failed to persist dispatched prompt' "probe_single_agent: records prompt persistence failure reason"
+
 if ! grep -q "printf '# Prompt:" <<< "$PROBE_SINGLE_SRC"; then
   pass "probe_single_agent: does not use the ambiguous legacy prompt delimiter"
 else
