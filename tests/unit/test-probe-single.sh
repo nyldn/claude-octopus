@@ -48,10 +48,64 @@ assert_contains "$PROBE_SINGLE_SRC" \
   'write_agent_result_prompt.*result_file.*enhanced_prompt' "probe_single_agent: length-frames the dispatched prompt"
 
 assert_contains "$PROBE_SINGLE_SRC" \
-  'update_agent_status.*failed' "probe_single_agent: terminalizes prompt persistence failure"
-
-assert_contains "$PROBE_SINGLE_SRC" \
   'Failed to persist dispatched prompt' "probe_single_agent: records prompt persistence failure reason"
+
+test_case "probe_single_agent: prompt persistence failure is terminal"
+prompt_failure_dir="$TEST_TMP_DIR/probe-prompt-persistence"
+prompt_failure_status="$prompt_failure_dir/status.log"
+mkdir -p "$prompt_failure_dir"
+set +e
+(
+  trap - EXIT
+  # shellcheck disable=SC1090
+  source "$PROJECT_ROOT/scripts/lib/workflows.sh"
+  export RESULTS_DIR="$prompt_failure_dir/results"
+  export LOGS_DIR="$prompt_failure_dir/logs"
+  export PROJECT_ROOT="$prompt_failure_dir"
+  export SUPPORTS_AGENT_TYPE_ROUTING=false
+  export OCTOPUS_PERSONA_PACKS=off
+  export OCTOPUS_BACKEND=api
+  export SUPPORTS_STABLE_AUTH=true
+  export TIMEOUT=0
+  PROVIDER_ENV_ARRAY=()
+
+  log() { :; }
+  preflight_check() { return 0; }
+  classify_task() { printf '%s\n' research; }
+  match_routing_rule() { return 1; }
+  apply_persona() { printf '%s\n' "$2"; }
+  enforce_context_budget() { printf '%s\n' "$1"; }
+  octo_routing_policy() { printf '%s\n' off; }
+  get_agent_model() { printf '%s\n' test-model; }
+  get_agent_command() { printf '%s\n' true; }
+  validate_agent_command() { return 0; }
+  record_agent_call() { :; }
+  estimate_agent_call_cost() { printf '%s\n' 0; }
+  update_metrics() { :; }
+  bridge_register_task() { :; }
+  build_provider_env() { PROVIDER_ENV_ARRAY=(); }
+  write_agent_result_prompt() { return 1; }
+  update_agent_status() {
+    printf 'update:%s:%s:%s\n' "$1" "$2" "$6" >> "$prompt_failure_status"
+  }
+  write_agent_status() {
+    printf 'write:%s:%s:%s\n' "$1" "$2" "$5" >> "$prompt_failure_status"
+  }
+
+  mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
+  probe_rc=0
+  probe_single_agent codex "Review the fixture" prompt-failure || probe_rc=$?
+  [[ "$probe_rc" -eq 74 ]] &&
+    grep -Fq 'update:codex:failed:prompt-failure' "$prompt_failure_status" &&
+    grep -Fq 'write:codex:failed:Failed to persist dispatched prompt' "$prompt_failure_status"
+)
+prompt_failure_rc=$?
+set -e
+if [[ "$prompt_failure_rc" -eq 0 ]]; then
+  test_pass
+else
+  test_fail "prompt persistence failure must return 74 and record both failed statuses"
+fi
 
 if ! grep -q "printf '# Prompt:" <<< "$PROBE_SINGLE_SRC"; then
   pass "probe_single_agent: does not use the ambiguous legacy prompt delimiter"

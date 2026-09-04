@@ -167,7 +167,7 @@ fi
 
 test_case "length-framed output rejects an oversized prompt byte count"
 oversized_frame="$TEST_TMP_DIR/framed-oversized.md"
-printf '# Agent: codex\n# Prompt-Format: octopus-length-v1\n# Prompt-Bytes: 999999\nshort prompt\n' \
+printf '# Agent: codex\n# Prompt-Format: octopus-length-v1\n# Prompt-Bytes: 999999\nshort prompt\n# Started: real metadata\n\n## Output\nprovider output\n## Status: failed\n' \
     > "$oversized_frame"
 set +e
 oversized_output="$(tangle_result_output_excerpt "$oversized_frame")"
