@@ -369,8 +369,10 @@ run_external_fixture() {
 test_case "Agent Teams prompt persistence failure terminalizes the seat"
 original_should_use_agent_teams="$(declare -f should_use_agent_teams)"
 original_write_agent_result_prompt="$(declare -f write_agent_result_prompt)"
+original_check_provider_health="$(declare -f check_provider_health)"
 should_use_agent_teams() { return 0; }
 write_agent_result_prompt() { return 1; }
+check_provider_health() { return 0; }
 saved_timeout="$TIMEOUT"
 TIMEOUT=0
 set +e
@@ -381,6 +383,7 @@ set -e
 TIMEOUT="$saved_timeout"
 eval "$original_should_use_agent_teams"
 eval "$original_write_agent_result_prompt"
+eval "$original_check_provider_health"
 native_prompt_transition="$(run_contract_latest_transition spawn-native-prompt-fail)"
 native_prompt_reason="$(jq -r --arg seat spawn-native-prompt-fail \
     'select(.seat_id == $seat and .transition == "failed") | .reason' "$ledger" | tail -n 1)"
