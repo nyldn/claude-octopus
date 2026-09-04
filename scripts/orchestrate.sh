@@ -1385,7 +1385,7 @@ USER_HAS_AGY="false"
 USER_OPUS_BUDGET="balanced"
 KNOWLEDGE_WORK_MODE="false"
 
-# [EXTRACTED to lib/smoke.sh] get_provider_capabilities, get_provider_context_limit
+# [EXTRACTED to lib/smoke.sh] get_provider_capabilities
 
 
 # [EXTRACTED to lib/cost.sh] get_cost_tier_value()

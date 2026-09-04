@@ -87,51 +87,6 @@ get_provider_capabilities() {
     esac
 }
 
-# Get context limit for provider:tier combination
-get_provider_context_limit() {
-    local provider="$1"
-    local tier="$2"
-
-    case "$provider:$tier" in
-        agy:*)
-            echo "200000"  # Varies by selected Antigravity backend model
-            ;;
-        claude:max-20x|claude:max-5x)
-            echo "200000"
-            ;;
-        claude:*)
-            echo "100000"
-            ;;
-        codex:pro|codex:api-only)
-            echo "128000"
-            ;;
-        codex:*)
-            echo "64000"
-            ;;
-        opencode:*)
-            echo "128000"  # Varies by backend model (generic)
-            ;;
-        openrouter:*)
-            echo "128000"  # Varies by model (generic)
-            ;;
-        orcarouter:*)
-            echo "128000"  # Varies by model (generic)
-            ;;
-        openrouter-glm5:*)
-            echo "203000"  # GLM-5: 203K context
-            ;;
-        openrouter-kimi:*)
-            echo "262000"  # Kimi K2.5: 262K context
-            ;;
-        openrouter-deepseek:*)
-            echo "164000"  # DeepSeek R1: 164K context
-            ;;
-        *)
-            echo "32000"
-            ;;
-    esac
-}
-
 # Load provider configuration from file
 # Performance optimized: Single-pass parsing (saves ~200-500ms vs grep|sed chains)
 load_providers_config() {
