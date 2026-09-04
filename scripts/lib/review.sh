@@ -639,7 +639,6 @@ review_run_agent_sync_progress() {
     local role="$3"
     local phase="$4"
     local label="${5:-sync}"
-    local notice_file="${OCTOPUS_NOTICE_FILE:-}" owns_notice_file=false
     local results_dir="${RESULTS_DIR:-${HOME}/.claude-octopus/results}"
     local stall_window="${OCTOPUS_REVIEW_STALL_WINDOW:-1800}"
     local poll_secs="${OCTOPUS_REVIEW_POLL_SECS:-30}"
@@ -650,26 +649,25 @@ review_run_agent_sync_progress() {
     [[ "$poll_secs" -lt 1 ]] && poll_secs=1
     mkdir -p "$results_dir" 2>/dev/null || true
 
-    local start_epoch out_file rc_file pid rc last_progress last_fp current_fp now
+    local start_epoch out_file err_file rc_file pid rc last_progress last_fp current_fp now
     start_epoch=$(date +%s)
     out_file="${results_dir}/.tmp-review-sync-${label}-$$-${RANDOM}.out"
+    err_file="${out_file}.err"
     rc_file="${out_file}.rc"
-    : > "$out_file"
+    if ! (umask 077; : > "$out_file" && : > "$err_file"); then
+        rm -f "$out_file" "$err_file" "$rc_file" 2>/dev/null || true
+        return 1
+    fi
     rm -f "$rc_file" 2>/dev/null || true
 
-    if type octo_notice_channel_is_valid >/dev/null 2>&1 &&
-       ! octo_notice_channel_is_valid "$notice_file" &&
-       type octo_notice_channel_create >/dev/null 2>&1; then
-        notice_file="$(octo_notice_channel_create 2>/dev/null || true)"
-        [[ -n "$notice_file" ]] && owns_notice_file=true
-    fi
-
     (
-        OCTOPUS_NOTICE_FILE="$notice_file" \
-            OCTOPUS_NOTICE_FD=8 \
-            run_agent_sync "$agent_type" "$prompt" 0 "$role" "$phase" \
-            8>&2 > "$out_file" 2>&1
-        echo "$?" > "$rc_file"
+        umask 077
+        set +e
+        run_agent_sync "$agent_type" "$prompt" 0 "$role" "$phase" \
+            8>&- > "$out_file" 2> "$err_file"
+        rc=$?
+        echo "$rc" > "$rc_file"
+        exit "$rc"
     ) &
     pid=$!
     last_progress=$(date +%s)
@@ -695,11 +693,9 @@ review_run_agent_sync_progress() {
     wait "$pid" 2>/dev/null || true
     rc=1
     [[ -f "$rc_file" ]] && rc=$(cat "$rc_file" 2>/dev/null || echo 1)
-    if [[ "$owns_notice_file" == true ]]; then
-        octo_notice_channel_replay "$notice_file"
-    fi
+    cat "$err_file" >&2 2>/dev/null || true
     cat "$out_file" 2>/dev/null || true
-    rm -f "$out_file" "$rc_file" 2>/dev/null || true
+    rm -f "$out_file" "$err_file" "$rc_file" 2>/dev/null || true
     return "$rc"
 }
 

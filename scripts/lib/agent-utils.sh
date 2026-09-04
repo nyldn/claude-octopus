@@ -540,13 +540,52 @@ detect_image_type() {
 # Store failed tasks for retry (global array - bash 3.x compatible)
 FAILED_SUBTASKS=""  # Newline-separated list for compatibility
 
-# Extract a multiline prompt from a tangle result file.
-# Result files write "# Prompt: <first line>" followed by the dispatched prompt body
-# until "# Started:". Preserve that body so retries do not collapse to a useless
-# one-line prompt such as "Original task context:".
+# Print `<format-line>:<prompt-bytes>` for the current length-framed result
+# format. Stop at legacy prompt/output boundaries so legacy prompt content that
+# resembles frame metadata cannot be misclassified.
+tangle_result_prompt_frame() {
+    local result_file="$1"
+    awk '
+        /^# Prompt: / || /^# Started: / || /^## Output[[:space:]]*$/ { exit }
+        /^# Prompt-Format: octopus-length-v1$/ {
+            format_line=NR
+            if ((getline) > 0 && $0 ~ /^# Prompt-Bytes: [0-9]+$/) {
+                print format_line ":" $3
+            } else {
+                print format_line ":INVALID"
+            }
+            exit
+        }
+    ' "$result_file" 2>/dev/null || true
+}
+
+# Extract a multiline prompt from a tangle result file. Current result files
+# length-prefix the prompt so heading-shaped prompt content is unambiguous.
+# Retain the delimiter-based parser for pre-upgrade result files.
 extract_tangle_retry_prompt() {
     local result_file="$1"
-    local prompt result_dir task_id previous_task_id previous_result_file
+    local prompt prompt_frame prompt_line prompt_bytes actual_bytes first_prompt_line
+    local result_dir task_id previous_task_id previous_result_file
+    prompt_frame=$(tangle_result_prompt_frame "$result_file")
+    if [[ -n "$prompt_frame" ]]; then
+        prompt_line="${prompt_frame%%:*}"
+        prompt_bytes="${prompt_frame#*:}"
+        if [[ "$prompt_line" =~ ^[1-9][0-9]*$ && "$prompt_bytes" =~ ^[0-9]+$ ]]; then
+            first_prompt_line=$((prompt_line + 2))
+            # Append a non-newline sentinel inside the substitution so Bash
+            # does not strip legal trailing newline bytes from the frame.
+            prompt=$(tail -n "+${first_prompt_line}" "$result_file" 2>/dev/null \
+                | dd bs=1 count="$prompt_bytes" 2>/dev/null; printf '\034')
+            prompt="${prompt%$'\034'}"
+            actual_bytes=$(LC_ALL=C printf '%s' "$prompt" | wc -c | tr -d '[:space:]')
+            if [[ "$actual_bytes" == "$prompt_bytes" ]]; then
+                printf '%s\n' "$prompt"
+                return 0
+            fi
+        fi
+        return 1
+    fi
+
     prompt=$(awk '
         /^# Prompt: / {
             sub(/^# Prompt: /, "")
@@ -575,6 +614,40 @@ extract_tangle_retry_prompt() {
             extract_tangle_retry_prompt "$previous_result_file"
         fi
     fi
+}
+
+# Extract provider output without mistaking heading-shaped prompt content for
+# result metadata. Length-framed files skip the exact prompt byte count before
+# scanning for the real Started/Output headings; legacy files retain the old
+# delimiter parser.
+tangle_result_output_excerpt() {
+    local result_file="$1"
+    local prompt_frame prompt_line prompt_bytes first_prompt_line
+    prompt_frame=$(tangle_result_prompt_frame "$result_file")
+    if [[ -n "$prompt_frame" ]]; then
+        prompt_line="${prompt_frame%%:*}"
+        prompt_bytes="${prompt_frame#*:}"
+        if ! [[ "$prompt_line" =~ ^[1-9][0-9]*$ && "$prompt_bytes" =~ ^[0-9]+$ ]]; then
+            return 1
+        fi
+        first_prompt_line=$((prompt_line + 2))
+        tail -n "+${first_prompt_line}" "$result_file" 2>/dev/null \
+            | dd bs=1 skip="$prompt_bytes" 2>/dev/null \
+            | awk '
+                /^# Started:/ { after_started=1; next }
+                after_started && /^## Output$/ { in_output=1; next }
+                after_started && /^## Status:/ { in_output=0 }
+                in_output { print }
+            '
+        return ${PIPESTATUS[0]}
+    fi
+
+    awk '
+        /^# Started:/ { after_started=1; next }
+        after_started && /^## Output$/ { in_output=1; next }
+        after_started && /^## Status:/ { in_output=0 }
+        in_output { print }
+    ' "$result_file" 2>/dev/null || true
 }
 tangle_result_header_value() {
     local result_file="$1"
@@ -752,12 +825,7 @@ build_tangle_retry_feedback_prompt() {
     status=$(tangle_result_last_status "$result_file")
     role=$(tangle_result_header_value "$result_file" "# Role: ")
     agent=$(tangle_result_agent "$result_file")
-    output_excerpt=$(awk '
-        /^# Started:/ { after_started=1; next }
-        after_started && /^## Output$/ { in_output=1; next }
-        after_started && /^## Status:/ { in_output=0 }
-        in_output { print }
-    ' "$result_file" 2>/dev/null || true)
+    output_excerpt=$(tangle_result_output_excerpt "$result_file" || true)
     output_excerpt=$(printf '%s\n' "$output_excerpt" | tail -80 || true)
     diagnostics=$(tangle_retry_diagnostics "$result_file")
 

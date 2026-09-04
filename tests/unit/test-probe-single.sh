@@ -44,6 +44,15 @@ assert_contains "$(grep -A40 'probe-single)' "$ALL_SRC" | head -45)" \
 assert_contains "$PROBE_SINGLE_SRC" \
   'RESULTS_DIR.*agent_type.*task_id.*\.md' "probe_single_agent: writes result file to RESULTS_DIR"
 
+assert_contains "$PROBE_SINGLE_SRC" \
+  'write_agent_result_prompt.*result_file.*enhanced_prompt' "probe_single_agent: length-frames the dispatched prompt"
+
+if ! grep -q "printf '# Prompt:" <<< "$PROBE_SINGLE_SRC"; then
+  pass "probe_single_agent: does not use the ambiguous legacy prompt delimiter"
+else
+  fail "probe_single_agent: does not use the ambiguous legacy prompt delimiter" "legacy prompt writer remains"
+fi
+
 # ── probe_single_agent calls apply_persona ───────────────────────────────────
 
 assert_contains "$PROBE_SINGLE_SRC" \

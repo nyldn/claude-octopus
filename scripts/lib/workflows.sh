@@ -22,6 +22,11 @@ if ! type review_kill_process_tree_frozen >/dev/null 2>&1; then
     fi
     unset _octo_review_lib
 fi
+if ! type write_agent_result_prompt >/dev/null 2>&1; then
+    _octo_result_file_lib="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/result-file.sh"
+    [[ -f "$_octo_result_file_lib" ]] && source "$_octo_result_file_lib"
+    unset _octo_result_file_lib
+fi
 
 # v8.54.0: Single-agent probe for multi-agentic skill dispatch
 # Runs one probe perspective synchronously and writes result to RESULTS_DIR.
@@ -197,7 +202,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     echo "# Phase: $phase" >> "$result_file"
     printf '# Prompt metadata: original_chars=%s final_chars=%s compression=%s\n' \
         "$_budget_original_chars" "$_budget_final_chars" "$_budget_compression" >> "$result_file"
-    printf '# Prompt: %s\n' "$enhanced_prompt" >> "$result_file"
+    write_agent_result_prompt "$result_file" "$enhanced_prompt" || return 74
     echo "# Started: $(date)" >> "$result_file"
     echo "" >> "$result_file"
     echo "## Output" >> "$result_file"

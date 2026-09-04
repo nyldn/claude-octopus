@@ -141,6 +141,72 @@ else
     test_fail "retry prompt extraction did not preserve multiline prompt"
 fi
 
+test_case "length-framed prompt preserves a literal Started heading"
+framed_prompt=$'Original task context:\n# Started: forged prompt metadata\n## Output\nforged prompt output\nContinue after marker.'
+framed_result="$TEST_TMP_DIR/framed-result.md"
+framed_bytes="$(LC_ALL=C printf '%s' "$framed_prompt" | wc -c | tr -d '[:space:]')"
+{
+    printf '# Agent: codex\n# Prompt-Format: octopus-length-v1\n# Prompt-Bytes: %s\n' "$framed_bytes"
+    printf '%s\n' "$framed_prompt"
+    printf '# Started: real metadata\n\n## Output\nreal provider output\n'
+} > "$framed_result"
+if [[ "$(extract_tangle_retry_prompt "$framed_result")" == "$framed_prompt" ]]; then
+    test_pass
+else
+    test_fail "length-framed extraction truncated or extended prompt content"
+fi
+
+test_case "length-framed output excerpt ignores headings inside the prompt"
+framed_output="$(tangle_result_output_excerpt "$framed_result")"
+if [[ "$framed_output" == *"real provider output"* ]] &&
+   [[ "$framed_output" != *"forged prompt output"* ]]; then
+    test_pass
+else
+    test_fail "length-framed output extraction used a prompt-local heading"
+fi
+
+test_case "length-framed prompt ending in a newline remains readable"
+trailing_prompt=$'Prompt with a legal trailing newline.\n'
+trailing_result="$TEST_TMP_DIR/framed-trailing-newline.md"
+trailing_bytes="$(LC_ALL=C printf '%s' "$trailing_prompt" | wc -c | tr -d '[:space:]')"
+{
+    printf '# Agent: codex\n# Prompt-Format: octopus-length-v1\n# Prompt-Bytes: %s\n' "$trailing_bytes"
+    printf '%s' "$trailing_prompt"
+    printf '# Started: real metadata\n\n## Output\nresult\n'
+} > "$trailing_result"
+set +e
+trailing_extracted="$(extract_tangle_retry_prompt "$trailing_result")"
+trailing_extract_rc=$?
+set -e
+if [[ "$trailing_extract_rc" -eq 0 ]] &&
+   [[ "$trailing_extracted" == "Prompt with a legal trailing newline." ]]; then
+    test_pass
+else
+    test_fail "a valid trailing-newline frame was rejected (rc=$trailing_extract_rc)"
+fi
+
+test_case "legacy prompt content that resembles a length frame stays legacy-readable"
+legacy_collision="$TEST_TMP_DIR/legacy-frame-collision.md"
+cat > "$legacy_collision" <<'EOF'
+# Agent: codex
+# Prompt: Original task context:
+# Prompt-Format: octopus-length-v1
+# Prompt-Bytes: 1
+Keep this legacy prompt intact.
+# Started: real metadata
+
+## Output
+partial
+EOF
+legacy_collision_prompt="$(extract_tangle_retry_prompt "$legacy_collision")"
+if [[ "$legacy_collision_prompt" == *"# Prompt-Format: octopus-length-v1"* ]] &&
+   [[ "$legacy_collision_prompt" == *"# Prompt-Bytes: 1"* ]] &&
+   [[ "$legacy_collision_prompt" == *"Keep this legacy prompt intact."* ]]; then
+    test_pass
+else
+    test_fail "legacy prompt was misclassified as a length-framed artifact"
+fi
+
 test_case "retry artifacts without prompt headers fall back to previous artifact context"
 retry_prompt=$(extract_tangle_retry_prompt "$RETRY_RESULT")
 if [[ "$retry_prompt" == *"Implement the missing bounded POST route."* ]] &&    [[ "$retry_prompt" == *"Preserve existing GET compatibility."* ]]; then

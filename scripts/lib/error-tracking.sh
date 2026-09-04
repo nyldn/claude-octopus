@@ -182,53 +182,11 @@ octo_current_run_id() {
     printf '%s\n' "${OCTOPUS_RUN_ID:-${OCTOPUS_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-${CLAUDE_CODE_SESSION:-$OCTO_ERROR_TRACKING_FALLBACK_ID}}}}}"
 }
 
-# Warnings emitted below command substitutions would otherwise disappear into
-# PID handoff files or become part of captured provider JSON. Capture owners
-# allocate a private file, pass it through OCTOPUS_NOTICE_FILE, then replay it
-# once on their own stderr after the substitution boundary.
-octo_notice_channel_create() {
-    local root="${WORKSPACE_DIR:-${TMPDIR:-/tmp}}" notice_file=""
-    if mkdir -p "$root" 2>/dev/null; then
-        notice_file="$(mktemp "${root%/}/octo-notice.XXXXXX" 2>/dev/null || true)"
-    fi
-    if [[ -z "$notice_file" && "$root" != "${TMPDIR:-/tmp}" ]]; then
-        root="${TMPDIR:-/tmp}"
-        mkdir -p "$root" 2>/dev/null || return 1
-        notice_file="$(mktemp "${root%/}/octo-notice.XXXXXX" 2>/dev/null || true)"
-    fi
-    [[ -n "$notice_file" ]] || return 1
-    chmod 600 "$notice_file" 2>/dev/null || {
-        rm -f "$notice_file" 2>/dev/null || true
-        return 1
-    }
-    printf '%s\n' "$notice_file"
-}
-
-octo_notice_channel_is_valid() {
-    local notice_file="${1:-}" mode=""
-    [[ -n "$notice_file" && -f "$notice_file" && ! -L "$notice_file" ]] || return 1
-    mode=$(stat -f '%Lp' "$notice_file" 2>/dev/null || stat -c '%a' "$notice_file" 2>/dev/null || true)
-    [[ "$mode" == 600 ]]
-}
-
+# Capture owners keep provider stdout and stderr separate. Budget warnings can
+# therefore use the ordinary diagnostic stream without a pathname-based side
+# channel or an inherited bypass descriptor.
 octo_notice_warn() {
-    local message="$*" notice_file="${OCTOPUS_NOTICE_FILE:-}"
-    if octo_notice_channel_is_valid "$notice_file"; then
-        printf '%s\n' "$message" >> "$notice_file"
-    elif [[ "${OCTOPUS_NOTICE_FD:-}" == "8" ]] && { : >&8; } 2>/dev/null; then
-        log WARN "$message" 2>&8
-    else
-        log WARN "$message"
-    fi
-}
-
-octo_notice_channel_replay() {
-    local notice_file="${1:-}" message
-    octo_notice_channel_is_valid "$notice_file" || return 0
-    while IFS= read -r message || [[ -n "$message" ]]; do
-        [[ -n "$message" ]] && log WARN "$message"
-    done < "$notice_file"
-    rm -f "$notice_file" 2>/dev/null || true
+    log WARN "$*"
 }
 
 octo_run_dir() {
@@ -254,7 +212,7 @@ octo_json_quote() {
             $'\t') output="${output}\\t" ;;
             *)
                 printf -v code '%d' "'$char" 2>/dev/null || return 1
-                if [[ "$code" -lt 32 ]]; then
+                if [[ "$code" -ge 0 && "$code" -lt 32 ]]; then
                     printf -v encoded '\\u%04x' "$code"
                     output="${output}${encoded}"
                 else

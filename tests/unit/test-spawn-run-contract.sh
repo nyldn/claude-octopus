@@ -272,7 +272,11 @@ load_earned_skills() { :; }
 build_provider_context() { :; }
 enforce_context_budget() {
     if [[ "${FAKE_COMPRESS_PROMPT:-false}" == true ]]; then
-        printf 'DISPATCHED role=%s phase=%s\n' "$2" "$4"
+        if [[ "${FAKE_PROMPT_MARKER:-false}" == true ]]; then
+            printf 'D\n# Started: x\n%s\n' "$4"
+        else
+            printf 'DISPATCHED role=%s phase=%s\n' "$2" "$4"
+        fi
     else
         printf '%s\n' "$1"
     fi
@@ -362,6 +366,56 @@ run_external_fixture() {
     wait "$pid" 2>/dev/null || true
 }
 
+test_case "Agent Teams prompt persistence failure terminalizes the seat"
+original_should_use_agent_teams="$(declare -f should_use_agent_teams)"
+original_write_agent_result_prompt="$(declare -f write_agent_result_prompt)"
+should_use_agent_teams() { return 0; }
+write_agent_result_prompt() { return 1; }
+saved_timeout="$TIMEOUT"
+TIMEOUT=0
+set +e
+spawn_agent claude-sonnet "Native prompt persistence fixture" native-prompt-fail reviewer review \
+    >"$TEST_TMP_DIR/native-prompt-fail.out" 2>"$TEST_TMP_DIR/native-prompt-fail.err"
+native_prompt_rc=$?
+set -e
+TIMEOUT="$saved_timeout"
+eval "$original_should_use_agent_teams"
+eval "$original_write_agent_result_prompt"
+native_prompt_transition="$(run_contract_latest_transition spawn-native-prompt-fail)"
+native_prompt_reason="$(jq -r --arg seat spawn-native-prompt-fail \
+    'select(.seat_id == $seat and .transition == "failed") | .reason' "$ledger" | tail -n 1)"
+if [[ "$native_prompt_rc" -eq 74 ]] &&
+   [[ "$native_prompt_transition" == failed ]] &&
+   [[ "$native_prompt_reason" == "Failed to persist Agent Teams dispatched prompt" ]]; then
+    test_pass
+else
+    test_fail "Agent Teams prompt-write failure remained nonterminal (rc=$native_prompt_rc transition=${native_prompt_transition:-missing} reason=${native_prompt_reason:-missing})"
+fi
+
+test_case "legacy prompt persistence failure terminalizes the seat"
+original_write_agent_result_prompt="$(declare -f write_agent_result_prompt)"
+write_agent_result_prompt() { return 1; }
+export FAKE_SCENARIO=success
+set +e
+legacy_prompt_pid="$(spawn_agent fake-api "Legacy prompt persistence fixture" legacy-prompt-fail reviewer review)"
+legacy_prompt_spawn_rc=$?
+set -e
+if [[ "$legacy_prompt_spawn_rc" -eq 0 && -n "$legacy_prompt_pid" ]]; then
+    wait "$legacy_prompt_pid" 2>/dev/null || true
+fi
+eval "$original_write_agent_result_prompt"
+unset FAKE_SCENARIO
+legacy_prompt_transition="$(run_contract_latest_transition spawn-legacy-prompt-fail)"
+legacy_prompt_reason="$(jq -r --arg seat spawn-legacy-prompt-fail \
+    'select(.seat_id == $seat and .transition == "failed") | .reason' "$ledger" | tail -n 1)"
+if [[ "$legacy_prompt_spawn_rc" -eq 0 ]] &&
+   [[ "$legacy_prompt_transition" == failed ]] &&
+   [[ "$legacy_prompt_reason" == "Failed to persist background dispatched prompt" ]]; then
+    test_pass
+else
+    test_fail "legacy prompt-write failure remained nonterminal (spawn_rc=$legacy_prompt_spawn_rc transition=${legacy_prompt_transition:-missing} reason=${legacy_prompt_reason:-missing})"
+fi
+
 claude_stub_dir="$TEST_TMP_DIR/claude-contract-bin"
 claude_argv_capture="$TEST_TMP_DIR/spawn-claude-argv"
 mkdir -p "$claude_stub_dir"
@@ -416,29 +470,40 @@ fi
 
 test_case "result prompt is exactly the enhanced and budgeted provider stdin"
 export FAKE_COMPRESS_PROMPT=true
+export FAKE_PROMPT_MARKER=true
 export CAPTURED_PROVIDER_PROMPT_FILE="$TEST_TMP_DIR/dispatched-provider-prompt"
 run_external_fixture success exact-prompt fake-api reviewer review
-unset FAKE_COMPRESS_PROMPT CAPTURED_PROVIDER_PROMPT_FILE
+unset FAKE_COMPRESS_PROMPT FAKE_PROMPT_MARKER CAPTURED_PROVIDER_PROMPT_FILE
 prompt_result="$RESULTS_DIR/fake-api-exact-prompt.md"
-recorded_prompt="$(awk '
-    /^# Prompt: / {
-        sub(/^# Prompt: /, "")
-        print
-        in_prompt=1
-        next
+prompt_frame="$(awk '
+    /^# Prompt-Format: octopus-length-v1$/ {
+        format_line=NR
+        getline
+        print format_line ":" $3
+        exit
     }
-    in_prompt && /^# Started: / { exit }
-    in_prompt { print }
 ' "$prompt_result")"
+prompt_line="${prompt_frame%%:*}"
+prompt_bytes="${prompt_frame#*:}"
+recorded_prompt="$(tail -n "+$((prompt_line + 2))" "$prompt_result" | dd bs=1 count="$prompt_bytes" 2>/dev/null)"
 dispatched_prompt="$(cat "$TEST_TMP_DIR/dispatched-provider-prompt")"
 expected_original=$'PERSONA[reviewer]\nExternal success fixture'
-if [[ "$recorded_prompt" == "$dispatched_prompt" ]] &&
-   [[ "$recorded_prompt" == "DISPATCHED role=reviewer phase=review" ]] &&
-   grep -Fqx "# Prompt metadata: original_chars=${#expected_original} final_chars=${#recorded_prompt} compression=applied" "$prompt_result" &&
-   ! grep -Fq 'External success fixture' "$prompt_result"; then
+expected_dispatched=$'D\n# Started: x\nreview'
+prompt_equal=false
+expected_equal=false
+byte_count_equal=false
+metadata_equal=false
+original_absent=false
+[[ "$recorded_prompt" == "$dispatched_prompt" ]] && prompt_equal=true
+[[ "$recorded_prompt" == "$expected_dispatched" ]] && expected_equal=true
+[[ "$(LC_ALL=C printf '%s' "$recorded_prompt" | wc -c | tr -d '[:space:]')" == "$prompt_bytes" ]] && byte_count_equal=true
+grep -Fqx "# Prompt metadata: original_chars=${#expected_original} final_chars=${#recorded_prompt} compression=applied" "$prompt_result" && metadata_equal=true
+! grep -Fq 'External success fixture' "$prompt_result" && original_absent=true
+if [[ "$prompt_equal" == true && "$expected_equal" == true && "$byte_count_equal" == true &&
+      "$metadata_equal" == true && "$original_absent" == true ]]; then
     test_pass
 else
-    test_fail "recorded prompt did not match provider stdin (recorded='$recorded_prompt' dispatched='$dispatched_prompt')"
+    test_fail "prompt frame mismatch (provider=$prompt_equal expected=$expected_equal bytes=$byte_count_equal metadata=$metadata_equal redaction=$original_absent)"
 fi
 
 test_case "exact background seat records canonical provider and literal model"

@@ -293,12 +293,11 @@ else
     test_fail "review JSON was contaminated or notices were not replayed exactly once: $(cat "$review_notice_err")"
 fi
 
-test_case "review warning bypasses JSON capture when notice allocation and validation fail"
+test_case "review capture ignores untrusted notice paths and closes inherited descriptor 8"
 original_log="$(declare -f log)"
-original_notice_create="$(declare -f octo_notice_channel_create)"
 log() { printf '%s: %s\n' "$1" "$2" >&2; }
-octo_notice_channel_create() { return 1; }
 run_agent_sync() {
+    { printf 'descriptor bypass\n' >&8; } 2>/dev/null || true
     octo_notice_warn "Context budget: compressed $4/$5"
     printf '{"role":"%s","phase":"%s"}\n' "$4" "$5"
 }
@@ -310,28 +309,56 @@ chmod 644 "$invalid_notice"
 printf 'symlink sentinel\n' > "$symlink_target"
 ln -s "$symlink_target" "$symlink_notice"
 fallback_err="$TEST_TMP_DIR/review-fallback.err"
+review_fd8_target="$TEST_TMP_DIR/review-inherited-fd8"
 : > "$fallback_err"
+: > "$review_fd8_target"
 fallback_ok=true
 for notice_channel in "" "$invalid_notice" "$symlink_notice"; do
     review_json="$(OCTOPUS_NOTICE_FILE="$notice_channel" \
         review_run_agent_sync_progress codex prompt implementation-verifier review fallback \
-        2>>"$fallback_err")"
+        8>>"$review_fd8_target" 2>>"$fallback_err")"
     if ! jq -e '.role == "implementation-verifier" and .phase == "review"' \
         <<< "$review_json" >/dev/null 2>&1; then
         fallback_ok=false
     fi
 done
 unset -f run_agent_sync
-eval "$original_notice_create"
 eval "$original_log"
 if [[ "$fallback_ok" == true ]] &&
    [[ "$(grep -c '^WARN: Context budget: compressed implementation-verifier/review$' "$fallback_err" || true)" -eq 3 ]] &&
    [[ "$(cat "$invalid_notice")" == "invalid sentinel" ]] &&
    [[ "$(cat "$symlink_target")" == "symlink sentinel" ]] &&
-   ! find "$TEST_TMP_DIR" -name 'octo-notice.*' -o -name '.tmp-review-sync-fallback-*' | grep -q .; then
+   [[ ! -s "$review_fd8_target" ]] &&
+   ! find "$TEST_TMP_DIR" \( -name 'octo-notice.*' -o -name '.tmp-review-sync-fallback-*' \) | grep -q .; then
     test_pass
 else
-    test_fail "fallback warning contaminated JSON, was lost, or leaked resources: $(cat "$fallback_err")"
+    test_fail "review capture was contaminated, an untrusted path changed, descriptor 8 leaked, or a temp file remained"
+fi
+
+test_case "review capture preserves provider failure status and stderr exactly once"
+original_log="$(declare -f log)"
+log() { printf '%s: %s\n' "$1" "$2" >&2; }
+run_agent_sync() {
+    printf 'partial provider output\n'
+    printf 'provider diagnostic\n' >&2
+    return 23
+}
+failure_stdout="$TEST_TMP_DIR/review-failure.out"
+failure_stderr="$TEST_TMP_DIR/review-failure.err"
+set +e
+review_run_agent_sync_progress codex prompt implementation-verifier review failure-status \
+    >"$failure_stdout" 2>"$failure_stderr"
+failure_rc=$?
+set -e
+unset -f run_agent_sync
+eval "$original_log"
+if [[ "$failure_rc" -eq 23 ]] &&
+   [[ "$(grep -c '^partial provider output$' "$failure_stdout" || true)" -eq 1 ]] &&
+   [[ "$(grep -c '^provider diagnostic$' "$failure_stderr" || true)" -eq 1 ]] &&
+   ! find "$TEST_TMP_DIR" -name '.tmp-review-sync-failure-status-*' | grep -q .; then
+    test_pass
+else
+    test_fail "provider status/output/stderr was altered or review temp files remained"
 fi
 
 test_case "retry wait stops when provider exits without terminal status"
