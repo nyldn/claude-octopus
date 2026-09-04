@@ -34,6 +34,25 @@ mkdir -p "$SOURCE_ROOT/vendor" "$SOURCE_ROOT/subdir" "$SOURCE_ROOT/ordinary-dir"
     printf 'ordinary untracked directory\n' > ordinary-dir/content.txt
 )
 
+test_case "directory identity falls back from malformed BSD stat output to GNU stat"
+STAT_DIALECT_BIN="$TEST_TMP_DIR/stat-dialect-bin"
+mkdir -p "$STAT_DIALECT_BIN"
+cat > "$STAT_DIALECT_BIN/stat" <<'EOF'
+#!/usr/bin/env bash
+case "${1:-}" in
+    -f) printf 'malformed BSD response\n' ;;
+    -c) printf '42:84\n' ;;
+    *) exit 91 ;;
+esac
+EOF
+chmod +x "$STAT_DIALECT_BIN/stat"
+if stat_identity="$(PATH="$STAT_DIALECT_BIN:$PATH" _octopus_directory_identity "$SOURCE_ROOT")" &&
+   [[ "$stat_identity" == "42:84" ]]; then
+    test_pass
+else
+    test_fail "expected GNU stat fallback after an unusable BSD response: identity=${stat_identity:-none}"
+fi
+
 test_case "Git sources copy exact eligible working-tree bytes without Git metadata"
 workspace="$(_octopus_prepare_consultative_workspace "$SOURCE_ROOT")"
 if [[ "$(cat "$workspace/tracked.txt" 2>/dev/null)" == "modified working tree" ]] &&
@@ -318,6 +337,7 @@ IN_REPO_WORKSPACE_MARKER="$TEST_TMP_DIR/in-repo-workspace"
 IN_REPO_CEILING_MARKER="$TEST_TMP_DIR/in-repo-ceiling"
 IN_REPO_DISCOVERY_MARKER="$TEST_TMP_DIR/in-repo-discovery"
 IN_REPO_DISPATCH_MARKER="$TEST_TMP_DIR/in-repo-dispatch"
+IN_REPO_LIVE_CONTROL_MARKER="$TEST_TMP_DIR/in-repo-live-control"
 IN_REPO_REF="refs/heads/in-repo-advisory-write"
 mkdir -p "$IN_REPO_TMPDIR"
 git -C "$SOURCE_ROOT" update-ref -d "$IN_REPO_REF" >/dev/null 2>&1 || true
@@ -328,6 +348,9 @@ run_agent_sync() {
     if discovered_root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
         printf '%s\n' "$discovered_root" > "$IN_REPO_DISCOVERY_MARKER"
         git update-ref "$IN_REPO_REF" HEAD >/dev/null 2>&1 || true
+    fi
+    if find "$SOURCE_ROOT" -name '.octopus-consultative-completion.*' -print -quit 2>/dev/null | grep -q .; then
+        printf 'source control state observed\n' > "$IN_REPO_LIVE_CONTROL_MARKER"
     fi
     printf 'dispatched\n' > "$IN_REPO_DISPATCH_MARKER"
     printf 'review only\n'
@@ -354,11 +377,11 @@ esac
 in_repo_residue="$(find "$IN_REPO_TMPDIR" -mindepth 1 -maxdepth 1 -print)"
 if [[ "$in_repo_rc" -eq 0 && -f "$IN_REPO_DISPATCH_MARKER" ]] &&
    [[ "$in_repo_workspace_outside" == "true" && "$in_repo_ceiling_outside" == "true" ]] &&
-   [[ ! -e "$IN_REPO_DISCOVERY_MARKER" && -z "$in_repo_residue" ]] &&
+   [[ ! -e "$IN_REPO_DISCOVERY_MARKER" && ! -e "$IN_REPO_LIVE_CONTROL_MARKER" && -z "$in_repo_residue" ]] &&
    ! git -C "$SOURCE_ROOT" show-ref --verify --quiet "$IN_REPO_REF"; then
     test_pass
 else
-    test_fail "expected external temp state and a Git discovery ceiling: rc=$in_repo_rc workspace=${in_repo_workspace:-none} ceiling=${in_repo_ceiling:-none} discovery=$(test -e "$IN_REPO_DISCOVERY_MARKER" && printf yes || printf no) residue=${in_repo_residue:-none}"
+    test_fail "expected external temp state, no live source control state, and a Git discovery ceiling: rc=$in_repo_rc workspace=${in_repo_workspace:-none} ceiling=${in_repo_ceiling:-none} discovery=$(test -e "$IN_REPO_DISCOVERY_MARKER" && printf yes || printf no) live_control=$(test -e "$IN_REPO_LIVE_CONTROL_MARKER" && printf yes || printf no) residue=${in_repo_residue:-none}"
 fi
 git -C "$SOURCE_ROOT" update-ref -d "$IN_REPO_REF" >/dev/null 2>&1 || true
 rm -rf "$IN_REPO_TMPDIR"
@@ -860,7 +883,7 @@ if (
     cd() {
         if [[ "${1:-}" == "$ROOT_SWAP_ROOT" && ! -e "$ROOT_SWAP_MARKER" ]]; then
             command mv "$ROOT_SWAP_ROOT" "$ROOT_SWAP_ORIGINAL" || return 91
-            command ln -s "$ROOT_SWAP_OUTSIDE" "$ROOT_SWAP_ROOT" || return 92
+            command mv "$ROOT_SWAP_OUTSIDE" "$ROOT_SWAP_ROOT" || return 92
             printf 'swapped\n' > "$ROOT_SWAP_MARKER"
         fi
         builtin cd "$@"
@@ -871,8 +894,8 @@ if (
 else
     root_swap_rc=$?
 fi
-if [[ -L "$ROOT_SWAP_ROOT" ]]; then
-    rm -f "$ROOT_SWAP_ROOT"
+if [[ -d "$ROOT_SWAP_ROOT" && -d "$ROOT_SWAP_ORIGINAL" ]]; then
+    mv "$ROOT_SWAP_ROOT" "$ROOT_SWAP_OUTSIDE"
     mv "$ROOT_SWAP_ORIGINAL" "$ROOT_SWAP_ROOT"
 fi
 if [[ "$root_swap_rc" -ne 0 && -f "$ROOT_SWAP_MARKER" ]] &&
@@ -911,7 +934,7 @@ if workspace=$(
     cd() {
         if [[ "${1:-}" == "./nested-repo" && ! -e "$NESTED_SWAP_MARKER" ]]; then
             command mv "$NESTED_SWAP_ROOT/nested-repo" "$NESTED_SWAP_ORIGINAL" || return 91
-            command ln -s "$NESTED_SWAP_OUTSIDE" "$NESTED_SWAP_ROOT/nested-repo" || return 92
+            command mv "$NESTED_SWAP_OUTSIDE" "$NESTED_SWAP_ROOT/nested-repo" || return 92
             printf 'swapped\n' > "$NESTED_SWAP_MARKER"
         fi
         builtin cd "$@"
@@ -922,8 +945,8 @@ if workspace=$(
 else
     nested_swap_rc=$?
 fi
-if [[ -L "$NESTED_SWAP_ROOT/nested-repo" ]]; then
-    rm -f "$NESTED_SWAP_ROOT/nested-repo"
+if [[ -d "$NESTED_SWAP_ROOT/nested-repo" && -d "$NESTED_SWAP_ORIGINAL" ]]; then
+    mv "$NESTED_SWAP_ROOT/nested-repo" "$NESTED_SWAP_OUTSIDE"
     mv "$NESTED_SWAP_ORIGINAL" "$NESTED_SWAP_ROOT/nested-repo"
 fi
 nested_swap_residue="$(find "$NESTED_SWAP_TMPDIR" -mindepth 1 -maxdepth 1 -print)"
@@ -932,6 +955,56 @@ if [[ "$nested_swap_rc" -ne 0 && -f "$NESTED_SWAP_MARKER" ]] &&
     test_pass
 else
     test_fail "expected anchored nested traversal to reject the swap: rc=$nested_swap_rc swapped=$(test -e "$NESTED_SWAP_MARKER" && printf yes || printf no) workspace=${workspace:-none} residue=${nested_swap_residue:-none}"
+fi
+
+test_case "a source-root swap before Git enumeration fails closed"
+POST_ANCHOR_ROOT="$TEST_TMP_DIR/post-anchor-source"
+POST_ANCHOR_ORIGINAL="$TEST_TMP_DIR/post-anchor-source-original"
+POST_ANCHOR_REPLACEMENT="$TEST_TMP_DIR/post-anchor-replacement"
+POST_ANCHOR_TMPDIR="$TEST_TMP_DIR/post-anchor-tmp"
+POST_ANCHOR_MARKER="$TEST_TMP_DIR/post-anchor-swapped"
+mkdir -p "$POST_ANCHOR_ROOT" "$POST_ANCHOR_REPLACEMENT" "$POST_ANCHOR_TMPDIR"
+for post_anchor_repo in "$POST_ANCHOR_ROOT" "$POST_ANCHOR_REPLACEMENT"; do
+    git -C "$post_anchor_repo" init -q
+    git -C "$post_anchor_repo" config user.email "test@example.com"
+    git -C "$post_anchor_repo" config user.name "test"
+done
+printf 'secret.txt\n' > "$POST_ANCHOR_ROOT/.gitignore"
+printf 'ignored source bytes\n' > "$POST_ANCHOR_ROOT/secret.txt"
+git -C "$POST_ANCHOR_ROOT" add .gitignore
+git -C "$POST_ANCHOR_ROOT" commit -q -m init
+printf 'replacement bytes\n' > "$POST_ANCHOR_REPLACEMENT/secret.txt"
+git -C "$POST_ANCHOR_REPLACEMENT" add secret.txt
+git -C "$POST_ANCHOR_REPLACEMENT" commit -q -m init
+if workspace=$(
+    _octopus_git_without_repository_env() {
+        local arg saw_ls_files=false
+        for arg in "$@"; do
+            [[ "$arg" == "ls-files" ]] && saw_ls_files=true
+        done
+        if [[ "$saw_ls_files" == "true" && ! -e "$POST_ANCHOR_MARKER" ]]; then
+            command mv "$POST_ANCHOR_ROOT" "$POST_ANCHOR_ORIGINAL" || return 91
+            command mv "$POST_ANCHOR_REPLACEMENT" "$POST_ANCHOR_ROOT" || return 92
+            printf 'swapped\n' > "$POST_ANCHOR_MARKER"
+        fi
+        command git "$@"
+    }
+    TMPDIR="$POST_ANCHOR_TMPDIR" _octopus_prepare_consultative_workspace "$POST_ANCHOR_ROOT"
+); then
+    post_anchor_rc=0
+else
+    post_anchor_rc=$?
+fi
+if [[ -d "$POST_ANCHOR_ROOT" && -d "$POST_ANCHOR_ORIGINAL" ]]; then
+    mv "$POST_ANCHOR_ROOT" "$POST_ANCHOR_REPLACEMENT"
+    mv "$POST_ANCHOR_ORIGINAL" "$POST_ANCHOR_ROOT"
+fi
+post_anchor_residue="$(find "$POST_ANCHOR_TMPDIR" -mindepth 1 -maxdepth 1 -print)"
+if [[ "$post_anchor_rc" -ne 0 && -f "$POST_ANCHOR_MARKER" ]] &&
+   [[ -z "${workspace:-}" && -z "$post_anchor_residue" ]]; then
+    test_pass
+else
+    test_fail "expected source identity revalidation after Git enumeration: rc=$post_anchor_rc swapped=$(test -e "$POST_ANCHOR_MARKER" && printf yes || printf no) copied=$(cat "$workspace/secret.txt" 2>/dev/null || printf none) residue=${post_anchor_residue:-none}"
 fi
 
 test_case "Git copy lists use one owned directory and clean it after success"
@@ -1671,6 +1744,100 @@ else
     test_fail "expected TERM to interrupt provider capture promptly: started=$deferred_term_started stopped=$deferred_term_stopped rc=$deferred_term_rc finished=$(test -e "$DEFERRED_TERM_FINISHED" && printf yes || printf no) residue=${deferred_term_residue:-none}"
 fi
 command rm -rf "$DEFERRED_TERM_TMPDIR" "$DEFERRED_TERM_STARTED" "$DEFERRED_TERM_FINISHED" "$DEFERRED_TERM_CHILD_PID"
+
+test_case "inner signal cleanup never targets a provider identity after wait reaps it"
+INNER_POST_REAP_TMPDIR="$TEST_TMP_DIR/inner-post-reap-tmp"
+INNER_POST_REAP_INJECTED="$TEST_TMP_DIR/inner-post-reap-injected"
+INNER_POST_REAP_KILLS="$TEST_TMP_DIR/inner-post-reap-kills"
+INNER_POST_REAP_PID_FILE="$TEST_TMP_DIR/inner-post-reap-shell.pid"
+mkdir -p "$INNER_POST_REAP_TMPDIR"
+if (
+    export TMPDIR="$INNER_POST_REAP_TMPDIR"
+    export INNER_POST_REAP_INJECTED INNER_POST_REAP_KILLS INNER_POST_REAP_PID_FILE
+    /bin/bash -c '
+        source "$1/scripts/lib/agent-sync.sh"
+        log() { :; }
+        run_agent_sync() { printf "provider complete\n"; }
+        wait() {
+            local waited_pid="${1:-}" wait_rc current_shell
+            builtin wait "$@"
+            wait_rc=$?
+            if [[ -n "${agent_pid:-}" && "$waited_pid" == "$agent_pid" && ! -e "$INNER_POST_REAP_INJECTED" ]]; then
+                printf "injected\n" > "$INNER_POST_REAP_INJECTED"
+                /bin/sh -c '\''printf "%s\n" "$PPID" > "$1"'\'' _ "$INNER_POST_REAP_PID_FILE" || return 97
+                IFS= read -r current_shell < "$INNER_POST_REAP_PID_FILE" || return 97
+                command kill -TERM "$current_shell" || return 98
+            fi
+            return "$wait_rc"
+        }
+        kill() {
+            printf "%s\n" "$*" >> "$INNER_POST_REAP_KILLS"
+            return 0
+        }
+        cd "$2" || exit 96
+        _octopus_run_agent_sync_consultative_impl codex "review only" 120 reviewer ceremony >/dev/null 2>&1
+    ' _ "$PROJECT_ROOT" "$SOURCE_ROOT"
+); then
+    inner_post_reap_rc=0
+else
+    inner_post_reap_rc=$?
+fi
+inner_post_reap_residue="$(find "$INNER_POST_REAP_TMPDIR" -mindepth 1 -maxdepth 1 -print)"
+if [[ "$inner_post_reap_rc" -eq 143 && -f "$INNER_POST_REAP_INJECTED" ]] &&
+   [[ ! -s "$INNER_POST_REAP_KILLS" && -z "$inner_post_reap_residue" ]]; then
+    test_pass
+else
+    test_fail "expected post-reap TERM cleanup without stale provider signals: rc=$inner_post_reap_rc injected=$(test -e "$INNER_POST_REAP_INJECTED" && printf yes || printf no) kills=$(cat "$INNER_POST_REAP_KILLS" 2>/dev/null || printf none) residue=${inner_post_reap_residue:-none}"
+fi
+command rm -rf "$INNER_POST_REAP_TMPDIR" "$INNER_POST_REAP_INJECTED" "$INNER_POST_REAP_KILLS" "$INNER_POST_REAP_PID_FILE"
+
+test_case "outer signal cleanup never targets an implementation identity after wait reaps it"
+OUTER_POST_REAP_TMPDIR="$TEST_TMP_DIR/outer-post-reap-tmp"
+OUTER_POST_REAP_INJECTED="$TEST_TMP_DIR/outer-post-reap-injected"
+OUTER_POST_REAP_KILLS="$TEST_TMP_DIR/outer-post-reap-kills"
+OUTER_POST_REAP_PID_FILE="$TEST_TMP_DIR/outer-post-reap-shell.pid"
+mkdir -p "$OUTER_POST_REAP_TMPDIR"
+if (
+    export TMPDIR="$OUTER_POST_REAP_TMPDIR"
+    export OUTER_POST_REAP_INJECTED OUTER_POST_REAP_KILLS OUTER_POST_REAP_PID_FILE
+    /bin/bash -c '
+        source "$1/scripts/lib/agent-sync.sh"
+        _octopus_run_agent_sync_consultative_impl() {
+            printf "done\n" > "$_octopus_consultative_completion_file"
+            return 0
+        }
+        wait() {
+            local waited_pid="${1:-}" wait_rc current_shell
+            builtin wait "$@"
+            wait_rc=$?
+            if [[ -n "${implementation_pid:-}" && "$waited_pid" == "$implementation_pid" && ! -e "$OUTER_POST_REAP_INJECTED" ]]; then
+                printf "injected\n" > "$OUTER_POST_REAP_INJECTED"
+                /bin/sh -c '\''printf "%s\n" "$PPID" > "$1"'\'' _ "$OUTER_POST_REAP_PID_FILE" || return 97
+                IFS= read -r current_shell < "$OUTER_POST_REAP_PID_FILE" || return 97
+                command kill -TERM "$current_shell" || return 98
+            fi
+            return "$wait_rc"
+        }
+        kill() {
+            printf "%s\n" "$*" >> "$OUTER_POST_REAP_KILLS"
+            return 0
+        }
+        cd "$2" || exit 96
+        run_agent_sync_consultative codex "review only" 120 reviewer ceremony >/dev/null 2>&1
+    ' _ "$PROJECT_ROOT" "$SOURCE_ROOT"
+); then
+    outer_post_reap_rc=0
+else
+    outer_post_reap_rc=$?
+fi
+outer_post_reap_residue="$(find "$OUTER_POST_REAP_TMPDIR" -mindepth 1 -maxdepth 1 -print)"
+if [[ "$outer_post_reap_rc" -eq 143 && -f "$OUTER_POST_REAP_INJECTED" ]] &&
+   [[ ! -s "$OUTER_POST_REAP_KILLS" && -z "$outer_post_reap_residue" ]]; then
+    test_pass
+else
+    test_fail "expected post-reap TERM cleanup without stale implementation signals: rc=$outer_post_reap_rc injected=$(test -e "$OUTER_POST_REAP_INJECTED" && printf yes || printf no) kills=$(cat "$OUTER_POST_REAP_KILLS" 2>/dev/null || printf none) residue=${outer_post_reap_residue:-none}"
+fi
+command rm -rf "$OUTER_POST_REAP_TMPDIR" "$OUTER_POST_REAP_INJECTED" "$OUTER_POST_REAP_KILLS" "$OUTER_POST_REAP_PID_FILE"
 
 test_case "cleanup removes only the allocated temp root when TMPDIR is inside another repository"
 CLEANUP_CONTAINER="$TEST_TMP_DIR/cleanup-container"

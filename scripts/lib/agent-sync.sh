@@ -309,13 +309,13 @@ _octopus_validate_copy_source_path() {
     [[ -e "$entry_path" || -L "$entry_path" ]] || return 1
 
     confinement_rel="$rel"
-    confinement_root="$source_root"
+    confinement_root="$(cd "$source_root" 2>/dev/null && pwd -P)" || return 1
     if [[ -n "$copy_scope" ]]; then
         case "$rel" in
             "$copy_scope"/*) confinement_rel="${rel#"$copy_scope"/}" ;;
             *) return 1 ;;
         esac
-        confinement_root="${source_root}/${copy_scope}"
+        confinement_root="$(cd "${source_root}/${copy_scope}" 2>/dev/null && pwd -P)" || return 1
     fi
 
     if [[ -L "$entry_path" ]]; then
@@ -354,6 +354,55 @@ _octopus_expected_physical_entry_path() {
     printf '%s/%s\n' "${physical_parent%/}" "$leaf"
 }
 
+_octopus_print_valid_directory_identity() {
+    local identity="$1"
+    local device inode
+
+    device="${identity%%:*}"
+    inode="${identity#*:}"
+    [[ "$inode" != "$identity" ]] || return 1
+    case "$device" in ""|*[!0-9]*) return 1 ;; esac
+    case "$inode" in ""|*[!0-9]*) return 1 ;; esac
+    printf '%s:%s\n' "$device" "$inode"
+}
+
+# Print a directory's device and inode using the native stat dialect on macOS
+# or Linux. Pathname checks alone cannot distinguish a real-directory swap at
+# the same location.
+_octopus_directory_identity() {
+    local directory="$1"
+    local identity
+
+    [[ -d "$directory" && ! -L "$directory" ]] || return 1
+    if identity="$(command stat -f '%d:%i' "$directory" 2>/dev/null)" &&
+       _octopus_print_valid_directory_identity "$identity"; then
+        return 0
+    fi
+    identity="$(command stat -c '%d:%i' "$directory" 2>/dev/null)" || return 1
+    _octopus_print_valid_directory_identity "$identity"
+}
+
+_octopus_directory_identity_matches() {
+    local directory="$1"
+    local expected_identity="$2"
+    local current_identity
+
+    [[ -n "$expected_identity" ]] || return 1
+    current_identity="$(_octopus_directory_identity "$directory")" || return 1
+    [[ "$current_identity" == "$expected_identity" ]]
+}
+
+# Pure shell cannot make a pathname lookup and the following operation atomic.
+# Revalidate both the original pathname and the entered directory at every
+# deterministic reopen boundary, then use paths relative to the entered cwd.
+_octopus_revalidate_directory_anchor() {
+    local anchor_path="$1"
+    local expected_identity="$2"
+
+    _octopus_directory_identity_matches "$anchor_path" "$expected_identity" || return 1
+    _octopus_directory_identity_matches . "$expected_identity"
+}
+
 # Copy one leaf without ever reopening a validated ancestor by pathname. Each
 # directory component becomes the subshell's working directory and is checked
 # physically before the next component is entered. `cp -P` preserves a leaf
@@ -365,11 +414,14 @@ _octopus_copy_leaf_safely() (
     local rel="$3"
     local copy_scope="${4:-}"
     local remaining component physical_dir destination_parent expected_source_root source_is_anchored=false
+    local source_anchor_path source_identity
 
     if [[ "$source_root" == "." ]]; then
         source_root="$(pwd -P)" || return 1
         source_is_anchored=true
     fi
+    source_anchor_path="$source_root"
+    source_identity="$(_octopus_directory_identity "$source_anchor_path")" || return 1
 
     _octopus_validate_copy_source_path "$source_root" "$rel" "$copy_scope" || return 1
     destination_parent="${rel%/*}"
@@ -380,11 +432,13 @@ _octopus_copy_leaf_safely() (
 
     if [[ "$source_is_anchored" == "true" ]]; then
         [[ "$(pwd -P)" == "$source_root" ]] || return 1
+        _octopus_revalidate_directory_anchor "$source_anchor_path" "$source_identity" || return 1
     else
         expected_source_root="$(_octopus_expected_physical_entry_path "$source_root")" || return 1
         cd "$source_root" 2>/dev/null || return 1
         physical_dir="$(pwd -P)" || return 1
         [[ "$physical_dir" == "$expected_source_root" ]] || return 1
+        _octopus_revalidate_directory_anchor "$source_anchor_path" "$source_identity" || return 1
         source_root="$physical_dir"
     fi
     remaining="$rel"
@@ -406,6 +460,7 @@ _octopus_copy_leaf_safely() (
     esac
     [[ -f "./$remaining" || -L "./$remaining" ]] || return 1
     command cp -pP "./$remaining" "$workspace/$rel" || return 1
+    _octopus_directory_identity_matches "$source_anchor_path" "$source_identity" || return 1
     _octopus_validate_copy_source_path "$workspace" "$rel" "$copy_scope"
 )
 
@@ -418,7 +473,9 @@ _octopus_copy_nested_git_tree_safely() (
     local workspace="$2"
     local nested_rel="$3"
     local temp_exclusion_root="${4:-$source_root}"
+    local expected_nested_identity="${5:-}"
     local remaining component physical_dir expected_dir nested_top source_is_anchored=false
+    local component_identity nested_identity nested_anchor_path
 
     case "$nested_rel" in
         ""|/*) return 1 ;;
@@ -450,19 +507,28 @@ _octopus_copy_nested_git_tree_safely() (
             ""|.|..) return 1 ;;
         esac
         [[ -d "./$component" && ! -L "./$component" ]] || return 1
+        component_identity="$(_octopus_directory_identity "./$component")" || return 1
+        if [[ "$remaining" != */* && -n "$expected_nested_identity" ]]; then
+            [[ "$component_identity" == "$expected_nested_identity" ]] || return 1
+        fi
         cd "./$component" 2>/dev/null || return 1
         expected_dir="${expected_dir}/${component}"
         physical_dir="$(pwd -P)" || return 1
         [[ "$physical_dir" == "$expected_dir" ]] || return 1
+        _octopus_directory_identity_matches . "$component_identity" || return 1
         [[ "$remaining" == */* ]] || break
         remaining="${remaining#*/}"
     done
 
+    nested_anchor_path="$expected_dir"
+    nested_identity="$component_identity"
+    _octopus_revalidate_directory_anchor "$nested_anchor_path" "$nested_identity" || return 1
     nested_top="$(_octopus_git_without_repository_env -C . rev-parse --show-toplevel 2>/dev/null)" || return 1
+    _octopus_revalidate_directory_anchor "$nested_anchor_path" "$nested_identity" || return 1
     nested_top="$(cd "$nested_top" 2>/dev/null && pwd -P)" || return 1
     [[ "$nested_top" == "$physical_dir" ]] || return 1
     mkdir -p "$workspace/$nested_rel" || return 1
-    _octopus_copy_git_tracked_tree . "$workspace/$nested_rel" "" "$temp_exclusion_root"
+    _octopus_copy_git_tracked_tree . "$workspace/$nested_rel" "" "$temp_exclusion_root" "$nested_anchor_path" "$nested_identity"
 )
 
 _octopus_validate_materialized_symlinks() (
@@ -513,6 +579,27 @@ _octopus_temp_parent_outside_source() {
         return 0
     done
     return 1
+}
+
+# Resolve the full physical Git root for control-file placement. A launch from
+# a repository subdirectory must not treat a repository-local TMPDIR as safe.
+_octopus_temp_exclusion_root_for_source() {
+    local source_root="$1"
+    local source_kind git_root
+
+    source_root="$(cd "$source_root" 2>/dev/null && pwd -P)" || return 1
+    source_kind="$(_octopus_classify_git_source "$source_root")" || return 1
+    if [[ "$source_kind" == "git-work-tree" ]]; then
+        git_root="$(_octopus_git_without_repository_env -C "$source_root" rev-parse --show-toplevel 2>/dev/null)" || return 1
+        git_root="$(cd "$git_root" 2>/dev/null && pwd -P)" || return 1
+        case "$source_root" in
+            "$git_root"|"$git_root"/*) ;;
+            *) return 1 ;;
+        esac
+        printf '%s\n' "$git_root"
+    else
+        printf '%s\n' "$source_root"
+    fi
 }
 
 _octopus_temp_name_matches() {
@@ -630,8 +717,10 @@ _octopus_copy_git_tracked_tree() (
     local workspace="$2"
     local copy_scope="${3:-}"
     local temp_exclusion_root="${4:-$source_root}"
+    local source_anchor_path="${5:-}"
+    local source_identity="${6:-}"
     local list_dir filelist untrackedlist copylist entry rel entry_path
-    local nested_stage scope_pathspec temp_parent list_dir_prefix expected_source_root
+    local nested_stage nested_entry_identity scope_pathspec temp_parent list_dir_prefix expected_source_root
 
     _octopus_cleanup_copy_list_dir() {
         local cleanup_rc="$1"
@@ -643,14 +732,23 @@ _octopus_copy_git_tracked_tree() (
     }
 
     case "$source_root" in
-        .) expected_source_root="$(pwd -P)" || return 1 ;;
-        /*) expected_source_root="$(_octopus_expected_physical_entry_path "$source_root")" || return 1 ;;
+        .)
+            expected_source_root="$(pwd -P)" || return 1
+            [[ -n "$source_anchor_path" ]] || source_anchor_path="$expected_source_root"
+            ;;
+        /*)
+            expected_source_root="$(_octopus_expected_physical_entry_path "$source_root")" || return 1
+            [[ -n "$source_anchor_path" ]] || source_anchor_path="$source_root"
+            ;;
         *) return 1 ;;
     esac
+    [[ -n "$source_identity" ]] || source_identity="$(_octopus_directory_identity "$source_anchor_path")" || return 1
     cd "$source_root" 2>/dev/null || return 1
     source_root="$(pwd -P)" || return 1
     [[ "$source_root" == "$expected_source_root" ]] || return 1
+    _octopus_revalidate_directory_anchor "$source_anchor_path" "$source_identity" || return 1
     _octopus_git_without_repository_env -C . rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
+    _octopus_revalidate_directory_anchor "$source_anchor_path" "$source_identity" || return 1
     workspace="$(cd "$workspace" 2>/dev/null && pwd -P)" || return 1
     temp_exclusion_root="$(cd "$temp_exclusion_root" 2>/dev/null && pwd -P)" || return 1
     case "$source_root" in
@@ -658,8 +756,8 @@ _octopus_copy_git_tracked_tree() (
         *) return 1 ;;
     esac
     if [[ -n "$copy_scope" ]]; then
-        _octopus_source_path_has_safe_ancestry "$source_root" "$copy_scope" || return 1
-        [[ -d "$source_root/$copy_scope" && ! -L "$source_root/$copy_scope" ]] || return 1
+        _octopus_source_path_has_safe_ancestry . "$copy_scope" || return 1
+        [[ -d "./$copy_scope" && ! -L "./$copy_scope" ]] || return 1
         scope_pathspec=":(literal,top)${copy_scope}"
     fi
 
@@ -677,27 +775,32 @@ _octopus_copy_git_tracked_tree() (
     untrackedlist="${list_dir}/untracked"
     copylist="${list_dir}/copy"
     : > "$filelist" && : > "$untrackedlist" && : > "$copylist" || return 1
+    _octopus_revalidate_directory_anchor "$source_anchor_path" "$source_identity" || return 1
     if [[ -n "$copy_scope" ]]; then
-        _octopus_git_without_repository_env -C "$source_root" ls-files -z --cached -- "$scope_pathspec" >"$filelist" 2>/dev/null || {
+        _octopus_git_without_repository_env -C . ls-files -z --cached -- "$scope_pathspec" >"$filelist" 2>/dev/null || {
             return 1
         }
-        _octopus_git_without_repository_env -C "$source_root" \
+        _octopus_revalidate_directory_anchor "$source_anchor_path" "$source_identity" || return 1
+        _octopus_git_without_repository_env -C . \
             ls-files -z --others --exclude-standard -- "$scope_pathspec" \
             >"$untrackedlist" 2>/dev/null || return 1
     else
-        _octopus_git_without_repository_env -C "$source_root" ls-files -z --cached >"$filelist" 2>/dev/null || {
+        _octopus_git_without_repository_env -C . ls-files -z --cached >"$filelist" 2>/dev/null || {
             return 1
         }
-        _octopus_git_without_repository_env -C "$source_root" \
+        _octopus_revalidate_directory_anchor "$source_anchor_path" "$source_identity" || return 1
+        _octopus_git_without_repository_env -C . \
             ls-files -z --others --exclude-standard \
             >"$untrackedlist" 2>/dev/null || return 1
     fi
+    _octopus_revalidate_directory_anchor "$source_anchor_path" "$source_identity" || return 1
     while IFS= read -r -d '' entry; do
         _octopus_path_is_generated_temp_artifact "${entry%/}" && continue
         printf '%s\0' "$entry" >> "$filelist" || return 1
     done < "$untrackedlist"
 
     while IFS= read -r -d '' entry; do
+        _octopus_revalidate_directory_anchor "$source_anchor_path" "$source_identity" || return 1
         rel="${entry%/}"
         [[ -n "$rel" ]] || continue
         if [[ -n "$copy_scope" ]]; then
@@ -706,26 +809,31 @@ _octopus_copy_git_tracked_tree() (
                 *) return 1 ;;
             esac
         fi
-        entry_path="${source_root}/${rel}"
+        entry_path="./${rel}"
 
         # Deleted tracked paths remain in the index but have no bytes to copy.
         [[ -e "$entry_path" || -L "$entry_path" ]] || continue
-        _octopus_validate_copy_source_path "$source_root" "$rel" "$copy_scope" || {
+        _octopus_validate_copy_source_path . "$rel" "$copy_scope" || {
             return 1
         }
 
         if [[ -d "$entry_path" && ! -L "$entry_path" ]]; then
+            nested_entry_identity="$(_octopus_directory_identity "$entry_path")" || return 1
             # Nested repositories appear as directory entries. An exact .git
             # marker catches embedded and untracked repositories; index mode
             # 160000 still identifies a registered gitlink if its marker broke.
             nested_stage=""
             if [[ ! -e "$entry_path/.git" && ! -L "$entry_path/.git" ]]; then
-                nested_stage="$(_octopus_git_without_repository_env -C "$source_root" ls-files --stage -- ":(literal,top)${rel}" 2>/dev/null)" || {
+                _octopus_revalidate_directory_anchor "$source_anchor_path" "$source_identity" || return 1
+                nested_stage="$(_octopus_git_without_repository_env -C . ls-files --stage -- ":(literal,top)${rel}" 2>/dev/null)" || {
                     return 1
                 }
+                _octopus_revalidate_directory_anchor "$source_anchor_path" "$source_identity" || return 1
             fi
             if [[ -e "$entry_path/.git" || -L "$entry_path/.git" || "$nested_stage" == 160000\ * ]]; then
-                _octopus_copy_nested_git_tree_safely . "$workspace" "$rel" "$temp_exclusion_root" || return 1
+                _octopus_revalidate_directory_anchor "$source_anchor_path" "$source_identity" || return 1
+                _octopus_copy_nested_git_tree_safely . "$workspace" "$rel" "$temp_exclusion_root" "$nested_entry_identity" || return 1
+                _octopus_revalidate_directory_anchor "$source_anchor_path" "$source_identity" || return 1
                 continue
             fi
         fi
@@ -734,8 +842,11 @@ _octopus_copy_git_tracked_tree() (
     done < "$filelist"
 
     while IFS= read -r -d '' rel; do
+        _octopus_revalidate_directory_anchor "$source_anchor_path" "$source_identity" || return 1
         _octopus_copy_leaf_safely . "$workspace" "$rel" "$copy_scope" || return 1
+        _octopus_revalidate_directory_anchor "$source_anchor_path" "$source_identity" || return 1
     done < "$copylist"
+    _octopus_revalidate_directory_anchor "$source_anchor_path" "$source_identity"
 
 )
 
@@ -747,6 +858,7 @@ _octopus_prepare_consultative_workspace() {
     local workspace_result_var="${2:-}"
     local temp_root_result_var="${3:-}"
     local prepared_temp_root prepared_temp_root_raw prepared_workspace git_root source_prefix git_source_kind temp_parent temp_root_prefix temp_exclusion_root
+    local source_identity git_root_identity
 
     if [[ -n "$workspace_result_var" || -n "$temp_root_result_var" ]]; then
         [[ "$workspace_result_var" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || return 1
@@ -754,12 +866,16 @@ _octopus_prepare_consultative_workspace() {
     fi
 
     source_root="$(cd "$source_root" 2>/dev/null && pwd -P)" || return 1
+    source_identity="$(_octopus_directory_identity "$source_root")" || return 1
     git_source_kind="$(_octopus_classify_git_source "$source_root")" || return 1
+    _octopus_directory_identity_matches "$source_root" "$source_identity" || return 1
 
     temp_exclusion_root="$source_root"
     if [[ "$git_source_kind" == "git-work-tree" ]]; then
         git_root="$(_octopus_git_without_repository_env -C "$source_root" rev-parse --show-toplevel 2>/dev/null)" || return 1
         git_root="$(cd "$git_root" 2>/dev/null && pwd -P)" || return 1
+        git_root_identity="$(_octopus_directory_identity "$git_root")" || return 1
+        _octopus_directory_identity_matches "$source_root" "$source_identity" || return 1
         case "$source_root" in
             "$git_root"|"$git_root"/*) ;;
             *) return 1 ;;
@@ -807,7 +923,7 @@ _octopus_prepare_consultative_workspace() {
                 ;;
         esac
 
-        _octopus_copy_git_tracked_tree "$git_root" "$prepared_workspace" "$source_prefix" "$git_root" || {
+        _octopus_copy_git_tracked_tree "$git_root" "$prepared_workspace" "$source_prefix" "$git_root" "$git_root" "$git_root_identity" || {
             rm -rf "$prepared_temp_root"
             return 1
         }
@@ -868,6 +984,21 @@ _octopus_remove_consultative_temp_root() {
     rm -rf "$temp_root"
 }
 
+# Ask Bash's job table whether a PID still names an unreaped child owned by
+# this shell. Numeric PID probes can match an unrelated process after reuse.
+_octopus_shell_owns_job() {
+    local target_pid="$1"
+    local job_pid job_state
+
+    case "$target_pid" in ""|*[!0-9]*) return 1 ;; esac
+    for job_state in -pr -ps; do
+        while IFS= read -r job_pid; do
+            [[ "$job_pid" == "$target_pid" ]] && return 0
+        done < <(jobs "$job_state")
+    done
+    return 1
+}
+
 # Run a synchronous agent in a strictly consultative context.
 #
 # Council seats and pre-implementation design reviews are advisory. Native
@@ -887,7 +1018,7 @@ _octopus_run_agent_sync_consultative_impl() (
     local old_autonomy_set="${CLAUDE_OCTOPUS_AUTONOMY+x}"
     local old_autonomy="${CLAUDE_OCTOPUS_AUTONOMY:-}"
     local source_root source_root_logical workspace temp_root temp_root_prefix rc original_prompt isolated_prompt agent_output cleanup_note
-    local agent_pid agent_output_file
+    local agent_pid agent_output_file agent_job_owned=false
     local -a consultative_args
 
     _octopus_handle_consultative_signal() {
@@ -896,7 +1027,8 @@ _octopus_run_agent_sync_consultative_impl() (
 
         # Do not let a second foreground signal interrupt validated cleanup.
         trap '' INT TERM
-        if [[ -n "$agent_pid" ]]; then
+        if [[ "$agent_job_owned" == "true" ]] && _octopus_shell_owns_job "$agent_pid"; then
+            agent_job_owned=false
             kill -TERM -- "-$agent_pid" 2>/dev/null || true
             kill -TERM "$agent_pid" 2>/dev/null || true
             /bin/sleep 1
@@ -969,12 +1101,15 @@ This copy intentionally contains no Git control-plane metadata. Inspect the copi
         cd "$workspace" && run_agent_sync "${consultative_args[@]}"
     ) >"$agent_output_file" &
     agent_pid=$!
+    agent_job_owned=true
     set +m
     if wait "$agent_pid"; then
         rc=0
     else
         rc=$?
     fi
+    trap '' INT TERM
+    agent_job_owned=false
     agent_pid=""
     agent_output="$(cat "$agent_output_file" 2>/dev/null || true)"
     rm -f "$agent_output_file" 2>/dev/null || true
@@ -1024,12 +1159,14 @@ EOF
 # interruptible. Monitor mode gives the implementation a private process group
 # so cancellation reaches its cleanup handler and all wrapper descendants.
 run_agent_sync_consultative() {
-    local implementation_pid="" rc=0 interrupted_rc=""
+    local implementation_pid="" implementation_wait_pid="" rc=0 interrupted_rc=""
+    local implementation_job_owned=false
     local monitor_was_enabled=false old_int_trap old_term_trap
-    local cleanup_waits completion_parent completion_state completion_owner
+    local cleanup_waits completion_parent completion_state completion_owner completion_exclusion_root
     local _octopus_consultative_completion_file=""
 
-    completion_parent="$(_octopus_temp_parent_outside_source "$(pwd -P)")" || return 1
+    completion_exclusion_root="$(_octopus_temp_exclusion_root_for_source "$(pwd -P)")" || return 1
+    completion_parent="$(_octopus_temp_parent_outside_source "$completion_exclusion_root")" || return 1
     completion_owner="$(/bin/sh -c 'printf "%s\n" "$PPID"')" || return 1
     case "$completion_owner" in
         ""|*[!0-9]*) return 1 ;;
@@ -1041,23 +1178,32 @@ run_agent_sync_consultative() {
     }
     old_int_trap="$(trap -p INT)"
     old_term_trap="$(trap -p TERM)"
-    trap 'interrupted_rc=130; trap "" INT TERM; if [[ -n "$implementation_pid" ]]; then kill -INT -- "-$implementation_pid" 2>/dev/null || kill -INT "$implementation_pid" 2>/dev/null || true; fi' INT
-    trap 'interrupted_rc=143; trap "" INT TERM; if [[ -n "$implementation_pid" ]]; then kill -TERM -- "-$implementation_pid" 2>/dev/null || kill -TERM "$implementation_pid" 2>/dev/null || true; fi' TERM
+    trap 'interrupted_rc=130; trap "" INT TERM; if [[ "$implementation_job_owned" == "true" ]] && _octopus_shell_owns_job "$implementation_pid"; then kill -INT -- "-$implementation_pid" 2>/dev/null || kill -INT "$implementation_pid" 2>/dev/null || true; fi' INT
+    trap 'interrupted_rc=143; trap "" INT TERM; if [[ "$implementation_job_owned" == "true" ]] && _octopus_shell_owns_job "$implementation_pid"; then kill -TERM -- "-$implementation_pid" 2>/dev/null || kill -TERM "$implementation_pid" 2>/dev/null || true; fi' TERM
     [[ "$-" == *m* ]] && monitor_was_enabled=true
     set -m
     _octopus_run_agent_sync_consultative_impl "$@" &
     implementation_pid=$!
+    implementation_job_owned=true
     set +m
     if [[ "$interrupted_rc" == "130" ]]; then
-        kill -INT -- "-$implementation_pid" 2>/dev/null || kill -INT "$implementation_pid" 2>/dev/null || true
+        if _octopus_shell_owns_job "$implementation_pid"; then
+            kill -INT -- "-$implementation_pid" 2>/dev/null || kill -INT "$implementation_pid" 2>/dev/null || true
+        fi
     elif [[ "$interrupted_rc" == "143" ]]; then
-        kill -TERM -- "-$implementation_pid" 2>/dev/null || kill -TERM "$implementation_pid" 2>/dev/null || true
+        if _octopus_shell_owns_job "$implementation_pid"; then
+            kill -TERM -- "-$implementation_pid" 2>/dev/null || kill -TERM "$implementation_pid" 2>/dev/null || true
+        fi
     fi
     if wait "$implementation_pid"; then
         rc=0
     else
         rc=$?
     fi
+    implementation_wait_pid="$implementation_pid"
+    trap '' INT TERM
+    implementation_job_owned=false
+    implementation_pid=""
     if [[ -n "$interrupted_rc" ]]; then
         # The first wait returns as soon as the trap runs. Reap the isolated
         # implementation so its signal handler finishes provider and workspace
@@ -1072,7 +1218,7 @@ run_agent_sync_consultative() {
         # Do not signal the numeric PID again after the initial wait. If the
         # implementation exited without writing its completion marker, that
         # PID could already have been reused by an unrelated process.
-        wait "$implementation_pid" 2>/dev/null || true
+        wait "$implementation_wait_pid" 2>/dev/null || true
     fi
 
     if [[ -n "$old_int_trap" ]]; then eval "$old_int_trap"; else trap - INT; fi
