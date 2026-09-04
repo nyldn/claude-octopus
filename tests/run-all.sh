@@ -3,7 +3,7 @@
 # Historical Makefile targets call: ./tests/run-all.sh <category> [extra flags]
 #
 # Supported categories:
-#   smoke | unit | integration | root | live | all
+#   smoke | unit | integration | root | live | symlink-sensitive | all
 #
 # Removed aliases, each of which ran an existing category under a second name:
 #   e2e         -> ran `integration`, so `make test-all` executed the
@@ -29,9 +29,10 @@ case "$category" in
   integration) exec "$SCRIPT_DIR/run-all-tests.sh" --integration "$@" ;;
   root)        exec "$SCRIPT_DIR/run-all-tests.sh" --root "$@" ;;
   live)        exec "$SCRIPT_DIR/run-all-tests.sh" --live "$@" ;;
+  symlink-sensitive) exec "$SCRIPT_DIR/run-all-tests.sh" --symlink-sensitive "$@" ;;
   all)         exec "$SCRIPT_DIR/run-all-tests.sh" --all "$@" ;;
   *)
-    echo "Usage: $(basename "$0") {smoke|unit|integration|root|live|all} [flags]" >&2
+    echo "Usage: $(basename "$0") {smoke|unit|integration|root|live|symlink-sensitive|all} [flags]" >&2
     exit 2
     ;;
 esac

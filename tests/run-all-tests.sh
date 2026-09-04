@@ -18,6 +18,9 @@
 #   --fail-fast     Stop on first suite failure
 #   --list          List discovered tests without running them
 #   --suite=PATH    Run one explicit suite path relative to tests/ (repeatable)
+#   --shard-index=N Zero-based deterministic shard index (default: 0)
+#   --shard-count=N Number of deterministic shards (default: 1)
+#   --symlink-sensitive  Keep only unit suites that exercise path indirection
 
 set -euo pipefail
 
@@ -38,6 +41,8 @@ FAILED_SUITES=0
 SKIPPED_SUITES=0
 FAIL_FAST=false
 LIST_ONLY=false
+SHARD_INDEX=0
+SHARD_COUNT=1
 SUITE_TIMINGS=()
 
 # Function to run a test suite
@@ -139,6 +144,7 @@ print_summary() {
 # Parse flags
 declare -a CATEGORIES=()
 declare -a EXPLICIT_SUITE_ARGS=()
+SYMLINK_SENSITIVE=false
 for arg in "$@"; do
     case "$arg" in
         --smoke)       CATEGORIES+=("smoke") ;;
@@ -155,6 +161,9 @@ for arg in "$@"; do
         --everything)  CATEGORIES=("smoke" "unit" "integration" "root" "live") ;;
         --fail-fast)   FAIL_FAST=true ;;
         --list)        LIST_ONLY=true ;;
+        --shard-index=*) SHARD_INDEX="${arg#--shard-index=}" ;;
+        --shard-count=*) SHARD_COUNT="${arg#--shard-count=}" ;;
+        --symlink-sensitive) SYMLINK_SENSITIVE=true ;;
         --suite=*)
             suite_arg="${arg#--suite=}"
             if [[ -z "$suite_arg" ]]; then
@@ -168,8 +177,26 @@ for arg in "$@"; do
     esac
 done
 
-# Default to --all only when no category or explicit suite was requested.
-if [[ ${#CATEGORIES[@]} -eq 0 && ${#EXPLICIT_SUITE_ARGS[@]} -eq 0 ]]; then
+if ! [[ "$SHARD_COUNT" =~ ^[1-9][0-9]*$ ]] ||
+   ! [[ "$SHARD_INDEX" =~ ^[0-9]+$ ]]; then
+    echo -e "${RED}Shard count must be positive and shard index must be non-negative.${NC}" >&2
+    exit 2
+fi
+SHARD_COUNT=$((10#$SHARD_COUNT))
+SHARD_INDEX=$((10#$SHARD_INDEX))
+if [[ "$SHARD_INDEX" -ge "$SHARD_COUNT" ]]; then
+    echo -e "${RED}Shard index $SHARD_INDEX is outside shard count $SHARD_COUNT.${NC}" >&2
+    exit 2
+fi
+
+# A standalone selector scans unit tests. When combined with --suite, it filters
+# only those explicit suites instead of silently adding the entire unit tree.
+if [[ "$SYMLINK_SENSITIVE" == true && ${#CATEGORIES[@]} -eq 0 && ${#EXPLICIT_SUITE_ARGS[@]} -eq 0 ]]; then
+    CATEGORIES=("unit")
+fi
+
+# Default to --all only when no category, selector, or explicit suite was requested.
+if [[ "$SYMLINK_SENSITIVE" == false && ${#CATEGORIES[@]} -eq 0 && ${#EXPLICIT_SUITE_ARGS[@]} -eq 0 ]]; then
     CATEGORIES=("smoke" "unit" "integration" "root")
 fi
 
@@ -270,6 +297,40 @@ for suite in ${UNIQUE_SUITES[@]+"${UNIQUE_SUITES[@]}"}; do
     TEST_SUITES+=("$suite")
 done
 
+if [[ "$SYMLINK_SENSITIVE" == true ]]; then
+    declare -a SYMLINK_SUITES=()
+    for suite in ${TEST_SUITES[@]+"${TEST_SUITES[@]}"}; do
+        if grep -Eiq 'symlink|pwd -P|realpath|logical.{0,40}physical|physical.{0,40}logical' "$suite"; then
+            SYMLINK_SUITES+=("$suite")
+        fi
+    done
+    TEST_SUITES=("${SYMLINK_SUITES[@]+"${SYMLINK_SUITES[@]}"}")
+    if [[ -z "${TEST_SUITES[*]-}" ]]; then
+        echo -e "${RED}Symlink-sensitive selection produced no test suites.${NC}" >&2
+        exit 1
+    fi
+fi
+
+if [[ "$SHARD_COUNT" -gt 1 ]]; then
+    declare -a SORTED_SUITES=()
+    declare -a SHARDED_SUITES=()
+    while IFS= read -r suite; do
+        [[ -n "$suite" ]] && SORTED_SUITES+=("$suite")
+    done < <(printf '%s\n' ${TEST_SUITES[@]+"${TEST_SUITES[@]}"} | LC_ALL=C sort)
+    suite_index=0
+    for suite in "${SORTED_SUITES[@]}"; do
+        if [[ $((suite_index % SHARD_COUNT)) -eq "$SHARD_INDEX" ]]; then
+            SHARDED_SUITES+=("$suite")
+        fi
+        suite_index=$((suite_index + 1))
+    done
+    TEST_SUITES=("${SHARDED_SUITES[@]+"${SHARDED_SUITES[@]}"}")
+    if [[ -z "${TEST_SUITES[*]-}" ]]; then
+        echo -e "${RED}Shard $SHARD_INDEX of $SHARD_COUNT produced no test suites.${NC}" >&2
+        exit 1
+    fi
+fi
+
 if [[ -z "${TEST_SUITES[*]-}" ]]; then
     echo -e "${YELLOW}No test files discovered for categories: ${CATEGORIES[*]-}${NC}"
     exit 0
@@ -286,6 +347,9 @@ else
     echo -e "${BLUE}Categories:${NC} explicit suites"
 fi
 echo -e "${BLUE}Discovered:${NC} ${#TEST_SUITES[@]} test suites"
+if [[ "$SHARD_COUNT" -gt 1 ]]; then
+    echo -e "${BLUE}Shard:${NC} $((SHARD_INDEX + 1))/${SHARD_COUNT}"
+fi
 if $FAIL_FAST; then
     echo -e "${BLUE}Fail-fast:${NC} enabled"
 fi

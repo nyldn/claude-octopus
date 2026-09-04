@@ -1,4 +1,4 @@
-.PHONY: test test-smoke test-unit test-integration test-live test-root test-coverage test-all test-plugin-name validate-plugin-assembly clean-tests help sync sync-check ci-changed ci-local
+.PHONY: test test-smoke test-unit test-symlink-sensitive test-integration test-live test-root test-coverage test-all test-plugin-name validate-plugin-assembly clean-tests help sync sync-check ci-changed ci-local
 
 # Default: smoke + unit (fast feedback)
 test: test-smoke test-unit
@@ -48,6 +48,12 @@ test-smoke: test-plugin-name
 test-unit:
 	@echo "Running unit tests..."
 	@./tests/run-all.sh unit
+
+# Pull-request symlink lane: avoid a third full unit pass while preserving every
+# suite that explicitly exercises logical and physical path behavior.
+test-symlink-sensitive:
+	@echo "Running symlink-sensitive unit tests..."
+	@./tests/run-all.sh symlink-sensitive
 
 # Integration tests (5-10min)
 test-integration:

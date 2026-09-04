@@ -249,11 +249,11 @@ jobs:
           retention-days: 7
 
   unit:
-    name: Unit Tests (${{ matrix.os }})
+    name: Unit Tests (${{ matrix.label }})
     runs-on: ${{ matrix.os }}
-    # The macOS matrix crossed the old 25-minute ceiling as the suite grew (run
-    # 33899702427). Give that slower runner enough headroom while retaining the
-    # tighter failure bound on Ubuntu.
+    # The unsharded macOS matrix crossed 25 minutes in run 33899702427. Two
+    # deterministic shards preserve full coverage while shortening the PR path.
+    # Ubuntu remains one complete control run.
     timeout-minutes: ${{ matrix.timeout_minutes }}
     needs: [classify-changes, smoke, portability-lint]
     if: needs.classify-changes.outputs.heavy_tests == 'true'
@@ -262,9 +262,20 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
+            label: ubuntu-latest
             timeout_minutes: 25
+            shard_index: 0
+            shard_count: 1
           - os: macos-latest
-            timeout_minutes: 35
+            label: macos-latest, shard 1/2
+            timeout_minutes: 20
+            shard_index: 0
+            shard_count: 2
+          - os: macos-latest
+            label: macos-latest, shard 2/2
+            timeout_minutes: 20
+            shard_index: 1
+            shard_count: 2
 
     steps:
       - name: Checkout code
@@ -277,13 +288,13 @@ jobs:
           find tests -name "*.sh" -type f -exec chmod +x {} \;
 
       - name: Run unit tests
-        run: make test-unit
+        run: ./tests/run-all.sh unit --shard-index=${{ matrix.shard_index }} --shard-count=${{ matrix.shard_count }}
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: unit-test-results-${{ matrix.os }}
+          name: unit-test-results-${{ matrix.os }}-${{ matrix.shard_index }}
           path: test-results*.xml
           retention-days: 30
 
@@ -291,7 +302,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: unit-test-logs-${{ matrix.os }}
+          name: unit-test-logs-${{ matrix.os }}-${{ matrix.shard_index }}
           path: /tmp/test_*.log
           retention-days: 7
 
@@ -303,9 +314,10 @@ jobs:
   # /tmp release worktree on macOS, which is the workflow RELEASING.md §0
   # recommends, so it bit at release time and CI could never have warned.
   #
-  # Ubuntu only: the divergence is a property of symlinked paths, not of macOS,
-  # and the ubuntu unit run is the faster of the two. Runs in parallel with the
-  # existing matrix, so it adds no wall-clock.
+  # Ubuntu only: the divergence is a property of symlinked paths, not of macOS.
+  # Pull requests run the dynamically discovered path-sensitive suites instead
+  # of duplicating every unit suite. Main, schedule, and manual runs retain the
+  # complete symlinked suite as a release gate.
   symlinked-path:
     name: Symlinked Path
     runs-on: ubuntu-latest
@@ -322,7 +334,9 @@ jobs:
           chmod +x scripts/orchestrate.sh
           find tests -name "*.sh" -type f -exec chmod +x {} \;
 
-      - name: Run unit tests through a symlinked path
+      - name: Run the proportional unit gate through a symlinked path
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           link="$(mktemp -d)/octo-linked"
@@ -336,7 +350,11 @@ jobs:
             exit 1
           fi
           cd "$link"
-          make test-unit
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            make test-symlink-sensitive
+          else
+            make test-unit
+          fi
 
       - name: Upload logs on failure
         if: failure()
@@ -364,7 +382,7 @@ jobs:
   unit-required:
     name: Unit Tests
     runs-on: ubuntu-latest
-    needs: [classify-changes, unit]
+    needs: [classify-changes, unit, symlinked-path]
     if: always()
     steps:
       - name: Verify unit matrix passed
@@ -373,6 +391,9 @@ jobs:
             echo "Fast path: skipping unit matrix for release/docs-only changes."
           elif [[ "${{ needs.unit.result }}" != "success" ]]; then
             echo "Unit matrix result: ${{ needs.unit.result }}"
+            exit 1
+          elif [[ "${{ needs.symlinked-path.result }}" != "success" ]]; then
+            echo "Symlinked-path result: ${{ needs.symlinked-path.result }}"
             exit 1
           fi
 

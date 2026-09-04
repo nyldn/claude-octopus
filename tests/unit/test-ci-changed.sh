@@ -219,13 +219,13 @@ else
     test_fail "changed-scope command or iterative versus final guidance is missing"
 fi
 
-test_case "GitHub CI retains the authoritative full matrix"
-if grep -q 'run: make test-unit' "$PROJECT_ROOT/.github/workflows/test.yml" &&
+test_case "GitHub CI retains authoritative full coverage"
+if grep -Fq 'run: ./tests/run-all.sh unit --shard-index=${{ matrix.shard_index }} --shard-count=${{ matrix.shard_count }}' "$PROJECT_ROOT/.github/workflows/test.yml" &&
    grep -q 'run: make test-integration' "$PROJECT_ROOT/.github/workflows/test.yml" &&
    ! grep -q 'make ci-changed' "$PROJECT_ROOT/.github/workflows/test.yml"; then
     test_pass
 else
-    test_fail "GitHub CI no longer runs the complete unit and integration jobs"
+    test_fail "GitHub CI no longer runs the full unit matrix and integration job"
 fi
 
 test_summary
