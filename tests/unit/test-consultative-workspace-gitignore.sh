@@ -47,7 +47,7 @@ else
 fi
 rm -rf "$(dirname "$workspace")"
 
-test_case "broken nested Git discovery fails closed before nested metadata or ignored bytes are archived"
+test_case "broken nested Git discovery fails closed before nested metadata or ignored bytes are copied"
 BROKEN_NESTED_ROOT="$TEST_TMP_DIR/broken-nested-source"
 BROKEN_NESTED_CHILD="$TEST_TMP_DIR/broken-nested-child"
 BROKEN_NESTED_TMPDIR="$TEST_TMP_DIR/broken-nested-tmp"
@@ -90,7 +90,7 @@ broken_nested_residue="$(find "$BROKEN_NESTED_TMPDIR" -mindepth 1 -maxdepth 1 -p
 if [[ "$broken_nested_rc" -ne 0 && "$broken_nested_leak" == "false" && -z "$broken_nested_residue" ]]; then
     test_pass
 else
-    test_fail "expected broken nested discovery to fail before archive: rc=$broken_nested_rc leak=$broken_nested_leak residue=${broken_nested_residue:-none}"
+    test_fail "expected broken nested discovery to fail before copy: rc=$broken_nested_rc leak=$broken_nested_leak residue=${broken_nested_residue:-none}"
 fi
 rm -rf "$BROKEN_NESTED_TMPDIR"
 
@@ -255,6 +255,39 @@ if [[ "$trace_dispatch_rc" -eq 0 && -s "$TRACE_GIT_MARKER" ]] &&
 else
     test_fail "expected Git command execution without inherited trace/output sinks: rc=$trace_dispatch_rc leaked=$(cat "$TRACE_ENV_MARKER" 2>/dev/null || printf none)"
 fi
+
+test_case "an exported readonly GIT_DIR cannot redirect advisory Git writes"
+READONLY_GIT_DIR_MARKER="$TEST_TMP_DIR/readonly-git-dir-dispatched"
+READONLY_GIT_DIR_REF="refs/heads/readonly-advisory-write"
+ambient_git_dir="$(git -C "$SOURCE_ROOT" rev-parse --absolute-git-dir)"
+git -C "$SOURCE_ROOT" update-ref -d "$READONLY_GIT_DIR_REF" >/dev/null 2>&1 || true
+if (
+    export READONLY_GIT_DIR_MARKER READONLY_GIT_DIR_REF
+    /bin/bash -c '
+        source "$1/scripts/lib/agent-sync.sh"
+        log() { :; }
+        run_agent_sync() {
+            printf "dispatched\n" > "$READONLY_GIT_DIR_MARKER"
+            git update-ref "$READONLY_GIT_DIR_REF" HEAD >/dev/null 2>&1 || true
+            printf "review only\n"
+        }
+        export GIT_DIR="$3"
+        readonly GIT_DIR
+        cd "$2" || exit 98
+        run_agent_sync_consultative codex "review only" 120 reviewer ceremony >/dev/null 2>&1
+    ' _ "$PROJECT_ROOT" "$SOURCE_ROOT" "$ambient_git_dir"
+); then
+    readonly_git_dir_rc=0
+else
+    readonly_git_dir_rc=$?
+fi
+if [[ "$readonly_git_dir_rc" -ne 0 && ! -e "$READONLY_GIT_DIR_MARKER" ]] &&
+   ! git -C "$SOURCE_ROOT" show-ref --verify --quiet "$READONLY_GIT_DIR_REF"; then
+    test_pass
+else
+    test_fail "expected readonly repository selectors to fail closed before dispatch: rc=$readonly_git_dir_rc dispatched=$(test -e "$READONLY_GIT_DIR_MARKER" && printf yes || printf no)"
+fi
+git -C "$SOURCE_ROOT" update-ref -d "$READONLY_GIT_DIR_REF" >/dev/null 2>&1 || true
 
 test_case "a repository subdirectory launch copies only eligible content in that subtree"
 workspace="$(_octopus_prepare_consultative_workspace "$SOURCE_ROOT/subdir")"
@@ -515,6 +548,39 @@ else
 fi
 rm -rf "$(dirname "$workspace")"
 
+test_case "a non-Git copy rejects a symlink that escapes the copied root"
+PLAIN_ESCAPE_ROOT="$TEST_TMP_DIR/plain-escape-source"
+PLAIN_ESCAPE_OUTSIDE="$TEST_TMP_DIR/plain-escape-outside"
+mkdir -p "$PLAIN_ESCAPE_ROOT" "$PLAIN_ESCAPE_OUTSIDE"
+printf 'outside secret\n' > "$PLAIN_ESCAPE_OUTSIDE/secret.txt"
+ln -s "../plain-escape-outside/secret.txt" "$PLAIN_ESCAPE_ROOT/external-link"
+workspace=""
+if workspace="$(_octopus_prepare_consultative_workspace "$PLAIN_ESCAPE_ROOT" 2>/dev/null)"; then
+    plain_escape_rc=0
+else
+    plain_escape_rc=$?
+fi
+if [[ "$plain_escape_rc" -ne 0 && -z "$workspace" ]]; then
+    test_pass
+else
+    test_fail "expected an external symlink in a non-Git source to fail closed: rc=$plain_escape_rc workspace=${workspace:-none}"
+fi
+[[ -z "$workspace" ]] || command rm -rf "$(dirname "$workspace")"
+
+test_case "a non-Git copy preserves a relative symlink confined to the copied root"
+PLAIN_LINK_ROOT="$TEST_TMP_DIR/plain-link-source"
+mkdir -p "$PLAIN_LINK_ROOT/files" "$PLAIN_LINK_ROOT/links"
+printf 'inside\n' > "$PLAIN_LINK_ROOT/files/inside.txt"
+ln -s "../files/inside.txt" "$PLAIN_LINK_ROOT/links/internal-link"
+workspace="$(_octopus_prepare_consultative_workspace "$PLAIN_LINK_ROOT")"
+if [[ -L "$workspace/links/internal-link" ]] &&
+   [[ "$(cat "$workspace/links/internal-link" 2>/dev/null)" == "inside" ]]; then
+    test_pass
+else
+    test_fail "expected a confined non-Git symlink to remain usable in the copy"
+fi
+command rm -rf "$(dirname "$workspace")"
+
 test_case "nested Git work trees recursively honor their own ignore rules without metadata"
 NESTED_ROOT="$TEST_TMP_DIR/nested-source"
 NESTED_CHILD_ROOT="$TEST_TMP_DIR/nested-child"
@@ -599,12 +665,12 @@ else
 fi
 rm -rf "$(dirname "$workspace_root")"
 
-test_case "an empty parent copy list skips tar and still copies nested work trees"
+test_case "an empty parent copy list skips leaf copies and still copies nested work trees"
 NESTED_ONLY_ROOT="$TEST_TMP_DIR/nested-only-source"
-NESTED_ONLY_TAR_BIN="$TEST_TMP_DIR/nested-only-tar-bin"
-NESTED_ONLY_TAR_MARKER="$TEST_TMP_DIR/nested-only-parent-tar-ran"
-REAL_TAR="$(command -v tar)"
-mkdir -p "$NESTED_ONLY_ROOT" "$NESTED_ONLY_TAR_BIN"
+NESTED_ONLY_CP_BIN="$TEST_TMP_DIR/nested-only-cp-bin"
+NESTED_ONLY_CP_MARKER="$TEST_TMP_DIR/nested-only-parent-cp-ran"
+REAL_CP="$(command -v cp)"
+mkdir -p "$NESTED_ONLY_ROOT" "$NESTED_ONLY_CP_BIN"
 git -C "$NESTED_ONLY_ROOT" init -q
 git -C "$NESTED_ONLY_ROOT" config user.email "test@example.com"
 git -C "$NESTED_ONLY_ROOT" config user.name "test"
@@ -614,87 +680,113 @@ git -C "$NESTED_ONLY_ROOT" update-index --add --cacheinfo 160000 "$nested_only_o
 git -C "$NESTED_ONLY_ROOT" commit -q -m "nested-only parent"
 printf 'nested-only working tree\n' > "$NESTED_ONLY_ROOT/nested-repo/nested.txt"
 NESTED_ONLY_ROOT="$(cd "$NESTED_ONLY_ROOT" && pwd -P)"
-cat > "$NESTED_ONLY_TAR_BIN/tar" <<'EOF'
+cat > "$NESTED_ONLY_CP_BIN/cp" <<'EOF'
 #!/usr/bin/env bash
 original_args=("$@")
-archive_root=""
-while [[ "$#" -gt 0 ]]; do
-    if [[ "$1" == "-C" ]]; then
-        archive_root="${2:-}"
-        shift
-    fi
-    shift
-done
-if [[ "$archive_root" == "$NESTED_ONLY_ROOT" ]]; then
-    printf 'parent tar ran\n' > "$NESTED_ONLY_TAR_MARKER"
+if [[ "$PWD" == "$NESTED_ONLY_ROOT" && "${1:-}" == "-pP" ]]; then
+    printf 'parent leaf copy ran\n' > "$NESTED_ONLY_CP_MARKER"
     exit 97
 fi
-exec "$REAL_TAR" "${original_args[@]}"
+exec "$REAL_CP" "${original_args[@]}"
 EOF
-chmod +x "$NESTED_ONLY_TAR_BIN/tar"
+chmod +x "$NESTED_ONLY_CP_BIN/cp"
 nested_only_rc=0
 if workspace="$(
-    export PATH="$NESTED_ONLY_TAR_BIN:$PATH"
-    export REAL_TAR NESTED_ONLY_ROOT NESTED_ONLY_TAR_MARKER
+    export PATH="$NESTED_ONLY_CP_BIN:$PATH"
+    export REAL_CP NESTED_ONLY_ROOT NESTED_ONLY_CP_MARKER
     _octopus_prepare_consultative_workspace "$NESTED_ONLY_ROOT"
 )"; then
     nested_only_rc=0
 else
     nested_only_rc=$?
 fi
-if [[ "$nested_only_rc" -eq 0 && ! -e "$NESTED_ONLY_TAR_MARKER" ]] &&
+if [[ "$nested_only_rc" -eq 0 && ! -e "$NESTED_ONLY_CP_MARKER" ]] &&
    [[ "$(cat "$workspace/nested-repo/nested.txt" 2>/dev/null)" == "nested-only working tree" ]] &&
    [[ ! -e "$workspace/nested-repo/.git" ]]; then
     test_pass
 else
-    test_fail "expected nested copy without invoking tar for an empty parent list: rc=$nested_only_rc"
+    test_fail "expected nested copy without invoking the parent leaf copier: rc=$nested_only_rc"
 fi
 [[ -z "${workspace:-}" ]] || rm -rf "$(dirname "$workspace")"
 
-test_case "nested repositories are excluded before the parent archive runs"
+test_case "nested repositories are excluded from the parent leaf copier"
 NESTED_ROOT="$(cd "$NESTED_ROOT" && pwd -P)"
-REAL_TAR="$(command -v tar)"
-TAR_GUARD_BIN="$TEST_TMP_DIR/tar-guard-bin"
-TAR_GUARD_MARKER="$TEST_TMP_DIR/tar-saw-nested-root"
-TAR_GUARD_EXECUTED="$TEST_TMP_DIR/tar-guard-executed"
-mkdir -p "$TAR_GUARD_BIN"
-cat > "$TAR_GUARD_BIN/tar" <<'EOF'
+REAL_CP="$(command -v cp)"
+CP_GUARD_BIN="$TEST_TMP_DIR/cp-guard-bin"
+CP_GUARD_MARKER="$TEST_TMP_DIR/cp-saw-nested-root"
+CP_GUARD_EXECUTED="$TEST_TMP_DIR/cp-guard-executed"
+mkdir -p "$CP_GUARD_BIN"
+cat > "$CP_GUARD_BIN/cp" <<'EOF'
 #!/usr/bin/env bash
 original_args=("$@")
-list_file=""
-archive_root=""
-while [[ "$#" -gt 0 ]]; do
-    case "$1" in
-        -C) archive_root="${2:-}"; shift ;;
-        -T|--files-from) list_file="${2:-}"; shift ;;
-        -T*) list_file="${1#-T}" ;;
-        --files-from=*) list_file="${1#--files-from=}" ;;
-    esac
-    shift
-done
-if [[ "$archive_root" == "$NESTED_ROOT" && -n "$list_file" && "$list_file" != "-" ]]; then
-    printf 'guard executed\n' > "$TAR_GUARD_EXECUTED"
-    while IFS= read -r -d '' entry; do
-        if [[ "${entry%/}" == "nested-repo" || "$entry" == nested-repo/* ]]; then
-            printf 'nested repository reached parent archive\n' > "$TAR_GUARD_MARKER"
-            exit 97
-        fi
-    done < "$list_file"
+if [[ "$PWD" == "$NESTED_ROOT" && "${1:-}" == "-pP" ]]; then
+    printf 'guard executed\n' > "$CP_GUARD_EXECUTED"
+    if [[ "${2:-}" == "./nested-repo" || "${2:-}" == ./nested-repo/* ]]; then
+        printf 'nested repository reached parent copier\n' > "$CP_GUARD_MARKER"
+        exit 97
+    fi
 fi
-exec "$REAL_TAR" "${original_args[@]}"
+exec "$REAL_CP" "${original_args[@]}"
 EOF
-chmod +x "$TAR_GUARD_BIN/tar"
+chmod +x "$CP_GUARD_BIN/cp"
 workspace="$(
-    export PATH="$TAR_GUARD_BIN:$PATH" REAL_TAR TAR_GUARD_MARKER TAR_GUARD_EXECUTED NESTED_ROOT
+    export PATH="$CP_GUARD_BIN:$PATH" REAL_CP CP_GUARD_MARKER CP_GUARD_EXECUTED NESTED_ROOT
     _octopus_prepare_consultative_workspace "$NESTED_ROOT"
 )"
-if [[ -f "$TAR_GUARD_EXECUTED" && ! -e "$TAR_GUARD_MARKER" ]] &&
+if [[ -f "$CP_GUARD_EXECUTED" && ! -e "$CP_GUARD_MARKER" ]] &&
    [[ -f "$workspace/nested-repo/nested.txt" && ! -e "$workspace/nested-repo/vendor" ]]; then
     test_pass
 else
-    test_fail "expected the parent archive to omit nested-repo before recursively copying it"
+    test_fail "expected the parent leaf copier to omit nested-repo before recursively copying it"
 fi
 rm -rf "$(dirname "$workspace")"
+
+test_case "an ancestor swap after validation cannot redirect the copied leaf"
+TOCTOU_ROOT="$TEST_TMP_DIR/toctou-source"
+TOCTOU_OUTSIDE="$TEST_TMP_DIR/toctou-outside"
+TOCTOU_BIN="$TEST_TMP_DIR/toctou-bin"
+TOCTOU_CP_MARKER="$TEST_TMP_DIR/toctou-cp-ran"
+REAL_CP="$(command -v cp)"
+mkdir -p "$TOCTOU_ROOT/safe" "$TOCTOU_OUTSIDE" "$TOCTOU_BIN"
+(
+    cd "$TOCTOU_ROOT"
+    git init -q
+    git config user.email "test@example.com"
+    git config user.name "test"
+    printf 'safe bytes\n' > safe/payload.txt
+    git add safe/payload.txt
+    git commit -q -m init
+)
+printf 'outside secret\n' > "$TOCTOU_OUTSIDE/payload.txt"
+TOCTOU_ROOT="$(cd "$TOCTOU_ROOT" && pwd -P)"
+cat > "$TOCTOU_BIN/cp" <<'EOF'
+#!/usr/bin/env bash
+original_args=("$@")
+if [[ "$PWD" == "$TOCTOU_ROOT/safe" && "${1:-}" == "-pP" && ! -e "$TOCTOU_CP_MARKER" ]]; then
+    mv "$TOCTOU_ROOT/safe" "$TOCTOU_ROOT/safe-before-race"
+    ln -s "$TOCTOU_OUTSIDE" "$TOCTOU_ROOT/safe"
+    printf 'leaf copy ran\n' > "$TOCTOU_CP_MARKER"
+fi
+exec "$REAL_CP" "${original_args[@]}"
+EOF
+chmod +x "$TOCTOU_BIN/cp"
+workspace=""
+if workspace="$(
+    export PATH="$TOCTOU_BIN:$PATH"
+    export REAL_CP TOCTOU_ROOT TOCTOU_OUTSIDE TOCTOU_CP_MARKER
+    _octopus_prepare_consultative_workspace "$TOCTOU_ROOT"
+)"; then
+    toctou_rc=0
+else
+    toctou_rc=$?
+fi
+if [[ "$toctou_rc" -eq 0 && -f "$TOCTOU_CP_MARKER" ]] &&
+   [[ "$(cat "$workspace/safe/payload.txt" 2>/dev/null)" == "safe bytes" ]]; then
+    test_pass
+else
+    test_fail "expected the entered source directory to remain authoritative after an ancestor swap: rc=$toctou_rc cp_ran=$(test -e "$TOCTOU_CP_MARKER" && printf yes || printf no) copied=$(cat "$workspace/safe/payload.txt" 2>/dev/null || printf missing)"
+fi
+[[ -z "$workspace" ]] || command rm -rf "$(dirname "$workspace")"
 
 test_case "Git copy lists use one owned directory and clean it after success"
 COPY_LIST_TMPDIR="$TEST_TMP_DIR/copy-list-tmp"
@@ -771,20 +863,22 @@ else
     test_fail "expected append failures to propagate with no list residue: $append_failure_details"
 fi
 
-test_case "Git copy list directory is removed after archive failure"
+test_case "Git copy list directory is removed after leaf-copy failure"
 COPY_LIST_FAILURE_TMPDIR="$TEST_TMP_DIR/copy-list-failure-tmp"
 COPY_LIST_FAILURE_WORKSPACE="$TEST_TMP_DIR/copy-list-failure-workspace"
 COPY_LIST_FAILURE_BIN="$TEST_TMP_DIR/copy-list-failure-bin"
 mkdir -p "$COPY_LIST_FAILURE_TMPDIR" "$COPY_LIST_FAILURE_WORKSPACE" "$COPY_LIST_FAILURE_BIN"
-cat > "$COPY_LIST_FAILURE_BIN/tar" <<'EOF'
+cat > "$COPY_LIST_FAILURE_BIN/cp" <<'EOF'
 #!/usr/bin/env bash
+[[ "${1:-}" == "-pP" ]] || exec "$REAL_CP" "$@"
 exit 97
 EOF
-chmod +x "$COPY_LIST_FAILURE_BIN/tar"
+chmod +x "$COPY_LIST_FAILURE_BIN/cp"
 copy_list_failure_rc=0
 if (
     export TMPDIR="$COPY_LIST_FAILURE_TMPDIR"
     export PATH="$COPY_LIST_FAILURE_BIN:$PATH"
+    export REAL_CP
     _octopus_copy_git_tracked_tree "$SOURCE_ROOT" "$COPY_LIST_FAILURE_WORKSPACE"
 ); then
     copy_list_failure_rc=0
@@ -795,7 +889,7 @@ copy_list_failure_residue="$(find "$COPY_LIST_FAILURE_TMPDIR" -mindepth 1 -maxde
 if [[ "$copy_list_failure_rc" -ne 0 && -z "$copy_list_failure_residue" ]]; then
     test_pass
 else
-    test_fail "expected archive failure to remove its list directory: rc=$copy_list_failure_rc residue=$copy_list_failure_residue"
+    test_fail "expected leaf-copy failure to remove its list directory: rc=$copy_list_failure_rc residue=$copy_list_failure_residue"
 fi
 
 test_case "Git copy list directory is removed after INT and TERM"
@@ -1363,6 +1457,76 @@ else
     test_fail "expected exact signal status, full cleanup, restored environment, and unchanged caller traps: $dispatch_signal_failures"
 fi
 
+test_case "TERM cancels a running consultative provider without waiting for completion"
+DEFERRED_TERM_TMPDIR="$TEST_TMP_DIR/deferred-term-tmp"
+DEFERRED_TERM_STARTED="$TEST_TMP_DIR/deferred-term-started"
+DEFERRED_TERM_FINISHED="$TEST_TMP_DIR/deferred-term-finished"
+DEFERRED_TERM_CHILD_PID="$TEST_TMP_DIR/deferred-term-child.pid"
+mkdir -p "$DEFERRED_TERM_TMPDIR"
+TMPDIR="$DEFERRED_TERM_TMPDIR" \
+DEFERRED_TERM_STARTED="$DEFERRED_TERM_STARTED" \
+DEFERRED_TERM_FINISHED="$DEFERRED_TERM_FINISHED" \
+DEFERRED_TERM_CHILD_PID="$DEFERRED_TERM_CHILD_PID" \
+    /bin/bash -c '
+        source "$1/scripts/lib/agent-sync.sh"
+        log() { :; }
+        run_agent_sync() {
+            printf "started\n" > "$DEFERRED_TERM_STARTED"
+            /bin/sleep 5 &
+            provider_child=$!
+            printf "%s\n" "$provider_child" > "$DEFERRED_TERM_CHILD_PID"
+            wait "$provider_child"
+            printf "finished\n" > "$DEFERRED_TERM_FINISHED"
+            printf "review only\n"
+        }
+        cd "$2" || exit 98
+        run_agent_sync_consultative codex "review only" 120 reviewer ceremony >/dev/null 2>&1
+    ' _ "$PROJECT_ROOT" "$SOURCE_ROOT" &
+deferred_term_runner=$!
+deferred_term_started=false
+for _ in $(seq 1 100); do
+    if [[ -f "$DEFERRED_TERM_STARTED" && -f "$DEFERRED_TERM_CHILD_PID" ]]; then
+        deferred_term_started=true
+        break
+    fi
+    /bin/sleep 0.02
+done
+if [[ "$deferred_term_started" == "true" ]]; then
+    kill -TERM "$deferred_term_runner" 2>/dev/null || true
+fi
+deferred_term_stopped=false
+for _ in $(seq 1 100); do
+    if ! kill -0 "$deferred_term_runner" 2>/dev/null; then
+        deferred_term_stopped=true
+        break
+    fi
+    /bin/sleep 0.02
+done
+if [[ "$deferred_term_stopped" != "true" ]]; then
+    kill -KILL "$deferred_term_runner" 2>/dev/null || true
+fi
+set +e
+wait "$deferred_term_runner" 2>/dev/null
+deferred_term_rc=$?
+set -e
+deferred_term_child="$(cat "$DEFERRED_TERM_CHILD_PID" 2>/dev/null || true)"
+case "$deferred_term_child" in
+    ''|*[!0-9]*) ;;
+    *)
+        if kill -0 "$deferred_term_child" 2>/dev/null; then
+            kill -KILL "$deferred_term_child" 2>/dev/null || true
+        fi
+        ;;
+esac
+deferred_term_residue="$(find "$DEFERRED_TERM_TMPDIR" -mindepth 1 -maxdepth 1 -print)"
+if [[ "$deferred_term_started" == "true" && "$deferred_term_stopped" == "true" ]] &&
+   [[ "$deferred_term_rc" -eq 143 && ! -e "$DEFERRED_TERM_FINISHED" && -z "$deferred_term_residue" ]]; then
+    test_pass
+else
+    test_fail "expected TERM to interrupt provider capture promptly: started=$deferred_term_started stopped=$deferred_term_stopped rc=$deferred_term_rc finished=$(test -e "$DEFERRED_TERM_FINISHED" && printf yes || printf no) residue=${deferred_term_residue:-none}"
+fi
+command rm -rf "$DEFERRED_TERM_TMPDIR" "$DEFERRED_TERM_STARTED" "$DEFERRED_TERM_FINISHED" "$DEFERRED_TERM_CHILD_PID"
+
 test_case "cleanup removes only the allocated temp root when TMPDIR is inside another repository"
 CLEANUP_CONTAINER="$TEST_TMP_DIR/cleanup-container"
 CLEANUP_OUTER_REPO="$CLEANUP_CONTAINER/unrelated-repo"
@@ -1471,12 +1635,11 @@ COPY_GUARD_BIN="$TEST_TMP_DIR/copy-guard-bin"
 COPY_GUARD_MARKER="$TEST_TMP_DIR/whole-tree-copy-attempted"
 REAL_CP="$(command -v cp)"
 mkdir -p "$COPY_GUARD_BIN"
-cat > "$COPY_GUARD_BIN/tar" <<'EOF'
-#!/usr/bin/env bash
-exit 97
-EOF
 cat > "$COPY_GUARD_BIN/cp" <<'EOF'
 #!/usr/bin/env bash
+if [[ "${1:-}" == "-pP" ]]; then
+    exit 97
+fi
 for arg in "$@"; do
     if [[ "$arg" == "$SOURCE_ROOT/." ]]; then
         printf 'whole-tree copy attempted\n' > "$COPY_GUARD_MARKER"
@@ -1484,7 +1647,7 @@ for arg in "$@"; do
 done
 exec "$REAL_CP" "$@"
 EOF
-chmod +x "$COPY_GUARD_BIN/tar" "$COPY_GUARD_BIN/cp"
+chmod +x "$COPY_GUARD_BIN/cp"
 if workspace="$(
     export PATH="$COPY_GUARD_BIN:$PATH" REAL_CP COPY_GUARD_MARKER SOURCE_ROOT
     _octopus_prepare_consultative_workspace "$SOURCE_ROOT"

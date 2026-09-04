@@ -157,15 +157,19 @@ should_use_agent_teams() {
 }
 
 _octopus_clear_repository_env() {
-    local git_env_name
+    local git_env_name clear_failed=false
+    local repository_env_names="
+GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY
+GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_NAMESPACE
+GIT_CEILING_DIRECTORIES GIT_DISCOVERY_ACROSS_FILESYSTEM
+GIT_IMPLICIT_WORK_TREE GIT_PREFIX GIT_SUPER_PREFIX GIT_INTERNAL_SUPER_PREFIX
+GIT_GRAFT_FILE GIT_SHALLOW_FILE GIT_REPLACE_REF_BASE GIT_NO_REPLACE_OBJECTS
+GIT_CONFIG GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM GIT_CONFIG_NOSYSTEM
+GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT GIT_QUARANTINE_PATH GIT_DEFAULT_HASH"
 
-    unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY
-    unset GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_NAMESPACE
-    unset GIT_CEILING_DIRECTORIES GIT_DISCOVERY_ACROSS_FILESYSTEM
-    unset GIT_IMPLICIT_WORK_TREE GIT_PREFIX GIT_SUPER_PREFIX GIT_INTERNAL_SUPER_PREFIX
-    unset GIT_GRAFT_FILE GIT_SHALLOW_FILE GIT_REPLACE_REF_BASE GIT_NO_REPLACE_OBJECTS
-    unset GIT_CONFIG GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM GIT_CONFIG_NOSYSTEM
-    unset GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT GIT_QUARANTINE_PATH GIT_DEFAULT_HASH
+    for git_env_name in $repository_env_names; do
+        unset "$git_env_name" 2>/dev/null || clear_failed=true
+    done
 
     # Git's command-scope config protocol uses numbered variable names. Clear
     # every inherited pair even when GIT_CONFIG_COUNT itself is malformed or
@@ -174,18 +178,38 @@ _octopus_clear_repository_env() {
     while IFS= read -r git_env_name; do
         case "$git_env_name" in
             GIT_CONFIG_KEY_*|GIT_CONFIG_VALUE_*|GIT_TRACE*|GIT_REDIRECT_STDIN|GIT_REDIRECT_STDOUT|GIT_REDIRECT_STDERR)
-                unset "$git_env_name" 2>/dev/null || true
+                unset "$git_env_name" 2>/dev/null || clear_failed=true
                 ;;
         esac
     done < <(compgen -v)
+
+    [[ "$clear_failed" == "false" ]]
 }
 
 # Repository-selection environment variables override `git -C`. Clear them for
 # workspace discovery so an exported GIT_DIR, config, or index path cannot
 # redirect reads or writes to another checkout.
 _octopus_git_without_repository_env() (
-    _octopus_clear_repository_env
-    command git "$@"
+    local git_env_name
+    local -a clean_env
+
+    clean_env=(
+        -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_OBJECT_DIRECTORY
+        -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_COMMON_DIR -u GIT_NAMESPACE
+        -u GIT_CEILING_DIRECTORIES -u GIT_DISCOVERY_ACROSS_FILESYSTEM
+        -u GIT_IMPLICIT_WORK_TREE -u GIT_PREFIX -u GIT_SUPER_PREFIX -u GIT_INTERNAL_SUPER_PREFIX
+        -u GIT_GRAFT_FILE -u GIT_SHALLOW_FILE -u GIT_REPLACE_REF_BASE -u GIT_NO_REPLACE_OBJECTS
+        -u GIT_CONFIG -u GIT_CONFIG_GLOBAL -u GIT_CONFIG_SYSTEM -u GIT_CONFIG_NOSYSTEM
+        -u GIT_CONFIG_PARAMETERS -u GIT_CONFIG_COUNT -u GIT_QUARANTINE_PATH -u GIT_DEFAULT_HASH
+    )
+    while IFS= read -r git_env_name; do
+        case "$git_env_name" in
+            GIT_CONFIG_KEY_*|GIT_CONFIG_VALUE_*|GIT_TRACE*|GIT_REDIRECT_STDIN|GIT_REDIRECT_STDOUT|GIT_REDIRECT_STDERR)
+                clean_env+=( -u "$git_env_name" )
+                ;;
+        esac
+    done < <(compgen -v)
+    command env "${clean_env[@]}" git "$@"
 )
 
 _octopus_source_has_git_marker() {
@@ -310,6 +334,63 @@ _octopus_validate_copy_source_path() {
         return 1
     fi
 }
+
+# Copy one leaf without ever reopening a validated ancestor by pathname. Each
+# directory component becomes the subshell's working directory and is checked
+# physically before the next component is entered. `cp -P` preserves a leaf
+# symlink instead of following it; destination validation then rejects any
+# target that would escape the copied tree.
+_octopus_copy_leaf_safely() (
+    local source_root="$1"
+    local workspace="$2"
+    local rel="$3"
+    local copy_scope="${4:-}"
+    local remaining component physical_dir destination_parent
+
+    _octopus_validate_copy_source_path "$source_root" "$rel" "$copy_scope" || return 1
+    destination_parent="${rel%/*}"
+    [[ "$destination_parent" == "$rel" ]] && destination_parent=""
+    if [[ -n "$destination_parent" ]]; then
+        mkdir -p "$workspace/$destination_parent" || return 1
+    fi
+
+    cd "$source_root" 2>/dev/null || return 1
+    remaining="$rel"
+    while [[ "$remaining" == */* ]]; do
+        component="${remaining%%/*}"
+        case "$component" in
+            ""|.|..) return 1 ;;
+        esac
+        cd "./$component" 2>/dev/null || return 1
+        physical_dir="$(pwd -P)" || return 1
+        case "$physical_dir" in
+            "$source_root"|"$source_root"/*) ;;
+            *) return 1 ;;
+        esac
+        remaining="${remaining#*/}"
+    done
+    case "$remaining" in
+        ""|.|..) return 1 ;;
+    esac
+    [[ -f "./$remaining" || -L "./$remaining" ]] || return 1
+    command cp -pP "./$remaining" "$workspace/$rel" || return 1
+    _octopus_validate_copy_source_path "$workspace" "$rel" "$copy_scope"
+)
+
+_octopus_validate_materialized_symlinks() (
+    local copied_root="$1"
+    local copied_path rel
+
+    copied_root="$(cd "$copied_root" 2>/dev/null && pwd -P)" || return 1
+    set -o pipefail
+    find "$copied_root" -type l -print0 | while IFS= read -r -d '' copied_path; do
+        case "$copied_path" in
+            "$copied_root"/*) rel="${copied_path#"$copied_root"/}" ;;
+            *) return 1 ;;
+        esac
+        _octopus_validate_copy_source_path "$copied_root" "$rel" || return 1
+    done
+)
 
 _octopus_replace_literal() {
     local value="$1"
@@ -450,12 +531,12 @@ _octopus_path_is_generated_temp_artifact() {
 
 # Copy only tracked plus untracked-but-not-ignored files from a Git work tree.
 # An optional root-relative scope limits enumeration while paths remain rooted at
-# the repository for validation and archive extraction.
-# Nested repositories are removed from the parent archive list before tar runs,
-# then copied recursively under their own ignore rules. Every path ancestor
-# must be a real directory. Symlink leaves must stay lexically within the copied
-# tree, and resolved targets must remain in the source. Any failure is fatal for
-# a Git source.
+# the repository for validation and destination placement.
+# Nested repositories are removed from the parent leaf list, then copied
+# recursively under their own ignore rules. Every path ancestor must be a real
+# directory. Symlink leaves must stay lexically within the copied tree, and
+# resolved targets must remain in the source. Any failure is fatal for a Git
+# source.
 _octopus_copy_git_tracked_tree() (
     local source_root="$1"
     local workspace="$2"
@@ -474,6 +555,7 @@ _octopus_copy_git_tracked_tree() (
 
     _octopus_git_without_repository_env -C "$source_root" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
     source_root="$(cd "$source_root" 2>/dev/null && pwd -P)" || return 1
+    workspace="$(cd "$workspace" 2>/dev/null && pwd -P)" || return 1
     if [[ -n "$copy_scope" ]]; then
         _octopus_source_path_has_safe_ancestry "$source_root" "$copy_scope" || return 1
         [[ -d "$source_root/$copy_scope" && ! -L "$source_root/$copy_scope" ]] || return 1
@@ -562,22 +644,9 @@ _octopus_copy_git_tracked_tree() (
         printf '%s\0' "$rel" >> "$copylist" || return 1
     done < "$filelist"
 
-    # Recheck after enumeration and immediately before archive traversal. This
-    # closes the path-list-to-copy gap for an ancestor replaced by a symlink.
     while IFS= read -r -d '' rel; do
-        _octopus_validate_copy_source_path "$source_root" "$rel" "$copy_scope" || {
-            return 1
-        }
+        _octopus_copy_leaf_safely "$source_root" "$workspace" "$rel" "$copy_scope" || return 1
     done < "$copylist"
-
-    if [[ -s "$copylist" ]]; then
-        if ! (
-            set -o pipefail
-            tar --null -C "$source_root" -T "$copylist" -cf - | tar -xf - -C "$workspace"
-        ); then
-            return 1
-        fi
-    fi
 
     while IFS= read -r -d '' nested_rel; do
         _octopus_source_path_has_safe_ancestry "$source_root" "$nested_rel" || {
@@ -677,6 +746,10 @@ _octopus_prepare_consultative_workspace() {
             mkdir -p "$prepared_workspace" || { rm -rf "$prepared_temp_root"; return 1; }
             cp -a "${source_root}/." "${prepared_workspace}/" || { rm -rf "$prepared_temp_root"; return 1; }
         fi
+        _octopus_validate_materialized_symlinks "$prepared_workspace" || {
+            rm -rf "$prepared_temp_root"
+            return 1
+        }
     else
         rm -rf "$prepared_temp_root"
         return 1
@@ -726,7 +799,7 @@ _octopus_remove_consultative_temp_root() {
 # writes made during normal advisory work are discarded with that workspace.
 # This is mutation isolation for accidental workspace edits, not a security
 # boundary against deliberate access to absolute paths outside the workspace.
-run_agent_sync_consultative() (
+_octopus_run_agent_sync_consultative_impl() (
     local old_security_set="${OCTOPUS_SECURITY_V870+x}"
     local old_security="${OCTOPUS_SECURITY_V870:-}"
     local old_agy_sandbox_set="${OCTOPUS_AGY_SANDBOX+x}"
@@ -736,6 +809,7 @@ run_agent_sync_consultative() (
     local old_autonomy_set="${CLAUDE_OCTOPUS_AUTONOMY+x}"
     local old_autonomy="${CLAUDE_OCTOPUS_AUTONOMY:-}"
     local source_root source_root_logical workspace temp_root temp_root_prefix rc original_prompt isolated_prompt agent_output cleanup_note
+    local agent_pid agent_output_file
     local -a consultative_args
 
     _octopus_handle_consultative_signal() {
@@ -744,6 +818,15 @@ run_agent_sync_consultative() (
 
         # Do not let a second foreground signal interrupt validated cleanup.
         trap '' INT TERM
+        if [[ -n "$agent_pid" ]]; then
+            kill -TERM -- "-$agent_pid" 2>/dev/null || true
+            kill -TERM "$agent_pid" 2>/dev/null || true
+            /bin/sleep 1
+            kill -KILL -- "-$agent_pid" 2>/dev/null || true
+            kill -KILL "$agent_pid" 2>/dev/null || true
+            wait "$agent_pid" 2>/dev/null || true
+            agent_pid=""
+        fi
         if [[ -n "$temp_root" ]]; then
             _octopus_remove_consultative_temp_root "$temp_root" "$workspace" 2>/dev/null || cleanup_failed=true
         else
@@ -756,6 +839,9 @@ run_agent_sync_consultative() (
                 printf 'WARN: failed to remove consultative workspace after signal: %s\n' "$temp_root" >&2
             fi
         fi
+        if [[ -n "${_octopus_consultative_completion_file:-}" ]]; then
+            printf 'done\n' > "$_octopus_consultative_completion_file" 2>/dev/null || true
+        fi
         exit "$signal_rc"
     }
 
@@ -764,6 +850,8 @@ run_agent_sync_consultative() (
     workspace=""
     temp_root=""
     temp_root_prefix=""
+    agent_pid=""
+    agent_output_file=""
     trap '_octopus_handle_consultative_signal 130' INT
     trap '_octopus_handle_consultative_signal 143' TERM
     _octopus_prepare_consultative_workspace "$source_root" workspace temp_root temp_root_prefix || {
@@ -795,14 +883,22 @@ This copy intentionally contains no Git control-plane metadata. Inspect the copi
     unset CLAUDE_OCTOPUS_AUTONOMY
     export OCTOPUS_CODEX_SANDBOX="danger-full-access"
 
-    if agent_output=$(
-        _octopus_clear_repository_env
+    agent_output_file="$temp_root/agent-output"
+    set -m
+    (
+        _octopus_clear_repository_env || exit 125
         cd "$workspace" && run_agent_sync "${consultative_args[@]}"
-    ); then
+    ) >"$agent_output_file" &
+    agent_pid=$!
+    set +m
+    if wait "$agent_pid"; then
         rc=0
     else
         rc=$?
     fi
+    agent_pid=""
+    agent_output="$(cat "$agent_output_file" 2>/dev/null || true)"
+    rm -f "$agent_output_file" 2>/dev/null || true
 
     cleanup_note="Octopus deleted the workspace before returning."
     if ! _octopus_remove_consultative_temp_root "$temp_root" "$workspace" 2>/dev/null; then
@@ -836,8 +932,77 @@ ${agent_output}
 EOF
     fi
 
+    if [[ -n "${_octopus_consultative_completion_file:-}" ]]; then
+        printf 'done\n' > "$_octopus_consultative_completion_file" 2>/dev/null || true
+    fi
+
     return "$rc"
 )
+
+# Keep the signal trap in the caller's shell while the isolated implementation
+# runs as a background job. Bash defers traps while waiting for a foreground
+# subshell or command substitution, but `wait` on a background job is
+# interruptible. Monitor mode gives the implementation a private process group
+# so cancellation reaches its cleanup handler and all wrapper descendants.
+run_agent_sync_consultative() {
+    local implementation_pid="" rc=0 interrupted_rc=""
+    local monitor_was_enabled=false old_int_trap old_term_trap
+    local cleanup_waits completion_parent completion_state completion_owner
+    local _octopus_consultative_completion_file=""
+
+    completion_parent="$(_octopus_temp_parent_outside_source "$(pwd -P)")" || return 1
+    completion_owner="$(/bin/sh -c 'printf "%s\n" "$PPID"')" || return 1
+    case "$completion_owner" in
+        ""|*[!0-9]*) return 1 ;;
+    esac
+    _octopus_consultative_completion_file="$completion_parent/.octopus-consultative-completion.${completion_owner}.${RANDOM}${RANDOM}"
+    (umask 077; set -o noclobber; printf 'running\n' > "$_octopus_consultative_completion_file") 2>/dev/null || {
+        rm -f "$_octopus_consultative_completion_file" 2>/dev/null || true
+        return 1
+    }
+    old_int_trap="$(trap -p INT)"
+    old_term_trap="$(trap -p TERM)"
+    trap 'interrupted_rc=130; trap "" INT TERM; if [[ -n "$implementation_pid" ]]; then kill -INT -- "-$implementation_pid" 2>/dev/null || kill -INT "$implementation_pid" 2>/dev/null || true; fi' INT
+    trap 'interrupted_rc=143; trap "" INT TERM; if [[ -n "$implementation_pid" ]]; then kill -TERM -- "-$implementation_pid" 2>/dev/null || kill -TERM "$implementation_pid" 2>/dev/null || true; fi' TERM
+    [[ "$-" == *m* ]] && monitor_was_enabled=true
+    set -m
+    _octopus_run_agent_sync_consultative_impl "$@" &
+    implementation_pid=$!
+    set +m
+    if [[ "$interrupted_rc" == "130" ]]; then
+        kill -INT -- "-$implementation_pid" 2>/dev/null || kill -INT "$implementation_pid" 2>/dev/null || true
+    elif [[ "$interrupted_rc" == "143" ]]; then
+        kill -TERM -- "-$implementation_pid" 2>/dev/null || kill -TERM "$implementation_pid" 2>/dev/null || true
+    fi
+    if wait "$implementation_pid"; then
+        rc=0
+    else
+        rc=$?
+    fi
+    if [[ -n "$interrupted_rc" ]]; then
+        # The first wait returns as soon as the trap runs. Reap the isolated
+        # implementation so its signal handler finishes provider and workspace
+        # cleanup before cancellation is reported to the caller.
+        cleanup_waits=0
+        while [[ "$cleanup_waits" -lt 60 ]]; do
+            completion_state="$(cat "$_octopus_consultative_completion_file" 2>/dev/null || true)"
+            [[ "$completion_state" == "done" ]] && break
+            /bin/sleep 0.05
+            cleanup_waits=$((cleanup_waits + 1))
+        done
+        # Do not signal the numeric PID again after the initial wait. If the
+        # implementation exited without writing its completion marker, that
+        # PID could already have been reused by an unrelated process.
+        wait "$implementation_pid" 2>/dev/null || true
+    fi
+
+    if [[ -n "$old_int_trap" ]]; then eval "$old_int_trap"; else trap - INT; fi
+    if [[ -n "$old_term_trap" ]]; then eval "$old_term_trap"; else trap - TERM; fi
+    [[ "$monitor_was_enabled" == "true" ]] && set -m
+    rm -f "$_octopus_consultative_completion_file" 2>/dev/null || true
+    [[ -n "$interrupted_rc" ]] && return "$interrupted_rc"
+    return "$rc"
+}
 
 # Synchronous agent execution (for sequential steps within phases)
 run_agent_sync() {
