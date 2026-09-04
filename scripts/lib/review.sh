@@ -962,7 +962,11 @@ review_supervise_round1() {
     for _pid in "${round1_pids[@]}"; do wait "$_pid" 2>/dev/null || true; done
 }
 
-# review_extract_output_text: print only the Output block associated with the final artifact status boundary.
+# review_extract_output_text: print only the content of the LAST "## Output"
+# section in the file, ending wherever that section ends — the next "## "
+# header of any kind, or EOF. "## Output" always restarts the capture, so an
+# earlier (e.g. attacker-forged, echoed-prompt) "## Output" section is
+# discarded the moment a later, genuine one is seen (#1004).
 review_extract_output_text() {
     local review_md="$1"
     [[ -f "$review_md" ]] || return 1
