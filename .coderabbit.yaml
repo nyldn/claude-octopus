@@ -101,7 +101,7 @@ reviews:
       instructions: |
         CI pipeline runs: smoke → unit → integration → e2e (cascading).
         All scripts must be chmod +x before execution.
-        Test artifacts upload as JUnit XML via actions/upload-artifact@v4.
+        Test artifacts upload as JUnit XML via the approved immutable actions/upload-artifact v7 SHA.
 
     # ── Marketplace/plugin metadata ────────────────────────────────────
     - path: ".claude-plugin/*.json"
