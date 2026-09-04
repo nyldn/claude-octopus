@@ -13,7 +13,11 @@ if ! declare -f count_words >/dev/null 2>&1; then
 fi
 if ! declare -f octo_provider_canonical >/dev/null 2>&1; then
     source "${_INTELLIGENCE_LIB_DIR}/provider-registry.sh" || {
-        echo "intelligence: failed to load provider registry" >&2
+        if declare -f log >/dev/null 2>&1; then
+            log "ERROR" "intelligence: failed to load provider registry"
+        else
+            printf '%s\n' "intelligence: failed to load provider registry" >&2
+        fi
         return 1 2>/dev/null || exit 1
     }
 fi
