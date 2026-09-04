@@ -157,7 +157,7 @@ else
     test_fail "expected discovery failure to prevent copying .git and ignored payloads"
 fi
 
-test_case "ambient Git config is ignored and advisory execution cannot mutate source Git state"
+test_case "ambient Git config and pathspec state are ignored before copy and advisory execution"
 AMBIENT_EXCLUDES="$TEST_TMP_DIR/ambient-excludes"
 AMBIENT_CONFIG="$TEST_TMP_DIR/ambient-gitconfig"
 AMBIENT_MARKER="$TEST_TMP_DIR/ambient-git-env-leaked"
@@ -173,6 +173,10 @@ if workspace=$(
     export GIT_CONFIG_GLOBAL="$AMBIENT_CONFIG"
     export GIT_CONFIG_SYSTEM="$AMBIENT_CONFIG"
     export GIT_CONFIG_NOSYSTEM=1
+    export GIT_LITERAL_PATHSPECS=1
+    export GIT_GLOB_PATHSPECS=1
+    export GIT_NOGLOB_PATHSPECS=1
+    export GIT_ICASE_PATHSPECS=1
     _octopus_prepare_consultative_workspace "$SOURCE_ROOT"
 ) && [[ -f "$workspace/untracked.txt" && ! -e "$workspace/.git" ]]; then
     prepare_isolated=true
@@ -186,7 +190,7 @@ run_agent_sync() {
     printf 'dispatched\n' > "$AMBIENT_DISPATCH_MARKER"
     while IFS= read -r name; do
         case "$name" in
-            GIT_DIR|GIT_WORK_TREE|GIT_INDEX_FILE|GIT_OBJECT_DIRECTORY|GIT_ALTERNATE_OBJECT_DIRECTORIES|GIT_COMMON_DIR|GIT_NAMESPACE|GIT_CEILING_DIRECTORIES|GIT_PREFIX|GIT_SUPER_PREFIX|GIT_CONFIG|GIT_CONFIG_GLOBAL|GIT_CONFIG_SYSTEM|GIT_CONFIG_NOSYSTEM|GIT_CONFIG_PARAMETERS|GIT_CONFIG_COUNT|GIT_CONFIG_KEY_*|GIT_CONFIG_VALUE_*|GIT_QUARANTINE_PATH|GIT_DEFAULT_HASH)
+            GIT_DIR|GIT_WORK_TREE|GIT_INDEX_FILE|GIT_OBJECT_DIRECTORY|GIT_ALTERNATE_OBJECT_DIRECTORIES|GIT_COMMON_DIR|GIT_NAMESPACE|GIT_PREFIX|GIT_SUPER_PREFIX|GIT_CONFIG|GIT_CONFIG_GLOBAL|GIT_CONFIG_SYSTEM|GIT_CONFIG_NOSYSTEM|GIT_CONFIG_PARAMETERS|GIT_CONFIG_COUNT|GIT_CONFIG_KEY_*|GIT_CONFIG_VALUE_*|GIT_QUARANTINE_PATH|GIT_DEFAULT_HASH|GIT_LITERAL_PATHSPECS|GIT_GLOB_PATHSPECS|GIT_NOGLOB_PATHSPECS|GIT_ICASE_PATHSPECS)
                 printf '%s\n' "$name" > "$AMBIENT_MARKER"
                 ;;
         esac
@@ -207,6 +211,10 @@ GIT_CONFIG_NOSYSTEM=1 \
 GIT_CONFIG_COUNT=1 \
 GIT_CONFIG_KEY_0=core.hooksPath \
 GIT_CONFIG_VALUE_0="$TEST_TMP_DIR/hooks" \
+GIT_LITERAL_PATHSPECS=1 \
+GIT_GLOB_PATHSPECS=1 \
+GIT_NOGLOB_PATHSPECS=1 \
+GIT_ICASE_PATHSPECS=1 \
 run_agent_sync_consultative codex "review only" 120 reviewer ceremony >/dev/null 2>&1 || true
 cd "$old_pwd"
 unset -f run_agent_sync
@@ -303,6 +311,57 @@ else
     test_fail "expected only current tracked and nonignored subdirectory bytes at the matching metadata-free copied path"
 fi
 rm -rf "$(dirname "$workspace_root")"
+
+test_case "a repository-local TMPDIR cannot contain consultative state or expose source Git control data"
+IN_REPO_TMPDIR="$SOURCE_ROOT/.consultative-tmp"
+IN_REPO_WORKSPACE_MARKER="$TEST_TMP_DIR/in-repo-workspace"
+IN_REPO_CEILING_MARKER="$TEST_TMP_DIR/in-repo-ceiling"
+IN_REPO_DISCOVERY_MARKER="$TEST_TMP_DIR/in-repo-discovery"
+IN_REPO_DISPATCH_MARKER="$TEST_TMP_DIR/in-repo-dispatch"
+IN_REPO_REF="refs/heads/in-repo-advisory-write"
+mkdir -p "$IN_REPO_TMPDIR"
+git -C "$SOURCE_ROOT" update-ref -d "$IN_REPO_REF" >/dev/null 2>&1 || true
+run_agent_sync() {
+    local discovered_root
+    printf '%s\n' "$PWD" > "$IN_REPO_WORKSPACE_MARKER"
+    printf '%s\n' "${GIT_CEILING_DIRECTORIES:-}" > "$IN_REPO_CEILING_MARKER"
+    if discovered_root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+        printf '%s\n' "$discovered_root" > "$IN_REPO_DISCOVERY_MARKER"
+        git update-ref "$IN_REPO_REF" HEAD >/dev/null 2>&1 || true
+    fi
+    printf 'dispatched\n' > "$IN_REPO_DISPATCH_MARKER"
+    printf 'review only\n'
+}
+in_repo_old_pwd="$PWD"
+cd "$SOURCE_ROOT/subdir"
+if TMPDIR="$IN_REPO_TMPDIR" run_agent_sync_consultative codex "review only" 120 reviewer ceremony >/dev/null 2>&1; then
+    in_repo_rc=0
+else
+    in_repo_rc=$?
+fi
+cd "$in_repo_old_pwd"
+unset -f run_agent_sync
+in_repo_workspace="$(cat "$IN_REPO_WORKSPACE_MARKER" 2>/dev/null || true)"
+in_repo_ceiling="$(cat "$IN_REPO_CEILING_MARKER" 2>/dev/null || true)"
+case "$in_repo_workspace" in
+    "$SOURCE_ROOT"|"$SOURCE_ROOT"/*) in_repo_workspace_outside=false ;;
+    *) in_repo_workspace_outside=true ;;
+esac
+case "$in_repo_ceiling" in
+    ""|"$SOURCE_ROOT"|"$SOURCE_ROOT"/*) in_repo_ceiling_outside=false ;;
+    *) in_repo_ceiling_outside=true ;;
+esac
+in_repo_residue="$(find "$IN_REPO_TMPDIR" -mindepth 1 -maxdepth 1 -print)"
+if [[ "$in_repo_rc" -eq 0 && -f "$IN_REPO_DISPATCH_MARKER" ]] &&
+   [[ "$in_repo_workspace_outside" == "true" && "$in_repo_ceiling_outside" == "true" ]] &&
+   [[ ! -e "$IN_REPO_DISCOVERY_MARKER" && -z "$in_repo_residue" ]] &&
+   ! git -C "$SOURCE_ROOT" show-ref --verify --quiet "$IN_REPO_REF"; then
+    test_pass
+else
+    test_fail "expected external temp state and a Git discovery ceiling: rc=$in_repo_rc workspace=${in_repo_workspace:-none} ceiling=${in_repo_ceiling:-none} discovery=$(test -e "$IN_REPO_DISCOVERY_MARKER" && printf yes || printf no) residue=${in_repo_residue:-none}"
+fi
+git -C "$SOURCE_ROOT" update-ref -d "$IN_REPO_REF" >/dev/null 2>&1 || true
+rm -rf "$IN_REPO_TMPDIR"
 
 test_case "a selected metacharacter subtree uses a literal pathspec"
 METACHAR_ROOT="$TEST_TMP_DIR/metachar-source"
@@ -788,6 +847,93 @@ else
 fi
 [[ -z "$workspace" ]] || command rm -rf "$(dirname "$workspace")"
 
+test_case "a source-root swap after leaf validation fails closed"
+ROOT_SWAP_ROOT="$TEST_TMP_DIR/root-swap-source"
+ROOT_SWAP_ORIGINAL="$TEST_TMP_DIR/root-swap-source-original"
+ROOT_SWAP_OUTSIDE="$TEST_TMP_DIR/root-swap-outside"
+ROOT_SWAP_WORKSPACE="$TEST_TMP_DIR/root-swap-workspace"
+ROOT_SWAP_MARKER="$TEST_TMP_DIR/root-swap-ran"
+mkdir -p "$ROOT_SWAP_ROOT" "$ROOT_SWAP_OUTSIDE" "$ROOT_SWAP_WORKSPACE"
+printf 'safe root bytes\n' > "$ROOT_SWAP_ROOT/payload.txt"
+printf 'external root bytes\n' > "$ROOT_SWAP_OUTSIDE/payload.txt"
+if (
+    cd() {
+        if [[ "${1:-}" == "$ROOT_SWAP_ROOT" && ! -e "$ROOT_SWAP_MARKER" ]]; then
+            command mv "$ROOT_SWAP_ROOT" "$ROOT_SWAP_ORIGINAL" || return 91
+            command ln -s "$ROOT_SWAP_OUTSIDE" "$ROOT_SWAP_ROOT" || return 92
+            printf 'swapped\n' > "$ROOT_SWAP_MARKER"
+        fi
+        builtin cd "$@"
+    }
+    _octopus_copy_leaf_safely "$ROOT_SWAP_ROOT" "$ROOT_SWAP_WORKSPACE" payload.txt
+); then
+    root_swap_rc=0
+else
+    root_swap_rc=$?
+fi
+if [[ -L "$ROOT_SWAP_ROOT" ]]; then
+    rm -f "$ROOT_SWAP_ROOT"
+    mv "$ROOT_SWAP_ORIGINAL" "$ROOT_SWAP_ROOT"
+fi
+if [[ "$root_swap_rc" -ne 0 && -f "$ROOT_SWAP_MARKER" ]] &&
+   [[ ! -e "$ROOT_SWAP_WORKSPACE/payload.txt" ]]; then
+    test_pass
+else
+    test_fail "expected root identity validation to reject the swapped source: rc=$root_swap_rc swapped=$(test -e "$ROOT_SWAP_MARKER" && printf yes || printf no) copied=$(cat "$ROOT_SWAP_WORKSPACE/payload.txt" 2>/dev/null || printf none)"
+fi
+
+test_case "a nested-repository swap cannot redirect recursive copying"
+NESTED_SWAP_ROOT="$TEST_TMP_DIR/nested-swap-source"
+NESTED_SWAP_CHILD="$TEST_TMP_DIR/nested-swap-child"
+NESTED_SWAP_ORIGINAL="$TEST_TMP_DIR/nested-swap-original"
+NESTED_SWAP_OUTSIDE="$TEST_TMP_DIR/nested-swap-outside"
+NESTED_SWAP_TMPDIR="$TEST_TMP_DIR/nested-swap-tmp"
+NESTED_SWAP_MARKER="$TEST_TMP_DIR/nested-swap-ran"
+mkdir -p "$NESTED_SWAP_ROOT" "$NESTED_SWAP_CHILD" "$NESTED_SWAP_OUTSIDE" "$NESTED_SWAP_TMPDIR"
+for nested_swap_repo in "$NESTED_SWAP_CHILD" "$NESTED_SWAP_OUTSIDE"; do
+    git -C "$nested_swap_repo" init -q
+    git -C "$nested_swap_repo" config user.email "test@example.com"
+    git -C "$nested_swap_repo" config user.name "test"
+done
+printf 'legitimate nested bytes\n' > "$NESTED_SWAP_CHILD/payload.txt"
+git -C "$NESTED_SWAP_CHILD" add payload.txt
+git -C "$NESTED_SWAP_CHILD" commit -q -m init
+printf 'external nested secret\n' > "$NESTED_SWAP_OUTSIDE/payload.txt"
+git -C "$NESTED_SWAP_OUTSIDE" add payload.txt
+git -C "$NESTED_SWAP_OUTSIDE" commit -q -m init
+git -C "$NESTED_SWAP_ROOT" init -q
+git -C "$NESTED_SWAP_ROOT" config user.email "test@example.com"
+git -C "$NESTED_SWAP_ROOT" config user.name "test"
+git -C "$NESTED_SWAP_ROOT" -c protocol.file.allow=always submodule add -q "$NESTED_SWAP_CHILD" nested-repo
+git -C "$NESTED_SWAP_ROOT" commit -q -am "add nested repository"
+NESTED_SWAP_ROOT="$(cd "$NESTED_SWAP_ROOT" && pwd -P)"
+if workspace=$(
+    cd() {
+        if [[ "${1:-}" == "./nested-repo" && ! -e "$NESTED_SWAP_MARKER" ]]; then
+            command mv "$NESTED_SWAP_ROOT/nested-repo" "$NESTED_SWAP_ORIGINAL" || return 91
+            command ln -s "$NESTED_SWAP_OUTSIDE" "$NESTED_SWAP_ROOT/nested-repo" || return 92
+            printf 'swapped\n' > "$NESTED_SWAP_MARKER"
+        fi
+        builtin cd "$@"
+    }
+    TMPDIR="$NESTED_SWAP_TMPDIR" _octopus_prepare_consultative_workspace "$NESTED_SWAP_ROOT"
+); then
+    nested_swap_rc=0
+else
+    nested_swap_rc=$?
+fi
+if [[ -L "$NESTED_SWAP_ROOT/nested-repo" ]]; then
+    rm -f "$NESTED_SWAP_ROOT/nested-repo"
+    mv "$NESTED_SWAP_ORIGINAL" "$NESTED_SWAP_ROOT/nested-repo"
+fi
+nested_swap_residue="$(find "$NESTED_SWAP_TMPDIR" -mindepth 1 -maxdepth 1 -print)"
+if [[ "$nested_swap_rc" -ne 0 && -f "$NESTED_SWAP_MARKER" ]] &&
+   [[ -z "${workspace:-}" && -z "$nested_swap_residue" ]]; then
+    test_pass
+else
+    test_fail "expected anchored nested traversal to reject the swap: rc=$nested_swap_rc swapped=$(test -e "$NESTED_SWAP_MARKER" && printf yes || printf no) workspace=${workspace:-none} residue=${nested_swap_residue:-none}"
+fi
+
 test_case "Git copy lists use one owned directory and clean it after success"
 COPY_LIST_TMPDIR="$TEST_TMP_DIR/copy-list-tmp"
 COPY_LIST_WORKSPACE="$TEST_TMP_DIR/copy-list-workspace"
@@ -821,7 +967,7 @@ else
     test_fail "expected one cleaned mktemp -d list allocation: rc=$copy_list_rc calls=$copy_list_call_count residue=$copy_list_residue"
 fi
 
-test_case "copy and nested list append failures return nonzero and remove list state"
+test_case "copy-list append and nested-copy failures return nonzero and remove list state"
 append_failure_failed=false
 append_failure_details=""
 for append_failure_kind in copy nested; do
@@ -835,15 +981,14 @@ for append_failure_kind in copy nested; do
     if (
         export TMPDIR="$APPEND_FAILURE_TMPDIR"
         export APPEND_FAILURE_KIND="$append_failure_kind"
-        printf() {
-            if [[ "${1:-}" == '%s\0' ]]; then
-                case "$APPEND_FAILURE_KIND" in
-                    copy) return 91 ;;
-                    nested) [[ "${2:-}" == "nested-repo" ]] && return 92 ;;
-                esac
-            fi
-            builtin printf "$@"
-        }
+        if [[ "$APPEND_FAILURE_KIND" == "copy" ]]; then
+            printf() {
+                [[ "${1:-}" == '%s\0' ]] && return 91
+                builtin printf "$@"
+            }
+        else
+            _octopus_copy_nested_git_tree_safely() { return 92; }
+        fi
         _octopus_copy_git_tracked_tree "$APPEND_FAILURE_SOURCE" "$APPEND_FAILURE_WORKSPACE"
     ); then
         append_failure_rc=0

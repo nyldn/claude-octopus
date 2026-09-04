@@ -156,20 +156,24 @@ should_use_agent_teams() {
     return 1
 }
 
+_octopus_repository_env_names() {
+    printf '%s\n' \
+        GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
+        GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_NAMESPACE \
+        GIT_CEILING_DIRECTORIES GIT_DISCOVERY_ACROSS_FILESYSTEM \
+        GIT_IMPLICIT_WORK_TREE GIT_PREFIX GIT_SUPER_PREFIX GIT_INTERNAL_SUPER_PREFIX \
+        GIT_GRAFT_FILE GIT_SHALLOW_FILE GIT_REPLACE_REF_BASE GIT_NO_REPLACE_OBJECTS \
+        GIT_CONFIG GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM GIT_CONFIG_NOSYSTEM \
+        GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT GIT_QUARANTINE_PATH GIT_DEFAULT_HASH \
+        GIT_LITERAL_PATHSPECS GIT_GLOB_PATHSPECS GIT_NOGLOB_PATHSPECS GIT_ICASE_PATHSPECS
+}
+
 _octopus_clear_repository_env() {
     local git_env_name clear_failed=false
-    local repository_env_names="
-GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY
-GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_NAMESPACE
-GIT_CEILING_DIRECTORIES GIT_DISCOVERY_ACROSS_FILESYSTEM
-GIT_IMPLICIT_WORK_TREE GIT_PREFIX GIT_SUPER_PREFIX GIT_INTERNAL_SUPER_PREFIX
-GIT_GRAFT_FILE GIT_SHALLOW_FILE GIT_REPLACE_REF_BASE GIT_NO_REPLACE_OBJECTS
-GIT_CONFIG GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM GIT_CONFIG_NOSYSTEM
-GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT GIT_QUARANTINE_PATH GIT_DEFAULT_HASH"
 
-    for git_env_name in $repository_env_names; do
+    while IFS= read -r git_env_name; do
         unset "$git_env_name" 2>/dev/null || clear_failed=true
-    done
+    done < <(_octopus_repository_env_names)
 
     # Git's command-scope config protocol uses numbered variable names. Clear
     # every inherited pair even when GIT_CONFIG_COUNT itself is malformed or
@@ -193,15 +197,10 @@ _octopus_git_without_repository_env() (
     local git_env_name
     local -a clean_env
 
-    clean_env=(
-        -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_OBJECT_DIRECTORY
-        -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_COMMON_DIR -u GIT_NAMESPACE
-        -u GIT_CEILING_DIRECTORIES -u GIT_DISCOVERY_ACROSS_FILESYSTEM
-        -u GIT_IMPLICIT_WORK_TREE -u GIT_PREFIX -u GIT_SUPER_PREFIX -u GIT_INTERNAL_SUPER_PREFIX
-        -u GIT_GRAFT_FILE -u GIT_SHALLOW_FILE -u GIT_REPLACE_REF_BASE -u GIT_NO_REPLACE_OBJECTS
-        -u GIT_CONFIG -u GIT_CONFIG_GLOBAL -u GIT_CONFIG_SYSTEM -u GIT_CONFIG_NOSYSTEM
-        -u GIT_CONFIG_PARAMETERS -u GIT_CONFIG_COUNT -u GIT_QUARANTINE_PATH -u GIT_DEFAULT_HASH
-    )
+    clean_env=()
+    while IFS= read -r git_env_name; do
+        clean_env+=( -u "$git_env_name" )
+    done < <(_octopus_repository_env_names)
     while IFS= read -r git_env_name; do
         case "$git_env_name" in
             GIT_CONFIG_KEY_*|GIT_CONFIG_VALUE_*|GIT_TRACE*|GIT_REDIRECT_STDIN|GIT_REDIRECT_STDOUT|GIT_REDIRECT_STDERR)
@@ -335,6 +334,26 @@ _octopus_validate_copy_source_path() {
     fi
 }
 
+# Resolve only an absolute path's parent. Appending the final component gives
+# the physical location an entered directory must have without dereferencing
+# that final component before it is opened.
+_octopus_expected_physical_entry_path() {
+    local entry_path="$1"
+    local parent leaf physical_parent
+
+    case "$entry_path" in
+        /) printf '/\n'; return 0 ;;
+        /*) ;;
+        *) return 1 ;;
+    esac
+    parent="${entry_path%/*}"
+    leaf="${entry_path##*/}"
+    [[ -n "$leaf" ]] || return 1
+    [[ -n "$parent" ]] || parent="/"
+    physical_parent="$(cd "$parent" 2>/dev/null && pwd -P)" || return 1
+    printf '%s/%s\n' "${physical_parent%/}" "$leaf"
+}
+
 # Copy one leaf without ever reopening a validated ancestor by pathname. Each
 # directory component becomes the subshell's working directory and is checked
 # physically before the next component is entered. `cp -P` preserves a leaf
@@ -345,7 +364,12 @@ _octopus_copy_leaf_safely() (
     local workspace="$2"
     local rel="$3"
     local copy_scope="${4:-}"
-    local remaining component physical_dir destination_parent
+    local remaining component physical_dir destination_parent expected_source_root source_is_anchored=false
+
+    if [[ "$source_root" == "." ]]; then
+        source_root="$(pwd -P)" || return 1
+        source_is_anchored=true
+    fi
 
     _octopus_validate_copy_source_path "$source_root" "$rel" "$copy_scope" || return 1
     destination_parent="${rel%/*}"
@@ -354,7 +378,15 @@ _octopus_copy_leaf_safely() (
         mkdir -p "$workspace/$destination_parent" || return 1
     fi
 
-    cd "$source_root" 2>/dev/null || return 1
+    if [[ "$source_is_anchored" == "true" ]]; then
+        [[ "$(pwd -P)" == "$source_root" ]] || return 1
+    else
+        expected_source_root="$(_octopus_expected_physical_entry_path "$source_root")" || return 1
+        cd "$source_root" 2>/dev/null || return 1
+        physical_dir="$(pwd -P)" || return 1
+        [[ "$physical_dir" == "$expected_source_root" ]] || return 1
+        source_root="$physical_dir"
+    fi
     remaining="$rel"
     while [[ "$remaining" == */* ]]; do
         component="${remaining%%/*}"
@@ -375,6 +407,62 @@ _octopus_copy_leaf_safely() (
     [[ -f "./$remaining" || -L "./$remaining" ]] || return 1
     command cp -pP "./$remaining" "$workspace/$rel" || return 1
     _octopus_validate_copy_source_path "$workspace" "$rel" "$copy_scope"
+)
+
+# Enter a nested repository one real directory component at a time, then keep
+# that directory as the recursion anchor. Repository discovery and recursive
+# copying use `.` from the anchored working directory; they never reopen the
+# pathname that identified the nested repository during parent enumeration.
+_octopus_copy_nested_git_tree_safely() (
+    local source_root="$1"
+    local workspace="$2"
+    local nested_rel="$3"
+    local temp_exclusion_root="${4:-$source_root}"
+    local remaining component physical_dir expected_dir nested_top source_is_anchored=false
+
+    case "$nested_rel" in
+        ""|/*) return 1 ;;
+    esac
+    if [[ "$temp_exclusion_root" == "." ]]; then
+        temp_exclusion_root="$(pwd -P)" || return 1
+    fi
+
+    if [[ "$source_root" == "." ]]; then
+        source_root="$(pwd -P)" || return 1
+        source_is_anchored=true
+    fi
+    if [[ "$source_is_anchored" == "true" ]]; then
+        physical_dir="$(pwd -P)" || return 1
+        [[ "$physical_dir" == "$source_root" ]] || return 1
+    else
+        expected_dir="$(_octopus_expected_physical_entry_path "$source_root")" || return 1
+        cd "$source_root" 2>/dev/null || return 1
+        physical_dir="$(pwd -P)" || return 1
+        [[ "$physical_dir" == "$expected_dir" ]] || return 1
+        source_root="$physical_dir"
+    fi
+
+    remaining="$nested_rel"
+    expected_dir="$source_root"
+    while :; do
+        component="${remaining%%/*}"
+        case "$component" in
+            ""|.|..) return 1 ;;
+        esac
+        [[ -d "./$component" && ! -L "./$component" ]] || return 1
+        cd "./$component" 2>/dev/null || return 1
+        expected_dir="${expected_dir}/${component}"
+        physical_dir="$(pwd -P)" || return 1
+        [[ "$physical_dir" == "$expected_dir" ]] || return 1
+        [[ "$remaining" == */* ]] || break
+        remaining="${remaining#*/}"
+    done
+
+    nested_top="$(_octopus_git_without_repository_env -C . rev-parse --show-toplevel 2>/dev/null)" || return 1
+    nested_top="$(cd "$nested_top" 2>/dev/null && pwd -P)" || return 1
+    [[ "$nested_top" == "$physical_dir" ]] || return 1
+    mkdir -p "$workspace/$nested_rel" || return 1
+    _octopus_copy_git_tracked_tree . "$workspace/$nested_rel" "" "$temp_exclusion_root"
 )
 
 _octopus_validate_materialized_symlinks() (
@@ -532,17 +620,18 @@ _octopus_path_is_generated_temp_artifact() {
 # Copy only tracked plus untracked-but-not-ignored files from a Git work tree.
 # An optional root-relative scope limits enumeration while paths remain rooted at
 # the repository for validation and destination placement.
-# Nested repositories are removed from the parent leaf list, then copied
-# recursively under their own ignore rules. Every path ancestor must be a real
-# directory. Symlink leaves must stay lexically within the copied tree, and
-# resolved targets must remain in the source. Any failure is fatal for a Git
-# source.
+# Nested repositories are detected during parent enumeration and copied from an
+# anchored working directory under their own ignore rules. Every path ancestor
+# must be a real directory. Symlink leaves must stay lexically within the copied
+# tree, and resolved targets must remain in the source. Any failure is fatal for
+# a Git source.
 _octopus_copy_git_tracked_tree() (
     local source_root="$1"
     local workspace="$2"
     local copy_scope="${3:-}"
-    local list_dir filelist untrackedlist copylist nestedlist entry rel entry_path
-    local nested_top nested_rel nested_stage scope_pathspec copy_confinement_root temp_parent list_dir_prefix
+    local temp_exclusion_root="${4:-$source_root}"
+    local list_dir filelist untrackedlist copylist entry rel entry_path
+    local nested_stage scope_pathspec temp_parent list_dir_prefix expected_source_root
 
     _octopus_cleanup_copy_list_dir() {
         local cleanup_rc="$1"
@@ -553,19 +642,28 @@ _octopus_copy_git_tracked_tree() (
         exit "$cleanup_rc"
     }
 
-    _octopus_git_without_repository_env -C "$source_root" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
-    source_root="$(cd "$source_root" 2>/dev/null && pwd -P)" || return 1
+    case "$source_root" in
+        .) expected_source_root="$(pwd -P)" || return 1 ;;
+        /*) expected_source_root="$(_octopus_expected_physical_entry_path "$source_root")" || return 1 ;;
+        *) return 1 ;;
+    esac
+    cd "$source_root" 2>/dev/null || return 1
+    source_root="$(pwd -P)" || return 1
+    [[ "$source_root" == "$expected_source_root" ]] || return 1
+    _octopus_git_without_repository_env -C . rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
     workspace="$(cd "$workspace" 2>/dev/null && pwd -P)" || return 1
+    temp_exclusion_root="$(cd "$temp_exclusion_root" 2>/dev/null && pwd -P)" || return 1
+    case "$source_root" in
+        "$temp_exclusion_root"|"$temp_exclusion_root"/*) ;;
+        *) return 1 ;;
+    esac
     if [[ -n "$copy_scope" ]]; then
         _octopus_source_path_has_safe_ancestry "$source_root" "$copy_scope" || return 1
         [[ -d "$source_root/$copy_scope" && ! -L "$source_root/$copy_scope" ]] || return 1
         scope_pathspec=":(literal,top)${copy_scope}"
-        copy_confinement_root="$(cd "$source_root/$copy_scope" 2>/dev/null && pwd -P)" || return 1
-    else
-        copy_confinement_root="$source_root"
     fi
 
-    temp_parent="$(_octopus_temp_parent_outside_source "$copy_confinement_root")" || return 1
+    temp_parent="$(_octopus_temp_parent_outside_source "$temp_exclusion_root")" || return 1
     list_dir=""
     list_dir_prefix=""
     # The handler owns the unique prefix before mktemp can create its directory.
@@ -578,8 +676,7 @@ _octopus_copy_git_tracked_tree() (
     filelist="${list_dir}/tracked"
     untrackedlist="${list_dir}/untracked"
     copylist="${list_dir}/copy"
-    nestedlist="${list_dir}/nested"
-    : > "$filelist" && : > "$untrackedlist" && : > "$copylist" && : > "$nestedlist" || return 1
+    : > "$filelist" && : > "$untrackedlist" && : > "$copylist" || return 1
     if [[ -n "$copy_scope" ]]; then
         _octopus_git_without_repository_env -C "$source_root" ls-files -z --cached -- "$scope_pathspec" >"$filelist" 2>/dev/null || {
             return 1
@@ -628,15 +725,7 @@ _octopus_copy_git_tracked_tree() (
                 }
             fi
             if [[ -e "$entry_path/.git" || -L "$entry_path/.git" || "$nested_stage" == 160000\ * ]]; then
-                nested_top="$(_octopus_git_without_repository_env -C "$entry_path" rev-parse --show-toplevel 2>/dev/null)" || {
-                    return 1
-                }
-                nested_top="$(cd "$nested_top" 2>/dev/null && pwd -P)" || {
-                    return 1
-                }
-                [[ "$nested_top" == "$entry_path" ]] || return 1
-                nested_rel="$rel"
-                printf '%s\0' "$nested_rel" >> "$nestedlist" || return 1
+                _octopus_copy_nested_git_tree_safely . "$workspace" "$rel" "$temp_exclusion_root" || return 1
                 continue
             fi
         fi
@@ -645,23 +734,9 @@ _octopus_copy_git_tracked_tree() (
     done < "$filelist"
 
     while IFS= read -r -d '' rel; do
-        _octopus_copy_leaf_safely "$source_root" "$workspace" "$rel" "$copy_scope" || return 1
+        _octopus_copy_leaf_safely . "$workspace" "$rel" "$copy_scope" || return 1
     done < "$copylist"
 
-    while IFS= read -r -d '' nested_rel; do
-        _octopus_source_path_has_safe_ancestry "$source_root" "$nested_rel" || {
-            return 1
-        }
-        [[ -d "$source_root/$nested_rel" && ! -L "$source_root/$nested_rel" ]] || {
-            return 1
-        }
-        mkdir -p "$workspace/$nested_rel" || {
-            return 1
-        }
-        _octopus_copy_git_tracked_tree "$source_root/$nested_rel" "$workspace/$nested_rel" || {
-            return 1
-        }
-    done < "$nestedlist"
 )
 
 # Prepare an isolated copy-on-write workspace for advisory agents.
@@ -671,7 +746,7 @@ _octopus_prepare_consultative_workspace() {
     local source_root="$1"
     local workspace_result_var="${2:-}"
     local temp_root_result_var="${3:-}"
-    local prepared_temp_root prepared_temp_root_raw prepared_workspace git_root source_prefix git_source_kind temp_parent temp_root_prefix
+    local prepared_temp_root prepared_temp_root_raw prepared_workspace git_root source_prefix git_source_kind temp_parent temp_root_prefix temp_exclusion_root
 
     if [[ -n "$workspace_result_var" || -n "$temp_root_result_var" ]]; then
         [[ "$workspace_result_var" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || return 1
@@ -681,7 +756,18 @@ _octopus_prepare_consultative_workspace() {
     source_root="$(cd "$source_root" 2>/dev/null && pwd -P)" || return 1
     git_source_kind="$(_octopus_classify_git_source "$source_root")" || return 1
 
-    temp_parent="$(_octopus_temp_parent_outside_source "$source_root")" || return 1
+    temp_exclusion_root="$source_root"
+    if [[ "$git_source_kind" == "git-work-tree" ]]; then
+        git_root="$(_octopus_git_without_repository_env -C "$source_root" rev-parse --show-toplevel 2>/dev/null)" || return 1
+        git_root="$(cd "$git_root" 2>/dev/null && pwd -P)" || return 1
+        case "$source_root" in
+            "$git_root"|"$git_root"/*) ;;
+            *) return 1 ;;
+        esac
+        temp_exclusion_root="$git_root"
+    fi
+
+    temp_parent="$(_octopus_temp_parent_outside_source "$temp_exclusion_root")" || return 1
     temp_root_prefix=""
     _octopus_prepare_owned_temp_prefix temp_root_prefix "$temp_parent" "octopus-consultative" || return 1
     if [[ -n "${4:-}" ]]; then
@@ -712,14 +798,6 @@ _octopus_prepare_consultative_workspace() {
     mkdir -p "$prepared_workspace" || { rm -rf "$prepared_temp_root"; return 1; }
 
     if [[ "$git_source_kind" == "git-work-tree" ]]; then
-        git_root="$(_octopus_git_without_repository_env -C "$source_root" rev-parse --show-toplevel 2>/dev/null)" || {
-            rm -rf "$prepared_temp_root"
-            return 1
-        }
-        git_root="$(cd "$git_root" 2>/dev/null && pwd -P)" || {
-            rm -rf "$prepared_temp_root"
-            return 1
-        }
         case "$source_root" in
             "$git_root") source_prefix="" ;;
             "$git_root"/*) source_prefix="${source_root#"$git_root"/}" ;;
@@ -729,7 +807,7 @@ _octopus_prepare_consultative_workspace() {
                 ;;
         esac
 
-        _octopus_copy_git_tracked_tree "$git_root" "$prepared_workspace" "$source_prefix" || {
+        _octopus_copy_git_tracked_tree "$git_root" "$prepared_workspace" "$source_prefix" "$git_root" || {
             rm -rf "$prepared_temp_root"
             return 1
         }
@@ -887,6 +965,7 @@ This copy intentionally contains no Git control-plane metadata. Inspect the copi
     set -m
     (
         _octopus_clear_repository_env || exit 125
+        export GIT_CEILING_DIRECTORIES="$temp_root"
         cd "$workspace" && run_agent_sync "${consultative_args[@]}"
     ) >"$agent_output_file" &
     agent_pid=$!
