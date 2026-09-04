@@ -642,7 +642,7 @@ octo_normalize_context_budget() {
     done
     if [[ "$value" == "0" ]] ||
        [[ "${#value}" -gt "${#max_budget}" ]] ||
-       { [[ "${#value}" -eq "${#max_budget}" ]] && [[ "$value" > "$max_budget" ]]; }; then
+       { [[ "${#value}" -eq "${#max_budget}" ]] && [[ "$value" -gt "$max_budget" ]]; }; then
         log ERROR "Invalid $label '$1': expected 1..$max_budget"
         return 2
     fi
