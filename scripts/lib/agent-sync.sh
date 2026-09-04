@@ -245,9 +245,14 @@ _octopus_classify_git_source() {
 _octopus_source_path_has_safe_ancestry() {
     local source_root="$1"
     local rel="$2"
+    local identity_result_var="${3:-}"
     local current="$source_root"
     local remaining="$rel"
-    local component
+    local component component_identity captured_identities=""
+
+    if [[ -n "$identity_result_var" ]]; then
+        [[ "$identity_result_var" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || return 1
+    fi
 
     case "$rel" in
         ""|/*) return 1 ;;
@@ -260,12 +265,19 @@ _octopus_source_path_has_safe_ancestry() {
         esac
         current="${current}/${component}"
         [[ -d "$current" && ! -L "$current" ]] || return 1
+        if [[ -n "$identity_result_var" ]]; then
+            component_identity="$(_octopus_directory_identity "$current")" || return 1
+            captured_identities="${captured_identities}${captured_identities:+ }${component_identity}"
+        fi
         remaining="${remaining#*/}"
     done
 
     case "$remaining" in
         ""|.|..) return 1 ;;
     esac
+    if [[ -n "$identity_result_var" ]]; then
+        printf -v "$identity_result_var" '%s' "$captured_identities"
+    fi
 }
 
 _octopus_relative_symlink_target_is_confined() {
@@ -302,9 +314,10 @@ _octopus_validate_copy_source_path() {
     local source_root="$1"
     local rel="$2"
     local copy_scope="${3:-}"
+    local ancestor_identity_result_var="${4:-}"
     local entry_path link_target resolved confinement_rel confinement_root
 
-    _octopus_source_path_has_safe_ancestry "$source_root" "$rel" || return 1
+    _octopus_source_path_has_safe_ancestry "$source_root" "$rel" "$ancestor_identity_result_var" || return 1
     entry_path="${source_root}/${rel}"
     [[ -e "$entry_path" || -L "$entry_path" ]] || return 1
 
@@ -393,7 +406,7 @@ _octopus_directory_identity_matches() {
 }
 
 # Pure shell cannot make a pathname lookup and the following operation atomic.
-# Revalidate both the original pathname and the entered directory at every
+# Revalidate both the original pathname and each entered directory at every
 # deterministic reopen boundary, then use paths relative to the entered cwd.
 _octopus_revalidate_directory_anchor() {
     local anchor_path="$1"
@@ -414,7 +427,7 @@ _octopus_copy_leaf_safely() (
     local rel="$3"
     local copy_scope="${4:-}"
     local remaining component physical_dir destination_parent expected_source_root source_is_anchored=false
-    local source_anchor_path source_identity
+    local source_anchor_path source_identity ancestor_identities="" ancestor_identity
 
     if [[ "$source_root" == "." ]]; then
         source_root="$(pwd -P)" || return 1
@@ -423,7 +436,7 @@ _octopus_copy_leaf_safely() (
     source_anchor_path="$source_root"
     source_identity="$(_octopus_directory_identity "$source_anchor_path")" || return 1
 
-    _octopus_validate_copy_source_path "$source_root" "$rel" "$copy_scope" || return 1
+    _octopus_validate_copy_source_path "$source_root" "$rel" "$copy_scope" ancestor_identities || return 1
     destination_parent="${rel%/*}"
     [[ "$destination_parent" == "$rel" ]] && destination_parent=""
     if [[ -n "$destination_parent" ]]; then
@@ -447,7 +460,20 @@ _octopus_copy_leaf_safely() (
         case "$component" in
             ""|.|..) return 1 ;;
         esac
+        case "$ancestor_identities" in
+            *" "*)
+                ancestor_identity="${ancestor_identities%% *}"
+                ancestor_identities="${ancestor_identities#* }"
+                ;;
+            *)
+                ancestor_identity="$ancestor_identities"
+                ancestor_identities=""
+                ;;
+        esac
+        [[ -n "$ancestor_identity" ]] || return 1
+        _octopus_directory_identity_matches "./$component" "$ancestor_identity" || return 1
         cd "./$component" 2>/dev/null || return 1
+        _octopus_directory_identity_matches . "$ancestor_identity" || return 1
         physical_dir="$(pwd -P)" || return 1
         case "$physical_dir" in
             "$source_root"|"$source_root"/*) ;;
@@ -455,6 +481,7 @@ _octopus_copy_leaf_safely() (
         esac
         remaining="${remaining#*/}"
     done
+    [[ -z "$ancestor_identities" ]] || return 1
     case "$remaining" in
         ""|.|..) return 1 ;;
     esac

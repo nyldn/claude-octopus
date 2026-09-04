@@ -870,6 +870,41 @@ else
 fi
 [[ -z "$workspace" ]] || command rm -rf "$(dirname "$workspace")"
 
+test_case "a same-path real-directory swap before ordinary ancestor entry fails closed"
+REAL_ANCESTOR_ROOT="$TEST_TMP_DIR/real-ancestor-source"
+REAL_ANCESTOR_ORIGINAL="$TEST_TMP_DIR/real-ancestor-original"
+REAL_ANCESTOR_OUTSIDE="$TEST_TMP_DIR/real-ancestor-outside"
+REAL_ANCESTOR_WORKSPACE="$TEST_TMP_DIR/real-ancestor-workspace"
+REAL_ANCESTOR_MARKER="$TEST_TMP_DIR/real-ancestor-swapped"
+mkdir -p "$REAL_ANCESTOR_ROOT/safe/deep" "$REAL_ANCESTOR_OUTSIDE" "$REAL_ANCESTOR_WORKSPACE"
+printf 'safe ancestor bytes\n' > "$REAL_ANCESTOR_ROOT/safe/deep/payload.txt"
+printf 'external ancestor bytes\n' > "$REAL_ANCESTOR_OUTSIDE/payload.txt"
+if (
+    cd() {
+        if [[ "${1:-}" == "./deep" && "$PWD" == "$REAL_ANCESTOR_ROOT/safe" && ! -e "$REAL_ANCESTOR_MARKER" ]]; then
+            command mv "$REAL_ANCESTOR_ROOT/safe/deep" "$REAL_ANCESTOR_ORIGINAL" || return 91
+            command mv "$REAL_ANCESTOR_OUTSIDE" "$REAL_ANCESTOR_ROOT/safe/deep" || return 92
+            printf 'swapped\n' > "$REAL_ANCESTOR_MARKER"
+        fi
+        builtin cd "$@"
+    }
+    _octopus_copy_leaf_safely "$REAL_ANCESTOR_ROOT" "$REAL_ANCESTOR_WORKSPACE" safe/deep/payload.txt
+); then
+    real_ancestor_swap_rc=0
+else
+    real_ancestor_swap_rc=$?
+fi
+if [[ -d "$REAL_ANCESTOR_ROOT/safe/deep" && -d "$REAL_ANCESTOR_ORIGINAL" ]]; then
+    mv "$REAL_ANCESTOR_ROOT/safe/deep" "$REAL_ANCESTOR_OUTSIDE"
+    mv "$REAL_ANCESTOR_ORIGINAL" "$REAL_ANCESTOR_ROOT/safe/deep"
+fi
+if [[ "$real_ancestor_swap_rc" -ne 0 && -f "$REAL_ANCESTOR_MARKER" ]] &&
+   [[ ! -e "$REAL_ANCESTOR_WORKSPACE/safe/deep/payload.txt" ]]; then
+    test_pass
+else
+    test_fail "expected captured ordinary ancestor identity to reject the replacement: rc=$real_ancestor_swap_rc swapped=$(test -e "$REAL_ANCESTOR_MARKER" && printf yes || printf no) copied=$(cat "$REAL_ANCESTOR_WORKSPACE/safe/deep/payload.txt" 2>/dev/null || printf none)"
+fi
+
 test_case "a source-root swap after leaf validation fails closed"
 ROOT_SWAP_ROOT="$TEST_TMP_DIR/root-swap-source"
 ROOT_SWAP_ORIGINAL="$TEST_TMP_DIR/root-swap-source-original"
