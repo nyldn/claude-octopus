@@ -968,10 +968,9 @@ review_extract_output_text() {
     [[ -f "$review_md" ]] || return 1
     awk '''
         /^## Output$/ { in_output=1; candidate=""; next }
-        /^## Status:/ { if (in_output) selected=candidate; in_output=0; next }
-        /^## / { in_output=0; next }
+        /^## / { if (in_output) selected=candidate; in_output=0; next }
         in_output && !/^```(json|JSON)?$/ { candidate = candidate (candidate == "" ? "" : "\n") $0 }
-        END { if (selected != "") print selected }
+        END { if (in_output && selected == "") selected = candidate; if (selected != "") print selected }
     ''' "$review_md" 2>/dev/null
 }
 

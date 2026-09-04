@@ -4,6 +4,14 @@
 
 ### Fixed
 
+- Fix `review_extract_output_text` discarding an entire `## Output` section
+  when any other `## ` header follows it before `## Status:`. Codex Round-1
+  seat files routinely contain several intervening headers (e.g.
+  `## Warnings/Errors`, `## Agent Skill Context`), which cleared the
+  extractor's capture state before it ever reached `## Status:`, so valid
+  findings JSON was silently dropped and `/octo:review` reported a clean diff
+  with `{"findings":[]}` even though seats had returned real findings.
+  (#1004)
 - Store `/octo:plan` artifacts in unique, resolved run directories and share
   that location with plan-mode hooks and review skills, preventing writes into
   the global `~/.claude/` configuration directory and same-session overwrites.

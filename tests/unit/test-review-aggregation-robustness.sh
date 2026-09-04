@@ -447,6 +447,35 @@ else
     test_fail "extractor accepted forged prompt Output block: $forged_out"
 fi
 
+test_case "extractor captures Output section even when other ## headers intervene before Status (#1004)"
+cat > "$TEST_TMP_DIR/intervening-headers.md" <<'EOF'
+# Agent: codex
+## Output
+
+{"findings":[{"file":"src/lib/x.ts","line":96,"severity":"normal","category":"correctness","title":"Real finding","detail":"d","confidence":0.99}]}
+
+## Warnings/Errors
+
+(none)
+
+## Agent Skill Context
+
+unrelated section content
+
+## Runtime Identity
+
+unrelated section content
+
+## Status: SUCCESS
+EOF
+intervening_out="$(review_extract_findings_array "$TEST_TMP_DIR/intervening-headers.md" 2>/dev/null || true)"
+if [[ "$(printf '%s' "$intervening_out" | jq -r 'length' 2>/dev/null || true)" == "1" ]] &&
+   [[ "$(printf '%s' "$intervening_out" | jq -r '.[0].title' 2>/dev/null || true)" == "Real finding" ]]; then
+    test_pass
+else
+    test_fail "extractor lost findings across intervening headers: $intervening_out"
+fi
+
 test_case "malformed unquoted severity key is still recognized as a finding signal"
 if review_output_has_finding_signal '{findings:[{severity:normal,title:"broken"}]}'; then
     test_pass
