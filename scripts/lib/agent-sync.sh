@@ -1192,15 +1192,28 @@ run_agent_sync_consultative() {
     local cleanup_waits completion_parent completion_state completion_owner completion_exclusion_root
     local _octopus_consultative_completion_file=""
 
-    completion_exclusion_root="$(_octopus_temp_exclusion_root_for_source "$(pwd -P)")" || return 1
-    completion_parent="$(_octopus_temp_parent_outside_source "$completion_exclusion_root")" || return 1
-    completion_owner="$(/bin/sh -c 'printf "%s\n" "$PPID"')" || return 1
+    completion_exclusion_root="$(_octopus_temp_exclusion_root_for_source "$(pwd -P)")" || {
+        log ERROR "Failed to resolve a safe consultative completion exclusion root"
+        return 1
+    }
+    completion_parent="$(_octopus_temp_parent_outside_source "$completion_exclusion_root")" || {
+        log ERROR "Failed to select a safe consultative completion directory"
+        return 1
+    }
+    completion_owner="$(/bin/sh -c 'printf "%s\n" "$PPID"')" || {
+        log ERROR "Failed to determine the consultative completion owner"
+        return 1
+    }
     case "$completion_owner" in
-        ""|*[!0-9]*) return 1 ;;
+        ""|*[!0-9]*)
+            log ERROR "Refusing an invalid consultative completion owner"
+            return 1
+            ;;
     esac
     _octopus_consultative_completion_file="$completion_parent/.octopus-consultative-completion.${completion_owner}.${RANDOM}${RANDOM}"
     (umask 077; set -o noclobber; printf 'running\n' > "$_octopus_consultative_completion_file") 2>/dev/null || {
         rm -f "$_octopus_consultative_completion_file" 2>/dev/null || true
+        log ERROR "Failed to create a consultative completion marker in: $completion_parent"
         return 1
     }
     old_int_trap="$(trap -p INT)"

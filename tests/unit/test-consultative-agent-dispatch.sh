@@ -73,10 +73,16 @@ BRACKET_SOURCE="$TEST_TMP_DIR/consultative[source]"
 mkdir -p "$BRACKET_SOURCE"
 printf '%s\n' original > "$BRACKET_SOURCE/protected.txt"
 cd "$BRACKET_SOURCE"
-run_agent_sync_consultative codex "inspect $BRACKET_SOURCE/protected.txt" 120 implementer ceremony
-bracket_output="$(cat "$OBSERVED_FILE")"
+rm -f "$OBSERVED_FILE"
+if run_agent_sync_consultative codex "inspect $BRACKET_SOURCE/protected.txt" 120 implementer ceremony; then
+    bracket_rc=0
+else
+    bracket_rc=$?
+fi
+bracket_output="$(cat "$OBSERVED_FILE" 2>/dev/null || true)"
 cd "$SOURCE_ROOT"
-if [[ "$bracket_output" != *"$BRACKET_SOURCE/protected.txt"* ]] &&
+if [[ "$bracket_rc" -eq 0 ]] &&
+   [[ "$bracket_output" != *"$BRACKET_SOURCE/protected.txt"* ]] &&
    [[ "$bracket_output" == *"/workspace/protected.txt"* ]] &&
    [[ "$(cat "$BRACKET_SOURCE/protected.txt")" == "original" ]]; then
     test_pass
@@ -123,9 +129,10 @@ else
 fi
 STUB_RESPONSE=""
 unset -f rm
-failed_temp_root="$(cat "$cleanup_attempt")"
-command rm -rf "$failed_temp_root"
-if [[ "$cleanup_failure_rc" -ne 0 \
+failed_temp_root="$(cat "$cleanup_attempt" 2>/dev/null || true)"
+[[ -z "$failed_temp_root" ]] || command rm -rf "$failed_temp_root"
+if [[ -n "$failed_temp_root" \
+   && "$cleanup_failure_rc" -ne 0 \
    && "$cleanup_failure_output" == *"could not confirm deletion"* \
    && "$cleanup_failure_output" != *"deleted before returning"* ]]; then
     test_pass

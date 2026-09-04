@@ -267,13 +267,16 @@ run_agent_sync() {
 }
 trace_old_pwd="$PWD"
 cd "$SOURCE_ROOT"
-(
+if (
     export GIT_TRACE="$TRACE_TEXT_SINK"
     export GIT_TRACE2_EVENT="$TRACE_EVENT_SINK"
     export GIT_REDIRECT_STDERR="$TRACE_REDIRECT_SINK"
     run_agent_sync_consultative codex "review only" 120 reviewer ceremony >/dev/null 2>&1
-)
-trace_dispatch_rc=$?
+); then
+    trace_dispatch_rc=0
+else
+    trace_dispatch_rc=$?
+fi
 cd "$trace_old_pwd"
 unset -f run_agent_sync
 if [[ "$trace_dispatch_rc" -eq 0 && -s "$TRACE_GIT_MARKER" ]] &&
