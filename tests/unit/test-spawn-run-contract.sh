@@ -267,10 +267,16 @@ classify_task() { printf '%s\n' standard; }
 get_role_for_context() { printf '%s\n' reviewer; }
 match_routing_rule() { :; }
 load_agent_checkpoint() { :; }
-apply_persona() { printf '%s\n' "$2"; }
+apply_persona() { printf 'PERSONA[%s]\n%s\n' "$1" "$2"; }
 load_earned_skills() { :; }
 build_provider_context() { :; }
-enforce_context_budget() { printf '%s\n' "$1"; }
+enforce_context_budget() {
+    if [[ "${FAKE_COMPRESS_PROMPT:-false}" == true ]]; then
+        printf 'DISPATCHED role=%s phase=%s\n' "$2" "$4"
+    else
+        printf '%s\n' "$1"
+    fi
+}
 octo_prompt_byte_length() { LC_ALL=C printf '%s' "$1" | wc -c | tr -d '[:space:]'; }
 octo_dispatch_command_model() {
     printf '%s\n' "$1" | awk -v fallback="$2" '
@@ -341,6 +347,9 @@ octo_spawn_contract_finish() {
 octopus_capture_provider_output() {
     local prompt="$1" _timeout="$2" input="$3" output="$4" errors="$5"
     shift 5
+    if [[ -n "${CAPTURED_PROVIDER_PROMPT_FILE:-}" ]]; then
+        printf '%s' "$prompt" > "$CAPTURED_PROVIDER_PROMPT_FILE"
+    fi
     printf '%s' "$prompt" > "$input"
     "$@" < "$input" > "$output" 2> "$errors"
 }
@@ -403,6 +412,33 @@ if [[ "$external_success_transitions" == "planned,starting,authenticated,running
     test_pass
 else
     test_fail "supervised success contract mismatch (transitions=${external_success_transitions:-missing}, eligible=$external_success_eligible, model=${external_success_model:-missing}, reason=${external_success_reason:-none})"
+fi
+
+test_case "result prompt is exactly the enhanced and budgeted provider stdin"
+export FAKE_COMPRESS_PROMPT=true
+export CAPTURED_PROVIDER_PROMPT_FILE="$TEST_TMP_DIR/dispatched-provider-prompt"
+run_external_fixture success exact-prompt fake-api reviewer review
+unset FAKE_COMPRESS_PROMPT CAPTURED_PROVIDER_PROMPT_FILE
+prompt_result="$RESULTS_DIR/fake-api-exact-prompt.md"
+recorded_prompt="$(awk '
+    /^# Prompt: / {
+        sub(/^# Prompt: /, "")
+        print
+        in_prompt=1
+        next
+    }
+    in_prompt && /^# Started: / { exit }
+    in_prompt { print }
+' "$prompt_result")"
+dispatched_prompt="$(cat "$TEST_TMP_DIR/dispatched-provider-prompt")"
+expected_original=$'PERSONA[reviewer]\nExternal success fixture'
+if [[ "$recorded_prompt" == "$dispatched_prompt" ]] &&
+   [[ "$recorded_prompt" == "DISPATCHED role=reviewer phase=review" ]] &&
+   grep -Fqx "# Prompt metadata: original_chars=${#expected_original} final_chars=${#recorded_prompt} compression=applied" "$prompt_result" &&
+   ! grep -Fq 'External success fixture' "$prompt_result"; then
+    test_pass
+else
+    test_fail "recorded prompt did not match provider stdin (recorded='$recorded_prompt' dispatched='$dispatched_prompt')"
 fi
 
 test_case "exact background seat records canonical provider and literal model"

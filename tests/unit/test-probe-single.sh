@@ -14,6 +14,8 @@ ORCHESTRATE="$PROJECT_ROOT/scripts/orchestrate.sh"
 ALL_SRC=$(mktemp)
 trap 'rm -f "$ALL_SRC"' EXIT
 cat "$ORCHESTRATE" "$PROJECT_ROOT/scripts/lib/"*.sh > "$ALL_SRC" 2>/dev/null
+PROBE_SINGLE_SRC="$(sed -n '/^probe_single_agent() {/,/^probe_discover() {/p' \
+  "$PROJECT_ROOT/scripts/lib/workflows.sh" | sed '$d')"
 
 pass() { test_case "$1"; test_pass; }
 fail() { test_case "$1"; test_fail "${2:-$1}"; }
@@ -39,50 +41,50 @@ assert_contains "$(grep -A40 'probe-single)' "$ALL_SRC" | head -45)" \
 
 # ── probe_single_agent writes result files ───────────────────────────────────
 
-assert_contains "$(grep -A200 'probe_single_agent()' "$ALL_SRC" | head -220)" \
+assert_contains "$PROBE_SINGLE_SRC" \
   'RESULTS_DIR.*agent_type.*task_id.*\.md' "probe_single_agent: writes result file to RESULTS_DIR"
 
 # ── probe_single_agent calls apply_persona ───────────────────────────────────
 
-assert_contains "$(grep -A100 'probe_single_agent()' "$ALL_SRC" | head -120)" \
+assert_contains "$PROBE_SINGLE_SRC" \
   "apply_persona" "probe_single_agent: calls apply_persona()"
 
 # ── probe_single_agent calls enforce_context_budget ──────────────────────────
 
-assert_contains "$(grep -A100 'probe_single_agent()' "$ALL_SRC" | head -120)" \
+assert_contains "$PROBE_SINGLE_SRC" \
   "enforce_context_budget" "probe_single_agent: calls enforce_context_budget()"
 
 # ── probe_single_agent calls get_agent_command ───────────────────────────────
 
-assert_contains "$(grep -A120 'probe_single_agent()' "$ALL_SRC" | head -140)" \
+assert_contains "$PROBE_SINGLE_SRC" \
   "get_agent_command" "probe_single_agent: calls get_agent_command()"
 
 # ── probe_single_agent has auth retry logic ──────────────────────────────────
 
-assert_contains "$(grep -A200 'probe_single_agent()' "$ALL_SRC" | head -220)" \
+assert_contains "$PROBE_SINGLE_SRC" \
   "auth_attempt|max_auth_retries" "probe_single_agent: has auth retry logic"
 
 # ── probe_single_agent outputs result file path ──────────────────────────────
 
-assert_contains "$(grep -A300 'probe_single_agent()' "$ALL_SRC" | head -310)" \
+assert_contains "$PROBE_SINGLE_SRC" \
   'echo.*result_file' "probe_single_agent: outputs result file path on stdout"
 
 # ── probe_single_agent handles timeout status ────────────────────────────────
 
-assert_contains "$(grep -A300 'probe_single_agent()' "$ALL_SRC" | head -310)" \
+assert_contains "$PROBE_SINGLE_SRC" \
   "Status: TIMEOUT" "probe_single_agent: handles TIMEOUT status"
 
 # ── probe_single_agent handles failure status ────────────────────────────────
 
-assert_contains "$(grep -A300 'probe_single_agent()' "$ALL_SRC" | head -310)" \
+assert_contains "$PROBE_SINGLE_SRC" \
   "Status: FAILED" "probe_single_agent: handles FAILED status"
 
 # ── probe_single_agent preserves recovered Codex stderr transcript ───────────
 
-assert_contains "$(grep -A300 'probe_single_agent()' "$ALL_SRC" | head -310)" \
+assert_contains "$PROBE_SINGLE_SRC" \
   "Errors transcript below" "probe_single_agent: announces recovered Codex stderr transcript"
 
-assert_contains "$(grep -A300 'probe_single_agent()' "$ALL_SRC" | head -310)" \
+assert_contains "$PROBE_SINGLE_SRC" \
   'cat "\$temp_errors" >> "\$result_file"' "probe_single_agent: appends recovered Codex stderr transcript"
 
 # ── flow-discover.md references probe-single ─────────────────────────────────

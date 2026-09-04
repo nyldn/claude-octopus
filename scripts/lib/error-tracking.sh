@@ -168,9 +168,65 @@ ERREOF
 # Resolve the current run id for multi-provider diagnostics. Prefer the explicit
 # run id when a workflow sets one, then host/session ids, then a stable fallback.
 octo_current_run_id() {
-    local fallback
-    fallback="run-$(date -u +%Y%m%dT%H%M%SZ)-$$"
-    printf '%s\n' "${OCTOPUS_RUN_ID:-${OCTOPUS_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-${CLAUDE_CODE_SESSION:-$fallback}}}}}"
+    if type octo_run_contract_id >/dev/null 2>&1; then
+        octo_run_contract_id
+        return
+    fi
+
+    # Standalone compatibility for unusually narrow source harnesses. Keep the
+    # fallback stable for the shell lifetime instead of minting a new run on
+    # every record.
+    if [[ -z "${OCTO_ERROR_TRACKING_FALLBACK_ID:-}" ]]; then
+        OCTO_ERROR_TRACKING_FALLBACK_ID="run-$(date -u +%Y%m%dT%H%M%SZ)-$$-${RANDOM:-0}"
+    fi
+    printf '%s\n' "${OCTOPUS_RUN_ID:-${OCTOPUS_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-${CLAUDE_CODE_SESSION:-$OCTO_ERROR_TRACKING_FALLBACK_ID}}}}}"
+}
+
+# Warnings emitted below command substitutions would otherwise disappear into
+# PID handoff files or become part of captured provider JSON. Capture owners
+# allocate a private file, pass it through OCTOPUS_NOTICE_FILE, then replay it
+# once on their own stderr after the substitution boundary.
+octo_notice_channel_create() {
+    local root="${WORKSPACE_DIR:-${TMPDIR:-/tmp}}" notice_file=""
+    if mkdir -p "$root" 2>/dev/null; then
+        notice_file="$(mktemp "${root%/}/octo-notice.XXXXXX" 2>/dev/null || true)"
+    fi
+    if [[ -z "$notice_file" && "$root" != "${TMPDIR:-/tmp}" ]]; then
+        root="${TMPDIR:-/tmp}"
+        mkdir -p "$root" 2>/dev/null || return 1
+        notice_file="$(mktemp "${root%/}/octo-notice.XXXXXX" 2>/dev/null || true)"
+    fi
+    [[ -n "$notice_file" ]] || return 1
+    chmod 600 "$notice_file" 2>/dev/null || {
+        rm -f "$notice_file" 2>/dev/null || true
+        return 1
+    }
+    printf '%s\n' "$notice_file"
+}
+
+octo_notice_channel_is_valid() {
+    local notice_file="${1:-}" mode=""
+    [[ -n "$notice_file" && -f "$notice_file" && ! -L "$notice_file" ]] || return 1
+    mode=$(stat -f '%Lp' "$notice_file" 2>/dev/null || stat -c '%a' "$notice_file" 2>/dev/null || true)
+    [[ "$mode" == 600 ]]
+}
+
+octo_notice_warn() {
+    local message="$*" notice_file="${OCTOPUS_NOTICE_FILE:-}"
+    if octo_notice_channel_is_valid "$notice_file"; then
+        printf '%s\n' "$message" >> "$notice_file"
+    else
+        log WARN "$message"
+    fi
+}
+
+octo_notice_channel_replay() {
+    local notice_file="${1:-}" message
+    octo_notice_channel_is_valid "$notice_file" || return 0
+    while IFS= read -r message || [[ -n "$message" ]]; do
+        [[ -n "$message" ]] && log WARN "$message"
+    done < "$notice_file"
+    rm -f "$notice_file" 2>/dev/null || true
 }
 
 octo_run_dir() {
@@ -372,23 +428,31 @@ record_oversize_event() {
     local original_chars="$2"
     local final_chars="$3"
     local outcome="$4"
+    local role="${5:-}"
+    local phase="${6:-}"
+    local budget="${7:-0}"
 
-    local dir
+    local dir run_id
+    run_id=$(octo_current_run_id)
     dir=$(octo_run_dir)
     mkdir -p "$dir"
 
     if command -v jq >/dev/null 2>&1; then
         jq -nc \
             --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg run_id "$run_id" \
             --arg agent "$agent" \
+            --arg role "$role" \
+            --arg phase "$phase" \
             --arg outcome "$outcome" \
+            --argjson budget "${budget:-0}" \
             --argjson original_chars "${original_chars:-0}" \
             --argjson final_chars "${final_chars:-0}" \
-            '{ts:$ts,agent:$agent,original_chars:$original_chars,final_chars:$final_chars,outcome:$outcome}' \
+            '{ts:$ts,run_id:$run_id,agent:$agent,role:$role,phase:$phase,budget:$budget,original_chars:$original_chars,final_chars:$final_chars,outcome:$outcome}' \
             >> "$dir/oversize.jsonl" 2>/dev/null || true
     else
-        printf '{"ts":"%s","agent":"%s","original_chars":%d,"final_chars":%d,"outcome":"%s"}\n' \
-            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$agent" "$original_chars" "$final_chars" "$outcome" \
+        printf '{"ts":"%s","run_id":"%s","agent":"%s","role":"%s","phase":"%s","budget":%d,"original_chars":%d,"final_chars":%d,"outcome":"%s"}\n' \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$run_id" "$agent" "$role" "$phase" "$budget" "$original_chars" "$final_chars" "$outcome" \
             >> "$dir/oversize.jsonl"
     fi
 }

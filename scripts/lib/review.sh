@@ -639,6 +639,7 @@ review_run_agent_sync_progress() {
     local role="$3"
     local phase="$4"
     local label="${5:-sync}"
+    local notice_file="${OCTOPUS_NOTICE_FILE:-}" owns_notice_file=false
     local results_dir="${RESULTS_DIR:-${HOME}/.claude-octopus/results}"
     local stall_window="${OCTOPUS_REVIEW_STALL_WINDOW:-1800}"
     local poll_secs="${OCTOPUS_REVIEW_POLL_SECS:-30}"
@@ -656,8 +657,16 @@ review_run_agent_sync_progress() {
     : > "$out_file"
     rm -f "$rc_file" 2>/dev/null || true
 
+    if type octo_notice_channel_is_valid >/dev/null 2>&1 &&
+       ! octo_notice_channel_is_valid "$notice_file" &&
+       type octo_notice_channel_create >/dev/null 2>&1; then
+        notice_file="$(octo_notice_channel_create 2>/dev/null || true)"
+        [[ -n "$notice_file" ]] && owns_notice_file=true
+    fi
+
     (
-        run_agent_sync "$agent_type" "$prompt" 0 "$role" "$phase" > "$out_file" 2>&1
+        OCTOPUS_NOTICE_FILE="$notice_file" \
+            run_agent_sync "$agent_type" "$prompt" 0 "$role" "$phase" > "$out_file" 2>&1
         echo "$?" > "$rc_file"
     ) &
     pid=$!
@@ -684,6 +693,9 @@ review_run_agent_sync_progress() {
     wait "$pid" 2>/dev/null || true
     rc=1
     [[ -f "$rc_file" ]] && rc=$(cat "$rc_file" 2>/dev/null || echo 1)
+    if [[ "$owns_notice_file" == true ]]; then
+        octo_notice_channel_replay "$notice_file"
+    fi
     cat "$out_file" 2>/dev/null || true
     rm -f "$out_file" "$rc_file" 2>/dev/null || true
     return "$rc"

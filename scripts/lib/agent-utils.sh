@@ -541,7 +541,7 @@ detect_image_type() {
 FAILED_SUBTASKS=""  # Newline-separated list for compatibility
 
 # Extract a multiline prompt from a tangle result file.
-# Result files write "# Prompt: <first line>" followed by the original prompt body
+# Result files write "# Prompt: <first line>" followed by the dispatched prompt body
 # until "# Started:". Preserve that body so retries do not collapse to a useless
 # one-line prompt such as "Original task context:".
 extract_tangle_retry_prompt() {

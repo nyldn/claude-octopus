@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Record the exact post-persona, post-budget prompt in each seat result, annotate
+  prompt compression with original and final sizes, and attribute oversize
+  events to the stable run, role, phase, and resolved budget. Compression
+  warnings now remain visible without entering captured review JSON. (#1005)
 - Fix `review_extract_output_text` discarding an entire `## Output` section
   when any other level-2 (`##`) header follows it before `## Status:`. Codex Round-1
   seat files routinely contain several intervening headers (e.g.

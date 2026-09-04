@@ -609,9 +609,10 @@ ${heuristic_ctx}"
     if [[ "$agent_type" == codex* && "$agent_type" != "codex-review" ]]; then
         enhanced_prompt="${CODEX_SUBAGENT_PREAMBLE}${enhanced_prompt}"
     fi
-    local tokens_in
-    tokens_in=$(( ${#enhanced_prompt} / 4 ))
-    enhanced_prompt=$(enforce_context_budget "$enhanced_prompt" "${role:-}" "$agent_type")
+    local tokens_in _budget_original_chars _budget_final_chars _budget_compression
+    _budget_original_chars=${#enhanced_prompt}
+    tokens_in=$(( _budget_original_chars / 4 ))
+    enhanced_prompt=$(enforce_context_budget "$enhanced_prompt" "${role:-}" "$agent_type" "${phase:-}")
     local _budget_rc=$?
     if [[ $_budget_rc -ne 0 ]]; then
         octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
@@ -619,6 +620,9 @@ ${heuristic_ctx}"
         type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" 0 "Prompt exceeded context budget" 0 "" "${role:-}" || true
         return "$_budget_rc"
     fi
+    _budget_final_chars=${#enhanced_prompt}
+    _budget_compression=none
+    [[ "$_budget_final_chars" -lt "$_budget_original_chars" ]] && _budget_compression=applied
 
     if declare -f octo_routing_policy >/dev/null 2>&1 &&
        [[ "$(octo_routing_policy 2>/dev/null || printf '%s' off)" == "eval" ]] &&
@@ -892,8 +896,11 @@ ${heuristic_ctx}"
                 "Failed to persist Agent Teams result header" 74 "" >/dev/null 2>&1 || true
             return 74
         fi
-        echo "# Dispatch: Agent Teams (native)" >> "$result_file"
+        printf '# Prompt metadata: original_chars=%s final_chars=%s compression=%s\n' \
+            "$_budget_original_chars" "$_budget_final_chars" "$_budget_compression" >> "$result_file"
+        printf '# Prompt: %s\n' "$enhanced_prompt" >> "$result_file"
         echo "# Started: $(date)" >> "$result_file"
+        echo "# Dispatch: Agent Teams (native)" >> "$result_file"
         if [[ "$SUPPORTS_HOOK_LAST_MESSAGE" == "true" ]]; then
             echo "# Result-capture: SubagentStop hook" >> "$result_file"
         fi
@@ -933,7 +940,9 @@ ${heuristic_ctx}"
         octo_capture_current_shell_pid || OCTO_CAPTURED_SHELL_PID="$$"
 
         write_agent_result_header "$result_file" "$agent_type" "${model:-unresolved}" "$task_id" "${role:-none}" "${phase:-none}" "legacy"
-        echo "# Prompt: $prompt" >> "$result_file"
+        printf '# Prompt metadata: original_chars=%s final_chars=%s compression=%s\n' \
+            "$_budget_original_chars" "$_budget_final_chars" "$_budget_compression" >> "$result_file"
+        printf '# Prompt: %s\n' "$enhanced_prompt" >> "$result_file"
         echo "# Started: $(date)" >> "$result_file"
         echo "" >> "$result_file"
         echo "## Output" >> "$result_file"
@@ -1510,14 +1519,26 @@ spawn_agent_capture_pid() {
     local role="${4:-}"
     local phase="${5:-}"
     local use_fork="${6:-false}"
+    local notice_file="${OCTOPUS_NOTICE_FILE:-}" owns_notice_file=false
+
+    if type octo_notice_channel_is_valid >/dev/null 2>&1 &&
+       ! octo_notice_channel_is_valid "$notice_file" &&
+       type octo_notice_channel_create >/dev/null 2>&1; then
+        notice_file="$(octo_notice_channel_create 2>/dev/null || true)"
+        [[ -n "$notice_file" ]] && owns_notice_file=true
+    fi
 
     local pid_file
-    pid_file=$(mktemp "${TMPDIR:-/tmp}/octo-spawn-pid.XXXXXX") || return 1
+    if ! pid_file=$(mktemp "${TMPDIR:-/tmp}/octo-spawn-pid.XXXXXX"); then
+        [[ "$owns_notice_file" == true ]] && rm -f "$notice_file" 2>/dev/null || true
+        return 1
+    fi
     if [[ "${OCTOPUS_SPAWN_PID_HANDOFF_FD:-}" == "9" ]]; then
         printf 'capture-file:%s\n' "$pid_file" >&9
     fi
 
-    spawn_agent "$agent_type" "$prompt" "$task_id" "$role" "$phase" "$use_fork" >"$pid_file" 2>&1 &
+    OCTOPUS_NOTICE_FILE="$notice_file" \
+        spawn_agent "$agent_type" "$prompt" "$task_id" "$role" "$phase" "$use_fork" >"$pid_file" 2>&1 &
     local wrapper_pid=$!
     if [[ "${OCTOPUS_SPAWN_PID_HANDOFF_FD:-}" == "9" ]]; then
         printf 'wrapper:%s\n' "$wrapper_pid" >&9
@@ -1567,6 +1588,9 @@ spawn_agent_capture_pid() {
         fi
         wait "$wrapper_pid" 2>/dev/null || true
         rm -f "$pid_file"
+        if [[ "$owns_notice_file" == true ]]; then
+            octo_notice_channel_replay "$notice_file"
+        fi
         return 1
     fi
 
@@ -1578,5 +1602,8 @@ spawn_agent_capture_pid() {
         printf 'provider:%s\n' "$pid" >&9
     fi
     rm -f "$pid_file"
+    if [[ "$owns_notice_file" == true ]]; then
+        octo_notice_channel_replay "$notice_file"
+    fi
     echo "$pid"
 }

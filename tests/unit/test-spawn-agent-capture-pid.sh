@@ -16,6 +16,7 @@ eval "$(sed -n '/^spawn_agent_capture_pid() {/,/^}/p' "$PROJECT_ROOT/scripts/lib
 export WORKSPACE_DIR="$TEST_TMP_DIR"
 
 log() { printf '%s %s\n' "${1:-}" "${2:-}" >> "$TEST_TMP_DIR/log"; }
+source "$PROJECT_ROOT/scripts/lib/error-tracking.sh" >/dev/null 2>&1 || true
 
 # The wrapper does meaningful setup before it can print the provider PID.
 # Capture must wait for that PID rather than returning the wrapper PID.
@@ -30,6 +31,23 @@ if [[ "$pid" == "424242" ]]; then
     test_pass
 else
     test_fail "expected provider PID 424242, got: ${pid:-empty}"
+fi
+
+test_case "budget notice is replayed once without contaminating captured PID"
+original_log="$(declare -f log)"
+log() { printf '%s: %s\n' "$1" "$2" >&2; }
+spawn_agent() {
+    octo_notice_warn "Context budget: compressed reviewer/review"
+    printf '%s\n' 424242
+}
+capture_notice_err="$TEST_TMP_DIR/capture-notice.err"
+pid=$(spawn_agent_capture_pid codex prompt notice-task reviewer review 2>"$capture_notice_err")
+eval "$original_log"
+if [[ "$pid" == 424242 ]] &&
+   [[ "$(grep -c '^WARN: Context budget: compressed reviewer/review$' "$capture_notice_err" || true)" -eq 1 ]]; then
+    test_pass
+else
+    test_fail "PID was contaminated or notice count differed: pid='${pid:-empty}' notices='$(cat "$capture_notice_err")'"
 fi
 
 test_case "writes the provider PID to the opt-in signal handoff"

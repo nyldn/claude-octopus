@@ -162,4 +162,37 @@ else
     test_fail "status_rc=$cli_status_rc explain_rc=$cli_explain_rc ledger=$(<"$provider_ledger" 2>/dev/null || true)"
 fi
 
+test_case "proof-disabled compatibility records share the stable run-contract identity"
+proof_disabled_result="$(
+    unset OCTOPUS_RUN_ID OCTOPUS_SESSION_ID CLAUDE_CODE_SESSION_ID \
+        CLAUDE_SESSION_ID CLAUDE_CODE_SESSION OCTO_RUN_CONTRACT_FALLBACK_ID
+    export WORKSPACE_DIR="$TEST_TMP_DIR/proof-disabled-workspace"
+    export OCTOPUS_PROOF_PACKET=0
+    source "$PROJECT_ROOT/scripts/lib/run-contract.sh"
+    source "$PROJECT_ROOT/scripts/lib/error-tracking.sh"
+    first_id="$(octo_run_contract_id)"
+    second_id="$(octo_current_run_id)"
+    record_oversize_event codex 100 40 summarized implementation-verifier review 12
+    write_agent_status codex ok 25 10 "" 10 "$good_output" \
+        implementation-verifier verifier-seat contributed eligible
+    if [[ "$first_id" == "$second_id" ]] &&
+       [[ -s "$WORKSPACE_DIR/runs/$first_id/oversize.jsonl" ]] &&
+       [[ -s "$WORKSPACE_DIR/runs/$first_id/agents.jsonl" ]] &&
+       jq -e --arg run_id "$first_id" '
+           .run_id == $run_id and .agent == "codex" and
+           .role == "implementation-verifier" and .phase == "review" and
+           .budget == 12 and .original_chars == 100 and .final_chars == 40 and
+           (.ts | length) > 0
+       ' "$WORKSPACE_DIR/runs/$first_id/oversize.jsonl" >/dev/null 2>&1; then
+        printf 'pass\n'
+    else
+        printf 'fail:%s:%s\n' "$first_id" "$second_id"
+    fi
+)"
+if [[ "$proof_disabled_result" == pass ]]; then
+    test_pass
+else
+    test_fail "proof-disabled records diverged: $proof_disabled_result"
+fi
+
 test_summary

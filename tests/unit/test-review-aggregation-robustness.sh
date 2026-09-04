@@ -38,6 +38,7 @@ if grep -q "review-round1-findings" "$REVIEW_SH"; then test_pass; else test_fail
 test_case "extractor prefers the last non-empty findings array"
 log() { :; }
 source "$REVIEW_SH" >/dev/null 2>&1 || true
+source "$PROJECT_ROOT/scripts/lib/error-tracking.sh" >/dev/null 2>&1 || true
 if out=$(review_extract_findings_array "$TMP_MD" 2>/dev/null); then
     if count=$(printf '%s' "$out" | jq 'length' 2>/dev/null) && title=$(printf '%s' "$out" | jq -r '.[0].title' 2>/dev/null); then
         if [[ "$count" == "1" && "$title" == "Broken regex" ]]; then
@@ -261,6 +262,35 @@ if OCTOPUS_REVIEW_STALL_WINDOW=08 OCTOPUS_REVIEW_POLL_SECS=08 \
     test_pass
 else
     test_fail "leading-zero timing knob triggered Bash octal parsing"
+fi
+
+test_case "Round 2 and Round 3 budget warnings replay once without contaminating JSON"
+original_log="$(declare -f log)"
+log() { printf '%s: %s\n' "$1" "$2" >&2; }
+run_agent_sync() {
+    octo_notice_warn "Context budget: compressed $4/$5"
+    printf '{"role":"%s","phase":"%s"}\n' "$4" "$5"
+}
+review_notice_err="$TEST_TMP_DIR/review-notices.err"
+: > "$review_notice_err"
+review_notice_ok=true
+for review_role in implementation-verifier implementation-debater implementation-synthesizer; do
+    review_json="$(review_run_agent_sync_progress codex prompt "$review_role" review "$review_role" 2>>"$review_notice_err")"
+    if ! jq -e --arg role "$review_role" \
+        '.role == $role and .phase == "review"' <<< "$review_json" >/dev/null 2>&1; then
+        review_notice_ok=false
+    fi
+done
+unset -f run_agent_sync
+eval "$original_log"
+if [[ "$review_notice_ok" == true ]] &&
+   [[ "$(grep -c '^WARN: Context budget: compressed ' "$review_notice_err" || true)" -eq 3 ]] &&
+   [[ "$(grep -c 'implementation-verifier/review' "$review_notice_err" || true)" -eq 1 ]] &&
+   [[ "$(grep -c 'implementation-debater/review' "$review_notice_err" || true)" -eq 1 ]] &&
+   [[ "$(grep -c 'implementation-synthesizer/review' "$review_notice_err" || true)" -eq 1 ]]; then
+    test_pass
+else
+    test_fail "review JSON was contaminated or notices were not replayed exactly once: $(cat "$review_notice_err")"
 fi
 
 test_case "retry wait stops when provider exits without terminal status"

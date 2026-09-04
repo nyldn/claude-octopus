@@ -715,10 +715,41 @@ ${summary_input}"
     return 1
 }
 
+octo_fit_prompt_to_char_budget() {
+    local prompt="$1"
+    local char_budget="$2"
+    local marker="$3"
+    local marker_chars prefix_chars
+
+    [[ "$char_budget" =~ ^[0-9]+$ ]] || return 1
+    if [[ ${#prompt} -le "$char_budget" ]]; then
+        printf '%s\n' "$prompt"
+        return 0
+    fi
+
+    marker_chars=${#marker}
+    if [[ "$marker_chars" -ge "$char_budget" ]]; then
+        printf '%s\n' "${prompt:0:$char_budget}"
+        return 0
+    fi
+    prefix_chars=$((char_budget - marker_chars))
+    printf '%s%s\n' "${prompt:0:$prefix_chars}" "$marker"
+}
+
+octo_context_budget_warning() {
+    local message="$1"
+    if type octo_notice_warn >/dev/null 2>&1; then
+        octo_notice_warn "$message"
+    else
+        log WARN "$message"
+    fi
+}
+
 enforce_context_budget() {
     local prompt="$1"
     local role="${2:-}"
     local agent_type="${3:-}"
+    local phase="${4:-}"
     local budget
     budget=$(get_provider_context_limit "$agent_type")
     [[ "$budget" =~ ^[0-9]+$ ]] || budget="${OCTOPUS_CONTEXT_BUDGET:-12000}"
@@ -741,36 +772,35 @@ enforce_context_budget() {
         case "$strategy" in
             fail)
                 log "ERROR" "Context budget: prompt for $target is ${original_chars} chars; limit is $char_budget chars (~$budget tokens)"
-                type record_oversize_event >/dev/null 2>&1 && record_oversize_event "$target" "$original_chars" "$original_chars" "failed" || true
+                type record_oversize_event >/dev/null 2>&1 && record_oversize_event "$target" "$original_chars" "$original_chars" "failed" "$role" "$phase" "$budget" || true
                 type write_agent_status >/dev/null 2>&1 && write_agent_status "$target" "failed" "$((original_chars / 4))" 0 "Prompt exceeded context budget" 0 "" "$role" || true
                 return 78
                 ;;
             summarize)
-                log "WARN" "Context budget: summarizing prompt for $target from ${original_chars} to <=$char_budget chars (~$budget tokens)"
                 local summarized
                 if summarized=$(summarize_then_dispatch "$prompt" "$role" "$target" "$budget") && [[ -n "$summarized" ]]; then
                     if [[ ${#summarized} -gt $char_budget ]]; then
-                        summarized="${summarized:0:$char_budget}
-
-[... summarized preflight output truncated to fit context budget of ~$budget tokens ...]"
+                        summarized=$(octo_fit_prompt_to_char_budget "$summarized" "$char_budget" $'\n\n[... summarized output truncated to fit context budget (~'"$budget"$' tokens) ...]')
                     fi
-                    type record_oversize_event >/dev/null 2>&1 && record_oversize_event "$target" "$original_chars" "${#summarized}" "summarized" || true
+                    type record_oversize_event >/dev/null 2>&1 && record_oversize_event "$target" "$original_chars" "${#summarized}" "summarized" "$role" "$phase" "$budget" || true
+                    octo_context_budget_warning "Context budget: summarized $target role=${role:-none} phase=${phase:-none} from ${original_chars} to ${#summarized} chars (budget=$budget tokens/$char_budget chars)"
                     printf '%s\n' "$summarized"
                     return 0
                 fi
-                log "WARN" "Context budget: summarizer unavailable; falling back to truncation for $target"
                 log "DEBUG" "Context budget: truncating prompt for $target from ${#prompt} to $char_budget chars (~$budget tokens)"
-                type record_oversize_event >/dev/null 2>&1 && record_oversize_event "$target" "$original_chars" "$char_budget" "truncated" || true
-                echo "${prompt:0:$char_budget}
-
-[... truncated to fit context budget of ~$budget tokens ...]"
+                local truncated
+                truncated=$(octo_fit_prompt_to_char_budget "$prompt" "$char_budget" $'\n\n[... truncated to fit context budget (~'"$budget"$' tokens) ...]')
+                type record_oversize_event >/dev/null 2>&1 && record_oversize_event "$target" "$original_chars" "${#truncated}" "truncated" "$role" "$phase" "$budget" || true
+                octo_context_budget_warning "Context budget: summarizer unavailable; truncated $target role=${role:-none} phase=${phase:-none} from ${original_chars} to ${#truncated} chars (budget=$budget tokens/$char_budget chars)"
+                printf '%s\n' "$truncated"
                 ;;
             truncate|*)
                 log "DEBUG" "Context budget: truncating prompt for $target from ${#prompt} to $char_budget chars (~$budget tokens)"
-                type record_oversize_event >/dev/null 2>&1 && record_oversize_event "$target" "$original_chars" "$char_budget" "truncated" || true
-                echo "${prompt:0:$char_budget}
-
-[... truncated to fit context budget of ~$budget tokens ...]"
+                local truncated
+                truncated=$(octo_fit_prompt_to_char_budget "$prompt" "$char_budget" $'\n\n[... truncated to fit context budget (~'"$budget"$' tokens) ...]')
+                type record_oversize_event >/dev/null 2>&1 && record_oversize_event "$target" "$original_chars" "${#truncated}" "truncated" "$role" "$phase" "$budget" || true
+                octo_context_budget_warning "Context budget: truncated $target role=${role:-none} phase=${phase:-none} from ${original_chars} to ${#truncated} chars (budget=$budget tokens/$char_budget chars)"
+                printf '%s\n' "$truncated"
                 ;;
         esac
     else
