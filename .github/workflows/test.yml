@@ -251,16 +251,20 @@ jobs:
   unit:
     name: Unit Tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    # The macOS matrix crossed the old 15-minute ceiling as the suite grew to
-    # 248 files (run 31411222295). Keep enough headroom for slower runners,
-    # teardown, and artifact upload instead of canceling an otherwise-green run.
-    timeout-minutes: 25
+    # The macOS matrix crossed the old 25-minute ceiling as the suite grew (run
+    # 33899702427). Give that slower runner enough headroom while retaining the
+    # tighter failure bound on Ubuntu.
+    timeout-minutes: ${{ matrix.timeout_minutes }}
     needs: [classify-changes, smoke, portability-lint]
     if: needs.classify-changes.outputs.heavy_tests == 'true'
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            timeout_minutes: 25
+          - os: macos-latest
+            timeout_minutes: 35
 
     steps:
       - name: Checkout code

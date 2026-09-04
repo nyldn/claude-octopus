@@ -193,15 +193,36 @@ else
 fi
 
 test_case "the unit matrix timeout has headroom for slow macOS runners"
-unit_timeout_minutes="$(awk '
+unit_timeout_setting="$(awk '
     /^  unit:/ { in_unit = 1; next }
     in_unit && /^  [[:alnum:]_-]+:/ { exit }
-    in_unit && /^    timeout-minutes:[[:space:]]/ { print $2; exit }
+    in_unit && /^    timeout-minutes:[[:space:]]/ {
+        sub(/^    timeout-minutes:[[:space:]]*/, "")
+        print
+        exit
+    }
 ' "$WORKFLOW")"
-if [[ "$unit_timeout_minutes" =~ ^[0-9]+$ ]] && [[ "$unit_timeout_minutes" -ge 20 ]]; then
+macos_timeout_minutes="$(awk '
+    /^  unit:/ { in_unit = 1; next }
+    in_unit && /^  [[:alnum:]_-]+:/ { exit }
+    in_unit && /^[[:space:]]+- os:[[:space:]]+macos-latest[[:space:]]*$/ { in_macos = 1; next }
+    in_macos && /^[[:space:]]+- os:/ { exit }
+    in_macos && /^[[:space:]]+timeout_minutes:[[:space:]]/ { print $2; exit }
+' "$WORKFLOW")"
+ubuntu_timeout_minutes="$(awk '
+    /^  unit:/ { in_unit = 1; next }
+    in_unit && /^  [[:alnum:]_-]+:/ { exit }
+    in_unit && /^[[:space:]]+- os:[[:space:]]+ubuntu-latest[[:space:]]*$/ { in_ubuntu = 1; next }
+    in_ubuntu && /^[[:space:]]+- os:/ { exit }
+    in_ubuntu && /^[[:space:]]+timeout_minutes:[[:space:]]/ { print $2; exit }
+' "$WORKFLOW")"
+if [[ "$unit_timeout_setting" == '${{ matrix.timeout_minutes }}' ]] \
+   && [[ "$macos_timeout_minutes" =~ ^[0-9]+$ ]] \
+   && [[ "$macos_timeout_minutes" -ge 30 ]] \
+   && [[ "$ubuntu_timeout_minutes" == "25" ]]; then
     test_pass
 else
-    test_fail "unit timeout is ${unit_timeout_minutes:-missing} minutes; the 248-suite macOS job exceeded 15 minutes in run 31411222295 — keep at least 20 minutes of budget"
+    test_fail "unit timeout setting is ${unit_timeout_setting:-missing} with macOS=${macos_timeout_minutes:-missing} and Ubuntu=${ubuntu_timeout_minutes:-missing}; run 33899702427 crossed 25 minutes — keep at least 30 minutes of macOS budget without relaxing Ubuntu's 25-minute bound"
 fi
 
 test_case "at least one test is actually discovered (guards a silent empty set)"
