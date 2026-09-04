@@ -1858,11 +1858,11 @@ ${round1_prompts[$retry_idx]}"
                 log INFO "review_run: ${atype}/${round1_roles[$idx]} malformed-output recovery succeeded"
             else
                 ((round1_parse_miss_count++)) || true
-                log WARN "review_run: possible findings in $(basename "$f") but extractor and format-only recovery returned no usable findings"
+                log ERROR "review_run: extraction failed for $(basename "$f") despite a detected findings signal — format-only recovery also returned no usable findings; this seat's findings were dropped"
             fi
         elif [[ "$agent_findings" == "[]" ]] && [[ "$severity_count" -gt 0 ]]; then
             ((round1_parse_miss_count++)) || true
-            log WARN "review_run: possible findings in $(basename "$f") but extractor returned empty array"
+            log ERROR "review_run: extraction failed for $(basename "$f") despite a detected findings signal — extractor returned an empty array; this seat's findings were dropped"
         fi
         all_findings=$(printf '%s\n%s' "$all_findings" "$agent_findings" |             jq -s 'add' 2>/dev/null || echo "$all_findings")
 

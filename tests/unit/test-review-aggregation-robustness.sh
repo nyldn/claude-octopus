@@ -555,4 +555,12 @@ if grep -q "OCTOPUS_REVIEW_STALL_WINDOW" "$REVIEW_SH"; then test_pass; else test
 test_case "invalid synthesis has local fallback"
 if grep -q "synthesis returned invalid.*findings JSON" "$REVIEW_SH"; then test_pass; else test_fail "missing local fallback"; fi
 
+test_case "Round 1 findings extraction failure despite a signal is a hard ERROR, not a silent drop (#1004)"
+if grep -q 'log ERROR "review_run: extraction failed for .*despite a detected findings signal.*format-only recovery' "$REVIEW_SH" &&
+   grep -q 'log ERROR "review_run: extraction failed for .*despite a detected findings signal.*extractor returned an empty array' "$REVIEW_SH"; then
+    test_pass
+else
+    test_fail "extraction failure alongside a detected findings signal is no longer logged as a hard ERROR naming the seat file"
+fi
+
 test_summary

@@ -10,7 +10,10 @@
   `## Warnings/Errors`, `## Agent Skill Context`), which cleared the
   extractor's capture state before it ever reached `## Status:`, so valid
   findings JSON was silently dropped and `/octo:review` reported a clean diff
-  with `{"findings":[]}` even though seats had returned real findings.
+  with `{"findings":[]}` even though seats had returned real findings. Also
+  promote the remaining case — extraction still failing despite a detected
+  `"severity":` signal in a seat's output — from a `WARN` to a hard `ERROR`
+  naming the affected seat file, instead of a silent drop.
   (#1004)
 - Store `/octo:plan` artifacts in unique, resolved run directories and share
   that location with plan-mode hooks and review skills, preventing writes into
