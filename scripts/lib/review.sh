@@ -666,7 +666,9 @@ review_run_agent_sync_progress() {
 
     (
         OCTOPUS_NOTICE_FILE="$notice_file" \
-            run_agent_sync "$agent_type" "$prompt" 0 "$role" "$phase" > "$out_file" 2>&1
+            OCTOPUS_NOTICE_FD=8 \
+            run_agent_sync "$agent_type" "$prompt" 0 "$role" "$phase" \
+            8>&2 > "$out_file" 2>&1
         echo "$?" > "$rc_file"
     ) &
     pid=$!

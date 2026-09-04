@@ -65,4 +65,45 @@ else
     test_fail "expected attributed summarized prompt, got output='$output' event='$event_args'"
 fi
 
+test_case "leading-zero context budget is normalized as decimal before arithmetic"
+decimal_prompt="$(printf '%04000d' 0)"
+OCTOPUS_CONTEXT_BUDGET=0900
+OCTOPUS_OVERSIZE_STRATEGY=truncate
+set +e
+output="$(enforce_context_budget "$decimal_prompt" "reviewer" "codex" "review" \
+    2>"$TEST_TMP_DIR/decimal-budget.err")"
+decimal_rc=$?
+set -e
+event_args="$(cat "$TEST_TMP_DIR/oversize-event.args")"
+if [[ "$decimal_rc" -eq 0 ]] && [[ "${#output}" -eq 1440 ]] &&
+   [[ "$event_args" == "codex 4000 1440 truncated reviewer review 360" ]]; then
+    test_pass
+else
+    test_fail "0900 was not normalized safely: rc=$decimal_rc output_chars=${#output} event='$event_args' error='$(cat "$TEST_TMP_DIR/decimal-budget.err")'"
+fi
+
+test_case "invalid and overflowing context budgets fail before compression"
+invalid_budget_ok=true
+invalid_budget_failures=""
+for invalid_budget in 0 -1 18446744073709551616 9223372036854775807; do
+    rm -f "$TEST_TMP_DIR/oversize-event.args" "$TEST_TMP_DIR/oversize-notice"
+    set +e
+    OCTOPUS_CONTEXT_BUDGET="$invalid_budget" OCTOPUS_OVERSIZE_STRATEGY=truncate \
+        enforce_context_budget "$long_prompt" "reviewer" "codex" "review" \
+        >"$TEST_TMP_DIR/invalid-budget.out" 2>"$TEST_TMP_DIR/invalid-budget.err"
+    rc=$?
+    set -e
+    invalid_output="$(cat "$TEST_TMP_DIR/invalid-budget.out")"
+    if [[ "$rc" -ne 2 ]] || [[ -s "$TEST_TMP_DIR/invalid-budget.out" ]] ||
+       [[ -e "$TEST_TMP_DIR/oversize-event.args" ]] || [[ -e "$TEST_TMP_DIR/oversize-notice" ]]; then
+        invalid_budget_ok=false
+        invalid_budget_failures="${invalid_budget_failures}${invalid_budget}:rc=${rc}:chars=${#invalid_output};"
+    fi
+done
+if [[ "$invalid_budget_ok" == true ]]; then
+    test_pass
+else
+    test_fail "invalid budgets reached prompt processing: $invalid_budget_failures"
+fi
+
 test_summary

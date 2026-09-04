@@ -215,6 +215,8 @@ octo_notice_warn() {
     local message="$*" notice_file="${OCTOPUS_NOTICE_FILE:-}"
     if octo_notice_channel_is_valid "$notice_file"; then
         printf '%s\n' "$message" >> "$notice_file"
+    elif [[ "${OCTOPUS_NOTICE_FD:-}" == "8" ]] && { : >&8; } 2>/dev/null; then
+        log WARN "$message" 2>&8
     else
         log WARN "$message"
     fi
@@ -233,6 +235,45 @@ octo_run_dir() {
     local run_id
     run_id=$(octo_current_run_id)
     printf '%s\n' "${WORKSPACE_DIR:-${HOME}/.claude-octopus}/runs/${run_id}"
+}
+
+octo_json_quote() {
+    local value="${1-}" char encoded="" output="" code
+    local LC_ALL=C
+
+    while [[ -n "$value" ]]; do
+        char="${value:0:1}"
+        value="${value:1}"
+        case "$char" in
+            '"') output="${output}\\\"" ;;
+            \\) output="${output}\\\\" ;;
+            $'\b') output="${output}\\b" ;;
+            $'\f') output="${output}\\f" ;;
+            $'\n') output="${output}\\n" ;;
+            $'\r') output="${output}\\r" ;;
+            $'\t') output="${output}\\t" ;;
+            *)
+                printf -v code '%d' "'$char" 2>/dev/null || return 1
+                if [[ "$code" -lt 32 ]]; then
+                    printf -v encoded '\\u%04x' "$code"
+                    output="${output}${encoded}"
+                else
+                    output="${output}${char}"
+                fi
+                ;;
+        esac
+    done
+
+    printf '"%s"' "$output"
+}
+
+octo_json_normalize_uint() {
+    local value="${1:-}"
+    [[ "$value" =~ ^[0-9]+$ ]] || return 1
+    while [[ "${#value}" -gt 1 && "${value:0:1}" == "0" ]]; do
+        value="${value:1}"
+    done
+    printf '%s\n' "$value"
 }
 
 octo_estimate_tokens_for_file() {
@@ -432,10 +473,14 @@ record_oversize_event() {
     local phase="${6:-}"
     local budget="${7:-0}"
 
-    local dir run_id
+    local dir run_id budget_json original_chars_json final_chars_json
     run_id=$(octo_current_run_id)
     dir=$(octo_run_dir)
     mkdir -p "$dir"
+
+    budget_json=$(octo_json_normalize_uint "$budget") || return 2
+    original_chars_json=$(octo_json_normalize_uint "$original_chars") || return 2
+    final_chars_json=$(octo_json_normalize_uint "$final_chars") || return 2
 
     if command -v jq >/dev/null 2>&1; then
         jq -nc \
@@ -445,14 +490,22 @@ record_oversize_event() {
             --arg role "$role" \
             --arg phase "$phase" \
             --arg outcome "$outcome" \
-            --argjson budget "${budget:-0}" \
-            --argjson original_chars "${original_chars:-0}" \
-            --argjson final_chars "${final_chars:-0}" \
+            --argjson budget "$budget_json" \
+            --argjson original_chars "$original_chars_json" \
+            --argjson final_chars "$final_chars_json" \
             '{ts:$ts,run_id:$run_id,agent:$agent,role:$role,phase:$phase,budget:$budget,original_chars:$original_chars,final_chars:$final_chars,outcome:$outcome}' \
             >> "$dir/oversize.jsonl" 2>/dev/null || true
     else
-        printf '{"ts":"%s","run_id":"%s","agent":"%s","role":"%s","phase":"%s","budget":%d,"original_chars":%d,"final_chars":%d,"outcome":"%s"}\n' \
-            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$run_id" "$agent" "$role" "$phase" "$budget" "$original_chars" "$final_chars" "$outcome" \
+        local ts_json run_id_json agent_json role_json phase_json outcome_json
+        ts_json=$(octo_json_quote "$(date -u +%Y-%m-%dT%H:%M:%SZ)") || return 2
+        run_id_json=$(octo_json_quote "$run_id") || return 2
+        agent_json=$(octo_json_quote "$agent") || return 2
+        role_json=$(octo_json_quote "$role") || return 2
+        phase_json=$(octo_json_quote "$phase") || return 2
+        outcome_json=$(octo_json_quote "$outcome") || return 2
+        printf '{"ts":%s,"run_id":%s,"agent":%s,"role":%s,"phase":%s,"budget":%s,"original_chars":%s,"final_chars":%s,"outcome":%s}\n' \
+            "$ts_json" "$run_id_json" "$agent_json" "$role_json" "$phase_json" \
+            "$budget_json" "$original_chars_json" "$final_chars_json" "$outcome_json" \
             >> "$dir/oversize.jsonl"
     fi
 }

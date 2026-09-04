@@ -626,11 +626,36 @@ get_provider_context_limit() {
     fi
 }
 
+# Normalize before Bash arithmetic. The maximum keeps a later four-character
+# token estimate inside a signed 32-bit shell integer on every supported host.
+octo_normalize_context_budget() {
+    local value="${1:-}" label="${2:-context budget}"
+    local max_budget=536870911
+    local LC_ALL=C
+
+    if [[ ! "$value" =~ ^[0-9]+$ ]]; then
+        log ERROR "Invalid $label '$value': expected a positive decimal integer"
+        return 2
+    fi
+    while [[ "${#value}" -gt 1 && "${value:0:1}" == "0" ]]; do
+        value="${value:1}"
+    done
+    if [[ "$value" == "0" ]] ||
+       [[ "${#value}" -gt "${#max_budget}" ]] ||
+       { [[ "${#value}" -eq "${#max_budget}" ]] && [[ "$value" > "$max_budget" ]]; }; then
+        log ERROR "Invalid $label '$1': expected 1..$max_budget"
+        return 2
+    fi
+
+    printf '%s\n' "$value"
+}
+
 summarize_then_dispatch() {
     local prompt="$1"
     local role="${2:-}"
     local target_agent="${3:-unknown}"
     local budget="${4:-12000}"
+    budget=$(octo_normalize_context_budget "$budget" "summarizer context budget") || return 2
     local char_budget=$((budget * 4))
 
     # Keep the summarizer request itself bounded; preserve both task framing and
@@ -752,13 +777,19 @@ enforce_context_budget() {
     local phase="${4:-}"
     local budget
     budget=$(get_provider_context_limit "$agent_type")
-    [[ "$budget" =~ ^[0-9]+$ ]] || budget="${OCTOPUS_CONTEXT_BUDGET:-12000}"
+    budget=$(octo_normalize_context_budget "$budget" "provider context budget") || return 2
 
     # v9.3.0: Scale budget by role proportion
     if [[ -n "$role" ]]; then
-        local proportion
+        local proportion budget_whole budget_remainder
         proportion=$(get_role_budget_proportion "$role")
-        budget=$((budget * proportion / 100))
+        budget_whole=$((budget / 100))
+        budget_remainder=$((budget % 100))
+        budget=$((budget_whole * proportion + budget_remainder * proportion / 100))
+        if [[ "$budget" -lt 1 ]]; then
+            log ERROR "Invalid effective context budget for role '$role': value rounds to zero"
+            return 2
+        fi
     fi
 
     # Rough token estimate: ~4 chars per token

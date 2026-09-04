@@ -293,6 +293,47 @@ else
     test_fail "review JSON was contaminated or notices were not replayed exactly once: $(cat "$review_notice_err")"
 fi
 
+test_case "review warning bypasses JSON capture when notice allocation and validation fail"
+original_log="$(declare -f log)"
+original_notice_create="$(declare -f octo_notice_channel_create)"
+log() { printf '%s: %s\n' "$1" "$2" >&2; }
+octo_notice_channel_create() { return 1; }
+run_agent_sync() {
+    octo_notice_warn "Context budget: compressed $4/$5"
+    printf '{"role":"%s","phase":"%s"}\n' "$4" "$5"
+}
+invalid_notice="$TEST_TMP_DIR/invalid-notice"
+symlink_notice="$TEST_TMP_DIR/symlink-notice"
+symlink_target="$TEST_TMP_DIR/symlink-target"
+printf 'invalid sentinel\n' > "$invalid_notice"
+chmod 644 "$invalid_notice"
+printf 'symlink sentinel\n' > "$symlink_target"
+ln -s "$symlink_target" "$symlink_notice"
+fallback_err="$TEST_TMP_DIR/review-fallback.err"
+: > "$fallback_err"
+fallback_ok=true
+for notice_channel in "" "$invalid_notice" "$symlink_notice"; do
+    review_json="$(OCTOPUS_NOTICE_FILE="$notice_channel" \
+        review_run_agent_sync_progress codex prompt implementation-verifier review fallback \
+        2>>"$fallback_err")"
+    if ! jq -e '.role == "implementation-verifier" and .phase == "review"' \
+        <<< "$review_json" >/dev/null 2>&1; then
+        fallback_ok=false
+    fi
+done
+unset -f run_agent_sync
+eval "$original_notice_create"
+eval "$original_log"
+if [[ "$fallback_ok" == true ]] &&
+   [[ "$(grep -c '^WARN: Context budget: compressed implementation-verifier/review$' "$fallback_err" || true)" -eq 3 ]] &&
+   [[ "$(cat "$invalid_notice")" == "invalid sentinel" ]] &&
+   [[ "$(cat "$symlink_target")" == "symlink sentinel" ]] &&
+   ! find "$TEST_TMP_DIR" -name 'octo-notice.*' -o -name '.tmp-review-sync-fallback-*' | grep -q .; then
+    test_pass
+else
+    test_fail "fallback warning contaminated JSON, was lost, or leaked resources: $(cat "$fallback_err")"
+fi
+
 test_case "retry wait stops when provider exits without terminal status"
 dead_result="$TEST_TMP_DIR/dead-result.md"
 sleep 1 &

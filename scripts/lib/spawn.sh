@@ -1538,7 +1538,9 @@ spawn_agent_capture_pid() {
     fi
 
     OCTOPUS_NOTICE_FILE="$notice_file" \
-        spawn_agent "$agent_type" "$prompt" "$task_id" "$role" "$phase" "$use_fork" >"$pid_file" 2>&1 &
+        OCTOPUS_NOTICE_FD=8 \
+        spawn_agent "$agent_type" "$prompt" "$task_id" "$role" "$phase" "$use_fork" \
+        8>&2 >"$pid_file" 2>&1 &
     local wrapper_pid=$!
     if [[ "${OCTOPUS_SPAWN_PID_HANDOFF_FD:-}" == "9" ]]; then
         printf 'wrapper:%s\n' "$wrapper_pid" >&9

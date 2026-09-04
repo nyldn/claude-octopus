@@ -195,4 +195,37 @@ else
     test_fail "proof-disabled records diverged: $proof_disabled_result"
 fi
 
+test_case "no-jq oversize writer JSON-escapes arbitrary string fields"
+no_jq_run_id=$'run"id\\tail\nnext'
+no_jq_agent=$'codex"agent\\tail\nnext'
+no_jq_role=$'review"role\\tail\nnext'
+no_jq_phase=$'review"phase\\tail\nnext'
+no_jq_outcome=$'summarized"outcome\\tail\nnext'
+(
+    export OCTOPUS_RUN_ID="$no_jq_run_id"
+    command() {
+        if [[ "${1:-}" == "-v" && "${2:-}" == "jq" ]]; then
+            return 1
+        fi
+        builtin command "$@"
+    }
+    record_oversize_event "$no_jq_agent" 00100 00040 "$no_jq_outcome" \
+        "$no_jq_role" "$no_jq_phase" 00012
+)
+no_jq_record="$WORKSPACE_DIR/runs/$no_jq_run_id/oversize.jsonl"
+if jq -e \
+    --arg run_id "$no_jq_run_id" \
+    --arg agent "$no_jq_agent" \
+    --arg role "$no_jq_role" \
+    --arg phase "$no_jq_phase" \
+    --arg outcome "$no_jq_outcome" '
+      .run_id == $run_id and .agent == $agent and .role == $role and
+      .phase == $phase and .outcome == $outcome and
+      .budget == 12 and .original_chars == 100 and .final_chars == 40
+    ' "$no_jq_record" >/dev/null 2>&1; then
+    test_pass
+else
+    test_fail "no-jq writer emitted invalid or lossy JSON: $(cat "$no_jq_record" 2>/dev/null || true)"
+fi
+
 test_summary

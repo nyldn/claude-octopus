@@ -50,6 +50,43 @@ else
     test_fail "PID was contaminated or notice count differed: pid='${pid:-empty}' notices='$(cat "$capture_notice_err")'"
 fi
 
+test_case "budget notice bypasses PID capture when notice allocation and validation fail"
+original_log="$(declare -f log)"
+original_notice_create="$(declare -f octo_notice_channel_create)"
+log() { printf '%s: %s\n' "$1" "$2" >&2; }
+octo_notice_channel_create() { return 1; }
+spawn_agent() {
+    octo_notice_warn "Context budget: compressed reviewer/review"
+    printf '%s\n' 424242
+}
+invalid_notice="$TEST_TMP_DIR/spawn-invalid-notice"
+symlink_notice="$TEST_TMP_DIR/spawn-symlink-notice"
+symlink_target="$TEST_TMP_DIR/spawn-symlink-target"
+printf 'invalid sentinel\n' > "$invalid_notice"
+chmod 644 "$invalid_notice"
+printf 'symlink sentinel\n' > "$symlink_target"
+ln -s "$symlink_target" "$symlink_notice"
+capture_fallback_err="$TEST_TMP_DIR/capture-fallback.err"
+: > "$capture_fallback_err"
+capture_fallback_ok=true
+for notice_channel in "" "$invalid_notice" "$symlink_notice"; do
+    pid="$(OCTOPUS_NOTICE_FILE="$notice_channel" \
+        spawn_agent_capture_pid codex prompt notice-fallback reviewer review \
+        2>>"$capture_fallback_err")"
+    [[ "$pid" == 424242 ]] || capture_fallback_ok=false
+done
+eval "$original_notice_create"
+eval "$original_log"
+if [[ "$capture_fallback_ok" == true ]] &&
+   [[ "$(grep -c '^WARN: Context budget: compressed reviewer/review$' "$capture_fallback_err" || true)" -eq 3 ]] &&
+   [[ "$(cat "$invalid_notice")" == "invalid sentinel" ]] &&
+   [[ "$(cat "$symlink_target")" == "symlink sentinel" ]] &&
+   ! find "$TEST_TMP_DIR" -name 'octo-notice.*' -o -name 'octo-spawn-pid.*' | grep -q .; then
+    test_pass
+else
+    test_fail "fallback warning contaminated PID, was lost, or leaked resources: pid='${pid:-empty}' notices='$(cat "$capture_fallback_err")'"
+fi
+
 test_case "writes the provider PID to the opt-in signal handoff"
 handoff_file="$TEST_TMP_DIR/provider-pid-handoff"
 pid=$(OCTOPUS_SPAWN_PID_HANDOFF_FD=9 \
