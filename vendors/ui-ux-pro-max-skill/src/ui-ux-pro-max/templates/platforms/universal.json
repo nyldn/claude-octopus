@@ -1,9 +1,9 @@
 {
-  "platform": "continue",
-  "displayName": "Continue",
+  "platform": "universal",
+  "displayName": "Universal / Agent Standard",
   "installType": "full",
   "folderStructure": {
-    "root": ".continue",
+    "root": ".agents",
     "skillPath": "skills/ui-ux-pro-max",
     "filename": "SKILL.md"
   },

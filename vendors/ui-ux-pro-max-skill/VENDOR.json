@@ -1,9 +1,20 @@
 {
   "name": "ui-ux-pro-max-skill",
   "upstream": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill",
-  "tag": "v2.11.0",
-  "retrieved": "2026-07-18",
+  "tag": "v2.15.0",
+  "retrieved": "2026-09-04",
   "license": "MIT",
-  "subset": ["src/", ".claude-plugin/", "LICENSE", "README.md", "CLAUDE.md"],
-  "notes": "Vendored as plain files (#253). Upstream's plugin.json/skill.json version fields lag its git tags (semantic-release); the tag above is the canonical vendored version. Refresh procedure: download the release tarball, replace the subset dirs listed here, update this manifest, run scripts/check-vendor-updates.sh."
+  "subset": [
+    "src/ui-ux-pro-max/data/",
+    "src/ui-ux-pro-max/scripts/core.py",
+    "src/ui-ux-pro-max/scripts/design_system.py",
+    "src/ui-ux-pro-max/scripts/reasoning_contract.py",
+    "src/ui-ux-pro-max/scripts/search.py",
+    "src/ui-ux-pro-max/templates/",
+    ".claude-plugin/",
+    "LICENSE",
+    "README.md",
+    "CLAUDE.md"
+  ],
+  "notes": "Vendored as plain files (#253). Runtime data, scripts, and templates are shipped; upstream development tests and maintenance tooling are intentionally excluded. Upstream's plugin.json/skill.json version fields lag its git tags (semantic-release); the tag above is the canonical vendored version. Refresh procedure: download the release tarball, replace only the subset paths listed here, update this manifest, run scripts/check-vendor-updates.sh."
 }

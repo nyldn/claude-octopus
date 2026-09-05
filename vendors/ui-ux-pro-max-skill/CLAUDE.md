@@ -20,6 +20,10 @@ python3 src/ui-ux-pro-max/scripts/search.py "<query>" --domain <domain> [-n <max
 - `landing` - Page structure and CTA strategies
 - `chart` - Chart types and library recommendations
 - `ux` - Best practices and anti-patterns
+- `icons` - Icon recommendations with import code (Phosphor, Heroicons, Lucide)
+- `react` - React/Next.js performance patterns
+- `web` - App interface guidelines (iOS/Android/React Native)
+- `google-fonts` - Individual Google Fonts lookup
 - `gsap` - GSAP animation skeletons by intensity tier (hover, scroll reveal, stagger, page transition, parallax, loading)
 
 **Design dials (optional, only with `--design-system`):**
@@ -53,14 +57,14 @@ cli/                              # CLI installer (ui-ux-pro-max-cli on npm)
 ├── src/
 │   ├── commands/init.ts          # Install command with template generation
 │   └── utils/template.ts         # Template rendering engine
+├── scripts/sync-assets.mjs       # Mirrors src/ -> cli/assets/ AND src/ -> .claude/skills/ui-ux-pro-max/
 └── assets/                       # Bundled assets (~564KB)
     ├── data/                     # Copy of src/ui-ux-pro-max/data/
     ├── scripts/                  # Copy of src/ui-ux-pro-max/scripts/
     └── templates/                # Copy of src/ui-ux-pro-max/templates/
 
-.claude/skills/ui-ux-pro-max/     # Claude Code skill (symlinks to src/)
-.factory/skills/ui-ux-pro-max/   # Droid (Factory) skill (symlinks to src/)
-.shared/ui-ux-pro-max/            # Symlink to src/ui-ux-pro-max/
+.claude/skills/ui-ux-pro-max/     # Claude Code skill: hand-authored SKILL.md +
+                                   # data/, scripts/ mirrored from src/ (see Sync Rules)
 .claude-plugin/                   # Claude Marketplace publishing
 ```
 
@@ -70,24 +74,31 @@ The search engine uses BM25 ranking combined with regex matching. Domain auto-de
 
 **Source of Truth:** `src/ui-ux-pro-max/`
 
+There are no symlinks in this repo (git-on-Windows checks them out as plain
+text files pointing at a path, which silently breaks the skill) -- every
+mirrored copy below is a real, independently-committed file kept in sync by
+`cli/scripts/sync-assets.mjs`, enforced by the "Check asset sync" CI workflow.
+
 When modifying files:
 
 1. **Data & Scripts** - Edit in `src/ui-ux-pro-max/`:
    - `data/*.csv` and `data/stacks/*.csv`
    - `scripts/*.py`
-   - Changes automatically available via symlinks in `.claude/`, `.factory/`, `.shared/`
+   - Then run the sync below -- changes are NOT automatically reflected anywhere else.
 
 2. **Templates** - Edit in `src/ui-ux-pro-max/templates/`:
    - `base/skill-content.md` - Common SKILL.md content
    - `base/quick-reference.md` - Quick reference section (Claude only)
    - `platforms/*.json` - Platform-specific configs
 
-3. **CLI Assets** - Run sync before publishing:
+3. **Sync before publishing / committing data or script changes:**
    ```bash
    cd cli
-   npm run sync:assets
-   npm run check:assets
+   npm run sync:assets   # mirrors src/ -> cli/assets/ AND src/ -> .claude/skills/ui-ux-pro-max/{data,scripts}
+   npm run check:assets  # verify, no npm install required
    ```
+   `.claude/skills/ui-ux-pro-max/SKILL.md` itself is hand-authored, not
+   mirrored or template-generated -- edit it directly.
 
 4. **Reference Folders** - No manual sync needed. The CLI generates these from templates during `uipro init`.
 

@@ -126,7 +126,7 @@ if [ -d "$UX_VENDOR" ]; then
             case "$module" in
                 csv|re|math|argparse|sys|io|os|pathlib|json|collections|functools|textwrap|datetime|hashlib|typing|abc|dataclasses|enum|copy|itertools|string|unicodedata|difflib|shutil|unittest|tempfile)
                     ;; # stdlib — OK
-                core|design_system|search|persist|dials)
+                core|design_system|search|persist|dials|reasoning_contract)
                     ;; # internal — OK
                 *)
                     BANNED_IMPORTS="${BANNED_IMPORTS}  ${pyfile##*/}: imports '${module}'\n"
