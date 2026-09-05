@@ -63,7 +63,7 @@ estimate_tokens() {
 # Apply request-size pricing rules from the canonical pricing table.
 octo_effective_model_pricing() {
     local model="$1" input_tokens="$2" input_price="$3" output_price="$4"
-    local rule threshold input_multiplier output_multiplier
+    local rule="" threshold="" input_multiplier="" output_multiplier=""
     rule="$(awk -F'\t' -v model="$model" '$1 == "request-rule" && $2 == model {print $3 ":" $4 ":" $5; exit}' "$OCTOPUS_MODEL_PRICING_FILE" 2>/dev/null || true)"
     if [[ -n "$rule" ]]; then
         threshold="${rule%%:*}"

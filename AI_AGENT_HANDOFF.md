@@ -6,9 +6,9 @@ cost-safe routing. Independent spec and quality reviews are complete, all
 verified findings are fixed, and the required local gates pass.
 Branch: `research/2026-09-04-model-support`, based on `upstream/main` at
 `1e496e1190c10d90d5edf1a4d7650657d5404c2e`.
-Delivery: the implementation is ready for an exact-head pull request to
-`nyldn/claude-octopus:main`. The user authorized opening and merging the PR once
-hosted checks pass.
+Delivery: PR [#1010](https://github.com/nyldn/claude-octopus/pull/1010) is open
+against `nyldn/claude-octopus:main`. The user authorized merging it once
+exact-head hosted checks and reviews pass.
 Current release: [v10.1.0](https://github.com/nyldn/claude-octopus/releases/tag/v10.1.0)
 Tracking: `bd` is unavailable in this checkout, so no Beads issue was created or
 updated. Do not run a schema migration to restore it.
@@ -49,6 +49,12 @@ worktree after confirming it is clean and unused.
   308 unit suites, and 8 integration suites. `make sync-check`, shell syntax,
   `git diff --check`, executable-mode checks, and temporary-worktree cleanup
   also pass.
+- The initial hosted Ubuntu unit run exposed a GNU Bash nounset difference in
+  the optional request-pricing rule: `local threshold` is empty under macOS
+  Bash 3.2 but unbound under GNU Bash 5 when no model-specific rule exists.
+  Initializing the optional rule fields fixes the shared cause of the frontier
+  policy and two progress-cost failures. Focused reruns pass 13/13, 3/3, and
+  7/7 respectively; an exact-head hosted rerun is required before merge.
 
 ## Install, Setup, and Everyday-Use Simplification
 
