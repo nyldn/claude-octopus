@@ -91,11 +91,11 @@ cat > "$CONFIG_FILE" << EOF
 {
   "version": "3.0",
   "providers": {
-    "codex": { "default": "config-default" }
+    "codex": { "default": "gpt-5.6-terra" }
   }
 }
 EOF
-assert_eq "$(resolve_octopus_model "codex" "codex")" "config-default" "Config file default"
+assert_eq "$(resolve_octopus_model "codex" "codex")" "gpt-5.6-terra" "Config file default"
 
 test_case "explicit-only models are rejected from memory and persistent caches"
 clear_model_cache
@@ -218,11 +218,11 @@ cat > "$CONFIG_FILE" << EOF
 {
   "version": "3.0",
   "providers": {
-    "codex": { "default": "config-default", "spark": "config-spark" }
+    "codex": { "default": "gpt-5.6-terra", "spark": "gpt-5.6-luna" }
   }
 }
 EOF
-assert_eq "$(resolve_octopus_model "codex" "codex-spark")" "config-spark" "Capability mapping"
+assert_eq "$(resolve_octopus_model "codex" "codex-spark")" "gpt-5.6-luna" "Capability mapping"
 
 # Test 5: Phase routing
 clear_model_cache
@@ -230,14 +230,14 @@ cat > "$CONFIG_FILE" << EOF
 {
   "version": "3.0",
   "providers": {
-    "codex": { "default": "config-default" }
+    "codex": { "default": "gpt-5.6-terra" }
   },
   "routing": {
-    "phases": { "deliver": "deliver-model" }
+    "phases": { "deliver": "gpt-5.5" }
   }
 }
 EOF
-assert_eq "$(resolve_octopus_model "codex" "codex" "deliver")" "deliver-model" "Phase routing"
+assert_eq "$(resolve_octopus_model "codex" "codex" "deliver")" "gpt-5.5" "Phase routing"
 
 # Test 5b: Literal object role routing preserves exact provider model IDs
 clear_model_cache
@@ -503,14 +503,14 @@ cat > "$CONFIG_FILE" << EOF
 {
   "version": "3.0",
   "providers": {
-    "codex": { "default": "config-default", "spark": "config-spark" }
+    "codex": { "default": "gpt-5.6-terra", "spark": "gpt-5.6-luna" }
   },
   "routing": {
     "phases": { "deliver": "codex:spark" }
   }
 }
 EOF
-assert_eq "$(resolve_octopus_model "codex" "codex" "deliver")" "config-spark" "Recursive reference"
+assert_eq "$(resolve_octopus_model "codex" "codex" "deliver")" "gpt-5.6-luna" "Recursive reference"
 
 # Recursive provider references must use the canonical provider for the lookup,
 # not only for the cross-provider comparison.
@@ -519,14 +519,14 @@ cat > "$CONFIG_FILE" << EOF
 {
   "version": "3.0",
   "providers": {
-    "codex": { "default": "config-default", "spark": "config-spark" }
+    "codex": { "default": "gpt-5.6-terra", "spark": "gpt-5.6-luna" }
   },
   "routing": {
     "phases": { "deliver": "openai:spark" }
   }
 }
 EOF
-assert_eq "$(resolve_octopus_model "codex" "codex" "deliver")" "config-spark" "Recursive provider alias uses canonical model namespace"
+assert_eq "$(resolve_octopus_model "codex" "codex" "deliver")" "gpt-5.6-luna" "Recursive provider alias uses canonical model namespace"
 
 # Test 7: Tier mapping
 clear_model_cache
@@ -534,7 +534,7 @@ cat > "$CONFIG_FILE" << EOF
 {
   "version": "3.0",
   "providers": {
-    "codex": { "default": "config-default", "mini": "config-mini" }
+    "codex": { "default": "gpt-5.6-terra", "mini": "gpt-5.4-mini" }
   },
   "tiers": {
     "budget": { "codex": "mini" }
@@ -542,7 +542,7 @@ cat > "$CONFIG_FILE" << EOF
 }
 EOF
 export OCTOPUS_COST_MODE="budget"
-assert_eq "$(resolve_octopus_model "codex" "codex")" "config-mini" "Tier mapping (budget)"
+assert_eq "$(resolve_octopus_model "codex" "codex")" "gpt-5.4-mini" "Tier mapping (budget)"
 unset OCTOPUS_COST_MODE
 
 # Test 8: Provider-scoped role routing wins over phase routing
@@ -551,8 +551,8 @@ cat > "$CONFIG_FILE" << EOF
 {
   "version": "3.0",
   "providers": {
-    "codex": { "default": "deepseek-ai/DeepSeek-V4-Pro", "logic_review": "gpt-5.5" },
-    "claude": { "default": "claude-sonnet-4.6", "review": "claude-review-phase" },
+    "codex": { "default": "gpt-5.6-terra", "logic_review": "gpt-5.5" },
+    "claude": { "default": "claude-sonnet-4.6", "review": "claude-sonnet-5" },
     "agy": { "default": "default" }
   },
   "routing": {
@@ -563,19 +563,19 @@ cat > "$CONFIG_FILE" << EOF
 EOF
 assert_eq "$(resolve_octopus_model "codex" "codex" "review" "logic-reviewer")" "gpt-5.5" "Provider-scoped role routing overrides review phase routing for matching provider"
 clear_model_cache
-assert_eq "$(resolve_octopus_model "claude" "claude-sonnet" "review" "logic-reviewer")" "claude-review-phase" "Cross-provider role routing falls back to matching phase routing for claude"
+assert_eq "$(resolve_octopus_model "claude" "claude-sonnet" "review" "logic-reviewer")" "claude-sonnet-5" "Cross-provider role routing falls back to matching phase routing for claude"
 clear_model_cache
 assert_eq "$(resolve_octopus_model "gemini" "gemini" "review" "logic-reviewer")" "default" "Legacy Gemini routing resolves through Antigravity without cross-provider model leakage"
 clear_model_cache
-assert_eq "$(resolve_octopus_model "codex" "codex" "review" "arch-reviewer")" "deepseek-ai/DeepSeek-V4-Pro" "Cross-provider phase routing does not leak claude model to codex"
+assert_eq "$(resolve_octopus_model "codex" "codex" "review" "arch-reviewer")" "gpt-5.6-terra" "Cross-provider phase routing does not leak claude model to codex"
 
 clear_model_cache
 cat > "$CONFIG_FILE" << EOF
 {
   "version": "3.0",
   "providers": {
-    "codex": { "default": "deepseek-ai/DeepSeek-V4-Pro" },
-    "claude": { "default": "claude-sonnet-4.6", "review": "claude-review-phase" }
+    "codex": { "default": "gpt-5.6-terra" },
+    "claude": { "default": "claude-sonnet-4.6", "review": "claude-sonnet-5" }
   },
   "routing": {
     "phases": { "review": "claude:review" },
@@ -583,7 +583,7 @@ cat > "$CONFIG_FILE" << EOF
   }
 }
 EOF
-assert_eq "$(resolve_octopus_model "claude" "claude-sonnet" "review" "logic-reviewer")" "claude-review-phase" "Bare role model invalid for provider falls back to matching phase routing"
+assert_eq "$(resolve_octopus_model "claude" "claude-sonnet" "review" "logic-reviewer")" "claude-sonnet-5" "Bare role model invalid for provider falls back to matching phase routing"
 
 # Test 9: Session override
 clear_model_cache
@@ -591,12 +591,12 @@ cat > "$CONFIG_FILE" << EOF
 {
   "version": "3.0",
   "providers": {
-    "codex": { "default": "config-default" }
+    "codex": { "default": "gpt-5.6-terra" }
   },
-  "overrides": { "codex": "session-override" }
+  "overrides": { "codex": "gpt-5.5" }
 }
 EOF
-assert_eq "$(resolve_octopus_model "codex" "codex")" "session-override" "Session override"
+assert_eq "$(resolve_octopus_model "codex" "codex")" "gpt-5.5" "Session override"
 
 # Cleanup
 export HOME="$HOME_ORIG"

@@ -3,6 +3,7 @@ _agent_sync_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_agent_sync_lib_dir}/agent-spec.sh" 2>/dev/null || true
 source "${_agent_sync_lib_dir}/provider-registry.sh" || { echo "agent-sync: failed to load provider-registry.sh" >&2; return 1 2>/dev/null || exit 1; }
 source "${_agent_sync_lib_dir}/fallback-chain.sh" 2>/dev/null || true
+source "${_agent_sync_lib_dir}/dispatch-plan.sh" 2>/dev/null || true
 # ═══════════════════════════════════════════════════════════════════════════════
 # agent-sync.sh — Agent synchronous dispatch & Agent Teams routing
 # Extracted from orchestrate.sh (v9.7.4)
@@ -42,29 +43,6 @@ quota_watcher_kill_sync_dispatch() {
 
 fleet_dispatch_end() {
     unset OCTOPUS_FORCE_LEGACY_DISPATCH
-}
-
-# Bind a resolved AGY model to the exact argv environment used by agy-exec.
-# This keeps provider execution aligned with lifecycle and cost records, while
-# preserving model labels containing spaces as one environment argument.
-octopus_sync_bind_resolved_model() {
-    local agent_type="${1:-}" model="${2:-}" provider="" entry
-    local -a filtered_env
-    provider="$(octo_agent_spec_provider "$agent_type" 2>/dev/null || true)"
-    [[ "$provider" == "agy" && -n "$model" ]] || return 0
-
-    filtered_env=()
-    if [[ ${#PROVIDER_ENV_ARRAY[@]} -gt 0 ]]; then
-        for entry in "${PROVIDER_ENV_ARRAY[@]}"; do
-            [[ "$entry" == OCTOPUS_AGY_MODEL=* ]] && continue
-            filtered_env+=("$entry")
-        done
-    fi
-    if [[ ${#filtered_env[@]} -eq 0 ]]; then
-        filtered_env=(env)
-    fi
-    filtered_env+=("OCTOPUS_AGY_MODEL=$model")
-    PROVIDER_ENV_ARRAY=("${filtered_env[@]}")
 }
 
 # Claude Code's native Agent Teams API does not expose a provider PID or a
@@ -1474,25 +1452,47 @@ ${provider_ctx}"
         model="$(octo_dispatch_command_model "$cmd" "$model")"
     fi
 
-    record_agent_call "$agent_type" "$model" "$enhanced_prompt" "${phase:-unknown}" "${role:-none}" "0"
+    # Resolve environment and argv once into the redacted dispatch plan. Both
+    # execution and the offline explanation record consume this same decision.
+    local dispatch_plan _plan_deadline=0 _plan_append_empty_prompt=false
+    if [[ "$timeout_secs" =~ ^[0-9]+$ && "$timeout_secs" -gt 0 ]]; then
+        _plan_deadline=$(( $(date +%s) + timeout_secs ))
+    fi
+    case "$agent_type" in
+        copilot*|qwen*|cursor-agent*) _plan_append_empty_prompt=true ;;
+    esac
+    build_provider_env "$agent_type"
+    octo_dispatch_plan_bind_model_env "$agent_type" "$model"
+    local _plan_failure=""
+    if ! dispatch_plan="$(octo_dispatch_plan_create "$agent_type" "$phase" "$role" \
+        "$cmd" "$model" "$_plan_deadline" "$_prompt_bytes" "$_plan_append_empty_prompt")"; then
+        _plan_failure="construction"
+    elif ! octo_dispatch_plan_load_argv "$dispatch_plan"; then
+        _plan_failure="argv loading"
+    elif ! octo_dispatch_plan_record "$dispatch_plan"; then
+        _plan_failure="persistence"
+    fi
+    if [[ -n "$_plan_failure" ]]; then
+        run_contract_transition "$_sync_seat_id" failed \
+            "reason=Dispatch plan $_plan_failure failed" >/dev/null 2>&1 || true
+        return 74
+    fi
 
-    # v7.25.0: Record metrics start
+    # Allocate one usage identity before dispatch. Reservation and completion
+    # events reconcile by this call ID, including an internal provider retry.
     local metrics_id=""
     if command -v record_agent_start &> /dev/null; then
         metrics_id=$(record_agent_start "$agent_type" "$model" "$enhanced_prompt" "${phase:-unknown}") || true
     fi
+    record_agent_call "$agent_type" "$model" "$enhanced_prompt" "${phase:-unknown}" "${role:-none}" "0" "$metrics_id"
 
     # SECURITY: Use array-based execution to prevent word-splitting vulnerabilities
     local -a cmd_array
-    local -a inner_cmd_array
-    build_provider_env "$agent_type"
-    octopus_sync_bind_resolved_model "$agent_type" "$model"
-    read -ra inner_cmd_array <<< "$cmd"
     if [[ ${#PROVIDER_ENV_ARRAY[@]} -gt 0 ]]; then
-        cmd_array=("${PROVIDER_ENV_ARRAY[@]}" "${inner_cmd_array[@]}")
+        cmd_array=("${PROVIDER_ENV_ARRAY[@]}" "${OCTO_DISPATCH_PLAN_ARGV[@]}")
         log "DEBUG" "Credential isolation active for $agent_type"
     else
-        cmd_array=("${inner_cmd_array[@]}")
+        cmd_array=("${OCTO_DISPATCH_PLAN_ARGV[@]}")
     fi
 
     # Capture output and exit code separately
@@ -1505,9 +1505,7 @@ ${provider_ctx}"
     # comes via stdin to avoid OS argument limits. Qwen and Cursor Agent follow
     # the same headless contract; Copilot parity is
     # maintained with spawn/workflows dispatch paths.
-    if [[ "$agent_type" == copilot* || "$agent_type" == qwen* || "$agent_type" == cursor-agent* ]]; then
-        cmd_array+=(-p "")
-    fi
+    # Provider-specific headless argv is already part of the immutable plan.
 
     # v9.2.2: All agents use stdin to avoid ARG_MAX "Argument list too long" on large diffs (Issue #173)
     # Captured for partial-writes detection on timeout.
@@ -1527,8 +1525,13 @@ ${provider_ctx}"
     type update_agent_status >/dev/null 2>&1 && update_agent_status \
         "$agent_type" "running" 0 "$_estimated_cost" "$timeout_secs" \
         "$_progress_task_id" "${phase:-unknown}" "" || true
-    run_contract_transition "$_sync_seat_id" running \
-        "resolved_model=$model" || return 74
+    if ! run_contract_transition "$_sync_seat_id" running "resolved_model=$model"; then
+        run_contract_transition "$_sync_seat_id" failed \
+            "reason=Unable to record running state" >/dev/null 2>&1 || true
+        [[ -n "$metrics_id" ]] && record_agent_failure "$metrics_id" 0 \
+            "Unable to record running state" failed 2>/dev/null || true
+        return 74
+    fi
 
     # AGY has an intermittent native SIGSEGV under heterogeneous orchestration
     # (#943). Retry that provider exactly once, while keeping both attempts
@@ -1637,6 +1640,7 @@ ${provider_ctx}"
             "$agent_type" "$_sync_status" "$_elapsed_ms" "$_estimated_cost" "$timeout_secs" \
             "$_progress_task_id" "${phase:-unknown}" "$_sync_signal_artifact" || true
         type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "$_sync_status" "$tokens_in" "$(octo_estimate_tokens_for_file "$temp_out" 2>/dev/null || echo 0)" "$_sync_reason" "$_elapsed_ms" "$_sync_signal_artifact" "$role" "$_sync_seat_id" "$_sync_status" none || true
+        [[ -n "$metrics_id" ]] && record_agent_failure "$metrics_id" "$_elapsed_ms" "$_sync_reason" "$_sync_status" 2>/dev/null || true
         rm -f "$temp_err" "$temp_out"
         return $exit_code
     fi
@@ -1659,6 +1663,7 @@ ${provider_ctx}"
                 run_contract_transition "$_sync_seat_id" skipped \
                     "reason=Prompt rejected by provider (oversize)" \
                     "duration_ms=$_elapsed_ms" >/dev/null 2>&1 || true
+                [[ -n "$metrics_id" ]] && record_agent_failure "$metrics_id" "$_elapsed_ms" "Prompt rejected by provider (oversize)" failed 2>/dev/null || true
                 rm -f "$temp_err" "$temp_out"
                 echo ""
                 return 0
@@ -1671,6 +1676,7 @@ ${provider_ctx}"
             run_contract_transition "$_sync_seat_id" failed \
                 "reason=$_sync_reason" "stderr_file=$_sync_signal_artifact" \
                 "duration_ms=$_elapsed_ms" >/dev/null 2>&1 || true
+            [[ -n "$metrics_id" ]] && record_agent_failure "$metrics_id" "$_elapsed_ms" "$_sync_reason" failed 2>/dev/null || true
             rm -f "$temp_err" "$temp_out"
             return 1
         fi
@@ -1727,6 +1733,8 @@ ${provider_ctx}"
         _sync_result_tmp="$(mktemp "${_sync_result_artifact}.tmp.XXXXXX")" || {
             run_contract_transition "$_sync_seat_id" failed \
                 "reason=Unable to allocate durable result artifact" >/dev/null 2>&1 || true
+            [[ -n "$metrics_id" ]] && record_agent_failure "$metrics_id" "$_elapsed_ms" \
+                "Unable to allocate durable result artifact" failed 2>/dev/null || true
             rm -f "$temp_err" "$temp_out"
             return 1
         }
@@ -1741,6 +1749,8 @@ ${provider_ctx}"
             rm -f "$_sync_result_tmp" "$temp_err" "$temp_out"
             run_contract_transition "$_sync_seat_id" failed \
                 "reason=Unable to publish durable result artifact" >/dev/null 2>&1 || true
+            [[ -n "$metrics_id" ]] && record_agent_failure "$metrics_id" "$_elapsed_ms" \
+                "Unable to publish durable result artifact" failed 2>/dev/null || true
             return 1
         fi
 
@@ -1751,6 +1761,8 @@ ${provider_ctx}"
             _sync_stderr_tmp="$(mktemp "${_sync_stderr_artifact}.tmp.XXXXXX")" || {
                 run_contract_transition "$_sync_seat_id" failed \
                     "reason=Unable to allocate durable stderr artifact" >/dev/null 2>&1 || true
+                [[ -n "$metrics_id" ]] && record_agent_failure "$metrics_id" "$_elapsed_ms" \
+                    "Unable to allocate durable stderr artifact" failed 2>/dev/null || true
                 rm -f "$temp_err" "$temp_out"
                 return 1
             }
@@ -1759,6 +1771,8 @@ ${provider_ctx}"
                 rm -f "$_sync_stderr_tmp" "$temp_err" "$temp_out"
                 run_contract_transition "$_sync_seat_id" failed \
                     "reason=Unable to publish durable stderr artifact" >/dev/null 2>&1 || true
+                [[ -n "$metrics_id" ]] && record_agent_failure "$metrics_id" "$_elapsed_ms" \
+                    "Unable to publish durable stderr artifact" failed 2>/dev/null || true
                 return 1
             fi
         fi
@@ -1770,6 +1784,8 @@ ${provider_ctx}"
             "duration_ms=$_elapsed_ms" || {
                 run_contract_transition "$_sync_seat_id" failed \
                     "reason=Unable to record received output" >/dev/null 2>&1 || true
+                [[ -n "$metrics_id" ]] && record_agent_failure "$metrics_id" "$_elapsed_ms" \
+                    "Unable to record received output" failed 2>/dev/null || true
                 rm -f "$temp_err" "$temp_out"
                 return 1
             }
@@ -1777,6 +1793,8 @@ ${provider_ctx}"
             "contribution=eligible" || {
                 run_contract_transition "$_sync_seat_id" failed \
                     "reason=Unable to validate provider output" >/dev/null 2>&1 || true
+                [[ -n "$metrics_id" ]] && record_agent_failure "$metrics_id" "$_elapsed_ms" \
+                    "Unable to validate provider output" failed 2>/dev/null || true
                 rm -f "$temp_err" "$temp_out"
                 return 1
             }
@@ -1785,6 +1803,8 @@ ${provider_ctx}"
                 "contribution=eligible-with-warning" "reason=$_sync_reason" || {
                     run_contract_transition "$_sync_seat_id" failed \
                         "reason=Unable to record degraded contribution" >/dev/null 2>&1 || true
+                    [[ -n "$metrics_id" ]] && record_agent_failure "$metrics_id" "$_elapsed_ms" \
+                        "Unable to record degraded contribution" failed 2>/dev/null || true
                     rm -f "$temp_err" "$temp_out"
                     return 1
                 }
@@ -1793,6 +1813,8 @@ ${provider_ctx}"
                 "contribution=eligible" || {
                     run_contract_transition "$_sync_seat_id" failed \
                         "reason=Unable to record successful contribution" >/dev/null 2>&1 || true
+                    [[ -n "$metrics_id" ]] && record_agent_failure "$metrics_id" "$_elapsed_ms" \
+                        "Unable to record successful contribution" failed 2>/dev/null || true
                     rm -f "$temp_err" "$temp_out"
                     return 1
                 }
@@ -1840,7 +1862,9 @@ ${provider_ctx}"
         parse_task_metrics "$output"
         record_agent_complete "$metrics_id" "$agent_type" "$model" "$output" "${phase:-unknown}" \
             "$_PARSED_TOKENS" "$_PARSED_TOOL_USES" "$_PARSED_DURATION_MS" \
-            "$_PARSED_INPUT_TOKENS" "$_PARSED_OUTPUT_TOKENS" 2>/dev/null || true
+            "$_PARSED_INPUT_TOKENS" "$_PARSED_OUTPUT_TOKENS" \
+            "$_PARSED_CACHED_INPUT_TOKENS" "$_PARSED_CACHE_WRITE_TOKENS" \
+            "$_PARSED_REASONING_TOKENS" 2>/dev/null || true
     fi
 
     echo "$output"

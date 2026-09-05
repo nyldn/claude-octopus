@@ -252,7 +252,7 @@ octopus doctor                  # Run all checks from a shell
 octopus doctor providers        # Check provider installation only
 octopus doctor providers --live # Run a bounded live AGY catalog/model/dispatch probe
 octopus doctor auth --verbose   # Detailed auth status
-octopus doctor config           # Plugin install/version plus Claude Code feature flags
+octopus doctor config           # Install source/path, version, build SHA when available, and Claude Code feature flags
 octopus doctor skills           # Skill loading plus modern plugin capability notes
 octopus doctor --json           # Machine-readable Doctor 2.0 output
 ```

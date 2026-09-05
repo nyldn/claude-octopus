@@ -553,7 +553,7 @@ council_provider_org() {
 }
 
 council_model_family() {
-    octo_model_family "$1" "${2:-}"
+    octo_agent_spec_model_family "$1" "${2:-}"
 }
 
 council_agent_config_value() {
@@ -1924,52 +1924,16 @@ council_response_is_blind() {
     # provider explicitly reports it could not reach the file/permission, rather
     # than a host self-dispatch stub. Surfacing it (vs a generic "degenerate")
     # lets the operator switch that provider's mode/model after the FIRST blind
-    # round instead of eating several. The explicit-refusal checks below are
-    # brevity-gated so a long real review that merely quotes such a phrase is
-    # never flagged; the fabricated-narrative check just above is length-
-    # independent because that failure mode is, by construction, long.
+    # round instead of eating several. First-person access failure is checked
+    # independently of length; less-specific refusal and permission shapes remain
+    # brevity-gated to protect genuine reviews that discuss those failures.
     local f="$1"
     [[ -f "$f" ]] || return 1
 
-    # Length-INDEPENDENT "fabricated narrative" blind seat (sail-cruisey #2459):
-    # a reviewer dispatched without file-read tools that writes a long, plausible
-    # VERDICT entirely from the prose task-summary. It slips past the brevity gate
-    # below (these fabrications run well over 1600 chars). Flag it only when it
-    # BOTH (a) explicitly admits in the first person that it could not reach the
-    # artifact — file access restricted / prohibited from file-or-terminal tools /
-    # cannot-read-files —
-    # AND (b) cites zero real source references (extension-neutral path.ext:line).
-    # Both are required so a genuine review is never flagged for merely mentioning
-    # a summary. NOTES:
-    #  - a bare "based on the provided summary" is deliberately NOT a trigger — a
-    #    legitimate plan/design review (no code to cite) uses that phrasing.
-    #  - "assuming the described changes" is likewise NOT a standalone trigger: it
-    #    is a normal conditional a plan review can use. #2459 is still caught by its
-    #    explicit "file access is restricted" admission.
-    #  - (b) matches any letter-first extension (.sh/.py/.go/.tsx/…), so a grounded
-    #    non-frontend review that cites e.g. council.sh:1946 is never flagged.
-    # Normalize wrapping, then evaluate one sentence/clause at a time. This
-    # catches Markdown line wraps without letting an unrelated first-person
-    # sentence turn a later third-person access report into an admission.
-    local normalized_without_urls
-    normalized_without_urls="$(tr '\n' ' ' < "$f" | tr -s '[:space:]' ' ' \
-        | tr '[:upper:]' '[:lower:]' \
-        | sed -E \
-            -e 's#https?://[^[:space:]]*([.!?;])([[:space:]]|$)#\1\2#g' \
-            -e 's#https?://[^[:space:]]+##g')"
-    if printf '%s\n' "$normalized_without_urls" | awk '
-        BEGIN { RS="[.!?;]+"; found=0 }
-        {
-            first_person = ($0 ~ /(^|[^[:alnum:]_])(i|we|my|our)([^[:alnum:]_]|$)/)
-            access_failure = ($0 ~ /((direct[[:space:]]+)?file[[:space:]]+access[[:space:]]+is[[:space:]]+restricted|restricted[[:space:]]+by[[:space:]]+the[[:space:]]+output[[:space:]]+rules|prohibited[[:space:]]+from[[:space:]]+using[[:space:]]+any[[:space:]]+(file|terminal|command)|(cannot|could[[:space:]]*not|couldn.t|unable[[:space:]]+to|can.t|was[[:space:]]+not[[:space:]]+able[[:space:]]+to|were[[:space:]]+not[[:space:]]+able[[:space:]]+to)[[:space:]]+(open|read|access|view)[^.!?;]{0,40}(files?|plan|prd|diff|patch|artifact|document|spec)|(did[[:space:]]+not|do[[:space:]]+not|don.t)[[:space:]]+have[[:space:]]+(direct[[:space:]]+)?access[^.!?;]{0,40}(files?|plan|prd|diff|patch|artifact|document|spec)|lack(ed|s)?[[:space:]]+(direct[[:space:]]+)?access[^.!?;]{0,40}(files?|plan|prd|diff|patch|artifact|document|spec))/)
-            third_party_access = ($0 ~ /(^|[^[:alnum:]_])(another|other)[[:space:]]+(reviewer|seat|agent|provider|model)([^[:alnum:]_]|$)[^.!?;]{0,80}(cannot|could[[:space:]]*not|couldn.t|unable[[:space:]]+to|can.t|did[[:space:]]+not|lack(ed|s)?)/)
-            first_person_access = ($0 ~ /(^|[^[:alnum:]_])(i|we)[[:space:]]+(cannot|could[[:space:]]*not|couldn.t|unable[[:space:]]+to|can.t|was[[:space:]]+not[[:space:]]+able[[:space:]]+to|were[[:space:]]+not[[:space:]]+able[[:space:]]+to)[[:space:]]+(open|read|access|view)/ || $0 ~ /(^|[^[:alnum:]_])(i|we)[[:space:]]+((did[[:space:]]+not|do[[:space:]]+not|don.t)[[:space:]]+have|lack(ed)?)[[:space:]]+(direct[[:space:]]+)?access/)
-            if (first_person && access_failure && (!third_party_access || first_person_access)) found=1
-        }
-        END { exit(found ? 0 : 1) }
-    ' >/dev/null 2>&1 \
-        && ! printf '%s\n' "$normalized_without_urls" \
-            | grep -ciE '(^|[^[:alnum:]_./-])[[:alnum:]_./-]+\.[[:alpha:]][[:alnum:]]*:[0-9]+([^0-9]|$)' >/dev/null; then
+    # A first-person access failure is authoritative. Citation-shaped prose is not
+    # evidence that the seat read the cited file, and must never override the
+    # seat's own statement that it could not reach the artifact.
+    if council_response_has_access_failure "$f"; then
         return 0
     fi
 
@@ -1981,43 +1945,253 @@ council_response_is_blind() {
     fi
 
     # A bare permission error is only conclusive when it is the whole response,
-    # apart from an optional verdict. In review prose, the same phrase can describe
-    # code behavior or a finding and is not evidence that the reviewer was blind.
+    # apart from an optional exact verdict. In review prose, the same phrase can
+    # describe code behavior or a finding and is not evidence that the reviewer
+    # was blind.
     tr '\n' ' ' < "$f" \
         | tr -s '[:space:]' ' ' \
-        | grep -ciE '^[[:space:]]*(permission[[:space:]-]*((is[[:space:]-]+)?denied|restriction|error)|access[[:space:]-]*((is[[:space:]-]+)?denied))[[:space:][:punct:]]*(verdict:[[:space:]]*(approve|revise|block)[[:space:][:punct:]]*)?$' >/dev/null
+        | grep -ciE '^[[:space:]]*(permission[[:space:]-]*((is[[:space:]-]+)?denied|restriction|error)|access[[:space:]-]*((is[[:space:]-]+)?denied))[[:space:][:punct:]]*(verdict:[[:space:]]*(approve|revise|block)[[:space:]]*)?$' >/dev/null
+}
+
+council_response_has_access_failure() {
+    local f="$1"
+    [[ -f "$f" ]] || return 1
+
+    # Normalize wrapping, then evaluate one sentence/clause at a time. This
+    # catches Markdown line wraps without letting a first-person sentence attach
+    # to a later third-person access report.
+    local normalized_without_urls
+    normalized_without_urls="$(tr '\n' ' ' < "$f" | tr -s '[:space:]' ' ' \
+        | tr '[:upper:]' '[:lower:]' \
+        | sed -E \
+            -e 's#https?://[^[:space:]]*([.!?;])([[:space:]]|$)#\1\2#g' \
+            -e 's#https?://[^[:space:]]+##g')"
+    printf '%s\n' "$normalized_without_urls" | awk '
+        BEGIN { RS="[.!?;]+"; found=0 }
+        {
+            first_person = ($0 ~ /(^|[^[:alnum:]_])(i|we|my|our)([^[:alnum:]_]|$)/)
+            access_failure = ($0 ~ /((direct[[:space:]]+)?file[[:space:]]+access[[:space:]]+is[[:space:]]+restricted|restricted[[:space:]]+by[[:space:]]+the[[:space:]]+output[[:space:]]+rules|prohibited[[:space:]]+from[[:space:]]+using[[:space:]]+any[[:space:]]+(file|terminal|command)|(cannot|could[[:space:]]*not|couldn.t|unable[[:space:]]+to|can.t|was[[:space:]]+not[[:space:]]+able[[:space:]]+to|were[[:space:]]+not[[:space:]]+able[[:space:]]+to)[[:space:]]+(open|read|access|view)[^.!?;]{0,40}(files?|plan|prd|diff|patch|artifact|document|spec)|(did[[:space:]]+not|do[[:space:]]+not|don.t)[[:space:]]+have[[:space:]]+(direct[[:space:]]+)?access[^.!?;]{0,40}(files?|plan|prd|diff|patch|artifact|document|spec)|lack(ed|s)?[[:space:]]+(direct[[:space:]]+)?access[^.!?;]{0,40}(files?|plan|prd|diff|patch|artifact|document|spec))/)
+            third_party_access = ($0 ~ /(^|[^[:alnum:]_])(another|other)[[:space:]]+(reviewer|seat|agent|provider|model)([^[:alnum:]_]|$)[^.!?;]{0,80}(cannot|could[[:space:]]*not|couldn.t|unable[[:space:]]+to|can.t|did[[:space:]]+not|lack(ed|s)?)/)
+            first_person_access = ($0 ~ /(^|[^[:alnum:]_])(i|we)[[:space:]]+(cannot|could[[:space:]]*not|couldn.t|unable[[:space:]]+to|can.t|was[[:space:]]+not[[:space:]]+able[[:space:]]+to|were[[:space:]]+not[[:space:]]+able[[:space:]]+to)[[:space:]]+(open|read|access|view)/ || $0 ~ /(^|[^[:alnum:]_])(i|we)[[:space:]]+((did[[:space:]]+not|do[[:space:]]+not|don.t)[[:space:]]+have|lack(ed)?)[[:space:]]+(direct[[:space:]]+)?access/)
+            if (first_person && access_failure && (!third_party_access || first_person_access)) found=1
+        }
+        END { exit(found ? 0 : 1) }
+    ' >/dev/null 2>&1
+}
+
+_council_parse_final_verdict() {
+    local f="$1"
+    [[ -f "$f" ]] || return 1
+    awk '
+        {
+            line = toupper($0)
+            sub(/\r$/, "", line)
+            if (line ~ /^[ ]{0,3}(```+|~~~+)/) {
+                marker = line
+                sub(/^[ ]*/, "", marker)
+                kind = substr(marker, 1, 1)
+                width = 0
+                while (substr(marker, width + 1, 1) == kind) width++
+                if (!fence) { fence=kind; fence_width=width }
+                else if (kind == fence && width >= fence_width && substr(marker, width + 1) ~ /^[[:space:]]*$/) fence=""
+                last=""
+                next
+            }
+            if (fence) next
+            if (line ~ /^[[:space:]]*$/) next
+            # Four-space/tab-indented text is a Markdown code example, not a
+            # top-level declaration. This also excludes nested list fences.
+            if (line ~ /^(    |[ ]*\t)/) { last=""; next }
+            last=line
+        }
+        line ~ /^[ ]{0,3}VERDICT:/ {
+            declarations++
+            if (line ~ /^[ ]{0,3}VERDICT:[[:space:]]*(APPROVE|REVISE|BLOCK)[[:space:]]*$/) {
+                sub(/^[ ]{0,3}VERDICT:[[:space:]]*/, "", line)
+                sub(/[[:space:]]*$/, "", line)
+                verdict = line
+            } else {
+                invalid = 1
+            }
+        }
+        END {
+            if (declarations == 1 && !invalid && !fence && last ~ /^[ ]{0,3}VERDICT:[[:space:]]*(APPROVE|REVISE|BLOCK)[[:space:]]*$/) print verdict
+            else exit 1
+        }' "$f"
 }
 
 council_response_verdict() {
-    # The seat's self-declared verdict, read from the LAST "VERDICT:" line. Fail
-    # safe: anything that is not a clean APPROVE (REVISE / BLOCK / missing /
-    # ambiguous) is reported as REVISE, so a seat that omits or hedges the line
-    # never counts as an approval toward quorum. Echoes APPROVE, REVISE, or BLOCK.
-    local f="$1" verdict
-    [[ -f "$f" ]] || { printf 'REVISE'; return 0; }
-    verdict="$(awk '
-        toupper($0) ~ /^[[:space:]]*VERDICT:/ { last = $0 }
-        END {
-            last = toupper(last)
-            sub(/^[[:space:]]*VERDICT:[[:space:]]*/, "", last)
-            sub(/[^A-Z].*$/, "", last)
-            print last
-        }' "$f")"
-    case "$verdict" in
-        APPROVE) printf 'APPROVE' ;;
-        BLOCK)   printf 'BLOCK' ;;
-        *)       printf 'REVISE' ;;
-    esac
+    _council_parse_final_verdict "$1" || printf 'REVISE'
 }
 
 council_response_has_verdict() {
-    # True if the response contains an explicit VERDICT: line — a strong signal the
-    # seat FINISHED writing (vs. a truncated write killed mid-stream by a timeout),
-    # distinct from council_response_verdict's fail-safe REVISE default. Used to
-    # salvage a complete review whose dispatch reported a boundary timeout (#2077).
-    local f="$1"
-    [[ -f "$f" ]] || return 1
-    awk 'toupper($0) ~ /^[[:space:]]*VERDICT:/ { found = 1 } END { exit !found }' "$f"
+    # Timeout salvage uses the same final, unquoted declaration as voting.
+    _council_parse_final_verdict "$1" >/dev/null
+}
+
+council_response_evidence_paths_json() {
+    local response_path="$1" evidence_root="$2"
+    [[ -f "$response_path" && -d "$evidence_root" ]] || { printf '[]\n'; return 0; }
+    command -v python3 >/dev/null 2>&1 || { printf '[]\n'; return 0; }
+    python3 - "$response_path" "$evidence_root" <<'PY'
+import hashlib
+import json
+import re
+import sys
+from pathlib import Path
+
+response = Path(sys.argv[1])
+root = Path(sys.argv[2]).resolve()
+pattern = re.compile(r"(?<![A-Za-z0-9_./-])([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9]*):([0-9]+)(?![0-9])")
+validated = []
+seen = set()
+file_facts = {}
+for raw_path, raw_line in pattern.findall(response.read_text(encoding="utf-8", errors="replace")):
+    relative = Path(raw_path)
+    if relative.is_absolute() or ".." in relative.parts:
+        continue
+    try:
+        candidate = (root / relative).resolve(strict=True)
+        candidate.relative_to(root)
+    except (OSError, ValueError):
+        continue
+    if not candidate.is_file():
+        continue
+    line = int(raw_line)
+    if line < 1:
+        continue
+    if candidate not in file_facts:
+        content = hashlib.sha256()
+        line_count = 0
+        with candidate.open("rb") as handle:
+            for raw_line_bytes in handle:
+                content.update(raw_line_bytes)
+                line_count += 1
+        file_facts[candidate] = (line_count, "sha256:" + content.hexdigest())
+    line_count, content_digest = file_facts[candidate]
+    key = (relative.as_posix(), line)
+    if line <= line_count and key not in seen:
+        seen.add(key)
+        validated.append({"path": key[0], "line": line, "content_digest": content_digest})
+print(json.dumps(validated, separators=(",", ":")))
+PY
+}
+
+council_artifact_digest() {
+    local evidence_root="$1" task="${2:-${COUNCIL_TASK:-}}"
+    [[ -d "$evidence_root" ]] || return 1
+    python3 - "$evidence_root" "$task" <<'PY'
+import hashlib
+import os
+import stat
+import subprocess
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1]).resolve()
+digest = hashlib.sha256()
+
+def field(value):
+    data = os.fsencode(value)
+    digest.update(len(data).to_bytes(8, "big"))
+    digest.update(data)
+
+field("octopus-artifact-v2")
+field(str(root))
+field(sys.argv[2])
+env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+env.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull)
+ignored = {".git", ".claude-octopus", ".octo", "node_modules", "__pycache__", ".venv"}
+try:
+    listing = subprocess.run(["git", "-C", str(root), "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+                             env=env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=10)
+except (OSError, subprocess.TimeoutExpired):
+    sys.exit(1)
+if listing.returncode == 0:
+    paths = {os.fsdecode(p) for p in listing.stdout.split(b"\0") if p}
+else:
+    paths = set()
+    for directory, dirs, files in os.walk(root, followlinks=False):
+        dirs[:] = sorted(d for d in dirs if d not in ignored)
+        for name in files + [d for d in dirs if (Path(directory) / d).is_symlink()]:
+            paths.add(str((Path(directory) / name).relative_to(root)))
+try:
+    for relative in sorted(paths):
+        path = root / relative
+        if path.is_absolute() and (Path(relative).is_absolute() or ".." in Path(relative).parts):
+            raise ValueError("invalid artifact path")
+        # Do not read through symlinked parent directories or special files.
+        path.parent.resolve().relative_to(root)
+        field(relative)
+        try:
+            metadata = path.lstat()
+        except FileNotFoundError:
+            field("deleted")
+            continue
+        field(str(stat.S_IFMT(metadata.st_mode)))
+        field(str(stat.S_IMODE(metadata.st_mode)))
+        if stat.S_ISLNK(metadata.st_mode):
+            field(os.readlink(path))
+        elif stat.S_ISREG(metadata.st_mode):
+            content = hashlib.sha256()
+            fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | os.O_NONBLOCK)
+            with os.fdopen(fd, "rb") as handle:
+                before = os.fstat(handle.fileno())
+                if not stat.S_ISREG(before.st_mode) or before.st_ino != metadata.st_ino:
+                    raise ValueError("artifact changed during open")
+                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                    content.update(chunk)
+                after = os.fstat(handle.fileno())
+                if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
+                    raise ValueError("artifact changed during hashing")
+            field(content.hexdigest())
+    print("sha256:" + digest.hexdigest())
+except (OSError, ValueError):
+    sys.exit(1)
+PY
+}
+
+council_contribution_record_json() {
+    local response_path="$1" evidence_root="$2" artifact_digest="$3"
+    local workspace_digest="$artifact_digest"
+    local verdict="" evidence='[]' access_state="unverified" validation_result="invalid-empty"
+    if council_response_nonempty "$response_path"; then
+        verdict="$(council_response_verdict "$response_path")"
+        if council_response_is_blind "$response_path"; then
+            access_state="failed"
+            validation_result="invalid-access"
+        elif ! council_response_has_verdict "$response_path"; then
+            validation_result="invalid-verdict"
+        else
+            evidence="$(council_response_evidence_paths_json "$response_path" "$evidence_root")"
+            if [[ "$(jq 'length' <<< "$evidence" 2>/dev/null || printf 0)" -gt 0 ]]; then
+                access_state="evidence-validated"
+                validation_result="valid-grounded"
+            else
+                validation_result="valid-unverified"
+            fi
+        fi
+    fi
+    if [[ "$evidence" != '[]' ]]; then
+        # Bind cited bytes too: Git ignores and nested repositories can exclude
+        # legitimate review artifacts from the initial workspace fingerprint.
+        artifact_digest="$(python3 - "$workspace_digest" "$evidence" <<'PY'
+import hashlib
+import json
+import sys
+paths = {(row["path"], row["content_digest"]) for row in json.loads(sys.argv[2])}
+payload = json.dumps([sys.argv[1], sorted(paths)], separators=(",", ":")).encode()
+print("sha256:" + hashlib.sha256(payload).hexdigest())
+PY
+)" || return 1
+    fi
+    jq -cn --arg artifact_digest "$artifact_digest" --arg workspace_digest "$workspace_digest" --arg access_state "$access_state" \
+        --arg validation_result "$validation_result" --arg verdict "$verdict" \
+        --argjson evidence_paths "$evidence" \
+        '{artifact_digest:$artifact_digest, workspace_digest:$workspace_digest, access_state:$access_state,
+          evidence_paths:$evidence_paths, validation_result:$validation_result,
+          verdict:(if $verdict=="" then null else $verdict end),
+          comprehension_verified:false}'
 }
 
 council_received_non_chair() {
@@ -2142,6 +2316,9 @@ council_run_advice_phase() {
 
     local index=0 member persona slug output_path seat mprovider mprovider_spec verdict
     local seat_org seat_model seat_model_family resp_bytes seat_status seat_rec dispatch_timeout_provenance
+    local evidence_root="${OCTOPUS_PROJECT_DIR:-${PROJECT_ROOT:-$PWD}}" artifact_digest contribution_json
+    [[ -d "$evidence_root" ]] || evidence_root="$PWD"
+    artifact_digest="$(council_artifact_digest "$evidence_root" "${COUNCIL_TASK:-}")" || artifact_digest="unavailable"
     while IFS= read -r member; do
         persona="$(jq -r '.persona' <<< "$member")"
         seat="$(jq -r '.seat' <<< "$member")"
@@ -2229,6 +2406,7 @@ council_run_advice_phase() {
             seat_status="timed-out"
             council_note_seat_timeout "$mprovider" "$persona" "$dispatch_rc" "$(council_seat_timeout "$mprovider")"
         fi
+        contribution_json="$(council_contribution_record_json "$output_path" "$evidence_root" "$artifact_digest")"
         # Per-seat record for summary.json — makes quorum integrity machine-checkable
         # (a chair or degenerate seat can no longer masquerade as a distinct approving
         # vendor). payload_kind is "full" here; #2 (agy chunking) populates delta/chunk,
@@ -2236,11 +2414,13 @@ council_run_advice_phase() {
         seat_rec="$(jq -cn --argjson idx "$index" --arg persona "$persona" --arg seat "$seat" \
             --arg agent_spec "$mprovider_spec" --arg provider "$mprovider" --arg org "$seat_org" --arg model "$seat_model" --arg model_family "$seat_model_family" \
             --argjson bytes "${resp_bytes:-0}" --arg verdict "$verdict" --arg status "$seat_status" \
+            --argjson contribution "$contribution_json" \
             --arg timeout_provenance "$dispatch_timeout_provenance" \
             '{index:$idx, persona:$persona, seat:$seat, agent_spec:$agent_spec, provider:$provider, provider_org:$org,
               model:$model, model_family:$model_family, response_bytes:$bytes, payload_kind:"full",
               verdict:(if $verdict=="" then null else $verdict end),
               status:$status,
+              contribution:$contribution,
               timeout_provenance:(if $timeout_provenance=="" then null else $timeout_provenance end),
               counted_as_approver:false}')"
         COUNCIL_SEAT_RECORDS_JSON="$(jq -c ". + [$seat_rec]" <<< "$COUNCIL_SEAT_RECORDS_JSON")"
@@ -2342,7 +2522,10 @@ council_synthesis_capable_persona() {
 council_run_chair_fallback() {
     local persona provider member_json slug output_path index
     local seat_agent_spec seat_org seat_model seat_model_family resp_bytes verdict seat_status seat_rec existing_response dispatch_rc
-    local dispatch_timeout_provenance
+    local dispatch_timeout_provenance contribution_json artifact_digest
+    local evidence_root="${OCTOPUS_PROJECT_DIR:-${PROJECT_ROOT:-$PWD}}"
+    [[ -d "$evidence_root" ]] || evidence_root="$PWD"
+    artifact_digest="$(council_artifact_digest "$evidence_root" "${COUNCIL_TASK:-}")" || artifact_digest="unavailable"
 
     while IFS= read -r persona; do
         [[ -n "$persona" ]] || continue
@@ -2397,15 +2580,18 @@ council_run_chair_fallback() {
             [[ -z "$resp_bytes" ]] && resp_bytes=0
             verdict="$(council_response_verdict "$output_path")"
             seat_status="responded"
+            contribution_json="$(council_contribution_record_json "$output_path" "$evidence_root" "$artifact_digest")"
             seat_rec="$(jq -cn --argjson idx "$index" --arg persona "$persona" \
                 --arg agent_spec "$seat_agent_spec" --arg provider "$(octo_agent_spec_provider "$provider")" --arg org "$seat_org" --arg model "$seat_model" --arg model_family "$seat_model_family" \
                 --argjson bytes "${resp_bytes:-0}" --arg verdict "$verdict" --arg status "$seat_status" \
+                --argjson contribution "$contribution_json" \
                 --arg timeout_provenance "$dispatch_timeout_provenance" \
                 '{index:$idx, persona:$persona, seat:"chair", agent_spec:$agent_spec, provider:$provider,
                   provider_org:$org, model:$model, model_family:$model_family, response_bytes:$bytes,
                   payload_kind:"full",
                   verdict:(if $verdict=="" then null else $verdict end),
                   status:$status,
+                  contribution:$contribution,
                   timeout_provenance:(if $timeout_provenance=="" then null else $timeout_provenance end),
                   counted_as_approver:false}')"
             COUNCIL_SEAT_RECORDS_JSON="$(jq -c ". + [$seat_rec]" <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}")"

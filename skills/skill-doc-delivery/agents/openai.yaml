@@ -1,3 +1,5 @@
 interface:
   display_name: "Doc Delivery"
   short_description: "Convert markdown to DOCX, PPTX, XLSX, PDF office documents..."
+policy:
+  allow_implicit_invocation: false

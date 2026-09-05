@@ -1,3 +1,5 @@
 interface:
   display_name: "Decision Support"
   short_description: "Present options with trade-offs for informed..."
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "description": "Sanitized deterministic regressions from the 2026-09-05 engineering audit.",
+  "cases": [
+    {
+      "id": "AUD-WORKTREE-001",
+      "category": "lifecycle",
+      "contract": "native-worktree",
+      "description": "The plugin must not replace native worktree creation with a notification hook.",
+      "expected": "pass"
+    },
+    {
+      "id": "AUD-FALLBACK-001",
+      "category": "routing",
+      "contract": "frontier-fallback",
+      "description": "An automatic Astra fallback requires an invocation-scoped escalation grant.",
+      "expected": "pass"
+    },
+    {
+      "id": "AUD-VERDICT-001",
+      "category": "consensus",
+      "contract": "strict-verdict",
+      "description": "Conditional approval text must not become an approving vote.",
+      "expected": "pass"
+    },
+    {
+      "id": "AUD-ISOLATION-001",
+      "category": "security",
+      "contract": "provider-isolation",
+      "description": "A tool-loop provider receives its selected credential but no ambient sentinel.",
+      "expected": "pass"
+    },
+    {
+      "id": "AUD-TIMEOUT-001",
+      "category": "reliability",
+      "contract": "process-tree-timeout",
+      "description": "A timed-out shell cannot leave a descendant that writes after return.",
+      "expected": "pass"
+    },
+    {
+      "id": "AUD-CREDENTIAL-001",
+      "category": "security",
+      "contract": "codex-effective-credential",
+      "description": "Codex credential selection follows the active provider rather than table order.",
+      "expected": "pass"
+    },
+    {
+      "id": "AUD-USAGE-001",
+      "category": "accounting",
+      "contract": "usage-reconciliation",
+      "description": "A completion replaces its reservation and duplicate completion is idempotent.",
+      "expected": "pass"
+    },
+    {
+      "id": "AUD-PACKAGE-001",
+      "category": "release",
+      "contract": "package-allowlist",
+      "description": "The npm allowlist includes command files required by the plugin manifest.",
+      "expected": "pass"
+    },
+    {
+      "id": "AUD-CONTEXT-001",
+      "category": "correctness",
+      "contract": "model-context-ceiling",
+      "description": "An exact Claude SDK Haiku seat cannot inherit the generic one-million-token ceiling.",
+      "expected": "pass"
+    }
+  ]
+}

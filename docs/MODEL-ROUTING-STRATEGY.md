@@ -2,7 +2,7 @@
 
 Status: accepted and implemented
 Decision date: 2026-07-27
-Last reviewed: 2026-09-04
+Last reviewed: 2026-09-05
 
 ## Decision
 
@@ -206,6 +206,42 @@ Every Fable dispatch decision is written to the v10 run event ledger with the
 requested model, resolved model, prompt bytes, phase, role, and reason. The
 single escalation claim is atomic in the durable run directory, so sibling
 subprocesses cannot each spend a premium seat.
+
+## Bounded orchestration experiments
+
+The checked-in audit corpus replays known failures without calling a provider:
+
+```bash
+./scripts/helpers/replay-contract-evals.sh
+```
+
+New corpus entries must be sanitized, deterministic, and tied to the production
+contract that owns the failure. Keep a held-out set when comparing review
+strategies. Do not tune a strategy against every case used to score it.
+
+The first supported comparison is one owner plus one known-family independent
+verifier against a larger council. The input names the held-out
+`ground_truth_finding_ids` once, then records each run with its validated
+findings, whether each finding reached the result, reviewer identities, elapsed
+time, tokens, and cost. Score the run offline:
+
+```bash
+./scripts/helpers/score-review-fleet.py experiment-runs.json
+```
+
+The scorer reports unique validated findings, validated-finding recall,
+unresolved single-reviewer findings, latency, tokens, and cost. Agreement count
+is deliberately absent. Keep the experiment opt-in until held-out results show
+that the extra seats find enough additional defects to justify their time and
+cost.
+
+An Astra trial has stricter admission. Before the run, name the acceptance
+criterion that Sol failed and retain that failed result as evidence. Pin the
+trial to `codex:gpt-6-astra`, which supplies the invocation-scoped escalation
+grant, and set a per-run `OCTOPUS_MAX_COST_USD` ceiling. Do not persist Astra as
+a default, tier route, council seat, review-fleet seat, or fallback. Promote an
+Astra route only after held-out results show a repeatable gain over Sol within
+the stated cost ceiling.
 
 ## Prompt policy
 

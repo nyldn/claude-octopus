@@ -1,3 +1,5 @@
 interface:
   display_name: "Writing Plans"
   short_description: "Create zero-context implementation plans with bite-sized..."
+policy:
+  allow_implicit_invocation: false

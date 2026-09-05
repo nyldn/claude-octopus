@@ -142,11 +142,122 @@ test_orchestrate_can_source_deps() {
     fi
 }
 
+test_extracted_archive_contract() {
+    test_case "npm archive contains every declared component and adapter entrypoint"
+    local pack_dir pack_json tarball extract_dir package_root result
+    pack_dir=$(mktemp -d "${TMPDIR:-/tmp}/octopus-pack.XXXXXX") || {
+        test_fail "unable to allocate package fixture"
+        return 1
+    }
+    extract_dir="$pack_dir/extracted"
+    mkdir -p "$extract_dir"
+    if ! pack_json=$(cd "$PROJECT_ROOT" && npm pack --ignore-scripts --json --pack-destination "$pack_dir" 2>/dev/null); then
+        rm -rf "$pack_dir"
+        test_fail "npm pack failed"
+        return 1
+    fi
+    tarball=$(printf '%s' "$pack_json" | jq -r '.[0].filename // empty' 2>/dev/null)
+    if [[ -z "$tarball" || ! -f "$pack_dir/$tarball" ]] ||
+       ! tar -xzf "$pack_dir/$tarball" -C "$extract_dir"; then
+        rm -rf "$pack_dir"
+        test_fail "npm archive could not be extracted"
+        return 1
+    fi
+    package_root="$extract_dir/package"
+    local status=0
+    if result=$(python3 - "$package_root" <<'PYTEST'
+import json
+import os
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1]).resolve()
+missing = []
+
+def resolve(relative, kind="path"):
+    relative = str(relative)
+    if relative.startswith("./"):
+        relative = relative[2:]
+    candidate = (root / relative).resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        missing.append(f"escaping {kind}: {relative}")
+        return None
+    return candidate
+
+claude = json.loads((root / ".claude-plugin/plugin.json").read_text())
+for command in claude.get("commands", []):
+    path = resolve(command, "Claude command")
+    if path is not None and not path.is_file():
+        missing.append(str(command))
+for skill in claude.get("skills", []):
+    path = resolve(skill, "Claude skill")
+    if path is not None and not (path / "SKILL.md").is_file():
+        missing.append(f"{skill}/SKILL.md")
+
+for manifest_name in (".codex-plugin/plugin.json", ".cursor-plugin/plugin.json"):
+    manifest = json.loads((root / manifest_name).read_text())
+    for field in ("skills", "agents", "commands"):
+        relative = manifest.get(field)
+        if isinstance(relative, str):
+            path = resolve(relative, f"{manifest_name} {field}")
+            if path is not None and not path.is_dir():
+                missing.append(f"{manifest_name}:{field}:{relative}")
+
+for adapter in ("mcp-server", "openclaw"):
+    package = root / adapter / "package.json"
+    if not package.is_file():
+        missing.append(str(package.relative_to(root)))
+        continue
+    metadata = json.loads(package.read_text())
+    entrypoint = root / adapter / metadata.get("main", "")
+    if not entrypoint.is_file():
+        missing.append(str(entrypoint.relative_to(root)))
+
+for required in ("scripts/orchestrate.sh", "hooks/hooks.json", "config/model-pricing.tsv"):
+    path = root / required
+    if not path.exists():
+        missing.append(required)
+if not os.access(root / "scripts/orchestrate.sh", os.X_OK):
+    missing.append("scripts/orchestrate.sh:not-executable")
+
+print("\n".join(missing))
+raise SystemExit(bool(missing))
+PYTEST
+    ); then
+        status=0
+    else
+        status=$?
+    fi
+    rm -rf "$pack_dir"
+    if [[ "$status" -eq 0 ]]; then
+        test_pass
+    else
+        test_fail "extracted archive is incomplete: $result"
+        return 1
+    fi
+}
+
+test_metadata_fast_path_validates_archive() {
+    test_case "metadata-only CI runs extracted archive validation"
+    local workflow="$PROJECT_ROOT/.github/workflows/test.yml"
+    if grep -q '^  package-integrity:' "$workflow" &&
+       grep -q 'tests/smoke/test-packaging-integrity.sh' "$workflow"; then
+        test_pass
+    else
+        test_fail "metadata fast path can skip package archive validation"
+        return 1
+    fi
+}
+
 # Run tests
 test_sourced_scripts_exist
 test_metrics_tracker_exists
 test_state_manager_exists
 test_hook_scripts_exist
 test_orchestrate_can_source_deps
+test_extracted_archive_contract
+test_metadata_fast_path_validates_archive
 
 test_summary

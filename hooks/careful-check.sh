@@ -2,7 +2,7 @@
 # Claude Octopus Careful Mode Hook (v9.8.0)
 # PreToolUse hook on Bash that warns before destructive command patterns.
 # Activated by /octo:careful command (writes state file).
-# Returns JSON decision: {"decision":"allow"} or {"permissionDecision":"ask","message":"..."}
+# Emits permissionDecision: ask under Claude, deny under Codex; silence continues.
 #
 # Kill switch: OCTO_CAREFUL_MODE=off — disables all destructive command checks
 set -euo pipefail
@@ -28,13 +28,6 @@ else
 fi
 [[ -z "$INPUT" ]] && INPUT='{}'
 
-# Only gate Bash commands
-TOOL_NAME=$(echo "$INPUT" | grep -o '"tool_name":"[^"]*"' 2>/dev/null | head -1 | cut -d'"' -f4 || true)
-if [[ "$TOOL_NAME" != "Bash" ]]; then
-    : # pass-through — current hook schema treats silence as continue
-    exit 0
-fi
-
 # Check if careful mode is active
 if declare -f octo_session_state_file >/dev/null 2>&1; then
     STATE_FILE=$(octo_session_state_file "careful" "txt" "$INPUT")
@@ -46,26 +39,21 @@ if [[ ! -f "$STATE_FILE" ]]; then
     exit 0
 fi
 
-# Extract command from input — use jq if available, fall back to grep
-# Note: grep-based extraction truncates at escaped quotes, so we also check raw INPUT
-if command -v jq &>/dev/null; then
-    COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // .command // ""' 2>/dev/null || echo "")
-else
-    COMMAND=$(echo "$INPUT" | grep -o '"command":"[^"]*"' 2>/dev/null | head -1 | cut -d'"' -f4 || true)
-fi
-# Scan the extracted command when we have one. Only fall back to the raw
-# payload when extraction produced nothing (grep-based extraction truncates at
-# escaped quotes) — otherwise every unrelated field in the hook JSON, including
-# cwd and transcript paths, becomes a match surface for the patterns below.
-if [[ -n "$COMMAND" ]]; then
-    CHECK_TEXT="$COMMAND"
-else
-    CHECK_TEXT="$INPUT"
-fi
-if [[ -z "$COMMAND" && -z "$INPUT" ]]; then
-    : # pass-through — current hook schema treats silence as continue
+_octo_invalid_input() {
+    printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Careful mode could not validate the tool input. Check that Python 3 is installed and the hook input is valid JSON before retrying."}}'
     exit 0
-fi
+}
+_octo_careful_decision() {
+    python3 "$_HOOK_DIR/safety-contract.py" careful-decision "$1" 2>/dev/null || _octo_invalid_input
+}
+
+# Codex calls exec_command Bash in PreToolUse, just as Claude does.
+# Parse JSON structurally so whitespace and escaped quotes retain their meaning.
+TOOL_NAME=$(printf '%s' "$INPUT" | python3 "$_HOOK_DIR/safety-contract.py" field tool_name 2>/dev/null) || _octo_invalid_input
+[[ "$TOOL_NAME" == "Bash" ]] || exit 0
+COMMAND=$(printf '%s' "$INPUT" | python3 "$_HOOK_DIR/safety-contract.py" field command 2>/dev/null) || _octo_invalid_input
+CHECK_TEXT="$COMMAND"
+[[ -n "$CHECK_TEXT" ]] || exit 0
 
 # ── Destructive pattern checks ────────────────────────────────────────
 
@@ -80,7 +68,7 @@ if echo "$CHECK_TEXT" | grep -qE '(^|[^[:alnum:]_])rm\s+(-[a-zA-Z]*r[a-zA-Z]*f|-
         fi
     done
     if [[ "$safe" == "false" ]]; then
-        echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"⚠️ Destructive command detected: rm -rf. This recursively force-deletes files. Confirm you want to proceed."}}'
+        _octo_careful_decision 'Destructive command detected: rm -rf. This recursively force-deletes files.'
         exit 0
     fi
 fi
@@ -150,7 +138,7 @@ if _octo_has_destructive_sql \
     && { echo "$CHECK_TEXT" | grep -qiE "$_octo_sql_client_pat" \
         || echo "$CHECK_TEXT" | grep -qiE "$_octo_direct_sql_pat"; }; then
     matched=$(echo "$CHECK_TEXT" | grep -oiE "$_octo_sql_pat" | head -1)
-    echo "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"⚠️ Destructive SQL detected: ${matched}. This permanently destroys data. Confirm you want to proceed.\"}}"
+    _octo_careful_decision "Destructive SQL detected: ${matched}. This permanently destroys data."
     exit 0
 fi
 
@@ -159,13 +147,13 @@ fi
 # any branch name containing "-f" (e.g. `git push origin release-final`), so
 # ordinary pushes were flagged as force pushes.
 if echo "$CHECK_TEXT" | grep -qE 'git\s+push\s+([^|;&]*\s)?(-[a-zA-Z]*f|--force(-with-lease)?(=[^ ]*)?)(\s|$)'; then
-    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"⚠️ Destructive command detected: git push --force. This rewrites remote history and can cause data loss for collaborators. Confirm you want to proceed."}}'
+    _octo_careful_decision 'Destructive command detected: git push --force. This rewrites remote history and can cause data loss for collaborators.'
     exit 0
 fi
 
 # 4. git reset --hard
 if echo "$CHECK_TEXT" | grep -qE 'git\s+reset\s+--hard'; then
-    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"⚠️ Destructive command detected: git reset --hard. This discards all uncommitted changes. Confirm you want to proceed."}}'
+    _octo_careful_decision 'Destructive command detected: git reset --hard. This discards all uncommitted changes.'
     exit 0
 fi
 
@@ -176,20 +164,20 @@ fi
 # Allow shell-equivalent quoting and `--`, but require the dot path to end at a
 # shell boundary so dotfiles and `./subpaths` remain quiet.
 if echo "$CHECK_TEXT" | grep -qE "git\\s+(checkout|restore)\\s+(--\\s+)?[\"']?\\.(/)?[\"']?([[:space:];|&]|$)"; then
-    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"⚠️ Destructive command detected: git checkout/restore. This discards all unstaged changes. Confirm you want to proceed."}}'
+    _octo_careful_decision 'Destructive command detected: git checkout/restore. This discards all unstaged changes.'
     exit 0
 fi
 
 # 6. kubectl delete
 if echo "$CHECK_TEXT" | grep -qE 'kubectl\s+delete'; then
-    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"⚠️ Destructive command detected: kubectl delete. This removes Kubernetes resources. Confirm you want to proceed."}}'
+    _octo_careful_decision 'Destructive command detected: kubectl delete. This removes Kubernetes resources.'
     exit 0
 fi
 
 # 7. docker rm -f / docker system prune
 if echo "$CHECK_TEXT" | grep -qE 'docker\s+rm\s+-f|docker\s+system\s+prune'; then
     matched=$(echo "$CHECK_TEXT" | grep -oE 'docker\s+(rm\s+-f|system\s+prune)' | head -1)
-    echo "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"⚠️ Destructive command detected: ${matched}. This forcefully removes Docker resources. Confirm you want to proceed.\"}}"
+    _octo_careful_decision "Destructive command detected: ${matched}. This forcefully removes Docker resources."
     exit 0
 fi
 

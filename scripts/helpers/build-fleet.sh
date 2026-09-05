@@ -46,7 +46,7 @@ log() {
 
 # ── Provider → Model Family Mapping ──────────────────────────────────────────
 get_family() {
-    octo_model_family "$1"
+    octo_agent_spec_model_family "$1"
 }
 # ── Provider Detection ────────────────────────────────────────────────────────
 # check-providers.sh is the single admission gate for both the activation banner

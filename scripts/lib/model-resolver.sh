@@ -91,7 +91,7 @@ codex_default_model() {
 }
 
 _octo_automatic_model_allowed() {
-    octo_model_automatic_target_allowed "${1:-}"
+    octo_model_automatic_target_allowed "${1:-}" "${2:-}"
 }
 
 # Tier targets may use provider:model syntax. Strip a known same-provider
@@ -420,7 +420,7 @@ resolve_octopus_model() {
     eval "cached_val=\"\${_OCTO_MODEL_CACHE_${cache_key}:-}\""
     if [[ -n "$cached_val" ]]; then
         if validate_model_name_for_provider "$canonical_provider" "$cached_val" &&
-           _octo_automatic_model_allowed "$cached_val"; then
+           _octo_automatic_model_allowed "$cached_val" "$canonical_provider"; then
             echo "$cached_val"
             return 0
         fi
@@ -443,7 +443,7 @@ resolve_octopus_model() {
             # Reject invalid cached model names instead of mutating them into a
             # different model string before eval.
             if validate_model_name_for_provider "$canonical_provider" "$cached_val" &&
-               _octo_automatic_model_allowed "$cached_val"; then
+               _octo_automatic_model_allowed "$cached_val" "$canonical_provider"; then
                 eval "_OCTO_MODEL_CACHE_${cache_key}=\"\$cached_val\""
                 echo "$cached_val"
                 return 0
@@ -481,7 +481,7 @@ resolve_octopus_model() {
 
         # Priority 1b: Session-only config overrides
         resolved_model=$(echo "$config_data" | jq -r --arg p "$canonical_provider" '.overrides[$p] // empty' 2>/dev/null)
-        if [[ -n "$resolved_model" && "$resolved_model" != "null" ]] && ! _octo_automatic_model_allowed "$resolved_model"; then
+        if [[ -n "$resolved_model" && "$resolved_model" != "null" ]] && ! _octo_automatic_model_allowed "$resolved_model" "$canonical_provider"; then
             [[ -n "$_trace" ]] && echo "[model-trace] Tier 2 (session override): REJECTED explicit-only model $resolved_model" >&2
             resolved_model=""
         fi
@@ -523,7 +523,7 @@ resolve_octopus_model() {
                             role_route_blocks_phase="true"
                             if [[ -n "$role_route_model" ]]; then
                                 resolved_model="$role_route_model"
-                                if ! _octo_automatic_model_allowed "$resolved_model"; then
+                                if ! _octo_automatic_model_allowed "$resolved_model" "$canonical_provider"; then
                                     [[ -n "$_trace" ]] && echo "[model-trace] Tier 3 (literal role route): REJECTED explicit-only model $resolved_model" >&2
                                     resolved_model=""
                                 fi
@@ -565,7 +565,7 @@ resolve_octopus_model() {
                     fi
                     if [[ ( -z "$phase_route_provider" || "$phase_route_provider" == "$canonical_provider" ) && -n "$phase_route_model" ]]; then
                         resolved_model="$phase_route_model"
-                        if ! _octo_automatic_model_allowed "$resolved_model"; then
+                        if ! _octo_automatic_model_allowed "$resolved_model" "$canonical_provider"; then
                             [[ -n "$_trace" ]] && echo "[model-trace] Tier 3 (literal phase route): REJECTED explicit-only model $resolved_model" >&2
                             resolved_model=""
                         fi
@@ -644,7 +644,7 @@ resolve_octopus_model() {
                         routed=""
                     else
                         resolved_model="$routed"
-                        if ! _octo_automatic_model_allowed "$resolved_model"; then
+                        if ! _octo_automatic_model_allowed "$resolved_model" "$canonical_provider"; then
                             [[ -n "$_trace" ]] && echo "[model-trace] Tier 3 (phase/role routing): REJECTED explicit-only model $resolved_model" >&2
                             resolved_model=""
                             routed=""
@@ -665,7 +665,7 @@ resolve_octopus_model() {
         # Example: providers.commandcode.roles.security-reviewer.
         if [[ ( -z "$resolved_model" || "$resolved_model" == "null" ) && -n "$role" ]]; then
             resolved_model=$(echo "$config_data" | jq -r --arg p "$canonical_provider" --arg role "$role" '.providers[$p].roles[$role] // empty' 2>/dev/null)
-            if [[ -n "$resolved_model" && "$resolved_model" != "null" ]] && ! _octo_automatic_model_allowed "$resolved_model"; then
+            if [[ -n "$resolved_model" && "$resolved_model" != "null" ]] && ! _octo_automatic_model_allowed "$resolved_model" "$canonical_provider"; then
                 [[ -n "$_trace" ]] && echo "[model-trace] Tier 3a (provider role default): REJECTED explicit-only model $resolved_model" >&2
                 resolved_model=""
             fi
@@ -682,7 +682,7 @@ resolve_octopus_model() {
         if [[ ( -z "$resolved_model" || "$resolved_model" == "null" ) &&
               "$routing_policy" == "eval" && -n "${OCTOPUS_TASK_CLASS:-}" ]]; then
             resolved_model="$(_octo_eval_model_for_class "$canonical_provider" "$OCTOPUS_TASK_CLASS" 2>/dev/null || true)"
-            if [[ -n "$resolved_model" ]] && ! _octo_automatic_model_allowed "$resolved_model"; then
+            if [[ -n "$resolved_model" ]] && ! _octo_automatic_model_allowed "$resolved_model" "$canonical_provider"; then
                 [[ -n "$_trace" ]] && echo "[model-trace] Tier 3b (eval ${OCTOPUS_TASK_CLASS}): REJECTED explicit-only model $resolved_model" >&2
                 resolved_model=""
             fi
@@ -701,7 +701,12 @@ resolve_octopus_model() {
             if [[ -n "$capability" && "$capability" != "$canonical_provider" ]]; then
                 # Support both short capability (spark) and full model aliases (spark_model)
                 resolved_model=$(echo "$config_data" | jq -r --arg p "$canonical_provider" --arg cap "$capability" '.providers[$p][$cap] // .providers[$p][($cap + "_model")] // empty' 2>/dev/null)
-                if [[ -n "$resolved_model" && "$resolved_model" != "null" ]] && ! _octo_automatic_model_allowed "$resolved_model"; then
+                if [[ -n "$resolved_model" && "$resolved_model" != "null" ]] &&
+                   ! validate_model_name_for_provider "$canonical_provider" "$resolved_model"; then
+                    log ERROR "Invalid configured model for $canonical_provider capability '$capability'"
+                    return 1
+                fi
+                if [[ -n "$resolved_model" && "$resolved_model" != "null" ]] && ! _octo_automatic_model_allowed "$resolved_model" "$canonical_provider"; then
                     [[ -n "$_trace" ]] && echo "[model-trace] Tier 4 (capability map): REJECTED explicit-only model $resolved_model" >&2
                     resolved_model=""
                 fi
@@ -726,7 +731,7 @@ resolve_octopus_model() {
                     tier_mapped_model=$(echo "$config_data" | jq -r --arg p "$canonical_provider" --arg model "$resolved_model" '.providers[$p][$model] // .providers[$p][($model + "_model")] // empty' 2>/dev/null)
                     [[ -n "$tier_mapped_model" && "$tier_mapped_model" != "null" ]] && resolved_model="$tier_mapped_model"
                 fi
-                if [[ -n "$resolved_model" && "$resolved_model" != "null" ]] && ! _octo_automatic_model_allowed "$resolved_model"; then
+                if [[ -n "$resolved_model" && "$resolved_model" != "null" ]] && ! _octo_automatic_model_allowed "$resolved_model" "$canonical_provider"; then
                     [[ -n "$_trace" ]] && echo "[model-trace] Tier 5 (cost mode ${cost_mode}): REJECTED explicit-only model $resolved_model" >&2
                     resolved_model=""
                 fi
@@ -737,7 +742,7 @@ resolve_octopus_model() {
         # 5. Global Defaults
         if [[ -z "$resolved_model" || "$resolved_model" == "null" ]]; then
             resolved_model=$(echo "$config_data" | jq -r --arg p "$canonical_provider" '.providers[$p].default // .providers[$p].model // empty' 2>/dev/null)
-            if [[ -n "$resolved_model" && "$resolved_model" != "null" ]] && ! _octo_automatic_model_allowed "$resolved_model"; then
+            if [[ -n "$resolved_model" && "$resolved_model" != "null" ]] && ! _octo_automatic_model_allowed "$resolved_model" "$canonical_provider"; then
                 [[ -n "$_trace" ]] && echo "[model-trace] Tier 6 (config default): REJECTED explicit-only model $resolved_model" >&2
                 resolved_model=""
             fi
@@ -756,7 +761,7 @@ resolve_octopus_model() {
           ( -z "$resolved_model" || "$resolved_model" == "null" ) &&
           "$routing_policy" == "eval" && -n "${OCTOPUS_TASK_CLASS:-}" ]]; then
         resolved_model="$(_octo_eval_model_for_class "$canonical_provider" "$OCTOPUS_TASK_CLASS" 2>/dev/null || true)"
-        if [[ -n "$resolved_model" ]] && ! _octo_automatic_model_allowed "$resolved_model"; then
+        if [[ -n "$resolved_model" ]] && ! _octo_automatic_model_allowed "$resolved_model" "$canonical_provider"; then
             [[ -n "$_trace" ]] && echo "[model-trace] Tier 3b (eval ${OCTOPUS_TASK_CLASS}): REJECTED explicit-only model $resolved_model" >&2
             resolved_model=""
         fi

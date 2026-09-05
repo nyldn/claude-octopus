@@ -1,3 +1,5 @@
 interface:
   display_name: "Content Pipeline"
   short_description: "Extract patterns and anatomy from URLs — use to..."
+policy:
+  allow_implicit_invocation: false

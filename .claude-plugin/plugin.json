@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "10.1.0",
-  "description": "v10.1.0 \u2014 Simplify setup, provider readiness, dispatch controls, cost reporting, and uninstall guidance. Run /octo:setup.",
+  "version": "11.0.0",
+  "description": "v11.0.0 \u2014 Harden provider isolation, model routing, council evidence, and cross-host plugin contracts. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

@@ -203,6 +203,9 @@ EOF
 # Get model input pricing per million tokens for standalone legacy use.
 get_model_cost() {
     local model="$1"
+    if declare -f octo_model_canonical_id >/dev/null 2>&1; then
+        model="$(octo_model_canonical_id "$model")" || return 1
+    fi
 
     case "$model" in
         # Claude models (input cost, simplified)
@@ -393,6 +396,7 @@ record_agents_batch_complete() {
         # v8.6.0: Extract native metrics from result file
         local native_tokens="" native_tools="" native_duration=""
         local native_input_tokens="" native_output_tokens=""
+        local native_cached_input_tokens="" native_cache_write_tokens="" native_reasoning_tokens=""
         if declare -f parse_task_metrics &>/dev/null; then
             parse_task_metrics "$output"
             native_tokens="$_PARSED_TOKENS"
@@ -400,12 +404,16 @@ record_agents_batch_complete() {
             native_duration="$_PARSED_DURATION_MS"
             native_input_tokens="$_PARSED_INPUT_TOKENS"
             native_output_tokens="$_PARSED_OUTPUT_TOKENS"
+            native_cached_input_tokens="${_PARSED_CACHED_INPUT_TOKENS:-}"
+            native_cache_write_tokens="${_PARSED_CACHE_WRITE_TOKENS:-}"
+            native_reasoning_tokens="${_PARSED_REASONING_TOKENS:-}"
         fi
 
         # Record completion
         record_agent_complete "$metrics_id" "$agent_type" "$model" "$output" "$phase" \
             "$native_tokens" "$native_tools" "$native_duration" \
-            "$native_input_tokens" "$native_output_tokens"
+            "$native_input_tokens" "$native_output_tokens" \
+            "$native_cached_input_tokens" "$native_cache_write_tokens" "$native_reasoning_tokens"
 
         # Remove from map
         sed -i.bak "/^${task_group}-${task_id}:/d" "$metrics_map" 2>/dev/null || true

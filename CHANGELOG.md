@@ -2,6 +2,40 @@
 
 ## [Unreleased]
 
+## [11.0.0] - 2026-09-05
+
+### Breaking changes
+
+- MCP and OpenClaw workflow calls require an absolute `project_root` identifying
+  the repository to operate on. MCP status requires it too. Editor context and
+  the plugin installation directory no longer supply execution authority.
+- Automatic routes and restriction fallbacks reject explicit-only frontier
+  models without a matching invocation selection. Unknown automatic models
+  require a provider capability that permits custom model selection.
+- Council votes require one final, unconditional verdict outside Markdown
+  examples. Incomplete responses and quoted verdicts cannot satisfy quorum.
+
+### Reliability and compatibility
+
+- Isolate selected provider credentials, preserve prompt arguments, and record
+  redacted dispatch decisions with bounded context and output budgets.
+- Supervise command groups on timeout and interruption. Detached pipe holders
+  cannot keep POSIX timeout cleanup waiting indefinitely.
+- Recover dispatch trace locks after a Bash 3 subshell writer is killed.
+- Fingerprint working-tree artifact contents rather than only the Git revision;
+  retain evidence paths and source-access status without claiming comprehension.
+- Parse quoted Codex project tables on older Python runtimes, and keep cached
+  input tokens separate from uncached input regardless of native metric order.
+- Preserve explicit-only skill invocation with both Claude Code frontmatter
+  and Codex `agents/openai.yaml` policy metadata.
+- Make careful-mode decisions compatible with Codex, validate every freeze-mode
+  patch target, and handle spaced/escaped hook JSON in both hosts.
+- Add contract failure replay and targeted regression coverage; use weighted
+  test sharding and a focused symlink lane instead of redundant full passes.
+
+See [the v11 migration notes](docs/MIGRATING-V11.md) and
+[plugin compatibility](docs/PLUGIN-COMPATIBILITY.md) before upgrading integrations.
+
 ### Added
 
 - Add cost-safe catalog and routing support for Claude Fable 5.1 and GPT-6

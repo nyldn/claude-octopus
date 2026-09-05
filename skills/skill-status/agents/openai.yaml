@@ -1,3 +1,5 @@
 interface:
   display_name: "Status"
   short_description: "Show where you are in the workflow and what to do next —..."
+policy:
+  allow_implicit_invocation: false

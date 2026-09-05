@@ -1,3 +1,5 @@
 interface:
   display_name: "Rollback"
   short_description: "Roll back to a previous checkpoint via git — use when a..."
+policy:
+  allow_implicit_invocation: false

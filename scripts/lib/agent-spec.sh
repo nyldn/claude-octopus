@@ -3,6 +3,11 @@
 # or a model-qualified seat (e.g. commandcode:minimaxai/minimax-m3).
 # Source-safe: defines functions only.
 
+_octo_agent_spec_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if ! declare -f octo_model_family >/dev/null 2>&1; then
+    source "${_octo_agent_spec_lib_dir}/models.sh" 2>/dev/null || true
+fi
+
 # Provider routing ceilings are byte-based. Bash's ${#value} counts characters
 # in UTF-8 locales, so measure under the C locale before evaluating a provider.
 octo_prompt_byte_length() {
@@ -201,7 +206,7 @@ octo_agent_spec_slug() {
     printf '%s' "$spec" | sed -E 's/[^A-Za-z0-9._-]+/_/g; s/^_+//; s/_+$//'
 }
 
-octo_model_family() {
+octo_agent_spec_model_family() {
     local spec="${1:-}" effective_model="${2:-}"
     local executor model prefix
     executor="$(octo_agent_spec_executor "$spec")"
@@ -210,22 +215,10 @@ octo_model_family() {
         model="$(octo_agent_spec_explicit_model "$spec" 2>/dev/null || true)"
     fi
 
-    case "$model" in
-        anthropic/*|*claude*) echo anthropic; return ;;
-        minimaxai/*|minimax/*|*minimax*) echo minimax; return ;;
-        deepseek/*|*deepseek*) echo deepseek; return ;;
-        openai/*|gpt-*|o[0-9]*|*chatgpt*) echo openai; return ;;
-        google/*|*gemini*) echo google; return ;;
-        qwen/*|alibaba/*|*qwen*) echo alibaba; return ;;
-        composer*) echo cursor; return ;;
-        x-ai/*|xai/*|*grok*) echo xai; return ;;
-        mistralai/*|*mistral*) echo mistral; return ;;
-        stealth/*) echo stealth; return ;;
-        */*)
-            prefix="${model%%/*}"
-            [[ -n "$prefix" ]] && { printf '%s\n' "$prefix"; return; }
-            ;;
-    esac
+    if [[ -n "$model" ]]; then
+        prefix="$(octo_model_family "$model")"
+        [[ "$prefix" != unknown ]] && { printf '%s\n' "$prefix"; return; }
+    fi
 
     case "$executor" in
         codex|codex-*) echo openai ;;

@@ -55,7 +55,11 @@ check mode.
 make ci-local
 ```
 
-This mirrors the required checks plus the CI-only verifications that targeted test runs miss (`sync-check`, docs-sync, openclaw-compat, plugin expert review). Local green here predicts remote green; targeted suites alone do not (v9.50.0 passed every targeted suite locally and still failed three CI-only checks).
+This runs generated-file checks and the complete local smoke, unit, and
+integration suites, including docs sync, OpenClaw compatibility, and plugin
+expert review. Hosted CI separately checks Linux/macOS portability, ShellCheck,
+package artifacts, and symlink paths. Local success does not replace those
+checks on the exact release commit.
 
 Known scanner gotcha: `tests/integration/test-plugin-expert-review.sh` greps tracked non-md files for `(API_KEY|SECRET|PASSWORD)\s*=\s*['\"]<20+ chars>`. A shell line like `ANTHROPIC_API_KEY="${VAR}"` false-positives. Quote the whole env argument instead: `"ANTHROPIC_API_KEY=${VAR}"`.
 

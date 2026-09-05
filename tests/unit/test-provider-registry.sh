@@ -61,7 +61,7 @@ override_context=$(env -u OCTOPUS_CONTEXT_BUDGET "OCTOPUS_COMMANDCODE_CONTEXT_BU
     bash -c 'source "$1/scripts/lib/dispatch.sh"; get_provider_context_limit commandcode-review' _ "$PROJECT_ROOT")
 sdk_context=$(env -u OCTOPUS_CONTEXT_BUDGET -u OCTOPUS_CLAUDE_SDK_CONTEXT_BUDGET \
     bash -c 'source "$1/scripts/lib/dispatch.sh"; get_provider_context_limit claude-sdk-review' _ "$PROJECT_ROOT")
-if [[ "$default_context" == "12000" && "$override_context" == "54321" && "$sdk_context" == "1000000" ]]; then
+if [[ "$default_context" == "10464" && "$override_context" == "52785" && "$sdk_context" == "998464" ]]; then
     test_pass
 else
     test_fail "unexpected context routing: default=$default_context override=$override_context sdk=$sdk_context"
@@ -74,7 +74,7 @@ source_order_context=$(env -u OCTOPUS_CONTEXT_BUDGET "OCTOPUS_CLAUDE_CONTEXT_BUD
         source "$1/scripts/lib/smoke.sh"
         get_provider_context_limit claude-opus
     ' _ "$PROJECT_ROOT")
-if [[ "$source_order_context" == "200000" ]]; then
+if [[ "$source_order_context" == "198464" ]]; then
     test_pass
 else
     test_fail "smoke source order changed Claude context override: $source_order_context"

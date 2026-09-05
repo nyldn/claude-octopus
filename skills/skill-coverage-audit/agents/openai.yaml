@@ -1,3 +1,5 @@
 interface:
   display_name: "Coverage Audit"
   short_description: "Trace codepaths in diffs, map against tests, auto-generate..."
+policy:
+  allow_implicit_invocation: false

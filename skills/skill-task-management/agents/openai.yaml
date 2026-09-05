@@ -1,3 +1,5 @@
 interface:
   display_name: "Task Management"
   short_description: "Manage tasks with Claude Code native tools — use to track..."
+policy:
+  allow_implicit_invocation: false

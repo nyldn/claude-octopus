@@ -14,7 +14,7 @@ _OCTOPUS_MODELS_LOADED=true
 
 # Get model capabilities metadata
 # Returns: context_k|tools|images|reasoning|provider|tier|status
-get_model_catalog() {
+_octo_get_model_catalog_raw() {
     local model="$1"
     case "$model" in
         # OpenAI GPT-5.x
@@ -87,11 +87,59 @@ get_model_catalog() {
     esac
 }
 
+# Resolve policy identity without changing the provider-native model spelling
+# used for transport. A provider-style qualifier (provider:model) and a gateway
+# namespace (vendor/model) are removed only when the remaining ID is a
+# catalogued model. Unknown custom IDs therefore remain byte-for-byte intact.
+octo_model_canonical_id() {
+    local model="${1:-}" candidate=""
+    [[ -n "$model" ]] || return 1
+
+    if [[ "$model" == *:* ]]; then
+        candidate="${model#*:}"
+        if [[ "$(_octo_get_model_catalog_raw "$candidate")" != *"|unknown" ]] ||
+           { [[ "$candidate" == */* ]] &&
+             [[ "$(_octo_get_model_catalog_raw "${candidate##*/}")" != *"|unknown" ]]; }; then
+            model="$candidate"
+        fi
+    fi
+
+    if [[ "$model" == */* ]]; then
+        candidate="${model##*/}"
+        if [[ "$(_octo_get_model_catalog_raw "$candidate")" != *"|unknown" ]]; then
+            model="$candidate"
+        fi
+    fi
+
+    printf '%s\n' "$model"
+}
+
+get_model_catalog() {
+    local model raw
+    model="${1:-}"
+    [[ -n "$model" ]] || return 1
+
+    # Transport-qualified catalog entries may intentionally override canonical
+    # metadata. OrcaRouter, for example, exposes a larger effective context for
+    # anthropic/claude-sonnet-4.6 than the native Claude transport. Preserve
+    # that transport contract for capability lookup while canonical policy,
+    # pricing, and family checks continue to use octo_model_canonical_id().
+    raw="$(_octo_get_model_catalog_raw "$model")"
+    if [[ "$raw" != *"|unknown" ]]; then
+        printf '%s\n' "$raw"
+        return 0
+    fi
+
+    model="$(octo_model_canonical_id "$model")" || return 1
+    _octo_get_model_catalog_raw "$model"
+}
+
 # Return routing policy metadata separate from the fixed seven-field capability
 # catalog so existing catalog consumers remain compatible.
 # Format: selection_policy|auto_eligible|max_auto_dispatches|max_escalated_dispatches|availability
 get_model_policy() {
-    local model="$1"
+    local model
+    model="$(octo_model_canonical_id "$1")" || return 1
     case "$model" in
         claude-fable-5-1) echo "explicit|no|0|1|general" ;;
         claude-fable-5)   echo "explicit|no|0|0|general" ;;
@@ -117,9 +165,36 @@ octo_model_auto_eligible() {
 # Automatic config targets may be stored as either a bare model ID or a
 # provider-qualified target. Apply policy to the model portion in both forms.
 octo_model_automatic_target_allowed() {
-    local model="${1:-}"
-    model="${model#*:}"
-    ! is_known_model "$model" || octo_model_auto_eligible "$model"
+    local target="${1:-}" provider="${2:-}" target_provider=""
+    local model="$target"
+    [[ -n "$target" ]] || return 1
+
+    if [[ "$target" == *:* ]] && declare -f octo_provider_canonical >/dev/null 2>&1; then
+        target_provider="$(octo_provider_canonical "${target%%:*}" 2>/dev/null || true)"
+        if [[ -n "$target_provider" ]]; then
+            [[ -n "$provider" ]] || provider="$target_provider"
+            model="${target#*:}"
+            # Simple provider-qualified labels are symbolic capability routes,
+            # not transport model IDs. Their eventual configured model is
+            # admitted again after recursive resolution.
+            [[ "$model" =~ ^[a-z][a-z0-9_]*$ ]] && return 0
+        fi
+    fi
+    model="$(octo_model_canonical_id "$model")" || return 1
+
+    if is_known_model "$model"; then
+        octo_model_auto_eligible "$model"
+        return $?
+    fi
+
+    # Unknown IDs fail closed unless the provider explicitly advertises a
+    # dynamic/custom automatic catalog. This is separate from model-gateway:
+    # cross-vendor routing and unknown-ID admission are different contracts.
+    if [[ -n "$provider" ]] && declare -f octo_provider_has_capability >/dev/null 2>&1; then
+        octo_provider_has_capability "$provider" custom-model-auto
+        return $?
+    fi
+    return 1
 }
 
 # Check if a model is known in the catalog
@@ -148,6 +223,33 @@ get_model_capability() {
         provider)  echo "$catalog" | cut -d'|' -f5 ;;
         tier)      echo "$catalog" | cut -d'|' -f6 ;;
         status)    echo "$catalog" | cut -d'|' -f7 ;;
+    esac
+}
+
+# Classify a concrete model identity. Agent/provider specs belong to
+# octo_agent_spec_model_family() in agent-spec.sh; keeping the two contracts
+# separate prevents a provider alias from being mistaken for model evidence.
+octo_model_family() {
+    local model="${1:-}" prefix
+    model="$(octo_model_canonical_id "$model" 2>/dev/null || printf '%s' "$model")"
+    case "$model" in
+        anthropic/*|*claude*) echo anthropic ;;
+        minimaxai/*|minimax/*|*minimax*) echo minimax ;;
+        deepseek/*|*deepseek*) echo deepseek ;;
+        openai/*|gpt-*|o[0-9]*|*chatgpt*|codex*) echo openai ;;
+        google/*|*gemini*|agy-*) echo google ;;
+        qwen/*|alibaba/*|*qwen*) echo alibaba ;;
+        moonshot/*|kimi-*|*kimi*) echo moonshot ;;
+        x-ai/*|xai/*|*grok*) echo xai ;;
+        composer*|cursor-agent*) echo cursor ;;
+        mistralai/*|*mistral*) echo mistral ;;
+        stealth/*) echo stealth ;;
+        sonar*) echo perplexity ;;
+        */*)
+            prefix="${model%%/*}"
+            [[ -n "$prefix" ]] && printf '%s\n' "$prefix" || printf 'unknown\n'
+            ;;
+        *) echo unknown ;;
     esac
 }
 

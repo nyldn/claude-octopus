@@ -89,6 +89,51 @@ _octo_provider_env_forward_workspace_dir() {
     return 0
 }
 
+_octo_build_openai_tool_loop_env() {
+    local requested_provider="${1:-}"
+    local credential_env="${2:-}"
+
+    if [[ -z "$credential_env" && "$requested_provider" == "openai-compatible-agent" ]]; then
+        if declare -f octopus_provider_definition_field >/dev/null 2>&1; then
+            credential_env="$(octopus_provider_definition_field "openai-compatible-agent" api_key_env 2>/dev/null || true)"
+        fi
+        [[ -n "$credential_env" ]] || credential_env="${OPENAI_COMPAT_API_KEY_ENV:-OPENAI_API_KEY}"
+    fi
+
+    # The selected key name can come from providers.json. Never use it for
+    # indirect expansion until it has passed the same identifier contract as
+    # dispatch-time configuration validation.
+    if [[ ! "$credential_env" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+        PROVIDER_ENV_ARRAY=(env -i "PATH=$PATH" "HOME=$HOME" "TERM=${TERM:-dumb}" "TMPDIR=${TMPDIR:-/tmp}")
+        return 0
+    fi
+
+    if [[ -z "${!credential_env:-}" ]] && declare -f resolve_provider_env >/dev/null 2>&1; then
+        resolve_provider_env "$credential_env" 2>/dev/null || true
+    fi
+
+    PROVIDER_ENV_ARRAY=(env -i "PATH=$PATH" "HOME=$HOME" "TERM=${TERM:-dumb}" "TMPDIR=${TMPDIR:-/tmp}")
+    [[ -n "${!credential_env:-}" ]] && PROVIDER_ENV_ARRAY+=("${credential_env}=${!credential_env}")
+
+    # These values alter only the bundled helper's bounded execution contract.
+    # Ambient provider keys and unrelated process state remain outside the
+    # model-controlled tool loop.
+    local _runtime_var
+    for _runtime_var in \
+        OPENAI_COMPAT_MAX_TOKENS \
+        OPENAI_COMPAT_REQUEST_TIMEOUT \
+        OPENAI_COMPAT_MAX_RETRIES \
+        OPENAI_COMPAT_COMMAND_TIMEOUT \
+        OPENAI_COMPAT_UNSAFE_COMMANDS \
+        PYTHONIOENCODING \
+        LANG \
+        LC_ALL; do
+        if [[ -n "${!_runtime_var:-}" ]]; then
+            PROVIDER_ENV_ARRAY+=("${_runtime_var}=${!_runtime_var}")
+        fi
+    done
+}
+
 build_provider_env() {
     _octo_build_provider_env_impl "$@"
     local _rc=$?
@@ -97,8 +142,8 @@ build_provider_env() {
 }
 
 _octo_build_provider_env_impl() {
-    local provider
-    provider="$(octo_provider_canonical "${1:-}" 2>/dev/null || printf '%s' "${1:-}")"
+    local requested_provider="${1:-}" provider
+    provider="$(octo_provider_canonical "${requested_provider%%:*}" 2>/dev/null || printf '%s' "${requested_provider%%:*}")"
     PROVIDER_ENV_ARRAY=()
 
     if [[ "${OCTOPUS_SECURITY_V870:-true}" != "true" ]]; then
@@ -120,29 +165,28 @@ _octo_build_provider_env_impl() {
     # v9.2.1: Try resolving env vars before building isolated env (Issue #177)
     case "$provider" in
         codex*)
-            if [[ -z "${OPENAI_API_KEY:-}" ]]; then
-                resolve_provider_env "OPENAI_API_KEY" 2>/dev/null || true
-            fi
-
             # Preserve Codex CLI provider configuration while keeping env
             # isolation. Codex supports OpenAI-compatible providers via
             # config.toml, where env_key may name a provider-specific key
             # (for example a router/proxy key) rather than OPENAI_API_KEY.
             local _codex_config_home="${CODEX_HOME:-$HOME/.codex}"
             local _codex_config="${_codex_config_home}/config.toml"
-            local _codex_env_key=""
+            local _codex_env_key="OPENAI_API_KEY"
             if [[ -f "$_codex_config" ]]; then
-                _codex_env_key=$(sed -nE 's/^[[:space:]]*env_key[[:space:]]*=[[:space:]]*"([A-Za-z_][A-Za-z0-9_]*)".*/\1/p' "$_codex_config" | head -1)
-                if [[ -n "$_codex_env_key" && "$_codex_env_key" != "OPENAI_API_KEY" ]]; then
-                    resolve_provider_env "$_codex_env_key" 2>/dev/null || true
+                _codex_env_key=""
+                if command -v python3 >/dev/null 2>&1; then
+                    _codex_env_key=$(python3 "${_provider_routing_lib_dir}/../helpers/read-codex-config.py" "$_codex_config" 2>/dev/null) || _codex_env_key=""
                 fi
             fi
+            if [[ -n "$_codex_env_key" ]]; then
+                resolve_provider_env "$_codex_env_key" 2>/dev/null || true
+            fi
 
-            PROVIDER_ENV_ARRAY=(env -i "PATH=$PATH" "HOME=$HOME" "OPENAI_API_KEY=${OPENAI_API_KEY:-}" "TMPDIR=${TMPDIR:-/tmp}")
+            PROVIDER_ENV_ARRAY=(env -i "PATH=$PATH" "HOME=$HOME" "TMPDIR=${TMPDIR:-/tmp}")
             if [[ -n "${CODEX_HOME:-}" ]]; then
                 PROVIDER_ENV_ARRAY+=("CODEX_HOME=${CODEX_HOME}")
             fi
-            if [[ -n "$_codex_env_key" && "$_codex_env_key" != "OPENAI_API_KEY" && -n "${!_codex_env_key:-}" ]]; then
+            if [[ -n "$_codex_env_key" && -n "${!_codex_env_key:-}" ]]; then
                 PROVIDER_ENV_ARRAY+=("${_codex_env_key}=${!_codex_env_key}")
             fi
             # codex has NO flag to disable its OSS/local-model auto-download
@@ -302,6 +346,16 @@ _octo_build_provider_env_impl() {
             if [[ -z "${ORCAROUTER_API_KEY:-}" ]]; then
                 resolve_provider_env "ORCAROUTER_API_KEY" 2>/dev/null || true
             fi
+            return 0
+            ;;
+        openai-compatible|openai-tools|openai-compatible-agent)
+            _octo_build_openai_tool_loop_env "openai-compatible-agent" ""
+            [[ ${#_trace_env[@]} -gt 0 ]] && PROVIDER_ENV_ARRAY+=("${_trace_env[@]}")
+            return 0
+            ;;
+        atlascloud*)
+            _octo_build_openai_tool_loop_env "atlascloud" "ATLASCLOUD_API_KEY"
+            [[ ${#_trace_env[@]} -gt 0 ]] && PROVIDER_ENV_ARRAY+=("${_trace_env[@]}")
             return 0
             ;;
         claude-sdk*)
@@ -651,7 +705,7 @@ set_provider_model() {
         echo "  Examples: gpt-5.6-sol, default, claude-opus-5" >&2
         return 1
     fi
-    if ! octo_model_automatic_target_allowed "$model"; then
+    if ! octo_model_automatic_target_allowed "$model" "$provider"; then
         echo "ERROR: '$model' is explicit-only and cannot be stored in providers.json" >&2
         echo "  Use a one-command environment pin or an exact model-qualified seat" >&2
         return 1

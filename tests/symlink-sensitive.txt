@@ -1,0 +1,22 @@
+# Unit suites whose behavior materially depends on logical/physical paths,
+# realpath resolution, or refusing unsafe symlink targets.
+unit/test-consultative-agent-dispatch.sh
+unit/test-consultative-workspace-gitignore.sh
+unit/test-cursor-agent-provider.sh
+unit/test-dispatch-plan.sh
+unit/test-ensure-plugin-root.sh
+unit/test-feature-disclosure.sh
+unit/test-mcp-server.sh
+unit/test-memory-contract.sh
+unit/test-openclaw-integration.sh
+unit/test-plan-artifact-storage.sh
+unit/test-plugin-root-shim.sh
+unit/test-review-aggregation-robustness.sh
+unit/test-skill-doctor-stable-link.sh
+unit/test-spawn-agent-capture-pid.sh
+unit/test-tangle-clean-baseline.sh
+unit/test-tangle-context-review-loop.sh
+unit/test-tangle-run-worktree.sh
+unit/test-tangle-worktree-evidence.sh
+unit/test-tangle-write-scope-safety.sh
+unit/test-windows-doctor-compat.sh

@@ -1,3 +1,5 @@
 interface:
   display_name: "Staged Review"
   short_description: "Use when a PR or feature needs both specification and..."
+policy:
+  allow_implicit_invocation: false

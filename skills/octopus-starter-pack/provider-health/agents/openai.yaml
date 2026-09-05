@@ -1,0 +1,5 @@
+interface:
+  display_name: "Provider Health"
+  short_description: "Check configured provider availability and readiness"
+policy:
+  allow_implicit_invocation: false

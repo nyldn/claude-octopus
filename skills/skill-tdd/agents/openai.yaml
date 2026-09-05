@@ -1,3 +1,5 @@
 interface:
   display_name: "Tdd"
   short_description: "Build features with tests-before-code rigor — use for new..."
+policy:
+  allow_implicit_invocation: false

@@ -1,3 +1,5 @@
 interface:
   display_name: "Ui Ux Design"
   short_description: "Design UI/UX systems with style guides, palettes, typography,..."
+policy:
+  allow_implicit_invocation: false

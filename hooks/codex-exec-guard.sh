@@ -107,13 +107,109 @@ _octo_backtick_end() {
     return 1
 }
 
+# Print the delimiter and tab-stripping flag for the first quoted heredoc
+# operator that appears in executable shell syntax on a line. Operators inside
+# quotes and comments are data, not syntax.
+_octo_quoted_heredoc_spec() {
+    local line="$1" state="plain" escaped="false"
+    local i char next previous j strip_tabs="false" quote delimiter=""
+
+    for ((i = 0; i < ${#line}; i++)); do
+        char="${line:i:1}"
+        next="${line:i+1:1}"
+        previous="${line:i-1:1}"
+
+        if [[ "$escaped" == "true" ]]; then
+            escaped="false"
+            continue
+        fi
+
+        case "$state" in
+            single)
+                [[ "$char" == "'" ]] && state="plain"
+                ;;
+            double)
+                case "$char" in
+                    '"') state="plain" ;;
+                    "\\") escaped="true" ;;
+                esac
+                ;;
+            plain)
+                case "$char" in
+                    "'") state="single" ;;
+                    '"') state="double" ;;
+                    "\\") escaped="true" ;;
+                    '#')
+                        if [[ $i -eq 0 || "$previous" == ' ' || "$previous" == $'\t' ]]; then
+                            return 1
+                        fi
+                        ;;
+                    '<')
+                        [[ "$next" == '<' ]] || continue
+                        j=$((i + 2))
+                        if [[ "${line:j:1}" == '-' ]]; then
+                            strip_tabs="true"
+                            j=$((j + 1))
+                        fi
+                        while [[ "${line:j:1}" == ' ' || "${line:j:1}" == $'\t' ]]; do
+                            j=$((j + 1))
+                        done
+                        quote="${line:j:1}"
+                        [[ "$quote" == "'" || "$quote" == '"' ]] || continue
+                        j=$((j + 1))
+                        while [[ $j -lt ${#line} && "${line:j:1}" != "$quote" ]]; do
+                            delimiter="${delimiter}${line:j:1}"
+                            j=$((j + 1))
+                        done
+                        [[ $j -lt ${#line} && -n "$delimiter" ]] || return 1
+                        printf '%s|%s\n' "$delimiter" "$strip_tabs"
+                        return 0
+                        ;;
+                esac
+                ;;
+        esac
+    done
+
+    return 1
+}
+
+# Quoted heredoc bodies do not perform shell expansion. Remove only those
+# bodies before command segmentation so documentation and source code cannot be
+# mistaken for provider execution. Keep the command line and terminator as
+# separators, and leave unquoted heredocs untouched because they may execute
+# command substitutions.
+_octo_strip_quoted_heredoc_bodies() {
+    local source="$1" line spec delimiter="" strip_tabs="false" candidate
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        if [[ -n "$delimiter" ]]; then
+            candidate="$line"
+            [[ "$strip_tabs" == "true" ]] && candidate="${candidate#"${candidate%%[!$'\t']*}"}"
+            if [[ "$candidate" == "$delimiter" ]]; then
+                delimiter=""
+                strip_tabs="false"
+            fi
+            printf '\n'
+            continue
+        fi
+
+        printf '%s\n' "$line"
+        if spec=$(_octo_quoted_heredoc_spec "$line"); then
+            delimiter="${spec%%|*}"
+            strip_tabs="${spec##*|}"
+        fi
+    done <<< "$source"
+}
+
 # Emit shell command segments, one per line. Quoted text remains a single
 # sanitized word, so a quoted executable is visible without treating provider
 # names in prompt/data strings as command positions. Command substitutions are
 # scanned recursively because they execute even inside double quotes.
 _octo_command_segments() {
-    local source="$1" segment="" state="plain" escaped="false"
+    local source segment="" state="plain" escaped="false"
     local i char next end inner
+
+    source=$(_octo_strip_quoted_heredoc_bodies "$1")
 
     for ((i = 0; i < ${#source}; i++)); do
         char="${source:i:1}"

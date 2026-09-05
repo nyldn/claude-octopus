@@ -1,3 +1,5 @@
 interface:
   display_name: "Iterative Loop"
   short_description: "Run tasks in a loop until goals are met — use for iterative..."
+policy:
+  allow_implicit_invocation: false

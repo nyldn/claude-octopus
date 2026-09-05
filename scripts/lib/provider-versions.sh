@@ -39,6 +39,9 @@ octo_version_ok() {
 # clients. Unlike the general check, an unknown version fails closed for Astra.
 octo_codex_model_version_ok() {
   local installed="$1" model="$2"
+  if declare -f octo_model_canonical_id >/dev/null 2>&1; then
+    model="$(octo_model_canonical_id "$model")" || return 1
+  fi
   [[ "$model" == "gpt-6-astra" ]] || return 0
   [[ "$installed" != "unknown" && -n "$installed" ]] || return 1
   octo_version_ok "$installed" "$OCTO_CODEX_ASTRA_MIN_VERSION"

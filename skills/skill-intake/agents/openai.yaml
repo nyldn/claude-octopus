@@ -1,3 +1,5 @@
 interface:
   display_name: "Intake"
   short_description: "Move incoming issues and pull requests through triage..."
+policy:
+  allow_implicit_invocation: false
