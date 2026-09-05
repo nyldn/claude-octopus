@@ -402,7 +402,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [classify-changes, unit-required]
-    if: needs.classify-changes.outputs.heavy_tests == 'true' && (github.event_name == 'pull_request' || github.ref == 'refs/heads/main')
+    if: needs.classify-changes.outputs.heavy_tests == 'true' && (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main')
 
     steps:
       - name: Checkout code

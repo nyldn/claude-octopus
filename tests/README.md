@@ -1,147 +1,71 @@
-# Claude Octopus Test Suite
+# Claude Octopus tests
 
-This directory contains automated tests for the Claude Octopus plugin.
+Use the smallest gate that proves the change while you work. Run the complete
+local gate before merge or release.
 
-## Running Tests
-
-**Run all tests:**
-```bash
-./tests/run-all-tests.sh
-```
-
-**Run individual tests:**
-```bash
-./tests/test-enforcement-pattern.sh
-./tests/unit/test-version-consistency.sh
-./tests/unit/test-command-registration.sh
-# etc.
-```
-
-## Test Descriptions
-
-### Core Functionality Tests
-
-- **`test-enforcement-pattern.sh`** - Validates enforcement pattern documentation structure
-  - ⚠️ **Important:** Tests documentation only, NOT runtime enforcement
-  - Verifies all orchestrate.sh skills have consistent Validation Gate Pattern docs
-  - Does NOT verify orchestrate.sh is actually executed at runtime
-  - See: [Issue #TBD](https://github.com/anthropics/claude-code/issues/) for runtime enforcement tracking
-
-- **`test-version-consistency.sh`** - Ensures version numbers match across all files
-  - Checks: plugin.json, marketplace.json, package.json, README.md
-
-- **`test-command-registration.sh`** - Validates slash commands are properly registered
-  - Checks: plugin.json commands match commands/*.md files
-
-### Feature-Specific Tests
-
-- **`test-intent-contract-skill.sh`** - Validates intent contract skill structure
-- **`test-intent-questions.sh`** - Tests interactive question functionality
-- **`test-plan-command.sh`** - Validates /plan command integration
-- **`test-multi-command.sh`** - Tests multi-command workflows
-- **`test-v2.1.12-integration.sh`** - Validates Claude Code v2.1.12+ feature integration
-
-### Validation Tests
-
-- **`validate-plugin-name.sh`** - Ensures plugin name consistency
-
-## Important Limitations
-
-### Enforcement Pattern Tests (v7.15.0)
-
-As of v7.15.0, the enforcement pattern is **documentation-only**. The `test-enforcement-pattern.sh` suite verifies that:
-
-✅ **What IS tested:**
-- Skills have `execution_mode: enforced` in frontmatter
-- Skills contain EXECUTION CONTRACT sections with numbered steps
-- Skills use imperative language ("MUST", "PROHIBITED", "CANNOT SKIP")
-- Skills document validation gates for artifact checking
-- Skills have consistent multi-AI attribution
-
-❌ **What is NOT tested:**
-- Whether orchestrate.sh is actually executed when skill is invoked
-- Whether AskUserQuestion is called before proceeding
-- Whether validation gates are checked at runtime
-- Whether Claude follows the EXECUTION CONTRACT steps
-
-**Why:** Claude Code does not currently support skill lifecycle hooks. Skills are passive markdown documentation that Claude interprets as guidance, not enforceable requirements.
-
-**Tracking:** See `scratchpad/github-issue-skill-lifecycle-hooks.md` for the feature request to Anthropic for programmatic enforcement.
-
-**Implication:** The enforcement pattern (v7.15.0) provides consistent documentation structure but does not guarantee runtime behavior. Users should invoke orchestrate.sh manually if needed until lifecycle hooks are implemented.
-
-## Test Coverage
-
-| Test Suite | Tests | Coverage |
-|------------|-------|----------|
-| Enforcement Pattern | 20 | Documentation structure, frontmatter, execution contracts |
-| Version Consistency | 4 | All version references across files |
-| Command Registration | Variable | All slash commands |
-| Intent Contract | Variable | Intent contract skill structure |
-| v2.1.12 Integration | Variable | Claude Code v2.1.12+ features |
-
-## Adding New Tests
-
-When adding new tests:
-
-1. **Create test file:** `tests/test-your-feature.sh`
-2. **Make executable:** `chmod +x tests/test-your-feature.sh`
-3. **Follow conventions:**
-   - Use `set -euo pipefail` for safety
-   - Use colored output (RED, GREEN, YELLOW, BLUE, NC)
-   - Count passes/fails with `pass()` and `fail()` functions
-   - Exit 0 on success, 1 on failure
-
-4. **Add to run-all-tests.sh:**
-   ```bash
-   run_test "Your Feature Description" "./tests/test-your-feature.sh"
-   ```
-
-5. **Document in this README** with clear description of what is and isn't tested
-
-## Test Philosophy
-
-**Focus on verifiable behavior:**
-- ✅ File structure and content presence
-- ✅ Version number consistency
-- ✅ Command registration
-- ✅ Documentation completeness
-
-**Avoid testing runtime AI behavior:**
-- ❌ Whether Claude follows skill instructions (non-deterministic)
-- ❌ Quality of AI responses (subjective)
-- ❌ Multi-AI orchestration results (dependent on external CLIs)
-
-**Exception:** Integration tests can verify external CLI execution (for example, Codex or Antigravity) when invoked directly, but cannot verify Claude's decision to invoke them.
-
-## CI/CD Integration
-
-These tests are designed to run in CI/CD pipelines:
+## Commands
 
 ```bash
-# Run all tests, exit non-zero on any failure
-./tests/run-all-tests.sh
+# Select focused suites from the files changed on this branch.
+make ci-changed
 
-# Individual test exit codes
-./tests/test-enforcement-pattern.sh && echo "Pass" || echo "Fail"
+# Match the required GitHub checks: generated files, smoke, unit, integration.
+make ci-local
+
+# Run one suite while iterating.
+./tests/run-all-tests.sh --suite=unit/test-ci-changed.sh
+
+# List a category without running it.
+./tests/run-all.sh unit --list
 ```
 
-## Known Issues
+`make test` runs smoke and unit tests. `make test-all` adds integration tests.
+Neither command runs live provider tests.
 
-1. **Enforcement pattern runtime gap** - Documentation exists but not enforced (v7.15.0)
-   - Tests verify docs, not behavior
-   - Tracking: GitHub issue (pending submission)
+## Categories
 
-2. **Version test fragility** - May fail if versions updated without running tests
-   - Always run `./tests/unit/test-version-consistency.sh` after version bumps
+| Category | Purpose | Command |
+| --- | --- | --- |
+| `smoke` | Fast syntax, metadata, registration, and safety checks | `make test-smoke` |
+| `unit` | Hermetic behavior and contract tests | `make test-unit` |
+| `integration` | Cross-component workflows with local fixtures | `make test-integration` |
+| `root` | Legacy suites still awaiting relocation or retirement; not a CI gate | `make test-root` |
+| `live` | Opt-in checks that may invoke installed providers and incur cost | `make test-live` |
 
-## Future Tests (Pending Claude Code Features)
+The main runner also supports `--fail-fast`, repeatable `--suite=PATH`, and
+deterministic `--shard-index=N --shard-count=N` flags. Run
+`./tests/run-all-tests.sh --help` for the current interface.
 
-- **Runtime enforcement tests** - Verify orchestrate.sh execution (requires lifecycle hooks)
-- **Interactive question tests** - Verify AskUserQuestion is called (requires hooks)
-- **Validation gate tests** - Verify artifact checks happen (requires hooks)
-- **Fork context tests** - Verify memory-optimized skill execution
+## Adding a test
 
----
+Place `test-*.sh` directly in `tests/smoke/`, `tests/unit/`, or
+`tests/integration/`. The runner discovers files automatically; do not add a
+manual runner entry.
 
-**Questions or issues?** See main README or file an issue at https://github.com/nyldn/claude-octopus/issues
+A normal shell suite should:
+
+1. Start with `set -euo pipefail`.
+2. Source `tests/helpers/test-framework.sh`.
+3. Call `test_suite`, then use `test_case`, `test_pass`, and `test_fail`.
+4. Put state under `TEST_TMP_DIR`, including temporary `HOME` or workspace
+   configuration, and remove it on exit.
+5. Stub provider detection and execution. Hermetic categories must not call a
+   live model, read a developer credential, or depend on an installed provider
+   CLI.
+6. Keep the script executable. Local test runs can alter fixture mode bits, so
+   check `git diff --summary` before committing.
+
+Prefer assertions on observable behavior. Static source checks are appropriate
+for wiring and generated-file contracts, but they should not duplicate a
+behavior test or claim that model output is deterministic.
+
+## Choosing the final gate
+
+`make ci-changed` fails closed to `make ci-local` when a shared, generated,
+manifest, or unmapped file changes. A focused pass is enough for ordinary
+branch pushes when the selector remains focused. Before merge or release, run
+`make ci-local` regardless of the focused result.
+
+Live tests are never part of the default or required matrix. Run them only when
+the change requires real-provider evidence and you intend to spend the
+associated quota.

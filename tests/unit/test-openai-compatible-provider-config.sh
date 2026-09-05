@@ -26,6 +26,8 @@ octopus_resolve_reasoning_level() { printf '%s\n' 'none'; }
 octopus_resolve_reasoning_policy() { printf '%s\n' 'best_effort'; }
 octopus_reasoning_cli_fragment() { printf '%s\n' ''; }
 
+test_suite "OpenAI-compatible provider configuration"
+
 write_config() {
   cat > "$HOME/.claude-octopus/config/providers.json"
 }

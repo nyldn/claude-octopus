@@ -8,6 +8,13 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 source "$SCRIPT_DIR/../helpers/mock-helpers.sh"
+source "$PROJECT_ROOT/scripts/lib/routing.sh"
+
+export HOME="$TEST_TMP_DIR/home"
+export WORKSPACE_DIR="$TEST_TMP_DIR/workspace"
+export OCTOPUS_SKIP_PROVIDER_PROBES=true
+mkdir -p "$HOME" "$WORKSPACE_DIR"
+trap 'rm -rf "$TEST_TMP_DIR"' EXIT
 
 test_suite "Knowledge Worker Routing (v6.0)"
 
@@ -84,10 +91,7 @@ test_intent_detection_ux_research() {
     )
 
     for prompt in "${prompts[@]}"; do
-        local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n auto "$prompt" 2>&1)
-        if output_matches "$output" "empathize\|ux.*research\|knowledge.*empathize"; then
-            continue
-        else
+        if [[ "$(classify_task "$prompt")" != "knowledge-empathize" ]]; then
             test_fail "Should detect UX research intent for: $prompt"
             return 1
         fi
@@ -107,10 +111,7 @@ test_intent_detection_strategy() {
     )
 
     for prompt in "${prompts[@]}"; do
-        local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n auto "$prompt" 2>&1)
-        if output_matches "$output" "advise\|strategy\|knowledge.*advise"; then
-            continue
-        else
+        if [[ "$(classify_task "$prompt")" != "knowledge-advise" ]]; then
             test_fail "Should detect strategy intent for: $prompt"
             return 1
         fi
@@ -130,10 +131,7 @@ test_intent_detection_literature() {
     )
 
     for prompt in "${prompts[@]}"; do
-        local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n auto "$prompt" 2>&1)
-        if output_matches "$output" "synthesize\|literature\|knowledge.*synthesize"; then
-            continue
-        else
+        if [[ "$(classify_task "$prompt")" != "knowledge-synthesize" ]]; then
             test_fail "Should detect literature review intent for: $prompt"
             return 1
         fi
@@ -159,31 +157,15 @@ test_new_intent_choices() {
 }
 
 test_command_aliases() {
-    test_case "Command aliases work (empathy, consult, lit-review)"
+    test_case "Knowledge command aliases share their canonical dispatch arms"
 
-    local aliases=(
-        "empathy:empathize"
-        "ux-research:empathize"
-        "consult:advise"
-        "strategy:advise"
-        "lit-review:synthesize"
-        "synthesis:synthesize"
-    )
-
-    for alias_pair in "${aliases[@]}"; do
-        local alias="${alias_pair%%:*}"
-        local expected="${alias_pair##*:}"
-
-        local output=$("$PROJECT_ROOT/scripts/orchestrate.sh" -n "$alias" "test prompt" 2>&1)
-        local exit_code=$?
-
-        if [[ $exit_code -ne 0 ]]; then
-            test_fail "Alias $alias should work (expected $expected)"
-            return 1
-        fi
-    done
-
-    test_pass
+    if grep -Fq '    empathize|empathy|ux-research)' "$PROJECT_ROOT/scripts/orchestrate.sh" &&
+       grep -Fq '    advise|consult|strategy)' "$PROJECT_ROOT/scripts/orchestrate.sh" &&
+       grep -Fq '    synthesize|synthesis|lit-review)' "$PROJECT_ROOT/scripts/orchestrate.sh"; then
+        test_pass
+    else
+        test_fail "A knowledge command alias is detached from its canonical dispatch arm"
+    fi
 }
 
 test_status_shows_mode() {

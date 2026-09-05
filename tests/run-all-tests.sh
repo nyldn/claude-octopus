@@ -45,6 +45,30 @@ SHARD_INDEX=0
 SHARD_COUNT=1
 SUITE_TIMINGS=()
 
+print_usage() {
+    cat <<'EOF'
+Usage: ./tests/run-all-tests.sh [OPTIONS] [--CATEGORY ...]
+
+Categories:
+  --smoke              Tests in tests/smoke/
+  --unit               Tests in tests/unit/
+  --integration        Tests in tests/integration/
+  --root               Legacy root-level suites
+  --live               Opt-in tests that may call real providers
+  --all                All categories except live (default)
+  --everything         All categories, including live
+
+Options:
+  --suite=PATH         Run one suite relative to tests/; repeatable
+  --fail-fast          Stop after the first failed suite
+  --list               List selected suites without running them
+  --shard-index=N      Zero-based deterministic shard index
+  --shard-count=N      Number of deterministic shards
+  --symlink-sensitive  Keep only path-indirection unit suites
+  -h, --help           Show this help and exit
+EOF
+}
+
 # Function to run a test suite
 run_test_suite() {
     local test_file="$1"
@@ -159,6 +183,7 @@ for arg in "$@"; do
         # prints. --regression ran "root", which is now reachable as --root.
         --all)         CATEGORIES=("smoke" "unit" "integration" "root") ;;
         --everything)  CATEGORIES=("smoke" "unit" "integration" "root" "live") ;;
+        -h|--help)      print_usage; exit 0 ;;
         --fail-fast)   FAIL_FAST=true ;;
         --list)        LIST_ONLY=true ;;
         --shard-index=*) SHARD_INDEX="${arg#--shard-index=}" ;;

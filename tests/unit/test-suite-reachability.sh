@@ -269,6 +269,18 @@ else
     test_fail "the required Unit Tests check must include targeted PR symlink coverage and the full non-PR symlink gate"
 fi
 
+test_case "manual workflows run the heavy integration lane"
+integration_job="$(awk '
+    /^  integration-heavy:/ { in_job = 1 }
+    in_job && /^  [[:alnum:]_-]+:/ && $0 !~ /^  integration-heavy:/ { exit }
+    in_job { print }
+' "$WORKFLOW")"
+if grep -Fq "github.event_name == 'workflow_dispatch'" <<< "$integration_job"; then
+    test_pass
+else
+    test_fail "workflow_dispatch selects heavy tests but skips integration-heavy"
+fi
+
 test_case "at least one test is actually discovered (guards a silent empty set)"
 n="$(reachable_files | grep -c . || true)"
 if [[ "${n:-0}" -gt 50 ]]; then

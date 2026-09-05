@@ -128,7 +128,10 @@ run_design_review_dispatch_probe() {
     octo_provider_allowed() { return 0; }
     run_agent_sync_consultative() {
       printf "%s|%s|%s\n" "$1" "$4" "$5" >> "$DISPATCH_LOG"
-      printf "approach\n"
+      printf "%s\n" \
+        "- Use a bounded implementation path with explicit dependencies and stable interfaces." \
+        "- Preserve runtime identity fields and isolate failures at each review seat boundary." \
+        "- Verify dispatch order, lifecycle events, fallback behavior, and synthesis output."
     }
     octo_provider_identity_label() { printf "%s\n" "$1"; }
     octo_provider_identity_from_agent_type() { printf "%s\n" "$1"; }
@@ -191,9 +194,8 @@ event_has_field() {
 }
 
 test_case "design review synthesis events carry stable executor and role identity"
-synthesis_dispatch_log="$TEST_TMP_DIR/synthesis-events-dispatch.log"
-synthesis_event_log="$TEST_TMP_DIR/synthesis-events.log"
-run_design_review_dispatch_probe role "$synthesis_dispatch_log" "$synthesis_event_log"
+synthesis_dispatch_log="$role_log"
+synthesis_event_log="${role_log}.events"
 start_count="$(grep -Fc 'synthesis.start|' "$synthesis_event_log" || true)"
 end_count="$(grep -Fc 'synthesis.end|' "$synthesis_event_log" || true)"
 start_line="$(grep -Fn 'synthesis.start|' "$synthesis_event_log" | cut -d: -f1)"

@@ -44,7 +44,7 @@ test-smoke: test-plugin-name
 	@echo "Running smoke tests..."
 	@./tests/run-all.sh smoke
 
-# Unit tests (1-2min)
+# Full hermetic unit suite
 test-unit:
 	@echo "Running unit tests..."
 	@./tests/run-all.sh unit
@@ -55,7 +55,7 @@ test-symlink-sensitive:
 	@echo "Running symlink-sensitive unit tests..."
 	@./tests/run-all.sh symlink-sensitive
 
-# Integration tests (5-10min)
+# Hermetic integration suite
 test-integration:
 	@echo "Running integration tests..."
 	@./tests/run-all.sh integration
@@ -95,17 +95,14 @@ help:
 	@echo ""
 	@echo "Usage:"
 	@echo "  make test              - Run smoke + unit tests (default)"
-	@echo "  make test-all          - Run all test categories"
-	@echo "  make test-smoke        - Run smoke tests (<30s)"
-	@echo "  make test-unit         - Run unit tests (1-2min)"
-	@echo "  make test-integration  - Run integration tests (5-10min)"
+	@echo "  make test-all          - Run smoke, unit, and integration tests"
+	@echo "  make test-smoke        - Run smoke tests"
+	@echo "  make test-unit         - Run the full unit suite"
+	@echo "  make test-integration  - Run hermetic integration tests"
 	@echo "  make ci-changed        - Run fail-closed tests selected from changed files"
 	@echo "  make ci-local          - Run the complete pre-merge/release matrix"
-	@echo "  make          - Run E2E tests (15-30min)"
 	@echo "  make test-live         - Run live tests (real Claude sessions, real API cost)"
 	@echo "  make test-root         - Run tests/ root suites (not in CI, see #741)"
-	@echo "  make  - Run performance tests"
-	@echo "  make   - Run regression tests"
 	@echo "  make test-coverage     - Generate coverage report"
 	@echo "  make validate-plugin-assembly - Validate plugin assembly structure"
 	@echo "  make test-verbose      - Run all tests with verbose output"

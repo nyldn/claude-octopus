@@ -174,6 +174,18 @@ else
     test_fail "explicit suite selection expanded to the default matrix: $runner_list"
 fi
 
+test_case "test runner help exits without discovering or running suites"
+runner_help_rc=0
+runner_help="$(bash "$RUN_ALL" --help --list 2>&1)" || runner_help_rc=$?
+if [[ "$runner_help_rc" -eq 0 ]] &&
+   grep -q '^Usage:' <<< "$runner_help" &&
+   ! grep -q 'Discovered:' <<< "$runner_help" &&
+   ! grep -q '^Running:' <<< "$runner_help"; then
+    test_pass
+else
+    test_fail "--help exited $runner_help_rc or did not stop before suite discovery: $runner_help"
+fi
+
 test_case "test harness disables production Tangle worktree isolation by default"
 preserved_tangle_setting="$(OCTOPUS_TANGLE_RUN_WORKTREE=true bash -c 'source "$1"; printf "%s" "$OCTOPUS_TANGLE_RUN_WORKTREE"' _ "$PROJECT_ROOT/tests/helpers/test-framework.sh")"
 if [[ "${OCTOPUS_TANGLE_RUN_WORKTREE:-}" == "false" ]] &&
