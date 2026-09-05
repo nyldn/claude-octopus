@@ -127,6 +127,10 @@ def normalize_reasoning_effort(value):
     return value
 
 
+def is_astra_model(model):
+    return model == "gpt-6-astra"
+
+
 def rejects_reasoning_effort(body_text):
     text = body_text.lower()
     field = r"(?<![A-Za-z0-9_-])reasoning(?:_effort| effort|-effort)(?![A-Za-z0-9_-])"
@@ -141,7 +145,11 @@ def rejects_reasoning_effort(body_text):
 
 
 def api_call(base_url, key, model, headers_extra, messages, max_tokens=0, request_timeout=60.0, max_retries=3, reasoning_effort=None, reasoning_policy="best_effort", tool_policy="auto"):
-    payload = {"model": model, "messages": messages, "temperature": 0}
+    if is_astra_model(model) and tool_policy == "auto":
+        raise ValueError("gpt-6-astra tools require the Responses API; this adapter uses Chat Completions")
+    payload = {"model": model, "messages": messages}
+    if not is_astra_model(model):
+        payload["temperature"] = 0
     if tool_policy == "auto":
         payload["tools"] = TOOLS
         payload["tool_choice"] = "auto"
@@ -219,6 +227,9 @@ def main() -> int:
     if not model:
         model_hint = "ATLASCLOUD_MODEL, OCTOPUS_ATLASCLOUD_MODEL, OPENAI_COMPAT_MODEL, or --model" if args.provider == "atlascloud" else "OPENAI_COMPAT_MODEL or --model"
         print(f"ERROR: missing {model_hint}", file=sys.stderr); return 2
+    if is_astra_model(model) and args.tool_policy == "auto":
+        print("ERROR: gpt-6-astra tools require the Responses API; use Codex CLI or --tool-policy none", file=sys.stderr)
+        return 2
     if not base_url:
         print("ERROR: missing OPENAI_COMPAT_BASE_URL or --base-url", file=sys.stderr); return 2
     key = os.environ.get(key_env)

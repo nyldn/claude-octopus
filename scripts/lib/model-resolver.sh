@@ -59,8 +59,8 @@ fi
 # Current-model pickers. Explicit user pins/configuration are resolved before
 # these fallbacks, and OCTOPUS_OPUS_MODEL remains the final Opus-specific pin.
 # Opus 5 requires Claude Code v2.1.219+; Sonnet 5 requires v2.1.197+.
-# Claude Fable 5 (Mythos-class, $10/$50 MTok, 1M ctx) remains opt-in only:
-# pin OCTOPUS_OPUS_MODEL=claude-fable-5. Never auto-selected — 2x Opus 5 cost,
+# Claude Fable 5.1 (Mythos-class, $10/$50 MTok, 1M ctx) remains opt-in only:
+# pin OCTOPUS_OPUS_MODEL=claude-fable-5-1. Never auto-selected — 2x Opus 5 cost,
 # and Anthropic retains prompts/outputs up to 30 days for safety classifiers.
 opus_default_model() {
     if [[ -n "${OCTOPUS_OPUS_MODEL:-}" ]]; then
@@ -88,6 +88,11 @@ sonnet_default_model() {
 
 codex_default_model() {
     echo "gpt-5.6-sol"
+}
+
+_octo_automatic_model_allowed() {
+    local model="${1:-}"
+    ! is_known_model "$model" || octo_model_auto_eligible "$model"
 }
 
 # Select only from the live local Ollama inventory. A hardcoded fallback can
@@ -498,6 +503,10 @@ resolve_octopus_model() {
                             role_route_blocks_phase="true"
                             if [[ -n "$role_route_model" ]]; then
                                 resolved_model="$role_route_model"
+                                if ! _octo_automatic_model_allowed "$resolved_model"; then
+                                    [[ -n "$_trace" ]] && echo "[model-trace] Tier 3 (literal role route): REJECTED explicit-only model $resolved_model" >&2
+                                    resolved_model=""
+                                fi
                                 [[ -n "$_trace" ]] && echo "[model-trace] Tier 3 (literal role route): $resolved_model ← SELECTED" >&2
                             fi
                         fi
@@ -536,6 +545,10 @@ resolve_octopus_model() {
                     fi
                     if [[ ( -z "$phase_route_provider" || "$phase_route_provider" == "$canonical_provider" ) && -n "$phase_route_model" ]]; then
                         resolved_model="$phase_route_model"
+                        if ! _octo_automatic_model_allowed "$resolved_model"; then
+                            [[ -n "$_trace" ]] && echo "[model-trace] Tier 3 (literal phase route): REJECTED explicit-only model $resolved_model" >&2
+                            resolved_model=""
+                        fi
                         [[ -n "$_trace" ]] && echo "[model-trace] Tier 3 (literal phase route): $resolved_model ← SELECTED" >&2
                     fi
                 fi
@@ -611,6 +624,11 @@ resolve_octopus_model() {
                         routed=""
                     else
                         resolved_model="$routed"
+                        if ! _octo_automatic_model_allowed "$resolved_model"; then
+                            [[ -n "$_trace" ]] && echo "[model-trace] Tier 3 (phase/role routing): REJECTED explicit-only model $resolved_model" >&2
+                            resolved_model=""
+                            routed=""
+                        fi
                     fi
                 fi
                 if [[ -n "$routed" ]]; then
@@ -627,6 +645,10 @@ resolve_octopus_model() {
         # Example: providers.commandcode.roles.security-reviewer.
         if [[ ( -z "$resolved_model" || "$resolved_model" == "null" ) && -n "$role" ]]; then
             resolved_model=$(echo "$config_data" | jq -r --arg p "$canonical_provider" --arg role "$role" '.providers[$p].roles[$role] // empty' 2>/dev/null)
+            if [[ -n "$resolved_model" && "$resolved_model" != "null" ]] && ! _octo_automatic_model_allowed "$resolved_model"; then
+                [[ -n "$_trace" ]] && echo "[model-trace] Tier 3a (provider role default): REJECTED explicit-only model $resolved_model" >&2
+                resolved_model=""
+            fi
             if [[ -n "$resolved_model" && "$resolved_model" != "null" ]]; then
                 [[ -n "$_trace" ]] && echo "[model-trace] Tier 3a (provider role default): $resolved_model ← SELECTED" >&2
             else
@@ -640,6 +662,10 @@ resolve_octopus_model() {
         if [[ ( -z "$resolved_model" || "$resolved_model" == "null" ) &&
               "$routing_policy" == "eval" && -n "${OCTOPUS_TASK_CLASS:-}" ]]; then
             resolved_model="$(_octo_eval_model_for_class "$canonical_provider" "$OCTOPUS_TASK_CLASS" 2>/dev/null || true)"
+            if [[ -n "$resolved_model" ]] && ! _octo_automatic_model_allowed "$resolved_model"; then
+                [[ -n "$_trace" ]] && echo "[model-trace] Tier 3b (eval ${OCTOPUS_TASK_CLASS}): REJECTED explicit-only model $resolved_model" >&2
+                resolved_model=""
+            fi
             [[ -n "$_trace" && -n "$resolved_model" ]] && echo "[model-trace] Tier 3b (eval ${OCTOPUS_TASK_CLASS}): $resolved_model ← SELECTED" >&2
         fi
 
@@ -655,6 +681,10 @@ resolve_octopus_model() {
             if [[ -n "$capability" && "$capability" != "$canonical_provider" ]]; then
                 # Support both short capability (spark) and full model aliases (spark_model)
                 resolved_model=$(echo "$config_data" | jq -r --arg p "$canonical_provider" --arg cap "$capability" '.providers[$p][$cap] // .providers[$p][($cap + "_model")] // empty' 2>/dev/null)
+                if [[ -n "$resolved_model" && "$resolved_model" != "null" ]] && ! _octo_automatic_model_allowed "$resolved_model"; then
+                    [[ -n "$_trace" ]] && echo "[model-trace] Tier 4 (capability map): REJECTED explicit-only model $resolved_model" >&2
+                    resolved_model=""
+                fi
             fi
             if [[ -n "$resolved_model" && "$resolved_model" != "null" ]]; then
                 [[ -n "$_trace" ]] && echo "[model-trace] Tier 4 (capability map): $resolved_model ← SELECTED (cap: ${capability:-none})" >&2
@@ -671,15 +701,23 @@ resolve_octopus_model() {
                     # Capability ref in tier map
                     local tier_mapped_model
                     tier_mapped_model=$(echo "$config_data" | jq -r --arg p "$canonical_provider" --arg model "$resolved_model" '.providers[$p][$model] // .providers[$p][($model + "_model")] // empty' 2>/dev/null)
-                    [[ -n "$tier_mapped_model" && "$tier_mapped_model" != "null" ]] && resolved_model="$tier_mapped_model"
-                fi
-                [[ -n "$_trace" ]] && echo "[model-trace] Tier 5 (cost mode ${cost_mode}): ${resolved_model:-—}" >&2
+                [[ -n "$tier_mapped_model" && "$tier_mapped_model" != "null" ]] && resolved_model="$tier_mapped_model"
+            fi
+            if [[ -n "$resolved_model" && "$resolved_model" != "null" ]] && ! _octo_automatic_model_allowed "$resolved_model"; then
+                [[ -n "$_trace" ]] && echo "[model-trace] Tier 5 (cost mode ${cost_mode}): REJECTED explicit-only model $resolved_model" >&2
+                resolved_model=""
+            fi
+            [[ -n "$_trace" ]] && echo "[model-trace] Tier 5 (cost mode ${cost_mode}): ${resolved_model:-—}" >&2
             fi
         fi
 
         # 5. Global Defaults
         if [[ -z "$resolved_model" || "$resolved_model" == "null" ]]; then
             resolved_model=$(echo "$config_data" | jq -r --arg p "$canonical_provider" '.providers[$p].default // .providers[$p].model // empty' 2>/dev/null)
+            if [[ -n "$resolved_model" && "$resolved_model" != "null" ]] && ! _octo_automatic_model_allowed "$resolved_model"; then
+                [[ -n "$_trace" ]] && echo "[model-trace] Tier 6 (config default): REJECTED explicit-only model $resolved_model" >&2
+                resolved_model=""
+            fi
             if [[ -n "$resolved_model" && "$resolved_model" != "null" ]]; then
                 [[ -n "$_trace" ]] && echo "[model-trace] Tier 6 (config default): $resolved_model ← SELECTED" >&2
             else
@@ -695,6 +733,10 @@ resolve_octopus_model() {
           ( -z "$resolved_model" || "$resolved_model" == "null" ) &&
           "$routing_policy" == "eval" && -n "${OCTOPUS_TASK_CLASS:-}" ]]; then
         resolved_model="$(_octo_eval_model_for_class "$canonical_provider" "$OCTOPUS_TASK_CLASS" 2>/dev/null || true)"
+        if [[ -n "$resolved_model" ]] && ! _octo_automatic_model_allowed "$resolved_model"; then
+            [[ -n "$_trace" ]] && echo "[model-trace] Tier 3b (eval ${OCTOPUS_TASK_CLASS}): REJECTED explicit-only model $resolved_model" >&2
+            resolved_model=""
+        fi
         [[ -n "$_trace" && -n "$resolved_model" ]] && echo "[model-trace] Tier 3b (eval ${OCTOPUS_TASK_CLASS}): $resolved_model ← SELECTED" >&2
     fi
 
@@ -743,7 +785,7 @@ resolve_octopus_model() {
     fi
 
     # v9.51: Fable 5 security reroute — security dispatches never run on
-    # claude-fable-5 (safety classifiers can refuse adversarial phrasing).
+    # either Fable 5 generation (safety classifiers can refuse adversarial phrasing).
     # Applied before caching so the cache key (which includes phase/role)
     # stores the rerouted value.
     if declare -f fable5_maybe_reroute >/dev/null 2>&1; then

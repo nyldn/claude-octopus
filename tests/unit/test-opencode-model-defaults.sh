@@ -97,7 +97,7 @@ if jq -e '
     .providers.codex.mini == "gpt-5.6-luna" and
     .providers.claude.default == "claude-sonnet-5" and
     .providers.claude.opus == "claude-opus-5" and
-    .providers.claude.fable == "claude-fable-5"
+    (.providers.claude | has("fable") | not)
 ' "$fresh_config" >/dev/null; then
     test_pass
 else

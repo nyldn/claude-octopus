@@ -1,7 +1,7 @@
 # Frontier Model Routing
 
 Apply this policy whenever a workflow chooses models or authors prompts for
-Opus 5, Fable 5, Sonnet 5, or the GPT-5.6 Codex family.
+Opus 5, Fable 5.1, Sonnet 5, the GPT-5.6 Codex family, or GPT-6 Astra.
 
 ## Default roster
 
@@ -15,10 +15,14 @@ Opus 5, Fable 5, Sonnet 5, or the GPT-5.6 Codex family.
 - **Sonnet 5 is the standard Claude seat.** Use it for synthesis, routine
   orchestration, and work that benefits from Claude behavior without premium
   Opus cost. Haiku 4.5 is the budget Claude seat.
-- **Fable 5 is an opt-in escalation, not a default.** Use it for judgment-class
+- **Fable 5.1 is an opt-in escalation, not a default.** Use it for judgment-class
   work only when the expected gain justifies twice the Opus 5 price. Apply
   `skills/blocks/fable5-prompting.md` and never count Fable plus Opus as
   provider diversity.
+- **GPT-6 Astra is an explicit-only OpenAI escalation.** Use it for one bounded,
+  high-value pass after GPT-5.6 Sol fails a hard acceptance test. Do not use it
+  for routine implementation, broad review fleets, councils, or fallbacks, and
+  do not count Astra plus GPT-5.6 as provider diversity.
 - **Other providers need a distinct job.** Use Antigravity or Perplexity for
   research, local/included seats for mechanical work, and specialized models
   only when their capability changes the expected result.
@@ -55,5 +59,6 @@ Existing configuration is authoritative:
 3. cost tier;
 4. current-model fallback.
 
-Fresh configurations use Opus 5, Sonnet 5, and GPT-5.6 defaults. Existing
+Fresh configurations use Opus 5, Sonnet 5, and GPT-5.6 defaults. Fable 5.1 and
+GPT-6 Astra remain outside every built-in default and fallback. Existing
 configurations are not silently rewritten to those models.

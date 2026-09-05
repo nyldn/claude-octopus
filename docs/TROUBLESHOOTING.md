@@ -43,7 +43,7 @@ A provider is used only when its CLI is installed AND its auth check passes. If 
 
 **Config changes not taking effect** — settings are re-read when the ConfigChange hook fires; if in doubt, check for the reload log line ("ConfigChange detected") or restart the session.
 
-**Fable 5 dispatch refused or empty** — expected for security-audit phrasing on `claude-fable-5` pins; the plugin reroutes security passes and retries refused claude-sdk dispatches once on Opus 5 by default. Set `OCTOPUS_FABLE5_FALLBACK_MODEL` to replace that fallback target. Details: `skills/blocks/fable5-prompting.md`. Disable the guards with `OCTOPUS_FABLE5_MODE=off`.
+**Fable dispatch refused or empty** — possible for security-audit phrasing on `claude-fable-5-1` or preserved `claude-fable-5` pins; the plugin reroutes security passes and retries refused claude-sdk dispatches once on Opus 5 by default. Set `OCTOPUS_FABLE5_FALLBACK_MODEL` to replace that fallback target. Details: `skills/blocks/fable5-prompting.md`. Disable the guards with `OCTOPUS_FABLE5_MODE=off`.
 
 **Empty results from a dispatch that "succeeded"** — check `~/.claude-octopus/results/` for the raw artifact and `~/.claude-octopus/logs/` for the dispatch log. `--verbose` on the next run shows the constructed command.
 

@@ -75,6 +75,17 @@ else
   test_fail "an exact contextual model was omitted: agy=[$agy_cmd] claude=[$claude_cmd] opus=[$opus_cmd] openrouter=[$openrouter_cmd] orcarouter=[$orcarouter_cmd] vibe=[$vibe_cmd] atlas=[$atlas_cmd]"
 fi
 
+test_case "Codex review dispatch enforces Astra's model-specific CLI floor"
+astra_review_old_rc=0
+astra_review_old="$(OCTO_CODEX_VERSION_OVERRIDE=0.153.0 get_agent_command 'codex-review:gpt-6-astra' review implementation-logic-reviewer 2>/dev/null)" || astra_review_old_rc=$?
+astra_review_new="$(OCTO_CODEX_VERSION_OVERRIDE=0.153.1 get_agent_command 'codex-review:gpt-6-astra' review implementation-logic-reviewer 2>/dev/null || true)"
+if [[ "$astra_review_old_rc" -ne 0 && -z "$astra_review_old" ]] &&
+   [[ "$astra_review_new" == *'codex exec review --model gpt-6-astra'* ]]; then
+  test_pass
+else
+  test_fail "Astra review floor mismatch: old_rc=$astra_review_old_rc old=[$astra_review_old] new=[$astra_review_new]"
+fi
+
 test_case "explicit Claude seats preserve dotted model IDs byte-for-byte"
 claude_dotted_cmd="$(get_agent_command 'claude:claude-3.5-sonnet' review implementation-architecture-reviewer 2>/dev/null || true)"
 opus_dotted_cmd="$(get_agent_command 'claude-opus:claude-3.5-sonnet' review implementation-architecture-reviewer 2>/dev/null || true)"
@@ -117,6 +128,37 @@ else
   test_fail "unsafe exact Fable security pin was dispatched rc=$fable_security_rc out=[$fable_security_out]"
 fi
 
+test_case "an exact Fable 5.1 model fails closed for security dispatches"
+fable51_security_rc=0
+fable51_security_out="$(get_agent_command 'claude-opus:claude-fable-5-1' review implementation-security-reviewer 2>/dev/null)" || fable51_security_rc=$?
+if [[ "$fable51_security_rc" -ne 0 && -z "$fable51_security_out" ]]; then
+  test_pass
+else
+  test_fail "unsafe exact Fable 5.1 security pin was dispatched rc=$fable51_security_rc out=[$fable51_security_out]"
+fi
+
+test_case "ordinary Claude env pins cannot bypass Fable security rerouting"
+fable_env_security="$(OCTOPUS_CLAUDE_MODEL=claude-fable-5-1 get_agent_command claude review implementation-security-reviewer 2>/dev/null || true)"
+if [[ "$fable_env_security" == *'--model claude-opus-5'* ]] && [[ "$fable_env_security" != *'claude-fable-5-1'* ]]; then
+  test_pass
+else
+  test_fail "ordinary Claude Fable security pin bypassed rerouting: [$fable_env_security]"
+fi
+
+test_case "exact Fable seats fail closed above the input ceiling"
+large_prompt_bytes=600000
+fable_claude_rc=0
+fable_opus_rc=0
+fable_sdk_rc=0
+OCTOPUS_FABLE5_MAX_INPUT_BYTES=1 get_agent_command 'claude:claude-fable-5-1' review implementation-logic-reviewer "$large_prompt_bytes" >/dev/null 2>&1 || fable_claude_rc=$?
+OCTOPUS_FABLE5_MAX_INPUT_BYTES=1 get_agent_command 'claude-opus:claude-fable-5-1' review implementation-logic-reviewer "$large_prompt_bytes" >/dev/null 2>&1 || fable_opus_rc=$?
+OCTOPUS_FABLE5_MAX_INPUT_BYTES=1 get_agent_command 'claude-sdk:claude-fable-5-1' review implementation-logic-reviewer "$large_prompt_bytes" >/dev/null 2>&1 || fable_sdk_rc=$?
+if [[ "$fable_claude_rc" -ne 0 && "$fable_opus_rc" -ne 0 && "$fable_sdk_rc" -ne 0 ]]; then
+  test_pass
+else
+  test_fail "oversized exact Fable seat escaped input gate: claude=$fable_claude_rc opus=$fable_opus_rc sdk=$fable_sdk_rc"
+fi
+
 test_case "an exact Claude SDK Fable seat disables the shim retry without changing compatibility routes"
 exact_fable_sdk_cmd="$(get_agent_command 'claude-sdk:claude-fable-5' review implementation-logic-reviewer 2>/dev/null || true)"
 compat_fable_sdk_cmd="$(OCTOPUS_CLAUDE_SDK_MODEL=claude-fable-5 get_agent_command claude-sdk review implementation-logic-reviewer 2>/dev/null || true)"
@@ -125,6 +167,14 @@ if [[ "$exact_fable_sdk_cmd" == "env OCTOPUS_CLAUDE_SDK_MODEL=claude-fable-5 OCT
   test_pass
 else
   test_fail "exact/default Fable retry contract mismatch: exact=[$exact_fable_sdk_cmd] compatibility=[$compat_fable_sdk_cmd]"
+fi
+
+test_case "an exact Claude SDK Fable 5.1 seat disables the shim retry"
+exact_fable51_sdk_cmd="$(get_agent_command 'claude-sdk:claude-fable-5-1' review implementation-logic-reviewer 2>/dev/null || true)"
+if [[ "$exact_fable51_sdk_cmd" == "env OCTOPUS_CLAUDE_SDK_MODEL=claude-fable-5-1 OCTOPUS_FABLE5_NO_RETRY=1 $PROJECT_ROOT/scripts/helpers/claude-sdk-exec.sh" ]]; then
+  test_pass
+else
+  test_fail "exact Fable 5.1 retry contract mismatch: [$exact_fable51_sdk_cmd]"
 fi
 
 test_case "review order keeps same-provider model variants and Ox Alpha before Luna"

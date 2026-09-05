@@ -1,24 +1,54 @@
 # AI Agent Handoff
 
-Last updated: 2026-08-30
-Status: PR #984 contains the install, setup, readiness, dispatch, cost, and
-uninstall simplification. Two findings from the latest exact-head CodeRabbit
-round have verified fixes in the branch head, independent Fable 5 review
-returned PASS/PASS, and the complete local matrix is green. The final head
-still needs exact-head hosted review before merge.
-Branch: `feat/simplify-install-setup-use`, reconciled with `origin/main` at
-`f9b8c92aa228a4b3f6bc9132c6c0a06f3142b73e`.
-Delivery: PR [#984](https://github.com/nyldn/claude-octopus/pull/984) is open.
-Its branch head includes the final reviewed follow-up after
-`d412469ce7345496793849b88b1803a0b23c4d28`.
-Current release: [v10.0.0](https://github.com/nyldn/claude-octopus/releases/tag/v10.0.0)
+Last updated: 2026-09-04
+Status: Claude Fable 5.1 and GPT-6 Astra support is implemented with explicit,
+cost-safe routing. Independent spec and quality reviews are complete, all
+verified findings are fixed, and the required local gates pass.
+Branch: `research/2026-09-04-model-support`, based on `upstream/main` at
+`1e496e1190c10d90d5edf1a4d7650657d5404c2e`.
+Delivery: the implementation is ready for an exact-head pull request to
+`nyldn/claude-octopus:main`. The user authorized opening and merging the PR once
+hosted checks pass.
+Current release: [v10.1.0](https://github.com/nyldn/claude-octopus/releases/tag/v10.1.0)
 Tracking: `bd` is unavailable in this checkout, so no Beads issue was created or
-updated for this cleanup.
-Next action: commit and push the review follow-up, resolve the verified review
-threads, wait for exact-head checks and approval, then squash-merge PR #984 and
-run the guarded v10.1.0 release workflow. The user authorized merge, release,
-shared-marketplace publication, and cleanup of only the related worktrees
-proven safe to remove.
+updated. Do not run a schema migration to restore it.
+Next action: commit and push the reviewed tree, open the pull request, wait for
+exact-head checks, squash-merge when green, then remove only this isolated
+worktree after confirming it is clean and unused.
+
+## Fable 5.1 and GPT-6 Astra Model Support
+
+- Added `claude-fable-5-1` and `gpt-6-astra` to the model catalog while
+  preserving the legacy `claude-fable-5` pin. Both premium models are
+  explicit-only: they cannot become persistent defaults, capability routes,
+  role routes, phase routes, evaluation mappings, or automatic tier choices.
+  Session and environment overrides remain available for bounded evaluation.
+- Fable 5.1 defaults to high effort, supports a configurable `xhigh` or `max`
+  ceiling, and keeps the existing opt-in one-seat escalation budget. Security
+  work reroutes away from either Fable ID, exact Fable seats fail closed above
+  the configured input ceiling, and refused SDK calls retry at most once on the
+  configured non-Fable fallback.
+- Astra requires Codex CLI 0.153.1 or newer. The generic Chat Completions
+  adapter allows no-tool Astra calls but rejects tool-bearing requests before
+  network access, directing those workloads to Codex CLI or a Responses API
+  path.
+- Updated current catalog pricing and added Astra's long-context billing rule:
+  requests above 272,000 input tokens apply 2x input/cache pricing and 1.5x
+  output pricing to the full request. Cost estimates, usage reports, and
+  recorded metrics now share that rule; metrics also include prompt tokens in
+  estimated totals.
+- Review found and verified six material gaps: persistent explicit-only routes,
+  edited-config resolver bypasses, Fable security selection through ordinary
+  Claude overrides, exact-seat input-ceiling bypasses, inconsistent Astra
+  usage pricing, and prompt-token undercounting. Each has regression coverage.
+  A final full-gate failure exposed one documentation contract that no longer
+  named the rejected Fable IDs literally; the canonical skill now states both
+  IDs and its generated copy is synchronized.
+- Fresh local evidence: `make ci-changed` selected the full matrix and exited
+  0; `make ci-local` exited 0 after synchronized artifacts, 16 smoke suites,
+  308 unit suites, and 8 integration suites. `make sync-check`, shell syntax,
+  `git diff --check`, executable-mode checks, and temporary-worktree cleanup
+  also pass.
 
 ## Install, Setup, and Everyday-Use Simplification
 

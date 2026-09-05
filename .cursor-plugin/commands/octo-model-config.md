@@ -152,15 +152,20 @@ AskUserQuestion({
     header: "Codex Model",
     multiSelect: false,
     options: [
-      {label: "gpt-5.6-sol", description: "Frontier — 1M context, $5/$30 MTok, best for implementation and independent review"},
-      {label: "gpt-5.6-terra", description: "Balanced — 1M context, $2.50/$15 MTok, strong general-purpose Codex seat"},
-      {label: "gpt-5.6-luna", description: "Budget — 1M context, $1/$6 MTok, best for quick checks and prototypes"},
+      {label: "gpt-5.6-sol", description: "Frontier default — 1M context, $4/$20 MTok, best for implementation and independent review"},
+      {label: "gpt-5.6-terra", description: "Balanced — 1M context, $2/$12 MTok, strong general-purpose Codex seat"},
+      {label: "gpt-5.6-luna", description: "Budget — 1M context, $0.20/$1.20 MTok, best for quick checks and prototypes"},
       {label: "o3", description: "Reasoning — 200K context, $2/$8 MTok, deep analysis & trade-offs"},
       {label: "Custom", description: "Enter a custom model name"}
     ]
   }]
 })
 ```
+
+`gpt-6-astra` is intentionally absent from persistent defaults and cost tiers.
+For a bounded evaluation after Sol fails a hard acceptance test, use
+`octo-model-config set codex gpt-6-astra --session` or set
+`OCTOPUS_CODEX_MODEL=gpt-6-astra` for one command.
 
 **OpenRouter example:**
 ```

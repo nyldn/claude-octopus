@@ -478,8 +478,7 @@ migrate_provider_config() {
     "claude": {
       "default": "claude-sonnet-5",
       "budget": "claude-haiku-4.5",
-      "opus": "claude-opus-5",
-      "fable": "claude-fable-5"
+      "opus": "claude-opus-5"
     }
   },
   "routing": {
@@ -666,8 +665,7 @@ set_provider_model() {
     "claude": {
       "default": "claude-sonnet-5",
       "budget": "claude-haiku-4.5",
-      "opus": "claude-opus-5",
-      "fable": "claude-fable-5"
+      "opus": "claude-opus-5"
     }
   },
   "routing": {

@@ -8,6 +8,9 @@ fi
 if ! declare -f cursor_agent_resolve_mode >/dev/null 2>&1; then
     source "${_profile_lib_dir}/cursor-agent.sh" 2>/dev/null || true
 fi
+if ! declare -f octo_codex_model_version_ok >/dev/null 2>&1; then
+    source "${_profile_lib_dir}/provider-versions.sh" 2>/dev/null || true
+fi
 # Claude Octopus — Agent Dispatch & Model Resolution
 # ═══════════════════════════════════════════════════════════════════════════════
 # Extracted from orchestrate.sh in v9.7.7 monolith decomposition.
@@ -59,11 +62,17 @@ _octopus_claude_reasoning_fragment() {
 # Exact model pins must stay exact, so an unsafe Fable security pin is rejected
 # instead of being silently rerouted to a different model.
 _octopus_validate_exact_claude_dispatch_model() {
-    local role="${2:-}" agent_type="${3:-}" phase="${4:-}"
+    local model="${1:-}" role="${2:-}" agent_type="${3:-}" phase="${4:-}" prompt_bytes="${5:-0}"
     [[ "$agent_type" == *:* ]] || return 0
     if ! octo_agent_spec_exact_role_allowed "$agent_type" "$role" "$phase"; then
         log "ERROR" "Exact Fable 5 model pins cannot be used for security dispatches"
         return 1
+    fi
+    if declare -f fable5_is_model >/dev/null 2>&1 && fable5_is_model "$model"; then
+        if ! fable5_prompt_within_budget "$prompt_bytes"; then
+            log "ERROR" "Exact Fable 5 model pin exceeds the configured input ceiling"
+            return 1
+        fi
     fi
     return 0
 }
@@ -142,6 +151,17 @@ _codex_dispatch_is_oss_model() {
     return $rc
 }
 
+_octopus_require_codex_model_version() {
+    local model="$1"
+    [[ "$model" == "gpt-6-astra" ]] || return 0
+    local installed_version
+    installed_version="$(octo_codex_installed_version)"
+    if ! octo_codex_model_version_ok "$installed_version" "$model"; then
+        log "ERROR" "gpt-6-astra requires Codex CLI ${OCTO_CODEX_ASTRA_MIN_VERSION}+; found ${installed_version}"
+        return 1
+    fi
+}
+
 # ── Build the `codex exec` dispatch string. For OSS/local models, wrap it in the
 #    pull-guard shim (helpers/codex-run.sh) so codex cannot fire an unbounded
 #    `ollama pull` for an absent multi-GB model unless OCTOPUS_OLLAMA_ALLOW_PULL
@@ -149,6 +169,7 @@ _codex_dispatch_is_oss_model() {
 #    Cloud models are emitted unchanged (zero behavior change for the common path). ──
 _build_codex_exec_command() {
     local model="$1" sandbox_flag="$2" reasoning_fragment="${3:-}"
+    _octopus_require_codex_model_version "$model" || return 1
     local base="codex exec --skip-git-repo-check --model ${model}"
     [[ -n "$reasoning_fragment" ]] && base+=" ${reasoning_fragment}"
     base+=" ${sandbox_flag} -"
@@ -300,6 +321,7 @@ get_agent_command() {
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                 return 1
             fi
+            _octopus_require_codex_model_version "$model" || return 1
             # `codex exec review` has no --sandbox/--profile flag (unlike plain
             # `codex exec`), so it silently inherits sandbox_mode from the
             # user's ~/.codex/config.toml — OCTOPUS_CODEX_SANDBOX would not
@@ -314,7 +336,7 @@ get_agent_command() {
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                 return 1
             fi
-            _octopus_validate_exact_claude_dispatch_model "$model" "$role" "$agent_type" "$phase" || return 1
+            _octopus_validate_exact_claude_dispatch_model "$model" "$role" "$agent_type" "$phase" "$prompt_bytes" || return 1
             [[ "$agent_type" == *:* ]] || model="${model//./-}"
             echo "${_claude_bin}${_BARE_OPT} --print --model ${model} ${reasoning_fragment} ${claude_perm}" ;;
         claude-sonnet)
@@ -325,7 +347,7 @@ get_agent_command() {
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                 return 1
             fi
-            _octopus_validate_exact_claude_dispatch_model "$model" "$role" "$agent_type" "$phase" || return 1
+            _octopus_validate_exact_claude_dispatch_model "$model" "$role" "$agent_type" "$phase" "$prompt_bytes" || return 1
             [[ "$agent_type" == *:* ]] || model="${model//./-}"
             echo "${_claude_bin}${_BARE_OPT} --print --model ${model} ${reasoning_fragment} ${claude_perm}" ;;
         claude-opus|claude-opus-fast)
@@ -348,7 +370,7 @@ get_agent_command() {
             local opus_model_flag
             if [[ "$agent_type" == *:* ]]; then
                 opus_model_flag="$(get_agent_model "$agent_type" "$phase" "$role")" || return 1
-                _octopus_validate_exact_claude_dispatch_model "$opus_model_flag" "$role" "$agent_type" "$phase" || return 1
+                _octopus_validate_exact_claude_dispatch_model "$opus_model_flag" "$role" "$agent_type" "$phase" "$prompt_bytes" || return 1
             else
                 opus_model_flag="$(opus_default_model)"
                 # Selective Fable 5 escalation for judgment-class roles, before
@@ -576,9 +598,9 @@ get_agent_command() {
             # unlocks Opus 5 + 1M context independent of the host session. Model
             # wiring mirrors grok: env prefix so providers.json picks reach the shim.
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then return 1; fi
-            _octopus_validate_exact_claude_dispatch_model "$model" "$role" "$agent_type" "$phase" || return 1
+            _octopus_validate_exact_claude_dispatch_model "$model" "$role" "$agent_type" "$phase" "$prompt_bytes" || return 1
             if [[ -n "$model" && "$model" != "default" ]]; then
-                if [[ "$agent_type" == *:* && "$model" == "${FABLE5_MODEL_ID:-claude-fable-5}" ]]; then
+                if [[ "$agent_type" == *:* ]] && declare -f fable5_is_model >/dev/null 2>&1 && fable5_is_model "$model"; then
                     echo "env OCTOPUS_CLAUDE_SDK_MODEL=${model} OCTOPUS_FABLE5_NO_RETRY=1 ${PLUGIN_DIR}/scripts/helpers/claude-sdk-exec.sh"
                 else
                     echo "env OCTOPUS_CLAUDE_SDK_MODEL=${model} ${PLUGIN_DIR}/scripts/helpers/claude-sdk-exec.sh"

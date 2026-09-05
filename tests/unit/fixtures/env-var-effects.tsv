@@ -31,6 +31,7 @@ OCTOPUS_COMPACT_BANNERS	skip	changes banner prose only; asserting it would pin c
 OCTOPUS_COST_MODE	covered-by	test-cost-mode-toggle.sh
 OCTOPUS_EFFORT_OVERRIDE	covered-by	test-execution-mechanism.sh
 OCTOPUS_FABLE5_FALLBACK_MODEL	covered-by	test-fable5-mode.sh
+OCTOPUS_FABLE5_MAX_EFFORT	covered-by	test-fable5-escalation.sh
 OCTOPUS_FABLE5_MAX_INPUT_BYTES	covered-by	test-routing-evals-v10.sh
 OCTOPUS_FABLE5_MODE	covered-by	test-fable5-mode.sh
 OCTOPUS_FABLE5_NO_RETRY	covered-by	test-fable5-mode.sh

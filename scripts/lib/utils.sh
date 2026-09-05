@@ -255,7 +255,10 @@ _validate_claude_sdk_env_command() {
             [[ "${parts[2]}" == *"$shim_suffix" ]]
             ;;
         4)
-            [[ "$model" == "${FABLE5_MODEL_ID:-claude-fable-5}" ]] || return 1
+            case "$model" in
+                claude-fable-5|claude-fable-5-1) ;;
+                *) return 1 ;;
+            esac
             [[ "${parts[2]}" == OCTOPUS_FABLE5_NO_RETRY=1 ]] || return 1
             [[ "${parts[3]}" == *"$shim_suffix" ]]
             ;;

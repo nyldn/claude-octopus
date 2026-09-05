@@ -184,10 +184,11 @@ octo_agent_spec_exact_role_allowed() {
     model="$(octo_agent_spec_explicit_model "$spec")" || return 1
     case "$provider" in
         claude|claude-sdk)
-            if [[ "$model" == "${FABLE5_MODEL_ID:-claude-fable-5}" ]] &&
-               octo_agent_spec_is_security_dispatch "$role" "$spec" "$phase"; then
-                return 1
-            fi
+            case "$model" in
+                claude-fable-5|claude-fable-5-1)
+                    octo_agent_spec_is_security_dispatch "$role" "$spec" "$phase" && return 1
+                    ;;
+            esac
             ;;
     esac
     return 0

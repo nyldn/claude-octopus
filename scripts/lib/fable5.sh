@@ -2,7 +2,8 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 # fable5.sh — Claude Fable 5 (Mythos-class) mode detection and dispatch guards
 # ═══════════════════════════════════════════════════════════════════════════════
-# Fable 5 is opt-in only ($10/$50 MTok — 2x Opus 5) via an env pin. When a pin
+# Fable 5.1 and the preserved Fable 5 ID are opt-in only ($10/$50 MTok — 2x
+# Opus 5) via an env pin. When a pin
 # is detected, orchestration auto-enables three guards (auto-detect + banner,
 # no user action needed):
 #
@@ -16,8 +17,8 @@
 #      dispatch once on Opus 5 (see helpers/claude-sdk-exec.sh).
 #
 # Detection is env-pin based only (deterministic; host session model ignored):
-#   OCTOPUS_OPUS_MODEL=claude-fable-5        — opus seats run Fable 5
-#   OCTOPUS_CLAUDE_SDK_MODEL=claude-fable-5  — claude-sdk seat runs Fable 5
+#   OCTOPUS_OPUS_MODEL=claude-fable-5-1        — opus seats run Fable 5.1
+#   OCTOPUS_CLAUDE_SDK_MODEL=claude-fable-5-1  — claude-sdk seat runs Fable 5.1
 #
 # Master switch: OCTOPUS_FABLE5_MODE=auto (default) | off | on
 #   off — all guards disabled even when a pin is present
@@ -25,27 +26,35 @@
 #
 # Prompting guidance lives in skills/blocks/fable5-prompting.md.
 
-FABLE5_MODEL_ID="claude-fable-5"
+FABLE5_MODEL_ID="claude-fable-5-1"
+FABLE5_LEGACY_MODEL_ID="claude-fable-5"
 # Resolver/dispatch reroute target. Dot form matches models.sh registry ids;
 # dispatch translates to the dash form the claude CLI expects.
 FABLE5_REROUTE_MODEL="claude-opus-5"
+
+fable5_is_model() {
+    case "${1:-}" in
+        "$FABLE5_MODEL_ID"|"$FABLE5_LEGACY_MODEL_ID") return 0 ;;
+    esac
+    return 1
+}
 
 fable5_fallback_model() {
     local fallback_model="${OCTOPUS_FABLE5_FALLBACK_MODEL:-$FABLE5_REROUTE_MODEL}"
     # A fallback that still targets Fable defeats both the security reroute and
     # refusal recovery contracts. Fail safe to the built-in Opus target.
-    if [[ "$fallback_model" == "$FABLE5_MODEL_ID" ]]; then
+    if fable5_is_model "$fallback_model"; then
         fallback_model="$FABLE5_REROUTE_MODEL"
     fi
     printf '%s\n' "$fallback_model"
 }
 
 fable5_opus_pinned() {
-    [[ "${OCTOPUS_OPUS_MODEL:-}" == "$FABLE5_MODEL_ID" ]]
+    fable5_is_model "${OCTOPUS_OPUS_MODEL:-}"
 }
 
 fable5_sdk_pinned() {
-    [[ "${OCTOPUS_CLAUDE_SDK_MODEL:-}" == "$FABLE5_MODEL_ID" ]]
+    fable5_is_model "${OCTOPUS_CLAUDE_SDK_MODEL:-}"
 }
 
 fable5_mode_active() {
@@ -53,7 +62,9 @@ fable5_mode_active() {
         off) return 1 ;;
         on)  return 0 ;;
     esac
-    fable5_opus_pinned || fable5_sdk_pinned
+    fable5_opus_pinned || fable5_sdk_pinned ||
+        fable5_is_model "${OCTOPUS_CLAUDE_MODEL:-}" ||
+        fable5_is_model "${CLAUDE_MODEL:-}"
 }
 
 # fable5_prompt_within_budget <prompt-bytes>
@@ -76,7 +87,7 @@ fable5_prompt_within_budget() {
 fable5_recovery_decision() {
     local requested_model="${1:-}" failure_kind="${2:-}"
     local resolved_model="$requested_model" reason="no-fallback"
-    if [[ "$requested_model" == "$FABLE5_MODEL_ID" ]]; then
+    if fable5_is_model "$requested_model"; then
         case "$failure_kind" in
             refusal) reason="refusal-fallback" ;;
             quota-exhausted) reason="quota-fallback" ;;
@@ -96,15 +107,8 @@ fable5_recovery_decision() {
 fable5_clamp_effort() {
     local effort="${1:-}"
     if fable5_mode_active && fable5_opus_pinned; then
-        case "$effort" in
-            xhigh|max)
-                if declare -f log >/dev/null 2>&1; then
-                    log "WARN" "Fable 5 effort clamp: ${effort} → high (per-call effort widens scope at 2x cost; OCTOPUS_FABLE5_MODE=off to disable)"
-                fi
-                echo "high"
-                return 0
-                ;;
-        esac
+        fable5_clamp_effort_for_model "$effort" "${OCTOPUS_OPUS_MODEL:-}"
+        return $?
     fi
     echo "$effort"
 }
@@ -130,7 +134,7 @@ fable5_is_security_dispatch() {
 # dispatch. Swaps Fable 5 for the configured current-Opus fallback.
 fable5_maybe_reroute() {
     local model="${1:-}"
-    if [[ "$model" == "$FABLE5_MODEL_ID" ]] && fable5_mode_active \
+    if fable5_is_model "$model" && [[ "${OCTOPUS_FABLE5_MODE:-auto}" != "off" ]] \
         && fable5_is_security_dispatch "${2:-}" "${3:-}" "${4:-}"; then
         local fallback_model
         fallback_model="$(fable5_fallback_model)"
@@ -336,7 +340,7 @@ fable5_resolve_dispatch_model() {
     resolved_model="$(fable5_maybe_reroute "$requested_model" "$role" "$agent_type" "$phase")"
     if [[ "$resolved_model" != "$requested_model" ]]; then
         reason="security-fallback"
-    elif [[ "$requested_model" == "$FABLE5_MODEL_ID" ]]; then
+    elif fable5_is_model "$requested_model"; then
         if fable5_prompt_within_budget "$prompt_bytes"; then
             reason="fable-selected"
         else
@@ -376,17 +380,28 @@ fable5_resolve_dispatch_model() {
 # does not lengthen a run, it widens the scope of each step at twice the price.
 fable5_clamp_effort_for_model() {
     local effort="${1:-}" model="${2:-}"
-    if [[ "$model" == "$FABLE5_MODEL_ID" ]]; then
-        case "$effort" in
-            xhigh|max)
-                if declare -f log >/dev/null 2>&1; then
-                    log "WARN" "Fable 5 effort clamp: ${effort} → high (per-call effort widens scope at 2x cost)"
-                fi
-                printf '%s\n' "high"
-                return 0
-                ;;
-        esac
+    if ! fable5_is_model "$model" || [[ "${OCTOPUS_FABLE5_MODE:-auto}" == "off" ]]; then
+        printf '%s\n' "$effort"
+        return 0
     fi
-    printf '%s\n' "$effort"
+
+    local cap="${OCTOPUS_FABLE5_MAX_EFFORT:-high}" resolved="$effort"
+    case "$cap" in
+        high|xhigh|max) ;;
+        *)
+            if declare -f log >/dev/null 2>&1; then
+                log "WARN" "Invalid OCTOPUS_FABLE5_MAX_EFFORT=${cap}; using high"
+            fi
+            cap="high"
+            ;;
+    esac
+    case "$cap:$effort" in
+        high:xhigh|high:max) resolved="high" ;;
+        xhigh:max) resolved="xhigh" ;;
+    esac
+    if [[ "$resolved" != "$effort" ]] && declare -f log >/dev/null 2>&1; then
+        log "WARN" "Fable 5 effort clamp: ${effort} → ${resolved} (raise OCTOPUS_FABLE5_MAX_EFFORT only for an explicit high-value run)"
+    fi
+    printf '%s\n' "$resolved"
     return 0
 }

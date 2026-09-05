@@ -60,6 +60,24 @@ estimate_tokens() {
     echo $(( (char_count + 3) / 4 ))  # Round up
 }
 
+# Apply request-size pricing rules from the canonical pricing table.
+octo_effective_model_pricing() {
+    local model="$1" input_tokens="$2" input_price="$3" output_price="$4"
+    local rule threshold input_multiplier output_multiplier
+    rule="$(awk -F'\t' -v model="$model" '$1 == "request-rule" && $2 == model {print $3 ":" $4 ":" $5; exit}' "$OCTOPUS_MODEL_PRICING_FILE" 2>/dev/null || true)"
+    if [[ -n "$rule" ]]; then
+        threshold="${rule%%:*}"
+        rule="${rule#*:}"
+        input_multiplier="${rule%%:*}"
+        output_multiplier="${rule##*:}"
+    fi
+    if [[ "$threshold" =~ ^[0-9]+$ && "$input_tokens" -gt "$threshold" ]]; then
+        input_price="$(awk -v price="$input_price" -v multiplier="$input_multiplier" 'BEGIN {printf "%.6f", price * multiplier}')"
+        output_price="$(awk -v price="$output_price" -v multiplier="$output_multiplier" 'BEGIN {printf "%.6f", price * multiplier}')"
+    fi
+    printf '%s:%s\n' "$input_price" "$output_price"
+}
+
 # Estimate per-call API spend for progress reporting. Subscription and OAuth
 # seats intentionally remain zero because they have no attributable call price.
 estimate_agent_call_cost() {
@@ -80,6 +98,9 @@ estimate_agent_call_cost() {
     output_price="${pricing##*:}"
     [[ "$input_price" =~ ^[0-9]+([.][0-9]+)?$ ]] || input_price=0
     [[ "$output_price" =~ ^[0-9]+([.][0-9]+)?$ ]] || output_price=0
+    pricing="$(octo_effective_model_pricing "$model" "$input_tokens" "$input_price" "$output_price")"
+    input_price="${pricing%%:*}"
+    output_price="${pricing##*:}"
     awk -v input_tokens="$input_tokens" -v output_tokens="$output_tokens" \
         -v input_price="$input_price" -v output_price="$output_price" \
         'BEGIN {printf "%.6f\n", (input_tokens * input_price + output_tokens * output_price) / 1000000}'
@@ -135,6 +156,9 @@ calculate_agent_cost() {
     pricing=$(get_model_pricing "$model" "$agent_type")
     local input_price="${pricing%%:*}"
     local output_price="${pricing##*:}"
+    pricing="$(octo_effective_model_pricing "$model" "$input_tokens" "$input_price" "$output_price")"
+    input_price="${pricing%%:*}"
+    output_price="${pricing##*:}"
 
     # Cost = (input_tokens / 1M) * input_price + (output_tokens / 1M) * output_price
     local cost=$(awk "BEGIN {printf \"%.4f\", (($input_tokens / 1000000.0) * $input_price) + (($output_tokens / 1000000.0) * $output_price)}")
@@ -311,7 +335,7 @@ display_workflow_cost_estimate() {
         claude-opus-fast:claude-opus-4.8) claude_model_label="Opus 4.8 Fast" ;;
         claude-opus-fast:claude-opus-4.7) claude_model_label="Opus 4.7 Fast" ;;
         claude-opus-fast:claude-opus-4.6) claude_model_label="Opus 4.6 Fast" ;;
-        *:claude-fable-5)     claude_model_label="Fable 5" ;;
+        *:claude-fable-5|*:claude-fable-5-1) claude_model_label="Fable 5" ;;
         *:claude-opus-5-fast) claude_model_label="Opus 5 Fast" ;;
         *:claude-opus-5)      claude_model_label="Opus 5" ;;
         *:claude-opus-4.8)    claude_model_label="Opus 4.8" ;;
@@ -639,6 +663,9 @@ record_agent_complete() {
         # Assume 40% input, 60% output split for actual tokens
         local input_tokens=$(( actual_tokens * 40 / 100 ))
         local output_tokens=$(( actual_tokens * 60 / 100 ))
+        pricing="$(octo_effective_model_pricing "$model" "$input_tokens" "$input_price" "$output_price")"
+        input_price="${pricing%%:*}"
+        output_price="${pricing##*:}"
         local cost
         cost=$(awk "BEGIN {printf \"%.6f\", ($input_tokens * $input_price + $output_tokens * $output_price) / 1000000}")
 

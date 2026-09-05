@@ -18,6 +18,7 @@ get_model_catalog() {
     local model="$1"
     case "$model" in
         # OpenAI GPT-5.x
+        gpt-6-astra)            echo "1050|yes|yes|yes|codex|premium|limited" ;;
         gpt-5.6|gpt-5.6-sol)    echo "1050|yes|yes|yes|codex|premium|active" ;;
         gpt-5.6-terra)          echo "1050|yes|yes|yes|codex|standard|active" ;;
         gpt-5.6-luna)           echo "1050|yes|yes|yes|codex|budget|active" ;;
@@ -44,6 +45,7 @@ get_model_catalog() {
         claude-haiku-4.5)      echo "200|yes|yes|yes|claude|budget|active" ;;
         claude-sonnet-5)       echo "1000|yes|yes|yes|claude|standard|active" ;;
         claude-sonnet-4.6)      echo "200|yes|yes|no|claude|standard|active" ;;
+        claude-fable-5-1)       echo "1000|yes|yes|yes|claude|premium|active" ;;
         claude-fable-5)         echo "1000|yes|yes|yes|claude|premium|active" ;;  # v9.44: Mythos-class, opt-in via OCTOPUS_OPUS_MODEL
         claude-opus-5)          echo "1000|yes|yes|yes|claude|premium|active" ;;
         claude-opus-5-fast)     echo "1000|yes|yes|yes|claude|premium|active" ;;
@@ -85,6 +87,33 @@ get_model_catalog() {
     esac
 }
 
+# Return routing policy metadata separate from the fixed seven-field capability
+# catalog so existing catalog consumers remain compatible.
+# Format: selection_policy|auto_eligible|max_auto_dispatches|max_escalated_dispatches|availability
+get_model_policy() {
+    local model="$1"
+    case "$model" in
+        claude-fable-5-1) echo "explicit|no|0|1|general" ;;
+        claude-fable-5)   echo "explicit|no|0|0|general" ;;
+        gpt-6-astra)      echo "explicit|no|0|0|limited" ;;
+        *)
+            if [[ "$(get_model_catalog "$model")" == *"|unknown" ]]; then
+                echo "explicit|no|0|0|unknown"
+            else
+                echo "automatic|yes|unlimited|unlimited|general"
+            fi
+            ;;
+    esac
+}
+
+# Automatic selectors can use this policy gate before admitting a model. Explicit
+# pins remain valid even when a model is ineligible for defaults or fallbacks.
+octo_model_auto_eligible() {
+    local policy
+    policy="$(get_model_policy "$1")"
+    [[ "$(printf '%s\n' "$policy" | cut -d'|' -f2)" == "yes" ]]
+}
+
 # Check if a model is known in the catalog
 is_known_model() {
     local model="$1"
@@ -118,6 +147,7 @@ get_model_capability() {
 # must use this instead of maintaining another hand-written catalog.
 octo_model_ids() {
     cat <<'EOF'
+gpt-6-astra
 gpt-5.6-sol
 gpt-5.6-terra
 gpt-5.6-luna
@@ -138,6 +168,7 @@ auto
 claude-haiku-4.5
 claude-sonnet-5
 claude-sonnet-4.6
+claude-fable-5-1
 claude-fable-5
 claude-opus-5
 claude-opus-5-fast
@@ -200,11 +231,13 @@ list_models() {
         [[ -n "$require_reasoning" && "$reasoning" != "yes" ]] && continue
         [[ -n "$require_tier" && "$tier" != "$require_tier" ]] && continue
 
-        local pricing
+        local pricing policy selection
         pricing=$(get_model_pricing "$model")
+        policy=$(get_model_policy "$model")
+        selection="${policy%%|*}"
         local in_price="${pricing%%:*}"
         local out_price="${pricing##*:}"
-        printf "%-25s %5sK  tools=%-3s img=%-3s rsn=%-3s  \$%s/\$%s MTok  [%s]\n" \
-            "$model" "$ctx" "$tools" "$images" "$reasoning" "$in_price" "$out_price" "$tier"
+        printf "%-25s %5sK  tools=%-3s img=%-3s rsn=%-3s  \$%s/\$%s MTok  [%s; %s]\n" \
+            "$model" "$ctx" "$tools" "$images" "$reasoning" "$in_price" "$out_price" "$tier" "$selection"
     done < <(octo_model_ids)
 }

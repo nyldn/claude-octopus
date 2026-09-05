@@ -4,6 +4,11 @@
 
 ### Added
 
+- Add cost-safe catalog and routing support for Claude Fable 5.1 and GPT-6
+  Astra. Both premium models are explicit-only outside Fable's existing bounded
+  escalation path; shared cost reporting applies their current prices and
+  Astra's long-context multiplier, while security, input-size, CLI-version,
+  and tool-transport guards prevent unsupported dispatches.
 - Moonshot Kimi Code CLI (`kimi`) as a first-class provider, alongside the
   existing OpenRouter `openrouter-kimi` API route. Dispatch goes through
   `scripts/helpers/kimi-exec.sh` (kimi's `-p` takes the prompt as argv, so the

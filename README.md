@@ -39,13 +39,14 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v10.1.0 — Simplify setup, provider readiness, dispatch controls, cost reporting, and uninstall guidance.**
 >
-> **Default roster:** Claude Opus 5 leads architecture, planning, security reasoning, and final judgment; GPT-5.6 Sol is the independent implementation/review peer; Claude Sonnet 5 is the standard Claude seat; Fable 5 remains an opt-in judgment escalation. Existing model pins and provider configuration still win. See [the routing strategy](docs/MODEL-ROUTING-STRATEGY.md).
+> **Default roster:** Claude Opus 5 leads architecture, planning, security reasoning, and final judgment; GPT-5.6 Sol is the independent implementation/review peer; Claude Sonnet 5 is the standard Claude seat; Fable 5.1 remains an opt-in judgment escalation. Existing model pins and provider configuration still win. See [the routing strategy](docs/MODEL-ROUTING-STRATEGY.md).
 <!-- END CURRENT RELEASE -->
 >
 > ```bash
 > /octo:model-config                         # inspect or override the frontier roster
 > OCTOPUS_OPUS5_AUTO_XHIGH=1                 # opt in to automatic xhigh Opus 5 phases
-> OCTOPUS_OPUS_MODEL=claude-fable-5          # explicitly opt in to Fable 5
+> OCTOPUS_OPUS_MODEL=claude-fable-5-1        # explicitly opt in to Fable 5.1
+> OCTOPUS_CODEX_MODEL=gpt-6-astra            # explicitly opt in to Astra
 > ```
 
 > 🆕 **v9.41 — Multi-LLM Council.** `/octo:council` runs a structured 3/5/7-persona deliberation across Claude, Codex, Antigravity, and OpenCode with goal modes (`advice`, `decision`, `plan`, `implement`, `review`), styles (`balanced`, `adversarial`, `red-team`, `executive`, `implementation`), benchmark-aware role routing, quorum + critical-veto gates, budget caps, and gated worktree handoff for approved plans. Use it when one model's opinion isn't enough.
@@ -87,7 +88,7 @@ rollback details.
 - Current fresh configurations use **GPT-5.6 Sol** for Codex implementation/review, **Claude Opus 5** for premium Claude work, and **Claude Sonnet 5** for the standard Claude seat. Existing environment, session, and `providers.json` pins remain unchanged; `OCTOPUS_LEGACY_ROLES=1` restores the pre-frontier role mapping.
 <!-- END CURRENT MODEL DEFAULTS -->
 - New claude-sdk seat env vars (v9.50): `CLAUDE_SDK_API_KEY`, `OCTOPUS_CLAUDE_SDK_MODEL`, `OCTOPUS_CLAUDE_SDK_MAX_TOKENS`, `OCTOPUS_CLAUDE_SDK_ALLOWED_MODELS`, `OCTOPUS_CLAUDE_SDK_CONTEXT_BUDGET`.
-- New Fable 5 guard env vars (v9.51): `OCTOPUS_FABLE5_MODE` (auto/off/on), `OCTOPUS_FABLE5_NO_RETRY`. Guards auto-enable only when you pin `claude-fable-5`.
+- Fable guards apply to `claude-fable-5-1` and preserved `claude-fable-5` pins. `OCTOPUS_FABLE5_MAX_EFFORT` raises the default `high` ceiling without disabling the other guards.
 - Premium Claude role routing (architect, strategist, security-reviewer to Opus) landed in v9.29; restore the older mapping with `OCTOPUS_LEGACY_ROLES=1`.
 
 </details>
@@ -427,7 +428,7 @@ Claude Octopus coordinates twelve external provider integrations alongside the b
 
 | Provider | Role |
 |----------|------|
-| 🔴 Codex (OpenAI, GPT-5.6 Sol/Terra/Luna) | Code review + implementation — edge-case hunting, terminal-heavy execution, patch/test loops |
+| 🔴 Codex (OpenAI, GPT-5.6 Sol/Terra/Luna; explicit GPT-6 Astra) | Code review + implementation — edge-case hunting, terminal-heavy execution, patch/test loops |
 | 🧭 Antigravity CLI (`agy`) | Google Antigravity perspective via native stdin print-mode dispatch |
 | 🟣 Perplexity | Live web search — CVE lookups, dependency research, current docs |
 | 🌐 OpenRouter | Alternative model routing — access 100+ models via single API |
@@ -444,7 +445,7 @@ Claude Octopus coordinates twelve external provider integrations alongside the b
 
 Explicit research-breadth, debate, council, and adversarial-review workflows use multiple providers. Generic mergeable work starts with one capable owner and adds another model only for a distinct job. A 75% consensus quality gate prevents questionable work from shipping. Only Claude is required — all others are optional and auto-detected.
 
-**Frontier routing** defaults `architect`, `strategist`, `security-reviewer`, and opt-in `implementer-heavy` to Opus 5 on Claude Code v2.1.219+, with Opus 4.8/4.7/4.6 fallbacks. `code-reviewer` and `implementer` use GPT-5.6 Sol; `synthesizer` uses Sonnet 5 on Claude Code v2.1.197+. Fable 5 remains an opt-in judgment escalation. Existing pins/configs win, and `OCTOPUS_LEGACY_ROLES=1` restores the v9.28 mapping. See [the routing strategy](docs/MODEL-ROUTING-STRATEGY.md).
+**Frontier routing** defaults `architect`, `strategist`, `security-reviewer`, and opt-in `implementer-heavy` to Opus 5 on Claude Code v2.1.219+, with Opus 4.8/4.7/4.6 fallbacks. `code-reviewer` and `implementer` use GPT-5.6 Sol; `synthesizer` uses Sonnet 5 on Claude Code v2.1.197+. Fable 5.1 and GPT-6 Astra are explicit-only escalations and never enter built-in tier defaults or fallback chains. Existing pins/configs win, and `OCTOPUS_LEGACY_ROLES=1` restores the v9.28 mapping. See [the routing strategy](docs/MODEL-ROUTING-STRATEGY.md).
 
 **Native dynamic workflows:** Claude Code v2.1.154+ can run native dynamic workflows for huge single-Claude migrations. Use that path when one Claude workflow is enough; use Octopus when you need multi-provider disagreement, councils, adversarial review, external model validation, or blind-spot coverage.
 
@@ -515,9 +516,9 @@ OAuth users pay nothing beyond their existing subscriptions. Qwen is the excepti
 
 ### What a Typical Run Costs
 
-Illustrative token-only estimates, using standard global API rates checked **2026-07-27**: [GPT-5.6 Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol) $5/$30, [Sonar Pro](https://docs.perplexity.ai/docs/getting-started/pricing) $3/$15, and [Opus 5](https://platform.claude.com/docs/en/about-claude/models/choosing-a-model) $5/$25 per million input/output tokens. The ranges assume roughly 90% input and 10% output tokens, standard (not batch, flex, priority, or fast) processing, no cache discounts, and a representative mix of those models. OAuth/subscription seats (Codex via ChatGPT, Antigravity, Copilot) bill nothing extra; Ollama is free.
+Illustrative token-only estimates, using standard global API rates checked **2026-09-04**: [GPT-5.6 Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol) $4/$20, [Sonar Pro](https://docs.perplexity.ai/docs/getting-started/pricing) $3/$15, and [Opus 5](https://platform.claude.com/docs/en/about-claude/models/choosing-a-model) $5/$25 per million input/output tokens. The ranges assume roughly 90% input and 10% output tokens, standard (not batch, flex, priority, or fast) processing, no cache discounts, and a representative mix of those models. OAuth/subscription seats (Codex via ChatGPT, Antigravity, Copilot) bill nothing extra; Ollama is free.
 
-The table excludes provider tool charges. Sonar Pro adds a **request fee** of $6-$14 per 1,000 requests depending on search-context size. Long-context and provider-specific rate rules can push large runs above these bounds, so check the linked rate cards before material spend.
+The table excludes provider tool charges. Sonar Pro adds a **request fee** of $6-$14 per 1,000 requests depending on search-context size. Fable 5.1 and GPT-6 Astra each cost $10/$50 per million input/output tokens. Astra requests above 272K input tokens apply OpenAI's long-context multipliers to the whole request. Long-context and provider-specific rate rules can push large runs above these bounds, so check the linked rate cards before material spend.
 
 | Run | Typical volume | Illustrative API token cost (tool fees excluded) |
 |-----|----------------|-----------------------------------------------|
@@ -561,12 +562,18 @@ v9.50.0 aligns the plugin with Claude Code's 2026 native capabilities. Each piec
 
 ---
 
-## Fable 5 Support
+## GPT-6 Astra Support
 
-v9.51.0 added first-class support for Claude Fable 5 (Anthropic's Mythos-class model, $10/$50 per MTok — 2x Opus 5). Fable 5 is never auto-selected; pin it with `OCTOPUS_OPUS_MODEL=claude-fable-5` (opus seats) or `OCTOPUS_CLAUDE_SDK_MODEL=claude-fable-5` (the 1M-context SDK seat). When a pin is detected, the plugin auto-enables three guards and prints a one-line banner:
+GPT-6 Astra is cataloged as an explicit-only premium model at $10/$50 per MTok. Use `OCTOPUS_CODEX_MODEL=gpt-6-astra` or an exact `codex:gpt-6-astra` seat only after GPT-5.6 Sol fails a hard acceptance test or a project eval shows a material gain. Astra is never selected by built-in defaults, cost tiers, review fleets, or fallback chains, and Astra plus GPT-5.6 does not provide vendor diversity.
+
+Codex CLI v0.153.1 or newer is required; unknown versions fail closed. The generic OpenAI-compatible adapter uses Chat Completions, so it rejects tool-enabled Astra dispatches until that adapter supports the Responses API. No-tool review prompts remain available. Astra's initial rollout is limited, and requests above 272K input tokens incur OpenAI's long-context multipliers.
+
+## Fable 5.1 Support
+
+Claude Fable 5.1 is an explicit-only Mythos-class model at $10/$50 per MTok, twice the price of Opus 5. Pin it with `OCTOPUS_OPUS_MODEL=claude-fable-5-1` (opus seats) or `OCTOPUS_CLAUDE_SDK_MODEL=claude-fable-5-1` (the 1M-context SDK seat). Existing `claude-fable-5` pins remain exact and supported. Opt-in escalation is limited to one Fable 5.1 dispatch per command. When either model is selected, the plugin enables three guards and prints a one-line banner:
 
 - **Security reroute** — security-audit dispatches (security-auditor persona, squeeze red/blue workflow) run on Opus 5 instead of Fable 5, whose safety classifiers can refuse adversarial security phrasing even in authorized audits.
-- **Effort clamp** — `xhigh`/`max` effort clamps to `high` for Fable dispatches. Fable 5 effort applies per tool call; higher settings widen scope at 2x cost without extending runs.
+- **Effort clamp** — `xhigh`/`max` effort clamps to `high` by default. Set `OCTOPUS_FABLE5_MAX_EFFORT=xhigh|max` for one bounded high-value run without disabling the other guards.
 - **Refusal retry** — a refused or empty Fable 5 dispatch on the `claude-sdk` seat retries once on Opus 5 instead of failing the seat.
 
 A SessionStart hook injects the dispatch profile (prompt anti-patterns, judgment routing, risk-surface escalation) whenever a pin is active. Full guidance: `skills/blocks/fable5-prompting.md`.
@@ -578,6 +585,7 @@ A SessionStart hook injects the dispatch profile (prompt anti-patterns, judgment
 | `OCTOPUS_FABLE5_MODE` | `auto` | `off` disables all Fable 5 guards; `on` forces them without a pin |
 | `OCTOPUS_FABLE5_NO_RETRY` | unset | Set `1` to disable the refusal retry on the `claude-sdk` seat |
 | `OCTOPUS_FABLE5_FALLBACK_MODEL` | `claude-opus-5` | Override the Fable security/refusal fallback |
+| `OCTOPUS_FABLE5_MAX_EFFORT` | `high` | Highest Fable effort allowed: `high`, `xhigh`, or `max` |
 
 ---
 

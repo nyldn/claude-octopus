@@ -55,6 +55,49 @@ assert mod.normalize_reasoning_effort("xhigh") == "high"
 assert mod.normalize_reasoning_effort("max") == "high"
 assert mod.normalize_reasoning_effort("medium") == "medium"
 
+# Astra's full tool path requires the Responses API. The generic adapter still
+# uses Chat Completions, so it may run no-tool review prompts but must fail
+# before transport when tools are requested.
+with patch.object(mod.urllib.request, "urlopen") as mocked:
+    try:
+        mod.api_call(
+            "https://example.test",
+            "k",
+            "gpt-6-astra",
+            {},
+            [{"role": "user", "content": "x"}],
+            tool_policy="auto",
+        )
+    except ValueError as exc:
+        assert "Responses API" in str(exc), exc
+    else:
+        raise AssertionError("Astra tools were sent through Chat Completions")
+    mocked.assert_not_called()
+
+astra_seen = []
+
+
+def fake_astra(req, timeout=None):
+    del timeout
+    astra_seen.append(json.loads(req.data.decode()))
+    return Resp()
+
+
+with patch.object(mod.urllib.request, "urlopen", side_effect=fake_astra):
+    mod.api_call(
+        "https://example.test",
+        "k",
+        "gpt-6-astra",
+        {},
+        [{"role": "user", "content": "x"}],
+        tool_policy="none",
+        reasoning_effort="high",
+    )
+
+assert "tools" not in astra_seen[0], astra_seen
+assert "temperature" not in astra_seen[0], astra_seen
+assert astra_seen[0]["reasoning_effort"] == "high", astra_seen
+
 # A field-named value error must not be mistaken for rejection of the field and
 # retried without it.
 for generic_body in (

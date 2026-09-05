@@ -3,6 +3,7 @@
 # Source this file to access floor constants and octo_version_ok().
 
 OCTO_CODEX_MIN_VERSION="${OCTO_CODEX_MIN_VERSION:-0.144.0}"
+OCTO_CODEX_ASTRA_MIN_VERSION="${OCTO_CODEX_ASTRA_MIN_VERSION:-0.153.1}"
 OCTO_AGY_MIN_VERSION="${OCTO_AGY_MIN_VERSION:-1.0.6}"
 OCTO_QWEN_MIN_VERSION="${OCTO_QWEN_MIN_VERSION:-0.14.0}"
 OCTO_GH_MIN_VERSION="${OCTO_GH_MIN_VERSION:-2.0.0}"
@@ -31,6 +32,30 @@ octo_version_ok() {
     (( 10#$a < 10#$b )) && return 1
   done
   return 0
+}
+
+# Astra entered the Codex model catalog after the general CLI floor. Keep this
+# gate model-specific so existing Codex routes remain usable on supported older
+# clients. Unlike the general check, an unknown version fails closed for Astra.
+octo_codex_model_version_ok() {
+  local installed="$1" model="$2"
+  [[ "$model" == "gpt-6-astra" ]] || return 0
+  [[ "$installed" != "unknown" && -n "$installed" ]] || return 1
+  octo_version_ok "$installed" "$OCTO_CODEX_ASTRA_MIN_VERSION"
+}
+
+octo_codex_installed_version() {
+  if [[ -n "${OCTO_CODEX_VERSION_OVERRIDE:-}" ]]; then
+    printf '%s\n' "$OCTO_CODEX_VERSION_OVERRIDE"
+    return 0
+  fi
+  if ! command -v codex >/dev/null 2>&1; then
+    printf '%s\n' "unknown"
+    return 0
+  fi
+  local version
+  version="$(codex --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)"
+  printf '%s\n' "${version:-unknown}"
 }
 
 # _octo_parse_iso8601 ISO8601_STRING

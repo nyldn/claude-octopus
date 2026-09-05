@@ -1,12 +1,15 @@
 # Canonical estimated pricing in USD per million input/output tokens.
 # kind<TAB>id<TAB>input<TAB>output<TAB>notes
+# request-rule rows use: kind<TAB>id<TAB>input_threshold<TAB>input_multiplier<TAB>output_multiplier<TAB>notes
 # Model rows take precedence; provider rows cover legacy records and dynamic IDs.
 # Provider-override rows distinguish subscription routes from direct API routes
 # when the same model name can be used by both.
-model	gpt-5.6	5.00	30.00	Codex frontier alias
-model	gpt-5.6-sol	5.00	30.00	Codex frontier
-model	gpt-5.6-terra	2.50	15.00	Codex balanced
-model	gpt-5.6-luna	1.00	6.00	Codex budget
+model	gpt-6-astra	10.00	50.00	OpenAI explicit-only frontier
+request-rule	gpt-6-astra	272000	2.00	1.50	Whole-request multiplier when input exceeds threshold
+model	gpt-5.6	4.00	20.00	Codex frontier alias
+model	gpt-5.6-sol	4.00	20.00	Codex frontier
+model	gpt-5.6-terra	2.00	12.00	Codex balanced
+model	gpt-5.6-luna	0.20	1.20	Codex budget
 model	gpt-5.5	5.00	30.00	OpenAI
 model	gpt-5.5-pro	30.00	180.00	OpenAI Pro
 model	gpt-5.4	2.50	15.00	OpenAI
@@ -26,9 +29,10 @@ model	o3-mini	1.10	4.40	OpenAI reasoning budget
 model	agy/default	0.00	0.00	Antigravity access
 model	auto	0.00	0.00	Copilot subscription auto selector
 model	claude-haiku-4.5	1.00	5.00	Anthropic
-model	claude-sonnet-5	3.00	15.00	Anthropic
+model	claude-sonnet-5	2.00	10.00	Anthropic
 model	claude-sonnet-4.5	3.00	15.00	Anthropic legacy
 model	claude-sonnet-4.6	3.00	15.00	Anthropic
+model	claude-fable-5-1	10.00	50.00	Anthropic explicit-only frontier
 model	claude-fable-5	10.00	50.00	Anthropic opt-in
 model	claude-opus-5	5.00	25.00	Anthropic
 model	claude-opus-5-fast	10.00	50.00	Anthropic fast
@@ -58,7 +62,7 @@ model	sonar-pro	3.00	15.00	Perplexity
 model	sonar	1.00	1.00	Perplexity
 provider	claude	5.00	25.00	Legacy provider-only records
 provider	claude-sdk	5.00	25.00	Agent SDK
-provider	codex	5.00	30.00	Legacy provider-only records
+provider	codex	4.00	20.00	Legacy provider-only records
 provider	agy	0.00	0.00	Antigravity access
 provider	gemini	0.00	0.00	Sunset legacy records only
 provider	perplexity	3.00	15.00	Legacy provider-only records

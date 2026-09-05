@@ -73,12 +73,18 @@ pricing_file = os.environ["_OCTOPUS_MODEL_PRICING_FILE"]
 RATES = {}
 MODEL_RATES = {}
 PROVIDER_OVERRIDES = {}
+REQUEST_RULES = {}
 DEFAULT_RATE = (1.00, 5.00)
 with open(pricing_file, encoding="utf-8") as pricing:
     for raw in pricing:
         if not raw.strip() or raw.startswith("#"):
             continue
-        kind, ident, input_rate, output_rate, *_ = raw.rstrip("\n").split("\t")
+        fields = raw.rstrip("\n").split("\t")
+        kind, ident, input_rate, output_rate = fields[:4]
+        if kind == "request-rule":
+            REQUEST_RULES[ident.lower()] = (
+                int(input_rate), float(output_rate), float(fields[4]))
+            continue
         rate = (float(input_rate), float(output_rate))
         if kind == "model":
             MODEL_RATES[ident.lower()] = rate
@@ -167,6 +173,10 @@ for r in records:
     tout = int(r.get("est_tokens_out") or r.get("tokens_out") or 0)
     rate = PROVIDER_OVERRIDES.get(
         price_prov, MODEL_RATES.get(model, RATES.get(price_prov, DEFAULT_RATE)))
+    threshold, input_multiplier, output_multiplier = REQUEST_RULES.get(
+        model, (None, 1.0, 1.0))
+    if threshold is not None and tin > threshold:
+        rate = (rate[0] * input_multiplier, rate[1] * output_multiplier)
     cost = tin / 1e6 * rate[0] + tout / 1e6 * rate[1]
     for target in (by_provider[prov], totals):
         target["queries"] += 1

@@ -177,7 +177,7 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/fable5-inject.sh",
-            "additionalContext": "Inject Fable 5 dispatch guards and prompt hygiene when a claude-fable-5 pin is detected",
+            "additionalContext": "Inject Fable dispatch guards and prompt hygiene when a Fable 5 or 5.1 pin is detected",
             "timeout": 3
           }
         ]

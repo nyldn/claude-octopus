@@ -59,7 +59,7 @@ bash -c "source '$FEATURES_LIB'; octo_features_record fable5-routing escalate 9.
 
 test_case "architect escalates under the escalate policy"
 got=$(escalate architect)
-if [[ "$got" == "claude-fable-5" ]]; then
+if [[ "$got" == "claude-fable-5-1" ]]; then
     test_pass
 else
     test_fail "architect should escalate, got '$got'"
@@ -67,7 +67,7 @@ fi
 
 test_case "strategist escalates to Fable 5"
 got=$(escalate strategist)
-if [[ "$got" == "claude-fable-5" ]]; then
+if [[ "$got" == "claude-fable-5-1" ]]; then
     test_pass
 else
     test_fail "strategist should escalate, got '$got'"
@@ -86,7 +86,7 @@ fi
 
 test_case "code-reviewer DOES escalate under the escalate-reviews policy"
 got=$(escalate code-reviewer OCTOPUS_FABLE5_ROUTING=escalate-reviews)
-if [[ "$got" == "claude-fable-5" ]]; then
+if [[ "$got" == "claude-fable-5-1" ]]; then
     test_pass
 else
     test_fail "the user opted into Fable reviews; expected fable, got '$got'"
@@ -146,7 +146,7 @@ fi
 # Headroom is reactive: no endpoint reports remaining Fable 5 usage, so a
 # rate-limited dispatch marks the model dead and escalation stands down.
 test_case "a quota-dead Fable 5 seat stands down to Opus 5"
-printf 'claude-fable-5\n' > "$WORKSPACE_DIR/state/.provider-quota-dead"
+printf 'claude-fable-5-1\n' > "$WORKSPACE_DIR/state/.provider-quota-dead"
 got=$(escalate architect)
 rm -f "$WORKSPACE_DIR/state/.provider-quota-dead"
 if [[ "$got" == "claude-opus-5" ]]; then
@@ -167,7 +167,7 @@ out=$(env OCTOPUS_STATE_DIR="$OCTOPUS_STATE_DIR" WORKSPACE_DIR="$WORKSPACE_DIR" 
 ")
 first=$(echo "$out" | sed -n 1p)
 second=$(echo "$out" | sed -n 2p)
-if [[ "$first" == "claude-fable-5" && "$second" == "claude-opus-5" ]]; then
+if [[ "$first" == "claude-fable-5-1" && "$second" == "claude-opus-5" ]]; then
     test_pass
 else
     test_fail "expected fable then opus, got '$first' then '$second'"
@@ -181,7 +181,7 @@ run_one=$(OCTOPUS_SESSION_ID="$shared_session" OCTOPUS_STATE_DIR="$OCTOPUS_STATE
 run_two=$(OCTOPUS_SESSION_ID="$shared_session" OCTOPUS_STATE_DIR="$OCTOPUS_STATE_DIR" WORKSPACE_DIR="$WORKSPACE_DIR" bash -c "
     source '$FEATURES_LIB'; source '$PROJECT_ROOT/scripts/lib/run-contract.sh'; source '$FABLE_LIB'
     fable5_maybe_escalate 'claude-opus-5' 'architect' 'claude-opus' 'grasp'")
-if [[ "$run_one" == "claude-fable-5" && "$run_two" == "claude-fable-5" ]]; then
+if [[ "$run_one" == "claude-fable-5-1" && "$run_two" == "claude-fable-5-1" ]]; then
     test_pass
 else
     test_fail "shared session leaked a prior claim: first=$run_one second=$run_two"
@@ -195,6 +195,22 @@ if [[ "$got" == "high" ]]; then
     test_pass
 else
     test_fail "expected high, got '$got'"
+fi
+
+test_case "Fable 5.1 effort defaults to the high cap"
+got=$(bash -c "source '$FABLE_LIB'; fable5_clamp_effort_for_model max claude-fable-5-1")
+if [[ "$got" == "high" ]]; then
+    test_pass
+else
+    test_fail "expected high, got '$got'"
+fi
+
+test_case "an explicit Fable effort cap permits xhigh without disabling guards"
+got=$(OCTOPUS_FABLE5_MAX_EFFORT=xhigh bash -c "source '$FABLE_LIB'; fable5_clamp_effort_for_model xhigh claude-fable-5-1")
+if [[ "$got" == "xhigh" ]]; then
+    test_pass
+else
+    test_fail "expected xhigh, got '$got'"
 fi
 
 # The clamp must not over-reach onto unrelated Opus work in the same run.

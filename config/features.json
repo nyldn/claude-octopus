@@ -7,8 +7,8 @@
       "added_in": "9.57.0",
       "backfill": true,
       "decision": "required",
-      "title": "Claude Fable 5 routing",
-      "question": "How should Claude Fable 5 be used?",
+      "title": "Claude Fable 5.1 routing",
+      "question": "How should Claude Fable 5.1 be used?",
       "key": "OCTOPUS_FABLE5_ROUTING",
       "default": "off",
       "prereq": "claude-opus-seat",
@@ -21,17 +21,17 @@
         {
           "value": "escalate",
           "label": "Planning and PRDs",
-          "description": "Fable 5 authors PRDs, definition tradeoffs and cross-vendor tie-breaks. $10/$50 per MTok, twice Opus 5, capped at one dispatch per command."
+          "description": "Fable 5.1 authors PRDs, definition tradeoffs and cross-vendor tie-breaks. $10/$50 per MTok, twice Opus 5, capped at one dispatch per command."
         },
         {
           "value": "escalate-reviews",
           "label": "Planning, PRDs and reviews",
-          "description": "As above, plus plan and spec review. Fable 5 is Anthropic-family like Opus 5, so a Fable review of Opus work is not an independent cross-vendor check."
+          "description": "As above, plus plan and spec review. Fable 5.1 is Anthropic-family like Opus 5, so a Fable review of Opus work is not an independent cross-vendor check."
         },
         {
           "value": "on-demand",
           "label": "Only when I ask",
-          "description": "Never automatic. Available by pinning OCTOPUS_OPUS_MODEL=claude-fable-5 for a session."
+          "description": "Never automatic. Available by pinning OCTOPUS_OPUS_MODEL=claude-fable-5-1 for a session."
         }
       ]
     },

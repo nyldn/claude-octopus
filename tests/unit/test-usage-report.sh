@@ -22,6 +22,7 @@ cat > "$TMP_DIR/usage/subagent-usage.jsonl" <<'EOF'
 {"provider":"cursor-agent-preview","model":"gpt-5.4","skill":"flow-review","est_tokens_in":1000000,"est_tokens_out":0,"quality":75}
 {"provider":"grok","model":"default","skill":"flow-review","est_tokens_in":1000000,"est_tokens_out":0,"quality":75}
 {"provider":"copilot","model":"gpt-5.4","skill":"flow-review","est_tokens_in":1000000,"est_tokens_out":0,"quality":75}
+{"provider":"codex-astra","model":"gpt-6-astra","skill":"frontier-eval","est_tokens_in":300000,"est_tokens_out":100000,"quality":95}
 EOF
 
 cat > "$TMP_DIR/results/run1/summary.json" <<'EOF'
@@ -69,8 +70,8 @@ if python3 -c "
 import json, sys
 d = json.loads(sys.argv[1])
 prov = {p['name']: p for p in d['byProvider']}
-assert prov['codex']['est_cost_usd'] == 0.1375, prov['codex']
-assert prov['claude']['est_cost_usd'] == 0.12, prov['claude']
+assert prov['codex']['est_cost_usd'] == 0.102, prov['codex']
+assert prov['claude']['est_cost_usd'] == 0.08, prov['claude']
 assert prov['agy']['est_cost_usd'] == 0
 " "$out" 2>/dev/null; then
     test_pass
@@ -91,6 +92,18 @@ assert prov['copilot']['est_cost_usd'] == 0, prov['copilot']
     test_pass
 else
     test_fail "provider-aware Grok pricing wrong: $out"
+fi
+
+test_case "applies Astra long-context pricing to the complete request"
+if python3 -c "
+import json, sys
+d = json.loads(sys.argv[1])
+prov = {p['name']: p for p in d['byProvider']}
+assert prov['codex-astra']['est_cost_usd'] == 13.5, prov['codex-astra']
+" "$out" 2>/dev/null; then
+    test_pass
+else
+    test_fail "Astra long-context usage cost is wrong: $out"
 fi
 
 test_case "groups by skill and by mcp server"

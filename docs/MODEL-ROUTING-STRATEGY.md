@@ -2,13 +2,15 @@
 
 Status: accepted and implemented
 Decision date: 2026-07-27
+Last reviewed: 2026-09-04
 
 ## Decision
 
 Claude Octopus uses Opus 5 as its premium lead model, GPT-5.6 Sol as the
 independent coding/review peer, and Sonnet 5 as the standard Claude seat.
-Fable 5 remains an explicit capability escalation rather than an automatic
-default.
+Fable 5.1 and GPT-6 Astra are cataloged but remain explicit capability
+escalations. Neither is an automatic default, premium-tier target, or generic
+fallback.
 
 Fresh configurations adopt the new roster. Existing environment pins, session
 overrides, and `providers.json` settings retain precedence and are not silently
@@ -19,15 +21,32 @@ rewritten.
 | Model | Default job | Standard price per MTok (input/output) |
 |---|---|---:|
 | Claude Opus 5 | architecture, planning, security reasoning, final judgment | $5 / $25 |
-| GPT-5.6 Sol | implementation, terminal work, independent code review | $5 / $30 |
-| GPT-5.6 Terra | balanced Codex alternative | $2.50 / $15 |
-| GPT-5.6 Luna | budget Codex alternative | $1 / $6 |
-| Claude Sonnet 5 | standard Claude orchestration and synthesis | $3 / $15 |
+| GPT-5.6 Sol | implementation, terminal work, independent code review | $4 / $20 |
+| GPT-5.6 Terra | balanced Codex alternative | $2 / $12 |
+| GPT-5.6 Luna | budget Codex alternative | $0.20 / $1.20 |
+| Claude Sonnet 5 | standard Claude orchestration and synthesis | $2 / $10 |
 | Claude Haiku 4.5 | budget Claude work | $1 / $5 |
-| Claude Fable 5 | opt-in judgment-class escalation | $10 / $50 |
+| Claude Fable 5.1 | opt-in judgment-class escalation, at most one automatic escalation per command | $10 / $50 |
+| GPT-6 Astra | opt-in OpenAI-family escalation after Sol fails a hard acceptance test | $10 / $50 |
 
-Opus 5 and Fable 5 are both Anthropic-family models. Agreement between them
-does not count as independent provider diversity.
+Opus 5 and Fable 5.1 are both Anthropic-family models. GPT-5.6 and Astra are
+both OpenAI-family models. Agreement within either pair does not count as
+independent provider diversity.
+
+### Expensive-model admission
+
+Fable 5.1 earns a seat for ambiguous architecture, difficult product or API
+tradeoffs, long-horizon planning, and final arbitration when Opus 5 has not met
+the acceptance criteria. The `escalate` policies can admit one such dispatch
+per command; direct pins remain the user's responsibility.
+
+Astra is for a bounded, high-value OpenAI-family escalation after GPT-5.6 Sol
+has failed a difficult acceptance test or a checked-in eval demonstrates a
+material gain. Use an exact `codex:gpt-6-astra` seat or
+`OCTOPUS_CODEX_MODEL=gpt-6-astra`. Do not add Astra to routine implementation,
+review fleets, councils, security passes, tier defaults, or fallback chains.
+Its rollout is limited, and inputs above 272K tokens trigger OpenAI's
+long-context multipliers for the whole request.
 
 ## Routing rules
 
@@ -169,13 +188,19 @@ within a provider family rather than selecting a different dispatch candidate.
 
 - Opus: Opus 5 → Opus 4.8 → Opus 4.7 → Opus 4.6.
 - Sonnet: Sonnet 5 → Sonnet 4.6.
-- Fable refusal/security fallback: Opus 5, overridable with
+- Fable 5/5.1 refusal and security fallback: Opus 5, overridable with
   `OCTOPUS_FABLE5_FALLBACK_MODEL`.
 - Fable input gate: 524,288 bytes by default, overridable with
   `OCTOPUS_FABLE5_MAX_INPUT_BYTES`. An oversized prompt falls back before any
   Fable provider command is invoked and does not consume the run's single
   Fable escalation seat.
+- Fable 5.1 effort is capped at `high` by default. A bounded high-value run can
+  raise the cap with `OCTOPUS_FABLE5_MAX_EFFORT=xhigh|max` without disabling
+  the security, input, or refusal guards.
 - GPT-5.6 requires Codex CLI v0.144.0 or newer.
+- GPT-6 Astra requires Codex CLI v0.153.1 or newer. Unknown versions fail
+  closed. The generic OpenAI-compatible adapter blocks Astra tool use because
+  that adapter uses Chat Completions; use Codex CLI for tool-enabled work.
 
 Every Fable dispatch decision is written to the v10 run event ledger with the
 requested model, resolved model, prompt bytes, phase, role, and reason. The
@@ -193,8 +218,8 @@ remain in `skills/blocks/fable5-prompting.md`.
 
 ## Sources
 
-- Fable optimizer v2.0.0:
-  https://github.com/nyldn/fable5-optimizer/tree/v2.0.0
+- Claude Fable 5.1 overview:
+  https://platform.claude.com/docs/en/models/fable-5-1/overview
 - Anthropic model selection:
   https://platform.claude.com/docs/en/about-claude/models/choosing-a-model
 - Opus 5 prompting:
@@ -203,3 +228,5 @@ remain in `skills/blocks/fable5-prompting.md`.
   https://github.com/anthropics/claude-code/releases/tag/v2.1.219
 - GPT-5.6 model guide:
   https://developers.openai.com/api/docs/guides/latest-model
+- GPT-6 Astra model reference:
+  https://developers.openai.com/api/docs/models/gpt-6-astra

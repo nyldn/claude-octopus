@@ -61,6 +61,28 @@ else
     test_fail "model override ignored: $out"
 fi
 
+test_case "Fable 5.1 SDK pins retain refusal recovery"
+retry_dir="$TMP_DIR/fable-retry"
+retry_log="$TMP_DIR/fable-retry.log"
+mkdir -p "$retry_dir"
+cat > "$retry_dir/claude-agent" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$OCTOPUS_TEST_CAPTURE"
+if [[ "$*" == *claude-fable-5-1* ]]; then
+    exit 0
+fi
+printf '%s\n' 'opus recovery'
+STUB
+chmod +x "$retry_dir/claude-agent"
+out=$(printf 'p' | PATH="$retry_dir:/usr/bin:/bin" CLAUDE_SDK_API_KEY=k \
+    OCTOPUS_TEST_CAPTURE="$retry_log" OCTOPUS_CLAUDE_SDK_MODEL=claude-fable-5-1 bash "$SHIM" 2>/dev/null)
+if [[ "$out" == "opus recovery" ]] && grep -Fq -- '--model claude-fable-5-1' "$retry_log" &&
+   grep -Fq -- '--model claude-opus-5' "$retry_log"; then
+    test_pass
+else
+    test_fail "Fable 5.1 did not recover through Opus: out=$out"
+fi
+
 test_case "claude CLI fallback receives the configured output-token limit"
 CLI_DIR="$TMP_DIR/claude-only"
 mkdir -p "$CLI_DIR"

@@ -42,6 +42,14 @@ else
     test_fail "sdk pin not detected"
 fi
 
+test_case "active with a Fable 5.1 opus pin"
+if env "OCTOPUS_OPUS_MODEL=claude-fable-5-1" \
+    bash -c 'log(){ :; }; source "$1/scripts/lib/fable5.sh"; fable5_mode_active' _ "$PROJECT_ROOT"; then
+    test_pass
+else
+    test_fail "Fable 5.1 opus pin not detected"
+fi
+
 test_case "OCTOPUS_FABLE5_MODE=off disables despite pin"
 if ! env "OCTOPUS_FABLE5_MODE=off" "OCTOPUS_OPUS_MODEL=claude-fable-5" \
     bash -c 'log(){ :; }; source "$1/scripts/lib/fable5.sh"; fable5_mode_active' _ "$PROJECT_ROOT"; then
@@ -119,6 +127,16 @@ else
     test_fail "expected claude-opus-5, got '$out'"
 fi
 
+test_case "reroutes security role off Fable 5.1"
+out=$(env "OCTOPUS_OPUS_MODEL=claude-fable-5-1" \
+    bash -c 'log(){ :; }; source "$1/scripts/lib/fable5.sh"; fable5_maybe_reroute claude-fable-5-1 security-auditor claude-opus ink' \
+    _ "$PROJECT_ROOT" 2>/dev/null)
+if [[ "$out" == "claude-opus-5" ]]; then
+    test_pass
+else
+    test_fail "expected claude-opus-5, got '$out'"
+fi
+
 test_case "reroutes squeeze phase off Fable 5"
 out=$(env "OCTOPUS_OPUS_MODEL=claude-fable-5" \
     bash -c 'log(){ :; }; source "$1/scripts/lib/fable5.sh"; fable5_maybe_reroute claude-fable-5 "" claude-opus squeeze' \
@@ -147,6 +165,16 @@ if [[ "$out" == "claude-opus-5" ]]; then
     test_pass
 else
     test_fail "unsafe fallback override kept Fable 5: '$out'"
+fi
+
+test_case "Fable fallback override cannot target Fable 5.1"
+out=$(env "OCTOPUS_OPUS_MODEL=claude-fable-5-1" "OCTOPUS_FABLE5_FALLBACK_MODEL=claude-fable-5-1" \
+    bash -c 'log(){ :; }; source "$1/scripts/lib/fable5.sh"; fable5_maybe_reroute claude-fable-5-1 security-auditor claude-opus ink' \
+    _ "$PROJECT_ROOT" 2>/dev/null)
+if [[ "$out" == "claude-opus-5" ]]; then
+    test_pass
+else
+    test_fail "unsafe fallback override kept Fable 5.1: '$out'"
 fi
 
 test_case "non-security dispatch keeps Fable 5"
@@ -315,6 +343,14 @@ if [[ "$out" == *"additionalContext"* && "$out" == *"FABLE 5 MODE ACTIVE"* ]]; t
     test_pass
 else
     test_fail "expected injection, got '$out'"
+fi
+
+test_case "hook injects context with a Fable 5.1 pin"
+out=$(OCTOPUS_OPUS_MODEL=claude-fable-5-1 bash "$PROJECT_ROOT/hooks/fable5-inject.sh" 2>/dev/null)
+if [[ "$out" == *"additionalContext"* && "$out" == *"FABLE 5 MODE ACTIVE"* ]]; then
+    test_pass
+else
+    test_fail "expected Fable 5.1 injection, got '$out'"
 fi
 
 test_case "hook stays silent with OCTOPUS_FABLE5_MODE=off"

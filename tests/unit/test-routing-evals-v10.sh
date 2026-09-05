@@ -137,7 +137,7 @@ decision="$(OCTOPUS_FABLE5_ROUTING=escalate bash -c '
   source "$1"
   fable5_resolve_dispatch_model claude-opus-5 architect claude-opus define 524289
 ' _ "$FABLE_LIB")"
-if jq -e '.requested_model == "claude-fable-5" and .resolved_model == "claude-opus-5" and .reason == "prompt-budget-fallback"' <<< "$decision" >/dev/null; then
+if jq -e '.requested_model == "claude-fable-5-1" and .resolved_model == "claude-opus-5" and .reason == "prompt-budget-fallback"' <<< "$decision" >/dev/null; then
     test_pass
 else
     test_fail "oversized Fable decision was not a pre-dispatch Opus fallback: $decision"
@@ -250,7 +250,7 @@ cap_decisions="$(WORKSPACE_DIR="$cap_workspace" OCTOPUS_RUN_ID=cap-run \
     second="$(fable5_resolve_dispatch_model claude-opus-5 strategist claude-opus define 100)"
     printf "%s\n%s\n" "$first" "$second"
   ' _ "$PROJECT_ROOT")"
-if [[ "$(sed -n '1p' <<< "$cap_decisions" | jq -r '.resolved_model + ":" + .reason')" == "claude-fable-5:fable-selected" ]] &&
+if [[ "$(sed -n '1p' <<< "$cap_decisions" | jq -r '.resolved_model + ":" + .reason')" == "claude-fable-5-1:fable-selected" ]] &&
    [[ "$(sed -n '2p' <<< "$cap_decisions" | jq -r '.resolved_model + ":" + .reason')" == "claude-opus-5:seat-cap-fallback" ]]; then
     test_pass
 else
@@ -268,8 +268,8 @@ preview_decisions="$(WORKSPACE_DIR="$preview_workspace" OCTOPUS_RUN_ID=preview-r
     actual="$(fable5_resolve_dispatch_model claude-opus-5 architect claude-opus define 100)"
     printf "%s\n%s\n" "$preview" "$actual"
   ' _ "$PROJECT_ROOT")"
-if [[ "$(sed -n '1p' <<< "$preview_decisions" | jq -r '.resolved_model + ":" + .reason')" == "claude-fable-5:fable-preview" ]] &&
-   [[ "$(sed -n '2p' <<< "$preview_decisions" | jq -r '.resolved_model + ":" + .reason')" == "claude-fable-5:fable-selected" ]]; then
+if [[ "$(sed -n '1p' <<< "$preview_decisions" | jq -r '.resolved_model + ":" + .reason')" == "claude-fable-5-1:fable-preview" ]] &&
+   [[ "$(sed -n '2p' <<< "$preview_decisions" | jq -r '.resolved_model + ":" + .reason')" == "claude-fable-5-1:fable-selected" ]]; then
     test_pass
 else
     test_fail "preview consumed or misreported the Fable seat: $preview_decisions"

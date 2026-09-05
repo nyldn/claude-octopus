@@ -1,9 +1,9 @@
-# Fable 5 Dispatch Profile
+# Fable 5.1 Dispatch Profile
 
-Apply this block whenever a workflow authors a prompt for Claude Fable 5 — that is, when `OCTOPUS_OPUS_MODEL=claude-fable-5` or `OCTOPUS_CLAUDE_SDK_MODEL=claude-fable-5` is pinned, or a dispatch explicitly targets `claude-fable-5`. Fable 5 (Mythos-class) follows instructions more strongly than Opus 5 and runs safety classifiers that earlier Claude models do not. Prompts tuned for older models can degrade its output or trigger refusals.
+Apply this block whenever a workflow authors a prompt for Claude Fable 5.1 or the preserved Fable 5 model ID. Current pins use `OCTOPUS_OPUS_MODEL=claude-fable-5-1` or `OCTOPUS_CLAUDE_SDK_MODEL=claude-fable-5-1`; existing `claude-fable-5` pins keep working. Fable follows instructions more strongly than Opus 5 and runs additional safety classifiers. Prompts tuned for older models can degrade its output or trigger refusals.
 
-Source: Anthropic's Fable 5 prompting guide
-(https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5).
+Source: Anthropic's Fable 5.1 overview
+(https://platform.claude.com/docs/en/models/fable-5-1/overview).
 
 ## Prompt anti-patterns (remove before dispatch)
 
@@ -22,14 +22,14 @@ Source: Anthropic's Fable 5 prompting guide
 
 ## Effort discipline
 
-Run Fable 5 at `high` effort by default. Do not default to `xhigh` or `max`: effort applies per tool call and per change, not to how long the model can work, so higher settings do not extend runs — they make each step overthink and produce broader changes than asked. Lower effort on Fable 5 still often exceeds `xhigh` on prior models. Raise effort only for a specific capability-sensitive step. Opus 5 effort recommendations do not carry over to a Fable 5 pin.
+Run Fable at `high` effort by default. Do not default to `xhigh` or `max`: effort applies per tool call and per change, not to how long the model can work, so higher settings do not extend runs. Set `OCTOPUS_FABLE5_MAX_EFFORT=xhigh|max` only for a bounded capability-sensitive step. This raises the effort ceiling without disabling the security, input, or refusal guards. Opus 5 effort recommendations do not carry over to a Fable pin.
 
 ## Refusal handling and routing
 
-orchestrate.sh auto-detects a Fable 5 pin (`scripts/lib/fable5.sh`) and enforces the routing rules below without user action, printing a one-line banner: security dispatches reroute to Opus 5 by default (model resolver + dispatch), effort clamps `xhigh`/`max` to `high` for opus-seat pins, and the claude-sdk shim retries a refused/empty Fable 5 dispatch once on the same fallback. `OCTOPUS_FABLE5_FALLBACK_MODEL` replaces the default Opus 5 target for both the security reroute and SDK retry. Master switch: `OCTOPUS_FABLE5_MODE=auto|off|on` (default `auto`); retry opt-out: `OCTOPUS_FABLE5_NO_RETRY=1`. The prompt-hygiene rules above are not machine-enforced — apply them when authoring dispatch prompts.
+orchestrate.sh auto-detects either Fable pin (`scripts/lib/fable5.sh`) and enforces the routing rules below without user action, printing a one-line banner: security dispatches reroute to Opus 5 by default (model resolver + dispatch), effort clamps to the configured ceiling, and the claude-sdk shim retries a refused or empty Fable dispatch once on the same fallback. `OCTOPUS_FABLE5_FALLBACK_MODEL` replaces the default Opus 5 target for both the security reroute and SDK retry. Master switch: `OCTOPUS_FABLE5_MODE=auto|off|on` (default `auto`); retry opt-out: `OCTOPUS_FABLE5_NO_RETRY=1`. The prompt-hygiene rules above are not machine-enforced; apply them when authoring dispatch prompts.
 
 - Fable 5 runs safety classifiers targeting offensive cybersecurity (exploit construction, malware, attack tooling), biology/life-sciences methods, and reasoning extraction. Benign security work can also trip them.
-- **Security-audit dispatches must not target Fable 5.** When `OCTOPUS_OPUS_MODEL=claude-fable-5` is pinned, route adversarial security passes (`/octo:security`, security-auditor agents) to `claude-opus-5` and frame prompts defensively (find and report vulnerabilities; do not request working exploits).
+- **Security-audit dispatches must not target Fable.** When either Fable model is pinned, route adversarial security passes (`/octo:security`, security-auditor agents) to `claude-opus-5` and frame prompts defensively (find and report vulnerabilities; do not request working exploits).
 - On `stop_reason: "refusal"` or an in-band refusal from a Fable 5 dispatch, retry the same prompt once on the configured fallback (`claude-opus-5` by default) rather than rewording toward the classifier.
 
 ## Judgment routing

@@ -328,7 +328,7 @@ def sync_main_readme(text: str, facts: dict[str, object]) -> str:
         ">\n"
         f"> **Default roster:** {opus} leads architecture, planning, security reasoning, "
         f"and final judgment; {codex} is the independent implementation/review peer; "
-        f"{sonnet} is the standard Claude seat; Fable 5 remains an opt-in judgment "
+        f"{sonnet} is the standard Claude seat; Fable 5.1 remains an opt-in judgment "
         "escalation. Existing model pins and provider configuration still win. "
         "See [the routing strategy](docs/MODEL-ROUTING-STRATEGY.md)."
     )

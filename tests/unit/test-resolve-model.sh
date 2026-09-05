@@ -97,6 +97,57 @@ cat > "$CONFIG_FILE" << EOF
 EOF
 assert_eq "$(resolve_octopus_model "codex" "codex")" "config-default" "Config file default"
 
+# Explicit-only frontier models must not become routine defaults, even if a
+# providers.json file was hand-edited. Session pins remain deliberate and valid.
+clear_model_cache
+cat > "$CONFIG_FILE" << EOF
+{
+  "version": "3.0",
+  "providers": { "codex": { "default": "gpt-6-astra" } }
+}
+EOF
+assert_eq "$(resolve_octopus_model "codex" "codex")" "gpt-5.6-sol" "Explicit-only Astra is rejected as config default"
+clear_model_cache
+cat > "$CONFIG_FILE" << EOF
+{
+  "version": "3.0",
+  "overrides": { "codex": "gpt-6-astra" },
+  "providers": { "codex": { "default": "gpt-5.6-sol" } }
+}
+EOF
+assert_eq "$(resolve_octopus_model "codex" "codex")" "gpt-6-astra" "Explicit Astra session override remains valid"
+
+clear_model_cache
+cat > "$CONFIG_FILE" << EOF
+{
+  "version": "3.0",
+  "providers": {
+    "codex": {
+      "default": "gpt-5.6-sol",
+      "frontier": "gpt-6-astra",
+      "roles": { "reviewer": "gpt-6-astra" }
+    }
+  },
+  "cost_mode": "premium",
+  "tiers": { "premium": { "codex": "gpt-6-astra" } }
+}
+EOF
+assert_eq "$(resolve_octopus_model "codex" "codex-frontier")" "gpt-5.6-sol" "Explicit-only Astra is rejected as capability mapping"
+clear_model_cache
+assert_eq "$(resolve_octopus_model "codex" "codex" "review" "reviewer")" "gpt-5.6-sol" "Explicit-only Astra is rejected as provider-role default"
+clear_model_cache
+assert_eq "$(resolve_octopus_model "codex" "codex")" "gpt-5.6-sol" "Explicit-only Astra is rejected as cost-tier mapping"
+
+clear_model_cache
+cat > "$CONFIG_FILE" << EOF
+{
+  "version": "3.0",
+  "providers": { "codex": { "default": "gpt-5.6-sol" } },
+  "routing": { "phases": { "review": "gpt-6-astra" } }
+}
+EOF
+assert_eq "$(resolve_octopus_model "codex" "codex" "review")" "gpt-5.6-sol" "Explicit-only Astra is rejected as persistent phase route"
+
 # Test 4: Capability mapping
 clear_model_cache
 cat > "$CONFIG_FILE" << EOF

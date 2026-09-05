@@ -61,7 +61,7 @@ _sdk_run() {
 # Opus 5 by default, or OCTOPUS_FABLE5_FALLBACK_MODEL when set, instead of
 # failing the seat. Opt out with OCTOPUS_FABLE5_NO_RETRY=1 or
 # OCTOPUS_FABLE5_MODE=off. Mirrors the agy-exec silent-empty replay pattern.
-if [[ "$model" == "claude-fable-5" \
+if [[ ( "$model" == "claude-fable-5" || "$model" == "claude-fable-5-1" ) \
       && "${OCTOPUS_FABLE5_NO_RETRY:-}" != "1" \
       && "${OCTOPUS_FABLE5_MODE:-auto}" != "off" ]]; then
     set +e
@@ -76,8 +76,8 @@ if [[ "$model" == "claude-fable-5" \
         exit 0
     fi
     fallback_model="${OCTOPUS_FABLE5_FALLBACK_MODEL:-claude-opus-5}"
-    if [[ "$fallback_model" == "claude-fable-5" ]]; then
-        echo "claude-sdk-exec: rejecting claude-fable-5 as its own fallback; using claude-opus-5" >&2
+    if [[ "$fallback_model" == "claude-fable-5" || "$fallback_model" == "claude-fable-5-1" ]]; then
+        echo "claude-sdk-exec: rejecting a Fable model as its own fallback; using claude-opus-5" >&2
         fallback_model="claude-opus-5"
     fi
     echo "claude-sdk-exec: Fable 5 dispatch returned rc=${rc}, output_bytes=${#output} — retrying once on ${fallback_model} (OCTOPUS_FABLE5_NO_RETRY=1 to disable)" >&2
