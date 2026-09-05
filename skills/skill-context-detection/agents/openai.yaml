@@ -1,3 +1,5 @@
 interface:
   display_name: "Context Detection"
   short_description: "Auto-detect work context (Dev vs Knowledge) — use to tailor..."
+policy:
+  allow_implicit_invocation: false

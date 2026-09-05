@@ -110,33 +110,33 @@ else
 fi
 
 test_case "tier command configures a provider target for a named mode"
-if run_model_config tier budget codex tier-budget-model >/dev/null &&
-   [[ "$(jq -r '.tiers.budget.codex' "$CONFIG_FILE")" == "tier-budget-model" ]]; then
+if run_model_config tier budget codex gpt-5.6-luna >/dev/null &&
+   [[ "$(jq -r '.tiers.budget.codex' "$CONFIG_FILE")" == "gpt-5.6-luna" ]]; then
     test_pass
 else
     test_fail "tier budget codex did not persist the configured model"
 fi
 
 test_case "resolver uses the persisted budget mode when no env override exists"
-if [[ "$(resolve_codex_model)" == "tier-budget-model" ]]; then
+if [[ "$(resolve_codex_model)" == "gpt-5.6-luna" ]]; then
     test_pass
 else
     test_fail "resolver ignored persisted budget mode"
 fi
 
 test_case "standard mode applies the configurable standard tier"
-if run_model_config tier standard codex tier-standard-model >/dev/null &&
+if run_model_config tier standard codex gpt-5.6-terra >/dev/null &&
    run_model_config cost-mode standard >/dev/null &&
-   [[ "$(resolve_codex_model)" == "tier-standard-model" ]]; then
+   [[ "$(resolve_codex_model)" == "gpt-5.6-terra" ]]; then
     test_pass
 else
     test_fail "standard mode bypassed the configured standard tier"
 fi
 
 test_case "environment mode remains higher priority than persisted mode"
-if run_model_config tier premium codex tier-premium-model >/dev/null &&
+if run_model_config tier premium codex gpt-5.5 >/dev/null &&
    run_model_config cost-mode budget >/dev/null &&
-   [[ "$(resolve_codex_model premium)" == "tier-premium-model" ]]; then
+   [[ "$(resolve_codex_model premium)" == "gpt-5.5" ]]; then
     test_pass
 else
     test_fail "OCTOPUS_COST_MODE did not override the persisted mode"
@@ -155,7 +155,7 @@ cache_results="$(
             printf "%s|%s\n" "$budget_model" "$premium_model"
         ' _ "$MODEL_RESOLVER"
 )"
-if [[ "$cache_results" == "tier-budget-model|tier-premium-model" ]]; then
+if [[ "$cache_results" == "gpt-5.6-luna|gpt-5.5" ]]; then
     test_pass
 else
     test_fail "cost-mode cache key reused the wrong model: $cache_results"
@@ -168,7 +168,7 @@ if run_model_config reset codex >/dev/null; then
     for mode in budget standard premium; do
         resolved="$(resolve_codex_model "$mode")"
         case "$resolved" in
-            tier-budget-model|tier-standard-model|tier-premium-model)
+            gpt-5.6-luna|gpt-5.6-terra|gpt-5.5)
                 reset_failures+="${mode} resolved stale model ${resolved}"$'\n'
                 ;;
             "")

@@ -1,3 +1,5 @@
 interface:
   display_name: "Verification Gate"
   short_description: "Use when about to declare work complete, fixed, passing, or done"
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Council"
+  short_description: "Review an artifact with a configurable multi-model council"
+policy:
+  allow_implicit_invocation: false

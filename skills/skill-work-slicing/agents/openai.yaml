@@ -1,3 +1,5 @@
 interface:
   display_name: "Work Slicing"
   short_description: "Break a plan or spec into vertical slices that each declare..."
+policy:
+  allow_implicit_invocation: false

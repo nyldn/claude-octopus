@@ -44,15 +44,25 @@ else
   fail "build_provider_env() function missing"
 fi
 
-# 1.2 Codex scoping — OPENAI_API_KEY plus explicit Codex config env only
-CODEX_ENV=$(grep -A40 'codex\*)' "$ALL_SRC" | grep 'PROVIDER_ENV_ARRAY=.*env -i' | head -1 || true)
-if echo "$CODEX_ENV" | grep -q 'OPENAI_API_KEY'; then
-  pass "Codex env includes OPENAI_API_KEY"
+# 1.2 Codex scoping — default OpenAI credential or the effective configured
+# provider credential, never both.
+CODEX_DEFAULT_HOME="$TEST_TMP_DIR/codex-default-home"
+mkdir -p "$CODEX_DEFAULT_HOME"
+test_case "Codex default provider includes OPENAI_API_KEY"
+codex_default_env=$(HOME="$CODEX_DEFAULT_HOME" OPENAI_API_KEY="openai-test-key" bash -c '
+  set -eo pipefail
+  unset CODEX_HOME
+  source "$1/scripts/lib/provider-routing.sh"
+  build_provider_env codex
+  printf "%s\n" "${PROVIDER_ENV_ARRAY[@]}"
+' _ "$PLUGIN_DIR")
+if echo "$codex_default_env" | grep -qx 'OPENAI_API_KEY=openai-test-key'; then
+  test_pass
 else
-  fail "Codex env missing OPENAI_API_KEY"
+  test_fail "Codex default env missing OPENAI_API_KEY"
 fi
 
-if echo "$CODEX_ENV" | grep -q 'GEMINI_API_KEY'; then
+if echo "$codex_default_env" | grep -q 'GEMINI_API_KEY'; then
   fail "Codex env leaks GEMINI_API_KEY"
 else
   pass "Codex env does NOT contain GEMINI_API_KEY"
@@ -94,6 +104,11 @@ if echo "$CODEX_RUNTIME_ENV" | grep -q " ROUTER_API_KEY=router-test-key "; then
 else
   fail "Codex env missing config.toml env_key"
 fi
+if echo "$CODEX_RUNTIME_ENV" | grep -q " OPENAI_API_KEY="; then
+  fail "Codex configured provider receives unused OPENAI_API_KEY"
+else
+  pass "Codex configured provider omits unused OPENAI_API_KEY"
+fi
 if echo "$CODEX_RUNTIME_ENV" | grep -q " GEMINI_API_KEY="; then
   fail "Codex env leaks unrelated provider key"
 else
@@ -105,6 +120,141 @@ if [[ -n "$OLD_OPENAI_API_KEY" ]]; then export OPENAI_API_KEY="$OLD_OPENAI_API_K
 if [[ -n "$OLD_ROUTER_API_KEY" ]]; then export ROUTER_API_KEY="$OLD_ROUTER_API_KEY"; else unset ROUTER_API_KEY; fi
 if [[ -n "$OLD_GEMINI_API_KEY" ]]; then export GEMINI_API_KEY="$OLD_GEMINI_API_KEY"; else unset GEMINI_API_KEY; fi
 rm -rf "$CODEX_RUNTIME_HOME" "$CODEX_RUNTIME_HOME-home"
+
+# 1.2c Codex provider credentials must follow the effective TOML provider,
+# independent of table order, comments, and inactive profiles.
+codex_fixture_env() {
+  local fixture_home="$1"
+  CODEX_HOME="$fixture_home" \
+  HOME="$fixture_home/home" \
+  OPENAI_API_KEY="openai-unused" \
+  DIRECT_API_KEY="direct-unused" \
+  ROUTER_API_KEY="router-selected" \
+  UNUSED_API_KEY="unused-key" \
+  bash -c '
+    set -eo pipefail
+    source "$1/scripts/lib/provider-routing.sh"
+    build_provider_env codex
+    printf "%s\n" "${PROVIDER_ENV_ARRAY[@]}"
+  ' _ "$PLUGIN_DIR"
+}
+
+CODEX_REORDERED_HOME="$TEST_TMP_DIR/codex-reordered"
+mkdir -p "$CODEX_REORDERED_HOME/home"
+cat > "$CODEX_REORDERED_HOME/config.toml" <<'EOF'
+model_provider = "router"
+
+[model_providers.unused]
+env_key = "UNUSED_API_KEY"
+
+[model_providers.router]
+env_key = "ROUTER_API_KEY"
+EOF
+test_case "Codex credential selection ignores provider table order"
+reordered_env="$(codex_fixture_env "$CODEX_REORDERED_HOME")"
+if [[ "$reordered_env" == *$'\nROUTER_API_KEY=router-selected'* || "$reordered_env" == ROUTER_API_KEY=router-selected* ]] \
+  && [[ "$reordered_env" != *"UNUSED_API_KEY="* ]] \
+  && [[ "$reordered_env" != *"OPENAI_API_KEY="* ]]; then
+  test_pass
+else
+  test_fail "Codex forwarded a credential for an inactive provider"
+fi
+
+CODEX_PROFILE_HOME="$TEST_TMP_DIR/codex-profile"
+mkdir -p "$CODEX_PROFILE_HOME/home"
+cat > "$CODEX_PROFILE_HOME/config.toml" <<'EOF'
+model_provider = "direct"
+profile = "work"
+
+[model_providers.direct]
+env_key = "DIRECT_API_KEY"
+
+[profiles.work]
+model_provider = "router"
+
+[model_providers.router]
+env_key = "ROUTER_API_KEY"
+EOF
+test_case "Codex credential selection applies the active profile"
+profile_env="$(codex_fixture_env "$CODEX_PROFILE_HOME")"
+if [[ "$profile_env" == *"ROUTER_API_KEY=router-selected"* ]] \
+  && [[ "$profile_env" != *"DIRECT_API_KEY="* ]] \
+  && [[ "$profile_env" != *"OPENAI_API_KEY="* ]]; then
+  test_pass
+else
+  test_fail "Codex ignored the active profile's provider"
+fi
+
+CODEX_COMMENT_HOME="$TEST_TMP_DIR/codex-comments"
+mkdir -p "$CODEX_COMMENT_HOME/home"
+cat > "$CODEX_COMMENT_HOME/config.toml" <<'EOF'
+# model_provider = "unused"
+model_provider = "router" # selected provider
+
+[model_providers.unused]
+# env_key = "UNUSED_API_KEY"
+name = "text # is not a comment"
+
+[model_providers.router]
+env_key = "ROUTER_API_KEY" # selected credential
+EOF
+test_case "Codex credential selection parses TOML comments structurally"
+comment_env="$(codex_fixture_env "$CODEX_COMMENT_HOME")"
+if [[ "$comment_env" == *"ROUTER_API_KEY=router-selected"* ]] \
+  && [[ "$comment_env" != *"UNUSED_API_KEY="* ]] \
+  && [[ "$comment_env" != *"OPENAI_API_KEY="* ]]; then
+  test_pass
+else
+  test_fail "Codex TOML comments changed credential selection"
+fi
+
+CODEX_MISSING_HOME="$TEST_TMP_DIR/codex-missing-key"
+mkdir -p "$CODEX_MISSING_HOME/home"
+cat > "$CODEX_MISSING_HOME/config.toml" <<'EOF'
+model_provider = "router"
+
+[model_providers.unused]
+env_key = "UNUSED_API_KEY"
+
+[model_providers.router]
+base_url = "http://127.0.0.1:11434/v1"
+EOF
+test_case "Codex provider without env_key forwards no provider credential"
+missing_env="$(codex_fixture_env "$CODEX_MISSING_HOME")"
+if [[ "$missing_env" != *"UNUSED_API_KEY="* ]] \
+  && [[ "$missing_env" != *"OPENAI_API_KEY="* ]] \
+  && [[ "$missing_env" != *"DIRECT_API_KEY="* ]] \
+  && [[ "$missing_env" != *"ROUTER_API_KEY="* ]]; then
+  test_pass
+else
+  test_fail "Codex forwarded an unrelated key for a provider without env_key"
+fi
+
+test_case "Codex TOML fallback resolves the same effective provider"
+fallback_key=$(OCTOPUS_FORCE_CODEX_TOML_FALLBACK=1 \
+  python3 "$PLUGIN_DIR/scripts/helpers/read-codex-config.py" "$CODEX_PROFILE_HOME/config.toml")
+if [[ "$fallback_key" == "ROUTER_API_KEY" ]]; then
+  test_pass
+else
+  test_fail "fallback parser resolved '$fallback_key' instead of ROUTER_API_KEY"
+fi
+
+CODEX_INVALID_PROFILE_HOME="$TEST_TMP_DIR/codex-invalid-profile"
+mkdir -p "$CODEX_INVALID_PROFILE_HOME/home"
+cat > "$CODEX_INVALID_PROFILE_HOME/config.toml" <<'EOF'
+model_provider = "router"
+profile = "missing"
+
+[model_providers.router]
+env_key = "ROUTER_API_KEY"
+EOF
+test_case "Codex missing active profile fails closed"
+invalid_profile_env="$(codex_fixture_env "$CODEX_INVALID_PROFILE_HOME")"
+if [[ "$invalid_profile_env" != *"_API_KEY="* ]]; then
+  test_pass
+else
+  test_fail "missing active profile caused a credential to be forwarded"
+fi
 
 # 1.3 AGY scoping — only Antigravity's explicit credentials/config are
 # forwarded into its minimal environment. Legacy gemini IDs canonicalize to
@@ -214,6 +364,49 @@ else
   test_fail "AGY_CONFIG/ANTIGRAVITY_API_KEY not forwarded: $agy_env_output"
 fi
 
+# 1.9 Tool-loop helpers execute model-requested shell commands, so they must
+# receive only their selected credential and explicit runtime configuration.
+test_case "qualified OpenAI-compatible tool-loop env excludes ambient secrets"
+if OCTOPUS_AUDIT_SENTINEL="must-not-cross" \
+   OPENAI_API_KEY="unrelated-openai-key" \
+   OPENAI_COMPAT_API_KEY_ENV="COMPAT_TEST_KEY" \
+   COMPAT_TEST_KEY="compat-test-key" \
+   bash -c '
+      set -eo pipefail
+      source "$1/scripts/lib/provider-routing.sh"
+      build_provider_env "openai-compatible-agent:vendor/model"
+      "${PROVIDER_ENV_ARRAY[@]}" bash -c '\''
+        set -e
+        test -z "${OCTOPUS_AUDIT_SENTINEL:-}"
+        test -z "${OPENAI_API_KEY:-}"
+        test "${COMPAT_TEST_KEY:-}" = "compat-test-key"
+      '\''
+    ' _ "$PLUGIN_DIR"; then
+  test_pass
+else
+  test_fail "qualified OpenAI-compatible helper inherited ambient credentials or lost its selected key"
+fi
+
+test_case "Atlas tool-loop env excludes ambient secrets"
+if OCTOPUS_AUDIT_SENTINEL="must-not-cross" \
+   OPENAI_API_KEY="unrelated-openai-key" \
+   ATLASCLOUD_API_KEY="atlas-test-key" \
+   bash -c '
+      set -eo pipefail
+      source "$1/scripts/lib/provider-routing.sh"
+      build_provider_env "atlascloud-agent:qwen/model"
+      "${PROVIDER_ENV_ARRAY[@]}" bash -c '\''
+        set -e
+        test -z "${OCTOPUS_AUDIT_SENTINEL:-}"
+        test -z "${OPENAI_API_KEY:-}"
+        test "${ATLASCLOUD_API_KEY:-}" = "atlas-test-key"
+      '\''
+    ' _ "$PLUGIN_DIR"; then
+  test_pass
+else
+  test_fail "Atlas helper inherited ambient credentials or lost ATLASCLOUD_API_KEY"
+fi
+
 # ─────────────────────────────────────────────────────────────────────
 # Suite 2: build_provider_env() is wired into spawn_agent()
 # ─────────────────────────────────────────────────────────────────────
@@ -273,11 +466,13 @@ else
   pass "MCP server conditionally passes OPENAI_API_KEY"
 fi
 
-# 4.2 MCP server uses conditional spread
-if grep -c 'process.env.OPENAI_API_KEY &&' "$MCP_SRC" | grep -q '^[1-9]'; then
-  pass "MCP server uses conditional spread for provider keys"
+# 4.2 MCP server uses the shared, value-filtered provider allowlist
+if grep -q '\.\.\.providerEnvironment()' "$MCP_SRC" &&
+   jq -e '.schema_version == 1 and (.names | index("OPENAI_API_KEY") != null)' \
+      "$PLUGIN_DIR/config/provider-env-allowlist.json" >/dev/null; then
+  pass "MCP server uses the shared provider environment allowlist"
 else
-  fail "MCP server missing conditional spread pattern"
+  fail "MCP server missing shared provider environment filtering"
 fi
 
 # ─────────────────────────────────────────────────────────────────────
@@ -307,7 +502,7 @@ fi
 suite "6. No Literal Quotes in build_provider_env() (Issue #117)"
 
 # 6.1 Codex env line must not contain escaped quotes around values
-if echo "$CODEX_ENV" | grep -q '\\\"'; then
+if echo "$codex_default_env" | grep -q '\\\"'; then
   fail "Codex env contains escaped quotes — causes literal quote chars after read -ra (Issue #117)"
 else
   pass "Codex env free of escaped quotes"

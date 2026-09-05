@@ -14,6 +14,8 @@
 
 - [TROUBLESHOOTING.md](./TROUBLESHOOTING.md): Provider diagnostics, plugin uninstall, and retained-data review
 - [IDE-INTEGRATION.md](./IDE-INTEGRATION.md) — MCP server setup for VS Code, Cursor, and other IDEs
+- [PLUGIN-COMPATIBILITY.md](./PLUGIN-COMPATIBILITY.md) — Claude Code and Codex packaging, invocation, and validation
+- [MIGRATING-V11.md](./MIGRATING-V11.md) — Required project roots and stricter routing/review contracts
 - [SCHEDULER.md](./SCHEDULER.md) — Scheduled jobs and daemon management
 - [KNOWLEDGE-WORKERS.md](./KNOWLEDGE-WORKERS.md) — Research and strategy-oriented personas
 

@@ -1,3 +1,5 @@
 interface:
   display_name: "Parallel Agents"
   short_description: "Decompose large tasks across parallel agents — use for..."
+policy:
+  allow_implicit_invocation: false

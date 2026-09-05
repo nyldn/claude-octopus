@@ -121,6 +121,18 @@ expected="commandcode opencode openrouter orcarouter atlascloud openai-compatibl
 actual="$(octo_provider_ids model-gateway)"
 if [[ "$actual" == "$expected" ]]; then test_pass; else test_fail "model gateway inventory drift: $actual"; fi
 
+test_case "dynamic automatic model catalogs are explicit registry metadata"
+expected="commandcode agy opencode openrouter orcarouter atlascloud openai-compatible openai-tools openai-compatible-agent cursor-agent grok qwen ollama vibe kimi"
+actual="$(octo_provider_ids custom-model-auto)"
+if [[ "$actual" != "$expected" ]]; then
+    test_fail "custom automatic model inventory drift: $actual"
+elif octo_provider_has_capability codex custom-model-auto ||
+     octo_provider_has_capability claude custom-model-auto; then
+    test_fail "curated Codex or Claude catalog became fail-open for unknown models"
+else
+    test_pass
+fi
+
 test_case "registry self-validation enforces baseline and documented omissions"
 if octo_provider_validate_contracts; then test_pass; else test_fail "registry governance contract failed"; fi
 

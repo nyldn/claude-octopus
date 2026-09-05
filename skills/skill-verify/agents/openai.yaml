@@ -1,3 +1,5 @@
 interface:
   display_name: "Verify"
   short_description: "Use when a nontrivial change needs end-to-end verification..."
+policy:
+  allow_implicit_invocation: false

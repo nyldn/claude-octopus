@@ -1,7 +1,12 @@
-.PHONY: test test-smoke test-unit test-symlink-sensitive test-integration test-live test-root test-coverage test-all test-plugin-name validate-plugin-assembly clean-tests help sync sync-check ci-changed ci-local
+.PHONY: test test-deps test-smoke test-unit test-symlink-sensitive test-integration test-live test-root test-coverage test-all test-plugin-name validate-plugin-assembly clean-tests help sync sync-check ci-changed ci-local
 
 # Default: smoke + unit (fast feedback)
 test: test-smoke test-unit
+
+# Explicit bootstrap: ordinary tests remain offline after dependency setup.
+test-deps:
+	@npm --prefix mcp-server install --ignore-scripts --no-audit --no-fund --package-lock=false
+	@npm --prefix openclaw install --ignore-scripts --no-audit --no-fund --package-lock=false
 
 # Regenerate ALL derived artifacts (run after changing commands/skills/agents or plugin.json)
 # See RELEASING.md step 3 for the artifact-to-generator map.
@@ -18,10 +23,10 @@ sync-check:
 	@./scripts/build-openclaw.sh --check
 	@./scripts/build-factory-skills.sh --check
 
-# CI parity: everything the required checks run, locally.
-# Local green here predicts remote green; targeted suites alone do not.
+# Complete local smoke/unit/integration matrix. CI-only portability, package,
+# and symlink-path lanes remain separate and are run explicitly before release.
 ci-local: sync-check test-smoke test-unit test-integration
-	@echo "ci-local complete: matches required checks (Smoke/Unit/Integration) + CI-only verifications"
+	@echo "ci-local complete: smoke, unit, and integration gates passed"
 
 # Proportional pre-push gate. The selector always runs sync/smoke coverage and
 # fails closed to ci-local for shared, generated, manifest, or unmapped changes.
@@ -100,7 +105,7 @@ help:
 	@echo "  make test-unit         - Run the full unit suite"
 	@echo "  make test-integration  - Run hermetic integration tests"
 	@echo "  make ci-changed        - Run fail-closed tests selected from changed files"
-	@echo "  make ci-local          - Run the complete pre-merge/release matrix"
+	@echo "  make ci-local          - Run local smoke, unit, and integration gates"
 	@echo "  make test-live         - Run live tests (real Claude sessions, real API cost)"
 	@echo "  make test-root         - Run tests/ root suites (not in CI, see #741)"
 	@echo "  make test-coverage     - Generate coverage report"

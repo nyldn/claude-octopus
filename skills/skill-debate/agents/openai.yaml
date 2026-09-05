@@ -1,3 +1,5 @@
 interface:
   display_name: "Debate"
   short_description: "Structured multi-provider AI debates between Claude and..."
+policy:
+  allow_implicit_invocation: false

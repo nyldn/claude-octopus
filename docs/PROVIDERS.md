@@ -18,6 +18,26 @@ context budget, cost class, sandbox class, and independence organization. The
 registry governance test fails when the two inventories differ or a required
 field is invalid.
 
+After resolution, synchronous and background runners consume the same immutable
+dispatch plan. The plan records canonical provider and model identity, selection
+source, canonical project and plugin roots, argv, credential names, tool policy,
+input and reserve budgets, deadline, and billing mode. It never records
+credential values. Add provider-specific command and authentication logic before
+the plan boundary instead of rebuilding policy in a runner.
+
+Context admission uses the smallest configured, catalogued-model, and effective
+transport limit, then deducts output and system/tool reserves. A broad provider
+limit must not raise a smaller exact-model limit.
+
+MCP and OpenClaw load their provider environment names from
+`config/provider-env-allowlist.json`. Add a provider's credential and transport
+names there, then test both adapters. These host adapters pass the approved
+names to the orchestrator; the dispatch plan still narrows each provider child
+to the credential selected for that seat. A custom OpenAI-compatible key named
+by `OPENAI_COMPAT_API_KEY_ENV` is forwarded automatically. Other custom
+provider keys require a comma-separated `OCTOPUS_CREDENTIAL_ENV_NAMES` list;
+names must end in `API_KEY`, `TOKEN`, `CREDENTIAL`, or `CREDENTIALS`.
+
 ## The seven wiring points
 
 | # | Concern | File | Anchor | What to add |
@@ -118,4 +138,5 @@ Retired `gemini` and `gemini-*` IDs are accepted only as compatibility aliases a
 Registry 2.0 removes shared provider identity, model-environment, context,
 cost, health-selection, and independence lists from consumers. Command syntax,
 credential validation, model fallbacks, and environment isolation stay explicit
-because their provider contracts differ and deserve direct tests.
+because their provider contracts differ and deserve direct tests. The dispatch
+plan is the handoff between those adapters and the common execution lifecycle.

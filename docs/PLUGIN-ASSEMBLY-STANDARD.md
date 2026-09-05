@@ -29,6 +29,10 @@ Each skill must include YAML frontmatter with:
   installed skills must not enter model context or self-activate on an ordinary
   request.
 
+For Codex, also declare `policy.allow_implicit_invocation: false` in each
+skill's `agents/openai.yaml`. Claude frontmatter does not replace this host
+policy. See [plugin compatibility](PLUGIN-COMPATIBILITY.md) for validation scope.
+
 Skill bodies should use this shape when practical:
 
 - `When To Use`

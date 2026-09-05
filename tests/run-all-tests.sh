@@ -20,6 +20,7 @@
 #   --suite=PATH    Run one explicit suite path relative to tests/ (repeatable)
 #   --shard-index=N Zero-based deterministic shard index (default: 0)
 #   --shard-count=N Number of deterministic shards (default: 1)
+#   --shard-weights=PATH Duration weights (default: tests/shard-weights.tsv)
 #   --symlink-sensitive  Keep only unit suites that exercise path indirection
 
 set -euo pipefail
@@ -43,6 +44,7 @@ FAIL_FAST=false
 LIST_ONLY=false
 SHARD_INDEX=0
 SHARD_COUNT=1
+SHARD_WEIGHTS_FILE="$SCRIPT_DIR/shard-weights.tsv"
 SUITE_TIMINGS=()
 
 print_usage() {
@@ -64,6 +66,7 @@ Options:
   --list               List selected suites without running them
   --shard-index=N      Zero-based deterministic shard index
   --shard-count=N      Number of deterministic shards
+  --shard-weights=PATH Duration weights; missing files use alphabetical fallback
   --symlink-sensitive  Keep only path-indirection unit suites
   -h, --help           Show this help and exit
 EOF
@@ -188,6 +191,7 @@ for arg in "$@"; do
         --list)        LIST_ONLY=true ;;
         --shard-index=*) SHARD_INDEX="${arg#--shard-index=}" ;;
         --shard-count=*) SHARD_COUNT="${arg#--shard-count=}" ;;
+        --shard-weights=*) SHARD_WEIGHTS_FILE="${arg#--shard-weights=}" ;;
         --symlink-sensitive) SYMLINK_SENSITIVE=true ;;
         --suite=*)
             suite_arg="${arg#--suite=}"
@@ -324,8 +328,14 @@ done
 
 if [[ "$SYMLINK_SENSITIVE" == true ]]; then
     declare -a SYMLINK_SUITES=()
+    SYMLINK_SUITE_FILE="$SCRIPT_DIR/symlink-sensitive.txt"
+    if [[ ! -r "$SYMLINK_SUITE_FILE" ]]; then
+        echo -e "${RED}Symlink-sensitive suite list is missing: $SYMLINK_SUITE_FILE${NC}" >&2
+        exit 1
+    fi
     for suite in ${TEST_SUITES[@]+"${TEST_SUITES[@]}"}; do
-        if grep -Eiq 'symlink|pwd -P|realpath|logical.{0,40}physical|physical.{0,40}logical' "$suite"; then
+        suite_relative="${suite#"$SCRIPT_DIR"/}"
+        if grep -Fxq "$suite_relative" "$SYMLINK_SUITE_FILE"; then
             SYMLINK_SUITES+=("$suite")
         fi
     done
@@ -337,18 +347,52 @@ if [[ "$SYMLINK_SENSITIVE" == true ]]; then
 fi
 
 if [[ "$SHARD_COUNT" -gt 1 ]]; then
-    declare -a SORTED_SUITES=()
     declare -a SHARDED_SUITES=()
-    while IFS= read -r suite; do
-        [[ -n "$suite" ]] && SORTED_SUITES+=("$suite")
-    done < <(printf '%s\n' ${TEST_SUITES[@]+"${TEST_SUITES[@]}"} | LC_ALL=C sort)
-    suite_index=0
-    for suite in "${SORTED_SUITES[@]}"; do
-        if [[ $((suite_index % SHARD_COUNT)) -eq "$SHARD_INDEX" ]]; then
-            SHARDED_SUITES+=("$suite")
-        fi
-        suite_index=$((suite_index + 1))
-    done
+    if [[ -r "$SHARD_WEIGHTS_FILE" ]]; then
+        while IFS=$'\t' read -r assigned_shard suite_relative; do
+            if [[ "$assigned_shard" == "$SHARD_INDEX" && -n "$suite_relative" ]]; then
+                SHARDED_SUITES+=("$SCRIPT_DIR/$suite_relative")
+            fi
+        done < <(
+            printf '%s\n' ${TEST_SUITES[@]+"${TEST_SUITES[@]}"} |
+                awk -v prefix="$SCRIPT_DIR/" '
+                    index($0, prefix) == 1 { print substr($0, length(prefix) + 1); next }
+                    { print }
+                ' |
+                awk -v weights_file="$SHARD_WEIGHTS_FILE" '
+                    BEGIN {
+                        while ((getline line < weights_file) > 0) {
+                            if (line ~ /^[[:space:]]*#/ || line ~ /^[[:space:]]*$/) continue
+                            split(line, fields, "\t")
+                            if (fields[1] != "" && fields[2] ~ /^[0-9]+$/) weight[fields[1]] = fields[2]
+                        }
+                        close(weights_file)
+                    }
+                    { print (($0 in weight) ? weight[$0] : 1) "\t" $0 }
+                ' |
+                LC_ALL=C sort -t $'\t' -k1,1nr -k2,2 |
+                awk -F '\t' -v shard_count="$SHARD_COUNT" '
+                    {
+                        target = 0
+                        for (i = 1; i < shard_count; i++) {
+                            if (load[i] < load[target]) target = i
+                        }
+                        print target "\t" $2
+                        load[target] += $1
+                    }
+                '
+        )
+    else
+        # A source archive may omit the optional timing profile. Preserve a
+        # stable complete partition using the previous alphabetical strategy.
+        suite_index=0
+        while IFS= read -r suite; do
+            if [[ $((suite_index % SHARD_COUNT)) -eq "$SHARD_INDEX" ]]; then
+                SHARDED_SUITES+=("$suite")
+            fi
+            suite_index=$((suite_index + 1))
+        done < <(printf '%s\n' ${TEST_SUITES[@]+"${TEST_SUITES[@]}"} | LC_ALL=C sort)
+    fi
     TEST_SUITES=("${SHARDED_SUITES[@]+"${SHARDED_SUITES[@]}"}")
     if [[ -z "${TEST_SUITES[*]-}" ]]; then
         echo -e "${RED}Shard $SHARD_INDEX of $SHARD_COUNT produced no test suites.${NC}" >&2

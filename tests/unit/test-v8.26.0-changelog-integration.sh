@@ -94,46 +94,15 @@ echo ""
 echo "Test Suite 3: Worktree Hooks"
 echo "────────────────────────────────────────"
 
-# Test 3.1: worktree-setup.sh exists
-if [[ -f "$PROJECT_ROOT/hooks/worktree-setup.sh" ]]; then
-    pass "worktree-setup.sh exists"
+# The v8.26 notification-style worktree hooks were retired after Claude Code
+# made WorktreeCreate a replacement creator contract. Native Git ownership must
+# remain active unless a future hook creates and returns the directory itself.
+if [[ ! -e "$PROJECT_ROOT/hooks/worktree-setup.sh" &&
+      ! -e "$PROJECT_ROOT/hooks/worktree-teardown.sh" ]] &&
+   ! grep -q '"WorktreeCreate"\|"WorktreeRemove"' "$HOOKS_JSON"; then
+    pass "obsolete worktree replacement hooks remain retired"
 else
-    fail "worktree-setup.sh NOT found"
-fi
-
-# Test 3.2: worktree-setup.sh is executable
-if [[ -x "$PROJECT_ROOT/hooks/worktree-setup.sh" ]]; then
-    pass "worktree-setup.sh is executable"
-else
-    fail "worktree-setup.sh is NOT executable"
-fi
-
-# Test 3.3: worktree-teardown.sh exists
-if [[ -f "$PROJECT_ROOT/hooks/worktree-teardown.sh" ]]; then
-    pass "worktree-teardown.sh exists"
-else
-    fail "worktree-teardown.sh NOT found"
-fi
-
-# Test 3.4: worktree-teardown.sh is executable
-if [[ -x "$PROJECT_ROOT/hooks/worktree-teardown.sh" ]]; then
-    pass "worktree-teardown.sh is executable"
-else
-    fail "worktree-teardown.sh is NOT executable"
-fi
-
-# Test 3.5: hooks.json contains WorktreeCreate
-if grep -q '"WorktreeCreate"' "$HOOKS_JSON"; then
-    pass "hooks.json contains WorktreeCreate event"
-else
-    fail "hooks.json does NOT contain WorktreeCreate event"
-fi
-
-# Test 3.6: hooks.json contains WorktreeRemove
-if grep -q '"WorktreeRemove"' "$HOOKS_JSON"; then
-    pass "hooks.json contains WorktreeRemove event"
-else
-    fail "hooks.json does NOT contain WorktreeRemove event"
+    fail "obsolete notification-style worktree hooks were restored"
 fi
 echo ""
 

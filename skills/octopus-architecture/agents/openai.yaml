@@ -1,3 +1,5 @@
 interface:
   display_name: "Architecture"
   short_description: "System architecture and API design with multi-AI consensus..."
+policy:
+  allow_implicit_invocation: false

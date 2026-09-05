@@ -20,6 +20,14 @@ source "$PROJECT_ROOT/scripts/lib/validation.sh"
 # shellcheck source=/dev/null
 source "$PROJECT_ROOT/scripts/lib/kimi.sh"
 
+eval "$(declare -f run_contract_transition | sed '1s/run_contract_transition/_fixture_run_contract_transition/')"
+run_contract_transition() {
+    if [[ "${FIXTURE_SCENARIO:-}" == usage-running-transition-fail && "${2:-}" == running ]]; then
+        return 1
+    fi
+    _fixture_run_contract_transition "$@"
+}
+
 fixture_provider="$TEST_TMP_DIR/fixture-provider.sh"
 cat > "$fixture_provider" <<'EOF'
 #!/usr/bin/env bash
@@ -102,7 +110,20 @@ get_agent_model() {
     printf '%s\n' fixture-model
 }
 estimate_agent_call_cost() { printf '%s\n' 0.000000; }
+record_agent_start() { printf '%s\n' "call-${FIXTURE_SCENARIO:-unknown}"; }
 record_agent_call() { :; }
+record_agent_complete() {
+    printf 'completed|%s\n' "$1" >> "$FIXTURE_ROOT/usage-terminal"
+}
+record_agent_failure() {
+    printf '%s|%s|%s\n' "${4:-failed}" "$1" "${3:-}" >> "$FIXTURE_ROOT/usage-terminal"
+}
+parse_task_metrics() {
+    _PARSED_TOKENS="" _PARSED_TOOL_USES="" _PARSED_DURATION_MS=""
+    _PARSED_INPUT_TOKENS="" _PARSED_OUTPUT_TOKENS=""
+    _PARSED_CACHED_INPUT_TOKENS="" _PARSED_CACHE_WRITE_TOKENS=""
+    _PARSED_REASONING_TOKENS=""
+}
 get_agent_command() {
     local command_model="routed-model"
     if [[ "${1:-}" == *:* ]]; then
@@ -248,6 +269,9 @@ assert_scenario oversize 0 1 planned,starting,authenticated,running,skipped skip
     'Prompt rejected by provider (oversize)'
 assert_scenario timeout 124 1 planned,starting,authenticated,running,timeout timeout none \
     'Timed out before completion'
+assert_scenario usage-running-transition-fail 74 0 \
+    planned,starting,authenticated,failed failed none \
+    'Unable to record running state'
 assert_scenario sigsegv 0 2 \
     planned,starting,authenticated,running,output_received,validated,degraded \
     degraded eligible-with-warning 'Recovered after AGY exit 139' agy
@@ -260,6 +284,15 @@ assert_scenario stdin-close-large 0 1 \
 assert_scenario truncated 0 1 \
     planned,starting,authenticated,running,output_received,validated,degraded \
     degraded eligible-with-warning 'Output truncated'
+
+test_case "a post-reservation lifecycle failure writes one terminal usage event"
+usage_terminal="$TEST_TMP_DIR/usage-running-transition-fail/usage-terminal"
+if [[ "$(wc -l < "$usage_terminal" | tr -d ' ')" == 1 ]] &&
+   grep -Fxq 'failed|call-usage-running-transition-fail|Unable to record running state' "$usage_terminal"; then
+    test_pass
+else
+    test_fail "usage terminal event missing or duplicated: $(cat "$usage_terminal" 2>/dev/null || true)"
+fi
 
 test_case "recovery and stdin diagnostics remain durable and attempts are distinct"
 sigsegv_snapshot="$TEST_TMP_DIR/sigsegv/workspace/runs/sync-sigsegv/seats.json"

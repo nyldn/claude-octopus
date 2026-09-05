@@ -220,6 +220,7 @@ printf '%s\n' '#!/usr/bin/env bash' \
     'cat >/dev/null' \
     'case "${FAKE_SCENARIO:-success}" in' \
     '  success) printf "%s\n" "Substantive external provider result." ;;' \
+    '  agy-contract) printf "%s\n" "${OCTOPUS_AGY_MODEL:-missing}" > "$AGY_MODEL_CAPTURE"; printf "%s\n" "Substantive AGY result." ;;' \
     '  exit) printf "%s\n" "provider rejected request" >&2; exit 42 ;;' \
     '  timeout) printf "%s\n" "partial output before timeout"; exit 124 ;;' \
     'esac' > "$fake_provider"
@@ -293,6 +294,10 @@ get_agent_command() {
     case "${FAKE_SCENARIO:-}" in
         claude-contract|exact-fable-contract)
             octo_real_get_agent_command "$@"
+            return
+            ;;
+        agy-contract)
+            printf '%s\n' "$fake_provider"
             return
             ;;
     esac
@@ -434,9 +439,14 @@ test_case "Agent Teams prompt persistence failure terminalizes the seat"
 original_should_use_agent_teams="$(declare -f should_use_agent_teams)"
 original_write_agent_result_prompt="$(declare -f write_agent_result_prompt)"
 original_check_provider_health="$(declare -f check_provider_health)"
+original_record_agent_start="$(declare -f record_agent_start)"
 should_use_agent_teams() { return 0; }
 write_agent_result_prompt() { return 1; }
 check_provider_health() { return 0; }
+record_agent_start() { printf '%s\n' call-native-prompt-fail; }
+record_agent_failure() {
+    printf '%s|%s|%s\n' "${4:-failed}" "$1" "${3:-}" >> "$TEST_TMP_DIR/native-usage-terminal"
+}
 saved_timeout="$TIMEOUT"
 TIMEOUT=0
 set +e
@@ -448,12 +458,17 @@ TIMEOUT="$saved_timeout"
 eval "$original_should_use_agent_teams"
 eval "$original_write_agent_result_prompt"
 eval "$original_check_provider_health"
+eval "$original_record_agent_start"
+unset -f record_agent_failure
 native_prompt_transition="$(run_contract_latest_transition spawn-native-prompt-fail)"
 native_prompt_reason="$(jq -r --arg seat spawn-native-prompt-fail \
     'select(.seat_id == $seat and .transition == "failed") | .reason' "$ledger" | tail -n 1)"
 if [[ "$native_prompt_rc" -eq 74 ]] &&
    [[ "$native_prompt_transition" == failed ]] &&
-   [[ "$native_prompt_reason" == "Failed to persist Agent Teams dispatched prompt" ]]; then
+   [[ "$native_prompt_reason" == "Failed to persist Agent Teams dispatched prompt" ]] &&
+   [[ "$(wc -l < "$TEST_TMP_DIR/native-usage-terminal" | tr -d ' ')" == 1 ]] &&
+   grep -Fxq 'failed|call-native-prompt-fail|Failed to persist Agent Teams dispatched prompt' \
+       "$TEST_TMP_DIR/native-usage-terminal"; then
     test_pass
 else
     test_fail "Agent Teams prompt-write failure remained nonterminal (rc=$native_prompt_rc transition=${native_prompt_transition:-missing} reason=${native_prompt_reason:-missing})"
@@ -518,6 +533,17 @@ else
     test_fail "spawn_agent rejected or mis-executed the generated Claude command"
 fi
 unset FAKE_SCENARIO
+
+test_case "background exact AGY model remains one environment value"
+export AGY_MODEL_CAPTURE="$TEST_TMP_DIR/spawn-agy-model"
+if run_external_fixture agy-contract external-agy \
+    'agy:Gemini 3.5 Flash (High)' reviewer review &&
+   [[ "$(cat "$AGY_MODEL_CAPTURE" 2>/dev/null || true)" == 'Gemini 3.5 Flash (High)' ]]; then
+    test_pass
+else
+    test_fail "background AGY model was split or omitted"
+fi
+unset FAKE_SCENARIO AGY_MODEL_CAPTURE
 
 source "$PROJECT_ROOT/scripts/lib/kimi.sh"
 kimi_config_bin="$TEST_TMP_DIR/kimi-config-bin"

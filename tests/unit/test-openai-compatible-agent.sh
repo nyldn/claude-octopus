@@ -125,6 +125,34 @@ if assert_contains "$cmd" "--tool-policy none" "review tool policy"; then
     test_pass
 fi
 
+test_case "OpenAI-compatible constrained role disables model tools outside review"
+cmd=$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="compat-role-no-tools" PWD="/tmp/octo-cwd" OPENAI_COMPAT_MODEL="vendor/model-fast" get_agent_command openai-compatible-agent implementation code-reviewer 2>/dev/null)
+if assert_contains "$cmd" "--tool-policy none" "constrained role tool policy"; then
+    test_pass
+fi
+
+test_case "Atlas review dispatch disables model tools"
+cmd=$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="atlas-review-no-tools" PWD="/tmp/octo-cwd" ATLASCLOUD_MODEL="qwen/model" get_agent_command atlascloud-agent review code-reviewer 2>/dev/null)
+if assert_contains "$cmd" "--provider atlascloud" "Atlas provider" &&
+   assert_contains "$cmd" "--tool-policy none" "Atlas review tool policy"; then
+    test_pass
+fi
+
+test_case "Atlas readonly persona disables model tools outside review"
+cmd=$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="atlas-role-no-tools" PWD="/tmp/octo-cwd" ATLASCLOUD_MODEL="qwen/model" get_agent_command atlascloud-agent implementation backend-architect 2>/dev/null)
+if assert_contains "$cmd" "--tool-policy none" "Atlas readonly persona policy"; then
+    test_pass
+fi
+
+test_case "write-capable tool-loop roles retain tools"
+generic_cmd=$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="compat-write-tools" PWD="/tmp/octo-cwd" OPENAI_COMPAT_MODEL="vendor/model-fast" get_agent_command openai-compatible-agent implementation implementer 2>/dev/null)
+atlas_cmd=$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="atlas-write-tools" PWD="/tmp/octo-cwd" ATLASCLOUD_MODEL="qwen/model" get_agent_command atlascloud-agent implementation implementer 2>/dev/null)
+if [[ "$generic_cmd" == *"--tool-policy none"* || "$atlas_cmd" == *"--tool-policy none"* ]]; then
+    test_fail "write-capable implementer unexpectedly lost tool access"
+else
+    test_pass
+fi
+
 
 test_case "openai-compatible-agent rejects unsafe model names before dispatch"
 if HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="compat-cmd-unsafe" PWD="/tmp/octo-cwd" OPENAI_COMPAT_MODEL="bad;touch" get_agent_command openai-compatible-agent unsafe-phase >/dev/null 2>&1; then
@@ -247,6 +275,24 @@ then
     test_pass
 else
     test_fail "no-tools mode still exposed file or shell tools to the review model"
+fi
+
+test_case "OpenAI-compatible Astra guard recognizes provider namespaces"
+if HELPER="$HELPER" python3 - <<'PYTEST'
+import importlib.util, os
+helper_path = os.environ["HELPER"]
+spec = importlib.util.spec_from_file_location("openai_compatible_agent_astra", helper_path)
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+assert mod.is_astra_model("gpt-6-astra")
+assert mod.is_astra_model("openai/gpt-6-astra")
+assert mod.is_astra_model("openrouter:openai/gpt-6-astra")
+assert not mod.is_astra_model("gpt-6-astra-preview")
+PYTEST
+then
+    test_pass
+else
+    test_fail "provider namespace bypassed the Astra Chat Completions guard"
 fi
 
 
@@ -455,6 +501,236 @@ if grep -q 'chat_reasoning requested=' "$HELPER"; then
     test_pass
 else
     test_fail "expected reasoning request marker in stderr"
+fi
+
+test_case "run_command completes normally under process supervision"
+if HELPER="$HELPER" python3 - <<'PYTEST'
+import importlib.util
+import os
+import tempfile
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("openai_compatible_agent_process_ok", os.environ["HELPER"])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+with tempfile.TemporaryDirectory() as cwd:
+    result = mod.tool_exec(Path(cwd), "run_command", {"command": "printf supervised"})
+assert result == "exit=0\nsupervised", result
+PYTEST
+then
+    test_pass
+else
+    test_fail "normal command did not complete through the supervisor"
+fi
+
+test_case "run_command timeout prevents descendant late writes"
+if HELPER="$HELPER" python3 - <<'PYTEST'
+import importlib.util
+import os
+import shlex
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("openai_compatible_agent_process_late", os.environ["HELPER"])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+old_timeout = os.environ.get("OPENAI_COMPAT_COMMAND_TIMEOUT")
+try:
+    os.environ["OPENAI_COMPAT_COMMAND_TIMEOUT"] = "0.1"
+    with tempfile.TemporaryDirectory() as cwd:
+        marker = Path(cwd, "late-write")
+        child = "import time; from pathlib import Path; time.sleep(0.6); Path('late-write').write_text('late')"
+        command = f"{shlex.quote(sys.executable)} -c {shlex.quote(child)} & sleep 5"
+        result = mod.tool_exec(Path(cwd), "run_command", {"command": command})
+        assert result.startswith("ERROR: TimeoutExpired:"), result
+        time.sleep(0.8)
+        assert not marker.exists(), marker
+finally:
+    if old_timeout is None:
+        os.environ.pop("OPENAI_COMPAT_COMMAND_TIMEOUT", None)
+    else:
+        os.environ["OPENAI_COMPAT_COMMAND_TIMEOUT"] = old_timeout
+PYTEST
+then
+    test_pass
+else
+    test_fail "timed-out descendant wrote after the tool returned"
+fi
+
+test_case "run_command escalates and reaps a TERM-resistant descendant"
+if HELPER="$HELPER" python3 - <<'PYTEST'
+import importlib.util
+import os
+import shlex
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("openai_compatible_agent_process_resistant", os.environ["HELPER"])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+old_timeout = os.environ.get("OPENAI_COMPAT_COMMAND_TIMEOUT")
+old_grace = os.environ.get("OPENAI_COMPAT_COMMAND_KILL_GRACE")
+try:
+    os.environ["OPENAI_COMPAT_COMMAND_TIMEOUT"] = "0.1"
+    os.environ["OPENAI_COMPAT_COMMAND_KILL_GRACE"] = "0.1"
+    with tempfile.TemporaryDirectory() as cwd:
+        marker = Path(cwd, "resistant-write")
+        child = (
+            "import signal,time; from pathlib import Path; "
+            "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+            "time.sleep(0.6); Path('resistant-write').write_text('late')"
+        )
+        command = f"{shlex.quote(sys.executable)} -c {shlex.quote(child)} & sleep 5"
+        started = time.monotonic()
+        result = mod.tool_exec(Path(cwd), "run_command", {"command": command})
+        elapsed = time.monotonic() - started
+        assert result.startswith("ERROR: TimeoutExpired:"), result
+        assert elapsed < 1.5, elapsed
+        time.sleep(0.8)
+        assert not marker.exists(), marker
+finally:
+    if old_timeout is None:
+        os.environ.pop("OPENAI_COMPAT_COMMAND_TIMEOUT", None)
+    else:
+        os.environ["OPENAI_COMPAT_COMMAND_TIMEOUT"] = old_timeout
+    if old_grace is None:
+        os.environ.pop("OPENAI_COMPAT_COMMAND_KILL_GRACE", None)
+    else:
+        os.environ["OPENAI_COMPAT_COMMAND_KILL_GRACE"] = old_grace
+PYTEST
+then
+    test_pass
+else
+    test_fail "TERM-resistant descendant survived timeout escalation"
+fi
+
+test_case "process supervisor bounds output while preserving the tail"
+if HELPER="$HELPER" python3 - <<'PYTEST'
+import importlib.util
+import os
+import shlex
+import sys
+import tempfile
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("openai_compatible_agent_process_output", os.environ["HELPER"])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+with tempfile.TemporaryDirectory() as cwd:
+    script = "import sys; sys.stdout.write('x' * 100000 + 'TAIL'); sys.stdout.flush()"
+    command = f"{shlex.quote(sys.executable)} -c {shlex.quote(script)}"
+    returncode, output = mod.run_bounded_process(command, Path(cwd), 2, shell=True, output_limit=1024)
+assert returncode == 0, returncode
+assert len(output.encode("utf-8")) <= 1024, len(output)
+assert output.endswith("TAIL"), output[-20:]
+PYTEST
+then
+    test_pass
+else
+    test_fail "process output was not bounded during execution"
+fi
+
+test_case "normal shell exit does not orphan a detached-output descendant"
+if HELPER="$HELPER" python3 - <<'PYTEST'
+import importlib.util
+import os
+import shlex
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+if os.name != "posix":
+    raise SystemExit(0)
+spec = importlib.util.spec_from_file_location("openai_compatible_agent_process_orphan", os.environ["HELPER"])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+with tempfile.TemporaryDirectory() as cwd:
+    child = "import time; from pathlib import Path; time.sleep(0.5); Path('orphan-write').write_text('late')"
+    launcher = (
+        "import subprocess,sys; "
+        f"subprocess.Popen([sys.executable, '-c', {child!r}], "
+        "stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)"
+    )
+    command = f"{shlex.quote(sys.executable)} -c {shlex.quote(launcher)}"
+    returncode, _ = mod.run_bounded_process(command, Path(cwd), 2, shell=True, output_limit=1024)
+    assert returncode == 0, returncode
+    time.sleep(0.7)
+    assert not Path(cwd, "orphan-write").exists()
+PYTEST
+then
+    test_pass
+else
+    test_fail "successful shell exit left a descendant running"
+fi
+
+test_case "caller interruption cancels an output-producing descendant"
+if HELPER="$HELPER" python3 - <<'PYTEST'
+import importlib.util
+import os
+import shlex
+import signal
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+if os.name != "posix":
+    raise SystemExit(0)
+helper = os.environ["HELPER"]
+
+with tempfile.TemporaryDirectory() as cwd:
+    worker = os.fork()
+    if worker == 0:
+        spec = importlib.util.spec_from_file_location("openai_compatible_agent_process_interrupt", helper)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        child = """
+import sys
+import time
+from pathlib import Path
+
+Path("ready").write_text("1")
+for _ in range(200):
+    sys.stdout.write("chunk\\n")
+    sys.stdout.flush()
+    time.sleep(0.01)
+Path("late-interrupt").write_text("late")
+"""
+        command = f"{shlex.quote(sys.executable)} -c {shlex.quote(child)}"
+        try:
+            mod.run_bounded_process(command, Path(cwd), 10, shell=True, output_limit=1024)
+        except KeyboardInterrupt:
+            os._exit(42)
+        os._exit(0)
+    ready = Path(cwd, "ready")
+    deadline = time.monotonic() + 2
+    while not ready.exists() and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert ready.exists(), "supervised child did not start"
+    os.kill(worker, signal.SIGINT)
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline:
+        waited, status = os.waitpid(worker, os.WNOHANG)
+        if waited:
+            break
+        time.sleep(0.01)
+    else:
+        os.kill(worker, signal.SIGKILL)
+        os.waitpid(worker, 0)
+        raise AssertionError("supervisor did not exit after interruption")
+    assert os.waitstatus_to_exitcode(status) == 42, status
+    time.sleep(0.5)
+    assert not Path(cwd, "late-interrupt").exists()
+PYTEST
+then
+    test_pass
+else
+    test_fail "caller interruption left a descendant running"
 fi
 
 test_summary

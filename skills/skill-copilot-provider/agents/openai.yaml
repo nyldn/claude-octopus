@@ -1,3 +1,5 @@
 interface:
   display_name: "Copilot Provider"
   short_description: "GitHub Copilot CLI as optional zero-cost provider via copilot..."
+policy:
+  allow_implicit_invocation: false

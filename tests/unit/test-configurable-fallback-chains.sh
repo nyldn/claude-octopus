@@ -20,18 +20,18 @@ write_config() {
 {
   "providers": {
     "codex": {
-      "default": "gpt-default-test",
-      "council": "gpt-council-test"
+      "default": "gpt-5.6-terra",
+      "council": "gpt-5.5"
     },
     "claude": {
-      "default": "claude-default-test"
+      "default": "claude-sonnet-5"
     }
   },
   "routing": {
     "roles": {
-      "code-reviewer": {"provider":"codex","model":"gpt-luna-test"},
-      "implementer-heavy": {"provider":"codex","model":"gpt-sol-test"},
-      "architect": {"provider":"claude","model":"claude-opus-test"}
+      "code-reviewer": {"provider":"codex","model":"gpt-5.6-luna"},
+      "implementer-heavy": {"provider":"codex","model":"gpt-5.6-sol"},
+      "architect": {"provider":"claude","model":"claude-opus-4.8"}
     }
   }
 }
@@ -45,7 +45,7 @@ if [[ "$chain" == "code-reviewer,implementer-heavy,architect" ]]; then test_pass
 
 test_case "default roles resolve through routing.roles provider and model"
 specs=$(octo_fallback_chain_agent_specs default)
-expected=$'codex:gpt-luna-test\ncodex:gpt-sol-test\nclaude:claude-opus-test'
+expected=$'codex:gpt-5.6-luna\ncodex:gpt-5.6-sol\nclaude:claude-opus-4.8'
 if [[ "$specs" == "$expected" ]]; then test_pass; else test_fail "unexpected specs: [$specs]"; fi
 
 test_case "built-in role defaults remain bare so session model precedence is preserved"
@@ -95,20 +95,53 @@ test_case "provider capability role routes resolve to a concrete model"
 jq '.routing.roles["code-reviewer"]="codex:council" | .routing.fallbackChains.default=[{"role":"code-reviewer"}]' "$CFG" > "$CFG.tmp"
 mv "$CFG.tmp" "$CFG"
 specs=$(octo_fallback_chain_agent_specs default)
-if [[ "$specs" == "codex:gpt-council-test" ]]; then test_pass; else test_fail "provider capability was not recursively resolved: [$specs]"; fi
+if [[ "$specs" == "codex:gpt-5.5" ]]; then test_pass; else test_fail "provider capability was not recursively resolved: [$specs]"; fi
 write_config
 
 test_case "providers.json may replace the fallback chain"
 jq '.routing.fallbackChains.default=[{"role":"architect"},{"provider":"commandcode","model":"custom/model"}]' "$CFG" > "$CFG.tmp"
 mv "$CFG.tmp" "$CFG"
 specs=$(octo_fallback_chain_agent_specs default)
-expected=$'claude:claude-opus-test\ncommandcode:custom/model'
+expected=$'claude:claude-opus-4.8\ncommandcode:custom/model'
 if [[ "$specs" == "$expected" ]]; then test_pass; else test_fail "override not honored: [$specs]"; fi
 
+test_case "configured fallback cannot select explicit-only Astra without an invocation grant"
+jq '.routing.fallbackChains.default=[{"provider":"codex","model":"gpt-6-astra"}]' "$CFG" > "$CFG.tmp"
+mv "$CFG.tmp" "$CFG"
+specs=""
+rc=0
+specs=$(octo_fallback_chain_agent_specs default review 2>/dev/null) || rc=$?
+if [[ "$rc" -ne 0 && -z "$specs" ]]; then
+    test_pass
+else
+    test_fail "automatic fallback admitted Astra: rc=$rc specs=[$specs]"
+fi
+
+test_case "invocation-scoped fallback grant admits only its exact frontier model"
+specs=$(octo_fallback_chain_agent_specs default review gpt-6-astra 2>/dev/null || true)
+if [[ "$specs" == "codex:gpt-6-astra" ]]; then
+    test_pass
+else
+    test_fail "exact invocation grant did not admit Astra: [$specs]"
+fi
+
+test_case "provider-native Astra namespace remains explicit-only in fallback chains"
+jq '.routing.fallbackChains.default=[{"provider":"commandcode","model":"openai/gpt-6-astra"}]' "$CFG" > "$CFG.tmp"
+mv "$CFG.tmp" "$CFG"
+specs=""
+rc=0
+specs=$(octo_fallback_chain_agent_specs default review 2>/dev/null) || rc=$?
+if [[ "$rc" -ne 0 && -z "$specs" ]]; then
+    test_pass
+else
+    test_fail "provider-native Astra bypassed fallback admission: rc=$rc specs=[$specs]"
+fi
+write_config
+
 test_case "provider aliases canonicalize and equivalent candidates are deduplicated"
-printf '%s\n' '{"routing":{"fallbackChains":{"default":[{"provider":"anthropic","model":"claude-opus-test"},{"provider":"agy"},{"provider":"antigravity"},{"provider":"gemini"}]}}}' > "$CFG"
+printf '%s\n' '{"routing":{"fallbackChains":{"default":[{"provider":"anthropic","model":"claude-opus-4.8"},{"provider":"agy"},{"provider":"antigravity"},{"provider":"gemini"}]}}}' > "$CFG"
 specs=$(octo_fallback_chain_agent_specs default)
-expected=$'claude:claude-opus-test\nagy'
+expected=$'claude:claude-opus-4.8\nagy'
 if [[ "$specs" == "$expected" ]]; then
     test_pass
 else
@@ -171,13 +204,13 @@ write_config
 is_agent_available_v2() { [[ "$1" == "claude" ]]; }
 test_case "technical availability uses the same configured/default chain"
 chosen=$(octo_fallback_first_available default commandcode)
-if [[ "$chosen" == "claude:claude-opus-test" ]]; then test_pass; else test_fail "expected qualified claude spec, got $chosen"; fi
+if [[ "$chosen" == "claude:claude-opus-4.8" ]]; then test_pass; else test_fail "expected qualified claude spec, got $chosen"; fi
 
 test_case "technical fallback prefers fail-closed v2 availability when present"
 is_agent_available() { return 0; }
 is_agent_available_v2() { [[ "$1" == "claude" ]]; }
 chosen=$(octo_fallback_first_available default commandcode)
-if [[ "$chosen" == "claude:claude-opus-test" ]]; then test_pass; else test_fail "legacy fail-open availability leaked into fallback selection: $chosen"; fi
+if [[ "$chosen" == "claude:claude-opus-4.8" ]]; then test_pass; else test_fail "legacy fail-open availability leaked into fallback selection: $chosen"; fi
 
 test_case "technical fallback fails closed when v2 availability is absent"
 unset -f is_agent_available_v2
@@ -193,14 +226,14 @@ fi
 is_agent_available_v2() { [[ "$1" == "claude" ]]; }
 
 test_case "technical fallback preserves explicit provider:model candidates"
-jq '.routing.fallbackChains.default=[{"provider":"claude","model":"claude-pinned-test"}]' "$CFG" > "$CFG.tmp"
+jq '.routing.fallbackChains.default=[{"provider":"claude","model":"claude-opus-4.8"}]' "$CFG" > "$CFG.tmp"
 mv "$CFG.tmp" "$CFG"
 chosen=$(octo_fallback_first_available default commandcode)
-if [[ "$chosen" == "claude:claude-pinned-test" ]]; then test_pass; else test_fail "explicit model was lost: $chosen"; fi
+if [[ "$chosen" == "claude:claude-opus-4.8" ]]; then test_pass; else test_fail "explicit model was lost: $chosen"; fi
 write_config
 
 test_case "technical fallback rejects a chain containing an invalid qualified candidate"
-jq '.routing.fallbackChains.default=[{"provider":"claude","model":"bad model"},{"provider":"claude","model":"claude-pinned-test"}]' "$CFG" > "$CFG.tmp"
+jq '.routing.fallbackChains.default=[{"provider":"claude","model":"bad model"},{"provider":"claude","model":"claude-opus-4.8"}]' "$CFG" > "$CFG.tmp"
 mv "$CFG.tmp" "$CFG"
 chosen=""
 rc=0
@@ -227,9 +260,9 @@ run_agent_sync() {
     printf '%s|%s|%s\n' "$spec" "$role" "$phase" >> "$ATTEMPTS"
     case "$spec" in
         commandcode:primary) printf '   \n'; return 0 ;;
-        codex:gpt-luna-test) printf 'I will inspect this first.\n'; return 0 ;;
-        codex:gpt-sol-test) printf 'DECISIONS:\n- ACCEPT fix\nDECOMPOSITION:\n1. [CODING] valid\n'; return 0 ;;
-        claude:claude-opus-test) printf 'DECISIONS:\n- ACCEPT last\nDECOMPOSITION:\n1. [CODING] last\n'; return 0 ;;
+        codex:gpt-5.6-luna) printf 'I will inspect this first.\n'; return 0 ;;
+        codex:gpt-5.6-sol) printf 'DECISIONS:\n- ACCEPT fix\nDECOMPOSITION:\n1. [CODING] valid\n'; return 0 ;;
+        claude:claude-opus-4.8) printf 'DECISIONS:\n- ACCEPT last\nDECOMPOSITION:\n1. [CODING] last\n'; return 0 ;;
         commandcode:technical-fail) return 42 ;;
         *) return 7 ;;
     esac
@@ -253,7 +286,7 @@ test_case "process failure advances through the same chain"
 out=$(run_agent_sync_fallback_chain commandcode:technical-fail 'plan it' 30 researcher tangle validate_protocol default)
 first=$(sed -n '1p' "$ATTEMPTS" | cut -d'|' -f1)
 second=$(sed -n '2p' "$ATTEMPTS" | cut -d'|' -f1)
-if [[ "$first" == "commandcode:technical-fail" && "$second" == "codex:gpt-luna-test" && "$out" == *"DECOMPOSITION:"* ]]; then
+if [[ "$first" == "commandcode:technical-fail" && "$second" == "codex:gpt-5.6-luna" && "$out" == *"DECOMPOSITION:"* ]]; then
     # Luna is semantically invalid, so Sol should ultimately satisfy the validator.
     [[ $(wc -l < "$ATTEMPTS") -eq 3 ]] && test_pass || test_fail "expected three attempts"
 else
@@ -269,31 +302,31 @@ run_agent_sync() {
 : > "$ATTEMPTS"
 rc=0
 run_agent_sync_fallback_chain commandcode:primary 'plan it' 30 researcher tangle validate_protocol default >/dev/null || rc=$?
-if [[ "$rc" -ne 0 ]] && grep -c 'claude:claude-opus-test' "$ATTEMPTS" >/dev/null; then test_pass; else test_fail "chain did not exhaust safely"; fi
+if [[ "$rc" -ne 0 ]] && grep -c 'claude:claude-opus-4.8' "$ATTEMPTS" >/dev/null; then test_pass; else test_fail "chain did not exhaust safely"; fi
 
 test_case "runtime, empty, and semantic failures use one real decomposition fallback path"
 if (
     : > "$ATTEMPTS"
     tangle_decomposition_output_usable() { validate_protocol "$1"; }
     octo_fallback_chain_agent_specs() {
-        printf '%s\n' agy antigravity gemini codex:gpt-luna-test codex:gpt-sol-test
+        printf '%s\n' agy antigravity gemini codex:gpt-5.6-luna codex:gpt-5.6-sol
     }
     run_agent_sync() {
         local spec="$1" role="$4" phase="$5"
         printf '%s|%s|%s\n' "$spec" "$role" "$phase" >> "$ATTEMPTS"
         case "$spec" in
             commandcode:primary) return 42 ;;
-            codex:explicit-fallback) printf '   \n' ;;
+            codex:gpt-5.5) printf '   \n' ;;
             agy) printf 'not a decomposition\n' ;;
-            codex:gpt-luna-test) printf 'still not a decomposition\n' ;;
-            codex:gpt-sol-test) printf 'DECISIONS:\n- ACCEPT\nDECOMPOSITION:\n1. [CODING] valid\n' ;;
+            codex:gpt-5.6-luna) printf 'still not a decomposition\n' ;;
+            codex:gpt-5.6-sol) printf 'DECISIONS:\n- ACCEPT\nDECOMPOSITION:\n1. [CODING] valid\n' ;;
             *) return 7 ;;
         esac
     }
-    out=$(tangle_run_decomposition_fallbacks commandcode:primary codex:explicit-fallback 'plan it' 30)
+    out=$(tangle_run_decomposition_fallbacks commandcode:primary codex:gpt-5.5 'plan it' 30)
     attempted_specs=$(cut -d'|' -f1 "$ATTEMPTS" | paste -sd, -)
     [[ "$out" == *"DECOMPOSITION:"* ]] && \
-        [[ "$attempted_specs" == "commandcode:primary,codex:explicit-fallback,agy,codex:gpt-luna-test,codex:gpt-sol-test" ]]
+        [[ "$attempted_specs" == "commandcode:primary,codex:gpt-5.5,agy,codex:gpt-5.6-luna,codex:gpt-5.6-sol" ]]
 ); then
     test_pass
 else
