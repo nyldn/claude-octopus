@@ -141,7 +141,7 @@ fable5_maybe_reroute() {
         local fallback_model
         fallback_model="$(fable5_fallback_model)"
         if declare -f log >/dev/null 2>&1; then
-            log "WARN" "Fable 5 security reroute: ${FABLE5_MODEL_ID} → ${fallback_model} (safety classifiers can refuse adversarial security phrasing)"
+            log "WARN" "Fable 5 security reroute: ${model} → ${fallback_model} (safety classifiers can refuse adversarial security phrasing)"
         fi
         echo "$fallback_model"
         return 0

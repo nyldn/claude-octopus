@@ -640,6 +640,10 @@ record_agent_start() {
     local prompt="$3"
     local phase="${4:-unknown}"
     local metrics_id="m-$(date +%s)-$$-${RANDOM}"
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        echo "$metrics_id"
+        return 0
+    fi
     local metrics_base="${WORKSPACE_DIR:-${HOME}/.claude-octopus}"
     local input_tokens
     input_tokens="$(estimate_tokens "$prompt")"

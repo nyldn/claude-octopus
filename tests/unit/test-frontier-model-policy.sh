@@ -163,6 +163,16 @@ else
     test_fail "session usage lost native token counts or Astra pricing: $native_usage"
 fi
 
+test_case "dry-run usage tracking leaves no start artifact"
+DRY_RUN=true
+dry_metrics_id="$(record_agent_start codex-api gpt-6-astra ignored frontier)"
+if [[ -n "$dry_metrics_id" && ! -e "$WORKSPACE_DIR/.agent-start-$dry_metrics_id" ]]; then
+    test_pass
+else
+    test_fail "dry-run usage tracking created a start artifact"
+fi
+DRY_RUN=false
+
 test_case "session usage uses the measured prompt when only native total is available"
 estimate_tokens() { printf '%s\n' 272001; }
 prompt_metrics_id="$(record_agent_start codex-api gpt-6-astra ignored frontier)"

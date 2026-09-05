@@ -164,7 +164,7 @@ AskUserQuestion({
 
 `gpt-6-astra` is intentionally absent from persistent defaults and cost tiers.
 For a bounded evaluation after Sol fails a hard acceptance test, use
-Use `OCTOPUS_CODEX_MODEL=gpt-6-astra` for one command or an exact
+`OCTOPUS_CODEX_MODEL=gpt-6-astra` for one command or an exact
 `codex:gpt-6-astra` seat. Model overrides written by `--session` share the
 global provider configuration, so explicit-only frontier models are rejected
 there until overrides are truly session-scoped.
@@ -520,11 +520,11 @@ When invoked WITH arguments (e.g., `/octo:model-config codex gpt-5.6-sol`), skip
 
 ### Validation Gates
 
-- Provider names validated against whitelist: `codex agy antigravity claude perplexity openrouter openai-compatible openai-tools openai-compatible-agent opencode copilot ollama qwen`
+- Provider names are validated against the canonical registry: `codex commandcode claude claude-sdk agy perplexity opencode openrouter orcarouter atlascloud openai-compatible openai-tools openai-compatible-agent cursor-agent grok qwen ollama copilot vibe kimi`. Aliases are canonicalized first; for example, `antigravity` becomes `agy`.
 - Phase names validated against known list
-- Model names checked for injection safety (alphanumeric, hyphens, dots, slashes only)
-- Config file operations use atomic write (tmp + mv)
-- Always use `jq --arg` (never string interpolation)
+- Model values reject empty strings, whitespace, shell metacharacters, and leading slashes. Provider-qualified targets such as `codex:default` are allowed.
+- In dot syntax, the suffix is stored as a capability key without separate capability-name validation.
+- Route and model writes use `jq --arg`, a temporary file, and `mv` for atomic replacement.
 
 ### Prohibited Actions
 

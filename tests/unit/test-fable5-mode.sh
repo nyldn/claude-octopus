@@ -137,6 +137,17 @@ else
     test_fail "expected claude-opus-5, got '$out'"
 fi
 
+test_case "security reroute logs the triggering legacy model"
+logged=$(env "OCTOPUS_OPUS_MODEL=claude-fable-5" \
+    bash -c 'log(){ printf "%s\n" "$2" >&2; }; source "$1/scripts/lib/fable5.sh"; fable5_maybe_reroute claude-fable-5 security-auditor claude-opus ink >/dev/null' \
+    _ "$PROJECT_ROOT" 2>&1)
+if [[ "$logged" == *"claude-fable-5 → claude-opus-5"* &&
+      "$logged" != *"claude-fable-5-1 →"* ]]; then
+    test_pass
+else
+    test_fail "security reroute logged the wrong source model: $logged"
+fi
+
 test_case "reroutes squeeze phase off Fable 5"
 out=$(env "OCTOPUS_OPUS_MODEL=claude-fable-5" \
     bash -c 'log(){ :; }; source "$1/scripts/lib/fable5.sh"; fable5_maybe_reroute claude-fable-5 "" claude-opus squeeze' \
