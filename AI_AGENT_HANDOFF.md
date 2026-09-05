@@ -2,19 +2,23 @@
 
 Last updated: 2026-09-04
 Status: Claude Fable 5.1 and GPT-6 Astra support is implemented with explicit,
-cost-safe routing. Independent spec and quality reviews are complete, all
-verified findings are fixed, and the required local gates pass.
+cost-safe routing. Independent spec and quality reviews are complete and all
+verified findings are fixed. Final exact-head local and hosted gates remain.
 Branch: `research/2026-09-04-model-support`, based on `upstream/main` at
-`1e496e1190c10d90d5edf1a4d7650657d5404c2e`.
+`17c00c99c5ac0eb049163d37f6645d23dce6bc91`.
 Delivery: PR [#1010](https://github.com/nyldn/claude-octopus/pull/1010) is open
 against `nyldn/claude-octopus:main`. The user authorized merging it once
-exact-head hosted checks and reviews pass.
+exact-head hosted checks and reviews pass. The reviewed implementation commit is
+`673aa5d7bc7e47c3b9524b97c3b3fe8f556d8c49`; it is local after the rebase and
+has not been pushed. The remote PR head remains
+`6c06a9d7e159c91bf88ebf4b5a83f2711f3c572b`.
 Current release: [v10.1.0](https://github.com/nyldn/claude-octopus/releases/tag/v10.1.0)
 Tracking: `bd` is unavailable in this checkout, so no Beads issue was created or
 updated. Do not run a schema migration to restore it.
-Next action: commit and push the reviewed tree, open the pull request, wait for
-exact-head checks, squash-merge when green, then remove only this isolated
-worktree after confirming it is clean and unused.
+Next action: commit this handoff update, run exact-head `make ci-changed` and
+`make ci-local`, force-push the rebased branch with lease, wait for exact-head
+checks, squash-merge when green, then remove only this isolated worktree after
+confirming it is clean and unused.
 
 ## Fable 5.1 and GPT-6 Astra Model Support
 
@@ -46,11 +50,13 @@ worktree after confirming it is clean and unused.
   A final full-gate failure exposed one documentation contract that no longer
   named the rejected Fable IDs literally; the canonical skill now states both
   IDs and its generated copy is synchronized.
-- Fresh local evidence: `make ci-changed` selected the full matrix and exited
-  0; `make ci-local` exited 0 after synchronized artifacts, 16 smoke suites,
-  308 unit suites, and 8 integration suites. `make sync-check`, shell syntax,
-  `git diff --check`, executable-mode checks, and temporary-worktree cleanup
-  also pass.
+- The full local gates passed before the final review amendments. On reviewed
+  commit `673aa5d7`, focused suites pass for frontier policy (15/15), model
+  resolution (45/45), Fable mode (34/34), model-aware seats (22/22), the
+  OpenAI-compatible agent (23/23), environment accountability (9/9), the model
+  catalog contract (93/93), and Dark Factory CLI behavior (49/49). A stable
+  exact-head full-matrix rerun is still required because concurrent commits and
+  a rebase invalidated two in-flight attempts.
 - The initial hosted Ubuntu unit run exposed a GNU Bash nounset difference in
   the optional request-pricing rule: `local threshold` is empty under macOS
   Bash 3.2 but unbound under GNU Bash 5 when no model-specific rule exists.
