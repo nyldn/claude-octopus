@@ -1454,7 +1454,7 @@ ${provider_ctx}"
 
     # Resolve environment and argv once into the redacted dispatch plan. Both
     # execution and the offline explanation record consume this same decision.
-    local dispatch_plan _plan_deadline=0 _plan_append_empty_prompt=false
+    local dispatch_plan dispatch_argv_json _plan_deadline=0 _plan_append_empty_prompt=false
     if [[ "$timeout_secs" =~ ^[0-9]+$ && "$timeout_secs" -gt 0 ]]; then
         _plan_deadline=$(( $(date +%s) + timeout_secs ))
     fi
@@ -1464,8 +1464,10 @@ ${provider_ctx}"
     build_provider_env "$agent_type"
     octo_dispatch_plan_bind_model_env "$agent_type" "$model"
     local _plan_failure=""
-    if ! dispatch_plan="$(octo_dispatch_plan_create "$agent_type" "$phase" "$role" \
-        "$cmd" "$model" "$_plan_deadline" "$_prompt_bytes" "$_plan_append_empty_prompt")"; then
+    if ! dispatch_argv_json="$(octo_dispatch_command_argv_json "$cmd")"; then
+        _plan_failure="argv serialization"
+    elif ! dispatch_plan="$(octo_dispatch_plan_create "$agent_type" "$phase" "$role" \
+        "$dispatch_argv_json" "$model" "$_plan_deadline" "$_prompt_bytes" "$_plan_append_empty_prompt")"; then
         _plan_failure="construction"
     elif ! octo_dispatch_plan_load_argv "$dispatch_plan"; then
         _plan_failure="argv loading"

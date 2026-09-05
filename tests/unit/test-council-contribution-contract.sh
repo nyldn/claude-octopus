@@ -85,9 +85,12 @@ else
 fi
 
 test_case "contribution record carries artifact access evidence and validation state"
-artifact_digest="$(council_artifact_digest "$FIXTURE_ROOT" "Review fixture")"
-record="$(council_contribution_record_json "$TEST_TMP_DIR/evidence.md" "$FIXTURE_ROOT" "$artifact_digest")"
-if jq -e --arg digest "$artifact_digest" '
+artifact_digest=""
+if ! artifact_digest="$(council_artifact_digest "$FIXTURE_ROOT" "Review fixture")"; then
+    test_fail "unable to compute council artifact digest"
+elif ! record="$(council_contribution_record_json "$TEST_TMP_DIR/evidence.md" "$FIXTURE_ROOT" "$artifact_digest")"; then
+    test_fail "unable to build council contribution record"
+elif jq -e --arg digest "$artifact_digest" '
       .workspace_digest == $digest
       and (.artifact_digest | startswith("sha256:"))
       and .artifact_digest != $digest
@@ -103,9 +106,12 @@ else
 fi
 
 test_case "blind contribution cannot become valid through fabricated evidence"
-artifact_digest="$(council_artifact_digest "$FIXTURE_ROOT" "Review fixture")"
-record="$(council_contribution_record_json "$TEST_TMP_DIR/fabricated.md" "$FIXTURE_ROOT" "$artifact_digest")"
-if jq -e '
+artifact_digest=""
+if ! artifact_digest="$(council_artifact_digest "$FIXTURE_ROOT" "Review fixture")"; then
+    test_fail "unable to compute council artifact digest"
+elif ! record="$(council_contribution_record_json "$TEST_TMP_DIR/fabricated.md" "$FIXTURE_ROOT" "$artifact_digest")"; then
+    test_fail "unable to build council contribution record"
+elif jq -e '
       .access_state == "failed"
       and .validation_result == "invalid-access"
       and (.evidence_paths | length) == 0

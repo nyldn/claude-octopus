@@ -56,7 +56,7 @@ openrouter_cmd="$(get_agent_command "openrouter:${exact_model}" review implement
 orcarouter_cmd="$(get_agent_command "orcarouter:${exact_model}" review implementation-diversity-reviewer 2>/dev/null || true)"
 vibe_cmd="$(get_agent_command "vibe:${exact_model}" review implementation-diversity-reviewer 2>/dev/null || true)"
 atlas_cmd="$(get_agent_command "atlascloud-agent:${exact_model}" review implementation-cve-reviewer 2>/dev/null || true)"
-if [[ "$agy_cmd" == "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" ]] && \
+if [[ "$agy_cmd" == "env OCTOPUS_AGY_MODEL=${exact_model} $PROJECT_ROOT/scripts/helpers/agy-exec.sh" ]] && \
    [[ "$claude_cmd" == *"--model ${exact_model}"* ]] && \
    [[ "$opus_cmd" == *"--model ${exact_model}"* ]] && \
    [[ "$openrouter_cmd" == "openrouter_execute_model ${exact_model}" ]] && \

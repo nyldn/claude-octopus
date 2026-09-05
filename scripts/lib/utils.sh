@@ -8,6 +8,7 @@ _OCTOPUS_UTILS_LOADED=true
 
 _utils_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_utils_lib_dir}/kimi-model-name.sh" || { echo "utils: failed to load kimi-model-name.sh" >&2; return 1 2>/dev/null || exit 1; }
+source "${_utils_lib_dir}/command-argv.sh" || { echo "utils: failed to load command-argv.sh" >&2; return 1 2>/dev/null || exit 1; }
 
 # Internal log helper — uses orchestrate.sh's log() if available, falls back to stderr
 _utils_log() {
@@ -218,7 +219,8 @@ _octopus_is_safe_openai_compatible_value() {
 _validate_env_prefixed_shim_command() {
     local cmd="$1" env_prefix="$2" shim_path="$3" allowed_tail="${4:-}" encoding="${5:-plain}" path_match="${6:-suffix}"
     local -a parts
-    read -r -a parts <<< "$cmd"
+    octo_dispatch_command_to_argv "$cmd" || return 1
+    parts=("${OCTO_COMMAND_ARGV[@]}")
     if [[ -n "$allowed_tail" ]]; then
         [[ "${#parts[@]}" -eq 5 ]] || return 1
         [[ "${parts[3]} ${parts[4]}" == "$allowed_tail" ]] || return 1

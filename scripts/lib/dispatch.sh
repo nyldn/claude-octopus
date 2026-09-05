@@ -373,6 +373,9 @@ get_agent_command() {
                 if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                     return 1
                 fi
+                printf 'env OCTOPUS_AGY_MODEL=%q %s\n' "$model" \
+                    "${PLUGIN_DIR}/scripts/helpers/agy-exec.sh"
+                return 0
             fi
             echo "${PLUGIN_DIR}/scripts/helpers/agy-exec.sh"
             ;;

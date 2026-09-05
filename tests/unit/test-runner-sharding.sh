@@ -73,6 +73,19 @@ else
     test_fail "symlink-sensitive suite selection is empty or differs from its derivation rule"
 fi
 
+test_case "a stale symlink-sensitive allowlist entry fails closed"
+stale_symlink_list="$TEST_TMP_DIR/stale-symlink-sensitive.txt"
+{
+    cat "$PROJECT_ROOT/tests/symlink-sensitive.txt"
+    printf '%s\n' 'unit/test-no-longer-present.sh'
+} > "$stale_symlink_list"
+if ! OCTOPUS_SYMLINK_SUITE_FILE="$stale_symlink_list" \
+    /bin/bash "$RUNNER" --unit --symlink-sensitive --list >/dev/null 2>&1; then
+    test_pass
+else
+    test_fail "runner accepted a stale symlink-sensitive suite entry"
+fi
+
 test_case "duration weights use deterministic least-loaded assignment"
 weights="$TEST_TMP_DIR/weights.tsv"
 printf '%s\n' \

@@ -22,6 +22,11 @@ if ! type review_kill_process_tree_frozen >/dev/null 2>&1; then
     fi
     unset _octo_review_lib
 fi
+if ! type octo_dispatch_command_to_argv >/dev/null 2>&1; then
+    _octo_workflows_utils_lib="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/command-argv.sh"
+    [[ -f "$_octo_workflows_utils_lib" ]] && source "$_octo_workflows_utils_lib"
+    unset _octo_workflows_utils_lib
+fi
 if ! type write_agent_result_prompt >/dev/null 2>&1; then
     _octo_result_file_lib="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/result-file.sh"
     [[ -f "$_octo_result_file_lib" ]] && source "$_octo_result_file_lib"
@@ -183,7 +188,8 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     local -a cmd_array
     local -a inner_cmd_array
     build_provider_env "$agent_type"
-    read -ra inner_cmd_array <<< "$cmd"
+    octo_dispatch_command_to_argv "$cmd" || return 1
+    inner_cmd_array=("${OCTO_COMMAND_ARGV[@]}")
     if [[ ${#PROVIDER_ENV_ARRAY[@]} -gt 0 ]]; then
         cmd_array=("${PROVIDER_ENV_ARRAY[@]}" "${inner_cmd_array[@]}")
     else

@@ -6,6 +6,11 @@
 [[ -n "${_OCTOPUS_DISPATCH_PLAN_LOADED:-}" ]] && return 0
 _OCTOPUS_DISPATCH_PLAN_LOADED=true
 _octo_dispatch_plan_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if ! declare -f octo_dispatch_command_argv_json >/dev/null 2>&1; then
+    # dispatch-plan.sh is also sourced directly by focused harnesses and third-
+    # party integrations, outside orchestrate.sh's normal source order.
+    source "${_octo_dispatch_plan_lib_dir}/command-argv.sh" || return 1
+fi
 
 _octo_dispatch_plan_is_credential_name() {
     case "${1:-}" in
@@ -54,7 +59,7 @@ octo_dispatch_selection_source() {
 
 octo_dispatch_plan_create() {
     local agent_spec="${1:-}" phase="${2:-}" role="${3:-}"
-    local command="${4:-}" requested_model="${5:-}"
+    local argv_json="${4:-}" requested_model="${5:-}"
     local deadline_epoch="${6:-0}" prompt_bytes="${7:-0}"
     local append_empty_prompt="${8:-false}"
     local project_root="${PROJECT_ROOT:-}" plugin_root="${PLUGIN_DIR:-${_octo_dispatch_plan_lib_dir}/../..}"
@@ -69,7 +74,9 @@ octo_dispatch_plan_create() {
     plugin_root="$(cd "$plugin_root" && pwd -P)" || return 2
     [[ "$project_root" != / && "$plugin_root" != / ]] || return 2
     [[ "$deadline_epoch" =~ ^[0-9]+$ && "$prompt_bytes" =~ ^[0-9]+$ ]] || return 2
-    [[ -n "$command" && -n "$requested_model" ]] || return 2
+    [[ -n "$argv_json" && -n "$requested_model" ]] || return 2
+    argv_json="$(jq -ce 'select(type == "array" and length > 0 and all(.[]; type == "string"))' \
+        <<< "$argv_json")" || return 2
 
     provider="$(octo_agent_spec_provider "$agent_spec")" || return 2
     canonical_model="$(octo_model_canonical_id "$requested_model")" || return 2
@@ -94,7 +101,9 @@ octo_dispatch_plan_create() {
         billing_mode="unknown"
     fi
 
-    read -ra argv <<< "$command"
+    while IFS= read -r entry; do
+        argv+=("$entry")
+    done < <(jq -r '.[]' <<< "$argv_json")
     if [[ "$append_empty_prompt" == true ]]; then
         argv+=("-p" "")
     fi
@@ -122,7 +131,6 @@ octo_dispatch_plan_create() {
         done
     fi
 
-    local argv_json
     argv_json="$(jq -cn --args '$ARGS.positional' -- "${argv[@]}")" || return 2
 
     jq -cn \

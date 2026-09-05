@@ -18,6 +18,7 @@ source "$PROJECT_ROOT_SOURCE/scripts/lib/models.sh"
 source "$PROJECT_ROOT_SOURCE/scripts/lib/agent-spec.sh"
 source "$PROJECT_ROOT_SOURCE/scripts/lib/provider-registry.sh"
 source "$PROJECT_ROOT_SOURCE/scripts/lib/execution-profile.sh"
+source "$PROJECT_ROOT_SOURCE/scripts/lib/utils.sh"
 source "$PROJECT_ROOT_SOURCE/scripts/lib/dispatch-plan.sh"
 
 get_provider_context_limit() { printf '198500\n'; }
@@ -25,10 +26,16 @@ get_tool_policy() { printf 'read_exec\n'; }
 octo_tool_loop_requires_no_tools() { return 0; }
 _octo_usage_billing_mode() { printf 'metered\n'; }
 
+dispatch_plan_from_command() {
+  local argv_json
+  argv_json="$(octo_dispatch_command_argv_json "$4")" || return 2
+  octo_dispatch_plan_create "$1" "$2" "$3" "$argv_json" "$5" "$6" "$7" "${8:-false}"
+}
+
 PROVIDER_ENV_ARRAY=(env -i "PATH=$PATH" "HOME=$HOME" "OPENAI_API_KEY=super-secret" "TRACEPARENT=trace")
 
 test_case "plan contains one redacted resolved dispatch decision"
-plan="$(octo_dispatch_plan_create \
+plan="$(dispatch_plan_from_command \
   'codex:openai/gpt-6-astra' review code-reviewer \
   'codex exec --model openai/gpt-6-astra' 'openai/gpt-6-astra' 123456 4096)"
 if jq -e \
@@ -65,8 +72,23 @@ else
   test_fail "plan argv did not round-trip"
 fi
 
+test_case "quoted command arguments are serialized before plan construction"
+quoted_command='"/opt/Claude Octopus/bin/tool" --label "value with spaces" "" "literal;touch /tmp/never"'
+quoted_argv_json=""
+quoted_plan=""
+if declare -f octo_dispatch_command_argv_json >/dev/null 2>&1 &&
+   quoted_argv_json="$(octo_dispatch_command_argv_json "$quoted_command")" &&
+   quoted_plan="$(octo_dispatch_plan_create codex review code-reviewer \
+     "$quoted_argv_json" gpt-5.6-sol 0 1)" &&
+   jq -e '.argv == ["/opt/Claude Octopus/bin/tool", "--label", "value with spaces", "", "literal;touch /tmp/never"]' \
+     <<<"$quoted_plan" >/dev/null; then
+  test_pass
+else
+  test_fail "quoted or empty argv boundaries were not preserved: $quoted_plan"
+fi
+
 test_case "headless providers retain the required empty prompt argument"
-headless_plan="$(octo_dispatch_plan_create codex review code-reviewer \
+headless_plan="$(dispatch_plan_from_command codex review code-reviewer \
   'codex exec' gpt-5.6-sol 0 1 true)"
 if jq -e '.argv == ["codex","exec","-p",""]' <<<"$headless_plan" >/dev/null; then
   test_pass
@@ -77,7 +99,7 @@ fi
 test_case "Antigravity model labels remain one environment argv element"
 PROVIDER_ENV_ARRAY=(env -i "PATH=$PATH" "OCTOPUS_AGY_MODEL=stale")
 octo_dispatch_plan_bind_model_env 'agy:Gemini 3.5 Flash (High)' 'Gemini 3.5 Flash (High)'
-agy_plan="$(octo_dispatch_plan_create 'agy:Gemini 3.5 Flash (High)' review reviewer \
+agy_plan="$(dispatch_plan_from_command 'agy:Gemini 3.5 Flash (High)' review reviewer \
   "$PLUGIN_DIR/scripts/helpers/agy-exec.sh" 'Gemini 3.5 Flash (High)' 0 1)"
 if [[ "${PROVIDER_ENV_ARRAY[3]}" == 'OCTOPUS_AGY_MODEL=Gemini 3.5 Flash (High)' ]] &&
    jq -e --arg command "$PLUGIN_DIR/scripts/helpers/agy-exec.sh" \
@@ -89,7 +111,7 @@ else
 fi
 
 test_case "commands cannot embed credential values in the recorded argv"
-if octo_dispatch_plan_create codex review code-reviewer \
+if dispatch_plan_from_command codex review code-reviewer \
   'env OPENAI_API_KEY=secret codex exec' gpt-5.6-sol 0 1 >/dev/null 2>&1; then
   test_fail "credential-bearing argv was admitted"
 else
@@ -123,7 +145,7 @@ fi
 
 test_case "unsafe project authority fails closed"
 PROJECT_ROOT=relative/path
-if octo_dispatch_plan_create codex review reviewer 'codex exec' gpt-5.6-sol 0 1 >/dev/null 2>&1; then
+if dispatch_plan_from_command codex review reviewer 'codex exec' gpt-5.6-sol 0 1 >/dev/null 2>&1; then
   test_fail "relative project root was admitted"
 else
   test_pass

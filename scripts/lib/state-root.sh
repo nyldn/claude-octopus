@@ -4,6 +4,12 @@
 # Restricted hosts own filesystem policy. These helpers only test the state
 # root already selected by the host/caller; they never select a fallback path.
 
+if ! type octo_dispatch_command_to_argv >/dev/null 2>&1; then
+    _octo_state_root_utils_lib="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/command-argv.sh"
+    [[ -f "$_octo_state_root_utils_lib" ]] && source "$_octo_state_root_utils_lib"
+    unset _octo_state_root_utils_lib
+fi
+
 octopus_state_root_is_writable() {
     local root="${1:-}"
     [[ -n "$root" ]] || return 1
@@ -52,7 +58,8 @@ octopus_run_provider_without_persistence() {
 
     octopus_persistence_diagnostic
     build_provider_env "$agent_type"
-    read -ra inner_cmd_array <<<"$cmd"
+    octo_dispatch_command_to_argv "$cmd" || return 1
+    inner_cmd_array=("${OCTO_COMMAND_ARGV[@]}")
     if [[ ${#PROVIDER_ENV_ARRAY[@]} -gt 0 ]]; then
         cmd_array=("${PROVIDER_ENV_ARRAY[@]}" "${inner_cmd_array[@]}")
     else

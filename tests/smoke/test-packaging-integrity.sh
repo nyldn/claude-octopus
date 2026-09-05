@@ -10,6 +10,15 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 
 test_suite "Packaging Integrity (Regression: Issue #19)"
 
+PACKAGING_FIXTURE_DIR=""
+cleanup_packaging_fixture() {
+    case "$PACKAGING_FIXTURE_DIR" in
+        "$TEST_TMP_DIR"/npm-pack-*) rm -rf -- "$PACKAGING_FIXTURE_DIR" ;;
+    esac
+    PACKAGING_FIXTURE_DIR=""
+}
+trap cleanup_packaging_fixture EXIT INT TERM
+
 ORCHESTRATE="$PROJECT_ROOT/scripts/orchestrate.sh"
 
 test_sourced_scripts_exist() {
@@ -144,22 +153,31 @@ test_orchestrate_can_source_deps() {
 
 test_extracted_archive_contract() {
     test_case "npm archive contains every declared component and adapter entrypoint"
-    local pack_dir pack_json tarball extract_dir package_root result
-    pack_dir=$(mktemp -d "${TMPDIR:-/tmp}/octopus-pack.XXXXXX") || {
+    local required_tool pack_json tarball extract_dir package_root result npm_error
+    for required_tool in npm jq tar python3; do
+        if ! command -v "$required_tool" >/dev/null 2>&1; then
+            test_skip "$required_tool is required for npm archive validation"
+            return 0
+        fi
+    done
+    PACKAGING_FIXTURE_DIR="$TEST_TMP_DIR/npm-pack-${BASHPID:-$$}"
+    if ! mkdir "$PACKAGING_FIXTURE_DIR"; then
         test_fail "unable to allocate package fixture"
         return 1
-    }
-    extract_dir="$pack_dir/extracted"
+    fi
+    npm_error="$PACKAGING_FIXTURE_DIR/npm-pack.stderr"
+    extract_dir="$PACKAGING_FIXTURE_DIR/extracted"
     mkdir -p "$extract_dir"
-    if ! pack_json=$(cd "$PROJECT_ROOT" && npm pack --ignore-scripts --json --pack-destination "$pack_dir" 2>/dev/null); then
-        rm -rf "$pack_dir"
-        test_fail "npm pack failed"
+    if ! pack_json=$(cd "$PROJECT_ROOT" && npm pack --ignore-scripts --json --pack-destination "$PACKAGING_FIXTURE_DIR" 2>"$npm_error"); then
+        result="$(tr '\n' ' ' < "$npm_error")"
+        cleanup_packaging_fixture
+        test_fail "npm pack failed: ${result:-no diagnostics}"
         return 1
     fi
     tarball=$(printf '%s' "$pack_json" | jq -r '.[0].filename // empty' 2>/dev/null)
-    if [[ -z "$tarball" || ! -f "$pack_dir/$tarball" ]] ||
-       ! tar -xzf "$pack_dir/$tarball" -C "$extract_dir"; then
-        rm -rf "$pack_dir"
+    if [[ -z "$tarball" || ! -f "$PACKAGING_FIXTURE_DIR/$tarball" ]] ||
+       ! tar -xzf "$PACKAGING_FIXTURE_DIR/$tarball" -C "$extract_dir"; then
+        cleanup_packaging_fixture
         test_fail "npm archive could not be extracted"
         return 1
     fi
@@ -230,7 +248,7 @@ PYTEST
     else
         status=$?
     fi
-    rm -rf "$pack_dir"
+    cleanup_packaging_fixture
     if [[ "$status" -eq 0 ]]; then
         test_pass
     else

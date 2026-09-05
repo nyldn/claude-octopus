@@ -328,11 +328,20 @@ done
 
 if [[ "$SYMLINK_SENSITIVE" == true ]]; then
     declare -a SYMLINK_SUITES=()
-    SYMLINK_SUITE_FILE="$SCRIPT_DIR/symlink-sensitive.txt"
+    SYMLINK_SUITE_FILE="${OCTOPUS_SYMLINK_SUITE_FILE:-$SCRIPT_DIR/symlink-sensitive.txt}"
     if [[ ! -r "$SYMLINK_SUITE_FILE" ]]; then
         echo -e "${RED}Symlink-sensitive suite list is missing: $SYMLINK_SUITE_FILE${NC}" >&2
         exit 1
     fi
+    while IFS= read -r suite_relative || [[ -n "$suite_relative" ]]; do
+        case "$suite_relative" in
+            ''|'#'*) continue ;;
+        esac
+        if [[ "$suite_relative" != unit/test-*.sh || ! -f "$SCRIPT_DIR/$suite_relative" ]]; then
+            echo -e "${RED}Stale symlink-sensitive suite entry: $suite_relative${NC}" >&2
+            exit 1
+        fi
+    done < "$SYMLINK_SUITE_FILE"
     for suite in ${TEST_SUITES[@]+"${TEST_SUITES[@]}"}; do
         suite_relative="${suite#"$SCRIPT_DIR"/}"
         if grep -Fxq "$suite_relative" "$SYMLINK_SUITE_FILE"; then

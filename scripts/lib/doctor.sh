@@ -509,8 +509,11 @@ doctor_install_source() {
         */.codex/plugins/cache/*) printf '%s\n' "codex-plugin-cache" ;;
         */node_modules/*) printf '%s\n' "npm" ;;
         *)
-            if command -v git >/dev/null 2>&1 &&
-               git -C "$plugin_root" rev-parse --is-inside-work-tree 2>/dev/null | grep -qx true; then
+            local inside_work_tree=""
+            if command -v git >/dev/null 2>&1; then
+                inside_work_tree="$(git -C "$plugin_root" rev-parse --is-inside-work-tree 2>/dev/null || true)"
+            fi
+            if [[ "$inside_work_tree" == true ]]; then
                 printf '%s\n' "git-checkout"
             else
                 printf '%s\n' "manual"

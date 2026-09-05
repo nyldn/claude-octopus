@@ -139,4 +139,35 @@ parse_task_metrics $'<usage>\ncache_creation_input_tokens: 900\noutput_tokens: 2
 if [[ "$first_input" == 100 && -z "$_PARSED_INPUT_TOKENS" && "$_PARSED_CACHE_WRITE_TOKENS" == 900 ]]; then
     test_pass
 else test_fail "cache token suffix overwrote uncached input"; fi
+
+test_case "packaging archive fixture uses suite-owned cleanup and preserves npm diagnostics"
+packaging_test="$PROJECT_ROOT/tests/smoke/test-packaging-integrity.sh"
+if grep -Fq 'for required_tool in npm jq tar python3' "$packaging_test" &&
+   grep -Fq 'PACKAGING_FIXTURE_DIR="$TEST_TMP_DIR/' "$packaging_test" &&
+   grep -Fq 'npm pack --ignore-scripts --json --pack-destination "$PACKAGING_FIXTURE_DIR" 2>"$npm_error"' "$packaging_test" &&
+   grep -Fq 'trap cleanup_packaging_fixture EXIT INT TERM' "$packaging_test"; then
+    test_pass
+else
+    test_fail "packaging fixture prerequisites, diagnostics, or cleanup are not explicit"
+fi
+
+test_case "Codex safety contract is a framework suite with a separate Python test module"
+safety_wrapper="$PROJECT_ROOT/tests/unit/test-codex-safety-contract.sh"
+safety_python="$PROJECT_ROOT/tests/unit/codex_safety_contract_test.py"
+if [[ -f "$safety_python" ]] &&
+   grep -Fq 'source "$SCRIPT_DIR/../helpers/test-framework.sh"' "$safety_wrapper" &&
+   grep -Fq 'python3 "$SCRIPT_DIR/codex_safety_contract_test.py" "$PROJECT_ROOT"' "$safety_wrapper"; then
+    test_pass
+else
+    test_fail "Codex safety tests are still embedded as an ad-hoc shell/Python suite"
+fi
+
+test_case "council contract reports digest helper failures through the test framework"
+council_contract="$PROJECT_ROOT/tests/unit/test-council-contribution-contract.sh"
+if grep -Fq 'if ! artifact_digest="$(council_artifact_digest' "$council_contract" &&
+   grep -Fq 'test_fail "unable to compute council artifact digest"' "$council_contract"; then
+    test_pass
+else
+    test_fail "council digest failures can still abort before the test summary"
+fi
 test_summary

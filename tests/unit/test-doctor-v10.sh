@@ -13,6 +13,16 @@ mkdir -p "$HOME"
 MAGENTA="" BOLD="" BLUE="" GREEN="" YELLOW="" RED="" DIM="" NC=""
 source "$PROJECT_ROOT/scripts/lib/doctor.sh"
 
+test_case "install-source detection does not depend on a grep pipeline"
+grep() { return 99; }
+install_source_without_grep="$(doctor_install_source "$PROJECT_ROOT")"
+unset -f grep
+if [[ "$install_source_without_grep" == "git-checkout" ]]; then
+    test_pass
+else
+    test_fail "git checkout was misclassified when grep was unavailable: $install_source_without_grep"
+fi
+
 test_case "config diagnostics identify the source checkout and exact build"
 DOCTOR_RESULTS_NAME=() DOCTOR_RESULTS_CAT=() DOCTOR_RESULTS_STATUS=() DOCTOR_RESULTS_MSG=() DOCTOR_RESULTS_DETAIL=()
 SCRIPT_DIR="$PROJECT_ROOT/scripts" PLUGIN_DIR="$PROJECT_ROOT" doctor_check_config
