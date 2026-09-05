@@ -458,6 +458,7 @@ fi
 suite "4. MCP Server Credential Handling"
 
 MCP_SRC="$PLUGIN_DIR/mcp-server/src/index.ts"
+SHARED_ADAPTER_SRC="$PLUGIN_DIR/shared/adapter-runtime.mjs"
 
 # 4.1 MCP server does not unconditionally pass all keys
 if grep -q 'OPENAI_API_KEY: process.env.OPENAI_API_KEY,' "$MCP_SRC"; then
@@ -467,7 +468,9 @@ else
 fi
 
 # 4.2 MCP server uses the shared, value-filtered provider allowlist
-if grep -q '\.\.\.providerEnvironment()' "$MCP_SRC" &&
+if grep -q 'providerEnvironment(PROVIDER_ENV_ALLOWLIST)' "$MCP_SRC" &&
+   grep -q '../../shared/adapter-runtime.mjs' "$MCP_SRC" &&
+   grep -q 'export function providerEnvironment' "$SHARED_ADAPTER_SRC" &&
    jq -e '.schema_version == 1 and (.names | index("OPENAI_API_KEY") != null)' \
       "$PLUGIN_DIR/config/provider-env-allowlist.json" >/dev/null; then
   pass "MCP server uses the shared provider environment allowlist"

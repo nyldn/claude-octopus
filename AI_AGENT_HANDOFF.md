@@ -5,18 +5,38 @@ Last updated: 2026-09-05
 Status: PR [#1015](https://github.com/nyldn/claude-octopus/pull/1015) is the
 only remaining public pull request. Its release branch has been rebased onto
 `upstream/main` at `4c299eb3d214c771ce79f9823d382a5d8bc02048`, which includes
-the merged PR #1014 review-snapshot fix. Seven valid CodeRabbit findings are
-fixed in local commit `46981fbcc17624712ff7855d8c4ec0c0f45d0f2a`.
+the merged PR #1014 review-snapshot fix. The first review batch is committed in
+`46981fb`; the second is committed in `b801f56`.
 
 Branch: `release/v11.0.0`
 
 Tracking: `bd` is unavailable in this checkout. Do not run a schema migration;
 this handoff records the work instead.
 
-Next action: validate this handoff-only change, push the rebased branch with
-`--force-with-lease`, resolve only the seven verified review threads, wait for
-exact-head hosted checks and review, then squash-merge PR #1015. Do not create
-the v11 tag or GitHub release without separate authorization.
+Next action: finish the exact-head local gate, push with `--force-with-lease`,
+resolve the verified review threads, wait for hosted checks and review, then
+squash-merge PR #1015. Do not create the v11 tag or GitHub release without
+separate authorization.
+
+## Start Here
+
+1. Run `git status --short --branch` and inspect the latest commits on the
+   active branch before changing files.
+2. Read the task references in `AGENTS.md` and this handoff.
+3. Read the relevant `bd` issue when Beads is available. It is unavailable in
+   this checkout; do not migrate its schema.
+
+## Outstanding Implementation Work
+
+- `tests/unit/test-openai-reasoning-fallback.py` still mocks
+  `urllib.request.urlopen`, while the production helper now routes requests
+  through `open_credentialed_request`. The standalone test is not reached by
+  the current unit matrix and should be updated in a separate focused change.
+- `tests/unit/test-skill-frontmatter.sh` prints a cosmetic `Failed Tests: 0`
+  block while returning success. Its counters are correct, but the misleading
+  summary should be cleaned up separately.
+- After this PR merges, the v11 tag, GitHub release, and any marketplace
+  publication remain separate, authorization-gated release work.
 
 ## Review fixes
 
