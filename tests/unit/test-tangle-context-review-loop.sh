@@ -256,12 +256,131 @@ git -C "$workspace" add a.txt
 printf 'unstaged-b\n' > "$workspace/b.txt"
 printf 'untracked-c\n' > "$workspace/c.txt"
 snapshot_results=$(make_test_dir snapshot-results)
-if snapshot=$(cd "$workspace" && RESULTS_DIR="$snapshot_results" tangle_build_review_diff_snapshot "test" "initial") &&
-   [[ -f "$snapshot" ]] && [[ ! -w "$snapshot" ]] &&
+if snapshot=$(cd "$workspace" && RESULTS_DIR="$snapshot_results" tangle_build_review_diff_snapshot "test" "initial"); then
+    snapshot_mode=$(stat -c '%a' "$snapshot" 2>/dev/null || stat -f '%Lp' "$snapshot" 2>/dev/null || true)
+else
+    snapshot=""
+    snapshot_mode=""
+fi
+if [[ -f "$snapshot" ]] && [[ "$snapshot_mode" == "400" ]] &&
    grep -q 'a.txt' "$snapshot" && grep -q 'b.txt' "$snapshot" && grep -q 'c.txt' "$snapshot"; then
     test_pass
 else
-    test_fail "review snapshot must immutably cover staged, unstaged, and untracked changes"
+    test_fail "review snapshot must be owner-only and cover staged, unstaged, and untracked changes"
+fi
+
+test_case "review collection rejects a missing symbolic HEAD in a non-empty repository"
+workspace=$(make_test_dir workspace-missing-symbolic-head)
+git -C "$workspace" init -q
+git -C "$workspace" config user.email test@example.com
+git -C "$workspace" config user.name "Octopus Test"
+printf 'committed\n' > "$workspace/committed.txt"
+git -C "$workspace" add committed.txt
+git -C "$workspace" commit -q -m init
+printf 'ref: refs/heads/missing\n' > "$workspace/.git/HEAD"
+if (
+    cd "$workspace" || exit 1
+    ! review_collect_all_changes_diff >/dev/null
+); then
+    test_pass
+else
+    test_fail "a symbolic HEAD with a missing target must not be treated as an unborn repository"
+fi
+
+test_case "untracked collection propagates git ls-files failures"
+workspace=$(make_test_dir workspace-ls-files-failure)
+git -C "$workspace" init -q
+printf 'untracked\n' > "$workspace/untracked.txt"
+if (
+    cd "$workspace" || exit 1
+    git() {
+        if [[ "${1:-}" == "-C" && "${3:-}" == "ls-files" ]]; then
+            return 2
+        fi
+        command git "$@"
+    }
+    ! review_collect_untracked_diff >/dev/null
+); then
+    test_pass
+else
+    test_fail "untracked collection swallowed a git ls-files failure"
+fi
+
+test_case "repo-local TMPDIR does not contaminate review collection"
+workspace=$(make_test_dir workspace-local-tmpdir)
+git -C "$workspace" init -q
+git -C "$workspace" config user.email test@example.com
+git -C "$workspace" config user.name "Octopus Test"
+printf 'base\n' > "$workspace/tracked.txt"
+git -C "$workspace" add tracked.txt
+git -C "$workspace" commit -q -m init
+printf 'untracked\n' > "$workspace/untracked.txt"
+mkdir -p "$workspace/tmp"
+if collected=$(cd "$workspace" && TMPDIR="$workspace/tmp" review_collect_all_changes_diff) &&
+   grep -q 'untracked.txt' <<< "$collected" &&
+   ! grep -q 'octopus-review-untracked' <<< "$collected"; then
+    test_pass
+else
+    test_fail "review collection scratch files leaked into the worktree diff"
+fi
+
+test_case "review snapshot rejects an initial partial diff when collection errors"
+workspace=$(make_test_dir workspace-partial-initial)
+git -C "$workspace" init -q
+git -C "$workspace" config user.email test@example.com
+git -C "$workspace" config user.name "Octopus Test"
+printf 'base\n' > "$workspace/tracked.txt"
+git -C "$workspace" add tracked.txt
+git -C "$workspace" commit -q -m init
+printf 'changed\n' > "$workspace/tracked.txt"
+partial_results=$(make_test_dir partial-initial-results)
+if (
+    cd "$workspace" || exit 1
+    git() {
+        if [[ "${1:-}" == "diff" && "${2:-}" == "HEAD" ]]; then
+            printf '%s\n' 'diff --git a/tracked.txt b/tracked.txt' '@@ -1 +1 @@' '-base' '+partial'
+            return 2
+        fi
+        command git "$@"
+    }
+    ! RESULTS_DIR="$partial_results" tangle_build_review_diff_snapshot test partial-initial >/dev/null 2>&1
+) && ! find "$partial_results" -type f -name 'tangle-review-input-*.diff' -print -quit | grep -q .; then
+    test_pass
+else
+    test_fail "initial snapshot collection must reject partial diff output from a failing git command"
+fi
+
+test_case "review snapshot rejects partial output from the bounded regeneration"
+workspace=$(make_test_dir workspace-partial-retry)
+git -C "$workspace" init -q
+git -C "$workspace" config user.email test@example.com
+git -C "$workspace" config user.name "Octopus Test"
+printf 'base\n' > "$workspace/tracked.txt"
+git -C "$workspace" add tracked.txt
+git -C "$workspace" commit -q -m init
+printf 'changed\n' > "$workspace/tracked.txt"
+retry_results=$(make_test_dir partial-retry-results)
+retry_count="$retry_results/collect-count"
+printf '0\n' > "$retry_count"
+if (
+    cd "$workspace" || exit 1
+    review_collect_diff() {
+        local calls
+        calls=$(<"$retry_count")
+        calls=$((calls + 1))
+        printf '%s\n' "$calls" > "$retry_count"
+        if [[ "$calls" -eq 1 ]]; then
+            return 0
+        fi
+        printf '%s\n' 'diff --git a/tracked.txt b/tracked.txt' '@@ -1 +1 @@' '-base' '+partial'
+        return 2
+    }
+    ! RESULTS_DIR="$retry_results" tangle_build_review_diff_snapshot test partial-retry >/dev/null 2>&1
+) && [[ "$(<"$retry_count")" -eq 2 ]] &&
+   ! find "$retry_results" -type f -name 'tangle-review-input-*.diff' -print -quit | grep -q .; then
+    test_pass
+else
+    test_fail "snapshot regeneration must reject partial diff output when the retry command fails"
 fi
 
 test_case "repository-local results do not contaminate review snapshots"

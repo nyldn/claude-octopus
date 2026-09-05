@@ -3049,17 +3049,27 @@ tangle_build_review_diff_snapshot() {
         trap 'rm -f "$snapshot_tmp" 2>/dev/null || true' EXIT INT TERM
 
         if ! review_collect_diff all-changes "$exclude_path" > "$snapshot_tmp"; then
+            log ERROR "unable to collect complete all-changes diff for tangle review snapshot"
             return 1
         fi
         if [[ -n "$exclude_path" ]]; then
-            status_text=$(git status --porcelain --untracked-files=all -- ":(top)" ":(top,exclude,literal)${exclude_path}" 2>/dev/null || true)
+            if ! status_text=$(git status --porcelain --untracked-files=all -- ":(top)" ":(top,exclude,literal)${exclude_path}" 2>/dev/null); then
+                log ERROR "unable to inspect git status for tangle review snapshot"
+                return 1
+            fi
         else
-            status_text=$(git status --porcelain --untracked-files=all 2>/dev/null || true)
+            if ! status_text=$(git status --porcelain --untracked-files=all 2>/dev/null); then
+                log ERROR "unable to inspect git status for tangle review snapshot"
+                return 1
+            fi
         fi
         if [[ ! -s "$snapshot_tmp" && -n "$status_text" ]]; then
             # One bounded regeneration handles transient index/worktree races. If the
             # invariant still fails, stop instead of asking reviewers to inspect nothing.
-            review_collect_diff all-changes "$exclude_path" > "$snapshot_tmp" 2>/dev/null || true
+            if ! review_collect_diff all-changes "$exclude_path" > "$snapshot_tmp" 2>/dev/null; then
+                log ERROR "unable to regenerate complete all-changes diff for tangle review snapshot"
+                return 1
+            fi
             if [[ ! -s "$snapshot_tmp" ]]; then
                 log ERROR "tangle review snapshot invariant failed: git status is dirty but all-changes diff is empty"
                 return 1
@@ -3083,7 +3093,7 @@ tangle_build_review_diff_snapshot() {
         fi
 
         mv -f "$snapshot_tmp" "$snapshot_path" || return 1
-        if ! chmod 0444 "$snapshot_path" 2>/dev/null; then
+        if ! chmod 0400 "$snapshot_path" 2>/dev/null; then
             rm -f "$snapshot_path" 2>/dev/null || true
             log ERROR "unable to make tangle review snapshot immutable"
             return 1
