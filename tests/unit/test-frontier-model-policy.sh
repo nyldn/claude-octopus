@@ -127,6 +127,43 @@ else
     test_fail "Astra multiplier mismatch: long=$astra_long_cost threshold=$astra_threshold_cost"
 fi
 
+test_case "native usage parsing preserves separate input and output counts"
+SUPPORTS_NATIVE_TASK_METRICS=true
+SUPPORTS_OTEL_SPEED=false
+parse_task_metrics $'<usage>\ninput_tokens: 272001\noutput_tokens: 127999\ntotal_tokens: 400000\ntool_uses: 3\nduration_ms: 1000\n</usage>'
+if [[ "${_PARSED_INPUT_TOKENS:-}" == "272001" &&
+      "${_PARSED_OUTPUT_TOKENS:-}" == "127999" &&
+      "$_PARSED_TOKENS" == "400000" ]]; then
+    test_pass
+else
+    test_fail "native usage parser discarded input/output token counts"
+fi
+
+test_case "session usage prices Astra from native input and output counts"
+DRY_RUN=false
+log() { :; }
+init_usage_tracking
+: > "${USAGE_FILE}.log"
+record_agent_complete "astra-native-split" codex-api gpt-6-astra "" frontier \
+    400000 0 1 272001 127999
+native_usage="$(awk -F'|' 'END {print $6 ":" $7 ":" $8 ":" $9}' "${USAGE_FILE}.log")"
+if [[ "$native_usage" == "272001:127999:400000:15.039945" ]]; then
+    test_pass
+else
+    test_fail "session usage lost native token counts or Astra pricing: $native_usage"
+fi
+
+test_case "session usage uses the measured prompt when only native total is available"
+estimate_tokens() { printf '%s\n' 272001; }
+prompt_metrics_id="$(record_agent_start codex-api gpt-6-astra ignored frontier)"
+record_agent_complete "$prompt_metrics_id" codex-api gpt-6-astra "" frontier 400000 0 1
+fallback_usage="$(awk -F'|' 'END {print $6 ":" $7 ":" $8 ":" $9}' "${USAGE_FILE}.log")"
+if [[ "$fallback_usage" == "272001:127999:400000:15.039945" ]]; then
+    test_pass
+else
+    test_fail "session usage ignored measured prompt tokens: $fallback_usage"
+fi
+
 test_case "legacy metrics tracking uses canonical Astra input and output pricing"
 source "$PROJECT_ROOT/scripts/metrics-tracker.sh"
 METRICS_BASE="$TEST_TMP_DIR/metrics"
@@ -134,12 +171,12 @@ mkdir -p "$METRICS_BASE"
 init_metrics_tracking
 metrics_id="astra-test"
 printf '%s|%s\n' "$(date +%s)" 300000 > "$METRICS_BASE/.agent-start-$metrics_id"
-record_agent_complete "$metrics_id" codex gpt-6-astra "" frontier 400000 0 1
+record_agent_complete "$metrics_id" codex gpt-6-astra "" frontier 400000 0 1 272001 127999
 metrics_cost="$(jq -r '.phases[0].estimated_cost_usd' "$METRICS_BASE/metrics-session.json")"
-if [[ "$metrics_cost" == "13.5000" ]]; then
+if [[ "$metrics_cost" == "15.0399" ]]; then
     test_pass
 else
-    test_fail "legacy metrics tracker reported $metrics_cost instead of 13.5"
+    test_fail "legacy metrics tracker discarded native input/output counts: $metrics_cost"
 fi
 
 test_case "legacy metrics token totals include estimated prompt and output"

@@ -80,12 +80,12 @@ with open(pricing_file, encoding="utf-8") as pricing:
         if not raw.strip() or raw.startswith("#"):
             continue
         fields = raw.rstrip("\n").split("\t")
-        kind, ident, input_rate, output_rate = fields[:4]
+        kind, ident, field3, field4 = fields[:4]
         if kind == "request-rule":
             REQUEST_RULES[ident.lower()] = (
-                int(input_rate), float(output_rate), float(fields[4]))
+                int(field3), float(field4), float(fields[4]))
             continue
-        rate = (float(input_rate), float(output_rate))
+        rate = (float(field3), float(field4))
         if kind == "model":
             MODEL_RATES[ident.lower()] = rate
         elif kind == "provider-override":

@@ -1839,7 +1839,8 @@ ${provider_ctx}"
         # v8.6.0: Pass native metrics from Task tool output
         parse_task_metrics "$output"
         record_agent_complete "$metrics_id" "$agent_type" "$model" "$output" "${phase:-unknown}" \
-            "$_PARSED_TOKENS" "$_PARSED_TOOL_USES" "$_PARSED_DURATION_MS" 2>/dev/null || true
+            "$_PARSED_TOKENS" "$_PARSED_TOOL_USES" "$_PARSED_DURATION_MS" \
+            "$_PARSED_INPUT_TOKENS" "$_PARSED_OUTPUT_TOKENS" 2>/dev/null || true
     fi
 
     echo "$output"

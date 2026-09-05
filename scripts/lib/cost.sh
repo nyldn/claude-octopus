@@ -107,11 +107,13 @@ estimate_agent_call_cost() {
 }
 
 # Parse native Task tool metrics from <usage> blocks (v8.6.0, enhanced v8.8.0)
-# Sets globals: _PARSED_TOKENS, _PARSED_TOOL_USES, _PARSED_DURATION_MS, _PARSED_SPEED
+# Sets globals: _PARSED_TOKENS, _PARSED_INPUT_TOKENS,
+# _PARSED_OUTPUT_TOKENS, _PARSED_TOOL_USES, _PARSED_DURATION_MS, _PARSED_SPEED
 # Guards on SUPPORTS_NATIVE_TASK_METRICS. Falls back gracefully on parse failure.
 parse_task_metrics() {
     local output="$1"
-    _PARSED_TOKENS="" ; _PARSED_TOOL_USES="" ; _PARSED_DURATION_MS="" ; _PARSED_SPEED=""
+    _PARSED_TOKENS="" ; _PARSED_INPUT_TOKENS="" ; _PARSED_OUTPUT_TOKENS=""
+    _PARSED_TOOL_USES="" ; _PARSED_DURATION_MS="" ; _PARSED_SPEED=""
     [[ "$SUPPORTS_NATIVE_TASK_METRICS" != "true" ]] && return 0
 
     local usage_block
@@ -119,6 +121,8 @@ parse_task_metrics() {
     if [[ -n "$usage_block" ]]; then
         # v9.5: bash regex extraction (zero subshells, was 4 echo|grep|grep chains)
         [[ "$usage_block" =~ total_tokens:[[:space:]]*([0-9]+) ]] && _PARSED_TOKENS="${BASH_REMATCH[1]}" || _PARSED_TOKENS=""
+        [[ "$usage_block" =~ input_tokens:[[:space:]]*([0-9]+) ]] && _PARSED_INPUT_TOKENS="${BASH_REMATCH[1]}" || _PARSED_INPUT_TOKENS=""
+        [[ "$usage_block" =~ output_tokens:[[:space:]]*([0-9]+) ]] && _PARSED_OUTPUT_TOKENS="${BASH_REMATCH[1]}" || _PARSED_OUTPUT_TOKENS=""
         [[ "$usage_block" =~ tool_uses:[[:space:]]*([0-9]+) ]] && _PARSED_TOOL_USES="${BASH_REMATCH[1]}" || _PARSED_TOOL_USES=""
         [[ "$usage_block" =~ duration_ms:[[:space:]]*([0-9]+) ]] && _PARSED_DURATION_MS="${BASH_REMATCH[1]}" || _PARSED_DURATION_MS=""
         # v8.8: Parse OTel speed attribute (fast|standard) when available
@@ -127,6 +131,8 @@ parse_task_metrics() {
         fi
     fi
     [[ "$_PARSED_TOKENS" =~ ^[0-9]+$ ]] || _PARSED_TOKENS=""
+    [[ "$_PARSED_INPUT_TOKENS" =~ ^[0-9]+$ ]] || _PARSED_INPUT_TOKENS=""
+    [[ "$_PARSED_OUTPUT_TOKENS" =~ ^[0-9]+$ ]] || _PARSED_OUTPUT_TOKENS=""
     [[ "$_PARSED_TOOL_USES" =~ ^[0-9]+$ ]] || _PARSED_TOOL_USES=""
     [[ "$_PARSED_DURATION_MS" =~ ^[0-9]+$ ]] || _PARSED_DURATION_MS=""
     [[ "$_PARSED_SPEED" =~ ^(fast|standard)$ ]] || _PARSED_SPEED=""
@@ -634,6 +640,15 @@ record_agent_start() {
     local prompt="$3"
     local phase="${4:-unknown}"
     local metrics_id="m-$(date +%s)-$$-${RANDOM}"
+    local metrics_base="${WORKSPACE_DIR:-${HOME}/.claude-octopus}"
+    local input_tokens
+    input_tokens="$(estimate_tokens "$prompt")"
+    if declare -f get_metrics_base >/dev/null 2>&1; then
+        metrics_base="$(get_metrics_base)"
+    fi
+    if [[ -n "$metrics_base" ]] && mkdir -p "$metrics_base" 2>/dev/null; then
+        (umask 077; printf '%s|%s\n' "$(date +%s)" "$input_tokens" > "${metrics_base}/.agent-start-${metrics_id}") 2>/dev/null || true
+    fi
     echo "$metrics_id"
 }
 
@@ -648,6 +663,13 @@ record_agent_complete() {
     local actual_tokens="${6:-}"
     local tool_uses="${7:-}"
     local duration_ms="${8:-0}"
+    local native_input_tokens="${9:-}"
+    local native_output_tokens="${10:-}"
+    local metrics_base="${WORKSPACE_DIR:-${HOME}/.claude-octopus}"
+    if declare -f get_metrics_base >/dev/null 2>&1; then
+        metrics_base="$(get_metrics_base)"
+    fi
+    local start_file="${metrics_base}/.agent-start-${metrics_id}"
 
     [[ "$DRY_RUN" == "true" ]] && return 0
 
@@ -656,14 +678,42 @@ record_agent_complete() {
         local timestamp
         timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-        # Calculate cost with actual tokens
+        # Use native component counts when available. If the provider reports
+        # only a total, combine it with the prompt measurement captured at
+        # dispatch start instead of inventing a percentage split.
+        local input_tokens="" output_tokens=""
+        if [[ "$native_input_tokens" =~ ^[0-9]+$ && "$native_output_tokens" =~ ^[0-9]+$ ]] &&
+           (( native_input_tokens + native_output_tokens == actual_tokens )); then
+            input_tokens="$native_input_tokens"
+            output_tokens="$native_output_tokens"
+        elif [[ "$native_input_tokens" =~ ^[0-9]+$ ]] && (( native_input_tokens <= actual_tokens )); then
+            input_tokens="$native_input_tokens"
+            output_tokens=$((actual_tokens - native_input_tokens))
+        elif [[ "$native_output_tokens" =~ ^[0-9]+$ ]] && (( native_output_tokens <= actual_tokens )); then
+            output_tokens="$native_output_tokens"
+            input_tokens=$((actual_tokens - native_output_tokens))
+        elif [[ -f "$start_file" ]]; then
+            local start_record measured_input_tokens
+            start_record="$(cat "$start_file" 2>/dev/null || true)"
+            measured_input_tokens="${start_record#*|}"
+            if [[ "$start_record" == *"|"* && "$measured_input_tokens" =~ ^[0-9]+$ ]]; then
+                input_tokens="$measured_input_tokens"
+                (( input_tokens > actual_tokens )) && input_tokens="$actual_tokens"
+                output_tokens=$((actual_tokens - input_tokens))
+            fi
+        fi
+
+        if [[ -z "$input_tokens" || -z "$output_tokens" ]]; then
+            log WARN "Skipping actual-cost entry without native token components or a measured prompt"
+            rm -f "$start_file" 2>/dev/null || true
+            return 0
+        fi
+
+        # Calculate cost with the measured token components.
         local pricing
         pricing=$(get_model_pricing "$model" "$agent_type")
         local input_price="${pricing%%:*}"
         local output_price="${pricing##*:}"
-        # Assume 40% input, 60% output split for actual tokens
-        local input_tokens=$(( actual_tokens * 40 / 100 ))
-        local output_tokens=$(( actual_tokens * 60 / 100 ))
         pricing="$(octo_effective_model_pricing "$model" "$input_tokens" "$input_price" "$output_price")"
         input_price="${pricing%%:*}"
         output_price="${pricing##*:}"
@@ -676,6 +726,7 @@ record_agent_complete() {
             log DEBUG "Recorded actual metrics: agent=$agent_type tokens=$actual_tokens cost=\$$cost duration=${duration_ms}ms"
         fi
     fi
+    rm -f "$start_file" 2>/dev/null || true
 }
 
 # [EXTRACTED to lib/error-tracking.sh]

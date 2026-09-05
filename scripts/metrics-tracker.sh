@@ -63,7 +63,9 @@ record_agent_start() {
 }
 
 # Record agent call completion
-# Args: agent_id agent_type model output [phase] [native_token_count] [native_tool_uses] [native_duration_ms]
+# Args: agent_id agent_type model output [phase] [native_token_count]
+#       [native_tool_uses] [native_duration_ms] [native_input_tokens]
+#       [native_output_tokens]
 record_agent_complete() {
     local agent_id="$1"
     local agent_type="$2"
@@ -73,6 +75,8 @@ record_agent_complete() {
     local native_token_count="${6:-}"
     local native_tool_uses="${7:-}"
     local native_duration_ms="${8:-}"
+    local native_input_tokens="${9:-}"
+    local native_output_tokens="${10:-}"
 
     local base
     base=$(get_metrics_base)
@@ -123,8 +127,20 @@ record_agent_complete() {
 
     local input_tokens="$estimated_input_tokens" output_tokens="$estimated_output_tokens"
     if [[ "$has_native" == "true" ]]; then
-        if (( input_tokens > cost_basis_tokens )); then input_tokens="$cost_basis_tokens"; fi
-        output_tokens=$((cost_basis_tokens - input_tokens))
+        if [[ "$native_input_tokens" =~ ^[0-9]+$ && "$native_output_tokens" =~ ^[0-9]+$ ]] &&
+           (( native_input_tokens + native_output_tokens == cost_basis_tokens )); then
+            input_tokens="$native_input_tokens"
+            output_tokens="$native_output_tokens"
+        elif [[ "$native_input_tokens" =~ ^[0-9]+$ ]] && (( native_input_tokens <= cost_basis_tokens )); then
+            input_tokens="$native_input_tokens"
+            output_tokens=$((cost_basis_tokens - input_tokens))
+        elif [[ "$native_output_tokens" =~ ^[0-9]+$ ]] && (( native_output_tokens <= cost_basis_tokens )); then
+            output_tokens="$native_output_tokens"
+            input_tokens=$((cost_basis_tokens - output_tokens))
+        else
+            if (( input_tokens > cost_basis_tokens )); then input_tokens="$cost_basis_tokens"; fi
+            output_tokens=$((cost_basis_tokens - input_tokens))
+        fi
     fi
     local pricing input_price output_price
     if declare -f get_model_pricing >/dev/null 2>&1; then
@@ -376,16 +392,20 @@ record_agents_batch_complete() {
 
         # v8.6.0: Extract native metrics from result file
         local native_tokens="" native_tools="" native_duration=""
+        local native_input_tokens="" native_output_tokens=""
         if declare -f parse_task_metrics &>/dev/null; then
             parse_task_metrics "$output"
             native_tokens="$_PARSED_TOKENS"
             native_tools="$_PARSED_TOOL_USES"
             native_duration="$_PARSED_DURATION_MS"
+            native_input_tokens="$_PARSED_INPUT_TOKENS"
+            native_output_tokens="$_PARSED_OUTPUT_TOKENS"
         fi
 
         # Record completion
         record_agent_complete "$metrics_id" "$agent_type" "$model" "$output" "$phase" \
-            "$native_tokens" "$native_tools" "$native_duration"
+            "$native_tokens" "$native_tools" "$native_duration" \
+            "$native_input_tokens" "$native_output_tokens"
 
         # Remove from map
         sed -i.bak "/^${task_group}-${task_id}:/d" "$metrics_map" 2>/dev/null || true

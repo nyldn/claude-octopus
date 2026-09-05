@@ -724,13 +724,13 @@ resolve_octopus_model() {
                     # Capability ref in tier map
                     local tier_mapped_model
                     tier_mapped_model=$(echo "$config_data" | jq -r --arg p "$canonical_provider" --arg model "$resolved_model" '.providers[$p][$model] // .providers[$p][($model + "_model")] // empty' 2>/dev/null)
-                [[ -n "$tier_mapped_model" && "$tier_mapped_model" != "null" ]] && resolved_model="$tier_mapped_model"
-            fi
-            if [[ -n "$resolved_model" && "$resolved_model" != "null" ]] && ! _octo_automatic_model_allowed "$resolved_model"; then
-                [[ -n "$_trace" ]] && echo "[model-trace] Tier 5 (cost mode ${cost_mode}): REJECTED explicit-only model $resolved_model" >&2
-                resolved_model=""
-            fi
-            [[ -n "$_trace" ]] && echo "[model-trace] Tier 5 (cost mode ${cost_mode}): ${resolved_model:-—}" >&2
+                    [[ -n "$tier_mapped_model" && "$tier_mapped_model" != "null" ]] && resolved_model="$tier_mapped_model"
+                fi
+                if [[ -n "$resolved_model" && "$resolved_model" != "null" ]] && ! _octo_automatic_model_allowed "$resolved_model"; then
+                    [[ -n "$_trace" ]] && echo "[model-trace] Tier 5 (cost mode ${cost_mode}): REJECTED explicit-only model $resolved_model" >&2
+                    resolved_model=""
+                fi
+                [[ -n "$_trace" ]] && echo "[model-trace] Tier 5 (cost mode ${cost_mode}): ${resolved_model:-—}" >&2
             fi
         fi
 
