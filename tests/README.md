@@ -6,6 +6,9 @@ local gate before merge or release.
 ## Commands
 
 ```bash
+# Once per clean checkout, install adapter build/runtime dependencies.
+make test-deps
+
 # Select focused suites from the files changed on this branch.
 make ci-changed
 
@@ -21,6 +24,8 @@ make ci-local
 
 `make test` runs smoke and unit tests. `make test-all` adds integration tests.
 Neither command runs live provider tests.
+`make test-deps` needs npm registry access; subsequent adapter tests build and
+execute locally. CI performs this setup before unit and symlink-path suites.
 
 ## Categories
 

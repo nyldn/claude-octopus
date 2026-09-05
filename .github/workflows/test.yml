@@ -300,6 +300,9 @@ jobs:
           chmod +x tests/**/*.sh
           find tests -name "*.sh" -type f -exec chmod +x {} \;
 
+      - name: Install adapter test dependencies
+        run: make test-deps
+
       - name: Run unit tests
         run: ./tests/run-all.sh unit --shard-index=${{ matrix.shard_index }} --shard-count=${{ matrix.shard_count }}
 
@@ -346,6 +349,9 @@ jobs:
         run: |
           chmod +x scripts/orchestrate.sh
           find tests -name "*.sh" -type f -exec chmod +x {} \;
+
+      - name: Install adapter test dependencies
+        run: make test-deps
 
       - name: Run the proportional unit gate through a symlinked path
         env:

@@ -1,7 +1,12 @@
-.PHONY: test test-smoke test-unit test-symlink-sensitive test-integration test-live test-root test-coverage test-all test-plugin-name validate-plugin-assembly clean-tests help sync sync-check ci-changed ci-local
+.PHONY: test test-deps test-smoke test-unit test-symlink-sensitive test-integration test-live test-root test-coverage test-all test-plugin-name validate-plugin-assembly clean-tests help sync sync-check ci-changed ci-local
 
 # Default: smoke + unit (fast feedback)
 test: test-smoke test-unit
+
+# Explicit bootstrap: ordinary tests remain offline after dependency setup.
+test-deps:
+	@npm --prefix mcp-server install --ignore-scripts --no-audit --no-fund --package-lock=false
+	@npm --prefix openclaw install --ignore-scripts --no-audit --no-fund --package-lock=false
 
 # Regenerate ALL derived artifacts (run after changing commands/skills/agents or plugin.json)
 # See RELEASING.md step 3 for the artifact-to-generator map.

@@ -50,8 +50,11 @@ const [a, b] = await Promise.all([
 ]);
 assert.equal(a.text, canonicalFirst);
 assert.equal(b.text, canonicalSecond);
-assert.deepEqual(calls.map((call) => call.options.cwd), [canonicalFirst, canonicalSecond]);
-assert.deepEqual(calls.map((call) => call.options.env.OCTOPUS_PROJECT_DIR), [canonicalFirst, canonicalSecond]);
+assert.equal(calls.length, 2);
+assert.deepEqual(new Set(calls.map((call) => call.options.cwd)), new Set([canonicalFirst, canonicalSecond]));
+for (const call of calls) {
+  assert.equal(call.options.env.OCTOPUS_PROJECT_DIR, call.options.cwd);
+}
 assert.equal(calls[0].options.env.CLAUDE_SDK_API_KEY, "sdk-fixture");
 assert.equal(calls[0].options.env.CURSOR_API_KEY, "cursor-fixture");
 assert.equal(calls[0].options.env.XAI_API_KEY, "xai-fixture");
