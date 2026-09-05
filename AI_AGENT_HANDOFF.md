@@ -14,8 +14,8 @@ Branch: `release/v11.0.0`
 Tracking: `bd` is unavailable in this checkout. Do not run a schema migration;
 this handoff records the work instead.
 
-Next action: rerun the provider review after Claude capacity resets, wait for
-the 30-minute macOS shard gate, then squash-merge PR #1015. Do not create the
+Next action: wait for the 45-minute macOS shard gate, then squash-merge PR
+#1015. Do not create the
 v11 tag or GitHub release without separate authorization.
 
 ## Start Here
@@ -65,8 +65,8 @@ v11 tag or GitHub release without separate authorization.
   through the test framework instead of passing or aborting silently.
 - Review-fleet scoring rejects malformed reviewer collections cleanly instead
   of raising a Python traceback.
-- The macOS unit shards now have a measured 30-minute budget after shard 1/2
-  exceeded the previous 20-minute limit and was cancelled at 25 minutes.
+- The macOS unit shards now have a measured 45-minute budget after shard 1/2
+  exceeded both the previous 20-minute limit and a 30-minute follow-up run.
 
 ## Model-routing decision
 

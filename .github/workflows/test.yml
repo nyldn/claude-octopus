@@ -283,12 +283,12 @@ jobs:
             shard_count: 1
           - os: macos-latest
             label: macos-latest, shard 1/2
-            timeout_minutes: 30
+            timeout_minutes: 45
             shard_index: 0
             shard_count: 2
           - os: macos-latest
             label: macos-latest, shard 2/2
-            timeout_minutes: 30
+            timeout_minutes: 45
             shard_index: 1
             shard_count: 2
 

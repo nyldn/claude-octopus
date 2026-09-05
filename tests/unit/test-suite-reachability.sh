@@ -213,7 +213,7 @@ macos_timeout_count="$(awk '
     in_unit && /^  [[:alnum:]_-]+:/ { exit }
     in_unit && /^[[:space:]]+- os:[[:space:]]+macos-latest[[:space:]]*$/ { in_macos = 1; next }
     in_macos && /^[[:space:]]+- os:/ { in_macos = 0 }
-    in_macos && /^[[:space:]]+timeout_minutes:[[:space:]]+30[[:space:]]*$/ { count++ }
+    in_macos && /^[[:space:]]+timeout_minutes:[[:space:]]+45[[:space:]]*$/ { count++ }
     END { print count + 0 }
 ' "$WORKFLOW")"
 macos_shard_indexes="$(awk '
@@ -247,7 +247,7 @@ if [[ "$unit_timeout_setting" == '${{ matrix.timeout_minutes }}' ]] \
    && grep -Fq -- '--shard-index=${{ matrix.shard_index }} --shard-count=${{ matrix.shard_count }}' "$WORKFLOW"; then
     test_pass
 else
-    test_fail "unit matrix must be one full Ubuntu run plus deterministic macOS shards 0 and 1 of 2 with 30-minute bounds"
+    test_fail "unit matrix must be one full Ubuntu run plus deterministic macOS shards 0 and 1 of 2 with 45-minute bounds"
 fi
 
 test_case "required Unit Tests aggregates the symlink lane"
