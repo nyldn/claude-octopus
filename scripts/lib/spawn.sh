@@ -1143,6 +1143,8 @@ ${heuristic_ctx}"
         if ! write_agent_result_header "$result_file" "$agent_type" "${model:-unresolved}" "$task_id" "${role:-none}" "${phase:-none}" "legacy"; then
             octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
                 "Failed to persist background result header" 74 "" >/dev/null 2>&1 || true
+            [[ -n "$metrics_id" ]] && record_agent_failure "$metrics_id" 0 \
+                "Failed to persist background result header" failed 2>/dev/null || true
             exit 74
         fi
         printf '# Prompt metadata: original_chars=%s final_chars=%s compression=%s\n' \
@@ -1150,6 +1152,8 @@ ${heuristic_ctx}"
         if ! write_agent_result_prompt "$result_file" "$enhanced_prompt"; then
             octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
                 "Failed to persist background dispatched prompt" 74 "" >/dev/null 2>&1 || true
+            [[ -n "$metrics_id" ]] && record_agent_failure "$metrics_id" 0 \
+                "Failed to persist background dispatched prompt" failed 2>/dev/null || true
             exit 74
         fi
         echo "# Started: $(date)" >> "$result_file"
@@ -1220,6 +1224,8 @@ ${heuristic_ctx}"
            ! octo_spawn_contract_running "$_contract_seat_id" "$result_file" \
             "$OCTO_CAPTURED_SHELL_PID" "$model" "${effort_level:-}"; then
             log ERROR "Unable to persist provider launch for background task $task_id"
+            [[ -n "$metrics_id" ]] && record_agent_failure "$metrics_id" 0 \
+                "Unable to persist running background state" failed 2>/dev/null || true
             exit 74
         fi
         while [[ "$boundary_refused" != "true" ]]; do

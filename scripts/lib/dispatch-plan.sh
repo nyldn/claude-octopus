@@ -101,9 +101,11 @@ octo_dispatch_plan_create() {
         billing_mode="unknown"
     fi
 
-    while IFS= read -r entry; do
+    jq -e 'type == "array" and length > 0 and all(.[]; type == "string")' \
+        <<< "$argv_json" >/dev/null || return 2
+    while IFS= read -r -d '' entry; do
         argv+=("$entry")
-    done < <(jq -r '.[]' <<< "$argv_json")
+    done < <(jq -j '.[] | . + "\u0000"' <<< "$argv_json")
     if [[ "$append_empty_prompt" == true ]]; then
         argv+=("-p" "")
     fi
@@ -162,9 +164,11 @@ octo_dispatch_plan_create() {
 octo_dispatch_plan_load_argv() {
     local plan="${1:-}" item
     OCTO_DISPATCH_PLAN_ARGV=()
-    while IFS= read -r item; do
+    jq -e '.argv | type == "array" and length > 0 and all(.[]; type == "string")' \
+        <<< "$plan" >/dev/null || return 2
+    while IFS= read -r -d '' item; do
         OCTO_DISPATCH_PLAN_ARGV+=("$item")
-    done < <(jq -er '.argv[]' <<< "$plan") || return 2
+    done < <(jq -j '.argv[] | . + "\u0000"' <<< "$plan")
     [[ ${#OCTO_DISPATCH_PLAN_ARGV[@]} -gt 0 ]]
 }
 

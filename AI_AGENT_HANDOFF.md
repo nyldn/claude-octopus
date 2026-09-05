@@ -6,17 +6,17 @@ Status: PR [#1015](https://github.com/nyldn/claude-octopus/pull/1015) is the
 only remaining public pull request. Its release branch has been rebased onto
 `upstream/main` at `4c299eb3d214c771ce79f9823d382a5d8bc02048`, which includes
 the merged PR #1014 review-snapshot fix. The first review batch is committed in
-`46981fb`; the second is committed in `b801f56`.
+`46981fb`; the second is committed in `b801f56`; the integration follow-up is
+`b07cffd`; and the final automated-review fixes are in the latest commit.
 
 Branch: `release/v11.0.0`
 
 Tracking: `bd` is unavailable in this checkout. Do not run a schema migration;
 this handoff records the work instead.
 
-Next action: finish the exact-head local gate, push with `--force-with-lease`,
-resolve the verified review threads, wait for hosted checks and review, then
-squash-merge PR #1015. Do not create the v11 tag or GitHub release without
-separate authorization.
+Next action: finish the exact-head local gate, push, resolve the five final
+review threads, wait for hosted checks and review, then squash-merge PR #1015.
+Do not create the v11 tag or GitHub release without separate authorization.
 
 ## Start Here
 
@@ -54,6 +54,12 @@ separate authorization.
   uses the repository test framework.
 - Council contribution tests guard digest and record command substitutions so
   `set -e` cannot abort before reporting a useful failure.
+- Dispatch-plan argv uses NUL-delimited transport, preserving embedded
+  newlines without changing argument boundaries.
+- Command validators now share the execution parser, and reserved usage rows
+  are terminalized across all legacy persistence failures.
+- Lock-recovery and dispatch-plan tests now report setup/helper failures
+  through the test framework instead of passing or aborting silently.
 
 ## Model-routing decision
 
@@ -64,12 +70,12 @@ models are too expensive for automatic use.
 
 ## Verification
 
-- Focused review suites pass: dispatch plan 10/10, model-aware seats 22/22,
-  Doctor 19/19, runner sharding 7/7, audit follow-up 13/13, council
+- Focused review suites pass: dispatch plan 11/11, model-aware seats 22/22,
+  Doctor 19/19, runner sharding 7/7, audit follow-up 14/14, council
   contribution 8/8, packaging 7/7, and Codex safety 17/17 through its shell
   wrapper.
 - Related dispatch and lifecycle suites also pass: agent-command validation
-  63/63, AGY provider 52/52, dispatch round trip 6/6, background and sync run
+  66/66, AGY provider 52/52, dispatch round trip 6/6, background and sync run
   contracts 28/28 each, probe-single 37/37, sandbox persistence 6/6, and tangle
   cancellation cleanup 16/16.
 - `make ci-changed` failed closed to the full `make ci-local` matrix and exited

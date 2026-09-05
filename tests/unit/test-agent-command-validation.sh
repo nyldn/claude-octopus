@@ -150,6 +150,14 @@ else
     test_fail "expected openai-compatible helper path to be accepted"
 fi
 
+test_case "openai-compatible validation matches quoted execution argv"
+if _validate_openai_compatible_agent_command \
+    "$PROJECT_ROOT/scripts/helpers/openai-compatible-agent.py --provider generic --model \"minimax/minimax-m3\" --cwd /tmp/test"; then
+    test_pass
+else
+    test_fail "quoted openai-compatible argv was parsed differently from execution"
+fi
+
 test_case "validate_agent_command rejects non-project openai-compatible helper path"
 if validate_agent_command "/tmp/openai-compatible-agent.py --provider generic --model minimax/minimax-m3 --cwd /tmp/test" >/dev/null 2>&1; then
     test_fail "expected non-project openai-compatible helper path to be rejected"
@@ -345,6 +353,14 @@ else
     test_fail "expected env-prefixed claude-sdk-exec shim path to be accepted"
 fi
 
+test_case "Claude SDK validation matches quoted execution argv"
+if _validate_claude_sdk_env_command \
+    "env \"OCTOPUS_CLAUDE_SDK_MODEL=claude-opus-5\" $PROJECT_ROOT/scripts/helpers/claude-sdk-exec.sh"; then
+    test_pass
+else
+    test_fail "quoted Claude SDK argv was parsed differently from execution"
+fi
+
 test_case "validate_agent_command allows the exact Fable no-retry SDK command"
 if validate_agent_command "env OCTOPUS_CLAUDE_SDK_MODEL=claude-fable-5 OCTOPUS_FABLE5_NO_RETRY=1 $PROJECT_ROOT/scripts/helpers/claude-sdk-exec.sh"; then
     test_pass
@@ -449,6 +465,26 @@ if (
     test_pass
 else
     test_fail "generated standard Claude command was rejected by validate_agent_command"
+fi
+
+test_case "Claude validation matches quoted configured executable argv"
+saved_claude_bin="${OCTOPUS_CLAUDE_BIN-}"
+OCTOPUS_CLAUDE_BIN='"/usr/local/bin/claude"'
+if _validate_claude_agent_command \
+    '"/usr/local/bin/claude" --print --model claude-opus-5 --allowed-tools Read,Glob,Grep'; then
+    quoted_claude_valid=true
+else
+    quoted_claude_valid=false
+fi
+if [[ -n "$saved_claude_bin" ]]; then
+    OCTOPUS_CLAUDE_BIN="$saved_claude_bin"
+else
+    unset OCTOPUS_CLAUDE_BIN
+fi
+if [[ "$quoted_claude_valid" == true ]]; then
+    test_pass
+else
+    test_fail "quoted configured Claude executable was parsed differently from execution"
 fi
 
 test_case "validate_agent_command rejects Claude command separators"

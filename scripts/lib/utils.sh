@@ -245,8 +245,8 @@ _validate_claude_sdk_env_command() {
     local cmd="$1" shim_suffix="/scripts/helpers/claude-sdk-exec.sh"
     local -a parts
     local model=""
-    [[ "$cmd" != *$'\n'* && "$cmd" != *$'\r'* ]] || return 1
-    read -r -a parts <<< "$cmd"
+    octo_dispatch_command_to_argv "$cmd" || return 1
+    parts=("${OCTO_COMMAND_ARGV[@]}")
     [[ "${parts[0]:-}" == env ]] || return 1
     [[ "${parts[1]:-}" == OCTOPUS_CLAUDE_SDK_MODEL=* ]] || return 1
     model="${parts[1]#OCTOPUS_CLAUDE_SDK_MODEL=}"
@@ -271,7 +271,9 @@ _validate_claude_sdk_env_command() {
 _validate_openai_compatible_agent_command() {
     local cmd="$1"
     local -a parts
-    read -r -a parts <<< "$cmd"
+    [[ "$cmd" != *"\\"* ]] || return 1
+    octo_dispatch_command_to_argv "$cmd" || return 1
+    parts=("${OCTO_COMMAND_ARGV[@]}")
 
     [[ "${#parts[@]}" -ge 7 ]] || return 1
     [[ "${parts[0]}" == */scripts/helpers/openai-compatible-agent.py ]] || return 1
@@ -354,10 +356,10 @@ _validate_claude_agent_command() {
     local cmd="$1"
     local configured_bin="${OCTOPUS_CLAUDE_BIN:-claude}"
     local -a parts configured_parts
-    read -r -a parts <<< "$cmd"
-    read -r -a configured_parts <<< "$configured_bin"
-
-    [[ "$cmd" != *$'\n'* && "$cmd" != *$'\r'* ]] || return 1
+    octo_dispatch_command_to_argv "$cmd" || return 1
+    parts=("${OCTO_COMMAND_ARGV[@]}")
+    octo_dispatch_command_to_argv "$configured_bin" || return 1
+    configured_parts=("${OCTO_COMMAND_ARGV[@]}")
     [[ "${#parts[@]}" -gt 0 && "${#configured_parts[@]}" -gt 0 ]] || return 1
     [[ "${configured_parts[0]}" =~ ^[A-Za-z0-9_./-]+$ ]] || return 1
 

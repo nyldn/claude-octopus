@@ -26,7 +26,9 @@ if (
     (octo_dispatch_plan_record '{"schema_version":1}' "$TEST_TMP_DIR/trace.jsonl") &
     writer=$!
     printf '%s\n' "$writer" > "$TEST_TMP_DIR/writer-ready"
-    for ((i=0;i<200;i++)); do [[ -s "$TEST_TMP_DIR/trace.jsonl.lock/pid" ]] && break; sleep .01; done
+    observed=false
+    for ((i=0;i<200;i++)); do [[ -s "$TEST_TMP_DIR/trace.jsonl.lock/pid" ]] && { observed=true; break; }; sleep .01; done
+    [[ "$observed" == true ]] || exit 1
     kill -KILL "$writer"
     wait "$writer" 2>/dev/null || true
     unset -f date

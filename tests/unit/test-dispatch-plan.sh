@@ -63,13 +63,25 @@ else
 fi
 
 test_case "consumers load argv without reinterpreting shell syntax"
-octo_dispatch_plan_load_argv "$plan"
-if [[ "${#OCTO_DISPATCH_PLAN_ARGV[@]}" -eq 4 ]] &&
+if octo_dispatch_plan_load_argv "$plan" &&
+   [[ "${#OCTO_DISPATCH_PLAN_ARGV[@]}" -eq 4 ]] &&
    [[ "${OCTO_DISPATCH_PLAN_ARGV[0]}" == codex ]] &&
    [[ "${OCTO_DISPATCH_PLAN_ARGV[3]}" == openai/gpt-6-astra ]]; then
   test_pass
 else
   test_fail "plan argv did not round-trip"
+fi
+
+test_case "argv elements containing newlines remain one element"
+newline_argv_json="$(jq -cn --arg value $'line one\nline two' '["tool", $value]')"
+newline_plan="$(octo_dispatch_plan_create codex review code-reviewer \
+  "$newline_argv_json" gpt-5.6-sol 0 1)"
+if octo_dispatch_plan_load_argv "$newline_plan" &&
+   [[ "${#OCTO_DISPATCH_PLAN_ARGV[@]}" -eq 2 ]] &&
+   [[ "${OCTO_DISPATCH_PLAN_ARGV[1]}" == $'line one\nline two' ]]; then
+  test_pass
+else
+  test_fail "newline-containing argv element was split during plan transfer"
 fi
 
 test_case "quoted command arguments are serialized before plan construction"
@@ -120,8 +132,8 @@ fi
 
 test_case "recorded explanation remains valid JSON and secret-free"
 trace_file="$RESULTS_DIR/dispatch-plans.jsonl"
-octo_dispatch_plan_record "$plan" "$trace_file"
-if [[ "$(wc -l < "$trace_file" | tr -d ' ')" == 1 ]] &&
+if octo_dispatch_plan_record "$plan" "$trace_file" &&
+   [[ "$(wc -l < "$trace_file" | tr -d ' ')" == 1 ]] &&
    jq -e -s 'length == 1 and .[0].event == "dispatch-plan" and .[0].plan.schema_version == 1' "$trace_file" >/dev/null &&
    ! grep -q 'super-secret' "$trace_file"; then
   test_pass
