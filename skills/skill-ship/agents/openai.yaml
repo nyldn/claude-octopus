@@ -1,3 +1,5 @@
 interface:
   display_name: "Ship"
   short_description: "Package and finalize completed work for delivery — use when..."
+policy:
+  allow_implicit_invocation: false

@@ -13,6 +13,18 @@ mkdir -p "$HOME"
 MAGENTA="" BOLD="" BLUE="" GREEN="" YELLOW="" RED="" DIM="" NC=""
 source "$PROJECT_ROOT/scripts/lib/doctor.sh"
 
+test_case "config diagnostics identify the source checkout and exact build"
+DOCTOR_RESULTS_NAME=() DOCTOR_RESULTS_CAT=() DOCTOR_RESULTS_STATUS=() DOCTOR_RESULTS_MSG=() DOCTOR_RESULTS_DETAIL=()
+SCRIPT_DIR="$PROJECT_ROOT/scripts" PLUGIN_DIR="$PROJECT_ROOT" doctor_check_config
+config_results="$(for ((i=0; i<${#DOCTOR_RESULTS_NAME[@]}; i++)); do printf '%s=%s|%s\n' "${DOCTOR_RESULTS_NAME[$i]}" "${DOCTOR_RESULTS_STATUS[$i]}" "${DOCTOR_RESULTS_MSG[$i]}"; done)"
+expected_sha="$(git -C "$PROJECT_ROOT" rev-parse HEAD)"
+if [[ "$config_results" == *"install-source=pass|Install source: git-checkout"* &&
+      "$config_results" == *"plugin-build=pass|Build SHA: $expected_sha"* ]]; then
+    test_pass
+else
+    test_fail "config identity results: $config_results"
+fi
+
 test_case "Perplexity-only auth is described as a credential, not workflow readiness"
 original_doctor_collect="$(declare -f _doctor_collect_provider_readiness)"
 _doctor_collect_provider_readiness() {

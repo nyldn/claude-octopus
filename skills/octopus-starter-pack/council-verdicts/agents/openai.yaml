@@ -1,0 +1,5 @@
+interface:
+  display_name: "Council Verdicts"
+  short_description: "Interpret council verdicts and their evidence limits"
+policy:
+  allow_implicit_invocation: false

@@ -51,6 +51,10 @@ The IDE communicates with the MCP server over stdio. The MCP server delegates to
 
 After setup, these tools appear in your IDE's AI chat:
 
+In v11, workflow calls and `octopus_status` require an absolute `project_root`.
+Refresh cached tool schemas after upgrading. Editor context is not execution
+authority; see [migration examples](MIGRATING-V11.md).
+
 | Tool | Description |
 |------|-------------|
 | `octopus_discover` | Multi-provider research across available providers |

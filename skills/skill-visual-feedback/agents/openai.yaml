@@ -1,3 +1,5 @@
 interface:
   display_name: "Visual Feedback"
   short_description: "Process screenshot-based UI/UX feedback to fix visual..."
+policy:
+  allow_implicit_invocation: false

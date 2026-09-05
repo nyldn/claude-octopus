@@ -1,3 +1,5 @@
 interface:
   display_name: "Prd"
   short_description: "Write an AI-optimized PRD using multi-AI orchestration —..."
+policy:
+  allow_implicit_invocation: false

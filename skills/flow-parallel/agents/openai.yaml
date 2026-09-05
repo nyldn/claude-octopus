@@ -1,3 +1,5 @@
 interface:
   display_name: "Parallel"
   short_description: "Decompose and execute large changes, migrations, or..."
+policy:
+  allow_implicit_invocation: false

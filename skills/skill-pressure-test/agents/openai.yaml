@@ -1,3 +1,5 @@
 interface:
   display_name: "Pressure Test"
   short_description: "Interrogate a plan, decision, or design one question at a..."
+policy:
+  allow_implicit_invocation: false

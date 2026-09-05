@@ -1,3 +1,5 @@
 interface:
   display_name: "Agent Topology"
   short_description: "Audit whether a multi-agent setup earns its coordination cost..."
+policy:
+  allow_implicit_invocation: false

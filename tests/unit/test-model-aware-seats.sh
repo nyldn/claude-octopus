@@ -25,8 +25,8 @@ else
 fi
 
 test_case "model family distinguishes MiniMax and OpenAI"
-if [[ "$(octo_model_family 'commandcode:minimaxai/minimax-m3')" == minimax ]] && \
-   [[ "$(octo_model_family 'codex:gpt-5.6-luna')" == openai ]]; then test_pass; else test_fail "model family mismatch"; fi
+if [[ "$(octo_agent_spec_model_family 'commandcode:minimaxai/minimax-m3')" == minimax ]] && \
+   [[ "$(octo_agent_spec_model_family 'codex:gpt-5.6-luna')" == openai ]]; then test_pass; else test_fail "model family mismatch"; fi
 
 log(){ :; }
 PLUGIN_DIR="$PROJECT_ROOT"
@@ -56,7 +56,7 @@ openrouter_cmd="$(get_agent_command "openrouter:${exact_model}" review implement
 orcarouter_cmd="$(get_agent_command "orcarouter:${exact_model}" review implementation-diversity-reviewer 2>/dev/null || true)"
 vibe_cmd="$(get_agent_command "vibe:${exact_model}" review implementation-diversity-reviewer 2>/dev/null || true)"
 atlas_cmd="$(get_agent_command "atlascloud-agent:${exact_model}" review implementation-cve-reviewer 2>/dev/null || true)"
-if [[ "$agy_cmd" == *"OCTOPUS_AGY_MODEL=${exact_model}"* ]] && \
+if [[ "$agy_cmd" == "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" ]] && \
    [[ "$claude_cmd" == *"--model ${exact_model}"* ]] && \
    [[ "$opus_cmd" == *"--model ${exact_model}"* ]] && \
    [[ "$openrouter_cmd" == "openrouter_execute_model ${exact_model}" ]] && \
@@ -253,6 +253,8 @@ test_case "model-qualified large-context Codex keeps the large context budget"
 OCTOPUS_CONTEXT_BUDGET=12000
 OCTOPUS_CODEX_CONTEXT_BUDGET=24000
 OCTOPUS_CODEX_LARGE_CONTEXT_BUDGET=77777
+OCTOPUS_CONTEXT_OUTPUT_RESERVE_TOKENS=0
+OCTOPUS_CONTEXT_OVERHEAD_TOKENS=0
 if [[ "$(get_provider_context_limit 'codex-large-context:gpt-5')" == 77777 ]]; then
   test_pass
 else

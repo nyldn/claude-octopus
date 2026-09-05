@@ -139,4 +139,41 @@ else
     test_fail "expected quoted provider text to be allowed, got: ${output:-<empty>}"
 fi
 
+test_case "does not parse quoted heredoc bodies as commands"
+for command in \
+    $'python3 <<\'PY\'\nfrom pathlib import Path\nPath(\'/etc/codex\')\nPY' \
+    $'cat <<"DOC"\nqwen -p this is documentation\nDOC' \
+    $'cat <<-\'DOC\'\n\tgemini -p this is indented documentation\n\tDOC'; do
+    output="$(run_hook "$command")"
+    if [[ -n "$output" ]]; then
+        test_fail "expected quoted heredoc data to be allowed, got: ${output:-<empty>}"
+        break
+    fi
+done
+[[ -z "${output:-}" ]] && test_pass
+
+test_case "quoted heredoc parsing preserves following provider commands"
+output="$(run_hook $'cat <<\'DOC\'\nqwen -p documentation only\nDOC\nqwen -p real-dispatch')"
+if [[ "$output" == *'"permissionDecision":"deny"'* ]]; then
+    test_pass
+else
+    test_fail "provider command after quoted heredoc bypassed guard"
+fi
+
+test_case "unquoted heredoc command substitutions remain guarded"
+output="$(run_hook $'cat <<DOC\n$(qwen -p real-dispatch)\nDOC')"
+if [[ "$output" == *'"permissionDecision":"deny"'* ]]; then
+    test_pass
+else
+    test_fail "provider substitution in an unquoted heredoc bypassed guard"
+fi
+
+test_case "does not treat heredoc-looking quoted text as shell syntax"
+output="$(run_hook $'printf "%s" "<<\'DOC\'"\nqwen -p real-dispatch')"
+if [[ "$output" == *'"permissionDecision":"deny"'* ]]; then
+    test_pass
+else
+    test_fail "quoted heredoc text hid a following provider command"
+fi
+
 test_summary

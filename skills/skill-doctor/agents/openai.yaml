@@ -1,3 +1,5 @@
 interface:
   display_name: "Doctor"
   short_description: "Environment diagnostics — check providers, auth, config,..."
+policy:
+  allow_implicit_invocation: false

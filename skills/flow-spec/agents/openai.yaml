@@ -1,3 +1,5 @@
 interface:
   display_name: "Spec"
   short_description: "NLSpec authoring — use when you need a structured..."
+policy:
+  allow_implicit_invocation: false

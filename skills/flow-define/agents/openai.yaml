@@ -1,3 +1,5 @@
 interface:
   display_name: "Define"
   short_description: "Multi-AI requirements scoping using available external..."
+policy:
+  allow_implicit_invocation: false

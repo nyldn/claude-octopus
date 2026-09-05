@@ -1,6 +1,6 @@
 #!/bin/bash
 # Claude Octopus Freeze Mode Hook (v9.8.0)
-# PreToolUse hook on Edit/Write that blocks file operations outside a frozen boundary.
+# PreToolUse hook on Edit/Write/apply_patch that blocks writes outside a frozen boundary.
 # Activated by /octo:freeze command (writes directory to state file).
 # Read, Bash, Glob, Grep are unaffected — investigation stays unrestricted.
 # Returns JSON decision: {"decision":"allow"} or {"permissionDecision":"deny","message":"..."}
@@ -28,13 +28,6 @@ else
 fi
 [[ -z "$INPUT" ]] && INPUT='{}'
 
-# Only gate Edit and Write tools
-TOOL_NAME=$(echo "$INPUT" | grep -o '"tool_name":"[^"]*"' 2>/dev/null | head -1 | cut -d'"' -f4 || true)
-if [[ "$TOOL_NAME" != "Edit" && "$TOOL_NAME" != "Write" ]]; then
-    : # pass-through — current hook schema treats silence as continue
-    exit 0
-fi
-
 # Check if freeze mode is active
 if declare -f octo_session_state_file >/dev/null 2>&1; then
     STATE_FILE=$(octo_session_state_file "freeze" "txt" "$INPUT")
@@ -46,34 +39,12 @@ if [[ ! -f "$STATE_FILE" ]]; then
     exit 0
 fi
 
-# Read freeze boundary
+# The helper checks "Edit" and "Write" file_path values and every apply_patch
+# Add/Update/Delete/Move target, using cwd from the hook JSON. Unknown patches
+# fail closed. Python resolves symlinks and '..' before comparing path components.
 FREEZE_DIR=$(<"$STATE_FILE")
-if [[ -z "$FREEZE_DIR" ]]; then
-    : # pass-through — current hook schema treats silence as continue
-    exit 0
+# FREEZE_DIR/src and FREEZE_DIR/src-other are distinct path components.
+if ! printf '%s' "$INPUT" | python3 "$_HOOK_DIR/safety-contract.py" freeze "$FREEZE_DIR" 2>/dev/null; then
+    printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Freeze mode could not validate the file operation. Check that Python 3 is installed and the safety helper is available before retrying."}}'
 fi
-
-# Extract file_path from input
-FILE_PATH=$(echo "$INPUT" | grep -o '"file_path":"[^"]*"' 2>/dev/null | head -1 | cut -d'"' -f4 || true)
-if [[ -z "$FILE_PATH" ]]; then
-    : # pass-through — current hook schema treats silence as continue
-    exit 0
-fi
-
-# Resolve to absolute path if relative
-if [[ "$FILE_PATH" != /* ]]; then
-    FILE_PATH="$(cd "$(dirname "$FILE_PATH")" 2>/dev/null && echo "$(pwd)/$(basename "$FILE_PATH")" || echo "$FILE_PATH")"
-fi
-
-# Ensure freeze_dir has trailing / to prevent prefix collisions (/src matching /src-old)
-[[ "$FREEZE_DIR" != */ ]] && FREEZE_DIR="${FREEZE_DIR}/"
-
-# Check if file is within the freeze boundary
-if [[ "$FILE_PATH" == "${FREEZE_DIR}"* || "$FILE_PATH" == "${FREEZE_DIR%/}" ]]; then
-    : # pass-through — current hook schema treats silence as continue
-    exit 0
-fi
-
-# File is outside boundary — block
-echo "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"🔒 Edit blocked: ${FILE_PATH} is outside freeze boundary (${FREEZE_DIR%/}). Use /octo:unfreeze to remove restriction.\"}}"
 exit 0

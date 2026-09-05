@@ -11,6 +11,7 @@ test_suite "Frontier model policy"
 export WORKSPACE_DIR="$TEST_TMP_DIR/workspace"
 mkdir -p "$WORKSPACE_DIR"
 
+source "$PROJECT_ROOT/scripts/lib/provider-registry.sh"
 source "$PROJECT_ROOT/scripts/lib/models.sh"
 source "$PROJECT_ROOT/scripts/lib/cost.sh"
 source "$PROJECT_ROOT/scripts/lib/provider-versions.sh"
@@ -42,6 +43,27 @@ if [[ "$(get_model_policy claude-fable-5-1)" == "explicit|no|0|1|general" &&
     test_pass
 else
     test_fail "expensive frontier models became eligible for automatic routing"
+fi
+
+test_case "Astra identity is canonical across transport namespaces"
+canonical_forms=(
+    "gpt-6-astra"
+    "codex:gpt-6-astra"
+    "openai/gpt-6-astra"
+    "openrouter:openai/gpt-6-astra"
+)
+canonical_ok=true
+for form in "${canonical_forms[@]}"; do
+    if [[ "$(octo_model_canonical_id "$form")" != "gpt-6-astra" ]] ||
+       [[ "$(get_model_policy "$form")" != "explicit|no|0|0|limited" ]] ||
+       octo_model_automatic_target_allowed "$form" openrouter; then
+        canonical_ok=false
+    fi
+done
+if [[ "$canonical_ok" == "true" ]]; then
+    test_pass
+else
+    test_fail "an Astra namespace bypassed canonical policy"
 fi
 
 test_case "Fable 5.1 docs separate host and SDK-seat prerequisites"
@@ -97,6 +119,7 @@ if HOME="$provider_home" PROJECT_ROOT="$PROJECT_ROOT" bash -c '
     validate_model_name() { [[ -n "${1:-}" ]]; }
     source "$PROJECT_ROOT/scripts/lib/provider-routing.sh" >/dev/null 2>&1
     ! set_provider_model codex gpt-6-astra >/dev/null 2>&1 &&
+        ! set_provider_model openrouter openai/gpt-6-astra >/dev/null 2>&1 &&
         ! set_provider_model claude claude-fable-5-1 --session >/dev/null 2>&1
 '; then
     test_pass
@@ -114,15 +137,18 @@ fi
 
 test_case "unknown models fail closed for automatic routing"
 if [[ "$(get_model_policy invented-frontier-model)" == "explicit|no|0|0|unknown" ]] &&
-   ! octo_model_auto_eligible invented-frontier-model; then
+   ! octo_model_auto_eligible invented-frontier-model &&
+   ! octo_model_automatic_target_allowed invented-frontier-model codex &&
+   octo_model_automatic_target_allowed vendor/custom-model commandcode; then
     test_pass
 else
-    test_fail "unknown model was eligible for automatic routing"
+    test_fail "unknown model admission ignored provider custom-model policy"
 fi
 
 test_case "current direct API prices are represented exactly"
 if [[ "$(get_model_pricing claude-fable-5-1 claude)" == "10.00:50.00" &&
       "$(get_model_pricing gpt-6-astra codex)" == "10.00:50.00" &&
+      "$(get_model_pricing openai/gpt-6-astra openrouter)" == "10.00:50.00" &&
       "$(get_model_pricing gpt-5.6-sol codex)" == "4.00:20.00" &&
       "$(get_model_pricing gpt-5.6-terra codex)" == "2.00:12.00" &&
       "$(get_model_pricing gpt-5.6-luna codex)" == "0.20:1.20" &&
@@ -130,6 +156,13 @@ if [[ "$(get_model_pricing claude-fable-5-1 claude)" == "10.00:50.00" &&
     test_pass
 else
     test_fail "frontier or adjacent model pricing is stale"
+fi
+
+test_case "namespaced Astra pricing applies the long-context rule"
+if [[ "$(octo_effective_model_pricing openai/gpt-6-astra 300000 10 50)" == "20.000000:75.000000" ]]; then
+    test_pass
+else
+    test_fail "namespaced Astra missed its request-size tariff"
 fi
 
 test_case "Astra cost estimates include the long-context multiplier"
@@ -163,7 +196,7 @@ init_usage_tracking
 : > "${USAGE_FILE}.log"
 record_agent_complete "astra-native-split" codex-api gpt-6-astra "" frontier \
     400000 0 1 272001 127999
-native_usage="$(awk -F'|' 'END {print $6 ":" $7 ":" $8 ":" $9}' "${USAGE_FILE}.log")"
+native_usage="$(generate_usage_json | jq -r '.calls[-1] | [.input_tokens, .output_tokens, .total_tokens, .cost_usd] | join(":")')"
 if [[ "$native_usage" == "272001:127999:400000:15.039945" ]]; then
     test_pass
 else
@@ -184,7 +217,7 @@ test_case "session usage uses the measured prompt when only native total is avai
 estimate_tokens() { printf '%s\n' 272001; }
 prompt_metrics_id="$(record_agent_start codex-api gpt-6-astra ignored frontier)"
 record_agent_complete "$prompt_metrics_id" codex-api gpt-6-astra "" frontier 400000 0 1
-fallback_usage="$(awk -F'|' 'END {print $6 ":" $7 ":" $8 ":" $9}' "${USAGE_FILE}.log")"
+fallback_usage="$(generate_usage_json | jq -r '.calls[-1] | [.input_tokens, .output_tokens, .total_tokens, .cost_usd] | join(":")')"
 if [[ "$fallback_usage" == "272001:127999:400000:15.039945" ]]; then
     test_pass
 else
@@ -193,6 +226,14 @@ fi
 
 test_case "legacy metrics tracking uses canonical Astra input and output pricing"
 source "$PROJECT_ROOT/scripts/metrics-tracker.sh"
+if [[ "$(get_model_cost openai/gpt-6-astra)" == "10.00" &&
+      "$(get_model_cost codex:gpt-6-astra)" == "10.00" ]]; then
+    test_pass
+else
+    test_fail "legacy metrics pricing did not canonicalize namespaced Astra IDs"
+fi
+
+test_case "legacy metrics tracking uses native Astra input and output counts"
 METRICS_BASE="$TEST_TMP_DIR/metrics"
 mkdir -p "$METRICS_BASE"
 init_metrics_tracking
@@ -219,6 +260,7 @@ fi
 
 test_case "Astra requires the Codex release that added its catalog entry"
 if ! octo_codex_model_version_ok 0.153.0 gpt-6-astra &&
+   ! octo_codex_model_version_ok 0.153.0 openai/gpt-6-astra &&
    octo_codex_model_version_ok 0.153.1 gpt-6-astra &&
    octo_codex_model_version_ok 0.153.3 gpt-6-astra &&
    ! octo_codex_model_version_ok unknown gpt-6-astra &&

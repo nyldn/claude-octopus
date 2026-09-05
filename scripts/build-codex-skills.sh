@@ -392,6 +392,9 @@ write_skill() {
         echo "interface:"
         printf '  display_name: %s\n' "$(yaml_quote "$codex_display_name")"
         printf '  short_description: %s\n' "$(yaml_quote "$codex_short_desc")"
+        if [[ "$disable_model" == true ]]; then
+            printf 'policy:\n  allow_implicit_invocation: false\n'
+        fi
     } > "$skill_dir/agents/openai.yaml"
 }
 

@@ -1,0 +1,22 @@
+# Relative suite path<TAB>conservative duration weight in seconds.
+# Refresh from a successful CI run when the slow-suite profile changes.
+unit/test-council-command.sh	314
+unit/test-kimi-provider.sh	52
+unit/test-octo-events.sh	48
+unit/test-provider-availability-parity.sh	33
+unit/test-agy-provider.sh	32
+unit/test-consultative-workspace-gitignore.sh	32
+unit/test-spawn-run-contract.sh	27
+unit/test-agent-lifecycle-events.sh	26
+unit/test-yaml-workflow-runtime.sh	25
+unit/test-provider-auth-validity.sh	24
+unit/test-issue-947-pid-wait-window.sh	20
+unit/test-agent-sync-run-contract.sh	19
+unit/test-develop-md-file-resolution.sh	19
+unit/test-run-contract-v10.sh	19
+unit/test-tangle-decomposition-adequacy.sh	19
+unit/test-heartbeat-timeout-fallback.sh	18
+unit/test-provider-banner-auth.sh	16
+unit/test-safe-github-comments.sh	16
+unit/test-routing.sh	15
+unit/test-cli-flag-after-subcommand.sh	14

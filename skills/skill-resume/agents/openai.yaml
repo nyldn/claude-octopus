@@ -1,3 +1,5 @@
 interface:
   display_name: "Resume"
   short_description: "Pick up where you left off from a previous session — use..."
+policy:
+  allow_implicit_invocation: false

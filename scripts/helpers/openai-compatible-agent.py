@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import argparse, json, os, re, subprocess, sys, time, urllib.parse, urllib.request, urllib.error
+import argparse, json, os, re, selectors, signal, subprocess, sys, threading, time, urllib.parse, urllib.request, urllib.error
 from pathlib import Path
 
 PROVIDERS = {
@@ -93,6 +93,189 @@ def command_is_blocked(cmd: str):
             return reason
     return None
 
+
+def _process_group_exists(process_group) -> bool:
+    if os.name != "posix" or process_group is None:
+        return False
+    try:
+        os.killpg(process_group, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+
+
+def _terminate_process_tree(process: subprocess.Popen, process_group, grace: float) -> None:
+    """Terminate a supervised process tree and reap its root process."""
+    if os.name == "posix" and process_group is not None:
+        try:
+            os.killpg(process_group, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        except PermissionError:
+            pass
+        deadline = time.monotonic() + grace
+        while time.monotonic() < deadline:
+            try:
+                os.killpg(process_group, 0)
+            except ProcessLookupError:
+                break
+            except PermissionError:
+                # macOS can report EPERM while a just-signalled group is being
+                # reparented. Its liveness is indeterminate, so keep the bounded
+                # grace window and attempt the final group kill below.
+                pass
+            time.sleep(min(0.02, max(0.0, deadline - time.monotonic())))
+        try:
+            os.killpg(process_group, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except PermissionError:
+            pass
+    elif process.poll() is None:
+        process.terminate()
+        try:
+            process.wait(timeout=grace)
+        except subprocess.TimeoutExpired:
+            if os.name == "nt":
+                subprocess.run(
+                    ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
+                )
+            if process.poll() is None:
+                process.kill()
+    try:
+        process.wait(timeout=max(0.1, grace))
+    except subprocess.TimeoutExpired:
+        if process.poll() is None:
+            process.kill()
+        process.wait()
+
+
+def _collect_posix_process(process, command, timeout, output_limit):
+    """Drain nonblocking output; an escaped pipe holder must not own our deadline."""
+    captured = bytearray()
+    grace = env_float("OPENAI_COMPAT_COMMAND_KILL_GRACE", 0.5, minimum=0.05)
+    deadline = time.monotonic() + timeout
+    drain_deadline = None
+    timed_out = False
+    stream = process.stdout
+    selector = selectors.DefaultSelector()
+    try:
+        os.set_blocking(stream.fileno(), False)
+        selector.register(stream, selectors.EVENT_READ)
+        while True:
+            now = time.monotonic()
+            if process.poll() is None:
+                if now >= deadline:
+                    timed_out = True
+                    break
+            else:
+                if drain_deadline is None:
+                    drain_deadline = now + grace
+                if not selector.get_map() or now >= drain_deadline:
+                    break
+            for key, _ in selector.select(timeout=0.02):
+                try:
+                    chunk = os.read(key.fd, 8192)
+                except BlockingIOError:
+                    continue
+                if not chunk:
+                    selector.unregister(stream)
+                    continue
+                captured.extend(chunk)
+                overflow = len(captured) - output_limit
+                if overflow > 0:
+                    del captured[:overflow]
+    finally:
+        selector.close()
+        # No reader thread or buffered read lock can block this close, including
+        # when a descendant escaped the owned process group with setsid().
+        stream.close()
+        if process.poll() is None or _process_group_exists(process.pid):
+            _terminate_process_tree(process, process.pid, grace)
+    output = bytes(captured).decode("utf-8", errors="replace")
+    if timed_out:
+        raise subprocess.TimeoutExpired(command, timeout, output=output)
+    return process.returncode, output
+
+
+def run_bounded_process(command, cwd: Path, timeout: float, *, shell: bool, output_limit: int):
+    """Run one owned process group while retaining only a bounded output tail."""
+    popen_options = {
+        "cwd": str(cwd),
+        "shell": shell,
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.STDOUT,
+        "text": False,
+        "bufsize": 0,
+    }
+    if os.name == "posix":
+        popen_options["start_new_session"] = True
+    elif os.name == "nt":
+        popen_options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+
+    process = subprocess.Popen(command, **popen_options)  # noqa: S603 - caller applies command policy
+    if os.name == "posix":
+        return _collect_posix_process(process, command, timeout, output_limit)
+    process_group = process.pid if os.name == "posix" else None
+    captured = bytearray()
+    capture_lock = threading.Lock()
+
+    def drain_output() -> None:
+        stream = process.stdout
+        if stream is None:
+            return
+        try:
+            while True:
+                chunk = stream.read(8192)
+                if not chunk:
+                    return
+                with capture_lock:
+                    captured.extend(chunk)
+                    overflow = len(captured) - output_limit
+                    if overflow > 0:
+                        del captured[:overflow]
+        except (OSError, ValueError):
+            return
+
+    reader = threading.Thread(target=drain_output, name="octopus-command-output", daemon=True)
+    reader.start()
+    grace = env_float("OPENAI_COMPAT_COMMAND_KILL_GRACE", 0.5, minimum=0.05)
+    timed_out = False
+    try:
+        process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        _terminate_process_tree(process, process_group, grace)
+    except BaseException:
+        _terminate_process_tree(process, process_group, grace)
+        raise
+
+    # A shell can exit successfully after starting a background descendant that
+    # still owns stdout. Give the reader a brief chance to drain, then clean the
+    # remaining group instead of returning with an unowned process.
+    reader.join(timeout=grace)
+    if reader.is_alive():
+        _terminate_process_tree(process, process_group, grace)
+        if process.stdout is not None:
+            process.stdout.close()
+        reader.join(timeout=grace)
+    elif _process_group_exists(process_group):
+        # A descendant can close or redirect stdout before the root exits. The
+        # pipe then reaches EOF even though the owned process group is still
+        # alive, so liveness must not be inferred from the reader alone.
+        _terminate_process_tree(process, process_group, grace)
+
+    with capture_lock:
+        output = bytes(captured).decode("utf-8", errors="replace")
+    if timed_out:
+        raise subprocess.TimeoutExpired(command, timeout, output=output)
+    return process.returncode, output
+
 def tool_exec(cwd: Path, name: str, args: dict) -> str:
     try:
         if name == "read_file":
@@ -110,12 +293,14 @@ def tool_exec(cwd: Path, name: str, args: dict) -> str:
                 return (f"ERROR: refused — {blocked}. This agent may not run that. "
                         f"Work within the project directory, or ask the operator to run it.")
             timeout = env_float("OPENAI_COMPAT_COMMAND_TIMEOUT", 20.0)
-            r = subprocess.run(cmd, cwd=str(cwd), shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout, check=False)  # noqa: S602 - intentional shell-command tool
-            return (f"exit={r.returncode}\n" + r.stdout)[-20000:]
+            returncode, output = run_bounded_process(cmd, cwd, timeout, shell=True, output_limit=20000)
+            return (f"exit={returncode}\n" + output)[-20000:]
         if name == "git_diff":
             timeout = env_float("OPENAI_COMPAT_COMMAND_TIMEOUT", 20.0)
-            r = subprocess.run(["git", "diff", "--", "."], cwd=str(cwd), text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout, check=False)
-            return (f"exit={r.returncode}\n" + r.stdout)[-30000:]
+            returncode, output = run_bounded_process(
+                ["git", "diff", "--", "."], cwd, timeout, shell=False, output_limit=30000
+            )
+            return (f"exit={returncode}\n" + output)[-30000:]
         return f"ERROR: unknown tool {name}"
     except Exception as e:
         return f"ERROR: {type(e).__name__}: {e}"
@@ -128,7 +313,8 @@ def normalize_reasoning_effort(value):
 
 
 def is_astra_model(model):
-    return model == "gpt-6-astra"
+    transport_model = model.split(":", 1)[-1]
+    return transport_model.rsplit("/", 1)[-1] == "gpt-6-astra"
 
 
 def rejects_reasoning_effort(body_text):

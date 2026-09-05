@@ -12,6 +12,7 @@ test_suite "Adapter Flag Ordering & Parameter Forwarding"
 
 MCP_SRC="$PROJECT_ROOT/mcp-server/src/index.ts"
 OC_SRC="$PROJECT_ROOT/openclaw/src/index.ts"
+ENV_ALLOWLIST="$PROJECT_ROOT/config/provider-env-allowlist.json"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Debate Flag Placement — grapple flags must go AFTER the command
@@ -82,39 +83,28 @@ test_oc_forwards_quality_threshold() {
 # Environment Variable Allowlists
 # ═══════════════════════════════════════════════════════════════════════════════
 
-test_mcp_forwards_anthropic_base_url() {
-    test_case "MCP env includes ANTHROPIC_BASE_URL"
-    if grep -q 'ANTHROPIC_BASE_URL' "$MCP_SRC"; then test_pass; else test_fail "missing"; fi
+test_shared_env_allowlist_contract() {
+    test_case "shared adapter env allowlist contains every supported transport credential"
+    local required name missing=""
+    required="ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN PERPLEXITY_API_KEY COPILOT_GITHUB_TOKEN GH_TOKEN"
+    if ! jq -e '.schema_version == 1 and (.names | type == "array")' "$ENV_ALLOWLIST" >/dev/null 2>&1; then
+        test_fail "shared provider env allowlist is missing or malformed"
+        return
+    fi
+    for name in $required; do
+        jq -e --arg name "$name" '.names | index($name) != null' "$ENV_ALLOWLIST" >/dev/null 2>&1 || missing="$missing $name"
+    done
+    if [[ -z "$missing" ]]; then test_pass; else test_fail "missing:$missing"; fi
 }
 
-test_mcp_forwards_anthropic_auth_token() {
-    test_case "MCP env includes ANTHROPIC_AUTH_TOKEN"
-    if grep -q 'ANTHROPIC_AUTH_TOKEN' "$MCP_SRC"; then test_pass; else test_fail "missing"; fi
+test_mcp_loads_shared_env_allowlist() {
+    test_case "MCP loads the shared adapter env allowlist"
+    if grep -q 'provider-env-allowlist.json' "$MCP_SRC"; then test_pass; else test_fail "missing shared allowlist loader"; fi
 }
 
-test_oc_forwards_anthropic_base_url() {
-    test_case "OpenClaw env includes ANTHROPIC_BASE_URL"
-    if grep -q 'ANTHROPIC_BASE_URL' "$OC_SRC"; then test_pass; else test_fail "missing"; fi
-}
-
-test_oc_forwards_perplexity_key() {
-    test_case "OpenClaw env includes PERPLEXITY_API_KEY"
-    if grep -q 'PERPLEXITY_API_KEY' "$OC_SRC"; then test_pass; else test_fail "missing"; fi
-}
-
-test_mcp_forwards_copilot_token() {
-    test_case "MCP env includes COPILOT_GITHUB_TOKEN"
-    if grep -q 'COPILOT_GITHUB_TOKEN' "$MCP_SRC"; then test_pass; else test_fail "missing"; fi
-}
-
-test_oc_forwards_copilot_token() {
-    test_case "OpenClaw env includes COPILOT_GITHUB_TOKEN"
-    if grep -q 'COPILOT_GITHUB_TOKEN' "$OC_SRC"; then test_pass; else test_fail "missing"; fi
-}
-
-test_mcp_forwards_gh_token() {
-    test_case "MCP env includes GH_TOKEN for Copilot auth"
-    if grep -q 'GH_TOKEN' "$MCP_SRC"; then test_pass; else test_fail "missing"; fi
+test_openclaw_loads_shared_env_allowlist() {
+    test_case "OpenClaw loads the shared adapter env allowlist"
+    if grep -q 'provider-env-allowlist.json' "$OC_SRC"; then test_pass; else test_fail "missing shared allowlist loader"; fi
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -229,13 +219,9 @@ test_mcp_forwards_quality_threshold
 test_oc_forwards_quality_threshold
 
 # Env vars
-test_mcp_forwards_anthropic_base_url
-test_mcp_forwards_anthropic_auth_token
-test_oc_forwards_anthropic_base_url
-test_oc_forwards_perplexity_key
-test_mcp_forwards_copilot_token
-test_oc_forwards_copilot_token
-test_mcp_forwards_gh_token
+test_shared_env_allowlist_contract
+test_mcp_loads_shared_env_allowlist
+test_openclaw_loads_shared_env_allowlist
 
 # Description
 test_oc_debate_says_multi_provider

@@ -1,3 +1,5 @@
 interface:
   display_name: "Research"
   short_description: "Thorough research across multiple sources — use for complex..."
+policy:
+  allow_implicit_invocation: false

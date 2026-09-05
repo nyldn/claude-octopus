@@ -4,6 +4,7 @@
 
 _octopus_spawn_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_octopus_spawn_lib_dir}/agent-spec.sh" 2>/dev/null || true
+source "${_octopus_spawn_lib_dir}/dispatch-plan.sh" 2>/dev/null || true
 if ! type start_quota_watcher >/dev/null 2>&1; then
     source "${_octopus_spawn_lib_dir}/quota-watcher.sh" 2>/dev/null || true
 fi
@@ -946,10 +947,31 @@ ${heuristic_ctx}"
             "Cursor Agent is unavailable or unauthenticated" 1 "" >/dev/null 2>&1 || true
         return 1
     fi
+    local dispatch_plan _plan_deadline=0 _plan_append_empty_prompt=false
+    if [[ "$_eff_timeout" =~ ^[0-9]+$ && "$_eff_timeout" -gt 0 ]]; then
+        _plan_deadline=$(( $(date +%s) + _eff_timeout ))
+    fi
+    case "$agent_type" in
+        cursor-agent*|copilot*|qwen*) _plan_append_empty_prompt=true ;;
+    esac
+    build_provider_env "$agent_type"
+    octo_dispatch_plan_bind_model_env "$agent_type" "$model"
+    local _plan_failure=""
+    if ! dispatch_plan="$(octo_dispatch_plan_create "$agent_type" "${phase:-}" "${role:-}" \
+        "$cmd" "$model" "$_plan_deadline" "$_prompt_bytes" "$_plan_append_empty_prompt")"; then
+        _plan_failure="construction"
+    elif ! octo_dispatch_plan_load_argv "$dispatch_plan"; then
+        _plan_failure="argv loading"
+    elif ! octo_dispatch_plan_record "$dispatch_plan"; then
+        _plan_failure="persistence"
+    fi
+    if [[ -n "$_plan_failure" ]]; then
+        octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
+            "Dispatch plan $_plan_failure failed" 74 "" >/dev/null 2>&1 || true
+        return 74
+    fi
     log DEBUG "Command: $cmd"
     log "DEBUG" "Model selected: $model (from agent_type=$agent_type, phase=${phase:-none})"
-    record_agent_call "$agent_type" "$model" "$enhanced_prompt" "${phase:-unknown}" "${role:-none}" "0"
-
     # v8.14.0: Track provider usage in persistent state. provider_prefix is the
     # canonical provider identity used by circuit-breaker/history/accounting; do
     # not split metrics by model-qualified agent_spec.
@@ -959,11 +981,13 @@ ${heuristic_ctx}"
     # v8.7.0: Register task in bridge ledger (non-fatal if ledger missing)
     bridge_register_task "$task_id" "$agent_type" "${phase:-unknown}" "${role:-none}" || true
 
-    # Record metrics start (v7.25.0)
+    # Allocate one usage identity before dispatch. The background worker keeps
+    # this ID and writes exactly one terminal event.
     local metrics_id=""
     if command -v record_agent_start &> /dev/null; then
         metrics_id=$(record_agent_start "$agent_type" "$model" "$enhanced_prompt" "${phase:-unknown}") || true
     fi
+    record_agent_call "$agent_type" "$model" "$enhanced_prompt" "${phase:-unknown}" "${role:-none}" "0" "$metrics_id"
 
     # Store metrics mapping for batch completion recording (after DRY_RUN gate)
     if [[ -n "$metrics_id" ]]; then
@@ -975,6 +999,8 @@ ${heuristic_ctx}"
     if ! mkdir -p "$RESULTS_DIR" "$LOGS_DIR" || ! touch "$PID_FILE"; then
         octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
             "Background state directory is not writable" 74 "" >/dev/null 2>&1 || true
+        [[ -n "$metrics_id" ]] && record_agent_failure "$metrics_id" 0 \
+            "Background state directory is not writable" failed 2>/dev/null || true
         return 74
     fi
 
@@ -1005,6 +1031,8 @@ ${heuristic_ctx}"
         if ! mkdir -p "$teams_dir"; then
             octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
                 "Agent Teams state directory is not writable" 74 "" >/dev/null 2>&1 || true
+            [[ -n "$metrics_id" ]] && record_agent_failure "$metrics_id" 0 \
+                "Agent Teams state directory is not writable" failed 2>/dev/null || true
             return 74
         fi
 
@@ -1017,6 +1045,7 @@ ${heuristic_ctx}"
                 --arg role "${role:-none}" \
                 --arg phase "${phase:-none}" \
                 --arg model "$model" \
+                --arg call_id "$metrics_id" \
                 --arg prompt "$enhanced_prompt" \
                 --arg result_file "$result_file" \
                 --arg effort "${effort_level:-medium}" \
@@ -1025,6 +1054,7 @@ ${heuristic_ctx}"
                 '{agent_type: $agent_type, task_id: $task_id,
                   run_id: $run_id, seat_id: $seat_id, role: $role,
                   phase: $phase, model: $model, prompt: $prompt,
+                  call_id: $call_id,
                   result_file: $result_file, dispatch_method: "agent_teams",
                   effort: $effort,
                   timeout_seconds: $timeout_seconds,
@@ -1034,6 +1064,8 @@ ${heuristic_ctx}"
             octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
                 "Failed to persist Agent Teams dispatch instruction" 74 "" >/dev/null 2>&1 || true
             log ERROR "Failed to persist Agent Teams instruction: $agent_instruction_file"
+            [[ -n "$metrics_id" ]] && record_agent_failure "$metrics_id" 0 \
+                "Failed to persist Agent Teams dispatch instruction" failed 2>/dev/null || true
             return 74
         fi
 
@@ -1051,6 +1083,8 @@ ${heuristic_ctx}"
         if ! write_agent_result_header "$result_file" "$agent_type" "${model:-unresolved}" "$task_id" "${role:-none}" "${phase:-none}" "agent-teams"; then
             octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
                 "Failed to persist Agent Teams result header" 74 "" >/dev/null 2>&1 || true
+            [[ -n "$metrics_id" ]] && record_agent_failure "$metrics_id" 0 \
+                "Failed to persist Agent Teams result header" failed 2>/dev/null || true
             return 74
         fi
         printf '# Prompt metadata: original_chars=%s final_chars=%s compression=%s\n' \
@@ -1058,6 +1092,8 @@ ${heuristic_ctx}"
         if ! write_agent_result_prompt "$result_file" "$enhanced_prompt"; then
             octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
                 "Failed to persist Agent Teams dispatched prompt" 74 "" >/dev/null 2>&1 || true
+            [[ -n "$metrics_id" ]] && record_agent_failure "$metrics_id" 0 \
+                "Failed to persist Agent Teams dispatched prompt" failed 2>/dev/null || true
             return 74
         fi
         echo "# Started: $(date)" >> "$result_file"
@@ -1069,6 +1105,8 @@ ${heuristic_ctx}"
         if ! octo_spawn_contract_running "$_contract_seat_id" "$result_file" "" \
             "$model" "${effort_level:-}"; then
             log ERROR "Unable to persist running execution contract for Agent Teams task $task_id"
+            [[ -n "$metrics_id" ]] && record_agent_failure "$metrics_id" 0 \
+                "Unable to persist running Agent Teams state" failed 2>/dev/null || true
             return 74
         fi
         type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "running" "$tokens_in" 0 "Dispatched via Agent Teams" "$_eff_timeout" "$result_file" "${role:-none}" "$_contract_seat_id" running none || true
@@ -1120,14 +1158,11 @@ ${heuristic_ctx}"
         # SECURITY: Use array-based execution to prevent word-splitting vulnerabilities
         # v8.32.0: Per-provider credential isolation — each agent only sees its own API key
         local -a cmd_array
-        local -a inner_cmd_array
-        build_provider_env "$agent_type"
-        read -ra inner_cmd_array <<< "$cmd"
         if [[ ${#PROVIDER_ENV_ARRAY[@]} -gt 0 ]]; then
-            cmd_array=("${PROVIDER_ENV_ARRAY[@]}" "${inner_cmd_array[@]}")
+            cmd_array=("${PROVIDER_ENV_ARRAY[@]}" "${OCTO_DISPATCH_PLAN_ARGV[@]}")
             log "DEBUG" "Credential isolation active for $agent_type"
         else
-            cmd_array=("${inner_cmd_array[@]}")
+            cmd_array=("${OCTO_DISPATCH_PLAN_ARGV[@]}")
         fi
 
         # IMPROVED: Use temp files for reliable output capture (v7.13.2 - Issue #10)
@@ -1167,9 +1202,7 @@ ${heuristic_ctx}"
         fi
 
         # Append headless flag (-p "") for CLI providers that read prompt from stdin
-        if [[ "$agent_type" == cursor-agent* ]] || [[ "$agent_type" == copilot* ]] || [[ "$agent_type" == qwen* ]]; then
-            cmd_array+=(-p "")
-        fi
+        # Provider-specific headless argv is already part of the immutable plan.
 
         local auth_attempt=0
         local exit_code=0
@@ -1574,6 +1607,26 @@ ${heuristic_ctx}"
                     _err_class=$(classify_error "$(head -c 200 "$temp_errors" 2>/dev/null)" 2>/dev/null) || _err_class="transient"
                 fi
                 record_failure "$provider_prefix" "$_err_class" 2>/dev/null || true
+            fi
+        fi
+
+        if [[ -n "$metrics_id" ]]; then
+            if [[ "$exit_code" -eq 0 && "$_octo_success_status" != "failed" ]]; then
+                local _usage_output=""
+                [[ -s "$raw_output" ]] && _usage_output="$(cat "$raw_output")"
+                [[ -n "$_usage_output" ]] || _usage_output="$(cat "$result_file" 2>/dev/null || true)"
+                parse_task_metrics "$_usage_output"
+                record_agent_complete "$metrics_id" "$agent_type" "$model" "$_usage_output" "${phase:-unknown}" \
+                    "$_PARSED_TOKENS" "$_PARSED_TOOL_USES" "$_PARSED_DURATION_MS" \
+                    "$_PARSED_INPUT_TOKENS" "$_PARSED_OUTPUT_TOKENS" \
+                    "$_PARSED_CACHED_INPUT_TOKENS" "$_PARSED_CACHE_WRITE_TOKENS" \
+                    "$_PARSED_REASONING_TOKENS" 2>/dev/null || true
+            else
+                local _usage_failure_state=failed
+                [[ "$exit_code" -eq 124 || "$exit_code" -eq 143 ]] && _usage_failure_state=timeout
+                record_agent_failure "$metrics_id" "${elapsed_ms:-0}" \
+                    "${_octo_success_reason:-Provider exited with code $exit_code}" \
+                    "$_usage_failure_state" 2>/dev/null || true
             fi
         fi
 

@@ -10,7 +10,9 @@
  *
  * This module is the entry point declared in openclaw.extensions.
  */
+import { execFile } from "node:child_process";
 import { type TSchema } from "@sinclair/typebox";
+declare const execFileAsync: typeof execFile.__promisify__;
 interface TextContent {
     type: "text";
     text: string;
@@ -45,5 +47,6 @@ interface OpenClawPluginApi {
     }) => void;
     resolvePath: (input: string) => string;
 }
+export declare function executeOrchestrate(command: string, prompt: string, projectRoot: string, flags?: string[], postFlags?: string[], executor?: typeof execFileAsync): Promise<string>;
 export default function register(api: OpenClawPluginApi): void;
 export {};

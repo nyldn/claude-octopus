@@ -1,3 +1,5 @@
 interface:
   display_name: "Cost Projections"
   short_description: "Project remaining workflow cost from per-phase averages —..."
+policy:
+  allow_implicit_invocation: false

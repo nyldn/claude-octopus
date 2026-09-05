@@ -489,6 +489,36 @@ doctor_check_auth() {
 }
 
 # --- Category 3: Config ---
+doctor_build_sha() {
+    local plugin_root="${1:-}" sha=""
+    [[ -n "$plugin_root" ]] || return 1
+    if [[ "${OCTOPUS_BUILD_SHA:-}" =~ ^[0-9a-fA-F]{7,40}$ ]]; then
+        printf '%s\n' "$OCTOPUS_BUILD_SHA"
+        return 0
+    fi
+    command -v git >/dev/null 2>&1 || return 1
+    sha="$(git -C "$plugin_root" rev-parse HEAD 2>/dev/null || true)"
+    [[ "$sha" =~ ^[0-9a-fA-F]{40}$ ]] || return 1
+    printf '%s\n' "$sha"
+}
+
+doctor_install_source() {
+    local plugin_root="${1:-}"
+    case "$plugin_root" in
+        */.claude/plugins/cache/*) printf '%s\n' "claude-marketplace-cache" ;;
+        */.codex/plugins/cache/*) printf '%s\n' "codex-plugin-cache" ;;
+        */node_modules/*) printf '%s\n' "npm" ;;
+        *)
+            if command -v git >/dev/null 2>&1 &&
+               git -C "$plugin_root" rev-parse --is-inside-work-tree 2>/dev/null | grep -qx true; then
+                printf '%s\n' "git-checkout"
+            else
+                printf '%s\n' "manual"
+            fi
+            ;;
+    esac
+}
+
 doctor_check_config() {
     local plugin_json="$SCRIPT_DIR/../.claude-plugin/plugin.json"
 
@@ -514,6 +544,18 @@ doctor_check_config() {
     fi
     doctor_add "install-scope" "config" "pass" \
         "Install scope: $scope" "$PLUGIN_DIR"
+
+    local install_source build_sha
+    install_source="$(doctor_install_source "$PLUGIN_DIR")"
+    doctor_add "install-source" "config" "pass" \
+        "Install source: $install_source" "$PLUGIN_DIR"
+    if build_sha="$(doctor_build_sha "$PLUGIN_DIR")"; then
+        doctor_add "plugin-build" "config" "pass" \
+            "Build SHA: $build_sha" "$PLUGIN_DIR"
+    else
+        doctor_add "plugin-build" "config" "info" \
+            "Build SHA unavailable" "Install source: $install_source; set OCTOPUS_BUILD_SHA when packaging a detached build"
+    fi
 
     # Feature flag / CC version consistency
     local cc_ver="${CLAUDE_CODE_VERSION:-}"

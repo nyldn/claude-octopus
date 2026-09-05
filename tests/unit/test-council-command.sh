@@ -2072,41 +2072,6 @@ test_council_live_response_host_native_fails_for_synthesis() {
     fi
 }
 
-test_council_verdict_parsing() {
-    test_case "council_response_verdict reads the last VERDICT line, fail-safe REVISE"
-    load_council_lib || return 1
-    local d; d="$(mktemp -d "$TEST_TMP_DIR/verdict.XXXXXX")"
-    printf 'review\nVERDICT: APPROVE\n'                 > "$d/a.md"
-    printf 'review\nVERDICT: REVISE\n'                  > "$d/r.md"
-    printf 'review\nverdict: block now\n'               > "$d/b.md"
-    printf 'no verdict line at all here\n'              > "$d/none.md"
-    printf 'VERDICT: APPROVE\nmore\nVERDICT: REVISE\n'  > "$d/last.md"
-    if [[ "$(council_response_verdict "$d/a.md")"    == "APPROVE" ]] &&
-       [[ "$(council_response_verdict "$d/r.md")"    == "REVISE"  ]] &&
-       [[ "$(council_response_verdict "$d/b.md")"    == "BLOCK"   ]] &&
-       [[ "$(council_response_verdict "$d/none.md")" == "REVISE"  ]] &&
-       [[ "$(council_response_verdict "$d/last.md")" == "REVISE"  ]]; then
-        test_pass
-    else
-        test_fail "verdict parsing mismatch"
-        return 1
-    fi
-}
-
-test_council_approving_providers_failsafe() {
-    test_case "council_compute_approving_providers drops a split double-seated vendor"
-    load_council_lib || return 1
-    local split clean
-    split="$(council_compute_approving_providers "agy codex codex" "codex")"
-    clean="$(council_compute_approving_providers "agy codex codex" "")"
-    if [[ "$split" == "agy" ]] && [[ "$clean" == "agy codex" ]]; then
-        test_pass
-    else
-        test_fail "approver set wrong: split=[$split] clean=[$clean]"
-        return 1
-    fi
-}
-
 test_council_split_double_seat_fails_quorum() {
     test_case "Council quorum fails when a double-seated vendor splits (sail-cruisey #1992)"
     load_council_lib || return 1
@@ -2376,7 +2341,7 @@ test_council_advice_marks_blind_seat() {
 }
 
 test_council_blind_fabricated_narrative() {
-    test_case "a long fabricated-narrative seat (admits no file access, zero source cites) is blind regardless of length; grounded long reviews and plan reviews are not (sail-cruisey #2459)"
+    test_case "a long first-person access failure is blind regardless of length or citation prose; grounded long reviews and plan reviews are not"
     load_council_lib || return 1
 
     local d; d="$(mktemp -d "$TEST_TMP_DIR/council-fabricated.XXXXXX")"
@@ -2533,10 +2498,8 @@ test_council_blind_fabricated_narrative() {
         echo "VERDICT: APPROVE"
     } > "$d/assuming.md"
 
-    # (f) Grounded review that DOES admit restricted access but cites a real
-    # non-frontend source reference (path.ext:line). The extension-neutral cite
-    # check must recognize it and keep the seat OUT of the blind set (CodeRabbit
-    # #1000: shell/py/go citations, not just the frontend allowlist).
+    # (f) Citation-shaped text cannot override the seat's explicit first-person
+    # access failure. Evidence is validated separately against the project root.
     {
         echo "## Review"
         for _i in $(seq 1 24); do
@@ -2565,7 +2528,7 @@ test_council_blind_fabricated_narrative() {
     local fab_len fab=n grounded_ok=n plan_ok=n third_person_ok=n mixed_person_ok=n
     local same_clause_third_party_ok=n same_clause_self_and_third_party=n
     local wrapped=n did_not_have=n was_not_able=n lack_access=n url_port=n
-    local url_period_ok=n url_semicolon_ok=n assuming_ok=n shellcite_ok=n cantdiff=n
+    local url_period_ok=n url_semicolon_ok=n assuming_ok=n shellcite_blind=n cantdiff=n
     council_response_is_blind "$d/cantdiff.md" && cantdiff=y
     council_response_is_blind "$d/wrapped-admission.md" && wrapped=y
     council_response_is_blind "$d/did-not-have-access.md" && did_not_have=y
@@ -2576,7 +2539,7 @@ test_council_blind_fabricated_narrative() {
     council_response_is_blind "$d/url-semicolon-boundary.md" || url_semicolon_ok=y
     fab_len="$(tr -d '[:space:]' < "$d/fabricated.md" | wc -c | tr -d '[:space:]')"
     council_response_is_blind "$d/assuming.md" || assuming_ok=y
-    council_response_is_blind "$d/shellcite.md" || shellcite_ok=y
+    council_response_is_blind "$d/shellcite.md" && shellcite_blind=y
     council_response_is_blind "$d/fabricated.md" && fab=y
     council_response_is_blind "$d/grounded.md" || grounded_ok=y
     council_response_is_blind "$d/planreview.md" || plan_ok=y
@@ -2629,13 +2592,13 @@ test_council_blind_fabricated_narrative() {
           && "$wrapped" == "y" && "$did_not_have" == "y" \
           && "$was_not_able" == "y" && "$lack_access" == "y" && "$url_port" == "y" \
           && "$url_period_ok" == "y" && "$url_semicolon_ok" == "y" \
-          && "$assuming_ok" == "y" && "$shellcite_ok" == "y" && "$cantdiff" == "y" \
+          && "$assuming_ok" == "y" && "$shellcite_blind" == "y" && "$cantdiff" == "y" \
           && "$agy_status" == "blind" && "$blind" == *"agy"* \
           && "$codex_prov" == *"codex"* && "$codex_prov" != *"agy"* \
           && "$approving_fams" == "1" && "$met" == "false" ]]; then
         test_pass
     else
-        test_fail "fabricated-narrative blind detection wrong: fab=$fab fab_len=$fab_len grounded_ok=$grounded_ok plan_ok=$plan_ok third_person_ok=$third_person_ok mixed_person_ok=$mixed_person_ok wrapped=$wrapped did_not_have=$did_not_have was_not_able=$was_not_able lack_access=$lack_access url_port=$url_port url_period_ok=$url_period_ok url_semicolon_ok=$url_semicolon_ok assuming_ok=$assuming_ok shellcite_ok=$shellcite_ok cantdiff=$cantdiff agy_status='$agy_status' blind=[$blind] responders=[$codex_prov] approving_families=$approving_fams met=$met"
+        test_fail "fabricated-narrative blind detection wrong: fab=$fab fab_len=$fab_len grounded_ok=$grounded_ok plan_ok=$plan_ok third_person_ok=$third_person_ok mixed_person_ok=$mixed_person_ok wrapped=$wrapped did_not_have=$did_not_have was_not_able=$was_not_able lack_access=$lack_access url_port=$url_port url_period_ok=$url_period_ok url_semicolon_ok=$url_semicolon_ok assuming_ok=$assuming_ok shellcite_blind=$shellcite_blind cantdiff=$cantdiff agy_status='$agy_status' blind=[$blind] responders=[$codex_prov] approving_families=$approving_fams met=$met"
         return 1
     fi
 }
@@ -3019,7 +2982,7 @@ test_council_response_has_verdict_salvage() {
     load_council_lib || return 1
     local d; d="$(mktemp -d "$TEST_TMP_DIR/hasverdict.XXXXXX")"
     printf 'full review body\nVERDICT: APPROVE\n'        > "$d/complete.md"
-    printf '  verdict: revise please\n'                  > "$d/lower.md"
+    printf '  verdict: revise\n'                         > "$d/lower.md"
     printf 'review got cut off mid-sen'                  > "$d/partial.md"
     printf ''                                            > "$d/empty.md"
     if council_response_has_verdict "$d/complete.md" &&
@@ -3053,7 +3016,7 @@ test_council_seats_array_makes_quorum_inspectable() {
                           and has("seat") and has("provider") and has("provider_org")
                           and has("model") and has("status") and has("verdict")
                           and has("response_bytes") and has("payload_kind")
-                          and has("counted_as_approver")))
+                          and has("counted_as_approver") and has("contribution")))
         and (.seats | all(
             (.index | type == "number" and floor == .)
             and ([.seat, .persona, .provider, .provider_org, .model, .status, .payload_kind]
@@ -3081,6 +3044,14 @@ test_council_seats_array_makes_quorum_inspectable() {
         # truthy string that jq would still `select`.
         and (.seats | all(.counted_as_approver | type == "boolean"))
         and (.seats | all(.response_bytes | type == "number" and . >= 0))
+        and (.seats | all(
+            .contribution.artifact_digest | type == "string" and length >= 1
+        ))
+        and (.seats | all(
+            .contribution.access_state | test("^(failed|unverified|evidence-validated)$")
+        ))
+        and (.seats | all(.contribution.evidence_paths | type == "array"))
+        and (.seats | all(.contribution.comprehension_verified == false))
         # verdict is null (no substantive verdict) or a known token — never garbage.
         and (.seats | all((.verdict == null) or (.verdict | test("^(APPROVE|REVISE|BLOCK)$"))))
         # a counted approver is, by construction, a responded APPROVE seat.
@@ -3100,8 +3071,7 @@ test_council_seats_array_makes_quorum_inspectable() {
 test_council_host_native_detection
 test_council_live_response_host_native_skips_subprocess
 test_council_live_response_host_native_fails_for_synthesis
-test_council_verdict_parsing
-test_council_approving_providers_failsafe
+# Pure parser and approver-set contracts run in the fast contribution suite.
 test_council_split_double_seat_fails_quorum
 test_council_all_approve_meets_quorum
 test_council_detached_dispatch_atomic_and_propagates_rc

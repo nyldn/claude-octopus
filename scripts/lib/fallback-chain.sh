@@ -6,6 +6,9 @@ _octo_fallback_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if ! declare -f octo_provider_canonical >/dev/null 2>&1; then
     source "${_octo_fallback_lib_dir}/provider-registry.sh" 2>/dev/null || true
 fi
+if ! declare -f octo_model_canonical_id >/dev/null 2>&1; then
+    source "${_octo_fallback_lib_dir}/models.sh" 2>/dev/null || true
+fi
 unset _octo_fallback_lib_dir
 
 _octo_fallback_config_file() {
@@ -190,15 +193,53 @@ octo_fallback_canonical_agent_spec() {
     fi
 }
 
+octo_fallback_spec_matches_invocation_pin() {
+    local spec="${1:-}" provider="" model="" env_var="" pinned=""
+    [[ "$spec" == *:* ]] || return 1
+    provider="$(_octo_fallback_provider_identity "$spec")"
+    model="${spec#*:}"
+
+    if declare -f octo_provider_model_env >/dev/null 2>&1; then
+        env_var="$(octo_provider_model_env "$provider" 2>/dev/null || true)"
+        [[ -n "$env_var" ]] && pinned="${!env_var:-}"
+    fi
+    if [[ -z "$pinned" && "$provider" == "claude" ]]; then
+        pinned="${CLAUDE_MODEL:-}"
+    fi
+    [[ -n "$pinned" ]] || return 1
+    [[ "$(octo_model_canonical_id "$pinned")" == "$(octo_model_canonical_id "$model")" ]]
+}
+
+octo_fallback_admit_automatic_spec() {
+    local spec="${1:-}" escalation_grant="${2:-}" provider="" model="" canonical="" granted=""
+    [[ "$spec" == *:* ]] || return 0
+    provider="$(_octo_fallback_provider_identity "$spec")"
+    model="${spec#*:}"
+    canonical="$(octo_model_canonical_id "$model")" || return 1
+
+    if octo_model_automatic_target_allowed "$model" "$provider"; then
+        return 0
+    fi
+    # A provider model environment pin is explicit input to this invocation,
+    # not persisted fallback policy. Preserve that source before consulting a
+    # separate escalation grant.
+    octo_fallback_spec_matches_invocation_pin "$spec" && return 0
+    [[ -n "$escalation_grant" ]] || return 1
+    granted="$(octo_model_canonical_id "$escalation_grant")" || return 1
+    [[ "$granted" == "$canonical" ]]
+}
+
 octo_fallback_candidate_agent_spec() {
-    local candidate="$1" phase="${2:-}" type role provider model agent
+    local candidate="$1" phase="${2:-}" escalation_grant="${3:-}" type role provider model agent spec=""
     type="$(jq -r 'type' <<<"$candidate" 2>/dev/null || true)"
 
     if [[ "$type" == "string" ]]; then
         role="$(jq -r '.' <<<"$candidate")"
         [[ -n "$role" ]] || return 1
-        octo_fallback_role_agent_spec "$role" "$phase"
-        return
+        spec="$(octo_fallback_role_agent_spec "$role" "$phase")" || return 1
+        octo_fallback_admit_automatic_spec "$spec" "$escalation_grant" || return 1
+        printf '%s\n' "$spec"
+        return 0
     fi
     [[ "$type" == "object" ]] || return 1
 
@@ -212,24 +253,30 @@ octo_fallback_candidate_agent_spec() {
 
     role="$(jq -r '.role // empty' <<<"$candidate")"
     if [[ -n "$role" ]]; then
-        octo_fallback_role_agent_spec "$role" "$phase"
-        return
+        spec="$(octo_fallback_role_agent_spec "$role" "$phase")" || return 1
+        octo_fallback_admit_automatic_spec "$spec" "$escalation_grant" || return 1
+        printf '%s\n' "$spec"
+        return 0
     fi
 
     agent="$(jq -r '.agent // empty' <<<"$candidate")"
     if [[ -n "$agent" ]]; then
-        octo_fallback_canonical_agent_spec "$agent"
-        return
+        spec="$(octo_fallback_canonical_agent_spec "$agent")" || return 1
+        octo_fallback_admit_automatic_spec "$spec" "$escalation_grant" || return 1
+        printf '%s\n' "$spec"
+        return 0
     fi
 
     provider="$(jq -r '.provider // empty' <<<"$candidate")"
     model="$(jq -r '.model // empty' <<<"$candidate")"
     [[ -n "$provider" ]] || return 1
-    octo_fallback_canonical_agent_spec "${provider}${model:+:$model}"
+    spec="$(octo_fallback_canonical_agent_spec "${provider}${model:+:$model}")" || return 1
+    octo_fallback_admit_automatic_spec "$spec" "$escalation_grant" || return 1
+    printf '%s\n' "$spec"
 }
 
 octo_fallback_chain_agent_specs() {
-    local name="${1:-default}" phase="${2:-}" chain candidates candidate spec specs="" seen="|"
+    local name="${1:-default}" phase="${2:-}" escalation_grant="${3:-}" chain candidates candidate spec specs="" seen="|"
     chain="$(octo_fallback_chain_json "$name")" || return $?
     candidates="$(jq -ce '.[]' <<<"$chain" 2>/dev/null)" || {
         [[ "$chain" == "[]" ]] && return 0
@@ -237,7 +284,7 @@ octo_fallback_chain_agent_specs() {
     }
     while IFS= read -r candidate; do
         [[ -n "$candidate" ]] || continue
-        spec="$(octo_fallback_candidate_agent_spec "$candidate" "$phase" 2>/dev/null)" || return 2
+        spec="$(octo_fallback_candidate_agent_spec "$candidate" "$phase" "$escalation_grant" 2>/dev/null)" || return 2
         [[ -n "$spec" ]] || return 2
         [[ "$seen" == *"|$spec|"* ]] && continue
         seen+="$spec|"
@@ -289,10 +336,10 @@ _octo_fallback_provider_identity() {
 }
 
 octo_fallback_first_available() {
-    local name="${1:-default}" preferred="${2:-}" phase="${3:-}" spec executor specs
+    local name="${1:-default}" preferred="${2:-}" phase="${3:-}" escalation_grant="${4:-}" spec executor specs
     local preferred_provider="" candidate_provider=""
     preferred_provider="$(_octo_fallback_provider_identity "$preferred")"
-    specs="$(octo_fallback_chain_agent_specs "$name" "$phase")" || return $?
+    specs="$(octo_fallback_chain_agent_specs "$name" "$phase" "$escalation_grant")" || return $?
     while IFS= read -r spec; do
         [[ -n "$spec" ]] || continue
         executor="${spec%%:*}"
@@ -319,17 +366,23 @@ octo_fallback_output_usable() {
 
 run_agent_sync_fallback_chain() {
     local primary_agent="$1" prompt="$2" timeout_secs="${3:-120}" semantic_role="${4:-}" phase="${5:-}"
-    local validator="${6:-}" chain_name="${7:-default}" preferred_fallback="${8:-}"
+    local validator="${6:-}" chain_name="${7:-default}" preferred_fallback="${8:-}" escalation_grant="${9:-}"
     local spec raw_spec output="" rc=0 reason="" candidates="" fallback_specs="" seen="|"
 
-    fallback_specs="$(octo_fallback_chain_agent_specs "$chain_name" "$phase")" || return $?
-    for raw_spec in "$primary_agent" "$preferred_fallback"; do
-        [[ -n "$raw_spec" ]] || continue
-        spec="$(octo_fallback_canonical_agent_spec "$raw_spec")" || return 2
-        [[ "$seen" == *"|$spec|"* ]] && continue
+    fallback_specs="$(octo_fallback_chain_agent_specs "$chain_name" "$phase" "$escalation_grant")" || return $?
+    if [[ -n "$primary_agent" ]]; then
+        spec="$(octo_fallback_canonical_agent_spec "$primary_agent")" || return 2
         seen+="$spec|"
         candidates+="${spec}"$'\n'
-    done
+    fi
+    if [[ -n "$preferred_fallback" ]]; then
+        spec="$(octo_fallback_canonical_agent_spec "$preferred_fallback")" || return 2
+        octo_fallback_admit_automatic_spec "$spec" "$escalation_grant" || return 2
+        if [[ "$seen" != *"|$spec|"* ]]; then
+            seen+="$spec|"
+            candidates+="${spec}"$'\n'
+        fi
+    fi
     while IFS= read -r raw_spec; do
         [[ -n "$raw_spec" ]] || continue
         spec="$(octo_fallback_canonical_agent_spec "$raw_spec")" || return 2

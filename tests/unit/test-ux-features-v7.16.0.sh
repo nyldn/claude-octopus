@@ -213,7 +213,7 @@ else
     fail "Provider results section missing"
 fi
 
-if grep -q "Total Cost:" "$ALL_SRC"; then
+if grep -q "Estimated API Cost:" "$ALL_SRC"; then
     pass "Cost summary present"
 else
     fail "Cost summary missing"

@@ -340,14 +340,17 @@ providers, or public facts: run `make sync`. During development, run focused
 suites. Before an ordinary branch push, run `make ci-changed`; its checked-in
 manifest always runs sync, smoke, packaging, and reachability checks and fails
 closed to the full matrix for shared or unmapped changes. Before merge and
-release, run `make ci-local` (the complete required-check and CI-only matrix).
+release, run `make ci-local` for sync-check plus the local smoke, unit, and
+integration suites. Run the separate portability and symlink jobs in hosted CI.
 
 ### Hard rules (each one has broken a real PR)
 
 - Never hand-write component counts into `plugin.json`'s description; the marketplace generator appends its own counts and `--check` fails on the collision. The generator derives the marketplace blurb from `plugin.json`'s description — to change it, edit `plugin.json` and run `make sync`, never `marketplace.json` itself.
 - Shell scripts and Python helpers stay `100755`. Verify before push: `git diff origin/main...HEAD --summary | grep "mode change"` must be empty. CI enforces this (Portability Lint job; `allow-mode-change` PR label bypasses when intentional). Local test runs (`make ci-local`, some unit suites) chmod test fixtures as a side effect — recheck modes after every local test run, not just after editing.
 - Provider case globs are order-sensitive: `claude-sdk*` must appear before `claude*`. A shadowed arm fails silently.
-- `provider-routing.sh` has TWO provider whitelists (plus two matching error strings). Update all four sites or dispatch rejects the provider inconsistently.
+- Provider identity and capabilities belong in both registry tables. Keep the
+  rows in parity and let `octo_provider_validate_contracts` reject incomplete
+  registrations.
 - In shell, quote env assignments as whole arguments: `"SOME_API_KEY=${VAR}"`, not `SOME_API_KEY="${VAR}"`. The expert-review secret scanner false-positives on the latter.
 - Never put generated text or Markdown directly in shell GitHub-body arguments such as `--body` or `-f body=`. Stream it to `./scripts/safe-gh-comment.sh --repo OWNER/REPO ... -` on stdin (or pass a private file); the helper snapshots and validates outbound text before a silent write.
 - CI waiters must assert the named required checks (Smoke Tests, Unit Tests, Integration Tests) are PRESENT and terminal. `all(.bucket != "pending")` over an empty list is vacuously true and fires instantly.
@@ -355,6 +358,9 @@ release, run `make ci-local` (the complete required-check and CI-only matrix).
 - Tag releases on the squash-merge commit on `main`, never on the branch head. Full release procedure: `RELEASING.md`.
 - Fork PRs stall at `action_required` after every push; approve with `gh api -X POST repos/nyldn/claude-octopus/actions/runs/<id>/approve`.
 - Provider wiring is a 7-point checklist across 5 files: `docs/PROVIDERS.md`. Do not wing it from one example.
+- MCP and OpenClaw provider environment names share
+  `config/provider-env-allowlist.json`; keep both adapter tests green when it
+  changes.
 
 ### Memory ruling (single source of truth)
 

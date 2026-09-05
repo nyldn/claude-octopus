@@ -1,3 +1,5 @@
 interface:
   display_name: "Review Response"
   short_description: "Use when a reviewer, CI bot, or another AI leaves feedback to..."
+policy:
+  allow_implicit_invocation: false

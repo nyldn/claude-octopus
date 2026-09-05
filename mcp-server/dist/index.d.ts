@@ -22,4 +22,16 @@
  * IDE integration tools:
  *   octopus_set_editor_context → Inject IDE state (file, selection, cursor) into orchestration
  */
+import { execFile } from "node:child_process";
+declare const execFileAsync: typeof execFile.__promisify__;
+export declare function runOrchestrate(command: string, prompt: string, projectRoot: string, flags?: string[], postFlags?: string[], executor?: typeof execFileAsync): Promise<{
+    text: string;
+    isError: boolean;
+}>;
+interface SkillMeta {
+    name: string;
+    description: string;
+    file: string;
+}
+export declare function loadSkillMetadata(): Promise<SkillMeta[]>;
 export {};

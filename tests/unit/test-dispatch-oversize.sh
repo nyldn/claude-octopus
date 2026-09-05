@@ -16,6 +16,11 @@ validate_agent_type() { return 0; }
 
 source "$PROJECT_ROOT/scripts/lib/dispatch.sh"
 
+# These cases isolate compression mechanics from the separately tested output
+# and system/tool context reserves.
+OCTOPUS_CONTEXT_OUTPUT_RESERVE_TOKENS=0
+OCTOPUS_CONTEXT_OVERHEAD_TOKENS=0
+
 long_prompt="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 test_case "truncate strategy includes its marker inside the exact resolved boundary"

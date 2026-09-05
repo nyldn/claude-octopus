@@ -5,10 +5,50 @@
 
 _octopus_cost_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OCTOPUS_MODEL_PRICING_FILE="${OCTOPUS_MODEL_PRICING_FILE:-${_octopus_cost_lib_dir}/../../config/model-pricing.tsv}"
+OCTOPUS_USAGE_LEDGER_HELPER="${OCTOPUS_USAGE_LEDGER_HELPER:-${_octopus_cost_lib_dir}/../helpers/usage-ledger.py}"
 
 # Session usage tracking file
 USAGE_FILE="${WORKSPACE_DIR}/usage-session.json"
 USAGE_HISTORY_DIR="${WORKSPACE_DIR}/usage-history"
+
+_octo_usage_tariff_version() {
+    local digest=""
+    if command -v sha256sum >/dev/null 2>&1; then
+        digest=$(sha256sum "$OCTOPUS_MODEL_PRICING_FILE" 2>/dev/null | awk '{print $1}')
+    elif command -v shasum >/dev/null 2>&1; then
+        digest=$(shasum -a 256 "$OCTOPUS_MODEL_PRICING_FILE" 2>/dev/null | awk '{print $1}')
+    fi
+    [[ -n "$digest" ]] && printf 'sha256:%s\n' "$digest" || printf 'unknown\n'
+}
+
+_octo_usage_billing_mode() {
+    if declare -f is_api_based_provider >/dev/null 2>&1 && is_api_based_provider "$1"; then
+        printf 'api\n'
+    else
+        printf 'included\n'
+    fi
+}
+
+_octo_usage_append() {
+    if ! command -v python3 >/dev/null 2>&1 || [[ ! -r "$OCTOPUS_USAGE_LEDGER_HELPER" ]]; then
+        declare -f log >/dev/null 2>&1 && log WARN "Usage ledger unavailable; usage event was not recorded"
+        return 0
+    fi
+    if ! python3 "$OCTOPUS_USAGE_LEDGER_HELPER" append --file "${USAGE_FILE}.log" "$@"; then
+        declare -f log >/dev/null 2>&1 && log WARN "Usage ledger rejected an event"
+    fi
+    return 0
+}
+
+_octo_usage_report() {
+    local format="$1"
+    if ! command -v python3 >/dev/null 2>&1 || [[ ! -r "$OCTOPUS_USAGE_LEDGER_HELPER" ]]; then
+        printf '%s\n' "Usage reporting requires Python 3 and usage-ledger.py" >&2
+        return 69
+    fi
+    python3 "$OCTOPUS_USAGE_LEDGER_HELPER" report \
+        --file "${USAGE_FILE}.log" --session-file "$USAGE_FILE" --format "$format"
+}
 
 # Initialize usage tracking for current session
 init_usage_tracking() {
@@ -64,6 +104,9 @@ estimate_tokens() {
 octo_effective_model_pricing() {
     local model="$1" input_tokens="$2" input_price="$3" output_price="$4"
     local rule="" threshold="" input_multiplier="" output_multiplier=""
+    if declare -f octo_model_canonical_id >/dev/null 2>&1; then
+        model="$(octo_model_canonical_id "$model")" || return 1
+    fi
     rule="$(awk -F'\t' -v model="$model" '$1 == "request-rule" && $2 == model {print $3 ":" $4 ":" $5; exit}' "$OCTOPUS_MODEL_PRICING_FILE" 2>/dev/null || true)"
     if [[ -n "$rule" ]]; then
         threshold="${rule%%:*}"
@@ -108,11 +151,15 @@ estimate_agent_call_cost() {
 
 # Parse native Task tool metrics from <usage> blocks (v8.6.0, enhanced v8.8.0)
 # Sets globals: _PARSED_TOKENS, _PARSED_INPUT_TOKENS,
-# _PARSED_OUTPUT_TOKENS, _PARSED_TOOL_USES, _PARSED_DURATION_MS, _PARSED_SPEED
+# _PARSED_CACHED_INPUT_TOKENS, _PARSED_CACHE_WRITE_TOKENS,
+# _PARSED_OUTPUT_TOKENS, _PARSED_REASONING_TOKENS, _PARSED_TOOL_USES,
+# _PARSED_DURATION_MS, _PARSED_SPEED
 # Guards on SUPPORTS_NATIVE_TASK_METRICS. Falls back gracefully on parse failure.
 parse_task_metrics() {
     local output="$1"
     _PARSED_TOKENS="" ; _PARSED_INPUT_TOKENS="" ; _PARSED_OUTPUT_TOKENS=""
+    _PARSED_CACHED_INPUT_TOKENS="" ; _PARSED_CACHE_WRITE_TOKENS=""
+    _PARSED_REASONING_TOKENS=""
     _PARSED_TOOL_USES="" ; _PARSED_DURATION_MS="" ; _PARSED_SPEED=""
     [[ "$SUPPORTS_NATIVE_TASK_METRICS" != "true" ]] && return 0
 
@@ -121,8 +168,11 @@ parse_task_metrics() {
     if [[ -n "$usage_block" ]]; then
         # v9.5: bash regex extraction (zero subshells, was 4 echo|grep|grep chains)
         [[ "$usage_block" =~ total_tokens:[[:space:]]*([0-9]+) ]] && _PARSED_TOKENS="${BASH_REMATCH[1]}" || _PARSED_TOKENS=""
-        [[ "$usage_block" =~ input_tokens:[[:space:]]*([0-9]+) ]] && _PARSED_INPUT_TOKENS="${BASH_REMATCH[1]}" || _PARSED_INPUT_TOKENS=""
+        [[ "$usage_block" =~ (^|[[:space:]])input_tokens:[[:space:]]*([0-9]+) ]] && _PARSED_INPUT_TOKENS="${BASH_REMATCH[2]}" || _PARSED_INPUT_TOKENS=""
+        [[ "$usage_block" =~ cached_input_tokens:[[:space:]]*([0-9]+) ]] && _PARSED_CACHED_INPUT_TOKENS="${BASH_REMATCH[1]}" || _PARSED_CACHED_INPUT_TOKENS=""
+        [[ "$usage_block" =~ cache_(write|creation)_input_tokens:[[:space:]]*([0-9]+) ]] && _PARSED_CACHE_WRITE_TOKENS="${BASH_REMATCH[2]}" || _PARSED_CACHE_WRITE_TOKENS=""
         [[ "$usage_block" =~ output_tokens:[[:space:]]*([0-9]+) ]] && _PARSED_OUTPUT_TOKENS="${BASH_REMATCH[1]}" || _PARSED_OUTPUT_TOKENS=""
+        [[ "$usage_block" =~ reasoning_tokens:[[:space:]]*([0-9]+) ]] && _PARSED_REASONING_TOKENS="${BASH_REMATCH[1]}" || _PARSED_REASONING_TOKENS=""
         [[ "$usage_block" =~ tool_uses:[[:space:]]*([0-9]+) ]] && _PARSED_TOOL_USES="${BASH_REMATCH[1]}" || _PARSED_TOOL_USES=""
         [[ "$usage_block" =~ duration_ms:[[:space:]]*([0-9]+) ]] && _PARSED_DURATION_MS="${BASH_REMATCH[1]}" || _PARSED_DURATION_MS=""
         # v8.8: Parse OTel speed attribute (fast|standard) when available
@@ -132,7 +182,10 @@ parse_task_metrics() {
     fi
     [[ "$_PARSED_TOKENS" =~ ^[0-9]+$ ]] || _PARSED_TOKENS=""
     [[ "$_PARSED_INPUT_TOKENS" =~ ^[0-9]+$ ]] || _PARSED_INPUT_TOKENS=""
+    [[ "$_PARSED_CACHED_INPUT_TOKENS" =~ ^[0-9]+$ ]] || _PARSED_CACHED_INPUT_TOKENS=""
+    [[ "$_PARSED_CACHE_WRITE_TOKENS" =~ ^[0-9]+$ ]] || _PARSED_CACHE_WRITE_TOKENS=""
     [[ "$_PARSED_OUTPUT_TOKENS" =~ ^[0-9]+$ ]] || _PARSED_OUTPUT_TOKENS=""
+    [[ "$_PARSED_REASONING_TOKENS" =~ ^[0-9]+$ ]] || _PARSED_REASONING_TOKENS=""
     [[ "$_PARSED_TOOL_USES" =~ ^[0-9]+$ ]] || _PARSED_TOOL_USES=""
     [[ "$_PARSED_DURATION_MS" =~ ^[0-9]+$ ]] || _PARSED_DURATION_MS=""
     [[ "$_PARSED_SPEED" =~ ^(fast|standard)$ ]] || _PARSED_SPEED=""
@@ -396,6 +449,7 @@ record_agent_call() {
     local phase="${4:-unknown}"
     local role="${5:-none}"
     local duration_ms="${6:-0}"
+    local call_id="${7:-call-$(date +%s)-$$-${RANDOM}}"
 
     # Skip if dry run
     [[ "$DRY_RUN" == "true" ]] && return 0
@@ -409,54 +463,15 @@ record_agent_call() {
     local cost
     cost=$(estimate_agent_call_cost "$agent_type" "$model" "$prompt")
 
-    local timestamp
-    timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-    # v8.34.0: Capture account context in metrics (G10)
-    if [[ "$SUPPORTS_ACCOUNT_ENV_VARS" == "true" ]]; then
-        local account_uuid="${CLAUDE_CODE_ACCOUNT_UUID:-unknown}"
-        local org_uuid="${CLAUDE_CODE_ORGANIZATION_UUID:-unknown}"
-        log "DEBUG" "Account: $account_uuid | Org: $org_uuid"
-    fi
-
-    # v8.32.0: Account env vars for per-user traceability (Claude Code v2.1.51+)
-    local account_uuid="${CLAUDE_ACCOUNT_UUID:-unknown}"
-    local account_org="${CLAUDE_ORG_UUID:-unknown}"
-    # Hash email for PII protection — log UUID freely
-    local account_email_hash="unknown"
-    if [[ -n "${CLAUDE_USER_EMAIL:-}" ]] && command -v sha256sum &>/dev/null; then
-        account_email_hash=$(printf '%s' "$CLAUDE_USER_EMAIL" | sha256sum | cut -d' ' -f1)
-    elif [[ -n "${CLAUDE_USER_EMAIL:-}" ]] && command -v shasum &>/dev/null; then
-        account_email_hash=$(printf '%s' "$CLAUDE_USER_EMAIL" | shasum -a 256 | cut -d' ' -f1)
-    fi
-
-    # Append to calls array using a temp file approach (jq-free for portability)
     if [[ -f "$USAGE_FILE" ]]; then
-        # Create call record
-        local call_record
-        call_record=$(cat << EOF
-    {
-      "timestamp": "$timestamp",
-      "agent": "$agent_type",
-      "model": "$model",
-      "phase": "$phase",
-      "role": "$role",
-      "input_tokens": $input_tokens,
-      "output_tokens": $output_tokens,
-      "total_tokens": $total_tokens,
-      "cost_usd": $cost,
-      "duration_ms": $duration_ms,
-      "account_uuid": "$account_uuid",
-      "org_uuid": "$account_org",
-      "email_hash": "$account_email_hash"
-    }
-EOF
-)
-
-        # Update totals in a simple tracking file
-        echo "$timestamp|$agent_type|$model|$phase|$role|$input_tokens|$output_tokens|$total_tokens|$cost|$duration_ms|$account_uuid" >> "${USAGE_FILE}.log"
-
-        log DEBUG "Recorded call: agent=$agent_type model=$model tokens=$total_tokens cost=\$$cost"
+        _octo_usage_append --state reserved --call-id "$call_id" \
+            --agent "$agent_type" --model "$model" --phase "$phase" --role "$role" \
+            --input-tokens "$input_tokens" --output-tokens "$output_tokens" \
+            --total-tokens "$total_tokens" --usage-source estimated --cost "$cost" \
+            --cost-status estimated --duration-ms "$duration_ms" \
+            --billing-mode "$(_octo_usage_billing_mode "$agent_type")" \
+            --tariff-version "$(_octo_usage_tariff_version)"
+        log DEBUG "Reserved call: id=$call_id agent=$agent_type model=$model tokens=$total_tokens cost=\$$cost"
     fi
 }
 
@@ -482,83 +497,9 @@ generate_usage_report() {
     esac
 }
 
-# Generate table format report using awk (bash 3.x compatible)
+# Generate reports through the reconciled JSONL reader.
 generate_usage_table() {
-    local log_file="${USAGE_FILE}.log"
-
-    # Calculate totals using awk
-    local totals
-    totals=$(awk -F'|' '
-        { calls++; tokens+=$8; cost+=$9 }
-        END { printf "%d|%d|%.6f", calls, tokens, cost }
-    ' "$log_file")
-
-    local total_calls total_tokens total_cost
-    total_calls="${totals%%|*}"
-    local _t_rest="${totals#*|}"; total_tokens="${_t_rest%%|*}"
-    local _t_rest2="${totals#*|}"; total_cost="${_t_rest2#*|}"
-
-    echo ""
-    echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║  ${GREEN}USAGE REPORT${CYAN}                                                 ║${NC}"
-    echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
-    echo -e "${CYAN}║${NC}                                                                ${CYAN}║${NC}"
-    printf "${CYAN}║${NC}  Total Calls:    ${GREEN}%-6s${NC}                                       ${CYAN}║${NC}\n" "$total_calls"
-    printf "${CYAN}║${NC}  Total Tokens:   ${GREEN}%-10s${NC}                                   ${CYAN}║${NC}\n" "$total_tokens"
-    printf "${CYAN}║${NC}  Total Cost:     ${GREEN}\$%-10s${NC}                                  ${CYAN}║${NC}\n" "$total_cost"
-    echo -e "${CYAN}║${NC}                                                                ${CYAN}║${NC}"
-    echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
-    echo -e "${CYAN}║${NC}  ${YELLOW}By Model${NC}                           Tokens      Cost    Calls ${CYAN}║${NC}"
-    echo -e "${CYAN}╟${_DASH}───╢${NC}"
-
-    # Aggregate by model using awk
-    awk -F'|' '
-        { model[$3] += $8; cost[$3] += $9; calls[$3]++ }
-        END {
-            for (m in model) {
-                printf "  %-30s %8d  $%-7.4f  %3d\n", m, model[m], cost[m], calls[m]
-            }
-        }
-    ' "$log_file" | while read -r line; do
-        echo -e "${CYAN}║${NC}$line   ${CYAN}║${NC}"
-    done
-
-    echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
-    echo -e "${CYAN}║${NC}  ${YELLOW}By Agent${NC}                           Tokens      Cost    Calls ${CYAN}║${NC}"
-    echo -e "${CYAN}╟${_DASH}───╢${NC}"
-
-    # Aggregate by agent using awk
-    awk -F'|' '
-        { agent[$2] += $8; cost[$2] += $9; calls[$2]++ }
-        END {
-            for (a in agent) {
-                printf "  %-30s %8d  $%-7.4f  %3d\n", a, agent[a], cost[a], calls[a]
-            }
-        }
-    ' "$log_file" | while read -r line; do
-        echo -e "${CYAN}║${NC}$line   ${CYAN}║${NC}"
-    done
-
-    echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
-    echo -e "${CYAN}║${NC}  ${YELLOW}By Phase${NC}                           Tokens      Cost    Calls ${CYAN}║${NC}"
-    echo -e "${CYAN}╟${_DASH}───╢${NC}"
-
-    # Aggregate by phase using awk
-    awk -F'|' '
-        { phase[$4] += $8; cost[$4] += $9; calls[$4]++ }
-        END {
-            for (p in phase) {
-                printf "  %-30s %8d  $%-7.4f  %3d\n", p, phase[p], cost[p], calls[p]
-            }
-        }
-    ' "$log_file" | while read -r line; do
-        echo -e "${CYAN}║${NC}$line   ${CYAN}║${NC}"
-    done
-
-    echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
-    echo ""
-    echo -e "${YELLOW}Note:${NC} Token counts are estimates (~4 chars/token). Actual costs may vary."
-    echo ""
+    _octo_usage_report table
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -578,59 +519,12 @@ display_session_metrics() {
 
 # v8.49.0: Display per-provider breakdown (codex/agy/claude)
 display_provider_breakdown() {
-    local log_file="${USAGE_FILE}.log"
-    [[ -f "$log_file" ]] || return 0
-
-    echo -e "${CYAN}Provider Breakdown:${NC}"
-    awk -F'|' '
-        {
-            # Extract provider from agent type (e.g., codex-spark -> codex)
-            provider = $2
-            gsub(/-.*/, "", provider)
-            tokens[provider] += $8
-            cost[provider] += $9
-            calls[provider]++
-        }
-        END {
-            for (p in calls) {
-                printf "  %-12s  %6d calls  %8d tokens  $%.4f est.\n", p, calls[p], tokens[p], cost[p]
-            }
-        }
-    ' "$log_file"
-    echo ""
+    _octo_usage_report providers
 }
 
 # v8.49.0: Display per-phase cost table with model used
 display_per_phase_cost_table() {
-    local log_file="${USAGE_FILE}.log"
-    [[ -f "$log_file" ]] || return 0
-
-    echo -e "${CYAN}Per-Phase Cost Breakdown:${NC}"
-    printf "  %-12s  %-25s  %8s  %s\n" "Phase" "Model" "Tokens" "Est. Cost"
-    echo "  ${_DASH}─"
-    awk -F'|' '
-        {
-            phase = $4
-            model = $3
-            key = phase "|" model
-            tokens[key] += $8
-            cost[key] += $9
-            calls[key]++
-            # Track which model was used per phase (last one wins for display)
-            phase_model[phase] = model
-            phase_tokens[phase] += $8
-            phase_cost[phase] += $9
-        }
-        END {
-            # Sort by phase name
-            n = asorti(phase_tokens, sorted)
-            for (i = 1; i <= n; i++) {
-                p = sorted[i]
-                printf "  %-12s  %-25s  %8d  $%.4f\n", p, phase_model[p], phase_tokens[p], phase_cost[p]
-            }
-        }
-    ' "$log_file"
-    echo ""
+    _octo_usage_report phases
 }
 
 # v8.49.0: Record agent start (returns metrics ID for correlation)
@@ -669,6 +563,9 @@ record_agent_complete() {
     local duration_ms="${8:-0}"
     local native_input_tokens="${9:-}"
     local native_output_tokens="${10:-}"
+    local cached_input_tokens="${11:-0}"
+    local cache_write_tokens="${12:-0}"
+    local reasoning_tokens="${13:-0}"
     local metrics_base="${WORKSPACE_DIR:-${HOME}/.claude-octopus}"
     if declare -f get_metrics_base >/dev/null 2>&1; then
         metrics_base="$(get_metrics_base)"
@@ -676,6 +573,19 @@ record_agent_complete() {
     local start_file="${metrics_base}/.agent-start-${metrics_id}"
 
     [[ "$DRY_RUN" == "true" ]] && return 0
+
+    local usage_source="actual"
+    if [[ ! "$actual_tokens" =~ ^[0-9]+$ ]]; then
+        local start_record measured_input_tokens
+        start_record="$(cat "$start_file" 2>/dev/null || true)"
+        measured_input_tokens="${start_record#*|}"
+        if [[ "$start_record" == *"|"* && "$measured_input_tokens" =~ ^[0-9]+$ ]]; then
+            native_input_tokens="$measured_input_tokens"
+            native_output_tokens="$(estimate_tokens "$output")"
+            actual_tokens=$((native_input_tokens + native_output_tokens))
+            usage_source="estimated-output"
+        fi
+    fi
 
     # If we have actual token data from <usage> block, record a completion entry
     if [[ -n "$actual_tokens" && "$actual_tokens" =~ ^[0-9]+$ ]]; then
@@ -686,8 +596,15 @@ record_agent_complete() {
         # only a total, combine it with the prompt measurement captured at
         # dispatch start instead of inventing a percentage split.
         local input_tokens="" output_tokens=""
+        local reported_component_total=0
+        [[ "$cached_input_tokens" =~ ^[0-9]+$ ]] || cached_input_tokens=0
+        [[ "$cache_write_tokens" =~ ^[0-9]+$ ]] || cache_write_tokens=0
+        [[ "$reasoning_tokens" =~ ^[0-9]+$ ]] || reasoning_tokens=0
+        if [[ "$native_input_tokens" =~ ^[0-9]+$ && "$native_output_tokens" =~ ^[0-9]+$ ]]; then
+            reported_component_total=$((native_input_tokens + native_output_tokens + cached_input_tokens + cache_write_tokens + reasoning_tokens))
+        fi
         if [[ "$native_input_tokens" =~ ^[0-9]+$ && "$native_output_tokens" =~ ^[0-9]+$ ]] &&
-           (( native_input_tokens + native_output_tokens == actual_tokens )); then
+           (( native_input_tokens + native_output_tokens == actual_tokens || reported_component_total == actual_tokens )); then
             input_tokens="$native_input_tokens"
             output_tokens="$native_output_tokens"
         elif [[ "$native_input_tokens" =~ ^[0-9]+$ ]] && (( native_input_tokens <= actual_tokens )); then
@@ -721,83 +638,65 @@ record_agent_complete() {
         pricing="$(octo_effective_model_pricing "$model" "$input_tokens" "$input_price" "$output_price")"
         input_price="${pricing%%:*}"
         output_price="${pricing##*:}"
-        local cost
-        cost=$(awk "BEGIN {printf \"%.6f\", ($input_tokens * $input_price + $output_tokens * $output_price) / 1000000}")
+        local cost="" cost_status="$usage_source"
+        if [[ "$cached_input_tokens" =~ ^[0-9]+$ && "$cache_write_tokens" =~ ^[0-9]+$ &&
+              "$reasoning_tokens" =~ ^[0-9]+$ ]] &&
+           (( cached_input_tokens > 0 || cache_write_tokens > 0 || reasoning_tokens > 0 )); then
+            # The canonical table currently has uncached input/output tariffs
+            # only. Preserve richer native components but do not silently price
+            # cached or reasoning usage as ordinary input/output.
+            cost_status="unknown-cache-tariff"
+        else
+            cached_input_tokens=0
+            cache_write_tokens=0
+            reasoning_tokens=0
+            cost=$(awk "BEGIN {printf \"%.6f\", ($input_tokens * $input_price + $output_tokens * $output_price) / 1000000}")
+        fi
 
-        # Append actual metrics (suffixed with :actual to distinguish from estimates)
+        # Append one terminal event using the reservation's call ID.
         if [[ -f "${USAGE_FILE}.log" ]]; then
-            echo "${timestamp}|${agent_type}|${model}|${phase}|actual|${input_tokens}|${output_tokens}|${actual_tokens}|${cost}|${duration_ms}|${metrics_id}" >> "${USAGE_FILE}.log"
-            log DEBUG "Recorded actual metrics: agent=$agent_type tokens=$actual_tokens cost=\$$cost duration=${duration_ms}ms"
+            _octo_usage_append --state completed --call-id "$metrics_id" \
+                --timestamp "$timestamp" --agent "$agent_type" --model "$model" \
+                --phase "$phase" --role actual --input-tokens "$input_tokens" \
+                --cached-input-tokens "$cached_input_tokens" \
+                --cache-write-tokens "$cache_write_tokens" \
+                --output-tokens "$output_tokens" --reasoning-tokens "$reasoning_tokens" \
+                --total-tokens "$actual_tokens" --usage-source "$usage_source" --cost "$cost" \
+                --cost-status "$cost_status" --duration-ms "$duration_ms" \
+                --tool-uses "$tool_uses" --billing-mode "$(_octo_usage_billing_mode "$agent_type")" \
+                --tariff-version "$(_octo_usage_tariff_version)"
+            log DEBUG "Completed call: id=$metrics_id agent=$agent_type tokens=$actual_tokens cost=${cost:-unknown} duration=${duration_ms}ms"
         fi
     fi
     rm -f "$start_file" 2>/dev/null || true
+}
+
+record_agent_failure() {
+    local call_id="$1"
+    local duration_ms="${2:-0}"
+    local reason="${3:-Provider call failed}"
+    local state="${4:-failed}"
+    case "$state" in failed|cancelled|timeout) ;; *) state=failed ;; esac
+    [[ "${DRY_RUN:-false}" == "true" || -z "$call_id" ]] && return 0
+    _octo_usage_append --state "$state" --call-id "$call_id" \
+        --duration-ms "$duration_ms" --failure-reason "$reason" \
+        --usage-source estimated --cost-status estimated
+    local metrics_base="${WORKSPACE_DIR:-${HOME}/.claude-octopus}"
+    if declare -f get_metrics_base >/dev/null 2>&1; then
+        metrics_base="$(get_metrics_base)"
+    fi
+    rm -f "${metrics_base}/.agent-start-${call_id}" 2>/dev/null || true
 }
 
 # [EXTRACTED to lib/error-tracking.sh]
 
 # Generate CSV format report
 generate_usage_csv() {
-    echo "timestamp,agent,model,phase,role,input_tokens,output_tokens,total_tokens,cost_usd,duration_ms"
-    cat "${USAGE_FILE}.log" | tr '|' ','
+    _octo_usage_report csv
 }
 
-# Generate JSON format report (bash 3.x compatible)
 generate_usage_json() {
-    local log_file="${USAGE_FILE}.log"
-
-    # Calculate totals using awk
-    local totals
-    totals=$(awk -F'|' '
-        { calls++; tokens+=$8; cost+=$9 }
-        END { printf "%d|%d|%.6f", calls, tokens, cost }
-    ' "$log_file")
-
-    local total_calls total_tokens total_cost
-    total_calls="${totals%%|*}"
-    local _t_rest="${totals#*|}"; total_tokens="${_t_rest%%|*}"
-    local _t_rest2="${totals#*|}"; total_cost="${_t_rest2#*|}"
-
-    local session_id
-    session_id=$(grep -o '"session_id": "[^"]*"' "$USAGE_FILE" 2>/dev/null | cut -d'"' -f4)
-    local started_at
-    started_at=$(grep -o '"started_at": "[^"]*"' "$USAGE_FILE" 2>/dev/null | cut -d'"' -f4)
-
-    cat << EOF
-{
-  "session_id": "$session_id",
-  "started_at": "$started_at",
-  "generated_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-  "totals": {
-    "calls": $total_calls,
-    "tokens": $total_tokens,
-    "cost_usd": $total_cost
-  },
-  "calls": [
-EOF
-
-    local first=true
-    while IFS='|' read -r timestamp agent model phase role input_tokens output_tokens tokens cost duration; do
-        [[ "$first" == "true" ]] || echo ","
-        first=false
-        cat << EOF
-    {
-      "timestamp": "$timestamp",
-      "agent": "$agent",
-      "model": "$model",
-      "phase": "$phase",
-      "role": "$role",
-      "input_tokens": $input_tokens,
-      "output_tokens": $output_tokens,
-      "total_tokens": $tokens,
-      "cost_usd": $cost,
-      "duration_ms": $duration
-    }
-EOF
-    done < "$log_file"
-
-    echo ""
-    echo "  ]"
-    echo "}"
+    _octo_usage_report json
 }
 
 
@@ -939,6 +838,10 @@ get_model_pricing() {
     local model="$1"
     local provider="${2:-}" kind="" id="" input_price="" output_price="" _notes=""
     local model_price="" provider_price="" provider_override="" default_price="1.00:5.00"
+
+    if declare -f octo_model_canonical_id >/dev/null 2>&1; then
+        model="$(octo_model_canonical_id "$model")" || return 1
+    fi
 
     case "$provider" in
         claude-sdk*) provider="claude-sdk" ;;

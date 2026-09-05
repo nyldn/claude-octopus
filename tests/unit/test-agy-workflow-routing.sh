@@ -58,7 +58,7 @@ test_configured_fallback_chain_routes_native_resolver() {
     local cfg out
     cfg="$TEST_TMP_DIR/providers-configured.json"
     cat > "$cfg" <<'JSON'
-{"routing":{"roles":{"architect":{"provider":"claude","model":"claude-opus-test"}},"fallbackChains":{"default":[{"role":"architect"}]}}}
+{"routing":{"roles":{"architect":{"provider":"claude","model":"claude-opus-5"}},"fallbackChains":{"default":[{"role":"architect"}]}}}
 JSON
     out="$(env \
         "HOME=$TEST_TMP_DIR/home-configured" \
@@ -67,7 +67,7 @@ JSON
         is_agent_available(){ [[ "$1" == claude ]]; }
         is_agent_available_v2(){ [[ "$1" == claude ]]; }
         get_fallback_agent codex coding')"
-    [[ "$out" == "claude:claude-opus-test" ]] && test_pass || test_fail "expected configured qualified claude fallback, got: $out"
+    [[ "$out" == "claude:claude-opus-5" ]] && test_pass || test_fail "expected configured qualified claude fallback, got: $out"
 }
 
 test_no_functional_gemini_dispatch() {

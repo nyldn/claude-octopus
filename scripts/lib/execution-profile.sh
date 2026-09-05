@@ -3,21 +3,10 @@
 # Backward compatible with string routes (provider:model) and supports object routes:
 # {"provider":"codex","model":"gpt-5.6","reasoning":"medium","reasoningPolicy":"strict"}
 
-# Return a stable vendor family for review-independence decisions. Model names
-# are accepted here instead of provider aliases because run artifacts record the
-# concrete requested and resolved model identities.
-octo_model_family() {
-  case "${1:-}" in
-    claude-*|anthropic/*) printf '%s\n' anthropic ;;
-    gpt-*|o[134]-*|codex*|openai/*) printf '%s\n' openai ;;
-    gemini-*|agy-*|google/*) printf '%s\n' google ;;
-    qwen-*|qwen/*) printf '%s\n' alibaba ;;
-    grok-*|xai/*|cursor-grok-*) printf '%s\n' xai ;;
-    kimi-*|moonshot/*) printf '%s\n' moonshot ;;
-    composer-*|cursor-agent*) printf '%s\n' cursor ;;
-    *) printf '%s\n' unknown ;;
-  esac
-}
+_octo_execution_profile_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if ! declare -f octo_model_family >/dev/null 2>&1; then
+  source "${_octo_execution_profile_dir}/models.sh" 2>/dev/null || true
+fi
 
 # octo_route_task_class <prompt> <role> <phase>
 #

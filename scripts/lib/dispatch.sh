@@ -2,6 +2,9 @@
 _profile_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_profile_lib_dir}/agent-spec.sh" 2>/dev/null || true
 source "${_profile_lib_dir}/provider-registry.sh" || { echo "dispatch: failed to load provider-registry.sh" >&2; return 1 2>/dev/null || exit 1; }
+if ! declare -f get_model_capability >/dev/null 2>&1; then
+    source "${_profile_lib_dir}/models.sh" 2>/dev/null || true
+fi
 if ! declare -f octopus_resolve_reasoning_level >/dev/null 2>&1; then
     source "${_profile_lib_dir}/execution-profile.sh" 2>/dev/null || true
 fi
@@ -189,7 +192,11 @@ _codex_dispatch_is_oss_model() {
 
 _octopus_require_codex_model_version() {
     local model="$1"
-    [[ "$model" == "gpt-6-astra" ]] || return 0
+    local canonical_model="$model"
+    if declare -f octo_model_canonical_id >/dev/null 2>&1; then
+        canonical_model="$(octo_model_canonical_id "$model")" || return 1
+    fi
+    [[ "$canonical_model" == "gpt-6-astra" ]] || return 0
     local installed_version
     installed_version="$(octo_codex_installed_version)"
     if ! octo_codex_model_version_ok "$installed_version" "$model"; then
@@ -257,6 +264,24 @@ get_tool_policy() {
             echo "read_communicate" ;;
         *) echo "full" ;;
     esac
+}
+
+# The bundled OpenAI-compatible helper has only two capability sets: a full
+# file/shell tool loop or no tools. Collapse every constrained Octopus role to
+# no-tools so read-only policy cannot become write-capable at this boundary.
+octo_tool_loop_requires_no_tools() {
+    local phase="${1:-}"
+    local role="${2:-}"
+    local role_policy
+
+    [[ "$phase" == "review" ]] && return 0
+    if [[ -n "$role" ]] && declare -f get_agent_readonly >/dev/null 2>&1 && \
+       [[ "$(get_agent_readonly "$role")" == "true" ]]; then
+        return 0
+    fi
+
+    role_policy="$(get_tool_policy "$role")"
+    [[ "$role_policy" != "full" ]]
 }
 
 # Kimi Code's non-interactive mode cannot enforce a read-only tool boundary.
@@ -348,10 +373,8 @@ get_agent_command() {
                 if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                     return 1
                 fi
-                echo "env OCTOPUS_AGY_MODEL=${model} ${PLUGIN_DIR}/scripts/helpers/agy-exec.sh"
-            else
-                echo "${PLUGIN_DIR}/scripts/helpers/agy-exec.sh"
             fi
+            echo "${PLUGIN_DIR}/scripts/helpers/agy-exec.sh"
             ;;
         codex-review)
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
@@ -509,11 +532,10 @@ get_agent_command() {
             reasoning_fragment="$(octopus_reasoning_cli_fragment openai-compatible-agent "$reasoning_level" "$reasoning_policy")" || return 1
             runtime_config="$(_octopus_openai_compatible_runtime_config "$agent_type")" || return 1
             IFS=$'\t' read -r base_url api_key_env <<<"$runtime_config"
-            # Review prompts already contain the complete diff and context. Do
-            # not expose file/shell tools in this phase: a malicious diff could
-            # otherwise prompt-inject a model into reading or exfiltrating CI
-            # credentials inherited by the provider process (#893).
-            [[ "$phase" == "review" ]] && tool_fragment="--tool-policy none"
+            # The helper cannot enforce Octopus's finer read-only tool classes.
+            # Disable its model-controlled file/shell loop for every constrained
+            # role, including review prompts that contain untrusted diffs.
+            octo_tool_loop_requires_no_tools "$phase" "$role" && tool_fragment="--tool-policy none"
             echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider generic --base-url ${base_url} --api-key-env ${api_key_env} --model ${model} ${reasoning_fragment} ${tool_fragment} --cwd ${PWD}"
             ;;
         atlascloud-agent)  # Atlas Cloud via the OpenAI-compatible tool-loop agent
@@ -550,7 +572,9 @@ get_agent_command() {
                 log ERROR "Invalid Atlas Cloud cwd: ${PWD}"
                 return 1
             fi
-            echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider atlascloud --model ${model} --cwd ${PWD}"
+            local atlas_tool_fragment=""
+            octo_tool_loop_requires_no_tools "$phase" "$role" && atlas_tool_fragment="--tool-policy none"
+            echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider atlascloud --model ${model} ${atlas_tool_fragment} --cwd ${PWD}"
             ;;
         perplexity|perplexity-fast)  # v8.24.0: Perplexity Sonar — web-grounded research (Issue #22)
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
@@ -740,34 +764,83 @@ get_role_budget_proportion() {
 # opt in without inflating smaller providers.
 get_provider_context_limit() {
     local agent_type="${1:-}"
+    local phase="${2:-}" role="${3:-}"
     local provider executor registry_default model_env context_env
+    local configured_limit transport_limit model_limit="" explicit_model model=""
+    local transport_env=""
     provider="$(octo_agent_spec_provider "$agent_type")"
     executor="$(octo_agent_spec_executor "$agent_type")"
     local default_budget="${OCTOPUS_CONTEXT_BUDGET:-12000}"
 
     case "$executor" in
-        codex-large-context) echo "${OCTOPUS_CODEX_LARGE_CONTEXT_BUDGET:-${default_budget}}" ; return 0 ;;
-        claude-sdk*) echo "${OCTOPUS_CLAUDE_SDK_CONTEXT_BUDGET:-1000000}" ; return 0 ;;  # v9.50.0: Agent SDK 1M window
-        claude-opus*|claude-sonnet|claude) echo "${OCTOPUS_CLAUDE_CONTEXT_BUDGET:-${default_budget}}" ; return 0 ;;
+        codex-large-context)
+            configured_limit="${OCTOPUS_CODEX_LARGE_CONTEXT_BUDGET:-${default_budget}}"
+            transport_limit="${OCTOPUS_CODEX_EFFECTIVE_CONTEXT_LIMIT:-1050000}"
+            ;;
+        claude-sdk*)
+            configured_limit="${OCTOPUS_CLAUDE_SDK_CONTEXT_BUDGET:-1000000}"
+            transport_limit="${OCTOPUS_CLAUDE_SDK_EFFECTIVE_CONTEXT_LIMIT:-1000000}"
+            ;;
+        claude-opus*|claude-sonnet|claude)
+            configured_limit="${OCTOPUS_CLAUDE_CONTEXT_BUDGET:-${default_budget}}"
+            transport_limit="${OCTOPUS_CLAUDE_EFFECTIVE_CONTEXT_LIMIT:-1000000}"
+            ;;
+        *)
+            registry_default="$(octo_provider_context_tokens "$provider" 2>/dev/null || printf '%s' "$default_budget")"
+            model_env="$(octo_provider_model_env "$provider" 2>/dev/null || true)"
+            context_env="${model_env%_MODEL}_CONTEXT_BUDGET"
+            transport_env="${model_env%_MODEL}_EFFECTIVE_CONTEXT_LIMIT"
+            if [[ -n "$model_env" && -n "${!context_env:-}" ]]; then
+                configured_limit="${!context_env}"
+            elif [[ -n "${OCTOPUS_CONTEXT_BUDGET:-}" ]]; then
+                configured_limit="$OCTOPUS_CONTEXT_BUDGET"
+            else
+                configured_limit="$registry_default"
+            fi
+            if [[ -n "$model_env" && -n "${!transport_env:-}" ]]; then
+                transport_limit="${!transport_env}"
+            else
+                transport_limit="$configured_limit"
+            fi
+            ;;
     esac
 
-    registry_default="$(octo_provider_context_tokens "$provider" 2>/dev/null || printf '%s' "$default_budget")"
-    model_env="$(octo_provider_model_env "$provider" 2>/dev/null || true)"
-    context_env="${model_env%_MODEL}_CONTEXT_BUDGET"
-    if [[ -n "$model_env" && -n "${!context_env:-}" ]]; then
-        printf '%s\n' "${!context_env}"
-    elif [[ -n "${OCTOPUS_CONTEXT_BUDGET:-}" ]]; then
-        printf '%s\n' "$OCTOPUS_CONTEXT_BUDGET"
-    else
-        printf '%s\n' "$registry_default"
+    configured_limit="$(octo_normalize_context_budget "$configured_limit" "configured context budget")" || return 2
+    transport_limit="$(octo_normalize_context_budget "$transport_limit" "effective transport context limit")" || return 2
+
+    explicit_model="$(octo_agent_spec_explicit_model "$agent_type" 2>/dev/null || true)"
+    if [[ -n "$explicit_model" ]]; then
+        model="$explicit_model"
+    elif declare -f get_agent_model >/dev/null 2>&1; then
+        model="$(get_agent_model "$agent_type" "$phase" "$role" 2>/dev/null || true)"
     fi
+    if [[ -n "$model" ]] && declare -f is_known_model >/dev/null 2>&1 && is_known_model "$model"; then
+        model_limit="$(get_model_capability "$model" context_k)000"
+        model_limit="$(octo_normalize_context_budget "$model_limit" "model context limit")" || return 2
+    fi
+
+    local ceiling="$configured_limit"
+    [[ "$transport_limit" -lt "$ceiling" ]] && ceiling="$transport_limit"
+    if [[ -n "$model_limit" && "$model_limit" -lt "$ceiling" ]]; then
+        ceiling="$model_limit"
+    fi
+
+    local output_reserve overhead_reserve available
+    output_reserve="$(octo_normalize_nonnegative_context_value "${OCTOPUS_CONTEXT_OUTPUT_RESERVE_TOKENS:-1024}" "output context reserve")" || return 2
+    overhead_reserve="$(octo_normalize_nonnegative_context_value "${OCTOPUS_CONTEXT_OVERHEAD_TOKENS:-512}" "system and tool context reserve")" || return 2
+    available=$((ceiling - output_reserve - overhead_reserve))
+    if [[ "$available" -lt 1 ]]; then
+        log ERROR "Invalid effective context budget: reserves consume the $ceiling-token context ceiling"
+        return 2
+    fi
+    printf '%s\n' "$available"
 }
 
-# Normalize before Bash arithmetic. The maximum keeps a later four-character
-# token estimate inside a signed 32-bit shell integer on every supported host.
+# Normalize before Bash arithmetic. The maximum keeps the later four-character
+# reporting estimate inside Bash's signed 64-bit integer range.
 octo_normalize_context_budget() {
     local value="${1:-}" label="${2:-context budget}"
-    local max_budget=536870911
+    local max_budget=2147483647
     local LC_ALL=C
 
     if [[ ! "$value" =~ ^[0-9]+$ ]]; then
@@ -785,6 +858,37 @@ octo_normalize_context_budget() {
     fi
 
     printf '%s\n' "$value"
+}
+
+octo_normalize_nonnegative_context_value() {
+    local value="${1:-}" label="${2:-context value}"
+    local normalized
+    if [[ "$value" == "0" || "$value" =~ ^0+$ ]]; then
+        printf '0\n'
+        return 0
+    fi
+    normalized="$(octo_normalize_context_budget "$value" "$label")" || return 2
+    printf '%s\n' "$normalized"
+}
+
+# Fast conservative estimate without launching a tokenizer. The character
+# estimate is suitable for ordinary prose; the byte estimate closes the gap for
+# UTF-8-heavy prompts where one visible character occupies several bytes.
+octo_estimate_prompt_tokens() {
+    local prompt="$1"
+    local chars=${#prompt}
+    local char_tokens=$(((chars + 3) / 4))
+    local LC_ALL=C
+    local bytes=${#prompt}
+    local byte_tokens=0
+    if [[ "$bytes" -gt "$chars" ]]; then
+        byte_tokens=$(((bytes + 2) / 3))
+    fi
+    if [[ "$byte_tokens" -gt "$char_tokens" ]]; then
+        printf '%s\n' "$byte_tokens"
+    else
+        printf '%s\n' "$char_tokens"
+    fi
 }
 
 summarize_then_dispatch() {
@@ -898,6 +1002,42 @@ octo_fit_prompt_to_char_budget() {
     printf '%s%s\n' "${prompt:0:$prefix_chars}" "$marker"
 }
 
+octo_fit_prompt_to_token_budget() {
+    local prompt="$1" token_budget="$2" marker="$3"
+    local prompt_tokens char_budget fitted fitted_tokens fitted_chars next_budget
+    prompt_tokens="$(octo_estimate_prompt_tokens "$prompt")"
+    if [[ "$prompt_tokens" -le "$token_budget" ]]; then
+        printf '%s\n' "$prompt"
+        return 0
+    fi
+
+    char_budget=$((token_budget * 4))
+    if [[ ${#prompt} -gt 0 ]]; then
+        next_budget=$((${#prompt} * token_budget / prompt_tokens))
+        [[ "$next_budget" -lt "$char_budget" ]] && char_budget="$next_budget"
+    fi
+    [[ "$char_budget" -lt 1 ]] && char_budget=1
+
+    local attempts=0
+    while [[ "$attempts" -lt 8 ]]; do
+        fitted="$(octo_fit_prompt_to_char_budget "$prompt" "$char_budget" "$marker")"
+        fitted_tokens="$(octo_estimate_prompt_tokens "$fitted")"
+        [[ "$fitted_tokens" -le "$token_budget" ]] && { printf '%s\n' "$fitted"; return 0; }
+        fitted_chars=${#fitted}
+        next_budget=$((fitted_chars * token_budget / fitted_tokens))
+        [[ "$next_budget" -ge "$char_budget" ]] && next_budget=$((char_budget - 1))
+        [[ "$next_budget" -lt 1 ]] && next_budget=1
+        char_budget="$next_budget"
+        attempts=$((attempts + 1))
+    done
+
+    # A one-character prefix can still exceed a one-token budget for an
+    # unusually dense codepoint. An empty prompt is the only safe fallback.
+    fitted="$(octo_fit_prompt_to_char_budget "$prompt" "$char_budget" "$marker")"
+    fitted_tokens="$(octo_estimate_prompt_tokens "$fitted")"
+    [[ "$fitted_tokens" -le "$token_budget" ]] && printf '%s\n' "$fitted" || printf '\n'
+}
+
 octo_context_budget_warning() {
     local message="$1"
     if type octo_notice_warn >/dev/null 2>&1; then
@@ -913,7 +1053,7 @@ enforce_context_budget() {
     local agent_type="${3:-}"
     local phase="${4:-}"
     local budget
-    budget=$(get_provider_context_limit "$agent_type")
+    budget=$(get_provider_context_limit "$agent_type" "$phase" "$role")
     budget=$(octo_normalize_context_budget "$budget" "provider context budget") || return 2
 
     # v9.3.0: Scale budget by role proportion
@@ -929,10 +1069,13 @@ enforce_context_budget() {
         fi
     fi
 
-    # Rough token estimate: ~4 chars per token
+    # Preserve the familiar four-character reporting boundary while admission
+    # uses the stricter of character- and UTF-8-byte-based estimates.
     local char_budget=$((budget * 4))
+    local estimated_tokens
+    estimated_tokens="$(octo_estimate_prompt_tokens "$prompt")"
 
-    if [[ ${#prompt} -gt $char_budget ]]; then
+    if [[ "$estimated_tokens" -gt "$budget" ]]; then
         local strategy="${OCTOPUS_OVERSIZE_STRATEGY:-summarize}"
         local original_chars=${#prompt}
         local target="${agent_type:-unknown}"
@@ -947,8 +1090,8 @@ enforce_context_budget() {
             summarize)
                 local summarized
                 if summarized=$(summarize_then_dispatch "$prompt" "$role" "$target" "$budget") && [[ -n "$summarized" ]]; then
-                    if [[ ${#summarized} -gt $char_budget ]]; then
-                        summarized=$(octo_fit_prompt_to_char_budget "$summarized" "$char_budget" $'\n\n[... summarized output truncated to fit context budget (~'"$budget"$' tokens) ...]')
+                    if [[ "$(octo_estimate_prompt_tokens "$summarized")" -gt "$budget" ]]; then
+                        summarized=$(octo_fit_prompt_to_token_budget "$summarized" "$budget" $'\n\n[... summarized output truncated to fit context budget (~'"$budget"$' tokens) ...]')
                     fi
                     type record_oversize_event >/dev/null 2>&1 && record_oversize_event "$target" "$original_chars" "${#summarized}" "summarized" "$role" "$phase" "$budget" || true
                     octo_context_budget_warning "Context budget: summarized $target role=${role:-none} phase=${phase:-none} from ${original_chars} to ${#summarized} chars (budget=$budget tokens/$char_budget chars)"
@@ -957,7 +1100,7 @@ enforce_context_budget() {
                 fi
                 log "DEBUG" "Context budget: truncating prompt for $target from ${#prompt} to $char_budget chars (~$budget tokens)"
                 local truncated
-                truncated=$(octo_fit_prompt_to_char_budget "$prompt" "$char_budget" $'\n\n[... truncated to fit context budget (~'"$budget"$' tokens) ...]')
+                truncated=$(octo_fit_prompt_to_token_budget "$prompt" "$budget" $'\n\n[... truncated to fit context budget (~'"$budget"$' tokens) ...]')
                 type record_oversize_event >/dev/null 2>&1 && record_oversize_event "$target" "$original_chars" "${#truncated}" "truncated" "$role" "$phase" "$budget" || true
                 octo_context_budget_warning "Context budget: summarizer unavailable; truncated $target role=${role:-none} phase=${phase:-none} from ${original_chars} to ${#truncated} chars (budget=$budget tokens/$char_budget chars)"
                 printf '%s\n' "$truncated"
@@ -965,7 +1108,7 @@ enforce_context_budget() {
             truncate|*)
                 log "DEBUG" "Context budget: truncating prompt for $target from ${#prompt} to $char_budget chars (~$budget tokens)"
                 local truncated
-                truncated=$(octo_fit_prompt_to_char_budget "$prompt" "$char_budget" $'\n\n[... truncated to fit context budget (~'"$budget"$' tokens) ...]')
+                truncated=$(octo_fit_prompt_to_token_budget "$prompt" "$budget" $'\n\n[... truncated to fit context budget (~'"$budget"$' tokens) ...]')
                 type record_oversize_event >/dev/null 2>&1 && record_oversize_event "$target" "$original_chars" "${#truncated}" "truncated" "$role" "$phase" "$budget" || true
                 octo_context_budget_warning "Context budget: truncated $target role=${role:-none} phase=${phase:-none} from ${original_chars} to ${#truncated} chars (budget=$budget tokens/$char_budget chars)"
                 printf '%s\n' "$truncated"
@@ -1022,6 +1165,10 @@ get_agent_model() {
         elif [[ -n "$fallback" ]]; then
             if ! validate_model_name "$fallback"; then
                 log ERROR "Invalid fallback model name for $provider"
+                return 1
+            fi
+            if ! octo_model_automatic_target_allowed "$fallback" "$provider"; then
+                log ERROR "Restriction fallback '$fallback' requires an explicit model selection"
                 return 1
             fi
             echo "$fallback"

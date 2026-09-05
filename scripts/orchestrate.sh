@@ -231,6 +231,7 @@ source "${SCRIPT_DIR}/lib/validation.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/embrace.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/heuristics.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/provider-routing.sh" 2>/dev/null || true
+source "${SCRIPT_DIR}/lib/dispatch-plan.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/benchmark-routing.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/council.sh" 2>/dev/null || true
 

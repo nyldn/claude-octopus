@@ -61,18 +61,44 @@ else
     test_fail "an empty filtered or sharded selection exited successfully"
 fi
 
-test_case "symlink-sensitive selection equals the derived path-behavior set"
+test_case "symlink-sensitive selection equals the explicit path-behavior set"
 selected_symlink="$TEST_TMP_DIR/selected-symlink"
 expected_symlink="$TEST_TMP_DIR/expected-symlink"
 list_suites --unit --symlink-sensitive | LC_ALL=C sort > "$selected_symlink"
-grep -Eil 'symlink|pwd -P|realpath|logical.{0,40}physical|physical.{0,40}logical' \
-    "$PROJECT_ROOT"/tests/unit/test-*.sh \
-    | sed "s#^$PROJECT_ROOT/tests/##" \
-    | LC_ALL=C sort > "$expected_symlink"
+grep -Ev '^[[:space:]]*(#|$)' "$PROJECT_ROOT/tests/symlink-sensitive.txt" |
+    LC_ALL=C sort > "$expected_symlink"
 if [[ -s "$selected_symlink" ]] && cmp -s "$selected_symlink" "$expected_symlink"; then
     test_pass
 else
     test_fail "symlink-sensitive suite selection is empty or differs from its derivation rule"
+fi
+
+test_case "duration weights use deterministic least-loaded assignment"
+weights="$TEST_TMP_DIR/weights.tsv"
+printf '%s\n' \
+    $'unit/test-runner-sharding.sh\t100' \
+    $'unit/test-suite-reachability.sh\t60' \
+    $'unit/test-dispatch-oversize.sh\t40' \
+    $'unit/test-context-budget.sh\t1' > "$weights"
+weighted_zero="$TEST_TMP_DIR/weighted-zero"
+weighted_one="$TEST_TMP_DIR/weighted-one"
+weighted_args=(
+    --suite=unit/test-runner-sharding.sh
+    --suite=unit/test-suite-reachability.sh
+    --suite=unit/test-dispatch-oversize.sh
+    --suite=unit/test-context-budget.sh
+    --shard-count=2
+    --shard-weights="$weights"
+)
+list_suites "${weighted_args[@]}" --shard-index=0 > "$weighted_zero"
+list_suites "${weighted_args[@]}" --shard-index=1 > "$weighted_one"
+if grep -Fxq unit/test-runner-sharding.sh "$weighted_zero" &&
+   grep -Fxq unit/test-suite-reachability.sh "$weighted_one" &&
+   grep -Fxq unit/test-dispatch-oversize.sh "$weighted_one" &&
+   grep -Fxq unit/test-context-budget.sh "$weighted_zero"; then
+    test_pass
+else
+    test_fail "weighted shards did not use least-loaded deterministic packing"
 fi
 
 test_summary

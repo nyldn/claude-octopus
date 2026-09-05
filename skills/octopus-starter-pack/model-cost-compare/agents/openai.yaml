@@ -1,0 +1,5 @@
+interface:
+  display_name: "Model Cost Compare"
+  short_description: "Compare workflow model choices and estimated API costs"
+policy:
+  allow_implicit_invocation: false
