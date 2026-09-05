@@ -14,7 +14,6 @@ export HOME="$TEST_TMP_DIR/home"
 export WORKSPACE_DIR="$TEST_TMP_DIR/workspace"
 export OCTOPUS_SKIP_PROVIDER_PROBES=true
 mkdir -p "$HOME" "$WORKSPACE_DIR"
-trap 'rm -rf "$TEST_TMP_DIR"' EXIT
 
 test_suite "Knowledge Worker Routing (v6.0)"
 
