@@ -72,9 +72,7 @@ log_warn() { echo -e "${YELLOW}WARN:${NC} $1"; }
 log_error() { echo -e "${RED}ERROR:${NC} $1"; }
 
 automatic_target_allowed() {
-    local target="${1:-}" model
-    model="${target#*:}"
-    ! is_known_model "$model" || octo_model_auto_eligible "$model"
+    octo_model_automatic_target_allowed "${1:-}"
 }
 
 # Ensure config file exists and is v3.0
@@ -468,7 +466,7 @@ cmd_tier() {
         log_error "Invalid tier target: '$target'"
         return 1
     fi
-    if is_known_model "$target" && ! octo_model_auto_eligible "$target"; then
+    if ! automatic_target_allowed "$target"; then
         log_error "$target is explicit-only and cannot be assigned to an automatic cost tier"
         return 1
     fi
@@ -667,9 +665,8 @@ cmd_set() {
 
     ensure_config
 
-    if [[ -z "$capability" && "$session" != "true" ]] &&
-       is_known_model "$model" && ! octo_model_auto_eligible "$model"; then
-        log_error "$model is explicit-only; use --session or an environment pin instead of a persistent default"
+    if [[ -z "$capability" ]] && ! automatic_target_allowed "$model"; then
+        log_error "$model is explicit-only; use a one-command environment pin or an exact model-qualified seat"
         exit 1
     fi
 

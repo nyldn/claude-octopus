@@ -91,8 +91,22 @@ codex_default_model() {
 }
 
 _octo_automatic_model_allowed() {
-    local model="${1:-}"
-    ! is_known_model "$model" || octo_model_auto_eligible "$model"
+    octo_model_automatic_target_allowed "${1:-}"
+}
+
+# Tier targets may use provider:model syntax. Strip a known same-provider
+# prefix before dispatch, reject cross-provider targets, and leave model-native
+# colons such as Ollama tags untouched.
+_octo_tier_target_model() {
+    local provider="${1:-}" target="${2:-}" target_provider=""
+    if [[ "$target" == *:* ]]; then
+        target_provider="$(_octo_canonical_known_provider_name "${target%%:*}" 2>/dev/null || true)"
+        if [[ -n "$target_provider" ]]; then
+            [[ "$target_provider" == "$provider" ]] || return 1
+            target="${target#*:}"
+        fi
+    fi
+    printf '%s\n' "$target"
 }
 
 # Select only from the live local Ollama inventory. A hardcoded fallback can
@@ -405,11 +419,12 @@ resolve_octopus_model() {
     local cached_val
     eval "cached_val=\"\${_OCTO_MODEL_CACHE_${cache_key}:-}\""
     if [[ -n "$cached_val" ]]; then
-        if validate_model_name_for_provider "$canonical_provider" "$cached_val"; then
+        if validate_model_name_for_provider "$canonical_provider" "$cached_val" &&
+           _octo_automatic_model_allowed "$cached_val"; then
             echo "$cached_val"
             return 0
         fi
-        log ERROR "Invalid model name in memory cache for $provider/$agent_type"
+        log WARN "Rejected invalid or explicit-only model in memory cache for $provider/$agent_type"
         eval "unset _OCTO_MODEL_CACHE_${cache_key}"
         cached_val=""
     fi
@@ -427,7 +442,8 @@ resolve_octopus_model() {
         if [[ -n "$cached_val" && "$cached_val" != "null" ]]; then
             # Reject invalid cached model names instead of mutating them into a
             # different model string before eval.
-            if validate_model_name_for_provider "$canonical_provider" "$cached_val"; then
+            if validate_model_name_for_provider "$canonical_provider" "$cached_val" &&
+               _octo_automatic_model_allowed "$cached_val"; then
                 eval "_OCTO_MODEL_CACHE_${cache_key}=\"\$cached_val\""
                 echo "$cached_val"
                 return 0
@@ -465,6 +481,10 @@ resolve_octopus_model() {
 
         # Priority 1b: Session-only config overrides
         resolved_model=$(echo "$config_data" | jq -r --arg p "$canonical_provider" '.overrides[$p] // empty' 2>/dev/null)
+        if [[ -n "$resolved_model" && "$resolved_model" != "null" ]] && ! _octo_automatic_model_allowed "$resolved_model"; then
+            [[ -n "$_trace" ]] && echo "[model-trace] Tier 2 (session override): REJECTED explicit-only model $resolved_model" >&2
+            resolved_model=""
+        fi
         if [[ -n "$resolved_model" && "$resolved_model" != "null" ]]; then
             [[ -n "$_trace" ]] && echo "[model-trace] Tier 2 (session override): $resolved_model ← SELECTED" >&2
         else
@@ -697,6 +717,9 @@ resolve_octopus_model() {
         if [[ -z "$resolved_model" || "$resolved_model" == "null" ]]; then
             if [[ -n "$cost_mode" ]]; then
                 resolved_model=$(echo "$config_data" | jq -r --arg mode "$cost_mode" --arg p "$canonical_provider" '.tiers[$mode][$p] // empty' 2>/dev/null)
+                if [[ -n "$resolved_model" && "$resolved_model" == *:* ]]; then
+                    resolved_model="$(_octo_tier_target_model "$canonical_provider" "$resolved_model" 2>/dev/null || true)"
+                fi
                 if [[ -n "$resolved_model" && "$resolved_model" =~ ^[a-z_]+$ ]]; then
                     # Capability ref in tier map
                     local tier_mapped_model

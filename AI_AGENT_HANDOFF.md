@@ -22,7 +22,9 @@ worktree after confirming it is clean and unused.
   preserving the legacy `claude-fable-5` pin. Both premium models are
   explicit-only: they cannot become persistent defaults, capability routes,
   role routes, phase routes, evaluation mappings, or automatic tier choices.
-  Session and environment overrides remain available for bounded evaluation.
+  Environment overrides and exact model-qualified seats remain available for
+  bounded evaluation. The global config file cannot retain either model through
+  the legacy `--session` model-override path.
 - Fable 5.1 defaults to high effort, supports a configurable `xhigh` or `max`
   ceiling, and keeps the existing opt-in one-seat escalation budget. Security
   work reroutes away from either Fable ID, exact Fable seats fail closed above

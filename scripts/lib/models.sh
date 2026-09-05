@@ -114,6 +114,14 @@ octo_model_auto_eligible() {
     [[ "$(printf '%s\n' "$policy" | cut -d'|' -f2)" == "yes" ]]
 }
 
+# Automatic config targets may be stored as either a bare model ID or a
+# provider-qualified target. Apply policy to the model portion in both forms.
+octo_model_automatic_target_allowed() {
+    local model="${1:-}"
+    model="${model#*:}"
+    ! is_known_model "$model" || octo_model_auto_eligible "$model"
+}
+
 # Check if a model is known in the catalog
 is_known_model() {
     local model="$1"

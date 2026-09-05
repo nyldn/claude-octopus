@@ -38,6 +38,9 @@ _provider_routing_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if ! declare -f octo_model_cache_file >/dev/null 2>&1; then
     source "${_provider_routing_lib_dir}/model-cache-path.sh" 2>/dev/null || true
 fi
+if ! declare -f octo_model_automatic_target_allowed >/dev/null 2>&1; then
+    source "${_provider_routing_lib_dir}/models.sh" || { echo "provider-routing: failed to load models.sh" >&2; return 1 2>/dev/null || exit 1; }
+fi
 
 # [EXTRACTED to lib/persona-loader.sh] select_opus_mode()
 
@@ -639,6 +642,11 @@ set_provider_model() {
         echo "ERROR: Invalid model name: '$model'" >&2
         echo "  Model names must not contain shell metacharacters (spaces, ;, |, &, \$, \`, quotes)" >&2
         echo "  Examples: gpt-5.6-sol, default, claude-opus-5" >&2
+        return 1
+    fi
+    if ! octo_model_automatic_target_allowed "$model"; then
+        echo "ERROR: '$model' is explicit-only and cannot be stored in providers.json" >&2
+        echo "  Use a one-command environment pin or an exact model-qualified seat" >&2
         return 1
     fi
 

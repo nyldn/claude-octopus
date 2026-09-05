@@ -53,23 +53,38 @@ else
     test_fail "model-config hides the explicit-only frontier policy"
 fi
 
-test_case "model-config refuses frontier models as persistent defaults or tiers"
+test_case "model-config refuses frontier models on persisted configuration surfaces"
 config_home="$TEST_TMP_DIR/config-home"
 mkdir -p "$config_home"
 if HOME="$config_home" bash "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" set codex gpt-6-astra >/dev/null 2>&1 ||
    HOME="$config_home" bash "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" tier premium codex gpt-6-astra >/dev/null 2>&1 ||
+   HOME="$config_home" bash "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" tier premium codex codex:gpt-6-astra >/dev/null 2>&1 ||
    HOME="$config_home" bash "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" set codex.frontier gpt-6-astra >/dev/null 2>&1 ||
    HOME="$config_home" bash "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" route review codex:gpt-6-astra >/dev/null 2>&1 ||
    HOME="$config_home" bash "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" route-role reviewer codex:gpt-6-astra >/dev/null 2>&1 ||
-   HOME="$config_home" bash "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" set claude claude-fable-5-1 >/dev/null 2>&1; then
+   HOME="$config_home" bash "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" set claude claude-fable-5-1 >/dev/null 2>&1 ||
+   HOME="$config_home" bash "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" set codex gpt-6-astra --session >/dev/null 2>&1; then
     test_fail "explicit-only model was accepted by an automatic config surface"
 else
-    session_model="$(HOME="$config_home" bash "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" set codex gpt-6-astra --session >/dev/null && jq -r '.overrides.codex' "$config_home/.claude-octopus/config/providers.json")"
-    if [[ "$session_model" == "gpt-6-astra" ]]; then
+    session_model="$(jq -r '.overrides.codex // empty' "$config_home/.claude-octopus/config/providers.json")"
+    if [[ -z "$session_model" ]]; then
         test_pass
     else
-        test_fail "explicit session pin for Astra was rejected"
+        test_fail "rejected Astra override was still persisted"
     fi
+fi
+
+test_case "lower-level provider setter refuses stored frontier models"
+provider_home="$TEST_TMP_DIR/provider-home"
+if HOME="$provider_home" PROJECT_ROOT="$PROJECT_ROOT" bash -c '
+    validate_model_name() { [[ -n "${1:-}" ]]; }
+    source "$PROJECT_ROOT/scripts/lib/provider-routing.sh" >/dev/null 2>&1
+    ! set_provider_model codex gpt-6-astra >/dev/null 2>&1 &&
+        ! set_provider_model claude claude-fable-5-1 --session >/dev/null 2>&1
+'; then
+    test_pass
+else
+    test_fail "set_provider_model allowed an explicit-only model into providers.json"
 fi
 
 test_case "legacy Fable remains explicit-only"
@@ -153,15 +168,33 @@ test_case "Codex command construction refuses Astra on an old CLI"
 PLUGIN_DIR="$PROJECT_ROOT"
 log() { :; }
 source "$PROJECT_ROOT/scripts/lib/dispatch.sh"
-if OCTO_CODEX_VERSION_OVERRIDE=0.153.0 _build_codex_exec_command gpt-6-astra '--sandbox workspace-write' '' >/dev/null 2>&1; then
+fake_codex_bin="$TEST_TMP_DIR/fake-codex-bin"
+mkdir -p "$fake_codex_bin"
+cat > "$fake_codex_bin/codex" <<'EOF'
+#!/bin/sh
+printf 'codex-cli %s\n' "${OCTOPUS_TEST_CODEX_VERSION:?}"
+EOF
+chmod +x "$fake_codex_bin/codex"
+if PATH="$fake_codex_bin:$PATH" OCTOPUS_TEST_CODEX_VERSION=0.153.0 \
+   _build_codex_exec_command gpt-6-astra '--sandbox workspace-write' '' >/dev/null 2>&1; then
     test_fail "old Codex CLI was allowed to dispatch Astra"
 else
-    astra_command="$(OCTO_CODEX_VERSION_OVERRIDE=0.153.1 _build_codex_exec_command gpt-6-astra '--sandbox workspace-write' '' 2>/dev/null || true)"
+    astra_command="$(PATH="$fake_codex_bin:$PATH" OCTOPUS_TEST_CODEX_VERSION=0.153.1 \
+        _build_codex_exec_command gpt-6-astra '--sandbox workspace-write' '' 2>/dev/null || true)"
     if [[ "$astra_command" == 'codex exec --skip-git-repo-check --model gpt-6-astra --sandbox workspace-write -' ]]; then
         test_pass
     else
         test_fail "supported Codex CLI could not dispatch an explicit Astra pin"
     fi
+fi
+
+test_case "Astra version lookup ignores the removed environment override"
+reported_version="$(PATH="$fake_codex_bin:$PATH" OCTOPUS_TEST_CODEX_VERSION=0.153.0 \
+    OCTO_CODEX_VERSION_OVERRIDE=9.9.9 octo_codex_installed_version)"
+if [[ "$reported_version" == "0.153.0" ]]; then
+    test_pass
+else
+    test_fail "version lookup trusted OCTO_CODEX_VERSION_OVERRIDE: $reported_version"
 fi
 
 test_summary

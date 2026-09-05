@@ -170,8 +170,10 @@ AskUserQuestion({
 
 `gpt-6-astra` is intentionally absent from persistent defaults and cost tiers.
 For a bounded evaluation after Sol fails a hard acceptance test, use
-`octo-model-config set codex gpt-6-astra --session` or set
-`OCTOPUS_CODEX_MODEL=gpt-6-astra` for one command.
+Use `OCTOPUS_CODEX_MODEL=gpt-6-astra` for one command or an exact
+`codex:gpt-6-astra` seat. Model overrides written by `--session` share the
+global provider configuration, so explicit-only frontier models are rejected
+there until overrides are truly session-scoped.
 
 **OpenRouter example:**
 ```
@@ -496,22 +498,18 @@ When invoked WITH arguments (e.g., `/octo:model-config codex gpt-5.6-sol`), skip
 
 2. **Set Model** (`<provider> <model>` or with `--session`):
    ```bash
-   # Read and validate
-   CONFIG_FILE="${HOME}/.claude-octopus/config/providers.json"
-   # Use jq to set the model
-   jq --arg p "<provider>" --arg m "<model>" '.providers[$p].default = $m' "$CONFIG_FILE" > "${CONFIG_FILE}.tmp.$$" && mv "${CONFIG_FILE}.tmp.$$" "$CONFIG_FILE"
+   scripts/helpers/octo-model-config.sh set "<provider>" "<model>" [--session]
    ```
 
    **Dot syntax** (`<provider>.<capability> <model>`):
    ```bash
-   jq --arg p "<provider>" --arg c "<capability>" --arg m "<model>" \
-     '.providers[$p][$c] = $m' "$CONFIG_FILE" > "${CONFIG_FILE}.tmp.$$" && mv "${CONFIG_FILE}.tmp.$$" "$CONFIG_FILE"
+   scripts/helpers/octo-model-config.sh set "<provider>.<capability>" "<model>"
    ```
 
 3. **Set Phase Routing** (`phase <phase> <model>`):
    Validate phase name against: `discover`, `define`, `develop`, `deliver`, `quick`, `debate`, `review`, `security`, `research`.
    ```bash
-   jq --arg phase "<phase>" --arg model "<model>" '.routing.phases[$phase] = $model' "$CONFIG_FILE" > "${CONFIG_FILE}.tmp.$$" && mv "${CONFIG_FILE}.tmp.$$" "$CONFIG_FILE"
+   scripts/helpers/octo-model-config.sh route "<phase>" "<model>"
    ```
 
 4. **Reset**: Use default values from the ensure_config block in `scripts/helpers/octo-model-config.sh`.

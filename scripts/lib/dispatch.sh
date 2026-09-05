@@ -77,6 +77,42 @@ _octopus_validate_exact_claude_dispatch_model() {
     return 0
 }
 
+# Model-qualified seats must stay exact, so the validator above rejects an
+# oversized Fable prompt. Non-exact environment pins may use the documented
+# non-Fable fallback instead, but the replacement still has to be safe to place
+# in the legacy command string.
+_octopus_apply_nonexact_fable_input_gate() {
+    local model="${1:-}" agent_type="${2:-}" prompt_bytes="${3:-0}"
+    if [[ "$agent_type" == *:* ]] ||
+       ! declare -f fable5_is_model >/dev/null 2>&1 ||
+       ! fable5_is_model "$model"; then
+        printf '%s\n' "$model"
+        return 0
+    fi
+
+    local gate_rc=0 fallback_model=""
+    fable5_prompt_within_budget "$prompt_bytes" || gate_rc=$?
+    case "$gate_rc" in
+        0)
+            printf '%s\n' "$model"
+            return 0
+            ;;
+        1)
+            fallback_model="$(fable5_fallback_model)"
+            if ! validate_model_name "$fallback_model"; then
+                log "ERROR" "Invalid Fable 5 fallback model"
+                return 1
+            fi
+            log "WARN" "Fable 5 input gate: ${prompt_bytes} bytes exceeds ${OCTOPUS_FABLE5_MAX_INPUT_BYTES:-524288}; using ${fallback_model} before dispatch"
+            printf '%s\n' "$fallback_model"
+            ;;
+        *)
+            log "ERROR" "Invalid Fable 5 input-gate configuration"
+            return 1
+            ;;
+    esac
+}
+
 _octopus_openai_compatible_runtime_config() {
     local provider="$1"
     local config_provider="$provider" base_url api_key_env credential_value
@@ -337,6 +373,7 @@ get_agent_command() {
                 return 1
             fi
             _octopus_validate_exact_claude_dispatch_model "$model" "$role" "$agent_type" "$phase" "$prompt_bytes" || return 1
+            model="$(_octopus_apply_nonexact_fable_input_gate "$model" "$agent_type" "$prompt_bytes")" || return 1
             [[ "$agent_type" == *:* ]] || model="${model//./-}"
             echo "${_claude_bin}${_BARE_OPT} --print --model ${model} ${reasoning_fragment} ${claude_perm}" ;;
         claude-sonnet)
@@ -348,6 +385,7 @@ get_agent_command() {
                 return 1
             fi
             _octopus_validate_exact_claude_dispatch_model "$model" "$role" "$agent_type" "$phase" "$prompt_bytes" || return 1
+            model="$(_octopus_apply_nonexact_fable_input_gate "$model" "$agent_type" "$prompt_bytes")" || return 1
             [[ "$agent_type" == *:* ]] || model="${model//./-}"
             echo "${_claude_bin}${_BARE_OPT} --print --model ${model} ${reasoning_fragment} ${claude_perm}" ;;
         claude-opus|claude-opus-fast)
@@ -599,6 +637,7 @@ get_agent_command() {
             # wiring mirrors grok: env prefix so providers.json picks reach the shim.
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then return 1; fi
             _octopus_validate_exact_claude_dispatch_model "$model" "$role" "$agent_type" "$phase" "$prompt_bytes" || return 1
+            model="$(_octopus_apply_nonexact_fable_input_gate "$model" "$agent_type" "$prompt_bytes")" || return 1
             if [[ -n "$model" && "$model" != "default" ]]; then
                 if [[ "$agent_type" == *:* ]] && declare -f fable5_is_model >/dev/null 2>&1 && fable5_is_model "$model"; then
                     echo "env OCTOPUS_CLAUDE_SDK_MODEL=${model} OCTOPUS_FABLE5_NO_RETRY=1 ${PLUGIN_DIR}/scripts/helpers/claude-sdk-exec.sh"

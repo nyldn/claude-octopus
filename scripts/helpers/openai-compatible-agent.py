@@ -160,9 +160,12 @@ def api_call(base_url, key, model, headers_extra, messages, max_tokens=0, reques
     headers = {"Authorization": "Bearer " + key, "Content-Type": "application/json", **headers_extra}
     body = json.dumps(payload).encode()
     endpoint = base_url.rstrip("/") + "/chat/completions"
-    scheme = urllib.parse.urlparse(endpoint).scheme
+    parsed_endpoint = urllib.parse.urlparse(endpoint)
+    scheme = parsed_endpoint.scheme
     if scheme not in {"http", "https"}:
         raise ValueError(f"unsupported OPENAI-compatible base URL scheme: {scheme or '<missing>'}")
+    if scheme == "http" and parsed_endpoint.hostname not in {"localhost", "127.0.0.1"}:
+        raise ValueError("OPENAI-compatible base URL must use HTTPS for non-loopback endpoints")
     retry_statuses = {429, 502, 503, 504}
     last_error = None
     for attempt in range(1, max(1, max_retries) + 1):

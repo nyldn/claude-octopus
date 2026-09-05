@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # fable5-inject.sh — Inject Fable 5 dispatch guidance on SessionStart when a
-# a Fable 5 or 5.1 env pin is detected (OCTOPUS_OPUS_MODEL / OCTOPUS_CLAUDE_SDK_MODEL),
+# Fable 5 or 5.1 environment pin is detected,
 # or when OCTOPUS_FABLE5_MODE=on forces it. OCTOPUS_FABLE5_MODE=off suppresses.
 # Full guidance: skills/blocks/fable5-prompting.md; guards: scripts/lib/fable5.sh.
 
@@ -14,10 +14,12 @@ case "${OCTOPUS_FABLE5_MODE:-auto}" in
     off) _active=false ;;
     on)  _active=true ;;
     *)
-        if [[ "${OCTOPUS_OPUS_MODEL:-}" == "claude-fable-5" || "${OCTOPUS_OPUS_MODEL:-}" == "claude-fable-5-1" ||
-              "${OCTOPUS_CLAUDE_SDK_MODEL:-}" == "claude-fable-5" || "${OCTOPUS_CLAUDE_SDK_MODEL:-}" == "claude-fable-5-1" ]]; then
-            _active=true
-        fi
+        for _model in "${OCTOPUS_OPUS_MODEL:-}" "${OCTOPUS_CLAUDE_SDK_MODEL:-}" \
+            "${OCTOPUS_CLAUDE_MODEL:-}" "${CLAUDE_MODEL:-}"; do
+            case "$_model" in
+                claude-fable-5|claude-fable-5-1) _active=true; break ;;
+            esac
+        done
         ;;
 esac
 

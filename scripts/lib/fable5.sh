@@ -19,6 +19,8 @@
 # Detection is env-pin based only (deterministic; host session model ignored):
 #   OCTOPUS_OPUS_MODEL=claude-fable-5-1        — opus seats run Fable 5.1
 #   OCTOPUS_CLAUDE_SDK_MODEL=claude-fable-5-1  — claude-sdk seat runs Fable 5.1
+#   OCTOPUS_CLAUDE_MODEL=claude-fable-5-1      — ordinary Claude seats run Fable 5.1
+#   CLAUDE_MODEL=claude-fable-5-1              — host-level Claude pin runs Fable 5.1
 #
 # Master switch: OCTOPUS_FABLE5_MODE=auto (default) | off | on
 #   off — all guards disabled even when a pin is present

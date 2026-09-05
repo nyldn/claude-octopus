@@ -56,7 +56,7 @@ No user action needed — mode detection happens automatically from the git diff
 
 ## Model Selection Caveat: Fable 5.1
 
-Never dispatch security-audit passes to Claude Fable 5.1 or the preserved Fable 5 ID. Their safety classifiers can refuse adversarial red-team phrasing in authorized audits. Route these passes to `OCTOPUS_FABLE5_FALLBACK_MODEL` (default `claude-opus-5`) and keep prompts defensively framed (find and report vulnerabilities; do not request working exploits). Reject an override that targets `claude-fable-5-1` or `claude-fable-5` and reroute to the safe default instead. On refusal, retry exactly once on that fallback unless `OCTOPUS_FABLE5_NO_RETRY=1`; when retries are disabled or the retry refuses, surface the refusal without further dispatches. Details: `skills/blocks/fable5-prompting.md`.
+By default, do not dispatch security-audit passes to Claude Fable 5.1 or the preserved Fable 5 ID. Their safety classifiers can refuse adversarial red-team phrasing in authorized audits. Route these passes to `OCTOPUS_FABLE5_FALLBACK_MODEL` (default `claude-opus-5`) and keep prompts defensively framed (find and report vulnerabilities; do not request working exploits). Reject an exact model-qualified override that targets `claude-fable-5-1` or `claude-fable-5`. On refusal, retry exactly once on the fallback unless `OCTOPUS_FABLE5_NO_RETRY=1`; when retries are disabled or the retry refuses, surface the refusal without further dispatches. `OCTOPUS_FABLE5_MODE=off` is the explicit exception: it disables automatic rerouting for ordinary environment pins, while exact Fable security seats still fail closed. Details: `skills/blocks/fable5-prompting.md`.
 
 ## Capabilities
 

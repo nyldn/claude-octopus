@@ -45,10 +45,6 @@ octo_codex_model_version_ok() {
 }
 
 octo_codex_installed_version() {
-  if [[ -n "${OCTO_CODEX_VERSION_OVERRIDE:-}" ]]; then
-    printf '%s\n' "$OCTO_CODEX_VERSION_OVERRIDE"
-    return 0
-  fi
   if ! command -v codex >/dev/null 2>&1; then
     printf '%s\n' "unknown"
     return 0

@@ -335,7 +335,8 @@ display_workflow_cost_estimate() {
         claude-opus-fast:claude-opus-4.8) claude_model_label="Opus 4.8 Fast" ;;
         claude-opus-fast:claude-opus-4.7) claude_model_label="Opus 4.7 Fast" ;;
         claude-opus-fast:claude-opus-4.6) claude_model_label="Opus 4.6 Fast" ;;
-        *:claude-fable-5|*:claude-fable-5-1) claude_model_label="Fable 5" ;;
+        *:claude-fable-5-1) claude_model_label="Fable 5.1" ;;
+        *:claude-fable-5) claude_model_label="Fable 5" ;;
         *:claude-opus-5-fast) claude_model_label="Opus 5 Fast" ;;
         *:claude-opus-5)      claude_model_label="Opus 5" ;;
         *:claude-opus-4.8)    claude_model_label="Opus 4.8" ;;

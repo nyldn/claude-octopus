@@ -329,7 +329,8 @@ fi
 # ── Hook ───────────────────────────────────────────────────────────────────
 
 test_case "hook stays silent without pins"
-out=$(env -u OCTOPUS_OPUS_MODEL -u OCTOPUS_CLAUDE_SDK_MODEL -u OCTOPUS_FABLE5_MODE \
+out=$(env -u OCTOPUS_OPUS_MODEL -u OCTOPUS_CLAUDE_SDK_MODEL -u OCTOPUS_CLAUDE_MODEL \
+    -u CLAUDE_MODEL -u OCTOPUS_FABLE5_MODE \
     bash "$PROJECT_ROOT/hooks/fable5-inject.sh" 2>/dev/null)
 if [[ -z "$out" ]]; then
     test_pass
@@ -351,6 +352,15 @@ if [[ "$out" == *"additionalContext"* && "$out" == *"FABLE 5 MODE ACTIVE"* ]]; t
     test_pass
 else
     test_fail "expected Fable 5.1 injection, got '$out'"
+fi
+
+test_case "hook recognizes ordinary Claude Fable pins"
+claude_override=$(OCTOPUS_CLAUDE_MODEL=claude-fable-5-1 bash "$PROJECT_ROOT/hooks/fable5-inject.sh" 2>/dev/null)
+host_override=$(CLAUDE_MODEL=claude-fable-5 bash "$PROJECT_ROOT/hooks/fable5-inject.sh" 2>/dev/null)
+if [[ "$claude_override" == *"FABLE 5 MODE ACTIVE"* && "$host_override" == *"FABLE 5 MODE ACTIVE"* ]]; then
+    test_pass
+else
+    test_fail "ordinary Claude pins did not activate the hook"
 fi
 
 test_case "hook stays silent with OCTOPUS_FABLE5_MODE=off"

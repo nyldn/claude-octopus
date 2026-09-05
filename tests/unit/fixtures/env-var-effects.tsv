@@ -21,6 +21,7 @@ OCTOPUS_AGY_MODEL	covered-by	test-agy-provider.sh
 OCTOPUS_ALLOW_FULL_KIMI_ENV	covered-by	test-kimi-provider.sh
 OCTOPUS_AUTO_TITLE	skip	sets the Claude Code session title; observable only in the host UI
 OCTOPUS_AUTO_ROUTER_MODE	covered-by	test-explicit-activation.sh
+OCTOPUS_CLAUDE_MODEL	covered-by	test-fable5-mode.sh
 OCTOPUS_CLAUDE_SDK_MODEL	covered-by	test-claude-sdk-provider.sh
 OCTOPUS_CODEX_ACTIVE_SESSION	covered-by	test-plugin-update-health.sh
 OCTOPUS_CODEX_MODEL	covered-by	test-role-mapping-v929.sh

@@ -55,6 +55,41 @@ assert mod.normalize_reasoning_effort("xhigh") == "high"
 assert mod.normalize_reasoning_effort("max") == "high"
 assert mod.normalize_reasoning_effort("medium") == "medium"
 
+with patch.object(mod.urllib.request, "urlopen") as mocked:
+    try:
+        mod.api_call(
+            "http://example.test",
+            "k",
+            "m",
+            {},
+            [{"role": "user", "content": "x"}],
+        )
+    except ValueError as exc:
+        assert "must use HTTPS" in str(exc), exc
+    else:
+        raise AssertionError("credentialed remote HTTP adapter request was accepted")
+    mocked.assert_not_called()
+
+loopback_seen = []
+
+
+def fake_loopback(req, timeout=None):
+    del timeout
+    loopback_seen.append(req.full_url)
+    return Resp()
+
+
+with patch.object(mod.urllib.request, "urlopen", side_effect=fake_loopback):
+    mod.api_call(
+        "http://127.0.0.1:8000/v1",
+        "k",
+        "m",
+        {},
+        [{"role": "user", "content": "x"}],
+    )
+
+assert loopback_seen == ["http://127.0.0.1:8000/v1/chat/completions"], loopback_seen
+
 # Astra's full tool path requires the Responses API. The generic adapter still
 # uses Chat Completions, so it may run no-tool review prompts but must fail
 # before transport when tools are requested.

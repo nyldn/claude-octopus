@@ -401,24 +401,28 @@ else
 fi
 
 
-test_case "openai-compatible-agent rejects non-http base URL schemes"
+test_case "openai-compatible-agent rejects unsafe non-loopback URLs before transport"
 if HELPER="$HELPER" python3 - <<'PYTEST'
 import importlib.util, os
 helper_path = os.environ["HELPER"]
 spec = importlib.util.spec_from_file_location("openai_compatible_agent", helper_path)
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
-try:
-    mod.api_call("file:///tmp/octopus", "key", "model", {}, [{"role":"user","content":"hi"}], max_tokens=0, request_timeout=1, max_retries=1)
-except ValueError as exc:
-    assert "unsupported OPENAI-compatible base URL scheme" in str(exc)
-else:
-    raise AssertionError("expected ValueError for file:// base URL")
+for base_url, expected in (
+    ("http://example.invalid/v1", "must use HTTPS"),
+    ("file:///tmp/octopus", "unsupported OPENAI-compatible base URL scheme"),
+):
+    try:
+        mod.api_call(base_url, "key", "model", {}, [{"role":"user","content":"hi"}], max_tokens=0, request_timeout=1, max_retries=1)
+    except ValueError as exc:
+        assert expected in str(exc), exc
+    else:
+        raise AssertionError(f"expected ValueError for {base_url}")
 PYTEST
 then
     test_pass
 else
-    test_fail "expected non-http base URL schemes to be rejected"
+    test_fail "expected remote HTTP and non-HTTP base URLs to be rejected"
 fi
 
 

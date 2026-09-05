@@ -309,9 +309,12 @@ else
     fail "get_model_catalog() function missing"
 fi
 
-# Verify catalog covers key models
+# Verify catalog covers key models through the canonical model-ID enumerator.
+# Fixed source windows become stale as valid entries are added.
+# shellcheck source=../scripts/lib/models.sh
+source "$SCRIPT_DIR/../scripts/lib/models.sh"
 for model in gpt-5.6-sol gpt-5.6-terra gpt-5.6-luna agy/default claude-sonnet-5 claude-opus-5 sonar-pro o3; do
-    if grep -A 60 'get_model_catalog()' "$_ORCH_ALL_TMP" | grep -q "$model"; then
+    if grep -Fqx "$model" < <(octo_model_ids); then
         pass "Catalog includes $model"
     else
         fail "Catalog missing $model"

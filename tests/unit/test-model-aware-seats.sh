@@ -76,9 +76,18 @@ else
 fi
 
 test_case "Codex review dispatch enforces Astra's model-specific CLI floor"
+fake_codex_bin="$TEST_TMP_DIR/fake-codex-bin"
+mkdir -p "$fake_codex_bin"
+cat > "$fake_codex_bin/codex" <<'EOF'
+#!/bin/sh
+printf 'codex-cli %s\n' "${OCTOPUS_TEST_CODEX_VERSION:?}"
+EOF
+chmod +x "$fake_codex_bin/codex"
 astra_review_old_rc=0
-astra_review_old="$(OCTO_CODEX_VERSION_OVERRIDE=0.153.0 get_agent_command 'codex-review:gpt-6-astra' review implementation-logic-reviewer 2>/dev/null)" || astra_review_old_rc=$?
-astra_review_new="$(OCTO_CODEX_VERSION_OVERRIDE=0.153.1 get_agent_command 'codex-review:gpt-6-astra' review implementation-logic-reviewer 2>/dev/null || true)"
+astra_review_old="$(PATH="$fake_codex_bin:$PATH" OCTOPUS_TEST_CODEX_VERSION=0.153.0 \
+    get_agent_command 'codex-review:gpt-6-astra' review implementation-logic-reviewer 2>/dev/null)" || astra_review_old_rc=$?
+astra_review_new="$(PATH="$fake_codex_bin:$PATH" OCTOPUS_TEST_CODEX_VERSION=0.153.1 \
+    get_agent_command 'codex-review:gpt-6-astra' review implementation-logic-reviewer 2>/dev/null || true)"
 if [[ "$astra_review_old_rc" -ne 0 && -z "$astra_review_old" ]] &&
    [[ "$astra_review_new" == *'codex exec review --model gpt-6-astra'* ]]; then
   test_pass
@@ -157,6 +166,21 @@ if [[ "$fable_claude_rc" -ne 0 && "$fable_opus_rc" -ne 0 && "$fable_sdk_rc" -ne 
   test_pass
 else
   test_fail "oversized exact Fable seat escaped input gate: claude=$fable_claude_rc opus=$fable_opus_rc sdk=$fable_sdk_rc"
+fi
+
+test_case "ordinary Fable pins fall back above the input ceiling"
+implicit_claude="$(OCTOPUS_FABLE5_MAX_INPUT_BYTES=1 OCTOPUS_CLAUDE_MODEL=claude-fable-5-1 \
+  get_agent_command claude review implementation-logic-reviewer "$large_prompt_bytes" 2>/dev/null || true)"
+implicit_sonnet="$(OCTOPUS_FABLE5_MAX_INPUT_BYTES=1 OCTOPUS_CLAUDE_MODEL=claude-fable-5-1 \
+  get_agent_command claude-sonnet review implementation-logic-reviewer "$large_prompt_bytes" 2>/dev/null || true)"
+implicit_sdk="$(OCTOPUS_FABLE5_MAX_INPUT_BYTES=1 OCTOPUS_CLAUDE_SDK_MODEL=claude-fable-5-1 \
+  get_agent_command claude-sdk review implementation-logic-reviewer "$large_prompt_bytes" 2>/dev/null || true)"
+if [[ "$implicit_claude" == *'--model claude-opus-5'* ]] &&
+   [[ "$implicit_sonnet" == *'--model claude-opus-5'* ]] &&
+   [[ "$implicit_sdk" == *'OCTOPUS_CLAUDE_SDK_MODEL=claude-opus-5'* ]]; then
+  test_pass
+else
+  test_fail "ordinary Fable pin bypassed input fallback: claude=[$implicit_claude] sonnet=[$implicit_sonnet] sdk=[$implicit_sdk]"
 fi
 
 test_case "an exact Claude SDK Fable seat disables the shim retry without changing compatibility routes"

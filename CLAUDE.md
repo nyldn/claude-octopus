@@ -240,11 +240,11 @@ Providers:
 ## Cost Awareness
 
 Always be mindful that external CLIs cost money:
-- 🔴 Codex: ~$0.01-0.30 per query depending on model (GPT-5.6 Sol $5/$30 MTok — frontier default, Terra $2.50/$15, Luna $1/$6)
+- 🔴 Codex: ~$0.01-0.30 per query depending on model (GPT-5.6 Sol $4/$20 MTok — frontier default, Terra $2/$12, Luna $0.20/$1.20). Explicit-only GPT-6 Astra costs $10/$50; above 272K input tokens its full request uses 2x input and 1.5x output pricing.
 - 🧭 Antigravity CLI (`agy`): Included with the user's Antigravity access/subscription; backend cost depends on selected `OCTOPUS_AGY_MODEL`. Because Antigravity's model list is service-owned, explicit pins should use labels returned by `agy models` (for example `Gemini 3.5 Flash (Low)`) or `default`/`agy/default` to use the CLI default.
 - 🟣 Perplexity: ~$0.01-0.05 per query (Sonar Pro $3/$15 MTok, Sonar $1/$1 MTok)
-- 🔵 Claude (Sonnet 5): Standard Claude seat, $3/$15 per MTok; included where the user's Claude Code subscription covers it
-- 🔵 Claude (Fable 5, Mythos-class, opt-in via `OCTOPUS_OPUS_MODEL=claude-fable-5`): **$10/$50 per MTok** — 2x Opus 5 cost. 1M context, 128K output. Never auto-selected. Note: Anthropic retains prompts/outputs up to 30 days for safety classifiers. When pinned, apply the dispatch profile in `skills/blocks/fable5-prompting.md` (prompt anti-patterns, effort discipline, refusal fallback, judgment routing).
+- 🔵 Claude (Sonnet 5): Standard Claude seat, $2/$10 per MTok; included where the user's Claude Code subscription covers it
+- 🔵 Claude (Fable 5.1, Mythos-class, opt-in via `OCTOPUS_OPUS_MODEL=claude-fable-5-1`): **$10/$50 per MTok** — 2x Opus 5 cost. 1M context, 128K output. Never auto-selected. The preserved `claude-fable-5` ID remains supported. Note: Anthropic retains prompts/outputs up to 30 days for safety classifiers. When pinned, apply the dispatch profile in `skills/blocks/fable5-prompting.md` (prompt anti-patterns, effort discipline, refusal fallback, judgment routing).
 - 🔵 Claude (Opus 5, default when `SUPPORTS_OPUS_5=true`): $5/$25 per MTok input/output. 1M context, 128K output. Use `high` effort by default; raise it only for a bounded capability-sensitive step.
 - 🔵 Claude (Opus 5 Fast): $10/$50 per MTok — 2x standard cost. Use only when latency matters.
 - 🔵 Claude (Opus 4.7, legacy/current-minus-one): $5/$25 per MTok input/output. Used automatically on Claude Code versions before 2.1.154 when supported.
@@ -252,7 +252,7 @@ Always be mindful that external CLIs cost money:
 - 🔵 Claude (Opus 4.6 Fast, legacy): **$30/$150 per MTok** (6x standard) — lower latency, extra-usage billing for pinned 4.6 sessions.
 - 🟤 OpenCode: Variable cost — free for native models, uses backend provider pricing when routing to OpenAI/Google
 
-Note: API availability and subscription/OAuth availability differ by model and account. GPT-5.6 routing requires Codex CLI v0.144.0+.
+Note: API availability and subscription/OAuth availability differ by model and account. GPT-5.6 routing requires Codex CLI v0.144.0+; Astra requires v0.153.1+ and fails closed when the installed version cannot be identified.
 
 For simple tasks that don't need multi-AI perspectives, suggest using Claude directly without orchestration.
 
@@ -267,13 +267,13 @@ Opus 5 defaults to `high` effort. The plugin keeps automatic phase routing at `h
 
 `xhigh` falls back to `high` on older models where Claude Code does not expose it. Override per-session with `OCTOPUS_EFFORT_OVERRIDE=low|medium|high|xhigh|max`.
 
-### Fable 5 Effort and Refusal Handling (opt-in pin only)
+### Fable 5.1 Effort and Refusal Handling (opt-in pin only)
 
-The phase table above is Opus 5 guidance and does not carry over to a `claude-fable-5` pin. On Fable 5, run `high` everywhere: effort applies per tool call, so `xhigh` does not extend runs — it makes each step overthink and widen scope, at 2x the cost. Raise effort only for a single capability-sensitive step.
+The phase table above is Opus 5 guidance and does not carry over to a `claude-fable-5-1` or preserved `claude-fable-5` pin. On Fable, run `high` everywhere: effort applies per tool call, so `xhigh` does not extend runs — it makes each step overthink and widen scope, at 2x the cost. Raise effort only for a single capability-sensitive step.
 
-When a `claude-fable-5` pin is detected (`OCTOPUS_OPUS_MODEL` or `OCTOPUS_CLAUDE_SDK_MODEL`), orchestrate.sh auto-enables three guards via `scripts/lib/fable5.sh` and prints a one-line banner (`OCTOPUS_FABLE5_MODE=off` disables; `=on` forces):
+When a Fable pin is detected through `OCTOPUS_OPUS_MODEL`, `OCTOPUS_CLAUDE_SDK_MODEL`, `OCTOPUS_CLAUDE_MODEL`, or `CLAUDE_MODEL`, orchestrate.sh auto-enables three guards via `scripts/lib/fable5.sh` and prints a one-line banner (`OCTOPUS_FABLE5_MODE=off` disables ordinary-pin guards; `=on` forces them):
 
-- **Security reroute** — security-audit dispatches (security-auditor role, squeeze workflow) never run on Fable 5; the model resolver and dispatch swap in `claude-opus-5`. Its safety classifiers can refuse offensive-security phrasing even in authorized audits.
+- **Security reroute** — by default, security-audit dispatches (security-auditor role, squeeze workflow) do not run on Fable; the model resolver and dispatch swap in `claude-opus-5`. `OCTOPUS_FABLE5_MODE=off` is an explicit exception for ordinary pins, while exact model-qualified Fable security seats still fail closed.
 - **Effort clamp** — `xhigh`/`max` clamp to `high` for opus-seat Fable dispatches, including explicit `OCTOPUS_EFFORT_OVERRIDE` values.
 - **Refusal retry** — the claude-sdk shim retries a refused/empty Fable 5 dispatch once on `claude-opus-5` (`OCTOPUS_FABLE5_NO_RETRY=1` to opt out, `OCTOPUS_FABLE5_FALLBACK_MODEL` to pin another fallback) instead of rewording the prompt toward the classifier.
 
