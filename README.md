@@ -572,7 +572,7 @@ Codex CLI v0.153.1 or newer is required; unknown versions fail closed. The gener
 
 Claude Fable 5.1 is an explicit-only Mythos-class model at $10/$50 per MTok, twice the price of Opus 5. Pin it with `OCTOPUS_OPUS_MODEL=claude-fable-5-1` (opus seats) or `OCTOPUS_CLAUDE_SDK_MODEL=claude-fable-5-1` (the 1M-context SDK seat). Host-seat pins require Claude Code v2.1.255 or newer to recognize Fable 5.1 and its 1M context window. The independent `claude-agent` SDK path has no Claude Code version floor; it requires `CLAUDE_SDK_API_KEY` and the `claude-agent` executable. If the SDK shim falls back to the headless `claude` CLI, that executable must also be v2.1.255 or newer. Existing `claude-fable-5` pins remain exact and supported. Opt-in escalation is limited to one Fable 5.1 dispatch per command. When either model is selected, the plugin enables three guards and prints a one-line banner:
 
-- **Security reroute** — security-audit dispatches (security-auditor persona, squeeze red/blue workflow) run on Opus 5 instead of Fable 5, whose safety classifiers can refuse adversarial security phrasing even in authorized audits.
+- **Security reroute** — by default, security-audit dispatches for ordinary Fable pins (security-auditor persona, squeeze red/blue workflow) run on Opus 5 because Fable can refuse adversarial security phrasing even in authorized audits. Exact model-qualified Fable security seats fail closed.
 - **Effort clamp** — `xhigh`/`max` effort clamps to `high` by default. Set `OCTOPUS_FABLE5_MAX_EFFORT=xhigh|max` for one bounded high-value run without disabling the other guards.
 - **Refusal retry** — a refused or empty Fable 5 dispatch on the `claude-sdk` seat retries once on Opus 5 instead of failing the seat.
 

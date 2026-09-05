@@ -54,6 +54,13 @@ else
     test_fail "Fable 5.1 runtime prerequisites are incomplete"
 fi
 
+test_case "Fable README distinguishes ordinary pins from exact security seats"
+if grep -Fq 'Exact model-qualified Fable security seats fail closed' "$PROJECT_ROOT/README.md"; then
+    test_pass
+else
+    test_fail "Fable README omits the exact-seat security exception"
+fi
+
 test_case "model-config exposes explicit-only policy beside frontier models"
 model_config_output="$(HOME="$TEST_TMP_DIR/home" bash "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" models 2>/dev/null)"
 if grep -E '^  gpt-6-astra[[:space:]].*premium[[:space:]]+explicit[[:space:]]+limited$' <<< "$model_config_output" >/dev/null &&
