@@ -3,9 +3,20 @@
 
 import argparse
 import json
+import math
 import statistics
 import sys
 from collections import defaultdict
+
+
+def non_negative(value, cast):
+    try:
+        parsed = cast(value)
+    except (TypeError, ValueError):
+        return cast(0)
+    if isinstance(parsed, float) and not math.isfinite(parsed):
+        return 0.0
+    return max(cast(0), parsed)
 
 
 def score(payload):
@@ -33,9 +44,9 @@ def score(payload):
                     surfaced.add(finding_id)
                 elif len(reviewers) == 1:
                     unresolved_minority.add(finding_id)
-        latencies = [max(0, int(run.get("latency_ms", 0))) for run in runs]
-        tokens = sum(max(0, int(run.get("tokens", 0))) for run in runs)
-        cost = sum(max(0.0, float(run.get("cost_usd", 0))) for run in runs)
+        latencies = [non_negative(run.get("latency_ms", 0), int) for run in runs]
+        tokens = sum(non_negative(run.get("tokens", 0), int) for run in runs)
+        cost = sum(non_negative(run.get("cost_usd", 0), float) for run in runs)
         strategies.append(
             {
                 "strategy": name,
@@ -62,16 +73,24 @@ def main():
     with open(args.input, encoding="utf-8") if args.input else sys.stdin as stream:
         payload = json.load(stream)
     ground_truth = payload.get("ground_truth_finding_ids")
+    runs = payload.get("runs")
+    malformed_runs = isinstance(runs, list) and any(
+        not isinstance(run, dict)
+        or not isinstance(run.get("findings", []), list)
+        or any(not isinstance(finding, dict) for finding in run.get("findings", []))
+        for run in runs
+    )
     if (
         payload.get("schema_version") != 1
-        or not isinstance(payload.get("runs"), list)
+        or not isinstance(runs, list)
+        or malformed_runs
         or not isinstance(ground_truth, list)
         or not ground_truth
         or any(not isinstance(item, str) or not item for item in ground_truth)
         or len(set(ground_truth)) != len(ground_truth)
     ):
         raise SystemExit(
-            "expected schema_version 1, a runs array, and unique ground_truth_finding_ids"
+            "expected schema_version 1, well-formed runs, and unique ground_truth_finding_ids"
         )
     print(json.dumps(score(payload), separators=(",", ":"), sort_keys=True))
 

@@ -168,6 +168,14 @@ else
     test_fail "provider substitution in an unquoted heredoc bypassed guard"
 fi
 
+test_case "heredoc-looking data in an unquoted body does not hide later commands"
+output="$(run_hook $'cat <<OUT\ncat <<\'DOC\'\nOUT\nqwen -p real-dispatch')"
+if [[ "$output" == *'"permissionDecision":"deny"'* ]]; then
+    test_pass
+else
+    test_fail "heredoc-looking body data hid a following provider command"
+fi
+
 test_case "does not treat heredoc-looking quoted text as shell syntax"
 output="$(run_hook $'printf "%s" "<<\'DOC\'"\nqwen -p real-dispatch')"
 if [[ "$output" == *'"permissionDecision":"deny"'* ]]; then

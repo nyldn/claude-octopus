@@ -110,7 +110,9 @@ jobs:
     needs: classify-changes
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Validate extracted npm archive
         run: bash tests/smoke/test-packaging-integrity.sh
@@ -493,3 +495,8 @@ jobs:
           echo "| Unit | ${{ needs.unit-required.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Integration | ${{ needs.integration.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Portability | ${{ needs.portability-lint.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Package | ${{ needs.package-integrity.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "${{ needs.package-integrity.result }}" != "success" ]]; then
+            echo "Package integrity result: ${{ needs.package-integrity.result }}"
+            exit 1
+          fi

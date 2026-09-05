@@ -13,6 +13,7 @@ test_suite "Adapter Flag Ordering & Parameter Forwarding"
 MCP_SRC="$PROJECT_ROOT/mcp-server/src/index.ts"
 OC_SRC="$PROJECT_ROOT/openclaw/src/index.ts"
 ENV_ALLOWLIST="$PROJECT_ROOT/config/provider-env-allowlist.json"
+SHARED_ADAPTER="$PROJECT_ROOT/shared/adapter-runtime.mjs"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Debate Flag Placement — grapple flags must go AFTER the command
@@ -99,12 +100,35 @@ test_shared_env_allowlist_contract() {
 
 test_mcp_loads_shared_env_allowlist() {
     test_case "MCP loads the shared adapter env allowlist"
-    if grep -q 'provider-env-allowlist.json' "$MCP_SRC"; then test_pass; else test_fail "missing shared allowlist loader"; fi
+    if grep -q 'loadProviderEnvAllowlist' "$MCP_SRC" &&
+       grep -q 'provider-env-allowlist.json' "$SHARED_ADAPTER"; then
+        test_pass
+    else
+        test_fail "missing shared allowlist loader"
+    fi
 }
 
 test_openclaw_loads_shared_env_allowlist() {
     test_case "OpenClaw loads the shared adapter env allowlist"
-    if grep -q 'provider-env-allowlist.json' "$OC_SRC"; then test_pass; else test_fail "missing shared allowlist loader"; fi
+    if grep -q 'loadProviderEnvAllowlist' "$OC_SRC" &&
+       grep -q 'provider-env-allowlist.json' "$SHARED_ADAPTER"; then
+        test_pass
+    else
+        test_fail "missing shared allowlist loader"
+    fi
+}
+
+test_adapters_share_runtime_security_helpers() {
+    test_case "MCP and OpenClaw use one adapter runtime for credentials and project roots"
+    if [[ -f "$SHARED_ADAPTER" ]] &&
+       grep -q '../../shared/adapter-runtime.mjs' "$MCP_SRC" &&
+       grep -q '../../shared/adapter-runtime.mjs' "$OC_SRC" &&
+       ! grep -q '^function loadProviderEnvAllowlist\|^async function validateProjectRoot' "$MCP_SRC" &&
+       ! grep -q '^function loadProviderEnvAllowlist\|^async function validateProjectRoot' "$OC_SRC"; then
+        test_pass
+    else
+        test_fail "adapter credential and project-root helpers are still duplicated"
+    fi
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -222,6 +246,7 @@ test_oc_forwards_quality_threshold
 test_shared_env_allowlist_contract
 test_mcp_loads_shared_env_allowlist
 test_openclaw_loads_shared_env_allowlist
+test_adapters_share_runtime_security_helpers
 
 # Description
 test_oc_debate_says_multi_provider

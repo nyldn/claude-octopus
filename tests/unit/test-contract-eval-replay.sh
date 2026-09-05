@@ -55,4 +55,38 @@ else
     test_pass
 fi
 
+test_case "fleet scoring treats unavailable numeric metrics as zero"
+score_input="$TEST_TMP_DIR/score-null-metrics.json"
+printf '%s\n' '{
+  "schema_version": 1,
+  "ground_truth_finding_ids": ["A"],
+  "runs": [
+    {"strategy":"partial","latency_ms":null,"tokens":"n/a","cost_usd":null,"findings":[]}
+  ]
+}' > "$score_input"
+if score="$(python3 "$PROJECT_ROOT/scripts/helpers/score-review-fleet.py" "$score_input")" &&
+   jq -e '.strategies[0].median_latency_ms == 0 and .strategies[0].total_tokens == 0 and .strategies[0].total_cost_usd == 0' <<< "$score" >/dev/null; then
+    test_pass
+else
+    test_fail "unavailable numeric metrics crashed or changed zero defaults"
+fi
+
+test_case "fleet scoring rejects malformed findings without a traceback"
+score_input="$TEST_TMP_DIR/score-malformed-findings.json"
+printf '%s\n' '{
+  "schema_version": 1,
+  "ground_truth_finding_ids": ["A"],
+  "runs": [
+    {"strategy":"partial","findings":{"id":"A","validated":true}}
+  ]
+}' > "$score_input"
+score_error="$TEST_TMP_DIR/score-malformed-findings.err"
+if python3 "$PROJECT_ROOT/scripts/helpers/score-review-fleet.py" "$score_input" > /dev/null 2> "$score_error"; then
+    test_fail "malformed findings object was accepted"
+elif grep -Fq 'Traceback' "$score_error"; then
+    test_fail "malformed findings emitted a traceback: $(cat "$score_error")"
+else
+    test_pass
+fi
+
 test_summary

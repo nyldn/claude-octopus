@@ -79,4 +79,26 @@ else
     test_fail "built OpenClaw runner did not preserve per-call project authority"
 fi
 
+test_case "OpenClaw errors redact API key and token assignments"
+if node --input-type=module - "$PROJECT_ROOT/openclaw/dist/index.js" "$PROJECT_ROOT" <<'JS'
+import assert from "node:assert/strict";
+import { pathToFileURL } from "node:url";
+
+const modulePath = process.argv[2];
+const projectRoot = process.argv[3];
+const { executeOrchestrate } = await import(pathToFileURL(modulePath));
+const result = await executeOrchestrate(
+  "probe", "credential-failure", projectRoot, [], [], async () => {
+    throw new Error("request failed: OPENAI_API_KEY=openclaw-secret ANTHROPIC_AUTH_TOKEN=openclaw-token AWS_SECRET_ACCESS_KEY=openclaw-access");
+  }
+);
+assert.doesNotMatch(result, /openclaw-secret|openclaw-token|openclaw-access/);
+assert.equal((result.match(/\[REDACTED\]/g) ?? []).length, 3);
+JS
+then
+    test_pass
+else
+    test_fail "OpenClaw error returned a credential value"
+fi
+
 test_summary

@@ -203,12 +203,18 @@ def reconcile(path):
         elif event.get("state") in TERMINAL_STATES and current.get("state") not in TERMINAL_STATES:
             if event.get("state") == "completed":
                 for key, value in incoming.items():
-                    if key not in {"call_id", "timestamp", "agent", "model", "phase"} or value is not None:
+                    if key not in {"call_id", "timestamp", "agent", "model", "phase", "role"} or value is not None:
                         current[key] = value
             else:
                 current["state"] = incoming["state"]
-                current["duration_ms"] = incoming["duration_ms"]
                 current["failure_reason"] = incoming["failure_reason"]
+                for key in (
+                    "duration_ms", "cost_usd", "cost_status", "usage_source",
+                    "input_tokens", "cached_input_tokens", "cache_write_tokens",
+                    "output_tokens", "reasoning_tokens", "total_tokens", "tool_uses",
+                ):
+                    if incoming[key] is not None:
+                        current[key] = incoming[key]
         # Duplicate terminal events are ignored; append_event also prevents new
         # ones, but reconciliation remains idempotent for externally written logs.
     return list(records.values())

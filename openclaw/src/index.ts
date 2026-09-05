@@ -12,19 +12,23 @@
  */
 
 import { execFile } from "node:child_process";
-import { readFileSync } from "node:fs";
 import { promisify } from "node:util";
-import { resolve, dirname, isAbsolute, parse } from "node:path";
+import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Type, type TSchema, type Static } from "@sinclair/typebox";
 import { loadSkills } from "./skill-loader.js";
-import { realpath, stat } from "node:fs/promises";
+import {
+  loadProviderEnvAllowlist,
+  providerEnvironment,
+  sanitizeAdapterError,
+  validateProjectRoot,
+} from "../../shared/adapter-runtime.mjs";
 
 const execFileAsync = promisify(execFile);
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PLUGIN_ROOT = resolve(__dirname, "../..");
-const PROVIDER_ENV_ALLOWLIST = loadProviderEnvAllowlist();
+const PROVIDER_ENV_ALLOWLIST = loadProviderEnvAllowlist(PLUGIN_ROOT);
 const BLOCKED_ENV_VARS = new Set([
   "OCTOPUS_SECURITY_V870",
   "OCTOPUS_AGY_SANDBOX",
@@ -79,37 +83,6 @@ function textResult(text: string): AgentToolResult {
   return { content: [{ type: "text", text }], details: {} };
 }
 
-function loadProviderEnvAllowlist(): string[] {
-  const path = resolve(PLUGIN_ROOT, "config/provider-env-allowlist.json");
-  const parsed = JSON.parse(readFileSync(path, "utf-8")) as {
-    schema_version?: unknown;
-    names?: unknown;
-  };
-  if (parsed.schema_version !== 1 || !Array.isArray(parsed.names) ||
-      parsed.names.some((name) => typeof name !== "string" || !/^[A-Z][A-Z0-9_]*$/.test(name))) {
-    throw new Error("invalid provider environment allowlist");
-  }
-  return [...new Set(parsed.names)];
-}
-
-function providerEnvironment(): Record<string, string> {
-  const dynamicNames = [
-    process.env.OPENAI_COMPAT_API_KEY_ENV,
-    ...(process.env.OCTOPUS_CREDENTIAL_ENV_NAMES ?? "").split(","),
-  ].filter((name): name is string =>
-    typeof name === "string" &&
-    /^[A-Z][A-Z0-9_]*(?:API_KEY|TOKEN|CREDENTIALS?)$/.test(name) &&
-    !name.startsWith("OCTOPUS_") && !name.startsWith("CLAUDE_OCTOPUS_")
-  );
-  const names = [...new Set([...PROVIDER_ENV_ALLOWLIST, ...dynamicNames])];
-  return Object.fromEntries(
-    names.flatMap((name) => {
-      const value = process.env[name];
-      return value === undefined ? [] : [[name, value]];
-    })
-  );
-}
-
 // --- Execution ---
 
 // Allowed autonomy values for runtime validation
@@ -117,24 +90,6 @@ const VALID_AUTONOMY = new Set(["supervised", "semi-autonomous", "autonomous"]);
 const PROJECT_ROOT_PARAMETER = Type.String({
   description: "Absolute root directory of the project for this call",
 });
-
-async function validateProjectRoot(projectRoot: string): Promise<string> {
-  if (typeof projectRoot !== "string" || projectRoot.trim() === "") {
-    throw new Error("project_root is required");
-  }
-  if (!isAbsolute(projectRoot)) {
-    throw new Error("project_root must be an absolute path");
-  }
-  const canonicalRoot = await realpath(projectRoot);
-  const metadata = await stat(canonicalRoot);
-  if (!metadata.isDirectory()) {
-    throw new Error("project_root must be a directory");
-  }
-  if (canonicalRoot === parse(canonicalRoot).root) {
-    throw new Error("project_root cannot be the filesystem root");
-  }
-  return canonicalRoot;
-}
 
 export async function executeOrchestrate(
   command: string,
@@ -162,7 +117,7 @@ export async function executeOrchestrate(
         USER: process.env.USER,
         // The shared list covers every supported adapter. The shell dispatch
         // plan forwards only the credential selected for the current seat.
-        ...providerEnvironment(),
+        ...providerEnvironment(PROVIDER_ENV_ALLOWLIST),
         // Octopus config
         ...Object.fromEntries(
           Object.entries(process.env).filter(([k]) =>
@@ -177,8 +132,7 @@ export async function executeOrchestrate(
     });
     return stdout || stderr || "Command completed with no output.";
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : String(error);
-    return `Error: ${msg}`;
+    return `Error: ${sanitizeAdapterError(error)}`;
   }
 }
 

@@ -26,16 +26,16 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { execFile } from "node:child_process";
-import { readFileSync } from "node:fs";
 import { promisify } from "node:util";
-import { resolve, dirname, isAbsolute, parse, relative } from "node:path";
+import { resolve, dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readFile, readdir, realpath, stat } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
+import { isDirectExecution, loadProviderEnvAllowlist, providerEnvironment, sanitizeAdapterError, validateProjectRoot, } from "../../shared/adapter-runtime.mjs";
 const execFileAsync = promisify(execFile);
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PLUGIN_ROOT = resolve(__dirname, "../..");
 const ORCHESTRATE_SH = resolve(PLUGIN_ROOT, "scripts/orchestrate.sh");
-const PROVIDER_ENV_ALLOWLIST = loadProviderEnvAllowlist();
+const PROVIDER_ENV_ALLOWLIST = loadProviderEnvAllowlist(PLUGIN_ROOT);
 // --- IDE Context State ---
 /** Editor context injected by IDE extensions via octopus_set_editor_context */
 let editorContext = {};
@@ -49,45 +49,6 @@ const BLOCKED_ENV_VARS = new Set([
 ]);
 const MAX_SELECTION_LENGTH = 50_000; // 50KB max for editor selection
 // --- Helpers ---
-function loadProviderEnvAllowlist() {
-    const path = resolve(PLUGIN_ROOT, "config/provider-env-allowlist.json");
-    const parsed = JSON.parse(readFileSync(path, "utf-8"));
-    if (parsed.schema_version !== 1 || !Array.isArray(parsed.names) ||
-        parsed.names.some((name) => typeof name !== "string" || !/^[A-Z][A-Z0-9_]*$/.test(name))) {
-        throw new Error("invalid provider environment allowlist");
-    }
-    return [...new Set(parsed.names)];
-}
-function providerEnvironment() {
-    const dynamicNames = [
-        process.env.OPENAI_COMPAT_API_KEY_ENV,
-        ...(process.env.OCTOPUS_CREDENTIAL_ENV_NAMES ?? "").split(","),
-    ].filter((name) => typeof name === "string" &&
-        /^[A-Z][A-Z0-9_]*(?:API_KEY|TOKEN|CREDENTIALS?)$/.test(name) &&
-        !name.startsWith("OCTOPUS_") && !name.startsWith("CLAUDE_OCTOPUS_"));
-    const names = [...new Set([...PROVIDER_ENV_ALLOWLIST, ...dynamicNames])];
-    return Object.fromEntries(names.flatMap((name) => {
-        const value = process.env[name];
-        return value === undefined ? [] : [[name, value]];
-    }));
-}
-async function validateProjectRoot(projectRoot) {
-    if (typeof projectRoot !== "string" || projectRoot.trim() === "") {
-        throw new Error("project_root is required");
-    }
-    if (!isAbsolute(projectRoot)) {
-        throw new Error("project_root must be an absolute path");
-    }
-    const canonicalRoot = await realpath(projectRoot);
-    const metadata = await stat(canonicalRoot);
-    if (!metadata.isDirectory()) {
-        throw new Error("project_root must be a directory");
-    }
-    if (canonicalRoot === parse(canonicalRoot).root) {
-        throw new Error("project_root cannot be the filesystem root");
-    }
-    return canonicalRoot;
-}
 export async function runOrchestrate(command, prompt, projectRoot, flags = [], postFlags = [], executor = execFileAsync) {
     // Global flags MUST come before the command; subcommand flags go after
     const args = [...flags, command, ...postFlags, prompt];
@@ -105,7 +66,7 @@ export async function runOrchestrate(command, prompt, projectRoot, flags = [], p
                 USER: process.env.USER,
                 // The shared list covers every supported adapter. The shell dispatch
                 // plan forwards only the credential selected for the current seat.
-                ...providerEnvironment(),
+                ...providerEnvironment(PROVIDER_ENV_ALLOWLIST),
                 // Octopus config — explicit allowlist (never forward security-governing vars)
                 ...Object.fromEntries(Object.entries(process.env).filter(([k]) => (k.startsWith("CLAUDE_OCTOPUS_") || k.startsWith("OCTOPUS_")) &&
                     !BLOCKED_ENV_VARS.has(k))),
@@ -121,9 +82,7 @@ export async function runOrchestrate(command, prompt, projectRoot, flags = [], p
         return { text: stdout || stderr || "Command completed with no output.", isError: false };
     }
     catch (error) {
-        const msg = error instanceof Error ? error.message : String(error);
-        // Sanitize potential API key leaks from error messages
-        const sanitized = msg.replace(/[A-Za-z_]+KEY=[^\s]+/g, "[REDACTED]");
+        const sanitized = sanitizeAdapterError(error);
         return { text: `Error executing ${command}: ${sanitized}`, isError: true };
     }
 }
@@ -469,7 +428,7 @@ async function main() {
     const transport = new StdioServerTransport();
     await server.connect(transport);
 }
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isDirectExecution(import.meta.url)) {
     main().catch((error) => {
         console.error("Failed to start MCP server:", error);
         process.exit(1);

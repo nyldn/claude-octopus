@@ -221,7 +221,8 @@ def run_bounded_process(command, cwd: Path, timeout: float, *, shell: bool, outp
     process = subprocess.Popen(command, **popen_options)  # noqa: S603 - caller applies command policy
     if os.name == "posix":
         return _collect_posix_process(process, command, timeout, output_limit)
-    process_group = process.pid if os.name == "posix" else None
+    # POSIX runs return above; the reader-thread path is non-POSIX only.
+    process_group = None
     captured = bytearray()
     capture_lock = threading.Lock()
 
@@ -276,6 +277,14 @@ def run_bounded_process(command, cwd: Path, timeout: float, *, shell: bool, outp
         raise subprocess.TimeoutExpired(command, timeout, output=output)
     return process.returncode, output
 
+
+def _timeout_result(expired: subprocess.TimeoutExpired, timeout: float, output_limit: int) -> str:
+    marker = f"exit=timeout after {timeout}s\n"
+    partial = expired.output or ""
+    if isinstance(partial, bytes):
+        partial = partial.decode("utf-8", errors="replace")
+    return marker + partial[-max(0, output_limit - len(marker)):]
+
 def tool_exec(cwd: Path, name: str, args: dict) -> str:
     try:
         if name == "read_file":
@@ -293,13 +302,21 @@ def tool_exec(cwd: Path, name: str, args: dict) -> str:
                 return (f"ERROR: refused — {blocked}. This agent may not run that. "
                         f"Work within the project directory, or ask the operator to run it.")
             timeout = env_float("OPENAI_COMPAT_COMMAND_TIMEOUT", 20.0)
-            returncode, output = run_bounded_process(cmd, cwd, timeout, shell=True, output_limit=20000)
+            try:
+                returncode, output = run_bounded_process(
+                    cmd, cwd, timeout, shell=True, output_limit=20000
+                )
+            except subprocess.TimeoutExpired as expired:
+                return _timeout_result(expired, timeout, 20000)
             return (f"exit={returncode}\n" + output)[-20000:]
         if name == "git_diff":
             timeout = env_float("OPENAI_COMPAT_COMMAND_TIMEOUT", 20.0)
-            returncode, output = run_bounded_process(
-                ["git", "diff", "--", "."], cwd, timeout, shell=False, output_limit=30000
-            )
+            try:
+                returncode, output = run_bounded_process(
+                    ["git", "diff", "--", "."], cwd, timeout, shell=False, output_limit=30000
+                )
+            except subprocess.TimeoutExpired as expired:
+                return _timeout_result(expired, timeout, 30000)
             return (f"exit={returncode}\n" + output)[-30000:]
         return f"ERROR: unknown tool {name}"
     except Exception as e:

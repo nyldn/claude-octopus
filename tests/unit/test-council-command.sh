@@ -1034,6 +1034,91 @@ test_council_chair_fallback_warning_prints_to_cli() {
     fi
 }
 
+test_council_contribution_record_failure_is_nonfatal() {
+    test_case "Council keeps advice and chair fallback seats when contribution records fail"
+    load_council_lib || return 1
+
+    local tmp_dir out_file count_file status summary
+    tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-contribution-failure.XXXXXX")"
+    out_file="$TEST_TMP_DIR/council-contribution-failure.out"
+    count_file="$TEST_TMP_DIR/council-contribution-failure.count"
+    : > "$count_file"
+
+    set +e
+    (
+        set -e
+        council_contribution_record_json() {
+            printf 'attempt\n' >> "$count_file"
+            return 1
+        }
+        OCTOPUS_COUNCIL_FIXTURE=full-success \
+        OCTOPUS_COUNCIL_FAIL_PERSONAS='strategy-analyst' \
+        OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,agy:available' \
+            council_run --depth quick --output-dir "$tmp_dir" "Review auth"
+    ) >"$out_file" 2>&1
+    status=$?
+    set -e
+
+    summary="$(find "$tmp_dir" -name summary.json -type f -print -quit)"
+    if [[ $status -eq 0 && -f "$summary" ]] \
+            && jq -e '
+                .status == "completed"
+                and .warnings.chair_fallback == true
+                and (.seats | length) == 4
+                and (.seats | all(
+                    .contribution.validation_result == "invalid-record"
+                    and .contribution.access_state == "unverified"
+                    and .contribution.evidence_paths == []
+                ))
+            ' "$summary" >/dev/null \
+            && [[ "$(wc -l < "$count_file" | tr -d '[:space:]')" -eq 4 ]]; then
+        test_pass
+    else
+        test_fail "contribution failure aborted or omitted a production caller: rc=$status attempts=$(wc -l < "$count_file" | tr -d '[:space:]')"
+        return 1
+    fi
+}
+
+test_council_chair_fallback_reuses_advice_digest() {
+    test_case "Council chair fallback reuses the advice workspace digest"
+    load_council_lib || return 1
+
+    local tmp_dir out_file count_file status summary
+    tmp_dir="$(mktemp -d "$TEST_TMP_DIR/council-digest-reuse.XXXXXX")"
+    out_file="$TEST_TMP_DIR/council-digest-reuse.out"
+    count_file="$TEST_TMP_DIR/council-digest-reuse.count"
+    : > "$count_file"
+
+    set +e
+    (
+        set -e
+        council_artifact_digest() {
+            printf 'attempt\n' >> "$count_file"
+            printf '%s\n' 'sha256:test-workspace-digest'
+        }
+        OCTOPUS_COUNCIL_FIXTURE=full-success \
+        OCTOPUS_COUNCIL_FAIL_PERSONAS='strategy-analyst' \
+        OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,agy:available' \
+            council_run --depth quick --output-dir "$tmp_dir" "Review auth"
+    ) >"$out_file" 2>&1
+    status=$?
+    set -e
+
+    summary="$(find "$tmp_dir" -name summary.json -type f -print -quit)"
+    if [[ $status -eq 0 && -f "$summary" ]] \
+            && jq -e '
+                .status == "completed"
+                and .warnings.chair_fallback == true
+                and (.seats | all(.contribution.workspace_digest == "sha256:test-workspace-digest"))
+            ' "$summary" >/dev/null \
+            && [[ "$(wc -l < "$count_file" | tr -d '[:space:]')" -eq 1 ]]; then
+        test_pass
+    else
+        test_fail "chair fallback rehashed the workspace: rc=$status attempts=$(wc -l < "$count_file" | tr -d '[:space:]')"
+        return 1
+    fi
+}
+
 test_council_fixture_critique_honors_failed_persona() {
     test_case "Council fixture critique honors failed persona filter"
     load_council_lib || return 1
@@ -1993,6 +2078,8 @@ test_council_critical_veto_aborts_implementation_run
 test_council_chair_fallback_preserves_quorum
 test_council_diversity_warning_prints_to_cli
 test_council_chair_fallback_warning_prints_to_cli
+test_council_contribution_record_failure_is_nonfatal
+test_council_chair_fallback_reuses_advice_digest
 test_council_fixture_critique_honors_failed_persona
 test_council_cost_cap_aborts_before_fanout
 test_council_cost_cap_aborts_before_critique

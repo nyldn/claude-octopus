@@ -109,6 +109,16 @@ class SafetyContract(unittest.TestCase):
             with self.subTest(mode=mode):
                 self.invoke(mode, name, inputs, "deny", env={"PATH": str(binary_dir)})
 
+    def test_missing_helper_mode_fails_closed_without_traceback(self):
+        result = subprocess.run(
+            [sys.executable, str(self.hook_root / "safety-contract.py")],
+            text=True, capture_output=True, cwd=REPO, env=self.env, timeout=10)
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stderr, "")
+        output = json.loads(result.stdout)["hookSpecificOutput"]
+        self.assertEqual(output["permissionDecision"], "deny")
+        self.assertIn("could not validate", output["permissionDecisionReason"])
+
     def test_all_careful_decisions_and_json_escaping(self):
         for command in ("rm -rf /inert-example", 'psql -c \'DROP TABLE "users"\'',
                         "git push --force", "git reset --hard", "git restore .",

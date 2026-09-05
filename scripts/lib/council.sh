@@ -2194,6 +2194,10 @@ PY
           comprehension_verified:false}'
 }
 
+council_unavailable_contribution_record_json() {
+    printf '%s\n' '{"artifact_digest":"unavailable","workspace_digest":"unavailable","access_state":"unverified","evidence_paths":[],"validation_result":"invalid-record","verdict":null,"comprehension_verified":false}'
+}
+
 council_received_non_chair() {
     # Derive this count from the execution records, not from the aggregate response
     # counter. A chair fallback can reuse an already-counted member response without
@@ -2406,7 +2410,8 @@ council_run_advice_phase() {
             seat_status="timed-out"
             council_note_seat_timeout "$mprovider" "$persona" "$dispatch_rc" "$(council_seat_timeout "$mprovider")"
         fi
-        contribution_json="$(council_contribution_record_json "$output_path" "$evidence_root" "$artifact_digest")"
+        contribution_json="$(council_contribution_record_json "$output_path" "$evidence_root" "$artifact_digest")" \
+            || contribution_json="$(council_unavailable_contribution_record_json)"
         # Per-seat record for summary.json — makes quorum integrity machine-checkable
         # (a chair or degenerate seat can no longer masquerade as a distinct approving
         # vendor). payload_kind is "full" here; #2 (agy chunking) populates delta/chunk,
@@ -2428,7 +2433,7 @@ council_run_advice_phase() {
     done < <(jq -c '.[]' <<< "$COUNCIL_ROSTER_JSON")
 
     if [[ "$COUNCIL_CHAIR_RESPONSE_RECEIVED" != "true" ]]; then
-        council_run_chair_fallback
+        council_run_chair_fallback "$artifact_digest"
     fi
 
     local required received_non_chair
@@ -2522,10 +2527,12 @@ council_synthesis_capable_persona() {
 council_run_chair_fallback() {
     local persona provider member_json slug output_path index
     local seat_agent_spec seat_org seat_model seat_model_family resp_bytes verdict seat_status seat_rec existing_response dispatch_rc
-    local dispatch_timeout_provenance contribution_json artifact_digest
+    local dispatch_timeout_provenance contribution_json artifact_digest="${1:-}"
     local evidence_root="${OCTOPUS_PROJECT_DIR:-${PROJECT_ROOT:-$PWD}}"
     [[ -d "$evidence_root" ]] || evidence_root="$PWD"
-    artifact_digest="$(council_artifact_digest "$evidence_root" "${COUNCIL_TASK:-}")" || artifact_digest="unavailable"
+    if [[ -z "$artifact_digest" ]]; then
+        artifact_digest="$(council_artifact_digest "$evidence_root" "${COUNCIL_TASK:-}")" || artifact_digest="unavailable"
+    fi
 
     while IFS= read -r persona; do
         [[ -n "$persona" ]] || continue
@@ -2580,7 +2587,8 @@ council_run_chair_fallback() {
             [[ -z "$resp_bytes" ]] && resp_bytes=0
             verdict="$(council_response_verdict "$output_path")"
             seat_status="responded"
-            contribution_json="$(council_contribution_record_json "$output_path" "$evidence_root" "$artifact_digest")"
+            contribution_json="$(council_contribution_record_json "$output_path" "$evidence_root" "$artifact_digest")" \
+                || contribution_json="$(council_unavailable_contribution_record_json)"
             seat_rec="$(jq -cn --argjson idx "$index" --arg persona "$persona" \
                 --arg agent_spec "$seat_agent_spec" --arg provider "$(octo_agent_spec_provider "$provider")" --arg org "$seat_org" --arg model "$seat_model" --arg model_family "$seat_model_family" \
                 --argjson bytes "${resp_bytes:-0}" --arg verdict "$verdict" --arg status "$seat_status" \

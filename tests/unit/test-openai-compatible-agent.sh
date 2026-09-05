@@ -523,6 +523,66 @@ else
     test_fail "normal command did not complete through the supervisor"
 fi
 
+test_case "non-POSIX process supervision has no unreachable POSIX assignment"
+if HELPER="$HELPER" python3 - <<'PYTEST'
+import ast
+import importlib.util
+import inspect
+import os
+import textwrap
+
+spec = importlib.util.spec_from_file_location("openai_compatible_agent_process_source", os.environ["HELPER"])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+tree = ast.parse(textwrap.dedent(inspect.getsource(mod.run_bounded_process)))
+assignments = [
+    node.value
+    for node in ast.walk(tree)
+    if isinstance(node, ast.Assign)
+    and any(isinstance(target, ast.Name) and target.id == "process_group" for target in node.targets)
+]
+assert len(assignments) == 1, assignments
+assert isinstance(assignments[0], ast.Constant) and assignments[0].value is None, ast.dump(assignments[0])
+PYTEST
+then
+    test_pass
+else
+    test_fail "non-POSIX path retained an unreachable POSIX process-group condition"
+fi
+
+test_case "tool timeouts retain bounded captured output tails"
+if HELPER="$HELPER" python3 - <<'PYTEST'
+import importlib.util
+import os
+import subprocess
+import tempfile
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("openai_compatible_agent_timeout_output", os.environ["HELPER"])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+
+def timeout(command, cwd, timeout, *, shell, output_limit):
+    del cwd, shell
+    output = "x" * output_limit + "TAIL"
+    raise subprocess.TimeoutExpired(command, timeout, output=output)
+
+mod.run_bounded_process = timeout
+with tempfile.TemporaryDirectory() as cwd:
+    run_result = mod.tool_exec(Path(cwd), "run_command", {"command": "sleep 60"})
+    diff_result = mod.tool_exec(Path(cwd), "git_diff", {})
+
+for result, limit in ((run_result, 20000), (diff_result, 30000)):
+    assert result.startswith("exit=timeout after 20.0s\n"), result[:80]
+    assert result.endswith("TAIL"), result[-80:]
+    assert len(result) <= limit, len(result)
+PYTEST
+then
+    test_pass
+else
+    test_fail "tool timeout discarded its captured output or marker"
+fi
+
 test_case "run_command timeout prevents descendant late writes"
 if HELPER="$HELPER" python3 - <<'PYTEST'
 import importlib.util
@@ -544,7 +604,7 @@ try:
         child = "import time; from pathlib import Path; time.sleep(0.6); Path('late-write').write_text('late')"
         command = f"{shlex.quote(sys.executable)} -c {shlex.quote(child)} & sleep 5"
         result = mod.tool_exec(Path(cwd), "run_command", {"command": command})
-        assert result.startswith("ERROR: TimeoutExpired:"), result
+        assert result.startswith("exit=timeout after 0.1s\n"), result
         time.sleep(0.8)
         assert not marker.exists(), marker
 finally:
@@ -588,7 +648,7 @@ try:
         started = time.monotonic()
         result = mod.tool_exec(Path(cwd), "run_command", {"command": command})
         elapsed = time.monotonic() - started
-        assert result.startswith("ERROR: TimeoutExpired:"), result
+        assert result.startswith("exit=timeout after 0.1s\n"), result
         assert elapsed < 1.5, elapsed
         time.sleep(0.8)
         assert not marker.exists(), marker

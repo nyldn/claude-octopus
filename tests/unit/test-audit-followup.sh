@@ -131,6 +131,24 @@ if [[ "$(OCTOPUS_FORCE_CODEX_TOML_FALLBACK=1 python3 "$PROJECT_ROOT/scripts/help
     test_pass
 else test_fail "valid project table discarded selected credential"; fi
 
+test_case "older Python credential parsing skips valid multiline TOML constructs"
+cat > "$TEST_TMP_DIR/codex-multiline.toml" <<'TOML'
+model_provider = "router"
+experimental_features = [
+  "fast-path",
+  "safe-mode",
+]
+[[sandbox.workspaces]]
+path = "/tmp/first"
+[[sandbox.workspaces]]
+path = "/tmp/second"
+[model_providers.router]
+env_key = "ROUTER_API_KEY"
+TOML
+if [[ "$(OCTOPUS_FORCE_CODEX_TOML_FALLBACK=1 python3 "$PROJECT_ROOT/scripts/helpers/read-codex-config.py" "$TEST_TMP_DIR/codex-multiline.toml")" == ROUTER_API_KEY ]]; then
+    test_pass
+else test_fail "valid multiline TOML discarded selected credential"; fi
+
 test_case "native token fields are independent of field order and suffixes"
 SUPPORTS_NATIVE_TASK_METRICS=true SUPPORTS_OTEL_SPEED=false
 parse_task_metrics $'<usage>\ncached_input_tokens: 900\ninput_tokens: 100\noutput_tokens: 20\ntotal_tokens: 1020\n</usage>'

@@ -269,6 +269,39 @@ test_metadata_fast_path_validates_archive() {
     fi
 }
 
+test_package_integrity_checkout_is_hardened() {
+    test_case "package integrity pins checkout and does not persist credentials"
+    local workflow="$PROJECT_ROOT/.github/workflows/test.yml"
+    local package_job package_checkout
+    package_job=$(sed -n '/^  package-integrity:/,/^  portability-lint:/p' "$workflow")
+    package_checkout=$(grep -A3 -F 'uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1' <<< "$package_job" || true)
+    if grep -Fq 'uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1' <<< "$package_job" &&
+       grep -Fq 'persist-credentials: false' <<< "$package_checkout"; then
+        test_pass
+    else
+        test_fail "package integrity checkout is mutable or persists credentials"
+        return 1
+    fi
+}
+
+test_summary_propagates_package_integrity_failure() {
+    test_case "test summary reports and fails on package integrity failure"
+    local workflow="$PROJECT_ROOT/.github/workflows/test.yml"
+    local summary_job package_status_check
+    summary_job=$(sed -n '/^  test-summary:/,$p' "$workflow")
+    # shellcheck disable=SC2016 # Match literal GitHub expressions in the workflow.
+    package_status_check=$(grep -A3 -F 'if [[ "${{ needs.package-integrity.result }}" != "success" ]]; then' <<< "$summary_job" || true)
+    # shellcheck disable=SC2016 # Match literal GitHub expressions in the workflow.
+    if grep -Fq '| Package | ${{ needs.package-integrity.result }} |' <<< "$summary_job" &&
+       grep -Fq 'if [[ "${{ needs.package-integrity.result }}" != "success" ]]; then' <<< "$summary_job" &&
+       grep -Fq 'exit 1' <<< "$package_status_check"; then
+        test_pass
+    else
+        test_fail "test summary does not propagate package integrity failure"
+        return 1
+    fi
+}
+
 # Run tests
 test_sourced_scripts_exist
 test_metrics_tracker_exists
@@ -277,5 +310,7 @@ test_hook_scripts_exist
 test_orchestrate_can_source_deps
 test_extracted_archive_contract
 test_metadata_fast_path_validates_archive
+test_summary_propagates_package_integrity_failure
+test_package_integrity_checkout_is_hardened
 
 test_summary

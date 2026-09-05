@@ -149,8 +149,9 @@ def freeze(data, boundary):
 
 
 def main():
-    mode = sys.argv[1]
+    mode = ""
     try:
+        mode = sys.argv[1]
         if mode == "careful-decision":
             reason = sys.argv[2]
             if codex_host():

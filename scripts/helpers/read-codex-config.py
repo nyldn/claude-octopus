@@ -98,6 +98,30 @@ def _key_path(value: str) -> tuple:
     return tuple(result)
 
 
+def _container_depth(value: str) -> int:
+    """Count unclosed array and inline-table delimiters outside strings."""
+    depth = 0
+    quote = None
+    escaped = False
+    for char in value:
+        if escaped:
+            escaped = False
+        elif char == "\\" and quote == '"':
+            escaped = True
+        elif quote:
+            if char == quote:
+                quote = None
+        elif char in ("'", '"'):
+            quote = char
+        elif char in "[{":
+            depth += 1
+        elif char in "]}":
+            depth -= 1
+    if quote:
+        raise ConfigError("unterminated TOML string")
+    return depth
+
+
 def _fallback_load(path: Path) -> dict:
     """Parse only the Codex fields needed for credential selection.
 
@@ -107,12 +131,23 @@ def _fallback_load(path: Path) -> dict:
     data = {}
     section = ()
     seen = set()
+    continuation_depth = 0
     for raw_line in path.read_text(encoding="utf-8").splitlines():
         line = _strip_comment(raw_line)
         if not line:
             continue
+        if continuation_depth:
+            continuation_depth += _container_depth(line)
+            if continuation_depth < 0:
+                raise ConfigError("invalid multiline TOML value")
+            continue
         if line.startswith("["):
-            if not line.endswith("]") or line.startswith("[["):
+            if line.startswith("[["):
+                if not line.endswith("]]"):
+                    raise ConfigError("unsupported TOML table")
+                section = ("__array_table__",) + _key_path(line[2:-2])
+                continue
+            if not line.endswith("]"):
                 raise ConfigError("unsupported TOML table")
             section = _key_path(line[1:-1])
             continue
@@ -127,6 +162,9 @@ def _fallback_load(path: Path) -> dict:
             or (len(section) == 2 and section[0] == "model_providers" and key == "env_key")
         )
         if not relevant:
+            continuation_depth = _container_depth(raw_value)
+            if continuation_depth < 0:
+                raise ConfigError("invalid TOML value")
             continue
         location = section + (key,)
         if location in seen:
@@ -139,6 +177,8 @@ def _fallback_load(path: Path) -> dict:
                 raise ConfigError("conflicting TOML table")
             target = child
         target[key] = _parse_string(raw_value)
+    if continuation_depth:
+        raise ConfigError("unterminated multiline TOML value")
     return data
 
 

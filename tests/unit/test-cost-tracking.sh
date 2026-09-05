@@ -83,6 +83,57 @@ else
   test_fail "failed call lost or duplicated its reservation: $report"
 fi
 
+test_case "completion without role preserves the reserved role"
+terminal_log="$TEST_TMP_DIR/completed-role.jsonl"
+python3 "$PROJECT_ROOT/scripts/helpers/usage-ledger.py" append \
+  --file "$terminal_log" --state reserved --call-id completed-role \
+  --agent codex-api --model gpt-test --phase lifecycle --role reviewer \
+  --input-tokens 1 --output-tokens 2 --total-tokens 3 \
+  --usage-source estimated --cost 0.000005 --cost-status estimated
+python3 "$PROJECT_ROOT/scripts/helpers/usage-ledger.py" append \
+  --file "$terminal_log" --state completed --call-id completed-role \
+  --agent codex-api --model gpt-test --phase lifecycle \
+  --input-tokens 10 --output-tokens 20 --total-tokens 30 \
+  --usage-source actual --cost 0.25 --cost-status actual
+terminal_report="$(python3 "$PROJECT_ROOT/scripts/helpers/usage-ledger.py" report --file "$terminal_log")"
+if jq -e '
+    .calls[0].state == "completed" and .calls[0].role == "reviewer" and
+    .calls[0].total_tokens == 30 and .calls[0].cost_usd == 0.25
+  ' <<< "$terminal_report" >/dev/null; then
+  test_pass
+else
+  test_fail "completion erased its reserved role: $terminal_report"
+fi
+
+test_case "aborted terminal events retain reported billed usage"
+terminal_log="$TEST_TMP_DIR/aborted-usage.jsonl"
+for state in failed cancelled timeout; do
+  python3 "$PROJECT_ROOT/scripts/helpers/usage-ledger.py" append \
+    --file "$terminal_log" --state reserved --call-id "aborted-$state" \
+    --agent codex-api --model gpt-test --phase lifecycle --role reviewer \
+    --input-tokens 1 --output-tokens 2 --total-tokens 3 \
+    --usage-source estimated --cost 0.000005 --cost-status estimated
+  python3 "$PROJECT_ROOT/scripts/helpers/usage-ledger.py" append \
+    --file "$terminal_log" --state "$state" --call-id "aborted-$state" \
+    --agent codex-api --model gpt-test --phase lifecycle \
+    --input-tokens 10 --output-tokens 20 --total-tokens 30 \
+    --usage-source actual --cost 0.25 --cost-status actual --duration-ms 50 \
+    --failure-reason "$state by provider"
+done
+terminal_report="$(python3 "$PROJECT_ROOT/scripts/helpers/usage-ledger.py" report --file "$terminal_log")"
+if jq -e '
+    .totals.tokens == 90 and .totals.cost_usd == 0.75 and
+    ([.calls[] | select(
+      .role == "reviewer" and .usage_source == "actual" and
+      .input_tokens == 10 and .output_tokens == 20 and .total_tokens == 30 and
+      .cost_usd == 0.25 and .cost_status == "actual" and .duration_ms == 50
+    )] | length) == 3
+  ' <<< "$terminal_report" >/dev/null; then
+  test_pass
+else
+  test_fail "aborted calls lost reported billed usage: $terminal_report"
+fi
+
 test_case "native cached and reasoning components remain distinct"
 cached_id="$(record_agent_start codex-api gpt-test cache cache-phase)"
 record_agent_call codex-api gpt-test cache cache-phase reviewer 0 "$cached_id"
