@@ -18,22 +18,32 @@ mkdir -p "$WORKSPACE_DIR"
 source "$PROJECT_ROOT/scripts/lib/cost.sh"
 
 test_case "a killed Bash subshell writer releases its dispatch lock"
-if (
+lock_recovery_rc=0
+(
     # Pause after the real recorder has persisted its PID, without a child that
     # could outlive this fixture. The parent remains alive throughout recovery.
     # A separate file supplies the exact PID after the background launch.
     date() { [[ "${1:-}" != +%s ]] || { while [[ ! -f "$TEST_TMP_DIR/writer-ready" ]]; do :; done; kill -STOP "$(cat "$TEST_TMP_DIR/writer-ready")"; }; command date "$@"; }
     (octo_dispatch_plan_record '{"schema_version":1}' "$TEST_TMP_DIR/trace.jsonl") &
     writer=$!
+    trap 'kill -KILL "$writer" 2>/dev/null || true; wait "$writer" 2>/dev/null || true' EXIT
     printf '%s\n' "$writer" > "$TEST_TMP_DIR/writer-ready"
     observed=false
     for ((i=0;i<200;i++)); do [[ -s "$TEST_TMP_DIR/trace.jsonl.lock/pid" ]] && { observed=true; break; }; sleep .01; done
-    [[ "$observed" == true ]] || exit 1
+    [[ "$observed" == true ]] || exit 75
     kill -KILL "$writer"
     wait "$writer" 2>/dev/null || true
+    trap - EXIT
     unset -f date
     octo_dispatch_plan_record '{"schema_version":1}' "$TEST_TMP_DIR/trace.jsonl"
-); then test_pass; else test_fail "dead subshell left a live-parent lock"; fi
+) || lock_recovery_rc=$?
+if [[ "$lock_recovery_rc" -eq 0 ]]; then
+    test_pass
+elif [[ "$lock_recovery_rc" -eq 75 ]]; then
+    test_fail "dispatch-plan writer never published its lock PID"
+else
+    test_fail "dead subshell left a live-parent lock"
+fi
 
 test_case "a detached stdout holder cannot extend command cleanup indefinitely"
 if python3 - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY'

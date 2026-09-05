@@ -77,7 +77,11 @@ def main():
     malformed_runs = isinstance(runs, list) and any(
         not isinstance(run, dict)
         or not isinstance(run.get("findings", []), list)
-        or any(not isinstance(finding, dict) for finding in run.get("findings", []))
+        or any(
+            not isinstance(finding, dict)
+            or not isinstance(finding.get("reviewers", []), list)
+            for finding in run.get("findings", [])
+        )
         for run in runs
     )
     if (

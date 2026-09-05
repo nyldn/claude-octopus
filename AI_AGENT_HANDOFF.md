@@ -14,7 +14,7 @@ Branch: `release/v11.0.0`
 Tracking: `bd` is unavailable in this checkout. Do not run a schema migration;
 this handoff records the work instead.
 
-Next action: finish the exact-head local gate, push, resolve the five final
+Next action: finish the exact-head local gate, push, resolve the two final
 review threads, wait for hosted checks and review, then squash-merge PR #1015.
 Do not create the v11 tag or GitHub release without separate authorization.
 
@@ -60,6 +60,8 @@ Do not create the v11 tag or GitHub release without separate authorization.
   are terminalized across all legacy persistence failures.
 - Lock-recovery and dispatch-plan tests now report setup/helper failures
   through the test framework instead of passing or aborting silently.
+- Review-fleet scoring rejects malformed reviewer collections cleanly instead
+  of raising a Python traceback.
 
 ## Model-routing decision
 
@@ -73,7 +75,7 @@ models are too expensive for automatic use.
 - Focused review suites pass: dispatch plan 11/11, model-aware seats 22/22,
   Doctor 19/19, runner sharding 7/7, audit follow-up 14/14, council
   contribution 8/8, packaging 7/7, and Codex safety 17/17 through its shell
-  wrapper.
+  wrapper. Audit contract replay and fleet scoring pass 6/6.
 - Related dispatch and lifecycle suites also pass: agent-command validation
   66/66, AGY provider 52/52, dispatch round trip 6/6, background and sync run
   contracts 28/28 each, probe-single 37/37, sandbox persistence 6/6, and tangle

@@ -89,4 +89,22 @@ else
     test_pass
 fi
 
+test_case "fleet scoring rejects malformed reviewers without a traceback"
+score_input="$TEST_TMP_DIR/score-malformed-reviewers.json"
+printf '%s\n' '{
+  "schema_version": 1,
+  "ground_truth_finding_ids": ["A"],
+  "runs": [
+    {"strategy":"partial","findings":[{"id":"A","validated":true,"reviewers":null}]}
+  ]
+}' > "$score_input"
+score_error="$TEST_TMP_DIR/score-malformed-reviewers.err"
+if python3 "$PROJECT_ROOT/scripts/helpers/score-review-fleet.py" "$score_input" > /dev/null 2> "$score_error"; then
+    test_fail "malformed reviewers value was accepted"
+elif grep -Fq 'Traceback' "$score_error"; then
+    test_fail "malformed reviewers emitted a traceback: $(cat "$score_error")"
+else
+    test_pass
+fi
+
 test_summary
