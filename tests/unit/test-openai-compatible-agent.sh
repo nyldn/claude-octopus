@@ -205,7 +205,7 @@ class Response:
 def fake_urlopen(req, timeout):
     seen.append(json.loads(req.data.decode()))
     return Response()
-mod.urllib.request.urlopen = fake_urlopen
+mod.open_credentialed_request = fake_urlopen
 mod.api_call("https://example.invalid/v1", "key", "model", {}, [{"role":"user","content":"hi"}], request_timeout=1, max_retries=1)
 assert "max_tokens" not in seen[-1], seen[-1]
 mod.api_call("https://example.invalid/v1", "key", "model", {}, [{"role":"user","content":"hi"}], max_tokens=0, request_timeout=1, max_retries=1)
@@ -234,7 +234,7 @@ class Response:
 def fake_urlopen(req, timeout):
     seen.append(json.loads(req.data.decode()))
     return Response()
-mod.urllib.request.urlopen = fake_urlopen
+mod.open_credentialed_request = fake_urlopen
 messages = [{"role":"user","content":"review"}]
 mod.api_call("https://example.invalid/v1", "key", "model", {}, messages, request_timeout=1, max_retries=1, tool_policy="none")
 assert "tools" not in seen[-1], seen[-1]
@@ -389,7 +389,7 @@ def fake_urlopen(req, timeout):
     if calls["n"] == 1:
         raise urllib.error.HTTPError(req.full_url, 503, "unavailable", {}, io.BytesIO(b'temporary'))
     return Response()
-mod.urllib.request.urlopen = fake_urlopen
+mod.open_credentialed_request = fake_urlopen
 result = mod.api_call("https://example.invalid/v1", "key", "model", {}, [{"role":"user","content":"hi"}], max_tokens=0, request_timeout=1, max_retries=2)
 assert calls["n"] == 2, calls
 assert result["choices"][0]["message"]["content"] == "ok"

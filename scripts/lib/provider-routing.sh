@@ -12,8 +12,15 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 
 _provider_registry_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${_provider_registry_dir}/provider-registry.sh" || { echo "provider-routing: failed to load provider-registry.sh" >&2; return 1 2>/dev/null || exit 1; }
-source "${_provider_registry_dir}/kimi-env.sh" || { echo "provider-routing: failed to load kimi-env.sh" >&2; return 1 2>/dev/null || exit 1; }
+_octo_provider_routing_load_error() {
+    if declare -f log >/dev/null 2>&1; then
+        log ERROR "$1"
+    else
+        printf '%s\n' "$1" >&2
+    fi
+}
+source "${_provider_registry_dir}/provider-registry.sh" || { _octo_provider_routing_load_error "provider-routing: failed to load provider-registry.sh"; return 1 2>/dev/null || exit 1; }
+source "${_provider_registry_dir}/kimi-env.sh" || { _octo_provider_routing_load_error "provider-routing: failed to load kimi-env.sh"; return 1 2>/dev/null || exit 1; }
 
 # Providers accepted by set_provider_model / reset_provider_model.
 #
@@ -39,7 +46,7 @@ if ! declare -f octo_model_cache_file >/dev/null 2>&1; then
     source "${_provider_routing_lib_dir}/model-cache-path.sh" 2>/dev/null || true
 fi
 if ! declare -f octo_model_automatic_target_allowed >/dev/null 2>&1; then
-    source "${_provider_routing_lib_dir}/models.sh" || { echo "provider-routing: failed to load models.sh" >&2; return 1 2>/dev/null || exit 1; }
+    source "${_provider_routing_lib_dir}/models.sh" || { _octo_provider_routing_load_error "provider-routing: failed to load models.sh"; return 1 2>/dev/null || exit 1; }
 fi
 
 # [EXTRACTED to lib/persona-loader.sh] select_opus_mode()

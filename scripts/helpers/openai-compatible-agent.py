@@ -144,6 +144,34 @@ def rejects_reasoning_effort(body_text):
     return any(re.search(pattern, text) for pattern in patterns)
 
 
+class SameOriginRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Permit credentialed redirects only within the request's origin."""
+
+    @staticmethod
+    def _origin(url):
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            return None
+        default_port = 443 if parsed.scheme == "https" else 80
+        return parsed.scheme, parsed.hostname.lower(), parsed.port or default_port
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if self._origin(req.full_url) != self._origin(newurl):
+            raise urllib.error.HTTPError(
+                req.full_url,
+                code,
+                "refused cross-origin redirect for credentialed request",
+                headers,
+                fp,
+            )
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def open_credentialed_request(req, timeout):
+    opener = urllib.request.build_opener(SameOriginRedirectHandler())
+    return opener.open(req, timeout=timeout)
+
+
 def api_call(base_url, key, model, headers_extra, messages, max_tokens=0, request_timeout=60.0, max_retries=3, reasoning_effort=None, reasoning_policy="best_effort", tool_policy="auto"):
     if is_astra_model(model) and tool_policy == "auto":
         raise ValueError("gpt-6-astra tools require the Responses API; this adapter uses Chat Completions")
@@ -173,7 +201,7 @@ def api_call(base_url, key, model, headers_extra, messages, max_tokens=0, reques
         req = urllib.request.Request(endpoint, data=body, headers=headers, method="POST")
         started = time.time()
         try:
-            with urllib.request.urlopen(req, timeout=request_timeout) as r:
+            with open_credentialed_request(req, timeout=request_timeout) as r:
                 raw = r.read().decode()
                 print(f"chat_done attempt={attempt}/{max(1, max_retries)} status=200 elapsed={time.time() - started:.2f}s bytes={len(raw)}", file=sys.stderr)
                 return json.loads(raw)

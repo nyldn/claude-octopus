@@ -254,6 +254,8 @@ Always be mindful that external CLIs cost money:
 
 Note: API availability and subscription/OAuth availability differ by model and account. GPT-5.6 routing requires Codex CLI v0.144.0+; Astra requires v0.153.1+ and fails closed when the installed version cannot be identified.
 
+Host-seat Fable 5.1 pins require Claude Code v2.1.255 or newer so the client recognizes the model and its 1M context window. The independent `claude-agent` SDK path instead requires `CLAUDE_SDK_API_KEY` and the `claude-agent` executable, with no Claude Code version floor. Its headless `claude` CLI fallback must be v2.1.255 or newer.
+
 For simple tasks that don't need multi-AI perspectives, suggest using Claude directly without orchestration.
 
 ### Opus 5 Effort Levels (Claude Code v2.1.219+)

@@ -44,6 +44,16 @@ else
     test_fail "expensive frontier models became eligible for automatic routing"
 fi
 
+test_case "Fable 5.1 docs separate host and SDK-seat prerequisites"
+if grep -Fq 'Claude Code v2.1.255 or newer' "$PROJECT_ROOT/README.md" &&
+   grep -Fq 'Claude Code v2.1.255 or newer' "$PROJECT_ROOT/CLAUDE.md" &&
+   grep -Fq 'CLAUDE_SDK_API_KEY' "$PROJECT_ROOT/README.md" &&
+   grep -Fq 'claude-agent' "$PROJECT_ROOT/README.md"; then
+    test_pass
+else
+    test_fail "Fable 5.1 runtime prerequisites are incomplete"
+fi
+
 test_case "model-config exposes explicit-only policy beside frontier models"
 model_config_output="$(HOME="$TEST_TMP_DIR/home" bash "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" models 2>/dev/null)"
 if grep -E '^  gpt-6-astra[[:space:]].*premium[[:space:]]+explicit[[:space:]]+limited$' <<< "$model_config_output" >/dev/null &&
