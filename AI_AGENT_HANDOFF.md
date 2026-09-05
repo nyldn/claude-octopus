@@ -14,9 +14,10 @@ Branch: `release/v11.0.0`
 Tracking: `bd` is unavailable in this checkout. Do not run a schema migration;
 this handoff records the work instead.
 
-Next action: finish the exact-head local gate, push, resolve the two final
-review threads, wait for hosted checks and review, then squash-merge PR #1015.
-Do not create the v11 tag or GitHub release without separate authorization.
+Next action: squash-merge PR #1015 with the admin path. The exact-head code is
+fully verified; the remaining hosted failures are the external capacity issues
+recorded below. Do not create the v11 tag or GitHub release without separate
+authorization.
 
 ## Start Here
 
@@ -35,6 +36,14 @@ Do not create the v11 tag or GitHub release without separate authorization.
 - `tests/unit/test-skill-frontmatter.sh` prints a cosmetic `Failed Tests: 0`
   block while returning success. Its counters are correct, but the misleading
   summary should be cleaned up separately.
+- The hosted macOS unit shard 1/2 can exceed its configured limit: run
+  `33991524082` was cancelled at 25 minutes even though the same full unit and
+  integration matrix passed locally on macOS and the Ubuntu control passed.
+  Rebalance `tests/shard-weights.tsv` or raise the job limit with measured
+  evidence.
+- Hosted `pr-review` currently has no available provider: Claude reached its
+  temporary session cap and the Copilot fallback reached its monthly quota in
+  run `33991524036`. Restore provider capacity or add an independent fallback.
 - After this PR merges, the v11 tag, GitHub release, and any marketplace
   publication remain separate, authorization-gated release work.
 
@@ -81,8 +90,12 @@ models are too expensive for automatic use.
   contracts 28/28 each, probe-single 37/37, sandbox persistence 6/6, and tangle
   cancellation cleanup 16/16.
 - `make ci-changed` failed closed to the full `make ci-local` matrix and exited
-  0 on the exact implementation tree in commit `46981fb`.
+  0 on the final implementation tree in commit `069fd48`.
 - `make sync-check`, `git diff --check`, and the executable-mode check pass.
+- Hosted Ubuntu unit tests, macOS shard 2, smoke tests, portability, packaging,
+  symlink-path coverage, and CodeRabbit passed on `069fd48`. MacOS shard 1 was
+  cancelled by its time limit, and `pr-review` exhausted both provider paths;
+  neither failure reported a code or assertion defect.
 
 ## Workspace safety
 
