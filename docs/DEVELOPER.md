@@ -6,6 +6,17 @@
 
 ## Enforcement Best Practices (Mandatory for Workflow Skills)
 
+Host-native advisory methods do not need a provider execution block. Keep them
+explicit-only and test that ordinary prompts cannot activate them. A literal
+`orchestrate.sh` reference in a method means it spends or dispatches and must keep
+the repository's mandatory execution and prohibited-action checks.
+
+Runtime JSON helpers reject duplicate keys, non-finite values, unknown fields,
+oversized input, and mixed resolver output. Routing preview tests use fixed
+expected decisions plus separate parity checks against the production selector.
+Setup-state tests cover revisions, state transitions, linked files, malformed
+state, and concurrent supported writers.
+
 Skills that invoke orchestrate.sh MUST use the **Validation Gate Pattern** to ensure proper execution.
 
 ### Required Pattern

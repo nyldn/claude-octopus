@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "baseline_revision": "3267de847fa41761023ba021ba71bb15a7240551",
+  "candidate": "uncommitted implementation candidate",
+  "method": "one warm-up followed by five isolated wall-clock runs on the same host",
+  "removed_tests": [],
+  "decision": "keep all existing tests",
+  "reason": "The reviewed suites cover distinct skill contracts, setup control flow, preference locking, and routing behavior. Similar text checks do not guard the same boundary, so no mutation-backed duplicate was found.",
+  "measurements": [
+    {
+      "suite": "tests/unit/test-adapted-workflow-skills.sh",
+      "baseline_ms": [264.4, 236.7, 254.9, 244.9, 237.6],
+      "baseline_median_ms": 244.9,
+      "candidate_ms": [235.2, 244.4, 237.7, 236.7, 258.7],
+      "candidate_median_ms": 237.7,
+      "review_trigger": false
+    },
+    {
+      "suite": "tests/unit/test-setup-first-success.sh",
+      "baseline_ms": [142.7, 140.0, 145.5, 139.0, 138.3],
+      "baseline_median_ms": 140.0,
+      "candidate_ms": [184.4, 174.9, 174.4, 164.9, 165.2],
+      "candidate_median_ms": 174.4,
+      "review_trigger": false,
+      "note": "The median rose by 24.6 percent but only 34.4 ms, below the combined 20 percent and 100 ms trigger. The added case executes both previously unchecked shell positions."
+    },
+    {
+      "suite": "tests/unit/test-setup-suggest-routing.sh",
+      "baseline_ms": [2358.5, 2289.7, 2308.3, 2349.1, 2339.0],
+      "baseline_median_ms": 2339.0,
+      "candidate_ms": [2357.4, 2316.5, 2409.7, 2324.9, 2240.9],
+      "candidate_median_ms": 2324.9,
+      "review_trigger": false
+    }
+  ]
+}

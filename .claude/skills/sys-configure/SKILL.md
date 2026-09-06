@@ -12,9 +12,15 @@ trigger: |
   "configure providers", "set up API keys for octopus", or mentions octopus configuration.
 ---
 
-# Configuration → Setup Redirect
+# Configuration to setup redirect
 
 This skill is an alias for `/octo:setup`. When triggered, invoke the setup command directly.
+
+Setup uses a separate, private resume receipt. It rechecks readiness before
+trusting a recorded stage, leaves interrupted human login incomplete, and marks
+the receipt complete only after strict configuration persistence and readback.
+The user runs browser-opening authentication in their own terminal. Remote
+sessions never open it automatically.
 
 **Action:** Run `/octo:setup` — the interactive setup wizard handles all configuration:
 - Provider installation and auth

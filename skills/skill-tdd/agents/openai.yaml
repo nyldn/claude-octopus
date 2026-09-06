@@ -1,5 +1,5 @@
 interface:
   display_name: "Tdd"
-  short_description: "Build features with tests-before-code rigor — use for new..."
+  short_description: "Build a behavior change with observed red, minimal green, and..."
 policy:
   allow_implicit_invocation: false

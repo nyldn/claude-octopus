@@ -6,6 +6,26 @@ modifying a provider starts with two parity-enforced rows in
 environment adapters remain explicit. Line numbers below are anchors, not
 contracts; re-grep before editing.
 
+## Terms used in routing and review
+
+| Term | Meaning |
+|---|---|
+| provider | Executable or API transport; it does not prove model family |
+| model | Requested or resolved model identity, with its source stated |
+| installed | A binary was found; login and access remain unproven |
+| authenticated | Credential or session evidence; model entitlement remains separate |
+| entitlement | Account access to a service or model, when established |
+| readiness | Timestamped local check with reason and remediation |
+| billing mode | `subscription`, `api`, `local`, `mixed`, or `unknown`; installation does not establish it |
+| quota | Remaining allowance from an authoritative source |
+| seat | Requested reviewer job, not a completed contribution |
+| contribution | Received artifact with provenance and grounding status |
+| vote | Admissible judgment after contribution validation |
+
+Registry `cost_class=bundled` is routing metadata, not proof of the user's account
+billing. Two provider transports can expose the same model family, so transport
+count is not independence evidence. Keep an unknown model family unknown.
+
 The original five-column row is a public compatibility contract:
 
 ```text

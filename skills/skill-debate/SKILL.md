@@ -73,6 +73,15 @@ You are current host model, a **participant and moderator** in a multi-provider 
 
 **CRITICAL: You are NOT just an orchestrator. You are an active participant with your own voice and opinions.**
 
+### Interface-design debates
+
+When the question is an interface design, load
+`skills/blocks/architecture-simplification.md`. Give each initial advisor the same
+requirements and source revision without another advisor's draft. Record source
+access and model family separately from provider transport. A reviewer without
+artifact access contributes questions, not approval. Preserve evidence-backed
+minority findings even when the vote count favors another design.
+
 
 ## How Users Invoke This Skill
 

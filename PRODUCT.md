@@ -41,7 +41,7 @@ Claude Octopus is a **multi-runtime orchestration plugin** with three architectu
 | **Workflow engine** (`skills/`) | Structures every task into Discover → Define → Develop → Deliver with quality gates | Stops ad-hoc "just ask Claude" from shipping low-confidence output |
 | **Consensus layer** | 75% gate: flags disagreements across providers before code is finalized | The actual blind-spot catcher — surfaces the 1-in-5 case where Claude was wrong |
 
-53 slash commands, 62 skills, and 31 specialized personas provide explicit escalation entrypoints. Installation alone activates none of them.
+53 slash commands, 63 skills, and 31 specialized personas provide explicit escalation entrypoints. Installation alone activates none of them.
 
 ## Core Value Propositions
 

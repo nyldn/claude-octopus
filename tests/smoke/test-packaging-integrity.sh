@@ -233,10 +233,29 @@ for adapter in ("mcp-server",):
     if not entrypoint.is_file():
         missing.append(str(entrypoint.relative_to(root)))
 
-for required in ("scripts/orchestrate.sh", "hooks/hooks.json", "config/model-pricing.tsv"):
+for required in (
+    "scripts/orchestrate.sh",
+    "scripts/helpers/readiness-contract.py",
+    "hooks/hooks.json",
+    "config/model-pricing.tsv",
+    "THIRD_PARTY_NOTICES.md",
+    "licenses/mattpocock-skills-MIT.txt",
+    "skills/blocks/architecture-simplification.md",
+    "skills/blocks/debug-feedback-loop.md",
+    "skills/blocks/domain-modeling.md",
+    "data/evals/workflow-skill-cases.json",
+    "data/evals/workflow-test-consolidation.json",
+):
     path = root / required
     if not path.exists():
         missing.append(required)
+license_text = (root / "licenses/mattpocock-skills-MIT.txt").read_text()
+notices_text = (root / "THIRD_PARTY_NOTICES.md").read_text()
+if "Copyright (c) 2026 Matt Pocock" not in license_text or "Permission is hereby granted" not in license_text:
+    missing.append("complete Matt Pocock MIT notice")
+for adopted in ("codebase-design", "DEEPENING", "diagnosing-bugs", "domain-modeling", "wayfinder", "prototype", "wizard", "writing-great-skills", "triage", "to-tickets", "grilling"):
+    if adopted not in notices_text:
+        missing.append("attribution:" + adopted)
 if not os.access(root / "scripts/orchestrate.sh", os.X_OK):
     missing.append("scripts/orchestrate.sh:not-executable")
 

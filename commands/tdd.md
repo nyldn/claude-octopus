@@ -1,107 +1,69 @@
 ---
 command: tdd
 disable-model-invocation: true
-description: Test-driven development with red-green-refactor discipline
+description: Test-driven development with observed red and green evidence
 ---
 
-# TDD - Test-Driven Development Skill
+# Octopus TDD
 
-**Your first output line MUST be:** `🐙 Octopus TDD Mode`
+Load and follow
+`${HOME}/.claude-octopus/plugin/.claude/skills/skill-tdd/SKILL.md`.
 
-## 🤖 INSTRUCTIONS FOR CLAUDE
+Treat `--peer-review` as an instruction to request one bounded independent test
+design review through existing Octopus routing. Do not pass the token or the
+remaining user text into a shell command. Without that flag or an explicit
+multi-model request, run the full method on the current host with zero additional
+provider dispatches.
 
-When the user invokes this command (e.g., `/octo:tdd <arguments>`):
+## Step 1: Ask Clarifying Questions when needed
 
-### Step 1: Ask Clarifying Questions
-
-**CRITICAL: Before starting TDD, use the AskUserQuestion tool to gather context:**
-
-Ask 3 clarifying questions to ensure appropriate test strategy:
+Do not interrupt a well-specified task. If the repository and request leave a
+material choice unresolved, use `AskUserQuestion` for only the unanswered items
+from this intake:
 
 ```javascript
 AskUserQuestion({
   questions: [
     {
-      question: "What's your test coverage goal?",
+      question: "Which coverage boundary should prove the observable behavior?",
       header: "Coverage",
       multiSelect: false,
       options: [
-        {label: "Critical paths only", description: "Focus on business-critical flows"},
-        {label: "Standard coverage ~80%", description: "Industry-standard coverage target"},
-        {label: "Comprehensive >90%", description: "High coverage for safety-critical code"},
-        {label: "Full mutation testing", description: "Maximum rigor with mutation tests"}
+        {label: "Public API", description: "Prove behavior at the caller-facing API."},
+        {label: "Integration", description: "Prove behavior across component boundaries."},
+        {label: "User flow", description: "Prove the complete user-visible path."}
       ]
     },
     {
-      question: "What test style fits this feature?",
-      header: "Test Style",
+      question: "Which test style should carry the regression?",
+      header: "Test style",
       multiSelect: false,
       options: [
-        {label: "Unit tests focus", description: "Isolated component testing"},
-        {label: "Integration tests", description: "Module interaction testing"},
-        {label: "E2E tests", description: "Full user flow testing"},
-        {label: "Mix of all", description: "Test pyramid approach"}
+        {label: "Unit", description: "Use the narrowest stable public boundary."},
+        {label: "Integration", description: "Exercise the real collaborating components."},
+        {label: "End to end", description: "Exercise the supported runtime path."}
       ]
     },
     {
-      question: "What's the complexity level of this feature?",
+      question: "What complexity and risk level does this change carry?",
       header: "Complexity",
       multiSelect: false,
       options: [
-        {label: "Simple CRUD", description: "Basic create/read/update/delete"},
-        {label: "Moderate business logic", description: "Some conditional logic and validation"},
-        {label: "Complex algorithms", description: "Significant computation or logic"},
-        {label: "Distributed systems", description: "Multiple services, async, eventual consistency"}
+        {label: "Focused", description: "Run the focused test and directly affected suite."},
+        {label: "Standard", description: "Add the repository's normal changed-file gates."},
+        {label: "High risk", description: "Add integration, race, or security coverage."}
       ]
     }
   ]
 })
 ```
 
-**WAIT for the user's answers before proceeding.**
+After receiving answers, incorporate them into the test boundary, test layer,
+and validation depth. Repository evidence still takes precedence over a generic
+coverage target.
 
-**After receiving answers, incorporate them into the TDD approach and test depth.**
-
-### Step 2: Execute TDD
-
-Read and follow the full skill instructions from:
-`${HOME}/.claude-octopus/plugin/.claude/skills/skill-tdd/SKILL.md`
-
-Apply the user's answers from Step 1 as the TDD scope and test depth.
-
----
-
-**Auto-loads the `skill-tdd` skill for test-first development.**
-
-## Quick Usage
-
-Just use natural language:
-```
-"Use TDD to implement the authentication feature"
-"Write tests first for the payment processing"
-"TDD approach for the new API endpoint"
-```
-
-## TDD Workflow
-
-1. **Red**: Write a failing test
-2. **Adversarial Review**: Challenge test design with a second provider — surfaces missing scenarios, boundary conditions, and tests that could pass with a stub (skip with `--fast`)
-3. **Green**: Write minimal code to pass
-4. **Refactor**: Improve code quality
-5. **Repeat**: Continue cycle
-
-## What You Get
-
-- Test-first approach enforcement
-- Red-green-refactor discipline
-- Comprehensive test coverage
-- Clean, testable code
-- Regression prevention
-
-## Natural Language Examples
-
-```
-"Use TDD to build a user registration feature"
-"Test-driven development for the shopping cart"
-"Write tests first for the authentication system"
-```
+Before implementation, state the behavior under test and show the observed red
+failure. After implementation, show the focused green result and the affected
+suite result. If tests are consolidated, include the behavior ledger and five-run
+timings. Do not ask generic coverage questions when the repository and request
+already establish the needed scope.

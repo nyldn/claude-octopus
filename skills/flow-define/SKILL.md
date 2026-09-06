@@ -12,6 +12,14 @@ disable-model-invocation: true
 
 {{PREAMBLE}}
 
+## Shared definitions
+
+Load the project's existing glossary and decisions when they apply. If none
+exists, use `skills/blocks/domain-modeling.md` and add a short definitions section
+to the current design artifact. Do not create a parallel context or memory file.
+Keep installation, authentication, entitlement, readiness, billing, quota, seat,
+contribution, and vote distinct.
+
 ## Pre-Definition: State Check
 
 Before starting definition:

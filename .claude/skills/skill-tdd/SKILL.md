@@ -9,310 +9,69 @@ paths:
 aliases:
   - tdd
   - test-driven-development
-description: "Build features with tests-before-code rigor — use for new features needing test coverage"
+description: "Build a behavior change with observed red, minimal green, and measured test consolidation"
 trigger: |
-  Invoke explicitly for a feature, bugfix, or behavior change that needs TDD.
-  Example requests include "implement X", "add feature Y", and "fix bug Z".
-  DO NOT use for: throwaway prototypes, config files, documentation.
+  Use when a feature, bug fix, or behavior change requires test-first evidence.
+  Do not use for documentation-only changes or disposable exploration.
+execution_mode: enforced
+pre_execution_contract:
+  - observable_behavior_named
+validation_gates:
+  - focused_red_observed
+  - focused_and_affected_suites_green
 ---
 
-# Test-Driven Development (TDD)
+# Test-driven development
 
-## MANDATORY COMPLIANCE — DO NOT SKIP
-
-**When this skill is invoked, you MUST run the TDD pipeline through `orchestrate.sh` (red → green → refactor) with real provider dispatch. You are PROHIBITED from:**
-- Writing implementation before a failing test exists
-- Simulating provider output instead of dispatching via `orchestrate.sh`
-- Declaring the task "too small for TDD" and skipping the cycle without asking the user
-- Marking work complete while any test is red or skipped
-- Rationalizing that a direct edit is faster — the user invoked TDD for test-first discipline
-
-
-## The Iron Law
+Run the red, green, and refactor cycle on the current host. Routine TDD makes
+zero additional provider dispatches. Use one external reviewer only when the
+user passes `--peer-review`, explicitly requests independent review, or an
+existing risk policy requires it. Explicit debate, council, and multi-model
+commands retain their own execution contracts.
 
 <HARD-GATE>
-NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST
+NO PRODUCTION BEHAVIOR CHANGE WITHOUT AN OBSERVED, EXPECTED FAILING TEST FIRST.
 </HARD-GATE>
 
-**Violating the letter of this rule is violating the spirit of this rule.**
+## The rule
 
-Write code before the test? **Delete it. Start over.**
+Do not change production behavior until a focused test fails for the expected
+reason. Existing implementation outside the requested change remains intact.
 
-- Don't keep it as "reference"
-- Don't "adapt" it while writing tests
-- Don't look at it
-- Delete means delete
+1. Name the observable behavior and the smallest public boundary that proves it.
+2. Write one focused test. Directly test an internal invariant only when the
+   public boundary cannot isolate its failure mode.
+3. Run it and record the expected failure, command, and exit status.
+4. Implement the smallest change that passes.
+5. Run the focused test, then the affected suite.
+6. Refactor only while the tests remain green.
 
-## Red-Green-Refactor Cycle
+If a test passes before implementation, it is not red evidence. If it errors due
+to fixture or syntax problems, repair the test until it fails on the missing
+behavior.
 
-```
-   ┌─────────┐
-   │   RED   │ ← Write ONE failing test
-   └────┬────┘
-        ↓
-   ┌─────────┐
-   │  VERIFY │ ← Watch it FAIL (mandatory)
-   └────┬────┘
-        ↓
-   ┌─────────┐
-   │  GREEN  │ ← Write MINIMAL code to pass
-   └────┬────┘
-        ↓
-   ┌─────────┐
-   │  VERIFY │ ← Watch it PASS (mandatory)
-   └────┬────┘
-        ↓
-   ┌─────────┐
-   │REFACTOR │ ← Clean up (stay green)
-   └────┬────┘
-        ↓
-     [REPEAT]
-```
+## Consolidating tests
 
-## Phase 1: RED - Write Failing Test
+Do not equate similar assertions with duplicate guarantees. Keep separate OS,
+security, cancellation, and integration boundaries. For every removed test,
+record `old_test`, `behavior`, `replacement`, `mutant`, `red_observed`,
+`baseline_ms`, `candidate_ms`, and `reason`. The retained test must kill the
+named mutant at the intended caller boundary.
 
-Write ONE minimal test showing what should happen.
+After one warm-up, measure five isolated runs and report every sample and the
+median. Review a slowdown only when it exceeds both 20 percent and 100 ms.
 
-**Good Test:**
-```typescript
-test('retries failed operations 3 times', async () => {
-  let attempts = 0;
-  const operation = () => {
-    attempts++;
-    if (attempts < 3) throw new Error('fail');
-    return 'success';
-  };
+Completion requires observed red and green evidence, affected-suite results,
+and the consolidation ledger when tests were removed. A missing reviewer is
+reported as incomplete review, never simulated.
 
-  const result = await retryOperation(operation);
+## Strategy rotation
 
-  expect(result).toBe('success');
-  expect(attempts).toBe(3);
-});
-```
-- Clear name describing behavior
-- Tests real code, not mocks
-- One thing only
+If the same test remains red after two implementation attempts, stop and
+recheck the test boundary, fixture, and expected behavior. The strategy-rotation
+hook is a signal to try a fundamentally different hypothesis, not another
+variation of the same patch.
 
-**Bad Test:**
-```typescript
-test('retry works', async () => {  // Vague name
-  const mock = jest.fn()           // Tests mock, not code
-    .mockRejectedValueOnce(new Error())
-    .mockResolvedValueOnce('success');
-  // ...
-});
-```
-
-## Phase 1.5: Adversarial Test Design Review (RECOMMENDED)
-
-**After writing the initial test(s) but BEFORE verifying they fail, challenge the test design with a second provider.** A single-model test suite often has systematic blind spots — the same model that writes the tests will write implementation that trivially satisfies them. An adversarial review catches scenarios that would pass with a stub that doesn't actually work.
-
-**If an external provider is available, dispatch the test specs for challenge:**
-
-```bash
-review_provider=""
-command -v codex >/dev/null 2>&1 && review_provider="codex"
-[[ -z "$review_provider" ]] && command -v agy >/dev/null 2>&1 && review_provider="agy"
-
-if [[ -n "$review_provider" ]]; then
-  "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" spawn "$review_provider" \
-    "Review these test specifications for a TDD workflow. Your job is to find gaps, not confirm quality.
-
-1. What SCENARIOS are missing? (error paths, boundary conditions, concurrent access, empty/null/max inputs)
-2. What BOUNDARY CONDITIONS are untested? (off-by-one, integer overflow, empty strings, max-length strings)
-3. Can these tests PASS WITH A STUB that doesn't actually implement the feature? If yes, what test would catch the stub?
-4. Do the tests verify BEHAVIOR or IMPLEMENTATION? (Tests should verify what, not how)
-
-TEST SPECS:
-<paste test code here>"
-fi
-```
-
-**After receiving the challenge:**
-- Add any genuinely missing test cases to the RED phase
-- Strengthen any tests that could pass with a trivial stub
-- Dismiss challenges that test implementation details rather than behavior
-
-**Skip with `--fast` or when user requests speed over thoroughness.**
-
----
-
-## Phase 2: VERIFY RED - Watch It Fail
-
-**MANDATORY. Never skip.**
-
-```bash
-npm test path/to/test.test.ts
-```
-
-Confirm:
-- Test **fails** (not errors)
-- Failure message is what you expected
-- Fails because feature is **missing** (not typos)
-
-| Outcome | Action |
-|---------|--------|
-| Test passes | You're testing existing behavior. Fix the test. |
-| Test errors | Fix error, re-run until it fails correctly. |
-| Test fails correctly | Proceed to GREEN. |
-
-## Phase 3: GREEN - Minimal Code
-
-Write the **simplest** code to pass the test. Nothing more.
-
-**Good:**
-```typescript
-async function retryOperation<T>(fn: () => Promise<T>): Promise<T> {
-  for (let i = 0; i < 3; i++) {
-    try { return await fn(); }
-    catch (e) { if (i === 2) throw e; }
-  }
-  throw new Error('unreachable');
-}
-```
-
-**Bad (YAGNI violation):**
-```typescript
-async function retryOperation<T>(
-  fn: () => Promise<T>,
-  options?: {
-    maxRetries?: number;           // Not needed yet
-    backoff?: 'linear' | 'expo';   // Not needed yet
-    onRetry?: (n: number) => void; // Not needed yet
-  }
-): Promise<T> { /* ... */ }
-```
-
-## Phase 4: VERIFY GREEN - Watch It Pass
-
-**MANDATORY.**
-
-```bash
-npm test path/to/test.test.ts
-```
-
-Confirm:
-- Test passes
-- **All other tests** still pass
-- Output is clean (no errors, warnings)
-
-| Outcome | Action |
-|---------|--------|
-| Test fails | Fix the code, not the test. |
-| Other tests fail | Fix them now. |
-| All pass | Proceed to REFACTOR. |
-
-## Phase 5: REFACTOR - Clean Up
-
-**Only after GREEN:**
-- Remove duplication
-- Improve names
-- Extract helpers
-
-**Keep tests green throughout. Don't add new behavior.**
-
-## Common Rationalizations
-
-| Excuse | Reality |
-|--------|---------|
-| "Too simple to test" | Simple code breaks. Test takes 30 seconds. |
-| "I'll test after" | Tests passing immediately prove nothing. |
-| "Already manually tested" | Ad-hoc ≠ systematic. No record, can't re-run. |
-| "Deleting X hours is wasteful" | Sunk cost fallacy. Unverified code is debt. |
-| "Need to explore first" | Fine. Throw away exploration, start with TDD. |
-| "TDD will slow me down" | TDD is faster than debugging. |
-
-## Strategy Rotation
-
-If the same test continues to fail after 2 fix attempts, examine the test itself — it may be incorrect. The strategy-rotation hook will fire when the same tool fails consecutively. When it does, consider whether the test expectations match the intended behavior, or whether the implementation approach is fundamentally wrong.
-
----
-
-## Red Flags - STOP and Start Over
-
-If you catch yourself:
-- Writing code before test
-- Test passes immediately (didn't watch it fail)
-- Rationalizing "just this once"
-- "I already manually tested it"
-- "Keep as reference" or "adapt existing code"
-- "This is different because..."
-
-**ALL of these mean: Delete code. Start over with TDD.**
-
-## Bug Fix Example
-
-**Bug:** Empty email accepted
-
-**RED:**
-```typescript
-test('rejects empty email', async () => {
-  const result = await submitForm({ email: '' });
-  expect(result.error).toBe('Email required');
-});
-```
-
-**VERIFY RED:**
-```bash
-$ npm test
-FAIL: expected 'Email required', got undefined
-```
-
-**GREEN:**
-```typescript
-function submitForm(data: FormData) {
-  if (!data.email?.trim()) {
-    return { error: 'Email required' };
-  }
-  // ...
-}
-```
-
-**VERIFY GREEN:**
-```bash
-$ npm test
-PASS
-```
-
-## Verification Checklist
-
-Before marking work complete:
-
-- [ ] Every new function/method has a test
-- [ ] Watched each test fail before implementing
-- [ ] Each test failed for expected reason
-- [ ] Wrote minimal code to pass each test
-- [ ] All tests pass
-- [ ] Output clean (no errors, warnings)
-
-**Can't check all boxes? You skipped TDD. Start over.**
-
-## Integration with Claude Octopus
-
-When using octopus workflows:
-
-| Workflow | TDD Integration |
-|----------|-----------------|
-| `probe` (research) | Research testing patterns for the domain |
-| `grasp` (define) | Define test requirements in spec |
-| `tangle` (develop) | **Enforce TDD for each implementation task** |
-| `ink` (deliver) | Verify all tests pass before delivery |
-| `squeeze` (security) | Red team tests security controls |
-
-## When Stuck
-
-| Problem | Solution |
-|---------|----------|
-| Don't know how to test | Write the API you wish existed. Assert first. |
-| Test too complicated | Design too complicated. Simplify interface. |
-| Must mock everything | Code too coupled. Use dependency injection. |
-| Test setup huge | Extract helpers. Still complex? Simplify design. |
-
-## The Bottom Line
-
-```
-Production code exists → Test exists that failed first
-Otherwise → Not TDD
-```
-
-No exceptions without explicit user permission.
+Adapted from `DEEPENING` in `mattpocock/skills` at commit
+`3cca18b368ae95cdbdebbff572ccafa662551015` under the MIT License. See
+`THIRD_PARTY_NOTICES.md`.

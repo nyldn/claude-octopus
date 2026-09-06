@@ -5,6 +5,11 @@ hosted ChatGPT plugin: provider execution requires local CLIs and a filesystem.
 
 ## Claude Code
 
+Architecture, TDD, debugging, and prototype skills remain explicit-only. Routine
+architecture, TDD, and debugging run on the current Claude host unless the user
+requests `--peer-review` or a multi-model workflow. `/octo:setup` uses a separate
+revisioned resume receipt and leaves browser login to the user.
+
 `.claude-plugin/plugin.json` retains the `octo` namespace and its explicit
 command/skill paths. Root `hooks/hooks.json` is discovered by the host. Skills
 use `disable-model-invocation: true` to keep provider workflows explicitly
@@ -13,6 +18,12 @@ that root `CLAUDE.md` is not loaded as plugin context is expected. Runtime
 instructions belong in skills and hooks, not that maintainer file.
 
 ## Codex
+
+Generated Codex skills carry `policy.allow_implicit_invocation: false` for the
+same methods. Shared references, notices, setup helpers, and routing-preview
+helpers ship in the package. Native discovery proves installation only; it does
+not prove provider login, model entitlement, billing mode, or hosted ChatGPT
+directory eligibility.
 
 `.codex-plugin/plugin.json` retains `claude-octopus`, points to `./skills/`, and
 uses relative icon paths. Codex discovers `hooks/hooks.json` without a redundant
@@ -33,9 +44,9 @@ Every skill also declares `policy.allow_implicit_invocation: false` in
 from Claude's frontmatter. Explicit skill mentions still work. See
 [OpenAI's skill metadata](https://learn.chatgpt.com/docs/build-skills).
 
-Verified with Codex CLI 0.153.2: installation from an isolated local marketplace
+Verified with Codex CLI 0.153.4: installation from an isolated local marketplace
 and native `skills/list` discovery, without a model request. The runtime loaded
-62 packaged skills and 20 converted command entries without skill-load errors.
+63 packaged skills and 20 converted command entries without skill-load errors.
 This checks installation and discovery, not a live multi-provider workflow.
 
 The bundled OpenAI plugin-creator ingestion validator rejects the shared

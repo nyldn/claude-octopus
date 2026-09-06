@@ -23,7 +23,7 @@ You get:    A structured comparison with three independent viewpoints,
             scored for agreement. Disagreements are flagged, not hidden.
 ```
 
-This works for research, escalated code review, debugging, TDD, escalated security audits, UI design, PRDs, and full build-to-ship workflows — 53 commands, 62 skills, 31 specialized personas.
+This works for research, escalated code review, debugging, TDD, escalated security audits, UI design, PRDs, and full build-to-ship workflows — 53 commands, 63 skills, 31 specialized personas.
 
 Octopus is dormant on install. Installing it does not route ordinary prompts or
 delegate to Octopus agents. Every command and skill is manual-only: use

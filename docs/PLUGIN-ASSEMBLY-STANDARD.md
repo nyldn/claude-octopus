@@ -12,6 +12,16 @@ benefit.
 
 ## Skill Assembly Contract
 
+Shared method references live in `skills/blocks/`. Source skills under
+`.claude/skills/` may load a literal block path from the installed plugin root.
+The generator preserves blocks and generates individual `skills/*/SKILL.md`
+adapters. Never repair a generated skill by hand.
+
+Advisory, host-native methods must not name the provider orchestrator merely to
+say they do not use it. Provider-backed methods retain their execution contract.
+Both Claude `disable-model-invocation: true` and generated Codex
+`policy.allow_implicit_invocation: false` are required for explicit-only methods.
+
 Skills carry reusable method, domain rules, and workflow discipline. Commands
 and agents may reference skills, but should not duplicate long skill logic.
 

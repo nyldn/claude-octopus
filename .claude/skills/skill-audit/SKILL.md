@@ -28,6 +28,13 @@ Comprehensive, methodical auditing to find issues, inconsistencies, and broken f
 
 **Core principle:** Define scope → Create checklist → Execute systematically → Report findings → Prioritize fixes.
 
+For architecture simplification, load
+`skills/blocks/architecture-simplification.md`. Pin the revision, inspect recent
+churn and representative callers, then apply the deletion test. Do not recommend
+removing a small wrapper when it centralizes a security, cleanup, precedence, or
+failure invariant. A `simplify` verdict needs source evidence, a concrete caller,
+and migration and rollback steps.
+
 ---
 
 ## When to Use

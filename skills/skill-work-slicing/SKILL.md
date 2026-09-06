@@ -20,6 +20,11 @@ This is the step between "we know what we are building" and "someone can pick up
 a piece of it". It does not decide anything: if decisions are still open, run
 `skill-pressure-test` first.
 
+Before slicing, map unresolved decision records and their dependencies. Each
+record names its question, required evidence, owner, resolution, and unblocked
+implementation. A dependency cycle withholds ready status until it is recut.
+Invalidated decisions reopen affected work rather than leaving stale completion.
+
 Adapted from `to-tickets` in
 [mattpocock/skills](https://github.com/mattpocock/skills) (MIT), retargeted at
 this repo's trackers.
@@ -80,6 +85,11 @@ This repo has two trackers and they are not interchangeable:
 
 Put the detail in the ticket body, not in the parent. The parent indexes; the
 ticket holds.
+
+Use the tracker's atomic claim operation and read ownership back before editing a
+slice. If the tracker cannot claim atomically, use one integrator and do not treat
+an assignee read followed by a write as a lock. Never overwrite another owner's
+claim.
 
 ### 4. When bd will not accept writes
 

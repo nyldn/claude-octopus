@@ -37,7 +37,7 @@
   "interface": {
     "displayName": "Claude Octopus",
     "shortDescription": "Multi-LLM orchestration \u2014 dispatch to 12 providers from one plugin.",
-    "longDescription": "Claude Octopus orchestrates twelve external AI providers (Codex, Antigravity, Cursor CLI, Grok, Copilot, Qwen, Perplexity, OpenRouter, OrcaRouter, Ollama, OpenCode, and Kimi Code) through structured Double Diamond workflows. 31 personas, 53 commands, 62 skills covering research, implementation, review, TDD, security audits, and more. Provider dispatch includes prompt-size preflight, agent summary tables, circuit breakers, cost tracking, and model routing.",
+    "longDescription": "Claude Octopus orchestrates twelve external AI providers (Codex, Antigravity, Cursor CLI, Grok, Copilot, Qwen, Perplexity, OpenRouter, OrcaRouter, Ollama, OpenCode, and Kimi Code) through structured Double Diamond workflows. 31 personas, 53 commands, 63 skills covering research, implementation, review, TDD, security audits, and more. Provider dispatch includes prompt-size preflight, agent summary tables, circuit breakers, cost tracking, and model routing.",
     "composerIcon": "./assets/octopus-icon.svg",
     "developerName": "nyldn",
     "category": "Orchestration",

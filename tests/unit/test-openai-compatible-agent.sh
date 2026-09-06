@@ -523,15 +523,15 @@ else
     test_fail "normal command did not complete through the supervisor"
 fi
 
-test_case "non-POSIX process supervision has no unreachable POSIX assignment"
-if HELPER="$HELPER" python3 - <<'PYTEST'
+test_case "shared non-POSIX process supervision has no unreachable POSIX assignment"
+if SUPERVISOR="$PROJECT_ROOT/shared/process_supervisor.py" python3 - <<'PYTEST'
 import ast
 import importlib.util
 import inspect
 import os
 import textwrap
 
-spec = importlib.util.spec_from_file_location("openai_compatible_agent_process_source", os.environ["HELPER"])
+spec = importlib.util.spec_from_file_location("octopus_shared_process_source", os.environ["SUPERVISOR"])
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 tree = ast.parse(textwrap.dedent(inspect.getsource(mod.run_bounded_process)))
@@ -547,7 +547,7 @@ PYTEST
 then
     test_pass
 else
-    test_fail "non-POSIX path retained an unreachable POSIX process-group condition"
+    test_fail "shared non-POSIX path retained an unreachable POSIX process-group condition"
 fi
 
 test_case "tool timeouts retain bounded captured output tails"
@@ -726,6 +726,38 @@ then
     test_pass
 else
     test_fail "successful shell exit left a descendant running"
+fi
+
+test_case "escaped pipe holder cannot own the supervisor drain deadline"
+if SUPERVISOR="$PROJECT_ROOT/shared/process_supervisor.py" python3 - <<'PYTEST'
+import importlib.util
+import os
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+if os.name != "posix":
+    raise SystemExit(0)
+spec = importlib.util.spec_from_file_location("octopus_escaped_pipe_holder", os.environ["SUPERVISOR"])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+with tempfile.TemporaryDirectory() as cwd:
+    child = "import os,time; os.setsid(); time.sleep(1.5)"
+    launcher = "import subprocess,sys; subprocess.Popen([sys.executable,'-c',%r]); print('root-done')" % child
+    started = time.monotonic()
+    rc, output = mod.run_bounded_process(
+        [sys.executable, "-c", launcher], Path(cwd), 3,
+        shell=False, output_limit=1024, kill_grace=0.1,
+    )
+    elapsed = time.monotonic() - started
+    assert rc == 0 and "root-done" in output, (rc, output)
+    assert elapsed < 0.8, elapsed
+PYTEST
+then
+    test_pass
+else
+    test_fail "escaped descendant kept the output pipe past the bounded drain window"
 fi
 
 test_case "caller interruption cancels an output-producing descendant"

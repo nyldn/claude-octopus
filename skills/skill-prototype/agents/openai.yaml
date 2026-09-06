@@ -1,0 +1,5 @@
+interface:
+  display_name: "Prototype"
+  short_description: "Prototype one risky assumption within a fixed budget, then..."
+policy:
+  allow_implicit_invocation: false

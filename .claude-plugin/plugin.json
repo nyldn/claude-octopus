@@ -66,6 +66,7 @@
     "./skills/skill-parallel-agents",
     "./skills/skill-prd",
     "./skills/skill-pressure-test",
+    "./skills/skill-prototype",
     "./skills/skill-resume",
     "./skills/skill-review-response",
     "./skills/skill-rollback",

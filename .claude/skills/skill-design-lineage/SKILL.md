@@ -21,6 +21,12 @@ paths:
 
 # Design Document Lineage
 
+When a design introduces or changes domain terms, load
+`skills/blocks/domain-modeling.md`. Record each definition in the existing design
+lineage artifact with its evidence source, checked time, and scope. A changed
+definition invalidates dependent decisions. Link and reopen them instead of
+leaving stale implementation guidance marked current.
+
 ## Overview
 
 Persist design documents from brainstorming and planning sessions with branch tracking, revision chains, and cross-session discoverability. Design docs are immutable after creation -- new revisions supersede prior versions rather than editing in place.

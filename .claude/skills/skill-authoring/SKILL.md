@@ -7,6 +7,14 @@ codex_display_name: "Skill Authoring"
 
 # Skill Authoring
 
+## Domain language
+
+Load `skills/blocks/domain-modeling.md` when a skill discusses providers, models,
+access, billing, reviewers, or votes. Reuse the shared definitions instead of
+inventing local synonyms. State the source and time of observations. Never infer
+authentication, entitlement, billing mode, quota, or model-family independence
+from a binary or transport name alone.
+
 A skill exists to get determinism out of a stochastic system. **Predictability**
 is the goal, and it means the agent takes the same *process* every run — not that
 it produces the same output. Every rule below serves that.

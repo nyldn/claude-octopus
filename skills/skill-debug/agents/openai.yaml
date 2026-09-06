@@ -1,5 +1,5 @@
 interface:
   display_name: "Debug"
-  short_description: "Debug issues methodically — use when stuck on errors,..."
+  short_description: "Debug a reproducible symptom with a bounded feedback loop and..."
 policy:
   allow_implicit_invocation: false

@@ -33,6 +33,25 @@ Document everything: which files to touch, complete code, how to test, how to ve
 
 **Principles:** DRY. YAGNI. TDD. Frequent commits.
 
+## Decisions before tasks
+
+Build a dependency graph for unresolved decisions before writing implementation
+tasks. A decision record contains its question, evidence required, dependencies,
+owner, resolution, and the implementation it unblocks. Use the repository's
+configured tracker. Beads is not an end-user requirement.
+
+Decision states are `open`, `claimed`, `resolved`, `superseded`, and `blocked`,
+mapped to native tracker states or labels. Resolve only from evidence or a
+recorded human decision. If new evidence invalidates a decision, reopen its
+dependent work and explain why. A cycle means the work is not ready; recut the
+decisions rather than marking tasks ready.
+
+Claim through the tracker's atomic operation and read ownership back before
+writing. If atomic claiming is unavailable, appoint one integrator. Never
+overwrite another claim. When the tracker fails, save an explicitly unfiled
+proposal in existing plan storage, stop tracker writes, and never fabricate IDs
+or migrate a database.
+
 
 ## Plan Document Structure
 

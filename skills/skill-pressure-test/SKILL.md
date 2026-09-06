@@ -68,6 +68,12 @@ settled.
 drop it. When it opens two new ones, ask those before returning. The order is
 whatever the tree dictates.
 
+Represent each material decision with its evidence, dependencies, owner,
+resolution, and the work it unblocks. Facts may be researched autonomously.
+Preferences and new permissions remain human decisions. Do not answer those on
+the user's behalf to keep an unattended run moving. If dependencies form a cycle,
+name it and withhold ready status until the decisions are recut.
+
 **Name disagreement when you find it.** If an answer contradicts an earlier one,
 say which two and ask which holds. Quiet reconciliation is how a plan ends up
 meaning two things.
@@ -89,6 +95,8 @@ meaning two things.
   to look rigorous is worse than finding none.
 - If an answer invalidates the premise of the whole plan, stop the interview and
   raise that. Do not keep grilling the details of something already dead.
+- If new evidence invalidates a resolved decision, reopen its dependent work and
+  record the reason. A completed task does not make stale guidance true.
 
 ## Output Contract
 

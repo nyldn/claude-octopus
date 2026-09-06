@@ -12,6 +12,8 @@
 
 OCTO_CONFIG_DIR="${HOME}/.claude-octopus"
 OCTO_CONFIG_FILE="${OCTO_CONFIG_DIR}/user-config.json"
+_OCTO_USER_CONFIG_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+OCTO_SETUP_STATE_HELPER="${_OCTO_USER_CONFIG_LIB_DIR}/../helpers/setup-state.py"
 
 octo_config_write() {
   local key="$1"
@@ -22,18 +24,21 @@ octo_config_write() {
     return 0
   fi
 
-  mkdir -p "$OCTO_CONFIG_DIR"
+  if ! command -v python3 >/dev/null 2>&1 || [[ ! -r "$OCTO_SETUP_STATE_HELPER" ]]; then
+    echo "⚠️  Setup state helper unavailable — settings not persisted." >&2
+    return 0
+  fi
 
-  local current="{}"
-  [[ -f "$OCTO_CONFIG_FILE" ]] && current=$(cat "$OCTO_CONFIG_FILE")
-
-  local updated
-  updated=$(echo "$current" | jq --arg k "$key" --argjson v "$value" '.[$k] = $v' 2>/dev/null) || {
+  local request
+  request=$(jq -cn --arg key "$key" --argjson value "$value" \
+    '{schema_version:1,action:"legacy-update",key:$key,value:$value}' 2>/dev/null) || {
     echo "⚠️  Failed to update config key '$key'" >&2
     return 0
   }
-
-  echo "$updated" > "$OCTO_CONFIG_FILE"
+  if ! printf '%s\n' "$request" | python3 "$OCTO_SETUP_STATE_HELPER" --input - >/dev/null; then
+    echo "⚠️  Failed to update config key '$key'" >&2
+  fi
+  return 0
 }
 
 octo_config_read() {
@@ -170,8 +175,14 @@ octo_pref_write_default() {
 }
 
 octo_config_reset() {
-  rm -f "$OCTO_CONFIG_FILE"
-  echo "✓ Octopus user config reset."
+  if command -v python3 >/dev/null 2>&1 && [[ -r "$OCTO_SETUP_STATE_HELPER" ]] &&
+     printf '%s\n' '{"schema_version":1,"action":"legacy-reset"}' |
+       python3 "$OCTO_SETUP_STATE_HELPER" --input - >/dev/null; then
+    echo "✓ Octopus user config reset."
+  else
+    echo "⚠️  Failed to reset Octopus user config." >&2
+  fi
+  return 0
 }
 
 octo_config_summary() {
@@ -180,5 +191,9 @@ octo_config_summary() {
     return 0
   fi
   echo "  Config: $OCTO_CONFIG_FILE"
-  command -v jq &>/dev/null && jq -r 'to_entries[] | "  \(.key): \(.value)"' "$OCTO_CONFIG_FILE" 2>/dev/null || cat "$OCTO_CONFIG_FILE"
+  if command -v jq &>/dev/null; then
+    jq -r 'to_entries[] | "  \(.key): \(.value)"' "$OCTO_CONFIG_FILE" 2>/dev/null || cat "$OCTO_CONFIG_FILE"
+  else
+    cat "$OCTO_CONFIG_FILE"
+  fi
 }

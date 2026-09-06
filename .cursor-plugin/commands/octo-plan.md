@@ -13,6 +13,21 @@ disable-model-invocation: true
 - **Saves to files** - Stores each plan and intent contract in a unique run directory under the project-owned `.octo/plans/` namespace, or under octo-owned session storage when there is no project
 - **Doesn't execute** - Plans are saved for review; execution requires user confirmation
 - **Optional execution** - Can load `/octo:embrace` after explicit user approval or execute later
+- **Prototype handoff** - Can propose one bounded experiment without writing or launching providers in native plan mode
+
+## Prototype proposal
+
+When one risky assumption blocks the plan, offer a prototype with one question,
+hypothesis, deadline, artifact path, source revision, and success signal. In native
+read-only plan mode, present the proposal only. After explicit execution approval,
+load `skill-prototype` and store artifacts through `scripts/plan-storage.sh`.
+Choosing a prototype does not authorize deployment, provider calls, browser login,
+repository rewrites, or new permissions.
+
+Before filing implementation tasks, map unresolved decisions and their dependency
+graph. A cycle withholds ready status. Claims must use the configured tracker's
+atomic operation and be read back before work starts. On tracker failure, save an
+explicitly unfiled proposal in the plan directory and stop tracker writes.
 
 ## 🤖 INSTRUCTIONS FOR CLAUDE
 

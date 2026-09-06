@@ -1,5 +1,5 @@
 interface:
   display_name: "Architecture"
-  short_description: "System architecture and API design with multi-AI consensus..."
+  short_description: "Review system architecture, simplify boundaries, or compare..."
 policy:
   allow_implicit_invocation: false
