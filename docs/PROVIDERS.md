@@ -29,9 +29,9 @@ Context admission uses the smallest configured, catalogued-model, and effective
 transport limit, then deducts output and system/tool reserves. A broad provider
 limit must not raise a smaller exact-model limit.
 
-MCP and OpenClaw load their provider environment names from
-`config/provider-env-allowlist.json`. Add a provider's credential and transport
-names there, then test both adapters. These host adapters pass the approved
+MCP loads provider environment names from `config/provider-env-allowlist.json`.
+Add a provider's credential and transport names there, then test the adapter.
+The host adapter passes the approved
 names to the orchestrator; the dispatch plan still narrows each provider child
 to the credential selected for that seat. A custom OpenAI-compatible key named
 by `OPENAI_COMPAT_API_KEY_ENV` is forwarded automatically. Other custom

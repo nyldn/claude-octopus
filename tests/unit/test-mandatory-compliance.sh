@@ -16,7 +16,7 @@ fail() { test_case "$1"; test_fail "${2:-$1}"; }
 # ── Commands that call orchestrate.sh MUST have MANDATORY COMPLIANCE ─────────
 # Exceptions: utility commands that don't run multi-LLM workflows
 
-EXEMPT_COMMANDS="octo-auto octo-careful octo-claw octo-costs octo-dev octo-doctor octo-freeze octo-guard octo-history octo-km octo-model-config octo-setup octo-unfreeze"
+EXEMPT_COMMANDS="octo-auto octo-careful octo-costs octo-dev octo-doctor octo-freeze octo-guard octo-history octo-km octo-model-config octo-setup octo-unfreeze"
 
 for f in "$PROJECT_ROOT"/.cursor-plugin/commands/octo-*.md; do
     name=$(basename "$f" .md)

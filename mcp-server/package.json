@@ -1,5 +1,5 @@
 {
-  "name": "@octo-claw/mcp-server",
+  "name": "@claude-octopus/mcp-server",
   "version": "1.0.0",
   "description": "MCP server exposing Claude Octopus workflows as tools",
   "type": "module",

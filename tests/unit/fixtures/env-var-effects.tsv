@@ -30,7 +30,7 @@ OCTOPUS_COMMANDCODE_BIN	covered-by	test-commandcode-harness.sh
 OCTOPUS_COMMANDCODE_MODEL	covered-by	test-commandcode-harness.sh
 OCTOPUS_COMPACT_BANNERS	skip	changes banner prose only; asserting it would pin cosmetic output
 OCTOPUS_COST_MODE	covered-by	test-cost-mode-toggle.sh
-OCTOPUS_CREDENTIAL_ENV_NAMES	covered-by	test-openclaw-integration.sh
+OCTOPUS_CREDENTIAL_ENV_NAMES	covered-by	test-mcp-server.sh
 OCTOPUS_EFFORT_OVERRIDE	covered-by	test-execution-mechanism.sh
 OCTOPUS_FABLE5_FALLBACK_MODEL	covered-by	test-fable5-mode.sh
 OCTOPUS_FABLE5_MAX_EFFORT	covered-by	test-fable5-escalation.sh

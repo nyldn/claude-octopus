@@ -1,6 +1,6 @@
 # Upgrading to v11
 
-## MCP and OpenClaw callers
+## MCP callers
 
 Supply `project_root` on every workflow call, and on MCP `octopus_status`:
 

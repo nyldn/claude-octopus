@@ -5,7 +5,7 @@
 #   ./scripts/release.sh <version> "<summary>"
 #
 # Example:
-#   ./scripts/release.sh 8.22.6 "Fix OpenClaw register crash"
+#   ./scripts/release.sh 11.0.1 "Retire an unused compatibility adapter"
 #
 # What it does:
 #   1. Updates core version files plus public adapter manifests
@@ -31,7 +31,7 @@ source "$SCRIPT_DIR/lib/release-ci.sh"
 
 if [[ $# -lt 2 ]]; then
     echo "Usage: $0 <version> \"<summary>\""
-    echo "Example: $0 8.22.6 \"Fix OpenClaw register crash\""
+    echo "Example: $0 11.0.1 \"Retire an unused compatibility adapter\""
     exit 1
 fi
 
@@ -251,7 +251,7 @@ print(f'   {path}')
 
 octo_release_update_changelog CHANGELOG.md "$VERSION" "$DATE" "$SUMMARY"
 
-# Regenerate README, marketplace, and OpenClaw artifacts from their source
+# Regenerate README and marketplace artifacts from their source
 # files. The changelog entry must exist first so README sync can derive the
 # release date for PRODUCT.md.
 make sync

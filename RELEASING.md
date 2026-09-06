@@ -39,7 +39,6 @@ Do NOT hand-edit these; CI diffs them against their generators:
 | `README.md`, `.claude-plugin/README.md`, `PRODUCT.md`, `docs/AGENTS.md`, `docs/COMMAND-REFERENCE.md`, and `docs/README.md` mechanical release facts | `./scripts/sync-readme.py` | `tests/unit/test-readme-release-sync.sh` and `make sync-check` |
 | `.claude-plugin/plugin-manifest.json`, `.codex-plugin/plugin.json`, `.factory-plugin/plugin.json`, and `.factory-plugin/marketplace.json` component counts | `./scripts/sync-readme.py` | `tests/unit/test-readme-release-sync.sh` and `make sync-check` |
 | `.claude-plugin/marketplace.json` (octo entry description + counts) | `./scripts/sync-marketplace.sh` | Smoke job step "Verify marketplace.json is up to date" |
-| `openclaw/src/tools/index.ts` | `./scripts/build-openclaw.sh` | `tests/unit/test-openclaw-compat.sh` |
 
 Rules learned the hard way:
 - The marketplace generator derives the feature summary from `plugin.json`'s `description` and appends current persona, command, and skill counts. To change the marketplace blurb, edit `plugin.json`'s description and run `make sync` — never edit `marketplace.json` directly. Never hand-write counts into `plugin.json`'s description; the generator appends them and `--check` will fail on the collision (the v9.50 description did this and shipped doubled counts until v9.51).
@@ -56,8 +55,8 @@ make ci-local
 ```
 
 This runs generated-file checks and the complete local smoke, unit, and
-integration suites, including docs sync, OpenClaw compatibility, and plugin
-expert review. Hosted CI separately checks Linux/macOS portability, ShellCheck,
+integration suites, including docs sync and plugin expert review. Hosted CI
+separately checks Linux/macOS portability, ShellCheck,
 package artifacts, and symlink paths. Local success does not replace those
 checks on the exact release commit.
 

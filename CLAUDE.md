@@ -332,7 +332,6 @@ The rules below encode failures that have already cost real CI rounds. Every one
 | Generated file | Regenerate with | CI check that fails if stale |
 |----------------|-----------------|------------------------------|
 | `.claude-plugin/marketplace.json` (octo description + counts) | `./scripts/sync-marketplace.sh` | Smoke job "Verify marketplace.json is up to date" |
-| `openclaw/src/tools/index.ts` | `./scripts/build-openclaw.sh` | `tests/unit/test-openclaw-compat.sh` |
 | `README.md`, `.claude-plugin/README.md`, and `PRODUCT.md` current facts | `./scripts/sync-readme.py` (included in `make sync`) | `tests/unit/test-readme-release-sync.sh` |
 
 After changing commands, skills, agents, plugin metadata, release notes, models,
@@ -358,8 +357,8 @@ integration suites. Run the separate portability and symlink jobs in hosted CI.
 - Tag releases on the squash-merge commit on `main`, never on the branch head. Full release procedure: `RELEASING.md`.
 - Fork PRs stall at `action_required` after every push; approve with `gh api -X POST repos/nyldn/claude-octopus/actions/runs/<id>/approve`.
 - Provider wiring is a 7-point checklist across 5 files: `docs/PROVIDERS.md`. Do not wing it from one example.
-- MCP and OpenClaw provider environment names share
-  `config/provider-env-allowlist.json`; keep both adapter tests green when it
+- MCP provider environment names come from
+  `config/provider-env-allowlist.json`; keep its adapter tests green when it
   changes.
 
 ### Memory ruling (single source of truth)

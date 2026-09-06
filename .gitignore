@@ -29,7 +29,6 @@ __pycache__/
 build/
 develop-eggs/
 dist/
-!openclaw/dist/
 !mcp-server/dist/
 downloads/
 eggs/

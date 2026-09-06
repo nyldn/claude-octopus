@@ -100,7 +100,6 @@ Create `.vscode/mcp.json` in your project:
       "command": "npx",
       "args": ["tsx", "/path/to/claude-octopus/mcp-server/src/index.ts"],
       "env": {
-        "OCTO_CLAW_ENABLED": "true",
         "OPENAI_API_KEY": "${env:OPENAI_API_KEY}",
         "ANTIGRAVITY_API_KEY": "${env:ANTIGRAVITY_API_KEY}"
       }
@@ -141,7 +140,6 @@ Create `.cursor/mcp.json` in your project (per-project) or `~/.cursor/mcp.json` 
       "command": "npx",
       "args": ["tsx", "${userHome}/.cursor/claude-octopus/mcp-server/src/index.ts"],
       "env": {
-        "OCTO_CLAW_ENABLED": "true",
         "OPENAI_API_KEY": "${env:OPENAI_API_KEY}",
         "ANTIGRAVITY_API_KEY": "${env:ANTIGRAVITY_API_KEY}"
       }

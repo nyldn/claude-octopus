@@ -18,16 +18,6 @@ assert_absent() {
     fi
 }
 
-assert_present() {
-    local relative_path="$1"
-    test_case "$relative_path remains available"
-    if [[ -e "$PROJECT_ROOT/$relative_path" ]]; then
-        test_pass
-    else
-        test_fail "$relative_path is required for opt-in OpenClaw compatibility"
-    fi
-}
-
 assert_text_absent() {
     local relative_path="$1"
     local pattern="$2"
@@ -66,31 +56,9 @@ assert_text_absent docs/COMMAND-REFERENCE.md '/octo:claw' \
     "command reference does not advertise /octo:claw"
 assert_text_absent docs/COMMAND-REFERENCE.md 'manage my openclaw server' \
     "command reference does not retain claw admin routing examples"
-assert_text_absent openclaw/src/tools/index.ts 'skill-claw' \
-    "generated OpenClaw registry excludes skill-claw"
-assert_text_absent openclaw/dist/tools/index.js 'skill-claw' \
-    "built OpenClaw registry excludes skill-claw"
 assert_text_absent tests/smoke/test-safety-hooks.sh 'sysadmin-safety-gate' \
     "safety smoke tests do not invoke the retired sysadmin hook"
 assert_text_absent SECURITY.md 'sysadmin-safety-gate' \
     "security guidance does not document the retired sysadmin hook"
-
-for relative_path in \
-    .mcp.json \
-    mcp-server/src/index.ts \
-    openclaw/package.json \
-    openclaw/openclaw.plugin.json \
-    scripts/build-openclaw.sh \
-    tests/unit/test-openclaw-compat.sh \
-    tests/validate-openclaw.sh; do
-    assert_present "$relative_path"
-done
-
-test_case "retained OpenClaw compatibility contract passes"
-if output=$(bash "$PROJECT_ROOT/tests/unit/test-openclaw-compat.sh" 2>&1); then
-    test_pass
-else
-    test_fail "OpenClaw compatibility suite failed: $output"
-fi
 
 test_summary

@@ -197,7 +197,6 @@ cd ~/.cursor/claude-octopus/mcp-server && npm install
       "command": "npx",
       "args": ["tsx", "${userHome}/.cursor/claude-octopus/mcp-server/src/index.ts"],
       "env": {
-        "OCTO_CLAW_ENABLED": "true",
         "OPENAI_API_KEY": "${env:OPENAI_API_KEY}"
       }
     }
@@ -367,7 +366,7 @@ Nine high-traffic commands cover the common Octopus workflows: lifecycle executi
 
 `/octo:council` uses the real runner by default. Single-model simulation is only used when explicitly requested with `--simulate` or `--single-model`; `--research-first` writes a research artifact before fanout, and `--corpus-mode append|require` preserves synthesis and plans in project corpus workflows.
 
-Plus 40+ more: review, debug, extract, deck, docs, schedule, parallel, sentinel, optimize, brainstorm, claw, doctor, and [the full set](docs/COMMAND-REFERENCE.md).
+Plus 40+ more: review, debug, extract, deck, docs, schedule, parallel, sentinel, optimize, brainstorm, doctor, and [the full set](docs/COMMAND-REFERENCE.md).
 
 Don't remember the command name? Just describe what you need:
 
@@ -607,43 +606,31 @@ A SessionStart hook injects the dispatch profile (prompt anti-patterns, judgment
 
 ---
 
-## Works With OpenClaw
-
-Claude Octopus ships with a compatibility layer for [OpenClaw](https://github.com/openclaw/openclaw), the open-source AI assistant framework. This lets you expose Octopus workflows to messaging platforms (Telegram, Discord, Signal, WhatsApp) without modifying the Claude Code plugin.
+## MCP Server
 
 ### Architecture
 
 ```
-Claude Code Plugin (unchanged)
-  └── .mcp.json ─── MCP Server ─── orchestrate.sh
-                                        ↑
-OpenClaw Extension ─────────────────────┘
+MCP Client ─── MCP Server ─── orchestrate.sh ─── provider CLIs and APIs
 ```
 
-Three components, zero changes to the core plugin:
+The standalone MCP server exposes Claude Octopus workflows to compatible IDEs
+and clients without changing the Claude Code plugin.
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
 | MCP Server | `mcp-server/` | Exposes 10 Octopus tools via Model Context Protocol |
-| OpenClaw Extension | `openclaw/` | Wraps workflows for OpenClaw's extension API |
-| Skill Schema | `mcp-server/src/schema/skill-schema.json` | Universal skill metadata format |
+| Skill Schema | `mcp-server/src/schema/skill-schema.json` | Shared skill metadata format |
 
-### MCP Server
-
-The MCP server is **opt-in** — it does not start automatically. This prevents a permanent `✘ failed` status in Claude Code's `/mcp` panel for users who don't need it.
-
-To enable it, add the server to your project's `.mcp.json` or global Claude Code settings:
+Add the server to your project's MCP configuration or global client settings:
 
 ```json
 {
   "mcpServers": {
-    "octo-claw": {
+    "claude-octopus": {
       "command": "node",
       "args": ["--require", "./mcp-server/check-node-version.js", "./mcp-server/dist/index.js"],
-      "cwd": "<path-to-claude-octopus>",
-      "env": {
-        "OCTO_CLAW_ENABLED": "true"
-      }
+      "cwd": "<path-to-claude-octopus>"
     }
   }
 }
@@ -659,32 +646,8 @@ Once enabled, it exposes:
 Any MCP-compatible client can connect to the server.
 
 In v11, workflow tools and status require an absolute `project_root` for each
-call. See [the migration guide](docs/MIGRATING-V11.md) before updating an existing
-MCP or OpenClaw integration.
-
-### OpenClaw Extension
-
-Install in an OpenClaw instance from git:
-
-```bash
-npm install github:nyldn/claude-octopus#main --prefix openclaw
-```
-
-Or clone and link locally:
-
-```bash
-cd openclaw && npm install && npm run build
-```
-
-The extension registers as an OpenClaw plugin with configurable workflows, autonomy modes, and Claude Code path resolution.
-
-### Build & Validate
-
-```bash
-./scripts/build-openclaw.sh          # Regenerate skill registry from frontmatter
-./scripts/build-openclaw.sh --check  # CI mode — exits non-zero if out of sync
-./tests/validate-openclaw.sh         # 13-check validation suite
-```
+call. See [the migration guide](docs/MIGRATING-V11.md) before updating an
+existing MCP integration.
 
 ---
 

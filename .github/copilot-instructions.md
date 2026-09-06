@@ -12,7 +12,6 @@ structured Double Diamond workflows.
 - `commands/` — Slash commands (50 commands)
 - `.claude/agents/` — Subagent definitions (10 agents)
 - `mcp-server/` — MCP server adapter (bridges MCP clients to orchestrate.sh)
-- `openclaw/` — OpenClaw extension adapter
 
 ## Conventions
 

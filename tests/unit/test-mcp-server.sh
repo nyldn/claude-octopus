@@ -33,6 +33,8 @@ process.env.CURSOR_API_KEY = "cursor-fixture";
 process.env.XAI_API_KEY = "xai-fixture";
 process.env.OPENAI_COMPAT_API_KEY_ENV = "ROUTER_API_KEY";
 process.env.ROUTER_API_KEY = "router-fixture";
+process.env.OCTOPUS_CREDENTIAL_ENV_NAMES = "CUSTOM_MCP_API_KEY";
+process.env.CUSTOM_MCP_API_KEY = "custom-mcp-fixture";
 process.env.UNRELATED_AUDIT_SENTINEL = "must-not-cross";
 process.env.OCTOPUS_SECURITY_V870 = "false";
 const first = await mkdtemp(join(tmpdir(), "octo-mcp-a-"));
@@ -62,6 +64,7 @@ assert.equal(calls[0].options.env.CLAUDE_SDK_API_KEY, "sdk-fixture");
 assert.equal(calls[0].options.env.CURSOR_API_KEY, "cursor-fixture");
 assert.equal(calls[0].options.env.XAI_API_KEY, "xai-fixture");
 assert.equal(calls[0].options.env.ROUTER_API_KEY, "router-fixture");
+assert.equal(calls[0].options.env.CUSTOM_MCP_API_KEY, "custom-mcp-fixture");
 assert.equal(calls[0].options.env.UNRELATED_AUDIT_SENTINEL, undefined);
 assert.equal(calls[0].options.env.OCTOPUS_SECURITY_V870, undefined);
 
@@ -120,10 +123,22 @@ try {
   await symlink(modulePath, linkedPath);
   const result = spawnSync(process.execPath, [linkedPath], {
     encoding: "utf8",
-    env: { ...process.env, OCTO_CLAW_ENABLED: "false" },
+    input: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        clientInfo: { name: "symlink-test", version: "1.0.0" },
+      },
+    }) + "\n",
   });
   assert.equal(result.status, 0);
-  assert.match(result.stderr, /MCP server is disabled by default/);
+  assert.equal(result.stderr, "");
+  const response = JSON.parse(result.stdout.trim());
+  assert.equal(response.id, 1);
+  assert.equal(response.result.serverInfo.name, "claude-octopus");
 } finally {
   await rm(directory, { recursive: true, force: true });
 }

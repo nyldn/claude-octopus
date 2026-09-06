@@ -69,5 +69,4 @@ Makefile	@full
 .codex-plugin/*	@full
 .cursor-plugin/*	@full
 .factory-plugin/*	@full
-openclaw/*	@full
 config/*	@full

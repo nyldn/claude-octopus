@@ -320,9 +320,4 @@ MCP_INDEX="$PROJECT_ROOT/mcp-server/src/index.ts"
 assert_contains "$(cat "$MCP_INDEX" 2>/dev/null)" \
   "focus|provenance|autonomy|publish|debate" "mcp: review tool has typed profile fields"
 
-# ── OpenClaw schema ──────────────────────────────────────────────────────────
-
-OPENCLAW_INDEX="$PROJECT_ROOT/openclaw/src/index.ts"
-assert_contains "$(cat "$OPENCLAW_INDEX" 2>/dev/null)" \
-  "focus|provenance|autonomy|publish|debate" "openclaw: review tool has typed profile fields"
 test_summary

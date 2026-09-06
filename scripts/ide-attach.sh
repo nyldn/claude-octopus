@@ -120,7 +120,6 @@ generate_mcp_config() {
       "command": "npx",
       "args": ["tsx", "$mcp_server_path"],
       "env": {
-        "OCTO_CLAW_ENABLED": "true",
         "OPENAI_API_KEY": "\${env:OPENAI_API_KEY}",
         "OPENROUTER_API_KEY": "\${env:OPENROUTER_API_KEY}",
         "PERPLEXITY_API_KEY": "\${env:PERPLEXITY_API_KEY}"
@@ -142,7 +141,6 @@ generate_zed_config() {
         "path": "npx",
         "args": ["tsx", "$mcp_server_path"],
         "env": {
-          "OCTO_CLAW_ENABLED": "true",
           "OPENAI_API_KEY": "\${env:OPENAI_API_KEY}",
           "OPENROUTER_API_KEY": "\${env:OPENROUTER_API_KEY}",
           "PERPLEXITY_API_KEY": "\${env:PERPLEXITY_API_KEY}"

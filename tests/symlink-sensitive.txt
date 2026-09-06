@@ -8,7 +8,6 @@ unit/test-ensure-plugin-root.sh
 unit/test-feature-disclosure.sh
 unit/test-mcp-server.sh
 unit/test-memory-contract.sh
-unit/test-openclaw-integration.sh
 unit/test-plan-artifact-storage.sh
 unit/test-plugin-root-shim.sh
 unit/test-review-aggregation-robustness.sh

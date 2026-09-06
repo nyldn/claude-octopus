@@ -1,6 +1,6 @@
 #!/bin/bash
 # tests/unit/test-adapter-flags.sh
-# Tests for adapter flag ordering, parameter forwarding, and env var allowlists
+# Tests for MCP flag ordering, parameter forwarding, and env var allowlists
 # Validates fixes from repo-audit-2026-03-21
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -11,7 +11,6 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "Adapter Flag Ordering & Parameter Forwarding"
 
 MCP_SRC="$PROJECT_ROOT/mcp-server/src/index.ts"
-OC_SRC="$PROJECT_ROOT/openclaw/src/index.ts"
 ENV_ALLOWLIST="$PROJECT_ROOT/config/provider-env-allowlist.json"
 SHARED_ADAPTER="$PROJECT_ROOT/shared/adapter-runtime.mjs"
 
@@ -28,42 +27,14 @@ test_mcp_debate_uses_post_flags() {
     fi
 }
 
-test_oc_debate_uses_post_flags() {
-    test_case "OpenClaw debate passes grapple flags via postFlags (after command)"
-    if grep -q 'executeOrchestrate("grapple".*\[\].*\[' "$OC_SRC"; then
-        test_pass
-    else
-        test_fail "OpenClaw debate should use postFlags parameter"
-    fi
-}
-
 test_mcp_has_post_flags_param() {
     test_case "MCP runOrchestrate accepts postFlags parameter"
     if grep -q 'postFlags: string\[\] = \[\]' "$MCP_SRC"; then test_pass; else test_fail "missing postFlags param"; fi
 }
 
-test_oc_has_post_flags_param() {
-    test_case "OpenClaw executeOrchestrate accepts postFlags parameter"
-    if grep -q 'postFlags: string\[\] = \[\]' "$OC_SRC"; then test_pass; else test_fail "missing postFlags param"; fi
-}
-
 test_mcp_args_include_post_flags() {
     test_case "MCP args array includes postFlags after command"
     if grep -q '\.\.\.postFlags, prompt' "$MCP_SRC"; then test_pass; else test_fail "missing postFlags in args"; fi
-}
-
-test_oc_args_include_post_flags() {
-    test_case "OpenClaw args array includes postFlags after command"
-    if grep -q '\.\.\.postFlags, prompt' "$OC_SRC"; then test_pass; else test_fail "missing postFlags in args"; fi
-}
-
-test_oc_no_dash_d_flag() {
-    test_case "OpenClaw debate does NOT use -d flag (was wrongly mapped to --dir)"
-    if grep -A5 'grapple' "$OC_SRC" | grep -q '"-d"'; then
-        test_fail "OpenClaw debate should not use -d flag"
-    else
-        test_pass
-    fi
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -73,11 +44,6 @@ test_oc_no_dash_d_flag() {
 test_mcp_forwards_quality_threshold() {
     test_case "MCP develop forwards quality_threshold as -q flag"
     if grep -q '"-q"' "$MCP_SRC" && grep -q 'quality_threshold' "$MCP_SRC"; then test_pass; else test_fail "missing -q flag"; fi
-}
-
-test_oc_forwards_quality_threshold() {
-    test_case "OpenClaw develop forwards quality_threshold as -q flag"
-    if grep -q '"-q"' "$OC_SRC" && grep -q 'quality_threshold' "$OC_SRC"; then test_pass; else test_fail "missing -q flag"; fi
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -108,41 +74,15 @@ test_mcp_loads_shared_env_allowlist() {
     fi
 }
 
-test_openclaw_loads_shared_env_allowlist() {
-    test_case "OpenClaw loads the shared adapter env allowlist"
-    if grep -q 'loadProviderEnvAllowlist' "$OC_SRC" &&
-       grep -q 'provider-env-allowlist.json' "$SHARED_ADAPTER"; then
-        test_pass
-    else
-        test_fail "missing shared allowlist loader"
-    fi
-}
-
-test_adapters_share_runtime_security_helpers() {
-    test_case "MCP and OpenClaw use one adapter runtime for credentials and project roots"
+test_mcp_uses_shared_runtime_security_helpers() {
+    test_case "MCP uses the shared runtime for credentials and project roots"
     if [[ -f "$SHARED_ADAPTER" ]] &&
        grep -q '../../shared/adapter-runtime.mjs' "$MCP_SRC" &&
-       grep -q '../../shared/adapter-runtime.mjs' "$OC_SRC" &&
-       ! grep -q '^function loadProviderEnvAllowlist\|^async function validateProjectRoot' "$MCP_SRC" &&
-       ! grep -q '^function loadProviderEnvAllowlist\|^async function validateProjectRoot' "$OC_SRC"; then
+       ! grep -q '^function loadProviderEnvAllowlist\|^async function validateProjectRoot' "$MCP_SRC"; then
         test_pass
     else
-        test_fail "adapter credential and project-root helpers are still duplicated"
+        test_fail "MCP credential and project-root helpers are duplicated"
     fi
-}
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Debate Description Accuracy
-# ═══════════════════════════════════════════════════════════════════════════════
-
-test_oc_debate_says_multi_provider() {
-    test_case "OpenClaw debate description says Multi-provider"
-    if grep -q 'Multi-provider' "$OC_SRC"; then test_pass; else test_fail "should say Multi-provider"; fi
-}
-
-test_oc_debate_has_mode_param() {
-    test_case "OpenClaw debate exposes mode parameter"
-    if grep -q 'cross-critique.*blinded\|mode.*cross-critique' "$OC_SRC"; then test_pass; else test_fail "missing mode param"; fi
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -155,24 +95,6 @@ test_mcp_exposes_council_tool() {
         test_pass
     else
         test_fail "MCP server should expose octopus_council mapped to council"
-    fi
-}
-
-test_oc_exposes_council_tool() {
-    test_case "OpenClaw exposes octopus_council"
-    if grep -q 'name: "octopus_council"' "$OC_SRC" && grep -q 'executeOrchestrate("council"' "$OC_SRC"; then
-        test_pass
-    else
-        test_fail "OpenClaw should expose octopus_council mapped to council"
-    fi
-}
-
-test_oc_manifest_allows_council_workflow() {
-    test_case "OpenClaw manifest allows council workflow"
-    if grep -q '"council"' "$PROJECT_ROOT/openclaw/openclaw.plugin.json"; then
-        test_pass
-    else
-        test_fail "OpenClaw manifest should include council in enabledWorkflows"
     fi
 }
 
@@ -231,31 +153,19 @@ test_copilot_in_providers_health() {
 
 # Debate flags
 test_mcp_debate_uses_post_flags
-test_oc_debate_uses_post_flags
 test_mcp_has_post_flags_param
-test_oc_has_post_flags_param
 test_mcp_args_include_post_flags
-test_oc_args_include_post_flags
-test_oc_no_dash_d_flag
 
 # Quality threshold
 test_mcp_forwards_quality_threshold
-test_oc_forwards_quality_threshold
 
 # Env vars
 test_shared_env_allowlist_contract
 test_mcp_loads_shared_env_allowlist
-test_openclaw_loads_shared_env_allowlist
-test_adapters_share_runtime_security_helpers
-
-# Description
-test_oc_debate_says_multi_provider
-test_oc_debate_has_mode_param
+test_mcp_uses_shared_runtime_security_helpers
 
 # Council adapters
 test_mcp_exposes_council_tool
-test_oc_exposes_council_tool
-test_oc_manifest_allows_council_workflow
 test_cursor_has_council_command
 
 # Copilot wiring

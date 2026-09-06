@@ -223,7 +223,7 @@ for manifest_name in (".codex-plugin/plugin.json", ".cursor-plugin/plugin.json")
             if path is not None and not path.is_dir():
                 missing.append(f"{manifest_name}:{field}:{relative}")
 
-for adapter in ("mcp-server", "openclaw"):
+for adapter in ("mcp-server",):
     package = root / adapter / "package.json"
     if not package.is_file():
         missing.append(str(package.relative_to(root)))
