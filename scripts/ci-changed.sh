@@ -7,6 +7,8 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 MANIFEST="$PROJECT_ROOT/tests/changed-scope.tsv"
 
 LIST_ONLY=false
+UNIT_ONLY=false
+SKIP_SMOKE=false
 BASE_REF="${OCTOPUS_CHANGED_BASE:-}"
 declare -a EXPLICIT_CHANGED=()
 declare -a CHANGED_FILES=()
@@ -23,6 +25,8 @@ Select and run a fail-closed local test gate from the changed files.
   --list          Print the deterministic plan without running it
   --base REF      Compare committed changes against REF
   --changed PATH  Test an explicit changed path instead of reading Git (repeatable)
+  --unit-only     Fail closed to the unit suite instead of the complete local matrix
+  --skip-smoke    Do not repeat the smoke gate (for CI jobs that run it separately)
 EOF
 }
 
@@ -41,6 +45,14 @@ while [[ $# -gt 0 ]]; do
             [[ $# -ge 2 ]] || { echo "ERROR: --changed requires a path" >&2; exit 2; }
             EXPLICIT_CHANGED+=("$2")
             shift 2
+            ;;
+        --unit-only)
+            UNIT_ONLY=true
+            shift
+            ;;
+        --skip-smoke)
+            SKIP_SMOKE=true
+            shift
             ;;
         -h|--help)
             usage
@@ -203,6 +215,22 @@ if [[ "$FULL_MATRIX" == "false" ]]; then
     append_selected_suite "tests/unit/test-suite-reachability.sh" "always" "always"
 fi
 
+# The PR unit lane is intentionally unit-only. Integration mappings remain
+# covered by the separate integration gate, while local `make ci-changed` keeps
+# its broader focused selection when this flag is not set.
+if [[ "$UNIT_ONLY" == "true" && ${#SELECTED_SUITES[@]} -gt 0 ]]; then
+    declare -a UNIT_SUITES=()
+    for suite in "${SELECTED_SUITES[@]}"; do
+        if [[ "$suite" == tests/unit/* ]]; then
+            UNIT_SUITES+=("$suite")
+        fi
+    done
+    SELECTED_SUITES=()
+    if [[ ${#UNIT_SUITES[@]} -gt 0 ]]; then
+        SELECTED_SUITES=("${UNIT_SUITES[@]}")
+    fi
+fi
+
 if [[ "$FULL_MATRIX" == "false" && ${#SELECTED_SUITES[@]} -gt 1 ]]; then
     declare -a SORTED_SUITES=()
     while IFS= read -r suite; do SORTED_SUITES+=("$suite"); done < <(
@@ -231,18 +259,35 @@ fi
 if [[ "$FULL_MATRIX" == "true" ]]; then
     echo "Reasons:"
     for reason in ${FULL_REASONS[@]+"${FULL_REASONS[@]}"}; do echo "  - $reason"; done
-    echo "Command: make ci-local"
+    if [[ "$UNIT_ONLY" == "true" ]]; then
+        echo "Command: make test-unit"
+    else
+        echo "Command: make ci-local"
+    fi
     [[ "$LIST_ONLY" == "true" ]] && exit 0
+    make sync-check
+    if [[ "$SKIP_SMOKE" != "true" ]]; then
+        make test-smoke
+    fi
+    if [[ "$UNIT_ONLY" == "true" ]]; then
+        exec make test-unit
+    fi
     exec make ci-local
 fi
 
-echo "Always: make sync-check, make test-smoke"
+if [[ "$SKIP_SMOKE" == "true" ]]; then
+    echo "Always: make sync-check"
+else
+    echo "Always: make sync-check, make test-smoke"
+fi
 echo "Selected suites:"
 for suite in "${SELECTED_SUITES[@]}"; do echo "  - $suite"; done
 [[ "$LIST_ONLY" == "true" ]] && exit 0
 
 make sync-check
-make test-smoke
+if [[ "$SKIP_SMOKE" != "true" ]]; then
+    make test-smoke
+fi
 
 declare -a SUITE_ARGS=()
 for suite in "${SELECTED_SUITES[@]}"; do

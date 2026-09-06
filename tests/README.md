@@ -12,7 +12,7 @@ make test-deps
 # Select focused suites from the files changed on this branch.
 make ci-changed
 
-# Match the required GitHub checks: generated files, smoke, unit, integration.
+# Match the complete local release gate: generated files, smoke, unit, integration.
 make ci-local
 
 # Run one suite while iterating.
@@ -70,6 +70,13 @@ behavior test or claim that model output is deterministic.
 manifest, or unmapped file changes. A focused pass is enough for ordinary
 branch pushes when the selector remains focused. Before merge or release, run
 `make ci-local` regardless of the focused result.
+
+Pull requests use the same selector for their unit gate on one Linux runner.
+Main, scheduled, and manually dispatched runs retain the complete Ubuntu plus
+two-shard macOS unit matrix. Smoke, portability, packaging, symlink, and
+integration checks remain separate gates because they exercise different
+plugin contracts. This keeps routine plugin changes fast without making the
+full validation suite optional at merge or release time.
 
 Live tests are never part of the default or required matrix. Run them only when
 the change requires real-provider evidence and you intend to spend the

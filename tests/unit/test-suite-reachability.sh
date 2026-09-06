@@ -192,9 +192,9 @@ else
     test_fail "found only ${n_targets} 'make test-*' invocations in the workflow — the grep or the workflow changed, so the assertion above would be vacuous"
 fi
 
-test_case "the unit matrix keeps full coverage in two bounded macOS shards"
+test_case "PRs use focused units while non-PR runs keep the full macOS shards"
 unit_timeout_setting="$(awk '
-    /^  unit:/ { in_unit = 1; next }
+    /^  unit-full:/ { in_unit = 1; next }
     in_unit && /^  [[:alnum:]_-]+:/ { exit }
     in_unit && /^    timeout-minutes:[[:space:]]/ {
         sub(/^    timeout-minutes:[[:space:]]*/, "")
@@ -203,13 +203,13 @@ unit_timeout_setting="$(awk '
     }
 ' "$WORKFLOW")"
 macos_entry_count="$(awk '
-    /^  unit:/ { in_unit = 1; next }
+    /^  unit-full:/ { in_unit = 1; next }
     in_unit && /^  [[:alnum:]_-]+:/ { exit }
     in_unit && /^[[:space:]]+- os:[[:space:]]+macos-latest[[:space:]]*$/ { count++ }
     END { print count + 0 }
 ' "$WORKFLOW")"
 macos_timeout_count="$(awk '
-    /^  unit:/ { in_unit = 1; next }
+    /^  unit-full:/ { in_unit = 1; next }
     in_unit && /^  [[:alnum:]_-]+:/ { exit }
     in_unit && /^[[:space:]]+- os:[[:space:]]+macos-latest[[:space:]]*$/ { in_macos = 1; next }
     in_macos && /^[[:space:]]+- os:/ { in_macos = 0 }
@@ -217,14 +217,14 @@ macos_timeout_count="$(awk '
     END { print count + 0 }
 ' "$WORKFLOW")"
 macos_shard_indexes="$(awk '
-    /^  unit:/ { in_unit = 1; next }
+    /^  unit-full:/ { in_unit = 1; next }
     in_unit && /^  [[:alnum:]_-]+:/ { exit }
     in_unit && /^[[:space:]]+- os:[[:space:]]+macos-latest[[:space:]]*$/ { in_macos = 1; next }
     in_macos && /^[[:space:]]+- os:/ { in_macos = 0 }
     in_macos && /^[[:space:]]+shard_index:[[:space:]]/ { print $2 }
 ' "$WORKFLOW" | LC_ALL=C sort | tr '\n' ',' | sed 's/,$//')"
 macos_shard_count_rows="$(awk '
-    /^  unit:/ { in_unit = 1; next }
+    /^  unit-full:/ { in_unit = 1; next }
     in_unit && /^  [[:alnum:]_-]+:/ { exit }
     in_unit && /^[[:space:]]+- os:[[:space:]]+macos-latest[[:space:]]*$/ { in_macos = 1; next }
     in_macos && /^[[:space:]]+- os:/ { in_macos = 0 }
@@ -232,7 +232,7 @@ macos_shard_count_rows="$(awk '
     END { print count + 0 }
 ' "$WORKFLOW")"
 ubuntu_timeout_minutes="$(awk '
-    /^  unit:/ { in_unit = 1; next }
+    /^  unit-full:/ { in_unit = 1; next }
     in_unit && /^  [[:alnum:]_-]+:/ { exit }
     in_unit && /^[[:space:]]+- os:[[:space:]]+ubuntu-latest[[:space:]]*$/ { in_ubuntu = 1; next }
     in_ubuntu && /^[[:space:]]+- os:/ { exit }
@@ -244,10 +244,13 @@ if [[ "$unit_timeout_setting" == '${{ matrix.timeout_minutes }}' ]] \
    && [[ "$macos_shard_indexes" == "0,1" ]] \
    && [[ "$macos_shard_count_rows" == "2" ]] \
    && [[ "$ubuntu_timeout_minutes" == "25" ]] \
-   && grep -Fq -- '--shard-index=${{ matrix.shard_index }} --shard-count=${{ matrix.shard_count }}' "$WORKFLOW"; then
+   && grep -Fq -- '--shard-index=${{ matrix.shard_index }} --shard-count=${{ matrix.shard_count }}' "$WORKFLOW" \
+   && grep -Fq 'unit-focused:' "$WORKFLOW" \
+   && grep -Fq 'github.event_name == '\''pull_request'\''' "$WORKFLOW" \
+   && grep -Fq 'ci-changed.sh --base "$BASE_SHA" --unit-only --skip-smoke' "$WORKFLOW"; then
     test_pass
 else
-    test_fail "unit matrix must be one full Ubuntu run plus deterministic macOS shards 0 and 1 of 2 with 45-minute bounds"
+    test_fail "PRs must use the focused selector while non-PR runs retain Ubuntu plus deterministic macOS shards"
 fi
 
 test_case "required Unit Tests aggregates the symlink lane"
@@ -256,7 +259,7 @@ symlink_job="$(awk '
     in_job && /^  [[:alnum:]_-]+:/ && $0 !~ /^  symlinked-path:/ { exit }
     in_job { print }
 ' "$WORKFLOW")"
-if grep -Fq 'needs: [classify-changes, unit, symlinked-path]' "$WORKFLOW" &&
+if grep -Fq 'needs: [classify-changes, unit-focused, unit-full, symlinked-path]' "$WORKFLOW" &&
    grep -Fq 'needs.symlinked-path.result' "$WORKFLOW" &&
    [[ "$symlink_job" == *'GITHUB_EVENT_NAME: ${{ github.event_name }}'* ]] &&
    [[ "$symlink_job" == *'if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then'* ]] &&

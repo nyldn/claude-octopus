@@ -129,6 +129,7 @@ Use the smallest gate that matches the delivery stage:
 |-------|---------|----------|
 | Edit loop | affected test files | Fast feedback while the change is still moving |
 | Ordinary branch push | `make ci-changed` | Always runs sync and all smoke checks, then audited suites from `tests/changed-scope.tsv` |
+| Pull request | `make ci-changed` | Generated checks, smoke, and audited suites for changed surfaces |
 | Merge or release | `make ci-local` | Complete smoke, unit, integration, and CI-only matrix |
 
 Inspect a selection without executing it with `scripts/ci-changed.sh --list`.
