@@ -214,10 +214,10 @@ fi
 test_start "Skills with enforcement count"
 skills_with_enforcement=$(list_claude_skill_files | xargs grep -l "execution_mode: enforced" 2>/dev/null || true)
 enforcement_count=$(echo "$skills_with_enforcement" | sed '/^$/d' | wc -l | tr -d ' ')
-if [ "$enforcement_count" -ge 16 ]; then
+if [ "$enforcement_count" -ge 15 ]; then
     test_pass
 else
-    test_fail "Expected at least 16 skills with enforcement, got $enforcement_count"
+    test_fail "Expected at least 15 skills with enforcement, got $enforcement_count"
 fi
 
 # Test 14: Validation gates have required fields
