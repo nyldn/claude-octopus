@@ -10,10 +10,9 @@ The implementation matrix passed before commit. Documentation follow-up
 validation and its timing-test caveat are recorded below. Commit `c888923d` is
 pushed to `upstream/codex/workflow-skill-adaptations`.
 
-Tracking: private Beads epic `oco-n99` and its child issues are the task system
-of record. The private implementation specification is
-`docs/superpowers/specs/2026-09-06-workflow-skill-adaptations.md` in the
-`claude-octopus-dev` repository.
+Tracking: use the repository issue tracker and checked-in implementation
+documentation as the source of truth. Do not put private checkout paths,
+credentials, or host-specific state in this public handoff.
 
 Next action: create a pull request or integrate the branch only when separately
 authorized. Merging, versioning, and releasing remain out of scope.
@@ -22,9 +21,8 @@ authorized. Merging, versioning, and releasing remain out of scope.
 
 1. Run `git status --short --branch`, inspect the latest commits, and compare
    the branch diff against `upstream/main`.
-2. Read the relevant `bd` issue, private Beads epic `oco-n99`, and the private
-   implementation specification when that repository is available. Do not
-   migrate the Beads schema if it is blocked.
+2. Read the relevant repository issue and implementation specification when
+   available. Do not migrate the Beads schema if it is blocked.
 3. Read `AGENTS.md`, `CLAUDE.md`, and this handoff before changing files.
 
 ## Implemented Scope
@@ -121,12 +119,14 @@ authorized. Merging, versioning, and releasing remain out of scope.
   change.
 - The existing macOS council PTY case remains skipped, with its deny path
   covered separately. It is not part of this implementation.
-- No version, changelog release entry, tag, marketplace publication, pull
-  request, or merge is included.
+- Versioning, tagging, marketplace publication, pull-request merge, and
+  release verification are separate delivery steps governed by
+  `RELEASING.md`.
 
 ## Workspace Safety
 
-The canonical checkout at `/Users/chris/git/claude-octopus-dev` retains the
-user-owned `.claude/settings.json` change. Do not stage, overwrite, or discard
-it. This isolated public worktree may be removed only after its branch is clean,
-committed, pushed, and no process or agent session is using it.
+Keep implementation work in an isolated checkout when parallel work requires
+it. Preserve user-owned dirty files, credentials, and agent state; do not
+stage, overwrite, or discard them. Remove a temporary worktree only after its
+branch is clean, useful changes are committed or preserved, the branch is
+pushed, and no process or agent session is using it.
