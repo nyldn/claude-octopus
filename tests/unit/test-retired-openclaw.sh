@@ -35,6 +35,9 @@ matches="$(
         ':!docs/plans/**' \
         ':!docs/superpowers/**' \
         ':!docs/UPGRADING-V11.0.1.md' \
+        ':!README.md' \
+        ':!.claude-plugin/plugin.json' \
+        ':!.claude-plugin/marketplace.json' \
         ':!tests/unit/test-retired-openclaw.sh' \
         ':!tests/unit/test-retired-claw-admin.sh' \
         || true
@@ -43,6 +46,24 @@ if [[ -z "$matches" ]]; then
     test_pass
 else
     test_fail "retired OpenClaw wiring remains:\n$matches"
+fi
+
+test_case "release metadata mentions OpenClaw only as the v11.0.1 removal"
+release_note_matches="$({
+    cd "$PROJECT_ROOT"
+    git grep -n -i 'openclaw' -- \
+        README.md \
+        .claude-plugin/plugin.json \
+        .claude-plugin/marketplace.json \
+        || true
+})"
+unexpected_release_notes="$(printf '%s\n' "$release_note_matches" |
+    grep -v 'v11\.0\.1.*Remove the unused OpenClaw integration and simplify MCP setup\.' || true)"
+release_note_count="$(printf '%s\n' "$release_note_matches" | grep -c . || true)"
+if [[ "$release_note_count" == "4" ]] && [[ -z "$unexpected_release_notes" ]]; then
+    test_pass
+else
+    test_fail "release metadata contains active OpenClaw guidance or unexpected removal notes:\n${unexpected_release_notes:-found $release_note_count expected removal notes}"
 fi
 
 test_case "MCP server starts without the retired OpenClaw opt-in variable"
