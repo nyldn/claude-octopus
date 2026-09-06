@@ -7,6 +7,46 @@ Ordered checklist for shipping a release. Every step exists because skipping it 
 - Work on a branch cut from current `main`. Branch protection is strict: the branch must be up to date with `main` at merge time, and the required checks are exactly **Smoke Tests**, **Unit Tests**, **Integration Tests**.
 - Never build a release on top of a dirty working tree you do not own. Use a separate worktree (`git worktree add <dir> -b release/<name> origin/main`).
 
+### Delivery contract for workflow methods
+
+Octopus distributes a local plugin through the existing Claude Code and Codex
+marketplaces and source/package archives. Use the installation instructions in
+[README.md](README.md#quickstart) and the host requirements in
+[plugin compatibility](docs/PLUGIN-COMPATIBILITY.md). Keep development additions
+under Unreleased until the release process publishes them.
+
+For changes to workflow documentation, regenerate current facts and run the
+changed-file selector before pushing:
+
+```bash
+make sync
+make ci-changed
+make validate-plugin-assembly
+```
+
+During development, run the focused suites for the paths you changed. Do not
+repeat a suite already covered by the successful pre-push run:
+
+```bash
+bash tests/unit/test-workflow-method-contracts.sh
+bash tests/unit/test-routing-preview.sh
+bash tests/unit/test-setup-first-success.sh
+bash tests/unit/test-setup-state.sh
+```
+
+Before releasing setup or packaging changes, install the candidate in disposable
+Claude Code and Codex environments and verify discovery and the documented first
+use. Repeat setup, interrupt and resume it, and verify preference readback.
+Check update and removal behavior when those paths change. Preserve user
+preferences, provider credentials, and existing setup receipts. Record which
+host versions and platforms ran, along with any untested live provider paths.
+
+Package checks must confirm workflow references, preview/setup helpers, shared
+supervision, evaluation data, and third-party license notices in the extracted
+artifact. Installation, discovery, local readiness, and a live task are separate
+acceptance results. Follow the full release gates below before tagging or
+publishing; documentation edits alone do not publish a version.
+
 ## 1. Decide the version
 
 Minor (9.x+1.0) for additive changes: new providers, new commands/skills/hooks, new env vars with safe defaults. Precedent: grok (9.48.0) and atlascloud shipped as minors. Major only for: breaking an existing config or provider contract, incompatible plugin manifest schema changes, or removing a provider category.

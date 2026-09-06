@@ -24,7 +24,7 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ⚡ **Spec in, software out.** Dark Factory mode takes a spec and autonomously runs the full pipeline — research, define, develop, deliver. You review the output, not every step.
 
-🔄 **Four-phase methodology, not just tools.** Every task moves through Discover → Define → Develop → Deliver, with quality gates between phases. Other orchestrators give you infrastructure. Octopus gives you the workflows.
+🔄 **Choose the workflow the task needs.** Use a focused method for architecture, debugging, or TDD. Use `/octo:embrace` for Discover → Define → Develop → Deliver, with quality gates between phases.
 
 🐙 **31 specialized personas** (role-specific AI agents like security-auditor, backend-architect), **53 commands** (slash commands you type), **63 skills** (reusable workflow modules). Explicit workflows select the experts they need; ordinary Claude requests do not activate Octopus.
 
@@ -35,6 +35,20 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 ---
 
 ## What's New
+
+### Unreleased workflow improvements
+
+This branch adds eight engineering methods adapted from
+[Matt Pocock's skills](THIRD_PARTY_NOTICES.md). Routine architecture, TDD, and
+debugging use your current host. Request `--peer-review` when a separate reviewer
+would help. Plans capture domain terms and blocking decisions, compare interface
+designs, and can propose a time-limited prototype.
+
+Setup can resume an interrupted configuration and rechecks readiness before
+reporting success. Developers can inspect routing with an offline JSON preview.
+These changes are on this development branch and are not included in the
+published v11.0.1 release. See [workflow methods](docs/WORKFLOW-METHODS.md)
+for examples and [the changelog](CHANGELOG.md#unreleased) for details.
 
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.0.1 — Remove the unused OpenClaw integration and simplify MCP setup.**

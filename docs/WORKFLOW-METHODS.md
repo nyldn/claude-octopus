@@ -1,8 +1,33 @@
 # Workflow methods
 
+These additions are under [Unreleased](../CHANGELOG.md#unreleased) on this
+development branch. The published v11.0.1 release does not include them.
+
 Claude Octopus includes explicit methods for architecture, TDD, debugging,
 planning, domain definition, and prototypes. They are available in Claude Code
 and generated Codex skills, but ordinary prompts do not activate them.
+
+## Choose a method
+
+| Task | Entry point | Expected result |
+|------|-------------|-----------------|
+| Simplify architecture or compare interfaces | Select the architecture skill | Caller evidence, alternatives, migration and rollback plan |
+| Add behavior with tests | `/octo:tdd` | Observed failing test, implementation, passing tests |
+| Investigate a bug | `/octo:debug` | Reproduction, tested hypothesis, original-scenario verification |
+| Resolve terms and blocking decisions | `/octo:plan` and the definition/planning skills | Shared definitions and a decision dependency graph |
+| Test one risky assumption | Select `skill-prototype` | Time-limited experiment and an evidence-based verdict |
+| Inspect a routing decision | JSON preview helper below | Decision with explicit verification limits |
+| Resume configuration | `/octo:setup` | Fresh readiness checks and a verified completion receipt |
+
+In Codex, select the corresponding packaged skill from its skill picker.
+Architecture is named `octopus-architecture`; the other direct methods include
+`skill-tdd`, `skill-debug`, and `skill-prototype`.
+
+```text
+/octo:debug "Reproduce the checkout timeout and verify the fix"
+/octo:tdd --peer-review "Check the test design for invitation expiry"
+/octo:plan "Compare two interfaces for the notification service"
+```
 
 ## Host-native by default
 
@@ -10,6 +35,12 @@ Routine architecture, TDD, and debugging run on the current host with no extra
 provider dispatch. Add `--peer-review` when one bounded independent review would
 change the result. An explicit debate, council, or multi-model command still uses
 its own provider contract.
+
+Using the current host still consumes that host's normal usage allowance.
+`--peer-review` can add provider usage and cost. It requests review through the
+existing router and preserves model pins; it is not a shell flag or a promise
+that an independent provider is available. Missing source access or a correlated
+reviewer limits the evidence and must be reported.
 
 Architecture review now starts with callers, recent churn, and the deletion test.
 It produces a concrete interface, migration, rollback, and test impact. When two
@@ -48,6 +79,39 @@ browser login, or repository rewrites.
 python3 scripts/helpers/preview-routing.py --input request.json
 ```
 
+Run from the source checkout with Python 3, Bash, and jq available. For example,
+save this request as `request.json` outside the installed plugin cache:
+
+```json
+{
+  "schema_version": 1,
+  "kind": "workflow-provider",
+  "phase": "tangle",
+  "operation": "coding",
+  "role": "implementer",
+  "default_provider": "claude-sonnet",
+  "config": {
+    "routing": {
+      "roles": {"implementer": "ollama:local-model"},
+      "phases": {}
+    }
+  },
+  "environment": {"OCTOPUS_TANGLE_CODING_AGENT": "agy"},
+  "available_binaries": ["codex"],
+  "observations": []
+}
+```
+
+This selects `agy` because the phase/operation override wins. The response has
+`effective_model: null`, `dispatch_admissibility: "not_checked"`, and
+`production_dispatch_verified: false`. `available_binaries` is simulated input,
+not discovery of tools installed on this machine. Empty `observations` supplies
+no evidence of authentication or billing.
+
+Exit status `0` means the preview completed. Invalid input returns `2`, a
+missing local dependency `3`, a resolver failure `4`, timeout `5`, and
+interruption `130`. Errors go to stderr; do not treat an error as a route.
+
 `policy` previews call the deterministic evaluation policy. They do not predict
 production dispatch. `workflow-provider` previews call the production provider
 selector, but stop before model resolution, authentication, entitlement, quota,
@@ -66,13 +130,36 @@ is scoped to the host, physical plugin root, and flow version. Resume always
 rechecks current readiness. Human login remains a user-run terminal step, and a
 remote session never opens the browser.
 
+Rerun `/octo:setup` to resume. Host-only setup needs no external provider and
+uses local verification without a billable provider probe. If login is needed,
+complete the displayed provider login step and let setup recheck readiness.
+After an upgrade changes the physical plugin path, expect a new receipt rather
+than the old installation's completed status.
+
 Setup marks the receipt complete last, after local verification, strict legacy
 configuration persistence, and readback. Concurrent sessions use revision checks.
 Malformed, linked, or wrong-owner state fails closed without replacing existing
 bytes. Older Octopus versions ignore the separate receipt directory.
 
+If setup reports damaged state, stop and retain that file for diagnosis. Do not
+delete your configuration to make the success message appear. Use
+`/octo:skill-doctor` or [troubleshooting](TROUBLESHOOTING.md) to inspect readiness.
+Receipt completion proves the local setup checks passed, not model entitlement,
+remaining subscription quota, or a successful live provider task.
+
+## Acceptance evidence
+
+The package includes [38 acceptance scenarios](../data/evals/workflow-skill-cases.json)
+and [test-consolidation evidence](../data/evals/workflow-test-consolidation.json).
+Deterministic tests cover routing limits, setup persistence, and the documented
+command paths. The consolidation record retains suites that cover different
+failure modes; it does not claim a blanket test-suite speedup. Live model
+behavior cases remain `not_run`, so no measured model-quality improvement is
+claimed.
+
 ## Attribution
 
 These methods adapt selected patterns from `mattpocock/skills` under the MIT
-License. See `THIRD_PARTY_NOTICES.md` and
-`licenses/mattpocock-skills-MIT.txt` for the mapping and complete notice.
+License. See [third-party notices](../THIRD_PARTY_NOTICES.md) and the
+[complete license](../licenses/mattpocock-skills-MIT.txt) for source mappings and
+reuse terms.

@@ -2,6 +2,47 @@
 
 ## [Unreleased]
 
+### Added
+
+- Add a prototype skill that records one question, hypothesis, deadline, source
+  revision, observations, and a keep, discard, or inconclusive verdict.
+- Add reusable architecture simplification, debugging feedback, and domain
+  modeling references. Architecture reviews compare interfaces against the same
+  requirements and label designs from the same host as correlated.
+- Add offline JSON routing previews for evaluation policy and production
+  provider selection. Responses distinguish selection from model resolution,
+  authentication, entitlement, quota, and dispatch verification.
+- Add resumable setup receipts scoped to the host, physical installation path,
+  and flow version, with revision checks for concurrent sessions.
+- Include 38 workflow acceptance scenarios, a test-consolidation evidence
+  record, and Matt Pocock's MIT license and adaptation notices in packages.
+
+### Changed
+
+- Run routine architecture, TDD, and debugging on the current host by default.
+  `--peer-review` requests one bounded independent review; explicit multi-model
+  workflows retain their existing routing contracts and model pins.
+- Require observed failing and passing results in TDD, reproduction of the
+  original symptom in debugging, and behavior coverage evidence before removing
+  tests. Preserve tests that exercise distinct failure modes.
+- Map domain terms and unresolved decision dependencies before implementation
+  tasks. Tracker failures produce an unfiled proposal instead of invented IDs.
+- Share bounded subprocess supervision between routing previews and the
+  OpenAI-compatible provider helper.
+
+### Fixed
+
+- Clear stale setup completion when readiness or local verification fails.
+  Mark setup complete only after preferences are persisted and read back.
+- Serialize supported legacy configuration writes and reject malformed, linked,
+  oversized, or invalidly encoded state without replacing existing bytes.
+- Bound setup locking and resolver execution, including simultaneous first
+  writers, interrupted processes, and incomplete resolver output.
+
+See [workflow methods](docs/WORKFLOW-METHODS.md) for usage. Live model behavior
+evaluations remain unrun; deterministic tests and plugin discovery checks do not
+establish a measured improvement in model quality.
+
 ## [11.0.1] - 2026-09-05
 
 ### Changed

@@ -2,6 +2,11 @@
 
 > Moved from CLAUDE.md to save ~1,000 tokens per user session. These sections are for plugin developers and maintainers, not end users.
 
+See [workflow methods](WORKFLOW-METHODS.md) for user-facing behavior and the
+[delivery contract](../RELEASING.md#delivery-contract-for-workflow-methods) for
+installation, package, and setup verification. Current workflow additions are
+documented under [Unreleased](../CHANGELOG.md#unreleased).
+
 ---
 
 ## Enforcement Best Practices (Mandatory for Workflow Skills)

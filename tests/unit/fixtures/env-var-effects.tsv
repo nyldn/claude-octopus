@@ -71,6 +71,7 @@ OCTOPUS_RUN_ID	covered-by	test-agent-summary.sh
 OCTOPUS_SENTINEL_ENABLED	covered-by	test-sentinel.sh
 OCTOPUS_TANGLE_ALLOW_DB_APPLY	covered-by	test-tangle-subtask-context.sh
 OCTOPUS_TANGLE_ALLOW_UNVERIFIED_MIGRATIONS	covered-by	test-tangle-worktree-evidence.sh
+OCTOPUS_TANGLE_CODING_AGENT	covered-by	test-routing-preview.sh
 OCTOPUS_TANGLE_RUN_WORKTREE	covered-by	test-tangle-run-worktree.sh
 OCTOPUS_TRACE_MODELS	skip	emits trace lines to stderr; covered indirectly by model-resolver suites
 OCTOPUS_WORKFLOW_STATE_DIR	covered-by	test-probe-cancellation-cleanup.sh

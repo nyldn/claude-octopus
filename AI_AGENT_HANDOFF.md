@@ -6,7 +6,8 @@ Status: the eight workflow-method adaptations are implemented on
 `codex/workflow-skill-adaptations`, based on public `upstream/main` commit
 `3267de847fa41761023ba021ba71bb15a7240551` (v11.0.1). GPT-6 Astra at high
 reasoning completed the final pre-commit review with `NO ACTIONABLE FINDINGS`.
-The exact-candidate matrix is clean. Implementation commit `c888923d` is
+The implementation matrix passed before commit. Documentation follow-up
+validation and its timing-test caveat are recorded below. Commit `c888923d` is
 pushed to `upstream/codex/workflow-skill-adaptations`.
 
 Tracking: private Beads epic `oco-n99` and its child issues are the task system
@@ -73,7 +74,24 @@ authorized. Merging, versioning, and releasing remain out of scope.
 
 ## Verification
 
-- `make ci-changed` passed its fail-closed full matrix: 16 smoke suites, 324
+- Documentation follow-up updates both READMEs, the Unreleased changelog,
+  workflow examples, command/documentation indexes, and the delivery contract.
+  It keeps the published v11.0.1 metadata unchanged and distinguishes local
+  setup verification from a live provider task.
+- The documented routing-preview request returned the expected result. All 72
+  local Markdown file links in the edited documents resolve. Generated-file
+  synchronization, plugin assembly, and diff checks pass.
+- The documentation follow-up full run passed 16 smoke suites and 322 of 324
+  unit suites. The new documented variable needed a coverage-manifest entry;
+  adding its existing routing-preview test fixed that suite, which passed 9/9.
+  The unchanged heartbeat timeout fallback suite passed 14/14 on an isolated
+  rerun after a missing child-PID assertion failed in the matrix. Its fixed
+  delay may depend on scheduling; follow-up `oco-3gu` records that unresolved
+  test-stability concern. No timeout behavior or test assertion was changed.
+- The remaining integration gate passed all 8 suites after the documentation
+  coverage fix. Only affected suites and the remaining integration gate were
+  rerun; there was no second full-matrix run.
+- Before the code commit, `make ci-changed` passed its full matrix: 16 smoke suites, 324
   unit suites, and 8 integration suites.
 - Focused routing preview passes 11/11, resumable setup state passes 19/19, and
   the documented first-success command paths pass 15/15, including 25
@@ -85,13 +103,14 @@ authorized. Merging, versioning, and releasing remain out of scope.
 - Claude validates both the plugin and marketplace manifests. The only warning
   is the pre-existing notice that the repository-root `CLAUDE.md` is not plugin
   context.
-- Codex CLI 0.153.4 installed the exact uncommitted candidate from an isolated
-  local marketplace. Native `skills/list` discovered 63 plugin skills with no
-  errors; all 63 generated OpenAI descriptors disable implicit invocation.
+- Codex CLI 0.153.4 installed the candidate from an isolated local marketplace
+  and repeated installation after commit. Native `skills/list` discovered 63
+  packaged skills plus 20 converted commands with no errors; all 63 generated
+  OpenAI descriptors disable implicit invocation.
 - The npm package archive includes the notices, full third-party license,
-  workflow blocks, and evaluation fixtures. A tracked Git archive check remains
-  for the post-commit verification because untracked candidate files cannot
-  appear in `git archive HEAD`.
+  workflow blocks, and evaluation fixtures. Post-commit packaging from a tracked
+  Git archive passed with the license, evaluation fixtures, and shared
+  supervisor included.
 - No executable mode changes are present, and all JSON manifests and fixtures
   parse successfully.
 

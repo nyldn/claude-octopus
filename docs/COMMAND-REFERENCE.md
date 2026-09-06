@@ -54,8 +54,24 @@ All slash commands use the `/octo:` namespace. The smart router command is `/oct
 | `/octo:review` | Enhanced multi-LLM review for escalated code review and PR comment posting |
 | `/octo:staged-review` | Two-stage review: spec compliance then code quality |
 | `/octo:security` | Enhanced multi-LLM or adversarial security audit with OWASP coverage |
-| `/octo:debug` | Systematic debugging with root cause investigation |
-| `/octo:tdd` | Test-driven development with red-green-refactor |
+| `/octo:debug` | Reproduce a symptom and verify the fix on the current host; optional `--peer-review` |
+| `/octo:tdd` | Observe failing and passing tests on the current host; optional `--peer-review` |
+
+The development branch adds the methods below. See
+[workflow methods](WORKFLOW-METHODS.md) for the full contracts and
+[Unreleased](../CHANGELOG.md#unreleased) for release status.
+
+```text
+/octo:debug "Reproduce the checkout timeout and verify the fix"
+/octo:tdd "Reject expired invitations at the public API"
+/octo:tdd --peer-review "Check the test design for invitation expiry"
+/octo:plan "Compare two interfaces for the notification service"
+```
+
+For architecture and prototypes, explicitly select the architecture or
+`skill-prototype` skill from the host's skill menu. The prototype method is a
+skill, not an additional standalone command. `--peer-review` is a workflow
+instruction; it is not an `orchestrate.sh` command-line flag.
 
 ### Parallel & Orchestration
 
@@ -1622,5 +1638,5 @@ Instead of slash commands, you can use natural language with the `octo` prefix:
 ## See Also
 
 - **[Documentation Guide](./README.md)** — Pick the right doc quickly
-- **[CLI Reference](./CLI-REFERENCE.md)** — Direct CLI usage (advanced)
+- [CLI tools](#cli-tools-v9190): Direct CLI usage
 - **[README](../README.md)** — Main documentation

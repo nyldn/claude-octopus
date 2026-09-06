@@ -5,6 +5,7 @@
 ## Core References
 
 - [COMMAND-REFERENCE.md](./COMMAND-REFERENCE.md) — All 53 slash commands with natural-language triggers
+- [WORKFLOW-METHODS.md](./WORKFLOW-METHODS.md): Architecture, TDD, debugging, decisions, prototypes, routing previews, and resumable setup
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — Provider model mapping, execution contracts, and workflow flow
 - [V10-MIGRATION.md](./V10-MIGRATION.md) — V10 compatibility, verification, and rollback guidance
 - [AGENTS.md](./AGENTS.md) — 31 persona agents and 10 native agents
@@ -34,6 +35,11 @@ Run `/octo:setup` in Claude Code. It shows one shared provider-readiness
 summary, lets you start with Claude alone or configure one additional provider,
 and finishes with a local no-billing verification. Optional developer tools,
 model tuning, and automation stay under Advanced setup.
+
+On the development branch, rerun `/octo:setup` after an interruption to resume
+the recorded flow. Setup rechecks readiness and saved preferences before
+reporting completion. A changed installation path creates a separate receipt.
+These additions are listed under [Unreleased](../CHANGELOG.md#unreleased).
 
 After setup, the three useful entry points are:
 
