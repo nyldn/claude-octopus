@@ -40,6 +40,7 @@ jobs:
     outputs:
       heavy_tests: ${{ steps.classify.outputs.heavy_tests }}
       fast_path: ${{ steps.classify.outputs.fast_path }}
+      full_unit: ${{ steps.classify.outputs.full_unit }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -58,6 +59,7 @@ jobs:
           else
             echo "heavy_tests=true" >> "$GITHUB_OUTPUT"
             echo "fast_path=false" >> "$GITHUB_OUTPUT"
+            echo "full_unit=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -69,6 +71,7 @@ jobs:
           fi
 
           fast_path=true
+          full_unit=false
           while IFS= read -r file; do
             case "$file" in
               package.json|README.md|CHANGELOG.md|docs/*|.claude-plugin/plugin.json|.claude-plugin/marketplace.json|.codex-plugin/plugin.json|.cursor-plugin/plugin.json|.factory-plugin/plugin.json|.factory-plugin/marketplace.json)
@@ -77,14 +80,21 @@ jobs:
                 fast_path=false
                 ;;
             esac
+            case "$file" in
+              .github/workflows/*|Makefile|scripts/orchestrate.sh|scripts/ci-changed.sh|scripts/lib/agent-sync.sh|scripts/lib/heartbeat.sh|scripts/lib/council.sh|scripts/lib/session.sh|scripts/lib/workflows.sh|scripts/lib/spawn.sh|scripts/lib/agents.sh|scripts/lib/dispatch.sh|scripts/build-*|scripts/sync-*|scripts/gen-*|scripts/validate-*|tests/changed-scope.tsv|tests/run-all*.sh|config/*)
+                full_unit=true
+                ;;
+            esac
           done <<< "$changed"
 
           if [[ "$fast_path" == "true" ]]; then
             echo "heavy_tests=false" >> "$GITHUB_OUTPUT"
             echo "fast_path=true" >> "$GITHUB_OUTPUT"
+            echo "full_unit=false" >> "$GITHUB_OUTPUT"
           else
             echo "heavy_tests=true" >> "$GITHUB_OUTPUT"
             echo "fast_path=false" >> "$GITHUB_OUTPUT"
+            echo "full_unit=$full_unit" >> "$GITHUB_OUTPUT"
           fi
 
   vendor-freshness:
@@ -262,15 +272,15 @@ jobs:
           path: /tmp/test_*.log
           retention-days: 7
 
-  # Pull requests use the changed-surface selector on one Linux runner. This
-  # preserves targeted regression coverage without making every plugin change
-  # pay for the historical 324-suite matrix on three runners.
+  # Ordinary pull requests use the changed-surface selector on one Linux
+  # runner. Shared CI/runner changes set full_unit and retain the complete
+  # matrix, so changing the safety net cannot narrow the safety net.
   unit-focused:
     name: Unit Tests (focused)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [classify-changes, smoke, portability-lint]
-    if: needs.classify-changes.outputs.heavy_tests == 'true' && github.event_name == 'pull_request'
+    if: needs.classify-changes.outputs.heavy_tests == 'true' && github.event_name == 'pull_request' && needs.classify-changes.outputs.full_unit != 'true'
 
     steps:
       - name: Checkout code
@@ -309,7 +319,7 @@ jobs:
     # Ubuntu remains one complete control run.
     timeout-minutes: ${{ matrix.timeout_minutes }}
     needs: [classify-changes, smoke, portability-lint]
-    if: needs.classify-changes.outputs.heavy_tests == 'true' && github.event_name != 'pull_request'
+    if: needs.classify-changes.outputs.heavy_tests == 'true' && (github.event_name != 'pull_request' || needs.classify-changes.outputs.full_unit == 'true')
     strategy:
       fail-fast: false
       matrix:
@@ -449,7 +459,7 @@ jobs:
           if [[ "${{ needs.classify-changes.outputs.heavy_tests }}" == "false" ]]; then
             echo "Fast path: skipping unit matrix for release/docs-only changes."
           else
-            if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            if [[ "${{ github.event_name }}" == "pull_request" && "${{ needs.classify-changes.outputs.full_unit }}" != "true" ]]; then
               unit_result="${{ needs.unit-focused.result }}"
             else
               unit_result="${{ needs.unit-full.result }}"

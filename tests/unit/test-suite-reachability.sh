@@ -192,7 +192,7 @@ else
     test_fail "found only ${n_targets} 'make test-*' invocations in the workflow — the grep or the workflow changed, so the assertion above would be vacuous"
 fi
 
-test_case "PRs use focused units while non-PR runs keep the full macOS shards"
+test_case "ordinary PRs use focused units while safety-net changes keep full shards"
 unit_timeout_setting="$(awk '
     /^  unit-full:/ { in_unit = 1; next }
     in_unit && /^  [[:alnum:]_-]+:/ { exit }
@@ -247,10 +247,11 @@ if [[ "$unit_timeout_setting" == '${{ matrix.timeout_minutes }}' ]] \
    && grep -Fq -- '--shard-index=${{ matrix.shard_index }} --shard-count=${{ matrix.shard_count }}' "$WORKFLOW" \
    && grep -Fq 'unit-focused:' "$WORKFLOW" \
    && grep -Fq 'github.event_name == '\''pull_request'\''' "$WORKFLOW" \
+   && grep -Fq "needs.classify-changes.outputs.full_unit != 'true'" "$WORKFLOW" \
    && grep -Fq 'ci-changed.sh --base "$BASE_SHA" --unit-only --skip-smoke' "$WORKFLOW"; then
     test_pass
 else
-    test_fail "PRs must use the focused selector while non-PR runs retain Ubuntu plus deterministic macOS shards"
+    test_fail "ordinary PRs must use the focused selector while safety-net changes retain full deterministic shards"
 fi
 
 test_case "required Unit Tests aggregates the symlink lane"

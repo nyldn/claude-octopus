@@ -255,7 +255,9 @@ fi
 test_case "GitHub CI balances focused PR coverage with full non-PR coverage"
 if grep -Fq 'unit-focused:' "$PROJECT_ROOT/.github/workflows/test.yml" &&
    grep -Fq 'run: ./scripts/ci-changed.sh --base "$BASE_SHA" --unit-only --skip-smoke' "$PROJECT_ROOT/.github/workflows/test.yml" &&
+   grep -Fq "needs.classify-changes.outputs.full_unit != 'true'" "$PROJECT_ROOT/.github/workflows/test.yml" &&
    grep -Fq 'unit-full:' "$PROJECT_ROOT/.github/workflows/test.yml" &&
+   grep -Fq "needs.classify-changes.outputs.full_unit == 'true'" "$PROJECT_ROOT/.github/workflows/test.yml" &&
    grep -Fq 'run: ./tests/run-all.sh unit --shard-index=${{ matrix.shard_index }} --shard-count=${{ matrix.shard_count }}' "$PROJECT_ROOT/.github/workflows/test.yml" &&
    grep -q 'run: make test-integration' "$PROJECT_ROOT/.github/workflows/test.yml" &&
    ! grep -q 'make ci-changed' "$PROJECT_ROOT/.github/workflows/test.yml"; then
