@@ -3,7 +3,7 @@
   "schemaVersion": "2026-06",
   "name": "octo",
   "displayName": "Claude Octopus",
-  "version": "11.0.0",
+  "version": "11.0.1",
   "description": "Multi-AI orchestration for Claude Code: up to 8 model seats in parallel across research, design, coding, and review, with council verdicts, adversarial debate, and per-provider cost attribution.",
   "author": {
     "name": "nyldn",
@@ -56,7 +56,7 @@
       ]
     },
     "hooks": {
-      "events": 20,
+      "events": 18,
       "highlights": [
         "SubagentStop (result capture + quality/cost gate)",
         "SessionStart",

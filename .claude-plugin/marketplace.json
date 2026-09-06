@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "11.0.0"
+    "version": "11.0.1"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v11.0.0 - Harden provider isolation, model routing, council evidence, and cross-host plugin contracts. 31 personas, 53 commands, 62 skills. Run /octo:setup.",
-      "version": "11.0.0",
+      "description": "v11.0.1 - Remove the unused OpenClaw integration and simplify MCP setup. 31 personas, 53 commands, 62 skills. Run /octo:setup.",
+      "version": "11.0.1",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"

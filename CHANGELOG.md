@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [11.0.1] - 2026-09-05
+
+### Changed
+
+- Remove the unused OpenClaw integration and simplify MCP setup
+
 ## [11.0.0] - 2026-09-05
 
 ### Breaking changes
