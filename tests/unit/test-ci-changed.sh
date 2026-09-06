@@ -120,11 +120,12 @@ test_case "committed-only mode ignores CI chmod noise"
 helper_path="$PROJECT_ROOT/tests/helpers/grep-octopus.sh"
 helper_was_executable=false
 [[ -x "$helper_path" ]] && helper_was_executable=true
-if [[ "$helper_was_executable" == "true" ]]; then
-    chmod -x "$helper_path"
-else
-    chmod +x "$helper_path"
-fi
+tracked_mode="$(git -C "$PROJECT_ROOT" ls-files --stage -- tests/helpers/grep-octopus.sh | awk '{print $1}')"
+case "$tracked_mode" in
+    100644) chmod +x "$helper_path" ;;
+    100755) chmod -x "$helper_path" ;;
+    *) test_fail "unexpected tracked mode for $helper_path: ${tracked_mode:-missing}" ;;
+esac
 committed_only_plan="$(bash "$CI_CHANGED" --list --committed-only --base HEAD 2>&1 || true)"
 if [[ "$helper_was_executable" == "true" ]]; then
     chmod +x "$helper_path"

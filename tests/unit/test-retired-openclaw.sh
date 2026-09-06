@@ -52,30 +52,28 @@ fi
 
 test_case "the retirement release records removal without current metadata wiring"
 expected_removal_note="Remove the unused OpenClaw integration and simplify MCP setup"
-retirement_section="$(awk -v note="$expected_removal_note" '
-    function flush_section() {
-        if (index(section, note) > 0) {
+retirement_doc="$(grep -il -m1 'no longer ships the OpenClaw extension' "$PROJECT_ROOT"/docs/UPGRADING-*.md 2>/dev/null | head -n 1)"
+retirement_release="$(basename "$retirement_doc" | sed -E 's/^UPGRADING-V([0-9]+\.[0-9]+\.[0-9]+)\.md$/\1/')"
+retirement_heading="## [${retirement_release}]"
+retirement_section="$(awk -v target="$retirement_heading" '
+    /^## \[/ {
+        if (in_target) {
             printf "%s", section
+            exit
         }
-    }
-    /^## \[[0-9]+\.[0-9]+\.[0-9]+\]/ {
-        if (section != "") {
-            flush_section()
-        }
-        section = $0 ORS
+        in_target = (index($0, target) == 1)
+        section = in_target ? $0 ORS : ""
         next
     }
-    section != "" {
+    in_target {
         section = section $0 ORS
     }
     END {
-        if (section != "") {
-            flush_section()
+        if (in_target) {
+            printf "%s", section
         }
     }
 ' "$PROJECT_ROOT/CHANGELOG.md")"
-retirement_heading="$(sed -n '1p' <<< "$retirement_section")"
-retirement_release="$(sed -E 's/^## \[([^]]+)\].*/\1/' <<< "$retirement_heading")"
 current_metadata_matches="$({
     cd "$PROJECT_ROOT"
     git grep -n -i -E "$retired_token_pattern" -- \
@@ -84,7 +82,8 @@ current_metadata_matches="$({
         .claude-plugin/marketplace.json \
         || true
 })"
-if [[ -n "$retirement_heading" ]] &&
+if [[ -f "$retirement_doc" ]] &&
+   [[ "$retirement_release" != "$(basename "$retirement_doc")" ]] &&
    [[ -n "$retirement_release" ]] &&
    printf '%s\n' "$retirement_section" | grep -qF "$retirement_heading" &&
    printf '%s\n' "$retirement_section" | grep -qF "$expected_removal_note" &&
