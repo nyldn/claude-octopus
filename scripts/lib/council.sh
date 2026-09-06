@@ -2036,8 +2036,13 @@ council_response_defers_without_reading() {
             # cited as CONFIRMATION of CODE-LEVEL facts ("the summary confirms the
             # tests pass / byte-identical output") — a bare "the summary states the
             # rollout is phased" (process, not code) is NOT a trigger — or a
-            # reported-clean test/typecheck standing in for reading the code.
+            # reported-clean test/typecheck standing in for reading the code. Both
+            # word orders count: forward ("the summary confirms <code fact>") and
+            # reverse ("<code fact> ... as stated in / according to / per the
+            # summary") — the reverse attribution is the exact #2570 wording and
+            # carries no citation of its own (CodeRabbit #1017).
             summary_reliance = ($0 ~ /the[[:space:]]+summary[[:space:]]+(confirms|states|indicates|reports|notes|says|claims|shows|verifies|mitigat[a-z]*)[^.!?;]{0,80}(test|coverage|render|output|type[- ]?check|tsc|lint|implement|propagat|byte-identical|pass(es|ing|ed)?|regression|contract|behaviou?r|diff|assertion|snapshot|dom|css|class|component|function|api|endpoint|schema|payload|field)/ \
+                || $0 ~ /(test|coverage|render|output|type[- ]?check|tsc|lint|implement|propagat|byte-identical|regression|contract|behaviou?r|diff|assertion|snapshot|dom|css|class|component|function|api|endpoint|schema|payload|field)[^.!?;]{0,80}(as[[:space:]]+stated[[:space:]]+in|according[[:space:]]+to|per)[[:space:]]+(the[[:space:]]+)?summary/ \
                 || $0 ~ /(constraints?|restrictions?|rules|permissions?|sandbox)[[:space:]]+(prevent|restrict|prohibit|preclude|block)[a-z]*[^.!?;]{0,50}(verif|read|access|inspect|examin|confirm|review)/ \
                 || $0 ~ /(reported|stated|claimed)[[:space:]]+(clean|passing)[[:space:]]+(tsc|lint|test|ci|type)/)
             prior_deference = ($0 ~ /(given|based on|relying on|because of|considering)[^.!?;]{0,70}(previous|prior|earlier)[[:space:]]+(rounds?|reviews?|validations?|phases?)/ \

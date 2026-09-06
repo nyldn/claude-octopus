@@ -2489,19 +2489,32 @@ test_council_blind_summary_deference() {
         echo "VERDICT: APPROVE"
     } > "$d/plan-states.md"
 
-    local para=n defer=n grounded_ok=n cited_ok=n url_blind=n plan_states_ok=n
+    # (g) Reverse-attribution ISOLATION (CodeRabbit #1017): the ONLY blind signal
+    # is a code fact deferred to the summary in reverse word order ("propagated
+    # ... as stated in the summary"). No forward "the summary confirms", no
+    # reported-clean-tsc, no prior-round deference, zero file:line. Must be blind
+    # solely via the reverse form — the paraphrase fixture (a) can't prove this
+    # because it also carries the forward and clean-tsc signals.
+    {
+        echo "## Review"
+        echo "APPROVE. The ariaLabel is correctly propagated to every icon button, as stated in the summary."
+        echo "VERDICT: APPROVE"
+    } > "$d/reverse-attr.md"
+
+    local para=n defer=n grounded_ok=n cited_ok=n url_blind=n plan_states_ok=n reverse=n
     council_response_is_blind "$d/paraphrase.md" && para=y
     council_response_is_blind "$d/deference.md" && defer=y
     council_response_is_blind "$d/grounded.md" || grounded_ok=y
     council_response_is_blind "$d/grounded-cited.md" || cited_ok=y
     council_response_is_blind "$d/url-port.md" && url_blind=y
     council_response_is_blind "$d/plan-states.md" || plan_states_ok=y
+    council_response_is_blind "$d/reverse-attr.md" && reverse=y
 
     if [[ "$para" == "y" && "$defer" == "y" && "$grounded_ok" == "y" && "$cited_ok" == "y" \
-          && "$url_blind" == "y" && "$plan_states_ok" == "y" ]]; then
+          && "$url_blind" == "y" && "$plan_states_ok" == "y" && "$reverse" == "y" ]]; then
         test_pass
     else
-        test_fail "summary/deference blind detection wrong: paraphrase=$para deference=$defer grounded_ok=$grounded_ok cited_ok=$cited_ok url_blind=$url_blind plan_states_ok=$plan_states_ok"
+        test_fail "summary/deference blind detection wrong: paraphrase=$para deference=$defer grounded_ok=$grounded_ok cited_ok=$cited_ok url_blind=$url_blind plan_states_ok=$plan_states_ok reverse=$reverse"
         return 1
     fi
 }
