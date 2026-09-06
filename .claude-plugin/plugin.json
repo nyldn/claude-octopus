@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.0.1",
-  "description": "v11.0.1 \u2014 Remove the unused OpenClaw integration and simplify MCP setup. Run /octo:setup.",
+  "version": "11.1.0",
+  "description": "v11.1.0 \u2014 Balance plugin CI around core user-facing coverage while retaining deep release gates. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

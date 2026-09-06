@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.1.0] - 2026-09-06
+
 ### Added
 
 - Add a prototype skill that records one question, hypothesis, deadline, source
