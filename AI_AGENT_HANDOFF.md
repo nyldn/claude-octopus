@@ -24,6 +24,8 @@ authorized. Merging, versioning, and releasing remain out of scope.
 2. Read the relevant repository issue and implementation specification when
    available. Do not migrate the Beads schema if it is blocked.
 3. Read `AGENTS.md`, `CLAUDE.md`, and this handoff before changing files.
+4. Read the relevant `bd` issue before changing files; use the repository issue
+   tracker as the task system of record.
 
 ## Implemented Scope
 

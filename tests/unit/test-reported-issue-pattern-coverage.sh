@@ -38,7 +38,13 @@ while IFS= read -r target; do
     category="$(awk -v target="$target" '
         $0 ~ "^" target ":" {in_target = 1; next}
         in_target && /^[[:alnum:]_.-]+:/ {exit}
-        in_target && /run-all\.sh/ {print $NF; exit}
+        in_target && /run-all\.sh/ {
+            command = $0
+            sub(/^.*run-all\.sh[[:space:]]+/, "", command)
+            split(command, args, /[[:space:]]+/)
+            print args[1]
+            exit
+        }
     ' "$MAKEFILE")"
     [[ -n "$category" ]] || continue
     ci_suites+="$(bash "$RUNNER" "$category" --list | sed -n 's/^[[:space:]]*- /tests\//p')"$'\n'
