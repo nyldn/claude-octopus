@@ -6,17 +6,16 @@ Status: the eight workflow-method adaptations are implemented on
 `codex/workflow-skill-adaptations`, based on public `upstream/main` commit
 `3267de847fa41761023ba021ba71bb15a7240551` (v11.0.1). GPT-6 Astra at high
 reasoning completed the final pre-commit review with `NO ACTIONABLE FINDINGS`.
-The exact-candidate matrix is clean; the implementation is ready to commit and
-push.
+The exact-candidate matrix is clean. Implementation commit `c888923d` is
+pushed to `upstream/codex/workflow-skill-adaptations`.
 
 Tracking: private Beads epic `oco-n99` and its child issues are the task system
 of record. The private implementation specification is
 `docs/superpowers/specs/2026-09-06-workflow-skill-adaptations.md` in the
 `claude-octopus-dev` repository.
 
-Next action: commit and push this branch, then record its exact commit SHA.
-Creating a pull request, merging, versioning, or releasing requires separate
-authorization.
+Next action: create a pull request or integrate the branch only when separately
+authorized. Merging, versioning, and releasing remain out of scope.
 
 ## Start Here
 
