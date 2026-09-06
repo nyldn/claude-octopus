@@ -8,6 +8,8 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "retired OpenClaw integration"
 
+retired_token_pattern='openclaw|octo-claw|OCTO_CLAW|CLAUDE_OCTOPUS_OPENCLAW'
+
 assert_absent() {
     local relative_path="$1"
     test_case "$relative_path does not ship"
@@ -30,7 +32,7 @@ done
 test_case "active product files contain no OpenClaw integration wiring"
 matches="$(
     cd "$PROJECT_ROOT"
-    git grep -n -i -E 'openclaw|octo-claw|OCTO_CLAW|CLAUDE_OCTOPUS_OPENCLAW' -- \
+    git grep -n -i -E "$retired_token_pattern" -- \
         ':!CHANGELOG.md' \
         ':!docs/plans/**' \
         ':!docs/superpowers/**' \
@@ -48,19 +50,29 @@ else
     test_fail "retired OpenClaw wiring remains:\n$matches"
 fi
 
-test_case "release metadata mentions OpenClaw only as the v11.0.1 removal"
+test_case "release metadata mentions OpenClaw only as the current-version removal"
+current_version="$(node -p "require('$PROJECT_ROOT/package.json').version")"
+expected_removal_note="Remove the unused OpenClaw integration and simplify MCP setup."
 release_note_matches="$({
     cd "$PROJECT_ROOT"
-    git grep -n -i 'openclaw' -- \
+    git grep -n -i -E "$retired_token_pattern" -- \
         README.md \
         .claude-plugin/plugin.json \
         .claude-plugin/marketplace.json \
         || true
 })"
-unexpected_release_notes="$(printf '%s\n' "$release_note_matches" |
-    grep -v 'v11\.0\.1.*Remove the unused OpenClaw integration and simplify MCP setup\.' || true)"
 release_note_count="$(printf '%s\n' "$release_note_matches" | grep -c . || true)"
-if [[ "$release_note_count" == "4" ]] && [[ -z "$unexpected_release_notes" ]]; then
+unexpected_release_notes=""
+while IFS= read -r release_note_line; do
+    [[ -n "$release_note_line" ]] || continue
+    residual_line="${release_note_line/"$expected_removal_note"/}"
+    if [[ "$release_note_line" != *"v${current_version}"* ]] ||
+       [[ "$release_note_line" != *"$expected_removal_note"* ]] ||
+       printf '%s\n' "$residual_line" | grep -qiE "$retired_token_pattern"; then
+        unexpected_release_notes+="${release_note_line}"$'\n'
+    fi
+done <<< "$release_note_matches"
+if [[ "$release_note_count" -ge 1 ]] && [[ -z "$unexpected_release_notes" ]]; then
     test_pass
 else
     test_fail "release metadata contains active OpenClaw guidance or unexpected removal notes:\n${unexpected_release_notes:-found $release_note_count expected removal notes}"

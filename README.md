@@ -610,7 +610,7 @@ A SessionStart hook injects the dispatch profile (prompt anti-patterns, judgment
 
 ### Architecture
 
-```
+```text
 MCP Client ─── MCP Server ─── orchestrate.sh ─── provider CLIs and APIs
 ```
 
@@ -619,7 +619,7 @@ and clients without changing the Claude Code plugin.
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
-| MCP Server | `mcp-server/` | Exposes 10 Octopus tools via Model Context Protocol |
+| MCP Server | `mcp-server/` | Exposes 12 Octopus tools via Model Context Protocol |
 | Skill Schema | `mcp-server/src/schema/skill-schema.json` | Shared skill metadata format |
 
 Add the server to your project's MCP configuration or global client settings:
@@ -641,6 +641,7 @@ Once enabled, it exposes:
 - `octopus_discover`, `octopus_define`, `octopus_develop`, `octopus_deliver` — Individual phases
 - `octopus_embrace` — Full Double Diamond workflow
 - `octopus_debate`, `octopus_council`, `octopus_review`, `octopus_security` — Specialized workflows
+- `octopus_set_editor_context` — IDE editor-state context
 - `octopus_list_skills`, `octopus_status` — Introspection
 
 Any MCP-compatible client can connect to the server.
