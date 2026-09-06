@@ -39,10 +39,12 @@ fi
 test_case "host-native debug and TDD do not carry Codex enforced-dispatch metadata"
 DEBUG_CODEX="$PROJECT_ROOT/skills/skill-debug/SKILL.md"
 TDD_CODEX="$PROJECT_ROOT/skills/skill-tdd/SKILL.md"
-if ! grep -q '^execution_mode: enforced$' "$DEBUG" &&
-   ! grep -q '^execution_mode: enforced$' "$TDD" &&
-   ! grep -q 'This generated Codex skill preserves an enforced workflow contract' "$DEBUG_CODEX" &&
-   ! grep -q 'This generated Codex skill preserves an enforced workflow contract' "$TDD_CODEX"; then
+if [[ ! -r "$DEBUG" || ! -r "$TDD" || ! -r "$DEBUG_CODEX" || ! -r "$TDD_CODEX" ]]; then
+    test_fail "host-native workflow contract files are missing or unreadable"
+elif ! grep -q '^execution_mode: enforced$' "$DEBUG" &&
+     ! grep -q '^execution_mode: enforced$' "$TDD" &&
+     ! grep -q 'This generated Codex skill preserves an enforced workflow contract' "$DEBUG_CODEX" &&
+     ! grep -q 'This generated Codex skill preserves an enforced workflow contract' "$TDD_CODEX"; then
     test_pass
 else
     test_fail "host-native methods still advertise an enforced Codex dispatch contract"
