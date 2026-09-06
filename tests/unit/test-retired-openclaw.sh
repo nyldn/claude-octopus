@@ -52,13 +52,30 @@ fi
 
 test_case "the retirement release records removal without current metadata wiring"
 expected_removal_note="Remove the unused OpenClaw integration and simplify MCP setup"
-retirement_release="11.0.1"
-retirement_heading="## [${retirement_release}]"
-retirement_note_matches="$({
-    cd "$PROJECT_ROOT"
-    git grep -n -F -- "$retirement_heading" CHANGELOG.md || true
-    git grep -n -F -- "$expected_removal_note" CHANGELOG.md || true
-})"
+retirement_section="$(awk -v note="$expected_removal_note" '
+    function flush_section() {
+        if (index(section, note) > 0) {
+            printf "%s", section
+        }
+    }
+    /^## \[[0-9]+\.[0-9]+\.[0-9]+\]/ {
+        if (section != "") {
+            flush_section()
+        }
+        section = $0 ORS
+        next
+    }
+    section != "" {
+        section = section $0 ORS
+    }
+    END {
+        if (section != "") {
+            flush_section()
+        }
+    }
+' "$PROJECT_ROOT/CHANGELOG.md")"
+retirement_heading="$(sed -n '1p' <<< "$retirement_section")"
+retirement_release="$(sed -E 's/^## \[([^]]+)\].*/\1/' <<< "$retirement_heading")"
 current_metadata_matches="$({
     cd "$PROJECT_ROOT"
     git grep -n -i -E "$retired_token_pattern" -- \
@@ -67,12 +84,14 @@ current_metadata_matches="$({
         .claude-plugin/marketplace.json \
         || true
 })"
-if printf '%s\n' "$retirement_note_matches" | grep -qF "$retirement_heading" &&
-   printf '%s\n' "$retirement_note_matches" | grep -qF "$expected_removal_note" &&
+if [[ -n "$retirement_heading" ]] &&
+   [[ -n "$retirement_release" ]] &&
+   printf '%s\n' "$retirement_section" | grep -qF "$retirement_heading" &&
+   printf '%s\n' "$retirement_section" | grep -qF "$expected_removal_note" &&
    [[ -z "$current_metadata_matches" ]]; then
     test_pass
 else
-    test_fail "retirement release note or current metadata contract is invalid:\n${retirement_note_matches:-missing $retirement_heading or removal note}\n${current_metadata_matches:-}"
+    test_fail "retirement release note or current metadata contract is invalid:\n${retirement_section:-missing retirement release section or removal note}\n${current_metadata_matches:-}"
 fi
 
 test_case "retirement release version matching rejects longer version prefixes"

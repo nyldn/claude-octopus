@@ -120,7 +120,11 @@ test_case "committed-only mode ignores CI chmod noise"
 helper_path="$PROJECT_ROOT/tests/helpers/grep-octopus.sh"
 helper_was_executable=false
 [[ -x "$helper_path" ]] && helper_was_executable=true
-chmod +x "$helper_path"
+if [[ "$helper_was_executable" == "true" ]]; then
+    chmod -x "$helper_path"
+else
+    chmod +x "$helper_path"
+fi
 committed_only_plan="$(bash "$CI_CHANGED" --list --committed-only --base HEAD 2>&1 || true)"
 if [[ "$helper_was_executable" == "true" ]]; then
     chmod +x "$helper_path"
