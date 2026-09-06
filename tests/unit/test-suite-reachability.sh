@@ -310,6 +310,14 @@ else
     test_fail "workflow_dispatch selects heavy tests but skips integration-heavy"
 fi
 
+test_case "integration-heavy runs after a successful unit aggregate despite skipped optional lanes"
+if [[ "$integration_job" == *'if: always() &&'* ]] &&
+   [[ "$integration_job" == *"needs.unit-required.result == 'success'"* ]]; then
+    test_pass
+else
+    test_fail "integration-heavy must bypass optional skipped lanes but remain blocked by a failed Unit Tests aggregate"
+fi
+
 test_case "at least one test is actually discovered (guards a silent empty set)"
 n="$(reachable_files | grep -c . || true)"
 if [[ "${n:-0}" -gt 50 ]]; then

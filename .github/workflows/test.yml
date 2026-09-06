@@ -525,7 +525,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [classify-changes, unit-required]
-    if: needs.classify-changes.outputs.heavy_tests == 'true' && (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    if: always() && needs.classify-changes.outputs.heavy_tests == 'true' && needs.unit-required.result == 'success' && (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
 
     steps:
       - name: Checkout code
