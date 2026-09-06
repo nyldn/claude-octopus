@@ -2010,24 +2010,34 @@ council_response_defers_without_reading() {
     local f="$1"
     [[ -f "$f" ]] || return 1
 
-    if grep -ciE '\.[[:alpha:]][[:alnum:]]{0,9}:[0-9]+' "$f" >/dev/null; then
-        return 1
-    fi
-
     local normalized_without_urls
     normalized_without_urls="$(tr '\n' ' ' < "$f" | tr -s '[:space:]' ' ' \
         | tr '[:upper:]' '[:lower:]' \
         | sed -E \
             -e 's#https?://[^[:space:]]*([.!?;])([[:space:]]|$)#\1\2#g' \
             -e 's#https?://[^[:space:]]+##g')"
+
+    # A concrete SOURCE file:line citation is the grounding signal. Match only
+    # real source extensions, and only AFTER stripping URLs, so a URL port
+    # (https://example.com:443) or a doc/host token is never mistaken for
+    # evidence (CodeRabbit #1017). This is a prose signal, not a filesystem
+    # check — councils also review plans/PRDs that have no source tree, and the
+    # disposable workspace is gone by classification time, so a cited path cannot
+    # be resolved; the phrase gate below is the primary discriminator.
+    if grep -ciE '\.(tsx?|jsx?|mjs|cjs|css|scss|sass|less|html?|vue|svelte|py|go|rb|rs|java|kt|swift|cc?|cpp|cxx|hh?|hpp|sh|bash|zsh|sql|ya?ml|toml|jsonc?|mdx?|php|pl|lua|exs?|scala|dart|mm?|jl|tf|r)[[:space:]]*:[0-9]+' <<< "$normalized_without_urls" >/dev/null; then
+        return 1
+    fi
+
     printf '%s\n' "$normalized_without_urls" | awk '
         {
             # NOTE: a bare "based on the provided summary" is deliberately NOT a
             # trigger — a legitimate plan/design review (no code to cite) uses that
             # phrasing (sail-cruisey #2527). The blind signal is the summary being
-            # cited as CONFIRMATION of code-level facts ("the summary confirms …")
-            # or a reported-clean test/typecheck standing in for reading the code.
-            summary_reliance = ($0 ~ /the[[:space:]]+summary[[:space:]]+(confirms|states|indicates|reports|notes|says|claims|mitigat)/ \
+            # cited as CONFIRMATION of CODE-LEVEL facts ("the summary confirms the
+            # tests pass / byte-identical output") — a bare "the summary states the
+            # rollout is phased" (process, not code) is NOT a trigger — or a
+            # reported-clean test/typecheck standing in for reading the code.
+            summary_reliance = ($0 ~ /the[[:space:]]+summary[[:space:]]+(confirms|states|indicates|reports|notes|says|claims|shows|verifies|mitigat[a-z]*)[^.!?;]{0,80}(test|coverage|render|output|type[- ]?check|tsc|lint|implement|propagat|byte-identical|pass(es|ing|ed)?|regression|contract|behaviou?r|diff|assertion|snapshot|dom|css|class|component|function|api|endpoint|schema|payload|field)/ \
                 || $0 ~ /(constraints?|restrictions?|rules|permissions?|sandbox)[[:space:]]+(prevent|restrict|prohibit|preclude|block)[a-z]*[^.!?;]{0,50}(verif|read|access|inspect|examin|confirm|review)/ \
                 || $0 ~ /(reported|stated|claimed)[[:space:]]+(clean|passing)[[:space:]]+(tsc|lint|test|ci|type)/)
             prior_deference = ($0 ~ /(given|based on|relying on|because of|considering)[^.!?;]{0,70}(previous|prior|earlier)[[:space:]]+(rounds?|reviews?|validations?|phases?)/ \

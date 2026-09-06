@@ -2471,16 +2471,37 @@ test_council_blind_summary_deference() {
         echo "VERDICT: APPROVE"
     } > "$d/grounded-cited.md"
 
-    local para=n defer=n grounded_ok=n cited_ok=n
+    # (e) Deference lean but the only ":NN" is a URL port — must STILL be blind:
+    # URLs are stripped before the citation guard, so a link is not grounding
+    # (CodeRabbit #1017).
+    {
+        echo "## Review"
+        echo "Given the rigorous validations in previous rounds, I recommend proceeding; see the plan at https://example.com:443/plan for context."
+        echo "VERDICT: APPROVE"
+    } > "$d/url-port.md"
+
+    # (f) Plan/process review that says "the summary states" about a NON-code fact
+    # (rollout sequencing) with no citation — must NOT be flagged: summary
+    # reliance requires a code-level confirmation, not a process statement.
+    {
+        echo "## Recommendation"
+        echo "The summary states the rollout is phased across three releases, which is a sound sequencing decision for risk management."
+        echo "VERDICT: APPROVE"
+    } > "$d/plan-states.md"
+
+    local para=n defer=n grounded_ok=n cited_ok=n url_blind=n plan_states_ok=n
     council_response_is_blind "$d/paraphrase.md" && para=y
     council_response_is_blind "$d/deference.md" && defer=y
     council_response_is_blind "$d/grounded.md" || grounded_ok=y
     council_response_is_blind "$d/grounded-cited.md" || cited_ok=y
+    council_response_is_blind "$d/url-port.md" && url_blind=y
+    council_response_is_blind "$d/plan-states.md" || plan_states_ok=y
 
-    if [[ "$para" == "y" && "$defer" == "y" && "$grounded_ok" == "y" && "$cited_ok" == "y" ]]; then
+    if [[ "$para" == "y" && "$defer" == "y" && "$grounded_ok" == "y" && "$cited_ok" == "y" \
+          && "$url_blind" == "y" && "$plan_states_ok" == "y" ]]; then
         test_pass
     else
-        test_fail "summary/deference blind detection wrong: paraphrase=$para deference=$defer grounded_ok=$grounded_ok cited_ok=$cited_ok"
+        test_fail "summary/deference blind detection wrong: paraphrase=$para deference=$defer grounded_ok=$grounded_ok cited_ok=$cited_ok url_blind=$url_blind plan_states_ok=$plan_states_ok"
         return 1
     fi
 }
