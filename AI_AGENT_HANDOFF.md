@@ -2,20 +2,20 @@
 
 Last updated: 2026-09-06
 
-Status: the eight workflow-method adaptations are implemented on
-`codex/workflow-skill-adaptations`, based on public `upstream/main` commit
-`3267de847fa41761023ba021ba71bb15a7240551` (v11.0.1). GPT-6 Astra at high
-reasoning completed the final pre-commit review with `NO ACTIONABLE FINDINGS`.
-The implementation matrix passed before commit. Documentation follow-up
-validation and its timing-test caveat are recorded below. Commit `c888923d` is
-pushed to `upstream/codex/workflow-skill-adaptations`.
+Status: v11.1.0 is released from main squash commit
+`bfe1f42ff3362cb2d825cfbc44a62f3e16327452`. The release includes the workflow
+method and resumable setup work, proportional CI test tiers, committed-only
+changed-surface selection for clean CI checkouts, and deterministic release
+regression fixtures. Tag `v11.1.0`, the GitHub release, and the shared Claude
+and Codex marketplace entries are published at that exact commit.
 
 Tracking: use the repository issue tracker and checked-in implementation
 documentation as the source of truth. Do not put private checkout paths,
 credentials, or host-specific state in this public handoff.
 
-Next action: create a pull request or integrate the branch only when separately
-authorized. Merging, versioning, and releasing remain out of scope.
+Next action: use the focused selector for ordinary plugin PRs. Keep shared CI,
+unknown, or safety-net changes fail-closed to the complete core matrix; main,
+scheduled, manual, merge, and release paths retain deep council coverage.
 
 ## Start Here
 
@@ -98,6 +98,14 @@ authorized. Merging, versioning, and releasing remain out of scope.
   concurrent first-writer iterations.
 - Documentation synchronization passes 143/143; `make sync-check` and
   `git diff --check` pass.
+- The focused selector now supports `--committed-only`, so CI-side recursive
+  executable-bit setup cannot turn a mode-only helper change into a 323-suite
+  fallback. The selector contract passes 25/25 checks, and the retired
+  integration contract passes 9/9.
+- Release PR #1019 passed the complete core matrix, symlink lane, integration,
+  smoke, package, portability, and summary gates. The exact post-merge main
+  run also passed full core, deep council, symlink, integration, smoke,
+  package, portability, and summary gates.
 - Plugin assembly validates 120 skills, 53 commands, 51 agents, and 31 agent
   configuration references.
 - Claude validates both the plugin and marketplace manifests. The only warning
@@ -122,8 +130,7 @@ authorized. Merging, versioning, and releasing remain out of scope.
 - The existing macOS council PTY case remains skipped, with its deny path
   covered separately. It is not part of this implementation.
 - Versioning, tagging, marketplace publication, pull-request merge, and
-  release verification are separate delivery steps governed by
-  `RELEASING.md`.
+  release verification for v11.1.0 are complete under `RELEASING.md`.
 
 ## Workspace Safety
 
