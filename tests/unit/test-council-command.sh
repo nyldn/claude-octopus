@@ -2427,6 +2427,64 @@ test_council_advice_marks_blind_seat() {
     fi
 }
 
+test_council_blind_summary_deference() {
+    test_case "a seat that rests on the summary or prior rounds with no file:line citation is blind; a grounded review (specific code, or a real file:line) is not (sail-cruisey #2570/#2463)"
+    load_council_lib || return 1
+
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/council-deference.XXXXXX")"
+
+    # (a) Summary paraphrase (#2570): APPROVE that rests on the summary, no
+    # access-failure admission, zero file:line citations.
+    {
+        echo "### Recommendation"
+        echo "APPROVE. The refactor is sound and backward compatible."
+        echo "### Assumptions"
+        echo "- The ariaLabel field is correctly propagated through all implementations, as stated in the summary."
+        echo "- The reported clean tsc output and 100% test pass rate are accurate representations of CI state."
+        echo "The summary confirms byte-identical rendered output, effectively mitigating regression risk."
+        echo "VERDICT: APPROVE"
+    } > "$d/paraphrase.md"
+
+    # (b) Prior-phase deference (#2463): defers to earlier rounds/gates instead of
+    # reading the artifact, no access-failure admission, zero file:line citations.
+    {
+        echo "## Architectural Review"
+        echo "The footer correction is architecturally sound and aligns the frontend with the backend data shape."
+        echo "Given the rigorous validations in previous rounds and the successful resolution of the final finding, it provides a solid, grounded foundation for Phase 6 implementation. I see no other material flaws, so I recommend proceeding."
+        echo "VERDICT: APPROVE"
+    } > "$d/deference.md"
+
+    # (c) Grounded review: analyzes specific code/behavior directly, with no
+    # summary/prior-round lean — must NOT be flagged even with zero file:line.
+    {
+        echo "## Review"
+        echo "The exclusive swap (const baseIconClass = bare ? styles.emptyIconShellBare : styles.emptyIconShell) prevents cascade races, and the additive emptyActionsBare class applies the 1rem margin without overriding emptyActions."
+        echo "The empty-state.test.tsx additions cover both the icon-shell swap and the actions spacing. I found no correctness issues or missed requirements."
+        echo "VERDICT: APPROVE"
+    } > "$d/grounded.md"
+
+    # (d) Uses a deference phrase BUT carries a real file:line citation — the
+    # colon-citation guard must keep it out of the blind set.
+    {
+        echo "## Review"
+        echo "Given the prior rounds, the guard added at src/SpendingTab.tsx:257 correctly classifies the single-amount footer."
+        echo "VERDICT: APPROVE"
+    } > "$d/grounded-cited.md"
+
+    local para=n defer=n grounded_ok=n cited_ok=n
+    council_response_is_blind "$d/paraphrase.md" && para=y
+    council_response_is_blind "$d/deference.md" && defer=y
+    council_response_is_blind "$d/grounded.md" || grounded_ok=y
+    council_response_is_blind "$d/grounded-cited.md" || cited_ok=y
+
+    if [[ "$para" == "y" && "$defer" == "y" && "$grounded_ok" == "y" && "$cited_ok" == "y" ]]; then
+        test_pass
+    else
+        test_fail "summary/deference blind detection wrong: paraphrase=$para deference=$defer grounded_ok=$grounded_ok cited_ok=$cited_ok"
+        return 1
+    fi
+}
+
 test_council_blind_fabricated_narrative() {
     test_case "a long first-person access failure is blind regardless of length or citation prose; grounded long reviews and plan reviews are not"
     load_council_lib || return 1
@@ -3173,6 +3231,7 @@ test_council_rc_is_timeout_requires_watchdog_provenance
 test_council_advice_marks_timed_out_seat
 test_council_advice_marks_blind_seat
 test_council_blind_fabricated_narrative
+test_council_blind_summary_deference
 test_council_permission_denied_finding_is_substantive
 test_council_advice_does_not_infer_timeout_from_provider_rc
 test_council_seat_timeout_rejects_zero_and_nonnumeric

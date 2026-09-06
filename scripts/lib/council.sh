@@ -1937,6 +1937,15 @@ council_response_is_blind() {
         return 0
     fi
 
+    # A softer evasion: the seat never admits an access failure, but its verdict
+    # rests entirely on the task summary / prior rounds / a clean test suite
+    # rather than on reading the artifact, and it cites no real source location.
+    # Gated on zero file:line citations so a grounded review is never flagged
+    # (sail-cruisey #2570 paraphrase, #2463 prior-phase deference).
+    if council_response_defers_without_reading "$f"; then
+        return 0
+    fi
+
     local nlen
     nlen="$(tr -d '[:space:]' < "$f" | wc -c | tr -d '[:space:]')"
     (( nlen < 1600 )) || return 1
@@ -1959,13 +1968,18 @@ council_response_has_access_failure() {
 
     # Normalize wrapping, then evaluate one sentence/clause at a time. This
     # catches Markdown line wraps without letting a first-person sentence attach
-    # to a later third-person access report.
+    # to a later third-person access report. A period between two alphanumerics is
+    # part of a token (a filename like WatcherDashboard.test.tsx, a version like
+    # 1.0.4), NOT a sentence end — neutralize those to a space first, or the
+    # sentence split would sever "I am assuming ... <file>" from "... file access
+    # is restricted" and miss the admission (sail-cruisey #2459).
     local normalized_without_urls
     normalized_without_urls="$(tr '\n' ' ' < "$f" | tr -s '[:space:]' ' ' \
         | tr '[:upper:]' '[:lower:]' \
         | sed -E \
             -e 's#https?://[^[:space:]]*([.!?;])([[:space:]]|$)#\1\2#g' \
-            -e 's#https?://[^[:space:]]+##g')"
+            -e 's#https?://[^[:space:]]+##g' \
+            -e ':dot' -e 's#([[:alnum:]])\.([[:alnum:]])#\1 \2#g' -e 'tdot')"
     printf '%s\n' "$normalized_without_urls" | awk '
         BEGIN { RS="[.!?;]+"; found=0 }
         {
@@ -1974,6 +1988,52 @@ council_response_has_access_failure() {
             third_party_access = ($0 ~ /(^|[^[:alnum:]_])(another|other)[[:space:]]+(reviewer|seat|agent|provider|model)([^[:alnum:]_]|$)[^.!?;]{0,80}(cannot|could[[:space:]]*not|couldn.t|unable[[:space:]]+to|can.t|did[[:space:]]+not|lack(ed|s)?)/)
             first_person_access = ($0 ~ /(^|[^[:alnum:]_])(i|we)[[:space:]]+(cannot|could[[:space:]]*not|couldn.t|unable[[:space:]]+to|can.t|was[[:space:]]+not[[:space:]]+able[[:space:]]+to|were[[:space:]]+not[[:space:]]+able[[:space:]]+to)[[:space:]]+(open|read|access|view)/ || $0 ~ /(^|[^[:alnum:]_])(i|we)[[:space:]]+((did[[:space:]]+not|do[[:space:]]+not|don.t)[[:space:]]+have|lack(ed)?)[[:space:]]+(direct[[:space:]]+)?access/)
             if (first_person && access_failure && (!third_party_access || first_person_access)) found=1
+        }
+        END { exit(found ? 0 : 1) }
+    ' >/dev/null 2>&1
+}
+
+council_response_defers_without_reading() {
+    # A "soft blind" seat never states an access failure outright, but its verdict
+    # rests on the task summary, prior review rounds, or a clean test suite rather
+    # than on reading the artifact — it reviewed nothing. Two real agy evasions:
+    #   - summary paraphrase: "the ariaLabel field is correctly propagated, as
+    #     stated in the summary" (sail-cruisey #2570)
+    #   - prior-phase deference: "given the rigorous validations in previous
+    #     rounds ... I recommend proceeding" (#2463)
+    # This is length-independent (the evasions are long) but gated on ZERO
+    # `path.ext:line` citations: a genuinely grounded review carries a concrete
+    # file:line, so it is never flagged for merely mentioning a summary or a prior
+    # round. The colon citation form is deliberately the ONLY grounding signal
+    # here — prose "lines 251-263" or a bare filename can be copied from the
+    # plan/summary without reading it (#2463 does exactly that).
+    local f="$1"
+    [[ -f "$f" ]] || return 1
+
+    if grep -ciE '\.[[:alpha:]][[:alnum:]]{0,9}:[0-9]+' "$f" >/dev/null; then
+        return 1
+    fi
+
+    local normalized_without_urls
+    normalized_without_urls="$(tr '\n' ' ' < "$f" | tr -s '[:space:]' ' ' \
+        | tr '[:upper:]' '[:lower:]' \
+        | sed -E \
+            -e 's#https?://[^[:space:]]*([.!?;])([[:space:]]|$)#\1\2#g' \
+            -e 's#https?://[^[:space:]]+##g')"
+    printf '%s\n' "$normalized_without_urls" | awk '
+        {
+            # NOTE: a bare "based on the provided summary" is deliberately NOT a
+            # trigger — a legitimate plan/design review (no code to cite) uses that
+            # phrasing (sail-cruisey #2527). The blind signal is the summary being
+            # cited as CONFIRMATION of code-level facts ("the summary confirms …")
+            # or a reported-clean test/typecheck standing in for reading the code.
+            summary_reliance = ($0 ~ /the[[:space:]]+summary[[:space:]]+(confirms|states|indicates|reports|notes|says|claims|mitigat)/ \
+                || $0 ~ /(constraints?|restrictions?|rules|permissions?|sandbox)[[:space:]]+(prevent|restrict|prohibit|preclude|block)[a-z]*[^.!?;]{0,50}(verif|read|access|inspect|examin|confirm|review)/ \
+                || $0 ~ /(reported|stated|claimed)[[:space:]]+(clean|passing)[[:space:]]+(tsc|lint|test|ci|type)/)
+            prior_deference = ($0 ~ /(given|based on|relying on|because of|considering)[^.!?;]{0,70}(previous|prior|earlier)[[:space:]]+(rounds?|reviews?|validations?|phases?)/ \
+                || $0 ~ /(passed|cleared|survived)[^.!?;]{0,50}(phase[[:space:]]*[0-9]+|staged|rigorous)[^.!?;]{0,25}(reviews?|validations?|gates?|checks?)/ \
+                || $0 ~ /(test[[:space:]]+suite|tsc|lint|ci)[^.!?;]{0,40}(clean|passing|green)[^.!?;]{0,90}(recommend|proceed|approv|no[[:space:]]+(other[[:space:]]+)?(material[[:space:]]+)?(flaws?|issues?|concerns?))/)
+            if (summary_reliance || prior_deference) found=1
         }
         END { exit(found ? 0 : 1) }
     ' >/dev/null 2>&1

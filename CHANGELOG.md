@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Council blind-seat detection now catches two further "reviewed nothing"
+  evasions that were counting toward `met: true`: (1) summary paraphrase — an
+  APPROVE that leans on the task summary as confirmation of code-level facts
+  ("the summary confirms …", a reported-clean `tsc`/test run standing in for
+  reading the code); and (2) prior-phase deference — deferring to earlier rounds
+  or gates ("given the rigorous validations in previous rounds … I recommend
+  proceeding") instead of reading the artifact. Both are gated on the response
+  citing zero real `path.ext:line` locations, so a genuinely grounded review is
+  never flagged; a bare "based on the provided summary" (as a plan/design review
+  legitimately uses) is deliberately not a trigger. Also fixes the existing
+  first-person access-failure check missing an explicit admission whose sentence
+  contained a dotted filename (e.g. `Foo.test.tsx`), whose periods split the
+  sentence and severed the first-person clause from the access-failure clause.
+  Flagged seats are excluded from the approving tally and recorded in
+  `summary.json` `quorum.blind_seats` like any other blind seat.
+
 ## [11.2.1] - 2026-09-07
 
 ### Fixed
