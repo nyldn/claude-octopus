@@ -9,6 +9,7 @@ MANIFEST="$PROJECT_ROOT/tests/changed-scope.tsv"
 LIST_ONLY=false
 UNIT_ONLY=false
 SKIP_SMOKE=false
+COMMITTED_ONLY=false
 BASE_REF="${OCTOPUS_CHANGED_BASE:-}"
 declare -a EXPLICIT_CHANGED=()
 declare -a CHANGED_FILES=()
@@ -27,6 +28,7 @@ Select and run a fail-closed local test gate from the changed files.
   --changed PATH  Test an explicit changed path instead of reading Git (repeatable)
   --unit-only     Fail closed to the unit suite instead of the complete local matrix
   --skip-smoke    Do not repeat the smoke gate (for CI jobs that run it separately)
+  --committed-only Ignore worktree-only changes (for clean-checkout CI callers)
 EOF
 }
 
@@ -52,6 +54,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-smoke)
             SKIP_SMOKE=true
+            shift
+            ;;
+        --committed-only)
+            COMMITTED_ONLY=true
             shift
             ;;
         -h|--help)
@@ -129,17 +135,19 @@ else
             FULL_REASONS+=("failed to diff committed changes from '$BASE_REF'")
         fi
     fi
-    if ! unstaged_changed="$(git diff --name-only 2>/dev/null)"; then
-        FULL_MATRIX=true
-        FULL_REASONS+=("failed to inspect unstaged changes")
-    fi
-    if ! staged_changed="$(git diff --cached --name-only 2>/dev/null)"; then
-        FULL_MATRIX=true
-        FULL_REASONS+=("failed to inspect staged changes")
-    fi
-    if ! untracked_changed="$(git ls-files --others --exclude-standard 2>/dev/null)"; then
-        FULL_MATRIX=true
-        FULL_REASONS+=("failed to inspect untracked changes")
+    if [[ "$COMMITTED_ONLY" == "false" ]]; then
+        if ! unstaged_changed="$(git diff --name-only 2>/dev/null)"; then
+            FULL_MATRIX=true
+            FULL_REASONS+=("failed to inspect unstaged changes")
+        fi
+        if ! staged_changed="$(git diff --cached --name-only 2>/dev/null)"; then
+            FULL_MATRIX=true
+            FULL_REASONS+=("failed to inspect staged changes")
+        fi
+        if ! untracked_changed="$(git ls-files --others --exclude-standard 2>/dev/null)"; then
+            FULL_MATRIX=true
+            FULL_REASONS+=("failed to inspect untracked changes")
+        fi
     fi
     while IFS= read -r changed; do append_unique_changed "$changed"; done < <(
         printf '%s\n' "$committed_changed" "$unstaged_changed" "$staged_changed" "$untracked_changed" |

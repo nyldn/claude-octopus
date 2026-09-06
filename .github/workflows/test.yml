@@ -301,7 +301,7 @@ jobs:
       - name: Run changed-surface unit tests
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: ./scripts/ci-changed.sh --base "$BASE_SHA" --unit-only --skip-smoke
+        run: ./scripts/ci-changed.sh --base "$BASE_SHA" --unit-only --skip-smoke --committed-only
 
       - name: Upload logs on failure
         if: failure()

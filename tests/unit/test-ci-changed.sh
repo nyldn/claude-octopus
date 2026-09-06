@@ -116,6 +116,24 @@ else
     test_fail "known harness-local artifact changed the source-test scope: $harness_plan"
 fi
 
+test_case "committed-only mode ignores CI chmod noise"
+helper_path="$PROJECT_ROOT/tests/helpers/grep-octopus.sh"
+helper_was_executable=false
+[[ -x "$helper_path" ]] && helper_was_executable=true
+chmod +x "$helper_path"
+committed_only_plan="$(bash "$CI_CHANGED" --list --committed-only --base HEAD 2>&1 || true)"
+if [[ "$helper_was_executable" == "true" ]]; then
+    chmod +x "$helper_path"
+else
+    chmod -x "$helper_path"
+fi
+if ! grep -q 'tests/helpers/grep-octopus.sh' <<< "$committed_only_plan" &&
+   grep -q '^Mode: focused$' <<< "$committed_only_plan"; then
+    test_pass
+else
+    test_fail "committed-only selection included worktree-only mode noise: $committed_only_plan"
+fi
+
 test_case "changed test suites select themselves"
 self_plan="$(plan_for 'tests/unit/test-ci-changed.sh')"
 if grep -q '^Mode: focused$' <<< "$self_plan" &&
@@ -254,7 +272,7 @@ fi
 
 test_case "GitHub CI balances focused PR coverage with full non-PR coverage"
 if grep -Fq 'unit-focused:' "$PROJECT_ROOT/.github/workflows/test.yml" &&
-   grep -Fq 'run: ./scripts/ci-changed.sh --base "$BASE_SHA" --unit-only --skip-smoke' "$PROJECT_ROOT/.github/workflows/test.yml" &&
+   grep -Fq 'run: ./scripts/ci-changed.sh --base "$BASE_SHA" --unit-only --skip-smoke --committed-only' "$PROJECT_ROOT/.github/workflows/test.yml" &&
    grep -Fq "needs.classify-changes.outputs.full_unit != 'true'" "$PROJECT_ROOT/.github/workflows/test.yml" &&
    grep -Fq 'unit-full:' "$PROJECT_ROOT/.github/workflows/test.yml" &&
    grep -Fq "needs.classify-changes.outputs.full_unit == 'true'" "$PROJECT_ROOT/.github/workflows/test.yml" &&
