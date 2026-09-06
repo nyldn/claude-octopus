@@ -53,6 +53,23 @@ else
     test_fail "invalid shard count or index was accepted"
 fi
 
+test_case "excluded suites are removed before sharding"
+excluded_list="$(list_suites --unit --exclude=unit/test-council-command.sh)"
+if ! grep -Fxq unit/test-council-command.sh <<< "$excluded_list" &&
+   grep -q '^unit/test-' <<< "$excluded_list"; then
+    test_pass
+else
+    test_fail "--exclude did not remove only the requested suite"
+fi
+
+test_case "invalid excluded suite paths fail closed"
+if ! /bin/bash "$RUNNER" --list --unit --exclude=unit/not-a-suite.sh >/dev/null 2>&1 &&
+   ! /bin/bash "$RUNNER" --list --unit --exclude=../outside.sh >/dev/null 2>&1; then
+    test_pass
+else
+    test_fail "invalid --exclude path was accepted"
+fi
+
 test_case "an empty shard or symlink-sensitive subset fails closed"
 if ! /bin/bash "$RUNNER" --list --suite=unit/test-runner-sharding.sh --suite=unit/test-suite-reachability.sh --shard-index=2 --shard-count=3 >/dev/null 2>&1 &&
    ! /bin/bash "$RUNNER" --list --suite=unit/test-dispatch-oversize.sh --symlink-sensitive >/dev/null 2>&1; then

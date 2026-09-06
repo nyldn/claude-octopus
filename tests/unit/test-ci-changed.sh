@@ -258,7 +258,9 @@ if grep -Fq 'unit-focused:' "$PROJECT_ROOT/.github/workflows/test.yml" &&
    grep -Fq "needs.classify-changes.outputs.full_unit != 'true'" "$PROJECT_ROOT/.github/workflows/test.yml" &&
    grep -Fq 'unit-full:' "$PROJECT_ROOT/.github/workflows/test.yml" &&
    grep -Fq "needs.classify-changes.outputs.full_unit == 'true'" "$PROJECT_ROOT/.github/workflows/test.yml" &&
-   grep -Fq 'run: ./tests/run-all.sh unit --shard-index=${{ matrix.shard_index }} --shard-count=${{ matrix.shard_count }}' "$PROJECT_ROOT/.github/workflows/test.yml" &&
+   grep -Fq 'run: ./tests/run-all.sh unit --exclude=unit/test-council-command.sh --shard-index=${{ matrix.shard_index }} --shard-count=${{ matrix.shard_count }}' "$PROJECT_ROOT/.github/workflows/test.yml" &&
+   grep -Fq 'unit-deep:' "$PROJECT_ROOT/.github/workflows/test.yml" &&
+   grep -Fq './tests/run-all-tests.sh --suite=unit/test-council-command.sh' "$PROJECT_ROOT/.github/workflows/test.yml" &&
    grep -q 'run: make test-integration' "$PROJECT_ROOT/.github/workflows/test.yml" &&
    ! grep -q 'make ci-changed' "$PROJECT_ROOT/.github/workflows/test.yml"; then
     test_pass

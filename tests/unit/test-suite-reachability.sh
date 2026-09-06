@@ -68,7 +68,13 @@ ci_categories() {
         cat=$(awk -v t="^${target}:" '
             $0 ~ t { f = 1; next }
             f && /^[a-zA-Z0-9_.-]+:/ { exit }
-            f && /run-all\.sh/ { print $NF; exit }
+            f && /run-all\.sh/ {
+                command = $0
+                sub(/^.*run-all\.sh[[:space:]]+/, "", command)
+                split(command, args, /[[:space:]]+/)
+                print args[1]
+                exit
+            }
         ' "$MAKEFILE")
         [[ -n "$cat" ]] && printf '%s\n' "$cat"
     done < <(workflow_make_targets) | sort -u
@@ -192,7 +198,7 @@ else
     test_fail "found only ${n_targets} 'make test-*' invocations in the workflow — the grep or the workflow changed, so the assertion above would be vacuous"
 fi
 
-test_case "ordinary PRs use focused units while safety-net changes keep full shards"
+test_case "ordinary PRs use focused units while safety-net changes keep full core shards"
 unit_timeout_setting="$(awk '
     /^  unit-full:/ { in_unit = 1; next }
     in_unit && /^  [[:alnum:]_-]+:/ { exit }
@@ -244,6 +250,7 @@ if [[ "$unit_timeout_setting" == '${{ matrix.timeout_minutes }}' ]] \
    && [[ "$macos_shard_indexes" == "0,1" ]] \
    && [[ "$macos_shard_count_rows" == "2" ]] \
    && [[ "$ubuntu_timeout_minutes" == "25" ]] \
+   && grep -Fq -- '--exclude=unit/test-council-command.sh' "$WORKFLOW" \
    && grep -Fq -- '--shard-index=${{ matrix.shard_index }} --shard-count=${{ matrix.shard_count }}' "$WORKFLOW" \
    && grep -Fq 'unit-focused:' "$WORKFLOW" \
    && grep -Fq 'github.event_name == '\''pull_request'\''' "$WORKFLOW" \
@@ -254,13 +261,31 @@ else
     test_fail "ordinary PRs must use the focused selector while safety-net changes retain full deterministic shards"
 fi
 
-test_case "required Unit Tests aggregates the symlink lane"
+test_case "deep council coverage is explicit outside ordinary PRs"
+deep_job="$(awk '
+    /^  unit-deep:/ { in_job = 1 }
+    in_job && /^  [[:alnum:]_-]+:/ && $0 !~ /^  unit-deep:/ { exit }
+    in_job { print }
+' "$WORKFLOW")"
+if [[ "$deep_job" == *'name: Unit Tests (deep council)'* ]] &&
+   [[ "$deep_job" == *"github.event_name == 'schedule'"* ]] &&
+   [[ "$deep_job" == *"github.event_name == 'workflow_dispatch'"* ]] &&
+   [[ "$deep_job" == *"github.event_name == 'merge_group'"* ]] &&
+   [[ "$deep_job" == *"github.ref == 'refs/heads/main'"* ]] &&
+   [[ "$deep_job" == *'./tests/run-all-tests.sh --suite=unit/test-council-command.sh'* ]] &&
+   grep -Fq 'unit-deep' "$WORKFLOW"; then
+    test_pass
+else
+    test_fail "deep council suite is not explicitly reachable from a deliberate non-PR lane"
+fi
+
+test_case "required Unit Tests aggregates the symlink and deep lanes"
 symlink_job="$(awk '
     /^  symlinked-path:/ { in_job = 1 }
     in_job && /^  [[:alnum:]_-]+:/ && $0 !~ /^  symlinked-path:/ { exit }
     in_job { print }
 ' "$WORKFLOW")"
-if grep -Fq 'needs: [classify-changes, unit-focused, unit-full, symlinked-path]' "$WORKFLOW" &&
+if grep -Fq 'needs: [classify-changes, unit-focused, unit-full, unit-deep, symlinked-path]' "$WORKFLOW" &&
    grep -Fq 'needs.symlinked-path.result' "$WORKFLOW" &&
    [[ "$symlink_job" == *'GITHUB_EVENT_NAME: ${{ github.event_name }}'* ]] &&
    [[ "$symlink_job" == *'if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then'* ]] &&

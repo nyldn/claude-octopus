@@ -18,6 +18,7 @@
 #   --fail-fast     Stop on first suite failure
 #   --list          List discovered tests without running them
 #   --suite=PATH    Run one explicit suite path relative to tests/ (repeatable)
+#   --exclude=PATH  Exclude one discovered suite path relative to tests/ (repeatable)
 #   --shard-index=N Zero-based deterministic shard index (default: 0)
 #   --shard-count=N Number of deterministic shards (default: 1)
 #   --shard-weights=PATH Duration weights (default: tests/shard-weights.tsv)
@@ -62,6 +63,7 @@ Categories:
 
 Options:
   --suite=PATH         Run one suite relative to tests/; repeatable
+  --exclude=PATH       Exclude one discovered suite relative to tests/; repeatable
   --fail-fast          Stop after the first failed suite
   --list               List selected suites without running them
   --shard-index=N      Zero-based deterministic shard index
@@ -171,6 +173,7 @@ print_summary() {
 # Parse flags
 declare -a CATEGORIES=()
 declare -a EXPLICIT_SUITE_ARGS=()
+declare -a EXCLUDED_SUITE_ARGS=()
 SYMLINK_SENSITIVE=false
 for arg in "$@"; do
     case "$arg" in
@@ -200,6 +203,14 @@ for arg in "$@"; do
                 exit 2
             fi
             EXPLICIT_SUITE_ARGS+=("$suite_arg")
+            ;;
+        --exclude=*)
+            exclude_arg="${arg#--exclude=}"
+            if [[ -z "$exclude_arg" ]]; then
+                echo -e "${RED}--exclude requires a path relative to tests/${NC}" >&2
+                exit 2
+            fi
+            EXCLUDED_SUITE_ARGS+=("$exclude_arg")
             ;;
         *)
             echo -e "${YELLOW}Unknown flag '$arg', ignoring${NC}" ;;
@@ -325,6 +336,50 @@ TEST_SUITES=()
 for suite in ${UNIQUE_SUITES[@]+"${UNIQUE_SUITES[@]}"}; do
     TEST_SUITES+=("$suite")
 done
+
+# Validate and apply exclusions after category/explicit deduplication, before
+# symlink filtering or sharding. Excluded suites consume no shard capacity.
+declare -a EXCLUDED_SUITES=()
+for exclude_arg in ${EXCLUDED_SUITE_ARGS[@]+"${EXCLUDED_SUITE_ARGS[@]}"}; do
+    case "$exclude_arg" in
+        /*|../*|*/../*|*/..)
+            echo -e "${RED}Invalid --exclude path outside tests/: $exclude_arg${NC}" >&2
+            exit 2
+            ;;
+        tests/*) exclude_path="$SCRIPT_DIR/${exclude_arg#tests/}" ;;
+        *)       exclude_path="$SCRIPT_DIR/$exclude_arg" ;;
+    esac
+    exclude_name="${exclude_path##*/}"
+    case "$exclude_name" in
+        test-*.sh|validate-*.sh) ;;
+        *)
+            echo -e "${RED}Excluded suite must be test-*.sh or validate-*.sh: $exclude_arg${NC}" >&2
+            exit 2
+            ;;
+    esac
+    if [[ ! -f "$exclude_path" ]]; then
+        echo -e "${RED}Excluded suite not found: $exclude_arg${NC}" >&2
+        exit 2
+    fi
+    EXCLUDED_SUITES+=("$exclude_path")
+done
+
+if [[ ${#EXCLUDED_SUITES[@]} -gt 0 ]]; then
+    declare -a FILTERED_SUITES=()
+    for suite in "${TEST_SUITES[@]}"; do
+        excluded=false
+        for excluded_suite in "${EXCLUDED_SUITES[@]}"; do
+            if [[ "$suite" == "$excluded_suite" ]]; then
+                excluded=true
+                break
+            fi
+        done
+        if ! $excluded; then
+            FILTERED_SUITES+=("$suite")
+        fi
+    done
+    TEST_SUITES=("${FILTERED_SUITES[@]+"${FILTERED_SUITES[@]}"}")
+fi
 
 if [[ "$SYMLINK_SENSITIVE" == true ]]; then
     declare -a SYMLINK_SUITES=()
