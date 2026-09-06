@@ -52,6 +52,8 @@ fi
 
 test_case "release metadata mentions OpenClaw only as the current-version removal"
 current_version="$(node -p "require('$PROJECT_ROOT/package.json').version")"
+escaped_current_version="${current_version//./\\.}"
+current_version_pattern="v${escaped_current_version}([^0-9.]|$)"
 expected_removal_note="Remove the unused OpenClaw integration and simplify MCP setup."
 release_note_matches="$({
     cd "$PROJECT_ROOT"
@@ -66,7 +68,7 @@ unexpected_release_notes=""
 while IFS= read -r release_note_line; do
     [[ -n "$release_note_line" ]] || continue
     residual_line="${release_note_line/"$expected_removal_note"/}"
-    if [[ "$release_note_line" != *"v${current_version}"* ]] ||
+    if ! [[ "$release_note_line" =~ $current_version_pattern ]] ||
        [[ "$release_note_line" != *"$expected_removal_note"* ]] ||
        printf '%s\n' "$residual_line" | grep -qiE "$retired_token_pattern"; then
         unexpected_release_notes+="${release_note_line}"$'\n'
@@ -76,6 +78,14 @@ if [[ "$release_note_count" -ge 1 ]] && [[ -z "$unexpected_release_notes" ]]; th
     test_pass
 else
     test_fail "release metadata contains active OpenClaw guidance or unexpected removal notes:\n${unexpected_release_notes:-found $release_note_count expected removal notes}"
+fi
+
+test_case "release version matching rejects longer version prefixes"
+if ! [[ "v${current_version}0" =~ $current_version_pattern ]] &&
+   ! [[ "v${current_version}.1" =~ $current_version_pattern ]]; then
+    test_pass
+else
+    test_fail "release version matching accepted a longer version prefix"
 fi
 
 test_case "MCP server starts without the retired OpenClaw opt-in variable"
