@@ -8,7 +8,6 @@ description: "Debug a reproducible symptom with a bounded feedback loop and orig
 trigger: |
   Use for reproducible bugs, failing tests, unexpected behavior, and performance regressions.
   Do not use for general explanations or already-understood changes.
-execution_mode: enforced
 pre_execution_contract:
   - observable_symptom_recorded
 validation_gates:

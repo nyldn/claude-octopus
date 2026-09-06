@@ -13,7 +13,6 @@ description: "Build a behavior change with observed red, minimal green, and meas
 trigger: |
   Use when a feature, bug fix, or behavior change requires test-first evidence.
   Do not use for documentation-only changes or disposable exploration.
-execution_mode: enforced
 pre_execution_contract:
   - observable_behavior_named
 validation_gates:

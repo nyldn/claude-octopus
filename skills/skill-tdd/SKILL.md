@@ -10,16 +10,6 @@ disable-model-invocation: true
 > For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
 
 
-## Execution Contract (MANDATORY - CANNOT SKIP)
-
-This generated Codex skill preserves an enforced workflow contract from the source skill.
-
-**PROHIBITED:**
-- Do not summarize, simulate, or skip the referenced workflow command when this skill requires execution.
-- Do not claim provider output or validation artifacts exist without checking the actual files or command output.
-- Do not continue silently when a required provider, command, or host capability is unavailable; report the unavailable dependency and use a supported fallback.
-
-
 # Test-driven development
 
 Run the red, green, and refactor cycle on the current host. Routine TDD makes
