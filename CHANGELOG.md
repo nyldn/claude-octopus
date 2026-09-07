@@ -14,7 +14,9 @@
   proceeding") instead of reading the artifact. Both are gated on the response
   citing zero real `path.ext:line` locations, so a genuinely grounded review is
   never flagged; a bare "based on the provided summary" (as a plan/design review
-  legitimately uses) is deliberately not a trigger. Also fixes the existing
+  legitimately uses) is deliberately not a trigger, and code terms are matched as
+  whole tokens so a substring like `api` in "capital" is not read as a code
+  claim. Also fixes the existing
   first-person access-failure check missing an explicit admission whose sentence
   contained a dotted filename (e.g. `Foo.test.tsx`), whose periods split the
   sentence and severed the first-person clause from the access-failure clause.

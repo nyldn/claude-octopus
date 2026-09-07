@@ -2028,7 +2028,16 @@ council_response_defers_without_reading() {
         return 1
     fi
 
-    printf '%s\n' "$normalized_without_urls" | awk '
+    # Code-level verification token, wrapped in word boundaries so a code term is
+    # only matched as a whole token, never as a substring of an ordinary word
+    # ("api" inside "capital", "diff" inside "different", "test" inside "latest",
+    # "class" inside "classic" — CodeRabbit #1017). ERE has no \b, and macOS awk
+    # is BWK awk (no \<); the portable form guards both sides with
+    # (^|[^[:alnum:]]) ... ([^[:alnum:]]|$) and spells out the code-form
+    # inflections so common plural/tense forms still match.
+    local code_token='(^|[^[:alnum:]])(test(s|ed|ing|cases?)?|coverage|render(s|ed|ing)?|outputs?|type[- ]?check(s|ed|ing)?|tsc|lint(s|ed|ing|er)?|implement(s|ed|ing|ations?)?|propagat(e|es|ed|ing|ion)?|byte-identical|pass(es|ing|ed)?|regress(es|ed|ions?)?|contracts?|behaviou?r(s|al)?|diff(s|ed)?|assert(s|ed|ing|ions?)?|snapshots?|dom|css|class(es)?|components?|functions?|api(s)?|endpoints?|schema(s|ta)?|payloads?|fields?)([^[:alnum:]]|$)'
+
+    printf '%s\n' "$normalized_without_urls" | awk -v ct="$code_token" '
         {
             # NOTE: a bare "based on the provided summary" is deliberately NOT a
             # trigger — a legitimate plan/design review (no code to cite) uses that
@@ -2040,9 +2049,11 @@ council_response_defers_without_reading() {
             # word orders count: forward ("the summary confirms <code fact>") and
             # reverse ("<code fact> ... as stated in / according to / per the
             # summary") — the reverse attribution is the exact #2570 wording and
-            # carries no citation of its own (CodeRabbit #1017).
-            summary_reliance = ($0 ~ /the[[:space:]]+summary[[:space:]]+(confirms|states|indicates|reports|notes|says|claims|shows|verifies|mitigat[a-z]*)[^.!?;]{0,80}(test|coverage|render|output|type[- ]?check|tsc|lint|implement|propagat|byte-identical|pass(es|ing|ed)?|regression|contract|behaviou?r|diff|assertion|snapshot|dom|css|class|component|function|api|endpoint|schema|payload|field)/ \
-                || $0 ~ /(test|coverage|render|output|type[- ]?check|tsc|lint|implement|propagat|byte-identical|regression|contract|behaviou?r|diff|assertion|snapshot|dom|css|class|component|function|api|endpoint|schema|payload|field)[^.!?;]{0,80}(as[[:space:]]+stated[[:space:]]+in|according[[:space:]]+to|per)[[:space:]]+(the[[:space:]]+)?summary/ \
+            # carries no citation of its own (CodeRabbit #1017). The code fact is
+            # the token-bounded ct regex so "the capital plan, as stated in the
+            # summary" (api ⊂ capital) is not misread as a code claim.
+            summary_reliance = ($0 ~ ("the[[:space:]]+summary[[:space:]]+(confirms|states|indicates|reports|notes|says|claims|shows|verifies|mitigat[a-z]*)[^.!?;]{0,80}" ct) \
+                || $0 ~ (ct "[^.!?;]{0,80}(as[[:space:]]+stated[[:space:]]+in|according[[:space:]]+to|per)[[:space:]]+(the[[:space:]]+)?summary") \
                 || $0 ~ /(constraints?|restrictions?|rules|permissions?|sandbox)[[:space:]]+(prevent|restrict|prohibit|preclude|block)[a-z]*[^.!?;]{0,50}(verif|read|access|inspect|examin|confirm|review)/ \
                 || $0 ~ /(reported|stated|claimed)[[:space:]]+(clean|passing)[[:space:]]+(tsc|lint|test|ci|type)/)
             prior_deference = ($0 ~ /(given|based on|relying on|because of|considering)[^.!?;]{0,70}(previous|prior|earlier)[[:space:]]+(rounds?|reviews?|validations?|phases?)/ \
