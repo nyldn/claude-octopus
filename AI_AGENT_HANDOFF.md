@@ -31,6 +31,18 @@ The first hosted portability pass flagged the intentionally pre-expanded EXIT
 trap under ShellCheck 0.9.0. A line-local SC2064 suppression documents why
 Bash 3.2 requires the captured arguments; it changes no runtime behavior.
 
+Hosted review on PR #1022 identified missing identity checks in workflow
+cancellation. Probe, Tangle and scoped review cleanup now verify ledger
+identities; active PID lists also require a current matching task registration.
+Probe drops rejected PIDs before its later wait and heartbeat cleanup.
+The worker-ownership pipeline consumes the full job listing under pipefail.
+Concurrent-retirement coverage now removes an existing row, and CI-mode
+coverage fails if its extracted initialization code is empty.
+These regressions failed before correction. Focused checks passed 30/30
+orchestrator cases, 21/21 Probe cancellation cases, 16/16 Tangle cancellation
+cases, 100/100 contextual-review cases and 30/30 background lifecycle cases.
+Hosted checks must be rerun on the final follow-up commit before merge.
+
 ## Orchestrator review fixes
 
 - Cancellation checks the worker's recorded process identity and skips legacy

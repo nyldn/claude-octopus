@@ -1717,7 +1717,7 @@ ${heuristic_ctx}"
         _ready_attempt=$((_ready_attempt + 1))
     done
     if [[ ! -s "$_spawn_ready_file" ]]; then
-        if jobs -pr | grep -qx "$pid"; then
+        if jobs -pr | grep -Fx "$pid" >/dev/null; then
             review_kill_process_tree_frozen "$pid" || true
         fi
         wait "$pid" 2>/dev/null || true

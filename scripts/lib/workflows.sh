@@ -545,6 +545,10 @@ octopus_probe_cancel_active() {
         while IFS=: read -r ledger_pid ledger_agent ledger_task ledger_identity; do
             [[ -z "$ledger_identity" ]] || ledger_agent="$(octopus_pid_agent_name "$ledger_agent")"
             [[ "$ledger_task" == "probe-${task_group}-"* ]] || continue
+            if ! octopus_pid_matches "$ledger_pid" "$ledger_identity"; then
+                log WARN "Skipping unverifiable Probe ledger worker: $ledger_pid"
+                continue
+            fi
             found=false
             found_idx=""
             for idx in "${!cancel_tasks[@]}"; do
@@ -588,12 +592,16 @@ octopus_probe_cancel_active() {
         agent="${cancel_agents[$idx]:-unknown}"
         result_file="${RESULTS_DIR:-}/$agent-$task_id.md"
         cleanup_result="no-process"
-        if [[ "$ledger_pid" =~ ^[0-9]+$ ]]; then
+        if [[ "$ledger_pid" =~ ^[0-9]+$ ]] && octopus_pid_task_matches "$ledger_pid" "$task_id"; then
             if _octopus_probe_terminate_tree "$ledger_pid"; then
                 cleanup_result="${OCTO_PROCESS_CLEANUP_RESULT:-terminated}"
             else
                 cleanup_result="${OCTO_PROCESS_CLEANUP_RESULT:-survived}"
             fi
+        elif [[ -n "$ledger_pid" ]]; then
+            # Rejected PIDs must not reach the later wait/heartbeat cleanup.
+            cancel_pids[$idx]=""
+            cleanup_result="unverified"
         fi
         if declare -F octo_spawn_contract_seat_id >/dev/null 2>&1 && \
            declare -F octo_run_contract_finish_background >/dev/null 2>&1; then
@@ -2432,6 +2440,10 @@ octopus_tangle_cancel_active() {
         while IFS=: read -r ledger_pid ledger_agent ledger_task ledger_identity; do
             [[ -z "$ledger_identity" ]] || ledger_agent="$(octopus_pid_agent_name "$ledger_agent")"
             [[ "$ledger_task" == "tangle-${task_group}-"* ]] || continue
+            if ! octopus_pid_matches "$ledger_pid" "$ledger_identity"; then
+                log WARN "Skipping unverifiable Tangle ledger worker: $ledger_pid"
+                continue
+            fi
             found=false
             found_idx=""
             for idx in "${!cancel_tasks[@]}"; do
@@ -2462,7 +2474,7 @@ octopus_tangle_cancel_active() {
         result_file="${RESULTS_DIR:-}/$agent-$task_id.md"
         done_file="$done_dir/${task_id}.done"
 
-        if [[ "$pid" =~ ^[0-9]+$ ]]; then
+        if [[ "$pid" =~ ^[0-9]+$ ]] && octopus_pid_task_matches "$pid" "$task_id"; then
             review_kill_process_tree_frozen "$pid"
             wait "$pid" 2>/dev/null || true
             rm -f "$done_dir/${pid}.heartbeat" 2>/dev/null || true
@@ -2877,6 +2889,10 @@ _tangle_review_kill_scoped_ledger_groups() {
     while IFS=: read -r ledger_pid ledger_agent ledger_task ledger_identity; do
         case "$ledger_task" in
             review-*"-${artifact_id}"|review-*"-${artifact_id}-"*)
+                if ! octopus_pid_matches "$ledger_pid" "$ledger_identity"; then
+                    log WARN "Skipping unverifiable review ledger worker: $ledger_pid"
+                    continue
+                fi
                 review_kill_process_tree_frozen "$ledger_pid"
                 wait "$ledger_pid" 2>/dev/null || true
                 ;;

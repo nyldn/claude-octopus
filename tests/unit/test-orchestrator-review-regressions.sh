@@ -41,6 +41,7 @@ fi
 
 test_case "concurrent registration, pruning and retirement retain every active task"
 obsolete_token="$(octopus_pid_register "$$" codex obsolete-task)"
+retire_token="$(octopus_pid_register "$$" codex retire-target)"
 jobs_to_wait=()
 for number in 1 2 3 4 5 6 7 8; do
     octopus_pid_register "$$" codex "parallel-$number" >/dev/null &
@@ -48,10 +49,11 @@ for number in 1 2 3 4 5 6 7 8; do
 done
 octopus_pid_prune obsolete- &
 jobs_to_wait+=("$!")
-octopus_pid_retire "$$" first "$token" &
+octopus_pid_retire "$$" retire-target "$retire_token" &
 jobs_to_wait+=("$!")
 for job in "${jobs_to_wait[@]}"; do wait "$job"; done
-if [[ "$(grep -c ':parallel-' "$PID_FILE")" == 8 ]] && ! grep -q ':obsolete-' "$PID_FILE"; then
+if [[ "$(grep -c ':parallel-' "$PID_FILE")" == 8 ]] && ! grep -q ':obsolete-' "$PID_FILE" \
+   && ! grep -q ':retire-target:' "$PID_FILE"; then
     test_pass
 else
     test_fail "concurrent updates lost entries or retained a pruned task"
@@ -107,7 +109,9 @@ for ci_env in CI GITHUB_ACTIONS GITLAB_CI JENKINS_URL CLAUDE_CODE_DISABLE_BACKGR
         CI_MODE=false
         AUTONOMY_MODE=interactive
         # Include top-level assignments so a later reset cannot go unnoticed.
-        eval "$(sed -n '/^CI_MODE=/p' "$ORCHESTRATOR")"
+        ci_mode_assignments="$(sed -n '/^CI_MODE=/p' "$ORCHESTRATOR")"
+        [[ -n "$ci_mode_assignments" ]] || exit 1
+        eval "$ci_mode_assignments"
         init_ci_mode
         [[ "$CI_MODE" == true && "$AUTONOMY_MODE" == autonomous ]]
     ); then test_pass; else test_fail "unattended state was lost"; fi
@@ -153,5 +157,77 @@ if [[ "$recovery_rc" == 1 && "$recovery_output" == *'No pending probe results de
 else
     test_fail "empty recovery exited without guidance ($recovery_rc): $recovery_output"
 fi
+
+test_case "worker ownership check consumes a complete job listing under pipefail"
+ownership_check="$(sed -n '/if jobs -pr |/s/^[[:space:]]*if \(.*\); then$/\1/p' "$PROJECT_ROOT/scripts/lib/spawn.sh")"
+if (
+    set -o pipefail
+    [[ -n "$ownership_check" ]] || exit 1
+    pid="$$"
+    jobs() { awk -v target="$pid" 'BEGIN {print target; for (i=0;i<100000;i++) print 0}'; }
+    eval "$ownership_check"
+); then test_pass; else test_fail "job listing closed early or ownership predicate disappeared"; fi
+
+# Exercise workflow ledger admission with inert signal helpers.
+source "$PROJECT_ROOT/scripts/lib/workflows.sh"
+review_kill_process_tree_frozen() { printf '%s\n' "$1" >> "$cancelled"; }
+review_kill_descendants_frozen() { :; }
+_octopus_probe_terminate_tree() { printf '%s\n' "$1" >> "$cancelled"; }
+WORKSPACE_DIR="$TEST_TMP_DIR/workflow"
+RESULTS_DIR="$WORKSPACE_DIR/results"
+PID_FILE="$WORKSPACE_DIR/pids"
+mkdir -p "$RESULTS_DIR"
+waited="$TEST_TMP_DIR/workflow-waited"
+wait() { printf '%s\n' "$*" >> "$waited"; return 0; }
+for workflow in probe tangle scoped; do
+    for registration in legacy mismatch valid memory-mismatch memory-missing; do
+        [[ "$workflow" != scoped || "$registration" != memory-* ]] || continue
+        test_case "$workflow cancellation admits only verified ledger workers: $registration"
+        rm -f "$cancelled" "$waited"
+        task="${workflow}-fixture-0"
+        [[ "$workflow" != scoped ]] || task="review-r1-fixture-artifact"
+        : > "$PID_FILE"
+        case "$registration" in
+            legacy) printf '%s:codex:%s\n' "$$" "$task" > "$PID_FILE" ;;
+            mismatch|memory-mismatch) printf '%s:codex:%s:wrong-identity\n' "$$" "$task" > "$PID_FILE" ;;
+            valid) octopus_pid_register "$$" codex "$task" >/dev/null ;;
+        esac
+        case "$workflow" in
+            probe)
+                OCTOPUS_ACTIVE_PROBE_TASK_GROUP=fixture
+                OCTOPUS_ACTIVE_PROBE_PIDS=()
+                OCTOPUS_ACTIVE_PROBE_AGENTS=()
+                OCTOPUS_ACTIVE_PROBE_TASK_IDS=()
+                if [[ "$registration" == memory-* ]]; then
+                    OCTOPUS_ACTIVE_PROBE_PIDS=("$$")
+                    OCTOPUS_ACTIVE_PROBE_AGENTS=(codex)
+                    OCTOPUS_ACTIVE_PROBE_TASK_IDS=("$task")
+                fi
+                OCTOPUS_ACTIVE_PROBE_SYNTHESIS_PID=""
+                OCTOPUS_ACTIVE_PROBE_SYNTHESIS_LAUNCHING=false
+                octopus_probe_cancel_active TERM
+                ;;
+            tangle)
+                OCTOPUS_ACTIVE_TANGLE_TASK_GROUP=fixture
+                OCTOPUS_ACTIVE_TANGLE_PIDS=()
+                OCTOPUS_ACTIVE_TANGLE_AGENTS=()
+                OCTOPUS_ACTIVE_TANGLE_TASK_IDS=()
+                if [[ "$registration" == memory-* ]]; then
+                    OCTOPUS_ACTIVE_TANGLE_PIDS=("$$")
+                    OCTOPUS_ACTIVE_TANGLE_AGENTS=(codex)
+                    OCTOPUS_ACTIVE_TANGLE_TASK_IDS=("$task")
+                fi
+                octopus_tangle_cancel_active TERM
+                ;;
+            scoped) _tangle_review_kill_scoped_ledger_groups artifact ;;
+        esac
+        if [[ "$registration" == valid && -s "$cancelled" ]] || \
+           [[ "$registration" != valid && ! -e "$cancelled" && ! -e "$waited" ]]; then
+            test_pass
+        else
+            test_fail "$workflow admitted an unverified worker or refused a valid identity"
+        fi
+    done
+done
 
 test_summary

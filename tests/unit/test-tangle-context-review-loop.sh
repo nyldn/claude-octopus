@@ -1046,8 +1046,8 @@ if command -v perl >/dev/null 2>&1; then
         sleep 0.01
     done
     artifact_id="detached-fixture"
-    printf '%s:codex:review-r1-fixture-%s\n' "$detached_child" "$artifact_id" > "$detached_pid_file"
     PID_FILE="$detached_pid_file"
+    octopus_pid_register "$detached_child" codex "review-r1-fixture-${artifact_id}" >/dev/null
     _tangle_review_kill_scoped_ledger_groups "$artifact_id"
     sleep 0.1
     if [[ "$detached_child" =~ ^[1-9][0-9]*$ ]] && ! review_process_is_running "$detached_child"; then

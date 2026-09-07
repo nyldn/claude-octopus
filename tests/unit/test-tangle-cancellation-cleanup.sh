@@ -170,7 +170,7 @@ task_group="900001"
 task_id="tangle-${task_group}-0"
 result_file="$RESULTS_DIR/codex-${task_id}.md"
 printf '# Agent: codex\n# Task ID: %s\n\n## Output\npartial output\n' "$task_id" > "$result_file"
-printf '%s:%s:%s\n' "$worker_pid" "codex" "$task_id" > "$PID_FILE"
+octopus_pid_register "$worker_pid" codex "$task_id" >/dev/null
 
 # Exercise the signal handoff window: the worker reached the authoritative PID
 # ledger before spawn_agent_capture_pid returned it to the in-memory array.

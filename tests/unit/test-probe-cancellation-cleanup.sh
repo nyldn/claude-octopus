@@ -91,7 +91,7 @@ cat > "$result_file" <<EOF
 partial output before cancellation
 EOF
 touch "$WORKSPACE_DIR/.octo/agents/${provider_pid}.heartbeat"
-printf '%s:%s:%s\n' "$provider_pid" "codex" "$task_id" > "$PID_FILE"
+octopus_pid_register "$provider_pid" codex "$task_id" >/dev/null
 
 OCTOPUS_ACTIVE_PROBE_TASK_GROUP="$task_group"
 OCTOPUS_ACTIVE_PROBE_SYNTHESIS_PID="$synthesis_pid"
