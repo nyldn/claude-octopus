@@ -42,6 +42,12 @@ These regressions failed before correction. Focused checks passed 30/30
 orchestrator cases, 21/21 Probe cancellation cases, 16/16 Tangle cancellation
 cases, 100/100 contextual-review cases and 30/30 background lifecycle cases.
 Hosted checks must be rerun on the final follow-up commit before merge.
+The follow-up full local matrix passed all 16 smoke suites and 324/325 unit
+suites. The remaining v10 cancellation fixture still wrote a legacy ledger row;
+it now registers its real worker through the shared helper and passes 4/4.
+The remaining live-worker marker fixture uses the same helper and passes 4/4.
+All 8 integration suites passed after those fixture corrections. Production
+code is unchanged from the final reviewed cancellation follow-up.
 
 ## Orchestrator review fixes
 

@@ -78,7 +78,7 @@ EOF
             >/dev/null 2>&1 &
         local active_root_pid="$!"
         printf '%s\n' "$active_root_pid" > "$ACTIVE_ROOT_PID_FILE"
-        printf '%s:%s:%s\n' "$active_root_pid" "codex" "$task_id" >> "$PID_FILE"
+        octopus_pid_register "$active_root_pid" codex "$task_id" >/dev/null
         printf '%s\n' "$active_root_pid"
         return 0
     fi

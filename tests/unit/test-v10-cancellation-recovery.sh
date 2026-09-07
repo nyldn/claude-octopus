@@ -48,7 +48,7 @@ bash -c '
 tree_parent=$!
 for _attempt in $(seq 1 100); do [[ -s "$child_file" ]] && break; sleep 0.02; done
 tree_child="$(<"$child_file")"
-printf '%s:codex:%s\n' "$tree_parent" "$task_id" > "$PID_FILE"
+octopus_pid_register "$tree_parent" codex "$task_id" >/dev/null
 OCTOPUS_ACTIVE_PROBE_TASK_GROUP="$task_group"
 OCTOPUS_ACTIVE_PROBE_SYNTHESIS_PID=""
 OCTOPUS_ACTIVE_PROBE_TMUX=false
