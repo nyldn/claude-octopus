@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.2.1] - 2026-09-07
+
 ### Fixed
 
 - Verify worker process identities before cancellation and retire finished

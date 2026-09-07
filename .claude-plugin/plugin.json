@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.2.0",
-  "description": "v11.2.0 \u2014 Method-aware workflows, clearer independent review escalation, and bounded engineering prototypes. Run /octo:setup.",
+  "version": "11.2.1",
+  "description": "v11.2.1 \u2014 Reliable cancellation, interrupted research recovery, and accurate workflow model summaries. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

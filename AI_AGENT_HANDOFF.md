@@ -2,24 +2,31 @@
 
 Last updated: 2026-09-07
 
-Status: the five orchestrator review fixes are implemented on
-`fix/orchestrator-review`, tracking `oco-v6s`. Local verification and final
-Codex review are complete.
+Status: the five orchestrator review fixes from `a3f7847d` are prepared for
+v11.2.1 on `release/v11.2.1`, tracking `oco-c3t`. Fix implementation task
+`oco-v6s` is complete. Local verification and final code review passed.
 The separate host-native automatic invocation investigation remains `oco-ml7`;
 this change leaves hooks, host settings and implicit-invocation policy unchanged.
 
 The last published version is v11.2.0, from main squash commit
 `4febbb11a4e0c8e82574505ce1114dddbbd11d3f`. It includes engineering method
 activation, independent review escalation and bounded engineering prototypes.
-The fixes below leave version and marketplace metadata unchanged.
+The release candidate updates version and marketplace metadata to v11.2.1.
 
 Tracking: use the repository issue tracker and checked-in implementation
 documentation as the source of truth. Do not put private checkout paths,
 credentials, or host-specific state in this public handoff.
 
-Next action: merge the orchestrator fix branch through the normal review process
-when requested. No new release was cut. Use the focused selector for ordinary
-plugin PRs. Shared runtime changes retain the full local matrix.
+Next action: pass the release PR checks and review gate, squash-merge, verify
+the exact main commit, then tag and publish v11.2.1 and sync the shared
+marketplaces. Do not claim publication until those steps are verified.
+Shared runtime changes retain the full local matrix.
+
+Release preparation passed generated-file checks, README release sync 11/11,
+release workflow regressions 11/11, all 16 smoke suites and plugin assembly
+validation. A separate GPT-6 Astra high review of the metadata-only changes
+returned `NO ACTIONABLE FINDINGS`. The README introduction no longer assigns
+the original engineering-method additions to each new patch version.
 
 ## Orchestrator review fixes
 
