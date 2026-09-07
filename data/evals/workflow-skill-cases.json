@@ -39,8 +39,20 @@
     {"id":"R8-05","kind":"runtime","expected":"Host-only remote setup performs no provider or browser login and preserves opt-out"},
     {"id":"R8-06","kind":"runtime","expected":"Concurrent supported config writers preserve keys and wrapper compatibility"},
     {"id":"X01","kind":"compatibility","expected":"Generated Claude and Codex skills preserve explicit invocation and references"},
-    {"id":"X02","kind":"behavior","expected":"An ordinary prompt does not activate Octopus or write setup state"},
+    {"id":"X02","kind":"behavior","expected":"Method activation changes preserve installed host invocation settings and do not write setup state"},
     {"id":"X03","kind":"compatibility","expected":"Plugin and marketplace manifests validate with no new diagnostics"},
-    {"id":"X04","kind":"behavior","expected":"Unavailable required participants are not fabricated"}
+    {"id":"X04","kind":"behavior","expected":"Unavailable required participants are not fabricated"},
+    {"id":"A01","kind":"behavior","prompt":"/octo:develop fix invitation expiry","expected":"Use original-symptom debugging within existing provider execution; no nested workflow"},
+    {"id":"A02","kind":"behavior","prompt":"/octo:develop add invitation expiry","expected":"Apply warranted behavior tests and record red and green evidence"},
+    {"id":"A03","kind":"behavior","prompt":"/octo:plan correct README punctuation","expected":"No TDD, prototype or redundant reviewer"},
+    {"id":"A04","kind":"behavior","prompt":"/octo:plan resolve account versus tenant ownership before implementation","expected":"Domain definitions and decision dependencies precede implementation slices"},
+    {"id":"A05","kind":"behavior","prompt":"/octo:plan split independent billing and notification deliveries","expected":"Vertical deliverables have acceptance evidence"},
+    {"id":"A06","kind":"behavior","prompt":"/octo:review simplify the provider interface","expected":"Caller evidence and migration analysis; retain review-only permissions"},
+    {"id":"A07","kind":"behavior","prompt":"/octo:review remove duplicate tests","expected":"Preserve distinct behavior coverage before recommending deletion"},
+    {"id":"A08","kind":"behavior","prompt":"/octo:auto prototype a parser to measure throughput","expected":"Plan a bounded engineering experiment"},
+    {"id":"A09","kind":"behavior","prompt":"/octo:auto prototype the checkout screen","expected":"UI design route"},
+    {"id":"A10","kind":"behavior","prompt":"/octo:tdd get an independent opinion on invitation expiry tests","expected":"Same admission as --peer-review; reuse qualifying review"},
+    {"id":"A11","kind":"behavior","prompt":"/octo:debug investigate this risky bug, host only, no paid calls","expected":"No additional dispatch despite risk"},
+    {"id":"A12","kind":"behavior","prompt":"/octo:tdd independently review using my configured model pin","expected":"Preserve pin; unavailable or denied required review is incomplete"}
   ]
 }

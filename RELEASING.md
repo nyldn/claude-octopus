@@ -9,6 +9,11 @@ Ordered checklist for shipping a release. Every step exists because skipping it 
 
 ### Delivery contract for workflow methods
 
+README What's New and the plugin description must describe released benefits
+for end users. Keep CI changes, test-suite maintenance and internal development
+process in the changelog or developer documentation. The plugin description
+feeds generated README release summaries, so write it for plugin users.
+
 Octopus distributes a local plugin through the existing Claude Code and Codex
 marketplaces and source/package archives. Use the installation instructions in
 [README.md](README.md#quickstart) and the host requirements in
@@ -46,6 +51,13 @@ supervision, evaluation data, and third-party license notices in the extracted
 artifact. Installation, discovery, local readiness, and a live task are separate
 acceptance results. Follow the full release gates below before tagging or
 publishing; documentation edits alone do not publish a version.
+
+For method activation changes, the workflow contract suite checks prompt
+transport and phase boundaries. Keep the shared selection block and its runtime
+helper in the package. Inspect generated invocation metadata for unintended
+changes. The A01-A12 evaluation scenarios cover command-level method selection;
+record live cases as unrun until a host actually executes them. Static reference
+checks do not establish model compliance or an independent review contribution.
 
 ## 1. Decide the version
 

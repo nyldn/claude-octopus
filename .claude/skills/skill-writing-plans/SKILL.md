@@ -17,6 +17,11 @@ validation_gates:
 
 # Writing Plans
 
+Load `skills/blocks/engineering-method-selection.md` from the installed plugin
+and apply only the methods relevant to this task. Preserve this entry point's
+execution contract and output format. Read referenced skills as instructions;
+do not invoke the current command recursively or add provider calls from a seat.
+
 ## MANDATORY COMPLIANCE — DO NOT SKIP
 
 **When this skill is invoked, you MUST produce a full implementation plan following the structure below. You are PROHIBITED from:**

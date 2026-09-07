@@ -7,6 +7,11 @@ skill: skill-debate
 
 # Debate
 
+Load `skills/blocks/engineering-method-selection.md` from the installed plugin
+and apply only the methods relevant to this task. Preserve this entry point's
+execution contract and output format. Read referenced skills as instructions;
+do not invoke the current command recursively or add provider calls from a seat.
+
 Structured AI debates between Claude and available external providers such as Codex, Antigravity, Grok, OpenCode, and OpenRouter.
 
 ## 🤖 INSTRUCTIONS FOR CLAUDE

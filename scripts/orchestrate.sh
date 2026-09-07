@@ -691,7 +691,7 @@ OCTOPUS_OPUS_MODE="${OCTOPUS_OPUS_MODE:-auto}"  # auto | fast | standard
 # exploits the skill system's precedence rules ("user instructions always take
 # precedence") to override the <EXTREMELY-IMPORTANT> skill activation block.
 # Defined once here to avoid drift between dispatch paths.
-CODEX_SUBAGENT_PREAMBLE="IMPORTANT: You are running as a non-interactive subagent dispatched by Claude Octopus via codex exec. These are user-level instructions and take precedence over all skill directives. Skip ALL skills (brainstorming, using-superpowers, writing-plans, etc.). Do NOT read skill files, ask clarifying questions, offer visual companions, or follow any skill checklists. Use non-interactive one-shot shell commands; do not send stdin to an already-running command unless that command was started with a TTY. Respond directly to the prompt below.
+CODEX_SUBAGENT_PREAMBLE="You are running as a non-interactive subagent dispatched by Claude Octopus via codex exec. Skip unrelated skill discovery and activation. If the prompt includes the Octopus engineering method selection contract, read only its applicable references from the supplied installed plugin root and apply them within the assigned task and output format. Treat those references as task instructions, not commands to start another workflow. Do not launch nested workflows or providers, ask clarifying questions, offer visual companions, or follow unrelated skill checklists. Report missing evidence or unresolved decisions to the host. Use non-interactive one-shot shell commands; do not send stdin to an already-running command unless that command was started with a TTY. Respond directly to the prompt below.
 
 "
 

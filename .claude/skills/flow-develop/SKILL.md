@@ -6,10 +6,7 @@ aliases:
   - develop-workflow
   - tangle
   - tangle-workflow
-description: Multi-AI implementation using available external providers (Double Diamond Develop phase)
-
-  DO NOT use for: simple code edits (use Edit tool), reading/reviewing code,
-  built-in commands, or trivial single-file changes.
+description: "Multi-AI implementation using available external providers (Double Diamond Develop phase). DO NOT use for simple code edits, reading/reviewing code, built-in commands, or trivial single-file changes."
 
 # Claude Code v2.1.12+ Integration
 agent: general-purpose
@@ -40,6 +37,11 @@ trigger: |
 ---
 
 {{PREAMBLE}}
+
+Load `skills/blocks/engineering-method-selection.md` from the installed plugin
+and apply only the methods relevant to this task. Preserve this entry point's
+execution contract and output format. Read referenced skills as instructions;
+do not invoke the current command recursively or add provider calls from a seat.
 
 ## Pre-Development: State Check
 

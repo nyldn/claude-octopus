@@ -22,6 +22,10 @@ validation_gates:
 
 # Test-driven development
 
+Read `skills/blocks/engineering-method-selection.md` from the installed plugin
+for review admission. Natural-language requests and `--peer-review` share that
+policy. Honor host-only requests; risk alone does not authorize paid usage.
+
 Run the red, green, and refactor cycle on the current host. Routine TDD makes
 zero additional provider dispatches. Use one external reviewer only when the
 user passes `--peer-review`, explicitly requests independent review, or an

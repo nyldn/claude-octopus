@@ -17,6 +17,10 @@ validation_gates:
 
 # Debugging
 
+Read `skills/blocks/engineering-method-selection.md` from the installed plugin
+for review admission. Natural-language requests and `--peer-review` share that
+policy. Honor host-only requests; risk alone does not authorize paid usage.
+
 Run the investigation on the current host. Routine debugging makes zero
 additional provider dispatches. Use a bounded external reviewer only for
 `--peer-review`, an explicit independent-review request, or an existing risk

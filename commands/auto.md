@@ -44,6 +44,13 @@ Match the query against keywords below. Check categories **in priority order** â
 
 #### Priority 1 â€” Specialized Workflows (check first, highest specificity)
 
+Explicit multi-provider requests and security intent retain their priority.
+For other requests, resolve prototype intent before the keyword table: an engineering experiment
+to measure feasibility, throughput, compatibility or a technical assumption
+routes to `octo:plan` for its bounded prototype proposal. A screen, wireframe
+or interaction prototype routes to `octo:design-ui-ux`. Use the full request's
+context; for an ambiguous "prototype" ask which outcome is intended.
+
 | Intent | Trigger Keywords | Routes To |
 |--------|-----------------|-----------|
 | Lifecycle | end-to-end, complete lifecycle, full workflow, entire project, whole system | `octo:embrace` |
@@ -53,7 +60,7 @@ Match the query against keywords below. Check categories **in priority order** â
 | Security | security audit, OWASP, vulnerability, pentest, threat model, CVE, attack surface | `octo:security` |
 | TDD | TDD, test-driven, write tests, test first, unit test, test coverage | `octo:tdd` |
 | Debug | debug, fix bug, troubleshoot, broken, error trace, stacktrace, failing, crash | `octo:debug` |
-| Design | UI design, UX design, wireframe, mockup, design system, layout, prototype | `octo:design-ui-ux` |
+| Design | UI design, UX design, wireframe, mockup, design system, layout, UI prototype | `octo:design-ui-ux` |
 | PRD | PRD, product requirements, product spec, feature requirements | `octo:prd` |
 | Brainstorm | brainstorm, ideate, ideas, creative, thought experiment, what if | `octo:brainstorm` |
 | Deck | presentation, slides, deck, pitch deck, slide deck | `octo:deck` |

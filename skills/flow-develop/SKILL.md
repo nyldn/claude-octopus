@@ -1,6 +1,6 @@
 ---
 name: flow-develop
-description: "Multi-AI implementation using available external providers (Double Diamond Develop phase)"
+description: "Multi-AI implementation using available external providers (Double Diamond Develop phase). DO NOT use for simple code edits, reading/reviewing code, built-in commands, or trivial single-file changes."
 disable-model-invocation: true
 ---
 
@@ -11,6 +11,11 @@ disable-model-invocation: true
 
 
 {{PREAMBLE}}
+
+Load `skills/blocks/engineering-method-selection.md` from the installed plugin
+and apply only the methods relevant to this task. Preserve this entry point's
+execution contract and output format. Read referenced skills as instructions;
+do not invoke the current command recursively or add provider calls from a seat.
 
 ## Pre-Development: State Check
 

@@ -5,6 +5,11 @@ disable-model-invocation: true
 
 # /octo:review
 
+Load `skills/blocks/engineering-method-selection.md` from the installed plugin
+and apply only the methods relevant to this task. Preserve this entry point's
+execution contract and output format. Read referenced skills as instructions;
+do not invoke the current command recursively or add provider calls from a seat.
+
 ## MANDATORY COMPLIANCE — DO NOT SKIP
 
 **When the user explicitly invokes `/octo:review`, you MUST execute the enhanced multi-provider review workflow below.** You are PROHIBITED from substituting Claude-native `/review`, direct reading, or a single-model review unless the user changes commands.

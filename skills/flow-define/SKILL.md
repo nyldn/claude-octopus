@@ -1,6 +1,6 @@
 ---
 name: flow-define
-description: "Multi-AI requirements scoping using available external providers (Double Diamond Define phase)"
+description: "Multi-AI requirements scoping using available external providers (Double Diamond Define phase). Priority triggers: octo define, octo scope, co-define, co-scope. DO NOT use for implementation, research, review/validation, or built-in commands."
 disable-model-invocation: true
 ---
 
@@ -11,6 +11,11 @@ disable-model-invocation: true
 
 
 {{PREAMBLE}}
+
+Load `skills/blocks/engineering-method-selection.md` from the installed plugin
+and apply only the methods relevant to this task. Preserve this entry point's
+execution contract and output format. Read referenced skills as instructions;
+do not invoke the current command recursively or add provider calls from a seat.
 
 ## Shared definitions
 

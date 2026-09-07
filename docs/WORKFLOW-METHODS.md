@@ -1,11 +1,32 @@
 # Workflow methods
 
-These additions are under [Unreleased](../CHANGELOG.md#unreleased) on this
-development branch. The published v11.0.1 release does not include them.
+The adapted methods shipped in v11.1.0. The command activation improvements
+below are tracked under [Unreleased](../CHANGELOG.md#unreleased).
 
 Claude Octopus includes explicit methods for architecture, TDD, debugging,
 planning, domain definition, and prototypes. They are available in Claude Code
-and generated Codex skills, but ordinary prompts do not activate them.
+and generated Codex skills. Within an invoked workflow, Octopus selects only
+the methods relevant to the task. Automatic invocation by the host depends on
+its installed skills and configuration; this update does not change it.
+
+## Activation paths
+
+| Entry point | Conditional methods | Result |
+|---|---|---|
+| Develop command or development phase | Debugging for defects; TDD for executable behavior; work slicing | Reproduction or behavior evidence and deliverable slices |
+| Review command or delivery phase | Architecture simplification; coverage audit for test removal | Caller evidence and preserved behavior coverage |
+| Plan command or planning skill | Domain definitions, decision mapping, pressure testing, prototypes | Resolved terms and dependencies; bounded experiment proposal |
+| Define command or definition phase | Domain modeling and decision mapping | Shared definitions and blocking decisions |
+| Architecture skill, audit or debate | Simplification and competing interfaces | Migration, rollback and evidence for alternatives |
+| TDD or debug command | Direct adapted method | Observed test results or original-scenario verification |
+| Skill authoring skill | Authoring method and domain definitions | Trigger, boundaries and compatibility evidence |
+| Setup command | Resumable setup | Fresh readiness checks and completion receipt |
+
+The shared selection contract is included in spawned development, definition
+and review prompts before context budgeting. Providers load detailed references
+only when relevant and accessible. A provider without source access must report
+that limitation; receiving the contract does not prove it followed the method.
+Explicit multi-provider commands retain their provider execution requirements.
 
 ## Choose a method
 
@@ -25,15 +46,19 @@ Architecture is named `octopus-architecture`; the other direct methods include
 
 ```text
 /octo:debug "Reproduce the checkout timeout and verify the fix"
-/octo:tdd --peer-review "Check the test design for invitation expiry"
+/octo:tdd "Check invitation expiry and get an independent opinion on the test design"
 /octo:plan "Compare two interfaces for the notification service"
+/octo:auto "Prototype a parser to measure throughput"
 ```
 
 ## Host-native by default
 
 Routine architecture, TDD, and debugging run on the current host with no extra
-provider dispatch. Add `--peer-review` when one bounded independent review would
-change the result. An explicit debate, council, or multi-model command still uses
+provider dispatch. Request an independent opinion in ordinary language when one
+bounded review would change the result. `--peer-review` remains an optional
+override with the same admission rules. Existing escalation policy must permit
+the call under current preferences, budget and billing restrictions. Risk alone
+does not grant paid usage permission. An explicit debate, council, or multi-model command still uses
 its own provider contract.
 
 Using the current host still consumes that host's normal usage allowance.
@@ -149,7 +174,7 @@ remaining subscription quota, or a successful live provider task.
 
 ## Acceptance evidence
 
-The package includes [38 acceptance scenarios](../data/evals/workflow-skill-cases.json)
+The package includes [acceptance scenarios](../data/evals/workflow-skill-cases.json)
 and [test-consolidation evidence](../data/evals/workflow-test-consolidation.json).
 Deterministic tests cover routing limits, setup persistence, and the documented
 command paths. The consolidation record retains suites that cover different

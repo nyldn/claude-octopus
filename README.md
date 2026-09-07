@@ -36,22 +36,20 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
-### Unreleased workflow improvements
+### Engineering methods
 
-This branch adds eight engineering methods adapted from
+Version 11.1.0 added eight engineering methods adapted from
 [Matt Pocock's skills](THIRD_PARTY_NOTICES.md). Routine architecture, TDD, and
-debugging use your current host. Request `--peer-review` when a separate reviewer
+debugging use your current host. Ask for an independent opinion when a reviewer
 would help. Plans capture domain terms and blocking decisions, compare interface
 designs, and can propose a time-limited prototype.
 
 Setup can resume an interrupted configuration and rechecks readiness before
-reporting success. Developers can inspect routing with an offline JSON preview.
-These changes are on this development branch and are not included in the
-published v11.0.1 release. See [workflow methods](docs/WORKFLOW-METHODS.md)
-for examples and [the changelog](CHANGELOG.md#unreleased) for details.
+reporting success. See [workflow methods](docs/WORKFLOW-METHODS.md)
+for usage and [the changelog](CHANGELOG.md) for release details.
 
 <!-- BEGIN CURRENT RELEASE -->
-> 🆕 **v11.1.0 — Balance plugin CI around core user-facing coverage while retaining deep release gates.**
+> 🆕 **v11.1.0 — Focused debugging, behavior-driven tests, clearer plans, and resumable setup.**
 >
 > **Default roster:** Claude Opus 5 leads architecture, planning, security reasoning, and final judgment; GPT-5.6 Sol is the independent implementation/review peer; Claude Sonnet 5 is the standard Claude seat; Fable 5.1 remains an opt-in judgment escalation. Existing model pins and provider configuration still win. See [the routing strategy](docs/MODEL-ROUTING-STRATEGY.md).
 <!-- END CURRENT RELEASE -->
@@ -72,7 +70,7 @@ for examples and [the changelog](CHANGELOG.md#unreleased) for details.
 
 | Version | Best Features |
 |---------|--------------|
-| **v11.1.0** (new) | Balance plugin CI around core user-facing coverage while retaining deep release gates. |
+| **v11.1.0** (new) | Focused debugging, behavior-driven tests, clearer plans, and resumable setup. |
 | **v9.50** | **Claude Code 2026 compatibility layer** — routines manifest (schedule + GitHub-event automations), SubagentStop quality/cost gate, `/octo:usage` cost attribution, `worktree.bgIsolation` opt-out, Claude Agent SDK seat (introduced with Opus 4.8 and now following the current Opus 5 default), starter skills pack, `/plugin browse` manifest with projected context cost. |
 | **v9.41** | **`/octo:council`** promoted to first-class workflow — structured multi-LLM deliberation with goal modes, adversarial/red-team styles, benchmark-aware persona routing, quorum and critical-veto gates, budget preflight, and gated worktree handoff for approved implementation plans. |
 | **v9** | Up to 10 external provider integrations (Codex, Antigravity CLI, Copilot, Qwen, Ollama, Perplexity, OpenRouter, OrcaRouter, OpenCode, and Grok) alongside the Claude Code host. Structured provider debates and configurable multi-LLM councils. Explicit-only activation by default, with an optional smart router. Agent summary tables show which providers actually contributed. Provider-aware prompt preflight prevents silent oversize failures. Research breadth modes fan out light, standard, or exhaustive investigations. Setup aliases and fuzzy `/octo:*` corrections reduce command friction. Opt-in discipline gates and token compression. Two-stage review. Circuit breakers with automatic provider recovery inside active workflows. Cursor + OpenCode + Codex cross-compatibility. `bin/octopus` CLI. 182 Claude Code capability flags through v2.1.219, including Opus 5, Sonnet 5, and dynamic workflow awareness. |
@@ -443,7 +441,7 @@ Or type `/octo:auto <what you want>` and the smart router picks for you. Plain-p
 
 Architecture, TDD, and debugging now run on the current host by default. This
 keeps routine work fast and avoids a provider call that adds little value. Add
-`--peer-review` when one bounded independent review would materially improve the
+an independent-review request when one bounded review would materially improve the
 decision. Explicit debate, council, and multi-model commands are unchanged.
 
 Planning can propose a time-boxed prototype for one risky assumption. Setup can

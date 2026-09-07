@@ -36,7 +36,11 @@ attempt=0
 attempt=$((attempt + 1))
 printf '%s\n' "$attempt" >> "$FIXTURE_CALLS"
 case "$FIXTURE_SCENARIO" in
-    success|exact-seat|kimi-success) printf '%s\n' 'Substantive provider result.' ;;
+    success|kimi-success) printf '%s\n' 'Substantive provider result.' ;;
+    exact-seat)
+        cat > "$FIXTURE_ROOT/received-prompt"
+        printf '%s\n' 'Substantive provider result.'
+        ;;
     agy-pin)
         printf '%s\n' "${OCTOPUS_AGY_MODEL:-missing}" > "$FIXTURE_ROOT/executed-agy-model"
         printf '%s\n' 'Substantive AGY result.'
@@ -236,6 +240,13 @@ assert_scenario success 0 1 \
 assert_scenario exact-seat 0 1 \
     planned,starting,authenticated,running,output_received,validated,contributed \
     contributed eligible '' 'command-code:thinkingmachines/inkling-small'
+test_case "review provider receives the method contract and original task"
+if grep -q 'Engineering method selection' "$TEST_TMP_DIR/exact-seat/received-prompt" &&
+   grep -q 'Review the fixture.' "$TEST_TMP_DIR/exact-seat/received-prompt"; then
+    test_pass
+else
+    test_fail "method selection did not cross the provider stdin boundary"
+fi
 assert_scenario agy-pin 0 1 \
     planned,starting,authenticated,running,output_received,validated,contributed \
     contributed eligible '' 'agy:Gemini 3.1 Pro (High)'

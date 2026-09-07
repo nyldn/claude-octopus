@@ -12,6 +12,11 @@ disable-model-invocation: true
 
 # Architecture review
 
+Load `skills/blocks/engineering-method-selection.md` from the installed plugin
+and apply only the methods relevant to this task. Preserve this entry point's
+execution contract and output format. Read referenced skills as instructions;
+do not invoke the current command recursively or add provider calls from a seat.
+
 Run this method on the current host. A routine architecture review makes zero additional provider dispatches.
 `--peer-review`, an explicit independent-review
 request, or an existing risk policy may add one bounded external reviewer through

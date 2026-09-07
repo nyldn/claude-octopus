@@ -3,6 +3,7 @@
 # Agent spawning and lifecycle management
 
 _octopus_spawn_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${_octopus_spawn_lib_dir}/engineering-methods.sh"
 source "${_octopus_spawn_lib_dir}/agent-spec.sh" 2>/dev/null || true
 source "${_octopus_spawn_lib_dir}/dispatch-plan.sh" 2>/dev/null || true
 if ! type start_quota_watcher >/dev/null 2>&1; then
@@ -753,6 +754,12 @@ ${heuristic_ctx}"
         fi
     fi
 
+    if ! enhanced_prompt=$(octo_with_engineering_methods "${phase:-}" "$enhanced_prompt"); then
+        octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
+            "method-reference-unavailable" 1 "" >/dev/null 2>&1 || true
+        return 1
+    fi
+
     # v8.10.0/v9.37.0: Enforce context budget AFTER all injections and after
     # the Codex subagent preamble. Previously the Codex preamble was appended in
     # the subprocess after budgeting, so Codex prompts could still exceed limits.
@@ -778,7 +785,8 @@ ${heuristic_ctx}"
        [[ "$(octo_routing_policy 2>/dev/null || printf '%s' off)" == "eval" ]] &&
        declare -f octo_route_task_class >/dev/null 2>&1; then
         local OCTOPUS_TASK_CLASS
-        OCTOPUS_TASK_CLASS="$(octo_route_task_class "$enhanced_prompt" "${role:-}" "${phase:-}")"
+        # Classify the assigned task, not the method menu's unrelated keywords.
+        OCTOPUS_TASK_CLASS="$(octo_route_task_class "$prompt" "${role:-}" "${phase:-}")"
         export OCTOPUS_TASK_CLASS
     fi
 

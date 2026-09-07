@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 _agent_sync_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${_agent_sync_lib_dir}/engineering-methods.sh"
 source "${_agent_sync_lib_dir}/agent-spec.sh" 2>/dev/null || true
 source "${_agent_sync_lib_dir}/provider-registry.sh" || { echo "agent-sync: failed to load provider-registry.sh" >&2; return 1 2>/dev/null || exit 1; }
 source "${_agent_sync_lib_dir}/fallback-chain.sh" 2>/dev/null || true
@@ -1363,6 +1364,11 @@ ${provider_ctx}"
     if [[ "$agent_type" == codex* && "$agent_type" != "codex-review" ]]; then
         enhanced_prompt="${CODEX_SUBAGENT_PREAMBLE}${enhanced_prompt}"
     fi
+    if ! enhanced_prompt=$(octo_with_engineering_methods "$phase" "$enhanced_prompt"); then
+        run_contract_transition "$_sync_seat_id" failed \
+            "reason=method-reference-unavailable" >/dev/null 2>&1 || true
+        return 1
+    fi
     local tokens_in
     tokens_in=$(( ${#enhanced_prompt} / 4 ))
     enhanced_prompt=$(enforce_context_budget "$enhanced_prompt" "$role" "$agent_type" "$phase")
@@ -1380,7 +1386,7 @@ ${provider_ctx}"
        [[ "$(octo_routing_policy 2>/dev/null || printf '%s' off)" == "eval" ]] &&
        declare -f octo_route_task_class >/dev/null 2>&1; then
         local OCTOPUS_TASK_CLASS
-        OCTOPUS_TASK_CLASS="$(octo_route_task_class "$enhanced_prompt" "$role" "$phase")"
+        OCTOPUS_TASK_CLASS="$(octo_route_task_class "$prompt" "$role" "$phase")"
         export OCTOPUS_TASK_CLASS
     fi
 

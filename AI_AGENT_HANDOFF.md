@@ -2,7 +2,12 @@
 
 Last updated: 2026-09-06
 
-Status: v11.1.0 is released from main squash commit
+Status: engineering method activation is implemented on `feat/method-activation`
+for the next release. Tracking: `oco-0u0`. The separate host-native automatic
+invocation investigation is `oco-ml7`; this change leaves hooks, host settings
+and implicit-invocation policy unchanged.
+
+The last published version, v11.1.0, is released from main squash commit
 `bfe1f42ff3362cb2d825cfbc44a62f3e16327452`. The release includes the workflow
 method and resumable setup work, proportional CI test tiers, committed-only
 changed-surface selection for clean CI checkouts, and deterministic release
@@ -13,9 +18,43 @@ Tracking: use the repository issue tracker and checked-in implementation
 documentation as the source of truth. Do not put private checkout paths,
 credentials, or host-specific state in this public handoff.
 
-Next action: use the focused selector for ordinary plugin PRs. Keep shared CI,
+Next action: merge and release the method activation branch through the normal
+delivery process. Use the focused selector for ordinary plugin PRs. Keep shared CI,
 unknown, or safety-net changes fail-closed to the complete core matrix; main,
 scheduled, manual, merge, and release paths retain deep council coverage.
+
+## Method activation evidence
+
+- Commands and flow skills select relevant methods through one shared block.
+  Both `spawn_agent` and `run_agent_sync` include it before context budgeting.
+  Task classification excludes the added method menu. Repeated enrichment
+  preserves one copy of the contract.
+- Independent review accepts natural language and the existing flag, respects
+  preferences and billing limits, and does not authorize nested provider calls.
+- Engineering prototypes route through planning; UI prototypes retain design
+  routing. Explicit multi-provider commands retain their execution contracts.
+- Both READMEs and generated release summaries describe end-user benefits.
+  The manifest is the source of the corrected release summary. Release guidance
+  keeps CI and test-maintenance details out of README What's New.
+- Focused method checks passed 14/14. Synchronous transport/lifecycle checks
+  passed 29/29 and background transport/lifecycle checks passed 28/28.
+  The provider fixture captures the actual stdin; metadata checks capture the
+  input to context budgeting rather than assuming the old prompt length.
+- The required changed-file gate selected the full matrix. Smoke passed; the
+  unit run completed 321/324, then all three failed suites passed targeted
+  reruns: plan resolution 15/15 unchanged, MCP 5/5 after installing existing
+  dependencies, and background lifecycle 28/28 after correcting its fixture.
+  The initial plan-resolution failure was not reproduced on rerun.
+- All 8 integration suites passed after the unit run and targeted corrections.
+- Router checks passed 67/67 after removing an arbitrary Markdown line-count
+  assertion. Post-review dry-run, public-reference and README synchronization
+  suites passed. Plugin assembly, package inclusion, shell syntax and YAML
+  parsing checks passed.
+- Codex review findings about flow frontmatter placement, description generation
+  and the subagent preamble were corrected. The reviewer verified the final
+  description and preamble corrections with neither finding remaining actionable.
+- A01-A12 are behavioral evaluation definitions, not live execution results.
+  This work does not establish a measured improvement in model compliance.
 
 ## Start Here
 

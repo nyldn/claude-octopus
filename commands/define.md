@@ -9,6 +9,11 @@ aliases:
 
 # Define - Definition Phase 🎯
 
+Load `skills/blocks/engineering-method-selection.md` from the installed plugin
+and apply only the methods relevant to this task. Preserve this entry point's
+execution contract and output format. Read referenced skills as instructions;
+do not invoke the current command recursively or add provider calls from a seat.
+
 ## 🤖 INSTRUCTIONS FOR CLAUDE
 
 ### MANDATORY COMPLIANCE — DO NOT SKIP

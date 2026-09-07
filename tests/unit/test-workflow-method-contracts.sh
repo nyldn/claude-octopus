@@ -89,8 +89,8 @@ else
 fi
 
 test_case "portable acceptance fixture covers every approved case exactly once"
-if jq -e '(.cases | length) == 38 and
-          ([.cases[].id] | unique | length) == 38 and
+if jq -e '(.cases | length) == 50 and
+          ([.cases[].id] | unique | length) == 50 and
           ([.cases[].id] | index("F01")) != null and
           ([.cases[].id] | index("R8-06")) != null and
           ([.cases[].id] | index("X04")) != null' "$CASES" >/dev/null; then
@@ -117,5 +117,44 @@ for file in architecture-simplification.md debug-feedback-loop.md domain-modelin
     [[ -f "$PROJECT_ROOT/skills/blocks/$file" ]] || missing="$missing $file"
 done
 if [[ -z "$missing" ]]; then test_pass; else test_fail "missing references:$missing"; fi
+
+# Exercise the real prompt builder; no model or external process dispatch.
+source "$PROJECT_ROOT/scripts/lib/engineering-methods.sh"
+test_case "method transport preserves literal task data and limits phase scope"
+task=$'fix "expiry"; $(not-a-command)\nsecond line'
+if [[ "$(octo_with_engineering_methods probe "$task")" == "$task" ]] &&
+   [[ "$(octo_with_engineering_methods review "$task")" == *"$task" ]] &&
+   [[ "$(octo_with_engineering_methods tangle "$task")" == *"Engineering method selection"* ]]; then
+    test_pass
+else
+    test_fail "method contract was lost, altered task bytes, or entered research"
+fi
+
+test_case "missing method reference fails before returning a dispatch prompt"
+saved_root="$_octo_methods_root"
+_octo_methods_root="$PROJECT_ROOT/tests/nonexistent-method-root"
+if octo_with_engineering_methods review "$task" >/dev/null 2>&1; then
+    test_fail "missing method reference returned a usable prompt"
+else
+    test_pass
+fi
+_octo_methods_root="$saved_root"
+
+test_case "fallback transport does not duplicate the method contract"
+enriched="$(octo_with_engineering_methods tangle "$task")"
+if [[ "$(octo_with_engineering_methods tangle "$enriched")" == "$enriched" ]]; then
+    test_pass
+else
+    test_fail "fallback duplicated method instructions"
+fi
+
+test_case "selection contract is small and installed before context budgeting"
+if [[ "$(wc -c < "$PROJECT_ROOT/skills/blocks/engineering-method-selection.md")" -lt 4096 ]] &&
+   awk '/enhanced_prompt=\$\(octo_with_engineering_methods/ { injected=1 }
+        /enhanced_prompt=\$\(enforce_context_budget/ { exit !injected }' "$PROJECT_ROOT/scripts/lib/spawn.sh"; then
+    test_pass
+else
+    test_fail "contract too large or omitted from budgeted provider prompt"
+fi
 
 test_summary

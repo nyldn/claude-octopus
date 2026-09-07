@@ -272,6 +272,9 @@ apply_persona() { printf 'PERSONA[%s]\n%s\n' "$1" "$2"; }
 load_earned_skills() { :; }
 build_provider_context() { :; }
 enforce_context_budget() {
+    if [[ -n "${CAPTURED_BUDGET_INPUT_FILE:-}" ]]; then
+        printf '%s' "$1" > "$CAPTURED_BUDGET_INPUT_FILE"
+    fi
     if [[ "${FAKE_COMPRESS_PROMPT:-false}" == true ]]; then
         if [[ "${FAKE_PROMPT_MARKER:-false}" == true ]]; then
             printf 'D\n# Started: x\n%s\n' "$4"
@@ -581,8 +584,9 @@ test_case "result prompt is exactly the enhanced and budgeted provider stdin"
 export FAKE_COMPRESS_PROMPT=true
 export FAKE_PROMPT_MARKER=true
 export CAPTURED_PROVIDER_PROMPT_FILE="$TEST_TMP_DIR/dispatched-provider-prompt"
+export CAPTURED_BUDGET_INPUT_FILE="$TEST_TMP_DIR/budget-input"
 run_external_fixture success exact-prompt fake-api reviewer review
-unset FAKE_COMPRESS_PROMPT FAKE_PROMPT_MARKER CAPTURED_PROVIDER_PROMPT_FILE
+unset FAKE_COMPRESS_PROMPT FAKE_PROMPT_MARKER CAPTURED_PROVIDER_PROMPT_FILE CAPTURED_BUDGET_INPUT_FILE
 prompt_result="$RESULTS_DIR/fake-api-exact-prompt.md"
 prompt_frame="$(awk '
     /^# Prompt-Format: octopus-length-v1$/ {
@@ -596,7 +600,7 @@ prompt_line="${prompt_frame%%:*}"
 prompt_bytes="${prompt_frame#*:}"
 recorded_prompt="$(tail -n "+$((prompt_line + 2))" "$prompt_result" | dd bs=1 count="$prompt_bytes" 2>/dev/null)"
 dispatched_prompt="$(cat "$TEST_TMP_DIR/dispatched-provider-prompt")"
-expected_original=$'PERSONA[reviewer]\nExternal success fixture'
+expected_original="$(cat "$TEST_TMP_DIR/budget-input")"
 expected_dispatched=$'D\n# Started: x\nreview'
 prompt_equal=false
 expected_equal=false
@@ -609,7 +613,9 @@ original_absent=false
 grep -Fqx "# Prompt metadata: original_chars=${#expected_original} final_chars=${#recorded_prompt} compression=applied" "$prompt_result" && metadata_equal=true
 ! grep -Fq 'External success fixture' "$prompt_result" && original_absent=true
 if [[ "$prompt_equal" == true && "$expected_equal" == true && "$byte_count_equal" == true &&
-      "$metadata_equal" == true && "$original_absent" == true ]]; then
+      "$metadata_equal" == true && "$original_absent" == true ]] &&
+   [[ "$expected_original" == *"Engineering method selection"* ]] &&
+   [[ "$expected_original" == *"External success fixture"* ]]; then
     test_pass
 else
     test_fail "prompt frame mismatch (provider=$prompt_equal expected=$expected_equal bytes=$byte_count_equal metadata=$metadata_equal redaction=$original_absent)"
