@@ -282,7 +282,9 @@ def terminate(pid, grace=1, frozen=False, descendants=False, expected=None):
                     continue
                 if not handle.running():
                     member.close()
-                    continue
+                    # The numeric PPID alone cannot prove which parent instance
+                    # admitted this child. Do not signal it or claim full cleanup.
+                    raise StaleProcess("parent exited during descendant admission; cleanup incomplete")
                 handles.append(member)
                 pending.append((member, True))
         targets = list(reversed(handles[1:] if descendants else handles))

@@ -12,7 +12,8 @@
   including escalation after a grace period. Fail closed when native identity
   checks are unavailable, and preserve processes whose ownership is unknown.
 - Finish cleanup promptly when workers exit, without repeated shell process
-  scans or an unconditional grace-period delay.
+  scans or an unconditional grace-period delay. Verify workflow registrations
+  in one batch instead of launching a verifier repeatedly for each worker.
 - Route the legacy release command through the maintained release workflow.
 - Recover collected probe results when interruption leaves no synthesis marker.
 - Resolve workflow model summaries with the configured provider, phase and role.

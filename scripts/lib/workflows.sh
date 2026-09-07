@@ -512,9 +512,11 @@ octopus_probe_cancel_active() {
     local -a cancel_pids=("${OCTOPUS_ACTIVE_PROBE_PIDS[@]+"${OCTOPUS_ACTIVE_PROBE_PIDS[@]}"}")
     local -a cancel_agents=("${OCTOPUS_ACTIVE_PROBE_AGENTS[@]+"${OCTOPUS_ACTIVE_PROBE_AGENTS[@]}"}")
     local -a cancel_tasks=("${OCTOPUS_ACTIVE_PROBE_TASK_IDS[@]+"${OCTOPUS_ACTIVE_PROBE_TASK_IDS[@]}"}")
-    local ledger_pid ledger_agent ledger_task ledger_identity existing found found_idx idx
+    local -a cancel_identities=()
+    local ledger_pid ledger_agent ledger_task ledger_identity existing found found_idx idx verified_rows
 
     for idx in "${!cancel_tasks[@]}"; do
+        cancel_identities[$idx]=""
         [[ -n "${cancel_agents[$idx]:-}" ]] || cancel_agents[$idx]="unknown"
         [[ -n "${cancel_tasks[$idx]:-}" ]] \
             || cancel_tasks[$idx]="probe-${task_group}-${idx}"
@@ -523,13 +525,13 @@ octopus_probe_cancel_active() {
     # The PID ledger is authoritative for a signal that lands between spawn's
     # append and the caller's array assignment.
     if [[ -n "${PID_FILE:-}" && -f "$PID_FILE" ]]; then
+        verified_rows="$(octopus_pid_verified_rows "probe-${task_group}-")" || {
+            log ERROR "Cannot verify Probe registrations; retaining the ledger"
+            return 1
+        }
         while IFS=: read -r ledger_pid ledger_agent ledger_task ledger_identity; do
             [[ -z "$ledger_identity" ]] || ledger_agent="$(octopus_pid_agent_name "$ledger_agent")"
             [[ "$ledger_task" == "probe-${task_group}-"* ]] || continue
-            if ! octopus_pid_matches "$ledger_pid" "$ledger_identity"; then
-                log WARN "Skipping unverifiable Probe ledger worker: $ledger_pid"
-                continue
-            fi
             found=false
             found_idx=""
             for idx in "${!cancel_tasks[@]}"; do
@@ -545,12 +547,16 @@ octopus_probe_cancel_active() {
                     || cancel_pids[$found_idx]="$ledger_pid"
                 [[ -n "${cancel_agents[$found_idx]:-}" ]] \
                     || cancel_agents[$found_idx]="$ledger_agent"
+                if [[ "${cancel_pids[$found_idx]:-}" == "$ledger_pid" ]]; then
+                    cancel_identities[$found_idx]="$ledger_identity"
+                fi
             else
                 cancel_pids+=("$ledger_pid")
                 cancel_agents+=("$ledger_agent")
                 cancel_tasks+=("$ledger_task")
+                cancel_identities+=("$ledger_identity")
             fi
-        done < "$PID_FILE"
+        done <<< "$verified_rows"
     fi
 
     local synthesis_pid="${OCTOPUS_ACTIVE_PROBE_SYNTHESIS_PID:-}"
@@ -573,7 +579,8 @@ octopus_probe_cancel_active() {
         agent="${cancel_agents[$idx]:-unknown}"
         result_file="${RESULTS_DIR:-}/$agent-$task_id.md"
         cleanup_result="no-process"
-        if [[ "$ledger_pid" =~ ^[0-9]+$ ]] && ledger_identity="$(octopus_pid_task_identity "$ledger_pid" "$task_id")"; then
+        ledger_identity="${cancel_identities[$idx]:-}"
+        if [[ "$ledger_pid" =~ ^[0-9]+$ && -n "$ledger_identity" ]]; then
             if _octopus_probe_terminate_tree "$ledger_pid" "$ledger_identity"; then
                 cleanup_result="${OCTO_PROCESS_CLEANUP_RESULT:-terminated}"
             else
@@ -2419,18 +2426,20 @@ octopus_tangle_cancel_active() {
     local -a cancel_pids=("${OCTOPUS_ACTIVE_TANGLE_PIDS[@]+"${OCTOPUS_ACTIVE_TANGLE_PIDS[@]}"}")
     local -a cancel_agents=("${OCTOPUS_ACTIVE_TANGLE_AGENTS[@]+"${OCTOPUS_ACTIVE_TANGLE_AGENTS[@]}"}")
     local -a cancel_tasks=("${OCTOPUS_ACTIVE_TANGLE_TASK_IDS[@]+"${OCTOPUS_ACTIVE_TANGLE_TASK_IDS[@]}"}")
-    local ledger_pid ledger_agent ledger_task ledger_identity idx found found_idx
+    local -a cancel_identities=()
+    local ledger_pid ledger_agent ledger_task ledger_identity idx found found_idx verified_rows
+    for idx in "${!cancel_tasks[@]}"; do cancel_identities[$idx]=""; done
 
     # The ledger closes the race between spawn_agent's append and the caller's
     # assignment of the returned PID into the active in-memory arrays.
     if [[ -n "${PID_FILE:-}" && -f "$PID_FILE" ]]; then
+        verified_rows="$(octopus_pid_verified_rows "tangle-${task_group}-")" || {
+            log ERROR "Cannot verify Tangle registrations; retaining the ledger"
+            return 1
+        }
         while IFS=: read -r ledger_pid ledger_agent ledger_task ledger_identity; do
             [[ -z "$ledger_identity" ]] || ledger_agent="$(octopus_pid_agent_name "$ledger_agent")"
             [[ "$ledger_task" == "tangle-${task_group}-"* ]] || continue
-            if ! octopus_pid_matches "$ledger_pid" "$ledger_identity"; then
-                log WARN "Skipping unverifiable Tangle ledger worker: $ledger_pid"
-                continue
-            fi
             found=false
             found_idx=""
             for idx in "${!cancel_tasks[@]}"; do
@@ -2443,12 +2452,16 @@ octopus_tangle_cancel_active() {
             if [[ "$found" == "true" ]]; then
                 [[ -n "${cancel_pids[$found_idx]:-}" ]] || cancel_pids[$found_idx]="$ledger_pid"
                 [[ -n "${cancel_agents[$found_idx]:-}" ]] || cancel_agents[$found_idx]="$ledger_agent"
+                if [[ "${cancel_pids[$found_idx]:-}" == "$ledger_pid" ]]; then
+                    cancel_identities[$found_idx]="$ledger_identity"
+                fi
             else
                 cancel_pids+=("$ledger_pid")
                 cancel_agents+=("$ledger_agent")
                 cancel_tasks+=("$ledger_task")
+                cancel_identities+=("$ledger_identity")
             fi
-        done < "$PID_FILE"
+        done <<< "$verified_rows"
     fi
 
     local pid agent task_id result_file done_dir done_file cleanup_failed=false
@@ -2461,7 +2474,8 @@ octopus_tangle_cancel_active() {
         result_file="${RESULTS_DIR:-}/$agent-$task_id.md"
         done_file="$done_dir/${task_id}.done"
 
-        if [[ "$pid" =~ ^[0-9]+$ ]] && ledger_identity="$(octopus_pid_task_identity "$pid" "$task_id")"; then
+        ledger_identity="${cancel_identities[$idx]:-}"
+        if [[ "$pid" =~ ^[0-9]+$ && -n "$ledger_identity" ]]; then
             if review_kill_process_tree_frozen "$pid" "$ledger_identity"; then
                 wait "$pid" 2>/dev/null || true
                 rm -f "$done_dir/${pid}.heartbeat" 2>/dev/null || true

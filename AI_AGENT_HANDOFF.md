@@ -55,6 +55,18 @@ specialist prompts and unavailable Codex verifier. Its PID-validation and
 prefix-pruning warnings were checked against the implementation and rejected;
 the shared validator and delimiter-qualified prune callers already cover them.
 
+The next review follow-up batches Probe and Tangle ledger verification into
+one interpreter invocation per workflow and retains verified tokens for native
+signal binding. If a parent exits during descendant admission, cleanup reports
+an incomplete result instead of claiming success or trusting a numeric PPID.
+Regression fixtures publish child markers atomically, and the native test
+wrapper uses the shared test framework. Focused Bash 3.2 checks passed 34/34
+orchestrator, 21/21 Probe, 16/16 Tangle, 4/4 v10 recovery and 100/100 contextual
+review cases. Native process-control checks passed 22/22. A fresh Astra high
+review returned `NO ACTIONABLE FINDINGS`. The final full local matrix passed
+all 16 smoke, 326 unit and 8 integration suites. Exact-head hosted checks and
+approval remain required before merge.
+
 Tracking: use the repository issue tracker and checked-in implementation
 documentation as the source of truth. Do not put private checkout paths,
 credentials, or host-specific state in this public handoff.

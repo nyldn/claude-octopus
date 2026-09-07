@@ -10,18 +10,9 @@ octopus_pid_matches() {
     python3 "$_OCTO_PID_LEDGER_HELPER" verify "$PID_FILE" "$1" "$2"
 }
 
-# Active PID arrays can outlive a worker. Re-read its registration before use.
-octopus_pid_task_identity() {
-    local wanted_pid="$1" wanted_task="$2" pid agent task identity
-    [[ -f "$PID_FILE" ]] || return 1
-    while IFS=: read -r pid agent task identity; do
-        [[ "$pid" == "$wanted_pid" && "$task" == "$wanted_task" ]] || continue
-        if octopus_pid_matches "$pid" "$identity"; then
-            printf '%s\n' "$identity"
-            return 0
-        fi
-    done < "$PID_FILE"
-    return 1
+# Resolve a workflow's rows in one interpreter instead of rescanning per worker.
+octopus_pid_verified_rows() {
+    python3 "$_OCTO_PID_LEDGER_HELPER" verified "$PID_FILE" "$1"
 }
 
 octopus_pid_retire() {

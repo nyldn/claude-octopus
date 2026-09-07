@@ -16,7 +16,7 @@ def identity(pid):
         return ""
     try:
         return snapshot(int(pid)).token
-    except (OSError, IndexError, StaleProcess, UnsupportedPlatform):
+    except (OSError, ValueError, IndexError, StaleProcess, UnsupportedPlatform):
         return ""
 
 
@@ -53,6 +53,16 @@ def update(path, action, pid, agent, task, token):
 
 def main():
     action, ledger, pid, *args = sys.argv[1:]
+    if action == "verified":
+        # Read one atomic ledger snapshot; native termination rechecks each
+        # retained identity before binding its signals to the process instance.
+        for row in Path(ledger).read_text().splitlines():
+            fields = row.split(":")
+            if len(fields) != 4 or not fields[2].startswith(pid):
+                continue
+            if fields[3] and identity(fields[0]) == fields[3]:
+                print(row)
+        return 0
     if action == "verify":
         token = args[0]
         return 0 if token and identity(pid) == token else 1

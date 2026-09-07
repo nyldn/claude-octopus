@@ -178,12 +178,19 @@ RESULTS_DIR="$WORKSPACE_DIR/results"
 PID_FILE="$WORKSPACE_DIR/pids"
 mkdir -p "$RESULTS_DIR"
 waited="$TEST_TMP_DIR/workflow-waited"
+verification_calls="$TEST_TMP_DIR/verification-calls"
+python3() {
+    if [[ "${1:-}" == "$_OCTO_PID_LEDGER_HELPER" && ( "${2:-}" == verify || "${2:-}" == verified ) ]]; then
+        printf '%s\n' "$2" >> "$verification_calls"
+    fi
+    command python3 "$@"
+}
 wait() { printf '%s\n' "$*" >> "$waited"; return 0; }
 for workflow in probe tangle scoped; do
     for registration in legacy mismatch valid memory-mismatch memory-missing; do
         [[ "$workflow" != scoped || "$registration" != memory-* ]] || continue
         test_case "$workflow cancellation admits only verified ledger workers: $registration"
-        rm -f "$cancelled" "$waited"
+        rm -f "$cancelled" "$waited" "$verification_calls"
         task="${workflow}-fixture-0"
         [[ "$workflow" != scoped ]] || task="review-r1-fixture-artifact"
         : > "$PID_FILE"
@@ -221,7 +228,8 @@ for workflow in probe tangle scoped; do
                 ;;
             scoped) _tangle_review_kill_scoped_ledger_groups artifact ;;
         esac
-        if [[ "$registration" == valid && "$(cat "$cancelled" 2>/dev/null)" == "$$:$token" ]] || \
+        if [[ "$registration" == valid && "$(cat "$cancelled" 2>/dev/null)" == "$$:$token" \
+              && "$(wc -l < "$verification_calls" | tr -d ' ')" == 1 ]] || \
            [[ "$registration" != valid && ! -e "$cancelled" && ! -e "$waited" ]]; then
             test_pass
         else
@@ -257,6 +265,7 @@ for workflow in probe tangle; do
         OCTOPUS_ACTIVE_PROBE_TASK_IDS=()
         octopus_probe_cancel_active TERM || true
     else
+        review_kill_process_tree_frozen() { OCTO_PROCESS_CLEANUP_RESULT=unverified; return 1; }
         OCTOPUS_ACTIVE_TANGLE_TASK_GROUP=retained
         OCTOPUS_ACTIVE_TANGLE_PIDS=()
         OCTOPUS_ACTIVE_TANGLE_AGENTS=()
@@ -269,5 +278,21 @@ for workflow in probe tangle; do
         test_fail "failed cleanup lost the registration or waited on a live worker"
     fi
 done
+
+test_case "batch verification filters multiple rows in one helper invocation"
+octopus_pid_register "$$" codex probe-batch-0 >/dev/null
+octopus_pid_register "$$" codex probe-batch-1 >/dev/null
+octopus_pid_register "$$" codex probe-batches-foreign >/dev/null
+printf '%s:codex:probe-batch-stale:wrong\n0:codex:probe-batch-invalid:wrong\n' "$$" >> "$PID_FILE"
+printf '%s:codex:probe-batch-legacy\n' "$$" >> "$PID_FILE"
+rm -f "$verification_calls"
+verified_rows="$(octopus_pid_verified_rows probe-batch-)"
+if [[ "$(printf '%s\n' "$verified_rows" | wc -l | tr -d ' ')" == 2 \
+      && "$(wc -l < "$verification_calls" | tr -d ' ')" == 1 ]] \
+   && ! grep -Eq 'stale|invalid|legacy|foreign' <<< "$verified_rows"; then
+    test_pass
+else
+    test_fail "batch verification repeated helpers or admitted an unrelated/unverifiable row"
+fi
 
 test_summary

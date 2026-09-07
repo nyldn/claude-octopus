@@ -117,7 +117,8 @@ class ProcessControlTests(unittest.TestCase):
                 "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
                 "p=subprocess.Popen([sys.executable,'-c',"
                 "'import signal,time; signal.signal(signal.SIGTERM,signal.SIG_IGN); time.sleep(30)']); "
-                f"pathlib.Path({str(marker)!r}).write_text(str(p.pid)); "
+                f"pathlib.Path({str(marker) + '.tmp'!r}).write_text(str(p.pid)); "
+                f"pathlib.Path({str(marker) + '.tmp'!r}).replace({str(marker)!r}); "
                 "time.sleep(30)"
             )
             deadline = time.monotonic() + 3
@@ -251,6 +252,21 @@ class ProcessControlTests(unittest.TestCase):
                 with self.assertRaises(control.UnsupportedPlatform):
                     ledger.main()
             self.assertFalse(path.exists())
+
+    def test_uncertain_parent_during_admission_is_not_reported_as_terminated(self):
+        root, member = mock.Mock(), mock.Mock()
+        root.info = control.ProcessInfo(4242, 20, "root", 0, False)
+        root.running.side_effect = [True, True, False]
+        member.info = control.ProcessInfo(4343, 4242, "member", 0, False)
+        with mock.patch.object(control, "_ancestors", return_value=set()), \
+             mock.patch.object(control, "Process", side_effect=[root, member]), \
+             mock.patch.object(control, "snapshot", return_value=root.info._replace(stopped=True)), \
+             mock.patch.object(control, "children", return_value=[4343]), \
+             mock.patch.object(control, "_wait", return_value=True):
+            with self.assertRaises(control.StaleProcess):
+                control.terminate(4242, frozen=True)
+        member.send.assert_not_called()
+        member.close.assert_called_once()
 
 
 if __name__ == "__main__":
