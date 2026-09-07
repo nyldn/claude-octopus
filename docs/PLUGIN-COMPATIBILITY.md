@@ -3,6 +3,35 @@
 Octopus supports local Claude Code and Codex plugin installations. It is not a
 hosted ChatGPT plugin: provider execution requires local CLIs and a filesystem.
 
+## Process cancellation
+
+Worker cancellation uses Python and native process identities. Linux requires
+Python 3.9+ with `os.pidfd_open` and `signal.pidfd_send_signal`, Linux 5.3+ and
+readable process metadata in `/proc`. macOS uses the system `libproc`
+`proc_signal_with_audittoken` API, which checks the PID and its version during
+signal delivery. No compiler or additional Python package is needed.
+
+Missing APIs, inaccessible identities and permission failures stop cleanup with
+an `unverified` result. This helper never falls back to numeric PID or process-group
+signals. An exited group leader alone is not proof that its former group still
+belongs to Octopus. Cancellation can clean descendants it captured while the
+original worker was alive, but cannot safely recover an already-orphaned group
+from its numeric group ID alone.
+
+Worker registration checks native cancellation support before provider dispatch.
+If cleanup later fails, workflow cancellation retains the worker ledger for retry
+instead of waiting indefinitely or discarding the remaining registration.
+
+The shared helper freezes workers before enumerating descendants, retains their
+identities through TERM/KILL escalation, and stops waiting once they exit.
+Interrupted or failed enumeration resumes processes it stopped, using those
+same identities. Native-handle tests run on Linux and macOS in CI; mocked API
+boundary tests cover identity changes without attempting to force PID reuse.
+
+API references: [Python PID handles](https://docs.python.org/3/library/os.html#os.pidfd_open),
+[PID-handle signaling](https://docs.python.org/3/library/signal.html#signal.pidfd_send_signal),
+and [Apple's audit-token signaling implementation](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/proc_info.c).
+
 ## Claude Code
 
 Architecture, TDD, debugging, and prototype skills remain explicit-only. Routine

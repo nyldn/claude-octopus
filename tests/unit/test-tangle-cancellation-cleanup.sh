@@ -59,11 +59,9 @@ else
 fi
 
 test_case "frozen cancellation never signals its own worker group"
-self_guard_definition="$(declare -f review_kill_process_tree_frozen)"
-if grep -Fq '^[1-9][0-9]*$' <<< "$self_guard_definition" \
-   && grep -Fq 'root_pid" != "1' <<< "$self_guard_definition" \
-   && grep -Fq 'root_pid" == "$$' <<< "$self_guard_definition" \
-   && grep -Fq 'current_pgid' <<< "$self_guard_definition"; then
+self_guard_rc=0
+review_kill_process_tree_frozen "$$" 2>/dev/null || self_guard_rc=$?
+if [[ "$self_guard_rc" != 0 && "$OCTO_PROCESS_CLEANUP_RESULT" == unverified ]]; then
     test_pass
 else
     test_fail "cancellation helper lacks orchestrator PID/group self-protection"
@@ -232,7 +230,7 @@ else
     test_fail "provider survived cancellation before PID ledger handoff"
 fi
 
-test_case "frozen cancellation kills a worker group after its leader exits"
+test_case "exited group leader is not authority to signal an orphan group"
 group_child_pid_file="$TEST_TMP_DIR/group-child.pid"
 group_late_write="$TEST_TMP_DIR/group-late-write"
 monitor_was_enabled=false
@@ -252,15 +250,16 @@ wait "$group_leader_pid" 2>/dev/null || true
 group_child_pid="$(cat "$group_child_pid_file" 2>/dev/null || true)"
 
 review_kill_process_tree_frozen "$group_leader_pid"
+orphan_cleanup_result="$OCTO_PROCESS_CLEANUP_RESULT"
 sleep 1.1
 
 if [[ -n "$group_child_pid" ]] \
    && ! process_is_running "$group_child_pid" \
-   && [[ ! -e "$group_late_write" ]]; then
+   && [[ -e "$group_late_write" && "$orphan_cleanup_result" == already-exited ]]; then
     test_pass
 else
     kill -KILL "$group_child_pid" 2>/dev/null || true
-    test_fail "provider group survived after its recorded leader exited"
+    test_fail "cancellation inferred ownership from an exited group leader"
 fi
 
 test_case "tangle signal handler maps TERM to exit 143"

@@ -489,26 +489,7 @@ _octopus_probe_restore_traps() {
 }
 
 _octopus_probe_terminate_tree() {
-    local pid="$1"
-    OCTO_PROCESS_CLEANUP_RESULT="no-process"
-    [[ "$pid" =~ ^[0-9]+$ ]] || return 0
-
-    if declare -F octo_terminate_process_tree >/dev/null 2>&1; then
-        octo_terminate_process_tree "$pid" 1 || true
-    elif ! kill -0 "$pid" 2>/dev/null; then
-        OCTO_PROCESS_CLEANUP_RESULT="already-exited"
-        return 0
-    elif declare -F review_terminate_process_tree >/dev/null 2>&1; then
-        review_terminate_process_tree "$pid" 1
-        OCTO_PROCESS_CLEANUP_RESULT="terminated"
-    else
-        pkill -TERM -P "$pid" 2>/dev/null || true
-        kill -TERM "$pid" 2>/dev/null || true
-        sleep 1
-        pkill -KILL -P "$pid" 2>/dev/null || true
-        kill -KILL "$pid" 2>/dev/null || true
-        OCTO_PROCESS_CLEANUP_RESULT="terminated"
-    fi
+    octo_terminate_process_tree "$1" 1 "${2:-}"
 }
 
 _octopus_probe_prune_pid_ledger() {
@@ -585,18 +566,20 @@ octopus_probe_cancel_active() {
         wait "$synthesis_pid" 2>/dev/null || true
     fi
 
-    local cleanup_result
+    local cleanup_result cleanup_failed=false
     for idx in "${!cancel_tasks[@]}"; do
         ledger_pid="${cancel_pids[$idx]:-}"
         task_id="${cancel_tasks[$idx]:-probe-${task_group}-${idx}}"
         agent="${cancel_agents[$idx]:-unknown}"
         result_file="${RESULTS_DIR:-}/$agent-$task_id.md"
         cleanup_result="no-process"
-        if [[ "$ledger_pid" =~ ^[0-9]+$ ]] && octopus_pid_task_matches "$ledger_pid" "$task_id"; then
-            if _octopus_probe_terminate_tree "$ledger_pid"; then
+        if [[ "$ledger_pid" =~ ^[0-9]+$ ]] && ledger_identity="$(octopus_pid_task_identity "$ledger_pid" "$task_id")"; then
+            if _octopus_probe_terminate_tree "$ledger_pid" "$ledger_identity"; then
                 cleanup_result="${OCTO_PROCESS_CLEANUP_RESULT:-terminated}"
             else
                 cleanup_result="${OCTO_PROCESS_CLEANUP_RESULT:-survived}"
+                cancel_pids[$idx]=""
+                cleanup_failed=true
             fi
         elif [[ -n "$ledger_pid" ]]; then
             # Rejected PIDs must not reach the later wait/heartbeat cleanup.
@@ -650,7 +633,11 @@ octopus_probe_cancel_active() {
         fi
     done
 
-    _octopus_probe_prune_pid_ledger "$task_group"
+    if [[ "$cleanup_failed" == false ]]; then
+        _octopus_probe_prune_pid_ledger "$task_group"
+    else
+        log ERROR "Probe cleanup incomplete; retaining worker registrations for retry"
+    fi
     if [[ "${OCTOPUS_ACTIVE_PROBE_TMUX:-false}" == "true" ]] \
        && declare -F tmux_cleanup >/dev/null 2>&1; then
         tmux_cleanup 2>/dev/null || true
@@ -2464,7 +2451,7 @@ octopus_tangle_cancel_active() {
         done < "$PID_FILE"
     fi
 
-    local pid agent task_id result_file done_dir done_file
+    local pid agent task_id result_file done_dir done_file cleanup_failed=false
     done_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents"
     mkdir -p "$done_dir" 2>/dev/null || true
     for idx in "${!cancel_tasks[@]}"; do
@@ -2474,10 +2461,14 @@ octopus_tangle_cancel_active() {
         result_file="${RESULTS_DIR:-}/$agent-$task_id.md"
         done_file="$done_dir/${task_id}.done"
 
-        if [[ "$pid" =~ ^[0-9]+$ ]] && octopus_pid_task_matches "$pid" "$task_id"; then
-            review_kill_process_tree_frozen "$pid"
-            wait "$pid" 2>/dev/null || true
-            rm -f "$done_dir/${pid}.heartbeat" 2>/dev/null || true
+        if [[ "$pid" =~ ^[0-9]+$ ]] && ledger_identity="$(octopus_pid_task_identity "$pid" "$task_id")"; then
+            if review_kill_process_tree_frozen "$pid" "$ledger_identity"; then
+                wait "$pid" 2>/dev/null || true
+                rm -f "$done_dir/${pid}.heartbeat" 2>/dev/null || true
+            else
+                cleanup_failed=true
+                log ERROR "Tangle cleanup incomplete for $task_id: ${OCTO_PROCESS_CLEANUP_RESULT:-unverified}"
+            fi
         fi
         [[ -f "$done_file" ]] || printf '%s\n' "cancelled" > "$done_file" 2>/dev/null || true
         if [[ -f "$result_file" ]] \
@@ -2499,10 +2490,14 @@ octopus_tangle_cancel_active() {
     # helper appends it to the PID ledger. The active orchestrator owns all of
     # its direct descendants, so sweep any unregistered child trees as the final
     # race-closing step before clearing lifecycle state.
-    review_kill_descendants_frozen "$$"
+    review_kill_descendants_frozen "$$" || cleanup_failed=true
 
-    _octopus_tangle_prune_pid_ledger "$task_group" \
-        || log ERROR "Failed to prune cancelled Tangle tasks from the PID ledger"
+    if [[ "$cleanup_failed" == false ]]; then
+        _octopus_tangle_prune_pid_ledger "$task_group" \
+            || log ERROR "Failed to prune cancelled Tangle tasks from the PID ledger"
+    else
+        log ERROR "Tangle cleanup incomplete; retaining worker registrations for retry"
+    fi
     if [[ "${OCTOPUS_ACTIVE_TANGLE_TMUX:-false}" == "true" ]] \
        && declare -F tmux_cleanup >/dev/null 2>&1; then
         tmux_cleanup 2>/dev/null || true
@@ -2893,7 +2888,7 @@ _tangle_review_kill_scoped_ledger_groups() {
                     log WARN "Skipping unverifiable review ledger worker: $ledger_pid"
                     continue
                 fi
-                review_kill_process_tree_frozen "$ledger_pid"
+                review_kill_process_tree_frozen "$ledger_pid" "$ledger_identity" || return 1
                 wait "$ledger_pid" 2>/dev/null || true
                 ;;
         esac

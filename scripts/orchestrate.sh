@@ -2193,7 +2193,7 @@ kill_agents() {
         if ! octopus_pid_matches "$pid" "$identity"; then
             log WARN "Skipping stale or unverifiable agent registration: $agent ($pid)"
         elif declare -F review_kill_process_tree_frozen >/dev/null 2>&1; then
-            review_kill_process_tree_frozen "$pid"
+            review_kill_process_tree_frozen "$pid" "$identity" || return 1
             wait "$pid" 2>/dev/null || true
             log INFO "Killed $agent ($pid)"
         else

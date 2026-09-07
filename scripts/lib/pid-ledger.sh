@@ -11,12 +11,15 @@ octopus_pid_matches() {
 }
 
 # Active PID arrays can outlive a worker. Re-read its registration before use.
-octopus_pid_task_matches() {
+octopus_pid_task_identity() {
     local wanted_pid="$1" wanted_task="$2" pid agent task identity
     [[ -f "$PID_FILE" ]] || return 1
     while IFS=: read -r pid agent task identity; do
         [[ "$pid" == "$wanted_pid" && "$task" == "$wanted_task" ]] || continue
-        if octopus_pid_matches "$pid" "$identity"; then return 0; fi
+        if octopus_pid_matches "$pid" "$identity"; then
+            printf '%s\n' "$identity"
+            return 0
+        fi
     done < "$PID_FILE"
     return 1
 }

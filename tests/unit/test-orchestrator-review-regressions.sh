@@ -12,7 +12,7 @@ source "$PROJECT_ROOT/scripts/lib/pid-ledger.sh"
 eval "$(sed -n '/^kill_agents() {/,/^}/p' "$ORCHESTRATOR")"
 PID_FILE="$TEST_TMP_DIR/pids"
 cancelled="$TEST_TMP_DIR/cancelled"
-review_kill_process_tree_frozen() { printf '%s\n' "$1" >> "$cancelled"; }
+review_kill_process_tree_frozen() { printf '%s:%s\n' "$1" "${2:-}" >> "$cancelled"; }
 
 test_case "unverifiable legacy registrations never reach the signal helper"
 printf '%s:codex:legacy\n' "$$" > "$PID_FILE"
@@ -23,7 +23,7 @@ test_case "valid registration is retired without removing another task"
 token="$(octopus_pid_register "$$" codex first)"
 octopus_pid_register "$$" codex second >/dev/null
 kill_agents first
-if [[ "$(cat "$cancelled")" == "$$" ]] && grep -q ':second:' "$PID_FILE" && ! grep -q ':first:' "$PID_FILE"; then
+if [[ "$(cat "$cancelled")" == "$$:$token" ]] && grep -q ':second:' "$PID_FILE" && ! grep -q ':first:' "$PID_FILE"; then
     test_pass
 else
     test_fail "exact registration retirement failed"
@@ -170,9 +170,9 @@ if (
 
 # Exercise workflow ledger admission with inert signal helpers.
 source "$PROJECT_ROOT/scripts/lib/workflows.sh"
-review_kill_process_tree_frozen() { printf '%s\n' "$1" >> "$cancelled"; }
+review_kill_process_tree_frozen() { printf '%s:%s\n' "$1" "${2:-}" >> "$cancelled"; }
 review_kill_descendants_frozen() { :; }
-_octopus_probe_terminate_tree() { printf '%s\n' "$1" >> "$cancelled"; }
+_octopus_probe_terminate_tree() { printf '%s:%s\n' "$1" "${2:-}" >> "$cancelled"; }
 WORKSPACE_DIR="$TEST_TMP_DIR/workflow"
 RESULTS_DIR="$WORKSPACE_DIR/results"
 PID_FILE="$WORKSPACE_DIR/pids"
@@ -190,7 +190,7 @@ for workflow in probe tangle scoped; do
         case "$registration" in
             legacy) printf '%s:codex:%s\n' "$$" "$task" > "$PID_FILE" ;;
             mismatch|memory-mismatch) printf '%s:codex:%s:wrong-identity\n' "$$" "$task" > "$PID_FILE" ;;
-            valid) octopus_pid_register "$$" codex "$task" >/dev/null ;;
+            valid) token="$(octopus_pid_register "$$" codex "$task")" ;;
         esac
         case "$workflow" in
             probe)
@@ -221,13 +221,53 @@ for workflow in probe tangle scoped; do
                 ;;
             scoped) _tangle_review_kill_scoped_ledger_groups artifact ;;
         esac
-        if [[ "$registration" == valid && -s "$cancelled" ]] || \
+        if [[ "$registration" == valid && "$(cat "$cancelled" 2>/dev/null)" == "$$:$token" ]] || \
            [[ "$registration" != valid && ! -e "$cancelled" && ! -e "$waited" ]]; then
             test_pass
         else
             test_fail "$workflow admitted an unverified worker or refused a valid identity"
         fi
     done
+done
+
+test_case "scoped cancellation failure does not wait on the resumed worker"
+rm -f "$waited"
+: > "$PID_FILE"
+octopus_pid_register "$$" codex review-r1-fixture-failed-cleanup >/dev/null
+review_kill_process_tree_frozen() { return 1; }
+cleanup_rc=0
+_tangle_review_kill_scoped_ledger_groups failed-cleanup || cleanup_rc=$?
+if [[ "$cleanup_rc" != 0 && ! -e "$waited" ]]; then
+    test_pass
+else
+    test_fail "scoped cleanup waited or suppressed its failure"
+fi
+
+for workflow in probe tangle; do
+    test_case "$workflow retains registrations when native cleanup fails"
+    rm -f "$waited"
+    : > "$PID_FILE"
+    task="$workflow-retained-0"
+    octopus_pid_register "$$" codex "$task" >/dev/null
+    _octopus_probe_terminate_tree() { OCTO_PROCESS_CLEANUP_RESULT=unverified; return 1; }
+    if [[ "$workflow" == probe ]]; then
+        OCTOPUS_ACTIVE_PROBE_TASK_GROUP=retained
+        OCTOPUS_ACTIVE_PROBE_PIDS=()
+        OCTOPUS_ACTIVE_PROBE_AGENTS=()
+        OCTOPUS_ACTIVE_PROBE_TASK_IDS=()
+        octopus_probe_cancel_active TERM || true
+    else
+        OCTOPUS_ACTIVE_TANGLE_TASK_GROUP=retained
+        OCTOPUS_ACTIVE_TANGLE_PIDS=()
+        OCTOPUS_ACTIVE_TANGLE_AGENTS=()
+        OCTOPUS_ACTIVE_TANGLE_TASK_IDS=()
+        octopus_tangle_cancel_active TERM || true
+    fi
+    if [[ -s "$PID_FILE" && ! -e "$waited" ]]; then
+        test_pass
+    else
+        test_fail "failed cleanup lost the registration or waited on a live worker"
+    fi
 done
 
 test_summary

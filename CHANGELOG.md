@@ -8,6 +8,11 @@
 
 - Verify worker process identities before cancellation and retire finished
   worker registrations, so cancellation skips stale or unverifiable PIDs.
+- Bind cancellation signals to Linux process handles or macOS audit tokens,
+  including escalation after a grace period. Fail closed when native identity
+  checks are unavailable, and preserve processes whose ownership is unknown.
+- Finish cleanup promptly when workers exit, without repeated shell process
+  scans or an unconditional grace-period delay.
 - Route the legacy release command through the maintained release workflow.
 - Recover collected probe results when interruption leaves no synthesis marker.
 - Resolve workflow model summaries with the configured provider, phase and role.

@@ -13,6 +13,33 @@ The last published version is v11.2.0, from main squash commit
 activation, independent review escalation and bounded engineering prototypes.
 The release candidate updates version and marketplace metadata to v11.2.1.
 
+Verified pushed checkpoint: `release/v11.2.1` matched
+`upstream/release/v11.2.1` at `627c18cfafcdc90b45211e189564d7d5010b87c2`.
+PR #1022 and its head SHA are the live source for later commits; a tracked file
+cannot contain the SHA of its own commit. This checkpoint does not claim that
+the subsequent native-cancellation changes are already pushed or published.
+
+The user authorized the remaining lifecycle fix in `oco-x38`. Native signal
+delivery now uses Linux PID handles or macOS audit tokens through one shared
+helper. Ledger tokens reach that helper, and registration rejects hosts that
+cannot support native cancellation before dispatch. Failure retains workflow
+registrations for retry. Teardown no longer launches process probes or waits
+the full grace period after workers exit. Duplicate shell tree traversal and
+an unused verification wrapper were removed.
+
+Focused verification passed native process control 20/20, orchestrator
+regressions 33/33, Probe cancellation 21/21, Tangle cancellation 16/16,
+background lifecycle 30/30, review aggregation 41/41 and PID capture 14/14.
+The native suite completed in about 0.1 seconds on macOS. Package dry-run
+includes both the ledger and shared process-control helpers with executable
+modes. A fresh Astra high review returned `NO ACTIONABLE FINDINGS` after the
+interruption, disappearing-process and failed-cleanup wait findings were fixed.
+The new full local matrix passed all 16 smoke, 326 unit and 8 integration
+suites. Final focused reruns cover the later review fixes. Contextual review
+also passed 100/100. The docs suite passed 143/143 after removing obsolete
+counters that printed a false failure section. Exact-head hosted checks and
+approval are still required before merge.
+
 Tracking: use the repository issue tracker and checked-in implementation
 documentation as the source of truth. Do not put private checkout paths,
 credentials, or host-specific state in this public handoff.

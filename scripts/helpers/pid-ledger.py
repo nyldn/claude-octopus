@@ -2,38 +2,21 @@
 """Maintain worker registrations under the shared ledger lock."""
 
 import fcntl
-import hashlib
 import os
 from pathlib import Path
-import subprocess
 import sys
 import tempfile
+
+sys.dont_write_bytecode = True
+from process_control import Process, StaleProcess, UnsupportedPlatform, snapshot
 
 
 def identity(pid):
     if not pid.isdecimal() or int(pid) <= 1:
         return ""
     try:
-        if sys.platform.startswith("linux"):
-            # comm may contain spaces and parentheses. Fields after its final
-            # closing parenthesis start at state; starttime is field 22.
-            fields = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
-            if fields[0] == "Z":
-                return ""
-            boot = Path("/proc/sys/kernel/random/boot_id").read_text().strip()
-            value = f"{boot}:{pid}:{fields[19]}"
-        else:
-            result = subprocess.run(
-                ["ps", "-o", "lstart=", "-o", "uid=", "-o", "stat=", "-p", pid],
-                capture_output=True, text=True, timeout=2,
-                env={**os.environ, "LC_ALL": "C"}, check=False,
-            )
-            fields = result.stdout.split()
-            if result.returncode or not fields or fields[-1].startswith("Z"):
-                return ""
-            value = f"{pid}:" + " ".join(fields[:-1])
-        return hashlib.sha256(value.encode()).hexdigest()
-    except (OSError, IndexError, subprocess.TimeoutExpired):
+        return snapshot(int(pid)).token
+    except (OSError, IndexError, StaleProcess, UnsupportedPlatform):
         return ""
 
 
@@ -78,9 +61,9 @@ def main():
         if not agent or any(not field or "\n" in field or "\r" in field
                             for field in (agent, task)) or ":" in task:
             return 1
-        token = identity(pid)
-        if not token:
-            return 1
+        # Reject workers before provider dispatch if the host cannot cancel them.
+        with Process(int(pid)) as process:
+            token = process.info.token
         # Provider-qualified model IDs contain colons; keep the row four fields.
         encoded_agent = agent.replace("%", "%25").replace(":", "%3A")
         update(Path(ledger), action, pid, encoded_agent, task, token)
@@ -98,6 +81,6 @@ def main():
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except (OSError, ValueError) as error:
+    except (OSError, ValueError, StaleProcess, UnsupportedPlatform) as error:
         print(f"PID ledger: {error}", file=sys.stderr)
         sys.exit(1)

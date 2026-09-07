@@ -11,15 +11,6 @@ set +o pipefail  # restore: original did not use pipefail
 
 cd "$PROJECT_ROOT"
 
-
-# Counters
-TOTAL_TESTS=0
-PASSED_TESTS=0
-FAILED_TESTS=0
-
-# Test result tracking
-declare -a FAILURES
-
 # Helper functions
 pass() { test_case "$1"; test_pass; }
 

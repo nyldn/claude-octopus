@@ -517,19 +517,6 @@ review_child_pids() {
     return 0
 }
 
-# Snapshot descendants depth-first before signaling. Re-walking after TERM is
-# unsafe because a TERM-ignoring child can be reparented when its wrapper exits,
-# making it invisible to the later KILL pass.
-review_process_tree_depth_first() {
-    local pid="$1" child
-    [[ "$pid" =~ ^[0-9]+$ ]] || return 0
-    while IFS= read -r child; do
-        [[ "$child" =~ ^[0-9]+$ ]] || continue
-        review_process_tree_depth_first "$child"
-    done < <(review_child_pids "$pid")
-    printf '%s\n' "$pid"
-}
-
 # kill -0 still succeeds for unreaped zombies on macOS, so also inspect state.
 review_process_is_running() {
     local pid="$1"
@@ -540,122 +527,34 @@ review_process_is_running() {
     [[ "$process_stat" != *Z* ]]
 }
 
+# One helper owns enumeration, native process handles, escalation and waiting.
+# Never fall back to numeric PID or process-group signals after a failed check.
+_octopus_process_cleanup() {
+    local root_pid="${1:-}" identity="${2:-}" rc=0
+    shift 2
+    local -a identity_args=()
+    [[ -z "$identity" ]] || identity_args=(--identity "$identity")
+    OCTO_PROCESS_CLEANUP_RESULT="unverified"
+    OCTO_PROCESS_CLEANUP_RESULT="$(python3 "${_agent_spec_lib_dir}/../helpers/process_control.py" \
+        "$root_pid" ${identity_args[@]+"${identity_args[@]}"} "$@")" || rc=$?
+    [[ -n "$OCTO_PROCESS_CLEANUP_RESULT" ]] || OCTO_PROCESS_CLEANUP_RESULT="unverified"
+    return "$rc"
+}
+
 review_terminate_process_tree() {
-    local root_pid="$1"
-    local grace_secs="${2:-5}"
-    local process_tree target_pid
-    [[ "$grace_secs" =~ ^[0-9]+$ ]] || grace_secs=5
-    grace_secs=$((10#$grace_secs))
-    process_tree="$(review_process_tree_depth_first "$root_pid")"
-    [[ -n "$process_tree" ]] || return 0
-
-    while IFS= read -r target_pid; do
-        [[ "$target_pid" =~ ^[0-9]+$ ]] || continue
-        kill -TERM "$target_pid" 2>/dev/null || true
-    done <<< "$process_tree"
-    sleep "$grace_secs"
-    while IFS= read -r target_pid; do
-        [[ "$target_pid" =~ ^[0-9]+$ ]] || continue
-        kill -KILL "$target_pid" 2>/dev/null || true
-    done <<< "$process_tree"
+    _octopus_process_cleanup "$1" "${3:-}" --grace "${2:-5}"
 }
 
-# Strict v10 teardown wrapper. Snapshot first so descendants remain verifiable
-# even if their parent exits and they are reparented during TERM handling.
 octo_terminate_process_tree() {
-    local root_pid="${1:-}" grace_secs="${2:-1}" process_tree="" target_pid
-    OCTO_PROCESS_CLEANUP_RESULT="no-process"
-    [[ "$root_pid" =~ ^[1-9][0-9]*$ && "$root_pid" != "1" ]] || return 0
-
-    if ! review_process_is_running "$root_pid"; then
-        OCTO_PROCESS_CLEANUP_RESULT="already-exited"
-        return 0
-    fi
-
-    process_tree="$(review_process_tree_depth_first "$root_pid")"
-    review_terminate_process_tree "$root_pid" "$grace_secs"
-    wait "$root_pid" 2>/dev/null || true
-
-    # SIGKILL delivery and reaping are asynchronous for descendants that were
-    # reparented when the root exited. Allow a bounded settle window before
-    # deciding that any member survived.
-    local settle_tick any_running
-    for settle_tick in $(seq 1 50); do
-        any_running=false
-        while IFS= read -r target_pid; do
-            [[ "$target_pid" =~ ^[0-9]+$ ]] || continue
-            if review_process_is_running "$target_pid"; then
-                any_running=true
-                break
-            fi
-        done <<< "$process_tree"
-        [[ "$any_running" == false ]] && break
-        sleep 0.1
-    done
-
-    while IFS= read -r target_pid; do
-        [[ "$target_pid" =~ ^[0-9]+$ ]] || continue
-        if review_process_is_running "$target_pid"; then
-            OCTO_PROCESS_CLEANUP_RESULT="survived"
-            return 1
-        fi
-    done <<< "$process_tree"
-
-    # shellcheck disable=SC2034 # output contract consumed by cancellation callers
-    OCTO_PROCESS_CLEANUP_RESULT="terminated"
-    return 0
+    _octopus_process_cleanup "$1" "${3:-}" --grace "${2:-1}"
 }
 
-# Cancellation is stricter than ordinary timeout cleanup. Freeze each root
-# before walking it so a shell cannot advance to another provider attempt while
-# teardown is enumerating descendants, then kill the frozen tree bottom-up.
 review_kill_process_tree_frozen() {
-    local root_pid="$1" child children current_pgid=""
-    [[ "$root_pid" =~ ^[1-9][0-9]*$ ]] || return 0
-    [[ "$root_pid" != "1" ]] || return 0
-
-    current_pgid=$(ps -o pgid= -p "$$" 2>/dev/null | tr -d '[:space:]') \
-        || current_pgid=""
-    if [[ "$root_pid" == "$$" ]] \
-       || [[ -n "$current_pgid" && "$root_pid" == "$current_pgid" ]]; then
-        return 0
-    fi
-
-    # Snapshot legacy children before signaling. If the wrapper exits during
-    # the group probe or STOP, this preserves every descendant that was still
-    # discoverable while the wrapper was alive.
-    children="$(review_child_pids "$root_pid")"
-
-    # spawn_agent places each worker in a dedicated process group whose PGID is
-    # the recorded worker PID. Signaling the group is atomic and still works if
-    # the group leader exited after spawning a provider child. Legacy callers
-    # are not group leaders, so a missing -PGID safely falls through to the
-    # portable descendant walk below.
-    if kill -STOP -- "-$root_pid" 2>/dev/null; then
-        kill -KILL -- "-$root_pid" 2>/dev/null || true
-        return 0
-    fi
-
-    kill -STOP "$root_pid" 2>/dev/null || true
-    while IFS= read -r child; do
-        [[ "$child" =~ ^[0-9]+$ ]] || continue
-        review_kill_process_tree_frozen "$child"
-    done <<< "$children"
-    kill -KILL "$root_pid" 2>/dev/null || true
+    _octopus_process_cleanup "$1" "${2:-}" --frozen
 }
 
 review_kill_descendants_frozen() {
-    local root_pid="$1" child children
-    [[ "$root_pid" =~ ^[0-9]+$ ]] || return 0
-    children="$(review_child_pids "$root_pid")"
-    while IFS= read -r child; do
-        [[ "$child" =~ ^[0-9]+$ ]] || continue
-        kill -STOP "$child" 2>/dev/null || true
-    done <<< "$children"
-    while IFS= read -r child; do
-        [[ "$child" =~ ^[0-9]+$ ]] || continue
-        review_kill_process_tree_frozen "$child"
-    done <<< "$children"
+    _octopus_process_cleanup "$1" "" --frozen --descendants
 }
 
 review_process_has_active_descendant() {
