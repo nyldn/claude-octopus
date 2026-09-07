@@ -1314,7 +1314,7 @@ ERROR_CODES=(
 # Non-interactive execution for GitHub Actions and audit logging
 # ═══════════════════════════════════════════════════════════════════════════════
 
-CI_MODE="${CI:-false}"
+# Preserve the host/CI detection above until init_ci_mode applies CLI defaults.
 AUDIT_LOG="${WORKSPACE_DIR:-$HOME/.claude-octopus}/audit.log"
 
 # Initialize CI mode from environment
@@ -1970,62 +1970,16 @@ SETUP_CONFIG_FILE="$WORKSPACE_DIR/.setup-complete"
 
 # v8.13.0: One-command release cycle
 do_release() {
-    local version
-    version=$(jq -r '.version' "$SCRIPT_DIR/../.claude-plugin/plugin.json")
-    local tag="v$version"
-
-    echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
-    echo -e "${MAGENTA}  Claude Octopus Release: $tag${NC}"
-    echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
-
-    # Step 1: Validate
-    echo -e "\n${BLUE}Step 1: Validating...${NC}"
-    bash "$SCRIPT_DIR/validate-release.sh" || { echo "Validation failed"; return 1; }
-
-    # Step 2: Ensure tag exists and points to HEAD
-    echo -e "\n${BLUE}Step 2: Tagging...${NC}"
-    local head_sha
-    head_sha=$(git rev-parse HEAD)
-    local tag_sha
-    tag_sha=$(git rev-list -n 1 "$tag" 2>/dev/null || echo "")
-    if [[ "$tag_sha" != "$head_sha" ]]; then
-        git tag -d "$tag" 2>/dev/null || true
-        git tag "$tag"
-        echo -e "${GREEN}✓ Tag $tag -> $(git rev-parse --short HEAD)${NC}"
-    else
-        echo -e "${GREEN}✓ Tag $tag already at HEAD${NC}"
+    if [[ $# -ne 2 || ! "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ || -z "${2//[[:space:]]/}" ]]; then
+        printf 'Usage: orchestrate.sh release <version> "<summary>"\n' >&2
+        return 2
     fi
-
-    # Step 3: Pull --rebase to incorporate any remote changes
-    echo -e "\n${BLUE}Step 3: Syncing with remote...${NC}"
-    git fetch origin main --tags 2>/dev/null
-    git rebase origin/main 2>/dev/null || {
-        echo -e "${RED}Rebase conflict. Resolve manually, then re-run.${NC}"
-        return 1
-    }
-
-    # Step 4: Re-tag after rebase (HEAD may have changed)
-    local new_head
-    new_head=$(git rev-parse HEAD)
-    if [[ "$new_head" != "$head_sha" ]]; then
-        git tag -d "$tag" 2>/dev/null || true
-        git tag "$tag"
-        echo -e "${GREEN}✓ Re-tagged after rebase: $tag -> $(git rev-parse --short HEAD)${NC}"
+    if [[ "$DRY_RUN" == "true" ]]; then
+        printf 'Would run release.sh for v%s: %s\n' "$1" "$2"
+        return 0
     fi
-
-    # Step 5: Push tag (force, to handle existing remote tags)
-    echo -e "\n${BLUE}Step 4: Pushing tag...${NC}"
-    git push origin "$tag" --force --no-verify 2>/dev/null
-    echo -e "${GREEN}✓ Tag pushed${NC}"
-
-    # Step 6: Push main
-    echo -e "\n${BLUE}Step 5: Pushing main...${NC}"
-    git push origin main --no-verify
-    echo -e "${GREEN}✓ Branch pushed${NC}"
-
-    echo -e "\n${GREEN}═══════════════════════════════════════════════════════════${NC}"
-    echo -e "${GREEN}  ✅ Released $tag${NC}"
-    echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
+    # release.sh owns branch validation, CI, merge, tagging and marketplace sync.
+    bash "$SCRIPT_DIR/release.sh" "$@"
 }
 
 # [EXTRACTED to lib/doctor.sh]
@@ -2158,7 +2112,9 @@ show_status() {
     local total=0
 
     echo -e "${BLUE}Active Agents:${NC}"
-    while IFS=: read -r pid agent task_id; do
+    local pid agent task_id identity
+    while IFS=: read -r pid agent task_id identity; do
+        [[ -z "$identity" ]] || agent="$(octopus_pid_agent_name "$agent")"
         ((total++)) || true
         if kill -0 "$pid" 2>/dev/null; then
             echo -e "  ${GREEN}●${NC} PID $pid - $agent ($task_id) - RUNNING"
@@ -2220,52 +2176,33 @@ show_status() {
 
 kill_agents() {
     local target="${1:-}"
+    local pid agent task_id identity
 
     if [[ ! -f "$PID_FILE" ]]; then
         log WARN "No PID file found"
         return
     fi
 
-    if [[ "$target" == "all" || -z "$target" ]]; then
-        log INFO "Killing all tracked agents..."
-        while IFS=: read -r pid agent task_id; do
-            if [[ ! "$pid" =~ ^[1-9][0-9]*$ || "$pid" == "1" ]]; then
-                log WARN "Skipping invalid tracked PID: $pid"
-                continue
-            fi
-            if kill -0 "$pid" 2>/dev/null; then
-                if declare -F review_kill_process_tree_frozen >/dev/null 2>&1; then
-                    review_kill_process_tree_frozen "$pid"
-                else
-                    kill "$pid" 2>/dev/null || true
-                fi
-                wait "$pid" 2>/dev/null || true
-                log INFO "Killed $agent ($pid)"
-            fi
-        done < "$PID_FILE"
-        : > "$PID_FILE"
-    else
-        log INFO "Killing agent: $target"
-        while IFS=: read -r pid agent task_id; do
-            if [[ "$pid" == "$target" || "$task_id" == "$target" ]]; then
-                if [[ ! "$pid" =~ ^[1-9][0-9]*$ || "$pid" == "1" ]]; then
-                    log WARN "Skipping invalid tracked PID: $pid"
-                    continue
-                fi
-                if ! kill -0 "$pid" 2>/dev/null; then
-                    log WARN "Agent $agent ($pid) is no longer running"
-                    continue
-                fi
-                if declare -F review_kill_process_tree_frozen >/dev/null 2>&1; then
-                    review_kill_process_tree_frozen "$pid"
-                else
-                    kill "$pid" 2>/dev/null || true
-                fi
-                wait "$pid" 2>/dev/null || true
-                log INFO "Killed $agent ($pid)"
-            fi
-        done < "$PID_FILE"
-    fi
+    while IFS=: read -r pid agent task_id identity; do
+        [[ -z "$identity" ]] || agent="$(octopus_pid_agent_name "$agent")"
+        [[ -z "$target" || "$target" == all || "$pid" == "$target" || "$task_id" == "$target" ]] || continue
+        if [[ ! "$pid" =~ ^[1-9][0-9]*$ || "$pid" == "1" ]]; then
+            log WARN "Skipping invalid tracked PID: $pid"
+            continue
+        fi
+        if ! octopus_pid_matches "$pid" "$identity"; then
+            log WARN "Skipping stale or unverifiable agent registration: $agent ($pid)"
+        elif declare -F review_kill_process_tree_frozen >/dev/null 2>&1; then
+            review_kill_process_tree_frozen "$pid"
+            wait "$pid" 2>/dev/null || true
+            log INFO "Killed $agent ($pid)"
+        else
+            log ERROR "Process-tree cancellation helper unavailable"
+            return 1
+        fi
+        # Remove only the snapshot entry, preserving concurrent registrations.
+        octopus_pid_retire "$pid" "$task_id" "$identity" || return 1
+    done < "$PID_FILE"
 }
 
 clean_workspace() {
@@ -2646,7 +2583,7 @@ case "$COMMAND" in
         # Auto-detect task group and prompt from marker files if not provided
         if [[ -z "$synth_task_group" ]]; then
             # Find the most recent marker file
-            latest_marker=$(ls -t "$RESULTS_DIR"/probe-needs-synthesis-*.marker 2>/dev/null | head -1)
+            latest_marker=$(octopus_latest_probe_file "$RESULTS_DIR" 'probe-needs-synthesis-*.marker')
 
             if [[ -n "$latest_marker" && -f "$latest_marker" ]]; then
                 # shellcheck disable=SC1090
@@ -2658,7 +2595,7 @@ case "$COMMAND" in
 
             # If still no task group, find most recent probe results
             if [[ -z "$synth_task_group" ]]; then
-                latest_result=$(ls -t "$RESULTS_DIR"/*-probe-*-*.md 2>/dev/null | head -1)
+                latest_result=$(octopus_latest_probe_file "$RESULTS_DIR" '*-probe-*-*.md')
                 if [[ -n "$latest_result" ]]; then
                     # Extract task_group from filename pattern: agent-probe-TASKGROUP-N.md
                     synth_task_group=$(basename "$latest_result" | sed -E 's/.*-probe-([0-9]+)-.*/\1/')
@@ -2902,7 +2839,7 @@ case "$COMMAND" in
         preflight_check
         ;;
     release)
-        do_release
+        do_release "$@"
         ;;
     doctor)
         do_doctor "$@"
@@ -3270,10 +3207,10 @@ case "$COMMAND" in
         _perplexity_ok="false"; [[ -n "${PERPLEXITY_API_KEY:-}" ]] && _perplexity_ok="true"
 
         # Model resolution for key roles
-        _model_researcher=$(get_agent_model "researcher" 2>/dev/null || echo "unknown")
-        _model_implementer=$(get_agent_model "implementer" 2>/dev/null || echo "unknown")
-        _model_reviewer=$(get_agent_model "reviewer" 2>/dev/null || echo "unknown")
-        _model_synthesizer=$(get_agent_model "synthesizer" 2>/dev/null || echo "unknown")
+        _model_researcher=$(octopus_workflow_role_model "$_init_workflow" researcher 2>/dev/null || echo "unknown")
+        _model_implementer=$(octopus_workflow_role_model "$_init_workflow" implementer 2>/dev/null || echo "unknown")
+        _model_reviewer=$(octopus_workflow_role_model "$_init_workflow" reviewer 2>/dev/null || echo "unknown")
+        _model_synthesizer=$(octopus_workflow_role_model "$_init_workflow" synthesizer 2>/dev/null || echo "unknown")
 
         # Capabilities
         _agent_teams="${SUPPORTS_AGENT_TEAMS:-false}"

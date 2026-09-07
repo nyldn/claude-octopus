@@ -19,6 +19,7 @@ source "$PROJECT_ROOT/scripts/lib/events.sh"
 source "$PROJECT_ROOT/scripts/lib/review.sh"
 # shellcheck source=/dev/null
 source "$PROJECT_ROOT/scripts/lib/workflows.sh"
+source "$PROJECT_ROOT/scripts/lib/pid-ledger.sh"
 
 test_suite "Tangle cancellation cleanup (#900)"
 
@@ -70,8 +71,7 @@ fi
 
 test_case "PID ledger pruning uses the spawn ledger lock"
 prune_definition="$(declare -f _octopus_tangle_prune_pid_ledger)"
-if grep -Fq 'flock -x' <<< "$prune_definition" \
-   && grep -Fq '${PID_FILE}.lock' <<< "$prune_definition"; then
+if grep -Fq 'octopus_pid_prune' <<< "$prune_definition"; then
     test_pass
 else
     test_fail "Tangle PID ledger pruning is not serialized with spawn appends"
@@ -80,12 +80,13 @@ fi
 test_case "PID ledger pruning stops when lock acquisition fails"
 PID_FILE="$TEST_TMP_DIR/lock-failure-pids"
 printf '%s\n' '101:codex:tangle-lock-failure-0' '202:qwen:other-task' > "$PID_FILE"
-flock() { return 1; }
+saved_prune_impl="$(declare -f octopus_pid_prune)"
+octopus_pid_prune() { return 1; }
 set +e
 _octopus_tangle_prune_pid_ledger 'lock-failure'
 lock_failure_rc=$?
 set -e
-unset -f flock
+eval "$saved_prune_impl"
 if [[ "$lock_failure_rc" -ne 0 ]] \
    && grep -q 'tangle-lock-failure-0' "$PID_FILE" \
    && grep -q 'other-task' "$PID_FILE"; then
@@ -288,7 +289,7 @@ else
     test_fail "top-level orchestrator still swallows INT/TERM without cancellation and exit"
 fi
 
-test_case "targeted kill ignores a dead or recycled PID"
+test_case "targeted kill ignores a nonexistent PID"
 if declare -F kill_agents >/dev/null 2>&1; then
     unset -f kill_agents
 fi

@@ -134,13 +134,13 @@ preflight_with_recovery() {
 # Non-interactive execution for GitHub Actions and audit logging
 # ═══════════════════════════════════════════════════════════════════════════════
 
-CI_MODE="${CI:-false}"
+CI_MODE="${CI_MODE:-false}"
 AUDIT_LOG="${WORKSPACE_DIR:-$HOME/.claude-octopus}/audit.log"
 
 # Initialize CI mode from environment
 init_ci_mode() {
     # Detect CI environment
-    if [[ -n "${CI:-}" ]] || [[ -n "${GITHUB_ACTIONS:-}" ]] || [[ -n "${GITLAB_CI:-}" ]]; then
+    if [[ "$CI_MODE" == true || -n "${CI:-}" || -n "${GITHUB_ACTIONS:-}" || -n "${GITLAB_CI:-}" || -n "${JENKINS_URL:-}" || "${CLAUDE_CODE_DISABLE_BACKGROUND_TASKS:-false}" == true ]]; then
         CI_MODE=true
         AUTONOMY_MODE="autonomous"  # No prompts in CI
         log INFO "CI environment detected - running in autonomous mode"

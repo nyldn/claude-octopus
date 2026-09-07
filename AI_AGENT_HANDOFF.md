@@ -1,27 +1,55 @@
 # AI Agent Handoff
 
-Last updated: 2026-09-06
+Last updated: 2026-09-07
 
-Status: engineering method activation is implemented on `feat/method-activation`
-for the next release. Tracking: `oco-0u0`. The separate host-native automatic
-invocation investigation is `oco-ml7`; this change leaves hooks, host settings
-and implicit-invocation policy unchanged.
+Status: the five orchestrator review fixes are implemented on
+`fix/orchestrator-review`, tracking `oco-v6s`. Local verification and final
+Codex review are complete.
+The separate host-native automatic invocation investigation remains `oco-ml7`;
+this change leaves hooks, host settings and implicit-invocation policy unchanged.
 
-The last published version, v11.1.0, is released from main squash commit
-`bfe1f42ff3362cb2d825cfbc44a62f3e16327452`. The release includes the workflow
-method and resumable setup work, proportional CI test tiers, committed-only
-changed-surface selection for clean CI checkouts, and deterministic release
-regression fixtures. Tag `v11.1.0`, the GitHub release, and the shared Claude
-and Codex marketplace entries are published at that exact commit.
+The last published version is v11.2.0, from main squash commit
+`4febbb11a4e0c8e82574505ce1114dddbbd11d3f`. It includes engineering method
+activation, independent review escalation and bounded engineering prototypes.
+The fixes below leave version and marketplace metadata unchanged.
 
 Tracking: use the repository issue tracker and checked-in implementation
 documentation as the source of truth. Do not put private checkout paths,
 credentials, or host-specific state in this public handoff.
 
-Next action: merge and release the method activation branch through the normal
-delivery process. Use the focused selector for ordinary plugin PRs. Keep shared CI,
-unknown, or safety-net changes fail-closed to the complete core matrix; main,
-scheduled, manual, merge, and release paths retain deep council coverage.
+Next action: merge the orchestrator fix branch through the normal review process
+when requested. No new release was cut. Use the focused selector for ordinary
+plugin PRs. Shared runtime changes retain the full local matrix.
+
+## Orchestrator review fixes
+
+- Cancellation checks the worker's recorded process identity and skips legacy
+  or stale entries. Workers register before spawn returns and retire their exact
+  entry on exit. Registration, retirement and workflow pruning share one
+  portable lock, preserving concurrent tasks.
+- The legacy release command validates its arguments and delegates to
+  `release.sh`, including its failure status. Dry-run never invokes the backend.
+- Probe recovery reaches existing results and empty-directory guidance without
+  failing an `ls` pipeline when no synthesis marker exists.
+- Workflow summaries resolve provider, phase and role through the dispatch
+  configuration, including Tangle coding and reasoning overrides.
+- CI initialization preserves Jenkins, background-disabled hosts and explicit
+  unattended mode.
+- Focused checks passed: orchestrator regressions 16/16, workflow initialization
+  6/6, background lifecycle 30/30, Tangle cancellation 16/16 and probe
+  cancellation 21/21. Release workflow checks passed 11/11. Shell syntax,
+  error-level ShellCheck and diff whitespace checks passed.
+- The first fresh Codex review identified startup acknowledgement, shared
+  pruning locks and Tangle operation mapping gaps. All three were corrected
+  and covered by the focused checks above. A fresh GPT-6 Astra high review of
+  the corrected patch returned `NO ACTIONABLE FINDINGS`.
+- `make ci-changed` selected the full matrix and exited successfully: 16 smoke,
+  325 unit and 8 integration suites passed. Focused reruns above cover the
+  refinements made after the full run began. `make sync-check` passed; npm's
+  package dry-run includes both PID-ledger helpers. Existing file modes are
+  unchanged.
+- Provider execution tests use local fixtures. No live-provider compatibility
+  result, merge or new release is claimed by these checks.
 
 ## Method activation evidence
 

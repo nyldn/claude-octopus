@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Verify worker process identities before cancellation and retire finished
+  worker registrations, so cancellation skips stale or unverifiable PIDs.
+- Route the legacy release command through the maintained release workflow.
+- Recover collected probe results when interruption leaves no synthesis marker.
+- Resolve workflow model summaries with the configured provider, phase and role.
+- Preserve unattended mode in Jenkins and hosts that disable background tasks.
+
 ## [11.2.0] - 2026-09-07
 
 ### Changed

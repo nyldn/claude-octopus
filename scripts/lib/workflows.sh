@@ -27,6 +27,7 @@ if ! type octo_dispatch_command_to_argv >/dev/null 2>&1; then
     [[ -f "$_octo_workflows_utils_lib" ]] && source "$_octo_workflows_utils_lib"
     unset _octo_workflows_utils_lib
 fi
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pid-ledger.sh"
 if ! type write_agent_result_prompt >/dev/null 2>&1; then
     _octo_result_file_lib="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/result-file.sh"
     [[ -f "$_octo_result_file_lib" ]] && source "$_octo_result_file_lib"
@@ -514,13 +515,7 @@ _octopus_probe_prune_pid_ledger() {
     local task_group="$1"
     [[ -n "${PID_FILE:-}" && -f "$PID_FILE" ]] || return 0
 
-    local tmp_file="${PID_FILE}.cancel.$$"
-    if awk -F: -v prefix="probe-${task_group}-" \
-        'index($3, prefix) != 1 { print }' "$PID_FILE" > "$tmp_file"; then
-        mv -f "$tmp_file" "$PID_FILE"
-    else
-        rm -f "$tmp_file" 2>/dev/null || true
-    fi
+    octopus_pid_prune "probe-${task_group}-"
 }
 
 octopus_probe_cancel_active() {
@@ -536,7 +531,7 @@ octopus_probe_cancel_active() {
     local -a cancel_pids=("${OCTOPUS_ACTIVE_PROBE_PIDS[@]+"${OCTOPUS_ACTIVE_PROBE_PIDS[@]}"}")
     local -a cancel_agents=("${OCTOPUS_ACTIVE_PROBE_AGENTS[@]+"${OCTOPUS_ACTIVE_PROBE_AGENTS[@]}"}")
     local -a cancel_tasks=("${OCTOPUS_ACTIVE_PROBE_TASK_IDS[@]+"${OCTOPUS_ACTIVE_PROBE_TASK_IDS[@]}"}")
-    local ledger_pid ledger_agent ledger_task existing found found_idx idx
+    local ledger_pid ledger_agent ledger_task ledger_identity existing found found_idx idx
 
     for idx in "${!cancel_tasks[@]}"; do
         [[ -n "${cancel_agents[$idx]:-}" ]] || cancel_agents[$idx]="unknown"
@@ -547,7 +542,8 @@ octopus_probe_cancel_active() {
     # The PID ledger is authoritative for a signal that lands between spawn's
     # append and the caller's array assignment.
     if [[ -n "${PID_FILE:-}" && -f "$PID_FILE" ]]; then
-        while IFS=: read -r ledger_pid ledger_agent ledger_task; do
+        while IFS=: read -r ledger_pid ledger_agent ledger_task ledger_identity; do
+            [[ -z "$ledger_identity" ]] || ledger_agent="$(octopus_pid_agent_name "$ledger_agent")"
             [[ "$ledger_task" == "probe-${task_group}-"* ]] || continue
             found=false
             found_idx=""
@@ -2407,30 +2403,10 @@ _octopus_tangle_restore_traps() {
     if [[ -n "$previous_term_trap" ]]; then eval "$previous_term_trap"; else trap - TERM; fi
 }
 
-_octopus_tangle_prune_pid_ledger_unlocked() {
-    local task_group="$1"
-    [[ -n "${PID_FILE:-}" && -f "$PID_FILE" ]] || return 0
-    local tmp_file
-    tmp_file=$(mktemp "${PID_FILE}.cancel.XXXXXX") || return 1
-    if awk -F: -v prefix="tangle-${task_group}-" \
-        'index($3, prefix) != 1 { print }' "$PID_FILE" > "$tmp_file"; then
-        mv -f "$tmp_file" "$PID_FILE"
-    else
-        rm -f "$tmp_file" 2>/dev/null || true
-    fi
-}
-
 _octopus_tangle_prune_pid_ledger() {
     local task_group="$1"
     [[ -n "${PID_FILE:-}" && -f "$PID_FILE" ]] || return 0
-    if command -v flock >/dev/null 2>&1; then
-        (
-            flock -x 200 || exit $?
-            _octopus_tangle_prune_pid_ledger_unlocked "$task_group"
-        ) 200>"${PID_FILE}.lock"
-    else
-        _octopus_tangle_prune_pid_ledger_unlocked "$task_group"
-    fi
+    octopus_pid_prune "tangle-${task_group}-"
 }
 
 octopus_tangle_cancel_active() {
@@ -2448,12 +2424,13 @@ octopus_tangle_cancel_active() {
     local -a cancel_pids=("${OCTOPUS_ACTIVE_TANGLE_PIDS[@]+"${OCTOPUS_ACTIVE_TANGLE_PIDS[@]}"}")
     local -a cancel_agents=("${OCTOPUS_ACTIVE_TANGLE_AGENTS[@]+"${OCTOPUS_ACTIVE_TANGLE_AGENTS[@]}"}")
     local -a cancel_tasks=("${OCTOPUS_ACTIVE_TANGLE_TASK_IDS[@]+"${OCTOPUS_ACTIVE_TANGLE_TASK_IDS[@]}"}")
-    local ledger_pid ledger_agent ledger_task idx found found_idx
+    local ledger_pid ledger_agent ledger_task ledger_identity idx found found_idx
 
     # The ledger closes the race between spawn_agent's append and the caller's
     # assignment of the returned PID into the active in-memory arrays.
     if [[ -n "${PID_FILE:-}" && -f "$PID_FILE" ]]; then
-        while IFS=: read -r ledger_pid ledger_agent ledger_task; do
+        while IFS=: read -r ledger_pid ledger_agent ledger_task ledger_identity; do
+            [[ -z "$ledger_identity" ]] || ledger_agent="$(octopus_pid_agent_name "$ledger_agent")"
             [[ "$ledger_task" == "tangle-${task_group}-"* ]] || continue
             found=false
             found_idx=""
@@ -2891,13 +2868,13 @@ _tangle_review_kill_capture_group() {
 
 _tangle_review_kill_scoped_ledger_groups() {
     local artifact_id="${1:-}"
-    local ledger_pid ledger_agent ledger_task
+    local ledger_pid ledger_agent ledger_task ledger_identity
     [[ -n "$artifact_id" && -n "${PID_FILE:-}" && -f "$PID_FILE" ]] || return 0
     # Cooperative workers that start a new session remain cancellable because
     # spawn_agent records their group leader here. An unregistered process that
     # calls setsid and reparents itself cannot be discovered portably on macOS;
     # the enclosing review still exits fail-closed and accepts no findings.
-    while IFS=: read -r ledger_pid ledger_agent ledger_task; do
+    while IFS=: read -r ledger_pid ledger_agent ledger_task ledger_identity; do
         case "$ledger_task" in
             review-*"-${artifact_id}"|review-*"-${artifact_id}-"*)
                 review_kill_process_tree_frozen "$ledger_pid"

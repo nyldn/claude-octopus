@@ -4,6 +4,7 @@
 
 _octopus_spawn_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_octopus_spawn_lib_dir}/engineering-methods.sh"
+source "${_octopus_spawn_lib_dir}/pid-ledger.sh"
 source "${_octopus_spawn_lib_dir}/agent-spec.sh" 2>/dev/null || true
 source "${_octopus_spawn_lib_dir}/dispatch-plan.sh" 2>/dev/null || true
 if ! type start_quota_watcher >/dev/null 2>&1; then
@@ -1140,13 +1141,21 @@ ${heuristic_ctx}"
     # Preserve a caller that already enabled monitor mode rather than forcing it
     # off after the spawn.
     local _spawn_monitor_was_enabled=false
+    local _spawn_ready_file
+    _spawn_ready_file="$(mktemp "${RESULTS_DIR}/.spawn-ready.XXXXXX")" || return 74
     [[ "$-" == *m* ]] && _spawn_monitor_was_enabled=true
     set -m
     (
         cd "$PROJECT_ROOT" || exit 1
         set -f  # Disable glob expansion
         set -o pipefail  # v9.15.1: Pipeline exit code = first failure
-        octo_capture_current_shell_pid || OCTO_CAPTURED_SHELL_PID="$$"
+        octo_capture_current_shell_pid || exit 74
+        local _worker_identity _worker_exit_trap _worker_pid="$OCTO_CAPTURED_SHELL_PID"
+        _worker_identity="$(octopus_pid_register "$_worker_pid" "$agent_slug" "$task_id")" || exit 74
+        # EXIT may run after the function's local scope unwinds on Bash 3.2.
+        printf -v _worker_exit_trap 'octopus_pid_retire %q %q %q >/dev/null 2>&1 || true' "$_worker_pid" "$task_id" "$_worker_identity"
+        trap "$_worker_exit_trap" EXIT
+        printf '%s\n' "$_worker_identity" > "$_spawn_ready_file" || exit 74
 
         if ! write_agent_result_header "$result_file" "$agent_type" "${model:-unresolved}" "$task_id" "${role:-none}" "${phase:-none}" "legacy"; then
             octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
@@ -1697,22 +1706,34 @@ ${heuristic_ctx}"
     local pid=$!
     [[ "$_spawn_monitor_was_enabled" == "true" ]] || set +m
 
+    # Do not hand a PID to callers until cancellation can find its registration.
+    # A ready file also preserves acknowledgement when a fast worker has exited.
+    local _ready_attempt=0
+    while [[ ! -s "$_spawn_ready_file" && "$_ready_attempt" -lt 100 ]]; do
+        kill -0 "$pid" 2>/dev/null || break
+        sleep 0.05
+        _ready_attempt=$((_ready_attempt + 1))
+    done
+    if [[ ! -s "$_spawn_ready_file" ]]; then
+        if jobs -pr | grep -qx "$pid"; then
+            review_kill_process_tree_frozen "$pid" || true
+        fi
+        wait "$pid" 2>/dev/null || true
+        rm -f "$_spawn_ready_file"
+        octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
+            "Worker registration failed or timed out" 74 "" >/dev/null 2>&1 || true
+        log ERROR "Worker registration failed for $task_id"
+        return 74
+    fi
+    rm -f "$_spawn_ready_file"
+
     _octopus_agent_lifecycle_event "spawned" "$agent_type" "$task_id" "$role" "$phase" "$pid" "$result_file" "" "running"
 
     # v8.19.0: Start heartbeat monitor for agent process
     start_heartbeat_monitor "$pid" "$task_id"
 
-    # Atomic PID file write with file locking to prevent race conditions
-    # Use flock on Linux, skip locking on macOS (flock not available)
-    if command -v flock &>/dev/null; then
-        (
-            flock -x 200
-            echo "$pid:$agent_slug:$task_id" >> "$PID_FILE"
-        ) 200>"${PID_FILE}.lock"
-    else
-        # macOS fallback: simple append (race condition risk is low for our use case)
-        echo "$pid:$agent_slug:$task_id" >> "$PID_FILE"
-    fi
+    # The worker registers itself before dispatch and retires its exact entry
+    # on exit. Parent-side registration can race with a fast worker's exit.
 
     log INFO "Agent spawned with PID: $pid"
     echo "$pid"

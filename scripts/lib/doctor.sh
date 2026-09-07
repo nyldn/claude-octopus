@@ -144,7 +144,7 @@ doctor_check_v10_state_health() {
     local now stale_after snapshot seat_id timestamp _transition epoch
     local running_ids="" running_count=0 stale_count=0 invalid_snapshot_count=0
     local snapshot_rows=""
-    local pid_file="${PID_FILE:-${workspace}/pids}" pid _agent task
+    local pid_file="${PID_FILE:-${workspace}/pids}" pid _agent task _identity
     local orphan_count=0 stale_pid_count=0
 
     if type octo_probe_cache_dir >/dev/null 2>&1; then
@@ -195,7 +195,7 @@ doctor_check_v10_state_health() {
     fi
 
     if [[ -f "$pid_file" ]]; then
-        while IFS=: read -r pid _agent task; do
+        while IFS=: read -r pid _agent task _identity; do
             [[ "$pid" =~ ^[0-9]+$ ]] || continue
             if kill -0 "$pid" 2>/dev/null; then
                 if ! grep -Fxc "spawn-${task}" <<< "$running_ids" >/dev/null && \

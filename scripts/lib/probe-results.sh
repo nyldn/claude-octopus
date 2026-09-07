@@ -1,4 +1,18 @@
 #!/usr/bin/env bash
+
+# An empty directory is a normal recovery case, not a failed pipeline. Bash
+# handles spaces/newlines in filenames and requires no ls/head subprocesses.
+octopus_latest_probe_file() {
+    local directory="$1" pattern="$2" candidate newest=""
+    for candidate in "$directory"/$pattern; do
+        [[ -f "$candidate" ]] || continue
+        if [[ -z "$newest" || "$candidate" -nt "$newest" ]]; then
+            newest="$candidate"
+        fi
+    done
+    [[ -z "$newest" ]] || printf '%s\n' "$newest"
+    return 0
+}
 # Probe result helpers shared by workflow analysis and synthesis.
 
 if ! type run_contract_output_file_eligible >/dev/null 2>&1; then

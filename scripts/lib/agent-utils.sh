@@ -138,6 +138,25 @@ get_role_model() {
     echo "${mapping##*:}"  # Return model (after colon)
 }
 
+# Preview the same provider, phase and role inputs used for dispatch. Passing a
+# role as an agent type loses both provider pins and role-specific configuration.
+octopus_workflow_role_model() {
+    local phase="$1" role="$2" agent operation="$2"
+    case "$phase" in
+        develop) phase=tangle ;;
+        discover|research) phase=probe ;;
+        define) phase=grasp ;;
+        deliver) phase=ink ;;
+    esac
+    case "$phase:$role" in
+        tangle:implementer) operation=coding ;;
+        tangle:researcher) operation=reasoning ;;
+    esac
+    agent="$(octopus_execution_profile_provider "$phase" "$operation" "$role" "$(get_role_agent "$role")")" || return 1
+    [[ -n "$agent" ]] || return 1
+    get_agent_model "$agent" "$phase" "$role"
+}
+
 # Log role assignment for verbose mode
 log_role_assignment() {
     local role="$1"

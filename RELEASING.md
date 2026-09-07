@@ -67,6 +67,12 @@ Minor (9.x+1.0) for additive changes: new providers, new commands/skills/hooks, 
 
 Run `scripts/release.sh <version> "<summary>"` — it bumps every location below plus README count surfaces. The table is the verification list, not a manual procedure; after the script, `grep -rn "<old-version>" --include="*.json" --include="*.md" .` to catch anything it missed (e.g. the `routines.json` `$comment` version):
 
+`scripts/orchestrate.sh release <version> "<summary>"` delegates to that same
+release process. It requires both arguments. Use `--dry-run` before `release`
+to preview the request without publishing. Its wrapper checks are covered by
+`bash tests/unit/test-orchestrator-review-regressions.sh`; run the existing
+release workflow suite when changing the underlying release process.
+
 | File | Field |
 |------|-------|
 | `package.json` | `version` |

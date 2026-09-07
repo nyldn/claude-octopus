@@ -220,6 +220,7 @@ printf '%s\n' '#!/usr/bin/env bash' \
     'cat >/dev/null' \
     'case "${FAKE_SCENARIO:-success}" in' \
     '  success) printf "%s\n" "Substantive external provider result." ;;' \
+    '  held) for attempt in {1..100}; do [[ -e "$FAKE_RELEASE_FILE" ]] && break; sleep 0.05; done; printf "%s\n" "Substantive held provider result." ;;' \
     '  agy-contract) printf "%s\n" "${OCTOPUS_AGY_MODEL:-missing}" > "$AGY_MODEL_CAPTURE"; printf "%s\n" "Substantive AGY result." ;;' \
     '  exit) printf "%s\n" "provider rejected request" >&2; exit 42 ;;' \
     '  timeout) printf "%s\n" "partial output before timeout"; exit 124 ;;' \
@@ -386,6 +387,41 @@ run_external_fixture() {
     pid="$(spawn_agent "$agent_type" "External $scenario fixture" "$task" "$role" "$phase")" || return $?
     wait "$pid" 2>/dev/null || true
 }
+
+test_case "spawn waits for registration before returning a cancellable worker"
+saved_register_impl="$(declare -f octopus_pid_register)"
+eval "$(declare -f octopus_pid_register | sed '1s/octopus_pid_register/real_pid_register/')"
+octopus_pid_register() { sleep 0.2; real_pid_register "$@"; }
+export FAKE_SCENARIO=held FAKE_RELEASE_FILE="$TEST_TMP_DIR/release-held-worker"
+held_pid_file="$TEST_TMP_DIR/held.pid"
+held_registered=false
+if spawn_agent fake-api "Registration handshake fixture" held-worker reviewer probe > "$held_pid_file"; then
+    held_pid="$(tail -n 1 "$held_pid_file")"
+    if grep -q "^${held_pid}:fake-api:held-worker:" "$PID_FILE"; then held_registered=true; fi
+    touch "$FAKE_RELEASE_FILE"
+    wait "$held_pid" || true
+fi
+eval "$saved_register_impl"
+unset FAKE_SCENARIO FAKE_RELEASE_FILE
+if [[ "$held_registered" == true ]] && ! grep -q ':held-worker:' "$PID_FILE"; then
+    test_pass
+else
+    test_fail "spawn returned before registration or failed to retire its worker"
+fi
+
+test_case "failed registration refuses provider dispatch and terminalizes the seat"
+octopus_pid_register() { return 1; }
+registration_rc=0
+registration_prompt="$TEST_TMP_DIR/unexpected-registration-prompt"
+CAPTURED_PROVIDER_PROMPT_FILE="$registration_prompt" spawn_agent fake-api \
+    "Registration failure fixture" registration-failure reviewer probe > "$TEST_TMP_DIR/registration.pid" || registration_rc=$?
+eval "$saved_register_impl"
+if [[ "$registration_rc" == 74 && ! -e "$registration_prompt" ]] && \
+   [[ "$(run_contract_latest_transition spawn-registration-failure)" == failed ]]; then
+    test_pass
+else
+    test_fail "failed registration dispatched a provider or did not record failure"
+fi
 
 test_case "Tangle boundary refusal completes through the shared failure path"
 saved_boundary_impl="$(declare -f octopus_tangle_apply_execution_boundary)"
@@ -574,10 +610,11 @@ run_contract_contribution_eligible spawn-external-success && external_success_el
 external_success_reason="$(jq -r --arg seat spawn-external-success 'select(.seat_id == $seat) | .reason' "$ledger" | tail -n 1)"
 if [[ "$external_success_transitions" == "planned,starting,authenticated,running,output_received,validated,contributed" ]] && \
    [[ "$external_success_eligible" == true ]] &&
-   [[ "$external_success_model" == routed-model ]]; then
+   [[ "$external_success_model" == routed-model ]] &&
+   ! grep -q ':external-success:' "$PID_FILE"; then
     test_pass
 else
-    test_fail "supervised success contract mismatch (transitions=${external_success_transitions:-missing}, eligible=$external_success_eligible, model=${external_success_model:-missing}, reason=${external_success_reason:-none})"
+    test_fail "supervised success or PID retirement mismatch (transitions=${external_success_transitions:-missing}, eligible=$external_success_eligible, model=${external_success_model:-missing}, reason=${external_success_reason:-none})"
 fi
 
 test_case "result prompt is exactly the enhanced and budgeted provider stdin"
