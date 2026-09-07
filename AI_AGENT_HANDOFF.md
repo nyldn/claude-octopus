@@ -27,6 +27,9 @@ release workflow regressions 11/11, all 16 smoke suites and plugin assembly
 validation. A separate GPT-6 Astra high review of the metadata-only changes
 returned `NO ACTIONABLE FINDINGS`. The README introduction no longer assigns
 the original engineering-method additions to each new patch version.
+The first hosted portability pass flagged the intentionally pre-expanded EXIT
+trap under ShellCheck 0.9.0. A line-local SC2064 suppression documents why
+Bash 3.2 requires the captured arguments; it changes no runtime behavior.
 
 ## Orchestrator review fixes
 

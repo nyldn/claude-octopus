@@ -1154,6 +1154,8 @@ ${heuristic_ctx}"
         _worker_identity="$(octopus_pid_register "$_worker_pid" "$agent_slug" "$task_id")" || exit 74
         # EXIT may run after the function's local scope unwinds on Bash 3.2.
         printf -v _worker_exit_trap 'octopus_pid_retire %q %q %q >/dev/null 2>&1 || true' "$_worker_pid" "$task_id" "$_worker_identity"
+        # Expand the quoted snapshot now; Bash 3.2 may discard locals before EXIT.
+        # shellcheck disable=SC2064
         trap "$_worker_exit_trap" EXIT
         printf '%s\n' "$_worker_identity" > "$_spawn_ready_file" || exit 74
 
