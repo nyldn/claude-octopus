@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.2.0] - 2026-09-07
+
 ### Changed
 
 - Select relevant engineering methods within development, review, definition

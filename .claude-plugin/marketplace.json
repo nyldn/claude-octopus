@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "11.1.0"
+    "version": "11.2.0"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v11.1.0 - Focused debugging, behavior-driven tests, clearer plans, and resumable setup. 31 personas, 53 commands, 63 skills. Run /octo:setup.",
-      "version": "11.1.0",
+      "description": "v11.2.0 - Method-aware workflows, clearer independent review escalation, and bounded engineering prototypes. 31 personas, 53 commands, 63 skills. Run /octo:setup.",
+      "version": "11.2.0",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"
