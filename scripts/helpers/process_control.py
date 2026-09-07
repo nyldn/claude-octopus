@@ -81,9 +81,15 @@ def _darwin_info(pid, flavor, kind):
     return info
 
 
+def _validate_pid(pid):
+    # pid_t is signed 32-bit on both supported platforms. Validate before ctypes
+    # conversion so an oversized integer cannot be narrowed to another PID.
+    if not isinstance(pid, int) or not 1 < pid <= 2**31 - 1:
+        raise ValueError("process ID must be an integer between 2 and 2147483647")
+
+
 def snapshot(pid):
-    if pid <= 1:
-        raise ValueError("process ID must be greater than one")
+    _validate_pid(pid)
     if sys.platform.startswith("linux"):
         try:
             fields = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
@@ -222,8 +228,9 @@ def _wait(handles, seconds):
 
 
 def terminate(pid, grace=1, frozen=False, descendants=False, expected=None):
+    _validate_pid(pid)
     excluded = _ancestors()
-    if pid <= 1 or (pid in excluded and not descendants):
+    if pid in excluded and not descendants:
         raise ValueError("refusing to terminate self, an ancestor, or an invalid PID")
     handles, stopped = [], []
     try:

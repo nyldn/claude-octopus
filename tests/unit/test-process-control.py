@@ -84,6 +84,13 @@ class ProcessControlTests(unittest.TestCase):
                     control.terminate(pid)
             send.assert_not_called()
 
+    def test_out_of_range_pids_never_reach_native_conversion(self):
+        with mock.patch.object(sys, "platform", "darwin"), \
+             mock.patch.object(control, "_darwin_info", side_effect=AssertionError("invalid PID reached native API")):
+            for pid in (2**31, 2**32, 2**63, 1.5):
+                with self.assertRaises(ValueError):
+                    control.snapshot(pid)
+
     def test_disappeared_root_is_not_replaced_by_numeric_group_kill(self):
         child = self.child()
         child.kill()

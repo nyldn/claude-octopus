@@ -40,6 +40,21 @@ also passed 100/100. The docs suite passed 143/143 after removing obsolete
 counters that printed a false failure section. Exact-head hosted checks and
 approval are still required before merge.
 
+The native-cancellation implementation was pushed as
+`a4120376468a1591bdda8ec1f06dbacdb8e89132`. Hosted Ubuntu unit checks passed
+all 325 ordinary suites, including 20 native process-control cases in 0.16
+seconds. Both macOS unit shards passed as well. Integration checks were still
+running at that checkpoint. A final shared PID-range guard rejects values
+outside native signed `pid_t` before conversion. Its boundary regression failed
+before the guard and passes afterward; native checks now pass 21/21 and
+orchestration checks pass 33/33. A fresh review of this bounded final change
+returned `NO ACTIONABLE FINDINGS`. Hosted checks must follow the final head.
+
+Separate follow-up `oco-imu` records the hosted review's large truncated
+specialist prompts and unavailable Codex verifier. Its PID-validation and
+prefix-pruning warnings were checked against the implementation and rejected;
+the shared validator and delimiter-qualified prune callers already cover them.
+
 Tracking: use the repository issue tracker and checked-in implementation
 documentation as the source of truth. Do not put private checkout paths,
 credentials, or host-specific state in this public handoff.
