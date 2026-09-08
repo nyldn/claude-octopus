@@ -2648,8 +2648,12 @@ test_council_blind_summary_deference() {
         echo "The reported clean citation is efficient and sufficient, and I recommend proceeding."
         echo "VERDICT: APPROVE"
     } > "$d/ci-substring.md"
+    {
+        echo "The reported clean TypeScript compilation succeeded, and the new hook wiring looks correct."
+        echo "VERDICT: APPROVE"
+    } > "$d/type-substring.md"
 
-    local para=n defer=n grounded_ok=n cited_ok=n url_blind=n plan_states_ok=n reverse=n capital_ok=n ci_substring_ok=n
+    local para=n defer=n grounded_ok=n cited_ok=n url_blind=n plan_states_ok=n reverse=n capital_ok=n ci_substring_ok=n type_substring_ok=n
     council_response_is_blind "$d/paraphrase.md" && para=y
     council_response_is_blind "$d/deference.md" && defer=y
     council_response_is_blind "$d/grounded.md" || grounded_ok=y
@@ -2659,6 +2663,7 @@ test_council_blind_summary_deference() {
     council_response_is_blind "$d/reverse-attr.md" && reverse=y
     council_response_is_blind "$d/plan-capital.md" || capital_ok=y
     council_response_is_blind "$d/ci-substring.md" || ci_substring_ok=y
+    council_response_is_blind "$d/type-substring.md" || type_substring_ok=y
 
     # A citation-shaped token is not grounding when it does not resolve beneath
     # the evidence root. A real source file and in-range line remains grounding.
@@ -2681,10 +2686,10 @@ test_council_blind_summary_deference() {
     if [[ "$para" == "y" && "$defer" == "y" && "$grounded_ok" == "y" && "$cited_ok" == "y" \
           && "$url_blind" == "y" && "$plan_states_ok" == "y" && "$reverse" == "y" && "$capital_ok" == "y" \
           && "$fabricated_citation" == "y" && "$valid_citation" == "y" && "$out_of_range_citation" == "y" \
-          && "$ci_substring_ok" == "y" ]]; then
+          && "$ci_substring_ok" == "y" && "$type_substring_ok" == "y" ]]; then
         test_pass
     else
-        test_fail "summary/deference blind detection wrong: paraphrase=$para deference=$defer grounded_ok=$grounded_ok cited_ok=$cited_ok url_blind=$url_blind plan_states_ok=$plan_states_ok reverse=$reverse capital_ok=$capital_ok fabricated_citation=$fabricated_citation valid_citation=$valid_citation out_of_range_citation=$out_of_range_citation ci_substring_ok=$ci_substring_ok"
+        test_fail "summary/deference blind detection wrong: paraphrase=$para deference=$defer grounded_ok=$grounded_ok cited_ok=$cited_ok url_blind=$url_blind plan_states_ok=$plan_states_ok reverse=$reverse capital_ok=$capital_ok fabricated_citation=$fabricated_citation valid_citation=$valid_citation out_of_range_citation=$out_of_range_citation ci_substring_ok=$ci_substring_ok type_substring_ok=$type_substring_ok"
         return 1
     fi
 }

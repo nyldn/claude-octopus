@@ -2137,7 +2137,7 @@ council_response_defers_without_reading() {
             summary_reliance = ($0 ~ ("the[[:space:]]+summary[[:space:]]+(confirms|states|indicates|reports|notes|says|claims|shows|verifies|mitigat[a-z]*)[^.!?;]{0,80}" ct) \
                 || $0 ~ (ct "[^.!?;]{0,80}(as[[:space:]]+stated[[:space:]]+in|according[[:space:]]+to|per)[[:space:]]+(the[[:space:]]+)?summary") \
                 || $0 ~ /(^|[^[:alnum:]_])(i|we|my|our)[^.!?;]{0,40}(constraints?|restrictions?|rules|permissions?|sandbox)[[:space:]]+(prevent|restrict|prohibit|preclude|block)[a-z]*[^.!?;]{0,50}(verif|read|access|inspect|examin|confirm|review)/ \
-                || $0 ~ /(reported|stated|claimed)[[:space:]]+(clean|passing)[[:space:]]+((tsc|lint|test)([^[:alnum:]]|$)|ci([^[:alnum:]]|$)|type)/)
+                || $0 ~ /(reported|stated|claimed)[[:space:]]+(clean|passing)[[:space:]]+((tsc|lint|test)([^[:alnum:]]|$)|ci([^[:alnum:]]|$)|type([^[:alnum:]]|$)))/)
             prior_deference = ($0 ~ /(given|based on|relying on|because of|considering)[^.!?;]{0,70}(previous|prior|earlier)[[:space:]]+(rounds?|reviews?|validations?|phases?)/ \
                 || $0 ~ /(passed|cleared|survived)[^.!?;]{0,50}(phase[[:space:]]*[0-9]+|staged|rigorous)[^.!?;]{0,25}(reviews?|validations?|gates?|checks?)/ \
                 || $0 ~ /((test[[:space:]]+suite|tsc|lint)([^[:alnum:]]|$)|ci([^[:alnum:]]|$))[^.!?;]{0,40}(clean|passing|green)[^.!?;]{0,90}(recommend|proceed|approv|no[[:space:]]+(other[[:space:]]+)?(material[[:space:]]+)?(flaws?|issues?|concerns?))/)
