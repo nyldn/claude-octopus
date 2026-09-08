@@ -2038,7 +2038,15 @@ council_response_has_access_failure() {
     # source filenames and numeric versions; a genuine sentence boundary such as
     # "file.However" must remain a boundary even when whitespace is missing.
     local normalized_without_urls
-    normalized_without_urls="$(tr '\n' ' ' < "$f" | tr -s '[:space:]' ' ' \
+    normalized_without_urls="$(awk '
+        NR == 1 { previous = $0; next }
+        {
+            separator = ($0 ~ /^[[:space:]]*([-*][[:space:]]+|[0-9]+[.)][[:space:]]+)/) ? "; " : " "
+            printf "%s%s", previous, separator
+            previous = $0
+        }
+        END { print previous }
+    ' "$f" | tr -s '[:space:]' ' ' \
         | tr '[:upper:]' '[:lower:]' \
         | sed -E \
             -e 's#https?://[^[:space:]]*([.!?;])([[:space:]]|$)#\1\2#g' \
@@ -2096,8 +2104,8 @@ council_response_defers_without_reading() {
     # citations eligible for this blind-seat gate. If the live validator is
     # unavailable, preserve the prose-only exemption rather than treating its
     # empty result as proof that the citation is fabricated.
-    local source_extension_pattern='tsx?|jsx?|mjs|cjs|css|scss|sass|less|html?|vue|svelte|py|go|rb|rs|java|kt|swift|cc?|cpp|cxx|hh?|hpp|sh|bash|zsh|sql|ya?ml|toml|jsonc?|mdx?|php|pl|lua|exs?|scala|dart|mm?|jl|tf|r'
-    if grep -ciE "\\.(${source_extension_pattern})[[:space:]]*:[0-9]+" <<< "$normalized_without_urls" >/dev/null; then
+    local source_extension_pattern='tsx?|jsx?|mjs|cjs|css|scss|sass|less|html?|vue|svelte|py|go|rb|rs|java|kt|swift|cs|cc?|cpp|cxx|hh?|hpp|sh|bash|zsh|ps1|sql|ya?ml|toml|jsonc?|xml|proto|graphql|gql|ini|cfg|conf|env|gradle|mdx?|php|pl|lua|exs?|scala|dart|mm?|jl|tf|r'
+    if grep -ciE "\\.(${source_extension_pattern})[[:space:]]*:[[:space:]]*[0-9]+" <<< "$normalized_without_urls" >/dev/null; then
         if [[ -z "$evidence_root" || ! -d "$evidence_root" ]] || ! command -v python3 >/dev/null 2>&1; then
             return 1
         fi
@@ -2140,7 +2148,7 @@ council_response_defers_without_reading() {
                 || $0 ~ /(reported|stated|claimed)[[:space:]]+(clean|passing)[[:space:]]+((tsc|lint|test)([^[:alnum:]_]|$)|ci([^[:alnum:]_]|$)|type([^[:alnum:]_]|$)))/)
             prior_deference = ($0 ~ /(given|based on|relying on|because of|considering)[^.!?;]{0,70}(previous|prior|earlier)[[:space:]]+(rounds?|reviews?|validations?|phases?)/ \
                 || $0 ~ /(passed|cleared|survived)[^.!?;]{0,50}(phase[[:space:]]*[0-9]+|staged|rigorous)[^.!?;]{0,25}(reviews?|validations?|gates?|checks?)/ \
-                || $0 ~ /((test[[:space:]]+suite|tsc|lint)([^[:alnum:]]|$)|ci([^[:alnum:]]|$))[^.!?;]{0,40}(clean|passing|green)[^.!?;]{0,90}(recommend|proceed|approv|no[[:space:]]+(other[[:space:]]+)?(material[[:space:]]+)?(flaws?|issues?|concerns?))/)
+                || $0 ~ /((^|[^[:alnum:]_])test[[:space:]]+suite([^[:alnum:]_]|$)|(^|[^[:alnum:]_])(tsc|lint|ci)([^[:alnum:]_]|$))[^.!?;]{0,40}(clean|passing|green)[^.!?;]{0,90}(recommend|proceed|approv|no[[:space:]]+(other[[:space:]]+)?(material[[:space:]]+)?(flaws?|issues?|concerns?))/)
             if (summary_reliance || prior_deference) found=1
         }
         END { exit(found ? 0 : 1) }
@@ -2210,12 +2218,12 @@ from pathlib import Path
 
 response = Path(sys.argv[1])
 root = Path(sys.argv[2]).resolve()
-pattern = re.compile(r"(?<![A-Za-z0-9_./-])([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9]*):([0-9]+)(?:-([0-9]+))?(?![A-Za-z0-9_/-])")
+pattern = re.compile(r"(?<![A-Za-z0-9_./-])([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9]*)\s*:\s*([0-9]+)(?:-([0-9]+))?(?![A-Za-z0-9_/-])")
 validated = []
 seen = set()
 file_facts = {}
 for raw_path, raw_start, raw_end in pattern.findall(response.read_text(encoding="utf-8", errors="replace")):
-    relative = Path(raw_path)
+    relative = Path(raw_path.strip())
     if relative.is_absolute() or ".." in relative.parts:
         continue
     try:

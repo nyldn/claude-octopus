@@ -22,6 +22,10 @@
   sentence and severed the first-person clause from the access-failure clause.
   Flagged seats are excluded from the approving tally and recorded in
   `summary.json` `quorum.blind_seats` like any other blind seat.
+- Harden evidence-aware grounding against substring and markdown-boundary false
+  positives, recognize common source/configuration extensions and flexible
+  citation spacing, and validate citation ranges before a seat can count toward
+  quorum.
 
 ### Added
 
