@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.3.0] - 2026-09-08
+
 ### Fixed
 
 - Council blind-seat detection now catches two further "reviewed nothing"
