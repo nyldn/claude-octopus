@@ -2087,17 +2087,21 @@ council_response_defers_without_reading() {
     # A concrete SOURCE file:line citation is the grounding signal. Match only
     # real source extensions, and only AFTER stripping URLs, so a URL port
     # (https://example.com:443) or a doc/host token is never mistaken for
-    # evidence (CodeRabbit #1017). This is a prose signal, not a filesystem
-    # check — councils also review plans/PRDs that have no source tree, and the
-    # disposable workspace is gone by classification time, so a cited path cannot
-    # be resolved; the phrase gate below is the primary discriminator.
-    if grep -ciE '\.(tsx?|jsx?|mjs|cjs|css|scss|sass|less|html?|vue|svelte|py|go|rb|rs|java|kt|swift|cc?|cpp|cxx|hh?|hpp|sh|bash|zsh|sql|ya?ml|toml|jsonc?|mdx?|php|pl|lua|exs?|scala|dart|mm?|jl|tf|r)[[:space:]]*:[0-9]+' <<< "$normalized_without_urls" >/dev/null; then
-        if [[ -z "$evidence_root" ]]; then
+    # evidence (CodeRabbit #1017). A live source tree turns this prose signal
+    # into an evidence check. Keep the extension allowlist aligned with the
+    # citations eligible for this blind-seat gate. If the live validator is
+    # unavailable, preserve the prose-only exemption rather than treating its
+    # empty result as proof that the citation is fabricated.
+    local source_extension_pattern='tsx?|jsx?|mjs|cjs|css|scss|sass|less|html?|vue|svelte|py|go|rb|rs|java|kt|swift|cc?|cpp|cxx|hh?|hpp|sh|bash|zsh|sql|ya?ml|toml|jsonc?|mdx?|php|pl|lua|exs?|scala|dart|mm?|jl|tf|r'
+    if grep -ciE "\\.(${source_extension_pattern})[[:space:]]*:[0-9]+" <<< "$normalized_without_urls" >/dev/null; then
+        if [[ -z "$evidence_root" || ! -d "$evidence_root" ]] || ! command -v python3 >/dev/null 2>&1; then
             return 1
         fi
         local validated_evidence
         validated_evidence="$(council_response_evidence_paths_json "$f" "$evidence_root")" || validated_evidence='[]'
-        if [[ "$(jq 'length' <<< "$validated_evidence" 2>/dev/null || printf 0)" -gt 0 ]]; then
+        local validated_source_evidence
+        validated_source_evidence="$(jq --arg ext "\\.(${source_extension_pattern})$" '[.[] | select(.path | test($ext))]' <<< "$validated_evidence" 2>/dev/null || printf '[]')"
+        if [[ "$(jq 'length' <<< "$validated_source_evidence" 2>/dev/null || printf 0)" -gt 0 ]]; then
             return 1
         fi
     fi
