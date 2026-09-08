@@ -2668,8 +2668,10 @@ test_council_blind_summary_deference() {
     # A citation-shaped token is not grounding when it does not resolve beneath
     # the evidence root. A real source file and in-range line remains grounding.
     local evidence_root="$d/evidence" fabricated_citation=n valid_citation=n out_of_range_citation=n
+    local valid_range_citation=n out_of_range_range_citation=n reversed_range_citation=n
     mkdir -p "$evidence_root/src"
     printf 'const value = 1;\n' > "$evidence_root/src/real.tsx"
+    printf 'const first = 1;\nconst second = 2;\n' > "$evidence_root/src/range.tsx"
     printf '%s\n' \
         'The summary confirms the implementation is correct at made-up.ts:1.' \
         'VERDICT: APPROVE' > "$d/fabricated-citation.md"
@@ -2679,17 +2681,30 @@ test_council_blind_summary_deference() {
     printf '%s\n' \
         'The summary confirms the implementation is correct at src/real.tsx:2.' \
         'VERDICT: APPROVE' > "$d/out-of-range-citation.md"
+    printf '%s\n' \
+        'The summary confirms the implementation is correct at src/range.tsx:1-2.' \
+        'VERDICT: APPROVE' > "$d/valid-range-citation.md"
+    printf '%s\n' \
+        'The summary confirms the implementation is correct at src/range.tsx:1-3.' \
+        'VERDICT: APPROVE' > "$d/out-of-range-range-citation.md"
+    printf '%s\n' \
+        'The summary confirms the implementation is correct at src/range.tsx:2-1.' \
+        'VERDICT: APPROVE' > "$d/reversed-range-citation.md"
     council_response_is_blind "$d/fabricated-citation.md" "$evidence_root" && fabricated_citation=y
     council_response_is_blind "$d/valid-citation.md" "$evidence_root" || valid_citation=y
     council_response_is_blind "$d/out-of-range-citation.md" "$evidence_root" && out_of_range_citation=y
+    council_response_is_blind "$d/valid-range-citation.md" "$evidence_root" || valid_range_citation=y
+    council_response_is_blind "$d/out-of-range-range-citation.md" "$evidence_root" && out_of_range_range_citation=y
+    council_response_is_blind "$d/reversed-range-citation.md" "$evidence_root" && reversed_range_citation=y
 
     if [[ "$para" == "y" && "$defer" == "y" && "$grounded_ok" == "y" && "$cited_ok" == "y" \
           && "$url_blind" == "y" && "$plan_states_ok" == "y" && "$reverse" == "y" && "$capital_ok" == "y" \
           && "$fabricated_citation" == "y" && "$valid_citation" == "y" && "$out_of_range_citation" == "y" \
+          && "$valid_range_citation" == "y" && "$out_of_range_range_citation" == "y" && "$reversed_range_citation" == "y" \
           && "$ci_substring_ok" == "y" && "$type_substring_ok" == "y" ]]; then
         test_pass
     else
-        test_fail "summary/deference blind detection wrong: paraphrase=$para deference=$defer grounded_ok=$grounded_ok cited_ok=$cited_ok url_blind=$url_blind plan_states_ok=$plan_states_ok reverse=$reverse capital_ok=$capital_ok fabricated_citation=$fabricated_citation valid_citation=$valid_citation out_of_range_citation=$out_of_range_citation ci_substring_ok=$ci_substring_ok type_substring_ok=$type_substring_ok"
+        test_fail "summary/deference blind detection wrong: paraphrase=$para deference=$defer grounded_ok=$grounded_ok cited_ok=$cited_ok url_blind=$url_blind plan_states_ok=$plan_states_ok reverse=$reverse capital_ok=$capital_ok fabricated_citation=$fabricated_citation valid_citation=$valid_citation out_of_range_citation=$out_of_range_citation valid_range_citation=$valid_range_citation out_of_range_range_citation=$out_of_range_range_citation reversed_range_citation=$reversed_range_citation ci_substring_ok=$ci_substring_ok type_substring_ok=$type_substring_ok"
         return 1
     fi
 }

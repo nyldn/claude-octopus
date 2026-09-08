@@ -2210,11 +2210,11 @@ from pathlib import Path
 
 response = Path(sys.argv[1])
 root = Path(sys.argv[2]).resolve()
-pattern = re.compile(r"(?<![A-Za-z0-9_./-])([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9]*):([0-9]+)(?![0-9])")
+pattern = re.compile(r"(?<![A-Za-z0-9_./-])([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9]*):([0-9]+)(?:-([0-9]+))?(?![0-9-])")
 validated = []
 seen = set()
 file_facts = {}
-for raw_path, raw_line in pattern.findall(response.read_text(encoding="utf-8", errors="replace")):
+for raw_path, raw_start, raw_end in pattern.findall(response.read_text(encoding="utf-8", errors="replace")):
     relative = Path(raw_path)
     if relative.is_absolute() or ".." in relative.parts:
         continue
@@ -2225,8 +2225,9 @@ for raw_path, raw_line in pattern.findall(response.read_text(encoding="utf-8", e
         continue
     if not candidate.is_file():
         continue
-    line = int(raw_line)
-    if line < 1:
+    start_line = int(raw_start)
+    end_line = int(raw_end or raw_start)
+    if start_line < 1 or end_line < start_line:
         continue
     if candidate not in file_facts:
         content = hashlib.sha256()
@@ -2237,10 +2238,10 @@ for raw_path, raw_line in pattern.findall(response.read_text(encoding="utf-8", e
                 line_count += 1
         file_facts[candidate] = (line_count, "sha256:" + content.hexdigest())
     line_count, content_digest = file_facts[candidate]
-    key = (relative.as_posix(), line)
-    if line <= line_count and key not in seen:
+    key = (relative.as_posix(), start_line)
+    if end_line <= line_count and key not in seen:
         seen.add(key)
-        validated.append({"path": key[0], "line": line, "content_digest": content_digest})
+        validated.append({"path": key[0], "line": start_line, "content_digest": content_digest})
 print(json.dumps(validated, separators=(",", ":")))
 PY
 }
