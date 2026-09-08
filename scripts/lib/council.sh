@@ -2218,7 +2218,7 @@ from pathlib import Path
 
 response = Path(sys.argv[1])
 root = Path(sys.argv[2]).resolve()
-pattern = re.compile(r"(?<![A-Za-z0-9_./-])([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9]*)\s*:\s*([0-9]+)(?:-([0-9]+))?(?![A-Za-z0-9_/-]|\.[A-Za-z0-9])")
+pattern = re.compile(r"(?<![A-Za-z0-9_./-])([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9]*)\s*:\s*([0-9]+)(?:-([0-9]+))?(?![A-Za-z0-9_/-]|\.(?:[A-Za-z0-9_/-]|\.))")
 validated = []
 seen = set()
 file_facts = {}

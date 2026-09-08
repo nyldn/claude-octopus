@@ -2690,7 +2690,7 @@ test_council_blind_summary_deference() {
     # the evidence root. A real source file and in-range line remains grounding.
     local evidence_root="$d/evidence" fabricated_citation=n valid_citation=n out_of_range_citation=n
     local valid_range_citation=n out_of_range_range_citation=n reversed_range_citation=n
-    local malformed_suffix_citation=n malformed_range_citation=n dotted_numeric_citation=n dotted_text_citation=n sentence_final_citation_ok=n uppercase_extension_ok=n config_extension_ok=n spaced_citation_ok=n
+    local malformed_suffix_citation=n malformed_range_citation=n dotted_numeric_citation=n dotted_text_citation=n dotted_identifier_citation=n dotted_run_citation=n sentence_final_citation_ok=n uppercase_extension_ok=n config_extension_ok=n spaced_citation_ok=n
     mkdir -p "$evidence_root/src"
     printf 'const value = 1;\n' > "$evidence_root/src/real.tsx"
     printf 'const first = 1;\nconst second = 2;\n' > "$evidence_root/src/range.tsx"
@@ -2728,6 +2728,12 @@ test_council_blind_summary_deference() {
         'The summary confirms the implementation is correct at src/range.tsx:1.foo.' \
         'VERDICT: APPROVE' > "$d/dotted-text-citation.md"
     printf '%s\n' \
+        'The summary confirms the implementation is correct at src/range.tsx:1._foo.' \
+        'VERDICT: APPROVE' > "$d/dotted-identifier-citation.md"
+    printf '%s\n' \
+        'The summary confirms the implementation is correct at src/range.tsx:1..foo.' \
+        'VERDICT: APPROVE' > "$d/dotted-run-citation.md"
+    printf '%s\n' \
         'The summary confirms the implementation is correct at src/range.tsx:1.' \
         'VERDICT: APPROVE' > "$d/sentence-final-citation.md"
     printf '%s\n' \
@@ -2749,6 +2755,8 @@ test_council_blind_summary_deference() {
     council_response_is_blind "$d/malformed-range-citation.md" "$evidence_root" && malformed_range_citation=y
     council_response_is_blind "$d/dotted-numeric-citation.md" "$evidence_root" && dotted_numeric_citation=y
     council_response_is_blind "$d/dotted-text-citation.md" "$evidence_root" && dotted_text_citation=y
+    council_response_is_blind "$d/dotted-identifier-citation.md" "$evidence_root" && dotted_identifier_citation=y
+    council_response_is_blind "$d/dotted-run-citation.md" "$evidence_root" && dotted_run_citation=y
     council_response_is_blind "$d/sentence-final-citation.md" "$evidence_root" || sentence_final_citation_ok=y
     council_response_is_blind "$d/uppercase-extension-citation.md" "$evidence_root" || uppercase_extension_ok=y
     council_response_is_blind "$d/config-extension-citation.md" "$evidence_root" || config_extension_ok=y
@@ -2763,12 +2771,13 @@ test_council_blind_summary_deference() {
           && "$ci_prior_substring_ok" == "y" && "$adjacent_bullets_ok" == "y" \
           && "$malformed_suffix_citation" == "y" && "$malformed_range_citation" == "y" \
           && "$dotted_numeric_citation" == "y" && "$dotted_text_citation" == "y" \
+          && "$dotted_identifier_citation" == "y" && "$dotted_run_citation" == "y" \
           && "$sentence_final_citation_ok" == "y" \
           && "$uppercase_extension_ok" == "y" && "$config_extension_ok" == "y" \
           && "$spaced_citation_ok" == "y" ]]; then
         test_pass
     else
-        test_fail "summary/deference blind detection wrong: paraphrase=$para defer=$defer grounded_ok=$grounded_ok cited_ok=$cited_ok url_blind=$url_blind plan_states_ok=$plan_states_ok reverse=$reverse capital_ok=$capital_ok fabricated_citation=$fabricated_citation valid_citation=$valid_citation out_of_range_citation=$out_of_range_citation valid_range_citation=$valid_range_citation out_of_range_range_citation=$out_of_range_range_citation reversed_range_citation=$reversed_range_citation malformed_suffix_citation=$malformed_suffix_citation malformed_range_citation=$malformed_range_citation dotted_numeric_citation=$dotted_numeric_citation dotted_text_citation=$dotted_text_citation sentence_final_citation_ok=$sentence_final_citation_ok uppercase_extension_ok=$uppercase_extension_ok config_extension_ok=$config_extension_ok spaced_citation_ok=$spaced_citation_ok ci_substring_ok=$ci_substring_ok type_substring_ok=$type_substring_ok ci_identifier_ok=$ci_identifier_ok type_identifier_ok=$type_identifier_ok ci_prior_substring_ok=$ci_prior_substring_ok adjacent_bullets_ok=$adjacent_bullets_ok"
+        test_fail "summary/deference blind detection wrong: paraphrase=$para defer=$defer grounded_ok=$grounded_ok cited_ok=$cited_ok url_blind=$url_blind plan_states_ok=$plan_states_ok reverse=$reverse capital_ok=$capital_ok fabricated_citation=$fabricated_citation valid_citation=$valid_citation out_of_range_citation=$out_of_range_citation valid_range_citation=$valid_range_citation out_of_range_range_citation=$out_of_range_range_citation reversed_range_citation=$reversed_range_citation malformed_suffix_citation=$malformed_suffix_citation malformed_range_citation=$malformed_range_citation dotted_numeric_citation=$dotted_numeric_citation dotted_text_citation=$dotted_text_citation dotted_identifier_citation=$dotted_identifier_citation dotted_run_citation=$dotted_run_citation sentence_final_citation_ok=$sentence_final_citation_ok uppercase_extension_ok=$uppercase_extension_ok config_extension_ok=$config_extension_ok spaced_citation_ok=$spaced_citation_ok ci_substring_ok=$ci_substring_ok type_substring_ok=$type_substring_ok ci_identifier_ok=$ci_identifier_ok type_identifier_ok=$type_identifier_ok ci_prior_substring_ok=$ci_prior_substring_ok adjacent_bullets_ok=$adjacent_bullets_ok"
         return 1
     fi
 }
