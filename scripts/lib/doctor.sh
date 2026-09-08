@@ -318,10 +318,10 @@ cmd_update_clis() {
         local codex_ver
         codex_ver=$(codex --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
         echo -e "  ${GREEN}✓${NC} Codex CLI updated to v${codex_ver}"
-        ((updated++))
+        ((updated++)) || true
     else
         echo -e "  ${RED}✗${NC} Codex CLI update failed. Try manually: npm install -g @openai/codex"
-        ((failed++))
+        ((failed++)) || true
     fi
     echo ""
 
@@ -331,10 +331,10 @@ cmd_update_clis() {
         local agy_ver
         agy_ver=$(agy --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
         echo -e "  ${GREEN}✓${NC} Antigravity CLI updated to v${agy_ver}"
-        ((updated++))
+        ((updated++)) || true
     else
         echo -e "  ${RED}✗${NC} Antigravity CLI update failed or agy is not installed. Try manually: agy update"
-        ((failed++))
+        ((failed++)) || true
     fi
     echo ""
 
@@ -1658,7 +1658,7 @@ doctor_check_recurrence() {
                     line_epoch=$(date -d "$ts" +%s 2>/dev/null || echo "0")
                 fi
                 if [[ "$line_epoch" -ge "$cutoff_epoch" ]]; then
-                    ((recent_failures++))
+                    ((recent_failures++)) || true
                 fi
             fi
         done < <(grep '"type":"quality-gate"' "$jsonl_file" 2>/dev/null || true)
