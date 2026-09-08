@@ -23,6 +23,22 @@
   Flagged seats are excluded from the approving tally and recorded in
   `summary.json` `quorum.blind_seats` like any other blind seat.
 
+### Added
+
+- Council `--context-file <path>` (repeatable): inline a referenced artifact
+  (e.g. a working-tree diff) into every seat prompt as untrusted data. Council
+  seats default to `permissionMode: "plan"` with no file tools, so a task that
+  merely names a path cannot be read by the seat — it reviews the surrounding
+  prose and produces an ungrounded verdict. This hands the seat the bytes
+  directly (least-privilege: no file tools, no skip-permissions), control-char
+  sanitized like research context and bounded by `COUNCIL_CONTEXT_MAX_BYTES`
+  (default 128 KiB) with an explicit truncation notice so a partial artifact is
+  never mistaken for the whole. The content is fenced with an unforgeable
+  per-artifact nonce delimiter (same technique as `sanitize_external_content`)
+  and only the sanitized basename is shown, so inlined content or a crafted path
+  cannot break out and forge an authoritative block — safer than a caller
+  inlining a diff into the authoritative task string.
+
 ## [11.2.1] - 2026-09-07
 
 ### Fixed
