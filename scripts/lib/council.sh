@@ -1885,7 +1885,10 @@ council_response_is_substantive() {
     #      merely quotes such a phrase is never rejected.
     # (RATIONALE: sail-cruisey #1839 — agy's "I cannot access the implementation
     # plan, PRD, or security audit files" REVISE was counted as the 2nd provider.)
-    local f="$1"
+    # A live evidence root lets the detector distinguish a real citation from
+    # a fabricated file:line token. Standalone callers may omit it for plan or
+    # PRD reviews that have no source tree.
+    local f="$1" evidence_root="${2:-}"
     [[ -f "$f" ]] || return 1
 
     # 1) Host self-dispatch stub — runner-emitted, exact match. (grep -c … >/dev/null,
@@ -1910,7 +1913,7 @@ council_response_is_substantive() {
     #    be scored as a substantive responder. Fold it in here so the single
     #    substantive gate the quorum tally keys on and the advice-phase `blind` label
     #    agree; the advice phase still re-tests is_blind to label it distinctly.
-    if council_response_is_blind "$f"; then
+    if council_response_is_blind "$f" "$evidence_root"; then
         return 1
     fi
 
@@ -1927,7 +1930,7 @@ council_response_is_blind() {
     # round instead of eating several. First-person access failure is checked
     # independently of length; less-specific refusal and permission shapes remain
     # brevity-gated to protect genuine reviews that discuss those failures.
-    local f="$1"
+    local f="$1" evidence_root="${2:-}"
     [[ -f "$f" ]] || return 1
 
     # A first-person access failure is authoritative. Citation-shaped prose is not
@@ -1942,7 +1945,7 @@ council_response_is_blind() {
     # rather than on reading the artifact, and it cites no real source location.
     # Gated on zero file:line citations so a grounded review is never flagged
     # (sail-cruisey #2570 paraphrase, #2463 prior-phase deference).
-    if council_response_defers_without_reading "$f"; then
+    if council_response_defers_without_reading "$f" "$evidence_root"; then
         return 0
     fi
 
@@ -2006,8 +2009,9 @@ council_response_defers_without_reading() {
     # file:line, so it is never flagged for merely mentioning a summary or a prior
     # round. The colon citation form is deliberately the ONLY grounding signal
     # here — prose "lines 251-263" or a bare filename can be copied from the
-    # plan/summary without reading it (#2463 does exactly that).
-    local f="$1"
+    # plan/summary without reading it (#2463 does exactly that). When an
+    # evidence root is available, the cited path must also resolve beneath it.
+    local f="$1" evidence_root="${2:-}"
     [[ -f "$f" ]] || return 1
 
     local normalized_without_urls
@@ -2025,7 +2029,14 @@ council_response_defers_without_reading() {
     # disposable workspace is gone by classification time, so a cited path cannot
     # be resolved; the phrase gate below is the primary discriminator.
     if grep -ciE '\.(tsx?|jsx?|mjs|cjs|css|scss|sass|less|html?|vue|svelte|py|go|rb|rs|java|kt|swift|cc?|cpp|cxx|hh?|hpp|sh|bash|zsh|sql|ya?ml|toml|jsonc?|mdx?|php|pl|lua|exs?|scala|dart|mm?|jl|tf|r)[[:space:]]*:[0-9]+' <<< "$normalized_without_urls" >/dev/null; then
-        return 1
+        if [[ -z "$evidence_root" ]]; then
+            return 1
+        fi
+        local validated_evidence
+        validated_evidence="$(council_response_evidence_paths_json "$f" "$evidence_root")" || validated_evidence='[]'
+        if [[ "$(jq 'length' <<< "$validated_evidence" 2>/dev/null || printf 0)" -gt 0 ]]; then
+            return 1
+        fi
     fi
 
     # Code-level verification token, wrapped in word boundaries so a code term is
@@ -2243,7 +2254,7 @@ council_contribution_record_json() {
     local verdict="" evidence='[]' access_state="unverified" validation_result="invalid-empty"
     if council_response_nonempty "$response_path"; then
         verdict="$(council_response_verdict "$response_path")"
-        if council_response_is_blind "$response_path"; then
+        if council_response_is_blind "$response_path" "$evidence_root"; then
             access_state="failed"
             validation_result="invalid-access"
         elif ! council_response_has_verdict "$response_path"; then
@@ -2430,7 +2441,7 @@ council_run_advice_phase() {
         # the seat finished writing right at the boundary. Salvage that instead of
         # discarding a usable verdict as a provider shortage (sail-cruisey #2077).
         if council_response_nonempty "$output_path" \
-                && council_response_is_substantive "$output_path" \
+                && council_response_is_substantive "$output_path" "$evidence_root" \
                 && { (( dispatch_rc == 0 )) || council_response_has_verdict "$output_path"; }; then
             COUNCIL_RESPONSES_RECEIVED=$((COUNCIL_RESPONSES_RECEIVED + 1))
             resp_bytes="$(wc -c < "$output_path" 2>/dev/null | tr -d '[:space:]')"; [[ -z "$resp_bytes" ]] && resp_bytes=0
@@ -2464,11 +2475,11 @@ council_run_advice_phase() {
             fi
         elif council_response_nonempty "$output_path"; then
             resp_bytes="$(wc -c < "$output_path" 2>/dev/null | tr -d '[:space:]')"; [[ -z "$resp_bytes" ]] && resp_bytes=0
-            if council_response_is_substantive "$output_path"; then
+            if council_response_is_substantive "$output_path" "$evidence_root"; then
                 # A timed-out/truncated review without a final verdict is preserved
                 # for diagnosis, but cannot count as a response or approver.
                 seat_status="no-response"
-            elif council_response_is_blind "$output_path"; then
+            elif council_response_is_blind "$output_path" "$evidence_root"; then
                 # Returned a verdict without reading the artifact (no file tools /
                 # permission). Label it distinctly and surface which provider, so
                 # the operator can switch its mode after ROUND ONE, not round six.
@@ -2631,7 +2642,7 @@ council_run_chair_fallback() {
         # diagnosis, but must not masquerade as a recovered chair response.
         if [[ -n "$existing_response" ]] \
                 && council_response_nonempty "$existing_response" \
-                && council_response_is_substantive "$existing_response" \
+                && council_response_is_substantive "$existing_response" "$evidence_root" \
                 && jq -e --arg persona "$persona" \
                     'any(.[]; .persona == $persona and .status == "responded")' \
                     <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}" >/dev/null; then
@@ -2654,7 +2665,7 @@ council_run_chair_fallback() {
         council_dispatch_member_detached "$member_json" "independent-advice" "$output_path" || dispatch_rc=$?
         dispatch_timeout_provenance="$COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE"
         if council_response_nonempty "$output_path" \
-                && council_response_is_substantive "$output_path" \
+                && council_response_is_substantive "$output_path" "$evidence_root" \
                 && { (( dispatch_rc == 0 )) || council_response_has_verdict "$output_path"; }; then
             COUNCIL_RESPONSES_RECEIVED=$((COUNCIL_RESPONSES_RECEIVED + 1))
             COUNCIL_CHAIR_RESPONSE_RECEIVED="true"

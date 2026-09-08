@@ -2521,11 +2521,26 @@ test_council_blind_summary_deference() {
     council_response_is_blind "$d/reverse-attr.md" && reverse=y
     council_response_is_blind "$d/plan-capital.md" || capital_ok=y
 
+    # A citation-shaped token is not grounding when it does not resolve beneath
+    # the evidence root. A real source file and in-range line remains grounding.
+    local evidence_root="$d/evidence" fabricated_citation=n valid_citation=n
+    mkdir -p "$evidence_root/src"
+    printf 'const value = 1;\n' > "$evidence_root/src/real.tsx"
+    printf '%s\n' \
+        'The summary confirms the implementation is correct at made-up.ts:1.' \
+        'VERDICT: APPROVE' > "$d/fabricated-citation.md"
+    printf '%s\n' \
+        'The summary confirms the implementation is correct at src/real.tsx:1.' \
+        'VERDICT: APPROVE' > "$d/valid-citation.md"
+    council_response_is_blind "$d/fabricated-citation.md" "$evidence_root" && fabricated_citation=y
+    council_response_is_blind "$d/valid-citation.md" "$evidence_root" || valid_citation=y
+
     if [[ "$para" == "y" && "$defer" == "y" && "$grounded_ok" == "y" && "$cited_ok" == "y" \
-          && "$url_blind" == "y" && "$plan_states_ok" == "y" && "$reverse" == "y" && "$capital_ok" == "y" ]]; then
+          && "$url_blind" == "y" && "$plan_states_ok" == "y" && "$reverse" == "y" && "$capital_ok" == "y" \
+          && "$fabricated_citation" == "y" && "$valid_citation" == "y" ]]; then
         test_pass
     else
-        test_fail "summary/deference blind detection wrong: paraphrase=$para deference=$defer grounded_ok=$grounded_ok cited_ok=$cited_ok url_blind=$url_blind plan_states_ok=$plan_states_ok reverse=$reverse capital_ok=$capital_ok"
+        test_fail "summary/deference blind detection wrong: paraphrase=$para deference=$defer grounded_ok=$grounded_ok cited_ok=$cited_ok url_blind=$url_blind plan_states_ok=$plan_states_ok reverse=$reverse capital_ok=$capital_ok fabricated_citation=$fabricated_citation valid_citation=$valid_citation"
         return 1
     fi
 }
