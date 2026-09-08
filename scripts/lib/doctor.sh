@@ -1580,12 +1580,18 @@ doctor_check_agents() {
         if [[ -n "$cli_output" ]]; then
             local cli_count
             if command -v jq >/dev/null 2>&1; then
-                cli_count=$(printf '%s' "$cli_output" | jq 'length' 2>/dev/null) || cli_count=0
+                if cli_count=$(printf '%s' "$cli_output" | jq 'length' 2>/dev/null); then
+                    doctor_add "agents-cli" "agents" "pass" \
+                        "Claude agents CLI: ${cli_count} agents registered" ""
+                else
+                    doctor_add "agents-cli" "agents" "warn" \
+                        "Claude agents CLI returned unparseable output" "Run 'claude agents --json' manually"
+                fi
             else
-                cli_count=$(printf '%s' "$cli_output" | grep -c '"sessionId"') || cli_count=0
+                cli_count=$(printf '%s' "$cli_output" | grep -o '"sessionId"' | wc -l | tr -d '[:space:]')
+                doctor_add "agents-cli" "agents" "pass" \
+                    "Claude agents CLI: ${cli_count} agents registered" ""
             fi
-            doctor_add "agents-cli" "agents" "pass" \
-                "Claude agents CLI: ${cli_count} agents registered" ""
         else
             doctor_add "agents-cli" "agents" "warn" \
                 "Claude agents CLI returned no data" "Run 'claude agents --json' manually"
