@@ -2034,18 +2034,22 @@ council_response_has_access_failure() {
 
     # Normalize wrapping, then evaluate one sentence/clause at a time. This
     # catches Markdown line wraps without letting a first-person sentence attach
-    # to a later third-person access report. A period between two alphanumerics is
-    # part of a token (a filename like WatcherDashboard.test.tsx, a version like
-    # 1.0.4), NOT a sentence end — neutralize those to a space first, or the
-    # sentence split would sever "I am assuming ... <file>" from "... file access
-    # is restricted" and miss the admission (sail-cruisey #2459).
+    # to a later third-party access report. Neutralize dots only inside known
+    # source filenames and numeric versions; a genuine sentence boundary such as
+    # "file.However" must remain a boundary even when whitespace is missing.
     local normalized_without_urls
     normalized_without_urls="$(tr '\n' ' ' < "$f" | tr -s '[:space:]' ' ' \
         | tr '[:upper:]' '[:lower:]' \
         | sed -E \
             -e 's#https?://[^[:space:]]*([.!?;])([[:space:]]|$)#\1\2#g' \
             -e 's#https?://[^[:space:]]+##g' \
-            -e ':dot' -e 's#([[:alnum:]])\.([[:alnum:]])#\1 \2#g' -e 'tdot')"
+            -e ':filename' \
+            -e 's#([[:alnum:]_/-]+)\.([[:alnum:]_-]+\.(tsx?|jsx?|mjs|cjs|css|scss|sass|less|html?|vue|svelte|py|go|rb|rs|java|kt|swift|cc?|cpp|cxx|hh?|hpp|sh|bash|zsh|sql|ya?ml|toml|jsonc?|mdx?|php|pl|lua|exs?|scala|dart|mm?|jl|tf|r))#\1__OCTO_DOT__\2#g' \
+            -e 'tfilename' \
+            -e 's#([[:alnum:]_/-]+)\.(tsx?|jsx?|mjs|cjs|css|scss|sass|less|html?|vue|svelte|py|go|rb|rs|java|kt|swift|cc?|cpp|cxx|hh?|hpp|sh|bash|zsh|sql|ya?ml|toml|jsonc?|mdx?|php|pl|lua|exs?|scala|dart|mm?|jl|tf|r)([^[:alnum:]_]|$)#\1__OCTO_DOT__\2\3#g' \
+            -e ':version' \
+            -e 's#([0-9]+)\.([0-9]+)#\1__OCTO_DOT__\2#g' \
+            -e 'tversion')"
     printf '%s\n' "$normalized_without_urls" | awk '
         BEGIN { RS="[.!?;]+"; found=0 }
         {
@@ -2132,11 +2136,11 @@ council_response_defers_without_reading() {
             # summary" (api ⊂ capital) is not misread as a code claim.
             summary_reliance = ($0 ~ ("the[[:space:]]+summary[[:space:]]+(confirms|states|indicates|reports|notes|says|claims|shows|verifies|mitigat[a-z]*)[^.!?;]{0,80}" ct) \
                 || $0 ~ (ct "[^.!?;]{0,80}(as[[:space:]]+stated[[:space:]]+in|according[[:space:]]+to|per)[[:space:]]+(the[[:space:]]+)?summary") \
-                || $0 ~ /(constraints?|restrictions?|rules|permissions?|sandbox)[[:space:]]+(prevent|restrict|prohibit|preclude|block)[a-z]*[^.!?;]{0,50}(verif|read|access|inspect|examin|confirm|review)/ \
-                || $0 ~ /(reported|stated|claimed)[[:space:]]+(clean|passing)[[:space:]]+(tsc|lint|test|ci|type)/)
+                || $0 ~ /(^|[^[:alnum:]_])(i|we|my|our)[^.!?;]{0,40}(constraints?|restrictions?|rules|permissions?|sandbox)[[:space:]]+(prevent|restrict|prohibit|preclude|block)[a-z]*[^.!?;]{0,50}(verif|read|access|inspect|examin|confirm|review)/ \
+                || $0 ~ /(reported|stated|claimed)[[:space:]]+(clean|passing)[[:space:]]+((tsc|lint|test)([^[:alnum:]]|$)|ci([^[:alnum:]]|$)|type)/)
             prior_deference = ($0 ~ /(given|based on|relying on|because of|considering)[^.!?;]{0,70}(previous|prior|earlier)[[:space:]]+(rounds?|reviews?|validations?|phases?)/ \
                 || $0 ~ /(passed|cleared|survived)[^.!?;]{0,50}(phase[[:space:]]*[0-9]+|staged|rigorous)[^.!?;]{0,25}(reviews?|validations?|gates?|checks?)/ \
-                || $0 ~ /(test[[:space:]]+suite|tsc|lint|ci)[^.!?;]{0,40}(clean|passing|green)[^.!?;]{0,90}(recommend|proceed|approv|no[[:space:]]+(other[[:space:]]+)?(material[[:space:]]+)?(flaws?|issues?|concerns?))/)
+                || $0 ~ /((test[[:space:]]+suite|tsc|lint)([^[:alnum:]]|$)|ci([^[:alnum:]]|$))[^.!?;]{0,40}(clean|passing|green)[^.!?;]{0,90}(recommend|proceed|approv|no[[:space:]]+(other[[:space:]]+)?(material[[:space:]]+)?(flaws?|issues?|concerns?))/)
             if (summary_reliance || prior_deference) found=1
         }
         END { exit(found ? 0 : 1) }

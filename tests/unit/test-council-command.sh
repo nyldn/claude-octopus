@@ -2642,7 +2642,14 @@ test_council_blind_summary_deference() {
         echo "VERDICT: APPROVE"
     } > "$d/plan-capital.md"
 
-    local para=n defer=n grounded_ok=n cited_ok=n url_blind=n plan_states_ok=n reverse=n capital_ok=n
+    # "ci" appears inside ordinary words such as citation and sufficient; it
+    # must not satisfy the clean-CI deference branch without token boundaries.
+    {
+        echo "The reported clean citation is efficient and sufficient, and I recommend proceeding."
+        echo "VERDICT: APPROVE"
+    } > "$d/ci-substring.md"
+
+    local para=n defer=n grounded_ok=n cited_ok=n url_blind=n plan_states_ok=n reverse=n capital_ok=n ci_substring_ok=n
     council_response_is_blind "$d/paraphrase.md" && para=y
     council_response_is_blind "$d/deference.md" && defer=y
     council_response_is_blind "$d/grounded.md" || grounded_ok=y
@@ -2651,6 +2658,7 @@ test_council_blind_summary_deference() {
     council_response_is_blind "$d/plan-states.md" || plan_states_ok=y
     council_response_is_blind "$d/reverse-attr.md" && reverse=y
     council_response_is_blind "$d/plan-capital.md" || capital_ok=y
+    council_response_is_blind "$d/ci-substring.md" || ci_substring_ok=y
 
     # A citation-shaped token is not grounding when it does not resolve beneath
     # the evidence root. A real source file and in-range line remains grounding.
@@ -2672,10 +2680,11 @@ test_council_blind_summary_deference() {
 
     if [[ "$para" == "y" && "$defer" == "y" && "$grounded_ok" == "y" && "$cited_ok" == "y" \
           && "$url_blind" == "y" && "$plan_states_ok" == "y" && "$reverse" == "y" && "$capital_ok" == "y" \
-          && "$fabricated_citation" == "y" && "$valid_citation" == "y" && "$out_of_range_citation" == "y" ]]; then
+          && "$fabricated_citation" == "y" && "$valid_citation" == "y" && "$out_of_range_citation" == "y" \
+          && "$ci_substring_ok" == "y" ]]; then
         test_pass
     else
-        test_fail "summary/deference blind detection wrong: paraphrase=$para deference=$defer grounded_ok=$grounded_ok cited_ok=$cited_ok url_blind=$url_blind plan_states_ok=$plan_states_ok reverse=$reverse capital_ok=$capital_ok fabricated_citation=$fabricated_citation valid_citation=$valid_citation out_of_range_citation=$out_of_range_citation"
+        test_fail "summary/deference blind detection wrong: paraphrase=$para deference=$defer grounded_ok=$grounded_ok cited_ok=$cited_ok url_blind=$url_blind plan_states_ok=$plan_states_ok reverse=$reverse capital_ok=$capital_ok fabricated_citation=$fabricated_citation valid_citation=$valid_citation out_of_range_citation=$out_of_range_citation ci_substring_ok=$ci_substring_ok"
         return 1
     fi
 }
@@ -2743,6 +2752,13 @@ test_council_blind_fabricated_narrative() {
         echo "VERDICT: APPROVE"
     } > "$d/third-person-restriction.md"
 
+    # An access-control statement is implementation prose, not the reviewer
+    # admitting that their own permissions prevented verification.
+    {
+        echo "The access permissions restrict access to the admin panel, and the review should confirm that the authorization boundary is preserved."
+        echo "VERDICT: APPROVE"
+    } > "$d/access-control-prose.md"
+
     # First-person prose in one clause must not attach to another reviewer's
     # access failure in a later semicolon-delimited clause.
     {
@@ -2770,6 +2786,16 @@ test_council_blind_fabricated_narrative() {
         done
         echo "VERDICT: APPROVE"
     } > "$d/same-clause-self-and-third-party.md"
+
+    # A missing space after a sentence period must not merge a first-person
+    # assessment with a later third-party access report.
+    {
+        for _i in $(seq 1 24); do
+            echo "The implementation preserves the documented workflow contract and the proposed change is internally coherent."
+        done
+        echo "I completed an independent assessment.However another reviewer could not access the files."
+        echo "VERDICT: APPROVE"
+    } > "$d/no-space-boundary.md"
 
     # Ordinary Markdown wrapping must not hide the reviewer's own admission.
     {
@@ -2869,6 +2895,7 @@ test_council_blind_fabricated_narrative() {
     local same_clause_third_party_ok=n same_clause_self_and_third_party=n
     local wrapped=n did_not_have=n was_not_able=n lack_access=n url_port=n
     local url_period_ok=n url_semicolon_ok=n assuming_ok=n shellcite_blind=n cantdiff=n
+    local access_control_ok=n no_space_boundary_ok=n ci_substring_ok=n
     council_response_is_blind "$d/cantdiff.md" && cantdiff=y
     council_response_is_blind "$d/wrapped-admission.md" && wrapped=y
     council_response_is_blind "$d/did-not-have-access.md" && did_not_have=y
@@ -2884,9 +2911,11 @@ test_council_blind_fabricated_narrative() {
     council_response_is_blind "$d/grounded.md" || grounded_ok=y
     council_response_is_blind "$d/planreview.md" || plan_ok=y
     council_response_is_blind "$d/third-person-restriction.md" || third_person_ok=y
+    council_response_is_blind "$d/access-control-prose.md" || access_control_ok=y
     council_response_is_blind "$d/mixed-person.md" || mixed_person_ok=y
     council_response_is_blind "$d/same-clause-third-party.md" || same_clause_third_party_ok=y
     council_response_is_blind "$d/same-clause-self-and-third-party.md" && same_clause_self_and_third_party=y
+    council_response_is_blind "$d/no-space-boundary.md" || no_space_boundary_ok=y
 
     # Integration: a fabricated-narrative agy seat alongside a grounded codex seat
     # in a standard (required=2) council. agy must be classified blind and dropped
@@ -2927,6 +2956,7 @@ test_council_blind_fabricated_narrative() {
 
     if [[ "$fab" == "y" && "$fab_len" -gt 1600 && "$grounded_ok" == "y" && "$plan_ok" == "y" \
           && "$third_person_ok" == "y" && "$mixed_person_ok" == "y" \
+          && "$access_control_ok" == "y" && "$no_space_boundary_ok" == "y" \
           && "$same_clause_third_party_ok" == "y" \
           && "$same_clause_self_and_third_party" == "y" \
           && "$wrapped" == "y" && "$did_not_have" == "y" \
@@ -2938,7 +2968,7 @@ test_council_blind_fabricated_narrative() {
           && "$approving_fams" == "1" && "$met" == "false" ]]; then
         test_pass
     else
-        test_fail "fabricated-narrative blind detection wrong: fab=$fab fab_len=$fab_len grounded_ok=$grounded_ok plan_ok=$plan_ok third_person_ok=$third_person_ok mixed_person_ok=$mixed_person_ok wrapped=$wrapped did_not_have=$did_not_have was_not_able=$was_not_able lack_access=$lack_access url_port=$url_port url_period_ok=$url_period_ok url_semicolon_ok=$url_semicolon_ok assuming_ok=$assuming_ok shellcite_blind=$shellcite_blind cantdiff=$cantdiff agy_status='$agy_status' blind=[$blind] responders=[$codex_prov] approving_families=$approving_fams met=$met"
+        test_fail "fabricated-narrative blind detection wrong: fab=$fab fab_len=$fab_len grounded_ok=$grounded_ok plan_ok=$plan_ok third_person_ok=$third_person_ok access_control_ok=$access_control_ok no_space_boundary_ok=$no_space_boundary_ok mixed_person_ok=$mixed_person_ok wrapped=$wrapped did_not_have=$did_not_have was_not_able=$was_not_able lack_access=$lack_access url_port=$url_port url_period_ok=$url_period_ok url_semicolon_ok=$url_semicolon_ok assuming_ok=$assuming_ok shellcite_blind=$shellcite_blind cantdiff=$cantdiff agy_status='$agy_status' blind=[$blind] responders=[$codex_prov] approving_families=$approving_fams met=$met"
         return 1
     fi
 }
