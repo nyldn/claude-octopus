@@ -1587,10 +1587,13 @@ doctor_check_agents() {
                     doctor_add "agents-cli" "agents" "warn" \
                         "Claude agents CLI returned unparseable output" "Run 'claude agents --json' manually"
                 fi
-            else
+            elif [[ "$cli_output" == \[* ]]; then
                 cli_count=$(printf '%s' "$cli_output" | grep -o '"sessionId"' | wc -l | tr -d '[:space:]')
                 doctor_add "agents-cli" "agents" "pass" \
                     "Claude agents CLI: ${cli_count} agents registered" ""
+            else
+                doctor_add "agents-cli" "agents" "warn" \
+                    "Claude agents CLI returned unparseable output" "Run 'claude agents --json' manually"
             fi
         else
             doctor_add "agents-cli" "agents" "warn" \
