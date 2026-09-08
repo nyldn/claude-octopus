@@ -1576,15 +1576,19 @@ doctor_check_agents() {
 
     if [[ "$SUPPORTS_AGENTS_CLI" == "true" ]]; then
         local cli_output
-        cli_output=$(claude agents 2>/dev/null | head -20 || echo "")
+        cli_output=$(claude agents --json 2>/dev/null || echo "")
         if [[ -n "$cli_output" ]]; then
             local cli_count
-            cli_count=$(echo "$cli_output" | grep -c "^") || cli_count=0
+            if command -v jq >/dev/null 2>&1; then
+                cli_count=$(printf '%s' "$cli_output" | jq 'length' 2>/dev/null) || cli_count=0
+            else
+                cli_count=$(printf '%s' "$cli_output" | grep -c '"sessionId"') || cli_count=0
+            fi
             doctor_add "agents-cli" "agents" "pass" \
                 "Claude agents CLI: ${cli_count} agents registered" ""
         else
             doctor_add "agents-cli" "agents" "warn" \
-                "Claude agents CLI returned no data" "Run 'claude agents' manually"
+                "Claude agents CLI returned no data" "Run 'claude agents --json' manually"
         fi
     else
         doctor_add "agents-cli" "agents" "info" \
