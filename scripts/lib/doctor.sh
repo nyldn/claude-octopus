@@ -1575,9 +1575,9 @@ doctor_check_agents() {
         "${worktree_agents} agents with worktree isolation" ""
 
     if [[ "$SUPPORTS_AGENTS_CLI" == "true" ]]; then
-        local cli_output
-        cli_output=$(claude agents --json 2>/dev/null || echo "")
-        if [[ -n "$cli_output" ]]; then
+        local cli_output cli_rc=0
+        cli_output=$(claude agents --json 2>/dev/null) || cli_rc=$?
+        if [[ $cli_rc -eq 0 && -n "$cli_output" ]]; then
             local cli_count
             if command -v jq >/dev/null 2>&1; then
                 if cli_count=$(printf '%s' "$cli_output" | jq 'length' 2>/dev/null); then
