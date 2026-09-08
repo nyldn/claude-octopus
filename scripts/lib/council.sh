@@ -2233,8 +2233,11 @@ for raw_path, raw_start, raw_end in pattern.findall(response.read_text(encoding=
         continue
     if not candidate.is_file():
         continue
-    start_line = int(raw_start)
-    end_line = int(raw_end or raw_start)
+    try:
+        start_line = int(raw_start)
+        end_line = int(raw_end or raw_start)
+    except ValueError:
+        continue
     if start_line < 1 or end_line < start_line:
         continue
     if candidate not in file_facts:
