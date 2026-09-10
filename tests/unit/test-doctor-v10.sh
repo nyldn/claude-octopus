@@ -231,6 +231,15 @@ else
     test_fail "unexpected jq agents result: $agent_cli_result"
 fi
 
+test_case "agents CLI jq path reports 0 for an empty array (jq -e exit-status edge case)"
+run_agents_check empty
+agent_cli_result="$(agent_result_status agents-cli)"
+if [[ "$agent_cli_result" == "pass|Claude agents CLI: 0 agents registered" ]]; then
+    test_pass
+else
+    test_fail "unexpected jq empty-array result: $agent_cli_result"
+fi
+
 test_case "agents CLI rejects valid non-array JSON instead of passing a key count"
 run_agents_check object
 agent_cli_result="$(agent_result_status agents-cli)"
