@@ -122,6 +122,24 @@ else
     test_fail "rc=$DOCTOR_FIXTURE_RC stdout=$DOCTOR_FIXTURE_STDOUT"
 fi
 
+test_case "recurrence diagnostics render under inherited errexit"
+recurrence_root="$TEST_TMP_DIR/recurrence-errexit"
+mkdir -p "$recurrence_root/.octo"
+printf '{"type":"quality-gate","timestamp":"%s","source":"fixture"}\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$recurrence_root/.octo/decisions.jsonl"
+set +e
+recurrence_output="$({
+    WORKSPACE_DIR="$recurrence_root" OCTOPUS_PLATFORM="${OCTOPUS_PLATFORM:-Linux}" \
+        bash -c 'set -eo pipefail; source "$1/scripts/lib/doctor.sh"; DOCTOR_RESULTS_NAME=() DOCTOR_RESULTS_CAT=() DOCTOR_RESULTS_STATUS=() DOCTOR_RESULTS_MSG=() DOCTOR_RESULTS_DETAIL=(); doctor_check_recurrence; printf "%s\\n" "${DOCTOR_RESULTS_MSG[@]}"' _ "$PROJECT_ROOT"
+} 2>&1)"
+recurrence_rc=$?
+set -e
+if [[ "$recurrence_rc" -eq 0 && "$recurrence_output" == *"quality gate failure(s) recorded"* ]]; then
+    test_pass
+else
+    test_fail "rc=$recurrence_rc output=$recurrence_output"
+fi
+
 test_case "unknown flags fail with usage instead of being ignored"
 run_doctor_fixture bad-flag providers --definitely-unknown
 if [[ "$DOCTOR_FIXTURE_RC" -eq 2 && -z "$DOCTOR_FIXTURE_STDOUT" && "$DOCTOR_FIXTURE_STDERR" == *"Usage:"* && "$DOCTOR_FIXTURE_STDERR" == *"--definitely-unknown"* ]]; then
