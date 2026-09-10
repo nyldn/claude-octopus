@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [11.4.1] - 2026-09-10
+
+### Changed
+
+- Fix doctor diagnostics for non-interactive agent checks and recurring failure reports
+
 ## [11.4.0] - 2026-09-10
 
 ### Added

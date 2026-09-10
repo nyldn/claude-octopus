@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.4.0",
-  "description": "v11.4.0 \u2014 Add automatic Premium peer routing to /octo:auto. Run /octo:setup.",
+  "version": "11.4.1",
+  "description": "v11.4.1 \u2014 Fix doctor diagnostics for non-interactive agent checks and recurring failure reports. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
