@@ -19,7 +19,7 @@ check_tree() {
     local path="$2"
     local hits
 
-    hits=$(rg -n '=\$\(command -v (codex|gemini|opencode)' "$path" 2>/dev/null || true)
+    hits=$(grep -R -nE '=\$\(command -v (codex|gemini|opencode)' "$path" 2>/dev/null || true)
     if [[ -n "$hits" ]]; then
         echo "FAIL: $label contains command-substitution provider checks"
         echo "$hits"

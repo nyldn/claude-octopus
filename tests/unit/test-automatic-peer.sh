@@ -210,7 +210,7 @@ else
 fi
 
 test_case "the native /octo:auto command uses the shared automatic runtime"
-if rg -q 'scripts/orchestrate\.sh" auto' "$PROJECT_ROOT/commands/auto.md"; then
+if grep -q 'scripts/orchestrate\.sh" auto' "$PROJECT_ROOT/commands/auto.md"; then
     test_pass
 else
     test_fail "native /octo:auto does not invoke orchestrate.sh auto"
