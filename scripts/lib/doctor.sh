@@ -1580,20 +1580,27 @@ doctor_check_agents() {
         if [[ $cli_rc -eq 0 && -n "$cli_output" ]]; then
             local cli_count
             if command -v jq >/dev/null 2>&1; then
-                if cli_count=$(printf '%s' "$cli_output" | jq 'length' 2>/dev/null); then
+                if cli_count=$(printf '%s' "$cli_output" | jq -e 'if type == "array" then length else error("expected array") end' 2>/dev/null); then
                     doctor_add "agents-cli" "agents" "pass" \
                         "Claude agents CLI: ${cli_count} agents registered" ""
                 else
                     doctor_add "agents-cli" "agents" "warn" \
                         "Claude agents CLI returned unparseable output" "Run 'claude agents --json' manually"
                 fi
-            elif [[ "$cli_output" == \[* ]]; then
-                cli_count=$(printf '%s' "$cli_output" | grep -o '"sessionId"' | wc -l | tr -d '[:space:]') || cli_count=0
-                doctor_add "agents-cli" "agents" "pass" \
-                    "Claude agents CLI: ${cli_count} agents registered" ""
             else
-                doctor_add "agents-cli" "agents" "warn" \
-                    "Claude agents CLI returned unparseable output" "Run 'claude agents --json' manually"
+                # Without jq, require a complete outer JSON array before using
+                # the conservative sessionId occurrence count. This avoids
+                # turning truncated or non-array CLI output into a false pass.
+                local cli_compact
+                cli_compact=$(printf '%s' "$cli_output" | tr -d '[:space:]')
+                if [[ "$cli_compact" == \[*\] ]]; then
+                    cli_count=$(printf '%s' "$cli_output" | awk '{ count += gsub(/"sessionId"/, "&") } END { print count + 0 }')
+                    doctor_add "agents-cli" "agents" "pass" \
+                        "Claude agents CLI: ${cli_count} agents registered" ""
+                else
+                    doctor_add "agents-cli" "agents" "warn" \
+                        "Claude agents CLI returned unparseable output" "Run 'claude agents --json' manually"
+                fi
             fi
         else
             doctor_add "agents-cli" "agents" "warn" \

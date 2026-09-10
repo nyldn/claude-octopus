@@ -187,6 +187,102 @@ else
     test_fail "elapsed=${elapsed}s result=${DOCTOR_RESULTS_STATUS[0]:-missing}"
 fi
 
+test_case "agents CLI accepts a JSON array and reports its exact jq count"
+agents_plugin_root="$TEST_TMP_DIR/agents-plugin"
+agents_bin="$TEST_TMP_DIR/agents-bin"
+mkdir -p "$agents_plugin_root/agents" "$agents_bin"
+printf '  sample-agent:\n    isolation: worktree\n' > "$agents_plugin_root/agents/config.yaml"
+cat > "$agents_bin/claude" <<'SH'
+#!/usr/bin/env bash
+case "${DOCTOR_AGENTS_MODE:-compact}" in
+    compact) printf '%s\n' '[{"sessionId":"one"},{"sessionId":"two"}]' ;;
+    empty) printf '%s\n' '[]' ;;
+    object) printf '%s\n' '{"agents":[]}' ;;
+    truncated) printf '%s\n' '[{"sessionId":"one"}' ;;
+    malformed) printf '%s\n' 'not-json' ;;
+    failed) printf '%s\n' '[{"sessionId":"one"}]'; exit 7 ;;
+esac
+SH
+chmod +x "$agents_bin/claude"
+
+run_agents_check() {
+    DOCTOR_RESULTS_NAME=() DOCTOR_RESULTS_CAT=() DOCTOR_RESULTS_STATUS=() DOCTOR_RESULTS_MSG=() DOCTOR_RESULTS_DETAIL=()
+    PLUGIN_DIR="$agents_plugin_root" SUPPORTS_AGENTS_CLI=true PATH="$agents_bin:$PATH" \
+        DOCTOR_AGENTS_MODE="$1" doctor_check_agents
+}
+
+agent_result_status() {
+    local result_name="$1"
+    local i
+    for i in "${!DOCTOR_RESULTS_NAME[@]}"; do
+        if [[ "${DOCTOR_RESULTS_NAME[$i]}" == "$result_name" ]]; then
+            printf '%s|%s\n' "${DOCTOR_RESULTS_STATUS[$i]}" "${DOCTOR_RESULTS_MSG[$i]}"
+            return
+        fi
+    done
+}
+
+run_agents_check compact
+agent_cli_result="$(agent_result_status agents-cli)"
+if [[ "$agent_cli_result" == "pass|Claude agents CLI: 2 agents registered" ]]; then
+    test_pass
+else
+    test_fail "unexpected jq agents result: $agent_cli_result"
+fi
+
+test_case "agents CLI rejects valid non-array JSON instead of passing a key count"
+run_agents_check object
+agent_cli_result="$(agent_result_status agents-cli)"
+if [[ "$agent_cli_result" == "warn|Claude agents CLI returned unparseable output" ]]; then
+    test_pass
+else
+    test_fail "non-array JSON was accepted: $agent_cli_result"
+fi
+
+test_case "agents CLI preserves command failures as warnings"
+run_agents_check failed
+agent_cli_result="$(agent_result_status agents-cli)"
+if [[ "$agent_cli_result" == "warn|Claude agents CLI returned no data" ]]; then
+    test_pass
+else
+    test_fail "command failure was accepted: $agent_cli_result"
+fi
+
+test_case "agents CLI no-jq fallback counts compact sessions and empty arrays"
+command() {
+    if [[ "${1:-}" == "-v" && "${2:-}" == "jq" ]]; then
+        return 1
+    fi
+    builtin command "$@"
+}
+run_agents_check compact
+compact_result="$(agent_result_status agents-cli)"
+run_agents_check empty
+empty_result="$(agent_result_status agents-cli)"
+unset -f command
+if [[ "$compact_result" == "pass|Claude agents CLI: 2 agents registered" &&
+      "$empty_result" == "pass|Claude agents CLI: 0 agents registered" ]]; then
+    test_pass
+else
+    test_fail "no-jq counts were incorrect: compact=$compact_result empty=$empty_result"
+fi
+
+test_case "agents CLI no-jq fallback rejects truncated arrays"
+command() {
+    if [[ "${1:-}" == "-v" && "${2:-}" == "jq" ]]; then
+        return 1
+    fi
+    builtin command "$@"
+}
+run_agents_check truncated
+truncated_result="$(agent_result_status agents-cli)"
+unset -f command
+if [[ "$truncated_result" == "warn|Claude agents CLI returned unparseable output" ]]; then
+    test_pass
+else
+    test_fail "truncated no-jq output was accepted: $truncated_result"
+fi
+
 test_case "JSON escaping preserves UTF-8 and control characters"
 escaped_unicode="$(doctor_json_escape $'snowman:☃ next:\u0085')"
 if jq -ne --arg expected $'snowman:☃ next:\u0085' --arg escaped "$escaped_unicode" \
