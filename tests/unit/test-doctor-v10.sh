@@ -283,6 +283,31 @@ else
     test_fail "truncated no-jq output was accepted: $truncated_result"
 fi
 
+test_case "agents CLI jq path rejects genuinely malformed (non-JSON) output"
+run_agents_check malformed
+malformed_jq_result="$(agent_result_status agents-cli)"
+if [[ "$malformed_jq_result" == "warn|Claude agents CLI returned unparseable output" ]]; then
+    test_pass
+else
+    test_fail "malformed output was accepted by jq path: $malformed_jq_result"
+fi
+
+test_case "agents CLI no-jq fallback rejects genuinely malformed (non-JSON) output"
+command() {
+    if [[ "${1:-}" == "-v" && "${2:-}" == "jq" ]]; then
+        return 1
+    fi
+    builtin command "$@"
+}
+run_agents_check malformed
+malformed_nojq_result="$(agent_result_status agents-cli)"
+unset -f command
+if [[ "$malformed_nojq_result" == "warn|Claude agents CLI returned unparseable output" ]]; then
+    test_pass
+else
+    test_fail "malformed no-jq output was accepted: $malformed_nojq_result"
+fi
+
 test_case "JSON escaping preserves UTF-8 and control characters"
 escaped_unicode="$(doctor_json_escape $'snowman:☃ next:\u0085')"
 if jq -ne --arg expected $'snowman:☃ next:\u0085' --arg escaped "$escaped_unicode" \
