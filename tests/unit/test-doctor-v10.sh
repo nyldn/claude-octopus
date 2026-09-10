@@ -200,6 +200,7 @@ case "${DOCTOR_AGENTS_MODE:-compact}" in
     object) printf '%s\n' '{"agents":[]}' ;;
     truncated) printf '%s\n' '[{"sessionId":"one"}' ;;
     malformed) printf '%s\n' 'not-json' ;;
+    bracketed_malformed) printf '%s\n' '[not-json]' ;;
     failed) printf '%s\n' '[{"sessionId":"one"}]'; exit 7 ;;
 esac
 SH
@@ -306,6 +307,31 @@ if [[ "$malformed_nojq_result" == "warn|Claude agents CLI returned unparseable o
     test_pass
 else
     test_fail "malformed no-jq output was accepted: $malformed_nojq_result"
+fi
+
+test_case "agents CLI jq path rejects bracket-shaped but internally invalid JSON"
+run_agents_check bracketed_malformed
+bracketed_jq_result="$(agent_result_status agents-cli)"
+if [[ "$bracketed_jq_result" == "warn|Claude agents CLI returned unparseable output" ]]; then
+    test_pass
+else
+    test_fail "bracket-shaped invalid JSON was accepted by jq path: $bracketed_jq_result"
+fi
+
+test_case "agents CLI no-jq fallback reports 0 for bracket-shaped but internally invalid JSON (documented heuristic limit)"
+command() {
+    if [[ "${1:-}" == "-v" && "${2:-}" == "jq" ]]; then
+        return 1
+    fi
+    builtin command "$@"
+}
+run_agents_check bracketed_malformed
+bracketed_nojq_result="$(agent_result_status agents-cli)"
+unset -f command
+if [[ "$bracketed_nojq_result" == "pass|Claude agents CLI: 0 agents registered" ]]; then
+    test_pass
+else
+    test_fail "bracket-shaped invalid JSON no-jq result was unexpected: $bracketed_nojq_result"
 fi
 
 test_case "JSON escaping preserves UTF-8 and control characters"
