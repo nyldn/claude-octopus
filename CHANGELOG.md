@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.4.0] - 2026-09-10
+
 ### Added
 
 - Premium `/octo:auto` routes now run one bounded cross-provider peer check
