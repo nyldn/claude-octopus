@@ -865,10 +865,12 @@ Then provide specific optimization recommendations."
             return $?
         fi
         if ! owner_output=$(OCTOPUS_AUTO_PEER_ACTIVE=true run_agent_sync "$owner_dispatch_agent" "$prompt" "${TIMEOUT:-600}" "$owner_role" "auto-route"); then
+            octo_auto_peer_release
             echo "Premium owner failed; automatic peer check was not started."
             return 1
         fi
         if [[ -z "$owner_output" ]]; then
+            octo_auto_peer_release
             echo "Premium owner returned no reviewable output; automatic peer check was skipped."
             return 0
         fi

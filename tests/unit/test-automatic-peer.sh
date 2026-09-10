@@ -29,9 +29,11 @@ else
 fi
 
 test_case "Budget and Standard do not add an automatic peer"
-if for mode in budget standard; do
-       OCTOPUS_COST_MODE="$mode" bash -c 'source "$1"; ! octo_auto_peer_should_run coding standard' _ "$PROJECT_ROOT/scripts/lib/automatic-peer.sh"
-   done; then
+non_premium_ok=true
+for mode in budget standard; do
+    OCTOPUS_COST_MODE="$mode" bash -c 'source "$1"; ! octo_auto_peer_should_run coding standard' _ "$PROJECT_ROOT/scripts/lib/automatic-peer.sh" || non_premium_ok=false
+done
+if [[ "$non_premium_ok" == true ]]; then
     test_pass
 else
     test_fail "non-Premium cost mode enabled the automatic peer policy"
@@ -225,6 +227,7 @@ else
 fi
 
 test_case "explicit native intents do not fall into the automatic peer path"
+unset OCTOPUS_AUTO_PEER_ACTIVE OCTOPUS_AUTO_PEER_CHECKED
 native_routing_ok=true
 for pair in \
     "run the complete lifecycle for this feature:native-embrace" \
@@ -242,6 +245,7 @@ for pair in \
     [[ "$(classify_task "$native_prompt")" == "$native_type" ]] || native_routing_ok=false
 done
 if [[ "$native_routing_ok" == true ]] &&
+   octo_auto_peer_should_run coding standard "implement the retry handler" &&
    ! octo_auto_peer_should_run general standard "run the complete lifecycle for this feature" &&
    ! octo_auto_peer_should_run coding standard "write unit tests for the payment adapter" &&
    ! octo_auto_peer_should_run coding standard "add unit tests for the payment adapter" &&
@@ -446,6 +450,7 @@ test_case "receipt failures are reported as unrecorded"
 export OCTOPUS_AUTO_PEER_RUN_ID=receipt-failure
 export OCTOPUS_AUTO_PEER_CHECKED=false
 rm -f "$RESULTS_DIR/.receipt-failure.automatic-peer.claim" "$RESULTS_DIR/receipt-failure.automatic-peer.json"
+log() { printf '%s\n' "$*" >&2; }
 octo_auto_peer_write_receipt() { return 1; }
 receipt_output="$(octo_auto_peer_run coding standard "receipt failure test" codex-standard "owner result" 2>&1)"
 if [[ "$receipt_output" == *"unrecorded"* ]] && [[ ! -e "$RESULTS_DIR/receipt-failure.automatic-peer.json" ]]; then

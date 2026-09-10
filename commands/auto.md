@@ -161,9 +161,10 @@ Before loading any route, validate it against this closed allowlist: `embrace`,
 `brainstorm`, `deck`, `docs`, `discover`, `review`, `debate`, `develop`, `plan`, `quick`.
 The token is control data, never user input: do not derive it from the query or
 accept a user-supplied path. Reject `..`, `/`, `\\`, or non-allowlisted values.
-The full query is passed only as workflow arguments. High-confidence execution
-uses the shared automatic runtime below; medium-confidence execution may load
-the selected command after confirmation.
+The full query is passed only as workflow arguments. Both high-confidence
+execution and confirmed medium-confidence execution use the shared automatic
+runtime below; confirmation selects whether to proceed, not a different
+dispatch path.
 
 **STEP 5a — HIGH confidence (auto-route):**
 

@@ -158,11 +158,11 @@ classify_task() {
         echo "native-tdd"
         return
     fi
-    if [[ "$prompt_lower" =~ (pitch[[:space:]]+deck|slide[[:space:]]+deck|create[[:space:]]+a?[[:space:]]*deck|presentation|slides) ]]; then
+    if [[ "$prompt_lower" =~ (pitch[[:space:]]+deck|slide[[:space:]]+deck|create[[:space:]]+a?[[:space:]]*deck|(build|create|make|write)[[:space:]]+(a[[:space:]]+|the[[:space:]]+)?(presentation|slides)) ]]; then
         echo "native-deck"
         return
     fi
-    if [[ "$prompt_lower" =~ (debug|troubleshoot|stacktrace|stack[[:space:]]+trace|crash|broken|failing|fix[[:space:]]+.*(bug|error|issue)|resolve[[:space:]]+.*(bug|error|issue)|diagnose[[:space:]]+.*(bug|error|issue)) ]]; then
+    if [[ "$prompt_lower" =~ (debug[[:space:]]+(this|the)|troubleshoot|stacktrace|stack[[:space:]]+trace|why.*(crash|broken|failing)|fix[[:space:]]+.*(bug|error|issue)|resolve[[:space:]]+.*(bug|error|issue)|diagnose[[:space:]]+.*(bug|error|issue)) ]]; then
         echo "native-debug"
         return
     fi
@@ -170,15 +170,15 @@ classify_task() {
         echo "native-review"
         return
     fi
-    if [[ "$prompt_lower" =~ (ui[[:space:]]+design|ux[[:space:]]+design|wireframe|mockup|design[[:space:]]+system|layout|ui[[:space:]]+prototype) ]]; then
+    if [[ "$prompt_lower" =~ (ui[[:space:]]+design|ux[[:space:]]+design|(create|design|draft)[[:space:]]+(a[[:space:]]+|the[[:space:]]+)?(wireframe|mockup)|design[[:space:]]+system|(design|redesign)[[:space:]]+(the[[:space:]]+)?layout|ui[[:space:]]+prototype) ]]; then
         echo "native-design-ui-ux"
         return
     fi
-    if [[ "$prompt_lower" =~ (prd|product[[:space:]]+requirements|product[[:space:]]+spec) ]]; then
+    if [[ "$prompt_lower" =~ ((write|create|draft)[[:space:]]+(a[[:space:]]+|the[[:space:]]+)?prd|product[[:space:]]+requirements|product[[:space:]]+spec) ]]; then
         echo "native-prd"
         return
     fi
-    if [[ "$prompt_lower" =~ (brainstorm|ideate|thought[[:space:]]+experiment) ]]; then
+    if [[ "$prompt_lower" =~ (brainstorm[[:space:]]+(ideas|options|approaches|solutions|this)|let\'?s[[:space:]]+brainstorm|ideate[[:space:]]+.*|thought[[:space:]]+experiment) ]]; then
         echo "native-brainstorm"
         return
     fi
@@ -408,7 +408,8 @@ classify_task() {
 
     # Design/UI/UX keywords (check before coding - accessibility is design)
     if [[ "$prompt_lower" =~ (accessibility|a11y|wcag|contrast|color.?scheme) ]] || \
-       [[ "$prompt_lower" =~ (ui|ux|interface|layout|wireframe|prototype|mockup) ]] || \
+       [[ "$prompt_lower" =~ (^|[^[:alnum:]_])(ui|ux)([^[:alnum:]_]|$) ]] || \
+       [[ "$prompt_lower" =~ (interface|layout|wireframe|prototype|mockup) ]] || \
        [[ "$prompt_lower" =~ (design.?system|component.?library|style.?guide|theme) ]] || \
        [[ "$prompt_lower" =~ (responsive|mobile|tablet|breakpoint) ]] || \
        [[ "$prompt_lower" =~ (tailwind|shadcn|radix|styled) ]]; then
