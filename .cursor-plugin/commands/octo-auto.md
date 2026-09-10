@@ -192,9 +192,17 @@ I detected [intent]. Route to:
 Which would you prefer, or rephrase your request?
 ```
 
-Wait for user confirmation. After confirmation, execute the shared automatic
-router from STEP 5a with the full original query; do not manually load the
-selected command file, because that would bypass the root-level routing policy.
+Wait for user confirmation. After confirmation, pass the confirmed allowlisted
+workflow token to the shared automatic router with the full original query:
+
+```bash
+bash "${OCTO_ROOT}/scripts/orchestrate.sh" auto --workflow "<confirmed token>" "<full original query>"
+```
+
+The runtime validates the token and gives the confirmed workflow precedence
+over reclassification. Do not manually load the selected command file, because
+that would bypass the root-level routing policy. If no valid token is supplied,
+the runtime falls back to classifying the original query.
 
 **STEP 5c — LOW confidence (show complete menu):**
 

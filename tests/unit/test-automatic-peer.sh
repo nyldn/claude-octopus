@@ -212,10 +212,11 @@ else
 fi
 
 test_case "the native /octo:auto command uses the shared automatic runtime"
-if grep -q 'scripts/orchestrate\.sh" auto' "$PROJECT_ROOT/commands/auto.md"; then
+if grep -q 'scripts/orchestrate\.sh" auto' "$PROJECT_ROOT/commands/auto.md" &&
+   grep -q 'auto --workflow' "$PROJECT_ROOT/commands/auto.md"; then
     test_pass
 else
-    test_fail "native /octo:auto does not invoke orchestrate.sh auto"
+    test_fail "native /octo:auto does not document the shared workflow override"
 fi
 
 source "$PROJECT_ROOT/scripts/lib/routing.sh"
@@ -345,6 +346,22 @@ run_agent_sync() {
 spawn_agent() {
     [[ "${DRY_RUN:-false}" == true ]] || printf '%s\n' 'unexpected async dispatch' >> "$peer_calls_file"
 }
+
+test_case "a confirmed workflow takes precedence over reclassification"
+selected_workflow_output=$(auto_route "the original request is intentionally ambiguous" "debug")
+if grep -q 'Native workflow requested: /octo:debug' <<< "$selected_workflow_output"; then
+    test_pass
+else
+    test_fail "confirmed workflow was reclassified instead of preserved"
+fi
+
+test_case "an invalid workflow selection falls back to classification"
+invalid_workflow_output=$(DRY_RUN=true auto_route "implement the error-path change" "../debug")
+if grep -q 'Detected Type: coding' <<< "$invalid_workflow_output"; then
+    test_pass
+else
+    test_fail "invalid workflow selection did not fall back to classification"
+fi
 
 test_case "parallel intent is not short-circuited by direct response mode"
 parallel_route_file="$TEST_TMP_DIR/parallel-route"

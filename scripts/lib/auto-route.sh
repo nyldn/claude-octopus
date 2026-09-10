@@ -80,15 +80,36 @@ _auto_route_wait_for_pids() {
     return 1
 }
 
+auto_route_validate_workflow() {
+    case "${1:-}" in
+        embrace|multi|parallel|spec|security|tdd|debug|design-ui-ux|prd|brainstorm|deck|docs|discover|review|debate|develop|plan|quick)
+            printf '%s\n' "$1"
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
 auto_route() {
     local prompt="$1"
+    local selected_workflow="${2:-}"
     local prompt_lower
     prompt_lower=$(echo "$prompt" | tr '[:upper:]' '[:lower:]')
     local auto_peer_run_id="${OCTOPUS_AUTO_PEER_RUN_ID:-auto-route-$(date +%s)-$$}"
     export OCTOPUS_AUTO_PEER_RUN_ID="$auto_peer_run_id"
 
     local task_type
-    task_type=$(classify_task "$prompt")
+    local validated_workflow=""
+    if [[ -n "$selected_workflow" ]] &&
+       validated_workflow=$(auto_route_validate_workflow "$selected_workflow"); then
+        # A confirmed /octo:auto choice is authoritative. Keep the native
+        # command contract intact instead of reclassifying the original query.
+        task_type="native-${validated_workflow}"
+    else
+        task_type=$(classify_task "$prompt")
+    fi
 
     # ═══════════════════════════════════════════════════════════════════════════
     # v8.20.0: TRIVIAL TASK FAST PATH
