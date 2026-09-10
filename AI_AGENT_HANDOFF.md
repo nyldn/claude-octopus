@@ -2,36 +2,35 @@
 
 Last updated: 2026-09-10
 
-Current implementation checkpoint: branch `feat/automatic-premium-peer` is an
-uncommitted implementation based on public v11.3.0. `/octo:auto` now gives
-eligible generic Premium work one bounded, exact cross-provider peer without a
-`--peer` flag. Budget, Standard, quick, direct, explicit native workflows, and
-parallel work do not gain a hidden peer. Native intent classification covers
-TDD, decks, multi-provider, debug, review, security, design, PRD, brainstorm,
-docs, specification, lifecycle, engineering prototypes, and planning requests,
-with multi-provider and security taking their documented priority and parallel
-intent taking precedence over other specialized work when applicable.
+Current release checkpoint: branch `release/v11.4.0` contains the automatic
+Premium peer routing implementation and the follow-up routing, lifecycle,
+portability, test, and documentation fixes. The release branch is pushed to
+`upstream` at the current head, and PR #1030 is the source of truth for the
+remaining protected merge step. The v11.4.0 tag and GitHub release do not exist
+until that PR is squash-merged into `main`.
+
+`/octo:auto` gives eligible generic Premium work one bounded, exact
+cross-provider peer without a `--peer` flag. Budget, Standard, quick, direct,
+explicit native workflows, and parallel work do not gain a hidden peer. A
+confirmed medium-confidence workflow is passed through a closed allowlist and
+takes precedence over reclassification; invalid or absent selections fall back
+to normal classification.
 
 The implementation records exact owner and peer identities, forwards the
-nested-peer guard through isolated provider environments, refuses dispatch when
-the lifecycle marker cannot be written, and records truthful receipt attempt
-counts. Focused verification passed the automatic-peer suite 27/27,
-credential isolation 39/39, environment accountability 9/9, and heartbeat
-timeout fallback 14/14. `make sync`, `make sync-check`, plugin assembly
-validation, MCP TypeScript build, Bash syntax checks, ShellCheck, and
-`git diff --check` passed. The full changed matrix was not completed because
-the heartbeat mapping selects the broad matrix; the clean public v11.3.0
-baseline has four unrelated failures documented in the session record.
+nested-peer guard through isolated provider environments, releases claims on
+owner abort, refuses dispatch when the lifecycle marker cannot be written, and
+records truthful receipt attempt counts. Focused automatic-peer, routing,
+activation, syntax, sync, and assembly checks pass. The full local matrix also
+passes: smoke, full unit, and integration gates.
 
-Several read-only GPT-6 Astra review passes found routing edge cases in
-intermediate revisions. The implementation corrected those findings for
-specialized requests, mixed parallel work, lifecycle routing, and engineering
-prototypes. The final Astra process could not return a clean verdict because
-its read-only environment could not create temporary files; local focused
-checks passed after the last correction.
+Hosted PR checks for the current reviewed head passed on macOS and Ubuntu,
+including the full unit shards, integration tests, package, portability,
+symlink, smoke, aggregate test, and review gates. The canonical checkout's
+unrelated dirty state remains preserved.
 
-No commit, push, merge, or release has been performed for this checkpoint.
-The canonical checkout's unrelated dirty state remains preserved.
+The remainder of this file is historical continuity from earlier v11.2.x
+cancellation work. It is retained as evidence, not as the current release
+status; use the checkpoint above and PR #1030 for current decisions.
 
 Status: the five orchestrator review fixes from `a3f7847d` are prepared for
 v11.2.1 on `release/v11.2.1`, tracking `oco-c3t`. Fix implementation task
@@ -102,9 +101,10 @@ Tracking: use the repository issue tracker and checked-in implementation
 documentation as the source of truth. Do not put private checkout paths,
 credentials, or host-specific state in this public handoff.
 
-Next action: pass the release PR checks and review gate, squash-merge, verify
-the exact main commit, then tag and publish v11.2.1 and sync the shared
-marketplaces. Do not claim publication until those steps are verified.
+Historical next action: pass the then-current release PR checks and review gate.
+For the active release, squash-merge PR #1030, verify the exact `main` commit,
+then tag and publish v11.4.0 and sync the shared marketplaces. Do not claim
+publication until those steps are verified.
 Shared runtime changes retain the full local matrix.
 
 Release preparation passed generated-file checks, README release sync 11/11,
