@@ -196,6 +196,7 @@ Wait for user confirmation. After confirmation, pass the confirmed allowlisted
 workflow token to the shared automatic router with the full original query:
 
 ```bash
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
 bash "${OCTO_ROOT}/scripts/orchestrate.sh" auto --workflow "<confirmed token>" "<full original query>"
 ```
 
