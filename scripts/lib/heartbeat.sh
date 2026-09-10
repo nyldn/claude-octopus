@@ -400,6 +400,22 @@ run_with_timeout() {
         force_portable_supervisor=true
     fi
 
+    # Automatic Premium peer receipts need a launch acknowledgement that is
+    # established after this function's caller has installed its output and
+    # error redirections, but before any supervisor or provider process starts.
+    # If the acknowledgement cannot be written, do not launch an unaccounted
+    # provider call.
+    if [[ -n "${OCTOPUS_AUTO_PEER_DISPATCH_MARKER:-}" ]]; then
+        if ! (umask 077; printf '%s\n' started > "$OCTOPUS_AUTO_PEER_DISPATCH_MARKER") 2>/dev/null; then
+            if declare -f log >/dev/null 2>&1; then
+                log WARN "Automatic Premium peer dispatch start could not be recorded; refusing to launch"
+            else
+                printf '%s\n' "WARN: automatic Premium peer dispatch start could not be recorded; refusing to launch" >&2
+            fi
+            return 74
+        fi
+    fi
+
     local exit_code
     local _octo_cmd_label="${1:-unknown}"
 

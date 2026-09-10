@@ -1,6 +1,37 @@
 # AI Agent Handoff
 
-Last updated: 2026-09-07
+Last updated: 2026-09-10
+
+Current implementation checkpoint: branch `feat/automatic-premium-peer` is an
+uncommitted implementation based on public v11.3.0. `/octo:auto` now gives
+eligible generic Premium work one bounded, exact cross-provider peer without a
+`--peer` flag. Budget, Standard, quick, direct, explicit native workflows, and
+parallel work do not gain a hidden peer. Native intent classification covers
+TDD, decks, multi-provider, debug, review, security, design, PRD, brainstorm,
+docs, specification, lifecycle, engineering prototypes, and planning requests,
+with multi-provider and security taking their documented priority and parallel
+intent taking precedence over other specialized work when applicable.
+
+The implementation records exact owner and peer identities, forwards the
+nested-peer guard through isolated provider environments, refuses dispatch when
+the lifecycle marker cannot be written, and records truthful receipt attempt
+counts. Focused verification passed the automatic-peer suite 27/27,
+credential isolation 39/39, environment accountability 9/9, and heartbeat
+timeout fallback 14/14. `make sync`, `make sync-check`, plugin assembly
+validation, MCP TypeScript build, Bash syntax checks, ShellCheck, and
+`git diff --check` passed. The full changed matrix was not completed because
+the heartbeat mapping selects the broad matrix; the clean public v11.3.0
+baseline has four unrelated failures documented in the session record.
+
+Several read-only GPT-6 Astra review passes found routing edge cases in
+intermediate revisions. The implementation corrected those findings for
+specialized requests, mixed parallel work, lifecycle routing, and engineering
+prototypes. The final Astra process could not return a clean verdict because
+its read-only environment could not create temporary files; local focused
+checks passed after the last correction.
+
+No commit, push, merge, or release has been performed for this checkpoint.
+The canonical checkout's unrelated dirty state remains preserved.
 
 Status: the five orchestrator review fixes from `a3f7847d` are prepared for
 v11.2.1 on `release/v11.2.1`, tracking `oco-c3t`. Fix implementation task

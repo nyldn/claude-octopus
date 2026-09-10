@@ -48,6 +48,12 @@ Setup can resume an interrupted configuration and rechecks readiness before
 reporting success. See [workflow methods](docs/WORKFLOW-METHODS.md)
 for usage and [the changelog](CHANGELOG.md) for release details.
 
+Premium `/octo:auto` routes also run one bounded cross-provider peer check after
+an eligible single-owner result, without requiring a second command or flag.
+Budget and Standard routes do not add the check, and existing multi-model
+workflows are not double-reviewed. Set `OCTOPUS_PREMIUM_PEER_CHECK=off` to
+disable it.
+
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.3.0 — Harden council evidence grounding and citation validation.**
 >

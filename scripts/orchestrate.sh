@@ -174,6 +174,7 @@ source "${SCRIPT_DIR}/lib/plugin-update.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/doctor.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/quota-watcher.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/agent-sync.sh" 2>/dev/null || true
+source "${SCRIPT_DIR}/lib/automatic-peer.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/persona-loader.sh" 2>/dev/null || true
 
 # Error tracking & UX progress (v9.7.x extraction)
