@@ -50,6 +50,7 @@ OCTOPUS_OPUS_MODE	covered-by	test-execution-mechanism.sh
 OCTOPUS_OPUS_MODEL	covered-by	test-fable5-escalation.sh
 OCTOPUS_OVERSIZE_STRATEGY	covered-by	test-dispatch-oversize.sh
 OCTOPUS_PREFLIGHT_PROBE	covered-by	test-provider-health-probe.sh
+OCTOPUS_PREMIUM_PEER_CHECK	covered-by	test-automatic-peer.sh
 OCTOPUS_QUALITY_THRESHOLD	skip	gates a quality score produced by a live provider dispatch
 OCTOPUS_RELEASE_RUNTIME_SMOKE	covered-by	test-cc-v2126-131-sync.sh
 OCTOPUS_RELEASE_SMOKE_MAX_BUDGET_USD	skip	release-smoke harness only; not reachable from unit scope

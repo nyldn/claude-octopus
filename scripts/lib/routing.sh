@@ -126,6 +126,75 @@ classify_task() {
         return
     fi
 
+    if [[ "$prompt_lower" =~ (end[[:space:]]*-[[:space:]]*to[[:space:]]*-[[:space:]]*end|complete[[:space:]]+lifecycle|full[[:space:]]+workflow|entire[[:space:]]+project|whole[[:space:]]+system) ]]; then
+        echo "native-embrace"
+        return
+    fi
+
+    # Explicit command intents retain their native execution contracts. The
+    # automatic shell router emits a safe handoff; the host then loads the
+    # corresponding command instructions in the current conversation.
+    if [[ "$prompt_lower" =~ (multi.?llm|multi.?provider|all[[:space:]]+providers|force[[:space:]]+multi|cross.?model) ]]; then
+        echo "native-multi"
+        return
+    fi
+    if [[ "$prompt_lower" =~ (security[[:space:]]+audit|owasp|vulnerability|pentest|threat[[:space:]]+model|attack[[:space:]]+surface) ]]; then
+        echo "native-security"
+        return
+    fi
+
+    # Explicit parallel work owns coordination even when the request also says
+    # TDD, review, or another specialized intent. The parallel command can
+    # assign those concerns to its work packages without a hidden peer call.
+    if [[ "$prompt_lower" =~ (parallel|team of teams|work packages|split into|decompose) ]]; then
+        echo "parallel"
+        return
+    fi
+    if [[ "$prompt_lower" =~ (engineering[[:space:]]+)?(prototype|proof[[:space:]]+of[[:space:]]+concept|spike).*(feasibility|throughput|compatibility|technical|performance|measure|experiment|assumption) ]]; then
+        echo "native-plan"
+        return
+    fi
+    if [[ "$prompt_lower" =~ (tdd|test.?driven|test[[:space:]]+first|(write|add|create)[[:space:]]+(unit|integration|regression)?[[:space:]]*tests?|test[[:space:]]+coverage) ]]; then
+        echo "native-tdd"
+        return
+    fi
+    if [[ "$prompt_lower" =~ (pitch[[:space:]]+deck|slide[[:space:]]+deck|create[[:space:]]+a?[[:space:]]*deck|(build|create|make|write)[[:space:]]+(a[[:space:]]+|the[[:space:]]+)?(presentation|slides)) ]]; then
+        echo "native-deck"
+        return
+    fi
+    if [[ "$prompt_lower" =~ (debug[[:space:]]+(this|the)|troubleshoot|stacktrace|stack[[:space:]]+trace|why.*(crash|broken|failing)|fix[[:space:]]+.*(bug|error|issue)|resolve[[:space:]]+.*(bug|error|issue)|diagnose[[:space:]]+.*(bug|error|issue)) ]]; then
+        echo "native-debug"
+        return
+    fi
+    if [[ "$prompt_lower" =~ (code[[:space:]]+review|review[[:space:]]+this|review[[:space:]]+the|review[[:space:]]+code|audit[[:space:]]+this) ]]; then
+        echo "native-review"
+        return
+    fi
+    if [[ "$prompt_lower" =~ (ui[[:space:]]+design|ux[[:space:]]+design|(create|design|draft)[[:space:]]+(a[[:space:]]+|the[[:space:]]+)?(wireframe|mockup)|design[[:space:]]+system|(design|redesign)[[:space:]]+(the[[:space:]]+)?layout|ui[[:space:]]+prototype) ]]; then
+        echo "native-design-ui-ux"
+        return
+    fi
+    if [[ "$prompt_lower" =~ ((write|create|draft)[[:space:]]+(a[[:space:]]+|the[[:space:]]+)?prd|product[[:space:]]+requirements|product[[:space:]]+spec) ]]; then
+        echo "native-prd"
+        return
+    fi
+    if [[ "$prompt_lower" =~ (brainstorm[[:space:]]+(ideas|options|approaches|solutions|this)|let\'?s[[:space:]]+brainstorm|ideate[[:space:]]+.*|thought[[:space:]]+experiment) ]]; then
+        echo "native-brainstorm"
+        return
+    fi
+    if [[ "$prompt_lower" =~ (write|update|create).*(documentation|docs|readme|docstring) ]]; then
+        echo "native-docs"
+        return
+    fi
+    if [[ "$prompt_lower" =~ (write|create|define).*(spec|specification|requirements) ]]; then
+        echo "native-spec"
+        return
+    fi
+    if [[ "$prompt_lower" =~ (make|create|write).*(plan|implementation[[:space:]]+plan) ]]; then
+        echo "native-plan"
+        return
+    fi
+
     # ═══════════════════════════════════════════════════════════════════════════
     # CROSSFIRE INTENT DETECTION (Adversarial Cross-Model Review)
     # Routes to grapple (debate) or squeeze (red team) workflows
@@ -339,7 +408,8 @@ classify_task() {
 
     # Design/UI/UX keywords (check before coding - accessibility is design)
     if [[ "$prompt_lower" =~ (accessibility|a11y|wcag|contrast|color.?scheme) ]] || \
-       [[ "$prompt_lower" =~ (ui|ux|interface|layout|wireframe|prototype|mockup) ]] || \
+       [[ "$prompt_lower" =~ (^|[^[:alnum:]_])(ui|ux)([^[:alnum:]_]|$) ]] || \
+       [[ "$prompt_lower" =~ (interface|layout|wireframe|prototype|mockup) ]] || \
        [[ "$prompt_lower" =~ (design.?system|component.?library|style.?guide|theme) ]] || \
        [[ "$prompt_lower" =~ (responsive|mobile|tablet|breakpoint) ]] || \
        [[ "$prompt_lower" =~ (tailwind|shadcn|radix|styled) ]]; then

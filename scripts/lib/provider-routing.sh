@@ -134,10 +134,26 @@ _octo_build_openai_tool_loop_env() {
     done
 }
 
+# Preserve the workflow-local automatic-peer guard across providers that use
+# `env -i` or `env -u`. Without this, a provider subprocess can re-enter the
+# automatic router and create a second peer for the same workflow. These are
+# internal control values, not credentials, and are forwarded only when the
+# caller has set them.
+_octo_provider_env_forward_auto_peer_guard() {
+    local guard_var
+    [[ ${#PROVIDER_ENV_ARRAY[@]} -gt 0 ]] || return 0
+    for guard_var in OCTOPUS_AUTO_PEER_ACTIVE OCTOPUS_AUTO_PEER_CHECKED OCTOPUS_AUTO_PEER_RUN_ID; do
+        if [[ -n "${!guard_var+x}" ]]; then
+            PROVIDER_ENV_ARRAY+=("${guard_var}=${!guard_var}")
+        fi
+    done
+}
+
 build_provider_env() {
     _octo_build_provider_env_impl "$@"
     local _rc=$?
     _octo_provider_env_forward_workspace_dir
+    _octo_provider_env_forward_auto_peer_guard
     return "$_rc"
 }
 

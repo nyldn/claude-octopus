@@ -80,18 +80,43 @@ _auto_route_wait_for_pids() {
     return 1
 }
 
+auto_route_validate_workflow() {
+    case "${1:-}" in
+        embrace|multi|parallel|spec|security|tdd|debug|design-ui-ux|prd|brainstorm|deck|docs|discover|review|debate|develop|plan|quick)
+            printf '%s\n' "$1"
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
 auto_route() {
     local prompt="$1"
+    local selected_workflow="${2:-}"
     local prompt_lower
     prompt_lower=$(echo "$prompt" | tr '[:upper:]' '[:lower:]')
+    local auto_peer_run_id="${OCTOPUS_AUTO_PEER_RUN_ID:-auto-route-$(date +%s)-$$}"
+    export OCTOPUS_AUTO_PEER_RUN_ID="$auto_peer_run_id"
 
     local task_type
-    task_type=$(classify_task "$prompt")
+    local validated_workflow=""
+    if [[ -n "$selected_workflow" ]] &&
+       validated_workflow=$(auto_route_validate_workflow "$selected_workflow"); then
+        # A confirmed /octo:auto choice is authoritative. Keep the native
+        # command contract intact instead of reclassifying the original query.
+        task_type="native-${validated_workflow}"
+    else
+        task_type=$(classify_task "$prompt")
+    fi
 
     # ═══════════════════════════════════════════════════════════════════════════
     # v8.20.0: TRIVIAL TASK FAST PATH
     # ═══════════════════════════════════════════════════════════════════════════
-    if [[ "${OCTOPUS_COST_TIER:-balanced}" != "premium" ]] && type detect_trivial_task &>/dev/null 2>&1; then
+    if [[ "${OCTOPUS_COST_TIER:-balanced}" != "premium" &&
+          "$task_type" != "parallel" && "$task_type" != native-* ]] &&
+       type detect_trivial_task &>/dev/null 2>&1; then
         local trivial_result
         trivial_result=$(detect_trivial_task "$prompt")
         if [[ "$trivial_result" == "trivial" ]]; then
@@ -104,7 +129,7 @@ auto_route() {
     # COST-AWARE COMPLEXITY ESTIMATION
     # ═══════════════════════════════════════════════════════════════════════════
     local complexity=2
-    if [[ -n "$FORCE_TIER" ]]; then
+    if [[ -n "${FORCE_TIER:-}" ]]; then
         # User override via -Q/--quick, -P/--premium, or --tier
         case "$FORCE_TIER" in
             trivial) complexity=1 ;;
@@ -167,10 +192,31 @@ auto_route() {
     response_mode=$(detect_response_mode "$prompt" "$task_type")
     echo -e "  Response Mode: ${MAGENTA}${response_mode}${NC}"
 
-    if [[ "$VERBOSE" == "true" ]]; then
+    if [[ "${VERBOSE:-false}" == "true" ]]; then
         echo -e "  $(get_context_info "$context_result")"
     fi
     echo ""
+
+    # Workflow-owned routes must run before response-mode shortcuts. A request
+    # such as "decompose this into parallel work packages" can be terse enough
+    # to look direct, but its explicit coordination intent is authoritative.
+    if [[ "$task_type" == parallel ]]; then
+        echo -e "${CYAN}${_BOX_TOP}${NC}"
+        echo -e "${CYAN}║  🐙 PARALLEL - Team of Teams execution                       ║${NC}"
+        echo -e "${CYAN}${_BOX_BOT}${NC}"
+        echo "  Routing to parallel workflow; Premium peer policy is owned by that workflow."
+        echo ""
+        parallel_execute "$prompt"
+        return
+    fi
+
+    case "$task_type" in
+        native-*)
+            echo "Native workflow requested: /octo:${task_type#native-}. No external provider was started."
+            echo "Continue in the current Claude Code conversation with that command's execution contract."
+            return 0
+            ;;
+    esac
 
     # v8.18.0: Response mode short-circuits
     case "$response_mode" in
@@ -438,7 +484,7 @@ Focus on:
             local domains=("performance" "accessibility" "seo" "images" "bundle")
 
             # Dry-run mode: show plan and exit
-            if [[ "$DRY_RUN" == "true" ]]; then
+            if [[ "${DRY_RUN:-false}" == "true" ]]; then
                 echo -e "  ${CYAN}[DRY-RUN] Full Site Audit Plan:${NC}"
                 echo -e "    Phase 1: Parallel domain audits (${#domains[@]} agents)"
                 for domain in "${domains[@]}"; do
@@ -682,7 +728,7 @@ Then provide specific optimization recommendations."
     # When enabled, offers knowledge workflow options for research-like tasks
     # ═══════════════════════════════════════════════════════════════════════════
     load_user_config 2>/dev/null || true
-    if [[ "$KNOWLEDGE_WORK_MODE" == "true" && "$task_type" =~ ^(research|general|coding)$ ]]; then
+    if [[ "${KNOWLEDGE_WORK_MODE:-false}" == "true" && "$task_type" =~ ^(research|general|coding)$ ]]; then
         echo -e "${MAGENTA}${_BOX_TOP}${NC}"
         echo -e "${MAGENTA}║  🐙 Knowledge Work Mode Active                            ║${NC}"
         echo -e "${MAGENTA}${_BOX_BOT}${NC}"
@@ -695,7 +741,7 @@ Then provide specific optimization recommendations."
         echo -e "    ${GREEN}[D]${NC} default    - Continue with standard routing"
         echo ""
         
-        if [[ -t 0 && -z "$CI" ]]; then
+        if [[ -t 0 && -z "${CI:-}" ]]; then
             read -p "  Choose workflow [E/A/S/D]: " -n 1 -r kw_choice
             echo ""
             case "$kw_choice" in
@@ -727,7 +773,7 @@ Then provide specific optimization recommendations."
     # Branch override: premium=3, standard=2, fast=1
     # ═══════════════════════════════════════════════════════════════════════════
     local agent_complexity="$complexity"
-    if [[ -n "$FORCE_BRANCH" ]]; then
+    if [[ -n "${FORCE_BRANCH:-}" ]]; then
         case "$FORCE_BRANCH" in
             premium) agent_complexity=3 ;;
             standard) agent_complexity=2 ;;
@@ -806,6 +852,53 @@ Then provide specific optimization recommendations."
     echo ""
 
     log INFO "Routing to $agent agent (task: $task_type, tier: $tier_name)"
+
+    # Premium's automatic peer check belongs at the workflow root, after the
+    # owner has produced a terminal result. Keep ordinary routes asynchronous;
+    # only the Premium path that qualifies for a peer needs the owner's output
+    # in hand before the second, bounded call can start.
+    if [[ "${DRY_RUN:-false}" != "true" ]] &&
+       declare -F octo_auto_peer_should_run >/dev/null 2>&1 &&
+       octo_auto_peer_should_run "$task_type" "$response_mode" "$prompt"; then
+        local owner_role="implementer"
+        [[ "$task_type" == review ]] && owner_role="code-reviewer"
+        local owner_dispatch_agent="$agent"
+        local owner_provider=""
+        local owner_model=""
+        owner_provider="$(octo_agent_spec_provider "$agent" 2>/dev/null || true)"
+        owner_model="$(get_agent_model "$agent" "auto-route" "$owner_role" 2>/dev/null || true)"
+        if [[ -n "$owner_provider" && -n "$owner_model" ]] &&
+           declare -F octo_agent_spec_canonicalize_exact >/dev/null 2>&1; then
+            owner_dispatch_agent="$(octo_agent_spec_canonicalize_exact "${owner_provider}:${owner_model}" 2>/dev/null || true)"
+        fi
+        if [[ -z "$owner_dispatch_agent" ]]; then
+            echo "Premium owner model could not be bound to an exact dispatch seat; automatic peer check was skipped."
+            spawn_agent "$agent" "$prompt"
+            return $?
+        fi
+        local owner_output=""
+        # Claim the workflow-level gate before the owner starts. The owner is
+        # deliberately marked active in its child process so nested routing
+        # cannot consume the root's one peer slot.
+        if ! octo_auto_peer_claim; then
+            echo "Premium peer check: skipped (workflow slot could not be claimed)." >&2
+            spawn_agent "$agent" "$prompt"
+            return $?
+        fi
+        if ! owner_output=$(OCTOPUS_AUTO_PEER_ACTIVE=true run_agent_sync "$owner_dispatch_agent" "$prompt" "${TIMEOUT:-600}" "$owner_role" "auto-route"); then
+            octo_auto_peer_release
+            echo "Premium owner failed; automatic peer check was not started."
+            return 1
+        fi
+        if [[ -z "$owner_output" ]]; then
+            octo_auto_peer_release
+            echo "Premium owner returned no reviewable output; automatic peer check was skipped."
+            return 0
+        fi
+        printf '%s\n' "$owner_output"
+        OCTOPUS_AUTO_PEER_CLAIMED=true octo_auto_peer_run "$task_type" "$response_mode" "$prompt" "$owner_dispatch_agent" "$owner_output" "$owner_role" "$owner_model"
+        return $?
+    fi
 
     spawn_agent "$agent" "$prompt"
 }

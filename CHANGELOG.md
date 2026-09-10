@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [11.4.0] - 2026-09-10
+
+### Added
+
+- Premium `/octo:auto` routes now run one bounded cross-provider peer check
+  after an eligible single-owner result. Budget and Standard routes keep their
+  existing single-owner path, and workflows that already use councils, debates,
+  crossfire, parallel work, or full review are not double-reviewed. Use
+  `OCTOPUS_PREMIUM_PEER_CHECK=off` to disable the automatic addition.
+
 ## [11.3.0] - 2026-09-08
 
 ### Fixed

@@ -92,11 +92,35 @@ test_invalid_command_handling() {
     fi
 }
 
+test_design_token_boundaries() {
+    test_case "Does not treat build as a UI design request"
+
+    # The UI/UX classifier must match standalone tokens. "build" contains
+    # "ui" but should remain a normal implementation task.
+    source "$PROJECT_ROOT/scripts/lib/routing.sh"
+    local build_class
+    local ui_class
+    build_class=$(classify_task "the nightly build is failing, implement the retry fix")
+    ui_class=$(classify_task "UI design for the dashboard")
+
+    if [[ "$build_class" == "design" ]]; then
+        test_fail "build prompt was misclassified as design"
+        return 1
+    fi
+    if [[ "$ui_class" != "native-design-ui-ux" ]]; then
+        test_fail "standalone UI prompt was not routed to native design"
+        return 1
+    fi
+
+    test_pass
+}
+
 # Run all tests
 test_provider_detection
 test_single_provider_fallback
 test_command_execution
 test_help_accessibility
 test_invalid_command_handling
+test_design_token_boundaries
 
 test_summary

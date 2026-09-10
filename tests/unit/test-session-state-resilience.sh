@@ -118,7 +118,7 @@ else
 fi
 
 test_case "shared session writers never reuse a fixed temporary path"
-fixed_tmp_writers="$(rg -n \
+fixed_tmp_writers="$(grep -R -nE \
     '\$\{SESSION_FILE\}\.tmp"|\$SESSION_FILE\.tmp"|session\.json\.tmp"' \
     "$PROJECT_ROOT/hooks/session-start-memory.sh" \
     "$PROJECT_ROOT/hooks/teammate-idle-dispatch.sh" \

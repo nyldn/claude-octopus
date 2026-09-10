@@ -174,6 +174,7 @@ source "${SCRIPT_DIR}/lib/plugin-update.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/doctor.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/quota-watcher.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/agent-sync.sh" 2>/dev/null || true
+source "${SCRIPT_DIR}/lib/automatic-peer.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/persona-loader.sh" 2>/dev/null || true
 
 # Error tracking & UX progress (v9.7.x extraction)
@@ -2923,8 +2924,15 @@ case "$COMMAND" in
         ;;
     auto)
         source "${SCRIPT_DIR}/lib/auto-route.sh" 2>/dev/null || true
-        [[ $# -lt 1 ]] && { log ERROR "Usage: auto <prompt>"; exit 1; }
-        auto_route "$*"
+        _auto_selected_workflow=""
+        if [[ "${1:-}" == "--workflow" ]]; then
+            [[ $# -ge 2 ]] || { log ERROR "Usage: auto [--workflow <token>] <prompt>"; exit 1; }
+            _auto_selected_workflow="$2"
+            shift 2
+        fi
+        [[ $# -lt 1 ]] && { log ERROR "Usage: auto [--workflow <token>] <prompt>"; exit 1; }
+        auto_route "$*" "$_auto_selected_workflow"
+        unset _auto_selected_workflow
         ;;
     parallel)
         parallel_execute "${1:-}"

@@ -92,7 +92,8 @@ raise SystemExit(0 if emitted and emitted == allowed else 1)
 PY
 then
     if grep -q 'Reject `\.\.`, `/`, `\\\\`, or non-allowlisted values' "$PROJECT_ROOT/commands/auto.md" \
-        && grep -q 'commands/<validated-token>\.md' "$PROJECT_ROOT/commands/auto.md"; then
+        && grep -q 'confirmed medium-confidence execution' "$PROJECT_ROOT/commands/auto.md" \
+        && ! grep -q 'commands/<validated-token>\.md' "$PROJECT_ROOT/commands/auto.md"; then
         test_pass
     else
         test_fail "smart router does not reject unsafe command paths"
@@ -105,7 +106,7 @@ test_case "manual composition contract separates model and hook roots"
 if grep -q 'Manual composition contract' "$PROJECT_ROOT/docs/PLUGIN-ASSEMBLY-STANDARD.md" \
     && grep -q 'second plugin trust boundary' "$PROJECT_ROOT/docs/PLUGIN-ASSEMBLY-STANDARD.md" \
     && grep -q '`CLAUDE_PLUGIN_ROOT` for hooks and runtime scripts' "$PROJECT_ROOT/docs/PLUGIN-ASSEMBLY-STANDARD.md" \
-    && ! rg '^[^#]*Skill\(' "$PROJECT_ROOT/commands"/*.md \
+    && ! grep -E '^[^#]*Skill\(' "$PROJECT_ROOT"/commands/*.md \
         | grep -vE '❌|Wrong|wrong|PROHIBITED|DO NOT|not resolvable|loops|INSTEAD' >/dev/null; then
     test_pass
 else

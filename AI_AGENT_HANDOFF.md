@@ -1,6 +1,36 @@
 # AI Agent Handoff
 
-Last updated: 2026-09-07
+Last updated: 2026-09-10
+
+Current release checkpoint: branch `release/v11.4.0` contains the automatic
+Premium peer routing implementation and the follow-up routing, lifecycle,
+portability, test, and documentation fixes. The release branch is pushed to
+`upstream` at the current head, and PR #1030 is the source of truth for the
+remaining protected merge step. The v11.4.0 tag and GitHub release do not exist
+until that PR is squash-merged into `main`.
+
+`/octo:auto` gives eligible generic Premium work one bounded, exact
+cross-provider peer without a `--peer` flag. Budget, Standard, quick, direct,
+explicit native workflows, and parallel work do not gain a hidden peer. A
+confirmed medium-confidence workflow is passed through a closed allowlist and
+takes precedence over reclassification; invalid or absent selections fall back
+to normal classification.
+
+The implementation records exact owner and peer identities, forwards the
+nested-peer guard through isolated provider environments, releases claims on
+owner abort, refuses dispatch when the lifecycle marker cannot be written, and
+records truthful receipt attempt counts. Focused automatic-peer, routing,
+activation, syntax, sync, and assembly checks pass. The full local matrix also
+passes: smoke, full unit, and integration gates.
+
+Hosted PR checks for the current reviewed head passed on macOS and Ubuntu,
+including the full unit shards, integration tests, package, portability,
+symlink, smoke, aggregate test, and review gates. The canonical checkout's
+unrelated dirty state remains preserved.
+
+The remainder of this file is historical continuity from earlier v11.2.x
+cancellation work. It is retained as evidence, not as the current release
+status; use the checkpoint above and PR #1030 for current decisions.
 
 Status: the five orchestrator review fixes from `a3f7847d` are prepared for
 v11.2.1 on `release/v11.2.1`, tracking `oco-c3t`. Fix implementation task
@@ -71,9 +101,10 @@ Tracking: use the repository issue tracker and checked-in implementation
 documentation as the source of truth. Do not put private checkout paths,
 credentials, or host-specific state in this public handoff.
 
-Next action: pass the release PR checks and review gate, squash-merge, verify
-the exact main commit, then tag and publish v11.2.1 and sync the shared
-marketplaces. Do not claim publication until those steps are verified.
+Historical next action: pass the then-current release PR checks and review gate.
+For the active release, squash-merge PR #1030, verify the exact `main` commit,
+then tag and publish v11.4.0 and sync the shared marketplaces. Do not claim
+publication until those steps are verified.
 Shared runtime changes retain the full local matrix.
 
 Release preparation passed generated-file checks, README release sync 11/11,

@@ -58,6 +58,28 @@ long-context multipliers for the whole request.
 4. Model choice never changes permissions, repository rules, or quality gates.
 5. User and project configuration always beats release defaults.
 
+### Automatic Premium peer check
+
+Premium single-owner routes automatically add one independent peer check after
+the owner has produced a result. The root workflow owns this decision, so
+nested provider seats do not start more peer calls. Budget and Standard routes
+keep the single-owner path unless the user explicitly chooses an existing
+multi-model workflow.
+
+The automatic check normally pairs an OpenAI-family owner with an Anthropic
+peer, or an Anthropic owner with GPT-5.6 Sol. It requires different canonical
+providers and known model families before it reports independent coverage.
+Unknown, gateway-only, same-family, or unavailable peers are reported as
+incomplete coverage. Fable 5.1 and GPT-6 Astra remain explicit escalations and
+are not added automatically.
+
+The check is skipped for quick/direct work, setup/status, image and research
+routes, and workflows that already own review, council, debate, crossfire,
+parallel, or full-review behavior. Use
+`OCTOPUS_PREMIUM_PEER_CHECK=off` to disable this automatic addition. A peer
+response is advisory, and only a captured terminal result can be
+reported as reviewed.
+
 ### Contextual review seat overrides
 
 The contextual code-review pipeline supports explicit model-qualified seat identities

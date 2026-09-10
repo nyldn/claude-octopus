@@ -17,15 +17,58 @@ Single entry point for all Claude Octopus workflows. Analyzes your natural langu
 
 All `/octo:*` commands also work directly, bypassing the router.
 
+### Premium automatic peer check
+
+When Premium mode is active, eligible single-owner implementation, review,
+design, copywriting, and general work receives one automatic cross-provider
+peer check after the owner returns a result. Users do not need a flag or a
+second command. Budget and Standard modes do not add this call.
+
+Octopus skips the extra check for quick or direct requests, setup and status
+work, image and research routes, and workflows that already run councils,
+debates, crossfire, parallel work, or a full review. Explicit provider/model
+pins and provider restrictions still win. Set `OCTOPUS_PREMIUM_PEER_CHECK=off`
+to disable only this automatic addition.
+
+The peer receipt records whether the bounded result review completed. A peer
+response is advisory and does not prove correctness.
+
 ---
 
 ## EXECUTION CONTRACT (Mandatory)
 
-When the user invokes `/octo:auto <query>` or says `octo <query>`, you MUST follow these steps in order:
+When the user invokes `/octo:auto <query>` or says `octo <query>`, you MUST use the native path below. The detailed routing table later in this file is reference material for the shared runtime, not a second classifier.
+
+### NATIVE PATH: SINGLE AUTHORITATIVE ROUTER
+
+For every non-meta request, pass the complete original query to the shared
+automatic runtime before doing any local intent matching:
+
+```bash
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+bash "${OCTO_ROOT}/scripts/orchestrate.sh" auto "<full original query>"
+```
+
+Treat the runtime's task classification and selected workflow as authoritative.
+If it reports Direct mode, continue handling the original request natively in
+the current Claude Code conversation. If it dispatches an external or
+parallel workflow, let that workflow complete and do not start a second route.
+If it reports a Native workflow request, load the named installed command and
+follow that command's contract in the current conversation. Do not continue to
+STEP 1 or choose a different route. This avoids two classifiers choosing
+different workflows and keeps Premium peer policy at the workflow root.
+
+The `help`, `list`, and `capabilities` requests below may be answered locally
+without invoking the runtime.
+
+## ROUTING REFERENCE (not a second execution path)
+
+The following steps document the intent categories used by the runtime. They
+must not be executed separately by a native `/octo:auto` invocation.
 
 ### STEP 1: Input Validation
 
-If the query exceeds 500 characters, use only the first 500 characters for intent analysis. Pass the full original query to the target workflow.
+If the query exceeds 500 characters, use only the first 500 characters for intent analysis. Pass the full original query to the shared runtime.
 
 ### STEP 2: Meta Command Check
 
@@ -111,9 +154,11 @@ Before loading any route, validate it against this closed allowlist: `embrace`,
 `multi`, `parallel`, `spec`, `security`, `tdd`, `debug`, `design-ui-ux`, `prd`,
 `brainstorm`, `deck`, `docs`, `discover`, `review`, `debate`, `develop`, `plan`, `quick`.
 The token is control data, never user input: do not derive it from the query or
-accept a user-supplied path. Reject `..`, `/`, `\\`, or non-allowlisted values;
-then load exactly `${HOME}/.claude-octopus/plugin/commands/<validated-token>.md`.
-The full query is passed only as workflow arguments.
+accept a user-supplied path. Reject `..`, `/`, `\\`, or non-allowlisted values.
+The full query is passed only as workflow arguments. Both high-confidence
+execution and confirmed medium-confidence execution use the shared automatic
+runtime below; confirmation selects whether to proceed, not a different
+dispatch path.
 
 **STEP 5a — HIGH confidence (auto-route):**
 
@@ -122,15 +167,19 @@ Display:
 Routing to [Workflow Name] (/octo:[command])
 ```
 
-Then display the visual indicator banner (STEP 6), read the entire validated
-command file, and treat its body as the active instructions in this same
-conversation: follow its workflow in order and supply the full query as its
-arguments. Do not use the Skill tool; Octopus components are hidden from model
-invocation by design.
+Then display the visual indicator banner (STEP 6), and execute the shared
+automatic router through Bash. This keeps the native `/octo:auto` entrypoint
+on the same workflow-root path as direct `orchestrate.sh auto` calls, including
+the Premium automatic peer gate:
+
+```bash
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+bash "${OCTO_ROOT}/scripts/orchestrate.sh" auto "<full original query>"
 ```
-Read: ${HOME}/.claude-octopus/plugin/commands/<validated-token>.md
-Arguments: <full user query>
-```
+
+Do not manually invoke the selected command file from this entrypoint; doing
+so would bypass the root-level routing policy. Do not use the Skill tool;
+Octopus components are hidden from model invocation by design.
 
 **STEP 5b — MEDIUM confidence (confirm first):**
 
@@ -143,7 +192,18 @@ I detected [intent]. Route to:
 Which would you prefer, or rephrase your request?
 ```
 
-Wait for user confirmation before loading the selected command file.
+Wait for user confirmation. After confirmation, pass the confirmed allowlisted
+workflow token to the shared automatic router with the full original query:
+
+```bash
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+bash "${OCTO_ROOT}/scripts/orchestrate.sh" auto --workflow "<confirmed token>" "<full original query>"
+```
+
+The runtime validates the token and gives the confirmed workflow precedence
+over reclassification. Do not manually load the selected command file, because
+that would bypass the root-level routing policy. If no valid token is supplied,
+the runtime falls back to classifying the original query.
 
 **STEP 5c — LOW confidence (show complete menu):**
 
@@ -264,7 +324,7 @@ This allows the router to learn user preferences over time.
 - Intent detected via priority-ordered keyword matching
 - Confidence determined via decision tree (not percentage formula)
 - User confirmation obtained (if MEDIUM confidence)
-- Target workflow executed from its explicit command file
+- Target workflow executed through the shared `orchestrate.sh auto` entrypoint
 - Visual indicators displayed (for multi-AI workflows)
 
 ### Prohibited Actions
