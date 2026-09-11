@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.4.1",
-  "description": "v11.4.1 \u2014 Fix doctor diagnostics for non-interactive agent checks and recurring failure reports. Run /octo:setup.",
+  "version": "11.4.2",
+  "description": "v11.4.2 \u2014 Keep private development material out of public plugin releases. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

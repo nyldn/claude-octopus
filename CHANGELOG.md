@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [11.4.2] - 2026-09-11
+
+### Changed
+
+- Keep private development material out of public plugin releases
+
 ## [11.4.1] - 2026-09-10
 
 ### Changed
