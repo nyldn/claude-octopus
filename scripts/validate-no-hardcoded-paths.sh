@@ -41,7 +41,9 @@ fi
 
 path_is_published() {
     local path="$1"
-    git ls-files -- "$path" "$path/**" | grep -q . && return 0
+    if git ls-files -- "$path" "$path/**" | grep -c . >/dev/null; then
+        return 0
+    fi
     [[ -n "$package_files" ]] && printf '%s\n' "$package_files" | \
         awk -v path="$path" '$0 == path || index($0, path "/") == 1 { found = 1 } END { exit found ? 0 : 1 }'
 }
