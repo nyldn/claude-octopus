@@ -361,63 +361,12 @@ integration suites. Run the separate portability and symlink jobs in hosted CI.
   `config/provider-env-allowlist.json`; keep its adapter tests green when it
   changes.
 
-### Memory ruling (single source of truth)
+### Tracking and continuity
 
-beads (`bd`) is the system of record. The Session Completion push mandate in this file is the "explicit authority" that bd's conservative-profile guidance asks for; the two do not conflict in this repo. Known failure mode: pending Dolt schema migrations block ALL bd writes with "refusing to auto-apply ... migrations". Do NOT run the migration (single-designated-migrator rule); instead record the work in your session handoff, note the blockage explicitly, and flag it to the maintainer. Do not silently drop tracking.
-
-## Cross-Harness Continuity
-
-`bd` is the task system of record. `AI_AGENT_HANDOFF.md` is the committed,
-harness-neutral context packet for Claude Code, Codex, Copilot, OpenCode, and
-other coding agents. It records the active branch, current decisions, evidence,
-known blockers, and exact next action; it does not replace issue tracking.
-
-At session start, read `RTK.md`, this file, `AI_AGENT_HANDOFF.md`, `git status`,
-and the relevant `bd` issue before editing. For model-routing work, also read
-`docs/MODEL-ROUTING-STRATEGY.md`. At session end, update the handoff with
-verified test results, commit/push state, and remaining work.
-
-Harness-local files such as `.octo-continue.md` may be generated or stale. Do
-not treat them as the repository source of truth and do not overwrite an
-untracked copy you did not create.
-
----
-
-<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->
-## Beads Issue Tracker
-
-This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
-
-### Rules
-
-- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
-- Run `bd prime` for detailed command reference and session close protocol
-- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
-
-**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
-
-## Session Completion
-
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
-
-**MANDATORY WORKFLOW:**
-
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
-
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
-<!-- END BEADS INTEGRATION -->
+Use GitHub issues and pull requests for public work tracking. Do not commit
+local tracker databases, credentials, generated session state, or private
+handoff files to this repository. At session start, read this file,
+`AGENTS.md`, `git status`, and the relevant issue or pull request. For
+model-routing work, also read `docs/MODEL-ROUTING-STRATEGY.md`. Before handoff,
+record verified tests and the exact commit or pull request state in the
+conversation or pull request description.

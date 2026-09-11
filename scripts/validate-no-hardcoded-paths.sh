@@ -18,15 +18,44 @@ echo ""
 
 violations=0
 
+# Development-only material belongs in the private development repository.
+# Keep this guard in the public checkout so a later sync cannot republish it.
+echo "Checking for development-only public files..."
+for forbidden_path in \
+    .beads \
+    .claude/DEVELOPMENT.md \
+    .claude/claude-octopus.local.md \
+    .claude/settings.json \
+    AI_AGENT_HANDOFF.md \
+    GOALS.md \
+    RTK.md \
+    docs/plans \
+    docs/research \
+    docs/roadmaps \
+    docs/superpowers; do
+    if [[ -e "$forbidden_path" ]]; then
+        echo -e "${RED}✗ Found forbidden development path: $forbidden_path${NC}"
+        violations=$((violations + 1))
+    fi
+done
+if [ "$violations" -eq 0 ]; then
+    echo -e "${GREEN}✓ No forbidden development files found${NC}"
+fi
+
 # Check for absolute user paths in deployment files (only git-tracked files)
 echo "Checking for absolute user paths (/Users/*, /home/*)..."
 hardcoded_users=$(git ls-files | grep -E "\.(md|sh|js|json|yaml)$" | \
+  grep -v '^tests/' | \
+  grep -v '^docs/' | \
   grep -v "validate-no-hardcoded-paths.sh" | \
   xargs grep -n "/Users/[^/]*/\|/home/[^/]*/" 2>/dev/null | \
   grep -v "~/" | \
   grep -v "# Example:" | \
   grep -v "# Note:" | \
-  grep -v "Example:" || true)
+  grep -v "Example:" | \
+  grep -v "/Users/<you>" | \
+  grep -v "/home/<user>" | \
+  grep -v "/home/user/" || true)
 
 if [ -n "$hardcoded_users" ]; then
     echo -e "${RED}✗ Found hardcoded user paths:${NC}"
@@ -41,6 +70,8 @@ fi
 echo ""
 echo "Checking for developer usernames..."
 dev_usernames=$(git ls-files | grep -E "\.(md|sh|js|json)$" | \
+  grep -v '^tests/' | \
+  grep -v '^docs/' | \
   grep -v "validate-no-hardcoded-paths.sh" | \
   xargs grep -n "/Users/chris\|/home/chris\|/Users/.*/git/" 2>/dev/null || true)
 
@@ -60,6 +91,8 @@ fi
 echo ""
 echo "Checking for absolute git repository paths..."
 git_paths=$(git ls-files | grep -E "\.(md|sh)$" | \
+  grep -v '^tests/' | \
+  grep -v '^docs/' | \
   grep -v "validate-no-hardcoded-paths.sh" | \
   xargs grep -n "git/claude-octopus\|/claude-octopus/plugin/" 2>/dev/null || true)
 

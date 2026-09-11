@@ -1450,8 +1450,6 @@ test_agy_slash_command_no_stale_three_provider_copy() {
         "$PROJECT_ROOT/commands" "$PROJECT_ROOT/.claude/skills" "$PROJECT_ROOT/docs" "$PROJECT_ROOT/README.md" "$PROJECT_ROOT/.claude-plugin/README.md" "$PROJECT_ROOT/SECURITY.md" "$PROJECT_ROOT/PRODUCT.md" "$PROJECT_ROOT/tests/test-fleet-diversity.sh" "$PROJECT_ROOT/tests/unit/test-research-fanout-static.sh" \
         | grep -v 'commands/resume.md' \
         | grep -v 'commands/extract.md:.*Extract all 8 features' \
-        | grep -v 'docs/superpowers/specs/' \
-        | grep -v 'docs/superpowers/plans/' \
         | grep -v 'docs/COMMAND-REFERENCE.md:.*transcripts' || true)
 
     if [[ -z "$stale" ]]; then

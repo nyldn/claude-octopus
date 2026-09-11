@@ -460,7 +460,7 @@ Areas particularly welcome:
 
 ### Installation
 ```bash
-cd /Users/chris/git/claude-octopus/plugin/scripts/token-extraction
+cd scripts/token-extraction
 npm install
 ```
 
@@ -491,7 +491,7 @@ console.log(`Extracted ${result.tokens.length} tokens`);
 
 All files located in:
 ```
-/Users/chris/git/claude-octopus/plugin/scripts/token-extraction/
+scripts/token-extraction/
 ```
 
 Ready for immediate use or integration into the Claude Octopus plugin ecosystem.

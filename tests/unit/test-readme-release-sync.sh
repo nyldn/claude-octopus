@@ -385,31 +385,17 @@ else
     test_fail "RELEASING.md omits a synchronized surface or hard-codes a persona count"
 fi
 
-test_case "cross-harness controller preserves the README sync contract"
-handoff_git_line="$(awk '/^## Start Here$/{section=1; next} section && /^## /{exit} section && /git status --short --branch/{print NR; exit}' "$PROJECT_ROOT/AI_AGENT_HANDOFF.md")"
-handoff_commits_line="$(awk '/^## Start Here$/{section=1; next} section && /^## /{exit} section && /latest commits/{print NR; exit}' "$PROJECT_ROOT/AI_AGENT_HANDOFF.md")"
-handoff_bd_line="$(awk '/^## Start Here$/{section=1; next} section && /^## /{exit} section && /relevant `bd` issue/{print NR; exit}' "$PROJECT_ROOT/AI_AGENT_HANDOFF.md")"
-rtk_git_line="$(awk '/^## Start a Session$/{section=1; next} section && /^## /{exit} section && /git status --short --branch/{print NR; exit}' "$PROJECT_ROOT/RTK.md")"
-rtk_commits_line="$(awk '/^## Start a Session$/{section=1; next} section && /^## /{exit} section && /latest commits/{print NR; exit}' "$PROJECT_ROOT/RTK.md")"
-rtk_bd_line="$(awk '/^## Start a Session$/{section=1; next} section && /^## /{exit} section && /relevant `bd` issue/{print NR; exit}' "$PROJECT_ROOT/RTK.md")"
-if [[ -f "$PROJECT_ROOT/RTK.md" ]] &&
-   [[ -n "$handoff_git_line" && -n "$handoff_commits_line" && -n "$handoff_bd_line" ]] &&
-   [[ "$handoff_git_line" -lt "$handoff_bd_line" && "$handoff_commits_line" -lt "$handoff_bd_line" ]] &&
-   [[ -n "$rtk_git_line" && -n "$rtk_commits_line" && -n "$rtk_bd_line" ]] &&
-   [[ "$rtk_git_line" -lt "$rtk_bd_line" && "$rtk_commits_line" -lt "$rtk_bd_line" ]] &&
-   grep -q 'scripts/sync-readme.py.*owns' "$PROJECT_ROOT/RTK.md" &&
+test_case "public agent guidance omits private handoff files"
+if [[ ! -e "$PROJECT_ROOT/AI_AGENT_HANDOFF.md" &&
+      ! -e "$PROJECT_ROOT/RTK.md" &&
+      ! -e "$PROJECT_ROOT/GOALS.md" ]] &&
    grep -q 'scripts/sync-readme.py.*owns' "$PROJECT_ROOT/AGENTS.md" &&
    grep -q 'scripts/sync-readme.py' "$PROJECT_ROOT/CLAUDE.md" &&
    grep -Eq 'make[[:space:]]+sync([^[:alnum:]_-]|$)' "$PROJECT_ROOT/AGENTS.md" &&
-   grep -Eq 'make[[:space:]]+sync([^[:alnum:]_-]|$)' "$PROJECT_ROOT/CLAUDE.md" &&
-   grep -Eq 'make[[:space:]]+sync([^[:alnum:]_-]|$)' "$PROJECT_ROOT/RTK.md" &&
-   grep -q 'make sync-check' "$PROJECT_ROOT/RTK.md" &&
-   grep -q 'every remaining item' "$PROJECT_ROOT/RTK.md" &&
-   grep -q 'Clean up stashes' "$PROJECT_ROOT/RTK.md" &&
-   grep -q 'AI_AGENT_HANDOFF.md' "$PROJECT_ROOT/RTK.md"; then
+   grep -Eq 'make[[:space:]]+sync([^[:alnum:]_-]|$)' "$PROJECT_ROOT/CLAUDE.md"; then
     test_pass
 else
-    test_fail "RTK/agent guidance does not preserve the generated README contract"
+    test_fail "private handoff files remain or public agent guidance lost the README contract"
 fi
 
 test_case "current model configuration guidance uses the frontier roster"

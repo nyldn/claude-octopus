@@ -51,70 +51,12 @@ Mirror of the "Repo Orientation for Agents" section in `CLAUDE.md` (keep both in
 - **Releases**: follow `RELEASING.md`; tag the squash-merge commit on `main`, never the branch head.
 - **Secret-scan quoting**: write `"SOME_API_KEY=${VAR}"`, not `SOME_API_KEY="${VAR}"`.
 - **Outbound GitHub text**: never place generated text or Markdown directly in shell `--body`, `-f body=`, or similar arguments. Stream it to `./scripts/safe-gh-comment.sh --repo OWNER/REPO ... -` on stdin (or pass a private file); the helper snapshots and validates the body before a silent GitHub write.
-- **beads blocked?** If bd writes are blocked by pending schema migrations, do NOT migrate; record work in the session handoff and flag the blockage.
+- Keep local tracker databases, generated session state, credentials, and private handoff files out of this public repository.
 
-## Cross-Harness Continuity
+## Public work tracking
 
-`bd` is the task system of record. `AI_AGENT_HANDOFF.md` is the committed,
-harness-neutral context packet for Claude Code, Codex, Copilot, OpenCode, and
-other coding agents. It records the active branch, current decisions, evidence,
-known blockers, and exact next action; it does not replace issue tracking.
-
-At session start, read `RTK.md`, this file, `AI_AGENT_HANDOFF.md`, `git status`,
-and the relevant `bd` issue before editing. For model-routing work, also read
-`docs/MODEL-ROUTING-STRATEGY.md`. At session end, update the handoff with
-verified test results, commit/push state, and remaining work.
-
-Harness-local files such as `.octo-continue.md` may be generated or stale. Do
-not treat them as the repository source of truth and do not overwrite an
-untracked copy you did not create.
-
-<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->
-## Beads Issue Tracker
-
-This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
-
-### Quick Reference
-
-```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work
-bd close <id>         # Complete work
-```
-
-### Rules
-
-- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
-- Run `bd prime` for detailed command reference and session close protocol
-- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
-
-**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
-
-## Session Completion
-
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
-
-**MANDATORY WORKFLOW:**
-
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-
-   ```bash
-   git pull --rebase
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
-
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
-<!-- END BEADS INTEGRATION -->
+Use GitHub issues and pull requests for public work tracking. At session start,
+read this file, `CLAUDE.md`, `git status`, and the relevant issue or pull
+request. Run the focused checks for the files you change, then `make ci-local`
+before merge or release. Keep local tracker databases, generated session state,
+credentials, and private handoff files out of this repository.

@@ -695,7 +695,7 @@ Total unique content: ~5,000 lines
 
 All files located at:
 ```
-/Users/chris/git/claude-octopus/plugin/scripts/token-extraction/
+scripts/token-extraction/
 ```
 
 Ready for immediate use, testing, or integration.

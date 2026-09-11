@@ -457,16 +457,13 @@ eval "$original_readiness_all"
 eval "$original_doctor_check_providers"
 eval "$original_doctor_output_json"
 
-test_case "plan provider display reuses preflight output and handles dispatch failure"
+test_case "plan provider display reuses preflight output"
 plan_command="$(cat "$PROJECT_ROOT/commands/plan.md")"
-release_plan="$(cat "$PROJECT_ROOT/docs/plans/2026-08-25-v10-reliability-modernization.md")"
 if [[ "$plan_command" == *'PROVIDER_STATUS='* &&
-      "$plan_command" == *'Render every provider status from `PROVIDER_STATUS`'* &&
-      "$release_plan" == *'CODEX_REVIEW_RC'* &&
-      "$release_plan" == *'BLOCKED: Codex dispatch failed'* ]]; then
+      "$plan_command" == *'Render every provider status from `PROVIDER_STATUS`'* ]]; then
     test_pass
 else
-    test_fail "plan must retain one provider-status source and fail closed on Codex dispatch"
+    test_fail "plan must retain one provider-status source"
 fi
 
 test_summary

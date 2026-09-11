@@ -34,8 +34,6 @@ matches="$(
     cd "$PROJECT_ROOT"
     git grep -n -i -E "$retired_token_pattern" -- \
         ':!CHANGELOG.md' \
-        ':!docs/plans/**' \
-        ':!docs/superpowers/**' \
         ':!docs/UPGRADING-V11.0.1.md' \
         ':!README.md' \
         ':!.claude-plugin/plugin.json' \

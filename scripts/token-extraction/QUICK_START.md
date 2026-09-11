@@ -3,7 +3,7 @@
 ## Installation
 
 ```bash
-cd /Users/chris/git/claude-octopus/plugin/scripts/token-extraction
+cd scripts/token-extraction
 npm install
 ```
 
@@ -314,7 +314,7 @@ git add design-tokens/
 
 All files are in:
 ```
-/Users/chris/git/claude-octopus/plugin/scripts/token-extraction/
+scripts/token-extraction/
 ```
 
 ## Getting Help

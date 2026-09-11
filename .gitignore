@@ -86,12 +86,21 @@ temp/
 # Development directory
 .dev/
 
-# Development working files (should not be in public repo)
+# Development working files (should not be in the public repository)
 docs/IMPLEMENTATION-PLAN*.md
+docs/plans/
+docs/research/
+docs/roadmaps/
 docs/superpowers/plans/
 docs/superpowers/specs/
 docs/FEATURE-GAP.md
 docs/monthly-agent-review.md
+.claude/DEVELOPMENT.md
+.claude/claude-octopus.local.md
+.claude/settings.json
+AI_AGENT_HANDOFF.md
+GOALS.md
+RTK.md
 
 # Development working files (root-level only, not skills/*/SKILL.md)
 /skill.md
@@ -135,6 +144,7 @@ coverage-report.html
 .agents/
 
 # Beads / Dolt files (added by bd init)
+.beads/
 .dolt/
 *.db
 .beads-credential-key

@@ -255,10 +255,10 @@ test_hook_loop_left_repo_untouched() {
     test_case "#563: hook invocations did not delete tracked repo files"
     # Post-condition sentinel: the tests above invoke every hook. Before the #563
     # fix, a hook resolving a path/glob from the live CLAUDE_PLUGIN_ROOT/CWD could
-    # delete tracked root files (Makefile, LICENSE, GOALS.md, PRODUCT.md observed).
+    # delete tracked root files (Makefile, LICENSE, PRODUCT.md observed).
     # If any are missing now, an isolation regression let a hook reach the checkout.
     local f missing=()
-    for f in Makefile LICENSE GOALS.md PRODUCT.md README.md package.json CHANGELOG.md; do
+    for f in Makefile LICENSE PRODUCT.md README.md package.json CHANGELOG.md; do
         [[ -e "$PROJECT_ROOT/$f" ]] || missing+=("$f")
     done
     if ((${#missing[@]})); then

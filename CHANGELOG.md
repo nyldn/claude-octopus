@@ -814,7 +814,7 @@ See [the v11 migration notes](docs/MIGRATING-V11.md) and
 - **Command Code CLI provider** (`commandcode`, `commandcode-research`, `commandcode-fast`) — native provider with an isolated `env -i` environment, JSON result parsing, and role-scoped permission modes (`plan` by default, `yolo` only for implementer and developer roles). Configured via `COMMAND_CODE_API_KEY`, `OCTOPUS_COMMANDCODE_BIN`, `OCTOPUS_COMMANDCODE_MAX_TURNS`. Thanks to @Jhacarreiro.
 - **`review.finding` lifecycle events** (oco-aek) — one per structured finding, carrying severity, file, line, category, confidence and title. Finding *detail* is deliberately excluded: it can be long and can quote source. Emission is idempotent per findings file, because `render_terminal_report` also runs on the inline-comment fallback path and would otherwise double-count every finding.
 - **`synthesis.start` / `synthesis.end` events** (oco-aek) bracketing the design-review reduce step, with elapsed time, output size, and whether the synthesis produced anything. Previously only per-agent dispatch was visible and the synthesis boundary was not. This completes the structured lifecycle event vocabulary.
-- `docs/roadmaps/2026-07-28-control-plane-decomposition.md` — breaks the `oco-fgg` control-plane epic into three claimable children with ready-to-run `bd create` commands, a recommended order, and a record of which roadmap bullets the event work has now closed.
+- The control-plane roadmap now breaks the `oco-fgg` epic into three claimable children with a recommended order and records which roadmap bullets the event work has closed.
 
 
 ## [9.56.1] - 2026-07-27
@@ -1172,7 +1172,7 @@ Claude Code 2026 compatibility layer release.
 
 - `scripts/helpers/audit-provider-contracts.sh` release-gate audit for provider drift: provider states must stay `available|missing|degraded`, qwen auth must fail closed when OAuth cannot be validated, stale free-tier setup guidance must not reappear, and provider version floors must remain env-overridable.
 - `scripts/lib/events.sh` opt-in JSONL event emitter plus `check-providers.sh` `provider.status` events when `OCTO_EVENT_LOG` is set. Normal provider-check stdout is unchanged.
-- `docs/roadmaps/2026-06-13-next-minor-major.md` captures the June 2026 Claude Code plugin research and maps it into the next minor and major Octopus direction.
+- June 2026 Claude Code plugin research was captured and mapped into the next minor and major Octopus direction.
 
 ### Fixed
 

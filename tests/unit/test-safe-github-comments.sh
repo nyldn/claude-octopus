@@ -1161,13 +1161,12 @@ else
 fi
 
 instruction_files_ok=0
-for instruction_file in "$PROJECT_ROOT/AGENTS.md" "$PROJECT_ROOT/CLAUDE.md" \
-        "$PROJECT_ROOT/RTK.md"; do
+for instruction_file in "$PROJECT_ROOT/AGENTS.md" "$PROJECT_ROOT/CLAUDE.md"; do
     if grep -Eq -- 'safe-gh-comment\.sh' "$instruction_file"; then
         instruction_files_ok=$((instruction_files_ok + 1))
     fi
 done
-if [[ "$instruction_files_ok" -eq 3 ]]; then
+if [[ "$instruction_files_ok" -eq 2 ]]; then
     pass "repository agent instructions require the safe helper"
 else
     fail "repository agent instructions require the safe helper" \

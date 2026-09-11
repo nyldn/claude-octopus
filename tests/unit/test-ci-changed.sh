@@ -266,7 +266,6 @@ fi
 
 test_case "Makefile and agent instructions expose proportional gates"
 if grep -q '^ci-changed:' "$PROJECT_ROOT/Makefile" &&
-   grep -q 'make ci-changed' "$PROJECT_ROOT/RTK.md" &&
    grep -q 'make ci-changed' "$PROJECT_ROOT/AGENTS.md" &&
    grep -q 'make ci-changed' "$PROJECT_ROOT/CLAUDE.md" &&
    grep -q 'tests/changed-scope.tsv' "$PROJECT_ROOT/docs/DEVELOPER.md"; then

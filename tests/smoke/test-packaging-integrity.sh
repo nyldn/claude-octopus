@@ -21,6 +21,17 @@ trap cleanup_packaging_fixture EXIT INT TERM
 
 ORCHESTRATE="$PROJECT_ROOT/scripts/orchestrate.sh"
 
+test_public_publication_boundary() {
+    test_case "public checkout excludes private development material"
+    local output
+    if output=$(bash "$PROJECT_ROOT/scripts/validate-no-hardcoded-paths.sh" 2>&1); then
+        test_pass
+    else
+        test_fail "public publication boundary failed: $output"
+        return 1
+    fi
+}
+
 test_sourced_scripts_exist() {
     test_case "All scripts sourced by orchestrate.sh exist"
 
@@ -322,6 +333,7 @@ test_summary_propagates_package_integrity_failure() {
 }
 
 # Run tests
+test_public_publication_boundary
 test_sourced_scripts_exist
 test_metrics_tracker_exists
 test_state_manager_exists
