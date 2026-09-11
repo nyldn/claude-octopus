@@ -19,7 +19,7 @@ cat > nightly-security.json << 'EOF'
     "prompt": "Run security review on current repo and summarize critical risks."
   },
   "execution": {
-    "workspace": "~/projects/my-project",
+    "workspace": "/path/to/my-project",
     "timeout_seconds": 3600
   },
   "budget": {
@@ -148,7 +148,7 @@ Jobs are JSON files stored in `~/.claude-octopus/scheduler/jobs/`. Each file def
     "prompt": "Run security review on current repo and summarize critical risks."
   },
   "execution": {
-    "workspace": "~/projects/my-project",
+    "workspace": "/path/to/my-project",
     "timeout_seconds": 3600,
     "resume_on_restart": false
   },
@@ -535,7 +535,7 @@ octopus-scheduler.sh start
     "prompt": "Run security review on current repo. Check for dependency vulnerabilities, exposed secrets, and OWASP top 10 issues. Summarize critical risks."
   },
   "execution": {
-    "workspace": "~/projects/my-app",
+    "workspace": "/path/to/my-app",
     "timeout_seconds": 3600
   },
   "budget": {
@@ -562,7 +562,7 @@ octopus-scheduler.sh start
     "prompt": "Research latest developments in our tech stack (React, Node.js, PostgreSQL). Focus on security advisories, major releases, and deprecations from the past week."
   },
   "execution": {
-    "workspace": "~/projects/my-app",
+    "workspace": "/path/to/my-app",
     "timeout_seconds": 1800
   },
   "budget": {
@@ -589,7 +589,7 @@ octopus-scheduler.sh start
     "prompt": "Full architecture review of the codebase. Identify technical debt, suggest refactoring opportunities, and flag any patterns that deviate from our conventions."
   },
   "execution": {
-    "workspace": "~/projects/my-app",
+    "workspace": "/path/to/my-app",
     "timeout_seconds": 7200
   },
   "budget": {

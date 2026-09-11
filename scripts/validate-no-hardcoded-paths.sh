@@ -13,14 +13,42 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-echo "🔍 Checking for hardcoded local paths..."
-echo ""
+log() {
+    local level="$1"
+    shift
+    local color="$NC"
+    case "$level" in
+        INFO) color="$GREEN" ;;
+        WARN) color="$YELLOW" ;;
+        ERROR) color="$RED" ;;
+    esac
+    printf '%b%s%b\n' "$color" "$*" "$NC" >&2
+}
+
+log INFO "🔍 Checking for hardcoded local paths..."
+log INFO ""
 
 violations=0
 
+package_files=""
+if command -v npm >/dev/null 2>&1; then
+    package_files=$(npm pack --dry-run --json --ignore-scripts 2>/dev/null | \
+        python3 -c 'import json, sys; data = json.load(sys.stdin); print("\\n".join(item["path"] for item in data[0].get("files", [])))' \
+        2>/dev/null || true)
+else
+    log WARN "npm is unavailable; checking tracked files only"
+fi
+
+path_is_published() {
+    local path="$1"
+    git ls-files -- "$path" "$path/**" | grep -q . && return 0
+    [[ -n "$package_files" ]] && printf '%s\n' "$package_files" | \
+        awk -v path="$path" '$0 == path || index($0, path "/") == 1 { found = 1 } END { exit found ? 0 : 1 }'
+}
+
 # Development-only material belongs in the private development repository.
 # Keep this guard in the public checkout so a later sync cannot republish it.
-echo "Checking for development-only public files..."
+log INFO "Checking for development-only public files..."
 for forbidden_path in \
     .beads \
     .claude/DEVELOPMENT.md \
@@ -33,17 +61,17 @@ for forbidden_path in \
     docs/research \
     docs/roadmaps \
     docs/superpowers; do
-    if [[ -e "$forbidden_path" ]]; then
-        echo -e "${RED}✗ Found forbidden development path: $forbidden_path${NC}"
+    if path_is_published "$forbidden_path"; then
+        log ERROR "✗ Found forbidden development path in tracked/package contents: $forbidden_path"
         violations=$((violations + 1))
     fi
 done
 if [ "$violations" -eq 0 ]; then
-    echo -e "${GREEN}✓ No forbidden development files found${NC}"
+    log INFO "✓ No forbidden development files found"
 fi
 
 # Check for absolute user paths in deployment files (only git-tracked files)
-echo "Checking for absolute user paths (/Users/*, /home/*)..."
+log INFO "Checking for absolute user paths (/Users/*, /home/*)..."
 hardcoded_users=$(git ls-files | grep -E "\.(md|sh|js|json|yaml)$" | \
   grep -v '^tests/' | \
   grep -v '^docs/' | \
@@ -58,17 +86,17 @@ hardcoded_users=$(git ls-files | grep -E "\.(md|sh|js|json|yaml)$" | \
   grep -v "/home/user/" || true)
 
 if [ -n "$hardcoded_users" ]; then
-    echo -e "${RED}✗ Found hardcoded user paths:${NC}"
-    echo "$hardcoded_users" | head -10
-    echo ""
+    log ERROR "✗ Found hardcoded user paths:"
+    log ERROR "$(echo "$hardcoded_users" | head -10)"
+    log INFO ""
     ((violations++)) || true
 else
-    echo -e "${GREEN}✓ No hardcoded user paths found${NC}"
+    log INFO "✓ No hardcoded user paths found"
 fi
 
 # Check for specific developer usernames (only git-tracked files)
-echo ""
-echo "Checking for developer usernames..."
+log INFO ""
+log INFO "Checking for developer usernames..."
 dev_usernames=$(git ls-files | grep -E "\.(md|sh|js|json)$" | \
   grep -v '^tests/' | \
   grep -v '^docs/' | \
@@ -76,20 +104,20 @@ dev_usernames=$(git ls-files | grep -E "\.(md|sh|js|json)$" | \
   xargs grep -n "/Users/chris\|/home/chris\|/Users/.*/git/" 2>/dev/null || true)
 
 if [ -n "$dev_usernames" ]; then
-    echo -e "${RED}✗ Found developer username in paths:${NC}"
-    echo "$dev_usernames" | wc -l | xargs echo "  Occurrences:"
-    echo ""
-    echo "  First 5 occurrences:"
-    echo "$dev_usernames" | head -5
-    echo ""
+    log ERROR "✗ Found developer username in paths:"
+    log ERROR "  Occurrences: $(echo "$dev_usernames" | wc -l | tr -d ' ')"
+    log INFO ""
+    log ERROR "  First 5 occurrences:"
+    log ERROR "$(echo "$dev_usernames" | head -5)"
+    log INFO ""
     ((violations++)) || true
 else
-    echo -e "${GREEN}✓ No developer usernames in paths${NC}"
+    log INFO "✓ No developer usernames in paths"
 fi
 
 # Check for absolute repository paths (only git-tracked files)
-echo ""
-echo "Checking for absolute git repository paths..."
+log INFO ""
+log INFO "Checking for absolute git repository paths..."
 git_paths=$(git ls-files | grep -E "\.(md|sh)$" | \
   grep -v '^tests/' | \
   grep -v '^docs/' | \
@@ -97,17 +125,17 @@ git_paths=$(git ls-files | grep -E "\.(md|sh)$" | \
   xargs grep -n "git/claude-octopus\|/claude-octopus/plugin/" 2>/dev/null || true)
 
 if [ -n "$git_paths" ]; then
-    echo -e "${RED}✗ Found absolute git repository paths:${NC}"
-    echo "$git_paths" | wc -l | xargs echo "  Occurrences:"
-    echo ""
+    log ERROR "✗ Found absolute git repository paths:"
+    log ERROR "  Occurrences: $(echo "$git_paths" | wc -l | tr -d ' ')"
+    log INFO ""
     ((violations++)) || true
 else
-    echo -e "${GREEN}✓ No absolute git repository paths${NC}"
+    log INFO "✓ No absolute git repository paths"
 fi
 
 # Check for hardcoded workspace paths (should be relative or ~/...)
-echo ""
-echo "Checking for hardcoded workspace paths..."
+log INFO ""
+log INFO "Checking for hardcoded workspace paths..."
 workspace_paths=$(grep -rn "\.claude-octopus" \
   --include="*.sh" --include="*.js" \
   --exclude-dir=.git --exclude-dir=tests \
@@ -118,29 +146,29 @@ workspace_paths=$(grep -rn "\.claude-octopus" \
   grep -v "//" || true)
 
 if [ -n "$workspace_paths" ]; then
-    echo -e "${YELLOW}⚠ Found potential hardcoded workspace paths:${NC}"
-    echo "$workspace_paths" | head -5
-    echo ""
-    echo -e "${YELLOW}  (Check if these should use ~/ or variables)${NC}"
+    log WARN "⚠ Found potential hardcoded workspace paths:"
+    log WARN "$(echo "$workspace_paths" | head -5)"
+    log INFO ""
+    log WARN "  (Check if these should use ~/ or variables)"
 else
-    echo -e "${GREEN}✓ No hardcoded workspace paths${NC}"
+    log INFO "✓ No hardcoded workspace paths"
 fi
 
-echo ""
-echo "======================================"
+log INFO ""
+log INFO "======================================"
 if [ $violations -eq 0 ]; then
-    echo -e "${GREEN}✅ VALIDATION PASSED${NC}"
-    echo "No hardcoded local paths found in deployment files"
+    log INFO "✅ VALIDATION PASSED"
+    log INFO "No hardcoded local paths found in deployment files"
     exit 0
 else
-    echo -e "${RED}❌ VALIDATION FAILED${NC}"
-    echo "$violations violation(s) found"
-    echo ""
-    echo "Fix these issues:"
-    echo "  1. Replace /Users/username/... with relative paths or ~/"
-    echo "  2. Replace absolute git paths with relative paths"
-    echo "  3. Use environment variables for dynamic paths"
-    echo "  4. Move development docs with paths to .gitignore"
-    echo ""
+    log ERROR "❌ VALIDATION FAILED"
+    log ERROR "$violations violation(s) found"
+    log INFO ""
+    log INFO "Fix these issues:"
+    log INFO "  1. Replace /Users/username/... with relative paths or ~/"
+    log INFO "  2. Replace absolute git paths with relative paths"
+    log INFO "  3. Use environment variables for dynamic paths"
+    log INFO "  4. Move development docs with paths to .gitignore"
+    log INFO ""
     exit 1
 fi
