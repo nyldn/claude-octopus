@@ -38,10 +38,10 @@ octo_cache_stale() {
     local keep="${OCTOPUS_CACHE_KEEP:-2}"
     [[ "$keep" =~ ^[1-9][0-9]*$ ]] || keep=2
     local total
-    total=$(octo_cache_versions | wc -l | tr -d ' ')
+    total=$(octo_cache_versions "$OCTO_CACHE_DIR" | wc -l | tr -d ' ')
     [[ "$total" -le "$keep" ]] && return 0
     local drop=$((total - keep))
-    octo_cache_versions | head -n "$drop"
+    octo_cache_versions "$OCTO_CACHE_DIR" | head -n "$drop"
 }
 
 # Total bytes used by stale versions (for user-facing reports).
