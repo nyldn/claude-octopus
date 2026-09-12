@@ -205,6 +205,10 @@ handoff_redaction() {
     case "$kind" in
         aws) sample='AKIA0123456789ABCDEF' ;;
         aws-session) sample='ASIA0123456789ABCDEF' ;;
+        github-oauth) sample='gho_synthetic0123456789abcdefghijklmnopqrstuvwxyz' ;;
+        gitlab) sample='glpat-synthetic0123456789abcdef' ;;
+        slack-bot) sample='xoxb'; sample="${sample}-000000000000-000000000000-syntheticexample" ;;
+        slack-user) sample='xoxp'; sample="${sample}-000000000000-000000000000-syntheticexample" ;;
         jwt) sample='eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJzeW50aGV0aWMifQ.c3ludGhldGlj' ;;
         jwt-empty-object) sample='eyJhbGciOiJIUzI1NiJ9.e30.c3ludGhldGlj' ;;
         pem) sample=$'-----BEGIN RSA PRIVATE KEY-----\nU1lOVEhFVElDLUtFWS1EQVRB\n-----END RSA PRIVATE KEY-----' ;;
@@ -244,7 +248,7 @@ EOF
             .autonomy==(if $source=="session" then "[REDACTED]" else "supervised" end) and
             ([.. | strings] | all(contains($value) | not))' "$out/export.json" >/dev/null
 }
-for kind in aws aws-session jwt jwt-empty-object pem pem-partial postgres postgresql mysql mongodb redis https; do
+for kind in aws aws-session github-oauth gitlab slack-bot slack-user jwt jwt-empty-object pem pem-partial postgres postgresql mysql mongodb redis https; do
     for source_kind in session state; do check handoff_redaction "$kind" "$source_kind"; done
 done
 

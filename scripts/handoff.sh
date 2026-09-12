@@ -74,7 +74,7 @@ jq -cn --arg project_id "$(octo_lifecycle_handoff_id "$project_root")" \
          test("-----BEGIN[A-Z ]*PRIVATE KEY-----") or
          test("[A-Za-z][A-Za-z0-9+.-]*://[^\\s/@]+@")
       then "[REDACTED]" else . end |
-      gsub("(sk|pk|ghp|github_pat|xai|pplx|r8)[_-][A-Za-z0-9_-]+"; "[REDACTED]");
+      gsub("(sk|pk|ghp|gho|github_pat|glpat|xoxb|xoxp|xai|pplx|r8)[_-][A-Za-z0-9_-]+"; "[REDACTED]");
     def summary($default): if type == "string" then redact | .[:512] else $default end;
     def count($default): if type == "number" and . >= 0 and . == floor then . else $default end;
     def notes: if type == "array" then [.[:5][] | select(type == "string") | redact | .[:512]] else [] end;
