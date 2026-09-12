@@ -161,6 +161,35 @@ Safety guards that prevent invalid direct Codex, Qwen, or retired Gemini CLI
 dispatch remain available, but host-side command filters keep them out of
 unrelated tool calls.
 
+### Installation health
+
+Octopus records non-secret install metadata for each host. Claude Code and
+Codex keep separate entries, so switching hosts or updating one cache does not
+make the other look current. SessionStart refreshes the active host entry when
+the loaded root, version, scope, or profile changes.
+
+```bash
+octopus capabilities --json    # provider readiness and supported interfaces
+octopus doctor installation    # loaded root, stable root, and saved metadata
+octopus cache-check --json     # active, newest, stale, and stable plugin roots
+octopus repair --dry-run       # explain a broken or stale stable link
+octopus repair --apply         # repair that link and refresh install metadata
+octopus security-audit --json  # offline checks of the installed plugin files
+octopus handoff export --json  # redacted checkpoint for another supported host
+```
+
+`repair --apply` changes only the Octopus stable link and install metadata. It
+does not delete host caches. The security audit checks the plugin itself; use
+`/octo:security` when you want a multi-model review of your project.
+
+The `core` context profile keeps optional context hooks off. Use
+`octopus profile orchestration` to enable context reinforcement and post-tool
+coordination during active Octopus workflows, or `octopus profile full` to
+allow every profile-managed context hook. Profiles never disable safety or
+lifecycle hooks.
+See [installation health](docs/INSTALLATION-HEALTH.md) for exit codes and stored
+state.
+
 Claude Code **v2.1.14+** is the minimum supported runtime. Newer Claude Code releases unlock additional Octopus diagnostics and release checks automatically; the current plugin tracks 183 Claude Code capability flags through **Claude Code v2.1.219**.
 
 <details>
@@ -306,6 +335,9 @@ a loaded session that needs a reload. Run focused diagnostics at any time:
 octopus doctor config   # install path, version, manifest, Claude Code feature flags
 octopus doctor skills   # skill loading, skillOverrides, plugin zip/URL capability notes
 octopus doctor updates  # loaded/install/catalog/cache versions and auto-update state
+octopus doctor installation # loaded root, stable root, saved metadata, and profile
+octopus cache-check --json   # validate active, newest, and stale cache entries
+octopus repair --dry-run     # inspect a stable-root problem without changing it
 ```
 
 This cannot make an arbitrarily old installation self-heal: code that predates

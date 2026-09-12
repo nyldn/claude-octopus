@@ -386,6 +386,8 @@ AskUserQuestion({
 ### Models and routing
 
 - Use `/octo:model-config` for model overrides.
+- Use `octopus profile core|orchestration|full` to control optional context
+  hooks. Explain that profiles never disable safety or lifecycle hooks.
 - Explain cost impact before changing cost mode.
 - Treat `OCTO_TIER=prototype|mvp|production` as a routing hint, not policy.
 - Never change routing, model, or tier configuration without confirmation.

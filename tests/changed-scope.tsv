@@ -8,6 +8,19 @@ scripts/lib/model-resolver.sh	tests/unit/test-resolve-model.sh tests/unit/test-a
 scripts/lib/preflight.sh	tests/unit/test-agy-provider.sh tests/unit/test-provider-availability-parity.sh tests/unit/test-provider-banner-auth.sh tests/unit/test-provider-registry*.sh tests/test-version-check.sh
 scripts/lib/run-contract.sh	tests/unit/test-run-contract-v10.sh tests/unit/test-agent-sync-run-contract.sh tests/unit/test-spawn-run-contract.sh tests/unit/test-v10-cancellation-recovery.sh tests/unit/test-run-observability-v10.sh
 scripts/lib/doctor.sh	tests/unit/test-doctor-v10.sh tests/unit/test-agy-provider.sh tests/unit/test-windows-doctor-compat.sh
+scripts/lib/lifecycle.sh	tests/unit/test-install-readiness.sh tests/unit/test-doctor-v10.sh
+scripts/lib/hook-activation.sh	tests/unit/test-install-readiness.sh tests/unit/test-explicit-activation.sh tests/unit/test-post-tool-dispatch.sh
+scripts/lib/cache-hygiene.sh	tests/unit/test-cache-hygiene.sh tests/unit/test-install-readiness.sh
+scripts/capabilities.sh	tests/unit/test-install-readiness.sh tests/unit/test-provider-readiness-contract.sh
+scripts/cache-check.sh	tests/unit/test-install-readiness.sh tests/unit/test-cache-hygiene.sh
+scripts/repair.sh	tests/unit/test-install-readiness.sh tests/unit/test-ensure-plugin-root.sh tests/unit/test-plugin-root-shim.sh
+scripts/security-audit.sh	tests/unit/test-install-readiness.sh
+scripts/handoff.sh	tests/unit/test-install-readiness.sh tests/unit/test-handoff.sh
+scripts/profile.sh	tests/unit/test-install-readiness.sh
+hooks/context-reinforcement.sh	tests/unit/test-install-readiness.sh tests/unit/test-explicit-activation.sh
+hooks/post-tool-dispatch.sh	tests/unit/test-install-readiness.sh tests/unit/test-post-tool-dispatch.sh
+hooks/session-start-memory.sh	tests/unit/test-install-readiness.sh tests/unit/test-setup-state.sh
+bin/octopus	tests/unit/test-install-readiness.sh tests/smoke/test-packaging-integrity.sh
 scripts/helpers/check-providers.sh	tests/unit/test-provider-readiness-contract.sh tests/unit/test-provider-contract-audit.sh tests/unit/test-provider-auth-validity.sh tests/unit/test-provider-availability-parity.sh tests/unit/test-provider-health-probe.sh tests/unit/test-agy-provider.sh
 scripts/helpers/audit-provider-contracts.sh	tests/unit/test-provider-contract-audit.sh
 scripts/helpers/preflight.sh	tests/unit/test-provider-readiness-contract.sh tests/smoke/test-preflight-json.sh tests/unit/test-agy-provider.sh

@@ -11,12 +11,13 @@ OCTO_CACHE_DIR="${HOME}/.claude/plugins/cache/nyldn-plugins/octo"
 
 # Versions on disk, sorted oldest → newest.
 octo_cache_versions() {
-    [[ -d "$OCTO_CACHE_DIR" ]] || return 0
+    local cache_dir="${1:-$OCTO_CACHE_DIR}"
+    [[ -d "$cache_dir" ]] || return 0
     # -V handles semver; tolerate macOS sort which lacks -V on older systems
     if sort -V </dev/null >/dev/null 2>&1; then
-        ls -1 "$OCTO_CACHE_DIR" 2>/dev/null | sort -V
+        ls -1 "$cache_dir" 2>/dev/null | sort -V
     else
-        ls -1 "$OCTO_CACHE_DIR" 2>/dev/null | sort
+        ls -1 "$cache_dir" 2>/dev/null | sort
     fi
 }
 

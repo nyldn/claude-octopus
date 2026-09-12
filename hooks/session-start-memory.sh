@@ -15,6 +15,17 @@ set -euo pipefail
 _octo_hook_exit() { local c=$?; if [[ $c -ne 0 ]]; then echo "[hook:$(basename "$0")] exit $c" >&2 2>/dev/null || true; fi; return 0; }
 trap _octo_hook_exit EXIT
 
+# Refresh non-secret install metadata whenever the host, root, version, scope,
+# or context profile changes. This is best-effort and never blocks SessionStart.
+LIFECYCLE_LIB="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd -P)}/scripts/lib/lifecycle.sh"
+if [[ -r "$LIFECYCLE_LIB" ]]; then
+    # shellcheck source=../scripts/lib/lifecycle.sh
+    source "$LIFECYCLE_LIB" 2>/dev/null || true
+    if declare -f octo_lifecycle_state_valid >/dev/null 2>&1 && ! octo_lifecycle_state_valid; then
+        octo_lifecycle_record_install >/dev/null 2>&1 || true
+    fi
+fi
+
 SESSION_INPUT=""
 if [[ ! -t 0 ]]; then
     SESSION_INPUT="$(cat 2>/dev/null || true)"

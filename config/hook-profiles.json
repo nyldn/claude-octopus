@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "profiles": {
+    "core": [],
+    "orchestration": [
+      "context-reinforcement",
+      "post-tool-dispatch"
+    ],
+    "full": ["*"]
+  }
+}

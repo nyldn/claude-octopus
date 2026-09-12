@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### Added
+
+- New local installation tools show provider readiness, validate active Claude
+  and Codex plugin caches, repair broken stable links, run offline plugin-file
+  checks, and export a redacted checkpoint for another supported host.
+- Host-scoped install metadata now records Claude and Codex separately and
+  refreshes when the loaded root, version, install scope, or context profile
+  changes.
+- Context profiles keep optional reinforcement hooks off in `core`, enable them
+  for active workflows in `orchestration`, and allow every profile-managed
+  context hook in `full`. Safety and lifecycle hooks remain active in every
+  profile.
+
+### Changed
+
+- Installation diagnostics use the shared Provider Registry readiness result
+  instead of inferring authentication from the presence of a CLI executable.
+- Doctor and the new installation tools use a lightweight CLI path that avoids
+  starting workflow state, event logs, or provider probes.
+
 ## [11.4.2] - 2026-09-11
 
 ### Changed

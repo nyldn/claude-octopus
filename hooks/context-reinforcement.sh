@@ -27,6 +27,7 @@ ACTIVATION_LIB="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}/scripts
 [[ -r "$ACTIVATION_LIB" ]] || exit 0
 # shellcheck source=../scripts/lib/hook-activation.sh
 source "$ACTIVATION_LIB" 2>/dev/null || exit 0
+octo_hook_profile_allows "context-reinforcement" || exit 0
 octo_hook_workflow_active "$INPUT" || exit 0
 
 # Build compact enforcement context only for the active, matching workflow.

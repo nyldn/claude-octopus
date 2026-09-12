@@ -25,6 +25,11 @@ if ! declare -f octo_plugin_update_load >/dev/null 2>&1; then
     source "${_doctor_lib_dir}/plugin-update.sh" 2>/dev/null || true
 fi
 
+if ! declare -f octo_lifecycle_state_valid >/dev/null 2>&1; then
+    _doctor_lib_dir="${_doctor_lib_dir:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+    source "${_doctor_lib_dir}/lifecycle.sh" 2>/dev/null || true
+fi
+
 if ! declare -f _octo_bare_auth_probe >/dev/null 2>&1; then
     _doctor_lib_dir="${_doctor_lib_dir:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
     source "${_doctor_lib_dir}/providers.sh" 2>/dev/null || true
@@ -1753,6 +1758,46 @@ doctor_check_cache() {
         "Stale: ${stale_list}. Run: bash \$CLAUDE_PLUGIN_ROOT/scripts/lib/cache-hygiene.sh clean (or set OCTOPUS_AUTO_CLEAN_CACHE=1)"
 }
 
+# --- Category 15: Installation ownership and loaded-root alignment ---
+doctor_check_installation() {
+    if ! declare -f octo_lifecycle_state_valid >/dev/null 2>&1; then
+        doctor_add "install-state-library" "installation" "fail" \
+            "Installation state library is unavailable" "Reinstall Claude Octopus"
+        return
+    fi
+
+    local root stable_status
+    root="$(octo_lifecycle_plugin_root)"
+    stable_status="$(octo_lifecycle_stable_root_status "$root" 2>/dev/null || true)"
+    case "$stable_status" in
+        ok|shim)
+            doctor_add "stable-plugin-root" "installation" "pass" \
+                "Stable plugin root matches the loaded plugin" "$OCTO_LIFECYCLE_STABLE_ROOT"
+            ;;
+        missing)
+            doctor_add "stable-plugin-root" "installation" "warn" \
+                "Stable plugin root is missing" "Run: octopus repair --dry-run"
+            ;;
+        *)
+            doctor_add "stable-plugin-root" "installation" "fail" \
+                "Stable plugin root is ${stable_status}" "Run: octopus repair --dry-run"
+            ;;
+    esac
+
+    if octo_lifecycle_state_valid; then
+        doctor_add "install-state" "installation" "pass" \
+            "Install metadata matches the current host and plugin" "$OCTO_LIFECYCLE_STATE_FILE"
+    elif [[ -f "$OCTO_LIFECYCLE_STATE_FILE" ]]; then
+        doctor_add "install-state" "installation" "warn" \
+            "Install metadata is stale for the current host" "Run: octopus install-state record"
+    else
+        doctor_add "install-state" "installation" "info" \
+            "Install metadata has not been recorded for this host" "SessionStart records it automatically"
+    fi
+    doctor_add "context-profile" "installation" "pass" \
+        "Context profile: $(octo_lifecycle_profile)" "Optional hooks: $(octo_lifecycle_hook_profile)"
+}
+
 # --- Output: Human-readable ---
 doctor_output_human() {
     local verbose="${1:-false}"
@@ -1891,7 +1936,7 @@ Usage: octopus doctor [CATEGORY] [--verbose] [--json] [--live]
 
 Categories:
   providers companions auth config updates state smoke hooks scheduler
-  skills conflicts agents recurrence cache
+  skills conflicts agents recurrence cache installation
 
 Options:
   -v, --verbose  Include details for passing checks
@@ -1907,7 +1952,7 @@ do_doctor() {
     local verbose=false
     local json_output=false
     local DOCTOR_LIVE_PROBE=false
-    local categories="providers companions auth config updates state smoke hooks scheduler skills conflicts agents recurrence cache"
+    local categories="providers companions auth config updates state smoke hooks scheduler skills conflicts agents recurrence cache installation"
 
     # Parse arguments
     while [[ $# -gt 0 ]]; do

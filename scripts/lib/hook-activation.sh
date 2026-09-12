@@ -4,6 +4,33 @@
 [[ -n "${_OCTOPUS_HOOK_ACTIVATION_LOADED:-}" ]] && return 0
 _OCTOPUS_HOOK_ACTIVATION_LOADED=true
 
+_octopus_hook_activation_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+
+octo_hook_profile() {
+    local profile="${OCTOPUS_HOOK_PROFILE:-${OCTOPUS_CONTEXT_PROFILE:-}}"
+    if [[ -z "$profile" && -r "${HOME}/.claude-octopus/user-config.json" ]] && command -v jq >/dev/null 2>&1; then
+        profile="$(jq -r '.context_profile // empty' "${HOME}/.claude-octopus/user-config.json" 2>/dev/null || true)"
+    fi
+    case "$profile" in
+        orchestration|workflow) printf 'orchestration\n' ;;
+        full|all) printf 'full\n' ;;
+        *) printf 'core\n' ;;
+    esac
+}
+
+# Profiles control optional context work only. Safety and lifecycle hooks never
+# call this function, so a profile cannot disable their checks.
+octo_hook_profile_allows() {
+    local hook_id="${1:-}" profile config
+    [[ -n "$hook_id" ]] || return 1
+    profile="$(octo_hook_profile)"
+    config="${OCTOPUS_HOOK_PROFILE_CONFIG:-${_octopus_hook_activation_dir}/../../config/hook-profiles.json}"
+    [[ -r "$config" ]] || return 1
+    command -v jq >/dev/null 2>&1 || return 1
+    jq -e --arg profile "$profile" --arg hook "$hook_id" \
+        '.profiles[$profile] // [] | any(. == "*" or . == $hook)' "$config" >/dev/null 2>&1
+}
+
 octo_hook_session_id() {
     local input="${1:-}" sid=""
     sid="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-}}"
