@@ -20,16 +20,20 @@ trap _octo_hook_exit EXIT
 
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 HOOKS_DIR="${PLUGIN_ROOT}/hooks"
-
-# Opinionated global behavior is disabled unless the user explicitly opts in.
-# A statusline context bridge is display state, not consent to PostToolUse
-# model-context injection.
-SESSION="${CLAUDE_SESSION_ID:-unknown}"
-BRIDGE="/tmp/octopus-ctx-${SESSION}.json"
-if [[ "${OCTOPUS_CONTEXT_AWARENESS:-off}" != "on" \
-      && "${OCTO_STRATEGY_ROTATION:-off}" != "on" \
-      && "${OCTOPUS_COMPRESS_ENABLED:-false}" != "true" ]]; then
-    exit 0
+ACTIVATION_LIB="${PLUGIN_ROOT}/scripts/lib/hook-activation.sh"
+PROFILE_POST_TOOL=false
+PROFILE_NAME=core
+if [[ -r "$ACTIVATION_LIB" ]]; then
+    # shellcheck source=../scripts/lib/hook-activation.sh
+    source "$ACTIVATION_LIB" 2>/dev/null || true
+    PROFILE_NAME="$(octo_hook_profile)"
+    octo_hook_profile_allows "post-tool-dispatch" && PROFILE_POST_TOOL=true
+fi
+if [[ "$PROFILE_POST_TOOL" != true ]]; then
+    case "${OCTOPUS_CONTEXT_AWARENESS:-off}:${OCTO_STRATEGY_ROTATION:-off}:${OCTOPUS_COMPRESS_ENABLED:-false}" in
+        on:*|*:on:*|*:*:true) ;;
+        *) exit 0 ;;
+    esac
 fi
 
 # Read stdin once (tool output from CC hook protocol)
@@ -40,6 +44,33 @@ if [[ ! -t 0 ]]; then
     else
         STDIN_DATA=$(cat 2>/dev/null || true)
     fi
+fi
+
+# Child hooks use the legacy environment name. Resolve it once from the host
+# protocol and reject path characters before constructing session-local files.
+SESSION="$(octo_hook_session_id "$STDIN_DATA" 2>/dev/null || true)"
+case "$SESSION" in ''|*[!A-Za-z0-9._-]*) exit 0 ;; esac
+export CLAUDE_SESSION_ID="$SESSION"
+BRIDGE="/tmp/octopus-ctx-${SESSION}.json"
+
+# Profiles activate bounded coordination only while this host session owns an
+# active Octopus workflow. Explicit environment opt-ins retain their existing
+# behavior outside a workflow. Full also enables output compression unless the
+# user explicitly disabled it.
+if [[ "$PROFILE_POST_TOOL" == true ]] && octo_hook_workflow_active "$STDIN_DATA"; then
+    OCTOPUS_CONTEXT_AWARENESS="${OCTOPUS_CONTEXT_AWARENESS:-on}"
+    OCTO_STRATEGY_ROTATION="${OCTO_STRATEGY_ROTATION:-on}"
+    if [[ "$PROFILE_NAME" == full ]]; then
+        OCTOPUS_COMPRESS_ENABLED="${OCTOPUS_COMPRESS_ENABLED:-true}"
+    fi
+fi
+
+# A statusline bridge by itself is display state, not consent to model-context
+# injection.
+if [[ "${OCTOPUS_CONTEXT_AWARENESS:-off}" != "on" \
+      && "${OCTO_STRATEGY_ROTATION:-off}" != "on" \
+      && "${OCTOPUS_COMPRESS_ENABLED:-false}" != "true" ]]; then
+    exit 0
 fi
 
 # Collect additionalContext from sub-hooks

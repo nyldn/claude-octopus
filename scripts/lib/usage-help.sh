@@ -32,6 +32,7 @@ _claude_octopus() {
 
     commands=(
         'auto:Smart routing - AI chooses best approach'
+        'guide:Find installed commands by task or topic without provider calls'
         'embrace:Full 4-phase Double Diamond workflow'
         'research:Phase 1 - Parallel exploration (alias: probe)'
         'probe:Phase 1 - Parallel exploration'

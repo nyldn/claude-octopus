@@ -9,6 +9,8 @@
 #   octopus fleet      — Show provider fleet status
 #   octopus state-path — Show the current project's workflow state path
 #   octopus agent-summary — Show current run provider status
+#   octopus capabilities — Show local provider readiness and capabilities
+#   octopus cache-check  — Validate active and cached plugin roots
 # ═══════════════════════════════════════════════════════════════════════════════
 
 set -euo pipefail
@@ -48,18 +50,37 @@ case "${1:-help}" in
         shift
         "$ORCHESTRATE" agent-summary "$@"
         ;;
-    help|--help|-h|*)
+    guide|explain|capabilities|cache-check|repair|security-audit|handoff|profile|install-state)
+        command_name="$1"
+        shift
+        "$ORCHESTRATE" "$command_name" "$@"
+        ;;
+    help|--help|-h)
         echo "octopus — Claude Octopus CLI"
         echo ""
         echo "Usage: octopus <command>"
         echo ""
         echo "Commands:"
         echo "  doctor    Run diagnostics and health checks"
+        echo "  guide     Find installed commands by task or topic"
+        echo "  explain   Inspect a saved run without calling providers"
         echo "  version   Show plugin version"
         echo "  session   Show current session info"
         echo "  fleet     Show provider fleet status"
         echo "  state-path  Show the current project's workflow state path"
         echo "  agent-summary  Show current run provider status"
+        echo "  capabilities  Show local provider readiness and capabilities"
+        echo "  cache-check  Validate active, stable, and cached plugin roots"
+        echo "  repair     Inspect or repair the stable plugin root"
+        echo "  security-audit  Run offline plugin security checks"
+        echo "  handoff    Export or inspect a redacted cross-host checkpoint"
+        echo "  profile    Show or set the optional-hook context profile"
+        echo "  install-state  Show or record host-scoped install metadata"
         echo "  help      Show this help"
+        ;;
+    *)
+        printf 'Unknown octopus command: %s\n' "$1" >&2
+        printf 'Run octopus help for available commands.\n' >&2
+        exit 2
         ;;
 esac

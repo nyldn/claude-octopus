@@ -1,361 +1,225 @@
 #!/bin/bash
-# tests/integration/test-plugin-lifecycle.sh
-# Tests plugin installation, verification, and uninstallation
+# Hermetic lifecycle checks for the current plugin candidate.
+# Native Claude CLI installation is opt-in and still uses an isolated host home.
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd -P)"
+SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
+
+# shellcheck source=tests/helpers/test-framework.sh
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 
-test_suite "Plugin Lifecycle"
+test_suite "Plugin lifecycle isolation"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+candidate_command() (
+    local home="$1"
+    local host="$2"
+    local root="$3"
+    shift 3
+    cd "$home" || return 1
 
-#==============================================================================
-# Setup and Cleanup
-#==============================================================================
+    case "$host" in
+        claude)
+            env -i HOME="$home" CLAUDE_CONFIG_DIR="$home/.claude" \
+                TMPDIR="$home/tmp" PATH="$PATH" \
+                OCTOPUS_HOST=claude CLAUDE_PLUGIN_ROOT="$root" \
+                OCTOPUS_INSTALL_SCOPE=user "$PROJECT_ROOT/bin/octopus" "$@"
+            ;;
+        codex)
+            env -i HOME="$home" CLAUDE_CONFIG_DIR="$home/.claude" TMPDIR="$home/tmp" \
+                CODEX_HOME="$home/.codex" PATH="$PATH" OCTOPUS_HOST=codex \
+                CODEX_PLUGIN_ROOT="$root" OCTOPUS_INSTALL_SCOPE=user \
+                "$PROJECT_ROOT/bin/octopus" "$@"
+            ;;
+        *)
+            printf 'Unsupported test host: %s\n' "$host" >&2
+            return 2
+            ;;
+    esac
+)
 
-setup_test_env() {
-    # Save original state if plugin is installed
-    ORIGINAL_STATE=$(claude plugin list 2>/dev/null | grep -c "octo" || echo "0")
-
-    # Ensure clean state for testing
-    if [[ "$ORIGINAL_STATE" != "0" ]]; then
-        echo -e "${YELLOW}  → Uninstalling existing plugin for clean test...${NC}"
-        claude plugin uninstall octo --scope user 2>/dev/null || true
-        rm -rf ~/.claude/plugins/cache/nyldn-plugins/octo 2>/dev/null || true
-    fi
-}
-
-restore_original_state() {
-    if [[ "$ORIGINAL_STATE" != "0" ]]; then
-        echo -e "${YELLOW}  → Restoring original plugin state...${NC}"
-        claude plugin marketplace add https://github.com/nyldn/claude-octopus 2>/dev/null || true
-        claude plugin install octo@nyldn-plugins --scope user 2>/dev/null || true
-    fi
-}
-
-#==============================================================================
-# Test: Claude CLI Available
-#==============================================================================
-
-test_claude_cli_available() {
-    test_case "Claude CLI is available"
-
-    if ! command -v claude &>/dev/null; then
-        test_skip "Claude CLI not found in PATH"
-        return 0
-    fi
-
-    test_pass
-}
-
-#==============================================================================
-# Test: Add Marketplace
-#==============================================================================
-
-test_add_marketplace() {
-    test_case "Add nyldn/claude-octopus marketplace"
-
-    if ! command -v claude &>/dev/null; then
-        test_skip "Claude CLI not available"
-        return 0
-    fi
-
-    # Add marketplace
-    local output=$(claude plugin marketplace add https://github.com/nyldn/claude-octopus 2>&1)
-    local exit_code=$?
-
-    # Check if marketplace was added or already exists
-    if [[ $exit_code -eq 0 ]] || echo "$output" | grep -qi "already exists\|already added"; then
-        test_pass
-    else
-        test_fail "Failed to add marketplace: $output"
-    fi
-}
-
-#==============================================================================
-# Test: Install Plugin
-#==============================================================================
-
-test_install_plugin() {
-    test_case "Install octo@nyldn-plugins"
-
-    if ! command -v claude &>/dev/null; then
-        test_skip "Claude CLI not available"
-        return 0
-    fi
-
-    # Install plugin
-    local output=$(claude plugin install octo@nyldn-plugins --scope user 2>&1)
-    local exit_code=$?
-
-    if [[ $exit_code -ne 0 ]]; then
-        test_fail "Installation failed: $output"
-        return 1
-    fi
-
-    # Wait briefly for installation to complete
-    sleep 2
-
-    test_pass
-}
-
-#==============================================================================
-# Test: Verify Plugin Installed
-#==============================================================================
-
-test_verify_installed() {
-    test_case "Verify plugin appears in list"
-
-    if ! command -v claude &>/dev/null; then
-        test_skip "Claude CLI not available"
-        return 0
-    fi
-
-    local output=$(claude plugin list 2>&1)
-
-    if echo "$output" | grep -q "octo"; then
-        test_pass
-    else
-        test_fail "Plugin not found in list: $output"
-    fi
-}
-
-#==============================================================================
-# Test: Verify Plugin Files Exist
-#==============================================================================
-
-test_verify_files_exist() {
-    test_case "Verify plugin files were installed"
-
-    if ! command -v claude &>/dev/null; then
-        test_skip "Claude CLI not available"
-        return 0
-    fi
-
-    # Check for plugin files in cache directory
-    local cache_dir="$HOME/.claude/plugins/cache/nyldn-plugins/octo"
-
-    if [[ ! -d "$cache_dir" ]]; then
-        test_fail "Plugin cache directory not found: $cache_dir"
-        return 1
-    fi
-
-    # Find the version directory (e.g., 4.9.4)
-    local version_dir=$(find "$cache_dir" -maxdepth 1 -type d ! -name "octo" -exec basename {} \; | head -1)
-
-    if [[ -z "$version_dir" ]]; then
-        test_fail "No version directory found in $cache_dir"
-        return 1
-    fi
-
-    local plugin_dir="$cache_dir/$version_dir"
-
-    # Check for critical plugin files
-    local required_files=(
-        ".claude-plugin/plugin.json"
-        ".claude-plugin/marketplace.json"
-        "scripts/orchestrate.sh"
+isolated_claude() {
+    local home="$1"
+    shift
+    (
+        cd "$home" || return 1
+        env -i HOME="$home" CLAUDE_CONFIG_DIR="$home/.claude" \
+            TMPDIR="$home/tmp" PATH="$PATH" \
+            DISABLE_TELEMETRY=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
+            claude "$@"
     )
+}
 
-    for file in "${required_files[@]}"; do
-        if [[ ! -f "$plugin_dir/$file" ]]; then
-            test_fail "Required file missing: $file (looked in $plugin_dir)"
-            return 1
+test_legacy_safety_regression() {
+    test_case "lifecycle suite cannot target a real host or remote marketplace"
+    local unsafe=""
+    local legacy_home_delete="rm -""rf ~/"
+    local legacy_remote="https""://"
+    local legacy_status="local output=\$""(claude"
+    local match
+    for match in "$legacy_home_delete" "$legacy_remote" "$legacy_status"; do
+        if grep -Fn -- "$match" "$SCRIPT_PATH" >/dev/null 2>&1; then
+            unsafe="${unsafe}${unsafe:+; }$match"
         fi
     done
-
-    test_pass
-}
-
-#==============================================================================
-# Test: Verify Plugin Configuration
-#==============================================================================
-
-test_verify_plugin_config() {
-    test_case "Verify plugin.json is valid"
-
-    if ! command -v claude &>/dev/null; then
-        test_skip "Claude CLI not available"
-        return 0
-    fi
-
-    local cache_dir="$HOME/.claude/plugins/cache/nyldn-plugins/octo"
-    local version_dir=$(find "$cache_dir" -maxdepth 1 -type d ! -name "octo" -exec basename {} \; | head -1)
-
-    if [[ -z "$version_dir" ]]; then
-        test_fail "No version directory found"
-        return 1
-    fi
-
-    local plugin_json="$cache_dir/$version_dir/.claude-plugin/plugin.json"
-
-    if [[ ! -f "$plugin_json" ]]; then
-        test_fail "plugin.json not found at $plugin_json"
-        return 1
-    fi
-
-    # Verify JSON is valid and contains expected fields
-    if ! command -v jq &>/dev/null; then
-        test_skip "jq not available for JSON validation"
-        return 0
-    fi
-
-    local name=$(jq -r '.name' "$plugin_json" 2>/dev/null)
-    local skills=$(jq -r '.skills | length' "$plugin_json" 2>/dev/null)
-
-    if [[ "$name" != "octo" ]]; then
-        test_fail "Plugin name mismatch: expected 'octo', got '$name'"
-        return 1
-    fi
-
-    if [[ "$skills" -lt 1 ]]; then
-        test_fail "No skills defined in plugin.json"
-        return 1
-    fi
-
-    test_pass
-}
-
-#==============================================================================
-# Test: Update Plugin
-#==============================================================================
-
-test_update_plugin() {
-    test_case "Update plugin to latest version"
-
-    if ! command -v claude &>/dev/null; then
-        test_skip "Claude CLI not available"
-        return 0
-    fi
-
-    # Update plugin
-    local output=$(claude plugin update octo --scope user 2>&1)
-    local exit_code=$?
-
-    # Update may say "already up to date" which is fine
-    if [[ $exit_code -eq 0 ]] || echo "$output" | grep -qi "up to date\|already at latest"; then
+    if [[ -z "$unsafe" ]] && grep -Fq 'CLAUDE_CONFIG_DIR=' "$SCRIPT_PATH"; then
         test_pass
     else
-        test_fail "Update failed: $output"
+        test_fail "unsafe lifecycle pattern found: ${unsafe:-missing CLAUDE_CONFIG_DIR isolation}"
     fi
 }
 
-#==============================================================================
-# Test: Uninstall Plugin
-#==============================================================================
+test_claude_failure_status_is_preserved() {
+    test_case "Claude command failures retain their original status"
+    local stub_bin="$TEST_TMP_DIR/status-bin"
+    local home="$TEST_TMP_DIR/status-home"
+    local output rc=0
+    mkdir -p "$stub_bin" "$home/.claude" "$home/tmp"
+    {
+        printf '%s\n' '#!/bin/bash'
+        printf '%s\n' 'printf "stub failure\\n" >&2'
+        printf '%s\n' 'exit 23'
+    } > "$stub_bin/claude"
+    chmod +x "$stub_bin/claude"
 
-test_uninstall_plugin() {
-    test_case "Uninstall octo plugin"
-
-    if ! command -v claude &>/dev/null; then
-        test_skip "Claude CLI not available"
-        return 0
+    if output="$(PATH="$stub_bin:$PATH" isolated_claude "$home" plugin list 2>&1)"; then
+        rc=0
+    else
+        rc=$?
     fi
-
-    # Uninstall plugin
-    local output=$(claude plugin uninstall octo --scope user 2>&1)
-    local exit_code=$?
-
-    if [[ $exit_code -ne 0 ]]; then
-        test_fail "Uninstallation failed: $output"
-        return 1
-    fi
-
-    # Wait briefly for uninstallation to complete
-    sleep 1
-
-    test_pass
-}
-
-#==============================================================================
-# Test: Verify Plugin Removed
-#==============================================================================
-
-test_verify_removed() {
-    test_case "Verify plugin no longer in list"
-
-    if ! command -v claude &>/dev/null; then
-        test_skip "Claude CLI not available"
-        return 0
-    fi
-
-    local output=$(claude plugin list 2>&1)
-
-    # Plugin should not appear in list (or should show as not installed)
-    if echo "$output" | grep -q "octo.*enabled"; then
-        test_fail "Plugin still appears as enabled: $output"
-        return 1
-    fi
-
-    test_pass
-}
-
-#==============================================================================
-# Test: Reinstall After Uninstall
-#==============================================================================
-
-test_reinstall() {
-    test_case "Reinstall plugin after uninstall"
-
-    if ! command -v claude &>/dev/null; then
-        test_skip "Claude CLI not available"
-        return 0
-    fi
-
-    # Reinstall
-    local output=$(claude plugin install octo@nyldn-plugins --scope user 2>&1)
-    local exit_code=$?
-
-    if [[ $exit_code -ne 0 ]]; then
-        test_fail "Reinstallation failed: $output"
-        return 1
-    fi
-
-    # Wait briefly
-    sleep 2
-
-    # Verify it's back
-    local list_output=$(claude plugin list 2>&1)
-    if echo "$list_output" | grep -q "octo"; then
+    if [[ "$rc" -eq 23 && "$output" == "stub failure" ]]; then
         test_pass
     else
-        test_fail "Plugin not found after reinstall"
+        test_fail "Claude failure was swallowed (exit=$rc output=${output:-<empty>})"
     fi
 }
 
-#==============================================================================
-# Run All Tests
-#==============================================================================
+test_candidate_lifecycle_is_hermetic() {
+    test_case "candidate health commands preserve isolated host and user state"
+    local home="$TEST_TMP_DIR/candidate-home"
+    local state="$home/.claude-octopus/install-state.json"
+    local sentinel="$home/.claude-octopus/results/user-result.txt"
+    local before after repair_json missing_rc=0 failures=0
+    mkdir -p "$(dirname "$sentinel")" "$home/.claude" "$home/.codex" "$home/tmp"
+    printf '%s\n' 'keep-user-result' > "$sentinel"
 
-main() {
-    echo -e "${YELLOW}Setting up test environment...${NC}"
-    setup_test_env
+    candidate_command "$home" claude "$PROJECT_ROOT" install-state record \
+        > "$TEST_TMP_DIR/claude-record.log" 2>&1 || failures=$((failures + 1))
+    candidate_command "$home" codex "$PROJECT_ROOT" install-state record \
+        > "$TEST_TMP_DIR/codex-record.log" 2>&1 || failures=$((failures + 1))
+    candidate_command "$home" claude "$PROJECT_ROOT" install-state record \
+        > "$TEST_TMP_DIR/claude-rerecord.log" 2>&1 || failures=$((failures + 1))
 
-    # Run test sequence
-    test_claude_cli_available || exit 1
-    test_add_marketplace
-    test_install_plugin
-    test_verify_installed
-    test_verify_files_exist
-    test_verify_plugin_config
-    test_update_plugin
-    test_uninstall_plugin
-    test_verify_removed
-    test_reinstall
-    test_uninstall_plugin  # Clean up after test
+    before="$(cksum "$state" 2>/dev/null || true)"
+    if candidate_command "$home" claude "$home/missing-candidate" install-state record \
+        > "$TEST_TMP_DIR/missing-root.log" 2>&1; then
+        missing_rc=0
+    else
+        missing_rc=$?
+    fi
+    after="$(cksum "$state" 2>/dev/null || true)"
 
-    echo -e "\n${YELLOW}Restoring original state...${NC}"
-    restore_original_state
+    repair_json="$(candidate_command "$home" claude "$PROJECT_ROOT" \
+        repair --dry-run --json 2>/dev/null || true)"
 
-    test_summary
+    if [[ "$failures" -eq 0 && "$missing_rc" -ne 0 && "$before" == "$after" ]] &&
+       [[ ! -e "$home/.claude-octopus/plugin" ]] &&
+       [[ "$(cat "$sentinel" 2>/dev/null || true)" == "keep-user-result" ]] &&
+       jq -e --arg root "$PROJECT_ROOT" '
+           .schema == 2 and (.hosts | keys | sort) == ["claude","codex"] and
+           .hosts.claude.plugin_root == $root and
+           .hosts.codex.plugin_root == $root
+       ' "$state" >/dev/null 2>&1 &&
+       jq -e '.mode == "dry-run" and .status == "missing" and .result == "ready"' \
+           <<<"$repair_json" >/dev/null 2>&1; then
+        test_pass
+    else
+        test_fail "candidate lifecycle isolation failed (commands=$failures missing-exit=$missing_rc)"
+    fi
 }
 
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    main "$@"
-fi
+run_native_claude_acceptance() {
+    test_case "opt-in Claude lifecycle installs the local candidate"
+    if [[ "${OCTOPUS_RUN_CLAUDE_LIFECYCLE_ACCEPTANCE:-0}" != "1" ]]; then
+        test_skip "set OCTOPUS_RUN_CLAUDE_LIFECYCLE_ACCEPTANCE=1 to run isolated native acceptance"
+        return 0
+    fi
+    if ! command -v claude >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
+        test_skip "Claude CLI and jq are required for native acceptance"
+        return 0
+    fi
+
+    local home="$TEST_TMP_DIR/native-home"
+    local marketplace="$TEST_TMP_DIR/local-marketplace"
+    local sentinel="$home/.claude-octopus/results/user-result.txt"
+    local candidate_version output rc=0 failures=0
+    mkdir -p "$home/.claude" "$home/tmp" "$(dirname "$sentinel")" \
+        "$marketplace/.claude-plugin" "$marketplace/plugins"
+    printf '%s\n' 'keep-user-result' > "$sentinel"
+    ln -s "$PROJECT_ROOT" "$marketplace/plugins/candidate"
+    candidate_version="$(jq -r '.version' "$PROJECT_ROOT/.claude-plugin/plugin.json")"
+    jq -n --arg version "$candidate_version" '{
+        name:"octopus-candidate",
+        owner:{name:"acceptance"},
+        plugins:[{name:"octo",source:"./plugins/candidate",version:$version}]
+    }' > "$marketplace/.claude-plugin/marketplace.json"
+
+    if output="$(isolated_claude "$home" plugin marketplace add "$marketplace" 2>&1)"; then
+        rc=0
+    else
+        rc=$?
+    fi
+    [[ "$rc" -eq 0 ]] || { printf '%s\n' "$output" >&2; failures=$((failures + 1)); }
+
+    if output="$(isolated_claude "$home" plugin install octo@octopus-candidate --scope user 2>&1)"; then
+        rc=0
+    else
+        rc=$?
+    fi
+    [[ "$rc" -eq 0 ]] || { printf '%s\n' "$output" >&2; failures=$((failures + 1)); }
+
+    if output="$(isolated_claude "$home" plugin list 2>&1)"; then
+        rc=0
+    else
+        rc=$?
+    fi
+    [[ "$rc" -eq 0 && "$output" == *"octo"* ]] || failures=$((failures + 1))
+
+    if output="$(isolated_claude "$home" plugin update octo --scope user 2>&1)"; then
+        rc=0
+    else
+        rc=$?
+    fi
+    [[ "$rc" -eq 0 ]] || { printf '%s\n' "$output" >&2; failures=$((failures + 1)); }
+
+    if output="$(isolated_claude "$home" plugin uninstall octo --scope user 2>&1)"; then
+        rc=0
+    else
+        rc=$?
+    fi
+    [[ "$rc" -eq 0 ]] || { printf '%s\n' "$output" >&2; failures=$((failures + 1)); }
+
+    if output="$(isolated_claude "$home" plugin list 2>&1)"; then
+        rc=0
+    else
+        rc=$?
+    fi
+    [[ "$rc" -eq 0 && "$output" != *"octo@octopus-candidate"* ]] || \
+        failures=$((failures + 1))
+
+    if [[ "$failures" -eq 0 ]] &&
+       [[ "$(cat "$sentinel" 2>/dev/null || true)" == "keep-user-result" ]]; then
+        test_pass
+    else
+        test_fail "isolated native lifecycle had $failures failure(s) or changed user data"
+    fi
+}
+
+test_legacy_safety_regression
+test_claude_failure_status_is_preserved
+test_candidate_lifecycle_is_hermetic
+run_native_claude_acceptance
+
+test_summary

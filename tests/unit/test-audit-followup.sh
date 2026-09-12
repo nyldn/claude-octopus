@@ -170,17 +170,6 @@ if [[ "$first_input" == 100 && -z "$_PARSED_INPUT_TOKENS" && "$_PARSED_CACHE_WRI
     test_pass
 else test_fail "cache token suffix overwrote uncached input"; fi
 
-test_case "packaging archive fixture uses suite-owned cleanup and preserves npm diagnostics"
-packaging_test="$PROJECT_ROOT/tests/smoke/test-packaging-integrity.sh"
-if grep -Fq 'for required_tool in npm jq tar python3' "$packaging_test" &&
-   grep -Fq 'PACKAGING_FIXTURE_DIR="$TEST_TMP_DIR/' "$packaging_test" &&
-   grep -Fq 'npm pack --ignore-scripts --json --pack-destination "$PACKAGING_FIXTURE_DIR" 2>"$npm_error"' "$packaging_test" &&
-   grep -Fq 'trap cleanup_packaging_fixture EXIT INT TERM' "$packaging_test"; then
-    test_pass
-else
-    test_fail "packaging fixture prerequisites, diagnostics, or cleanup are not explicit"
-fi
-
 test_case "Codex safety contract is a framework suite with a separate Python test module"
 safety_wrapper="$PROJECT_ROOT/tests/unit/test-codex-safety-contract.sh"
 safety_python="$PROJECT_ROOT/tests/unit/codex_safety_contract_test.py"

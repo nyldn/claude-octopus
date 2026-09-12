@@ -2,6 +2,74 @@
 # Plugin root helpers for Claude Octopus.
 # Source-safe: no main execution block.
 
+_octo_stable_script_paths() {
+    printf '%s\n' scripts/orchestrate.sh scripts/install-deps.sh \
+        scripts/helpers/check-providers.sh scripts/scheduler/octopus-scheduler.sh \
+        scripts/state-manager.sh scripts/octo-state.sh scripts/agent-registry.sh \
+        scripts/reactions.sh scripts/migrate-todos.sh scripts/claude-mem-bridge.sh
+}
+
+_octo_stable_wrapper() {
+    local quoted
+    printf -v quoted '%q' "$1"
+    printf '#!/usr/bin/env bash\nexec %s "$@"\n' "$quoted"
+}
+
+octo_stable_shim_source() {
+    local file="$1" rel="$2" first line token char decoded=""
+    [[ -f "$file" && ! -L "$file" ]] || return 1
+    { IFS= read -r first && IFS= read -r line; } < "$file" || return 1
+    [[ "$first" == '#!/usr/bin/env bash' && "$line" == 'exec '*' "$@"' ]] || return 1
+    token="${line#exec }"; token="${token% \"\$@\"}"
+    # Decode only backslash-escaped path characters. Never evaluate wrapper code.
+    while [[ -n "$token" ]]; do
+        char="${token:0:1}"; token="${token:1}"
+        if [[ "$char" == \\ ]]; then
+            [[ -n "$token" ]] || return 1
+            char="${token:0:1}"; token="${token:1}"
+        fi
+        decoded="$decoded$char"
+    done
+    case "$decoded" in /*/"$rel") ;; *) return 1 ;; esac
+    # Byte equality rejects appended code, extra lines, and altered quoting.
+    cmp -s "$file" <(_octo_stable_wrapper "$decoded") || return 1
+    printf '%s\n' "$decoded"
+}
+
+_octo_stable_destination_safe() {
+    local stable="$1" rel="$2" path="$1" part rest
+    [[ ! -L "$stable" && ( ! -e "$stable" || -d "$stable" ) ]] || return 1
+    rest="${rel%/*}"
+    while [[ -n "$rest" ]]; do
+        part="${rest%%/*}"
+        [[ "$part" != .. && -n "$part" ]] || return 1
+        path="$path/$part"
+        [[ ! -L "$path" && ( ! -e "$path" || -d "$path" ) ]] || return 1
+        if [[ "$rest" == */* ]]; then rest="${rest#*/}"; else rest=""; fi
+    done
+}
+
+octo_stable_shims_status() {
+    local root="$1" stable="$2" rel dst src target status=shim
+    [[ -x "$stable/scripts/orchestrate.sh" ]] || { printf 'invalid\n'; return 1; }
+    while IFS= read -r rel; do
+        dst="$stable/$rel"; src="$root/$rel"
+        if [[ -e "$dst" && -e "$src" && "$dst" -ef "$src" ]]; then
+            [[ "$rel" != scripts/orchestrate.sh ]] || status=ok
+            continue
+        fi
+        _octo_stable_destination_safe "$stable" "$rel" || { printf 'invalid\n'; return 1; }
+        if [[ ! -e "$dst" && ! -L "$dst" ]]; then
+            [[ ! -f "$src" ]] || status=mismatch
+            continue
+        fi
+        target="$(octo_stable_shim_source "$dst" "$rel")" || { printf 'invalid\n'; return 1; }
+        [[ "$target" == "$src" ]] || status=mismatch
+    done < <(_octo_stable_script_paths)
+    printf '%s\n' "$status"
+    [[ "$status" != mismatch ]]
+}
+
 octo_is_windows_git_bash() {
     local uname_s="${1:-}"
     if [[ -z "$uname_s" ]]; then
@@ -37,14 +105,18 @@ octo_write_stable_script_shim() {
     # being a symlink to src. See #521.
     [[ -e "$dst" && "$src" -ef "$dst" ]] && return 0
 
-    local quoted_src
-    printf -v quoted_src '%q' "$src"
-    mkdir -p "$(dirname "$dst")"
-    {
-        printf '%s\n' '#!/usr/bin/env bash'
-        printf 'exec %s "$@"\n' "$quoted_src"
-    } > "$dst"
-    chmod +x "$dst" 2>/dev/null || true
+    _octo_stable_destination_safe "$stable_root" "$rel_path" || return 1
+    if [[ -e "$dst" || -L "$dst" ]]; then
+        octo_stable_shim_source "$dst" "$rel_path" >/dev/null || return 1
+    fi
+    local tmp
+    mkdir -p "$(dirname "$dst")" || return 1
+    tmp="$(mktemp "$(dirname "$dst")/.octo-shim.XXXXXX")" || return 1
+    if ! { _octo_stable_wrapper "$src" > "$tmp" && chmod 755 "$tmp" && mv -f "$tmp" "$dst"; }; then
+        rm -f "$tmp"
+        return 1
+    fi
+    [[ -f "$dst" && -x "$dst" ]] && cmp -s "$dst" <(_octo_stable_wrapper "$src")
 }
 
 octo_discover_plugin_root() {
@@ -56,6 +128,8 @@ octo_discover_plugin_root() {
     # Strategy 1: CC marketplace cache (standard install path)
     local cache_base="${HOME}/.claude/plugins/cache/nyldn-plugins/octo"
     if [[ -d "$cache_base" ]]; then
+        # Preserve the existing newest-by-mtime discovery order.
+        # shellcheck disable=SC2012
         candidate="$(ls -1dt "$cache_base"/*/ 2>/dev/null | head -1)"
         candidate="${candidate%/}"
         if [[ -n "$candidate" && -f "${candidate}/scripts/orchestrate.sh" ]]; then
@@ -95,7 +169,8 @@ octo_ensure_stable_plugin_root() {
         plugin_root="$(octo_discover_plugin_root)" || true
     fi
 
-    [[ -n "$plugin_root" && -d "$plugin_root" ]] || return 1
+    [[ -n "$plugin_root" && -d "$plugin_root" && -f "$plugin_root/scripts/orchestrate.sh" && -x "$plugin_root/scripts/orchestrate.sh" ]] || return 1
+    plugin_root="$(cd "$plugin_root" && pwd -P)" || return 1
 
     mkdir -p "$(dirname "$stable_root")"
 
@@ -113,36 +188,45 @@ octo_ensure_stable_plugin_root() {
         fi
     fi
 
-    if [[ -L "$stable_root" || -f "$stable_root" ]]; then
-        rm -f "$stable_root" 2>/dev/null || true
+    if [[ -L "$stable_root" ]]; then
+        # Rename a prepared link over the old link without an unlink gap. -h on
+        # BSD and -T on GNU prevent following a destination symlink to a directory.
+        local staging
+        staging="$(mktemp -d "$(dirname "$stable_root")/.octo-link.XXXXXX")" || return 1
+        if ln -s "$plugin_root" "$staging/link" &&
+            { if [[ "$(uname -s)" == Darwin || "$(uname -s)" == *BSD ]]; then
+                mv -fh "$staging/link" "$stable_root"
+              else mv -fT "$staging/link" "$stable_root"; fi; }; then
+            rmdir "$staging"
+            [[ -x "$stable_root/scripts/orchestrate.sh" ]]
+            return $?
+        fi
+        rm -f "$staging/link"; rmdir "$staging"
+        return 1
     fi
-
-    if [[ ! -e "$stable_root" ]]; then
-        ln -s "$plugin_root" "$stable_root" 2>/dev/null || true
-    fi
-
-    if [[ -L "$stable_root" && -x "$stable_root/scripts/orchestrate.sh" ]]; then
-        return 0
-    fi
-
-    if [[ -e "$stable_root" && ! -d "$stable_root" ]]; then
-        rm -f "$stable_root" 2>/dev/null || true
+    [[ ! -e "$stable_root" || -d "$stable_root" ]] || return 1
+    if [[ ! -e "$stable_root" ]] && ln -s "$plugin_root" "$stable_root" 2>/dev/null; then
+        [[ -x "$stable_root/scripts/orchestrate.sh" ]]
+        return $?
     fi
 
     # Windows Git Bash often cannot create native symlinks without Developer
     # Mode/admin rights. Keep the stable path usable by writing tiny wrappers
     # for script entry points referenced by commands and skills.
-    mkdir -p "$stable_root"
-    octo_write_stable_script_shim "$plugin_root" "$stable_root" "scripts/orchestrate.sh"
-    octo_write_stable_script_shim "$plugin_root" "$stable_root" "scripts/install-deps.sh"
-    octo_write_stable_script_shim "$plugin_root" "$stable_root" "scripts/helpers/check-providers.sh"
-    octo_write_stable_script_shim "$plugin_root" "$stable_root" "scripts/scheduler/octopus-scheduler.sh"
-    octo_write_stable_script_shim "$plugin_root" "$stable_root" "scripts/state-manager.sh"
-    octo_write_stable_script_shim "$plugin_root" "$stable_root" "scripts/octo-state.sh"
-    octo_write_stable_script_shim "$plugin_root" "$stable_root" "scripts/agent-registry.sh"
-    octo_write_stable_script_shim "$plugin_root" "$stable_root" "scripts/reactions.sh"
-    octo_write_stable_script_shim "$plugin_root" "$stable_root" "scripts/migrate-todos.sh"
-    octo_write_stable_script_shim "$plugin_root" "$stable_root" "scripts/claude-mem-bridge.sh"
+    local rel src dst
+    # Preflight every destination before changing any existing wrapper.
+    while IFS= read -r rel; do
+        src="$plugin_root/$rel"; dst="$stable_root/$rel"
+        [[ -e "$src" && -e "$dst" && "$src" -ef "$dst" ]] && continue
+        _octo_stable_destination_safe "$stable_root" "$rel" || return 1
+        if [[ -e "$dst" || -L "$dst" ]]; then
+            octo_stable_shim_source "$dst" "$rel" >/dev/null || return 1
+        fi
+    done < <(_octo_stable_script_paths)
+    mkdir -p "$stable_root" || return 1
+    while IFS= read -r rel; do
+        octo_write_stable_script_shim "$plugin_root" "$stable_root" "$rel" || return 1
+    done < <(_octo_stable_script_paths)
 
     [[ -x "$stable_root/scripts/orchestrate.sh" ]]
 }

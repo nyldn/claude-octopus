@@ -91,7 +91,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Bash|Agent|Write|Edit",
+        "matcher": "Bash|Agent|Write|Edit|Read|WebFetch|Grep",
         "hooks": [
           {
             "type": "command",

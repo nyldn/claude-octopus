@@ -1,6 +1,6 @@
 # Command and Usage Reference
 
-Complete reference for all 53 Claude Octopus slash commands, CLI tools (`octopus` + `octo-compress`), plus activation rules, provider indicators, and manual-only project-lifecycle skills.
+Complete reference for all 54 Claude Octopus slash commands, CLI tools (`octopus` + `octo-compress`), plus activation rules, provider indicators, and manual-only project-lifecycle skills.
 
 ---
 
@@ -18,6 +18,7 @@ All slash commands use the `/octo:` namespace. The smart router command is `/oct
 
 | Command | Description |
 |---------|-------------|
+| `/octo:guide` | Browse installed commands without starting a provider workflow |
 | `/octo:setup` | Check setup status and configure providers (aliases: `/octo:configure`, `/octo:config`, `/octo:init`, `/octo:wizard`, `/octo:sys-setup`) |
 | `/octo:skill-doctor` | Manually invoke fail-closed diagnostics without shadowing Claude Code's native `/doctor` |
 | `/octo:model-config` | Configure provider model selection per workflow phase |
@@ -57,7 +58,7 @@ All slash commands use the `/octo:` namespace. The smart router command is `/oct
 | `/octo:debug` | Reproduce a symptom and verify the fix on the current host; optional `--peer-review` |
 | `/octo:tdd` | Observe failing and passing tests on the current host; optional `--peer-review` |
 
-The development branch adds the methods below. See
+Octopus includes the methods below. See
 [workflow methods](WORKFLOW-METHODS.md) for the full contracts and
 [Unreleased](../CHANGELOG.md#unreleased) for release status.
 
@@ -142,6 +143,15 @@ Plugin executables available as bare commands (CC v2.1.91+). Also usable via ful
 | `octopus fleet` | Show provider fleet status |
 | `octopus state-path` | Print the checkout-specific workflow `state.json` path resolved by `OCTOPUS_WORKFLOW_STATE_DIR`, `CLAUDE_PLUGIN_DATA`, `CLAUDE_OCTOPUS_WORKSPACE`, or the default host workspace |
 | `octopus agent-summary` | Show which providers ran, degraded, failed, timed out, or contributed usable output |
+| `octopus guide [topic]` | Find commands from the installed manifest without starting a workflow |
+| `octopus capabilities --json` | Show static provider readiness and registered capabilities without provider calls |
+| `octopus doctor installation` | Check the loaded root, stable root, host-scoped install state, and context profile without changing them |
+| `octopus cache-check --json` | Validate active, newest, stale, and stable Claude and Codex plugin roots |
+| `octopus repair --dry-run` | Explain a bounded stable-root repair; use `--apply` only after explicit authorization |
+| `octopus security-audit --json` | Run offline checks against the installed plugin files |
+| `octopus handoff export --json` | Export a redacted workflow summary for inspection; it is not imported runtime state |
+| `octopus profile [core\|orchestration\|full]` | Show or set optional context-hook behavior |
+| `octopus install-state [show\|record]` | Inspect metadata or explicitly record the current host installation |
 | `octo-compress` | Pipe verbose output for token savings: `npm install 2>&1 \| octo-compress` |
 | `octo-compress json` | Force JSON array/object compression |
 | `octo-compress logs` | Force log compression (head+tail) |
@@ -233,10 +243,10 @@ Check setup status and configure AI providers.
 ```
 
 **What it does:**
-- Auto-detects installed providers (Codex CLI, Antigravity CLI, and other configured providers)
-- Shows which providers are available and their auth status
+- Reads the shared provider-readiness report
+- Runs the read-only installation health and cache checks during troubleshooting and completion
 - Provides installation instructions for missing providers
-- Verifies API keys and authentication
+- Verifies provider readiness without claiming that installation alone proves authentication
 
 **Example output:**
 ```
@@ -249,13 +259,17 @@ Providers:
 You're all set! Try: /octo:auto research OAuth patterns
 ```
 
-**Troubleshooting:** If you see "Failed to update: Plugin 'octo' not found", run `/octo:setup` for reinstall instructions, or see [issue #17](https://github.com/nyldn/claude-octopus/issues/17).
+**Troubleshooting:** If setup cannot find the plugin or a local check fails,
+rerun `/octo:setup`. Setup prints the read-only installation health report. For
+a shell-only report, run `octopus doctor installation` and
+`octopus cache-check --json`. If a stable-root repair is proposed, inspect
+`octopus repair --dry-run` and authorize `octopus repair --apply` separately.
 
 ---
 
 ### Doctor diagnostics
 
-Run fail-closed environment diagnostics across 14 check categories.
+Run fail-closed environment diagnostics across 15 check categories.
 
 Octopus intentionally leaves `/octo:doctor` unregistered so Claude Code's
 native `/doctor` remains available. Invoke `/octo:skill-doctor` inside Claude
@@ -270,6 +284,7 @@ octopus doctor providers --live # Run a bounded live AGY catalog/model/dispatch 
 octopus doctor auth --verbose   # Detailed auth status
 octopus doctor config           # Install source/path, version, build SHA when available, and Claude Code feature flags
 octopus doctor skills           # Skill loading plus modern plugin capability notes
+octopus doctor installation     # Loaded root, stable root, install state, and profile
 octopus doctor --json           # Machine-readable Doctor 2.0 output
 ```
 
@@ -291,6 +306,7 @@ octopus doctor --json           # Machine-readable Doctor 2.0 output
 | `agents` | Agent definitions and platform projections |
 | `recurrence` | Repeated-failure and recovery evidence |
 | `cache` | Active and stale plugin-cache versions |
+| `installation` | Loaded plugin root, stable root, host-scoped install metadata, and context profile |
 
 Doctor returns `0` for passes and warnings, `1` when one or more checks fail,
 and `2` for invalid options, unknown categories, or multiple category

@@ -153,11 +153,11 @@ octo_command_exists() {
 octo_alias_for() {
     local cmd="$1"
     case "$cmd" in
-        configure|config|init|install|settings|wizard|octopus-configure) echo "setup" ;;
+        configure|config|init|install|settings|wizard|octopus-configure|sys-setup) echo "setup" ;;
         ex|extr) echo "extract" ;;
         cost|usage) echo "costs" ;;
         optimize|optimise|router|smart) echo "auto" ;;
-        update|update-clis|sys-update|sys-setup) echo "doctor" ;;
+        update|update-clis|sys-update) echo "doctor" ;;
         co-research|co-discover) echo "discover" ;;
         *) return 1 ;;
     esac

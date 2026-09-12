@@ -24,11 +24,18 @@ while [[ "$_octo_early_index" -lt "${#_octo_early_args[@]}" ]]; do
             break ;;
     esac
 done
-if [[ "$_octo_early_command" == "explain" ]] || \
-   [[ "$_octo_early_command" == "status" && "${_octo_early_args[$((_octo_early_index + 1))]:-}" == "--run" ]]; then
-    OCTOPUS_EARLY_ARTIFACT_READ_ONLY=true
-fi
-unset _octo_early_args _octo_early_index _octo_early_arg _octo_early_command
+case "$_octo_early_command" in
+    guide|doctor|capabilities|cache-check|check-cache|security-audit|repair|handoff|profile|install-state)
+        OCTOPUS_EARLY_ARTIFACT_READ_ONLY=true
+        ;;
+    explain)
+        OCTOPUS_EARLY_ARTIFACT_READ_ONLY=true
+        ;;
+    status)
+        [[ "${_octo_early_args[$((_octo_early_index + 1))]:-}" == "--run" ]] && \
+            OCTOPUS_EARLY_ARTIFACT_READ_ONLY=true
+        ;;
+esac
 
 # Resolve the physical path (pwd -P) so SCRIPT_DIR points at the real install
 # directory even when the script is invoked through the ~/.claude-octopus/plugin
@@ -37,6 +44,49 @@ unset _octo_early_args _octo_early_index _octo_early_arg _octo_early_command
 # at itself (ELOOP). See #371.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Diagnostics and repair do not need the 70+ workflow libraries loaded below.
+# Dispatch them before those libraries initialize state, event logs, or probes.
+if [[ "${BASH_SOURCE[0]}" == "${0}" && "$_octo_early_index" -eq 0 ]]; then
+    _octo_early_tail=("${_octo_early_args[@]:1}")
+    case "$_octo_early_command" in
+        guide) exec python3 "${SCRIPT_DIR}/guide.py" "${_octo_early_tail[@]}" ;;
+        auto)
+            if [[ "${#_octo_early_tail[@]}" -eq 1 ]]; then
+                case "${_octo_early_tail[0]}" in
+                    help|list|commands|capabilities|options|workflows)
+                        exec python3 "${SCRIPT_DIR}/guide.py" list ;;
+                esac
+            fi
+            ;;
+        doctor) exec bash "${SCRIPT_DIR}/doctor.sh" "${_octo_early_tail[@]}" ;;
+        capabilities) exec bash "${SCRIPT_DIR}/capabilities.sh" "${_octo_early_tail[@]}" ;;
+        cache-check|check-cache) exec bash "${SCRIPT_DIR}/cache-check.sh" "${_octo_early_tail[@]}" ;;
+        security-audit) exec bash "${SCRIPT_DIR}/security-audit.sh" "${_octo_early_tail[@]}" ;;
+        repair) exec bash "${SCRIPT_DIR}/repair.sh" "${_octo_early_tail[@]}" ;;
+        handoff) exec bash "${SCRIPT_DIR}/handoff.sh" "${_octo_early_tail[@]}" ;;
+        profile) exec bash "${SCRIPT_DIR}/profile.sh" "${_octo_early_tail[@]}" ;;
+        install-state)
+            # shellcheck source=lib/lifecycle.sh
+            source "${SCRIPT_DIR}/lib/lifecycle.sh"
+            case "${_octo_early_tail[0]:-show}" in
+                record)
+                    [[ "${#_octo_early_tail[@]}" -eq 1 ]] || { printf 'Usage: %s install-state [show|record]\n' "$(basename "$0")" >&2; exit 2; }
+                    octo_lifecycle_record_install
+                    printf 'Install state recorded at %s\n' "$OCTO_LIFECYCLE_STATE_FILE"
+                    ;;
+                show|status|--json)
+                    [[ "${#_octo_early_tail[@]}" -le 1 ]] || { printf 'Usage: %s install-state [show|record]\n' "$(basename "$0")" >&2; exit 2; }
+                    octo_lifecycle_state_json
+                    ;;
+                *) printf 'Unknown install-state action: %s\n' "${_octo_early_tail[0]}" >&2; exit 2 ;;
+            esac
+            exit 0
+            ;;
+    esac
+    unset _octo_early_tail
+fi
+unset _octo_early_args _octo_early_index _octo_early_arg _octo_early_command
 source "${SCRIPT_DIR}/lib/plugin-root.sh" 2>/dev/null || true
 
 # Self-heal: ensure the stable symlink exists for LLM Bash tool access.
@@ -135,6 +185,7 @@ source "${SCRIPT_DIR}/agent-teams-bridge.sh"
 source "${SCRIPT_DIR}/lib/common.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/utils.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/state-root.sh"
+source "${SCRIPT_DIR}/lib/lifecycle.sh"
 source "${SCRIPT_DIR}/lib/session-id.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/similarity.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/models.sh" 2>/dev/null || true
@@ -2266,7 +2317,7 @@ init_ci_mode
 validate_autonomy_mode || exit $?
 
 # Artifact-only run inspection must not invoke even provider version probes.
-OCTOPUS_ARTIFACT_READ_ONLY=false
+OCTOPUS_ARTIFACT_READ_ONLY="$OCTOPUS_EARLY_ARTIFACT_READ_ONLY"
 if [[ "${1:-}" == "explain" ]] || \
    [[ "${1:-}" == "status" && "${2:-}" == "--run" ]]; then
     OCTOPUS_ARTIFACT_READ_ONLY=true
@@ -2844,6 +2895,44 @@ case "$COMMAND" in
         ;;
     doctor)
         do_doctor "$@"
+        ;;
+    guide)
+        python3 "${SCRIPT_DIR}/guide.py" "$@"
+        ;;
+    capabilities)
+        bash "${SCRIPT_DIR}/capabilities.sh" "$@"
+        ;;
+    cache-check|check-cache)
+        bash "${SCRIPT_DIR}/cache-check.sh" "$@"
+        ;;
+    security-audit)
+        bash "${SCRIPT_DIR}/security-audit.sh" "$@"
+        ;;
+    repair)
+        bash "${SCRIPT_DIR}/repair.sh" "$@"
+        ;;
+    handoff)
+        bash "${SCRIPT_DIR}/handoff.sh" "$@"
+        ;;
+    profile)
+        bash "${SCRIPT_DIR}/profile.sh" "$@"
+        ;;
+    install-state)
+        case "${1:-show}" in
+            record)
+                [[ $# -eq 1 ]] || { printf 'Usage: %s install-state [show|record]\n' "$(basename "$0")" >&2; exit 2; }
+                octo_lifecycle_record_install
+                printf 'Install state recorded at %s\n' "$OCTO_LIFECYCLE_STATE_FILE"
+                ;;
+            show|status|--json)
+                [[ $# -le 1 ]] || { printf 'Usage: %s install-state [show|record]\n' "$(basename "$0")" >&2; exit 2; }
+                octo_lifecycle_state_json
+                ;;
+            *)
+                printf 'Unknown install-state action: %s\n' "$1" >&2
+                exit 2
+                ;;
+        esac
         ;;
     update-plugin)
         octo_plugin_update_run "$PLUGIN_DIR" "$OCTOPUS_HOST"

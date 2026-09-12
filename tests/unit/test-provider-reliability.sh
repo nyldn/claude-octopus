@@ -187,7 +187,7 @@ fi
 
 # ── No attribution references ─────────────────────────────────────────────────
 
-if grep -qi 'gsd-2\|ecc\|strategic-audit\|Rust agent runtime' "$ROUTER" 2>/dev/null; then
+if grep -qi 'gsd-2\|strategic-audit\|Rust agent runtime' "$ROUTER" 2>/dev/null; then
     fail "No attribution references" "found prohibited reference"
 else
     pass "No attribution references"

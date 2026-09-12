@@ -149,4 +149,11 @@ test_clean_skips_active
 test_clean_removes_stale
 test_format_bytes
 
+test_case "cache ordering is numeric and ignores files and non-release directories"
+cache="$TEST_TMP_DIR/version-order"
+mkdir -p "$cache/11.9.0" "$cache/11.10.0" "$cache/11.4.2" "$cache/zz-not-a-version"
+touch "$cache/99.0.0"
+out="$(bash -c 'source "$1"; octo_cache_versions "$2"' _ "$LIB" "$cache" | tr '\n' ',')"
+if [[ "$out" == "11.4.2,11.9.0,11.10.0," ]]; then test_pass; else test_fail "incorrect version catalog: $out"; fi
+
 test_summary

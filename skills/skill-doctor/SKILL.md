@@ -14,7 +14,7 @@ disable-model-invocation: true
 
 ## Overview
 
-Run environment diagnostics across 14 check categories. Doctor 2.0 identifies
+Run environment diagnostics across 15 check categories. Doctor 2.0 identifies
 misconfigured providers, stale loaded or cached plugin versions, invalid plugin
 assembly, unwritable state, non-terminal run records, orphan process evidence,
 broken hooks, and other issues that prevent Claude Octopus from working
@@ -42,18 +42,36 @@ correctly.
 
 ### Step 1: Resolve Plugin Root and Run Full Diagnostics
 
-Use this resolver before running Octopus scripts. Do not assume
-`~/.claude-octopus/plugin` exists; Windows Git Bash installs may not support the
-stable symlink. Run this as a single Bash call.
+Use this resolver before running Octopus scripts. Prefer the active host root,
+then the stable root or the installed CLI. Do not create or replace a stable
+link while collecting diagnostics. Run this as a single Bash call.
 
 ```bash
-OCTO_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
+OCTO_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-}}"
 if [[ -z "$OCTO_PLUGIN_ROOT" || ! -x "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" ]]; then
   OCTO_PLUGIN_ROOT="${HOME}/.claude-octopus/plugin"
 fi
 if [[ ! -x "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" ]] && command -v octopus >/dev/null 2>&1; then
   OCTO_BIN="$(command -v octopus)"
-  OCTO_PLUGIN_ROOT="$(cd "$(dirname "$OCTO_BIN")/.." && pwd)"
+  OCTO_LINK_HOPS=0
+  while [[ -L "$OCTO_BIN" ]]; do
+    OCTO_LINK_HOPS=$((OCTO_LINK_HOPS + 1))
+    if [[ "$OCTO_LINK_HOPS" -le 40 ]]; then
+      OCTO_BIN_DIR="$(cd -P "$(dirname "$OCTO_BIN")" 2>/dev/null && pwd -P)" || { OCTO_BIN=""; break; }
+      OCTO_LINK_TARGET="$(readlink "$OCTO_BIN")" || { OCTO_BIN=""; break; }
+      case "$OCTO_LINK_TARGET" in
+        /*) OCTO_BIN="$OCTO_LINK_TARGET" ;;
+        *) OCTO_BIN="$OCTO_BIN_DIR/$OCTO_LINK_TARGET" ;;
+      esac
+    else
+      OCTO_BIN=""
+      break
+    fi
+  done
+  if [[ -n "$OCTO_BIN" ]]; then
+    OCTO_BIN_DIR="$(cd -P "$(dirname "$OCTO_BIN")" 2>/dev/null && pwd -P)" || OCTO_BIN_DIR=""
+    [[ -z "$OCTO_BIN_DIR" ]] || OCTO_PLUGIN_ROOT="$(cd "$OCTO_BIN_DIR/.." 2>/dev/null && pwd -P)"
+  fi
 fi
 if [[ ! -x "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" ]]; then
   OCTO_PLUGIN_ROOT="$(
@@ -68,18 +86,13 @@ if [[ -z "$OCTO_PLUGIN_ROOT" || ! -x "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" 
   echo "Claude Octopus plugin root not found. Reinstall the octo plugin, then retry doctor diagnostics."
   exit 1
 fi
-mkdir -p "${HOME}/.claude-octopus"
-_octo_stable="${HOME}/.claude-octopus/plugin"
-if [[ ! -L "$_octo_stable" ]] || [[ "$(cd "$OCTO_PLUGIN_ROOT" 2>/dev/null && pwd -P)" != "$(cd "$_octo_stable" 2>/dev/null && pwd -P)" ]]; then
-  [[ -L "$_octo_stable" || -f "$_octo_stable" ]] && rm -f "$_octo_stable" 2>/dev/null || true
-  ln -s "$OCTO_PLUGIN_ROOT" "$_octo_stable" 2>/dev/null || true
-fi
-unset _octo_stable
 export OCTO_PLUGIN_ROOT
 bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor --verbose
 ```
 
-This runs all 14 check categories and displays a formatted report.
+This runs all 15 check categories and displays a formatted report. The
+installation category reports a missing or mismatched stable root; it does not
+repair it.
 
 ### Step 2: Filter by Category (Optional)
 
@@ -104,6 +117,7 @@ bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor conflicts
 bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor agents
 bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor recurrence
 bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor cache
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor installation
 ```
 
 ### Step 3: Check & Install Dependencies
@@ -163,7 +177,26 @@ Access, the Antigravity CLI item, and its Access Control settings.
 
 ### Step 5: Interactive Remediation (MANDATORY for fixable issues)
 
-After running diagnostics, if ANY fixable issues are found, you MUST use AskUserQuestion to offer fixes. Do NOT just print instructions — offer to execute them.
+After running diagnostics, if ANY fixable issues are found, you MUST use
+AskUserQuestion to offer fixes. Do not just print instructions. Offer to
+execute them.
+
+Stable-root repair is bounded and requires explicit authorization. First show
+the proposed change with:
+
+```bash
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" repair --dry-run
+```
+
+Only after the user authorizes that exact repair may you run:
+
+```bash
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" repair --apply
+```
+
+Never recreate the stable link in the resolver or as an automatic doctor
+follow-up. Cache cleanup, stale PID cleanup, login flows, package installation,
+and plugin updates also require explicit confirmation.
 
 Before each accepted repair, restate the exact target and action. Configuration
 repairs must use a validated sibling temporary file and atomic rename; if any
@@ -251,6 +284,7 @@ Offer to run the login command for the expired provider.
 | `agents` | Agent definitions, worktree isolation, CLI registration, version compatibility |
 | `recurrence` | Failure pattern detection — flags repeated quality gate failures, source hotspots, 48h trends |
 | `cache` | Cache size, freshness, and hygiene |
+| `installation` | Loaded plugin root, stable root, host-scoped install metadata, and context profile |
 
 Software dependency installation is checked separately by
 `scripts/install-deps.sh check` in Step 3, including Node.js, jq, provider CLIs,
@@ -290,40 +324,54 @@ All checks pass — no action needed.
 | All checks pass, user still has issues | Suggest `/octo:debug` for deeper investigation |
 
 
-## Hook Profile
+## Context and intensity profiles
 
-Claude Octopus hooks can run in different profiles to balance cost and coverage.
+The installation report exposes two optional context settings:
 
-Current profile: `$OCTO_HOOK_PROFILE` (default: standard)
+- `OCTOPUS_CONTEXT_PROFILE` selects `core`, `orchestration`, or `full` context
+  behavior. The `octopus profile` command reads and writes this setting.
+- `OCTOPUS_HOOK_PROFILE` can override the optional context-hook profile with
+  `core`, `orchestration`, or `full`.
 
-Available profiles:
-- **minimal** — Only session lifecycle and cost tracking hooks (lowest overhead)
-- **standard** — All hooks except expensive review/security gates (default)
-- **strict** — All hooks enabled including quality and security gates
+These settings control optional context work only. They never disable safety or
+lifecycle hooks. A missing or invalid hook-profile registry fails closed.
 
-Override: Set `OCTO_PROFILE=budget|balanced|quality` or `OCTO_DISABLED_HOOKS=hook1,hook2` to fine-tune. Legacy `OCTO_HOOK_PROFILE` still works (minimal→budget, standard→balanced, strict→quality).
+`OCTO_PROFILE` is a separate legacy intensity setting with `budget`,
+`balanced`, and `quality` values. It is not an alias for either context
+setting, and it must not be used to claim that safety hooks are disabled.
 
 
-## Intensity Profile
+## Legacy intensity profile
 
-The doctor reports the active intensity profile — a single knob controlling hook gating, model selection, phase skipping, and context verbosity.
+Some older workflow paths use `OCTO_PROFILE` as an intensity setting for model
+selection, phase skipping, and context verbosity. This setting is separate
+from the optional context-hook profiles above.
 
 ### What the Doctor Checks
 
-- **Current profile**: `OCTO_PROFILE` value (budget/balanced/quality, default: balanced)
-- **Profile source**: env var, legacy `OCTO_HOOK_PROFILE`, or auto-selected from intent
-- **Hook gating**: which hooks are enabled/disabled at this profile level
+- **Context profile**: `OCTOPUS_CONTEXT_PROFILE` value, default `core`
+- **Optional hook profile**: `OCTOPUS_HOOK_PROFILE` when set, otherwise the
+  context profile
+- **Legacy intensity**: `OCTO_PROFILE` when a legacy workflow reads it
+- **Hook gating**: optional context hooks only; safety and lifecycle hooks remain
+  active
 - **Model hints**: which model (sonnet/opus) is recommended for each phase
 - **Context verbosity**: compressed/standard/full
 
-### Profile Summary
+### Legacy intensity summary
 
 | Dimension | budget | balanced | quality |
 |-----------|--------|----------|---------|
-| Hooks | essential only | standard (no quality gates) | all hooks |
 | Models | Sonnet everywhere | Sonnet + Opus for synthesis | Opus for most phases |
 | Phases | Skip discover if context given | Skip re-discovery | All phases run |
 | Context | Compressed | Standard | Full inlining |
+
+### Optional context profile summary
+
+| Dimension | core | orchestration | full |
+|-----------|------|----------------|------|
+| Optional context hooks | Off | Workflow context only | All profile-managed context hooks |
+| Safety and lifecycle hooks | Active | Active | Active |
 
 
 ## Project Tier Hint
@@ -374,7 +422,7 @@ Invoke this manual skill explicitly, or run the CLI directly:
 
 | What to say / run | Action |
 |-------------------|--------|
-| `/octo:skill-doctor` | Run all 14 categories inside Claude Code |
+| `/octo:skill-doctor` | Run all 15 categories inside Claude Code |
 | `octopus doctor providers` | Check provider installation only |
 | `octopus doctor auth --verbose` | Detailed auth status |
 | `octopus doctor --json` | Machine-readable output |

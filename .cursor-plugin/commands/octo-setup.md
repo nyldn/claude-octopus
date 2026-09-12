@@ -42,6 +42,48 @@ fi
 export OCTO_ROOT
 ```
 
+### 1.25 Run installation health for troubleshooting
+
+When setup is being rerun to troubleshoot installation, run this safe health
+pass immediately after resolving the root. It reads the installation Doctor
+category and both host cache locations. It does not create a stable link,
+record install state, clean a cache, log in, or contact a provider. A diagnostic
+exit status is evidence to show the user, not permission to claim the check
+passed.
+
+```bash
+setup_installation_health() {
+  local doctor_json="" cache_json="" doctor_rc=0 cache_rc=0
+  if [[ ! -r "$OCTO_ROOT/scripts/orchestrate.sh" ]]; then
+    printf 'Installation health unavailable: orchestrate.sh is missing.\n'
+    return 0
+  fi
+
+  if [[ -n "${CODEX_THREAD_ID:-}${CODEX_SANDBOX:-}" ]]; then
+    doctor_json="$(env -u CLAUDE_PLUGIN_ROOT CODEX_PLUGIN_ROOT="$OCTO_ROOT" bash "$OCTO_ROOT/scripts/orchestrate.sh" doctor installation --json 2>/dev/null)" || doctor_rc=$?
+    cache_json="$(env -u CLAUDE_PLUGIN_ROOT CODEX_PLUGIN_ROOT="$OCTO_ROOT" bash "$OCTO_ROOT/scripts/orchestrate.sh" cache-check --json 2>/dev/null)" || cache_rc=$?
+  else
+    doctor_json="$(env -u CODEX_PLUGIN_ROOT CLAUDE_PLUGIN_ROOT="$OCTO_ROOT" bash "$OCTO_ROOT/scripts/orchestrate.sh" doctor installation --json 2>/dev/null)" || doctor_rc=$?
+    cache_json="$(env -u CODEX_PLUGIN_ROOT CLAUDE_PLUGIN_ROOT="$OCTO_ROOT" bash "$OCTO_ROOT/scripts/orchestrate.sh" cache-check --json 2>/dev/null)" || cache_rc=$?
+  fi
+
+  printf 'Installation health (read-only):\n'
+  if [[ -n "$doctor_json" ]]; then
+    printf '%s\n' "$doctor_json"
+  else
+    printf '%s\n' '{"error":"doctor installation returned no report"}'
+  fi
+  if [[ -n "$cache_json" ]]; then
+    printf '%s\n' "$cache_json"
+  else
+    printf '%s\n' '{"error":"cache-check returned no report"}'
+  fi
+  printf 'installation-health-exit: doctor=%s cache=%s\n' "$doctor_rc" "$cache_rc"
+}
+
+setup_installation_health
+```
+
 ### 1.5 Read resumable setup state
 
 Read the receipt without creating files. The physical plugin root and host kind
@@ -290,6 +332,22 @@ if [[ -n "$SETUP_LOCAL_FAILURE" ]]; then
   exit 1
 fi
 printf 'setup-verification:pass (no provider request)\n'
+
+# Recheck installation health at the completion boundary. This remains
+# read-only; any repair still needs a separate explicit authorization.
+if declare -F setup_installation_health >/dev/null 2>&1; then
+  setup_installation_health
+else
+  health_rc=0
+  if [[ -n "${CODEX_THREAD_ID:-}${CODEX_SANDBOX:-}" ]]; then
+    env -u CLAUDE_PLUGIN_ROOT CODEX_PLUGIN_ROOT="$OCTO_ROOT" bash "$OCTO_ROOT/scripts/orchestrate.sh" doctor installation --json || health_rc=$?
+    env -u CLAUDE_PLUGIN_ROOT CODEX_PLUGIN_ROOT="$OCTO_ROOT" bash "$OCTO_ROOT/scripts/orchestrate.sh" cache-check --json || health_rc=$?
+  else
+    env -u CODEX_PLUGIN_ROOT CLAUDE_PLUGIN_ROOT="$OCTO_ROOT" bash "$OCTO_ROOT/scripts/orchestrate.sh" doctor installation --json || health_rc=$?
+    env -u CODEX_PLUGIN_ROOT CLAUDE_PLUGIN_ROOT="$OCTO_ROOT" bash "$OCTO_ROOT/scripts/orchestrate.sh" cache-check --json || health_rc=$?
+  fi
+  printf 'installation-health-exit: %s\n' "$health_rc"
+fi
 ```
 
 Only after the user selected a completion path and this verification passed,
@@ -350,12 +408,13 @@ Finish with exactly this quick-start block:
 Next commands:
 
 ```text
-/octo:auto
+/octo:auto "describe your task"
 /octo:skill-doctor
 /octo:setup
 ```
 
-`/octo:auto` routes a task, `/octo:skill-doctor` diagnoses plugin skills inside
+`/octo:auto` routes a task, `/octo:guide` helps choose an installed command,
+and `/octo:skill-doctor` diagnoses plugin skills inside
 Claude Code, and `/octo:setup` returns here. From a shell, use `octopus doctor`
 for environment diagnostics.
 
@@ -383,6 +442,8 @@ AskUserQuestion({
 ### Models and routing
 
 - Use `/octo:model-config` for model overrides.
+- Use `octopus profile core|orchestration|full` to control optional context
+  hooks. Explain that profiles never disable safety or lifecycle hooks.
 - Explain cost impact before changing cost mode.
 - Treat `OCTO_TIER=prototype|mvp|production` as a routing hint, not policy.
 - Never change routing, model, or tier configuration without confirmation.

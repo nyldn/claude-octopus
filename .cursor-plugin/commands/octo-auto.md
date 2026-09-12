@@ -58,8 +58,9 @@ follow that command's contract in the current conversation. Do not continue to
 STEP 1 or choose a different route. This avoids two classifiers choosing
 different workflows and keeps Premium peer policy at the workflow root.
 
-The `help`, `list`, and `capabilities` requests below may be answered locally
-without invoking the runtime.
+For `help`, `list`, and `capabilities`, run the provider-free installed catalog
+with `bash "${OCTO_ROOT}/scripts/orchestrate.sh" guide list`. Do not use a
+remembered command list or initialize a workflow.
 
 ## ROUTING REFERENCE (not a second execution path)
 
@@ -73,7 +74,7 @@ If the query exceeds 500 characters, use only the first 500 characters for inten
 ### STEP 2: Meta Command Check
 
 If the query matches any of: `help`, `list`, `commands`, `what can you do`, `capabilities`, `options`, `workflows`:
-- Display the **Complete Workflow Menu** (see STEP 5c) and STOP. Do not route.
+- Show the installed catalog through `guide list` and STOP. Do not route.
 
 ### STEP 3: Analyze Intent
 

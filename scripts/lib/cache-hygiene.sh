@@ -11,13 +11,16 @@ OCTO_CACHE_DIR="${HOME}/.claude/plugins/cache/nyldn-plugins/octo"
 
 # Versions on disk, sorted oldest → newest.
 octo_cache_versions() {
-    [[ -d "$OCTO_CACHE_DIR" ]] || return 0
-    # -V handles semver; tolerate macOS sort which lacks -V on older systems
-    if sort -V </dev/null >/dev/null 2>&1; then
-        ls -1 "$OCTO_CACHE_DIR" 2>/dev/null | sort -V
-    else
-        ls -1 "$OCTO_CACHE_DIR" 2>/dev/null | sort
-    fi
+    local cache_dir="${1:-$OCTO_CACHE_DIR}" path version
+    [[ -d "$cache_dir" ]] || return 0
+    # Published plugin releases use major.minor.patch. Keep unknown entries
+    # outside both the newest-version decision and automatic cleanup policy.
+    for path in "$cache_dir"/*; do
+        [[ -d "$path" && ! -L "$path" ]] || continue
+        version="${path##*/}"
+        [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || continue
+        printf '%s\n' "$version"
+    done | LC_ALL=C sort -t. -k1,1n -k2,2n -k3,3n
 }
 
 # Active version, derived from CLAUDE_PLUGIN_ROOT (set by CC at hook time).
@@ -35,10 +38,10 @@ octo_cache_stale() {
     local keep="${OCTOPUS_CACHE_KEEP:-2}"
     [[ "$keep" =~ ^[1-9][0-9]*$ ]] || keep=2
     local total
-    total=$(octo_cache_versions | wc -l | tr -d ' ')
+    total=$(octo_cache_versions "$OCTO_CACHE_DIR" | wc -l | tr -d ' ')
     [[ "$total" -le "$keep" ]] && return 0
     local drop=$((total - keep))
-    octo_cache_versions | head -n "$drop"
+    octo_cache_versions "$OCTO_CACHE_DIR" | head -n "$drop"
 }
 
 # Total bytes used by stale versions (for user-facing reports).
@@ -74,7 +77,7 @@ octo_cache_format_bytes() {
 # window (defensive — should never happen, but cheap insurance).
 # Outputs one line per deletion. Non-zero exit only on filesystem error.
 octo_cache_clean() {
-    local active stale_versions deleted=0
+    local active deleted=0
     active=$(octo_cache_active_version)
     while IFS= read -r v; do
         [[ -z "$v" ]] && continue

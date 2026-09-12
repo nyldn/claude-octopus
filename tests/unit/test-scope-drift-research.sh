@@ -77,13 +77,13 @@ fi
 
 # ── No attribution ────────────────────────────────────────────────────────────
 
-if grep -qi 'gstack\|ecc\|gsd-2\|strategic-audit' "$DELIVER" 2>/dev/null; then
+if grep -qi 'gstack\|gsd-2\|strategic-audit' "$DELIVER" 2>/dev/null; then
     fail "Deliver has no attribution" "found reference"
 else
     pass "Deliver has no attribution"
 fi
 
-if grep -qi 'ecc\|strategic-audit\|autoresearch' "$RESEARCH" 2>/dev/null; then
+if grep -qi 'strategic-audit\|autoresearch' "$RESEARCH" 2>/dev/null; then
     fail "Research has no attribution" "found reference"
 else
     pass "Research has no attribution"

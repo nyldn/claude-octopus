@@ -7,6 +7,8 @@
 # OCTOPUS_COMMANDCODE_PERMISSION_MODE) and no test noticed.
 #
 # Format: <VAR><TAB><kind><TAB><detail>
+OCTOPUS_CONTEXT_PROFILE	covered-by	test-install-readiness.sh
+OCTOPUS_HOOK_PROFILE	covered-by	test-install-readiness.sh
 #   covered-by  <test file>  a suite that exercises this variable's effect
 #   skip        <reason>     real variable, assertion impractical — reason required
 #   placeholder <note>       not a variable; a template fragment in docs
