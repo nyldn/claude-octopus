@@ -8,6 +8,8 @@ OCTO_LIFECYCLE_STABLE_ROOT="${OCTOPUS_STABLE_PLUGIN_ROOT:-${HOME}/.claude-octopu
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/install-root.sh"
 # shellcheck source=scripts/lib/plugin-root.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/plugin-root.sh"
+# shellcheck source=scripts/lib/hook-activation.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/hook-activation.sh"
 
 octo_lifecycle_profile_valid() {
     case "${1:-}" in core|orchestration|full) return 0 ;; esac
@@ -15,21 +17,11 @@ octo_lifecycle_profile_valid() {
 }
 
 octo_lifecycle_profile() {
-    local value="${OCTOPUS_CONTEXT_PROFILE:-}"
-    if [[ -z "$value" && -r "${HOME}/.claude-octopus/user-config.json" ]] && command -v jq >/dev/null 2>&1; then
-        value="$(jq -r '.context_profile // empty' "${HOME}/.claude-octopus/user-config.json" 2>/dev/null || true)"
-    fi
-    if octo_lifecycle_profile_valid "$value"; then printf '%s\n' "$value"; else printf 'core\n'; fi
+    octo_context_profile
 }
 
 octo_lifecycle_hook_profile() {
-    local value="${OCTOPUS_HOOK_PROFILE:-$(octo_lifecycle_profile)}"
-    case "$value" in
-        core|minimal) printf 'core\n' ;;
-        orchestration|workflow) printf 'orchestration\n' ;;
-        full|all) printf 'full\n' ;;
-        *) printf 'core\n' ;;
-    esac
+    octo_hook_profile
 }
 
 octo_lifecycle_host() {

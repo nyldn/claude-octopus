@@ -43,7 +43,11 @@ fi
 
 manifest_failures=0
 manifest_count=0
-for manifest in "$ROOT_DIR/.claude-plugin/plugin.json" "$ROOT_DIR/.codex-plugin/plugin.json"; do
+for manifest in \
+    "$ROOT_DIR/.claude-plugin/plugin.json" \
+    "$ROOT_DIR/.codex-plugin/plugin.json" \
+    "$ROOT_DIR/.cursor-plugin/plugin.json" \
+    "$ROOT_DIR/.factory-plugin/plugin.json"; do
     [[ -e "$manifest" ]] || continue
     manifest_count=$((manifest_count + 1))
     jq -e 'type == "object" and (.name | type == "string") and (.version | type == "string")' \

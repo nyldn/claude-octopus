@@ -17,6 +17,19 @@ SECURITY_AUDIT="$PROJECT_ROOT/scripts/security-audit.sh"
 PROFILE="$PROJECT_ROOT/scripts/profile.sh"
 HANDOFF="$PROJECT_ROOT/scripts/handoff.sh"
 
+portable_file_mode() {
+    local path="$1" value=""
+    if value="$(stat -f '%Lp' "$path" 2>/dev/null)"; then
+        printf '%s\n' "$value"
+        return 0
+    fi
+    if value="$(stat -c '%a' "$path" 2>/dev/null)"; then
+        printf '%s\n' "$value"
+        return 0
+    fi
+    return 1
+}
+
 test_case "lifecycle state keeps Claude and Codex records separate"
 home="$TEST_TMP_DIR/lifecycle-home"
 state="$home/.claude-octopus/install-state.json"
@@ -162,6 +175,19 @@ else
     test_fail "repair changed or accepted an unowned regular file (exit=$blocked_rc)"
 fi
 
+test_case "repair human output explains install-state write failures"
+repair_state_rc=0
+repair_state_output="$(HOME="$repair_home" \
+    OCTOPUS_STABLE_PLUGIN_ROOT="$repair_home/.claude-octopus/plugin" \
+    OCTOPUS_INSTALL_STATE_FILE="/dev/null/install-state.json" \
+    CLAUDE_PLUGIN_ROOT="$PROJECT_ROOT" "$REPAIR" --apply 2>/dev/null)" || repair_state_rc=$?
+if [[ "$repair_state_rc" -ne 0 ]] &&
+   grep -Fq 'result: state-write-failed' <<<"$repair_state_output"; then
+    test_pass
+else
+    test_fail "repair hid the state-write-failed result (exit=$repair_state_rc)"
+fi
+
 test_case "capabilities render shared readiness states, not guessed auth booleans"
 cap_home="$TEST_TMP_DIR/capabilities-home"
 cap_bin="$TEST_TMP_DIR/capabilities-bin"
@@ -254,6 +280,30 @@ else
     test_fail "invalid hook manifest did not fail the audit (exit=$audit_rc)"
 fi
 
+test_case "security audit rejects malformed present Cursor and Factory manifests"
+adapter_audit_failures=0
+for adapter_manifest in .cursor-plugin/plugin.json .factory-plugin/plugin.json; do
+    adapter_root="$TEST_TMP_DIR/audit-${adapter_manifest%%/*}"
+    mkdir -p "$adapter_root/hooks" "$adapter_root/scripts" \
+        "$adapter_root/$(dirname "$adapter_manifest")"
+    printf '%s\n' '{"hooks":{}}' > "$adapter_root/hooks/hooks.json"
+    printf '%s\n' '#!/usr/bin/env bash' 'exit 0' > "$adapter_root/scripts/ok.sh"
+    printf '%s\n' '{invalid' > "$adapter_root/$adapter_manifest"
+    adapter_rc=0
+    OCTOPUS_SECURITY_AUDIT_ROOT="$adapter_root" "$SECURITY_AUDIT" --json \
+        > "$adapter_root/audit.json" 2>/dev/null || adapter_rc=$?
+    if [[ "$adapter_rc" -eq 0 ]] ||
+       ! jq -e '.checks[] | select(.name == "plugin-manifests" and .status == "fail")' \
+           "$adapter_root/audit.json" >/dev/null 2>&1; then
+        adapter_audit_failures=$((adapter_audit_failures + 1))
+    fi
+done
+if [[ "$adapter_audit_failures" -eq 0 ]]; then
+    test_pass
+else
+    test_fail "$adapter_audit_failures adapter manifest audit(s) accepted malformed JSON"
+fi
+
 test_case "cache check validates the active cache rather than only the newest directory"
 cache_home="$TEST_TMP_DIR/cache-home"
 claude_cache="$cache_home/.claude/plugins/cache/nyldn-plugins/octo"
@@ -279,15 +329,33 @@ else
     test_fail "active invalid cache was not reported (exit=$cache_rc)"
 fi
 
+test_case "portable mode lookup discards output from a failed stat probe"
+stat_bin="$TEST_TMP_DIR/stat-bin"
+mkdir -p "$stat_bin"
+# shellcheck disable=SC2016 # Keep parameter expansion inside the generated fixture.
+printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'if [[ "$1" == -f ]]; then printf "filesystem details\\n"; exit 1; fi' \
+    'if [[ "$1" == -c ]]; then printf "600\\n"; exit 0; fi' \
+    'exit 2' > "$stat_bin/stat"
+chmod +x "$stat_bin/stat"
+mode="$(PATH="$stat_bin:$PATH" portable_file_mode "$TEST_TMP_DIR/unused")"
+if [[ "$mode" == "600" ]]; then
+    test_pass
+else
+    test_fail "failed stat probe polluted fallback mode: $mode"
+fi
+
 test_case "portable handoff export is structured, private, and redacted"
 handoff_home="$TEST_TMP_DIR/handoff-home"
 mkdir -p "$handoff_home/data"
 printf '%s\n' '{"workflow":"develop","current_phase":"build","status":"running","decisions":["OPENAI_API_KEY=do-not-export"]}' \
     > "$handoff_home/data/session.json"
+handoff_file="$TEST_TMP_DIR/portable-handoff.json"
 handoff_json="$(HOME="$handoff_home" CLAUDE_PLUGIN_DATA="$handoff_home/data" \
-    OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" "$HANDOFF" export --json 2>/dev/null || true)"
-handoff_file="$handoff_home/.claude-octopus/handoffs/$(printf '%s' "$PROJECT_ROOT" | shasum -a 256 | cut -c1-16).json"
-mode="$(stat -f '%Lp' "$handoff_file" 2>/dev/null || stat -c '%a' "$handoff_file" 2>/dev/null || true)"
+    OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" "$HANDOFF" export --json --out "$handoff_file" \
+    2>/dev/null || true)"
+mode="$(portable_file_mode "$handoff_file" || true)"
 if jq -e '.workflow == "develop" and .phase == "build" and
           (tostring | contains("do-not-export") | not)' <<<"$handoff_json" >/dev/null 2>&1 &&
    [[ "$mode" == "600" ]]; then
@@ -296,13 +364,23 @@ else
     test_fail "portable handoff was missing, unredacted, or not private"
 fi
 
+test_case "handoff project ID follows the lifecycle producer contract"
+expected_handoff_id="$(bash -c 'source "$1"; octo_lifecycle_handoff_id "$2"' \
+    _ "$LIFECYCLE_LIB" "$PROJECT_ROOT")"
+if jq -e --arg expected "$expected_handoff_id" '.project_id == $expected' \
+      <<<"$handoff_json" >/dev/null 2>&1; then
+    test_pass
+else
+    test_fail "handoff project ID diverged from octo_lifecycle_handoff_id"
+fi
+
 test_case "handoff preserves existing output directory permissions"
 handoff_out="$TEST_TMP_DIR/shared-output"
 mkdir -p "$handoff_out"
 chmod 755 "$handoff_out"
 HOME="$handoff_home" CLAUDE_PLUGIN_DATA="$handoff_home/data" \
     "$HANDOFF" export --out "$handoff_out/checkpoint.json" >/dev/null 2>&1
-mode="$(stat -f '%Lp' "$handoff_out" 2>/dev/null || stat -c '%a' "$handoff_out")"
+mode="$(portable_file_mode "$handoff_out")"
 if [[ "$mode" == 755 ]]; then test_pass; else test_fail "changed existing directory permissions to $mode"; fi
 
 test_case "handoff rejects a directory as the output file"

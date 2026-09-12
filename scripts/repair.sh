@@ -70,6 +70,6 @@ if [[ "$OUTPUT" == json ]]; then
     printf '%s\n' "$report"
 else
     printf 'Claude Octopus repair (%s)\n' "$mode"
-    jq -r '"  plugin root: \(.plugin_root)\n  stable root: \(.stable_root)\n  status: \(.status)\n  action: \(.action)"' <<<"$report"
+    jq -r '"  plugin root: \(.plugin_root)\n  stable root: \(.stable_root)\n  status: \(.status)\n  action: \(.action)\n  result: \(.result)"' <<<"$report"
 fi
 [[ "$result" == ready ]]

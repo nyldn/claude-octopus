@@ -181,9 +181,11 @@ octopus security-audit --json  # offline checks of the installed plugin files
 octopus handoff export --json  # redacted checkpoint for another supported host
 ```
 
-`repair --apply` changes only the Octopus stable link and install metadata. It
-does not delete host caches. The security audit checks the plugin itself; use
-`/octo:security` when you want a multi-model review of your project.
+`repair --apply` changes only the Octopus-owned stable plugin root and install
+metadata. On platforms without symlink support, the stable root contains
+generated wrappers for Octopus script entry points. Repair does not delete host
+caches. The security audit checks the plugin itself; use `/octo:security` when
+you want a multi-model review of your project.
 
 The `core` context profile keeps optional context hooks off. Use
 `octopus profile orchestration` to enable context reinforcement and post-tool

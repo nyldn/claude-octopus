@@ -6,16 +6,25 @@ _OCTOPUS_HOOK_ACTIVATION_LOADED=true
 
 _octopus_hook_activation_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
-octo_hook_profile() {
-    local profile="${OCTOPUS_HOOK_PROFILE:-${OCTOPUS_CONTEXT_PROFILE:-}}"
-    if [[ -z "$profile" && -r "${HOME}/.claude-octopus/user-config.json" ]] && command -v jq >/dev/null 2>&1; then
-        profile="$(jq -r '.context_profile // empty' "${HOME}/.claude-octopus/user-config.json" 2>/dev/null || true)"
-    fi
-    case "$profile" in
+octo_normalize_context_profile() {
+    case "${1:-}" in
+        core|minimal) printf 'core\n' ;;
         orchestration|workflow) printf 'orchestration\n' ;;
         full|all) printf 'full\n' ;;
         *) printf 'core\n' ;;
     esac
+}
+
+octo_context_profile() {
+    local profile="${OCTOPUS_CONTEXT_PROFILE:-}"
+    if [[ -z "$profile" && -r "${HOME}/.claude-octopus/user-config.json" ]] && command -v jq >/dev/null 2>&1; then
+        profile="$(jq -r '.context_profile // empty' "${HOME}/.claude-octopus/user-config.json" 2>/dev/null || true)"
+    fi
+    octo_normalize_context_profile "$profile"
+}
+
+octo_hook_profile() {
+    octo_normalize_context_profile "${OCTOPUS_HOOK_PROFILE:-$(octo_context_profile)}"
 }
 
 # Profiles control optional context work only. Safety and lifecycle hooks never

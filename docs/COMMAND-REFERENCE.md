@@ -18,6 +18,7 @@ All slash commands use the `/octo:` namespace. The smart router command is `/oct
 
 | Command | Description |
 |---------|-------------|
+| `/octo:guide` | Browse installed commands without starting a provider workflow |
 | `/octo:setup` | Check setup status and configure providers (aliases: `/octo:configure`, `/octo:config`, `/octo:init`, `/octo:wizard`, `/octo:sys-setup`) |
 | `/octo:skill-doctor` | Manually invoke fail-closed diagnostics without shadowing Claude Code's native `/doctor` |
 | `/octo:model-config` | Configure provider model selection per workflow phase |

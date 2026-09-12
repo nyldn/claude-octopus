@@ -6,12 +6,14 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 TEST_BASH="${TEST_BASH:-/bin/bash}"
-work="$(mktemp -d "${TMPDIR:-/tmp}/octo-install-safety.XXXXXX")"
-trap 'rm -rf "$work"' EXIT
-passed=0 failed=0
+# shellcheck source=tests/helpers/test-framework.sh
+source "$PROJECT_ROOT/tests/helpers/test-framework.sh"
+test_suite "Installation root safety and handoff redaction"
+work="$TEST_TMP_DIR/install-safety"
+mkdir -p "$work"
 check() {
-    if "$@"; then passed=$((passed + 1)); printf 'PASS %s\n' "$*"
-    else failed=$((failed + 1)); printf 'FAIL %s\n' "$*"; fi
+    test_case "$*"
+    if "$@"; then test_pass; else test_fail "$*"; fi
 }
 fixture() {
     mkdir -p "$1/.claude-plugin" "$1/.codex-plugin" "$1/scripts" "$1/skills" "$1/commands" "$1/assets"
@@ -153,6 +155,125 @@ repair_owned() {
 check repair_owned shim
 check repair_owned link
 
+missing_wrapper() {
+    local stable="$work/missing-wrapper" rc=0
+    wrapper "$(cd "$work/good" && pwd -P)/scripts/orchestrate.sh" "$stable/scripts/orchestrate.sh"
+    run_cli repair "$work/good" "$stable" claude --dry-run --json || return 1
+    jq -e '.status=="mismatch"' "$work/result.json" >/dev/null || return 1
+    [[ ! -e "$stable/scripts/install-deps.sh" ]] || return 1
+    run_cli repair "$work/good" "$stable" claude --apply --json || rc=$?
+    [[ "$rc" == 0 && -x "$stable/scripts/install-deps.sh" ]] &&
+        "$stable/scripts/install-deps.sh" &&
+        jq -e '.result=="ready" and .status=="shim"' "$work/result.json" >/dev/null
+}
+check missing_wrapper
+
+profile_parity() {
+    local origin="$1" value="$2" expected="$3" override="${4:-}" hooks="${5:-$3}"
+    local profile_home="$work/profile-$origin-$value-$override" context="$2"
+    mkdir -p "$profile_home/.claude-octopus"
+    if [[ "$origin" == config ]]; then
+        jq -cn --arg value "$value" '{context_profile:$value}' > "$profile_home/.claude-octopus/user-config.json"
+        context=""
+    fi
+    env "HOME=$profile_home" "OCTOPUS_CONTEXT_PROFILE=$context" "OCTOPUS_HOOK_PROFILE=$override" \
+        "OCTOPUS_HOST=claude" "CLAUDE_PLUGIN_ROOT=$work/good" \
+        "OCTOPUS_INSTALL_STATE_FILE=$profile_home/receipt.json" \
+        "$TEST_BASH" -c '
+        source "$1/scripts/lib/lifecycle.sh"
+        source "$1/scripts/lib/hook-activation.sh"
+        [[ "$(octo_lifecycle_profile)" == "$2" && "$(octo_hook_profile)" == "$3" &&
+           "$(octo_lifecycle_hook_profile)" == "$3" ]] || exit 1
+        octo_lifecycle_record_install && octo_lifecycle_state_valid || exit 1
+        jq -e --arg context "$2" --arg hooks "$3" \
+            ".hosts.claude | .context_profile==\$context and .hook_profile==\$hooks" "$OCTO_LIFECYCLE_STATE_FILE" >/dev/null
+    ' _ "$PROJECT_ROOT" "$expected" "$hooks"
+}
+for origin in env config; do
+    for pair in core:core minimal:core orchestration:orchestration workflow:orchestration full:full all:full invalid:core; do
+        check profile_parity "$origin" "${pair%:*}" "${pair#*:}"
+    done
+    check profile_parity "$origin" workflow orchestration all full
+    check profile_parity "$origin" all full minimal core
+done
+
+handoff_redaction() {
+    local kind="$1" source_kind="$2" sample handoff_home="$work/handoff-$1-$2"
+    local state session out safe=$'Keep "SQLite"\nUse https://localhost/db and C:\\data'
+    state="$handoff_home/state"; session="$handoff_home/data"; out="$handoff_home/out"
+    mkdir -p "$state" "$session" "$out" "$handoff_home/bin"
+    case "$kind" in
+        aws) sample='AKIA0123456789ABCDEF' ;;
+        aws-session) sample='ASIA0123456789ABCDEF' ;;
+        jwt) sample='eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJzeW50aGV0aWMifQ.c3ludGhldGlj' ;;
+        jwt-empty-object) sample='eyJhbGciOiJIUzI1NiJ9.e30.c3ludGhldGlj' ;;
+        pem) sample=$'-----BEGIN RSA PRIVATE KEY-----\nU1lOVEhFVElDLUtFWS1EQVRB\n-----END RSA PRIVATE KEY-----' ;;
+        pem-partial) sample=$'-----BEGIN OPENSSH PRIVATE KEY-----\nU1lOVEhFVElDLUtFWS1EQVRB' ;;
+        postgres) sample='postgres://fixture:synthetic-value@localhost/db' ;;
+        postgresql) sample='postgresql://fixture:synthetic-value@localhost/db' ;;
+        mysql) sample='mysql://fixture:synthetic-value@localhost/db' ;;
+        mongodb) sample='mongodb+srv://fixture:synthetic-value@localhost/db' ;;
+        redis) sample='rediss://fixture:synthetic-value@localhost/0' ;;
+        https) sample='https://fixture:synthetic%2Fvalue@localhost/' ;;
+    esac
+    if [[ "$source_kind" == session ]]; then
+        jq -cn --arg value "$sample" --arg safe "$safe" '{workflow:$value,current_phase:$value,status:$value,autonomy:$value,
+            decisions:[$value,$safe],blockers:[$value]}' > "$session/session.json"
+    else
+        jq -cn --arg value "$sample" --arg safe "$safe" '{current_workflow:$value,current_phase:$value,
+            decisions:[{decision:$value},{decision:$safe}],blockers:[{description:$value,status:"active"}]}' > "$state/state.json"
+    fi
+    # Inspect the staged export before publication, including JSON delimiters.
+    cat > "$handoff_home/bin/mv" <<'EOF'
+#!/bin/bash
+if ! "$REAL_JQ" -e --arg value "$SYNTHETIC_VALUE" \
+    'type=="object" and ([.. | strings] | all(contains($value) | not))' "$2" >/dev/null; then exit 99; fi
+exec /bin/mv "$@"
+EOF
+    chmod +x "$handoff_home/bin/mv"
+    env "HOME=$handoff_home" "CLAUDE_PLUGIN_DATA=$session" "OCTOPUS_WORKFLOW_STATE_DIR=$state" \
+        "OCTOPUS_PROJECT_DIR=$handoff_home/project-AKIA0123456789ABCDEF" "PATH=$handoff_home/bin:$PATH" \
+        "REAL_JQ=$(command -v jq)" "SYNTHETIC_VALUE=$sample" \
+        "$TEST_BASH" "$PROJECT_ROOT/scripts/handoff.sh" export --json --out "$out/export.json" \
+        > "$handoff_home/stdout" 2> "$handoff_home/stderr" || return 1
+    cmp -s "$out/export.json" "$handoff_home/stdout" &&
+        jq -e --arg value "$sample" --arg safe "$safe" --arg source "$source_kind" '
+            .schema==1 and .workflow=="[REDACTED]" and .phase=="[REDACTED]" and
+            .project_name=="[REDACTED]" and .decisions==["[REDACTED]",$safe] and .blockers==["[REDACTED]"] and
+            .status==(if $source=="session" then "[REDACTED]" else "unknown" end) and
+            .autonomy==(if $source=="session" then "[REDACTED]" else "supervised" end) and
+            ([.. | strings] | all(contains($value) | not))' "$out/export.json" >/dev/null
+}
+for kind in aws aws-session jwt jwt-empty-object pem pem-partial postgres postgresql mysql mongodb redis https; do
+    for source_kind in session state; do check handoff_redaction "$kind" "$source_kind"; done
+done
+
+handoff_failure() {
+    local kind="$1" root="$work/handoff-failure-$1" rc=0
+    mkdir -p "$root/data" "$root/state" "$root/out" "$root/bin"
+    printf '{"keep":"existing export"}\n' > "$root/out/export.json"
+    cp "$root/out/export.json" "$root/before"
+    case "$kind" in
+        session) printf '{invalid' > "$root/data/session.json" ;;
+        state) printf '{invalid' > "$root/state/state.json" ;;
+        sanitizer)
+            cat > "$root/bin/jq" <<'EOF'
+#!/bin/bash
+for arg in "$@"; do [[ "$arg" != project_id ]] || exit 42; done
+exec "$REAL_JQ" "$@"
+EOF
+            chmod +x "$root/bin/jq"
+            ;;
+    esac
+    env "HOME=$root" "CLAUDE_PLUGIN_DATA=$root/data" "OCTOPUS_WORKFLOW_STATE_DIR=$root/state" \
+        "OCTOPUS_PROJECT_DIR=$root/project" "REAL_JQ=$(command -v jq)" "PATH=$root/bin:$PATH" \
+        "$TEST_BASH" "$PROJECT_ROOT/scripts/handoff.sh" export --json --out "$root/out/export.json" \
+        > "$root/stdout" 2> "$root/stderr" || rc=$?
+    [[ "$rc" != 0 && ! -s "$root/stdout" && "$(ls -A "$root/out")" == export.json ]] &&
+        cmp -s "$root/before" "$root/out/export.json"
+}
+for kind in session state sanitizer; do check handoff_failure "$kind"; done
+
 record() {
     env "HOME=$work/home" "OCTOPUS_INSTALL_STATE_FILE=$1" "OCTOPUS_HOST=$2" \
         "CLAUDE_PLUGIN_ROOT=$work/good" "CODEX_PLUGIN_ROOT=$work/good" \
@@ -245,10 +366,6 @@ concurrent_records() {
 }
 check concurrent_records
 reference_input_failure() {
-    if [[ "$(uname -s)" != Darwin ]] || ! command -v sandbox-exec >/dev/null 2>&1; then
-        printf 'SKIP native Bash temporary-file denial requires macOS\n'
-        return 0
-    fi
     local root="$work/no-temp-root"
     fixture "$root"
     sandbox-exec -p '(version 1)(allow default)(deny file-write*)(allow file-write* (literal "/dev/null"))' /bin/bash -c '
@@ -256,6 +373,14 @@ reference_input_failure() {
         if octo_validate_install_root "$2" claude; then exit 1; fi
     ' _ "$PROJECT_ROOT/scripts/lib/install-root.sh" "$root" 2>/dev/null
 }
-check reference_input_failure
-printf '%s passed, %s failed\n' "$passed" "$failed"
-[[ "$failed" == 0 ]]
+test_case "reference_input_failure"
+if [[ "$(uname -s)" != Darwin ]] || ! command -v sandbox-exec >/dev/null 2>&1; then
+    test_skip "Native Bash temporary-file denial requires macOS sandbox-exec"
+elif ! sandbox-exec -p '(version 1)(allow default)' /usr/bin/true 2>/dev/null; then
+    test_skip "macOS sandbox-exec cannot start in this environment"
+elif reference_input_failure; then
+    test_pass
+else
+    test_fail "Native Bash temporary-file denial was not rejected"
+fi
+test_summary

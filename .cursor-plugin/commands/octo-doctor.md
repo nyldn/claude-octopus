@@ -49,7 +49,25 @@ if [[ -z "$OCTO_PLUGIN_ROOT" || ! -x "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" 
 fi
 if [[ ! -x "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" ]] && command -v octopus >/dev/null 2>&1; then
   OCTO_BIN="$(command -v octopus)"
-  OCTO_PLUGIN_ROOT="$(cd "$(dirname "$OCTO_BIN")/.." && pwd -P)"
+  OCTO_LINK_HOPS=0
+  while [[ -L "$OCTO_BIN" ]]; do
+    OCTO_LINK_HOPS=$((OCTO_LINK_HOPS + 1))
+    if [[ "$OCTO_LINK_HOPS" -le 40 ]]; then
+      OCTO_BIN_DIR="$(cd -P "$(dirname "$OCTO_BIN")" 2>/dev/null && pwd -P)" || { OCTO_BIN=""; break; }
+      OCTO_LINK_TARGET="$(readlink "$OCTO_BIN")" || { OCTO_BIN=""; break; }
+      case "$OCTO_LINK_TARGET" in
+        /*) OCTO_BIN="$OCTO_LINK_TARGET" ;;
+        *) OCTO_BIN="$OCTO_BIN_DIR/$OCTO_LINK_TARGET" ;;
+      esac
+    else
+      OCTO_BIN=""
+      break
+    fi
+  done
+  if [[ -n "$OCTO_BIN" ]]; then
+    OCTO_BIN_DIR="$(cd -P "$(dirname "$OCTO_BIN")" 2>/dev/null && pwd -P)" || OCTO_BIN_DIR=""
+    [[ -z "$OCTO_BIN_DIR" ]] || OCTO_PLUGIN_ROOT="$(cd "$OCTO_BIN_DIR/.." 2>/dev/null && pwd -P)"
+  fi
 fi
 if [[ ! -x "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" ]]; then
   OCTO_PLUGIN_ROOT="$(

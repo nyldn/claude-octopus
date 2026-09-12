@@ -59,7 +59,10 @@ octo_stable_shims_status() {
             continue
         fi
         _octo_stable_destination_safe "$stable" "$rel" || { printf 'invalid\n'; return 1; }
-        [[ -e "$dst" || -L "$dst" ]] || continue
+        if [[ ! -e "$dst" && ! -L "$dst" ]]; then
+            [[ ! -f "$src" ]] || status=mismatch
+            continue
+        fi
         target="$(octo_stable_shim_source "$dst" "$rel")" || { printf 'invalid\n'; return 1; }
         [[ "$target" == "$src" ]] || status=mismatch
     done < <(_octo_stable_script_paths)
