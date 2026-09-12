@@ -412,7 +412,6 @@ Next commands:
 
 ```text
 /octo:auto "describe your task"
-/octo:guide
 /octo:skill-doctor
 /octo:setup
 ```
