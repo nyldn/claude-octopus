@@ -50,7 +50,7 @@ case "${1:-help}" in
         shift
         "$ORCHESTRATE" agent-summary "$@"
         ;;
-    capabilities|cache-check|repair|security-audit|handoff|profile|install-state)
+    guide|explain|capabilities|cache-check|repair|security-audit|handoff|profile|install-state)
         command_name="$1"
         shift
         "$ORCHESTRATE" "$command_name" "$@"
@@ -62,6 +62,8 @@ case "${1:-help}" in
         echo ""
         echo "Commands:"
         echo "  doctor    Run diagnostics and health checks"
+        echo "  guide     Find installed commands by task or topic"
+        echo "  explain   Inspect a saved run without calling providers"
         echo "  version   Show plugin version"
         echo "  session   Show current session info"
         echo "  fleet     Show provider fleet status"

@@ -36,9 +36,6 @@ if [[ "$PROFILE_POST_TOOL" != true ]]; then
     esac
 fi
 
-SESSION="${CLAUDE_SESSION_ID:-unknown}"
-BRIDGE="/tmp/octopus-ctx-${SESSION}.json"
-
 # Read stdin once (tool output from CC hook protocol)
 STDIN_DATA=""
 if [[ ! -t 0 ]]; then
@@ -48,6 +45,13 @@ if [[ ! -t 0 ]]; then
         STDIN_DATA=$(cat 2>/dev/null || true)
     fi
 fi
+
+# Child hooks use the legacy environment name. Resolve it once from the host
+# protocol and reject path characters before constructing session-local files.
+SESSION="$(octo_hook_session_id "$STDIN_DATA" 2>/dev/null || true)"
+case "$SESSION" in ''|*[!A-Za-z0-9._-]*) exit 0 ;; esac
+export CLAUDE_SESSION_ID="$SESSION"
+BRIDGE="/tmp/octopus-ctx-${SESSION}.json"
 
 # Profiles activate bounded coordination only while this host session owns an
 # active Octopus workflow. Explicit environment opt-ins retain their existing

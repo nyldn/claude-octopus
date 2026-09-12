@@ -1,6 +1,6 @@
 # Command and Usage Reference
 
-Complete reference for all 53 Claude Octopus slash commands, CLI tools (`octopus` + `octo-compress`), plus activation rules, provider indicators, and manual-only project-lifecycle skills.
+Complete reference for all 54 Claude Octopus slash commands, CLI tools (`octopus` + `octo-compress`), plus activation rules, provider indicators, and manual-only project-lifecycle skills.
 
 ---
 
@@ -142,14 +142,15 @@ Plugin executables available as bare commands (CC v2.1.91+). Also usable via ful
 | `octopus fleet` | Show provider fleet status |
 | `octopus state-path` | Print the checkout-specific workflow `state.json` path resolved by `OCTOPUS_WORKFLOW_STATE_DIR`, `CLAUDE_PLUGIN_DATA`, `CLAUDE_OCTOPUS_WORKSPACE`, or the default host workspace |
 | `octopus agent-summary` | Show which providers ran, degraded, failed, timed out, or contributed usable output |
+| `octopus guide [topic]` | Find commands from the installed manifest without starting a workflow |
 | `octopus capabilities --json` | Show static provider readiness and registered capabilities without provider calls |
-| `octopus doctor installation` | Check the loaded root, stable root, host-scoped install state, and context profile |
+| `octopus doctor installation` | Check the loaded root, stable root, host-scoped install state, and context profile without changing them |
 | `octopus cache-check --json` | Validate active, newest, stale, and stable Claude and Codex plugin roots |
-| `octopus repair --dry-run` | Explain a stable-root repair; use `--apply` to perform it |
+| `octopus repair --dry-run` | Explain a bounded stable-root repair; use `--apply` only after explicit authorization |
 | `octopus security-audit --json` | Run offline checks against the installed plugin files |
-| `octopus handoff export --json` | Export a redacted checkpoint for another supported host |
+| `octopus handoff export --json` | Export a redacted workflow summary for inspection; it is not imported runtime state |
 | `octopus profile [core\|orchestration\|full]` | Show or set optional context-hook behavior |
-| `octopus install-state [show\|record]` | Inspect or refresh non-secret host install metadata |
+| `octopus install-state [show\|record]` | Inspect metadata or explicitly record the current host installation |
 | `octo-compress` | Pipe verbose output for token savings: `npm install 2>&1 \| octo-compress` |
 | `octo-compress json` | Force JSON array/object compression |
 | `octo-compress logs` | Force log compression (head+tail) |
@@ -241,10 +242,10 @@ Check setup status and configure AI providers.
 ```
 
 **What it does:**
-- Auto-detects installed providers (Codex CLI, Antigravity CLI, and other configured providers)
-- Shows which providers are available and their auth status
+- Reads the shared provider-readiness report
+- Runs the read-only installation health and cache checks during troubleshooting and completion
 - Provides installation instructions for missing providers
-- Verifies API keys and authentication
+- Verifies provider readiness without claiming that installation alone proves authentication
 
 **Example output:**
 ```
@@ -257,7 +258,11 @@ Providers:
 You're all set! Try: /octo:auto research OAuth patterns
 ```
 
-**Troubleshooting:** If you see "Failed to update: Plugin 'octo' not found", run `/octo:setup` for reinstall instructions, or see [issue #17](https://github.com/nyldn/claude-octopus/issues/17).
+**Troubleshooting:** If setup cannot find the plugin or a local check fails,
+rerun `/octo:setup`. Setup prints the read-only installation health report. For
+a shell-only report, run `octopus doctor installation` and
+`octopus cache-check --json`. If a stable-root repair is proposed, inspect
+`octopus repair --dry-run` and authorize `octopus repair --apply` separately.
 
 ---
 

@@ -9,6 +9,13 @@ scripts/lib/preflight.sh	tests/unit/test-agy-provider.sh tests/unit/test-provide
 scripts/lib/run-contract.sh	tests/unit/test-run-contract-v10.sh tests/unit/test-agent-sync-run-contract.sh tests/unit/test-spawn-run-contract.sh tests/unit/test-v10-cancellation-recovery.sh tests/unit/test-run-observability-v10.sh
 scripts/lib/doctor.sh	tests/unit/test-doctor-v10.sh tests/unit/test-agy-provider.sh tests/unit/test-windows-doctor-compat.sh
 scripts/lib/lifecycle.sh	tests/unit/test-install-readiness.sh tests/unit/test-doctor-v10.sh
+scripts/lib/install-root.sh	tests/unit/test-install-root-safety.sh tests/unit/test-install-readiness.sh
+scripts/lib/lifecycle.sh	tests/unit/test-install-root-safety.sh
+scripts/lib/plugin-root.sh	tests/unit/test-install-root-safety.sh
+scripts/cache-check.sh	tests/unit/test-install-root-safety.sh
+scripts/repair.sh	tests/unit/test-install-root-safety.sh
+scripts/guide.py	tests/unit/test-command-discovery.sh tests/smoke/test-packaging-integrity.sh
+bin/octopus	tests/unit/test-command-discovery.sh
 scripts/lib/hook-activation.sh	tests/unit/test-install-readiness.sh tests/unit/test-explicit-activation.sh tests/unit/test-post-tool-dispatch.sh
 scripts/lib/cache-hygiene.sh	tests/unit/test-cache-hygiene.sh tests/unit/test-install-readiness.sh
 scripts/capabilities.sh	tests/unit/test-install-readiness.sh tests/unit/test-provider-readiness-contract.sh

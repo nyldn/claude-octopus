@@ -296,6 +296,50 @@ else
     test_fail "portable handoff was missing, unredacted, or not private"
 fi
 
+test_case "handoff preserves existing output directory permissions"
+handoff_out="$TEST_TMP_DIR/shared-output"
+mkdir -p "$handoff_out"
+chmod 755 "$handoff_out"
+HOME="$handoff_home" CLAUDE_PLUGIN_DATA="$handoff_home/data" \
+    "$HANDOFF" export --out "$handoff_out/checkpoint.json" >/dev/null 2>&1
+mode="$(stat -f '%Lp' "$handoff_out" 2>/dev/null || stat -c '%a' "$handoff_out")"
+if [[ "$mode" == 755 ]]; then test_pass; else test_fail "changed existing directory permissions to $mode"; fi
+
+test_case "handoff rejects a directory as the output file"
+handoff_rc=0
+HOME="$handoff_home" "$HANDOFF" export --out "$handoff_out" >/dev/null 2>&1 || handoff_rc=$?
+if [[ "$handoff_rc" -ne 0 ]]; then test_pass; else test_fail "directory destination was accepted"; fi
+
+test_case "handoff validates summary field types and redacts every exported string"
+printf '%s\n' '{"workflow":{"token":"private-value"},"status":"token=private-status","decisions":"unexpected","blockers":[{"token":"private-object"}]}' \
+    > "$handoff_home/data/session.json"
+handoff_json="$(HOME="$handoff_home" CLAUDE_PLUGIN_DATA="$handoff_home/data" \
+    "$HANDOFF" export --json 2>/dev/null || true)"
+if jq -e '.workflow == "none" and .decisions == [] and .blockers == [] and
+    (tostring | contains("private-") | not)' <<<"$handoff_json" >/dev/null 2>&1; then
+    test_pass
+else
+    test_fail "invalid or sensitive summary fields escaped the export schema"
+fi
+
+test_case "handoff uses canonical project decisions and suppresses secret-bearing notes"
+project_state="$TEST_TMP_DIR/project-state"
+mkdir -p "$project_state"
+printf '%s\n' '{"current_workflow":"develop","current_phase":"deliver","decisions":[{"decision":"Keep SQLite","rationale":"Fits the workload"},{"decision":"AWS_SECRET_ACCESS_KEY=private-aws"},{"decision":"{\"password\":\"private-pass word\"}"}],"blockers":[{"description":"Need design approval","status":"active"},{"description":"Already resolved","status":"resolved"}]}' > "$project_state/state.json"
+handoff_json="$(HOME="$handoff_home" CLAUDE_PLUGIN_DATA="$handoff_home/data" OCTOPUS_WORKFLOW_STATE_DIR="$project_state" \
+    "$HANDOFF" export --json 2>/dev/null || true)"
+if jq -e '.workflow == "develop" and .phase == "deliver" and
+    (.decisions | index("Keep SQLite")) != null and .blockers == ["Need design approval"] and
+    (has("resume_command") | not) and (tostring | contains("private-") | not)' <<<"$handoff_json" >/dev/null 2>&1; then
+    test_pass
+else
+    test_fail "handoff missed canonical state or exported sensitive notes"
+fi
+
+test_case "explicit hook profile overrides the context profile"
+profile_name="$(OCTOPUS_CONTEXT_PROFILE=core OCTOPUS_HOOK_PROFILE=full bash -c 'source "$1"; octo_hook_profile' _ "$PROJECT_ROOT/scripts/lib/hook-activation.sh")"
+if [[ "$profile_name" == full ]]; then test_pass; else test_fail "explicit hook profile did not win"; fi
+
 test_case "new diagnostic CLIs reject unknown arguments"
 cli_failures=0
 for cli in "$CAPABILITIES" "$CACHE_CHECK" "$REPAIR" "$SECURITY_AUDIT" "$PROFILE" "$HANDOFF"; do

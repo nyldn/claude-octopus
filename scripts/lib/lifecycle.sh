@@ -4,6 +4,11 @@
 OCTO_LIFECYCLE_STATE_FILE="${OCTOPUS_INSTALL_STATE_FILE:-${HOME}/.claude-octopus/install-state.json}"
 OCTO_LIFECYCLE_STABLE_ROOT="${OCTOPUS_STABLE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
 
+# shellcheck source=scripts/lib/install-root.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/install-root.sh"
+# shellcheck source=scripts/lib/plugin-root.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/plugin-root.sh"
+
 octo_lifecycle_profile_valid() {
     case "${1:-}" in core|orchestration|full) return 0 ;; esac
     return 1
@@ -91,43 +96,83 @@ octo_lifecycle_state_valid() {
     local host expected
     host="$(octo_lifecycle_host)"
     expected="$(octo_lifecycle_snapshot)" || return 1
-    jq -e --arg host "$host" --argjson expected "$expected" '
+    jq -se --arg host "$host" --argjson expected "$expected" '
+        length == 1 and (.[0] |
         .schema == 2 and (.hosts | type == "object") and
         (.hosts[$host] | {
           host,plugin_version,plugin_root,stable_root,install_scope,context_profile,hook_profile
-        }) == $expected
+        }) == $expected)
     ' "$OCTO_LIFECYCLE_STATE_FILE" >/dev/null 2>&1
 }
 
 _octo_lifecycle_lock() {
-    local lock="$1.lock" tries=0
+    local lock="$1.lock" owner="$2" tries=0 candidate pid probe
     while ! mkdir "$lock" 2>/dev/null; do
+        [[ -d "$lock" && ! -L "$lock" ]] || return 1
+        # Removing the empty owner directory elects exactly one reclaimer.
+        # Other waiters cannot remove a newly acquired lock after losing here.
+        for candidate in "$lock/owner-$lock_host-"*; do
+            [[ -d "$candidate" && ! -L "$candidate" ]] || continue
+            pid="${candidate##*-}"
+            case "$pid" in ''|0|*[!0-9]*) continue ;; esac
+            probe="$(LC_ALL=C kill -0 "$pid" 2>&1)" && continue
+            case "$probe" in
+                *'No such process'*)
+                    if rmdir "$candidate" 2>/dev/null; then rmdir "$lock" 2>/dev/null || true; fi ;;
+            esac
+        done
         tries=$((tries + 1))
         [[ "$tries" -lt 50 ]] || return 1
         sleep 0.02 2>/dev/null || return 1
     done
+    mkdir "$lock/$owner" || { rmdir "$lock" 2>/dev/null || true; return 1; }
 }
 
-octo_lifecycle_record_install() {
+_octo_lifecycle_unlock() {
+    local lock="$1" owner="$2" tmp="$3"
+    [[ -z "$tmp" ]] || rm -f "$tmp"
+    if [[ ! -L "$lock" ]] && rmdir "$lock/$owner" 2>/dev/null; then
+        rmdir "$lock" 2>/dev/null || true
+    fi
+    return 0
+}
+
+octo_lifecycle_record_install() (
+    # A subshell confines signal and EXIT traps to this transaction.
     command -v jq >/dev/null 2>&1 || return 3
-    local expected host state_dir lock tmp current='{"schema":2,"hosts":{}}' updated rc=0
+    local expected host state_dir lock tmp="" current='{"schema":2,"hosts":{}}' updated rc=0
+    local lock_pid lock_host owner
     expected="$(octo_lifecycle_snapshot)" || return $?
     host="$(jq -r '.host' <<<"$expected")"
     case "$host" in ''|*[!A-Za-z0-9._-]*) return 2 ;; esac
     [[ -d "$(jq -r '.plugin_root' <<<"$expected")" ]] || return 4
-    [[ ! -L "$OCTO_LIFECYCLE_STATE_FILE" ]] || return 5
+    [[ ! -L "$OCTO_LIFECYCLE_STATE_FILE" && ( ! -e "$OCTO_LIFECYCLE_STATE_FILE" || -f "$OCTO_LIFECYCLE_STATE_FILE" ) ]] || return 5
     state_dir="$(dirname "$OCTO_LIFECYCLE_STATE_FILE")"
     mkdir -p "$state_dir" || return 5
-    _octo_lifecycle_lock "$OCTO_LIFECYCLE_STATE_FILE" || return 6
     lock="$OCTO_LIFECYCLE_STATE_FILE.lock"
+    # $$ identifies the caller on Bash 3.2; the exec child reports this subshell.
+    read -r lock_pid < <(exec sh -c 'echo "$PPID"') || return 6
+    lock_host="$(hostname)" || return 6
+    lock_host="${lock_host//[^A-Za-z0-9._-]/_}"
+    owner="owner-$lock_host-$lock_pid"
+    # Bash 3.2 unwinds function locals before EXIT when a signal exits the shell.
+    # These variables survive that unwind and remain confined to this subshell.
+    _octo_receipt_lock="$lock" _octo_receipt_owner="$owner" _octo_receipt_tmp=""
+    trap '_octo_lifecycle_unlock "$_octo_receipt_lock" "$_octo_receipt_owner" "$_octo_receipt_tmp"' EXIT
+    trap 'exit 129' HUP
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    _octo_lifecycle_lock "$OCTO_LIFECYCLE_STATE_FILE" "$owner" || return 6
+    [[ ! -L "$OCTO_LIFECYCLE_STATE_FILE" && ( ! -e "$OCTO_LIFECYCLE_STATE_FILE" || -f "$OCTO_LIFECYCLE_STATE_FILE" ) ]] || return 5
 
     if [[ -f "$OCTO_LIFECYCLE_STATE_FILE" ]]; then
-        current="$(jq -c '
+        current="$(jq -sce '
+            if length == 1 then .[0] else error("expected one install state") end |
             if .schema == 2 and (.hosts | type == "object") then .
             elif .schema == 1 and (.host | type == "string") then
               {schema:2,hosts:{(.host):del(.schema,.recorded,.host)}}
-            else {schema:2,hosts:{}} end
-        ' "$OCTO_LIFECYCLE_STATE_FILE" 2>/dev/null)" || current='{"schema":2,"hosts":{}}'
+            else error("unrecognized install state") end
+        ' "$OCTO_LIFECYCLE_STATE_FILE" 2>/dev/null)" || return 5
     fi
     updated="$(jq -cn --argjson state "$current" --argjson entry "$expected" \
         --arg host "$host" --arg recorded_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -135,16 +180,17 @@ octo_lifecycle_record_install() {
          .hosts[$host] = ($entry + {recorded_at:$recorded_at})')" || rc=$?
     if [[ "$rc" -eq 0 ]]; then
         tmp="$(mktemp "$state_dir/.install-state.XXXXXX")" || rc=$?
+        _octo_receipt_tmp="$tmp"
     fi
     if [[ "$rc" -eq 0 ]]; then
         chmod 600 "$tmp" 2>/dev/null || true
-        printf '%s\n' "$updated" > "$tmp" && mv -f "$tmp" "$OCTO_LIFECYCLE_STATE_FILE" || rc=$?
+        printf '%s\n' "$updated" > "$tmp" &&
+            [[ ! -L "$OCTO_LIFECYCLE_STATE_FILE" && ( ! -e "$OCTO_LIFECYCLE_STATE_FILE" || -f "$OCTO_LIFECYCLE_STATE_FILE" ) ]] &&
+            mv -f "$tmp" "$OCTO_LIFECYCLE_STATE_FILE" || rc=$?
         [[ "$rc" -eq 0 ]] && chmod 600 "$OCTO_LIFECYCLE_STATE_FILE" 2>/dev/null || true
     fi
-    [[ -z "${tmp:-}" || "$rc" -eq 0 ]] || rm -f "$tmp" 2>/dev/null || true
-    rmdir "$lock" 2>/dev/null || true
     return "$rc"
-}
+)
 
 octo_lifecycle_state_json() {
     command -v jq >/dev/null 2>&1 || return 3
@@ -152,7 +198,10 @@ octo_lifecycle_state_json() {
     host="$(octo_lifecycle_host)"
     expected="$(octo_lifecycle_snapshot)" || return $?
     if [[ -f "$OCTO_LIFECYCLE_STATE_FILE" && ! -L "$OCTO_LIFECYCLE_STATE_FILE" ]]; then
-        recorded="$(jq -c --arg host "$host" '.hosts[$host] // null' "$OCTO_LIFECYCLE_STATE_FILE" 2>/dev/null || printf 'null')"
+        recorded="$(jq -sc --arg host "$host" '
+            if length == 1 and (.[0].hosts | type == "object")
+            then .[0].hosts[$host] // null else null end
+        ' "$OCTO_LIFECYCLE_STATE_FILE" 2>/dev/null)" || recorded=null
     fi
     octo_lifecycle_state_valid && current=true || true
     jq -cn --argjson expected "$expected" --argjson recorded "$recorded" \
@@ -162,6 +211,9 @@ octo_lifecycle_state_json() {
 
 octo_lifecycle_stable_root_status() {
     local root="${1:-$(octo_lifecycle_plugin_root)}" stable="$OCTO_LIFECYCLE_STABLE_ROOT"
+    if ! octo_validate_install_root "$root" "$(octo_lifecycle_host)"; then
+        printf 'invalid-target\n'; return 1
+    fi
     if [[ -L "$stable" ]]; then
         local stable_real="" root_real=""
         stable_real="$(cd "$stable" 2>/dev/null && pwd -P)" || true
@@ -172,22 +224,8 @@ octo_lifecycle_stable_root_status() {
     fi
     if [[ ! -e "$stable" ]]; then printf 'missing\n'; return 1; fi
     if [[ -d "$stable" && -x "$stable/scripts/orchestrate.sh" ]]; then
-        local source_script="$root/scripts/orchestrate.sh" shim_script="$stable/scripts/orchestrate.sh"
-        local quoted_source expected_exec
-        if [[ -e "$source_script" && "$source_script" -ef "$shim_script" ]]; then
-            printf 'ok\n'
-            return 0
-        fi
-        printf -v quoted_source '%q' "$source_script"
-        expected_exec="exec $quoted_source \"\$@\""
-        if grep -Fqx -- "$expected_exec" "$shim_script" 2>/dev/null; then
-            printf 'shim\n'
-            return 0
-        fi
-        if grep -Eq '^exec .+ "\$@"$' "$shim_script" 2>/dev/null; then
-            printf 'mismatch\n'
-            return 1
-        fi
+        octo_stable_shims_status "$root" "$stable"
+        return $?
     fi
     printf 'invalid\n'; return 1
 }

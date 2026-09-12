@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "11.4.2"
+    "version": "11.5.0"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v11.4.2 - Keep private development material out of public plugin releases. 31 personas, 53 commands, 63 skills. Run /octo:setup.",
-      "version": "11.4.2",
+      "description": "v11.5.0 - Find the right command, check your installation, and repair broken plugin links safely. 31 personas, 54 commands, 63 skills. Run /octo:setup.",
+      "version": "11.5.0",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"

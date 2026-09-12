@@ -69,7 +69,7 @@ if command -v rg >/dev/null 2>&1; then
 
     host_paths="$(rg -n --hidden --glob '*.sh' --glob '!tests/**' \
         --glob '!security-audit.sh' --glob '!validate-no-hardcoded-paths.sh' \
-        '(/Users/[^/$[:space:]]+|/home/[^/$[:space:]]+|[A-Za-z]:\\\\Users\\\\[^%$[:space:]]+)' \
+        '([/]Users[/][^/$[:space:]]+|[/]home[/][^/$[:space:]]+|[A-Za-z]:\\\\Users\\\\[^%$[:space:]]+)' \
         "$ROOT_DIR/hooks" "$ROOT_DIR/scripts" 2>/dev/null || true)"
     if [[ -n "$host_paths" ]]; then
         add_check host-specific-paths warn "host-specific absolute paths found"

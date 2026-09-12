@@ -32,47 +32,28 @@ add_check() {
 CACHE_VALID_STATUS=pass
 CACHE_VALID_DETAIL="manifest and referenced paths are present"
 validate_plugin_root() {
-    local root="$1" host="$2" manifest missing=0 ref
-    CACHE_VALID_STATUS=pass
-    CACHE_VALID_DETAIL="manifest and referenced paths are present"
-    if [[ "$host" == codex ]]; then manifest="$root/.codex-plugin/plugin.json"; else manifest="$root/.claude-plugin/plugin.json"; fi
-    if [[ ! -f "$manifest" ]]; then
-        CACHE_VALID_STATUS=fail; CACHE_VALID_DETAIL="manifest is missing"; return
-    fi
-    if ! jq -e 'type == "object" and (.version | type == "string")' "$manifest" >/dev/null 2>&1; then
-        CACHE_VALID_STATUS=fail; CACHE_VALID_DETAIL="manifest is invalid JSON or lacks a version"; return
-    fi
-    if [[ ! -x "$root/scripts/orchestrate.sh" ]]; then
-        CACHE_VALID_STATUS=fail; CACHE_VALID_DETAIL="scripts/orchestrate.sh is missing or not executable"; return
-    fi
-    while IFS= read -r ref; do
-        [[ -n "$ref" ]] || continue
-        [[ -e "$root/${ref#./}" ]] || missing=$((missing + 1))
-    done < <(jq -r '[.commands?,.skills?,.agents?] | flatten | .[]? | select(type == "string")' "$manifest" 2>/dev/null || true)
-    if [[ "$missing" -gt 0 ]]; then
-        CACHE_VALID_STATUS=fail
-        CACHE_VALID_DETAIL="$missing manifest path(s) are missing"
-    fi
+    if octo_validate_install_root "$1" "$2"; then CACHE_VALID_STATUS=pass
+    else CACHE_VALID_STATUS=fail; fi
+    CACHE_VALID_DETAIL="$OCTO_ROOT_VALID_DETAIL"
 }
 
 check_host_cache() {
     local host="$1" cache_root="$2" active_root="$3" version path newest="" role status detail
     local active_real="" path_real="" active_seen=false
-    [[ -n "$active_root" && -d "$active_root" ]] && active_real="$(cd "$active_root" && pwd -P)"
+    [[ -n "$active_root" && -d "$active_root" ]] && active_real="$(cd "$active_root" 2>/dev/null && pwd -P)" || true
     if [[ ! -d "$cache_root" ]]; then
         add_check "$host" "" cache info "$cache_root" "cache directory is absent"
-        return
-    fi
-    newest="$(octo_cache_versions "$cache_root" | tail -1)"
-    if [[ -z "$newest" ]]; then
-        add_check "$host" "" cache info "$cache_root" "cache directory has no versions"
-        return
+    else
+        newest="$(octo_cache_versions "$cache_root" | tail -1)"
+        if [[ -z "$newest" ]]; then
+            add_check "$host" "" cache info "$cache_root" "cache directory has no versions"
+        fi
     fi
     while IFS= read -r version; do
         [[ -n "$version" ]] || continue
         path="$cache_root/$version"
         [[ -d "$path" ]] || continue
-        path_real="$(cd "$path" && pwd -P)"
+        path_real="$(cd "$path" 2>/dev/null && pwd -P)" || path_real=""
         role=stale
         [[ "$version" == "$newest" ]] && role=newest
         if [[ -n "$active_real" && "$path_real" == "$active_real" ]]; then role=active; active_seen=true; fi
@@ -81,7 +62,7 @@ check_host_cache() {
         if [[ "$status" == fail && "$role" == stale ]]; then status=warn; fi
         add_check "$host" "$version" "$role" "$status" "$path" "$detail"
     done < <(octo_cache_versions "$cache_root")
-    if [[ -n "$active_real" && "$active_seen" == false ]]; then
+    if [[ -n "$active_root" && "$active_seen" == false ]]; then
         validate_plugin_root "$active_root" "$host"
         add_check "$host" "$(octo_lifecycle_version "$active_root")" active "$CACHE_VALID_STATUS" \
             "$active_root" "$CACHE_VALID_DETAIL; active root is outside the host cache"
@@ -95,6 +76,9 @@ check_host_cache codex "$codex_cache" "${CODEX_PLUGIN_ROOT:-}"
 
 stable="$OCTO_LIFECYCLE_STABLE_ROOT"
 loaded_root="$(octo_lifecycle_plugin_root)"
+validate_plugin_root "$loaded_root" "$(octo_lifecycle_host)"
+add_check "$(octo_lifecycle_host)" "$(octo_lifecycle_version "$loaded_root")" loaded \
+    "$CACHE_VALID_STATUS" "$loaded_root" "$CACHE_VALID_DETAIL"
 stable_status="$(octo_lifecycle_stable_root_status "$loaded_root" 2>/dev/null || true)"
 case "$stable_status" in
     ok|shim) add_check "$(octo_lifecycle_host)" "$(octo_lifecycle_version "$stable")" stable pass "$stable" "stable root resolves to the loaded plugin" ;;

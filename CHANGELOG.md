@@ -1,12 +1,14 @@
 # Changelog
 
-## [Unreleased]
+## [11.5.0] - 2026-09-12
 
 ### Added
 
+- `/octo:guide` finds commands from your installed version. `/octo:auto help`
+  uses the same catalog without contacting a provider.
 - New local installation tools show provider readiness, validate active Claude
   and Codex plugin caches, repair broken stable links, run offline plugin-file
-  checks, and export a redacted checkpoint for another supported host.
+  checks, and export a filtered workflow summary for another supported host.
 - Host-scoped install metadata now records Claude and Codex separately and
   refreshes when the loaded root, version, install scope, or context profile
   changes.
@@ -21,6 +23,21 @@
   instead of inferring authentication from the presence of a CLI executable.
 - Doctor and the new installation tools use a lightweight CLI path that avoids
   starting workflow state, event logs, or provider probes.
+
+### Fixed
+
+- Cache checks inspect the active plugin even when its host cache is absent.
+  Repairs validate their target and preserve modified or unowned wrappers.
+- Installation records recover after interrupted writes and retain separate
+  Claude and Codex entries during concurrent updates.
+- Handoff exports preserve existing directory permissions and use project
+  decisions and active blockers. Exports are summaries, not resumable sessions.
+- Optional post-tool hooks receive the host session identity and cover Read,
+  WebFetch, and Grep events. Core mode still leaves these optional hooks off.
+- `octopus explain` reaches the saved-run inspector, and `sys-setup` resolves
+  to setup.
+- Package lifecycle tests use isolated state and the candidate artifact instead
+  of uninstalling the user plugin or testing the latest remote version.
 
 ## [11.4.2] - 2026-09-11
 

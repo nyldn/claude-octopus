@@ -12,7 +12,8 @@ octopus doctor installation
 This checks the plugin root loaded by the current host, the stable Octopus
 root, the saved install metadata, and the active context profile. Claude Code
 and Codex have separate saved entries because they can load different plugin
-versions.
+versions. It is read-only. A missing or mismatched stable root is reported for
+repair; Doctor does not create or replace it.
 
 Octopus stores this non-secret metadata in
 `~/.claude-octopus/install-state.json`. SessionStart refreshes the current
@@ -22,6 +23,9 @@ changed. To refresh it manually, run:
 ```bash
 octopus install-state record
 ```
+
+`install-state record` writes metadata. It is separate from the read-only
+health checks.
 
 ## Inspect provider readiness
 
@@ -52,13 +56,17 @@ Use a dry run first:
 
 ```bash
 octopus repair --dry-run
-octopus repair --apply
 ```
 
 Repair can create or replace the Octopus-owned stable link at
 `~/.claude-octopus/plugin` and refresh the current host's install metadata. It
 refuses to replace an unowned regular file or directory. It does not alter the
-Claude Code or Codex cache.
+Claude Code or Codex cache. Treat `--apply` as a write: review the dry-run
+output and authorize the exact repair first. Then, and only then, run:
+
+```bash
+octopus repair --apply
+```
 
 ## Choose a context profile
 
@@ -72,7 +80,10 @@ octopus profile full
 `core` keeps optional context hooks off. `orchestration` enables context
 reinforcement and post-tool coordination during active Octopus workflows.
 `full` allows every profile-managed context hook defined by the installed
-release. Profiles never disable safety or lifecycle hooks.
+release. `OCTOPUS_CONTEXT_PROFILE` selects this setting and
+`OCTOPUS_HOOK_PROFILE` can override the optional hook profile. These settings
+never disable safety or lifecycle hooks. `OCTO_PROFILE` is the separate legacy
+workflow-intensity setting, not a context-hook switch.
 
 ## Export a portable checkpoint
 
@@ -82,10 +93,15 @@ octopus handoff export --json
 octopus handoff show --json
 ```
 
-The export contains a small allowlisted workflow summary and strips common
+The export contains a small allowlisted workflow summary and redacts common
 credential patterns. It omits the local project path and writes with mode
-`0600` under `~/.claude-octopus/handoffs/` by default. Review any checkpoint
-before sharing it.
+`0600` under `~/.claude-octopus/handoffs/` by default. Redaction is pattern-based,
+not a guarantee that every secret is removed. An arbitrary input or output
+failure can also prevent the command from producing valid JSON. Review any
+checkpoint before sharing it.
+
+The file is a summary for inspection or manual transfer, not imported runtime
+state. `/octo:resume` resumes local state; it does not import this JSON.
 
 ## Run the local plugin audit
 
@@ -97,6 +113,15 @@ octopus security-audit --json
 This offline check validates shell syntax and plugin manifests, then reports
 high-risk shell patterns for review. It audits the installed Octopus files,
 not the user's project. Use `/octo:security` for a project security review.
+
+## Setup behavior
+
+`/octo:setup` runs the installation Doctor category and cache check as a safe,
+read-only health pass when setup is used for troubleshooting and again during
+completion verification. It reports the evidence without applying repairs,
+cleaning caches, logging in, or contacting a provider service. If the report
+calls for a change, review `octopus repair --dry-run` and authorize
+`octopus repair --apply` separately.
 
 ## Exit codes
 

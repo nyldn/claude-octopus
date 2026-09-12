@@ -11,14 +11,16 @@ OCTO_CACHE_DIR="${HOME}/.claude/plugins/cache/nyldn-plugins/octo"
 
 # Versions on disk, sorted oldest → newest.
 octo_cache_versions() {
-    local cache_dir="${1:-$OCTO_CACHE_DIR}"
+    local cache_dir="${1:-$OCTO_CACHE_DIR}" path version
     [[ -d "$cache_dir" ]] || return 0
-    # -V handles semver; tolerate macOS sort which lacks -V on older systems
-    if sort -V </dev/null >/dev/null 2>&1; then
-        ls -1 "$cache_dir" 2>/dev/null | sort -V
-    else
-        ls -1 "$cache_dir" 2>/dev/null | sort
-    fi
+    # Published plugin releases use major.minor.patch. Keep unknown entries
+    # outside both the newest-version decision and automatic cleanup policy.
+    for path in "$cache_dir"/*; do
+        [[ -d "$path" && ! -L "$path" ]] || continue
+        version="${path##*/}"
+        [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || continue
+        printf '%s\n' "$version"
+    done | LC_ALL=C sort -t. -k1,1n -k2,2n -k3,3n
 }
 
 # Active version, derived from CLAUDE_PLUGIN_ROOT (set by CC at hook time).
@@ -75,7 +77,7 @@ octo_cache_format_bytes() {
 # window (defensive — should never happen, but cheap insurance).
 # Outputs one line per deletion. Non-zero exit only on filesystem error.
 octo_cache_clean() {
-    local active stale_versions deleted=0
+    local active deleted=0
     active=$(octo_cache_active_version)
     while IFS= read -r v; do
         [[ -z "$v" ]] && continue

@@ -23,7 +23,7 @@ You get:    A structured comparison with three independent viewpoints,
             scored for agreement. Disagreements are flagged, not hidden.
 ```
 
-Octopus includes research, escalated code review, debugging, TDD, security audits, UI design, PRDs, and full build-to-ship workflows: 53 commands, 63 skills, 31 specialized personas.
+Octopus includes research, escalated code review, debugging, TDD, security audits, UI design, PRDs, and full build-to-ship workflows: 54 commands, 63 skills, 31 specialized personas.
 
 ### Engineering methods
 
@@ -105,7 +105,7 @@ Octopus orchestrates — it doesn't replace domain knowledge. If three models co
 ## Learn More
 
 - [**Full README**](../README.md) — feature deep-dive, provider grid, architecture, star history
-- [**Command Reference**](../docs/COMMAND-REFERENCE.md) — all 53 commands with triggers
+- [**Command Reference**](../docs/COMMAND-REFERENCE.md) — all 54 commands with triggers
 - [**Persona Guide**](../docs/AGENTS.md) — 31 specialized agents
 - [**Changelog**](../CHANGELOG.md) — release history
 - [**Issues**](https://github.com/nyldn/claude-octopus/issues) — bugs and feature requests

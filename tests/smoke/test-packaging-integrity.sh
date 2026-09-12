@@ -21,10 +21,175 @@ trap cleanup_packaging_fixture EXIT INT TERM
 
 ORCHESTRATE="$PROJECT_ROOT/scripts/orchestrate.sh"
 
+packaged_health_command() (
+    local package_root="$1"
+    local home="$2"
+    local host="$3"
+    local active_root="$4"
+    shift 4
+    cd "$home" || return 1
+
+    case "$host" in
+        claude)
+            env -i HOME="$home" CLAUDE_CONFIG_DIR="$home/.claude" \
+                TMPDIR="$home/tmp" PATH="$PATH" \
+                OCTOPUS_HOST=claude CLAUDE_PLUGIN_ROOT="$active_root" \
+                OCTOPUS_INSTALL_SCOPE=user "$package_root/bin/octopus" "$@"
+            ;;
+        codex)
+            env -i HOME="$home" CLAUDE_CONFIG_DIR="$home/.claude" TMPDIR="$home/tmp" \
+                CODEX_HOME="$home/.codex" PATH="$PATH" OCTOPUS_HOST=codex \
+                CODEX_PLUGIN_ROOT="$active_root" OCTOPUS_INSTALL_SCOPE=user \
+                "$package_root/bin/octopus" "$@"
+            ;;
+        *) return 2 ;;
+    esac
+)
+
+packaged_home_snapshot() {
+    local home="$1"
+    {
+        find "$home" -mindepth 1 -print 2>/dev/null
+        find "$home" -mindepth 1 -exec ls -ldn {} \; 2>/dev/null
+        find "$home" -type f -exec cksum {} \; 2>/dev/null
+        find "$home" -type l -exec readlink {} \; 2>/dev/null
+    } | LC_ALL=C sort | cksum
+}
+
+validate_extracted_lifecycle_contract() {
+    local package_root="$1"
+    local active_root
+    local home="$PACKAGING_FIXTURE_DIR/health-home"
+    local state="$home/.claude-octopus/install-state.json"
+    local sentinel="$home/.claude-octopus/results/user-result.txt"
+    local missing_root="$home/missing-active-root"
+    local expected_version version show_json doctor_json missing_doctor_json repair_json
+    local before after before_dry after_dry before_records after_records rc=0
+
+    active_root="$(cd "$package_root" && pwd -P)" || return 1
+    mkdir -p "$(dirname "$sentinel")" "$home/.claude" "$home/.codex" "$home/tmp" || return 1
+    printf '%s\n' 'keep-user-result' > "$sentinel"
+    expected_version="$(jq -r '.version' "$package_root/.claude-plugin/plugin.json")"
+    if version="$(packaged_health_command "$package_root" "$home" claude \
+        "$active_root" version 2>&1)"; then
+        :
+    else
+        printf 'packaged version command failed\n'
+        return 1
+    fi
+    if [[ "$version" != "$expected_version" ]]; then
+        printf 'packaged version mismatch: expected %s, got %s\n' "$expected_version" "$version"
+        return 1
+    fi
+
+    packaged_health_command "$package_root" "$home" claude "$active_root" \
+        install-state record >/dev/null 2>&1 || return 1
+    packaged_health_command "$package_root" "$home" codex "$active_root" \
+        install-state record >/dev/null 2>&1 || return 1
+    before_records="$(jq -c '.hosts | with_entries(.value |= del(.recorded_at))' "$state")"
+    packaged_health_command "$package_root" "$home" claude "$active_root" \
+        install-state record >/dev/null 2>&1 || return 1
+    packaged_health_command "$package_root" "$home" codex "$active_root" \
+        install-state record >/dev/null 2>&1 || return 1
+    after_records="$(jq -c '.hosts | with_entries(.value |= del(.recorded_at))' "$state")"
+
+    if [[ "$before_records" != "$after_records" ]] ||
+       ! jq -e --arg root "$active_root" --arg version "$expected_version" '
+        .schema == 2 and (.hosts | keys | sort) == ["claude","codex"] and
+        .hosts.claude.plugin_root == $root and
+        .hosts.codex.plugin_root == $root and
+        .hosts.claude.plugin_version == $version and
+        .hosts.codex.plugin_version == $version and
+        .hosts.claude.install_scope == "user" and
+        .hosts.codex.install_scope == "user"
+    ' "$state" >/dev/null 2>&1; then
+        printf 'repeated recording did not preserve exactly one record for each host\n'
+        return 1
+    fi
+    if show_json="$(packaged_health_command "$package_root" "$home" codex \
+        "$active_root" install-state show 2>/dev/null)"; then
+        :
+    else
+        printf 'packaged install-state show failed\n'
+        return 1
+    fi
+    if ! jq -e '.current == true and .recorded.host == "codex"' \
+        <<<"$show_json" >/dev/null 2>&1; then
+        printf 'repeated host record is not current\n'
+        return 1
+    fi
+
+    if doctor_json="$(packaged_health_command "$package_root" "$home" claude \
+        "$active_root" doctor installation --json 2>/dev/null)"; then
+        :
+    else
+        printf 'packaged installation doctor failed for the candidate\n'
+        return 1
+    fi
+    if ! jq -e '
+        any(.results[]; .name == "install-state" and .status == "pass") and
+        any(.results[]; .name == "stable-plugin-root" and .status == "warn")
+    ' <<<"$doctor_json" >/dev/null 2>&1; then
+        printf 'packaged installation doctor omitted lifecycle evidence\n'
+        return 1
+    fi
+
+    before="$(cksum "$state")"
+    if packaged_health_command "$package_root" "$home" claude "$missing_root" \
+        install-state record >/dev/null 2>&1; then
+        printf 'missing active root was recorded\n'
+        return 1
+    else
+        rc=$?
+    fi
+    after="$(cksum "$state")"
+    if [[ "$rc" -eq 0 || "$before" != "$after" ]]; then
+        printf 'missing active root changed the saved host records\n'
+        return 1
+    fi
+    rc=0
+    if missing_doctor_json="$(packaged_health_command "$package_root" "$home" claude \
+        "$missing_root" doctor installation --json 2>/dev/null)"; then
+        rc=0
+    else
+        rc=$?
+    fi
+    if [[ "$rc" -eq 0 ]] || ! jq -e '
+        any(.results[]; .category == "installation" and .status == "fail")
+    ' <<<"$missing_doctor_json" >/dev/null 2>&1; then
+        printf 'installation doctor did not reject a missing active root\n'
+        return 1
+    fi
+
+    before_dry="$(packaged_home_snapshot "$home")"
+    if repair_json="$(packaged_health_command "$package_root" "$home" claude \
+        "$active_root" repair --dry-run --json 2>/dev/null)"; then
+        :
+    else
+        printf 'packaged repair dry-run failed\n'
+        return 1
+    fi
+    after_dry="$(packaged_home_snapshot "$home")"
+    if [[ "$before_dry" != "$after_dry" || -e "$home/.claude-octopus/plugin" ]] ||
+       ! jq -e '.mode == "dry-run" and .status == "missing" and .result == "ready"' \
+           <<<"$repair_json" >/dev/null 2>&1; then
+        printf 'repair dry-run changed isolated host state\n'
+        return 1
+    fi
+    if [[ "$(cat "$sentinel" 2>/dev/null || true)" != "keep-user-result" ]]; then
+        printf 'lifecycle health commands changed user data\n'
+        return 1
+    fi
+}
+
 test_public_publication_boundary() {
     test_case "public checkout excludes private development material"
     local output
-    if output=$(bash "$PROJECT_ROOT/scripts/validate-no-hardcoded-paths.sh" 2>&1); then
+    local boundary_home="$TEST_TMP_DIR/public-boundary-home"
+    mkdir -p "$boundary_home/npm-cache" "$boundary_home/tmp"
+    if output=$(env -i HOME="$boundary_home" TMPDIR="$boundary_home/tmp" PATH="$PATH" \
+        NPM_CONFIG_CACHE="$boundary_home/npm-cache" NPM_CONFIG_USERCONFIG=/dev/null \
+        bash "$PROJECT_ROOT/scripts/validate-no-hardcoded-paths.sh" 2>&1); then
         test_pass
     else
         test_fail "public publication boundary failed: $output"
@@ -178,8 +343,13 @@ test_extracted_archive_contract() {
     fi
     npm_error="$PACKAGING_FIXTURE_DIR/npm-pack.stderr"
     extract_dir="$PACKAGING_FIXTURE_DIR/extracted"
-    mkdir -p "$extract_dir"
-    if ! pack_json=$(cd "$PROJECT_ROOT" && npm pack --ignore-scripts --json --pack-destination "$PACKAGING_FIXTURE_DIR" 2>"$npm_error"); then
+    mkdir -p "$extract_dir" "$PACKAGING_FIXTURE_DIR/npm-home" "$PACKAGING_FIXTURE_DIR/npm-cache"
+    if ! pack_json=$(cd "$PROJECT_ROOT" && env -i \
+        HOME="$PACKAGING_FIXTURE_DIR/npm-home" PATH="$PATH" \
+        TMPDIR="$PACKAGING_FIXTURE_DIR/npm-home" \
+        NPM_CONFIG_CACHE="$PACKAGING_FIXTURE_DIR/npm-cache" NPM_CONFIG_USERCONFIG=/dev/null \
+        npm pack --ignore-scripts --json --pack-destination "$PACKAGING_FIXTURE_DIR" \
+        2>"$npm_error"); then
         result="$(tr '\n' ' ' < "$npm_error")"
         cleanup_packaging_fixture
         test_fail "npm pack failed: ${result:-no diagnostics}"
@@ -278,11 +448,18 @@ PYTEST
     else
         status=$?
     fi
+    if [[ "$status" -eq 0 ]]; then
+        if result="$(validate_extracted_lifecycle_contract "$package_root")"; then
+            status=0
+        else
+            status=$?
+        fi
+    fi
     cleanup_packaging_fixture
     if [[ "$status" -eq 0 ]]; then
         test_pass
     else
-        test_fail "extracted archive is incomplete: $result"
+        test_fail "extracted archive contract failed: ${result:-no diagnostics}"
         return 1
     fi
 }

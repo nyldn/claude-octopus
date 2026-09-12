@@ -43,6 +43,7 @@ case "$status" in
     missing) action="create stable plugin root" ;;
     broken) action="replace broken stable plugin link" ;;
     mismatch) action="replace stale stable plugin link" ;;
+    invalid-target) action="manual review required: plugin target failed validation"; result=blocked ;;
     invalid) action="manual review required: stable path is not an Octopus link or shim"; result=blocked ;;
     *) action="manual review required: plugin root is unavailable"; result=blocked ;;
 esac

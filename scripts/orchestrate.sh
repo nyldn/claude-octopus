@@ -25,7 +25,7 @@ while [[ "$_octo_early_index" -lt "${#_octo_early_args[@]}" ]]; do
     esac
 done
 case "$_octo_early_command" in
-    doctor|capabilities|cache-check|check-cache|security-audit|repair|handoff|profile|install-state)
+    guide|doctor|capabilities|cache-check|check-cache|security-audit|repair|handoff|profile|install-state)
         OCTOPUS_EARLY_ARTIFACT_READ_ONLY=true
         ;;
     explain)
@@ -50,6 +50,15 @@ PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 if [[ "${BASH_SOURCE[0]}" == "${0}" && "$_octo_early_index" -eq 0 ]]; then
     _octo_early_tail=("${_octo_early_args[@]:1}")
     case "$_octo_early_command" in
+        guide) exec python3 "${SCRIPT_DIR}/guide.py" "${_octo_early_tail[@]}" ;;
+        auto)
+            if [[ "${#_octo_early_tail[@]}" -eq 1 ]]; then
+                case "${_octo_early_tail[0]}" in
+                    help|list|commands|capabilities|options|workflows)
+                        exec python3 "${SCRIPT_DIR}/guide.py" list ;;
+                esac
+            fi
+            ;;
         doctor) exec bash "${SCRIPT_DIR}/doctor.sh" "${_octo_early_tail[@]}" ;;
         capabilities) exec bash "${SCRIPT_DIR}/capabilities.sh" "${_octo_early_tail[@]}" ;;
         cache-check|check-cache) exec bash "${SCRIPT_DIR}/cache-check.sh" "${_octo_early_tail[@]}" ;;
@@ -2886,6 +2895,9 @@ case "$COMMAND" in
         ;;
     doctor)
         do_doctor "$@"
+        ;;
+    guide)
+        python3 "${SCRIPT_DIR}/guide.py" "$@"
         ;;
     capabilities)
         bash "${SCRIPT_DIR}/capabilities.sh" "$@"

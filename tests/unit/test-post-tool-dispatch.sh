@@ -82,4 +82,19 @@ else
     test_fail "statusline state activated PostToolUse context: ${output:-<empty>}"
 fi
 
+test_case "installed dispatcher subscribes to the tools it compresses"
+if jq -e '.hooks.PostToolUse[] | select(any(.hooks[]; .command | endswith("/post-tool-dispatch.sh"))) |
+    .matcher | split("|") | index("Read") != null and index("WebFetch") != null and index("Grep") != null' \
+    "$PROJECT_ROOT/hooks/hooks.json" >/dev/null; then test_pass; else test_fail "manifest omits supported tools"; fi
+
+test_case "dispatcher passes protocol session identity to child hooks"
+fixture="$TEST_TMP_DIR/dispatch-root"
+mkdir -p "$fixture/hooks" "$fixture/scripts/lib"
+cp "$PROJECT_ROOT/scripts/lib/hook-activation.sh" "$fixture/scripts/lib/"
+printf '%s\n' '#!/usr/bin/env bash' 'printf "%s" "${CLAUDE_SESSION_ID:-missing}" > "$SESSION_CAPTURE"' > "$fixture/hooks/strategy-rotation.sh"
+capture="$TEST_TMP_DIR/session-id"
+env -u CLAUDE_SESSION_ID -u CLAUDE_CODE_SESSION_ID CLAUDE_PLUGIN_ROOT="$fixture" \
+    OCTO_STRATEGY_ROTATION=on SESSION_CAPTURE="$capture" bash "$HOOK" <<< '{"session_id":"protocol-session"}'
+if [[ "$(cat "$capture")" == protocol-session ]]; then test_pass; else test_fail "child lost protocol session identity"; fi
+
 test_summary
