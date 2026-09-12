@@ -10,11 +10,11 @@ allowed-tools: Bash, Read
 Read the installed catalog and show a suitable next command. Do not start a
 workflow, probe providers, change settings, or install anything.
 
-Resolve the plugin root from `CODEX_PLUGIN_ROOT`, then `CLAUDE_PLUGIN_ROOT`,
+Resolve the plugin root from `CLAUDE_PLUGIN_ROOT`, then `CODEX_PLUGIN_ROOT`,
 then the stable `~/.claude-octopus/plugin` link. Run:
 
 ```bash
-OCTO_ROOT="${CODEX_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 bash "$OCTO_ROOT/scripts/orchestrate.sh" guide
 ```
 

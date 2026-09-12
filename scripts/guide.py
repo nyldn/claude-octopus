@@ -18,11 +18,17 @@ def main():
         manifest = json.loads((root / ".claude-plugin/plugin.json").read_text())
         commands = []
         for relative in manifest["commands"]:
-            path = (root / relative).resolve()
-            path.relative_to(root)
-            header = path.read_text().split("---", 2)[1]
-            match = re.search(r"^description:\s*(.+)$", header, re.MULTILINE)
-            description = match.group(1).strip().strip("\"'") if match else ""
+            try:
+                path = (root / relative).resolve()
+                path.relative_to(root)
+                content = path.read_text().split("---", 2)
+                if len(content) != 3 or content[0].strip():
+                    raise ValueError("missing frontmatter")
+                match = re.search(r"^description:\s*(.+)$", content[1], re.MULTILINE)
+                description = match.group(1).strip().strip("\"'") if match else ""
+            except (OSError, ValueError, TypeError) as exc:
+                print(f"Skipping command {relative!r}: {exc}", file=sys.stderr)
+                continue
             commands.append({"command": f"/octo:{path.stem}", "description": description})
         topic = " ".join(args.topic).strip().lower().removeprefix("/octo:")
         if topic and topic != "list":

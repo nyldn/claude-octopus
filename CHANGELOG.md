@@ -23,6 +23,8 @@
   instead of inferring authentication from the presence of a CLI executable.
 - Doctor and the new installation tools use a lightweight CLI path that avoids
   starting workflow state, event logs, or provider probes.
+- Unknown `octopus` CLI commands now return a usage error with exit code 2
+  instead of printing help and returning success.
 
 ### Fixed
 
