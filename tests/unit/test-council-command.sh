@@ -3255,6 +3255,73 @@ test_council_chair_only_vendor_excluded_from_quorum() {
     fi
 }
 
+test_council_verdict_survives_envelope_and_degenerate_chair() {
+    test_case "verdict parse survives the provenance envelope + trailing prose, and a degenerate chair does not zero a mixed-vendor quorum (#2346)"
+    load_council_lib || return 1
+
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/verdict-tally.XXXXXX")"; mkdir -p "$d/responses"
+    COUNCIL_RUN_DIR="$d"; COUNCIL_DEPTH="standard"; COUNCIL_FIXTURE=""; COUNCIL_EXECUTION_MODE=""
+    COUNCIL_TASK="x"; COUNCIL_GOAL="review"; COUNCIL_DOMAIN="auto"; COUNCIL_STYLE="balanced"
+    # Chair is a distinct vendor (claude); the two independent reviewers are agy + codex.
+    COUNCIL_ROSTER_JSON='[
+      {"persona":"strategy-analyst","provider":"claude","seat":"chair","model_family":"claude"},
+      {"persona":"backend-architect","provider":"agy","seat":"member","model_family":"gemini"},
+      {"persona":"security-auditor","provider":"codex","seat":"member","model_family":"gpt"}
+    ]'
+    council_prompt_for_member() { echo "prompt"; }
+    council_persona_should_fail() { return 1; }
+    council_run_chair_fallback() { :; }   # isolate the tally from a real fallback dispatch
+
+    # Inject seat bodies: a DEGENERATE chair (host self-dispatch stub → non-substantive),
+    # and two grounded, mixed-vendor APPROVE seats whose VERDICT: line is wrapped in the
+    # provenance envelope with closing tags + trailing prose AFTER it (the #2346 drift
+    # that made the old end-anchored parser return REVISE for every seat).
+    council_dispatch_member_detached() {
+        local member="$1" out="$3" prov seat
+        prov="$(jq -r '.provider' <<< "$member")"
+        seat="$(jq -r '.seat' <<< "$member")"
+        if [[ "$seat" == "chair" ]]; then
+            printf '## UNVERIFIED CONSULTATIVE OUTPUT\n\n*This council member is the active host runtime (claude CLI). Subprocess dispatch is unavailable when the host and council member are the same CLI.*\n' > "$out"
+            return 0
+        fi
+        {
+            echo "## UNVERIFIED CONSULTATIVE OUTPUT"
+            echo
+            echo "<external-cli-output provider=\"$prov\" trust=\"untrusted\">"
+            echo "### Review"
+            echo "The change is correct: the new branch is handled and the added test exercises it. I found no missed requirements and no further changes are needed before shipping."
+            echo "VERDICT: APPROVE"
+            echo "</external-cli-output>"
+            echo
+            echo "## END UNVERIFIED CONSULTATIVE OUTPUT"
+        } > "$out"
+        return 0
+    }
+
+    council_run_advice_phase >/dev/null 2>&1 || true
+    unset -f council_dispatch_member_detached council_prompt_for_member council_persona_should_fail council_run_chair_fallback
+
+    local ok=n
+    if [[ "$COUNCIL_DISTINCT_APPROVING_PROVIDERS" == "2" \
+          && "$COUNCIL_QUORUM_MET" == "true" \
+          && "$COUNCIL_APPROVING_PROVIDERS" == *agy* \
+          && "$COUNCIL_APPROVING_PROVIDERS" == *codex* ]] &&
+       jq -e '
+         (.[0].seat=="chair" and .[0].status=="degenerate" and .[0].counted_as_approver==false)
+         and ([.[] | select(.seat!="chair") | .verdict] | unique == ["APPROVE"])
+         and ([.[] | select(.counted_as_approver) | .provider] | sort == ["agy","codex"])
+       ' <<< "$COUNCIL_SEAT_RECORDS_JSON" >/dev/null; then
+        ok=y
+    fi
+
+    if [[ "$ok" == y ]]; then
+        test_pass
+    else
+        test_fail "envelope/degenerate-chair tally wrong: distinct=$COUNCIL_DISTINCT_APPROVING_PROVIDERS met=$COUNCIL_QUORUM_MET approving=[$COUNCIL_APPROVING_PROVIDERS] seats=$COUNCIL_SEAT_RECORDS_JSON"
+        return 1
+    fi
+}
+
 test_council_detached_seat_survives_interrupt() {
     test_case "A detached seat survives SIGINT/SIGHUP/SIGTERM to its process and still lands its result (#2077)"
     load_council_lib || return 1
@@ -3561,6 +3628,7 @@ test_council_advice_does_not_infer_timeout_from_provider_rc
 test_council_seat_timeout_rejects_zero_and_nonnumeric
 test_council_response_has_verdict_salvage
 test_council_chair_only_vendor_excluded_from_quorum
+test_council_verdict_survives_envelope_and_degenerate_chair
 test_council_chair_fallback_rejects_incomplete_responses
 test_council_reused_member_chair_fallback_preserves_quorum
 test_council_seats_array_makes_quorum_inspectable

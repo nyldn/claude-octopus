@@ -41,6 +41,25 @@
 - Package lifecycle tests use isolated state and the candidate artifact instead
   of uninstalling the user plugin or testing the latest remote version.
 
+### Fixed
+
+- Council verdict extraction (`_council_parse_final_verdict`) no longer misreads
+  a seat's `VERDICT: APPROVE` as `REVISE`, which was systematically corrupting the
+  quorum tally (`met: false`, `distinct_approving_providers: 0`) even when the raw
+  seat bodies clearly approved (#2346). The runner wraps each seat's output in a
+  provenance envelope (`## UNVERIFIED CONSULTATIVE OUTPUT` header +
+  `<external-cli-output>…</external-cli-output>` + `## END …` footer), so the
+  verdict is no longer the file's final line — and the parser treated the closing
+  wrapper lines as trailing review content, demoting the final verdict to nothing.
+  The parser now skips those runner-added envelope wrapper lines so the verdict
+  inside is recognized as final, while deliberately keeping the strict contract
+  intact: the verdict must still be the last top-level line, the sole declaration,
+  and end-anchored, so a quoted/fenced example verdict or an unfinished
+  (trailing-content) verdict still cannot vote. A degenerate/missing chair already
+  never forced `met: false`; a regression test locks in that a mixed-vendor pair of
+  enveloped `VERDICT: APPROVE` seats yields `distinct_approving_providers: 2` /
+  `met: true` alongside a degenerate chair.
+
 ## [11.4.2] - 2026-09-11
 
 ### Changed

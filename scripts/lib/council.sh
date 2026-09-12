@@ -2158,6 +2158,21 @@ council_response_defers_without_reading() {
 _council_parse_final_verdict() {
     local f="$1"
     [[ -f "$f" ]] || return 1
+    # The seat`s final, unquoted VERDICT: line is authoritative. It must be the last
+    # top-level content line, the sole declaration, and end-anchored — so a quoted
+    # example verdict or an unfinished (trailing-content) verdict cannot vote.
+    #
+    # The runner wraps each seat`s output in a provenance envelope AFTER it returns:
+    # a "## UNVERIFIED CONSULTATIVE OUTPUT" header + disclaimer (agent-sync.sh) and
+    # an <external-cli-output …>/</external-cli-output> block (validation.sh), closed
+    # by "## END UNVERIFIED CONSULTATIVE OUTPUT". Those closing wrapper lines are not
+    # the seat`s own review content, but the old parser saw them as trailing content
+    # after the verdict and demoted a genuine APPROVE to nothing (=> REVISE) — so
+    # summary.json reported met:false / distinct_approving_providers:0 on ~100% of
+    # rounds while the raw bodies plainly approved (sail-cruisey #2346). Skip the
+    # envelope wrapper lines (rather than loosening the end-anchored match, which
+    # would let quoted/unfinished verdicts vote) so the verdict INSIDE the envelope
+    # is still recognized as final.
     awk '
         {
             line = toupper($0)
@@ -2175,6 +2190,11 @@ _council_parse_final_verdict() {
             }
             if (fence) next
             if (line ~ /^[[:space:]]*$/) next
+            # Runner-added provenance envelope wrapper (header/footer + the
+            # external-cli-output tags). Not the seat`s own content, so it must not
+            # count as a trailing line that demotes an otherwise-final verdict (#2346).
+            if (line ~ /^##[ ]+(END[ ]+)?UNVERIFIED CONSULTATIVE OUTPUT[[:space:]]*$/) next
+            if (line ~ /^<\/?EXTERNAL-CLI-OUTPUT([ >]|$)/) next
             # Four-space/tab-indented text is a Markdown code example, not a
             # top-level declaration. This also excludes nested list fences.
             if (line ~ /^(    |[ ]*\t)/) { last=""; next }
