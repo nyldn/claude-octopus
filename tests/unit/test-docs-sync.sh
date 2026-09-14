@@ -269,20 +269,28 @@ sys.exit(0 if all(isinstance(m,str) for m in ms) else 1)
   # ignored"), so a group-level "if" never gates anything. Claude Code evaluates
   # "if" only on handlers (permission rule syntax) and Codex ignores it at both
   # levels, so conditions that must hold on every host belong in the hook script.
-  local group_extra_keys
-  if group_extra_keys="$(python3 -c "
+  # "hooks" is required; "matcher" stays optional because the docs let a group
+  # omit it to match every occurrence of the event.
+  local group_problems
+  if group_problems="$(python3 -c "
 import json
 d=json.load(open('$hooks_json'))
-print(' '.join('hooks.%s[%d].%s' % (event, i, key)
-               for event, groups in d['hooks'].items()
-               for i, group in enumerate(groups)
-               for key in group if key not in ('matcher', 'hooks')))
+problems=[]
+for event, groups in d['hooks'].items():
+    for i, group in enumerate(groups):
+        where='hooks.%s[%d]' % (event, i)
+        if not isinstance(group, dict) or not isinstance(group.get('hooks'), list):
+            problems.append(where + ':missing-hooks-list')
+            continue
+        problems.extend('%s.%s' % (where, key)
+                        for key in group if key not in ('matcher', 'hooks'))
+print(' '.join(problems))
 " 2>/dev/null)"; then
-    if [ -z "$group_extra_keys" ]; then
+    if [ -z "$group_problems" ]; then
       pass "hooks.json matcher groups declare only matcher and hooks"
     else
       fail "hooks.json matcher groups declare only matcher and hooks" \
-        "keys Claude Code ignores in matcher groups: ${group_extra_keys}"
+        "malformed or ignored matcher-group entries: ${group_problems}"
     fi
   else
     fail "hooks.json matcher groups could not be inspected"
