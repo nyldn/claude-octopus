@@ -263,6 +263,30 @@ sys.exit(0 if all(isinstance(m,str) for m in ms) else 1)
   else
     fail "hooks.json contains non-string matchers"
   fi
+
+  # Claude Code reads only "matcher" and "hooks" in a matcher group. It ignores
+  # any other key there and reports it at startup ("hooks.json: unknown keys ...
+  # ignored"), so a group-level "if" never gates anything. Claude Code evaluates
+  # "if" only on handlers (permission rule syntax) and Codex ignores it at both
+  # levels, so conditions that must hold on every host belong in the hook script.
+  local group_extra_keys
+  if group_extra_keys="$(python3 -c "
+import json
+d=json.load(open('$hooks_json'))
+print(' '.join('hooks.%s[%d].%s' % (event, i, key)
+               for event, groups in d['hooks'].items()
+               for i, group in enumerate(groups)
+               for key in group if key not in ('matcher', 'hooks')))
+" 2>/dev/null)"; then
+    if [ -z "$group_extra_keys" ]; then
+      pass "hooks.json matcher groups declare only matcher and hooks"
+    else
+      fail "hooks.json matcher groups declare only matcher and hooks" \
+        "keys Claude Code ignores in matcher groups: ${group_extra_keys}"
+    fi
+  else
+    fail "hooks.json matcher groups could not be inspected"
+  fi
 }
 
 # Check debate skill (v7.5+: renamed to skill-debate.md)

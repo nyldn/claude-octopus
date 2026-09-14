@@ -79,7 +79,6 @@
       },
       {
         "matcher": "Edit|Write",
-        "if": "env.OCTO_FREEZE_MODE == 'on'",
         "hooks": [
           {
             "type": "command",
@@ -123,7 +122,6 @@
       },
       {
         "matcher": "Bash",
-        "if": "env.OCTOPUS_WEBHOOK_URL",
         "hooks": [
           {
             "type": "command",
