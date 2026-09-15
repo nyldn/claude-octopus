@@ -83,6 +83,39 @@ EOF
     fi
 }
 
+test_hooks_json_if_schema() {
+    test_case "hooks/hooks.json 'if' keys use the hook-level permission-rule schema, never the matcher-group level"
+    local hooks_json="$PROJECT_ROOT/hooks/hooks.json"
+    local bad
+    bad=$(python3 - "$hooks_json" <<'EOF'
+import json, re, sys
+data = json.load(open(sys.argv[1]))
+pattern = re.compile(r'^[A-Za-z]+\(.*\)$')
+bad = []
+for event, blocks in data.get("hooks", {}).items():
+    if not isinstance(blocks, list):
+        continue
+    for i, block in enumerate(blocks):
+        if not isinstance(block, dict):
+            continue
+        if "if" in block:
+            bad.append(f"group-level 'if' in {event}[{i}]")
+        for j, hook in enumerate(block.get("hooks", [])):
+            cond = hook.get("if")
+            if cond is not None and not pattern.match(cond):
+                bad.append(f"hook-level 'if' in {event}[{i}].hooks[{j}] does not match tool(pattern): {cond!r}")
+if bad:
+    print("\n".join(bad))
+    sys.exit(1)
+EOF
+)
+    if [[ $? -eq 0 ]]; then
+        test_pass
+    else
+        test_fail "$bad"
+    fi
+}
+
 test_provider_pid_capture() {
     test_case "Parallel workflow waits track provider PIDs, not wrapper PIDs"
 
@@ -139,6 +172,7 @@ test_provider_pid_capture() {
 test_fleet_guard_present
 test_no_bare_force_legacy_export
 test_hooks_json_matchers
+test_hooks_json_if_schema
 test_provider_pid_capture
 
 test_summary
