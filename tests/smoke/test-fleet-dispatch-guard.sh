@@ -86,11 +86,19 @@ EOF
 test_hooks_json_if_schema() {
     test_case "hooks/hooks.json 'if' keys use the hook-level permission-rule schema, never the matcher-group level"
     local hooks_json="$PROJECT_ROOT/hooks/hooks.json"
+    if [[ ! -f "$hooks_json" ]]; then
+        test_fail "hooks.json not found"
+        return 1
+    fi
+    if ! python3 -m json.tool "$hooks_json" > /dev/null 2>&1; then
+        test_fail "hooks.json is not valid JSON"
+        return 1
+    fi
     local bad
     if bad=$(python3 - "$hooks_json" <<'EOF'
 import json, re, sys
 data = json.load(open(sys.argv[1]))
-pattern = re.compile(r'^[A-Za-z]+\(.*\)$')
+pattern = re.compile(r'^[A-Za-z0-9_]+\(.*\)$')
 bad = []
 for event, blocks in data.get("hooks", {}).items():
     if not isinstance(blocks, list):
