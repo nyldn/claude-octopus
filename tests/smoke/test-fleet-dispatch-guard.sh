@@ -98,9 +98,16 @@ test_hooks_json_if_schema() {
     if bad=$(python3 - "$hooks_json" <<'EOF'
 import json, re, sys
 data = json.load(open(sys.argv[1]))
+if not isinstance(data, dict):
+    print("hooks.json root must be an object")
+    sys.exit(1)
+hooks = data.get("hooks", {})
+if not isinstance(hooks, dict):
+    print("hooks.json 'hooks' must be an object")
+    sys.exit(1)
 pattern = re.compile(r'^[A-Za-z0-9_]+\(.*\)$')
 bad = []
-for event, blocks in data.get("hooks", {}).items():
+for event, blocks in hooks.items():
     if not isinstance(blocks, list):
         continue
     for i, block in enumerate(blocks):
@@ -109,8 +116,11 @@ for event, blocks in data.get("hooks", {}).items():
         if "if" in block:
             bad.append(f"group-level 'if' in {event}[{i}]")
         for j, hook in enumerate(block.get("hooks", [])):
+            if not isinstance(hook, dict):
+                bad.append(f"hook in {event}[{i}].hooks[{j}] must be an object")
+                continue
             cond = hook.get("if")
-            if cond is not None and not pattern.fullmatch(cond):
+            if cond is not None and (not isinstance(cond, str) or not pattern.fullmatch(cond)):
                 bad.append(f"hook-level 'if' in {event}[{i}].hooks[{j}] does not match tool(pattern): {cond!r}")
 if bad:
     print("\n".join(bad))
