@@ -115,7 +115,11 @@ for event, blocks in hooks.items():
             continue
         if "if" in block:
             bad.append(f"group-level 'if' in {event}[{i}]")
-        for j, hook in enumerate(block.get("hooks", [])):
+        hook_entries = block.get("hooks", [])
+        if not isinstance(hook_entries, list):
+            bad.append(f"{event}[{i}].hooks must be an array")
+            continue
+        for j, hook in enumerate(hook_entries):
             if not isinstance(hook, dict):
                 bad.append(f"hook in {event}[{i}].hooks[{j}] must be an object")
                 continue
