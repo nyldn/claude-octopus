@@ -87,7 +87,7 @@ test_hooks_json_if_schema() {
     test_case "hooks/hooks.json 'if' keys use the hook-level permission-rule schema, never the matcher-group level"
     local hooks_json="$PROJECT_ROOT/hooks/hooks.json"
     local bad
-    bad=$(python3 - "$hooks_json" <<'EOF'
+    if bad=$(python3 - "$hooks_json" <<'EOF'
 import json, re, sys
 data = json.load(open(sys.argv[1]))
 pattern = re.compile(r'^[A-Za-z]+\(.*\)$')
@@ -102,14 +102,13 @@ for event, blocks in data.get("hooks", {}).items():
             bad.append(f"group-level 'if' in {event}[{i}]")
         for j, hook in enumerate(block.get("hooks", [])):
             cond = hook.get("if")
-            if cond is not None and not pattern.match(cond):
+            if cond is not None and not pattern.fullmatch(cond):
                 bad.append(f"hook-level 'if' in {event}[{i}].hooks[{j}] does not match tool(pattern): {cond!r}")
 if bad:
     print("\n".join(bad))
     sys.exit(1)
 EOF
-)
-    if [[ $? -eq 0 ]]; then
+    ); then
         test_pass
     else
         test_fail "$bad"
