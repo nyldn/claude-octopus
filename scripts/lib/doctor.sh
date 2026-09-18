@@ -829,11 +829,14 @@ doctor_check_updates() {
 # --- Category 4: State ---
 doctor_check_state() {
     local workflow_state_file="${STATE_FILE:-}"
-    # Same precedence as resolve_octopus_workspace() (scripts/state-manager.sh):
+    # Leads with resolve_octopus_workspace()'s precedence (scripts/state-manager.sh):
     # CLAUDE_PLUGIN_DATA (CC v2.1.78+) outranks the documented
-    # CLAUDE_OCTOPUS_WORKSPACE override, which outranks WORKSPACE_DIR — only
-    # set by orchestrate.sh after doctor.sh's early-dispatch exec boundary,
-    # and by then already folded from the same two variables.
+    # CLAUDE_OCTOPUS_WORKSPACE override, which outranks its ${HOME}/.claude-octopus
+    # default. This adds one more tier below that pair and above the default —
+    # WORKSPACE_DIR, which resolve_octopus_workspace() itself never consults, but
+    # which orchestrate.sh sets (from that same function) after doctor.sh's
+    # early-dispatch exec boundary, so a caller that already resolved it wins
+    # over re-deriving from ${HOME} again.
     local workspace_dir="${CLAUDE_PLUGIN_DATA:-${CLAUDE_OCTOPUS_WORKSPACE:-${WORKSPACE_DIR:-${HOME}/.claude-octopus}}}"
     # state.json integrity
     if [[ -f "$workflow_state_file" ]]; then
