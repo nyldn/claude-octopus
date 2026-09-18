@@ -852,15 +852,16 @@ doctor_check_state() {
     fi
 
     # Workspace dir exists and is writable
-    if [[ -d "$WORKSPACE_DIR" && -w "$WORKSPACE_DIR" ]]; then
+    local workspace_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}"
+    if [[ -d "$workspace_dir" && -w "$workspace_dir" ]]; then
         doctor_add "workspace-writable" "state" "pass" \
-            "Workspace writable" "$WORKSPACE_DIR"
-    elif [[ -d "$WORKSPACE_DIR" ]]; then
+            "Workspace writable" "$workspace_dir"
+    elif [[ -d "$workspace_dir" ]]; then
         doctor_add "workspace-writable" "state" "fail" \
-            "Workspace not writable" "$WORKSPACE_DIR"
+            "Workspace not writable" "$workspace_dir"
     else
         doctor_add "workspace-writable" "state" "fail" \
-            "Workspace directory missing" "$WORKSPACE_DIR"
+            "Workspace directory missing" "$workspace_dir"
     fi
 
     # Preflight cache staleness
