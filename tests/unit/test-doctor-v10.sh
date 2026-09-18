@@ -35,45 +35,60 @@ else
     test_fail "config identity results: $config_results"
 fi
 
-test_case "state check resolves one workspace for stale-results and workspace-writable, honoring CLAUDE_PLUGIN_DATA over WORKSPACE_DIR"
+test_case "state check resolves one workspace for stale-results and workspace-writable, honoring CLAUDE_PLUGIN_DATA over a competing WORKSPACE_DIR"
 # Mirrors the orchestrate.sh `doctor` early-dispatch exec boundary
-# (scripts/orchestrate.sh:62), where WORKSPACE_DIR is not yet set and
-# CLAUDE_PLUGIN_DATA (CC v2.1.78+), when present, must still win.
+# (scripts/orchestrate.sh:62): CLAUDE_PLUGIN_DATA (CC v2.1.78+) must win even
+# when WORKSPACE_DIR is independently set to a different, real directory —
+# not merely left unset and falling through by elimination. Run in a
+# subshell so the env overrides and DOCTOR_RESULTS_* reset never leak into
+# later test cases; doctor_add's array appends still work since a subshell
+# is a forked copy of the same process, not a separate bash invocation.
 plugin_data_dir="$TEST_TMP_DIR/plugin-data"
 mkdir -p "$plugin_data_dir/results"
 touch -t 202001010000 "$plugin_data_dir/results/old-result.md"
-DOCTOR_RESULTS_NAME=() DOCTOR_RESULTS_CAT=() DOCTOR_RESULTS_STATUS=() DOCTOR_RESULTS_MSG=() DOCTOR_RESULTS_DETAIL=()
-unset WORKSPACE_DIR
-CLAUDE_PLUGIN_DATA="$plugin_data_dir" \
-STATE_FILE="$TEST_TMP_DIR/no-such-state.json" \
-PREFLIGHT_CACHE_FILE="$TEST_TMP_DIR/no-such-preflight-cache" \
-PID_FILE="$TEST_TMP_DIR/no-such-pid-file" \
-    doctor_check_state
-unset CLAUDE_PLUGIN_DATA STATE_FILE PREFLIGHT_CACHE_FILE PID_FILE
-state_results="$(for ((i=0; i<${#DOCTOR_RESULTS_NAME[@]}; i++)); do printf '%s=%s|%s|%s\n' "${DOCTOR_RESULTS_NAME[$i]}" "${DOCTOR_RESULTS_STATUS[$i]}" "${DOCTOR_RESULTS_MSG[$i]}" "${DOCTOR_RESULTS_DETAIL[$i]}"; done)"
+competing_workspace_dir="$TEST_TMP_DIR/competing-workspace-1"
+mkdir -p "$competing_workspace_dir"
+state_results="$(
+    DOCTOR_RESULTS_NAME=() DOCTOR_RESULTS_CAT=() DOCTOR_RESULTS_STATUS=() DOCTOR_RESULTS_MSG=() DOCTOR_RESULTS_DETAIL=()
+    WORKSPACE_DIR="$competing_workspace_dir" \
+    CLAUDE_PLUGIN_DATA="$plugin_data_dir" \
+    STATE_FILE="$TEST_TMP_DIR/no-such-state.json" \
+    PREFLIGHT_CACHE_FILE="$TEST_TMP_DIR/no-such-preflight-cache" \
+    PID_FILE="$TEST_TMP_DIR/no-such-pid-file" \
+        doctor_check_state
+    for ((i=0; i<${#DOCTOR_RESULTS_NAME[@]}; i++)); do printf '%s=%s|%s|%s\n' "${DOCTOR_RESULTS_NAME[$i]}" "${DOCTOR_RESULTS_STATUS[$i]}" "${DOCTOR_RESULTS_MSG[$i]}" "${DOCTOR_RESULTS_DETAIL[$i]}"; done
+)"
 if [[ "$state_results" == *"stale-results=warn|1 result file(s) older than 7 days|In ${plugin_data_dir}/results"* &&
-      "$state_results" == *"workspace-writable=pass|Workspace writable|${plugin_data_dir}"* ]]; then
+      "$state_results" == *"workspace-writable=pass|Workspace writable|${plugin_data_dir}"* &&
+      "$state_results" != *"$competing_workspace_dir"* ]]; then
     test_pass
 else
-    test_fail "state results did not honor CLAUDE_PLUGIN_DATA consistently: $state_results"
+    test_fail "state results did not honor CLAUDE_PLUGIN_DATA over a competing WORKSPACE_DIR: $state_results"
 fi
 
-test_case "state check falls back to the documented CLAUDE_OCTOPUS_WORKSPACE override when CLAUDE_PLUGIN_DATA is unset"
+test_case "state check falls back to the documented CLAUDE_OCTOPUS_WORKSPACE override ahead of a competing WORKSPACE_DIR when CLAUDE_PLUGIN_DATA is unset"
 # resolve_octopus_workspace() (scripts/state-manager.sh) ranks
 # CLAUDE_OCTOPUS_WORKSPACE above the ${HOME}/.claude-octopus default;
-# doctor_check_state's own resolution must agree with it.
+# doctor_check_state's own resolution must agree with it, and win over a
+# separately-set WORKSPACE_DIR too. Subshell-isolated for the same reason
+# as the case above.
 octopus_workspace_dir="$TEST_TMP_DIR/octopus-workspace"
 mkdir -p "$octopus_workspace_dir"
-DOCTOR_RESULTS_NAME=() DOCTOR_RESULTS_CAT=() DOCTOR_RESULTS_STATUS=() DOCTOR_RESULTS_MSG=() DOCTOR_RESULTS_DETAIL=()
-unset WORKSPACE_DIR CLAUDE_PLUGIN_DATA
-CLAUDE_OCTOPUS_WORKSPACE="$octopus_workspace_dir" \
-STATE_FILE="$TEST_TMP_DIR/no-such-state.json" \
-PREFLIGHT_CACHE_FILE="$TEST_TMP_DIR/no-such-preflight-cache" \
-PID_FILE="$TEST_TMP_DIR/no-such-pid-file" \
-    doctor_check_state
-unset CLAUDE_OCTOPUS_WORKSPACE STATE_FILE PREFLIGHT_CACHE_FILE PID_FILE
-state_results="$(for ((i=0; i<${#DOCTOR_RESULTS_NAME[@]}; i++)); do printf '%s=%s|%s|%s\n' "${DOCTOR_RESULTS_NAME[$i]}" "${DOCTOR_RESULTS_STATUS[$i]}" "${DOCTOR_RESULTS_MSG[$i]}" "${DOCTOR_RESULTS_DETAIL[$i]}"; done)"
-if [[ "$state_results" == *"workspace-writable=pass|Workspace writable|${octopus_workspace_dir}"* ]]; then
+competing_workspace_dir_2="$TEST_TMP_DIR/competing-workspace-2"
+mkdir -p "$competing_workspace_dir_2"
+state_results="$(
+    DOCTOR_RESULTS_NAME=() DOCTOR_RESULTS_CAT=() DOCTOR_RESULTS_STATUS=() DOCTOR_RESULTS_MSG=() DOCTOR_RESULTS_DETAIL=()
+    unset CLAUDE_PLUGIN_DATA
+    WORKSPACE_DIR="$competing_workspace_dir_2" \
+    CLAUDE_OCTOPUS_WORKSPACE="$octopus_workspace_dir" \
+    STATE_FILE="$TEST_TMP_DIR/no-such-state.json" \
+    PREFLIGHT_CACHE_FILE="$TEST_TMP_DIR/no-such-preflight-cache" \
+    PID_FILE="$TEST_TMP_DIR/no-such-pid-file" \
+        doctor_check_state
+    for ((i=0; i<${#DOCTOR_RESULTS_NAME[@]}; i++)); do printf '%s=%s|%s|%s\n' "${DOCTOR_RESULTS_NAME[$i]}" "${DOCTOR_RESULTS_STATUS[$i]}" "${DOCTOR_RESULTS_MSG[$i]}" "${DOCTOR_RESULTS_DETAIL[$i]}"; done
+)"
+if [[ "$state_results" == *"workspace-writable=pass|Workspace writable|${octopus_workspace_dir}"* &&
+      "$state_results" != *"$competing_workspace_dir_2"* ]]; then
     test_pass
 else
     test_fail "state results did not honor CLAUDE_OCTOPUS_WORKSPACE: $state_results"

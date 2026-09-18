@@ -145,7 +145,13 @@ _doctor_iso_epoch() {
 }
 
 doctor_check_v10_state_health() {
-    local workspace="${WORKSPACE_DIR:-${HOME}/.claude-octopus}" cache_dir=""
+    # Accepts the already-resolved workspace dir (see doctor_check_state's
+    # CLAUDE_PLUGIN_DATA > CLAUDE_OCTOPUS_WORKSPACE > WORKSPACE_DIR precedence)
+    # so probe-cache/run/PID checks agree with the rest of doctor_check_state
+    # instead of re-deriving a WORKSPACE_DIR-only default that can point at
+    # the wrong directory when CLAUDE_PLUGIN_DATA or CLAUDE_OCTOPUS_WORKSPACE
+    # is set. Falls back to the same precedence when called without one.
+    local workspace="${1:-${CLAUDE_PLUGIN_DATA:-${CLAUDE_OCTOPUS_WORKSPACE:-${WORKSPACE_DIR:-${HOME}/.claude-octopus}}}}" cache_dir=""
     local now stale_after snapshot seat_id timestamp _transition epoch
     local running_ids="" running_count=0 stale_count=0 invalid_snapshot_count=0
     local snapshot_rows=""
@@ -883,7 +889,7 @@ doctor_check_state() {
             "No preflight cache (will create on first run)" ""
     fi
 
-    doctor_check_v10_state_health
+    doctor_check_v10_state_health "$workspace_dir"
 }
 
 # --- Category 5: Hooks ---
