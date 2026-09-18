@@ -99,8 +99,11 @@ test_case "standalone doctor.sh resolves PLUGIN_DIR from its own script location
 # PLUGIN_DIR is exported (scripts/orchestrate.sh:46 assigns but never
 # exports it), so this must pass with PLUGIN_DIR entirely unset — exactly
 # how orchestrate.sh invokes it.
-doctor_env_output="$(cd "$PROJECT_ROOT" && env -u PLUGIN_DIR -u CLAUDE_PLUGIN_ROOT HOME="$HOME" bash scripts/doctor.sh --json config 2>&1)"
-doctor_env_rc=$?
+if doctor_env_output="$(cd "$PROJECT_ROOT" && env -u PLUGIN_DIR -u CLAUDE_PLUGIN_ROOT HOME="$HOME" bash scripts/doctor.sh --json config 2>&1)"; then
+    doctor_env_rc=0
+else
+    doctor_env_rc=$?
+fi
 expected_sha="$(git -C "$PROJECT_ROOT" rev-parse HEAD)"
 # With PLUGIN_DIR unresolved (the pre-fix bug), plugin-build can't read the
 # checkout and reports status "info"/"Build SHA unavailable" instead of the

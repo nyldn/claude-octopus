@@ -144,6 +144,20 @@ _doctor_iso_epoch() {
     [[ "$epoch" =~ ^[0-9]+$ ]] && printf '%s\n' "$epoch" || printf '0\n'
 }
 
+# Shared by doctor_check_state and doctor_check_v10_state_health's no-argument
+# fallback: CLAUDE_PLUGIN_DATA > CLAUDE_OCTOPUS_WORKSPACE > WORKSPACE_DIR >
+# ${HOME}/.claude-octopus, with the same leading-"~" normalization
+# resolve_octopus_workspace() (scripts/state-manager.sh) applies to
+# CLAUDE_OCTOPUS_WORKSPACE — doctor.sh doesn't source that resolver (a
+# lighter-weight check path), so this mirrors its tilde handling directly.
+_doctor_resolve_workspace_dir() {
+    local workspace="${CLAUDE_PLUGIN_DATA:-${CLAUDE_OCTOPUS_WORKSPACE:-${WORKSPACE_DIR:-${HOME}/.claude-octopus}}}"
+    if [[ "$workspace" == \~* ]]; then
+        workspace="${HOME}${workspace#\~}"
+    fi
+    printf '%s\n' "$workspace"
+}
+
 doctor_check_v10_state_health() {
     # Accepts the already-resolved workspace dir (see doctor_check_state's
     # CLAUDE_PLUGIN_DATA > CLAUDE_OCTOPUS_WORKSPACE > WORKSPACE_DIR precedence)
@@ -151,7 +165,7 @@ doctor_check_v10_state_health() {
     # instead of re-deriving a WORKSPACE_DIR-only default that can point at
     # the wrong directory when CLAUDE_PLUGIN_DATA or CLAUDE_OCTOPUS_WORKSPACE
     # is set. Falls back to the same precedence when called without one.
-    local workspace="${1:-${CLAUDE_PLUGIN_DATA:-${CLAUDE_OCTOPUS_WORKSPACE:-${WORKSPACE_DIR:-${HOME}/.claude-octopus}}}}" cache_dir=""
+    local workspace="${1:-$(_doctor_resolve_workspace_dir)}" cache_dir=""
     local now stale_after snapshot seat_id timestamp _transition epoch
     local running_ids="" running_count=0 stale_count=0 invalid_snapshot_count=0
     local snapshot_rows=""
@@ -829,15 +843,7 @@ doctor_check_updates() {
 # --- Category 4: State ---
 doctor_check_state() {
     local workflow_state_file="${STATE_FILE:-}"
-    # Leads with resolve_octopus_workspace()'s precedence (scripts/state-manager.sh):
-    # CLAUDE_PLUGIN_DATA (CC v2.1.78+) outranks the documented
-    # CLAUDE_OCTOPUS_WORKSPACE override, which outranks its ${HOME}/.claude-octopus
-    # default. This adds one more tier below that pair and above the default —
-    # WORKSPACE_DIR, which resolve_octopus_workspace() itself never consults, but
-    # which orchestrate.sh sets (from that same function) after doctor.sh's
-    # early-dispatch exec boundary, so a caller that already resolved it wins
-    # over re-deriving from ${HOME} again.
-    local workspace_dir="${CLAUDE_PLUGIN_DATA:-${CLAUDE_OCTOPUS_WORKSPACE:-${WORKSPACE_DIR:-${HOME}/.claude-octopus}}}"
+    local workspace_dir; workspace_dir="$(_doctor_resolve_workspace_dir)"
     # state.json integrity
     if [[ -f "$workflow_state_file" ]]; then
         if jq empty "$workflow_state_file" 2>/dev/null; then
