@@ -58,6 +58,46 @@ else
     test_fail "state results did not honor CLAUDE_PLUGIN_DATA consistently: $state_results"
 fi
 
+test_case "state check falls back to the documented CLAUDE_OCTOPUS_WORKSPACE override when CLAUDE_PLUGIN_DATA is unset"
+# resolve_octopus_workspace() (scripts/state-manager.sh) ranks
+# CLAUDE_OCTOPUS_WORKSPACE above the ${HOME}/.claude-octopus default;
+# doctor_check_state's own resolution must agree with it.
+octopus_workspace_dir="$TEST_TMP_DIR/octopus-workspace"
+mkdir -p "$octopus_workspace_dir"
+DOCTOR_RESULTS_NAME=() DOCTOR_RESULTS_CAT=() DOCTOR_RESULTS_STATUS=() DOCTOR_RESULTS_MSG=() DOCTOR_RESULTS_DETAIL=()
+unset WORKSPACE_DIR CLAUDE_PLUGIN_DATA
+CLAUDE_OCTOPUS_WORKSPACE="$octopus_workspace_dir" \
+STATE_FILE="$TEST_TMP_DIR/no-such-state.json" \
+PREFLIGHT_CACHE_FILE="$TEST_TMP_DIR/no-such-preflight-cache" \
+PID_FILE="$TEST_TMP_DIR/no-such-pid-file" \
+    doctor_check_state
+unset CLAUDE_OCTOPUS_WORKSPACE STATE_FILE PREFLIGHT_CACHE_FILE PID_FILE
+state_results="$(for ((i=0; i<${#DOCTOR_RESULTS_NAME[@]}; i++)); do printf '%s=%s|%s|%s\n' "${DOCTOR_RESULTS_NAME[$i]}" "${DOCTOR_RESULTS_STATUS[$i]}" "${DOCTOR_RESULTS_MSG[$i]}" "${DOCTOR_RESULTS_DETAIL[$i]}"; done)"
+if [[ "$state_results" == *"workspace-writable=pass|Workspace writable|${octopus_workspace_dir}"* ]]; then
+    test_pass
+else
+    test_fail "state results did not honor CLAUDE_OCTOPUS_WORKSPACE: $state_results"
+fi
+
+test_case "standalone doctor.sh resolves PLUGIN_DIR from its own script location, matching the orchestrate.sh exec-dispatch boundary"
+# scripts/orchestrate.sh:62 exec's doctor.sh into a fresh process before
+# PLUGIN_DIR is exported (scripts/orchestrate.sh:46 assigns but never
+# exports it), so this must pass with PLUGIN_DIR entirely unset — exactly
+# how orchestrate.sh invokes it.
+doctor_env_output="$(cd "$PROJECT_ROOT" && env -u PLUGIN_DIR -u CLAUDE_PLUGIN_ROOT HOME="$HOME" bash scripts/doctor.sh --json config 2>&1)"
+doctor_env_rc=$?
+expected_sha="$(git -C "$PROJECT_ROOT" rev-parse HEAD)"
+# With PLUGIN_DIR unresolved (the pre-fix bug), plugin-build can't read the
+# checkout and reports status "info"/"Build SHA unavailable" instead of the
+# real SHA, and install-source's detail is "" instead of the checkout path.
+if [[ "$doctor_env_rc" -le 1 ]] &&
+   [[ "$doctor_env_output" == *"\"message\":\"Build SHA: ${expected_sha}\""* ]] &&
+   [[ "$doctor_env_output" == *"\"name\":\"install-source\",\"category\":\"config\",\"status\":\"pass\",\"message\":\"Install source: git-checkout\",\"detail\":\"${PROJECT_ROOT}\""* ]]; then
+    test_pass
+else
+    test_fail "standalone doctor.sh did not resolve PLUGIN_DIR without it pre-set: rc=$doctor_env_rc output=$doctor_env_output"
+fi
+
 test_case "Perplexity-only auth is described as a credential, not workflow readiness"
 original_doctor_collect="$(declare -f _doctor_collect_provider_readiness)"
 _doctor_collect_provider_readiness() {
