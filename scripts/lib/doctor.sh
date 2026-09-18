@@ -823,6 +823,10 @@ doctor_check_updates() {
 # --- Category 4: State ---
 doctor_check_state() {
     local workflow_state_file="${STATE_FILE:-}"
+    # Same precedence as the provider-state dir resolution at line 634:
+    # CLAUDE_PLUGIN_DATA (CC v2.1.78+) outranks WORKSPACE_DIR, which is only
+    # set by orchestrate.sh after doctor.sh's early-dispatch exec boundary.
+    local workspace_dir="${CLAUDE_PLUGIN_DATA:-${WORKSPACE_DIR:-${HOME}/.claude-octopus}}"
     # state.json integrity
     if [[ -f "$workflow_state_file" ]]; then
         if jq empty "$workflow_state_file" 2>/dev/null; then
@@ -838,13 +842,13 @@ doctor_check_state() {
     fi
 
     # Stale results files (older than 7 days)
-    if [[ -d "${WORKSPACE_DIR}/results" ]]; then
+    if [[ -d "${workspace_dir}/results" ]]; then
         local stale_count
-        stale_count=$(find "${WORKSPACE_DIR}/results" -name "*.md" -type f -mtime +7 2>/dev/null | wc -l | tr -d ' ')
+        stale_count=$(find "${workspace_dir}/results" -name "*.md" -type f -mtime +7 2>/dev/null | wc -l | tr -d ' ')
         if [[ "$stale_count" -gt 0 ]]; then
             doctor_add "stale-results" "state" "warn" \
                 "${stale_count} result file(s) older than 7 days" \
-                "In ${WORKSPACE_DIR}/results — consider cleanup with: orchestrate.sh cleanup"
+                "In ${workspace_dir}/results — consider cleanup with: orchestrate.sh cleanup"
         else
             doctor_add "stale-results" "state" "pass" \
                 "No stale result files" ""
@@ -852,7 +856,6 @@ doctor_check_state() {
     fi
 
     # Workspace dir exists and is writable
-    local workspace_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}"
     if [[ -d "$workspace_dir" && -w "$workspace_dir" ]]; then
         doctor_add "workspace-writable" "state" "pass" \
             "Workspace writable" "$workspace_dir"

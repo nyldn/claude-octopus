@@ -35,6 +35,29 @@ else
     test_fail "config identity results: $config_results"
 fi
 
+test_case "state check resolves one workspace for stale-results and workspace-writable, honoring CLAUDE_PLUGIN_DATA over WORKSPACE_DIR"
+# Mirrors the orchestrate.sh `doctor` early-dispatch exec boundary
+# (scripts/orchestrate.sh:62), where WORKSPACE_DIR is not yet set and
+# CLAUDE_PLUGIN_DATA (CC v2.1.78+), when present, must still win.
+plugin_data_dir="$TEST_TMP_DIR/plugin-data"
+mkdir -p "$plugin_data_dir/results"
+touch -t 202001010000 "$plugin_data_dir/results/old-result.md"
+DOCTOR_RESULTS_NAME=() DOCTOR_RESULTS_CAT=() DOCTOR_RESULTS_STATUS=() DOCTOR_RESULTS_MSG=() DOCTOR_RESULTS_DETAIL=()
+unset WORKSPACE_DIR
+CLAUDE_PLUGIN_DATA="$plugin_data_dir" \
+STATE_FILE="$TEST_TMP_DIR/no-such-state.json" \
+PREFLIGHT_CACHE_FILE="$TEST_TMP_DIR/no-such-preflight-cache" \
+PID_FILE="$TEST_TMP_DIR/no-such-pid-file" \
+    doctor_check_state
+unset CLAUDE_PLUGIN_DATA STATE_FILE PREFLIGHT_CACHE_FILE PID_FILE
+state_results="$(for ((i=0; i<${#DOCTOR_RESULTS_NAME[@]}; i++)); do printf '%s=%s|%s|%s\n' "${DOCTOR_RESULTS_NAME[$i]}" "${DOCTOR_RESULTS_STATUS[$i]}" "${DOCTOR_RESULTS_MSG[$i]}" "${DOCTOR_RESULTS_DETAIL[$i]}"; done)"
+if [[ "$state_results" == *"stale-results=warn|1 result file(s) older than 7 days|In ${plugin_data_dir}/results"* &&
+      "$state_results" == *"workspace-writable=pass|Workspace writable|${plugin_data_dir}"* ]]; then
+    test_pass
+else
+    test_fail "state results did not honor CLAUDE_PLUGIN_DATA consistently: $state_results"
+fi
+
 test_case "Perplexity-only auth is described as a credential, not workflow readiness"
 original_doctor_collect="$(declare -f _doctor_collect_provider_readiness)"
 _doctor_collect_provider_readiness() {
