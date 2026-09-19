@@ -94,6 +94,29 @@ else
     test_fail "state results did not honor CLAUDE_OCTOPUS_WORKSPACE: $state_results"
 fi
 
+test_case "config check reads circuit-breaker state from the documented workspace override"
+circuit_workspace_dir="$TEST_TMP_DIR/circuit-workspace"
+circuit_competing_dir="$TEST_TMP_DIR/circuit-competing"
+mkdir -p "$circuit_workspace_dir/provider-state" "$circuit_competing_dir/provider-state"
+printf '%s\n' open >"$circuit_workspace_dir/provider-state/codex.state"
+printf '%s\n' closed >"$circuit_competing_dir/provider-state/codex.state"
+circuit_results="$(
+    DOCTOR_RESULTS_NAME=() DOCTOR_RESULTS_CAT=() DOCTOR_RESULTS_STATUS=() DOCTOR_RESULTS_MSG=() DOCTOR_RESULTS_DETAIL=()
+    unset CLAUDE_PLUGIN_DATA
+    WORKSPACE_DIR="$circuit_competing_dir"
+    CLAUDE_OCTOPUS_WORKSPACE="$circuit_workspace_dir"
+    SCRIPT_DIR="$PROJECT_ROOT/scripts"
+    PLUGIN_DIR="$PROJECT_ROOT"
+    export WORKSPACE_DIR CLAUDE_OCTOPUS_WORKSPACE SCRIPT_DIR PLUGIN_DIR
+    doctor_check_config
+    for ((i=0; i<${#DOCTOR_RESULTS_NAME[@]}; i++)); do printf '%s=%s|%s\n' "${DOCTOR_RESULTS_NAME[$i]}" "${DOCTOR_RESULTS_STATUS[$i]}" "${DOCTOR_RESULTS_MSG[$i]}"; done
+)"
+if [[ "$circuit_results" == *"circuit-breaker-open=warn|Circuit breaker OPEN for: codex"* ]]; then
+    test_pass
+else
+    test_fail "config check did not honor CLAUDE_OCTOPUS_WORKSPACE for circuit state: $circuit_results"
+fi
+
 test_case "standalone doctor.sh resolves PLUGIN_DIR from its own script location, matching the orchestrate.sh exec-dispatch boundary"
 # scripts/orchestrate.sh:62 exec's doctor.sh into a fresh process before
 # PLUGIN_DIR is exported (scripts/orchestrate.sh:46 assigns but never
@@ -219,6 +242,29 @@ if [[ "$recurrence_rc" -eq 0 && "$recurrence_output" == *"quality gate failure(s
     test_pass
 else
     test_fail "rc=$recurrence_rc output=$recurrence_output"
+fi
+
+test_case "recurrence check reads decision history from the documented workspace override"
+recurrence_workspace_dir="$TEST_TMP_DIR/recurrence-workspace"
+recurrence_competing_dir="$TEST_TMP_DIR/recurrence-competing"
+mkdir -p "$recurrence_workspace_dir/.octo" "$recurrence_competing_dir/.octo"
+printf '%s\n' '{"type":"quality-gate","timestamp":"2026-09-18T00:00:00Z","source":"fixture"}' \
+    >"$recurrence_workspace_dir/.octo/decisions.jsonl"
+recurrence_workspace_results="$(
+    DOCTOR_RESULTS_NAME=() DOCTOR_RESULTS_CAT=() DOCTOR_RESULTS_STATUS=() DOCTOR_RESULTS_MSG=() DOCTOR_RESULTS_DETAIL=()
+    unset CLAUDE_PLUGIN_DATA
+    WORKSPACE_DIR="$recurrence_competing_dir"
+    CLAUDE_OCTOPUS_WORKSPACE="$recurrence_workspace_dir"
+    OCTOPUS_PLATFORM="${OCTOPUS_PLATFORM:-Linux}"
+    export WORKSPACE_DIR CLAUDE_OCTOPUS_WORKSPACE OCTOPUS_PLATFORM
+    doctor_check_recurrence
+    for ((i=0; i<${#DOCTOR_RESULTS_NAME[@]}; i++)); do printf '%s=%s|%s\n' "${DOCTOR_RESULTS_NAME[$i]}" "${DOCTOR_RESULTS_STATUS[$i]}" "${DOCTOR_RESULTS_MSG[$i]}"; done
+)"
+if [[ "$recurrence_workspace_results" == *"recurrence-data=pass|1 decisions logged"* &&
+      "$recurrence_workspace_results" == *"recurrence-qg=info|1 quality gate failure(s) recorded"* ]]; then
+    test_pass
+else
+    test_fail "recurrence check did not honor CLAUDE_OCTOPUS_WORKSPACE: $recurrence_workspace_results"
 fi
 
 test_case "unknown flags fail with usage instead of being ignored"

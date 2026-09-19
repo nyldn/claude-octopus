@@ -649,14 +649,16 @@ doctor_check_config() {
     fi
 
     # v9.13: Circuit breaker state check
-    local _cb_dir="${CLAUDE_PLUGIN_DATA:-${WORKSPACE_DIR:-${HOME}/.claude-octopus}}/provider-state"
+    local _cb_dir
+    _cb_dir="$(_doctor_resolve_workspace_dir)/provider-state"
     if [[ -d "$_cb_dir" ]]; then
         local _open_circuits=""
         for _sf in "$_cb_dir"/*.state; do
             [[ -f "$_sf" ]] || continue
             local _prov _state
             _prov=$(basename "$_sf" .state)
-            _state=$(<"$_sf" 2>/dev/null)
+            _state=""
+            IFS= read -r _state <"$_sf" || true
             if [[ "$_state" == "open" ]]; then
                 _open_circuits="${_open_circuits:+$_open_circuits, }$_prov"
             fi
@@ -1650,7 +1652,8 @@ doctor_check_agents() {
 # --- Category 11: Failure Recurrence (v8.34.0 — Idea Meritocracy E46/E47) ---
 # Parses .octo/decisions.jsonl for repeated failure patterns
 doctor_check_recurrence() {
-    local jsonl_file="${WORKSPACE_DIR}/.octo/decisions.jsonl"
+    local jsonl_file
+    jsonl_file="$(_doctor_resolve_workspace_dir)/.octo/decisions.jsonl"
     if [[ ! -f "$jsonl_file" ]]; then
         doctor_add "recurrence-data" "recurrence" "info" \
             "No decision history yet — recurrence detection starts after first workflow" ""
