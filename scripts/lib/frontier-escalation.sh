@@ -158,7 +158,7 @@ octo_frontier_cost_ceiling_valid() {
 # intentionally one shared budget: using both expensive frontier families in
 # one run would violate the documented one-frontier-dispatch contract.
 octo_frontier_claim() {
-    local claim_scope marker
+    local claim_scope marker claim_root
 
     if declare -f octo_run_contract_dir >/dev/null 2>&1; then
         claim_scope="${OCTOPUS_RUN_ID:-process-$$}"
@@ -170,8 +170,22 @@ octo_frontier_claim() {
     fi
 
     # A process-local variable cannot survive the command substitution used by
-    # dispatch. Failing closed is safer than allowing a second frontier claim.
-    return 1
+    # dispatch. Use the configured state/workspace root for the same atomic
+    # marker contract when the full run-contract library is not loaded. If no
+    # controlled root is available, fail closed rather than permitting a
+    # second frontier dispatch.
+    if [[ -n "${OCTOPUS_STATE_DIR:-}" ]]; then
+        claim_root="$OCTOPUS_STATE_DIR"
+    elif [[ -n "${WORKSPACE_DIR:-}" ]]; then
+        claim_root="$WORKSPACE_DIR"
+    else
+        return 1
+    fi
+    claim_scope="${OCTOPUS_RUN_ID:-process-$$}"
+    claim_scope="$(printf '%s' "$claim_scope" | sed 's/[^A-Za-z0-9_.:-]/_/g')"
+    marker="${claim_root}/.claude-octopus-frontier-escalated-${claim_scope}"
+    mkdir -p "$claim_root" 2>/dev/null || return 1
+    mkdir "$marker" 2>/dev/null
 }
 
 octo_frontier_astra_candidate() {
