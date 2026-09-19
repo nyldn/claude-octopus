@@ -166,6 +166,9 @@ octo_frontier_claim() {
     current="${!current_var:-0}"
     [[ "$current" == 0 ]] || return 1
     printf -v "$current_var" '%s' 1
+    # The variable name is deliberately indirect so the process-local fallback
+    # shares the same claim contract as the durable marker path.
+    # shellcheck disable=SC2163
     export "$current_var"
 }
 
