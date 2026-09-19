@@ -166,17 +166,14 @@ doctor_check_v10_state_health() {
     # instead of re-deriving a WORKSPACE_DIR-only default that can point at
     # the wrong directory when CLAUDE_PLUGIN_DATA or CLAUDE_OCTOPUS_WORKSPACE
     # is set. Falls back to the same precedence when called without one.
-    local workspace="${1:-$(_doctor_resolve_workspace_dir)}" cache_dir=""
+    local workspace="${1:-$(_doctor_resolve_workspace_dir)}"
+    local cache_dir="${workspace%/}/.cache/probe-results"
     local now stale_after snapshot seat_id timestamp _transition epoch
     local running_ids="" running_count=0 stale_count=0 invalid_snapshot_count=0
     local snapshot_rows=""
     local pid_file="${PID_FILE:-${workspace}/pids}" pid _agent task _identity
     local orphan_count=0 stale_pid_count=0
 
-    if type octo_probe_cache_dir >/dev/null 2>&1; then
-        cache_dir="$(octo_probe_cache_dir 2>/dev/null || true)"
-    fi
-    [[ -n "$cache_dir" ]] || cache_dir="${workspace%/}/.cache/probe-results"
     if [[ -d "$cache_dir" && -w "$cache_dir" ]]; then
         doctor_add "probe-cache-writable" "state" "pass" "Probe cache writable" "$cache_dir"
     elif [[ ! -e "$cache_dir" && -d "$workspace" && -w "$workspace" ]]; then
