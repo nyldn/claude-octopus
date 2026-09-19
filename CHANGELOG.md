@@ -2,7 +2,27 @@
 
 ## [Unreleased]
 
+### Added
+
+- Tangle can adapt its write scope to the task and explicitly authorize
+  external read context, making parallel planning safer and more useful
+  (#1043, #1044).
+
+### Changed
+
+- Context summarization now uses the configured feature seats and preserves the
+  target workflow's context budget during preflight (#1042, #1045).
+- Structured Tangle decomposition is normalized before the compatibility
+  fallback path, improving planning reliability across provider output formats
+  (#1046).
+
 ### Fixed
+
+- Doctor now finds the installed plugin and configured workspace when invoked
+  directly or through the early `orchestrate.sh doctor` dispatch, so healthy
+  installations no longer report path-related failures (#1048, #1049).
+- The Tangle quality gate uses the correction-overlay rate so review results
+  reflect the actual corrected output (#1038).
 
 - Council verdict extraction (`_council_parse_final_verdict`) no longer misreads
   a seat's `VERDICT: APPROVE` as `REVISE`, which was systematically corrupting the
