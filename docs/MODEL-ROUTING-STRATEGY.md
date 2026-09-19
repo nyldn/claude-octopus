@@ -26,7 +26,7 @@ rewritten.
 | GPT-5.6 Luna | budget Codex alternative | $0.20 / $1.20 |
 | Claude Sonnet 5 | standard Claude orchestration and synthesis | $2 / $10 |
 | Claude Haiku 4.5 | budget Claude work | $1 / $5 |
-| Claude Fable 5.1 | opt-in judgment-class escalation, at most one automatic escalation per command | $10 / $50 |
+| Claude Fable 5.1 | opt-in judgment-class escalation, at most one automatic escalation per run | $10 / $50 |
 | GPT-6 Astra | opt-in OpenAI-family escalation after Sol fails a hard acceptance test | $10 / $50 |
 
 Opus 5 and Fable 5.1 are both Anthropic-family models. GPT-5.6 and Astra are
@@ -38,7 +38,7 @@ independent provider diversity.
 Fable 5.1 earns a seat for ambiguous architecture, difficult product or API
 tradeoffs, long-horizon planning, and final arbitration when Opus 5 has not met
 the acceptance criteria. The `escalate` policies can admit one such dispatch
-per command; direct pins remain the user's responsibility.
+per run; direct pins remain the user's responsibility.
 
 Astra is for a bounded, high-value OpenAI-family escalation after GPT-5.6 Sol
 has failed a difficult acceptance test or a checked-in eval demonstrates a

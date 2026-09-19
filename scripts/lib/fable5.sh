@@ -271,8 +271,9 @@ fable5_escalation_candidate() {
 }
 
 # Atomically claim the single Fable escalation for a durable run. The contract
-# directory makes this survive command substitutions and sibling subprocesses;
-# isolated library tests without a run contract retain the process-local marker.
+# directory makes this survive command substitutions and sibling subprocesses.
+# Without a durable run contract, fail closed rather than using a process-local
+# marker that would disappear inside dispatch command substitution.
 fable5_claim_escalation() {
     if declare -f octo_frontier_claim >/dev/null 2>&1; then
         octo_frontier_claim "$FABLE5_MODEL_ID"
@@ -293,9 +294,7 @@ fable5_claim_escalation() {
         fi
         return 1
     fi
-    [[ -z "${_OCTO_FABLE5_ESCALATED:-}" ]] || return 1
-    export _OCTO_FABLE5_ESCALATED=1
-    return 0
+    return 1
 }
 
 # fable5_maybe_escalate <model> <role> <agent_type> <phase>

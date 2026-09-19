@@ -172,6 +172,18 @@ else
     test_fail "Astra ceiling was not enforced: too-small=$too_small_model large-enough=$large_enough_model"
 fi
 
+test_case "Astra pricing rules reject malformed request multipliers"
+invalid_pricing_file="$TEST_TMP_DIR/invalid-pricing.tsv"
+printf '%s\n' \
+    $'model\tgpt-6-astra\t10\t50' \
+    $'request-rule\tgpt-6-astra\t1000\t-1\t1' >"$invalid_pricing_file"
+if OCTOPUS_MODEL_PRICING_FILE="$invalid_pricing_file" \
+    octo_frontier_projected_cost gpt-6-astra 4000 >/dev/null 2>&1; then
+    test_fail "malformed Astra request multipliers were accepted"
+else
+    test_pass
+fi
+
 test_case "Astra requires a measured non-empty prompt before claiming a seat"
 unmeasured_model="$(OCTOPUS_RUN_ID=astra-unmeasured OCTOPUS_MAX_COST_USD=5 \
     octo_frontier_maybe_escalate codex gpt-5.6-sol architect codex define 0)"
@@ -181,15 +193,24 @@ else
     test_fail "Astra claimed an unmeasured dispatch: $unmeasured_model"
 fi
 
+test_case "Astra excludes security phases even for an eligible role"
+security_phase_model="$(OCTOPUS_RUN_ID=astra-security-phase OCTOPUS_MAX_COST_USD=5 \
+    octo_frontier_maybe_escalate codex gpt-5.6-sol architect codex security 4000)"
+if [[ "$security_phase_model" == gpt-5.6-sol ]]; then
+    test_pass
+else
+    test_fail "Astra entered a security phase: $security_phase_model"
+fi
+
 test_case "Astra escalation excludes review, security, implementation, and exact seats"
 review_model="$(OCTOPUS_RUN_ID=astra-review OCTOPUS_MAX_COST_USD=5 \
-    octo_frontier_maybe_escalate codex gpt-5.6-sol code-reviewer codex review)"
+    octo_frontier_maybe_escalate codex gpt-5.6-sol code-reviewer codex review 4000)"
 security_model="$(OCTOPUS_RUN_ID=astra-security OCTOPUS_MAX_COST_USD=5 \
-    octo_frontier_maybe_escalate codex gpt-5.6-sol security-reviewer codex security)"
+    octo_frontier_maybe_escalate codex gpt-5.6-sol security-reviewer codex security 4000)"
 implement_model="$(OCTOPUS_RUN_ID=astra-implement OCTOPUS_MAX_COST_USD=5 \
-    octo_frontier_maybe_escalate codex gpt-5.6-sol implementer-heavy codex develop)"
+    octo_frontier_maybe_escalate codex gpt-5.6-sol implementer-heavy codex develop 4000)"
 exact_model="$(OCTOPUS_RUN_ID=astra-exact OCTOPUS_MAX_COST_USD=5 \
-    octo_frontier_maybe_escalate codex gpt-5.6-sol architect codex:gpt-5.6-sol define)"
+    octo_frontier_maybe_escalate codex gpt-5.6-sol architect codex:gpt-5.6-sol define 4000)"
 if [[ "$review_model" == gpt-5.6-sol && "$security_model" == gpt-5.6-sol &&
       "$implement_model" == gpt-5.6-sol && "$exact_model" == gpt-5.6-sol ]]; then
     test_pass

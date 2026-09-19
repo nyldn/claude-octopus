@@ -129,6 +129,13 @@ $(awk -F '\t' -v model="$model" '
   $1 == "request-rule" && $2 == model { print $3 ":" $4 ":" $5; exit }
 ' "$pricing_file")
 EOF
+    if [[ "$threshold" =~ ^[0-9]+$ ]]; then
+        # Request rules are data, not shell arithmetic. Validate both
+        # multipliers before handing them to awk so malformed or negative
+        # pricing metadata fails closed instead of changing the estimate.
+        [[ "$input_multiplier" =~ ^[0-9]+([.][0-9]+)?$ ]] || return 1
+        [[ "$output_multiplier" =~ ^[0-9]+([.][0-9]+)?$ ]] || return 1
+    fi
     if [[ "$threshold" =~ ^[0-9]+$ && "$input_tokens" -gt "$threshold" ]]; then
         input_price="$(awk -v price="$input_price" -v multiplier="$input_multiplier" 'BEGIN {printf "%.6f", price * multiplier}')"
         output_price="$(awk -v price="$output_price" -v multiplier="$output_multiplier" 'BEGIN {printf "%.6f", price * multiplier}')"
@@ -151,7 +158,7 @@ octo_frontier_cost_ceiling_valid() {
 # intentionally one shared budget: using both expensive frontier families in
 # one run would violate the documented one-frontier-dispatch contract.
 octo_frontier_claim() {
-    local claim_scope marker current_var current
+    local claim_scope marker
 
     if declare -f octo_run_contract_dir >/dev/null 2>&1; then
         claim_scope="${OCTOPUS_RUN_ID:-process-$$}"
@@ -162,14 +169,9 @@ octo_frontier_claim() {
         return $?
     fi
 
-    current_var="_OCTO_FRONTIER_ESCALATED"
-    current="${!current_var:-0}"
-    [[ "$current" == 0 ]] || return 1
-    printf -v "$current_var" '%s' 1
-    # The variable name is deliberately indirect so the process-local fallback
-    # shares the same claim contract as the durable marker path.
-    # shellcheck disable=SC2163
-    export "$current_var"
+    # A process-local variable cannot survive the command substitution used by
+    # dispatch. Failing closed is safer than allowing a second frontier claim.
+    return 1
 }
 
 octo_frontier_astra_candidate() {
@@ -180,6 +182,11 @@ octo_frontier_astra_candidate() {
     # accidentally claiming the premium seat.
     [[ "$prompt_bytes" =~ ^[1-9][0-9]*$ ]] || return 1
     [[ -z "${OCTOPUS_CODEX_MODEL:-}" ]] || return 1
+    case "$phase" in
+        security|security-*|*security*|*squeeze*|*red-team*|*redteam*)
+            return 1
+            ;;
+    esac
     if [[ -n "${OCTOPUS_CODEX_ALLOWED_MODELS:-}" &&
           ",${OCTOPUS_CODEX_ALLOWED_MODELS}," != *",gpt-6-astra,"* ]]; then
         return 1
