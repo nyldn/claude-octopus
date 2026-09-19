@@ -2257,29 +2257,96 @@ ${subtasks}"
     fi
 }
 
-tangle_reconsideration_decisions() {
+tangle_reconsideration_json_contract_guidance() {
+    cat <<'EOF'
+Return ONLY JSON matching Tangle reconsideration schema v1:
+{"schema_version":1,"decisions":[{"action":"move_to_reads|remove_write|add_write","path":"repo/relative/path","decision":"accept|reject","reason":"..."}],"decomposition":{"schema_version":1,"subtasks":[...]}}
+Rules:
+- decisions must contain exactly one accept/reject entry for every adequacy scope_review recommendation and no extra recommendation identities.
+- action/path must exactly match the adequacy recommendation; reason is non-empty planner rationale.
+- decomposition must satisfy Tangle decomposition JSON schema v1.
+- preserve the original deliverable and keep coding scopes disjoint.
+- do not emit Markdown, prose before/after JSON, DECISIONS:/DECOMPOSITION: text, or globs.
+EOF
+}
+
+tangle_reconsideration_expected_scope_review_json() {
+    command -v python3 >/dev/null 2>&1 || return 1
+    printf '%s\n' "${1:-}" | python3 "${BASH_SOURCE[0]%/*}/../tangle-reconsideration-json.py" expected
+}
+
+tangle_reconsideration_json_output_usable() {
+    local response="${1:-}" decomposition
+    command -v python3 >/dev/null 2>&1 || return 1
+    printf '%s\n' "$response" | python3 "${BASH_SOURCE[0]%/*}/../tangle-reconsideration-json.py" validate >/dev/null || return 1
+    decomposition=$(printf '%s\n' "$response" | python3 "${BASH_SOURCE[0]%/*}/../tangle-reconsideration-json.py" decomposition) || return 1
+    tangle_decomposition_json_output_usable "$decomposition"
+}
+
+tangle_reconsideration_legacy_decisions() {
     printf '%s\n' "$1" | awk '/^DECISIONS:[[:space:]]*$/ {capture=1; next} /^DECOMPOSITION:[[:space:]]*$/ {exit} capture && NF {print}'
 }
 
-tangle_reconsideration_subtasks() {
+tangle_reconsideration_legacy_subtasks() {
     printf '%s\n' "$1" | awk '/^DECOMPOSITION:[[:space:]]*$/ {capture=1; next} capture && NF {print}'
 }
 
-tangle_reconsideration_response_valid() {
-    local response="$1"
-    local decisions subtasks
-    decisions=$(tangle_reconsideration_decisions "$response")
-    subtasks=$(tangle_reconsideration_subtasks "$response")
+tangle_reconsideration_legacy_response_valid() {
+    local response="$1" decisions subtasks
+    decisions=$(tangle_reconsideration_legacy_decisions "$response")
+    subtasks=$(tangle_reconsideration_legacy_subtasks "$response")
     [[ -n "$decisions" && -n "$subtasks" ]] || return 1
     [[ $(tangle_parseable_subtask_count "$subtasks") -gt 0 ]] || return 1
     [[ $(tangle_parseable_coding_subtask_count "$subtasks") -gt 0 ]]
 }
 
+tangle_reconsideration_response_valid() {
+    local response="$1"
+    if tangle_reconsideration_json_output_usable "$response"; then
+        printf '%s\n' "$response" | python3 "${BASH_SOURCE[0]%/*}/../tangle-reconsideration-json.py" validate-coverage >/dev/null
+        return $?
+    fi
+    tangle_reconsideration_legacy_response_valid "$response"
+}
+
+tangle_reconsideration_decisions() {
+    local response="$1"
+    if tangle_reconsideration_json_output_usable "$response"; then
+        printf '%s\n' "$response" | python3 "${BASH_SOURCE[0]%/*}/../tangle-reconsideration-json.py" decisions
+        return $?
+    fi
+    if tangle_reconsideration_legacy_response_valid "$response"; then
+        log WARN "Deprecated Tangle textual reconsideration compatibility path used"
+        tangle_reconsideration_legacy_decisions "$response"
+        return 0
+    fi
+    return 1
+}
+
+tangle_reconsideration_subtasks() {
+    local response="$1" decomposition
+    if tangle_reconsideration_json_output_usable "$response"; then
+        decomposition=$(printf '%s\n' "$response" | python3 "${BASH_SOURCE[0]%/*}/../tangle-reconsideration-json.py" decomposition) || return 1
+        tangle_render_json_decomposition_output "$decomposition"
+        return $?
+    fi
+    if tangle_reconsideration_legacy_response_valid "$response"; then
+        log WARN "Deprecated Tangle textual reconsideration compatibility path used"
+        tangle_reconsideration_legacy_subtasks "$response"
+        return 0
+    fi
+    return 1
+}
+
 tangle_reconsider_decomposition() {
     local original_task="$1" previous_decomposition="$2" adequacy_review="$3" repo_file_map="${4:-}" design_resolution="${5:-}"
-    local prompt="Reconsider this decomposition after an independent adequacy review. For every SCOPE_REVIEW recommendation, explicitly ACCEPT or REJECT it with a reason. Preserve the original deliverable, keep coding scopes disjoint, and return only DECISIONS: followed by DECOMPOSITION: with numbered subtasks.
+    local expected_scope_review
+    expected_scope_review="$(tangle_reconsideration_expected_scope_review_json "$adequacy_review")" || return 1
+    local prompt="Reconsider this decomposition after an independent adequacy review.
 
 $(tangle_read_scope_guidance)
+
+$(tangle_reconsideration_json_contract_guidance)
 
 ${repo_file_map}
 Design-review resolution: ${design_resolution:-[none]}
@@ -2297,13 +2364,16 @@ ${adequacy_review}"
         log ERROR "Planner reconsideration requires the configured fallback-chain engine"
         return 1
     fi
-    if response=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="tangle-decomposition-reconsideration" \
+    if response=$(TANGLE_RECONSIDERATION_EXPECTED_SCOPE_REVIEW_JSON="$expected_scope_review" \
+        TANGLE_RECONSIDERATION_ACTIVE=1 \
+        OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="tangle-decomposition-reconsideration" \
+        OCTOPUS_TANGLE_RECONSIDERATION_CONTEXT_BUDGET_RATIO="${OCTOPUS_TANGLE_RECONSIDERATION_CONTEXT_BUDGET_RATIO:-90}" \
         run_agent_sync_fallback_chain "$primary" "$prompt" 0 "researcher" "tangle" \
         tangle_reconsideration_response_valid default); then
         printf '%s\n' "$response"
         return 0
     fi
-    log ERROR "Planner reconsideration exhausted configured fallback chain without usable DECISIONS+DECOMPOSITION"
+    log ERROR "Planner reconsideration exhausted configured fallback chain without usable reconsideration JSON v1"
     return 1
 }
 

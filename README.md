@@ -819,6 +819,10 @@ MIT — see [LICENSE](LICENSE)
   <a href="https://github.com/nyldn">nyldn</a> | MIT License | <a href="https://www.reddit.com/r/ClaudeOctopus/">r/ClaudeOctopus</a> | <a href="https://github.com/nyldn/claude-octopus/issues">Report Issues</a>
 </p>
 
+### Tangle reconsideration JSON contract
+
+Planner reconsideration uses a versioned JSON v1 contract: explicit accept/reject decisions for every adequacy scope recommendation plus a nested decomposition JSON v1 object. The historical `DECISIONS:/DECOMPOSITION:` response remains a deprecated compatibility fallback. See [Tangle reconsideration JSON v1](docs/tangle-reconsideration-contract.md) and [`schemas/tangle-reconsideration-v1.schema.json`](schemas/tangle-reconsideration-v1.schema.json).
+
 ### Tangle adequacy review JSON contract
 
 Tangle adequacy review uses a versioned JSON v1 contract and renders validated reviews into the historical internal text format consumed by planner reconsideration. The textual `VERDICT:/REASONS:/SCOPE_REVIEW:` form remains a deprecated compatibility fallback. See [Tangle adequacy review JSON v1](docs/tangle-adequacy-contract.md) and [`schemas/tangle-adequacy-v1.schema.json`](schemas/tangle-adequacy-v1.schema.json).

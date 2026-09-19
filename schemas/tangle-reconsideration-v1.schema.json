@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/nyldn/claude-octopus/schemas/tangle-reconsideration-v1.schema.json",
+  "title": "Tangle Reconsideration v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "decisions",
+    "decomposition"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "action",
+          "path",
+          "decision",
+          "reason"
+        ],
+        "properties": {
+          "action": {
+            "enum": [
+              "move_to_reads",
+              "remove_write",
+              "add_write"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.@%+/-]+$"
+          },
+          "decision": {
+            "enum": [
+              "accept",
+              "reject"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": ".*\\S.*"
+          }
+        }
+      }
+    },
+    "decomposition": {
+      "$ref": "tangle-decomposition-v1.schema.json"
+    }
+  }
+}

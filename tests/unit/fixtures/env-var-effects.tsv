@@ -77,6 +77,7 @@ OCTOPUS_RUN_ID	covered-by	test-agent-summary.sh
 OCTOPUS_SENTINEL_ENABLED	covered-by	test-sentinel.sh
 OCTOPUS_TANGLE_ALLOW_DB_APPLY	covered-by	test-tangle-subtask-context.sh
 OCTOPUS_TANGLE_ADEQUACY_CONTEXT_BUDGET_RATIO	covered-by	test-tangle-adequacy-json-v1.sh
+OCTOPUS_TANGLE_RECONSIDERATION_CONTEXT_BUDGET_RATIO	covered-by	test-tangle-reconsideration-json-v1.sh
 OCTOPUS_TANGLE_ALLOW_UNVERIFIED_MIGRATIONS	covered-by	test-tangle-worktree-evidence.sh
 OCTOPUS_TANGLE_CODING_AGENT	covered-by	test-routing-preview.sh
 OCTOPUS_TANGLE_CONTEXTUAL_READ_ROOTS	covered-by	test-tangle-contextual-read-scope.sh
