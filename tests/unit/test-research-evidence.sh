@@ -22,6 +22,28 @@ research_resolve_ipv4() {
     esac
 }
 
+test_case "research CLI options normalize legacy breadth and resume state"
+OCTOPUS_RESEARCH_INTENSITY=standard
+OCTOPUS_RESEARCH_RUN_ID=""
+OCTOPUS_RESEARCH_RESUME=false
+research_parse_global_option --intensity=quick
+equals_shift="$RESEARCH_OPTION_SHIFT"
+research_parse_global_option --breadth exhaustive
+breadth_shift="$RESEARCH_OPTION_SHIFT"
+research_parse_global_option --resume-research saved-run
+resume_shift="$RESEARCH_OPTION_SHIFT"
+missing_status=0
+research_parse_global_option --research-run || missing_status=$?
+if [[ "$OCTOPUS_RESEARCH_INTENSITY" == "deep" ]] \
+   && [[ "$OCTOPUS_RESEARCH_RUN_ID" == "saved-run" ]] \
+   && [[ "$OCTOPUS_RESEARCH_RESUME" == "true" ]] \
+   && [[ "$equals_shift" -eq 1 && "$breadth_shift" -eq 2 && "$resume_shift" -eq 2 ]] \
+   && [[ "$missing_status" -eq 2 ]]; then
+    test_pass
+else
+    test_fail "research option parser did not preserve its CLI contract"
+fi
+
 test_case "manifest and append-only events survive resume"
 OCTOPUS_RESEARCH_RUN_ID="run-1"
 OCTOPUS_RESEARCH_RESUME=false

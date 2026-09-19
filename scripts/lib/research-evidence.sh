@@ -2,6 +2,68 @@
 # Durable research evidence state for probe/research/embrace.
 # Source-safe and Bash 3.2 compatible; no Python runtime is required.
 
+OCTOPUS_RESEARCH_INTENSITY="${OCTOPUS_RESEARCH_INTENSITY:-standard}"
+OCTOPUS_RESEARCH_EVIDENCE="${OCTOPUS_RESEARCH_EVIDENCE:-true}"
+OCTOPUS_RESEARCH_RUN_ID="${OCTOPUS_RESEARCH_RUN_ID:-}"
+OCTOPUS_RESEARCH_RESUME="${OCTOPUS_RESEARCH_RESUME:-false}"
+
+research_set_intensity() {
+    case "$1" in
+        light) OCTOPUS_RESEARCH_INTENSITY=quick ;;
+        exhaustive) OCTOPUS_RESEARCH_INTENSITY=deep ;;
+        *) OCTOPUS_RESEARCH_INTENSITY="$1" ;;
+    esac
+}
+
+research_parse_global_option() {
+    local option="${1:-}" value="${2:-}"
+    RESEARCH_OPTION_SHIFT=1
+    case "$option" in
+        --intensity=*) research_set_intensity "${option#*=}" ;;
+        --breadth=*) research_set_intensity "${option#*=}" ;;
+        --research-run=*) OCTOPUS_RESEARCH_RUN_ID="${option#*=}" ;;
+        --resume-research=*)
+            OCTOPUS_RESEARCH_RUN_ID="${option#*=}"
+            OCTOPUS_RESEARCH_RESUME=true
+            ;;
+        --intensity|--breadth|--research-run|--resume-research)
+            [[ -n "$value" ]] || return 2
+            RESEARCH_OPTION_SHIFT=2
+            case "$option" in
+                --intensity|--breadth) research_set_intensity "$value" ;;
+                --research-run) OCTOPUS_RESEARCH_RUN_ID="$value" ;;
+                --resume-research)
+                    OCTOPUS_RESEARCH_RUN_ID="$value"
+                    OCTOPUS_RESEARCH_RESUME=true
+                    ;;
+            esac
+            ;;
+        *) return 1 ;;
+    esac
+}
+
+research_dispatch_command() {
+    local command="$1"
+    shift
+    case "$command" in
+        research-resume)
+            [[ $# -eq 1 ]] || {
+                printf 'Usage: %s research-resume <run-id>\n' "$(basename "$0")" >&2
+                return 2
+            }
+            research_resume_run "$1"
+            ;;
+        research-verify)
+            [[ $# -eq 2 ]] || {
+                printf 'Usage: %s research-verify <run-id> <synthesis-file>\n' "$(basename "$0")" >&2
+                return 2
+            }
+            research_verify_run "$1" "$2"
+            ;;
+        *) return 2 ;;
+    esac
+}
+
 research_sha256() {
     local file="$1"
     if command -v shasum >/dev/null 2>&1; then

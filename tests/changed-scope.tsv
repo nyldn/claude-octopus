@@ -49,6 +49,7 @@ tests/fixtures/v10-*	tests/integration/test-v10-failure-injection.sh
 tests/helpers/v10-*	tests/integration/test-v10-failure-injection.sh
 scripts/lib/research-evidence.sh	tests/unit/test-research-evidence.sh
 scripts/lib/provider-routing.sh	tests/unit/test-provider-child-boundary.sh
+scripts/lib/usage-help.sh	tests/smoke/test-help-commands.sh
 hooks/*	tests/unit/test-provider-child-boundary.sh
 
 AGENTS.md	tests/unit/test-v8.2.0-agent-fields.sh tests/integration/test-native-first-docs.sh

@@ -569,11 +569,6 @@ OCTOPUS_BACKEND="api"              # v8.16: Detected backend (api|bedrock|vertex
 AGENT_TEAMS_ENABLED="${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-0}"
 OCTOPUS_SECURITY_V870="${OCTOPUS_SECURITY_V870:-true}"
 OCTOPUS_MAX_COST_USD="${OCTOPUS_MAX_COST_USD:-}"
-OCTOPUS_RESEARCH_INTENSITY="${OCTOPUS_RESEARCH_INTENSITY:-standard}"
-OCTOPUS_RESEARCH_EVIDENCE="${OCTOPUS_RESEARCH_EVIDENCE:-true}"
-OCTOPUS_RESEARCH_RUN_ID="${OCTOPUS_RESEARCH_RUN_ID:-}"
-OCTOPUS_RESEARCH_RESUME="${OCTOPUS_RESEARCH_RESUME:-false}"
-
 # POSIX-compatible string case helpers (macOS ships bash 3.2 which lacks ${var^} and ${var,,})
 _ucfirst() { local _c; _c=$(printf '%s' "${1:0:1}" | tr '[:lower:]' '[:upper:]'); printf '%s' "${_c}${1:1}"; }
 
@@ -2302,20 +2297,10 @@ while [[ $# -gt 0 ]]; do
         --quality-first) FORCE_QUALITY_FIRST=true; shift ;;
         --openrouter-nitro) OPENROUTER_ROUTING_OVERRIDE=":nitro"; shift ;;
         --openrouter-floor) OPENROUTER_ROUTING_OVERRIDE=":floor"; shift ;;
-        --intensity=*) OCTOPUS_RESEARCH_INTENSITY="${1#*=}"; shift ;;
-        --intensity) OCTOPUS_RESEARCH_INTENSITY="$2"; shift 2 ;;
-        --breadth=*)
-            case "${1#*=}" in light) OCTOPUS_RESEARCH_INTENSITY=quick ;; standard) OCTOPUS_RESEARCH_INTENSITY=standard ;; exhaustive) OCTOPUS_RESEARCH_INTENSITY=deep ;; *) OCTOPUS_RESEARCH_INTENSITY="${1#*=}" ;; esac
-            shift
+        --intensity|--intensity=*|--breadth|--breadth=*|--research-run|--research-run=*|--resume-research|--resume-research=*)
+            research_parse_global_option "$@" || { echo "Missing value for $1" >&2; exit 2; }
+            shift "$RESEARCH_OPTION_SHIFT"
             ;;
-        --breadth)
-            case "$2" in light) OCTOPUS_RESEARCH_INTENSITY=quick ;; standard) OCTOPUS_RESEARCH_INTENSITY=standard ;; exhaustive) OCTOPUS_RESEARCH_INTENSITY=deep ;; *) OCTOPUS_RESEARCH_INTENSITY="$2" ;; esac
-            shift 2
-            ;;
-        --research-run=*) OCTOPUS_RESEARCH_RUN_ID="${1#*=}"; shift ;;
-        --research-run) OCTOPUS_RESEARCH_RUN_ID="$2"; shift 2 ;;
-        --resume-research=*) OCTOPUS_RESEARCH_RUN_ID="${1#*=}"; OCTOPUS_RESEARCH_RESUME=true; shift ;;
-        --resume-research) OCTOPUS_RESEARCH_RUN_ID="$2"; OCTOPUS_RESEARCH_RESUME=true; shift 2 ;;
         # Async and tmux visualization flags
         --async) ASYNC_MODE=true; shift ;;
         --no-async) ASYNC_MODE=false; shift ;;
@@ -2403,37 +2388,13 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
             --quality-first) FORCE_QUALITY_FIRST=true; shift ;;
             --openrouter-nitro) OPENROUTER_ROUTING_OVERRIDE=":nitro"; shift ;;
             --openrouter-floor) OPENROUTER_ROUTING_OVERRIDE=":floor"; shift ;;
-            --intensity=*)
-                OCTOPUS_RESEARCH_INTENSITY="${1#*=}"
-                shift
-                ;;
-            --intensity)
-                if [[ -n "${2:-}" ]]; then OCTOPUS_RESEARCH_INTENSITY="$2"; shift 2; else _late_args+=("$1"); shift; fi
-                ;;
-            --breadth=*)
-                case "${1#*=}" in light) OCTOPUS_RESEARCH_INTENSITY=quick ;; standard) OCTOPUS_RESEARCH_INTENSITY=standard ;; exhaustive) OCTOPUS_RESEARCH_INTENSITY=deep ;; *) OCTOPUS_RESEARCH_INTENSITY="${1#*=}" ;; esac
-                shift
-                ;;
-            --breadth)
-                if [[ -n "${2:-}" ]]; then
-                    case "$2" in light) OCTOPUS_RESEARCH_INTENSITY=quick ;; standard) OCTOPUS_RESEARCH_INTENSITY=standard ;; exhaustive) OCTOPUS_RESEARCH_INTENSITY=deep ;; *) OCTOPUS_RESEARCH_INTENSITY="$2" ;; esac
-                    shift 2
-                else _late_args+=("$1"); shift; fi
-                ;;
-            --research-run=*)
-                OCTOPUS_RESEARCH_RUN_ID="${1#*=}"
-                shift
-                ;;
-            --research-run)
-                if [[ -n "${2:-}" ]]; then OCTOPUS_RESEARCH_RUN_ID="$2"; shift 2; else _late_args+=("$1"); shift; fi
-                ;;
-            --resume-research=*)
-                OCTOPUS_RESEARCH_RUN_ID="${1#*=}"
-                OCTOPUS_RESEARCH_RESUME=true
-                shift
-                ;;
-            --resume-research)
-                if [[ -n "${2:-}" ]]; then OCTOPUS_RESEARCH_RUN_ID="$2"; OCTOPUS_RESEARCH_RESUME=true; shift 2; else _late_args+=("$1"); shift; fi
+            --intensity|--intensity=*|--breadth|--breadth=*|--research-run|--research-run=*|--resume-research|--resume-research=*)
+                if research_parse_global_option "$@"; then
+                    shift "$RESEARCH_OPTION_SHIFT"
+                else
+                    _late_args+=("$1")
+                    shift
+                fi
                 ;;
             *)
                 _late_args+=("$1")
@@ -2521,19 +2482,8 @@ case "$COMMAND" in
         fi
         probe_discover "$*"
         ;;
-    research-resume)
-        if [[ $# -ne 1 ]]; then
-            echo "Usage: $(basename "$0") research-resume <run-id>" >&2
-            exit 2
-        fi
-        research_resume_run "$1"
-        ;;
-    research-verify)
-        if [[ $# -ne 2 ]]; then
-            echo "Usage: $(basename "$0") research-verify <run-id> <synthesis-file>" >&2
-            exit 2
-        fi
-        research_verify_run "$1" "$2"
+    research-resume|research-verify)
+        research_dispatch_command "$COMMAND" "$@"
         ;;
     probe-single)
         # v8.54.0: Single-agent probe for multi-agentic skill dispatch
