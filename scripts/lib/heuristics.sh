@@ -225,9 +225,9 @@ Automated probe synthesis unavailable.
 The synthesis provider did not produce a coherent discovery summary. This fallback is intentionally compact and does not attach full raw probe artifacts.
 
 ## Source Coverage
-- Usable research threads included: ${result_count}
-- Usable results reported by probe: ${usable_results}
-- Raw source bytes considered: ${total_content_size}
+- Usable research threads included: ${result_count} [inference]
+- Usable results reported by probe: ${usable_results} [inference]
+- Raw source bytes considered: ${total_content_size} [inference]
 - Full raw artifacts remain available in RESULTS_DIR for manual inspection.
 
 ## Original Question
@@ -399,6 +399,10 @@ synthesize_probe_results() {
     local usable_results="${3:-0}"  # v7.19.0 P1.1: Accept usable result count
     local synthesis_file="${RESULTS_DIR}/probe-synthesis-${task_group}.md"
 
+    if declare -F research_synthesis_prepare >/dev/null 2>&1; then
+        research_synthesis_prepare "$task_group" "$original_prompt" || return 1
+    fi
+
     log INFO "Synthesizing research findings..."
 
     # v7.19.0 P1.1: Gather probe result metrics with size filtering.
@@ -448,6 +452,11 @@ synthesize_probe_results() {
     # Use the Google seat (agy, post Gemini-CLI sunset #524) for intelligent synthesis
     # v8.49.0: Enhanced prompt with structured output, minority opinion preservation,
     # and relevance-aware weighting (inspired by Crawl4AI content filtering patterns)
+    local evidence_catalog=""
+    if declare -F research_source_catalog >/dev/null 2>&1; then
+        evidence_catalog=$(research_source_catalog 2>/dev/null || true)
+    fi
+
     local synthesis_prompt="Synthesize these research findings into a coherent discovery summary.
 
 Original Question: $original_prompt
@@ -459,7 +468,10 @@ Sources are pre-ranked by quality score (best first). However:
 - Short but specific findings may be MORE valuable than lengthy general analysis
 - Minority opinions and dissenting views MUST be preserved — they often contain critical insights
 - Concrete examples (code, file paths, commands) outweigh abstract discussion
-- Every factual claim must cite its source provider/file or be explicitly marked [inference]
+- Every factual claim must cite one or more catalog IDs as [source:S001] or be explicitly marked [inference]
+- Quotes and numeric claims must cite a catalog source whose snapshot contains the exact quote or number
+- Count independent evidence groups, not citation count. Sources with the same independence key are one voice
+- Never call duplicated or syndicated sources consensus; consensus requires at least two independence keys
 - Failed or rejected provider outputs were excluded and must not be cited as evidence
 
 Structure your synthesis as:
@@ -469,6 +481,9 @@ Structure your synthesis as:
 4. **Gaps** — What's still unknown and needs more research
 5. **Priority Matrix** — Rank findings by impact (High/Medium/Low) and effort (Low/Medium/High) in a table
 6. **Recommended Approach** — Specific next steps based on findings
+
+Evidence catalog (the only valid source IDs):
+${evidence_catalog:-No external evidence catalog is available. Mark factual conclusions [inference].}
 
 Research findings:
 $results"
@@ -495,7 +510,13 @@ $results"
         synthesis=$(build_probe_fallback_synthesis "$original_prompt" "$result_count" "$usable_results" "$total_content_size" "$results")
     fi
 
-    cat > "$synthesis_file" << EOF
+    local draft_file="$synthesis_file"
+    if declare -F research_synthesis_select_draft >/dev/null 2>&1; then
+        research_synthesis_select_draft "$synthesis_file" "$task_group" || return 1
+        draft_file="$RESEARCH_SYNTHESIS_DRAFT_FILE"
+    fi
+
+    cat > "$draft_file" << EOF
 # PROBE Phase Synthesis
 ## Discovery Summary - $(date)
 ## Original Task: $original_prompt
@@ -505,6 +526,10 @@ $synthesis
 ---
 *Synthesized from $result_count research threads (task group: $task_group)*
 EOF
+
+    if declare -F research_synthesis_publish >/dev/null 2>&1; then
+        research_synthesis_publish "$draft_file" "$synthesis_file" || return 1
+    fi
 
     log INFO "Synthesis complete: $synthesis_file"
 

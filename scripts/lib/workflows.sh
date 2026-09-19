@@ -56,6 +56,13 @@ probe_single_agent() {
 
     mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
 
+    if declare -F research_probe_single_begin >/dev/null 2>&1; then
+        research_probe_single_begin "$task_id" "$original_prompt" || {
+            log ERROR "Unable to initialize durable research state for $task_id"
+            return 1
+        }
+    fi
+
     # Dispatch from the user's project so provider sandboxes (codex workdir,
     # provider sandboxes can read project files (bug 260609). probe-single runs
     # in its own orchestrate.sh process, so cd here cannot leak to other work.
@@ -443,6 +450,12 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     # Cleanup temp files
     rm -f "$temp_input" "$temp_output" "$temp_errors" "$raw_output"
 
+    if declare -F research_probe_single_record >/dev/null 2>&1; then
+        local evidence_status="completed"
+        [[ "$final_rc" -eq 0 ]] || evidence_status="failed"
+        research_probe_single_record "$task_id" "$agent_type" "$evidence_status" || true
+    fi
+
     log "INFO" "probe_single_agent complete: $result_file"
     # Output the result file path for the caller
     echo "$result_file"
@@ -731,6 +744,17 @@ probe_discover() {
     local _ts; _ts=$(date +%s)
     local prompt="$1"
     local task_group="$_ts"
+    local research_intensity="${OCTOPUS_RESEARCH_INTENSITY:-standard}"
+    if [[ "${FORCE_TIER:-}" == "trivial" && "$research_intensity" == "standard" ]]; then
+        research_intensity="quick"
+    fi
+    case "$research_intensity" in
+        quick|standard|deep) ;;
+        *)
+            log ERROR "Invalid research intensity: $research_intensity (expected quick, standard, or deep)"
+            return 2
+            ;;
+    esac
     export OCTOPUS_COMMAND="${OCTOPUS_COMMAND:-discover}"
     export OCTOPUS_COMMAND_ARGS="${OCTOPUS_COMMAND_ARGS:-$prompt}"
 
@@ -743,19 +767,41 @@ probe_discover() {
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY-RUN] Would probe: $prompt"
-        log INFO "[DRY-RUN] Would spawn 5+ parallel research agents (Codex, Antigravity/agy, Sonnet 5, +codebase if in git repo, +Perplexity if API key set)"
+        case "$research_intensity" in
+            quick) log INFO "[DRY-RUN] Would spawn 2 diverse research agents" ;;
+            standard) log INFO "[DRY-RUN] Would spawn 5 research agents" ;;
+            deep) log INFO "[DRY-RUN] Would spawn 5-7 research agents, including codebase and live-web perspectives when available" ;;
+        esac
         return 0
     fi
 
     # Pre-flight validation
     preflight_check || return 1
 
+    if declare -F research_run_begin >/dev/null 2>&1; then
+        research_run_begin "$task_group" "$prompt" "$research_intensity" || return $?
+        task_group="$RESEARCH_TASK_GROUP"
+        prompt="$RESEARCH_PROMPT"
+        research_intensity="$RESEARCH_INTENSITY"
+        if [[ "${OCTOPUS_RESEARCH_RESUME:-false}" == "true" ]]; then
+            local resumed_synthesis="${RESULTS_DIR}/probe-synthesis-${task_group}.md"
+            if [[ -s "$resumed_synthesis" ]] \
+               && [[ "$(research_manifest_value "$RESEARCH_RUN_DIR/manifest.json" status)" == "completed" ]]; then
+                echo -e "${GREEN}✓${NC} Research run already complete: $resumed_synthesis"
+                return 0
+            fi
+            research_collect_sources "$task_group" || return 1
+            synthesize_probe_results "$task_group" "$prompt" "0"
+            return $?
+        fi
+    fi
+
     # Cost transparency (v7.18.0 - P0.0)
-    # v8.24.0: Perplexity adds +1 external call when available
     local probe_external_calls=5
-    [[ -n "${PERPLEXITY_API_KEY:-}" ]] && ((++probe_external_calls))
+    case "$research_intensity" in quick) probe_external_calls=2 ;; deep) probe_external_calls=7 ;; esac
     if ! display_workflow_cost_estimate "Probe (Discover Phase)" "$probe_external_calls" 0 1500; then
         log "WARN" "Workflow cancelled by user after cost review"
+        research_run_update "cancelled" "cancelled" "user declined cost review" 2>/dev/null || true
         return 1
     fi
 
@@ -763,7 +809,7 @@ probe_discover() {
     local cache_key
     cache_key=$(get_cache_key "$prompt")
 
-    if check_cache "$cache_key"; then
+    if [[ "${OCTOPUS_RESEARCH_EVIDENCE:-true}" != "true" ]] && check_cache "$cache_key"; then
         echo -e "${CYAN}♻️  Using cached results from previous run${NC}"
         local cached_file
         cached_file="$(octo_probe_cache_dir)/${cache_key}.md"
@@ -804,6 +850,10 @@ probe_discover() {
         "🔧 Feasibility"
         "🔵 Cross-Synthesis"
     )
+    if [[ "$research_intensity" == "quick" ]]; then
+        perspectives=("${perspectives[0]}" "${perspectives[1]}")
+        pane_titles=("${pane_titles[0]}" "${pane_titles[1]}")
+    fi
     # v9.2.0: Smart dispatch — choose providers based on task analysis
     local dispatch_result
     dispatch_result=$(get_dispatch_strategy "$prompt" "research")
@@ -839,7 +889,7 @@ ${_blind_spot_checklist}"
     fi
 
     # v8.14.0: Codebase-aware discovery — add 6th agent when inside a git repo
-    if git rev-parse --is-inside-work-tree &>/dev/null 2>&1; then
+    if [[ "$research_intensity" == "deep" ]] && git rev-parse --is-inside-work-tree &>/dev/null 2>&1; then
         local src_dirs
         src_dirs=$(find . -maxdepth 2 -type f \( -name "*.ts" -o -name "*.py" -o -name "*.go" -o -name "*.rs" -o -name "*.java" -o -name "*.js" \) 2>/dev/null | head -1)
         if [[ -n "$src_dirs" ]]; then
@@ -852,7 +902,7 @@ ${_blind_spot_checklist}"
 
     # v8.24.0: Web-grounded research via Perplexity Sonar (Issue #22)
     # Adds a live web search perspective when PERPLEXITY_API_KEY is available
-    if [[ -n "${PERPLEXITY_API_KEY:-}" ]]; then
+    if [[ "$research_intensity" == "deep" && -n "${PERPLEXITY_API_KEY:-}" ]]; then
         perspectives+=("Search the live web for the latest information about: $prompt. Find recent articles, documentation, blog posts, GitHub repos, and community discussions. Include source URLs and publication dates. Focus on information from the last 12 months that may not be in training data.")
         pane_titles+=("🟣 Web Research")
         probe_agents+=("perplexity")
@@ -1025,6 +1075,11 @@ ${_blind_spot_checklist}"
         fi
     fi
     echo ""
+
+    if declare -F research_run_update >/dev/null 2>&1 && [[ -n "${RESEARCH_RUN_DIR:-}" ]]; then
+        research_run_update "providers_complete" "running" "usable=$usable_results failed=$failure_count" || return 1
+        research_collect_sources "$task_group" || return 1
+    fi
 
     # v9.37.0: Make provider participation explicit before synthesis so users
     # can tell which LLMs actually contributed and fail-fast if all providers

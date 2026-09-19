@@ -481,6 +481,16 @@ See [the v11 migration notes](docs/MIGRATING-V11.md) and
 
 ### Added
 
+- Research runs now preserve a local manifest, source ledger, and verification
+  report so interrupted discovery can be resumed without repeating completed
+  provider work.
+- Research synthesis now checks source IDs, quoted text, numeric claims, and
+  independence-aware corroboration. Bounded public-HTTPS fetching rechecks
+  redirects and response sizes before using content as evidence.
+- Background provider sessions now suppress nested automatic routing, avoiding
+  recursive Octopus launches when a research workflow invokes Claude Code or
+  Codex.
+
 - Opt-in one-vote-per-vendor council seating. Set
   `OCTOPUS_COUNCIL_ONE_VOTE_PER_VENDOR=1` to keep at most one non-chair voting
   seat per provider org: after diversity enforcement the roster drops all but the

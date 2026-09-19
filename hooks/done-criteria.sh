@@ -13,6 +13,9 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 
 set -euo pipefail
+
+# Provider subprocesses must not receive user-session completion routing.
+[[ "${OCTOPUS_PROVIDER_CHILD:-false}" == "true" ]] && exit 0
 # EXIT trap — emits diagnostic stderr ONLY when the hook exits non-zero, so
 # the Claude Code harness error "No stderr output" can never recur. EXIT (not
 # ERR) avoids over-firing on intermediate `grep -o`/`cmd | ...` inside $() that

@@ -205,7 +205,11 @@ EOF
             cat << EOF
 ${YELLOW}discover${NC} (aliases: research, probe) - Parallel exploration phase
 
-${YELLOW}Usage:${NC} $(basename "$0") discover <prompt>
+${YELLOW}Usage:${NC} $(basename "$0") discover [--intensity quick|standard|deep] <prompt>
+
+Use quick for a fast scan, standard for the balanced default, or deep for
+additional codebase and live-web perspectives. The equivalent breadth aliases
+are light, standard, and exhaustive.
 
 Sends your prompt to multiple AI agents in parallel, each exploring
 from a different perspective. Results are synthesized into a

@@ -141,3 +141,5 @@ Brief note on what was researched, which providers contributed, and any gaps or 
 "I need deep research on Kubernetes security best practices"
 "Research authentication strategies for microservices"
 ```
+
+For a bounded run, add --intensity=quick, --intensity=standard, or --intensity=deep (or the equivalent --breadth=light|standard|exhaustive). Research records a local run manifest, source ledger, and verification report so an interrupted run can be resumed rather than repeated. See docs/RESEARCH-EVIDENCE.md for the run files, network boundaries, and research-verify recovery command.

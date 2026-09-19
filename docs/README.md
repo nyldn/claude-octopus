@@ -19,6 +19,7 @@
 - [MIGRATING-V11.md](./MIGRATING-V11.md) — Required project roots and stricter routing/review contracts
 - [SCHEDULER.md](./SCHEDULER.md) — Scheduled jobs and daemon management
 - [KNOWLEDGE-WORKERS.md](./KNOWLEDGE-WORKERS.md) — Research and strategy-oriented personas
+- [RESEARCH-EVIDENCE.md](./RESEARCH-EVIDENCE.md) — Resumable runs, source provenance, verification, and safe fetching
 
 ## Provider Configuration
 

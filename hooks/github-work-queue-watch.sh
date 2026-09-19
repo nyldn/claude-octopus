@@ -4,6 +4,9 @@
 
 set -euo pipefail
 
+# Provider subprocesses are internal work, not new user prompts.
+[[ "${OCTOPUS_PROVIDER_CHILD:-false}" == "true" ]] && exit 0
+
 # Maintainer convenience must never make network requests for ordinary plugin
 # users. Enable explicitly in a maintainer environment when desired.
 [[ "${OCTOPUS_GITHUB_WORK_QUEUE:-off}" == "on" ]] || exit 0

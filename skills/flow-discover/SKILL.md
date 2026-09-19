@@ -218,7 +218,7 @@ The output is one line per agent: `agent_type|label|perspective_prompt`
 
 ### STEP 4: Launch Parallel Agent Subagents (MANDATORY - Use Agent Tool)
 
-**Launch each perspective as a background Agent subagent.** Each agent calls `orchestrate.sh probe-single` which handles persona application, credential isolation, and result file writing.
+**Launch each perspective as a background Agent subagent.** Each agent calls `orchestrate.sh probe-single` which handles persona application, credential isolation, result file writing, and durable evidence-run recording. A probe batch with task IDs `probe-<timestamp>-<index>` is recorded as run `flow-<timestamp>`.
 
 **CRITICAL: You MUST use the host subagent tool with `background execution: true` for each perspective.** Launch providers strictly in the runtime FLEET_OUTPUT sequence.
 
@@ -297,6 +297,13 @@ mkdir -p "$(dirname "$SYNTHESIS_FILE")"
 ```
 
 Write the synthesis content to `$SYNTHESIS_FILE`. The file MUST exist for the validation gate.
+
+Before presenting the synthesis, run the mechanical evidence gate when the durable run is available:
+
+    "$HOME/.claude-octopus/plugin/scripts/orchestrate.sh" research-verify \
+      "flow-<timestamp>" "$SYNTHESIS_FILE"
+
+If verification reports an unfetched source, retain the warning in the report; do not present that claim as independently verified.
 
 
 ### STEP 7: Verify, Update State & Present (Only After Steps 1-6 Complete)

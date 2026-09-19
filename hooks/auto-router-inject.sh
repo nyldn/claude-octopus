@@ -8,6 +8,10 @@ set -euo pipefail
 _octo_hook_exit() { local c=$?; if [[ $c -ne 0 ]]; then echo "[hook:$(basename "$0")] exit $c" >&2 2>/dev/null || true; fi; return 0; }
 trap _octo_hook_exit EXIT
 
+# Provider subprocesses are already inside an Octopus dispatch. Do not inject
+# a second routing contract that can trigger recursive orchestration.
+[[ "${OCTOPUS_PROVIDER_CHILD:-false}" == "true" ]] && exit 0
+
 escape_for_json() {
     local s="$1"
     s="${s//\\/\\\\}"

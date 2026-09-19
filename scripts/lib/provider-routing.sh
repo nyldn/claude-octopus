@@ -198,7 +198,8 @@ _octo_build_provider_env_impl() {
                 resolve_provider_env "$_codex_env_key" 2>/dev/null || true
             fi
 
-            PROVIDER_ENV_ARRAY=(env -i "PATH=$PATH" "HOME=$HOME" "TMPDIR=${TMPDIR:-/tmp}")
+            PROVIDER_ENV_ARRAY=(env -i "PATH=$PATH" "HOME=$HOME" \
+                "TMPDIR=${TMPDIR:-/tmp}" "OCTOPUS_PROVIDER_CHILD=true")
             if [[ -n "${CODEX_HOME:-}" ]]; then
                 PROVIDER_ENV_ARRAY+=("CODEX_HOME=${CODEX_HOME}")
             fi
@@ -387,7 +388,7 @@ _octo_build_provider_env_impl() {
             # Claude Code session markers, or the inner `claude` hangs thinking it
             # is a nested child (council/agent-sync seat stalls at 0 bytes until
             # timeout). Strip them; keep the rest of the env (PATH/HOME/auth).
-            PROVIDER_ENV_ARRAY=(env -u CLAUDECODE -u CLAUDE_CODE_CHILD_SESSION -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u CLAUDE_CODE_EXECPATH)
+            PROVIDER_ENV_ARRAY=(env -u CLAUDECODE -u CLAUDE_CODE_CHILD_SESSION -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u CLAUDE_CODE_EXECPATH "OCTOPUS_PROVIDER_CHILD=true")
             if [[ ${#_trace_env[@]} -gt 0 ]]; then
                 PROVIDER_ENV_ARRAY+=("${_trace_env[@]}")
             fi

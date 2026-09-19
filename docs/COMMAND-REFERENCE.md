@@ -477,6 +477,9 @@ Discovery phase — Multi-AI research and exploration.
 - Parallel research using Codex CLI + Antigravity CLI
 - Relevance-aware synthesis with quality ranking (v8.49.0+)
 - Minority opinion preservation — surfaces dissenting views
+- Saves a local run manifest and source ledger so interrupted research can be resumed
+- Mechanically checks cited source IDs, quoted text, numeric claims, and source independence
+- Applies bounded public-HTTPS fetching with redirect and response-size checks
 - Shows visual indicator: 🐙 🔍
 
 **Natural language triggers:**
