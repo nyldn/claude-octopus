@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.6.0] - 2026-09-18
+
 ### Added
 
 - Tangle can adapt its write scope to the task and explicitly authorize

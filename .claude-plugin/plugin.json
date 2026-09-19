@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.5.0",
-  "description": "v11.5.0 - Find the right command, check your installation, and repair broken plugin links safely. Run /octo:setup.",
+  "version": "11.6.0",
+  "description": "v11.6.0 \u2014 Smarter task planning, safer context routing, and more accurate diagnostics. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
