@@ -464,6 +464,10 @@ orphan_pid=$!
 printf '%s:fixture:orphan-task\n' "$orphan_pid" > "$state_root/pids"
 DOCTOR_RESULTS_NAME=() DOCTOR_RESULTS_CAT=() DOCTOR_RESULTS_STATUS=() DOCTOR_RESULTS_MSG=() DOCTOR_RESULTS_DETAIL=()
 if declare -f doctor_check_v10_state_health >/dev/null 2>&1; then
+    # CLAUDE_PLUGIN_DATA/CLAUDE_OCTOPUS_WORKSPACE outrank WORKSPACE_DIR in the
+    # no-argument fallback's precedence; unset them so this test reliably
+    # exercises $state_root regardless of what the ambient environment has set.
+    unset CLAUDE_PLUGIN_DATA CLAUDE_OCTOPUS_WORKSPACE
     WORKSPACE_DIR="$state_root" PID_FILE="$state_root/pids" OCTOPUS_RUNNING_STALE_SECONDS=1 \
         doctor_check_v10_state_health
 fi
