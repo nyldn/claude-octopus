@@ -151,9 +151,10 @@ _doctor_iso_epoch() {
 # CLAUDE_OCTOPUS_WORKSPACE — doctor.sh doesn't source that resolver (a
 # lighter-weight check path), so this mirrors its tilde handling directly.
 _doctor_resolve_workspace_dir() {
-    local workspace="${CLAUDE_PLUGIN_DATA:-${CLAUDE_OCTOPUS_WORKSPACE:-${WORKSPACE_DIR:-${HOME}/.claude-octopus}}}"
+    local home_base="${HOME:-$PWD}"
+    local workspace="${CLAUDE_PLUGIN_DATA:-${CLAUDE_OCTOPUS_WORKSPACE:-${WORKSPACE_DIR:-${home_base}/.claude-octopus}}}"
     if [[ "$workspace" == \~* ]]; then
-        workspace="${HOME}${workspace#\~}"
+        workspace="${home_base}${workspace#\~}"
     fi
     printf '%s\n' "$workspace"
 }
