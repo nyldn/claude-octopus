@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.7.0] - 2026-09-19
+
 ### Added
 
 - Premium mode can opt into one bounded Fable 5.1 or GPT-6 Astra architecture

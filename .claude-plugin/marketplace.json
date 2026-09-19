@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "11.6.0"
+    "version": "11.7.0"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v11.6.0 - Smarter task planning, safer context routing, and more accurate diagnostics. 31 personas, 54 commands, 63 skills. Run /octo:setup.",
-      "version": "11.6.0",
+      "description": "v11.7.0 - Schema-versioned Tangle planning, consistent Doctor diagnostics, and bounded Premium frontier escalation. 31 personas, 54 commands, 63 skills. Run /octo:setup.",
+      "version": "11.7.0",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"
