@@ -4,6 +4,7 @@
 
 OCTO_CODEX_MIN_VERSION="${OCTO_CODEX_MIN_VERSION:-0.144.0}"
 OCTO_CODEX_ASTRA_MIN_VERSION="${OCTO_CODEX_ASTRA_MIN_VERSION:-0.153.1}"
+OCTO_CLAUDE_FABLE_MIN_VERSION="${OCTO_CLAUDE_FABLE_MIN_VERSION:-2.1.255}"
 OCTO_AGY_MIN_VERSION="${OCTO_AGY_MIN_VERSION:-1.0.6}"
 OCTO_QWEN_MIN_VERSION="${OCTO_QWEN_MIN_VERSION:-0.14.0}"
 OCTO_GH_MIN_VERSION="${OCTO_GH_MIN_VERSION:-2.0.0}"
@@ -54,6 +55,32 @@ octo_codex_installed_version() {
   fi
   local version
   version="$(codex --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)"
+  printf '%s\n' "${version:-unknown}"
+}
+
+# Bounded host-seat escalation must not select Fable 5.1 on a Claude Code
+# release that cannot identify the model. Unknown versions fail closed.
+octo_claude_model_version_ok() {
+  local installed="$1" model="$2"
+  if declare -f octo_model_canonical_id >/dev/null 2>&1; then
+    model="$(octo_model_canonical_id "$model")" || return 1
+  fi
+  [[ "$model" == "claude-fable-5-1" ]] || return 0
+  [[ "$installed" != "unknown" && -n "$installed" ]] || return 1
+  octo_version_ok "$installed" "$OCTO_CLAUDE_FABLE_MIN_VERSION"
+}
+
+octo_claude_installed_version() {
+  local configured_bin="${OCTOPUS_CLAUDE_BIN:-claude}"
+  local -a configured_argv
+  read -r -a configured_argv <<< "$configured_bin"
+  if [[ "${#configured_argv[@]}" -eq 0 ]] ||
+     ! command -v "${configured_argv[0]}" >/dev/null 2>&1; then
+    printf '%s\n' "unknown"
+    return 0
+  fi
+  local version
+  version="$("${configured_argv[@]}" --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)"
   printf '%s\n' "${version:-unknown}"
 }
 

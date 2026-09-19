@@ -9,6 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 source "${SCRIPT_DIR}/../lib/provider-allowlist.sh" || { echo "ERROR: failed to load provider-allowlist.sh" >&2; exit 1; }
 source "${SCRIPT_DIR}/../lib/provider-registry.sh" || { echo "ERROR: failed to load provider-registry.sh" >&2; exit 1; }
 source "${SCRIPT_DIR}/../lib/models.sh" || { echo "ERROR: failed to load models.sh" >&2; exit 1; }
+source "${SCRIPT_DIR}/../lib/frontier-escalation.sh" || { echo "ERROR: failed to load frontier-escalation.sh" >&2; exit 1; }
 source "${SCRIPT_DIR}/../lib/model-cache-path.sh" 2>/dev/null || true
 # Must match the path lib/model-resolver.sh writes; this was hardcoded to /tmp
 # while the resolver honoured $TMPDIR, so `clear_cache` was a no-op on macOS.
@@ -73,6 +74,21 @@ log_error() { echo -e "${RED}ERROR:${NC} $1"; }
 
 automatic_target_allowed() {
     octo_model_automatic_target_allowed "${1:-}" "${2:-}"
+}
+
+frontier_target_provider() {
+    get_model_capability "${1:-}" provider 2>/dev/null || true
+}
+
+frontier_target_guidance() {
+    local target="${1:-}" provider="${2:-}"
+    provider="${provider:-$(frontier_target_provider "$target")}"
+    if octo_frontier_model_budget "$target" >/dev/null 2>&1 && [[ -n "$provider" ]]; then
+        printf "Use 'tier premium %s %s' for bounded judgment escalation, or an exact model-qualified seat.\n" \
+            "$provider" "$target" >&2
+    else
+        printf '%s\n' "Use a one-command environment pin or an exact model-qualified seat." >&2
+    fi
 }
 
 # Ensure config file exists and is v3.0
@@ -467,14 +483,39 @@ cmd_tier() {
         return 1
     fi
     if ! automatic_target_allowed "$target" "$provider"; then
-        log_error "$target is explicit-only and cannot be assigned to an automatic cost tier"
-        return 1
+        local frontier_budget="" frontier_provider=""
+        frontier_budget="$(octo_frontier_model_budget "$target" 2>/dev/null || true)"
+        frontier_provider="$(frontier_target_provider "$target")"
+        if [[ "$mode" != premium || -z "$frontier_budget" || "$frontier_provider" != "$provider" ]]; then
+            log_error "$target is explicit-only and cannot be assigned to this automatic cost tier"
+            frontier_target_guidance "$target" "$frontier_provider"
+            return 1
+        fi
+        if ! octo_frontier_model_runtime_available "$target"; then
+            log_error "${target} is unavailable: install or update the ${provider} CLI before enabling bounded Premium escalation"
+            return 1
+        fi
+
+        ensure_config
+        local frontier_tmp="${CONFIG_FILE}.tmp.$$"
+        if ! jq --arg provider "$provider" --arg target "$target" \
+            '.routing.frontier[$provider] = {model: $target, mode: "bounded"}' \
+            "$CONFIG_FILE" >"$frontier_tmp" || ! mv "$frontier_tmp" "$CONFIG_FILE"; then
+            rm -f "$frontier_tmp"
+            log_error "Failed to persist bounded frontier policy"
+            return 1
+        fi
+        clear_cache
+        log_info "Premium ${provider} frontier escalation → ${target} (${frontier_budget} dispatch/run)"
+        return 0
     fi
 
     ensure_config
     local tmp_file="${CONFIG_FILE}.tmp.$$"
     if ! jq --arg mode "$mode" --arg provider "$provider" --arg target "$target" \
-        '.tiers[$mode][$provider] = $target' "$CONFIG_FILE" > "$tmp_file" ||
+        '.tiers[$mode][$provider] = $target |
+         if $mode == "premium" then del(.routing.frontier[$provider]) else . end' \
+        "$CONFIG_FILE" > "$tmp_file" ||
        ! mv "$tmp_file" "$CONFIG_FILE"; then
         rm -f "$tmp_file"
         log_error "Failed to persist tier mapping"
@@ -523,6 +564,36 @@ cmd_list() {
         echo "  ${OCTOPUS_COST_MODE} (environment: OCTOPUS_COST_MODE)"
     else
         echo "  $(configured_cost_mode) (providers.json)"
+    fi
+
+    echo -e "\n${YELLOW}Bounded Frontier Escalation:${NC}"
+    local frontier_rows
+    frontier_rows="$(jq -r '
+      (.routing.frontier // {}) | to_entries[] |
+      [.key, (if (.value | type) == "object" then .value.model else .value end)] | @tsv
+    ' "$CONFIG_FILE" 2>/dev/null || true)"
+    if [[ -z "$frontier_rows" ]]; then
+        echo "  (disabled — configure with: tier premium <provider> <frontier-model>)"
+    else
+        while IFS=$'\t' read -r frontier_provider frontier_model; do
+            local frontier_limit
+            frontier_limit="$(octo_frontier_model_budget "$frontier_model" 2>/dev/null || printf '%s' 0)"
+            printf '  %s: %s (%s dispatch/run; premium mode only)\n' \
+                "$frontier_provider" "$frontier_model" "$frontier_limit"
+            case "$frontier_provider" in
+                codex)
+                    if [[ -n "${OCTOPUS_CODEX_MODEL:-}" ]]; then
+                        echo "    WARN: OCTOPUS_CODEX_MODEL provider-wide pin disables bounded escalation."
+                    fi
+                    ;;
+                claude)
+                    if [[ -n "${OCTOPUS_OPUS_MODEL:-}" || -n "${OCTOPUS_CLAUDE_MODEL:-}" ||
+                          -n "${CLAUDE_MODEL:-}" ]]; then
+                        echo "    WARN: Claude provider-wide pin disables bounded escalation."
+                    fi
+                    ;;
+            esac
+        done <<<"$frontier_rows"
     fi
 
     # Provider allowlist
@@ -660,13 +731,15 @@ cmd_set() {
 
     if [[ -n "$capability" ]] && ! automatic_target_allowed "$model" "$provider"; then
         log_error "$model is explicit-only and cannot be assigned to an automatic capability"
+        frontier_target_guidance "$model" "$provider"
         exit 1
     fi
 
     ensure_config
 
     if [[ -z "$capability" ]] && ! automatic_target_allowed "$model" "$provider"; then
-        log_error "$model is explicit-only; use a one-command environment pin or an exact model-qualified seat"
+        log_error "$model is explicit-only and cannot be assigned as a provider default"
+        frontier_target_guidance "$model" "$provider"
         exit 1
     fi
 
@@ -703,6 +776,7 @@ cmd_route() {
     fi
     if ! automatic_target_allowed "$target"; then
         log_error "$target is explicit-only and cannot be assigned to an automatic phase route"
+        frontier_target_guidance "$target"
         exit 1
     fi
 
@@ -731,6 +805,7 @@ cmd_route_role() {
     fi
     if ! automatic_target_allowed "$target"; then
         log_error "$target is explicit-only and cannot be assigned to an automatic role route"
+        frontier_target_guidance "$target"
         exit 1
     fi
 
@@ -806,6 +881,7 @@ cmd_reset() {
         if ! jq --arg p "$provider" '
             del(.providers[$p])
             | del(.overrides[$p])
+            | del(.routing.frontier[$p])
             | .tiers = ((.tiers // {}) | with_entries(.value |= del(.[$p])))
         ' "$CONFIG_FILE" > "$reset_tmp"; then
             rm -f "$reset_tmp"

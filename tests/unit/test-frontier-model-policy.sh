@@ -37,7 +37,7 @@ fi
 
 test_case "frontier policy makes both models explicit-only and non-automatic"
 if [[ "$(get_model_policy claude-fable-5-1)" == "explicit|no|0|1|general" &&
-      "$(get_model_policy gpt-6-astra)" == "explicit|no|0|0|limited" ]] &&
+      "$(get_model_policy gpt-6-astra)" == "explicit|no|0|1|limited" ]] &&
    ! octo_model_auto_eligible claude-fable-5-1 &&
    ! octo_model_auto_eligible gpt-6-astra; then
     test_pass
@@ -55,7 +55,7 @@ canonical_forms=(
 canonical_ok=true
 for form in "${canonical_forms[@]}"; do
     if [[ "$(octo_model_canonical_id "$form")" != "gpt-6-astra" ]] ||
-       [[ "$(get_model_policy "$form")" != "explicit|no|0|0|limited" ]] ||
+       [[ "$(get_model_policy "$form")" != "explicit|no|0|1|limited" ]] ||
        octo_model_automatic_target_allowed "$form" openrouter; then
         canonical_ok=false
     fi
@@ -92,12 +92,12 @@ else
     test_fail "model-config hides the explicit-only frontier policy"
 fi
 
-test_case "model-config refuses frontier models on persisted configuration surfaces"
+test_case "model-config refuses frontier models on literal automatic configuration surfaces"
 config_home="$TEST_TMP_DIR/config-home"
 mkdir -p "$config_home"
 if HOME="$config_home" bash "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" set codex gpt-6-astra >/dev/null 2>&1 ||
-   HOME="$config_home" bash "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" tier premium codex gpt-6-astra >/dev/null 2>&1 ||
-   HOME="$config_home" bash "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" tier premium codex codex:gpt-6-astra >/dev/null 2>&1 ||
+   HOME="$config_home" bash "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" tier standard codex gpt-6-astra >/dev/null 2>&1 ||
+   HOME="$config_home" bash "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" tier budget codex codex:gpt-6-astra >/dev/null 2>&1 ||
    HOME="$config_home" bash "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" set codex.frontier gpt-6-astra >/dev/null 2>&1 ||
    HOME="$config_home" bash "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" route review codex:gpt-6-astra >/dev/null 2>&1 ||
    HOME="$config_home" bash "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" route-role reviewer codex:gpt-6-astra >/dev/null 2>&1 ||

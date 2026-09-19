@@ -162,12 +162,14 @@ AskUserQuestion({
 })
 ```
 
-`gpt-6-astra` is intentionally absent from persistent defaults and cost tiers.
-For a bounded evaluation after Sol fails a hard acceptance test, use
-`OCTOPUS_CODEX_MODEL=gpt-6-astra` for one command or an exact
-`codex:gpt-6-astra` seat. Model overrides written by `--session` share the
-global provider configuration, so explicit-only frontier models are rejected
-there until overrides are truly session-scoped.
+`gpt-6-astra` is intentionally absent from persistent provider defaults. For a
+bounded Premium evaluation after Sol fails a hard acceptance test, configure
+`tier premium codex gpt-6-astra`; Sol remains the ordinary seat and Astra is
+limited to one architecture or strategy dispatch per run. Astra requires Codex
+CLI v0.153.1 or newer and an `OCTOPUS_MAX_COST_USD` ceiling that covers the
+projected list-price usage for the prompt. A direct
+`OCTOPUS_CODEX_MODEL=gpt-6-astra` pin or exact `codex:gpt-6-astra` seat remains
+available for explicit one-off use.
 
 **OpenRouter example:**
 ```
@@ -360,6 +362,16 @@ To configure which model or capability a provider uses in a tier:
 ${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh tier <budget|standard|premium> <provider> <model-or-capability>
 ```
 
+When Premium is selected, offer these optional bounded judgment escalations
+only when the matching provider tool is available:
+
+- Claude: `tier premium claude claude-fable-5-1`
+- Codex: `tier premium codex gpt-6-astra` (also explain the CLI and cost-ceiling requirements)
+
+These choices add at most one architecture or strategy dispatch per run. They
+do not replace the normal Premium models or add frontier models to review,
+security, implementation, council, fleet, or fallback routes.
+
 
 ### Route: Role Routing Overrides
 
@@ -514,7 +526,9 @@ When invoked WITH arguments (e.g., `/octo:model-config codex gpt-5.6-sol`), skip
    for the active selection and `scripts/helpers/octo-model-config.sh tier
    <mode> <provider> <target>` for per-provider tier mappings. The
    `OCTOPUS_COST_MODE` environment variable remains the highest-priority
-   override.
+   override. Explicit-only frontier targets are accepted only for their
+   matching provider's Premium tier, where they configure bounded judgment
+   escalation instead of replacing the literal tier model.
 
 7. Always show confirmation and the updated value after any change.
 

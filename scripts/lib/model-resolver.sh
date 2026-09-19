@@ -31,6 +31,9 @@ fi
 if ! declare -f _is_cursor_agent_binary >/dev/null 2>&1; then
     source "${_model_resolver_lib_dir}/cursor-agent.sh" 2>/dev/null || true
 fi
+if ! declare -f octo_frontier_maybe_escalate >/dev/null 2>&1; then
+    source "${_model_resolver_lib_dir}/frontier-escalation.sh" 2>/dev/null || true
+fi
 if ! declare -f fable5_maybe_reroute >/dev/null 2>&1; then
     source "${_model_resolver_lib_dir}/fable5.sh" 2>/dev/null || true
 fi

@@ -34,6 +34,11 @@ FABLE5_LEGACY_MODEL_ID="claude-fable-5"
 # dispatch translates to the dash form the claude CLI expects.
 FABLE5_REROUTE_MODEL="claude-opus-5"
 
+_fable5_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if ! declare -f octo_frontier_claim >/dev/null 2>&1; then
+    source "${_fable5_lib_dir}/frontier-escalation.sh" 2>/dev/null || true
+fi
+
 fable5_is_model() {
     case "${1:-}" in
         "$FABLE5_MODEL_ID"|"$FABLE5_LEGACY_MODEL_ID") return 0 ;;
@@ -208,6 +213,11 @@ fable5_routing_policy() {
 # the default.
 fable5_escalation_role_eligible() {
     local role="${1:-}" policy
+    if [[ "${OCTOPUS_FABLE5_ROUTING:-}" != off ]] &&
+       declare -f octo_frontier_policy_enabled >/dev/null 2>&1 &&
+       octo_frontier_policy_enabled claude "$FABLE5_MODEL_ID"; then
+        case "$role" in architect|strategist) return 0 ;; esac
+    fi
     policy="$(fable5_routing_policy)"
     case "$policy" in
         escalate)
@@ -226,6 +236,11 @@ fable5_escalation_consented() {
     case "$(fable5_routing_policy)" in
         escalate|escalate-reviews) return 0 ;;
     esac
+    if [[ "${OCTOPUS_FABLE5_ROUTING:-}" != off ]] &&
+       declare -f octo_frontier_policy_enabled >/dev/null 2>&1 &&
+       octo_frontier_policy_enabled claude "$FABLE5_MODEL_ID"; then
+        return 0
+    fi
     return 1
 }
 
@@ -233,8 +248,19 @@ fable5_escalation_consented() {
 # prompt-size gate before consuming the run's only Fable escalation.
 fable5_escalation_candidate() {
     local model="${1:-}" role="${2:-}" agent_type="${3:-}" phase="${4:-}"
+    local premium_frontier=false
     [[ "$model" == "claude-opus-5" || "$model" == "claude-opus.5" ]] || return 1
-    [[ -z "${OCTOPUS_OPUS_MODEL:-}" ]] || return 1
+    [[ -z "${OCTOPUS_OPUS_MODEL:-}" && -z "${OCTOPUS_CLAUDE_MODEL:-}" &&
+       -z "${CLAUDE_MODEL:-}" ]] || return 1
+    if declare -f octo_frontier_policy_enabled >/dev/null 2>&1 &&
+       octo_frontier_policy_enabled claude "$FABLE5_MODEL_ID"; then
+        premium_frontier=true
+    fi
+    if [[ "$premium_frontier" == true ]]; then
+        declare -f octo_claude_installed_version >/dev/null 2>&1 || return 1
+        declare -f octo_claude_model_version_ok >/dev/null 2>&1 || return 1
+        octo_claude_model_version_ok "$(octo_claude_installed_version)" "$FABLE5_MODEL_ID" || return 1
+    fi
     fable5_escalation_consented || return 1
     fable5_escalation_role_eligible "$role" || return 1
     fable5_is_security_dispatch "$role" "$agent_type" "$phase" && return 1
@@ -248,6 +274,10 @@ fable5_escalation_candidate() {
 # directory makes this survive command substitutions and sibling subprocesses;
 # isolated library tests without a run contract retain the process-local marker.
 fable5_claim_escalation() {
+    if declare -f octo_frontier_claim >/dev/null 2>&1; then
+        octo_frontier_claim "$FABLE5_MODEL_ID"
+        return $?
+    fi
     if declare -f octo_run_contract_dir >/dev/null 2>&1; then
         local marker claim_scope
         # A session ID can outlive several orchestrator invocations. Use the

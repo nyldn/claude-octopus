@@ -195,6 +195,7 @@ source "${SCRIPT_DIR}/lib/models.sh" 2>/dev/null || true
 # ledger through octo_features_enabled, and sourcing order decides whether that
 # function exists by the time an escalation decision is made.
 source "${SCRIPT_DIR}/lib/features.sh" 2>/dev/null || true
+source "${SCRIPT_DIR}/lib/frontier-escalation.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/fable5.sh" 2>/dev/null || true
 
 # Source intelligence library (v8.20.0)

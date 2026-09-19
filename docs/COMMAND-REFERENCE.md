@@ -367,6 +367,8 @@ Configure which AI models are used across Claude Octopus workflows.
 /octo:model-config clear-allowlist --session # Restore default provider availability
 /octo:model-config cost-mode budget         # Use cheaper models
 /octo:model-config cost-mode premium        # Use best models
+/octo:model-config tier premium claude claude-fable-5-1  # Bounded Fable judgment escalation
+/octo:model-config tier premium codex gpt-6-astra        # Bounded Astra judgment escalation
 /octo:budget-mode                            # One-step persistent budget toggle
 /octo:standard-mode                          # Select the configured standard tier
 /octo:premium-mode                           # One-step persistent premium toggle
@@ -386,6 +388,15 @@ Quick toggles persist the selected mode in
 `~/.claude-octopus/config/providers.json`. Configure a provider target for any
 tier with `/octo:model-config tier <mode> <provider> <model-or-capability>`.
 An explicit `OCTOPUS_COST_MODE` environment variable still takes precedence.
+
+Fable 5.1 and GPT-6 Astra remain explicit-only. Assigning either to its
+provider's Premium tier enables one architecture or strategy escalation per
+run; it does not replace the tier's ordinary Opus 5 or GPT-5.6 Sol seats.
+Astra also requires Codex CLI v0.153.1 or newer. The configured
+`OCTOPUS_MAX_COST_USD` ceiling must cover a conservative projected list-price
+estimate for the prompt, or the dispatch stays on Sol. Budget and Standard tiers, phase routes, role
+routes, fallbacks, councils, review fleets, security work, and implementation
+continue to reject these models.
 
 **Per-phase routing:** Different models can be configured for Discover, Define, Develop, and Deliver phases. Use `show phases` to view the current routing table.
 

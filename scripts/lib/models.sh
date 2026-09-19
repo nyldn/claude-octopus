@@ -143,7 +143,7 @@ get_model_policy() {
     case "$model" in
         claude-fable-5-1) echo "explicit|no|0|1|general" ;;
         claude-fable-5)   echo "explicit|no|0|0|general" ;;
-        gpt-6-astra)      echo "explicit|no|0|0|limited" ;;
+        gpt-6-astra)      echo "explicit|no|0|1|limited" ;;
         *)
             if [[ "$(get_model_catalog "$model")" == *"|unknown" ]]; then
                 echo "explicit|no|0|0|unknown"

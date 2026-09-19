@@ -581,9 +581,12 @@ migrate_provider_config() {
 }
 EOF
         # Preserve overrides if they exist (v8.49.0: use --argjson for safe merge)
-        local overrides
+        local overrides frontier
         overrides=$(jq -c '.overrides // {}' "$config_file")
-        jq --argjson ovr "$overrides" '.overrides = $ovr' "$tmp_file" > "${tmp_file}.2" && mv "${tmp_file}.2" "$config_file"
+        frontier=$(jq -c '.routing.frontier // {}' "$config_file")
+        jq --argjson ovr "$overrides" --argjson frontier "$frontier" \
+            '.overrides = $ovr | .routing.frontier = $frontier' \
+            "$tmp_file" > "${tmp_file}.2" && mv "${tmp_file}.2" "$config_file"
         rm -f "$tmp_file"
         log "INFO" "Migration to v3.0 complete"
 

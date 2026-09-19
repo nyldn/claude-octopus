@@ -14,6 +14,9 @@ fi
 if ! declare -f octo_codex_model_version_ok >/dev/null 2>&1; then
     source "${_profile_lib_dir}/provider-versions.sh" 2>/dev/null || true
 fi
+if ! declare -f octo_frontier_maybe_escalate >/dev/null 2>&1; then
+    source "${_profile_lib_dir}/frontier-escalation.sh" 2>/dev/null || true
+fi
 # Claude Octopus — Agent Dispatch & Model Resolution
 # ═══════════════════════════════════════════════════════════════════════════════
 # Extracted from orchestrate.sh in v9.7.7 monolith decomposition.
@@ -359,6 +362,9 @@ get_agent_command() {
         codex|codex-standard|codex-max|codex-mini|codex-general|codex-spark|codex-reasoning|codex-large-context)
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                 return 1
+            fi
+            if [[ "$agent_type" != *:* ]] && declare -f octo_frontier_maybe_escalate >/dev/null 2>&1; then
+                model="$(octo_frontier_maybe_escalate codex "$model" "$role" "$agent_type" "$phase" "$prompt_bytes")"
             fi
             local reasoning_level reasoning_policy reasoning_fragment
             reasoning_level="$(octopus_resolve_reasoning_level codex "$phase" "$role")" || return 1
