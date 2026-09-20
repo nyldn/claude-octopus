@@ -219,7 +219,8 @@ Create one durable run identity after building the fleet and before generating t
 
 ```bash
 RUN_TIMESTAMP="$(date +%s)"
-RUN_ID="flow-${RUN_TIMESTAMP}"
+RUN_NONCE="$(od -An -N16 -tx1 /dev/urandom | tr -d '[:space:]')"
+RUN_ID="flow-${RUN_TIMESTAMP}-${RUN_NONCE}"
 ```
 
 Use `probe-${RUN_TIMESTAMP}-<index>` for every probe task ID. Do not call `date` again for this run; every probe, the synthesis file, and verification must use this same identity.

@@ -207,7 +207,8 @@ for skill_file in \
     skill_content=$(<"$skill_file")
     skill_gate_block=$(sed -n '/Before presenting the synthesis/,/If verification reports/p' "$skill_file")
     if [[ "$skill_content" != *'RUN_TIMESTAMP="$(date +%s)"'* \
-       || "$skill_content" != *'RUN_ID="flow-${RUN_TIMESTAMP}"'* \
+       || "$skill_content" != *'RUN_NONCE="$(od -An -N16 -tx1 /dev/urandom | tr -d '\''[:space:]'\'')"'* \
+       || "$skill_content" != *'RUN_ID="flow-${RUN_TIMESTAMP}-${RUN_NONCE}"'* \
        || "$skill_content" != *'probe-${RUN_TIMESTAMP}-<index>'* \
        || "$skill_gate_block" != *'"$RUN_ID" "$SYNTHESIS_FILE"'* \
        || "$skill_gate_block" != *'if ! '* \
