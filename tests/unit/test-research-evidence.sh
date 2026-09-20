@@ -9,8 +9,8 @@ source "$PROJECT_ROOT/scripts/lib/research-evidence.sh"
 
 test_suite "research evidence pipeline"
 
-tmp_root=$(mktemp -d)
-trap 'rm -rf "$tmp_root"' EXIT
+tmp_root="$TEST_TMP_DIR/research-evidence"
+mkdir -p "$tmp_root"
 RESULTS_DIR="$tmp_root/results"
 mkdir -p "$RESULTS_DIR"
 
@@ -171,6 +171,47 @@ if [[ "$source_count" -eq 2 ]] \
     test_pass
 else
     test_fail "source ledger did not deduplicate and group sources as expected"
+fi
+
+test_case "snapshot verification accepts cited numbers that are present"
+mkdir -p "$RESEARCH_RUN_DIR/snapshots"
+printf '%s\n' '<p>Adoption reached 42% across 1,200 teams.</p>' > "$RESEARCH_RUN_DIR/snapshots/S001.body"
+draft="$RESEARCH_RUN_DIR/number-pass.md"
+printf '%s\n' 'Adoption reached 42% across 1,200 teams [source:S001].' > "$draft"
+number_verify_status=0
+research_verify_synthesis "$draft" || number_verify_status=$?
+rm -f "$RESEARCH_RUN_DIR/snapshots/S001.body"
+if [[ "$number_verify_status" -eq 0 ]] \
+   && jq -e '.status == "passed" and .warnings == 0 and .failures == 0' \
+        "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then
+    test_pass
+else
+    test_fail "a number present in the cited snapshot was rejected"
+fi
+
+test_case "research evidence library has no quiet grep checks"
+quiet_grep_sites=$(rg -n 'grep[[:space:]]+-[^[:space:]]*q' \
+    "$PROJECT_ROOT/scripts/lib/research-evidence.sh" || true)
+if [[ -z "$quiet_grep_sites" ]]; then
+    test_pass
+else
+    test_fail "quiet grep can fail early under inherited pipefail: $quiet_grep_sites"
+fi
+
+test_case "flow discovery stops when mechanical evidence verification fails"
+skill_gate_status=0
+for skill_file in \
+    "$PROJECT_ROOT/.claude/skills/flow-discover/SKILL.md" \
+    "$PROJECT_ROOT/.claude/skills/flow-discover/flow-discover.tmpl"; do
+    skill_gate_block=$(sed -n '/Before presenting the synthesis/,/If verification reports/p' "$skill_file")
+    if [[ "$skill_gate_block" != *'if ! '* || "$skill_gate_block" != *'exit 1'* ]]; then
+        skill_gate_status=1
+    fi
+done
+if [[ "$skill_gate_status" -eq 0 ]]; then
+    test_pass
+else
+    test_fail "flow discovery can continue after research-verify returns non-zero"
 fi
 
 test_case "valid citations pass while unfetched numbers remain explicit warnings"

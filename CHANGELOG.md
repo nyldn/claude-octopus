@@ -21,6 +21,10 @@
   recursive Octopus launches when research invokes Claude Code or Codex.
 - Concurrent lifecycle writers retry when a valid lock disappears between
   acquisition attempts instead of reporting a false installation failure.
+- Quick research no longer fails when a blind-spot checklist is available, and
+  evidence-processing failures now stop background synthesis cleanly.
+- Snapshot verification now recognizes cited numbers that are present and
+  prevents an unverified synthesis from being presented as complete.
 
 ## [11.7.0] - 2026-09-19
 

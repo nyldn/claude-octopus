@@ -143,7 +143,7 @@ research_lock_acquire() {
         # that have been idle for five minutes. Rename the stale inode first:
         # deleting the live path after a check would race with a new owner.
         if [[ -d "$lock" ]] \
-           && find "$lock" -prune -mmin +5 -print 2>/dev/null | grep -q .; then
+           && [[ -n "$(find "$lock" -prune -mmin +5 -print 2>/dev/null)" ]]; then
             local stale_lock="${lock}.stale.${token}.${tries}"
             if mv "$lock" "$stale_lock" 2>/dev/null; then
                 rm -f "$stale_lock/owner" "$stale_lock/pid" 2>/dev/null || true
@@ -530,9 +530,9 @@ research_number_in_snapshot() {
     local number="$1" snapshot="$2" escaped
     escaped=$(printf '%s' "$number" | sed 's/[.[\*^$\\]/\\&/g')
     if [[ "$number" == *% ]]; then
-        grep -Eiq "(^|[^0-9])\${escaped}([^0-9]|$)" "$snapshot"
+        grep -Ei -c "(^|[^0-9])${escaped}([^0-9]|$)" "$snapshot" >/dev/null
     else
-        grep -Eiq "(^|[^0-9])\${escaped}([^0-9%]|$)" "$snapshot"
+        grep -Ei -c "(^|[^0-9])${escaped}([^0-9%]|$)" "$snapshot" >/dev/null
     fi
 }
 
@@ -554,7 +554,7 @@ research_collect_sources() {
         while IFS= read -r url; do
             canonical=$(research_canonical_url "$url")
             [[ -n "$canonical" ]] || continue
-            grep -Fqx "$canonical" "$seen" 2>/dev/null && continue
+            grep -Fxc -- "$canonical" "$seen" >/dev/null 2>&1 && continue
             printf '%s\n' "$canonical" >> "$seen"
             index=$((index + 1)); printf -v source_id 'S%03d' "$index"
             status="not_fetched"; reason="budget"; sha=""; independence=""
@@ -639,7 +639,7 @@ research_verify_synthesis() {
         claim_count=$((claim_count + 1)); invalid=false; groups=""; source_json=""; groups_json=""
         while IFS= read -r id; do
             [[ -n "$id" ]] || continue
-            if ! grep -q '"source_id":"'"$id"'"' "$sources" 2>/dev/null; then
+            if ! grep -c '"source_id":"'"$id"'"' "$sources" >/dev/null 2>&1; then
                 invalid=true
                 printf 'unknown_source|%s|%s\n' "$line_no" "$id" >> "$findings"
                 continue
@@ -680,7 +680,7 @@ research_verify_synthesis() {
                     checked=true
                     normalized="$run_dir/.normalized-${id}.$$"
                     research_normalize_snapshot "$snapshot" > "$normalized"
-                    grep -Fqi "$quote" "$normalized" 2>/dev/null && matched=true
+                    grep -Fic -- "$quote" "$normalized" >/dev/null 2>&1 && matched=true
                     rm -f "$normalized"
                 done <<< "$ids"
                 if [[ "$checked" == "true" && "$matched" != "true" ]]; then

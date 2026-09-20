@@ -346,8 +346,13 @@ Write the synthesis content to `$SYNTHESIS_FILE`. The file MUST exist for the va
 
 Before presenting the synthesis, run the mechanical evidence gate when the durable run is available:
 
-    "$HOME/.claude-octopus/plugin/scripts/orchestrate.sh" research-verify \
-      "flow-<timestamp>" "$SYNTHESIS_FILE"
+```bash
+if ! "$HOME/.claude-octopus/plugin/scripts/orchestrate.sh" research-verify \
+    "flow-<timestamp>" "$SYNTHESIS_FILE"; then
+  echo "VALIDATION FAILED: Research evidence verification failed"
+  exit 1
+fi
+```
 
 If verification reports an unfetched source, retain the warning in the report; do not present that claim as independently verified.
 

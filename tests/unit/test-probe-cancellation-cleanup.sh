@@ -340,6 +340,17 @@ else
     test_fail "explicit project-local state directory was not honored"
 fi
 
+test_case "quick research guards blind-spot injections to retained perspectives"
+blind_spot_block=$(sed -n \
+    '/_blind_spot_checklist=$(load_blind_spot_checklist/,/# v8\.14\.0/p' \
+    "$PROJECT_ROOT/scripts/lib/workflows.sh")
+if [[ "$blind_spot_block" == *'${perspectives[2]:-}'* \
+   && "$blind_spot_block" == *'${perspectives[4]:-}'* ]]; then
+    test_pass
+else
+    test_fail "quick research can address blind-spot indices removed by intensity truncation"
+fi
+
 test_case "failed agent spawn cancels the probe and closes fleet dispatch"
 preflight_check() { return 0; }
 display_workflow_cost_estimate() { return 0; }
@@ -392,6 +403,19 @@ if [[ "$spawn_failure_status" -eq 23 && "$fleet_begin_count" -eq 1 \
     test_pass
 else
     test_fail "spawn failure was not cancelled cleanly (rc=$spawn_failure_status begin=$fleet_begin_count end=$fleet_end_count)"
+fi
+
+test_case "evidence failure path stops synthesis monitor and restores traps"
+evidence_failure_block=$(sed -n \
+    '/if declare -F research_run_update.*RESEARCH_RUN_DIR/,/# v9\.37\.0/p' \
+    "$PROJECT_ROOT/scripts/lib/workflows.sh")
+if [[ "$evidence_failure_block" == *'evidence_status'* \
+   && "$evidence_failure_block" == *'kill "$synthesis_monitor_pid" 2>/dev/null || true'* \
+   && "$evidence_failure_block" == *'wait "$synthesis_monitor_pid" 2>/dev/null || true'* \
+   && "$evidence_failure_block" == *'_octopus_probe_restore_traps'* ]]; then
+    test_pass
+else
+    test_fail "evidence failure can leak the synthesis monitor or installed traps"
 fi
 
 test_case "synthesis monitor cancellation closes the PID handoff window"

@@ -877,15 +877,19 @@ probe_discover() {
     if [[ -n "$_blind_spot_checklist" ]]; then
         log INFO "probe_discover: injecting blind spot checklist ($(echo "$_blind_spot_checklist" | wc -l | tr -d ' ') items)"
         # Augment edge-case perspective (index 2)
-        perspectives[2]="${perspectives[2]}
+        if [[ -n "${perspectives[2]:-}" ]]; then
+            perspectives[2]="${perspectives[2]}
 
 IMPORTANT — The following perspectives are systematically missed by LLMs. You MUST address each one:
 ${_blind_spot_checklist}"
+        fi
         # Augment cross-synthesis perspective (index 4)
-        perspectives[4]="${perspectives[4]}
+        if [[ -n "${perspectives[4]:-}" ]]; then
+            perspectives[4]="${perspectives[4]}
 
 When synthesizing, verify that these commonly-missed perspectives have been addressed. If any were missed by other agents, include them:
 ${_blind_spot_checklist}"
+        fi
     fi
 
     # v8.14.0: Codebase-aware discovery — add 6th agent when inside a git repo
@@ -1077,8 +1081,21 @@ ${_blind_spot_checklist}"
     echo ""
 
     if declare -F research_run_update >/dev/null 2>&1 && [[ -n "${RESEARCH_RUN_DIR:-}" ]]; then
-        research_run_update "providers_complete" "running" "usable=$usable_results failed=$failure_count" || return 1
-        research_collect_sources "$task_group" || return 1
+        local evidence_status=0
+        research_run_update "providers_complete" "running" "usable=$usable_results failed=$failure_count" \
+            || evidence_status=1
+        if [[ "$evidence_status" -eq 0 ]]; then
+            research_collect_sources "$task_group" || evidence_status=1
+        fi
+        if [[ "$evidence_status" -ne 0 ]]; then
+            if [[ -n "$synthesis_monitor_pid" ]]; then
+                kill "$synthesis_monitor_pid" 2>/dev/null || true
+                wait "$synthesis_monitor_pid" 2>/dev/null || true
+                OCTOPUS_ACTIVE_PROBE_SYNTHESIS_PID=""
+            fi
+            _octopus_probe_restore_traps "$probe_previous_int_trap" "$probe_previous_term_trap"
+            return 1
+        fi
     fi
 
     # v9.37.0: Make provider participation explicit before synthesis so users
