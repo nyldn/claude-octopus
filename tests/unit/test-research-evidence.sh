@@ -198,20 +198,27 @@ else
     test_fail "quiet grep can fail early under inherited pipefail: $quiet_grep_sites"
 fi
 
-test_case "flow discovery stops when mechanical evidence verification fails"
+test_case "flow discovery keeps one run ID and stops when verification fails"
 skill_gate_status=0
 for skill_file in \
     "$PROJECT_ROOT/.claude/skills/flow-discover/SKILL.md" \
-    "$PROJECT_ROOT/.claude/skills/flow-discover/flow-discover.tmpl"; do
+    "$PROJECT_ROOT/.claude/skills/flow-discover/flow-discover.tmpl" \
+    "$PROJECT_ROOT/skills/flow-discover/SKILL.md"; do
+    skill_content=$(<"$skill_file")
     skill_gate_block=$(sed -n '/Before presenting the synthesis/,/If verification reports/p' "$skill_file")
-    if [[ "$skill_gate_block" != *'if ! '* || "$skill_gate_block" != *'exit 1'* ]]; then
+    if [[ "$skill_content" != *'RUN_TIMESTAMP="$(date +%s)"'* \
+       || "$skill_content" != *'RUN_ID="flow-${RUN_TIMESTAMP}"'* \
+       || "$skill_content" != *'probe-${RUN_TIMESTAMP}-<index>'* \
+       || "$skill_gate_block" != *'"$RUN_ID" "$SYNTHESIS_FILE"'* \
+       || "$skill_gate_block" != *'if ! '* \
+       || "$skill_gate_block" != *'exit 1'* ]]; then
         skill_gate_status=1
     fi
 done
 if [[ "$skill_gate_status" -eq 0 ]]; then
     test_pass
 else
-    test_fail "flow discovery can continue after research-verify returns non-zero"
+    test_fail "flow discovery does not preserve one executable run ID through verification"
 fi
 
 test_case "valid citations pass while unfetched numbers remain explicit warnings"
