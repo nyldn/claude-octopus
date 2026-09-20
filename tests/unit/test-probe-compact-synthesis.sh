@@ -113,4 +113,26 @@ else
     test_fail "synthesize_probe_results returned non-zero in compact fallback scenario"
 fi
 
+test_case "resumed synthesis reads the recorded provider results directory"
+recorded_results="$TEST_ROOT/recorded-results"
+resumed_results="$TEST_ROOT/resumed-results"
+mkdir -p "$recorded_results" "$resumed_results"
+cp "$success_a" "$recorded_results/codex-probe-resumed-0.md"
+cp "$success_b" "$recorded_results/claude-sonnet-probe-resumed-1.md"
+RESULTS_DIR="$resumed_results"
+RESEARCH_PROVIDER_RESULTS_DIR="$recorded_results"
+if synthesize_probe_results "resumed" "Resume the prior research" 2 >/dev/null 2>&1; then
+    resumed_synthesis="$RESULTS_DIR/probe-synthesis-resumed.md"
+    resumed_content=$(<"$resumed_synthesis")
+    if [[ "$resumed_content" == *"codex-probe-resumed-0.md"* ]] \
+       && [[ "$resumed_content" == *"claude-sonnet-probe-resumed-1.md"* ]]; then
+        test_pass
+    else
+        test_fail "resumed synthesis omitted artifacts from the recorded provider directory"
+    fi
+else
+    test_fail "resumed synthesis did not find the recorded provider artifacts"
+fi
+unset RESEARCH_PROVIDER_RESULTS_DIR
+
 test_summary

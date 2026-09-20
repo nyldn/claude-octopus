@@ -158,6 +158,7 @@ probe_synthesis_append_excerpt() {
 
 build_probe_synthesis_context() {
     local task_group="$1"
+    local provider_results_dir="${2:-$RESULTS_DIR}"
     local max_file="${OCTOPUS_PROBE_SYNTHESIS_FILE_CHARS:-24000}"
     local max_total="${OCTOPUS_PROBE_SYNTHESIS_CONTEXT_CHARS:-120000}"
 
@@ -192,7 +193,7 @@ build_probe_synthesis_context() {
             score=$(score_result_file "$ranked_file")
             probe_synthesis_append_excerpt "$ranked_file" "$max_file" "$score"
             ((result_count++)) || true
-        done < <(rank_results_by_signals "$RESULTS_DIR" "probe-${task_group}")
+        done < <(rank_results_by_signals "$provider_results_dir" "probe-${task_group}")
     } > "$tmp_context"
 
     local total_size
@@ -403,6 +404,7 @@ synthesize_probe_results() {
        && declare -F research_synthesis_prepare >/dev/null 2>&1; then
         research_synthesis_prepare "$task_group" "$original_prompt" || return 1
     fi
+    local provider_results_dir="${RESEARCH_PROVIDER_RESULTS_DIR:-$RESULTS_DIR}"
 
     log INFO "Synthesizing research findings..."
 
@@ -411,7 +413,7 @@ synthesize_probe_results() {
     local results=""
     local result_count=0
     local total_content_size=0
-    for result in "$RESULTS_DIR"/*-probe-${task_group}-*.md; do
+    for result in "$provider_results_dir"/*-probe-${task_group}-*.md; do
         [[ -f "$result" ]] || continue
         probe_result_file_is_usable "$result" || { log DEBUG "Skipping $result (unusable probe output)"; continue; }
         type octo_file_has_provider_rejection >/dev/null 2>&1 && octo_file_has_provider_rejection "$result" && { log DEBUG "Skipping $result (provider rejection)"; continue; }
@@ -444,7 +446,8 @@ synthesize_probe_results() {
     # v8.49.0: Rank results by quality signals before synthesis.
     # Keep the synthesis prompt bounded; full raw files remain on disk.
     local compact_results
-    if compact_results=$(build_probe_synthesis_context "$task_group") && [[ -n "$compact_results" ]]; then
+    if compact_results=$(build_probe_synthesis_context "$task_group" "$provider_results_dir") \
+       && [[ -n "$compact_results" ]]; then
         results="$compact_results"
     else
         results="# Compact Probe Synthesis Context"$'\n\n'"No bounded probe excerpts could be collected. Inspect RESULTS_DIR for raw artifacts."
