@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### Added
+
+- Research runs now preserve a local manifest, source ledger, and verification
+  report so interrupted discovery can resume without repeating completed
+  provider work. Synthesis checks source IDs, quoted text, numeric claims, and
+  independence-aware corroboration before treating evidence as verified.
+- Tangle adequacy reviews now use a versioned JSON contract, giving automated
+  planning a stable, machine-readable review result before implementation.
+
+### Fixed
+
+- Background provider sessions suppress nested automatic routing, avoiding
+  recursive Octopus launches when research invokes Claude Code or Codex.
+- Concurrent lifecycle writers retry when a valid lock disappears between
+  acquisition attempts instead of reporting a false installation failure.
+
 ## [11.7.0] - 2026-09-19
 
 ### Added
@@ -480,16 +496,6 @@ See [the v11 migration notes](docs/MIGRATING-V11.md) and
 ## [9.66.0] - 2026-08-21
 
 ### Added
-
-- Research runs now preserve a local manifest, source ledger, and verification
-  report so interrupted discovery can be resumed without repeating completed
-  provider work.
-- Research synthesis now checks source IDs, quoted text, numeric claims, and
-  independence-aware corroboration. Bounded public-HTTPS fetching rechecks
-  redirects and response sizes before using content as evidence.
-- Background provider sessions now suppress nested automatic routing, avoiding
-  recursive Octopus launches when a research workflow invokes Claude Code or
-  Codex.
 
 - Opt-in one-vote-per-vendor council seating. Set
   `OCTOPUS_COUNCIL_ONE_VOTE_PER_VENDOR=1` to keep at most one non-chair voting
