@@ -23,8 +23,13 @@
   acquisition attempts instead of reporting a false installation failure.
 - Quick research no longer fails when a blind-spot checklist is available, and
   evidence-processing failures now stop background synthesis cleanly.
-- Snapshot verification now recognizes cited numbers that are present and
-  prevents an unverified synthesis from being presented as complete.
+- Snapshot verification now recognizes cited numbers and rendered quoted text,
+  including HTML ampersands, and prevents an unverified synthesis from being
+  presented as complete.
+- Durable discovery carries its unique run ID through every provider child and
+  verified synthesis path, so concurrent runs cannot overwrite one another.
+- Standalone recovery of legacy probe results remains best effort instead of
+  creating a new fail-closed evidence run after the original process exits.
 - Research verification now handles GNU and BSD file-mode probes and portable
   POSIX quote matching consistently across Linux and macOS.
 

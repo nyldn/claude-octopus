@@ -61,7 +61,7 @@ fi
 
 # ── guard_output wired into aggregate_results ───────────────────────
 
-if function_body aggregate_results | grep -q 'guard_output' 2>/dev/null; then
+if function_body aggregate_results | grep -c 'guard_output' >/dev/null 2>&1; then
     pass "guard_output wired into aggregate_results()"
 else
     fail "guard_output wired into aggregate_results()" "not found in function body"
@@ -69,7 +69,7 @@ fi
 
 # ── guard_output wired into synthesize_probe_results ────────────────
 
-if function_body synthesize_probe_results | grep -q 'guard_output' 2>/dev/null; then
+if function_body synthesize_probe_results | grep -c 'guard_output' >/dev/null 2>&1; then
     pass "guard_output wired into synthesize_probe_results()"
 else
     fail "guard_output wired into synthesize_probe_results()" "not found in function body"

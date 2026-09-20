@@ -119,12 +119,13 @@ test_case "probe-single state is stable across session result directories"
 WORKSPACE_DIR="$tmp_root/stable-workspace"
 RESULTS_DIR="$tmp_root/session-results"
 mkdir -p "$RESULTS_DIR"
-unset OCTOPUS_RESEARCH_RUN_ID OCTOPUS_RESEARCH_RESUME
+OCTOPUS_RESEARCH_RUN_ID="flow-1700000002-0123456789abcdef0123456789abcdef"
+OCTOPUS_RESEARCH_RESUME=false
 OCTOPUS_RESEARCH_EVIDENCE=true OCTOPUS_RESEARCH_INTENSITY=standard
 research_probe_single_begin "probe-1700000002-0" "persistent topic"
 stable_dir="$RESEARCH_RUN_DIR"
 research_probe_single_record "probe-1700000002-0" "codex" "completed"
-if [[ "$stable_dir" == "$WORKSPACE_DIR/research-runs/flow-1700000002" ]] \
+if [[ "$stable_dir" == "$WORKSPACE_DIR/research-runs/$OCTOPUS_RESEARCH_RUN_ID" ]] \
    && jq -e --arg path "$RESULTS_DIR" '.provider_results_dir == $path' "$stable_dir/manifest.json" >/dev/null \
    && grep -q 'provider.completed' "$stable_dir/events.jsonl"; then
     test_pass
@@ -132,6 +133,21 @@ else
     test_fail "probe-single did not persist state independently of session result paths"
 fi
 unset RESEARCH_RUN_DIR RESEARCH_RUN_ID RESEARCH_TASK_GROUP RESEARCH_PROMPT RESEARCH_INTENSITY RESEARCH_PROVIDER_RESULTS_DIR
+
+test_case "standalone synthesis preparation does not manufacture a durable run"
+WORKSPACE_DIR="$tmp_root/standalone-workspace"
+RESULTS_DIR="$tmp_root/standalone-results"
+mkdir -p "$RESULTS_DIR"
+unset RESEARCH_RUN_DIR RESEARCH_RUN_ID RESEARCH_TASK_GROUP RESEARCH_PROMPT RESEARCH_INTENSITY RESEARCH_PROVIDER_RESULTS_DIR
+OCTOPUS_RESEARCH_RUN_ID=""
+OCTOPUS_RESEARCH_RESUME=false
+research_synthesis_prepare "1700000005" "legacy recovery"
+if [[ -z "${RESEARCH_RUN_DIR:-}" ]] \
+   && [[ ! -e "$WORKSPACE_DIR/research-runs/1700000005/manifest.json" ]]; then
+    test_pass
+else
+    test_fail "standalone recovery unexpectedly created a fail-closed durable run"
+fi
 
 test_case "parallel probe children share one run manifest"
 parallel_workspace="$tmp_root/parallel-workspace"
@@ -194,8 +210,24 @@ else
     test_fail "a number present in the cited snapshot was rejected"
 fi
 
+test_case "snapshot verification decodes ampersand entities in cited quotes"
+mkdir -p "$RESEARCH_RUN_DIR/snapshots"
+printf '%s\n' '<p>Foo &amp; Bar</p>' > "$RESEARCH_RUN_DIR/snapshots/S001.body"
+draft="$RESEARCH_RUN_DIR/quote-pass.md"
+printf '%s\n' 'The report says "Foo & Bar" [source:S001].' > "$draft"
+quote_verify_status=0
+research_verify_synthesis "$draft" || quote_verify_status=$?
+rm -f "$RESEARCH_RUN_DIR/snapshots/S001.body"
+if [[ "$quote_verify_status" -eq 0 ]] \
+   && jq -e '.status == "passed" and .failures == 0' \
+        "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then
+    test_pass
+else
+    test_fail "a rendered ampersand in a cited quote was rejected"
+fi
+
 test_case "research evidence library has no quiet grep checks"
-quiet_grep_sites=$(rg -n 'grep[[:space:]]+-[^[:space:]]*q' \
+quiet_grep_sites=$(grep -nE 'grep[[:space:]]+-[^[:space:]]*q' \
     "$PROJECT_ROOT/scripts/lib/research-evidence.sh" || true)
 if [[ -z "$quiet_grep_sites" ]]; then
     test_pass
@@ -215,6 +247,7 @@ for skill_file in \
        || "$skill_content" != *'RUN_NONCE="$(od -An -N16 -tx1 /dev/urandom | tr -d '\''[:space:]'\'')"'* \
        || "$skill_content" != *'RUN_ID="flow-${RUN_TIMESTAMP}-${RUN_NONCE}"'* \
        || "$skill_content" != *'probe-${RUN_TIMESTAMP}-<index>'* \
+       || "$skill_content" != *'--research-run "$RUN_ID"'* \
        || "$skill_content" != *'probe-synthesis-${RUN_ID}.md'* \
        || "$skill_gate_block" != *'"$RUN_ID" "$SYNTHESIS_FILE"'* \
        || "$skill_gate_block" != *'if ! '* \
@@ -226,6 +259,14 @@ if [[ "$skill_gate_status" -eq 0 ]]; then
     test_pass
 else
     test_fail "flow discovery does not preserve one executable run ID through verification"
+fi
+
+test_case "generated synthesis footer is explicitly non-evidentiary"
+heuristics_content=$(<"$PROJECT_ROOT/scripts/lib/heuristics.sh")
+if [[ "$heuristics_content" == *'*Synthesized from $result_count research threads (task group: $task_group)* [inference]'* ]]; then
+    test_pass
+else
+    test_fail "generated synthesis footer can be rejected as an uncited numeric claim"
 fi
 
 test_case "valid citations pass while unfetched numbers remain explicit warnings"
@@ -337,6 +378,25 @@ if [[ "$redirect_status" -ne 0 && ! -e "$tmp_root/redirect-body" ]]; then
     test_pass
 else
     test_fail "redirect target was fetched without a fresh network-boundary check"
+fi
+
+test_case "verification publishes to the nonce-bearing run path"
+WORKSPACE_DIR="$tmp_root/verify-workspace"
+RESULTS_DIR="$tmp_root/verify-results"
+mkdir -p "$RESULTS_DIR"
+verify_run_id="flow-1700000006-fedcba9876543210fedcba9876543210"
+OCTOPUS_RESEARCH_RUN_ID="$verify_run_id"
+OCTOPUS_RESEARCH_RESUME=false
+OCTOPUS_RESEARCH_FETCH_MAX=0
+research_run_begin "1700000006" "verification topic" "quick"
+verify_draft="$tmp_root/verification-draft.md"
+printf '%s\n' '# Verified synthesis' 'No external claims.' > "$verify_draft"
+verify_output=$(research_verify_run "$verify_run_id" "$verify_draft")
+if [[ "$verify_output" == "$RESULTS_DIR/probe-synthesis-${verify_run_id}.md" ]] \
+   && [[ -r "$verify_output" ]]; then
+    test_pass
+else
+    test_fail "verification published outside the unique run path: $verify_output"
 fi
 
 test_summary

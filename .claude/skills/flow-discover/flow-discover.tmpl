@@ -262,7 +262,7 @@ Use `probe-${RUN_TIMESTAMP}-<index>` for every probe task ID. Do not call `date`
 
 ### STEP 4: Launch Parallel Agent Subagents (MANDATORY - Use Agent Tool)
 
-**Launch each perspective as a background Agent subagent.** Each agent calls `orchestrate.sh probe-single` which handles persona application, credential isolation, result file writing, and durable evidence-run recording. A probe batch with task IDs `probe-${RUN_TIMESTAMP}-<index>` is recorded as `$RUN_ID`.
+**Launch each perspective as a background Agent subagent.** Each agent calls `orchestrate.sh probe-single` which handles persona application, credential isolation, result file writing, and durable evidence-run recording. Pass the nonce-bearing `$RUN_ID` to every child; task IDs alone identify the batch timestamp and cannot recover the durable run identity.
 
 **CRITICAL: You MUST use the Agent tool with `run_in_background: true` for each perspective.** Launch providers strictly in the runtime FLEET_OUTPUT sequence.
 
@@ -274,11 +274,14 @@ Agent(
   description: "<label> (<agent_type>)",
   prompt: "Run this command and return its COMPLETE stdout output, including the result file path on the last line:
 
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh probe-single <agent_type> '<perspective_prompt>' <task_id> '<original_prompt>'
+RUN_ID='<run_id>'
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh probe-single <agent_type> '<perspective_prompt>' <task_id> '<original_prompt>' --research-run "$RUN_ID"
 
 After the command completes, read the result file path that was printed and return the full file contents."
 )
 ```
+
+Replace `<run_id>` with the current nonce-bearing `$RUN_ID` value when creating each Agent prompt.
 
 **Launch order:** Iterate the parsed `FLEET_OUTPUT` order from `build-fleet.sh`. Launch all entries from that runtime fleet in parallel when possible; do not reorder by hardcoded provider names.
 

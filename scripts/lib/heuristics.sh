@@ -399,7 +399,8 @@ synthesize_probe_results() {
     local usable_results="${3:-0}"  # v7.19.0 P1.1: Accept usable result count
     local synthesis_file="${RESULTS_DIR}/probe-synthesis-${task_group}.md"
 
-    if declare -F research_synthesis_prepare >/dev/null 2>&1; then
+    if [[ "${OCTOPUS_RESEARCH_EVIDENCE:-false}" == "true" ]] \
+       && declare -F research_synthesis_prepare >/dev/null 2>&1; then
         research_synthesis_prepare "$task_group" "$original_prompt" || return 1
     fi
 
@@ -524,7 +525,7 @@ $results"
 $synthesis
 
 ---
-*Synthesized from $result_count research threads (task group: $task_group)*
+*Synthesized from $result_count research threads (task group: $task_group)* [inference]
 EOF
 
     if declare -F research_synthesis_publish >/dev/null 2>&1; then

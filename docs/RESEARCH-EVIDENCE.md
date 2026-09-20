@@ -54,4 +54,4 @@ Set OCTOPUS_RESEARCH_FETCH=false when provider URLs should be recorded but no ne
 
 ## Independence-aware synthesis
 
-Two URLs are not automatically two independent sources. Identical fetched content shares one independence group, and citations from the same provider artifact remain one voice. The synthesis prompt and verifier require at least two independence groups before describing evidence as corroborated or consensus.
+Two URLs are not automatically two independent sources. Identical fetched content shares one independence group; otherwise, sources are grouped by normalized host until fetched content is available. Provider-artifact identity is not itself an independence boundary. The synthesis prompt and verifier require at least two independence groups before describing evidence as corroborated or consensus.

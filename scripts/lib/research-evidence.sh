@@ -326,9 +326,11 @@ research_synthesis_prepare() {
         return 0
     fi
 
-    research_run_begin "$task_group" "$original_prompt" \
-        "${OCTOPUS_RESEARCH_INTENSITY:-standard}" || return 1
-    research_collect_sources "$task_group"
+    # Standalone recovery also calls the synthesis function for legacy probe
+    # artifacts. Do not turn that best-effort path into a new fail-closed run.
+    # Live durable workflows begin their run before synthesis, and interrupted
+    # durable workflows resume through the existing manifest above.
+    return 0
 }
 
 research_synthesis_select_draft() {
@@ -610,7 +612,7 @@ research_source_catalog() {
 }
 
 research_normalize_snapshot() {
-    sed 's/<[^>]*>/ /g; s/&quot;/"/g; s/&#39;/'"'"'/g; s/&nbsp;/ /g' "$1" 2>/dev/null \
+    sed 's/<[^>]*>/ /g; s/&quot;/"/g; s/&#39;/'"'"'/g; s/&nbsp;/ /g; s/&amp;/\&/g' "$1" 2>/dev/null \
         | tr '\n\r\t' '   ' | sed 's/[[:space:]][[:space:]]*/ /g'
 }
 
@@ -722,7 +724,7 @@ research_resume_run() {
     local run_id="$1"
     OCTOPUS_RESEARCH_RUN_ID="$run_id" OCTOPUS_RESEARCH_RESUME=true \
         research_run_begin "$run_id" "" "standard" || return $?
-    local final="$RESULTS_DIR/probe-synthesis-${RESEARCH_TASK_GROUP}.md"
+    local final="$RESULTS_DIR/probe-synthesis-${RESEARCH_RUN_ID}.md"
     local draft="$RESEARCH_RUN_DIR/synthesis-draft.md"
     if [[ -r "$draft" ]]; then
         if research_verify_synthesis "$draft"; then
@@ -787,7 +789,7 @@ research_verify_run() {
     research_collect_sources "$RESEARCH_TASK_GROUP" || return 1
     cp "$draft" "$RESEARCH_RUN_DIR/synthesis-draft.md" || return 1
     if research_verify_synthesis "$RESEARCH_RUN_DIR/synthesis-draft.md"; then
-        local final="$RESULTS_DIR/probe-synthesis-$RESEARCH_TASK_GROUP.md"
+        local final="$RESULTS_DIR/probe-synthesis-$RESEARCH_RUN_ID.md"
         cp "$RESEARCH_RUN_DIR/synthesis-draft.md" "$final" || return 1
         research_run_update "complete" "completed" "synthesis=$final"
         printf '%s\n' "$final"
