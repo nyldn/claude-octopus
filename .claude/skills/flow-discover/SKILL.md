@@ -284,8 +284,7 @@ Agent(
   description: "<label> (<agent_type>)",
   prompt: "Run this command and return its COMPLETE stdout output, including the result file path on the last line:
 
-RUN_ID='<run_id>'
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh probe-single <agent_type> '<perspective_prompt>' <task_id> '<original_prompt>' --research-run "$RUN_ID"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh probe-single <agent_type> '<perspective_prompt>' <task_id> '<original_prompt>' --research-run '<run_id>'
 
 After the command completes, read the result file path that was printed and return the full file contents."
 )
