@@ -2298,7 +2298,7 @@ while [[ $# -gt 0 ]]; do
         --openrouter-nitro) OPENROUTER_ROUTING_OVERRIDE=":nitro"; shift ;;
         --openrouter-floor) OPENROUTER_ROUTING_OVERRIDE=":floor"; shift ;;
         --intensity|--intensity=*|--breadth|--breadth=*|--research-run|--research-run=*|--resume-research|--resume-research=*)
-            research_parse_global_option "$@" || { echo "Missing value for $1" >&2; exit 2; }
+            research_parse_global_option "$@" || { echo "Invalid or missing value for $1" >&2; exit 2; }
             shift "$RESEARCH_OPTION_SHIFT"
             ;;
         # Async and tmux visualization flags
@@ -2392,8 +2392,8 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
                 if research_parse_global_option "$@"; then
                     shift "$RESEARCH_OPTION_SHIFT"
                 else
-                    _late_args+=("$1")
-                    shift
+                    echo "Invalid or missing value for $1" >&2
+                    exit 2
                 fi
                 ;;
             *)

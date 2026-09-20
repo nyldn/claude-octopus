@@ -778,7 +778,8 @@ probe_discover() {
     # Pre-flight validation
     preflight_check || return 1
 
-    if declare -F research_run_begin >/dev/null 2>&1; then
+    if [[ "${OCTOPUS_RESEARCH_EVIDENCE:-true}" == "true" ]] \
+       && declare -F research_run_begin >/dev/null 2>&1; then
         research_run_begin "$task_group" "$prompt" "$research_intensity" || return $?
         task_group="$RESEARCH_TASK_GROUP"
         prompt="$RESEARCH_PROMPT"

@@ -11,7 +11,8 @@ research_set_intensity() {
     case "$1" in
         light) OCTOPUS_RESEARCH_INTENSITY=quick ;;
         exhaustive) OCTOPUS_RESEARCH_INTENSITY=deep ;;
-        *) OCTOPUS_RESEARCH_INTENSITY="$1" ;;
+        quick|standard|deep) OCTOPUS_RESEARCH_INTENSITY="$1" ;;
+        *) return 2 ;;
     esac
 }
 
@@ -19,8 +20,8 @@ research_parse_global_option() {
     local option="${1:-}" value="${2:-}"
     RESEARCH_OPTION_SHIFT=1
     case "$option" in
-        --intensity=*) research_set_intensity "${option#*=}" ;;
-        --breadth=*) research_set_intensity "${option#*=}" ;;
+        --intensity=*) research_set_intensity "${option#*=}" || return 2 ;;
+        --breadth=*) research_set_intensity "${option#*=}" || return 2 ;;
         --research-run=*) OCTOPUS_RESEARCH_RUN_ID="${option#*=}" ;;
         --resume-research=*)
             OCTOPUS_RESEARCH_RUN_ID="${option#*=}"
@@ -30,7 +31,7 @@ research_parse_global_option() {
             [[ -n "$value" ]] || return 2
             RESEARCH_OPTION_SHIFT=2
             case "$option" in
-                --intensity|--breadth) research_set_intensity "$value" ;;
+                --intensity|--breadth) research_set_intensity "$value" || return 2 ;;
                 --research-run) OCTOPUS_RESEARCH_RUN_ID="$value" ;;
                 --resume-research)
                     OCTOPUS_RESEARCH_RUN_ID="$value"

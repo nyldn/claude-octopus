@@ -29,6 +29,7 @@ TEST_ROOT="$(mktemp -d)"
 HOME="$TEST_ROOT/home"
 RESULTS_DIR="$TEST_ROOT/results"
 LOGS_DIR="$TEST_ROOT/logs"
+OCTOPUS_RESEARCH_ROOT="$TEST_ROOT/research-runs"
 trap 'rm -rf "$TEST_ROOT"' EXIT
 
 mkdir -p "$HOME" "$RESULTS_DIR" "$LOGS_DIR"

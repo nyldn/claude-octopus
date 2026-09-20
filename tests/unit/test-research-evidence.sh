@@ -44,6 +44,58 @@ else
     test_fail "research option parser did not preserve its CLI contract"
 fi
 
+test_case "invalid research intensity is rejected before command dispatch"
+OCTOPUS_RESEARCH_INTENSITY=standard
+invalid_equals_status=0
+research_parse_global_option --intensity=turbo || invalid_equals_status=$?
+invalid_separate_status=0
+research_parse_global_option --breadth --dry-run || invalid_separate_status=$?
+late_error="$tmp_root/invalid-intensity.log"
+late_status=0
+"$PROJECT_ROOT/scripts/orchestrate.sh" probe "fixture" --intensity --dry-run \
+    >"$late_error" 2>&1 || late_status=$?
+if [[ "$invalid_equals_status" -eq 2 ]] \
+   && [[ "$invalid_separate_status" -eq 2 ]] \
+   && [[ "$late_status" -eq 2 ]] \
+   && [[ "$OCTOPUS_RESEARCH_INTENSITY" == "standard" ]] \
+   && grep -q 'Invalid or missing value for --intensity' "$late_error"; then
+    test_pass
+else
+    test_fail "invalid research intensity reached dispatch or changed parser state"
+fi
+
+test_case "disabling research evidence skips durable run initialization"
+evidence_disabled_result=$(
+    (
+        # shellcheck source=/dev/null
+        source "$PROJECT_ROOT/scripts/lib/workflows.sh"
+        log() { :; }
+        octopus_phase_banner() { :; }
+        preflight_check() { return 0; }
+        display_workflow_cost_estimate() { return 1; }
+        research_run_begin() {
+            durable_begin_called=true
+            RESEARCH_TASK_GROUP="$1"
+            RESEARCH_PROMPT="$2"
+            RESEARCH_INTENSITY="$3"
+        }
+        research_run_update() { :; }
+        durable_begin_called=false
+        OCTOPUS_RESEARCH_EVIDENCE=false
+        OCTOPUS_RESEARCH_RESUME=false
+        DRY_RUN=false
+        MAGENTA=""
+        probe_status=0
+        probe_discover "fixture" >/dev/null 2>&1 || probe_status=$?
+        printf '%s:%s\n' "$durable_begin_called" "$probe_status"
+    )
+)
+if [[ "$evidence_disabled_result" == "false:1" ]]; then
+    test_pass
+else
+    test_fail "evidence opt-out still initialized a durable research run"
+fi
+
 test_case "manifest and append-only events survive resume"
 OCTOPUS_RESEARCH_RUN_ID="run-1"
 OCTOPUS_RESEARCH_RESUME=false
