@@ -32,6 +32,8 @@
   creating a new fail-closed evidence run after the original process exits.
 - Research verification now handles GNU and BSD file-mode probes and portable
   POSIX quote matching consistently across Linux and macOS.
+- Invalid research-intensity values now fail during option parsing, and turning
+  durable evidence off no longer initializes a fail-closed research run.
 
 ## [11.7.0] - 2026-09-19
 
