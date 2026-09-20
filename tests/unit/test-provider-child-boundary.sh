@@ -21,7 +21,7 @@ test_case "Claude provider environment marks nested dispatches"
 source "$PROJECT_ROOT/scripts/lib/provider-routing.sh"
 OCTOPUS_SECURITY_V870=true
 build_provider_env claude
-if printf '%s\n' "${PROVIDER_ENV_ARRAY[@]}" | grep -qx 'OCTOPUS_PROVIDER_CHILD=true'; then
+if printf '%s\n' "${PROVIDER_ENV_ARRAY[@]}" | grep -cx 'OCTOPUS_PROVIDER_CHILD=true' >/dev/null; then
     test_pass
 else
     test_fail "Claude provider environment did not set OCTOPUS_PROVIDER_CHILD"
@@ -29,7 +29,7 @@ fi
 
 test_case "Codex provider environment marks nested dispatches"
 build_provider_env codex
-if printf '%s\n' "${PROVIDER_ENV_ARRAY[@]}" | grep -qx 'OCTOPUS_PROVIDER_CHILD=true'; then
+if printf '%s\n' "${PROVIDER_ENV_ARRAY[@]}" | grep -cx 'OCTOPUS_PROVIDER_CHILD=true' >/dev/null; then
     test_pass
 else
     test_fail "Codex provider environment did not set OCTOPUS_PROVIDER_CHILD"
