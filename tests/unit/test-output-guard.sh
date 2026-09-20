@@ -18,6 +18,15 @@ trap 'rm -f "$ALL_SRC"' EXIT
 pass() { test_case "$1"; test_pass; }
 fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
+function_body() {
+    local name="$1"
+    awk -v declaration="${name}() {" '
+        $0 == declaration { in_function=1 }
+        in_function { print }
+        in_function && $0 == "}" { exit }
+    ' "$ALL_SRC"
+}
+
 # ── guard_output function exists ────────────────────────────────────
 
 if grep -q '^guard_output()' "$SECURE" 2>/dev/null; then
@@ -52,7 +61,7 @@ fi
 
 # ── guard_output wired into aggregate_results ───────────────────────
 
-if grep -c 'guard_output' <(grep -A200 'aggregate_results()' "$ALL_SRC" | head -200) >/dev/null 2>&1; then
+if function_body aggregate_results | grep -q 'guard_output' 2>/dev/null; then
     pass "guard_output wired into aggregate_results()"
 else
     fail "guard_output wired into aggregate_results()" "not found in function body"
@@ -60,7 +69,7 @@ fi
 
 # ── guard_output wired into synthesize_probe_results ────────────────
 
-if grep -c 'guard_output' <(grep -A150 'synthesize_probe_results()' "$ALL_SRC" | head -200) >/dev/null 2>&1; then
+if function_body synthesize_probe_results | grep -q 'guard_output' 2>/dev/null; then
     pass "guard_output wired into synthesize_probe_results()"
 else
     fail "guard_output wired into synthesize_probe_results()" "not found in function body"
