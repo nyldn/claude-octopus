@@ -25,6 +25,8 @@
   evidence-processing failures now stop background synthesis cleanly.
 - Snapshot verification now recognizes cited numbers that are present and
   prevents an unverified synthesis from being presented as complete.
+- Research verification now handles GNU and BSD file-mode probes and portable
+  POSIX quote matching consistently across Linux and macOS.
 
 ## [11.7.0] - 2026-09-19
 
