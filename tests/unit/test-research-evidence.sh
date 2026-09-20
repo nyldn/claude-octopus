@@ -72,8 +72,13 @@ OCTOPUS_RESEARCH_RUN_ID="control-json"
 OCTOPUS_RESEARCH_RESUME=false
 research_run_begin "1700000004" $'control\001byte' "quick"
 actual_umask=$(umask)
-manifest_mode=$(stat -f '%Lp' "$RESEARCH_RUN_DIR/manifest.json" 2>/dev/null \
-    || stat -c '%a' "$RESEARCH_RUN_DIR/manifest.json" 2>/dev/null)
+manifest_mode=""
+if manifest_mode=$(stat -c '%a' "$RESEARCH_RUN_DIR/manifest.json" 2>/dev/null) \
+   && [[ "$manifest_mode" =~ ^[0-7]{3,4}$ ]]; then
+    : # GNU stat
+else
+    manifest_mode=$(stat -f '%Lp' "$RESEARCH_RUN_DIR/manifest.json" 2>/dev/null)
+fi
 umask "$saved_umask"
 if [[ "$actual_umask" == "$expected_umask" && "$manifest_mode" == "600" ]] \
    && jq -e '.prompt == "control\u0001byte"' "$RESEARCH_RUN_DIR/manifest.json" >/dev/null; then

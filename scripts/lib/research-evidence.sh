@@ -628,7 +628,7 @@ research_verify_synthesis() {
         ids=$(printf '%s\n' "$line" | grep -Eo '\[source:S[0-9]{3}\]' | sed 's/\[source:\(.*\)\]/\1/' | sort -u || true)
         plain_line=$(printf '%s\n' "$line" | sed 's/\[source:S[0-9][0-9][0-9]\]//g')
         numbers=$(research_extract_numbers "$plain_line")
-        quotes=$(printf '%s\n' "$plain_line" | awk '{ s=$0; while (match(s, /"[^"]{4,}"/)) { print substr(s,RSTART+1,RLENGTH-2); s=substr(s,RSTART+RLENGTH) } }')
+        quotes=$(printf '%s\n' "$plain_line" | awk '{ s=$0; while (match(s, /"[^"][^"][^"][^"]+"/)) { print substr(s,RSTART+1,RLENGTH-2); s=substr(s,RSTART+RLENGTH) } }')
         if [[ -z "$ids" && ( -n "$numbers" || -n "$quotes" ) \
               && "$line" != *"[inference]"* && "$line" != *"[opinion"* ]]; then
             failures=$((failures + 1))
