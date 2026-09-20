@@ -329,12 +329,16 @@ fi
 mv "$RESEARCH_RUN_DIR/sources.saved" "$RESEARCH_RUN_DIR/sources.jsonl"
 
 test_case "fetch boundary rejects HTTP, private targets, and non-443 ports"
+leading_zero_status=0
+/bin/bash -c 'source "$1"; research_resolve_ipv4 "$2" >/dev/null' \
+    _ "$PROJECT_ROOT/scripts/lib/research-evidence.sh" "0177.0.0.1" || leading_zero_status=$?
 MOCK_RESOLVED_IP="127.0.0.1"
 private_status=0; research_validate_fetch_target "https://example.com/private" || private_status=$?
 MOCK_RESOLVED_IP="93.184.216.34"
 http_status=0; research_validate_fetch_target "http://example.com" || http_status=$?
 port_status=0; research_validate_fetch_target "https://example.com:8443/path" || port_status=$?
-if [[ "$private_status" -ne 0 && "$http_status" -ne 0 && "$port_status" -ne 0 ]] \
+if [[ "$private_status" -ne 0 && "$leading_zero_status" -ne 0 ]] \
+   && [[ "$http_status" -ne 0 && "$port_status" -ne 0 ]] \
    && research_validate_fetch_target "https://example.com/path"; then
     test_pass
 else

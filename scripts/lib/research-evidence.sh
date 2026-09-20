@@ -397,7 +397,16 @@ research_ipv4_is_public() {
 research_resolve_ipv4() {
     local host="$1"
     if [[ "$host" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        printf '%s\n' "$host"
+        local first second third fourth octet
+        IFS=. read -r first second third fourth <<< "$host"
+        for octet in "$first" "$second" "$third" "$fourth"; do
+            case "$octet" in
+                0|[1-9]|[1-9][0-9]|[1-9][0-9][0-9]) ;;
+                *) return 1 ;;
+            esac
+            [[ "$octet" -le 255 ]] || return 1
+        done
+        printf '%s.%s.%s.%s\n' "$first" "$second" "$third" "$fourth"
     elif command -v getent >/dev/null 2>&1; then
         getent ahostsv4 "$host" 2>/dev/null | awk '{print $1}' | sort -u
     elif command -v dig >/dev/null 2>&1; then

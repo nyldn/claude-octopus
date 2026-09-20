@@ -511,7 +511,7 @@ $results"
     fi
     if [[ -z "$synthesis" ]]; then
         log WARN "Synthesis failed, using compact fallback"
-        synthesis=$(build_probe_fallback_synthesis "$original_prompt" "$result_count" "$usable_results" "$total_content_size" "$results")
+        synthesis=$(build_probe_fallback_synthesis "$original_prompt" "$result_count" "$usable_results" "$total_content_size")
     fi
 
     local draft_file="$synthesis_file"
