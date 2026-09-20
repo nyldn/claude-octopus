@@ -8,8 +8,10 @@
   report so interrupted discovery can resume without repeating completed
   provider work. Synthesis checks source IDs, quoted text, numeric claims, and
   independence-aware corroboration before treating evidence as verified.
-- Tangle adequacy reviews now use a versioned JSON contract, giving automated
-  planning a stable, machine-readable review result before implementation.
+- Tangle adequacy and reconsideration, plus design-review seats and synthesis,
+  now use versioned JSON contracts. Automated planning and review therefore
+  exchange validated, machine-readable decisions instead of relying on free
+  text between models.
 
 ### Fixed
 
