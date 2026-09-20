@@ -217,7 +217,7 @@ build_probe_fallback_synthesis() {
     local result_count="$2"
     local usable_results="$3"
     local total_content_size="$4"
-    local compact_context="$5"
+    local prompt_summary="${original_prompt//$'\n'/ }"
 
     cat <<EOF
 Automated probe synthesis unavailable.
@@ -231,11 +231,10 @@ The synthesis provider did not produce a coherent discovery summary. This fallba
 - Raw source bytes considered: ${total_content_size} [inference]
 - Full raw artifacts remain available in RESULTS_DIR for manual inspection.
 
-## Original Question
-${original_prompt}
+## Original Question: ${prompt_summary}
 
-## Compact Source Context
-${compact_context}
+## Raw Artifacts
+Raw provider artifacts remain available in RESULTS_DIR for manual inspection. [inference]
 EOF
 }
 
@@ -397,6 +396,7 @@ $(<"$raw_concat")"
 synthesize_probe_results() {
     local task_group="$1"
     local original_prompt="$2"
+    local prompt_summary="${original_prompt//$'\n'/ }"
     local usable_results="${3:-0}"  # v7.19.0 P1.1: Accept usable result count
     local synthesis_file="${RESULTS_DIR}/probe-synthesis-${task_group}.md"
 
@@ -523,7 +523,7 @@ $results"
     cat > "$draft_file" << EOF
 # PROBE Phase Synthesis
 ## Discovery Summary - $(date)
-## Original Task: $original_prompt
+## Original Task: $prompt_summary
 
 $synthesis
 

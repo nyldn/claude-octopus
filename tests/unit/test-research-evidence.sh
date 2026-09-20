@@ -270,6 +270,23 @@ else
     test_fail "generated synthesis footer can be rejected as an uncited numeric claim"
 fi
 
+test_case "fenced examples are excluded from claim verification"
+draft="$RESEARCH_RUN_DIR/fenced-example.md"
+cat > "$draft" <<'EOF'
+# Example
+```text
+Uncited example output includes 64 files and "sample text".
+```
+The example above is illustrative. [inference]
+EOF
+if research_verify_synthesis "$draft" \
+   && jq -e '.status == "passed" and .failures == 0' \
+        "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then
+    test_pass
+else
+    test_fail "non-claim fenced content was treated as a factual claim"
+fi
+
 test_case "valid citations pass while unfetched numbers remain explicit warnings"
 draft="$RESEARCH_RUN_DIR/pass.md"
 printf '%s\n' '# Draft' '- Adoption reached 42% [source:S001].' > "$draft"

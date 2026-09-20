@@ -313,6 +313,9 @@ check receipt_cleanup
 
 lock_released_between_attempts() {
     local root="$work/lock-release-race" marker="$work/lock-release-race.marker"
+    local real_mkdir real_rmdir
+    real_mkdir="$(command -v mkdir)"
+    real_rmdir="$(command -v rmdir)"
     mkdir -p "$root/bin"
     cat > "$root/bin/mkdir" <<'EOF'
 #!/usr/bin/env bash
@@ -327,16 +330,16 @@ fi
 exec "$REAL_MKDIR" "$@"
 EOF
     chmod +x "$root/bin/mkdir"
-    PATH="$root/bin:$PATH" REAL_MKDIR="$(command -v mkdir)" \
-        REAL_RMDIR="$(command -v rmdir)" MKDIR_RACE_MARKER="$marker" \
+    PATH="$root/bin:$PATH" REAL_MKDIR="$real_mkdir" \
+        REAL_RMDIR="$real_rmdir" MKDIR_RACE_MARKER="$marker" \
         "$TEST_BASH" -c '
             source "$1"
             owner="owner-test-$$"
             _octo_lifecycle_lock "$2" "$owner" || exit 1
             [[ -d "$2.lock/$owner" ]] || exit 1
             _octo_lifecycle_unlock "$2.lock" "$owner" ""
-            [[ ! -e "$2.lock" ]]
-        ' _ "$PROJECT_ROOT/scripts/lib/lifecycle.sh" "$root/state.json"
+            [[ ! -e "$2.lock" && -e "$3" ]]
+        ' _ "$PROJECT_ROOT/scripts/lib/lifecycle.sh" "$root/state.json" "$marker"
 }
 check lock_released_between_attempts
 

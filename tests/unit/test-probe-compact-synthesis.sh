@@ -6,6 +6,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 HEURISTICS="$PROJECT_ROOT/scripts/lib/heuristics.sh"
+RESEARCH_EVIDENCE="$PROJECT_ROOT/scripts/lib/research-evidence.sh"
 
 # shellcheck source=/dev/null
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
@@ -21,6 +22,8 @@ fi
 
 # shellcheck source=/dev/null
 source "$HEURISTICS"
+# shellcheck source=/dev/null
+source "$RESEARCH_EVIDENCE"
 
 TEST_ROOT="$(mktemp -d)"
 HOME="$TEST_ROOT/home"
@@ -102,8 +105,9 @@ if synthesize_probe_results "$task_group" "Audit local templates" 2 >/dev/null 2
     synthesis_file="$RESULTS_DIR/probe-synthesis-${task_group}.md"
     synthesis_content="$(cat "$synthesis_file")"
     if [[ "$synthesis_content" == *"Automated probe synthesis unavailable."* ]] && \
-       [[ "$synthesis_content" == *"Compact Source Context"* ]] && \
+       [[ "$synthesis_content" == *"Raw provider artifacts remain available"* ]] && \
        [[ "$synthesis_content" != *"[Auto-synthesis failed - raw findings below]"* ]] && \
+       [[ "$synthesis_content" != *"CODEX_RAW"* ]] && \
        [[ "$synthesis_content" != *"RAW_TAIL_SHOULD_NOT_APPEAR"* ]]; then
         test_pass
     else
@@ -112,6 +116,31 @@ if synthesize_probe_results "$task_group" "Audit local templates" 2 >/dev/null 2
 else
     test_fail "synthesize_probe_results returned non-zero in compact fallback scenario"
 fi
+
+test_case "durable fallback passes verification without embedding source excerpts"
+OCTOPUS_RESEARCH_EVIDENCE=true
+OCTOPUS_RESEARCH_RUN_ID="compact-fallback"
+OCTOPUS_RESEARCH_RESUME=false
+research_run_begin "$task_group" $'Audit 64 templates\nand quote "example text"' "quick"
+research_collect_sources "$task_group"
+if synthesize_probe_results "$task_group" $'Audit 64 templates\nand quote "example text"' 2 >/dev/null 2>&1; then
+    durable_synthesis="$RESULTS_DIR/probe-synthesis-${task_group}.md"
+    durable_content=$(<"$durable_synthesis")
+    if [[ "$durable_content" == *"Automated probe synthesis unavailable."* ]] \
+       && [[ "$durable_content" == *"Raw provider artifacts remain available"* ]] \
+       && [[ "$durable_content" != *"CODEX_RAW"* ]] \
+       && jq -e '.status == "passed" and .failures == 0' \
+            "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then
+        test_pass
+    else
+        test_fail "durable compact fallback did not pass mechanical verification"
+    fi
+else
+    test_fail "durable compact fallback rejected its own generated metadata"
+fi
+unset OCTOPUS_RESEARCH_EVIDENCE OCTOPUS_RESEARCH_RUN_ID OCTOPUS_RESEARCH_RESUME
+unset RESEARCH_RUN_DIR RESEARCH_RUN_ID RESEARCH_TASK_GROUP RESEARCH_PROMPT RESEARCH_INTENSITY
+unset RESEARCH_PROVIDER_RESULTS_DIR
 
 test_case "resumed synthesis reads the recorded provider results directory"
 recorded_results="$TEST_ROOT/recorded-results"
@@ -124,8 +153,8 @@ RESEARCH_PROVIDER_RESULTS_DIR="$recorded_results"
 if synthesize_probe_results "resumed" "Resume the prior research" 2 >/dev/null 2>&1; then
     resumed_synthesis="$RESULTS_DIR/probe-synthesis-resumed.md"
     resumed_content=$(<"$resumed_synthesis")
-    if [[ "$resumed_content" == *"codex-probe-resumed-0.md"* ]] \
-       && [[ "$resumed_content" == *"claude-sonnet-probe-resumed-1.md"* ]]; then
+    if [[ "$resumed_content" == *"Usable research threads included: 2"* ]] \
+       && [[ "$resumed_content" != *"Usable research threads included: 0"* ]]; then
         test_pass
     else
         test_fail "resumed synthesis omitted artifacts from the recorded provider directory"

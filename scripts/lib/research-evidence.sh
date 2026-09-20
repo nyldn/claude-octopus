@@ -622,11 +622,21 @@ research_verify_synthesis() {
     local report="$run_dir/verification.json" findings="$run_dir/.verification-findings.$$"
     : > "$claims"; : > "$findings"
     local claim_count=0 failures=0 warnings=0 line_no=0 line plain_line ids id invalid groups group unique_groups
+    local in_fence=false
     local snapshot normalized number quote numbers quotes score source_json groups_json
     while IFS= read -r line || [[ -n "$line" ]]; do
         line_no=$((line_no + 1))
+        if [[ "$line" == '```'* ]]; then
+            if [[ "$in_fence" == "true" ]]; then
+                in_fence=false
+            else
+                in_fence=true
+            fi
+            continue
+        fi
+        [[ "$in_fence" == "true" ]] && continue
         [[ -n "${line//[[:space:]]/}" ]] || continue
-        [[ "$line" == \#* || "$line" == '```'* || "$line" == '---'* ]] && continue
+        [[ "$line" == \#* || "$line" == '---'* ]] && continue
         ids=$(printf '%s\n' "$line" | grep -Eo '\[source:S[0-9]{3}\]' | sed 's/\[source:\(.*\)\]/\1/' | sort -u || true)
         plain_line=$(printf '%s\n' "$line" | sed 's/\[source:S[0-9][0-9][0-9]\]//g')
         numbers=$(research_extract_numbers "$plain_line")
