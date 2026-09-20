@@ -746,9 +746,10 @@ research_probe_single_begin() {
     local intensity="${OCTOPUS_RESEARCH_INTENSITY-standard}"
     local configured_run_id="${OCTOPUS_RESEARCH_RUN_ID-}"
     [[ "$evidence" == "true" ]] || return 0
-    [[ "$task_id" =~ ^probe-[0-9]+-[0-9]+$ ]] || return 0
+    [[ "$task_id" =~ ^probe-[0-9]+(-[0-9a-f]+)?-[0-9]+$ ]] || return 0
     local task_group
-    task_group=$(printf '%s' "$task_id" | cut -d- -f2)
+    task_group="${task_id#probe-}"
+    task_group="${task_group%-*}"
     local run_id="$configured_run_id"
     [[ -n "$run_id" ]] || run_id="flow-$task_group"
     local run_dir

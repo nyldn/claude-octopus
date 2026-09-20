@@ -122,10 +122,11 @@ mkdir -p "$RESULTS_DIR"
 OCTOPUS_RESEARCH_RUN_ID="flow-1700000002-0123456789abcdef0123456789abcdef"
 OCTOPUS_RESEARCH_RESUME=false
 OCTOPUS_RESEARCH_EVIDENCE=true OCTOPUS_RESEARCH_INTENSITY=standard
-research_probe_single_begin "probe-1700000002-0" "persistent topic"
+research_probe_single_begin "probe-1700000002-0123456789abcdef0123456789abcdef-0" "persistent topic"
 stable_dir="$RESEARCH_RUN_DIR"
-research_probe_single_record "probe-1700000002-0" "codex" "completed"
+research_probe_single_record "probe-1700000002-0123456789abcdef0123456789abcdef-0" "codex" "completed"
 if [[ "$stable_dir" == "$WORKSPACE_DIR/research-runs/$OCTOPUS_RESEARCH_RUN_ID" ]] \
+   && jq -e '.task_group == "1700000002-0123456789abcdef0123456789abcdef"' "$stable_dir/manifest.json" >/dev/null \
    && jq -e --arg path "$RESULTS_DIR" '.provider_results_dir == $path' "$stable_dir/manifest.json" >/dev/null \
    && grep -q 'provider.completed' "$stable_dir/events.jsonl"; then
     test_pass
@@ -246,7 +247,7 @@ for skill_file in \
     if [[ "$skill_content" != *'RUN_TIMESTAMP="$(date +%s)"'* \
        || "$skill_content" != *'RUN_NONCE="$(od -An -N16 -tx1 /dev/urandom | tr -d '\''[:space:]'\'')"'* \
        || "$skill_content" != *'RUN_ID="flow-${RUN_TIMESTAMP}-${RUN_NONCE}"'* \
-       || "$skill_content" != *'probe-${RUN_TIMESTAMP}-<index>'* \
+       || "$skill_content" != *'probe-${RUN_TIMESTAMP}-${RUN_NONCE}-<index>'* \
        || "$skill_content" != *'--research-run "$RUN_ID"'* \
        || "$skill_content" != *'probe-synthesis-${RUN_ID}.md'* \
        || "$skill_gate_block" != *'"$RUN_ID" "$SYNTHESIS_FILE"'* \

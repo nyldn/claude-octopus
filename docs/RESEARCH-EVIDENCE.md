@@ -18,7 +18,8 @@ The default is standard. Select it from a command:
     "$HOME/.claude-octopus/plugin/scripts/orchestrate.sh" discover \
       --intensity deep "Compare current approaches to signed webhooks"
 
-breadth light, standard, and exhaustive are aliases for quick, standard, and deep.
+The `--breadth light|standard|exhaustive` values are aliases for `quick`,
+`standard`, and `deep`.
 
 ## What is saved
 
