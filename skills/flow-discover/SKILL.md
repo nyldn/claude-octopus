@@ -302,7 +302,7 @@ Only cite providers with usable output (`ok`, `degraded`, or timeout with partia
 **Write synthesis to file:**
 
 ```bash
-SYNTHESIS_FILE="${HOME}/.claude-octopus/results/probe-synthesis-${RUN_TIMESTAMP}.md"
+SYNTHESIS_FILE="${HOME}/.claude-octopus/results/probe-synthesis-${RUN_ID}.md"
 mkdir -p "$(dirname "$SYNTHESIS_FILE")"
 ```
 
