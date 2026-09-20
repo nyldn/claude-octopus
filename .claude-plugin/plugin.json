@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.7.0",
-  "description": "v11.7.0 \u2014 Schema-versioned Tangle planning, consistent Doctor diagnostics, and bounded Premium frontier escalation. Run /octo:setup.",
+  "version": "11.8.0",
+  "description": "v11.8.0 \u2014 Durable evidence-backed research, validated planning and design reviews, and safer concurrent setup. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

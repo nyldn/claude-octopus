@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.8.0] - 2026-09-19
+
 ### Added
 
 - Research runs now preserve a local manifest, source ledger, and verification
