@@ -311,6 +311,35 @@ receipt_cleanup() {
 }
 check receipt_cleanup
 
+lock_released_between_attempts() {
+    local root="$work/lock-release-race" marker="$work/lock-release-race.marker"
+    mkdir -p "$root/bin"
+    cat > "$root/bin/mkdir" <<'EOF'
+#!/usr/bin/env bash
+target=""
+for target in "$@"; do :; done
+if [[ "$target" == *.lock && ! -e "$MKDIR_RACE_MARKER" ]]; then
+    "$REAL_MKDIR" "$@" || exit $?
+    "$REAL_RMDIR" "$target" || exit $?
+    : > "$MKDIR_RACE_MARKER"
+    exit 1
+fi
+exec "$REAL_MKDIR" "$@"
+EOF
+    chmod +x "$root/bin/mkdir"
+    PATH="$root/bin:$PATH" REAL_MKDIR="$(command -v mkdir)" \
+        REAL_RMDIR="$(command -v rmdir)" MKDIR_RACE_MARKER="$marker" \
+        "$TEST_BASH" -c '
+            source "$1"
+            owner="owner-test-$$"
+            _octo_lifecycle_lock "$2" "$owner" || exit 1
+            [[ -d "$2.lock/$owner" ]] || exit 1
+            _octo_lifecycle_unlock "$2.lock" "$owner" ""
+            [[ ! -e "$2.lock" ]]
+        ' _ "$PROJECT_ROOT/scripts/lib/lifecycle.sh" "$root/state.json"
+}
+check lock_released_between_attempts
+
 receipt_diagnostic() {
     local state="$work/diagnostic-state.json" rc=0
     printf '%s\n' '{"schema":2,"hosts":{}}' '{"schema":2,"hosts":{}}' > "$state"

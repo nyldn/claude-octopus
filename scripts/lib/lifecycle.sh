@@ -100,6 +100,13 @@ octo_lifecycle_state_valid() {
 _octo_lifecycle_lock() {
     local lock="$1.lock" owner="$2" tries=0 candidate pid probe
     while ! mkdir "$lock" 2>/dev/null; do
+        tries=$((tries + 1))
+        [[ "$tries" -lt 50 ]] || return 1
+        # The holder can release after our mkdir fails but before this check.
+        # A vanished path is normal contention, not an invalid lock object.
+        if [[ ! -e "$lock" && ! -L "$lock" ]]; then
+            continue
+        fi
         [[ -d "$lock" && ! -L "$lock" ]] || return 1
         # Removing the empty owner directory elects exactly one reclaimer.
         # Other waiters cannot remove a newly acquired lock after losing here.
@@ -113,8 +120,6 @@ _octo_lifecycle_lock() {
                     if rmdir "$candidate" 2>/dev/null; then rmdir "$lock" 2>/dev/null || true; fi ;;
             esac
         done
-        tries=$((tries + 1))
-        [[ "$tries" -lt 50 ]] || return 1
         sleep 0.02 2>/dev/null || return 1
     done
     mkdir "$lock/$owner" || { rmdir "$lock" 2>/dev/null || true; return 1; }
