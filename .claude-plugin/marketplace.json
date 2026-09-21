@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "11.8.0"
+    "version": "11.8.1"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v11.8.0 - Durable evidence-backed research, validated planning and design reviews, and safer concurrent setup. 31 personas, 54 commands, 63 skills. Run /octo:setup.",
-      "version": "11.8.0",
+      "description": "v11.8.1 - Windows setup now handles CRLF manifests, and web projects can use server-root asset URLs without false quality-gate failures. 31 personas, 54 commands, 63 skills. Run /octo:setup.",
+      "version": "11.8.1",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"

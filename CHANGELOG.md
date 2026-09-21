@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [11.8.1] - 2026-09-21
+
+### Changed
+
+- Windows setup now handles CRLF manifests, and web projects can use server-root asset URLs without false quality-gate failures
+
 ## [11.8.0] - 2026-09-19
 
 ### Added
