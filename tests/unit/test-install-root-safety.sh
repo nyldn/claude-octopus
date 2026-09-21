@@ -56,6 +56,28 @@ for cache in absent empty; do
     done
 done
 
+windows_jq_crlf_output() {
+    local root="$work/windows-jq-crlf-root" mock_bin="$work/windows-jq-crlf-bin"
+    local real_jq rc=0
+    fixture "$root"
+    real_jq="$(command -v jq)"
+    mkdir -p "$mock_bin"
+    cat > "$mock_bin/jq" <<'EOF'
+#!/usr/bin/env bash
+set -o pipefail
+"$OCTO_TEST_REAL_JQ" "$@" | sed $'s/$/\r/'
+EOF
+    chmod +x "$mock_bin/jq"
+    local PATH="$mock_bin:$PATH"
+    local OCTO_TEST_REAL_JQ="$real_jq"
+    export PATH OCTO_TEST_REAL_JQ
+    run_cli cache-check "$root" "$work/no-stable" claude --json || rc=$?
+    [[ "$rc" == 0 ]] &&
+        "$real_jq" -e '.failures == 0 and any(.checks[]; .role == "active" and .status == "pass")' \
+            "$work/result.json" >/dev/null
+}
+check windows_jq_crlf_output
+
 manifest_check() {
     local problem="$1" host=claude root="$work/manifest-$1" rc=0 manifest
     fixture "$root"
@@ -67,6 +89,7 @@ manifest_check() {
         traversal) jq '.skills="../outside"' "$manifest" > "$work/edit.json"; mv "$work/edit.json" "$manifest" ;;
         absolute) jq --arg path "$work/outside" '.skills=$path' "$manifest" > "$work/edit.json"; mv "$work/edit.json" "$manifest" ;;
         symlink) rmdir "$root/skills"; ln -s "$work/outside" "$root/skills" ;;
+        control-character) jq --arg path $'./skills\r' '.skills=$path' "$manifest" > "$work/edit.json"; mv "$work/edit.json" "$manifest" ;;
         wrong-type) jq '.skills=42' "$manifest" > "$work/edit.json"; mv "$work/edit.json" "$manifest" ;;
         empty-version) jq '.version=""' "$manifest" > "$work/edit.json"; mv "$work/edit.json" "$manifest" ;;
         json-stream) cat "$manifest" > "$work/edit.json"; cat "$work/edit.json" >> "$manifest" ;;
@@ -85,7 +108,7 @@ manifest_check() {
 }
 fixture "$work/good"
 mkdir "$work/outside"
-for problem in skill-file command-directory traversal absolute symlink wrong-type empty-version json-stream runtime-directory runtime-symlink icon-missing icon-directory icon-symlink icon-wrong-type; do
+for problem in skill-file command-directory traversal absolute symlink control-character wrong-type empty-version json-stream runtime-directory runtime-symlink icon-missing icon-directory icon-symlink icon-wrong-type; do
     check manifest_check "$problem"
 done
 

@@ -70,6 +70,9 @@ octo_validate_install_root() {
     OCTO_ROOT_VALID_DETAIL="manifest references could not be read or validated"
     while IFS=$'\t' read -r kind ref; do
         [[ -n "$kind" ]] || continue
+        # Native jq.exe may translate raw-output LF bytes to CRLF after the
+        # manifest control-character checks have already passed.
+        ref="${ref%$'\r'}"
         OCTO_ROOT_VALID_DETAIL="manifest reference must be a contained $kind: $ref"
         _octo_root_path_valid "$root" "$ref" "$kind" || return 1
     done <<< "$refs" || return 1
