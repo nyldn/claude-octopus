@@ -170,14 +170,14 @@ check_deps() {
         else
             warnings+=("agentmemory:agentmemory companion — optional persistent cross-agent memory")
         fi
-        if command -v deja >/dev/null 2>&1; then
-            ok+=("deja:deja companion detected")
-        fi
         if grep -q '"document-skills@anthropic-agent-skills": true' "$plugins_json" 2>/dev/null; then
             ok+=("document-skills:document-skills plugin installed")
         else
             warnings+=("document-skills:document-skills plugin — PDF/DOCX/PPTX/XLSX export (optional, needed for /octo:km)")
         fi
+    fi
+    if command -v deja >/dev/null 2>&1; then
+        ok+=("deja:deja companion detected")
     fi
 
     # Output

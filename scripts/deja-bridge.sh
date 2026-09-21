@@ -36,7 +36,8 @@ deja_search() {
     [[ -n "$scope" ]] && args+=(--project "$scope")
 
     _deja "${args[@]}" -- "$query" 2>/dev/null | jq -c '
-        [(.hits // [])[] | {
+        # Older deja releases printed a bare array; current ones wrap it in .hits.
+        [(if type == "array" then . else (.hits // []) end)[] | {
             title: (.session.title // (.snippets[0] // "") | .[0:120]),
             content: ((.snippets // []) | join("\n")),
             created_at: (.session.updated // .session.started // ""),
