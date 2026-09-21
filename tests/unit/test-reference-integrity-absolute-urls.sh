@@ -4,7 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-TEST_TMP_DIR="${TEST_TMP_DIR:-/tmp/octopus-refint-$$}"
+TEST_TMP_DIR="/tmp/octopus-tests-$$"
 trap 'rm -rf "$TEST_TMP_DIR"' EXIT INT TERM
 
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
@@ -16,7 +16,7 @@ run_hook_in() {
     mkdir -p "$fake_home/.claude-octopus/results"
     printf '## Status: PASS\n' > "$fake_home/.claude-octopus/results/tangle-validation-test.md"
     ( cd "$workspace" && HOME="$fake_home" bash "$PROJECT_ROOT/hooks/quality-gate.sh" \
-        <<<'{"tool_input":{"command":"bash orchestrate.sh"}}' 2>&1 || true )
+        <<<'{"tool_input":{"command":"bash orchestrate.sh"}}' 2>&1 )
 }
 
 test_case "server-absolute refs served by a web framework are not flagged"
@@ -29,11 +29,18 @@ printf 'void 0;\n' > "$workspace/src/app/static/app.js"
 output="$(run_hook_in "$workspace")"
 assert_not_contains "$output" "references missing" "server-absolute refs must not be flagged" && test_pass
 
-test_case "genuinely missing relative refs are still flagged"
-workspace="$TEST_TMP_DIR/relative"
+test_case "genuinely missing relative script refs are still flagged"
+workspace="$TEST_TMP_DIR/relative-script"
 mkdir -p "$workspace/src/app"
 printf '<html><body><script src="nope.js"></script></body></html>\n' > "$workspace/src/app/index.html"
 output="$(run_hook_in "$workspace")"
-assert_contains "$output" "references missing script: nope.js" "missing relative refs must still be flagged" && test_pass
+assert_contains "$output" "references missing script: nope.js" "missing relative script refs must still be flagged" && test_pass
+
+test_case "genuinely missing relative stylesheet refs are still flagged"
+workspace="$TEST_TMP_DIR/relative-stylesheet"
+mkdir -p "$workspace/src/app"
+printf '<html><head><link rel="stylesheet" href="nope.css"></head></html>\n' > "$workspace/src/app/index.html"
+output="$(run_hook_in "$workspace")"
+assert_contains "$output" "references missing stylesheet: nope.css" "missing relative stylesheet refs must still be flagged" && test_pass
 
 test_summary
