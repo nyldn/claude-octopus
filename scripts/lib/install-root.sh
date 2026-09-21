@@ -64,7 +64,9 @@ octo_validate_install_root() {
             if type == "array" then .[] else . end | ["file", .]),
           (.interface.composerIcon?, .interface.logo? | select(. != null) | ["file", .])
         ] | map(@tsv) | join("\n")
-    ' "$root/$manifest" 2>/dev/null | tr -d '\r')" || return 1
+    ' "$root/$manifest" 2>/dev/null)" || return 1
+    # Native Windows jq translates embedded \n in the joined string to \r\n.
+    refs="${refs//$'\r'/}"
     OCTO_ROOT_VALID_DETAIL="scripts/orchestrate.sh is missing, not executable, or outside the plugin root"
     _octo_root_path_valid "$root" scripts/orchestrate.sh executable || return 1
     OCTO_ROOT_VALID_DETAIL="manifest references could not be read or validated"
