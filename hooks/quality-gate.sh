@@ -70,7 +70,7 @@ check_reference_integrity() {
             if [[ ! -f "$dir/$ref" && ! -f "$ref" ]]; then
                 issues+=("$file references missing script: $ref")
             fi
-        done < <(grep -oE '<script[^>]+src=["'"'"'][^"'"'"']+' "$file" 2>/dev/null | sed 's/.*src=["'"'"']//' | grep -v '^https\?://' || true)
+        done < <(grep -oE '<script[^>]+src=["'"'"'][^"'"'"']+' "$file" 2>/dev/null | sed 's/.*src=["'"'"']//' | grep -vE '^(https?://|/)' || true)
 
         # Check <link href="..."> stylesheet references (skip http/https/CDN URLs)
         while IFS= read -r ref; do
@@ -78,7 +78,7 @@ check_reference_integrity() {
             if [[ ! -f "$dir/$ref" && ! -f "$ref" ]]; then
                 issues+=("$file references missing stylesheet: $ref")
             fi
-        done < <(grep -oE '<link[^>]+href=["'"'"'][^"'"'"']+' "$file" 2>/dev/null | sed 's/.*href=["'"'"']//' | grep -v '^https\?://' | grep -v '^#' || true)
+        done < <(grep -oE '<link[^>]+href=["'"'"'][^"'"'"']+' "$file" 2>/dev/null | sed 's/.*href=["'"'"']//' | grep -vE '^(https?://|/)' | grep -v '^#' || true)
     done
 
     # Check shell scripts sourcing missing files
