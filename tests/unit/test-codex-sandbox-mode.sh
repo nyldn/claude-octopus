@@ -66,4 +66,19 @@ else
     test_fail "codex-review must not pass --sandbox, got: $cmd"
 fi
 
+# `codex exec review` takes its custom review instructions as a positional
+# argument, where `-` means stdin. Dispatch pipes the prompt on stdin, so
+# without the trailing `-` codex sees neither a review target nor instructions
+# and exits 1 with "Specify --uncommitted, --base, --commit, or provide custom
+# review instructions". That made codex-review unusable as a fallback for
+# text-review roles such as the Tangle decomposition adequacy gate.
+test_case "codex-review reads review instructions from stdin via trailing -"
+unset OCTOPUS_CODEX_SANDBOX
+cmd="$(get_agent_command codex-review tangle reviewer)"
+if [[ "$cmd" == *" -" ]]; then
+    test_pass
+else
+    test_fail "expected command to end with ' -' so codex reads stdin, got: $cmd"
+fi
+
 test_summary

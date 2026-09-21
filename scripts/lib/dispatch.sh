@@ -394,7 +394,13 @@ get_agent_command() {
             # `codex exec`), so it silently inherits sandbox_mode from the
             # user's ~/.codex/config.toml — OCTOPUS_CODEX_SANDBOX would not
             # constrain it otherwise. -c overrides the config value directly.
-            echo "codex exec review --model ${model} --skip-git-repo-check -c sandbox_mode=${codex_sandbox}"
+            #
+            # The trailing `-` makes `codex exec review` read its custom review
+            # instructions from stdin, which is where dispatch already pipes the
+            # prompt. Without it codex exits 1 with "Specify --uncommitted,
+            # --base, --commit, or provide custom review instructions", because
+            # it sees no review target and no instructions argument.
+            echo "codex exec review --model ${model} --skip-git-repo-check -c sandbox_mode=${codex_sandbox} -"
             ;;
         claude)
             local reasoning_level reasoning_policy reasoning_fragment
