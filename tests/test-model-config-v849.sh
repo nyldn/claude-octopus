@@ -135,11 +135,12 @@ else
     fail "migrate_provider_config() not using jq --arg for migration"
 fi
 
-# Verify --argjson for overrides merge
-if grep -q '\-\-argjson ovr' "$_ORCH_ALL_TMP"; then
-    pass "migrate_provider_config() uses --argjson for safe overrides merge"
+# Verify the v3.0 migration merges the user's file as data (jq -s over files),
+# not by interpolating extracted values into a template
+if grep -q 'jq -s --arg codex_model "\$codex_model"' "$_ORCH_ALL_TMP"; then
+    pass "migrate_provider_config() merges the existing config as jq data"
 else
-    fail "migrate_provider_config() not using --argjson for overrides"
+    fail "migrate_provider_config() not merging the existing config as jq data"
 fi
 
 echo ""

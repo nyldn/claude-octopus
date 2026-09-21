@@ -528,23 +528,29 @@ migrate_provider_config() {
     command -v jq &>/dev/null || return 0
 
     local version
-    version=$(jq -r '.version // "1.0"' "$config_file" 2>/dev/null)
+    if ! version=$(jq -r 'if type == "object" then (.version // "1.0") else error("not an object") end' "$config_file" 2>/dev/null); then
+        log "WARN" "Provider config ${config_file} is not a single JSON object; migration skipped and the file left unchanged"
+        return 0
+    fi
 
-    # v3.0 Migration (structural refactor)
+    # v3.0 Migration (structural refactor). The user's file is deep-merged over
+    # the v3.0 template, so the migration only fills in missing defaults and the
+    # version stamp: keys it does not own (routing.features.*, provider sub-keys
+    # such as installed:false, overrides, frontier policy) are never dropped.
     if [[ "$version" != "3.0" ]]; then
         log "INFO" "Migrating provider config from v$version to v3.0 schema"
         local tmp_file="${config_file}.tmp.$$"
-        
+
         # Extract existing model preferences to seed v3.0
         local codex_model
-        codex_model=$(jq -r '.providers.codex.model // .providers.codex.default // "gpt-5.6-sol"' "$config_file")
-        
-        cat > "$tmp_file" << EOF
+        codex_model=$(jq -r '.providers.codex.model // .providers.codex.default // "gpt-5.6-sol"' "$config_file" 2>/dev/null) || codex_model="gpt-5.6-sol"
+
+        cat > "$tmp_file" << 'EOF'
 {
   "version": "3.0",
   "providers": {
     "codex": {
-      "default": "$codex_model",
+      "default": "gpt-5.6-sol",
       "fallback": "gpt-5.6-terra",
       "spark": "gpt-5.6-luna",
       "mini": "gpt-5.6-luna",
@@ -581,15 +587,19 @@ migrate_provider_config() {
   "overrides": {}
 }
 EOF
-        # Preserve overrides if they exist (v8.49.0: use --argjson for safe merge)
-        local overrides frontier
-        overrides=$(jq -c '.overrides // {}' "$config_file")
-        frontier=$(jq -c '.routing.frontier // {}' "$config_file")
-        jq --argjson ovr "$overrides" --argjson frontier "$frontier" \
-            '.overrides = $ovr | .routing.frontier = $frontier' \
-            "$tmp_file" > "${tmp_file}.2" && mv "${tmp_file}.2" "$config_file"
+        # jq -s reads both files as data (no string interpolation).
+        if jq -s --arg codex_model "$codex_model" '
+            if length == 2 and (.[0] | type == "object") and (.[1] | type == "object")
+            then (.[0] | .providers.codex.default = $codex_model) * .[1] | .version = "3.0"
+            else error("providers.json is not a single JSON object")
+            end
+        ' "$tmp_file" "$config_file" > "${tmp_file}.2" 2>/dev/null && mv "${tmp_file}.2" "$config_file"; then
+            log "INFO" "Migration to v3.0 complete"
+        else
+            rm -f "${tmp_file}.2"
+            log "WARN" "Provider config migration to v3.0 failed; ${config_file} left unchanged"
+        fi
         rm -f "$tmp_file"
-        log "INFO" "Migration to v3.0 complete"
 
         # v8.49.0: Clear stale model cache after migration
         _octo_cache_to_clear="$(octo_model_cache_file 2>/dev/null)" || _octo_cache_to_clear=""
