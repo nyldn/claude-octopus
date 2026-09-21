@@ -37,7 +37,12 @@ deja_search() {
 
     _deja "${args[@]}" -- "$query" 2>/dev/null | jq -c '
         # Older deja releases printed a bare array; current ones wrap it in .hits.
-        [(if type == "array" then . else (.hits // []) end)[] | {
+        # tier "relevance" means no session held every word, only the nearest
+        # ones; memory_search stops at the first backend with results, so those
+        # would keep a later backend with a real match from being asked.
+        [(if type == "array" then .
+          elif .tier == "relevance" then []
+          else (.hits // []) end)[] | {
             title: (.session.title // (.snippets[0] // "") | .[0:120]),
             content: ((.snippets // []) | join("\n")),
             created_at: (.session.updated // .session.started // ""),

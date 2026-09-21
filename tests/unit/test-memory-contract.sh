@@ -284,9 +284,22 @@ test_deja_bridge_search_maps_hits() {
         || test_fail "unexpected search output: $out"
 }
 
+test_deja_bridge_search_skips_relevance_tier() {
+    test_case "deja-bridge search returns nothing when deja only has nearest matches"
+    command -v jq >/dev/null 2>&1 || { test_skip "jq not installed"; return; }
+    local stub out
+    stub=$(_deja_stub)
+    sed -i.bak 's/"tier":"exact"/"tier":"relevance"/g' "$stub" && rm -f "$stub.bak"
+    out=$(DEJA_BIN="$stub" "$DEJA" search "pool exhausted" 5 myapp)
+    [[ -z "$out" || "$out" == "[]" ]] \
+        && test_pass \
+        || test_fail "expected no results for a relevance-tier answer, got: $out"
+}
+
 test_contract_file_exists
 test_mcp_bridge_exists
 test_deja_bridge_exists
+test_deja_bridge_search_skips_relevance_tier
 test_agentmemory_bridge_exists
 test_claude_mem_bridge_still_exists
 test_primitives_defined
