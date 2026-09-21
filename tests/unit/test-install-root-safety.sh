@@ -89,6 +89,26 @@ for problem in skill-file command-directory traversal absolute symlink wrong-typ
     check manifest_check "$problem"
 done
 
+crlf_jq() {
+    # Simulate a native Windows jq, which opens stdout in text mode and
+    # translates every \n to \r\n -- including newlines embedded inside a
+    # single -r/-e output string, which is what join("\n") produces. A valid
+    # installation must still validate once the CR is stripped (#1062).
+    local root="$work/crlf-jq"
+    fixture "$root"
+    mkdir -p "$work/crlf-bin"
+    cat > "$work/crlf-bin/jq" <<'EOF'
+#!/bin/bash
+exec "$REAL_JQ" "$@" | sed 's/$/\r/'
+EOF
+    chmod +x "$work/crlf-bin/jq"
+    PATH="$work/crlf-bin:$PATH" REAL_JQ="$(command -v jq)" "$TEST_BASH" -c '
+        source "$1"
+        octo_validate_install_root "$2" claude
+    ' _ "$PROJECT_ROOT/scripts/lib/install-root.sh" "$root"
+}
+check crlf_jq
+
 repair_invalid() {
     local mode="$1" rc=0 root="$work/bad-target-$1"
     fixture "$root"
