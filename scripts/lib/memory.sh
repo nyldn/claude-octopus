@@ -49,6 +49,25 @@ _memory_agentmemory_registered() {
     ' "$settings" >/dev/null 2>&1
 }
 
+# deja reads the transcripts every provider already writes, so it is only
+# picked up when the user wired it into Claude Code (MCP server or plugin).
+_memory_deja_registered() {
+    command -v "${DEJA_BIN:-deja}" >/dev/null 2>&1 || return 1
+    command -v jq >/dev/null 2>&1 || return 1
+    # The MCP server lands in ~/.claude.json and the plugin in
+    # ~/.claude/settings.json, so both are read rather than the first found.
+    local settings
+    for settings in "${CLAUDE_SETTINGS_FILE:-}" "$HOME/.claude.json" "$HOME/.claude/settings.json"; do
+        [[ -n "$settings" && -s "$settings" ]] || continue
+        jq -e '
+            ((.mcpServers // {}) + (.servers // {})) as $m
+            | ([$m | to_entries[] | select(.key == "deja" or ((.value.command // "") | test("(^|/)deja$")))] | length > 0)
+              or ((.enabledPlugins // {})["deja-vu@deja-vu"] == true)
+        ' "$settings" >/dev/null 2>&1 && return 0
+    done
+    return 1
+}
+
 memory_backends() {
     local pref="${OCTOPUS_MEMORY_BACKEND:-auto}"
     if [[ "$pref" != "auto" ]]; then
@@ -60,6 +79,9 @@ memory_backends() {
     fi
     if _memory_mcp_service_registered; then
         printf 'mcp-memory-service\n'
+    fi
+    if _memory_deja_registered; then
+        printf 'deja\n'
     fi
     printf 'claude-mem\n'
 }
@@ -96,6 +118,11 @@ _memory_invoke() {
                 context)   "$bridge" context "${1:-}" "${2:-3}" ;;
                 *) return 1 ;;
             esac
+            ;;
+        deja)
+            local bridge="${_MEMORY_BRIDGE_DIR}/deja-bridge.sh"
+            [[ -x "$bridge" ]] || return 1
+            "$bridge" "$primitive" "$@"
             ;;
         mcp-memory-service)
             local bridge="${_MEMORY_BRIDGE_DIR}/mcp-memory-bridge.sh"

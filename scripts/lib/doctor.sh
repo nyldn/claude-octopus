@@ -1533,6 +1533,12 @@ doctor_check_conflicts() {
         doctor_add "companion-agentmemory" "conflicts" "info" \
             "agentmemory URL configured" "$AGENTMEMORY_URL"
     fi
+
+    if command -v "${DEJA_BIN:-deja}" >/dev/null 2>&1; then
+        doctor_add "companion-deja" "conflicts" "pass" \
+            "deja CLI detected (companion — memory from every provider's session files)" \
+            "$(command -v "${DEJA_BIN:-deja}")"
+    fi
 }
 
 # --- Category 9: Smoke Test (v8.19.0 - Issue #34) ---

@@ -458,7 +458,10 @@ AskUserQuestion({
   is stored and obtain confirmation before installing or connecting it. After
   confirmation, connect Claude Code with `agentmemory connect claude-code`;
   users who want to force this backend can set
-  `OCTOPUS_MEMORY_BACKEND=agentmemory`.
+  `OCTOPUS_MEMORY_BACKEND=agentmemory`. deja-vu is the other option when the
+  providers' own session history should be searchable: `deja install --auto`
+  indexes the transcripts Claude Code, Codex and Gemini CLI already wrote, and
+  `OCTOPUS_MEMORY_BACKEND=deja` forces it.
 
 ### Automation
 
