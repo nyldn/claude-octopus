@@ -15,15 +15,20 @@ _octo_early_command=""
 while [[ "$_octo_early_index" -lt "${#_octo_early_args[@]}" ]]; do
     _octo_early_arg="${_octo_early_args[$_octo_early_index]}"
     case "$_octo_early_arg" in
-        -p|--parallel|-t|--timeout|-d|--dir|-a|--autonomy|-q|--quality|--tier|--branch|--on-fail|--provider)
+        -p|--parallel|-t|--timeout|-d|--dir|-a|--autonomy|-q|--quality|--tier|--branch|--on-fail|--provider|--intensity|--breadth|--research-run|--resume-research)
             _octo_early_index=$((_octo_early_index + 2)) ;;
-        -v|--verbose|--debug|-n|--dry-run|-l|--loop|-R|--resume|-Q|--quick|-P|--premium|--no-personas|--skip-smoke-test|--ci|--cost-first|--quality-first|--openrouter-nitro|--openrouter-floor|--async|--no-async|--tmux|--no-tmux)
+        -v|--verbose|--debug|-n|--dry-run|-l|--loop|-R|--resume|-Q|--quick|-P|--premium|--no-personas|--skip-smoke-test|--ci|--cost-first|--quality-first|--openrouter-nitro|--openrouter-floor|--async|--no-async|--tmux|--no-tmux|--intensity=*|--breadth=*|--research-run=*|--resume-research=*)
             _octo_early_index=$((_octo_early_index + 1)) ;;
         *)
             _octo_early_command="$_octo_early_arg"
             break ;;
     esac
 done
+# Refuse recursive council startup before persistent initialization or probes.
+if [[ "$_octo_early_command" == "council" && "${OCTOPUS_COUNCIL_ACTIVE:-}" == "1" ]]; then
+    printf '%s\n' "ERROR: Refusing to start a nested council: this process was spawned by an Octopus council seat dispatch (re-entrancy guard OCTOPUS_COUNCIL_ACTIVE=1). A council seat must review the task and emit a single VERDICT line directly." >&2
+    exit 2
+fi
 case "$_octo_early_command" in
     guide|doctor|capabilities|cache-check|check-cache|security-audit|repair|handoff|profile|install-state)
         OCTOPUS_EARLY_ARTIFACT_READ_ONLY=true
@@ -3250,23 +3255,7 @@ case "$COMMAND" in
         echo "cost-archive has been removed. Usage data is managed automatically."
         ;;
     council)
-        # Re-entrancy guard (#2718). Under a non-Claude host (e.g. a Codex
-        # conductor, OCTOPUS_HOST=codex) the claude seat is dispatched as a real
-        # `claude -p` subprocess inside the governed worktree. That worktree's
-        # project memory (CLAUDE-OCTO.md) mandates /octo:council for its review
-        # gates, and --setting-sources project,local does NOT suppress memory
-        # files — so the seat re-invokes `orchestrate.sh council`, which dispatches
-        # the claude seat again: an unbounded recursion that leaves empty response
-        # files and never writes summary.json. Any council we start exports
-        # OCTOPUS_COUNCIL_ACTIVE=1, which every dispatched seat subprocess inherits;
-        # a council invocation that already carries it is a seat trying to launch a
-        # nested council, so refuse instead of recursing. A seat must answer its
-        # prompt and emit a VERDICT, not run another council. (A top-level council
-        # never has it set, so normal runs are unaffected.)
-        if [[ "${OCTOPUS_COUNCIL_ACTIVE:-}" == "1" ]]; then
-            log ERROR "Refusing to start a nested council: this process was spawned by an Octopus council seat dispatch (re-entrancy guard OCTOPUS_COUNCIL_ACTIVE=1). A council seat must review the task and emit a single VERDICT line directly — do NOT run /octo:council or orchestrate.sh council from inside a seat."
-            exit 2
-        fi
+        [[ "${OCTOPUS_COUNCIL_ACTIVE:-}" != "1" ]] || { log ERROR "Refusing to start a nested council (OCTOPUS_COUNCIL_ACTIVE=1)"; exit 2; }
         export OCTOPUS_COUNCIL_ACTIVE=1
         if ! declare -f council_run >/dev/null 2>&1; then
             log ERROR "Council command unavailable: scripts/lib/council.sh failed to load"

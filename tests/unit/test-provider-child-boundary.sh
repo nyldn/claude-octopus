@@ -55,6 +55,52 @@ else
     test_fail "council re-entrancy guard not forwarded across env -i (or injected when unset)"
 fi
 
+test_case "nested council is refused before persistent initialization"
+guard_home="$TEST_TMP_DIR/council-guard-home"
+guard_workspace="$TEST_TMP_DIR/council-guard-workspace"
+guard_project="$TEST_TMP_DIR/council-guard-project"
+guard_output="$TEST_TMP_DIR/council-guard.out"
+mkdir -p "$guard_home" "$guard_project"
+guard_status=0
+HOME="$guard_home" \
+CLAUDE_PLUGIN_DATA="$guard_workspace" \
+OCTOPUS_PROJECT_DIR="$guard_project" \
+OCTOPUS_COUNCIL_ACTIVE=1 \
+    bash "$PROJECT_ROOT/scripts/orchestrate.sh" council "Nested review" \
+    >"$guard_output" 2>&1 || guard_status=$?
+
+if [[ "$guard_status" -eq 2 ]] &&
+   grep -q "Refusing to start a nested council" "$guard_output" &&
+   [[ ! -e "$guard_home/.claude-octopus" ]] &&
+   [[ ! -e "$guard_workspace" ]]; then
+    test_pass
+else
+    test_fail "nested council reached persistent initialization (status=$guard_status)"
+fi
+
+test_case "nested council guard recognizes research options before command"
+guard_option_home="$TEST_TMP_DIR/council-guard-option-home"
+guard_option_workspace="$TEST_TMP_DIR/council-guard-option-workspace"
+guard_option_project="$TEST_TMP_DIR/council-guard-option-project"
+guard_option_output="$TEST_TMP_DIR/council-guard-option.out"
+mkdir -p "$guard_option_home" "$guard_option_project"
+guard_option_status=0
+HOME="$guard_option_home" \
+CLAUDE_PLUGIN_DATA="$guard_option_workspace" \
+OCTOPUS_PROJECT_DIR="$guard_option_project" \
+OCTOPUS_COUNCIL_ACTIVE=1 \
+    bash "$PROJECT_ROOT/scripts/orchestrate.sh" --intensity deep council "Nested review" \
+    >"$guard_option_output" 2>&1 || guard_option_status=$?
+
+if [[ "$guard_option_status" -eq 2 ]] &&
+   grep -q "Refusing to start a nested council" "$guard_option_output" &&
+   [[ ! -e "$guard_option_home/.claude-octopus" ]] &&
+   [[ ! -e "$guard_option_workspace" ]]; then
+    test_pass
+else
+    test_fail "nested council option parsing reached persistent initialization (status=$guard_option_status)"
+fi
+
 test_case "provider-child user prompt hook emits no routing context"
 hook_input='{"prompt":"implement this with octo:embrace"}'
 hook_output=$(printf '%s' "$hook_input" | OCTOPUS_PROVIDER_CHILD=true bash "$PROJECT_ROOT/hooks/user-prompt-submit.sh")

@@ -78,15 +78,18 @@ fi
 # inside the case and would skip a tail hook, and because a per-call-site fix is
 # exactly what let the quota downgrade cover four of thirteen providers before
 # it moved into `provider_status`.
+_octo_provider_env_append_once() {
+    local name="$1" value="$2" entry
+    for entry in "${PROVIDER_ENV_ARRAY[@]}"; do
+        [[ "$entry" == "${name}="* ]] && return 0
+    done
+    PROVIDER_ENV_ARRAY+=("${name}=${value}")
+}
+
 _octo_provider_env_forward_workspace_dir() {
     [[ ${#PROVIDER_ENV_ARRAY[@]} -gt 0 ]] || return 0
     [[ "${PROVIDER_ENV_ARRAY[0]}" == "env" ]] || return 0
-    local _entry
-    for _entry in "${PROVIDER_ENV_ARRAY[@]}"; do
-        [[ "$_entry" == WORKSPACE_DIR=* ]] && return 0
-    done
-    PROVIDER_ENV_ARRAY+=("WORKSPACE_DIR=${WORKSPACE_DIR:-$HOME/.claude-octopus}")
-    return 0
+    _octo_provider_env_append_once WORKSPACE_DIR "${WORKSPACE_DIR:-$HOME/.claude-octopus}"
 }
 
 _octo_build_openai_tool_loop_env() {
@@ -144,7 +147,7 @@ _octo_provider_env_forward_auto_peer_guard() {
     [[ ${#PROVIDER_ENV_ARRAY[@]} -gt 0 ]] || return 0
     for guard_var in OCTOPUS_AUTO_PEER_ACTIVE OCTOPUS_AUTO_PEER_CHECKED OCTOPUS_AUTO_PEER_RUN_ID; do
         if [[ -n "${!guard_var+x}" ]]; then
-            PROVIDER_ENV_ARRAY+=("${guard_var}=${!guard_var}")
+            _octo_provider_env_append_once "$guard_var" "${!guard_var}"
         fi
     done
 }
@@ -159,12 +162,7 @@ _octo_provider_env_forward_council_guard() {
     [[ ${#PROVIDER_ENV_ARRAY[@]} -gt 0 ]] || return 0
     [[ "${PROVIDER_ENV_ARRAY[0]}" == "env" ]] || return 0
     [[ -n "${OCTOPUS_COUNCIL_ACTIVE+x}" ]] || return 0
-    local _entry
-    for _entry in "${PROVIDER_ENV_ARRAY[@]}"; do
-        [[ "$_entry" == OCTOPUS_COUNCIL_ACTIVE=* ]] && return 0
-    done
-    PROVIDER_ENV_ARRAY+=("OCTOPUS_COUNCIL_ACTIVE=${OCTOPUS_COUNCIL_ACTIVE}")
-    return 0
+    _octo_provider_env_append_once OCTOPUS_COUNCIL_ACTIVE "$OCTOPUS_COUNCIL_ACTIVE"
 }
 
 build_provider_env() {
