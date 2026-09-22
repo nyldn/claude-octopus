@@ -147,7 +147,10 @@ class Process:
         if sys.platform.startswith("linux"):
             if not callable(getattr(os, "pidfd_open", None)) or not callable(
                     getattr(signal, "pidfd_send_signal", None)):
-                raise UnsupportedPlatform("Linux cancellation requires Python 3.9+ with pidfd support")
+                raise UnsupportedPlatform(
+                    "Linux cancellation requires a CPython build with pidfd support "
+                    "(os.pidfd_open + signal.pidfd_send_signal); the interpreter "
+                    "version alone does not guarantee this")
             self.fd = os.pidfd_open(pid)
             try:
                 after = snapshot(pid)

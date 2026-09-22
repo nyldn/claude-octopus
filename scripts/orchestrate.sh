@@ -3025,7 +3025,14 @@ case "$COMMAND" in
                 fi
                 ;;
         esac
+        # #1075: capture the dispatch exit status before the cleanup `unset`
+        # below (which always succeeds) can overwrite it. `set -eo pipefail`
+        # already aborts here on a nonzero exit before `unset` ever runs, but
+        # that protection is incidental to this branch's position in the
+        # script — make the propagation explicit so it doesn't depend on that.
+        _spawn_exit=$?
         unset _spawn_target _spawn_role _spawn_provider
+        exit "$_spawn_exit"
         ;;
     auto)
         source "${SCRIPT_DIR}/lib/auto-route.sh" 2>/dev/null || true
