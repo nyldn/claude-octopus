@@ -410,17 +410,58 @@ else
 fi
 
 test_case "failed registration refuses provider dispatch and terminalizes the seat"
+saved_record_start_impl="$(declare -f record_agent_start)"
+record_agent_start() { printf '%s\n' call-registration-failure; }
+record_agent_failure() {
+    printf '%s|%s|%s\n' "${4:-failed}" "$1" "${3:-}" >> "$TEST_TMP_DIR/registration-usage-terminal"
+}
 octopus_pid_register() { return 1; }
 registration_rc=0
 registration_prompt="$TEST_TMP_DIR/unexpected-registration-prompt"
 CAPTURED_PROVIDER_PROMPT_FILE="$registration_prompt" spawn_agent fake-api \
     "Registration failure fixture" registration-failure reviewer probe > "$TEST_TMP_DIR/registration.pid" || registration_rc=$?
 eval "$saved_register_impl"
+eval "$saved_record_start_impl"
+unset -f record_agent_failure
 if [[ "$registration_rc" == 74 && ! -e "$registration_prompt" ]] && \
-   [[ "$(run_contract_latest_transition spawn-registration-failure)" == failed ]]; then
+   [[ "$(run_contract_latest_transition spawn-registration-failure)" == failed ]] && \
+   [[ "$(wc -l < "$TEST_TMP_DIR/registration-usage-terminal" | tr -d ' ')" == 1 ]] && \
+   grep -Fxq 'failed|call-registration-failure|Worker registration failed or timed out' \
+       "$TEST_TMP_DIR/registration-usage-terminal"; then
     test_pass
 else
-    test_fail "failed registration dispatched a provider or did not record failure"
+    test_fail "failed registration dispatched a provider or left contract/usage state nonterminal"
+fi
+
+test_case "ready-file allocation failure terminalizes contract and usage state"
+real_mktemp="$(type -P mktemp)"
+mktemp() {
+    case "${1:-}" in
+        */.spawn-ready.XXXXXX) return 1 ;;
+        *) "$real_mktemp" "$@" ;;
+    esac
+}
+saved_record_start_impl="$(declare -f record_agent_start)"
+record_agent_start() { printf '%s\n' call-ready-file-failure; }
+record_agent_failure() {
+    printf '%s|%s|%s\n' "${4:-failed}" "$1" "${3:-}" >> "$TEST_TMP_DIR/ready-file-usage-terminal"
+}
+ready_file_rc=0
+spawn_agent fake-api "Ready-file allocation fixture" ready-file-failure reviewer probe \
+    > "$TEST_TMP_DIR/ready-file.pid" || ready_file_rc=$?
+unset -f mktemp record_agent_failure
+eval "$saved_record_start_impl"
+ready_file_reason="$(jq -r --arg seat spawn-ready-file-failure \
+    'select(.seat_id == $seat and .transition == "failed") | .reason' "$ledger" | tail -n 1)"
+if [[ "$ready_file_rc" == 74 ]] && \
+   [[ "$(run_contract_latest_transition spawn-ready-file-failure)" == failed ]] && \
+   [[ "$ready_file_reason" == "Worker readiness file allocation failed" ]] && \
+   [[ "$(wc -l < "$TEST_TMP_DIR/ready-file-usage-terminal" | tr -d ' ')" == 1 ]] && \
+   grep -Fxq 'failed|call-ready-file-failure|Worker readiness file allocation failed' \
+       "$TEST_TMP_DIR/ready-file-usage-terminal"; then
+    test_pass
+else
+    test_fail "ready-file allocation failure left contract or usage state nonterminal"
 fi
 
 test_case "Tangle boundary refusal completes through the shared failure path"

@@ -1163,7 +1163,13 @@ ${heuristic_ctx}"
         log ERROR "Worker registration failed: no Python interpreter can provide native process cancellation"
         return 74
     fi
-    _spawn_ready_file="$(mktemp "${RESULTS_DIR}/.spawn-ready.XXXXXX")" || return 74
+    if ! _spawn_ready_file="$(mktemp "${RESULTS_DIR}/.spawn-ready.XXXXXX")"; then
+        octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
+            "Worker readiness file allocation failed" 74 "" >/dev/null 2>&1 || true
+        [[ -n "$metrics_id" ]] && record_agent_failure "$metrics_id" 0 \
+            "Worker readiness file allocation failed" failed 2>/dev/null || true
+        return 74
+    fi
     [[ "$-" == *m* ]] && _spawn_monitor_was_enabled=true
     set -m
     (
@@ -1745,6 +1751,8 @@ ${heuristic_ctx}"
         rm -f "$_spawn_ready_file"
         octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
             "Worker registration failed or timed out" 74 "" >/dev/null 2>&1 || true
+        [[ -n "$metrics_id" ]] && record_agent_failure "$metrics_id" 0 \
+            "Worker registration failed or timed out" failed 2>/dev/null || true
         log ERROR "Worker registration failed for $task_id"
         return 74
     fi
