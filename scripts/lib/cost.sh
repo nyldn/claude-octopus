@@ -390,14 +390,12 @@ display_workflow_cost_estimate() {
     [[ -n "$claude_model" ]] || claude_model="${OCTOPUS_OPUS_MODEL:-${OCTOPUS_CLAUDE_MODEL:-claude-sonnet-5}}"
     local claude_model_label="$claude_model"
     case "${claude_agent_type}:${claude_model}" in
-        claude-opus-fast:claude-opus-5-5) claude_model_label="Opus 5.5 Fast" ;;
         claude-opus-fast:claude-opus-5)   claude_model_label="Opus 5 Fast" ;;
         claude-opus-fast:claude-opus-4.8) claude_model_label="Opus 4.8 Fast" ;;
         claude-opus-fast:claude-opus-4.7) claude_model_label="Opus 4.7 Fast" ;;
         claude-opus-fast:claude-opus-4.6) claude_model_label="Opus 4.6 Fast" ;;
         *:claude-fable-5-1) claude_model_label="Fable 5.1" ;;
         *:claude-fable-5) claude_model_label="Fable 5" ;;
-        *:claude-opus-5-5-fast) claude_model_label="Opus 5.5 Fast" ;;
         *:claude-opus-5-5)    claude_model_label="Opus 5.5" ;;
         *:claude-opus-5-fast) claude_model_label="Opus 5 Fast" ;;
         *:claude-opus-5)      claude_model_label="Opus 5" ;;

@@ -118,34 +118,39 @@ test_detection_gates_5_5_on_2_1_280() {
 
 test_opus_5_5_catalog_is_automatic() {
     test_case "Opus 5.5 is a canonical catalog entry eligible for automatic routing"
-    local model ok=true
-    for model in claude-opus-5-5 claude-opus-5-5-fast; do
-        is_known_model "$model" || ok=false
-        grep -Fxq "$model" < <(octo_model_ids) || ok=false
-        [[ "$(get_model_catalog "$model")" == "1000|yes|yes|yes|claude|premium|active" ]] || ok=false
-        [[ "$(get_model_policy "$model")" == "automatic|yes|unlimited|unlimited|general" ]] || ok=false
-        octo_model_auto_eligible "$model" || ok=false
-    done
+    local ok=true
+    is_known_model claude-opus-5-5 || ok=false
+    grep -Fxq claude-opus-5-5 < <(octo_model_ids) || ok=false
+    [[ "$(get_model_catalog claude-opus-5-5)" == "1000|yes|yes|yes|claude|premium|active" ]] || ok=false
+    [[ "$(get_model_policy claude-opus-5-5)" == "automatic|yes|unlimited|unlimited|general" ]] || ok=false
+    octo_model_auto_eligible claude-opus-5-5 || ok=false
     octo_model_automatic_target_allowed claude-opus-5-5 claude || ok=false
     octo_model_automatic_target_allowed claude:claude-opus-5-5 || ok=false
+    is_known_model claude-opus-5-5-fast && ok=false
     [[ "$ok" == "true" ]] && test_pass || test_fail "claude-opus-5-5 is missing from the catalog or fails closed"
 }
 
 test_opus_5_5_pricing() {
-    test_case "Opus 5.5 standard and fast pricing come from the shared table"
+    test_case "Opus 5.5 pricing comes from the shared table"
     local prices
     prices="$(
         export WORKSPACE_DIR="$TEST_TMP_DIR/workspace"
         mkdir -p "$WORKSPACE_DIR"
         source "$PROJECT_ROOT/scripts/lib/cost.sh"
         source "$PROJECT_ROOT/scripts/metrics-tracker.sh"
-        printf '%s %s %s %s\n' \
+        printf '%s %s\n' \
             "$(get_model_pricing claude-opus-5-5 claude)" \
-            "$(get_model_pricing claude-opus-5-5-fast claude)" \
-            "$(get_model_cost claude-opus-5-5)" \
-            "$(get_model_cost claude-opus-5-5-fast)"
+            "$(get_model_cost claude-opus-5-5)"
     )"
-    [[ "$prices" == "4.00:20.00 8.00:40.00 4.00 8.00" ]] && test_pass || test_fail "unexpected Opus 5.5 pricing: $prices"
+    [[ "$prices" == "4.00:20.00 4.00" ]] && test_pass || test_fail "unexpected Opus 5.5 pricing: $prices"
+}
+
+test_opus_5_5_eval_route_uses_host_default() {
+    test_case "eval premium Claude routing uses the version-gated Opus default"
+    reset_env
+    export SUPPORTS_OPUS_5_5=true SUPPORTS_OPUS_5=true
+    local got; got="$(_octo_eval_model_for_class claude premium)"
+    [[ "$got" == "claude-opus-5-5" ]] && test_pass || test_fail "expected claude-opus-5-5, got $got"
 }
 
 test_opus_5_5_config_default_is_selected() {
@@ -396,6 +401,7 @@ test_detection_gates_5_5_on_2_1_280
 test_opus_5_5_catalog_is_automatic
 test_opus_5_5_pricing
 test_opus_5_5_config_default_is_selected
+test_opus_5_5_eval_route_uses_host_default
 test_default_prefers_5
 test_default_falls_back_to_48
 test_default_falls_back_to_47

@@ -71,6 +71,14 @@ _octo_route_provider_for_model() {
 # before evaluated defaults. An explicit same-family verifier is honored but its
 # coverage is marked degraded; an unpinned same-family candidate is replaced by
 # a cross-vendor verifier.
+_octo_route_opus_model() {
+  if [[ "${SUPPORTS_OPUS_5_5:-false}" == true ]]; then
+    printf '%s\n' "claude-opus-5-5"
+  else
+    printf '%s\n' "claude-opus-5"
+  fi
+}
+
 octo_route_decision() {
   local task_class="${1:-balanced}" policy="${2:-off}"
   local user_pin="${3:-}" project_pin="${4:-}"
@@ -96,7 +104,7 @@ octo_route_decision() {
     coverage="independent"
   elif [[ "$requires_independent" == true && -n "$author_model" ]]; then
     if [[ "$(octo_model_family "$author_model")" == openai ]]; then
-      model="claude-opus-5"
+      model="$(_octo_route_opus_model)"
     else
       model="gpt-5.6-sol"
     fi
@@ -106,7 +114,7 @@ octo_route_decision() {
     case "$task_class" in
       mechanical) model="gpt-5.6-luna"; reason="eval-mechanical" ;;
       balanced) model="gpt-5.6-terra"; reason="eval-balanced" ;;
-      premium) model="claude-opus-5"; reason="eval-premium" ;;
+      premium) model="$(_octo_route_opus_model)"; reason="eval-premium" ;;
       security) model="gpt-5.6-sol"; reason="security-cross-vendor" ;;
       review) model="gpt-5.6-sol"; reason="eval-review" ;;
       *) return 2 ;;

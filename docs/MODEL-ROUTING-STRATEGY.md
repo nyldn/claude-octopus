@@ -2,7 +2,7 @@
 
 Status: accepted and implemented
 Decision date: 2026-07-27
-Last reviewed: 2026-09-05
+Last reviewed: 2026-09-22
 
 ## Decision
 
@@ -38,7 +38,7 @@ independent provider diversity.
 ### Expensive-model admission
 
 Fable 5.1 earns a seat for ambiguous architecture, difficult product or API
-tradeoffs, long-horizon planning, and final arbitration when Opus 5 has not met
+tradeoffs, long-horizon planning, and final arbitration when the current Opus lead has not met
 the acceptance criteria. The `escalate` policies can admit one such dispatch
 per run; direct pins remain the user's responsibility.
 
@@ -150,8 +150,8 @@ capability, cost-tier, and release defaults:
 |---|---|---|
 | Mechanical | GPT-5.6 Luna | Haiku 4.5 |
 | Balanced | GPT-5.6 Terra | Sonnet 5 |
-| Premium | GPT-5.6 Sol | Opus 5 |
-| Review or security | GPT-5.6 Sol | Opus 5 |
+| Premium | GPT-5.6 Sol | Opus 5.5, with Opus 5 fallback |
+| Review or security | GPT-5.6 Sol | Opus 5.5, with Opus 5 fallback |
 
 The policy and task class are part of the model-cache key. A mechanical result
 therefore cannot be reused for a later premium seat. Routing decisions report a
@@ -273,7 +273,7 @@ default, literal tier route, council seat, review-fleet seat, or fallback.
 
 ## Prompt policy
 
-For Opus 5 and Sonnet 5, prompts should state the goal, relevant context,
+For Opus 5.5, Opus 5, and Sonnet 5, prompts should state the goal, relevant context,
 boundaries, reasons for unusual constraints, and checkable acceptance criteria.
 Avoid duplicated reminders, all-caps emphasis without a real compliance need,
 token countdowns, and requests to reveal hidden reasoning. The runtime policy

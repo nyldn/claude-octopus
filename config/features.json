@@ -16,17 +16,17 @@
         {
           "value": "off",
           "label": "Not at all",
-          "description": "Opus 5 stays the lead for everything. No added cost. Changeable later with /octo:whats-new."
+          "description": "The current Opus default stays the lead for everything. No added cost. Changeable later with /octo:whats-new."
         },
         {
           "value": "escalate",
           "label": "Planning and PRDs",
-          "description": "Fable 5.1 authors PRDs, definition tradeoffs and cross-vendor tie-breaks. $10/$50 per MTok, twice Opus 5, capped at one dispatch per command."
+          "description": "Fable 5.1 authors PRDs, definition tradeoffs and cross-vendor tie-breaks. $10/$50 per MTok, capped at one dispatch per command."
         },
         {
           "value": "escalate-reviews",
           "label": "Planning, PRDs and reviews",
-          "description": "As above, plus plan and spec review. Fable 5.1 is Anthropic-family like Opus 5, so a Fable review of Opus work is not an independent cross-vendor check."
+          "description": "As above, plus plan and spec review. Fable 5.1 is Anthropic-family like Opus, so a Fable review of Opus work is not an independent cross-vendor check."
         },
         {
           "value": "on-demand",
@@ -49,7 +49,7 @@
         {
           "value": "claude",
           "label": "A Claude seat",
-          "description": "Review moves to Opus 5 so author and reviewer are different vendors. Costs Opus 5 rates for the review step."
+          "description": "Review moves to the current Opus default so author and reviewer are different vendors. Costs the selected Opus model's rate for the review step."
         },
         {
           "value": "codex",

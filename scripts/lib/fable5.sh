@@ -249,7 +249,10 @@ fable5_escalation_consented() {
 fable5_escalation_candidate() {
     local model="${1:-}" role="${2:-}" agent_type="${3:-}" phase="${4:-}"
     local premium_frontier=false
-    [[ "$model" == "claude-opus-5" || "$model" == "claude-opus.5" ]] || return 1
+    case "$model" in
+        claude-opus-5-5|claude-opus-5|claude-opus.5) ;;
+        *) return 1 ;;
+    esac
     [[ -z "${OCTOPUS_OPUS_MODEL:-}" && -z "${OCTOPUS_CLAUDE_MODEL:-}" &&
        -z "${CLAUDE_MODEL:-}" ]] || return 1
     if declare -f octo_frontier_policy_enabled >/dev/null 2>&1 &&
@@ -316,7 +319,7 @@ fable5_maybe_escalate() {
     fi
 
     if declare -f log >/dev/null 2>&1; then
-        log "WARN" "🐙 Fable 5 escalation: ${role} ${model} → ${FABLE5_MODEL_ID} (\$10/\$50 per MTok, 2x Opus 5; /octo:whats-new to disable)"
+        log "WARN" "🐙 Fable 5 escalation: ${role} ${model} → ${FABLE5_MODEL_ID} (\$10/\$50 per MTok; /octo:whats-new to disable)"
     fi
     printf '%s\n' "$FABLE5_MODEL_ID"
     return 0

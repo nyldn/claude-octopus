@@ -54,6 +54,28 @@ while IFS= read -r case_json; do
     fi
 done < <(jq -c '.cases[]' "$CASES")
 
+test_case "evaluated premium routing selects Opus 5.5 when the host supports it"
+opus55_decision="$(SUPPORTS_OPUS_5_5=true bash -c \
+    'source "$1"; octo_route_decision premium eval "" "" false "" ""' \
+    _ "$PROFILE_LIB")"
+if jq -e '.provider == "claude-opus" and .model == "claude-opus-5-5" and .reason == "eval-premium"' \
+    <<< "$opus55_decision" >/dev/null; then
+    test_pass
+else
+    test_fail "Opus 5.5-capable premium route returned: $opus55_decision"
+fi
+
+test_case "cross-vendor verification selects Opus 5.5 when the host supports it"
+opus55_review="$(SUPPORTS_OPUS_5_5=true bash -c \
+    'source "$1"; octo_route_decision review eval "" "" true gpt-5.6-sol ""' \
+    _ "$PROFILE_LIB")"
+if jq -e '.provider == "claude-opus" and .model == "claude-opus-5-5" and .reason == "cross-vendor-verifier" and .coverage == "independent"' \
+    <<< "$opus55_review" >/dev/null; then
+    test_pass
+else
+    test_fail "Opus 5.5-capable verifier route returned: $opus55_review"
+fi
+
 test_case "Fable input gate accepts the default byte ceiling exactly"
 if bash -c 'source "$1"; fable5_prompt_within_budget 524288' _ "$FABLE_LIB"; then
     test_pass

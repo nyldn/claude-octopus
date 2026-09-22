@@ -34,7 +34,7 @@ Claude Octopus coordinates **twelve external AI integrations** alongside its bui
 |----------|----------|------------------|-------------|
 | **Codex CLI** | `codex exec --model gpt-5.6-sol` | GPT-5.6 Sol/Terra/Luna | ChatGPT OAuth or your `OPENAI_API_KEY` |
 | **Antigravity CLI** | `agy --print --sandbox` | `default`/`agy/default`, or an exact label from `agy models` | Your Antigravity CLI auth |
-| **Claude** | Built-in | Claude Sonnet 5 / Opus 5 | Your Claude Code subscription or API account |
+| **Claude** | Built-in | Claude Sonnet 5 / Opus 5.5, with Opus 5 fallback | Your Claude Code subscription or API account |
 | **Perplexity** | API-only | Sonar Pro / Sonar | Your `PERPLEXITY_API_KEY` |
 | **OpenRouter** | API-only | 100+ models (GLM-5, Kimi K2.5, DeepSeek R1, etc.) | Your `OPENROUTER_API_KEY` |
 | **OrcaRouter** | API-only | Namespaced Claude models via an OpenAI-compatible gateway | Your `ORCAROUTER_API_KEY` |

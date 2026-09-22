@@ -382,7 +382,7 @@ Configure which AI models are used across Claude Octopus workflows.
 |------|-------|--------|-------------|----------|
 | `budget` | GPT-5.6 Luna | Haiku 4.5 | Fast service tier | High-volume, quick feedback |
 | `standard` | GPT-5.6 Sol | Sonnet 5 | Service-selected default | Default — frontier coding/quality |
-| `premium` | GPT-5.6 Sol | Opus 5 | Service-selected default | Critical decisions and premium Claude judgment |
+| `premium` | GPT-5.6 Sol | Opus 5.5, with Opus 5 fallback | Service-selected default | Critical decisions and premium Claude judgment |
 
 Quick toggles persist the selected mode in
 `~/.claude-octopus/config/providers.json`. Configure a provider target for any
@@ -391,7 +391,7 @@ An explicit `OCTOPUS_COST_MODE` environment variable still takes precedence.
 
 Fable 5.1 and GPT-6 Astra remain explicit-only. Assigning either to its
 provider's Premium tier enables one architecture or strategy escalation per
-run; it does not replace the tier's ordinary Opus 5 or GPT-5.6 Sol seats.
+run; it does not replace the tier's version-gated Opus default or GPT-5.6 Sol seats.
 Astra also requires Codex CLI v0.153.1 or newer. The configured
 `OCTOPUS_MAX_COST_USD` ceiling must cover a conservative projected list-price
 estimate for the prompt, or the dispatch stays on Sol. Budget and Standard tiers, phase routes, role

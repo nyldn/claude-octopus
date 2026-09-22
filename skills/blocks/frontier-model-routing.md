@@ -18,7 +18,7 @@ Astra.
   orchestration, and work that benefits from Claude behavior without premium
   Opus cost. Haiku 4.5 is the budget Claude seat.
 - **Fable 5.1 is an opt-in escalation, not a default.** Use it for judgment-class
-  work only when the expected gain justifies twice the Opus 5 price. Apply
+  work only when the expected gain justifies its $10/$50 per-MTok price. Apply
   `skills/blocks/fable5-prompting.md` and never count Fable plus Opus as
   provider diversity.
 - **GPT-6 Astra is an explicit-only OpenAI escalation.** Use it for one bounded,
@@ -42,7 +42,7 @@ independent cross-provider check.
 
 ## Prompt shape
 
-For Opus 5 and Sonnet 5, state the goal, important context, boundaries, and
+For Opus 5.5, Opus 5, and Sonnet 5, state the goal, important context, boundaries, and
 checkable acceptance criteria. Explain the reason behind unusual constraints.
 Avoid duplicated reminders, performative all-caps emphasis, token countdowns,
 and instructions to reveal hidden reasoning. Ask for a concise rationale,
@@ -61,6 +61,6 @@ Existing configuration is authoritative:
 3. cost tier;
 4. current-model fallback.
 
-Fresh configurations use Opus 5, Sonnet 5, and GPT-5.6 defaults. Fable 5.1 and
+Fresh configurations use the version-gated Opus default, Sonnet 5, and GPT-5.6 defaults. Fable 5.1 and
 GPT-6 Astra remain outside every built-in default and fallback. Existing
 configurations are not silently rewritten to those models.

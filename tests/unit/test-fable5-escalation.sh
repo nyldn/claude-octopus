@@ -65,6 +65,16 @@ else
     test_fail "architect should escalate, got '$got'"
 fi
 
+test_case "the current Opus 5.5 default remains eligible for escalation"
+got=$(env OCTOPUS_STATE_DIR="$OCTOPUS_STATE_DIR" WORKSPACE_DIR="$WORKSPACE_DIR" bash -c "
+    source '$FEATURES_LIB'; source '$PROJECT_ROOT/scripts/lib/quota-watcher.sh'; source '$FABLE_LIB'
+    fable5_maybe_escalate 'claude-opus-5-5' 'architect' 'claude-opus' 'grasp'")
+if [[ "$got" == "claude-fable-5-1" ]]; then
+    test_pass
+else
+    test_fail "Opus 5.5 should remain eligible for the opted-in escalation, got '$got'"
+fi
+
 test_case "strategist escalates to Fable 5"
 got=$(escalate strategist)
 if [[ "$got" == "claude-fable-5-1" ]]; then
