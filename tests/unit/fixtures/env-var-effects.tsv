@@ -56,6 +56,7 @@ OCTOPUS_PREFLIGHT_CONTEXT_BUDGET_ADDITIVE	covered-by	test-context-budget.sh
 OCTOPUS_PREFLIGHT_CONTEXT_BUDGET_RATIO	covered-by	test-context-budget.sh
 OCTOPUS_PREFLIGHT_PROBE	covered-by	test-provider-health-probe.sh
 OCTOPUS_PREMIUM_PEER_CHECK	covered-by	test-automatic-peer.sh
+OCTOPUS_PYTHON	covered-by	test-pid-ledger-python.sh
 OCTOPUS_QUALITY_THRESHOLD	skip	gates a quality score produced by a live provider dispatch
 OCTOPUS_RELEASE_RUNTIME_SMOKE	covered-by	test-cc-v2126-131-sync.sh
 OCTOPUS_RELEASE_SMOKE_MAX_BUDGET_USD	skip	release-smoke harness only; not reachable from unit scope
