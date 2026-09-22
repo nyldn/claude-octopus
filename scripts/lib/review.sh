@@ -2,7 +2,7 @@
 _agent_spec_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_agent_spec_lib_dir}/agent-spec.sh" 2>/dev/null || true
 source "${_agent_spec_lib_dir}/provider-allowlist.sh" 2>/dev/null || true
-source "${_agent_spec_lib_dir}/pid-ledger.sh"
+source "${_agent_spec_lib_dir}/pid-ledger.sh" 2>/dev/null || true
 # Claude Octopus — Code Review Pipeline
 # Extracted from orchestrate.sh
 # Source-safe: no main execution block.

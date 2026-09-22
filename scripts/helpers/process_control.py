@@ -226,7 +226,11 @@ class Process:
             if code != errno.ESRCH:
                 try:
                     after = snapshot(self.info.pid)
-                except (ProcessLookupError, StaleProcess):
+                except (OSError, StaleProcess):
+                    # ProcessLookupError is itself an OSError; broadened to
+                    # catch _darwin_info's other OSError variants too (e.g.
+                    # EPERM from a stale/reused audit token) rather than
+                    # letting them escape this identity re-check unhandled.
                     raise ProcessLookupError(errno.ESRCH, "original process exited")
                 if after.token != self.info.token:
                     raise ProcessLookupError(errno.ESRCH, "original process exited")
