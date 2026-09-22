@@ -529,12 +529,13 @@ migrate_provider_config() {
 
     local version
     if ! version=$(jq -r '
-        def object_or_null: . == null or type == "object";
+        def object_or_missing($key):
+            (has($key) | not) or (.[$key] | type == "object");
         if type == "object" and
-           (.providers | object_or_null) and
-           (.routing | object_or_null) and
-           (.tiers | object_or_null) and
-           (.overrides | object_or_null)
+           object_or_missing("providers") and
+           object_or_missing("routing") and
+           object_or_missing("tiers") and
+           object_or_missing("overrides")
         then (.version // "1.0")
         else error("invalid provider configuration object")
         end
@@ -599,13 +600,14 @@ migrate_provider_config() {
 EOF
         # jq -s reads both files as data (no string interpolation).
         if jq -s --arg codex_model "$codex_model" '
-            def object_or_null: . == null or type == "object";
+            def object_or_missing($key):
+                (has($key) | not) or (.[$key] | type == "object");
             def valid_config:
                 type == "object" and
-                (.providers | object_or_null) and
-                (.routing | object_or_null) and
-                (.tiers | object_or_null) and
-                (.overrides | object_or_null);
+                object_or_missing("providers") and
+                object_or_missing("routing") and
+                object_or_missing("tiers") and
+                object_or_missing("overrides");
             if length == 2 and (.[0] | type == "object") and (.[1] | valid_config)
             then (.[0] | .providers.codex.default = $codex_model) * .[1] | .version = "3.0"
             else error("providers.json is not a valid provider configuration object")

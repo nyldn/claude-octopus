@@ -163,4 +163,20 @@ else
     test_fail "invalid known sections were stamped or rewritten: $after"
 fi
 
+write_fixture explicit-null-section <<'JSON'
+{"providers":null,"custom":{"keep":true}}
+JSON
+file="$(fixture_file explicit-null-section)"
+before="$(cat "$file")"
+run_migration explicit-null-section
+
+test_case "an explicitly null known section is left untouched"
+after="$(cat "$file")"
+if [[ "$after" == "$before" ]] &&
+   [[ -z "$(find "$(dirname "$file")" -name 'providers.json.tmp.*' -print)" ]]; then
+    test_pass
+else
+    test_fail "explicitly null section was stamped or rewritten: $after"
+fi
+
 test_summary
