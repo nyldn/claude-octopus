@@ -447,7 +447,7 @@ MOCK_AGY
     # Salvaged: real verdict returned, exit 0, PTY path announced, and the answer is
     # byte-clean (no caret-notation ^D echo leaked from the pseudo-terminal).
     if [[ $rc -eq 0 ]] && [[ "$out" == *"VERDICT: APPROVE"* ]] &&
-       ! printf '%s' "$out" | grep -q '\^D' &&
+       ! grep -q '\^D' <<< "$out" &&
        grep -q 'pseudo-terminal' "$err"; then
         test_pass
     else
@@ -829,7 +829,7 @@ test_agy_isolated_env_forwards_adapter_controls() {
         'OCTOPUS_AGY_NO_RETRY=1' \
         'OCTOPUS_AGY_SANDBOX=off' \
         'OCTOPUS_AGY_INCLUDE_DIRS=/tmp/one,/tmp/two'; do
-        printf '%s\n' "$output" | grep -Fqx "$var" || missing+=" $var"
+        grep -Fqx "$var" <<< "$output" || missing+=" $var"
     done
 
     if [[ -z "$missing" ]]; then
