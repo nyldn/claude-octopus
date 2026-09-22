@@ -88,7 +88,7 @@ test_dry_run_no_api_calls() {
     if [[ "$(uname)" == "Darwin" && -z "$output" ]]; then
         test_skip "orchestrate dry-run returned empty output on macOS CI shell; command smoke is covered on ubuntu"
         return 0
-    elif echo "$output" | grep -Eqi "dry-run|would"; then
+    elif grep -Eqi "dry-run|would" <<< "$output"; then
         test_pass
     else
         test_fail "Dry-run output missing expected indicators"

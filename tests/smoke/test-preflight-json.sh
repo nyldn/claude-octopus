@@ -70,7 +70,7 @@ test_json_versions_has_floor_field() {
     local out
     out=$(bash "$PREFLIGHT" --json 2>/dev/null)
     # any_below_floor should appear after "versions"
-    if echo "$out" | grep -q "any_below_floor"; then
+    if grep -q "any_below_floor" <<< "$out"; then
         test_pass
     else
         test_fail "any_below_floor not found in output"

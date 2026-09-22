@@ -17,7 +17,7 @@ test_help_flag() {
     if [[ "$(uname)" == "Darwin" && -z "$output" ]]; then
         test_skip "orchestrate help returned empty output on macOS CI shell; command smoke is covered on ubuntu"
         return 0
-    elif echo "$output" | grep -Eqi "Quick Start|Usage|Examples"; then
+    elif grep -Eqi "Quick Start|Usage|Examples" <<< "$output"; then
         test_pass
     else
         test_fail "Help output missing usage information"
@@ -40,7 +40,7 @@ test_help_shows_commands() {
     local missing=0
 
     for cmd in "${commands[@]}"; do
-        if ! echo "$output" | grep -q "$cmd"; then
+        if ! grep -q "$cmd" <<< "$output"; then
             echo "  Missing command: $cmd"
             missing=1
         fi
@@ -59,7 +59,7 @@ test_version_flag() {
 
     local output=$(OCTOPUS_PROJECT_DIR="$PROJECT_ROOT" bash "$PROJECT_ROOT/scripts/orchestrate.sh" --version 2>&1 || true)
 
-    if echo "$output" | grep -qE "v[0-9]+\.[0-9]+"; then
+    if grep -qE "v[0-9]+\.[0-9]+" <<< "$output"; then
         test_pass
     else
         test_fail "Version output doesn't match expected format"
@@ -75,7 +75,7 @@ test_invalid_command() {
     if [[ "$(uname)" == "Darwin" && -z "$output" ]]; then
         test_skip "orchestrate invalid-command returned empty output on macOS CI shell; command smoke is covered on ubuntu"
         return 0
-    elif echo "$output" | grep -Eqi "error|unknown|invalid"; then
+    elif grep -Eqi "error|unknown|invalid" <<< "$output"; then
         test_pass
     else
         test_fail "No error shown for invalid command"
@@ -91,7 +91,7 @@ test_no_arguments() {
     if [[ "$(uname)" == "Darwin" && -z "$output" ]]; then
         test_skip "orchestrate no-args help returned empty output on macOS CI shell; command smoke is covered on ubuntu"
         return 0
-    elif echo "$output" | grep -Eqi "Quick Start|Usage|Examples"; then
+    elif grep -Eqi "Quick Start|Usage|Examples" <<< "$output"; then
         test_pass
     else
         test_fail "No help shown when run without arguments"

@@ -18,7 +18,7 @@ test_sentinel_accessible() {
     if [[ "$(uname)" == "Darwin" && -z "$output" ]]; then
         test_skip "orchestrate sentinel help returned empty output on macOS CI shell; command smoke is covered on ubuntu"
         return 0
-    elif echo "$output" | grep -Eqi "sentinel|usage|monitor"; then
+    elif grep -Eqi "sentinel|usage|monitor" <<< "$output"; then
         test_pass
     else
         test_fail "Sentinel command not accessible"

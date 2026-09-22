@@ -65,11 +65,11 @@ test_default_mode_runs() {
     fi
     # If any provider CLI is installed, output must contain at least one v<semver> line.
     # Otherwise, the no-providers marker must appear.
-    if echo "$out" | grep -qE 'v[0-9]+\.[0-9]+\.[0-9]+'; then
+    if grep -qE 'v[0-9]+\.[0-9]+\.[0-9]+' <<< "$out"; then
         test_pass
-    elif echo "$out" | grep -q "version unknown"; then
+    elif grep -q "version unknown" <<< "$out"; then
         test_pass
-    elif echo "$out" | grep -q "no provider CLIs detected"; then
+    elif grep -q "no provider CLIs detected" <<< "$out"; then
         test_pass
     else
         test_fail "Output asserts nothing meaningful: ${out:0:200}"
@@ -96,7 +96,7 @@ test_json_mode_valid_json_structure() {
     local out
     out=$(bash "$CHECK_VERSIONS" --json 2>/dev/null)
     local rc=$?
-    if echo "$out" | grep -q '"any_below_floor"' &&        echo "$out" | grep -q '"results"'; then
+    if grep -q '"any_below_floor"' <<< "$out" && grep -q '"results"' <<< "$out"; then
         test_pass
     else
         test_fail "JSON missing expected keys. Output: ${out:0:200}"
