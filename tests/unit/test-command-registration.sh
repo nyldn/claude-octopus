@@ -94,7 +94,7 @@ if [[ -d "$COMMANDS_DIR" ]]; then
     for cmd_file in "$COMMANDS_DIR"/*.md; do
         if [[ -f "$cmd_file" ]]; then
             basename=$(basename "$cmd_file")
-            if ! grep -Fq "$basename" <<< "$REGISTERED_COMMANDS"; then
+            if ! grep -Fxq "\"./commands/$basename\"" <<< "$REGISTERED_COMMANDS"; then
                 fail "Unregistered command file" "File exists but not in plugin.json: $basename"
                 UNREGISTERED=$((UNREGISTERED + 1))
             fi
