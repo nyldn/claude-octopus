@@ -229,6 +229,23 @@ class ProcessControlTests(unittest.TestCase):
              mock.patch.object(control, "_darwin", return_value=lib):
             self.assertFalse(handle.send(signal.SIGCONT))
 
+    def test_darwin_unrelated_permission_error_is_not_misclassified_as_exited(self):
+        # A generic OSError from the confirming snapshot() (e.g. EPERM/EACCES
+        # reading a still-live process this caller can no longer introspect)
+        # is not proof the process exited. It must propagate as itself so the
+        # caller ends up at the documented "unverified" outcome, not be
+        # silently collapsed into a false "already exited" success.
+        handle = control.Process.__new__(control.Process)
+        handle.fd = None
+        handle.info = control.ProcessInfo(4242, 20, "original", 7, False)
+        lib = mock.Mock()
+        lib.proc_signal_with_audittoken.return_value = 1  # EPERM
+        with mock.patch.object(control, "snapshot",
+                               side_effect=[handle.info, PermissionError("denied")]), \
+             mock.patch.object(control, "_darwin", return_value=lib):
+            with self.assertRaises(PermissionError):
+                handle.send(signal.SIGCONT)
+
     def test_enumeration_failure_resumes_only_processes_stopped_here(self):
         child = self.child()
         with mock.patch.object(control, "children", side_effect=PermissionError("denied")):

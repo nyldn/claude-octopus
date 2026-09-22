@@ -226,12 +226,20 @@ class Process:
             if code != errno.ESRCH:
                 try:
                     after = snapshot(self.info.pid)
-                except (OSError, StaleProcess):
-                    # ProcessLookupError is itself an OSError; broadened to
-                    # catch _darwin_info's other OSError variants too (e.g.
-                    # EPERM from a stale/reused audit token) rather than
-                    # letting them escape this identity re-check unhandled.
+                except (ProcessLookupError, StaleProcess):
                     raise ProcessLookupError(errno.ESRCH, "original process exited")
+                # Deliberately narrow: only a confirmed process-gone signal
+                # collapses to "exited" here. A bare OSError from
+                # _darwin_info (e.g. EPERM reading a still-live process this
+                # caller can no longer introspect) must propagate as itself,
+                # not be reinterpreted as "exited" — main()'s own top-level
+                # `except (OSError, ...)` already converts an uncaught OSError
+                # into the documented "unverified" result (see
+                # docs/PLUGIN-COMPATIBILITY.md: "permission failures stop
+                # cleanup with an unverified result"). Catching OSError here
+                # instead would silently misclassify a live-but-inaccessible
+                # process as cleaned up while it keeps running unmanaged —
+                # exactly the fail-closed guarantee this module exists for.
                 if after.token != self.info.token:
                     raise ProcessLookupError(errno.ESRCH, "original process exited")
                 raise OSError(code, "identity-bound signal rejected")
