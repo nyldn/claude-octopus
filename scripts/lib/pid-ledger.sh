@@ -7,7 +7,7 @@ fi
 _OCTO_PID_LEDGER_HELPER="$(cd "$(dirname "${BASH_SOURCE[0]}")/../helpers" && pwd)/pid-ledger.py"
 _OCTO_PID_LEDGER_PYTHON=""
 _OCTO_PID_LEDGER_PYTHON_ERROR=""
-_OCTO_PID_PYTHON_CANDIDATES=(python3 /usr/bin/python3 python3.13 python3.12 python3.11 python3.10 python3.9)
+_OCTO_PID_PYTHON_CANDIDATES=(python3 /usr/bin/python3 python3.15 python3.14 python3.13 python3.12 python3.11 python3.10 python3.9)
 
 _octo_pid_python_path() {
     local candidate="$1"
