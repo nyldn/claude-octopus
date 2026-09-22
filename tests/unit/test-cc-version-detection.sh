@@ -16,8 +16,7 @@ test_suite "Claude Code version detection and SUPPORTS_* feature flags"
 ORCH_MAIN="$PROJECT_ROOT/scripts/orchestrate.sh"
 
 # Combined search target (functions decomposed to lib/ in v9.7.7+)
-ORCH=$(mktemp)
-trap 'rm -f "$ORCH"' EXIT
+ORCH="$TEST_TMP_DIR/orchestrate-all.sh"
 cat "$ORCH_MAIN" "$PROJECT_ROOT/scripts/lib/"*.sh > "$ORCH" 2>/dev/null
 
 pass() { test_case "$1"; test_pass; }
@@ -103,27 +102,33 @@ source "$PROJECT_ROOT/scripts/lib/providers.sh"
 log() { :; }
 OCTOPUS_HOST=claude
 CLAUDE_CODE_VERSION=""
+SUPPORTS_OPUS_5_5=false
 rm -f "$capability_marker"
+skip_detect_rc=0
 PATH="$capability_bin:$PATH" CAPABILITY_MARKER="$capability_marker" \
     OCTOPUS_CLAUDE_BIN=claude OCTOPUS_SKIP_PROVIDER_PROBES=true \
-    detect_claude_code_version >/dev/null 2>&1
+    detect_claude_code_version >/dev/null 2>&1 || skip_detect_rc=$?
 skip_ok=false
-[[ ! -e "$capability_marker" && "$SUPPORTS_EFFORT_CLI_FLAG" == "false" ]] && skip_ok=true
+[[ "$skip_detect_rc" -eq 0 && ! -e "$capability_marker" &&
+   "$SUPPORTS_EFFORT_CLI_FLAG" == "false" ]] && skip_ok=true
 
 CLAUDE_CODE_VERSION=""
+SUPPORTS_OPUS_5_5=false
 rm -f "$capability_marker"
 started_at=$(date +%s)
+bounded_detect_rc=0
 PATH="$capability_bin:$PATH" CAPABILITY_MARKER="$capability_marker" \
     OCTOPUS_CLAUDE_BIN=claude OCTOPUS_SKIP_PROVIDER_PROBES=false \
-    OCTOPUS_BARE_PROBE_TIMEOUT=1 detect_claude_code_version >/dev/null 2>&1
+    OCTOPUS_BARE_PROBE_TIMEOUT=1 detect_claude_code_version >/dev/null 2>&1 || bounded_detect_rc=$?
 elapsed=$(( $(date +%s) - started_at ))
-if [[ "$skip_ok" == true && -e "$capability_marker" && "$elapsed" -lt 3 &&
+if [[ "$skip_ok" == true && "$bounded_detect_rc" -eq 0 &&
+      -e "$capability_marker" && "$elapsed" -lt 3 &&
       "$SUPPORTS_EFFORT_CLI_FLAG" == "false" ]] &&
    grep -Fq '_octo_run_bare_probe_with_timeout' "$PROJECT_ROOT/scripts/lib/providers.sh" &&
    ! grep -Eq 'grep -q -- .--effort.' "$PROJECT_ROOT/scripts/lib/providers.sh"; then
     test_pass
 else
-    test_fail "capability help ignored probe controls (skip=$skip_ok elapsed=${elapsed}s effort=$SUPPORTS_EFFORT_CLI_FLAG)"
+    test_fail "capability help ignored probe controls (skip=$skip_ok skip_rc=$skip_detect_rc bounded_rc=$bounded_detect_rc elapsed=${elapsed}s effort=$SUPPORTS_EFFORT_CLI_FLAG)"
 fi
 
 # v2.1.77 flags
@@ -628,7 +633,8 @@ mkdir -p "$telemetry_test_root/scripts" "$telemetry_mock_bin"
 cp "$PROJECT_ROOT/scripts/enable-http-telemetry.sh" "$telemetry_test_root/scripts/"
 printf '%s\n' '#!/usr/bin/env bash' 'echo "Claude Code development build"' \
     > "$telemetry_mock_bin/claude"
-chmod +x "$telemetry_mock_bin/claude"
+printf '%s\n' '#!/usr/bin/env bash' 'exit 0' > "$telemetry_mock_bin/jq"
+chmod +x "$telemetry_mock_bin/claude" "$telemetry_mock_bin/jq"
 telemetry_output="$telemetry_test_root/output.txt"
 if PATH="$telemetry_mock_bin:$PATH" \
     bash "$telemetry_test_root/scripts/enable-http-telemetry.sh" \
