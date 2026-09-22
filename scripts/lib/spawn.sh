@@ -1156,6 +1156,17 @@ ${heuristic_ctx}"
     local _spawn_monitor_was_enabled=false
     local _spawn_ready_file
     _spawn_ready_file="$(mktemp "${RESULTS_DIR}/.spawn-ready.XXXXXX")" || return 74
+    # Resolve (and cache) the pidfd-capable python3 here, before forking the
+    # worker subshell below. A subshell inherits the parent's variables at
+    # fork time, so a value already cached in this process reaches both the
+    # register call inside that subshell and its own nested "$(...)" without
+    # either re-probing — but a value set *inside* either of those subshells
+    # can never propagate back out to the other. Resolving late (deferred to
+    # the first octopus_pid_register/_retire call, as those wrappers do on
+    # their own) would leave register and the EXIT-trap's later retire call
+    # each stuck in their own subshell, each probing independently. See
+    # scripts/lib/pid-ledger.sh's _octopus_pid_ledger_resolve_python comment.
+    declare -F _octopus_pid_ledger_resolve_python >/dev/null 2>&1 && _octopus_pid_ledger_resolve_python
     [[ "$-" == *m* ]] && _spawn_monitor_was_enabled=true
     set -m
     (

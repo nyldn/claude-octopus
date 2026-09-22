@@ -9,17 +9,28 @@ _OCTO_PID_LEDGER_HELPER="$(cd "$(dirname "${BASH_SOURCE[0]}")/../helpers" && pwd
 # cache the winner in _OCTO_PID_LEDGER_PYTHON. OCTO_PYTHON is tried first,
 # not a hard pin — if it fails the capability check, the probe still falls
 # through to the remaining candidates rather than failing closed on a
-# caller's stale or unrelated override. Non-Linux cancellation never uses
-# pidfd, so the probe harmlessly falls through to the default there.
+# caller's stale or unrelated override. pidfd is Linux-only (process_control.py
+# gates it on sys.platform.startswith("linux")), so non-Linux hosts skip the
+# probe entirely rather than burning subprocesses on a check that can never
+# pass there.
 #
 # Must be called directly (never as "$(_octopus_pid_ledger_resolve_python)")
 # — command substitution forks a subshell, and an assignment made inside one
 # never reaches the calling shell, which would silently turn the cache into
-# a no-op and re-run the full probe on every call.
+# a no-op and re-run the full probe on every call. This also means the cache
+# does not survive from a worker's registration into its own EXIT-trap
+# retirement: spawn_agent forks each worker into a dedicated subshell, and
+# the register call inside it is itself wrapped in a further "$(...)" to
+# capture its output — both fork fresh subshells, so a cache populated there
+# cannot reach the trap's later octopus_pid_retire call, which runs directly
+# in the worker's own subshell. spawn_agent resolves the interpreter once,
+# before forking that subshell, specifically so both calls inherit an
+# already-cached value instead of each probing again.
 _octopus_pid_ledger_resolve_python() {
     [[ -n "${_OCTO_PID_LEDGER_PYTHON:-}" ]] && return 0
+    [[ "$(uname -s 2>/dev/null)" == "Linux" ]] || { _octopus_pid_ledger_default_python; return 0; }
     local candidate
-    for candidate in "${OCTO_PYTHON:-}" python3 /usr/bin/python3 python3.13 python3.12 python3.11 python3.10 python3.9; do
+    for candidate in "${OCTO_PYTHON:-}" python3 /usr/bin/python3 python3.15 python3.14 python3.13 python3.12 python3.11 python3.10 python3.9; do
         [[ -n "$candidate" ]] || continue
         command -v "$candidate" >/dev/null 2>&1 || continue
         if "$candidate" -c 'import os, signal, sys
@@ -28,7 +39,19 @@ sys.exit(0 if callable(getattr(os, "pidfd_open", None)) and callable(getattr(sig
             return 0
         fi
     done
-    _OCTO_PID_LEDGER_PYTHON="${OCTO_PYTHON:-python3}"
+    _octopus_pid_ledger_default_python
+}
+
+# No candidate passed the capability probe (or it was skipped on non-Linux).
+# Prefer OCTO_PYTHON only if it's an actual executable — an unresolved or
+# stale override must not become a hard "command not found" on every ledger
+# call, which pre-#1075 code (always bare `python3`) never risked.
+_octopus_pid_ledger_default_python() {
+    if [[ -n "${OCTO_PYTHON:-}" ]] && command -v "$OCTO_PYTHON" >/dev/null 2>&1; then
+        _OCTO_PID_LEDGER_PYTHON="$OCTO_PYTHON"
+    else
+        _OCTO_PID_LEDGER_PYTHON="python3"
+    fi
 }
 
 octopus_pid_register() {
