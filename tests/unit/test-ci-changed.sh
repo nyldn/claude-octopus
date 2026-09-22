@@ -26,6 +26,7 @@ test_case "review-only changes select review suites without Council"
 review_plan="$(plan_for 'scripts/lib/review.sh')"
 if grep -q '^Mode: focused$' <<< "$review_plan" &&
    grep -q 'tests/unit/test-review-aggregation-robustness.sh' <<< "$review_plan" &&
+   grep -q 'tests/unit/test-pid-ledger-python.sh' <<< "$review_plan" &&
    ! grep -q 'test-council-command.sh' <<< "$review_plan"; then
     test_pass
 else

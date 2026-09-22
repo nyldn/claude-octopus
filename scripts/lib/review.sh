@@ -2,6 +2,7 @@
 _agent_spec_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_agent_spec_lib_dir}/agent-spec.sh" 2>/dev/null || true
 source "${_agent_spec_lib_dir}/provider-allowlist.sh" 2>/dev/null || true
+source "${_agent_spec_lib_dir}/pid-ledger.sh"
 # Claude Octopus — Code Review Pipeline
 # Extracted from orchestrate.sh
 # Source-safe: no main execution block.
@@ -535,7 +536,7 @@ _octopus_process_cleanup() {
     local -a identity_args=()
     [[ -z "$identity" ]] || identity_args=(--identity "$identity")
     OCTO_PROCESS_CLEANUP_RESULT="unverified"
-    OCTO_PROCESS_CLEANUP_RESULT="$(python3 "${_agent_spec_lib_dir}/../helpers/process_control.py" \
+    OCTO_PROCESS_CLEANUP_RESULT="$(_octo_pid_python_run "${_agent_spec_lib_dir}/../helpers/process_control.py" \
         "$root_pid" ${identity_args[@]+"${identity_args[@]}"} "$@")" || rc=$?
     [[ -n "$OCTO_PROCESS_CLEANUP_RESULT" ]] || OCTO_PROCESS_CLEANUP_RESULT="unverified"
     return "$rc"

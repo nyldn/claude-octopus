@@ -125,22 +125,35 @@ env -u _OCTO_PID_LEDGER_PYTHON \
     PATH="$MOCK_BIN_DIR:$PATH" \
     bash "$PROJECT_ROOT/scripts/orchestrate.sh" spawn codex "Reply OK" \
     >"$spawn_output" 2>&1 || spawn_status=$?
+spawn_ledger="$(find "$spawn_workspace/runs" -type f -name seats.jsonl -print -quit 2>/dev/null || true)"
+spawn_terminal=""
+if [[ -n "$spawn_ledger" ]]; then
+    spawn_terminal="$(jq -sr '
+        map(select(.seat_id | startswith("spawn-"))) | last |
+        [.transition, .reason] | join("|")
+    ' "$spawn_ledger" 2>/dev/null || true)"
+fi
 if [[ "$spawn_status" -eq 74 ]] &&
    grep -q "Worker registration failed" "$spawn_output" &&
+   [[ "$spawn_terminal" == "failed|Native process cancellation is unavailable" ]] &&
    [[ ! -e "$provider_marker" ]]; then
     test_pass
 else
-    test_fail "spawn status=$spawn_status provider_ran=$([[ -e "$provider_marker" ]] && printf yes || printf no)"
+    test_fail "spawn status=$spawn_status terminal=${spawn_terminal:-missing} provider_ran=$([[ -e "$provider_marker" ]] && printf yes || printf no)"
 fi
 
 test_case "spawn resolves Python once before worker command substitutions"
 real_python="$(command -v python3)"
 counting_python="$TEST_TMP_DIR/python-counting"
 capability_count="$TEST_TMP_DIR/capability-count"
+cleanup_count="$TEST_TMP_DIR/cleanup-count"
 cat > "$counting_python" <<EOF
 #!/usr/bin/env bash
 if [[ "\${2:-}" == capability ]]; then
     printf 'probe\n' >> "$capability_count"
+fi
+if [[ "\${1:-}" == */process_control.py ]]; then
+    printf 'cleanup\n' >> "$cleanup_count"
 fi
 exec "$real_python" "\$@"
 EOF
@@ -168,6 +181,32 @@ if [[ "$spawn_cached_status" -eq 0 ]] &&
 else
     test_fail "spawn status=$spawn_cached_status capability probes=$(wc -l < "$capability_count" | tr -d ' ')"
 fi
+
+test_case "process cleanup uses the capability-selected interpreter instead of PATH python3"
+ln -sf "$bad_python" "$MOCK_BIN_DIR/python3"
+source "$PROJECT_ROOT/scripts/lib/review.sh"
+_OCTO_PID_LEDGER_PYTHON=""
+OCTOPUS_PYTHON="$counting_python"
+: > "$cleanup_count"
+original_path="$PATH"
+PATH="$MOCK_BIN_DIR:$PATH"
+sleep 300 &
+cleanup_pid=$!
+cleanup_status=0
+octo_terminate_process_tree "$cleanup_pid" 0 "" >/dev/null 2>&1 || cleanup_status=$?
+PATH="$original_path"
+if [[ "$cleanup_status" -eq 0 ]] &&
+   [[ "$(wc -l < "$cleanup_count" | tr -d ' ')" == 1 ]] &&
+   ! kill -0 "$cleanup_pid" 2>/dev/null; then
+    wait "$cleanup_pid" 2>/dev/null || true
+    test_pass
+else
+    kill -KILL "$cleanup_pid" 2>/dev/null || true
+    wait "$cleanup_pid" 2>/dev/null || true
+    test_fail "cleanup bypassed the selected interpreter or left the worker alive"
+fi
+rm -f "$MOCK_BIN_DIR/python3"
+unset OCTOPUS_PYTHON
 
 test_case "Doctor reports the resolved PID ledger interpreter"
 _OCTO_PID_LEDGER_PYTHON=""

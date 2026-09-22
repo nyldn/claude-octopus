@@ -1156,6 +1156,10 @@ ${heuristic_ctx}"
     local _spawn_monitor_was_enabled=false
     local _spawn_ready_file
     if ! octopus_pid_python_resolve >/dev/null; then
+        octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
+            "Native process cancellation is unavailable" 74 "" >/dev/null 2>&1 || true
+        [[ -n "$metrics_id" ]] && record_agent_failure "$metrics_id" 0 \
+            "Native process cancellation is unavailable" failed 2>/dev/null || true
         log ERROR "Worker registration failed: no Python interpreter can provide native process cancellation"
         return 74
     fi
