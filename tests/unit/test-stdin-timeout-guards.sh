@@ -39,8 +39,10 @@ for hook in context-reinforcement.sh octopus-statusline.sh user-prompt-submit.sh
     hook_file="$HOOKS_DIR/$hook"
     [[ ! -f "$hook_file" ]] && continue
 
-    # Match bare cat without timeout (but skip comments)
-    if grep -v '^#' "$hook_file" | grep -qE '\$\(cat\)$|=\$\(cat\)' 2>/dev/null; then
+    # Match bare cat without timeout while skipping comments. Keep this in one
+    # process: `grep -v | grep -q` is racy under pipefail when grep exits early.
+    if awk '!/^[[:space:]]*#/ && /\$\(cat\)$|=\$\(cat\)/ { found = 1 } END { exit !found }' \
+        "$hook_file" 2>/dev/null; then
         fail "$hook has no bare cat" "found unguarded \$(cat)"
     else
         pass "$hook has no bare cat"
@@ -49,7 +51,8 @@ done
 
 # ── budget-gate uses timeout on cat drain ───────────────────────────────────
 
-if grep -v '^#' "$HOOKS_DIR/budget-gate.sh" | grep -q 'timeout.*cat.*dev.null' 2>/dev/null; then
+if awk '!/^[[:space:]]*#/ && /timeout.*cat.*dev\/null/ { found = 1 } END { exit !found }' \
+    "$HOOKS_DIR/budget-gate.sh" 2>/dev/null; then
     pass "budget-gate.sh drains stdin with timeout"
 else
     fail "budget-gate.sh drains stdin with timeout" "expected timeout cat > /dev/null pattern"
