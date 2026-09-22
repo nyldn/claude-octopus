@@ -460,7 +460,7 @@ AskUserQuestion({
   users who want to force this backend can set
   `OCTOPUS_MEMORY_BACKEND=agentmemory`. deja-vu is the other option when the
   providers' own session history should be searchable: `deja install --auto`
-  indexes the transcripts Claude Code, Codex and Gemini CLI already wrote, and
+  indexes session transcripts already written by supported agent CLIs, and
   `OCTOPUS_MEMORY_BACKEND=deja` forces it.
 
 ### Automation

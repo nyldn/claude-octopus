@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+
+- Deja can act as an optional memory backend, letting Octopus search existing
+  Claude Code, Codex, and Gemini CLI session history without running a separate
+  memory service.
+
 ## [11.8.1] - 2026-09-21
 
 ### Changed

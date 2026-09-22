@@ -9,13 +9,15 @@ set -euo pipefail
 
 DEJA_BIN="${DEJA_BIN:-deja}"
 DEJA_TIMEOUT="${DEJA_TIMEOUT:-5}"
+DEJA_BRIDGE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+
+# Reuse Octopus's process-tree-aware Bash supervisor so this bridge stays
+# bounded on stock macOS and Windows Git Bash, where GNU timeout is absent.
+# shellcheck source=lib/heartbeat.sh
+source "${DEJA_BRIDGE_DIR}/lib/heartbeat.sh"
 
 _deja() {
-    if command -v timeout >/dev/null 2>&1; then
-        timeout "$DEJA_TIMEOUT" "$DEJA_BIN" "$@"
-    else
-        "$DEJA_BIN" "$@"
-    fi
+    run_with_timeout --portable-supervisor "$DEJA_TIMEOUT" "$DEJA_BIN" "$@"
 }
 
 deja_available() {
@@ -42,7 +44,12 @@ deja_search() {
         # would keep a later backend with a real match from being asked.
         [(if type == "array" then .
           elif .tier == "relevance" then []
-          else (.hits // []) end)[] | {
+          else (.hits // []) end)[]
+        | select(
+            (.session.id? | type == "string" and length > 0) and
+            (.session.harness? | type == "string" and length > 0)
+          )
+        | {
             title: (.session.title // (.snippets[0] // "") | .[0:120]),
             content: ((.snippets // []) | join("\n")),
             created_at: (.session.updated // .session.started // ""),

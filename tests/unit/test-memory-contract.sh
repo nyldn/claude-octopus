@@ -199,6 +199,13 @@ _deja_stub() {
     cat >"$stub" <<'SH'
 #!/usr/bin/env bash
 if [[ "$1" == "search" ]]; then
+if [[ -n "${DEJA_STUB_DELAY:-}" ]]; then
+    sleep "$DEJA_STUB_DELAY"
+fi
+if [[ -n "${DEJA_STUB_JSON:-}" ]]; then
+    printf '%s\n' "$DEJA_STUB_JSON"
+    exit 0
+fi
 cat <<'JSON'
 {"schema_version":2,"tier":"exact","total":1,"hits":[{"session":{"harness":"codex","id":"abc123","project":"myapp","title":"pool exhausted under load","started":"2026-01-02T03:04:05Z","updated":"2026-01-02T03:10:00Z"},"count":2,"snippets":["raised max_client_conn","transaction mode"],"score":1.5,"tier":"exact"}]}
 JSON
@@ -296,10 +303,39 @@ test_deja_bridge_search_skips_relevance_tier() {
         || test_fail "expected no results for a relevance-tier answer, got: $out"
 }
 
+test_deja_bridge_search_rejects_incomplete_sessions() {
+    test_case "deja-bridge ignores hits without a session id and harness"
+    command -v jq >/dev/null 2>&1 || { test_skip "jq not installed"; return; }
+    local stub out payload
+    stub=$(_deja_stub)
+    payload='{"schema_version":2,"tier":"exact","hits":[{"session":{"title":"incomplete"},"snippets":["not a usable session"]}]}'
+    out=$(DEJA_BIN="$stub" DEJA_STUB_JSON="$payload" "$DEJA" search "anything" 5)
+    [[ -z "$out" || "$out" == "[]" ]] \
+        && test_pass \
+        || test_fail "expected incomplete sessions to be ignored, got: $out"
+}
+
+test_deja_bridge_search_is_bounded_without_external_timeout() {
+    test_case "deja-bridge enforces DEJA_TIMEOUT with the portable supervisor"
+    command -v jq >/dev/null 2>&1 || { test_skip "jq not installed"; return; }
+    local stub out started elapsed
+    stub=$(_deja_stub)
+    started=$(date +%s)
+    out=$(DEJA_BIN="$stub" DEJA_TIMEOUT=1 DEJA_STUB_DELAY=5 "$DEJA" search "anything" 5)
+    elapsed=$(( $(date +%s) - started ))
+    if [[ -z "$out" && "$elapsed" -lt 4 ]]; then
+        test_pass
+    else
+        test_fail "expected timeout before 4s with no output, got ${elapsed}s / $out"
+    fi
+}
+
 test_contract_file_exists
 test_mcp_bridge_exists
 test_deja_bridge_exists
 test_deja_bridge_search_skips_relevance_tier
+test_deja_bridge_search_rejects_incomplete_sessions
+test_deja_bridge_search_is_bounded_without_external_timeout
 test_agentmemory_bridge_exists
 test_claude_mem_bridge_still_exists
 test_primitives_defined
