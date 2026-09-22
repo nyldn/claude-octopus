@@ -89,14 +89,21 @@ check_reference_integrity() {
         local dir
         dir=$(dirname "$file")
 
-        while IFS= read -r ref; do
+        while IFS= read -r stmt; do
+            [[ -z "$stmt" ]] && continue
+            local keyword ref
+            keyword=$(printf '%s' "$stmt" | sed -E 's/^[[:space:]]*(\.|source)[[:space:]].*/\1/')
+            ref=$(printf '%s' "$stmt" | sed -E 's/^[[:space:]]*(\.|source)[[:space:]]+//' | sed 's/^["'"'"'"]//')
             [[ -z "$ref" ]] && continue
             # Skip variable references and command substitutions
             [[ "$ref" == *'$'* ]] && continue
+            if [[ "$keyword" == "." && "$ref" != */* && "$ref" != *.* ]]; then
+                continue
+            fi
             if [[ ! -f "$dir/$ref" && ! -f "$ref" ]]; then
                 issues+=("$file sources missing file: $ref")
             fi
-        done < <(grep -oE '^\s*(\.|source)\s+["'"'"'"]?[^"'"'"'"[:space:]]+' "$file" 2>/dev/null | sed -E 's/^[[:space:]]*(\.| source)[[:space:]]*//' | sed 's/^["'"'"'"]//' || true)
+        done < <(grep -oE '^\s*(\.|source)\s+["'"'"'"]?[^"'"'"'"[:space:]]+' "$file" 2>/dev/null || true)
     done
 
     # Check docker-compose referencing missing Dockerfiles/configs

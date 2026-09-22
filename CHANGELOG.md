@@ -27,6 +27,10 @@
   finish instead of failing after the event log's shorter lock window.
   Filesystem and lock-metadata errors still fail immediately rather than being
   retried as ordinary contention.
+- The quality-gate reference-integrity check no longer blocks on jq/awk program
+  lines such as `. as $value` embedded in shell scripts, and now strips the
+  `source` keyword correctly so existing `source lib/x.sh` targets are no longer
+  reported as missing.
 - Select the PID-ledger Python interpreter by native process-control capability
   instead of trusting the first `python3` on `PATH`. Doctor reports the selected
   interpreter, and `OCTOPUS_PYTHON` provides an explicit, validated override.
