@@ -57,7 +57,7 @@ disable it.
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.8.1 — Windows setup now handles CRLF manifests, and web projects can use server-root asset URLs without false quality-gate failures.**
 >
-> **Default roster:** Claude Opus 5 leads architecture, planning, security reasoning, and final judgment; GPT-5.6 Sol is the independent implementation/review peer; Claude Sonnet 5 is the standard Claude seat; Fable 5.1 remains an opt-in judgment escalation. Existing model pins and provider configuration still win. See [the routing strategy](docs/MODEL-ROUTING-STRATEGY.md).
+> **Default roster:** Claude Opus 5.5 leads architecture, planning, security reasoning, and final judgment; GPT-5.6 Sol is the independent implementation/review peer; Claude Sonnet 5 is the standard Claude seat; Fable 5.1 remains an opt-in judgment escalation. Existing model pins and provider configuration still win. See [the routing strategy](docs/MODEL-ROUTING-STRATEGY.md).
 <!-- END CURRENT RELEASE -->
 >
 > ```bash
@@ -105,7 +105,7 @@ rollback details.
 <summary>Upgrading to 9.5x</summary>
 
 <!-- BEGIN CURRENT MODEL DEFAULTS -->
-- Current fresh configurations use **GPT-5.6 Sol** for Codex implementation/review, **Claude Opus 5** for premium Claude work, and **Claude Sonnet 5** for the standard Claude seat. Existing environment, session, and `providers.json` pins remain unchanged; `OCTOPUS_LEGACY_ROLES=1` restores the pre-frontier role mapping.
+- Current fresh configurations use **GPT-5.6 Sol** for Codex implementation/review, **Claude Opus 5.5** for premium Claude work, and **Claude Sonnet 5** for the standard Claude seat. Existing environment, session, and `providers.json` pins remain unchanged; `OCTOPUS_LEGACY_ROLES=1` restores the pre-frontier role mapping.
 <!-- END CURRENT MODEL DEFAULTS -->
 - New claude-sdk seat env vars (v9.50): `CLAUDE_SDK_API_KEY`, `OCTOPUS_CLAUDE_SDK_MODEL`, `OCTOPUS_CLAUDE_SDK_MAX_TOKENS`, `OCTOPUS_CLAUDE_SDK_ALLOWED_MODELS`, `OCTOPUS_CLAUDE_SDK_CONTEXT_BUDGET`.
 - Fable guards apply to `claude-fable-5-1` and preserved `claude-fable-5` pins. `OCTOPUS_FABLE5_MAX_EFFORT` raises the default `high` ceiling without disabling the other guards.
@@ -197,7 +197,7 @@ lifecycle hooks.
 See [installation health](docs/INSTALLATION-HEALTH.md) for exit codes and stored
 state.
 
-Claude Code **v2.1.14+** is the minimum supported runtime. Newer Claude Code releases unlock additional Octopus diagnostics and release checks automatically; the current plugin tracks 183 Claude Code capability flags through **Claude Code v2.1.219**.
+Claude Code **v2.1.14+** is the minimum supported runtime. Newer Claude Code releases unlock additional Octopus diagnostics and release checks automatically; the current plugin tracks 184 Claude Code capability flags through **Claude Code v2.1.280**.
 
 <details>
 <summary>Install for Codex CLI</summary>
@@ -515,12 +515,12 @@ Claude Octopus coordinates twelve external provider integrations alongside the b
 | 🟪 Cursor CLI (`agent`) | Cursor-subscription models (Composer, GPT-5.6, Claude, Gemini, Grok) as a council, review, and debate seat — read-only by default, `auto` model unless pinned |
 | ⚡ Grok (xAI, standalone `grok` CLI) | Frontier-model second opinion via `XAI_API_KEY` — added as a first-class seat in v9.48 |
 | 🌙 Kimi Code | Standalone coding-agent seat using provider credentials and model aliases from `config.toml` |
-| 🔵 Claude (Anthropic, Opus 5 + Sonnet 5) | Architecture, strategy, security review, orchestration, consensus, final synthesis |
+| 🔵 Claude (Anthropic, Opus 5.5 or Opus 5 + Sonnet 5) | Architecture, strategy, security review, orchestration, consensus, final synthesis |
 | 🔵 Claude Agent SDK seat (`claude-sdk`) | Optional second Anthropic seat: Opus 5 with the 1M-token context window, independent of the host session (set `CLAUDE_SDK_API_KEY`) |
 
 Explicit research-breadth, debate, council, and adversarial-review workflows use multiple providers. Generic mergeable work starts with one capable owner and adds another model only for a distinct job. A 75% consensus quality gate prevents questionable work from shipping. Only Claude is required — all others are optional and auto-detected.
 
-**Frontier routing** defaults `architect`, `strategist`, `security-reviewer`, and opt-in `implementer-heavy` to Opus 5 on Claude Code v2.1.219+, with Opus 4.8/4.7/4.6 fallbacks. `code-reviewer` and `implementer` use GPT-5.6 Sol; `synthesizer` uses Sonnet 5 on Claude Code v2.1.197+. Fable 5.1 and GPT-6 Astra remain explicit-only models: Premium mode may admit one configured judgment escalation per run, but neither model becomes a tier default, fallback, review-fleet seat, council seat, security seat, or implementation seat. Existing pins/configs win, and `OCTOPUS_LEGACY_ROLES=1` restores the v9.28 mapping. See [the routing strategy](docs/MODEL-ROUTING-STRATEGY.md).
+**Frontier routing** defaults `architect`, `strategist`, `security-reviewer`, and opt-in `implementer-heavy` to Opus 5.5 on Claude Code v2.1.280+ and Opus 5 on v2.1.219+, with Opus 4.8/4.7/4.6 fallbacks. `code-reviewer` and `implementer` use GPT-5.6 Sol; `synthesizer` uses Sonnet 5 on Claude Code v2.1.197+. Fable 5.1 and GPT-6 Astra remain explicit-only models: Premium mode may admit one configured judgment escalation per run, but neither model becomes a tier default, fallback, review-fleet seat, council seat, security seat, or implementation seat. Existing pins/configs win, and `OCTOPUS_LEGACY_ROLES=1` restores the v9.28 mapping. See [the routing strategy](docs/MODEL-ROUTING-STRATEGY.md).
 
 **Native dynamic workflows:** Claude Code v2.1.154+ can run native dynamic workflows for huge single-Claude migrations. Use that path when one Claude workflow is enough; use Octopus when you need multi-provider disagreement, councils, adversarial review, external model validation, or blind-spot coverage.
 

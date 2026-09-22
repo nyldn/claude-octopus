@@ -1,11 +1,13 @@
 # Frontier Model Routing
 
 Apply this policy whenever a workflow chooses models or authors prompts for
-Opus 5, Fable 5.1, Sonnet 5, the GPT-5.6 Codex family, or GPT-6 Astra.
+Opus 5.5, Opus 5, Fable 5.1, Sonnet 5, the GPT-5.6 Codex family, or GPT-6
+Astra.
 
 ## Default roster
 
-- **Opus 5 is the premium lead.** Use it for ambiguous architecture, planning,
+- **Opus 5.5 is the premium lead** (Opus 5 on Claude Code before v2.1.280).
+  Use it for ambiguous architecture, planning,
   security reasoning, product tradeoffs, and final judgment. Run at `high`
   effort by default. Raise effort only for a bounded step whose difficulty
   justifies the extra time and cost.

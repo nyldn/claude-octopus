@@ -245,7 +245,9 @@ Always be mindful that external CLIs cost money:
 - 🟣 Perplexity: ~$0.01-0.05 per query (Sonar Pro $3/$15 MTok, Sonar $1/$1 MTok)
 - 🔵 Claude (Sonnet 5): Standard Claude seat, $2/$10 per MTok; included where the user's Claude Code subscription covers it
 - 🔵 Claude (Fable 5.1, Mythos-class, opt-in via `OCTOPUS_OPUS_MODEL=claude-fable-5-1`): **$10/$50 per MTok** — 2x Opus 5 cost. 1M context, 128K output. Never auto-selected. The preserved `claude-fable-5` ID remains supported. Note: Anthropic retains prompts/outputs up to 30 days for safety classifiers. When pinned, apply the dispatch profile in `skills/blocks/fable5-prompting.md` (prompt anti-patterns, effort discipline, refusal fallback, judgment routing).
-- 🔵 Claude (Opus 5, default when `SUPPORTS_OPUS_5=true`): $5/$25 per MTok input/output. 1M context, 128K output. Use `high` effort by default; raise it only for a bounded capability-sensitive step.
+- 🔵 Claude (Opus 5.5, default when `SUPPORTS_OPUS_5_5=true`, Claude Code v2.1.280+): $4/$20 per MTok input/output. 1M context, 128K output. Thinking is always on; the API default effort is `medium`.
+- 🔵 Claude (Opus 5.5 Fast): $8/$40 per MTok — 2x standard cost. Use only when latency matters.
+- 🔵 Claude (Opus 5, default when `SUPPORTS_OPUS_5=true` and Opus 5.5 is unavailable): $5/$25 per MTok input/output. 1M context, 128K output. Use `high` effort by default; raise it only for a bounded capability-sensitive step.
 - 🔵 Claude (Opus 5 Fast): $10/$50 per MTok — 2x standard cost. Use only when latency matters.
 - 🔵 Claude (Opus 4.7, legacy/current-minus-one): $5/$25 per MTok input/output. Used automatically on Claude Code versions before 2.1.154 when supported.
 - 🔵 Claude (Opus 4.6, legacy): $5/$25 per MTok — still selectable via `OCTOPUS_OPUS_MODEL=claude-opus-4.6` or `claude-opus-legacy` agent type
@@ -260,7 +262,7 @@ For simple tasks that don't need multi-AI perspectives, suggest using Claude dir
 
 ### Opus 5 Effort Levels (Claude Code v2.1.219+)
 
-Opus 5 defaults to `high` effort. The plugin keeps automatic phase routing at `high`; use `OCTOPUS_EFFORT_OVERRIDE` for a bounded step, or `OCTOPUS_OPUS5_AUTO_XHIGH=1` to restore the legacy automatic xhigh behavior:
+Opus 5 defaults to `high` effort. The plugin keeps automatic phase routing at `high`, including on Opus 5.5 (whose API default is `medium`); use `OCTOPUS_EFFORT_OVERRIDE` for a bounded step, or `OCTOPUS_OPUS5_AUTO_XHIGH=1` to restore the legacy automatic xhigh behavior:
 
 - **probe / discover** — `high`
 - **grasp / define** — `high`

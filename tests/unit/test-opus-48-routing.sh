@@ -54,7 +54,7 @@ fi
 reset_env() {
     unset OCTOPUS_OPUS_MODEL OCTOPUS_EFFORT_OVERRIDE OCTOPUS_OPUS_MODE OCTOPUS_OPUS5_AUTO_XHIGH
     unset OCTOPUS_CLAUDE_ALLOWED_MODELS
-    unset SUPPORTS_OPUS_5 SUPPORTS_OPUS_4_8 SUPPORTS_OPUS_4_7
+    unset SUPPORTS_OPUS_5_5 SUPPORTS_OPUS_5 SUPPORTS_OPUS_4_8 SUPPORTS_OPUS_4_7
     # orchestrate.sh initializes these to false before detection; mirror that so
     # agents.sh never trips over an unset var (it reads SUPPORTS_SDK_MODEL_CAPS bare).
     export SUPPORTS_EFFORT_COMMAND=false SUPPORTS_EFFORT_CLI_FLAG=false
@@ -64,6 +64,117 @@ reset_env() {
 # ═══════════════════════════════════════════════════════════════════════════════
 # opus_default_model() — version preference + override
 # ═══════════════════════════════════════════════════════════════════════════════
+
+test_default_prefers_5_5() {
+    test_case "opus_default_model → Opus 5.5 when SUPPORTS_OPUS_5_5=true"
+    reset_env
+    export SUPPORTS_OPUS_5_5=true SUPPORTS_OPUS_5=true SUPPORTS_OPUS_4_8=true
+    local got; got="$(opus_default_model)"
+    [[ "$got" == "claude-opus-5-5" ]] && test_pass || test_fail "expected claude-opus-5-5, got $got"
+}
+
+test_default_falls_back_to_5_without_5_5() {
+    test_case "opus_default_model → Opus 5 when Opus 5.5 is unsupported"
+    reset_env
+    export SUPPORTS_OPUS_5_5=false SUPPORTS_OPUS_5=true SUPPORTS_OPUS_4_8=true
+    local got; got="$(opus_default_model)"
+    [[ "$got" == "claude-opus-5" ]] && test_pass || test_fail "expected claude-opus-5, got $got"
+}
+
+test_default_override_wins_over_5_5() {
+    test_case "opus_default_model → OCTOPUS_OPUS_MODEL override wins over Opus 5.5"
+    reset_env
+    export SUPPORTS_OPUS_5_5=true SUPPORTS_OPUS_5=true OCTOPUS_OPUS_MODEL="claude-opus-5"
+    local got; got="$(opus_default_model)"
+    [[ "$got" == "claude-opus-5" ]] && test_pass || test_fail "expected claude-opus-5, got $got"
+}
+
+detected_opus_default() {
+    local version="$1" fake_bin="$TEST_TMP_DIR/fake-claude-$1"
+    mkdir -p "$fake_bin"
+    printf '#!/usr/bin/env bash\nprintf "%%s (Claude Code)\\n" "%s"\n' "$version" > "$fake_bin/claude"
+    chmod +x "$fake_bin/claude"
+    (
+        reset_env
+        SUPPORTS_OPUS_5_5=false SUPPORTS_OPUS_5=false SUPPORTS_OPUS_4_8=false SUPPORTS_OPUS_4_7=false
+        OCTOPUS_HOST=claude CLAUDE_CODE_VERSION=""
+        PATH="$fake_bin:$PATH" OCTOPUS_CLAUDE_BIN=claude OCTOPUS_SKIP_PROVIDER_PROBES=true \
+            detect_claude_code_version >/dev/null 2>&1
+        printf '%s|%s|%s\n' "$CLAUDE_CODE_VERSION" "$SUPPORTS_OPUS_5_5" "$(opus_default_model)"
+    )
+}
+
+test_detection_gates_5_5_on_2_1_280() {
+    test_case "Claude Code v2.1.280 selects Opus 5.5; v2.1.279 keeps Opus 5"
+    local at_floor below_floor
+    at_floor="$(detected_opus_default 2.1.280)"
+    below_floor="$(detected_opus_default 2.1.279)"
+    if [[ "$at_floor" == "2.1.280|true|claude-opus-5-5" && "$below_floor" == "2.1.279|false|claude-opus-5" ]]; then
+        test_pass
+    else
+        test_fail "version gate drifted: at_floor=$at_floor below_floor=$below_floor"
+    fi
+}
+
+test_opus_5_5_catalog_is_automatic() {
+    test_case "Opus 5.5 is a canonical catalog entry eligible for automatic routing"
+    local model ok=true
+    for model in claude-opus-5-5 claude-opus-5-5-fast; do
+        is_known_model "$model" || ok=false
+        grep -Fxq "$model" < <(octo_model_ids) || ok=false
+        [[ "$(get_model_catalog "$model")" == "1000|yes|yes|yes|claude|premium|active" ]] || ok=false
+        [[ "$(get_model_policy "$model")" == "automatic|yes|unlimited|unlimited|general" ]] || ok=false
+        octo_model_auto_eligible "$model" || ok=false
+    done
+    octo_model_automatic_target_allowed claude-opus-5-5 claude || ok=false
+    octo_model_automatic_target_allowed claude:claude-opus-5-5 || ok=false
+    [[ "$ok" == "true" ]] && test_pass || test_fail "claude-opus-5-5 is missing from the catalog or fails closed"
+}
+
+test_opus_5_5_pricing() {
+    test_case "Opus 5.5 standard and fast pricing come from the shared table"
+    local prices
+    prices="$(
+        export WORKSPACE_DIR="$TEST_TMP_DIR/workspace"
+        mkdir -p "$WORKSPACE_DIR"
+        source "$PROJECT_ROOT/scripts/lib/cost.sh"
+        source "$PROJECT_ROOT/scripts/metrics-tracker.sh"
+        printf '%s %s %s %s\n' \
+            "$(get_model_pricing claude-opus-5-5 claude)" \
+            "$(get_model_pricing claude-opus-5-5-fast claude)" \
+            "$(get_model_cost claude-opus-5-5)" \
+            "$(get_model_cost claude-opus-5-5-fast)"
+    )"
+    [[ "$prices" == "4.00:20.00 8.00:40.00 4.00 8.00" ]] && test_pass || test_fail "unexpected Opus 5.5 pricing: $prices"
+}
+
+test_opus_5_5_config_default_is_selected() {
+    test_case "providers.json claude default claude-opus-5-5 is selected, not rejected"
+    reset_env
+    local config="$TEST_TMP_DIR/providers-opus55.json" trace="$TEST_TMP_DIR/opus55-trace.log" got
+    printf '%s\n' '{"version":"3.0","providers":{"claude":{"default":"claude-opus-5-5"}}}' > "$config"
+    got="$(
+        unset OCTOPUS_CLAUDE_MODEL OCTOPUS_COST_MODE OCTOPUS_ROUTING_POLICY
+        TMPDIR="$TEST_TMP_DIR" CLAUDE_CODE_SESSION="opus55-$$" \
+            OCTOPUS_PROVIDERS_CONFIG="$config" OCTOPUS_TRACE_MODELS=1 \
+            resolve_octopus_model claude claude "" "" 2>"$trace"
+    )"
+    if [[ "$got" == "claude-opus-5-5" ]] &&
+       grep -Fq 'Tier 6 (config default): claude-opus-5-5 ← SELECTED' "$trace" &&
+       ! grep -Fq 'REJECTED' "$trace"; then
+        test_pass
+    else
+        test_fail "expected config default claude-opus-5-5, got $got; trace: $(tr '\n' ' ' < "$trace")"
+    fi
+}
+
+test_fast_uses_5_5_when_supported() {
+    test_case "claude-opus-fast compatibility → standard claude-opus-5-5 dispatch"
+    reset_env
+    export SUPPORTS_OPUS_5_5=true SUPPORTS_OPUS_5=true
+    local got; got="$(get_agent_command claude-opus-fast)"
+    [[ "$got" == *"--model claude-opus-5-5"* && "$got" != *"--fast"* ]] && test_pass || test_fail "expected standard Opus 5.5 compatibility dispatch, got: $got"
+}
 
 test_default_prefers_5() {
     test_case "opus_default_model → Opus 5 when SUPPORTS_OPUS_5=true"
@@ -278,12 +389,20 @@ test_effort_override_rejects_word_split_injection() {
 # RUN
 # ═══════════════════════════════════════════════════════════════════════════════
 
+test_default_prefers_5_5
+test_default_falls_back_to_5_without_5_5
+test_default_override_wins_over_5_5
+test_detection_gates_5_5_on_2_1_280
+test_opus_5_5_catalog_is_automatic
+test_opus_5_5_pricing
+test_opus_5_5_config_default_is_selected
 test_default_prefers_5
 test_default_falls_back_to_48
 test_default_falls_back_to_47
 test_default_falls_back_to_46
 test_default_respects_override
 
+test_fast_uses_5_5_when_supported
 test_fast_uses_5_when_supported
 test_fast_falls_back_to_48
 test_fast_legacy_pin_wins

@@ -86,7 +86,7 @@ def function_echo_values(shell_text: str, function_name: str) -> list[str]:
 
 def display_model(model: str) -> str:
     if model.startswith("claude-"):
-        words = model.removeprefix("claude-").split("-")
+        words = re.sub(r"(?<=\d)-(?=\d)", ".", model.removeprefix("claude-")).split("-")
         return "Claude " + " ".join(word.capitalize() for word in words)
     if model.startswith("gpt-"):
         words = model.split("-")

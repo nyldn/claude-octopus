@@ -47,6 +47,8 @@ _octo_get_model_catalog_raw() {
         claude-sonnet-4.6)      echo "200|yes|yes|no|claude|standard|active" ;;
         claude-fable-5-1)       echo "1000|yes|yes|yes|claude|premium|active" ;;
         claude-fable-5)         echo "1000|yes|yes|yes|claude|premium|active" ;;  # v9.44: Mythos-class, opt-in via OCTOPUS_OPUS_MODEL
+        claude-opus-5-5)        echo "1000|yes|yes|yes|claude|premium|active" ;;
+        claude-opus-5-5-fast)   echo "1000|yes|yes|yes|claude|premium|active" ;;
         claude-opus-5)          echo "1000|yes|yes|yes|claude|premium|active" ;;
         claude-opus-5-fast)     echo "1000|yes|yes|yes|claude|premium|active" ;;
         claude-opus-4.8)        echo "1000|yes|yes|yes|claude|premium|active" ;;
@@ -280,6 +282,8 @@ claude-sonnet-5
 claude-sonnet-4.6
 claude-fable-5-1
 claude-fable-5
+claude-opus-5-5
+claude-opus-5-5-fast
 claude-opus-5
 claude-opus-5-fast
 claude-opus-4.8

@@ -1454,6 +1454,12 @@ doctor_check_skills() {
             "Pin OCTOPUS_OPUS_MODEL only when you need Fable 5 or a legacy fallback"
     fi
 
+    if [[ "${SUPPORTS_OPUS_5_5:-false}" == "true" ]]; then
+        doctor_add "opus-5-5" "skills" "pass" \
+            "CC v2.1.280 Opus 5.5 available; claude-opus defaults to claude-opus-5-5" \
+            "Pin OCTOPUS_OPUS_MODEL=claude-opus-5 to stay on Opus 5"
+    fi
+
     if [[ "${SUPPORTS_DYNAMIC_WORKFLOWS:-false}" == "true" ]]; then
         doctor_add "dynamic-workflows" "skills" "info" \
             "CC v2.1.154 dynamic workflows available for huge single-Claude migrations" \

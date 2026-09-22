@@ -152,7 +152,7 @@ for flag in SUPPORTS_OPUS_4_8 SUPPORTS_DYNAMIC_WORKFLOWS \
 done
 
 # v2.1.197-219 model flags
-for flag in SUPPORTS_SONNET_5 SUPPORTS_OPUS_5; do
+for flag in SUPPORTS_SONNET_5 SUPPORTS_OPUS_5 SUPPORTS_OPUS_5_5; do
     if grep -c "${flag}=false" "$ORCH" >/dev/null 2>&1; then
         pass "Declaration: $flag"
     else
@@ -289,6 +289,13 @@ if echo "$v21219_block" | grep -q 'SUPPORTS_OPUS_5=true'; then
     pass "v2.1.219 block sets: SUPPORTS_OPUS_5"
 else
     fail "v2.1.219 block sets: SUPPORTS_OPUS_5" "not found in v2.1.219 detection block"
+fi
+
+v21280_block=$(grep -A3 'version_compare.*2\.1\.280' "$PROJECT_ROOT/scripts/lib/providers.sh" | head -3)
+if echo "$v21280_block" | grep -q 'SUPPORTS_OPUS_5_5=true'; then
+    pass "v2.1.280 block sets: SUPPORTS_OPUS_5_5"
+else
+    fail "v2.1.280 block sets: SUPPORTS_OPUS_5_5" "not found in v2.1.280 detection block"
 fi
 
 # ╔══════════════════════════════════════════════════════════════════════╗

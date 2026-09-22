@@ -400,7 +400,7 @@ continue to reject these models.
 
 **Per-phase routing:** Different models can be configured for Discover, Define, Develop, and Deliver phases. Use `show phases` to view the current routing table.
 
-**Role-based defaults:** `architect`, `strategist`, and `security-reviewer` use Opus 5 on Claude Code v2.1.219+ (then 4.8/4.7/4.6 fallback); `code-reviewer` and `implementer` use GPT-5.6 Sol; `synthesizer` uses Sonnet 5 on Claude Code v2.1.197+. See [the routing strategy](MODEL-ROUTING-STRATEGY.md). Opt out with `OCTOPUS_LEGACY_ROLES=1`.
+**Role-based defaults:** `architect`, `strategist`, and `security-reviewer` use Opus 5.5 on Claude Code v2.1.280+ and Opus 5 on v2.1.219+ (then 4.8/4.7/4.6 fallback); `code-reviewer` and `implementer` use GPT-5.6 Sol; `synthesizer` uses Sonnet 5 on Claude Code v2.1.197+. See [the routing strategy](MODEL-ROUTING-STRATEGY.md). Opt out with `OCTOPUS_LEGACY_ROLES=1`.
 
 ---
 

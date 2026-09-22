@@ -209,6 +209,8 @@ get_model_cost() {
 
     case "$model" in
         # Claude models (input cost, simplified)
+        claude-opus-5-5)        echo "4.00" ;;
+        claude-opus-5-5-fast)   echo "8.00" ;;
         claude-opus-5)          echo "5.00" ;;
         claude-opus-5-fast)     echo "10.00" ;;
         claude-fable-5|claude-fable-5-1) echo "10.00" ;;

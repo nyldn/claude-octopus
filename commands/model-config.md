@@ -130,7 +130,7 @@ AskUserQuestion({
     multiSelect: false,
     options: [
       // Always show:
-      {label: "🔵 Claude", description: "Current: claude-sonnet-5 / claude-opus-5 (legacy fallbacks available) — built-in, no config needed"},
+      {label: "🔵 Claude", description: "Current: claude-sonnet-5 / claude-opus-5-5 (claude-opus-5 and legacy fallbacks available) — built-in, no config needed"},
       // Only if codex installed:
       {label: "🔴 Codex (OpenAI)", description: "Current: <current_model> — handles implementation, reasoning"},
       // Only if agy installed:
@@ -297,7 +297,7 @@ AskUserQuestion({
     multiSelect: true,
     options: [
       // Only show installed/configured providers
-      {label: "🔵 Claude (Sonnet 5 / Opus 5)", description: "Moderator — instruction-following, synthesis"},
+      {label: "🔵 Claude (Sonnet 5 / Opus 5.5)", description: "Moderator — instruction-following, synthesis"},
       {label: "🔴 Codex (GPT-5.6 Sol)", description: "Independent implementation and edge-case review"},
       {label: "🧭 Antigravity (agy)", description: "Alternate model perspective via Antigravity CLI"},
       {label: "🟠 OpenRouter: GLM-5", description: "Code review specialist — quality focus"},

@@ -70,7 +70,9 @@ opus_default_model() {
         echo "$OCTOPUS_OPUS_MODEL"
         return 0
     fi
-    if [[ "${SUPPORTS_OPUS_5:-false}" == "true" ]]; then
+    if [[ "${SUPPORTS_OPUS_5_5:-false}" == "true" ]]; then
+        echo "claude-opus-5-5"
+    elif [[ "${SUPPORTS_OPUS_5:-false}" == "true" ]]; then
         echo "claude-opus-5"
     elif [[ "${SUPPORTS_OPUS_4_8:-false}" == "true" ]]; then
         echo "claude-opus-4.8"
