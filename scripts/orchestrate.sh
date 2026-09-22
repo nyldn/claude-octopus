@@ -3030,8 +3030,7 @@ case "$COMMAND" in
                 fi
                 ;;
         esac
-        _spawn_exit=$?
-        unset _spawn_target _spawn_role _spawn_provider
+        _spawn_exit=$?; unset _spawn_target _spawn_role _spawn_provider
         [[ "$_spawn_exit" -eq 0 ]] || exit "$_spawn_exit"
         ;;
     auto)
