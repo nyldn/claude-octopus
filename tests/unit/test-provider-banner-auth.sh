@@ -31,7 +31,10 @@ cat > "$FAKE_BIN/opencode" <<'EOF'
 case "${OCTO_TEST_OPENCODE_MODE:-success}" in
     success) exit 0 ;;
     failure) exit 1 ;;
-    slow) exec sleep 5 ;;
+    slow)
+        : > "${OCTO_TEST_OPENCODE_CALLED:?missing invocation marker}"
+        exec sleep 5
+        ;;
     *) exit 65 ;;
 esac
 EOF
@@ -84,6 +87,7 @@ provider_state() {
             "PATH=$command_path" \
             "OCTO_ALLOWED_PROVIDERS=$provider" \
             "OCTO_TEST_OPENCODE_MODE=$opencode_mode" \
+            "OCTO_TEST_OPENCODE_CALLED=$TEST_TMP_DIR/opencode-called" \
             bash "$PROJECT_ROOT/scripts/helpers/check-providers.sh" 2>/dev/null \
             | grep "^${provider}:" | tail -1
     )
@@ -106,13 +110,12 @@ test_case "OpenCode auth file plus successful auth check is available"
 if [[ "$(provider_state opencode)" == "opencode:available" ]]; then test_pass; else test_fail "OpenCode auth was not recognized"; fi
 
 test_case "OpenCode static readiness does not invoke its interactive auth command"
-SECONDS=0
-SLOW_OPENCODE_STATE="$(provider_state opencode slow)"
-SLOW_OPENCODE_ELAPSED="$SECONDS"
-if [[ "$SLOW_OPENCODE_STATE" == "opencode:available" && "$SLOW_OPENCODE_ELAPSED" -lt 5 ]]; then
+rm -f "$TEST_TMP_DIR/opencode-called"
+SLOW_OPENCODE_STATE="$(provider_state opencode slow || true)"
+if [[ "$SLOW_OPENCODE_STATE" == "opencode:available" && ! -e "$TEST_TMP_DIR/opencode-called" ]]; then
     test_pass
 else
-    test_fail "static OpenCode readiness invoked a live auth command (state=$SLOW_OPENCODE_STATE elapsed=${SLOW_OPENCODE_ELAPSED}s)"
+    test_fail "static OpenCode readiness invoked a live auth command (state=$SLOW_OPENCODE_STATE)"
 fi
 
 test_case "OpenCode static readiness uses safe config metadata without a timeout utility"

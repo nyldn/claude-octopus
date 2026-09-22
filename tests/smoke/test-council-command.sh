@@ -21,7 +21,7 @@ test_council_help_shows_budget_flag() {
     if _is_macos_empty_orchestrate_output "$output"; then
         test_skip "orchestrate help returned empty output on macOS CI shell; command smoke is covered on ubuntu"
         return 0
-    elif echo "$output" | grep -q -- "--max-cost"; then
+    elif grep -q -- "--max-cost" <<< "$output"; then
         test_pass
     else
         test_fail "help output missing --max-cost: $output"

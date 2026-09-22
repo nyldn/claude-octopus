@@ -455,6 +455,41 @@ else
     test_fail "redirect target was fetched without a fresh network-boundary check"
 fi
 
+test_case "in-cap response is accepted when wc pads its byte count (BSD/macOS)"
+cat > "$mock_bin/curl" <<'EOF'
+#!/usr/bin/env bash
+out="" headers=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --output) out="$2"; shift 2 ;;
+    --dump-header) headers="$2"; shift 2 ;;
+    --write-out|--proto|--proto-redir|--max-redirs|--connect-timeout|--max-time|--max-filesize|--noproxy|--resolve|--request) shift 2 ;;
+    --silent|--show-error) shift ;;
+    *) shift ;;
+  esac
+done
+printf 'HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n' > "$headers"
+if [[ "$out" == "-" ]]; then
+  printf '0123456789ABCDEF'
+else
+  printf '0123456789ABCDEF' > "$out"
+fi
+EOF
+cat > "$mock_bin/wc" <<'EOF'
+#!/usr/bin/env bash
+count=$(/usr/bin/env -i PATH=/usr/bin:/bin wc "$@" | tr -d '[:space:]')
+printf '%8s\n' "$count"
+EOF
+chmod +x "$mock_bin/curl" "$mock_bin/wc"
+padded_status=0
+PATH="$mock_bin:$PATH" research_fetch_url "https://example.com/ok" "$tmp_root/padded-body" 64 || padded_status=$?
+rm -f "$mock_bin/wc"
+if [[ "$padded_status" -eq 0 && "$(cat "$tmp_root/padded-body" 2>/dev/null)" == "0123456789ABCDEF" ]]; then
+    test_pass
+else
+    test_fail "in-cap response rejected with status $padded_status when wc output is space-padded"
+fi
+
 test_case "verification publishes to the nonce-bearing run path"
 WORKSPACE_DIR="$tmp_root/verify-workspace"
 RESULTS_DIR="$tmp_root/verify-results"

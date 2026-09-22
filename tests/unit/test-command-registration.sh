@@ -80,7 +80,7 @@ done <<< "$REGISTERED_COMMANDS"
 # Test 5: Verify multi.md is registered
 echo ""
 echo "Test 5: Checking multi.md registration..."
-if echo "$REGISTERED_COMMANDS" | grep -q 'multi\.md'; then
+if grep -q 'multi\.md' <<< "$REGISTERED_COMMANDS"; then
     pass "multi.md is registered"
 else
     fail "multi.md not registered" "plugin.json should include multi.md"
@@ -94,7 +94,7 @@ if [[ -d "$COMMANDS_DIR" ]]; then
     for cmd_file in "$COMMANDS_DIR"/*.md; do
         if [[ -f "$cmd_file" ]]; then
             basename=$(basename "$cmd_file")
-            if ! echo "$REGISTERED_COMMANDS" | grep -q "$basename"; then
+            if ! grep -Fxq "\"./commands/$basename\"" <<< "$REGISTERED_COMMANDS"; then
                 fail "Unregistered command file" "File exists but not in plugin.json: $basename"
                 UNREGISTERED=$((UNREGISTERED + 1))
             fi
@@ -118,14 +118,14 @@ if [[ -d "$COMMANDS_DIR" ]]; then
             basename=$(basename "$cmd_file")
 
             # Check for opening ---
-            if ! head -1 "$cmd_file" | grep -q '^---$'; then
+            if [[ "$(head -1 "$cmd_file")" != "---" ]]; then
                 fail "Invalid frontmatter" "$basename missing opening ---"
                 INVALID_FRONTMATTER=$((INVALID_FRONTMATTER + 1))
                 continue
             fi
 
             # Check for closing --- within first 40 lines
-            if ! head -40 "$cmd_file" | tail -n +2 | grep -q '^---$'; then
+            if ! awk 'NR >= 2 && NR <= 40 && $0 == "---" { found=1 } END { exit !found }' "$cmd_file"; then
                 fail "Invalid frontmatter" "$basename missing closing ---"
                 INVALID_FRONTMATTER=$((INVALID_FRONTMATTER + 1))
                 continue

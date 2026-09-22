@@ -15,15 +15,20 @@ _octo_early_command=""
 while [[ "$_octo_early_index" -lt "${#_octo_early_args[@]}" ]]; do
     _octo_early_arg="${_octo_early_args[$_octo_early_index]}"
     case "$_octo_early_arg" in
-        -p|--parallel|-t|--timeout|-d|--dir|-a|--autonomy|-q|--quality|--tier|--branch|--on-fail|--provider)
+        -p|--parallel|-t|--timeout|-d|--dir|-a|--autonomy|-q|--quality|--tier|--branch|--on-fail|--provider|--intensity|--breadth|--research-run|--resume-research)
             _octo_early_index=$((_octo_early_index + 2)) ;;
-        -v|--verbose|--debug|-n|--dry-run|-l|--loop|-R|--resume|-Q|--quick|-P|--premium|--no-personas|--skip-smoke-test|--ci|--cost-first|--quality-first|--openrouter-nitro|--openrouter-floor|--async|--no-async|--tmux|--no-tmux)
+        -v|--verbose|--debug|-n|--dry-run|-l|--loop|-R|--resume|-Q|--quick|-P|--premium|--no-personas|--skip-smoke-test|--ci|--cost-first|--quality-first|--openrouter-nitro|--openrouter-floor|--async|--no-async|--tmux|--no-tmux|--intensity=*|--breadth=*|--research-run=*|--resume-research=*)
             _octo_early_index=$((_octo_early_index + 1)) ;;
         *)
             _octo_early_command="$_octo_early_arg"
             break ;;
     esac
 done
+# Refuse recursive council startup before persistent initialization or probes.
+if [[ "$_octo_early_command" == "council" && "${OCTOPUS_COUNCIL_ACTIVE:-}" == "1" ]]; then
+    printf '%s\n' "ERROR: Refusing to start a nested council: this process was spawned by an Octopus council seat dispatch (re-entrancy guard OCTOPUS_COUNCIL_ACTIVE=1). A council seat must review the task and emit a single VERDICT line directly." >&2
+    exit 2
+fi
 case "$_octo_early_command" in
     guide|doctor|capabilities|cache-check|check-cache|security-audit|repair|handoff|profile|install-state)
         OCTOPUS_EARLY_ARTIFACT_READ_ONLY=true
@@ -3252,6 +3257,8 @@ case "$COMMAND" in
         echo "cost-archive has been removed. Usage data is managed automatically."
         ;;
     council)
+        [[ "${OCTOPUS_COUNCIL_ACTIVE:-}" != "1" ]] || { log ERROR "Refusing to start a nested council (OCTOPUS_COUNCIL_ACTIVE=1)"; exit 2; }
+        export OCTOPUS_COUNCIL_ACTIVE=1
         if ! declare -f council_run >/dev/null 2>&1; then
             log ERROR "Council command unavailable: scripts/lib/council.sh failed to load"
             exit 1

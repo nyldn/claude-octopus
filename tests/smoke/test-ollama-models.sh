@@ -84,7 +84,7 @@ test_mixed_human_output() {
     build_mixed_fixture "$fixture"
     local out
     out=$(OCTO_OLLAMA_API_URL="file://$fixture" bash "$CHECK_SCRIPT" 2>&1 || true)
-    if echo "$out" | grep -q "fresh-model" && echo "$out" | grep -q "stale-model"; then
+    if grep -q "fresh-model" <<< "$out" && grep -q "stale-model" <<< "$out"; then
         test_pass
     else
         test_fail "Expected both models in output. Got: $out"
