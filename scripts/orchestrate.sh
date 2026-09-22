@@ -577,7 +577,6 @@ OCTOPUS_SECURITY_V870="${OCTOPUS_SECURITY_V870:-true}"
 OCTOPUS_MAX_COST_USD="${OCTOPUS_MAX_COST_USD:-}"
 # POSIX-compatible string case helpers (macOS ships bash 3.2 which lacks ${var^} and ${var,,})
 _ucfirst() { local _c; _c=$(printf '%s' "${1:0:1}" | tr '[:lower:]' '[:upper:]'); printf '%s' "${_c}${1:1}"; }
-
 # [EXTRACTED to lib/providers.sh in v9.7.7]
 
 # Claude Code v2.1.10 Integration

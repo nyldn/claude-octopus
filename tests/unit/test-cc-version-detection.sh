@@ -102,7 +102,6 @@ source "$PROJECT_ROOT/scripts/lib/providers.sh"
 log() { :; }
 OCTOPUS_HOST=claude
 CLAUDE_CODE_VERSION=""
-SUPPORTS_OPUS_5_5=false
 rm -f "$capability_marker"
 skip_detect_rc=0
 PATH="$capability_bin:$PATH" CAPABILITY_MARKER="$capability_marker" \
@@ -113,7 +112,6 @@ skip_ok=false
    "$SUPPORTS_EFFORT_CLI_FLAG" == "false" ]] && skip_ok=true
 
 CLAUDE_CODE_VERSION=""
-SUPPORTS_OPUS_5_5=false
 rm -f "$capability_marker"
 started_at=$(date +%s)
 bounded_detect_rc=0

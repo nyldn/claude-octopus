@@ -34,6 +34,8 @@ if ! declare -f copilot_is_available >/dev/null 2>&1; then
     source "${_providers_lib_dir}/copilot.sh" 2>/dev/null || true
 fi
 
+: "${SUPPORTS_OPUS_5_5:=false}"
+
 # Keep the Claude Code --bare authentication check from wedging every Octopus
 # command when the CLI is waiting on auth, Keychain, or a broken hook. The
 # dedicated runner keeps its termination grace inside the configured total cap
