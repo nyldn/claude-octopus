@@ -152,6 +152,29 @@ class ProcessControlTests(unittest.TestCase):
             with self.assertRaises(control.UnsupportedPlatform):
                 control.Process(4242)
 
+    def test_linux_capability_check_requires_both_pidfd_primitives(self):
+        with mock.patch.object(sys, "platform", "linux"), \
+             mock.patch.object(os, "pidfd_open", mock.Mock(), create=True), \
+             mock.patch.object(signal, "pidfd_send_signal", None, create=True):
+            with self.assertRaisesRegex(control.UnsupportedPlatform, "CPython build"):
+                control.require_native_cancellation_support()
+
+        with mock.patch.object(sys, "platform", "linux"), \
+             mock.patch.object(os, "pidfd_open", return_value=123, create=True), \
+             mock.patch.object(signal, "pidfd_send_signal", mock.Mock(), create=True), \
+             mock.patch.object(os, "close"):
+            control.require_native_cancellation_support()
+
+    def test_linux_capability_check_requires_working_pidfd_syscalls(self):
+        with mock.patch.object(sys, "platform", "linux"), \
+             mock.patch.object(os, "pidfd_open", return_value=123, create=True), \
+             mock.patch.object(signal, "pidfd_send_signal",
+                               side_effect=PermissionError("blocked"), create=True), \
+             mock.patch.object(os, "close") as close:
+            with self.assertRaisesRegex(control.UnsupportedPlatform, "cannot use pidfd"):
+                control.require_native_cancellation_support()
+            close.assert_called_once_with(123)
+
     def test_linux_escalation_uses_the_retained_handle(self):
         handle = control.Process.__new__(control.Process)
         handle.fd = 123
@@ -194,6 +217,17 @@ class ProcessControlTests(unittest.TestCase):
             self.assertFalse(handle.send(signal.SIGKILL))
             lib.assert_not_called()
             kill.assert_not_called()
+
+    def test_darwin_permission_race_is_exited_when_identity_disappears(self):
+        handle = control.Process.__new__(control.Process)
+        handle.fd = None
+        handle.info = control.ProcessInfo(4242, 20, "original", 7, False)
+        lib = mock.Mock()
+        lib.proc_signal_with_audittoken.return_value = 1  # EPERM
+        with mock.patch.object(control, "snapshot",
+                               side_effect=[handle.info, ProcessLookupError()]), \
+             mock.patch.object(control, "_darwin", return_value=lib):
+            self.assertFalse(handle.send(signal.SIGCONT))
 
     def test_enumeration_failure_resumes_only_processes_stopped_here(self):
         child = self.child()

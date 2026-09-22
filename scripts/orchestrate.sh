@@ -3025,7 +3025,9 @@ case "$COMMAND" in
                 fi
                 ;;
         esac
+        _spawn_exit=$?
         unset _spawn_target _spawn_role _spawn_provider
+        [[ "$_spawn_exit" -eq 0 ]] || exit "$_spawn_exit"
         ;;
     auto)
         source "${SCRIPT_DIR}/lib/auto-route.sh" 2>/dev/null || true

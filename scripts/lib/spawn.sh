@@ -1155,6 +1155,10 @@ ${heuristic_ctx}"
     # off after the spawn.
     local _spawn_monitor_was_enabled=false
     local _spawn_ready_file
+    if ! octopus_pid_python_resolve >/dev/null; then
+        log ERROR "Worker registration failed: no Python interpreter can provide native process cancellation"
+        return 74
+    fi
     _spawn_ready_file="$(mktemp "${RESULTS_DIR}/.spawn-ready.XXXXXX")" || return 74
     [[ "$-" == *m* ]] && _spawn_monitor_was_enabled=true
     set -m

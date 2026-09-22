@@ -538,6 +538,10 @@ octopus_probe_cancel_active() {
     # The PID ledger is authoritative for a signal that lands between spawn's
     # append and the caller's array assignment.
     if [[ -n "${PID_FILE:-}" && -f "$PID_FILE" ]]; then
+        if ! octopus_pid_python_resolve >/dev/null; then
+            log ERROR "Cannot verify Probe registrations; no compatible Python interpreter"
+            return 1
+        fi
         verified_rows="$(octopus_pid_verified_rows "probe-${task_group}-")" || {
             log ERROR "Cannot verify Probe registrations; retaining the ledger"
             return 1
@@ -2914,6 +2918,10 @@ octopus_tangle_cancel_active() {
     # The ledger closes the race between spawn_agent's append and the caller's
     # assignment of the returned PID into the active in-memory arrays.
     if [[ -n "${PID_FILE:-}" && -f "$PID_FILE" ]]; then
+        if ! octopus_pid_python_resolve >/dev/null; then
+            log ERROR "Cannot verify Tangle registrations; no compatible Python interpreter"
+            return 1
+        fi
         verified_rows="$(octopus_pid_verified_rows "tangle-${task_group}-")" || {
             log ERROR "Cannot verify Tangle registrations; retaining the ledger"
             return 1

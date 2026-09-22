@@ -88,6 +88,35 @@ def _validate_pid(pid):
         raise ValueError("process ID must be an integer between 2 and 2147483647")
 
 
+def require_native_cancellation_support(probe_runtime=True):
+    """Fail unless this interpreter exposes the host's identity-bound signal API."""
+    if sys.platform.startswith("linux"):
+        if not callable(getattr(os, "pidfd_open", None)) or not callable(
+                getattr(signal, "pidfd_send_signal", None)):
+            raise UnsupportedPlatform(
+                "Linux cancellation requires a CPython build with os.pidfd_open "
+                "and signal.pidfd_send_signal"
+            )
+        if not probe_runtime:
+            return
+        descriptor = None
+        try:
+            descriptor = os.pidfd_open(os.getpid())
+            signal.pidfd_send_signal(descriptor, 0)
+        except OSError as error:
+            raise UnsupportedPlatform(
+                f"Linux cancellation cannot use pidfd syscalls: {error}"
+            ) from error
+        finally:
+            if descriptor is not None:
+                os.close(descriptor)
+        return
+    if sys.platform == "darwin":
+        _darwin()
+        return
+    raise UnsupportedPlatform("identity-bound cancellation supports Linux and macOS")
+
+
 def snapshot(pid):
     _validate_pid(pid)
     if sys.platform.startswith("linux"):
@@ -139,17 +168,16 @@ def children(pid):
 class Process:
     def __init__(self, pid, expected=None, parent=None):
         self.fd = None
+        require_native_cancellation_support(probe_runtime=False)
         self.info = snapshot(pid)
         if expected is not None and self.info.token != expected:
             raise StaleProcess("worker identity no longer matches registration")
         if parent is not None and self.info.ppid != parent:
             raise StaleProcess("process no longer belongs to this parent")
         if sys.platform.startswith("linux"):
-            if not callable(getattr(os, "pidfd_open", None)) or not callable(
-                    getattr(signal, "pidfd_send_signal", None)):
-                raise UnsupportedPlatform("Linux cancellation requires Python 3.9+ with pidfd support")
             self.fd = os.pidfd_open(pid)
             try:
+                signal.pidfd_send_signal(self.fd, 0)
                 after = snapshot(pid)
                 if after.token != self.info.token or (parent is not None and after.ppid != parent):
                     raise StaleProcess("process changed while acquiring its handle")
@@ -196,6 +224,12 @@ class Process:
             if code == 0:
                 return
             if code != errno.ESRCH:
+                try:
+                    after = snapshot(self.info.pid)
+                except (ProcessLookupError, StaleProcess):
+                    raise ProcessLookupError(errno.ESRCH, "original process exited")
+                if after.token != self.info.token:
+                    raise ProcessLookupError(errno.ESRCH, "original process exited")
                 raise OSError(code, "identity-bound signal rejected")
             # exec changes the version but not the birth identity. Refresh only
             # that same process, never a replacement that reused its PID.

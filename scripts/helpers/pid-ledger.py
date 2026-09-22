@@ -8,7 +8,8 @@ import sys
 import tempfile
 
 sys.dont_write_bytecode = True
-from process_control import Process, StaleProcess, UnsupportedPlatform, snapshot
+from process_control import (Process, StaleProcess, UnsupportedPlatform,
+                             require_native_cancellation_support, snapshot)
 
 
 def identity(pid):
@@ -52,6 +53,9 @@ def update(path, action, pid, agent, task, token):
 
 
 def main():
+    if sys.argv[1:] == ["capability"]:
+        require_native_cancellation_support()
+        return 0
     action, ledger, pid, *args = sys.argv[1:]
     if action == "verified":
         # Read one atomic ledger snapshot; native termination rechecks each

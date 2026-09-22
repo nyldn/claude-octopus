@@ -40,6 +40,11 @@ if ! declare -f octo_provider_readiness_result >/dev/null 2>&1; then
     source "${_doctor_lib_dir}/preflight.sh" 2>/dev/null || true
 fi
 
+if ! declare -f octopus_pid_python_resolve >/dev/null 2>&1; then
+    _doctor_lib_dir="${_doctor_lib_dir:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+    source "${_doctor_lib_dir}/pid-ledger.sh" 2>/dev/null || true
+fi
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # MODULAR DOCTOR SYSTEM (v8.16.0)
 # 14 check categories, structured results, category filtering, JSON output
@@ -241,6 +246,22 @@ doctor_check_v10_state_health() {
         doctor_add "stale-pid-records" "state" "warn" \
             "$stale_pid_count stale PID record(s)" \
             "Repair proposal: remove dead entries from $pid_file after explicit confirmation; preserve the original until an atomic replacement succeeds"
+    fi
+}
+
+doctor_check_process_control() {
+    if ! declare -f octopus_pid_python_resolve >/dev/null 2>&1; then
+        doctor_add "pid-ledger-python" "state" "fail" \
+            "PID ledger capability check is unavailable" \
+            "Reinstall Octopus so scripts/lib/pid-ledger.sh is present"
+    elif octopus_pid_python_resolve >/dev/null 2>&1; then
+        doctor_add "pid-ledger-python" "state" "pass" \
+            "PID ledger Python supports native process cancellation" \
+            "$_OCTO_PID_LEDGER_PYTHON"
+    else
+        doctor_add "pid-ledger-python" "state" "fail" \
+            "No compatible Python interpreter for provider process control" \
+            "${_OCTO_PID_LEDGER_PYTHON_ERROR:-Set OCTOPUS_PYTHON to a compatible executable}"
     fi
 }
 
@@ -898,6 +919,7 @@ doctor_check_state() {
             "No preflight cache (will create on first run)" ""
     fi
 
+    doctor_check_process_control
     doctor_check_v10_state_health "$workspace_dir"
 }
 

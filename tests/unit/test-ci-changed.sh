@@ -159,6 +159,18 @@ else
     test_fail "model-resolution selection was not proportional: $model_plan"
 fi
 
+test_case "PID ledger changes select process-control and cancellation contracts"
+pid_plan="$(plan_for 'scripts/lib/pid-ledger.sh')"
+if grep -q '^Mode: focused$' <<< "$pid_plan" &&
+   grep -q 'test-pid-ledger-python.sh' <<< "$pid_plan" &&
+   grep -q 'test-process-control.sh' <<< "$pid_plan" &&
+   grep -q 'test-orchestrator-review-regressions.sh' <<< "$pid_plan" &&
+   grep -q 'test-tangle-cancellation-cleanup.sh' <<< "$pid_plan"; then
+    test_pass
+else
+    test_fail "PID ledger selection was incomplete or broader than necessary: $pid_plan"
+fi
+
 test_case "v10 owned surfaces select their focused contract suites"
 run_contract_plan="$(plan_for 'scripts/lib/run-contract.sh')"
 doctor_plan="$(plan_for 'scripts/lib/doctor.sh')"

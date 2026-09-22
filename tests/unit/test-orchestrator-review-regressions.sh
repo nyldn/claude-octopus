@@ -179,12 +179,18 @@ PID_FILE="$WORKSPACE_DIR/pids"
 mkdir -p "$RESULTS_DIR"
 waited="$TEST_TMP_DIR/workflow-waited"
 verification_calls="$TEST_TMP_DIR/verification-calls"
-python3() {
-    if [[ "${1:-}" == "$_OCTO_PID_LEDGER_HELPER" && ( "${2:-}" == verify || "${2:-}" == verified ) ]]; then
-        printf '%s\n' "$2" >> "$verification_calls"
-    fi
-    command python3 "$@"
-}
+system_python="$(command -v python3)"
+ledger_python="$TEST_TMP_DIR/ledger-python"
+cat > "$ledger_python" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "$_OCTO_PID_LEDGER_HELPER" && ( "\${2:-}" == verify || "\${2:-}" == verified ) ]]; then
+    printf '%s\n' "\$2" >> "$verification_calls"
+fi
+exec "$system_python" "\$@"
+EOF
+chmod +x "$ledger_python"
+OCTOPUS_PYTHON="$ledger_python"
+export OCTOPUS_PYTHON
 wait() { printf '%s\n' "$*" >> "$waited"; return 0; }
 for workflow in probe tangle scoped; do
     for registration in legacy mismatch valid memory-mismatch memory-missing; do

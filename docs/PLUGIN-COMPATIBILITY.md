@@ -6,10 +6,20 @@ hosted ChatGPT plugin: provider execution requires local CLIs and a filesystem.
 ## Process cancellation
 
 Worker cancellation uses Python and native process identities. Linux requires
-Python 3.9+ with `os.pidfd_open` and `signal.pidfd_send_signal`, Linux 5.3+ and
-readable process metadata in `/proc`. macOS uses the system `libproc`
+an interpreter build with both `os.pidfd_open` and
+`signal.pidfd_send_signal`, Linux 5.3+, and readable process metadata in
+`/proc`. The Python version alone does not prove those APIs are present. macOS
+uses the system `libproc`
 `proc_signal_with_audittoken` API, which checks the PID and its version during
 signal delivery. No compiler or additional Python package is needed.
+
+Octopus probes installed interpreters once in each parent shell and passes the
+selection into worker subshells. It checks the shell's `python3` before
+`/usr/bin/python3`, so Homebrew, pyenv, and other configured runtimes take
+priority without triggering the macOS developer-tools shim. Set
+`OCTOPUS_PYTHON` to require a specific executable; an incompatible explicit
+override fails closed rather than falling back. `octopus doctor state` shows
+the interpreter selected for the PID ledger.
 
 Missing APIs, inaccessible identities and permission failures stop cleanup with
 an `unverified` result. This helper never falls back to numeric PID or process-group
