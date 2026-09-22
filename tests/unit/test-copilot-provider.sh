@@ -82,7 +82,7 @@ fi
 
 # Banned words check
 for banned in "independent" "compound" "team of teams" "claude instances"; do
-  if echo "$DESC_LINE" | grep -qi "$banned"; then
+  if grep -qi "$banned" <<< "$DESC_LINE"; then
     fail "Description has no banned word: '$banned'" "found in description"
   else
     pass "Description has no banned word: '$banned'"
@@ -97,7 +97,7 @@ echo "=== 4. Trigger Keywords ==="
 TRIGGER_BLOCK=$(echo "$FRONTMATTER" | awk '/^trigger:/,0')
 
 for keyword in "copilot provider" "add copilot" "github copilot" "use copilot"; do
-  if echo "$TRIGGER_BLOCK" | grep -qi "$keyword"; then
+  if grep -qi "$keyword" <<< "$TRIGGER_BLOCK"; then
     pass "Trigger includes: '$keyword'"
   else
     fail "Trigger includes: '$keyword'" "not found in trigger block"
@@ -120,7 +120,7 @@ echo ""
 echo "=== 6. Available Roles ==="
 
 for role in "general" "research"; do
-  if echo "$SKILL_CONTENT" | grep -qi "$role"; then
+  if grep -qi "$role" <<< "$SKILL_CONTENT"; then
     pass "Available role documented: $role"
   else
     fail "Available role documented: $role" "not found in skill content"
@@ -136,14 +136,14 @@ echo "=== 7. Prohibited Roles ==="
 
 # v2.0: No explicit prohibited roles section — instead copilot is optional with graceful degradation
 # Check for cost/quota awareness (replaces prohibited roles concept)
-if echo "$SKILL_CONTENT" | grep -qiE "premium request|quota"; then
+if grep -qiE "premium request|quota" <<< "$SKILL_CONTENT"; then
   pass "Documents premium request quota usage"
 else
   fail "Documents premium request quota usage" "missing premium/quota reference"
 fi
 
 for concept in "optional" "graceful" "zero"; do
-  if echo "$SKILL_CONTENT" | grep -qi "$concept"; then
+  if grep -qi "$concept" <<< "$SKILL_CONTENT"; then
     pass "Integration concept documented: $concept"
   else
     fail "Integration concept documented: $concept" "not found in skill content"
@@ -157,7 +157,7 @@ echo "=== 8. Commands Documented ==="
 
 assert_contains "$SKILL_CONTENT" "copilot -p" \
   "Command documented: copilot -p (programmatic mode)"
-if echo "$SKILL_CONTENT" | grep -q "no-ask-user"; then
+if grep -q "no-ask-user" <<< "$SKILL_CONTENT"; then
   pass "Command documented: --no-ask-user flag"
 else
   fail "Command documented: --no-ask-user flag" "missing"
@@ -178,7 +178,7 @@ assert_contains "$SKILL_CONTENT" "[Gg]raceful [Dd]egradation" \
 echo ""
 echo "=== 10. Provider Indicator ==="
 
-if echo "$SKILL_CONTENT" | grep -q "🟢"; then
+if grep -q "🟢" <<< "$SKILL_CONTENT"; then
   pass "Provider indicator: green circle (🟢) present"
 else
   fail "Provider indicator: green circle (🟢) present" "not found"
@@ -202,19 +202,19 @@ assert_contains "$SKILL_CONTENT" "/octo:doctor|doctor.*check|doctor.*report" \
 echo ""
 echo "=== 12. No Attribution References ==="
 
-if echo "$SKILL_CONTENT" | grep -qi "strategic-audit"; then
+if grep -qi "strategic-audit" <<< "$SKILL_CONTENT"; then
   fail "No strategic-audit references" "found strategic-audit"
 else
   pass "No strategic-audit references"
 fi
 
-if echo "$SKILL_CONTENT" | grep -qi "source repo"; then
+if grep -qi "source repo" <<< "$SKILL_CONTENT"; then
   fail "No source repo references" "found source repo"
 else
   pass "No source repo references"
 fi
 
-if echo "$SKILL_CONTENT" | grep -qiE "original author|original skill.*by"; then
+if grep -qiE "original author|original skill.*by" <<< "$SKILL_CONTENT"; then
   fail "No original author references" "found original author reference"
 else
   pass "No original author references"
