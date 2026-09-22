@@ -485,7 +485,7 @@ research_fetch_url() {
         case "$code" in
             2??)
                 local size
-                size=$(wc -c < "$tmp_body" 2>/dev/null || echo 0)
+                size=$(wc -c < "$tmp_body" 2>/dev/null | tr -d '[:space:]')
                 [[ "$size" =~ ^[0-9]+$ && "$size" -le "$max_bytes" ]] \
                     || { rm -f "$tmp_body" "$tmp_headers"; return 63; }
                 [[ "$curl_status" -eq 0 ]] || { rm -f "$tmp_body" "$tmp_headers"; return "$curl_status"; }
