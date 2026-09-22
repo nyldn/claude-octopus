@@ -147,4 +147,20 @@ test_case "a non-object config is left untouched"
 val="$(jq -c . "$file")"
 [[ "$val" == '["codex","claude"]' ]] && test_pass || test_fail "non-object config was rewritten: $val"
 
+write_fixture invalid-known-sections <<'JSON'
+{"providers":[],"routing":"broken","tiers":false,"overrides":42}
+JSON
+file="$(fixture_file invalid-known-sections)"
+before="$(cat "$file")"
+run_migration invalid-known-sections
+
+test_case "invalid known section types are left untouched"
+after="$(cat "$file")"
+if [[ "$after" == "$before" ]] &&
+   [[ -z "$(find "$(dirname "$file")" -name 'providers.json.tmp.*' -print)" ]]; then
+    test_pass
+else
+    test_fail "invalid known sections were stamped or rewritten: $after"
+fi
+
 test_summary

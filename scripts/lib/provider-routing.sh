@@ -528,8 +528,18 @@ migrate_provider_config() {
     command -v jq &>/dev/null || return 0
 
     local version
-    if ! version=$(jq -r 'if type == "object" then (.version // "1.0") else error("not an object") end' "$config_file" 2>/dev/null); then
-        log "WARN" "Provider config ${config_file} is not a single JSON object; migration skipped and the file left unchanged"
+    if ! version=$(jq -r '
+        def object_or_null: . == null or type == "object";
+        if type == "object" and
+           (.providers | object_or_null) and
+           (.routing | object_or_null) and
+           (.tiers | object_or_null) and
+           (.overrides | object_or_null)
+        then (.version // "1.0")
+        else error("invalid provider configuration object")
+        end
+    ' "$config_file" 2>/dev/null); then
+        log "WARN" "Provider config ${config_file} is not a valid provider configuration object; migration skipped and the file left unchanged"
         return 0
     fi
 
@@ -589,9 +599,16 @@ migrate_provider_config() {
 EOF
         # jq -s reads both files as data (no string interpolation).
         if jq -s --arg codex_model "$codex_model" '
-            if length == 2 and (.[0] | type == "object") and (.[1] | type == "object")
+            def object_or_null: . == null or type == "object";
+            def valid_config:
+                type == "object" and
+                (.providers | object_or_null) and
+                (.routing | object_or_null) and
+                (.tiers | object_or_null) and
+                (.overrides | object_or_null);
+            if length == 2 and (.[0] | type == "object") and (.[1] | valid_config)
             then (.[0] | .providers.codex.default = $codex_model) * .[1] | .version = "3.0"
-            else error("providers.json is not a single JSON object")
+            else error("providers.json is not a valid provider configuration object")
             end
         ' "$tmp_file" "$config_file" > "${tmp_file}.2" 2>/dev/null && mv "${tmp_file}.2" "$config_file"; then
             log "INFO" "Migration to v3.0 complete"
