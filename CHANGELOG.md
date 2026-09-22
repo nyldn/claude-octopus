@@ -8,6 +8,20 @@
   Claude Code, Codex, and Gemini CLI session history without running a separate
   memory service.
 
+### Fixed
+
+- Council no longer recurses and hangs when the host runtime is not Claude Code
+  (e.g. a Codex conductor). With `--providers claude,agy` the `claude` seat is
+  dispatched as a real `claude -p` subprocess; run inside a governed worktree
+  whose project memory (`CLAUDE-OCTO.md`) mandates `/octo:council` for its review
+  gates, that seat re-invoked `orchestrate.sh council` and recursed — leaving empty
+  response files and never writing `summary.json` (`--setting-sources project,local`
+  does not suppress memory files). A council now exports `OCTOPUS_COUNCIL_ACTIVE=1`,
+  which dispatched seats inherit (forwarded across the `env -i` isolation used by
+  codex/agy); a council invocation carrying it is a seat trying to launch a nested
+  council, so it is refused (exit 2) with an instruction to review and emit a single
+  VERDICT instead of recursing. Top-level councils are unaffected.
+
 ## [11.8.1] - 2026-09-21
 
 ### Changed

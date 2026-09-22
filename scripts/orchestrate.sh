@@ -3250,6 +3250,24 @@ case "$COMMAND" in
         echo "cost-archive has been removed. Usage data is managed automatically."
         ;;
     council)
+        # Re-entrancy guard (#2718). Under a non-Claude host (e.g. a Codex
+        # conductor, OCTOPUS_HOST=codex) the claude seat is dispatched as a real
+        # `claude -p` subprocess inside the governed worktree. That worktree's
+        # project memory (CLAUDE-OCTO.md) mandates /octo:council for its review
+        # gates, and --setting-sources project,local does NOT suppress memory
+        # files — so the seat re-invokes `orchestrate.sh council`, which dispatches
+        # the claude seat again: an unbounded recursion that leaves empty response
+        # files and never writes summary.json. Any council we start exports
+        # OCTOPUS_COUNCIL_ACTIVE=1, which every dispatched seat subprocess inherits;
+        # a council invocation that already carries it is a seat trying to launch a
+        # nested council, so refuse instead of recursing. A seat must answer its
+        # prompt and emit a VERDICT, not run another council. (A top-level council
+        # never has it set, so normal runs are unaffected.)
+        if [[ "${OCTOPUS_COUNCIL_ACTIVE:-}" == "1" ]]; then
+            log ERROR "Refusing to start a nested council: this process was spawned by an Octopus council seat dispatch (re-entrancy guard OCTOPUS_COUNCIL_ACTIVE=1). A council seat must review the task and emit a single VERDICT line directly — do NOT run /octo:council or orchestrate.sh council from inside a seat."
+            exit 2
+        fi
+        export OCTOPUS_COUNCIL_ACTIVE=1
         if ! declare -f council_run >/dev/null 2>&1; then
             log ERROR "Council command unavailable: scripts/lib/council.sh failed to load"
             exit 1

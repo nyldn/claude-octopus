@@ -149,11 +149,30 @@ _octo_provider_env_forward_auto_peer_guard() {
     done
 }
 
+# Preserve the council re-entrancy guard across providers that use `env -i`.
+# Without this, a seat dispatched under a non-Claude host — whose governed
+# worktree memory (CLAUDE-OCTO.md) mandates /octo:council for its review gates —
+# re-invokes `orchestrate.sh council` and recurses (#2718). The claude seat runs
+# under `env -u` and inherits it, but codex/agy/etc. run under `env -i`, which
+# would strip it. Internal control value, not a credential; forwarded only when set.
+_octo_provider_env_forward_council_guard() {
+    [[ ${#PROVIDER_ENV_ARRAY[@]} -gt 0 ]] || return 0
+    [[ "${PROVIDER_ENV_ARRAY[0]}" == "env" ]] || return 0
+    [[ -n "${OCTOPUS_COUNCIL_ACTIVE+x}" ]] || return 0
+    local _entry
+    for _entry in "${PROVIDER_ENV_ARRAY[@]}"; do
+        [[ "$_entry" == OCTOPUS_COUNCIL_ACTIVE=* ]] && return 0
+    done
+    PROVIDER_ENV_ARRAY+=("OCTOPUS_COUNCIL_ACTIVE=${OCTOPUS_COUNCIL_ACTIVE}")
+    return 0
+}
+
 build_provider_env() {
     _octo_build_provider_env_impl "$@"
     local _rc=$?
     _octo_provider_env_forward_workspace_dir
     _octo_provider_env_forward_auto_peer_guard
+    _octo_provider_env_forward_council_guard
     return "$_rc"
 }
 
