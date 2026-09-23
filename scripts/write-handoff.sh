@@ -6,6 +6,8 @@
 
 set -euo pipefail
 
+[[ "${OCTOPUS_PROVIDER_CHILD:-false}" == "true" ]] && exit 0
+
 SESSION_FILE="${HOME}/.claude-octopus/session.json"
 STATE_FILE=".octo/STATE.md"
 HANDOFF_FILE=".octo-continue.md"

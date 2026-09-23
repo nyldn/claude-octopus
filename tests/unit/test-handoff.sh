@@ -130,4 +130,18 @@ if (cd "$TEST_ROOT/work" && \
 else
     test_fail "handoff did not read the active agent from progress.json's agents array"
 fi
+test_case "write-handoff skips octopus provider child sessions"
+CHILD_ROOT="$TEST_TMP_DIR/handoff-provider-child"
+mkdir -p "$CHILD_ROOT/home/.claude-octopus" "$CHILD_ROOT/work"
+cat > "$CHILD_ROOT/home/.claude-octopus/session.json" <<'EOF'
+{"current_phase":"develop","workflow":"embrace","status":"running"}
+EOF
+if (cd "$CHILD_ROOT/work" && \
+    HOME="$CHILD_ROOT/home" \
+    OCTOPUS_PROVIDER_CHILD=true \
+    "$HANDOFF") && [[ ! -e "$CHILD_ROOT/work/.octo-continue.md" ]]; then
+    test_pass
+else
+    test_fail "a provider child session wrote .octo-continue.md into its working directory"
+fi
 test_summary
