@@ -1583,6 +1583,11 @@ ${heuristic_ctx}"
             echo "## Status: STALLED - PARTIAL RESULTS (exit code: 76)" >> "$result_file"
             echo "" >> "$result_file"
             echo "Provider process remained alive but showed no observable output or worktree progress within the configured stall window." >> "$result_file"
+            if [[ -s "$temp_errors" ]]; then
+                printf '\n## Error Log\n```\n' >> "$result_file"
+                cat "$temp_errors" >> "$result_file"
+                echo '```' >> "$result_file"
+            fi
 
             local end_time_ms elapsed_ms tokens_out
             end_time_ms=$(( $(date +%s) * 1000 ))

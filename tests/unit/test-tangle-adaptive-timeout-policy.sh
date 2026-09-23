@@ -79,4 +79,10 @@ grep -q 'exit_code -ne 76' "$PROJECT_ROOT/scripts/lib/spawn.sh" && test_pass || 
 test_case "spawn result reporting recognizes stalled exit code"
 grep -q 'STALLED - PARTIAL RESULTS (exit code: 76)' "$PROJECT_ROOT/scripts/lib/spawn.sh" && test_pass || test_fail "stalled status reporting missing"
 
+test_case "stalled result preserves provider diagnostics"
+if grep -A 25 'exit_code -eq 76' "$PROJECT_ROOT/scripts/lib/spawn.sh" | grep -q '## Error Log'; then test_pass; else test_fail "stalled stderr is discarded"; fi
+
+test_case "usage help describes optional unbounded Tangle timeout"
+if grep -q 'OCTOPUS_TANGLE_TIMEOUT=<secs>.*unset or 0 is unbounded' "$PROJECT_ROOT/scripts/lib/usage-help.sh"; then test_pass; else test_fail "Tangle timeout help is stale"; fi
+
 test_summary

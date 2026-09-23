@@ -88,6 +88,20 @@ else
     test_fail "completed provider was classified as stalled (rc=$rc)"
 fi
 
+test_case "progress in the final poll interval resets the stall window"
+raw="$TEST_TMP_DIR/final-poll.raw"
+err="$TEST_TMP_DIR/final-poll.err"
+hint="$TEST_TMP_DIR/final-poll.in"
+rc=0
+OCTOPUS_PROVIDER_STALL_WINDOW=3 OCTOPUS_PROVIDER_STALL_POLL_SECS=2 \
+    octopus_capture_provider_output "prompt" 0 "$hint" "$raw" "$err" \
+        /bin/sh -c 'sleep 2.2; printf progress; sleep 1; printf done' || rc=$?
+if [[ "$rc" -eq 0 && "$(cat "$raw")" == progressdone ]]; then
+    test_pass
+else
+    test_fail "progress after the scheduled probe was missed (rc=$rc)"
+fi
+
 test_case "silent provider worktree writes reset the stall window"
 repo="$TEST_TMP_DIR/progress-repo"
 mkdir -p "$repo"
@@ -121,6 +135,38 @@ if [[ "$rc" -eq 0 && "$(wc -l < "$repo/progress.txt" | tr -d ' ')" -eq 4 ]]; the
     test_pass
 else
     test_fail "observable worktree progress did not keep provider healthy (rc=$rc)"
+fi
+
+test_case ".octo housekeeping does not reset the stall window"
+repo="$TEST_TMP_DIR/octo-state-repo"
+mkdir -p "$repo/.octo"
+git -C "$repo" init -q
+git -C "$repo" config user.email test@example.invalid
+git -C "$repo" config user.name Test
+printf '.octo/\n' > "$repo/.gitignore"
+git -C "$repo" add .gitignore
+git -C "$repo" commit -qm base
+state_writer="$TEST_TMP_DIR/octo-state-writer.sh"
+cat > "$state_writer" <<'EOF'
+#!/bin/sh
+repo="$1"
+while :; do
+    date +%s >> "$repo/.octo/events.log"
+    sleep 1
+done
+EOF
+chmod +x "$state_writer"
+raw="$TEST_TMP_DIR/octo-state.raw"
+err="$TEST_TMP_DIR/octo-state.err"
+hint="$TEST_TMP_DIR/octo-state.in"
+rc=0
+OCTOPUS_PROVIDER_STALL_WINDOW=2 OCTOPUS_PROVIDER_STALL_POLL_SECS=1 OCTOPUS_PROVIDER_STALL_WORKTREE="$repo" \
+    octopus_capture_provider_output "prompt" 0 "$hint" "$raw" "$err" \
+        "$state_writer" "$repo" || rc=$?
+if [[ "$rc" -eq 76 ]]; then
+    test_pass
+else
+    test_fail ".octo state writes prevented stall detection (rc=$rc)"
 fi
 
 test_case "explicit wall-clock timeout still caps a progressing provider"

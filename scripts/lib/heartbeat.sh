@@ -591,13 +591,15 @@ _octo_capture_worktree_fingerprint() {
     # This notices continued writes to an already-modified path without hashing
     # entire file contents or large binary diffs on every poll.
     _octo_capture_worktree_state() {
-        git -C "$worktree" status --porcelain -uall 2>/dev/null || true
+        git -C "$worktree" status --porcelain -uall 2>/dev/null | \
+            sed -E '/^.. \.octo(\/|$)/d' || true
         {
             git -C "$worktree" diff --name-only -z 2>/dev/null || true
             git -C "$worktree" diff --cached --name-only -z 2>/dev/null || true
             git -C "$worktree" ls-files --others --exclude-standard -z 2>/dev/null || true
         } | while IFS= read -r -d '' rel; do
             [[ -n "$rel" ]] || continue
+            case "$rel" in .octo|.octo/*) continue ;; esac
             printf 'path=%s;' "$rel"
             _octo_capture_file_signature "$worktree/$rel"
         done
@@ -673,6 +675,13 @@ _octo_capture_provider_with_stall_watchdog() {
             next_probe=$((now + poll_secs))
         fi
         if [[ $((now - last_progress)) -ge "$stall_window" ]]; then
+            current_signature="$(_octo_capture_activity_signature "$raw_output" "$temp_errors" "$worktree")"
+            if [[ "$current_signature" != "$last_signature" ]]; then
+                last_signature="$current_signature"
+                last_progress="$now"
+                next_probe=$((now + poll_secs))
+                continue
+            fi
             stalled=true
             if declare -f log >/dev/null 2>&1; then
                 log WARN "Provider stall watchdog: no observable progress for ${stall_window}s; stopping provider"
