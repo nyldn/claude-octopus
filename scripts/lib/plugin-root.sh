@@ -70,6 +70,9 @@ octo_stable_shims_status() {
     [[ "$status" != mismatch ]]
 }
 
+# The optional uname argument is a deterministic test seam; production callers
+# intentionally omit it so the current host is detected at invocation time.
+# shellcheck disable=SC2120
 octo_is_windows_git_bash() {
     local uname_s="${1:-}"
     if [[ -z "$uname_s" ]]; then
