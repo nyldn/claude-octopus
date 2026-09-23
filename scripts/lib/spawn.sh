@@ -299,23 +299,50 @@ write_agent_result_header() {
     } > "$result_file"
 }
 
-# Resolve the single wall-clock budget owned by spawn_agent. TIMEOUT=0 remains
-# explicitly unlimited; phase floors only raise positive configured budgets.
+# Tangle coding is unbounded by default and supervised by observable progress.
+# Users can still opt into a fixed wall-clock budget with OCTOPUS_TANGLE_TIMEOUT
+# or an explicit CLI --timeout value.
+octopus_tangle_stall_window() {
+    local role="${1:-implementer}"
+    local configured="${OCTOPUS_TANGLE_STALL_WINDOW:-}"
+    if [[ -z "$configured" ]]; then
+        if [[ "$role" == "implementer-heavy" ]]; then
+            configured=1500
+        else
+            configured=900
+        fi
+    fi
+    if ! [[ "$configured" =~ ^[1-9][0-9]*$ ]]; then
+        log "ERROR" "OCTOPUS_TANGLE_STALL_WINDOW='$configured' must be a positive integer for supervised Tangle coding"
+        return 2
+    fi
+    printf '%s\n' "$configured"
+}
+
+octopus_tangle_stall_poll_secs() {
+    local configured="${OCTOPUS_TANGLE_STALL_POLL_SECS:-30}"
+    if ! [[ "$configured" =~ ^[1-9][0-9]*$ ]]; then
+        log "ERROR" "OCTOPUS_TANGLE_STALL_POLL_SECS='$configured' must be a positive integer"
+        return 2
+    fi
+    printf '%s\n' "$configured"
+}
+
 octopus_effective_agent_timeout() {
     local configured_timeout="${1:-0}"
     local phase="${2:-}"
     local role="${3:-}"
 
-    if [[ "$phase" == "tangle" && "$role" == "implementer" ]]; then
-        local tangle_floor="${OCTOPUS_TANGLE_TIMEOUT:-1200}"
-        if ! [[ "$tangle_floor" =~ ^[1-9][0-9]*$ ]]; then
-            log "WARN" "OCTOPUS_TANGLE_TIMEOUT='$tangle_floor' is not a positive integer; using default 1200s floor"
-            tangle_floor=1200
-        fi
-        if [[ "$configured_timeout" =~ ^[0-9]+$ ]] && \
-           [[ "$configured_timeout" -gt 0 ]] && \
-           [[ "$tangle_floor" -gt "$configured_timeout" ]]; then
-            configured_timeout="$tangle_floor"
+    if [[ "$phase" == "tangle" && ( "$role" == "implementer" || "$role" == "implementer-heavy" ) ]]; then
+        if [[ -n "${OCTOPUS_TANGLE_TIMEOUT+x}" ]]; then
+            local tangle_timeout="${OCTOPUS_TANGLE_TIMEOUT}"
+            if ! [[ "$tangle_timeout" =~ ^[0-9]+$ ]]; then
+                log "ERROR" "OCTOPUS_TANGLE_TIMEOUT='$tangle_timeout' must be a non-negative integer"
+                return 2
+            fi
+            configured_timeout="$tangle_timeout"
+        elif [[ "${OCTOPUS_TIMEOUT_EXPLICIT:-0}" != "1" ]]; then
+            configured_timeout=0
         fi
     fi
 
@@ -847,7 +874,11 @@ ${heuristic_ctx}"
     # path. The degraded synchronous fallback must enforce the same phase floor
     # as the normal subprocess, while TIMEOUT=0 remains unlimited.
     local _eff_timeout
-    _eff_timeout=$(octopus_effective_agent_timeout "${TIMEOUT:-0}" "$phase" "$role")
+    if ! _eff_timeout=$(octopus_effective_agent_timeout "${TIMEOUT:-0}" "$phase" "$role"); then
+        octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
+            "Invalid timeout supervision configuration" 2 "" >/dev/null 2>&1 || true
+        return 2
+    fi
 
     local log_file="${LOGS_DIR}/${agent_slug}-${task_id}.log"
     local result_file="${RESULTS_DIR}/${agent_slug}-${task_id}.md"
@@ -1303,7 +1334,25 @@ ${heuristic_ctx}"
             # v9.2.2: All agents use stdin-based prompt delivery to avoid ARG_MAX
             # limits. File-backed capture avoids waiting for EOF from a provider
             # descendant that inherited stdout (#892).
-            if octopus_capture_provider_output \
+            local _capture_stall_window=0 _capture_stall_poll=30 _capture_stall_worktree=""
+            if [[ "$phase" == "tangle" && ( "$role" == "implementer" || "$role" == "implementer-heavy" ) ]]; then
+                if ! _capture_stall_window=$(octopus_tangle_stall_window "$role") || \
+                   ! _capture_stall_poll=$(octopus_tangle_stall_poll_secs); then
+                    exit_code=2
+                else
+                    _capture_stall_worktree="${OCTOPUS_TANGLE_WORKTREE:-${PROJECT_ROOT:-}}"
+                    if OCTOPUS_PROVIDER_STALL_WINDOW="$_capture_stall_window" \
+                       OCTOPUS_PROVIDER_STALL_POLL_SECS="$_capture_stall_poll" \
+                       OCTOPUS_PROVIDER_STALL_WORKTREE="$_capture_stall_worktree" \
+                       octopus_capture_provider_output \
+                           "$enhanced_prompt" "$_attempt_timeout" "$temp_input" \
+                           "$raw_output" "$temp_errors" "${cmd_array[@]}"; then
+                        exit_code=0
+                    else
+                        exit_code=$?
+                    fi
+                fi
+            elif octopus_capture_provider_output \
                 "$enhanced_prompt" "$_attempt_timeout" "$temp_input" \
                 "$raw_output" "$temp_errors" "${cmd_array[@]}"; then
                 exit_code=0
@@ -1315,7 +1364,7 @@ ${heuristic_ctx}"
             stop_quota_watcher "$_quota_watcher_pid"
 
             # v8.16: Check if failure is auth-related and retryable
-            if [[ $exit_code -ne 0 ]] && [[ $exit_code -ne 124 ]] && [[ $exit_code -ne 143 ]] && \
+            if [[ $exit_code -ne 0 ]] && [[ $exit_code -ne 76 ]] && [[ $exit_code -ne 124 ]] && [[ $exit_code -ne 143 ]] && \
                [[ $auth_attempt -lt $max_auth_retries ]]; then
                 local stderr_content=""
                 [[ -s "$temp_errors" ]] && stderr_content=$(<"$temp_errors")
@@ -1521,6 +1570,35 @@ ${heuristic_ctx}"
                     run_drift_check "${enhanced_prompt:-$prompt}" "$(cat "$result_file" 2>/dev/null)" "$agent_type" "${phase:-unknown}" 2>/dev/null || true
                 fi
             fi
+        elif [[ $exit_code -eq 76 ]]; then
+            if [[ -s "$temp_output" ]]; then
+                cat "$temp_output" >> "$result_file"
+            elif [[ -s "$raw_output" ]]; then
+                cat "$raw_output" >> "$result_file"
+            else
+                echo "(no output captured before stall detection)" >> "$result_file"
+            fi
+            echo '```' >> "$result_file"
+            echo "" >> "$result_file"
+            echo "## Status: STALLED - PARTIAL RESULTS (exit code: 76)" >> "$result_file"
+            echo "" >> "$result_file"
+            echo "Provider process remained alive but showed no observable output or worktree progress within the configured stall window." >> "$result_file"
+
+            local end_time_ms elapsed_ms tokens_out
+            end_time_ms=$(( $(date +%s) * 1000 ))
+            elapsed_ms=$((end_time_ms - start_time_ms))
+            tokens_out=$(octo_estimate_tokens_for_file "$raw_output" 2>/dev/null || echo 0)
+            update_agent_status "$agent_type" "stalled" "$elapsed_ms" "$_estimated_cost" "$_eff_timeout" "$task_id" "${phase:-unknown}" "$result_file"
+            type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "stalled" "$tokens_in" "$tokens_out" "No observable progress within stall window" "$elapsed_ms" "$result_file" "${role:-none}" || true
+            if ! octo_spawn_contract_finish "$_contract_seat_id" failed "$result_file" "$temp_errors" \\
+                "Provider stalled without observable progress" "$exit_code" "$elapsed_ms" >/dev/null 2>&1; then
+                exit_code=74
+                update_agent_status "$agent_type" "failed" "$elapsed_ms" "$_estimated_cost" "$_eff_timeout" "$task_id" "${phase:-unknown}" "$result_file"
+                type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "Execution contract persistence failed" "$elapsed_ms" "$result_file" "${role:-none}" || true
+                echo "## Contract Status: FAILED (persistence error)" >> "$result_file"
+            fi
+            record_outcome "$agent_type" "$agent_type" "${task_type:-unknown}" "${phase:-unknown}" "stalled" "$elapsed_ms" 2>/dev/null || true
+            type record_failure &>/dev/null && record_failure "$provider_prefix" "transient" 2>/dev/null || true
         elif [[ $exit_code -eq 124 ]] || [[ $exit_code -eq 143 ]]; then
             # v7.19.0 P0.2: TIMEOUT - Preserve partial output
             # Process whatever output exists (may be significant partial work)

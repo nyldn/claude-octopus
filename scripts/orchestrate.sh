@@ -2279,7 +2279,7 @@ clean_workspace() {
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -p|--parallel) MAX_PARALLEL="$2"; shift 2 ;;
-        -t|--timeout) TIMEOUT="$2"; shift 2 ;;
+        -t|--timeout) TIMEOUT="$2"; OCTOPUS_TIMEOUT_EXPLICIT=1; export OCTOPUS_TIMEOUT_EXPLICIT; shift 2 ;;
         -v|--verbose) VERBOSE=true; shift ;;
         --debug) OCTOPUS_DEBUG=true; VERBOSE=true; shift ;;  # v7.25.0: Debug mode
         -n|--dry-run) DRY_RUN=true; shift ;;

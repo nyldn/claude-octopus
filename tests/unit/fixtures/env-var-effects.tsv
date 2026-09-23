@@ -93,3 +93,6 @@ OCTOPUS_X_MODEL	placeholder	doc template fragment, not a real variable
 OCTOPUS_CURSOR_AGENT_MODE	covered-by	test-cursor-agent-provider.sh
 OCTOPUS_CURSOR_AGENT_STATUS_TIMEOUT	covered-by	test-cursor-agent-provider.sh
 OCTOPUS_CURSOR_AGENT_AUTH_CACHE_FILE	covered-by	test-cursor-agent-provider.sh
+OCTOPUS_TANGLE_STALL_POLL_SECS	covered-by	test-tangle-adaptive-timeout-policy.sh
+OCTOPUS_TANGLE_STALL_WINDOW	covered-by	test-tangle-adaptive-timeout-policy.sh
+OCTOPUS_TANGLE_TIMEOUT	covered-by	test-tangle-adaptive-timeout-policy.sh

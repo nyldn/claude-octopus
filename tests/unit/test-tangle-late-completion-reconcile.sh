@@ -52,6 +52,19 @@ else
     test_fail "latest FAILED status should not be hidden by an earlier success"
 fi
 
+test_case "stalled result is counted as terminal failure"
+cat > "$result" <<'EOF'
+# Agent: codex
+# Task ID: tangle-123-2
+
+## Status: STALLED - PARTIAL RESULTS (exit code: 76)
+EOF
+if [[ "$(tangle_result_latest_status "$result")" == "failed" ]]; then
+    test_pass
+else
+    test_fail "STALLED status should be counted as failed by the quality gate"
+fi
+
 test_case "workflow waits before converting missing marker into terminal failure"
 if grep -q 'OCTOPUS_TANGLE_MISSING_MARKER_GRACE' "$PROJECT_ROOT/scripts/lib/workflows.sh" \
    && grep -q 'wrapper exited without completion marker' "$PROJECT_ROOT/scripts/lib/workflows.sh" \

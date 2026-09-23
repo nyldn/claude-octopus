@@ -823,6 +823,10 @@ MIT — see [LICENSE](LICENSE)
 
 Design-review seats and synthesis use versioned JSON v1 contracts for all model-to-model data. Historical free text is accepted only through a deprecated compatibility wrapper that materializes canonical JSON before downstream use. See [Design review JSON contracts v1](docs/design-review-json-contract.md) and the schemas in `schemas/design-review-*-v1.schema.json`.
 
+### Tangle adaptive coding supervision
+
+Tangle coding agents are unbounded by default at the wall-clock layer and use a progress-aware stall watchdog. Users can still set an explicit absolute timeout. See [Tangle adaptive coding supervision](docs/tangle-adaptive-timeouts.md).
+
 ### Tangle reconsideration JSON contract
 
 Planner reconsideration uses a versioned JSON v1 contract: explicit accept/reject decisions for every adequacy scope recommendation plus a nested decomposition JSON v1 object. The historical `DECISIONS:/DECOMPOSITION:` response remains a deprecated compatibility fallback. See [Tangle reconsideration JSON v1](docs/tangle-reconsideration-contract.md) and [`schemas/tangle-reconsideration-v1.schema.json`](schemas/tangle-reconsideration-v1.schema.json).

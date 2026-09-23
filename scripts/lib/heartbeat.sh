@@ -236,6 +236,8 @@ _octo_timeout_supervisor() {
     local timeout_secs="$1"
     shift
     local provider_pid="" timer_pid="" provider_status=0 timer_status=0
+    local timer_enabled=true
+    [[ "$timeout_secs" -eq 0 ]] && timer_enabled=false
 
     set -m
     trap '_octo_timeout_supervisor_handle_signal TERM' TERM
@@ -250,11 +252,13 @@ _octo_timeout_supervisor() {
     # Keep the timer as a supervised job instead of delivering an asynchronous
     # signal. Bash 3.2 lacks wait -n, so the loop below polls both child jobs and
     # can distinguish provider completion, deadline expiry, and timer failure.
-    (
-        set +m
-        _octo_timeout_timer "$timeout_secs"
-    ) &
-    timer_pid=$!
+    if [[ "$timer_enabled" == true ]]; then
+        (
+            set +m
+            _octo_timeout_timer "$timeout_secs"
+        ) &
+        timer_pid=$!
+    fi
     # The jobs retain their private groups after monitor mode is disabled, and
     # Bash no longer prints asynchronous "Done" notices into provider output.
     set +m
@@ -264,7 +268,9 @@ _octo_timeout_supervisor() {
     while :; do
         local provider_running=true timer_running=true
         _octo_timeout_job_is_running "$provider_pid" || provider_running=false
-        _octo_timeout_job_is_running "$timer_pid" || timer_running=false
+        if [[ "$timer_enabled" == true ]]; then
+            _octo_timeout_job_is_running "$timer_pid" || timer_running=false
+        fi
 
         if [[ "$provider_running" == false ]]; then
             # Reap an already-completed timer before choosing the provider path.
@@ -273,11 +279,13 @@ _octo_timeout_supervisor() {
             # the provider's result. Both PGID leaders remain unreaped until all
             # descendants have been contained.
             trap '' TERM INT HUP
-            kill -KILL -- "-$timer_pid" 2>/dev/null || true
-            if wait "$timer_pid" 2>/dev/null; then
-                timer_status=0
-            else
-                timer_status=$?
+            if [[ "$timer_enabled" == true ]]; then
+                kill -KILL -- "-$timer_pid" 2>/dev/null || true
+                if wait "$timer_pid" 2>/dev/null; then
+                    timer_status=0
+                else
+                    timer_status=$?
+                fi
             fi
             kill -KILL -- "-$provider_pid" 2>/dev/null || true
             if wait "$provider_pid" 2>/dev/null; then
@@ -287,7 +295,7 @@ _octo_timeout_supervisor() {
             fi
             trap - TERM INT HUP
             set +m
-            if [[ "$timer_running" == false && "$timer_status" -ne 0 ]]; then
+            if [[ "$timer_enabled" == true && "$timer_running" == false && "$timer_status" -ne 0 ]]; then
                 if declare -f log >/dev/null 2>&1; then
                     log ERROR "Portable timeout timer failed with status $timer_status"
                 else
@@ -298,7 +306,7 @@ _octo_timeout_supervisor() {
             return "$provider_status"
         fi
 
-        if [[ "$timer_running" == false ]]; then
+        if [[ "$timer_enabled" == true && "$timer_running" == false ]]; then
             trap '' TERM INT HUP
             kill -KILL -- "-$timer_pid" 2>/dev/null || true
             if wait "$timer_pid" 2>/dev/null; then
@@ -371,6 +379,48 @@ _octo_timeout_handle_caller_signal() {
     return "$_octo_timeout_interrupted_status"
 }
 
+_octo_run_portable_supervisor() {
+    local timeout_secs="$1"
+    shift
+    local _octo_timeout_previous_int_trap _octo_timeout_previous_term_trap
+    local _octo_timeout_previous_hup_trap _octo_timeout_supervisor_pid=""
+    local _octo_timeout_interrupted_status=0
+
+    _octo_timeout_previous_int_trap="$(trap -p INT)"
+    _octo_timeout_previous_term_trap="$(trap -p TERM)"
+    _octo_timeout_previous_hup_trap="$(trap -p HUP)"
+    trap '_octo_timeout_handle_caller_signal INT' INT
+    trap '_octo_timeout_handle_caller_signal TERM' TERM
+    trap '_octo_timeout_handle_caller_signal HUP' HUP
+
+    _octo_timeout_supervisor "$timeout_secs" "$@" <&0 &
+    _octo_timeout_supervisor_pid=$!
+    if [[ "$_octo_timeout_interrupted_status" -ne 0 ]]; then
+        kill -TERM "$_octo_timeout_supervisor_pid" 2>/dev/null || true
+        wait "$_octo_timeout_supervisor_pid" 2>/dev/null || true
+        _octo_portable_supervisor_interrupted_status="$_octo_timeout_interrupted_status"
+        return "$_octo_timeout_interrupted_status"
+    fi
+
+    local exit_code=0
+    if wait "$_octo_timeout_supervisor_pid" 2>/dev/null; then
+        exit_code=0
+    else
+        exit_code=$?
+    fi
+
+    if [[ "$_octo_timeout_interrupted_status" -ne 0 ]]; then
+        _octo_portable_supervisor_interrupted_status="$_octo_timeout_interrupted_status"
+        return "$_octo_timeout_interrupted_status"
+    fi
+    _octo_timeout_restore_signal_traps \
+        "$_octo_timeout_previous_int_trap" \
+        "$_octo_timeout_previous_term_trap" \
+        "$_octo_timeout_previous_hup_trap"
+    _octo_portable_supervisor_interrupted_status=0
+    return "$exit_code"
+}
+
 # Portable timeout function (works on macOS and Linux).
 # Prefers system timeout commands unless the internal --portable-supervisor
 # option is requested by a caller that must process signals while it waits.
@@ -417,6 +467,7 @@ run_with_timeout() {
     fi
 
     local exit_code
+    local _octo_portable_supervisor_interrupted_status=0
     local _octo_cmd_label="${1:-unknown}"
 
     if declare -f octo_event_emit >/dev/null 2>&1; then
@@ -427,8 +478,19 @@ run_with_timeout() {
     # OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED to document the external heartbeat,
     # stall, or workflow-level watchdog responsible for recovery.
     if [[ "$timeout_secs" =~ ^[0-9]+$ ]] && [[ "$timeout_secs" -eq 0 ]]; then
-        "$@"
-        exit_code=$?
+        if [[ "$force_portable_supervisor" == "true" ]]; then
+            if _octo_run_portable_supervisor 0 "$@"; then
+                exit_code=0
+            else
+                exit_code=$?
+            fi
+        else
+            "$@"
+            exit_code=$?
+        fi
+        if [[ "$_octo_portable_supervisor_interrupted_status" -ne 0 ]]; then
+            return "$_octo_portable_supervisor_interrupted_status"
+        fi
         if declare -f octo_event_emit >/dev/null 2>&1; then
             local _octo_outcome="ok"
             [[ $exit_code -eq 0 ]] || _octo_outcome="error"
@@ -462,42 +524,15 @@ run_with_timeout() {
         # The Bash 3.2 fallback runs a supervisor asynchronously so this shell
         # can trap interruption while waiting. The provider itself receives the
         # caller's stdin through the private process-group wrapper.
-        local _octo_timeout_previous_int_trap _octo_timeout_previous_term_trap
-        local _octo_timeout_previous_hup_trap _octo_timeout_supervisor_pid=""
-        local _octo_timeout_interrupted_status=0
-        _octo_timeout_previous_int_trap="$(trap -p INT)"
-        _octo_timeout_previous_term_trap="$(trap -p TERM)"
-        _octo_timeout_previous_hup_trap="$(trap -p HUP)"
-        trap '_octo_timeout_handle_caller_signal INT' INT
-        trap '_octo_timeout_handle_caller_signal TERM' TERM
-        trap '_octo_timeout_handle_caller_signal HUP' HUP
-
-        _octo_timeout_supervisor "$timeout_secs" "$@" <&0 &
-        _octo_timeout_supervisor_pid=$!
-        if [[ "$_octo_timeout_interrupted_status" -ne 0 ]]; then
-            # A signal can arrive after the temporary traps are installed but
-            # before `$!` is assigned. The handler records it; finish cleanup
-            # here once the supervisor PID is available.
-            kill -TERM "$_octo_timeout_supervisor_pid" 2>/dev/null || true
-            wait "$_octo_timeout_supervisor_pid" 2>/dev/null || true
-            return "$_octo_timeout_interrupted_status"
-        fi
-        if wait "$_octo_timeout_supervisor_pid" 2>/dev/null; then
+        if _octo_run_portable_supervisor "$timeout_secs" "$@"; then
             exit_code=0
         else
             exit_code=$?
         fi
+    fi
 
-        if [[ "$_octo_timeout_interrupted_status" -ne 0 ]]; then
-            # The signal handler has already restored (and re-delivered to) the
-            # caller's disposition. A nested trap may have restored another
-            # outer trap, so do not overwrite it here.
-            return "$_octo_timeout_interrupted_status"
-        fi
-        _octo_timeout_restore_signal_traps \
-            "$_octo_timeout_previous_int_trap" \
-            "$_octo_timeout_previous_term_trap" \
-            "$_octo_timeout_previous_hup_trap"
+    if [[ "$_octo_portable_supervisor_interrupted_status" -ne 0 ]]; then
+        return "$_octo_portable_supervisor_interrupted_status"
     fi
 
     # Enhanced timeout error messaging (v7.16.0 Feature 3)
@@ -535,6 +570,130 @@ run_with_timeout() {
     return $exit_code
 }
 
+_octo_capture_file_signature() {
+    local path="$1"
+    [[ -e "$path" ]] || { printf '%s\n' missing; return 0; }
+    if stat -f '%z:%m' "$path" >/dev/null 2>&1; then
+        stat -f '%z:%m' "$path"
+    elif stat -c '%s:%Y' "$path" >/dev/null 2>&1; then
+        stat -c '%s:%Y' "$path"
+    else
+        printf '%s:%s\n' "$(wc -c < "$path" 2>/dev/null || echo 0)" unknown
+    fi
+}
+
+_octo_capture_worktree_fingerprint() {
+    local worktree="${1:-}"
+    [[ -n "$worktree" && -d "$worktree" ]] || { printf '%s\n' none; return 0; }
+    command -v git >/dev/null 2>&1 || { printf '%s\n' none; return 0; }
+
+    # Hash status plus size/mtime metadata for every changed or untracked file.
+    # This notices continued writes to an already-modified path without hashing
+    # entire file contents or large binary diffs on every poll.
+    _octo_capture_worktree_state() {
+        git -C "$worktree" status --porcelain -uall 2>/dev/null || true
+        {
+            git -C "$worktree" diff --name-only -z 2>/dev/null || true
+            git -C "$worktree" diff --cached --name-only -z 2>/dev/null || true
+            git -C "$worktree" ls-files --others --exclude-standard -z 2>/dev/null || true
+        } | while IFS= read -r -d '' rel; do
+            [[ -n "$rel" ]] || continue
+            printf 'path=%s;' "$rel"
+            _octo_capture_file_signature "$worktree/$rel"
+        done
+    }
+
+    if command -v sha256sum >/dev/null 2>&1; then
+        _octo_capture_worktree_state | sha256sum | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then
+        _octo_capture_worktree_state | shasum -a 256 | awk '{print $1}'
+    else
+        printf '%s\n' unavailable
+    fi
+    unset -f _octo_capture_worktree_state 2>/dev/null || true
+}
+
+_octo_capture_activity_signature() {
+    local raw_output="$1" temp_errors="$2" worktree="${3:-}"
+    printf 'out=%s;err=%s;tree=%s\n' \
+        "$(_octo_capture_file_signature "$raw_output")" \
+        "$(_octo_capture_file_signature "$temp_errors")" \
+        "$(_octo_capture_worktree_fingerprint "$worktree")"
+}
+
+_octo_capture_provider_with_stall_watchdog() {
+    local timeout_secs="$1" stall_window="$2" poll_secs="$3"
+    local temp_input="$4" raw_output="$5" temp_errors="$6" worktree="${7:-}"
+    shift 7
+    local rc_file capture_pid child_rc=125
+    local last_signature current_signature last_progress now next_probe
+    local stalled=false grace_deadline
+
+    rc_file="$(umask 077 && mktemp "${temp_input}.rc.XXXXXX")" || return 1
+    (
+        local provider_rc=0
+        if OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="provider-stall-watchdog" \
+            OCTOPUS_PRESERVE_CALLER_PROCESS_GROUP="true" \
+            run_with_timeout --portable-supervisor "$timeout_secs" "$@" \
+                < "$temp_input" > "$raw_output" 2> "$temp_errors"; then
+            provider_rc=0
+        else
+            provider_rc=$?
+        fi
+        printf '%s\n' "$provider_rc" > "$rc_file"
+    ) &
+    capture_pid=$!
+
+    last_signature="$(_octo_capture_activity_signature "$raw_output" "$temp_errors" "$worktree")"
+    last_progress="$(date +%s)"
+    next_probe=$((last_progress + poll_secs))
+
+    while kill -0 "$capture_pid" 2>/dev/null; do
+        [[ -s "$rc_file" ]] && break
+        sleep 1
+        now="$(date +%s)"
+        if [[ "$now" -ge "$next_probe" ]]; then
+            current_signature="$(_octo_capture_activity_signature "$raw_output" "$temp_errors" "$worktree")"
+            if [[ "$current_signature" != "$last_signature" ]]; then
+                last_signature="$current_signature"
+                last_progress="$now"
+                if declare -f log >/dev/null 2>&1; then
+                    log DEBUG "Provider stall watchdog: observable progress detected"
+                fi
+            fi
+            next_probe=$((now + poll_secs))
+        fi
+        if [[ $((now - last_progress)) -ge "$stall_window" ]]; then
+            stalled=true
+            if declare -f log >/dev/null 2>&1; then
+                log WARN "Provider stall watchdog: no observable progress for ${stall_window}s; stopping provider"
+            fi
+            if declare -f octo_event_emit >/dev/null 2>&1; then
+                octo_event_emit "dispatch.stalled" command="${1:-unknown}" stall_window="$stall_window" exit_code=76 || true
+            fi
+            kill -TERM "$capture_pid" 2>/dev/null || true
+            grace_deadline=$((SECONDS + 12))
+            while kill -0 "$capture_pid" 2>/dev/null && (( SECONDS < grace_deadline )); do
+                sleep 0.2
+            done
+            kill -KILL "$capture_pid" 2>/dev/null || true
+            break
+        fi
+    done
+
+    wait "$capture_pid" 2>/dev/null || true
+    if [[ "$stalled" == true ]]; then
+        rm -f "$rc_file"
+        return 76
+    fi
+    if [[ -s "$rc_file" ]]; then
+        child_rc="$(cat "$rc_file" 2>/dev/null || echo 125)"
+    fi
+    rm -f "$rc_file"
+    [[ "$child_rc" =~ ^[0-9]+$ ]] || child_rc=125
+    return "$child_rc"
+}
+
 # Capture provider stdin/stdout through files rather than a tee pipeline.
 # Provider CLIs may spawn hooks or helpers that outlive the main process while
 # retaining stdout. If stdout is a pipe, tee never receives EOF and the
@@ -554,8 +713,29 @@ octopus_capture_provider_output() {
         return 1
     fi
 
+    local stall_window="${OCTOPUS_PROVIDER_STALL_WINDOW:-0}"
+    local stall_poll_secs="${OCTOPUS_PROVIDER_STALL_POLL_SECS:-30}"
+    local stall_worktree="${OCTOPUS_PROVIDER_STALL_WORKTREE:-}"
+    if ! stall_window="$(_octo_timeout_normalize_seconds "$stall_window")"; then
+        rm -f "$temp_input"
+        return 2
+    fi
+    if ! stall_poll_secs="$(_octo_timeout_normalize_seconds "$stall_poll_secs")" \
+       || [[ "$stall_poll_secs" -eq 0 ]]; then
+        rm -f "$temp_input"
+        return 2
+    fi
+
     local exit_code=0
-    if OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="spawn-agent-heartbeat" \
+    if [[ "$stall_window" -gt 0 ]]; then
+        if _octo_capture_provider_with_stall_watchdog \
+            "$timeout_secs" "$stall_window" "$stall_poll_secs" \
+            "$temp_input" "$raw_output" "$temp_errors" "$stall_worktree" "$@"; then
+            exit_code=0
+        else
+            exit_code=$?
+        fi
+    elif OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="spawn-agent-heartbeat" \
         OCTOPUS_PRESERVE_CALLER_PROCESS_GROUP="true" \
         run_with_timeout "$timeout_secs" "$@" < "$temp_input" > "$raw_output" 2> "$temp_errors"; then
         exit_code=0

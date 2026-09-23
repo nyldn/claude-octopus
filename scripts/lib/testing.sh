@@ -392,7 +392,7 @@ tangle_result_latest_status() {
     status_line=$(grep '^## Status:' "$result" 2>/dev/null | tail -1 || true)
     case "$status_line" in
         *SUCCESS*) echo "success" ;;
-        *FAILED*|*TIMEOUT*|*ERROR*) echo "failed" ;;
+        *FAILED*|*TIMEOUT*|*STALLED*|*ERROR*) echo "failed" ;;
         *) echo "unknown" ;;
     esac
 }

@@ -35,16 +35,17 @@ else
 fi
 TIMEOUT=600
 
-test_case "tangle implementers receive the phase timeout floor"
+test_case "tangle implementers are unbounded by default but honor explicit budgets"
 if declare -F octopus_effective_agent_timeout >/dev/null 2>&1 && \
-   [[ "$(octopus_effective_agent_timeout 600 tangle implementer)" == "1200" ]] && \
+   [[ "$(octopus_effective_agent_timeout 600 tangle implementer)" == "0" ]] && \
+   [[ "$(OCTOPUS_TIMEOUT_EXPLICIT=1 octopus_effective_agent_timeout 900 tangle implementer)" == "900" ]] && \
    [[ "$(OCTOPUS_TANGLE_TIMEOUT=1500 octopus_effective_agent_timeout 600 tangle implementer)" == "1500" ]] && \
-   [[ "$(OCTOPUS_TANGLE_TIMEOUT=invalid octopus_effective_agent_timeout 600 tangle implementer)" == "1200" ]] && \
-   [[ "$(octopus_effective_agent_timeout 0 tangle implementer)" == "0" ]] && \
+   [[ "$(OCTOPUS_TANGLE_TIMEOUT=0 octopus_effective_agent_timeout 600 tangle implementer)" == "0" ]] && \
+   ! OCTOPUS_TANGLE_TIMEOUT=invalid octopus_effective_agent_timeout 600 tangle implementer >/dev/null 2>&1 && \
    [[ "$(octopus_effective_agent_timeout 600 probe researcher)" == "600" ]]; then
     test_pass
 else
-    test_fail "effective timeout helper is missing or does not preserve phase/unlimited semantics"
+    test_fail "effective timeout helper does not preserve adaptive/unbounded and explicit-budget semantics"
 fi
 
 test_case "retry attempts receive only the remaining wall-clock budget"
@@ -60,7 +61,8 @@ fi
 test_case "spawn retry loop excludes timed-out attempts and reports effective timeout"
 spawn_source="$(cat "$PROJECT_ROOT/scripts/lib/spawn.sh")"
 heartbeat_source="$(cat "$PROJECT_ROOT/scripts/lib/heartbeat.sh")"
-if [[ "$spawn_source" == *'exit_code -ne 124'* ]] && \
+if [[ "$spawn_source" == *'exit_code -ne 76'* ]] && \
+   [[ "$spawn_source" == *'exit_code -ne 124'* ]] && \
    [[ "$spawn_source" == *'exit_code -ne 143'* ]] && \
    [[ "$spawn_source" == *'"$enhanced_prompt" "$_attempt_timeout" "$temp_input"'* ]] && \
    [[ "$heartbeat_source" == *'run_with_timeout "$timeout_secs" "$@" < "$temp_input" > "$raw_output"'* ]] && \
