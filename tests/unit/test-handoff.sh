@@ -128,6 +128,20 @@ fi
 
 # ── Reads the canonical progress.json array shape ───────────────────
 
+test_case "write-handoff skips Octopus provider child sessions"
+CHILD_ROOT="$TEST_TMP_DIR/handoff-provider-child"
+mkdir -p "$CHILD_ROOT/home/.claude-octopus" "$CHILD_ROOT/work"
+cat > "$CHILD_ROOT/home/.claude-octopus/session.json" <<'EOF'
+{"current_phase":"develop","workflow":"embrace","status":"running"}
+EOF
+if run_as_hook "$CHILD_ROOT/work" "$CHILD_ROOT/home" "$CHILD_ROOT/plugin-data" \
+    env OCTOPUS_PROVIDER_CHILD=true "$HANDOFF" &&
+   [[ ! -e "$(resume_handoff_path "$CHILD_ROOT/work" "$CHILD_ROOT/home")" ]]; then
+    test_pass
+else
+    test_fail "a provider child session wrote a handoff"
+fi
+
 test_case "write-handoff reads active agent from canonical progress.json"
 TEST_ROOT="$TEST_TMP_DIR/handoff-fixture"
 PLUGIN_DATA="$TEST_ROOT/plugin-data"
@@ -145,7 +159,7 @@ else
     test_fail "handoff did not read the active agent from progress.json's agents array"
 fi
 
-test_case "session hooks leave the project checkout clean"
+test_case "pre-compact hook writes the relocated handoff"
 HOOK_ROOT="$TEST_TMP_DIR/hook-fixture"
 mkdir -p "$HOOK_ROOT/home/.claude-octopus" "$HOOK_ROOT/plugin-data" "$HOOK_ROOT/project"
 git -C "$HOOK_ROOT/project" init -q
@@ -154,8 +168,24 @@ cat > "$HOOK_ROOT/home/.claude-octopus/session.json" <<'EOF'
 EOF
 run_as_hook "$HOOK_ROOT/project" "$HOOK_ROOT/home" "$HOOK_ROOT/plugin-data" \
     bash "$PRE_COMPACT" >/dev/null 2>&1 || true
+hook_handoff="$(resume_handoff_path "$HOOK_ROOT/project" "$HOOK_ROOT/home")"
+if grep -q 'Octopus Session Handoff' "$hook_handoff" 2>/dev/null; then
+    test_pass
+else
+    test_fail "pre-compact hook did not write $hook_handoff"
+fi
+rm -f "$hook_handoff"
+
+test_case "session-end hook writes the relocated handoff"
 run_as_hook "$HOOK_ROOT/project" "$HOOK_ROOT/home" "$HOOK_ROOT/plugin-data" \
     bash "$SESSION_END" >/dev/null 2>&1 || true
+if grep -q 'Octopus Session Handoff' "$hook_handoff" 2>/dev/null; then
+    test_pass
+else
+    test_fail "session-end hook did not write $hook_handoff"
+fi
+
+test_case "session hooks leave the project checkout clean"
 project_status="$(git -C "$HOOK_ROOT/project" status --porcelain --untracked-files=all)"
 if [[ -z "$project_status" ]]; then
     test_pass
@@ -164,11 +194,20 @@ else
 fi
 
 test_case "handoff lands beside the workflow state path that resume resolves"
-hook_handoff="$(resume_handoff_path "$HOOK_ROOT/project" "$HOOK_ROOT/home")"
 if grep -q 'Octopus Session Handoff' "$hook_handoff" 2>/dev/null; then
     test_pass
 else
     test_fail "no handoff at $hook_handoff"
+fi
+
+test_case "handoff file permissions are private"
+chmod 644 "$hook_handoff"
+run_as_hook "$HOOK_ROOT/project" "$HOOK_ROOT/home" "$HOOK_ROOT/plugin-data" "$HANDOFF"
+handoff_mode="$(stat -f '%Lp' "$hook_handoff" 2>/dev/null || stat -c '%a' "$hook_handoff")"
+if [[ "$handoff_mode" == "600" ]]; then
+    test_pass
+else
+    test_fail "handoff mode was $handoff_mode, expected 600"
 fi
 
 for skill_file in "$RESUME_SKILL" "$GENERATED_RESUME_SKILL"; do

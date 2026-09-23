@@ -5,6 +5,8 @@
 
 set -euo pipefail
 
+[[ "${OCTOPUS_PROVIDER_CHILD:-false}" == "true" ]] && exit 0
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SESSION_FILE="${HOME}/.claude-octopus/session.json"
 STATE_FILE=".octo/STATE.md"
@@ -48,6 +50,10 @@ if [[ -f "$PROGRESS_FILE" ]]; then
 fi
 
 mkdir -p "$(dirname "$HANDOFF_FILE")" 2>/dev/null || exit 0
+umask 077
+if [[ -e "$HANDOFF_FILE" ]]; then
+    chmod 600 "$HANDOFF_FILE" || exit 1
+fi
 
 # Write handoff file
 {
@@ -82,3 +88,4 @@ mkdir -p "$(dirname "$HANDOFF_FILE")" 2>/dev/null || exit 0
     echo "## Resume"
     echo "Run \`/octo:resume\` to continue from the **${PHASE}** phase."
 } > "$HANDOFF_FILE" 2>/dev/null || exit 0
+chmod 600 "$HANDOFF_FILE" || exit 1
