@@ -39,6 +39,37 @@ if [[ "$workflow_rc" -eq 78 ]] &&
     test_pass
 fi
 
+test_case "native Windows permits artifact-only run inspection"
+inspection_ok=true
+for command in explain status; do
+    inspection_rc=0
+    inspection_output="$(PATH="$mock_platform_bin:$PATH" \
+        bash "$PROJECT_ROOT/scripts/orchestrate.sh" "$command" --run missing-run 2>&1)" || inspection_rc=$?
+    if [[ "$inspection_rc" -eq 78 ]] || [[ "$inspection_output" == *"Native Windows is unsupported"* ]]; then
+        inspection_ok=false
+    fi
+done
+if [[ "$inspection_ok" == "true" ]]; then
+    test_pass
+else
+    test_fail "artifact-only explain/status was rejected by the native Windows workflow guard"
+fi
+
+test_case "native Windows rejects non-inspection explain and status commands"
+rejection_ok=true
+for command in explain status; do
+    command_rc=0
+    PATH="$mock_platform_bin:$PATH" bash "$PROJECT_ROOT/scripts/orchestrate.sh" "$command" >/dev/null 2>&1 || command_rc=$?
+    if [[ "$command_rc" -ne 78 ]]; then
+        rejection_ok=false
+    fi
+done
+if [[ "$rejection_ok" == "true" ]]; then
+    test_pass
+else
+    test_fail "non-inspection explain/status bypassed the native Windows workflow guard"
+fi
+
 test_case "Doctor reports the native Windows platform contract"
 doctor_home="$TEST_TMP_DIR/native-windows-doctor-home"
 mkdir -p "$doctor_home"
@@ -58,7 +89,7 @@ else
     test_fail "Doctor did not expose the native Windows contract (rc=$doctor_rc)"
 fi
 
-test_case "Python helpers import without fcntl and reject native Windows clearly"
+test_case "Python helpers distinguish missing fcntl from native Windows"
 python_output="$(PROJECT_ROOT="$PROJECT_ROOT" python3 - <<'PY'
 import builtins
 import contextlib
@@ -72,6 +103,7 @@ root = Path(os.environ["PROJECT_ROOT"])
 helpers = root / "scripts" / "helpers"
 sys.path.insert(0, str(helpers))
 real_import = builtins.__import__
+real_platform = sys.platform
 
 def without_fcntl(name, *args, **kwargs):
     if name == "fcntl":
@@ -101,18 +133,50 @@ for name in ("pid-ledger.py", "setup-state.py"):
                 rc = module.main()
             finally:
                 sys.argv = old_argv
-            if rc != 3:
+            if rc != 78:
                 raise SystemExit(f"setup-state returned {rc}")
             message = stderr.getvalue()
+    if "file locking is unavailable" not in message or "native Windows" in message:
+        raise SystemExit(f"missing fcntl guidance from {name}: {message!r}")
+
+    module.sys.platform = "win32"
+    stderr = io.StringIO()
+    with contextlib.redirect_stderr(stderr):
+        if name == "pid-ledger.py":
+            try:
+                module.require_supported_host()
+            except Exception as exc:
+                message = str(exc)
+            else:
+                raise SystemExit("pid ledger accepted native Windows")
+        else:
+            old_argv = sys.argv
+            sys.argv = [name]
+            try:
+                rc = module.main()
+            finally:
+                sys.argv = old_argv
+            if rc != 78:
+                raise SystemExit(f"setup-state returned {rc} on native Windows")
+            message = stderr.getvalue()
     if "native Windows is unsupported" not in message or "inside WSL" not in message:
-        raise SystemExit(f"missing guidance from {name}: {message!r}")
-print("helpers-rejected-native-windows")
+        raise SystemExit(f"missing native Windows guidance from {name}: {message!r}")
+    module.sys.platform = real_platform
+print("helpers-distinguished-host-errors")
 PY
 )"
-if [[ "$python_output" == helpers-rejected-native-windows ]]; then
+if [[ "$python_output" == helpers-distinguished-host-errors ]]; then
     test_pass
 else
-    test_fail "Python helpers did not fail with clear WSL guidance"
+    test_fail "Python helpers did not distinguish host and locking failures"
+fi
+
+test_case "README exposes a working WSL anchor"
+if grep -q '^### Using Cursor on WSL$' "$PROJECT_ROOT/README.md" &&
+   grep -q '\[WSL\](#using-cursor-on-wsl)' "$PROJECT_ROOT/README.md"; then
+    test_pass
+else
+    test_fail "README WSL link does not target a generated heading anchor"
 fi
 
 test_case "doctor commands use portable plugin-root discovery"

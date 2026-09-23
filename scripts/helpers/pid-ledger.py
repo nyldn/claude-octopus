@@ -17,11 +17,16 @@ from process_control import (Process, StaleProcess, UnsupportedPlatform,
 NATIVE_WINDOWS_MESSAGE = (
     "native Windows is unsupported; run Claude Octopus inside WSL"
 )
+LOCKING_UNAVAILABLE_MESSAGE = (
+    "file locking is unavailable on this Python runtime"
+)
 
 
 def require_supported_host():
-    if fcntl is None or sys.platform == "win32" or sys.platform.startswith(("cygwin", "msys")):
+    if sys.platform == "win32" or sys.platform.startswith(("cygwin", "msys")):
         raise UnsupportedPlatform(NATIVE_WINDOWS_MESSAGE)
+    if fcntl is None:
+        raise UnsupportedPlatform(LOCKING_UNAVAILABLE_MESSAGE)
 
 
 def identity(pid):

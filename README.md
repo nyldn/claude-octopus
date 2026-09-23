@@ -264,8 +264,10 @@ cd ~/.cursor/claude-octopus/mcp-server && npm install
 
 Restart Cursor. Tools appear in Cursor's AI chat — invoke by asking e.g. "use octopus_discover to research X".
 
+### Using Cursor on WSL
+
 <details>
-<summary>Using Cursor on WSL?</summary>
+<summary>Show Cursor setup steps</summary>
 
 If you're running Cursor on Windows with WSL, clone the repo inside WSL and point the MCP config through `wsl.exe`:
 
