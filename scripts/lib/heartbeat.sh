@@ -263,11 +263,10 @@ _octo_timeout_supervisor() {
         (
             set +m
             local unbounded_status=0
-            if "$@" <&0; then unbounded_status=0; else unbounded_status=$?; fi
-            printf '%s\n' "$unbounded_status" > "$status_fifo"
-            # Keep the process-group leader alive until the supervisor has the
-            # result and can contain any descendants without a PGID reuse race.
-            IFS= read -r _ < "$hold_fifo" || true
+            # Publish the result and retain the PGID leader even when a shell
+            # function calls exit. Capture $? before the trap does any work.
+            trap 'unbounded_status=$?; trap - EXIT; printf "%s\n" "$unbounded_status" > "$status_fifo"; IFS= read -r _ < "$hold_fifo" || true; exit "$unbounded_status"' EXIT
+            "$@" <&0
         ) <&0 &
     else
         (

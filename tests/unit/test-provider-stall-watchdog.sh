@@ -31,6 +31,18 @@ else
     test_fail "portable supervisor rejected timeout=0"
 fi
 
+test_case "unbounded supervisor preserves shell-function exit status"
+unbounded_provider_exit() { exit 37; }
+rc=0
+OCTOPUS_PRESERVE_CALLER_PROCESS_GROUP=true \
+    run_with_timeout --portable-supervisor 0 unbounded_provider_exit || rc=$?
+unset -f unbounded_provider_exit
+if [[ "$rc" -eq 37 ]]; then
+    test_pass
+else
+    test_fail "unbounded shell function returned rc=$rc instead of 37"
+fi
+
 test_case "unbounded supervisor contains descendants after provider completion"
 child_file="$TEST_TMP_DIR/unbounded-child.pid"
 provider="$TEST_TMP_DIR/unbounded-descendant-provider.sh"
@@ -135,7 +147,11 @@ _octo_capture_activity_signature() {
     if [[ "$calls" -eq 3 ]]; then
         : > "$release"
         while [[ ! -e "$done_marker" ]]; do sleep 0.01; done
-        sleep 0.2
+        local wait_attempts=0
+        while [[ ! -s "$rc_file" && "$wait_attempts" -lt 200 ]]; do
+            sleep 0.01
+            wait_attempts=$((wait_attempts + 1))
+        done
     fi
     printf '%s\n' stable
 }

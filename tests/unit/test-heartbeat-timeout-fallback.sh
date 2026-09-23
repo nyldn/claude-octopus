@@ -378,7 +378,7 @@ EOF
     chmod +x "$target" "$harness"
 
     TMPDIR="$case_dir" PROJECT_ROOT="$PROJECT_ROOT" TARGET="$target" ROOT_FILE="$root_file" \
-        /bin/bash "$harness" &
+        /bin/bash "$harness" >/dev/null 2>&1 &
     harness_pid=$!
     if _wait_for_nonempty_file "$root_file"; then
         root_pid="$(< "$root_file")"
@@ -467,6 +467,55 @@ EOF
     fi
 }
 
+test_unbounded_interruption_while_waiting_for_status() {
+    test_case "timeout-zero supervisor handles TERM while blocked on status FIFO"
+    local case_dir="$TEST_TMP_DIR/unbounded-timeout-interrupt"
+    local target="$case_dir/target.sh" harness="$case_dir/harness.sh"
+    local root_file="$case_dir/root.pid" harness_pid="" root_pid="" rc=0
+    local root_alive=false leaks=""
+    mkdir -p "$case_dir"
+
+    cat > "$target" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$$" > "$1"
+trap '' TERM
+exec /bin/sleep 30
+EOF
+    cat > "$harness" <<'EOF'
+#!/bin/bash
+source "$PROJECT_ROOT/scripts/lib/heartbeat.sh"
+log() { :; }
+OCTOPUS_PRESERVE_CALLER_PROCESS_GROUP=true \
+    run_with_timeout --portable-supervisor 0 "$TARGET" "$ROOT_FILE"
+EOF
+    chmod +x "$target" "$harness"
+
+    TMPDIR="$case_dir" PROJECT_ROOT="$PROJECT_ROOT" TARGET="$target" ROOT_FILE="$root_file" \
+        /bin/bash "$harness" >/dev/null 2>&1 &
+    harness_pid=$!
+    if _wait_for_nonempty_file "$root_file"; then
+        root_pid="$(< "$root_file")"
+        kill -TERM "$harness_pid"
+    else
+        kill -KILL "$harness_pid" 2>/dev/null || true
+    fi
+    set +e
+    wait "$harness_pid"
+    rc=$?
+    set -e
+    sleep 0.2
+
+    _pid_is_live "$root_pid" && root_alive=true
+    leaks="$(find "$case_dir" -maxdepth 1 -name 'octo-timeout-status.*' -print)"
+    if [[ "$root_alive" == true ]]; then kill -KILL "$root_pid" 2>/dev/null || true; fi
+
+    if [[ "$rc" -eq 143 && -n "$root_pid" && "$root_alive" == false && -z "$leaks" ]]; then
+        test_pass
+    else
+        test_fail "expected TERM rc=143, dead provider, and no timeout state; got rc=$rc root=${root_pid:-missing}/$root_alive leaks='${leaks:-none}'"
+    fi
+}
+
 test_elapsed_measurement_is_single_shell_portable() {
     test_case "elapsed bounds use Bash SECONDS rather than separate Python clocks"
     local source bad_clock
@@ -493,6 +542,7 @@ test_timer_runtime_failure_fails_closed
 test_timeout_kills_term_resistant_descendant_without_ps
 test_interruption_cleans_timeout_state_and_preserves_default_term
 test_interruption_restores_returning_caller_trap
+test_unbounded_interruption_while_waiting_for_status
 test_elapsed_measurement_is_single_shell_portable
 
 test_summary
