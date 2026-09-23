@@ -26,6 +26,95 @@ else
     test_fail "Windows Git Bash detection did not match expected platforms"
 fi
 
+test_case "native Windows workflow startup fails early with WSL guidance"
+mock_platform_bin="$TEST_TMP_DIR/mock-platform-bin"
+mkdir -p "$mock_platform_bin"
+printf '%s\n' '#!/usr/bin/env bash' 'echo MINGW64_NT-10.0' > "$mock_platform_bin/uname"
+chmod +x "$mock_platform_bin/uname"
+workflow_rc=0
+workflow_output="$(PATH="$mock_platform_bin:$PATH" bash "$PROJECT_ROOT/scripts/orchestrate.sh" debate 2>&1)" || workflow_rc=$?
+if [[ "$workflow_rc" -eq 78 ]] &&
+   assert_contains "$workflow_output" "Native Windows is unsupported" "workflow reports unsupported host" &&
+   assert_contains "$workflow_output" "inside WSL" "workflow points to WSL"; then
+    test_pass
+fi
+
+test_case "Doctor reports the native Windows platform contract"
+doctor_home="$TEST_TMP_DIR/native-windows-doctor-home"
+mkdir -p "$doctor_home"
+doctor_rc=0
+doctor_json="$(HOME="$doctor_home" PATH="$mock_platform_bin:$PATH" \
+    bash "$PROJECT_ROOT/scripts/orchestrate.sh" doctor installation --json 2>/dev/null)" || doctor_rc=$?
+if [[ "$doctor_rc" -eq 1 ]] && jq -e '
+    any(.results[];
+        .name == "host-platform" and
+        .category == "installation" and
+        .status == "fail" and
+        (.message | contains("Native Windows is unsupported")) and
+        (.detail | contains("inside WSL")))
+' <<< "$doctor_json" >/dev/null; then
+    test_pass
+else
+    test_fail "Doctor did not expose the native Windows contract (rc=$doctor_rc)"
+fi
+
+test_case "Python helpers import without fcntl and reject native Windows clearly"
+python_output="$(PROJECT_ROOT="$PROJECT_ROOT" python3 - <<'PY'
+import builtins
+import contextlib
+import importlib.util
+import io
+import os
+from pathlib import Path
+import sys
+
+root = Path(os.environ["PROJECT_ROOT"])
+helpers = root / "scripts" / "helpers"
+sys.path.insert(0, str(helpers))
+real_import = builtins.__import__
+
+def without_fcntl(name, *args, **kwargs):
+    if name == "fcntl":
+        raise ImportError("simulated native Windows")
+    return real_import(name, *args, **kwargs)
+
+for name in ("pid-ledger.py", "setup-state.py"):
+    builtins.__import__ = without_fcntl
+    module_name = "octo_" + name.replace("-", "_").replace(".", "_")
+    spec = importlib.util.spec_from_file_location(module_name, helpers / name)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    builtins.__import__ = real_import
+    stderr = io.StringIO()
+    with contextlib.redirect_stderr(stderr):
+        if name == "pid-ledger.py":
+            try:
+                module.require_supported_host()
+            except Exception as exc:
+                message = str(exc)
+            else:
+                raise SystemExit("pid ledger accepted missing fcntl")
+        else:
+            old_argv = sys.argv
+            sys.argv = [name]
+            try:
+                rc = module.main()
+            finally:
+                sys.argv = old_argv
+            if rc != 3:
+                raise SystemExit(f"setup-state returned {rc}")
+            message = stderr.getvalue()
+    if "native Windows is unsupported" not in message or "inside WSL" not in message:
+        raise SystemExit(f"missing guidance from {name}: {message!r}")
+print("helpers-rejected-native-windows")
+PY
+)"
+if [[ "$python_output" == helpers-rejected-native-windows ]]; then
+    test_pass
+else
+    test_fail "Python helpers did not fail with clear WSL guidance"
+fi
+
 test_case "doctor commands use portable plugin-root discovery"
 doctor_generated="$(< "$PROJECT_ROOT/.cursor-plugin/commands/octo-doctor.md")"
 if assert_contains "$doctor_generated" 'find "${HOME}/.claude/plugins"' "generated command searches Claude plugin installs" &&

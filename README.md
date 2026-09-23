@@ -126,6 +126,10 @@ claude plugin install octo@nyldn-plugins
 
 That's it. Setup detects installed providers, shows what's missing, and walks you through configuration. You need **zero** external providers to start — Claude is built in.
 
+**Supported platforms:** Linux and macOS run natively. On Windows, run Claude
+Octopus inside [WSL](#using-cursor-on-wsl); native Git Bash, MSYS2, and Cygwin
+are not supported.
+
 ### Dormant by default
 
 Installing Octopus does not route ordinary prompts, launch provider workflows,

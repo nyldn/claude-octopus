@@ -43,6 +43,12 @@ fi
   exit 1
 }
 export OCTO_ROOT
+
+source "$OCTO_ROOT/scripts/lib/plugin-root.sh" 2>/dev/null || true
+if declare -f octo_is_windows_git_bash >/dev/null 2>&1 && octo_is_windows_git_bash; then
+  echo "Native Windows is unsupported. Run Claude Octopus inside WSL."
+  exit 78
+fi
 ```
 
 ### 1.25 Run installation health for troubleshooting

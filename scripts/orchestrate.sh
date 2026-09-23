@@ -49,6 +49,23 @@ esac
 # at itself (ELOOP). See #371.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
+source "${SCRIPT_DIR}/lib/plugin-root.sh" 2>/dev/null || true
+
+# Native Windows shells cannot satisfy the POSIX storage and identity-bound
+# process-cancellation contracts used by provider workflows. Keep diagnostics
+# and other read-only utilities available, but refuse workflow startup before
+# loading libraries that would otherwise fail later with an fcntl traceback or
+# a generic process-control error. WSL reports Linux here and remains supported.
+if declare -f octo_is_windows_git_bash >/dev/null 2>&1 && octo_is_windows_git_bash; then
+    case "$_octo_early_command" in
+        ""|help|guide|doctor|capabilities|cache-check|check-cache|security-audit|repair|handoff|profile|install-state)
+            ;;
+        *)
+            printf '%s\n' "ERROR: Native Windows is unsupported. Run Claude Octopus inside WSL." >&2
+            exit 78
+            ;;
+    esac
+fi
 
 # Diagnostics and repair do not need the 70+ workflow libraries loaded below.
 # Dispatch them before those libraries initialize state, event logs, or probes.
@@ -92,8 +109,6 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" && "$_octo_early_index" -eq 0 ]]; then
     unset _octo_early_tail
 fi
 unset _octo_early_args _octo_early_index _octo_early_arg _octo_early_command
-source "${SCRIPT_DIR}/lib/plugin-root.sh" 2>/dev/null || true
-
 # Self-heal: ensure the stable symlink exists for LLM Bash tool access.
 # The SessionStart hook normally creates this, but if doctor (or any command)
 # is invoked before the hook fires, the symlink may be missing. (fixes #318)

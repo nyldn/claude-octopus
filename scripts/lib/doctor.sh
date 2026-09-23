@@ -1816,6 +1816,12 @@ doctor_check_cache() {
 
 # --- Category 15: Installation ownership and loaded-root alignment ---
 doctor_check_installation() {
+    if declare -f octo_is_windows_git_bash >/dev/null 2>&1 && octo_is_windows_git_bash; then
+        doctor_add "host-platform" "installation" "fail" \
+            "Native Windows is unsupported" \
+            "Run Claude Octopus inside WSL; Linux and macOS are supported natively"
+    fi
+
     if ! declare -f octo_lifecycle_state_valid >/dev/null 2>&1; then
         doctor_add "install-state-library" "installation" "fail" \
             "Installation state library is unavailable" "Reinstall Claude Octopus"
