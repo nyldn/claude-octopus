@@ -87,6 +87,17 @@ octo_is_windows_git_bash() {
     }
 }
 
+octo_require_supported_workflow_host() {
+    local command_name="${1:-}"
+    octo_is_windows_git_bash || return 0
+    case "$command_name" in
+        ""|help|guide|doctor|capabilities|cache-check|check-cache|security-audit|repair|handoff|profile|install-state)
+            return 0 ;;
+    esac
+    printf '%s\n' "ERROR: Native Windows is unsupported. Run Claude Octopus inside WSL." >&2
+    return 78
+}
+
 octo_write_stable_script_shim() {
     local plugin_root="$1"
     local stable_root="$2"
