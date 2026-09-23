@@ -84,7 +84,7 @@ guidance="$(tangle_reconsideration_json_contract_guidance)"
 if [[ "$guidance" == *'"id":1'* && "$guidance" == *'"kind":"coding"'* && "$guidance" == *'"creates":[]'* && "$guidance" == *'kind is exactly "coding" or "reasoning"'* && "$guidance" == *'contiguous ids starting at 1'* ]]; then test_pass; else test_fail "guidance omits the subtask schema: $guidance"; fi
 
 test_case "subtasks keyed by type instead of kind fail closed"
-type_keyed='{"schema_version":1,"decisions":[{"action":"add_write","path":"app/build.gradle.kts","decision":"accept","reason":"Own."},{"action":"move_to_reads","path":"docs/plan.md","decision":"accept","reason":"Context."}],"decomposition":{"schema_version":1,"subtasks":[{"type":"coding","title":"Implement","reads":[],"files":["app/build.gradle.kts"],"creates":[],"task":"Implement."}]}}'
+type_keyed='{"schema_version":1,"decisions":[{"action":"add_write","path":"app/build.gradle.kts","decision":"accept","reason":"Own."},{"action":"move_to_reads","path":"docs/plan.md","decision":"accept","reason":"Context."}],"decomposition":{"schema_version":1,"subtasks":[{"id":1,"type":"coding","title":"Implement","reads":[],"files":["app/build.gradle.kts"],"creates":[],"task":"Implement."}]}}'
 if tangle_reconsideration_response_valid "$type_keyed"; then test_fail "type-keyed subtask accepted"; else test_pass; fi
 
 test_summary
