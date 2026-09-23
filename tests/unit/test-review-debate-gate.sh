@@ -42,15 +42,15 @@ HARNESS
 
 kept_finding='{"file":"src/app.ts","line":3,"severity":"normal","category":"correctness","title":"Kept","detail":"Null dereference on empty input","confidence":0.9}'
 contested_finding='{"file":"src/app.ts","line":8,"severity":"normal","category":"correctness","title":"Contested","detail":"Possibly guarded by the caller","confidence":0.6}'
-debate_output='{"include":[],"exclude":["Contested"]}'
+debate_output='{"include":[],"exclude":["finding-1"]}'
 
 run_review_harness() {
     local run_dir="$1" round1_output="$2" verifier_output="$3"
     mkdir -p "$run_dir/home" "$run_dir/tmp" "$run_dir/results"
     : > "$run_dir/log"
-    env -i PATH="$PATH" HOME="$run_dir/home" TMPDIR="$run_dir/tmp" \
-        RESULTS_DIR="$run_dir/results" HARNESS_LOG="$run_dir/log" REVIEW_SH="$REVIEW_SH" \
-        ROUND1_OUTPUT="$round1_output" VERIFIER_OUTPUT="$verifier_output" DEBATE_OUTPUT="$debate_output" \
+    env -i "PATH=$PATH" "HOME=$run_dir/home" "TMPDIR=$run_dir/tmp" \
+        "RESULTS_DIR=$run_dir/results" "HARNESS_LOG=$run_dir/log" "REVIEW_SH=$REVIEW_SH" \
+        "ROUND1_OUTPUT=$round1_output" "VERIFIER_OUTPUT=$verifier_output" "DEBATE_OUTPUT=$debate_output" \
         "$BASH" "$REVIEW_HARNESS" > "$run_dir/output" 2>&1
 }
 
@@ -97,6 +97,24 @@ if [[ "$contested_rc" -eq 0 ]] &&
     test_pass
 else
     test_fail "$(review_harness_diagnostics "$contested_run" "$contested_rc")"
+fi
+
+duplicate_confirmed='{"file":"src/app.ts","line":12,"severity":"normal","category":"correctness","title":"Shared title","detail":"Confirmed finding","confidence":0.9}'
+duplicate_contested='{"file":"src/app.ts","line":18,"severity":"normal","category":"correctness","title":"Shared title","detail":"Contested finding","confidence":0.6}'
+duplicate_run="$TEST_TMP_DIR/duplicate-title"
+duplicate_rc=0
+run_review_harness "$duplicate_run" \
+    "$(jq -cn --argjson kept "$duplicate_confirmed" --argjson contested "$duplicate_contested" '{findings: [$kept, $contested]}')" \
+    "$(jq -cn --argjson kept "$duplicate_confirmed" --argjson contested "$duplicate_contested" '{findings: [$kept + {verdict: "confirmed"}, $contested + {verdict: "needs-debate"}]}')" \
+    || duplicate_rc=$?
+
+test_case "debate exclusions preserve confirmed findings with the same title"
+duplicate_findings="$(find "$duplicate_run/results" -name 'review-findings-*.json' -type f | head -n 1)"
+if [[ "$duplicate_rc" -eq 0 ]] &&
+   [[ "$(jq -c '[.findings[].detail]' "$duplicate_findings" 2>/dev/null || true)" == '["Confirmed finding"]' ]]; then
+    test_pass
+else
+    test_fail "$(review_harness_diagnostics "$duplicate_run" "$duplicate_rc")"
 fi
 
 uncontested_run="$TEST_TMP_DIR/uncontested"

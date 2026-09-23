@@ -128,7 +128,7 @@ fi
 
 test_case "debate exclusions are read from a wrapped debate result"
 debate_start="$(grep -nF 'debate_result=$(echo "$debate_result"' "$REVIEW_SH" | head -n 1 | cut -d: -f1)"
-debate_end="$(grep -nF 'exclude_titles=$(echo "$debate_result"' "$REVIEW_SH" | head -n 1 | cut -d: -f1)"
+debate_end="$(grep -nF 'exclude_ids=$(echo "$debate_result"' "$REVIEW_SH" | head -n 1 | cut -d: -f1)"
 if [[ -z "$debate_start" || -z "$debate_end" ]]; then
     test_fail "could not locate the debate result parsing lines in review.sh"
 else
@@ -136,13 +136,13 @@ else
         printf '%s\n' 'review_test_debate_exclusions() {'
         printf '%s\n' '    local debate_result="$1"'
         sed -n "${debate_start},${debate_end}p" "$REVIEW_SH"
-        printf '%s\n' '    printf "%s\n" "$exclude_titles"'
+        printf '%s\n' '    printf "%s\n" "$exclude_ids"'
         printf '%s\n' '}'
     } > "$TEST_TMP_DIR/debate-parse.sh"
     source "$TEST_TMP_DIR/debate-parse.sh"
-    wrapped_debate="$(OCTOPUS_SECURITY_V870=true wrap_cli_output codex '{"include":["Kept"],"exclude":["Contested"]}')"
+    wrapped_debate="$(OCTOPUS_SECURITY_V870=true wrap_cli_output codex '{"include":["finding-0"],"exclude":["finding-1"]}')"
     debate_exclusions="$(review_test_debate_exclusions "$wrapped_debate" 2>/dev/null || true)"
-    if [[ "$debate_exclusions" == "Contested" ]]; then
+    if [[ "$debate_exclusions" == '["finding-1"]' ]]; then
         test_pass
     else
         test_fail "wrapped debate result produced exclusions [$debate_exclusions]"
