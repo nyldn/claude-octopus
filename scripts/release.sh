@@ -303,6 +303,18 @@ PR_NUM=$(echo "$PR_URL" | grep -oE '[0-9]+$')
 echo "   PR #${PR_NUM}: ${PR_URL}"
 echo ""
 
+# Pin the release candidate before any CI or review decision is accepted.
+# A later head change invalidates this run, even if the replacement revision
+# eventually passes its own checks.
+if ! PR_HEAD_SHA=$(gh pr view "$PR_NUM" -R "$REPO_SLUG" --json headRefOid --jq '.headRefOid // empty'); then
+    echo "   ERROR: Could not read the release PR head."
+    exit 1
+fi
+if [[ ! "$PR_HEAD_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+    echo "   ERROR: Release PR returned an invalid head commit: ${PR_HEAD_SHA:-empty}"
+    exit 1
+fi
+
 # --- 5. Wait for CI ---
 
 echo "5/8 Waiting for CI..."
@@ -357,41 +369,69 @@ fi
 echo "   Review: ${REVIEW_DECISION} | unresolved threads: 0"
 echo ""
 
+# Reject a head replacement between PR creation and the completed gates.
+# --match-head-commit below also closes the final read-to-merge race.
+if ! CURRENT_PR_HEAD_SHA=$(gh pr view "$PR_NUM" -R "$REPO_SLUG" --json headRefOid --jq '.headRefOid // empty'); then
+    echo "   ERROR: Could not re-read the reviewed PR head."
+    exit 1
+fi
+if [[ "$CURRENT_PR_HEAD_SHA" != "$PR_HEAD_SHA" ]]; then
+    echo "   ERROR: Release PR head changed during CI/review; restart the release."
+    exit 1
+fi
+
 # --- 6. Merge + Release ---
 
 echo "6/8 Merging and creating release..."
 merge_release_pr() {
-    gh pr merge "$PR_NUM" -R "$REPO_SLUG" --squash "$@"
+    gh pr merge "$PR_NUM" -R "$REPO_SLUG" --squash \
+        --match-head-commit "$PR_HEAD_SHA" "$@"
 }
 
-read_release_pr_state() {
-    gh pr view "$PR_NUM" -R "$REPO_SLUG" --json state --jq '.state'
+read_release_pr_merge_snapshot() {
+    gh pr view "$PR_NUM" -R "$REPO_SLUG" \
+        --json state,headRefOid \
+        --jq '[.state, (.headRefOid // "")] | @tsv'
 }
 
-if ! merge_release_pr --quiet 2>/dev/null; then
-    if ! PR_STATE=$(read_release_pr_state); then
-        echo "   ERROR: Merge failed and the PR state could not be read."
+merge_release_pr --quiet 2>/dev/null || true
+if ! PR_MERGE_SNAPSHOT=$(read_release_pr_merge_snapshot); then
+    echo "   ERROR: The release PR merge state could not be read."
+    exit 1
+fi
+if ! octo_release_merge_matches_reviewed_head "$PR_MERGE_SNAPSHOT" "$PR_HEAD_SHA"; then
+    IFS=$'\t' read -r PR_STATE PR_MERGED_HEAD_SHA <<< "$PR_MERGE_SNAPSHOT"
+    if [[ "$PR_STATE" == "MERGED" ]]; then
+        echo "   ERROR: Release PR merged a different head; expected ${PR_HEAD_SHA}, got ${PR_MERGED_HEAD_SHA:-empty}."
         exit 1
     fi
-    if [[ "$PR_STATE" != "MERGED" ]]; then
-        if ! merge_release_pr; then
-            if ! PR_STATE=$(read_release_pr_state); then
-                echo "   ERROR: Merge retry failed and the PR state could not be read."
-                exit 1
-            fi
-            if [[ "$PR_STATE" != "MERGED" ]]; then
-                echo "   ERROR: Release PR is still ${PR_STATE} after the merge retry."
-                exit 1
-            fi
+    merge_release_pr || true
+    if ! PR_MERGE_SNAPSHOT=$(read_release_pr_merge_snapshot); then
+        echo "   ERROR: Merge retry finished but the PR state could not be read."
+        exit 1
+    fi
+    if ! octo_release_merge_matches_reviewed_head "$PR_MERGE_SNAPSHOT" "$PR_HEAD_SHA"; then
+        IFS=$'\t' read -r PR_STATE PR_MERGED_HEAD_SHA <<< "$PR_MERGE_SNAPSHOT"
+        if [[ "$PR_STATE" == "MERGED" ]]; then
+            echo "   ERROR: Release PR merged a different head; expected ${PR_HEAD_SHA}, got ${PR_MERGED_HEAD_SHA:-empty}."
+        else
+            echo "   ERROR: Release PR is still ${PR_STATE:-unknown} after the merge retry."
         fi
+        exit 1
     fi
 fi
 
-if ! MERGE_SHA=$(gh pr view "$PR_NUM" \
+if ! MERGE_RECORD=$(gh pr view "$PR_NUM" \
     -R "$REPO_SLUG" \
-    --json state,mergeCommit \
-    --jq 'select(.state == "MERGED") | .mergeCommit.oid // empty'); then
+    --json state,headRefOid,mergeCommit \
+    --jq '[.state, (.headRefOid // ""), (.mergeCommit.oid // "")] | @tsv'); then
     echo "   ERROR: Could not read the merged PR commit."
+    exit 1
+fi
+IFS=$'\t' read -r PR_STATE PR_MERGED_HEAD_SHA MERGE_SHA <<< "$MERGE_RECORD"
+if ! octo_release_merge_matches_reviewed_head \
+    "${PR_STATE}"$'\t'"${PR_MERGED_HEAD_SHA}" "$PR_HEAD_SHA"; then
+    echo "   ERROR: Merged release PR no longer matches the reviewed head ${PR_HEAD_SHA}."
     exit 1
 fi
 if [[ ! "$MERGE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
@@ -446,23 +486,39 @@ TAG_NAME="v${VERSION}"
 git tag -a "$TAG_NAME" "$MERGE_SHA" -m "${TAG_NAME}: ${SUMMARY}"
 git push --quiet "$REMOTE" "$TAG_NAME"
 
-gh release create "v${VERSION}" \
+RELEASE_NOTES_FILE=$(umask 077 && mktemp "${TMPDIR:-/tmp}/octopus-release-notes.XXXXXX") || {
+    echo "   ERROR: Could not create a private release-notes file."
+    exit 1
+}
+cleanup_release_notes() {
+    rm -f -- "$RELEASE_NOTES_FILE"
+}
+release_notes_interrupted() {
+    local status="$1"
+    trap - EXIT INT TERM
+    cleanup_release_notes
+    exit "$status"
+}
+trap cleanup_release_notes EXIT
+trap 'release_notes_interrupted 130' INT
+trap 'release_notes_interrupted 143' TERM
+printf '### Changed\n- %s\n\n**Full Changelog**: https://github.com/nyldn/claude-octopus/compare/v%s...v%s\n' \
+    "$SUMMARY" "$CURRENT" "$VERSION" > "$RELEASE_NOTES_FILE"
+
+if ! gh release create "v${VERSION}" \
     -R "$REPO_SLUG" \
     --verify-tag \
     --title "v${VERSION} — ${SUMMARY}" \
-    --notes "### Changed
-- ${SUMMARY}
-
-**Full Changelog**: https://github.com/nyldn/claude-octopus/compare/v${CURRENT}...v${VERSION}" \
-    --quiet 2>/dev/null || \
-gh release create "v${VERSION}" \
-    -R "$REPO_SLUG" \
-    --verify-tag \
-    --title "v${VERSION} — ${SUMMARY}" \
-    --notes "### Changed
-- ${SUMMARY}
-
-**Full Changelog**: https://github.com/nyldn/claude-octopus/compare/v${CURRENT}...v${VERSION}"
+    --notes-file "$RELEASE_NOTES_FILE" \
+    --quiet 2>/dev/null; then
+    gh release create "v${VERSION}" \
+        -R "$REPO_SLUG" \
+        --verify-tag \
+        --title "v${VERSION} — ${SUMMARY}" \
+        --notes-file "$RELEASE_NOTES_FILE"
+fi
+cleanup_release_notes
+trap - EXIT INT TERM
 
 echo "   Merged PR #${PR_NUM}"
 echo "   Release: https://github.com/nyldn/claude-octopus/releases/tag/v${VERSION}"

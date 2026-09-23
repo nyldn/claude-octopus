@@ -53,6 +53,16 @@ octo_release_review_gate() {
     [[ "$unresolved_threads" == "0" ]]
 }
 
+octo_release_merge_matches_reviewed_head() {
+    local snapshot="$1"
+    local expected_head="$2"
+    local state merged_head extra
+
+    IFS=$'\t' read -r state merged_head extra <<< "$snapshot"
+    [[ -z "$extra" ]] || return 1
+    [[ "$state" == "MERGED" && "$merged_head" == "$expected_head" ]]
+}
+
 octo_release_unresolved_review_threads() {
     local repo_owner="$1"
     local repo_name="$2"

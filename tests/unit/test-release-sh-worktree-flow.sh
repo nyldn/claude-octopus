@@ -58,7 +58,7 @@ test_post_merge_skips_checkout_on_release_branch() {
 
     if grep -q 'ON_RELEASE_BRANCH" == "true"' <<< "$merge_block" \
         && grep -q 'git fetch --quiet "\$REMOTE" main' <<< "$merge_block" \
-        && grep -q -- '--json state,mergeCommit' <<< "$merge_block" \
+        && grep -q -- '--json state,headRefOid,mergeCommit' <<< "$merge_block" \
         && ! grep -q 'ON_RELEASE_BRANCH" == "true"' <<< "$checkout_context"; then
         test_pass
     else
@@ -72,8 +72,8 @@ test_release_tags_merge_sha() {
     local merge_block
     merge_block=$(awk '/# --- 6\. Merge \+ Release/,/^# --- 7\. Sync shared marketplace/' "$RELEASE_SH")
 
-    if grep -q -- '--json state,mergeCommit' <<< "$merge_block" \
-        && grep -q 'mergeCommit\.oid // empty' <<< "$merge_block" \
+    if grep -q -- '--json state,headRefOid,mergeCommit' <<< "$merge_block" \
+        && grep -q 'mergeCommit\.oid // ""' <<< "$merge_block" \
         && grep -q 'MERGE_SHA" =~ \^\[0-9a-fA-F\]' <<< "$merge_block" \
         && grep -q 'git merge-base --is-ancestor "\$MERGE_SHA" FETCH_HEAD' <<< "$merge_block" \
         && grep -q 'git tag -a "\$TAG_NAME" "\$MERGE_SHA"' <<< "$merge_block" \
@@ -97,6 +97,57 @@ test_release_uses_squash_merge() {
         test_pass
     else
         test_fail "release.sh merge commands must use --squash exclusively"
+    fi
+}
+
+test_release_merge_pins_reviewed_head() {
+    test_case "release merge is pinned to the reviewed PR head"
+
+    local release_flow pin_line ci_line compare_line merge_line
+    release_flow=$(awk '/# --- 4\. Create PR/,/if ! MERGE_SHA=/' "$RELEASE_SH")
+    pin_line=$(grep -n 'PR_HEAD_SHA=.*headRefOid' <<< "$release_flow" | head -1 | cut -d: -f1)
+    ci_line=$(grep -n '5/8 Waiting for CI' <<< "$release_flow" | head -1 | cut -d: -f1)
+    compare_line=$(grep -n 'CURRENT_PR_HEAD_SHA.*PR_HEAD_SHA' <<< "$release_flow" | head -1 | cut -d: -f1)
+    merge_line=$(grep -n -- '--match-head-commit "\$PR_HEAD_SHA"' <<< "$release_flow" | head -1 | cut -d: -f1)
+
+    if [[ "$pin_line" =~ ^[0-9]+$ && "$ci_line" =~ ^[0-9]+$ &&
+          "$compare_line" =~ ^[0-9]+$ && "$merge_line" =~ ^[0-9]+$ ]] &&
+       [[ "$pin_line" -lt "$ci_line" && "$ci_line" -lt "$compare_line" &&
+          "$compare_line" -lt "$merge_line" ]]; then
+        test_pass
+    else
+        test_fail "release.sh does not pin the PR head before CI, recheck it, and bind the merge"
+    fi
+}
+
+test_release_rejects_concurrently_changed_merged_head() {
+    test_case "release rejects a merged PR whose head changed after review"
+
+    if octo_release_merge_matches_reviewed_head $'MERGED\tbefore' before \
+        && ! octo_release_merge_matches_reviewed_head $'MERGED\tafter' before \
+        && ! octo_release_merge_matches_reviewed_head $'OPEN\tbefore' before \
+        && ! octo_release_merge_matches_reviewed_head 'MERGED' before; then
+        test_pass
+    else
+        test_fail "release merge validation accepted a changed, open, or malformed PR snapshot"
+    fi
+}
+
+test_release_notes_use_private_file() {
+    test_case "release notes are passed through a private file, never inline"
+
+    local merge_block
+    merge_block=$(awk '/# --- 6\. Merge \+ Release/,/^# --- 7\. Sync shared marketplace/' "$RELEASE_SH")
+
+    if grep -q 'umask 077.*mktemp' <<< "$merge_block" \
+        && grep -q "trap 'release_notes_interrupted 130' INT" <<< "$merge_block" \
+        && grep -q "trap 'release_notes_interrupted 143' TERM" <<< "$merge_block" \
+        && grep -q "trap - EXIT INT TERM" <<< "$merge_block" \
+        && grep -q -- '--notes-file "\$RELEASE_NOTES_FILE"' <<< "$merge_block" \
+        && ! grep -q -- '--notes "' <<< "$merge_block"; then
+        test_pass
+    else
+        test_fail "release.sh still passes generated release notes inline or without a private file"
     fi
 }
 
@@ -258,6 +309,9 @@ test_plugin_manifest_staged
 test_post_merge_skips_checkout_on_release_branch
 test_release_tags_merge_sha
 test_release_uses_squash_merge
+test_release_merge_pins_reviewed_head
+test_release_rejects_concurrently_changed_merged_head
+test_release_notes_use_private_file
 test_release_ci_timeout_covers_macos
 test_release_requires_clean_review_state
 test_release_verifies_main_before_tag
