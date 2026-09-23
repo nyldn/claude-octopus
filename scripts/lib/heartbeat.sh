@@ -629,6 +629,10 @@ _octo_capture_provider_with_stall_watchdog() {
     local last_signature current_signature last_progress now next_probe
     local stalled=false grace_deadline
 
+    # Probe at least once before the first stall check. Keep this invariant in
+    # the watchdog itself so direct callers cannot bypass it.
+    (( poll_secs > stall_window )) && poll_secs="$stall_window"
+
     rc_file="$(umask 077 && mktemp "${temp_input}.rc.XXXXXX")" || return 1
     (
         local provider_rc=0
@@ -651,6 +655,11 @@ _octo_capture_provider_with_stall_watchdog() {
     while kill -0 "$capture_pid" 2>/dev/null; do
         [[ -s "$rc_file" ]] && break
         sleep 1
+        # A silent provider may finish during the sleep. Recheck completion
+        # before declaring a stall at the same boundary.
+        if [[ -s "$rc_file" ]] || ! kill -0 "$capture_pid" 2>/dev/null; then
+            break
+        fi
         now="$(date +%s)"
         if [[ "$now" -ge "$next_probe" ]]; then
             current_signature="$(_octo_capture_activity_signature "$raw_output" "$temp_errors" "$worktree")"
@@ -725,10 +734,6 @@ octopus_capture_provider_output() {
         rm -f "$temp_input"
         return 2
     fi
-    if [[ "$stall_window" -gt 0 && "$stall_poll_secs" -gt "$stall_window" ]]; then
-        stall_poll_secs="$stall_window"
-    fi
-
     local exit_code=0
     if [[ "$stall_window" -gt 0 ]]; then
         if _octo_capture_provider_with_stall_watchdog \

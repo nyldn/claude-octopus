@@ -74,6 +74,20 @@ else
     test_fail "poll interval skipped observable progress before the stall deadline (rc=$rc)"
 fi
 
+test_case "completed silent provider is not classified as stalled"
+raw="$TEST_TMP_DIR/completed-silent.raw"
+err="$TEST_TMP_DIR/completed-silent.err"
+hint="$TEST_TMP_DIR/completed-silent.in"
+rc=0
+OCTOPUS_PROVIDER_STALL_WINDOW=1 OCTOPUS_PROVIDER_STALL_POLL_SECS=1 \
+    octopus_capture_provider_output "prompt" 0 "$hint" "$raw" "$err" \
+        /bin/sh -c 'sleep 0.2' || rc=$?
+if [[ "$rc" -eq 0 ]]; then
+    test_pass
+else
+    test_fail "completed provider was classified as stalled (rc=$rc)"
+fi
+
 test_case "silent provider worktree writes reset the stall window"
 repo="$TEST_TMP_DIR/progress-repo"
 mkdir -p "$repo"
