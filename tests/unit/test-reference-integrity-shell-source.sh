@@ -40,18 +40,25 @@ assert_not_contains "$output" "sources missing file" "jq '. as \$x' lines must n
 test_case "genuinely missing relative sourced files are still flagged"
 workspace="$TEST_TMP_DIR/missing-source"
 mkdir -p "$workspace/scripts"
-printf '#!/usr/bin/env bash\nsource ./lib/common.sh\n. helpers.sh\n' > "$workspace/scripts/run.sh"
+printf '#!/usr/bin/env bash\nsource ./lib/common.sh\n. helpers.sh\n. bootstrap\n. as\n' > "$workspace/scripts/run.sh"
 output="$(run_hook_in "$workspace")"
 assert_contains "$output" "sources missing file: ./lib/common.sh" "missing ./lib/common.sh must still be flagged" && test_pass
 
 test_case "missing dot-sourced file with an extension is still flagged"
 assert_contains "$output" "helpers.sh" "missing helpers.sh must still be flagged" && test_pass
 
+test_case "missing extensionless dot-sourced files are still flagged"
+assert_contains "$output" "sources missing file: bootstrap" "missing extensionless bootstrap must still be flagged" && test_pass
+
+test_case "dot-sourced file named as is not mistaken for a jq binder"
+assert_contains "$output" "sources missing file: as" "plain '. as' must still be treated as shell sourcing" && test_pass
+
 test_case "existing sourced files are not flagged"
 workspace="$TEST_TMP_DIR/present-source"
 mkdir -p "$workspace/scripts/lib"
 printf 'true\n' > "$workspace/scripts/lib/common.sh"
-printf '#!/usr/bin/env bash\nsource lib/common.sh\n' > "$workspace/scripts/run.sh"
+printf 'true\n' > "$workspace/scripts/bootstrap"
+printf '#!/usr/bin/env bash\nsource lib/common.sh first-argument\n. bootstrap second-argument\n' > "$workspace/scripts/run.sh"
 output="$(run_hook_in "$workspace")"
 assert_not_contains "$output" "sources missing file" "present sourced files must not be flagged" && test_pass
 

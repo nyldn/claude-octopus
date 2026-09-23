@@ -91,19 +91,22 @@ check_reference_integrity() {
 
         while IFS= read -r stmt; do
             [[ -z "$stmt" ]] && continue
-            local keyword ref
-            keyword=$(printf '%s' "$stmt" | sed -E 's/^[[:space:]]*(\.|source)[[:space:]].*/\1/')
+            # Shell files can embed jq/awk programs whose expression lines begin
+            # with a dot. Ignore only the unambiguous language forms; `. name`
+            # remains a valid shell source statement even without an extension.
+            if printf '%s\n' "$stmt" | grep -Eq '^[[:space:]]*\.[[:space:]]+as[[:space:]]+\$|^[[:space:]]*\.[[:space:]]+~[[:space:]]+/'; then
+                continue
+            fi
+            local ref
             ref=$(printf '%s' "$stmt" | sed -E 's/^[[:space:]]*(\.|source)[[:space:]]+//' | sed 's/^["'"'"'"]//')
+            ref=$(printf '%s' "$ref" | sed -E "s/[\"']?[[:space:]].*$//")
             [[ -z "$ref" ]] && continue
             # Skip variable references and command substitutions
             [[ "$ref" == *'$'* ]] && continue
-            if [[ "$keyword" == "." && "$ref" != */* && "$ref" != *.* ]]; then
-                continue
-            fi
             if [[ ! -f "$dir/$ref" && ! -f "$ref" ]]; then
                 issues+=("$file sources missing file: $ref")
             fi
-        done < <(grep -oE '^\s*(\.|source)\s+["'"'"'"]?[^"'"'"'"[:space:]]+' "$file" 2>/dev/null || true)
+        done < <(grep -E '^[[:space:]]*(\.|source)[[:space:]]+' "$file" 2>/dev/null || true)
     done
 
     # Check docker-compose referencing missing Dockerfiles/configs
