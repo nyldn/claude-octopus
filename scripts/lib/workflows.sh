@@ -2337,11 +2337,14 @@ ${subtasks}"
 tangle_reconsideration_json_contract_guidance() {
     cat <<'EOF'
 Return ONLY JSON matching Tangle reconsideration schema v1:
-{"schema_version":1,"decisions":[{"action":"move_to_reads|remove_write|add_write","path":"repo/relative/path","decision":"accept|reject","reason":"..."}],"decomposition":{"schema_version":1,"subtasks":[...]}}
+{"schema_version":1,"decisions":[{"action":"move_to_reads|remove_write|add_write","path":"repo/relative/path","decision":"accept|reject","reason":"..."}],"decomposition":{"schema_version":1,"subtasks":[{"id":1,"kind":"coding","title":"Short title","reads":[],"files":["relative/file.js"],"creates":[],"task":"Specific coding work"}]}}
 Rules:
 - decisions must contain exactly one accept/reject entry for every adequacy scope_review recommendation and no extra recommendation identities.
 - action/path must exactly match the adequacy recommendation; reason is non-empty planner rationale.
-- decomposition must satisfy Tangle decomposition JSON schema v1.
+- decomposition must satisfy Tangle decomposition JSON schema v1. Every subtask object has exactly the keys id, kind, title, reads, files, creates and task, even when the current decomposition is shown as text:
+EOF
+    tangle_decomposition_json_contract_guidance | sed -n '/^Rules:$/,$p' | sed '1d; s/^- /  - /'
+    cat <<'EOF'
 - preserve the original deliverable and keep coding scopes disjoint.
 - do not emit Markdown, prose before/after JSON, DECISIONS:/DECOMPOSITION: text, or globs.
 EOF
