@@ -55,6 +55,13 @@ assert_contains "$output" "sources missing file: bootstrap" "missing extensionle
 test_case "dot-sourced file named as is not mistaken for a jq binder"
 assert_contains "$output" "sources missing file: as" "plain '. as' must still be treated as shell sourcing" && test_pass
 
+test_case "dot-sourced file named as with arguments is not mistaken for a jq binder"
+workspace="$TEST_TMP_DIR/as-with-argument"
+mkdir -p "$workspace/scripts"
+printf '#!/usr/bin/env bash\n. as "$item"\n' > "$workspace/scripts/run.sh"
+output="$(run_hook_in "$workspace")"
+assert_contains "$output" "sources missing file: as" "'. as \$item' must still be treated as shell sourcing" && test_pass
+
 test_case "existing sourced files are not flagged"
 workspace="$TEST_TMP_DIR/present-source"
 mkdir -p "$workspace/scripts/lib" "$workspace/scripts/shared files"
@@ -65,5 +72,15 @@ printf 'true\n' > "$workspace/scripts/shared files/single quoted.sh"
 printf '#!/usr/bin/env bash\nsource lib/common.sh first-argument\n. bootstrap second-argument\nsource "shared files/double quoted.sh"\n. '\''shared files/single quoted.sh'\'' first-argument\n' > "$workspace/scripts/run.sh"
 output="$(run_hook_in "$workspace")"
 assert_not_contains "$output" "sources missing file" "present sourced files must not be flagged" && test_pass
+
+test_case "adjacent text after a quoted source target remains part of the path"
+workspace="$TEST_TMP_DIR/quoted-suffix"
+mkdir -p "$workspace/scripts/shared files"
+printf 'true\n' > "$workspace/scripts/shared files/double quoted.sh"
+printf 'true\n' > "$workspace/scripts/shared files/single quoted.sh"
+printf '#!/usr/bin/env bash\nsource "shared files/double quoted.sh".bak\n. '\''shared files/single quoted.sh'\''.bak\n' > "$workspace/scripts/run.sh"
+output="$(run_hook_in "$workspace")"
+assert_contains "$output" "sources missing file: shared files/double quoted.sh.bak" "double-quoted adjacent suffix must be retained" || true
+assert_contains "$output" "sources missing file: shared files/single quoted.sh.bak" "single-quoted adjacent suffix must be retained" && test_pass
 
 test_summary

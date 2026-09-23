@@ -11,6 +11,90 @@ set -euo pipefail
 _octo_hook_exit() { local c=$?; if [[ $c -ne 0 ]]; then echo "[hook:$(basename "$0")] exit $c" >&2 2>/dev/null || true; fi; return 0; }
 trap _octo_hook_exit EXIT
 
+# Parse one shell word without evaluating it. The result is written to the
+# global OCTO_SHELL_WORD so callers do not need a command-substitution process.
+_octo_parse_shell_word() {
+    local input="$1" char="" word="" state="plain" escaped=0 i
+    OCTO_SHELL_WORD=""
+
+    for ((i = 0; i < ${#input}; i++)); do
+        char="${input:i:1}"
+        case "$state" in
+            single)
+                if [[ "$char" == "'" ]]; then state="plain"; else word+="$char"; fi
+                ;;
+            double)
+                if ((escaped)); then
+                    word+="$char"; escaped=0
+                elif [[ "$char" == '\\' ]]; then
+                    escaped=1
+                elif [[ "$char" == '"' ]]; then
+                    state="plain"
+                else
+                    word+="$char"
+                fi
+                ;;
+            *)
+                if ((escaped)); then
+                    word+="$char"; escaped=0
+                elif [[ "$char" == '\\' ]]; then
+                    escaped=1
+                elif [[ "$char" == "'" ]]; then
+                    state="single"
+                elif [[ "$char" == '"' ]]; then
+                    state="double"
+                elif [[ "$char" =~ [[:space:]] ]] || [[ "$char" == ';' || "$char" == '|' || "$char" == '&' || "$char" == '<' || "$char" == '>' || "$char" == '(' || "$char" == ')' ]]; then
+                    break
+                else
+                    word+="$char"
+                fi
+                ;;
+        esac
+    done
+
+    [[ "$state" == "plain" && $escaped -eq 0 ]] || return 1
+    OCTO_SHELL_WORD="$word"
+}
+
+# Track multiline shell quote state so jq/awk programs embedded in a shell
+# string are not mistaken for executable shell source statements.
+_octo_advance_shell_quote_state() {
+    local input="$1" single="$2" double="$3" char="" escaped=0 comment_ok=1 i
+
+    for ((i = 0; i < ${#input}; i++)); do
+        char="${input:i:1}"
+        if ((single)); then
+            [[ "$char" != "'" ]] || single=0
+            continue
+        fi
+        if ((double)); then
+            if ((escaped)); then
+                escaped=0
+            elif [[ "$char" == '\\' ]]; then
+                escaped=1
+            elif [[ "$char" == '"' ]]; then
+                double=0
+            fi
+            continue
+        fi
+        if ((escaped)); then
+            escaped=0; comment_ok=0; continue
+        fi
+        case "$char" in
+            \\) escaped=1; comment_ok=0 ;;
+            "'") single=1; comment_ok=0 ;;
+            '"') double=1; comment_ok=0 ;;
+            '#') ((comment_ok)) && break; comment_ok=0 ;;
+            ' '|$'\t') comment_ok=1 ;;
+            ';'|'|'|'&'|'('|')') comment_ok=1 ;;
+            *) comment_ok=0 ;;
+        esac
+    done
+
+    OCTO_IN_SINGLE_QUOTE="$single"
+    OCTO_IN_DOUBLE_QUOTE="$double"
+}
+
 # Claude Code before v2.1.85 ignores hook-handler `if` filters. Keep the same
 # guard in-process so stale clients do not scan the workspace after every Bash
 # command. Current clients avoid spawning this hook altogether.
@@ -82,36 +166,31 @@ check_reference_integrity() {
     done
 
     # Check shell scripts sourcing missing files
-    local recent_scripts
-    recent_scripts=$(find . -maxdepth 5 -type f -name "*.sh" -mmin -10 2>/dev/null || true)
-
-    for file in $recent_scripts; do
+    while IFS= read -r -d '' file; do
         local dir
         dir=$(dirname "$file")
+        local in_single_quote=0 in_double_quote=0
 
         while IFS= read -r stmt; do
-            [[ -z "$stmt" ]] && continue
-            # Shell files can embed jq/awk programs whose expression lines begin
-            # with a dot. Ignore only the unambiguous language forms; `. name`
-            # remains a valid shell source statement even without an extension.
-            if printf '%s\n' "$stmt" | grep -Eq '^[[:space:]]*\.[[:space:]]+as[[:space:]]+(\$|\[|\{)|^[[:space:]]*\.[[:space:]]+~[[:space:]]+/'; then
-                continue
+            local starts_in_quote=0 ref="" remainder=""
+            ((in_single_quote || in_double_quote)) && starts_in_quote=1
+
+            if (( ! starts_in_quote )) && [[ "$stmt" =~ ^[[:space:]]*(\.|source)[[:space:]]+(.+)$ ]]; then
+                remainder="${BASH_REMATCH[2]}"
+                if _octo_parse_shell_word "$remainder"; then
+                    ref="$OCTO_SHELL_WORD"
+                    # Skip variable references and command substitutions.
+                    if [[ -n "$ref" && "$ref" != *'$'* && "$ref" != *'`'* && ! -f "$dir/$ref" && ! -f "$ref" ]]; then
+                        issues+=("$file sources missing file: $ref")
+                    fi
+                fi
             fi
-            local ref
-            ref=$(printf '%s' "$stmt" | sed -E 's/^[[:space:]]*(\.|source)[[:space:]]+//')
-            case "$ref" in
-                \"*) ref="${ref#\"}"; ref="${ref%%\"*}" ;;
-                \'*) ref="${ref#\'}"; ref="${ref%%\'*}" ;;
-                *) ref="${ref%%[[:space:]]*}" ;;
-            esac
-            [[ -z "$ref" ]] && continue
-            # Skip variable references and command substitutions
-            [[ "$ref" == *'$'* ]] && continue
-            if [[ ! -f "$dir/$ref" && ! -f "$ref" ]]; then
-                issues+=("$file sources missing file: $ref")
-            fi
-        done < <(grep -E '^[[:space:]]*(\.|source)[[:space:]]+' "$file" 2>/dev/null || true)
-    done
+
+            _octo_advance_shell_quote_state "$stmt" "$in_single_quote" "$in_double_quote"
+            in_single_quote="$OCTO_IN_SINGLE_QUOTE"
+            in_double_quote="$OCTO_IN_DOUBLE_QUOTE"
+        done < "$file"
+    done < <(find . -maxdepth 5 -type f -name "*.sh" -mmin -10 -print0 2>/dev/null || true)
 
     # Check docker-compose referencing missing Dockerfiles/configs
     local recent_compose
