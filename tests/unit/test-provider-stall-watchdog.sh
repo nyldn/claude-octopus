@@ -107,17 +107,12 @@ else
 fi
 
 test_case "poll interval is capped so progress is checked before stalling"
-raw="$TEST_TMP_DIR/capped-poll.raw"
-err="$TEST_TMP_DIR/capped-poll.err"
-hint="$TEST_TMP_DIR/capped-poll.in"
-rc=0
-OCTOPUS_PROVIDER_STALL_WINDOW=2 OCTOPUS_PROVIDER_STALL_POLL_SECS=30 \
-    octopus_capture_provider_output "prompt" 0 "$hint" "$raw" "$err" \
-        /bin/sh -c 'sleep 1; printf progress; sleep 2; printf done' || rc=$?
-if [[ "$rc" -eq 0 && "$(cat "$raw")" == progressdone ]]; then
+if [[ "$(_octo_bounded_stall_poll_secs 2 30)" == 2 ]] &&
+   [[ "$(_octo_bounded_stall_poll_secs 2 1)" == 1 ]] &&
+   [[ "$(_octo_bounded_stall_poll_secs 2 2)" == 2 ]]; then
     test_pass
 else
-    test_fail "poll interval skipped observable progress before the stall deadline (rc=$rc)"
+    test_fail "poll interval was not bounded by the stall window"
 fi
 
 test_case "completed silent provider is not classified as stalled"

@@ -666,6 +666,12 @@ _octo_capture_activity_signature() {
         "$(_octo_capture_worktree_fingerprint "$worktree")"
 }
 
+_octo_bounded_stall_poll_secs() {
+    local stall_window="$1" poll_secs="$2"
+    (( poll_secs > stall_window )) && poll_secs="$stall_window"
+    printf '%s\n' "$poll_secs"
+}
+
 _octo_capture_provider_with_stall_watchdog() {
     local timeout_secs="$1" stall_window="$2" poll_secs="$3"
     local temp_input="$4" raw_output="$5" temp_errors="$6" worktree="${7:-}"
@@ -676,7 +682,7 @@ _octo_capture_provider_with_stall_watchdog() {
 
     # Probe at least once before the first stall check. Keep this invariant in
     # the watchdog itself so direct callers cannot bypass it.
-    (( poll_secs > stall_window )) && poll_secs="$stall_window"
+    poll_secs="$(_octo_bounded_stall_poll_secs "$stall_window" "$poll_secs")"
 
     rc_file="$(umask 077 && mktemp "${temp_input}.rc.XXXXXX")" || return 1
     (
