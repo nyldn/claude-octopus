@@ -38,6 +38,11 @@
   lines such as `. as $value` embedded in shell scripts, and now strips the
   `source` keyword correctly so existing `source lib/x.sh` targets are no longer
   reported as missing.
+- The prompt hook recognises every registered skill (for example
+  `/octo:flow-parallel` and the starter-pack skills) as a known command instead
+  of answering "Unknown command … Did you mean …?", and suggests skills for
+  mistyped names. It reads the command name from the first line of a multi-line
+  prompt, and flags an unknown name even when nothing close to it exists.
 - Select the PID-ledger Python interpreter by native process-control capability
   instead of trusting the first `python3` on `PATH`. Doctor reports the selected
   interpreter, and `OCTOPUS_PYTHON` provides an explicit, validated override.
