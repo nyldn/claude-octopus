@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
-# write-handoff.sh — Writes .octo-continue.md session handoff file
+# write-handoff.sh — Writes session handoff file
 # Called by pre-compact.sh and session-end.sh for cross-session resumption.
 # Reads: session.json, .octo/STATE.md, progress file
-# Writes: .octo-continue.md in CWD
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SESSION_FILE="${HOME}/.claude-octopus/session.json"
 STATE_FILE=".octo/STATE.md"
-HANDOFF_FILE=".octo-continue.md"
 SESSION_ID="${CLAUDE_SESSION_ID:-unknown}"
 WORKSPACE_DIR="${CLAUDE_PLUGIN_DATA:-${OCTOPUS_WORKSPACE:-${HOME}/.claude-octopus}}"
 PROGRESS_FILE="${WORKSPACE_DIR}/progress.json"
@@ -16,6 +15,11 @@ PROGRESS_FILE="${WORKSPACE_DIR}/progress.json"
 # Only write if there's session state worth preserving
 [[ -f "$SESSION_FILE" ]] || exit 0
 command -v jq &>/dev/null || exit 0
+
+WORKFLOW_STATE_FILE="$(env -u CLAUDE_PLUGIN_DATA "OCTOPUS_STATE_PROJECT_ROOT=$PWD" \
+    bash "$SCRIPT_DIR/state-manager.sh" state_path)" || exit 0
+[[ -n "$WORKFLOW_STATE_FILE" ]] || exit 0
+HANDOFF_FILE="$(dirname "$WORKFLOW_STATE_FILE")/continue.md"
 
 # Extract session fields
 PHASE=$(jq -r '.current_phase // .phase // "none"' "$SESSION_FILE" 2>/dev/null) || PHASE="none"
@@ -42,6 +46,8 @@ ACTIVE_AGENT=""
 if [[ -f "$PROGRESS_FILE" ]]; then
     ACTIVE_AGENT=$(jq -r '[.agents[]? | select(.status == "running") | .name] | first // empty' "$PROGRESS_FILE" 2>/dev/null) || ACTIVE_AGENT=""
 fi
+
+mkdir -p "$(dirname "$HANDOFF_FILE")" 2>/dev/null || exit 0
 
 # Write handoff file
 {

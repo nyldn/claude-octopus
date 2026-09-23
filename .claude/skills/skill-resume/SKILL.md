@@ -44,20 +44,30 @@ Restore context from a previous session and seamlessly continue the workflow whe
 
 ### Phase 0: Check Session Handoff File (v9.6.0)
 
-#### Step 0: Check for .octo-continue.md
+#### Step 0: Check for the session handoff file
 
 Before checking `.octo/`, look for a session handoff file. This is written automatically
 by PreCompact and SessionEnd hooks and contains a human-readable summary of the last session.
+It lives beside the workflow state returned by `octopus state-path`, outside the project
+checkout. Older releases wrote `.octo-continue.md` into the project root instead; read that
+copy only when no relocated handoff exists, and never modify, move, or delete it.
 
 ```bash
-if [[ -f ".octo-continue.md" ]]; then
+HANDOFF_FILE=""
+if WORKFLOW_STATE_FILE="$(octopus state-path)" && [[ -n "$WORKFLOW_STATE_FILE" ]]; then
+    HANDOFF_FILE="$(dirname "$WORKFLOW_STATE_FILE")/continue.md"
+fi
+if [[ -n "$HANDOFF_FILE" && -f "$HANDOFF_FILE" ]]; then
+    cat "$HANDOFF_FILE"
+elif [[ -f ".octo-continue.md" ]]; then
     cat ".octo-continue.md"
 fi
 ```
 
-**If `.octo-continue.md` exists**, read it and display its contents to the user as
-context. Then continue to Phase 1 to load the full state. The handoff file provides a
-quick overview; `.octo/STATE.md` provides the authoritative state.
+**If a handoff file was found**, display its contents to the user as context. Then continue
+to Phase 1 to load the full state. The handoff file provides a quick overview; `.octo/STATE.md`
+provides the authoritative state. If the legacy `.octo-continue.md` was shown, tell the user it
+is no longer updated and can be deleted from the project.
 
 ### Phase 1: Check Project Initialization
 
@@ -70,8 +80,8 @@ if [[ ! -d ".octo" ]]; then
 fi
 ```
 
-**If .octo/ does not exist but `.octo-continue.md` exists**, display the handoff file
-contents and offer to start a new session based on that context.
+**If .octo/ does not exist but Step 0 found a handoff file**, display its contents and
+offer to start a new session based on that context.
 
 **If neither exists, display:**
 

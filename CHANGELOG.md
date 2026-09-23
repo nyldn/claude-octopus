@@ -23,6 +23,12 @@
 
 ### Fixed
 
+- Session handoffs no longer land in the project checkout. The PreCompact and
+  SessionEnd hooks write the handoff beside the workflow state resolved by
+  `octopus state-path` (by default under `~/.claude-octopus/projects/`) instead
+  of leaving an untracked `.octo-continue.md` in the working directory. The
+  resume skill still reads an existing project-root `.octo-continue.md` as a
+  read-only fallback.
 - Concurrent run-contract updates now wait for an in-progress snapshot to
   finish instead of failing after the event log's shorter lock window.
   Filesystem and lock-metadata errors still fail immediately rather than being
