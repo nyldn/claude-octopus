@@ -149,10 +149,25 @@ PROMPT_LOWER=$(printf '%s' "$PROMPT" | tr '[:upper:]' '[:lower:]')
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd 2>/dev/null || echo ".")"
 OCTO_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$HOOK_DIR/.." && pwd 2>/dev/null || echo ".")}"
 OCTO_COMMANDS_DIR="${OCTO_PLUGIN_ROOT}/commands"
+OCTO_SKILLS_DIR="${OCTO_PLUGIN_ROOT}/skills"
 
 octo_command_exists() {
     local cmd="$1"
     [[ -f "${OCTO_COMMANDS_DIR}/${cmd}.md" ]]
+}
+
+octo_invocable_names() {
+    local path
+    for path in "$OCTO_COMMANDS_DIR"/*.md; do
+        [[ -f "$path" ]] || continue
+        path="${path##*/}"
+        printf '%s\n' "${path%.md}"
+    done
+    for path in "$OCTO_SKILLS_DIR"/*/SKILL.md "$OCTO_SKILLS_DIR"/*/*/SKILL.md; do
+        [[ -f "$path" ]] || continue
+        path="${path%/SKILL.md}"
+        printf '%s\n' "${path##*/}"
+    done
 }
 
 octo_alias_for() {
@@ -178,16 +193,15 @@ octo_log_alias_event() {
 
 octo_fuzzy_suggestions() {
     local raw="$1"
-    [[ -d "$OCTO_COMMANDS_DIR" ]] || return 1
+    local names="$2"
+    [[ -n "$names" ]] || return 1
     if command -v python3 &>/dev/null; then
-        python3 - "$OCTO_COMMANDS_DIR" "$raw" <<'PY' 2>/dev/null
+        python3 - "$raw" "$names" <<'PY' 2>/dev/null
 import difflib
-import pathlib
 import sys
 
-cmd_dir = pathlib.Path(sys.argv[1])
-raw = sys.argv[2]
-commands = sorted(p.stem for p in cmd_dir.glob("*.md"))
+raw = sys.argv[1]
+commands = sorted(set(sys.argv[2].split()))
 matches = difflib.get_close_matches(raw, commands, n=3, cutoff=0.58)
 if not matches:
     matches = [c for c in commands if c.startswith(raw[:3])][:3]
@@ -197,16 +211,13 @@ PY
     fi
 
     local candidate emitted=0
-    for path in "$OCTO_COMMANDS_DIR"/*.md; do
-        [[ -f "$path" ]] || continue
-        candidate="${path##*/}"
-        candidate="${candidate%.md}"
+    while IFS= read -r candidate; do
         if [[ "$candidate" == "$raw"* || "$candidate" == "${raw:0:3}"* ]]; then
             printf '%s ' "$candidate"
             emitted=$((emitted + 1))
             [[ $emitted -ge 3 ]] && break
         fi
-    done
+    done <<< "$names"
     [[ $emitted -gt 0 ]]
 }
 
@@ -220,23 +231,26 @@ PY
 _OCTO_EXPLICIT=false
 if [[ "$PROMPT_LOWER" == /octo:* ]] || [[ "$PROMPT_LOWER" == "octo:"* ]]; then
     _OCTO_EXPLICIT=true
-    _RAW_CMD=$(printf '%s' "$PROMPT" | sed -E 's|^/?[Oo][Cc][Tt][Oo]:([A-Za-z0-9_-]+).*|\1|')
+    _RAW_CMD=$(printf '%s' "$PROMPT" | sed -E -n '1s|^/?[Oo][Cc][Tt][Oo]:([A-Za-z0-9_-]+).*|\1|p')
     _CMD=$(printf '%s' "$_RAW_CMD" | tr '[:upper:]' '[:lower:]')
     _ARGS=$(printf '%s' "$PROMPT" | sed -E 's|^/?[Oo][Cc][Tt][Oo]:[A-Za-z0-9_-]+[[:space:]]*||')
 
-    if [[ -n "$_CMD" ]] && ! octo_command_exists "$_CMD"; then
+    _KNOWN_CMDS=$(octo_invocable_names)
+    if [[ -n "$_CMD" && -n "$_KNOWN_CMDS" ]] && ! grep -qxF -- "$_CMD" <<< "$_KNOWN_CMDS"; then
         if _ALIAS=$(octo_alias_for "$_CMD") && octo_command_exists "$_ALIAS"; then
             octo_log_alias_event "alias" "$_RAW_CMD" "$_ALIAS"
             emit_user_prompt_context "[🐙 Octopus] Alias resolved: /octo:${_RAW_CMD} -> /octo:${_ALIAS}. Treat this explicit invocation as /octo:${_ALIAS}; load and follow ${OCTO_COMMANDS_DIR}/${_ALIAS}.md with arguments \"$(escape_for_json "$_ARGS")\" before responding."
             exit 0
         fi
-        _SUGGESTIONS=$(octo_fuzzy_suggestions "$_CMD" || true)
+        _SUGGESTIONS=$(octo_fuzzy_suggestions "$_CMD" "$_KNOWN_CMDS" || true)
         if [[ -n "$_SUGGESTIONS" ]]; then
             octo_log_alias_event "fuzzy" "$_RAW_CMD" "$_SUGGESTIONS"
             _FORMATTED=$(printf '%s' "$_SUGGESTIONS" | awk '{for (i=1; i<=NF; i++) printf "%s/octo:%s", (i>1?", ":""), $i}')
             emit_user_prompt_context "[🐙 Octopus] Unknown command /octo:${_RAW_CMD}. Did you mean ${_FORMATTED}? Do not guess; ask the user to choose one unless the intended command is obvious from the prompt."
             exit 0
         fi
+        emit_user_prompt_context "[🐙 Octopus] Unknown command /octo:${_RAW_CMD}. Do not guess; ask the user which command they meant."
+        exit 0
     elif [[ "$_RAW_CMD" != "$_CMD" ]]; then
         octo_log_alias_event "case" "$_RAW_CMD" "$_CMD"
         emit_user_prompt_context "[🐙 Octopus] Command canonicalized: /octo:${_RAW_CMD} -> /octo:${_CMD}. Treat this invocation as /octo:${_CMD}."

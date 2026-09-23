@@ -71,6 +71,62 @@ else
     test_fail "expected research fuzzy suggestion, got: ${output:-<empty>}"
 fi
 
+test_case "recognises explicit skill invocations as known commands"
+output="$(run_prompt_hook "/octo:flow-parallel migrate the logging calls")"
+if [[ "$output" != *'Unknown command'* ]] && [[ "$output" == *'Octopus: /octo:flow-parallel'* ]]; then
+    test_pass
+else
+    test_fail "expected flow-parallel skill to be treated as known, got: ${output:-<empty>}"
+fi
+
+test_case "reads the command name from the first line of a multi-line prompt"
+output="$(run_prompt_hook $'/octo:flow-parallel\nmigrate the logging calls')"
+if [[ "$output" != *'Unknown command'* ]] && [[ "$output" == *'"sessionTitle":"Octopus: /octo:flow-parallel"'* ]]; then
+    test_pass
+else
+    test_fail "expected multi-line flow-parallel invocation to be treated as known, got: ${output:-<empty>}"
+fi
+
+test_case "recognises skills nested in a skill pack"
+output="$(run_prompt_hook "/octo:debate-kickoff Redis or Memcached")"
+if [[ "$output" != *'Unknown command'* ]] && [[ "$output" == *'Octopus: /octo:debate-kickoff'* ]]; then
+    test_pass
+else
+    test_fail "expected nested debate-kickoff skill to be treated as known, got: ${output:-<empty>}"
+fi
+
+test_case "still rejects unknown names that resemble skills"
+output="$(run_prompt_hook "/octo:flow-nonexistent do things")"
+if [[ "$output" == *'Unknown command /octo:flow-nonexistent'* ]]; then
+    test_pass
+else
+    test_fail "expected flow-nonexistent to be reported unknown, got: ${output:-<empty>}"
+fi
+
+test_case "rejects unknown names with no close match instead of titling the session"
+output="$(run_prompt_hook "/octo:zzqqxx do things")"
+if [[ "$output" == *'Unknown command /octo:zzqqxx'* ]] && [[ "$output" != *'sessionTitle'* ]]; then
+    test_pass
+else
+    test_fail "expected zzqqxx to be reported unknown, got: ${output:-<empty>}"
+fi
+
+test_case "does not treat a skill pack directory as a command"
+output="$(run_prompt_hook "/octo:octopus-starter-pack")"
+if [[ "$output" == *'Unknown command /octo:octopus-starter-pack'* ]]; then
+    test_pass
+else
+    test_fail "expected skill pack directory to be reported unknown, got: ${output:-<empty>}"
+fi
+
+test_case "suggests skills for mistyped skill invocations"
+output="$(run_prompt_hook "/octo:flow-paralel migrate the logging calls")"
+if [[ "$output" == *'Unknown command /octo:flow-paralel'* ]] && [[ "$output" == *'/octo:flow-parallel'* ]]; then
+    test_pass
+else
+    test_fail "expected flow-parallel fuzzy suggestion, got: ${output:-<empty>}"
+fi
+
 test_case "promotes named option prompts to debate"
 output="$(run_prompt_hook "Redis or Memcached for session state?")"
 if [[ "$output" == *'Opt-in auto-route: debate'* ]] && [[ "$output" == *'/commands/debate.md'* ]]; then
