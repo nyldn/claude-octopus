@@ -2207,7 +2207,7 @@ Return ONLY valid JSON with 'findings' array including verdict field."
         debate_candidates=$(echo "$confirmed_findings" | \
             jq '[.[] | select(.verdict == "needs-debate")]' 2>/dev/null || echo "[]")
         local debate_count
-        if ! debate_count=$(printf '{"findings":%s}' "$debate_candidates" | review_findings_count); then
+        if ! debate_count=$(review_findings_count "$(printf '{"findings":%s}' "$debate_candidates")"); then
             log WARN "review_run: invalid debate candidates; skipping debate gate and preserving confirmed findings"
             debate_count=0
         fi
