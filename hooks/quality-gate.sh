@@ -94,12 +94,16 @@ check_reference_integrity() {
             # Shell files can embed jq/awk programs whose expression lines begin
             # with a dot. Ignore only the unambiguous language forms; `. name`
             # remains a valid shell source statement even without an extension.
-            if printf '%s\n' "$stmt" | grep -Eq '^[[:space:]]*\.[[:space:]]+as[[:space:]]+\$|^[[:space:]]*\.[[:space:]]+~[[:space:]]+/'; then
+            if printf '%s\n' "$stmt" | grep -Eq '^[[:space:]]*\.[[:space:]]+as[[:space:]]+(\$|\[|\{)|^[[:space:]]*\.[[:space:]]+~[[:space:]]+/'; then
                 continue
             fi
             local ref
-            ref=$(printf '%s' "$stmt" | sed -E 's/^[[:space:]]*(\.|source)[[:space:]]+//' | sed 's/^["'"'"'"]//')
-            ref=$(printf '%s' "$ref" | sed -E "s/[\"']?[[:space:]].*$//")
+            ref=$(printf '%s' "$stmt" | sed -E 's/^[[:space:]]*(\.|source)[[:space:]]+//')
+            case "$ref" in
+                \"*) ref="${ref#\"}"; ref="${ref%%\"*}" ;;
+                \'*) ref="${ref#\'}"; ref="${ref%%\'*}" ;;
+                *) ref="${ref%%[[:space:]]*}" ;;
+            esac
             [[ -z "$ref" ]] && continue
             # Skip variable references and command substitutions
             [[ "$ref" == *'$'* ]] && continue

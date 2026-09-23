@@ -29,6 +29,8 @@ jq '
 	|
 		. as $item
 		| select(. != null)
+		. as [$first, $second]
+		| select($first != null)
 ' input.json
 awk '
   . ~ /x/ { print }
@@ -55,10 +57,12 @@ assert_contains "$output" "sources missing file: as" "plain '. as' must still be
 
 test_case "existing sourced files are not flagged"
 workspace="$TEST_TMP_DIR/present-source"
-mkdir -p "$workspace/scripts/lib"
+mkdir -p "$workspace/scripts/lib" "$workspace/scripts/shared files"
 printf 'true\n' > "$workspace/scripts/lib/common.sh"
 printf 'true\n' > "$workspace/scripts/bootstrap"
-printf '#!/usr/bin/env bash\nsource lib/common.sh first-argument\n. bootstrap second-argument\n' > "$workspace/scripts/run.sh"
+printf 'true\n' > "$workspace/scripts/shared files/double quoted.sh"
+printf 'true\n' > "$workspace/scripts/shared files/single quoted.sh"
+printf '#!/usr/bin/env bash\nsource lib/common.sh first-argument\n. bootstrap second-argument\nsource "shared files/double quoted.sh"\n. '\''shared files/single quoted.sh'\'' first-argument\n' > "$workspace/scripts/run.sh"
 output="$(run_hook_in "$workspace")"
 assert_not_contains "$output" "sources missing file" "present sourced files must not be flagged" && test_pass
 
