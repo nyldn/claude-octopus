@@ -175,11 +175,26 @@ env -u _OCTO_PID_LEDGER_PYTHON \
     PATH="$MOCK_BIN_DIR:$PATH" \
     bash "$PROJECT_ROOT/scripts/orchestrate.sh" spawn codex "Reply OK" \
     >"$spawn_cached_output" 2>&1 || spawn_cached_status=$?
+spawn_cached_pid="$(awk '/^[0-9]+$/ { pid=$0 } END { print pid }' "$spawn_cached_output")"
+spawn_cached_finished=false
+if [[ "$spawn_cached_pid" =~ ^[1-9][0-9]*$ ]]; then
+    for _ in $(seq 1 100); do
+        if ! kill -0 "$spawn_cached_pid" 2>/dev/null; then
+            spawn_cached_finished=true
+            break
+        fi
+        sleep 0.05
+    done
+fi
+if [[ "$spawn_cached_finished" != true && "$spawn_cached_pid" =~ ^[1-9][0-9]*$ ]]; then
+    kill -KILL "$spawn_cached_pid" 2>/dev/null || true
+fi
 if [[ "$spawn_cached_status" -eq 0 ]] &&
+   [[ "$spawn_cached_finished" == true ]] &&
    [[ "$(wc -l < "$capability_count" | tr -d ' ')" == 1 ]]; then
     test_pass
 else
-    test_fail "spawn status=$spawn_cached_status capability probes=$(wc -l < "$capability_count" | tr -d ' ')"
+    test_fail "spawn status=$spawn_cached_status finished=$spawn_cached_finished capability probes=$(wc -l < "$capability_count" | tr -d ' ')"
 fi
 
 test_case "process cleanup uses the capability-selected interpreter instead of PATH python3"

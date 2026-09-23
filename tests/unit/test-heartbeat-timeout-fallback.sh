@@ -138,7 +138,14 @@ EOF
     original_job_check="$(declare -f _octo_timeout_job_is_running)"
     eval "${original_job_check/_octo_timeout_job_is_running/_octo_timeout_job_is_running_real}"
     original_timer="$(declare -f _octo_timeout_timer)"
-    _octo_timeout_timer() { return 71; }
+    _octo_timeout_timer() {
+        local attempt=0
+        while [[ ! -s "$child_file" && "$attempt" -lt 50 ]]; do
+            /bin/sleep 0.02
+            attempt=$((attempt + 1))
+        done
+        return 71
+    }
     _octo_timeout_job_is_running() {
         if [[ "${_octo_delayed_first_poll:-false}" == false ]]; then
             _octo_delayed_first_poll=true
