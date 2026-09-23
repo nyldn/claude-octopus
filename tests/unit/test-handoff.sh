@@ -203,7 +203,7 @@ fi
 test_case "handoff file permissions are private"
 chmod 644 "$hook_handoff"
 run_as_hook "$HOOK_ROOT/project" "$HOOK_ROOT/home" "$HOOK_ROOT/plugin-data" "$HANDOFF"
-handoff_mode="$(stat -f '%Lp' "$hook_handoff" 2>/dev/null || stat -c '%a' "$hook_handoff")"
+handoff_mode="$(stat -c '%a' "$hook_handoff" 2>/dev/null || stat -f '%Lp' "$hook_handoff")"
 if [[ "$handoff_mode" == "600" ]]; then
     test_pass
 else
