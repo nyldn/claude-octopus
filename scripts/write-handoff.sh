@@ -49,11 +49,7 @@ if [[ -f "$PROGRESS_FILE" ]]; then
     ACTIVE_AGENT=$(jq -r '[.agents[]? | select(.status == "running") | .name] | first // empty' "$PROGRESS_FILE" 2>/dev/null) || ACTIVE_AGENT=""
 fi
 
-mkdir -p "$(dirname "$HANDOFF_FILE")" 2>/dev/null || exit 0
-umask 077
-if [[ -e "$HANDOFF_FILE" ]]; then
-    chmod 600 "$HANDOFF_FILE" || exit 1
-fi
+command -v python3 >/dev/null 2>&1 || exit 0
 
 # Write handoff file
 {
@@ -87,5 +83,5 @@ fi
 
     echo "## Resume"
     echo "Run \`/octo:resume\` to continue from the **${PHASE}** phase."
-} > "$HANDOFF_FILE" 2>/dev/null || exit 0
-chmod 600 "$HANDOFF_FILE" || exit 1
+} | python3 "$SCRIPT_DIR/helpers/private-atomic-write.py" "$HANDOFF_FILE" \
+    2>/dev/null || exit 0

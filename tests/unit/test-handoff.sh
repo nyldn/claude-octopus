@@ -210,6 +210,47 @@ else
     test_fail "handoff mode was $handoff_mode, expected 600"
 fi
 
+test_case "handoff refuses a symlink destination"
+symlink_target="$HOOK_ROOT/symlink-target"
+printf '%s\n' 'sentinel' > "$symlink_target"
+rm -f "$hook_handoff"
+ln -s "$symlink_target" "$hook_handoff"
+run_as_hook "$HOOK_ROOT/project" "$HOOK_ROOT/home" "$HOOK_ROOT/plugin-data" "$HANDOFF"
+if [[ -L "$hook_handoff" ]] && [[ "$(cat "$symlink_target")" == "sentinel" ]]; then
+    test_pass
+else
+    test_fail "handoff followed or replaced a symlink destination"
+fi
+rm -f "$hook_handoff"
+
+test_case "handoff refuses a symlinked state-path component"
+symlink_state="$HOOK_ROOT/home/symlink-state"
+outside_state="$HOOK_ROOT/outside-state"
+mkdir -p "$symlink_state" "$outside_state"
+ln -s "$outside_state" "$symlink_state/link"
+run_as_hook "$HOOK_ROOT/project" "$HOOK_ROOT/home" "$HOOK_ROOT/plugin-data" \
+    env "OCTOPUS_WORKFLOW_STATE_DIR=$symlink_state/link/nested" "$HANDOFF"
+if [[ ! -e "$outside_state/nested/continue.md" ]]; then
+    test_pass
+else
+    test_fail "handoff wrote through a symlinked state-path component"
+fi
+
+test_case "handoff refuses a shared writable state-path ancestor"
+unsafe_state="$HOOK_ROOT/home/shared-state"
+mkdir -p "$unsafe_state"
+chmod 777 "$unsafe_state"
+run_as_hook "$HOOK_ROOT/project" "$HOOK_ROOT/home" "$HOOK_ROOT/plugin-data" \
+    env "OCTOPUS_WORKFLOW_STATE_DIR=$unsafe_state/nested" "$HANDOFF"
+if [[ ! -e "$unsafe_state/nested/continue.md" ]]; then
+    test_pass
+else
+    test_fail "handoff wrote beneath a shared writable ancestor"
+fi
+chmod 700 "$unsafe_state"
+
+run_as_hook "$HOOK_ROOT/project" "$HOOK_ROOT/home" "$HOOK_ROOT/plugin-data" "$HANDOFF"
+
 for skill_file in "$RESUME_SKILL" "$GENERATED_RESUME_SKILL"; do
     label="${skill_file#"$PROJECT_ROOT"/}"
     handoff_step="$(extract_first_bash_block "$skill_file")"
