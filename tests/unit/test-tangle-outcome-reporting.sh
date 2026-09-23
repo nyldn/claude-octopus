@@ -43,6 +43,7 @@ EOF
 }
 
 success=$(make_result success 'SUCCESS')
+stalled=$(make_result stalled 'STALLED - PARTIAL RESULTS (exit code: 76)')
 timeout=$(make_result timeout 'TIMEOUT - PARTIAL RESULTS (exit code: 124)')
 persistence=$(make_result persistence 'FAILED (Execution contract persistence failed)')
 failed=$(make_result failed 'FAILED (provider error)')
@@ -50,6 +51,7 @@ blocked=$(make_result blocked 'SUCCESS' 'Cannot complete: sandbox is blocking fi
 
 for spec in \
     "$success:success" \
+    "$stalled:stalled" \
     "$timeout:timeout" \
     "$persistence:persistence_failed" \
     "$failed:failed" \
@@ -66,11 +68,12 @@ done
 
 test_case "summarizes mixed terminal outcomes"
 summary=$(tangle_result_paths_outcome_summary "$success
+$stalled
 $timeout
 $persistence
 $failed
 $blocked")
-if [[ "$summary" == "1 succeeded, 1 timed out, 1 persistence failed, 1 blocked, 1 failed" ]]; then
+if [[ "$summary" == "1 succeeded, 1 stalled, 1 timed out, 1 persistence failed, 1 blocked, 1 failed" ]]; then
     test_pass
 else
     test_fail "unexpected summary: $summary"

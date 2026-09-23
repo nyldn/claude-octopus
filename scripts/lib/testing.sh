@@ -410,6 +410,7 @@ tangle_result_terminal_outcome() {
             fi
             ;;
         *"Execution contract persistence failed"*) echo "persistence_failed" ;;
+        *STALLED*) echo "stalled" ;;
         *TIMEOUT*) echo "timeout" ;;
         *FAILED*) echo "failed" ;;
         *ERROR*) echo "error" ;;
@@ -420,7 +421,7 @@ tangle_result_terminal_outcome() {
 tangle_result_paths_outcome_summary() {
     local result_lines="${1:-}"
     local expected_task_ids="${2:-}"
-    local success=0 timeout=0 persistence_failed=0 blocked=0 failed=0 error=0 unknown=0
+    local success=0 stalled=0 timeout=0 persistence_failed=0 blocked=0 failed=0 error=0 unknown=0
     local entry result outcome task_id observed_task_ids=""
     while IFS= read -r entry; do
         [[ -n "$entry" ]] || continue
@@ -434,6 +435,7 @@ tangle_result_paths_outcome_summary() {
         outcome=$(tangle_result_terminal_outcome "$result")
         case "$outcome" in
             success) ((success++)) || true ;;
+            stalled) ((stalled++)) || true ;;
             timeout) ((timeout++)) || true ;;
             persistence_failed) ((persistence_failed++)) || true ;;
             blocked) ((blocked++)) || true ;;
@@ -455,6 +457,7 @@ tangle_result_paths_outcome_summary() {
 
     local parts=()
     [[ "$success" -gt 0 ]] && parts+=("$success succeeded")
+    [[ "$stalled" -gt 0 ]] && parts+=("$stalled stalled")
     [[ "$timeout" -gt 0 ]] && parts+=("$timeout timed out")
     [[ "$persistence_failed" -gt 0 ]] && parts+=("$persistence_failed persistence failed")
     [[ "$blocked" -gt 0 ]] && parts+=("$blocked blocked")
