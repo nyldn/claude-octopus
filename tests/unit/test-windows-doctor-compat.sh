@@ -37,6 +37,31 @@ if [[ "$workflow_rc" -eq 78 ]] &&
    assert_contains "$workflow_output" "Native Windows is unsupported" "workflow reports unsupported host" &&
    assert_contains "$workflow_output" "inside WSL" "workflow points to WSL"; then
     test_pass
+else
+    test_fail "native Windows workflow returned rc=$workflow_rc without the expected WSL guidance"
+fi
+
+test_case "WSL indicators prevent false native Windows detection"
+if ! (export WSL_DISTRO_NAME=Ubuntu OS=Windows_NT MSYSTEM=MINGW64
+      octo_is_windows_git_bash "MINGW64_NT-10.0") &&
+   ! (export WSL_INTEROP=/run/WSL/1_interop OS=Windows_NT MSYSTEM=MINGW64
+      octo_is_windows_git_bash "MSYS_NT-10.0"); then
+    test_pass
+else
+    test_fail "WSL environment was misclassified as native Windows Git Bash"
+fi
+
+test_case "native Windows permits global help flags"
+help_ok=true
+for flag in -h --help; do
+    help_rc=0
+    PATH="$mock_platform_bin:$PATH" bash "$PROJECT_ROOT/scripts/orchestrate.sh" "$flag" >/dev/null 2>&1 || help_rc=$?
+    [[ "$help_rc" -ne 78 ]] || help_ok=false
+done
+if [[ "$help_ok" == "true" ]]; then
+    test_pass
+else
+    test_fail "a global help flag was rejected by the native Windows workflow guard"
 fi
 
 test_case "native Windows permits artifact-only run inspection"

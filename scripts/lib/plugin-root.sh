@@ -75,6 +75,7 @@ octo_stable_shims_status() {
 # shellcheck disable=SC2120
 octo_is_windows_git_bash() {
     local uname_s="${1:-}"
+    [[ -n "${WSL_DISTRO_NAME:-}" || -n "${WSL_INTEROP:-}" ]] && return 1
     if [[ -z "$uname_s" ]]; then
         uname_s="$(uname -s 2>/dev/null || true)"
     fi
@@ -95,7 +96,7 @@ octo_require_supported_workflow_host() {
     local command_arg="${2:-}"
     octo_is_windows_git_bash || return 0
     case "$command_name" in
-        ""|help|guide|doctor|capabilities|cache-check|check-cache|security-audit|repair|handoff|profile|install-state)
+        ""|-h|--help|help|guide|doctor|capabilities|cache-check|check-cache|security-audit|repair|handoff|profile|install-state)
             return 0 ;;
         explain|status)
             [[ "$command_arg" == "--run" ]] && return 0 ;;
