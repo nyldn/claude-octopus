@@ -31,6 +31,28 @@ else
     test_fail "portable supervisor rejected timeout=0"
 fi
 
+test_case "unbounded supervisor contains descendants after provider completion"
+child_file="$TEST_TMP_DIR/unbounded-child.pid"
+provider="$TEST_TMP_DIR/unbounded-descendant-provider.sh"
+cat > "$provider" <<'EOF'
+#!/bin/sh
+child_file="$1"
+/bin/sh -c 'trap "" TERM; exec sleep 30' &
+printf '%s\n' "$!" > "$child_file"
+EOF
+chmod +x "$provider"
+rc=0
+OCTOPUS_PRESERVE_CALLER_PROCESS_GROUP=true \
+    run_with_timeout --portable-supervisor 0 "$provider" "$child_file" || rc=$?
+child_pid="$(cat "$child_file" 2>/dev/null || true)"
+sleep 0.2
+if [[ "$rc" -eq 0 && -n "$child_pid" ]] && ! _pid_is_live "$child_pid"; then
+    test_pass
+else
+    [[ -n "$child_pid" ]] && kill -KILL "$child_pid" 2>/dev/null || true
+    test_fail "unbounded provider descendant survived normal completion (rc=$rc child=${child_pid:-missing})"
+fi
+
 test_case "silent provider is classified as stalled instead of wall-clock timeout"
 raw="$TEST_TMP_DIR/stalled.raw"
 err="$TEST_TMP_DIR/stalled.err"
@@ -86,6 +108,46 @@ if [[ "$rc" -eq 0 ]]; then
     test_pass
 else
     test_fail "completed provider was classified as stalled (rc=$rc)"
+fi
+
+test_case "provider completion during the final activity sample wins over stall classification"
+raw="$TEST_TMP_DIR/final-completion.raw"
+err="$TEST_TMP_DIR/final-completion.err"
+hint="$TEST_TMP_DIR/final-completion.in"
+release="$TEST_TMP_DIR/final-completion.release"
+done_marker="$TEST_TMP_DIR/final-completion.done"
+signature_calls="$TEST_TMP_DIR/final-completion.calls"
+provider="$TEST_TMP_DIR/final-completion-provider.sh"
+cat > "$provider" <<'EOF'
+#!/bin/sh
+release="$1"
+done_marker="$2"
+while [ ! -e "$release" ]; do sleep 0.01; done
+: > "$done_marker"
+EOF
+chmod +x "$provider"
+original_activity_signature="$(declare -f _octo_capture_activity_signature)"
+_octo_capture_activity_signature() {
+    local calls=0
+    [[ ! -f "$signature_calls" ]] || calls="$(cat "$signature_calls")"
+    calls=$((calls + 1))
+    printf '%s\n' "$calls" > "$signature_calls"
+    if [[ "$calls" -eq 3 ]]; then
+        : > "$release"
+        while [[ ! -e "$done_marker" ]]; do sleep 0.01; done
+        sleep 0.2
+    fi
+    printf '%s\n' stable
+}
+rc=0
+OCTOPUS_PROVIDER_STALL_WINDOW=1 OCTOPUS_PROVIDER_STALL_POLL_SECS=1 \
+    octopus_capture_provider_output "prompt" 0 "$hint" "$raw" "$err" \
+        "$provider" "$release" "$done_marker" || rc=$?
+eval "$original_activity_signature"
+if [[ "$rc" -eq 0 ]]; then
+    test_pass
+else
+    test_fail "provider completion at the stall boundary was misclassified (rc=$rc)"
 fi
 
 test_case "progress in the final poll interval resets the stall window"
@@ -144,7 +206,9 @@ git -C "$repo" init -q
 git -C "$repo" config user.email test@example.invalid
 git -C "$repo" config user.name Test
 printf '.octo/\n' > "$repo/.gitignore"
+printf 'base\n' > "$repo/.octo/events.log"
 git -C "$repo" add .gitignore
+git -C "$repo" add -f .octo/events.log
 git -C "$repo" commit -qm base
 state_writer="$TEST_TMP_DIR/octo-state-writer.sh"
 cat > "$state_writer" <<'EOF'

@@ -220,6 +220,10 @@ _octo_timeout_supervisor_handle_signal() {
         _octo_timeout_stop_process_group "$provider_pid" "$initial_signal" false
         wait "$provider_pid" 2>/dev/null || true
     fi
+    if [[ -n "${_octo_timeout_status_dir:-}" ]]; then
+        rm -f -- "$_octo_timeout_status_dir/status" "$_octo_timeout_status_dir/hold"
+        rmdir -- "$_octo_timeout_status_dir" 2>/dev/null || true
+    fi
     exit "$exit_status"
 }
 
@@ -236,17 +240,41 @@ _octo_timeout_supervisor() {
     local timeout_secs="$1"
     shift
     local provider_pid="" timer_pid="" provider_status=0 timer_status=0
+    local _octo_timeout_status_dir="" status_fifo="" hold_fifo=""
     local timer_enabled=true
     [[ "$timeout_secs" -eq 0 ]] && timer_enabled=false
+
+    if [[ "$timer_enabled" == false ]]; then
+        _octo_timeout_status_dir="$(umask 077 && mktemp -d "${TMPDIR:-/tmp}/octo-timeout-status.XXXXXX")" || return 125
+        status_fifo="$_octo_timeout_status_dir/status"
+        hold_fifo="$_octo_timeout_status_dir/hold"
+        if ! mkfifo -m 600 "$status_fifo" "$hold_fifo"; then
+            rm -f -- "$status_fifo" "$hold_fifo"
+            rmdir -- "$_octo_timeout_status_dir" 2>/dev/null || true
+            return 125
+        fi
+    fi
 
     set -m
     trap '_octo_timeout_supervisor_handle_signal TERM' TERM
     trap '_octo_timeout_supervisor_handle_signal HUP' HUP
 
-    (
-        set +m
-        "$@" <&0
-    ) <&0 &
+    if [[ "$timer_enabled" == false ]]; then
+        (
+            set +m
+            local unbounded_status=0
+            if "$@" <&0; then unbounded_status=0; else unbounded_status=$?; fi
+            printf '%s\n' "$unbounded_status" > "$status_fifo"
+            # Keep the process-group leader alive until the supervisor has the
+            # result and can contain any descendants without a PGID reuse race.
+            IFS= read -r _ < "$hold_fifo" || true
+        ) <&0 &
+    else
+        (
+            set +m
+            "$@" <&0
+        ) <&0 &
+    fi
     provider_pid=$!
 
     # Keep the timer as a supervised job instead of delivering an asynchronous
@@ -262,6 +290,22 @@ _octo_timeout_supervisor() {
     # The jobs retain their private groups after monitor mode is disabled, and
     # Bash no longer prints asynchronous "Done" notices into provider output.
     set +m
+
+    if [[ "$timer_enabled" == false ]]; then
+        if ! IFS= read -r provider_status < "$status_fifo"; then
+            provider_status=125
+        fi
+        [[ "$provider_status" =~ ^[0-9]+$ ]] || provider_status=125
+        trap '' TERM INT HUP
+        kill -KILL -- "-$provider_pid" 2>/dev/null || true
+        wait "$provider_pid" 2>/dev/null || true
+        rm -f -- "$status_fifo" "$hold_fifo"
+        rmdir -- "$_octo_timeout_status_dir" 2>/dev/null || true
+        _octo_timeout_status_dir=""
+        trap - TERM INT HUP
+        set +m
+        return "$provider_status"
+    fi
 
     # Keep both process-group leaders unreaped until a winner is known. This
     # preserves their PGID identities while descendant cleanup is still needed.
@@ -681,6 +725,12 @@ _octo_capture_provider_with_stall_watchdog() {
                 last_progress="$now"
                 next_probe=$((now + poll_secs))
                 continue
+            fi
+            # The provider can complete after the final activity sample. Let
+            # its recorded status win instead of misclassifying that boundary
+            # as a stall.
+            if [[ -s "$rc_file" ]] || ! kill -0 "$capture_pid" 2>/dev/null; then
+                break
             fi
             stalled=true
             if declare -f log >/dev/null 2>&1; then
