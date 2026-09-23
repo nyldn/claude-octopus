@@ -60,6 +60,20 @@ else
     test_fail "progressing provider was stalled or output was lost (rc=$rc)"
 fi
 
+test_case "poll interval is capped so progress is checked before stalling"
+raw="$TEST_TMP_DIR/capped-poll.raw"
+err="$TEST_TMP_DIR/capped-poll.err"
+hint="$TEST_TMP_DIR/capped-poll.in"
+rc=0
+OCTOPUS_PROVIDER_STALL_WINDOW=2 OCTOPUS_PROVIDER_STALL_POLL_SECS=30 \
+    octopus_capture_provider_output "prompt" 0 "$hint" "$raw" "$err" \
+        /bin/sh -c 'sleep 1; printf progress; sleep 2; printf done' || rc=$?
+if [[ "$rc" -eq 0 && "$(cat "$raw")" == progressdone ]]; then
+    test_pass
+else
+    test_fail "poll interval skipped observable progress before the stall deadline (rc=$rc)"
+fi
+
 test_case "silent provider worktree writes reset the stall window"
 repo="$TEST_TMP_DIR/progress-repo"
 mkdir -p "$repo"

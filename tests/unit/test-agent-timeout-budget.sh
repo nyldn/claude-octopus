@@ -78,13 +78,23 @@ agent_utils_source="$(cat "$PROJECT_ROOT/scripts/lib/agent-utils.sh")"
 if declare -F octopus_agent_teams_can_honor_timeout >/dev/null 2>&1 && \
    octopus_agent_teams_can_honor_timeout 0 && \
    ! octopus_agent_teams_can_honor_timeout 600 && \
-   [[ "$agent_sync_source" == *'octopus_agent_teams_can_honor_timeout "${TIMEOUT:-0}"'* ]] && \
-   [[ "$agent_utils_source" == *'octopus_agent_teams_can_honor_timeout "${TIMEOUT:-0}"'* ]] && \
-   [[ "$spawn_source" == *'octopus_agent_teams_can_honor_timeout "$_eff_timeout"'* ]] && \
+   [[ "$agent_sync_source" == *'"${TIMEOUT:-0}" "${2:-${phase:-}}" "${3:-${role:-}}"'* ]] && \
+   [[ "$agent_utils_source" == *'octopus_agent_teams_can_honor_timeout "${TIMEOUT:-0}" "$phase" "$role"'* ]] && \
+   [[ "$spawn_source" == *'octopus_agent_teams_can_honor_timeout "$_eff_timeout" "$phase" "$role"'* ]] && \
    [[ "$spawn_source" == *'write_agent_status "$agent_type" "running" "$tokens_in" 0 "Dispatched via Agent Teams" "$_eff_timeout"'* ]]; then
     test_pass
 else
     test_fail "bounded Agent Teams dispatch can bypass the enforceable provider watchdog"
+fi
+
+test_case "Tangle implementers always use the stall-supervised subprocess"
+if ! octopus_agent_teams_can_honor_timeout 0 tangle implementer && \
+   ! octopus_agent_teams_can_honor_timeout 0 tangle implementer-heavy && \
+   octopus_agent_teams_can_honor_timeout 0 review reviewer && \
+   ! SUPPORTS_HOOK_LAST_MESSAGE=true TIMEOUT=0 should_use_agent_teams "claude-sonnet" tangle implementer; then
+    test_pass
+else
+    test_fail "an unbounded Tangle implementer can bypass the stall watchdog through Agent Teams"
 fi
 
 test_case "isolated non-persistence executor enforces an effective phase budget"

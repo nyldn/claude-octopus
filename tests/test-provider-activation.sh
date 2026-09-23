@@ -21,6 +21,7 @@ test_suite "====================================================================
 ORCHESTRATE="$PROJECT_ROOT/scripts/orchestrate.sh"
 # v9.7.8: Also search lib/ modules for extracted functions
 SCRIPTS_ALL="$PROJECT_ROOT/scripts/orchestrate.sh $PROJECT_ROOT/scripts/lib/*.sh"
+AGENT_TEAMS_FUNCTION="$(awk '/^should_use_agent_teams\(\)/,/^}/' "$PROJECT_ROOT/scripts/lib/agent-sync.sh")"
 
 PASS=0
 FAIL=0
@@ -81,7 +82,7 @@ echo -e "\033[0;34mTest Group 2: Claude-sonnet probe dispatch fix (P0-B)\033[0m"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # 2.1: OCTOPUS_FORCE_LEGACY_DISPATCH guard exists in should_use_agent_teams
-if grep -rA 15 'should_use_agent_teams()' $SCRIPTS_ALL | grep -q 'OCTOPUS_FORCE_LEGACY_DISPATCH\|FORCE_LEGACY'; then
+if grep -q 'OCTOPUS_FORCE_LEGACY_DISPATCH\|FORCE_LEGACY' <<< "$AGENT_TEAMS_FUNCTION"; then
     pass "2.1 should_use_agent_teams checks OCTOPUS_FORCE_LEGACY_DISPATCH"
 else
     fail "2.1 should_use_agent_teams missing FORCE_LEGACY_DISPATCH guard" \
@@ -254,7 +255,7 @@ echo -e "\033[0;34mTest Group 6: Agent Teams dispatch safety\033[0m"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # 6.1: should_use_agent_teams only returns 0 for Claude agents
-agent_teams_predicate_refs=$(grep -rA 30 'should_use_agent_teams()' $SCRIPTS_ALL | grep -c 'is_claude_agent_type "$agent_type"' || true)
+agent_teams_predicate_refs=$(grep -c 'is_claude_agent_type "$agent_type"' <<< "$AGENT_TEAMS_FUNCTION" || true)
 if [[ "$agent_teams_predicate_refs" -gt 0 ]]; then
     pass "6.1 Agent Teams only routes Claude agent types"
 else

@@ -54,6 +54,11 @@ fleet_dispatch_end() {
 # provider subprocess where run_with_timeout owns the process tree.
 octopus_agent_teams_can_honor_timeout() {
     local effective_timeout="${1:-}"
+    local phase="${2:-}"
+    local role="${3:-}"
+    if [[ "$phase" == "tangle" && ( "$role" == "implementer" || "$role" == "implementer-heavy" ) ]]; then
+        return 1
+    fi
     [[ "$effective_timeout" =~ ^[0-9]+$ ]] || return 1
     [[ "$effective_timeout" -eq 0 ]]
 }
@@ -84,7 +89,7 @@ should_use_agent_teams() {
 
     # Keep every caller (including retry/resume routing) consistent with
     # spawn_agent(): a bounded task needs the subprocess watchdog and PID tree.
-    if ! octopus_agent_teams_can_honor_timeout "${TIMEOUT:-0}"; then
+    if ! octopus_agent_teams_can_honor_timeout "${TIMEOUT:-0}" "${2:-${phase:-}}" "${3:-${role:-}}"; then
         log "DEBUG" "Bounded dispatch (${TIMEOUT}s) requires the supervised provider subprocess"
         return 1
     fi

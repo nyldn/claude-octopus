@@ -725,6 +725,9 @@ octopus_capture_provider_output() {
         rm -f "$temp_input"
         return 2
     fi
+    if [[ "$stall_window" -gt 0 && "$stall_poll_secs" -gt "$stall_window" ]]; then
+        stall_poll_secs="$stall_window"
+    fi
 
     local exit_code=0
     if [[ "$stall_window" -gt 0 ]]; then

@@ -1012,7 +1012,7 @@ $prompt"
         if [[ "$_did_resume" == "true" ]]; then
             # Resume dispatches via Agent Teams (no background pid)
             ((subtask_num++)) || true
-        elif should_use_agent_teams "$agent" 2>/dev/null; then
+        elif should_use_agent_teams "$agent" "tangle" "$role" 2>/dev/null; then
             # Agent Teams dispatch (no background pid)
             spawn_agent "$agent" "$prompt" "$retry_task_id" "$role" "tangle"
             ((subtask_num++)) || true
@@ -1126,7 +1126,7 @@ resume_agent() {
     # must cold-spawn through the supervised subprocess instead of escaping its
     # timeout budget via SendMessage.
     if declare -F octopus_agent_teams_can_honor_timeout >/dev/null 2>&1; then
-        if ! octopus_agent_teams_can_honor_timeout "${TIMEOUT:-0}"; then
+        if ! octopus_agent_teams_can_honor_timeout "${TIMEOUT:-0}" "$phase" "$role"; then
             log "DEBUG" "resume_agent: bounded dispatch requires the supervised provider subprocess"
             return 1
         fi
