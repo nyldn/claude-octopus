@@ -43,6 +43,18 @@ else
     test_fail "unbounded shell function returned rc=$rc instead of 37"
 fi
 
+test_case "unbounded supervisor preserves exec-based provider status"
+unbounded_provider_exec() { exec /bin/sh -c 'exit 23'; }
+rc=0
+OCTOPUS_PRESERVE_CALLER_PROCESS_GROUP=true \
+    run_with_timeout --portable-supervisor 0 unbounded_provider_exec || rc=$?
+unset -f unbounded_provider_exec
+if [[ "$rc" -eq 23 ]]; then
+    test_pass
+else
+    test_fail "unbounded exec-based provider returned rc=$rc instead of 23"
+fi
+
 test_case "unbounded supervisor contains descendants after provider completion"
 child_file="$TEST_TMP_DIR/unbounded-child.pid"
 provider="$TEST_TMP_DIR/unbounded-descendant-provider.sh"

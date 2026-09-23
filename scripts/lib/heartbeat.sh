@@ -266,7 +266,7 @@ _octo_timeout_supervisor() {
             # Publish the result and retain the PGID leader even when a shell
             # function calls exit. Capture $? before the trap does any work.
             trap 'unbounded_status=$?; trap - EXIT; printf "%s\n" "$unbounded_status" > "$status_fifo"; IFS= read -r _ < "$hold_fifo" || true; exit "$unbounded_status"' EXIT
-            "$@" <&0
+            ("$@" <&0)
         ) <&0 &
     else
         (
