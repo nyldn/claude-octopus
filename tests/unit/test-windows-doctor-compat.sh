@@ -41,14 +41,24 @@ else
     test_fail "native Windows workflow returned rc=$workflow_rc without the expected WSL guidance"
 fi
 
-test_case "WSL indicators prevent false native Windows detection"
+test_case "Linux uname identifies WSL despite Windows environment markers"
 if ! (export WSL_DISTRO_NAME=Ubuntu OS=Windows_NT MSYSTEM=MINGW64
-      octo_is_windows_git_bash "MINGW64_NT-10.0") &&
+      octo_is_windows_git_bash "Linux") &&
    ! (export WSL_INTEROP=/run/WSL/1_interop OS=Windows_NT MSYSTEM=MINGW64
-      octo_is_windows_git_bash "MSYS_NT-10.0"); then
+      octo_is_windows_git_bash "Linux"); then
     test_pass
 else
-    test_fail "WSL environment was misclassified as native Windows Git Bash"
+    test_fail "Linux WSL was misclassified as native Windows Git Bash"
+fi
+
+test_case "native Windows detection ignores inherited WSL markers"
+if (export WSL_DISTRO_NAME=Ubuntu OS=Windows_NT MSYSTEM=MINGW64
+    octo_is_windows_git_bash "MINGW64_NT-10.0") &&
+   (export WSL_INTEROP=/run/WSL/1_interop OS=Windows_NT MSYSTEM=MINGW64
+    octo_is_windows_git_bash "MSYS_NT-10.0"); then
+    test_pass
+else
+    test_fail "inherited WSL markers bypassed native Windows detection"
 fi
 
 test_case "native Windows permits global help flags"

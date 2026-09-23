@@ -75,13 +75,14 @@ octo_stable_shims_status() {
 # shellcheck disable=SC2120
 octo_is_windows_git_bash() {
     local uname_s="${1:-}"
-    [[ -n "${WSL_DISTRO_NAME:-}" || -n "${WSL_INTEROP:-}" ]] && return 1
     if [[ -z "$uname_s" ]]; then
         uname_s="$(uname -s 2>/dev/null || true)"
     fi
 
     case "$uname_s" in
+        Linux*) return 1 ;;
         MINGW*|MSYS*|CYGWIN*) return 0 ;;
+        Darwin*) return 1 ;;
     esac
 
     [[ "${OS:-}" == "Windows_NT" ]] && {
