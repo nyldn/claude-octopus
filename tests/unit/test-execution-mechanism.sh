@@ -118,6 +118,12 @@ if [[ -f "$EMBRACE" ]]; then
     else
         pass "embrace.md avoids recursive workflow Skill invocations"
     fi
+
+    if grep -qE '(~|\$\{?HOME\}?)/\.claude-octopus/results/[^<[:space:]`]*\*' "$EMBRACE" 2>/dev/null; then
+        fail "embrace.md globs the shared results root" "Phase documents live in the session results directory; use the paths orchestrate.sh logs"
+    else
+        pass "embrace.md never globs the shared results root for phase documents"
+    fi
 else
     fail "embrace.md not found" "$EMBRACE missing"
 fi

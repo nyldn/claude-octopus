@@ -182,6 +182,8 @@ Scope: [answer]  Focus: [answer]  Autonomy: [answer]
 
 **CRITICAL: Run every orchestrate.sh command from the user's project directory. Do NOT `cd` into the plugin first — dispatched providers sandbox themselves to the invoking directory, and a plugin cwd makes every provider unable to read the user's project files. If the prompt references files outside the project (e.g. /tmp), pass `-d <dir>`.**
 
+**Result files:** orchestrate.sh writes every phase document into the current session's results directory (`~/.claude-octopus/results/<session-id>/`) and logs its path, for example `Consensus document: …` or `Debate gate completed: …`. Use those logged paths. Never select a file by globbing the shared `~/.claude-octopus/results/` root: it also holds documents from other sessions and projects, so its newest match can belong to a different run.
+
 ### Phase 1 — Discover
 
 Run the Discover phase via orchestrate.sh:
@@ -190,7 +192,7 @@ Run the Discover phase via orchestrate.sh:
 bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" probe <user's prompt>
 ```
 
-This will dispatch to Codex, Antigravity, and other available providers. Results saved to `~/.claude-octopus/results/probe-synthesis-*.md`.
+This will dispatch to Codex, Antigravity, and other available providers. Results saved to `probe-synthesis-*.md` in the session results directory.
 
 **Supervised mode:** After Discover completes, present key findings and ask to proceed.
 **Semi-autonomous/Autonomous:** Proceed automatically.
@@ -203,22 +205,21 @@ Run the define phase via orchestrate.sh:
 bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" grasp <user's prompt>
 ```
 
-This builds consensus across providers. Results saved to `~/.claude-octopus/results/grasp-consensus-*.md`.
+This builds consensus across providers. Results saved to `grasp-consensus-*.md` in the session results directory.
 
 **Supervised mode:** Present consensus and ask to proceed.
 
 ### Debate Gate (if enabled)
 
 If user selected debate gates at Define→Develop transition:
-1. Read consensus from `~/.claude-octopus/results/grasp-consensus-*.md`
-2. Run the explicit Embrace gate via orchestrate.sh:
+1. Read the consensus document that the Define phase logged.
+2. Run the explicit Embrace gate via orchestrate.sh. Pass no context file: the gate reads the newest `grasp-consensus-*.md` from the session results directory the Define phase wrote to.
 
 ```bash
-latest_consensus="$(ls -t ~/.claude-octopus/results/grasp-consensus-*.md | head -1)"
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" embrace-gate define-develop "<user's prompt>" "$latest_consensus"
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" embrace-gate define-develop "<user's prompt>"
 ```
 
-3. Verify `~/.claude-octopus/results/embrace-gate-define-develop-*.md` exists for this run before Phase 3. If the command fails or no artifact exists, STOP.
+3. Verify the gate logged `Debate gate completed:` with an `embrace-gate-define-develop-*.md` file that exists, before Phase 3. If the command fails or no artifact exists, STOP.
 
 4. If risks surface and autonomy is supervised/manual, present via AskUserQuestion:
 ```javascript
@@ -245,18 +246,17 @@ Run the develop phase via orchestrate.sh:
 bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" tangle <user's prompt>
 ```
 
-This dispatches implementation with quality gates. Results saved to `~/.claude-octopus/results/tangle-validation-*.md`.
+This dispatches implementation with quality gates. Results saved to `tangle-validation-*.md` in the session results directory.
 
 ### Second Debate Gate (if "both gates" selected)
 
-If `DEBATE_GATES=both`, run this before Phase 4:
+If `DEBATE_GATES=both`, run this before Phase 4. Pass no context file: the gate reads the newest `tangle-validation-*.md` from the session results directory the Develop phase wrote to.
 
 ```bash
-latest_tangle="$(ls -t ~/.claude-octopus/results/tangle-validation-*.md | head -1)"
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" embrace-gate develop-deliver "<user's prompt>" "$latest_tangle"
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" embrace-gate develop-deliver "<user's prompt>"
 ```
 
-Verify `~/.claude-octopus/results/embrace-gate-develop-deliver-*.md` exists for this run before Phase 4. If the command fails or no artifact exists, STOP. In autonomous mode, continue only after the gate artifact exists; do not silently skip this gate.
+Verify the gate logged `Debate gate completed:` with an `embrace-gate-develop-deliver-*.md` file that exists, before Phase 4. If the command fails or no artifact exists, STOP. In autonomous mode, continue only after the gate artifact exists; do not silently skip this gate.
 
 ### Phase 4 — Deliver
 
@@ -266,7 +266,7 @@ Run the deliver phase via orchestrate.sh:
 bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" ink <user's prompt>
 ```
 
-This runs multi-provider validation. Results saved to `~/.claude-octopus/results/delivery-*.md`.
+This runs multi-provider validation. Results saved to `delivery-*.md` in the session results directory.
 
 ### Auto Code Review (MANDATORY)
 
@@ -288,7 +288,7 @@ Include findings in final results.
 
 **MANDATORY: Present results AND ask what to do next.**
 
-Read result files from `~/.claude-octopus/results/` and present a concise synthesis. Then:
+Read the phase documents whose paths orchestrate.sh logged during this run and present a concise synthesis. Then:
 
 ```javascript
 AskUserQuestion({

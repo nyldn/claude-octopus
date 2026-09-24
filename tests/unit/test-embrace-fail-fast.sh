@@ -186,4 +186,21 @@ else
     test_fail "embrace did not fail when ink produced no delivery artifact"
 fi
 
+test_case "debate gate without a context file reads only the session results directory"
+CASE_NAME="context_free_gate"
+EMBRACE_DEBATE_GATE_OUTPUT=""
+rm -rf "$RESULTS_DIR" "$LOGS_DIR" "$HOME/.claude-octopus"
+mkdir -p "$RESULTS_DIR" "$LOGS_DIR" "$HOME/.claude-octopus/results"
+printf '%s\n' "# session consensus" > "$RESULTS_DIR/grasp-consensus-session.md"
+touch -t 202001010000 "$RESULTS_DIR/grasp-consensus-session.md"
+printf '%s\n' "# other session consensus" > "$HOME/.claude-octopus/results/grasp-consensus-other.md"
+embrace_debate_gate "define-develop" "Implement the requested feature" >/dev/null 2>&1
+gate_status=$?
+if [[ "$gate_status" -eq 0 ]] && \
+   grep -Fq "**Context Artifact:** $RESULTS_DIR/grasp-consensus-session.md" "$EMBRACE_DEBATE_GATE_OUTPUT" 2>/dev/null; then
+    test_pass
+else
+    test_fail "context-free debate gate did not use the session consensus (status $gate_status)"
+fi
+
 test_summary
