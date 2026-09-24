@@ -1269,15 +1269,22 @@ run_agent_sync_consultative() {
 octopus_sync_timeout_override() {
     local caller_timeout="${1:-120}"
     local phase="${2:-}"
+    local explicit_secs="${OCTOPUS_TIMEOUT_EXPLICIT_SECS:-}"
+
+    # Normalize leading zeroes so --timeout 0600 means 600 rather than being
+    # ignored, and so the value is never read as octal later.
+    while [[ "${#explicit_secs}" -gt 1 && "${explicit_secs#0}" != "$explicit_secs" ]]; do
+        explicit_secs="${explicit_secs#0}"
+    done
 
     if [[ -n "${OCTOPUS_AGENT_TIMEOUT:-}" && "${OCTOPUS_AGENT_TIMEOUT}" =~ ^[0-9]+$ ]]; then
         printf '%s\n' "$OCTOPUS_AGENT_TIMEOUT"
         return 0
     fi
     if [[ "${OCTOPUS_TIMEOUT_EXPLICIT:-0}" == "1" && "$phase" != "council" && \
-          "${OCTOPUS_TIMEOUT_EXPLICIT_SECS:-}" =~ ^[1-9][0-9]*$ && \
+          "$explicit_secs" =~ ^[1-9][0-9]*$ && \
           "$caller_timeout" =~ ^[1-9][0-9]*$ ]]; then
-        printf '%s\n' "$OCTOPUS_TIMEOUT_EXPLICIT_SECS"
+        printf '%s\n' "$explicit_secs"
         return 0
     fi
     return 1

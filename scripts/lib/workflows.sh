@@ -1200,7 +1200,7 @@ grasp_define() {
     local def1="" def2="" def3=""
     def1=$(run_agent_sync "codex" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 300 "backend-architect" "grasp") || {
         log WARN "Codex failed for problem definition, falling back to Claude"
-        def1=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 300 "backend-architect" "grasp") || true
+        def1=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 300 "backend-architect" "grasp") || def1=""
     }
     if _grasp_agy_usable; then
         def2=$(run_agent_sync "agy" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 300 "researcher" "grasp") || {
@@ -1211,10 +1211,12 @@ grasp_define() {
         log WARN "Antigravity (agy) unavailable, not allowed, or out of quota; using Claude for success criteria"
     fi
     if [[ -z "$def2" ]]; then
-        def2=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 300 "researcher" "grasp") || true
+        def2=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 300 "researcher" "grasp") || def2=""
     fi
     # A failed constraints seat must not abort the phase under errexit and
-    # discard the two perspectives already gathered.
+    # discard the two perspectives already gathered. Every failed seat clears
+    # its value: run_agent_sync prints an "unavailable" placeholder to stdout
+    # before failing, and keeping it would count as a real perspective.
     def3=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define constraints and boundaries. What are we NOT solving? What are hard limits?" 300 "researcher" "grasp") || {
         log WARN "Claude failed for constraints perspective; continuing with the remaining perspectives"
         def3=""

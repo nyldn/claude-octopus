@@ -25,7 +25,9 @@ if ! OCTOPUS_TIMEOUT_EXPLICIT_SECS=900 octopus_sync_timeout_override 300 >/dev/n
    ! OCTOPUS_TIMEOUT_EXPLICIT=1 OCTOPUS_TIMEOUT_EXPLICIT_SECS=900 octopus_sync_timeout_override 0 >/dev/null && \
    [[ "$(OCTOPUS_TIMEOUT_EXPLICIT=1 OCTOPUS_TIMEOUT_EXPLICIT_SECS=900 OCTOPUS_AGENT_TIMEOUT=1200 octopus_sync_timeout_override 300)" == "1200" ]] && \
    ! OCTOPUS_TIMEOUT_EXPLICIT=1 OCTOPUS_TIMEOUT_EXPLICIT_SECS=abc octopus_sync_timeout_override 300 >/dev/null && \
-   ! OCTOPUS_TIMEOUT_EXPLICIT=1 OCTOPUS_TIMEOUT_EXPLICIT_SECS=0 octopus_sync_timeout_override 300 >/dev/null; then
+   ! OCTOPUS_TIMEOUT_EXPLICIT=1 OCTOPUS_TIMEOUT_EXPLICIT_SECS=0 octopus_sync_timeout_override 300 >/dev/null && \
+   ! OCTOPUS_TIMEOUT_EXPLICIT=1 OCTOPUS_TIMEOUT_EXPLICIT_SECS=000 octopus_sync_timeout_override 300 >/dev/null && \
+   [[ "$(OCTOPUS_TIMEOUT_EXPLICIT=1 OCTOPUS_TIMEOUT_EXPLICIT_SECS=0600 octopus_sync_timeout_override 300)" == "600" ]]; then
     test_pass
 else
     test_fail "sync timeout precedence is not OCTOPUS_AGENT_TIMEOUT > --timeout > caller, with 0 kept unbounded"
@@ -89,6 +91,8 @@ run_agent_sync() {
     local provider="$1" role="${4:-}"
     printf '%s:%s\n' "$provider" "$role" >> "$CALLS_FILE"
     if [[ " ${FAIL_SEATS:-} " == *" ${provider}:${role} "* ]]; then
+        # The real health gate prints a placeholder before failing.
+        printf '[Provider %s unavailable: fixture]\n' "$provider"
         return 124
     fi
     printf 'Perspective from %s as %s\n' "$provider" "$role"
