@@ -140,6 +140,30 @@ new source surface has a proven focused regression set, add its path and suites
 to `tests/changed-scope.tsv`; otherwise leave it unmapped so the full matrix
 remains mandatory.
 
+## Runtime contracts
+
+Design-review seats and synthesis exchange versioned JSON v1 data. Historical
+free text is accepted only through a deprecated compatibility wrapper that
+materializes canonical JSON before downstream use. See
+[Design review JSON contracts v1](./design-review-json-contract.md) and
+`schemas/design-review-*-v1.schema.json`.
+
+Tangle uses four documented contracts:
+
+- [Adaptive coding supervision](./tangle-adaptive-timeouts.md) uses a
+  progress-aware stall watchdog unless the user sets an absolute timeout.
+- [Planner reconsideration](./tangle-reconsideration-contract.md) records
+  accept or reject decisions for each adequacy recommendation and embeds a
+  decomposition object.
+- [Adequacy review](./tangle-adequacy-contract.md) validates JSON v1 before
+  rendering the legacy internal text consumed by reconsideration.
+- [Decomposition](./tangle-decomposition-contract.md) validates provider JSON
+  before rendering the internal wire format.
+
+The older text and Markdown forms remain deprecated compatibility fallbacks.
+[Tangle read context](./tangle-read-context.md) documents the optional
+`strict`/`contextual` policy; read authorization never broadens write access.
+
 ## Tangle Input and Migration Safety
 
 Keep `OCTOPUS_TANGLE_RUN_WORKTREE=true` (the default). A clean source checkout

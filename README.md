@@ -59,59 +59,14 @@ disable it.
 >
 > **Default roster:** Claude Opus 5.5 leads architecture, planning, security reasoning, and final judgment; GPT-5.6 Sol is the independent implementation/review peer; Claude Sonnet 5 is the standard Claude seat; Fable 5.1 remains an opt-in judgment escalation. Existing model pins and provider configuration still win. See [the routing strategy](docs/MODEL-ROUTING-STRATEGY.md).
 <!-- END CURRENT RELEASE -->
->
-> ```bash
-> /octo:model-config                         # inspect or override the frontier roster
-> OCTOPUS_OPUS5_AUTO_XHIGH=1                 # opt in to automatic xhigh Opus 5 phases
-> OCTOPUS_OPUS_MODEL=claude-fable-5-1        # explicitly opt in to Fable 5.1
-> OCTOPUS_CODEX_MODEL=gpt-6-astra            # explicitly opt in to Astra
-> /octo:model-config tier premium claude claude-fable-5-1  # one bounded Fable judgment seat
-> /octo:model-config tier premium codex gpt-6-astra        # one bounded Astra judgment seat
-> ```
-
-> 🆕 **v9.41 — Multi-LLM Council.** `/octo:council` runs a structured 3/5/7-persona deliberation across Claude, Codex, Antigravity, and OpenCode with goal modes (`advice`, `decision`, `plan`, `implement`, `review`), styles (`balanced`, `adversarial`, `red-team`, `executive`, `implementation`), benchmark-aware role routing, quorum + critical-veto gates, budget caps, and gated worktree handoff for approved plans. Use it when one model's opinion isn't enough.
->
-> ```bash
-> /octo:council --goal decision --style adversarial "Should this service stay monolithic?"
-> /octo:council --goal implement --implement plan-only "Refactor the auth flow"
-> ```
-
-| Version | Best Features |
-|---------|--------------|
-| **v11.9.0** (new) | Add Opus 5.5 and Deja memory, with safer long-running workflows and session handoffs. |
-| **v9.50** | **Claude Code 2026 compatibility layer** — routines manifest (schedule + GitHub-event automations), SubagentStop quality/cost gate, `/octo:usage` cost attribution, `worktree.bgIsolation` opt-out, Claude Agent SDK seat (introduced with Opus 4.8 and now following the current Opus 5 default), starter skills pack, `/plugin browse` manifest with projected context cost. |
-| **v9.41** | **`/octo:council`** promoted to first-class workflow — structured multi-LLM deliberation with goal modes, adversarial/red-team styles, benchmark-aware persona routing, quorum and critical-veto gates, budget preflight, and gated worktree handoff for approved implementation plans. |
-| **v9** | Up to 10 external provider integrations (Codex, Antigravity CLI, Copilot, Qwen, Ollama, Perplexity, OpenRouter, OrcaRouter, OpenCode, and Grok) alongside the Claude Code host. Structured provider debates and configurable multi-LLM councils. Explicit-only activation by default, with an optional smart router. Agent summary tables show which providers actually contributed. Provider-aware prompt preflight prevents silent oversize failures. Research breadth modes fan out light, standard, or exhaustive investigations. Setup aliases and fuzzy `/octo:*` corrections reduce command friction. Opt-in discipline gates and token compression. Two-stage review. Circuit breakers with automatic provider recovery inside active workflows. Cursor + OpenCode + Codex cross-compatibility. `bin/octopus` CLI. 182 Claude Code capability flags through v2.1.219, including Opus 5, Sonnet 5, and dynamic workflow awareness. |
-| **v8** | Multi-LLM code review with inline PR comments. Parallel workstreams in isolated git worktrees. Reaction engine — auto-responds to CI failures. 32 specialized personas. Dark Factory autonomous pipeline. |
-| **v7** | Double Diamond workflow. Multi-provider dispatch. Quality gates and consensus scoring. Configurable sandbox modes. |
-
-[Full changelog →](CHANGELOG.md)
-
-[V10 migration guide →](docs/V10-MIGRATION.md)
-
-<details>
-<summary>Upgrading to v10</summary>
-
-V10 adds a durable execution contract, fail-closed contribution validation,
-Doctor 2.0, Provider Registry 2.0, process-tree cancellation evidence, and
-opt-in eval routing. Existing provider and model pins still win. Automation that
-uses `doctor --json` must handle exit `1` while retaining its valid JSON body;
-invalid arguments return `2`. See the migration guide for compatibility and
-rollback details.
-
-</details>
-
-<details>
-<summary>Upgrading to 9.5x</summary>
 
 <!-- BEGIN CURRENT MODEL DEFAULTS -->
 - Current fresh configurations use **GPT-5.6 Sol** for Codex implementation/review, **Claude Opus 5.5** for premium Claude work, and **Claude Sonnet 5** for the standard Claude seat. Existing environment, session, and `providers.json` pins remain unchanged; `OCTOPUS_LEGACY_ROLES=1` restores the pre-frontier role mapping.
 <!-- END CURRENT MODEL DEFAULTS -->
-- New claude-sdk seat env vars (v9.50): `CLAUDE_SDK_API_KEY`, `OCTOPUS_CLAUDE_SDK_MODEL`, `OCTOPUS_CLAUDE_SDK_MAX_TOKENS`, `OCTOPUS_CLAUDE_SDK_ALLOWED_MODELS`, `OCTOPUS_CLAUDE_SDK_CONTEXT_BUDGET`.
-- Fable guards apply to `claude-fable-5-1` and preserved `claude-fable-5` pins. `OCTOPUS_FABLE5_MAX_EFFORT` raises the default `high` ceiling without disabling the other guards.
-- Premium Claude role routing (architect, strategist, security-reviewer to Opus) landed in v9.29; restore the older mapping with `OCTOPUS_LEGACY_ROLES=1`.
 
-</details>
+See the [full changelog](CHANGELOG.md), [v11 migration guide](docs/MIGRATING-V11.md),
+and [v10 migration guide](docs/V10-MIGRATION.md) for release history and upgrade
+contracts.
 
 ## Quickstart
 
@@ -126,9 +81,9 @@ claude plugin install octo@nyldn-plugins
 
 That's it. Setup detects installed providers, shows what's missing, and walks you through configuration. You need **zero** external providers to start — Claude is built in.
 
-**Supported platforms:** Linux and macOS run natively. On Windows, run Claude
-Octopus inside [WSL](#using-cursor-on-wsl); native Git Bash, MSYS2, and Cygwin
-are not supported.
+**Supported platforms:** Linux and macOS run natively. On Windows, use
+[WSL](docs/IDE-INTEGRATION.md); native Git Bash, MSYS2, and Cygwin are not
+supported.
 
 ### Dormant by default
 
@@ -203,170 +158,17 @@ state.
 
 Claude Code **v2.1.14+** is the minimum supported runtime. Newer Claude Code releases unlock additional Octopus diagnostics and release checks automatically; the current plugin tracks 184 Claude Code capability flags through **Claude Code v2.1.280**.
 
-<details>
-<summary>Install for Codex CLI</summary>
+### Other hosts and maintenance
 
-```bash
-codex plugin marketplace add https://github.com/nyldn/plugins.git
-codex plugin add claude-octopus@nyldn-plugins
-```
+| Need | Guide |
+|------|-------|
+| Codex or Factory plugin installation | [Plugin compatibility](docs/PLUGIN-COMPATIBILITY.md) |
+| Cursor, OpenCode, MCP, or WSL setup | [IDE integration](docs/IDE-INTEGRATION.md) |
+| Update or repair an installation | [Plugin update safety](docs/PLUGIN-UPDATES.md) |
+| Diagnose or uninstall Octopus | [Troubleshooting](docs/TROUBLESHOOTING.md) |
 
-Restart Codex. Skills appear automatically — invoke with `$skill-doctor`, `$skill-debug`, etc.
-
-See [plugin compatibility](docs/PLUGIN-COMPATIBILITY.md) for invocation policy,
-hook trust, and the distinction between local Codex support and public-directory
-submission.
-
-Codex owns the versioned cache. To refresh an existing installation without
-editing cache files or symlinks directly, exit Codex and run these commands in
-a separate terminal:
-
-```bash
-codex plugin marketplace upgrade nyldn-plugins
-codex plugin add claude-octopus@nyldn-plugins
-```
-
-Restart Codex after the update. Replacing the cache from the session that is
-using it can leave hooks and skills bound to a removed version directory.
-
-</details>
-
-<details>
-<summary>Install for Cursor IDE</summary>
-
-Cursor uses Octopus as an **MCP server** (not a plugin — Cursor doesn't have Claude Code's plugin system). You get MCP tools like `octopus_discover`, `octopus_review`, etc. instead of `/octo:*` slash commands.
-
-> **Important:** Just cloning the repo is not enough. You must complete all three steps below — install dependencies and configure the MCP server — for Cursor to pick up Octopus tools.
-
-```bash
-# 1. Clone the repo
-git clone --depth 1 https://github.com/nyldn/claude-octopus.git ~/.cursor/claude-octopus
-
-# 2. Install MCP server dependencies
-cd ~/.cursor/claude-octopus/mcp-server && npm install
-
-# 3. Configure Cursor — add to ~/.cursor/mcp.json (global) or .cursor/mcp.json (per-project):
-```
-
-```json
-{
-  "mcpServers": {
-    "claude-octopus": {
-      "command": "npx",
-      "args": ["tsx", "${userHome}/.cursor/claude-octopus/mcp-server/src/index.ts"],
-      "env": {
-        "OPENAI_API_KEY": "${env:OPENAI_API_KEY}"
-      }
-    }
-  }
-}
-```
-
-Restart Cursor. Tools appear in Cursor's AI chat — invoke by asking e.g. "use octopus_discover to research X".
-
-### Using Cursor on WSL
-
-<details>
-<summary>Show Cursor setup steps</summary>
-
-If you're running Cursor on Windows with WSL, clone the repo inside WSL and point the MCP config through `wsl.exe`:
-
-```json
-{
-  "mcpServers": {
-    "claude-octopus": {
-      "command": "wsl",
-      "args": ["npx", "tsx", "/home/<user>/.cursor/claude-octopus/mcp-server/src/index.ts"],
-      "env": {
-        "OPENAI_API_KEY": "${env:OPENAI_API_KEY}"
-      }
-    }
-  }
-}
-```
-
-Replace `<user>` with your WSL username. Make sure `node` and `npm` are installed inside WSL.
-</details>
-
-See [docs/IDE-INTEGRATION.md](docs/IDE-INTEGRATION.md) for the full guide including `ide-attach.sh` auto-setup.
-</details>
-
-<details>
-<summary>Install for OpenCode</summary>
-
-```bash
-git clone --depth 1 https://github.com/nyldn/claude-octopus.git ~/.opencode/claude-octopus
-mkdir -p ~/.agents/skills
-ln -s ~/.opencode/claude-octopus/skills ~/.agents/skills/claude-octopus
-```
-</details>
-
-<details>
-<summary>Other install methods (Claude Code)</summary>
-
-**From the Claude Code UI:** Type `/plugin` in a session → **Marketplace** tab → install **octo**.
-
-**Factory AI (Droid):**
-```bash
-droid plugin marketplace add https://github.com/nyldn/claude-octopus.git
-droid plugin install octo@nyldn-plugins
-```
-</details>
-
-<details>
-<summary>Update / Troubleshooting</summary>
-
-[Claude Code leaves auto-update off by default for third-party marketplaces](https://code.claude.com/docs/en/discover-plugins#configure-auto-updates).
-To opt in to host-managed startup updates, run `/plugin`, open
-**Marketplaces**, select **nyldn-plugins**, and choose **Enable auto-update**.
-When Claude reports that Octopus was updated, run `/reload-plugins` (or restart
-Claude Code) before using the new version.
-
-```bash
-# Manual update
-claude plugin marketplace update nyldn-plugins
-claude plugin update octo@nyldn-plugins
-
-# Or let Octopus select the active host's supported plugin-manager commands
-~/.claude-octopus/plugin/scripts/orchestrate.sh update-plugin
-
-# Clean reinstall (if update fails)
-claude plugin uninstall claude-octopus 2>/dev/null
-claude plugin uninstall octo 2>/dev/null
-rm -rf ~/.claude/plugins/cache/nyldn-plugins/octo
-claude plugin marketplace remove nyldn-plugins
-claude plugin marketplace add https://github.com/nyldn/plugins.git
-claude plugin install octo@nyldn-plugins
-```
-
-Octopus also checks local host metadata at SessionStart. The advisory is
-cooldown-limited and performs no network, package-manager, or authentication
-calls; it only reports disabled auto-update, a locally known newer version, or
-a loaded session that needs a reload. Run focused diagnostics at any time:
-
-```bash
-octopus doctor config   # install path, version, manifest, Claude Code feature flags
-octopus doctor skills   # skill loading, skillOverrides, plugin zip/URL capability notes
-octopus doctor updates  # loaded/install/catalog/cache versions and auto-update state
-octopus doctor installation # loaded root, stable root, saved metadata, and profile
-octopus cache-check --json   # validate active, newest, and stale cache entries
-octopus repair --dry-run     # inspect a stable-root problem without changing it
-```
-
-This cannot make an arbitrarily old installation self-heal: code that predates
-the advisory must be updated once manually. It does make future stale states
-visible and hands the actual mutation to Claude Code or Codex, which own their
-plugin caches and lifecycle. See [Plugin Update Safety](docs/PLUGIN-UPDATES.md).
-
-For Anthropic-compatible gateways, Claude Code v2.1.129+ requires an explicit opt-in before `/model` discovers models from `/v1/models`:
-
-```bash
-export ANTHROPIC_BASE_URL=https://your-gateway.example/v1
-export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1
-```
-
-Claude Code v2.1.129+ also supports `skillOverrides` in Claude settings. Use it to keep rarely used Octopus skills installable while reducing context load, for example by setting niche skills to `name-only` or `user-invocable-only`.
-</details>
+Host plugin managers own their versioned caches. Exit the active host before an
+upgrade, then restart it so hooks and skills bind to one installed version.
 
 ---
 
@@ -704,47 +506,16 @@ The effective preflight budget is capped by the summarizer provider input ceilin
 
 ## MCP Server
 
-### Architecture
-
 ```text
 MCP Client ─── MCP Server ─── orchestrate.sh ─── provider CLIs and APIs
 ```
 
 The standalone MCP server exposes Claude Octopus workflows to compatible IDEs
-and clients without changing the Claude Code plugin.
-
-| Component | Location | Purpose |
-|-----------|----------|---------|
-| MCP Server | `mcp-server/` | Exposes 12 Octopus tools via Model Context Protocol |
-| Skill Schema | `mcp-server/src/schema/skill-schema.json` | Shared skill metadata format |
-
-Add the server to your project's MCP configuration or global client settings:
-
-```json
-{
-  "mcpServers": {
-    "claude-octopus": {
-      "command": "node",
-      "args": ["--require", "./mcp-server/check-node-version.js", "./mcp-server/dist/index.js"],
-      "cwd": "<path-to-claude-octopus>"
-    }
-  }
-}
-```
-
-Once enabled, it exposes:
-
-- `octopus_discover`, `octopus_define`, `octopus_develop`, `octopus_deliver` — Individual phases
-- `octopus_embrace` — Full Double Diamond workflow
-- `octopus_debate`, `octopus_council`, `octopus_review`, `octopus_security` — Specialized workflows
-- `octopus_set_editor_context` — IDE editor-state context
-- `octopus_list_skills`, `octopus_status` — Introspection
-
-Any MCP-compatible client can connect to the server.
-
-In v11, workflow tools and status require an absolute `project_root` for each
-call. See [the migration guide](docs/MIGRATING-V11.md) before updating an
-existing MCP integration.
+and clients without changing the Claude Code plugin. It exposes phase,
+full-lifecycle, review, security, council, editor-context, and introspection
+tools. Configure it with the [IDE integration guide](docs/IDE-INTEGRATION.md).
+V11 calls require an absolute `project_root`; existing clients should also read
+the [v11 migration guide](docs/MIGRATING-V11.md).
 
 ---
 
@@ -824,27 +595,3 @@ MIT — see [LICENSE](LICENSE)
 <p align="center">
   <a href="https://github.com/nyldn">nyldn</a> | MIT License | <a href="https://www.reddit.com/r/ClaudeOctopus/">r/ClaudeOctopus</a> | <a href="https://github.com/nyldn/claude-octopus/issues">Report Issues</a>
 </p>
-
-### Design review JSON contracts
-
-Design-review seats and synthesis use versioned JSON v1 contracts for all model-to-model data. Historical free text is accepted only through a deprecated compatibility wrapper that materializes canonical JSON before downstream use. See [Design review JSON contracts v1](docs/design-review-json-contract.md) and the schemas in `schemas/design-review-*-v1.schema.json`.
-
-### Tangle adaptive coding supervision
-
-Tangle coding agents are unbounded by default at the wall-clock layer and use a progress-aware stall watchdog. Users can still set an explicit absolute timeout. See [Tangle adaptive coding supervision](docs/tangle-adaptive-timeouts.md).
-
-### Tangle reconsideration JSON contract
-
-Planner reconsideration uses a versioned JSON v1 contract: explicit accept/reject decisions for every adequacy scope recommendation plus a nested decomposition JSON v1 object. The historical `DECISIONS:/DECOMPOSITION:` response remains a deprecated compatibility fallback. See [Tangle reconsideration JSON v1](docs/tangle-reconsideration-contract.md) and [`schemas/tangle-reconsideration-v1.schema.json`](schemas/tangle-reconsideration-v1.schema.json).
-
-### Tangle adequacy review JSON contract
-
-Tangle adequacy review uses a versioned JSON v1 contract and renders validated reviews into the historical internal text format consumed by planner reconsideration. The textual `VERDICT:/REASONS:/SCOPE_REVIEW:` form remains a deprecated compatibility fallback. See [Tangle adequacy review JSON v1](docs/tangle-adequacy-contract.md) and [`schemas/tangle-adequacy-v1.schema.json`](schemas/tangle-adequacy-v1.schema.json).
-
-### Tangle decomposition JSON contract
-
-Tangle decomposition uses a versioned JSON v1 provider contract and renders validated JSON into the existing internal wire format. The historical wire/Markdown formats remain deprecated compatibility fallbacks during migration. See [Tangle decomposition JSON contract](docs/tangle-decomposition-contract.md) and [`schemas/tangle-decomposition-v1.schema.json`](schemas/tangle-decomposition-v1.schema.json).
-
-### Tangle external read context
-
-See [Tangle read context](docs/tangle-read-context.md) for the optional `strict`/`contextual` read policy. The upstream default remains `strict`; read authorization never broadens write permission.

@@ -10,6 +10,7 @@
 - [V10-MIGRATION.md](./V10-MIGRATION.md) — V10 compatibility, verification, and rollback guidance
 - [AGENTS.md](./AGENTS.md) — 31 persona agents and 10 native agents
 - [PLUGIN-ASSEMBLY-STANDARD.md](./PLUGIN-ASSEMBLY-STANDARD.md) — Structural contract for skills, agents, commands, connectors, and validation
+- [DEVELOPER.md#runtime-contracts](./DEVELOPER.md#runtime-contracts) — Design-review and Tangle wire contracts
 
 ## Setup and Operations
 
