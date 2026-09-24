@@ -430,6 +430,20 @@ for required in (
     path = root / required
     if not path.exists():
         missing.append(required)
+
+for forbidden in (
+    "scripts/token-extraction/__tests__",
+    "scripts/token-extraction/test-fixtures",
+    "scripts/token-extraction/examples",
+    "scripts/token-extraction/vitest.config.ts",
+    "scripts/token-extraction/IMPLEMENTATION_STATUS.md",
+    "scripts/token-extraction/IMPLEMENTATION.md",
+    "scripts/token-extraction/SUMMARY.md",
+    "scripts/token-extraction/QUICK_START_PHASE1.md",
+    "scripts/token-extraction/FILES.md",
+):
+    if (root / forbidden).exists():
+        missing.append(f"development-only package entry:{forbidden}")
 license_text = (root / "licenses/mattpocock-skills-MIT.txt").read_text()
 notices_text = (root / "THIRD_PARTY_NOTICES.md").read_text()
 if "Copyright (c) 2026 Matt Pocock" not in license_text or "Permission is hereby granted" not in license_text:

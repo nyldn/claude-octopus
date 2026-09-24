@@ -1,0 +1,4 @@
+__tests__/
+test-fixtures/
+examples/
+vitest.config.ts
