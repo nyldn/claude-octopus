@@ -24,6 +24,7 @@ OCTOPUS_AGY_MODEL	covered-by	test-agy-provider.sh
 OCTOPUS_ALLOW_FULL_KIMI_ENV	covered-by	test-kimi-provider.sh
 OCTOPUS_AUTO_TITLE	skip	sets the Claude Code session title; observable only in the host UI
 OCTOPUS_AUTO_ROUTER_MODE	covered-by	test-explicit-activation.sh
+OCTOPUS_CLAUDE_CONTEXT_BUDGET	covered-by	test-probe-compact-synthesis.sh
 OCTOPUS_CLAUDE_MODEL	covered-by	test-fable5-mode.sh
 OCTOPUS_CLAUDE_SDK_MODEL	covered-by	test-claude-sdk-provider.sh
 OCTOPUS_CODEX_ACTIVE_SESSION	covered-by	test-plugin-update-health.sh
@@ -58,6 +59,8 @@ OCTOPUS_PREFLIGHT_CONTEXT_BUDGET_ADDITIVE	covered-by	test-context-budget.sh
 OCTOPUS_PREFLIGHT_CONTEXT_BUDGET_RATIO	covered-by	test-context-budget.sh
 OCTOPUS_PREFLIGHT_PROBE	covered-by	test-provider-health-probe.sh
 OCTOPUS_PREMIUM_PEER_CHECK	covered-by	test-automatic-peer.sh
+OCTOPUS_PROBE_SYNTHESIS_CONTEXT_CHARS	covered-by	test-probe-compact-synthesis.sh
+OCTOPUS_PROBE_SYNTHESIS_FILE_CHARS	covered-by	test-probe-compact-synthesis.sh
 OCTOPUS_PYTHON	covered-by	test-pid-ledger-python.sh
 OCTOPUS_QUALITY_THRESHOLD	skip	gates a quality score produced by a live provider dispatch
 OCTOPUS_RELEASE_RUNTIME_SMOKE	covered-by	test-cc-v2126-131-sync.sh

@@ -128,6 +128,10 @@ research_manifest_value() {
     sed -n 's/.*"'"$key"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" | head -1
 }
 
+research_default_project_root() {
+    (cd "${PROJECT_ROOT:-$PWD}" 2>/dev/null && pwd -P) || true
+}
+
 research_run_dir() {
     local run_id="$1"
     research_safe_id "$run_id" || return 2
@@ -222,6 +226,7 @@ research_manifest_write() {
             printf '  "created_at": %s,\n' "$(research_json_string "$created_at")"
             printf '  "updated_at": %s,\n' "$(research_json_string "$updated_at")"
             printf '  "provider_results_dir": %s,\n' "$(research_json_string "$provider_results_dir")"
+            printf '  "project_root": %s,\n' "$(research_json_string "${RESEARCH_PROJECT_ROOT:-}")"
             printf '  "limits": {"external_fetches": %s, "response_bytes": %s},\n' \
                 "$fetch_max" "${OCTOPUS_RESEARCH_MAX_RESPONSE_BYTES:-2097152}"
             printf '  "artifacts": {\n'
@@ -273,8 +278,10 @@ research_run_begin() {
         RESEARCH_INTENSITY=$(research_manifest_value "$run_dir/manifest.json" intensity)
         RESEARCH_PROVIDER_RESULTS_DIR=$(research_manifest_value "$run_dir/manifest.json" provider_results_dir)
         [[ -n "$RESEARCH_PROVIDER_RESULTS_DIR" ]] || RESEARCH_PROVIDER_RESULTS_DIR="${RESULTS_DIR:-}"
+        RESEARCH_PROJECT_ROOT=$(research_manifest_value "$run_dir/manifest.json" project_root)
+        [[ -n "$RESEARCH_PROJECT_ROOT" ]] || RESEARCH_PROJECT_ROOT=$(research_default_project_root)
         [[ -n "$RESEARCH_TASK_GROUP" && -n "$RESEARCH_PROMPT" ]] || return 1
-        export RESEARCH_PROVIDER_RESULTS_DIR
+        export RESEARCH_PROVIDER_RESULTS_DIR RESEARCH_PROJECT_ROOT
         research_run_event "$run_dir" "run.resumed" "stage=$(research_manifest_value "$run_dir/manifest.json" stage)" || true
     else
         local create_lock="$run_dir/.run-create.lock"
@@ -289,7 +296,8 @@ research_run_begin() {
         RESEARCH_PROMPT="$prompt"
         RESEARCH_INTENSITY="$intensity"
         RESEARCH_PROVIDER_RESULTS_DIR="${RESULTS_DIR:-}"
-        export RESEARCH_PROVIDER_RESULTS_DIR
+        RESEARCH_PROJECT_ROOT=$(research_default_project_root)
+        export RESEARCH_PROVIDER_RESULTS_DIR RESEARCH_PROJECT_ROOT
         if ! printf '%s' "$prompt" > "$run_dir/.prompt.$$" \
            || ! mv -f "$run_dir/.prompt.$$" "$run_dir/prompt.txt" \
            || ! research_manifest_write "$run_dir" "$requested_id" "$task_group" "$prompt" "$intensity" "initialized" "running"; then
@@ -521,6 +529,63 @@ research_canonical_url() {
     printf '%s\n' "$url"
 }
 
+research_extract_urls() {
+    grep -Eo "https://[^][()<>{}\"'[:space:]]+" "$1" 2>/dev/null \
+        | sed -E 's/\\[nrt].*$//; s/\\+$//; /^https:\/\/$/d' || true
+}
+
+research_physical_path() {
+    local path="$1" dir target hops=0
+    while :; do
+        dir=$(cd "$(dirname "$path")" 2>/dev/null && pwd -P) || return 1
+        path="$dir/$(basename "$path")"
+        [[ -L "$path" ]] || break
+        hops=$((hops + 1))
+        [[ "$hops" -le 8 ]] || return 1
+        target=$(readlink "$path") || return 1
+        case "$target" in
+            /*) path="$target" ;;
+            *) path="$dir/$target" ;;
+        esac
+    done
+    printf '%s\n' "$path"
+}
+
+research_local_citation_tokens() {
+    printf '%s\n' "$1" \
+        | grep -Eo '[A-Za-z0-9_.@+~/-]*[./][A-Za-z0-9_.@+~/-]*:[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*' \
+        | awk '!seen[$0]++ { print length($0) "\t" $0 }' | sort -rn | cut -f2- || true
+}
+
+research_resolve_local_citation() {
+    local root="$1" token="$2"
+    local path="${token%:*}" spec="${token##*:}"
+    [[ -n "$root" && "$root" != "/" && -n "$path" ]] || return 1
+    [[ "$spec" =~ ^[0-9]{1,9}(-[0-9]{1,9})?(,[0-9]{1,9}(-[0-9]{1,9})?)*$ ]] || return 1
+    case "$path" in
+        /*) ;;
+        *) path="$root/${path#./}" ;;
+    esac
+    local physical line_count range start end
+    physical=$(research_physical_path "$path") || return 1
+    case "$physical" in
+        "$root"/*) ;;
+        *) return 1 ;;
+    esac
+    [[ -f "$physical" && -r "$physical" ]] || return 1
+    line_count=$(awk 'END { print NR }' "$physical" 2>/dev/null) || return 1
+    for range in ${spec//,/ }; do
+        start=$((10#${range%-*}))
+        end=$((10#${range#*-}))
+        [[ "$start" -ge 1 && "$start" -le "$end" && "$end" -le "$line_count" ]] || return 1
+    done
+    printf '%s|%s\n' "${physical#"$root"/}" "$physical"
+}
+
+research_normalize_local_file() {
+    tr '\n\r\t' '   ' < "$1" 2>/dev/null | sed 's/[[:space:]][[:space:]]*/ /g'
+}
+
 research_source_field() {
     local sources="$1" source_id="$2" field="$3"
     if command -v jq >/dev/null 2>&1; then
@@ -594,7 +659,7 @@ research_collect_sources() {
                 "$(research_json_string "$(date -u +"%Y-%m-%dT%H:%M:%SZ")")" \
                 "$(research_json_string "$status")" "$(research_json_string "$reason")" \
                 "$(research_json_string "$sha")" "$(research_json_string "$independence")" >> "$tmp"
-        done < <(grep -Eo "https://[^][()<>{}\"'[:space:]]+" "$result" 2>/dev/null || true)
+        done < <(research_extract_urls "$result")
     done
     mv -f "$tmp" "$sources"; rm -f "$seen"
     {
@@ -634,6 +699,12 @@ research_verify_synthesis() {
     local claim_count=0 failures=0 warnings=0 line_no=0 line plain_line ids id invalid groups group unique_groups
     local in_fence=false
     local snapshot normalized number quote numbers quotes score source_json groups_json
+    local project_root token resolved local_refs local_files local_ref local_json evidence_file
+    project_root="${RESEARCH_PROJECT_ROOT:-}"
+    [[ -n "$project_root" ]] || project_root=$(research_default_project_root)
+    if [[ -n "$project_root" ]]; then
+        project_root=$(cd "$project_root" 2>/dev/null && pwd -P) || project_root=""
+    fi
     while IFS= read -r line || [[ -n "$line" ]]; do
         line_no=$((line_no + 1))
         if [[ "$line" == '```'* ]]; then
@@ -649,16 +720,26 @@ research_verify_synthesis() {
         [[ "$line" == \#* || "$line" == '---'* ]] && continue
         ids=$(printf '%s\n' "$line" | grep -Eo '\[source:S[0-9]{3}\]' | sed 's/\[source:\(.*\)\]/\1/' | sort -u || true)
         plain_line=$(printf '%s\n' "$line" | sed 's/\[source:S[0-9][0-9][0-9]\]//g')
+        local_refs=""; local_files=""
+        while IFS= read -r token; do
+            [[ -n "$token" ]] || continue
+            resolved=$(research_resolve_local_citation "$project_root" "$token") || continue
+            plain_line=${plain_line//$token/}
+            local_refs="${local_refs}${resolved%%|*}:${token##*:}"$'\n'
+            local_files="${local_files}${resolved#*|}"$'\n'
+        done < <(research_local_citation_tokens "$line")
+        local_refs=$(printf '%s' "$local_refs" | awk '!seen[$0]++')
+        local_files=$(printf '%s' "$local_files" | awk '!seen[$0]++')
         numbers=$(research_extract_numbers "$plain_line")
         quotes=$(printf '%s\n' "$plain_line" | awk '{ s=$0; while (match(s, /"[^"][^"][^"][^"]+"/)) { print substr(s,RSTART+1,RLENGTH-2); s=substr(s,RSTART+RLENGTH) } }')
-        if [[ -z "$ids" && ( -n "$numbers" || -n "$quotes" ) \
+        if [[ -z "$ids" && -z "$local_refs" && ( -n "$numbers" || -n "$quotes" ) \
               && "$line" != *"[inference]"* && "$line" != *"[opinion"* ]]; then
             failures=$((failures + 1))
             printf 'missing_citation|%s|%s\n' "$line_no" "$line" >> "$findings"
             continue
         fi
-        [[ -n "$ids" ]] || continue
-        claim_count=$((claim_count + 1)); invalid=false; groups=""; source_json=""; groups_json=""
+        [[ -n "$ids" || -n "$local_refs" ]] || continue
+        claim_count=$((claim_count + 1)); invalid=false; groups=""; source_json=""; groups_json=""; local_json=""
         while IFS= read -r id; do
             [[ -n "$id" ]] || continue
             if ! grep -c '"source_id":"'"$id"'"' "$sources" >/dev/null 2>&1; then
@@ -670,10 +751,15 @@ research_verify_synthesis() {
             groups="${groups}${group}"$'\n'
             source_json="${source_json}${source_json:+,}\"${id}\""
         done <<< "$ids"
+        while IFS= read -r local_ref; do
+            [[ -n "$local_ref" ]] || continue
+            groups="${groups}local:${local_ref%:*}"$'\n'
+            local_json="${local_json}${local_json:+,}$(research_json_string "$local_ref")"
+        done <<< "$local_refs"
         unique_groups=$(printf '%s' "$groups" | sed '/^$/d' | sort -u | wc -l | tr -d ' ')
         groups_json=$(printf '%s' "$groups" | sed '/^$/d' | sort -u | awk 'BEGIN{s=""} {gsub(/\\/,"\\\\"); gsub(/"/,"\\\""); s=s (s?",":"") "\"" $0 "\""} END{print s}')
         local cited_count
-        cited_count=$(printf '%s\n' "$ids" | sed '/^$/d' | wc -l | tr -d ' ')
+        cited_count=$(printf '%s\n%s\n' "$ids" "$local_refs" | sed '/^$/d' | wc -l | tr -d ' ')
         score=$(awk -v u="${unique_groups:-0}" -v c="${cited_count:-1}" 'BEGIN { if (c < 1) c=1; printf "%.3f", u/c }')
         if [[ "$line" =~ [Cc]onsensus|[Ss]ources[[:space:]]+agree|[Mm]ultiple[[:space:]]+(independent[[:space:]]+)?sources|[Cc]orroborat ]] \
            && [[ "${unique_groups:-0}" -lt 2 ]]; then
@@ -688,6 +774,10 @@ research_verify_synthesis() {
                     snapshot="$run_dir/snapshots/${id}.body"; [[ -r "$snapshot" ]] || continue
                     checked=true; research_number_in_snapshot "$number" "$snapshot" 2>/dev/null && matched=true
                 done <<< "$ids"
+                while IFS= read -r evidence_file; do
+                    [[ -n "$evidence_file" ]] || continue
+                    checked=true; research_number_in_snapshot "$number" "$evidence_file" 2>/dev/null && matched=true
+                done <<< "$local_files"
                 if [[ "$checked" == "true" && "$matched" != "true" ]]; then
                     failures=$((failures + 1)); printf 'number_mismatch|%s|%s\n' "$line_no" "$number" >> "$findings"
                 elif [[ "$checked" != "true" ]]; then
@@ -705,6 +795,14 @@ research_verify_synthesis() {
                     grep -Fic -- "$quote" "$normalized" >/dev/null 2>&1 && matched=true
                     rm -f "$normalized"
                 done <<< "$ids"
+                while IFS= read -r evidence_file; do
+                    [[ -n "$evidence_file" ]] || continue
+                    checked=true
+                    normalized="$run_dir/.normalized-local.$$"
+                    research_normalize_local_file "$evidence_file" > "$normalized"
+                    grep -Fic -- "$quote" "$normalized" >/dev/null 2>&1 && matched=true
+                    rm -f "$normalized"
+                done <<< "$local_files"
                 if [[ "$checked" == "true" && "$matched" != "true" ]]; then
                     failures=$((failures + 1)); printf 'quote_mismatch|%s|%s\n' "$line_no" "$quote" >> "$findings"
                 elif [[ "$checked" != "true" ]]; then
@@ -712,9 +810,9 @@ research_verify_synthesis() {
                 fi
             done <<< "$quotes"
         fi
-        printf '{"claim_id":"C%03d","line":%s,"text":%s,"source_ids":[%s],"independence_groups":[%s],"independence_score":%s}\n' \
+        printf '{"claim_id":"C%03d","line":%s,"text":%s,"source_ids":[%s],"local_citations":[%s],"independence_groups":[%s],"independence_score":%s}\n' \
             "$claim_count" "$line_no" "$(research_json_string "$line")" \
-            "$source_json" "$groups_json" "$score" >> "$claims"
+            "$source_json" "$local_json" "$groups_json" "$score" >> "$claims"
     done < "$draft"
     local verification_status="passed"
     [[ "$failures" -gt 0 ]] && verification_status="failed"

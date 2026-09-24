@@ -165,4 +165,55 @@ else
 fi
 unset RESEARCH_PROVIDER_RESULTS_DIR
 
+test_case "synthesis context follows the synthesizer's configured context budget"
+budget_verdict=$(
+    (
+        unset OCTOPUS_PROBE_SYNTHESIS_FILE_CHARS OCTOPUS_PROBE_SYNTHESIS_CONTEXT_CHARS
+        unset OCTOPUS_CONTEXT_BUDGET OCTOPUS_CLAUDE_CONTEXT_BUDGET
+        source "$PROJECT_ROOT/scripts/lib/models.sh"
+        source "$PROJECT_ROOT/scripts/lib/dispatch.sh"
+        log() { :; }
+        _aggregate_pick_synth_agent() { echo "claude-sonnet"; }
+        budget_prompt="$TEST_ROOT/budget-prompt.txt"
+        run_agent_sync() { printf '%s' "$2" > "$budget_prompt"; printf '%s\n' 'Synthesized. [inference]'; }
+        RESULTS_DIR="$TEST_ROOT/budget-results"
+        mkdir -p "$RESULTS_DIR"
+        {
+            echo "# Agent: codex"
+            echo "## Output"
+            make_payload "CODEX_LONG" 1000
+            echo "BUDGET_TAIL_MARKER"
+            echo "## Status: SUCCESS"
+        } > "$RESULTS_DIR/codex-probe-budget-0.md"
+        {
+            echo "# Agent: claude-sonnet"
+            echo "## Output"
+            make_payload "SONNET_SHORT" 40
+            echo "## Status: SUCCESS"
+        } > "$RESULTS_DIR/claude-sonnet-probe-budget-1.md"
+
+        OCTOPUS_CLAUDE_CONTEXT_BUDGET=400000 \
+            synthesize_probe_results "budget" "Audit the budget" 2 >/dev/null 2>&1 || exit 1
+        raised_prompt=$(<"$budget_prompt")
+        synthesize_probe_results "budget" "Audit the budget" 2 >/dev/null 2>&1 || exit 1
+        default_prompt=$(<"$budget_prompt")
+
+        raised_limit=$(( (400000 - 1024 - 512) / 4 * 3 ))
+        if [[ "$raised_prompt" == *"BUDGET_TAIL_MARKER"* ]] \
+           && [[ "$raised_prompt" != *"truncated by probe synthesis context"* ]] \
+           && [[ "${#raised_prompt}" -le "$raised_limit" ]] \
+           && [[ "$default_prompt" != *"BUDGET_TAIL_MARKER"* ]] \
+           && [[ "$default_prompt" == *"truncated by probe synthesis context"* ]]; then
+            echo "ok"
+        else
+            printf 'raised=%s default=%s\n' "${#raised_prompt}" "${#default_prompt}"
+        fi
+    )
+)
+if [[ "$budget_verdict" == "ok" ]]; then
+    test_pass
+else
+    test_fail "synthesis context ignored the configured synthesizer budget: $budget_verdict"
+fi
+
 test_summary
