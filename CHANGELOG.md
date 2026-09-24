@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.9.1] - 2026-09-24
+
 ### Fixed
 
 - `--timeout` now reaches every synchronous provider call. Grasp passed a fixed
