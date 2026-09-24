@@ -1421,7 +1421,7 @@ test_agy_slash_command_visibility() {
        grep -q 'command -v agy' "$PROJECT_ROOT/commands/factory.md" && \
        grep -q 'command -v agy' "$PROJECT_ROOT/commands/auto.md" && \
        grep -q 'scripts/helpers/check-providers.sh' "$PROJECT_ROOT/commands/multi.md" && \
-       grep -Fq '$1 !~ /^claude($|-)/ && $2 == "available"' "$PROJECT_ROOT/commands/multi.md" && \
+       grep -Fq '$(1) !~ /^claude($|-)/ && $(2) == "available"' "$PROJECT_ROOT/commands/multi.md" && \
        grep -q 'Antigravity CLI' "$PROJECT_ROOT/commands/brainstorm.md" && \
        grep -q 'Antigravity (agy)' "$PROJECT_ROOT/commands/model-config.md" && \
        grep -q 'claude,codex,agy' "$PROJECT_ROOT/commands/council.md" && \

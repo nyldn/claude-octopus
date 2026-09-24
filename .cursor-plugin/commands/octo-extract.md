@@ -100,7 +100,7 @@ PROVIDER_STATUS="$(OCTOPUS_PREFLIGHT_PROBE=1 "$provider_helper" 2>/dev/null || t
 printf '%s\n' "$PROVIDER_STATUS"
 
 READY_EXTERNAL="$(printf '%s\n' "$PROVIDER_STATUS" |
-  awk -F: '$1 !~ /^claude($|-)/ && $2 == "available" { print $1 }')"
+  awk -F: '$(1) !~ /^claude($|-)/ && $(2) == "available" { print $(1) }')"
 if [[ -z "$READY_EXTERNAL" ]]; then
   echo "No external provider is ready. Continuing extraction with Claude only."
   echo "Run /octo:setup to configure an external provider."

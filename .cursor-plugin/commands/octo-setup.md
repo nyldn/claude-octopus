@@ -118,7 +118,7 @@ SETUP_RECEIPT="$(jq -cn --arg host "$SETUP_HOST" --arg root "$SETUP_ROOT" \
 SETUP_REVISION="$(jq -r '.revision' <<<"$SETUP_RECEIPT")"
 
 setup_record() {
-  local stage="$1" verification_json="$2" request response
+  local stage="${1}" verification_json="${2}" request response
   request="$(jq -cn \
     --arg host "$SETUP_HOST" --arg root "$SETUP_ROOT" \
     --arg flow "$SETUP_FLOW" --arg provider "$SETUP_PROVIDER" \
@@ -135,14 +135,14 @@ setup_record() {
 }
 
 setup_fail_recheck() {
-  local reason="$1" checked_at="${2:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}" verification_json
+  local reason="${1}" checked_at="${2:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}" verification_json
   verification_json="$(jq -cn --arg reason "$reason" --arg checked "$checked_at" \
     '{result:"failed",reason_code:$reason,checked_at:$checked}')" || return 1
   setup_record rechecked "$verification_json" >/dev/null
 }
 
 setup_invalidate_existing() {
-  local reason="$1"
+  local reason="${1}"
   [[ "$(jq -r '.found' <<<"$SETUP_RECEIPT")" == true ]] || return 0
   SETUP_FLOW="$(jq -r '.record.flow' <<<"$SETUP_RECEIPT")"
   SETUP_PROVIDER="$(jq -r '.record.provider' <<<"$SETUP_RECEIPT")"

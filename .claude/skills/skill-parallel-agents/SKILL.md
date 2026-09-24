@@ -199,11 +199,11 @@ Forcing parallel mode uses external CLIs for every task, which incurs API costs:
 
 | Provider | Cost per Query | What It Uses |
 |----------|----------------|--------------|
-| 🔴 Codex CLI | ~$0.01-0.05 | Your OPENAI_API_KEY |
+| 🔴 Codex CLI | ~\$0.01-0.05 | Your OPENAI_API_KEY |
 | 🧭 Antigravity CLI | Included with access/subscription | Antigravity CLI auth |
 | 🔵 Claude | Included | Claude Code subscription |
 
-**Total cost per forced query: ~$0.02-0.08**
+**Total cost per forced query: ~\$0.02-0.08**
 
 Use forced parallel mode judiciously for tasks where multiple perspectives genuinely add value. For routine work, let automatic routing decide when multi-provider analysis is beneficial.
 
@@ -503,9 +503,9 @@ Claude Octopus now intelligently routes tasks based on your subscription tiers a
 
 | Provider | Tiers | Monthly Cost | Capabilities |
 |----------|-------|--------------|--------------|
-| **Codex/OpenAI** | Free, Plus, Pro, API | $0-200 | code, chat, review |
+| **Codex/OpenAI** | Free, Plus, Pro, API | \$0-200 | code, chat, review |
 | **Antigravity** | Google access/subscription | Included with access | code, analysis, external review |
-| **Claude** | Pro, Max 5x, Max 20x, API | $20-200 | code, chat, analysis, long-context |
+| **Claude** | Pro, Max 5x, Max 20x, API | \$20-200 | code, chat, analysis, long-context |
 | **OpenRouter** | Pay-per-use | Variable | 400+ models, routing variants |
 | **OrcaRouter** | Pay-per-use | Variable | Single gateway, namespaced model IDs |
 

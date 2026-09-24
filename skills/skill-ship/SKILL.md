@@ -125,7 +125,7 @@ command -v agy &> /dev/null && agy_status="Available" || agy_status="Not install
 - Claude: Available - Synthesis and final validation
 
 **Estimated Time:** 3-5 minutes
-**Estimated Cost:** $0.02-0.08
+**Estimated Cost:** \$0.02-0.08
 ```
 
 #### Step 2: Execute orchestrate.sh Security Audit

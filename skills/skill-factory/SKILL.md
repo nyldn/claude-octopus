@@ -19,7 +19,7 @@ DO NOT call Skill() again. Execute directly.
 Ask via AskUserQuestion BEFORE any other action:
 1. Spec location — path to NLSpec file, or paste inline
 2. Satisfaction target override (Use spec default / Custom 0.80-0.99)
-3. Cost approval — ~$0.50-2.00 for ~20-30 agent calls (Approve / Approve --ci / Decline)
+3. Cost approval — ~\$0.50-2.00 for ~20-30 agent calls (Approve / Approve --ci / Decline)
 
 If spec path provided inline with the command, use it but still ask remaining questions.
 If user says "skip", use defaults and proceed.
@@ -42,7 +42,7 @@ Providers:
   Claude - Orchestration + satisfaction scoring
 
 Spec: <path>
-Estimated: $0.50-2.00 / 15-45 min
+Estimated: \$0.50-2.00 / 15-45 min
 ```
 
 Validation: All external providers unavailable → continue with Claude-only (warn user about reduced diversity). At least one available → proceed normally.
@@ -72,7 +72,7 @@ Failure → continue without state, warn user.
 
 ### STEP 4.5: Adversarial Scenario Coverage Gate (RECOMMENDED)
 
-**Before committing to the expensive embrace phase (~$0.50-2.00), verify that generated scenarios actually cover the spec's edge cases.** A quick cross-provider challenge here can prevent wasting an entire factory run on incomplete scenario coverage.
+**Before committing to the expensive embrace phase (~\$0.50-2.00), verify that generated scenarios actually cover the spec's edge cases.** A quick cross-provider challenge here can prevent wasting an entire factory run on incomplete scenario coverage.
 
 **After orchestrate.sh parses the spec (Phase 1-2) and before embrace execution (Phase 4), dispatch a scenario coverage review:**
 
@@ -107,7 +107,7 @@ fi
 - If GAPS-FOUND: note the gaps but proceed — the holdout phase (Phase 5) will catch some of these
 - If SUFFICIENT: proceed with confidence
 
-**This is a lightweight gate — it adds ~30 seconds but can save a $2.00 factory run on a spec with poor scenario coverage.**
+**This is a lightweight gate — it adds ~30 seconds but can save a \$2.00 factory run on a spec with poor scenario coverage.**
 
 **Skip with `--fast` or when user explicitly requests speed over thoroughness.**
 

@@ -127,7 +127,7 @@ Provider Availability:
 🟣 Perplexity: ${perplexity_status}
 🔵 Claude: Available ✓ (Strategic synthesis)
 
-💰 Estimated Cost: $0.01-0.08
+💰 Estimated Cost: \$0.01-0.08
 ⏱️  Estimated Time: 2-5 minutes
 ```
 
@@ -143,7 +143,7 @@ Provider Availability:
 🟣 Perplexity: ${perplexity_status}
 🔵 Claude: Available ✓ (Strategic synthesis)
 
-💰 Estimated Cost: $0.01-0.08
+💰 Estimated Cost: \$0.01-0.08
 ⏱️  Estimated Time: 2-5 minutes
 ```
 
@@ -749,7 +749,7 @@ Before completing probe workflow, ensure:
 - 🟣 Perplexity uses your PERPLEXITY_API_KEY (costs apply, optional)
 - 🔵 Claude analysis included with Claude Code
 
-Probe workflows typically cost $0.01-0.05 per query depending on complexity and response length.
+Probe workflows typically cost \$0.01-0.05 per query depending on complexity and response length.
 
 
 ## Security: External Content

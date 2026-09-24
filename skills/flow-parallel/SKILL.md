@@ -350,7 +350,7 @@ INSTREOF
 cat > ".octo/parallel/WP-N/launch.sh" << 'LAUNCHEOF'
 #!/bin/bash
 set -e
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${0}")" && pwd)"
 PROJECT_ROOT="<absolute-project-root-path>"
 WP_ID="WP-N"
 WORKTREE_DIR="${PROJECT_ROOT}/../.octo-worktree-${WP_ID}"

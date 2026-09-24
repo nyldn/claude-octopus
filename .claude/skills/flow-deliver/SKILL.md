@@ -135,7 +135,7 @@ Provider Availability:
 🧭 Antigravity CLI: [Available ✓ / Not installed ✗] - Additional external-model challenge
 🔵 Claude: Available ✓ - Synthesis and recommendations
 
-💰 Estimated Cost: $0.02-0.08
+💰 Estimated Cost: \$0.02-0.08
 ⏱️  Estimated Time: 3-7 minutes
 ```
 
@@ -150,7 +150,7 @@ Provider Availability:
 🧭 Antigravity CLI: [Available ✓ / Not installed ✗] - Additional external-model challenge
 🔵 Claude: Available ✓ - Synthesis and recommendations
 
-💰 Estimated Cost: $0.02-0.08
+💰 Estimated Cost: \$0.02-0.08
 ⏱️  Estimated Time: 3-7 minutes
 ```
 
@@ -844,7 +844,7 @@ Before marking validation complete, ensure:
 - 🟡 Antigravity CLI uses your AGY_AUTH_TOKEN (costs apply)
 - 🔵 Claude analysis included with Claude Code
 
-Ink workflows typically cost $0.02-0.08 per validation depending on codebase size and complexity.
+Ink workflows typically cost \$0.02-0.08 per validation depending on codebase size and complexity.
 
 ---
 

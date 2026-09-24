@@ -57,10 +57,11 @@ hooks/*	tests/unit/test-provider-child-boundary.sh
 
 AGENTS.md	tests/unit/test-v8.2.0-agent-fields.sh tests/integration/test-native-first-docs.sh
 CLAUDE.md	tests/unit/test-v8.2.0-agent-fields.sh tests/integration/test-native-first-docs.sh
-.claude/skills/*	tests/unit/test-public-reference-integrity.sh tests/integration/test-native-first-docs.sh
+.claude/skills/*	tests/unit/test-public-reference-integrity.sh tests/integration/test-native-first-docs.sh tests/unit/test-argument-placeholder-safety.sh
 commands/preflight.md	tests/unit/test-command-frontmatter.sh tests/unit/test-provider-readiness-contract.sh
 commands/setup.md	tests/unit/test-command-frontmatter.sh tests/unit/test-setup-first-success.sh tests/unit/test-setup-suggest-routing.sh tests/unit/test-setup-state.sh
-commands/*.md	tests/unit/test-command-frontmatter.sh tests/unit/test-command-registration.sh tests/unit/test-public-reference-integrity.sh
+commands/embrace.md	tests/unit/test-execution-mechanism.sh tests/unit/test-embrace-fail-fast.sh
+commands/*.md	tests/unit/test-command-frontmatter.sh tests/unit/test-command-registration.sh tests/unit/test-public-reference-integrity.sh tests/unit/test-argument-placeholder-safety.sh
 README.md	tests/unit/test-readme-release-sync.sh tests/integration/test-readme-compliance.sh
 PRODUCT.md	tests/unit/test-readme-release-sync.sh tests/integration/test-readme-compliance.sh
 docs/*	tests/integration/test-native-first-docs.sh tests/integration/test-readme-compliance.sh tests/unit/test-public-reference-integrity.sh
@@ -97,7 +98,7 @@ Makefile	@full
 .github/workflows/*	@full
 .claude-plugin/*	tests/smoke/test-packaging-integrity.sh tests/unit/test-readme-release-sync.sh
 .codex-plugin/*	tests/smoke/test-packaging-integrity.sh tests/unit/test-readme-release-sync.sh
-.cursor-plugin/*	tests/smoke/test-packaging-integrity.sh tests/unit/test-readme-release-sync.sh
+.cursor-plugin/*	tests/smoke/test-packaging-integrity.sh tests/unit/test-readme-release-sync.sh tests/unit/test-argument-placeholder-safety.sh
 .factory-plugin/*	tests/smoke/test-packaging-integrity.sh tests/unit/test-readme-release-sync.sh
 package.json	tests/smoke/test-packaging-integrity.sh tests/unit/test-readme-release-sync.sh
 RELEASING.md	tests/unit/test-readme-release-sync.sh
@@ -110,5 +111,5 @@ scripts/helpers/readiness-contract.py	tests/unit/test-provider-readiness-contrac
 scripts/helpers/setup-state.py	tests/unit/test-setup-state.sh tests/unit/test-setup-first-success.sh
 scripts/lib/user-config.sh	tests/unit/test-setup-suggest-routing.sh tests/unit/test-setup-state.sh
 shared/process_supervisor.py	tests/unit/test-openai-compatible-agent.sh tests/unit/test-run-contract-v10.sh
-skills/*	tests/unit/test-public-reference-integrity.sh tests/integration/test-native-first-docs.sh
+skills/*	tests/unit/test-public-reference-integrity.sh tests/integration/test-native-first-docs.sh tests/unit/test-argument-placeholder-safety.sh
 config/*	@full

@@ -128,9 +128,9 @@ assert_contains "$SKILL_CONTENT" "2\+.*completed.*step" "minimum data: requires 
 
 # ── Display format examples ──────────────────────────────────────────────────
 
-assert_contains "$SKILL_CONTENT" "Spent: \\\$2\.40.*Est\. remaining: \\\$3\.60.*Total: ~\\\$6\.00" "display example: standard format present"
+assert_contains "$SKILL_CONTENT" 'Spent: \\\$2\.40.*Est\. remaining: \\\$3\.60.*Total: ~\\\$6\.00' "display example: standard format present"
 
-assert_contains "$SKILL_CONTENT" "Budget ceiling: \\\$5\.00.*projected to exceed by \\\$1\.00" "display example: budget overrun format present"
+assert_contains "$SKILL_CONTENT" 'Budget ceiling: \\\$5\.00.*projected to exceed by \\\$1\.00' "display example: budget overrun format present"
 
 assert_contains "$SKILL_CONTENT" "OCTO_PROFILE=budget to reduce costs" "display example: profile tip format present"
 

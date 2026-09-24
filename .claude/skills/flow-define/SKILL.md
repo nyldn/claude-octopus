@@ -147,7 +147,7 @@ Provider Availability:
 ${provider_availability}
 🔵 Claude: Available ✓ - Consensus building and synthesis
 
-💰 Estimated Cost: $0.01-0.05
+💰 Estimated Cost: \$0.01-0.05
 ⏱️  Estimated Time: 2-5 minutes
 ```
 
@@ -747,7 +747,7 @@ Before completing grasp workflow, ensure:
 - 🧭 Antigravity CLI uses your Antigravity account/model configuration (costs may apply)
 - 🔵 Claude analysis included with Claude Code
 
-Grasp workflows typically cost $0.01-0.05 per task depending on complexity.
+Grasp workflows typically cost \$0.01-0.05 per task depending on complexity.
 
 ---
 

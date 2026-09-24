@@ -21,7 +21,7 @@ echo "active" > "/tmp/octopus-careful-${_OCTO_SESSION_ID}.txt"
 2. Activate freeze mode (edit boundary enforcement):
 
 ```bash
-freeze_dir="$(cd "$1" 2>/dev/null && pwd)" || freeze_dir="$1"
+freeze_dir="$(cd "${1}" 2>/dev/null && pwd)" || freeze_dir="${1}"
 _OCTO_SESSION_ID="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-$$}}"
 echo "${freeze_dir}" > "/tmp/octopus-freeze-${_OCTO_SESSION_ID}.txt"
 ```
