@@ -132,6 +132,39 @@ class ProcessControlTests(unittest.TestCase):
                 finally:
                     descendant.send(signal.SIGKILL)
 
+    def test_stop_confirmation_retries_the_identity_bound_signal(self):
+        handle = mock.Mock()
+        handle.info = control.ProcessInfo(4242, 20, "original", 0, False)
+        handle.running.return_value = True
+        stop_attempts = 0
+        clock = 0.0
+
+        def send(signum):
+            nonlocal stop_attempts
+            if signum == signal.SIGSTOP:
+                stop_attempts += 1
+            return True
+
+        def snapshot(_pid):
+            return handle.info._replace(stopped=stop_attempts >= 2)
+
+        def monotonic():
+            nonlocal clock
+            current = clock
+            clock += 0.2
+            return current
+
+        handle.send.side_effect = send
+
+        with mock.patch.object(control, "_ancestors", return_value=set()), \
+             mock.patch.object(control, "Process", return_value=handle), \
+             mock.patch.object(control, "snapshot", side_effect=snapshot), \
+             mock.patch.object(control, "children", return_value=[]), \
+             mock.patch.object(control, "_wait", return_value=True), \
+             mock.patch.object(control.time, "monotonic", side_effect=monotonic), \
+             mock.patch.object(control.time, "sleep"):
+            self.assertEqual(control.terminate(4242, frozen=True), "terminated")
+
     def test_linux_handle_is_closed_if_post_open_identity_changes(self):
         info = control.ProcessInfo(4242, 20, "before", 0, False)
         replacement = control.ProcessInfo(4242, 20, "after", 0, False)

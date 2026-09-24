@@ -23,6 +23,9 @@
 
 ### Fixed
 
+- Process-tree cleanup now retries macOS's identity-bound stop signal while
+  waiting for asynchronous confirmation. Busy hosts no longer reject a valid
+  provider cleanup merely because the first queued stop was not observed.
 - Session handoffs no longer land in the project checkout. The PreCompact and
   SessionEnd hooks write the handoff beside the workflow state resolved by
   `octopus state-path` (by default under `~/.claude-octopus/projects/`) instead

@@ -297,7 +297,14 @@ def terminate(pid, grace=1, frozen=False, descendants=False, expected=None):
                 if not handle.send(signal.SIGSTOP):
                     continue
                 # STOP delivery is asynchronous. Enumerate only once it cannot fork.
-                deadline = time.monotonic() + 1
+                # XNU queues psignal asynchronously even when the identity-
+                # bound API succeeds. Under scheduler pressure a queued stop
+                # can remain unobserved; retry against the same verified
+                # process instance while retaining the bounded fail-closed
+                # deadline.
+                started = time.monotonic()
+                deadline = started + 1
+                retry_at = started + 0.25
                 disappeared = False
                 while handle.running():
                     try:
@@ -309,8 +316,14 @@ def terminate(pid, grace=1, frozen=False, descendants=False, expected=None):
                         break
                     if current.stopped:
                         break
-                    if time.monotonic() >= deadline:
+                    now = time.monotonic()
+                    if now >= deadline:
                         raise TimeoutError("worker did not stop before enumeration")
+                    if now >= retry_at:
+                        if not handle.send(signal.SIGSTOP):
+                            disappeared = True
+                            break
+                        retry_at = now + 0.25
                     time.sleep(0.01)
                 if disappeared:
                     continue
