@@ -7,7 +7,9 @@
 - `--timeout` now reaches every synchronous provider call. Grasp passed a fixed
   300-second budget to each seat that the flag could not raise, so a retry with
   a larger `--timeout` failed the same way. `OCTOPUS_AGENT_TIMEOUT` still takes
-  precedence, and calls that run deliberately unbounded stay unbounded.
+  precedence, calls that run deliberately unbounded stay unbounded, and
+  `--timeout 0` does not remove their bounds. Council seats keep the budget from
+  `--seat-timeout` and `OCTOPUS_COUNCIL_TIMEOUT_<PROVIDER>`.
 - A failed or timed-out constraints seat no longer ends a standalone grasp run
   before consensus and discards the perspectives already gathered. When every
   seat fails, grasp now reports that and writes no consensus file.

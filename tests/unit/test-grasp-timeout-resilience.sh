@@ -24,10 +24,21 @@ if ! OCTOPUS_TIMEOUT_EXPLICIT_SECS=900 octopus_sync_timeout_override 300 >/dev/n
    [[ "$(OCTOPUS_TIMEOUT_EXPLICIT=1 OCTOPUS_TIMEOUT_EXPLICIT_SECS=900 octopus_sync_timeout_override 120)" == "900" ]] && \
    ! OCTOPUS_TIMEOUT_EXPLICIT=1 OCTOPUS_TIMEOUT_EXPLICIT_SECS=900 octopus_sync_timeout_override 0 >/dev/null && \
    [[ "$(OCTOPUS_TIMEOUT_EXPLICIT=1 OCTOPUS_TIMEOUT_EXPLICIT_SECS=900 OCTOPUS_AGENT_TIMEOUT=1200 octopus_sync_timeout_override 300)" == "1200" ]] && \
-   ! OCTOPUS_TIMEOUT_EXPLICIT=1 OCTOPUS_TIMEOUT_EXPLICIT_SECS=abc octopus_sync_timeout_override 300 >/dev/null; then
+   ! OCTOPUS_TIMEOUT_EXPLICIT=1 OCTOPUS_TIMEOUT_EXPLICIT_SECS=abc octopus_sync_timeout_override 300 >/dev/null && \
+   ! OCTOPUS_TIMEOUT_EXPLICIT=1 OCTOPUS_TIMEOUT_EXPLICIT_SECS=0 octopus_sync_timeout_override 300 >/dev/null; then
     test_pass
 else
     test_fail "sync timeout precedence is not OCTOPUS_AGENT_TIMEOUT > --timeout > caller, with 0 kept unbounded"
+fi
+
+test_case "council seats keep their own budget under an explicit --timeout"
+# council_seat_timeout also keys the seat reaper; overriding it here would turn
+# clean 124 timeouts into watchdog kills and beat per-provider council config.
+if ! OCTOPUS_TIMEOUT_EXPLICIT=1 OCTOPUS_TIMEOUT_EXPLICIT_SECS=900 octopus_sync_timeout_override 120 council >/dev/null && \
+   [[ "$(OCTOPUS_TIMEOUT_EXPLICIT=1 OCTOPUS_TIMEOUT_EXPLICIT_SECS=900 octopus_sync_timeout_override 300 grasp)" == "900" ]]; then
+    test_pass
+else
+    test_fail "explicit --timeout overrides council's resolved per-seat timeout"
 fi
 
 test_case "internal TIMEOUT rewrites do not change the explicit sync budget"
@@ -50,7 +61,7 @@ fi
 
 test_case "run_agent_sync resolves its timeout through the override helper"
 agent_sync_source="$(cat "$PROJECT_ROOT/scripts/lib/agent-sync.sh")"
-if [[ "$agent_sync_source" == *'_timeout_override="$(octopus_sync_timeout_override "$timeout_secs")"'* ]]; then
+if [[ "$agent_sync_source" == *'_timeout_override="$(octopus_sync_timeout_override "$timeout_secs" "$phase")"'* ]]; then
     test_pass
 else
     test_fail "run_agent_sync bypasses octopus_sync_timeout_override"
@@ -97,7 +108,13 @@ reset_run
 octo_quota_is_dead() { return 1; }
 FAIL_SEATS="claude-sonnet:researcher"
 # Run in a subshell with errexit on, matching standalone orchestrate.sh grasp.
-if (set -e; grasp_define "Define the feature" >/dev/null 2>&1) && [[ -n "$(latest_consensus)" ]]; then
+# The subshell must be a plain statement: bash ignores set -e inside anything
+# that is part of an if/&&/|| condition, which would make this test vacuous.
+set +e
+(set -e; grasp_define "Define the feature" >/dev/null 2>&1)
+grasp_rc=$?
+set -e
+if [[ "$grasp_rc" -eq 0 && -n "$(latest_consensus)" ]]; then
     test_pass
 else
     test_fail "one failed seat discarded the gathered perspectives and wrote no consensus"
@@ -106,7 +123,11 @@ fi
 test_case "grasp fails loudly when every perspective fails"
 reset_run
 FAIL_SEATS="codex:backend-architect claude-sonnet:backend-architect agy:researcher claude-sonnet:researcher"
-if ! (set -e; grasp_define "Define the feature" >/dev/null 2>&1) && [[ -z "$(latest_consensus)" ]]; then
+set +e
+(set -e; grasp_define "Define the feature" >/dev/null 2>&1)
+grasp_rc=$?
+set -e
+if [[ "$grasp_rc" -eq 1 && -z "$(latest_consensus)" ]]; then
     test_pass
 else
     test_fail "grasp wrote a consensus with no perspectives or returned success"

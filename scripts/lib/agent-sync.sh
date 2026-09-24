@@ -1262,16 +1262,20 @@ run_agent_sync_consultative() {
 # could not raise. Read the value captured at parse time, not TIMEOUT: review
 # rewrites TIMEOUT to 0 for its own supervision and quality.sh resets it to
 # 600 in nested processes. Callers passing 0 are deliberately unbounded and
-# keep that contract.
+# keep that contract, and --timeout 0 does not unbound every bounded caller.
+# Council is exempt: it resolves per-seat budgets from --seat-timeout and
+# OCTOPUS_COUNCIL_TIMEOUT_<PROVIDER>, and its seat reaper waits on that same
+# value, so a larger global --timeout would turn clean timeouts into kills.
 octopus_sync_timeout_override() {
     local caller_timeout="${1:-120}"
+    local phase="${2:-}"
 
     if [[ -n "${OCTOPUS_AGENT_TIMEOUT:-}" && "${OCTOPUS_AGENT_TIMEOUT}" =~ ^[0-9]+$ ]]; then
         printf '%s\n' "$OCTOPUS_AGENT_TIMEOUT"
         return 0
     fi
-    if [[ "${OCTOPUS_TIMEOUT_EXPLICIT:-0}" == "1" && \
-          "${OCTOPUS_TIMEOUT_EXPLICIT_SECS:-}" =~ ^[0-9]+$ && \
+    if [[ "${OCTOPUS_TIMEOUT_EXPLICIT:-0}" == "1" && "$phase" != "council" && \
+          "${OCTOPUS_TIMEOUT_EXPLICIT_SECS:-}" =~ ^[1-9][0-9]*$ && \
           "$caller_timeout" =~ ^[1-9][0-9]*$ ]]; then
         printf '%s\n' "$OCTOPUS_TIMEOUT_EXPLICIT_SECS"
         return 0
@@ -1288,7 +1292,7 @@ run_agent_sync() {
     local phase="${5:-}"  # Optional phase context
 
     local _timeout_override
-    if _timeout_override="$(octopus_sync_timeout_override "$timeout_secs")"; then
+    if _timeout_override="$(octopus_sync_timeout_override "$timeout_secs" "$phase")"; then
         timeout_secs="$_timeout_override"
     elif [[ "$timeout_secs" -eq 120 ]]; then
         # v8.19.0: Dynamic timeout calculation (when caller uses default 120)
