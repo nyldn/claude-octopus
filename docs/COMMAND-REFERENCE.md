@@ -60,7 +60,7 @@ All slash commands use the `/octo:` namespace. The smart router command is `/oct
 
 Octopus includes the methods below. See
 [workflow methods](WORKFLOW-METHODS.md) for the full contracts and
-[Unreleased](../CHANGELOG.md#unreleased) for release status.
+[the changelog](../CHANGELOG.md) for release history.
 
 ```text
 /octo:debug "Reproduce the checkout timeout and verify the fix"

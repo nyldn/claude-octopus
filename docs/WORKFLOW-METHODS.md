@@ -1,7 +1,7 @@
 # Workflow methods
 
 The adapted methods shipped in v11.1.0. The command activation improvements
-below are tracked under [Unreleased](../CHANGELOG.md#unreleased).
+below shipped in [v11.2.0](../CHANGELOG.md#1120---2026-09-07).
 
 Claude Octopus includes explicit methods for architecture, TDD, debugging,
 planning, domain definition, and prototypes. They are available in Claude Code

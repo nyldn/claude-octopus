@@ -461,8 +461,6 @@ Auto-selects based on task complexity.
 
 ## Decision Tree
 
-See [agent-decision-tree.md](agent-decision-tree.md) for visual flowcharts.
-
 **Quick version:**
 ```
 What phase are you in?
@@ -477,8 +475,7 @@ What phase are you in?
 ## Quick Links
 
 - **README:** [../README.md](../README.md)
-- **Decision Tree:** [agent-decision-tree.md](agent-decision-tree.md)
-- **Monthly Review:** [monthly-agent-review.md](monthly-agent-review.md)
+- **Decision Tree:** [Quick version](#decision-tree)
 - **Personas:** [../agents/personas/](../agents/personas/)
 
 ---

@@ -59,10 +59,9 @@ Claude Octopus orchestrates external AI CLI tools (Codex CLI, Antigravity CLI, a
 
 | Version | Supported |
 |---------|-----------|
-| 9.23.x  | Yes - Full security updates |
-| 9.22.x  | Critical patches only |
-| 9.9-9.21 | Critical patches only |
-| < 9.9   | No |
+| 11.x | Yes - Full security updates |
+| 10.x | Critical patches only |
+| < 10 | No |
 
 ## Reporting Vulnerabilities
 

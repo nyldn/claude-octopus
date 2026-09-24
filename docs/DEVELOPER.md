@@ -4,8 +4,8 @@
 
 See [workflow methods](WORKFLOW-METHODS.md) for user-facing behavior and the
 [delivery contract](../RELEASING.md#delivery-contract-for-workflow-methods) for
-installation, package, and setup verification. Current workflow additions are
-documented under [Unreleased](../CHANGELOG.md#unreleased).
+installation, package, and setup verification. The
+[changelog](../CHANGELOG.md) records released workflow changes.
 
 ---
 

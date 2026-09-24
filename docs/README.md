@@ -37,10 +37,10 @@ summary, lets you start with Claude alone or configure one additional provider,
 and finishes with a local no-billing verification. Optional developer tools,
 model tuning, and automation stay under Advanced setup.
 
-On the development branch, rerun `/octo:setup` after an interruption to resume
-the recorded flow. Setup rechecks readiness and saved preferences before
-reporting completion. A changed installation path creates a separate receipt.
-These additions are listed under [Unreleased](../CHANGELOG.md#unreleased).
+Rerun `/octo:setup` after an interruption to resume the recorded flow. Setup
+rechecks readiness and saved preferences before reporting completion. A changed
+installation path creates a separate receipt. Resumable setup shipped in
+[v11.2.0](../CHANGELOG.md#1120---2026-09-07).
 
 After setup, the three useful entry points are:
 
