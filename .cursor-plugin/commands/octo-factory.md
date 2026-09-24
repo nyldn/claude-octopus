@@ -20,7 +20,7 @@ When the user invokes this command (e.g., `/octo:factory --spec <path>`):
 Ask 3 clarifying questions:
 1. Spec path — Where is the NLSpec file? (provide path, or paste inline)
 2. Satisfaction target — Accept spec default, or override? (Use spec default / Custom target 0.80-0.99)
-3. Cost confirmation — Factory mode runs ~20-30 agent calls (~$0.50-2.00). Proceed? (Yes / Yes with --ci for non-interactive / No)
+3. Cost confirmation — Factory mode runs ~20-30 agent calls (~\$0.50-2.00). Proceed? (Yes / Yes with --ci for non-interactive / No)
 
 After receiving answers: validate spec path exists, set overrides, proceed.
 
@@ -69,7 +69,7 @@ echo "PROVIDER_CHECK_END"
 Render the factory banner from actual provider checks. Do not hand-write or summarize this banner; run this block and display its output exactly. The output MUST include the Antigravity line even when `agy` is missing.
 
 ```bash
-status_cli() { command -v "$1" >/dev/null 2>&1 && echo "Available ✓" || echo "Not installed ✗"; }
+status_cli() { command -v "${1}" >/dev/null 2>&1 && echo "Available ✓" || echo "Not installed ✗"; }
 status_env() { [[ -n "${1:-}" ]] && echo "Configured ✓" || echo "Not configured ✗"; }
 codex_status="$(status_cli codex)"
 agy_status="$(status_cli agy)"
@@ -111,7 +111,7 @@ Providers:
   🟣 Perplexity: [Configured ✓ / Not configured ✗]
 
 Spec: <spec-path>
-Estimated cost: $0.50-2.00 (~20-30 agent calls)
+Estimated cost: \$0.50-2.00 (~20-30 agent calls)
 ```
 
 **PROHIBITED: Displaying only Claude without listing all providers.**
@@ -137,7 +137,7 @@ If the spec is minimal, warn the user but proceed — factory mode works with th
 
 ### Step 3.5: Adversarial Scenario Coverage Gate
 
-Before committing to the expensive embrace phase, verify scenario coverage by dispatching the spec to a second provider. This quick check (~30 seconds) can save a wasted $2.00 factory run. See skill-factory.md Step 4.5 for details. Skip with `--fast`.
+Before committing to the expensive embrace phase, verify scenario coverage by dispatching the spec to a second provider. This quick check (~30 seconds) can save a wasted \$2.00 factory run. See skill-factory.md Step 4.5 for details. Skip with `--fast`.
 
 ### Step 4: Execute Factory Pipeline
 
@@ -179,7 +179,7 @@ Present to the user:
 ## Key Properties
 
 - **Autonomy:** Runs embrace in fully autonomous mode (no phase-by-phase approval)
-- **Cost:** ~$0.50-2.00 per run depending on spec complexity and provider costs
+- **Cost:** ~\$0.50-2.00 per run depending on spec complexity and provider costs
 - **Retry:** On FAIL verdict, re-runs phases 3-4 with remediation context (up to max-retries)
 - **Verdict levels:** PASS (>= target), WARN (>= target - 0.05), FAIL (< target - 0.05)
 - **Artifacts:** `.octo/factory/<run-id>/` contains all intermediate files

@@ -478,9 +478,9 @@ fi
 # descriptor releases the lock even after SIGKILL or a process/host crash.
 LOCK_DIGEST=""
 if command -v sha256sum >/dev/null 2>&1; then
-  LOCK_DIGEST=$(printf '%s' "$RAW_BRANCH" | sha256sum | awk '{print $1}') || LOCK_DIGEST=""
+  LOCK_DIGEST=$(printf '%s' "$RAW_BRANCH" | sha256sum | awk '{print $(1)}') || LOCK_DIGEST=""
 elif command -v shasum >/dev/null 2>&1; then
-  LOCK_DIGEST=$(printf '%s' "$RAW_BRANCH" | shasum -a 256 | awk '{print $1}') || LOCK_DIGEST=""
+  LOCK_DIGEST=$(printf '%s' "$RAW_BRANCH" | shasum -a 256 | awk '{print $(1)}') || LOCK_DIGEST=""
 else
   echo "Design persistence failed: no supported SHA-256 utility." >&2
   exit 1
@@ -528,7 +528,7 @@ LOCK_HELD=true
 PRIOR=""
 for candidate in "$DESIGNS_DIR"/*.md; do
   [[ -f "$candidate" ]] || continue
-  candidate_branch=$(awk -F ': ' '$1 == "branch" { print $2; exit }' "$candidate")
+  candidate_branch=$(awk -F ': ' '$(1) == "branch" { print $(2); exit }' "$candidate")
   [[ "$candidate_branch" == "$RAW_BRANCH" ]] || continue
   [[ -z "$PRIOR" || "$candidate" -nt "$PRIOR" ]] && PRIOR="$candidate"
 done

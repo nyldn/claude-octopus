@@ -282,7 +282,7 @@ if git worktree list | grep -q "$(pwd)"; then
   WORKTREE_PATH=$(pwd)
   
   # Switch to main worktree
-  cd $(git worktree list | head -1 | awk '{print $1}')
+  cd $(git worktree list | head -1 | awk '{print $(1)}')
   
   # Remove the worktree
   git worktree remove "$WORKTREE_PATH"

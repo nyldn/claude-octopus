@@ -158,10 +158,10 @@ AskUserQuestion({
     header: "Codex Model",
     multiSelect: false,
     options: [
-      {label: "gpt-5.6-sol", description: "Frontier default — 1M context, $4/$20 MTok, best for implementation and independent review"},
-      {label: "gpt-5.6-terra", description: "Balanced — 1M context, $2/$12 MTok, strong general-purpose Codex seat"},
-      {label: "gpt-5.6-luna", description: "Budget — 1M context, $0.20/$1.20 MTok, best for quick checks and prototypes"},
-      {label: "o3", description: "Reasoning — 200K context, $2/$8 MTok, deep analysis & trade-offs"},
+      {label: "gpt-5.6-sol", description: "Frontier default — 1M context, \$4/\$20 MTok, best for implementation and independent review"},
+      {label: "gpt-5.6-terra", description: "Balanced — 1M context, \$2/\$12 MTok, strong general-purpose Codex seat"},
+      {label: "gpt-5.6-luna", description: "Budget — 1M context, \$0.20/\$1.20 MTok, best for quick checks and prototypes"},
+      {label: "o3", description: "Reasoning — 200K context, \$2/\$8 MTok, deep analysis & trade-offs"},
       {label: "Custom", description: "Enter a custom model name"}
     ]
   }]
@@ -185,9 +185,9 @@ AskUserQuestion({
     header: "OpenRouter Models",
     multiSelect: true,
     options: [
-      {label: "z-ai/glm-5", description: "GLM-5 — 203K context, $0.80/$2.56 MTok, code review specialist"},
-      {label: "moonshotai/kimi-k2.5", description: "Kimi K2.5 — 262K context, $0.45/$2.25 MTok, research & multimodal"},
-      {label: "deepseek/deepseek-v4-pro", description: "DeepSeek V4 Pro — 1M context, $0.435/$0.87 MTok, reasoning"},
+      {label: "z-ai/glm-5", description: "GLM-5 — 203K context, \$0.80/\$2.56 MTok, code review specialist"},
+      {label: "moonshotai/kimi-k2.5", description: "Kimi K2.5 — 262K context, \$0.45/\$2.25 MTok, research & multimodal"},
+      {label: "deepseek/deepseek-v4-pro", description: "DeepSeek V4 Pro — 1M context, \$0.435/\$0.87 MTok, reasoning"},
       {label: "Custom", description: "Enter a custom model ID"}
     ]
   }]

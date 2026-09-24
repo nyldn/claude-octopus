@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Commands and skills invoked with arguments no longer have their shell and awk
+  code rewritten by Claude Code's `$N` argument substitution. `/octo:embrace
+  lets do it all` rendered the provider banner's `command -v "$1"` as
+  `command -v "do"`, a shell keyword, so every CLI was reported available, and
+  flow-parallel's launch script resolved `dirname "$0"` to the first argument.
+  Shell parameters now use `${N}`, awk fields use `$(N)`, and literal amounts
+  such as cost estimates use Claude Code's `\$` escape. A unit suite rejects any
+  unescaped `$N` in command and skill bodies, the Cursor copies, and the shipped
+  skills.
+
 ## [11.9.1] - 2026-09-24
 
 ### Fixed

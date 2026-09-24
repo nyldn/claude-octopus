@@ -45,4 +45,4 @@ If the helper prints `No usage records found`, say so and point the user at `OCT
 
 Rates come from `config/model-pricing.tsv`. The helper is the only calculator.
 Providers with subscription or local backends such as agy, Copilot, Ollama,
-Cursor Agent, and native OpenCode report $0.00.
+Cursor Agent, and native OpenCode report \$0.00.
