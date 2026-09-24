@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- `--timeout` now reaches every synchronous provider call. Grasp passed a fixed
+  300-second budget to each seat that the flag could not raise, so a retry with
+  a larger `--timeout` failed the same way. `OCTOPUS_AGENT_TIMEOUT` still takes
+  precedence, and calls that run deliberately unbounded stay unbounded.
+- A failed or timed-out constraints seat no longer ends a standalone grasp run
+  before consensus and discards the perspectives already gathered. When every
+  seat fails, grasp now reports that and writes no consensus file.
+- Grasp skips an Antigravity seat already marked quota-dead instead of
+  dispatching it again and waiting through its quota retries. Consensus falls
+  back to Claude when Antigravity is unavailable or returns nothing, and the
+  consensus file records which provider synthesized it.
+- The timeout message recommends `OCTOPUS_AGENT_TIMEOUT` when that variable is
+  set, because it overrides `--timeout`.
+
 ## [11.9.0] - 2026-09-23
 
 ### Added

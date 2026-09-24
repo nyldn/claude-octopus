@@ -593,7 +593,13 @@ run_with_timeout() {
         echo "Operation exceeded the ${timeout_secs}s (${timeout_mins}m) timeout limit." >&2
         echo "" >&2
         echo "💡 Possible solutions:" >&2
-        echo "   1. Increase timeout: --timeout ${recommended_timeout} (${recommended_mins}m)" >&2
+        if [[ -n "${OCTOPUS_AGENT_TIMEOUT:-}" ]]; then
+            # OCTOPUS_AGENT_TIMEOUT outranks --timeout, so suggesting the flag
+            # would send the user round the same failure again.
+            echo "   1. Increase timeout: OCTOPUS_AGENT_TIMEOUT=${recommended_timeout} (${recommended_mins}m; overrides --timeout)" >&2
+        else
+            echo "   1. Increase timeout: --timeout ${recommended_timeout} (${recommended_mins}m) or OCTOPUS_AGENT_TIMEOUT=${recommended_timeout}" >&2
+        fi
         echo "   2. Simplify the prompt to reduce processing time" >&2
         echo "   3. Check provider API status for slowness" >&2
         echo "" >&2

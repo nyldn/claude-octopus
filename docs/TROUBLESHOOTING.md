@@ -37,6 +37,10 @@ A provider is used only when its CLI is installed AND its auth check passes. If 
 
 **Provider quota-dead** — a provider that hit quota or auth-death earlier in the session is skipped for the rest of it. Check the provider's own dashboard, then restart the session.
 
+**"TIMEOUT EXCEEDED" on every provider in a phase**: each provider call has a per-call budget. Raise it for the whole run with `--timeout SECS` or `OCTOPUS_AGENT_TIMEOUT=SECS`; the environment variable wins when both are set. Calls a workflow runs deliberately unbounded stay unbounded. If a provider keeps exploring the repository for a narrow question, a shorter prompt that asks for decisions rather than investigation is usually faster than a larger budget.
+
+**Antigravity reports "Individual quota reached"**: the quota belongs to the account `agy` is signed into for headless runs, and a working interactive session does not rule it out. Run plain `agy`, check the signed-in account and plan in the startup banner and `/usage`, and use `/logout` then `/login` to switch accounts or choose an enterprise sign-in with a Cloud project. Octopus marks `agy` quota-dead until the reported reset, and grasp then uses Claude for success criteria and consensus.
+
 **Ollama model missing, nothing downloads** — intentional. Auto-pull is fail-closed to prevent unbounded multi-GB downloads. Pull explicitly (`ollama pull <model>`) or allow it with `OCTOPUS_OLLAMA_ALLOW_PULL=true` (capped by `OCTOPUS_OLLAMA_MAX_PULL_GB`, default 20).
 
 **A provider is installed but you want it out of the roster** — `/octo:model-config disable <provider> --session` removes it from detection and fanout for the current session; `clear-allowlist --session` restores defaults.

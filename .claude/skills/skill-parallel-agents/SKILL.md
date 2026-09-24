@@ -477,7 +477,7 @@ The `tangle` phase enforces quality gates:
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --parallel` | 3 | Max concurrent agents |
-| `-t, --timeout` | 300 | Timeout per task (seconds) |
+| `-t, --timeout` | 600 | Timeout per task (seconds); also replaces fixed per-call budgets such as grasp's 300s. `OCTOPUS_AGENT_TIMEOUT` overrides it |
 | `-v, --verbose` | false | Verbose logging |
 | `-n, --dry-run` | false | Show without executing |
 | `--context <file>` | - | Context from previous phase |

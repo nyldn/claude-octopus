@@ -19,6 +19,7 @@ OCTOPUS_HOOK_PROFILE	covered-by	test-install-readiness.sh
 OCTOPUS_AGENT_	placeholder	doc template fragment, not a real variable
 OCTOPUS_AGENT_LIFECYCLE_HOOK	covered-by	test-agent-lifecycle-events.sh
 OCTOPUS_AGENT_LIFECYCLE_HOOK_LOG	covered-by	test-agent-lifecycle-events.sh
+OCTOPUS_AGENT_TIMEOUT	covered-by	test-grasp-timeout-resilience.sh
 OCTOPUS_AGY_MODEL	covered-by	test-agy-provider.sh
 OCTOPUS_ALLOW_FULL_KIMI_ENV	covered-by	test-kimi-provider.sh
 OCTOPUS_AUTO_TITLE	skip	sets the Claude Code session title; observable only in the host UI

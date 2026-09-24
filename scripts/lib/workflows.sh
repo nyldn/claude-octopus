@@ -1145,6 +1145,18 @@ ${_blind_spot_checklist}"
 
 # Phase 2: GRASP (Define) - Consensus building on approach
 # The octopus grasps the core problem with coordinated tentacles
+# agy is usable for grasp only when allowed, installed, and not marked
+# quota-dead. Without the quota check, every grasp seat re-dispatched a
+# known-exhausted agy and waited for its quota error before falling back.
+_grasp_agy_usable() {
+    octo_provider_allowed agy || return 1
+    command -v agy >/dev/null 2>&1 || return 1
+    if declare -f octo_quota_is_dead >/dev/null 2>&1 && octo_quota_is_dead agy; then
+        return 1
+    fi
+    return 0
+}
+
 grasp_define() {
     local prompt="$1"
     local probe_results="${2:-}"
@@ -1185,23 +1197,33 @@ grasp_define() {
     # Multiple agents define the problem from their perspective
     log INFO "Gathering problem definitions from multiple perspectives..."
 
-    local def1 def2="" def3
+    local def1="" def2="" def3=""
     def1=$(run_agent_sync "codex" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 300 "backend-architect" "grasp") || {
         log WARN "Codex failed for problem definition, falling back to Claude"
         def1=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define the core problem statement in 2-3 sentences. What is the essential challenge?" 300 "backend-architect" "grasp") || true
     }
-    if octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then
+    if _grasp_agy_usable; then
         def2=$(run_agent_sync "agy" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 300 "researcher" "grasp") || {
             log WARN "Antigravity (agy) dispatch failed for success criteria, falling back to Claude"
             def2=""
         }
     else
-        log WARN "Antigravity (agy) unavailable or not allowed, using Claude for success criteria"
+        log WARN "Antigravity (agy) unavailable, not allowed, or out of quota; using Claude for success criteria"
     fi
     if [[ -z "$def2" ]]; then
         def2=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define success criteria. How will we know when this is solved correctly? List 3-5 measurable criteria." 300 "researcher" "grasp") || true
     fi
-    def3=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define constraints and boundaries. What are we NOT solving? What are hard limits?" 300 "researcher" "grasp")
+    # A failed constraints seat must not abort the phase under errexit and
+    # discard the two perspectives already gathered.
+    def3=$(run_agent_sync "claude-sonnet" "Based on: $prompt\n${context}Define constraints and boundaries. What are we NOT solving? What are hard limits?" 300 "researcher" "grasp") || {
+        log WARN "Claude failed for constraints perspective; continuing with the remaining perspectives"
+        def3=""
+    }
+
+    if [[ ! "$def1$def2$def3" =~ [^[:space:]] ]]; then
+        log ERROR "Every grasp perspective failed or timed out; no consensus written. Raise the per-call budget with --timeout or OCTOPUS_AGENT_TIMEOUT, or narrow the prompt."
+        return 1
+    fi
 
     # Build consensus
     local consensus_file="${RESULTS_DIR}/grasp-consensus-${task_group}.md"
@@ -1226,11 +1248,26 @@ Output a single, clear problem definition document with:
 3. Constraints & Boundaries
 4. Recommended Approach"
 
-    local consensus
-    if octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then
-        if ! consensus=$(run_agent_sync "agy" "$consensus_prompt" 300 "synthesizer" "grasp") || \
-            [[ ! "$consensus" =~ [^[:space:]] ]]; then
-            log WARN "Antigravity (agy) returned no usable consensus; preserving source perspectives"
+    # Re-check agy here: a quota failure during the success-criteria seat marks
+    # it dead, and retrying it would spend another full dispatch to fail again.
+    local consensus="" consensus_source=""
+    if _grasp_agy_usable; then
+        if consensus=$(run_agent_sync "agy" "$consensus_prompt" 300 "synthesizer" "grasp") && \
+            [[ "$consensus" =~ [^[:space:]] ]]; then
+            consensus_source="agy"
+        else
+            log WARN "Antigravity (agy) returned no usable consensus; falling back to Claude"
+            consensus=""
+        fi
+    else
+        log WARN "Antigravity (agy) unavailable, not allowed, or out of quota; using Claude for consensus synthesis"
+    fi
+    if [[ -z "$consensus_source" ]]; then
+        if consensus=$(run_agent_sync "claude-sonnet" "$consensus_prompt" 300 "synthesizer" "grasp") && \
+            [[ "$consensus" =~ [^[:space:]] ]]; then
+            consensus_source="claude-sonnet"
+        else
+            log WARN "No provider returned a usable consensus; preserving source perspectives"
             consensus="[Auto-consensus failed - manual review required]
 
 Problem: $def1
@@ -1239,15 +1276,6 @@ Success Criteria: $def2
 
 Constraints: $def3"
         fi
-    else
-        log WARN "Antigravity (agy) unavailable or not allowed, skipping automated consensus synthesis"
-        consensus="[Auto-consensus skipped - Antigravity (agy) unavailable or not allowed]
-
-Problem: $def1
-
-Success Criteria: $def2
-
-Constraints: $def3"
     fi
 
     cat > "$consensus_file" << EOF
@@ -1258,7 +1286,7 @@ Constraints: $def3"
 $consensus
 
 ---
-*Consensus built from multiple agent perspectives (task group: $task_group)*
+*Consensus built from multiple agent perspectives (task group: $task_group; synthesizer: ${consensus_source:-none})*
 EOF
 
     log INFO "Consensus document: $consensus_file"
