@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Research about the local codebase can now pass evidence verification. A
+  claim may cite a workspace file as `path:LINE`, `path:START-END` or
+  `path:A,B`. The citation counts when the file exists inside the workspace
+  root recorded in the run manifest and every cited line exists, and quotes and
+  numbers in the claim must then appear in that file. Before, every claim
+  without a web `[source:S###]` ID failed, so a probe that researched the
+  repository could never publish its synthesis.
+- URLs harvested from provider output no longer keep a JSON-escaped `\n`, `\r`
+  or `\t`, or a trailing backslash.
+- Probe synthesis reads as much of each provider artifact as the synthesizer's
+  context budget allows (for example `OCTOPUS_CLAUDE_CONTEXT_BUDGET`). The
+  fixed limits of 24000 bytes per artifact and 120000 in total cut Codex
+  answers off after their prompt echo. `OCTOPUS_PROBE_SYNTHESIS_FILE_CHARS` and
+  `OCTOPUS_PROBE_SYNTHESIS_CONTEXT_CHARS` still pin either limit.
+
 ## [11.9.1] - 2026-09-24
 
 ### Fixed
