@@ -101,12 +101,12 @@ ensure_config() {
   "cost_mode": "standard",
   "providers": {
     "codex": {
-      "default": "gpt-5.6-sol",
-      "fallback": "gpt-5.6-terra",
-      "spark": "gpt-5.6-luna",
-      "mini": "gpt-5.6-luna",
-      "reasoning": "gpt-5.6-sol",
-      "large_context": "gpt-5.6-sol"
+      "default": "gpt-6-sol",
+      "fallback": "gpt-5.6-sol",
+      "spark": "gpt-6-luna",
+      "mini": "gpt-6-luna",
+      "reasoning": "gpt-6-sol",
+      "large_context": "gpt-6-sol"
     },
     "agy": {
       "default": "Gemini 3.1 Pro (High)",

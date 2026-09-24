@@ -1,8 +1,8 @@
 # Frontier Model Routing
 
 Apply this policy whenever a workflow chooses models or authors prompts for
-Opus 5.5, Opus 5, Fable 5.1, Sonnet 5, the GPT-5.6 Codex family, or GPT-6
-Astra.
+Opus 5.5, Opus 5, Fable 5.1, Sonnet 5, GPT-6 Sol/Luna, the GPT-5.6 Codex
+fallback family, or GPT-6 Astra.
 
 ## Default roster
 
@@ -11,9 +11,10 @@ Astra.
   security reasoning, product tradeoffs, and final judgment. Run at `high`
   effort by default. Raise effort only for a bounded step whose difficulty
   justifies the extra time and cost.
-- **GPT-5.6 Sol is the independent coding peer.** Use it for implementation,
+- **GPT-6 Sol is the independent coding peer.** Use it for implementation,
   terminal-heavy work, edge-case review, and a second opinion where vendor
-  diversity matters. Terra and Luna are balanced and budget alternatives.
+  diversity matters. Use GPT-6 Luna for focused, repeatable, mechanical, or
+  budget-sensitive work. GPT-5.6 Sol remains a rollout fallback.
 - **Sonnet 5 is the standard Claude seat.** Use it for synthesis, routine
   orchestration, and work that benefits from Claude behavior without premium
   Opus cost. Haiku 4.5 is the budget Claude seat.
@@ -22,9 +23,9 @@ Astra.
   `skills/blocks/fable5-prompting.md` and never count Fable plus Opus as
   provider diversity.
 - **GPT-6 Astra is an explicit-only OpenAI escalation.** Use it for one bounded,
-  high-value pass after GPT-5.6 Sol fails a hard acceptance test. Do not use it
+  high-value pass after GPT-6 Sol fails a hard acceptance test. Do not use it
   for routine implementation, broad review fleets, councils, or fallbacks, and
-  do not count Astra plus GPT-5.6 as provider diversity.
+  do not count Astra plus another OpenAI model as provider diversity.
 - **Other providers need a distinct job.** Use Antigravity or Perplexity for
   research, local/included seats for mechanical work, and specialized models
   only when their capability changes the expected result.
@@ -61,6 +62,7 @@ Existing configuration is authoritative:
 3. cost tier;
 4. current-model fallback.
 
-Fresh configurations use the version-gated Opus default, Sonnet 5, and GPT-5.6 defaults. Fable 5.1 and
-GPT-6 Astra remain outside every built-in default and fallback. Existing
-configurations are not silently rewritten to those models.
+Fresh configurations use the version-gated Opus default, Sonnet 5, GPT-6 Sol,
+and GPT-6 Luna. GPT-5.6 Sol remains a rollout fallback. Fable 5.1 and GPT-6
+Astra remain outside every built-in default and fallback. Existing
+configurations are not silently rewritten.

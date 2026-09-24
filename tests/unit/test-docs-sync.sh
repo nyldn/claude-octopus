@@ -228,6 +228,20 @@ check_public_docs_hygiene() {
   else
     pass "CHANGELOG.md omits private or nonexistent tracker references"
   fi
+
+  if grep -qF 'codex plugin marketplace add https://github.com/nyldn/plugins.git' docs/PLUGIN-COMPATIBILITY.md &&
+     grep -qF 'droid plugin marketplace add https://github.com/nyldn/claude-octopus.git' docs/PLUGIN-COMPATIBILITY.md; then
+    pass "plugin compatibility guide includes Codex and Factory installation"
+  else
+    fail "plugin compatibility guide includes Codex and Factory installation"
+  fi
+
+  if grep -qF 'git clone --depth 1 https://github.com/nyldn/claude-octopus.git ~/.opencode/claude-octopus' docs/IDE-INTEGRATION.md &&
+     grep -qF 'ln -s ~/.opencode/claude-octopus/skills ~/.agents/skills/claude-octopus' docs/IDE-INTEGRATION.md; then
+    pass "IDE guide includes OpenCode installation"
+  else
+    fail "IDE guide includes OpenCode installation"
+  fi
 }
 
 # Check all skill directories are registered in plugin.json (v9.38+)

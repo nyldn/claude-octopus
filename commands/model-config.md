@@ -73,7 +73,7 @@ Then display a compact dashboard:
 
 Providers                          Status
   🔵 Claude (Sonnet/Opus)          Built-in ✓
-  🔴 Codex (GPT-5.6 Sol)          [Installed ✓ / Missing ✗]  → current: <model>
+  🔴 Codex (GPT-6 Sol)            [Installed ✓ / Missing ✗]  → current: <model>
   🧭 Antigravity (`agy`)           [Installed ✓ / Missing ✗]  → current: <model>
   🌙 Kimi Code                     [Installed ✓ / Missing ✗]  → current: <model alias>
   🟣 Perplexity                    [Configured ✓ / Not set]
@@ -93,7 +93,7 @@ Only show providers that are installed or configured. Don't show rows for provid
 
 ## STEP 2: Route by Arguments
 
-**If arguments were provided** (e.g., `/octo:model-config codex gpt-5.6-sol`), skip the interactive flow and execute the CLI-style command directly per the EXECUTION CONTRACT at the bottom.
+**If arguments were provided** (e.g., `/octo:model-config codex gpt-6-sol`), skip the interactive flow and execute the CLI-style command directly per the EXECUTION CONTRACT at the bottom.
 
 **If no arguments**, proceed to the interactive wizard:
 
@@ -158,9 +158,9 @@ AskUserQuestion({
     header: "Codex Model",
     multiSelect: false,
     options: [
-      {label: "gpt-5.6-sol", description: "Frontier default — 1M context, $4/$20 MTok, best for implementation and independent review"},
-      {label: "gpt-5.6-terra", description: "Balanced — 1M context, $2/$12 MTok, strong general-purpose Codex seat"},
-      {label: "gpt-5.6-luna", description: "Budget — 1M context, $0.20/$1.20 MTok, best for quick checks and prototypes"},
+      {label: "gpt-6-sol", description: "Recommended workhorse — 1.05M context, $2/$10 MTok, implementation and independent review"},
+      {label: "gpt-6-luna", description: "Focused and budget — 1.05M context, $0.10/$0.50 MTok, mechanical tasks and quick checks"},
+      {label: "gpt-5.6-sol", description: "Rollout fallback — use when GPT-6 is not yet available in this Codex account or client"},
       {label: "o3", description: "Reasoning — 200K context, $2/$8 MTok, deep analysis & trade-offs"},
       {label: "Custom", description: "Enter a custom model name"}
     ]
@@ -169,8 +169,8 @@ AskUserQuestion({
 ```
 
 `gpt-6-astra` is intentionally absent from persistent provider defaults. For a
-bounded Premium evaluation after Sol fails a hard acceptance test, configure
-`tier premium codex gpt-6-astra`; Sol remains the ordinary seat and Astra is
+bounded Premium evaluation after GPT-6 Sol fails a hard acceptance test, configure
+`tier premium codex gpt-6-astra`; GPT-6 Sol remains the ordinary seat and Astra is
 limited to one architecture or strategy dispatch per run. Astra requires Codex
 CLI v0.153.1 or newer and an `OCTOPUS_MAX_COST_USD` ceiling that covers the
 projected list-price usage for the prompt. A direct
@@ -246,9 +246,9 @@ AskUserQuestion({
     multiSelect: false,
     options: [
       // Show cross-provider options
-      {label: "codex:default (gpt-5.6-sol)", description: "Frontier implementation and independent review"},
-      {label: "codex:spark (gpt-5.6-luna)", description: "Budget-friendly quick checks and iteration"},
-      {label: "codex:reasoning (o3)", description: "Deep analysis with chain-of-thought"},
+      {label: "codex:default (gpt-6-sol)", description: "Implementation and independent review"},
+      {label: "codex:spark (gpt-6-luna)", description: "Focused, budget-friendly checks and iteration"},
+      {label: "codex:reasoning (gpt-6-sol)", description: "Deep analysis with higher Codex reasoning effort"},
       {label: "agy:default", description: "Broad research, creative approaches"},
       {label: "agy:flash", description: "Fast Antigravity model tier"},
       // Only if openrouter configured:
@@ -298,7 +298,7 @@ AskUserQuestion({
     options: [
       // Only show installed/configured providers
       {label: "🔵 Claude (Sonnet 5 / Opus 5.5)", description: "Moderator — instruction-following, synthesis"},
-      {label: "🔴 Codex (GPT-5.6 Sol)", description: "Independent implementation and edge-case review"},
+      {label: "🔴 Codex (GPT-6 Sol)", description: "Independent implementation and edge-case review"},
       {label: "🧭 Antigravity (agy)", description: "Alternate model perspective via Antigravity CLI"},
       {label: "🟠 OpenRouter: GLM-5", description: "Code review specialist — quality focus"},
       {label: "🟠 OpenRouter: Kimi K2.5", description: "Research perspective — broad knowledge"},
@@ -344,7 +344,7 @@ AskUserQuestion({
     header: "Cost Mode",
     multiSelect: false,
     options: [
-      {label: "💰 Budget", description: "Use cheapest configured models, including gpt-5.6-luna — best for prototyping"},
+      {label: "💰 Budget", description: "Use cheapest configured models, including gpt-6-luna — best for focused or mechanical tasks"},
       {label: "⚖️ Standard (current default)", description: "Balanced: use your configured defaults"},
       {label: "🚀 Premium", description: "Use best available models for every task — higher cost, best quality"}
     ]
@@ -456,7 +456,7 @@ AskUserQuestion({
     multiSelect: false,
     options: [
       {label: "Reset all", description: "Restore all providers and routing to defaults"},
-      {label: "Reset Codex only", description: "Reset Codex to gpt-5.6-sol default"},
+      {label: "Reset Codex only", description: "Reset Codex to the gpt-6-sol default"},
       {label: "Reset Antigravity only", description: "Reset Antigravity to its service-selected default"},
       {label: "Reset phase routing only", description: "Restore default phase-to-model mapping"},
       {label: "Cancel", description: "Go back without changing anything"}
@@ -488,7 +488,7 @@ AskUserQuestion({
 
 ## CLI-STYLE EXECUTION CONTRACT (for direct arguments)
 
-When invoked WITH arguments (e.g., `/octo:model-config codex gpt-5.6-sol`), skip the interactive flow and execute directly:
+When invoked WITH arguments (e.g., `/octo:model-config codex gpt-6-sol`), skip the interactive flow and execute directly:
 
 1. **Parse arguments** to determine action:
    - `show phases` → Display formatted phase routing table

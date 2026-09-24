@@ -2,12 +2,12 @@
 
 Status: accepted and implemented
 Decision date: 2026-07-27
-Last reviewed: 2026-09-22
+Last reviewed: 2026-09-23
 
 ## Decision
 
 Claude Octopus uses Opus 5.5 (Opus 5 on Claude Code before v2.1.280) as its
-premium lead model, GPT-5.6 Sol as the independent coding/review peer, and
+premium lead model, GPT-6 Sol as the independent coding/review peer, and
 Sonnet 5 as the standard Claude seat.
 Fable 5.1 and GPT-6 Astra are cataloged but remain explicit capability
 escalations. Neither is an automatic default, premium-tier target, or generic
@@ -23,17 +23,18 @@ rewritten.
 |---|---|---:|
 | Claude Opus 5.5 | architecture, planning, security reasoning, final judgment | $4 / $20 |
 | Claude Opus 5 | premium lead when Opus 5.5 is unavailable; Fable security and refusal fallback | $5 / $25 |
-| GPT-5.6 Sol | implementation, terminal work, independent code review | $4 / $20 |
-| GPT-5.6 Terra | balanced Codex alternative | $2 / $12 |
-| GPT-5.6 Luna | budget Codex alternative | $0.20 / $1.20 |
+| GPT-6 Sol | implementation, terminal work, independent code review | $2 / $10 |
+| GPT-6 Luna | focused tasks, mechanical changes, and budget checks | $0.10 / $0.50 |
+| GPT-5.6 Sol | rollout fallback and preserved explicit pin | $4 / $20 |
 | Claude Sonnet 5 | standard Claude orchestration and synthesis | $2 / $10 |
 | Claude Haiku 4.5 | budget Claude work | $1 / $5 |
 | Claude Fable 5.1 | opt-in judgment-class escalation, at most one automatic escalation per run | $10 / $50 |
 | GPT-6 Astra | opt-in OpenAI-family escalation after Sol fails a hard acceptance test | $10 / $50 |
 
-Opus 5 and Fable 5.1 are both Anthropic-family models. GPT-5.6 and Astra are
-both OpenAI-family models. Agreement within either pair does not count as
-independent provider diversity.
+Opus 5 and Fable 5.1 are both Anthropic-family models. GPT-6 Sol, GPT-6 Luna,
+GPT-5.6, and Astra are
+all OpenAI-family models. Agreement among models from one family does not count
+as independent provider diversity.
 
 ### Expensive-model admission
 
@@ -42,12 +43,12 @@ tradeoffs, long-horizon planning, and final arbitration when the current Opus le
 the acceptance criteria. The `escalate` policies can admit one such dispatch
 per run; direct pins remain the user's responsibility.
 
-Astra is for a bounded, high-value OpenAI-family escalation after GPT-5.6 Sol
+Astra is for a bounded, high-value OpenAI-family escalation after GPT-6 Sol
 has failed a difficult acceptance test or a checked-in eval demonstrates a
 material gain. Use an exact `codex:gpt-6-astra` seat, a provider-wide
 `OCTOPUS_CODEX_MODEL=gpt-6-astra` pin, or configure the Premium tier's bounded
 judgment escalation with `/octo:model-config tier premium codex gpt-6-astra`.
-The bounded path keeps Sol as the normal seat and requires an
+The bounded path keeps GPT-6 Sol as the normal seat and requires an
 `OCTOPUS_MAX_COST_USD` ceiling that covers the projected list-price usage for
 the prompt. Do not add Astra to routine implementation,
 review fleets, councils, security passes, literal tier defaults, or fallback
@@ -73,7 +74,7 @@ keep the single-owner path unless the user explicitly chooses an existing
 multi-model workflow.
 
 The automatic check normally pairs an OpenAI-family owner with an Anthropic
-peer, or an Anthropic owner with GPT-5.6 Sol. It requires different canonical
+peer, or an Anthropic owner with GPT-6 Sol. It requires different canonical
 providers and known model families before it reports independent coverage.
 Unknown, gateway-only, same-family, or unavailable peers are reported as
 incomplete coverage. Fable 5.1 and GPT-6 Astra remain explicit escalations and
@@ -148,10 +149,10 @@ capability, cost-tier, and release defaults:
 
 | Task class | Codex seat | Claude seat |
 |---|---|---|
-| Mechanical | GPT-5.6 Luna | Haiku 4.5 |
-| Balanced | GPT-5.6 Terra | Sonnet 5 |
-| Premium | GPT-5.6 Sol | Opus 5.5, with Opus 5 fallback |
-| Review or security | GPT-5.6 Sol | Opus 5.5, with Opus 5 fallback |
+| Mechanical | GPT-6 Luna | Haiku 4.5 |
+| Balanced | GPT-6 Sol | Sonnet 5 |
+| Premium | GPT-6 Sol | Opus 5.5, with Opus 5 fallback |
+| Review or security | GPT-6 Sol | Opus 5.5, with Opus 5 fallback |
 
 The policy and task class are part of the model-cache key. A mechanical result
 therefore cannot be reused for a later premium seat. Routing decisions report a
@@ -168,7 +169,7 @@ Role defaults:
 
 - `architect`, `strategist`, `security-reviewer`, `implementer-heavy`: current
   Opus, preferring Opus 5.5 on Claude Code v2.1.280+ and Opus 5 on v2.1.219+.
-- `implementer`, `code-reviewer`: GPT-5.6 Sol.
+- `implementer`, `code-reviewer`: GPT-6 Sol.
 - `synthesizer`: current Sonnet, preferring Sonnet 5 on Claude Code v2.1.197+.
 - `researcher`: Antigravity, retaining an independent research role.
 
@@ -225,7 +226,8 @@ within a provider family rather than selecting a different dispatch candidate.
 - Fable 5.1 effort is capped at `high` by default. A bounded high-value run can
   raise the cap with `OCTOPUS_FABLE5_MAX_EFFORT=xhigh|max` without disabling
   the security, input, or refusal guards.
-- GPT-5.6 requires Codex CLI v0.144.0 or newer.
+- GPT-6 Sol and Luna require a current Codex client and an account or workspace
+  included in the rollout. GPT-5.6 Sol remains the compatibility fallback.
 - GPT-6 Astra requires Codex CLI v0.153.1 or newer. Unknown versions fail
   closed. The generic OpenAI-compatible adapter blocks Astra tool use because
   that adapter uses Chat Completions; use Codex CLI for tool-enabled work.
@@ -264,7 +266,7 @@ that the extra seats find enough additional defects to justify their time and
 cost.
 
 An Astra trial has stricter admission. Before the run, name the acceptance
-criterion that Sol failed and retain that result as evidence. Use an exact
+criterion that GPT-6 Sol failed and retain that result as evidence. Use an exact
 `codex:gpt-6-astra` seat for a one-off trial, or configure the Premium tier's
 bounded judgment escalation after a repeatable gain is established. Both paths
 need a per-run `OCTOPUS_MAX_COST_USD` ceiling that covers the projected
@@ -290,7 +292,11 @@ remain in `skills/blocks/fable5-prompting.md`.
   https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5
 - Claude Code v2.1.219:
   https://github.com/anthropics/claude-code/releases/tag/v2.1.219
-- GPT-5.6 model guide:
-  https://developers.openai.com/api/docs/guides/latest-model
+- OpenAI model catalogue:
+  https://developers.openai.com/api/docs/models
+- GPT-6 Sol model reference:
+  https://developers.openai.com/api/docs/models/gpt-6-sol
+- GPT-6 Luna model reference:
+  https://developers.openai.com/api/docs/models/gpt-6-luna
 - GPT-6 Astra model reference:
   https://developers.openai.com/api/docs/models/gpt-6-astra

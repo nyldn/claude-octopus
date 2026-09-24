@@ -158,7 +158,8 @@ _octo_event_trim() {
     [[ "$count" =~ ^[0-9]+$ ]] || return 0
     [[ "$count" -le "$max_lines" ]] && return 0
 
-    local tmp="${file}.tmp.$$"
+    local tmp
+    tmp="$(mktemp "${file}.tmp.XXXXXX" 2>/dev/null)" || return 1
     tail -n "$max_lines" "$file" > "$tmp" && mv "$tmp" "$file" || {
         rm -f "$tmp"
         return 1

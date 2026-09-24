@@ -73,7 +73,7 @@ clear_model_cache() {
 
 # Test 1: Hard-coded defaults
 clear_model_cache
-assert_eq "$(resolve_octopus_model "codex" "codex")" "gpt-5.6-sol" "Default codex"
+assert_eq "$(resolve_octopus_model "codex" "codex")" "gpt-6-sol" "Default codex"
 clear_model_cache
 assert_eq "$(resolve_octopus_model "agy" "agy")" "default" "Default Antigravity"
 clear_model_cache
@@ -137,7 +137,7 @@ cat > "$CONFIG_FILE" << EOF
   "providers": { "codex": { "default": "gpt-6-astra" } }
 }
 EOF
-assert_eq "$(resolve_octopus_model "codex" "codex")" "gpt-5.6-sol" "Explicit-only Astra is rejected as config default"
+assert_eq "$(resolve_octopus_model "codex" "codex")" "gpt-6-sol" "Explicit-only Astra is rejected as config default"
 clear_model_cache
 cat > "$CONFIG_FILE" << EOF
 {

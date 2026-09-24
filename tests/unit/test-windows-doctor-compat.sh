@@ -206,12 +206,13 @@ else
     test_fail "Python helpers did not distinguish host and locking failures"
 fi
 
-test_case "README exposes a working WSL anchor"
-if grep -q '^### Using Cursor on WSL$' "$PROJECT_ROOT/README.md" &&
-   grep -q '\[WSL\](#using-cursor-on-wsl)' "$PROJECT_ROOT/README.md"; then
+test_case "README links to maintained WSL guidance"
+if grep -q '\[WSL\](docs/IDE-INTEGRATION.md)' "$PROJECT_ROOT/README.md" &&
+   grep -q '^## Visual Studio (Windows)$' "$PROJECT_ROOT/docs/IDE-INTEGRATION.md" &&
+   grep -q 'WSL2' "$PROJECT_ROOT/docs/IDE-INTEGRATION.md"; then
     test_pass
 else
-    test_fail "README WSL link does not target a generated heading anchor"
+    test_fail "README WSL link does not reach the maintained Windows guidance"
 fi
 
 test_case "doctor commands use portable plugin-root discovery"

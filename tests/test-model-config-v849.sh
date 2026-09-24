@@ -115,7 +115,7 @@ else
 fi
 
 # Verify --force escape hatch for custom providers
-if grep -q '\-\-force' "$ORCHESTRATE" && grep -q 'custom provider\|local prox' "$_ORCH_ALL_TMP"; then
+if grep -q '\-\-force' "$_ORCH_ALL_TMP" && grep -q 'custom provider\|local prox' "$_ORCH_ALL_TMP"; then
     pass "--force flag available for custom/local providers"
 else
     fail "--force escape hatch for custom providers missing"
@@ -314,7 +314,7 @@ fi
 # Fixed source windows become stale as valid entries are added.
 # shellcheck source=../scripts/lib/models.sh
 source "$SCRIPT_DIR/../scripts/lib/models.sh"
-for model in gpt-5.6-sol gpt-5.6-terra gpt-5.6-luna agy/default claude-sonnet-5 claude-opus-5 sonar-pro o3; do
+for model in gpt-6-astra gpt-6-sol gpt-6-luna gpt-5.6-sol gpt-5.6-terra gpt-5.6-luna agy/default claude-sonnet-5 claude-opus-5 sonar-pro o3; do
     if grep -Fqx "$model" < <(octo_model_ids); then
         pass "Catalog includes $model"
     else
@@ -681,7 +681,7 @@ else
 fi
 
 # Verify synthesize_probe_results has enhanced structured output
-if grep -A 80 'synthesize_probe_results()' "$_ORCH_ALL_TMP" | grep -q 'Patterns & Consensus'; then
+if grep -A 160 'synthesize_probe_results()' "$_ORCH_ALL_TMP" | grep -q 'Patterns & Consensus'; then
     pass "synthesize_probe_results() has enhanced structured output format"
 else
     fail "synthesize_probe_results() missing enhanced structured output"

@@ -238,4 +238,4 @@ Then you'll see results from each provider marked with its indicator (for exampl
 - `/octo:debate` - Structured provider debates (better for adversarial analysis)
 - `/octo:research` - Research workflow (auto-triggers multi-provider for research)
 - `/octo:review` - Review workflow (auto-triggers multi-provider for validation)
-- [TRIGGERS.md](../../docs/TRIGGERS.md) - Full guide to what triggers multi-provider mode
+- [Command reference](https://github.com/nyldn/claude-octopus/blob/main/docs/COMMAND-REFERENCE.md) - Commands, triggers, and provider indicators

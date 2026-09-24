@@ -45,7 +45,7 @@ _BARE_OPT="${_BARE_OPT:-}"
 # Current role defaults keep one capable owner per job and add a second model
 # only when it provides a distinct implementation/review perspective.
 #   - architect/strategist/security-reviewer → current Opus (Opus 5 on CC 2.1.219+)
-#   - code-reviewer/implementer              → current Codex (GPT-5.6 Sol)
+#   - code-reviewer/implementer              → current Codex (GPT-6 Sol)
 #   - synthesizer                            → current Sonnet (Sonnet 5 on CC 2.1.197+)
 # Opt-out:   OCTOPUS_LEGACY_ROLES=1 restores the v9.28 mapping.
 # Fallback:  consumers (see lib/agents.sh get_fallback_agent) silently downshift when the
@@ -110,15 +110,15 @@ get_role_mapping() {
             if _octo_reviewer_flip_active; then
                 echo "claude-opus:$(opus_default_model 2>/dev/null || echo claude-opus-5)"
             else
-                echo "codex-review:$(codex_default_model 2>/dev/null || echo gpt-5.6-sol)"
+                echo "codex-review:$(codex_default_model 2>/dev/null || echo gpt-6-sol)"
             fi
             ;;
         security-reviewer) echo "claude-opus:$(opus_default_model 2>/dev/null || echo claude-opus-5)" ;;     # Adversarial reasoning
-        implementer)       echo "codex:$(codex_default_model 2>/dev/null || echo gpt-5.6-sol)" ;;             # Default code generation; terminal-heavy
+        implementer)       echo "codex:$(codex_default_model 2>/dev/null || echo gpt-6-sol)" ;;               # Default code generation; terminal-heavy
         implementer-heavy) echo "claude-opus:$(opus_default_model 2>/dev/null || echo claude-opus-5)" ;;     # Opt-in: greenfield/refactor/UI-heavy
         synthesizer)       echo "claude:$(sonnet_default_model 2>/dev/null || echo claude-sonnet-5)" ;;       # Result aggregation
         strategist)        echo "claude-opus:$(opus_default_model 2>/dev/null || echo claude-opus-5)" ;;     # Premium synthesis
-        *)                 echo "codex:$(codex_default_model 2>/dev/null || echo gpt-5.6-sol)" ;;             # Safe default
+        *)                 echo "codex:$(codex_default_model 2>/dev/null || echo gpt-6-sol)" ;;               # Safe default
     esac
 }
 

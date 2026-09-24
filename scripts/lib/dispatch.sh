@@ -1674,7 +1674,7 @@ find_capable_fallback() {
     local -a candidates=()
     case "$provider" in
         codex)
-            candidates=(gpt-5.6-luna gpt-5.6-terra gpt-5.5 gpt-5.6-sol gpt-5.4-pro o3) ;;
+            candidates=(gpt-6-luna gpt-5.6-luna gpt-6-sol gpt-5.6-sol gpt-5.6-terra gpt-5.5 gpt-5.4-pro o3) ;;
         gemini|agy)
             candidates=(default) ;;
         claude)

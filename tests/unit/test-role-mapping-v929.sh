@@ -1,6 +1,6 @@
 #!/bin/bash
 # tests/unit/test-role-mapping-v929.sh
-# Tests v9.29 role mapping refresh (current Opus for planning/security, GPT-5.4 for code-review/implementation).
+# Tests the v9.29 role-mapping contract with current release model selectors.
 # Ensures:
 #   - New roles (code-reviewer, security-reviewer, implementer-heavy) resolve correctly
 #   - Legacy alias (reviewer) still maps to code-reviewer equivalent
@@ -28,7 +28,7 @@ migrate_provider_config() { :; }
 # Fallback opus_default_model stub if resolver didn't source (tests must run in isolation)
 if ! declare -f opus_default_model >/dev/null 2>&1; then
     opus_default_model() { echo "claude-opus-5"; }
-    codex_default_model() { echo "gpt-5.6-sol"; }
+    codex_default_model() { echo "gpt-6-sol"; }
     sonnet_default_model() { echo "claude-sonnet-5"; }
 fi
 
@@ -55,15 +55,15 @@ test_architect_is_opus() {
     fi
 }
 
-test_code_reviewer_is_gpt_54() {
-    test_case "code-reviewer → codex-review:gpt-5.6-sol"
+test_code_reviewer_is_current_codex() {
+    test_case "code-reviewer → codex-review:gpt-6-sol"
     unset OCTOPUS_LEGACY_ROLES
     local mapping
     mapping=$(get_role_mapping "code-reviewer")
-    if [[ "$mapping" == "codex-review:gpt-5.6-sol" ]]; then
+    if [[ "$mapping" == "codex-review:gpt-6-sol" ]]; then
         test_pass
     else
-        test_fail "expected codex-review:gpt-5.6-sol, got $mapping"
+        test_fail "expected codex-review:gpt-6-sol, got $mapping"
     fi
 }
 
@@ -92,15 +92,15 @@ test_security_reviewer_is_opus() {
     fi
 }
 
-test_implementer_stays_gpt_54() {
-    test_case "implementer → codex:gpt-5.6-sol"
+test_implementer_uses_current_codex() {
+    test_case "implementer → codex:gpt-6-sol"
     unset OCTOPUS_LEGACY_ROLES
     local mapping
     mapping=$(get_role_mapping "implementer")
-    if [[ "$mapping" == "codex:gpt-5.6-sol" ]]; then
+    if [[ "$mapping" == "codex:gpt-6-sol" ]]; then
         test_pass
     else
-        test_fail "expected codex:gpt-5.6-sol, got $mapping"
+        test_fail "expected codex:gpt-6-sol, got $mapping"
     fi
 }
 
@@ -200,19 +200,19 @@ test_get_role_agent_for_architect() {
 }
 
 test_get_role_model_for_code_reviewer() {
-    test_case "get_role_model code-reviewer → gpt-5.6-sol"
+    test_case "get_role_model code-reviewer → gpt-6-sol"
     unset OCTOPUS_LEGACY_ROLES
     local model
     model=$(get_role_model "code-reviewer")
-    if [[ "$model" == "gpt-5.6-sol" ]]; then
+    if [[ "$model" == "gpt-6-sol" ]]; then
         test_pass
     else
-        test_fail "expected gpt-5.6-sol, got $model"
+        test_fail "expected gpt-6-sol, got $model"
     fi
 }
 
 test_codex_review_dispatch_uses_selected_model() {
-    test_case "codex-review dispatch carries GPT-5.6 Sol onto the CLI"
+    test_case "codex-review dispatch preserves an explicit GPT-5.6 Sol pin"
     local command
     command=$(
         export "OCTOPUS_CODEX_MODEL=gpt-5.6-sol"
@@ -230,10 +230,10 @@ test_codex_review_dispatch_uses_selected_model() {
 # ═══════════════════════════════════════════════════════════════════════════════
 
 test_architect_is_opus
-test_code_reviewer_is_gpt_54
+test_code_reviewer_is_current_codex
 test_reviewer_alias_for_code_reviewer
 test_security_reviewer_is_opus
-test_implementer_stays_gpt_54
+test_implementer_uses_current_codex
 test_implementer_heavy_is_opus
 test_strategist_is_opus_48
 test_synthesizer_is_sonnet

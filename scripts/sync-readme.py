@@ -110,10 +110,6 @@ def release_summary(description: str, version: str) -> str:
     return summary.rstrip().rstrip(".")
 
 
-def markdown_table_text(value: str) -> str:
-    return value.replace("|", r"\|")
-
-
 def human_join(values: tuple[str, ...]) -> str:
     if len(values) < 2:
         return "".join(values)
@@ -339,20 +335,12 @@ def sync_main_readme(text: str, facts: dict[str, object]) -> str:
         release_body,
         "current release",
     )
-    text, release_row_count = re.subn(
-        r"^\| \*\*v[0-9]+\.[0-9]+\.[0-9]+\*\* \(new\) \|.*\|$",
-        f"| **v{version}** (new) | {markdown_table_text(summary)}. |",
-        text,
-        count=1,
-        flags=re.MULTILINE,
-    )
-    if release_row_count != 1:
-        raise ValueError("current release table row is missing or duplicated")
-
     model_body = (
         f"- Current fresh configurations use **{codex}** for Codex implementation/review, "
+        "**GPT-6 Luna** for focused and budget work, "
         f"**{opus}** for premium Claude work, and **{sonnet}** for the standard Claude "
-        "seat. Existing environment, session, and `providers.json` pins remain unchanged; "
+        "seat. GPT-5.6 Sol remains available as a rollout fallback. Existing environment, "
+        "session, and `providers.json` pins remain unchanged; "
         "`OCTOPUS_LEGACY_ROLES=1` restores the pre-frontier role mapping."
     )
     text = replace_marker_block(

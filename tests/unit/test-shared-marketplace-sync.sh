@@ -190,7 +190,8 @@ test_readme_provider_and_cost_contract() {
 
     if grep -q 'twelve external provider integrations' "$PROJECT_ROOT/README.md" &&
        ! grep -q 'Up to 9 providers' "$PROJECT_ROOT/README.md" &&
-       grep -q 'developers.openai.com/api/docs/models/gpt-5.6-sol' "$PROJECT_ROOT/README.md" &&
+       grep -q 'developers.openai.com/api/docs/models/gpt-6-sol' "$PROJECT_ROOT/README.md" &&
+       grep -q 'developers.openai.com/api/docs/models/gpt-6-luna' "$PROJECT_ROOT/README.md" &&
        grep -q 'docs.perplexity.ai/docs/getting-started/pricing' "$PROJECT_ROOT/README.md" &&
        grep -q 'Antigravity.*bill nothing extra' "$PROJECT_ROOT/README.md" &&
        grep -q 'Long-context and provider-specific rate rules' "$PROJECT_ROOT/README.md" &&

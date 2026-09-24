@@ -240,7 +240,7 @@ Providers:
 ## Cost Awareness
 
 Always be mindful that external CLIs cost money:
-- 🔴 Codex: ~$0.01-0.30 per query depending on model (GPT-5.6 Sol $4/$20 MTok — frontier default, Terra $2/$12, Luna $0.20/$1.20). Explicit-only GPT-6 Astra costs $10/$50; above 272K input tokens its full request uses 2x input and 1.5x output pricing.
+- 🔴 Codex: ~$0.01-0.30 per query depending on model (GPT-6 Sol $2/$10 MTok — default workhorse; GPT-6 Luna $0.10/$0.50 for focused work; GPT-5.6 Sol $4/$20 remains a rollout fallback). Explicit-only GPT-6 Astra costs $10/$50. For GPT-6 Sol, Luna, and Astra, requests above 272K input tokens use 2x input and 1.5x output pricing for the whole request.
 - 🧭 Antigravity CLI (`agy`): Included with the user's Antigravity access/subscription; backend cost depends on selected `OCTOPUS_AGY_MODEL`. Because Antigravity's model list is service-owned, explicit pins should use labels returned by `agy models` (for example `Gemini 3.5 Flash (Low)`) or `default`/`agy/default` to use the CLI default.
 - 🟣 Perplexity: ~$0.01-0.05 per query (Sonar Pro $3/$15 MTok, Sonar $1/$1 MTok)
 - 🔵 Claude (Sonnet 5): Standard Claude seat, $2/$10 per MTok; included where the user's Claude Code subscription covers it
@@ -253,7 +253,7 @@ Always be mindful that external CLIs cost money:
 - 🔵 Claude (Opus 4.6 Fast, legacy): **$30/$150 per MTok** (6x standard) — lower latency, extra-usage billing for pinned 4.6 sessions.
 - 🟤 OpenCode: Variable cost — free for native models, uses backend provider pricing when routing to OpenAI/Google
 
-Note: API availability and subscription/OAuth availability differ by model and account. GPT-5.6 routing requires Codex CLI v0.144.0+; Astra requires v0.153.1+ and fails closed when the installed version cannot be identified.
+Note: API availability and subscription/OAuth availability differ by model and account. GPT-6 availability can vary by Codex rollout, workspace, and client version; GPT-5.6 Sol remains the compatibility fallback. Astra requires Codex CLI v0.153.1+ and fails closed when the installed version cannot be identified.
 
 Host-seat Fable 5.1 pins require Claude Code v2.1.255 or newer so the client recognizes the model and its 1M context window. The independent `claude-agent` SDK path instead requires `CLAUDE_SDK_API_KEY` and the `claude-agent` executable, with no Claude Code version floor. Its headless `claude` CLI fallback must be v2.1.255 or newer.
 

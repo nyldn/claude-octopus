@@ -32,7 +32,7 @@ Claude Octopus coordinates **twelve external AI integrations** alongside its bui
 
 | Provider | CLI Tool | Underlying Model | Cost Source |
 |----------|----------|------------------|-------------|
-| **Codex CLI** | `codex exec --model gpt-5.6-sol` | GPT-5.6 Sol/Terra/Luna | ChatGPT OAuth or your `OPENAI_API_KEY` |
+| **Codex CLI** | `codex exec --model gpt-6-sol` | GPT-6 Sol/Luna; GPT-5.6 rollout fallback; explicit Astra | ChatGPT OAuth or your `OPENAI_API_KEY` |
 | **Antigravity CLI** | `agy --print --sandbox` | `default`/`agy/default`, or an exact label from `agy models` | Your Antigravity CLI auth |
 | **Claude** | Built-in | Claude Sonnet 5 / Opus 5.5, with Opus 5 fallback | Your Claude Code subscription or API account |
 | **Perplexity** | API-only | Sonar Pro / Sonar | Your `PERPLEXITY_API_KEY` |
@@ -46,7 +46,7 @@ Claude Octopus coordinates **twelve external AI integrations** alongside its bui
 | **Grok** *(optional)* | `grok -p` (standalone xAI CLI) | Grok models | Your `XAI_API_KEY` or `grok login` |
 | **Kimi Code** *(optional)* | `kimi -p` | Model alias selected from Kimi Code `config.toml` | Provider credential or OAuth login configured in Kimi Code |
 
-> **Note:** Models are as of July 2026. The orchestrate.sh script uses the latest supported models. Only Claude is required — all others are optional and auto-detected.
+> **Note:** Models were reviewed on 2026-09-23. API availability and Codex subscription availability are separate; GPT-6 access can vary by account, workspace, rollout, and client version. Existing pins still win. Only Claude is required — all other providers are optional and auto-detected.
 
 ### Role → Model Mapping (v9.29+)
 
@@ -57,9 +57,9 @@ Role defaults follow the accepted [frontier model routing strategy](./MODEL-ROUT
 | `architect`          | Claude Opus 5.5       | Architecture, planning, product and UI judgment                     |
 | `strategist`         | Claude Opus 5.5       | Premium arbitration, architecture tradeoffs                         |
 | `security-reviewer`  | Claude Opus 5.5       | Adversarial reasoning                                               |
-| `code-reviewer`      | GPT-5.6 Sol           | Independent edge-case and implementation review                     |
+| `code-reviewer`      | GPT-6 Sol             | Independent edge-case and implementation review                     |
 | `reviewer` (alias)   | → `code-reviewer`     | Back-compat for v9.28 callers                                       |
-| `implementer`        | GPT-5.6 Sol           | Terminal-heavy execution, iterative patch/test loops                |
+| `implementer`        | GPT-6 Sol             | Terminal-heavy execution, iterative patch/test loops                |
 | `implementer-heavy`  | Claude Opus 5.5       | Opt-in only; greenfield / large refactors / UI-heavy builds         |
 | `synthesizer`        | Claude Sonnet 5       | Standard aggregator price/quality                                   |
 | `researcher`         | Antigravity           | Independent broad research + synthesis                              |
@@ -74,7 +74,7 @@ Opus 5.5 requires Claude Code v2.1.280+; earlier hosts use Opus 5 (v2.1.219+), t
 
 | Provider | Strengths | Best For |
 |----------|-----------|----------|
-| **Codex (OpenAI, GPT-5.6)** | Edge-case hunting, terminal execution, patch/test loops | Code review (`code-reviewer`), default implementation (`implementer`) |
+| **Codex (OpenAI, GPT-6)** | Edge-case hunting, terminal execution, patch/test loops | Code review (`code-reviewer`), default implementation (`implementer`); GPT-6 Luna for focused work |
 | **Antigravity (Google)** | Research synthesis, documentation, broad knowledge | Ecosystem research, best practices, alternative perspectives |
 | **Claude (Opus 5.5 / Opus 5)** | Planning, architecture, adversarial reasoning, UI/UX taste | `architect`, `strategist`, `security-reviewer`, `implementer-heavy` |
 | **Claude (Sonnet 5)** | Aggregation, final synthesis, workhorse summarization | `synthesizer`; included where the user's Claude Code subscription covers it |

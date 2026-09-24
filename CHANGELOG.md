@@ -2,6 +2,32 @@
 
 ## [Unreleased]
 
+### Added
+
+- GPT-6 Sol and GPT-6 Luna are now first-class OpenAI/Codex models with current
+  context limits, API prices, and long-context tariff rules. GPT-6 Sol is the
+  fresh default for implementation and review; GPT-6 Luna handles focused and
+  budget work. GPT-5.6 Sol remains available as a rollout fallback, existing
+  model pins are preserved, and GPT-6 Astra remains explicit-only.
+
+### Changed
+
+- The README now concentrates on installation, first use, provider choices,
+  and model routing. Detailed runtime and contributor contracts live in the
+  developer documentation, and the documentation index points to every
+  supported user-facing guide.
+- Plugin packages no longer include token-extraction fixtures, development
+  reports, or an obsolete unlinked architecture draft.
+- Supported-version guidance now distinguishes full 11.x support, critical
+  fixes for 10.x, and unsupported older releases.
+
+### Fixed
+
+- Documentation links, product facts, release references, and changelog
+  version labels now match the files and tags that actually ship.
+- README synchronization no longer expects the retired release-history table,
+  so the shorter README remains reproducible during releases.
+
 ## [11.9.0] - 2026-09-23
 
 ### Added

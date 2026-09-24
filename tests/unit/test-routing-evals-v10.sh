@@ -191,7 +191,7 @@ resolved="$(HOME="$empty_home" OCTOPUS_ROUTING_POLICY=eval OCTOPUS_TASK_CLASS=me
     source "$1/scripts/lib/model-resolver.sh"
     resolve_octopus_model codex codex-standard develop implementer
   ' _ "$PROJECT_ROOT")"
-if [[ "$resolved" == "gpt-5.6-luna" ]]; then
+if [[ "$resolved" == "gpt-6-luna" ]]; then
     test_pass
 else
     test_fail "mechanical eval route should resolve Luna, got $resolved"
@@ -222,7 +222,7 @@ resolved="$(HOME="$policy_home" OCTOPUS_TASK_CLASS=mechanical PLUGIN_DIR="$PROJE
     source "$1/scripts/lib/model-resolver.sh"
     resolve_octopus_model codex codex-standard develop implementer
   ' _ "$PROJECT_ROOT")"
-if [[ "$resolved" == "gpt-5.6-luna" ]]; then
+if [[ "$resolved" == "gpt-6-luna" ]]; then
     test_pass
 else
     test_fail "recorded eval policy did not select Luna before generic default: $resolved"

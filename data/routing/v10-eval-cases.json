@@ -9,7 +9,7 @@
       "policy": "eval",
       "expected_class": "mechanical",
       "expected_provider": "codex-standard",
-      "expected_model": "gpt-5.6-luna",
+      "expected_model": "gpt-6-luna",
       "expected_reason": "eval-mechanical"
     },
     {
@@ -20,7 +20,7 @@
       "policy": "eval",
       "expected_class": "mechanical",
       "expected_provider": "codex-standard",
-      "expected_model": "gpt-5.6-luna",
+      "expected_model": "gpt-6-luna",
       "expected_reason": "eval-mechanical"
     },
     {
@@ -31,7 +31,7 @@
       "policy": "eval",
       "expected_class": "balanced",
       "expected_provider": "codex-standard",
-      "expected_model": "gpt-5.6-terra",
+      "expected_model": "gpt-6-sol",
       "expected_reason": "eval-balanced"
     },
     {
@@ -53,7 +53,7 @@
       "policy": "eval",
       "expected_class": "security",
       "expected_provider": "codex-standard",
-      "expected_model": "gpt-5.6-sol",
+      "expected_model": "gpt-6-sol",
       "expected_reason": "security-cross-vendor"
     },
     {
@@ -67,7 +67,7 @@
       "requires_independent": true,
       "expected_class": "review",
       "expected_provider": "codex-standard",
-      "expected_model": "gpt-5.6-sol",
+      "expected_model": "gpt-6-sol",
       "expected_reason": "cross-vendor-verifier",
       "expected_coverage": "independent"
     },

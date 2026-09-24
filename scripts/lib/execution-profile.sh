@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Unified role/phase execution profile resolution.
 # Backward compatible with string routes (provider:model) and supports object routes:
-# {"provider":"codex","model":"gpt-5.6","reasoning":"medium","reasoningPolicy":"strict"}
+# {"provider":"codex","model":"gpt-6-sol","reasoning":"medium","reasoningPolicy":"strict"}
 
 _octo_execution_profile_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if ! declare -f octo_model_family >/dev/null 2>&1; then
@@ -106,17 +106,17 @@ octo_route_decision() {
     if [[ "$(octo_model_family "$author_model")" == openai ]]; then
       model="$(_octo_route_opus_model)"
     else
-      model="gpt-5.6-sol"
+      model="gpt-6-sol"
     fi
     reason="cross-vendor-verifier"
     coverage="independent"
   else
     case "$task_class" in
-      mechanical) model="gpt-5.6-luna"; reason="eval-mechanical" ;;
-      balanced) model="gpt-5.6-terra"; reason="eval-balanced" ;;
+      mechanical) model="gpt-6-luna"; reason="eval-mechanical" ;;
+      balanced) model="gpt-6-sol"; reason="eval-balanced" ;;
       premium) model="$(_octo_route_opus_model)"; reason="eval-premium" ;;
-      security) model="gpt-5.6-sol"; reason="security-cross-vendor" ;;
-      review) model="gpt-5.6-sol"; reason="eval-review" ;;
+      security) model="gpt-6-sol"; reason="security-cross-vendor" ;;
+      review) model="gpt-6-sol"; reason="eval-review" ;;
       *) return 2 ;;
     esac
   fi

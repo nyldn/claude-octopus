@@ -17,8 +17,10 @@ _OCTOPUS_MODELS_LOADED=true
 _octo_get_model_catalog_raw() {
     local model="$1"
     case "$model" in
-        # OpenAI GPT-5.x
+        # OpenAI GPT-6 and GPT-5.x
         gpt-6-astra)            echo "1050|yes|yes|yes|codex|premium|limited" ;;
+        gpt-6-sol)              echo "1050|yes|yes|yes|codex|standard|active" ;;
+        gpt-6-luna)             echo "1050|yes|yes|yes|codex|budget|active" ;;
         gpt-5.6|gpt-5.6-sol)    echo "1050|yes|yes|yes|codex|premium|active" ;;
         gpt-5.6-terra)          echo "1050|yes|yes|yes|codex|standard|active" ;;
         gpt-5.6-luna)           echo "1050|yes|yes|yes|codex|budget|active" ;;
@@ -259,6 +261,8 @@ octo_model_family() {
 octo_model_ids() {
     cat <<'EOF'
 gpt-6-astra
+gpt-6-sol
+gpt-6-luna
 gpt-5.6-sol
 gpt-5.6-terra
 gpt-5.6-luna

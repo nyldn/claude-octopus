@@ -64,7 +64,7 @@ else
 fi
 
 test_case "template defaults fill the keys the user did not set"
-if jq -e '.providers.codex.default == "gpt-5.6-sol" and .tiers.standard.claude == "default" and .overrides == {}' "$file" >/dev/null; then
+if jq -e '.providers.codex.default == "gpt-6-sol" and .providers.codex.fallback == "gpt-5.6-sol" and .providers.codex.mini == "gpt-6-luna" and .tiers.standard.claude == "default" and .overrides == {}' "$file" >/dev/null; then
     test_pass
 else
     test_fail "template defaults missing: $(jq -c . "$file")"

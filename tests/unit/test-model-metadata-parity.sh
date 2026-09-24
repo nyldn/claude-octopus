@@ -10,6 +10,15 @@ test_suite "Model metadata parity (#801)"
 
 source "$PROJECT_ROOT/scripts/lib/models.sh"
 
+test_case "current OpenAI and Codex models are explicit canonical entries"
+if grep -Fxq gpt-6-astra < <(octo_model_ids) &&
+   grep -Fxq gpt-6-sol < <(octo_model_ids) &&
+   grep -Fxq gpt-6-luna < <(octo_model_ids); then
+    test_pass
+else
+    test_fail "the canonical catalogue is missing a current GPT-6 model"
+fi
+
 test_case "model-config renders every ID from the canonical model catalog"
 catalog_output="$(env "HOME=${TEST_TMP_DIR}" bash "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" models 2>/dev/null)"
 catalog_ids="$(awk '$2 ~ /^[0-9]+K$/ { print $1 }' <<< "$catalog_output")"

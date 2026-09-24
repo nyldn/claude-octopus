@@ -30,7 +30,7 @@ assert_models() {
     if jq -e "$expression" <<< "$data" >/dev/null; then test_pass; else test_fail "incorrect summary: $data"; fi
 }
 assert_models "default summary distinguishes research, implementation and synthesis" \
-    '.models.researcher == "default" and .models.implementer == "gpt-5.6-sol" and .models.reviewer == "gpt-5.6-sol" and .models.synthesizer == "claude-sonnet-5"' "$(bundle tangle)"
+    '.models.researcher == "default" and .models.implementer == "gpt-6-sol" and .models.reviewer == "gpt-6-sol" and .models.synthesizer == "claude-sonnet-5"' "$(bundle tangle)"
 
 printf '%s\n' '{"routing":{"roles":{"implementer":{"provider":"claude","model":"claude-opus-5"}}}}' > "$OCTOPUS_PROVIDERS_CONFIG"
 assert_models "configured role provider and model reach the summary" \

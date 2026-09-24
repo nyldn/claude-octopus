@@ -92,9 +92,9 @@ test_case "fresh model config adopts frontier defaults"
 HOME="$TEST_HOME" USER="octo-test-$$" "$MODEL_CONFIG" list >/dev/null
 fresh_config="$TEST_HOME/.claude-octopus/config/providers.json"
 if jq -e '
-    .providers.codex.default == "gpt-5.6-sol" and
-    .providers.codex.fallback == "gpt-5.6-terra" and
-    .providers.codex.mini == "gpt-5.6-luna" and
+    .providers.codex.default == "gpt-6-sol" and
+    .providers.codex.fallback == "gpt-5.6-sol" and
+    .providers.codex.mini == "gpt-6-luna" and
     .providers.claude.default == "claude-sonnet-5" and
     .providers.claude.opus == "claude-opus-5" and
     (.providers.claude | has("fable") | not)

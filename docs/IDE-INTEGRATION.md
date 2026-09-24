@@ -154,6 +154,20 @@ Restart Cursor after setup. Tools appear in Settings → Tools & MCP.
 
 **Cursor Rules (optional):** To customize Octopus behavior, you can add a `.cursor/rules/octopus.md` file with project-specific instructions. This is similar to how `CLAUDE.md` works in Claude Code — it gives the AI context about your project conventions. See [Cursor Rules docs](https://cursor.com/docs/context/rules) for details.
 
+### OpenCode
+
+Install Octopus as a shared skill collection:
+
+```bash
+git clone --depth 1 https://github.com/nyldn/claude-octopus.git ~/.opencode/claude-octopus
+mkdir -p ~/.agents/skills
+ln -s ~/.opencode/claude-octopus/skills ~/.agents/skills/claude-octopus
+```
+
+Restart OpenCode after installation. This exposes the packaged skills; it does
+not enable Claude Code slash commands or hooks. OpenCode can also be selected as
+an Octopus provider when the `opencode` CLI is installed and authenticated.
+
 ### Zed
 
 Add to `.zed/settings.json` in your project:

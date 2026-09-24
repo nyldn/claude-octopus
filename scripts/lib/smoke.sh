@@ -907,13 +907,13 @@ _display_smoke_test_error() {
         MODEL_NOT_FOUND)
             echo -e "  ${RED}✗${NC} ${provider}: Model '${model}' not available"
             if [[ "$provider" == "codex" ]]; then
-                echo -e "    ${DIM}Fix: export OCTOPUS_CODEX_MODEL=gpt-5.6-sol${NC}"
+                echo -e "    ${DIM}Fix: update Codex, or temporarily export OCTOPUS_CODEX_MODEL=gpt-5.6-sol${NC}"
             elif [[ "$provider" == "cursor" || "$provider" == "cursor-agent" || "$provider" == "Cursor Agent" ]]; then
                 echo -e "    ${DIM}Fix: export OCTOPUS_CURSOR_AGENT_MODEL=auto  (or any ID from: agent models)${NC}"
             elif [[ "$provider" == "agy" || "$provider" == "Antigravity" ]]; then
                 echo -e "    ${DIM}Fix: agy models  (pick a valid label)  OR  unset OCTOPUS_AGY_MODEL to use agy's default${NC}"
             else
-                echo -e "    ${DIM}Fix: export OCTOPUS_CODEX_MODEL=gpt-5.6-sol${NC}"
+                echo -e "    ${DIM}Fix: choose a model available from the configured provider${NC}"
             fi
             ;;
         AUTH_FAILURE)

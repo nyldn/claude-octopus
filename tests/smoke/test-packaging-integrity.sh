@@ -436,6 +436,7 @@ for forbidden in (
     "scripts/token-extraction/test-fixtures",
     "scripts/token-extraction/examples",
     "scripts/token-extraction/vitest.config.ts",
+    "scripts/token-extraction/QUICK_START.md",
     "scripts/token-extraction/IMPLEMENTATION_STATUS.md",
     "scripts/token-extraction/IMPLEMENTATION.md",
     "scripts/token-extraction/SUMMARY.md",
@@ -444,6 +445,14 @@ for forbidden in (
 ):
     if (root / forbidden).exists():
         missing.append(f"development-only package entry:{forbidden}")
+for generated in root.rglob("*"):
+    if generated.is_file() and (
+        "__pycache__" in generated.parts or generated.suffix in {".pyc", ".pyo"}
+    ):
+        missing.append(f"generated Python package entry:{generated.relative_to(root)}")
+token_package = json.loads((root / "scripts/token-extraction/package.json").read_text())
+if set(token_package.get("scripts", {})) != {"extract"}:
+    missing.append("token-extraction package advertises excluded development commands")
 license_text = (root / "licenses/mattpocock-skills-MIT.txt").read_text()
 notices_text = (root / "THIRD_PARTY_NOTICES.md").read_text()
 if "Copyright (c) 2026 Matt Pocock" not in license_text or "Permission is hereby granted" not in license_text:

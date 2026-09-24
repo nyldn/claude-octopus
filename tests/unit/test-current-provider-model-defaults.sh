@@ -25,6 +25,26 @@ source "$PROJECT_ROOT/scripts/lib/copilot.sh"
 empty_home="$TEST_TMP_DIR/home"
 mkdir -p "$empty_home"
 
+test_case "Codex defaults use GPT-6 Sol and Luna by task class"
+if [[ "$(codex_default_model)" == "gpt-6-sol" &&
+      "$(_octo_eval_model_for_class codex mechanical)" == "gpt-6-luna" &&
+      "$(_octo_eval_model_for_class codex balanced)" == "gpt-6-sol" &&
+      "$(_octo_eval_model_for_class codex premium)" == "gpt-6-sol" &&
+      "$(_octo_eval_model_for_class codex review)" == "gpt-6-sol" &&
+      "$(_octo_eval_model_for_class codex security)" == "gpt-6-sol" ]]; then
+    test_pass
+else
+    test_fail "Codex automatic defaults do not match the GPT-6 task posture"
+fi
+
+test_case "an unconfigured Codex route resolves to GPT-6 Sol"
+codex_model="$(HOME="$empty_home" resolve_octopus_model codex codex "" "")"
+if [[ "$codex_model" == "gpt-6-sol" ]]; then
+    test_pass
+else
+    test_fail "expected GPT-6 Sol for an unconfigured Codex route, got: $codex_model"
+fi
+
 test_case "Copilot delegates its unpinned model choice to CLI auto selection"
 copilot_model="$(HOME="$empty_home" resolve_octopus_model copilot copilot "" "")"
 if [[ "$copilot_model" == "auto" ]]; then

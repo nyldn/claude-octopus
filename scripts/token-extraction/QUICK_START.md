@@ -115,27 +115,6 @@ design-tokens/
 }
 ```
 
-## Run Examples
-
-```bash
-# Basic usage examples
-npm run example:basic
-
-# Advanced usage examples
-npm run example:advanced
-```
-
-## Check Test Fixtures
-
-Look at example configurations:
-
-```bash
-cat test-fixtures/tailwind.config.example.js
-cat test-fixtures/styles.example.css
-cat test-fixtures/theme.example.ts
-cat test-fixtures/styled-components.example.tsx
-```
-
 ## Programmatic API
 
 ### Basic Extraction
@@ -306,9 +285,7 @@ git add design-tokens/
 
 1. **Read Full Documentation**: Check `README.md`
 2. **Explore Architecture**: See `ARCHITECTURE.md`
-3. **Review Implementation**: Read `IMPLEMENTATION.md`
-4. **Run Examples**: Try `examples/basic-usage.ts`
-5. **Customize**: Create your own extractors/outputs
+3. **Customize**: Create your own extractors or outputs
 
 ## File Locations
 
@@ -320,9 +297,7 @@ scripts/token-extraction/
 ## Getting Help
 
 - Check `README.md` for detailed documentation
-- Review `examples/` for code samples
-- Look at `test-fixtures/` for real examples
-- Read `IMPLEMENTATION.md` for technical details
+- Review `ARCHITECTURE.md` for implementation details
 
 ## Quick Reference Card
 

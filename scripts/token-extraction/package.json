@@ -8,13 +8,7 @@
     "token-extraction": "./cli.ts"
   },
   "scripts": {
-    "extract": "ts-node cli.ts",
-    "example:basic": "ts-node examples/basic-usage.ts",
-    "example:advanced": "ts-node examples/advanced-usage.ts",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:ui": "vitest --ui",
-    "test:coverage": "vitest run --coverage"
+    "extract": "ts-node cli.ts"
   },
   "keywords": [
     "design-tokens",

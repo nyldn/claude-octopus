@@ -461,12 +461,12 @@ The `tangle` phase enforces quality gates:
 
 | Agent | Model | Best For |
 |-------|-------|----------|
-| `codex` | gpt-5.6-sol | Frontier implementation and independent review |
-| `codex-standard` | gpt-5.6-terra | Balanced implementation and review |
-| `codex-mini` | gpt-5.6-luna | Quick fixes, simple tasks |
+| `codex` | gpt-6-sol | Implementation and independent review |
+| `codex-standard` | gpt-6-sol | Standard implementation and review |
+| `codex-mini` | gpt-6-luna | Focused fixes and mechanical tasks |
 | `agy` | service-selected default | Deep analysis and external review |
 | `agy-research` | service-selected default | Research-focused Antigravity seat |
-| `codex-review` | gpt-5.6-sol | Code review mode |
+| `codex-review` | gpt-6-sol | Code review mode |
 | `openrouter` | Various | Universal fallback (400+ models) |
 | `orcarouter` | Various | Universal fallback via OrcaRouter gateway |
 

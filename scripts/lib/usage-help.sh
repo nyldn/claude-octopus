@@ -70,11 +70,11 @@ _claude_octopus() {
     )
 
     agents=(
-        'codex:GPT-5.6 Sol (frontier)'
-        'codex-standard:GPT-5.6 Terra (balanced)'
-        'codex-max:GPT-5.6 Sol (frontier)'
-        'codex-mini:GPT-5.6 Luna (fast)'
-        'codex-general:GPT-5.6 Terra (balanced)'
+        'codex:GPT-6 Sol (workhorse)'
+        'codex-standard:GPT-6 Sol (standard)'
+        'codex-max:GPT-6 Sol (high effort)'
+        'codex-mini:GPT-6 Luna (focused)'
+        'codex-general:GPT-6 Sol (standard)'
         'agy:Antigravity (Google seat)'
         'agy-research:Antigravity research mode'
         'codex-review:Code review mode'
@@ -716,9 +716,9 @@ ${RED}════════════════════════�
   audit [count] [filter]  View audit trail (decisions log)
 
 ${YELLOW}Available Agents:${NC}
-  codex           GPT-5.6 Sol          ${GREEN}Premium${NC} (frontier coding)
-  codex-standard  GPT-5.6 Terra        Standard tier
-  codex-mini      GPT-5.6 Luna         Quick/cheap tasks
+  codex           GPT-6 Sol            ${GREEN}Standard${NC} (coding workhorse)
+  codex-standard  GPT-6 Sol            Standard tier
+  codex-mini      GPT-6 Luna           Focused/cheap tasks
   agy             Antigravity         Google research and design seat
   agy-research    Antigravity         Research-focused routing
 

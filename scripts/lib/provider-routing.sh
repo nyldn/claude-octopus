@@ -53,7 +53,8 @@ fi
 
 # Agent configurations
 # Models (Mar 2026) - Premium defaults for Design Thinking workflows:
-# - OpenAI GPT-5.x: gpt-5.6-sol (frontier), gpt-5.6-terra (balanced), gpt-5.6-luna (budget),
+# - OpenAI GPT-6: gpt-6-sol (workhorse), gpt-6-luna (focused), gpt-6-astra (explicit-only)
+# - OpenAI GPT-5.6: retained as a rollout fallback and for existing explicit pins
 # [EXTRACTED to lib/dispatch.sh in v9.7.7]
 
 # NOTE: get_agent_command_array() removed in v9.7.7 — was dead code with broken
@@ -571,19 +572,19 @@ migrate_provider_config() {
 
         # Extract existing model preferences to seed v3.0
         local codex_model
-        codex_model=$(jq -r '.providers.codex.model // .providers.codex.default // "gpt-5.6-sol"' "$config_file" 2>/dev/null) || codex_model="gpt-5.6-sol"
+        codex_model=$(jq -r '.providers.codex.model // .providers.codex.default // "gpt-6-sol"' "$config_file" 2>/dev/null) || codex_model="gpt-6-sol"
 
         cat > "$tmp_file" << 'EOF'
 {
   "version": "3.0",
   "providers": {
     "codex": {
-      "default": "gpt-5.6-sol",
-      "fallback": "gpt-5.6-terra",
-      "spark": "gpt-5.6-luna",
-      "mini": "gpt-5.6-luna",
-      "reasoning": "gpt-5.6-sol",
-      "large_context": "gpt-5.6-sol"
+      "default": "gpt-6-sol",
+      "fallback": "gpt-5.6-sol",
+      "spark": "gpt-6-luna",
+      "mini": "gpt-6-luna",
+      "reasoning": "gpt-6-sol",
+      "large_context": "gpt-6-sol"
     },
     "agy": {
       "default": "Gemini 3.1 Pro (High)",
@@ -713,13 +714,13 @@ EOF
         local replacement=""
         case "$current_val" in
             gpt-5-codex-mini|gpt-5.1-codex-mini)
-                if [[ "$path" == '.providers.codex.mini' ]]; then replacement="gpt-5.6-luna"; fi ;;
+                if [[ "$path" == '.providers.codex.mini' ]]; then replacement="gpt-6-luna"; fi ;;
             claude-sonnet-4-5|claude-sonnet-4-5-20250514|claude-3-5-sonnet*|claude-sonnet-4*)
-                if [[ "$path" == *codex* ]]; then replacement="gpt-5.6-sol"; fi ;;
+                if [[ "$path" == *codex* ]]; then replacement="gpt-6-sol"; fi ;;
             gpt-4o*|gpt-4-turbo*|gpt-4-*|o1-*|chatgpt-*)
-                replacement="gpt-5.6-sol" ;;
+                replacement="gpt-6-sol" ;;
             gpt-5.5|gpt-5.5-pro|gpt-5.4|gpt-5.4-pro|gpt-5.3-codex|gpt-5.2-codex|gpt-5.1-codex-max)
-                replacement="gpt-5.6-sol" ;;  # gpt-5.x line predates GPT-5.6 (#798). Exact names, not wildcards —
+                replacement="gpt-6-sol" ;;  # Retired GPT-5.x lines migrate to the current Codex workhorse. Exact names, not wildcards —
                                                # gpt-5.4-mini/gpt-5.3-codex-spark are distinct current tiers, not stale
         esac
 
@@ -768,7 +769,7 @@ set_provider_model() {
     if ! validate_model_name "$model"; then
         echo "ERROR: Invalid model name: '$model'" >&2
         echo "  Model names must not contain shell metacharacters (spaces, ;, |, &, \$, \`, quotes)" >&2
-        echo "  Examples: gpt-5.6-sol, default, claude-opus-5" >&2
+        echo "  Examples: gpt-6-sol, default, claude-opus-5" >&2
         return 1
     fi
     if ! octo_model_automatic_target_allowed "$model" "$provider"; then
@@ -785,12 +786,12 @@ set_provider_model() {
   "version": "3.0",
   "providers": {
     "codex": {
-      "default": "gpt-5.6-sol",
-      "fallback": "gpt-5.6-terra",
-      "spark": "gpt-5.6-luna",
-      "mini": "gpt-5.6-luna",
-      "reasoning": "gpt-5.6-sol",
-      "large_context": "gpt-5.6-sol"
+      "default": "gpt-6-sol",
+      "fallback": "gpt-5.6-sol",
+      "spark": "gpt-6-luna",
+      "mini": "gpt-6-luna",
+      "reasoning": "gpt-6-sol",
+      "large_context": "gpt-6-sol"
     },
     "agy": {
       "default": "Gemini 3.1 Pro (High)",

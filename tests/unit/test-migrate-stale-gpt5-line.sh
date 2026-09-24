@@ -59,15 +59,15 @@ run_migration_in_subshell
 
 test_case "stale codex.default (gpt-5.4) migrates to the current default"
 val="$(jq -r '.providers.codex.default' "$CONFIG_FILE")"
-[[ "$val" == "gpt-5.6-sol" ]] && test_pass || test_fail "expected gpt-5.6-sol, got: $val"
+[[ "$val" == "gpt-6-sol" ]] && test_pass || test_fail "expected gpt-6-sol, got: $val"
 
 test_case "stale codex.fallback (gpt-5.4) migrates to the current default"
 val="$(jq -r '.providers.codex.fallback' "$CONFIG_FILE")"
-[[ "$val" == "gpt-5.6-sol" ]] && test_pass || test_fail "expected gpt-5.6-sol, got: $val"
+[[ "$val" == "gpt-6-sol" ]] && test_pass || test_fail "expected gpt-6-sol, got: $val"
 
 test_case "unsupported codex.mini migrates to the current budget model"
 val="$(jq -r '.providers.codex.mini' "$CONFIG_FILE")"
-[[ "$val" == "gpt-5.6-luna" ]] && test_pass || test_fail "expected gpt-5.6-luna, got: $val"
+[[ "$val" == "gpt-6-luna" ]] && test_pass || test_fail "expected gpt-6-luna, got: $val"
 
 assert_stale_model_migrates() {
     local stale_model="$1"
@@ -90,7 +90,7 @@ assert_stale_model_migrates() {
 
     test_case "stale codex.default ($stale_model) migrates to the current default"
     val="$(jq -r '.providers.codex.default' "$fixture_file")"
-    [[ "$val" == "gpt-5.6-sol" ]] && test_pass || test_fail "expected gpt-5.6-sol, got: $val"
+    [[ "$val" == "gpt-6-sol" ]] && test_pass || test_fail "expected gpt-6-sol, got: $val"
 }
 
 for stale_model in gpt-5.5 gpt-5.5-pro gpt-5.4-pro gpt-5.3-codex gpt-5.2-codex gpt-5.1-codex-max; do

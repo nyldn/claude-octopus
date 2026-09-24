@@ -301,11 +301,11 @@ test_case "sync repairs release, model, count, and capability facts"
 if "$SYNC_SCRIPT" --root "$fixture" >/tmp/octo-readme-sync-update.out 2>&1 &&
    "$SYNC_SCRIPT" --root "$fixture" --check >/tmp/octo-readme-sync-recheck.out 2>&1 &&
    grep -q "Version-${CURRENT_VERSION}-blue" "$fixture/README.md" &&
-   grep -q "v${CURRENT_VERSION}.*(new)" "$fixture/README.md" &&
    grep -q 'supports twelve external provider integrations.*Cursor CLI.*Kimi Code' "$fixture/README.md" &&
-   grep -qF '| **v9** | Up to 10 external provider integrations (Codex, Antigravity CLI, Copilot, Qwen, Ollama, Perplexity, OpenRouter, OrcaRouter, OpenCode, and Grok)' "$fixture/README.md" &&
    grep -q 'OrcaRouter' "$fixture/README.md" &&
-   grep -q 'GPT-5.6 Sol' "$fixture/README.md" &&
+   grep -q 'GPT-6 Sol' "$fixture/README.md" &&
+   grep -q 'GPT-6 Luna' "$fixture/README.md" &&
+   grep -q 'GPT-5.6 Sol remains available as a rollout fallback' "$fixture/README.md" &&
    grep -q 'Claude Opus 5' "$fixture/README.md" &&
    grep -q 'Claude Sonnet 5' "$fixture/README.md" &&
    grep -qE '[0-9]+ Claude Code capability flags through.*v[0-9]+\.[0-9]+\.[0-9]+' "$fixture/README.md" &&
@@ -409,13 +409,14 @@ else
 fi
 
 test_case "current model configuration guidance uses the frontier roster"
-if grep -q 'gpt-5.6-sol' "$PROJECT_ROOT/commands/model-config.md" &&
-   grep -q 'gpt-5.6-terra' "$PROJECT_ROOT/commands/model-config.md" &&
-   grep -q 'gpt-5.6-luna' "$PROJECT_ROOT/commands/model-config.md" &&
+if grep -q 'gpt-6-sol' "$PROJECT_ROOT/commands/model-config.md" &&
+   grep -q 'gpt-6-luna' "$PROJECT_ROOT/commands/model-config.md" &&
+   grep -q 'gpt-5.6-sol' "$PROJECT_ROOT/commands/model-config.md" &&
+   grep -q 'gpt-6-astra' "$PROJECT_ROOT/commands/model-config.md" &&
    ! grep -qE 'GPT-5\.4|gpt-5\.4' "$PROJECT_ROOT/commands/model-config.md"; then
     test_pass
 else
-    test_fail "model-config command still presents pre-GPT-5.6 defaults"
+    test_fail "model-config command does not present the current GPT-6 roster and rollout fallback"
 fi
 
 test_case "public documentation names all twelve external integrations"

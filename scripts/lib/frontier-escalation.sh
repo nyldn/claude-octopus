@@ -206,7 +206,10 @@ octo_frontier_astra_candidate() {
         return 1
     fi
     canonical="$(octo_model_canonical_id "$original_model" 2>/dev/null || true)"
-    [[ "$canonical" == gpt-5.6-sol ]] || return 1
+    case "$canonical" in
+        gpt-6-sol|gpt-5.6-sol) ;;
+        *) return 1 ;;
+    esac
     octo_frontier_role_eligible "$role" || return 1
     octo_frontier_policy_enabled codex gpt-6-astra || return 1
     octo_frontier_cost_ceiling_valid gpt-6-astra "$prompt_bytes" || return 1

@@ -16,13 +16,16 @@ source "$PROJECT_ROOT/scripts/lib/models.sh"
 source "$PROJECT_ROOT/scripts/lib/cost.sh"
 source "$PROJECT_ROOT/scripts/lib/provider-versions.sh"
 
-test_case "Fable 5.1 and Astra are canonical catalog entries"
+test_case "Fable 5.1 and the GPT-6 family are canonical catalog entries"
 if is_known_model claude-fable-5-1 && is_known_model gpt-6-astra &&
+   is_known_model gpt-6-sol && is_known_model gpt-6-luna &&
    grep -Fxq claude-fable-5-1 < <(octo_model_ids) &&
-   grep -Fxq gpt-6-astra < <(octo_model_ids); then
+   grep -Fxq gpt-6-astra < <(octo_model_ids) &&
+   grep -Fxq gpt-6-sol < <(octo_model_ids) &&
+   grep -Fxq gpt-6-luna < <(octo_model_ids); then
     test_pass
 else
-    test_fail "missing claude-fable-5-1 or gpt-6-astra from canonical catalog"
+    test_fail "missing a frontier or current GPT-6 model from the canonical catalog"
 fi
 
 test_case "frontier metadata matches provider capabilities and rollout state"
@@ -33,6 +36,18 @@ if [[ "$fable_catalog" == "1000|yes|yes|yes|claude|premium|active" &&
     test_pass
 else
     test_fail "unexpected frontier metadata: fable=$fable_catalog astra=$astra_catalog"
+fi
+
+test_case "GPT-6 Sol and Luna metadata matches current OpenAI capabilities"
+sol_catalog="$(get_model_catalog gpt-6-sol)"
+luna_catalog="$(get_model_catalog gpt-6-luna)"
+if [[ "$sol_catalog" == "1050|yes|yes|yes|codex|standard|active" &&
+      "$luna_catalog" == "1050|yes|yes|yes|codex|budget|active" ]] &&
+   octo_model_auto_eligible gpt-6-sol &&
+   octo_model_auto_eligible gpt-6-luna; then
+    test_pass
+else
+    test_fail "unexpected GPT-6 metadata: sol=$sol_catalog luna=$luna_catalog"
 fi
 
 test_case "frontier policy makes both models explicit-only and non-automatic"
@@ -148,6 +163,8 @@ fi
 test_case "current direct API prices are represented exactly"
 if [[ "$(get_model_pricing claude-fable-5-1 claude)" == "10.00:50.00" &&
       "$(get_model_pricing gpt-6-astra codex)" == "10.00:50.00" &&
+      "$(get_model_pricing gpt-6-sol codex)" == "2.00:10.00" &&
+      "$(get_model_pricing gpt-6-luna codex)" == "0.10:0.50" &&
       "$(get_model_pricing openai/gpt-6-astra openrouter)" == "10.00:50.00" &&
       "$(get_model_pricing gpt-5.6-sol codex)" == "4.00:20.00" &&
       "$(get_model_pricing gpt-5.6-terra codex)" == "2.00:12.00" &&
@@ -156,6 +173,15 @@ if [[ "$(get_model_pricing claude-fable-5-1 claude)" == "10.00:50.00" &&
     test_pass
 else
     test_fail "frontier or adjacent model pricing is stale"
+fi
+
+test_case "GPT-6 Sol and Luna use current long-context tariffs"
+if [[ "$(octo_effective_model_pricing gpt-6-sol 300000 2 10)" == "4.000000:15.000000" &&
+      "$(octo_effective_model_pricing gpt-6-luna 300000 0.1 0.5)" == "0.200000:0.750000" &&
+      "$(octo_effective_model_pricing gpt-6-sol 272000 2 10)" == "2:10" ]]; then
+    test_pass
+else
+    test_fail "GPT-6 Sol or Luna long-context pricing is stale"
 fi
 
 test_case "namespaced Astra pricing applies the long-context rule"

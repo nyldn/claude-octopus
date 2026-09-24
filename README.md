@@ -57,11 +57,11 @@ disable it.
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.9.0 — Add Opus 5.5 and Deja memory, with safer long-running workflows and session handoffs.**
 >
-> **Default roster:** Claude Opus 5.5 leads architecture, planning, security reasoning, and final judgment; GPT-5.6 Sol is the independent implementation/review peer; Claude Sonnet 5 is the standard Claude seat; Fable 5.1 remains an opt-in judgment escalation. Existing model pins and provider configuration still win. See [the routing strategy](docs/MODEL-ROUTING-STRATEGY.md).
+> **Default roster:** Claude Opus 5.5 leads architecture, planning, security reasoning, and final judgment; GPT-6 Sol is the independent implementation/review peer; Claude Sonnet 5 is the standard Claude seat; Fable 5.1 remains an opt-in judgment escalation. Existing model pins and provider configuration still win. See [the routing strategy](docs/MODEL-ROUTING-STRATEGY.md).
 <!-- END CURRENT RELEASE -->
 
 <!-- BEGIN CURRENT MODEL DEFAULTS -->
-- Current fresh configurations use **GPT-5.6 Sol** for Codex implementation/review, **Claude Opus 5.5** for premium Claude work, and **Claude Sonnet 5** for the standard Claude seat. Existing environment, session, and `providers.json` pins remain unchanged; `OCTOPUS_LEGACY_ROLES=1` restores the pre-frontier role mapping.
+- Current fresh configurations use **GPT-6 Sol** for Codex implementation/review, **GPT-6 Luna** for focused and budget work, **Claude Opus 5.5** for premium Claude work, and **Claude Sonnet 5** for the standard Claude seat. GPT-5.6 Sol remains available as a rollout fallback. Existing environment, session, and `providers.json` pins remain unchanged; `OCTOPUS_LEGACY_ROLES=1` restores the pre-frontier role mapping.
 <!-- END CURRENT MODEL DEFAULTS -->
 
 See the [full changelog](CHANGELOG.md), [v11 migration guide](docs/MIGRATING-V11.md),
@@ -311,7 +311,7 @@ Claude Octopus coordinates twelve external provider integrations alongside the b
 
 | Provider | Role |
 |----------|------|
-| 🔴 Codex (OpenAI, GPT-5.6 Sol/Terra/Luna; explicit GPT-6 Astra) | Code review + implementation — edge-case hunting, terminal-heavy execution, patch/test loops |
+| 🔴 Codex (OpenAI, GPT-6 Sol/Luna; GPT-5.6 rollout fallback; explicit GPT-6 Astra) | Code review + implementation — edge-case hunting, terminal-heavy execution, patch/test loops |
 | 🧭 Antigravity CLI (`agy`) | Google Antigravity perspective via native stdin print-mode dispatch |
 | 🟣 Perplexity | Live web search — CVE lookups, dependency research, current docs |
 | 🌐 OpenRouter | Alternative model routing — access 100+ models via single API |
@@ -328,7 +328,7 @@ Claude Octopus coordinates twelve external provider integrations alongside the b
 
 Explicit research-breadth, debate, council, and adversarial-review workflows use multiple providers. Generic mergeable work starts with one capable owner and adds another model only for a distinct job. A 75% consensus quality gate prevents questionable work from shipping. Only Claude is required — all others are optional and auto-detected.
 
-**Frontier routing** defaults `architect`, `strategist`, `security-reviewer`, and opt-in `implementer-heavy` to Opus 5.5 on Claude Code v2.1.280+ and Opus 5 on v2.1.219+, with Opus 4.8/4.7/4.6 fallbacks. `code-reviewer` and `implementer` use GPT-5.6 Sol; `synthesizer` uses Sonnet 5 on Claude Code v2.1.197+. Fable 5.1 and GPT-6 Astra remain explicit-only models: Premium mode may admit one configured judgment escalation per run, but neither model becomes a tier default, fallback, review-fleet seat, council seat, security seat, or implementation seat. Existing pins/configs win, and `OCTOPUS_LEGACY_ROLES=1` restores the v9.28 mapping. See [the routing strategy](docs/MODEL-ROUTING-STRATEGY.md).
+**Frontier routing** defaults `architect`, `strategist`, `security-reviewer`, and opt-in `implementer-heavy` to Opus 5.5 on Claude Code v2.1.280+ and Opus 5 on v2.1.219+, with Opus 4.8/4.7/4.6 fallbacks. `code-reviewer` and `implementer` use GPT-6 Sol; focused and budget Codex work uses GPT-6 Luna. GPT-5.6 Sol remains available during the Codex rollout, while existing pins/configs continue to win. `synthesizer` uses Sonnet 5 on Claude Code v2.1.197+. Fable 5.1 and GPT-6 Astra remain explicit-only models: Premium mode may admit one configured judgment escalation per run, but neither model becomes a tier default, fallback, review-fleet seat, council seat, security seat, or implementation seat. `OCTOPUS_LEGACY_ROLES=1` restores the v9.28 mapping. See [the routing strategy](docs/MODEL-ROUTING-STRATEGY.md).
 
 **Native dynamic workflows:** Claude Code v2.1.154+ can run native dynamic workflows for huge single-Claude migrations. Use that path when one Claude workflow is enough; use Octopus when you need multi-provider disagreement, councils, adversarial review, external model validation, or blind-spot coverage.
 
@@ -399,7 +399,7 @@ OAuth users pay nothing beyond their existing subscriptions. Qwen is the excepti
 
 ### What a Typical Run Costs
 
-Illustrative token-only estimates, using standard global API rates checked **2026-09-22**: [GPT-5.6 Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol) $4/$20, [Sonar Pro](https://docs.perplexity.ai/docs/getting-started/pricing) $3/$15, and [Opus 5.5](https://platform.claude.com/docs/en/about-claude/models/choosing-a-model) $4/$20 per million input/output tokens. The ranges assume roughly 90% input and 10% output tokens, standard (not batch, flex, priority, or fast) processing, no cache discounts, and a representative mix of those models. OAuth/subscription seats (Codex via ChatGPT, Antigravity, Copilot) bill nothing extra; Ollama is free.
+Illustrative token-only estimates, using standard global API rates checked **2026-09-23**: [GPT-6 Sol](https://developers.openai.com/api/docs/models/gpt-6-sol) $2/$10, [GPT-6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna) $0.10/$0.50, [Sonar Pro](https://docs.perplexity.ai/docs/getting-started/pricing) $3/$15, and [Opus 5.5](https://platform.claude.com/docs/en/about-claude/models/choosing-a-model) $4/$20 per million input/output tokens. The ranges assume roughly 90% input and 10% output tokens, standard (not batch, flex, priority, or fast) processing, no cache discounts, and a representative mix of those models. OAuth/subscription seats (Codex via ChatGPT, Antigravity, Copilot) bill nothing extra; Ollama is free.
 
 The table excludes provider tool charges. Sonar Pro adds a **request fee** of $6-$14 per 1,000 requests depending on search-context size. Fable 5.1 and GPT-6 Astra each cost $10/$50 per million input/output tokens. Astra requests above 272K input tokens apply OpenAI's long-context multipliers to the whole request. Long-context and provider-specific rate rules can push large runs above these bounds, so check the linked rate cards before material spend.
 
@@ -447,7 +447,7 @@ v9.50.0 aligns the plugin with Claude Code's 2026 native capabilities. Each piec
 
 ## GPT-6 Astra Support
 
-GPT-6 Astra is cataloged as an explicit-only premium model at $10/$50 per MTok. Use `OCTOPUS_CODEX_MODEL=gpt-6-astra` or an exact `codex:gpt-6-astra` seat for a direct pin. To keep the default Sol route and allow one bounded architecture or strategy escalation per run, use `/octo:model-config tier premium codex gpt-6-astra`, select Premium mode, and set an `OCTOPUS_MAX_COST_USD` ceiling that covers the projected list-price usage for the prompt. Astra is never selected for implementation, review, security, councils, review fleets, or fallback chains, and Astra plus GPT-5.6 does not provide vendor diversity.
+GPT-6 Astra is cataloged as an explicit-only premium model at $10/$50 per MTok. Use `OCTOPUS_CODEX_MODEL=gpt-6-astra` or an exact `codex:gpt-6-astra` seat for a direct pin. To keep the default GPT-6 Sol route and allow one bounded architecture or strategy escalation per run, use `/octo:model-config tier premium codex gpt-6-astra`, select Premium mode, and set an `OCTOPUS_MAX_COST_USD` ceiling that covers the projected list-price usage for the prompt. Astra is never selected for implementation, review, security, councils, review fleets, or fallback chains, and Astra plus another OpenAI model does not provide vendor diversity.
 
 Codex CLI v0.153.1 or newer is required; unknown versions fail closed. The
 configured Premium ceiling is checked against a conservative projected

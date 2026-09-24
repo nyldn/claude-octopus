@@ -175,6 +175,16 @@ PY
     test_pass
 }
 
+test_unique_trim_temp_path() {
+    test_case "event trimming creates a unique temporary file per contender"
+    if grep -Fq 'mktemp "${file}.tmp.XXXXXX"' "$PROJECT_ROOT/scripts/lib/events.sh" &&
+       ! grep -Fq 'local tmp="${file}.tmp.$$"' "$PROJECT_ROOT/scripts/lib/events.sh"; then
+        test_pass
+    else
+        test_fail "event trimming still shares a predictable temporary path"
+    fi
+}
+
 test_dispatch_lifecycle_events() {
     test_case "run_with_timeout emits dispatch.start/end/timeout lifecycle events"
     export OCTO_EVENT_LOG="$FIXTURE/lifecycle.jsonl"
@@ -306,6 +316,7 @@ test_trim_event_log
 test_invalid_event_rejected
 test_check_providers_event_hook
 test_concurrent_emit_no_clobber
+test_unique_trim_temp_path
 test_dispatch_lifecycle_events
 test_orchestrate_enables_telemetry_by_default
 

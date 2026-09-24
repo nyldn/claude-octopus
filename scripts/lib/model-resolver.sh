@@ -93,7 +93,7 @@ sonnet_default_model() {
 }
 
 codex_default_model() {
-    echo "gpt-5.6-sol"
+    echo "gpt-6-sol"
 }
 
 _octo_automatic_model_allowed() {
@@ -348,9 +348,9 @@ _octo_effective_cost_mode() {
 _octo_eval_model_for_class() {
     local provider="${1:-}" task_class="${2:-}"
     case "$provider:$task_class" in
-        codex:mechanical) printf '%s\n' "gpt-5.6-luna" ;;
-        codex:balanced) printf '%s\n' "gpt-5.6-terra" ;;
-        codex:premium|codex:review|codex:security) printf '%s\n' "gpt-5.6-sol" ;;
+        codex:mechanical) printf '%s\n' "gpt-6-luna" ;;
+        codex:balanced) printf '%s\n' "gpt-6-sol" ;;
+        codex:premium|codex:review|codex:security) printf '%s\n' "gpt-6-sol" ;;
         claude:mechanical) printf '%s\n' "claude-haiku-4.5" ;;
         claude:balanced) printf '%s\n' "claude-sonnet-5" ;;
         claude:premium|claude:review|claude:security) opus_default_model ;;

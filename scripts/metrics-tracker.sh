@@ -222,6 +222,8 @@ get_model_cost() {
 
         # OpenAI/Codex models (rough estimates)
         gpt-6-astra)            echo "10.00" ;;
+        gpt-6-sol)              echo "2.00" ;;
+        gpt-6-luna)             echo "0.10" ;;
         gpt-5.6-sol)            echo "4.00" ;;
         gpt-5.6-terra)          echo "2.00" ;;
         gpt-5.6-luna)           echo "0.20" ;;

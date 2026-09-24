@@ -3,6 +3,35 @@
 Octopus supports local Claude Code and Codex plugin installations. It is not a
 hosted ChatGPT plugin: provider execution requires local CLIs and a filesystem.
 
+## Install on supported plugin hosts
+
+Claude Code uses the shared nyldn marketplace:
+
+```bash
+claude plugin marketplace add https://github.com/nyldn/plugins.git
+claude plugin install octo@nyldn-plugins
+```
+
+Codex uses the same marketplace and package:
+
+```bash
+codex plugin marketplace add https://github.com/nyldn/plugins.git
+codex plugin add claude-octopus@nyldn-plugins
+```
+
+Restart the host after installation. In Codex, invoke packaged skills explicitly,
+for example with `$skill-doctor` or `$skill-debug`.
+
+Factory AI can install the Claude-compatible plugin from the public repository:
+
+```bash
+droid plugin marketplace add https://github.com/nyldn/claude-octopus.git
+droid plugin install octo@nyldn-plugins
+```
+
+Cursor, OpenCode, and other MCP-capable editors use different installation
+paths; see [IDE integration](IDE-INTEGRATION.md).
+
 ## Process cancellation
 
 Worker cancellation uses Python and native process identities. Linux requires

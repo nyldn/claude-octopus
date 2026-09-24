@@ -358,8 +358,9 @@ Configure which AI models are used across Claude Octopus workflows.
 ```
 /octo:model-config                          # View current config
 /octo:model-config show phases              # Show per-phase routing table
-/octo:model-config codex gpt-5.6-sol        # Set frontier Codex model
-/octo:model-config codex gpt-5.6-terra      # Set balanced Codex model
+/octo:model-config codex gpt-6-sol          # Set the recommended Codex workhorse
+/octo:model-config codex gpt-6-luna         # Set the focused/budget Codex model
+/octo:model-config codex gpt-5.6-sol        # Use the rollout fallback explicitly
 /octo:model-config agy default                 # Use Antigravity's service-selected model
 /octo:model-config providers                 # Show provider allowlist
 /octo:model-config disable codex --session   # Stop using Codex in this session
@@ -380,9 +381,9 @@ Configure which AI models are used across Claude Octopus workflows.
 
 | Mode | Codex | Claude | Antigravity | Best for |
 |------|-------|--------|-------------|----------|
-| `budget` | GPT-5.6 Luna | Haiku 4.5 | Fast service tier | High-volume, quick feedback |
-| `standard` | GPT-5.6 Sol | Sonnet 5 | Service-selected default | Default — frontier coding/quality |
-| `premium` | GPT-5.6 Sol | Opus 5.5, with Opus 5 fallback | Service-selected default | Critical decisions and premium Claude judgment |
+| `budget` | GPT-6 Luna | Haiku 4.5 | Fast service tier | Focused work and quick feedback |
+| `standard` | GPT-6 Sol | Sonnet 5 | Service-selected default | Default implementation and review |
+| `premium` | GPT-6 Sol | Opus 5.5, with Opus 5 fallback | Service-selected default | Critical decisions and premium Claude judgment |
 
 Quick toggles persist the selected mode in
 `~/.claude-octopus/config/providers.json`. Configure a provider target for any
@@ -391,16 +392,16 @@ An explicit `OCTOPUS_COST_MODE` environment variable still takes precedence.
 
 Fable 5.1 and GPT-6 Astra remain explicit-only. Assigning either to its
 provider's Premium tier enables one architecture or strategy escalation per
-run; it does not replace the tier's version-gated Opus default or GPT-5.6 Sol seats.
+run; it does not replace the tier's version-gated Opus default or GPT-6 Sol seats.
 Astra also requires Codex CLI v0.153.1 or newer. The configured
 `OCTOPUS_MAX_COST_USD` ceiling must cover a conservative projected list-price
-estimate for the prompt, or the dispatch stays on Sol. Budget and Standard tiers, phase routes, role
+estimate for the prompt, or the dispatch stays on GPT-6 Sol. Budget and Standard tiers, phase routes, role
 routes, fallbacks, councils, review fleets, security work, and implementation
 continue to reject these models.
 
 **Per-phase routing:** Different models can be configured for Discover, Define, Develop, and Deliver phases. Use `show phases` to view the current routing table.
 
-**Role-based defaults:** `architect`, `strategist`, and `security-reviewer` use Opus 5.5 on Claude Code v2.1.280+ and Opus 5 on v2.1.219+ (then 4.8/4.7/4.6 fallback); `code-reviewer` and `implementer` use GPT-5.6 Sol; `synthesizer` uses Sonnet 5 on Claude Code v2.1.197+. See [the routing strategy](MODEL-ROUTING-STRATEGY.md). Opt out with `OCTOPUS_LEGACY_ROLES=1`.
+**Role-based defaults:** `architect`, `strategist`, and `security-reviewer` use Opus 5.5 on Claude Code v2.1.280+ and Opus 5 on v2.1.219+ (then 4.8/4.7/4.6 fallback); `code-reviewer` and `implementer` use GPT-6 Sol; focused Codex work uses GPT-6 Luna; `synthesizer` uses Sonnet 5 on Claude Code v2.1.197+. GPT-5.6 Sol remains a rollout fallback. See [the routing strategy](MODEL-ROUTING-STRATEGY.md). Opt out with `OCTOPUS_LEGACY_ROLES=1`.
 
 ---
 
