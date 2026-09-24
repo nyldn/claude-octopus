@@ -78,8 +78,6 @@ Frontier AI models will remain individually overconfident for the foreseeable fu
 ## Evidence
 
 **Traction (as of 2026-09-23):**
-- GitHub stars: 4,048
-- GitHub forks: 380
 - Local CI parity: `make ci-local` runs the same smoke, unit, and integration suites as CI
 - Version: 11.9.0 (active release cadence)
 - Runtimes supported: Claude Code, Codex CLI, Command Code CLI, Cursor (MCP), Antigravity CLI
@@ -87,7 +85,7 @@ Frontier AI models will remain individually overconfident for the foreseeable fu
 **Measured Impact:**
 - 75% consensus gate: quantifiable disagreement detection before production
 - Token compression (`bin/octo-compress`): ~7,300 tokens saved per session
-- 182 Claude Code capability flags tracked through v2.1.219
+- 184 Claude Code capability flags tracked through v2.1.280
 
 ## Claude Code 2026 Compatibility Layer (v9.50.0)
 
@@ -108,11 +106,10 @@ orchestration entrypoint without external credentials or billing.
 
 | Gap | Impact | Status |
 |-----|--------|--------|
-| Onboarding requires multiple manual steps (clone → install → `/octo:setup`) | New users abandon before first workflow | Open |
-| Provider CLI version drift causes silent failures | Orchestration breaks when external provider CLIs update; no version-lock | Open |
+| First multi-provider use still requires provider installation and authentication | Users must connect at least one external provider before multi-model workflows can run | Open |
+| Provider CLI versions are checked but not pinned | Incompatible versions fail closed, but upstream CLI changes can still require an Octopus update | Open |
 | Council consensus score not surfaced in GitHub PRs | Teams can't enforce multi-LLM gate in CI without manual extraction | Open |
-| Windows native support untested | Windows users get degraded experience; shell scripts assume POSIX | Open |
-| No persistent provider-auth across sessions | Re-auth friction on every new Claude Code session for some providers | Open |
+| Native Windows is unsupported | Windows users must run Octopus through WSL | Open |
 
 ## Usage
 

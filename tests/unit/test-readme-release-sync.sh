@@ -17,6 +17,8 @@ CURRENT_SKILL_COUNT="$(jq '.skills | length' "$PROJECT_ROOT/.claude-plugin/plugi
 CURRENT_PERSONA_COUNT="$(find "$PROJECT_ROOT/agents/personas" -maxdepth 1 -type f -name '*.md' | wc -l | tr -d ' ')"
 CURRENT_DROID_COUNT="$(find "$PROJECT_ROOT/agents/droids" -maxdepth 1 -type f -name '*.md' | wc -l | tr -d ' ')"
 CURRENT_AGENT_COUNT="$((CURRENT_PERSONA_COUNT + CURRENT_DROID_COUNT))"
+CURRENT_CAPABILITY_COUNT="$(sed -n 's/.*current plugin tracks \([0-9][0-9]*\) Claude Code capability flags.*/\1/p' "$PROJECT_ROOT/README.md" | head -n 1)"
+CURRENT_CAPABILITY_CEILING="$(sed -n 's/.*current plugin tracks [0-9][0-9]* Claude Code capability flags through \*\*Claude Code v\([0-9][0-9.]*\)\*\*.*/\1/p' "$PROJECT_ROOT/README.md" | head -n 1)"
 CURRENT_RELEASE_DATE="$(awk -v version="$CURRENT_VERSION" '
     $1 == "##" && $2 == "[" version "]" && $3 == "-" { print $4; exit }
 ' "$PROJECT_ROOT/CHANGELOG.md")"
@@ -145,6 +147,12 @@ product_text = re.sub(
     r"\d+ slash commands, \d+ skills, and \d+ specialized personas",
     "999 slash commands, 999 skills, and 999 specialized personas",
     product_text,
+)
+product_text = re.sub(
+    r"^- \d+\+? Claude Code (?:feature|capability) flags tracked through v[0-9.]+$",
+    "- 1 Claude Code capability flags tracked through v1.0.0",
+    product_text,
+    flags=re.MULTILINE,
 )
 product.write_text(product_text)
 
@@ -332,6 +340,8 @@ if "$SYNC_SCRIPT" --root "$fixture" >/tmp/octo-readme-sync-update.out 2>&1 &&
    grep -q "${CURRENT_PERSONA_COUNT} personas, ${CURRENT_COMMAND_COUNT} commands, ${CURRENT_SKILL_COUNT} skills" "$fixture/.factory-plugin/marketplace.json" &&
    grep -qF "**Traction (as of ${CURRENT_RELEASE_DATE}):**" "$fixture/PRODUCT.md" &&
    grep -qF 'Local CI parity: `make ci-local` runs the same smoke, unit, and integration suites as CI' "$fixture/PRODUCT.md" &&
+   grep -qF -- "- ${CURRENT_CAPABILITY_COUNT} Claude Code capability flags tracked through v${CURRENT_CAPABILITY_CEILING}" "$fixture/PRODUCT.md" &&
+   ! grep -qE '^- GitHub (stars|forks):' "$fixture/PRODUCT.md" &&
    ! grep -qE 'Local CI parity: [0-9]+ smoke' "$fixture/PRODUCT.md" &&
    ! grep -qE 'Version-0\.0\.0-blue|stale release copy|v2\.1\.157' "$fixture/README.md"; then
     test_pass

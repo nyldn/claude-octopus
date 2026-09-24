@@ -478,6 +478,15 @@ def sync_product(text: str, facts: dict[str, object]) -> str:
     )
     if traction_count != 1:
         raise ValueError("PRODUCT traction evidence heading is missing or duplicated")
+    # Adoption counters change independently of a release and quickly make the
+    # checked-in product brief stale. Keep durable, release-verifiable evidence
+    # here; live GitHub metrics belong on GitHub.
+    text = re.sub(
+        r"^- GitHub (?:stars|forks): .*\n",
+        "",
+        text,
+        flags=re.MULTILINE,
+    )
     # Deliberately not a count. The suite totals were derived by globbing the
     # test tree and written here, which made every pair of test-adding PRs
     # conflict on this one line — and neither side of that conflict was ever
@@ -489,12 +498,14 @@ def sync_product(text: str, facts: dict[str, object]) -> str:
         text,
         flags=re.MULTILINE,
     )
-    text = re.sub(
-        r"^- \d+\+ Claude Code feature flags tracked through v[0-9]+\.[0-9]+\.[0-9]+$",
+    text, capability_matches = re.subn(
+        r"^- \d+\+? Claude Code (?:feature|capability) flags tracked through v[0-9]+\.[0-9]+\.[0-9]+$",
         f"- {capability_count} Claude Code capability flags tracked through v{ceiling}",
         text,
         flags=re.MULTILINE,
     )
+    if capability_matches != 1:
+        raise ValueError("PRODUCT Claude Code capability evidence is missing or duplicated")
     return text
 
 
