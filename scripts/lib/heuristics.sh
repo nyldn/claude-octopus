@@ -156,18 +156,63 @@ probe_synthesis_append_excerpt() {
     echo ""
 }
 
+probe_synthesis_byte_length() {
+    local LC_ALL=C
+    printf '%s\n' "${#1}"
+}
+
+probe_synthesis_budget_bytes() {
+    local synth_agent="${1:-}" reserve_bytes="${2:-0}"
+    local tokens proportion=100
+    [[ -n "$synth_agent" && "$reserve_bytes" =~ ^[0-9]+$ ]] || return 1
+    declare -F get_provider_context_limit >/dev/null 2>&1 || return 1
+    tokens=$(get_provider_context_limit "$synth_agent" "probe" "synthesizer" 2>/dev/null) || return 1
+    [[ "$tokens" =~ ^[0-9]+$ ]] || return 1
+    if declare -F get_role_budget_proportion >/dev/null 2>&1; then
+        proportion=$(get_role_budget_proportion "synthesizer")
+        [[ "$proportion" =~ ^[0-9]+$ ]] || proportion=100
+    fi
+    tokens=$(( tokens / 100 * proportion + tokens % 100 * proportion / 100 ))
+    local bytes=$(( tokens * 3 - reserve_bytes ))
+    [[ "$bytes" -gt 0 ]] || return 1
+    printf '%s\n' "$bytes"
+}
+
 build_probe_synthesis_context() {
     local task_group="$1"
     local provider_results_dir="${2:-$RESULTS_DIR}"
-    local max_file="${OCTOPUS_PROBE_SYNTHESIS_FILE_CHARS:-24000}"
-    local max_total="${OCTOPUS_PROBE_SYNTHESIS_CONTEXT_CHARS:-120000}"
+    local budget_bytes="${3:-}"
+    local max_total="${OCTOPUS_PROBE_SYNTHESIS_CONTEXT_CHARS:-}"
+    local max_file="${OCTOPUS_PROBE_SYNTHESIS_FILE_CHARS:-}"
 
-    [[ "$max_file" =~ ^[0-9]+$ ]] || max_file=24000
-    [[ "$max_total" =~ ^[0-9]+$ ]] || max_total=120000
-    max_file=$((10#$max_file))
+    if [[ ! "$max_total" =~ ^[0-9]+$ ]]; then
+        max_total=120000
+        if [[ "$budget_bytes" =~ ^[0-9]+$ ]] && [[ "$((10#$budget_bytes))" -gt "$max_total" ]]; then
+            max_total=$((10#$budget_bytes))
+        fi
+    fi
     max_total=$((10#$max_total))
-    [[ "$max_file" -lt 1000 ]] && max_file=1000
     [[ "$max_total" -lt 4000 ]] && max_total=4000
+
+    local -a usable_files=()
+    local ranked_file
+    while IFS= read -r ranked_file; do
+        [[ -z "$ranked_file" ]] && continue
+        [[ ! -f "$ranked_file" ]] && continue
+        probe_result_file_is_usable "$ranked_file" || continue
+        type octo_file_has_provider_rejection >/dev/null 2>&1 && octo_file_has_provider_rejection "$ranked_file" && continue
+        usable_files+=("$ranked_file")
+    done < <(rank_results_by_signals "$provider_results_dir" "probe-${task_group}")
+
+    if [[ ! "$max_file" =~ ^[0-9]+$ ]]; then
+        max_file=24000
+        if [[ "${#usable_files[@]}" -gt 0 ]]; then
+            local fair_share=$(( max_total / ${#usable_files[@]} - 1024 ))
+            [[ "$fair_share" -gt "$max_file" ]] && max_file="$fair_share"
+        fi
+    fi
+    max_file=$((10#$max_file))
+    [[ "$max_file" -lt 1000 ]] && max_file=1000
 
     local tmp_context
     tmp_context=$(mktemp "${TMPDIR:-/tmp}/octo-probe-synthesis.XXXXXX") || return 1
@@ -183,17 +228,12 @@ build_probe_synthesis_context() {
         echo "- Max total context: ${max_total} bytes"
         echo ""
 
-        local ranked_file
-        while IFS= read -r ranked_file; do
-            [[ -z "$ranked_file" ]] && continue
-            [[ ! -f "$ranked_file" ]] && continue
-            probe_result_file_is_usable "$ranked_file" || continue
-            type octo_file_has_provider_rejection >/dev/null 2>&1 && octo_file_has_provider_rejection "$ranked_file" && continue
+        for ranked_file in ${usable_files[@]+"${usable_files[@]}"}; do
             local score
             score=$(score_result_file "$ranked_file")
             probe_synthesis_append_excerpt "$ranked_file" "$max_file" "$score"
             ((result_count++)) || true
-        done < <(rank_results_by_signals "$provider_results_dir" "probe-${task_group}")
+        done
     } > "$tmp_context"
 
     local total_size
@@ -443,10 +483,26 @@ synthesize_probe_results() {
         log INFO "All $result_count results available for synthesis ($(numfmt --to=iec-i --suffix=B $total_content_size 2>/dev/null || echo "${total_content_size}B"))"
     fi
 
+    local evidence_catalog=""
+    if declare -F research_source_catalog >/dev/null 2>&1; then
+        evidence_catalog=$(research_source_catalog 2>/dev/null || true)
+    fi
+    local agent_status
+    agent_status=$(type render_agent_summary >/dev/null 2>&1 && render_agent_summary 2>/dev/null || echo "No agent status ledger available")
+    local local_evidence_root="${RESEARCH_PROJECT_ROOT:-${PROJECT_ROOT:-$PWD}}"
+
+    local synth_agent="" synthesis=""
+    type _aggregate_pick_synth_agent >/dev/null 2>&1 && synth_agent=$(_aggregate_pick_synth_agent)
+    local prompt_reserve_bytes synthesis_budget_bytes=""
+    prompt_reserve_bytes=$(( $(probe_synthesis_byte_length "$original_prompt") \
+        + $(probe_synthesis_byte_length "$agent_status") \
+        + $(probe_synthesis_byte_length "$evidence_catalog") + 16384 ))
+    synthesis_budget_bytes=$(probe_synthesis_budget_bytes "$synth_agent" "$prompt_reserve_bytes") || synthesis_budget_bytes=""
+
     # v8.49.0: Rank results by quality signals before synthesis.
     # Keep the synthesis prompt bounded; full raw files remain on disk.
     local compact_results
-    if compact_results=$(build_probe_synthesis_context "$task_group" "$provider_results_dir") \
+    if compact_results=$(build_probe_synthesis_context "$task_group" "$provider_results_dir" "$synthesis_budget_bytes") \
        && [[ -n "$compact_results" ]]; then
         results="$compact_results"
     else
@@ -456,24 +512,20 @@ synthesize_probe_results() {
     # Use the Google seat (agy, post Gemini-CLI sunset #524) for intelligent synthesis
     # v8.49.0: Enhanced prompt with structured output, minority opinion preservation,
     # and relevance-aware weighting (inspired by Crawl4AI content filtering patterns)
-    local evidence_catalog=""
-    if declare -F research_source_catalog >/dev/null 2>&1; then
-        evidence_catalog=$(research_source_catalog 2>/dev/null || true)
-    fi
-
     local synthesis_prompt="Synthesize these research findings into a coherent discovery summary.
 
 Original Question: $original_prompt
 
 Agent status:
-$(type render_agent_summary >/dev/null 2>&1 && render_agent_summary 2>/dev/null || echo "No agent status ledger available")
+${agent_status}
 
 Sources are pre-ranked by quality score (best first). However:
 - Short but specific findings may be MORE valuable than lengthy general analysis
 - Minority opinions and dissenting views MUST be preserved — they often contain critical insights
 - Concrete examples (code, file paths, commands) outweigh abstract discussion
-- Every factual claim must cite one or more catalog IDs as [source:S001] or be explicitly marked [inference]
-- Quotes and numeric claims must cite a catalog source whose snapshot contains the exact quote or number
+- Every factual claim must cite one or more catalog IDs as [source:S001], cite a workspace file, or be explicitly marked [inference]
+- A claim about a file in the workspace (${local_evidence_root}) may cite it as a workspace-relative path with line numbers: src/app.ts:42, src/app.ts:40-48 or src/app.ts:12,40. The file and every cited line must exist; a bare :42, a basename that is not a workspace path, or an elided path is not a citation
+- Quotes and numeric claims must cite a catalog source whose snapshot, or a workspace file whose text, contains the exact quote or number
 - Count independent evidence groups, not citation count. Sources with the same independence key are one voice
 - Never call duplicated or syndicated sources consensus; consensus requires at least two independence keys
 - Failed or rejected provider outputs were excluded and must not be cited as evidence
@@ -498,8 +550,6 @@ $results"
     # claude-sonnet, which would bypass OCTO_ALLOWED_PROVIDERS and send probe
     # context to a disabled provider. _aggregate_pick_synth_agent already returns
     # claude-sonnet when (and only when) the allowlist permits it (#538).
-    local synth_agent="" synthesis=""
-    type _aggregate_pick_synth_agent >/dev/null 2>&1 && synth_agent=$(_aggregate_pick_synth_agent)
     if [[ -n "$synth_agent" ]]; then
         synthesis=$(run_agent_sync "$synth_agent" "$synthesis_prompt" "${TIMEOUT:-300}" "synthesizer" "probe") || synthesis=""
         if [[ -z "$synthesis" && "$synth_agent" != "claude-sonnet" ]] \

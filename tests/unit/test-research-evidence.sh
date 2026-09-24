@@ -509,4 +509,97 @@ else
     test_fail "verification published outside the unique run path: $verify_output"
 fi
 
+test_case "source extraction drops JSON-escaped whitespace from URLs"
+WORKSPACE_DIR="$tmp_root/escaped-workspace"
+RESULTS_DIR="$tmp_root/escaped-results"
+mkdir -p "$RESULTS_DIR"
+unset RESEARCH_RUN_DIR RESEARCH_RUN_ID RESEARCH_TASK_GROUP RESEARCH_PROMPT RESEARCH_INTENSITY RESEARCH_PROVIDER_RESULTS_DIR
+OCTOPUS_RESEARCH_RUN_ID="escaped-urls"
+OCTOPUS_RESEARCH_RESUME=false
+OCTOPUS_RESEARCH_FETCH_MAX=0
+research_run_begin "1700000007" "escaped URL topic" "standard"
+cat > "$RESULTS_DIR/codex-probe-1700000007-0.md" <<'EOF'
+## Output
+{"message":"alert\nRunbook: https://example.com/runbook.md#error-tracking\n","next":"https://example.org/page\tTabbed"}
+{"escaped":"https://example.net/doc\\nNext","quoted":"https://example.net/quoted\""}
+Runbook: https://example.com/runbook.md#error-tracking
+## Status: SUCCESS
+EOF
+research_collect_sources "1700000007"
+escaped_urls=$(jq -r '.url, .canonical_url' "$RESEARCH_RUN_DIR/sources.jsonl")
+escaped_canonical=$(jq -r '.canonical_url' "$RESEARCH_RUN_DIR/sources.jsonl" | sort | tr '\n' ' ')
+if [[ "$escaped_urls" != *'\'* ]] \
+   && [[ "$escaped_canonical" == "https://example.com/runbook.md https://example.net/doc https://example.net/quoted https://example.org/page " ]]; then
+    test_pass
+else
+    test_fail "escaped whitespace leaked into extracted URLs: $(tr '\n' ' ' <<< "$escaped_urls")"
+fi
+
+test_case "workspace file:line citations verify as local evidence"
+local_root="$tmp_root/local-project"
+elsewhere_root="$tmp_root/elsewhere-project"
+mkdir -p "$local_root/src" "$elsewhere_root/src"
+printf '%s\n' \
+    'import { log } from "./log.js";' \
+    'export function handle(err) {' \
+    '  log.error("unhandled error", { err });' \
+    '  return { status: 500 };' \
+    '}' > "$local_root/src/handler.ts"
+WORKSPACE_DIR="$tmp_root/local-workspace"
+RESULTS_DIR="$tmp_root/local-results"
+mkdir -p "$RESULTS_DIR"
+unset RESEARCH_RUN_DIR RESEARCH_RUN_ID RESEARCH_TASK_GROUP RESEARCH_PROMPT RESEARCH_INTENSITY RESEARCH_PROVIDER_RESULTS_DIR RESEARCH_PROJECT_ROOT
+OCTOPUS_RESEARCH_RUN_ID="local-citations"
+OCTOPUS_RESEARCH_RESUME=false
+OCTOPUS_RESEARCH_FETCH_MAX=0
+PROJECT_ROOT="$local_root" research_run_begin "1700000008" "Audit the handler" "standard"
+unset RESEARCH_RUN_DIR RESEARCH_RUN_ID RESEARCH_TASK_GROUP RESEARCH_PROMPT RESEARCH_INTENSITY RESEARCH_PROVIDER_RESULTS_DIR RESEARCH_PROJECT_ROOT
+OCTOPUS_RESEARCH_RESUME=true
+PROJECT_ROOT="$elsewhere_root" research_run_begin "1700000008" "" "standard"
+OCTOPUS_RESEARCH_RESUME=false
+local_draft="$RESEARCH_RUN_DIR/local-pass.md"
+{
+    printf '%s\n' '# Findings'
+    printf '%s\n' '- Unexpected errors return 500 (`src/handler.ts:4`).'
+    printf '%s\n' '- The handler logs "unhandled error" with the error attached (src/handler.ts:2-4).'
+    printf -- '- The same handler, cited by absolute path, returns 500 (`%s/src/handler.ts:4`).\n' "$local_root"
+} > "$local_draft"
+local_status=0
+(cd "$elsewhere_root" && research_verify_synthesis "$local_draft") || local_status=$?
+if [[ "$local_status" -eq 0 ]] \
+   && jq -e '.status == "passed" and .failures == 0 and .claims_checked == 3' \
+        "$RESEARCH_RUN_DIR/verification.json" >/dev/null \
+   && jq -se '.[0].local_citations == ["src/handler.ts:4"]
+              and .[0].independence_groups == ["local:src/handler.ts"]
+              and .[1].local_citations == ["src/handler.ts:2-4"]
+              and .[2].local_citations == ["src/handler.ts:4"]' \
+        "$RESEARCH_RUN_DIR/claims.jsonl" >/dev/null; then
+    test_pass
+else
+    test_fail "resolvable workspace citations were rejected: $(jq -c '.checks' "$RESEARCH_RUN_DIR/verification.json" 2>/dev/null)"
+fi
+
+test_case "workspace citations fail closed outside the root, past EOF, or on mismatched numbers"
+printf '%s\n' 'outside the workspace' > "$tmp_root/outside.ts"
+ln -sf "../../outside.ts" "$local_root/src/escape.ts"
+local_bad_draft="$RESEARCH_RUN_DIR/local-fail.md"
+{
+    printf '%s\n' '- Unexpected errors return 503 (`src/handler.ts:4`).'
+    printf '%s\n' '- A line past the end of the file (`src/handler.ts:40`).'
+    printf '%s\n' '- A relative path that leaves the workspace (`../outside.ts:1`).'
+    printf '%s\n' '- A symlink that leaves the workspace (`src/escape.ts:1`).'
+    printf '%s\n' '- A file that does not exist (`src/missing.ts:1`).'
+    printf -- '- An absolute path outside the workspace (`%s/outside.ts:1`).\n' "$tmp_root"
+    printf '%s\n' '- A basename that is not a workspace path (`handler.ts:4`).'
+} > "$local_bad_draft"
+local_bad_status=0
+research_verify_synthesis "$local_bad_draft" || local_bad_status=$?
+local_bad_kinds=$(jq -r '.checks[] | "\(.line):\(.kind)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$local_bad_status" -ne 0 ]] \
+   && [[ "$local_bad_kinds" == "1:number_mismatch 2:missing_citation 3:missing_citation 4:missing_citation 5:missing_citation 6:missing_citation 7:missing_citation " ]]; then
+    test_pass
+else
+    test_fail "unresolvable workspace citations were accepted: $local_bad_kinds"
+fi
+
 test_summary
