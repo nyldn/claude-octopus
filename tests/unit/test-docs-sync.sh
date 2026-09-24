@@ -160,6 +160,76 @@ check_docs_files() {
   done
 }
 
+# Check hand-maintained public documentation that cannot be derived from the
+# plugin manifests. These assertions protect release status, navigation, and
+# support-policy claims that previously drifted while generated facts stayed
+# green.
+check_public_docs_hygiene() {
+  info "\nValidating public documentation hygiene..."
+
+  if grep -Eq '^\| 11\.x[[:space:]]+\| Yes - Full security updates[[:space:]]+\|$' SECURITY.md; then
+    pass "SECURITY.md supports the current v11 release line"
+  else
+    fail "SECURITY.md supports the current v11 release line"
+  fi
+
+  local released_docs=(
+    "docs/README.md"
+    "docs/WORKFLOW-METHODS.md"
+    "docs/COMMAND-REFERENCE.md"
+    "docs/DEVELOPER.md"
+  )
+  if grep -qF '[Unreleased]' "${released_docs[@]}"; then
+    fail "released workflow documentation does not point to Unreleased"
+  else
+    pass "released workflow documentation does not point to Unreleased"
+  fi
+
+  local navigation_docs=(
+    "docs/AGENTS.md"
+    "docs/KNOWLEDGE-WORKERS.md"
+    "commands/multi.md"
+  )
+  if grep -Eq 'agent-decision-tree\.md|monthly-agent-review\.md|docs/TRIGGERS\.md' "${navigation_docs[@]}"; then
+    fail "public navigation omits deleted documents"
+  else
+    pass "public navigation omits deleted documents"
+  fi
+
+  local line_count
+  line_count=$(wc -l < README.md | tr -d ' ')
+  if [[ "$line_count" -le 600 ]]; then
+    pass "README.md stays within its 600-line user-facing budget"
+  else
+    fail "README.md stays within its 600-line user-facing budget" \
+      "README.md has ${line_count} lines"
+  fi
+
+  local duplicate_versions
+  duplicate_versions=$(awk '
+    /^## \[[0-9]/ {
+      versions[$2]++
+    }
+    END {
+      for (version in versions) {
+        if (versions[version] > 1) print version
+      }
+    }
+  ' CHANGELOG.md | sort)
+  if [[ -z "$duplicate_versions" ]]; then
+    pass "CHANGELOG.md has one heading per released version"
+  else
+    fail "CHANGELOG.md has one heading per released version" \
+      "duplicate versions: ${duplicate_versions//$'\n'/, }"
+  fi
+
+  if grep -Eq 'sail-cruisey #[0-9]+|\(#(1983|1992|1994|2077|2346)\)' CHANGELOG.md; then
+    fail "CHANGELOG.md omits private or nonexistent tracker references"
+  else
+    pass "CHANGELOG.md omits private or nonexistent tracker references"
+  fi
+}
+
 # Check all skill directories are registered in plugin.json (v9.38+)
 # Skills migrated from .claude/skills/*.md to skills/*/ directories
 check_skills_registered() {
@@ -454,6 +524,7 @@ check_readme_counts
 check_changelog_version "$VERSION"
 check_readme_structure
 check_docs_files
+check_public_docs_hygiene
 check_skills_registered
 check_workflow_skills
 check_hooks_config
