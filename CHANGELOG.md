@@ -13,6 +13,12 @@
   such as cost estimates use Claude Code's `\$` escape. A unit suite rejects any
   unescaped `$N` in command and skill bodies, the Cursor copies, and the shipped
   skills.
+- `/octo:embrace` debate gates no longer pick their context from the shared
+  `~/.claude-octopus/results/` root. orchestrate.sh writes phase documents to
+  the session's results directory, so `ls -t` over the root found no current
+  document and returned the newest match left by an earlier session. The
+  gates now pass no context file and let orchestrate.sh read its own session
+  directory, and the command uses the document paths the phases log.
 
 ## [11.9.1] - 2026-09-24
 
