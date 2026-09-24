@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.9.0] - 2026-09-23
+
 ### Added
 
 - Deja can act as an optional memory backend, letting Octopus search existing

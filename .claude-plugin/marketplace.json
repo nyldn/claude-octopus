@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "11.8.1"
+    "version": "11.9.0"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v11.8.1 - Windows setup now handles CRLF manifests, and web projects can use server-root asset URLs without false quality-gate failures. 31 personas, 54 commands, 63 skills. Run /octo:setup.",
-      "version": "11.8.1",
+      "description": "v11.9.0 - Add Opus 5.5 and Deja memory, with safer long-running workflows and session handoffs. 31 personas, 54 commands, 63 skills. Run /octo:setup.",
+      "version": "11.9.0",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"

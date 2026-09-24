@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.8.1",
-  "description": "v11.8.1 \u2014 Windows setup now handles CRLF manifests, and web projects can use server-root asset URLs without false quality-gate failures. Run /octo:setup.",
+  "version": "11.9.0",
+  "description": "v11.9.0 \u2014 Add Opus 5.5 and Deja memory, with safer long-running workflows and session handoffs. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
