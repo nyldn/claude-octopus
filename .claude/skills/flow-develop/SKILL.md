@@ -170,7 +170,7 @@ Provider Availability:
 🧭 Antigravity CLI: ${agy_status} - Additional external-model challenge
 🔵 Claude: Available ✓ - Integration and quality gates
 
-💰 Estimated Cost: $0.02-0.10
+💰 Estimated Cost: \$0.02-0.10
 ⏱️  Estimated Time: 3-7 minutes
 ```
 
@@ -185,7 +185,7 @@ Provider Availability:
 🧭 Antigravity CLI: ${agy_status} - Additional external-model challenge
 🔵 Claude: Available ✓ - Integration and quality review
 
-💰 Estimated Cost: $0.02-0.10
+💰 Estimated Cost: \$0.02-0.10
 ⏱️  Estimated Time: 3-7 minutes
 ```
 
@@ -801,7 +801,7 @@ After writing code, ensure:
 - 🟡 Antigravity CLI uses your AGY_AUTH_TOKEN (costs apply)
 - 🔵 Claude analysis included with Claude Code
 
-Tangle workflows typically cost $0.02-0.10 per task depending on complexity and code length.
+Tangle workflows typically cost \$0.02-0.10 per task depending on complexity and code length.
 
 ---
 

@@ -102,7 +102,7 @@ Research Parameters:
 🎯 Focus: ${focus_choice}
 📝 Format: ${format_choice}
 
-💰 Estimated Cost: $0.01-0.05
+💰 Estimated Cost: \$0.01-0.05
 ⏱️  Estimated Time: 2-5 minutes
 ```
 

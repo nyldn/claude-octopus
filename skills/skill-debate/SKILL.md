@@ -504,8 +504,8 @@ EOF
 After each advisor responds, evaluate response quality:
 ```bash
 evaluate_response_quality() {
-    local response_file="$1"
-    local advisor="$2"
+    local response_file="${1}"
+    local advisor="${2}"
 
     word_count=$(wc -w < "$response_file")
     has_citations=$(grep -c '\[' "$response_file" || echo 0)
@@ -682,9 +682,9 @@ Score >= 75: proceed. Score 50-74: proceed with warning. Score < 50: re-prompt f
 ## Cost Tracking
 
 Typical costs (default word limits):
-- Quick (1 round): $0.02 - $0.05
-- Thorough (3 rounds): $0.10 - $0.20
-- Adversarial (5 rounds): $0.25 - $0.50
+- Quick (1 round): \$0.02 - \$0.05
+- Thorough (3 rounds): \$0.10 - \$0.20
+- Adversarial (5 rounds): \$0.25 - \$0.50
 
 Cost tracking integrates with `~/.claude-octopus/analytics/` logs.
 

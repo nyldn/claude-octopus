@@ -703,7 +703,7 @@ Experiment Complete
 ### Example
 
 ```
-/octo:loop Metric: npm test -- --coverage | grep 'All files' | awk '{print $10}' Direction: higher Guard: npm test Iterations: 20
+/octo:loop Metric: npm test -- --coverage | grep 'All files' | awk '{print $(10)}' Direction: higher Guard: npm test Iterations: 20
 ```
 
 This will:

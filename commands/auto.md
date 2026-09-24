@@ -265,7 +265,7 @@ echo "PROVIDER_CHECK_END"
 Then render the provider banner from actual provider checks. Do not hand-write or summarize this banner; run this block and display its output exactly. The output MUST include the Antigravity line even when `agy` is missing.
 
 ```bash
-status_cli() { command -v "$1" >/dev/null 2>&1 && echo "Available ✓" || echo "Not installed ✗"; }
+status_cli() { command -v "${1}" >/dev/null 2>&1 && echo "Available ✓" || echo "Not installed ✗"; }
 status_env() { [[ -n "${1:-}" ]] && echo "Configured ✓" || echo "Not configured ✗"; }
 codex_status="$(status_cli codex)"
 agy_status="$(status_cli agy)"

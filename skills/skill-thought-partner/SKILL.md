@@ -208,7 +208,7 @@ User: "I just care more about my customers than other people do."
 Partner: "Everyone says that. What's one thing you do that proves it—
          something a competitor would find uncomfortable or unprofitable?"
 
-User: "I spend 30 minutes on every support ticket, even $10 ones."
+User: "I spend 30 minutes on every support ticket, even \$10 ones."
 
 Partner: "That sounds economically irrational. Why does it work?"
 ```

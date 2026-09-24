@@ -107,15 +107,15 @@ When you specify a `Metric:` command, the loop switches to mechanical metric ver
 ### Metric Mode Examples
 
 ```
-/octo:loop Metric: npm test -- --coverage | grep 'All files' | awk '{print $10}' Direction: higher Guard: npm test Iterations: 20
+/octo:loop Metric: npm test -- --coverage | grep 'All files' | awk '{print $(10)}' Direction: higher Guard: npm test Iterations: 20
 ```
 
 ```
-/octo:loop Metric: time npm run build 2>&1 | grep real | awk '{print $2}' Direction: lower Iterations: 10
+/octo:loop Metric: time npm run build 2>&1 | grep real | awk '{print $(2)}' Direction: lower Iterations: 10
 ```
 
 ```
-/octo:loop Metric: wc -l src/**/*.ts | tail -1 | awk '{print $1}' Direction: lower Guard: npm test Iterations: 15
+/octo:loop Metric: wc -l src/**/*.ts | tail -1 | awk '{print $(1)}' Direction: lower Guard: npm test Iterations: 15
 ```
 
 ### How It Works

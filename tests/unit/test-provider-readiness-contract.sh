@@ -142,7 +142,7 @@ for provider_command in "${provider_commands[@]}"; do
     if grep -Fq 'scripts/helpers/check-providers.sh' "$provider_command" &&
        grep -Fq 'OCTOPUS_PREFLIGHT_PROBE=1' "$provider_command" &&
        grep -Fqi 'shared live readiness' "$provider_command" &&
-       grep -Fq '$1 !~ /^claude($|-)/ && $2 == "available"' "$provider_command" &&
+       grep -Fq '$(1) !~ /^claude($|-)/ && $(2) == "available"' "$provider_command" &&
        ! grep -Fq 'codex|agy|copilot|qwen|opencode|ollama' "$provider_command"; then
         dynamic_commands=$((dynamic_commands + 1))
     fi

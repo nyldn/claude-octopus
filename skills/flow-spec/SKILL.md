@@ -73,7 +73,7 @@ Codex CLI: ${codex_status}
 Antigravity CLI: ${agy_status}
 Claude: Available (Synthesis & NLSpec generation)
 
-Estimated Cost: $0.01-0.05
+Estimated Cost: \$0.01-0.05
 Estimated Time: 3-7 minutes
 ```
 
