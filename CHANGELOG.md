@@ -15,11 +15,10 @@
   respond before a host-native one.
 - Running `orchestrate.sh` or a provider check from a development checkout no
   longer repoints the machine-wide `~/.claude-octopus/plugin` link, which made
-  every other live session run that checkout's unreleased code. Only a plugin
-  root supplied by the host (`CLAUDE_PLUGIN_ROOT`) may take over a working
-  link. The run still repairs a missing or broken link, an installed copy still
-  moves the link to a newer version, and an older installed copy no longer
-  moves it backwards.
+  every other live session run that checkout's unreleased code. A working
+  link now moves only to a root the host supplied (`CLAUDE_PLUGIN_ROOT`) or to
+  a newer installed copy. A checkout still repairs a missing or broken link,
+  and an older installed copy no longer moves the link backwards.
 
 ## [11.9.1] - 2026-09-24
 
