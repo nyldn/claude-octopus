@@ -17,8 +17,9 @@
   longer repoints the machine-wide `~/.claude-octopus/plugin` link, which made
   every other live session run that checkout's unreleased code. A working
   link now moves only to a root the host supplied (`CLAUDE_PLUGIN_ROOT`) or to
-  a newer installed copy. A checkout still repairs a missing or broken link,
-  and an older installed copy no longer moves the link backwards.
+  an installed copy of the same or a newer version. A checkout still repairs a
+  missing or broken link, and an older installed copy no longer moves the link
+  backwards.
 
 ## [11.9.1] - 2026-09-24
 
