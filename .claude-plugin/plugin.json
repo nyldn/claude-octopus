@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.9.1",
-  "description": "v11.9.1 \u2014 Make Define honor --timeout, finish when a provider seat fails, and skip an out-of-quota Antigravity seat. Run /octo:setup.",
+  "version": "11.9.2",
+  "description": "v11.9.2 \u2014 Give Claude a real vote in councils and keep development checkouts from redirecting other sessions to unreleased code. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

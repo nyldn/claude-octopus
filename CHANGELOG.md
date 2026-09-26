@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.9.2] - 2026-09-25
+
 ### Fixed
 
 - Council now dispatches Claude seats when Claude Code is the host, or when a
