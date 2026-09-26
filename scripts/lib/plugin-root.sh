@@ -283,6 +283,13 @@ _octo_self_heal_stable_plugin_root_locked() {
             # not older.
             [[ -n "$candidate_version" && -n "$current_version" ]] || return 0
             ! _octo_version_lt "$candidate_version" "$current_version" || return 0
+            # Two different prereleases of the same version have no known
+            # order (beta.2 vs rc.1), so keep the working link.
+            if [[ "$candidate_version" == *-* && "$current_version" == *-* && \
+                  "$candidate_version" != "$current_version" ]] && \
+               _octo_version_same_core "$candidate_version" "$current_version"; then
+                return 0
+            fi
         fi
     fi
     octo_ensure_stable_plugin_root "$plugin_root" "$stable_root"
@@ -300,6 +307,11 @@ _octo_plugin_root_version() {
     fi
     [[ "$version" =~ ^[0-9]+(\.[0-9]+)*(-[0-9A-Za-z.-]+)?$ ]] && printf '%s\n' "$version"
     return 0
+}
+
+# True when two versions share the same numeric core (ignoring any prerelease).
+_octo_version_same_core() {
+    ! _octo_version_lt "${1%%-*}" "${2%%-*}" && ! _octo_version_lt "${2%%-*}" "${1%%-*}"
 }
 
 # True when version $1 is lower than $2. Numeric fields compare with 10# so

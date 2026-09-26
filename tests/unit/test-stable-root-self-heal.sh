@@ -27,6 +27,7 @@ OLD_VER="11.8.1"
 CUR_VER="11.9.1"
 NEW_VER="11.10.0"
 PRE_VER="11.10.0-beta.1"
+RC_VER="11.10.0-rc.1"
 
 make_root() {
     local root="$1" version="$2"
@@ -41,6 +42,7 @@ INSTALLED_OLD="$CACHE/$OLD_VER"
 INSTALLED_CUR="$CACHE/$CUR_VER"
 INSTALLED_NEW="$CACHE/$NEW_VER"
 INSTALLED_PRE="$CACHE/$PRE_VER"
+INSTALLED_RC="$CACHE/$RC_VER"
 INSTALLED_UNKNOWN="$CACHE/unknown"
 DEV="$BASE/worktrees/claude-octopus/feature"
 LOOKALIKE_DEV="$BASE/src/nyldn-plugins/octo/feature"
@@ -48,6 +50,7 @@ make_root "$INSTALLED_OLD" "$OLD_VER"
 make_root "$INSTALLED_CUR" "$CUR_VER"
 make_root "$INSTALLED_NEW" "$NEW_VER"
 make_root "$INSTALLED_PRE" "$PRE_VER"
+make_root "$INSTALLED_RC" "$RC_VER"
 make_root "$INSTALLED_UNKNOWN" "next"
 make_root "$DEV" "$CUR_VER"
 make_root "$LOOKALIKE_DEV" "$NEW_VER"
@@ -134,6 +137,18 @@ if [[ "$(resolved)" == "$INSTALLED_NEW" ]]; then
     test_pass
 else
     test_fail "prerelease replaced the release: $(resolved)"
+fi
+
+test_case "prereleases of the same version with unknown order keep the working link"
+point_at "$INSTALLED_RC"
+heal "$INSTALLED_PRE"
+rc_then_beta="$(resolved)"
+point_at "$INSTALLED_PRE"
+heal "$INSTALLED_RC"
+if [[ "$rc_then_beta" == "$INSTALLED_RC" && "$(resolved)" == "$INSTALLED_PRE" ]]; then
+    test_pass
+else
+    test_fail "same-core prereleases replaced each other: rc->beta gave $rc_then_beta, beta->rc gave $(resolved)"
 fi
 
 test_case "an installed copy with an unreadable version keeps the working link"
