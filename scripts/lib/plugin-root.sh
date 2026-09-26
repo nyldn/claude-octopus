@@ -179,42 +179,110 @@ octo_discover_plugin_root() {
     return 1
 }
 
-# True when a path is an installed plugin copy (a marketplace or desktop-app
-# cache), not a development checkout or worktree.
+# Print a directory's physical path, or the path unchanged when it is absent.
+_octo_physical_or_raw() {
+    (cd "$1" 2>/dev/null && pwd -P) || printf '%s\n' "$1"
+}
+
+# True when a path is an installed plugin copy inside a known host cache (Claude
+# Code, Codex, or the desktop app), not a development checkout. Match whole
+# cache prefixes: a checkout that merely contains "nyldn-plugins/octo" in its
+# path must not count as installed.
 octo_is_installed_plugin_root() {
-    local root="${1:-}"
+    local root="${1:-}" prefix desktop
     [[ -n "$root" ]] || return 1
-    case "$root" in
-        */plugins/cache/nyldn-plugins/*) return 0 ;;
-        */nyldn-plugins/octo/*) return 0 ;;
-    esac
+    for prefix in \
+        "${CLAUDE_CONFIG_DIR:-${HOME}/.claude}/plugins/cache/nyldn-plugins" \
+        "${HOME}/.claude/plugins/cache/nyldn-plugins" \
+        "${CODEX_HOME:-${HOME}/.codex}/plugins/cache/nyldn-plugins" \
+        "${HOME}/.codex/plugins/cache/nyldn-plugins"; do
+        prefix="$(_octo_physical_or_raw "$prefix")"
+        [[ "$root" == "$prefix"/* ]] && return 0
+    done
+    for desktop in \
+        "${HOME}/Library/Application Support/Claude" \
+        "${LOCALAPPDATA:-/nonexistent}/Claude" \
+        "${XDG_DATA_HOME:-${HOME}/.local/share}/Claude"; do
+        desktop="$(_octo_physical_or_raw "$desktop")"
+        case "$root" in
+            "$desktop"/*/nyldn-plugins/octo/*) return 0 ;;
+        esac
+    done
     return 1
 }
 
-# Self-heal used on every orchestrate.sh run. It repairs a missing or broken
-# stable root, and follows an installed plugin (so hosts without a SessionStart
-# hook still pick up upgrades), but never moves a working stable root to a
-# development checkout. The stable root is machine-wide: repointing it from a
-# worktree made every other live session run that worktree's unreleased code.
-# Sessions that load a checkout on purpose still claim it through the
-# SessionStart hook, which calls octo_ensure_stable_plugin_root directly.
+# Print the plugin root a stable root currently serves: the symlink target, or
+# for Windows wrapper directories the root named by the validated orchestrator
+# shim. Prints nothing when it cannot be determined.
+_octo_stable_root_target() {
+    local stable_root="$1" shim_target
+    if [[ -L "$stable_root" ]]; then
+        (cd "$stable_root" 2>/dev/null && pwd -P) || true
+        return 0
+    fi
+    if [[ -d "$stable_root" ]]; then
+        shim_target="$(octo_stable_shim_source "$stable_root/scripts/orchestrate.sh" "scripts/orchestrate.sh" 2>/dev/null)" || return 0
+        _octo_physical_or_raw "${shim_target%/scripts/orchestrate.sh}"
+    fi
+    return 0
+}
+
+# Cross-process lock around the version check and link replacement, so an old
+# and an upgraded session racing cannot leave the link on the older copy. A
+# lock older than a minute is treated as abandoned. Gives up after ~5 seconds.
+_octo_stable_root_lock() {
+    local lock="$1" tries=0
+    while ! mkdir "$lock" 2>/dev/null; do
+        if [[ -n "$(find "$lock" -maxdepth 0 -mmin +1 2>/dev/null)" ]]; then
+            rmdir "$lock" 2>/dev/null || true
+            continue
+        fi
+        tries=$((tries + 1))
+        [[ "$tries" -lt 50 ]] || return 1
+        sleep 0.1
+    done
+}
+
+# Self-heal used on every orchestrate.sh run and by helpers that infer their
+# own root. It repairs a missing or broken stable root, and lets an installed
+# plugin move the link to a newer version (so hosts without a SessionStart hook
+# still pick up upgrades), but never moves a working stable root to a
+# development checkout or to an older or unorderable installed copy. The stable
+# root is machine-wide: repointing it from a worktree made every other live
+# session run that worktree's unreleased code. Sessions that load a checkout on
+# purpose still claim it through octo_ensure_stable_plugin_root.
 octo_self_heal_stable_plugin_root() {
     local plugin_root="$1"
     local stable_root="${2:-${HOME}/.claude-octopus/plugin}"
+    local lock rc=0
+
+    if [[ -x "$stable_root/scripts/orchestrate.sh" ]] && \
+       ! octo_is_installed_plugin_root "$plugin_root"; then
+        return 0
+    fi
+    lock="${stable_root}.lock"
+    mkdir -p "$(dirname "$stable_root")" 2>/dev/null || true
+    _octo_stable_root_lock "$lock" || return 0
+    _octo_self_heal_stable_plugin_root_locked "$plugin_root" "$stable_root" || rc=$?
+    rmdir "$lock" 2>/dev/null || true
+    return "$rc"
+}
+
+_octo_self_heal_stable_plugin_root_locked() {
+    local plugin_root="$1" stable_root="$2"
     local current_root candidate_version current_version
 
+    # Re-read under the lock: another session may have changed the link.
     if [[ -x "$stable_root/scripts/orchestrate.sh" ]]; then
-        octo_is_installed_plugin_root "$plugin_root" || return 0
-        # An older installed copy still running in another session must not
-        # move the link backwards from a newer install.
-        current_root="$(cd "$stable_root" 2>/dev/null && pwd -P)" || current_root=""
+        current_root="$(_octo_stable_root_target "$stable_root")"
+        [[ "$current_root" != "$plugin_root" ]] || return 0
         if octo_is_installed_plugin_root "$current_root"; then
             candidate_version="$(_octo_plugin_root_version "$plugin_root")"
             current_version="$(_octo_plugin_root_version "$current_root")"
-            if [[ -n "$candidate_version" && -n "$current_version" ]] && \
-               _octo_version_lt "$candidate_version" "$current_version"; then
-                return 0
-            fi
+            # Keep a working installed link unless the candidate is provably
+            # not older.
+            [[ -n "$candidate_version" && -n "$current_version" ]] || return 0
+            ! _octo_version_lt "$candidate_version" "$current_version" || return 0
         fi
     fi
     octo_ensure_stable_plugin_root "$plugin_root" "$stable_root"
@@ -222,20 +290,23 @@ octo_self_heal_stable_plugin_root() {
 
 # Print the version recorded in a plugin root's package.json, or nothing.
 _octo_plugin_root_version() {
-    local file="${1:-}/package.json" line
+    local file="${1:-}/package.json" version=""
     [[ -f "$file" ]] || return 0
-    line="$(LC_ALL=C grep -m1 '"version"' "$file" 2>/dev/null)" || return 0
-    line="${line#*\"version\"}"
-    line="${line#*\"}"
-    line="${line%%\"*}"
-    [[ "$line" =~ ^[0-9]+(\.[0-9]+)*$ ]] && printf '%s\n' "$line"
+    if command -v jq >/dev/null 2>&1; then
+        version="$(jq -r '.version // empty' "$file" 2>/dev/null)" || version=""
+    else
+        version="$(LC_ALL=C sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$file" 2>/dev/null)"
+        version="${version%%$'\n'*}"
+    fi
+    [[ "$version" =~ ^[0-9]+(\.[0-9]+)*(-[0-9A-Za-z.-]+)?$ ]] && printf '%s\n' "$version"
     return 0
 }
 
-# True when dotted numeric version $1 is lower than $2. Bash 3.2 safe: compares
-# each field numerically with 10# so leading zeroes are not read as octal.
+# True when version $1 is lower than $2. Numeric fields compare with 10# so
+# leading zeroes are not read as octal (Bash 3.2 safe). With equal numeric
+# cores, a prerelease (11.10.0-beta.1) is lower than the release.
 _octo_version_lt() {
-    local a="$1" b="$2" x y
+    local a="${1%%-*}" b="${2%%-*}" x y
     while [[ -n "$a" || -n "$b" ]]; do
         x="${a%%.*}"; y="${b%%.*}"
         [[ -n "$x" ]] || x=0
@@ -245,7 +316,7 @@ _octo_version_lt() {
         if [[ "$a" == *.* ]]; then a="${a#*.}"; else a=""; fi
         if [[ "$b" == *.* ]]; then b="${b#*.}"; else b=""; fi
     done
-    return 1
+    [[ "$1" == *-* && "$2" != *-* ]]
 }
 
 octo_ensure_stable_plugin_root() {

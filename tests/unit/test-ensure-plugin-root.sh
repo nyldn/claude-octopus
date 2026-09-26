@@ -40,7 +40,7 @@ test_case "a checkout without CLAUDE_PLUGIN_ROOT does not take over a working li
 # development checkout the inferred root must not redirect other sessions.
 rm -f "$TEST_HOME/.claude-octopus/plugin"
 ln -s "$NEW_ROOT" "$TEST_HOME/.claude-octopus/plugin"
-env -u CLAUDE_PLUGIN_ROOT HOME="$TEST_HOME" \
+env -u CLAUDE_PLUGIN_ROOT "HOME=${TEST_HOME}" \
     bash "$PROJECT_ROOT/scripts/helpers/ensure-plugin-root.sh" >/dev/null 2>&1 || true
 resolved="$(cd "$TEST_HOME/.claude-octopus/plugin" 2>/dev/null && pwd -P || true)"
 if [[ "$resolved" == "$NEW_ROOT_PHYSICAL" ]]; then
@@ -51,7 +51,7 @@ fi
 
 test_case "a checkout without CLAUDE_PLUGIN_ROOT still repairs a missing link"
 rm -f "$TEST_HOME/.claude-octopus/plugin"
-env -u CLAUDE_PLUGIN_ROOT HOME="$TEST_HOME" \
+env -u CLAUDE_PLUGIN_ROOT "HOME=${TEST_HOME}" \
     bash "$PROJECT_ROOT/scripts/helpers/ensure-plugin-root.sh" >/dev/null 2>&1 || true
 resolved="$(cd "$TEST_HOME/.claude-octopus/plugin" 2>/dev/null && pwd -P || true)"
 if [[ "$resolved" == "$PROJECT_ROOT" ]]; then

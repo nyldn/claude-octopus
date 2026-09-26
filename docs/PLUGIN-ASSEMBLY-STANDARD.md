@@ -117,9 +117,10 @@ the markdown as a shell script.
 Use `${HOME}/.claude-octopus/plugin` in model-facing command instructions. That
 stable symlink is repaired at SessionStart and remains available to model tool
 calls. The repair target is the plugin root loaded by the host, so direct source
-loading does not introduce a second plugin trust boundary. Other runs of
-`orchestrate.sh` only repair a missing or broken link, so a development
-checkout cannot redirect other sessions to unreleased code. Reserve
+loading does not introduce a second plugin trust boundary. Runs from a
+development checkout only repair a missing or broken link, so a checkout cannot
+redirect other sessions to unreleased code. An installed copy may still move
+the link to a newer installed version. Reserve
 `CLAUDE_PLUGIN_ROOT` for hooks and runtime scripts, where Claude Code supplies
 it. This distinction is intentional rather than an interchangeable path
 convention.
