@@ -35,4 +35,29 @@ else
     test_fail "refreshed stable root has no executable orchestrator"
 fi
 
+test_case "a checkout without CLAUDE_PLUGIN_ROOT does not take over a working link"
+# check-providers.sh runs this helper on every provider check. From a
+# development checkout the inferred root must not redirect other sessions.
+rm -f "$TEST_HOME/.claude-octopus/plugin"
+ln -s "$NEW_ROOT" "$TEST_HOME/.claude-octopus/plugin"
+env -u CLAUDE_PLUGIN_ROOT HOME="$TEST_HOME" \
+    bash "$PROJECT_ROOT/scripts/helpers/ensure-plugin-root.sh" >/dev/null 2>&1 || true
+resolved="$(cd "$TEST_HOME/.claude-octopus/plugin" 2>/dev/null && pwd -P || true)"
+if [[ "$resolved" == "$NEW_ROOT_PHYSICAL" ]]; then
+    test_pass
+else
+    test_fail "inferred checkout root took over a working link: ${resolved:-missing}"
+fi
+
+test_case "a checkout without CLAUDE_PLUGIN_ROOT still repairs a missing link"
+rm -f "$TEST_HOME/.claude-octopus/plugin"
+env -u CLAUDE_PLUGIN_ROOT HOME="$TEST_HOME" \
+    bash "$PROJECT_ROOT/scripts/helpers/ensure-plugin-root.sh" >/dev/null 2>&1 || true
+resolved="$(cd "$TEST_HOME/.claude-octopus/plugin" 2>/dev/null && pwd -P || true)"
+if [[ "$resolved" == "$PROJECT_ROOT" ]]; then
+    test_pass
+else
+    test_fail "missing link resolved to ${resolved:-missing}; expected $PROJECT_ROOT"
+fi
+
 test_summary

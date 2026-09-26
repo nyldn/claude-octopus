@@ -31,6 +31,7 @@ status_of() {
 }
 
 test_case "a Claude host dispatches claude seats instead of marking them host-native"
+octo_is_windows_git_bash() { return 1; }
 OCTOPUS_HOST="claude" COUNCIL_PROVIDERS="claude,codex,agy" council_detect_providers
 if [[ "$(status_of claude)" == "available" && "$(status_of codex)" == "available" ]]; then
     test_pass
@@ -70,9 +71,11 @@ else
 fi
 
 test_case "a host-native provider is still used when it is the only one available"
+# Prefer a missing provider so the trailing `echo "$preferred"` fallback cannot
+# satisfy this check; only the availability loops can return codex.
 COUNCIL_PROVIDERS="codex"
-COUNCIL_PROVIDER_STATUS_JSON='{"codex":"host-native"}'
-picked="$(council_pick_provider "codex")"
+COUNCIL_PROVIDER_STATUS_JSON='{"codex":"host-native","agy":"missing"}'
+picked="$(council_pick_provider "agy")"
 if [[ "$picked" == "codex" ]]; then
     test_pass
 else

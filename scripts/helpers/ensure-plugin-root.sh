@@ -35,10 +35,16 @@ fi
 
 # --- Resolve plugin root ---
 PLUGIN_ROOT=""
+# "host" when the host loaded this root (CLAUDE_PLUGIN_ROOT); only then may a
+# working shared link be moved to it. A root inferred from this script's own
+# location, as from check-providers.sh in a development checkout, only repairs
+# a missing or broken link, so a checkout cannot redirect other sessions.
+ROOT_SOURCE="self"
 
 # Strategy 1: CLAUDE_PLUGIN_ROOT env var (set by CC in hook context)
 if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -d "${CLAUDE_PLUGIN_ROOT}" ]]; then
     PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
+    ROOT_SOURCE="host"
 fi
 
 # Strategy 2: Relative to this script (works when script is inside the plugin tree)
@@ -65,8 +71,12 @@ PLUGIN_ROOT="$(cd "$PLUGIN_ROOT" && pwd -P)"
 # Source the full self-heal helper if available (handles Windows shims etc.)
 if [[ -f "$PLUGIN_ROOT/scripts/lib/plugin-root.sh" ]]; then
     source "$PLUGIN_ROOT/scripts/lib/plugin-root.sh"
-    if declare -f octo_ensure_stable_plugin_root >/dev/null 2>&1; then
-        helper_output="$(octo_ensure_stable_plugin_root "$PLUGIN_ROOT" 2>&1)" && helper_status=0 || helper_status=$?
+    stable_helper="octo_ensure_stable_plugin_root"
+    if [[ "$ROOT_SOURCE" != "host" ]] && declare -f octo_self_heal_stable_plugin_root >/dev/null 2>&1; then
+        stable_helper="octo_self_heal_stable_plugin_root"
+    fi
+    if declare -f "$stable_helper" >/dev/null 2>&1; then
+        helper_output="$("$stable_helper" "$PLUGIN_ROOT" 2>&1)" && helper_status=0 || helper_status=$?
         if [[ -d "$STABLE_ROOT" && -x "$STABLE_ROOT/scripts/orchestrate.sh" ]]; then
             exit 0
         fi

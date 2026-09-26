@@ -41,7 +41,11 @@ export_session_variables() {
     local plugin_root_raw="${CLAUDE_PLUGIN_ROOT:-$(dirname "$SCRIPT_DIR")}"
     local plugin_root
     plugin_root="$(cd "$plugin_root_raw" 2>/dev/null && pwd -P)" || plugin_root="$plugin_root_raw"
-    if declare -f octo_ensure_stable_plugin_root >/dev/null 2>&1; then
+    # Only a root the host loaded may move a working link; a root inferred from
+    # this script's location (no CLAUDE_PLUGIN_ROOT) just repairs a broken one.
+    if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]] && declare -f octo_self_heal_stable_plugin_root >/dev/null 2>&1; then
+        octo_self_heal_stable_plugin_root "$plugin_root" >/dev/null 2>&1 || true
+    elif declare -f octo_ensure_stable_plugin_root >/dev/null 2>&1; then
         octo_ensure_stable_plugin_root "$plugin_root" >/dev/null 2>&1 || true
     else
         mkdir -p "${HOME}/.claude-octopus"

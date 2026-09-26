@@ -126,4 +126,12 @@ else
     test_fail "orchestrate.sh still repoints the stable link unconditionally"
 fi
 
+test_case "session-manager only claims the link for a host-supplied root"
+session_source="$(cat "$PROJECT_ROOT/scripts/session-manager.sh")"
+if [[ "$session_source" == *'if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]] && declare -f octo_self_heal_stable_plugin_root'* ]]; then
+    test_pass
+else
+    test_fail "session-manager.sh claims the link even when it inferred the root itself"
+fi
+
 test_summary
