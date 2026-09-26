@@ -904,6 +904,25 @@ council_persona_seat() {
     esac
 }
 
+# True when the host runtime's own CLI can run as a nested subprocess. Claude
+# Code runs a nested `claude -p` on macOS and Linux (every workflow already
+# dispatches claude seats from inside it), so its seats get a real vote instead
+# of a placeholder. OCTOPUS_HOST is also inferred from the install path, so this
+# covers councils started from a plain terminal too. Codex-within-Codex and
+# Windows/Git Bash keep the host-native guard (#444).
+council_host_can_self_dispatch() {
+    local provider="${1:-}"
+    case "$provider" in
+        claude)
+            if declare -f octo_is_windows_git_bash >/dev/null 2>&1 && octo_is_windows_git_bash; then
+                return 1
+            fi
+            return 0
+            ;;
+    esac
+    return 1
+}
+
 council_provider_is_available() {
     local provider
     provider="$(octo_agent_spec_provider "$1")"
@@ -930,6 +949,15 @@ council_pick_provider() {
         fi
     done
 
+    # Extra seats go to providers that can actually respond before any
+    # host-native provider, which only contributes a placeholder (#1103).
+    for provider in "${provider_list[@]}"; do
+        provider="${provider// /}"
+        if council_provider_is_available "$provider" && ! council_provider_is_host_native "$provider"; then
+            echo "$provider"
+            return 0
+        fi
+    done
     for provider in "${provider_list[@]}"; do
         provider="${provider// /}"
         if council_provider_is_available "$provider"; then
@@ -939,6 +967,12 @@ council_pick_provider() {
     done
 
     echo "$preferred"
+}
+
+council_provider_is_host_native() {
+    local provider
+    provider="$(octo_agent_spec_provider "$1")"
+    [[ "$(jq -r --arg provider "$provider" '.[$provider] // "missing"' <<< "$COUNCIL_PROVIDER_STATUS_JSON")" == "host-native" ]]
 }
 
 council_roster_contains() {
@@ -3162,8 +3196,10 @@ council_detect_providers() {
         # v9.43: When this provider IS the host runtime, spawning it as a subprocess
         # fails (recursive invocation — e.g. codex-within-codex on Windows/Git Bash).
         # Mark as host-native so council_live_response emits an in-context response
-        # instead of a broken subprocess call.
-        if [[ -n "${OCTOPUS_HOST:-}" && "$host_provider" == "$status_key" ]]; then
+        # instead of a broken subprocess call. Hosts that can run a nested copy of
+        # themselves are dispatched like any other seat (#1103).
+        if [[ -n "${OCTOPUS_HOST:-}" && "$host_provider" == "$status_key" ]] && \
+           ! council_host_can_self_dispatch "$status_key"; then
             status="host-native"
         else
             case "$status_key" in

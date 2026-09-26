@@ -62,6 +62,11 @@ On the next session, Octopus compares the stable
 repairs it when they differ. The check uses physical paths, so an older cache
 that still exists cannot keep commands pinned to stale scripts.
 
+The link is shared by every session on the machine. Running `orchestrate.sh`
+from a development checkout repairs a missing or broken link but never replaces
+a working one, and an older installed copy never replaces a newer one. A
+session that loads a checkout on purpose still claims the link at SessionStart.
+
 An installation older than this advisory cannot discover the new code by
 itself. It needs one manual marketplace/plugin update. From then on, the local
 advisory detects disabled auto-update and stale loaded sessions without adding

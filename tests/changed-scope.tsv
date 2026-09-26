@@ -14,7 +14,7 @@ scripts/helpers/process_control.py	tests/unit/test-pid-ledger-python.sh tests/un
 scripts/lib/lifecycle.sh	tests/unit/test-install-readiness.sh tests/unit/test-doctor-v10.sh
 scripts/lib/install-root.sh	tests/unit/test-install-root-safety.sh tests/unit/test-install-readiness.sh
 scripts/lib/lifecycle.sh	tests/unit/test-install-root-safety.sh
-scripts/lib/plugin-root.sh	tests/unit/test-install-root-safety.sh
+scripts/lib/plugin-root.sh	tests/unit/test-install-root-safety.sh tests/unit/test-stable-root-self-heal.sh
 scripts/cache-check.sh	tests/unit/test-install-root-safety.sh
 scripts/repair.sh	tests/unit/test-install-root-safety.sh
 scripts/guide.py	tests/unit/test-command-discovery.sh tests/smoke/test-packaging-integrity.sh

@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Council now dispatches Claude seats when Claude Code is the host, or when a
+  council started from a terminal is taken for one because of the install path.
+  Before, every Claude seat was marked host-native and wrote a placeholder, so a
+  default `claude,codex,agy` council had two voters and a single `REVISE` broke
+  quorum before cross-critique (#1103). Codex-within-Codex and Windows/Git Bash
+  keep the recursion guard, and extra seats now go to a provider that can
+  respond before a host-native one.
+- Running `orchestrate.sh` from a development checkout no longer repoints the
+  machine-wide `~/.claude-octopus/plugin` link, which made every other live
+  session run that checkout's unreleased code. The run still repairs a missing
+  or broken link, an installed copy still moves the link to a newer version,
+  and an older installed copy no longer moves it backwards.
+
 ## [11.9.1] - 2026-09-24
 
 ### Fixed

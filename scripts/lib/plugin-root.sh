@@ -179,6 +179,75 @@ octo_discover_plugin_root() {
     return 1
 }
 
+# True when a path is an installed plugin copy (a marketplace or desktop-app
+# cache), not a development checkout or worktree.
+octo_is_installed_plugin_root() {
+    local root="${1:-}"
+    [[ -n "$root" ]] || return 1
+    case "$root" in
+        */plugins/cache/nyldn-plugins/*) return 0 ;;
+        */nyldn-plugins/octo/*) return 0 ;;
+    esac
+    return 1
+}
+
+# Self-heal used on every orchestrate.sh run. It repairs a missing or broken
+# stable root, and follows an installed plugin (so hosts without a SessionStart
+# hook still pick up upgrades), but never moves a working stable root to a
+# development checkout. The stable root is machine-wide: repointing it from a
+# worktree made every other live session run that worktree's unreleased code.
+# Sessions that load a checkout on purpose still claim it through the
+# SessionStart hook, which calls octo_ensure_stable_plugin_root directly.
+octo_self_heal_stable_plugin_root() {
+    local plugin_root="$1"
+    local stable_root="${2:-${HOME}/.claude-octopus/plugin}"
+    local current_root candidate_version current_version
+
+    if [[ -x "$stable_root/scripts/orchestrate.sh" ]]; then
+        octo_is_installed_plugin_root "$plugin_root" || return 0
+        # An older installed copy still running in another session must not
+        # move the link backwards from a newer install.
+        current_root="$(cd "$stable_root" 2>/dev/null && pwd -P)" || current_root=""
+        if octo_is_installed_plugin_root "$current_root"; then
+            candidate_version="$(_octo_plugin_root_version "$plugin_root")"
+            current_version="$(_octo_plugin_root_version "$current_root")"
+            if [[ -n "$candidate_version" && -n "$current_version" ]] && \
+               _octo_version_lt "$candidate_version" "$current_version"; then
+                return 0
+            fi
+        fi
+    fi
+    octo_ensure_stable_plugin_root "$plugin_root" "$stable_root"
+}
+
+# Print the version recorded in a plugin root's package.json, or nothing.
+_octo_plugin_root_version() {
+    local file="${1:-}/package.json" line
+    [[ -f "$file" ]] || return 0
+    line="$(LC_ALL=C grep -m1 '"version"' "$file" 2>/dev/null)" || return 0
+    line="${line#*\"version\"}"
+    line="${line#*\"}"
+    line="${line%%\"*}"
+    [[ "$line" =~ ^[0-9]+(\.[0-9]+)*$ ]] && printf '%s\n' "$line"
+    return 0
+}
+
+# True when dotted numeric version $1 is lower than $2. Bash 3.2 safe: compares
+# each field numerically with 10# so leading zeroes are not read as octal.
+_octo_version_lt() {
+    local a="$1" b="$2" x y
+    while [[ -n "$a" || -n "$b" ]]; do
+        x="${a%%.*}"; y="${b%%.*}"
+        [[ -n "$x" ]] || x=0
+        [[ -n "$y" ]] || y=0
+        if (( 10#$x < 10#$y )); then return 0; fi
+        if (( 10#$x > 10#$y )); then return 1; fi
+        if [[ "$a" == *.* ]]; then a="${a#*.}"; else a=""; fi
+        if [[ "$b" == *.* ]]; then b="${b#*.}"; else b=""; fi
+    done
+    return 1
+}
+
 octo_ensure_stable_plugin_root() {
     local plugin_root="$1"
     local stable_root="${2:-${HOME}/.claude-octopus/plugin}"
