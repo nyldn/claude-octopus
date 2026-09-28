@@ -27,13 +27,13 @@ octo_lifecycle_hook_profile() {
 octo_lifecycle_host() {
     if [[ -n "${OCTOPUS_HOST:-}" ]]; then
         printf '%s\n' "$OCTOPUS_HOST"
-    elif [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
-        printf 'claude\n'
-    elif [[ -n "${CODEX_PLUGIN_ROOT:-}" || -n "${CODEX_HOME:-}" ]]; then
-        printf 'codex\n'
-    else
-        printf 'standalone\n'
+        return 0
     fi
+    if ! declare -F octo_detect_host_runtime >/dev/null 2>&1; then
+        # shellcheck source=/dev/null
+        source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/host-runtime.sh"
+    fi
+    octo_detect_host_runtime
 }
 
 octo_lifecycle_plugin_root() {

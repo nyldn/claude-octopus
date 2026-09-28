@@ -11,7 +11,8 @@ scripts/lib/doctor.sh	tests/unit/test-doctor-v10.sh tests/unit/test-pid-ledger-p
 scripts/lib/pid-ledger.sh	tests/unit/test-pid-ledger-python.sh tests/unit/test-process-control.sh tests/unit/test-orchestrator-review-regressions.sh tests/unit/test-tangle-cancellation-cleanup.sh
 scripts/helpers/pid-ledger.py	tests/unit/test-pid-ledger-python.sh tests/unit/test-process-control.sh tests/unit/test-orchestrator-review-regressions.sh tests/unit/test-tangle-cancellation-cleanup.sh
 scripts/helpers/process_control.py	tests/unit/test-pid-ledger-python.sh tests/unit/test-process-control.sh tests/unit/test-orchestrator-review-regressions.sh tests/unit/test-tangle-cancellation-cleanup.sh
-scripts/lib/lifecycle.sh	tests/unit/test-install-readiness.sh tests/unit/test-doctor-v10.sh
+scripts/lib/host-runtime.sh	tests/unit/test-host-runtime-detection.sh tests/unit/test-council-host-self-dispatch.sh tests/unit/test-install-readiness.sh tests/unit/test-plugin-update-health.sh tests/unit/test-doctor-v10.sh
+scripts/lib/lifecycle.sh	tests/unit/test-install-readiness.sh tests/unit/test-doctor-v10.sh tests/unit/test-host-runtime-detection.sh
 scripts/lib/install-root.sh	tests/unit/test-install-root-safety.sh tests/unit/test-install-readiness.sh
 scripts/lib/lifecycle.sh	tests/unit/test-install-root-safety.sh
 scripts/lib/plugin-root.sh	tests/unit/test-install-root-safety.sh tests/unit/test-stable-root-self-heal.sh

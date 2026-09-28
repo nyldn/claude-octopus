@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- An exported `CODEX_HOME` no longer makes Octopus treat a Claude Code session
+  as a Codex host. Host detection read `CODEX_HOME`, a config location that is
+  often set globally, as proof that Codex was running, so council marked codex
+  seats host-native and could lose quorum on a single dissent, as in #1103.
+  Detection now relies on the markers Codex sets for every command it runs
+  (`CODEX_THREAD_ID`, `CODEX_SESSION_ID`, `CODEX_SANDBOX`) and on
+  `CODEX_PLUGIN_ROOT`, and uses `CODEX_HOME` only as a last hint.
+  `orchestrate.sh`, lifecycle reporting and plugin updates share one detector.
+
 ## [11.9.3] - 2026-09-27
 
 ### Fixed

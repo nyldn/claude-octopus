@@ -65,19 +65,13 @@ octo_plugin_detect_host() {
     local plugin_root="${1:-}"
     if [[ -n "${OCTOPUS_PLUGIN_HOST:-}" ]]; then
         printf '%s\n' "$OCTOPUS_PLUGIN_HOST"
-    elif [[ -n "${DROID_PLUGIN_ROOT:-}" ]]; then
-        printf 'factory\n'
-    elif [[ -n "${CODEX_HOME:-}" || -n "${CODEX_SANDBOX:-}" || -n "${CODEX_PLUGIN_ROOT:-}" ]]; then
-        printf 'codex\n'
-    elif [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
-        printf 'claude\n'
-    elif [[ "$plugin_root" == *"/.codex/"* ]]; then
-        printf 'codex\n'
-    elif [[ "$plugin_root" == *"/.claude/"* ]]; then
-        printf 'claude\n'
-    else
-        printf 'standalone\n'
+        return 0
     fi
+    if ! declare -F octo_detect_host_runtime >/dev/null 2>&1; then
+        # shellcheck source=/dev/null
+        source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/host-runtime.sh"
+    fi
+    octo_detect_host_runtime "$plugin_root"
 }
 
 octo_plugin_running_inside_codex() {

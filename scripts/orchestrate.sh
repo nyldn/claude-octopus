@@ -110,21 +110,11 @@ OCTOPUS_PLATFORM="$(uname)"
 # Factory's plugin interop resolves ${CLAUDE_PLUGIN_ROOT} automatically,
 # but we detect the host for version checking and env var fallbacks.
 # v9.16.0: Extended for Codex CLI host detection (Direction A)
-if [[ -n "${DROID_PLUGIN_ROOT:-}" ]]; then
-    OCTOPUS_HOST="factory"
-    # Factory provides DROID_PLUGIN_ROOT; ensure CLAUDE_PLUGIN_ROOT is also set
-    export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$DROID_PLUGIN_ROOT}"
-elif [[ -n "${CODEX_HOME:-}" || -n "${CODEX_SANDBOX:-}" || -n "${CODEX_PLUGIN_ROOT:-}" ]]; then
-    OCTOPUS_HOST="codex"  # HOST:codex — Codex CLI is the host runtime
-elif [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
-    OCTOPUS_HOST="claude"
-elif [[ "$PLUGIN_DIR" == *"/.codex/"* ]]; then
-    OCTOPUS_HOST="codex"
-elif [[ "$PLUGIN_DIR" == *"/.claude/"* ]]; then
-    OCTOPUS_HOST="claude"
-else
-    OCTOPUS_HOST="standalone"
-fi
+# Runtime markers outrank the CODEX_HOME config hint (lib/host-runtime.sh).
+source "${SCRIPT_DIR}/lib/host-runtime.sh"
+OCTOPUS_HOST="$(octo_detect_host_runtime "$PLUGIN_DIR")"  # HOST:codex when Codex is the host runtime
+# Factory provides DROID_PLUGIN_ROOT; ensure CLAUDE_PLUGIN_ROOT is also set
+[[ "$OCTOPUS_HOST" != "factory" ]] || export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$DROID_PLUGIN_ROOT}"
 
 # Claude Code web/remote sessions should bias toward unattended execution and
 # avoid expensive local terminal affordances unless explicitly re-enabled.
