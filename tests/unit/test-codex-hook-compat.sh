@@ -141,7 +141,7 @@ test_case "every command hook declares a native-Windows no-op (#1104)"
 command_hook_count="$(jq '[.hooks[][]?.hooks[]? | select(.type == "command")] | length' "$MANIFEST" 2>/dev/null || echo 0)"
 missing_windows="$(jq -r --arg noop "$WINDOWS_HOOK_NOOP" \
     '[.hooks[][]?.hooks[]? | select(.type == "command") | select(.commandWindows != $noop) | .command] | .[]' \
-    "$MANIFEST" 2>/dev/null)"
+    "$MANIFEST" 2>/dev/null)" || missing_windows="__JQ_ERROR__"
 if [[ "${command_hook_count:-0}" -gt 0 && -z "$missing_windows" ]]; then
     test_pass
 elif [[ "${command_hook_count:-0}" -eq 0 ]]; then
@@ -151,7 +151,7 @@ else
 fi
 
 test_case "no Windows hook command launches a shell script"
-windows_scripts="$(jq -r '[.hooks[][]?.hooks[]? | .commandWindows // empty | select(test("\\.sh|bash|sh "; "i"))] | .[]' "$MANIFEST" 2>/dev/null)"
+windows_scripts="$(jq -r '[.hooks[][]?.hooks[]? | .commandWindows // empty | select(test("\\.sh|bash|sh "; "i"))] | .[]' "$MANIFEST" 2>/dev/null)" || windows_scripts="__JQ_ERROR__"
 if [[ -z "$windows_scripts" ]]; then
     test_pass
 else
