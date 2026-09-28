@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.9.3] - 2026-09-27
+
 ### Fixed
 
 - On native Windows, Codex no longer opens a Git Bash window for every Octopus

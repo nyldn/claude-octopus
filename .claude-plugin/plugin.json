@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.9.2",
-  "description": "v11.9.2 \u2014 Give Claude a real vote in councils and keep development checkouts from redirecting other sessions to unreleased code. Run /octo:setup.",
+  "version": "11.9.3",
+  "description": "v11.9.3 \u2014 Stop Octopus hooks from opening Git Bash windows under Codex on native Windows. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
