@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Provider-level reasoning effort no longer collides with the codex
+  `reasoning` model slot in `providers.json`. The v3.0 config Octopus writes
+  stores a model at `providers.codex.reasoning`, used by the `codex-reasoning`
+  agent and the `security: codex:reasoning` route, while role-based execution
+  profiles (#616) read a `{default, policy}` effort object from the same key.
+  On a v3.0 config that lookup failed silently; storing the object instead made
+  `codex-reasoning` and codex dispatch in the security phase fail with
+  "Invalid configured model". Provider-level effort now lives in
+  `providers.<provider>.reasoning_effort` and
+  `providers.<provider>.reasoning_policy`, and `reasoning` stays the model
+  slot. An effort object already stored at `reasoning` is still honored, and
+  the capability-map lookup now skips non-string values, so the object is
+  never taken for a model name.
+
 ## [11.9.4] - 2026-09-28
 
 ### Fixed

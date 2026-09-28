@@ -61,4 +61,32 @@ export OCTOPUS_PROBE_TECHNICAL_IMPLEMENTATION_ANALYSIS_REASONING=medium
 cmd=$(get_agent_command codex probe "Technical implementation analysis")
 assert_contains "$cmd" 'model_reasoning_effort="medium"'
 unset OCTOPUS_PROBE_TECHNICAL_IMPLEMENTATION_ANALYSIS_REASONING
+# providers.<p>.reasoning is the v3.0 model slot, so provider-level effort
+# lives in reasoning_effort/reasoning_policy beside it.
+unset OCTOPUS_REASONING_POLICY
+export OCTOPUS_PROVIDERS_CONFIG="$TEST_TMP_DIR/providers.json"
+cat > "$OCTOPUS_PROVIDERS_CONFIG" <<'JSON'
+{
+  "version": "3.0",
+  "providers": {
+    "codex": {"default": "gpt-5.6-sol", "reasoning": "gpt-5.6-sol", "reasoning_effort": "medium"},
+    "openai-compatible-agent": {"reasoning_effort": "low", "reasoning_policy": "strict"}
+  }
+}
+JSON
+cmd=$(get_agent_command codex review code-reviewer)
+assert_contains "$cmd" 'model_reasoning_effort="medium"'
+cmd=$(get_agent_command openai-compatible-agent develop implementer)
+assert_contains "$cmd" "--reasoning-effort low --reasoning-policy strict"
+cat > "$OCTOPUS_PROVIDERS_CONFIG" <<'JSON'
+{
+  "version": "3.0",
+  "providers": {
+    "codex": {"reasoning": {"default": "high", "policy": "best_effort"}}
+  }
+}
+JSON
+cmd=$(get_agent_command codex review code-reviewer)
+assert_contains "$cmd" 'model_reasoning_effort="high"'
+unset OCTOPUS_PROVIDERS_CONFIG
 test_summary

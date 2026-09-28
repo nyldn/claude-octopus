@@ -2,6 +2,8 @@
 # Unified role/phase execution profile resolution.
 # Backward compatible with string routes (provider:model) and supports object routes:
 # {"provider":"codex","model":"gpt-5.6","reasoning":"medium","reasoningPolicy":"strict"}
+# Provider-level defaults live in providers.<p>.reasoning_effort/.reasoning_policy,
+# because providers.<p>.reasoning is the v3.0 capability model slot (codex-reasoning).
 
 _octo_execution_profile_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if ! declare -f octo_model_family >/dev/null 2>&1; then
@@ -296,7 +298,7 @@ octopus_resolve_reasoning_level() {
   value="$(_octopus_profile_field "$phase" "$role" reasoning 2>/dev/null || true)"
   if [[ -z "$value" ]]; then
     cfg="$(_octopus_profile_config_file)"
-    [[ -f "$cfg" ]] && value=$(jq -r --arg p "$provider" '.providers[$p].reasoning.default // empty' "$cfg" 2>/dev/null || true)
+    [[ -f "$cfg" ]] && value=$(jq -r --arg p "$provider" '.providers[$p] | .reasoning_effort // (.reasoning | objects | .default) // empty' "$cfg" 2>/dev/null || true)
   fi
   octopus_normalize_reasoning_level "$value"
 }
@@ -306,7 +308,7 @@ octopus_resolve_reasoning_policy() {
   value="$(_octopus_profile_field "$phase" "$role" reasoningPolicy 2>/dev/null || true)"
   if [[ -z "$value" ]]; then
     cfg="$(_octopus_profile_config_file)"
-    [[ -f "$cfg" ]] && value=$(jq -r --arg p "$provider" '.providers[$p].reasoning.policy // empty' "$cfg" 2>/dev/null || true)
+    [[ -f "$cfg" ]] && value=$(jq -r --arg p "$provider" '.providers[$p] | .reasoning_policy // (.reasoning | objects | .policy) // empty' "$cfg" 2>/dev/null || true)
   fi
   value="${value:-${OCTOPUS_REASONING_POLICY:-best_effort}}"
   case "$value" in strict|best_effort) printf "%s\n" "$value" ;; *) return 1 ;; esac

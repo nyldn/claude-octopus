@@ -224,6 +224,46 @@ cat > "$CONFIG_FILE" << EOF
 EOF
 assert_eq "$(resolve_octopus_model "codex" "codex-spark")" "gpt-5.6-luna" "Capability mapping"
 
+# Test 4b: providers.codex.reasoning is a model slot; an effort object there is never a model
+clear_model_cache
+cat > "$CONFIG_FILE" << EOF
+{
+  "version": "3.0",
+  "providers": {
+    "codex": { "default": "gpt-5.6-sol", "reasoning": "gpt-5.6-terra", "reasoning_effort": "medium" }
+  },
+  "routing": { "phases": { "security": "codex:reasoning" } }
+}
+EOF
+assert_eq "$(resolve_octopus_model "codex" "codex-reasoning")" "gpt-5.6-terra" "reasoning stays the codex model slot beside reasoning_effort"
+clear_model_cache
+assert_eq "$(resolve_octopus_model "codex" "codex" "security")" "gpt-5.6-terra" "Security phase route resolves the reasoning model slot"
+
+clear_model_cache
+cat > "$CONFIG_FILE" << EOF
+{
+  "version": "3.0",
+  "providers": {
+    "codex": { "default": "gpt-5.6-terra", "reasoning": { "default": "medium", "policy": "best_effort" } }
+  },
+  "routing": { "phases": { "security": "codex:reasoning" } }
+}
+EOF
+assert_eq "$(resolve_octopus_model "codex" "codex-reasoning")" "gpt-5.6-terra" "Legacy reasoning effort object is not used as the codex-reasoning model"
+clear_model_cache
+assert_eq "$(resolve_octopus_model "codex" "codex" "security")" "gpt-5.6-terra" "Legacy reasoning effort object does not break the security phase route"
+
+clear_model_cache
+cat > "$CONFIG_FILE" << EOF
+{
+  "version": "3.0",
+  "providers": {
+    "codex": { "default": "gpt-5.6-sol", "reasoning": { "default": "medium" }, "reasoning_model": "gpt-5.6-luna" }
+  }
+}
+EOF
+assert_eq "$(resolve_octopus_model "codex" "codex-reasoning")" "gpt-5.6-luna" "reasoning_model alias still applies past a legacy effort object"
+
 # Test 5: Phase routing
 clear_model_cache
 cat > "$CONFIG_FILE" << EOF

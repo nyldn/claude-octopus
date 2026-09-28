@@ -705,8 +705,10 @@ resolve_octopus_model() {
             fi
 
             if [[ -n "$capability" && "$capability" != "$canonical_provider" ]]; then
-                # Support both short capability (spark) and full model aliases (spark_model)
-                resolved_model=$(echo "$config_data" | jq -r --arg p "$canonical_provider" --arg cap "$capability" '.providers[$p][$cap] // .providers[$p][($cap + "_model")] // empty' 2>/dev/null)
+                # Support both short capability (spark) and full model aliases (spark_model).
+                # Only strings are models, so a legacy {default, policy} effort object
+                # at providers.<p>.reasoning falls through instead of failing validation.
+                resolved_model=$(echo "$config_data" | jq -r --arg p "$canonical_provider" --arg cap "$capability" '(.providers[$p][$cap] | strings) // (.providers[$p][($cap + "_model")] | strings) // empty' 2>/dev/null)
                 if [[ -n "$resolved_model" && "$resolved_model" != "null" ]] &&
                    ! validate_model_name_for_provider "$canonical_provider" "$resolved_model"; then
                     log ERROR "Invalid configured model for $canonical_provider capability '$capability'"

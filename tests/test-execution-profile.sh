@@ -10,9 +10,10 @@ CFG="$TMP/providers.json"
 cat > "$CFG" <<JSON
 {
   "providers": {
-    "codex": {"reasoning":{"default":"low","policy":"best_effort"}},
-    "claude": {"reasoning":{"default":"high","policy":"strict"}},
-    "openai-compatible-agent": {"reasoning":{"default":"medium","policy":"strict"}}
+    "codex": {"reasoning":"gpt-5.6-sol","reasoning_effort":"low","reasoning_policy":"best_effort"},
+    "claude": {"reasoning_effort":"high","reasoning_policy":"strict"},
+    "openai-compatible-agent": {"reasoning":{"default":"medium","policy":"strict"}},
+    "openai-compatible": {"reasoning":{"default":"high","policy":"best_effort"},"reasoning_effort":"low","reasoning_policy":"strict"}
   },
   "routing": {
     "phases": {
@@ -51,6 +52,12 @@ assert_eq "$(octopus_profile_provider research unknown fallback)" gemini
 assert_eq "$(octopus_profile_model research unknown)" gemini-3.1-pro-preview
 assert_eq "$(octopus_resolve_reasoning_level codex council logic-reviewer)" medium
 assert_eq "$(octopus_resolve_reasoning_policy codex council logic-reviewer)" strict
+assert_eq "$(octopus_resolve_reasoning_level codex "" "")" low "provider reasoning_effort beside the reasoning model slot"
+assert_eq "$(octopus_resolve_reasoning_policy claude "" "")" strict "provider reasoning_policy"
+assert_eq "$(octopus_resolve_reasoning_level openai-compatible-agent "" "")" medium "legacy provider reasoning object level"
+assert_eq "$(octopus_resolve_reasoning_policy openai-compatible-agent "" "")" strict "legacy provider reasoning object policy"
+assert_eq "$(octopus_resolve_reasoning_level openai-compatible "" "")" low "reasoning_effort outranks a legacy reasoning object"
+assert_eq "$(octopus_resolve_reasoning_policy openai-compatible "" "")" strict "reasoning_policy outranks a legacy reasoning object"
 assert_eq "$(octopus_reasoning_cli_fragment codex medium strict)" "-c model_reasoning_effort=\"medium\""
 assert_eq "$(octopus_reasoning_cli_fragment claude high strict)" "--effort high"
 assert_eq "$(octopus_reasoning_cli_fragment openai-compatible-agent medium strict)" "--reasoning-effort medium --reasoning-policy strict"
