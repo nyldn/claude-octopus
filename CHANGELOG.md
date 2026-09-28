@@ -8,8 +8,10 @@
   hook call. Codex runs hook commands through `cmd.exe`, which passed each bare
   `.sh` path to the Windows file association, so windows accumulated until
   Codex had to be closed (#1104). Every hook now declares a `commandWindows`
-  override that exits without starting a shell. Native Windows remains
-  unsupported; run Octopus inside WSL. Linux, macOS and WSL are unaffected.
+  override that exits without starting a shell. Codex uses it on Windows;
+  Claude Code ignores the key and keeps its existing hook behavior. Native
+  Windows remains unsupported; run Octopus inside WSL. Linux, macOS and WSL are
+  unaffected.
 
 ## [11.9.2] - 2026-09-25
 
