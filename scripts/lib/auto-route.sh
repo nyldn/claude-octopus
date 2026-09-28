@@ -200,18 +200,10 @@ auto_route() {
     # Workflow-owned routes must run before response-mode shortcuts. A request
     # such as "decompose this into parallel work packages" can be terse enough
     # to look direct, but its explicit coordination intent is authoritative.
-    if [[ "$task_type" == parallel ]]; then
-        echo -e "${CYAN}${_BOX_TOP}${NC}"
-        echo -e "${CYAN}║  🐙 PARALLEL - Team of Teams execution                       ║${NC}"
-        echo -e "${CYAN}${_BOX_BOT}${NC}"
-        echo "  Routing to parallel workflow; Premium peer policy is owned by that workflow."
-        echo ""
-        parallel_execute "$prompt"
-        return
-    fi
-
+    # Classified parallel intent is the /octo:parallel command, the same as a
+    # confirmed choice; parallel_execute runs a tasks JSON file, not a prompt.
     case "$task_type" in
-        native-*)
+        native-*|parallel)
             echo "Native workflow requested: /octo:${task_type#native-}. No external provider was started."
             echo "Continue in the current Claude Code conversation with that command's execution contract."
             return 0

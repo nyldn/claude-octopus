@@ -366,18 +366,18 @@ fi
 test_case "parallel intent is not short-circuited by direct response mode"
 parallel_route_file="$TEST_TMP_DIR/parallel-route"
 rm -f "$parallel_route_file"
-_BOX_TOP='' _BOX_BOT=''
 classify_task() { printf '%s\n' parallel; }
 detect_response_mode() { printf '%s\n' direct; }
 parallel_execute() { printf '%s\n' dispatched > "$parallel_route_file"; }
 detect_trivial_task() { printf '%s\n' trivial; }
 handle_trivial_task() { printf '%s\n' swallowed > "$parallel_route_file"; }
 export OCTOPUS_COST_TIER=balanced
-if auto_route "decompose this into parallel work packages" >/dev/null &&
-   [[ "$(<"$parallel_route_file")" == dispatched ]]; then
+if parallel_output=$(auto_route "decompose this into parallel work packages") &&
+   grep -q 'Native workflow requested: /octo:parallel' <<< "$parallel_output" &&
+   [[ ! -e "$parallel_route_file" ]]; then
     test_pass
 else
-    test_fail "parallel intent was swallowed by the direct response shortcut"
+    test_fail "parallel intent did not reach the /octo:parallel handoff"
 fi
 unset OCTOPUS_COST_TIER
 unset -f detect_trivial_task handle_trivial_task
