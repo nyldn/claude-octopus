@@ -8,6 +8,11 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd -P)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 
 test_suite "Install readiness and lightweight profiles"
+# Run hooks as a fresh process, not as the session that launched this suite.
+# octo_resolve_session_id prefers these variables over the hook's stdin, so a
+# run inside Claude Code or Codex would otherwise bind every hook fixture to
+# the caller's own session and see no active workflow.
+unset CLAUDE_CODE_SESSION CLAUDE_CODE_SESSION_ID CLAUDE_SESSION_ID CODEX_SESSION_ID CODEX_TASK_ID
 
 LIFECYCLE_LIB="$PROJECT_ROOT/scripts/lib/lifecycle.sh"
 CAPABILITIES="$PROJECT_ROOT/scripts/capabilities.sh"
