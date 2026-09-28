@@ -19,6 +19,15 @@
   sources. It also normalizes each cited file once per verification, so
   repeated quotes do not trigger repeated disk writes. A 16 MiB cache budget
   bounds total temporary storage and failed normalization removes its files.
+- `orchestrate.sh --dry-run parallel <tasks.json>` no longer reports every task
+  as a failed spawn. A dry-run spawn prints the command it would run but no
+  provider PID, and parallel execution still waited for one, so each valid task
+  logged a PID error and a failed spawn. The run then aggregated the session's
+  existing results, wrote a failed `parallel-report.json` and exited 1.
+  Dry-run parallel now validates as before and reports each invalid task as
+  skipped, prints one preview per valid task and a dispatch summary, and
+  writes no aggregate or report. It exits 1 only when validation fails or no
+  task would be dispatched, which is when a real run is certain to fail.
 
 ## [11.9.5] - 2026-09-29
 

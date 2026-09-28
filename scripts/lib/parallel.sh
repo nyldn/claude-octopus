@@ -503,6 +503,7 @@ parallel_execute() {
     local completed=0
     local skipped=0
     local failed=0
+    local previewed=0
     local sequence=0
     local seen_task_ids=$'\n'
 
@@ -598,6 +599,19 @@ parallel_execute() {
             continue
         fi
 
+        # spawn_agent's dry-run branch only prints a command preview, so there
+        # is no provider PID to capture. Keep it off stdin, which carries the
+        # remaining tasks.
+        if [[ "${DRY_RUN:-false}" == "true" ]]; then
+            if spawn_agent "$agent" "$prompt" "$task_id" </dev/null; then
+                ((previewed++)) || true
+            else
+                log WARN "Skipping task $task_id: failed to spawn agent '$agent'"
+                ((failed++)) || true
+            fi
+            continue
+        fi
+
         # A reused task ID must not inherit a completion marker from an earlier
         # run. IDs are filename-safe by the validation above.
         rm -f "${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents/${task_id}.done" \
@@ -659,6 +673,16 @@ parallel_execute() {
 
         log INFO "Progress: $completed/$task_count completed, $running running"
     done < <(jq -c '.tasks[]' "$tasks_file")
+
+    # A real run fails when no task completes, so a dry run that would
+    # dispatch nothing fails too.
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        log INFO "[DRY-RUN] Would dispatch $previewed of $task_count tasks ($skipped skipped, $failed failed)"
+        _parallel_cleanup_resources
+        _parallel_restore_traps
+        [[ "$task_count" -gt 0 && "$previewed" -eq 0 ]] && return 1
+        return 0
+    fi
 
     log INFO "Waiting for remaining $running tasks to complete..."
     while [[ $running -gt 0 ]]; do
