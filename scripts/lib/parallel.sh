@@ -73,6 +73,16 @@ fan_out() {
     log INFO "Fan-out: Sending prompt to ${#agents[@]} agents (${agents[*]})"
     echo ""
 
+    # spawn_agent's dry-run branch only prints a command preview, so there is
+    # no provider PID to capture.
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        for agent in "${agents[@]}"; do
+            spawn_agent "$agent" "$prompt" "${task_group}-${agent}" \
+                || log WARN "Fan-out: failed to spawn $agent"
+        done
+        return 0
+    fi
+
     for agent in "${agents[@]}"; do
         local pid
         if pid=$(spawn_agent_capture_pid "$agent" "$prompt" "${task_group}-${agent}"); then

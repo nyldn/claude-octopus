@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- `orchestrate.sh --dry-run fan-out` no longer reports every agent as a failed
+  spawn. A dry-run spawn prints the command it would run but no provider PID,
+  and fan-out still waited for one, so it logged a PID error and a failed spawn
+  for each agent and then an empty "All agents spawned" list. Dry-run fan-out
+  now prints one preview per agent and stops there; an agent whose command
+  cannot be rendered is still reported.
+
 ## [11.9.4] - 2026-09-28
 
 ### Fixed
