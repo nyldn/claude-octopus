@@ -554,7 +554,7 @@ fi
 test_case "first-run welcome is a user-visible system message"
 fr_home="$TEST_TMP_DIR/firstrun-home"
 rm -rf "$fr_home"; mkdir -p "$fr_home"
-out=$(env HOME="$fr_home" CLAUDE_PLUGIN_ROOT="$PROJECT_ROOT" bash "$MEMORY_HOOK" </dev/null 2>/dev/null)
+out=$(env "HOME=${fr_home}" "CLAUDE_PLUGIN_ROOT=${PROJECT_ROOT}" bash "$MEMORY_HOOK" </dev/null 2>/dev/null)
 if printf '%s' "$out" | jq -e 'has("systemMessage") and (has("hookSpecificOutput") | not)' >/dev/null 2>&1; then
     test_pass
 else
@@ -570,7 +570,7 @@ else
 fi
 
 test_case "first-run stays silent on the second session"
-out2=$(env HOME="$fr_home" CLAUDE_PLUGIN_ROOT="$PROJECT_ROOT" bash "$MEMORY_HOOK" </dev/null 2>/dev/null)
+out2=$(env "HOME=${fr_home}" "CLAUDE_PLUGIN_ROOT=${PROJECT_ROOT}" bash "$MEMORY_HOOK" </dev/null 2>/dev/null)
 if ! grep -qi "Welcome to Claude Octopus" <<<"$out2"; then
     test_pass
 else
