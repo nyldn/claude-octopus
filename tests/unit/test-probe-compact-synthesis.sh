@@ -197,16 +197,20 @@ budget_verdict=$(
         raised_prompt=$(<"$budget_prompt")
         synthesize_probe_results "budget" "Audit the budget" 2 >/dev/null 2>&1 || exit 1
         default_prompt=$(<"$budget_prompt")
+        OCTOPUS_CLAUDE_CONTEXT_BUDGET=60000 \
+            synthesize_probe_results "budget" "Audit the budget" 2 >/dev/null 2>&1 || exit 1
+        floor_prompt=$(<"$budget_prompt")
 
         raised_limit=$(( (400000 - 1024 - 512) / 4 * 3 ))
         if [[ "$raised_prompt" == *"BUDGET_TAIL_MARKER"* ]] \
            && [[ "$raised_prompt" != *"truncated by probe synthesis context"* ]] \
            && [[ "${#raised_prompt}" -le "$raised_limit" ]] \
            && [[ "$default_prompt" != *"BUDGET_TAIL_MARKER"* ]] \
-           && [[ "$default_prompt" == *"truncated by probe synthesis context"* ]]; then
+           && [[ "$default_prompt" == *"truncated by probe synthesis context"* ]] \
+           && [[ "$floor_prompt" == "$default_prompt" ]]; then
             echo "ok"
         else
-            printf 'raised=%s default=%s\n' "${#raised_prompt}" "${#default_prompt}"
+            printf 'raised=%s default=%s floor=%s\n' "${#raised_prompt}" "${#default_prompt}" "${#floor_prompt}"
         fi
     )
 )
