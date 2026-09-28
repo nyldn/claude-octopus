@@ -20,3 +20,4 @@ unit/test-provider-banner-auth.sh	16
 unit/test-safe-github-comments.sh	16
 unit/test-routing.sh	15
 unit/test-cli-flag-after-subcommand.sh	14
+unit/test-run-contract-ledger-size.sh	8

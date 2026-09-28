@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Seat spawns no longer fail once a session's seat ledger passes 128 KiB. The
+  run manifest writer handed the whole seat projection and the event list to
+  `jq` as `--argjson` values, one argv string each, which Linux caps at
+  `MAX_ARG_STRLEN` (128 KiB). A session's ledger
+  (`runs/<session-id>/seats.jsonl`) keeps every run's records, so after a few
+  reviews the projection outgrew the cap, `jq` failed with `E2BIG`, every
+  transition rolled back with "Unable to persist planned execution contract",
+  and each run ended with "ALL Round 1 providers failed" until a new session
+  started (#1111). Both ledgers now reach `jq` through `--slurpfile`, so
+  manifest publication no longer depends on the ledger's size; the manifest
+  content is unchanged.
+
 ## [11.9.4] - 2026-09-28
 
 ### Fixed
