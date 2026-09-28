@@ -9,6 +9,11 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 
 test_suite "Plugin update health (#851)"
+# Path-based host assertions must not depend on the host running this suite:
+# ambient runtime markers (Codex or Claude Code) outrank a fixture path.
+unset CODEX_THREAD_ID CODEX_SESSION_ID CODEX_SANDBOX CODEX_PLUGIN_ROOT CODEX_HOME \
+    CLAUDE_PLUGIN_ROOT CLAUDECODE CLAUDE_CODE_ENTRYPOINT CLAUDE_CODE_SESSION_ID \
+    DROID_PLUGIN_ROOT OCTOPUS_PLUGIN_HOST
 
 LIB="$PROJECT_ROOT/scripts/lib/plugin-update.sh"
 HOOK="$PROJECT_ROOT/hooks/plugin-update-advisory.sh"

@@ -76,10 +76,24 @@ fi
 
 test_case "claude seats do not inherit Codex runtime markers"
 routing_source="$(cat "$PROJECT_ROOT/scripts/lib/provider-routing.sh")"
-if [[ "$routing_source" == *'-u CODEX_THREAD_ID -u CODEX_SESSION_ID -u CODEX_SANDBOX "OCTOPUS_PROVIDER_CHILD=true"'* ]]; then
+if [[ "$routing_source" == *'-u CODEX_THREAD_ID -u CODEX_SESSION_ID -u CODEX_SANDBOX -u CODEX_PLUGIN_ROOT "OCTOPUS_PROVIDER_CHILD=true"'* ]] && \
+   [[ "$routing_source" == *'_octo_is_codex_plugin_cache "${CLAUDE_PLUGIN_ROOT:-}"; then'* ]]; then
     test_pass
 else
     test_fail "the claude child environment still carries Codex runtime markers"
+fi
+
+test_case "Claude Code runtime markers outrank the CODEX_HOME hint"
+# Claude Code's Bash tool sets these but not CLAUDE_PLUGIN_ROOT, so a run from a
+# development checkout (no host path) must not fall through to CODEX_HOME.
+if expect claude "$CHECKOUT" "CODEX_HOME=/home/u/.codex" "CLAUDE_CODE_SESSION_ID=c-1" && \
+   expect claude "$CHECKOUT" "CODEX_HOME=/home/u/.codex" "CLAUDECODE=1" && \
+   expect claude "$CHECKOUT" "CODEX_HOME=/home/u/.codex" "CLAUDE_CODE_ENTRYPOINT=cli" && \
+   expect codex "$CHECKOUT" "CLAUDECODE=1" "CODEX_THREAD_ID=t-1" && \
+   expect codex "$CODEX_INSTALL" "CLAUDECODE=1"; then
+    test_pass
+else
+    test_fail "CODEX_HOME outranked Claude Code runtime markers, or Claude markers outranked Codex"
 fi
 
 test_case "install paths and CODEX_HOME remain fallbacks"

@@ -7,8 +7,9 @@
 # CODEX_SANDBOX under the macOS sandbox), and it also supplies
 # CLAUDE_PLUGIN_ROOT to plugin hooks, so Codex markers are checked first.
 # CODEX_HOME only names a config directory and is often exported globally, so
-# it is the last hint: treating it as a runtime marker made Claude Code
-# sessions look like Codex hosts, which marked codex council seats host-native.
+# it is the last hint, after Claude Code's own runtime markers: treating it as
+# a runtime marker made Claude Code sessions look like Codex hosts, which marked
+# codex council seats host-native.
 
 # True when a path is inside a Codex plugin cache (default or CODEX_HOME).
 _octo_is_codex_plugin_cache() {
@@ -37,6 +38,11 @@ octo_detect_host_runtime() {
     elif [[ "$plugin_root" == *"/.codex/"* ]]; then
         printf 'codex\n'
     elif [[ "$plugin_root" == *"/.claude/"* ]]; then
+        printf 'claude\n'
+    elif [[ -n "${CLAUDECODE:-}" || -n "${CLAUDE_CODE_ENTRYPOINT:-}" || \
+            -n "${CLAUDE_CODE_SESSION_ID:-}" ]]; then
+        # Claude Code's Bash tool sets these but not CLAUDE_PLUGIN_ROOT, so a
+        # run from a development checkout still identifies Claude Code.
         printf 'claude\n'
     elif [[ -n "${CODEX_HOME:-}" ]]; then
         printf 'codex\n'
