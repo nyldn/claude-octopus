@@ -33,7 +33,9 @@ octo_lifecycle_host() {
         # shellcheck source=/dev/null
         source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/host-runtime.sh"
     fi
-    octo_detect_host_runtime
+    # Lifecycle entrypoints run before orchestrate.sh sets OCTOPUS_HOST, so give
+    # the detector this install's own root for its path fallback.
+    octo_detect_host_runtime "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd -P)"
 }
 
 octo_lifecycle_plugin_root() {

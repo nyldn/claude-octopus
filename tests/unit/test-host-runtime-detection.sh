@@ -76,7 +76,7 @@ fi
 
 test_case "claude seats do not inherit Codex runtime markers"
 routing_source="$(cat "$PROJECT_ROOT/scripts/lib/provider-routing.sh")"
-if [[ "$routing_source" == *'-u CODEX_THREAD_ID -u CODEX_SESSION_ID -u CODEX_SANDBOX -u CODEX_PLUGIN_ROOT "OCTOPUS_PROVIDER_CHILD=true"'* ]] && \
+if [[ "$routing_source" == *'-u CODEX_THREAD_ID -u CODEX_SESSION_ID -u CODEX_TASK_ID -u CODEX_SANDBOX -u CODEX_PLUGIN_ROOT "OCTOPUS_PROVIDER_CHILD=true"'* ]] && \
    [[ "$routing_source" == *'_octo_is_codex_plugin_cache "${CLAUDE_PLUGIN_ROOT:-}"; then'* ]]; then
     test_pass
 else
@@ -114,6 +114,23 @@ if [[ "$lc" == "claude" && "$pu" == "claude" && "$pu_codex" == "codex" ]]; then
     test_pass
 else
     test_fail "lifecycle=$lc plugin-update=$pu plugin-update(codex)=$pu_codex; expected claude claude codex"
+fi
+
+test_case "lifecycle host detection uses its own install path before OCTOPUS_HOST is set"
+# A Claude install run from a terminal (no CLAUDE_PLUGIN_ROOT, no runtime
+# markers) with CODEX_HOME exported must still report claude.
+lc_install="$TEST_TMP_DIR/home/.claude/plugins/cache/nyldn-plugins/octo/9.9.9"
+mkdir -p "$lc_install/scripts/lib"
+cp "$PROJECT_ROOT/scripts/lib/host-runtime.sh" "$PROJECT_ROOT/scripts/lib/lifecycle.sh" "$lc_install/scripts/lib/"
+lc_host="$(env -i "PATH=${PATH}" "HOME=${TEST_TMP_DIR}" "CODEX_HOME=/home/u/.codex" bash -c '
+    source "$1/scripts/lib/lifecycle.sh" >/dev/null 2>&1 || true
+    unset OCTOPUS_HOST
+    octo_lifecycle_host
+' _ "$lc_install")"
+if [[ "$lc_host" == "claude" ]]; then
+    test_pass
+else
+    test_fail "lifecycle reported ${lc_host:-nothing} for a Claude install with CODEX_HOME exported"
 fi
 
 test_case "orchestrate.sh sets OCTOPUS_HOST through the shared helper"
