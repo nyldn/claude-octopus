@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.9.4] - 2026-09-28
+
 ### Fixed
 
 - An exported `CODEX_HOME` no longer makes Octopus treat a Claude Code session

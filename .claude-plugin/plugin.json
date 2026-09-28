@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.9.3",
-  "description": "v11.9.3 \u2014 Stop Octopus hooks from opening Git Bash windows under Codex on native Windows. Run /octo:setup.",
+  "version": "11.9.4",
+  "description": "v11.9.4 \u2014 Keep an exported CODEX_HOME from making Claude Code sessions look like Codex. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
