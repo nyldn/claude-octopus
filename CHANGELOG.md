@@ -28,6 +28,14 @@
   skipped, prints one preview per valid task and a dispatch summary, and
   writes no aggregate or report. It exits 1 only when validation fails or no
   task would be dispatched, which is when a real run is certain to fail.
+- `orchestrate.sh --dry-run code-review` no longer reports that every review
+  provider failed. Round 1 waited for the same missing PID, so the dry run
+  logged a PID error per reviewer, printed "All N review providers failed",
+  wrote review findings and provider fallback records, and replaced the
+  session's proof packet with a failed one. It now prints one preview per
+  Round 1 reviewer and stops there without opening a proof packet. Past the
+  existing target and fleet checks, it fails only when no reviewer command can
+  be rendered.
 
 ## [11.9.5] - 2026-09-29
 

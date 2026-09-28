@@ -1710,8 +1710,10 @@ review_run() {
     local findings_file="$results_dir/review-findings-${timestamp}.json"
     mkdir -p "$results_dir"
 
+    # A dry run reviews nothing, and octo_proof_init would reset the proof
+    # packet this session already has.
     local proof_dir=""
-    if declare -F octo_proof_init >/dev/null 2>&1 && octo_proof_enabled; then
+    if [[ "${DRY_RUN:-false}" != "true" ]] && declare -F octo_proof_init >/dev/null 2>&1 && octo_proof_enabled; then
         proof_dir=$(octo_proof_init "review" "target=${target} focus=${focus}" "$profile_json" 2>/dev/null || true)
     fi
 
@@ -1944,6 +1946,7 @@ CRITICAL OUTPUT FORMAT: Return ONLY a valid JSON object. No markdown, no prose, 
     local round1_task_ids=()
     local round1_prompts=()
     local round1_pids=()
+    local round1_previewed=0
 
     fleet_dispatch_begin
     while IFS=: read -r agent_type role specialty; do
@@ -1962,6 +1965,18 @@ CRITICAL OUTPUT FORMAT: Return ONLY a valid JSON object. No markdown, no prose, 
 
 ${agent_prompt_base}"
         round1_prompts+=("$agent_prompt")
+
+        # spawn_agent's dry-run branch only prints a command preview, so there
+        # is no provider PID to capture. Keep it off stdin, which carries the
+        # remaining fleet.
+        if [[ "${DRY_RUN:-false}" == "true" ]]; then
+            if spawn_agent "$agent_type" "$agent_prompt" "$task_id" "$role" "review" </dev/null; then
+                ((round1_previewed++)) || true
+            else
+                log WARN "review_run: spawn_agent failed for ${agent_type}/${role}; continuing Round 1 with remaining fleet"
+            fi
+            continue
+        fi
 
         # A single provider failing PID capture (e.g. a huge diff pushes prompt
         # summarization past the wait budget) must not abort the whole round via
@@ -1990,6 +2005,15 @@ ${agent_prompt_base}"
     fi
 
     fleet_dispatch_end
+
+    # A real review fails when every Round 1 reviewer fails, so a dry run that
+    # renders no reviewer command fails too.
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        log INFO "review_run: [DRY-RUN] Would dispatch ${round1_previewed} of ${#round1_agent_types[@]} Round 1 reviewers"
+        rm -f "$provider_status_file"
+        [[ "$round1_previewed" -eq 0 ]] && return 1
+        return 0
+    fi
 
     # A healthy provider or unrelated RESULTS_DIR activity must not reset a
     # hung peer's timer.
