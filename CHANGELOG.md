@@ -9,9 +9,13 @@
   often set globally, as proof that Codex was running, so council marked codex
   seats host-native and could lose quorum on a single dissent, as in #1103.
   Detection now relies on the markers Codex sets for every command it runs
-  (`CODEX_THREAD_ID`, `CODEX_SESSION_ID`, `CODEX_SANDBOX`) and on
-  `CODEX_PLUGIN_ROOT`, and uses `CODEX_HOME` only as a last hint.
-  `orchestrate.sh`, lifecycle reporting and plugin updates share one detector.
+  (`CODEX_THREAD_ID`, `CODEX_SESSION_ID`), plus `CODEX_SANDBOX` under the
+  macOS sandbox, `CODEX_PLUGIN_ROOT`, and a plugin root inside a Codex plugin
+  cache. `CODEX_HOME` is only a last hint. `orchestrate.sh`, lifecycle
+  reporting and plugin updates share one detector, so lifecycle now also reports
+  Factory and Codex hosts it previously reported as Claude, and records its
+  install state once more after upgrading. Claude seats dispatched from a Codex
+  host no longer inherit Codex's session markers.
 
 ## [11.9.3] - 2026-09-27
 

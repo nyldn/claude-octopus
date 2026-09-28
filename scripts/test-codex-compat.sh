@@ -186,21 +186,25 @@ echo "--- 4. Host Detection (OCTOPUS_HOST) ---"
 
 ALL_SRC="$SCRIPT_DIR/orchestrate.sh $SCRIPT_DIR/lib/*.sh"
 
-test_output "Codex host detected via CODEX_HOME" \
-    "grep -l 'CODEX_HOME' $ALL_SRC | head -1 | xargs grep 'OCTOPUS_HOST.*codex'" \
-    "codex"
+test_output "Codex host detected from runtime markers" \
+    "grep 'CODEX_THREAD_ID' '$SCRIPT_DIR/lib/host-runtime.sh'" \
+    "CODEX_THREAD_ID"
 
 test_output "Claude host detection preserved" \
-    "grep 'OCTOPUS_HOST=\"claude\"' '$SCRIPT_DIR/orchestrate.sh'" \
+    "grep \"printf 'claude\" '$SCRIPT_DIR/lib/host-runtime.sh'" \
     "claude"
 
 test_output "Factory host detection preserved" \
-    "grep 'OCTOPUS_HOST=\"factory\"' '$SCRIPT_DIR/orchestrate.sh'" \
+    "grep \"printf 'factory\" '$SCRIPT_DIR/lib/host-runtime.sh'" \
     "factory"
 
 test_output "Standalone fallback preserved" \
-    "grep 'OCTOPUS_HOST=\"standalone\"' '$SCRIPT_DIR/orchestrate.sh'" \
+    "grep \"printf 'standalone\" '$SCRIPT_DIR/lib/host-runtime.sh'" \
     "standalone"
+
+test_output "orchestrate.sh uses the shared host detector" \
+    "grep 'octo_detect_host_runtime' '$SCRIPT_DIR/orchestrate.sh'" \
+    "octo_detect_host_runtime"
 
 # ============================================
 # 5. GRACEFUL DEGRADATION

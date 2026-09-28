@@ -64,6 +64,24 @@ else
     test_fail "a Codex hook with CLAUDE_PLUGIN_ROOT set was detected as Claude"
 fi
 
+test_case "a CLAUDE_PLUGIN_ROOT inside a Codex plugin cache means Codex"
+# Codex hooks get CLAUDE_PLUGIN_ROOT but may lack the shell-command markers.
+if expect codex "" "CLAUDE_PLUGIN_ROOT=$CODEX_INSTALL" && \
+   expect codex "" "CODEX_HOME=/srv/codex" "CLAUDE_PLUGIN_ROOT=/srv/codex/plugins/cache/nyldn-plugins/claude-octopus/11.9.3" && \
+   expect claude "" "CODEX_HOME=/srv/codex" "CLAUDE_PLUGIN_ROOT=$CLAUDE_INSTALL"; then
+    test_pass
+else
+    test_fail "a Codex plugin-cache root was not recognized, or a Claude root was misread"
+fi
+
+test_case "claude seats do not inherit Codex runtime markers"
+routing_source="$(cat "$PROJECT_ROOT/scripts/lib/provider-routing.sh")"
+if [[ "$routing_source" == *'-u CODEX_THREAD_ID -u CODEX_SESSION_ID -u CODEX_SANDBOX "OCTOPUS_PROVIDER_CHILD=true"'* ]]; then
+    test_pass
+else
+    test_fail "the claude child environment still carries Codex runtime markers"
+fi
+
 test_case "install paths and CODEX_HOME remain fallbacks"
 if expect codex "$CODEX_INSTALL" && expect claude "$CLAUDE_INSTALL" && \
    expect codex "$CHECKOUT" "CODEX_HOME=/home/u/.codex" && \
