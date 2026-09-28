@@ -128,7 +128,8 @@ That's it. Setup detects installed providers, shows what's missing, and walks yo
 
 **Supported platforms:** Linux and macOS run natively. On Windows, run Claude
 Octopus inside [WSL](#using-cursor-on-wsl); native Git Bash, MSYS2, and Cygwin
-are not supported.
+are not supported. On native Windows, Octopus hooks exit without running, so an
+installed plugin stays inert rather than opening shell windows.
 
 ### Dormant by default
 

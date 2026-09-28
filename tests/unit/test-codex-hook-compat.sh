@@ -129,4 +129,33 @@ else
     test_fail "${slow_name} took ${slowest}ms, past the ${budget_ms}ms warning line and approaching Codex's ${CODEX_SESSION_END_CAP}s cap"
 fi
 
+# Native Windows is unsupported (README; #1094). Codex runs hook commands
+# through cmd.exe /C, which hands a bare .sh path to the Windows file
+# association and opens an interactive Git Bash window per hook call (#1104).
+# Every command hook therefore declares a commandWindows that exits cleanly
+# without starting a shell. Codex uses commandWindows on Windows from 0.131;
+# Claude Code accepts the key.
+WINDOWS_HOOK_NOOP="cmd /d /c exit 0"
+
+test_case "every command hook declares a native-Windows no-op (#1104)"
+command_hook_count="$(jq '[.hooks[][]?.hooks[]? | select(.type == "command")] | length' "$MANIFEST" 2>/dev/null || echo 0)"
+missing_windows="$(jq -r --arg noop "$WINDOWS_HOOK_NOOP" \
+    '[.hooks[][]?.hooks[]? | select(.type == "command") | select(.commandWindows != $noop) | .command] | .[]' \
+    "$MANIFEST" 2>/dev/null)"
+if [[ "${command_hook_count:-0}" -gt 0 && -z "$missing_windows" ]]; then
+    test_pass
+elif [[ "${command_hook_count:-0}" -eq 0 ]]; then
+    test_fail "found no command hooks; the manifest shape changed and this check would be vacuous"
+else
+    test_fail "command hooks without the Windows no-op: $(tr '\n' ' ' <<< "$missing_windows")"
+fi
+
+test_case "no Windows hook command launches a shell script"
+windows_scripts="$(jq -r '[.hooks[][]?.hooks[]? | .commandWindows // empty | select(test("\\.sh|bash|sh "; "i"))] | .[]' "$MANIFEST" 2>/dev/null)"
+if [[ -z "$windows_scripts" ]]; then
+    test_pass
+else
+    test_fail "commandWindows would start a shell on native Windows: $(tr '\n' ' ' <<< "$windows_scripts")"
+fi
+
 test_summary
