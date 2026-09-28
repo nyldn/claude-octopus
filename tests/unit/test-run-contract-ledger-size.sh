@@ -13,8 +13,8 @@ test_suite "run contract ledger size"
 source "$PROJECT_ROOT/scripts/lib/events.sh"
 source "$PROJECT_ROOT/scripts/lib/run-contract.sh"
 
-export WORKSPACE_DIR="$TEST_TMP_DIR/ledger-size-workspace"
-export OCTOPUS_RUN_ID="ledger-size"
+export "WORKSPACE_DIR=${TEST_TMP_DIR}/ledger-size-workspace"
+export "OCTOPUS_RUN_ID=ledger-size"
 mkdir -p "$WORKSPACE_DIR"
 run_dir="$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID"
 manifest="$run_dir/run.json"
@@ -48,11 +48,11 @@ else
 fi
 
 test_case "manifest, compat snapshot and latest pointer describe every seat"
-if jq -e --argjson n "$seat_count" '
-      .schema_version == "10.0" and .run_id == "ledger-size" and
+if jq -e --argjson n "$seat_count" --arg schema_version "$OCTO_RUN_SCHEMA_VERSION" '
+      .schema_version == $schema_version and .run_id == "ledger-size" and
       (.seats | length == $n) and .summary.total_seats == $n and
       .summary.running == $n and .phases.review.total == $n and
-      (.seats[] | .transition == "planned" and .reason != "")
+      all(.seats[]; .transition == "planned" and .reason != "")
     ' "$manifest" >/dev/null 2>&1 &&
    cmp -s "$manifest" "$run_dir/seats.json" &&
    [[ "$(readlink "$WORKSPACE_DIR/runs/latest")" == "$run_dir" ]]; then
@@ -69,15 +69,26 @@ else
     test_fail "recovery artifacts left behind in $run_dir"
 fi
 
-test_case "run events still publish alongside the oversized ledger"
-if run_contract_record_event fixture.checkpoint note=after-oversize &&
-   jq -e --argjson n "$seat_count" '
-      (.events | length == 1) and .events[0].event == "fixture.checkpoint" and
+# The event list went through the same --argjson path. Thirty-four events
+# carrying the 4 KiB pad put the events ledger past the cap as well.
+event_count=34
+test_case "run events keep publishing once the events ledger outgrows one argv string too"
+recorded=0
+for i in $(seq 1 "$event_count"); do
+    run_contract_record_event fixture.checkpoint "seq=$i" "note=$pad" || break
+    recorded=$i
+done
+events_bytes="$(jq -c '.events' "$manifest" 2>/dev/null | wc -c | tr -d ' ')"
+if [[ "$recorded" -eq "$event_count" && "${events_bytes:-0}" -gt "$arg_strlen_cap" ]] &&
+   jq -e --argjson n "$seat_count" --argjson events "$event_count" --arg pad "$pad" '
+      (.events | length == $events) and
+      all(.events[]; .event == "fixture.checkpoint" and .attributes.note == $pad) and
+      (.events | map(.attributes.seq | tonumber)) == [range(1; $events + 1)] and
       (.seats | length == $n)
     ' "$manifest" >/dev/null 2>&1; then
     test_pass
 else
-    test_fail "run_contract_record_event failed or the manifest lost the event"
+    test_fail "recorded $recorded of $event_count events; events projection ${events_bytes:-0} bytes"
 fi
 
 test_case "a terminal transition on the oversized ledger still lands"
