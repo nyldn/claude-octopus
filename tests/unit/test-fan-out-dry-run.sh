@@ -14,13 +14,15 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "fan-out dry-run"
 
 # An isolated HOME keeps a developer's providers.json from changing the fan-out
-# participants and keeps run state out of the real ~/.claude-octopus.
+# participants. The workspace overrides are cleared too, because they take
+# precedence over HOME and would send run state to the real workspace.
 fanout_home="$TEST_TMP_DIR/fan-out-dry-run-home"
 fanout_project="$TEST_TMP_DIR/fan-out-dry-run-project"
 mkdir -p "$fanout_home"
 git init -q "$fanout_project"
 
-out="$(cd "$fanout_project" && HOME="$fanout_home" \
+out="$(cd "$fanout_project" && env -u CLAUDE_PLUGIN_DATA -u CLAUDE_OCTOPUS_WORKSPACE \
+    -u OCTOPUS_WORKFLOW_STATE_DIR -u OCTOPUS_STATE_PROJECT_ROOT "HOME=$fanout_home" \
     bash "$PROJECT_ROOT/scripts/orchestrate.sh" -n fan-out "test prompt" </dev/null 2>&1)" && rc=0 || rc=$?
 announced="$(sed -n 's/.*Fan-out: Sending prompt to \([0-9][0-9]*\) agents.*/\1/p' <<< "$out")"
 previews="$(grep -c '\[DRY-RUN\] Would execute:' <<< "$out" || true)"
