@@ -4,19 +4,17 @@
 
 ### Fixed
 
-- Provider-level reasoning effort no longer collides with the codex
-  `reasoning` model slot in `providers.json`. The v3.0 config Octopus writes
-  stores a model at `providers.codex.reasoning`, used by the `codex-reasoning`
-  agent and the `security: codex:reasoning` route, while role-based execution
-  profiles (#616) read a `{default, policy}` effort object from the same key.
-  On a v3.0 config that lookup failed silently; storing the object instead made
-  `codex-reasoning` and codex dispatch in the security phase fail with
-  "Invalid configured model". Provider-level effort now lives in
-  `providers.<provider>.reasoning_effort` and
-  `providers.<provider>.reasoning_policy`, and `reasoning` stays the model
-  slot. An effort object already stored at `reasoning` is still honored, and
-  the capability-map lookup now skips non-string values, so the object is
-  never taken for a model name.
+- Seat spawns no longer fail once a session's seat ledger passes 128 KiB. The
+  run manifest writer handed the whole seat projection and the event list to
+  `jq` as `--argjson` values, one argv string each, which Linux caps at
+  `MAX_ARG_STRLEN` (128 KiB). A session's ledger
+  (`runs/<session-id>/seats.jsonl`) keeps every run's records, so after a few
+  reviews the projection outgrew the cap, `jq` failed with `E2BIG`, every
+  transition rolled back with "Unable to persist planned execution contract",
+  and each run ended with "ALL Round 1 providers failed" until a new session
+  started (#1111). Both ledgers now reach `jq` through `--slurpfile`, so
+  manifest publication no longer depends on the ledger's size; the manifest
+  content is unchanged.
 
 ## [11.9.4] - 2026-09-28
 
