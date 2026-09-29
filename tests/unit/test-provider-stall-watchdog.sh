@@ -178,9 +178,13 @@ raw="$TEST_TMP_DIR/final-poll.raw"
 err="$TEST_TMP_DIR/final-poll.err"
 hint="$TEST_TMP_DIR/final-poll.in"
 rc=0
-OCTOPUS_PROVIDER_STALL_WINDOW=3 OCTOPUS_PROVIDER_STALL_POLL_SECS=2 \
+# The watchdog tracks whole seconds, and its start time is truncated, so the
+# progress must land well clear of the stall boundary: after the probe at 4s,
+# about 1.7s before the 7s boundary. The provider keeps running past that
+# boundary, so a missed progress sample still stalls and fails this case.
+OCTOPUS_PROVIDER_STALL_WINDOW=7 OCTOPUS_PROVIDER_STALL_POLL_SECS=4 \
     octopus_capture_provider_output "prompt" 0 "$hint" "$raw" "$err" \
-        /bin/sh -c 'sleep 2.2; printf progress; sleep 1; printf done' || rc=$?
+        /bin/sh -c 'sleep 4.3; printf progress; sleep 4; printf done' || rc=$?
 if [[ "$rc" -eq 0 && "$(cat "$raw")" == progressdone ]]; then
     test_pass
 else
