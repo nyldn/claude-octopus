@@ -6,6 +6,15 @@
 
 ### Fixed
 
+- The provider smoke test now checks the `claude` CLI that runs Claude seats.
+  Those seats are `claude --print` subprocesses using the CLI's own login, not
+  the host session's, and the smoke test only exercised codex, cursor-agent and
+  agy. With an expired OAuth session, preflight passed, and every Claude
+  researcher and the Claude synthesizer then exited 1 after the other
+  providers had finished the phase, leaving an empty synthesis. A Claude CLI
+  that answers with an error now fails preflight with the login fix; a timeout
+  stays degraded. `OCTOPUS_CLAUDE_SMOKE_TIMEOUT` sets the wait (default 60s),
+  and the check is skipped when `OCTO_ALLOWED_PROVIDERS` excludes Claude.
 - Cost examples in commands and skills now use `USD` instead of escaped dollar
   signs. Claude Code no longer treats them as argument placeholders, and Codex,
   Cursor and Factory display the prices without a backslash.

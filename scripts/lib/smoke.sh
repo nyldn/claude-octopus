@@ -924,6 +924,8 @@ _display_smoke_test_error() {
                 echo -e "    ${DIM}Fix: agent login  OR  export CURSOR_API_KEY=\"...\"${NC}"
             elif [[ "$provider" == "agy" || "$provider" == "Antigravity" ]]; then
                 echo -e "    ${DIM}Fix: launch plain agy and complete browser sign-in${NC}"
+            elif [[ "$provider" == "claude" || "$provider" == "Claude" ]]; then
+                echo -e "    ${DIM}Fix: claude auth login  OR  export ANTHROPIC_API_KEY=\"...\" (required when Claude seats run with --bare)${NC}"
             else
                 echo -e "    ${DIM}Fix: codex login  OR  export OPENAI_API_KEY=\"...\"${NC}"
             fi
@@ -961,6 +963,7 @@ _smoke_test_provider() {
         codex) agent_type="codex" ;;
         cursor-agent) agent_type="cursor-agent" ;;
         agy) agent_type="agy" ;;
+        claude) agent_type="claude-sonnet" ;;
         *) echo "SKIP" > "$result_file"; return 0 ;;
     esac
 
@@ -1018,6 +1021,12 @@ _smoke_test_provider() {
             | run_with_timeout "$smoke_timeout" \
             $cmd_str \
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
+    elif [[ "$provider" == "claude" ]]; then
+        # claude --print reports auth failures ("Failed to authenticate: OAuth
+        # session expired ...") on stdout, so both streams feed the classifier.
+        echo "Reply with exactly: ok" | run_with_timeout "$smoke_timeout" \
+            $cmd_str \
+            >"$stderr_file" 2>&1 || smoke_exit=$?
     else
         run_with_timeout "$smoke_timeout" \
             $cmd_str -p "Reply with exactly: ok" \
@@ -1088,23 +1097,32 @@ provider_smoke_test() {
     log INFO "Running provider smoke test... 🐙"
 
     # Determine which providers are available (from preflight state)
-    local has_codex=false has_cursor_agent=false has_agy=false
+    local has_codex=false has_cursor_agent=false has_agy=false has_claude=false
     command -v codex &>/dev/null && has_codex=true
     if declare -f cursor_agent_is_available >/dev/null 2>&1 && cursor_agent_is_available; then
         has_cursor_agent=true
     fi
     command -v agy &>/dev/null && has_agy=true
+    # Claude seats run as `claude --print` subprocesses with the CLI's own
+    # credentials, not the host session's, so they need their own check.
+    local claude_bin_name
+    read -r claude_bin_name _ <<< "${OCTOPUS_CLAUDE_BIN:-claude}"
+    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed claude; } \
+        && command -v "$claude_bin_name" &>/dev/null; then
+        has_claude=true
+    fi
 
-    if [[ "$has_codex" == "false" && "$has_cursor_agent" == "false" && "$has_agy" == "false" ]]; then
+    if [[ "$has_codex" == "false" && "$has_cursor_agent" == "false" && "$has_agy" == "false" && "$has_claude" == "false" ]]; then
         log WARN "Smoke test: no providers to test"
         return 0
     fi
 
     # Launch parallel smoke tests
-    local codex_result_file cursor_agent_result_file agy_result_file
+    local codex_result_file cursor_agent_result_file agy_result_file claude_result_file
     codex_result_file=$(secure_tempfile "smoke-codex")
     cursor_agent_result_file=$(secure_tempfile "smoke-cursor-agent")
     agy_result_file=$(secure_tempfile "smoke-agy")
+    claude_result_file=$(secure_tempfile "smoke-claude")
     local pids=()
 
     if [[ "$has_codex" == "true" ]]; then
@@ -1128,23 +1146,32 @@ provider_smoke_test() {
         echo "SKIP" > "$agy_result_file"
     fi
 
+    if [[ "$has_claude" == "true" ]]; then
+        _smoke_test_provider "claude" "${OCTOPUS_CLAUDE_SMOKE_TIMEOUT:-60}" "$claude_result_file" &
+        pids+=($!)
+    else
+        echo "SKIP" > "$claude_result_file"
+    fi
+
     # Wait for all background tests
     for pid in "${pids[@]}"; do
         wait "$pid" 2>/dev/null || true
     done
 
     # Collect results
-    local codex_result cursor_agent_result agy_result
+    local codex_result cursor_agent_result agy_result claude_result
     codex_result=$(cat "$codex_result_file" 2>/dev/null || echo "SKIP")
     cursor_agent_result=$(cat "$cursor_agent_result_file" 2>/dev/null || echo "SKIP")
     agy_result=$(cat "$agy_result_file" 2>/dev/null || echo "SKIP")
-    rm -f "$codex_result_file" "$cursor_agent_result_file" "$agy_result_file" 2>/dev/null
+    claude_result=$(cat "$claude_result_file" 2>/dev/null || echo "SKIP")
+    rm -f "$codex_result_file" "$cursor_agent_result_file" "$agy_result_file" "$claude_result_file" 2>/dev/null
 
     local pass_count=0 fail_count=0 skip_count=0
 
     _smoke_tally_result "codex" "$codex_result"
     _smoke_tally_result "cursor-agent" "$cursor_agent_result"
     _smoke_tally_result "agy" "$agy_result"
+    _smoke_tally_result "claude" "$claude_result"
 
     # Display results
     if [[ $fail_count -gt 0 ]]; then
@@ -1164,8 +1191,26 @@ provider_smoke_test() {
             local agy_model="${agy_result#*:}"
             _display_smoke_test_error "Antigravity" "$agy_error" "$agy_model"
         fi
+        if [[ "$claude_result" != "PASS" && "$claude_result" != "SKIP" ]]; then
+            local claude_error="${claude_result%%:*}"
+            local claude_model="${claude_result#*:}"
+            _display_smoke_test_error "Claude" "$claude_error" "$claude_model"
+        fi
         echo ""
     fi
+
+    # Dispatch seats Claude researchers and the Claude synthesizer
+    # unconditionally, so a Claude CLI that answers with an error cannot be
+    # routed around: stop before the other providers spend a full phase on
+    # results nothing can synthesize. A timeout stays degraded; slow is not dead.
+    case "${claude_result%%:*}" in
+        PASS|SKIP|TIMEOUT) ;;
+        *)
+            log ERROR "Smoke test failed: the claude CLI that runs Claude seats returned ${claude_result%%:*}"
+            smoke_test_cache_write "1"
+            return 1
+            ;;
+    esac
 
     # Pass if at least one provider succeeds (consistent with v7.9.1 single-provider mode)
     if [[ $pass_count -gt 0 ]]; then
