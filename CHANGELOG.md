@@ -4,20 +4,17 @@
 
 ### Fixed
 
-- Research about the local codebase can now pass evidence verification. A
-  claim may cite a workspace file as `path:LINE`, `path:START-END` or
-  `path:A,B`. The citation counts when the file exists inside the workspace
-  root recorded in the run manifest and every cited line exists, and quotes and
-  numbers in the claim must then appear in that file. Before, every claim
-  without a web `[source:S###]` ID failed, so a probe that researched the
-  repository could never publish its synthesis.
-- URLs harvested from provider output no longer keep a JSON-escaped `\n`, `\r`
-  or `\t`, or a trailing backslash.
-- Probe synthesis reads as much of each provider artifact as the synthesizer's
-  context budget allows (for example `OCTOPUS_CLAUDE_CONTEXT_BUDGET`). The
-  fixed limits of 24000 bytes per artifact and 120000 in total cut Codex
-  answers off after their prompt echo. `OCTOPUS_PROBE_SYNTHESIS_FILE_CHARS` and
-  `OCTOPUS_PROBE_SYNTHESIS_CONTEXT_CHARS` still pin either limit.
+- Seat spawns no longer fail once a session's seat ledger passes 128 KiB. The
+  run manifest writer handed the whole seat projection and the event list to
+  `jq` as `--argjson` values, one argv string each, which Linux caps at
+  `MAX_ARG_STRLEN` (128 KiB). A session's ledger
+  (`runs/<session-id>/seats.jsonl`) keeps every run's records, so after a few
+  reviews the projection outgrew the cap, `jq` failed with `E2BIG`, every
+  transition rolled back with "Unable to persist planned execution contract",
+  and each run ended with "ALL Round 1 providers failed" until a new session
+  started (#1111). Both ledgers now reach `jq` through `--slurpfile`, so
+  manifest publication no longer depends on the ledger's size; the manifest
+  content is unchanged.
 
 ## [11.9.4] - 2026-09-28
 
