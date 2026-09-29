@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- A probe synthesis that fails mechanical evidence verification now gets one
+  repair pass before publication is blocked. The synthesizer that wrote the
+  draft receives the verifier's repairable findings (missing or elided
+  citations, unknown sources, false consensus, number and quote mismatches),
+  the evidence catalog and the numbered draft, and the corrected draft is
+  verified again. Previously one citation-format slip, such as `:42` in place
+  of `src/app.ts:42`, discarded a usable synthesis and failed the probe. A
+  repair returned inside a code fence is unwrapped first, since the verifier
+  skips fenced text.
+
 ## [11.9.6] - 2026-09-29
 
 ### Fixed

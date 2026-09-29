@@ -364,6 +364,14 @@ research_synthesis_publish() {
     research_run_update "complete" "completed" "synthesis=$synthesis_file"
 }
 
+research_synthesis_repairable_findings() {
+    local report="$1"
+    [[ -r "$report" ]] && command -v jq >/dev/null 2>&1 || return 0
+    jq -r '.checks[]
+        | select(.kind | IN("missing_citation", "unknown_source", "false_consensus", "number_mismatch", "quote_mismatch"))
+        | "- line \(.line) [\(.kind)]: \(.detail)"' "$report" 2>/dev/null || true
+}
+
 research_url_parts() {
     local url="$1"
     local re='^https://([^/?#]+)(/[^?#]*)?(\?[^#]*)?([#].*)?$'
