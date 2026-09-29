@@ -39,6 +39,31 @@ EOF
 output="$(run_hook_in "$workspace")"
 assert_not_contains "$output" "sources missing file" "jq '. as \$x' lines must not be flagged" && test_pass
 
+test_case "a path argument continued onto its own line is not flagged as a sourced file"
+workspace="$TEST_TMP_DIR/continued-dot-argument"
+mkdir -p "$workspace/scripts"
+cat > "$workspace/scripts/scan.sh" <<'EOF'
+#!/usr/bin/env bash
+workspace_paths=$(grep -rn "\.claude-octopus" \
+  --include="*.sh" --include="*.js" \
+  --exclude-dir=.git --exclude-dir=tests \
+  . 2>/dev/null | \
+  grep -v "~/" || true)
+find \
+    . -name '*.md'
+EOF
+output="$(run_hook_in "$workspace")"
+assert_not_contains "$output" "sources missing file" "a continued '. 2>/dev/null' argument line must not be flagged" && test_pass
+
+test_case "a source statement after a continued command is still flagged"
+workspace="$TEST_TMP_DIR/source-after-continuation"
+mkdir -p "$workspace/scripts"
+printf '%s\n' '#!/usr/bin/env bash' 'grep -rn foo \' '  . 2>/dev/null' 'source ./lib/after-continuation.sh' 'echo trailing\\' '. ./lib/after-escaped-backslash.sh' > "$workspace/scripts/run.sh"
+output="$(run_hook_in "$workspace")"
+assert_not_contains "$output" "sources missing file: 2" "the continued argument line must not be flagged" || true
+assert_contains "$output" "sources missing file: ./lib/after-continuation.sh" "a source after the continued command must be flagged" || true
+assert_contains "$output" "after-escaped-backslash.sh" "an escaped trailing backslash must not continue the line" && test_pass
+
 test_case "genuinely missing relative sourced files are still flagged"
 workspace="$TEST_TMP_DIR/missing-source"
 mkdir -p "$workspace/scripts"

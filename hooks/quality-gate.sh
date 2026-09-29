@@ -57,7 +57,9 @@ _octo_parse_shell_word() {
 }
 
 # Track multiline shell quote state so jq/awk programs embedded in a shell
-# string are not mistaken for executable shell source statements.
+# string are not mistaken for executable shell source statements. Also report
+# whether the line ends in an unquoted backslash, so a continued argument line
+# such as `  . 2>/dev/null | \` is not mistaken for a new statement.
 _octo_advance_shell_quote_state() {
     local input="$1" single="$2" double="$3" char="" escaped=0 comment_ok=1 i
 
@@ -93,6 +95,7 @@ _octo_advance_shell_quote_state() {
 
     OCTO_IN_SINGLE_QUOTE="$single"
     OCTO_IN_DOUBLE_QUOTE="$double"
+    OCTO_LINE_CONTINUES=$((escaped && !single && !double))
 }
 
 # Claude Code before v2.1.85 ignores hook-handler `if` filters. Keep the same
@@ -169,13 +172,13 @@ check_reference_integrity() {
     while IFS= read -r -d '' file; do
         local dir
         dir=$(dirname "$file")
-        local in_single_quote=0 in_double_quote=0
+        local in_single_quote=0 in_double_quote=0 continues_line=0
 
         while IFS= read -r stmt; do
             local starts_in_quote=0 ref="" remainder=""
             ((in_single_quote || in_double_quote)) && starts_in_quote=1
 
-            if (( ! starts_in_quote )) && [[ "$stmt" =~ ^[[:space:]]*(\.|source)[[:space:]]+(.+)$ ]]; then
+            if (( ! starts_in_quote && ! continues_line )) && [[ "$stmt" =~ ^[[:space:]]*(\.|source)[[:space:]]+(.+)$ ]]; then
                 remainder="${BASH_REMATCH[2]}"
                 if _octo_parse_shell_word "$remainder"; then
                     ref="$OCTO_SHELL_WORD"
@@ -189,6 +192,7 @@ check_reference_integrity() {
             _octo_advance_shell_quote_state "$stmt" "$in_single_quote" "$in_double_quote"
             in_single_quote="$OCTO_IN_SINGLE_QUOTE"
             in_double_quote="$OCTO_IN_DOUBLE_QUOTE"
+            continues_line="$OCTO_LINE_CONTINUES"
         done < "$file"
     done < <(find . -maxdepth 5 -type f -name "*.sh" -mmin -10 -print0 2>/dev/null || true)
 

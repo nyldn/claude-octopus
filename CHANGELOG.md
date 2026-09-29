@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- The quality-gate hook no longer reports "sources missing file: 2". Its
+  reference-integrity check read the backslash-continued argument line
+  `  . 2>/dev/null | \` in `scripts/validate-no-hardcoded-paths.sh` as a
+  `. 2` source statement. For ten minutes after a fresh checkout or new
+  worktree, every Bash call that mentioned `orchestrate.sh` failed the hook.
+  A continued line is no longer read as a new statement.
+
 ## [11.9.6] - 2026-09-29
 
 ### Fixed
