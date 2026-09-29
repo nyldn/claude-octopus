@@ -9,9 +9,11 @@
   `  . 2>/dev/null | \` in `scripts/validate-no-hardcoded-paths.sh` as a
   `. 2` source statement. For ten minutes after a fresh checkout or new
   worktree, every Bash call that mentioned `orchestrate.sh` failed the hook.
-  A line that continues a command's arguments is no longer read as a new
-  statement. A continued line after `&&`, `||`, `;`, `|` or a keyword such as
-  `then` still starts a command and is still checked.
+  The check now tracks command position across continuations. A line that
+  continues a command's arguments is not a new statement. A continued line
+  after `&&`, `||`, `;`, `|`, a reserved word such as `then`, an assignment,
+  a function definition or a case pattern still starts a command and is still
+  checked.
 
 ## [11.9.6] - 2026-09-29
 

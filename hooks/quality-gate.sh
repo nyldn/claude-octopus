@@ -57,14 +57,19 @@ _octo_parse_shell_word() {
 }
 
 # Track multiline shell quote state so jq/awk programs embedded in a shell
-# string are not mistaken for executable shell source statements. Also report
-# whether the line ends in an unquoted backslash after an ordinary word: the
-# next line then continues that command's arguments, as `  . 2>/dev/null | \`
-# does, and is not a new statement. After an operator such as `&&`, `||`, `;`
-# or `|`, or a keyword such as `then`, the next line starts a command.
+# string are not mistaken for executable shell source statements. Also track
+# command position across backslash continuations: a continued line after a
+# command name, as `  . 2>/dev/null | \` follows `grep -rn ... \`, holds that
+# command's arguments and is not a new statement. After an operator such as
+# `&&`, `||`, `;` or `|`, a reserved word such as `then` in command position,
+# an assignment prefix, a function definition's `name()`, or a case pattern's
+# `)`, the continued line starts a command. A `$(...)` or `(...)` opened on the
+# line is read as part of the word around it. A line holding only the
+# continuation keeps the position it started with.
 _octo_advance_shell_quote_state() {
-    local input="$1" single="$2" double="$3" char="" escaped=0 comment_ok=1 i
-    local word="" last=""
+    local input="$1" single="$2" double="$3" command_position="${4:-1}"
+    local char="" word="" escaped=0 comment_ok=1 i depth
+    local -a outer_positions=() outer_words=()
 
     for ((i = 0; i < ${#input}; i++)); do
         char="${input:i:1}"
@@ -90,22 +95,58 @@ _octo_advance_shell_quote_state() {
             "'") single=1; comment_ok=0; word+="$char" ;;
             '"') double=1; comment_ok=0; word+="$char" ;;
             '#') ((comment_ok)) && break; comment_ok=0; word+="$char" ;;
-            ' '|$'\t') comment_ok=1; [[ -z "$word" ]] || last="$word"; word="" ;;
-            ';'|'|'|'&'|'('|')') comment_ok=1; word=""; last="$char" ;;
+            ' '|$'\t') comment_ok=1; _octo_end_shell_word ;;
+            ';'|'|'|'&') comment_ok=1; word=""; command_position=1 ;;
+            '(')
+                comment_ok=1
+                outer_positions+=("$command_position")
+                outer_words+=("$word")
+                word=""; command_position=1
+                ;;
+            ')')
+                comment_ok=1
+                depth=${#outer_positions[@]}
+                if ((depth)); then
+                    command_position="${outer_positions[depth-1]}"
+                    word="${outer_words[depth-1]}()"
+                    unset "outer_positions[depth-1]" "outer_words[depth-1]"
+                    if [[ "${input:i-1:1}" == '(' && "$word" =~ ^[A-Za-z0-9_:.-]*\(\)$ ]]; then
+                        word=""; command_position=1
+                    fi
+                else
+                    word=""; command_position=1
+                fi
+                ;;
             *) comment_ok=0; word+="$char" ;;
         esac
     done
-    [[ -z "$word" ]] || last="$word"
+    _octo_end_shell_word
 
     OCTO_IN_SINGLE_QUOTE="$single"
     OCTO_IN_DOUBLE_QUOTE="$double"
-    OCTO_LINE_CONTINUES_ARGUMENTS=0
-    if ((escaped && !single && !double)); then
-        case "$last" in
-            ''|';'|'|'|'&'|'('|')'|if|then|else|elif|do|while|until|'{'|'!') ;;
-            *) OCTO_LINE_CONTINUES_ARGUMENTS=1 ;;
+    if ((single || double)); then
+        OCTO_NEXT_STARTS_COMMAND=0
+    elif ((escaped)); then
+        OCTO_NEXT_STARTS_COMMAND="$command_position"
+    else
+        OCTO_NEXT_STARTS_COMMAND=1
+    fi
+}
+
+# Finish the word _octo_advance_shell_quote_state is reading, through that
+# function's word and command_position locals. In command position, a reserved
+# word that precedes a command, or an assignment prefix, keeps the position.
+# Any other word there is the command name, and the words after it are its
+# arguments.
+_octo_end_shell_word() {
+    [[ -n "$word" ]] || return 0
+    if ((command_position)); then
+        case "$word" in
+            if|then|else|elif|do|while|until|time|'{'|'!') ;;
+            *) [[ "$word" =~ ^[A-Za-z_][A-Za-z0-9_]*\+?= ]] || command_position=0 ;;
         esac
     fi
+    word=""
 }
 
 # Claude Code before v2.1.85 ignores hook-handler `if` filters. Keep the same
@@ -182,13 +223,13 @@ check_reference_integrity() {
     while IFS= read -r -d '' file; do
         local dir
         dir=$(dirname "$file")
-        local in_single_quote=0 in_double_quote=0 continues_arguments=0
+        local in_single_quote=0 in_double_quote=0 starts_command=1
 
         while IFS= read -r stmt; do
             local starts_in_quote=0 ref="" remainder=""
             ((in_single_quote || in_double_quote)) && starts_in_quote=1
 
-            if (( ! starts_in_quote && ! continues_arguments )) && [[ "$stmt" =~ ^[[:space:]]*(\.|source)[[:space:]]+(.+)$ ]]; then
+            if (( ! starts_in_quote && starts_command )) && [[ "$stmt" =~ ^[[:space:]]*(\.|source)[[:space:]]+(.+)$ ]]; then
                 remainder="${BASH_REMATCH[2]}"
                 if _octo_parse_shell_word "$remainder"; then
                     ref="$OCTO_SHELL_WORD"
@@ -199,10 +240,10 @@ check_reference_integrity() {
                 fi
             fi
 
-            _octo_advance_shell_quote_state "$stmt" "$in_single_quote" "$in_double_quote"
+            _octo_advance_shell_quote_state "$stmt" "$in_single_quote" "$in_double_quote" "$starts_command"
             in_single_quote="$OCTO_IN_SINGLE_QUOTE"
             in_double_quote="$OCTO_IN_DOUBLE_QUOTE"
-            continues_arguments="$OCTO_LINE_CONTINUES_ARGUMENTS"
+            starts_command="$OCTO_NEXT_STARTS_COMMAND"
         done < "$file"
     done < <(find . -maxdepth 5 -type f -name "*.sh" -mmin -10 -print0 2>/dev/null || true)
 
