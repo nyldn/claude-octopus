@@ -690,17 +690,18 @@ review_result_completed_successfully() {
     [[ "$final_status" == "SUCCESS" ]]
 }
 
-# Return the most specific provider failure. Prefer real Output, then the Error
-# Log when the provider produced no stdout. Within each, report the last
-# "ERROR:" line (for codex's "ERROR: {" JSON body, its message), else the last
-# line that reads as an error, else the first line. Only the result writer's own
-# headers end a section: provider output is copied verbatim, and a codex
-# transcript echoes the whole prompt, Markdown headings included, before its
-# closing ERROR line. Those two fallbacks skip lines that repeat the prompt the
-# writer stored above the first "## Output", and a later "## Output" discards
-# anything collected from an echoed or forged prompt above it. Keep the
-# status-file delimiter out of the detail and cap pathological output, while
-# retaining enough text for an actionable CI comment (#893).
+# Return the most specific provider failure. The last "ERROR:" line wins, the
+# Error Log's before the Output's; for codex's "ERROR: {" JSON body it is the
+# body's message. Otherwise prefer real Output, then the Error Log when the
+# provider produced no stdout, reporting the last line that reads as an error,
+# else the first line. Only the result writer's own headers end a section:
+# provider output is copied verbatim, and a codex transcript echoes the whole
+# prompt, Markdown headings included, before its closing ERROR line. Those two
+# fallbacks skip lines that repeat the prompt the writer stored above the first
+# "## Output", and a later "## Output" discards anything collected from an
+# echoed or forged prompt above it. Keep the status-file delimiter out of the
+# detail and cap pathological output, while retaining enough text for an
+# actionable CI comment (#893).
 review_result_failure_detail() {
     local result_file="$1"
     [[ -f "$result_file" ]] || return 1
@@ -753,10 +754,10 @@ review_result_failure_detail() {
             if (first_line[section] == "") first_line[section]=line
         }
         END {
-            if (error_line["output"] != "") print error_line["output"]
+            if (error_line["error"] != "") print error_line["error"]
+            else if (error_line["output"] != "") print error_line["output"]
             else if (match_line["output"] != "") print match_line["output"]
             else if (first_line["output"] != "") print first_line["output"]
-            else if (error_line["error"] != "") print error_line["error"]
             else if (match_line["error"] != "") print match_line["error"]
             else if (first_line["error"] != "") print first_line["error"]
             else if (placeholder != "") print placeholder

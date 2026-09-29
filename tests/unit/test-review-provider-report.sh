@@ -210,6 +210,35 @@ else
     test_fail "echoed prompt text was reported as the failure cause: ${detail:-<empty>}"
 fi
 
+test_case "review failure detail prefers a stderr ERROR line over partial stdout"
+partial_stdout_file="$TEST_TMP_DIR/codex-partial-stdout-failed.md"
+cat > "$partial_stdout_file" <<'EOF'
+# Agent: codex-standard
+# Started: Mon Sep 28 18:55:17 -03 2026
+
+## Output
+```
+Reviewing the diff for correctness and logic bugs.
+```
+
+## Status: FAILED (exit code: 1)
+
+## Error Log
+```
+OpenAI Codex v0.146.0
+--------
+model: gpt-5.6-sol
+--------
+ERROR: You've hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at 7:17 PM.
+```
+EOF
+detail="$(review_result_failure_detail "$partial_stdout_file")"
+if [[ "$detail" == "$codex_usage_limit_error" ]]; then
+    test_pass
+else
+    test_fail "stderr ERROR line lost to partial stdout: ${detail:-<empty>}"
+fi
+
 test_case "review failure detail prefers the last ERROR line in a transcript Output"
 transcript_output_file="$TEST_TMP_DIR/codex-transcript-output-failed.md"
 cat > "$transcript_output_file" <<'EOF'
