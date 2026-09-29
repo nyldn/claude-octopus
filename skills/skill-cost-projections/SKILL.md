@@ -42,7 +42,7 @@ total_spent=$(jq -s '[.[].cost] | add' "$SESSION_METRICS")
 
 If fewer than 2 completed steps are available, display only actual spend:
 ```
-💰 Spent: \$0.42 (1 step complete — need 2+ for projection)
+💰 Spent: 0.42 USD (1 step complete — need 2+ for projection)
 ```
 
 
@@ -59,7 +59,7 @@ avg_cost=$(echo "$total_spent / $completed_count" | bc -l)
 avg_cost = total_cost / completed_steps
 ```
 
-**Example:** If 3 steps cost \$0.30, \$0.50, \$0.40 → avg = \$1.20 / 3 = \$0.40/step
+**Example:** If 3 steps cost 0.30 USD, 0.50 USD, 0.40 USD → avg = 1.20 USD / 3 = 0.40 USD/step
 
 
 ## Step 3: Project Remaining Cost
@@ -93,7 +93,7 @@ Format the cost projection for the HUD/statusline display.
 
 **Standard display:**
 ```
-💰 Spent: \$2.40 | Est. remaining: \$3.60 | Total: ~\$6.00
+💰 Spent: 2.40 USD | Est. remaining: 3.60 USD | Total: ~6.00 USD
 ```
 
 **Format rules:**
@@ -104,7 +104,7 @@ Format the cost projection for the HUD/statusline display.
 
 **When insufficient data (< 2 steps):**
 ```
-💰 Spent: \$0.42 (need 2+ steps for projection)
+💰 Spent: 0.42 USD (need 2+ steps for projection)
 ```
 
 **Integration:** This display line is emitted by the octopus-hud hook and rendered in the statusline alongside phase progress and provider status.
@@ -119,21 +119,21 @@ if [[ -n "${OCTO_BUDGET_CEILING:-}" ]]; then
   ceiling="$OCTO_BUDGET_CEILING"
   if (( $(echo "$projected_total > $ceiling" | bc -l) )); then
     overage=$(echo "$projected_total - $ceiling" | bc -l)
-    echo "⚠️ Budget ceiling: \$$ceiling — projected to exceed by \$$overage"
+    echo "⚠️ Budget ceiling: ${ceiling} USD — projected to exceed by ${overage} USD"
   fi
 fi
 ```
 
 **Display when over budget:**
 ```
-💰 Spent: \$2.40 | Est. remaining: \$3.60 | Total: ~\$6.00
-⚠️ Budget ceiling: \$5.00 — projected to exceed by \$1.00
+💰 Spent: 2.40 USD | Est. remaining: 3.60 USD | Total: ~6.00 USD
+⚠️ Budget ceiling: 5.00 USD — projected to exceed by 1.00 USD
 ```
 
 **Display when within budget:**
 ```
-💰 Spent: \$2.40 | Est. remaining: \$3.60 | Total: ~\$6.00
-✅ Within budget ceiling: \$10.00
+💰 Spent: 2.40 USD | Est. remaining: 3.60 USD | Total: ~6.00 USD
+✅ Within budget ceiling: 10.00 USD
 ```
 
 **Note:** `OCTO_BUDGET_CEILING` is optional. When unset, no ceiling check is performed.
@@ -144,7 +144,7 @@ fi
 If the projected total is high relative to the task, suggest switching to the budget profile to reduce costs.
 
 ```bash
-# Suggest budget profile when projected total exceeds \$5.00 (configurable)
+# Suggest budget profile when projected total exceeds 5.00 USD (configurable)
 COST_THRESHOLD="${OCTO_COST_THRESHOLD:-5.00}"
 if (( $(echo "$projected_total > $COST_THRESHOLD" | bc -l) )); then
   echo "💡 Tip: Switch to OCTO_PROFILE=budget to reduce costs"
@@ -153,7 +153,7 @@ fi
 
 **Display:**
 ```
-💰 Spent: \$2.40 | Est. remaining: \$3.60 | Total: ~\$6.00
+💰 Spent: 2.40 USD | Est. remaining: 3.60 USD | Total: ~6.00 USD
 💡 Tip: Switch to OCTO_PROFILE=budget to reduce costs
 ```
 
@@ -164,24 +164,24 @@ The budget profile (`OCTO_PROFILE=budget`) routes to cheaper models and reduces 
 
 **Normal — within budget, moderate cost:**
 ```
-💰 Spent: \$2.40 | Est. remaining: \$3.60 | Total: ~\$6.00
+💰 Spent: 2.40 USD | Est. remaining: 3.60 USD | Total: ~6.00 USD
 ```
 
 **Over budget ceiling:**
 ```
-💰 Spent: \$2.40 | Est. remaining: \$3.60 | Total: ~\$6.00
-⚠️ Budget ceiling: \$5.00 — projected to exceed by \$1.00
+💰 Spent: 2.40 USD | Est. remaining: 3.60 USD | Total: ~6.00 USD
+⚠️ Budget ceiling: 5.00 USD — projected to exceed by 1.00 USD
 💡 Tip: Switch to OCTO_PROFILE=budget to reduce costs
 ```
 
 **Early in workflow (insufficient data):**
 ```
-💰 Spent: \$0.42 (need 2+ steps for projection)
+💰 Spent: 0.42 USD (need 2+ steps for projection)
 ```
 
 **Low cost — no warnings:**
 ```
-💰 Spent: \$0.80 | Est. remaining: \$0.80 | Total: ~\$1.60
+💰 Spent: 0.80 USD | Est. remaining: 0.80 USD | Total: ~1.60 USD
 ```
 
 
@@ -210,5 +210,5 @@ Skip malformed entries and project from valid data only. If no valid entries rem
 **Zero remaining steps:**
 When all steps are complete, show final total only:
 ```
-💰 Final cost: \$4.80 (4 steps)
+💰 Final cost: 4.80 USD (4 steps)
 ```

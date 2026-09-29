@@ -172,7 +172,7 @@ Use forced parallel mode when:
 Don't use forced parallel mode when:
 - Task already auto-triggers workflows (octo research, octo build, octo review)
 - Simple factual questions Claude can answer reliably
-- Cost efficiency is important (external CLIs cost ~\$0.02-0.08 per query)
+- Cost efficiency is important (external CLIs cost ~0.02-0.08 USD per query)
 
 ## Cost Awareness
 
@@ -180,11 +180,11 @@ Forcing parallel mode uses external CLIs for every task:
 
 | Provider | Cost per Query | What It Uses |
 |----------|----------------|--------------|
-| 🔴 Codex CLI | ~\$0.01-0.05 | Your OPENAI_API_KEY |
+| 🔴 Codex CLI | ~0.01-0.05 USD | Your OPENAI_API_KEY |
 | 🧭 Antigravity CLI (`agy`) | Included with access/subscription | Antigravity CLI auth |
 | 🔵 Claude | Included | Claude Code subscription |
 
-**Total cost per forced query: ~\$0.02-0.08**
+**Total cost per forced query: ~0.02-0.08 USD**
 
 Use judiciously for tasks where multiple perspectives add value. For routine work, let automatic routing decide when multi-provider is beneficial.
 

@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- Cost examples in commands and skills now use `USD` instead of escaped dollar
+  signs. Claude Code no longer treats them as argument placeholders, and Codex,
+  Cursor and Factory display the prices without a backslash.
 - `/octo:embrace` now uses the newest probe synthesis, grasp consensus, tangle
   validation and delivery document from the session. Its artifact lookup read
   only the first glob match, the alphabetically first, and artifact names carry

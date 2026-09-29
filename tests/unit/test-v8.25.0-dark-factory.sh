@@ -175,7 +175,7 @@ else
 fi
 
 # Test 3.6: Cost estimate mentioned
-if grep -q '\$0.50' "$COMMAND_FILE"; then
+if grep -q '0.50-2.00 USD' "$COMMAND_FILE"; then
     pass "Command includes cost estimate"
 else
     fail "Command missing cost estimate"

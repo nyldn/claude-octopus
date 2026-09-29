@@ -37,6 +37,20 @@ for path in sys.argv[1:]:
 PY
 }
 
+find_escaped_prices() {
+    python3 - "$@" <<'PY'
+import re
+import sys
+
+price = re.compile(r"\\\$[0-9]")
+for path in sys.argv[1:]:
+    with open(path, encoding="utf-8") as handle:
+        for number, line in enumerate(handle, 1):
+            if price.search(line):
+                print(f"{path}:{number}: {line.strip()}")
+PY
+}
+
 surface_files() {
     local surface="$1"
     case "$surface" in
@@ -96,7 +110,16 @@ for surface in commands cursor-commands skill-sources shipped-skills; do
     if [[ -z "$hits" ]]; then
         test_pass
     else
-        test_fail "use \${N} in shell, \$(N) in awk, or \\\$ before a literal amount:
+        test_fail "use \${N} in shell, \$(N) in awk, or write literal amounts in USD:
+${hits//$PROJECT_ROOT\//}"
+    fi
+
+    test_case "$surface show literal prices without escape characters"
+    hits="$(find_escaped_prices "${files[@]}")"
+    if [[ -z "$hits" ]]; then
+        test_pass
+    else
+        test_fail "write literal amounts in USD so they render on every host:
 ${hits//$PROJECT_ROOT\//}"
     fi
 done
