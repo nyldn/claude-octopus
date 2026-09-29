@@ -644,4 +644,40 @@ else
     test_fail "workspace file normalized $call_count times; verification status=$cache_status"
 fi
 
+test_case "workspace cache budget fails verification and cleans normalized files"
+printf 'alpha evidence %0170d\n' 0 > "$local_root/src/cache-a.ts"
+printf 'beta evidence %0170d\n' 0 > "$local_root/src/cache-b.ts"
+budget_draft="$RESEARCH_RUN_DIR/local-budget.md"
+printf '%s\n' \
+    '- The first file has "alpha evidence" (`src/cache-a.ts:1`).' \
+    '- The second file has "beta evidence" (`src/cache-b.ts:1`).' > "$budget_draft"
+budget_status=0
+OCTOPUS_RESEARCH_MAX_LOCAL_CACHE_BYTES=256 research_verify_synthesis "$budget_draft" || budget_status=$?
+budget_kind=$(jq -r '.checks[].kind' "$RESEARCH_RUN_DIR/verification.json")
+if [[ "$budget_status" -ne 0 && "$budget_kind" == "local_cache_limit" ]] \
+   && ! ls "$RESEARCH_RUN_DIR"/.normalized-local.* >/dev/null 2>&1; then
+    test_pass
+else
+    test_fail "cache budget did not fail cleanly: status=$budget_status checks=[$budget_kind]"
+fi
+
+test_case "normalization failure removes earlier cache files"
+normalization_status=0
+(
+    original_normalizer=$(declare -f research_normalize_local_file)
+    eval "${original_normalizer/research_normalize_local_file/research_normalize_local_file_original}"
+    research_normalize_local_file() {
+        [[ "$1" == */cache-b.ts ]] && return 1
+        research_normalize_local_file_original "$1"
+    }
+    research_verify_synthesis "$budget_draft"
+) || normalization_status=$?
+normalization_kind=$(jq -r '.checks[].kind' "$RESEARCH_RUN_DIR/verification.json")
+if [[ "$normalization_status" -ne 0 && "$normalization_kind" == "local_cache_error" ]] \
+   && ! ls "$RESEARCH_RUN_DIR"/.normalized-local.* >/dev/null 2>&1; then
+    test_pass
+else
+    test_fail "normalization failure left cache files: status=$normalization_status checks=[$normalization_kind]"
+fi
+
 test_summary

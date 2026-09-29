@@ -14,7 +14,8 @@
 - Research verification skips workspace citations to files larger than
   `OCTOPUS_RESEARCH_MAX_RESPONSE_BYTES`, the cap already applied to fetched
   sources. It also normalizes each cited file once per verification, so
-  repeated quotes do not trigger repeated disk writes.
+  repeated quotes do not trigger repeated disk writes. A 16 MiB cache budget
+  bounds total temporary storage and failed normalization removes its files.
 
 ## [11.9.5] - 2026-09-29
 
