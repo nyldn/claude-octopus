@@ -620,4 +620,28 @@ else
     test_fail "size cap not enforced: status=$cap_status checks=[$cap_kinds]"
 fi
 
+test_case "each cited workspace file is normalized once per verification"
+cache_draft="$RESEARCH_RUN_DIR/local-cache.md"
+printf '%s\n' \
+    '- The handler logs "unhandled error" and returns "status: 500" (`src/handler.ts:2-4`).' \
+    '- The handler returns "status: 500" (`src/handler.ts:4`).' > "$cache_draft"
+normalization_calls="$RESEARCH_RUN_DIR/normalization-calls"
+: > "$normalization_calls"
+cache_status=0
+(
+    original_normalizer=$(declare -f research_normalize_local_file)
+    eval "${original_normalizer/research_normalize_local_file/research_normalize_local_file_original}"
+    research_normalize_local_file() {
+        printf 'called\n' >> "$normalization_calls"
+        research_normalize_local_file_original "$1"
+    }
+    research_verify_synthesis "$cache_draft"
+) || cache_status=$?
+call_count=$(wc -l < "$normalization_calls" | tr -d '[:space:]')
+if [[ "$cache_status" -eq 0 && "$call_count" -eq 1 ]]; then
+    test_pass
+else
+    test_fail "workspace file normalized $call_count times; verification status=$cache_status"
+fi
+
 test_summary

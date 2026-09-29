@@ -573,9 +573,8 @@ research_resolve_local_citation() {
         *) return 1 ;;
     esac
     [[ -f "$physical" && -r "$physical" ]] || return 1
-    # Cap cited files like fetched snapshots. Verification reads and normalizes a
-    # cited file once per quote, so a large generated bundle multiplied the work
-    # and disk writes. BSD wc pads its count, so strip whitespace.
+    # Cap cited files like fetched snapshots before counting lines or normalizing
+    # their contents. BSD wc pads its count, so strip whitespace.
     local size max_bytes="${OCTOPUS_RESEARCH_MAX_RESPONSE_BYTES:-2097152}"
     [[ "$max_bytes" =~ ^[0-9]+$ ]] || max_bytes=2097152
     size=$(wc -c < "$physical" 2>/dev/null | tr -d '[:space:]') || return 1
@@ -707,6 +706,8 @@ research_verify_synthesis() {
     local in_fence=false
     local snapshot normalized number quote numbers quotes score source_json groups_json
     local project_root token resolved local_refs local_files local_ref local_json evidence_file
+    local local_index cached_index
+    local -a normalized_local_paths=() normalized_local_files=()
     project_root="${RESEARCH_PROJECT_ROOT:-}"
     [[ -n "$project_root" ]] || project_root=$(research_default_project_root)
     if [[ -n "$project_root" ]]; then
@@ -805,10 +806,22 @@ research_verify_synthesis() {
                 while IFS= read -r evidence_file; do
                     [[ -n "$evidence_file" ]] || continue
                     checked=true
-                    normalized="$run_dir/.normalized-local.$$"
-                    research_normalize_local_file "$evidence_file" > "$normalized"
+                    cached_index=-1
+                    for ((local_index=0; local_index<${#normalized_local_paths[@]}; local_index++)); do
+                        if [[ "${normalized_local_paths[$local_index]}" == "$evidence_file" ]]; then
+                            cached_index=$local_index
+                            break
+                        fi
+                    done
+                    if [[ "$cached_index" -lt 0 ]]; then
+                        normalized=$(mktemp "$run_dir/.normalized-local.XXXXXXXX") || return 1
+                        research_normalize_local_file "$evidence_file" > "$normalized"
+                        normalized_local_paths+=("$evidence_file")
+                        normalized_local_files+=("$normalized")
+                    else
+                        normalized="${normalized_local_files[$cached_index]}"
+                    fi
                     grep -Fic -- "$quote" "$normalized" >/dev/null 2>&1 && matched=true
-                    rm -f "$normalized"
                 done <<< "$local_files"
                 if [[ "$checked" == "true" && "$matched" != "true" ]]; then
                     failures=$((failures + 1)); printf 'quote_mismatch|%s|%s\n' "$line_no" "$quote" >> "$findings"
@@ -841,6 +854,9 @@ research_verify_synthesis() {
         printf '  ]\n}\n'
     } > "$report"
     rm -f "$findings"
+    if [[ ${#normalized_local_files[@]} -gt 0 ]]; then
+        rm -f -- "${normalized_local_files[@]}"
+    fi
     research_run_event "$run_dir" "verification.completed" "status=$verification_status failures=$failures warnings=$warnings" || true
     [[ "$failures" -eq 0 ]]
 }

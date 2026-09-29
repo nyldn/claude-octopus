@@ -13,8 +13,8 @@
   "context artifact missing".
 - Research verification skips workspace citations to files larger than
   `OCTOPUS_RESEARCH_MAX_RESPONSE_BYTES`, the cap already applied to fetched
-  sources. Verification reads and normalizes a cited file once per quote, so
-  citing a large generated file multiplied the work and disk writes.
+  sources. It also normalizes each cited file once per verification, so
+  repeated quotes do not trigger repeated disk writes.
 
 ## [11.9.5] - 2026-09-29
 
