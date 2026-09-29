@@ -37,7 +37,8 @@ mkdir -p "$HOME" "$RESULTS_DIR" "$LOGS_DIR"
 log() { :; }
 enhanced_error() { return 1; }
 get_cache_key() { echo "cache-key"; }
-save_to_cache() { :; }
+CACHE_WRITES="$TEST_ROOT/cache-writes"
+save_to_cache() { printf '%s\n' "$2" >> "$CACHE_WRITES"; }
 guard_output() { :; }
 run_agent_sync() { return 1; }
 
@@ -116,6 +117,33 @@ if synthesize_probe_results "$task_group" "Audit local templates" 2 >/dev/null 2
     fi
 else
     test_fail "synthesize_probe_results returned non-zero in compact fallback scenario"
+fi
+
+test_case "compact fallback synthesis is never written to the probe cache"
+if [[ ! -s "$CACHE_WRITES" ]]; then
+    test_pass
+else
+    test_fail "compact fallback was cached: $(cat "$CACHE_WRITES")"
+fi
+
+test_case "successful synthesis is still written to the probe cache"
+cache_verdict=$(
+    (
+        rm -f "$CACHE_WRITES"
+        _aggregate_pick_synth_agent() { echo "claude-sonnet"; }
+        run_agent_sync() { printf '%s\n' 'Synthesized findings. [inference]'; }
+        synthesize_probe_results "$task_group" "Audit local templates" 2 >/dev/null 2>&1 || exit 1
+        if [[ -s "$CACHE_WRITES" ]] \
+           && [[ "$(<"$RESULTS_DIR/probe-synthesis-${task_group}.md")" == *"Synthesized findings."* ]]; then
+            echo "ok"
+        fi
+    )
+)
+rm -f "$CACHE_WRITES"
+if [[ "$cache_verdict" == "ok" ]]; then
+    test_pass
+else
+    test_fail "successful synthesis was not cached"
 fi
 
 test_case "durable fallback passes verification without embedding source excerpts"

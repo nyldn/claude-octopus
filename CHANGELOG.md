@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- A probe whose synthesizer fails no longer caches the compact fallback. The
+  stub carries no findings, and caching it served the same empty synthesis to
+  every retry of that prompt for the cache TTL, so re-running Discover after
+  restoring the synthesizer returned nothing new.
 - Cost examples in commands and skills now use `USD` instead of escaped dollar
   signs. Claude Code no longer treats them as argument placeholders, and Codex,
   Cursor and Factory display the prices without a backslash.

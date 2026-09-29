@@ -559,9 +559,11 @@ $results"
             synthesis=$(run_agent_sync "claude-sonnet" "$synthesis_prompt" "${TIMEOUT:-300}" "synthesizer" "probe") || synthesis=""
         fi
     fi
+    local synthesis_degraded=false
     if [[ -z "$synthesis" ]]; then
         log WARN "Synthesis failed, using compact fallback"
         synthesis=$(build_probe_fallback_synthesis "$original_prompt" "$result_count" "$usable_results" "$total_content_size")
+        synthesis_degraded=true
     fi
 
     local draft_file="$synthesis_file"
@@ -597,7 +599,13 @@ EOF
     local _nc="${NC:-}"
     echo ""
     echo -e "${_green}✓${_nc} Probe synthesis saved to: $synthesis_file"
-    report_probe_cache_result "$cache_key" "$synthesis_file" "$_cyan" "$_yellow" "$_nc"
+    # A compact fallback carries no findings; caching it would hand the same
+    # empty stub to every retry of this prompt until the TTL expires.
+    if [[ "$synthesis_degraded" == true ]]; then
+        echo -e "${_yellow}⚠${_nc}  Compact fallback synthesis not cached; a retry will re-run the providers"
+    else
+        report_probe_cache_result "$cache_key" "$synthesis_file" "$_cyan" "$_yellow" "$_nc"
+    fi
     echo ""
     guard_output "$(<"$synthesis_file")" "probe-synthesis"
 }
