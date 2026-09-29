@@ -1973,7 +1973,7 @@ ${agent_prompt_base}"
             if spawn_agent "$agent_type" "$agent_prompt" "$task_id" "$role" "review" </dev/null; then
                 ((round1_previewed++)) || true
             else
-                log WARN "review_run: spawn_agent failed for ${agent_type}/${role}; continuing Round 1 with remaining fleet"
+                log WARN "review_run: could not render a command preview for ${agent_type}/${role}; continuing with remaining fleet"
             fi
             continue
         fi

@@ -175,7 +175,7 @@ run_harness partial '{"tasks":[
   {"id":"t2","agent":"claude-sonnet","prompt":"two"}
 ]}' codex
 if [[ "$harness_rc" -eq 0 \
-    && "$harness_out" == *"WARN: Skipping task t1: failed to spawn agent 'codex'"* \
+    && "$harness_out" == *"WARN: Skipping task t1: could not render a command preview for agent 'codex'"* \
     && "$harness_out" == *"[DRY-RUN] Would dispatch 1 of 2 tasks (0 skipped, 1 failed)"* \
     && "$harness_calls" == $'preview:codex:t1\npreview:claude-sonnet:t2' ]]; then
     test_pass

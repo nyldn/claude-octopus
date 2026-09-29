@@ -123,7 +123,7 @@ fi
 test_case "dry-run code-review warns on a failed preview and still previews the remaining reviewers"
 run_harness partial codex
 if [[ "$harness_rc" -eq 0 \
-    && "$harness_out" == *"WARN: review_run: spawn_agent failed for codex/reviewer1; continuing Round 1 with remaining fleet"* \
+    && "$harness_out" == *"WARN: review_run: could not render a command preview for codex/reviewer1; continuing with remaining fleet"* \
     && "$harness_out" == *"[DRY-RUN] Would dispatch 1 of 2 Round 1 reviewers"* \
     && "$harness_calls" == $'preview:codex:reviewer1\npreview:claude-sonnet:reviewer2' ]]; then
     test_pass

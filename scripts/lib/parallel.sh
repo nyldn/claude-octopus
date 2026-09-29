@@ -606,7 +606,7 @@ parallel_execute() {
             if spawn_agent "$agent" "$prompt" "$task_id" </dev/null; then
                 ((previewed++)) || true
             else
-                log WARN "Skipping task $task_id: failed to spawn agent '$agent'"
+                log WARN "Skipping task $task_id: could not render a command preview for agent '$agent'"
                 ((failed++)) || true
             fi
             continue
