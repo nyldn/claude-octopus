@@ -5977,11 +5977,21 @@ embrace_debate_gate_requested() {
     esac
 }
 
+# Print the newest existing file among the arguments. Callers pass a quoted
+# directory followed by an unquoted glob, so the shell expands every match and
+# paths containing spaces stay whole. Reading only the first match returned the
+# alphabetically first artifact, which for epoch-stamped names is the oldest.
+octo_newest_existing_file() {
+    local newest
+    newest=$(ls -t -- "$@" 2>/dev/null | head -1) || true
+    [[ -n "$newest" && -f "$newest" ]] && printf '%s\n' "$newest"
+}
+
 embrace_debate_gate() {
     local gate="$1"
     local prompt="$2"
     local context_file="${3:-}"
-    local gate_slug title style focus expected_pattern
+    local gate_slug title style focus artifact_prefix
     local task_group="${OCTOPUS_TASK_GROUP:-$(date +%s)}"
     EMBRACE_DEBATE_GATE_OUTPUT=""
 
@@ -5991,14 +6001,14 @@ embrace_debate_gate() {
             title="Define → Develop"
             style="adversarial"
             focus="Challenge the proposed approach before implementation. Identify blockers, weak assumptions, missing requirements, and alternatives dismissed too quickly."
-            expected_pattern="${RESULTS_DIR}/grasp-consensus-*.md"
+            artifact_prefix="grasp-consensus-"
             ;;
         develop|develop-deliver)
             gate_slug="develop-deliver"
             title="Develop → Deliver"
             style="collaborative"
             focus="Review implementation readiness before delivery. Identify missing scope, unverified claims, quality gaps, regressions, and follow-up work that must not be hidden."
-            expected_pattern="${RESULTS_DIR}/tangle-validation-*.md"
+            artifact_prefix="tangle-validation-"
             ;;
         *)
             log ERROR "Unknown embrace debate gate: $gate"
@@ -6007,7 +6017,7 @@ embrace_debate_gate() {
     esac
 
     if [[ -z "$context_file" ]]; then
-        context_file=$(ls -t $expected_pattern 2>/dev/null | head -1) || true
+        context_file=$(octo_newest_existing_file "${RESULTS_DIR}/${artifact_prefix}"*.md) || true
     fi
     if [[ -z "$context_file" || ! -f "$context_file" ]]; then
         log ERROR "Embrace debate gate '${gate_slug}' missing context artifact"
@@ -6261,10 +6271,7 @@ ${obs_ctx}"
     }
 
     _latest_embrace_output() {
-        local pattern="$1"
-        local latest
-        latest=$(ls -t $pattern 2>/dev/null | head -1) || true
-        [[ -n "$latest" && -f "$latest" ]] && printf '%s\n' "$latest"
+        octo_newest_existing_file "$@"
     }
 
     _cleanup_embrace_exports() {
