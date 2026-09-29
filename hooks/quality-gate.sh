@@ -58,10 +58,13 @@ _octo_parse_shell_word() {
 
 # Track multiline shell quote state so jq/awk programs embedded in a shell
 # string are not mistaken for executable shell source statements. Also report
-# whether the line ends in an unquoted backslash, so a continued argument line
-# such as `  . 2>/dev/null | \` is not mistaken for a new statement.
+# whether the line ends in an unquoted backslash after an ordinary word: the
+# next line then continues that command's arguments, as `  . 2>/dev/null | \`
+# does, and is not a new statement. After an operator such as `&&`, `||`, `;`
+# or `|`, or a keyword such as `then`, the next line starts a command.
 _octo_advance_shell_quote_state() {
     local input="$1" single="$2" double="$3" char="" escaped=0 comment_ok=1 i
+    local word="" last=""
 
     for ((i = 0; i < ${#input}; i++)); do
         char="${input:i:1}"
@@ -80,22 +83,29 @@ _octo_advance_shell_quote_state() {
             continue
         fi
         if ((escaped)); then
-            escaped=0; comment_ok=0; continue
+            escaped=0; comment_ok=0; word+="\\$char"; continue
         fi
         case "$char" in
             \\) escaped=1; comment_ok=0 ;;
-            "'") single=1; comment_ok=0 ;;
-            '"') double=1; comment_ok=0 ;;
-            '#') ((comment_ok)) && break; comment_ok=0 ;;
-            ' '|$'\t') comment_ok=1 ;;
-            ';'|'|'|'&'|'('|')') comment_ok=1 ;;
-            *) comment_ok=0 ;;
+            "'") single=1; comment_ok=0; word+="$char" ;;
+            '"') double=1; comment_ok=0; word+="$char" ;;
+            '#') ((comment_ok)) && break; comment_ok=0; word+="$char" ;;
+            ' '|$'\t') comment_ok=1; [[ -z "$word" ]] || last="$word"; word="" ;;
+            ';'|'|'|'&'|'('|')') comment_ok=1; word=""; last="$char" ;;
+            *) comment_ok=0; word+="$char" ;;
         esac
     done
+    [[ -z "$word" ]] || last="$word"
 
     OCTO_IN_SINGLE_QUOTE="$single"
     OCTO_IN_DOUBLE_QUOTE="$double"
-    OCTO_LINE_CONTINUES=$((escaped && !single && !double))
+    OCTO_LINE_CONTINUES_ARGUMENTS=0
+    if ((escaped && !single && !double)); then
+        case "$last" in
+            ''|';'|'|'|'&'|'('|')'|if|then|else|elif|do|while|until|'{'|'!') ;;
+            *) OCTO_LINE_CONTINUES_ARGUMENTS=1 ;;
+        esac
+    fi
 }
 
 # Claude Code before v2.1.85 ignores hook-handler `if` filters. Keep the same
@@ -172,13 +182,13 @@ check_reference_integrity() {
     while IFS= read -r -d '' file; do
         local dir
         dir=$(dirname "$file")
-        local in_single_quote=0 in_double_quote=0 continues_line=0
+        local in_single_quote=0 in_double_quote=0 continues_arguments=0
 
         while IFS= read -r stmt; do
             local starts_in_quote=0 ref="" remainder=""
             ((in_single_quote || in_double_quote)) && starts_in_quote=1
 
-            if (( ! starts_in_quote && ! continues_line )) && [[ "$stmt" =~ ^[[:space:]]*(\.|source)[[:space:]]+(.+)$ ]]; then
+            if (( ! starts_in_quote && ! continues_arguments )) && [[ "$stmt" =~ ^[[:space:]]*(\.|source)[[:space:]]+(.+)$ ]]; then
                 remainder="${BASH_REMATCH[2]}"
                 if _octo_parse_shell_word "$remainder"; then
                     ref="$OCTO_SHELL_WORD"
@@ -192,7 +202,7 @@ check_reference_integrity() {
             _octo_advance_shell_quote_state "$stmt" "$in_single_quote" "$in_double_quote"
             in_single_quote="$OCTO_IN_SINGLE_QUOTE"
             in_double_quote="$OCTO_IN_DOUBLE_QUOTE"
-            continues_line="$OCTO_LINE_CONTINUES"
+            continues_arguments="$OCTO_LINE_CONTINUES_ARGUMENTS"
         done < "$file"
     done < <(find . -maxdepth 5 -type f -name "*.sh" -mmin -10 -print0 2>/dev/null || true)
 

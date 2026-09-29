@@ -64,6 +64,30 @@ assert_not_contains "$output" "sources missing file: 2" "the continued argument 
 assert_contains "$output" "sources missing file: ./lib/after-continuation.sh" "a source after the continued command must be flagged" || true
 assert_contains "$output" "after-escaped-backslash.sh" "an escaped trailing backslash must not continue the line" && test_pass
 
+test_case "a source continued after a command separator or keyword is still flagged"
+workspace="$TEST_TMP_DIR/source-after-separator"
+mkdir -p "$workspace/scripts"
+cat > "$workspace/scripts/run.sh" <<'EOF'
+#!/usr/bin/env bash
+true && \
+  source ./lib/after-and.sh
+false || \
+  source ./lib/after-or.sh
+true ; \
+  source ./lib/after-semicolon.sh
+printf 'x\n' | \
+  source ./lib/after-pipe.sh
+if true; then \
+  . ./lib/after-then.sh
+fi
+EOF
+output="$(run_hook_in "$workspace")"
+assert_contains "$output" "sources missing file: ./lib/after-and.sh" "a source after '&& \\' must be flagged" || true
+assert_contains "$output" "sources missing file: ./lib/after-or.sh" "a source after '|| \\' must be flagged" || true
+assert_contains "$output" "sources missing file: ./lib/after-semicolon.sh" "a source after '; \\' must be flagged" || true
+assert_contains "$output" "sources missing file: ./lib/after-pipe.sh" "a source after '| \\' must be flagged" || true
+assert_contains "$output" "sources missing file: ./lib/after-then.sh" "a source after 'then \\' must be flagged" && test_pass
+
 test_case "genuinely missing relative sourced files are still flagged"
 workspace="$TEST_TMP_DIR/missing-source"
 mkdir -p "$workspace/scripts"
