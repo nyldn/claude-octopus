@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.9.4",
-  "description": "v11.9.4 \u2014 Keep an exported CODEX_HOME from making Claude Code sessions look like Codex. Run /octo:setup.",
+  "version": "11.9.5",
+  "description": "v11.9.5 \u2014 Keep long sessions spawning seats on Linux, stop argument substitution rewriting commands, and let research cite workspace files. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.9.5] - 2026-09-29
+
 ### Fixed
 
 - Seat spawns no longer fail once a session's seat ledger passes 128 KiB. The
