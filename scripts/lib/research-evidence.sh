@@ -573,6 +573,13 @@ research_resolve_local_citation() {
         *) return 1 ;;
     esac
     [[ -f "$physical" && -r "$physical" ]] || return 1
+    # Cap cited files like fetched snapshots. Verification reads and normalizes a
+    # cited file once per quote, so a large generated bundle multiplied the work
+    # and disk writes. BSD wc pads its count, so strip whitespace.
+    local size max_bytes="${OCTOPUS_RESEARCH_MAX_RESPONSE_BYTES:-2097152}"
+    [[ "$max_bytes" =~ ^[0-9]+$ ]] || max_bytes=2097152
+    size=$(wc -c < "$physical" 2>/dev/null | tr -d '[:space:]') || return 1
+    [[ "$size" =~ ^[0-9]+$ ]] && (( 10#$size <= 10#$max_bytes )) || return 1
     line_count=$(awk 'END { print NR }' "$physical" 2>/dev/null) || return 1
     for range in ${spec//,/ }; do
         start=$((10#${range%-*}))

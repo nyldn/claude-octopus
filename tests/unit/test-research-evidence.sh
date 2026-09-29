@@ -602,4 +602,22 @@ else
     test_fail "unresolvable workspace citations were accepted: $local_bad_kinds"
 fi
 
+test_case "workspace citations to files over the size cap fail closed"
+big_line='  return { status: 500 };'
+{ printf '%s\n' "$big_line"; head -c 400 /dev/zero | tr '\0' 'x'; printf '\n'; } > "$local_root/src/big.ts"
+printf '%s\n' "$big_line" > "$local_root/src/small.ts"
+cap_draft="$RESEARCH_RUN_DIR/local-cap.md"
+{
+    printf '%s\n' '- The oversized file returns 500 (`src/big.ts:1`).'
+    printf '%s\n' '- The small file returns 500 (`src/small.ts:1`).'
+} > "$cap_draft"
+cap_status=0
+OCTOPUS_RESEARCH_MAX_RESPONSE_BYTES=256 research_verify_synthesis "$cap_draft" || cap_status=$?
+cap_kinds=$(jq -r '.checks[] | "\(.line):\(.kind)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$cap_status" -ne 0 ]] && [[ "$cap_kinds" == "1:missing_citation " ]]; then
+    test_pass
+else
+    test_fail "size cap not enforced: status=$cap_status checks=[$cap_kinds]"
+fi
+
 test_summary
