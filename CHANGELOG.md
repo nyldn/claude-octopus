@@ -4,21 +4,17 @@
 
 ### Fixed
 
-- Commands and skills invoked with arguments no longer have their shell and awk
-  code rewritten by Claude Code's `$N` argument substitution. `/octo:embrace
-  lets do it all` rendered the provider banner's `command -v "$1"` as
-  `command -v "do"`, a shell keyword, so every CLI was reported available, and
-  flow-parallel's launch script resolved `dirname "$0"` to the first argument.
-  Shell parameters now use `${N}`, awk fields use `$(N)`, and literal amounts
-  such as cost estimates use Claude Code's `\$` escape. A unit suite rejects any
-  unescaped `$N` in command and skill bodies, the Cursor copies, and the shipped
-  skills.
-- `/octo:embrace` debate gates no longer pick their context from the shared
-  `~/.claude-octopus/results/` root. orchestrate.sh writes phase documents to
-  the session's results directory, so `ls -t` over the root found no current
-  document and returned the newest match left by an earlier session. The
-  gates now pass no context file and let orchestrate.sh read its own session
-  directory, and the command uses the document paths the phases log.
+- Seat spawns no longer fail once a session's seat ledger passes 128 KiB. The
+  run manifest writer handed the whole seat projection and the event list to
+  `jq` as `--argjson` values, one argv string each, which Linux caps at
+  `MAX_ARG_STRLEN` (128 KiB). A session's ledger
+  (`runs/<session-id>/seats.jsonl`) keeps every run's records, so after a few
+  reviews the projection outgrew the cap, `jq` failed with `E2BIG`, every
+  transition rolled back with "Unable to persist planned execution contract",
+  and each run ended with "ALL Round 1 providers failed" until a new session
+  started (#1111). Both ledgers now reach `jq` through `--slurpfile`, so
+  manifest publication no longer depends on the ledger's size; the manifest
+  content is unchanged.
 
 ## [11.9.4] - 2026-09-28
 
