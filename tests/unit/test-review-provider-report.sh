@@ -107,6 +107,180 @@ else
     test_fail "provider stderr error was hidden: ${detail:-<empty>}"
 fi
 
+codex_usage_limit_error="ERROR: You've hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at 7:17 PM."
+
+test_case "review failure detail reports the codex ERROR line past the echoed prompt"
+codex_quota_file="$TEST_TMP_DIR/codex-usage-limit-failed.md"
+cat > "$codex_quota_file" <<'EOF'
+# Agent: codex-standard
+# Executor alias: codex-standard
+# Configured provider: codex
+# Configured model: gpt-5.6-sol
+# Task ID: review-r1-implementation-logic-reviewer-1790632512
+# Role: implementation-logic-reviewer
+# Phase: review
+# Prompt-Format: octopus-length-v1
+You are running as a non-interactive subagent dispatched by Claude Octopus via codex exec.
+
+If required review is unavailable or denied, report incomplete coverage without
+claiming completion.
+
+## Assigned task
+You are the implementation-logic-reviewer specialist. Focus on: correctness and logic bugs, edge cases, regressions.
+# Started: Mon Sep 28 18:55:17 -03 2026
+
+## Output
+```
+(no output captured — codex-standard produced no stdout; check provider auth/config with 'orchestrate.sh doctor')
+```
+
+## Status: FAILED (exit code: 1)
+
+## Error Log
+```
+OpenAI Codex v0.146.0
+--------
+workdir: /tmp/review-worktree
+model: gpt-5.6-sol
+provider: openai
+approval: never
+--------
+user
+You are running as a non-interactive subagent dispatched by Claude Octopus via codex exec.
+
+If required review is unavailable or denied, report incomplete coverage without
+claiming completion.
+
+## Assigned task
+You are the implementation-logic-reviewer specialist. Focus on: correctness and logic bugs, edge cases, regressions.
+ERROR: You've hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at 7:17 PM.
+ERROR: You've hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at 7:17 PM.
+```
+# Completed: Mon Sep 28 18:55:27 -03 2026
+EOF
+detail="$(review_result_failure_detail "$codex_quota_file")"
+if [[ "$detail" == "$codex_usage_limit_error" ]]; then
+    test_pass
+else
+    test_fail "codex failure cause was replaced by echoed prompt text: ${detail:-<empty>}"
+fi
+
+test_case "review failure detail prefers the last ERROR line in a transcript Output"
+transcript_output_file="$TEST_TMP_DIR/codex-transcript-output-failed.md"
+cat > "$transcript_output_file" <<'EOF'
+# Agent: codex-standard
+# Started: Mon Sep 28 18:55:17 -03 2026
+
+## Output
+```
+OpenAI Codex v0.146.0
+--------
+model: gpt-5.6-sol
+--------
+user
+If required review is unavailable or denied, report incomplete coverage without
+claiming completion.
+
+## Assigned task
+You are the implementation-logic-reviewer specialist.
+ERROR: You've hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at 7:17 PM.
+```
+
+## Status: FAILED (exit code: 1)
+EOF
+detail="$(review_result_failure_detail "$transcript_output_file")"
+if [[ "$detail" == "$codex_usage_limit_error" ]]; then
+    test_pass
+else
+    test_fail "transcript Output reported its first line instead of the error: ${detail:-<empty>}"
+fi
+
+test_case "review failure detail reads the message from a codex JSON error"
+codex_json_error_file="$TEST_TMP_DIR/codex-json-error-failed.md"
+cat > "$codex_json_error_file" <<'EOF'
+# Agent: codex
+# Started: Tue Jul 21 18:54:30 -03 2026
+
+## Output
+```
+(no output captured)
+```
+
+## Status: FAILED (exit code: 1)
+
+## Error Log
+```
+OpenAI Codex v0.144.0
+--------
+model: gpt-5.4
+--------
+user
+You are a code reviewer. Review the following diff.
+diff --git a/src/client.ts b/src/client.ts
+-    throw new Error(
++    throw new ClientError(
+
+## What to look for
+Correctness and logic bugs.
+ERROR: {
+  "type": "error",
+  "error": {
+    "type": "invalid_request_error",
+    "code": "invalid_value",
+    "message": "Invalid value: 'max'. Supported values are: 'none', 'minimal', 'low', 'medium', 'high', and 'xhigh'.",
+    "param": "reasoning.effort"
+  },
+  "status": 400
+}
+```
+EOF
+detail="$(review_result_failure_detail "$codex_json_error_file")"
+if [[ "$detail" == "ERROR: Invalid value: 'max'. Supported values are: 'none', 'minimal', 'low', 'medium', 'high', and 'xhigh'." ]]; then
+    test_pass
+else
+    test_fail "codex JSON error message was not reported: ${detail:-<empty>}"
+fi
+
+test_case "review failure detail prefers an error line over the first Output line"
+output_error_file="$TEST_TMP_DIR/output-error-after-progress.md"
+cat > "$output_error_file" <<'EOF'
+# Agent result
+
+## Output
+```
+Connecting to the provider API...
+Error: 429 Too Many Requests (rate limit exceeded)
+```
+
+## Status: FAILED (Provider exited 1)
+EOF
+detail="$(review_result_failure_detail "$output_error_file")"
+if [[ "$detail" == "Error: 429 Too Many Requests (rate limit exceeded)" ]]; then
+    test_pass
+else
+    test_fail "Output error line lost to the first Output line: ${detail:-<empty>}"
+fi
+
+test_case "review failure detail keeps the first Output line when nothing looks like an error"
+login_failure_file="$TEST_TMP_DIR/output-no-error-line.md"
+cat > "$login_failure_file" <<'EOF'
+# Agent result
+
+## Output
+```
+Not logged in · Please run /login
+Run claude, then /login, to sign in again.
+```
+
+## Status: FAILED (exit code: 1)
+EOF
+detail="$(review_result_failure_detail "$login_failure_file")"
+if [[ "$detail" == "Not logged in · Please run /login" ]]; then
+    test_pass
+else
+    test_fail "first Output line fallback changed: ${detail:-<empty>}"
+fi
+
 test_case "single-provider override keeps every review phase on the requested provider"
 override_fleet="$({
     review_single_provider_is_available() { [[ "$1" == openai-compatible-agent ]]; }

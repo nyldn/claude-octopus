@@ -690,10 +690,16 @@ review_result_completed_successfully() {
     [[ "$final_status" == "SUCCESS" ]]
 }
 
-# Return the first meaningful provider failure. Prefer real Output, then scan
-# Error Log for the last actionable line when the provider produced no stdout.
-# Keep the status-file delimiter out of the detail and cap pathological output,
-# while retaining enough text for an actionable CI comment (#893).
+# Return the most specific provider failure. Prefer real Output, then the Error
+# Log when the provider produced no stdout. Within each, report the last
+# "ERROR:" line (for codex's "ERROR: {" JSON body, its message), else the last
+# line that reads as an error, else the first line. Only the result writer's own
+# headers end a section: provider output is copied verbatim, and a codex
+# transcript echoes the whole prompt, Markdown headings included, before its
+# closing ERROR line. A later "## Output" discards anything collected from an
+# echoed or forged prompt above it. Keep the status-file delimiter out of the
+# detail and cap pathological output, while retaining enough text for an
+# actionable CI comment (#893).
 review_result_failure_detail() {
     local result_file="$1"
     [[ -f "$result_file" ]] || return 1
@@ -703,35 +709,54 @@ review_result_failure_detail() {
             gsub(/\033\[[0-9;]*[[:alpha:]]/, "", line)
             return substr(line, 1, 240)
         }
-        /^## Output$/ { section="output"; next }
-        /^## Error Log$/ { section="error"; next }
-        /^## / { section=""; next }
+        function reset(name) {
+            error_line[name]=""
+            match_line[name]=""
+            first_line[name]=""
+        }
+        /^## Output$/ { reset("output"); reset("error"); placeholder=""; section="output"; in_json=0; next }
+        /^## Error Log$/ { reset("error"); section="error"; in_json=0; next }
+        /^## (Status|Contract Status):/ || /^## (Errors|Warnings\/Errors|Native Metrics|Runtime Identity)$/ || /^## Raw Output/ {
+            section=""
+            in_json=0
+            next
+        }
         section != "" {
-            line=$0
-            if (line ~ /^```/ || line ~ /^[[:space:]]*$/) next
-            line=clean(line)
-            if (section == "output") {
-                if (line !~ /^\(no output captured/) {
-                    print line
-                    found=1
-                    exit
-                }
-                output_fallback=line
-            } else {
-                lower=tolower(line)
-                if (lower ~ /(error|failed|denied|forbidden|unauthor|quota|limit|retir|unavailable|http [0-9])/) {
-                    error_match=line
-                } else if (error_fallback == "") {
-                    error_fallback=line
-                }
+            if ($0 ~ /^```/ || $0 ~ /^[[:space:]]*$/) next
+            line=clean($0)
+            if (line ~ /^ERROR:/) {
+                error_line[section]=line
+                in_json=(line ~ /^ERROR:[[:space:]]*[{][[:space:]]*$/)
+                json_message=0
+                next
             }
+            if (in_json) {
+                if (line ~ /^[}]/) {
+                    in_json=0
+                } else if (!json_message && line ~ /^[[:space:]]*"message"[[:space:]]*:[[:space:]]*"/) {
+                    message=$0
+                    sub(/^[[:space:]]*"message"[[:space:]]*:[[:space:]]*"/, "", message)
+                    sub(/",?[[:space:]]*$/, "", message)
+                    error_line[section]=clean("ERROR: " message)
+                    json_message=1
+                }
+                next
+            }
+            if (section == "output" && line ~ /^\(no output captured/) {
+                placeholder=line
+                next
+            }
+            if (tolower(line) ~ /(error|failed|denied|forbidden|unauthor|quota|limit|retir|unavailable|http [0-9])/) match_line[section]=line
+            if (first_line[section] == "") first_line[section]=line
         }
         END {
-            if (!found) {
-                if (error_match != "") print error_match
-                else if (error_fallback != "") print error_fallback
-                else if (output_fallback != "") print output_fallback
-            }
+            if (error_line["output"] != "") print error_line["output"]
+            else if (match_line["output"] != "") print match_line["output"]
+            else if (first_line["output"] != "") print first_line["output"]
+            else if (error_line["error"] != "") print error_line["error"]
+            else if (match_line["error"] != "") print match_line["error"]
+            else if (first_line["error"] != "") print first_line["error"]
+            else if (placeholder != "") print placeholder
         }
     ' "$result_file" 2>/dev/null
 }

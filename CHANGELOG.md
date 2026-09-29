@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- `/octo:review` reports the real cause when a provider seat fails. Codex
+  echoes the whole prompt into its stderr transcript, which the result file
+  keeps under `## Error Log`, and the failure-detail parser stopped at the
+  first Markdown heading in that echo. Provider Status and "Provider failure
+  details" therefore showed a line of the prompt instead of the transcript's
+  closing `ERROR: You've hit your usage limit` line. Only the result writer's
+  own headers now end a section. The detail is the last `ERROR:` line (the
+  message, for a codex JSON error), then the last line that reads as an
+  error, then the first line.
+
 ## [11.9.6] - 2026-09-29
 
 ### Fixed
