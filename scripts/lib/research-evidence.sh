@@ -576,7 +576,8 @@ research_resolve_local_citation() {
     # Cap cited files like fetched snapshots before counting lines or normalizing
     # their contents. BSD wc pads its count, so strip whitespace.
     local size max_bytes="${OCTOPUS_RESEARCH_MAX_RESPONSE_BYTES:-2097152}"
-    [[ "$max_bytes" =~ ^[0-9]+$ ]] || max_bytes=2097152
+    [[ "$max_bytes" =~ ^[0-9]{1,15}$ ]] || max_bytes=2097152
+    max_bytes=$((10#$max_bytes))
     size=$(wc -c < "$physical" 2>/dev/null | tr -d '[:space:]') || return 1
     [[ "$size" =~ ^[0-9]+$ ]] && (( 10#$size <= 10#$max_bytes )) || return 1
     line_count=$(awk 'END { print NR }' "$physical" 2>/dev/null) || return 1
@@ -709,6 +710,7 @@ research_verify_synthesis() {
     local local_index cached_index cache_bytes cached_bytes=0 cache_error=false
     local max_cache_bytes="${OCTOPUS_RESEARCH_MAX_LOCAL_CACHE_BYTES:-16777216}"
     [[ "$max_cache_bytes" =~ ^[0-9]{1,15}$ ]] || max_cache_bytes=16777216
+    max_cache_bytes=$((10#$max_cache_bytes))
     local -a normalized_local_paths=() normalized_local_files=()
     project_root="${RESEARCH_PROJECT_ROOT:-}"
     [[ -n "$project_root" ]] || project_root=$(research_default_project_root)

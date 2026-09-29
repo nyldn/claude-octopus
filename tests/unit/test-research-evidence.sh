@@ -661,6 +661,33 @@ else
     test_fail "cache budget did not fail cleanly: status=$budget_status checks=[$budget_kind]"
 fi
 
+test_case "zero-padded cache budget is read as decimal"
+padded_status=0
+OCTOPUS_RESEARCH_MAX_LOCAL_CACHE_BYTES=000512 research_verify_synthesis "$budget_draft" || padded_status=$?
+if [[ "$padded_status" -eq 0 ]] \
+   && jq -e '.status == "passed"' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then
+    test_pass
+else
+    test_fail "zero-padded 512-byte cache budget rejected two in-budget files"
+fi
+
+test_case "local response cap handles padded and overlong values without arithmetic errors"
+cap_error="$RESEARCH_RUN_DIR/local-cap-error.log"
+physical_local_root=$(cd "$local_root" && pwd -P)
+local_cap_status=0
+OCTOPUS_RESEARCH_MAX_RESPONSE_BYTES=999999999999999999999 \
+    research_resolve_local_citation "$physical_local_root" 'src/small.ts:1' \
+    >/dev/null 2> "$cap_error" || local_cap_status=$?
+padded_local_status=0
+OCTOPUS_RESEARCH_MAX_RESPONSE_BYTES=000256 \
+    research_resolve_local_citation "$physical_local_root" 'src/small.ts:1' \
+    >/dev/null 2>> "$cap_error" || padded_local_status=$?
+if [[ "$local_cap_status" -eq 0 && "$padded_local_status" -eq 0 && ! -s "$cap_error" ]]; then
+    test_pass
+else
+    test_fail "overlong response cap caused a local citation error"
+fi
+
 test_case "normalization failure removes earlier cache files"
 normalization_status=0
 (
