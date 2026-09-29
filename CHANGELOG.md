@@ -16,6 +16,61 @@
   manifest publication no longer depends on the ledger's size; the manifest
   content is unchanged.
 
+- Provider-level reasoning effort no longer collides with the codex
+  `reasoning` model slot in `providers.json`. The v3.0 config Octopus writes
+  stores a model at `providers.codex.reasoning`, used by the `codex-reasoning`
+  agent and the `security: codex:reasoning` route, while role-based execution
+  profiles (#616) read a `{default, policy}` effort object from the same key.
+  On a v3.0 config that lookup failed silently; storing the object instead made
+  `codex-reasoning` and codex dispatch in the security phase fail with
+  "Invalid configured model". Provider-level effort now lives in
+  `providers.<provider>.reasoning_effort` and
+  `providers.<provider>.reasoning_policy`, and `reasoning` stays the model
+  slot. An effort object already stored at `reasoning` is still honored, and
+  the capability-map lookup now skips non-string values, so the object is
+  never taken for a model name. (#1114)
+- `/octo:auto` requests for parallel work, such as "decompose the auth refactor
+  into parallel work packages", now hand off to `/octo:parallel`, the same as a
+  confirmed `--workflow parallel` choice. Since 11.4.0 the automatic router
+  passed the request text to the tasks-file runner behind
+  `orchestrate.sh parallel`, so these requests stopped with
+  `Tasks file not found: <request>` and exit 1. (#1116)
+- Commands and skills invoked with arguments no longer have their shell and awk
+  code rewritten by Claude Code's `$N` argument substitution. `/octo:embrace
+  lets do it all` rendered the provider banner's `command -v "$1"` as
+  `command -v "do"`, a shell keyword, so every CLI was reported available, and
+  flow-parallel's launch script resolved `dirname "$0"` to the first argument.
+  Shell parameters now use `${N}`, awk fields use `$(N)`, and literal amounts
+  such as cost estimates use Claude Code's `\$` escape. A unit suite rejects any
+  unescaped `$N` in command and skill bodies, the Cursor copies, and the shipped
+  skills. (#1101)
+- `/octo:embrace` debate gates no longer pick their context from the shared
+  `~/.claude-octopus/results/` root. orchestrate.sh writes phase documents to
+  the session's results directory, so `ls -t` over the root found no current
+  document and returned the newest match left by an earlier session. The
+  gates now pass no context file and let orchestrate.sh read its own session
+  directory, and the command uses the document paths the phases log. (#1101)
+- Research about the local codebase can now pass evidence verification. A
+  claim may cite a workspace file as `path:LINE`, `path:START-END` or
+  `path:A,B`. The citation counts when the file exists inside the workspace
+  root recorded in the run manifest and every cited line exists, and quotes and
+  numbers in the claim must then appear in that file. Before, every claim
+  without a web `[source:S###]` ID failed, so a probe that researched the
+  repository could never publish its synthesis. (#1102)
+- URLs harvested from provider output no longer keep a JSON-escaped `\n`, `\r`
+  or `\t`, or a trailing backslash. (#1102)
+- Probe synthesis reads as much of each provider artifact as the synthesizer's
+  context budget allows (for example `OCTOPUS_CLAUDE_CONTEXT_BUDGET`). The
+  fixed limits of 24000 bytes per artifact and 120000 in total cut Codex
+  answers off after their prompt echo. `OCTOPUS_PROBE_SYNTHESIS_FILE_CHARS` and
+  `OCTOPUS_PROBE_SYNTHESIS_CONTEXT_CHARS` still pin either limit. (#1102)
+- `orchestrate.sh --dry-run fan-out` no longer reports every agent as a failed
+  spawn. A dry-run spawn prints the command it would run but no provider PID,
+  and fan-out still waited for one, so it logged a PID error and a failed spawn
+  for each agent and then an empty "All agents spawned" list. Dry-run fan-out
+  now prints one preview per agent and stops there; an agent whose command
+  cannot be rendered is still reported. (#1113)
+
 ## [11.9.4] - 2026-09-28
 
 ### Fixed
