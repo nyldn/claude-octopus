@@ -696,10 +696,11 @@ review_result_completed_successfully() {
 # line that reads as an error, else the first line. Only the result writer's own
 # headers end a section: provider output is copied verbatim, and a codex
 # transcript echoes the whole prompt, Markdown headings included, before its
-# closing ERROR line. A later "## Output" discards anything collected from an
-# echoed or forged prompt above it. Keep the status-file delimiter out of the
-# detail and cap pathological output, while retaining enough text for an
-# actionable CI comment (#893).
+# closing ERROR line. Those two fallbacks skip lines that repeat the prompt the
+# writer stored above the first "## Output", and a later "## Output" discards
+# anything collected from an echoed or forged prompt above it. Keep the
+# status-file delimiter out of the detail and cap pathological output, while
+# retaining enough text for an actionable CI comment (#893).
 review_result_failure_detail() {
     local result_file="$1"
     [[ -f "$result_file" ]] || return 1
@@ -714,7 +715,8 @@ review_result_failure_detail() {
             match_line[name]=""
             first_line[name]=""
         }
-        /^## Output$/ { reset("output"); reset("error"); placeholder=""; section="output"; in_json=0; next }
+        /^## Output$/ { seen_output=1; reset("output"); reset("error"); placeholder=""; section="output"; in_json=0; next }
+        !seen_output { prompt_line[$0]=1; next }
         /^## Error Log$/ { reset("error"); section="error"; in_json=0; next }
         /^## (Status|Contract Status):/ || /^## (Errors|Warnings\/Errors|Native Metrics|Runtime Identity)$/ || /^## Raw Output/ {
             section=""
@@ -746,6 +748,7 @@ review_result_failure_detail() {
                 placeholder=line
                 next
             }
+            if ($0 in prompt_line) next
             if (tolower(line) ~ /(error|failed|denied|forbidden|unauthor|quota|limit|retir|unavailable|http [0-9])/) match_line[section]=line
             if (first_line[section] == "") first_line[section]=line
         }

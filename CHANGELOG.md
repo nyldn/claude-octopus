@@ -12,7 +12,8 @@
   closing `ERROR: You've hit your usage limit` line. Only the result writer's
   own headers now end a section. The detail is the last `ERROR:` line (the
   message, for a codex JSON error), then the last line that reads as an
-  error, then the first line.
+  error, then the first line. Neither fallback picks a line that repeats the
+  prompt.
 
 ## [11.9.6] - 2026-09-29
 

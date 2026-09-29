@@ -165,6 +165,51 @@ else
     test_fail "codex failure cause was replaced by echoed prompt text: ${detail:-<empty>}"
 fi
 
+test_case "review failure detail does not report echoed prompt text when codex prints no ERROR line"
+codex_crash_file="$TEST_TMP_DIR/codex-crash-failed.md"
+cat > "$codex_crash_file" <<'EOF'
+# Agent: codex-standard
+# Prompt-Format: octopus-length-v1
+You are a code reviewer. Review the following diff.
+If required review is unavailable or denied, report incomplete coverage without
+claiming completion.
+
+## Diff
+-    throw new Error(
++    throw new ClientError(
+# Started: Mon Sep 28 18:55:17 -03 2026
+
+## Output
+```
+(no output captured — codex-standard produced no stdout; check provider auth/config with 'orchestrate.sh doctor')
+```
+
+## Status: FAILED (exit code: 101)
+
+## Error Log
+```
+OpenAI Codex v0.146.0
+--------
+model: gpt-5.6-sol
+--------
+user
+You are a code reviewer. Review the following diff.
+If required review is unavailable or denied, report incomplete coverage without
+claiming completion.
+
+## Diff
+-    throw new Error(
++    throw new ClientError(
+thread 'main' panicked at codex-rs/exec/src/lib.rs:88:14
+```
+EOF
+detail="$(review_result_failure_detail "$codex_crash_file")"
+if [[ "$detail" == "OpenAI Codex v0.146.0" ]]; then
+    test_pass
+else
+    test_fail "echoed prompt text was reported as the failure cause: ${detail:-<empty>}"
+fi
+
 test_case "review failure detail prefers the last ERROR line in a transcript Output"
 transcript_output_file="$TEST_TMP_DIR/codex-transcript-output-failed.md"
 cat > "$transcript_output_file" <<'EOF'
