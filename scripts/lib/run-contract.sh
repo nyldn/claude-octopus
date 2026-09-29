@@ -319,7 +319,7 @@ octo_run_contract_finish_background() {
 
 _octo_run_contract_snapshot_unlocked() {
     local ledger events_ledger snapshot manifest latest run_id snapshot_dir
-    local tmp compat_tmp latest_tmp seats_json events_json generated_at
+    local tmp compat_tmp latest_tmp seats_input events_input generated_at
     ledger="$(octo_run_contract_ledger_path)"
     events_ledger="$(octo_run_contract_events_path)"
     snapshot="$(octo_run_contract_snapshot_path)"
@@ -335,39 +335,39 @@ _octo_run_contract_snapshot_unlocked() {
     latest_tmp="$(mktemp "${latest}.tmp.XXXXXX")" || { rm -f "$tmp" "$compat_tmp"; return 1; }
     rm -f "$latest_tmp" 2>/dev/null || { rm -f "$tmp" "$compat_tmp"; return 1; }
 
-    seats_json='[]'
-    events_json='[]'
+    # Both ledgers reach jq as files. An --argjson value is one argv string,
+    # which Linux caps at MAX_ARG_STRLEN (128 KiB), and the seat projection is
+    # the whole per-session ledger: after a few runs it outgrows that cap, exec
+    # fails with E2BIG, the snapshot never publishes, every transition rolls
+    # back, and no seat can be planned. Slurping /dev/null yields [] for a
+    # ledger that does not exist yet.
+    seats_input=/dev/null
+    events_input=/dev/null
     if [[ -s "$ledger" ]]; then
-        seats_json="$(jq -s '
-            group_by(.seat_id)
-            | map(
-                . as $records
-                | ($records[-1] + {
-                    started_at: $records[0].timestamp,
-                    updated_at: $records[-1].timestamp,
-                    timeline: [$records[] | {
-                      transition, status, contribution, reason, timestamp
-                    }]
-                  })
-              )
-            | sort_by(.seat_id)
-        ' "$ledger" 2>/dev/null)" || {
-            rm -f "$tmp" "$compat_tmp" "$latest_tmp"
-            return 1
-        }
+        seats_input="$ledger"
     fi
     if [[ -s "$events_ledger" ]]; then
-        events_json="$(jq -s '.' "$events_ledger" 2>/dev/null)" || {
-            rm -f "$tmp" "$compat_tmp" "$latest_tmp"
-            return 1
-        }
+        events_input="$events_ledger"
     fi
 
     generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     if ! jq -n --arg schema_version "$OCTO_RUN_SCHEMA_VERSION" --arg run_id "$run_id" \
-        --arg generated_at "$generated_at" --argjson seats "$seats_json" \
-        --argjson events "$events_json" '
-        def count_transition($name): [$seats[] | select(.transition == $name)] | length;
+        --arg generated_at "$generated_at" --slurpfile seat_records "$seats_input" \
+        --slurpfile events "$events_input" '
+        ($seat_records
+          | group_by(.seat_id)
+          | map(
+              . as $records
+              | ($records[-1] + {
+                  started_at: $records[0].timestamp,
+                  updated_at: $records[-1].timestamp,
+                  timeline: [$records[] | {
+                    transition, status, contribution, reason, timestamp
+                  }]
+                })
+            )
+          | sort_by(.seat_id)) as $seats
+        | def count_transition($name): [$seats[] | select(.transition == $name)] | length;
         def phase_rollup:
           reduce $seats[] as $seat ({};
             ($seat.execution.phase // "unknown") as $phase
