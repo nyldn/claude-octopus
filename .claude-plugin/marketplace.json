@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "11.9.5"
+    "version": "11.9.6"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v11.9.5 - Keep long sessions spawning seats on Linux, stop argument substitution rewriting commands, and let research cite workspace files. 31 personas, 54 commands, 63 skills. Run /octo:setup.",
-      "version": "11.9.5",
+      "description": "v11.9.6 - Fix Embrace artifact selection, research citation limits, and cost display. 31 personas, 54 commands, 63 skills. Run /octo:setup.",
+      "version": "11.9.6",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"
