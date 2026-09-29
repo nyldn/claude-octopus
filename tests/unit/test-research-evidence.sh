@@ -602,6 +602,23 @@ else
     test_fail "unresolvable workspace citations were accepted: $local_bad_kinds"
 fi
 
+test_case "emphasized ordered-list markers are not checked as cited numbers"
+marker_draft="$RESEARCH_RUN_DIR/local-markers.md"
+{
+    printf '%s\n' '**4. Unexpected errors return 500** (`src/handler.ts:4`).'
+    printf '%s\n' '__2. Unexpected errors return 500__ (`src/handler.ts:4`).'
+    printf '%s\n' '- **3.** Unexpected errors return 500 (`src/handler.ts:4`).'
+    printf '%s\n' '- Unexpected errors return **503** (`src/handler.ts:4`).'
+} > "$marker_draft"
+marker_status=0
+research_verify_synthesis "$marker_draft" || marker_status=$?
+marker_kinds=$(jq -r '.checks[] | "\(.line):\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$marker_status" -ne 0 && "$marker_kinds" == "4:number_mismatch:503 " ]]; then
+    test_pass
+else
+    test_fail "emphasized list markers were checked as numbers, or an emphasized value escaped: $marker_kinds"
+fi
+
 test_case "workspace citations to files over the size cap fail closed"
 big_line='  return { status: 500 };'
 { printf '%s\n' "$big_line"; head -c 400 /dev/zero | tr '\0' 'x'; printf '\n'; } > "$local_root/src/big.ts"

@@ -613,8 +613,9 @@ research_source_field() {
 
 research_extract_numbers() {
     local line="$1"
-    # Do not mistake ordered-list markers ("1." / "2)") for factual values.
-    line=$(printf '%s\n' "$line" | sed -E 's/^[[:space:]]*([-*+][[:space:]]*)?[0-9]+[.)][[:space:]]*//')
+    # Do not mistake ordered-list markers ("1." / "2)" / "**3.**") for
+    # factual values.
+    line=$(printf '%s\n' "$line" | sed -E 's/^[[:space:]]*([-*+][[:space:]]*)?(\*\*|__|\*|_)?[0-9]+[.)](\*\*|__|\*|_)?[[:space:]]*//')
     printf '%s\n' "$line" | grep -Eo '[0-9]+([.,][0-9]+)*%?' | sort -u || true
 }
 

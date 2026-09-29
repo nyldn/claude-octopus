@@ -13,6 +13,10 @@
   of `src/app.ts:42`, discarded a usable synthesis and failed the probe. A
   repair returned inside a code fence is unwrapped first, since the verifier
   skips fenced text.
+- Evidence verification no longer checks an emphasized ordered-list marker,
+  such as `**4.` or `__2.`, as a cited number. Plain `1.` and `2)` markers
+  were already skipped, so a synthesis that bolded its numbered findings
+  failed with a `number_mismatch` for each marker on a line with citations.
 
 ## [11.9.6] - 2026-09-29
 
