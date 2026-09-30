@@ -443,7 +443,10 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         elapsed_ms=$((end_time_ms - start_time_ms))
         tokens_out=$(octo_estimate_tokens_for_file "$temp_output" 2>/dev/null || echo 0)
         update_agent_status "$agent_type" "failed" "$elapsed_ms" "$estimated_cost" "$TIMEOUT" "$task_id" "$phase" "$result_file"
-        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "Exit code $exit_code" "$elapsed_ms" "$result_file" "$role" || true
+        local failure_reason="Exit code $exit_code"
+        declare -F octo_failure_reason >/dev/null 2>&1 && \
+            failure_reason=$(octo_failure_reason "$exit_code" "$enhanced_prompt" "$temp_errors" "$temp_output")
+        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "$failure_reason" "$elapsed_ms" "$result_file" "$role" || true
         final_rc=$exit_code
     fi
 
@@ -1052,6 +1055,9 @@ ${_blind_spot_checklist}"
                 echo -e " ${YELLOW}⚠${NC} $agent_display probe $i: partial result (${reason:-degraded}; $(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
                 ((timeout_count++)) || true
             else
+                if [[ "$reason" == "contract-ineligible" ]] && declare -F run_contract_output_file_reason >/dev/null 2>&1; then
+                    reason="$(run_contract_output_file_reason "$result_file")" || reason="contract-ineligible"
+                fi
                 echo -e " ${RED}✗${NC} $agent_display probe $i: unusable (${reason:-failed}; $(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size}B"))"
                 ((failure_count++)) || true
             fi

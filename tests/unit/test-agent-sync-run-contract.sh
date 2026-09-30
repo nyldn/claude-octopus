@@ -70,6 +70,10 @@ case "$FIXTURE_SCENARIO" in
     truncated)
         printf '%0500d\n' 0 | tr '0' 'A'
         ;;
+    usage-limit)
+        { printf '%s\n' user; cat; printf '\n%s\n' "ERROR: You hit your usage limit. Try again at 10:25 PM."; } >&2
+        exit 1
+        ;;
     *) printf '%s\n' "unknown fixture: $FIXTURE_SCENARIO" >&2; exit 2 ;;
 esac
 EOF
@@ -295,6 +299,16 @@ assert_scenario stdin-close-large 0 1 \
 assert_scenario truncated 0 1 \
     planned,starting,authenticated,running,output_received,validated,degraded \
     degraded eligible-with-warning 'Output truncated'
+assert_scenario usage-limit 1 1 planned,starting,authenticated,running,failed failed none \
+    'Exit code 1: You hit your usage limit. Try again at 10:25 PM.'
+
+test_case "a failed synchronous seat reports the provider's ERROR line as its status reason"
+if grep -Fq 'codex|failed|Exit code 1: You hit your usage limit. Try again at 10:25 PM.|' \
+        "$TEST_TMP_DIR/usage-limit/legacy-statuses"; then
+    test_pass
+else
+    test_fail "status reason: $(cat "$TEST_TMP_DIR/usage-limit/legacy-statuses" 2>/dev/null || true)"
+fi
 
 test_case "a post-reservation lifecycle failure writes one terminal usage event"
 usage_terminal="$TEST_TMP_DIR/usage-running-transition-fail/usage-terminal"

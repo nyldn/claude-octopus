@@ -275,6 +275,20 @@ octo_file_has_codex_recoverable_stderr() {
     grep -qE '^# Completed:|^## Worktree Changes$|^## Integration Evidence$|^## Verification$|^tokens used$' "$stderr_file" 2>/dev/null
 }
 
+octo_failure_reason() {
+    local exit_code="$1" dispatched_prompt="$2" file detail=""
+    shift 2
+    for file in "$@"; do
+        [[ -n "$file" && -s "$file" ]] || continue
+        detail=$(grep -E '^ERROR: ' "$file" 2>/dev/null \
+            | grep -vxF -f <(printf '%s\n' "$dispatched_prompt" | grep -E '^ERROR: ' || true) \
+            | tail -n 1) || detail=""
+        [[ -n "$detail" ]] && break
+    done
+    detail="${detail#ERROR: }"
+    printf 'Exit code %s%s\n' "$exit_code" "${detail:+: ${detail:0:240}}"
+}
+
 classify_agent_output() {
     local output_file="$1"
     local exit_code="${2:-0}"

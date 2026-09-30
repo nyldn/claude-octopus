@@ -96,6 +96,21 @@ else
     test_fail "typed timeout remained synthesis eligible: $classification"
 fi
 
+shared_output="$RESULT_DIR/codex-probe-shared.md"
+cp "$success_body" "$shared_output"
+run_contract_transition shared-a planned >/dev/null
+run_contract_transition shared-a failed output_file="$shared_output" reason="Exit code 1" >/dev/null
+run_contract_transition shared-b planned >/dev/null
+run_contract_transition shared-b failed output_file="$shared_output" reason="Exit code 2" >/dev/null
+test_case "an ineligible artifact reports its one seat's terminal reason"
+if [[ "$(run_contract_output_file_reason "$typed_timeout")" == "Timed out before completion" ]] && \
+   ! run_contract_output_file_reason "$shared_output" >/dev/null && \
+   ! run_contract_output_file_reason "$header_only" >/dev/null; then
+    test_pass
+else
+    test_fail "seat reason lookup was wrong or answered for an ambiguous or unowned artifact"
+fi
+
 typed_success="$RESULT_DIR/codex-probe-typed-success.md"
 cp "$success_body" "$typed_success"
 run_contract_transition typed-success planned >/dev/null

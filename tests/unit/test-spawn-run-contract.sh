@@ -217,12 +217,14 @@ fi
 # process, output, classification, timeout, and contract code.
 fake_provider="$TEST_TMP_DIR/fake-background-provider.sh"
 printf '%s\n' '#!/usr/bin/env bash' \
-    'cat >/dev/null' \
+    'prompt_text="$(cat)"' \
     'case "${FAKE_SCENARIO:-success}" in' \
     '  success) printf "%s\n" "Substantive external provider result." ;;' \
     '  held) for attempt in {1..100}; do [[ -e "$FAKE_RELEASE_FILE" ]] && break; sleep 0.05; done; printf "%s\n" "Substantive held provider result." ;;' \
     '  agy-contract) printf "%s\n" "${OCTOPUS_AGY_MODEL:-missing}" > "$AGY_MODEL_CAPTURE"; printf "%s\n" "Substantive AGY result." ;;' \
     '  exit) printf "%s\n" "provider rejected request" >&2; exit 42 ;;' \
+    '  usage-limit) printf "%s\n" "user" "$prompt_text" "ERROR: You hit your usage limit. Try again at 10:25 PM." "ERROR: You hit your usage limit. Try again at 10:25 PM." >&2; exit 1 ;;' \
+    '  echoed-error) printf "%s\n" "user" "$prompt_text" >&2; exit 1 ;;' \
     '  timeout) printf "%s\n" "partial output before timeout"; exit 124 ;;' \
     'esac' > "$fake_provider"
 chmod +x "$fake_provider"
@@ -831,6 +833,33 @@ if [[ "$(run_contract_latest_transition spawn-external-exit)" == failed ]] && \
     test_pass
 else
     test_fail "supervised provider exit did not fail the contract"
+fi
+
+assert_terminal "a provider exit without an ERROR line keeps the exit-code reason" \
+    spawn-external-exit failed none "Exit code 42"
+
+test_case "a provider ERROR line becomes the failed seat's reason"
+run_external_fixture usage-limit external-usage-limit
+usage_limit_reason="Exit code 1: You hit your usage limit. Try again at 10:25 PM."
+if jq -e --arg seat spawn-external-usage-limit --arg reason "$usage_limit_reason" \
+        'select(.seat_id == $seat and .transition == "failed" and .reason == $reason)' "$ledger" >/dev/null &&
+   [[ "$(run_contract_output_file_reason "$RESULTS_DIR/fake-api-external-usage-limit.md")" == "$usage_limit_reason" ]]; then
+    test_pass
+else
+    test_fail "usage-limit exit recorded $(jq -r --arg seat spawn-external-usage-limit 'select(.seat_id == $seat) | .reason' "$ledger" | tail -n 1)"
+fi
+
+test_case "an ERROR line echoed from the prompt is not the failure reason"
+export FAKE_SCENARIO=echoed-error
+echoed_pid="$(spawn_agent fake-api $'Summarize this log.\nERROR: disk quota exceeded on /var' external-echoed-error reviewer probe)"
+wait "$echoed_pid" 2>/dev/null || true
+unset FAKE_SCENARIO
+echoed_reason="$(jq -r --arg seat spawn-external-echoed-error \
+    'select(.seat_id == $seat and .transition == "failed") | .reason' "$ledger" | tail -n 1)"
+if [[ "$echoed_reason" == "Exit code 1" ]]; then
+    test_pass
+else
+    test_fail "echoed prompt line became the failure reason: ${echoed_reason:-missing}"
 fi
 
 test_case "real supervised timeout terminalizes without contribution"

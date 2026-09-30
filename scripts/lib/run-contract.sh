@@ -263,6 +263,19 @@ run_contract_output_file_eligible() {
     }
 }
 
+run_contract_output_file_reason() {
+    local output_file="${1:-}" ledger reason
+    ledger="$(octo_run_contract_ledger_path)"
+    [[ -n "$output_file" && -s "$ledger" ]] || return 1
+    reason="$(jq -sr --arg output "$output_file" '
+        reduce .[] as $record ({}; .[$record.seat_id] = $record)
+        | [.[] | select(.artifacts.output == $output)]
+        | if length == 1 then (.[0].reason // "") else "" end
+    ' "$ledger" 2>/dev/null)" || return 1
+    [[ -n "$reason" ]] || return 1
+    printf '%s\n' "$reason"
+}
+
 # Finalize a background seat from durable provider artifacts. This lives in the
 # contract library so out-of-process completion hooks do not need to source the
 # full dispatch stack.

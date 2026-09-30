@@ -1677,6 +1677,8 @@ ${provider_ctx}"
         fi
         local _sync_status="failed"
         local _sync_reason="Exit code $exit_code"
+        declare -F octo_failure_reason >/dev/null 2>&1 && \
+            _sync_reason=$(octo_failure_reason "$exit_code" "$enhanced_prompt" "$temp_err" "$temp_out")
         if [[ $exit_code -eq 124 || $exit_code -eq 143 ]]; then
             _sync_status="timeout"
             _sync_reason="Timed out before completion"
