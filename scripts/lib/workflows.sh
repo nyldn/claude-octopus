@@ -2411,9 +2411,15 @@ tangle_reconsideration_legacy_response_valid() {
 }
 
 tangle_reconsideration_response_valid() {
-    local response="$1"
+    local response="$1" decisions subtasks decomposition
     if tangle_reconsideration_json_output_usable "$response"; then
-        printf '%s\n' "$response" | python3 "${BASH_SOURCE[0]%/*}/../tangle-reconsideration-json.py" validate-coverage >/dev/null
+        printf '%s\n' "$response" | python3 "${BASH_SOURCE[0]%/*}/../tangle-reconsideration-json.py" validate-coverage >/dev/null || return 1
+        decisions=$(printf '%s\n' "$response" | python3 "${BASH_SOURCE[0]%/*}/../tangle-reconsideration-json.py" decisions) || return 1
+        decomposition=$(printf '%s\n' "$response" | python3 "${BASH_SOURCE[0]%/*}/../tangle-reconsideration-json.py" decomposition) || return 1
+        subtasks=$(tangle_render_json_decomposition_output "$decomposition") || return 1
+        [[ -n "$subtasks" ]] || return 1
+        [[ $(tangle_parseable_subtask_count "$subtasks") -gt 0 ]] || return 1
+        [[ $(tangle_parseable_coding_subtask_count "$subtasks") -gt 0 ]]
         return $?
     fi
     tangle_reconsideration_legacy_response_valid "$response"
@@ -4840,10 +4846,16 @@ $(tangle_decomposition_json_contract_guidance)"
             log ERROR "Planner reconsideration failed; refusing implementation spawn"
             return 1
         fi
-        planner_decisions=$(tangle_reconsideration_decisions "$reconsideration_response")
-        reconsidered_subtasks=$(tangle_reconsideration_subtasks "$reconsideration_response")
-        if [[ -z "$planner_decisions" || -z "$reconsidered_subtasks" ]]; then
-            log ERROR "Planner reconsideration did not return both DECISIONS and DECOMPOSITION"
+        if ! planner_decisions=$(tangle_reconsideration_decisions "$reconsideration_response"); then
+            log ERROR "Planner reconsideration decisions could not be materialized"
+            return 1
+        fi
+        if ! reconsidered_subtasks=$(tangle_reconsideration_subtasks "$reconsideration_response"); then
+            log ERROR "Planner reconsideration decomposition could not be materialized"
+            return 1
+        fi
+        if [[ -z "$reconsidered_subtasks" ]]; then
+            log ERROR "Planner reconsideration did not return a usable DECOMPOSITION"
             return 1
         fi
         subtasks="$reconsidered_subtasks"

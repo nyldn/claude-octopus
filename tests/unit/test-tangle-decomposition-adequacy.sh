@@ -94,6 +94,10 @@ run_agent_sync() {
             printf '%s' "$prompt" > "$RECONSIDER_PROMPT_FILE"
             if [[ "$scenario" == "reconsider-fallback" && "$reconsider_n" -eq 1 ]]; then
                 printf '%s\n' "I'll ground-check the reviewer claims before deciding."
+            elif [[ "$scenario" == "reconsider-empty-decisions" ]]; then
+                cat <<'EOF'
+{"schema_version":1,"decisions":[],"decomposition":{"schema_version":1,"subtasks":[{"id":1,"kind":"coding","title":"Create requested application","reads":["scripts/lib/workflows.sh"],"files":["web/src/main.tsx"],"creates":["web/package.json"],"task":"Materialize the requested externally observable application and its runnable entry point."}]}}
+EOF
             elif [[ "$scenario" == "reconsider-third-fallback" && "$reconsider_n" -le 2 ]]; then
                 printf '%s\n' "I'll inspect the repo context before deciding."
             elif [[ "$scenario" == "reconsider-exhaust" ]]; then
@@ -127,6 +131,13 @@ EOF
                         printf '%s\n' 'VERDICT: FAIL' 'REASONS: scopes still cannot materialize the requested deliverable' 'SCOPE_REVIEW:' '- MOVE_TO_READS: scripts/lib/workflows.sh — context only'
                     else
                         printf '%s\n' 'The adequacy reviewer did not return a usable response.'
+                    fi
+                    ;;
+                reconsider-empty-decisions)
+                    if [[ "$n" -eq 1 ]]; then
+                        printf '%s\n' 'VERDICT: FAIL' 'REASONS: decomposition omits the runnable entry point but current file scopes can be retained' 'SCOPE_REVIEW: NONE'
+                    else
+                        printf '%s\n' 'VERDICT: PASS' 'REASONS: reconsidered decomposition now materializes the runnable entry point' 'SCOPE_REVIEW: NONE'
                     fi
                     ;;
                 adequacy-repair|reconsider-fallback|reconsider-third-fallback|reconsider-exhaust)
@@ -255,6 +266,14 @@ if [[ "$(cat "$ADEQUACY_COUNT_FILE")" -eq 2 ]] && [[ "$(cat "$RECONSIDER_COUNT_F
     test_pass
 else
     test_fail "planner rejection was not preserved as advisory adjudication for second review"
+fi
+
+test_case "planner reconsideration may materialize an empty decisions list when scope review is empty"
+run_case "reconsider-empty-decisions"
+if [[ "$(cat "$ADEQUACY_COUNT_FILE")" -eq 2 ]] && [[ "$(cat "$RECONSIDER_COUNT_FILE")" -eq 1 ]] && [[ -s "$SPAWN_FILE" ]]; then
+    test_pass
+else
+    test_fail "empty-but-valid reconsideration decisions incorrectly aborted the implementation"
 fi
 
 test_case "unusable planner reconsideration advances through configured fallback chain"
