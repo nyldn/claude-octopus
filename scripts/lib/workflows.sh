@@ -4842,6 +4842,13 @@ $(tangle_decomposition_json_contract_guidance)"
         fi
         planner_decisions=$(tangle_reconsideration_decisions "$reconsideration_response")
         reconsidered_subtasks=$(tangle_reconsideration_subtasks "$reconsideration_response")
+        # A semantic-only FAIL carries no scope_review recommendations, so the
+        # contract's only valid decisions list is empty; record that instead of
+        # treating it as a missing section.
+        if [[ -z "$planner_decisions" && -n "$reconsidered_subtasks" ]] && \
+           [[ "$(tangle_reconsideration_expected_scope_review_json "$adequacy_review" 2>/dev/null)" == "[]" ]]; then
+            planner_decisions="- NONE: the adequacy review raised no scope_review recommendations; the decomposition was revised for its semantic findings only."
+        fi
         if [[ -z "$planner_decisions" || -z "$reconsidered_subtasks" ]]; then
             log ERROR "Planner reconsideration did not return both DECISIONS and DECOMPOSITION"
             return 1

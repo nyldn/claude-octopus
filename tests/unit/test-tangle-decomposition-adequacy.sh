@@ -98,6 +98,8 @@ run_agent_sync() {
                 printf '%s\n' "I'll inspect the repo context before deciding."
             elif [[ "$scenario" == "reconsider-exhaust" ]]; then
                 printf '%s\n' "I'll inspect the repo context before deciding."
+            elif [[ "$scenario" == "semantic-only" ]]; then
+                printf '%s\n' '{"schema_version":1,"decisions":[],"decomposition":{"schema_version":1,"subtasks":[{"id":1,"kind":"coding","title":"Create requested application","reads":["scripts/lib/workflows.sh"],"files":[],"creates":["web/package.json","web/src/main.tsx"],"task":"Materialize the requested externally observable application with a usable entry point."}]}}'
             elif [[ "$scenario" == "planner-reject" ]]; then
                 cat <<'EOF'
 DECISIONS:
@@ -127,6 +129,13 @@ EOF
                         printf '%s\n' 'VERDICT: FAIL' 'REASONS: scopes still cannot materialize the requested deliverable' 'SCOPE_REVIEW:' '- MOVE_TO_READS: scripts/lib/workflows.sh — context only'
                     else
                         printf '%s\n' 'The adequacy reviewer did not return a usable response.'
+                    fi
+                    ;;
+                semantic-only)
+                    if [[ "$n" -eq 1 ]]; then
+                        printf '%s\n' 'VERDICT: FAIL' 'REASONS: the subtask never names the usable entry point the task requires' 'SCOPE_REVIEW: NONE'
+                    else
+                        printf '%s\n' 'VERDICT: PASS' 'REASONS: the revised subtask materializes the entry point' 'SCOPE_REVIEW: NONE'
                     fi
                     ;;
                 adequacy-repair|reconsider-fallback|reconsider-third-fallback|reconsider-exhaust)
@@ -247,6 +256,18 @@ if [[ "$(cat "$ADEQUACY_COUNT_FILE")" -eq 2 ]] && [[ "$(cat "$RECONSIDER_COUNT_F
     test_pass
 else
     test_fail "adequacy FAIL did not perform one bounded planner reconsideration before spawn"
+fi
+
+test_case "semantic-only FAIL accepts a JSON reconsideration with no scope decisions and spawns"
+reset_scenario "semantic-only"
+status=0
+tangle_develop 'Build the requested externally observable application with a usable entry point.' > "$RESULTS_DIR/semantic-only.out" 2>&1 || status=$?
+if [[ "$status" -eq 0 ]] && [[ "$(cat "$ADEQUACY_COUNT_FILE")" -eq 2 ]] && [[ "$(cat "$RECONSIDER_COUNT_FILE")" -eq 1 ]] && [[ -s "$SPAWN_FILE" ]] \
+   && ! grep -q 'did not return both DECISIONS and DECOMPOSITION' "$LOG_FILE" \
+   && grep -q 'no scope_review recommendations' "$ADEQUACY_PROMPT_FILE"; then
+    test_pass
+else
+    test_fail "a reconsideration whose only valid decisions list is empty was refused: $(grep -E 'ERROR' "$LOG_FILE" | tail -2)"
 fi
 
 test_case "planner may reject reviewer scope advice with explicit rationale"

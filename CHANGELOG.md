@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Tangle no longer aborts when a planner reconsideration answers a semantic-only
+  adequacy failure. When the adequacy review raised no `scope_review`
+  recommendations, the reconsideration contract's only valid `decisions` list is
+  empty, but the caller treated that empty list as a missing section and failed
+  with "Planner reconsideration did not return both DECISIONS and
+  DECOMPOSITION", discarding a valid, corrected decomposition. The run now
+  records that there were no scope decisions to adjudicate, passes the revised
+  decomposition to the second adequacy review, and continues.
+
 ## [11.9.6] - 2026-09-29
 
 ### Fixed
