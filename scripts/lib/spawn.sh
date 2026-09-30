@@ -1397,6 +1397,9 @@ ${heuristic_ctx}"
             break
         done
 
+        [[ "$boundary_refused" == "true" ]] || \
+            quota_watcher_mark_after_exit "$exit_code" "$temp_errors" "$raw_output" "${_provider_prefix:-}"
+
         if [[ $exit_code -ne 0 && -s "$temp_errors" ]]; then
             local stderr_excerpt=""
             stderr_excerpt=$(grep -m5 '[^[:space:]]' "$temp_errors" 2>/dev/null | tr '\n' ' ' | head -c 600 || true)

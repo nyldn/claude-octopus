@@ -28,6 +28,53 @@ else
     test_fail "quota pattern was not detected"
 fi
 
+test_case "quota_watcher_has_match detects the codex usage-limit error line"
+printf '%s\n' "ERROR: You've hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at 10:25 PM." > "$out_file"
+: > "$err_file"
+if quota_watcher_has_match "$err_file" "$out_file"; then
+    test_pass
+else
+    test_fail "codex usage-limit error line was not detected"
+fi
+
+test_case "quota_watcher_has_match ignores the codex message quoted in grep output"
+printf '%s\n' "scripts/lib/quota-watcher.sh:22:#   \"ERROR: You've hit your usage limit\" — codex CLI" > "$out_file"
+if quota_watcher_has_match "$err_file" "$out_file"; then
+    test_fail "a grepped quote of the codex message matched as a live quota error"
+else
+    test_pass
+fi
+
+test_case "quota_watcher_mark_after_exit marks a provider that failed on a quota error"
+export WORKSPACE_DIR="$tmp_dir/workspace"
+printf '%s\n' "ERROR: You've hit your usage limit. Try again at 10:25 PM." > "$err_file"
+: > "$out_file"
+quota_watcher_mark_after_exit 1 "$err_file" "$out_file" codex
+if octo_quota_is_dead codex; then
+    test_pass
+else
+    test_fail "codex was not marked quota-dead after a failed exit with the usage-limit error"
+fi
+
+test_case "quota_watcher_mark_after_exit leaves a successful exit unmarked"
+octo_quota_clear_dead codex
+quota_watcher_mark_after_exit 0 "$err_file" "$out_file" codex
+if octo_quota_is_dead codex; then
+    test_fail "a zero exit was marked quota-dead"
+else
+    test_pass
+fi
+
+test_case "quota_watcher_mark_after_exit leaves a failure without a quota signature unmarked"
+printf '%s\n' "error: unexpected argument '--foo' found" > "$err_file"
+quota_watcher_mark_after_exit 2 "$err_file" "$out_file" codex
+if octo_quota_is_dead codex; then
+    test_fail "a non-quota failure was marked quota-dead"
+else
+    test_pass
+fi
+unset WORKSPACE_DIR
+
 test_case "start_quota_watcher invokes callback and stops target"
 flag_file="$tmp_dir/callback.flag"
 test_quota_callback() {

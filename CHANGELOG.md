@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- A codex seat that runs out of ChatGPT plan usage is now marked quota-dead for
+  the session. The quota pattern had no signature for codex's
+  `ERROR: You've hit your usage limit` line, and the watcher only acts while the
+  provider is still running, over two polls, so a CLI that prints a terminal
+  quota error and exits at once was never marked by any pattern. Each failed
+  seat was then reported as `contract-ineligible`, and every later seat was
+  dispatched into the same failure. Spawned and synchronous dispatch now check
+  the final output of a failed exit for a terminal quota signature.
+
 ## [11.9.6] - 2026-09-29
 
 ### Fixed

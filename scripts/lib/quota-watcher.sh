@@ -15,7 +15,12 @@
 #   "IneligibleTierError"       — gemini-cli after Google sunset Gemini Code
 #                                 Assist free-tier OAuth. Permanent for that
 #                                 auth mode, not a transient quota window.
-OCTOPUS_QUOTA_PATTERN=${OCTOPUS_QUOTA_PATTERN:-'QUOTA_EXHAUSTED|TerminalQuotaError|exhausted your capacity|insufficient_quota|HTTP 401|Individual quota reached|IneligibleTierError'}
+#   "ERROR: You've hit your usage limit" — codex CLI on a ChatGPT plan whose
+#                                 usage window is spent, account-wide; it names a
+#                                 "try again at" time. Anchored to the CLI's own
+#                                 error line so a transcript that greps a file
+#                                 quoting the message does not match.
+OCTOPUS_QUOTA_PATTERN=${OCTOPUS_QUOTA_PATTERN:-'QUOTA_EXHAUSTED|TerminalQuotaError|exhausted your capacity|insufficient_quota|HTTP 401|Individual quota reached|IneligibleTierError|^ERROR: You.ve hit your usage limit'}
 
 # Session-scoped "this provider is quota/auth-dead" cache (oco-cbb). When a
 # terminal quota/auth error is seen at dispatch, the provider is marked here so
@@ -218,6 +223,20 @@ stop_quota_watcher() {
 
     kill "$watcher_pid" 2>/dev/null || true
     wait "$watcher_pid" 2>/dev/null || true
+}
+
+# The watcher only acts while the provider is alive and after two polls, so a
+# CLI that prints a terminal quota error and exits at once (codex does) was
+# never marked and every later seat was dispatched into the same failure.
+# After a failed exit no provider backoff can still land, so one match is
+# terminal.
+quota_watcher_mark_after_exit() {
+    local exit_code="$1" temp_err="$2" temp_out="$3" provider="${4:-}"
+    [[ -n "$provider" && "$exit_code" =~ ^[0-9]+$ && "$exit_code" -ne 0 ]] || return 0
+    octo_quota_is_dead "$provider" && return 0
+    quota_watcher_has_match "$temp_err" "$temp_out" || return 0
+    log "WARN" "[$provider] quota/terminal error in output after exit $exit_code; marking quota-dead for this session"
+    octo_quota_mark_dead "$provider"
 }
 
 # octo_provider_probe <provider>

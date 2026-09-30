@@ -1633,6 +1633,7 @@ ${provider_ctx}"
         break
     done
     stop_quota_watcher "$_quota_watcher_pid"
+    quota_watcher_mark_after_exit "$exit_code" "$temp_err" "$temp_out" "${_provider_for_health:-}"
     local _sync_output_truncated=false
 
     local _elapsed_ms
