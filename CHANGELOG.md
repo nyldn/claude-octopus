@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.9.6] - 2026-09-29
+
 ### Fixed
 
 - Cost examples in commands and skills now use `USD` instead of escaped dollar
