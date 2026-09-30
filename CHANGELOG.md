@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Research evidence verification no longer reads the digits of an identifier
+  as a numeric claim. Ticket and requirement IDs (`PLAT-1181`, `T-1`, `R2`),
+  `#1728`, `§4.2`, `p95` and git SHAs such as `89a941fda` were extracted as
+  numbers, so a line that only named them failed with `missing_citation`, and
+  one that also cited a file failed with `number_mismatch` for SHA fragments
+  such as `34478150`. Standalone numbers, percentages, decimals, numbers with
+  a unit suffix (`15m`, `5xx`) and ranges (`10-13`) are still checked.
+
 ## [11.9.6] - 2026-09-29
 
 ### Fixed

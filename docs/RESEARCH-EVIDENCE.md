@@ -47,6 +47,8 @@ When a host-native workflow writes its synthesis in conversation, verify that fi
 
 The verifier fails closed for unknown source IDs, unsupported consensus claims, and quoted or numeric claims that disagree with a fetched snapshot. Claims whose source was not fetched are retained with an explicit warning instead of being silently presented as verified.
 
+Digits that belong to an identifier are not numeric claims: a ticket or requirement ID such as `PLAT-1181`, `T-1` or `R2`, a reference such as `#1728` or `§4.2`, a name such as `p95` or `k8s`, and a git SHA such as `89a941fda`. Standalone numbers, percentages, decimals, numbers with a unit suffix such as `15m` or `5xx`, and ranges such as `10-13` are still checked.
+
 ## Workspace citations
 
 Research about the codebase itself cites files, not web pages. A claim may cite a file in the workspace as a workspace-relative path with line numbers: `src/app.ts:42`, `src/app.ts:40-48`, or `src/app.ts:12,40`. An absolute path inside the workspace also works. The workspace root is the directory the providers read (`PROJECT_ROOT`), recorded in the manifest when the run starts, so a later `research-verify` or `research-resume` resolves the same files from any directory.

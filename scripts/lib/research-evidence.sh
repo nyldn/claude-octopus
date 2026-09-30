@@ -607,7 +607,26 @@ research_extract_numbers() {
     local line="$1"
     # Do not mistake ordered-list markers ("1." / "2)") for factual values.
     line=$(printf '%s\n' "$line" | sed -E 's/^[[:space:]]*([-*+][[:space:]]*)?[0-9]+[.)][[:space:]]*//')
-    printf '%s\n' "$line" | grep -Eo '[0-9]+([.,][0-9]+)*%?' | sort -u || true
+    printf '%s\n' "$line" | research_numeric_claims | sort -u || true
+}
+
+research_numeric_claims() {
+    LC_ALL=C awk '{
+        line = $0; pos = 1; id_end = -1
+        while (match(substr(line, pos), /[0-9]+([.,][0-9]+)*%?/)) {
+            start = pos + RSTART - 1; len = RLENGTH; pos = start + len
+            before = substr(line, 1, start - 1); after = substr(line, pos)
+            match(before, /[0-9A-Za-z]*$/); word = substr(before, RSTART)
+            match(after, /^[0-9A-Za-z]*/); word = word substr(line, start, len) substr(after, 1, RLENGTH)
+            if (before ~ /([A-Za-z_#]|[A-Za-z]-|\302\247)$/ \
+                || (start == id_end + 1 && before ~ /-$/) \
+                || (length(word) >= 7 && length(word) <= 40 && word ~ /^[0-9a-f]*[a-f][0-9a-f]*$/)) {
+                id_end = pos
+                continue
+            }
+            print substr(line, start, len)
+        }
+    }'
 }
 
 research_number_in_snapshot() {
