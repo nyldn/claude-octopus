@@ -553,6 +553,7 @@ research_physical_path() {
 
 research_local_citation_tokens() {
     printf '%s\n' "$1" \
+        | sed -E 's#[A-Za-z][A-Za-z0-9+.-]*://[^[:space:]]*##g' \
         | grep -Eo '[A-Za-z0-9_.@+~/-]*[./][A-Za-z0-9_.@+~/-]*:[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*' \
         | awk '!seen[$0]++ { print length($0) "\t" $0 }' | sort -rn | cut -f2- || true
 }
@@ -618,7 +619,9 @@ research_numeric_claims() {
             before = substr(line, 1, start - 1); after = substr(line, pos)
             match(before, /[0-9A-Za-z]*$/); word = substr(before, RSTART)
             match(after, /^[0-9A-Za-z]*/); word = word substr(line, start, len) substr(after, 1, RLENGTH)
-            if (before ~ /([A-Za-z_#]|[A-Za-z]-|\302\247)$/ \
+            hyphen_word = ""
+            if (match(before, /[0-9A-Za-z]+-$/)) hyphen_word = substr(before, RSTART, RLENGTH - 1)
+            if (before ~ /([A-Za-z_#]|\302\247)$/ || hyphen_word ~ /^[A-Za-z]/ \
                 || (start == id_end + 1 && before ~ /-$/) \
                 || (length(word) >= 7 && length(word) <= 40 && word ~ /^[0-9a-f]*[a-f][0-9a-f]*$/)) {
                 id_end = pos

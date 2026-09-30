@@ -719,10 +719,10 @@ done <<'EOF'
 - ALR-R4(c) and §4.2-4.3 cover the k8s c3po_fleet monitors in us-east-1 on claude-opus-5-5 (v11.9.6).
 EOF
 claim_numbers=$(research_extract_numbers \
-    '1. Pages fire after 15m or 30s on 5xx, 5 s apart, on 10-13 routes, 42% and 3.5 per 1,024 at 2026-09-28 across 1234567 rows.' \
+    '1. Pages fire after 15m or 30s on 5xx, 5 s apart, on 10-13 routes, 20m-45m and 7s-9s windows, 42% and 3.5 per 1,024 at 2026-09-28 across 1234567 rows.' \
     | LC_ALL=C sort | tr '\n' ' ')
 if [[ -z "$identifier_numbers" \
-      && "$claim_numbers" == "09 1,024 10 1234567 13 15 2026 28 3.5 30 42% 5 " ]]; then
+      && "$claim_numbers" == "09 1,024 10 1234567 13 15 20 2026 28 3.5 30 42% 45 5 7 9 " ]]; then
     test_pass
 else
     test_fail "identifiers leaked [$identifier_numbers] or claims were lost [$claim_numbers]"
@@ -739,13 +739,14 @@ identifier_draft="$RESEARCH_RUN_DIR/local-identifiers.md"
     printf '%s\n' '- T-5 pages after 15m on 5xx.'
     printf '%s\n' '- DoD-3 leaves 16 routes without a probe.'
     printf '%s\n' '- Commit `0e03ef56a` makes unexpected errors return 503 (`src/handler.ts:4`).'
+    printf '%s\n' '- Unexpected errors return 500 after a 500ms-900ms backoff (`src/handler.ts:4`).'
 } > "$identifier_draft"
 identifier_status=0
 research_verify_synthesis "$identifier_draft" || identifier_status=$?
 identifier_kinds=$(jq -r '.checks[] | "\(.line):\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" \
     | sed -E 's/^([0-9]+:missing_citation):.*/\1/' | tr '\n' ' ')
 if [[ "$identifier_status" -ne 0 \
-      && "$identifier_kinds" == "6:missing_citation 7:missing_citation 8:number_mismatch:503 " ]]; then
+      && "$identifier_kinds" == "6:missing_citation 7:missing_citation 8:number_mismatch:503 9:number_mismatch:900 " ]]; then
     test_pass
 else
     test_fail "identifier digits were checked as claims, or real numbers escaped: $identifier_kinds"
@@ -757,6 +758,7 @@ unresolved_draft="$RESEARCH_RUN_DIR/local-unresolved.md"
     printf '%s\n' '- Unexpected errors return 500 (`src/handler.ts:4`; `main.tf:144-155`).'
     printf '%s\n' '- Unexpected errors return 503 (`handler.ts:4`).'
     printf '%s\n' '- A 4.5:1 contrast ratio is served from https://example.com:8443 [inference].'
+    printf '%s\n' '- The job API at https://example.com:443/api/jobs:42 answers slowly [inference].'
 } > "$unresolved_draft"
 unresolved_status=0
 research_verify_synthesis "$unresolved_draft" || unresolved_status=$?
