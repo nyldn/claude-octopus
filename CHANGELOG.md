@@ -11,8 +11,9 @@
   existing results, wrote a failed `parallel-report.json` and exited 1.
   Dry-run parallel now validates as before and reports each invalid task as
   skipped, prints one preview per valid task and a dispatch summary, and
-  writes no aggregate or report. It exits 1 only when validation fails or no
-  task would be dispatched, which is when a real run is certain to fail.
+  writes no aggregate or report. It exits 1 only when validation fails or a
+  non-empty task list has no dispatchable task. An empty task list exits 0,
+  as it does in a real run.
 - `orchestrate.sh --dry-run code-review` no longer reports that every review
   provider failed. Round 1 waited for the same missing PID, so the dry run
   logged a PID error per reviewer, printed "All N review providers failed",
