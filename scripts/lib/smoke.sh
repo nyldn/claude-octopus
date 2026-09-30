@@ -837,7 +837,20 @@ smoke_test_cache_key() {
         cursor_agent_state="none"
     fi
     codex_sandbox="${OCTOPUS_CODEX_SANDBOX:-workspace-write}"
-    echo "${codex_model}:${cursor_agent_model}:${cursor_agent_state}:${codex_sandbox}"
+    local claude_seat="off"
+    if _smoke_claude_available; then
+        claude_seat="${OCTOPUS_CLAUDE_BIN:-claude}/$(get_agent_model "claude-sonnet" 2>/dev/null || echo "default")"
+    fi
+    echo "${codex_model}:${cursor_agent_model}:${cursor_agent_state}:${codex_sandbox}:claude=${claude_seat}"
+}
+
+# Claude seats run as `claude --print` subprocesses with the CLI's own
+# credentials, not the host session's, so they need their own check.
+_smoke_claude_available() {
+    local claude_bin_name
+    read -r claude_bin_name _ <<< "${OCTOPUS_CLAUDE_BIN:-claude}"
+    { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed claude; } \
+        && command -v "$claude_bin_name" &>/dev/null
 }
 
 # Check if smoke test cache is still valid (same config, within TTL)
@@ -1103,14 +1116,7 @@ provider_smoke_test() {
         has_cursor_agent=true
     fi
     command -v agy &>/dev/null && has_agy=true
-    # Claude seats run as `claude --print` subprocesses with the CLI's own
-    # credentials, not the host session's, so they need their own check.
-    local claude_bin_name
-    read -r claude_bin_name _ <<< "${OCTOPUS_CLAUDE_BIN:-claude}"
-    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed claude; } \
-        && command -v "$claude_bin_name" &>/dev/null; then
-        has_claude=true
-    fi
+    _smoke_claude_available && has_claude=true
 
     if [[ "$has_codex" == "false" && "$has_cursor_agent" == "false" && "$has_agy" == "false" && "$has_claude" == "false" ]]; then
         log WARN "Smoke test: no providers to test"
@@ -1204,7 +1210,14 @@ provider_smoke_test() {
     # routed around: stop before the other providers spend a full phase on
     # results nothing can synthesize. A timeout stays degraded; slow is not dead.
     case "${claude_result%%:*}" in
-        PASS|SKIP|TIMEOUT) ;;
+        PASS|SKIP) ;;
+        TIMEOUT)
+            if [[ $pass_count -eq 0 && $fail_count -eq 1 ]]; then
+                log WARN "Smoke test: degraded mode (the claude CLI timed out and no other provider was tested)"
+                smoke_test_cache_write "0"
+                return 0
+            fi
+            ;;
         *)
             log ERROR "Smoke test failed: the claude CLI that runs Claude seats returned ${claude_result%%:*}"
             smoke_test_cache_write "1"

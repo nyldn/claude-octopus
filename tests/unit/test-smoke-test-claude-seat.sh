@@ -21,7 +21,7 @@ HOME="$TEST_TMP_DIR/home"
 FAKE_BIN_DIR="$TEST_TMP_DIR/bin"
 mkdir -p "$WORKSPACE_DIR" "$HOME" "$FAKE_BIN_DIR"
 CLAUDE_CALLS="$TEST_TMP_DIR/claude-calls"
-CACHE_STATUS="$TEST_TMP_DIR/smoke-cache-status"
+PREFLIGHT_CACHE_TTL=3600
 
 # shellcheck source=/dev/null
 source "$PROJECT_ROOT/scripts/lib/quota-watcher.sh"
@@ -32,7 +32,7 @@ source "$PROJECT_ROOT/scripts/lib/smoke.sh"
 
 secure_tempfile() { mktemp "$TEST_TMP_DIR/${1:-tmp}.XXXXXX"; }
 run_with_timeout() { shift; "$@"; }
-smoke_test_cache_write() { printf '%s\n' "$1" > "$CACHE_STATUS"; }
+cache_status() { sed -n '3p' "$SMOKE_TEST_CACHE_FILE" 2>/dev/null; }
 get_agent_model() { echo "claude-test"; }
 get_agent_command() {
     case "$1" in
@@ -60,10 +60,15 @@ EOF
 }
 
 run_smoke() {
-    rm -f "$CLAUDE_CALLS" "$CACHE_STATUS"
+    rm -f "$SMOKE_TEST_CACHE_FILE"
+    run_smoke_with_cache true
+}
+
+run_smoke_with_cache() {
+    rm -f "$CLAUDE_CALLS"
     rm -f "$(octo_quota_dead_file)" 2>/dev/null || true
     smoke_status=0
-    smoke_output="$(PATH="$FAKE_BIN_DIR:/usr/bin:/bin" provider_smoke_test true 2>&1)" || smoke_status=$?
+    smoke_output="$(PATH="$FAKE_BIN_DIR:/usr/bin:/bin" provider_smoke_test "${1:-false}" 2>&1)" || smoke_status=$?
 }
 
 SKIP_SMOKE_TEST=false
@@ -75,7 +80,7 @@ write_fake_claude 'echo "Failed to authenticate: OAuth session expired and could
 run_smoke
 
 test_case "a logged-out Claude CLI fails the smoke test even when codex passes"
-if [[ "$smoke_status" -ne 0 ]] && [[ -s "$CLAUDE_CALLS" ]] && [[ "$(<"$CACHE_STATUS")" == "1" ]]; then
+if [[ "$smoke_status" -ne 0 ]] && [[ -s "$CLAUDE_CALLS" ]] && [[ "$(cache_status)" == "1" ]]; then
     test_pass
 else
     test_fail "expected a failing smoke test after the Claude CLI call (status=$smoke_status)"
@@ -92,7 +97,7 @@ write_fake_claude 'echo ok'
 run_smoke
 
 test_case "an authenticated Claude CLI passes alongside codex"
-if [[ "$smoke_status" -eq 0 ]] && [[ -s "$CLAUDE_CALLS" ]] && [[ "$(<"$CACHE_STATUS")" == "0" ]]; then
+if [[ "$smoke_status" -eq 0 ]] && [[ -s "$CLAUDE_CALLS" ]] && [[ "$(cache_status)" == "0" ]]; then
     test_pass
 else
     test_fail "expected a passing smoke test (status=$smoke_status): $smoke_output"
@@ -118,6 +123,32 @@ if [[ "$smoke_status" -eq 0 ]] && [[ ! -e "$CLAUDE_CALLS" ]]; then
     test_pass
 else
     test_fail "Claude was smoke tested despite OCTO_ALLOWED_PROVIDERS=codex (status=$smoke_status)"
+fi
+
+rm -f "$SMOKE_TEST_CACHE_FILE"
+OCTO_ALLOWED_PROVIDERS="codex"
+run_smoke_with_cache
+unset OCTO_ALLOWED_PROVIDERS
+cached_without_claude="$(cache_status)"
+run_smoke_with_cache
+
+test_case "a success cached without Claude does not skip the Claude check once Claude is allowed"
+if [[ "$cached_without_claude" == "0" ]] && [[ "$smoke_status" -ne 0 ]] && [[ -s "$CLAUDE_CALLS" ]]; then
+    test_pass
+else
+    test_fail "the cached codex-only success was reused for a Claude-enabled run (cached=$cached_without_claude status=$smoke_status)"
+fi
+
+write_fake_claude 'exit 124'
+mv "$FAKE_BIN_DIR/codex" "$TEST_TMP_DIR/codex.off"
+run_smoke
+mv "$TEST_TMP_DIR/codex.off" "$FAKE_BIN_DIR/codex"
+
+test_case "a Claude CLI timeout stays degraded when Claude is the only provider"
+if [[ "$smoke_status" -eq 0 ]] && [[ -s "$CLAUDE_CALLS" ]] && [[ "$(cache_status)" == "0" ]]; then
+    test_pass
+else
+    test_fail "a Claude-only timeout failed the smoke test (status=$smoke_status cache=$(cache_status)): $smoke_output"
 fi
 
 test_summary
