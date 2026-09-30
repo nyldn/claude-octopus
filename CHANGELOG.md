@@ -22,6 +22,23 @@
   Round 1 reviewer and stops there without opening a proof packet. Past the
   existing target and fleet checks, it fails only when no reviewer command can
   be rendered.
+- The `council` runner now bounds its total wall-clock so a serial seat panel can
+  no longer run past a parent tool-call/orchestrator timeout and get SIGTERM-reaped
+  mid-run with no `summary.json` — the silent hang that forced a lead to notice and
+  fall back to manual per-provider dispatch (sail-cruisey #2918). An aggregate cap
+  (`OCTOPUS_COUNCIL_DEADLINE_SECS`, default 1500s; `0` disables) stops dispatching
+  further seats once too little budget remains, records the remaining seats as
+  `skipped-deadline`, and finalizes a reported `partial` with quorum recomputed from
+  the seats that completed. Each seat's cap (and the detached reaper's) is clamped to
+  the remaining budget so no single seat overruns the deadline. A clean reported
+  quorum-fail beats a hang.
+- `council` now stamps every run's `summary.json` with the resolving `session_id`
+  and the artifact digest (and `run-status.json` with the `session_id`), and adds a
+  `deadline` object (`cap_secs`, `hit`, `seats_dispatched`, `seats_skipped`) to
+  `summary.json`. A
+  client polling a shared or slug-collided councils pool can validate that the
+  "newest" run belongs to its own session and issue before trusting the verdicts,
+  instead of counting another session's quorum as its own (sail-cruisey #2859).
 
 ## [11.9.6] - 2026-09-29
 

@@ -36,6 +36,13 @@ COUNCIL_TASK=""
 COUNCIL_CONTEXT_FILES=()
 COUNCIL_RUN_DIR=""
 COUNCIL_RUN_ID=""
+COUNCIL_RUN_START_EPOCH=""
+COUNCIL_SESSION_ID=""
+COUNCIL_ARTIFACT_DIGEST=""
+COUNCIL_SEAT_TIMEOUT_CEILING=""
+COUNCIL_DEADLINE_HIT=""
+COUNCIL_SEATS_DISPATCHED=""
+COUNCIL_SEATS_SKIPPED=""
 COUNCIL_FIXTURE=""
 COUNCIL_MEMBER_OVERRIDE_WARNING=""
 COUNCIL_ESTIMATED_COST=""
@@ -140,6 +147,13 @@ council_reset_defaults() {
     COUNCIL_CONTEXT_FILES=()
     COUNCIL_RUN_DIR=""
     COUNCIL_RUN_ID=""
+    COUNCIL_RUN_START_EPOCH=""
+    COUNCIL_SESSION_ID=""
+    COUNCIL_ARTIFACT_DIGEST=""
+    COUNCIL_SEAT_TIMEOUT_CEILING=""
+    COUNCIL_DEADLINE_HIT="false"
+    COUNCIL_SEATS_DISPATCHED="0"
+    COUNCIL_SEATS_SKIPPED="0"
     COUNCIL_FIXTURE="${OCTOPUS_COUNCIL_FIXTURE:-}"
     COUNCIL_MEMBER_OVERRIDE_WARNING="false"
     COUNCIL_ESTIMATED_COST="0.00"
@@ -1884,9 +1898,10 @@ council_dispatch_member_detached() {
     seat_provider="$(jq -r '.provider // ""' <<< "$member_json")"
     timeout_secs="$(council_seat_timeout "$seat_provider")"
     # Grace margin for the mv+sentinel write after the provider timeout fires.
-    # Configurable so tests can force the timeout path deterministically.
-    local grace_secs="${OCTOPUS_COUNCIL_REAP_GRACE_SECS:-15}"
-    [[ "$grace_secs" =~ ^[0-9]+$ ]] || grace_secs=15
+    # Configurable so tests can force the timeout path deterministically. Use the
+    # shared resolver so this consumer and the aggregate-budget clamp normalize the
+    # value identically (a raw "08" would break this arithmetic as invalid octal).
+    local grace_secs; grace_secs="$(council_deadline_reap_grace)"
     local max_ms=$(( (timeout_secs + grace_secs) * 1000 )) waited_ms=0
     while (( waited_ms < max_ms )); do
         [[ -f "$done_file" ]] && break
@@ -2448,16 +2463,148 @@ council_seat_timeout() {
     #   2. COUNCIL_SEAT_TIMEOUT                 (the --seat-timeout flag, run-wide)
     #   3. OCTOPUS_COUNCIL_AGENT_TIMEOUT        (legacy global env)
     #   4. built-in default
-    local provider pvar candidate
+    # An optional $2 is an explicit caller override (e.g. the synthesis timeout)
+    # that wins over the env resolution but is STILL clamped to the aggregate
+    # deadline below — otherwise a large OCTOPUS_COUNCIL_SYNTHESIS_TIMEOUT could let
+    # chair synthesis run past the budget after critique/revision spent it (#2918).
+    local provider pvar candidate resolved="" explicit="${2:-}"
     provider="$(octo_agent_spec_provider "$1")"
     pvar="OCTOPUS_COUNCIL_TIMEOUT_$(printf '%s' "$provider" | tr '[:lower:]-' '[:upper:]_')"
-    candidate="${!pvar:-}"
+    if [[ "$explicit" =~ ^[1-9][0-9]*$ ]]; then resolved="$explicit"; fi
+    if [[ -z "$resolved" ]]; then
+        candidate="${!pvar:-}"
+        [[ "$candidate" =~ ^[1-9][0-9]*$ ]] && resolved="$candidate"
+    fi
+    if [[ -z "$resolved" ]]; then
+        candidate="${COUNCIL_SEAT_TIMEOUT:-}"
+        [[ "$candidate" =~ ^[1-9][0-9]*$ ]] && resolved="$candidate"
+    fi
+    if [[ -z "$resolved" ]]; then
+        candidate="${OCTOPUS_COUNCIL_AGENT_TIMEOUT:-}"
+        [[ "$candidate" =~ ^[1-9][0-9]*$ ]] && resolved="$candidate"
+    fi
+    [[ -z "$resolved" ]] && resolved="120"
+    # Clamp to the remaining aggregate-deadline budget so a single seat (or the
+    # chair synthesis) cannot run past the run-wide wall-clock cap and get the whole
+    # council SIGTERM-reaped mid-write with no summary.json (sail-cruisey #2918).
+    # Two sources, both floored so we never hand a provider a zero/negative cap:
+    #   - an explicit test ceiling (COUNCIL_SEAT_TIMEOUT_CEILING), and
+    #   - the LIVE remaining budget, active only while a run is anchored
+    #     (COUNCIL_RUN_START_EPOCH set) with the cap enabled — fixtures, dry-run,
+    #     and standalone unit calls set no start epoch, so their value is unchanged.
+    local ceiling=""
+    if [[ "${COUNCIL_SEAT_TIMEOUT_CEILING:-}" =~ ^[1-9][0-9]*$ ]]; then
+        ceiling="$COUNCIL_SEAT_TIMEOUT_CEILING"
+    fi
+    if [[ "${COUNCIL_RUN_START_EPOCH:-}" =~ ^[1-9][0-9]*$ ]]; then
+        # Reserve the reaper's grace: it waits provider_timeout + grace, so the
+        # provider budget must be (remaining - grace) for the whole reap to fit
+        # inside the aggregate deadline.
+        local rem grace budget
+        rem="$(council_deadline_remaining)"
+        grace="$(council_deadline_reap_grace)"
+        if [[ "$rem" =~ ^[0-9]+$ ]]; then
+            budget=$(( rem - grace ))
+            (( budget < 0 )) && budget=0
+            if [[ -z "$ceiling" || "$budget" -lt "$ceiling" ]]; then
+                ceiling="$budget"
+            fi
+        fi
+    fi
+    if [[ "$ceiling" =~ ^[0-9]+$ ]] && (( ceiling < resolved )); then
+        # Floor at a small positive slice: a seat given ~0s just times out instantly
+        # and wastes the boundary; the loop-level guard is what actually stops
+        # dispatching once the budget is spent.
+        local floor; floor="$(council_deadline_seat_floor)"
+        if (( ceiling < floor )); then resolved="$floor"; else resolved="$ceiling"; fi
+    fi
+    printf '%s' "$resolved"
+}
+
+council_run_deadline_secs() {
+    # Aggregate wall-clock cap (seconds) across ALL serially-dispatched seats. A
+    # council with several seats each allowed the per-seat cap can otherwise sum
+    # past a parent tool-call/orchestrator timeout and be SIGTERM-reaped mid-run
+    # with no summary.json — a silent hang the lead has to notice and fall back
+    # from (sail-cruisey #2918). When the cap is reached the runner stops
+    # dispatching further seats and finalizes a REPORTED partial with quorum
+    # recomputed from the seats that completed: a clean quorum-fail beats a hang.
+    #   OCTOPUS_COUNCIL_DEADLINE_SECS  (explicit override; 0 disables the cap)
+    #   default 1500 (25m) — under the ~28m harness reap seen in the field, above
+    #   a normal 10-20m multi-seat run. Runs that legitimately need longer set a
+    #   higher value or 0 to opt out.
+    local candidate="${OCTOPUS_COUNCIL_DEADLINE_SECS:-}"
+    if [[ "$candidate" == "0" ]]; then printf '0'; return 0; fi
     if [[ "$candidate" =~ ^[1-9][0-9]*$ ]]; then printf '%s' "$candidate"; return 0; fi
-    candidate="${COUNCIL_SEAT_TIMEOUT:-}"
-    if [[ "$candidate" =~ ^[1-9][0-9]*$ ]]; then printf '%s' "$candidate"; return 0; fi
-    candidate="${OCTOPUS_COUNCIL_AGENT_TIMEOUT:-}"
-    if [[ "$candidate" =~ ^[1-9][0-9]*$ ]]; then printf '%s' "$candidate"; return 0; fi
-    printf '120'
+    printf '1500'
+}
+
+council_deadline_seat_floor() {
+    # Minimum per-seat slice worth dispatching. Shared by council_seat_timeout and
+    # council_deadline_exceeded so both agree on the boundary. Normalize to base-10
+    # before any arithmetic so a value like "08" is not read as invalid octal.
+    local floor="${OCTOPUS_COUNCIL_DEADLINE_SEAT_FLOOR_SECS:-30}"
+    [[ "$floor" =~ ^[0-9]+$ ]] || floor=30
+    floor=$((10#$floor))
+    (( floor >= 1 )) || floor=30
+    printf '%s' "$floor"
+}
+
+council_deadline_reap_grace() {
+    # The detached reaper waits (provider_timeout + this grace) for the seat's
+    # mv+sentinel write (see council_dispatch_member_detached). The aggregate-budget
+    # clamp must reserve it so provider_timeout + grace never exceeds the remaining
+    # deadline. Kept in sync with the reaper's own OCTOPUS_COUNCIL_REAP_GRACE_SECS
+    # default; normalize to base-10 for the same octal reason as the floor.
+    local grace="${OCTOPUS_COUNCIL_REAP_GRACE_SECS:-15}"
+    [[ "$grace" =~ ^[0-9]+$ ]] || grace=15
+    grace=$((10#$grace))
+    printf '%s' "$grace"
+}
+
+council_deadline_remaining() {
+    # Seconds left before the aggregate cap. Prints a large sentinel when the cap
+    # is disabled or the run start was never anchored (fixtures/dry-run/unit).
+    local cap; cap="$(council_run_deadline_secs)"
+    [[ "$cap" == "0" ]] && { printf '2147483647'; return 0; }
+    [[ "${COUNCIL_RUN_START_EPOCH:-}" =~ ^[1-9][0-9]*$ ]] || { printf '2147483647'; return 0; }
+    local now rem
+    now="$(date +%s 2>/dev/null || echo 0)"
+    rem=$(( cap - ( now - COUNCIL_RUN_START_EPOCH ) ))
+    (( rem < 0 )) && rem=0
+    printf '%s' "$rem"
+}
+
+council_deadline_exceeded() {
+    # True when too little budget remains to dispatch another seat AND let its
+    # reaper finish inside the deadline. A dispatched seat consumes at least the
+    # floor plus the reaper grace, so stop once less than that remains — this keeps
+    # the clamp above from ever handing out a sub-floor budget. Shared resolvers
+    # keep this predicate and council_seat_timeout in agreement.
+    local cap; cap="$(council_run_deadline_secs)"
+    [[ "$cap" == "0" ]] && return 1
+    [[ "${COUNCIL_RUN_START_EPOCH:-}" =~ ^[1-9][0-9]*$ ]] || return 1
+    local floor grace rem
+    floor="$(council_deadline_seat_floor)"
+    grace="$(council_deadline_reap_grace)"
+    rem="$(council_deadline_remaining)"
+    (( rem <= floor + grace ))
+}
+
+council_finalize_deadline_partial() {
+    # Shared finalize path when the aggregate wall-clock deadline is reached after
+    # the advice vote (post-advice, or after critique/revision spent the rest of the
+    # budget). Marks the hit, writes the reported partial, and surfaces it loudly.
+    # The advice vote already stands in summary.json; skipping the remaining phases
+    # is exactly what keeps the run from being SIGTERM-reaped past a parent timeout
+    # (#2918). Caller returns 1 afterwards (a partial is not a clean full run).
+    local where="${1:-after the advice vote}"
+    COUNCIL_DEADLINE_HIT="true"
+    council_append_corpus_artifacts || return 1
+    council_write_summary_json "partial" || return 1
+    council_print_run_warnings
+    _council_warn "Council reached its aggregate wall-clock deadline (OCTOPUS_COUNCIL_DEADLINE_SECS) ${where}; skipped remaining critique/revision/synthesis and finalized a partial. The vote stands (quorum.met=${COUNCIL_QUORUM_MET}) — read the per-seat verdicts in ${COUNCIL_RUN_DIR}/responses/ and summary.json (deadline.hit=true)."
+    return 0
 }
 
 council_synthesis_timeout() {
@@ -2468,10 +2615,10 @@ council_synthesis_timeout() {
     # OCTOPUS_COUNCIL_SYNTHESIS_TIMEOUT overrides just this phase; otherwise fall
     # back to the chair provider's normal per-seat resolution so existing tuning
     # (OCTOPUS_COUNCIL_TIMEOUT_<PROVIDER>, --seat-timeout, ...) still applies.
-    local provider="$1" candidate
-    candidate="${OCTOPUS_COUNCIL_SYNTHESIS_TIMEOUT:-}"
-    if [[ "$candidate" =~ ^[1-9][0-9]*$ ]]; then printf '%s' "$candidate"; return 0; fi
-    council_seat_timeout "$provider"
+    # Pass the explicit synthesis override as council_seat_timeout's $2 so it wins
+    # over the env resolution yet is STILL clamped to the remaining aggregate
+    # deadline (a large override must not let synthesis overrun the budget, #2918).
+    council_seat_timeout "$1" "${OCTOPUS_COUNCIL_SYNTHESIS_TIMEOUT:-}"
 }
 
 council_compute_approving_providers() {
@@ -2557,6 +2704,8 @@ council_run_advice_phase() {
     local evidence_root="${OCTOPUS_PROJECT_DIR:-${PROJECT_ROOT:-$PWD}}" artifact_digest contribution_json
     [[ -d "$evidence_root" ]] || evidence_root="$PWD"
     artifact_digest="$(council_artifact_digest "$evidence_root" "${COUNCIL_TASK:-}")" || artifact_digest="unavailable"
+    COUNCIL_ARTIFACT_DIGEST="$artifact_digest"
+    COUNCIL_DEADLINE_HIT="false"; COUNCIL_SEATS_DISPATCHED=0; COUNCIL_SEATS_SKIPPED=0
     while IFS= read -r member; do
         persona="$(jq -r '.persona' <<< "$member")"
         seat="$(jq -r '.seat' <<< "$member")"
@@ -2571,6 +2720,31 @@ council_run_advice_phase() {
         verdict=""; seat_status="no-response"; resp_bytes=0
         local dispatch_rc=0
         COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE=""
+        # Aggregate-deadline stop (#2918): if too little of the run-wide wall-clock
+        # budget remains to dispatch another seat, do NOT start it. Record every
+        # remaining seat as skipped-for-deadline (honest tally), then let quorum be
+        # recomputed below from the seats that actually completed — a reported
+        # quorum-fail beats being SIGTERM-reaped mid-seat with no summary.json.
+        if council_deadline_exceeded; then
+            COUNCIL_DEADLINE_HIT="true"
+            COUNCIL_SEATS_SKIPPED=$((COUNCIL_SEATS_SKIPPED + 1))
+            seat_status="skipped-deadline"
+            contribution_json="$(council_unavailable_contribution_record_json)"
+            seat_rec="$(jq -cn --argjson idx "$index" --arg persona "$persona" --arg seat "$seat" \
+                --arg agent_spec "$mprovider_spec" --arg provider "$mprovider" --arg org "$seat_org" --arg model "$seat_model" --arg model_family "$seat_model_family" \
+                --argjson contribution "$contribution_json" \
+                '{index:$idx, persona:$persona, seat:$seat, agent_spec:$agent_spec, provider:$provider, provider_org:$org,
+                  model:$model, model_family:$model_family, response_bytes:0, payload_kind:"none",
+                  verdict:null, status:"skipped-deadline", contribution:$contribution,
+                  timeout_provenance:"aggregate-deadline", counted_as_approver:false}')"
+            COUNCIL_SEAT_RECORDS_JSON="$(jq -c ". + [$seat_rec]" <<< "$COUNCIL_SEAT_RECORDS_JSON")"
+            index=$((index + 1))
+            continue
+        fi
+        # council_seat_timeout auto-clamps this seat's cap (and the detached
+        # reaper's) to the live remaining budget while the run is anchored, so the
+        # seat cannot overrun the aggregate deadline.
+        COUNCIL_SEATS_DISPATCHED=$((COUNCIL_SEATS_DISPATCHED + 1))
         council_dispatch_member_detached "$member" "independent-advice" "$output_path" || dispatch_rc=$?
         dispatch_timeout_provenance="$COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE"
         # Confirm-finish-before-shortage: a non-zero dispatch (e.g. the per-seat
@@ -2764,6 +2938,13 @@ council_run_chair_fallback() {
     local dispatch_timeout_provenance contribution_json artifact_digest="${1:-}"
     local evidence_root="${OCTOPUS_PROJECT_DIR:-${PROJECT_ROOT:-$PWD}}"
     [[ -d "$evidence_root" ]] || evidence_root="$PWD"
+    # Honor the aggregate deadline here too: once the budget is spent, do not spend
+    # it dispatching a fallback chair. The advice tally already stands; the run
+    # finalizes a reported partial (#2918).
+    if council_deadline_exceeded; then
+        COUNCIL_DEADLINE_HIT="true"
+        return 0
+    fi
     if [[ -z "$artifact_digest" ]]; then
         artifact_digest="$(council_artifact_digest "$evidence_root" "${COUNCIL_TASK:-}")" || artifact_digest="unavailable"
     fi
@@ -2852,6 +3033,10 @@ council_run_critique_phase() {
 
     local index=0 member persona slug output_path
     while IFS= read -r member; do
+        # Stop enriching once the aggregate budget is spent (#2918); the run
+        # finalizes a partial before synthesis. Critiques are best-effort, so a
+        # break here simply omits the rest — no partial file is left behind.
+        if council_deadline_exceeded; then COUNCIL_DEADLINE_HIT="true"; break; fi
         persona="$(jq -r '.persona' <<< "$member")"
         slug="$(council_slug "$persona")"
         output_path="${COUNCIL_RUN_DIR}/critiques/$(printf '%02d' "$index")-${slug}.md"
@@ -2867,6 +3052,8 @@ council_run_revision_phase() {
 
     local index=0 member persona slug output_path
     while IFS= read -r member; do
+        # Stop once the aggregate budget is spent (#2918); revisions are best-effort.
+        if council_deadline_exceeded; then COUNCIL_DEADLINE_HIT="true"; break; fi
         persona="$(jq -r '.persona' <<< "$member")"
         slug="$(council_slug "$persona")"
         output_path="${COUNCIL_RUN_DIR}/revisions/$(printf '%02d' "$index")-${slug}.md"
@@ -3416,8 +3603,9 @@ council_write_run_status() {
     local path="${COUNCIL_RUN_DIR}/run-status.json"
     local tmp="${COUNCIL_RUN_DIR}/run-status.json.tmp"
     if jq -n --arg state "$state" --arg status "$status" \
-            --arg run_id "${COUNCIL_RUN_ID:-}" --argjson pid "$pid" \
+            --arg run_id "${COUNCIL_RUN_ID:-}" --arg session_id "${COUNCIL_SESSION_ID:-}" --argjson pid "$pid" \
             '{state:$state, pid:$pid, run_id:$run_id,
+              session_id:(if $session_id == "" then null else $session_id end),
               status:(if $status == "" then null else $status end)}' \
             > "$tmp" 2>/dev/null && mv -f "$tmp" "$path" 2>/dev/null; then
         return 0
@@ -3528,6 +3716,12 @@ council_write_summary_json() {
 
     jq -n \
         --arg run_id "$COUNCIL_RUN_ID" \
+        --arg session_id "${COUNCIL_SESSION_ID:-}" \
+        --arg artifact_digest "${COUNCIL_ARTIFACT_DIGEST:-}" \
+        --arg deadline_cap "$(council_run_deadline_secs)" \
+        --arg deadline_hit "${COUNCIL_DEADLINE_HIT:-false}" \
+        --arg seats_dispatched "${COUNCIL_SEATS_DISPATCHED:-0}" \
+        --arg seats_skipped "${COUNCIL_SEATS_SKIPPED:-0}" \
         --arg status "$status" \
         --arg goal "$COUNCIL_GOAL" \
         --arg domain "$COUNCIL_DOMAIN" \
@@ -3589,6 +3783,14 @@ council_write_summary_json() {
         '{
           run_id: $run_id,
           command: "council",
+          session_id: (if $session_id == "" then null else $session_id end),
+          artifact_digest: (if $artifact_digest == "" then null else $artifact_digest end),
+          deadline: {
+            cap_secs: ($deadline_cap | tonumber),
+            hit: ($deadline_hit == "true"),
+            seats_dispatched: ($seats_dispatched | tonumber),
+            seats_skipped: ($seats_skipped | tonumber)
+          },
           status: $status,
           task: $task,
           goal: $goal,
@@ -3740,6 +3942,17 @@ _council_run_impl() {
         return 2
     fi
 
+    # Anchor the aggregate wall-clock budget and stamp the run's provenance BEFORE
+    # the run dir (and its run-status beacon) are written, so every artifact carries
+    # the session id from the first byte. session id lets a poller reject a foreign
+    # session's run when a shared/collided councils pool serves the "newest" dir
+    # (sail-cruisey #2859 cross-session contamination); the start epoch bounds the
+    # serial seat loop (#2918).
+    COUNCIL_RUN_START_EPOCH="$(date +%s 2>/dev/null || echo 0)"
+    if declare -f octo_resolve_session_id >/dev/null 2>&1; then
+        COUNCIL_SESSION_ID="$(octo_resolve_session_id "" 2>/dev/null || true)"
+    fi
+
     council_create_run_dir || return 1
 
     if [[ "$COUNCIL_DRY_RUN" == "true" ]]; then
@@ -3788,6 +4001,15 @@ _council_run_impl() {
         return 1
     fi
 
+    # Aggregate deadline reached after the advice vote: even with quorum met, do not
+    # spend the (already-exhausted) wall-clock budget on critique/revision/synthesis
+    # — those extra dispatches are what would push the run past the parent timeout
+    # into a silent reap. Finalize a reported partial; the vote stands (#2918).
+    if council_deadline_exceeded; then
+        council_finalize_deadline_partial "after the advice vote" || return 1
+        return 1
+    fi
+
     if council_check_cost_cap "critique" "critique"; then
         :
     else
@@ -3802,6 +4024,13 @@ _council_run_impl() {
         return 1
     fi
     council_run_revision_phase
+    # Critique/revision consume wall-clock too — re-check before the chair synthesis
+    # dispatch so a run that crossed the deadline during those phases finalizes a
+    # partial instead of launching one more (budget-overrunning) synthesis (#2918).
+    if council_deadline_exceeded; then
+        council_finalize_deadline_partial "during critique/revision" || return 1
+        return 1
+    fi
     if council_check_cost_cap "synthesis" "synthesis"; then
         :
     else
@@ -3821,6 +4050,15 @@ _council_run_impl() {
         council_write_summary_json "partial" || return 1
         council_print_run_warnings
         _council_warn "Council quorum met on independent vendor approvals, but chair synthesis was unavailable — no synthesized recommendation was produced this round. Read the per-seat verdicts in ${COUNCIL_RUN_DIR}/responses/ (summary.json quorum.met=true, chair_synthesis_available=false)."
+        return 1
+    fi
+    # Synthesis itself consumes wall-clock: the pre-synthesis check only gates the
+    # dispatch START, so a synthesis that began just under the threshold can run its
+    # timeout + reaper past the deadline. Re-check here so the run is reported as a
+    # partial rather than falling through to the completed-summary path after the
+    # hard deadline (#2918).
+    if council_deadline_exceeded; then
+        council_finalize_deadline_partial "during synthesis" || return 1
         return 1
     fi
     if council_check_cost_cap "implementation" "implementation planning"; then
