@@ -596,7 +596,7 @@ local_bad_status=0
 research_verify_synthesis "$local_bad_draft" || local_bad_status=$?
 local_bad_kinds=$(jq -r '.checks[] | "\(.line):\(.kind)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
 if [[ "$local_bad_status" -ne 0 ]] \
-   && [[ "$local_bad_kinds" == "1:number_mismatch 2:missing_citation 3:missing_citation 4:missing_citation 5:missing_citation 6:missing_citation 7:missing_citation " ]]; then
+   && [[ "$local_bad_kinds" == "1:number_mismatch 2:unresolved_local_citation 3:unresolved_local_citation 4:unresolved_local_citation 5:unresolved_local_citation 6:unresolved_local_citation 7:unresolved_local_citation " ]]; then
     test_pass
 else
     test_fail "unresolvable workspace citations were accepted: $local_bad_kinds"
@@ -614,7 +614,7 @@ cap_draft="$RESEARCH_RUN_DIR/local-cap.md"
 cap_status=0
 OCTOPUS_RESEARCH_MAX_RESPONSE_BYTES=256 research_verify_synthesis "$cap_draft" || cap_status=$?
 cap_kinds=$(jq -r '.checks[] | "\(.line):\(.kind)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
-if [[ "$cap_status" -ne 0 ]] && [[ "$cap_kinds" == "1:missing_citation " ]]; then
+if [[ "$cap_status" -ne 0 ]] && [[ "$cap_kinds" == "1:unresolved_local_citation " ]]; then
     test_pass
 else
     test_fail "size cap not enforced: status=$cap_status checks=[$cap_kinds]"
@@ -749,6 +749,23 @@ if [[ "$identifier_status" -ne 0 \
     test_pass
 else
     test_fail "identifier digits were checked as claims, or real numbers escaped: $identifier_kinds"
+fi
+
+test_case "an unresolved workspace citation is reported by name and its line numbers are not claims"
+unresolved_draft="$RESEARCH_RUN_DIR/local-unresolved.md"
+{
+    printf '%s\n' '- Unexpected errors return 500 (`src/handler.ts:4`; `main.tf:144-155`).'
+    printf '%s\n' '- Unexpected errors return 503 (`handler.ts:4`).'
+    printf '%s\n' '- A 4.5:1 contrast ratio is served from https://example.com:8443 [inference].'
+} > "$unresolved_draft"
+unresolved_status=0
+research_verify_synthesis "$unresolved_draft" || unresolved_status=$?
+unresolved_kinds=$(jq -r '.checks[] | "\(.line):\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$unresolved_status" -ne 0 \
+      && "$unresolved_kinds" == "1:unresolved_local_citation:main.tf:144-155 2:unresolved_local_citation:handler.ts:4 " ]]; then
+    test_pass
+else
+    test_fail "unresolved citations were misreported: $unresolved_kinds"
 fi
 
 test_summary

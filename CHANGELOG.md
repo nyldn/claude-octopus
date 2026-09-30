@@ -11,6 +11,12 @@
   one that also cited a file failed with `number_mismatch` for SHA fragments
   such as `34478150`. Standalone numbers, percentages, decimals, numbers with
   a unit suffix (`15m`, `5xx`) and ranges (`10-13`) are still checked.
+- A workspace citation that does not resolve, such as a basename
+  `production-alerting.md:247` for a file under `.docs/`, now fails with
+  `unresolved_local_citation` naming the citation. Its line numbers were
+  checked as numbers, so the claim failed with `missing_citation`, or with a
+  `number_mismatch` for each line number against another file cited on the
+  same line.
 
 ## [11.9.6] - 2026-09-29
 

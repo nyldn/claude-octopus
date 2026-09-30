@@ -725,7 +725,7 @@ research_verify_synthesis() {
     local claim_count=0 failures=0 warnings=0 line_no=0 line plain_line ids id invalid groups group unique_groups
     local in_fence=false
     local snapshot normalized number quote numbers quotes score source_json groups_json
-    local project_root token resolved local_refs local_files local_ref local_json evidence_file
+    local project_root token resolved local_refs local_files local_ref local_json evidence_file unresolved_refs
     local local_index cached_index cache_bytes cached_bytes=0 cache_error=false
     local max_cache_bytes="${OCTOPUS_RESEARCH_MAX_LOCAL_CACHE_BYTES:-16777216}"
     [[ "$max_cache_bytes" =~ ^[0-9]{1,15}$ ]] || max_cache_bytes=16777216
@@ -751,10 +751,17 @@ research_verify_synthesis() {
         [[ "$line" == \#* || "$line" == '---'* ]] && continue
         ids=$(printf '%s\n' "$line" | grep -Eo '\[source:S[0-9]{3}\]' | sed 's/\[source:\(.*\)\]/\1/' | sort -u || true)
         plain_line=$(printf '%s\n' "$line" | sed 's/\[source:S[0-9][0-9][0-9]\]//g')
-        local_refs=""; local_files=""
+        local_refs=""; local_files=""; unresolved_refs=false
         while IFS= read -r token; do
             [[ -n "$token" ]] || continue
-            resolved=$(research_resolve_local_citation "$project_root" "$token") || continue
+            if ! resolved=$(research_resolve_local_citation "$project_root" "$token"); then
+                [[ "$token" != //* && "${token%:*}" == *[A-Za-z]* ]] || continue
+                plain_line=${plain_line//$token/}
+                unresolved_refs=true
+                failures=$((failures + 1))
+                printf 'unresolved_local_citation|%s|%s\n' "$line_no" "$token" >> "$findings"
+                continue
+            fi
             plain_line=${plain_line//$token/}
             local_refs="${local_refs}${resolved%%|*}:${token##*:}"$'\n'
             local_files="${local_files}${resolved#*|}"$'\n'
@@ -763,7 +770,7 @@ research_verify_synthesis() {
         local_files=$(printf '%s' "$local_files" | awk '!seen[$0]++')
         numbers=$(research_extract_numbers "$plain_line")
         quotes=$(printf '%s\n' "$plain_line" | awk '{ s=$0; while (match(s, /"[^"][^"][^"][^"]+"/)) { print substr(s,RSTART+1,RLENGTH-2); s=substr(s,RSTART+RLENGTH) } }')
-        if [[ -z "$ids" && -z "$local_refs" && ( -n "$numbers" || -n "$quotes" ) \
+        if [[ -z "$ids" && -z "$local_refs" && "$unresolved_refs" == "false" && ( -n "$numbers" || -n "$quotes" ) \
               && "$line" != *"[inference]"* && "$line" != *"[opinion"* ]]; then
             failures=$((failures + 1))
             printf 'missing_citation|%s|%s\n' "$line_no" "$line" >> "$findings"
