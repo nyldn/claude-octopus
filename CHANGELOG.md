@@ -22,6 +22,19 @@
   Round 1 reviewer and stops there without opening a proof packet. Past the
   existing target and fleet checks, it fails only when no reviewer command can
   be rendered.
+- The Codex CLI guard no longer blocks Codex subcommands that never open the
+  TUI. `hooks/codex-exec-guard.sh` exists to stop a bare `codex "prompt"`,
+  which opens the interactive TUI and fails without a TTY, but it allowed only
+  `exec`, `login`, `auth`, `completion`, `--version`, `--help` and `-h` as the
+  first argument and denied everything else as a bare prompt, so
+  `codex review`, `codex mcp list`, `codex doctor` and even
+  `codex review --help` were denied in every session (#1120). The guard now
+  also allows `review`, `mcp`, `plugin`, `doctor`, `features`, `apply`,
+  `sandbox`, `debug`, `logout`, `archive`, `unarchive`, `queue`,
+  `migrate-rollouts` and `help` (with the `e`, `a` and `-V` short forms), and
+  any Codex command with a `--help` or `-h` argument. Bare prompts, the
+  interactive entry points (`resume`, `fork`, `app`, `cloud`, `agents`), the
+  long-running servers and any other subcommand are still denied.
 
 ## [11.9.6] - 2026-09-29
 

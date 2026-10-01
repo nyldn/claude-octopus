@@ -80,6 +80,67 @@ for command in \
 done
 [[ -z "${output:-}" ]] && test_pass
 
+test_case "allows Codex subcommands that run without a TTY"
+denied=""
+for command in \
+    'codex review' \
+    'codex review --base main' \
+    'codex mcp list' \
+    'codex doctor' \
+    'codex features list' \
+    'codex apply TASK_ID' \
+    'codex logout' \
+    'codex help review' \
+    'codex -V' \
+    'codex e --skip-git-repo-check -' \
+    'cd repo && codex review --uncommitted'; do
+    output="$(run_hook "$command")"
+    [[ -z "$output" ]] || denied="$denied [$command]"
+done
+if [[ -z "$denied" ]]; then
+    test_pass
+else
+    test_fail "expected non-interactive Codex subcommands to be allowed, denied:$denied"
+fi
+
+test_case "allows --help anywhere on a Codex command line"
+denied=""
+for command in \
+    'codex review --help' \
+    'codex mcp add -h' \
+    'codex resume --help' \
+    'codex --model gpt-5.4 --help'; do
+    output="$(run_hook "$command")"
+    [[ -z "$output" ]] || denied="$denied [$command]"
+done
+if [[ -z "$denied" ]]; then
+    test_pass
+else
+    test_fail "expected Codex help requests to be allowed, denied:$denied"
+fi
+
+test_case "still blocks bare Codex prompts and interactive entry points"
+allowed=""
+for command in \
+    'codex' \
+    'codex "fix the bug"' \
+    'codex --model gpt-5.4 "fix the bug"' \
+    'codex "explain what --help does"' \
+    'codex resume --last' \
+    'codex fork' \
+    'codex app' \
+    'codex cloud' \
+    'codex app-server'; do
+    output="$(run_hook "$command")"
+    [[ "$output" == *'"permissionDecision":"deny"'* && "$output" == *'codex exec --skip-git-repo-check'* ]] \
+        || allowed="$allowed [$command]"
+done
+if [[ -z "$allowed" ]]; then
+    test_pass
+else
+    test_fail "expected interactive Codex invocations to be denied, allowed:$allowed"
+fi
+
 test_case "blocks direct Gemini dispatch and points to Antigravity"
 output="$(run_hook 'cd /tmp && (gemini -p "hello")')"
 if [[ "$output" == *'"permissionDecision":"deny"'* ]] \

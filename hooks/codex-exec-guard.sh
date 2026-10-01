@@ -395,11 +395,23 @@ _octo_segment_provider() {
             return 0
             ;;
         codex)
+            # Subcommands that run to completion without a TTY. Bare prompts,
+            # the interactive entry points (resume, fork, app, cloud, agents),
+            # the long-running servers and anything unknown stay blocked.
             case "$first_arg" in
-                exec|--version|--help|-h|login|auth|completion)
+                exec|e|review|--version|-V|--help|-h|help|login|logout|auth|completion|\
+                mcp|plugin|doctor|features|apply|a|sandbox|debug|archive|unarchive|\
+                queue|migrate-rollouts)
                     return 1
                     ;;
             esac
+            # `--help`/`-h` anywhere prints help and exits.
+            while [[ $# -gt 0 ]]; do
+                case "$1" in
+                    --help|-h) return 1 ;;
+                esac
+                shift
+            done
             printf '%s\n' "$provider"
             return 0
             ;;
