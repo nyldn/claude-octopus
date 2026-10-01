@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Added
+
+- `council --supersede-key <key>` (or `OCTOPUS_COUNCIL_SUPERSEDE_KEY`): a caller
+  supplies a stable per-gate key (e.g. `"<issue>:CP2"`) when it re-runs a gate.
+  The new run then marks prior runs in the same pool carrying the SAME key
+  `superseded: true` (recording `superseded_by`) and writes a `latest-<slug>`
+  pool pointer, so a stale earlier round can no longer be scanned as if it were
+  live (sail-cruisey #2947). The key is stamped into `summary.json` and
+  `run-status.json`. It is fully opt-in and additive: with no key nothing is
+  superseded and no pointer is written, so distinct gates interleaved in one
+  session pool (CP1 vs CP2) never supersede each other. The caller side that
+  passes the key is tracked separately (sail-cruisey #2952).
+
 ### Fixed
 
 - `orchestrate.sh --dry-run parallel <tasks.json>` no longer reports every task

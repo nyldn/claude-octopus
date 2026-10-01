@@ -22,6 +22,7 @@ COUNCIL_PROVIDER_POLICY_VALID="true"
 COUNCIL_DEFAULT_PROVIDERS="$(octo_council_default_providers)" || COUNCIL_PROVIDER_POLICY_VALID="false"
 COUNCIL_MAX_COST=""
 COUNCIL_SEAT_TIMEOUT=""
+COUNCIL_SUPERSEDE_KEY=""
 COUNCIL_DRY_RUN=""
 COUNCIL_JSON=""
 COUNCIL_OUTPUT_DIR=""
@@ -106,6 +107,9 @@ Options:
   --dry-run
   --json
   --output-dir <path>
+  --supersede-key <key>   (re-runs of the same gate: this run supersedes prior
+                           runs carrying the same key in the pool; also settable
+                           via OCTOPUS_COUNCIL_SUPERSEDE_KEY)
 
 Budget values are USD decimal numbers only, for example: 2, 2.00, 0.50.
 Default runs are isolated per session; set OCTOPUS_COUNCIL_SHARED_POOL=1 to share the default pool.
@@ -126,6 +130,7 @@ council_reset_defaults() {
     COUNCIL_PROVIDERS="auto"
     COUNCIL_MAX_COST=""
     COUNCIL_SEAT_TIMEOUT=""
+    COUNCIL_SUPERSEDE_KEY="${OCTOPUS_COUNCIL_SUPERSEDE_KEY:-}"
     COUNCIL_DRY_RUN="false"
     COUNCIL_JSON="false"
     COUNCIL_OUTPUT_DIR=""
@@ -3363,6 +3368,17 @@ council_parse_args() {
                 COUNCIL_OUTPUT_DIR="$2"
                 shift 2
                 ;;
+            --supersede-key)
+                # A stable per-gate key (e.g. "<issue>:CP2"). When set, this run
+                # supersedes prior runs in the same pool carrying the SAME key, and
+                # a pool pointer records this run as the latest for the key. Only
+                # the caller knows the gate identity (the runner sees one pool per
+                # session with CP1/CP2 interleaved), so this is caller-supplied and
+                # a no-op when absent — nothing is superseded without an explicit key.
+                [[ $# -ge 2 ]] || { council_error_usage "--supersede-key requires a value"; return 2; }
+                COUNCIL_SUPERSEDE_KEY="$2"
+                shift 2
+                ;;
             --context-file)
                 # Inline a referenced artifact (e.g. a working-tree diff) into every
                 # seat prompt as untrusted data. Seats default to permissionMode
@@ -3415,9 +3431,24 @@ council_write_run_status() {
     local pid="${BASHPID:-$$}"
     local path="${COUNCIL_RUN_DIR}/run-status.json"
     local tmp="${COUNCIL_RUN_DIR}/run-status.json.tmp"
+    # Preserve a superseded mark written by a LATER same-key run across this run's
+    # own later (e.g. "finished") beacon rewrite, so a newer round's supersession
+    # is not clobbered when an older round finalizes.
+    local existing_superseded="false" existing_by=""
+    if [[ -f "$path" ]]; then
+        existing_superseded="$(jq -r '.superseded // false' "$path" 2>/dev/null || echo false)"
+        existing_by="$(jq -r '.superseded_by // empty' "$path" 2>/dev/null || true)"
+    fi
+    [[ "$existing_superseded" == "true" ]] || existing_superseded="false"
     if jq -n --arg state "$state" --arg status "$status" \
             --arg run_id "${COUNCIL_RUN_ID:-}" --argjson pid "$pid" \
+            --arg supersede_key "${COUNCIL_SUPERSEDE_KEY:-}" \
+            --argjson superseded "$existing_superseded" \
+            --arg superseded_by "$existing_by" \
             '{state:$state, pid:$pid, run_id:$run_id,
+              supersede_key:(if $supersede_key == "" then null else $supersede_key end),
+              superseded:$superseded,
+              superseded_by:(if $superseded_by == "" then null else $superseded_by end),
               status:(if $status == "" then null else $status end)}' \
             > "$tmp" 2>/dev/null && mv -f "$tmp" "$path" 2>/dev/null; then
         return 0
@@ -3455,6 +3486,52 @@ council_session_slug() {
     safe="$(printf '%s' "$key" | tr -c 'A-Za-z0-9._-' '_' | cut -c1-48)"
     hash="$(printf '%s' "$key" | cksum | cut -d' ' -f1)"
     printf '%s-%s' "$safe" "$hash"
+}
+
+council_supersede_key_slug() {
+    # Filesystem-safe slug for a supersede key, used in the pool `latest-<slug>`
+    # pointer filename. Lossy sanitize + a checksum of the raw key disambiguates
+    # keys that differ only in unsafe characters (mirrors council_session_slug).
+    local key="$1" safe hash
+    safe="$(printf '%s' "$key" | tr -c 'A-Za-z0-9._-' '_' | cut -c1-64)"
+    hash="$(printf '%s' "$key" | cksum | cut -d' ' -f1)"
+    printf '%s-%s' "$safe" "$hash"
+}
+
+council_mark_prior_runs_superseded() {
+    # When the current run carries a supersede key, mark every OTHER run dir in the
+    # same pool carrying the SAME key as superseded (idempotent merge into its
+    # run-status.json) and point a pool `latest-<slug>` file at this run. Runs with
+    # no key, or a different key, are left untouched — so CP1 and CP2 interleaved in
+    # one session pool never supersede each other. Best-effort: never fails the run.
+    local pool="$1" current_run_dir="$2" key="$3"
+    [[ -n "$key" ]] || return 0
+    [[ -d "$pool" ]] || return 0
+    command -v jq >/dev/null 2>&1 || return 0
+    local slug other status_path tmp other_key
+    slug="$(council_supersede_key_slug "$key")"
+    for other in "$pool"/*/; do
+        [[ -d "$other" ]] || continue
+        other="${other%/}"
+        [[ "$other" == "$current_run_dir" ]] && continue
+        status_path="$other/run-status.json"
+        [[ -f "$status_path" ]] || continue
+        other_key="$(jq -r '.supersede_key // empty' "$status_path" 2>/dev/null || true)"
+        [[ "$other_key" == "$key" ]] || continue
+        [[ "$(jq -r '.superseded // false' "$status_path" 2>/dev/null)" == "true" ]] && continue
+        tmp="$status_path.tmp.$$"
+        if jq --arg by "${COUNCIL_RUN_ID:-}" '. + {superseded:true, superseded_by:$by}' "$status_path" > "$tmp" 2>/dev/null; then
+            mv -f "$tmp" "$status_path" 2>/dev/null || rm -f "$tmp" 2>/dev/null || true
+        else
+            rm -f "$tmp" 2>/dev/null || true
+        fi
+    done
+    local ptr="$pool/latest-${slug}" ptr_tmp
+    ptr_tmp="$ptr.tmp.$$"
+    if printf '%s\n' "${COUNCIL_RUN_ID:-}" > "$ptr_tmp" 2>/dev/null; then
+        mv -f "$ptr_tmp" "$ptr" 2>/dev/null || rm -f "$ptr_tmp" 2>/dev/null || true
+    fi
+    return 0
 }
 
 council_create_run_dir() {
@@ -3507,6 +3584,9 @@ council_create_run_dir() {
         rm -rf "$staging" 2>/dev/null
         return 1
     fi
+    # Now that this run's run-status.json (carrying any supersede key) is published,
+    # supersede prior same-key runs in the pool and record the latest pointer.
+    council_mark_prior_runs_superseded "$parent" "$COUNCIL_RUN_DIR" "${COUNCIL_SUPERSEDE_KEY:-}"
 }
 
 council_write_summary_json() {
@@ -3528,6 +3608,7 @@ council_write_summary_json() {
 
     jq -n \
         --arg run_id "$COUNCIL_RUN_ID" \
+        --arg supersede_key "${COUNCIL_SUPERSEDE_KEY:-}" \
         --arg status "$status" \
         --arg goal "$COUNCIL_GOAL" \
         --arg domain "$COUNCIL_DOMAIN" \
@@ -3589,6 +3670,7 @@ council_write_summary_json() {
         '{
           run_id: $run_id,
           command: "council",
+          supersede_key: (if $supersede_key == "" then null else $supersede_key end),
           status: $status,
           task: $task,
           goal: $goal,
