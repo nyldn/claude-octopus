@@ -22,6 +22,29 @@
   Round 1 reviewer and stops there without opening a proof packet. Past the
   existing target and fleet checks, it fails only when no reviewer command can
   be rendered.
+- `/octo:brainstorm` Team mode and `/octo:debate` now collect each advisor's
+  real answer. `octo_launch_advisors` saved the output of
+  `orchestrate.sh spawn` as the answer, but spawn is asynchronous for every
+  provider except agy: it prints status lines and the worker PID, then returns
+  while the worker is still running, and the answer lands later in the
+  worker's result file. Debates were scored and synthesized from those log
+  lines and PIDs, and every seat whose spawn exited 0 counted as a success,
+  even when its provider then failed (#1118). The launcher now records each
+  worker's `spawned` and `completed` lifecycle events through a per-call
+  `OCTOPUS_AGENT_LIFECYCLE_HOOK` (any hook already set still runs), waits for
+  the worker, and reads the answer from its result file. A seat counts only
+  when its worker completed and the result reports success. A failed seat
+  leaves no response file, and a response left by an earlier attempt is
+  removed before launch. The wait is capped by `OCTOPUS_ADVISOR_WAIT_SECONDS`
+  (default 3600). Because the launch now blocks for the whole provider run,
+  the brainstorm Team block and debate Step 5 say to run it in the
+  background, since a foreground 600000 ms timeout stops it after 10 minutes.
+- `/octo:brainstorm` Team mode no longer stops with "Octopus orchestrator does
+  not expose spawn" before dispatching anything. Its precheck searched the
+  no-argument quick-start text, which never lists `spawn`; it now reads
+  `orchestrate.sh help --full`. The Team block also prints the number of
+  successful advisors and each answer before it exits, because it deletes its
+  run directory on exit (#1118).
 
 ## [11.9.6] - 2026-09-29
 

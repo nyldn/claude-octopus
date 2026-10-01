@@ -137,13 +137,17 @@ Ask one brief clarifying question if the topic is vague, then frame the brainsto
 
 **You MUST dispatch to at least 2 providers.** Do NOT brainstorm solo and call it Team mode.
 
-Launch external providers in parallel through Octopus routing:
+Launch external providers in parallel through Octopus routing. This block waits for every
+advisor to finish, often several minutes, so run it with `run_in_background: true`; a
+foreground 600000 ms timeout stops it after 10 minutes, while the launcher waits up to
+`OCTOPUS_ADVISOR_WAIT_SECONDS` (default 3600 s). It prints each collected answer before it
+exits, because `$RUN_DIR` is deleted on exit:
 
 ```bash
 TOPIC="[TOPIC]"
 ORCH="${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh"
 [[ -x "$ORCH" ]] || { echo "Octopus orchestrator not found: $ORCH"; exit 1; }
-ORCH_HELP="$("$ORCH" 2>&1 || true)"
+ORCH_HELP="$("$ORCH" help --full 2>&1 || true)"
 printf '%s\n' "$ORCH_HELP" | grep -c 'spawn <agent>' >/dev/null || { echo "Octopus orchestrator does not expose spawn"; exit 1; }
 
 RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/octopus-brainstorm.XXXXXX")"
@@ -175,6 +179,12 @@ if ! SUCCESSFUL_EXTERNAL_ADVISORS=$(octo_launch_advisors "$ORCH" "$ADVISORS" \
   echo "The required external brainstorm advisors did not complete successfully." >&2
   exit 1
 fi
+printf 'SUCCESSFUL_EXTERNAL_ADVISORS=%s\n' "$SUCCESSFUL_EXTERNAL_ADVISORS"
+for response_file in "$RUN_DIR"/octopus-brainstorm-*.md; do
+  [[ -f "$response_file" ]] || continue
+  printf '\n===== %s =====\n' "$(basename "$response_file" .md | sed 's/^octopus-brainstorm-//')"
+  cat "$response_file"
+done
 ```
 
 **Claude Agent**: Launch this advisor only when `HOST_CLAUDE_ALLOWED=true`. If

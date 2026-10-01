@@ -1626,7 +1626,7 @@ test_provider_workflow_review_regressions() {
 
     local file
     for file in "${brainstorm_files[@]}"; do
-        grep -q 'ORCH_HELP="$("$ORCH" 2>&1 || true)"' "$file" || missing+="${file}: missing pipefail-safe orchestrator probe"$'\n'
+        grep -q 'ORCH_HELP="$("$ORCH" help --full 2>&1 || true)"' "$file" || missing+="${file}: missing pipefail-safe orchestrator probe"$'\n'
         grep -q 'trap '\''rm -rf "$RUN_DIR"'\'' EXIT' "$file" || missing+="${file}: missing tempdir cleanup trap"$'\n'
         grep -q 'consultative-advisors.sh' "$file" || missing+="${file}: missing shared advisor allowlist"$'\n'
         grep -q 'octo_launch_advisors' "$file" || missing+="${file}: missing counted advisor launch"$'\n'

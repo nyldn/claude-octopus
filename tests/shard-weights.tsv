@@ -3,6 +3,7 @@
 unit/test-council-command.sh	314
 unit/test-kimi-provider.sh	52
 unit/test-octo-events.sh	48
+unit/test-consultative-advisor-launch.sh	48
 unit/test-provider-availability-parity.sh	33
 unit/test-agy-provider.sh	32
 unit/test-consultative-workspace-gitignore.sh	32

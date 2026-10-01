@@ -425,7 +425,13 @@ EOF
 
 ### Step 5: Conduct Rounds
 
-For each round, iterate the runtime advisor list and dispatch through Octopus:
+For each round, iterate the runtime advisor list and dispatch through Octopus. The launch
+waits for every advisor to finish, often several minutes, so run the block with
+`background execution: true`; a foreground 600000 ms timeout stops it after 10 minutes, while
+the launcher waits up to `OCTOPUS_ADVISOR_WAIT_SECONDS` (default 3600 s). Each answer lands in
+`${DEBATE_DIR}/rounds/r001_<advisor>.md`, with any character other than a letter, digit,
+`_` or `-` in the advisor name replaced by `_` (`codex:model` gives `r001_codex_model.md`).
+An advisor that fails leaves no file:
 
 ```bash
 ORCH="${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh"
