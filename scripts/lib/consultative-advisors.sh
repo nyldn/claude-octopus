@@ -124,7 +124,7 @@ _octo_advisor_collect() {
             return 1
         fi
         # No asynchronous worker (the synchronous agy path): spawn's stdout is the answer.
-        grep -q '[[:alnum:]]' "$spawn_out" 2>/dev/null || return 1
+        grep -c '[[:alnum:]]' "$spawn_out" >/dev/null 2>&1 || return 1
         cp "$spawn_out" "$response_file"
         return
     fi
