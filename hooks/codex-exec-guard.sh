@@ -405,9 +405,11 @@ _octo_segment_provider() {
                     return 1
                     ;;
             esac
-            # `--help`/`-h` anywhere prints help and exits.
+            # `--help`/`-h` anywhere before `--` prints help and exits. After
+            # `--`, Codex reads it as the prompt and opens the TUI.
             while [[ $# -gt 0 ]]; do
                 case "$1" in
+                    --) break ;;
                     --help|-h) return 1 ;;
                 esac
                 shift

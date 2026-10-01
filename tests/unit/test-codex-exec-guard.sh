@@ -130,7 +130,9 @@ for command in \
     'codex fork' \
     'codex app' \
     'codex cloud' \
-    'codex app-server'; do
+    'codex app-server' \
+    'codex -- --help' \
+    'codex -- -h'; do
     output="$(run_hook "$command")"
     [[ "$output" == *'"permissionDecision":"deny"'* && "$output" == *'codex exec --skip-git-repo-check'* ]] \
         || allowed="$allowed [$command]"

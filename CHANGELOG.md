@@ -32,9 +32,10 @@
   also allows `review`, `mcp`, `plugin`, `doctor`, `features`, `apply`,
   `sandbox`, `debug`, `logout`, `archive`, `unarchive`, `queue`,
   `migrate-rollouts` and `help` (with the `e`, `a` and `-V` short forms), and
-  any Codex command with a `--help` or `-h` argument. Bare prompts, the
-  interactive entry points (`resume`, `fork`, `app`, `cloud`, `agents`), the
-  long-running servers and any other subcommand are still denied.
+  any Codex command with a `--help` or `-h` argument before `--`. Bare
+  prompts, the interactive entry points (`resume`, `fork`, `app`, `cloud`,
+  `agents`), the long-running servers and any other subcommand are still
+  denied.
 
 ## [11.9.6] - 2026-09-29
 
