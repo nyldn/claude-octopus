@@ -208,7 +208,7 @@ octo_launch_advisors() {
     local filename_prefix="$4" prompt_template="$5" required_successes="$6"
     local advisor safe_advisor prompt response_file pid index successful_count=0
     local advisor_list=() advisor_pids=() advisor_files=() advisor_events=() advisor_spawn_out=()
-    local aux_dir hook event_log spawn_out deadline
+    local aux_dir hook event_log spawn_out deadline worker_pid keep_aux=0
     local wait_seconds="${OCTOPUS_ADVISOR_WAIT_SECONDS:-3600}"
     local prev_hook="${OCTOPUS_AGENT_LIFECYCLE_HOOK:-}"
 
@@ -288,7 +288,23 @@ octo_launch_advisors() {
         fi
         index=$((index + 1))
     done
-    rm -rf "$aux_dir"
+    # Late jobs keep running under the same policy as asynchronous workers.
+    # Keep their hook and event paths valid until they finish. Retained paths
+    # are reported so the caller can remove them after the late jobs exit.
+    for index in "${!advisor_pids[@]}"; do
+        if kill -0 "${advisor_pids[$index]}" 2>/dev/null; then
+            keep_aux=1
+        fi
+        worker_pid="$(awk -F'\t' '$1 == "spawned" { p = $2 } END { print p }' "${advisor_events[$index]}" 2>/dev/null)"
+        if [[ -n "$worker_pid" ]] && kill -0 "$worker_pid" 2>/dev/null; then
+            keep_aux=1
+        fi
+    done
+    if [[ "$keep_aux" -eq 1 ]]; then
+        printf 'WARNING: advisor work files retained for late jobs: %s\n' "$aux_dir" >&2
+    else
+        rm -rf "$aux_dir"
+    fi
 
     if [[ "$successful_count" -lt "$required_successes" ]]; then
         printf 'ERROR: only %s of %s required external advisors succeeded\n' \

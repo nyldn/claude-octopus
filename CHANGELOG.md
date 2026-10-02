@@ -57,7 +57,9 @@
   subcommands and help requests while continuing to reject interactive prompts.
 - The advisor launcher's wait deadline (`OCTOPUS_ADVISOR_WAIT_SECONDS`) also bounds a
   synchronous spawn (agy), whose provider call runs inside `orchestrate.sh spawn` itself;
-  it used to wait for that spawn without limit.
+  it used to wait for that spawn without limit. Late jobs keep their lifecycle
+  hook files after timeout so they can finish and run the caller's hook. The
+  launcher reports the retained directory for cleanup after those jobs exit.
 - Planner reconsideration accepts a valid empty scope-decision list, checks that
   the revised decomposition can be materialized, and retains the explanation for
   the next adequacy review.

@@ -173,6 +173,14 @@ else
     test_fail "rc=$rc count='$count' stderr: $(tr '\n' '|' < "$TEST_TMP_DIR/unrecorded.err")"
 fi
 
+# Timeout fixtures own their late processes and remove retained work files only
+# after stopping those processes. Production leaves late jobs running.
+cleanup_retained_advisor_files() {
+    local error_file="$1" retained
+    retained="$(sed -n 's/^WARNING: advisor work files retained for late jobs: //p' "$error_file")"
+    [[ -z "$retained" ]] || rm -rf "$retained"
+}
+
 # agy runs synchronously inside spawn and prints the answer itself.
 fake_orch="$TEST_TMP_DIR/orch-sync"
 cat > "$fake_orch" <<'SH'
@@ -213,12 +221,14 @@ count="$(OCTOPUS_ADVISOR_WAIT_SECONDS=2 octo_launch_advisors "$fake_orch" agy "$
 elapsed=$(( $(date +%s) - started ))
 kill "$(cat "$sync_stuck_pid_file" 2>/dev/null)" 2>/dev/null || true
 # The stub outlives the 2 s wait by 28 s, so a launcher that ignores the deadline fails the bound.
-if [[ "$rc" -ne 0 && -z "$count" && ! -e "$out/t-agy.md" && "$elapsed" -lt 15 ]] &&
+if [[ "$rc" -ne 0 && -z "$count" && ! -e "$out/t-agy.md" && "$elapsed" -le 4 ]] &&
    grep -q 'did not finish before the wait deadline' "$TEST_TMP_DIR/sync-stuck.err"; then
     test_pass
 else
     test_fail "rc=$rc count='$count' elapsed=${elapsed}s stderr: $(tr '\n' '|' < "$TEST_TMP_DIR/sync-stuck.err")"
 fi
+
+cleanup_retained_advisor_files "$TEST_TMP_DIR/sync-stuck.err"
 
 # A worker that never completes is abandoned at OCTOPUS_ADVISOR_WAIT_SECONDS.
 fake_orch="$TEST_TMP_DIR/orch-stuck"
@@ -245,12 +255,14 @@ count="$(OCTOPUS_ADVISOR_WAIT_SECONDS=2 octo_launch_advisors "$fake_orch" codex 
     2>"$TEST_TMP_DIR/stuck.err")" || rc=$?
 elapsed=$(( $(date +%s) - started ))
 kill "$(cat "$stuck_pid_file" 2>/dev/null)" 2>/dev/null || true
-if [[ "$rc" -ne 0 && -z "$count" && ! -e "$out/t-codex.md" && "$elapsed" -lt 60 ]] &&
+if [[ "$rc" -ne 0 && -z "$count" && ! -e "$out/t-codex.md" && "$elapsed" -le 4 ]] &&
    grep -q 'did not finish before the wait deadline' "$TEST_TMP_DIR/stuck.err"; then
     test_pass
 else
     test_fail "rc=$rc count='$count' elapsed=${elapsed}s stderr: $(tr '\n' '|' < "$TEST_TMP_DIR/stuck.err")"
 fi
+
+cleanup_retained_advisor_files "$TEST_TMP_DIR/stuck.err"
 
 # A leading zero must not make the wait invalid octal (08, 09), zero, or the
 # 3600 s default: "08" is eight seconds.
@@ -264,12 +276,193 @@ count="$(OCTOPUS_ADVISOR_WAIT_SECONDS=08 octo_launch_advisors "$fake_orch" codex
     2>"$TEST_TMP_DIR/stuck-08.err")" || rc=$?
 elapsed=$(( $(date +%s) - started ))
 kill "$(cat "$stuck_pid_file" 2>/dev/null)" 2>/dev/null || true
-if [[ "$rc" -ne 0 && -z "$count" && ! -e "$out/t-codex.md" && "$elapsed" -ge 8 && "$elapsed" -lt 60 ]] &&
+if [[ "$rc" -ne 0 && -z "$count" && ! -e "$out/t-codex.md" && "$elapsed" -ge 8 && "$elapsed" -le 10 ]] &&
    grep -q 'did not finish before the wait deadline' "$TEST_TMP_DIR/stuck-08.err"; then
     test_pass
 else
     test_fail "rc=$rc count='$count' elapsed=${elapsed}s stderr: $(tr '\n' '|' < "$TEST_TMP_DIR/stuck-08.err")"
 fi
+
+cleanup_retained_advisor_files "$TEST_TMP_DIR/stuck-08.err"
+
+# Completed jobs remain waitable even when the shared deadline has passed.
+test_case "a spawn completed at the deadline retains its success or failure status"
+( exit 0 ) &
+finished_pid=$!
+( exit 7 ) &
+failed_pid=$!
+sleep 1
+rc=0
+_octo_advisor_wait_spawn "$finished_pid" "$(( $(date +%s) - 1 ))" || rc=$?
+failed_rc=0
+_octo_advisor_wait_spawn "$failed_pid" "$(( $(date +%s) - 1 ))" || failed_rc=$?
+if [[ "$rc" -eq 0 && "$failed_rc" -eq 7 ]]; then
+    test_pass
+else
+    test_fail "completed rc=$rc failed rc=$failed_rc"
+fi
+
+fake_orch="$TEST_TMP_DIR/orch-sync-failed"
+cat > "$fake_orch" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' 'answer printed before provider failure'
+exit 7
+SH
+chmod +x "$fake_orch"
+test_case "a failed synchronous spawn is not counted despite printable stdout"
+out="$TEST_TMP_DIR/sync-failed"
+mkdir -p "$out"
+rc=0
+count="$(octo_launch_advisors "$fake_orch" agy "$out" t- x 1 2>"$out/error")" || rc=$?
+if [[ "$rc" -ne 0 && -z "$count" && ! -e "$out/t-agy.md" ]]; then
+    test_pass
+else
+    test_fail "rc=$rc count='$count'"
+fi
+
+fake_orch="$TEST_TMP_DIR/orch-multiple-stuck"
+cat > "$fake_orch" <<SH
+#!/usr/bin/env bash
+printf '%s\n' "\$\$" >> "$TEST_TMP_DIR/multiple.pids"
+exec sleep 30
+SH
+chmod +x "$fake_orch"
+test_case "multiple synchronous seats share one deadline and leave no answers"
+out="$TEST_TMP_DIR/multiple"
+mkdir -p "$out"
+rc=0
+started="$(date +%s)"
+count="$(OCTOPUS_ADVISOR_WAIT_SECONDS=2 octo_launch_advisors "$fake_orch" agy,codex "$out" t- x 2 \
+    2>"$out/error")" || rc=$?
+elapsed=$(( $(date +%s) - started ))
+late_count=0
+while read -r fixture_pid; do
+    kill -0 "$fixture_pid" 2>/dev/null && late_count=$((late_count + 1))
+    kill "$fixture_pid" 2>/dev/null || true
+done < "$TEST_TMP_DIR/multiple.pids"
+if [[ "$rc" -ne 0 && -z "$count" && "$elapsed" -le 4 && "$late_count" -eq 2 &&
+      ! -e "$out/t-agy.md" && ! -e "$out/t-codex.md" ]]; then
+    test_pass
+else
+    test_fail "rc=$rc count='$count' elapsed=${elapsed}s late=$late_count"
+fi
+cleanup_retained_advisor_files "$out/error"
+
+fake_orch="$TEST_TMP_DIR/orch-finished-seat"
+cat > "$fake_orch" <<SH
+#!/usr/bin/env bash
+if [[ "\$2" == agy ]]; then
+    printf '%s\n' "\$\$" > "$TEST_TMP_DIR/finished-seat.pid"
+    exec sleep 30
+fi
+result="$TEST_TMP_DIR/finished-seat-result.md"
+printf '%s\n' '# Started: now' '## Output' '\`\`\`' 'finished answer' '\`\`\`' '## Status: SUCCESS' > "\$result"
+OCTOPUS_AGENT_PID="\$\$" OCTOPUS_AGENT_STATUS=running OCTOPUS_AGENT_RESULT_FILE="\$result" \
+    "\$OCTOPUS_AGENT_LIFECYCLE_HOOK" spawned
+OCTOPUS_AGENT_PID="\$\$" OCTOPUS_AGENT_STATUS=completed OCTOPUS_AGENT_RESULT_FILE="\$result" \
+    "\$OCTOPUS_AGENT_LIFECYCLE_HOOK" completed
+printf '%s\n' "\$\$"
+SH
+chmod +x "$fake_orch"
+test_case "a finished asynchronous seat counts after an earlier seat consumes the deadline"
+out="$TEST_TMP_DIR/finished-seat"
+mkdir -p "$out"
+rc=0
+count="$(OCTOPUS_ADVISOR_WAIT_SECONDS=2 octo_launch_advisors "$fake_orch" agy,codex "$out" t- x 1 \
+    2>"$out/error")" || rc=$?
+kill "$(cat "$TEST_TMP_DIR/finished-seat.pid")" 2>/dev/null || true
+if [[ "$rc" -eq 0 && "$count" == 1 && ! -e "$out/t-agy.md" &&
+      "$(cat "$out/t-codex.md" 2>/dev/null)" == 'finished answer' ]]; then
+    test_pass
+else
+    test_fail "rc=$rc count='$count'"
+fi
+cleanup_retained_advisor_files "$out/error"
+
+# The watchdog makes this test bounded even if wait regresses on stopped jobs.
+fake_orch="$TEST_TMP_DIR/orch-stopped"
+cat > "$fake_orch" <<SH
+#!/usr/bin/env bash
+printf '%s\n' "\$\$" > "$TEST_TMP_DIR/stopped.pid"
+kill -STOP "\$\$"
+printf '%s\n' 'resumed answer'
+SH
+chmod +x "$fake_orch"
+test_case "a stopped synchronous spawn cannot bypass the shared deadline"
+out="$TEST_TMP_DIR/stopped"
+mkdir -p "$out"
+(
+    sleep 6
+    fixture_pid="$(cat "$TEST_TMP_DIR/stopped.pid" 2>/dev/null)"
+    [[ -z "$fixture_pid" ]] || {
+        kill -TERM "$fixture_pid" 2>/dev/null || true
+        kill -CONT "$fixture_pid" 2>/dev/null || true
+    }
+) </dev/null >/dev/null 2>&1 &
+watchdog=$!
+rc=0
+started="$(date +%s)"
+count="$(OCTOPUS_ADVISOR_WAIT_SECONDS=2 octo_launch_advisors "$fake_orch" agy "$out" t- x 1 \
+    2>"$out/error")" || rc=$?
+elapsed=$(( $(date +%s) - started ))
+fixture_pid="$(cat "$TEST_TMP_DIR/stopped.pid")"
+kill -TERM "$fixture_pid" 2>/dev/null || true
+kill -CONT "$fixture_pid" 2>/dev/null || true
+kill "$watchdog" 2>/dev/null || true
+wait "$watchdog" 2>/dev/null || true
+if [[ "$rc" -ne 0 && -z "$count" && "$elapsed" -le 4 && ! -e "$out/t-agy.md" ]] &&
+   grep -q 'did not finish before the wait deadline' "$out/error"; then
+    test_pass
+else
+    test_fail "rc=$rc count='$count' elapsed=${elapsed}s"
+fi
+cleanup_retained_advisor_files "$out/error"
+
+# Late synchronous and asynchronous jobs must still be able to execute the
+# chained lifecycle hook after the launcher has returned at its deadline.
+fake_orch="$TEST_TMP_DIR/orch-late-hook"
+cat > "$fake_orch" <<SH
+#!/usr/bin/env bash
+printf '%s\n' "\$OCTOPUS_AGENT_LIFECYCLE_HOOK" > "$TEST_TMP_DIR/late-hook-\$2.path"
+finish() {
+    sleep 3
+    OCTOPUS_AGENT_PID="\$\$" OCTOPUS_AGENT_STATUS=completed \
+        "\$OCTOPUS_AGENT_LIFECYCLE_HOOK" completed "\$2"
+}
+if [[ "\$2" == agy ]]; then
+    finish "\$@"
+else
+    finish "\$@" </dev/null >/dev/null 2>&1 &
+    worker=\$!
+    OCTOPUS_AGENT_PID="\$worker" OCTOPUS_AGENT_STATUS=running \
+        "\$OCTOPUS_AGENT_LIFECYCLE_HOOK" spawned "\$2"
+    printf '%s\n' "\$worker"
+fi
+SH
+prev_hook="$TEST_TMP_DIR/previous-hook"
+cat > "$prev_hook" <<SH
+#!/usr/bin/env bash
+[[ "\$1" != completed ]] || printf '%s\n' "\$2" >> "$TEST_TMP_DIR/late-completed"
+SH
+chmod +x "$fake_orch" "$prev_hook"
+test_case "late spawns and workers retain their lifecycle hooks after timeout"
+out="$TEST_TMP_DIR/late-hooks"
+mkdir -p "$out"
+rc=0
+OCTOPUS_AGENT_LIFECYCLE_HOOK="$prev_hook" OCTOPUS_ADVISOR_WAIT_SECONDS=1 \
+    octo_launch_advisors "$fake_orch" agy,codex "$out" t- x 2 >"$out/count" 2>"$out/error" || rc=$?
+retained_hook="$(cat "$TEST_TMP_DIR/late-hook-agy.path")"
+hook_was_retained=false
+[[ ! -x "$retained_hook" ]] || hook_was_retained=true
+sleep 4
+if [[ "$rc" -ne 0 && ! -s "$out/count" && "$hook_was_retained" == true &&
+      ! -e "$out/t-agy.md" && ! -e "$out/t-codex.md" ]] &&
+   grep -qx agy "$TEST_TMP_DIR/late-completed" && grep -qx codex "$TEST_TMP_DIR/late-completed"; then
+    test_pass
+else
+    test_fail "rc=$rc retained=$hook_was_retained completed=$(cat "$TEST_TMP_DIR/late-completed" 2>/dev/null)"
+fi
+cleanup_retained_advisor_files "$out/error"
 
 for file in "${BRAINSTORM_FILES[@]}"; do
     rel="${file#"$PROJECT_ROOT"/}"
