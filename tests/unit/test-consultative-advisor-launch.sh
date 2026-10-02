@@ -200,7 +200,7 @@ cat > "$fake_orch" <<SH
 #!/usr/bin/env bash
 [[ "\${1:-}" == spawn ]] || exit 64
 printf '%s\n' "\$\$" > "$sync_stuck_pid_file"
-exec sleep 300
+exec sleep 30
 SH
 chmod +x "$fake_orch"
 test_case "a synchronous spawn still running at the wait deadline is not counted"
@@ -212,7 +212,8 @@ count="$(OCTOPUS_ADVISOR_WAIT_SECONDS=2 octo_launch_advisors "$fake_orch" agy "$
     2>"$TEST_TMP_DIR/sync-stuck.err")" || rc=$?
 elapsed=$(( $(date +%s) - started ))
 kill "$(cat "$sync_stuck_pid_file" 2>/dev/null)" 2>/dev/null || true
-if [[ "$rc" -ne 0 && -z "$count" && ! -e "$out/t-agy.md" && "$elapsed" -lt 60 ]] &&
+# The stub outlives the 2 s wait by 28 s, so a launcher that ignores the deadline fails the bound.
+if [[ "$rc" -ne 0 && -z "$count" && ! -e "$out/t-agy.md" && "$elapsed" -lt 15 ]] &&
    grep -q 'did not finish before the wait deadline' "$TEST_TMP_DIR/sync-stuck.err"; then
     test_pass
 else
