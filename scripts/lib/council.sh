@@ -2094,72 +2094,177 @@ council_response_content_match_count() {
     # nothing that resolves and scores zero (the agy "Assumptions" seats). A fragment
     # counts only if it is long and carries multiple code operators, so ubiquitous
     # tokens (`toBeUndefined()`), bare paths, and prose never match. Bounded scan:
-    # source-extension files only, size/file caps, vendor/VCS dirs skipped.
+    # source extensions only; response, fragment, file, aggregate-byte, entry and
+    # depth caps; no symlink traversal, response aliases or private/tool-state reads.
     local response_path="$1" evidence_root="$2"
     [[ -f "$response_path" && -d "$evidence_root" ]] || { printf '0\n'; return 0; }
     command -v python3 >/dev/null 2>&1 || { printf '0\n'; return 0; }
     python3 - "$response_path" "$evidence_root" <<'PY'
-import re, sys
+import os
+import re
+import stat
+import sys
 from pathlib import Path
 
-resp = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
-root = Path(sys.argv[2]).resolve()
+# Fixed budgets cannot be widened by provider output or environment overrides.
+MAX_RESPONSE_BYTES = 1_048_576
+MAX_FRAGMENT_BYTES = 4096
+MAX_FRAGMENTS = 256
+MAX_FILES = 4000
+MAX_FILE_BYTES = 1_500_000
+MAX_TOTAL_BYTES = 16_777_216
+MAX_ENTRIES = 20_000
+MAX_DEPTH = 64
+if not all(hasattr(os, flag) for flag in ("O_DIRECTORY", "O_NOFOLLOW", "O_NONBLOCK")):
+    print(0)
+    sys.exit(2)
+DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+FILE_FLAGS = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
 
-frags = set()
-for m in re.findall(r"`([^`\n]+)`", resp):            # inline `code` spans
-    frags.add(m)
-for block in re.findall(r"```[^\n]*\n(.*?)```", resp, re.S):  # fenced blocks
-    for line in block.splitlines():
-        frags.add(line)
+def signature(metadata):
+    return (metadata.st_dev, metadata.st_ino, metadata.st_size,
+            metadata.st_mtime_ns, metadata.st_ctime_ns)
+
+def read_bounded(descriptor, metadata, limit):
+    # Read only the size checked on this descriptor, then reject changed files.
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > limit:
+        raise ValueError("not a bounded regular file")
+    chunks = []
+    remaining = metadata.st_size
+    while remaining:
+        chunk = os.read(descriptor, min(remaining, 65_536))
+        if not chunk:
+            raise ValueError("file shrank during read")
+        chunks.append(chunk)
+        remaining -= len(chunk)
+    if signature(metadata) != signature(os.fstat(descriptor)):
+        raise ValueError("file changed during read")
+    return b"".join(chunks)
+
+try:
+    response_fd = os.open(sys.argv[1], FILE_FLAGS)
+    try:
+        response_stat = os.fstat(response_fd)
+        resp = read_bounded(response_fd, response_stat, MAX_RESPONSE_BYTES).decode("utf-8", "replace")
+    finally:
+        os.close(response_fd)
+    # The caller may explicitly select a symlinked root. Resolve that authority
+    # once, then use the same no-follow directory walk as confined-read.py.
+    root = Path(sys.argv[2]).resolve(strict=True)
+except (OSError, ValueError, RuntimeError):
+    print(0)
+    sys.exit(0)
 
 CODE_OP = re.compile(r"[=(){}\[\].:;<>?|&+*/-]")
-def distinctive(s):
-    s = re.sub(r"\s+", " ", s).strip()
-    if len(s) < 18:
+def distinctive(fragment):
+    if len(fragment.encode("utf-8")) > MAX_FRAGMENT_BYTES:
         return None
-    if len(CODE_OP.findall(s)) < 2:
+    fragment = re.sub(r"\s+", " ", fragment).strip()
+    if len(fragment) < 18 or len(CODE_OP.findall(fragment)) < 2:
         return None
-    if " " not in s and "/" in s:   # a bare path/filename token, not a quote
+    if " " not in fragment and "/" in fragment:
         return None
-    return s
+    return fragment
 
 cands = set()
-for fr in frags:
-    d = distinctive(fr)
-    if d:
-        cands.add(d)
-if not cands:
-    print(0); sys.exit(0)
-
-SRC_EXT = {".ts",".tsx",".js",".jsx",".mjs",".cjs",".css",".scss",".sass",".less",
-           ".html",".htm",".vue",".svelte",".py",".go",".rb",".rs",".java",".kt",
-           ".swift",".cs",".c",".cc",".cpp",".cxx",".h",".hh",".hpp",".sh",".bash",
-           ".zsh",".ps1",".sql",".yaml",".yml",".toml",".json",".jsonc",".xml",
-           ".proto",".graphql",".gql",".ini",".cfg",".conf",".env",".gradle",".md",
-           ".mdx",".php",".pl",".lua",".ex",".exs",".scala",".dart",".m",".mm",
-           ".jl",".tf",".r"}
-SKIP = {".git","node_modules","dist","build",".next","coverage",".turbo",".cache","vendor",".venv"}
-remaining = set(cands)
-scanned = 0
-MAX_FILES = 4000
-MAX_BYTES = 1_500_000
-for path in root.rglob("*"):
-    if not remaining or scanned >= MAX_FILES:
+# Iterate matches rather than making an unbounded intermediate fragment list.
+for match in re.finditer(r"`([^`\n]+)`|```[^\n]*\n(.*?)```", resp, re.S):
+    fragments = [match.group(1)] if match.group(1) is not None else match.group(2).splitlines()
+    for fragment in fragments:
+        candidate = distinctive(fragment)
+        if candidate:
+            cands.add(candidate)
+        if len(cands) >= MAX_FRAGMENTS:
+            break
+    if len(cands) >= MAX_FRAGMENTS:
         break
-    if any(part in SKIP for part in path.parts):
-        continue
-    if not path.is_file() or path.suffix.lower() not in SRC_EXT:
-        continue
-    try:
-        if path.stat().st_size > MAX_BYTES:
-            continue
-        hay = re.sub(r"\s+", " ", path.read_text(encoding="utf-8", errors="replace"))
-    except OSError:
-        continue
-    scanned += 1
-    for c in list(remaining):
-        if c in hay:
-            remaining.discard(c)
+if not cands:
+    print(0)
+    sys.exit(0)
+
+SRC_EXT = {".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".css", ".scss", ".sass", ".less",
+           ".html", ".htm", ".vue", ".svelte", ".py", ".go", ".rb", ".rs", ".java", ".kt",
+           ".swift", ".cs", ".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".sh", ".bash",
+           ".zsh", ".ps1", ".sql", ".yaml", ".yml", ".toml", ".json", ".jsonc", ".xml",
+           ".proto", ".graphql", ".gql", ".ini", ".cfg", ".conf", ".gradle", ".md",
+           ".mdx", ".php", ".pl", ".lua", ".ex", ".exs", ".scala", ".dart", ".m", ".mm",
+           ".jl", ".tf", ".r"}
+SKIP = {"node_modules", "dist", "build", "coverage", "vendor", "__pycache__", "private"}
+PRIVATE_NAME = re.compile(r"(^|[._-])(credentials?|secrets?|private|service[-_]account|id[-_]rsa)([._-]|$)", re.I)
+remaining = set(cands)
+scanned = entries = total_bytes = 0
+response_identity = (response_stat.st_dev, response_stat.st_ino)
+
+def exhausted():
+    return not remaining or scanned >= MAX_FILES or entries >= MAX_ENTRIES or total_bytes >= MAX_TOTAL_BYTES
+
+def scan(directory, depth):
+    global scanned, entries, total_bytes
+    with os.scandir(directory) as listing:
+        while not exhausted():
+            try:
+                entry = next(listing)
+            except StopIteration:
+                return
+            entries += 1
+            name = entry.name
+            # Prune before opening or enumerating a subtree. Hidden files and
+            # tool state are not implicit source evidence, even with a source suffix.
+            if name.startswith(".") or name.lower() in SKIP or PRIVATE_NAME.search(name):
+                continue
+            try:
+                metadata = entry.stat(follow_symlinks=False)
+                if stat.S_ISDIR(metadata.st_mode):
+                    if depth >= MAX_DEPTH:
+                        continue
+                    child = os.open(name, DIRECTORY_FLAGS, dir_fd=directory)
+                    try:
+                        opened = os.fstat(child)
+                        if (opened.st_dev, opened.st_ino) == (metadata.st_dev, metadata.st_ino):
+                            scan(child, depth + 1)
+                    finally:
+                        os.close(child)
+                elif stat.S_ISREG(metadata.st_mode) and Path(name).suffix.lower() in SRC_EXT:
+                    scanned += 1
+                    descriptor = os.open(name, FILE_FLAGS, dir_fd=directory)
+                    try:
+                        opened = os.fstat(descriptor)
+                        identity = (opened.st_dev, opened.st_ino)
+                        if identity == response_identity or signature(opened) != signature(metadata):
+                            continue
+                        limit = min(MAX_FILE_BYTES, MAX_TOTAL_BYTES - total_bytes)
+                        if opened.st_size > limit:
+                            continue
+                        # Charge the full allowance before reading so rejected
+                        # changing files cannot bypass the aggregate byte budget.
+                        total_bytes += opened.st_size
+                        data = read_bounded(descriptor, opened, limit)
+                    finally:
+                        os.close(descriptor)
+                    hay = re.sub(r"\s+", " ", data.decode("utf-8", "replace"))
+                    remaining.difference_update(candidate for candidate in tuple(remaining) if candidate in hay)
+            except (OSError, ValueError):
+                continue
+
+# Opening every physical-root component with NOFOLLOW rejects replacement aliases
+# after resolution. All child lookups stay relative to an already-open directory.
+directory = None
+try:
+    directory = os.open(os.sep, DIRECTORY_FLAGS)
+    for part in root.parts[1:]:
+        child = os.open(part, DIRECTORY_FLAGS, dir_fd=directory)
+        os.close(directory)
+        directory = child
+    scan(directory, 0)
+except (TypeError, NotImplementedError):
+    # Descriptor-relative traversal is unavailable on some Python platforms.
+    print(0)
+    sys.exit(2)
+except (OSError, ValueError):
+    pass
+finally:
+    if directory is not None:
+        os.close(directory)
 print(len(cands) - len(remaining))
 PY
 }
@@ -2186,7 +2291,12 @@ council_response_has_grounding() {
     local validated
     validated="$(council_response_evidence_paths_json "$f" "$evidence_root")" || validated='[]'
     [[ "$(jq 'length' <<< "$validated" 2>/dev/null || printf 0)" -gt 0 ]] && return 0
-    [[ "$(council_response_content_match_count "$f" "$evidence_root")" -gt 0 ]] && return 0
+    local matches scan_rc=0
+    matches="$(council_response_content_match_count "$f" "$evidence_root")" || scan_rc=$?
+    # Preserve the prose fallback when safe descriptor reads are unsupported.
+    # This is availability, not validated evidence or a comprehension claim.
+    (( scan_rc == 2 )) && return 0
+    [[ "$matches" =~ ^[0-9]+$ ]] && (( matches > 0 )) && return 0
     return 1
 }
 

@@ -230,4 +230,366 @@ else
     test_pass
 fi
 
+# Boundary fixtures use inert code markers, never credentials or provider calls.
+BOUNDARY_ROOT="$TEST_TMP_DIR/boundary-root"
+OUTSIDE="$TEST_TMP_DIR/outside.ts"
+BOUNDARY_RESPONSE="$TEST_TMP_DIR/boundary-response.md"
+FRAGMENT='const boundedEvidenceMarker = sourceValue ?? fallbackValue;'
+mkdir -p "$BOUNDARY_ROOT"
+printf '%s\n' "$FRAGMENT" > "$OUTSIDE"
+printf 'The function contains `%s`.\n' "$FRAGMENT" > "$BOUNDARY_RESPONSE"
+
+_count_is() {
+    local expected="$1" response="$2" root="$3" actual
+    actual="$(council_response_content_match_count "$response" "$root")"
+    if [[ "$actual" == "$expected" ]]; then test_pass
+    else test_fail "expected $expected matched fragments, got $actual"; fi
+}
+
+test_case "external source symlink cannot ground a response"
+ln -s "$OUTSIDE" "$BOUNDARY_ROOT/alias.ts"
+_count_is 0 "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"
+rm "$BOUNDARY_ROOT/alias.ts"
+
+test_case "external directory alias cannot ground a response"
+mkdir -p "$TEST_TMP_DIR/outside-directory"
+cp "$OUTSIDE" "$TEST_TMP_DIR/outside-directory/source.ts"
+ln -s "$TEST_TMP_DIR/outside-directory" "$BOUNDARY_ROOT/alias"
+_count_is 0 "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"
+rm "$BOUNDARY_ROOT/alias"
+
+test_case "private agent state cannot ground a response"
+mkdir -p "$BOUNDARY_ROOT/.claude"
+cp "$OUTSIDE" "$BOUNDARY_ROOT/.claude/private.md"
+_count_is 0 "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"
+rm "$BOUNDARY_ROOT/.claude/private.md"
+
+test_case "environment configuration cannot ground a response"
+cp "$OUTSIDE" "$BOUNDARY_ROOT/production.env"
+_count_is 0 "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"
+rm "$BOUNDARY_ROOT/production.env"
+
+test_case "credential-named configuration cannot ground a response"
+cp "$OUTSIDE" "$BOUNDARY_ROOT/credentials.json"
+_count_is 0 "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"
+rm "$BOUNDARY_ROOT/credentials.json"
+
+test_case "the response itself cannot ground its own quotes"
+cp "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT/response.md"
+_count_is 0 "$BOUNDARY_ROOT/response.md" "$BOUNDARY_ROOT"
+rm "$BOUNDARY_ROOT/response.md"
+
+test_case "hard-linked response aliases cannot ground its own quotes"
+ln "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT/alias.ts"
+_count_is 0 "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"
+rm "$BOUNDARY_ROOT/alias.ts"
+
+test_case "an explicitly selected symlinked evidence root remains valid"
+cp "$OUTSIDE" "$BOUNDARY_ROOT/source.ts"
+ln -s "$BOUNDARY_ROOT" "$TEST_TMP_DIR/selected-root"
+_count_is 1 "$BOUNDARY_RESPONSE" "$TEST_TMP_DIR/selected-root"
+rm "$BOUNDARY_ROOT/source.ts"
+
+# Instrument the actual inline helper at its read/open boundary. This avoids a
+# timing-dependent race fixture and records real traversal/read work.
+INSTRUMENT="$TEST_TMP_DIR/instrument-grounding.py"
+cat > "$INSTRUMENT" <<'PYTEST'
+import atexit
+import json
+import os
+import sys
+from pathlib import Path
+
+mode = os.environ["GROUNDING_TEST_MODE"]
+target = Path(os.environ["GROUNDING_TEST_TARGET"]).resolve()
+outside = os.environ["GROUNDING_TEST_OUTSIDE"]
+original_read_text = Path.read_text
+original_open = os.open
+original_read = os.read
+original_scandir = os.scandir
+response = Path(sys.argv[2]).resolve()
+source_fds = set()
+metrics = {"source_bytes": 0, "source_opens": 0, "entries": 0}
+replaced = False
+
+@atexit.register
+def save_metrics():
+    Path(os.environ["GROUNDING_TEST_METRICS"]).write_text(json.dumps(metrics))
+
+def grow():
+    global replaced
+    if not replaced:
+        target.write_bytes(b"x" * 1_600_000 + Path(outside).read_bytes())
+        replaced = True
+
+def replace():
+    global replaced
+    if not replaced:
+        if target.is_dir():
+            target.rename(str(target) + ".saved")
+        else:
+            target.unlink()
+        target.symlink_to(outside)
+        replaced = True
+
+def read_text(self, *args, **kwargs):
+    if self == target:
+        if mode == "replace":
+            replace()
+        elif mode == "grow":
+            grow()
+    result = original_read_text(self, *args, **kwargs)
+    if self != response:
+        metrics["source_bytes"] += len(result.encode("utf-8"))
+        metrics["source_opens"] += 1
+    return result
+
+def open_file(path, flags, *args, **kwargs):
+    if mode in ("replace", "root-replace") and path == target.name and "dir_fd" in kwargs:
+        replace()
+    descriptor = original_open(path, flags, *args, **kwargs)
+    if not flags & os.O_DIRECTORY and path != sys.argv[1]:
+        source_fds.add(descriptor)
+        metrics["source_opens"] += 1
+    return descriptor
+
+def read_file(descriptor, size):
+    if descriptor in source_fds and mode == "grow":
+        grow()
+    result = original_read(descriptor, size)
+    if descriptor in source_fds:
+        metrics["source_bytes"] += len(result)
+    return result
+
+class Listing:
+    def __init__(self, path):
+        # For the pruning case, fail if the helper enters the excluded subtree.
+        same = os.fstat(path).st_ino == target.stat().st_ino if isinstance(path, int) else Path(path).resolve() == target
+        if mode == "prune" and same:
+            raise AssertionError("excluded tree was enumerated")
+        if mode == "root-replace" and same:
+            replace()
+        self.listing = original_scandir(path)
+        self.iterator = iter(self.listing)
+        self.repeated = None
+        self.count = 0
+    def __enter__(self):
+        return self
+    def __exit__(self, *args):
+        self.close()
+    def close(self):
+        self.listing.close()
+    def __iter__(self):
+        return self
+    def __next__(self):
+        if mode in ("entries", "files"):
+            if self.count >= 25_000:
+                raise StopIteration
+            if self.repeated is None:
+                self.repeated = next(entry for entry in self.iterator if entry.name == target.name)
+            self.count += 1
+            entry = self.repeated
+        else:
+            entry = next(self.iterator)
+        metrics["entries"] += 1
+        return entry
+
+Path.read_text = read_text
+os.open = open_file
+os.read = read_file
+os.scandir = Listing
+if mode == "unsupported":
+    del os.O_NOFOLLOW
+sys.argv = sys.argv[1:]
+exec(compile(sys.stdin.read(), "council-content-match", "exec"))
+PYTEST
+
+_instrumented_count() (
+    export GROUNDING_TEST_MODE="$1" GROUNDING_TEST_TARGET="$2" GROUNDING_TEST_OUTSIDE="${3:-$OUTSIDE}"
+    export GROUNDING_TEST_METRICS="$TEST_TMP_DIR/grounding-metrics.json"
+    python3() { command python3 "$INSTRUMENT" "$@"; }
+    council_response_content_match_count "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"
+)
+
+test_case "a leaf replaced after metadata validation cannot supply evidence"
+printf 'const initialValue = unrelatedValue;\n' > "$BOUNDARY_ROOT/race.ts"
+actual="$(_instrumented_count replace "$BOUNDARY_ROOT/race.ts")"
+if [[ "$actual" == 0 ]]; then test_pass
+else test_fail "replacement symlink supplied $actual matched fragments"; fi
+rm "$BOUNDARY_ROOT/race.ts"
+
+test_case "file growth after its size check cannot supply evidence"
+printf 'const initialValue = unrelatedValue;\n' > "$BOUNDARY_ROOT/race.ts"
+actual="$(_instrumented_count grow "$BOUNDARY_ROOT/race.ts")"
+if [[ "$actual" == 0 ]] && jq -e '.source_bytes <= 1500000' "$TEST_TMP_DIR/grounding-metrics.json" >/dev/null; then test_pass
+else test_fail "a growing file supplied evidence or exceeded its read budget"; fi
+rm "$BOUNDARY_ROOT/race.ts"
+
+test_case "excluded trees are pruned before enumeration"
+mkdir -p "$BOUNDARY_ROOT/node_modules"
+cp "$OUTSIDE" "$BOUNDARY_ROOT/node_modules/source.ts"
+if actual="$(_instrumented_count prune "$BOUNDARY_ROOT/node_modules")" && [[ "$actual" == 0 ]]; then test_pass
+else test_fail "the scan entered an excluded dependency tree"; fi
+rm "$BOUNDARY_ROOT/node_modules/source.ts"
+rmdir "$BOUNDARY_ROOT/node_modules"
+
+test_case "non-source entries count toward the traversal budget"
+printf 'unrelated\n' > "$BOUNDARY_ROOT/ignored.txt"
+actual="$(_instrumented_count entries "$BOUNDARY_ROOT/ignored.txt")"
+if [[ "$actual" == 0 ]] && jq -e '.entries <= 20000 and .source_bytes == 0' "$TEST_TMP_DIR/grounding-metrics.json" >/dev/null; then test_pass
+else test_fail "non-source entries bypassed the traversal budget"; fi
+rm "$BOUNDARY_ROOT/ignored.txt"
+
+test_case "source file attempts are capped even when files are oversized"
+command python3 - "$BOUNDARY_ROOT/oversized.ts" <<'PYTEST'
+from pathlib import Path
+import sys
+Path(sys.argv[1]).write_bytes(b"x" * 1_500_001)
+PYTEST
+actual="$(_instrumented_count files "$BOUNDARY_ROOT/oversized.ts")"
+if [[ "$actual" == 0 ]] && jq -e '.source_opens <= 4000 and .entries <= 4000 and .source_bytes == 0' "$TEST_TMP_DIR/grounding-metrics.json" >/dev/null; then test_pass
+else test_fail "oversized source files bypassed the attempt budget"; fi
+rm "$BOUNDARY_ROOT/oversized.ts"
+
+test_case "aggregate source reads stay within sixteen MiB"
+command python3 - "$BOUNDARY_ROOT" <<'PYTEST'
+from pathlib import Path
+import sys
+for index in range(18):
+    (Path(sys.argv[1]) / f"large-{index}.ts").write_bytes(b"x" * 1_048_576)
+PYTEST
+actual="$(_instrumented_count measure "$BOUNDARY_ROOT/large-0.ts")"
+if [[ "$actual" == 0 ]] && jq -e '.source_bytes > 0 and .source_bytes <= 16777216' "$TEST_TMP_DIR/grounding-metrics.json" >/dev/null; then test_pass
+else test_fail "aggregate source reads exceeded sixteen MiB"; fi
+rm "$BOUNDARY_ROOT"/large-*.ts
+
+test_case "oversized responses cannot trigger a source scan"
+cp "$OUTSIDE" "$BOUNDARY_ROOT/source.ts"
+command python3 - "$BOUNDARY_RESPONSE" <<'PYTEST'
+from pathlib import Path
+import sys
+with Path(sys.argv[1]).open("ab") as handle:
+    handle.write(b"x" * 1_048_576)
+PYTEST
+actual="$(_instrumented_count measure "$BOUNDARY_ROOT/source.ts")"
+if [[ "$actual" == 0 ]] && jq -e '.entries == 0 and .source_bytes == 0' "$TEST_TMP_DIR/grounding-metrics.json" >/dev/null; then test_pass
+else test_fail "an oversized response triggered source reads"; fi
+printf 'The function contains `%s`.\n' "$FRAGMENT" > "$BOUNDARY_RESPONSE"
+rm "$BOUNDARY_ROOT/source.ts"
+
+test_case "a root replaced after resolution cannot become new authority"
+actual="$(_instrumented_count root-replace "$BOUNDARY_ROOT" "$TEST_TMP_DIR/outside-directory")"
+if [[ "$actual" == 0 ]]; then test_pass
+else test_fail "a replacement root supplied evidence"; fi
+rm "$BOUNDARY_ROOT"
+mv "$BOUNDARY_ROOT.saved" "$BOUNDARY_ROOT"
+
+test_case "source special files cannot block or supply evidence"
+mkfifo "$BOUNDARY_ROOT/special.ts"
+_count_is 0 "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"
+rm "$BOUNDARY_ROOT/special.ts"
+
+test_case "fenced and table quotes resolve with normalized whitespace"
+printf '%s\n' "$FRAGMENT" 'return sourceValue + fallbackValue;' > "$BOUNDARY_ROOT/source.ts"
+MULTIFORM="$TEST_TMP_DIR/multiform.md"
+cat > "$MULTIFORM" <<'MD'
+| Source | Finding |
+| source.ts | `const boundedEvidenceMarker = sourceValue ?? fallbackValue;` |
+```ts
+return   sourceValue  + fallbackValue;
+```
+MD
+_count_is 2 "$MULTIFORM" "$BOUNDARY_ROOT"
+rm "$BOUNDARY_ROOT/source.ts"
+
+test_case "candidate fragments have a fixed count budget"
+command python3 - "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT/source.ts" <<'PYTEST'
+from pathlib import Path
+import sys
+fragments = [f"const numberedEvidence{index} = sourceValue ?? fallbackValue;" for index in range(257)]
+Path(sys.argv[1]).write_text("\n".join(f"`{fragment}`" for fragment in fragments))
+Path(sys.argv[2]).write_text(fragments[-1])
+PYTEST
+_count_is 0 "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"
+rm "$BOUNDARY_ROOT/source.ts"
+
+test_case "a single fragment cannot exceed its size budget"
+command python3 - "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT/source.ts" <<'PYTEST'
+from pathlib import Path
+import sys
+fragment = "const largeEvidence = sourceValue ?? '" + "x" * 4096 + "';"
+Path(sys.argv[1]).write_text(f"`{fragment}`")
+Path(sys.argv[2]).write_text(fragment)
+PYTEST
+_count_is 0 "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"
+rm "$BOUNDARY_ROOT/source.ts"
+printf 'The function contains `%s`.\n' "$FRAGMENT" > "$BOUNDARY_RESPONSE"
+
+test_case "directory nesting cannot exceed its depth budget"
+command python3 - "$BOUNDARY_ROOT" "$FRAGMENT" <<'PYTEST'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+for _ in range(65):
+    path /= "nested"
+path.mkdir(parents=True)
+(path / "source.ts").write_text(sys.argv[2])
+PYTEST
+_count_is 0 "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"
+
+# Exercise the live positive gate independently of response size and formatting.
+test_case "live prose quote is substantive without inventing citation evidence"
+PROSE_VOTE="$TEST_TMP_DIR/prose-vote.md"
+sed 's/ VERDICT: APPROVE//' "$A4" > "$PROSE_VOTE"
+printf '\nVERDICT: APPROVE\n' >> "$PROSE_VOTE"
+record="$(OCTOPUS_COUNCIL_GROUNDING_MIN_CHARS=1 council_contribution_record_json "$PROSE_VOTE" "$ROOT" sha256:fixture)"
+if ( OCTOPUS_COUNCIL_GROUNDING_MIN_CHARS=1; council_response_is_substantive "$PROSE_VOTE" "$ROOT" ) &&
+   jq -e '.validation_result == "valid-unverified" and .access_state == "unverified" and .evidence_paths == [] and .comprehension_verified == false' <<< "$record" >/dev/null; then test_pass
+else test_fail "content match lost its vote or invented validated citation evidence"; fi
+
+test_case "a grounded review may state a data-verification limit"
+if ( OCTOPUS_COUNCIL_GROUNDING_MIN_CHARS=1; council_response_is_substantive "$A1" "$ROOT" ); then test_pass
+else test_fail "a source-backed review lost its truthful data caveat"; fi
+
+test_case "an explicit access failure remains blind even with a matching quote"
+printf 'I cannot read the repository files. `%s`\nVERDICT: APPROVE\n' "$FRAGMENT" > "$BOUNDARY_RESPONSE"
+printf '%s\n' "$FRAGMENT" > "$BOUNDARY_ROOT/source.ts"
+if council_response_is_blind "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"; then test_pass
+else test_fail "a quote overrode an explicit first-person access failure"; fi
+rm "$BOUNDARY_ROOT/source.ts"
+
+test_case "the positive gate respects fixture and missing-root modes"
+if ( COUNCIL_FIXTURE=true; council_response_is_substantive "$B2" "$ROOT" ) &&
+   council_response_is_substantive "$B2" "$TEST_TMP_DIR/nonexistent"; then test_pass
+else test_fail "the positive gate changed fixture or missing-root behavior"; fi
+
+test_case "Python unavailability retains the prior prose fallback"
+if ( command() { if [[ "$*" == '-v python3' ]]; then return 1; fi; builtin command "$@"; }
+     council_response_is_substantive "$B2" "$ROOT" ) &&
+   [[ "$( command() { if [[ "$*" == '-v python3' ]]; then return 1; fi; builtin command "$@"; }
+         council_response_content_match_count "$A4" "$ROOT" )" == 0 ]]; then test_pass
+else test_fail "Python unavailability changed fallback behavior"; fi
+
+test_case "validated citation path and line semantics remain intact"
+ln -s "$ROOT/functions-v2/sailing-compare.ts" "$ROOT/inside-alias.ts"
+ln -s "$OUTSIDE" "$ROOT/outside-alias.ts"
+CITATIONS="$TEST_TMP_DIR/citations.md"
+printf '%s\n' 'Inside inside-alias.ts:1; outside outside-alias.ts:1; traversal ../outside.ts:1; missing made-up.ts:1; range functions-v2/sailing-compare.ts:1-2; excessive functions-v2/sailing-compare.ts:99999.' > "$CITATIONS"
+citations="$(council_response_evidence_paths_json "$CITATIONS" "$ROOT")"
+if jq -e 'length == 2 and .[0].path == "inside-alias.ts" and .[1].path == "functions-v2/sailing-compare.ts" and all(.[]; .line == 1 and (.content_digest | startswith("sha256:")))' <<< "$citations" >/dev/null; then test_pass
+else test_fail "validated path/line semantics changed: $citations"; fi
+
+test_case "unsupported descriptor APIs retain the prose fallback without scanning"
+if ( export GROUNDING_TEST_MODE=unsupported GROUNDING_TEST_TARGET="$ROOT/functions-v2/sailing-compare.ts" GROUNDING_TEST_OUTSIDE="$OUTSIDE" GROUNDING_TEST_METRICS="$TEST_TMP_DIR/grounding-metrics.json"
+     python3() { command python3 "$INSTRUMENT" "$@"; }
+     OCTOPUS_COUNCIL_GROUNDING_MIN_CHARS=1 council_response_is_substantive "$A4" "$ROOT" ) &&
+   jq -e '.source_bytes == 0 and .source_opens == 0 and .entries == 0' "$TEST_TMP_DIR/grounding-metrics.json" >/dev/null; then test_pass
+else test_fail "unsupported confinement read sources or created a false blind vote"; fi
+
+test_case "ungrounded confident approval cannot produce a valid contribution"
+record="$(council_contribution_record_json "$B2" "$ROOT" sha256:fixture)"
+if ! council_response_is_substantive "$B2" "$ROOT" &&
+   jq -e '.validation_result == "invalid-access" and .access_state == "failed" and .verdict == "APPROVE" and .evidence_paths == []' <<< "$record" >/dev/null; then test_pass
+else test_fail "an ungrounded confident approval remained a valid contribution"; fi
+
 test_summary
