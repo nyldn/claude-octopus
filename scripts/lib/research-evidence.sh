@@ -748,7 +748,7 @@ research_has_annotated_inference_marker() {
                 c=substr($0,i,1)
                 if (c == "\\") { i++; continue }
                 if (ticks == 0 && quote != "" && c == quote) { quote=""; continue }
-                if (ticks == 0 && quote == "" && (c == "\"" || (c == "\047" && (i == 1 || substr($0,i-1,1) !~ /[[:alnum:]]/)))) {
+                if (ticks == 0 && quote == "" && (c == "\"" || c == "\047")) {
                     quote=c; continue
                 }
                 if (quote == "" && c == "`") {

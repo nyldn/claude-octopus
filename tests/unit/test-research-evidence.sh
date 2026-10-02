@@ -843,6 +843,10 @@ _marker_verification_case unicode-possessive "José's 21 templates [inference: c
 _marker_verification_case unicode-annotation-possessive "There are 21 templates [inference: José's count by glob]." 0
 _marker_verification_case quoted-unicode-possessive "There are 901 templates containing 'José's [inference: counted by glob]' as a literal value." 1 'missing_citation '
 _marker_verification_case quoted-ascii-possessive "There are 901 templates containing 'Jose's [inference: counted by glob]' as a literal value." 1 'missing_citation '
+_marker_verification_case ascii-adjacent-quote "There are 901 templates in value'[inference: estimated]' as a literal value." 1 'missing_citation '
+_marker_verification_case numeric-adjacent-quote "There are 901 templates in 7'[inference: estimated]' as a literal value." 1 'missing_citation '
+_marker_verification_case possessive-then-marker "The value's 21 templates [inference: estimated]." 0
+_marker_verification_case adjacent-quote-then-marker "There are 21 templates in value'[inference: literal]' [inference: estimated]." 0
 _marker_verification_case unicode-adjacent-quote "There are 901 templates containing é'[inference: counted by glob]' as a literal value." 1 'missing_citation '
 _marker_verification_case unicode-punctuation-quote "There are 901 templates containing —'count [inference: counted by glob]' as a literal value." 1 'missing_citation '
 _marker_verification_case adjacent-punctuation '- There are 21 templates [inference,counted by glob].' 0
