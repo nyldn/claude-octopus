@@ -2388,7 +2388,12 @@ council_response_is_blind() {
     # content-match arm of council_response_has_grounding. Runs before the length
     # short-circuit below because the targeted bodies are long.
     local grounding_min="${OCTOPUS_COUNCIL_GROUNDING_MIN_CHARS:-700}"
-    [[ "$grounding_min" =~ ^[0-9]+$ ]] || grounding_min=700
+    # Capture a bounded decimal value after leading-zero padding.
+    if [[ "$grounding_min" =~ ^0*([0-9]{1,9})$ ]]; then
+        grounding_min=$((10#${BASH_REMATCH[1]}))
+    else
+        grounding_min=700
+    fi
     if [[ -z "${COUNCIL_FIXTURE:-}" && -n "$evidence_root" && -d "$evidence_root" ]] \
         && (( nlen >= grounding_min )) \
         && command -v python3 >/dev/null 2>&1 \

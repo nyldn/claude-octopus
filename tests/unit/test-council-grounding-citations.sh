@@ -326,6 +326,51 @@ if council_response_is_blind "$SUMMARY_QUOTE" "$ROOT" &&
 else test_fail "source quote overrode an explicit access failure"; fi
 
 # Boundary fixtures use inert code markers, never credentials or provider calls.
+THRESHOLD_ROOT="$TEST_TMP_DIR/threshold-root"
+mkdir -p "$THRESHOLD_ROOT"
+for threshold_length in 600 700 800; do
+    command python3 - "$TEST_TMP_DIR/threshold-$threshold_length.md" "$threshold_length" <<'PYTEST'
+from pathlib import Path
+import sys
+body = "The function is correct.\nVERDICT: APPROVE\n"
+padding = int(sys.argv[2]) - len("".join(body.split()))
+Path(sys.argv[1]).write_text("The function is correct.\n" + "x" * padding + "\nVERDICT: APPROVE\n")
+PYTEST
+done
+
+_threshold_case() {
+    local label="$1" value="$2" length="$3" expected="$4" actual errors
+    test_case "decimal grounding threshold: $label"
+    errors="$TEST_TMP_DIR/threshold-errors"
+    actual="$(
+        {
+        if [[ "$value" == unset ]]; then unset OCTOPUS_COUNCIL_GROUNDING_MIN_CHARS
+        else export OCTOPUS_COUNCIL_GROUNDING_MIN_CHARS="$value"; fi
+        blind=0; council_response_is_blind "$TEST_TMP_DIR/threshold-$length.md" "$THRESHOLD_ROOT" || blind=$?
+        substantive=0; council_response_is_substantive "$TEST_TMP_DIR/threshold-$length.md" "$THRESHOLD_ROOT" || substantive=$?
+        printf '%s %s' "$blind" "$substantive"
+        } 2> "$errors"
+    )"
+    if [[ "$actual" == "$expected" && ! -s "$errors" ]]; then test_pass
+    else test_fail "expected blind/substantive $expected without arithmetic errors, got $actual: $(cat "$errors")"; fi
+}
+
+_threshold_case default-below unset 600 '1 0'
+_threshold_case default-boundary unset 700 '0 1'
+_threshold_case eight-leading-zero 08 600 '0 1'
+_threshold_case seven-hundred-leading-zero 0700 600 '1 0'
+_threshold_case explicit-zero 0 600 '0 1'
+LONG_ZERO="$(command python3 -c 'print("0" * 10000)')"
+_threshold_case all-zero "$LONG_ZERO" 600 '0 1'
+_threshold_case long-leading-normal "${LONG_ZERO}700" 600 '1 0'
+_threshold_case overflow 18446744073709551616 600 '1 0'
+_threshold_case negative -1 600 '1 0'
+_threshold_case invalid bad 600 '1 0'
+_threshold_case empty '' 600 '1 0'
+_threshold_case numeric-normal 500 600 '0 1'
+_threshold_case max-nine 999999999 800 '1 0'
+_threshold_case oversized-ten 1000000000 800 '0 1'
+
 BOUNDARY_ROOT="$TEST_TMP_DIR/boundary-root"
 OUTSIDE="$TEST_TMP_DIR/outside.ts"
 BOUNDARY_RESPONSE="$TEST_TMP_DIR/boundary-response.md"
