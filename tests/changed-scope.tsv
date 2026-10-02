@@ -87,6 +87,7 @@ scripts/orchestrate.sh	@full
 scripts/lib/agent-sync.sh	@full
 scripts/lib/heartbeat.sh	@full
 scripts/lib/council.sh	@full
+scripts/helpers/council-wait.sh	tests/unit/test-council-wait.sh
 scripts/lib/session.sh	@full
 scripts/lib/workflows.sh	@full
 scripts/lib/spawn.sh	@full
