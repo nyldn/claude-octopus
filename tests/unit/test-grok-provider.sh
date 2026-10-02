@@ -10,6 +10,7 @@
 #      matching codex/gemini/agy.
 #   5. grok_execute propagates a non-zero exit even when stdout is non-empty.
 #   6. grok_is_available requires the binary AND auth.
+#   7. large prompts use a private prompt file, cleaned up on exit or signals.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -167,6 +168,104 @@ test_grok_detection() {
     fi
 }
 
+# Exercise the real shim with a stub that saves the prompt before cleanup.
+# NUL-delimited argv captures also catch argument ordering and splitting bugs.
+check_grok_prompt_transport() {
+    local limit="$1" size="$2" transport="$3" stub_rc="${4:-0}" signal="${5:-}"
+    local fixture input capture prompt_path rc expected_rc
+    fixture="$TEST_TMP_DIR/grok-transport-$RANDOM"
+    input="$fixture/input"; capture="$fixture/argv"
+    mkdir -p "$fixture/bin" "$fixture/tmp"
+    {
+        printf '%*s' "$((size - 8))" '' | tr ' ' x
+        printf '\303\251\nend\n\n'  # Eight bytes, including UTF-8 and trailing newlines.
+    } > "$input"
+    cat > "$fixture/bin/grok" <<'MOCK'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\0' "$@" > "${GROK_TEST_DIR:?}/argv"
+for arg in "$@"; do
+    printf '%s' "$arg" | wc -c >> "$GROK_TEST_DIR/lengths"
+done
+if [[ "$1" == --prompt-file ]]; then
+    printf '%s' "$2" > "$GROK_TEST_DIR/path"
+    cp "$2" "$GROK_TEST_DIR/received"
+    # GNU and BSD stat spell their mode query differently.
+    stat -c '%a' "$2" > "$GROK_TEST_DIR/mode" 2>/dev/null ||
+        stat -f '%Lp' "$2" > "$GROK_TEST_DIR/mode"
+    if [[ -n "${GROK_TEST_SIGNAL:-}" ]]; then
+        kill -s "$GROK_TEST_SIGNAL" "$PPID"
+    fi
+fi
+exit "${GROK_TEST_RC:-0}"
+MOCK
+    chmod +x "$fixture/bin/grok"
+    rc=0
+    env "PATH=$fixture/bin:$PATH" "TMPDIR=$fixture/tmp" \
+        "OCTOPUS_GROK_ARGV_MAX=$limit" "OCTOPUS_GROK_MODEL=grok-4-fast" \
+        "OCTOPUS_GROK_CWD=$fixture/work dir" "GROK_TEST_DIR=$fixture" \
+        "GROK_TEST_RC=$stub_rc" "GROK_TEST_SIGNAL=$signal" \
+        bash "$PROJECT_ROOT/scripts/helpers/grok-exec.sh" < "$input" \
+        > "$fixture/stdout" 2> "$fixture/stderr" || rc=$?
+    expected_rc="$stub_rc"
+    case "$signal" in
+        TERM) expected_rc=143 ;;
+        INT) expected_rc=130 ;;
+    esac
+    if [[ "$rc" -ne "$expected_rc" ]]; then
+        test_fail "expected exit $expected_rc, got $rc: $(cat "$fixture/stderr")"
+        return 1
+    fi
+    if [[ "$transport" == --prompt-file ]]; then
+        prompt_path="$(cat "$fixture/path" 2>/dev/null || true)"
+        if [[ "$prompt_path" != "$fixture/tmp/"* || -e "$prompt_path" ]] ||
+           ! cmp -s "$input" "$fixture/received" ||
+           [[ "$(cat "$fixture/mode" 2>/dev/null || true)" != 600 ]] ||
+           ! awk '$1 > 100000 { exit 1 }' "$fixture/lengths"; then
+            test_fail "prompt file must preserve bytes, use mode 0600 in TMPDIR, leave short argv, and be removed"
+            return 1
+        fi
+        printf '%s\0' --prompt-file "$prompt_path" > "$fixture/expected"
+    else
+        # The legacy inline path strips trailing newlines via command substitution.
+        printf '%s\0' -p "$(cat "$input")" > "$fixture/expected"
+    fi
+    printf '%s\0' --output-format plain --cwd "$fixture/work dir" \
+        --disable-web-search --model grok-4-fast >> "$fixture/expected"
+    if ! cmp -s "$fixture/expected" "$capture"; then
+        test_fail "prompt transport and all other argv must match byte-for-byte"
+        return 1
+    fi
+}
+
+test_grok_prompt_transport() {
+    test_case "prompts below and at the byte threshold use -p; above it uses a file"
+    if check_grok_prompt_transport 1024 1023 -p &&
+       check_grok_prompt_transport 1024 1024 -p &&
+       check_grok_prompt_transport 1024 1025 --prompt-file; then
+        test_pass
+    fi
+
+    test_case "200 KB prompt uses a byte-identical private file and removes it on success"
+    if check_grok_prompt_transport 100000 200000 --prompt-file; then test_pass; fi
+
+    test_case "prompt file is removed on failure and grok exit 3 propagates"
+    if check_grok_prompt_transport 100000 200000 --prompt-file 3; then test_pass; fi
+
+    test_case "OCTOPUS_GROK_ARGV_MAX=0 forces a file for a tiny prompt"
+    if check_grok_prompt_transport 0 8 --prompt-file; then test_pass; fi
+
+    test_case "non-integer OCTOPUS_GROK_ARGV_MAX falls back to 100000 bytes"
+    if check_grok_prompt_transport invalid 99999 -p &&
+       check_grok_prompt_transport invalid 100001 --prompt-file; then test_pass; fi
+
+    local signal
+    for signal in TERM INT; do
+        test_case "prompt file is removed when the shim receives $signal"
+        if check_grok_prompt_transport 0 8 --prompt-file 0 "$signal"; then test_pass; fi
+    done
+}
+
 test_grok_dispatch_shim
 test_grok_dispatch_wires_model
 test_grok_env_isolation
@@ -174,5 +273,6 @@ test_grok_config_runtime_model
 test_grok_default_no_model
 test_grok_exit_propagation
 test_grok_detection
+test_grok_prompt_transport
 
 test_summary

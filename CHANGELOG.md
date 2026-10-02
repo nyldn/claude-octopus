@@ -32,6 +32,10 @@
   allowlist excludes it. The seat was added on `PERPLEXITY_API_KEY` alone, so
   the allowlist refused its spawn and `probe_discover` cancelled every other
   seat it had already launched, ending the run with no research output.
+- Grok seats no longer fail with "Argument list too long" on large review or
+  council prompts. Prompts above 100000 bytes now use a temporary prompt file
+  instead of exceeding the operating system's per-argument limit. The file is
+  removed on exit, including cancellation; `OCTOPUS_GROK_ARGV_MAX` sets the threshold.
 - The Perplexity provider now uses the Agent API directly. Sonar chat
   completions support ended on 2026-09-27; Perplexity is gradually
   reformulating synchronous and streaming Sonar calls as Agent API requests.
