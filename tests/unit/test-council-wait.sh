@@ -68,13 +68,18 @@ test_case "--supersede-key resolves the pool's latest-<slug> pointer"
 pool="$(mktemp -d "$TEST_TMP_DIR/p6.XXXXXX")"
 source "$PROJECT_ROOT/scripts/lib/council.sh" 2>/dev/null || true
 key="2947:CP2"
-if declare -f council_supersede_key_slug >/dev/null 2>&1; then slug="$(council_supersede_key_slug "$key")"
-else slug="$(printf '%s' "$key" | tr -c 'A-Za-z0-9._-' '_' | cut -c1-64)-$(printf '%s' "$key" | cksum | cut -d' ' -f1)"; fi
-cp2rd="$(_mkrun "$pool" 20260101-030000-00f111 finished yes "$key")"
-_mkrun "$pool" 20260101-040000-00f222 running >/dev/null       # a NEWER unrelated round, running
-printf '%s\n' 20260101-030000-00f111 > "$pool/latest-$slug"
-_runwait --pool "$pool" --supersede-key "$key" --interval 1 --timeout 5
-if [[ $rc -eq 0 && "$out" == "$cp2rd/summary.json" ]]; then test_pass; else test_fail "key pointer not honored: rc=$rc out=$out want=$cp2rd/summary.json"; fi
+if ! declare -f council_supersede_key_slug >/dev/null 2>&1; then
+    test_fail "council_supersede_key_slug unavailable; cannot verify producer parity"
+    # Later independent fixtures still need their pointer setup to reach summary.
+    slug="$(printf '%s' "$key" | tr -c 'A-Za-z0-9._-' '_' | cut -c1-64)-$(printf '%s' "$key" | cksum | cut -d' ' -f1)"
+else
+    slug="$(council_supersede_key_slug "$key")"
+    cp2rd="$(_mkrun "$pool" 20260101-030000-00f111 finished yes "$key")"
+    _mkrun "$pool" 20260101-040000-00f222 running >/dev/null       # a NEWER unrelated round, running
+    printf '%s\n' 20260101-030000-00f111 > "$pool/latest-$slug"
+    _runwait --pool "$pool" --supersede-key "$key" --interval 1 --timeout 5
+    if [[ $rc -eq 0 && "$out" == "$cp2rd/summary.json" ]]; then test_pass; else test_fail "key pointer not honored: rc=$rc out=$out want=$cp2rd/summary.json"; fi
+fi
 
 test_case "--run-dir waits on a specific run dir"
 pool="$(mktemp -d "$TEST_TMP_DIR/p7.XXXXXX")"
