@@ -114,13 +114,15 @@ _eligible() {
 }
 
 _is_finished() {
-    local rd="$1" st="$1/run-status.json"
+    local rd="$1" st="$1/run-status.json" identity_dir rid
+    identity_dir="$(cd -- "$rd" 2>/dev/null && pwd -P)" || return 1
+    rid="${identity_dir##*/}"
     [[ -f "$st" ]] || return 1
-    jq -e -s --arg rid "${rd##*/}" 'length == 1 and (.[0] | type) == "object" and .[0].state == "finished" and .[0].run_id == $rid' "$st" >/dev/null 2>&1 || return 1
+    jq -e -s --arg rid "$rid" 'length == 1 and (.[0] | type) == "object" and .[0].state == "finished" and .[0].run_id == $rid' "$st" >/dev/null 2>&1 || return 1
     # Defensive: the beacon flips to finished only after a valid summary.json, but
     # re-check so a torn/partial file is never reported as complete.
     local summary="$rd/summary.json"
-    [[ -s "$summary" ]] && jq -e -s --arg rid "${rd##*/}" 'length == 1 and (.[0] | type) == "object" and (.[0].status | type) == "string" and (.[0].status | length) > 0 and (.[0].run_id == null or .[0].run_id == $rid)' "$summary" >/dev/null 2>&1
+    [[ -s "$summary" ]] && jq -e -s --arg rid "$rid" 'length == 1 and (.[0] | type) == "object" and (.[0].status | type) == "string" and (.[0].status | length) > 0 and (.[0].run_id == null or .[0].run_id == $rid)' "$summary" >/dev/null 2>&1
 }
 
 deadline=$(( SECONDS + TIMEOUT ))

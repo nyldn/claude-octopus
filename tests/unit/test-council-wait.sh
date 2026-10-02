@@ -242,4 +242,17 @@ sys.exit(0 if child.returncode==2 and not output else 1)
 PY
 then test_pass; else test_fail "partial scan reported a stale completion"; fi
 
+test_case "explicit trailing-slash run directories preserve their valid identity"
+pool="$(mktemp -d "$TEST_TMP_DIR/trailing.XXXXXX")"
+rd="$(_mkrun "$pool" 20260101-000000-00aaaa finished)"
+_runwait --run-dir "$rd/" --timeout 0
+if [[ "$rc" == 0 && "$out" == "$rd//summary.json" ]]; then test_pass; else test_fail "trailing slash lost run identity"; fi
+
+test_case "an explicit relative run directory resolves identity without changing the output path"
+pool="$(mktemp -d "$TEST_TMP_DIR/relative.XXXXXX")"
+rd="$(_mkrun "$pool" 20260101-000000-00aaaa finished)"
+rc=0
+out="$(cd -- "$rd" && /bin/bash "$WAIT" --run-dir . --timeout 0 2>/dev/null)" || rc=$?
+if [[ "$rc" == 0 && "$out" == './summary.json' ]]; then test_pass; else test_fail "relative directory lost run identity"; fi
+
 test_summary
