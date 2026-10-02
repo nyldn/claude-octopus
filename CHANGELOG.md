@@ -19,6 +19,22 @@
 
 ### Fixed
 
+- Council grounding now recognizes prose/table citations and stops counting
+  ungrounded "confident" approvals. A seat that quotes real source it read — but
+  cites in prose/table form without a `path:line` (e.g. "line 188", a Claim|Source
+  table) — is no longer false-flagged as blind: a new content-match arm counts a
+  distinctive quoted fragment that resolves verbatim in a source file under the
+  evidence root (sail-cruisey #2947). Conversely, a full-length review that makes
+  code-level claims but grounds none of them — only bare filenames and echoed
+  prompt numbers under "Assumptions", quoting no source — is now blinded and no
+  longer counts toward quorum (sail-cruisey #2931/#2921). The tally and the raw-body
+  rule share one gate (`council_response_has_grounding`): grounded = a validated
+  `path:line` OR a content-match. The gate is scoped to avoid over-blinding —
+  skipped in fixture mode, only with a live evidence root + validator, only for
+  full-length bodies (`OCTOPUS_COUNCIL_GROUNDING_MIN_CHARS`, default 700), and only
+  when the body makes code claims — so a short approval or a no-source-tree plan
+  review keeps the existing prose exemption.
+
 - The Perplexity provider now uses the Agent API directly. Sonar chat
   completions support ended on 2026-09-27; Perplexity is gradually
   reformulating synchronous and streaming Sonar calls as Agent API requests.

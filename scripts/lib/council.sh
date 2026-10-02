@@ -2084,6 +2084,112 @@ council_response_is_substantive() {
     return 0
 }
 
+council_response_content_match_count() {
+    # Count DISTINCTIVE verbatim code fragments the response quotes that actually
+    # appear (whitespace-normalized) in a source file under the evidence root. This
+    # is the content-match grounding signal (sail-cruisey #2931/#2947): a seat that
+    # quotes real source it read is grounded even when it cites in prose/table form
+    # without a `path:line` (the #2947 claude seats did exactly this), while a seat
+    # that only names bare filenames, package names, or echoes prompt numbers quotes
+    # nothing that resolves and scores zero (the agy "Assumptions" seats). A fragment
+    # counts only if it is long and carries multiple code operators, so ubiquitous
+    # tokens (`toBeUndefined()`), bare paths, and prose never match. Bounded scan:
+    # source-extension files only, size/file caps, vendor/VCS dirs skipped.
+    local response_path="$1" evidence_root="$2"
+    [[ -f "$response_path" && -d "$evidence_root" ]] || { printf '0\n'; return 0; }
+    command -v python3 >/dev/null 2>&1 || { printf '0\n'; return 0; }
+    python3 - "$response_path" "$evidence_root" <<'PY'
+import re, sys
+from pathlib import Path
+
+resp = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
+root = Path(sys.argv[2]).resolve()
+
+frags = set()
+for m in re.findall(r"`([^`\n]+)`", resp):            # inline `code` spans
+    frags.add(m)
+for block in re.findall(r"```[^\n]*\n(.*?)```", resp, re.S):  # fenced blocks
+    for line in block.splitlines():
+        frags.add(line)
+
+CODE_OP = re.compile(r"[=(){}\[\].:;<>?|&+*/-]")
+def distinctive(s):
+    s = re.sub(r"\s+", " ", s).strip()
+    if len(s) < 18:
+        return None
+    if len(CODE_OP.findall(s)) < 2:
+        return None
+    if " " not in s and "/" in s:   # a bare path/filename token, not a quote
+        return None
+    return s
+
+cands = set()
+for fr in frags:
+    d = distinctive(fr)
+    if d:
+        cands.add(d)
+if not cands:
+    print(0); sys.exit(0)
+
+SRC_EXT = {".ts",".tsx",".js",".jsx",".mjs",".cjs",".css",".scss",".sass",".less",
+           ".html",".htm",".vue",".svelte",".py",".go",".rb",".rs",".java",".kt",
+           ".swift",".cs",".c",".cc",".cpp",".cxx",".h",".hh",".hpp",".sh",".bash",
+           ".zsh",".ps1",".sql",".yaml",".yml",".toml",".json",".jsonc",".xml",
+           ".proto",".graphql",".gql",".ini",".cfg",".conf",".env",".gradle",".md",
+           ".mdx",".php",".pl",".lua",".ex",".exs",".scala",".dart",".m",".mm",
+           ".jl",".tf",".r"}
+SKIP = {".git","node_modules","dist","build",".next","coverage",".turbo",".cache","vendor",".venv"}
+remaining = set(cands)
+scanned = 0
+MAX_FILES = 4000
+MAX_BYTES = 1_500_000
+for path in root.rglob("*"):
+    if not remaining or scanned >= MAX_FILES:
+        break
+    if any(part in SKIP for part in path.parts):
+        continue
+    if not path.is_file() or path.suffix.lower() not in SRC_EXT:
+        continue
+    try:
+        if path.stat().st_size > MAX_BYTES:
+            continue
+        hay = re.sub(r"\s+", " ", path.read_text(encoding="utf-8", errors="replace"))
+    except OSError:
+        continue
+    scanned += 1
+    for c in list(remaining):
+        if c in hay:
+            remaining.discard(c)
+print(len(cands) - len(remaining))
+PY
+}
+
+council_response_makes_code_claims() {
+    # True when the response asserts code-level facts (vs a purely process/plan
+    # discussion with nothing to ground). Reuses the token-bounded code vocabulary
+    # from the soft-blind detector. Used only to decide whether the positive
+    # grounding gate applies — a review with no code claims is never gated.
+    local f="$1"
+    [[ -f "$f" ]] || return 1
+    grep -ciE '(^|[^[:alnum:]])(test(s|ed|ing|cases?)?|coverage|render(s|ed|ing)?|outputs?|type[- ]?check(s|ed|ing)?|tsc|lint(s|ed|ing|er)?|implement(s|ed|ing|ations?)?|propagat(e|es|ed|ing|ion)?|pass(es|ing|ed)?|regress(es|ed|ions?)?|contracts?|behaviou?r(s|al)?|diff(s|ed)?|assert(s|ed|ing|ions?)?|snapshots?|dom|css|class(es)?|components?|functions?|api(s)?|endpoints?|schema(s|ta)?|payloads?|fields?|joins?|quer(y|ies)|gate[ds]?|fallback|routing?|resolver|interface|serializ|compiler?)([^[:alnum:]]|$)' "$f" >/dev/null
+}
+
+council_response_has_grounding() {
+    # True when the response carries at least one grounding signal: a validated
+    # `path:line` citation that resolves under the evidence root, OR a content-match
+    # (a distinctive quoted fragment that appears verbatim in a source file). This is
+    # the single gate the quorum tally and the §4 raw-body rule share.
+    local f="$1" evidence_root="${2:-}"
+    [[ -f "$f" ]] || return 1
+    [[ -n "$evidence_root" && -d "$evidence_root" ]] || return 0
+    command -v python3 >/dev/null 2>&1 || return 0
+    local validated
+    validated="$(council_response_evidence_paths_json "$f" "$evidence_root")" || validated='[]'
+    [[ "$(jq 'length' <<< "$validated" 2>/dev/null || printf 0)" -gt 0 ]] && return 0
+    [[ "$(council_response_content_match_count "$f" "$evidence_root")" -gt 0 ]] && return 0
+    return 1
+}
+
 council_response_is_blind() {
     # A "blind" seat returned a verdict WITHOUT reading the artifact — it was
     # dispatched without file-read tools (e.g. permissionMode "plan") and says so.
@@ -2115,6 +2221,31 @@ council_response_is_blind() {
 
     local nlen
     nlen="$(tr -d '[:space:]' < "$f" | wc -c | tr -d '[:space:]')"
+
+    # Positive-grounding gate (sail-cruisey #2931/#2947). A full-length, confident
+    # review that makes code-level claims but grounds NONE of them — no validated
+    # path:line AND no verbatim quote that resolves in a source file under the
+    # evidence root — reviewed nothing it can prove it read. Several agy seats
+    # approved exactly this way (bare filenames + echoed prompt numbers, framed as
+    # "Assumptions") and were wrongly counted toward quorum. Scoped so it cannot
+    # over-blind: skipped in fixture mode; only when a live evidence root + validator
+    # are present (a no-source-tree plan review keeps the prose exemption); only for
+    # responses long enough to be a full review (OCTOPUS_COUNCIL_GROUNDING_MIN_CHARS,
+    # default 700 — a terse "looks good, APPROVE" is not the targeted shape); and
+    # only when the body actually makes code claims. A seat that quotes real source
+    # in prose/table form WITHOUT a path:line (the #2947 claude seats) passes via the
+    # content-match arm of council_response_has_grounding. Runs before the length
+    # short-circuit below because the targeted bodies are long.
+    local grounding_min="${OCTOPUS_COUNCIL_GROUNDING_MIN_CHARS:-700}"
+    [[ "$grounding_min" =~ ^[0-9]+$ ]] || grounding_min=700
+    if [[ -z "${COUNCIL_FIXTURE:-}" && -n "$evidence_root" && -d "$evidence_root" ]] \
+        && (( nlen >= grounding_min )) \
+        && command -v python3 >/dev/null 2>&1 \
+        && council_response_makes_code_claims "$f" \
+        && ! council_response_has_grounding "$f" "$evidence_root"; then
+        return 0
+    fi
+
     (( nlen < 1600 )) || return 1
     if grep -ciE "(cannot|could not|couldn'?t|unable to|can'?t)[[:space:]]+(access|read|open|locate|find|view|retrieve)[^.]{0,60}(file|plan|prd|diff|patch|artifact|document|spec)|no[[:space:]]+(file|read)[[:space:]]+access" "$f" >/dev/null; then
         return 0
