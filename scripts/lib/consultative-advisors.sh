@@ -171,6 +171,31 @@ _octo_advisor_collect() {
     return 1
 }
 
+# Wait for one advisor's `orchestrate.sh spawn` job, but not past the deadline.
+# An asynchronous spawn returns within seconds; a synchronous one (agy) runs the
+# whole provider call inside spawn. At the deadline the launcher stops waiting
+# and leaves it running, as it does for an asynchronous worker. A job that has
+# finished is no longer listed by `jobs -r`, and `wait` then returns its status.
+_octo_advisor_wait_spawn() {
+    local pid="$1" deadline="$2" job running
+    while :; do
+        running=false
+        while IFS= read -r job; do
+            if [[ "$job" == "$pid" ]]; then
+                running=true
+                break
+            fi
+        done < <(jobs -pr 2>/dev/null)
+        [[ "$running" == true ]] || break
+        if [[ "$(date +%s)" -ge "$deadline" ]]; then
+            printf 'ERROR: advisor spawn %s did not finish before the wait deadline; it is still running\n' "$pid" >&2
+            return 1
+        fi
+        sleep 1
+    done
+    wait "$pid"
+}
+
 # Launch every selected external advisor, wait for each worker to finish, and
 # print the number whose answer was collected. Return nonzero when fewer than
 # required_successes produce usable output. This blocks for the whole provider
@@ -254,7 +279,7 @@ octo_launch_advisors() {
     while [[ $index -lt ${#advisor_pids[@]} ]]; do
         pid="${advisor_pids[$index]}"
         response_file="${advisor_files[$index]}"
-        if wait "$pid" &&
+        if _octo_advisor_wait_spawn "$pid" "$deadline" &&
            _octo_advisor_collect "${advisor_events[$index]}" "${advisor_spawn_out[$index]}" \
                "$response_file" "$deadline"; then
             successful_count=$((successful_count + 1))
