@@ -77,6 +77,25 @@ Plus, usually:
 - Unit test in `tests/unit/test-<provider>-provider.sh`
 - `docs/DEVELOPER.md` / README provider tables
 
+## Cheaper Inference setup
+
+`cheaperinference-agent` uses the OpenAI-compatible tool-loop helper at
+`https://api.cheaperinference.com/v1`. Set `CHEAPER_INFERENCE_API_KEY` and
+choose a model supported by that gateway. No model is selected by default.
+
+Model selection uses `CHEAPER_INFERENCE_MODEL`, then
+`OCTOPUS_CHEAPERINFERENCE_MODEL`, then `OPENAI_COMPAT_MODEL`, then the string
+`providers.cheaperinference.default` in
+`~/.claude-octopus/config/providers.json`. Dispatch, health, detection and
+readiness use the same selection. An invalid explicit pin fails closed.
+Use `CHEAPER_INFERENCE_ALLOWED_MODELS` to restrict dispatch models.
+
+Read-only roles disable local tools. The child receives only its selected
+credential and the shared helper's approved runtime settings. This provider
+is excluded from Council. Local readiness does not prove model entitlement,
+tool support, quota or billed cost. See the [gateway API documentation](https://api.cheaperinference.com/docs)
+for its current model capabilities.
+
 ## Perplexity Agent API
 
 Perplexity requests use `POST /v1/agent`. Legacy Sonar model names map to

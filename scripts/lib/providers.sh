@@ -13,6 +13,7 @@ if ! declare -f _is_cursor_agent_binary >/dev/null 2>&1; then
 fi
 source "${_providers_lib_dir}/provider-allowlist.sh" 2>/dev/null || true
 source "${_providers_lib_dir}/provider-registry.sh" 2>/dev/null || true
+source "${_providers_lib_dir}/cheaperinference.sh" || return 1
 source "${_providers_lib_dir}/bounded-probe.sh" 2>/dev/null || true
 # Provider detection can run standalone in tests and helper scripts, before the
 # main orchestrator reaches its later provider-routing import. Load the shared
@@ -899,8 +900,8 @@ check_provider_health() {
                 echo "cheaperinference: CHEAPER_INFERENCE_API_KEY not set" >&2
                 return 1
             fi
-            if [[ -z "${CHEAPER_INFERENCE_MODEL:-}" && -z "${OCTOPUS_CHEAPERINFERENCE_MODEL:-}" && -z "${OPENAI_COMPAT_MODEL:-}" ]]; then
-                echo "cheaperinference: set CHEAPER_INFERENCE_MODEL or OCTOPUS_CHEAPERINFERENCE_MODEL before dispatch" >&2
+            if ! octo_cheaperinference_model >/dev/null; then
+                echo "cheaperinference: set a valid CHEAPER_INFERENCE_MODEL, OCTOPUS_CHEAPERINFERENCE_MODEL, or providers.json cheaperinference.default before dispatch" >&2
                 return 1
             fi
             ;;
@@ -1318,7 +1319,7 @@ detect_providers() {
         if [[ -z "${CHEAPER_INFERENCE_API_KEY:-}" ]]; then
             resolve_provider_env "CHEAPER_INFERENCE_API_KEY" 2>/dev/null
         fi
-        if [[ -n "${CHEAPER_INFERENCE_API_KEY:-}" ]] && { [[ -n "${CHEAPER_INFERENCE_MODEL:-}" ]] || [[ -n "${OCTOPUS_CHEAPERINFERENCE_MODEL:-}" ]] || [[ -n "${OPENAI_COMPAT_MODEL:-}" ]]; }; then
+        if [[ -n "${CHEAPER_INFERENCE_API_KEY:-}" ]] && octo_cheaperinference_model >/dev/null; then
             result="${result}cheaperinference:api-key "
         fi
     fi

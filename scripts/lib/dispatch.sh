@@ -2,6 +2,7 @@
 _profile_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_profile_lib_dir}/agent-spec.sh" 2>/dev/null || true
 source "${_profile_lib_dir}/provider-registry.sh" || { echo "dispatch: failed to load provider-registry.sh" >&2; return 1 2>/dev/null || exit 1; }
+source "${_profile_lib_dir}/cheaperinference.sh" || return 1
 if ! declare -f get_model_capability >/dev/null 2>&1; then
     source "${_profile_lib_dir}/models.sh" 2>/dev/null || true
 fi
@@ -598,11 +599,7 @@ get_agent_command() {
             if [[ "$agent_type" == *:* ]]; then
                 model="$(get_agent_model "$agent_type" "$phase" "$role")" || return 1
             else
-                model="${CHEAPER_INFERENCE_MODEL:-${OCTOPUS_CHEAPERINFERENCE_MODEL:-${OPENAI_COMPAT_MODEL:-}}}"
-                if [[ -z "$model" && -f "${HOME}/.claude-octopus/config/providers.json" ]] && command -v jq &>/dev/null; then
-                    model="$(jq -r '.providers.cheaperinference.default // empty' "${HOME}/.claude-octopus/config/providers.json" 2>/dev/null || true)"
-                fi
-                if [[ -z "$model" ]]; then
+                if ! model="$(octo_cheaperinference_model)"; then
                     log ERROR "CHEAPER_INFERENCE_MODEL, OCTOPUS_CHEAPERINFERENCE_MODEL, OPENAI_COMPAT_MODEL, or providers.json cheaperinference.default is required"
                     return 1
                 fi

@@ -21,6 +21,7 @@ _model_resolver_load_error() {
     fi
 }
 source "${_model_resolver_lib_dir}/provider-registry.sh" || { _model_resolver_load_error "failed to load provider-registry.sh"; return 1 2>/dev/null || exit 1; }
+source "${_model_resolver_lib_dir}/cheaperinference.sh" || return 1
 source "${_model_resolver_lib_dir}/kimi-model-name.sh" || { _model_resolver_load_error "failed to load kimi-model-name.sh"; return 1 2>/dev/null || exit 1; }
 if ! declare -f octo_model_cache_file >/dev/null 2>&1; then
     source "${_model_resolver_lib_dir}/model-cache-path.sh" 2>/dev/null || true
@@ -972,7 +973,7 @@ is_agent_available_v2() {
                 resolve_provider_env "CHEAPER_INFERENCE_API_KEY" 2>/dev/null || true
             fi
             [[ -n "${CHEAPER_INFERENCE_API_KEY:-}" ]] && \
-                { [[ -n "${CHEAPER_INFERENCE_MODEL:-}" ]] || [[ -n "${OCTOPUS_CHEAPERINFERENCE_MODEL:-}" ]] || [[ -n "${OPENAI_COMPAT_MODEL:-}" ]]; }
+                octo_cheaperinference_model >/dev/null
             ;;
         kimi|kimi-*)
             declare -f kimi_is_available >/dev/null 2>&1 && kimi_is_available
