@@ -820,6 +820,11 @@ octopus_probe_handle_signal() {
     exit "$exit_code"
 }
 
+probe_web_research_seat_enabled() {
+    [[ "${1:-}" == "deep" && -n "${PERPLEXITY_API_KEY:-}" ]] || return 1
+    { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed perplexity; }
+}
+
 # Phase 1: PROBE (Discover) - Parallel research with synthesis
 # Like an octopus probing with multiple tentacles simultaneously
 probe_discover() {
@@ -989,11 +994,13 @@ ${_blind_spot_checklist}"
 
     # v8.24.0: Web-grounded research via Perplexity Sonar (Issue #22)
     # Adds a live web search perspective when PERPLEXITY_API_KEY is available
-    if [[ "$research_intensity" == "deep" && -n "${PERPLEXITY_API_KEY:-}" ]]; then
+    if probe_web_research_seat_enabled "$research_intensity"; then
         perspectives+=("Search the live web for the latest information about: $prompt. Find recent articles, documentation, blog posts, GitHub repos, and community discussions. Include source URLs and publication dates. Focus on information from the last 12 months that may not be in training data.")
         pane_titles+=("🟣 Web Research")
         probe_agents+=("perplexity")
         log INFO "Perplexity API key detected - adding web-grounded research agent"
+    elif [[ "$research_intensity" == "deep" && -n "${PERPLEXITY_API_KEY:-}" ]]; then
+        log INFO "Perplexity web research seat skipped: disabled by provider allowlist"
     fi
 
     # Initialize progress tracking with actual agent count (dynamic, may be 5, 6, or 7)
