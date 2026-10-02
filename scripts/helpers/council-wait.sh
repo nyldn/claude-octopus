@@ -82,6 +82,7 @@ _resolve_run_dir() {
     # Otherwise the newest timestamped run dir (optionally created at/after --since).
     local d best="" order best_order=0
     for d in "$POOL"/2*/; do
+        (( SECONDS <= deadline )) || break
         [[ -d "$d" ]] || continue
         d="${d%/}"
         _eligible "$d" || continue
@@ -126,9 +127,12 @@ run_dir=""
 while :; do
     if [[ -z "$run_dir" || -n "$KEY" ]]; then run_dir="$(_resolve_run_dir || true)"; fi
     if [[ -n "$run_dir" ]] && _is_finished "$run_dir"; then
-        if [[ -n "$KEY" && "$(_resolve_run_dir || true)" != "$run_dir" ]]; then run_dir=""; continue; fi
-        printf '%s/summary.json\n' "$run_dir"
-        exit 0
+        if [[ -n "$KEY" && "$(_resolve_run_dir || true)" != "$run_dir" ]]; then
+            run_dir=""
+        else
+            printf '%s/summary.json\n' "$run_dir"
+            exit 0
+        fi
     fi
     remaining=$(( deadline - SECONDS ))
     (( remaining > 0 )) || break
