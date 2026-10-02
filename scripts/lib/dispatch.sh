@@ -1469,7 +1469,7 @@ get_agent_model() {
     # Auto-migrate stale model names on first call when the routing helper is
     # part of the current harness. dispatch.sh is also sourced independently by
     # hooks and compatibility tests, where the migration helper is optional.
-    if declare -F migrate_provider_config >/dev/null 2>&1; then
+    if [[ "${OCTOPUS_MODEL_READ_ONLY:-false}" != "true" ]] && declare -F migrate_provider_config >/dev/null 2>&1; then
         migrate_provider_config
     fi
 
