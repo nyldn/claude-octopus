@@ -50,6 +50,13 @@
   the first-party Anthropic API, and accepts disabled `--bare` when no environment
   API key is set. Missing or syntactically invalid smoke helpers produce failed
   diagnostic JSON instead of aborting output.
+- Research verification honours an annotated inference marker. A synthesis
+  line tagged `[inference — counted by glob]` or `[inference: ...]` failed
+  with `missing_citation`, because the verifier exempted only the exact text
+  `[inference]` while it already accepted any `[opinion ...]`. The repair pass
+  could not clear it, so a repo-grounded probe whose counts came from globbing
+  failed verification. `[inferences ...]` and other words that merely start
+  with "inference" still count as uncited.
 - The Perplexity provider now uses the Agent API directly. Sonar chat
   completions support ended on 2026-09-27; Perplexity is gradually
   reformulating synchronous and streaming Sonar calls as Agent API requests.

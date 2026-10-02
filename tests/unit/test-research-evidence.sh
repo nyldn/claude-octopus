@@ -801,4 +801,22 @@ else
     test_fail "unresolved citations were misreported: $unresolved_kinds"
 fi
 
+test_case "an annotated [inference ...] marker exempts a claim the way [opinion ...] does"
+annotated_draft="$RESEARCH_RUN_DIR/annotated-inference.md"
+{
+    printf '%s\n' '- There are 21 templates to edit [inference — counted by glob].'
+    printf '%s\n' '- Regeneration rewrites 60 deployments [inference: counted by glob].'
+    printf '%s\n' '- 17 monitor files would need the filter [inference].'
+    printf '%s\n' '- The 9 pods restart on every rollout [inferences are cheap].'
+    printf '%s\n' '- Regeneration touches 5 more files.'
+} > "$annotated_draft"
+annotated_status=0
+research_verify_synthesis "$annotated_draft" || annotated_status=$?
+annotated_kinds=$(jq -r '.checks[] | "\(.line):\(.kind)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$annotated_status" -ne 0 && "$annotated_kinds" == "4:missing_citation 5:missing_citation " ]]; then
+    test_pass
+else
+    test_fail "annotated inference markers were not honoured, or unmarked numbers escaped: $annotated_kinds"
+fi
+
 test_summary
