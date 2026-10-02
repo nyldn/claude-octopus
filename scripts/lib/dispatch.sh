@@ -604,7 +604,7 @@ get_agent_command() {
                     return 1
                 fi
             fi
-            if ! validate_model_name "$model"; then
+            if ! octo_cheaperinference_model "$model" >/dev/null; then
                 log ERROR "Invalid Cheaper Inference model name: ${model}"
                 return 1
             fi
@@ -612,7 +612,7 @@ get_agent_command() {
             ci_fallback=$(validate_model_allowed "cheaperinference" "$model")
             if [[ $? -ne 0 ]]; then
                 if [[ -n "$ci_fallback" ]]; then
-                    if ! validate_model_name "$ci_fallback"; then
+                    if ! octo_cheaperinference_model "$ci_fallback" >/dev/null; then
                         log ERROR "Invalid Cheaper Inference fallback model name"
                         return 1
                     fi

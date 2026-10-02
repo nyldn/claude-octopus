@@ -972,8 +972,12 @@ is_agent_available_v2() {
             if [[ -z "${CHEAPER_INFERENCE_API_KEY:-}" ]] && declare -f resolve_provider_env >/dev/null 2>&1; then
                 resolve_provider_env "CHEAPER_INFERENCE_API_KEY" 2>/dev/null || true
             fi
-            [[ -n "${CHEAPER_INFERENCE_API_KEY:-}" ]] && \
+            [[ "${CHEAPER_INFERENCE_API_KEY:-}" =~ [^[:space:]] ]] || return 1
+            if [[ "$agent" == *:* ]]; then
+                octo_cheaperinference_model "${agent#*:}" >/dev/null
+            else
                 octo_cheaperinference_model >/dev/null
+            fi
             ;;
         kimi|kimi-*)
             declare -f kimi_is_available >/dev/null 2>&1 && kimi_is_available

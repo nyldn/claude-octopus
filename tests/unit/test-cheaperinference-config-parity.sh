@@ -10,7 +10,7 @@ mkdir -p "$FAKE_HOME/.claude-octopus/config"
 CONFIG="$FAKE_HOME/.claude-octopus/config/providers.json"
 PROBE="$TEST_TMP_DIR/probe.sh"
 cat > "$PROBE" <<'PROBE'
-set -eu
+set -u
 root="$1"; action="$2"
 log() { :; }
 source "$root/scripts/lib/model-resolver.sh"
@@ -19,12 +19,12 @@ source "$root/scripts/lib/preflight.sh"
 PLUGIN_DIR="$root"
 PROVIDER_CODEX_INSTALLED=false
 case "$action" in
- available) is_agent_available_v2 cheaperinference-agent ;;
+ available) is_agent_available_v2 "${PROBE_AGENT:-cheaperinference-agent}" ;;
  health) check_provider_health cheaperinference ;;
  detection) detect_providers | grep -q 'cheaperinference:api-key' ;;
  readiness) _octo_provider_static_readiness cheaperinference | grep -q '^available|ready|' ;;
  dispatch) get_agent_command cheaperinference-agent review code-reviewer ;;
- qualified) get_agent_command cheaperinference-agent:vendor/pinned review code-reviewer ;;
+ qualified) get_agent_command "${PROBE_AGENT:-cheaperinference-agent:vendor/pinned}" review code-reviewer ;;
  model) octo_cheaperinference_model ;;
 esac
 PROBE
@@ -105,4 +105,30 @@ for action in available health detection readiness dispatch; do
     if probe "$action" >/dev/null 2>&1; then admitted=true; fi
 done
 if [[ "$admitted" == false ]]; then test_pass; else test_fail "missing model admitted"; fi
+test_case "qualified availability accepts an exact pin without another configured model"
+if probe available PROBE_AGENT=cheaperinference-agent:vendor/pinned >/dev/null 2>&1; then test_pass; else test_fail "qualified pin required a redundant default"; fi
+for model in '' $'vendor/\001' $'vendor/\177' 'bad;model'; do
+    test_case "invalid qualified pin fails availability and dispatch"
+    if probe available "PROBE_AGENT=cheaperinference-agent:$model" >/dev/null 2>&1 ||
+       probe qualified "PROBE_AGENT=cheaperinference-agent:$model" >/dev/null 2>&1; then
+        test_fail "invalid qualified pin admitted"
+    else
+        test_pass
+    fi
+done
+test_case "invalid allowlist fallback fails dispatch"
+if probe dispatch CHEAPER_INFERENCE_MODEL=vendor/blocked CHEAPER_INFERENCE_ALLOWED_MODELS=$'vendor/\001' >/dev/null 2>&1; then
+    test_fail "control-byte fallback admitted"
+else
+    test_pass
+fi
+test_case "valid bare allowlist fallback remains supported"
+if command_text="$(probe dispatch CHEAPER_INFERENCE_MODEL=vendor/blocked CHEAPER_INFERENCE_ALLOWED_MODELS=vendor/allowed 2>/dev/null)" &&
+   [[ "$command_text" == *'--model vendor/allowed'* ]]; then test_pass; else test_fail "valid fallback rejected"; fi
+test_case "whitespace-only key fails local admissions"
+admitted=false
+for action in available health detection readiness; do
+    if probe "$action" CHEAPER_INFERENCE_MODEL=vendor/model 'CHEAPER_INFERENCE_API_KEY=   ' >/dev/null 2>&1; then admitted=true; fi
+done
+if [[ "$admitted" == false ]]; then test_pass; else test_fail "blank key admitted"; fi
 test_summary

@@ -896,7 +896,7 @@ check_provider_health() {
             if [[ -z "${CHEAPER_INFERENCE_API_KEY:-}" ]]; then
                 resolve_provider_env "CHEAPER_INFERENCE_API_KEY" 2>/dev/null
             fi
-            if [[ -z "${CHEAPER_INFERENCE_API_KEY:-}" ]]; then
+            if [[ ! "${CHEAPER_INFERENCE_API_KEY:-}" =~ [^[:space:]] ]]; then
                 echo "cheaperinference: CHEAPER_INFERENCE_API_KEY not set" >&2
                 return 1
             fi
@@ -1319,7 +1319,7 @@ detect_providers() {
         if [[ -z "${CHEAPER_INFERENCE_API_KEY:-}" ]]; then
             resolve_provider_env "CHEAPER_INFERENCE_API_KEY" 2>/dev/null
         fi
-        if [[ -n "${CHEAPER_INFERENCE_API_KEY:-}" ]] && octo_cheaperinference_model >/dev/null; then
+        if [[ "${CHEAPER_INFERENCE_API_KEY:-}" =~ [^[:space:]] ]] && octo_cheaperinference_model >/dev/null; then
             result="${result}cheaperinference:api-key "
         fi
     fi
