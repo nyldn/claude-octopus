@@ -866,6 +866,23 @@ _marker_verification_case multiple-trailing-possessives-three "The users' and Ja
 _marker_verification_case closed-plural-literal-word-ending "There are 901 templates in users' counted [inference: estimated] files' as a literal." 1 'missing_citation '
 _marker_verification_case closed-plural-literal-adjacent-suffix "There are 901 templates in users' counted [inference: estimated]'suffix as a literal." 1 'missing_citation '
 _marker_verification_case ambiguous-paired-possessives "The users' 21 templates [inference: counted] and James' 21 templates." 1 'missing_citation '
+_marker_verification_case unicode-following-word "Les employés' évaluations include 21 templates [inference: counted]." 0
+_marker_verification_case unicode-following-inword-possessive "The users' José's 21 templates [inference: counted]." 0
+_marker_verification_case unicode-following-punctuation "There are 901 templates in users' —literal [inference: estimated]." 1 'missing_citation '
+_marker_verification_case unicode-following-emoji "There are 901 templates in users' 😀literal [inference: estimated]." 1 'missing_citation '
+_marker_verification_case closed-plural-literal-slash "There are 901 templates in users' counted [inference: estimated] files'/suffix as a literal." 1 'missing_citation '
+_marker_verification_case closed-plural-literal-dash "There are 901 templates in users' counted [inference: estimated] files'--suffix as a literal." 1 'missing_citation '
+_marker_verification_case closed-plural-literal-paren "There are 901 templates in users' counted [inference: estimated] files'(suffix) as a literal." 1 'missing_citation '
+_marker_verification_case closed-plural-literal-double-quote "There are 901 templates in users' counted [inference: estimated] files'\"suffix\" as a literal." 1 'missing_citation '
+_marker_verification_case closed-plural-literal-spaced-close "There are 901 templates in users' counted [inference: estimated] '/suffix as a literal." 1 'missing_citation '
+_marker_verification_case closed-plural-literal-escaped-interior "There are 901 templates in users' counted \\' [inference: estimated] files'/suffix as a literal." 1 'missing_citation '
+_marker_verification_case escaped-apostrophe-after-marker "The users' 21 templates [inference: counted] contain an escaped \\' apostrophe." 0
+_marker_verification_case closed-plural-literal-two-markers "There are 901 templates in users' counted [inference: one] and [inference: two] files'/suffix as a literal." 1 'missing_citation '
+_marker_verification_case marker-before-closed-plural-literal "There are 21 templates [inference: counted] containing users' counted [inference: literal] files'/suffix." 0
+_marker_verification_case marker-after-closed-plural-literal "There are 21 templates containing users' counted [inference: literal] files'/suffix [inference: counted]." 0
+_marker_verification_case genuine-quote-in-annotation "The users' 21 templates [inference: 'quoted annotation' counted]." 0
+_marker_verification_case annotation-s-quote-borrowed-close "There are 901 templates [inference: users' counted ]' text." 1 'missing_citation '
+_marker_verification_case annotation-s-quote-real-close "There are 21 templates [inference: users' counted ]' text]." 0
 _marker_verification_case adjacent-punctuation '- There are 21 templates [inference,counted by glob].' 0
 _marker_verification_case nonletter-delimiter '- There are 21 templates [inference2 passes of glob].' 0
 _marker_verification_case prefix '[inference: counted by glob] There are 21 templates.' 0

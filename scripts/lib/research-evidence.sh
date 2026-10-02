@@ -739,6 +739,9 @@ research_has_annotated_inference_marker() {
     while [[ "$lexical_line" =~ $word_apostrophe_pattern ]]; do
         lexical_line="${BASH_REMATCH[1]}\\'${BASH_REMATCH[2]}"
     done
+    # Flag ordinary following tokens in the text locale. The byte scanner
+    # cannot classify a UTF-8 first byte as alnum; punctuation gets no flag.
+    lexical_line=$(printf '%s\n' "$lexical_line" | sed -E "s/([sS])'([[:space:]]+)([[:alnum:]])/\\1'\\2A\\3/g")
     while IFS= read -r marker; do
         [[ "$marker" =~ $marker_pattern ]] && return 0
     done < <(printf '%s\n' "$lexical_line" | LC_ALL=C awk '
@@ -754,7 +757,7 @@ research_has_annotated_inference_marker() {
                     # number, not a label or punctuation after whitespace.
                     # Closed pairs around labels take priority over ambiguous
                     # possessive readings, including a later s apostrophe.
-                    if (c == "\047" && chars[i-1] ~ /[sS]/ &&
+                    if (c == "\047" && depth == 0 && chars[i-1] ~ /[sS]/ &&
                         chars[i+1] ~ /[[:space:]]/) {
                         next_word=i+1
                         while (chars[next_word] ~ /[[:space:]]/) next_word++
@@ -766,15 +769,10 @@ research_has_annotated_inference_marker() {
                             continue
                         }
                     }
-                    # An otherwise unpaired closing apostrophe makes the
-                    # earlier possessive-shaped opener a literal delimiter.
-                    # Defer emitting labels so that this pair cannot grant an
-                    # exemption retroactively. Quotes inside labels still use
-                    # the ordinary quote state above.
-                    if (c == "\047" && possessive &&
-                        chars[i-1] !~ /[[:space:]]/ &&
-                        (chars[i-1] ~ /[\]})]/ || i == size ||
-                         chars[i+1] ~ /[[:space:].,;:!?)]/)) {
+                    # Any unescaped apostrophe outside a label or ordinary
+                    # quote closes a provisional span. Defer emitting labels
+                    # so that closing it revokes all enclosed exemptions.
+                    if (c == "\047" && possessive && depth == 0) {
                         while (found && starts[found] > possessive) found--
                         possessive=0
                         continue
