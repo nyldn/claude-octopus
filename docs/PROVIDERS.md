@@ -87,7 +87,9 @@ Model selection uses `CHEAPER_INFERENCE_MODEL`, then
 `OCTOPUS_CHEAPERINFERENCE_MODEL`, then `OPENAI_COMPAT_MODEL`, then the string
 `providers.cheaperinference.default` in
 `~/.claude-octopus/config/providers.json`. Dispatch, health, detection and
-readiness use the same selection. An invalid explicit pin fails closed.
+readiness use the same selection. Qualified seats use their exact model pin
+without requiring another default. Invalid pins and allowlist fallbacks fail
+closed.
 Use `CHEAPER_INFERENCE_ALLOWED_MODELS` to restrict dispatch models.
 
 Read-only roles disable local tools. The child receives only its selected

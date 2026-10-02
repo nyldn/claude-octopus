@@ -4,9 +4,9 @@
 
 ### Added
 
-- Cheaper Inference is available as an OpenAI-compatible tool-loop provider
-  (`cheaperinference-agent`). Set `CHEAPER_INFERENCE_API_KEY` and
-  `CHEAPER_INFERENCE_MODEL` (for example `gpt-5.4-mini`) to enable it.
+- Cheaper Inference is available through `cheaperinference-agent`, an
+  OpenAI-compatible tool-loop provider. Set `CHEAPER_INFERENCE_API_KEY` and
+  an explicit model pin or configured default to enable it.
 - Spec and planning workflows keep distilled research, intent, decisions and
   stable task identities in portable feature directories. Existing root specs
   and Spec Kit layouts remain usable. `OCTOPUS_FEATURE_LAYOUT=legacy` retains
@@ -19,22 +19,11 @@
 
 ### Fixed
 
-- Council grounding now recognizes prose/table citations and stops counting
-  ungrounded "confident" approvals. A seat that quotes real source it read — but
-  cites in prose/table form without a `path:line` (e.g. "line 188", a Claim|Source
-  table) — is no longer false-flagged as blind: a new content-match arm counts a
-  distinctive quoted fragment that resolves verbatim in a source file under the
-  evidence root (sail-cruisey #2947). Conversely, a full-length review that makes
-  code-level claims but grounds none of them — only bare filenames and echoed
-  prompt numbers under "Assumptions", quoting no source — is now blinded and no
-  longer counts toward quorum (sail-cruisey #2931/#2921). The tally and the raw-body
-  rule share one gate (`council_response_has_grounding`): grounded = a validated
-  `path:line` OR a content-match. The gate is scoped to avoid over-blinding —
-  skipped in fixture mode, only with a live evidence root + validator, only for
-  full-length bodies (`OCTOPUS_COUNCIL_GROUNDING_MIN_CHARS`, default 700), and only
-  when the body makes code claims — so a short approval or a no-source-tree plan
-  review keeps the existing prose exemption.
-
+- Council recognizes distinctive quoted source text alongside validated
+  path-and-line citations. Full-length reviews with code claims need verified
+  grounding to count toward quorum. The quoted-source scan excludes private
+  files, outside symlinks and response self-matches, and bounds traversal and
+  reads. Short, fixture and no-source-tree reviews keep their prose exemption.
 - Review findings and debate documents preserve literal illegal backslash
   escapes during a JSON retry. Existing shape checks still reject malformed
   documents. Private temporary inputs preserve raw bytes for jq and are removed
