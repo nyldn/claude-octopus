@@ -240,6 +240,78 @@ else
     test_fail "$control_failures raw control-byte documents were accepted or emitted partial output"
 fi
 
+test_case "raw malformed UTF-8 follows direct jq on initial parse and donor repair on retry"
+utf8_failures=0
+for lead_byte in '\200' '\300' '\340' '\342' '\357' '\360' '\364' '\377'; do
+    for utf8_tail in b bc; do
+        for parse_path in initial retry; do
+            utf8_prefix=a
+            [[ "$parse_path" != retry ]] || utf8_prefix='\q'
+            printf '{"findings":[{"title":"%s%b%s"}]}' "$utf8_prefix" "$lead_byte" "$utf8_tail" > "$TEST_TMP_DIR/raw-utf8.json"
+            expected_rc=0
+            if [[ "$parse_path" == initial ]]; then
+                jq -cse '.[0]' < "$TEST_TMP_DIR/raw-utf8.json" > "$TEST_TMP_DIR/utf8-expected.out" 2>/dev/null || expected_rc=$?
+            else
+                review_repair_json_escapes < "$TEST_TMP_DIR/raw-utf8.json" |
+                    jq -cse '.[0]' > "$TEST_TMP_DIR/utf8-expected.out" 2>/dev/null || expected_rc=$?
+            fi
+            actual_rc=0
+            review_normalize_findings_json < "$TEST_TMP_DIR/raw-utf8.json" > "$TEST_TMP_DIR/utf8-actual.out" 2>/dev/null || actual_rc=$?
+            if [[ "$actual_rc" != "$expected_rc" ]] ||
+               ! cmp -s "$TEST_TMP_DIR/utf8-expected.out" "$TEST_TMP_DIR/utf8-actual.out"; then
+                utf8_failures=$((utf8_failures + 1))
+            fi
+        done
+    done
+done
+if [[ "$utf8_failures" -eq 0 ]]; then
+    test_pass
+else
+    test_fail "$utf8_failures malformed UTF-8 cases changed parser status or output"
+fi
+
+test_case "provider JSON temporary input stays private and is removed after success and rejection"
+json_scratch="$TEST_TMP_DIR/json-scratch"
+mkdir -p "$json_scratch"
+json_temp_audit="$TEST_TMP_DIR/json-temp-audit"
+if (
+    trap 'printf caller > "$TEST_TMP_DIR/caller-exit.out"' EXIT
+    outer_exit_trap="$(trap -p EXIT)"
+    mktemp() {
+        local created
+        created="$(command mktemp "$@")" || return 1
+        [[ -n "$(find "$created" -perm 600)" ]] || return 1
+        printf '%s\n' "$created" >> "$json_temp_audit"
+        printf '%s\n' "$created"
+    }
+    TMPDIR="$json_scratch" review_normalize_findings_json < "$illegal_escape_file" > "$TEST_TMP_DIR/temp-success.out" || exit 1
+    [[ "$(trap -p EXIT)" == "$outer_exit_trap" ]] || exit 1
+    [[ -z "$(find "$json_scratch" -type f -print)" ]] || exit 1
+    if TMPDIR="$json_scratch" review_normalize_findings_json < "$TEST_TMP_DIR/raw-control.json" > "$TEST_TMP_DIR/temp-failure.out" 2>/dev/null; then exit 1; fi
+    [[ "$(trap -p EXIT)" == "$outer_exit_trap" ]] || exit 1
+    [[ ! -s "$TEST_TMP_DIR/temp-failure.out" && -z "$(find "$json_scratch" -type f -print)" ]]
+) && [[ "$(wc -l < "$json_temp_audit" | tr -d ' ')" == 2 ]] &&
+   [[ "$(cat "$TEST_TMP_DIR/caller-exit.out")" == caller ]]; then
+    test_pass
+else
+    test_fail "temporary input permissions, cleanup, or caller EXIT trap changed"
+fi
+
+test_case "provider JSON temporary input creation and read failures emit nothing and clean up"
+if (
+    mktemp() { return 1; }
+    if review_normalize_findings_json < "$illegal_escape_file" > "$TEST_TMP_DIR/temp-create-failure.out" 2>/dev/null; then exit 1; fi
+    [[ ! -s "$TEST_TMP_DIR/temp-create-failure.out" ]]
+) && (
+    cat() { printf '%s' '{"findings":[]}'; return 1; }
+    if TMPDIR="$json_scratch" review_normalize_findings_json < /dev/null > "$TEST_TMP_DIR/temp-read-failure.out" 2>/dev/null; then exit 1; fi
+    [[ ! -s "$TEST_TMP_DIR/temp-read-failure.out" && -z "$(find "$json_scratch" -type f -print)" ]]
+); then
+    test_pass
+else
+    test_fail "temporary input creation or read failure was accepted, emitted output, or left a file"
+fi
+
 test_case "escape retry keeps provider answers out of jq arguments"
 jq_argv_file="$TEST_TMP_DIR/jq-arguments.txt"
 : > "$jq_argv_file"

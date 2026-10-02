@@ -37,7 +37,8 @@
 
 - Review findings and debate documents preserve literal illegal backslash
   escapes during a JSON retry. Existing shape checks still reject malformed
-  documents, including raw NUL bytes that Bash would otherwise discard.
+  documents. Private temporary inputs preserve raw bytes for jq and are removed
+  after parsing, including on failure.
 - The Perplexity provider now uses the Agent API directly. Sonar chat
   completions support ended on 2026-09-27; Perplexity is gradually
   reformulating synchronous and streaming Sonar calls as Agent API requests.

@@ -1100,16 +1100,19 @@ review_repair_json_escapes() {
     jq -Rrs 'gsub("\\\\(?<escape>[\"\\\\/bfnrt]|u[0-9A-Fa-f]{4})?"; if .escape then "\\" + .escape else "\\\\" end)'
 }
 
-review_slurp_provider_json() {
-    local filter="$1" input
-    # Encode stdin before storing it in Bash so raw NULs reach jq unchanged.
-    input=$(jq -Rs .) || return 1
-    if printf '%s' "$input" | jq -r . | jq -s empty >/dev/null 2>&1; then
-        printf '%s' "$input" | jq -r . | jq -cse "$filter"
+review_slurp_provider_json() (
+    local filter="$1" input_file
+    # Keep raw bytes out of Bash variables and leave the caller's traps intact.
+    umask 077
+    input_file=$(mktemp "${TMPDIR:-/tmp}/octopus-review-json.XXXXXX") || return 1
+    trap 'rm -f "$input_file"' EXIT
+    cat > "$input_file" || return 1
+    if jq -s empty < "$input_file" >/dev/null 2>&1; then
+        jq -cse "$filter" < "$input_file"
     else
-        printf '%s' "$input" | jq -r . | review_repair_json_escapes | jq -cse "$filter"
+        review_repair_json_escapes < "$input_file" | jq -cse "$filter"
     fi
-}
+)
 
 # Provider output is untrusted and may contain multiple top-level JSON values.
 # Canonicalize exactly one findings document before any arithmetic, rendering,
