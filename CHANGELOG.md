@@ -55,7 +55,8 @@
   API key is set. Missing or syntactically invalid smoke helpers produce failed
   diagnostic JSON instead of aborting output. Local host-version discovery is
   bounded for version-dependent checks and reports command failure. Missing
-  optional host CLIs warn; help and unrelated categories skip discovery.
+  optional host CLIs warn. Version diagnostics follow the selected category;
+  help and unrelated categories skip discovery.
 - Research verification rejects a citation whose source ID is absent from
   the source catalog. The diagnostic now increments the failure count, so an
   unknown citation cannot leave the report passed or publish the synthesis.

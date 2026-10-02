@@ -2107,11 +2107,11 @@ do_doctor() {
         OCTOPUS_SKIP_PROVIDER_PROBES=true detect_claude_code_version 2>/dev/null || version_status=$?
         if [[ "$version_status" -ne 0 ]]; then
             if [[ "${_octo_host_version_probe_attempted:-true}" == false ]]; then
-                doctor_add "host-version-detection" "config" "warn" \
+                doctor_add "host-version-detection" "${category_filter:-config}" "warn" \
                     "Host CLI unavailable; version was not checked" \
                     "Install the host CLI to enable version-dependent diagnostics."
             else
-                doctor_add "host-version-detection" "config" "fail" \
+                doctor_add "host-version-detection" "${category_filter:-config}" "fail" \
                     "Host version discovery failed (exit $version_status)" \
                     "Local --version check bounded to $(_octo_bare_probe_timeout "${OCTOPUS_VERSION_PROBE_TIMEOUT:-5}")s"
             fi

@@ -65,6 +65,14 @@ row_is() {
     ' "$TEST_TMP_DIR/result.json" >/dev/null
 }
 
+version_category_matches() {
+    local selected="$1"
+    jq -e --arg selected "$selected" --arg category "${selected:-config}" '
+        any(.results[]; .name == "host-version-detection" and .category == $category)
+        and ($selected == "" or all(.results[]; .category == $selected))
+    ' "$TEST_TMP_DIR/result.json" >/dev/null
+}
+
 test_case "standalone JSON detects Claude version and removes the false deadlock warning"
 run_doctor ""
 if [[ ! -e "$fixture_home/.claude-octopus/plugin" && ! -L "$fixture_home/.claude-octopus/plugin" ]] &&
@@ -81,11 +89,12 @@ for version_mode in error malformed; do
     test_case "version discovery $version_mode produces failed JSON"
     run_doctor smoke "DOCTOR_VERSION_MODE=$version_mode" 'OCTOPUS_VERSION_PROBE_TIMEOUT=1'
     if [[ "$DOCTOR_FIXTURE_STATUS" == 1 ]] && row_is host-version-detection fail 'Host version discovery failed' &&
+       version_category_matches smoke &&
        diff -r --no-dereference "$TEST_TMP_DIR/initial-home" "$fixture_home" &&
        diff -r "$TEST_TMP_DIR/initial-tmp" "$TEST_TMP_DIR/tmp"; then
         test_pass
     else
-        test_fail "version discovery failure was swallowed"
+        test_fail "version failure or requested category was not preserved"
     fi
 done
 
@@ -113,16 +122,17 @@ for version_category in config skills agents ""; do
     : > "$TEST_TMP_DIR/claude-calls"
     run_doctor "$version_category" 'DOCTOR_VERSION_MODE=error'
     if [[ "$DOCTOR_FIXTURE_STATUS" == 1 ]] && row_is host-version-detection fail 'exit 23' &&
+       version_category_matches "$version_category" &&
        grep -Fxq -- '--version' "$TEST_TMP_DIR/claude-calls"; then test_pass
-    else test_fail "version-dependent diagnostics suppressed a performed failure"; fi
+    else test_fail "version-dependent diagnostics lost a failure or its requested category"; fi
 done
 
 test_case "an installed version command returning 127 remains a failure"
 run_doctor smoke 'DOCTOR_VERSION_MODE=error127'
-if [[ "$DOCTOR_FIXTURE_STATUS" == 1 ]] && row_is host-version-detection fail 'exit 127'; then test_pass
-else test_fail "performed command failure was treated as an absent optional client"; fi
+if [[ "$DOCTOR_FIXTURE_STATUS" == 1 ]] && row_is host-version-detection fail 'exit 127' && version_category_matches smoke; then test_pass
+else test_fail "performed command failure or requested category was not preserved"; fi
 
-for missing_category in smoke ""; do
+for missing_category in smoke config skills agents ""; do
     test_case "${missing_category:-default} diagnostics warn when optional host CLI is absent"
     # A global fallback prevents an isolated missing-client fixture.
     if [[ -x /usr/local/bin/claude ]]; then
@@ -136,8 +146,9 @@ for missing_category in smoke ""; do
     missing_failure=false
     row_is host-version-detection fail '' && missing_failure=true
     mv "$TEST_TMP_DIR/claude-saved" "$MOCK_BIN_DIR/claude"
-    if [[ "$missing_warning" == true && "$missing_failure" == false ]]; then test_pass
-    else test_fail "an absent optional client was reported as a performed command failure"; fi
+    if [[ "$missing_warning" == true && "$missing_failure" == false ]] &&
+       version_category_matches "$missing_category"; then test_pass
+    else test_fail "optional-client warning or requested category was not preserved"; fi
 done
 
 test_case "stalled version discovery reports timeout and cancels its late write"
@@ -145,10 +156,10 @@ version_late="$TEST_TMP_DIR/version-late"
 run_doctor smoke 'DOCTOR_VERSION_MODE=stall' 'OCTOPUS_VERSION_PROBE_TIMEOUT=1' "DOCTOR_VERSION_LATE=$version_late"
 if [[ "$DOCTOR_FIXTURE_STATUS" == 1 ]] && row_is host-version-detection fail 'exit 124'; then
     sleep 2.3
-    if [[ ! -e "$version_late" ]] &&
+    if [[ ! -e "$version_late" ]] && version_category_matches smoke &&
        diff -r --no-dereference "$TEST_TMP_DIR/initial-home" "$fixture_home" &&
        diff -r "$TEST_TMP_DIR/initial-tmp" "$TEST_TMP_DIR/tmp"; then test_pass
-    else test_fail "timed-out version process wrote after discovery"; fi
+    else test_fail "version timeout, category, or local-state assertion failed"; fi
 else
     test_fail "stalled version discovery did not produce a timeout failure"
 fi
@@ -213,14 +224,14 @@ mv "$MOCK_BIN_DIR/claude" "$TEST_TMP_DIR/claude-saved"
 run_doctor smoke 'OCTOPUS_HOST=factory' 'OCTOPUS_VERSION_PROBE_TIMEOUT=1' "DOCTOR_VERSION_LATE=$TEST_TMP_DIR/droid-late"
 factory_status="$DOCTOR_FIXTURE_STATUS"
 factory_timeout=false
-row_is host-version-detection fail 'exit 124' && factory_timeout=true
+row_is host-version-detection fail 'exit 124' && version_category_matches smoke && factory_timeout=true
 mv "$TEST_TMP_DIR/claude-saved" "$MOCK_BIN_DIR/claude"
 rm "$MOCK_BIN_DIR/droid"
 sleep 2.3
 if [[ "$factory_status" == 1 && "$factory_timeout" == true && ! -e "$TEST_TMP_DIR/droid-late" ]] &&
    diff -r --no-dereference "$TEST_TMP_DIR/initial-home" "$fixture_home" &&
    diff -r "$TEST_TMP_DIR/initial-tmp" "$TEST_TMP_DIR/tmp"; then test_pass
-else test_fail "Factory version timeout failed or changed local state"; fi
+else test_fail "Factory version timeout, category, or local-state assertion failed"; fi
 
 test_case "doctor finds an expired smoke cache"
 printf '0\nstale-key\n0\n' > "$fixture_home/.claude-octopus/.smoke-test-cache"
