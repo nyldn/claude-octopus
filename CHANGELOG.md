@@ -35,6 +35,9 @@
   when the body makes code claims — so a short approval or a no-source-tree plan
   review keeps the existing prose exemption.
 
+- Review findings and debate documents preserve literal illegal backslash
+  escapes during a JSON retry. Existing shape checks still reject malformed
+  documents, including raw NUL bytes that Bash would otherwise discard.
 - The Perplexity provider now uses the Agent API directly. Sonar chat
   completions support ended on 2026-09-27; Perplexity is gradually
   reformulating synchronous and streaming Sonar calls as Agent API requests.

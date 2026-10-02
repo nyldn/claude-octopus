@@ -1102,11 +1102,12 @@ review_repair_json_escapes() {
 
 review_slurp_provider_json() {
     local filter="$1" input
-    input=$(cat)
-    if printf '%s' "$input" | jq -s empty >/dev/null 2>&1; then
-        printf '%s' "$input" | jq -cse "$filter"
+    # Encode stdin before storing it in Bash so raw NULs reach jq unchanged.
+    input=$(jq -Rs .) || return 1
+    if printf '%s' "$input" | jq -r . | jq -s empty >/dev/null 2>&1; then
+        printf '%s' "$input" | jq -r . | jq -cse "$filter"
     else
-        printf '%s' "$input" | review_repair_json_escapes | jq -cse "$filter"
+        printf '%s' "$input" | jq -r . | review_repair_json_escapes | jq -cse "$filter"
     fi
 }
 
