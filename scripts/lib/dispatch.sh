@@ -1541,6 +1541,11 @@ get_agent_model() {
                 log ERROR "Invalid fallback model name for $provider"
                 return 1
             fi
+            if [[ "$provider" == cheaperinference ]] &&
+               ! octo_cheaperinference_model "$fallback" >/dev/null; then
+                log ERROR "Invalid Cheaper Inference fallback model name"
+                return 1
+            fi
             if ! octo_model_automatic_target_allowed "$fallback" "$provider"; then
                 log ERROR "Restriction fallback '$fallback' requires an explicit model selection"
                 return 1

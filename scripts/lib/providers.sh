@@ -900,7 +900,9 @@ check_provider_health() {
                 echo "cheaperinference: CHEAPER_INFERENCE_API_KEY not set" >&2
                 return 1
             fi
-            if ! octo_cheaperinference_model >/dev/null; then
+            local ci_health_model="$resolved_model"
+            [[ -n "$ci_health_model" ]] || ci_health_model="$(octo_cheaperinference_model 2>/dev/null || true)"
+            if ! octo_cheaperinference_model "$ci_health_model" >/dev/null; then
                 echo "cheaperinference: set a valid CHEAPER_INFERENCE_MODEL, OCTOPUS_CHEAPERINFERENCE_MODEL, or providers.json cheaperinference.default before dispatch" >&2
                 return 1
             fi

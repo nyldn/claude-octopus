@@ -36,7 +36,7 @@ attempt=0
 attempt=$((attempt + 1))
 printf '%s\n' "$attempt" >> "$FIXTURE_CALLS"
 case "$FIXTURE_SCENARIO" in
-    success|kimi-success|council-global-budget|council-default-budget) printf '%s\n' 'Substantive provider result.' ;;
+    success|cheaper-native|cheaper-qualified|kimi-success|council-global-budget|council-default-budget) printf '%s\n' 'Substantive provider result.' ;;
     exact-seat|contract-marker-input)
         cat > "$FIXTURE_ROOT/received-prompt"
         printf '%s\n' 'Substantive provider result.'
@@ -527,6 +527,49 @@ if [[ "$(cat "$TEST_TMP_DIR/agy-pin/executed-agy-model" 2>/dev/null || true)" ==
     test_pass
 else
     test_fail "AGY execution model and lifecycle model diverged: executed=[$(cat "$TEST_TMP_DIR/agy-pin/executed-agy-model" 2>/dev/null || true)] lifecycle-model=[$(jq -r '.seats[0].resolved.model' "$agy_pin_snapshot" 2>/dev/null || true)] lifecycle-provider=[$(jq -r '.seats[0].resolved.provider' "$agy_pin_snapshot" 2>/dev/null || true)]"
+fi
+
+
+test_case "Cheaper Inference native and qualified pins reach the real synchronous runner"
+if (
+    fixture_persona_definition="$(declare -f apply_persona)"
+    fixture_budget_definition="$(declare -f enforce_context_budget)"
+    fixture_env_definition="$(declare -f build_provider_env)"
+    source "$PROJECT_ROOT/scripts/lib/model-resolver.sh"
+    source "$PROJECT_ROOT/scripts/lib/dispatch.sh"
+    source "$PROJECT_ROOT/scripts/lib/providers.sh"
+    eval "$fixture_persona_definition"
+    eval "$fixture_budget_definition"
+    eval "$fixture_env_definition"
+    eval "$(declare -f get_agent_command | sed '1s/get_agent_command/_cheaper_actual_get_agent_command/')"
+    get_agent_command() {
+        local actual
+        actual="$(_cheaper_actual_get_agent_command "$@")" || return 1
+        printf '%s\n' "${actual/${PLUGIN_DIR}\/scripts\/helpers\/openai-compatible-agent.py/$fixture_provider}"
+    }
+    get_provider_context_limit() { printf '10000\n'; }
+    export HOME="$TEST_TMP_DIR/cheaper-home"
+    export CHEAPER_INFERENCE_API_KEY=fixture-key
+    export CHEAPER_INFERENCE_MODEL=vendor/exact-model
+    unset OCTOPUS_CHEAPERINFERENCE_MODEL OPENAI_COMPAT_MODEL OCTOPUS_PROVIDERS_CONFIG
+    PLUGIN_DIR="$PROJECT_ROOT"
+    mkdir -p "$HOME"
+    run_fixture cheaper-native cheaperinference-agent review 10
+    native_ledger="$FIXTURE_ROOT/workspace/runs/sync-cheaper-native/seats.jsonl"
+    if [[ "$fixture_rc" != 0 ]]; then printf 'Native fixture rc=%s\n' "$fixture_rc"; cat "$FIXTURE_ROOT/stderr"; fi
+    [[ "$fixture_rc" == 0 && -s "$FIXTURE_CALLS" ]] &&
+        jq -e 'select(.transition == "starting" and .resolved.model == "vendor/exact-model")' "$native_ledger" >/dev/null &&
+        jq -e 'select(.transition == "contributed" and .resolved.model == "vendor/exact-model")' "$native_ledger" >/dev/null || exit 1
+    export CHEAPER_INFERENCE_MODEL='bad;model'
+    run_fixture cheaper-qualified cheaperinference-agent:vendor/pinned review 10
+    qualified_ledger="$FIXTURE_ROOT/workspace/runs/sync-cheaper-qualified/seats.jsonl"
+    if [[ "$fixture_rc" != 0 ]]; then printf 'Qualified fixture rc=%s\n' "$fixture_rc"; cat "$FIXTURE_ROOT/stderr"; fi
+    [[ "$fixture_rc" == 0 && -s "$FIXTURE_CALLS" ]] &&
+        jq -e 'select(.transition == "contributed" and .resolved.model == "vendor/pinned")' "$qualified_ledger" >/dev/null
+); then
+    test_pass
+else
+    test_fail "native model pin failed before real synchronous dispatch"
 fi
 
 test_summary

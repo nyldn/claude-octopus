@@ -244,6 +244,9 @@ validate_model_name_for_provider() {
         anthropic-api)
             case "$model" in claude-sonnet-5-5|claude-opus-5-5) return 0 ;; *) return 1 ;; esac
             ;;
+        cheaperinference)
+            octo_cheaperinference_model "$model" >/dev/null
+            ;;
         kimi)
             validate_kimi_model_name "$model"
             ;;
@@ -388,6 +391,10 @@ resolve_octopus_model() {
         antigravity|agy-research|gemini|gemini-*) canonical_provider="agy" ;;
     esac
     provider="$canonical_provider"
+    if [[ "$canonical_provider" == cheaperinference ]]; then
+        octo_cheaperinference_model
+        return $?
+    fi
     local env_var
     if declare -f octo_provider_model_env >/dev/null 2>&1; then
         env_var="$(octo_provider_model_env "$canonical_provider")" || return 1

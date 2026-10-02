@@ -86,7 +86,8 @@ choose a model supported by that gateway. No model is selected by default.
 Model selection uses `CHEAPER_INFERENCE_MODEL`, then
 `OCTOPUS_CHEAPERINFERENCE_MODEL`, then `OPENAI_COMPAT_MODEL`, then the string
 `providers.cheaperinference.default` in
-`~/.claude-octopus/config/providers.json`. Dispatch, health, detection and
+`~/.claude-octopus/config/providers.json`. `OCTOPUS_PROVIDERS_CONFIG` can select
+another file. Native model resolution, dispatch, health, detection and
 readiness use the same selection. Qualified seats use their exact model pin
 without requiring another default. Invalid pins and allowlist fallbacks fail
 closed.
