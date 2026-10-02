@@ -849,6 +849,23 @@ _marker_verification_case possessive-then-marker "The value's 21 templates [infe
 _marker_verification_case adjacent-quote-then-marker "There are 21 templates in value'[inference: literal]' [inference: estimated]." 0
 _marker_verification_case unicode-adjacent-quote "There are 901 templates containing é'[inference: counted by glob]' as a literal value." 1 'missing_citation '
 _marker_verification_case unicode-punctuation-quote "There are 901 templates containing —'count [inference: counted by glob]' as a literal value." 1 'missing_citation '
+_marker_verification_case plural-ascii "The users' 21 templates [inference: counted]." 0
+_marker_verification_case name-possessive "James' 21 templates [inference: counted]." 0
+_marker_verification_case plural-unicode "Les employés' 21 templates [inference: counted]." 0
+_marker_verification_case multiple-trailing-possessives "The users' and James' 21 templates [inference: counted]." 0
+_marker_verification_case plural-quoted-annotation "The users' 21 templates [inference: counted 'template' entries]." 0
+_marker_verification_case plural-double-quoted-annotation "The users' 21 templates [inference: counted \"template\" entries]." 0
+_marker_verification_case closed-plural-literal "There are 901 templates in users' counted [inference: estimated]' as a literal." 1 'missing_citation '
+_marker_verification_case closed-plural-literal-then-marker "There are 21 templates in users' counted [inference: literal]' [inference: estimated]." 0
+_marker_verification_case adjacent-spaced-quote "There are 901 templates in value' [inference: estimated]' as a literal." 1 'missing_citation '
+_marker_verification_case adjacent-spaced-unclosed-quote "There are 901 templates in value' [inference: estimated] as a literal." 1 'missing_citation '
+_marker_verification_case numeric-spaced-unclosed-quote "There are 901 templates in 7' [inference: estimated] as a literal." 1 'missing_citation '
+_marker_verification_case plural-spaced-label-quote "There are 901 templates in users' [inference: estimated]' as a literal." 1 'missing_citation '
+_marker_verification_case plural-spaced-label-unclosed-quote "There are 901 templates in users' [inference: estimated] as a literal." 1 'missing_citation '
+_marker_verification_case multiple-trailing-possessives-three "The users' and James' and employés' 21 templates [inference: counted]." 0
+_marker_verification_case closed-plural-literal-word-ending "There are 901 templates in users' counted [inference: estimated] files' as a literal." 1 'missing_citation '
+_marker_verification_case closed-plural-literal-adjacent-suffix "There are 901 templates in users' counted [inference: estimated]'suffix as a literal." 1 'missing_citation '
+_marker_verification_case ambiguous-paired-possessives "The users' 21 templates [inference: counted] and James' 21 templates." 1 'missing_citation '
 _marker_verification_case adjacent-punctuation '- There are 21 templates [inference,counted by glob].' 0
 _marker_verification_case nonletter-delimiter '- There are 21 templates [inference2 passes of glob].' 0
 _marker_verification_case prefix '[inference: counted by glob] There are 21 templates.' 0

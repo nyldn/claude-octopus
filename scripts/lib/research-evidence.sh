@@ -743,17 +743,47 @@ research_has_annotated_inference_marker() {
         [[ "$marker" =~ $marker_pattern ]] && return 0
     done < <(printf '%s\n' "$lexical_line" | LC_ALL=C awk '
         {
-            depth=0; candidate=0; quote=""; ticks=0
-            for (i=1; i<=length($0); i++) {
-                c=substr($0,i,1)
+            depth=0; candidate=0; quote=""; ticks=0; possessive=0; found=0
+            size=split($0, chars, "")
+            for (i=1; i<=size; i++) {
+                c=chars[i]
                 if (c == "\\") { i++; continue }
                 if (ticks == 0 && quote != "" && c == quote) { quote=""; continue }
                 if (ticks == 0 && quote == "" && (c == "\"" || c == "\047")) {
+                    # A terminal s possessive introduces an ordinary word or
+                    # number, not a label or punctuation after whitespace.
+                    # Closed pairs around labels take priority over ambiguous
+                    # possessive readings, including a later s apostrophe.
+                    if (c == "\047" && chars[i-1] ~ /[sS]/ &&
+                        chars[i+1] ~ /[[:space:]]/) {
+                        next_word=i+1
+                        while (chars[next_word] ~ /[[:space:]]/) next_word++
+                        if (chars[next_word] ~ /[[:alnum:]]/) {
+                            if (possessive && found && starts[found] > possessive) {
+                                while (found && starts[found] > possessive) found--
+                                possessive=0
+                            } else if (!possessive) possessive=i
+                            continue
+                        }
+                    }
+                    # An otherwise unpaired closing apostrophe makes the
+                    # earlier possessive-shaped opener a literal delimiter.
+                    # Defer emitting labels so that this pair cannot grant an
+                    # exemption retroactively. Quotes inside labels still use
+                    # the ordinary quote state above.
+                    if (c == "\047" && possessive &&
+                        chars[i-1] !~ /[[:space:]]/ &&
+                        (chars[i-1] ~ /[\]})]/ || i == size ||
+                         chars[i+1] ~ /[[:space:].,;:!?)]/)) {
+                        while (found && starts[found] > possessive) found--
+                        possessive=0
+                        continue
+                    }
                     quote=c; continue
                 }
                 if (quote == "" && c == "`") {
                     run=1
-                    while (substr($0,i+run,1) == "`") run++
+                    while (chars[i+run] == "`") run++
                     if (ticks == 0) ticks=run
                     else if (ticks == run) ticks=0
                     i+=run-1; continue
@@ -761,16 +791,20 @@ research_has_annotated_inference_marker() {
                 if (quote != "" || ticks != 0) continue
                 if (c == "[") {
                     if (depth == 0) {
-                        delimiter=substr($0,i+10,1)
+                        delimiter=chars[i+10]
                         candidate=(substr($0,i,10) == "[inference" && delimiter != "" && delimiter != "]")
                         start=i
                     } else candidate=0
                     depth++
                 } else if (c == "]" && depth > 0) {
-                    if (depth == 1 && candidate) print substr($0,start,i-start+1)
+                    if (depth == 1 && candidate) {
+                        starts[++found]=start
+                        markers[found]=substr($0,start,i-start+1)
+                    }
                     depth--
                 }
             }
+            for (j=1; j<=found; j++) print markers[j]
         }
     ')
     return 1
