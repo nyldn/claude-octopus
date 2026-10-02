@@ -36,7 +36,7 @@ grok_cancel() {
 trap 'grok_cancel 143' TERM
 trap 'grok_cancel 130' INT
 [[ -t 0 ]] || cat > "$prompt_file"
-if ! LC_ALL=C grep -q '[^[:space:]]' "$prompt_file"; then
+if ! LC_ALL=C grep -c '[^[:space:]]' "$prompt_file" >/dev/null; then
     # Standalone shim (exec'd by dispatch.sh) — matches vibe-exec.sh / agy-exec.sh
     # which also use raw echo>&2 for startup validation (no shared logger in scope).
     echo "grok-exec: no prompt provided on stdin" >&2
