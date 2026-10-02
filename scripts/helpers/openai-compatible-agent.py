@@ -19,6 +19,12 @@ PROVIDERS = {
         "model": "",
         "headers": {},
     },
+    "cheaperinference": {
+        "base_url": "https://api.cheaperinference.com/v1",
+        "api_key_env": "CHEAPER_INFERENCE_API_KEY",
+        "model": "",
+        "headers": {},
+    },
 }
 
 
@@ -323,10 +329,17 @@ def main() -> int:
     key_env = args.api_key_env or os.environ.get("OPENAI_COMPAT_API_KEY_ENV") or cfg["api_key_env"]
     if args.provider == "atlascloud":
         model = args.model or os.environ.get("ATLASCLOUD_MODEL") or os.environ.get("OCTOPUS_ATLASCLOUD_MODEL") or os.environ.get("OPENAI_COMPAT_MODEL") or cfg["model"]
+    elif args.provider == "cheaperinference":
+        model = args.model or os.environ.get("CHEAPER_INFERENCE_MODEL") or os.environ.get("OCTOPUS_CHEAPERINFERENCE_MODEL") or os.environ.get("OPENAI_COMPAT_MODEL") or cfg["model"]
     else:
         model = args.model or os.environ.get("OPENAI_COMPAT_MODEL") or cfg["model"]
     if not model:
-        model_hint = "ATLASCLOUD_MODEL, OCTOPUS_ATLASCLOUD_MODEL, OPENAI_COMPAT_MODEL, or --model" if args.provider == "atlascloud" else "OPENAI_COMPAT_MODEL or --model"
+        if args.provider == "atlascloud":
+            model_hint = "ATLASCLOUD_MODEL, OCTOPUS_ATLASCLOUD_MODEL, OPENAI_COMPAT_MODEL, or --model"
+        elif args.provider == "cheaperinference":
+            model_hint = "CHEAPER_INFERENCE_MODEL, OCTOPUS_CHEAPERINFERENCE_MODEL, OPENAI_COMPAT_MODEL, or --model"
+        else:
+            model_hint = "OPENAI_COMPAT_MODEL or --model"
         print(f"ERROR: missing {model_hint}", file=sys.stderr); return 2
     try:
         validate_chat_model(model, args.reasoning_effort, args.tool_policy)

@@ -296,7 +296,7 @@ _validate_openai_compatible_agent_command() {
             --provider)
                 [[ -z "$provider" ]] || return 1
                 case "$value" in
-                    generic|atlascloud) provider="$value" ;;
+                    generic|atlascloud|cheaperinference) provider="$value" ;;
                     *) return 1 ;;
                 esac
                 ;;

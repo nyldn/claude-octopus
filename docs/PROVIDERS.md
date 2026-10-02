@@ -146,7 +146,7 @@ Use `VERTEXAI_API_KEY` or `GOOGLE_API_KEY` inside the selected provider's
 
 codex, commandcode, claude, claude-sdk (Agent SDK seat), anthropic-api (text-only Messages seat), agy (Antigravity,
 Google seat), perplexity, opencode, openrouter, orcarouter, atlascloud,
-openai-compatible, openai-tools, openai-compatible-agent, cursor-agent, grok,
+cheaperinference, openai-compatible, openai-tools, openai-compatible-agent, cursor-agent, grok,
 qwen, ollama, copilot, vibe, and kimi.
 
 `cursor-agent` is the Cursor CLI (`agent` binary, `cursor` alias). Its auth

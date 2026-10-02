@@ -821,6 +821,7 @@ resolve_octopus_model() {
             kimi*)           resolved_model="default" ;; # Kimi's own default from ~/.kimi-code/config.toml; the shim omits --model for "default"
             vibe*)           resolved_model="default" ;; # Mistral Vibe's own default from ~/.vibe/config.toml; never wired to --model (#797)
             atlascloud*)     resolved_model="" ;; # No safe universal default; atlascloud-agent dispatch already requires an explicit model pin (#797)
+            cheaperinference*) resolved_model="" ;; # Like atlascloud: cheaperinference-agent dispatch requires an explicit model pin
             *)              resolved_model="$(codex_default_model)" ;; # Safest universal fallback
         esac
         [[ -n "$_trace" ]] && echo "[model-trace] Tier 7 (hardcoded fallback): $resolved_model ← SELECTED" >&2
@@ -965,6 +966,13 @@ is_agent_available_v2() {
             fi
             [[ -n "${ATLASCLOUD_API_KEY:-}" ]] && \
                 { [[ -n "${ATLASCLOUD_MODEL:-}" ]] || [[ -n "${OCTOPUS_ATLASCLOUD_MODEL:-}" ]] || [[ -n "${OPENAI_COMPAT_MODEL:-}" ]]; }
+            ;;
+        cheaperinference|cheaperinference-*)
+            if [[ -z "${CHEAPER_INFERENCE_API_KEY:-}" ]] && declare -f resolve_provider_env >/dev/null 2>&1; then
+                resolve_provider_env "CHEAPER_INFERENCE_API_KEY" 2>/dev/null || true
+            fi
+            [[ -n "${CHEAPER_INFERENCE_API_KEY:-}" ]] && \
+                { [[ -n "${CHEAPER_INFERENCE_MODEL:-}" ]] || [[ -n "${OCTOPUS_CHEAPERINFERENCE_MODEL:-}" ]] || [[ -n "${OPENAI_COMPAT_MODEL:-}" ]]; }
             ;;
         kimi|kimi-*)
             declare -f kimi_is_available >/dev/null 2>&1 && kimi_is_available

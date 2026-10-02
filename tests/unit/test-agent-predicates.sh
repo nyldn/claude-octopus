@@ -165,4 +165,27 @@ else
     test_fail "Atlas Cloud was rejected despite API key and model"
 fi
 
+cheaperinference_fixture_available() (
+    resolve_provider_env() { return 1; }
+    unset CHEAPER_INFERENCE_API_KEY CHEAPER_INFERENCE_MODEL OCTOPUS_CHEAPERINFERENCE_MODEL OPENAI_COMPAT_MODEL
+    octo_fixture_value="fixture-value"
+    export "CHEAPER_INFERENCE_API_KEY=${octo_fixture_value}"
+    [[ "${1:-missing}" == "configured" ]] && export OCTOPUS_CHEAPERINFERENCE_MODEL="gpt-5.4-mini"
+    is_agent_available_v2 "cheaperinference"
+)
+
+test_case "is_agent_available_v2 rejects Cheaper Inference without a model"
+if ! cheaperinference_fixture_available; then
+    test_pass
+else
+    test_fail "Cheaper Inference was accepted without a dispatchable model"
+fi
+
+test_case "is_agent_available_v2 accepts Cheaper Inference with API key and model"
+if cheaperinference_fixture_available "configured"; then
+    test_pass
+else
+    test_fail "Cheaper Inference was rejected despite API key and model"
+fi
+
 test_summary

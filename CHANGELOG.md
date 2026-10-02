@@ -4,6 +4,9 @@
 
 ### Added
 
+- Cheaper Inference is available as an OpenAI-compatible tool-loop provider
+  (`cheaperinference-agent`). Set `CHEAPER_INFERENCE_API_KEY` and
+  `CHEAPER_INFERENCE_MODEL` (for example `gpt-5.4-mini`) to enable it.
 - Spec and planning workflows keep distilled research, intent, decisions and
   stable task identities in portable feature directories. Existing root specs
   and Spec Kit layouts remain usable. `OCTOPUS_FEATURE_LAYOUT=legacy` retains

@@ -852,6 +852,7 @@ get_model_pricing() {
         openrouter*) provider="openrouter" ;;
         openai-compatible*|openai-tools) provider="openai-compatible-agent" ;;
         atlascloud*) provider="atlascloud" ;;
+        cheaperinference*) provider="cheaperinference" ;;
         perplexity*) provider="perplexity" ;;
         cursor-agent*) provider="cursor-agent" ;;
         copilot*) provider="copilot" ;;

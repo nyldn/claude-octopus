@@ -144,6 +144,21 @@ if assert_contains "$cmd" "--tool-policy none" "Atlas readonly persona policy"; 
     test_pass
 fi
 
+test_case "Cheaper Inference review dispatch disables model tools"
+cmd=$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="ci-review-no-tools" PWD="/tmp/octo-cwd" CHEAPER_INFERENCE_MODEL="gpt-5.4-mini" get_agent_command cheaperinference-agent review code-reviewer 2>/dev/null)
+if assert_contains "$cmd" "--provider cheaperinference" "Cheaper Inference provider" &&
+   assert_contains "$cmd" "--model gpt-5.4-mini" "Cheaper Inference model" &&
+   assert_contains "$cmd" "--tool-policy none" "Cheaper Inference review tool policy"; then
+    test_pass
+fi
+
+test_case "Cheaper Inference dispatch fails closed without a model"
+if HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="ci-no-model" PWD="/tmp/octo-cwd" CHEAPER_INFERENCE_MODEL="" OCTOPUS_CHEAPERINFERENCE_MODEL="" OPENAI_COMPAT_MODEL="" get_agent_command cheaperinference-agent implementation implementer >/dev/null 2>&1; then
+    test_fail "expected cheaperinference-agent without a model to be rejected"
+else
+    test_pass
+fi
+
 test_case "write-capable tool-loop roles retain tools"
 generic_cmd=$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="compat-write-tools" PWD="/tmp/octo-cwd" OPENAI_COMPAT_MODEL="vendor/model-fast" get_agent_command openai-compatible-agent implementation implementer 2>/dev/null)
 atlas_cmd=$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="atlas-write-tools" PWD="/tmp/octo-cwd" ATLASCLOUD_MODEL="qwen/model" get_agent_command atlascloud-agent implementation implementer 2>/dev/null)

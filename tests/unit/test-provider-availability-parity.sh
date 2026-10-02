@@ -213,4 +213,20 @@ else
     test_fail "Atlas Cloud did not map to atlascloud-agent: $atlascloud_fleet"
 fi
 
+test_case "fleet maps configured Cheaper Inference to its executable agent type"
+cheaperinference_fleet=$(
+    env \
+        "HOME=$FAKE_HOME" \
+        "PATH=$FAKE_BIN:/usr/bin:/bin" \
+        "OCTO_ALLOWED_PROVIDERS=cheaperinference" \
+        "CHEAPER_INFERENCE_API_KEY=fixture-key" \
+        "CHEAPER_INFERENCE_MODEL=gpt-5.4-mini" \
+        "$BUILD_FLEET" research quick fixture 2>/dev/null
+)
+if grep -q '^cheaperinference-agent|' <<<"$cheaperinference_fleet"; then
+    test_pass
+else
+    test_fail "Cheaper Inference did not map to cheaperinference-agent: $cheaperinference_fleet"
+fi
+
 test_summary

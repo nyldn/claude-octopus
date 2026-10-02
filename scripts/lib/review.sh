@@ -207,6 +207,7 @@ review_single_provider_override() {
 
     case "$canonical" in
         atlascloud) executor="atlascloud-agent" ;;
+        cheaperinference) executor="cheaperinference-agent" ;;
         *) executor="$canonical" ;;
     esac
 

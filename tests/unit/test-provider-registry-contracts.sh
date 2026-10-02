@@ -8,7 +8,7 @@ source "$PROJECT_ROOT/scripts/lib/provider-registry.sh"
 test_suite "Provider registry consumer contracts"
 
 test_case "health capability matches implemented health cases"
-expected="codex commandcode claude claude-sdk anthropic-api agy perplexity openrouter orcarouter atlascloud cursor-agent grok qwen ollama copilot vibe kimi"
+expected="codex commandcode claude claude-sdk anthropic-api agy perplexity openrouter orcarouter atlascloud cheaperinference cursor-agent grok qwen ollama copilot vibe kimi"
 actual="$(octo_provider_ids health)"
 if [[ "$actual" == "$expected" ]]; then test_pass; else test_fail "health set drift: $actual"; fi
 
@@ -19,7 +19,7 @@ if [[ "$actual" == "$expected" ]]; then test_pass; else test_fail "Council set d
 
 test_case "model-config capability unifies both former allowlists"
 failed=false
-for provider in codex commandcode claude claude-sdk anthropic-api agy perplexity opencode openrouter orcarouter atlascloud openai-compatible openai-tools openai-compatible-agent cursor-agent grok qwen ollama copilot vibe kimi; do
+for provider in codex commandcode claude claude-sdk anthropic-api agy perplexity opencode openrouter orcarouter atlascloud cheaperinference openai-compatible openai-tools openai-compatible-agent cursor-agent grok qwen ollama copilot vibe kimi; do
     if ! octo_provider_has_capability "$provider" model-config; then test_fail "model-config missing $provider"; failed=true; break; fi
 done
 [[ "$failed" == true ]] || test_pass
@@ -107,22 +107,22 @@ fi
 
 
 test_case "detect capability matches the complete implemented detection inventory"
-expected="codex commandcode claude claude-sdk anthropic-api agy perplexity opencode openrouter orcarouter atlascloud openai-compatible cursor-agent grok qwen ollama copilot vibe kimi"
+expected="codex commandcode claude claude-sdk anthropic-api agy perplexity opencode openrouter orcarouter atlascloud cheaperinference openai-compatible cursor-agent grok qwen ollama copilot vibe kimi"
 actual="$(octo_provider_ids detect)"
 if [[ "$actual" == "$expected" ]]; then test_pass; else test_fail "detect set drift: $actual"; fi
 
 test_case "canonical provider inventory is explicit and complete"
-expected="codex commandcode claude claude-sdk anthropic-api agy perplexity opencode openrouter orcarouter atlascloud openai-compatible openai-tools openai-compatible-agent cursor-agent grok qwen ollama copilot vibe kimi"
+expected="codex commandcode claude claude-sdk anthropic-api agy perplexity opencode openrouter orcarouter atlascloud cheaperinference openai-compatible openai-tools openai-compatible-agent cursor-agent grok qwen ollama copilot vibe kimi"
 actual="$(octo_provider_ids)"
 if [[ "$actual" == "$expected" ]]; then test_pass; else test_fail "canonical provider inventory drift: $actual"; fi
 
 test_case "cross-vendor model gateways are explicit registry metadata"
-expected="commandcode opencode openrouter orcarouter atlascloud openai-compatible openai-tools openai-compatible-agent cursor-agent ollama copilot"
+expected="commandcode opencode openrouter orcarouter atlascloud cheaperinference openai-compatible openai-tools openai-compatible-agent cursor-agent ollama copilot"
 actual="$(octo_provider_ids model-gateway)"
 if [[ "$actual" == "$expected" ]]; then test_pass; else test_fail "model gateway inventory drift: $actual"; fi
 
 test_case "dynamic automatic model catalogs are explicit registry metadata"
-expected="commandcode agy opencode openrouter orcarouter atlascloud openai-compatible openai-tools openai-compatible-agent cursor-agent grok qwen ollama vibe kimi"
+expected="commandcode agy opencode openrouter orcarouter atlascloud cheaperinference openai-compatible openai-tools openai-compatible-agent cursor-agent grok qwen ollama vibe kimi"
 actual="$(octo_provider_ids custom-model-auto)"
 if [[ "$actual" != "$expected" ]]; then
     test_fail "custom automatic model inventory drift: $actual"

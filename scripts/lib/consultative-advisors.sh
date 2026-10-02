@@ -15,7 +15,7 @@ octo_consultative_provider_is_launchable() {
     case "$provider" in
         codex|commandcode|grok|agy|gemini|antigravity|copilot|qwen|\
         cursor-agent|opencode|ollama|vibe|openrouter|openai-compatible|\
-        atlascloud-agent|perplexity)
+        atlascloud-agent|cheaperinference-agent|perplexity)
             return 0
             ;;
         *)

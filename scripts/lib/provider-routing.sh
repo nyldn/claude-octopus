@@ -392,6 +392,11 @@ _octo_build_provider_env_impl() {
             [[ ${#_trace_env[@]} -gt 0 ]] && PROVIDER_ENV_ARRAY+=("${_trace_env[@]}")
             return 0
             ;;
+        cheaperinference*)
+            _octo_build_openai_tool_loop_env "cheaperinference" "CHEAPER_INFERENCE_API_KEY"
+            [[ ${#_trace_env[@]} -gt 0 ]] && PROVIDER_ENV_ARRAY+=("${_trace_env[@]}")
+            return 0
+            ;;
         anthropic-api*)
             # Only an explicitly supplied API key crosses this boundary.
             # Do not load CLI auth, ~/.env credentials, or gateway endpoints.

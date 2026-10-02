@@ -594,6 +594,44 @@ get_agent_command() {
             octo_tool_loop_requires_no_tools "$phase" "$role" && atlas_tool_fragment="--tool-policy none"
             echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider atlascloud --model ${model} ${atlas_tool_fragment} --cwd ${PWD}"
             ;;
+        cheaperinference-agent)  # Cheaper Inference via the OpenAI-compatible tool-loop agent
+            if [[ "$agent_type" == *:* ]]; then
+                model="$(get_agent_model "$agent_type" "$phase" "$role")" || return 1
+            else
+                model="${CHEAPER_INFERENCE_MODEL:-${OCTOPUS_CHEAPERINFERENCE_MODEL:-${OPENAI_COMPAT_MODEL:-}}}"
+                if [[ -z "$model" && -f "${HOME}/.claude-octopus/config/providers.json" ]] && command -v jq &>/dev/null; then
+                    model="$(jq -r '.providers.cheaperinference.default // empty' "${HOME}/.claude-octopus/config/providers.json" 2>/dev/null || true)"
+                fi
+                if [[ -z "$model" ]]; then
+                    log ERROR "CHEAPER_INFERENCE_MODEL, OCTOPUS_CHEAPERINFERENCE_MODEL, OPENAI_COMPAT_MODEL, or providers.json cheaperinference.default is required"
+                    return 1
+                fi
+            fi
+            if ! validate_model_name "$model"; then
+                log ERROR "Invalid Cheaper Inference model name: ${model}"
+                return 1
+            fi
+            local ci_fallback
+            ci_fallback=$(validate_model_allowed "cheaperinference" "$model")
+            if [[ $? -ne 0 ]]; then
+                if [[ -n "$ci_fallback" ]]; then
+                    if ! validate_model_name "$ci_fallback"; then
+                        log ERROR "Invalid Cheaper Inference fallback model name"
+                        return 1
+                    fi
+                    model="$ci_fallback"
+                else
+                    return 1
+                fi
+            fi
+            if ! _octopus_is_safe_openai_compatible_dispatch_value "${PWD}"; then
+                log ERROR "Invalid Cheaper Inference cwd: ${PWD}"
+                return 1
+            fi
+            local ci_tool_fragment=""
+            octo_tool_loop_requires_no_tools "$phase" "$role" && ci_tool_fragment="--tool-policy none"
+            echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider cheaperinference --model ${model} ${ci_tool_fragment} --cwd ${PWD}"
+            ;;
         perplexity|perplexity-fast)  # v8.24.0: Perplexity Sonar — web-grounded research (Issue #22)
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                 return 1

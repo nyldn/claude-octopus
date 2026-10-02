@@ -407,6 +407,26 @@ else
   test_fail "Atlas helper inherited ambient credentials or lost ATLASCLOUD_API_KEY"
 fi
 
+test_case "Cheaper Inference tool-loop env excludes ambient secrets"
+if OCTOPUS_AUDIT_SENTINEL="must-not-cross" \
+   OPENAI_API_KEY="unrelated-openai-key" \
+   CHEAPER_INFERENCE_API_KEY="ci-test-key" \
+   bash -c '
+      set -eo pipefail
+      source "$1/scripts/lib/provider-routing.sh"
+      build_provider_env "cheaperinference-agent:gpt-5.4-mini"
+      "${PROVIDER_ENV_ARRAY[@]}" bash -c '\''
+        set -e
+        test -z "${OCTOPUS_AUDIT_SENTINEL:-}"
+        test -z "${OPENAI_API_KEY:-}"
+        test "${CHEAPER_INFERENCE_API_KEY:-}" = "ci-test-key"
+      '\''
+    ' _ "$PLUGIN_DIR"; then
+  test_pass
+else
+  test_fail "Cheaper Inference helper inherited ambient credentials or lost CHEAPER_INFERENCE_API_KEY"
+fi
+
 # ─────────────────────────────────────────────────────────────────────
 # Suite 2: build_provider_env() is wired into spawn_agent()
 # ─────────────────────────────────────────────────────────────────────

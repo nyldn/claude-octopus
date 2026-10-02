@@ -891,6 +891,19 @@ check_provider_health() {
                 return 1
             fi
             ;;
+        cheaperinference)
+            if [[ -z "${CHEAPER_INFERENCE_API_KEY:-}" ]]; then
+                resolve_provider_env "CHEAPER_INFERENCE_API_KEY" 2>/dev/null
+            fi
+            if [[ -z "${CHEAPER_INFERENCE_API_KEY:-}" ]]; then
+                echo "cheaperinference: CHEAPER_INFERENCE_API_KEY not set" >&2
+                return 1
+            fi
+            if [[ -z "${CHEAPER_INFERENCE_MODEL:-}" && -z "${OCTOPUS_CHEAPERINFERENCE_MODEL:-}" && -z "${OPENAI_COMPAT_MODEL:-}" ]]; then
+                echo "cheaperinference: set CHEAPER_INFERENCE_MODEL or OCTOPUS_CHEAPERINFERENCE_MODEL before dispatch" >&2
+                return 1
+            fi
+            ;;
         ollama)
             if ! command -v ollama &>/dev/null; then
                 echo "ollama CLI not found in PATH" >&2
@@ -1300,6 +1313,16 @@ detect_providers() {
         fi
     fi
 
+    # Detect Cheaper Inference (OpenAI-compatible API key + explicit model)
+    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed cheaperinference; }; then
+        if [[ -z "${CHEAPER_INFERENCE_API_KEY:-}" ]]; then
+            resolve_provider_env "CHEAPER_INFERENCE_API_KEY" 2>/dev/null
+        fi
+        if [[ -n "${CHEAPER_INFERENCE_API_KEY:-}" ]] && { [[ -n "${CHEAPER_INFERENCE_MODEL:-}" ]] || [[ -n "${OCTOPUS_CHEAPERINFERENCE_MODEL:-}" ]] || [[ -n "${OPENAI_COMPAT_MODEL:-}" ]]; }; then
+            result="${result}cheaperinference:api-key "
+        fi
+    fi
+
     # Detect Perplexity (API key only)
     if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed perplexity; } && [[ -n "${PERPLEXITY_API_KEY:-}" ]]; then
         result="${result}perplexity:api-key "
@@ -1425,6 +1448,7 @@ detect_providers() {
         log WARN "  - OpenRouter: Set OPENROUTER_API_KEY environment variable"
         log WARN "  - OrcaRouter: Set ORCAROUTER_API_KEY environment variable"
         log WARN "  - Atlas Cloud: Set ATLASCLOUD_API_KEY and ATLASCLOUD_MODEL"
+        log WARN "  - Cheaper Inference: Set CHEAPER_INFERENCE_API_KEY and CHEAPER_INFERENCE_MODEL"
         log WARN "  - Copilot: brew install copilot-cli (zero additional cost)"
         log WARN "  - Ollama: brew install ollama (free local LLM)"
         log WARN "  - Qwen: npm i -g @qwen-code/qwen-code; set QWEN_API_KEY or configure Coding-Plan"

@@ -141,6 +141,7 @@ def pricing_provider(provider):
         ("openrouter", "openrouter"),
         ("openai-compatible", "openai-compatible-agent"),
         ("atlascloud", "atlascloud"),
+        ("cheaperinference", "cheaperinference"),
         ("perplexity", "perplexity"),
         ("cursor-agent", "cursor-agent"),
         ("copilot", "copilot"),
