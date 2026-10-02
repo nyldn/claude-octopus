@@ -75,7 +75,7 @@ if ! declare -f council_supersede_key_slug >/dev/null 2>&1; then
 else
     slug="$(council_supersede_key_slug "$key")"
     cp2rd="$(_mkrun "$pool" 20260101-030000-00f111 finished yes "$key")"
-    _mkrun "$pool" 20260101-040000-00f222 running >/dev/null       # a NEWER unrelated round, running
+    _mkrun "$pool" 20260101-040000-00f222 running yes "$key" >/dev/null  # Fallback sees this newer same-key round.
     printf '%s\n' 20260101-030000-00f111 > "$pool/latest-$slug"
     _runwait --pool "$pool" --supersede-key "$key" --interval 1 --timeout 5
     if [[ $rc -eq 0 && "$out" == "$cp2rd/summary.json" ]]; then test_pass; else test_fail "key pointer not honored: rc=$rc out=$out want=$cp2rd/summary.json"; fi
