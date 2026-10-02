@@ -84,6 +84,14 @@ else
     test_pass
 fi
 printf '%s\n' '{broken' > "$CONFIG"
+for value in $'vendor/\001' $'vendor/\177' $'vendor/model\n'; do
+    test_case "control byte in environment model fails admissions and dispatch"
+    admitted=false
+    for action in available health detection readiness dispatch; do
+        if probe "$action" "CHEAPER_INFERENCE_MODEL=$value" >/dev/null 2>&1; then admitted=true; fi
+    done
+    if [[ "$admitted" == false ]]; then test_pass; else test_fail "control byte admitted"; fi
+done
 test_case "malformed config fails closed but valid environment pin remains usable"
 if probe dispatch >/dev/null 2>&1 || ! probe dispatch CHEAPER_INFERENCE_MODEL=vendor/explicit >/dev/null 2>&1; then
     test_fail "malformed config or explicit override mishandled"

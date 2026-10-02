@@ -11,6 +11,7 @@ octo_cheaperinference_model() {
             | select(test("[\u0000-\u0020\u007f]") | not)' "$config_file" 2>/dev/null)" || return 1
     fi
     [[ -n "$model" && "$model" != /* ]] || return 1
+    [[ "$model" =~ [[:cntrl:]] ]] && return 1
     # Match the dispatch model-name grammar without loading the model resolver.
     case "$model" in
         *[[:space:]]*|*\\*|*';'*|*'|'*|*'&'*|*'$'*|*'`'*|*"'"*|*'"'*|*'('*|*')'*|*'<'*|*'>'*|*'!'*|*'*'*|*'?'*|*'['*|*']'*|*'{'*|*'}'*) return 1 ;;
