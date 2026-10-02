@@ -36,9 +36,10 @@
   when its worker completed and the result reports success. A failed seat
   leaves no response file, and a response left by an earlier attempt is
   removed before launch. The wait is capped by `OCTOPUS_ADVISOR_WAIT_SECONDS`
-  (default 3600). Because the launch now blocks for the whole provider run,
-  the brainstorm Team block and debate Step 5 say to run it in the
-  background, since a foreground 600000 ms timeout stops it after 10 minutes.
+  (default 3600), for a synchronous agy seat as well. Because the launch now
+  blocks for the whole provider run, the brainstorm Team block and debate
+  Step 5 say to run it in the background, since a foreground 600000 ms
+  timeout stops it after 10 minutes.
 - `/octo:brainstorm` Team mode no longer stops with "Octopus orchestrator does
   not expose spawn" before dispatching anything. Its precheck searched the
   no-argument quick-start text, which never lists `spawn`; it now reads
