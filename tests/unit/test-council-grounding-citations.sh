@@ -341,6 +341,139 @@ _count_is() {
     else test_fail "expected $expected matched fragments, got $actual"; fi
 }
 
+PLAIN_VOTE="$TEST_TMP_DIR/plain-quote-vote.md"
+{
+    printf 'The function contains "%s".\n' "$FRAGMENT"
+    for _ in {1..24}; do printf 'The guards preserve the control-flow branch and reject unauthorized inputs.\n'; done
+    printf 'VERDICT: APPROVE\n'
+} > "$PLAIN_VOTE"
+
+_plain_vote_is() {
+    local expected="$1" record
+    record="$(council_contribution_record_json "$PLAIN_VOTE" "$BOUNDARY_ROOT" sha256:fixture)"
+    if [[ "$expected" == grounded ]]; then
+        if [[ "$(council_response_content_match_count "$PLAIN_VOTE" "$BOUNDARY_ROOT")" == 1 ]] &&
+           council_response_has_grounding "$PLAIN_VOTE" "$BOUNDARY_ROOT" &&
+           ! council_response_is_blind "$PLAIN_VOTE" "$BOUNDARY_ROOT" &&
+           council_response_is_substantive "$PLAIN_VOTE" "$BOUNDARY_ROOT" &&
+           jq -e '.validation_result == "valid-unverified" and .access_state == "unverified" and .evidence_paths == [] and .comprehension_verified == false' <<< "$record" >/dev/null; then test_pass
+        else test_fail "plain source quotation lost grounding or invented citation evidence"; fi
+    else
+        if [[ "$(council_response_content_match_count "$PLAIN_VOTE" "$BOUNDARY_ROOT")" == 0 ]] &&
+           ! council_response_has_grounding "$PLAIN_VOTE" "$BOUNDARY_ROOT" &&
+           council_response_is_blind "$PLAIN_VOTE" "$BOUNDARY_ROOT" &&
+           ! council_response_is_substantive "$PLAIN_VOTE" "$BOUNDARY_ROOT" &&
+           jq -e '.validation_result == "invalid-access" and .access_state == "failed" and .evidence_paths == []' <<< "$record" >/dev/null; then test_pass
+        else test_fail "unsupported plain quotation admitted an approval"; fi
+    fi
+}
+
+test_case "full-length plain doublequoted source review is grounded"
+cp "$OUTSIDE" "$BOUNDARY_ROOT/source.ts"
+_plain_vote_is grounded
+
+test_case "plain source quotation permits separate summary attribution"
+cp "$PLAIN_VOTE" "$TEST_TMP_DIR/plain-original.md"
+sed '$d' "$TEST_TMP_DIR/plain-original.md" > "$PLAIN_VOTE"
+printf 'The summary confirms the tests pass.\nVERDICT: APPROVE\n' >> "$PLAIN_VOTE"
+_plain_vote_is grounded
+
+test_case "plain source quotation cannot override first-person access failure"
+printf 'I cannot read the repository files.\n' >> "$PLAIN_VOTE"
+record="$(council_contribution_record_json "$PLAIN_VOTE" "$BOUNDARY_ROOT" sha256:fixture)"
+if council_response_has_grounding "$PLAIN_VOTE" "$BOUNDARY_ROOT" &&
+   council_response_is_blind "$PLAIN_VOTE" "$BOUNDARY_ROOT" &&
+   ! council_response_is_substantive "$PLAIN_VOTE" "$BOUNDARY_ROOT" &&
+   jq -e '.validation_result == "invalid-access" and .access_state == "failed"' <<< "$record" >/dev/null; then test_pass
+else test_fail "plain quotation overrode an explicit access failure"; fi
+cp "$TEST_TMP_DIR/plain-original.md" "$PLAIN_VOTE"
+rm "$BOUNDARY_ROOT/source.ts"
+
+test_case "fabricated plain doublequoted source review stays blind"
+_plain_vote_is blind
+
+test_case "private plain doublequoted source cannot ground an approval"
+cp "$OUTSIDE" "$BOUNDARY_ROOT/credentials.json"
+_plain_vote_is blind
+rm "$BOUNDARY_ROOT/credentials.json"
+
+test_case "outside source alias cannot ground a plain doublequoted approval"
+ln -s "$OUTSIDE" "$BOUNDARY_ROOT/alias.ts"
+_plain_vote_is blind
+rm "$BOUNDARY_ROOT/alias.ts"
+
+test_case "plain doublequoted response cannot ground itself or its hard-link alias"
+ln "$PLAIN_VOTE" "$BOUNDARY_ROOT/alias.md"
+_plain_vote_is blind
+rm "$BOUNDARY_ROOT/alias.md"
+
+test_case "active artifacts cannot ground a plain doublequoted approval"
+mkdir -p "$BOUNDARY_ROOT/active/responses"
+cp "$OUTSIDE" "$BOUNDARY_ROOT/active/responses/earlier.md"
+COUNCIL_RUN_DIR="$BOUNDARY_ROOT/active" _plain_vote_is blind
+rm -r "$BOUNDARY_ROOT/active"
+
+test_case "plain quotation normalization uses the existing distinctive filter"
+printf 'The function contains "const   boundedEvidenceMarker = sourceValue ?? fallbackValue;".\n' > "$BOUNDARY_RESPONSE"
+cp "$OUTSIDE" "$BOUNDARY_ROOT/source.ts"
+_count_is 1 "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"
+rm "$BOUNDARY_ROOT/source.ts"
+
+test_case "plain quotations cannot turn short tokens or ordinary prose into evidence"
+printf '%s\n' '"toBeUndefined()" "source.ts" "The source supplies ordinary descriptive prose"' > "$BOUNDARY_RESPONSE"
+cp "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT/source.md"
+_count_is 0 "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"
+rm "$BOUNDARY_ROOT/source.md"
+
+for length in 400 401; do
+    test_case "plain quotation character limit: $length"
+    command python3 - "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT/source.ts" "$length" <<'PYTEST'
+from pathlib import Path
+import sys
+prefix = "const unicodeEvidence = sourceValue ?? "
+fragment = prefix + "é" * (int(sys.argv[3]) - len(prefix) - 1) + ";"
+Path(sys.argv[1]).write_text(f'"{fragment}"')
+Path(sys.argv[2]).write_text(fragment)
+PYTEST
+    if [[ "$length" == 400 ]]; then _count_is 1 "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"
+    else _count_is 0 "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"; fi
+    rm "$BOUNDARY_ROOT/source.ts"
+done
+
+test_case "plain quotations cannot span newlines or omit their closing quote"
+printf '"const boundedEvidenceMarker =\nsourceValue ?? fallbackValue;"\n"const boundedEvidenceMarker = sourceValue ?? fallbackValue;\n' > "$BOUNDARY_RESPONSE"
+cp "$OUTSIDE" "$BOUNDARY_ROOT/source.ts"
+_count_is 0 "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"
+rm "$BOUNDARY_ROOT/source.ts"
+
+for format in plain-last code-last; do
+    test_case "code and plain quotes share one candidate budget: $format"
+    command python3 - "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT/source.ts" "$format" <<'PYTEST'
+from pathlib import Path
+import sys
+fragments = [f"const numberedEvidence{index} = sourceValue ?? fallbackValue;" for index in range(257)]
+quotes = ['`', '"'] if sys.argv[3] == "plain-last" else ['"', '`']
+Path(sys.argv[1]).write_text("\n".join(f"{quotes[0] if index < 256 else quotes[1]}{fragment}{quotes[0] if index < 256 else quotes[1]}" for index, fragment in enumerate(fragments)))
+Path(sys.argv[2]).write_text(fragments[-1])
+PYTEST
+    _count_is 0 "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"
+    rm "$BOUNDARY_ROOT/source.ts"
+done
+
+test_case "mixed quote duplicates retain the last candidate within the shared limit"
+command python3 - "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT/source.ts" <<'PYTEST'
+from pathlib import Path
+import sys
+fragments = [f"const numberedEvidence{index} = sourceValue ?? fallbackValue;" for index in range(256)]
+response = "\n".join(f"`{fragment}`" for fragment in fragments[:-1])
+response += f'\n"{fragments[0]}"\n"{fragments[-1]}"'
+Path(sys.argv[1]).write_text(response)
+Path(sys.argv[2]).write_text(fragments[-1])
+PYTEST
+_count_is 1 "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"
+rm "$BOUNDARY_ROOT/source.ts"
+printf 'The function contains `%s`.\n' "$FRAGMENT" > "$BOUNDARY_RESPONSE"
+
 test_case "external source symlink cannot ground a response"
 ln -s "$OUTSIDE" "$BOUNDARY_ROOT/alias.ts"
 _count_is 0 "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"

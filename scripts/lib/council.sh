@@ -2167,9 +2167,9 @@ def distinctive(fragment):
     return fragment
 
 cands = set()
-# Iterate matches rather than making an unbounded intermediate fragment list.
-for match in re.finditer(r"`([^`\n]+)`|```[^\n]*\n(.*?)```", resp, re.S):
-    fragments = [match.group(1)] if match.group(1) is not None else match.group(2).splitlines()
+# Plain doublequoted source lines share the same candidate and scan budgets.
+for match in re.finditer(r'`([^`\n]+)`|```[^\n]*\n(.*?)```|"([^"\n]{1,400})"', resp, re.S):
+    fragments = match.group(2).splitlines() if match.group(2) is not None else [match.group(1) or match.group(3)]
     for fragment in fragments:
         candidate = distinctive(fragment)
         if candidate:
