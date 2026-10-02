@@ -2311,7 +2311,7 @@ council_response_makes_code_claims() {
     # grounding gate applies — a review with no code claims is never gated.
     local f="$1"
     [[ -f "$f" ]] || return 1
-    grep -ciE '(^|[^[:alnum:]])(test(s|ed|ing|cases?)?|coverage|render(s|ed|ing)?|outputs?|type[- ]?check(s|ed|ing)?|tsc|lint(s|ed|ing|er)?|implement(s|ed|ing|ations?)?|propagat(e|es|ed|ing|ion)?|pass(es|ing|ed)?|regress(es|ed|ions?)?|contracts?|behaviou?r(s|al)?|diff(s|ed)?|assert(s|ed|ing|ions?)?|snapshots?|dom|css|class(es)?|components?|functions?|api(s)?|endpoints?|schema(s|ta)?|payloads?|fields?|joins?|quer(y|ies)|gate[ds]?|fallback|routing?|resolver|interface|serializ|compiler?|guards?|unauthenticated|unauthori[sz]ed|authenticat(e|es|ed|ing|ion)|authori[sz](e|es|ed|ing|ation)|control[- ]flow|conditionals?|branches|branch|short[- ]circuit(s|ed|ing)?)([^[:alnum:]]|$)' "$f" >/dev/null
+    grep -ciE '(^|[^[:alnum:]])(test(s|ed|ing|cases?)?|coverage|render(s|ed|ing)?|outputs?|type[- ]?check(s|ed|ing)?|tsc|lint(s|ed|ing|er)?|implement(s|ed|ing|ations?)?|propagat(e|es|ed|ing|ion)?|pass(es|ing|ed)?|regress(es|ed|ions?)?|contracts?|behaviou?r(s|al)?|diff(s|ed)?|assert(s|ed|ing|ions?)?|snapshots?|dom|css|class(es)?|components?|functions?|api(s)?|endpoints?|schema(s|ta)?|payloads?|fields?|joins?|quer(y|ies)|gate[ds]?|fallback|routing?|resolver|interface|serializ|compiler?|reject(s|ed|ing|ion)?|validat(e|es|ed|ing|ion|or|ors)|saniti[sz](e|es|ed|ing|ation)|escap(e|es|ed|ing)|permissions?|middleware|tokens?|sessions?|cookies?|headers?|guards?|unauthenticated|unauthori[sz]ed|authenticat(e|es|ed|ing|ion)|authori[sz](e|es|ed|ing|ation)|control[- ]flow|conditionals?|branches|branch|short[- ]circuit(s|ed|ing)?)([^[:alnum:]]|$)' "$f" >/dev/null
 }
 
 council_response_has_grounding() {

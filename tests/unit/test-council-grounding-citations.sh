@@ -266,6 +266,46 @@ if ! council_response_makes_code_claims "$PROCESS_VOTE" &&
    council_response_is_substantive "$PROCESS_VOTE" "$ROOT"; then test_pass
 else test_fail "process prose was treated as an ungrounded code review"; fi
 
+# Each new vocabulary family must reach the live gate without another keyword
+# masking it, while a genuine source quote still grounds the same approval.
+_security_vocabulary_case() {
+    local name="$1" sentence="$2" response="$TEST_TMP_DIR/vocabulary-$1.md" grounded="$TEST_TMP_DIR/vocabulary-$1-grounded.md" record
+    for _ in {1..48}; do printf '%s\n' "$sentence"; done > "$response"
+    printf 'VERDICT: APPROVE\n' >> "$response"
+    test_case "ungrounded security vocabulary: $name"
+    record="$(council_contribution_record_json "$response" "$ROOT" sha256:fixture)"
+    if council_response_makes_code_claims "$response" &&
+       ! council_response_has_grounding "$response" "$ROOT" &&
+       council_response_is_blind "$response" "$ROOT" &&
+       ! council_response_is_substantive "$response" "$ROOT" &&
+       jq -e '.validation_result == "invalid-access" and .access_state == "failed" and .evidence_paths == []' <<< "$record" >/dev/null; then test_pass
+    else test_fail "ungrounded $name approval entered the quorum"; fi
+    sed '/VERDICT: APPROVE/d' "$response" > "$grounded"
+    printf 'Source contains `if (ports.length === 0)`.\nVERDICT: APPROVE\n' >> "$grounded"
+    test_case "grounded security vocabulary: $name"
+    if council_response_has_grounding "$grounded" "$ROOT" &&
+       ! council_response_is_blind "$grounded" "$ROOT" &&
+       council_response_is_substantive "$grounded" "$ROOT"; then test_pass
+    else test_fail "source-backed $name review was excluded"; fi
+}
+_security_vocabulary_case middleware 'The middleware is correct.'
+_security_vocabulary_case rejection 'It rejects invalid input.'
+_security_vocabulary_case validation 'The validator is correct.'
+_security_vocabulary_case sanitization 'It sanitizes invalid input.'
+_security_vocabulary_case escaping 'It escapes invalid input.'
+_security_vocabulary_case permission 'The permission is correct.'
+_security_vocabulary_case token 'The token is correct.'
+_security_vocabulary_case session 'The session is correct.'
+_security_vocabulary_case cookie 'The cookie is correct.'
+_security_vocabulary_case header 'The header is correct.'
+_security_vocabulary_case reported-middleware 'The middleware rejects invalid tokens.'
+
+test_case "new security vocabulary keeps complete word boundaries"
+VOCABULARY_NOISE="$TEST_TMP_DIR/vocabulary-noise.md"
+printf '%s\n' 'The proposal discusses tokenization, sessional timing, cookiejar labels, headerless stationery, middlewareish wording, rejectionary prose, validationary notes and sanitizationary phrasing.' > "$VOCABULARY_NOISE"
+if ! council_response_makes_code_claims "$VOCABULARY_NOISE"; then test_pass
+else test_fail "partial security words were treated as code claims"; fi
+
 test_case "verified quote permits separate summary attribution of test results"
 SUMMARY_QUOTE="$TEST_TMP_DIR/summary-quote.md"
 printf '%s\n' 'The function contains `shipCode = r.rc_ship_code ?? r.class_code`. The summary confirms the tests pass.' 'VERDICT: APPROVE' > "$SUMMARY_QUOTE"
