@@ -174,13 +174,39 @@ pool="$(mktemp -d "$TEST_TMP_DIR/key-flip-earlier.XXXXXX")"
 _mkrun "$pool" 20260101-050000-00f501 running yes "$key" 2 >/dev/null
 rd="$(_mkrun "$pool" 20260101-040000-00f500 finished yes "$key" 1)"
 printf '%s\n' 20260101-050000-00f501 > "$pool/latest-$slug"
+# Observe the actual finished-state check on the initial running round.
+real_jq="$(command -v jq)"
+barrier_bin="$pool/bin"; mkdir -p "$barrier_bin"
+observed="$pool/initial-running-observed"; flipped="$pool/pointer-flipped"
+cat > "$barrier_bin/jq" <<'SH'
+#!/bin/bash
+"$WAITER_REAL_JQ" "$@"
+result=$?
+last=""; finished_filter=no
+for arg in "$@"; do
+    [[ "$arg" != *'.state == "finished"'* ]] || finished_filter=yes
+    last="$arg"
+done
+if [[ "$result" == 1 && "$finished_filter" == yes && "$last" == "$WAITER_RUNNING_STATUS" ]]; then
+    : > "$WAITER_INITIAL_OBSERVED"
+fi
+exit "$result"
+SH
+chmod +x "$barrier_bin/jq"
 # A pool scan keeps selecting the newer running round after this pointer changes.
-( sleep 2; printf '%s\n' 20260101-040000-00f500 > "$pool/latest-next"
-  mv "$pool/latest-next" "$pool/latest-$slug" ) &
+( observe_deadline=$((SECONDS + 6))
+  while [[ ! -f "$observed" ]] && (( SECONDS < observe_deadline )); do /bin/sleep 0.1; done
+  [[ -f "$observed" ]] || exit 1
+  printf '%s\n' 20260101-040000-00f500 > "$pool/latest-next"
+  mv "$pool/latest-next" "$pool/latest-$slug"
+  : > "$flipped" ) &
 flip_pid=$!
-_runwait --pool "$pool" --supersede-key "$key" --interval 1 --timeout 6
-wait "$flip_pid" || true
-if [[ "$rc" == 0 && "$out" == "$rd/summary.json" ]]; then test_pass; else test_fail "earlier pointer flip not honored: rc=$rc out=$out want=$rd/summary.json"; fi
+PATH="$barrier_bin:$PATH" WAITER_REAL_JQ="$real_jq" \
+    WAITER_RUNNING_STATUS="$pool/20260101-050000-00f501/run-status.json" \
+    WAITER_INITIAL_OBSERVED="$observed" \
+    _runwait --pool "$pool" --supersede-key "$key" --interval 1 --timeout 6
+flip_rc=0; wait "$flip_pid" || flip_rc=$?
+if [[ "$flip_rc" == 0 && -f "$observed" && -f "$flipped" && "$rc" == 0 && "$out" == "$rd/summary.json" ]]; then test_pass; else test_fail "earlier pointer flip not honored: barrier=$flip_rc rc=$rc out=$out want=$rd/summary.json"; fi
 
 test_case "a key pointer cannot leave its pool or accept a symlinked run"
 parent="$(mktemp -d "$TEST_TMP_DIR/outside.XXXXXX")"
