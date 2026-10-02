@@ -109,6 +109,29 @@ remote code sandbox, web search, and finance search. Preset tools merge with
 request tools, so an empty `tools` array does not disable them. See
 [Perplexity's preset configuration](https://docs.perplexity.ai/docs/agent-api/presets).
 
+## Grok headless tool approval
+
+The Grok stdin shim uses `--always-approve --sandbox read-only` by default so
+headless seats can run shell tools without an interactive approval prompt.
+`OCTOPUS_GROK_APPROVE=0` restores the previous command line, omitting both flags.
+`OCTOPUS_GROK_SANDBOX` overrides the profile: `off`, `workspace`, `read-only`, or
+`strict`. Invalid values produce one stderr warning and use the call's default.
+The shim's standalone default is `read-only`.
+
+Dispatch defaults to `workspace` only for write-capable implementation roles in
+`tangle`/`develop` when `OCTOPUS_CODEX_SANDBOX` permits writes. Codex's default
+is `workspace-write`; `danger-full-access` also maps to Grok `workspace`, while
+Codex `read-only` keeps Grok read-only. Review, consult, council, and unknown
+contexts default to `read-only`, including consultative calls that grant Codex
+`danger-full-access` inside a disposable workspace. Explicit Grok overrides
+take precedence. Approval and sandbox settings travel with `OCTOPUS_GROK_MODEL`
+in the shim's env prefix so they survive provider environment isolation.
+
+In reported Linux tests with Grok 1.0.40, `read-only` blocked writes outside
+`/tmp` but still allowed a write when the working directory was under `/tmp`,
+despite Grok's README table describing writes only to `~/.grok/`. Octopus passes
+the requested profile through without working around that CLI behavior.
+
 ## Kimi Code integration
 
 Kimi Code exercises all seven wiring points: `kimi` identity/runtime rows in

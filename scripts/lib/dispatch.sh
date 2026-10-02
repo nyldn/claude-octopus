@@ -683,11 +683,32 @@ get_agent_command() {
             # Without this, providers.json model picks were silently ignored (the shim
             # only saw a shell-exported OCTOPUS_GROK_MODEL).
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then return 1; fi
-            if [[ -n "$model" && "$model" != "default" ]]; then
-                echo "env OCTOPUS_GROK_MODEL=${model} ${PLUGIN_DIR}/scripts/helpers/grok-exec.sh"
-            else
-                echo "${PLUGIN_DIR}/scripts/helpers/grok-exec.sh"
+            # Codex defaults to workspace-write and consultative calls even set
+            # danger-full-access. Keep Grok advisory seats read-only; only grant
+            # workspace to implementation roles/phases where Codex allows writes.
+            local grok_default_sandbox="read-only" grok_sandbox grok_approve=1
+            if [[ "$phase" == tangle || "$phase" == develop ]] && [[ "$codex_sandbox" != read-only ]]; then
+                case "$role" in
+                    implementer|developer|tdd-orchestrator|debugger|python-pro|typescript-pro|frontend-developer)
+                        if [[ "$(get_agent_readonly "$role")" != true ]]; then
+                            grok_default_sandbox="workspace"
+                        fi
+                        ;;
+                esac
             fi
+            grok_sandbox="${OCTOPUS_GROK_SANDBOX:-$grok_default_sandbox}"
+            [[ "${OCTOPUS_GROK_APPROVE:-1}" == 0 ]] && grok_approve=0
+            case "$grok_sandbox" in
+                off|workspace|read-only|strict) ;;
+                *)
+                    if [[ "$grok_approve" == 1 ]]; then
+                        log WARN "Invalid OCTOPUS_GROK_SANDBOX '$grok_sandbox'; using $grok_default_sandbox"
+                    fi
+                    grok_sandbox="$grok_default_sandbox"
+                    ;;
+            esac
+            # Explicit prefixes survive provider-routing's env -i boundary.
+            echo "env OCTOPUS_GROK_MODEL=${model:-default} OCTOPUS_GROK_APPROVE=${grok_approve} OCTOPUS_GROK_SANDBOX=${grok_sandbox} ${PLUGIN_DIR}/scripts/helpers/grok-exec.sh"
             ;;
         kimi|kimi-research)  # Moonshot Kimi Code CLI — headless single-turn via helpers/kimi-exec.sh
             # Kimi's non-interactive print mode auto-approves tool calls and has

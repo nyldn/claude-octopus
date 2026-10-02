@@ -4,6 +4,10 @@
 # re-pass it. Model via OCTOPUS_GROK_MODEL (default: grok's own default).
 # OCTOPUS_GROK_ARGV_MAX: byte limit for inline prompts (default: 100000).
 # Larger prompts use --prompt-file; 0 always uses a file. Non-integers use the default.
+# OCTOPUS_GROK_APPROVE=0 disables headless approval and sandbox flags (default: 1).
+# OCTOPUS_GROK_SANDBOX: off|workspace|read-only|strict (default: read-only).
+# Dispatch selects workspace for write-capable implementation calls; explicit
+# overrides win. Invalid profiles warn once and fall back to read-only here.
 set -euo pipefail
 prompt=""
 if [[ ! -t 0 ]]; then
@@ -33,6 +37,17 @@ else
     # Preserve the inline path's existing command-substitution newline handling.
     prompt="$(printf '%s' "$prompt")"
     cmd=(grok -p "$prompt" --output-format plain --cwd "$workdir" --disable-web-search)
+fi
+if [[ "${OCTOPUS_GROK_APPROVE:-1}" != "0" ]]; then
+    sandbox="${OCTOPUS_GROK_SANDBOX:-read-only}"
+    case "$sandbox" in
+        off|workspace|read-only|strict) ;;
+        *)
+            echo "grok-exec: invalid OCTOPUS_GROK_SANDBOX '$sandbox'; using read-only" >&2
+            sandbox="read-only"
+            ;;
+    esac
+    cmd+=(--always-approve --sandbox "$sandbox")
 fi
 if [[ -n "$model" && "$model" != "default" ]]; then
     cmd+=(--model "$model")

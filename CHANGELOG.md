@@ -36,6 +36,10 @@
   council prompts. Prompts above 100000 bytes now use a temporary prompt file
   instead of exceeding the operating system's per-argument limit. The file is
   removed on exit, including cancellation; `OCTOPUS_GROK_ARGV_MAX` sets the threshold.
+- Headless Grok seats could return only a promise to run a command because tool
+  approval was unavailable. The shim now grants approval within Grok's sandbox,
+  defaulting advisory seats to read-only and implementation seats to workspace,
+  with explicit sandbox and approval opt-out settings.
 - The Perplexity provider now uses the Agent API directly. Sonar chat
   completions support ended on 2026-09-27; Perplexity is gradually
   reformulating synchronous and streaming Sonar calls as Agent API requests.
