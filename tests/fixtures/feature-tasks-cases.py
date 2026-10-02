@@ -34,7 +34,7 @@ FEATURE_RUNTIME_DIR="$FIXTURE_RUNTIME/features"
 FEATURE_SOURCE_ROOT="$EXEC_ROOT"
 FEATURE_TASK_CONTRACT="$FIXTURE_RUNTIME/contract.json"
 TMUX_MODE=false; DRY_RUN=false; SUPPORTS_PARALLEL_FILE_SAFETY=false
-SUPPORTS_DISABLE_CRON_ENV=false; AVAILABLE_AGENTS='codex agy'; MAX_PARALLEL=6
+SUPPORTS_DISABLE_CRON_ENV=false; AVAILABLE_AGENTS='codex agy'; MAX_PARALLEL="${FIXTURE_MAX_PARALLEL:-6}"
 CYAN=; MAGENTA=; GREEN=; YELLOW=; RED=; NC=
 OCTOPUS_TANGLE_CODE_REVIEW=false
 OCTOPUS_TANGLE_MISSING_MARKER_GRACE=0
@@ -74,6 +74,7 @@ run_agent_sync_consultative() {
 }
 spawn_agent_capture_pid() {
     local id="$3"
+    if [[ -n "${FIXTURE_LAUNCH_DELAY:-}" ]]; then sleep "$FIXTURE_LAUNCH_DELAY"; fi
     python3 "$FIXTURE_RUNTIME/worker.py" "$id" "$OCTOPUS_FEATURE_WAVE_JSON" "$EXEC_ROOT" "$FIXTURE_RUNTIME" "$WORKSPACE_DIR" "$RESULTS_DIR" > /dev/null 2>&1 &
     local worker_pid="$!"
     octopus_pid_register "$worker_pid" codex "$id" >/dev/null || return 1
@@ -129,9 +130,38 @@ def event(kind):
         fcntl.flock(handle,fcntl.LOCK_EX)
         handle.write(json.dumps({"event":kind,"id":task_id,"pid":os.getpid(),"time":time.monotonic()})+"\n")
         handle.flush()
+def rendezvous():
+    expected=int(os.environ.get("FIXTURE_EXPECTED_CONCURRENCY", "0"))
+    if not expected:
+        return True
+    state_path=Path(runtime)/"rendezvous.json"
+    lock_path=Path(runtime)/"rendezvous.lock"
+    joined=False
+    while True:
+        with open(lock_path, "a") as lock:
+            fcntl.flock(lock,fcntl.LOCK_EX)
+            state=json.loads(state_path.read_text()) if state_path.exists() else {
+                "participants":[], "deadline":time.monotonic()+8, "released":False, "failed":False}
+            if not joined:
+                state["participants"].append({"id":task_id, "pid":os.getpid()})
+                joined=True
+            if not state["released"] and time.monotonic() >= state["deadline"]:
+                state["failed"]=True
+            if not state["failed"] and len(state["participants"]) == expected:
+                state["released"]=True
+            state_path.write_text(json.dumps(state))
+        if state["failed"] or state["released"]:
+            return state["released"] and not state["failed"]
+        time.sleep(0.02)
+if os.environ.get("FIXTURE_STALL_ID")==tid:
+    time.sleep(9)
 event("start")
-time.sleep(1.2)
-failed=os.environ.get("FIXTURE_FAIL_ID")==tid
+# Keep real workers alive until the whole six-task wave has started. A slow
+# launcher must not turn the capacity assertion into a 1.2-second race.
+ready=rendezvous()
+if ready:
+    time.sleep(1.2)
+failed=not ready or os.environ.get("FIXTURE_FAIL_ID")==tid
 if not failed:
     target=Path(root)/(task["files"] or task["creates"])[0]
     target.parent.mkdir(parents=True,exist_ok=True)
@@ -786,7 +816,8 @@ printf 'inactive-safe\\n'
 
     def test_actual_tangle_dispatches_six_workers_with_stable_result_ids(self):
         contract = self.contract(*(self.task(index) for index in range(1, 7)))
-        result, runtime, events = self.run_dispatcher(contract)
+        result, runtime, events = self.run_dispatcher(
+            contract, FIXTURE_EXPECTED_CONCURRENCY="6", FIXTURE_LAUNCH_DELAY="0.45")
         self.assertEqual(result.returncode, 0, (result.stdout + result.stderr).decode())
         self.assertEqual(self.concurrent_max(events), 6)
         self.assertEqual(len([event for event in events if event["event"] == "start"]), 6)
@@ -856,11 +887,33 @@ printf 'inactive-safe\\n'
 
     def test_actual_generic_parallel_uses_the_same_six_task_validator(self):
         contract = self.contract(*(self.task(index) for index in range(1, 7)))
-        result, runtime, events = self.run_dispatcher(contract, mode="parallel")
+        result, runtime, events = self.run_dispatcher(
+            contract, mode="parallel", FIXTURE_EXPECTED_CONCURRENCY="6", FIXTURE_LAUNCH_DELAY="0.45")
         self.assertEqual(result.returncode, 0, (result.stdout + result.stderr).decode())
         self.assertEqual(self.concurrent_max(events), 6)
         self.assertEqual(len([event for event in events if event["event"] == "start"]), 6)
         self.assertIn("validation", (runtime / "gates").read_text())
+
+    def assert_six_worker_rendezvous_rejects(self, **changes):
+        contract = self.contract(*(self.task(index) for index in range(1, 7)))
+        result, runtime, events = self.run_dispatcher(
+            contract, mode="parallel", FIXTURE_EXPECTED_CONCURRENCY="6", **changes)
+        self.assertNotEqual(result.returncode, 0, (result.stdout + result.stderr).decode())
+        state = json.loads((runtime / "rendezvous.json").read_text())
+        self.assertTrue(state["failed"])
+        self.assertFalse(state["released"])
+        self.assertLess(self.concurrent_max(events), 6)
+        summary = json.loads(next((runtime / "features/task-runs").glob("*/summary.json")).read_text())
+        self.assertEqual(summary["completed"], [])
+
+    def test_six_worker_rendezvous_rejects_four_worker_waves(self):
+        self.assert_six_worker_rendezvous_rejects(FIXTURE_MAX_PARALLEL="4")
+
+    def test_six_worker_rendezvous_rejects_serial_dispatch(self):
+        self.assert_six_worker_rendezvous_rejects(FIXTURE_MAX_PARALLEL="1")
+
+    def test_six_worker_rendezvous_rejects_stalled_launch(self):
+        self.assert_six_worker_rendezvous_rejects(FIXTURE_STALL_ID="T006")
 
     def test_actual_generic_parallel_serializes_overlap(self):
         contract = self.contract(self.task(1), self.task(2, files=["src/file1.py"]))
