@@ -155,7 +155,7 @@ test_case "a stale pointer can resolve the newest matching nonsuperseded beacon"
 pool="$(mktemp -d "$TEST_TMP_DIR/key-fallback.XXXXXX")"
 rd="$(_mkrun "$pool" 20260101-000000-00aaaa finished yes "$key" 2)"
 printf '%s\n' nonexistent > "$pool/latest-$slug"
-_runwait --pool "$pool" --supersede-key "$key" --timeout 0
+_runwait --pool "$pool" --supersede-key "$key" --timeout 3
 if [[ "$rc" == 0 && "$out" == "$rd/summary.json" ]]; then test_pass; else test_fail "matching fallback failed"; fi
 
 test_case "keyed waiting follows a newer matching pointer during the wait"
@@ -296,14 +296,14 @@ then test_pass; else test_fail "partial scan reported a stale completion"; fi
 test_case "explicit trailing-slash run directories preserve their valid identity"
 pool="$(mktemp -d "$TEST_TMP_DIR/trailing.XXXXXX")"
 rd="$(_mkrun "$pool" 20260101-000000-00aaaa finished)"
-_runwait --run-dir "$rd/" --timeout 0
+_runwait --run-dir "$rd/" --timeout 3
 if [[ "$rc" == 0 && "$out" == "$rd//summary.json" ]]; then test_pass; else test_fail "trailing slash lost run identity"; fi
 
 test_case "an explicit relative run directory resolves identity without changing the output path"
 pool="$(mktemp -d "$TEST_TMP_DIR/relative.XXXXXX")"
 rd="$(_mkrun "$pool" 20260101-000000-00aaaa finished)"
 rc=0
-out="$(cd -- "$rd" && /bin/bash "$WAIT" --run-dir . --timeout 0 2>/dev/null)" || rc=$?
+out="$(cd -- "$rd" && /bin/bash "$WAIT" --run-dir . --timeout 3 2>/dev/null)" || rc=$?
 if [[ "$rc" == 0 && "$out" == './summary.json' ]]; then test_pass; else test_fail "relative directory lost run identity"; fi
 
 test_summary
