@@ -85,6 +85,14 @@ version_compare() {
     return 1
 }
 
+_octo_host_version_output() {
+    local total_timeout term_timeout kill_grace
+    read -r total_timeout term_timeout kill_grace <<< \
+        "$(_octo_bare_probe_budget "${OCTOPUS_VERSION_PROBE_TIMEOUT:-5}")"
+    _octo_run_bare_probe_with_timeout \
+        "$total_timeout" "$term_timeout" "$kill_grace" "$1" --version </dev/null
+}
+
 detect_claude_code_version() {
     # v9.16.0: Non-Claude hosts skip CC version detection entirely.
     if [[ "$OCTOPUS_HOST" == "codex" ]]; then
@@ -95,10 +103,13 @@ detect_claude_code_version() {
         SUPPORTS_MCP=false  # MCP integration is host-specific
         return 0
     fi
+    local _host_version_output=""
+    CLAUDE_CODE_VERSION=""
     # v8.36.0: Support Factory AI Droid runtime alongside Claude Code
     if [[ "$OCTOPUS_HOST" == "factory" ]]; then
         if command -v droid &>/dev/null; then
-            CLAUDE_CODE_VERSION=$(droid --version 2>/dev/null | grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+')
+            _host_version_output="$(_octo_host_version_output droid 2>/dev/null)" || return $?
+            CLAUDE_CODE_VERSION=$(grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+' <<< "$_host_version_output") || CLAUDE_CODE_VERSION=""
             log "INFO" "Factory AI Droid detected (v${CLAUDE_CODE_VERSION:-unknown})"
         fi
         # Factory's plugin format is interop with Claude Code — enable all modern features
@@ -128,7 +139,8 @@ detect_claude_code_version() {
     fi
     if command -v claude &>/dev/null; then
         # Get version from Claude CLI
-        CLAUDE_CODE_VERSION=$(claude --version 2>/dev/null | grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+')
+        _host_version_output="$(_octo_host_version_output claude 2>/dev/null)" || return $?
+        CLAUDE_CODE_VERSION=$(grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+' <<< "$_host_version_output") || CLAUDE_CODE_VERSION=""
     fi
 
     if [[ -z "$CLAUDE_CODE_VERSION" ]]; then

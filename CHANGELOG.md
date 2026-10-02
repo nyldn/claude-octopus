@@ -53,7 +53,8 @@
   smoke, and model helpers without live probes or config/cache writes, recognizes
   the first-party Anthropic API, and accepts disabled `--bare` when no environment
   API key is set. Missing or syntactically invalid smoke helpers produce failed
-  diagnostic JSON instead of aborting output.
+  diagnostic JSON instead of aborting output. Local host-version discovery is
+  bounded and reports failure; help does not start a version probe.
 - Research verification rejects a citation whose source ID is absent from
   the source catalog. The diagnostic now increments the failure count, so an
   unknown citation cannot leave the report passed or publish the synthesis.

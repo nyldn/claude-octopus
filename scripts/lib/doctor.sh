@@ -2098,6 +2098,17 @@ do_doctor() {
     DOCTOR_PROVIDER_READINESS=()
     DOCTOR_PROVIDER_READINESS_KIND=""
 
+    # Standalone discovery runs after parsing so help never starts a CLI probe.
+    if [[ "${DOCTOR_DETECT_HOST_VERSION:-false}" == "true" ]]; then
+        local version_status=0
+        OCTOPUS_SKIP_PROVIDER_PROBES=true detect_claude_code_version 2>/dev/null || version_status=$?
+        if [[ "$version_status" -ne 0 ]]; then
+            doctor_add "host-version-detection" "config" "fail" \
+                "Host version discovery failed (exit $version_status)" \
+                "Local --version check bounded to $(_octo_bare_probe_timeout "${OCTOPUS_VERSION_PROBE_TIMEOUT:-5}")s"
+        fi
+    fi
+
     # Run checks (filtered if category specified)
     local cat
     for cat in $categories; do

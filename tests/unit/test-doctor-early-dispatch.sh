@@ -13,7 +13,13 @@ cat > "$MOCK_BIN_DIR/claude" <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$DOCTOR_CALLS"
 case "$*" in
-    --version) echo '2.1.280 (Claude Code)' ;;
+    --version)
+        case "${DOCTOR_VERSION_MODE:-success}" in
+            stall) sleep 3; touch "$DOCTOR_VERSION_LATE"; echo '2.1.280 (Claude Code)' ;;
+            error) echo '2.1.280 (Claude Code)'; exit 23 ;;
+            malformed) echo 'version unavailable' ;;
+            *) echo '2.1.280 (Claude Code)' ;;
+        esac ;;
     agents) echo '[]' ;;
     'plugin validate --help') echo '--strict' ;;
     'plugin validate '*) exit 0 ;;
@@ -69,6 +75,100 @@ if [[ ! -e "$fixture_home/.claude-octopus/plugin" && ! -L "$fixture_home/.claude
 else
     test_fail "version-gated rows did not use the shared Claude version detector"
 fi
+
+for version_mode in error malformed; do
+    test_case "version discovery $version_mode produces failed JSON"
+    run_doctor smoke "DOCTOR_VERSION_MODE=$version_mode" 'OCTOPUS_VERSION_PROBE_TIMEOUT=1'
+    if [[ "$DOCTOR_FIXTURE_STATUS" == 1 ]] && row_is host-version-detection fail 'Host version discovery failed' &&
+       diff -r --no-dereference "$TEST_TMP_DIR/initial-home" "$fixture_home" &&
+       diff -r "$TEST_TMP_DIR/initial-tmp" "$TEST_TMP_DIR/tmp"; then
+        test_pass
+    else
+        test_fail "version discovery failure was swallowed"
+    fi
+done
+
+test_case "stalled version discovery reports timeout and cancels its late write"
+version_late="$TEST_TMP_DIR/version-late"
+run_doctor smoke 'DOCTOR_VERSION_MODE=stall' 'OCTOPUS_VERSION_PROBE_TIMEOUT=1' "DOCTOR_VERSION_LATE=$version_late"
+if [[ "$DOCTOR_FIXTURE_STATUS" == 1 ]] && row_is host-version-detection fail 'exit 124'; then
+    sleep 2.3
+    if [[ ! -e "$version_late" ]] &&
+       diff -r --no-dereference "$TEST_TMP_DIR/initial-home" "$fixture_home" &&
+       diff -r "$TEST_TMP_DIR/initial-tmp" "$TEST_TMP_DIR/tmp"; then test_pass
+    else test_fail "timed-out version process wrote after discovery"; fi
+else
+    test_fail "stalled version discovery did not produce a timeout failure"
+fi
+
+test_case "help skips a stalled version command"
+: > "$TEST_TMP_DIR/claude-calls"
+help_status=0
+env -i "HOME=$fixture_home" "PATH=$MOCK_BIN_DIR:/usr/bin:/bin" \
+    "TMPDIR=$TEST_TMP_DIR/tmp" "PLUGIN_DIR=$PROJECT_ROOT" \
+    "OCTOPUS_HOST=claude" "DOCTOR_CALLS=$TEST_TMP_DIR/claude-calls" \
+    "DOCTOR_VERSION_MODE=stall" "DOCTOR_VERSION_LATE=$TEST_TMP_DIR/help-late" \
+    bash "$PROJECT_ROOT/scripts/doctor.sh" --help > "$TEST_TMP_DIR/help.txt" 2>&1 || help_status=$?
+if [[ "$help_status" == 0 && ! -s "$TEST_TMP_DIR/claude-calls" ]] && grep -q '^Usage: octopus doctor' "$TEST_TMP_DIR/help.txt"; then
+    test_pass
+else
+    test_fail "help performed version discovery"
+fi
+
+test_case "Codex host skips Claude version discovery"
+: > "$TEST_TMP_DIR/claude-calls"
+run_doctor smoke 'OCTOPUS_HOST=codex' 'DOCTOR_VERSION_MODE=stall'
+if [[ "$DOCTOR_FIXTURE_STATUS" == 0 && ! -s "$TEST_TMP_DIR/claude-calls" ]]; then test_pass
+else test_fail "Codex host attempted Claude version discovery"; fi
+
+test_case "version discovery retains the private HOME install fallback"
+mkdir -p "$fixture_home/.local/bin"
+mv "$MOCK_BIN_DIR/claude" "$fixture_home/.local/bin/claude"
+run_doctor agents
+fallback_status="$DOCTOR_FIXTURE_STATUS"
+fallback_version=false
+row_is agents-version pass 'Claude Code v2.1.280' && fallback_version=true
+mv "$fixture_home/.local/bin/claude" "$MOCK_BIN_DIR/claude"
+rmdir "$fixture_home/.local/bin" "$fixture_home/.local"
+if [[ "$fallback_status" == 0 && "$fallback_version" == true ]]; then test_pass
+else test_fail "bounded discovery lost the existing HOME install fallback"; fi
+
+test_case "Factory keeps its feature fallback when a successful Droid version is unparseable"
+cat > "$MOCK_BIN_DIR/droid" <<'SH'
+#!/usr/bin/env bash
+echo 'version unavailable'
+SH
+chmod +x "$MOCK_BIN_DIR/droid"
+mv "$MOCK_BIN_DIR/claude" "$TEST_TMP_DIR/claude-saved"
+run_doctor agents 'OCTOPUS_HOST=factory'
+factory_status="$DOCTOR_FIXTURE_STATUS"
+factory_version=false
+row_is agents-version pass 'Claude Code v2.1.69' && factory_version=true
+mv "$TEST_TMP_DIR/claude-saved" "$MOCK_BIN_DIR/claude"
+rm "$MOCK_BIN_DIR/droid"
+if [[ "$factory_status" == 0 && "$factory_version" == true ]]; then test_pass
+else test_fail "Factory version fallback changed"; fi
+
+test_case "Factory reports a stalled Droid version command"
+cat > "$MOCK_BIN_DIR/droid" <<'SH'
+#!/usr/bin/env bash
+sleep 3
+touch "$DOCTOR_VERSION_LATE"
+echo '2.1.280'
+SH
+chmod +x "$MOCK_BIN_DIR/droid"
+mv "$MOCK_BIN_DIR/claude" "$TEST_TMP_DIR/claude-saved"
+run_doctor smoke 'OCTOPUS_HOST=factory' 'OCTOPUS_VERSION_PROBE_TIMEOUT=1' "DOCTOR_VERSION_LATE=$TEST_TMP_DIR/droid-late"
+factory_status="$DOCTOR_FIXTURE_STATUS"
+factory_timeout=false
+row_is host-version-detection fail 'exit 124' && factory_timeout=true
+mv "$TEST_TMP_DIR/claude-saved" "$MOCK_BIN_DIR/claude"
+rm "$MOCK_BIN_DIR/droid"
+sleep 2.3
+if [[ "$factory_status" == 1 && "$factory_timeout" == true && ! -e "$TEST_TMP_DIR/droid-late" ]] &&
+   diff -r --no-dereference "$TEST_TMP_DIR/initial-home" "$fixture_home" &&
+   diff -r "$TEST_TMP_DIR/initial-tmp" "$TEST_TMP_DIR/tmp"; then test_pass
+else test_fail "Factory version timeout failed or changed local state"; fi
 
 test_case "doctor finds an expired smoke cache"
 printf '0\nstale-key\n0\n' > "$fixture_home/.claude-octopus/.smoke-test-cache"

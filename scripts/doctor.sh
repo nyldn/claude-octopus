@@ -15,6 +15,4 @@ source "${SCRIPT_DIR}/lib/doctor.sh"
 if ! declare -f log >/dev/null 2>&1; then
     log() { :; }
 fi
-OCTOPUS_SKIP_PROVIDER_PROBES=true detect_claude_code_version 2>/dev/null || true
-
-do_doctor "$@"
+DOCTOR_DETECT_HOST_VERSION=true do_doctor "$@"
