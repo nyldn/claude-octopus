@@ -836,6 +836,7 @@ research_verify_synthesis() {
             [[ -n "$id" ]] || continue
             if ! grep -c '"source_id":"'"$id"'"' "$sources" >/dev/null 2>&1; then
                 invalid=true
+                failures=$((failures + 1))
                 printf 'unknown_source|%s|%s\n' "$line_no" "$id" >> "$findings"
                 continue
             fi

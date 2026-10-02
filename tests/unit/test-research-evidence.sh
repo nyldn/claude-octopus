@@ -885,4 +885,34 @@ if [[ "$unknown_plain_status" == "$unknown_annotated_status" && "$unknown_plain_
    jq -e '.checks | map(.kind) == ["unknown_source"]' "$unknown_case/verification.json" >/dev/null; then test_pass
 else test_fail "annotation changed the unknown-source citation gate"; fi
 
+_source_verification_case() {
+    local name="$1" catalog="$2" text="$3" expected_status="$4" expected_failures="$5" expected_kinds="$6"
+    local case_dir="$marker_fixture/source-$name" status=0 kinds
+    mkdir -p "$case_dir/snapshots"
+    : > "$case_dir/sources.jsonl"
+    if [[ "$catalog" != empty ]]; then
+        printf '%s\n' '{"source_id":"S001","independence_key":"content:fixture"}' > "$case_dir/sources.jsonl"
+        [[ "$catalog" == unfetched ]] || printf '%s\n' 'There are 21 templates.' > "$case_dir/snapshots/S001.body"
+    fi
+    printf '%s\n' "$text" > "$case_dir/draft.md"
+    test_case "source identity verification: $name"
+    ( RESEARCH_RUN_DIR="$case_dir" RESEARCH_PROJECT_ROOT="$marker_fixture/project"
+      research_verify_synthesis "$case_dir/draft.md" ) || status=$?
+    kinds=$(jq -r '.checks[].kind' "$case_dir/verification.json" | sort | tr '\n' ' ')
+    if [[ "$status" == "$expected_status" && "$kinds" == "$expected_kinds" ]] &&
+       jq -e --argjson failures "$expected_failures" --argjson status "$expected_status" \
+           '.claims_checked == 1 and .failures == $failures and .status == (if $status == 0 then "passed" else "failed" end)' \
+           "$case_dir/verification.json" >/dev/null; then test_pass
+    else test_fail "status=$status checks=$kinds report=$(cat "$case_dir/verification.json")"; fi
+}
+_source_verification_case empty-number empty '- There are 21 templates [source:S999].' 1 1 'unknown_source '
+_source_verification_case empty-annotated empty '- There are 21 templates [source:S999] [inference, counted by glob].' 1 1 'unknown_source '
+_source_verification_case empty-prose empty '- A supported statement [source:S999].' 1 1 'unknown_source '
+_source_verification_case populated-unknown populated '- There are 21 templates [source:S999].' 1 1 'unknown_source '
+_source_verification_case populated-mixed populated '- There are 21 templates [source:S001] [source:S999].' 1 1 'unknown_source '
+_source_verification_case two-unknown populated '- There are 21 templates [source:S998] [source:S999].' 1 2 'unknown_source unknown_source '
+_source_verification_case known-match populated '- There are 21 templates [source:S001] [inference, counted by glob].' 0 0 ''
+_source_verification_case known-mismatch populated '- There are 901 templates [source:S001] [inference, counted by glob].' 1 1 'number_mismatch '
+_source_verification_case known-unfetched unfetched '- There are 21 templates [source:S001].' 0 0 'number_unverified '
+
 test_summary
