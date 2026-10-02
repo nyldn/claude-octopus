@@ -867,8 +867,12 @@ if os.name != "posix":
 helper = os.environ["HELPER"]
 
 with tempfile.TemporaryDirectory() as cwd:
+    # Background shells can pass SIG_IGN to Python. Exercise that inheritance,
+    # then make this worker receive KeyboardInterrupt before its child starts.
+    inherited_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
     worker = os.fork()
     if worker == 0:
+        signal.signal(signal.SIGINT, signal.default_int_handler)
         spec = importlib.util.spec_from_file_location("openai_compatible_agent_process_interrupt", helper)
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
@@ -878,9 +882,13 @@ import time
 from pathlib import Path
 
 Path("ready").write_text("1")
-for _ in range(200):
-    sys.stdout.write("chunk\\n")
-    sys.stdout.flush()
+deadline = time.monotonic() + 2
+while not Path("release").exists() and time.monotonic() < deadline:
+    try:
+        sys.stdout.write("chunk\\n")
+        sys.stdout.flush()
+    except BrokenPipeError:
+        pass
     time.sleep(0.01)
 Path("late-interrupt").write_text("late")
 """
@@ -890,6 +898,7 @@ Path("late-interrupt").write_text("late")
         except KeyboardInterrupt:
             os._exit(42)
         os._exit(0)
+    signal.signal(signal.SIGINT, inherited_handler)
     ready = Path(cwd, "ready")
     deadline = time.monotonic() + 2
     while not ready.exists() and time.monotonic() < deadline:
@@ -907,6 +916,8 @@ Path("late-interrupt").write_text("late")
         os.waitpid(worker, 0)
         raise AssertionError("supervisor did not exit after interruption")
     assert os.waitstatus_to_exitcode(status) == 42, status
+    # A surviving child can now write, even if pipe closure stopped its output.
+    Path(cwd, "release").write_text("1")
     time.sleep(0.5)
     assert not Path(cwd, "late-interrupt").exists()
 PYTEST
