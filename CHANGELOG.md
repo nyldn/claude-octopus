@@ -47,7 +47,8 @@
 - `octo doctor` reported false Claude version and missing smoke-cache warnings
   because early dispatch skipped startup state. It now reuses shared version,
   smoke, and model helpers without live probes or config/cache writes, recognizes
-  the first-party Anthropic API, and accepts disabled `--bare` for subscription OAuth.
+  the first-party Anthropic API, and accepts disabled `--bare` when no environment
+  API key is set.
 - The Perplexity provider now uses the Agent API directly. Sonar chat
   completions support ended on 2026-09-27; Perplexity is gradually
   reformulating synchronous and streaming Sonar calls as Agent API requests.

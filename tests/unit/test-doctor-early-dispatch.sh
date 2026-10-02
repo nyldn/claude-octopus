@@ -39,13 +39,16 @@ run_doctor() {
     local category="$1"
     shift
     local rc=0
+    local flags=(--json)
+    [[ "${DOCTOR_FIXTURE_LIVE:-false}" != true ]] || flags+=(--live)
     env -i "HOME=$fixture_home" "PATH=$MOCK_BIN_DIR:/usr/bin:/bin" \
         "TMPDIR=$TEST_TMP_DIR/tmp" "PLUGIN_DIR=$PROJECT_ROOT" \
         "OCTOPUS_HOST=claude" "OCTOPUS_DISABLE_BARE=1" "OCTOPUS_GRAPHIFY=0" \
         "DOCTOR_CALLS=$TEST_TMP_DIR/claude-calls" \
         "DOCTOR_UNEXPECTED_CALLS=$TEST_TMP_DIR/unexpected-calls" \
-        "$@" bash "$PROJECT_ROOT/scripts/doctor.sh" ${category:+"$category"} --json \
+        "$@" bash "$PROJECT_ROOT/scripts/doctor.sh" ${category:+"$category"} "${flags[@]}" \
         > "$TEST_TMP_DIR/result.json" 2> "$TEST_TMP_DIR/stderr" || rc=$?
+    DOCTOR_FIXTURE_STATUS="$rc"
     [[ "$rc" -le 1 ]] && jq -e '.results | type == "array"' "$TEST_TMP_DIR/result.json" >/dev/null
 }
 
@@ -105,23 +108,91 @@ for key_state in unset empty key; do
     test_case "disabled bare authentication with API key $key_state"
     args=()
     expected=pass
-    message='--bare disabled: subscription OAuth (--bare accepts only ANTHROPIC_API_KEY/apiKeyHelper)'
+    message='--bare disabled; no ANTHROPIC_API_KEY in the environment'
     case "$key_state" in
         empty) args=('ANTHROPIC_API_KEY=') ;;
         key) args=('ANTHROPIC_API_KEY=dummy'); expected=warn; message='--bare flag disabled via OCTOPUS_DISABLE_BARE=1' ;;
     esac
-    run_doctor skills "${args[@]}"
+    run_doctor skills ${args[@]+"${args[@]}"}
     if row_is bare-flag "$expected" "$message"; then test_pass; else test_fail "wrong bare status for $key_state key"; fi
+done
+
+test_case "disabled bare does not infer OAuth from apiKeyHelper settings"
+mkdir -p "$fixture_home/.claude"
+jq -n --arg command "touch $TEST_TMP_DIR/api-key-helper-called" '{apiKeyHelper: $command}' > "$fixture_home/.claude/settings.json"
+run_doctor skills
+if [[ ! -e "$TEST_TMP_DIR/api-key-helper-called" ]] && row_is bare-flag pass '--bare disabled' &&
+   ! jq -r '.results[] | select(.name == "bare-flag") | .message' "$TEST_TMP_DIR/result.json" | grep -qi 'subscription OAuth'; then
+    test_pass
+else
+    test_fail "doctor inferred an authentication method from the absent environment key"
+fi
+
+test_case "sourced bare-filename doctor loads helpers after changing directories"
+env -i "HOME=$fixture_home" "PATH=$MOCK_BIN_DIR:/usr/bin:/bin" \
+    "TMPDIR=$TEST_TMP_DIR/tmp" "PLUGIN_DIR=$PROJECT_ROOT" \
+    "DOCTOR_CALLS=$TEST_TMP_DIR/claude-calls" \
+    "DOCTOR_UNEXPECTED_CALLS=$TEST_TMP_DIR/unexpected-calls" \
+    bash > "$TEST_TMP_DIR/result.json" 2> "$TEST_TMP_DIR/stderr" <<'SH'
+log() { :; }
+cd "$PLUGIN_DIR/scripts/lib" || exit 1
+source doctor.sh
+cd "$HOME" || exit 1
+export PYTHONDONTWRITEBYTECODE=caller-value
+do_doctor smoke --json
+[[ "$PYTHONDONTWRITEBYTECODE" == caller-value ]] || exit 98
+unset PYTHONDONTWRITEBYTECODE
+do_doctor smoke --json >/dev/null
+[[ -z "${PYTHONDONTWRITEBYTECODE+x}" && -z "${OCTOPUS_MODEL_READ_ONLY+x}" ]]
+SH
+if row_is smoke-codex-model pass 'Codex model: gpt-5.6-terra' && [[ ! -s "$TEST_TMP_DIR/stderr" ]]; then
+    test_pass
+else
+    test_fail "bare-filename source lost the library directory or failed to load helpers"
+fi
+
+test_case "explicit live doctor reaches the inert bare-auth probe"
+: > "$TEST_TMP_DIR/claude-calls"
+DOCTOR_FIXTURE_LIVE=true run_doctor skills 'OCTOPUS_DISABLE_BARE=0' 'ANTHROPIC_API_KEY=dummy'
+if row_is bare-flag warn '--bare' && grep -q -- '--bare' "$TEST_TMP_DIR/claude-calls"; then
+    test_pass
+else
+    test_fail "explicit live mode did not reach the bounded authentication probe"
+fi
+
+incomplete_doctor_fixture() (
+    local missing="$1" incomplete_root="$TEST_TMP_DIR/incomplete-${1%.sh}"
+    mkdir -p "$incomplete_root"
+    cp -a "$PROJECT_ROOT/scripts" "$incomplete_root/scripts"
+    cp -a "$PROJECT_ROOT/config" "$incomplete_root/config"
+    cp -a "$PROJECT_ROOT/.claude-plugin" "$incomplete_root/.claude-plugin"
+    rm "$incomplete_root/scripts/lib/$missing"
+    PROJECT_ROOT="$incomplete_root"
+    run_doctor smoke
+    [[ "$DOCTOR_FIXTURE_STATUS" == 1 ]] || return 1
+    row_is smoke-helpers fail "Smoke diagnostics helper unavailable: $missing"
+)
+for missing in model-resolver.sh dispatch.sh smoke.sh; do
+    test_case "missing $missing produces valid failed diagnostic JSON"
+    if incomplete_doctor_fixture "$missing"; then
+        test_pass
+    else
+        test_fail "missing helper aborted JSON output or claimed healthy smoke configuration"
+    fi
 done
 
 test_case "static doctor detects once, makes no live calls, and leaves HOME and temp state unchanged"
 ln -s "$PROJECT_ROOT" "$fixture_home/.claude-octopus/plugin"
+# A stale persistent cache must survive static inspection byte for byte.
+printf '%s\n' '{"stale":"fixture"}' > "$TEST_TMP_DIR/tmp/octo-model-cache-unknown-global.json"
+touch -t 200001010000 "$TEST_TMP_DIR/tmp/octo-model-cache-unknown-global.json"
 cp -a "$fixture_home" "$TEST_TMP_DIR/home-before"
 cp -a "$TEST_TMP_DIR/tmp" "$TEST_TMP_DIR/tmp-before"
 : > "$TEST_TMP_DIR/claude-calls"
 : > "$TEST_TMP_DIR/unexpected-calls"
 run_doctor "" 'OCTOPUS_DISABLE_BARE=0' 'OCTOPUS_AGY_MODEL=Gemini 3.5 Flash (Low)'
 if row_is agents-version pass 'Claude Code v2.1.280' &&
+   row_is smoke-codex-model pass 'Codex model: gpt-5.6-terra' &&
    row_is smoke-agy-model pass 'Antigravity model: Gemini 3.5 Flash (Low)' &&
    [[ "$(grep -c '^--version$' "$TEST_TMP_DIR/claude-calls")" == 1 ]] &&
    ! grep -Eq -- '--print|--bare' "$TEST_TMP_DIR/claude-calls" &&

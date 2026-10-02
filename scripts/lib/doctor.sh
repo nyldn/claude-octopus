@@ -1266,7 +1266,7 @@ doctor_check_skills() {
     if [[ "$SUPPORTS_BARE_FLAG" == "true" ]]; then
         if [[ "${OCTOPUS_DISABLE_BARE:-0}" == "1" && -z "${ANTHROPIC_API_KEY:-}" ]]; then
             doctor_add "bare-flag" "skills" "pass" \
-                "--bare disabled: subscription OAuth (--bare accepts only ANTHROPIC_API_KEY/apiKeyHelper)" ""
+                "--bare disabled; no ANTHROPIC_API_KEY in the environment" "Authentication method was not checked"
         elif [[ "${OCTOPUS_DISABLE_BARE:-0}" == "1" ]]; then
             doctor_add "bare-flag" "skills" "warn" \
                 "--bare flag disabled via OCTOPUS_DISABLE_BARE=1" \
@@ -1591,16 +1591,21 @@ doctor_check_smoke() {
     local OCTOPUS_MODEL_READ_ONLY=true
     local WORKSPACE_DIR="${WORKSPACE_DIR:-$(_doctor_resolve_workspace_dir)}"
     local PREFLIGHT_CACHE_TTL="${PREFLIGHT_CACHE_TTL:-3600}"
-    local _doctor_lib_dir="${BASH_SOURCE[0]%/*}"
-    if ! declare -f resolve_octopus_model >/dev/null 2>&1; then
-        source "${_doctor_lib_dir}/model-resolver.sh"
-    fi
-    if ! declare -f get_agent_model >/dev/null 2>&1; then
-        source "${_doctor_lib_dir}/dispatch.sh"
-    fi
-    if ! declare -f smoke_test_cache_key >/dev/null 2>&1; then
-        source "${_doctor_lib_dir}/smoke.sh"
-    fi
+    local _doctor_smoke_lib_dir="${_doctor_lib_dir:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+    local helper helper_file helper_function
+    for helper in model-resolver.sh:resolve_octopus_model dispatch.sh:get_agent_model smoke.sh:smoke_test_cache_key; do
+        helper_file="${helper%%:*}"
+        helper_function="${helper#*:}"
+        if ! declare -F "$helper_function" >/dev/null 2>&1; then
+            if [[ ! -r "${_doctor_smoke_lib_dir}/$helper_file" ]] \
+                || ! source "${_doctor_smoke_lib_dir}/$helper_file" 2>/dev/null \
+                || ! declare -F "$helper_function" >/dev/null 2>&1; then
+                doctor_add "smoke-helpers" "smoke" "fail" \
+                    "Smoke diagnostics helper unavailable: $helper_file" "${_doctor_smoke_lib_dir}/$helper_file"
+                return 0
+            fi
+        fi
+    done
 
     # Cache status
     if [[ -f "$SMOKE_TEST_CACHE_FILE" ]]; then
@@ -2045,6 +2050,9 @@ do_doctor() {
     local verbose=false
     local json_output=false
     local DOCTOR_LIVE_PROBE=false
+    # Interpreter imports must not create bytecode caches during diagnostics.
+    local PYTHONDONTWRITEBYTECODE=1
+    export PYTHONDONTWRITEBYTECODE
     local categories="providers companions auth config updates state smoke hooks scheduler skills conflicts agents recurrence cache installation"
 
     # Parse arguments
