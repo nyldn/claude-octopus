@@ -160,6 +160,9 @@ validate_agy_model_name() {
         *\\*) return 1 ;;
     esac
 
+    # Static diagnostics display configured labels without contacting agy.
+    [[ "${OCTOPUS_MODEL_READ_ONLY:-false}" == "true" ]] && return 0
+
     case "$model" in
         default|agy/default)
             return 0
@@ -451,7 +454,9 @@ resolve_octopus_model() {
     # Persistent File Cache (optional, for parallel execution speed).
     # Path comes from lib/model-cache-path.sh so writers and invalidators agree.
     local persistent_cache=""
-    persistent_cache="$(octo_model_cache_file 2>/dev/null)" || persistent_cache=""
+    if [[ "${OCTOPUS_MODEL_READ_ONLY:-false}" != "true" ]]; then
+        persistent_cache="$(octo_model_cache_file 2>/dev/null)" || persistent_cache=""
+    fi
     # v8.49.0: Invalidate cache if config file changed since cache was written
     if [[ -n "$persistent_cache" && -f "$persistent_cache" && -f "$config_file" && "$config_file" -nt "$persistent_cache" ]]; then
         rm -f "$persistent_cache"

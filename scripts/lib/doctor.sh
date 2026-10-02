@@ -720,7 +720,10 @@ doctor_check_config() {
 
     # v9.36: CC v2.1.126-129 compatibility checks
     if [[ "${SUPPORTS_GATEWAY_MODEL_DISCOVERY:-false}" == "true" ]]; then
-        if [[ -n "${ANTHROPIC_BASE_URL:-}" && "${CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY:-0}" != "1" ]]; then
+        if [[ "${ANTHROPIC_BASE_URL:-}" == "https://api.anthropic.com" || "${ANTHROPIC_BASE_URL:-}" == "https://api.anthropic.com/" ]]; then
+            doctor_add "gateway-model-discovery" "config" "pass" \
+                "No gateway: ANTHROPIC_BASE_URL is the Anthropic API" ""
+        elif [[ -n "${ANTHROPIC_BASE_URL:-}" && "${CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY:-0}" != "1" ]]; then
             doctor_add "gateway-model-discovery" "config" "warn" \
                 "Gateway model discovery is opt-in on current Claude Code" \
                 "ANTHROPIC_BASE_URL is set; set CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1 to populate /model from /v1/models"
@@ -1261,10 +1264,16 @@ doctor_check_skills() {
     fi
 
     if [[ "$SUPPORTS_BARE_FLAG" == "true" ]]; then
-        if [[ "${OCTOPUS_DISABLE_BARE:-0}" == "1" ]]; then
+        if [[ "${OCTOPUS_DISABLE_BARE:-0}" == "1" && -z "${ANTHROPIC_API_KEY:-}" ]]; then
+            doctor_add "bare-flag" "skills" "pass" \
+                "--bare disabled: subscription OAuth (--bare accepts only ANTHROPIC_API_KEY/apiKeyHelper)" ""
+        elif [[ "${OCTOPUS_DISABLE_BARE:-0}" == "1" ]]; then
             doctor_add "bare-flag" "skills" "warn" \
                 "--bare flag disabled via OCTOPUS_DISABLE_BARE=1" \
                 "Subprocess synthesis falls back to standard claude -p (slower but avoids auth issues)"
+        elif [[ "${DOCTOR_LIVE_PROBE:-false}" != "true" ]]; then
+            doctor_add "bare-flag" "skills" "info" \
+                "--bare flag available; authentication not probed" "Use doctor --live to check --bare authentication"
         else
             # Probe whether --bare can authenticate (CC v2.1.114 regression,
             # issue #288) without allowing auth or Keychain waits to wedge doctor.
@@ -1577,6 +1586,22 @@ doctor_check_conflicts() {
 
 # --- Category 9: Smoke Test (v8.19.0 - Issue #34) ---
 doctor_check_smoke() {
+    # Load only the shared smoke/model libraries, without workflow startup.
+    # Model inspection must not migrate config, write caches, or query catalogs.
+    local OCTOPUS_MODEL_READ_ONLY=true
+    local WORKSPACE_DIR="${WORKSPACE_DIR:-$(_doctor_resolve_workspace_dir)}"
+    local PREFLIGHT_CACHE_TTL="${PREFLIGHT_CACHE_TTL:-3600}"
+    local _doctor_lib_dir="${BASH_SOURCE[0]%/*}"
+    if ! declare -f resolve_octopus_model >/dev/null 2>&1; then
+        source "${_doctor_lib_dir}/model-resolver.sh"
+    fi
+    if ! declare -f get_agent_model >/dev/null 2>&1; then
+        source "${_doctor_lib_dir}/dispatch.sh"
+    fi
+    if ! declare -f smoke_test_cache_key >/dev/null 2>&1; then
+        source "${_doctor_lib_dir}/smoke.sh"
+    fi
+
     # Cache status
     if [[ -f "$SMOKE_TEST_CACHE_FILE" ]]; then
         local cache_time cache_key cache_status current_time cache_age
