@@ -18,7 +18,8 @@ _runwait() { rc=0; out="$(bash "$WAIT" "$@" 2>/dev/null)" || rc=$?; }
 _mkrun() { # _mkrun <pool> <run_id> <state> [valid_summary]
     local pool="$1" rid="$2" state="$3" valid="${4:-yes}" rd="$1/$2"
     mkdir -p "$rd"
-    printf '{"state":"%s","run_id":"%s"}\n' "$state" "$rid" > "$rd/run-status.json"
+    jq -n --arg state "$state" --arg rid "$rid" --arg key "${5:-}" --argjson order "${6:-0}" \
+        '{state:$state,run_id:$rid,supersede_key:$key,created_order:$order,superseded:false}' > "$rd/run-status.json"
     if [[ "$state" == "finished" ]]; then
         if [[ "$valid" == "yes" ]]; then printf '{"status":"completed","quorum":{"met":true}}\n' > "$rd/summary.json"
         else printf '{bad json' > "$rd/summary.json"; fi
@@ -69,7 +70,7 @@ source "$PROJECT_ROOT/scripts/lib/council.sh" 2>/dev/null || true
 key="2947:CP2"
 if declare -f council_supersede_key_slug >/dev/null 2>&1; then slug="$(council_supersede_key_slug "$key")"
 else slug="$(printf '%s' "$key" | tr -c 'A-Za-z0-9._-' '_' | cut -c1-64)-$(printf '%s' "$key" | cksum | cut -d' ' -f1)"; fi
-cp2rd="$(_mkrun "$pool" 20260101-030000-00f111 finished)"      # the keyed round, finished
+cp2rd="$(_mkrun "$pool" 20260101-030000-00f111 finished yes "$key")"
 _mkrun "$pool" 20260101-040000-00f222 running >/dev/null       # a NEWER unrelated round, running
 printf '%s\n' 20260101-030000-00f111 > "$pool/latest-$slug"
 _runwait --pool "$pool" --supersede-key "$key" --interval 1 --timeout 5
@@ -87,5 +88,135 @@ _runwait --pool /x --run-dir /y; [[ $rc -eq 64 ]] && r1=ok
 _runwait;                        [[ $rc -eq 64 ]] && r2=ok
 _runwait --pool /x --interval abc; [[ $rc -eq 64 ]] && r3=ok
 if [[ "$r1" == ok && "$r2" == ok && "$r3" == ok ]]; then test_pass; else test_fail "usage guards: $r1/$r2/$r3"; fi
+
+test_case "a poll interval larger than the deadline cannot extend the wait"
+pool="$(mktemp -d "$TEST_TMP_DIR/deadline.XXXXXX")"
+rd="$(_mkrun "$pool" 20260101-000000-00aaaa running)"
+if python3 - "$WAIT" "$rd" <<'PY'
+import os, signal, subprocess, sys, time
+started = time.monotonic()
+child = subprocess.Popen(["/bin/bash",sys.argv[1],"--run-dir",sys.argv[2],"--interval","6","--timeout","1"],stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)
+try:
+    child.communicate(timeout=5)
+except subprocess.TimeoutExpired:
+    os.killpg(child.pid,signal.SIGKILL)
+    child.communicate()
+    sys.exit(1)
+sys.exit(0 if child.returncode == 2 and time.monotonic()-started < 4 else 1)
+PY
+then test_pass; else test_fail "interval extended the one-second deadline"; fi
+
+test_case "leading zeros remain decimal and oversized integers reject"
+pool="$(mktemp -d "$TEST_TMP_DIR/decimal.XXXXXX")"
+rd="$(_mkrun "$pool" 20260101-000000-00aaaa finished)"
+_runwait --run-dir "$rd" --timeout 08 --interval 09
+decimal_rc="$rc"
+_runwait --run-dir "$rd" --timeout 999999999999999999999999
+if [[ "$decimal_rc" == 0 && "$rc" == 64 ]]; then test_pass; else test_fail "decimal=$decimal_rc oversized=$rc"; fi
+
+test_case "since uses immutable UTC run creation time, not directory mtime"
+pool="$(mktemp -d "$TEST_TMP_DIR/since.XXXXXX")"
+_mkrun "$pool" 20260101-000000-00aaaa finished >/dev/null
+_runwait --pool "$pool" --since 1767312000 --timeout 0
+if [[ "$rc" == 2 ]]; then test_pass; else test_fail "selected a stale run with fresh directory mtime"; fi
+
+test_case "since also filters a stale keyed pointer"
+pool="$(mktemp -d "$TEST_TMP_DIR/key-since.XXXXXX")"
+_mkrun "$pool" 20260101-000000-00aaaa finished yes "$key" >/dev/null
+printf '%s\n' 20260101-000000-00aaaa > "$pool/latest-$slug"
+_runwait --pool "$pool" --supersede-key "$key" --since 1767312000 --timeout 0
+if [[ "$rc" == 2 ]]; then test_pass; else test_fail "key pointer bypassed since"; fi
+
+test_case "same-second creation order beats a reversed PID suffix"
+pool="$(mktemp -d "$TEST_TMP_DIR/order.XXXXXX")"
+_mkrun "$pool" 20260101-000000-ffffff finished yes '' 1 >/dev/null
+_mkrun "$pool" 20260101-000000-000001 running yes '' 2 >/dev/null
+_runwait --pool "$pool" --timeout 0
+if [[ "$rc" == 2 ]]; then test_pass; else test_fail "selected the older finished PID"; fi
+
+test_case "an absent supersede key cannot select an unrelated finished round"
+pool="$(mktemp -d "$TEST_TMP_DIR/key-missing.XXXXXX")"
+_mkrun "$pool" 20260101-000000-00aaaa finished yes unrelated >/dev/null
+_runwait --pool "$pool" --supersede-key "$key" --timeout 0
+if [[ "$rc" == 2 ]]; then test_pass; else test_fail "selected an unrelated key"; fi
+
+test_case "a stale pointer can resolve the newest matching nonsuperseded beacon"
+pool="$(mktemp -d "$TEST_TMP_DIR/key-fallback.XXXXXX")"
+rd="$(_mkrun "$pool" 20260101-000000-00aaaa finished yes "$key" 2)"
+printf '%s\n' nonexistent > "$pool/latest-$slug"
+_runwait --pool "$pool" --supersede-key "$key" --timeout 0
+if [[ "$rc" == 0 && "$out" == "$rd/summary.json" ]]; then test_pass; else test_fail "matching fallback failed"; fi
+
+test_case "keyed waiting follows a newer matching pointer during the wait"
+pool="$(mktemp -d "$TEST_TMP_DIR/key-flip.XXXXXX")"
+_mkrun "$pool" 20260101-000000-00aaaa running yes "$key" 1 >/dev/null
+rd="$(_mkrun "$pool" 20260101-000001-00bbbb finished yes "$key" 2)"
+printf '%s\n' 20260101-000000-00aaaa > "$pool/latest-$slug"
+( sleep 1; printf '%s\n' 20260101-000001-00bbbb > "$pool/latest-$slug" ) &
+flip_pid=$!
+_runwait --pool "$pool" --supersede-key "$key" --interval 1 --timeout 4
+wait "$flip_pid" || true
+if [[ "$rc" == 0 && "$out" == "$rd/summary.json" ]]; then test_pass; else test_fail "remained latched on older keyed run"; fi
+
+test_case "a key pointer cannot leave its pool or accept a symlinked run"
+parent="$(mktemp -d "$TEST_TMP_DIR/outside.XXXXXX")"
+pool="$parent/pool"; mkdir -p "$pool"
+rd="$(_mkrun "$parent" 20260101-000000-00aaaa finished yes "$key")"
+printf '%s\n' ../20260101-000000-00aaaa > "$pool/latest-$slug"
+_runwait --pool "$pool" --supersede-key "$key" --timeout 0
+outside_rc="$rc"
+ln -s "$rd" "$pool/20260101-000000-00aaaa"
+printf '%s\n' 20260101-000000-00aaaa > "$pool/latest-$slug"
+_runwait --pool "$pool" --supersede-key "$key" --timeout 0
+if [[ "$outside_rc" == 2 && "$rc" == 2 ]]; then test_pass; else test_fail "outside=$outside_rc symlink=$rc"; fi
+
+test_case "superseded keyed beacons do not advertise current completion"
+pool="$(mktemp -d "$TEST_TMP_DIR/superseded.XXXXXX")"
+rd="$(_mkrun "$pool" 20260101-000000-00aaaa finished yes "$key")"
+jq '.superseded=true' "$rd/run-status.json" > "$rd/status-next.json"
+mv "$rd/status-next.json" "$rd/run-status.json"
+printf '%s\n' 20260101-000000-00aaaa > "$pool/latest-$slug"
+_runwait --pool "$pool" --supersede-key "$key" --timeout 0
+if [[ "$rc" == 2 ]]; then test_pass; else test_fail "selected a superseded run"; fi
+
+test_case "summary must be one object with matching optional run identity"
+pool="$(mktemp -d "$TEST_TMP_DIR/summary.XXXXXX")"
+rd="$(_mkrun "$pool" 20260101-000000-00aaaa finished)"
+bad=0
+for record in '[{"status":"completed"}]' '{"status":"completed"} {"status":"completed"}' '{"status":"completed","run_id":"wrong"}' '{}'; do
+    printf '%s\n' "$record" > "$rd/summary.json"
+    _runwait --run-dir "$rd" --timeout 0
+    [[ "$rc" == 2 ]] || bad=$((bad+1))
+done
+if [[ "$bad" == 0 ]]; then test_pass; else test_fail "$bad invalid summaries admitted"; fi
+
+test_case "a beacon from another run cannot complete this directory"
+pool="$(mktemp -d "$TEST_TMP_DIR/beacon.XXXXXX")"
+rd="$(_mkrun "$pool" 20260101-000000-00aaaa finished)"
+printf '%s\n' '{"state":"finished","run_id":"wrong"}' > "$rd/run-status.json"
+_runwait --run-dir "$rd" --timeout 0
+if [[ "$rc" == 2 ]]; then test_pass; else test_fail "foreign beacon admitted"; fi
+
+test_case "pool-only filters cannot silently apply to an explicit run directory"
+_runwait --run-dir /x --since 1
+since_rc="$rc"
+_runwait --run-dir /x --supersede-key x
+if [[ "$since_rc" == 64 && "$rc" == 64 ]]; then test_pass; else test_fail "ignored pool-only filter"; fi
+
+test_case "actual atomic writer and supersession select the current same-second round"
+pool="$(mktemp -d "$TEST_TMP_DIR/writer.XXXXXX")"
+old="$pool/20260101-000000-ffffff"; current="$pool/20260101-000000-000001"
+mkdir -p "$old" "$current"
+writer="$PROJECT_ROOT/scripts/helpers/council-run-state.py"
+printf '%s\n' '{"status":"completed","run_id":"20260101-000000-ffffff"}' > "$old/summary.json"
+jq -n --arg key "$key" '{state:"finished",run_id:"20260101-000000-ffffff",supersede_key:$key}' | python3 "$writer" write "$old"
+jq -n --arg key "$key" '{state:"running",run_id:"20260101-000000-000001",supersede_key:$key}' | python3 "$writer" write "$current"
+python3 "$writer" supersede "$pool" "$current" "$key" "latest-$slug"
+_runwait --pool "$pool" --supersede-key "$key" --timeout 0
+running_rc="$rc"
+printf '%s\n' '{"status":"partial","run_id":"20260101-000000-000001"}' > "$current/summary.json"
+jq -n --arg key "$key" '{state:"finished",run_id:"20260101-000000-000001",supersede_key:$key}' | python3 "$writer" write "$current"
+_runwait --pool "$pool" --supersede-key "$key" --timeout 0
+if [[ "$running_rc" == 2 && "$rc" == 0 && "$out" == "$current/summary.json" ]]; then test_pass; else test_fail "running=$running_rc finished=$rc output=$out"; fi
 
 test_summary

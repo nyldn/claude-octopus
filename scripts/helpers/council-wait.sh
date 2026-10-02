@@ -1,35 +1,22 @@
 #!/usr/bin/env bash
-# council-wait.sh — block efficiently until a backgrounded council round finishes,
-# then print the path to its summary.json. Replaces a lead's coarse hand-rolled
-# poll loop (e.g. `sleep 15 x 38` passes, discovering completion up to ~10 minutes
-# late) with a short-interval poll of the authoritative completion beacon.
-#
-# The runner writes run-status.json's `state:"finished"` as the LAST step of
-# council_write_summary_json, i.e. only after a valid summary.json is in place, so
-# `state == "finished"` reliably means the summary is present. This waiter polls
-# that flag and returns the instant it flips — the completion tail drops from
-# minutes to one poll interval.
+# Wait for a Council completion beacon and print its summary.json path.
+# Completion can include a partial or failed Council result. Read the summary
+# to determine that result; exit 0 means the artifacts are ready.
 #
 # Usage:
-#   council-wait.sh --pool <dir> [--interval S] [--timeout N] [--since EPOCH] \
-#                   [--supersede-key KEY]
-#   council-wait.sh --run-dir <dir> [--interval S] [--timeout N]
+#   council-wait.sh --pool DIR [--since EPOCH] [--supersede-key KEY]
+#                   [--interval SECONDS] [--timeout SECONDS]
+#   council-wait.sh --run-dir DIR [--interval SECONDS] [--timeout SECONDS]
 #
-#   --pool         councils pool dir; the newest run in it is awaited (a council
-#                  invocation creates a timestamped run dir the caller can't name
-#                  ahead of time, so the pool is the stable handle).
-#   --run-dir      await a specific run dir instead of resolving one from a pool.
-#   --supersede-key with --pool, prefer the run the pool's latest-<slug> pointer
-#                  names (the current gate's round), ignoring older interleaved gates.
-#   --since EPOCH  with --pool, only consider run dirs created at/after EPOCH
-#                  (seconds), so a stale prior round is never selected.
-#   --interval S   poll interval seconds (default 2; floored at 1).
-#   --timeout N    max seconds to wait (default 570, kept < the 600s synchronous
-#                  tool-call cap; call again to keep waiting a longer council).
-#
-# Output: on completion, prints the summary.json path to stdout and exits 0.
-#         On timeout, prints the awaited run dir (or "pending") to stderr, exits 2.
-#         Usage/argument errors exit 64.
+# Pool selection uses the creation counter, with run names for legacy ties.
+# --since filters immutable UTC creation timestamps in run names.
+# --supersede-key waits only for matching current rounds and follows a newer
+# matching pointer during the wait. Invalid pointers cannot select another pool.
+# The interval defaults to 2 seconds and is floored at 1. The timeout defaults
+# to 570 seconds; sleeping never extends it. Time values accept decimal integers.
+# A finished beacon and one valid summary object are required before success.
+# Exit 0 prints the path, 2 reports timeout, and 64 reports invalid arguments.
+
 set -euo pipefail
 
 POOL="" RUN_DIR="" INTERVAL=2 TIMEOUT=570 SINCE="" KEY=""
@@ -44,19 +31,28 @@ while [[ $# -gt 0 ]]; do
         --since)         [[ $# -ge 2 ]] || die_usage "--since requires a value"; SINCE="$2"; shift 2 ;;
         --interval)      [[ $# -ge 2 ]] || die_usage "--interval requires a value"; INTERVAL="$2"; shift 2 ;;
         --timeout)       [[ $# -ge 2 ]] || die_usage "--timeout requires a value"; TIMEOUT="$2"; shift 2 ;;
-        --help|-h)       sed -n '2,36p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        --help|-h)       awk 'NR == 1 {next} /^#/ {sub(/^# ?/, ""); print; next} {exit}' "$0"; exit 0 ;;
         *)               die_usage "unknown argument: $1" ;;
     esac
 done
 
-[[ "$INTERVAL" =~ ^[0-9]+$ ]] || die_usage "--interval must be an integer"
-[[ "$TIMEOUT"  =~ ^[0-9]+$ ]] || die_usage "--timeout must be an integer"
-[[ -n "$SINCE" && ! "$SINCE" =~ ^[0-9]+$ ]] && die_usage "--since must be an epoch integer"
+_integer() {
+    local value="$1" option="$2"
+    [[ "$value" =~ ^[0-9]+$ ]] || die_usage "$option must be an integer"
+    value="$(printf '%s' "$value" | sed 's/^0*//')"
+    value="${value:-0}"
+    [[ ${#value} -le 10 ]] && (( 10#$value <= 2147483647 )) || die_usage "$option is too large"
+    printf '%s' "$value"
+}
+INTERVAL="$(_integer "$INTERVAL" --interval)" || exit 64
+TIMEOUT="$(_integer "$TIMEOUT" --timeout)" || exit 64
+if [[ -n "$SINCE" ]]; then SINCE="$(_integer "$SINCE" --since)" || exit 64; fi
 (( INTERVAL < 1 )) && INTERVAL=1
 command -v jq >/dev/null 2>&1 || die_usage "jq is required"
 
 if [[ -n "$RUN_DIR" && -n "$POOL" ]]; then die_usage "pass only one of --run-dir / --pool"; fi
 if [[ -z "$RUN_DIR" && -z "$POOL" ]]; then die_usage "one of --run-dir / --pool is required"; fi
+[[ -z "$RUN_DIR" || ( -z "$KEY" && -z "$SINCE" ) ]] || die_usage "--since and --supersede-key require --pool"
 
 _slug() {
     # Mirror council_supersede_key_slug so --supersede-key resolves the same pointer.
@@ -77,51 +73,68 @@ _resolve_run_dir() {
     if [[ -n "$KEY" ]]; then
         local ptr="$POOL/latest-$(_slug "$KEY")" rid
         if [[ -f "$ptr" ]]; then
-            rid="$(tr -d '[:space:]' < "$ptr" 2>/dev/null || true)"
-            [[ -n "$rid" && -d "$POOL/$rid" ]] && { printf '%s' "$POOL/$rid"; return 0; }
+            rid="$(cat -- "$ptr" 2>/dev/null || true)"
+            if [[ "$rid" =~ ^2[0-9]{7}-[0-9]{6}-[0-9a-fA-F]+(-[0-9]+)?$ ]] && _eligible "$POOL/$rid"; then
+                printf '%s' "$POOL/$rid"; return 0
+            fi
         fi
     fi
     # Otherwise the newest timestamped run dir (optionally created at/after --since).
-    local d best=""
+    local d best="" order best_order=0
     for d in "$POOL"/2*/; do
         [[ -d "$d" ]] || continue
         d="${d%/}"
-        if [[ -n "$SINCE" ]]; then
-            local mt; mt="$(_dir_mtime "$d")"
-            [[ -n "$mt" ]] && (( mt < SINCE )) && continue
+        _eligible "$d" || continue
+        order="$(jq -r 'if (.created_order | type) == "number" and .created_order > 0 and .created_order <= 9007199254740991 and (.created_order | floor) == .created_order then .created_order else 0 end' "$d/run-status.json" 2>/dev/null)" || continue
+        [[ "$order" =~ ^[0-9]{1,16}$ ]] || continue
+        if [[ -z "$best" ]] || (( order > best_order )) || { (( order == best_order )) && [[ "$d" > "$best" ]]; }; then
+            best="$d"; best_order="$order"
         fi
-        if [[ -z "$best" || "$d" > "$best" ]]; then best="$d"; fi
     done
     [[ -n "$best" ]] && printf '%s' "$best"
 }
 
-_dir_mtime() {
-    # Portable mtime in epoch seconds (GNU vs BSD stat).
-    stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || true
+_eligible() {
+    local rd="$1" rid="${1##*/}" stamp epoch
+    [[ -d "$rd" && ! -L "$rd" && -s "$rd/run-status.json" ]] || return 1
+    [[ "$rid" =~ ^2[0-9]{7}-[0-9]{6}-[0-9a-fA-F]+(-[0-9]+)?$ ]] || return 1
+    jq -e -s --arg rid "$rid" --arg key "$KEY" '
+        length == 1 and (.[0] | type) == "object" and .[0].run_id == $rid
+        and ($key == "" or (.[0].supersede_key == $key and .[0].superseded != true))
+    ' "$rd/run-status.json" >/dev/null 2>&1 || return 1
+    if [[ -n "$SINCE" ]]; then
+        # The UTC run name is immutable. Directory mtime changes as results arrive.
+        stamp="${rid:0:15}"
+        epoch="$(date -u -j -f '%Y%m%d-%H%M%S' "$stamp" '+%s' 2>/dev/null)" ||
+            epoch="$(date -u -d "${stamp:0:4}-${stamp:4:2}-${stamp:6:2} ${stamp:9:2}:${stamp:11:2}:${stamp:13:2}" '+%s' 2>/dev/null)" || return 1
+        [[ "$epoch" =~ ^[0-9]+$ ]] && (( epoch >= SINCE )) || return 1
+    fi
 }
 
 _is_finished() {
     local rd="$1" st="$1/run-status.json"
     [[ -f "$st" ]] || return 1
-    [[ "$(jq -r '.state // empty' "$st" 2>/dev/null || true)" == "finished" ]] || return 1
+    jq -e -s --arg rid "${rd##*/}" 'length == 1 and (.[0] | type) == "object" and .[0].state == "finished" and .[0].run_id == $rid' "$st" >/dev/null 2>&1 || return 1
     # Defensive: the beacon flips to finished only after a valid summary.json, but
     # re-check so a torn/partial file is never reported as complete.
     local summary="$rd/summary.json"
-    [[ -s "$summary" ]] && jq -e . "$summary" >/dev/null 2>&1
+    [[ -s "$summary" ]] && jq -e -s --arg rid "${rd##*/}" 'length == 1 and (.[0] | type) == "object" and (.[0].status | type) == "string" and (.[0].status | length) > 0 and (.[0].run_id == null or .[0].run_id == $rid)' "$summary" >/dev/null 2>&1
 }
 
-now() { date +%s 2>/dev/null || echo 0; }
-
-deadline=$(( $(now) + TIMEOUT ))
+deadline=$(( SECONDS + TIMEOUT ))
 run_dir=""
 while :; do
-    [[ -n "$run_dir" ]] || run_dir="$(_resolve_run_dir || true)"
+    if [[ -z "$run_dir" || -n "$KEY" ]]; then run_dir="$(_resolve_run_dir || true)"; fi
     if [[ -n "$run_dir" ]] && _is_finished "$run_dir"; then
+        if [[ -n "$KEY" && "$(_resolve_run_dir || true)" != "$run_dir" ]]; then run_dir=""; continue; fi
         printf '%s/summary.json\n' "$run_dir"
         exit 0
     fi
-    (( $(now) >= deadline )) && break
-    sleep "$INTERVAL"
+    remaining=$(( deadline - SECONDS ))
+    (( remaining > 0 )) || break
+    delay="$INTERVAL"
+    (( delay <= remaining )) || delay="$remaining"
+    sleep "$delay"
 done
 
 printf 'council-wait: timed out after %ss (run: %s)\n' "$TIMEOUT" "${run_dir:-pending}" >&2

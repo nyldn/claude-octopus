@@ -7,17 +7,9 @@
 - Cheaper Inference is available through `cheaperinference-agent`, an
   OpenAI-compatible tool-loop provider. Set `CHEAPER_INFERENCE_API_KEY` and
   an explicit model pin or configured default to enable it.
-- `scripts/helpers/council-wait.sh`: blocks until a backgrounded council round
-  finishes and prints its `summary.json` path, so a lead no longer discovers
-  completion up to ~10 minutes late via a coarse `sleep 15 × N` poll loop. It
-  polls the authoritative completion beacon (`run-status.json` `state:"finished"`,
-  which the runner writes only after a valid `summary.json` is in place) at a short
-  interval (default 2s) and returns the instant it flips — the completion tail drops
-  from minutes to one interval. Bounded by `--timeout` (default 570s, under the 600s
-  synchronous tool-call cap; call again for a longer council). Resolves the awaited
-  run from a `--pool` (newest run, optionally filtered by `--since` or a
-  `--supersede-key` `latest-<slug>` pointer) or an explicit `--run-dir`; exits 0 with
-  the summary path on completion, 2 on timeout, 64 on usage error (sail-cruisey #2952).
+- `scripts/helpers/council-wait.sh` waits for a backgrounded Council result and
+  prints its summary path. It supports explicit runs, current keyed rounds and
+  creation-time filters, with a configurable deadline and short poll interval.
 
 - Spec and planning workflows keep distilled research, intent, decisions and
   stable task identities in portable feature directories. Existing root specs
