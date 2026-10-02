@@ -268,6 +268,21 @@ _validate_claude_sdk_env_command() {
     esac
 }
 
+_validate_grok_env_command() {
+    local cmd="$1"
+    local -a parts
+    octo_dispatch_command_to_argv "$cmd" || return 1
+    parts=("${OCTO_COMMAND_ARGV[@]}")
+    [[ "${#parts[@]}" -eq 5 ]] || return 1
+    [[ "${parts[0]}" == env && "${parts[1]}" == OCTOPUS_GROK_MODEL=* ]] || return 1
+    case "${parts[2]}" in OCTOPUS_GROK_APPROVE=0|OCTOPUS_GROK_APPROVE=1) ;; *) return 1 ;; esac
+    case "${parts[3]}" in
+        OCTOPUS_GROK_SANDBOX=off|OCTOPUS_GROK_SANDBOX=workspace|OCTOPUS_GROK_SANDBOX=read-only|OCTOPUS_GROK_SANDBOX=strict) ;;
+        *) return 1 ;;
+    esac
+    [[ "${parts[4]}" == */scripts/helpers/grok-exec.sh ]]
+}
+
 _validate_openai_compatible_agent_command() {
     local cmd="$1"
     local -a parts
@@ -487,7 +502,8 @@ validate_agent_command() {
         return 0
     fi
     if [[ "$cmd_executable" == "env" ]]; then
-        if _validate_env_prefixed_shim_command "$cmd" "OCTOPUS_GROK_MODEL" "/scripts/helpers/grok-exec.sh"; then
+        if _validate_env_prefixed_shim_command "$cmd" "OCTOPUS_GROK_MODEL" "/scripts/helpers/grok-exec.sh" || \
+           _validate_grok_env_command "$cmd"; then
             return 0
         fi
         if _validate_env_prefixed_shim_command "$cmd" "OCTOPUS_KIMI_MODEL_HEX" "$trusted_kimi_shim" "" hex exact; then

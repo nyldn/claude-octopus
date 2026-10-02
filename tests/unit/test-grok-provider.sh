@@ -37,7 +37,7 @@ test_grok_dispatch_shim() {
 test_grok_dispatch_wires_model() {
     test_case "dispatch grok arm resolves model and env-prefixes OCTOPUS_GROK_MODEL"
     local arm
-    arm="$(sed -n '/grok|grok-research)/,/;;/p' "$PROJECT_ROOT/scripts/lib/dispatch.sh")"
+    arm="$(sed -n '/grok|grok-research)/,/kimi|kimi-research)/p' "$PROJECT_ROOT/scripts/lib/dispatch.sh")"
     if [[ "$arm" == *"get_agent_model"* ]] && [[ "$arm" == *"env OCTOPUS_GROK_MODEL="* ]]; then
         test_pass
     else
@@ -167,6 +167,104 @@ test_grok_detection() {
     fi
 }
 
+# Capture complete argv, including argument boundaries and ordering. No provider
+# is contacted; dispatch also runs through its real isolated environment.
+test_grok_headless_approval() {
+    local tmp_bin="$TEST_TMP_DIR/grok-approval-bin" capture="$TEST_TMP_DIR/approval-argv"
+    local expected="$TEST_TMP_DIR/approval-expected" errors="$TEST_TMP_DIR/approval-stderr"
+    local workdir="$TEST_TMP_DIR/work dir" profile rc
+    mkdir -p "$tmp_bin" "$workdir"
+    cat > "$tmp_bin/grok" <<'MOCK'
+#!/usr/bin/env bash
+printf '%s\0' "$@"
+MOCK
+    chmod +x "$tmp_bin/grok"
+    local -a base=(-p 'run a shell command' --output-format plain --cwd "$workdir" --disable-web-search)
+
+    for profile in default workspace strict off read-only bogus; do
+        test_case "headless approval: sandbox $profile preserves complete argv"
+        local sandbox="$profile" warning_lines=0
+        [[ "$profile" == default || "$profile" == bogus ]] && sandbox=read-only
+        [[ "$profile" == bogus ]] && warning_lines=1
+        printf '%s\0' "${base[@]}" --always-approve --sandbox "$sandbox" > "$expected"
+        rc=0
+        env -u OCTOPUS_GROK_APPROVE -u OCTOPUS_GROK_MODEL \
+            "PATH=$tmp_bin:$PATH" "OCTOPUS_GROK_CWD=$workdir" \
+            "OCTOPUS_GROK_SANDBOX=${profile/default/}" \
+            bash "$PROJECT_ROOT/scripts/helpers/grok-exec.sh" <<< 'run a shell command' > "$capture" 2> "$errors" || rc=$?
+        if [[ "$rc" -eq 0 && "$(wc -l < "$errors")" -eq "$warning_lines" ]] && \
+           cmp -s "$expected" "$capture" && \
+           { [[ "$profile" != bogus ]] || grep -q 'bogus.*read-only' "$errors"; }; then
+            test_pass
+        else
+            test_fail "expected approval with $sandbox and $warning_lines warning(s), rc=$rc"
+        fi
+    done
+
+    test_case "approval opt-out restores original argv; approval flags precede --model when enabled"
+    local approve
+    rc=0
+    for approve in 0 1; do
+        local -a flags=()
+        [[ "$approve" == 1 ]] && flags=(--always-approve --sandbox strict)
+        printf '%s\0' "${base[@]}" "${flags[@]}" --model grok-4-fast > "$expected"
+        env "PATH=$tmp_bin:$PATH" "OCTOPUS_GROK_CWD=$workdir" \
+            "OCTOPUS_GROK_APPROVE=$approve" OCTOPUS_GROK_SANDBOX=strict OCTOPUS_GROK_MODEL=grok-4-fast \
+            bash "$PROJECT_ROOT/scripts/helpers/grok-exec.sh" <<< 'run a shell command' > "$capture" 2> "$errors" || rc=1
+        cmp -s "$expected" "$capture" && [[ ! -s "$errors" ]] || rc=1
+    done
+    if [[ "$rc" -eq 0 ]]; then test_pass; else test_fail "approval toggle changed original args or model ordering"; fi
+}
+
+test_grok_dispatch_sandbox() {
+    local scenario phase role codex_sandbox override expected_sandbox fixture_model approve cmd rc
+    local capture="$TEST_TMP_DIR/dispatch-argv" expected="$TEST_TMP_DIR/dispatch-expected"
+    while IFS='|' read -r scenario phase role codex_sandbox override expected_sandbox fixture_model approve; do
+        test_case "dispatch sandbox: $scenario"
+        rc=0
+        (
+            export "PLUGIN_DIR=$PROJECT_ROOT" "PATH=$TEST_TMP_DIR/grok-approval-bin:$PATH"
+            export "OCTOPUS_CODEX_SANDBOX=$codex_sandbox" "OCTOPUS_GROK_SANDBOX=$override"
+            export "OCTOPUS_GROK_APPROVE=$approve" OCTOPUS_ALLOW_FULL_GROK_ENV=false
+            source "$PROJECT_ROOT/scripts/lib/utils.sh"
+            source "$PROJECT_ROOT/scripts/lib/provider-routing.sh"
+            source "$PROJECT_ROOT/scripts/lib/dispatch.sh"
+            get_agent_model() { printf '%s\n' "$fixture_model"; }
+            cmd="$(get_agent_command grok "$phase" "$role")" || exit 1
+            # Assert transport even for opt-out, which intentionally retains old argv.
+            [[ " $cmd " == *" OCTOPUS_GROK_SANDBOX=$expected_sandbox "* ]] || exit 1
+            validate_agent_command "$cmd" || exit 1
+            # Keep the assignment prefix bound to the immediate shim executable.
+            local injected="${cmd% "$PROJECT_ROOT/scripts/helpers/grok-exec.sh"} echo pwned $PROJECT_ROOT/scripts/helpers/grok-exec.sh"
+            if validate_agent_command "$injected" >/dev/null 2>&1; then exit 1; fi
+            octo_dispatch_command_to_argv "$cmd" || exit 1
+            build_provider_env grok
+            "${PROVIDER_ENV_ARRAY[@]}" "${OCTO_COMMAND_ARGV[@]}" <<< probe
+        ) > "$capture" 2> "$TEST_TMP_DIR/dispatch-stderr" || rc=$?
+        local -a args=(-p probe --output-format plain --cwd "$PWD" --disable-web-search)
+        [[ "$approve" != 0 ]] && args+=(--always-approve --sandbox "$expected_sandbox")
+        [[ "$fixture_model" != default ]] && args+=(--model "$fixture_model")
+        printf '%s\0' "${args[@]}" > "$expected"
+        if [[ "$rc" -eq 0 ]] && cmp -s "$expected" "$capture"; then
+            test_pass
+        else
+            test_fail "expected validated, isolated dispatch with $expected_sandbox (rc=$rc): $(cat "$TEST_TMP_DIR/dispatch-stderr")"
+        fi
+    done <<'CASES'
+review|review|code-reviewer|||read-only|default|1
+review during implementation|tangle|code-reviewer|||read-only|grok-4-fast|1
+consult|consult|implementer|danger-full-access||read-only|default|1
+council|council|implementer|danger-full-access||read-only|grok-4-fast|1
+design review|ceremony|implementer|danger-full-access||read-only|default|1
+implementation default|tangle|implementer|||workspace|default|1
+implementation full access|develop|implementer|danger-full-access||workspace|grok-4-fast|1
+Codex read-only override|tangle|implementer|read-only||read-only|default|1
+Grok explicit override|review|code-reviewer||strict|strict|grok-4-fast|1
+approval opt-out survives isolation|tangle|implementer|||workspace|default|0
+unknown context|||||read-only|default|1
+CASES
+}
+
 test_grok_dispatch_shim
 test_grok_dispatch_wires_model
 test_grok_env_isolation
@@ -174,5 +272,8 @@ test_grok_config_runtime_model
 test_grok_default_no_model
 test_grok_exit_propagation
 test_grok_detection
+
+test_grok_headless_approval
+test_grok_dispatch_sandbox
 
 test_summary
