@@ -616,6 +616,10 @@ get_agent_command() {
                         log ERROR "Invalid Cheaper Inference fallback model name"
                         return 1
                     fi
+                    if ! octo_model_automatic_target_allowed "$ci_fallback" cheaperinference; then
+                        log ERROR "Cheaper Inference fallback requires an explicit model pin"
+                        return 1
+                    fi
                     model="$ci_fallback"
                 else
                     return 1

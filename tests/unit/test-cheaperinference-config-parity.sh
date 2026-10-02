@@ -158,4 +158,19 @@ if probe health-qualified >/dev/null 2>&1 &&
 else
     test_fail "qualified health rejected the resolved pin or admitted controls"
 fi
+test_case "explicit-only model cannot be selected by an allowlist fallback"
+if probe resolved CHEAPER_INFERENCE_MODEL=vendor/blocked CHEAPER_INFERENCE_ALLOWED_MODELS=gpt-6-astra >/dev/null 2>&1 ||
+   probe dispatch CHEAPER_INFERENCE_MODEL=vendor/blocked CHEAPER_INFERENCE_ALLOWED_MODELS=gpt-6-astra >/dev/null 2>&1; then
+    test_fail "explicit-only automatic fallback admitted"
+else
+    test_pass
+fi
+test_case "explicit-only model remains usable through an explicit user pin"
+if [[ "$(probe resolved CHEAPER_INFERENCE_MODEL=gpt-6-astra)" == gpt-6-astra ]] &&
+   probe dispatch CHEAPER_INFERENCE_MODEL=gpt-6-astra >/dev/null 2>&1 &&
+   probe qualified PROBE_AGENT=cheaperinference-agent:gpt-6-astra >/dev/null 2>&1; then
+    test_pass
+else
+    test_fail "explicit user pin rejected"
+fi
 test_summary
