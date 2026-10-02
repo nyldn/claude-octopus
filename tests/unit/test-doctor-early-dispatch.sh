@@ -161,12 +161,17 @@ else
 fi
 
 incomplete_doctor_fixture() (
-    local missing="$1" incomplete_root="$TEST_TMP_DIR/incomplete-${1%.sh}"
+    local missing="$1" defect="${2:-missing}"
+    local incomplete_root="$TEST_TMP_DIR/incomplete-${1%.sh}-$defect"
     mkdir -p "$incomplete_root"
     cp -a "$PROJECT_ROOT/scripts" "$incomplete_root/scripts"
     cp -a "$PROJECT_ROOT/config" "$incomplete_root/config"
     cp -a "$PROJECT_ROOT/.claude-plugin" "$incomplete_root/.claude-plugin"
-    rm "$incomplete_root/scripts/lib/$missing"
+    if [[ "$defect" == syntax ]]; then
+        printf '%s\n' 'if then' > "$incomplete_root/scripts/lib/$missing"
+    else
+        rm "$incomplete_root/scripts/lib/$missing"
+    fi
     PROJECT_ROOT="$incomplete_root"
     run_doctor smoke
     [[ "$DOCTOR_FIXTURE_STATUS" == 1 ]] || return 1
@@ -178,6 +183,14 @@ for missing in model-resolver.sh dispatch.sh smoke.sh; do
         test_pass
     else
         test_fail "missing helper aborted JSON output or claimed healthy smoke configuration"
+    fi
+done
+for malformed in model-resolver.sh dispatch.sh smoke.sh; do
+    test_case "syntax error in $malformed produces valid failed diagnostic JSON"
+    if incomplete_doctor_fixture "$malformed" syntax; then
+        test_pass
+    else
+        test_fail "helper syntax error aborted JSON output or claimed healthy smoke configuration"
     fi
 done
 

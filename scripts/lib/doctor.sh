@@ -1598,6 +1598,7 @@ doctor_check_smoke() {
         helper_function="${helper#*:}"
         if ! declare -F "$helper_function" >/dev/null 2>&1; then
             if [[ ! -r "${_doctor_smoke_lib_dir}/$helper_file" ]] \
+                || ! "$BASH" -n "${_doctor_smoke_lib_dir}/$helper_file" 2>/dev/null \
                 || ! source "${_doctor_smoke_lib_dir}/$helper_file" 2>/dev/null \
                 || ! declare -F "$helper_function" >/dev/null 2>&1; then
                 doctor_add "smoke-helpers" "smoke" "fail" \
