@@ -216,7 +216,8 @@ _runwait --pool "$pool" --supersede-key "$key" --timeout 0
 running_rc="$rc"
 printf '%s\n' '{"status":"partial","run_id":"20260101-000000-000001"}' > "$current/summary.json"
 jq -n --arg key "$key" '{state:"finished",run_id:"20260101-000000-000001",supersede_key:$key}' | python3 "$writer" write "$current"
-_runwait --pool "$pool" --supersede-key "$key" --timeout 0
+# This checks artifact identity, not a zero-second deadline boundary.
+_runwait --pool "$pool" --supersede-key "$key" --timeout 3
 if [[ "$running_rc" == 2 && "$rc" == 0 && "$out" == "$current/summary.json" ]]; then test_pass; else test_fail "running=$running_rc finished=$rc output=$out"; fi
 
 test_case "an expired partial scan cannot return an older finished summary"
