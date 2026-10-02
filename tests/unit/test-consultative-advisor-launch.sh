@@ -454,7 +454,13 @@ OCTOPUS_AGENT_LIFECYCLE_HOOK="$prev_hook" OCTOPUS_ADVISOR_WAIT_SECONDS=1 \
 retained_hook="$(cat "$TEST_TMP_DIR/late-hook-agy.path")"
 hook_was_retained=false
 [[ ! -x "$retained_hook" ]] || hook_was_retained=true
-sleep 4
+# Both late jobs must complete before the retained hook files are removed.
+completion_deadline=$(( $(date +%s) + 10 ))
+while ! grep -qx agy "$TEST_TMP_DIR/late-completed" 2>/dev/null ||
+      ! grep -qx codex "$TEST_TMP_DIR/late-completed" 2>/dev/null; do
+    [[ "$(date +%s)" -lt "$completion_deadline" ]] || break
+    sleep 0.1
+done
 if [[ "$rc" -ne 0 && ! -s "$out/count" && "$hook_was_retained" == true &&
       ! -e "$out/t-agy.md" && ! -e "$out/t-codex.md" ]] &&
    grep -qx agy "$TEST_TMP_DIR/late-completed" && grep -qx codex "$TEST_TMP_DIR/late-completed"; then
