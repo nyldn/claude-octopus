@@ -36,6 +36,9 @@
 - Review and brainstorm advisors read provider answers from completed result files
   and permit Team mode dispatch. Codex guards allow supported noninteractive
   subcommands and help requests while continuing to reject interactive prompts.
+- The advisor launcher's wait deadline (`OCTOPUS_ADVISOR_WAIT_SECONDS`) also bounds a
+  synchronous spawn (agy), whose provider call runs inside `orchestrate.sh spawn` itself;
+  it used to wait for that spawn without limit.
 - Planner reconsideration accepts a valid empty scope-decision list, checks that
   the revised decomposition can be materialized, and retains the explanation for
   the next adequacy review.

@@ -192,6 +192,33 @@ else
     test_fail "rc=$rc count='$count'"
 fi
 
+# The deadline also bounds a synchronous spawn (agy), which runs the whole
+# provider call inside spawn itself.
+fake_orch="$TEST_TMP_DIR/orch-sync-stuck"
+sync_stuck_pid_file="$TEST_TMP_DIR/sync-stuck.pid"
+cat > "$fake_orch" <<SH
+#!/usr/bin/env bash
+[[ "\${1:-}" == spawn ]] || exit 64
+printf '%s\n' "\$\$" > "$sync_stuck_pid_file"
+exec sleep 300
+SH
+chmod +x "$fake_orch"
+test_case "a synchronous spawn still running at the wait deadline is not counted"
+out="$TEST_TMP_DIR/sync-stuck"
+mkdir -p "$out"
+rc=0
+started="$(date +%s)"
+count="$(OCTOPUS_ADVISOR_WAIT_SECONDS=2 octo_launch_advisors "$fake_orch" agy "$out" t- 'x' 1 \
+    2>"$TEST_TMP_DIR/sync-stuck.err")" || rc=$?
+elapsed=$(( $(date +%s) - started ))
+kill "$(cat "$sync_stuck_pid_file" 2>/dev/null)" 2>/dev/null || true
+if [[ "$rc" -ne 0 && -z "$count" && ! -e "$out/t-agy.md" && "$elapsed" -lt 60 ]] &&
+   grep -q 'did not finish before the wait deadline' "$TEST_TMP_DIR/sync-stuck.err"; then
+    test_pass
+else
+    test_fail "rc=$rc count='$count' elapsed=${elapsed}s stderr: $(tr '\n' '|' < "$TEST_TMP_DIR/sync-stuck.err")"
+fi
+
 # A worker that never completes is abandoned at OCTOPUS_ADVISOR_WAIT_SECONDS.
 fake_orch="$TEST_TMP_DIR/orch-stuck"
 stuck_pid_file="$TEST_TMP_DIR/stuck.pid"
