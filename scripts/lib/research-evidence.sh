@@ -735,7 +735,7 @@ research_verify_synthesis() {
     local report="$run_dir/verification.json" findings="$run_dir/.verification-findings.$$"
     : > "$claims"; : > "$findings"
     local claim_count=0 failures=0 warnings=0 line_no=0 line plain_line ids id invalid groups group unique_groups
-    local in_fence=false
+    local in_fence=false inference_marker='\[inference([^[:alpha:]]|$)'
     local snapshot normalized number quote numbers quotes score source_json groups_json
     local project_root token resolved local_refs local_files local_ref local_json evidence_file unresolved_refs
     local local_index cached_index cache_bytes cached_bytes=0 cache_error=false
@@ -783,7 +783,7 @@ research_verify_synthesis() {
         numbers=$(research_extract_numbers "$plain_line")
         quotes=$(printf '%s\n' "$plain_line" | awk '{ s=$0; while (match(s, /"[^"][^"][^"][^"]+"/)) { print substr(s,RSTART+1,RLENGTH-2); s=substr(s,RSTART+RLENGTH) } }')
         if [[ -z "$ids" && -z "$local_refs" && "$unresolved_refs" == "false" && ( -n "$numbers" || -n "$quotes" ) \
-              && "$line" != *"[inference]"* && "$line" != *"[opinion"* ]]; then
+              && ! "$line" =~ $inference_marker && "$line" != *"[opinion"* ]]; then
             failures=$((failures + 1))
             printf 'missing_citation|%s|%s\n' "$line_no" "$line" >> "$findings"
             continue
