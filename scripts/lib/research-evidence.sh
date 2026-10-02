@@ -729,13 +729,54 @@ research_normalize_snapshot() {
         | tr '\n\r\t' '   ' | sed 's/[[:space:]][[:space:]]*/ /g'
 }
 
+research_has_annotated_inference_marker() {
+    # An annotation must close outside literal source text and cannot borrow a
+    # nested label's closing bracket. Bare markers retain their existing rules.
+    local marker marker_pattern='^\[inference([^[:alpha:]]|$)'
+    while IFS= read -r marker; do
+        [[ "$marker" =~ $marker_pattern ]] && return 0
+    done < <(printf '%s\n' "$1" | LC_ALL=C awk '
+        {
+            depth=0; candidate=0; quote=""; ticks=0
+            for (i=1; i<=length($0); i++) {
+                c=substr($0,i,1)
+                if (c == "\\") { i++; continue }
+                if (ticks == 0 && quote != "" && c == quote) { quote=""; continue }
+                if (ticks == 0 && quote == "" && (c == "\"" || (c == "\047" && (i == 1 || substr($0,i-1,1) !~ /[[:alnum:]]/)))) {
+                    quote=c; continue
+                }
+                if (quote == "" && c == "`") {
+                    run=1
+                    while (substr($0,i+run,1) == "`") run++
+                    if (ticks == 0) ticks=run
+                    else if (ticks == run) ticks=0
+                    i+=run-1; continue
+                }
+                if (quote != "" || ticks != 0) continue
+                if (c == "[") {
+                    if (depth == 0) {
+                        delimiter=substr($0,i+10,1)
+                        candidate=(substr($0,i,10) == "[inference" && delimiter != "" && delimiter != "]")
+                        start=i
+                    } else candidate=0
+                    depth++
+                } else if (c == "]" && depth > 0) {
+                    if (depth == 1 && candidate) print substr($0,start,i-start+1)
+                    depth--
+                }
+            }
+        }
+    ')
+    return 1
+}
+
 research_verify_synthesis() {
     local draft="$1" run_dir="${RESEARCH_RUN_DIR:?}"
     local sources="$run_dir/sources.jsonl" claims="$run_dir/claims.jsonl"
     local report="$run_dir/verification.json" findings="$run_dir/.verification-findings.$$"
     : > "$claims"; : > "$findings"
     local claim_count=0 failures=0 warnings=0 line_no=0 line plain_line ids id invalid groups group unique_groups
-    local in_fence=false inference_marker='\[inference([^[:alpha:]]|$)'
+    local in_fence=false
     local snapshot normalized number quote numbers quotes score source_json groups_json
     local project_root token resolved local_refs local_files local_ref local_json evidence_file unresolved_refs
     local local_index cached_index cache_bytes cached_bytes=0 cache_error=false
@@ -783,7 +824,8 @@ research_verify_synthesis() {
         numbers=$(research_extract_numbers "$plain_line")
         quotes=$(printf '%s\n' "$plain_line" | awk '{ s=$0; while (match(s, /"[^"][^"][^"][^"]+"/)) { print substr(s,RSTART+1,RLENGTH-2); s=substr(s,RSTART+RLENGTH) } }')
         if [[ -z "$ids" && -z "$local_refs" && "$unresolved_refs" == "false" && ( -n "$numbers" || -n "$quotes" ) \
-              && ! "$line" =~ $inference_marker && "$line" != *"[opinion"* ]]; then
+              && "$line" != *"[inference]"* && "$line" != *"[opinion"* ]] \
+           && ! research_has_annotated_inference_marker "$line"; then
             failures=$((failures + 1))
             printf 'missing_citation|%s|%s\n' "$line_no" "$line" >> "$findings"
             continue

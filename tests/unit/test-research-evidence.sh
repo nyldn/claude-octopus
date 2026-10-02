@@ -819,4 +819,70 @@ else
     test_fail "annotated inference markers were not honoured, or unmarked numbers escaped: $annotated_kinds"
 fi
 
+# Check the actual verifier, including the marker's effect on missing citations.
+marker_fixture="$tmp_root/marker-boundaries"
+mkdir -p "$marker_fixture/project/src"
+printf '%s\n' 'There are 21 templates. "verified source fragment"' > "$marker_fixture/project/src/counts.txt"
+_marker_verification_case() {
+    local name="$1" text="$2" expected_status="$3" expected_kind="${4:-}"
+    local case_dir="$marker_fixture/$name" status=0 kinds
+    mkdir -p "$case_dir/snapshots"
+    : > "$case_dir/sources.jsonl"
+    printf '%s\n' "$text" > "$case_dir/draft.md"
+    test_case "inference marker boundary: $name"
+    ( RESEARCH_RUN_DIR="$case_dir" RESEARCH_PROJECT_ROOT="$marker_fixture/project"
+      research_verify_synthesis "$case_dir/draft.md" ) || status=$?
+    kinds=$(jq -r '.checks[].kind' "$case_dir/verification.json" | sort -u | tr '\n' ' ')
+    if [[ "$status" == "$expected_status" && "$kinds" == "$expected_kind" ]]; then test_pass
+    else test_fail "status=$status checks=$kinds expected=$expected_status/$expected_kind"; fi
+}
+_marker_verification_case comma '- There are 21 templates [inference, counted by glob].' 0
+_marker_verification_case colon '- There are 21 templates [inference: counted by glob].' 0
+_marker_verification_case unicode '- There are 21 templates [inference — comptées par glob].' 0
+_marker_verification_case adjacent-punctuation '- There are 21 templates [inference,counted by glob].' 0
+_marker_verification_case nonletter-delimiter '- There are 21 templates [inference2 passes of glob].' 0
+_marker_verification_case prefix '[inference: counted by glob] There are 21 templates.' 0
+_marker_verification_case middle '- There are [inference: counted by glob] 21 templates.' 0
+_marker_verification_case quoted-annotation '- There are 21 templates [inference: counted "template" entries].' 0
+_marker_verification_case bare '- There are 21 templates [inference].' 0
+_marker_verification_case legacy-bare-literal '- There are 21 templates containing "[inference]" as a literal value.' 0
+_marker_verification_case unclosed '- There are 901 templates [inference' 1 'missing_citation '
+_marker_verification_case unclosed-annotation '- There are 901 templates [inference, counted by glob.' 1 'missing_citation '
+_marker_verification_case nested '- There are 901 templates [inference: unfinished [other note].' 1 'missing_citation '
+_marker_verification_case nested-label '- There are 901 templates [label: [inference: counted by glob]].' 1 'missing_citation '
+_marker_verification_case quote-is-not-a-close '- There are 901 templates [inference: the string "]" is not a close.' 1 'missing_citation '
+_marker_verification_case double-quoted '- There are 901 templates containing "[inference: counted by glob]" as a literal value.' 1 'missing_citation '
+_marker_verification_case single-quoted "- There are 901 templates containing '[inference: counted by glob]' as a literal value." 1 'missing_citation '
+_marker_verification_case inline-code '- There are 901 templates containing `[inference: counted by glob]` as a literal value.' 1 'missing_citation '
+_marker_verification_case double-tick-code '- There are 901 templates containing ``[inference: counted by glob]`` as a literal value.' 1 'missing_citation '
+_marker_verification_case escaped '- There are 901 templates containing \[inference: counted by glob] as a literal value.' 1 'missing_citation '
+_marker_verification_case unclosed-literal '- There are 901 templates containing "[inference: counted by glob] as a literal value.' 1 'missing_citation '
+_marker_verification_case quoted-then-marker '- There are 21 templates containing "[inference: an example]" [inference, counted by glob].' 0
+_marker_verification_case lookalike '- There are 901 templates [inferences are cheap].' 1 'missing_citation '
+_marker_verification_case unmarked '- There are 901 templates.' 1 'missing_citation '
+_marker_verification_case next-line $'[inference: counted by glob]\n- There are 901 templates.' 1 'missing_citation '
+_marker_verification_case split-marker $'- There are 901 templates [inference:\ncounted by glob].' 1 'missing_citation '
+_marker_verification_case citation-number '- There are 901 templates (`src/counts.txt:1`) [inference, counted by glob].' 1 'number_mismatch '
+_marker_verification_case citation-quote '- The phrase "invented source fragment" appears (`src/counts.txt:1`) [inference, counted by glob].' 1 'quote_mismatch '
+_marker_verification_case unresolved-local '- There are 21 templates (`src/missing.txt:1`) [inference, counted by glob].' 1 'unresolved_local_citation '
+_marker_verification_case false-consensus '- Multiple independent sources confirm 21 templates (`src/counts.txt:1`) [inference, counted by glob].' 1 'false_consensus '
+
+# Compare the existing unknown-source diagnostic without changing its status gate.
+test_case "annotation does not suppress an unknown-source diagnostic"
+unknown_case="$marker_fixture/unknown-source"
+mkdir -p "$unknown_case/snapshots"
+: > "$unknown_case/sources.jsonl"
+printf '%s\n' '- There are 21 templates [source:S999].' > "$unknown_case/draft.md"
+unknown_plain_status=0
+( RESEARCH_RUN_DIR="$unknown_case" RESEARCH_PROJECT_ROOT="$marker_fixture/project"
+  research_verify_synthesis "$unknown_case/draft.md" ) || unknown_plain_status=$?
+unknown_plain_checks=$(jq -c '.checks | map(.kind)' "$unknown_case/verification.json")
+printf '%s\n' '- There are 21 templates [source:S999] [inference, counted by glob].' > "$unknown_case/draft.md"
+unknown_annotated_status=0
+( RESEARCH_RUN_DIR="$unknown_case" RESEARCH_PROJECT_ROOT="$marker_fixture/project"
+  research_verify_synthesis "$unknown_case/draft.md" ) || unknown_annotated_status=$?
+if [[ "$unknown_plain_status" == "$unknown_annotated_status" && "$unknown_plain_checks" == '["unknown_source"]' ]] &&
+   jq -e '.checks | map(.kind) == ["unknown_source"]' "$unknown_case/verification.json" >/dev/null; then test_pass
+else test_fail "annotation changed the unknown-source citation gate"; fi
+
 test_summary

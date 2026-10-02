@@ -50,6 +50,9 @@
   the first-party Anthropic API, and accepts disabled `--bare` when no environment
   API key is set. Missing or syntactically invalid smoke helpers produce failed
   diagnostic JSON instead of aborting output.
+- Annotated inference markers require a closing bracket outside quoted text
+  or inline code. Literal examples and nested labels do not exempt uncited
+  counts. Bare `[inference]` markers keep their existing behavior.
 - Research verification honours an annotated inference marker. A synthesis
   line tagged `[inference — counted by glob]` or `[inference: ...]` failed
   with `missing_citation`, because the verifier exempted only the exact text
