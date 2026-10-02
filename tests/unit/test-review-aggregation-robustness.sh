@@ -333,7 +333,10 @@ for decision_document in \
     '{"decisions":[{"debate_id":"finding-0","decision":"exclude","reason":"\q","evidence":""}]}' \
     '{"decisions":[{"debate_id":"finding-0","decision":"exclude","reason":null,"evidence":"\q"}]}' \
     '{"decisions":[{"debate_id":"finding-0","decision":"exclude","reason":12,"evidence":"\q"}]}'; do
-    repaired_decision="$(printf '%s' "$decision_document" | review_slurp_provider_json 'if length == 1 and (.[0] | type == "object") then .[0] else error("invalid decision document") end')"
+    if ! repaired_decision="$(printf '%s' "$decision_document" | review_slurp_provider_json 'if length == 1 and (.[0] | type == "object") then .[0] else error("invalid decision document") end')" || [[ -z "$repaired_decision" ]]; then
+        debate_repair_failures=$((debate_repair_failures + 1))
+        continue
+    fi
     repaired_resolution="$(printf '%s\n%s\n' "$debate_candidate" "$repaired_decision" | review_resolve_debate_decisions)"
     if [[ "$(printf '%s' "$repaired_resolution" | jq -r '.[0].decision')" != 'retain' ]]; then
         debate_repair_failures=$((debate_repair_failures + 1))
@@ -342,7 +345,7 @@ done
 if [[ "$debate_repair_failures" -eq 0 ]]; then
     test_pass
 else
-    test_fail "$debate_repair_failures unsupported repaired decisions excluded a finding"
+    test_fail "$debate_repair_failures decision documents failed parsing or excluded a finding without support"
 fi
 
 test_case "escape repair still rejects multiple JSON documents"
