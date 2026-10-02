@@ -372,6 +372,22 @@ test_case "full-length plain doublequoted source review is grounded"
 cp "$OUTSIDE" "$BOUNDARY_ROOT/source.ts"
 _plain_vote_is grounded
 
+for format in nested-backtick prose-wrapped-backtick ordinary-backtick ordinary-plain quoted-fence; do
+    test_case "source quote formats preserve live grounding: $format"
+    {
+        case "$format" in
+            nested-backtick) printf 'The function contains "`%s`".\n' "$FRAGMENT" ;;
+            prose-wrapped-backtick) printf 'The function contains "a guard using `%s` as its source".\n' "$FRAGMENT" ;;
+            ordinary-backtick) printf 'The function contains `%s`.\n' "$FRAGMENT" ;;
+            ordinary-plain) printf 'The function contains "%s".\n' "$FRAGMENT" ;;
+            quoted-fence) printf 'The function contains "the following source:\n```ts\n%s\n```\n".\n' "$FRAGMENT" ;;
+        esac
+        for _ in {1..24}; do printf 'The guards preserve the control-flow branch and reject unauthorized inputs.\n'; done
+        printf 'VERDICT: APPROVE\n'
+    } > "$TEST_TMP_DIR/nested-quote-vote.md"
+    PLAIN_VOTE="$TEST_TMP_DIR/nested-quote-vote.md" _plain_vote_is grounded
+done
+
 test_case "plain source quotation permits separate summary attribution"
 cp "$PLAIN_VOTE" "$TEST_TMP_DIR/plain-original.md"
 sed '$d' "$TEST_TMP_DIR/plain-original.md" > "$PLAIN_VOTE"
@@ -446,7 +462,7 @@ cp "$OUTSIDE" "$BOUNDARY_ROOT/source.ts"
 _count_is 0 "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"
 rm "$BOUNDARY_ROOT/source.ts"
 
-for format in plain-last code-last; do
+for format in plain-last plain-first; do
     test_case "code and plain quotes share one candidate budget: $format"
     command python3 - "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT/source.ts" "$format" <<'PYTEST'
 from pathlib import Path
@@ -454,11 +470,22 @@ import sys
 fragments = [f"const numberedEvidence{index} = sourceValue ?? fallbackValue;" for index in range(257)]
 quotes = ['`', '"'] if sys.argv[3] == "plain-last" else ['"', '`']
 Path(sys.argv[1]).write_text("\n".join(f"{quotes[0] if index < 256 else quotes[1]}{fragment}{quotes[0] if index < 256 else quotes[1]}" for index, fragment in enumerate(fragments)))
-Path(sys.argv[2]).write_text(fragments[-1])
+Path(sys.argv[2]).write_text(fragments[-1] if sys.argv[3] == "plain-last" else fragments[-2])
 PYTEST
     _count_is 0 "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"
     rm "$BOUNDARY_ROOT/source.ts"
 done
+
+test_case "established code quotes keep priority over earlier plain candidates"
+command python3 - "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT/source.ts" <<'PYTEST'
+from pathlib import Path
+import sys
+fragments = [f"const numberedEvidence{index} = sourceValue ?? fallbackValue;" for index in range(257)]
+Path(sys.argv[1]).write_text("\n".join(f'"{fragment}"' for fragment in fragments[:-1]) + f"\n`{fragments[-1]}`")
+Path(sys.argv[2]).write_text(fragments[-1])
+PYTEST
+_count_is 1 "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"
+rm "$BOUNDARY_ROOT/source.ts"
 
 test_case "mixed quote duplicates retain the last candidate within the shared limit"
 command python3 - "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT/source.ts" <<'PYTEST'

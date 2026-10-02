@@ -2104,6 +2104,7 @@ import os
 import re
 import stat
 import sys
+from itertools import chain
 from pathlib import Path
 
 # Fixed budgets cannot be widened by provider output or environment overrides.
@@ -2166,16 +2167,21 @@ def distinctive(fragment):
         return None
     return fragment
 
+def code_fragments():
+    for match in re.finditer(r"`([^`\n]+)`|```[^\n]*\n(.*?)```", resp, re.S):
+        if match.group(1) is not None:
+            yield match.group(1)
+        else:
+            yield from match.group(2).splitlines()
+
 cands = set()
-# Plain doublequoted source lines share the same candidate and scan budgets.
-for match in re.finditer(r'`([^`\n]+)`|```[^\n]*\n(.*?)```|"([^"\n]{1,400})"', resp, re.S):
-    fragments = match.group(2).splitlines() if match.group(2) is not None else [match.group(1) or match.group(3)]
-    for fragment in fragments:
-        candidate = distinctive(fragment)
-        if candidate:
-            cands.add(candidate)
-        if len(cands) >= MAX_FRAGMENTS:
-            break
+# Preserve established code spans inside prose wrappers. Plain quotations use
+# a second bounded pass, with the same set and no additional candidate budget.
+plain_fragments = (match.group(1) for match in re.finditer(r'"([^"\n]{1,400})"', resp))
+for fragment in chain(code_fragments(), plain_fragments):
+    candidate = distinctive(fragment)
+    if candidate:
+        cands.add(candidate)
     if len(cands) >= MAX_FRAGMENTS:
         break
 if not cands:
