@@ -176,18 +176,20 @@ _octo_advisor_collect() {
 # whole provider call inside spawn. At the deadline the launcher stops waiting
 # and leaves it running, as it does for an asynchronous worker. A job that has
 # finished is no longer listed by `jobs -r`, and `wait` then returns its status.
+_octo_advisor_spawn_running() {
+    local pid="$1" job
+    while IFS= read -r job; do
+        [[ "$job" == "$pid" ]] && return 0
+    done < <(jobs -pr 2>/dev/null)
+    return 1
+}
+
 _octo_advisor_wait_spawn() {
-    local pid="$1" deadline="$2" job running
-    while :; do
-        running=false
-        while IFS= read -r job; do
-            if [[ "$job" == "$pid" ]]; then
-                running=true
-                break
-            fi
-        done < <(jobs -pr 2>/dev/null)
-        [[ "$running" == true ]] || break
+    local pid="$1" deadline="$2"
+    while _octo_advisor_spawn_running "$pid"; do
         if [[ "$(date +%s)" -ge "$deadline" ]]; then
+            # Look once more: a spawn that finished at the deadline still counts.
+            _octo_advisor_spawn_running "$pid" || break
             printf 'ERROR: advisor spawn %s did not finish before the wait deadline; it is still running\n' "$pid" >&2
             return 1
         fi
