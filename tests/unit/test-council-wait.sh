@@ -132,6 +132,12 @@ printf '%s\n' 20260101-000000-00aaaa > "$pool/latest-$slug"
 _runwait --pool "$pool" --supersede-key "$key" --since 1767312000 --timeout 0
 if [[ "$rc" == 2 ]]; then test_pass; else test_fail "key pointer bypassed since"; fi
 
+test_case "a stale-only pool remains excluded while polling until its deadline"
+pool="$(mktemp -d "$TEST_TMP_DIR/since-poll.XXXXXX")"
+_mkrun "$pool" 20200101-000000-00aaaa finished >/dev/null
+_runwait --pool "$pool" --since 1735689600 --interval 1 --timeout 2
+if [[ "$rc" == 2 && -z "$out" ]]; then test_pass; else test_fail "stale-only pool completed: rc=$rc out=$out"; fi
+
 test_case "same-second creation order beats a reversed PID suffix"
 pool="$(mktemp -d "$TEST_TMP_DIR/order.XXXXXX")"
 _mkrun "$pool" 20260101-000000-ffffff finished yes '' 1 >/dev/null
@@ -162,6 +168,19 @@ flip_pid=$!
 _runwait --pool "$pool" --supersede-key "$key" --interval 1 --timeout 4
 wait "$flip_pid" || true
 if [[ "$rc" == 0 && "$out" == "$rd/summary.json" ]]; then test_pass; else test_fail "remained latched on older keyed run"; fi
+
+test_case "keyed polling follows an earlier finished pointer despite a newer running round"
+pool="$(mktemp -d "$TEST_TMP_DIR/key-flip-earlier.XXXXXX")"
+_mkrun "$pool" 20260101-050000-00f501 running yes "$key" 2 >/dev/null
+rd="$(_mkrun "$pool" 20260101-040000-00f500 finished yes "$key" 1)"
+printf '%s\n' 20260101-050000-00f501 > "$pool/latest-$slug"
+# A pool scan keeps selecting the newer running round after this pointer changes.
+( sleep 2; printf '%s\n' 20260101-040000-00f500 > "$pool/latest-next"
+  mv "$pool/latest-next" "$pool/latest-$slug" ) &
+flip_pid=$!
+_runwait --pool "$pool" --supersede-key "$key" --interval 1 --timeout 6
+wait "$flip_pid" || true
+if [[ "$rc" == 0 && "$out" == "$rd/summary.json" ]]; then test_pass; else test_fail "earlier pointer flip not honored: rc=$rc out=$out want=$rd/summary.json"; fi
 
 test_case "a key pointer cannot leave its pool or accept a symlinked run"
 parent="$(mktemp -d "$TEST_TMP_DIR/outside.XXXXXX")"
