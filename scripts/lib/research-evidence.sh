@@ -733,9 +733,15 @@ research_has_annotated_inference_marker() {
     # An annotation must close outside literal source text and cannot borrow a
     # nested label's closing bracket. Bare markers retain their existing rules.
     local marker marker_pattern='^\[inference([^[:alpha:]]|$)'
+    local lexical_line="$1" word_apostrophe_pattern="^(.*[[:alnum:]])'([[:alnum:]].*)$"
+    # Classify in-word apostrophes in the shell's text locale before
+    # byte scanning. Possessives remain text even inside a quoted literal.
+    while [[ "$lexical_line" =~ $word_apostrophe_pattern ]]; do
+        lexical_line="${BASH_REMATCH[1]}\\'${BASH_REMATCH[2]}"
+    done
     while IFS= read -r marker; do
         [[ "$marker" =~ $marker_pattern ]] && return 0
-    done < <(printf '%s\n' "$1" | LC_ALL=C awk '
+    done < <(printf '%s\n' "$lexical_line" | LC_ALL=C awk '
         {
             depth=0; candidate=0; quote=""; ticks=0
             for (i=1; i<=length($0); i++) {

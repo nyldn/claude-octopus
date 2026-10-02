@@ -839,6 +839,12 @@ _marker_verification_case() {
 _marker_verification_case comma '- There are 21 templates [inference, counted by glob].' 0
 _marker_verification_case colon '- There are 21 templates [inference: counted by glob].' 0
 _marker_verification_case unicode '- There are 21 templates [inference — comptées par glob].' 0
+_marker_verification_case unicode-possessive "José's 21 templates [inference: counted by glob]." 0
+_marker_verification_case unicode-annotation-possessive "There are 21 templates [inference: José's count by glob]." 0
+_marker_verification_case quoted-unicode-possessive "There are 901 templates containing 'José's [inference: counted by glob]' as a literal value." 1 'missing_citation '
+_marker_verification_case quoted-ascii-possessive "There are 901 templates containing 'Jose's [inference: counted by glob]' as a literal value." 1 'missing_citation '
+_marker_verification_case unicode-adjacent-quote "There are 901 templates containing é'[inference: counted by glob]' as a literal value." 1 'missing_citation '
+_marker_verification_case unicode-punctuation-quote "There are 901 templates containing —'count [inference: counted by glob]' as a literal value." 1 'missing_citation '
 _marker_verification_case adjacent-punctuation '- There are 21 templates [inference,counted by glob].' 0
 _marker_verification_case nonletter-delimiter '- There are 21 templates [inference2 passes of glob].' 0
 _marker_verification_case prefix '[inference: counted by glob] There are 21 templates.' 0
