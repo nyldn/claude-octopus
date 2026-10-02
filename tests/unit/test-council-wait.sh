@@ -219,4 +219,27 @@ jq -n --arg key "$key" '{state:"finished",run_id:"20260101-000000-000001",supers
 _runwait --pool "$pool" --supersede-key "$key" --timeout 0
 if [[ "$running_rc" == 2 && "$rc" == 0 && "$out" == "$current/summary.json" ]]; then test_pass; else test_fail "running=$running_rc finished=$rc output=$out"; fi
 
+test_case "an expired partial scan cannot return an older finished summary"
+pool="$(mktemp -d "$TEST_TMP_DIR/large-pool.XXXXXX")"
+if python3 - "$WAIT" "$pool" <<'PY'
+import json, os, signal, subprocess, sys
+from pathlib import Path
+pool=Path(sys.argv[2])
+for index in range(1,1501):
+    rid="20260101-000000-"+format(index,"06x")
+    directory=pool/rid
+    directory.mkdir()
+    (directory/"run-status.json").write_text(json.dumps({"state":"running" if index==1500 else "finished","run_id":rid,"created_order":index}))
+    (directory/"summary.json").write_text(json.dumps({"status":"completed","run_id":rid}))
+child=subprocess.Popen(["/bin/bash",sys.argv[1],"--pool",str(pool),"--timeout","1"],stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)
+try:
+    output,_=child.communicate(timeout=5)
+except subprocess.TimeoutExpired:
+    os.killpg(child.pid,signal.SIGKILL)
+    child.communicate()
+    sys.exit(1)
+sys.exit(0 if child.returncode==2 and not output else 1)
+PY
+then test_pass; else test_fail "partial scan reported a stale completion"; fi
+
 test_summary
