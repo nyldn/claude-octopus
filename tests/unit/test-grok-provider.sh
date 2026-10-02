@@ -215,6 +215,15 @@ fi
 exit "${GROK_TEST_RC:-0}"
 MOCK
     chmod +x "$fixture/bin/grok"
+    if [[ "${GROK_TEST_SLOW_POLL:-0}" == 1 ]]; then
+        # Simulate scheduling overhead in each external poll, not a longer budget.
+        cat > "$fixture/bin/sleep" <<'MOCK_SLEEP'
+#!/bin/bash
+if [[ "${1:-}" == 0.1 ]]; then exec /bin/sleep 0.2; fi
+exec /bin/sleep "$@"
+MOCK_SLEEP
+        chmod +x "$fixture/bin/sleep"
+    fi
     rc=0
     env "PATH=$fixture/bin:$PATH" "TMPDIR=$fixture/tmp" \
         "OCTOPUS_GROK_ARGV_MAX=$limit" "OCTOPUS_GROK_MODEL=grok-4-fast" \
@@ -295,6 +304,11 @@ test_grok_prompt_transport() {
     local started=$SECONDS
     if GROK_TEST_IGNORE_TERM=1 check_grok_prompt_transport 0 8 --prompt-file 0 INT &&
        (( SECONDS - started <= 3 )); then test_pass; else test_fail "cancellation must remain bounded"; fi
+
+    test_case "cancellation retains the three-second bound with delayed polls"
+    started=$SECONDS
+    if GROK_TEST_IGNORE_TERM=1 GROK_TEST_SLOW_POLL=1 check_grok_prompt_transport 0 8 --prompt-file 0 INT &&
+       (( SECONDS - started <= 3 )); then test_pass; else test_fail "poll overhead extended cancellation"; fi
 
     test_case "oversized and overflowing threshold settings retain a safe argv ceiling"
     if check_grok_prompt_transport 999999 200000 --prompt-file &&

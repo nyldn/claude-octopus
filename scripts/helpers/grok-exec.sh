@@ -17,12 +17,13 @@ trap 'rm -f "$prompt_file"' EXIT
 # Cancellation owns only the direct child. Background commands can inherit an
 # ignored INT, so both signals use TERM, then bounded escalation and reaping.
 grok_cancel() {
-    local status="$1" attempt
+    local status="$1" cancel_deadline
     trap '' TERM INT
     grok_pid="${grok_pid:-${!:-}}"
     if [[ -n "$grok_pid" ]]; then
         kill -TERM "$grok_pid" 2>/dev/null || true
-        for attempt in {1..20}; do
+        cancel_deadline=$(( SECONDS + 2 ))
+        while (( SECONDS < cancel_deadline )); do
             kill -0 "$grok_pid" 2>/dev/null || break
             sleep 0.1
         done
