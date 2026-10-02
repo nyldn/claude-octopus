@@ -339,6 +339,50 @@ ln "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT/alias.ts"
 _count_is 0 "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"
 rm "$BOUNDARY_ROOT/alias.ts"
 
+ACTIVE_RUN="$BOUNDARY_ROOT/council output/current"
+mkdir -p "$ACTIVE_RUN/responses" "$ACTIVE_RUN/revisions"
+cp "$OUTSIDE" "$ACTIVE_RUN/responses/01-earlier.md"
+cp "$OUTSIDE" "$ACTIVE_RUN/revisions/01-revised.md"
+cp "$OUTSIDE" "$ACTIVE_RUN/implementation-plan.md"
+
+test_case "active run responses and generated artifacts cannot supply source quotes"
+COUNCIL_RUN_DIR="$ACTIVE_RUN" _count_is 0 "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"
+
+test_case "an explicitly symlinked active run is excluded by physical identity"
+ln -s "$ACTIVE_RUN" "$TEST_TMP_DIR/active-run-alias"
+COUNCIL_RUN_DIR="$TEST_TMP_DIR/active-run-alias" _count_is 0 "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"
+
+test_case "an evidence root inside the active run cannot supply source quotes"
+COUNCIL_RUN_DIR="$ACTIVE_RUN" _count_is 0 "$BOUNDARY_RESPONSE" "$ACTIVE_RUN/responses"
+
+test_case "the active run itself cannot be selected as implicit source evidence"
+COUNCIL_RUN_DIR="$ACTIVE_RUN" _count_is 0 "$BOUNDARY_RESPONSE" "$ACTIVE_RUN"
+
+test_case "genuine source outside the active run still grounds a response"
+cp "$OUTSIDE" "$BOUNDARY_ROOT/source.ts"
+COUNCIL_RUN_DIR="$ACTIVE_RUN" _count_is 1 "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"
+
+test_case "an explicit run that cannot be identified fails closed"
+COUNCIL_RUN_DIR="$ACTIVE_RUN/nonexistent" _count_is 0 "$BOUNDARY_RESPONSE" "$BOUNDARY_ROOT"
+rm "$BOUNDARY_ROOT/source.ts"
+
+test_case "a full approval grounded only in the active run is blind and excluded"
+ACTIVE_VOTE="$TEST_TMP_DIR/active-run-vote.md"
+{
+    printf 'The function contains `%s`.\n' "$FRAGMENT"
+    for _ in {1..20}; do printf 'The guards preserve the control-flow branch and reject unauthorized inputs.\n'; done
+    printf 'VERDICT: APPROVE\n'
+} > "$ACTIVE_VOTE"
+record="$(COUNCIL_RUN_DIR="$ACTIVE_RUN" council_contribution_record_json "$ACTIVE_VOTE" "$BOUNDARY_ROOT" sha256:fixture)"
+if ! COUNCIL_RUN_DIR="$ACTIVE_RUN" council_response_has_grounding "$ACTIVE_VOTE" "$BOUNDARY_ROOT" &&
+   COUNCIL_RUN_DIR="$ACTIVE_RUN" council_response_is_blind "$ACTIVE_VOTE" "$BOUNDARY_ROOT" &&
+   ! COUNCIL_RUN_DIR="$ACTIVE_RUN" council_response_is_substantive "$ACTIVE_VOTE" "$BOUNDARY_ROOT" &&
+   jq -e '.validation_result == "invalid-access" and .access_state == "failed" and .evidence_paths == []' <<< "$record" >/dev/null; then test_pass
+else test_fail "active-run quotes admitted an unsupported approval"; fi
+
+rm -r "$ACTIVE_RUN" "$TEST_TMP_DIR/active-run-alias"
+rmdir "$BOUNDARY_ROOT/council output"
+
 test_case "an explicitly selected symlinked evidence root remains valid"
 cp "$OUTSIDE" "$BOUNDARY_ROOT/source.ts"
 ln -s "$BOUNDARY_ROOT" "$TEST_TMP_DIR/selected-root"
@@ -488,11 +532,30 @@ else test_fail "the scan entered an excluded dependency tree"; fi
 rm "$BOUNDARY_ROOT/node_modules/source.ts"
 rmdir "$BOUNDARY_ROOT/node_modules"
 
+test_case "the active run is pruned before its artifacts are enumerated"
+mkdir -p "$ACTIVE_RUN"
+cp "$OUTSIDE" "$ACTIVE_RUN/generated.md"
+if actual="$(COUNCIL_RUN_DIR="$ACTIVE_RUN" _instrumented_count prune "$ACTIVE_RUN")" && [[ "$actual" == 0 ]] &&
+   jq -e '.source_bytes == 0 and .source_opens == 0' "$TEST_TMP_DIR/grounding-metrics.json" >/dev/null; then test_pass
+else test_fail "the scan enumerated or read active-run artifacts"; fi
+rm -r "$BOUNDARY_ROOT/council output"
+
 test_case "non-source entries count toward the traversal budget"
 printf 'unrelated\n' > "$BOUNDARY_ROOT/ignored.txt"
 actual="$(_instrumented_count entries "$BOUNDARY_ROOT/ignored.txt")"
 if [[ "$actual" == 0 ]] && jq -e '.entries <= 20000 and .source_bytes == 0' "$TEST_TMP_DIR/grounding-metrics.json" >/dev/null; then test_pass
 else test_fail "non-source entries bypassed the traversal budget"; fi
+rm "$BOUNDARY_ROOT/ignored.txt"
+
+test_case "entry-budget exhaustion cannot admit an unverified approval"
+printf 'unrelated\n' > "$BOUNDARY_ROOT/ignored.txt"
+if ( export GROUNDING_TEST_MODE=entries GROUNDING_TEST_TARGET="$BOUNDARY_ROOT/ignored.txt" GROUNDING_TEST_OUTSIDE="$OUTSIDE" GROUNDING_TEST_METRICS="$TEST_TMP_DIR/grounding-metrics.json"
+     python3() { command python3 "$INSTRUMENT" "$@"; }
+     ! council_response_has_grounding "$ACTIVE_VOTE" "$BOUNDARY_ROOT" &&
+     council_response_is_blind "$ACTIVE_VOTE" "$BOUNDARY_ROOT" &&
+     ! council_response_is_substantive "$ACTIVE_VOTE" "$BOUNDARY_ROOT" ) &&
+   jq -e '.entries == 20000 and .source_bytes == 0' "$TEST_TMP_DIR/grounding-metrics.json" >/dev/null; then test_pass
+else test_fail "scan exhaustion admitted an unsupported approval"; fi
 rm "$BOUNDARY_ROOT/ignored.txt"
 
 test_case "source file attempts are capped even when files are oversized"

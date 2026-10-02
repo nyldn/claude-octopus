@@ -2096,10 +2096,10 @@ council_response_content_match_count() {
     # tokens (`toBeUndefined()`), bare paths, and prose never match. Bounded scan:
     # source extensions only; response, fragment, file, aggregate-byte, entry and
     # depth caps; no symlink traversal, response aliases or private/tool-state reads.
-    local response_path="$1" evidence_root="$2"
+    local response_path="$1" evidence_root="$2" run_dir="${3:-${COUNCIL_RUN_DIR:-}}"
     [[ -f "$response_path" && -d "$evidence_root" ]] || { printf '0\n'; return 0; }
     command -v python3 >/dev/null 2>&1 || { printf '0\n'; return 0; }
-    python3 - "$response_path" "$evidence_root" <<'PY'
+    python3 - "$response_path" "$evidence_root" "$run_dir" <<'PY'
 import os
 import re
 import stat
@@ -2194,6 +2194,42 @@ PRIVATE_NAME = re.compile(r"(^|[._-])(credentials?|secrets?|private|service[-_]a
 remaining = set(cands)
 scanned = entries = total_bytes = 0
 response_identity = (response_stat.st_dev, response_stat.st_ino)
+run_identity = None
+
+def open_directory(path, excluded=None):
+    # Pin physical components without following replacement aliases.
+    descriptor = os.open(os.sep, DIRECTORY_FLAGS)
+    try:
+        metadata = os.fstat(descriptor)
+        if (metadata.st_dev, metadata.st_ino) == excluded:
+            raise ValueError("active run is not source evidence")
+        for part in path.parts[1:]:
+            child = os.open(part, DIRECTORY_FLAGS, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+            metadata = os.fstat(descriptor)
+            if (metadata.st_dev, metadata.st_ino) == excluded:
+                raise ValueError("active run is not source evidence")
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+if sys.argv[3]:
+    try:
+        run_fd = open_directory(Path(sys.argv[3]).resolve(strict=True))
+        try:
+            run_stat = os.fstat(run_fd)
+            run_identity = (run_stat.st_dev, run_stat.st_ino)
+        finally:
+            os.close(run_fd)
+    except (OSError, ValueError, RuntimeError):
+        # An explicit run that cannot be identified cannot be safely excluded.
+        print(0)
+        sys.exit(0)
+    except (TypeError, NotImplementedError):
+        print(0)
+        sys.exit(2)
 
 def exhausted():
     return not remaining or scanned >= MAX_FILES or entries >= MAX_ENTRIES or total_bytes >= MAX_TOTAL_BYTES
@@ -2215,12 +2251,15 @@ def scan(directory, depth):
             try:
                 metadata = entry.stat(follow_symlinks=False)
                 if stat.S_ISDIR(metadata.st_mode):
+                    if (metadata.st_dev, metadata.st_ino) == run_identity:
+                        continue
                     if depth >= MAX_DEPTH:
                         continue
                     child = os.open(name, DIRECTORY_FLAGS, dir_fd=directory)
                     try:
                         opened = os.fstat(child)
-                        if (opened.st_dev, opened.st_ino) == (metadata.st_dev, metadata.st_ino):
+                        if (opened.st_dev, opened.st_ino) != run_identity and \
+                           (opened.st_dev, opened.st_ino) == (metadata.st_dev, metadata.st_ino):
                             scan(child, depth + 1)
                     finally:
                         os.close(child)
@@ -2250,11 +2289,7 @@ def scan(directory, depth):
 # after resolution. All child lookups stay relative to an already-open directory.
 directory = None
 try:
-    directory = os.open(os.sep, DIRECTORY_FLAGS)
-    for part in root.parts[1:]:
-        child = os.open(part, DIRECTORY_FLAGS, dir_fd=directory)
-        os.close(directory)
-        directory = child
+    directory = open_directory(root, run_identity)
     scan(directory, 0)
 except (TypeError, NotImplementedError):
     # Descriptor-relative traversal is unavailable on some Python platforms.
