@@ -2271,12 +2271,12 @@ PY
 
 council_response_makes_code_claims() {
     # True when the response asserts code-level facts (vs a purely process/plan
-    # discussion with nothing to ground). Reuses the token-bounded code vocabulary
-    # from the soft-blind detector. Used only to decide whether the positive
+    # discussion with nothing to ground). Includes token-bounded security and
+    # control-flow terms. Used only to decide whether the positive
     # grounding gate applies — a review with no code claims is never gated.
     local f="$1"
     [[ -f "$f" ]] || return 1
-    grep -ciE '(^|[^[:alnum:]])(test(s|ed|ing|cases?)?|coverage|render(s|ed|ing)?|outputs?|type[- ]?check(s|ed|ing)?|tsc|lint(s|ed|ing|er)?|implement(s|ed|ing|ations?)?|propagat(e|es|ed|ing|ion)?|pass(es|ing|ed)?|regress(es|ed|ions?)?|contracts?|behaviou?r(s|al)?|diff(s|ed)?|assert(s|ed|ing|ions?)?|snapshots?|dom|css|class(es)?|components?|functions?|api(s)?|endpoints?|schema(s|ta)?|payloads?|fields?|joins?|quer(y|ies)|gate[ds]?|fallback|routing?|resolver|interface|serializ|compiler?)([^[:alnum:]]|$)' "$f" >/dev/null
+    grep -ciE '(^|[^[:alnum:]])(test(s|ed|ing|cases?)?|coverage|render(s|ed|ing)?|outputs?|type[- ]?check(s|ed|ing)?|tsc|lint(s|ed|ing|er)?|implement(s|ed|ing|ations?)?|propagat(e|es|ed|ing|ion)?|pass(es|ing|ed)?|regress(es|ed|ions?)?|contracts?|behaviou?r(s|al)?|diff(s|ed)?|assert(s|ed|ing|ions?)?|snapshots?|dom|css|class(es)?|components?|functions?|api(s)?|endpoints?|schema(s|ta)?|payloads?|fields?|joins?|quer(y|ies)|gate[ds]?|fallback|routing?|resolver|interface|serializ|compiler?|guards?|unauthenticated|unauthori[sz]ed|authenticat(e|es|ed|ing|ion)|authori[sz](e|es|ed|ing|ation)|control[- ]flow|conditionals?|branches|branch|short[- ]circuit(s|ed|ing)?)([^[:alnum:]]|$)' "$f" >/dev/null
 }
 
 council_response_has_grounding() {
@@ -2421,13 +2421,9 @@ council_response_defers_without_reading() {
     #     stated in the summary" (sail-cruisey #2570)
     #   - prior-phase deference: "given the rigorous validations in previous
     #     rounds ... I recommend proceeding" (#2463)
-    # This is length-independent (the evasions are long) but gated on ZERO
-    # `path.ext:line` citations: a genuinely grounded review carries a concrete
-    # file:line, so it is never flagged for merely mentioning a summary or a prior
-    # round. The colon citation form is deliberately the ONLY grounding signal
-    # here — prose "lines 251-263" or a bare filename can be copied from the
-    # plan/summary without reading it (#2463 does exactly that). When an
-    # evidence root is available, the cited path must also resolve beneath it.
+    # This is length-independent, but a validated source citation or a verified
+    # quoted fragment exempts source-backed analysis that also cites a summary.
+    # Bare filenames and prose line ranges are not evidence of reading source.
     local f="$1" evidence_root="${2:-}"
     [[ -f "$f" ]] || return 1
 
@@ -2469,7 +2465,7 @@ council_response_defers_without_reading() {
     # inflections so common plural/tense forms still match.
     local code_token='(^|[^[:alnum:]])(test(s|ed|ing|cases?)?|coverage|render(s|ed|ing)?|outputs?|type[- ]?check(s|ed|ing)?|tsc|lint(s|ed|ing|er)?|implement(s|ed|ing|ations?)?|propagat(e|es|ed|ing|ion)?|byte-identical|pass(es|ing|ed)?|regress(es|ed|ions?)?|contracts?|behaviou?r(s|al)?|diff(s|ed)?|assert(s|ed|ing|ions?)?|snapshots?|dom|css|class(es)?|components?|functions?|api(s)?|endpoints?|schema(s|ta)?|payloads?|fields?)([^[:alnum:]]|$)'
 
-    printf '%s\n' "$normalized_without_urls" | awk -v ct="$code_token" '
+    if printf '%s\n' "$normalized_without_urls" | awk -v ct="$code_token" '
         {
             # NOTE: a bare "based on the provided summary" is deliberately NOT a
             # trigger — a legitimate plan/design review (no code to cite) uses that
@@ -2494,7 +2490,17 @@ council_response_defers_without_reading() {
             if (summary_reliance || prior_deference) found=1
         }
         END { exit(found ? 0 : 1) }
-    ' >/dev/null 2>&1
+    ' >/dev/null 2>&1; then
+        # Only a verified match exempts summary attribution. Scan exhaustion or
+        # unavailable confinement does not establish source-backed analysis.
+        local content_matches
+        content_matches="$(council_response_content_match_count "$f" "$evidence_root")" || content_matches=0
+        if [[ "$content_matches" =~ ^[0-9]+$ ]] && (( content_matches > 0 )); then
+            return 1
+        fi
+        return 0
+    fi
+    return 1
 }
 
 _council_parse_final_verdict() {

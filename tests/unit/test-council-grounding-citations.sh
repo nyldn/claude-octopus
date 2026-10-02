@@ -206,6 +206,12 @@ _assert_blind() { # name file
     fi
 }
 
+for quote_response in "$A1" "$A2"; do
+    test_case "quote-only response has a direct content-grounding signal"
+    if council_response_has_grounding "$quote_response" "$ROOT"; then test_pass
+    else test_fail "quote-only response lost its content match below the blind threshold"; fi
+done
+
 _assert_pass A1 "$A1"
 _assert_pass A2 "$A2"
 _assert_pass A3 "$A3"
@@ -229,6 +235,55 @@ if council_response_is_blind "$B1" ""; then
 else
     test_pass
 fi
+
+# Full-length security claims must use the live grounding gate.
+SECURITY_VOTE="$TEST_TMP_DIR/security-vote.md"
+SECURITY_GROUNDED="$TEST_TMP_DIR/security-grounded.md"
+PROCESS_VOTE="$TEST_TMP_DIR/process-vote.md"
+for _ in {1..16}; do
+    printf '%s\n' 'The new guard rejects unauthenticated requests. Authorization denies forbidden access before execution. The conditional branch returns early for unauthorized input.'
+done > "$SECURITY_VOTE"
+printf '\nVERDICT: APPROVE\n' >> "$SECURITY_VOTE"
+test_case "full-length ungrounded security approval is blind and excluded"
+record="$(council_contribution_record_json "$SECURITY_VOTE" "$ROOT" sha256:fixture)"
+if council_response_makes_code_claims "$SECURITY_VOTE" &&
+   council_response_is_blind "$SECURITY_VOTE" "$ROOT" &&
+   ! council_response_is_substantive "$SECURITY_VOTE" "$ROOT" &&
+   jq -e '.validation_result == "invalid-access" and .access_state == "failed" and .comprehension_verified == false' <<< "$record" >/dev/null; then test_pass
+else test_fail "ungrounded security approval entered the substantive quorum"; fi
+sed '/VERDICT: APPROVE/d' "$SECURITY_VOTE" > "$SECURITY_GROUNDED"
+printf '\nThe guard follows `if (ports.length === 0)`.\nVERDICT: APPROVE\n' >> "$SECURITY_GROUNDED"
+test_case "full-length source-backed security review remains substantive"
+if council_response_has_grounding "$SECURITY_GROUNDED" "$ROOT" &&
+   council_response_is_substantive "$SECURITY_GROUNDED" "$ROOT"; then test_pass
+else test_fail "grounded security review was excluded"; fi
+for _ in {1..16}; do
+    printf '%s\n' 'The proposal describes a phased rollout. The schedule gives stakeholders time to discuss the timeline and nominate owners. The next milestone follows their written feedback.'
+done > "$PROCESS_VOTE"
+printf '\nVERDICT: APPROVE\n' >> "$PROCESS_VOTE"
+test_case "full-length process prose retains its exemption"
+if ! council_response_makes_code_claims "$PROCESS_VOTE" &&
+   council_response_is_substantive "$PROCESS_VOTE" "$ROOT"; then test_pass
+else test_fail "process prose was treated as an ungrounded code review"; fi
+
+test_case "verified quote permits separate summary attribution of test results"
+SUMMARY_QUOTE="$TEST_TMP_DIR/summary-quote.md"
+printf '%s\n' 'The function contains `shipCode = r.rc_ship_code ?? r.class_code`. The summary confirms the tests pass.' 'VERDICT: APPROVE' > "$SUMMARY_QUOTE"
+if council_response_has_grounding "$SUMMARY_QUOTE" "$ROOT" &&
+   ! council_response_defers_without_reading "$SUMMARY_QUOTE" "$ROOT" &&
+   council_response_is_substantive "$SUMMARY_QUOTE" "$ROOT"; then test_pass
+else test_fail "verified source quote was rejected for summary attribution"; fi
+
+test_case "an unverified quote cannot exempt summary deferral"
+if ( council_response_content_match_count() { printf '0\n'; }
+     council_response_is_blind "$SUMMARY_QUOTE" "$ROOT" ); then test_pass
+else test_fail "unverified content was admitted by the deferral exemption"; fi
+
+test_case "first-person access failure still overrides a quote and summary"
+printf '%s\n' 'I cannot read the repository files.' >> "$SUMMARY_QUOTE"
+if council_response_is_blind "$SUMMARY_QUOTE" "$ROOT" &&
+   ! council_response_is_substantive "$SUMMARY_QUOTE" "$ROOT"; then test_pass
+else test_fail "source quote overrode an explicit access failure"; fi
 
 # Boundary fixtures use inert code markers, never credentials or provider calls.
 BOUNDARY_ROOT="$TEST_TMP_DIR/boundary-root"
