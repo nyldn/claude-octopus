@@ -132,6 +132,43 @@ else
     test_pass
 fi
 
+test_case "findings normalizer repairs an illegal string escape in provider output"
+illegal_escape_file="$TEST_TMP_DIR/illegal-escape-findings.json"
+cat > "$illegal_escape_file" <<'EOF'
+{"findings":[{"file":"src/app.ts","line":528,"title":"Flag ignored","detail":"Seen under C:\users\dev","merged_from":["src/app.ts:528","\.docs/auth/README.md:218"]}]}
+EOF
+illegal_escape_normalized="$(review_normalize_findings_json < "$illegal_escape_file" 2>/dev/null || true)"
+if [[ "$(printf '%s' "$illegal_escape_normalized" | jq -r '.findings[0].merged_from[1]' 2>/dev/null || true)" == '\.docs/auth/README.md:218' ]] &&
+   [[ "$(printf '%s' "$illegal_escape_normalized" | jq -r '.findings[0].detail' 2>/dev/null || true)" == 'Seen under C:\users\dev' ]]; then
+    test_pass
+else
+    test_fail "illegal escape was not repaired: $illegal_escape_normalized"
+fi
+
+test_case "escape repair leaves legal JSON escapes untouched"
+legal_escape_document='{"findings":[{"title":"q\"uote \\. back\\\\slash \/ \b \f \n \r \t \u00e9 \u00E9"}]}'
+legal_escape_repaired="$(printf '%s' "$legal_escape_document" | review_repair_json_escapes)"
+legal_escape_normalized="$(printf '%s' "$legal_escape_document" | review_normalize_findings_json 2>/dev/null || true)"
+if [[ "$legal_escape_repaired" == "$legal_escape_document" ]] &&
+   [[ "$legal_escape_normalized" == "$(printf '%s' "$legal_escape_document" | jq -c .)" ]]; then
+    test_pass
+else
+    test_fail "legal escapes changed: repaired=$legal_escape_repaired normalized=$legal_escape_normalized"
+fi
+
+test_case "escape repair still rejects multiple JSON documents"
+multi_escape_file="$TEST_TMP_DIR/multi-document-illegal-escape.json"
+printf '%s\n%s\n' \
+    '{"findings":[{"title":"\.first"}]}' \
+    '{"findings":[{"title":"\.second"}]}' > "$multi_escape_file"
+if multi_escape_out="$(review_normalize_findings_json < "$multi_escape_file" 2>/dev/null)"; then
+    test_fail "repaired multi-document findings were accepted: $multi_escape_out"
+elif [[ -n "$multi_escape_out" ]]; then
+    test_fail "rejected multi-document findings still wrote output: $multi_escape_out"
+else
+    test_pass
+fi
+
 test_case "findings count returns one integer or rejects malformed input without output"
 valid_count="$(review_findings_count "$single_normalized" 2>/dev/null || true)"
 invalid_count_file="$TEST_TMP_DIR/invalid-count.out"

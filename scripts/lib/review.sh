@@ -1095,12 +1095,26 @@ review_resolve_round1_findings() {
     return 1
 }
 
+review_repair_json_escapes() {
+    jq -Rrs 'gsub("\\\\(?<escape>[\"\\\\/bfnrt]|u[0-9A-Fa-f]{4})?"; if .escape then "\\" + .escape else "\\\\" end)'
+}
+
+review_slurp_provider_json() {
+    local filter="$1" input
+    input=$(cat)
+    if printf '%s' "$input" | jq -s empty >/dev/null 2>&1; then
+        printf '%s' "$input" | jq -cse "$filter"
+    else
+        printf '%s' "$input" | review_repair_json_escapes | jq -cse "$filter"
+    fi
+}
+
 # Provider output is untrusted and may contain multiple top-level JSON values.
 # Canonicalize exactly one findings document before any arithmetic, rendering,
 # or persistence. Multiple documents are rejected rather than concatenated,
 # and exact duplicate findings collapse to one deterministic entry.
 review_normalize_findings_json() {
-    jq -cse '
+    review_slurp_provider_json '
         if length == 1
            and (.[0] | type == "object")
            and (.[0].findings | type == "array")
@@ -2323,7 +2337,7 @@ Return ONLY JSON: {\"decisions\":[{\"debate_id\":\"finding-0\",\"decision\":\"in
             }
             debate_result=$(echo "$debate_result" | review_strip_external_cli_wrapper | sed '/^```json$/d; /^```JSON$/d; /^```$/d')
             local debate_document
-            debate_document=$(printf '%s' "$debate_result" | jq -cse 'if length == 1 and (.[0] | type == "object") then .[0] else error("invalid decision document") end' 2>/dev/null) || debate_document='{}'
+            debate_document=$(printf '%s' "$debate_result" | review_slurp_provider_json 'if length == 1 and (.[0] | type == "object") then .[0] else error("invalid decision document") end' 2>/dev/null) || debate_document='{}'
             debate_audit=$(printf '%s\n%s\n' "$debate_candidates" "$debate_document" | review_resolve_debate_decisions)
             if [[ "$debate_answered" == true ]]; then
                 if printf '%s' "$debate_audit" | jq -e 'any(.[]; .decision == "retain")' >/dev/null; then
