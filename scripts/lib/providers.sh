@@ -94,6 +94,7 @@ _octo_host_version_output() {
 }
 
 detect_claude_code_version() {
+    _octo_host_version_probe_attempted=false
     # v9.16.0: Non-Claude hosts skip CC version detection entirely.
     if [[ "$OCTOPUS_HOST" == "codex" ]]; then
         CLAUDE_CODE_VERSION=""
@@ -108,6 +109,7 @@ detect_claude_code_version() {
     # v8.36.0: Support Factory AI Droid runtime alongside Claude Code
     if [[ "$OCTOPUS_HOST" == "factory" ]]; then
         if command -v droid &>/dev/null; then
+            _octo_host_version_probe_attempted=true
             _host_version_output="$(_octo_host_version_output droid 2>/dev/null)" || return $?
             CLAUDE_CODE_VERSION=$(grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+' <<< "$_host_version_output") || CLAUDE_CODE_VERSION=""
             log "INFO" "Factory AI Droid detected (v${CLAUDE_CODE_VERSION:-unknown})"
@@ -139,6 +141,7 @@ detect_claude_code_version() {
     fi
     if command -v claude &>/dev/null; then
         # Get version from Claude CLI
+        _octo_host_version_probe_attempted=true
         _host_version_output="$(_octo_host_version_output claude 2>/dev/null)" || return $?
         CLAUDE_CODE_VERSION=$(grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+' <<< "$_host_version_output") || CLAUDE_CODE_VERSION=""
     fi

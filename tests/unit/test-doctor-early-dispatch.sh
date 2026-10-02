@@ -17,6 +17,7 @@ case "$*" in
         case "${DOCTOR_VERSION_MODE:-success}" in
             stall) sleep 3; touch "$DOCTOR_VERSION_LATE"; echo '2.1.280 (Claude Code)' ;;
             error) echo '2.1.280 (Claude Code)'; exit 23 ;;
+            error127) echo '2.1.280 (Claude Code)'; exit 127 ;;
             malformed) echo 'version unavailable' ;;
             *) echo '2.1.280 (Claude Code)' ;;
         esac ;;
@@ -86,6 +87,57 @@ for version_mode in error malformed; do
     else
         test_fail "version discovery failure was swallowed"
     fi
+done
+
+for version_mode in error stall; do
+    test_case "providers category skips an unrelated $version_mode version command"
+    : > "$TEST_TMP_DIR/claude-calls"
+    run_doctor providers "DOCTOR_VERSION_MODE=$version_mode" 'OCTOPUS_VERSION_PROBE_TIMEOUT=1' \
+        "DOCTOR_VERSION_LATE=$TEST_TMP_DIR/providers-version-late"
+    if [[ "$DOCTOR_FIXTURE_STATUS" == 0 && ! -s "$TEST_TMP_DIR/claude-calls" ]] &&
+       jq -e 'all(.results[]; .category == "providers")' "$TEST_TMP_DIR/result.json" >/dev/null &&
+       diff -r --no-dereference "$TEST_TMP_DIR/initial-home" "$fixture_home" &&
+       diff -r "$TEST_TMP_DIR/initial-tmp" "$TEST_TMP_DIR/tmp"; then test_pass
+    else test_fail "provider-only diagnostics ran host discovery or added another category"; fi
+done
+
+test_case "state category does not run host version discovery"
+: > "$TEST_TMP_DIR/claude-calls"
+run_doctor state 'DOCTOR_VERSION_MODE=error'
+if [[ ! -s "$TEST_TMP_DIR/claude-calls" ]] &&
+   jq -e 'all(.results[]; .name != "host-version-detection")' "$TEST_TMP_DIR/result.json" >/dev/null; then test_pass
+else test_fail "state-only diagnostics ran unrelated version discovery"; fi
+
+for version_category in config skills agents ""; do
+    test_case "${version_category:-default} diagnostics retain performed version failures"
+    : > "$TEST_TMP_DIR/claude-calls"
+    run_doctor "$version_category" 'DOCTOR_VERSION_MODE=error'
+    if [[ "$DOCTOR_FIXTURE_STATUS" == 1 ]] && row_is host-version-detection fail 'exit 23' &&
+       grep -Fxq -- '--version' "$TEST_TMP_DIR/claude-calls"; then test_pass
+    else test_fail "version-dependent diagnostics suppressed a performed failure"; fi
+done
+
+test_case "an installed version command returning 127 remains a failure"
+run_doctor smoke 'DOCTOR_VERSION_MODE=error127'
+if [[ "$DOCTOR_FIXTURE_STATUS" == 1 ]] && row_is host-version-detection fail 'exit 127'; then test_pass
+else test_fail "performed command failure was treated as an absent optional client"; fi
+
+for missing_category in smoke ""; do
+    test_case "${missing_category:-default} diagnostics warn when optional host CLI is absent"
+    # A global fallback prevents an isolated missing-client fixture.
+    if [[ -x /usr/local/bin/claude ]]; then
+        test_skip "global Claude fallback is installed"
+        continue
+    fi
+    mv "$MOCK_BIN_DIR/claude" "$TEST_TMP_DIR/claude-saved"
+    run_doctor "$missing_category"
+    missing_warning=false
+    row_is host-version-detection warn 'version was not checked' && missing_warning=true
+    missing_failure=false
+    row_is host-version-detection fail '' && missing_failure=true
+    mv "$TEST_TMP_DIR/claude-saved" "$MOCK_BIN_DIR/claude"
+    if [[ "$missing_warning" == true && "$missing_failure" == false ]]; then test_pass
+    else test_fail "an absent optional client was reported as a performed command failure"; fi
 done
 
 test_case "stalled version discovery reports timeout and cancels its late write"

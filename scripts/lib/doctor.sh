@@ -2098,14 +2098,23 @@ do_doctor() {
     DOCTOR_PROVIDER_READINESS=()
     DOCTOR_PROVIDER_READINESS_KIND=""
 
-    # Standalone discovery runs after parsing so help never starts a CLI probe.
-    if [[ "${DOCTOR_DETECT_HOST_VERSION:-false}" == "true" ]]; then
+    # Only these categories consume host version or capability flags.
+    if [[ "${DOCTOR_DETECT_HOST_VERSION:-false}" == "true" &&
+          ( -z "$category_filter" || "$category_filter" == config ||
+            "$category_filter" == smoke || "$category_filter" == skills ||
+            "$category_filter" == agents ) ]]; then
         local version_status=0
         OCTOPUS_SKIP_PROVIDER_PROBES=true detect_claude_code_version 2>/dev/null || version_status=$?
         if [[ "$version_status" -ne 0 ]]; then
-            doctor_add "host-version-detection" "config" "fail" \
-                "Host version discovery failed (exit $version_status)" \
-                "Local --version check bounded to $(_octo_bare_probe_timeout "${OCTOPUS_VERSION_PROBE_TIMEOUT:-5}")s"
+            if [[ "${_octo_host_version_probe_attempted:-true}" == false ]]; then
+                doctor_add "host-version-detection" "config" "warn" \
+                    "Host CLI unavailable; version was not checked" \
+                    "Install the host CLI to enable version-dependent diagnostics."
+            else
+                doctor_add "host-version-detection" "config" "fail" \
+                    "Host version discovery failed (exit $version_status)" \
+                    "Local --version check bounded to $(_octo_bare_probe_timeout "${OCTOPUS_VERSION_PROBE_TIMEOUT:-5}")s"
+            fi
         fi
     fi
 
