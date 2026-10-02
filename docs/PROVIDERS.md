@@ -111,9 +111,13 @@ request tools, so an empty `tools` array does not disable them. See
 
 ## Grok headless tool approval
 
-The Grok stdin shim uses `--always-approve --sandbox read-only` by default so
-headless seats can run shell tools without an interactive approval prompt.
-`OCTOPUS_GROK_APPROVE=0` restores the previous command line, omitting both flags.
+The Grok stdin shim uses `--always-approve --sandbox read-only` by default.
+Advisory seats receive only `read_file`, `grep`, and `list_dir` through `--tools`,
+plus a deny rule for MCP tools and disabled subagents. They can inspect source
+without granting shell or file mutation authority. The CLI must advertise these
+controls in `--help`; missing controls reject the call before prompt execution.
+`OCTOPUS_GROK_APPROVE=0` omits the approval and sandbox flags and retains the
+tool ceiling.
 `OCTOPUS_GROK_SANDBOX` overrides the profile: `off`, `workspace`, `read-only`, or
 `strict`. Invalid values produce one stderr warning and use the call's default.
 The shim's standalone default is `read-only`.
@@ -124,13 +128,28 @@ is `workspace-write`; `danger-full-access` also maps to Grok `workspace`, while
 Codex `read-only` keeps Grok read-only. Review, consult, council, and unknown
 contexts default to `read-only`, including consultative calls that grant Codex
 `danger-full-access` inside a disposable workspace. Explicit Grok overrides
-take precedence. Approval and sandbox settings travel with `OCTOPUS_GROK_MODEL`
-in the shim's env prefix so they survive provider environment isolation.
+take precedence for the sandbox profile. They cannot raise an advisory role's
+tool ceiling. Only eligible implementation calls receive full tools, and an
+explicit Grok `read-only` override narrows those calls too. Approval, sandbox,
+and tool policy travel with `OCTOPUS_GROK_MODEL` in the shim's env prefix so they
+survive provider environment isolation. Standalone calls default to the same
+read-tool ceiling. A trusted operator can request full tools for standalone
+implementation with `OCTOPUS_GROK_TOOL_POLICY=full`; dispatch derives that value
+from the role and phase and overrides inherited values.
 
-In reported Linux tests with Grok 1.0.40, `read-only` blocked writes outside
-`/tmp` but still allowed a write when the working directory was under `/tmp`,
-despite Grok's README table describing writes only to `~/.grok/`. Octopus passes
-the requested profile through without working around that CLI behavior.
+Grok's [sandbox guide](https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-pager/docs/user-guide/18-sandbox.md)
+permits temporary-directory writes under `read-only`. Its child-network block
+is Linux-only. The tool ceiling avoids relying on that profile for advisory
+write protection. Grok's [CLI reference](https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-shell/README.md#tool-filtering-tools--disallowed-tools)
+documents the read-tool allowlist. These flags are present in locally checked
+Grok 1.0.3 help; no provider call is needed for that compatibility check.
+
+Prompts above 100000 bytes use a private temporary file, preserving the stdin
+bytes. `OCTOPUS_GROK_ARGV_MAX` can lower the inline threshold; `0` forces file
+transport. Invalid values and values above 100000 retain the safe ceiling.
+File transport cancellation sends TERM to the direct child, waits up to two
+seconds, then escalates to KILL and reaps it before removing the prompt. It
+does not claim ownership of unregistered descendants.
 
 ## Kimi Code integration
 

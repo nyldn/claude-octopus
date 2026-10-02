@@ -686,12 +686,13 @@ get_agent_command() {
             # Codex defaults to workspace-write and consultative calls even set
             # danger-full-access. Keep Grok advisory seats read-only; only grant
             # workspace to implementation roles/phases where Codex allows writes.
-            local grok_default_sandbox="read-only" grok_sandbox grok_approve=1
+            local grok_default_sandbox="read-only" grok_sandbox grok_approve=1 grok_tool_policy="read-only"
             if [[ "$phase" == tangle || "$phase" == develop ]] && [[ "$codex_sandbox" != read-only ]]; then
                 case "$role" in
                     implementer|developer|tdd-orchestrator|debugger|python-pro|typescript-pro|frontend-developer)
                         if [[ "$(get_agent_readonly "$role")" != true ]]; then
                             grok_default_sandbox="workspace"
+                            grok_tool_policy="full"
                         fi
                         ;;
                 esac
@@ -707,8 +708,9 @@ get_agent_command() {
                     grok_sandbox="$grok_default_sandbox"
                     ;;
             esac
+            [[ "$grok_sandbox" != read-only ]] || grok_tool_policy="read-only"
             # Explicit prefixes survive provider-routing's env -i boundary.
-            echo "env OCTOPUS_GROK_MODEL=${model:-default} OCTOPUS_GROK_APPROVE=${grok_approve} OCTOPUS_GROK_SANDBOX=${grok_sandbox} ${PLUGIN_DIR}/scripts/helpers/grok-exec.sh"
+            echo "env OCTOPUS_GROK_MODEL=${model:-default} OCTOPUS_GROK_APPROVE=${grok_approve} OCTOPUS_GROK_SANDBOX=${grok_sandbox} OCTOPUS_GROK_TOOL_POLICY=${grok_tool_policy} ${PLUGIN_DIR}/scripts/helpers/grok-exec.sh"
             ;;
         kimi|kimi-research)  # Moonshot Kimi Code CLI — headless single-turn via helpers/kimi-exec.sh
             # Kimi's non-interactive print mode auto-approves tool calls and has
