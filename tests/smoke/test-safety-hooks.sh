@@ -8,6 +8,15 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 
+SAFETY_HOOK_STATE_FILE=""
+cleanup_safety_hooks_test() {
+    if [[ -n "$SAFETY_HOOK_STATE_FILE" ]]; then
+        rm -f "$SAFETY_HOOK_STATE_FILE"
+    fi
+    cleanup_test_environment
+}
+trap cleanup_safety_hooks_test EXIT
+
 test_suite "Safety Hooks (careful/freeze/guard)"
 
 CAREFUL_HOOK="$PROJECT_ROOT/hooks/careful-check.sh"
@@ -346,15 +355,16 @@ test_debug_skill_autofreeze() {
 }
 
 test_debug_skill_autofreeze_reaches_hook() {
-    test_case "skill-debug auto-freeze writes the state file freeze-check.sh and /octo:unfreeze use"
+    test_case "skill-debug auto-freeze writes the state file freeze-check.sh and /octo:unfreeze use, and keeps an existing freeze"
     # Run each skill copy's freeze block the way a Claude Code Bash tool call runs it:
     # CLAUDE_CODE_SESSION_ID exported, CLAUDE_SESSION_ID unset. The hook gets the same
     # session id from its JSON input, so a block keyed on anything else (the shell
     # PID) writes a file the hook never reads and the boundary is silently unenforced.
     local sid="octo-debug-freeze-$$"
-    local sf="/tmp/octopus-freeze-${sid}.txt"
+    SAFETY_HOOK_STATE_FILE="/tmp/octopus-freeze-${sid}.txt"
+    local sf="$SAFETY_HOOK_STATE_FILE"
     local work fails="" skill label block unfreeze_block pid rc
-    work=$(mktemp -d) || { test_fail "mktemp failed"; return; }
+    work=$(mktemp -d "$TEST_TMP_DIR/safety-hooks.XXXXXX") || { test_fail "mktemp failed"; return; }
     mkdir -p "$work/module" "$work/outside"
     unfreeze_block=$(awk '/^```bash/{b=1;next} b&&/^```/{exit} b' "$COMMANDS_DIR/unfreeze.md")
 
@@ -387,9 +397,16 @@ test_debug_skill_autofreeze_reaches_hook() {
         [[ "$(_freeze_decides "$work/module/x.txt")" == allow ]] || fails+=" $label:inside-edit-not-allowed"
         (cd "$work" && env -u CLAUDE_SESSION_ID "CLAUDE_CODE_SESSION_ID=$sid" bash -c "$unfreeze_block")
         [[ ! -f "$sf" ]] || fails+=" $label:unfreeze-left-state"
+
+        # A freeze the user already set (here, on another directory) must survive.
+        printf '%s\n' "$work/outside" > "$sf"
+        (cd "$work" && env -u CLAUDE_SESSION_ID "CLAUDE_CODE_SESSION_ID=$sid" bash -c "$block") >/dev/null
+        [[ "$(cat "$sf" 2>/dev/null)" == "$work/outside" ]] || fails+=" $label:replaced-existing-freeze"
+        rm -f "$sf"
     done
 
     rm -f "$sf"
+    SAFETY_HOOK_STATE_FILE=""
     rm -rf "$work"
     if [[ -z "$fails" ]]; then
         test_pass
