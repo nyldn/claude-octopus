@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- `/octo:debug`'s scoped freeze guard keys its state file on `CLAUDE_CODE_SESSION_ID`,
+  as `/octo:freeze` and `/octo:unfreeze` do. On Claude Code v2.1.132 and newer it was
+  keyed on the shell PID, so the freeze hook never enforced the boundary and
+  `/octo:unfreeze` could not remove the file. The guard now leaves a freeze that
+  is already active in place, and the workflow removes only a freeze it created.
+
 ## [11.10.0] - 2026-10-02
 
 ### Added
