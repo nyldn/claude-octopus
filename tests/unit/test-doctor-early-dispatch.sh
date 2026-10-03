@@ -231,7 +231,15 @@ sleep 2.3
 if [[ "$factory_status" == 1 && "$factory_timeout" == true && ! -e "$TEST_TMP_DIR/droid-late" ]] &&
    diff -r --no-dereference "$TEST_TMP_DIR/initial-home" "$fixture_home" &&
    diff -r "$TEST_TMP_DIR/initial-tmp" "$TEST_TMP_DIR/tmp"; then test_pass
-else test_fail "Factory version timeout, category, or local-state assertion failed"; fi
+else
+    factory_late=false
+    [[ ! -e "$TEST_TMP_DIR/droid-late" ]] || factory_late=true
+    printf 'Factory timeout details: status=%s timeout_row=%s late_marker=%s\n' \
+        "$factory_status" "$factory_timeout" "$factory_late" >&2
+    jq -c '.results[] | select(.name == "host-version-detection") | {status, category, message}' \
+        "$TEST_TMP_DIR/result.json" >&2 || printf 'Factory diagnostic JSON could not be read\n' >&2
+    test_fail "Factory version timeout, category, or local-state assertion failed"
+fi
 
 test_case "doctor finds an expired smoke cache"
 printf '0\nstale-key\n0\n' > "$fixture_home/.claude-octopus/.smoke-test-cache"
