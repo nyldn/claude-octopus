@@ -20,9 +20,10 @@
   only; before, `codex exec` failed at startup with "Read-only file system".
   Each directory is bound at its resolved path, and stays read-only with a
   warning when it holds `HOME`, overlaps the worktree, the result channel,
-  or the worktree's Git directory or common directory, or is reached through
-  a symlink below `/tmp`. Without Python 3.11+ (`tomllib`), a `TMPDIR` set in
-  `config.toml` stays read-only with a warning.
+  or the worktree's Git directory or common directory, or when its configured
+  path goes through a symlink that the boundary hides (below `/tmp`). Without
+  Python 3.11+ (`tomllib`), a `TMPDIR` set in `config.toml` stays read-only
+  with a warning.
 
 
 ## [11.10.0] - 2026-10-02

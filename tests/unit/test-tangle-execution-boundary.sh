@@ -88,9 +88,12 @@ fi
 
 # Codex writes its own state while it runs: CODEX_HOME, and the sandbox TMPDIR
 # that its config.toml sets for the commands it runs. The argv cases below stub
-# the probe, so they run on hosts without bwrap too.
-CODEX_STATE_HOME="$BOUNDARY_ROOT/codex-home"
-CODEX_STATE_TMP="$BOUNDARY_ROOT/codex-tmp"
+# the probe, so they run on hosts without bwrap too. Their fixtures use the
+# physical path: a configured path that goes through a symlink is also checked
+# inside a real boundary, and that needs bwrap.
+CODEX_ROOT="$(cd "$BOUNDARY_ROOT" && pwd -P)"
+CODEX_STATE_HOME="$CODEX_ROOT/codex-home"
+CODEX_STATE_TMP="$CODEX_ROOT/codex-tmp"
 mkdir -p "$CODEX_STATE_HOME" "$CODEX_STATE_TMP"
 printf '[shell_environment_policy]\nset = { TMPDIR = "%s" }\n' "$CODEX_STATE_TMP" \
     > "$CODEX_STATE_HOME/config.toml"
@@ -121,7 +124,7 @@ make_linked_worktree() {
         commit -q --allow-empty -m init
     git -C "$1/state-parent/main" worktree add -q --detach "$1/linked"
 }
-GIT_FIXTURE="$BOUNDARY_ROOT/git-fixture"
+GIT_FIXTURE="$CODEX_ROOT/git-fixture"
 make_linked_worktree "$GIT_FIXTURE"
 physical_git_dir="$(cd "$(git -C "$GIT_FIXTURE/linked" rev-parse --absolute-git-dir)" && pwd -P)"
 physical_git_common="$(cd "$GIT_FIXTURE/state-parent/main/.git" && pwd -P)"
@@ -170,22 +173,22 @@ fi
 test_case "codex state overlapping the worktree, results or HOME stays read-only, even behind a symlink"
 agent_type="codex"
 link_root="${OUTSIDE_TMP_ROOT:-$BOUNDARY_ROOT}"
-mkdir -p "$BOUNDARY_WORKTREE/.codex" "$BOUNDARY_ROOT/userhome/u" "$BOUNDARY_ROOT/codex-home-2"
+mkdir -p "$BOUNDARY_WORKTREE/.codex" "$CODEX_ROOT/userhome/u" "$CODEX_ROOT/codex-home-2"
 ln -sfn "$BOUNDARY_WORKTREE/.codex" "$link_root/codex-link-into-worktree"
 printf '[shell_environment_policy]\nset = { TMPDIR = "%s" }\n' "$BOUNDARY_RESULTS" \
-    > "$BOUNDARY_ROOT/codex-home-2/config.toml"
+    > "$CODEX_ROOT/codex-home-2/config.toml"
 unsafe_failures=""
 for unsafe_home in "$BOUNDARY_WORKTREE/.codex" "$BOUNDARY_RESULTS" \
-                   "$BOUNDARY_ROOT/userhome" "$link_root/codex-link-into-worktree"; do
+                   "$CODEX_ROOT/userhome" "$link_root/codex-link-into-worktree"; do
     CODEX_HOME="$unsafe_home"
     cmd_array=(true)
-    if ! HOME="$BOUNDARY_ROOT/userhome/u" octopus_tangle_apply_execution_boundary; then
+    if ! HOME="$CODEX_ROOT/userhome/u" octopus_tangle_apply_execution_boundary; then
         unsafe_failures+=" refused:$unsafe_home"
     elif boundary_binds_rw "$(cd "$unsafe_home" && pwd -P)"; then
         unsafe_failures+=" bound:$unsafe_home"
     fi
 done
-CODEX_HOME="$BOUNDARY_ROOT/codex-home-2"
+CODEX_HOME="$CODEX_ROOT/codex-home-2"
 cmd_array=(true)
 if ! octopus_tangle_apply_execution_boundary; then
     unsafe_failures+=" refused:tmpdir-in-results"
@@ -196,35 +199,6 @@ if [[ -z "$unsafe_failures" ]]; then
     test_pass
 else
     test_fail "unsafe codex state handling:$unsafe_failures"
-fi
-
-test_case "a symlinked codex state directory is bound at its target, unless the link is below /tmp"
-if [[ -z "$OUTSIDE_TMP_ROOT" ]]; then
-    test_skip "no writable /var/tmp for a symlink outside /tmp"
-else
-    agent_type="codex"
-    symlink_failures=""
-    ln -sfn "$CODEX_STATE_HOME" "$OUTSIDE_TMP_ROOT/codex-link"
-    CODEX_HOME="$OUTSIDE_TMP_ROOT/codex-link"
-    cmd_array=(true)
-    if ! octopus_tangle_apply_execution_boundary || ! boundary_binds_rw "$physical_codex_home"; then
-        symlink_failures+=" unbound:link-outside-tmp"
-    fi
-    # The private /tmp hides a symlink below /tmp, so codex could not reach the
-    # bound target by its configured path.
-    ln -sfn "$CODEX_STATE_HOME" "$TMP_LINK_ROOT/codex-link"
-    CODEX_HOME="$TMP_LINK_ROOT/codex-link"
-    cmd_array=(true)
-    if ! octopus_tangle_apply_execution_boundary; then
-        symlink_failures+=" refused:link-below-tmp"
-    elif boundary_binds_rw "$physical_codex_home"; then
-        symlink_failures+=" bound:link-below-tmp"
-    fi
-    if [[ -z "$symlink_failures" ]]; then
-        test_pass
-    else
-        test_fail "symlinked codex state:$symlink_failures"
-    fi
 fi
 
 test_case "codex state holding a linked worktree's Git metadata stays read-only"
@@ -257,9 +231,9 @@ fi
 
 test_case "codex state stays read-only when the worktree's Git metadata cannot be resolved"
 agent_type="codex"
-mkdir -p "$BOUNDARY_ROOT/git-broken-worktree"
-printf 'gitdir: %s\n' "$BOUNDARY_ROOT/no-such-gitdir" > "$BOUNDARY_ROOT/git-broken-worktree/.git"
-OCTOPUS_TANGLE_WORKTREE="$BOUNDARY_ROOT/git-broken-worktree"
+mkdir -p "$CODEX_ROOT/git-broken-worktree"
+printf 'gitdir: %s\n' "$CODEX_ROOT/no-such-gitdir" > "$CODEX_ROOT/git-broken-worktree/.git"
+OCTOPUS_TANGLE_WORKTREE="$CODEX_ROOT/git-broken-worktree"
 CODEX_HOME="$CODEX_STATE_HOME"
 cmd_array=(true)
 if octopus_tangle_apply_execution_boundary && ! boundary_binds_rw "$physical_codex_home"; then
@@ -275,7 +249,7 @@ if [[ -z "$real_python3" ]]; then
     test_skip "python3 is not installed"
 else
     # python3 without tomllib, as on Python 3.10 and older.
-    no_tomllib_bin="$BOUNDARY_ROOT/no-tomllib-bin"
+    no_tomllib_bin="$CODEX_ROOT/no-tomllib-bin"
     mkdir -p "$no_tomllib_bin"
     cat > "$no_tomllib_bin/python3" <<EOF
 #!/usr/bin/env bash
@@ -289,9 +263,9 @@ sys.argv = ["-c"] + sys.argv[2:]
 exec(compile(code, "<string>", "exec"), {"__name__": "__main__"})' "\$code" "\$@"
 EOF
     chmod +x "$no_tomllib_bin/python3"
-    mkdir -p "$BOUNDARY_ROOT/codex-home-plain"
-    printf '[features]\nweb_search = false\n' > "$BOUNDARY_ROOT/codex-home-plain/config.toml"
-    BOUNDARY_WARNINGS="$BOUNDARY_ROOT/warnings.log"
+    mkdir -p "$CODEX_ROOT/codex-home-plain"
+    printf '[features]\nweb_search = false\n' > "$CODEX_ROOT/codex-home-plain/config.toml"
+    BOUNDARY_WARNINGS="$CODEX_ROOT/warnings.log"
     log() { if [[ "$1" == "WARN" ]]; then printf '%s\n' "$*" >> "$BOUNDARY_WARNINGS"; fi; }
     saved_path="$PATH"
     PATH="$no_tomllib_bin:$PATH"
@@ -309,7 +283,7 @@ EOF
     fi
     # A config.toml without a TMPDIR setting needs no warning.
     : > "$BOUNDARY_WARNINGS"
-    CODEX_HOME="$BOUNDARY_ROOT/codex-home-plain"
+    CODEX_HOME="$CODEX_ROOT/codex-home-plain"
     cmd_array=(true)
     octopus_tangle_apply_execution_boundary || tomllib_failures+=" refused-plain"
     [[ ! -s "$BOUNDARY_WARNINGS" ]] || tomllib_failures+=" warned-plain"
@@ -344,23 +318,64 @@ if octopus_tangle_execution_boundary_probe; then
         test_fail "codex could not write its state, or could write outside it and the worktree"
     fi
 
-    test_case "a symlinked codex state directory is writable through its configured path under bwrap"
-    if [[ -z "$OUTSIDE_TMP_ROOT" ]]; then
-        test_skip "no writable /var/tmp for a symlink outside /tmp"
-    else
-        agent_type="codex"
+    test_case "a symlinked codex state directory is bound and writable through its configured path"
+    agent_type="codex"
+    # A link outside /tmp stays visible on the read-only root; a link inside the
+    # worktree comes back with the worktree bind, even when the worktree is
+    # below /tmp.
+    reachable_links=("$BOUNDARY_WORKTREE/codex-link")
+    ln -sfn "$CODEX_STATE_HOME" "$BOUNDARY_WORKTREE/codex-link"
+    if [[ -n "$OUTSIDE_TMP_ROOT" ]]; then
         ln -sfn "$CODEX_STATE_HOME" "$OUTSIDE_TMP_ROOT/codex-link"
-        CODEX_HOME="$OUTSIDE_TMP_ROOT/codex-link"
-        rm -f "$CODEX_STATE_HOME/via-link"
-        cmd_array=(bash -c 'touch "$1/via-link"' _ "$OUTSIDE_TMP_ROOT/codex-link")
-        if octopus_tangle_apply_execution_boundary && "${cmd_array[@]}" &&
-           [[ -e "$CODEX_STATE_HOME/via-link" ]]; then
-            test_pass
-        else
-            test_fail "codex could not write its state through a symlinked CODEX_HOME"
-        fi
-        CODEX_HOME="$CODEX_STATE_HOME"
+        reachable_links+=("$OUTSIDE_TMP_ROOT/codex-link")
     fi
+    reachable_failures=""
+    for codex_link in "${reachable_links[@]}"; do
+        CODEX_HOME="$codex_link"
+        rm -f "$CODEX_STATE_HOME/via-link"
+        cmd_array=(bash -c 'touch "$1/via-link"' _ "$codex_link")
+        if ! octopus_tangle_apply_execution_boundary; then
+            reachable_failures+=" refused:$codex_link"
+        elif ! boundary_binds_rw "$physical_codex_home"; then
+            reachable_failures+=" unbound:$codex_link"
+        elif ! "${cmd_array[@]}" || [[ ! -e "$CODEX_STATE_HOME/via-link" ]]; then
+            reachable_failures+=" unwritable:$codex_link"
+        fi
+    done
+    rm -f "$BOUNDARY_WORKTREE/codex-link" "$CODEX_STATE_HOME/via-link"
+    if [[ -z "$reachable_failures" ]]; then
+        test_pass
+    else
+        test_fail "symlinked codex state:$reachable_failures"
+    fi
+    CODEX_HOME="$CODEX_STATE_HOME"
+
+    test_case "codex state behind a symlink hidden below /tmp stays read-only"
+    agent_type="codex"
+    # The private /tmp hides these links, so codex could not reach its state
+    # by the configured path even with the target bound.
+    hidden_links=("$TMP_LINK_ROOT/codex-link")
+    ln -sfn "$CODEX_STATE_HOME" "$TMP_LINK_ROOT/codex-link"
+    if [[ -n "$OUTSIDE_TMP_ROOT" ]]; then
+        ln -sfn "$TMP_LINK_ROOT/codex-link" "$OUTSIDE_TMP_ROOT/codex-chain"
+        hidden_links+=("$OUTSIDE_TMP_ROOT/codex-chain")
+    fi
+    hidden_failures=""
+    for codex_link in "${hidden_links[@]}"; do
+        CODEX_HOME="$codex_link"
+        cmd_array=(true)
+        if ! octopus_tangle_apply_execution_boundary; then
+            hidden_failures+=" refused:$codex_link"
+        elif boundary_binds_rw "$physical_codex_home"; then
+            hidden_failures+=" bound:$codex_link"
+        fi
+    done
+    if [[ -z "$hidden_failures" ]]; then
+        test_pass
+    else
+        test_fail "codex state behind a hidden symlink:$hidden_failures"
+    fi
+    CODEX_HOME="$CODEX_STATE_HOME"
 
     test_case "codex state holding the Git metadata cannot unseal it under bwrap"
     if [[ -z "$OUTSIDE_TMP_ROOT" ]]; then
