@@ -361,19 +361,24 @@ text, count = re.subn(
 assert count == 1, "missing PRODUCT capability fixture line"
 product.write_text(text)
 subprocess.run([script, "--root", str(root)], check=True, capture_output=True)
-first = re.search(
-    r"^- (\d+) Claude Code capability flags tracked through v([0-9.]+)$",
-    product.read_text(),
-    flags=re.MULTILINE,
-)
+capability_pattern = r"^- (\d+) Claude Code capability flags tracked through v([0-9.]+)$"
+first = re.search(capability_pattern, product.read_text(), flags=re.MULTILINE)
 assert first is not None, "initial sync did not write its capability line"
+first_version = tuple(int(part) for part in first.group(2).split("."))
+injected_version = (first_version[0] + 1, 0, 0)
+injected_gate = ".".join(str(part) for part in injected_version)
 orchestrate = root / "scripts/orchestrate.sh"
 orchestrate.write_text(orchestrate.read_text() + "\nSUPPORTS_README_SYNC_NEXT=false\n")
 providers = root / "scripts/lib/providers.sh"
-providers.write_text(providers.read_text() + '\nversion_compare "$CLAUDE_CODE_VERSION" "9.9.9"\n')
+providers.write_text(
+    providers.read_text() + f'\nversion_compare "$CLAUDE_CODE_VERSION" "{injected_gate}"\n'
+)
 subprocess.run([script, "--root", str(root)], check=True, capture_output=True)
-expected = f"- {int(first.group(1)) + 1} Claude Code capability flags tracked through v9.9.9"
-assert expected in product.read_text().splitlines(), "repeat sync retained stale generated capability facts"
+second = re.search(capability_pattern, product.read_text(), flags=re.MULTILINE)
+assert second is not None, "repeat sync did not write its capability line"
+assert int(second.group(1)) == int(first.group(1)) + 1, "repeat sync retained a stale capability count"
+second_version = tuple(int(part) for part in second.group(2).split("."))
+assert second_version >= injected_version, "repeat sync retained a stale capability ceiling"
 subprocess.run([script, "--root", str(root), "--check"], check=True, capture_output=True)
 PYTEST
 then
