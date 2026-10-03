@@ -101,18 +101,30 @@ if python3 -c 'import tomllib' >/dev/null 2>&1; then
     codex_toml_readable=true
 fi
 
+# The boundary replaces /tmp, so some fixtures must live outside it (a symlink
+# that stays visible, Git metadata that stays visible) and one inside it.
+OUTSIDE_TMP_ROOT=""
+if [[ -d /var/tmp && -w /var/tmp ]]; then
+    OUTSIDE_TMP_ROOT="$(mktemp -d /var/tmp/octopus-boundary-test.XXXXXX)"
+fi
+TMP_LINK_ROOT="$(mktemp -d /tmp/octopus-boundary-test.XXXXXX)"
+trap 'rm -rf "$TMP_LINK_ROOT" ${OUTSIDE_TMP_ROOT:+"$OUTSIDE_TMP_ROOT"}; cleanup_test_environment' EXIT
+
+# Create a main repository below $1/state-parent and a linked worktree at $1/linked.
 # A linked worktree keeps its Git directory and the common directory outside
-# itself. Here a codex state directory holds the main repository, so binding it
-# writable would unseal both.
-GIT_STATE_PARENT="$BOUNDARY_ROOT/git-state-parent"
-GIT_MAIN_REPO="$GIT_STATE_PARENT/main"
-GIT_LINKED_WORKTREE="$BOUNDARY_ROOT/git-linked"
-git init -q "$GIT_MAIN_REPO"
-git -C "$GIT_MAIN_REPO" -c user.name=octopus-test -c user.email=octopus-test@example.invalid \
-    -c commit.gpgsign=false commit -q --allow-empty -m init
-git -C "$GIT_MAIN_REPO" worktree add -q --detach "$GIT_LINKED_WORKTREE"
-physical_git_dir="$(cd "$(git -C "$GIT_LINKED_WORKTREE" rev-parse --absolute-git-dir)" && pwd -P)"
-physical_git_common="$(cd "$GIT_MAIN_REPO/.git" && pwd -P)"
+# itself, so a codex state directory holding the main repository would unseal
+# both if it were bound writable.
+make_linked_worktree() {
+    git init -q "$1/state-parent/main"
+    git -C "$1/state-parent/main" -c user.name=octopus-test \
+        -c user.email=octopus-test@example.invalid -c commit.gpgsign=false \
+        commit -q --allow-empty -m init
+    git -C "$1/state-parent/main" worktree add -q --detach "$1/linked"
+}
+GIT_FIXTURE="$BOUNDARY_ROOT/git-fixture"
+make_linked_worktree "$GIT_FIXTURE"
+physical_git_dir="$(cd "$(git -C "$GIT_FIXTURE/linked" rev-parse --absolute-git-dir)" && pwd -P)"
+physical_git_common="$(cd "$GIT_FIXTURE/state-parent/main/.git" && pwd -P)"
 
 # True when the boundary part of cmd_array binds $1 read-write.
 boundary_binds_rw() {
@@ -157,13 +169,14 @@ fi
 
 test_case "codex state overlapping the worktree, results or HOME stays read-only, even behind a symlink"
 agent_type="codex"
+link_root="${OUTSIDE_TMP_ROOT:-$BOUNDARY_ROOT}"
 mkdir -p "$BOUNDARY_WORKTREE/.codex" "$BOUNDARY_ROOT/userhome/u" "$BOUNDARY_ROOT/codex-home-2"
-ln -sfn "$BOUNDARY_WORKTREE/.codex" "$BOUNDARY_ROOT/codex-link-into-worktree"
+ln -sfn "$BOUNDARY_WORKTREE/.codex" "$link_root/codex-link-into-worktree"
 printf '[shell_environment_policy]\nset = { TMPDIR = "%s" }\n' "$BOUNDARY_RESULTS" \
     > "$BOUNDARY_ROOT/codex-home-2/config.toml"
 unsafe_failures=""
 for unsafe_home in "$BOUNDARY_WORKTREE/.codex" "$BOUNDARY_RESULTS" \
-                   "$BOUNDARY_ROOT/userhome" "$BOUNDARY_ROOT/codex-link-into-worktree"; do
+                   "$BOUNDARY_ROOT/userhome" "$link_root/codex-link-into-worktree"; do
     CODEX_HOME="$unsafe_home"
     cmd_array=(true)
     if ! HOME="$BOUNDARY_ROOT/userhome/u" octopus_tangle_apply_execution_boundary; then
@@ -185,22 +198,42 @@ else
     test_fail "unsafe codex state handling:$unsafe_failures"
 fi
 
-test_case "a symlinked codex state directory is bound at its resolved target"
-agent_type="codex"
-ln -sfn "$CODEX_STATE_HOME" "$BOUNDARY_ROOT/codex-link"
-CODEX_HOME="$BOUNDARY_ROOT/codex-link"
-cmd_array=(true)
-if octopus_tangle_apply_execution_boundary && boundary_binds_rw "$physical_codex_home"; then
-    test_pass
+test_case "a symlinked codex state directory is bound at its target, unless the link is below /tmp"
+if [[ -z "$OUTSIDE_TMP_ROOT" ]]; then
+    test_skip "no writable /var/tmp for a symlink outside /tmp"
 else
-    test_fail "a CODEX_HOME symlink to a safe directory left codex state read-only"
+    agent_type="codex"
+    symlink_failures=""
+    ln -sfn "$CODEX_STATE_HOME" "$OUTSIDE_TMP_ROOT/codex-link"
+    CODEX_HOME="$OUTSIDE_TMP_ROOT/codex-link"
+    cmd_array=(true)
+    if ! octopus_tangle_apply_execution_boundary || ! boundary_binds_rw "$physical_codex_home"; then
+        symlink_failures+=" unbound:link-outside-tmp"
+    fi
+    # The private /tmp hides a symlink below /tmp, so codex could not reach the
+    # bound target by its configured path.
+    ln -sfn "$CODEX_STATE_HOME" "$TMP_LINK_ROOT/codex-link"
+    CODEX_HOME="$TMP_LINK_ROOT/codex-link"
+    cmd_array=(true)
+    if ! octopus_tangle_apply_execution_boundary; then
+        symlink_failures+=" refused:link-below-tmp"
+    elif boundary_binds_rw "$physical_codex_home"; then
+        symlink_failures+=" bound:link-below-tmp"
+    fi
+    if [[ -z "$symlink_failures" ]]; then
+        test_pass
+    else
+        test_fail "symlinked codex state:$symlink_failures"
+    fi
 fi
 
 test_case "codex state holding a linked worktree's Git metadata stays read-only"
 agent_type="codex"
-OCTOPUS_TANGLE_WORKTREE="$GIT_LINKED_WORKTREE"
+OCTOPUS_TANGLE_WORKTREE="$GIT_FIXTURE/linked"
 git_failures=""
-for git_home in "$GIT_STATE_PARENT" "$GIT_MAIN_REPO/.git" "$physical_git_dir"; do
+# objects/ overlaps only the common directory, not the worktree's Git directory.
+for git_home in "$GIT_FIXTURE/state-parent" "$physical_git_common" \
+                "$physical_git_common/objects" "$physical_git_dir"; do
     CODEX_HOME="$git_home"
     cmd_array=(true)
     if ! octopus_tangle_apply_execution_boundary; then
@@ -311,25 +344,52 @@ if octopus_tangle_execution_boundary_probe; then
         test_fail "codex could not write its state, or could write outside it and the worktree"
     fi
 
-    test_case "codex state holding the Git metadata cannot unseal it under bwrap"
-    agent_type="codex"
-    OCTOPUS_TANGLE_WORKTREE="$GIT_LINKED_WORKTREE"
-    CODEX_HOME="$GIT_STATE_PARENT"
-    rm -f "$physical_git_dir/forged" "$physical_git_common/forged" "$GIT_LINKED_WORKTREE/inside.txt"
-    cmd_array=(bash -c 'touch "$1/forged" 2>/dev/null || true
-                        touch "$2/forged" 2>/dev/null || true
-                        touch "$3/inside.txt"' \
-               _ "$physical_git_dir" "$physical_git_common" "$GIT_LINKED_WORKTREE")
-    if octopus_tangle_apply_execution_boundary && "${cmd_array[@]}" &&
-       [[ -e "$GIT_LINKED_WORKTREE/inside.txt" ]] &&
-       [[ ! -e "$physical_git_dir/forged" ]] &&
-       [[ ! -e "$physical_git_common/forged" ]]; then
-        test_pass
+    test_case "a symlinked codex state directory is writable through its configured path under bwrap"
+    if [[ -z "$OUTSIDE_TMP_ROOT" ]]; then
+        test_skip "no writable /var/tmp for a symlink outside /tmp"
     else
-        test_fail "a codex state directory holding the main repository made its Git metadata writable"
+        agent_type="codex"
+        ln -sfn "$CODEX_STATE_HOME" "$OUTSIDE_TMP_ROOT/codex-link"
+        CODEX_HOME="$OUTSIDE_TMP_ROOT/codex-link"
+        rm -f "$CODEX_STATE_HOME/via-link"
+        cmd_array=(bash -c 'touch "$1/via-link"' _ "$OUTSIDE_TMP_ROOT/codex-link")
+        if octopus_tangle_apply_execution_boundary && "${cmd_array[@]}" &&
+           [[ -e "$CODEX_STATE_HOME/via-link" ]]; then
+            test_pass
+        else
+            test_fail "codex could not write its state through a symlinked CODEX_HOME"
+        fi
+        CODEX_HOME="$CODEX_STATE_HOME"
     fi
-    OCTOPUS_TANGLE_WORKTREE="$BOUNDARY_WORKTREE"
-    CODEX_HOME="$CODEX_STATE_HOME"
+
+    test_case "codex state holding the Git metadata cannot unseal it under bwrap"
+    if [[ -z "$OUTSIDE_TMP_ROOT" ]]; then
+        test_skip "no writable /var/tmp; below /tmp the private /tmp would hide the Git metadata"
+    else
+        agent_type="codex"
+        # Outside /tmp, so the Git metadata is visible inside the boundary and
+        # the writes below test the seal, not a missing directory.
+        make_linked_worktree "$OUTSIDE_TMP_ROOT/git"
+        seal_git_dir="$(cd "$(git -C "$OUTSIDE_TMP_ROOT/git/linked" rev-parse --absolute-git-dir)" && pwd -P)"
+        seal_git_common="$(cd "$OUTSIDE_TMP_ROOT/git/state-parent/main/.git" && pwd -P)"
+        OCTOPUS_TANGLE_WORKTREE="$OUTSIDE_TMP_ROOT/git/linked"
+        CODEX_HOME="$OUTSIDE_TMP_ROOT/git/state-parent"
+        cmd_array=(bash -c '[[ -d "$1" && -d "$2" ]] || exit 3
+                            touch "$1/forged" 2>/dev/null || true
+                            touch "$2/forged" 2>/dev/null || true
+                            touch "$3/inside.txt"' \
+                   _ "$seal_git_dir" "$seal_git_common" "$OUTSIDE_TMP_ROOT/git/linked")
+        if octopus_tangle_apply_execution_boundary && "${cmd_array[@]}" &&
+           [[ -e "$OUTSIDE_TMP_ROOT/git/linked/inside.txt" ]] &&
+           [[ ! -e "$seal_git_dir/forged" ]] &&
+           [[ ! -e "$seal_git_common/forged" ]]; then
+            test_pass
+        else
+            test_fail "a codex state directory holding the main repository made its Git metadata writable"
+        fi
+        OCTOPUS_TANGLE_WORKTREE="$BOUNDARY_WORKTREE"
+        CODEX_HOME="$CODEX_STATE_HOME"
+    fi
 fi
 unset agent_type CODEX_HOME
 
