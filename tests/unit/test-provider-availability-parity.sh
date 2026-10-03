@@ -229,4 +229,20 @@ else
     test_fail "Cheaper Inference did not map to cheaperinference-agent: $cheaperinference_fleet"
 fi
 
+test_case "fleet maps configured API Route to its executable agent type"
+api_route_fleet=$(
+    env \
+        "HOME=$FAKE_HOME" \
+        "PATH=$FAKE_BIN:/usr/bin:/bin" \
+        "OCTO_ALLOWED_PROVIDERS=api-route" \
+        "API_ROUTE_API_KEY=fixture-key" \
+        "API_ROUTE_MODEL=deepseek-v4.1-flash" \
+        "$BUILD_FLEET" research quick fixture 2>/dev/null
+)
+if grep -q '^api-route-agent|' <<<"$api_route_fleet"; then
+    test_pass
+else
+    test_fail "API Route did not map to api-route-agent: $api_route_fleet"
+fi
+
 test_summary

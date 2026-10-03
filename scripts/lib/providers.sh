@@ -14,6 +14,7 @@ fi
 source "${_providers_lib_dir}/provider-allowlist.sh" 2>/dev/null || true
 source "${_providers_lib_dir}/provider-registry.sh" 2>/dev/null || true
 source "${_providers_lib_dir}/cheaperinference.sh" || return 1
+source "${_providers_lib_dir}/api-route.sh" || return 1
 source "${_providers_lib_dir}/bounded-probe.sh" 2>/dev/null || true
 # Provider detection can run standalone in tests and helper scripts, before the
 # main orchestrator reaches its later provider-routing import. Load the shared
@@ -922,6 +923,21 @@ check_provider_health() {
                 return 1
             fi
             ;;
+        api-route)
+            if [[ -z "${API_ROUTE_API_KEY:-}" ]]; then
+                resolve_provider_env "API_ROUTE_API_KEY" 2>/dev/null
+            fi
+            if [[ ! "${API_ROUTE_API_KEY:-}" =~ [^[:space:]] ]]; then
+                echo "api-route: API_ROUTE_API_KEY not set" >&2
+                return 1
+            fi
+            local ci_health_model="$resolved_model"
+            [[ -n "$ci_health_model" ]] || ci_health_model="$(octo_api_route_model 2>/dev/null || true)"
+            if ! octo_api_route_effective_model "$ci_health_model" >/dev/null; then
+                echo "api-route: set a valid API_ROUTE_MODEL, OCTOPUS_API_ROUTE_MODEL, or providers.json api-route.default before dispatch" >&2
+                return 1
+            fi
+            ;;
         ollama)
             if ! command -v ollama &>/dev/null; then
                 echo "ollama CLI not found in PATH" >&2
@@ -1341,6 +1357,16 @@ detect_providers() {
         fi
     fi
 
+    # Detect API Route (OpenAI-compatible API key + explicit model)
+    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed api-route; }; then
+        if [[ -z "${API_ROUTE_API_KEY:-}" ]]; then
+            resolve_provider_env "API_ROUTE_API_KEY" 2>/dev/null
+        fi
+        if [[ "${API_ROUTE_API_KEY:-}" =~ [^[:space:]] ]] && octo_api_route_effective_model >/dev/null; then
+            result="${result}api-route:api-key "
+        fi
+    fi
+
     # Detect Perplexity (API key only)
     if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed perplexity; } && [[ -n "${PERPLEXITY_API_KEY:-}" ]]; then
         result="${result}perplexity:api-key "
@@ -1467,6 +1493,7 @@ detect_providers() {
         log WARN "  - OrcaRouter: Set ORCAROUTER_API_KEY environment variable"
         log WARN "  - Atlas Cloud: Set ATLASCLOUD_API_KEY and ATLASCLOUD_MODEL"
         log WARN "  - Cheaper Inference: Set CHEAPER_INFERENCE_API_KEY and CHEAPER_INFERENCE_MODEL"
+        log WARN "  - API Route: Set API_ROUTE_API_KEY and API_ROUTE_MODEL"
         log WARN "  - Copilot: brew install copilot-cli (zero additional cost)"
         log WARN "  - Ollama: brew install ollama (free local LLM)"
         log WARN "  - Qwen: npm i -g @qwen-code/qwen-code; set QWEN_API_KEY or configure Coding-Plan"

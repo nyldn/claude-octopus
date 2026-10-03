@@ -91,6 +91,9 @@ provider_status_is_available atlascloud && \
 provider_status_is_available cheaperinference && \
     octo_provider_allowed cheaperinference-agent && \
     AVAILABLE_CLI+=("cheaperinference-agent")
+provider_status_is_available api-route && \
+    octo_provider_allowed api-route-agent && \
+    AVAILABLE_CLI+=("api-route-agent")
 
 CLI_COUNT=0
 if [[ -n "${AVAILABLE_CLI[*]:-}" ]]; then
@@ -127,6 +130,10 @@ review_single_provider_is_available() {
             status_provider=cheaperinference
             available_executor=cheaperinference-agent
             ;;
+        api-route)
+            status_provider=api-route
+            available_executor=api-route-agent
+            ;;
         openai-tools|openai-compatible-agent)
             status_provider=openai-compatible
             available_executor=openai-compatible
@@ -161,7 +168,7 @@ build_diverse_order() {
     # Preferred order for primary diversity.
     for p in codex commandcode agy copilot qwen grok cursor-agent opencode ollama \
         vibe kimi claude-sdk openrouter openai-compatible atlascloud-agent \
-        cheaperinference-agent perplexity; do
+        cheaperinference-agent api-route-agent perplexity; do
         is_available "$p" || continue
         local fam
         fam=$(get_family "$p")
@@ -457,7 +464,7 @@ build_debate_fleet() {
 
     for p in "${AVAILABLE_CLI[@]+"${AVAILABLE_CLI[@]}"}"; do
         # Skip providers not suited for debate (API-only, local models)
-        case "$p" in perplexity|openrouter|ollama|atlascloud-agent|cheaperinference-agent|claude-sdk|vibe) continue ;; esac
+        case "$p" in perplexity|openrouter|ollama|atlascloud-agent|cheaperinference-agent|api-route-agent|claude-sdk|vibe) continue ;; esac
 
         local fam
         fam=$(get_family "$p")
@@ -494,7 +501,7 @@ build_architecture_fleet() {
     local arch_count=0
 
     for p in codex agy copilot qwen cursor-agent opencode vibe claude-sdk \
-        openai-compatible atlascloud-agent cheaperinference-agent; do
+        openai-compatible atlascloud-agent cheaperinference-agent api-route-agent; do
         is_available "$p" || continue
         local fam
         fam=$(get_family "$p")

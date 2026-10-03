@@ -41,6 +41,7 @@ octo_agent_spec_provider() {
         openai-compatible|openai-compatible-*) echo openai-compatible ;;
         atlascloud|atlascloud-*) echo atlascloud ;;
         cheaperinference|cheaperinference-*) echo cheaperinference ;;
+        api-route|api-route-*) echo api-route ;;
         qwen|qwen-*) echo qwen ;;
         grok|grok-*) echo grok ;;
         cursor-agent|cursor-agent-*) echo cursor-agent ;;
@@ -123,6 +124,7 @@ octo_agent_spec_canonicalize_exact() {
     case "$provider" in
         atlascloud) canonical_executor="atlascloud-agent" ;;
         cheaperinference) canonical_executor="cheaperinference-agent" ;;
+        api-route) canonical_executor="api-route-agent" ;;
         *) canonical_executor="$provider" ;;
     esac
 
@@ -157,6 +159,7 @@ octo_provider_model_allowlist_var() {
         orcarouter) echo "OCTOPUS_ORCAROUTER_ALLOWED_MODELS" ;;
         atlascloud|atlascloud-agent) echo "ATLASCLOUD_ALLOWED_MODELS" ;;
         cheaperinference|cheaperinference-agent) echo "CHEAPER_INFERENCE_ALLOWED_MODELS" ;;
+        api-route|api-route-agent) echo "API_ROUTE_ALLOWED_MODELS" ;;
         openai-compatible|openai-tools|openai-compatible-agent) echo "OPENAI_COMPAT_ALLOWED_MODELS" ;;
         perplexity) echo "OCTOPUS_PERPLEXITY_ALLOWED_MODELS" ;;
         qwen) echo "OCTOPUS_QWEN_ALLOWED_MODELS" ;;
@@ -235,7 +238,7 @@ octo_agent_spec_model_family() {
         kimi|kimi-*) echo moonshot ;;
         perplexity|perplexity-*) echo perplexity ;;
         copilot|copilot-*) echo microsoft ;;
-        commandcode|commandcode-*|openrouter|openrouter-*|opencode|opencode-*|openai-compatible|openai-compatible-*|atlascloud|atlascloud-*|cheaperinference|cheaperinference-*) echo multi ;;
+        commandcode|commandcode-*|openrouter|openrouter-*|opencode|opencode-*|openai-compatible|openai-compatible-*|atlascloud|atlascloud-*|cheaperinference|cheaperinference-*|api-route|api-route-*) echo multi ;;
         ollama|ollama-*) echo local ;;
         *) echo unknown ;;
     esac

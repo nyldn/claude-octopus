@@ -397,6 +397,11 @@ _octo_build_provider_env_impl() {
             [[ ${#_trace_env[@]} -gt 0 ]] && PROVIDER_ENV_ARRAY+=("${_trace_env[@]}")
             return 0
             ;;
+        api-route*)
+            _octo_build_openai_tool_loop_env "api-route" "API_ROUTE_API_KEY"
+            [[ ${#_trace_env[@]} -gt 0 ]] && PROVIDER_ENV_ARRAY+=("${_trace_env[@]}")
+            return 0
+            ;;
         anthropic-api*)
             # Only an explicitly supplied API key crosses this boundary.
             # Do not load CLI auth, ~/.env credentials, or gateway endpoints.
