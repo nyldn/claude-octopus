@@ -93,10 +93,21 @@ assert_contains "$PROJECT_ROOT/hooks/strategy-rotation.sh" 'octo_resolve_session
     "strategy-rotation.sh uses shared session resolver"
 
 for cmd in .cursor-plugin/commands/octo-careful.md .cursor-plugin/commands/octo-freeze.md .cursor-plugin/commands/octo-guard.md .cursor-plugin/commands/octo-unfreeze.md \
-           commands/careful.md commands/freeze.md commands/guard.md commands/unfreeze.md; do
+           commands/careful.md commands/freeze.md commands/guard.md commands/unfreeze.md \
+           .claude/skills/skill-debug/SKILL.md skills/skill-debug/SKILL.md; do
     assert_contains "$PROJECT_ROOT/$cmd" 'CLAUDE_CODE_SESSION_ID' \
         "$cmd writes state with Claude Code Bash session id"
 done
+
+# A state file keyed on CLAUDE_SESSION_ID alone falls back to the shell PID under
+# v2.1.132+, so the hooks never find it.
+legacy_keyed=$(cd "$PROJECT_ROOT" && grep -rnE 'octopus-(careful|freeze)-\$\{CLAUDE_SESSION_ID' \
+    commands .cursor-plugin/commands .claude/skills skills 2>/dev/null || true)
+if [[ -z "$legacy_keyed" ]]; then
+    pass "no careful/freeze state file is keyed on CLAUDE_SESSION_ID alone"
+else
+    fail "no careful/freeze state file is keyed on CLAUDE_SESSION_ID alone" "$legacy_keyed"
+fi
 
 assert_contains "$PROJECT_ROOT/scripts/session-manager.sh" 'CLAUDE_CODE_SESSION_ID' \
     "session-manager uses CLAUDE_CODE_SESSION_ID"
