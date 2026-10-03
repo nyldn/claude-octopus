@@ -25,6 +25,7 @@ openrouter||openrouter|openrouter|model-config,council,health,detect,dispatch,en
 orcarouter||orcarouter|orcarouter|model-config,council,health,detect,dispatch,env,model-gateway,custom-model-auto
 atlascloud|atlas,atlas-cloud|atlascloud|atlascloud|model-config,health,detect,dispatch,env,model-gateway,custom-model-auto
 cheaperinference|cheaper-inference|cheaperinference|cheaperinference|model-config,health,detect,dispatch,env,model-gateway,custom-model-auto
+api-route|apiroute|api-route|api-route|model-config,health,detect,dispatch,env,model-gateway,custom-model-auto
 openai-compatible||openai-compatible|openai-compatible|model-config,council,detect,dispatch,env,model-gateway,custom-model-auto
 openai-tools||openai-compatible|openai-compatible|model-config,council,dispatch,env,model-gateway,custom-model-auto
 openai-compatible-agent||openai-compatible|openai-compatible|model-config,dispatch,env,model-gateway,custom-model-auto
@@ -60,6 +61,7 @@ openrouter|api-key|check_provider_health|detect_providers|OCTOPUS_OPENROUTER_MOD
 orcarouter|api-key|check_provider_health|detect_providers|OCTOPUS_ORCAROUTER_MODEL|resolve_octopus_model|12000|metered|provider-managed|orcarouter
 atlascloud|api-key|check_provider_health|detect_providers|OCTOPUS_ATLASCLOUD_MODEL|resolve_octopus_model|12000|metered|plugin-isolated|atlascloud
 cheaperinference|api-key|check_provider_health|detect_providers|OCTOPUS_CHEAPERINFERENCE_MODEL|resolve_octopus_model|12000|metered|plugin-isolated|cheaperinference
+api-route|api-key|check_provider_health|detect_providers|OCTOPUS_API_ROUTE_MODEL|resolve_octopus_model|12000|metered|plugin-isolated|api-route
 openai-compatible|api-key|none|detect_providers|OCTOPUS_OPENAI_COMPATIBLE_MODEL|resolve_octopus_model|12000|metered|provider-managed|openai-compatible
 openai-tools|api-key|none|none|OCTOPUS_OPENAI_TOOLS_MODEL|resolve_octopus_model|12000|metered|host-managed|openai-compatible
 openai-compatible-agent|api-key|none|none|OCTOPUS_OPENAI_COMPATIBLE_AGENT_MODEL|resolve_octopus_model|12000|metered|plugin-isolated|openai-compatible
@@ -291,6 +293,7 @@ perplexity|council|research-api-runtime-is-not-a-supported-council-seat
 opencode|health|no-provider-specific-health-probe
 atlascloud|council|atlascloud-runtime-is-not-a-supported-council-seat
 cheaperinference|council|cheaperinference-runtime-is-not-a-supported-council-seat
+api-route|council|api-route-runtime-is-not-a-supported-council-seat
 openai-compatible|health|generic-api-provider-has-no-provider-specific-health-probe
 openai-tools|health|generic-tool-loop-has-no-provider-specific-health-probe
 openai-tools|detect|api-configured-runtime-has-no-local-cli-detection

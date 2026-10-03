@@ -22,6 +22,7 @@ _model_resolver_load_error() {
 }
 source "${_model_resolver_lib_dir}/provider-registry.sh" || { _model_resolver_load_error "failed to load provider-registry.sh"; return 1 2>/dev/null || exit 1; }
 source "${_model_resolver_lib_dir}/cheaperinference.sh" || return 1
+source "${_model_resolver_lib_dir}/api-route.sh" || return 1
 source "${_model_resolver_lib_dir}/kimi-model-name.sh" || { _model_resolver_load_error "failed to load kimi-model-name.sh"; return 1 2>/dev/null || exit 1; }
 if ! declare -f octo_model_cache_file >/dev/null 2>&1; then
     source "${_model_resolver_lib_dir}/model-cache-path.sh" 2>/dev/null || true
@@ -250,6 +251,9 @@ validate_model_name_for_provider() {
         cheaperinference)
             octo_cheaperinference_model "$model" >/dev/null
             ;;
+        api-route)
+            octo_api_route_model "$model" >/dev/null
+            ;;
         kimi)
             validate_kimi_model_name "$model"
             ;;
@@ -396,6 +400,10 @@ resolve_octopus_model() {
     provider="$canonical_provider"
     if [[ "$canonical_provider" == cheaperinference ]]; then
         octo_cheaperinference_model
+        return $?
+    fi
+    if [[ "$canonical_provider" == api-route ]]; then
+        octo_api_route_model
         return $?
     fi
     local env_var
@@ -835,6 +843,7 @@ resolve_octopus_model() {
             vibe*)           resolved_model="default" ;; # Mistral Vibe's own default from ~/.vibe/config.toml; never wired to --model (#797)
             atlascloud*)     resolved_model="" ;; # No safe universal default; atlascloud-agent dispatch already requires an explicit model pin (#797)
             cheaperinference*) resolved_model="" ;; # Like atlascloud: cheaperinference-agent dispatch requires an explicit model pin
+            api-route*) resolved_model="" ;; # Like atlascloud: api-route-agent dispatch requires an explicit model pin
             *)              resolved_model="$(codex_default_model)" ;; # Safest universal fallback
         esac
         [[ -n "$_trace" ]] && echo "[model-trace] Tier 7 (hardcoded fallback): $resolved_model ← SELECTED" >&2
@@ -989,6 +998,17 @@ is_agent_available_v2() {
                 octo_cheaperinference_model "${agent#*:}" >/dev/null
             else
                 octo_cheaperinference_model >/dev/null
+            fi
+            ;;
+        api-route|api-route-*)
+            if [[ -z "${API_ROUTE_API_KEY:-}" ]] && declare -f resolve_provider_env >/dev/null 2>&1; then
+                resolve_provider_env "API_ROUTE_API_KEY" 2>/dev/null || true
+            fi
+            [[ "${API_ROUTE_API_KEY:-}" =~ [^[:space:]] ]] || return 1
+            if [[ "$agent" == *:* ]]; then
+                octo_api_route_model "${agent#*:}" >/dev/null
+            else
+                octo_api_route_model >/dev/null
             fi
             ;;
         kimi|kimi-*)

@@ -2,6 +2,7 @@
   "schema_version": 1,
   "names": [
     "AGY_AUTH_TOKEN",
+    "API_ROUTE_API_KEY",
     "ANTHROPIC_API_KEY",
     "ANTHROPIC_AUTH_TOKEN",
     "ANTHROPIC_BASE_URL",

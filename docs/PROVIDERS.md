@@ -99,6 +99,28 @@ is excluded from Council. Local readiness does not prove model entitlement,
 tool support, quota or billed cost. See the [gateway API documentation](https://api.cheaperinference.com/docs)
 for its current model capabilities.
 
+## API Route setup
+
+`api-route-agent` uses the same OpenAI-compatible tool-loop helper at
+`https://global.api-route.com/v1`. Get a key from
+[API Route](https://www.api-route.com), set `API_ROUTE_API_KEY`, and choose a
+model available to your account (for example `deepseek-v4.1-flash`). No model
+is selected automatically.
+
+Model selection uses `API_ROUTE_MODEL`, then `OCTOPUS_API_ROUTE_MODEL`, then
+`OPENAI_COMPAT_MODEL`, then the string `providers["api-route"].default` in
+`~/.claude-octopus/config/providers.json`. `OCTOPUS_PROVIDERS_CONFIG` can select
+another file. Detection, health, readiness and dispatch share this resolution.
+An exact seat such as `api-route-agent:deepseek-v4.1-flash` uses its model pin
+without requiring a default. `API_ROUTE_ALLOWED_MODELS` restricts dispatch
+models; missing models, unsafe pins and invalid fallbacks fail closed.
+
+Read-only roles disable local tools. The isolated child receives only
+`API_ROUTE_API_KEY` and the helper's approved runtime settings. This provider
+is excluded from Council, and gateway identity does not establish independent
+model-family diversity. Local readiness does not prove entitlement, quota,
+tool support or billed cost.
+
 ## Perplexity Agent API
 
 Perplexity requests use `POST /v1/agent`. Legacy Sonar model names map to

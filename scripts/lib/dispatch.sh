@@ -3,6 +3,7 @@ _profile_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_profile_lib_dir}/agent-spec.sh" 2>/dev/null || true
 source "${_profile_lib_dir}/provider-registry.sh" || { echo "dispatch: failed to load provider-registry.sh" >&2; return 1 2>/dev/null || exit 1; }
 source "${_profile_lib_dir}/cheaperinference.sh" || return 1
+source "${_profile_lib_dir}/api-route.sh" || return 1
 if ! declare -f get_model_capability >/dev/null 2>&1; then
     source "${_profile_lib_dir}/models.sh" 2>/dev/null || true
 fi
@@ -632,6 +633,44 @@ get_agent_command() {
             local ci_tool_fragment=""
             octo_tool_loop_requires_no_tools "$phase" "$role" && ci_tool_fragment="--tool-policy none"
             echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider cheaperinference --model ${model} ${ci_tool_fragment} --cwd ${PWD}"
+            ;;
+        api-route-agent)  # API Route via the OpenAI-compatible tool-loop agent
+            if [[ "$agent_type" == *:* ]]; then
+                model="$(get_agent_model "$agent_type" "$phase" "$role")" || return 1
+            else
+                if ! model="$(octo_api_route_model)"; then
+                    log ERROR "API_ROUTE_MODEL, OCTOPUS_API_ROUTE_MODEL, OPENAI_COMPAT_MODEL, or providers.json api-route.default is required"
+                    return 1
+                fi
+            fi
+            if ! octo_api_route_model "$model" >/dev/null; then
+                log ERROR "Invalid API Route model name: ${model}"
+                return 1
+            fi
+            local ci_fallback
+            ci_fallback=$(validate_model_allowed "api-route" "$model")
+            if [[ $? -ne 0 ]]; then
+                if [[ -n "$ci_fallback" ]]; then
+                    if ! octo_api_route_model "$ci_fallback" >/dev/null; then
+                        log ERROR "Invalid API Route fallback model name"
+                        return 1
+                    fi
+                    if ! octo_model_automatic_target_allowed "$ci_fallback" api-route; then
+                        log ERROR "API Route fallback requires an explicit model pin"
+                        return 1
+                    fi
+                    model="$ci_fallback"
+                else
+                    return 1
+                fi
+            fi
+            if ! _octopus_is_safe_openai_compatible_dispatch_value "${PWD}"; then
+                log ERROR "Invalid API Route cwd: ${PWD}"
+                return 1
+            fi
+            local ci_tool_fragment=""
+            octo_tool_loop_requires_no_tools "$phase" "$role" && ci_tool_fragment="--tool-policy none"
+            echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider api-route --model ${model} ${ci_tool_fragment} --cwd ${PWD}"
             ;;
         perplexity|perplexity-fast)  # v8.24.0: Perplexity Sonar — web-grounded research (Issue #22)
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
@@ -1571,6 +1610,11 @@ get_agent_model() {
             if [[ "$provider" == cheaperinference ]] &&
                ! octo_cheaperinference_model "$fallback" >/dev/null; then
                 log ERROR "Invalid Cheaper Inference fallback model name"
+                return 1
+            fi
+            if [[ "$provider" == api-route ]] &&
+               ! octo_api_route_model "$fallback" >/dev/null; then
+                log ERROR "Invalid API Route fallback model name"
                 return 1
             fi
             if ! octo_model_automatic_target_allowed "$fallback" "$provider"; then

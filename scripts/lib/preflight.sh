@@ -5,7 +5,7 @@
 _preflight_registry_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_preflight_registry_dir}/provider-registry.sh" 2>/dev/null || true
 
-for _preflight_dependency in provider-allowlist auth provider-routing cheaperinference qwen openai-compatible grok kimi copilot quota-watcher events; do
+for _preflight_dependency in provider-allowlist auth provider-routing cheaperinference api-route qwen openai-compatible grok kimi copilot quota-watcher events; do
     # shellcheck source=/dev/null
     source "${_preflight_registry_dir}/${_preflight_dependency}.sh" 2>/dev/null || true
 done
@@ -126,6 +126,7 @@ _octo_provider_static_readiness() {
             orcarouter) [[ -n "${ORCAROUTER_API_KEY:-}" ]] || resolve_provider_env ORCAROUTER_API_KEY 2>/dev/null || true ;;
             atlascloud) [[ -n "${ATLASCLOUD_API_KEY:-}" ]] || resolve_provider_env ATLASCLOUD_API_KEY 2>/dev/null || true ;;
             cheaperinference) [[ -n "${CHEAPER_INFERENCE_API_KEY:-}" ]] || resolve_provider_env CHEAPER_INFERENCE_API_KEY 2>/dev/null || true ;;
+            api-route) [[ -n "${API_ROUTE_API_KEY:-}" ]] || resolve_provider_env API_ROUTE_API_KEY 2>/dev/null || true ;;
             grok) [[ -n "${XAI_API_KEY:-}" ]] || resolve_provider_env XAI_API_KEY 2>/dev/null || true ;;
             vibe) [[ -n "${MISTRAL_API_KEY:-}" ]] || resolve_provider_env MISTRAL_API_KEY 2>/dev/null || true ;;
         esac
@@ -227,6 +228,16 @@ _octo_provider_static_readiness() {
                     status="available"; reason_code="ready"; remediation=""
                 else
                     status="degraded"; reason_code="model-missing"; remediation="Set CHEAPER_INFERENCE_MODEL, OCTOPUS_CHEAPERINFERENCE_MODEL, or providers.json cheaperinference.default."
+                fi
+            fi
+            ;;
+        api-route)
+            remediation="Set API_ROUTE_API_KEY and API_ROUTE_MODEL."
+            if _octo_value_has_nonwhitespace "${API_ROUTE_API_KEY:-}"; then
+                if octo_api_route_model >/dev/null; then
+                    status="available"; reason_code="ready"; remediation=""
+                else
+                    status="degraded"; reason_code="model-missing"; remediation="Set API_ROUTE_MODEL, OCTOPUS_API_ROUTE_MODEL, or providers.json api-route.default."
                 fi
             fi
             ;;
