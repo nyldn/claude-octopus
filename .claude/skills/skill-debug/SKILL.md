@@ -88,7 +88,9 @@ A freeze that is already active (from `/octo:freeze`, `/octo:guard` or an
 earlier workflow) stays as it is: do not replace it, and do not remove it when
 debugging ends. Do not auto-freeze when the root cause is still unknown, the
 reproduction spans modules, or the user opted out. After original-scenario
-verification, run `/octo:unfreeze` only if this workflow created the freeze.
+verification, run `/octo:unfreeze` only if this workflow created the freeze and
+the state file still names the directory it set; a different directory means
+the user froze again since, so leave that freeze in place.
 
 Adapted from `diagnosing-bugs` in `mattpocock/skills` at commit
 `3cca18b368ae95cdbdebbff572ccafa662551015` under the MIT License. See
