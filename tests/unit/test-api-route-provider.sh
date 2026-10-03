@@ -10,8 +10,8 @@ source "$PROJECT_ROOT/scripts/lib/providers.sh"
 source "$PROJECT_ROOT/scripts/lib/provider-routing.sh"
 test_suite "API Route provider"
 export PLUGIN_DIR="$PROJECT_ROOT"
-PROVIDER_CODEX_INSTALLED=false
-PROVIDER_CLAUDE_INSTALLED=false
+export PROVIDER_CODEX_INSTALLED=false
+export PROVIDER_CLAUDE_INSTALLED=false
 TEST_HOME="$TEST_TMP_DIR/api-route-home"
 mkdir -p "$TEST_HOME"
 export OCTOPUS_PROVIDERS_CONFIG="$TEST_HOME/providers.json"
