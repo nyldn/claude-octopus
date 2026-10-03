@@ -421,6 +421,31 @@ octopus_tangle_execution_boundary_required() {
        "${OCTOPUS_TANGLE_WRITE_SCOPE_MODE:-strict}" == "adaptive" ]]
 }
 
+# Print the directories a codex provider writes to while it runs, one per line:
+# CODEX_HOME (its state databases, session files and auth refresh, which the
+# in-process app server opens at startup) and the TMPDIR that codex's
+# config.toml sets for the commands it runs, where codex's own bubblewrap
+# sandbox keeps its mount-registry lock. Without that setting codex uses the
+# boundary's private /tmp. Reading the setting needs Python 3.11+ (tomllib);
+# on an older Python only CODEX_HOME is printed.
+octopus_tangle_codex_state_dirs() {
+    local codex_home="${CODEX_HOME:-${HOME}/.codex}" config_tmpdir=""
+    printf '%s\n' "$codex_home"
+    [[ -f "$codex_home/config.toml" ]] || return 0
+    command -v python3 >/dev/null 2>&1 || return 0
+    config_tmpdir=$(python3 -c 'import sys, tomllib
+with open(sys.argv[1], "rb") as handle:
+    config = tomllib.load(handle)
+policy = config.get("shell_environment_policy")
+values = policy.get("set") if isinstance(policy, dict) else None
+tmpdir = values.get("TMPDIR") if isinstance(values, dict) else None
+print(tmpdir if isinstance(tmpdir, str) else "")' "$codex_home/config.toml" 2>/dev/null) || config_tmpdir=""
+    if [[ "$config_tmpdir" == /* && "$config_tmpdir" != *$'\n'* ]]; then
+        printf '%s\n' "$config_tmpdir"
+    fi
+    return 0
+}
+
 octopus_tangle_apply_execution_boundary() {
     # Adaptive scope expansion is never allowed to rely on the caller's
     # opt-in flag. Enforce the boundary at the provider dispatch point too,
@@ -455,7 +480,8 @@ octopus_tangle_apply_execution_boundary() {
     local -a boundary_cmd
     # Keep the host root read-only so provider executables and credentials
     # remain available. This boundary prevents writes outside the selected
-    # worktree; it does not hide readable host files or block network access.
+    # worktree (and, for codex, its own state directories; see below); it does
+    # not hide readable host files or block network access.
     # Mount the isolated /tmp before re-binding a worktree that may itself live
     # below /tmp. Reversing these mounts hides the worktree behind the tmpfs and
     # makes the boundary depend on mount-order quirks.
@@ -516,6 +542,38 @@ octopus_tangle_apply_execution_boundary() {
         # provider cannot forge result artifacts by pathname.
         boundary_cmd+=(--ro-bind "$physical_results" "$physical_results")
     fi
+
+    # Codex writes its own state while it runs, even when it only edits the
+    # worktree. Without a writable CODEX_HOME, `codex exec` stops with "failed
+    # to initialize in-process app-server client: Read-only file system"; without
+    # a writable sandbox TMPDIR, codex's nested bubblewrap panics on its
+    # mount-registry lock. Bind those directories for codex dispatches only.
+    # They come after the private /tmp, so a directory below /tmp stays visible.
+    # They must not overlap the worktree or the result channel, so the seals
+    # above keep their meaning; the private /tmp itself, a directory holding
+    # HOME, and symlinks are never bound.
+    case "${agent_type:-}" in
+        codex|codex-*|codex:*)
+            local codex_dir physical_codex_dir physical_home
+            physical_home=$(cd "${HOME:-/}" 2>/dev/null && pwd -P) || physical_home="/"
+            while IFS= read -r codex_dir; do
+                [[ -n "$codex_dir" && -e "$codex_dir" ]] || continue
+                physical_codex_dir=""
+                if [[ -d "$codex_dir" && ! -L "$codex_dir" ]]; then
+                    physical_codex_dir=$(cd "$codex_dir" 2>/dev/null && pwd -P) || physical_codex_dir=""
+                fi
+                [[ "$physical_codex_dir" == "/tmp" ]] && continue
+                if [[ -z "$physical_codex_dir" || "$physical_codex_dir" == "/" ]] || \
+                   [[ "$physical_home/" == "$physical_codex_dir/"* ]] || \
+                   ! octopus_tangle_boundary_paths_are_disjoint "$physical_worktree" "$physical_codex_dir" || \
+                   ! octopus_tangle_boundary_paths_are_disjoint "$physical_results" "$physical_codex_dir"; then
+                    log WARN "Tangle boundary: codex state directory $codex_dir stays read-only (not a real directory, or it overlaps HOME, the worktree or the result channel)"
+                    continue
+                fi
+                boundary_cmd+=(--bind "$physical_codex_dir" "$physical_codex_dir")
+            done < <(octopus_tangle_codex_state_dirs)
+            ;;
+    esac
 
     boundary_cmd+=(--)
     cmd_array=("${boundary_cmd[@]}" "${cmd_array[@]}")

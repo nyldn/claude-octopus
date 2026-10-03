@@ -14,6 +14,11 @@
   keyed on the shell PID, so the freeze hook never enforced the boundary and
   `/octo:unfreeze` could not remove the file. The guard now leaves a freeze that
   is already active in place, and the workflow removes only a freeze it created.
+- Codex Tangle seats can run inside the Linux bubblewrap boundary. The
+  boundary now binds Codex's own state directory (`CODEX_HOME`) and the
+  sandbox `TMPDIR` set in its `config.toml` read-write, for Codex dispatches
+  only; before, `codex exec` failed at startup with "Read-only file system".
+
 
 ## [11.10.0] - 2026-10-02
 
