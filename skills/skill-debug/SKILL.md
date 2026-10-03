@@ -71,8 +71,9 @@ to a physical directory before editing and activate the existing freeze guard:
 freeze_dir="$(cd "<module-directory>" 2>/dev/null && pwd -P)" || exit 1
 _OCTO_SESSION_ID="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-$$}}"
 _OCTO_FREEZE_FILE="/tmp/octopus-freeze-${_OCTO_SESSION_ID}.txt"
-if [[ -f "$_OCTO_FREEZE_FILE" ]]; then
-    printf 'Freeze already active at %s; left unchanged.\n' "$(cat "$_OCTO_FREEZE_FILE")"
+_OCTO_ACTIVE_FREEZE="$(cat "$_OCTO_FREEZE_FILE" 2>/dev/null)"
+if [[ -n "$_OCTO_ACTIVE_FREEZE" ]]; then
+    printf 'Freeze already active at %s; left unchanged.\n' "$_OCTO_ACTIVE_FREEZE"
 else
     printf '%s\n' "$freeze_dir" > "$_OCTO_FREEZE_FILE"
 fi

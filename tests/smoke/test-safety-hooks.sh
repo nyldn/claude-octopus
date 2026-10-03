@@ -402,6 +402,12 @@ test_debug_skill_autofreeze_reaches_hook() {
         printf '%s\n' "$work/outside" > "$sf"
         (cd "$work" && env -u CLAUDE_SESSION_ID "CLAUDE_CODE_SESSION_ID=$sid" bash -c "$block") >/dev/null
         [[ "$(cat "$sf" 2>/dev/null)" == "$work/outside" ]] || fails+=" $label:replaced-existing-freeze"
+
+        # An empty state file names no boundary (the hook denies every edit on it), so the
+        # block replaces it with the module.
+        : > "$sf"
+        (cd "$work" && env -u CLAUDE_SESSION_ID "CLAUDE_CODE_SESSION_ID=$sid" bash -c "$block") >/dev/null
+        [[ "$(cat "$sf" 2>/dev/null)" == "$(cd "$work/module" && pwd -P)" ]] || fails+=" $label:kept-empty-freeze"
         rm -f "$sf"
     done
 
