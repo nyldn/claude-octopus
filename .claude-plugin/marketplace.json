@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "11.9.6"
+    "version": "11.10.0"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v11.9.6 - Fix Embrace artifact selection, research citation limits, and cost display. 31 personas, 54 commands, 63 skills. Run /octo:setup.",
-      "version": "11.9.6",
+      "description": "v11.10.0 - Portable feature specs, Sonnet 5.5 support, new provider options and more reliable reviews. 31 personas, 54 commands, 63 skills. Run /octo:setup.",
+      "version": "11.10.0",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"

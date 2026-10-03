@@ -2,8 +2,18 @@
 
 ## [Unreleased]
 
+## [11.10.0] - 2026-10-02
+
 ### Added
 
+- Sonnet 5.5 is the standard Claude seat on Claude Code v2.1.284 or newer.
+  Older hosts retain Sonnet 5 and the existing legacy fallback. Explicit model
+  pins still take precedence. The catalog also includes explicit-only GPT-6.1
+  Sol, GPT-6 Sol and GPT-6 Luna; the Codex runtime default stays unchanged.
+- The explicit text-only `anthropic-api` provider supports Sonnet 5.5 and
+  Opus 5.5 with `ANTHROPIC_API_KEY`. Sonnet uses `between_tools` thinking at
+  low, medium and high effort, and adaptive thinking at xhigh and max. Opus
+  uses adaptive thinking. This provider does not replace coding or tool routes.
 - Cheaper Inference is available through `cheaperinference-agent`, an
   OpenAI-compatible tool-loop provider. Set `CHEAPER_INFERENCE_API_KEY` and
   an explicit model pin or configured default to enable it.
