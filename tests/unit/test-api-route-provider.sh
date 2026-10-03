@@ -15,7 +15,7 @@ export PROVIDER_CLAUDE_INSTALLED=false
 TEST_HOME="$TEST_TMP_DIR/api-route-home"
 mkdir -p "$TEST_HOME"
 export OCTOPUS_PROVIDERS_CONFIG="$TEST_HOME/providers.json"
-unset API_ROUTE_API_KEY API_ROUTE_MODEL OCTOPUS_API_ROUTE_MODEL OPENAI_COMPAT_MODEL
+unset API_ROUTE_API_KEY API_ROUTE_MODEL OCTOPUS_API_ROUTE_MODEL OPENAI_COMPAT_MODEL API_ROUTE_ALLOWED_MODELS
 log() { :; }
 resolve_provider_env() { return 1; }
 migrate_provider_config() { :; }
@@ -80,6 +80,46 @@ if API_ROUTE_API_KEY=fixture-key API_ROUTE_MODEL=deepseek-v4.1-flash check_provi
     test_pass
 else
     test_fail "health and availability disagreed"
+fi
+
+test_case "invalid restriction fallbacks fail dispatch and standalone readiness"
+if ! PWD=/tmp/octo-cwd API_ROUTE_MODEL=good API_ROUTE_ALLOWED_MODELS='bad;touch' get_agent_command api-route-agent review code-reviewer >/dev/null 2>&1 &&
+   PROJECT_ROOT="$PROJECT_ROOT" API_ROUTE_API_KEY=fixture-key API_ROUTE_MODEL=good API_ROUTE_ALLOWED_MODELS='bad;touch' OCTO_ALLOWED_PROVIDERS=api-route bash -c '
+       source "$PROJECT_ROOT/scripts/lib/providers.sh"
+       source "$PROJECT_ROOT/scripts/lib/preflight.sh"
+       log() { :; }
+       resolve_provider_env() { return 1; }
+       ! check_provider_health api-route 2>/dev/null &&
+       [[ "$(detect_providers)" != *"api-route:api-key"* ]] &&
+       [[ "$(_octo_provider_static_readiness api-route)" != available\|* ]]
+   '; then
+    test_pass
+else
+    test_fail "a rejected fallback was advertised as ready"
+fi
+
+test_case "valid allowlist fallback is shared with dispatch and health"
+if [[ "$(API_ROUTE_MODEL=blocked API_ROUTE_ALLOWED_MODELS=gpt-5.4-mini octo_api_route_effective_model)" == gpt-5.4-mini ]] &&
+   [[ "$(PWD=/tmp/octo-cwd API_ROUTE_MODEL=blocked API_ROUTE_ALLOWED_MODELS=gpt-5.4-mini get_agent_command api-route-agent review code-reviewer)" == *'--model gpt-5.4-mini '* ]] &&
+   API_ROUTE_API_KEY=fixture-key API_ROUTE_MODEL=blocked API_ROUTE_ALLOWED_MODELS=gpt-5.4-mini check_provider_health api-route &&
+   [[ "$(API_ROUTE_MODEL=pinned API_ROUTE_ALLOWED_MODELS=pinned octo_api_route_effective_model)" == pinned ]] &&
+   ! API_ROUTE_MODEL=blocked API_ROUTE_ALLOWED_MODELS=claude-fable-5-1 octo_api_route_effective_model >/dev/null; then
+    test_pass
+else
+    test_fail "allowlist fallback or explicit pin policy drifted"
+fi
+
+test_case "API Route does not claim an unverified independent model check"
+checker="$TEST_HOME/provider-checker.sh"
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" codex:available agy:available qwen:available openai-compatible:available api-route:available\n' > "$checker"
+chmod +x "$checker"
+fleet="$(OCTO_ALLOWED_PROVIDERS=codex,agy,qwen,openai-compatible,api-route OCTOPUS_PROVIDER_CHECKER="$checker" \
+    API_ROUTE_MODEL=shared-model OPENAI_COMPAT_MODEL=shared-model \
+    bash "$PROJECT_ROOT/scripts/helpers/build-fleet.sh" research deep fixture)"
+if [[ "$fleet" == *'openai-compatible|Cross-Synthesis|'* && "$fleet" != *'api-route-agent|Independent Model Check|'* ]]; then
+    test_pass
+else
+    test_fail "gateway diversity admission changed: $fleet"
 fi
 
 test_case "only the selected API Route credential crosses the child boundary"

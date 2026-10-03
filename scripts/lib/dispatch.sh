@@ -643,26 +643,9 @@ get_agent_command() {
                     return 1
                 fi
             fi
-            if ! octo_api_route_model "$model" >/dev/null; then
-                log ERROR "Invalid API Route model name: ${model}"
+            if ! model="$(octo_api_route_effective_model "$model")"; then
+                log ERROR "Invalid or disallowed API Route model or fallback"
                 return 1
-            fi
-            local ci_fallback
-            ci_fallback=$(validate_model_allowed "api-route" "$model")
-            if [[ $? -ne 0 ]]; then
-                if [[ -n "$ci_fallback" ]]; then
-                    if ! octo_api_route_model "$ci_fallback" >/dev/null; then
-                        log ERROR "Invalid API Route fallback model name"
-                        return 1
-                    fi
-                    if ! octo_model_automatic_target_allowed "$ci_fallback" api-route; then
-                        log ERROR "API Route fallback requires an explicit model pin"
-                        return 1
-                    fi
-                    model="$ci_fallback"
-                else
-                    return 1
-                fi
             fi
             if ! _octopus_is_safe_openai_compatible_dispatch_value "${PWD}"; then
                 log ERROR "Invalid API Route cwd: ${PWD}"

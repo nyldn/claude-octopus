@@ -311,7 +311,7 @@ build_research_fleet() {
                         emit "vibe" "Mistral Perspective" "Analyze: $PROMPT. Focus on pragmatic implementation choices and assumptions worth challenging." ;;
                     claude-sdk)
                         emit "claude-sdk" "Agent SDK Perspective" "Analyze: $PROMPT. Focus on long-context integration concerns and reliable agent execution." ;;
-                    openai-compatible|atlascloud-agent|cheaperinference-agent|api-route-agent)
+                    openai-compatible|atlascloud-agent|cheaperinference-agent)
                         emit "$extra" "Independent Model Check" "Cross-check the analysis of: $PROMPT. Identify blind spots and implementation trade-offs." ;;
                 esac
             done

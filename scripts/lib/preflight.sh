@@ -234,7 +234,7 @@ _octo_provider_static_readiness() {
         api-route)
             remediation="Set API_ROUTE_API_KEY and API_ROUTE_MODEL."
             if _octo_value_has_nonwhitespace "${API_ROUTE_API_KEY:-}"; then
-                if octo_api_route_model >/dev/null; then
+                if octo_api_route_effective_model >/dev/null; then
                     status="available"; reason_code="ready"; remediation=""
                 else
                     status="degraded"; reason_code="model-missing"; remediation="Set API_ROUTE_MODEL, OCTOPUS_API_ROUTE_MODEL, or providers.json api-route.default."

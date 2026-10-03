@@ -933,7 +933,7 @@ check_provider_health() {
             fi
             local ci_health_model="$resolved_model"
             [[ -n "$ci_health_model" ]] || ci_health_model="$(octo_api_route_model 2>/dev/null || true)"
-            if ! octo_api_route_model "$ci_health_model" >/dev/null; then
+            if ! octo_api_route_effective_model "$ci_health_model" >/dev/null; then
                 echo "api-route: set a valid API_ROUTE_MODEL, OCTOPUS_API_ROUTE_MODEL, or providers.json api-route.default before dispatch" >&2
                 return 1
             fi
@@ -1362,7 +1362,7 @@ detect_providers() {
         if [[ -z "${API_ROUTE_API_KEY:-}" ]]; then
             resolve_provider_env "API_ROUTE_API_KEY" 2>/dev/null
         fi
-        if [[ "${API_ROUTE_API_KEY:-}" =~ [^[:space:]] ]] && octo_api_route_model >/dev/null; then
+        if [[ "${API_ROUTE_API_KEY:-}" =~ [^[:space:]] ]] && octo_api_route_effective_model >/dev/null; then
             result="${result}api-route:api-key "
         fi
     fi
