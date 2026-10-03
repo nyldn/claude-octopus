@@ -394,7 +394,8 @@ test_grok_dispatch_sandbox() {
             build_provider_env grok
             "${PROVIDER_ENV_ARRAY[@]}" "${OCTO_COMMAND_ARGV[@]}" <<< probe
         ) > "$capture" 2> "$TEST_TMP_DIR/dispatch-stderr" || rc=$?
-        local -a args=(-p probe --output-format plain --cwd "$PWD" --disable-web-search)
+        # env -i drops logical PWD; the isolated shim starts with the physical cwd.
+        local -a args=(-p probe --output-format plain --cwd "$(pwd -P)" --disable-web-search)
         [[ "$expected_policy" != read-only ]] || args+=(--tools 'read_file,grep,list_dir' --deny 'MCPTool(*)' --no-subagents)
         [[ "$approve" != 0 ]] && args+=(--always-approve --sandbox "$expected_sandbox")
         [[ "$fixture_model" != default ]] && args+=(--model "$fixture_model")
