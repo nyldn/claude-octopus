@@ -70,12 +70,19 @@ to a physical directory before editing and activate the existing freeze guard:
 ```bash
 freeze_dir="$(cd "<module-directory>" 2>/dev/null && pwd -P)" || exit 1
 _OCTO_SESSION_ID="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-$$}}"
-printf '%s\n' "$freeze_dir" > "/tmp/octopus-freeze-${_OCTO_SESSION_ID}.txt"
+_OCTO_FREEZE_FILE="/tmp/octopus-freeze-${_OCTO_SESSION_ID}.txt"
+if [[ -f "$_OCTO_FREEZE_FILE" ]]; then
+    printf 'Freeze already active at %s; left unchanged.\n' "$(cat "$_OCTO_FREEZE_FILE")"
+else
+    printf '%s\n' "$freeze_dir" > "$_OCTO_FREEZE_FILE"
+fi
 ```
 
-Do not auto-freeze when the root cause is still unknown, the reproduction spans
-modules, or the user opted out. After original-scenario verification, run
-`/octo:unfreeze` or remove only this workflow's freeze state.
+A freeze that is already active (from `/octo:freeze`, `/octo:guard` or an
+earlier workflow) stays as it is: do not replace it, and do not remove it when
+debugging ends. Do not auto-freeze when the root cause is still unknown, the
+reproduction spans modules, or the user opted out. After original-scenario
+verification, run `/octo:unfreeze` only if this workflow created the freeze.
 
 Adapted from `diagnosing-bugs` in `mattpocock/skills` at commit
 `3cca18b368ae95cdbdebbff572ccafa662551015` under the MIT License. See
