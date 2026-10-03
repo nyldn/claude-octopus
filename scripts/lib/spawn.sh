@@ -427,23 +427,64 @@ octopus_tangle_execution_boundary_required() {
 # config.toml sets for the commands it runs, where codex's own bubblewrap
 # sandbox keeps its mount-registry lock. Without that setting codex uses the
 # boundary's private /tmp. Reading the setting needs Python 3.11+ (tomllib);
-# on an older Python only CODEX_HOME is printed.
+# without it only CODEX_HOME is printed, and a warning says that a TMPDIR set
+# in config.toml stays read-only.
 octopus_tangle_codex_state_dirs() {
-    local codex_home="${CODEX_HOME:-${HOME}/.codex}" config_tmpdir=""
+    local codex_home="${CODEX_HOME:-${HOME}/.codex}"
+    local config_toml config_tmpdir="" read_status=0
     printf '%s\n' "$codex_home"
-    [[ -f "$codex_home/config.toml" ]] || return 0
-    command -v python3 >/dev/null 2>&1 || return 0
-    config_tmpdir=$(python3 -c 'import sys, tomllib
+    config_toml="$codex_home/config.toml"
+    [[ -f "$config_toml" ]] || return 0
+    if command -v python3 >/dev/null 2>&1; then
+        config_tmpdir=$(python3 -c 'import sys
+try:
+    import tomllib
+except ImportError:
+    sys.exit(3)
 with open(sys.argv[1], "rb") as handle:
     config = tomllib.load(handle)
 policy = config.get("shell_environment_policy")
 values = policy.get("set") if isinstance(policy, dict) else None
 tmpdir = values.get("TMPDIR") if isinstance(values, dict) else None
-print(tmpdir if isinstance(tmpdir, str) else "")' "$codex_home/config.toml" 2>/dev/null) || config_tmpdir=""
-    if [[ "$config_tmpdir" == /* && "$config_tmpdir" != *$'\n'* ]]; then
+print(tmpdir if isinstance(tmpdir, str) else "")' "$config_toml" 2>/dev/null) || read_status=$?
+    else
+        read_status=3
+    fi
+    if [[ "$read_status" -eq 3 ]]; then
+        # Stay quiet when the file cannot set TMPDIR at all.
+        if grep -q 'TMPDIR' "$config_toml" 2>/dev/null; then
+            log WARN "Tangle boundary: cannot read the sandbox TMPDIR from $config_toml without Python 3.11+ (tomllib); it stays read-only, and codex's own sandbox fails if it is outside /tmp"
+        fi
+        return 0
+    fi
+    if [[ "$read_status" -eq 0 && "$config_tmpdir" == /* && "$config_tmpdir" != *$'\n'* ]]; then
         printf '%s\n' "$config_tmpdir"
     fi
     return 0
+}
+
+# Print the physical Git directory and common directory of a worktree, one per
+# line. A linked worktree keeps both outside itself, below the main
+# repository's .git, where only the read-only root protects them. Prints
+# nothing for a directory outside any repository, and fails when the worktree
+# has Git metadata that cannot be resolved.
+octopus_tangle_worktree_git_dirs() {
+    local worktree="$1" git_dir common_dir env_name
+    local -a clean_env=()
+    # Resolve the worktree's own metadata, not a GIT_DIR the caller inherited.
+    while IFS= read -r env_name; do
+        [[ -n "$env_name" ]] && clean_env+=(-u "$env_name")
+    done < <(git rev-parse --local-env-vars 2>/dev/null)
+    if ! git_dir=$(env ${clean_env[@]+"${clean_env[@]}"} git -C "$worktree" rev-parse --absolute-git-dir 2>/dev/null) || \
+       ! common_dir=$(env ${clean_env[@]+"${clean_env[@]}"} git -C "$worktree" rev-parse --git-common-dir 2>/dev/null); then
+        # Outside any repository there is no Git metadata to protect.
+        [[ -e "$worktree/.git" ]] && return 1
+        return 0
+    fi
+    # --git-common-dir can be relative to the worktree.
+    git_dir=$(cd "$worktree" 2>/dev/null && cd "$git_dir" 2>/dev/null && pwd -P) || return 1
+    common_dir=$(cd "$worktree" 2>/dev/null && cd "$common_dir" 2>/dev/null && pwd -P) || return 1
+    printf '%s\n%s\n' "$git_dir" "$common_dir"
 }
 
 octopus_tangle_apply_execution_boundary() {
@@ -547,27 +588,51 @@ octopus_tangle_apply_execution_boundary() {
     # worktree. Without a writable CODEX_HOME, `codex exec` stops with "failed
     # to initialize in-process app-server client: Read-only file system"; without
     # a writable sandbox TMPDIR, codex's nested bubblewrap panics on its
-    # mount-registry lock. Bind those directories for codex dispatches only.
-    # They come after the private /tmp, so a directory below /tmp stays visible.
-    # They must not overlap the worktree or the result channel, so the seals
-    # above keep their meaning; the private /tmp itself, a directory holding
-    # HOME, and symlinks are never bound.
+    # mount-registry lock. Bind those directories for codex dispatches only, at
+    # their resolved paths. They come after the private /tmp, so a directory
+    # below /tmp stays visible. A writable bind makes everything below it
+    # writable, including what the read-only root and the seals above protect,
+    # so a directory is never bound when it holds HOME or overlaps the worktree,
+    # the result channel, or the worktree's Git directory or common directory
+    # (a linked worktree keeps those outside itself). The private /tmp itself
+    # is never bound.
     case "${agent_type:-}" in
         codex|codex-*|codex:*)
-            local codex_dir physical_codex_dir physical_home
+            local codex_dir physical_codex_dir physical_home git_dirs git_path refusal
+            local git_dirs_known=true
             physical_home=$(cd "${HOME:-/}" 2>/dev/null && pwd -P) || physical_home="/"
+            git_dirs=$(octopus_tangle_worktree_git_dirs "$physical_worktree") || git_dirs_known=false
             while IFS= read -r codex_dir; do
-                [[ -n "$codex_dir" && -e "$codex_dir" ]] || continue
+                [[ -n "$codex_dir" ]] || continue
                 physical_codex_dir=""
-                if [[ -d "$codex_dir" && ! -L "$codex_dir" ]]; then
+                if [[ -d "$codex_dir" ]]; then
                     physical_codex_dir=$(cd "$codex_dir" 2>/dev/null && pwd -P) || physical_codex_dir=""
                 fi
                 [[ "$physical_codex_dir" == "/tmp" ]] && continue
-                if [[ -z "$physical_codex_dir" || "$physical_codex_dir" == "/" ]] || \
-                   [[ "$physical_home/" == "$physical_codex_dir/"* ]] || \
-                   ! octopus_tangle_boundary_paths_are_disjoint "$physical_worktree" "$physical_codex_dir" || \
-                   ! octopus_tangle_boundary_paths_are_disjoint "$physical_results" "$physical_codex_dir"; then
-                    log WARN "Tangle boundary: codex state directory $codex_dir stays read-only (not a real directory, or it overlaps HOME, the worktree or the result channel)"
+                refusal=""
+                if [[ ! -e "$codex_dir" ]]; then
+                    refusal="it does not exist, and codex cannot create it inside the boundary"
+                elif [[ -z "$physical_codex_dir" ]]; then
+                    refusal="it is not a directory"
+                elif [[ "$physical_codex_dir" == "/" || "$physical_home/" == "$physical_codex_dir/"* ]]; then
+                    refusal="it holds HOME"
+                elif ! octopus_tangle_boundary_paths_are_disjoint "$physical_worktree" "$physical_codex_dir"; then
+                    refusal="it overlaps the worktree"
+                elif ! octopus_tangle_boundary_paths_are_disjoint "$physical_results" "$physical_codex_dir"; then
+                    refusal="it overlaps the result channel"
+                elif [[ "$git_dirs_known" != "true" ]]; then
+                    refusal="the worktree's Git metadata cannot be resolved"
+                else
+                    while IFS= read -r git_path; do
+                        if [[ -n "$git_path" ]] && \
+                           ! octopus_tangle_boundary_paths_are_disjoint "$git_path" "$physical_codex_dir"; then
+                            refusal="it overlaps the Git metadata in $git_path"
+                            break
+                        fi
+                    done <<< "$git_dirs"
+                fi
+                if [[ -n "$refusal" ]]; then
+                    log WARN "Tangle boundary: codex state directory $codex_dir stays read-only: $refusal"
                     continue
                 fi
                 boundary_cmd+=(--bind "$physical_codex_dir" "$physical_codex_dir")

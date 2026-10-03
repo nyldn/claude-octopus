@@ -18,6 +18,10 @@
   boundary now binds Codex's own state directory (`CODEX_HOME`) and the
   sandbox `TMPDIR` set in its `config.toml` read-write, for Codex dispatches
   only; before, `codex exec` failed at startup with "Read-only file system".
+  Each directory is bound at its resolved path, and stays read-only with a
+  warning when it holds `HOME` or overlaps the worktree, the result channel,
+  or the worktree's Git directory or common directory. Without Python 3.11+
+  (`tomllib`), a `TMPDIR` set in `config.toml` stays read-only with a warning.
 
 
 ## [11.10.0] - 2026-10-02
