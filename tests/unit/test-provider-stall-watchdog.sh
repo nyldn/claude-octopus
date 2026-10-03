@@ -204,7 +204,8 @@ writer="$TEST_TMP_DIR/worktree-writer.sh"
 cat > "$writer" <<'EOF'
 #!/bin/sh
 repo="$1"
-sleep 1
+# Leave startup margin before the first stall check. Later writes keep the
+# provider active across further polls.
 printf 'one\n' >> "$repo/progress.txt"
 sleep 1
 printf 'two\n' >> "$repo/progress.txt"
