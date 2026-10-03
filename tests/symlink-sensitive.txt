@@ -6,6 +6,7 @@ unit/test-cursor-agent-provider.sh
 unit/test-dispatch-plan.sh
 unit/test-ensure-plugin-root.sh
 unit/test-feature-disclosure.sh
+unit/test-grok-provider.sh
 unit/test-mcp-server.sh
 unit/test-memory-contract.sh
 unit/test-plan-artifact-storage.sh
