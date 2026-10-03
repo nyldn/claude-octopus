@@ -345,6 +345,59 @@ test_debug_skill_autofreeze() {
     fi
 }
 
+test_debug_skill_autofreeze_reaches_hook() {
+    test_case "skill-debug auto-freeze writes the state file freeze-check.sh and /octo:unfreeze use"
+    # Run each skill copy's freeze block the way a Claude Code Bash tool call runs it:
+    # CLAUDE_CODE_SESSION_ID exported, CLAUDE_SESSION_ID unset. The hook gets the same
+    # session id from its JSON input, so a block keyed on anything else (the shell
+    # PID) writes a file the hook never reads and the boundary is silently unenforced.
+    local sid="octo-debug-freeze-$$"
+    local sf="/tmp/octopus-freeze-${sid}.txt"
+    local work fails="" skill label block unfreeze_block pid rc
+    work=$(mktemp -d) || { test_fail "mktemp failed"; return; }
+    mkdir -p "$work/module" "$work/outside"
+    unfreeze_block=$(awk '/^```bash/{b=1;next} b&&/^```/{exit} b' "$COMMANDS_DIR/unfreeze.md")
+
+    # Prints the hook's verdict for an Edit of $1: deny, allow, or error:<rc>.
+    _freeze_decides() {
+        local out rc=0
+        out=$(jq -cn --arg s "$sid" --arg c "$work" --arg f "$1" \
+                '{session_id:$s,hook_event_name:"PreToolUse",tool_name:"Edit",cwd:$c,
+                  tool_input:{file_path:$f,old_string:"a",new_string:"b"}}' \
+            | env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_SESSION_ID -u OCTO_FREEZE_MODE \
+                bash "$FREEZE_HOOK" 2>/dev/null) || rc=$?
+        if (( rc != 0 )); then echo "error:$rc"; return 0; fi
+        [[ "$out" == *'"permissionDecision":"deny"'* ]] && echo deny || echo allow
+    }
+
+    for skill in "$SKILL_DEBUG" "$PROJECT_ROOT/skills/skill-debug/SKILL.md"; do
+        label="${skill#"$PROJECT_ROOT"/}"
+        rm -f "$sf"
+        block=$(awk '/^## Scoped freeze guard/{s=1} s&&/^```bash/{b=1;next} b&&/^```/{exit} b' "$skill")
+        if [[ -z "$block" ]]; then fails+=" $label:no-freeze-block"; continue; fi
+        block="${block//<module-directory>/$work/module}"
+        # exec keeps the background job's PID, so a PID-keyed block's file can be removed.
+        (cd "$work" && exec env -u CLAUDE_SESSION_ID "CLAUDE_CODE_SESSION_ID=$sid" bash -c "$block") &
+        pid=$!
+        rc=0; wait "$pid" || rc=$?
+        rm -f "/tmp/octopus-freeze-${pid}.txt"
+        if (( rc != 0 )); then fails+=" $label:block-failed"; continue; fi
+        if [[ ! -f "$sf" ]]; then fails+=" $label:state-file-not-session-keyed"; continue; fi
+        [[ "$(_freeze_decides "$work/outside/x.txt")" == deny ]] || fails+=" $label:outside-edit-not-denied"
+        [[ "$(_freeze_decides "$work/module/x.txt")" == allow ]] || fails+=" $label:inside-edit-not-allowed"
+        (cd "$work" && env -u CLAUDE_SESSION_ID "CLAUDE_CODE_SESSION_ID=$sid" bash -c "$unfreeze_block")
+        [[ ! -f "$sf" ]] || fails+=" $label:unfreeze-left-state"
+    done
+
+    rm -f "$sf"
+    rm -rf "$work"
+    if [[ -z "$fails" ]]; then
+        test_pass
+    else
+        test_fail "skill-debug auto-freeze:$fails"
+    fi
+}
+
 # ── No attribution leaks ─────────────────────────────────────────────
 
 test_no_attribution_leaks() {
@@ -396,6 +449,7 @@ test_commands_registered_in_plugin_json
 test_hooks_registered_in_hooks_json
 
 test_debug_skill_autofreeze
+test_debug_skill_autofreeze_reaches_hook
 test_no_attribution_leaks
 
 test_summary

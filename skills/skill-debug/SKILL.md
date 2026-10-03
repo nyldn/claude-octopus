@@ -69,7 +69,8 @@ to a physical directory before editing and activate the existing freeze guard:
 
 ```bash
 freeze_dir="$(cd "<module-directory>" 2>/dev/null && pwd -P)" || exit 1
-printf '%s\n' "$freeze_dir" > "/tmp/octopus-freeze-${CLAUDE_SESSION_ID:-$$}.txt"
+_OCTO_SESSION_ID="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-$$}}"
+printf '%s\n' "$freeze_dir" > "/tmp/octopus-freeze-${_OCTO_SESSION_ID}.txt"
 ```
 
 Do not auto-freeze when the root cause is still unknown, the reproduction spans
