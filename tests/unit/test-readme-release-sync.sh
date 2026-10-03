@@ -339,6 +339,49 @@ else
     test_fail "sync did not restore the expected README facts"
 fi
 
+test_case "repeat sync refreshes generated PRODUCT capabilities when runtime facts change"
+capability_fixture="$TMP_DIR/capability-refresh"
+make_fixture "$capability_fixture"
+if python3 - "$SYNC_SCRIPT" "$capability_fixture" <<'PYTEST'
+from pathlib import Path
+import re
+import subprocess
+import sys
+
+script = sys.argv[1]
+root = Path(sys.argv[2])
+product = root / "PRODUCT.md"
+pattern = r"^- \d+\+? Claude Code (?:feature|capability) flags tracked through v[0-9.]+$"
+text, count = re.subn(
+    pattern,
+    "- 1+ Claude Code feature flags tracked through v0.0.1",
+    product.read_text(),
+    flags=re.MULTILINE,
+)
+assert count == 1, "missing PRODUCT capability fixture line"
+product.write_text(text)
+subprocess.run([script, "--root", str(root)], check=True, capture_output=True)
+first = re.search(
+    r"^- (\d+) Claude Code capability flags tracked through v([0-9.]+)$",
+    product.read_text(),
+    flags=re.MULTILINE,
+)
+assert first is not None, "initial sync did not write its capability line"
+orchestrate = root / "scripts/orchestrate.sh"
+orchestrate.write_text(orchestrate.read_text() + "\nSUPPORTS_README_SYNC_NEXT=false\n")
+providers = root / "scripts/lib/providers.sh"
+providers.write_text(providers.read_text() + '\nversion_compare "$CLAUDE_CODE_VERSION" "9.9.9"\n')
+subprocess.run([script, "--root", str(root)], check=True, capture_output=True)
+expected = f"- {int(first.group(1)) + 1} Claude Code capability flags tracked through v9.9.9"
+assert expected in product.read_text().splitlines(), "repeat sync retained stale generated capability facts"
+subprocess.run([script, "--root", str(root), "--check"], check=True, capture_output=True)
+PYTEST
+then
+    test_pass
+else
+    test_fail "repeat sync did not update generated PRODUCT capability facts"
+fi
+
 test_case "release workflow regenerates and stages synchronized docs"
 release_commit_block="$(sed -n '/^echo "2\/8 Committing\.\.\."/,/^git commit /p' "$PROJECT_ROOT/scripts/release.sh")"
 changelog_line="$(grep -n '^octo_release_update_changelog ' "$PROJECT_ROOT/scripts/release.sh" | cut -d: -f1)"

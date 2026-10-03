@@ -490,7 +490,7 @@ def sync_product(text: str, facts: dict[str, object]) -> str:
         flags=re.MULTILINE,
     )
     text = re.sub(
-        r"^- \d+\+ Claude Code feature flags tracked through v[0-9]+\.[0-9]+\.[0-9]+$",
+        r"^- \d+\+? Claude Code (?:feature|capability) flags tracked through v[0-9]+\.[0-9]+\.[0-9]+$",
         f"- {capability_count} Claude Code capability flags tracked through v{ceiling}",
         text,
         flags=re.MULTILINE,

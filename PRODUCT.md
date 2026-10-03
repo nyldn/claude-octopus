@@ -87,7 +87,7 @@ Frontier AI models will remain individually overconfident for the foreseeable fu
 **Measured Impact:**
 - 75% consensus gate: quantifiable disagreement detection before production
 - Token compression (`bin/octo-compress`): ~7,300 tokens saved per session
-- 182 Claude Code capability flags tracked through v2.1.219
+- 185 Claude Code capability flags tracked through v2.1.284
 
 ## Claude Code 2026 Compatibility Layer (v9.50.0)
 

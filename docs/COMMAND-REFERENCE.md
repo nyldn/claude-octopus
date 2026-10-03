@@ -381,7 +381,7 @@ Configure which AI models are used across Claude Octopus workflows.
 | Mode | Codex | Claude | Antigravity | Best for |
 |------|-------|--------|-------------|----------|
 | `budget` | GPT-5.6 Luna | Haiku 4.5 | Fast service tier | High-volume, quick feedback |
-| `standard` | GPT-5.6 Sol | Sonnet 5 | Service-selected default | Default — frontier coding/quality |
+| `standard` | GPT-5.6 Sol | Sonnet 5.5 on Claude Code v2.1.284+, Sonnet 5 on v2.1.197+, otherwise Sonnet 4.6 | Service-selected default | Default — frontier coding/quality |
 | `premium` | GPT-5.6 Sol | Opus 5.5, with Opus 5 fallback | Service-selected default | Critical decisions and premium Claude judgment |
 
 Quick toggles persist the selected mode in
@@ -400,7 +400,7 @@ continue to reject these models.
 
 **Per-phase routing:** Different models can be configured for Discover, Define, Develop, and Deliver phases. Use `show phases` to view the current routing table.
 
-**Role-based defaults:** `architect`, `strategist`, and `security-reviewer` use Opus 5.5 on Claude Code v2.1.280+ and Opus 5 on v2.1.219+ (then 4.8/4.7/4.6 fallback); `code-reviewer` and `implementer` use GPT-5.6 Sol; `synthesizer` uses Sonnet 5 on Claude Code v2.1.197+. See [the routing strategy](MODEL-ROUTING-STRATEGY.md). Opt out with `OCTOPUS_LEGACY_ROLES=1`.
+**Role-based defaults:** `architect`, `strategist`, and `security-reviewer` use Opus 5.5 on Claude Code v2.1.280+ and Opus 5 on v2.1.219+ (then 4.8/4.7/4.6 fallback); `code-reviewer` and `implementer` use GPT-5.6 Sol; `synthesizer` uses Sonnet 5.5 on Claude Code v2.1.284+, Sonnet 5 on v2.1.197+, and Sonnet 4.6 on older hosts. See [the routing strategy](MODEL-ROUTING-STRATEGY.md). Opt out with `OCTOPUS_LEGACY_ROLES=1`.
 
 ---
 
