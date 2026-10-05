@@ -371,11 +371,11 @@ _octopus_directory_identity() {
     local identity
 
     [[ -d "$directory" && ! -L "$directory" ]] || return 1
-    if identity="$(command stat -f '%d:%i' "$directory" 2>/dev/null)" &&
+    if identity="$(command stat -c '%d:%i' "$directory" 2>/dev/null)" &&
        _octopus_print_valid_directory_identity "$identity"; then
         return 0
     fi
-    identity="$(command stat -c '%d:%i' "$directory" 2>/dev/null)" || return 1
+    identity="$(command stat -f '%d:%i' "$directory" 2>/dev/null)" || return 1
     _octopus_print_valid_directory_identity "$identity"
 }
 
@@ -723,7 +723,35 @@ _octopus_path_is_generated_temp_artifact() {
 # must be a real directory. Symlink leaves must stay lexically within the copied
 # tree, and resolved targets must remain in the source. Any failure is fatal for
 # a Git source.
-_octopus_copy_git_tracked_tree() (
+_octopus_copy_git_tracked_tree() {
+    local copy_rc=0
+    _octopus_try_descriptor_copy "$@" || copy_rc=$?
+    [[ "$copy_rc" -eq 78 ]] || return "$copy_rc"
+    _octopus_copy_git_tracked_tree_shell "$@"
+}
+
+# Status 78 means the required descriptor operations are unavailable. Any
+# copying, enumeration, or safety failure is fatal and never retries weakly.
+_octopus_try_descriptor_copy() (
+    local source_root="$1" workspace="$2" copy_scope="${3:-}"
+    local source_anchor_path="${5:-}" source_identity="${6:-}" destination_identity
+    command -v python3 >/dev/null 2>&1 || return 78
+    if [[ -z "$source_anchor_path" ]]; then
+        case "$source_root" in
+            .) source_anchor_path="$(pwd -P)" || return 1 ;;
+            /*) source_anchor_path="$(_octopus_expected_physical_entry_path "$source_root")" || return 1 ;;
+            *) return 1 ;;
+        esac
+    fi
+    [[ -n "$source_identity" ]] || source_identity="$(_octopus_directory_identity "$source_anchor_path")" || return 1
+    cd "$source_root" || return 1
+    _octopus_revalidate_directory_anchor "$source_anchor_path" "$source_identity" || return 1
+    destination_identity="$(_octopus_directory_identity "$workspace")" || return 1
+    python3 -I "${_agent_sync_lib_dir}/../helpers/consultative-copy.py" \
+        "$source_anchor_path" "$workspace" "$copy_scope" "$source_identity" "$destination_identity"
+)
+
+_octopus_copy_git_tracked_tree_shell() (
     local source_root="$1"
     local workspace="$2"
     local copy_scope="${3:-}"

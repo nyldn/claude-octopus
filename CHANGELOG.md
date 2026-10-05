@@ -14,8 +14,8 @@
   keyed on the shell PID, so the freeze hook never enforced the boundary and
   `/octo:unfreeze` could not remove the file. The guard now leaves a freeze that
   is already active in place, and the workflow removes only a freeze it created.
-- Codex Tangle seats can run inside the Linux bubblewrap boundary. The
-  boundary now binds Codex's own state directory (`CODEX_HOME`) and the
+- Codex Tangle seats can write their startup state inside the Linux
+  bubblewrap boundary. The boundary now binds Codex's own state directory (`CODEX_HOME`) and the
   sandbox `TMPDIR` set in its `config.toml` read-write, for Codex dispatches
   only; before, `codex exec` failed at startup with "Read-only file system".
   Each directory is bound at its resolved path, and stays read-only with a
@@ -24,6 +24,14 @@
   path goes through a symlink that the boundary hides (below `/tmp`). Without
   Python 3.11+ (`tomllib`), a `TMPDIR` set in `config.toml` stays read-only
   with a warning.
+
+- Tangle retry workers use the same deadline, stall, zombie, and cancellation
+  supervision as the first pass. Spawn failures preserve failed-task state and
+  restore signal traps; retries retain usable sibling and partial results.
+- Consultative Git workspaces copy selected working-tree bytes through held
+  directory descriptors, reducing per-file process spawning while preserving
+  ignore rules, nested repository content, metadata, and path confinement.
+  Unsupported descriptor operations retain the portable shell fallback.
 
 
 ## [11.10.0] - 2026-10-02
