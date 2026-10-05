@@ -11,6 +11,8 @@
 
 ### Fixed
 
+- Native `CLAUDE_MODEL` overrides bypass warm session model caches, so Claude
+  seats honor the current pin consistently across processes and restore role routes when unset.
 - API Route fleet diversity follows the configured effective model family;
   comma-bearing model tokens cannot bypass the model allowlist.
 - `/octo:debug`'s scoped freeze guard keys its state file on `CLAUDE_CODE_SESSION_ID`,

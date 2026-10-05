@@ -412,17 +412,26 @@ resolve_octopus_model() {
     else
         env_var="OCTOPUS_$(echo "$canonical_provider" | tr '[:lower:]' '[:upper:]' | tr '-' '_')_MODEL"
     fi
-    if [[ -n "${!env_var:-}" ]]; then
-        if ! validate_model_name_for_provider "$canonical_provider" "${!env_var}"; then
+    local env_model="${!env_var:-}"
+    if [[ -z "$env_model" && "$canonical_provider" == "claude" && -n "${CLAUDE_MODEL:-}" ]]; then
+        env_var="CLAUDE_MODEL"
+        env_model="$CLAUDE_MODEL"
+        [[ -n "${OCTOPUS_TRACE_MODELS:-}" ]] && echo "[model-trace] Tier 0.5 (CC native CLAUDE_MODEL): $CLAUDE_MODEL ← SELECTED" >&2
+    fi
+    if [[ -n "$env_model" ]]; then
+        if ! validate_model_name_for_provider "$canonical_provider" "$env_model"; then
             log ERROR "Invalid model name in $env_var"
             return 1
         fi
         # v9.51: Fable 5 security reroute applies to explicit env pins too.
         if declare -f fable5_maybe_reroute >/dev/null 2>&1; then
-            fable5_maybe_reroute "${!env_var}" "$role" "$agent_type" "$phase"
-        else
-            echo "${!env_var}"
+            env_model="$(fable5_maybe_reroute "$env_model" "$role" "$agent_type" "$phase")" || return $?
+            if ! validate_model_name_for_provider "$canonical_provider" "$env_model"; then
+                log ERROR "Invalid resolved model name for $provider/$agent_type"
+                return 1
+            fi
         fi
+        echo "$env_model"
         return 0
     fi
 
@@ -495,12 +504,6 @@ resolve_octopus_model() {
         [[ -n "$_trace" ]] && echo "[model-trace] Tier 1 (env $env_var): ${!env_var} ← SELECTED" >&2
     elif [[ -n "$_trace" ]]; then
         echo "[model-trace] Tier 1 (env $env_var): —" >&2
-    fi
-
-    # v8.41.0 Priority 0.5: Check native CC model settings
-    if [[ -z "$resolved_model" && "$provider" == "claude" && -n "${CLAUDE_MODEL:-}" ]]; then
-        resolved_model="${CLAUDE_MODEL}"
-        [[ -n "$_trace" ]] && echo "[model-trace] Tier 0.5 (CC native CLAUDE_MODEL): $CLAUDE_MODEL ← SELECTED" >&2
     fi
 
     # Config file lookups
