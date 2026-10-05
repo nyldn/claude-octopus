@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.11.0] - 2026-10-04
+
 ### Added
 
 - API Route is available through `api-route-agent`, using its OpenAI-compatible
@@ -33,7 +35,6 @@
   ignore rules, nested repository content, file modes and timestamps, and path
   confinement.
   Unsupported descriptor operations retain the portable shell fallback.
-
 
 ## [11.10.0] - 2026-10-02
 
