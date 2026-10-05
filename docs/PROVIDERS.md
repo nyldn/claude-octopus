@@ -173,6 +173,28 @@ File transport cancellation sends TERM to the direct child, waits up to two
 seconds, then escalates to KILL and reaps it before removing the prompt. It
 does not claim ownership of unregistered descendants.
 
+## Codex in bounded Tangle runs
+
+The Linux execution boundary gives Codex write access to `CODEX_HOME` and an
+absolute `TMPDIR` configured in `config.toml` under
+`[shell_environment_policy].set`. Other providers receive no Codex state mounts.
+State directories must already exist and must not contain `HOME` or overlap the
+worktree, results, or Git metadata. Symlink paths must remain reachable inside
+the boundary. Reading configured `TMPDIR` requires Python 3.11 or newer.
+
+Codex also needs permission to start its own sandbox inside Bubblewrap. An
+outer Bubblewrap probe can pass while host AppArmor policy denies the nested
+namespace. This inert command checks that separate requirement:
+
+```bash
+bwrap --ro-bind / / --tmpfs /tmp --proc /proc --dev /dev -- \
+  bwrap --ro-bind / / --tmpfs /tmp --proc /proc --dev /dev -- true
+```
+
+On such a host, an operator can use another Linux host whose policy permits
+nested sandboxes or review the host's AppArmor policy. Octopus keeps its
+execution boundary and provider sandbox settings in place.
+
 ## Kimi Code integration
 
 Kimi Code exercises all seven wiring points: `kimi` identity/runtime rows in

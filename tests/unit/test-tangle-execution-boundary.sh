@@ -243,6 +243,34 @@ else
 fi
 OCTOPUS_TANGLE_WORKTREE="$BOUNDARY_WORKTREE"
 
+test_case "inherited Git overrides cannot unseal a linked worktree's metadata"
+git init -q "$CODEX_ROOT/git-decoy"
+agent_type="codex"
+OCTOPUS_TANGLE_WORKTREE="$GIT_FIXTURE/linked"
+CODEX_HOME="$physical_git_common/objects"
+cmd_array=(true)
+if GIT_DIR="$CODEX_ROOT/git-decoy/.git" GIT_COMMON_DIR="$CODEX_ROOT/git-decoy/.git" \
+   GIT_WORK_TREE="$CODEX_ROOT/git-decoy" octopus_tangle_apply_execution_boundary && \
+   ! boundary_binds_rw "$CODEX_HOME"; then
+    test_pass
+else
+    test_fail "inherited Git metadata paths allowed the linked repository's objects to be bound writable"
+fi
+OCTOPUS_TANGLE_WORKTREE="$BOUNDARY_WORKTREE"
+
+test_case "malformed TOML cannot add a writable sandbox TMPDIR"
+mkdir -p "$CODEX_ROOT/codex-home-malformed"
+CODEX_HOME="$CODEX_ROOT/codex-home-malformed"
+printf '[shell_environment_policy\nset = { TMPDIR = "%s" }\n' "$BOUNDARY_RESULTS" \
+    > "$CODEX_HOME/config.toml"
+cmd_array=(true)
+if octopus_tangle_apply_execution_boundary && \
+   boundary_binds_rw "$CODEX_HOME" && ! boundary_binds_rw "$BOUNDARY_RESULTS"; then
+    test_pass
+else
+    test_fail "malformed TOML expanded writable state or prevented the safe state bind"
+fi
+
 test_case "without tomllib, a configured sandbox TMPDIR stays read-only with a warning"
 real_python3="$(command -v python3 || true)"
 if [[ -z "$real_python3" ]]; then

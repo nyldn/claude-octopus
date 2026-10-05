@@ -487,6 +487,78 @@ octopus_tangle_worktree_git_dirs() {
     printf '%s\n%s\n' "$git_dir" "$common_dir"
 }
 
+# Codex writes its own state while it runs, even when it only edits the
+# worktree. Without a writable CODEX_HOME, `codex exec` stops with "failed
+# to initialize in-process app-server client: Read-only file system"; without
+# a writable sandbox TMPDIR, codex's nested bubblewrap panics on its
+# mount-registry lock. Bind those directories for codex dispatches only, at
+# their resolved paths. They come after the private /tmp, so a directory
+# below /tmp stays visible. A writable bind makes everything below it
+# writable, including what the read-only root and the seals above protect,
+# so a directory is never bound when it holds HOME or overlaps the worktree,
+# the result channel, or the worktree's Git directory or common directory
+# (a linked worktree keeps those outside itself). The private /tmp itself
+# is never bound. When the configured path goes through a symlink, it is
+# checked inside the boundary too: the private /tmp hides a symlink below
+# /tmp unless another bind restores it, and then codex could not reach the
+# bound directory by its configured path.
+# Appends safe Codex state mounts to the caller-local boundary_cmd array.
+# Bash dynamic scope keeps mount ordering in one array without namerefs, which
+# are unavailable in the supported Bash 3.2 shell.
+octopus_tangle_bind_codex_state_dirs() {
+    local physical_worktree="$1" physical_results="$2"
+    local codex_dir physical_codex_dir logical_codex_dir reached_codex_dir physical_home
+    local git_dirs git_path refusal git_dirs_known=true
+    physical_home=$(cd "${HOME:-/}" 2>/dev/null && pwd -P) || physical_home="/"
+    git_dirs=$(octopus_tangle_worktree_git_dirs "$physical_worktree") || git_dirs_known=false
+    while IFS= read -r codex_dir; do
+        [[ -n "$codex_dir" ]] || continue
+        physical_codex_dir=""
+        logical_codex_dir=""
+        if [[ -d "$codex_dir" ]]; then
+            physical_codex_dir=$(cd "$codex_dir" 2>/dev/null && pwd -P) || physical_codex_dir=""
+            logical_codex_dir=$(cd "$codex_dir" 2>/dev/null && pwd -L) || logical_codex_dir=""
+        fi
+        [[ "$physical_codex_dir" == "/tmp" ]] && continue
+        refusal=""
+        if [[ ! -e "$codex_dir" ]]; then
+            refusal="it does not exist, and codex cannot create it inside the boundary"
+        elif [[ -z "$physical_codex_dir" ]]; then
+            refusal="it is not a directory"
+        elif [[ "$physical_codex_dir" == "/" || "$physical_home/" == "$physical_codex_dir/"* ]]; then
+            refusal="it holds HOME"
+        elif ! octopus_tangle_boundary_paths_are_disjoint "$physical_worktree" "$physical_codex_dir"; then
+            refusal="it overlaps the worktree"
+        elif ! octopus_tangle_boundary_paths_are_disjoint "$physical_results" "$physical_codex_dir"; then
+            refusal="it overlaps the result channel"
+        elif [[ "$git_dirs_known" != "true" ]]; then
+            refusal="the worktree's Git metadata cannot be resolved"
+        else
+            while IFS= read -r git_path; do
+                if [[ -n "$git_path" ]] && \
+                   ! octopus_tangle_boundary_paths_are_disjoint "$git_path" "$physical_codex_dir"; then
+                    refusal="it overlaps the Git metadata in $git_path"
+                    break
+                fi
+            done <<< "$git_dirs"
+        fi
+        if [[ -z "$refusal" && "$logical_codex_dir" != "$physical_codex_dir" ]]; then
+            reached_codex_dir=$("${boundary_cmd[@]}" \
+                --bind "$physical_codex_dir" "$physical_codex_dir" -- \
+                /bin/sh -c 'cd "$1" 2>/dev/null && pwd -P' _ "$codex_dir" 2>/dev/null) || \
+                reached_codex_dir=""
+            if [[ "$reached_codex_dir" != "$physical_codex_dir" ]]; then
+                refusal="its configured path goes through a symlink that is hidden inside the boundary (below /tmp)"
+            fi
+        fi
+        if [[ -n "$refusal" ]]; then
+            log WARN "Tangle boundary: codex state directory $codex_dir stays read-only: $refusal"
+            continue
+        fi
+        boundary_cmd+=(--bind "$physical_codex_dir" "$physical_codex_dir")
+    done < <(octopus_tangle_codex_state_dirs)
+}
+
 octopus_tangle_apply_execution_boundary() {
     # Adaptive scope expansion is never allowed to rely on the caller's
     # opt-in flag. Enforce the boundary at the provider dispatch point too,
@@ -521,7 +593,7 @@ octopus_tangle_apply_execution_boundary() {
     local -a boundary_cmd
     # Keep the host root read-only so provider executables and credentials
     # remain available. This boundary prevents writes outside the selected
-    # worktree (and, for codex, its own state directories; see below); it does
+    # worktree and, for codex, its safe state directories; it does
     # not hide readable host files or block network access.
     # Mount the isolated /tmp before re-binding a worktree that may itself live
     # below /tmp. Reversing these mounts hides the worktree behind the tmpfs and
@@ -584,73 +656,9 @@ octopus_tangle_apply_execution_boundary() {
         boundary_cmd+=(--ro-bind "$physical_results" "$physical_results")
     fi
 
-    # Codex writes its own state while it runs, even when it only edits the
-    # worktree. Without a writable CODEX_HOME, `codex exec` stops with "failed
-    # to initialize in-process app-server client: Read-only file system"; without
-    # a writable sandbox TMPDIR, codex's nested bubblewrap panics on its
-    # mount-registry lock. Bind those directories for codex dispatches only, at
-    # their resolved paths. They come after the private /tmp, so a directory
-    # below /tmp stays visible. A writable bind makes everything below it
-    # writable, including what the read-only root and the seals above protect,
-    # so a directory is never bound when it holds HOME or overlaps the worktree,
-    # the result channel, or the worktree's Git directory or common directory
-    # (a linked worktree keeps those outside itself). The private /tmp itself
-    # is never bound. When the configured path goes through a symlink, it is
-    # checked inside the boundary too: the private /tmp hides a symlink below
-    # /tmp unless another bind restores it, and then codex could not reach the
-    # bound directory by its configured path.
     case "${agent_type:-}" in
         codex|codex-*|codex:*)
-            local codex_dir physical_codex_dir logical_codex_dir reached_codex_dir physical_home
-            local git_dirs git_path refusal git_dirs_known=true
-            physical_home=$(cd "${HOME:-/}" 2>/dev/null && pwd -P) || physical_home="/"
-            git_dirs=$(octopus_tangle_worktree_git_dirs "$physical_worktree") || git_dirs_known=false
-            while IFS= read -r codex_dir; do
-                [[ -n "$codex_dir" ]] || continue
-                physical_codex_dir=""
-                logical_codex_dir=""
-                if [[ -d "$codex_dir" ]]; then
-                    physical_codex_dir=$(cd "$codex_dir" 2>/dev/null && pwd -P) || physical_codex_dir=""
-                    logical_codex_dir=$(cd "$codex_dir" 2>/dev/null && pwd -L) || logical_codex_dir=""
-                fi
-                [[ "$physical_codex_dir" == "/tmp" ]] && continue
-                refusal=""
-                if [[ ! -e "$codex_dir" ]]; then
-                    refusal="it does not exist, and codex cannot create it inside the boundary"
-                elif [[ -z "$physical_codex_dir" ]]; then
-                    refusal="it is not a directory"
-                elif [[ "$physical_codex_dir" == "/" || "$physical_home/" == "$physical_codex_dir/"* ]]; then
-                    refusal="it holds HOME"
-                elif ! octopus_tangle_boundary_paths_are_disjoint "$physical_worktree" "$physical_codex_dir"; then
-                    refusal="it overlaps the worktree"
-                elif ! octopus_tangle_boundary_paths_are_disjoint "$physical_results" "$physical_codex_dir"; then
-                    refusal="it overlaps the result channel"
-                elif [[ "$git_dirs_known" != "true" ]]; then
-                    refusal="the worktree's Git metadata cannot be resolved"
-                else
-                    while IFS= read -r git_path; do
-                        if [[ -n "$git_path" ]] && \
-                           ! octopus_tangle_boundary_paths_are_disjoint "$git_path" "$physical_codex_dir"; then
-                            refusal="it overlaps the Git metadata in $git_path"
-                            break
-                        fi
-                    done <<< "$git_dirs"
-                fi
-                if [[ -z "$refusal" && "$logical_codex_dir" != "$physical_codex_dir" ]]; then
-                    reached_codex_dir=$("${boundary_cmd[@]}" \
-                        --bind "$physical_codex_dir" "$physical_codex_dir" -- \
-                        /bin/sh -c 'cd "$1" 2>/dev/null && pwd -P' _ "$codex_dir" 2>/dev/null) || \
-                        reached_codex_dir=""
-                    if [[ "$reached_codex_dir" != "$physical_codex_dir" ]]; then
-                        refusal="its configured path goes through a symlink that is hidden inside the boundary (below /tmp)"
-                    fi
-                fi
-                if [[ -n "$refusal" ]]; then
-                    log WARN "Tangle boundary: codex state directory $codex_dir stays read-only: $refusal"
-                    continue
-                fi
-                boundary_cmd+=(--bind "$physical_codex_dir" "$physical_codex_dir")
-            done < <(octopus_tangle_codex_state_dirs)
+            octopus_tangle_bind_codex_state_dirs "$physical_worktree" "$physical_results"
             ;;
     esac
 
