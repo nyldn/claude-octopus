@@ -18,6 +18,8 @@
   keyed on the shell PID, so the freeze hook never enforced the boundary and
   `/octo:unfreeze` could not remove the file. The guard now leaves a freeze that
   is already active in place, and the workflow removes only a freeze it created.
+- Codex Tangle rejects mutable state aliases; use a canonical absolute
+  `CODEX_HOME` path to keep later dispatches from granting writes to protected files.
 - Codex Tangle seats can write their startup state inside the Linux
   bubblewrap boundary. The boundary now binds Codex's own state directory (`CODEX_HOME`) and the
   sandbox `TMPDIR` set in its `config.toml` read-write, for Codex dispatches

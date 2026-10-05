@@ -179,8 +179,13 @@ The Linux execution boundary gives Codex write access to `CODEX_HOME` and an
 absolute `TMPDIR` configured in `config.toml` under
 `[shell_environment_policy].set`. Other providers receive no Codex state mounts.
 State directories must already exist and must not contain `HOME` or overlap the
-worktree, results, or Git metadata. Symlink paths must remain reachable inside
-the boundary. Reading configured `TMPDIR` requires Python 3.11 or newer.
+worktree, results, or Git metadata. `CODEX_HOME` must use its canonical absolute
+physical directory path. Configured aliases, relative paths and dot components
+are refused. Set the physical path explicitly when needed.
+A configured `TMPDIR` below physical `HOME` must remain within the actually
+accepted physical `CODEX_HOME`. Outside `HOME`, disjoint temporary directories
+remain supported; configured TMPDIR symlinks must stay reachable inside the
+boundary. Reading configured `TMPDIR` requires Python 3.11 or newer.
 
 Codex also needs permission to start its own sandbox inside Bubblewrap. An
 outer Bubblewrap probe can pass while host AppArmor policy denies the nested

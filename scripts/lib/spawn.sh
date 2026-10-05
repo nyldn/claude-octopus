@@ -526,6 +526,8 @@ octopus_tangle_bind_codex_state_dirs() {
             refusal="it does not exist, and codex cannot create it inside the boundary"
         elif [[ -z "$physical_codex_dir" ]]; then
             refusal="it is not a directory"
+        elif [[ "$state_dir_index" -eq 1 && "$codex_dir" != "$physical_codex_dir" && "$codex_dir" != "$physical_codex_dir/" ]]; then
+            refusal="CODEX_HOME must use its canonical absolute directory path (one trailing slash is allowed)"
         elif [[ "$physical_codex_dir" == "/" || "$physical_home/" == "$physical_codex_dir/"* ]]; then
             refusal="it holds HOME"
         elif [[ "$state_dir_index" -gt 1 && "$physical_codex_dir/" == "$physical_home/"* && \

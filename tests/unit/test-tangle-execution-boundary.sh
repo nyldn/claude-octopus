@@ -89,8 +89,8 @@ fi
 # Codex writes its own state while it runs: CODEX_HOME, and the sandbox TMPDIR
 # that its config.toml sets for the commands it runs. The argv cases below stub
 # the probe, so they run on hosts without bwrap too. Their fixtures use the
-# physical path: a configured path that goes through a symlink is also checked
-# inside a real boundary, and that needs bwrap.
+# physical path: configured CODEX_HOME aliases are refused even when reachable.
+# Actual worker retargeting controls below additionally require bwrap.
 CODEX_ROOT="$(cd "$BOUNDARY_ROOT" && pwd -P)"
 CODEX_STATE_HOME="$CODEX_ROOT/codex-home"
 CODEX_STATE_TMP="$CODEX_ROOT/codex-tmp"
@@ -109,6 +109,7 @@ fi
 OUTSIDE_TMP_ROOT=""
 if [[ -d /var/tmp && -w /var/tmp ]]; then
     OUTSIDE_TMP_ROOT="$(mktemp -d /var/tmp/octopus-boundary-test.XXXXXX)"
+    OUTSIDE_TMP_ROOT="$(cd "$OUTSIDE_TMP_ROOT" && pwd -P)"
 fi
 TMP_LINK_ROOT="$(mktemp -d /tmp/octopus-boundary-test.XXXXXX)"
 trap 'rm -rf "$TMP_LINK_ROOT" ${OUTSIDE_TMP_ROOT:+"$OUTSIDE_TMP_ROOT"}; cleanup_test_environment' EXIT
@@ -188,6 +189,52 @@ mkdir -p "$POLICY_CODEX_HOME/tmp" "$POLICY_HOME/.ssh" "$POLICY_HOME/.claude" \
          "$POLICY_HOME/rejected-codex/results"
 physical_policy_home="$(cd "$POLICY_HOME" && pwd -P)"
 physical_policy_codex="$(cd "$POLICY_CODEX_HOME" && pwd -P)"
+
+test_case "canonical absolute CODEX_HOME permits one trailing slash and outside-HOME TMPDIR"
+if (
+    agent_type="codex"
+    for state_path in "$CODEX_STATE_HOME" "$CODEX_STATE_HOME/"; do
+        cmd_array=(true)
+        CODEX_HOME="$state_path" octopus_tangle_apply_execution_boundary || exit 1
+        boundary_binds_rw "$physical_codex_home" || exit 1
+        [[ "$codex_toml_readable" != true ]] || boundary_binds_rw "$physical_codex_tmp" || exit 1
+    done
+); then
+    test_pass
+else
+    test_fail "canonical state paths lost their safe state or temporary mounts"
+fi
+
+test_case "raw CODEX_HOME aliases and noncanonical paths cannot authorize state or HOME TMPDIR"
+if (
+    agent_type="codex"
+    mkdir -p "$CODEX_ROOT/alias-parent" "$POLICY_CODEX_HOME/ordinary-child"
+    ln -s "$POLICY_CODEX_HOME" "$BOUNDARY_WORKTREE/state-alias"
+    ln -s "$POLICY_CODEX_HOME" "$BOUNDARY_RESULTS/state-alias"
+    ln -s "$POLICY_CODEX_HOME" "$POLICY_CODEX_HOME/state-alias"
+    ln -s "$POLICY_HOME" "$CODEX_ROOT/alias-parent/home"
+    ln -s "$POLICY_CODEX_HOME" "$POLICY_HOME/canceled-alias"
+    printf '[shell_environment_policy]\nset = { TMPDIR = "%s" }\n' "$POLICY_CODEX_HOME/tmp" \
+        > "$POLICY_CODEX_HOME/config.toml"
+    # The raw comparison also rejects an alias canceled by .., which pwd -L
+    # alone would erase before checking mount authority.
+    rejected_paths=("$BOUNDARY_WORKTREE/state-alias" "$BOUNDARY_RESULTS/state-alias"
+                    "$POLICY_CODEX_HOME/state-alias" "$CODEX_ROOT/alias-parent/home/.codex"
+                    "$POLICY_CODEX_HOME/." "$POLICY_CODEX_HOME/ordinary-child/.."
+                    "$POLICY_HOME/canceled-alias/../.codex" "$POLICY_CODEX_HOME//")
+    cd "$POLICY_HOME"
+    rejected_paths+=(".codex")
+    for state_path in "${rejected_paths[@]}"; do
+        cmd_array=(true)
+        HOME="$POLICY_HOME" CODEX_HOME="$state_path" octopus_tangle_apply_execution_boundary || exit 1
+        ! boundary_binds_rw "$physical_policy_codex" || exit 1
+        ! boundary_binds_rw "$physical_policy_codex/tmp" || exit 1
+    done
+); then
+    test_pass
+else
+    test_fail "a configured alias or normalized spelling became trusted state authority"
+fi
 
 test_case "worker-edited TMPDIR cannot expose protected HOME directories on later dispatch"
 if [[ "$codex_toml_readable" != true ]]; then
@@ -493,37 +540,41 @@ if octopus_tangle_execution_boundary_probe; then
         test_fail "the next dispatch could write protected HOME after a worker-edited config"
     fi
 
-    test_case "a symlinked codex state directory is bound and writable through its configured path"
-    agent_type="codex"
-    # A link outside /tmp stays visible on the read-only root; a link inside the
-    # worktree comes back with the worktree bind, even when the worktree is
-    # below /tmp.
-    reachable_links=("$BOUNDARY_WORKTREE/codex-link")
-    ln -sfn "$CODEX_STATE_HOME" "$BOUNDARY_WORKTREE/codex-link"
-    if [[ -n "$OUTSIDE_TMP_ROOT" ]]; then
-        ln -sfn "$CODEX_STATE_HOME" "$OUTSIDE_TMP_ROOT/codex-link"
-        reachable_links+=("$OUTSIDE_TMP_ROOT/codex-link")
-    fi
-    reachable_failures=""
-    for codex_link in "${reachable_links[@]}"; do
-        CODEX_HOME="$codex_link"
-        rm -f "$CODEX_STATE_HOME/via-link"
-        cmd_array=(bash -c 'touch "$1/via-link"' _ "$codex_link")
-        if ! octopus_tangle_apply_execution_boundary; then
-            reachable_failures+=" refused:$codex_link"
-        elif ! boundary_binds_rw "$physical_codex_home"; then
-            reachable_failures+=" unbound:$codex_link"
-        elif ! "${cmd_array[@]}" || [[ ! -e "$CODEX_STATE_HOME/via-link" ]]; then
-            reachable_failures+=" unwritable:$codex_link"
-        fi
-    done
-    rm -f "$BOUNDARY_WORKTREE/codex-link" "$CODEX_STATE_HOME/via-link"
-    if [[ -z "$reachable_failures" ]]; then
+    test_case "worker-retargeted CODEX_HOME aliases cannot expose HOME on a later real dispatch"
+    if [[ -z "$OUTSIDE_TMP_ROOT" || "$codex_toml_readable" != true ]]; then
+        test_skip "two-dispatch state alias controls require /var/tmp and tomllib"
+    elif (
+        agent_type="codex"
+        # In each layout the first worker really can rewrite the configured
+        # alias: through the worktree, an outside-HOME TMPDIR parent, or a TMPDIR
+        # sharing the initial physical state. Only owned synthetic dirs are used.
+        for layout in worktree external-tmp own-state; do
+            fixture="$OUTSIDE_TMP_ROOT/retarget-$layout"
+            mkdir -p "$fixture/home/.ssh" "$fixture/state" "$fixture/tmp" "$fixture/worktree" "$fixture/results"
+            fixture="$(cd "$fixture" && pwd -P)"
+            case "$layout" in
+                worktree) alias_path="$fixture/worktree/codex-home"; tmp_path="$fixture/tmp" ;;
+                external-tmp) alias_path="$fixture/tmp/codex-home"; tmp_path="$fixture/tmp" ;;
+                own-state) alias_path="$fixture/state/codex-home"; tmp_path="$fixture/state" ;;
+            esac
+            ln -s "$fixture/state" "$alias_path"
+            printf '[shell_environment_policy]\nset = { TMPDIR = "%s" }\n' "$tmp_path" > "$fixture/state/config.toml"
+            export OCTOPUS_TANGLE_WORKTREE="$fixture/worktree" OCTOPUS_TANGLE_RESULTS_DIR="$fixture/results"
+            cmd_array=(bash -c 'rm "$1" && ln -s "$2" "$1"' _ "$alias_path" "$fixture/home/.ssh")
+            HOME="$fixture/home" CODEX_HOME="$alias_path" octopus_tangle_apply_execution_boundary || exit 1
+            "${cmd_array[@]}" || exit 1
+            [[ "$(readlink "$alias_path")" == "$fixture/home/.ssh" ]] || exit 1
+            cmd_array=(bash -c 'touch "$1/forged" 2>/dev/null || true; touch "$2/ran"' _ "$alias_path" "$fixture/worktree")
+            HOME="$fixture/home" CODEX_HOME="$alias_path" octopus_tangle_apply_execution_boundary || exit 1
+            "${cmd_array[@]}" || exit 1
+            ! boundary_binds_rw "$fixture/home/.ssh" || exit 1
+            [[ -e "$fixture/worktree/ran" && ! -e "$fixture/home/.ssh/forged" ]] || exit 1
+        done
+    ); then
         test_pass
     else
-        test_fail "symlinked codex state:$reachable_failures"
+        test_fail "a retargeted state alias granted writable protected HOME on a later dispatch"
     fi
-    CODEX_HOME="$CODEX_STATE_HOME"
 
     test_case "codex state behind a symlink hidden below /tmp stays read-only"
     agent_type="codex"
