@@ -2,6 +2,7 @@
 """Copy eligible Git working-tree bytes through inode-checked directory FDs."""
 
 import contextlib
+import errno
 import os
 import re
 import stat
@@ -73,6 +74,8 @@ class Directory:
                 pass
         before = os.stat(name, dir_fd=parent, follow_symlinks=False)
         if not stat.S_ISDIR(before.st_mode):
+            if stat.S_ISREG(before.st_mode):
+                raise NotADirectoryError(errno.ENOTDIR, 'directory ancestor is a regular file', name)
             raise UnsafeCopy('directory ancestor is not a real directory')
         child = os.open(name, cls.flags, dir_fd=parent)
         if identity(before) != identity(os.fstat(child)) or (expected is not None and identity(before) != expected):
@@ -208,7 +211,7 @@ def copy_tree(source, destination, scope=''):
         with contextlib.ExitStack() as stack:
             try:
                 parent, ancestors = stack.enter_context(source.descend(components[:-1]))
-            except FileNotFoundError:
+            except (FileNotFoundError, NotADirectoryError):
                 continue
             try:
                 info = os.stat(components[-1], dir_fd=parent, follow_symlinks=False)

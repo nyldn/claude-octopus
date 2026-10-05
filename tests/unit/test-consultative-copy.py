@@ -86,6 +86,20 @@ class CopyContracts(unittest.TestCase):
         self.assertEqual((self.destination / 'deep/safe').read_bytes(), b'safe bytes')
         self.assertEqual(os.readlink(self.destination / 'deep/dangling'), '../missing/value')
 
+    def test_deleted_index_directory_replaced_by_file_is_skipped(self):
+        self.file('replaced/deep/leaf')
+        shutil.rmtree(self.source / 'replaced')
+        self.file('replaced', b'replacement bytes', tracked=False)
+        self.run_copy()
+        self.assertEqual((self.destination / 'replaced').read_bytes(), b'replacement bytes')
+
+    def test_deleted_index_directory_replaced_by_symlink_fails_closed(self):
+        self.file('replaced/deep/leaf')
+        shutil.rmtree(self.source / 'replaced')
+        (self.source / 'replaced').symlink_to(self.outside)
+        with self.assertRaises(copy.UnsafeCopy):
+            self.run_copy()
+
     def test_absolute_escaping_and_resolved_escaping_links_fail(self):
         (self.outside / 'secret').write_bytes(b'outside bytes')
         for target in (str(self.outside / 'secret'), '../outside/secret', '../../outside/secret'):

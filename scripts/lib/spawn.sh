@@ -452,7 +452,7 @@ print(tmpdir if isinstance(tmpdir, str) else "")' "$config_toml" 2>/dev/null) ||
     fi
     if [[ "$read_status" -eq 3 ]]; then
         # Stay quiet when the file cannot set TMPDIR at all.
-        if grep -q 'TMPDIR' "$config_toml" 2>/dev/null; then
+        if grep -c 'TMPDIR' "$config_toml" >/dev/null 2>&1; then
             log WARN "Tangle boundary: cannot read the sandbox TMPDIR from $config_toml without Python 3.11+ (tomllib); it stays read-only, and codex's own sandbox fails if it is outside /tmp"
         fi
         return 0

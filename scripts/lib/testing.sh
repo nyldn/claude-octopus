@@ -921,7 +921,12 @@ EOF
                             [[ -n "$failed_agent" ]] && lock_provider "$failed_agent"
                         fi
                     done <<< "$FAILED_SUBTASKS"
-                    retry_failed_subtasks "$task_group" "$quality_retry_count"
+                    local retry_status=0
+                    retry_failed_subtasks "$task_group" "$quality_retry_count" || retry_status=$?
+                    if [[ "$retry_status" -ne 0 ]]; then
+                        log ERROR "Tangle retry supervision failed; aborting validation"
+                        return "$retry_status"
+                    fi
                     sleep 3
                     continue  # Re-validate
                 else

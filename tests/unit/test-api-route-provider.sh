@@ -58,6 +58,17 @@ else
     test_fail "provider identity or exact seat changed"
 fi
 
+test_case "fleet diversity uses the effective API Route model family"
+if [[ "$(API_ROUTE_MODEL=gpt-5.6-sol octo_agent_spec_model_family api-route-agent)" == openai ]] &&
+   [[ "$(API_ROUTE_MODEL=blocked API_ROUTE_ALLOWED_MODELS=claude-sonnet-5 octo_agent_spec_model_family api-route-agent)" == anthropic ]] &&
+   [[ "$(octo_agent_spec_model_family api-route-agent:gpt-5.6-sol)" == openai ]] &&
+   [[ "$(octo_agent_spec_model_family api-route-agent)" == unknown ]] &&
+   [[ "$(API_ROUTE_MODEL=unrecognized-model octo_agent_spec_model_family api-route-agent)" == unknown ]]; then
+    test_pass
+else
+    test_fail "API Route transport was counted as a separate model family"
+fi
+
 test_case "review disables tools and implementation retains them"
 review=$(PWD=/tmp/octo-cwd API_ROUTE_MODEL=deepseek-v4.1-flash get_agent_command api-route-agent review code-reviewer)
 implementation=$(PWD=/tmp/octo-cwd API_ROUTE_MODEL=deepseek-v4.1-flash get_agent_command api-route-agent implementation implementer)

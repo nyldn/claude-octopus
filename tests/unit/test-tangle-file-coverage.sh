@@ -111,6 +111,28 @@ else
     test_fail "hard gate retry did not recover after retry supplied missing explicit file coverage"
 fi
 
+test_case "retry supervision failure aborts validation before another pass"
+rm -f "$RESULTS_DIR"/*.md
+write_success_result "$RESULTS_DIR/codex-tangle-coverage-0.md" \
+    "Updated src/lib/templates/NA10_HANDLE_SILENCE.ts."
+retry_called=0
+validation_sleeps=0
+sleep() { validation_sleeps=$((validation_sleeps + 1)); }
+retry_failed_subtasks() {
+    retry_called=$((retry_called + 1))
+    # A late output must not rescue a failed ownership/cancellation check.
+    write_success_result "$RESULTS_DIR/codex-tangle-coverage-0.md" \
+        "Updated src/lib/templates/NA10_HANDLE_SILENCE.ts and src/lib/templates/NA20_REQUEST_MISSING_INFO.ts."
+    return 71
+}
+retry_rc=0
+validate_tangle_results "coverage" "$original_prompt" >/dev/null 2>&1 || retry_rc=$?
+if [[ "$retry_rc" -eq 71 && "$retry_called" -eq 1 && "$validation_sleeps" -eq 0 ]]; then
+    test_pass
+else
+    test_fail "validation continued after retry supervision failed"
+fi
+unset -f sleep
 MAX_QUALITY_RETRIES=0
 retry_failed_subtasks() { :; }
 

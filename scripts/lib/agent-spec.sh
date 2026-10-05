@@ -222,6 +222,15 @@ octo_agent_spec_model_family() {
         model="$(octo_agent_spec_explicit_model "$spec" 2>/dev/null || true)"
     fi
 
+    case "$executor" in
+        api-route|api-route-*)
+            if [[ -z "$model" ]]; then
+                model="$(source "${_octo_agent_spec_lib_dir}/api-route.sh" &&
+                    octo_api_route_effective_model 2>/dev/null)" || model=""
+            fi
+            ;;
+    esac
+
     if [[ -n "$model" ]]; then
         prefix="$(octo_model_family "$model")"
         [[ "$prefix" != unknown ]] && { printf '%s\n' "$prefix"; return; }
@@ -238,7 +247,8 @@ octo_agent_spec_model_family() {
         kimi|kimi-*) echo moonshot ;;
         perplexity|perplexity-*) echo perplexity ;;
         copilot|copilot-*) echo microsoft ;;
-        commandcode|commandcode-*|openrouter|openrouter-*|opencode|opencode-*|openai-compatible|openai-compatible-*|atlascloud|atlascloud-*|cheaperinference|cheaperinference-*|api-route|api-route-*) echo multi ;;
+        api-route|api-route-*) echo unknown ;;
+        commandcode|commandcode-*|openrouter|openrouter-*|opencode|opencode-*|openai-compatible|openai-compatible-*|atlascloud|atlascloud-*|cheaperinference|cheaperinference-*) echo multi ;;
         ollama|ollama-*) echo local ;;
         *) echo unknown ;;
     esac
