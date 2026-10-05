@@ -143,19 +143,38 @@ boundary_binds_rw() {
     return 1
 }
 
+boundary_private_tmpfs() {
+    local i
+    for ((i = 0; i + 1 < ${#cmd_array[@]}; i++)); do
+        [[ "${cmd_array[i]}" == "--" ]] && return 1
+        [[ "${cmd_array[i]}" == "--tmpfs" && "${cmd_array[i+1]}" == "$1" ]] && return 0
+    done
+    return 1
+}
+
+boundary_refuses_codex() {
+    local status
+    if octopus_tangle_apply_execution_boundary; then
+        return 1
+    else
+        status=$?
+        [[ "$status" -eq 125 ]]
+    fi
+}
+
 saved_probe="$(declare -f octopus_tangle_execution_boundary_probe)"
 octopus_tangle_execution_boundary_probe() { return 0; }
 
-test_case "codex dispatch binds CODEX_HOME and its configured sandbox TMPDIR"
+test_case "codex dispatch projects private runtime state and sandbox TMPDIR"
 agent_type="codex"
 CODEX_HOME="$CODEX_STATE_HOME"
 cmd_array=(true)
 if ! octopus_tangle_apply_execution_boundary; then
     test_fail "boundary refused a codex dispatch"
-elif ! boundary_binds_rw "$physical_codex_home"; then
-    test_fail "codex dispatch left CODEX_HOME read-only"
-elif [[ "$codex_toml_readable" == "true" ]] && ! boundary_binds_rw "$physical_codex_tmp"; then
-    test_fail "codex dispatch left the sandbox TMPDIR from config.toml read-only"
+elif ! boundary_private_tmpfs "$physical_codex_home"; then
+    test_fail "codex dispatch omitted its private CODEX_HOME projection"
+elif [[ "$codex_toml_readable" == "true" ]] && ! boundary_private_tmpfs "$physical_codex_tmp"; then
+    test_fail "codex dispatch omitted its private configured TMPDIR"
 else
     test_pass
 fi
@@ -173,15 +192,15 @@ CODEX_HOME="$CODEX_STATE_HOME"
 cmd_array=(true)
 if PYTHONPATH="$startup_poison" OCTOPUS_BOUNDARY_STARTUP_MARKER="$startup_marker" \
    octopus_tangle_apply_execution_boundary && \
-   [[ ! -e "$startup_marker" ]] && boundary_binds_rw "$physical_codex_home" && \
-   { [[ "$codex_toml_readable" != true ]] || boundary_binds_rw "$physical_codex_tmp"; }; then
+   [[ ! -e "$startup_marker" ]] && boundary_private_tmpfs "$physical_codex_home" && \
+   { [[ "$codex_toml_readable" != true ]] || boundary_private_tmpfs "$physical_codex_tmp"; }; then
     test_pass
 else
     test_fail "pre-boundary config discovery executed a Python startup hook or lost safe state mounts"
 fi
 
-# A worker can edit its writable config between dispatches. Its configured
-# TMPDIR must not expand that state bind into unrelated directories in HOME.
+# Even a pre-existing configured TMPDIR must not add mounts in unrelated HOME
+# directories or reopen configuration and extension inputs.
 POLICY_HOME="${OUTSIDE_TMP_ROOT:-$CODEX_ROOT}/tmpdir-policy-home"
 POLICY_CODEX_HOME="$POLICY_HOME/.codex"
 mkdir -p "$POLICY_CODEX_HOME/tmp" "$POLICY_HOME/.ssh" "$POLICY_HOME/.claude" \
@@ -196,8 +215,8 @@ if (
     for state_path in "$CODEX_STATE_HOME" "$CODEX_STATE_HOME/"; do
         cmd_array=(true)
         CODEX_HOME="$state_path" octopus_tangle_apply_execution_boundary || exit 1
-        boundary_binds_rw "$physical_codex_home" || exit 1
-        [[ "$codex_toml_readable" != true ]] || boundary_binds_rw "$physical_codex_tmp" || exit 1
+        boundary_private_tmpfs "$physical_codex_home" || exit 1
+        [[ "$codex_toml_readable" != true ]] || boundary_private_tmpfs "$physical_codex_tmp" || exit 1
     done
 ); then
     test_pass
@@ -226,9 +245,9 @@ if (
     rejected_paths+=(".codex")
     for state_path in "${rejected_paths[@]}"; do
         cmd_array=(true)
-        HOME="$POLICY_HOME" CODEX_HOME="$state_path" octopus_tangle_apply_execution_boundary || exit 1
-        ! boundary_binds_rw "$physical_policy_codex" || exit 1
-        ! boundary_binds_rw "$physical_policy_codex/tmp" || exit 1
+        HOME="$POLICY_HOME" CODEX_HOME="$state_path" boundary_refuses_codex || exit 1
+        ! boundary_private_tmpfs "$physical_policy_codex" || exit 1
+        ! boundary_private_tmpfs "$physical_policy_codex/tmp" || exit 1
     done
 ); then
     test_pass
@@ -245,13 +264,12 @@ elif (
         > "$POLICY_CODEX_HOME/config.toml"
     cmd_array=(true)
     HOME="$POLICY_HOME" CODEX_HOME="$POLICY_CODEX_HOME" octopus_tangle_apply_execution_boundary || exit 1
-    boundary_binds_rw "$physical_policy_codex" && boundary_binds_rw "$physical_codex_tmp" || exit 1
+    boundary_private_tmpfs "$physical_policy_codex" && boundary_private_tmpfs "$physical_codex_tmp" || exit 1
     for protected in .ssh .claude .local/bin; do
         printf '[shell_environment_policy]\nset = { TMPDIR = "%s" }\n' "$POLICY_HOME/$protected" \
             > "$POLICY_CODEX_HOME/config.toml"
         cmd_array=(true)
-        HOME="$POLICY_HOME" CODEX_HOME="$POLICY_CODEX_HOME" octopus_tangle_apply_execution_boundary || exit 1
-        boundary_binds_rw "$physical_policy_codex" || exit 1
+        HOME="$POLICY_HOME" CODEX_HOME="$POLICY_CODEX_HOME" boundary_refuses_codex || exit 1
         ! boundary_binds_rw "$physical_policy_home/$protected" || exit 1
     done
 ); then
@@ -269,11 +287,11 @@ elif (
         > "$POLICY_CODEX_HOME/config.toml"
     cmd_array=(true)
     HOME="$POLICY_HOME" CODEX_HOME="$POLICY_CODEX_HOME" octopus_tangle_apply_execution_boundary || exit 1
-    boundary_binds_rw "$physical_policy_codex" && boundary_binds_rw "$physical_policy_codex/tmp"
+    boundary_private_tmpfs "$physical_policy_codex" && boundary_private_tmpfs "$physical_policy_codex/tmp"
 ); then
     test_pass
 else
-    test_fail "valid HOME state or its configured TMPDIR lost the writable bind"
+    test_fail "valid HOME state or its configured TMPDIR lost private runtime storage"
 fi
 
 test_case "a sandbox TMPDIR symlink cannot expose a protected physical HOME target"
@@ -285,8 +303,8 @@ elif (
     printf '[shell_environment_policy]\nset = { TMPDIR = "%s" }\n' "$POLICY_CODEX_HOME/escaping-tmp" \
         > "$POLICY_CODEX_HOME/config.toml"
     cmd_array=(true)
-    HOME="$POLICY_HOME" CODEX_HOME="$POLICY_CODEX_HOME" octopus_tangle_apply_execution_boundary || exit 1
-    boundary_binds_rw "$physical_policy_codex" && ! boundary_binds_rw "$physical_policy_home/.ssh"
+    HOME="$POLICY_HOME" CODEX_HOME="$POLICY_CODEX_HOME" boundary_refuses_codex || exit 1
+    ! boundary_binds_rw "$physical_policy_home/.ssh"
 ); then
     test_pass
 else
@@ -307,7 +325,7 @@ elif (
         printf '[shell_environment_policy]\nset = { TMPDIR = "%s" }\n' "$configured_tmp" \
             > "$rejected_home/config.toml"
         cmd_array=(true)
-        HOME="$POLICY_HOME" CODEX_HOME="$rejected_home" octopus_tangle_apply_execution_boundary || exit 1
+        HOME="$POLICY_HOME" CODEX_HOME="$rejected_home" boundary_refuses_codex || exit 1
         ! boundary_binds_rw "$(cd "$rejected_home" && pwd -P)" || exit 1
         ! boundary_binds_rw "$(cd "$configured_tmp" && pwd -P)" || exit 1
     done
@@ -317,9 +335,9 @@ elif (
     printf '[shell_environment_policy]\nset = { TMPDIR = "%s" }\n' "$POLICY_CODEX_HOME/tmp" \
         > "$POLICY_CODEX_HOME/config.toml"
     cmd_array=(true)
-    HOME="$POLICY_HOME" CODEX_HOME="$TMP_LINK_ROOT/policy-hidden" octopus_tangle_apply_execution_boundary || exit 1
-    ! boundary_binds_rw "$physical_policy_codex" || exit 1
-    ! boundary_binds_rw "$physical_policy_codex/tmp"
+    HOME="$POLICY_HOME" CODEX_HOME="$TMP_LINK_ROOT/policy-hidden" boundary_refuses_codex || exit 1
+    ! boundary_private_tmpfs "$physical_policy_codex" || exit 1
+    ! boundary_private_tmpfs "$physical_policy_codex/tmp"
 ); then
     test_pass
 else
@@ -330,8 +348,8 @@ test_case "non-codex dispatch leaves the codex state read-only"
 agent_type="claude"
 cmd_array=(true)
 if octopus_tangle_apply_execution_boundary && \
-   ! boundary_binds_rw "$physical_codex_home" && \
-   ! boundary_binds_rw "$physical_codex_tmp"; then
+   ! boundary_private_tmpfs "$physical_codex_home" && \
+   ! boundary_private_tmpfs "$physical_codex_tmp"; then
     test_pass
 else
     test_fail "a non-codex dispatch could write the codex state directories"
@@ -349,16 +367,16 @@ for unsafe_home in "$BOUNDARY_WORKTREE/.codex" "$BOUNDARY_RESULTS" \
                    "$CODEX_ROOT/userhome" "$link_root/codex-link-into-worktree"; do
     CODEX_HOME="$unsafe_home"
     cmd_array=(true)
-    if ! HOME="$CODEX_ROOT/userhome/u" octopus_tangle_apply_execution_boundary; then
+    if ! HOME="$CODEX_ROOT/userhome/u" boundary_refuses_codex; then
         unsafe_failures+=" refused:$unsafe_home"
-    elif boundary_binds_rw "$(cd "$unsafe_home" && pwd -P)"; then
+    elif boundary_private_tmpfs "$(cd "$unsafe_home" && pwd -P)"; then
         unsafe_failures+=" bound:$unsafe_home"
     fi
 done
 CODEX_HOME="$CODEX_ROOT/codex-home-2"
 cmd_array=(true)
-if ! octopus_tangle_apply_execution_boundary; then
-    unsafe_failures+=" refused:tmpdir-in-results"
+if ! boundary_refuses_codex; then
+    unsafe_failures+=" admitted:tmpdir-in-results"
 elif boundary_binds_rw "$(cd "$BOUNDARY_RESULTS" && pwd -P)"; then
     unsafe_failures+=" bound:tmpdir-in-results"
 fi
@@ -377,16 +395,16 @@ for git_home in "$GIT_FIXTURE/state-parent" "$physical_git_common" \
                 "$physical_git_common/objects" "$physical_git_dir"; do
     CODEX_HOME="$git_home"
     cmd_array=(true)
-    if ! octopus_tangle_apply_execution_boundary; then
+    if ! boundary_refuses_codex; then
         git_failures+=" refused:$git_home"
-    elif boundary_binds_rw "$(cd "$git_home" && pwd -P)"; then
+    elif boundary_private_tmpfs "$(cd "$git_home" && pwd -P)"; then
         git_failures+=" bound:$git_home"
     fi
 done
 # A state directory beside the repository is still bound.
 CODEX_HOME="$CODEX_STATE_HOME"
 cmd_array=(true)
-if ! octopus_tangle_apply_execution_boundary || ! boundary_binds_rw "$physical_codex_home"; then
+if ! octopus_tangle_apply_execution_boundary || ! boundary_private_tmpfs "$physical_codex_home"; then
     git_failures+=" unbound:$CODEX_STATE_HOME"
 fi
 OCTOPUS_TANGLE_WORKTREE="$BOUNDARY_WORKTREE"
@@ -403,7 +421,7 @@ printf 'gitdir: %s\n' "$CODEX_ROOT/no-such-gitdir" > "$CODEX_ROOT/git-broken-wor
 OCTOPUS_TANGLE_WORKTREE="$CODEX_ROOT/git-broken-worktree"
 CODEX_HOME="$CODEX_STATE_HOME"
 cmd_array=(true)
-if octopus_tangle_apply_execution_boundary && ! boundary_binds_rw "$physical_codex_home"; then
+if boundary_refuses_codex && ! boundary_private_tmpfs "$physical_codex_home"; then
     test_pass
 else
     test_fail "codex state was bound although the worktree's Git metadata could not be located"
@@ -417,7 +435,7 @@ OCTOPUS_TANGLE_WORKTREE="$GIT_FIXTURE/linked"
 CODEX_HOME="$physical_git_common/objects"
 cmd_array=(true)
 if GIT_DIR="$CODEX_ROOT/git-decoy/.git" GIT_COMMON_DIR="$CODEX_ROOT/git-decoy/.git" \
-   GIT_WORK_TREE="$CODEX_ROOT/git-decoy" octopus_tangle_apply_execution_boundary && \
+   GIT_WORK_TREE="$CODEX_ROOT/git-decoy" boundary_refuses_codex && \
    ! boundary_binds_rw "$CODEX_HOME"; then
     test_pass
 else
@@ -431,14 +449,13 @@ CODEX_HOME="$CODEX_ROOT/codex-home-malformed"
 printf '[shell_environment_policy\nset = { TMPDIR = "%s" }\n' "$BOUNDARY_RESULTS" \
     > "$CODEX_HOME/config.toml"
 cmd_array=(true)
-if octopus_tangle_apply_execution_boundary && \
-   boundary_binds_rw "$CODEX_HOME" && ! boundary_binds_rw "$BOUNDARY_RESULTS"; then
+if boundary_refuses_codex && ! boundary_private_tmpfs "$BOUNDARY_RESULTS"; then
     test_pass
 else
     test_fail "malformed TOML expanded writable state or prevented the safe state bind"
 fi
 
-test_case "without tomllib, a configured sandbox TMPDIR stays read-only with a warning"
+test_case "without tomllib, a configured sandbox TMPDIR refuses dispatch"
 real_python3="$(command -v python3 || true)"
 if [[ -z "$real_python3" ]]; then
     test_skip "python3 is not installed"
@@ -470,13 +487,7 @@ EOF
     : > "$BOUNDARY_WARNINGS"
     CODEX_HOME="$CODEX_STATE_HOME"
     cmd_array=(true)
-    if ! octopus_tangle_apply_execution_boundary; then
-        tomllib_failures+=" refused"
-    else
-        boundary_binds_rw "$physical_codex_home" || tomllib_failures+=" CODEX_HOME-unbound"
-        ! boundary_binds_rw "$physical_codex_tmp" || tomllib_failures+=" TMPDIR-bound"
-        grep -q 'tomllib' "$BOUNDARY_WARNINGS" || tomllib_failures+=" no-warning"
-    fi
+    boundary_refuses_codex || tomllib_failures+=" TMPDIR-admitted"
     # A config.toml without a TMPDIR setting needs no warning.
     : > "$BOUNDARY_WARNINGS"
     CODEX_HOME="$CODEX_ROOT/codex-home-plain"
@@ -496,58 +507,57 @@ eval "$saved_probe"
 CODEX_HOME="$CODEX_STATE_HOME"
 
 if octopus_tangle_execution_boundary_probe; then
-    test_case "codex dispatch can write its own state but nothing else outside the worktree"
+    test_case "codex runtime writes succeed privately without persisting host state"
     agent_type="codex"
     rm -f "$BOUNDARY_OUTSIDE"
-    cmd_array=(bash -c 'touch "$1/state" || exit 1
+    cmd_array=(bash -c 'touch "$1/tmp/state" || exit 1
+                        [[ -e "$1/tmp/state" ]] || exit 2
                         touch "$2/lock" 2>/dev/null || true
                         touch "$3" 2>/dev/null || true
                         touch "$4/forged.txt" 2>/dev/null || true' \
                _ "$CODEX_STATE_HOME" "$CODEX_STATE_TMP" "$BOUNDARY_OUTSIDE" "$BOUNDARY_RESULTS")
     if octopus_tangle_apply_execution_boundary && "${cmd_array[@]}" &&
-       [[ -e "$CODEX_STATE_HOME/state" ]] &&
-       { [[ "$codex_toml_readable" != "true" ]] || [[ -e "$CODEX_STATE_TMP/lock" ]]; } &&
-       [[ ! -e "$BOUNDARY_OUTSIDE" ]] &&
-       [[ ! -e "$BOUNDARY_RESULTS/forged.txt" ]]; then
+       [[ ! -e "$CODEX_STATE_HOME/tmp/state" && ! -e "$CODEX_STATE_TMP/lock" ]] &&
+       [[ ! -e "$BOUNDARY_OUTSIDE" && ! -e "$BOUNDARY_RESULTS/forged.txt" ]]; then
         test_pass
     else
-        test_fail "codex could not write its state, or could write outside it and the worktree"
+        test_fail "runtime storage failed or a worker write persisted outside the worktree"
     fi
 
-    test_case "a real worker config edit cannot make HOME writable on its next dispatch"
+    test_case "a real worker cannot edit config or expose HOME on its next dispatch"
     if [[ "$codex_toml_readable" != true ]]; then
         test_skip "configured TMPDIR discovery requires tomllib"
     elif (
         agent_type="codex"
         printf '[shell_environment_policy]\nset = { TMPDIR = "%s" }\n' "$CODEX_STATE_TMP" \
             > "$POLICY_CODEX_HOME/config.toml"
-        # First dispatch modifies only the worker's writable state config.
-        cmd_array=(bash -c 'printf "[shell_environment_policy]\nset = { TMPDIR = \"%s\" }\n" "$2" > "$1/config.toml"' \
+        config_before="$(cat "$POLICY_CODEX_HOME/config.toml")"
+        cmd_array=(bash -c 'if printf "poison" > "$1/config.toml" 2>/dev/null; then exit 3; fi
+                            if mv "$1/config.toml" "$1/config.saved" 2>/dev/null; then exit 4; fi
+                            touch "$1/tmp/first-dispatch"' _ "$POLICY_CODEX_HOME")
+        HOME="$POLICY_HOME" CODEX_HOME="$POLICY_CODEX_HOME" octopus_tangle_apply_execution_boundary || exit 1
+        "${cmd_array[@]}" || exit 1
+        [[ "$(cat "$POLICY_CODEX_HOME/config.toml")" == "$config_before" ]] || exit 1
+        cmd_array=(bash -c 'touch "$1/tmp/second-dispatch" || exit 1
+                            [[ ! -e "$1/tmp/first-dispatch" ]] || exit 2
+                            if touch "$2/forged" 2>/dev/null; then exit 3; fi' \
                    _ "$POLICY_CODEX_HOME" "$POLICY_HOME/.ssh")
         HOME="$POLICY_HOME" CODEX_HOME="$POLICY_CODEX_HOME" octopus_tangle_apply_execution_boundary || exit 1
         "${cmd_array[@]}" || exit 1
-        rm -f "$POLICY_HOME/.ssh/forged" "$POLICY_CODEX_HOME/second-dispatch"
-        cmd_array=(bash -c 'touch "$1/second-dispatch" || exit 1
-                            touch "$2/forged" 2>/dev/null || true' \
-                   _ "$POLICY_CODEX_HOME" "$POLICY_HOME/.ssh")
-        HOME="$POLICY_HOME" CODEX_HOME="$POLICY_CODEX_HOME" octopus_tangle_apply_execution_boundary || exit 1
-        "${cmd_array[@]}" || exit 1
-        ! boundary_binds_rw "$physical_policy_home/.ssh" || exit 1
-        [[ -e "$POLICY_CODEX_HOME/second-dispatch" && ! -e "$POLICY_HOME/.ssh/forged" ]]
+        [[ ! -e "$POLICY_CODEX_HOME/tmp/second-dispatch" && ! -e "$POLICY_HOME/.ssh/forged" ]]
     ); then
         test_pass
     else
-        test_fail "the next dispatch could write protected HOME after a worker-edited config"
+        test_fail "a worker changed persistent configuration or made HOME writable"
     fi
 
-    test_case "worker-retargeted CODEX_HOME aliases cannot expose HOME on a later real dispatch"
+    test_case "mutable CODEX_HOME aliases refuse dispatch before a worker runs"
     if [[ -z "$OUTSIDE_TMP_ROOT" || "$codex_toml_readable" != true ]]; then
         test_skip "two-dispatch state alias controls require /var/tmp and tomllib"
     elif (
         agent_type="codex"
-        # In each layout the first worker really can rewrite the configured
-        # alias: through the worktree, an outside-HOME TMPDIR parent, or a TMPDIR
-        # sharing the initial physical state. Only owned synthetic dirs are used.
+        # Aliases in the worktree, external TMPDIR or original state cannot
+        # authorize a dispatch. Only owned synthetic directories are used.
         for layout in worktree external-tmp own-state; do
             fixture="$OUTSIDE_TMP_ROOT/retarget-$layout"
             mkdir -p "$fixture/home/.ssh" "$fixture/state" "$fixture/tmp" "$fixture/worktree" "$fixture/results"
@@ -560,15 +570,9 @@ if octopus_tangle_execution_boundary_probe; then
             ln -s "$fixture/state" "$alias_path"
             printf '[shell_environment_policy]\nset = { TMPDIR = "%s" }\n' "$tmp_path" > "$fixture/state/config.toml"
             export OCTOPUS_TANGLE_WORKTREE="$fixture/worktree" OCTOPUS_TANGLE_RESULTS_DIR="$fixture/results"
-            cmd_array=(bash -c 'rm "$1" && ln -s "$2" "$1"' _ "$alias_path" "$fixture/home/.ssh")
-            HOME="$fixture/home" CODEX_HOME="$alias_path" octopus_tangle_apply_execution_boundary || exit 1
-            "${cmd_array[@]}" || exit 1
-            [[ "$(readlink "$alias_path")" == "$fixture/home/.ssh" ]] || exit 1
-            cmd_array=(bash -c 'touch "$1/forged" 2>/dev/null || true; touch "$2/ran"' _ "$alias_path" "$fixture/worktree")
-            HOME="$fixture/home" CODEX_HOME="$alias_path" octopus_tangle_apply_execution_boundary || exit 1
-            "${cmd_array[@]}" || exit 1
-            ! boundary_binds_rw "$fixture/home/.ssh" || exit 1
-            [[ -e "$fixture/worktree/ran" && ! -e "$fixture/home/.ssh/forged" ]] || exit 1
+            cmd_array=(bash -c 'touch "$1/ran"' _ "$fixture/worktree")
+            HOME="$fixture/home" CODEX_HOME="$alias_path" boundary_refuses_codex || exit 1
+            [[ ! -e "$fixture/worktree/ran" && "$(readlink "$alias_path")" == "$fixture/state" ]] || exit 1
         done
     ); then
         test_pass
@@ -590,9 +594,9 @@ if octopus_tangle_execution_boundary_probe; then
     for codex_link in "${hidden_links[@]}"; do
         CODEX_HOME="$codex_link"
         cmd_array=(true)
-        if ! octopus_tangle_apply_execution_boundary; then
+        if ! boundary_refuses_codex; then
             hidden_failures+=" refused:$codex_link"
-        elif boundary_binds_rw "$physical_codex_home"; then
+        elif boundary_private_tmpfs "$physical_codex_home"; then
             hidden_failures+=" bound:$codex_link"
         fi
     done
@@ -620,8 +624,8 @@ if octopus_tangle_execution_boundary_probe; then
                             touch "$2/forged" 2>/dev/null || true
                             touch "$3/inside.txt"' \
                    _ "$seal_git_dir" "$seal_git_common" "$OUTSIDE_TMP_ROOT/git/linked")
-        if octopus_tangle_apply_execution_boundary && "${cmd_array[@]}" &&
-           [[ -e "$OUTSIDE_TMP_ROOT/git/linked/inside.txt" ]] &&
+        if boundary_refuses_codex &&
+           [[ ! -e "$OUTSIDE_TMP_ROOT/git/linked/inside.txt" ]] &&
            [[ ! -e "$seal_git_dir/forged" ]] &&
            [[ ! -e "$seal_git_common/forged" ]]; then
             test_pass

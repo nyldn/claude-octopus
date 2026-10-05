@@ -175,17 +175,49 @@ does not claim ownership of unregistered descendants.
 
 ## Codex in bounded Tangle runs
 
-The Linux execution boundary gives Codex write access to `CODEX_HOME` and an
-absolute `TMPDIR` configured in `config.toml` under
-`[shell_environment_policy].set`. Other providers receive no Codex state mounts.
-State directories must already exist and must not contain `HOME` or overlap the
-worktree, results, or Git metadata. `CODEX_HOME` must use its canonical absolute
-physical directory path. Configured aliases, relative paths and dot components
-are refused. Set the physical path explicitly when needed.
-A configured `TMPDIR` below physical `HOME` must remain within the actually
-accepted physical `CODEX_HOME`. Outside `HOME`, disjoint temporary directories
-remain supported; configured TMPDIR symlinks must stay reachable inside the
-boundary. Reading configured `TMPDIR` requires Python 3.11 or newer.
+The Linux execution boundary projects an existing canonical `CODEX_HOME` with
+read-only configuration, instructions, profiles, skills, plugins and other
+entries. Its root cannot create or replace entries. Runtime directories `tmp`,
+`sessions`, `archived_sessions`, `log` and `shell_snapshots` use private temporary
+filesystems, so worker changes there disappear after each dispatch. The required
+`installation_id` file points into private `tmp` storage instead of host state.
+An existing
+regular single-link `auth.json` supports in-place authentication refresh without
+a writable parent. Symlinked or hard-linked auth files remain read-only.
+
+Codex state must not contain `HOME` or overlap the worktree, results or Git
+metadata. Configured `CODEX_HOME` aliases, relative paths and dot components
+abort the dispatch. Configuration inspection also aborts for unresolved links,
+linked regular files, or backing paths inside the writable worktree or auth
+file. Host runtime caches are inspected too, because a writable alternate link
+could poison a script used by a later native run despite private replacement.
+Inspection allows at most 100,000 backing entries and 64 nested directories;
+exceeding either bound aborts dispatch. Safe external read-only extension links
+remain supported. Inspection
+requires Python 3.10 or newer and fails closed when unavailable.
+
+An absolute canonical `TMPDIR` configured under
+`[shell_environment_policy].set` gets private temporary storage when disjoint
+from protected paths outside `HOME`. Inside accepted `CODEX_HOME`, only its
+already-private `tmp` subtree is allowed. Configuration subtrees cannot be
+reopened by a later TMPDIR mount. Reading this setting requires Python 3.11 or
+newer; without `tomllib`, a config containing TMPDIR aborts dispatch. Unsafe configured
+TMPDIR layouts also abort, including paths inside the writable worktree.
+Other providers receive no Codex state mounts.
+
+For Codex 0.160, `CODEX_SQLITE_HOME` redirects the default state database to
+private `CODEX_HOME/tmp/sqlite`. An explicit `sqlite_home` configuration takes
+precedence and remains subject to the read-only boundary, so startup can fail
+when it points outside writable runtime storage. Initial login that must create
+`auth.json`, auth storage requiring file replacement, and writes to other
+persistent caches are also unavailable inside this boundary. Codex 0.160 default
+exec uses paginated thread metadata, whose optional session-index write failures
+are nonfatal; legacy non-paginated metadata updates can fail. TUI history and
+model-cache persistence also remain read-only. A full native provider task has
+not been validated inside this boundary. There is no
+unconfined fallback. Existing configuration and credentials are not copied or
+rewritten. These mounts protect persistent configuration; they do not prevent a
+worker from damaging an auth file it can refresh, or hide readable credentials.
 
 Codex also needs permission to start its own sandbox inside Bubblewrap. An
 outer Bubblewrap probe can pass while host AppArmor policy denies the nested

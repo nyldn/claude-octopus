@@ -30,16 +30,14 @@
   is already active in place, and the workflow removes only a freeze it created.
 - Codex Tangle rejects mutable state aliases; use a canonical absolute
   `CODEX_HOME` path to keep later dispatches from granting writes to protected files.
-- Codex Tangle seats can write their startup state inside the Linux
-  bubblewrap boundary. The boundary now binds Codex's own state directory (`CODEX_HOME`) and the
-  sandbox `TMPDIR` set in its `config.toml` read-write, for Codex dispatches
-  only; before, `codex exec` failed at startup with "Read-only file system".
-  Each directory is bound at its resolved path, and stays read-only with a
-  warning when it holds `HOME`, overlaps the worktree, the result channel,
-  or the worktree's Git directory or common directory, or when its configured
-  path goes through a symlink that the boundary hides (below `/tmp`). Without
-  Python 3.11+ (`tomllib`), a `TMPDIR` set in `config.toml` stays read-only
-  with a warning.
+- Codex Tangle projects canonical `CODEX_HOME` with read-only configuration and
+  extensions. Runtime caches and a safe configured `TMPDIR` use private storage;
+  existing regular single-link auth files support in-place refresh. Unsafe state
+  paths and configuration backing aliases abort dispatch instead of granting
+  persistent writes. Python is required for inspection, and configured TMPDIR
+  requires `tomllib`. Default SQLite state uses private storage on Codex 0.160;
+  explicit `sqlite_home` settings remain subject to the read-only boundary.
+
 
 - Tangle retry workers use the same deadline, stall, zombie, and cancellation
   supervision as the first pass. Spawn failures preserve failed-task state and
