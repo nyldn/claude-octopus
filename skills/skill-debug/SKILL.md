@@ -68,8 +68,12 @@ When the symptom is localized to one user-approved module, resolve that module
 to a physical directory before editing and activate the existing freeze guard:
 
 ```bash
+_OCTO_SESSION_ID="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-}}"
+if [[ -z "$_OCTO_SESSION_ID" ]]; then
+    printf 'Freeze activation requires a shared Claude session ID; stop before editing.\n' >&2
+    exit 1
+fi
 freeze_dir="$(cd "<module-directory>" 2>/dev/null && pwd -P)" || exit 1
-_OCTO_SESSION_ID="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-$$}}"
 _OCTO_FREEZE_FILE="/tmp/octopus-freeze-${_OCTO_SESSION_ID}.txt"
 if [[ -e "$_OCTO_FREEZE_FILE" || -L "$_OCTO_FREEZE_FILE" ]]; then
     if [[ -f "$_OCTO_FREEZE_FILE" && ! -L "$_OCTO_FREEZE_FILE" &&
@@ -95,14 +99,17 @@ PYFREEZE
 fi
 ```
 
-Activation requires Python 3, as freeze enforcement does. Existing empty,
+Activation requires a nonempty `CLAUDE_CODE_SESSION_ID` or `CLAUDE_SESSION_ID`.
+Both activation and freeze enforcement require Python 3. Existing empty,
 symlinked or nonregular state is refused for manual inspection; active state
 contents are never read or printed by this activation check. Exclusive creation
 refuses a state path introduced after the check.
 
 A freeze that is already active (from `/octo:freeze`, `/octo:guard` or an
 earlier workflow) stays as it is: do not replace it, and do not remove it when
-debugging ends. Do not auto-freeze when the root cause is still unknown, the
+debugging ends. Its current boundary still blocks edits outside that scope.
+To target another module, consciously unfreeze and freeze the new scope before
+editing. Do not auto-freeze when the root cause is still unknown, the
 reproduction spans modules, or the user opted out. After original-scenario
 verification, run `/octo:unfreeze` only if this workflow created the freeze and
 the state file still names the directory it set; a different directory means

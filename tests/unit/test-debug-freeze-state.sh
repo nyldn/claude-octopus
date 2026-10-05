@@ -21,6 +21,7 @@ import os
 from pathlib import Path
 import re
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -41,7 +42,8 @@ with tempfile.TemporaryDirectory(prefix="octo-debug-freeze-test-") as tmp:
         text = (source / mirror).read_text()
         section = text.split("## Scoped freeze guard", 1)[1]
         code = re.search(r"```bash\n(.*?)\n```", section, re.S).group(1)
-        for case in ["absent", "valid-existing", "opaque-existing", "empty-regular",
+        for case in ["missing-id", "empty-ids", "legacy-only-id",
+                     "empty-current-legacy-id", "absent", "valid-existing", "opaque-existing", "empty-regular",
                      "filled-symlink", "empty-symlink", "dangling-symlink",
                      "directory", "fifo", "race-regular", "race-symlink",
                      "race-fifo", "race-symlink-fifo", "missing-python"]:
@@ -52,9 +54,24 @@ with tempfile.TemporaryDirectory(prefix="octo-debug-freeze-test-") as tmp:
             target = root / uuid.uuid4().hex
             marker = "SYNTHETIC_NONSECRET_" + sid
             env = dict(os.environ, CLAUDE_CODE_SESSION_ID=sid,
-                       CLAUDE_SESSION_ID=legacy_sid)
+                       CLAUDE_SESSION_ID=legacy_sid, OCTOPUS_HOST="claude")
+            missing_id = case in ("missing-id", "empty-ids")
+            if missing_id:
+                env.pop("CLAUDE_CODE_SESSION_ID", None)
+                env.pop("CLAUDE_SESSION_ID", None)
+                if case == "empty-ids":
+                    env.update(CLAUDE_CODE_SESSION_ID="", CLAUDE_SESSION_ID="")
+            elif case in ("legacy-only-id", "empty-current-legacy-id"):
+                env.pop("CLAUDE_CODE_SESSION_ID", None)
+                env["CLAUDE_SESSION_ID"] = sid
+                if case == "empty-current-legacy-id":
+                    env["CLAUDE_CODE_SESSION_ID"] = ""
             prelude = ""
             original = None
+            pid_state = None
+            pid_state_owned = False
+            trace = root / uuid.uuid4().hex
+            env["FREEZE_PROBE_PATH"] = str(trace)
             try:
                 if case == "valid-existing":
                     state.write_text(str(other) + "\n")
@@ -90,12 +107,20 @@ with tempfile.TemporaryDirectory(prefix="octo-debug-freeze-test-") as tmp:
                 elif case == "missing-python":
                     env["PATH"] = str(root / "missing-path")
 
-                worker = subprocess.Popen([bash, "-c", prelude + code.replace(
+                # Release this owned probe only after checking its synthetic PID path.
+                admission = 'read -r _activate\ntrap \'printf "%s" "${_OCTO_FREEZE_FILE-}" > "$FREEZE_PROBE_PATH"\' EXIT\n'
+                worker = subprocess.Popen([bash, "-c", admission + prelude + code.replace(
                     "<module-directory>", str(module))], env=env,
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                     start_new_session=True)
                 try:
-                    stdout, stderr = worker.communicate(timeout=2)
+                    pid_state = Path("/tmp/octopus-freeze-" + str(worker.pid) + ".txt")
+                    if missing_id and (pid_state.exists() or pid_state.is_symlink()):
+                        os.killpg(worker.pid, signal.SIGKILL)
+                        worker.communicate()
+                        raise AssertionError("PID fixture already exists; refused to touch it")
+                    pid_state_owned = missing_id
+                    stdout, stderr = worker.communicate("\n", timeout=2)
                 except subprocess.TimeoutExpired:
                     # The new session's group contains only this probe and its children.
                     try:
@@ -109,7 +134,12 @@ with tempfile.TemporaryDirectory(prefix="octo-debug-freeze-test-") as tmp:
 
                 assert marker not in proc.stdout + proc.stderr, "state content disclosed"
                 assert not legacy.exists(), "legacy ID overrode current Claude session ID"
-                if case == "absent":
+                if missing_id:
+                    assert proc.returncode != 0, "missing shared ID admitted"
+                    assert "requires a shared Claude session ID" in proc.stderr
+                    assert trace.read_text() == "", "state path selected without shared ID"
+                    assert not state.exists() and not pid_state.exists(), "unenforced state created"
+                elif case in ("absent", "legacy-only-id", "empty-current-legacy-id"):
                     assert proc.returncode == 0, proc.stderr
                     assert state.read_text() == str(module) + "\n"
                     assert state.stat().st_mode & 0o777 == 0o600
@@ -145,6 +175,10 @@ with tempfile.TemporaryDirectory(prefix="octo-debug-freeze-test-") as tmp:
                 else:
                     state.unlink(missing_ok=True)
                 legacy.unlink(missing_ok=True)
+                if pid_state_owned and pid_state is not None and pid_state.exists():
+                    info = pid_state.lstat()
+                    if stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid() and info.st_nlink == 1:
+                        pid_state.unlink()
 PYTEST
 )"
 
