@@ -14,6 +14,7 @@ usage() {
     cat >&2 <<'USAGE'
 Usage:
   safe-gh-comment.sh --repo OWNER/REPO pr-comment PR BODY_SOURCE
+  safe-gh-comment.sh --repo OWNER/REPO pr-edit PR BODY_SOURCE
   safe-gh-comment.sh --repo OWNER/REPO pr-review PR BODY_SOURCE
   safe-gh-comment.sh --repo OWNER/REPO pr-create TITLE HEAD BODY_SOURCE
   safe-gh-comment.sh --repo OWNER/REPO issue-comment ISSUE BODY_SOURCE
@@ -241,7 +242,7 @@ shift 3
 [[ "$repo" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] || usage
 
 case "$operation" in
-    pr-comment|pr-review|issue-comment)
+    pr-comment|pr-edit|pr-review|issue-comment)
         [[ $# -eq 2 ]] || usage
         target_number="$1"
         body_source="$2"
@@ -353,6 +354,10 @@ post_output=""
 case "$operation" in
     pr-comment)
         run_command gh pr comment "$target_number" --repo "$repo" \
+            --body-file "$snapshot_file" >/dev/null
+        ;;
+    pr-edit)
+        run_command gh pr edit "$target_number" --repo "$repo" \
             --body-file "$snapshot_file" >/dev/null
         ;;
     pr-review)
