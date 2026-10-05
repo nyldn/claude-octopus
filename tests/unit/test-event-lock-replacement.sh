@@ -91,10 +91,15 @@ test_case "unlock from another live caller preserves ownership"
 target="$fixture/unlock-foreign" lockdir="$fixture/unlock-foreign.lock"
 _octo_event_lock "$target"
 owner="$(cat "$lockdir/pid")"
-(
-    _octo_event_unlock "$target"
-)
-if [[ "$(cat "$lockdir/pid" 2>/dev/null)" == "$owner" ]]; then test_pass
+# A Bash subshell retains $$ on legacy shells; use a distinct process and
+# deliberately exercise the production fallback without BASHPID.
+if bash -c '
+    unset BASHPID
+    [[ -z "${BASHPID+x}" && "$$" != "$3" ]] || exit 1
+    source "$1"
+    _octo_event_unlock "$2"
+' event-unlock-peer "$PROJECT_ROOT/scripts/lib/events.sh" "$target" "$owner" &&
+    [[ "$(cat "$lockdir/pid" 2>/dev/null)" == "$owner" ]]; then test_pass
 else test_fail "another caller removed the live claim"; fi
 _octo_event_unlock "$target"
 
