@@ -452,7 +452,7 @@ print(tmpdir if isinstance(tmpdir, str) else "")' "$config_toml" 2>/dev/null) ||
     fi
     if [[ "$read_status" -eq 3 ]]; then
         # Stay quiet when the file cannot set TMPDIR at all.
-        if grep -q 'TMPDIR' "$config_toml" 2>/dev/null; then
+        if grep -c 'TMPDIR' "$config_toml" >/dev/null 2>&1; then
             log WARN "Tangle boundary: cannot read the sandbox TMPDIR from $config_toml without Python 3.11+ (tomllib); it stays read-only, and codex's own sandbox fails if it is outside /tmp"
         fi
         return 0
@@ -508,10 +508,11 @@ octopus_tangle_worktree_git_dirs() {
 octopus_tangle_bind_codex_state_dirs() {
     local physical_worktree="$1" physical_results="$2"
     local codex_dir physical_codex_dir logical_codex_dir reached_codex_dir physical_home
-    local git_dirs git_path refusal git_dirs_known=true
+    local git_dirs git_path refusal git_dirs_known=true state_dir_index=0 accepted_codex_home=""
     physical_home=$(cd "${HOME:-/}" 2>/dev/null && pwd -P) || physical_home="/"
     git_dirs=$(octopus_tangle_worktree_git_dirs "$physical_worktree") || git_dirs_known=false
     while IFS= read -r codex_dir; do
+        state_dir_index=$((state_dir_index + 1))
         [[ -n "$codex_dir" ]] || continue
         physical_codex_dir=""
         logical_codex_dir=""
@@ -527,6 +528,9 @@ octopus_tangle_bind_codex_state_dirs() {
             refusal="it is not a directory"
         elif [[ "$physical_codex_dir" == "/" || "$physical_home/" == "$physical_codex_dir/"* ]]; then
             refusal="it holds HOME"
+        elif [[ "$state_dir_index" -gt 1 && "$physical_codex_dir/" == "$physical_home/"* && \
+                ( -z "$accepted_codex_home" || "$physical_codex_dir/" != "$accepted_codex_home/"* ) ]]; then
+            refusal="a worker-configured TMPDIR below HOME is outside the accepted CODEX_HOME"
         elif ! octopus_tangle_boundary_paths_are_disjoint "$physical_worktree" "$physical_codex_dir"; then
             refusal="it overlaps the worktree"
         elif ! octopus_tangle_boundary_paths_are_disjoint "$physical_results" "$physical_codex_dir"; then
@@ -556,6 +560,11 @@ octopus_tangle_bind_codex_state_dirs() {
             continue
         fi
         boundary_cmd+=(--bind "$physical_codex_dir" "$physical_codex_dir")
+        # Only a state bind that survived every guard may authorize TMPDIR
+        # descendants. The config itself is writable by a previous worker.
+        if [[ "$state_dir_index" -eq 1 ]]; then
+            accepted_codex_home="$physical_codex_dir"
+        fi
     done < <(octopus_tangle_codex_state_dirs)
 }
 

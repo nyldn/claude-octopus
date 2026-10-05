@@ -179,6 +179,106 @@ else
     test_fail "pre-boundary config discovery executed a Python startup hook or lost safe state mounts"
 fi
 
+# A worker can edit its writable config between dispatches. Its configured
+# TMPDIR must not expand that state bind into unrelated directories in HOME.
+POLICY_HOME="${OUTSIDE_TMP_ROOT:-$CODEX_ROOT}/tmpdir-policy-home"
+POLICY_CODEX_HOME="$POLICY_HOME/.codex"
+mkdir -p "$POLICY_CODEX_HOME/tmp" "$POLICY_HOME/.ssh" "$POLICY_HOME/.claude" \
+         "$POLICY_HOME/.local/bin" "$POLICY_HOME/rejected-codex/tmp" \
+         "$POLICY_HOME/rejected-codex/results"
+physical_policy_home="$(cd "$POLICY_HOME" && pwd -P)"
+physical_policy_codex="$(cd "$POLICY_CODEX_HOME" && pwd -P)"
+
+test_case "worker-edited TMPDIR cannot expose protected HOME directories on later dispatch"
+if [[ "$codex_toml_readable" != true ]]; then
+    test_skip "configured TMPDIR discovery requires tomllib"
+elif (
+    agent_type="codex"
+    printf '[shell_environment_policy]\nset = { TMPDIR = "%s" }\n' "$CODEX_STATE_TMP" \
+        > "$POLICY_CODEX_HOME/config.toml"
+    cmd_array=(true)
+    HOME="$POLICY_HOME" CODEX_HOME="$POLICY_CODEX_HOME" octopus_tangle_apply_execution_boundary || exit 1
+    boundary_binds_rw "$physical_policy_codex" && boundary_binds_rw "$physical_codex_tmp" || exit 1
+    for protected in .ssh .claude .local/bin; do
+        printf '[shell_environment_policy]\nset = { TMPDIR = "%s" }\n' "$POLICY_HOME/$protected" \
+            > "$POLICY_CODEX_HOME/config.toml"
+        cmd_array=(true)
+        HOME="$POLICY_HOME" CODEX_HOME="$POLICY_CODEX_HOME" octopus_tangle_apply_execution_boundary || exit 1
+        boundary_binds_rw "$physical_policy_codex" || exit 1
+        ! boundary_binds_rw "$physical_policy_home/$protected" || exit 1
+    done
+); then
+    test_pass
+else
+    test_fail "a worker-edited config added a writable protected HOME mount"
+fi
+
+test_case "sandbox TMPDIR below an accepted physical CODEX_HOME stays writable"
+if [[ "$codex_toml_readable" != true ]]; then
+    test_skip "configured TMPDIR discovery requires tomllib"
+elif (
+    agent_type="codex"
+    printf '[shell_environment_policy]\nset = { TMPDIR = "%s" }\n' "$POLICY_CODEX_HOME/tmp" \
+        > "$POLICY_CODEX_HOME/config.toml"
+    cmd_array=(true)
+    HOME="$POLICY_HOME" CODEX_HOME="$POLICY_CODEX_HOME" octopus_tangle_apply_execution_boundary || exit 1
+    boundary_binds_rw "$physical_policy_codex" && boundary_binds_rw "$physical_policy_codex/tmp"
+); then
+    test_pass
+else
+    test_fail "valid HOME state or its configured TMPDIR lost the writable bind"
+fi
+
+test_case "a sandbox TMPDIR symlink cannot expose a protected physical HOME target"
+if [[ "$codex_toml_readable" != true ]]; then
+    test_skip "configured TMPDIR discovery requires tomllib"
+elif (
+    agent_type="codex"
+    ln -s "$POLICY_HOME/.ssh" "$POLICY_CODEX_HOME/escaping-tmp"
+    printf '[shell_environment_policy]\nset = { TMPDIR = "%s" }\n' "$POLICY_CODEX_HOME/escaping-tmp" \
+        > "$POLICY_CODEX_HOME/config.toml"
+    cmd_array=(true)
+    HOME="$POLICY_HOME" CODEX_HOME="$POLICY_CODEX_HOME" octopus_tangle_apply_execution_boundary || exit 1
+    boundary_binds_rw "$physical_policy_codex" && ! boundary_binds_rw "$physical_policy_home/.ssh"
+); then
+    test_pass
+else
+    test_fail "a configured symlink granted a writable mount outside physical CODEX_HOME"
+fi
+
+test_case "rejected CODEX_HOME cannot authorize a configured HOME TMPDIR"
+if [[ "$codex_toml_readable" != true ]]; then
+    test_skip "configured TMPDIR discovery requires tomllib"
+elif (
+    agent_type="codex"
+    OCTOPUS_TANGLE_RESULTS_DIR="$POLICY_HOME/rejected-codex/results"
+    # The first state holds HOME; the second holds the result channel. Their
+    # existing TMPDIR descendants must not inherit authorization from either.
+    for rejected_home in "$POLICY_HOME" "$POLICY_HOME/rejected-codex"; do
+        if [[ "$rejected_home" == "$POLICY_HOME" ]]; then configured_tmp="$POLICY_HOME/.ssh"
+        else configured_tmp="$rejected_home/tmp"; fi
+        printf '[shell_environment_policy]\nset = { TMPDIR = "%s" }\n' "$configured_tmp" \
+            > "$rejected_home/config.toml"
+        cmd_array=(true)
+        HOME="$POLICY_HOME" CODEX_HOME="$rejected_home" octopus_tangle_apply_execution_boundary || exit 1
+        ! boundary_binds_rw "$(cd "$rejected_home" && pwd -P)" || exit 1
+        ! boundary_binds_rw "$(cd "$configured_tmp" && pwd -P)" || exit 1
+    done
+    # This otherwise-safe state is rejected only because its configured
+    # symlink is hidden by the private /tmp. Its physical child needs no link.
+    ln -s "$POLICY_CODEX_HOME" "$TMP_LINK_ROOT/policy-hidden"
+    printf '[shell_environment_policy]\nset = { TMPDIR = "%s" }\n' "$POLICY_CODEX_HOME/tmp" \
+        > "$POLICY_CODEX_HOME/config.toml"
+    cmd_array=(true)
+    HOME="$POLICY_HOME" CODEX_HOME="$TMP_LINK_ROOT/policy-hidden" octopus_tangle_apply_execution_boundary || exit 1
+    ! boundary_binds_rw "$physical_policy_codex" || exit 1
+    ! boundary_binds_rw "$physical_policy_codex/tmp"
+); then
+    test_pass
+else
+    test_fail "a rejected CODEX_HOME still authorized writable HOME descendants"
+fi
+
 test_case "non-codex dispatch leaves the codex state read-only"
 agent_type="claude"
 cmd_array=(true)
@@ -365,6 +465,32 @@ if octopus_tangle_execution_boundary_probe; then
         test_pass
     else
         test_fail "codex could not write its state, or could write outside it and the worktree"
+    fi
+
+    test_case "a real worker config edit cannot make HOME writable on its next dispatch"
+    if [[ "$codex_toml_readable" != true ]]; then
+        test_skip "configured TMPDIR discovery requires tomllib"
+    elif (
+        agent_type="codex"
+        printf '[shell_environment_policy]\nset = { TMPDIR = "%s" }\n' "$CODEX_STATE_TMP" \
+            > "$POLICY_CODEX_HOME/config.toml"
+        # First dispatch modifies only the worker's writable state config.
+        cmd_array=(bash -c 'printf "[shell_environment_policy]\nset = { TMPDIR = \"%s\" }\n" "$2" > "$1/config.toml"' \
+                   _ "$POLICY_CODEX_HOME" "$POLICY_HOME/.ssh")
+        HOME="$POLICY_HOME" CODEX_HOME="$POLICY_CODEX_HOME" octopus_tangle_apply_execution_boundary || exit 1
+        "${cmd_array[@]}" || exit 1
+        rm -f "$POLICY_HOME/.ssh/forged" "$POLICY_CODEX_HOME/second-dispatch"
+        cmd_array=(bash -c 'touch "$1/second-dispatch" || exit 1
+                            touch "$2/forged" 2>/dev/null || true' \
+                   _ "$POLICY_CODEX_HOME" "$POLICY_HOME/.ssh")
+        HOME="$POLICY_HOME" CODEX_HOME="$POLICY_CODEX_HOME" octopus_tangle_apply_execution_boundary || exit 1
+        "${cmd_array[@]}" || exit 1
+        ! boundary_binds_rw "$physical_policy_home/.ssh" || exit 1
+        [[ -e "$POLICY_CODEX_HOME/second-dispatch" && ! -e "$POLICY_HOME/.ssh/forged" ]]
+    ); then
+        test_pass
+    else
+        test_fail "the next dispatch could write protected HOME after a worker-edited config"
     fi
 
     test_case "a symlinked codex state directory is bound and writable through its configured path"
