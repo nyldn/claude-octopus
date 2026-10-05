@@ -5951,10 +5951,10 @@ ink_deliver() {
         if grep -q "Quality Gate: FAILED" "$tangle_results" 2>/dev/null; then
             log WARN "Development phase has failed quality gate. Proceeding with caution."
             checks_passed=false
-        fi
 
-        # v8.18.0: Run retrospective on quality gate failure
-        retrospective_ceremony "$prompt" "Quality gate FAILED in tangle phase"
+            # v8.18.0: Run retrospective on quality gate failure
+            retrospective_ceremony "$prompt" "Quality gate FAILED in tangle phase"
+        fi
     fi
 
     # Step 2: Synthesize final output

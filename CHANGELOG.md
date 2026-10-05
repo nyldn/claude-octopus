@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Deliver no longer runs the "Quality gate FAILED in tangle phase"
+  retrospective after a tangle phase that passed or recorded no quality gate.
+  The ceremony ran whenever a tangle results file existed, adding a failure
+  retrospective of about two minutes to healthy runs. It now runs only when the
+  tangle results record `Quality Gate: FAILED`.
+
 ## [11.10.0] - 2026-10-02
 
 ### Added
