@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-10-04
+last_reviewed: 2026-10-05
 ---
 
 # PRODUCT.md
@@ -77,7 +77,7 @@ Frontier AI models will remain individually overconfident for the foreseeable fu
 
 ## Evidence
 
-**Traction (as of 2026-10-04):**
+**Traction (as of 2026-10-05):**
 - GitHub stars: 4,048
 - GitHub forks: 380
 - Local CI parity: `make ci-local` runs the same smoke, unit, and integration suites as CI

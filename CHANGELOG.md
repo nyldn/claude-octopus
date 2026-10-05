@@ -2,12 +2,20 @@
 
 ## [Unreleased]
 
-## [11.11.0] - 2026-10-04
+## [11.11.0] - 2026-10-05
 
 ### Added
 
 - API Route is available through `api-route-agent`, using its OpenAI-compatible
   endpoint. Set `API_ROUTE_API_KEY` and an explicit model pin or configured default.
+
+### Changed
+
+- Maintainer documentation designs hourly queue checks and daily release batches,
+  with tests, review and synchronized release artifacts required before publication.
+  The controller and recurring release schedule are not deployed by this change.
+- GitHub maintenance can edit PR descriptions through validated private snapshots,
+  using the same credential checks as other outbound comments.
 
 ### Fixed
 
