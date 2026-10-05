@@ -2,6 +2,17 @@
 
 Ordered checklist for shipping a release. Every step exists because skipping it has already broken CI at least once (v9.50.0 shipped in three CI rounds; all three failures were steps on this list). Human and agent contributors follow the same list.
 
+## Maintainer automation design
+
+[Maintainer queue and release automation](docs/MAINTAINER-AUTOMATION.md) designs
+hourly checks at :17 UTC and one daily release batch at 05:43 UTC. It requires
+independent approval and tests for the exact proposed commits, then verifies
+main CI, tag, release, documentation, manifests, source archives and the shared
+Octopus marketplace entry together. The controller and timers are not deployed
+by this documentation. The proposed controller defaults to read-only audit;
+installing the plugin adds no scheduled GitHub writes. Existing host schedules
+stay unchanged until explicit activation and recovery testing.
+
 ## 0. Preconditions
 
 - Work on a branch cut from current `main`. Branch protection is strict: the branch must be up to date with `main` at merge time, and the required checks are exactly **Smoke Tests**, **Unit Tests**, **Integration Tests**.
