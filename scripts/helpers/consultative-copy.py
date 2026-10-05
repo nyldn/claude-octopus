@@ -14,6 +14,10 @@ class UnsafeCopy(ValueError):
     pass
 
 
+class RegularFileAncestor(NotADirectoryError):
+    """An ancestor was already a regular file at the validation snapshot."""
+
+
 def identity(info):
     return info.st_dev, info.st_ino
 
@@ -75,7 +79,7 @@ class Directory:
         before = os.stat(name, dir_fd=parent, follow_symlinks=False)
         if not stat.S_ISDIR(before.st_mode):
             if stat.S_ISREG(before.st_mode):
-                raise NotADirectoryError(errno.ENOTDIR, 'directory ancestor is a regular file', name)
+                raise RegularFileAncestor(errno.ENOTDIR, 'directory ancestor is a regular file', name)
             raise UnsafeCopy('directory ancestor is not a real directory')
         child = os.open(name, cls.flags, dir_fd=parent)
         if identity(before) != identity(os.fstat(child)) or (expected is not None and identity(before) != expected):
@@ -211,7 +215,7 @@ def copy_tree(source, destination, scope=''):
         with contextlib.ExitStack() as stack:
             try:
                 parent, ancestors = stack.enter_context(source.descend(components[:-1]))
-            except (FileNotFoundError, NotADirectoryError):
+            except (FileNotFoundError, RegularFileAncestor):
                 continue
             try:
                 info = os.stat(components[-1], dir_fd=parent, follow_symlinks=False)

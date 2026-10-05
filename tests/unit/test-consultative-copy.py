@@ -358,6 +358,22 @@ class CopyContracts(unittest.TestCase):
             self.run_copy()
         self.assertTrue(swapped)
 
+    def test_directory_to_file_race_at_open_fails(self):
+        self.file('safe/deep/value')
+        original_open = os.open
+        swapped = False
+        def racing_open(path, *args, **kwargs):
+            nonlocal swapped
+            if path == 'deep' and kwargs.get('dir_fd') is not None and not swapped:
+                swapped = True
+                directory = self.source / 'safe/deep'
+                directory.rename(self.base / 'original')
+                directory.write_bytes(b'replaced after validation')
+            return original_open(path, *args, **kwargs)
+        with mock.patch.object(copy.os, 'open', side_effect=racing_open), self.assertRaises(NotADirectoryError):
+            self.run_copy()
+        self.assertTrue(swapped)
+
     def test_source_leaf_replacement_with_link_or_real_file_fails(self):
         for kind in ('symlink', 'file'):
             with self.subTest(kind=kind):
