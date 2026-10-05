@@ -222,6 +222,27 @@ octo_agent_spec_model_family() {
         model="$(octo_agent_spec_explicit_model "$spec" 2>/dev/null || true)"
     fi
 
+    case "$executor" in
+        api-route|api-route-*|apiroute)
+            if [[ -z "$effective_model" ]]; then
+                if ! declare -f octo_api_route_effective_model >/dev/null 2>&1; then
+                    source "${_octo_agent_spec_lib_dir}/api-route.sh" || { echo unknown; return; }
+                fi
+                if [[ -n "$model" ]]; then
+                    local pinned_model="$model"
+                    model="$(octo_api_route_effective_model "$pinned_model")" || model=""
+                    # Exact seats cannot substitute an allowlist fallback.
+                    [[ "$model" == "$pinned_model" ]] || model=""
+                else
+                    model="$(octo_api_route_effective_model)" || model=""
+                fi
+            fi
+            # Provider transport is never evidence of model independence.
+            octo_model_family "$model"
+            return
+            ;;
+    esac
+
     if [[ -n "$model" ]]; then
         prefix="$(octo_model_family "$model")"
         [[ "$prefix" != unknown ]] && { printf '%s\n' "$prefix"; return; }
@@ -238,7 +259,7 @@ octo_agent_spec_model_family() {
         kimi|kimi-*) echo moonshot ;;
         perplexity|perplexity-*) echo perplexity ;;
         copilot|copilot-*) echo microsoft ;;
-        commandcode|commandcode-*|openrouter|openrouter-*|opencode|opencode-*|openai-compatible|openai-compatible-*|atlascloud|atlascloud-*|cheaperinference|cheaperinference-*|api-route|api-route-*) echo multi ;;
+        commandcode|commandcode-*|openrouter|openrouter-*|opencode|opencode-*|openai-compatible|openai-compatible-*|atlascloud|atlascloud-*|cheaperinference|cheaperinference-*) echo multi ;;
         ollama|ollama-*) echo local ;;
         *) echo unknown ;;
     esac

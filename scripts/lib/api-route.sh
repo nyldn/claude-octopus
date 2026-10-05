@@ -21,9 +21,10 @@ octo_api_route_model() {
     fi
     [[ -n "$model" && "$model" != /* ]] || return 1
     [[ "$model" =~ [[:cntrl:]] ]] && return 1
-    # Match the dispatch model-name grammar without loading the model resolver.
+    # Commas delimit allowlist entries and cannot be part of one model token.
+    # Match the remaining dispatch grammar without loading the model resolver.
     case "$model" in
-        *[[:space:]]*|*\\*|*';'*|*'|'*|*'&'*|*'$'*|*'`'*|*"'"*|*'"'*|*'('*|*')'*|*'<'*|*'>'*|*'!'*|*'*'*|*'?'*|*'['*|*']'*|*'{'*|*'}'*) return 1 ;;
+        *[[:space:]]*|*','*|*\\*|*';'*|*'|'*|*'&'*|*'$'*|*'`'*|*"'"*|*'"'*|*'('*|*')'*|*'<'*|*'>'*|*'!'*|*'*'*|*'?'*|*'['*|*']'*|*'{'*|*'}'*) return 1 ;;
     esac
     printf '%s\n' "$model"
 }

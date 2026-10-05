@@ -11,6 +11,8 @@
 
 ### Fixed
 
+- API Route fleet diversity follows the configured effective model family;
+  comma-bearing model tokens cannot bypass the model allowlist.
 - `/octo:debug`'s scoped freeze guard keys its state file on `CLAUDE_CODE_SESSION_ID`,
   as `/octo:freeze` and `/octo:unfreeze` do. On Claude Code v2.1.132 and newer it was
   keyed on the shell PID, so the freeze hook never enforced the boundary and
@@ -37,6 +39,8 @@
   ignore rules, nested repository content, file modes and timestamps, and path
   confinement.
   Unsupported descriptor operations retain the portable shell fallback.
+  Deleted indexed descendants beneath a replacement regular file are skipped;
+  directory races remain fatal, and file-wrapper failures release owned descriptors.
 - Parallel research children claim lock ownership atomically, preserving the
   first creator's prompt and manifest when `mkdir` reports success after losing
   a concurrent directory-creation race (#1166).

@@ -2,6 +2,7 @@
 """Filesystem-level contracts for the default descriptor-based advisory copy."""
 
 import importlib.util
+import errno
 import os
 from pathlib import Path
 import stat
@@ -85,6 +86,100 @@ class CopyContracts(unittest.TestCase):
         self.run_copy()
         self.assertEqual((self.destination / 'deep/safe').read_bytes(), b'safe bytes')
         self.assertEqual(os.readlink(self.destination / 'deep/dangling'), '../missing/value')
+
+    def test_deleted_index_descendant_under_regular_file_is_skipped(self):
+        self.file('a/b').unlink()
+        (self.source / 'a').rmdir()
+        self.file('a', b'replacement bytes', tracked=False)
+        self.run_copy()
+        self.assertEqual((self.destination / 'a').read_bytes(), b'replacement bytes')
+
+    def test_deleted_index_descendant_under_unsafe_ancestor_is_fatal(self):
+        self.file('a/b').unlink()
+        (self.source / 'a').rmdir()
+        self.file('contained/value')
+        for kind in ('symlink', 'fifo'):
+            with self.subTest(kind=kind):
+                if kind == 'symlink':
+                    (self.source / 'a').symlink_to('contained')
+                else:
+                    os.mkfifo(self.source / 'a')
+                try:
+                    with copy.Directory(str(self.source)) as source:
+                        with self.assertRaises(copy.UnsafeCopy):
+                            copy.Directory.child(source.fd, 'a')
+                    with self.assertRaises(copy.UnsafeCopy):
+                        self.run_copy()
+                finally:
+                    (self.source / 'a').unlink()
+
+    def test_directory_type_change_after_stat_is_not_a_deleted_index_entry(self):
+        self.file('safe/value')
+        original_open = os.open
+        for kind in ('file', 'symlink', 'missing'):
+            with self.subTest(kind=kind):
+                swapped = False
+                def racing_open(path, *args, **kwargs):
+                    nonlocal swapped
+                    if path == 'safe' and kwargs.get('dir_fd') is not None and not swapped:
+                        swapped = True
+                        (self.source / 'safe').rename(self.base / 'original')
+                        if kind == 'file':
+                            (self.source / 'safe').write_bytes(b'replacement')
+                        elif kind == 'symlink':
+                            (self.source / 'safe').symlink_to(self.outside)
+                    return original_open(path, *args, **kwargs)
+                try:
+                    with mock.patch.object(copy.os, 'open', side_effect=racing_open):
+                        with self.assertRaises(copy.UnsafeCopy):
+                            self.run_copy()
+                    self.assertTrue(swapped)
+                finally:
+                    if (self.source / 'safe').exists() or (self.source / 'safe').is_symlink():
+                        (self.source / 'safe').unlink()
+                    (self.base / 'original').rename(self.source / 'safe')
+
+    def test_file_wrapper_failures_and_success_close_each_raw_descriptor_once(self):
+        target = self.file('value')
+        original_fdopen, original_close = os.fdopen, os.close
+        for stage in ('input', 'output', 'success'):
+            with self.subTest(stage=stage):
+                captured, closed, ownership = [], [], []
+                def wrapping(fd, mode, *args, **kwargs):
+                    captured.append(fd)
+                    ownership.append(kwargs.get('closefd', True))
+                    if (stage == 'input' and mode == 'rb') or (stage == 'output' and mode == 'wb'):
+                        raise OSError(errno.EMFILE, 'inert file-wrapper factory failure')
+                    return original_fdopen(fd, mode, *args, **kwargs)
+                def closing(fd):
+                    closed.append(fd)
+                    return original_close(fd)
+                with copy.Directory(str(self.source)) as source, copy.Directory(str(self.destination)) as destination:
+                    try:
+                        with mock.patch.object(copy.os, 'fdopen', side_effect=wrapping), \
+                                mock.patch.object(copy.os, 'close', side_effect=closing):
+                            if stage == 'success':
+                                copy.copy_regular(source.fd, destination.fd, 'value', target.stat())
+                            else:
+                                with self.assertRaises(OSError):
+                                    copy.copy_regular(source.fd, destination.fd, 'value', target.stat())
+                        self.assertEqual(ownership, [False] * len(captured))
+                        for fd in captured:
+                            self.assertEqual(closed.count(fd), 1)
+                            with self.assertRaises(OSError):
+                                os.fstat(fd)
+                    finally:
+                        # Mutant controls must not leak descriptors into later cases.
+                        for fd in captured:
+                            try:
+                                os.fstat(fd)
+                            except OSError:
+                                continue
+                            original_close(fd)
+                if stage == 'success':
+                    self.assertEqual((self.destination / 'value').read_bytes(), b'safe bytes')
+                if (self.destination / 'value').exists():
+                    (self.destination / 'value').unlink()
 
     def test_absolute_escaping_and_resolved_escaping_links_fail(self):
         (self.outside / 'secret').write_bytes(b'outside bytes')

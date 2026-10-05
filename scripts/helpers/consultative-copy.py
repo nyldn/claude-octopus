@@ -2,6 +2,7 @@
 """Copy eligible Git working-tree bytes through inode-checked directory FDs."""
 
 import contextlib
+import errno
 import os
 import re
 import stat
@@ -73,8 +74,17 @@ class Directory:
                 pass
         before = os.stat(name, dir_fd=parent, follow_symlinks=False)
         if not stat.S_ISDIR(before.st_mode):
+            if stat.S_ISREG(before.st_mode):
+                raise NotADirectoryError(errno.ENOTDIR, 'directory ancestor is a regular file', name)
             raise UnsafeCopy('directory ancestor is not a real directory')
-        child = os.open(name, cls.flags, dir_fd=parent)
+        try:
+            child = os.open(name, cls.flags, dir_fd=parent)
+        except OSError as error:
+            # A directory already observed above cannot become a skipped index
+            # deletion when it disappears or changes type before the open.
+            if error.errno in (errno.ENOENT, errno.ENOTDIR):
+                raise UnsafeCopy('directory changed before entry') from error
+            raise
         if identity(before) != identity(os.fstat(child)) or (expected is not None and identity(before) != expected):
             os.close(child)
             raise UnsafeCopy('directory identity changed before entry')
@@ -168,28 +178,33 @@ def copy_leaf(source, destination, relative, info, ancestors, scope):
 
 
 def copy_regular(parent, output_parent, name, expected):
-    source_fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
-    with os.fdopen(source_fd, 'rb', buffering=0) as input_file:
-        before = os.fstat(input_file.fileno())
-        if not stat.S_ISREG(before.st_mode) or identity(before) != identity(expected):
-            raise UnsafeCopy('source leaf changed before open')
-        output_fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
-                            0o600, dir_fd=output_parent)
-        with os.fdopen(output_fd, 'wb') as output_file:
-            remaining = before.st_size
-            while remaining:
-                chunk = input_file.read(min(remaining, 1024 * 1024))
-                if not chunk:
-                    raise UnsafeCopy('source bytes truncated during copy')
-                output_file.write(chunk)
-                remaining -= len(chunk)
-            output_file.flush()
-            after = os.fstat(input_file.fileno())
-            if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (after.st_size, after.st_mtime_ns, after.st_ctime_ns):
-                raise UnsafeCopy('source bytes changed during copy')
-            os.fchmod(output_file.fileno(), stat.S_IMODE(before.st_mode))
-            os.utime(output_file.fileno(), ns=(before.st_atime_ns, before.st_mtime_ns))
-            return os.fstat(output_file.fileno())
+    # File wrappers never own these descriptors, including when their factory
+    # fails. The stack closes each raw FD once after buffered wrappers close.
+    with contextlib.ExitStack() as descriptors:
+        source_fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+        descriptors.callback(os.close, source_fd)
+        with os.fdopen(source_fd, 'rb', buffering=0, closefd=False) as input_file:
+            before = os.fstat(input_file.fileno())
+            if not stat.S_ISREG(before.st_mode) or identity(before) != identity(expected):
+                raise UnsafeCopy('source leaf changed before open')
+            output_fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                                0o600, dir_fd=output_parent)
+            descriptors.callback(os.close, output_fd)
+            with os.fdopen(output_fd, 'wb', closefd=False) as output_file:
+                remaining = before.st_size
+                while remaining:
+                    chunk = input_file.read(min(remaining, 1024 * 1024))
+                    if not chunk:
+                        raise UnsafeCopy('source bytes truncated during copy')
+                    output_file.write(chunk)
+                    remaining -= len(chunk)
+                output_file.flush()
+                after = os.fstat(input_file.fileno())
+                if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (after.st_size, after.st_mtime_ns, after.st_ctime_ns):
+                    raise UnsafeCopy('source bytes changed during copy')
+                os.fchmod(output_file.fileno(), stat.S_IMODE(before.st_mode))
+                os.utime(output_file.fileno(), ns=(before.st_atime_ns, before.st_mtime_ns))
+                return os.fstat(output_file.fileno())
 
 
 def copy_tree(source, destination, scope=''):
@@ -208,7 +223,7 @@ def copy_tree(source, destination, scope=''):
         with contextlib.ExitStack() as stack:
             try:
                 parent, ancestors = stack.enter_context(source.descend(components[:-1]))
-            except FileNotFoundError:
+            except (FileNotFoundError, NotADirectoryError):
                 continue
             try:
                 info = os.stat(components[-1], dir_fd=parent, follow_symlinks=False)

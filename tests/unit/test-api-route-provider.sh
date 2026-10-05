@@ -45,10 +45,43 @@ rm -f "$OCTOPUS_PROVIDERS_CONFIG"
 
 test_case "unsafe model ids fail closed"
 bad=false
-for model in 'bad;touch' '/tmp/model' 'two words' 'model\' 'model$(cmd)' ''; do
+for model in 'bad;touch' '/tmp/model' 'two words' 'model\' 'model$(cmd)' 'modelA,modelB' ''; do
     if octo_api_route_model "$model" >/dev/null; then bad=true; fi
 done
 if [[ "$bad" == false ]]; then test_pass; else test_fail "unsafe model accepted"; fi
+
+test_case "comma-bearing models cannot spoof a CSV allowlist entry"
+if ! API_ROUTE_ALLOWED_MODELS=modelA,modelB,modelC octo_api_route_effective_model modelA,modelB >/dev/null &&
+   ! API_ROUTE_MODEL=modelA,modelB API_ROUTE_ALLOWED_MODELS=modelA,modelB,modelC octo_api_route_effective_model >/dev/null &&
+   ! PWD=/tmp/octo-cwd API_ROUTE_MODEL=modelA,modelB API_ROUTE_ALLOWED_MODELS=modelA,modelB,modelC \
+        get_agent_command api-route-agent review code-reviewer >/dev/null 2>&1 &&
+   ! API_ROUTE_API_KEY=fixture-key API_ROUTE_ALLOWED_MODELS=modelA,modelB,modelC \
+        is_agent_available_v2 api-route-agent:modelA,modelB &&
+   [[ "$(API_ROUTE_ALLOWED_MODELS=modelA,modelB,modelC octo_api_route_effective_model modelB)" == modelB ]]; then
+    test_pass
+else
+    test_fail "a composite model crossed the allowlist admission boundary"
+fi
+
+test_case "API Route family follows configured, exact and supplied effective models"
+if [[ "$(API_ROUTE_MODEL=gpt-5.4 octo_agent_spec_model_family api-route-agent)" == openai ]] &&
+   [[ "$(OCTOPUS_API_ROUTE_MODEL=deepseek-v4.1-flash octo_agent_spec_model_family apiroute)" == deepseek ]] &&
+   [[ "$(API_ROUTE_MODEL=gpt-5.4 octo_agent_spec_model_family api-route-agent:deepseek-v4.1-flash)" == deepseek ]] &&
+   [[ "$(API_ROUTE_MODEL=gpt-5.4 octo_agent_spec_model_family api-route-agent gemini-3.5-flash)" == google ]] &&
+   [[ "$(API_ROUTE_MODEL=blocked API_ROUTE_ALLOWED_MODELS=gpt-5.4-mini octo_agent_spec_model_family api-route-agent)" == openai ]] &&
+   [[ "$(API_ROUTE_MODEL=gpt-5.4 API_ROUTE_ALLOWED_MODELS=deepseek-v4.1-flash octo_agent_spec_model_family api-route-agent:gpt-5.4)" == unknown ]] &&
+   [[ "$(API_ROUTE_MODEL=unrecognized-model octo_agent_spec_model_family api-route-agent)" == unknown ]] &&
+   [[ "$(octo_agent_spec_model_family api-route-agent)" == unknown ]]; then
+    test_pass
+else
+    test_fail "transport or blocked exact pin was treated as model-family evidence"
+fi
+
+test_case "API Route configured default supplies its model family"
+printf '%s\n' '{"providers":{"api-route":{"default":"gpt-5.4"}}}' > "$OCTOPUS_PROVIDERS_CONFIG"
+family="$(octo_agent_spec_model_family api-route-agent)"
+rm -f "$OCTOPUS_PROVIDERS_CONFIG"
+if [[ "$family" == openai ]]; then test_pass; else test_fail "configured default family was lost"; fi
 
 test_case "API Route alias and exact seats canonicalize"
 if [[ "$(octo_provider_canonical apiroute)" == api-route ]] &&
@@ -154,6 +187,23 @@ if [[ "$fleet" == *'openai-compatible|Cross-Synthesis|'* && "$fleet" != *'api-ro
     test_pass
 else
     test_fail "gateway diversity admission changed: $fleet"
+fi
+
+test_case "fleet ordering and family totals use the configured API Route model"
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" codex:available api-route:available\n' > "$checker"
+same_fleet="$(OCTO_ALLOWED_PROVIDERS=codex,api-route,claude OCTOPUS_PROVIDER_CHECKER="$checker" \
+    API_ROUTE_MODEL=gpt-5.4 bash "$PROJECT_ROOT/scripts/helpers/build-fleet.sh" research quick fixture \
+    2> "$TEST_HOME/same-family.log")"
+different_fleet="$(OCTO_ALLOWED_PROVIDERS=codex,api-route,claude OCTOPUS_PROVIDER_CHECKER="$checker" \
+    API_ROUTE_MODEL=deepseek-v4.1-flash bash "$PROJECT_ROOT/scripts/helpers/build-fleet.sh" research quick fixture \
+    2> "$TEST_HOME/different-family.log")"
+if [[ "$same_fleet" == *'claude-sonnet|Ecosystem Overview|'* && "$same_fleet" != *'api-route-agent|Ecosystem Overview|'* ]] &&
+   [[ "$(cat "$TEST_HOME/same-family.log")" == *'families=2 '* ]] &&
+   [[ "$different_fleet" == *'api-route-agent|Ecosystem Overview|'* ]] &&
+   [[ "$(cat "$TEST_HOME/different-family.log")" == *'families=3 '* ]]; then
+    test_pass
+else
+    test_fail "fleet claimed transport diversity instead of resolved model diversity"
 fi
 
 test_case "only the selected API Route credential crosses the child boundary"
