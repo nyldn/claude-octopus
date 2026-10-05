@@ -116,8 +116,23 @@ _octo_event_reclaim_stale_lock() {
 
 _octo_event_lock() {
     local lockdir="$1.lock"
-    local tries=0 reclaim_rc
-    while ! mkdir "$lockdir" 2>/dev/null; do
+    local tries=0 reclaim_rc claim_rc owner="${BASHPID:-$$}"
+    # A mkdir utility can report success after losing a creation race. Claim
+    # the PID file exclusively too, before entering or replacing owner metadata.
+    while :; do
+        if mkdir "$lockdir" 2>/dev/null; then
+            if (set -C; exec 3> "$lockdir/pid" || exit 75
+                printf '%s\n' "$owner" >&3 || exit 1) 2>/dev/null; then
+                break
+            else
+                claim_rc=$?
+                if [[ "$claim_rc" -ne 75 ]]; then
+                    rm -f "$lockdir/pid" 2>/dev/null || true
+                    rmdir "$lockdir" 2>/dev/null || true
+                    return 1
+                fi
+            fi
+        fi
         tries=$((tries + 1))
         if [[ "$tries" -ge 50 ]]; then
             if _octo_event_reclaim_stale_lock "$lockdir"; then
@@ -131,8 +146,7 @@ _octo_event_lock() {
         fi
         sleep 0.02 2>/dev/null || return 1
     done
-    if ! printf '%s\n' "${BASHPID:-$$}" > "$lockdir/pid" 2>/dev/null ||
-       ! date +%s > "$lockdir/ts" 2>/dev/null; then
+    if ! date +%s > "$lockdir/ts" 2>/dev/null; then
         rm -f "$lockdir/pid" "$lockdir/ts" 2>/dev/null || true
         rmdir "$lockdir" 2>/dev/null || true
         return 1

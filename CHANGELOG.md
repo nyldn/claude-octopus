@@ -54,6 +54,8 @@
 - Parallel research children claim lock ownership atomically, preserving the
   first creator's prompt and manifest when `mkdir` reports success after losing
   a concurrent directory-creation race (#1166).
+- Event capture locks also claim their owner PID exclusively, so a raced
+  `mkdir` success cannot admit two holders or overwrite the active owner.
 
 ## [11.10.0] - 2026-10-02
 
