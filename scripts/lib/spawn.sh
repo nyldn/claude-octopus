@@ -436,7 +436,7 @@ octopus_tangle_codex_state_dirs() {
     config_toml="$codex_home/config.toml"
     [[ -f "$config_toml" ]] || return 0
     if command -v python3 >/dev/null 2>&1; then
-        config_tmpdir=$(python3 -c 'import sys
+        config_tmpdir=$(python3 -I -c 'import sys
 try:
     import tomllib
 except ImportError:

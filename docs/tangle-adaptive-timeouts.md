@@ -8,7 +8,7 @@ Configuration:
 - `OCTOPUS_TANGLE_STALL_WINDOW`: maximum seconds without observable provider/worktree progress before a coding agent is classified as stalled. Default: `900` for implementers and `1500` for implementer-heavy. Must be a positive integer.
 - `OCTOPUS_TANGLE_STALL_POLL_SECS`: progress-check interval in seconds. Default: `30`. Must be a positive integer.
 
-A stalled provider is terminated through the supervised process-group path and recorded as `STALLED - PARTIAL RESULTS` instead of `TIMEOUT`. Tangle's optional workflow-wide deadline remains separate from per-agent stall supervision.
+A stalled provider is terminated through the supervised process-group path and recorded as `STALLED - PARTIAL RESULTS` instead of `TIMEOUT`. Tangle's optional per-pass completion deadline remains separate from per-agent stall supervision.
 
 The initial subtask pass and quality-gate retry passes use the same completion
 watcher. `OCTOPUS_TANGLE_DEADLINE` sets an optional wall-clock wait budget in

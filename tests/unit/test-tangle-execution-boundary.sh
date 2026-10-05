@@ -159,6 +159,26 @@ else
     test_pass
 fi
 
+test_case "codex config discovery ignores repository Python startup hooks"
+startup_poison="$CODEX_ROOT/python-startup-poison"
+startup_marker="$CODEX_ROOT/python-startup-fired"
+mkdir -p "$startup_poison"
+cat > "$startup_poison/sitecustomize.py" <<'PY'
+import os
+with open(os.environ["OCTOPUS_BOUNDARY_STARTUP_MARKER"], "w") as marker:
+    marker.write("unexpected Python startup hook")
+PY
+CODEX_HOME="$CODEX_STATE_HOME"
+cmd_array=(true)
+if PYTHONPATH="$startup_poison" OCTOPUS_BOUNDARY_STARTUP_MARKER="$startup_marker" \
+   octopus_tangle_apply_execution_boundary && \
+   [[ ! -e "$startup_marker" ]] && boundary_binds_rw "$physical_codex_home" && \
+   { [[ "$codex_toml_readable" != true ]] || boundary_binds_rw "$physical_codex_tmp"; }; then
+    test_pass
+else
+    test_fail "pre-boundary config discovery executed a Python startup hook or lost safe state mounts"
+fi
+
 test_case "non-codex dispatch leaves the codex state read-only"
 agent_type="claude"
 cmd_array=(true)
@@ -281,6 +301,7 @@ else
     mkdir -p "$no_tomllib_bin"
     cat > "$no_tomllib_bin/python3" <<EOF
 #!/usr/bin/env bash
+[[ "\${1:-}" != "-I" ]] || shift
 [[ "\${1:-}" == "-c" ]] || exec "$real_python3" "\$@"
 code="\$2"
 shift 2

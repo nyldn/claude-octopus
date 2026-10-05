@@ -30,7 +30,8 @@
   restore signal traps; retries retain usable sibling and partial results.
 - Consultative Git workspaces copy selected working-tree bytes through held
   directory descriptors, reducing per-file process spawning while preserving
-  ignore rules, nested repository content, metadata, and path confinement.
+  ignore rules, nested repository content, file modes and timestamps, and path
+  confinement.
   Unsupported descriptor operations retain the portable shell fallback.
 
 
