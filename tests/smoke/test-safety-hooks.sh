@@ -403,11 +403,13 @@ test_debug_skill_autofreeze_reaches_hook() {
         (cd "$work" && env -u CLAUDE_SESSION_ID "CLAUDE_CODE_SESSION_ID=$sid" bash -c "$block") >/dev/null
         [[ "$(cat "$sf" 2>/dev/null)" == "$work/outside" ]] || fails+=" $label:replaced-existing-freeze"
 
-        # An empty state file names no boundary (the hook denies every edit on it), so the
-        # block replaces it with the module.
+        # Empty state is refused for inspection, with the hook still failing closed.
         : > "$sf"
-        (cd "$work" && env -u CLAUDE_SESSION_ID "CLAUDE_CODE_SESSION_ID=$sid" bash -c "$block") >/dev/null
-        [[ "$(cat "$sf" 2>/dev/null)" == "$(cd "$work/module" && pwd -P)" ]] || fails+=" $label:kept-empty-freeze"
+        rc=0
+        (cd "$work" && env -u CLAUDE_SESSION_ID "CLAUDE_CODE_SESSION_ID=$sid" bash -c "$block") >/dev/null 2>&1 || rc=$?
+        (( rc != 0 )) || fails+=" $label:admitted-empty-state"
+        [[ -f "$sf" && ! -s "$sf" ]] || fails+=" $label:changed-empty-state"
+        [[ "$(_freeze_decides "$work/outside/x.txt")" == deny ]] || fails+=" $label:empty-state-outside-edit-not-denied"
         rm -f "$sf"
     done
 

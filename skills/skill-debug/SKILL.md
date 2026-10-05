@@ -71,13 +71,34 @@ to a physical directory before editing and activate the existing freeze guard:
 freeze_dir="$(cd "<module-directory>" 2>/dev/null && pwd -P)" || exit 1
 _OCTO_SESSION_ID="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-$$}}"
 _OCTO_FREEZE_FILE="/tmp/octopus-freeze-${_OCTO_SESSION_ID}.txt"
-_OCTO_ACTIVE_FREEZE="$(cat "$_OCTO_FREEZE_FILE" 2>/dev/null)"
-if [[ -n "$_OCTO_ACTIVE_FREEZE" ]]; then
-    printf 'Freeze already active at %s; left unchanged.\n' "$_OCTO_ACTIVE_FREEZE"
+if [[ -e "$_OCTO_FREEZE_FILE" || -L "$_OCTO_FREEZE_FILE" ]]; then
+    if [[ -f "$_OCTO_FREEZE_FILE" && ! -L "$_OCTO_FREEZE_FILE" &&
+          -O "$_OCTO_FREEZE_FILE" && -s "$_OCTO_FREEZE_FILE" ]]; then
+        printf 'Freeze already active; left unchanged.\n'
+    else
+        printf 'Unsafe or empty freeze state; stop and inspect it before retrying.\n' >&2
+        exit 1
+    fi
 else
-    printf '%s\n' "$freeze_dir" > "$_OCTO_FREEZE_FILE"
+    (umask 077; python3 - "$_OCTO_FREEZE_FILE" "$freeze_dir" <<'PYFREEZE'
+import os
+import sys
+
+try:
+    fd = os.open(sys.argv[1], os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as state:
+        state.write(sys.argv[2] + "\n")
+except OSError:
+    raise SystemExit("Freeze activation failed; inspect the state before retrying.")
+PYFREEZE
+    ) || exit 1
 fi
 ```
+
+Activation requires Python 3, as freeze enforcement does. Existing empty,
+symlinked or nonregular state is refused for manual inspection; active state
+contents are never read or printed by this activation check. Exclusive creation
+refuses a state path introduced after the check.
 
 A freeze that is already active (from `/octo:freeze`, `/octo:guard` or an
 earlier workflow) stays as it is: do not replace it, and do not remove it when

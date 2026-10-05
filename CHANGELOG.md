@@ -19,6 +19,9 @@
 
 ### Fixed
 
+- Debug freeze activation preserves an existing owned freeze without reading or
+  printing its contents, refuses unsafe state, and creates new state exclusively.
+
 - Native `CLAUDE_MODEL` overrides bypass warm session model caches, so Claude
   seats honor the current pin consistently across processes and restore role routes when unset.
 - API Route fleet diversity follows the configured effective model family;
