@@ -22,6 +22,9 @@
 - Debug freeze activation preserves an existing owned freeze without reading or
   printing its contents, refuses unsafe state, and creates new state exclusively.
 
+- Tangle deadline cleanup rechecks a worker that exits during PID inspection,
+  while unverified live workers still stop supervision, including with a late marker.
+
 - Native `CLAUDE_MODEL` overrides bypass warm session model caches, so Claude
   seats honor the current pin consistently across processes and restore role routes when unset.
 - API Route fleet diversity follows the configured effective model family;

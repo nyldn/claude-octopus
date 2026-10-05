@@ -3079,12 +3079,21 @@ tangle_wait_for_subtasks() {
                                 break
                             fi
                         done <<< "$_rows"
-                        if [[ -z "$_identity" ]] || ! review_kill_process_tree_frozen "$_worker_pid" "$_identity"; then
-                            log ERROR "Cannot verify complete deadline cleanup for ${task_ids[$i]}; retaining registrations"
-                            return 1
+                        if [[ -z "$_identity" ]]; then
+                            # The worker can exit while the ledger is inspected.
+                            # A late marker alone never excuses an unverified live PID.
+                            if tangle_process_is_active_non_zombie "$_worker_pid"; then
+                                log ERROR "Cannot verify complete deadline cleanup for ${task_ids[$i]}; retaining registrations"
+                                return 1
+                            fi
+                        else
+                            if ! review_kill_process_tree_frozen "$_worker_pid" "$_identity"; then
+                                log ERROR "Cannot verify complete deadline cleanup for ${task_ids[$i]}; retaining registrations"
+                                return 1
+                            fi
+                            wait "$_worker_pid" 2>/dev/null || true
+                            octopus_pid_retire "$_worker_pid" "${task_ids[$i]}" "$_identity" || return 1
                         fi
-                        wait "$_worker_pid" 2>/dev/null || true
-                        octopus_pid_retire "$_worker_pid" "${task_ids[$i]}" "$_identity" || return 1
                     fi
                     mkdir -p "$_done_dir" 2>/dev/null || true
                     if [[ ! -f "$_done_file" ]] && ! echo "timeout" > "$_done_file" 2>/dev/null; then
