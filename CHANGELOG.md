@@ -21,10 +21,8 @@
 
 - Debug freeze activation preserves an existing owned freeze without reading or
   printing its contents, refuses unsafe state, and creates new state exclusively.
-
 - Tangle deadline cleanup rechecks a worker that exits during PID inspection,
   while unverified live workers still stop supervision, including with a late marker.
-
 - Native `CLAUDE_MODEL` overrides bypass warm session model caches, so Claude
   seats honor the current pin consistently across processes and restore role routes when unset.
 - API Route fleet diversity follows the configured effective model family;
@@ -43,8 +41,6 @@
   persistent writes. Python is required for inspection, and configured TMPDIR
   requires `tomllib`. Default SQLite state uses private storage on Codex 0.160;
   explicit `sqlite_home` settings remain subject to the read-only boundary.
-
-
 - Codex Tangle preserves existing configuration when spawn disables shell
   globbing, keeps caller glob options unchanged, and canonicalizes HOME only
   for the implicit state directory. Explicit CODEX_HOME aliases remain refused.
@@ -65,6 +61,10 @@
   a concurrent directory-creation race (#1166).
 - Event capture locks also claim their owner PID exclusively, so a raced
   `mkdir` success cannot admit two holders or overwrite the active owner.
+- Event lock cleanup stays attached to the inspected directory, preserving a
+  replacement caller's metadata during stale reclamation and failed writes.
+  Durable locking requires `python3` for kernel directory admission; missing
+  runtimes fail closed, while optional event logging retains its best-effort fallback.
 
 ## [11.10.0] - 2026-10-02
 

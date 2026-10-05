@@ -42,7 +42,7 @@ printf '%s\n' "$$" > "$target.lock/pid"
 printf '1\n' > "$target.lock/ts"
 (
     attempts=0 waits=0
-    mkdir() { attempts=$((attempts + 1)); return 1; }
+    _octo_event_mkdir() { attempts=$((attempts + 1)); return 75; }
     sleep() { [[ "$1" == 0.02 ]] || return 1; waits=$((waits + 1)); }
     rc=0; _octo_event_lock "$target" || rc=$?
     [[ "$rc" == 75 && "$attempts" == 50 && "$waits" == 49 ]]
