@@ -133,6 +133,7 @@ def confined_link(root, relative, target, scope=''):
 
 def copy_leaf(source, destination, relative, info, ancestors, scope):
     components = parts(relative)
+    output_target = None
     source.check()
     destination.check()
     with source.descend(components[:-1], ancestors) as (parent, unused):
@@ -142,14 +143,19 @@ def copy_leaf(source, destination, relative, info, ancestors, scope):
         with destination.descend(components[:-1], create=True) as (output_parent, output_ancestors):
             if stat.S_ISLNK(current.st_mode):
                 target = os.readlink(components[-1], dir_fd=parent)
+                output_target = target
                 confined_link(source, relative, target, scope)
                 if identity(os.stat(components[-1], dir_fd=parent, follow_symlinks=False)) != identity(current):
                     raise UnsafeCopy('source symlink changed during read')
                 os.symlink(target, components[-1], dir_fd=output_parent)
+                created_identity = identity(os.stat(components[-1], dir_fd=output_parent, follow_symlinks=False))
                 os.utime(components[-1], ns=(current.st_atime_ns, current.st_mtime_ns),
                          dir_fd=output_parent, follow_symlinks=False)
+                output_info = os.stat(components[-1], dir_fd=output_parent, follow_symlinks=False)
+                if identity(output_info) != created_identity:
+                    raise UnsafeCopy('destination symlink changed during creation')
             elif stat.S_ISREG(current.st_mode):
-                copy_regular(parent, output_parent, components[-1], current)
+                output_info = copy_regular(parent, output_parent, components[-1], current)
             else:
                 raise UnsafeCopy('unsupported source leaf')
         # A replaced destination ancestor cannot make a successful copy vanish
@@ -158,6 +164,7 @@ def copy_leaf(source, destination, relative, info, ancestors, scope):
             pass
     source.check()
     destination.check()
+    return output_info, output_ancestors, output_target
 
 
 def copy_regular(parent, output_parent, name, expected):
@@ -182,6 +189,7 @@ def copy_regular(parent, output_parent, name, expected):
                 raise UnsafeCopy('source bytes changed during copy')
             os.fchmod(output_file.fileno(), stat.S_IMODE(before.st_mode))
             os.utime(output_file.fileno(), ns=(before.st_atime_ns, before.st_mtime_ns))
+            return os.fstat(output_file.fileno())
 
 
 def copy_tree(source, destination, scope=''):
@@ -191,6 +199,7 @@ def copy_tree(source, destination, scope=''):
     entries = dict.fromkeys(os.fsdecode(p).rstrip('/') for p in tracked if p)
     entries.update(dict.fromkeys(os.fsdecode(p).rstrip('/') for p in untracked if p and not generated(os.fsdecode(p))))
     leaves = []
+    materialized = []
     for relative in entries:
         source.check()
         if scope and not relative.startswith(scope + '/') and relative != scope:
@@ -206,21 +215,35 @@ def copy_tree(source, destination, scope=''):
             except FileNotFoundError:
                 continue  # Deleted index entries have no working-tree bytes.
             if stat.S_ISDIR(info.st_mode):
-                nested(source, destination, relative, info, ancestors)
+                materialized.extend(nested(source, destination, relative, info, ancestors))
             elif stat.S_ISREG(info.st_mode) or stat.S_ISLNK(info.st_mode):
                 leaves.append((relative, info, ancestors))
             else:
                 raise UnsafeCopy('unsupported source entry')
     for relative, info, ancestors in leaves:
-        copy_leaf(source, destination, relative, info, ancestors, scope)
+        output_info, output_ancestors, output_target = copy_leaf(source, destination, relative, info, ancestors, scope)
+        materialized.append((relative, stat.S_IFMT(info.st_mode), output_info, output_ancestors, output_target))
     source.check()
     destination.check()
-    # Validate the final link graph, including targets copied after the link.
-    for relative, info, ancestors in leaves:
-        if stat.S_ISLNK(info.st_mode):
-            with destination.descend(parts(relative)[:-1]) as (parent, unused):
-                target = os.readlink(parts(relative)[-1], dir_fd=parent)
-            confined_link(destination, relative, target, scope)
+    # Every produced leaf, including nested trees, must still be the inode we
+    # wrote when the complete tree succeeds. Validate the final link graph too.
+    for relative, kind, output_info, output_ancestors, output_target in materialized:
+        components = parts(relative)
+        with destination.descend(components[:-1], output_ancestors) as (parent, unused):
+            current = os.stat(components[-1], dir_fd=parent, follow_symlinks=False)
+            if stat.S_IFMT(current.st_mode) != kind or identity(current) != identity(output_info):
+                raise UnsafeCopy('destination leaf changed after copy')
+            if ((current.st_size, current.st_mode, current.st_mtime_ns, current.st_ctime_ns) !=
+                    (output_info.st_size, output_info.st_mode, output_info.st_mtime_ns, output_info.st_ctime_ns)):
+                raise UnsafeCopy('destination bytes or metadata changed after copy')
+            if stat.S_ISLNK(kind):
+                target = os.readlink(components[-1], dir_fd=parent)
+                if target != output_target:
+                    raise UnsafeCopy('destination symlink target changed after copy')
+                confined_link(destination, relative, target, scope)
+    source.check()
+    destination.check()
+    return materialized
 
 
 def nested(source, destination, relative, info, ancestors):
@@ -230,15 +253,20 @@ def nested(source, destination, relative, info, ancestors):
             os.stat('.git', dir_fd=fd, follow_symlinks=False)
         except FileNotFoundError as exc:
             raise UnsafeCopy('nested Git metadata is missing') from exc
-        with destination.descend(components, create=True) as (output_fd, unused):
+        with destination.descend(components, create=True) as (output_fd, output_ancestors):
             expected_output = identity(os.fstat(output_fd))
         with Directory(os.path.join(source.path, relative), identity(info)) as child:
             top = os.fsdecode(git(child, 'rev-parse', '--show-toplevel')).rstrip('\n')
             if os.path.realpath(top) != child.path:
                 raise UnsafeCopy('nested directory is not its own Git work tree')
             with Directory(os.path.join(destination.path, relative), expected_output) as output:
-                copy_tree(child, output)
+                materialized = copy_tree(child, output)
+                output_info = os.fstat(output.fd)
     source.check()
+    # Retain the nested root itself even if it has no eligible leaves.
+    return [(relative, stat.S_IFMT(info.st_mode), output_info, output_ancestors[:-1], None)] + [
+        (relative + '/' + path, kind, leaf_info, output_ancestors + ancestors, target)
+        for path, kind, leaf_info, ancestors, target in materialized]
 
 
 def main():

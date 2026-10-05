@@ -198,6 +198,102 @@ class CopyContracts(unittest.TestCase):
         with self.assertRaises(copy.UnsafeCopy):
             self.run_copy()
 
+    def test_regular_destination_replacement_after_copy_fails(self):
+        self.file('value')
+        secret = self.outside / 'secret'
+        secret.write_bytes(b'outside bytes')
+        original = copy.copy_regular
+        for replacement in ('symlink', 'regular', 'same-inode', 'mode'):
+            with self.subTest(replacement=replacement):
+                fired = []
+                def replace(*args):
+                    result = original(*args)
+                    output = self.destination / 'value'
+                    if replacement == 'same-inode':
+                        output.write_bytes(b'replacement bytes')
+                    elif replacement == 'mode':
+                        output.chmod(0o700)
+                    else:
+                        output.rename(self.base / ('original-' + replacement))
+                    if replacement == 'symlink':
+                        output.symlink_to(secret)
+                    elif replacement == 'regular':
+                        output.write_bytes(b'replacement bytes')
+                    fired.append(True)
+                    return result
+                with mock.patch.object(copy, 'copy_regular', side_effect=replace), self.assertRaises(copy.UnsafeCopy):
+                    self.run_copy()
+                self.assertEqual(fired, [True])
+                self.assertEqual(secret.read_bytes(), b'outside bytes')
+            shutil.rmtree(self.destination)
+            self.destination.mkdir()
+
+    def test_created_symlink_replacement_with_confined_target_fails(self):
+        self.file('safe')
+        self.file('alternate')
+        self.link('link', 'safe')
+        original = copy.copy_leaf
+        fired = []
+        def replace(*args):
+            result = original(*args)
+            if args[2] == 'link':
+                (self.destination / 'link').rename(self.base / 'original-link')
+                (self.destination / 'link').symlink_to('alternate')
+                fired.append(True)
+            return result
+        with mock.patch.object(copy, 'copy_leaf', side_effect=replace), self.assertRaises(copy.UnsafeCopy):
+            self.run_copy()
+        self.assertEqual(fired, [True])
+
+    def test_nested_destinations_are_rechecked_after_outer_copy(self):
+        child = self.source / 'child'
+        child.mkdir()
+        self.git('init', '-q', root=child)
+        (child / 'value').write_bytes(b'nested bytes')
+        self.git('add', 'value', root=child)
+        self.file('trigger')
+        secret = self.outside / 'value'
+        secret.write_bytes(b'outside bytes')
+        original = copy.copy_regular
+        for replacement in ('leaf', 'ancestor'):
+            with self.subTest(replacement=replacement):
+                fired = []
+                def replace(*args):
+                    result = original(*args)
+                    if args[2] == 'trigger':
+                        nested = self.destination / 'child'
+                        if replacement == 'leaf':
+                            (nested / 'value').unlink()
+                            (nested / 'value').symlink_to(secret)
+                        else:
+                            nested.rename(self.base / 'original-child')
+                            nested.symlink_to(self.outside, target_is_directory=True)
+                        fired.append(True)
+                    return result
+                with mock.patch.object(copy, 'copy_regular', side_effect=replace), self.assertRaises((copy.UnsafeCopy, OSError)):
+                    self.run_copy()
+                self.assertEqual(fired, [True])
+                self.assertEqual(secret.read_bytes(), b'outside bytes')
+            shutil.rmtree(self.destination)
+            self.destination.mkdir()
+
+    def test_empty_nested_destination_is_rechecked_after_outer_copy(self):
+        child = self.source / 'child'
+        child.mkdir()
+        self.git('init', '-q', root=child)
+        self.file('trigger')
+        original = copy.copy_regular
+        fired = []
+        def replace(*args):
+            result = original(*args)
+            (self.destination / 'child').rename(self.base / 'original-child')
+            (self.destination / 'child').symlink_to(self.outside, target_is_directory=True)
+            fired.append(True)
+            return result
+        with mock.patch.object(copy, 'copy_regular', side_effect=replace), self.assertRaises((copy.UnsafeCopy, OSError)):
+            self.run_copy()
+        self.assertEqual(fired, [True])
+
     def test_destination_inside_source_is_rejected_by_default_entrypoint(self):
         child = self.source / 'output'
         child.mkdir()
