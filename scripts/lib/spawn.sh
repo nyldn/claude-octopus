@@ -430,7 +430,14 @@ octopus_tangle_execution_boundary_required() {
 # without it only CODEX_HOME is printed, and a warning says that a TMPDIR set
 # in config.toml cannot be safely admitted.
 octopus_tangle_codex_state_dirs() {
-    local codex_home="${CODEX_HOME:-${HOME}/.codex}"
+    local codex_home physical_default_home
+    if [[ -n "${CODEX_HOME:-}" ]]; then
+        codex_home="$CODEX_HOME"
+    else
+        [[ -n "${HOME:-}" ]] || return 125
+        physical_default_home=$(cd "$HOME" 2>/dev/null && pwd -P) || return 125
+        codex_home="$physical_default_home/.codex"
+    fi
     local config_toml config_tmpdir="" read_status=0
     case "$codex_home" in
         *[$'\001'-$'\037'$'\177']*)
@@ -522,9 +529,31 @@ PYTHON
 # SQLite's supported environment override avoids adding flags to provider argv.
 # https://github.com/openai/codex/blob/rust-v0.160.0/codex-rs/state/src/lib.rs
 octopus_tangle_project_codex_home() {
-    local codex_home="$1" entry name runtime_dir
+    local codex_home="$1" entry name runtime_dir listing_complete=false
+    local -a codex_entries=()
+    # Spawn disables globbing. Enumerate privately so caller options and
+    # GLOBIGNORE cannot hide entries or change after this helper returns.
+    while IFS= read -r -d '' entry; do
+        if [[ -z "$entry" ]]; then
+            listing_complete=true
+            break
+        fi
+        codex_entries+=("$entry")
+    done < <(
+        set +f || exit 1
+        unset GLOBIGNORE || exit 1
+        shopt -s dotglob nullglob || exit 1
+        shopt -u failglob || exit 1
+        for entry in "$codex_home"/*; do
+            printf '%s\0' "$entry" || exit 1
+        done
+        # Absolute entry paths are nonempty. This final empty frame proves
+        # enumeration completed; EOF alone must not grant a partial projection.
+        printf '\0'
+    )
+    [[ "$listing_complete" == true ]] || return 125
     boundary_cmd+=(--tmpfs "$codex_home")
-    for entry in "$codex_home"/* "$codex_home"/.[!.]* "$codex_home"/..?*; do
+    for entry in ${codex_entries[@]+"${codex_entries[@]}"}; do
         [[ -e "$entry" || -L "$entry" ]] || continue
         name="${entry##*/}"
         case "$name" in
@@ -646,7 +675,7 @@ octopus_tangle_bind_codex_state_dirs() {
                 log ERROR "Tangle boundary refused: Codex configuration has unsafe backing paths or cannot be inspected"
                 return 125
             fi
-            octopus_tangle_project_codex_home "$physical_codex_dir"
+            octopus_tangle_project_codex_home "$physical_codex_dir" || return 125
             accepted_codex_home="$physical_codex_dir"
         else
             # Temporary files never persist executable code or config edits

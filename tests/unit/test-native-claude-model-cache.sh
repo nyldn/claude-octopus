@@ -6,7 +6,7 @@ PLUGIN_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "Native Claude model cache precedence"
 fixture="$(mktemp -d "${TMPDIR:-/tmp}/octopus-native-model.XXXXXX")"
-trap 'rm -rf "$fixture"' EXIT
+trap 'rm -rf "$fixture"; cleanup_test_environment' EXIT
 mkdir -p "$fixture/home" "$fixture/cache"
 config="$fixture/providers.json"
 cat > "$config" <<'JSON'
@@ -66,7 +66,8 @@ if env -u OCTOPUS_TASK_CLASS -u OCTOPUS_MODEL_READ_ONLY HOME="$fixture/home" TMP
     OCTOPUS_PROVIDERS_CONFIG="$config" CLAUDE_PLUGIN_ROOT="$PLUGIN_DIR" \
     CLAUDE_MODEL= OCTOPUS_CLAUDE_MODEL= OCTOPUS_COST_MODE=standard OCTOPUS_ROUTING_POLICY=off \
     bash -c 'log() { :; }; source "$1/scripts/lib/model-resolver.sh";
-             resolve_octopus_model claude claude memory > "$2";
+             resolve_octopus_model claude claude memory > "$2" || exit 1;
+             [[ "$(< "$2")" == claude-sonnet-5 ]] || exit 1;
              export CLAUDE_MODEL=claude-haiku-4-5-20251001;
              [[ "$(resolve_octopus_model claude claude memory)" == "$CLAUDE_MODEL" ]]' \
     _ "$PLUGIN_DIR" "$fixture/memory-default"; then

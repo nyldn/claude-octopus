@@ -45,6 +45,9 @@
   explicit `sqlite_home` settings remain subject to the read-only boundary.
 
 
+- Codex Tangle preserves existing configuration when spawn disables shell
+  globbing, keeps caller glob options unchanged, and canonicalizes HOME only
+  for the implicit state directory. Explicit CODEX_HOME aliases remain refused.
 - Tangle retry workers use the same deadline, stall, zombie, and cancellation
   supervision as the first pass. Spawn failures preserve failed-task state and
   restore signal traps; retries retain usable sibling and partial results.

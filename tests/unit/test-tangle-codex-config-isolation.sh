@@ -182,4 +182,88 @@ python3() { return 127; }
 if refused; then test_pass; else test_fail "failed inspector admitted worker"; fi
 unset -f python3
 
+test_case "projection ignores caller glob filters and preserves every shell option"
+printf 'hidden-trusted\n' > "$CODEX_HOME/.hidden-config"
+printf 'newline-trusted\n' > "$CODEX_HOME/"$'line\nbreak'
+option_failures=0
+for mode in enabled disabled empty-patterns; do
+    if ! (
+        case "$mode" in
+            enabled) set +f; shopt -u dotglob nullglob failglob ;;
+            disabled) set -f; shopt -u dotglob nullglob failglob ;;
+            empty-patterns) set -f; shopt -s dotglob nullglob failglob ;;
+        esac
+        export GLOBIGNORE='*'
+        shopt -u dotglob
+        before_flags="$-"
+        before_options="$(shopt -p dotglob nullglob failglob || true)"
+        cmd_array=(bash -c '[[ "$(cat "$1/.hidden-config")" == hidden-trusted &&
+            "$(cat "$1/"$'"'"'line\nbreak'"'"')" == newline-trusted && -r "$1/config.toml" ]]' _ "$CODEX_HOME")
+        octopus_tangle_apply_execution_boundary || exit 1
+        [[ "$-" == "$before_flags" && "$GLOBIGNORE" == '*' &&
+           "$(shopt -p dotglob nullglob failglob || true)" == "$before_options" ]] || exit 2
+        "${cmd_array[@]}"
+    ); then option_failures=$((option_failures + 1)); fi
+done
+if [[ "$option_failures" == 0 ]]; then test_pass; else test_fail "caller options hid config or changed after projection"; fi
+
+test_case "empty projection completes under failglob and noglob without changing options"
+if (
+    CODEX_HOME="$fixture/options-empty-state"; mkdir "$CODEX_HOME"
+    set -f; shopt -s dotglob nullglob failglob
+    before_flags="$-"; before_options="$(shopt -p dotglob nullglob failglob)"
+    cmd_array=(bash -c 'touch "$1/tmp/private"' _ "$CODEX_HOME")
+    octopus_tangle_apply_execution_boundary &&
+    [[ "$-" == "$before_flags" && "$(shopt -p dotglob nullglob failglob)" == "$before_options" ]] &&
+    "${cmd_array[@]}" && [[ ! -e "$CODEX_HOME/tmp/private" ]]
+); then test_pass; else test_fail "empty projection lost completion or caller options"; fi
+
+test_case "failed projection producer aborts before worker execution and restores caller state"
+if (
+    set -f; before_flags="$-"
+    shopt() { return 74; }
+    refused && [[ "$-" == "$before_flags" ]]
+); then test_pass; else test_fail "failed listing producer was silently accepted"; fi
+
+test_case "missing final completion frame refuses without appending partial mounts"
+if (
+    set -f; before_flags="$-"
+    printf() {
+        [[ "$1" != '\0' ]] || return 74
+        builtin printf "$@"
+    }
+    boundary_cmd=(sentinel)
+    projection_rc=0
+    octopus_tangle_project_codex_home "$CODEX_HOME" || projection_rc=$?
+    [[ "$projection_rc" == 125 && "${#boundary_cmd[@]}" == 1 &&
+       "${boundary_cmd[0]}" == sentinel && "$-" == "$before_flags" ]]
+); then test_pass; else test_fail "incomplete projection appended a partial mount list"; fi
+
+test_case "standalone errexit dispatch preserves fatal producer status"
+errexit_rc=0
+bash -e -c '
+    source "$1"
+    log() { :; }
+    phase=tangle role=implementer agent_type=codex
+    set -f
+    shopt() { return 74; }
+    cmd_array=(bash -c "exit 0")
+    octopus_tangle_apply_execution_boundary
+    touch "$OCTOPUS_TANGLE_WORKTREE/errexit-worker-ran"
+' _ "$PROJECT_ROOT/scripts/lib/spawn.sh" || errexit_rc=$?
+if [[ "$errexit_rc" == 125 && ! -e "$fixture/worktree/errexit-worker-ran" ]]; then test_pass
+else test_fail "standalone producer failure lost fatal status"; fi
+
+test_case "implicit Codex home canonicalizes a symlinked HOME but explicit aliases refuse"
+mkdir -p "$HOME/.codex"
+printf 'trusted = true\n' > "$HOME/.codex/config.toml"
+ln -s "$HOME" "$fixture/home-alias"
+if (
+    HOME="$fixture/home-alias"; unset CODEX_HOME
+    cmd_array=(bash -c '[[ "$(cat "$HOME/.codex/config.toml")" == "trusted = true" ]]')
+    octopus_tangle_apply_execution_boundary && "${cmd_array[@]}" || exit 1
+    CODEX_HOME="$HOME/.codex"
+    refused
+); then test_pass; else test_fail "implicit HOME alias failed or explicit state alias was accepted"; fi
+
 test_summary
