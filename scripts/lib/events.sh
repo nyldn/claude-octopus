@@ -107,7 +107,7 @@ _octo_event_reclaim_stale_lock() (
     case "$lockdir" in /*) ;; *) lockdir="$PWD/$lockdir" ;; esac
     [[ -d "$lockdir" && ! -L "$lockdir" ]] || return 1
     # The working directory pins this inode even if its public name is reused.
-    CDPATH= cd -P -- "$lockdir" >/dev/null 2>&1 || return 1
+    CDPATH='' cd -P -- "$lockdir" >/dev/null 2>&1 || return 1
     [[ ! -L pid && ! -L ts ]] || return 1
 
     if [[ -e pid ]]; then
@@ -148,7 +148,7 @@ _octo_event_lock() {
         if _octo_event_mkdir "$lockdir" 2>/dev/null; then
             if (
                 [[ ! -L "$lockdir" ]] || exit 1
-                CDPATH= cd -P -- "$lockdir" >/dev/null || exit 1
+                CDPATH='' cd -P -- "$lockdir" >/dev/null || exit 1
                 [[ ! -L pid && ! -L ts ]] || exit 1
                 [[ ! -e pid ]] || exit 75
                 [[ ! -e ts || -f ts ]] || exit 1
@@ -195,7 +195,7 @@ _octo_event_unlock() {
     (
         local owner=""
         [[ -d "$lockdir" && ! -L "$lockdir" ]] || exit 0
-        CDPATH= cd -P -- "$lockdir" >/dev/null 2>&1 || exit 0
+        CDPATH='' cd -P -- "$lockdir" >/dev/null 2>&1 || exit 0
         [[ ! -L pid && ! -L ts ]] || exit 0
         [[ -f pid && -r pid ]] || exit 0
         IFS= read -r owner < pid || exit 0
