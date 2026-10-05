@@ -20,10 +20,11 @@ if ! (cd "$PROJECT_ROOT/mcp-server" && npm run build >/dev/null); then
     test_fail "MCP build failed"
 elif node --input-type=module - "$PROJECT_ROOT/mcp-server/dist/index.js" <<'JS'
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdtemp, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { pathToFileURL, fileURLToPath } from "node:url";
 
 const modulePath = process.argv[2];
 const { runOrchestrate } = await import(pathToFileURL(modulePath));
@@ -31,6 +32,11 @@ assert.equal(typeof runOrchestrate, "function");
 process.env.CLAUDE_SDK_API_KEY = "sdk-fixture";
 process.env.CURSOR_API_KEY = "cursor-fixture";
 process.env.XAI_API_KEY = "xai-fixture";
+process.env.API_ROUTE_API_KEY = "api-route-fixture";
+process.env.API_ROUTE_MODEL = "route-model";
+process.env.OCTOPUS_API_ROUTE_MODEL = "alias-model";
+process.env.API_ROUTE_ALLOWED_MODELS = "route-model";
+process.env.API_ROUTE_UNRELATED_SENTINEL = "must-not-cross";
 process.env.OPENAI_COMPAT_API_KEY_ENV = "ROUTER_API_KEY";
 process.env.ROUTER_API_KEY = "router-fixture";
 process.env.OCTOPUS_CREDENTIAL_ENV_NAMES = "CUSTOM_MCP_API_KEY";
@@ -63,6 +69,32 @@ assert.equal(secondCall.options.env.OCTOPUS_PROJECT_DIR, canonicalSecond);
 assert.equal(calls[0].options.env.CLAUDE_SDK_API_KEY, "sdk-fixture");
 assert.equal(calls[0].options.env.CURSOR_API_KEY, "cursor-fixture");
 assert.equal(calls[0].options.env.XAI_API_KEY, "xai-fixture");
+assert.equal(calls[0].options.env.API_ROUTE_API_KEY, "api-route-fixture");
+assert.equal(calls[0].options.env.API_ROUTE_MODEL, "route-model");
+assert.equal(calls[0].options.env.OCTOPUS_API_ROUTE_MODEL, "alias-model");
+assert.equal(calls[0].options.env.API_ROUTE_ALLOWED_MODELS, "route-model");
+assert.equal(calls[0].options.env.API_ROUTE_UNRELATED_SENTINEL, undefined);
+
+// Exercise shell admission with the environment the MCP adapter actually sent.
+// Reading the key alone would miss model loss and exact-seat restriction bypass.
+const pluginRoot = fileURLToPath(new URL("../..", pathToFileURL(modulePath)));
+const admission = spawnSync("bash", ["-c", `
+  set -euo pipefail
+  PLUGIN_DIR="$1"
+  source "$1/scripts/lib/model-resolver.sh"
+  source "$1/scripts/lib/dispatch.sh"
+  log() { :; }
+  resolve_provider_env() { return 1; }
+  PROVIDER_CODEX_INSTALLED=false
+  PROVIDER_CLAUDE_INSTALLED=false
+  is_agent_available_v2 api-route-agent
+  is_agent_available_v2 api-route-agent:route-model
+  ! is_agent_available_v2 api-route-agent:blocked || exit 1
+  command=$(get_agent_command api-route-agent review code-reviewer)
+  [[ "$command" == *'--model route-model '* && "$command" == *'--tool-policy none'* ]]
+  ! get_agent_command api-route-agent:blocked review code-reviewer >/dev/null 2>&1
+`, "_", pluginRoot], { env: firstCall.options.env, cwd: canonicalFirst, encoding: "utf8" });
+assert.equal(admission.status, 0, admission.stderr || admission.stdout);
 assert.equal(calls[0].options.env.ROUTER_API_KEY, "router-fixture");
 assert.equal(calls[0].options.env.CUSTOM_MCP_API_KEY, "custom-mcp-fixture");
 assert.equal(calls[0].options.env.UNRELATED_AUDIT_SENTINEL, undefined);

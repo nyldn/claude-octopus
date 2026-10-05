@@ -1006,9 +1006,11 @@ is_agent_available_v2() {
             fi
             [[ "${API_ROUTE_API_KEY:-}" =~ [^[:space:]] ]] || return 1
             if [[ "$agent" == *:* ]]; then
-                octo_api_route_model "${agent#*:}" >/dev/null
+                local pinned_model="${agent#*:}" effective_model
+                effective_model="$(octo_api_route_effective_model "$pinned_model")" || return 1
+                [[ "$effective_model" == "$pinned_model" ]]
             else
-                octo_api_route_model >/dev/null
+                octo_api_route_effective_model >/dev/null
             fi
             ;;
         kimi|kimi-*)

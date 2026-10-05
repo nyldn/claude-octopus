@@ -3032,7 +3032,131 @@ tangle_process_is_active_non_zombie() {
     local stat
     stat=$(ps -o stat= -p "$pid" 2>/dev/null | awk 'NR==1 {print $1}') || stat=""
     [[ -n "$stat" ]] || return 1
-    [[ "$stat" == Z* ]] && return 1
+    [[ "$stat" == Z* || "$stat" == X* ]] && return 1
+    return 0
+}
+
+# Wait for one CLI-backed Tangle pass, including quality-gate retries. Callers
+# own the pids/task_ids arrays and signal traps; provider stall supervision stays
+# in spawn_agent. Completion uses launcher markers, with bounded grace for exited
+# workers and reconciliation of late successful artifacts.
+tangle_wait_for_subtasks() {
+    local task_group="$1"
+    local i
+    local _done_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents"
+    local _tangle_max_wait="${OCTOPUS_TANGLE_DEADLINE:-0}"
+    [[ "$_tangle_max_wait" =~ ^[0-9]+$ ]] || _tangle_max_wait=0
+    local _missing_marker_grace="${OCTOPUS_TANGLE_MISSING_MARKER_GRACE:-180}"
+    [[ "$_missing_marker_grace" =~ ^[0-9]+$ ]] || _missing_marker_grace=180
+    local _deadline=0
+    if [[ "$_tangle_max_wait" -gt 0 ]]; then
+        _deadline=$(( $(date +%s) + _tangle_max_wait ))
+    fi
+    local completed=0
+    local _terminal_task_ids=""
+    local _missing_marker_since=()
+    local _last_progress=-1
+    while [[ $completed -lt ${#task_ids[@]} ]]; do
+        completed=0
+        for i in "${!task_ids[@]}"; do
+            local _done_file="${_done_dir}/${task_ids[$i]}.done"
+            if [[ -f "$_done_file" ]]; then
+                ((completed++)) || true
+            elif [[ " $_terminal_task_ids " == *" ${task_ids[$i]} "* ]]; then
+                ((completed++)) || true
+            else
+                local _worker_pid="${pids[$i]:-}"
+                if [[ "$_tangle_max_wait" -gt 0 ]] && (( $(date +%s) > _deadline )); then
+                    log WARN "Thread ${task_ids[$i]} deadline exceeded — killing and marking timeout"
+                    if [[ -n "$_worker_pid" ]] && tangle_process_is_active_non_zombie "$_worker_pid"; then
+                        # Resolve ownership from the PID ledger before signaling.
+                        # A recycled PID must never authorize killing a new process.
+                        local _rows _ledger_pid _ledger_agent _ledger_task _identity="" _row_identity
+                        _rows=$(octopus_pid_verified_rows "tangle-${task_group}-") || return 1
+                        while IFS=: read -r _ledger_pid _ledger_agent _ledger_task _row_identity; do
+                            if [[ "$_ledger_pid" == "$_worker_pid" && "$_ledger_task" == "${task_ids[$i]}" ]]; then
+                                _identity="$_row_identity"
+                                break
+                            fi
+                        done <<< "$_rows"
+                        if [[ -z "$_identity" ]] || ! review_kill_process_tree_frozen "$_worker_pid" "$_identity"; then
+                            log ERROR "Cannot verify complete deadline cleanup for ${task_ids[$i]}; retaining registrations"
+                            return 1
+                        fi
+                        wait "$_worker_pid" 2>/dev/null || true
+                        octopus_pid_retire "$_worker_pid" "${task_ids[$i]}" "$_identity" || return 1
+                    fi
+                    mkdir -p "$_done_dir" 2>/dev/null || true
+                    if [[ ! -f "$_done_file" ]] && ! echo "timeout" > "$_done_file" 2>/dev/null; then
+                        log WARN "Failed to write timeout marker for ${task_ids[$i]} at $_done_file"
+                    fi
+                    [[ " $_terminal_task_ids " == *" ${task_ids[$i]} "* ]] || _terminal_task_ids="${_terminal_task_ids:+$_terminal_task_ids }${task_ids[$i]}"
+                    local _timeout_result
+                    _timeout_result=$(find "${RESULTS_DIR:-${HOME}/.claude-octopus/results}" -maxdepth 1 -type f -name "*-${task_ids[$i]}.md" 2>/dev/null | head -1 || true)
+                    if [[ -n "$_timeout_result" ]] && [[ -z "$(octo_result_launcher_status "$_timeout_result" 2>/dev/null || true)" ]]; then
+                        printf '\n## Status: TIMEOUT - PARTIAL RESULTS (Tangle deadline)\n# Completed: %s\n' "$(date)" >> "$_timeout_result" || return 1
+                    fi
+                elif [[ -n "$_worker_pid" ]] && ! tangle_process_is_active_non_zombie "$_worker_pid"; then
+                    local _now
+                    _now=$(date +%s)
+                    if [[ -z "${_missing_marker_since[$i]:-}" ]]; then
+                        _missing_marker_since[$i]="$_now"
+                        log WARN "Thread ${task_ids[$i]} wrapper exited without completion marker; exited or became zombie without completion marker — waiting up to ${_missing_marker_grace}s for late result/marker"
+                    elif (( _now - ${_missing_marker_since[$i]} >= _missing_marker_grace )); then
+                        log WARN "Thread ${task_ids[$i]} still lacks completion marker after ${_missing_marker_grace}s — marking failed"
+                        mkdir -p "$_done_dir" 2>/dev/null || true
+                        if [[ ! -f "$_done_file" ]] && ! echo "missing-done-marker" > "$_done_file" 2>/dev/null; then
+                            log WARN "Failed to write missing-done marker for ${task_ids[$i]} at $_done_file"
+                        fi
+                        [[ " $_terminal_task_ids " == *" ${task_ids[$i]} "* ]] || _terminal_task_ids="${_terminal_task_ids:+$_terminal_task_ids }${task_ids[$i]}"
+                        local _result_file
+                        _result_file=$(find "${RESULTS_DIR:-${HOME}/.claude-octopus/results}" -maxdepth 1 -type f -name "*-${task_ids[$i]}.md" 2>/dev/null | head -1 || true)
+                        if [[ -n "$_result_file" ]]; then
+                            local _status_count
+                            _status_count=$(grep -c '^## Status:' "$_result_file" 2>/dev/null || true)
+                            if [[ "${_status_count:-0}" -eq 0 ]]; then
+                                {
+                                    echo ""
+                                    echo "## Status: FAILED (Missing completion marker)"
+                                    echo "# Completed: $(date)"
+                                } >> "$_result_file" 2>/dev/null || true
+                            fi
+                        fi
+                    fi
+                fi
+            fi
+        done
+        if [[ -t 1 ]]; then
+            echo -ne "\r${CYAN}Progress: $completed/${#task_ids[@]} subtasks finished${NC}"
+        elif [[ "$completed" -ne "$_last_progress" ]]; then
+            echo "Progress: $completed/${#task_ids[@]} subtasks finished"
+        fi
+        _last_progress="$completed"
+        [[ $completed -ge ${#task_ids[@]} ]] || sleep 2
+    done
+    [[ -t 1 ]] && echo ""
+
+    # Final artifact reconciliation: providers can write the result and .done
+    # marker after the wrapper PID disappears. Trust a latest SUCCESS status
+    # before reporting failures or entering the quality gate.
+    for i in "${!task_ids[@]}"; do
+        local _done_file="${_done_dir}/${task_ids[$i]}.done"
+        local _exit_val
+        _exit_val=$(cat "$_done_file" 2>/dev/null || echo "")
+        if [[ "$_exit_val" != "0" ]]; then
+            local _result_file=""
+            _result_file=$(find "${RESULTS_DIR:-${HOME}/.claude-octopus/results}" -maxdepth 1 -type f -name "*-${task_ids[$i]}.md" 2>/dev/null | head -1 || true)
+            if [[ -n "$_result_file" ]]; then
+                local _latest_status=""
+                _latest_status=$(octo_result_launcher_status "$_result_file" 2>/dev/null || true)
+                if [[ "$_latest_status" == "## Status: SUCCESS"* ]]; then
+                    mkdir -p "$_done_dir" 2>/dev/null || true
+                    echo "0" > "$_done_file" 2>/dev/null || true
+                    log INFO "Reconciled late successful result for ${task_ids[$i]} before quality gate"
+                fi
+            fi
+        fi
+    done
     return 0
 }
 
@@ -5213,104 +5337,13 @@ $(tangle_decomposition_json_contract_guidance)"
 
     log INFO "Spawned $subtask_num development threads"
 
-    # Wait with progress monitoring — poll .done marker files written by spawn_agent
-    # rather than kill -0 $pid (which tracks wrapper PID, not provider PID)
     local _done_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents"
-    local _tangle_max_wait="${OCTOPUS_TANGLE_DEADLINE:-0}"
-    [[ "$_tangle_max_wait" =~ ^[0-9]+$ ]] || _tangle_max_wait=0
-    local _missing_marker_grace="${OCTOPUS_TANGLE_MISSING_MARKER_GRACE:-180}"
-    [[ "$_missing_marker_grace" =~ ^[0-9]+$ ]] || _missing_marker_grace=180
-    local _deadline=0
-    if [[ "$_tangle_max_wait" -gt 0 ]]; then
-        _deadline=$(( $(date +%s) + _tangle_max_wait ))
-    fi
-    local completed=0
     local _failed_tasks=()
-    local _terminal_task_ids=""
-    local _missing_marker_since=()
-    local _last_progress=-1
-    while [[ $completed -lt ${#task_ids[@]} ]]; do
-        completed=0
-        for i in "${!task_ids[@]}"; do
-            local _done_file="${_done_dir}/${task_ids[$i]}.done"
-            if [[ -f "$_done_file" ]]; then
-                ((completed++)) || true
-            elif [[ " $_terminal_task_ids " == *" ${task_ids[$i]} "* ]]; then
-                ((completed++)) || true
-            else
-                local _worker_pid="${pids[$i]:-}"
-                if [[ "$_tangle_max_wait" -gt 0 ]] && (( $(date +%s) > _deadline )); then
-                    log WARN "Thread ${task_ids[$i]} deadline exceeded — killing and marking timeout"
-                    if [[ -n "$_worker_pid" ]]; then
-                        review_kill_process_tree_frozen "$_worker_pid"
-                        wait "$_worker_pid" 2>/dev/null || true
-                    fi
-                    mkdir -p "$_done_dir" 2>/dev/null || true
-                    if [[ ! -f "$_done_file" ]] && ! echo "timeout" > "$_done_file" 2>/dev/null; then
-                        log WARN "Failed to write timeout marker for ${task_ids[$i]} at $_done_file"
-                    fi
-                    [[ " $_terminal_task_ids " == *" ${task_ids[$i]} "* ]] || _terminal_task_ids="${_terminal_task_ids:+$_terminal_task_ids }${task_ids[$i]}"
-                elif [[ -n "$_worker_pid" ]] && ! tangle_process_is_active_non_zombie "$_worker_pid"; then
-                    local _now
-                    _now=$(date +%s)
-                    if [[ -z "${_missing_marker_since[$i]:-}" ]]; then
-                        _missing_marker_since[$i]="$_now"
-                        log WARN "Thread ${task_ids[$i]} wrapper exited without completion marker; exited or became zombie without completion marker — waiting up to ${_missing_marker_grace}s for late result/marker"
-                    elif (( _now - ${_missing_marker_since[$i]} >= _missing_marker_grace )); then
-                        log WARN "Thread ${task_ids[$i]} still lacks completion marker after ${_missing_marker_grace}s — marking failed"
-                        mkdir -p "$_done_dir" 2>/dev/null || true
-                        if [[ ! -f "$_done_file" ]] && ! echo "missing-done-marker" > "$_done_file" 2>/dev/null; then
-                            log WARN "Failed to write missing-done marker for ${task_ids[$i]} at $_done_file"
-                        fi
-                        [[ " $_terminal_task_ids " == *" ${task_ids[$i]} "* ]] || _terminal_task_ids="${_terminal_task_ids:+$_terminal_task_ids }${task_ids[$i]}"
-                        local _result_file
-                        _result_file=$(find "${RESULTS_DIR:-${HOME}/.claude-octopus/results}" -maxdepth 1 -type f -name "*-${task_ids[$i]}.md" 2>/dev/null | head -1 || true)
-                        if [[ -n "$_result_file" ]]; then
-                            local _status_count
-                            _status_count=$(grep -c '^## Status:' "$_result_file" 2>/dev/null || true)
-                            if [[ "${_status_count:-0}" -eq 0 ]]; then
-                                {
-                                    echo ""
-                                    echo "## Status: FAILED (Missing completion marker)"
-                                    echo "# Completed: $(date)"
-                                } >> "$_result_file" 2>/dev/null || true
-                            fi
-                        fi
-                    fi
-                fi
-            fi
-        done
-        if [[ -t 1 ]]; then
-            echo -ne "\r${CYAN}Progress: $completed/${#task_ids[@]} subtasks finished${NC}"
-        elif [[ "$completed" -ne "$_last_progress" ]]; then
-            echo "Progress: $completed/${#task_ids[@]} subtasks finished"
-        fi
-        _last_progress="$completed"
-        [[ $completed -ge ${#task_ids[@]} ]] || sleep 2
-    done
-    [[ -t 1 ]] && echo ""
-
-    # Final artifact reconciliation: providers can write the result and .done
-    # marker after the wrapper PID disappears. Trust a latest SUCCESS status
-    # before reporting failures or entering the quality gate.
-    for i in "${!task_ids[@]}"; do
-        local _done_file="${_done_dir}/${task_ids[$i]}.done"
-        local _exit_val
-        _exit_val=$(cat "$_done_file" 2>/dev/null || echo "")
-        if [[ "$_exit_val" != "0" ]]; then
-            local _result_file=""
-            _result_file=$(find "${RESULTS_DIR:-${HOME}/.claude-octopus/results}" -maxdepth 1 -type f -name "*-${task_ids[$i]}.md" 2>/dev/null | head -1 || true)
-            if [[ -n "$_result_file" ]]; then
-                local _latest_status=""
-                _latest_status=$(octo_result_launcher_status "$_result_file" 2>/dev/null || true)
-                if [[ "$_latest_status" == "## Status: SUCCESS"* ]]; then
-                    mkdir -p "$_done_dir" 2>/dev/null || true
-                    echo "0" > "$_done_file" 2>/dev/null || true
-                    log INFO "Reconciled late successful result for ${task_ids[$i]} before quality gate"
-                fi
-            fi
-        fi
-    done
+    if ! tangle_wait_for_subtasks "$task_group"; then
+        octopus_tangle_cancel_active TERM
+        _octopus_tangle_restore_traps "$tangle_previous_int_trap" "$tangle_previous_term_trap"
+        return 1
+    fi
 
     # Report any failed subtasks
     for i in "${!task_ids[@]}"; do

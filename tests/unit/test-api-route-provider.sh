@@ -31,6 +31,7 @@ fi
 test_case "model pins preserve resolution precedence"
 if [[ "$(API_ROUTE_MODEL=primary OCTOPUS_API_ROUTE_MODEL=secondary OPENAI_COMPAT_MODEL=generic octo_api_route_model)" == primary ]] &&
    [[ "$(OCTOPUS_API_ROUTE_MODEL=secondary OPENAI_COMPAT_MODEL=generic octo_api_route_model)" == secondary ]] &&
+   [[ "$(PWD=/tmp/octo-cwd OCTOPUS_API_ROUTE_MODEL=secondary get_agent_command api-route-agent review code-reviewer)" == *'--model secondary '* ]] &&
    [[ "$(OPENAI_COMPAT_MODEL=generic octo_api_route_model)" == generic ]]; then
     test_pass
 else
@@ -96,6 +97,39 @@ if ! PWD=/tmp/octo-cwd API_ROUTE_MODEL=good API_ROUTE_ALLOWED_MODELS='bad;touch'
     test_pass
 else
     test_fail "a rejected fallback was advertised as ready"
+fi
+
+test_case "blocked exact seats are unavailable without substituting their model"
+if ! API_ROUTE_API_KEY=fixture-key API_ROUTE_ALLOWED_MODELS=allowed is_agent_available_v2 api-route-agent:blocked &&
+   ! PWD=/tmp/octo-cwd API_ROUTE_ALLOWED_MODELS=allowed get_agent_command api-route-agent:blocked review code-reviewer >/dev/null 2>&1 &&
+   API_ROUTE_API_KEY=fixture-key API_ROUTE_ALLOWED_MODELS=allowed is_agent_available_v2 api-route-agent:allowed &&
+   [[ "$(PWD=/tmp/octo-cwd API_ROUTE_ALLOWED_MODELS=allowed get_agent_command api-route-agent:allowed review code-reviewer)" == *'--model allowed '* ]]; then
+    test_pass
+else
+    test_fail "exact-seat availability disagreed with dispatch restrictions"
+fi
+
+test_case "unpinned availability validates the effective allowlist fallback"
+if API_ROUTE_API_KEY=fixture-key API_ROUTE_MODEL=blocked API_ROUTE_ALLOWED_MODELS=allowed is_agent_available_v2 api-route-agent &&
+   ! API_ROUTE_API_KEY=fixture-key API_ROUTE_MODEL=blocked API_ROUTE_ALLOWED_MODELS='bad;touch' is_agent_available_v2 api-route-agent &&
+   ! API_ROUTE_API_KEY=fixture-key API_ROUTE_MODEL=blocked API_ROUTE_ALLOWED_MODELS=claude-fable-5-1 is_agent_available_v2 api-route-agent; then
+    test_pass
+else
+    test_fail "availability admitted a rejected fallback or blocked a valid one"
+fi
+
+test_case "a blocked exact primary seat selects its configured available fallback"
+if (
+    source "$PROJECT_ROOT/scripts/lib/agents.sh"
+    export AGENTS_CONFIG="$TEST_HOME/agents.yaml"
+    printf '%s\n' 'agents:' '  code-reviewer:' '    cli: api-route-agent:blocked' '    fallback_cli: codex' > "$AGENTS_CONFIG"
+    export API_ROUTE_API_KEY=fixture-key API_ROUTE_ALLOWED_MODELS=allowed
+    export PROVIDER_CODEX_INSTALLED=true PROVIDER_CODEX_AUTH_METHOD=api-key
+    [[ "$(resolve_persona_spawn_target code-reviewer)" == codex ]]
+); then
+    test_pass
+else
+    test_fail "a blocked API Route pin bypassed the configured primary-seat fallback"
 fi
 
 test_case "valid allowlist fallback is shared with dispatch and health"
