@@ -5554,6 +5554,9 @@ tangle_should_attempt_contextual_review() {
     local validation_rc="${1:-0}"
     local worktree_before_state_file="${2:-}"
 
+    # Validation status 75 means retry supervision did not finish safely.
+    # Worktree progress cannot make outstanding provider work recoverable.
+    [[ "$validation_rc" -ne 75 ]] || return 1
     if [[ "$validation_rc" -eq 0 ]]; then
         return 0
     fi
@@ -5589,6 +5592,11 @@ tangle_contextual_review_gate() {
     local worktree_before_state_file="${11:-}"
     local expected_task_ids="${12:-}"
 
+    # A direct caller must honor the same nonrecoverable validation contract.
+    if [[ "$validation_rc" -eq 75 ]]; then
+        log ERROR "Tangle retry supervision failed; refusing contextual review and corrections"
+        return "$validation_rc"
+    fi
     if octo_bool_disabled "${OCTOPUS_TANGLE_CODE_REVIEW:-true}"; then
         log INFO "Contextual code review disabled by OCTOPUS_TANGLE_CODE_REVIEW"
         return "$validation_rc"
@@ -5683,6 +5691,10 @@ tangle_contextual_review_gate() {
         OCTOPUS_TANGLE_VALIDATION_CORRECTION_CHANGED="${TANGLE_CORRECTION_CHANGED:-0}" \
             tangle_validate_results_with_scope_contract "$task_group" "$resolved_prompt" "$worktree_before_file" "$subtasks" "$baseline_head" "$scope_manifest_digest" "$worktree_before_state_file" "$expected_task_ids" || validation_rc=$?
 
+        if [[ "$validation_rc" -eq 75 ]]; then
+            log ERROR "Tangle retry supervision failed after correction; stopping before further review or delivery"
+            return "$validation_rc"
+        fi
         review_context_file=$(tangle_build_develop_review_context "$task_group" "$resolved_prompt" "$context" "$subtasks" "$validation_file" "$worktree_before_file" "correction-${correction_round}")
         review_rc=0
         tangle_run_context_code_review "$task_group" "$review_context_file" "correction-${correction_round}" || review_rc=$?

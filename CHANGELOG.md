@@ -30,6 +30,8 @@
 - Tangle retry workers use the same deadline, stall, zombie, and cancellation
   supervision as the first pass. Spawn failures preserve failed-task state and
   restore signal traps; retries retain usable sibling and partial results.
+  Supervision failures stop validation, review recovery, and delivery even when
+  late result artifacts appear successful (#1163).
 - Consultative Git workspaces copy selected working-tree bytes through held
   directory descriptors, reducing per-file process spawning while preserving
   ignore rules, nested repository content, file modes and timestamps, and path
