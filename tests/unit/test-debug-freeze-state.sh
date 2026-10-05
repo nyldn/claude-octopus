@@ -20,6 +20,7 @@ import json
 import os
 from pathlib import Path
 import re
+import signal
 import subprocess
 import sys
 import tempfile
@@ -89,12 +90,22 @@ with tempfile.TemporaryDirectory(prefix="octo-debug-freeze-test-") as tmp:
                 elif case == "missing-python":
                     env["PATH"] = str(root / "missing-path")
 
+                worker = subprocess.Popen([bash, "-c", prelude + code.replace(
+                    "<module-directory>", str(module))], env=env,
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                    start_new_session=True)
                 try:
-                    proc = subprocess.run([bash, "-c", prelude + code.replace(
-                        "<module-directory>", str(module))], env=env,
-                        capture_output=True, text=True, timeout=2)
+                    stdout, stderr = worker.communicate(timeout=2)
                 except subprocess.TimeoutExpired:
+                    # The new session's group contains only this probe and its children.
+                    try:
+                        os.killpg(worker.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    worker.communicate()
                     raise AssertionError("activation blocked on synthetic state")
+                proc = subprocess.CompletedProcess(worker.args, worker.returncode,
+                                                   stdout, stderr)
 
                 assert marker not in proc.stdout + proc.stderr, "state content disclosed"
                 assert not legacy.exists(), "legacy ID overrode current Claude session ID"
