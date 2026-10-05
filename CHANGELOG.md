@@ -35,6 +35,9 @@
   ignore rules, nested repository content, file modes and timestamps, and path
   confinement.
   Unsupported descriptor operations retain the portable shell fallback.
+- Parallel research children claim lock ownership atomically, preserving the
+  first creator's prompt and manifest when `mkdir` reports success after losing
+  a concurrent directory-creation race (#1166).
 
 ## [11.10.0] - 2026-10-02
 
