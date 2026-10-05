@@ -19,6 +19,8 @@
 
 ### Fixed
 
+- Concurrent installation receipts use kernel directory admission for the transaction and owner claim, preserving both Claude and Codex records when directory utilities report a raced success. Receipt recording now fails closed when Python 3 is unavailable.
+
 - Debug freeze activation preserves an existing owned freeze without reading or
   printing its contents, refuses unsafe state, and creates new state exclusively.
 - Tangle deadline cleanup rechecks a worker that exits during PID inspection,

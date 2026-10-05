@@ -99,9 +99,29 @@ octo_lifecycle_state_valid() {
     ' "$OCTO_LIFECYCLE_STATE_FILE" >/dev/null 2>&1
 }
 
+# Receipt transactions require kernel mkdir admission; utility statuses can race.
+_octo_lifecycle_mkdir() {
+    command -v python3 >/dev/null 2>&1 || return 1
+    python3 - "$1" <<'PYCODE'
+import os
+import sys
+
+try:
+    os.mkdir(sys.argv[1])
+except FileExistsError:
+    sys.exit(75)
+except OSError:
+    sys.exit(1)
+PYCODE
+}
+
 _octo_lifecycle_lock() {
-    local lock="$1.lock" owner="$2" tries=0 candidate pid probe
-    while ! mkdir "$lock" 2>/dev/null; do
+    local lock="$1.lock" owner="$2" tries=0 candidate pid probe rc
+    while :; do
+        rc=0
+        _octo_lifecycle_mkdir "$lock" 2>/dev/null || rc=$?
+        [[ "$rc" != 0 ]] || break
+        [[ "$rc" == 75 ]] || return 1
         tries=$((tries + 1))
         [[ "$tries" -lt 50 ]] || return 1
         # The holder can release after our mkdir fails but before this check.
@@ -124,7 +144,7 @@ _octo_lifecycle_lock() {
         done
         sleep 0.02 2>/dev/null || return 1
     done
-    mkdir "$lock/$owner" || { rmdir "$lock" 2>/dev/null || true; return 1; }
+    _octo_lifecycle_mkdir "$lock/$owner" || { rmdir "$lock" 2>/dev/null || true; return 1; }
 }
 
 _octo_lifecycle_unlock() {

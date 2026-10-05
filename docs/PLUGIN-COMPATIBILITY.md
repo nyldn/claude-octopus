@@ -42,9 +42,10 @@ API references: [Python PID handles](https://docs.python.org/3/library/os.html#o
 [PID-handle signaling](https://docs.python.org/3/library/signal.html#signal.pidfd_send_signal),
 and [Apple's audit-token signaling implementation](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/proc_info.c).
 
-## Durable event and run-contract locking
+## Durable event, run-contract and installation receipt locking
 
-Event-lock acquisition and durable run-contract writes require `python3` on PATH. Lock
+Event-lock acquisition, durable run-contract writes and installation receipt
+transactions require `python3` on PATH. Lock
 admission uses its kernel `os.mkdir` result instead of trusting a directory
 utility's success status. Existing directories remain contention; unavailable
 Python or other creation errors stop durable writes with an infrastructure
