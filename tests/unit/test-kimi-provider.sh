@@ -78,7 +78,9 @@ MOCK
 _kimi_native_runtime_mock_bin() {
     local dir="$1" command_name
     mkdir -p "$dir"
-    ln -s "$(command -v env)" "$dir/kimi"
+    # Use a native shell to dispatch the inert command files below. Some env
+    # implementations reject invocation under a different executable name.
+    ln -s "$(command -v sh)" "$dir/kimi"
     for command_name in doctor provider; do
         {
             printf '%s\n' '#!/usr/bin/env bash'
@@ -363,7 +365,7 @@ TOML
     PATH="$tmp_bin:$PATH"
     source "$PROJECT_ROOT/scripts/lib/kimi.sh"
     rc=0
-    method="$(KIMI_CODE_HOME="$root" kimi_configured_credential_method 2>/dev/null)" || rc=$?
+    method="$(cd "$tmp_bin" && KIMI_CODE_HOME="$root" kimi_configured_credential_method 2>/dev/null)" || rc=$?
     PATH="$old_path"
     if [[ "$rc" -eq 0 && "$method" == "config:api-key" ]]; then
         test_pass

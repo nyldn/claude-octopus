@@ -116,9 +116,9 @@ test_heartbeat_in_spawn_agent() {
     local spawn_body pid_line heartbeat_line
     spawn_body=$(sed -n '/^spawn_agent()/,/^spawn_agent_capture_pid()/p' \
         "$PROJECT_ROOT/scripts/lib/spawn.sh")
-    pid_line=$(printf '%s\n' "$spawn_body" | awk '/local pid=\$!/{print NR; exit}')
+    pid_line=$(printf '%s\n' "$spawn_body" | awk '/local pid=\$!/ && !found {print NR; found=1}')
     heartbeat_line=$(printf '%s\n' "$spawn_body" | \
-        awk '/start_heartbeat_monitor "\$pid" "\$task_id"/{print NR; exit}')
+        awk '/start_heartbeat_monitor "\$pid" "\$task_id"/ && !found {print NR; found=1}')
 
     if [[ -n "$pid_line" && -n "$heartbeat_line" && "$heartbeat_line" -gt "$pid_line" ]]; then
         test_pass
