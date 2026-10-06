@@ -16,11 +16,26 @@
   The controller and recurring release schedule are not deployed by this change.
 - GitHub maintenance can edit PR descriptions through validated private snapshots,
   using the same credential checks as other outbound comments.
+- Codex Tangle projects canonical `CODEX_HOME` with read-only configuration and
+  extensions. Runtime caches and a safe configured `TMPDIR` use private storage;
+  existing regular single-link auth files support in-place refresh. Unsafe state
+  paths and configuration backing aliases abort dispatch instead of granting
+  persistent writes. Python is required for inspection, and configured TMPDIR
+  requires `tomllib`. Default SQLite state uses private storage on Codex 0.160;
+  explicit `sqlite_home` settings remain subject to the read-only boundary.
+- Consultative Git workspaces copy selected working-tree bytes through held
+  directory descriptors, reducing per-file process spawning while preserving
+  ignore rules, nested repository content, file modes and timestamps, and path
+  confinement.
+  Unsupported descriptor operations retain the portable shell fallback.
+  Deleted indexed descendants beneath a replacement regular file are skipped;
+  directory races remain fatal, and file-wrapper failures release owned descriptors.
+- Event capture locks also claim their owner PID exclusively, so a raced
+  `mkdir` success cannot admit two holders or overwrite the active owner.
 
 ### Fixed
 
 - Concurrent installation receipts use kernel directory admission for the transaction and owner claim, preserving both Claude and Codex records when directory utilities report a raced success. Receipt recording now fails closed when Python 3 is unavailable.
-
 - Debug freeze activation requires a shared Claude session ID instead of creating
   unenforced PID state; Claude regression probes ignore inherited Codex host settings.
 - Debug freeze activation preserves an existing owned freeze without reading or
@@ -38,13 +53,6 @@
   is already active in place, and the workflow removes only a freeze it created.
 - Codex Tangle rejects mutable state aliases; use a canonical absolute
   `CODEX_HOME` path to keep later dispatches from granting writes to protected files.
-- Codex Tangle projects canonical `CODEX_HOME` with read-only configuration and
-  extensions. Runtime caches and a safe configured `TMPDIR` use private storage;
-  existing regular single-link auth files support in-place refresh. Unsafe state
-  paths and configuration backing aliases abort dispatch instead of granting
-  persistent writes. Python is required for inspection, and configured TMPDIR
-  requires `tomllib`. Default SQLite state uses private storage on Codex 0.160;
-  explicit `sqlite_home` settings remain subject to the read-only boundary.
 - Codex Tangle preserves existing configuration when spawn disables shell
   globbing, keeps caller glob options unchanged, and canonicalizes HOME only
   for the implicit state directory. Explicit CODEX_HOME aliases remain refused.
@@ -53,18 +61,9 @@
   restore signal traps; retries retain usable sibling and partial results.
   Supervision failures stop validation, review recovery, and delivery even when
   late result artifacts appear successful (#1163).
-- Consultative Git workspaces copy selected working-tree bytes through held
-  directory descriptors, reducing per-file process spawning while preserving
-  ignore rules, nested repository content, file modes and timestamps, and path
-  confinement.
-  Unsupported descriptor operations retain the portable shell fallback.
-  Deleted indexed descendants beneath a replacement regular file are skipped;
-  directory races remain fatal, and file-wrapper failures release owned descriptors.
 - Parallel research children claim lock ownership atomically, preserving the
   first creator's prompt and manifest when `mkdir` reports success after losing
   a concurrent directory-creation race (#1166).
-- Event capture locks also claim their owner PID exclusively, so a raced
-  `mkdir` success cannot admit two holders or overwrite the active owner.
 - Event lock cleanup stays attached to the inspected directory, preserving a
   replacement caller's metadata during stale reclamation and failed writes.
   Durable locking requires `python3` for kernel directory admission; missing

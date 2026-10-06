@@ -245,7 +245,7 @@ A batch completes only when one receipt links all of the following:
 - Approved aggregate commit/tree and every constituent source head, followed by
   the actual squash-main SHA, its matching approved tree and its successful full
   CI run/attempt.
-- One version across package, canonical plugin/adaptor manifests, routines,
+- One version across package, canonical plugin/adapter manifests, routines,
   generated local marketplaces, current documentation and changelog. Use the
   version-location table in [RELEASING.md](../RELEASING.md#2-bump-every-version-location)
   and `make sync`; do not hand-edit derived artifacts.
