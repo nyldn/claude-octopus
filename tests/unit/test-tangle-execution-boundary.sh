@@ -479,7 +479,7 @@ EOF
     mkdir -p "$CODEX_ROOT/codex-home-plain"
     printf '[features]\nweb_search = false\n' > "$CODEX_ROOT/codex-home-plain/config.toml"
     BOUNDARY_WARNINGS="$CODEX_ROOT/warnings.log"
-    log() { if [[ "$1" == "WARN" ]]; then printf '%s\n' "$*" >> "$BOUNDARY_WARNINGS"; fi; }
+    log() { if [[ "$1" == "WARN" || "$1" == "ERROR" ]]; then printf '%s\n' "$*" >> "$BOUNDARY_WARNINGS"; fi; }
     saved_path="$PATH"
     PATH="$no_tomllib_bin:$PATH"
     agent_type="codex"
@@ -488,6 +488,7 @@ EOF
     CODEX_HOME="$CODEX_STATE_HOME"
     cmd_array=(true)
     boundary_refuses_codex || tomllib_failures+=" TMPDIR-admitted"
+    grep -qF 'Tangle boundary refused: cannot inspect configured TMPDIR without Python 3.11+ (tomllib)' "$BOUNDARY_WARNINGS" || tomllib_failures+=" TMPDIR-silent"
     # A config.toml without a TMPDIR setting needs no warning.
     : > "$BOUNDARY_WARNINGS"
     CODEX_HOME="$CODEX_ROOT/codex-home-plain"

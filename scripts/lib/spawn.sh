@@ -427,8 +427,8 @@ octopus_tangle_execution_boundary_required() {
 # config.toml sets for the commands it runs, where codex's own bubblewrap
 # sandbox keeps its mount-registry lock. Without that setting codex uses the
 # boundary's private /tmp. Reading the setting needs Python 3.11+ (tomllib);
-# without it only CODEX_HOME is printed, and a warning says that a TMPDIR set
-# in config.toml cannot be safely admitted.
+# without it a TMPDIR setting in config.toml refuses dispatch with an error.
+# A config without that setting can still print CODEX_HOME safely.
 octopus_tangle_codex_state_dirs() {
     local codex_home physical_default_home
     if [[ -n "${CODEX_HOME:-}" ]]; then

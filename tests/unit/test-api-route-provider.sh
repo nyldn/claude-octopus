@@ -118,6 +118,22 @@ else
     test_pass
 fi
 
+test_case "canonical API Route quota marker blocks pinned and unpinned seats"
+if (
+    source "$PROJECT_ROOT/scripts/lib/quota-watcher.sh"
+    WORKSPACE_DIR="$TEST_TMP_DIR/api-route-quota"
+    octo_quota_mark_dead api-route 0
+    ! API_ROUTE_API_KEY=fixture-key API_ROUTE_MODEL=deepseek-v4.1-flash is_agent_available_v2 api-route-agent &&
+    ! API_ROUTE_API_KEY=fixture-key is_agent_available_v2 api-route-agent:deepseek-v4.1-flash &&
+    octo_quota_clear_dead api-route &&
+    API_ROUTE_API_KEY=fixture-key API_ROUTE_MODEL=deepseek-v4.1-flash is_agent_available_v2 api-route-agent &&
+    API_ROUTE_API_KEY=fixture-key is_agent_available_v2 api-route-agent:deepseek-v4.1-flash
+); then
+    test_pass
+else
+    test_fail "quota-dead API Route stayed available or failed recovery"
+fi
+
 test_case "configured health and exact-seat availability share model validation"
 if API_ROUTE_API_KEY=fixture-key API_ROUTE_MODEL=deepseek-v4.1-flash check_provider_health api-route &&
    API_ROUTE_API_KEY=fixture-key is_agent_available_v2 api-route-agent:deepseek-v4.1-flash &&

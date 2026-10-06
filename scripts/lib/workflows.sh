@@ -3031,7 +3031,8 @@ tangle_process_is_active_non_zombie() {
     kill -0 "$pid" 2>/dev/null || return 1
     local stat
     stat=$(ps -o stat= -p "$pid" 2>/dev/null | awk 'NR==1 {print $1}') || stat=""
-    [[ -n "$stat" ]] || return 1
+    # kill -0 succeeded; unavailable process state cannot prove worker exit.
+    [[ -n "$stat" ]] || return 0
     [[ "$stat" == Z* || "$stat" == X* ]] && return 1
     return 0
 }

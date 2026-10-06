@@ -8,6 +8,32 @@ SOURCE_ROOT="${1:-$PROJECT_ROOT}"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "Tangle deadline identity exit race"
 
+# A successful liveness probe wins when state inspection is unavailable.
+for process_state in empty failing running zombie exiting gone; do
+    test_case "process state inspection: $process_state"
+    if (
+        source "$SOURCE_ROOT/scripts/lib/workflows.sh"
+        kill() { [[ "$process_state" != gone && "${1:-}" == -0 ]]; }
+        ps() {
+            case "$process_state" in
+                empty) return 0 ;;
+                failing) return 1 ;;
+                running) printf 'R+\n' ;;
+                zombie) printf 'Z+\n' ;;
+                exiting) printf 'X\n' ;;
+            esac
+        }
+        case "$process_state" in
+            empty|failing|running) tangle_process_is_active_non_zombie 424242 ;;
+            *) ! tangle_process_is_active_non_zombie 424242 ;;
+        esac
+    ); then
+        test_pass
+    else
+        test_fail "unsafe liveness classification for $process_state"
+    fi
+done
+
 run_deadline_case() (
     local scenario="$1" fixture="$TEST_TMP_DIR/$1"
     mkdir -p "$fixture/workspace/.octo/agents" "$fixture/results"

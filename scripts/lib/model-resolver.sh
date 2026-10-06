@@ -925,7 +925,9 @@ is_agent_available_v2() {
     [[ -z "$PROVIDER_CODEX_INSTALLED" ]] && load_providers_config
 
     # oco-cbb: skip a provider marked quota/auth-dead earlier this session.
-    if declare -f octo_quota_is_dead >/dev/null 2>&1 && octo_quota_is_dead "${agent%%-*}"; then
+    local quota_provider
+    quota_provider="$(octo_provider_canonical "${agent%%:*}" 2>/dev/null)" || quota_provider="${agent%%-*}"
+    if declare -f octo_quota_is_dead >/dev/null 2>&1 && octo_quota_is_dead "$quota_provider"; then
         return 1
     fi
 
