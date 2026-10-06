@@ -94,6 +94,18 @@ class CopyContracts(unittest.TestCase):
         self.run_copy()
         self.assertEqual((self.destination / 'a').read_bytes(), b'replacement bytes')
 
+    def test_tracked_regular_replaced_by_plain_directory_copies_untracked_contents(self):
+        self.file('a\twith\nname').unlink()
+        self.file('a\twith\nname/value', b'replacement directory bytes', tracked=False)
+        self.file('.gitignore', b'a*with*name/ignored\n')
+        self.file('a\twith\nname/ignored', b'ignored bytes', tracked=False)
+        with mock.patch.object(copy.subprocess, 'run', wraps=subprocess.run) as commands:
+            self.run_copy()
+        self.assertEqual(commands.call_count, 2)
+        self.assertEqual((self.destination / 'a\twith\nname/value').read_bytes(),
+                         b'replacement directory bytes')
+        self.assertFalse((self.destination / 'a\twith\nname/ignored').exists())
+
     def test_deleted_index_descendant_under_unsafe_ancestor_is_fatal(self):
         self.file('a/b').unlink()
         (self.source / 'a').rmdir()
@@ -217,25 +229,37 @@ class CopyContracts(unittest.TestCase):
         self.assertFalse((self.destination / 'octopus-consultative.ab.cde').exists())
 
     def test_nested_git_trees_honor_their_own_ignore_rules(self):
-        child = self.source / 'child'
-        child.mkdir()
-        self.git('init', '-q', root=child)
-        (child / '.gitignore').write_text('ignored\n')
-        (child / 'value').write_bytes(b'child working tree')
-        (child / 'ignored').write_bytes(b'nested secret')
-        self.git('add', '.gitignore', 'value', root=child)
-        self.run_copy()
-        self.assertEqual((self.destination / 'child/value').read_bytes(), b'child working tree')
-        self.assertFalse((self.destination / 'child/.git').exists())
-        self.assertFalse((self.destination / 'child/ignored').exists())
+        for replaces_index_file in (False, True):
+            with self.subTest(replaces_index_file=replaces_index_file):
+                name = 'replaced' if replaces_index_file else 'child'
+                if replaces_index_file:
+                    self.file(name).unlink()
+                child = self.source / name
+                child.mkdir()
+                self.git('init', '-q', root=child)
+                (child / '.gitignore').write_text('ignored\n')
+                (child / 'value').write_bytes(b'child working tree')
+                (child / 'ignored').write_bytes(b'nested secret')
+                self.git('add', '.gitignore', 'value', root=child)
+                self.run_copy()
+                self.assertEqual((self.destination / name / 'value').read_bytes(), b'child working tree')
+                self.assertFalse((self.destination / name / '.git').exists())
+                self.assertFalse((self.destination / name / 'ignored').exists())
+                shutil.rmtree(self.destination / name)
 
     def test_broken_nested_git_marker_fails_without_full_copy(self):
         self.file('child/value', tracked=False)
-        (self.source / 'child/.git').write_text('gitdir: missing\n')
         oid = subprocess.check_output(['git', '-C', str(self.source), 'hash-object', '-w', '--stdin'], input=b'fixture').decode().strip()
         self.git('update-index', '--add', '--cacheinfo', '160000', oid, 'child')
-        with self.assertRaises(copy.UnsafeCopy):
-            self.run_copy()
+        for marker in (None, 'gitdir: missing\n'):
+            with self.subTest(marker=marker):
+                if marker is not None:
+                    (self.source / 'child/.git').write_text(marker)
+                with self.assertRaises(copy.UnsafeCopy) as error:
+                    self.run_copy()
+                if marker is None:
+                    self.assertIn('nested Git metadata is missing', str(error.exception))
+                self.assertFalse((self.destination / 'child/value').exists())
 
     def test_ambient_git_state_and_trace_sinks_do_not_cross_enumeration(self):
         self.file('value')

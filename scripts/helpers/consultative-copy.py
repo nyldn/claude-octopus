@@ -207,11 +207,35 @@ def copy_regular(parent, output_parent, name, expected):
                 return os.fstat(output_file.fileno())
 
 
+def index_entries(source, pathspec):
+    """Keep index paths and gitlink modes, including conflicted index stages."""
+    tracked = {}
+    gitlinks = set()
+    for record in git(source, 'ls-files', '-z', '--stage', *pathspec).split(b'\0'):
+        if record:
+            metadata, path = record.split(b'\t', 1)
+            relative = os.fsdecode(path).rstrip('/')
+            tracked[relative] = None
+            if metadata.startswith(b'160000 '):
+                gitlinks.add(relative)
+    return tracked, gitlinks
+
+
+def stale_index_directory(source, components, info, ancestors):
+    """Recognize a former non-gitlink index file through its held directory FD."""
+    with source.descend(components, ancestors + [identity(info)]) as (fd, unused):
+        try:
+            os.stat('.git', dir_fd=fd, follow_symlinks=False)
+        except FileNotFoundError:
+            return True
+    return False
+
+
 def copy_tree(source, destination, scope=''):
     pathspec = ['--', ':(literal,top)' + scope] if scope else []
-    tracked = git(source, 'ls-files', '-z', '--cached', *pathspec).split(b'\0')
+    tracked, gitlinks = index_entries(source, pathspec)
     untracked = git(source, 'ls-files', '-z', '--others', '--exclude-standard', *pathspec).split(b'\0')
-    entries = dict.fromkeys(os.fsdecode(p).rstrip('/') for p in tracked if p)
+    entries = tracked.copy()
     entries.update(dict.fromkeys(os.fsdecode(p).rstrip('/') for p in untracked if p and not generated(os.fsdecode(p))))
     leaves = []
     materialized = []
@@ -230,6 +254,9 @@ def copy_tree(source, destination, scope=''):
             except FileNotFoundError:
                 continue  # Deleted index entries have no working-tree bytes.
             if stat.S_ISDIR(info.st_mode):
+                if (relative in tracked and relative not in gitlinks
+                        and stale_index_directory(source, components, info, ancestors)):
+                    continue  # --others enumerates this replacement directory's leaves.
                 materialized.extend(nested(source, destination, relative, info, ancestors))
             elif stat.S_ISREG(info.st_mode) or stat.S_ISLNK(info.st_mode):
                 leaves.append((relative, info, ancestors))
