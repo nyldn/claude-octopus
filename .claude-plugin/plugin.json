@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.10.0",
-  "description": "v11.10.0 \u2014 Portable feature specs, Sonnet 5.5 support, new provider options and more reliable reviews. Run /octo:setup.",
+  "version": "11.11.0",
+  "description": "v11.11.0 \u2014 API Route support and faster, reliable development workflows. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

@@ -421,6 +421,270 @@ octopus_tangle_execution_boundary_required() {
        "${OCTOPUS_TANGLE_WRITE_SCOPE_MODE:-strict}" == "adaptive" ]]
 }
 
+# Print the directories a codex provider writes to while it runs, one per line:
+# CODEX_HOME (its state databases, session files and auth refresh, which the
+# in-process app server opens at startup) and the TMPDIR that codex's
+# config.toml sets for the commands it runs, where codex's own bubblewrap
+# sandbox keeps its mount-registry lock. Without that setting codex uses the
+# boundary's private /tmp. Reading the setting needs Python 3.11+ (tomllib);
+# without it a TMPDIR setting in config.toml refuses dispatch with an error.
+# A config without that setting can still print CODEX_HOME safely.
+octopus_tangle_codex_state_dirs() {
+    local codex_home physical_default_home
+    if [[ -n "${CODEX_HOME:-}" ]]; then
+        codex_home="$CODEX_HOME"
+    else
+        [[ -n "${HOME:-}" ]] || return 125
+        physical_default_home=$(cd "$HOME" 2>/dev/null && pwd -P) || return 125
+        codex_home="$physical_default_home/.codex"
+    fi
+    local config_toml config_tmpdir="" read_status=0
+    case "$codex_home" in
+        *[$'\001'-$'\037'$'\177']*)
+            log ERROR "Tangle boundary refused: CODEX_HOME contains control delimiters"
+            return 125
+            ;;
+    esac
+    printf '%s\n' "$codex_home"
+    config_toml="$codex_home/config.toml"
+    [[ -f "$config_toml" ]] || return 0
+    if command -v python3 >/dev/null 2>&1; then
+        config_tmpdir=$(python3 -I -c 'import sys
+try:
+    import tomllib
+except ImportError:
+    sys.exit(3)
+with open(sys.argv[1], "rb") as handle:
+    config = tomllib.load(handle)
+policy = config.get("shell_environment_policy")
+values = policy.get("set") if isinstance(policy, dict) else None
+tmpdir = values.get("TMPDIR") if isinstance(values, dict) else None
+if tmpdir is not None and (not isinstance(tmpdir, str) or not tmpdir.startswith("/") or any(ord(c) < 32 or ord(c) == 127 for c in tmpdir)):
+    sys.exit(4)
+print(tmpdir if isinstance(tmpdir, str) else "")' "$config_toml" 2>/dev/null) || read_status=$?
+    else
+        read_status=3
+    fi
+    if [[ "$read_status" -eq 3 ]]; then
+        # Stay quiet when the file cannot set TMPDIR at all.
+        if grep -c 'TMPDIR' "$config_toml" >/dev/null 2>&1; then
+            log ERROR "Tangle boundary refused: cannot inspect configured TMPDIR without Python 3.11+ (tomllib)"
+            return 125
+        fi
+        return 0
+    fi
+    [[ "$read_status" -eq 0 ]] || return 125
+    if [[ "$config_tmpdir" == /* ]]; then
+        printf '%s\n' "$config_tmpdir"
+    fi
+    return 0
+}
+
+# Refuse configuration with another writable backing path before starting the
+# worker. Metadata-only traversal follows extension links and stops cycles.
+octopus_tangle_codex_config_is_safe() {
+    python3 -I - "$1" "$2" <<'PYTHON'
+import os
+import stat
+import sys
+home, worktree = sys.argv[1:]
+auth = os.path.join(home, "auth.json")
+root_info = os.stat(home)
+visited = {(root_info.st_dev, root_info.st_ino)}
+remaining = 100000
+def inspect(path, depth=0):
+    global remaining
+    remaining -= 1
+    if remaining < 0 or depth > 64:
+        raise ValueError("configuration backing metadata exceeds inspection bounds")
+    path = os.path.realpath(path, strict=True)
+    if path == worktree or path.startswith(worktree + os.sep) or path == auth:
+        raise ValueError("configuration has a writable backing path")
+    info = os.stat(path)
+    if stat.S_ISREG(info.st_mode):
+        if info.st_nlink != 1:
+            raise ValueError("configuration file has multiple hard links")
+    elif stat.S_ISDIR(info.st_mode):
+        identity = (info.st_dev, info.st_ino)
+        if identity in visited:
+            return
+        visited.add(identity)
+        for entry in os.scandir(path):
+            inspect(entry.path, depth + 1)
+    else:
+        raise ValueError("configuration entry is not a regular file or directory")
+try:
+    for entry in os.scandir(home):
+        if entry.name != "auth.json":
+            inspect(entry.path)
+except (OSError, ValueError, RecursionError):
+    sys.exit(1)
+PYTHON
+}
+
+# Project trusted settings read-only and keep executable/runtime caches private.
+# File auth refresh writes in place in Codex 0.160.0; only an existing regular
+# auth.json gets a writable file mount. No writable parent permits replacement.
+# https://github.com/openai/codex/blob/rust-v0.160.0/codex-rs/login/src/auth/storage.rs
+# SQLite's supported environment override avoids adding flags to provider argv.
+# https://github.com/openai/codex/blob/rust-v0.160.0/codex-rs/state/src/lib.rs
+octopus_tangle_project_codex_home() {
+    local codex_home="$1" entry name runtime_dir listing_complete=false
+    local -a codex_entries=()
+    # Spawn disables globbing. Enumerate privately so caller options and
+    # GLOBIGNORE cannot hide entries or change after this helper returns.
+    while IFS= read -r -d '' entry; do
+        if [[ -z "$entry" ]]; then
+            listing_complete=true
+            break
+        fi
+        codex_entries+=("$entry")
+    done < <(
+        set +f || exit 1
+        unset GLOBIGNORE || exit 1
+        shopt -s dotglob nullglob || exit 1
+        shopt -u failglob || exit 1
+        for entry in "$codex_home"/*; do
+            printf '%s\0' "$entry" || exit 1
+        done
+        # Absolute entry paths are nonempty. This final empty frame proves
+        # enumeration completed; EOF alone must not grant a partial projection.
+        printf '\0'
+    )
+    [[ "$listing_complete" == true ]] || return 125
+    boundary_cmd+=(--tmpfs "$codex_home")
+    for entry in ${codex_entries[@]+"${codex_entries[@]}"}; do
+        [[ -e "$entry" || -L "$entry" ]] || continue
+        name="${entry##*/}"
+        case "$name" in
+            tmp|sessions|archived_sessions|log|shell_snapshots|installation_id) continue ;;
+        esac
+        if [[ "$name" == auth.json && -f "$entry" && ! -L "$entry" && \
+              "$(stat -c %h -- "$entry" 2>/dev/null)" == 1 ]]; then
+            boundary_cmd+=(--bind "$entry" "$entry")
+        else
+            boundary_cmd+=(--ro-bind "$entry" "$entry")
+        fi
+    done
+    for runtime_dir in tmp sessions archived_sessions log shell_snapshots; do
+        boundary_cmd+=(--tmpfs "$codex_home/$runtime_dir")
+    done
+    # Codex 0.160 opens its installation ID read/write even at initialization.
+    # https://github.com/openai/codex/blob/rust-v0.160.0/codex-rs/core/src/installation_id.rs
+    boundary_cmd+=(--symlink "$codex_home/tmp/installation_id" "$codex_home/installation_id")
+    boundary_cmd+=(--setenv CODEX_SQLITE_HOME "$codex_home/tmp/sqlite"
+                   --remount-ro "$codex_home")
+}
+
+# Print the physical Git directory and common directory of a worktree, one per
+# line. A linked worktree keeps both outside itself, below the main
+# repository's .git, where only the read-only root protects them. Prints
+# nothing for a directory outside any repository, and fails when the worktree
+# has Git metadata that cannot be resolved.
+octopus_tangle_worktree_git_dirs() {
+    local worktree="$1" git_dir common_dir env_name
+    local -a clean_env=()
+    # Resolve the worktree's own metadata, not a GIT_DIR the caller inherited.
+    while IFS= read -r env_name; do
+        [[ -n "$env_name" ]] && clean_env+=(-u "$env_name")
+    done < <(git rev-parse --local-env-vars 2>/dev/null)
+    if ! git_dir=$(env ${clean_env[@]+"${clean_env[@]}"} git -C "$worktree" rev-parse --absolute-git-dir 2>/dev/null) || \
+       ! common_dir=$(env ${clean_env[@]+"${clean_env[@]}"} git -C "$worktree" rev-parse --git-common-dir 2>/dev/null); then
+        # Outside any repository there is no Git metadata to protect.
+        [[ -e "$worktree/.git" ]] && return 1
+        return 0
+    fi
+    # --git-common-dir can be relative to the worktree.
+    git_dir=$(cd "$worktree" 2>/dev/null && cd "$git_dir" 2>/dev/null && pwd -P) || return 1
+    common_dir=$(cd "$worktree" 2>/dev/null && cd "$common_dir" 2>/dev/null && pwd -P) || return 1
+    printf '%s\n%s\n' "$git_dir" "$common_dir"
+}
+
+# Codex runtime writes use private tmpfs directories. Existing configuration and
+# extension inputs remain readable through read-only mounts, and the projected
+# CODEX_HOME root cannot create or replace entries. Only existing single-link
+# regular auth.json permits in-place refresh. The raw canonical path and overlap
+# guards also prevent a configured TMPDIR from reopening protected inputs.
+# Appends safe Codex state mounts to the caller-local boundary_cmd array.
+# Bash dynamic scope keeps mount ordering in one array without namerefs, which
+# are unavailable in the supported Bash 3.2 shell.
+octopus_tangle_bind_codex_state_dirs() {
+    local physical_worktree="$1" physical_results="$2"
+    local codex_dir physical_codex_dir physical_home
+    local git_dirs git_path refusal codex_dirs git_dirs_known=true state_dir_index=0 accepted_codex_home=""
+    physical_home=$(cd "${HOME:-/}" 2>/dev/null && pwd -P) || physical_home="/"
+    git_dirs=$(octopus_tangle_worktree_git_dirs "$physical_worktree") || git_dirs_known=false
+    codex_dirs=$(octopus_tangle_codex_state_dirs) || return 125
+    while IFS= read -r codex_dir; do
+        state_dir_index=$((state_dir_index + 1))
+        [[ -n "$codex_dir" ]] || continue
+        physical_codex_dir=""
+        if [[ -d "$codex_dir" ]]; then
+            physical_codex_dir=$(cd "$codex_dir" 2>/dev/null && pwd -P) || physical_codex_dir=""
+        fi
+        if [[ "$physical_codex_dir" == /tmp ]]; then
+            if [[ "$state_dir_index" -eq 1 ]]; then
+                log ERROR "Tangle boundary refused: CODEX_HOME cannot be the private /tmp root"
+                return 125
+            fi
+            continue
+        fi
+        refusal=""
+        if [[ ! -e "$codex_dir" ]]; then
+            refusal="it does not exist, and codex cannot create it inside the boundary"
+        elif [[ -z "$physical_codex_dir" ]]; then
+            refusal="it is not a directory"
+        elif [[ "$state_dir_index" -eq 1 && "$codex_dir" != "$physical_codex_dir" && "$codex_dir" != "$physical_codex_dir/" ]]; then
+            refusal="CODEX_HOME must use its canonical absolute directory path (one trailing slash is allowed)"
+        elif [[ "$physical_codex_dir" == "/" || "$physical_home/" == "$physical_codex_dir/"* ]]; then
+            refusal="it holds HOME"
+        elif [[ "$state_dir_index" -gt 1 && "$codex_dir" != "$physical_codex_dir" && "$codex_dir" != "$physical_codex_dir/" ]]; then
+            refusal="configured TMPDIR must use its canonical absolute directory path"
+        elif [[ "$state_dir_index" -gt 1 && -n "$accepted_codex_home" && \
+                "$physical_codex_dir/" == "$accepted_codex_home/tmp/"* ]]; then
+            # This subtree is already private. Never replace a protected entry
+            # with a later writable mount, even when config names it as TMPDIR.
+            continue
+        elif [[ "$state_dir_index" -gt 1 && \
+                ( "$physical_codex_dir/" == "$physical_home/"* || \
+                  ( -n "$accepted_codex_home" && \
+                    ( "$accepted_codex_home/" == "$physical_codex_dir/"* || \
+                      "$physical_codex_dir/" == "$accepted_codex_home/"* ) ) ) ]]; then
+            refusal="configured TMPDIR overlaps HOME or the protected CODEX_HOME projection"
+        elif ! octopus_tangle_boundary_paths_are_disjoint "$physical_worktree" "$physical_codex_dir"; then
+            refusal="it overlaps the worktree"
+        elif ! octopus_tangle_boundary_paths_are_disjoint "$physical_results" "$physical_codex_dir"; then
+            refusal="it overlaps the result channel"
+        elif [[ "$git_dirs_known" != "true" ]]; then
+            refusal="the worktree's Git metadata cannot be resolved"
+        else
+            while IFS= read -r git_path; do
+                if [[ -n "$git_path" ]] && \
+                   ! octopus_tangle_boundary_paths_are_disjoint "$git_path" "$physical_codex_dir"; then
+                    refusal="it overlaps the Git metadata in $git_path"
+                    break
+                fi
+            done <<< "$git_dirs"
+        fi
+        if [[ -n "$refusal" ]]; then
+            log ERROR "Tangle boundary refused: unsafe Codex state path: $refusal"
+            return 125
+        fi
+        if [[ "$state_dir_index" -eq 1 ]]; then
+            if ! octopus_tangle_codex_config_is_safe "$physical_codex_dir" "$physical_worktree"; then
+                log ERROR "Tangle boundary refused: Codex configuration has unsafe backing paths or cannot be inspected"
+                return 125
+            fi
+            octopus_tangle_project_codex_home "$physical_codex_dir" || return 125
+            accepted_codex_home="$physical_codex_dir"
+        else
+            # Temporary files never persist executable code or config edits
+            # through aliases to the host's original TMPDIR backing tree.
+            boundary_cmd+=(--tmpfs "$physical_codex_dir")
+        fi
+    done <<< "$codex_dirs"
+}
+
 octopus_tangle_apply_execution_boundary() {
     # Adaptive scope expansion is never allowed to rely on the caller's
     # opt-in flag. Enforce the boundary at the provider dispatch point too,
@@ -455,7 +719,8 @@ octopus_tangle_apply_execution_boundary() {
     local -a boundary_cmd
     # Keep the host root read-only so provider executables and credentials
     # remain available. This boundary prevents writes outside the selected
-    # worktree; it does not hide readable host files or block network access.
+    # worktree and, for codex, private runtime directories and auth refresh; it does
+    # not hide readable host files or block network access.
     # Mount the isolated /tmp before re-binding a worktree that may itself live
     # below /tmp. Reversing these mounts hides the worktree behind the tmpfs and
     # makes the boundary depend on mount-order quirks.
@@ -516,6 +781,12 @@ octopus_tangle_apply_execution_boundary() {
         # provider cannot forge result artifacts by pathname.
         boundary_cmd+=(--ro-bind "$physical_results" "$physical_results")
     fi
+
+    case "${agent_type:-}" in
+        codex|codex-*|codex:*)
+            octopus_tangle_bind_codex_state_dirs "$physical_worktree" "$physical_results" || return $?
+            ;;
+    esac
 
     boundary_cmd+=(--)
     cmd_array=("${boundary_cmd[@]}" "${cmd_array[@]}")

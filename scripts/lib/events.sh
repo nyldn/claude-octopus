@@ -80,44 +80,99 @@ PY
     printf '"%s"\n' "$out"
 }
 
-# Portable best-effort exclusive lock. flock is Linux-only; mkdir is atomic on
-# every POSIX filesystem. Owner metadata lets a later caller reclaim a lock
-# leaked by SIGKILL without stealing a live holder's lock.
-_octo_event_reclaim_stale_lock() {
+# Kernel directory creation avoids utilities reporting success after EEXIST.
+# Python is required for durable locking; optional event capture retains its
+# best-effort unlocked fallback when the runtime is unavailable.
+_octo_event_mkdir() {
+    command -v python3 >/dev/null 2>&1 || return 1
+    python3 - "$1" <<'PY'
+import os
+import sys
+
+try:
+    os.mkdir(sys.argv[1])
+except FileExistsError:
+    sys.exit(75)
+except OSError:
+    sys.exit(1)
+PY
+}
+
+# Portable best-effort exclusive lock. Owner metadata lets a later caller
+# reclaim a lock leaked by SIGKILL without stealing a live holder's lock.
+_octo_event_reclaim_stale_lock() (
     local lockdir="$1" stale_secs="${OCTO_EVENT_LOCK_STALE_SECS:-30}"
     local owner="" timestamp="" now
     [[ "$stale_secs" =~ ^[0-9]+$ ]] || stale_secs=30
-    [[ -d "$lockdir" ]] || return 1
+    case "$lockdir" in /*) ;; *) lockdir="$PWD/$lockdir" ;; esac
+    [[ -d "$lockdir" && ! -L "$lockdir" ]] || return 1
+    # The working directory pins this inode even if its public name is reused.
+    CDPATH='' cd -P -- "$lockdir" >/dev/null 2>&1 || return 1
+    [[ ! -L pid && ! -L ts ]] || return 1
 
-    if [[ -e "$lockdir/pid" ]]; then
-        [[ -f "$lockdir/pid" && -r "$lockdir/pid" ]] || return 1
-        if [[ -s "$lockdir/pid" ]]; then
-            IFS= read -r owner < "$lockdir/pid" || return 1
+    if [[ -e pid ]]; then
+        [[ -f pid && -r pid ]] || return 1
+        if [[ -s pid ]]; then
+            IFS= read -r owner < pid || return 1
         fi
     fi
     if [[ "$owner" =~ ^[0-9]+$ ]] && kill -0 "$owner" 2>/dev/null; then
         return 75
     fi
-    if [[ -e "$lockdir/ts" ]]; then
-        [[ -f "$lockdir/ts" && -r "$lockdir/ts" ]] || return 1
-        if [[ -s "$lockdir/ts" ]]; then
-            IFS= read -r timestamp < "$lockdir/ts" || return 1
+    if [[ -e ts ]]; then
+        [[ -f ts && -r ts ]] || return 1
+        if [[ -s ts ]]; then
+            IFS= read -r timestamp < ts || return 1
         fi
     fi
     if [[ ! "$timestamp" =~ ^[0-9]+$ ]]; then
-        timestamp="$(stat -f %m "$lockdir" 2>/dev/null || stat -c %Y "$lockdir" 2>/dev/null)" || return 1
+        # A failed BSD-style call can still print filesystem diagnostics on
+        # GNU/uutils stat. Keep its output separate from the fallback value.
+        timestamp="$(stat -f %m . 2>/dev/null)" ||
+            timestamp="$(stat -c %Y . 2>/dev/null)" || return 1
     fi
     now="$(date +%s)" || return 1
     [[ "$timestamp" =~ ^[0-9]+$ && $((now - timestamp)) -ge "$stale_secs" ]] || return 1
 
-    rm -f "$lockdir/pid" "$lockdir/ts" 2>/dev/null || return 1
+    rm -f pid ts 2>/dev/null || return 1
     rmdir "$lockdir" 2>/dev/null
-}
+)
 
 _octo_event_lock() {
     local lockdir="$1.lock"
-    local tries=0 reclaim_rc
-    while ! mkdir "$lockdir" 2>/dev/null; do
+    local tries=0 reclaim_rc claim_rc owner="${BASHPID:-$$}"
+    case "$lockdir" in /*) ;; *) lockdir="$PWD/$lockdir" ;; esac
+    # The kernel must create this directory. An exclusive PID claim additionally
+    # prevents replacing metadata before the caller can enter the critical section.
+    while :; do
+        if _octo_event_mkdir "$lockdir" 2>/dev/null; then
+            if (
+                [[ ! -L "$lockdir" ]] || exit 1
+                CDPATH='' cd -P -- "$lockdir" >/dev/null || exit 1
+                [[ ! -L pid && ! -L ts ]] || exit 1
+                [[ ! -e pid ]] || exit 75
+                [[ ! -e ts || -f ts ]] || exit 1
+                set -C
+                exec 3> pid || exit 75
+                if printf '%s\n' "$owner" >&3 && date +%s > ts && [[ "$lockdir" -ef . ]]; then
+                    exit 0
+                fi
+                # Only names relative to the inode containing our own claim.
+                rm -f pid ts || true
+                rmdir "$lockdir" || true
+                exit 1
+            ) 2>/dev/null; then
+                break
+            else
+                claim_rc=$?
+                if [[ "$claim_rc" -ne 75 ]]; then
+                    return 1
+                fi
+            fi
+        else
+            claim_rc=$?
+            [[ "$claim_rc" -eq 75 ]] || return 1
+        fi
         tries=$((tries + 1))
         if [[ "$tries" -ge 50 ]]; then
             if _octo_event_reclaim_stale_lock "$lockdir"; then
@@ -131,18 +186,28 @@ _octo_event_lock() {
         fi
         sleep 0.02 2>/dev/null || return 1
     done
-    if ! printf '%s\n' "${BASHPID:-$$}" > "$lockdir/pid" 2>/dev/null ||
-       ! date +%s > "$lockdir/ts" 2>/dev/null; then
-        rm -f "$lockdir/pid" "$lockdir/ts" 2>/dev/null || true
-        rmdir "$lockdir" 2>/dev/null || true
-        return 1
-    fi
     return 0
 }
 
 _octo_event_unlock() {
-    rm -f "$1.lock/pid" "$1.lock/ts" 2>/dev/null || true
-    rmdir "$1.lock" 2>/dev/null || true
+    local lockdir="$1.lock" caller="${BASHPID:-$$}"
+    case "$lockdir" in /*) ;; *) lockdir="$PWD/$lockdir" ;; esac
+    (
+        local owner=""
+        [[ -d "$lockdir" && ! -L "$lockdir" ]] || exit 0
+        CDPATH='' cd -P -- "$lockdir" >/dev/null 2>&1 || exit 0
+        [[ ! -L pid && ! -L ts ]] || exit 0
+        [[ -f pid && -r pid ]] || exit 0
+        IFS= read -r owner < pid || exit 0
+        [[ "$owner" =~ ^[0-9]+$ ]] || exit 0
+        # Preserve a replacement held by another live caller. A finished
+        # subshell's abandoned claim remains cleanable by its parent.
+        if [[ "$owner" != "$caller" ]] && kill -0 "$owner" 2>/dev/null; then
+            exit 0
+        fi
+        rm -f pid ts 2>/dev/null || true
+        rmdir "$lockdir" 2>/dev/null || true
+    )
 }
 
 _octo_event_trim() {

@@ -41,6 +41,7 @@ octo_agent_spec_provider() {
         openai-compatible|openai-compatible-*) echo openai-compatible ;;
         atlascloud|atlascloud-*) echo atlascloud ;;
         cheaperinference|cheaperinference-*) echo cheaperinference ;;
+        api-route|api-route-*) echo api-route ;;
         qwen|qwen-*) echo qwen ;;
         grok|grok-*) echo grok ;;
         cursor-agent|cursor-agent-*) echo cursor-agent ;;
@@ -123,6 +124,7 @@ octo_agent_spec_canonicalize_exact() {
     case "$provider" in
         atlascloud) canonical_executor="atlascloud-agent" ;;
         cheaperinference) canonical_executor="cheaperinference-agent" ;;
+        api-route) canonical_executor="api-route-agent" ;;
         *) canonical_executor="$provider" ;;
     esac
 
@@ -157,6 +159,7 @@ octo_provider_model_allowlist_var() {
         orcarouter) echo "OCTOPUS_ORCAROUTER_ALLOWED_MODELS" ;;
         atlascloud|atlascloud-agent) echo "ATLASCLOUD_ALLOWED_MODELS" ;;
         cheaperinference|cheaperinference-agent) echo "CHEAPER_INFERENCE_ALLOWED_MODELS" ;;
+        api-route|api-route-agent) echo "API_ROUTE_ALLOWED_MODELS" ;;
         openai-compatible|openai-tools|openai-compatible-agent) echo "OPENAI_COMPAT_ALLOWED_MODELS" ;;
         perplexity) echo "OCTOPUS_PERPLEXITY_ALLOWED_MODELS" ;;
         qwen) echo "OCTOPUS_QWEN_ALLOWED_MODELS" ;;
@@ -218,6 +221,27 @@ octo_agent_spec_model_family() {
     if [[ -z "$model" ]]; then
         model="$(octo_agent_spec_explicit_model "$spec" 2>/dev/null || true)"
     fi
+
+    case "$executor" in
+        api-route|api-route-*|apiroute)
+            if [[ -z "$effective_model" ]]; then
+                if ! declare -f octo_api_route_effective_model >/dev/null 2>&1; then
+                    source "${_octo_agent_spec_lib_dir}/api-route.sh" || { echo unknown; return; }
+                fi
+                if [[ -n "$model" ]]; then
+                    local pinned_model="$model"
+                    model="$(octo_api_route_effective_model "$pinned_model")" || model=""
+                    # Exact seats cannot substitute an allowlist fallback.
+                    [[ "$model" == "$pinned_model" ]] || model=""
+                else
+                    model="$(octo_api_route_effective_model)" || model=""
+                fi
+            fi
+            # Provider transport is never evidence of model independence.
+            octo_model_family "$model"
+            return
+            ;;
+    esac
 
     if [[ -n "$model" ]]; then
         prefix="$(octo_model_family "$model")"

@@ -900,9 +900,10 @@ retry_failed_subtasks() {
     fi
     log INFO "Retrying $task_count failed subtasks (attempt $retry_count/${retry_limit_display})..."
 
-    local pids=""
+    local pids=() task_ids=()
     local subtask_num=0
-    local pid_count=0
+    local retry_previous_int_trap="" retry_previous_term_trap=""
+    local retry_supervision_active=false
 
     # Process newline-separated list
     while IFS= read -r failed_task; do
@@ -1014,28 +1015,55 @@ $prompt"
             spawn_agent "$agent" "$prompt" "$retry_task_id" "$role" "tangle"
             ((subtask_num++)) || true
         else
-            # Legacy bash subprocess
+            # CLI retries share first-pass completion and signal supervision.
+            # spawn_agent retains the same role/phase and adaptive stall policy.
+            if [[ "$retry_supervision_active" == false ]]; then
+                if ! declare -F tangle_wait_for_subtasks >/dev/null 2>&1 \
+                   || ! declare -F review_kill_process_tree_frozen >/dev/null 2>&1 \
+                   || ! declare -F review_kill_descendants_frozen >/dev/null 2>&1; then
+                    log ERROR "Tangle retry supervision is unavailable; refusing to start provider work"
+                    return 1
+                fi
+                retry_previous_int_trap="$(trap -p INT)"
+                retry_previous_term_trap="$(trap -p TERM)"
+                # Read by the signal/cancellation helpers in workflows.sh.
+                # shellcheck disable=SC2034
+                OCTOPUS_ACTIVE_TANGLE_TASK_GROUP="$task_group"
+                # shellcheck disable=SC2034
+                OCTOPUS_ACTIVE_TANGLE_TMUX=false
+                OCTOPUS_ACTIVE_TANGLE_PIDS=()
+                OCTOPUS_ACTIVE_TANGLE_AGENTS=()
+                OCTOPUS_ACTIVE_TANGLE_TASK_IDS=()
+                trap 'octopus_tangle_handle_signal INT' INT
+                trap 'octopus_tangle_handle_signal TERM' TERM
+                retry_supervision_active=true
+            fi
+            local active_idx="${#OCTOPUS_ACTIVE_TANGLE_TASK_IDS[@]}"
+            OCTOPUS_ACTIVE_TANGLE_PIDS+=("")
+            OCTOPUS_ACTIVE_TANGLE_AGENTS+=("$agent")
+            OCTOPUS_ACTIVE_TANGLE_TASK_IDS+=("$retry_task_id")
             local pid
-            pid=$(spawn_agent_capture_pid "$agent" "$prompt" "$retry_task_id" "$role" "tangle")
-            pids="$pids $pid"
+            if ! pid=$(spawn_agent_capture_pid "$agent" "$prompt" "$retry_task_id" "$role" "tangle" </dev/null); then
+                log ERROR "Failed to spawn Tangle retry $retry_task_id"
+                octopus_tangle_cancel_active TERM
+                _octopus_tangle_restore_traps "$retry_previous_int_trap" "$retry_previous_term_trap"
+                return 1
+            fi
+            OCTOPUS_ACTIVE_TANGLE_PIDS[active_idx]="$pid"
+            pids+=("$pid")
+            task_ids+=("$retry_task_id")
             ((subtask_num++)) || true
-            ((pid_count++)) || true
         fi
     done <<< "$FAILED_SUBTASKS"
 
-    # Wait for retry tasks
-    local completed=0
-    while [[ $completed -lt $pid_count ]]; do
-        completed=0
-        for pid in $pids; do
-            if ! kill -0 "$pid" 2>/dev/null; then
-                ((completed++)) || true
-            fi
-        done
-        echo -ne "\r${YELLOW}Retry progress: $completed/${pid_count} tasks${NC}"
-        sleep 2
-    done
-    echo ""
+    if [[ "$retry_supervision_active" == true ]]; then
+        if ! tangle_wait_for_subtasks "$task_group"; then
+            octopus_tangle_cancel_active TERM
+            _octopus_tangle_restore_traps "$retry_previous_int_trap" "$retry_previous_term_trap"
+            return 1
+        fi
+        _octopus_tangle_restore_traps "$retry_previous_int_trap" "$retry_previous_term_trap"
+    fi
 
     # Clear failed tasks for re-evaluation
     FAILED_SUBTASKS=""

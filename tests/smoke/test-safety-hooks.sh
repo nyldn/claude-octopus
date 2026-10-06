@@ -8,6 +8,67 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 
+SAFETY_HOOK_STATE_FILES=()
+SAFETY_HOOK_STATE_IDENTITIES=()
+# Register only a created synthetic regular file containing this probe's expected
+# value. Admission of an absent path alone never authorizes subsequent cleanup.
+record_safety_hook_state() {
+    local identity
+    identity=$(python3 - "$1" "$2" <<'PYRECORD'
+import os
+import stat
+import sys
+path, expected = sys.argv[1:]
+info = os.lstat(path)
+if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+        or info.st_nlink != 1):
+    raise SystemExit("refused ownership of unsafe safety fixture metadata")
+descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+with os.fdopen(descriptor, encoding="utf-8") as stream:
+    opened = os.fstat(stream.fileno())
+    if (opened.st_dev, opened.st_ino) != (info.st_dev, info.st_ino):
+        raise SystemExit("safety fixture changed during ownership check")
+    if stream.read() != expected + "\n":
+        raise SystemExit("refused ownership of unexpected safety fixture contents")
+current = os.lstat(path)
+if (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino):
+    raise SystemExit("safety fixture replaced during ownership check")
+print(str(info.st_dev) + ":" + str(info.st_ino))
+PYRECORD
+    ) || return
+    SAFETY_HOOK_STATE_FILES+=("$1")
+    SAFETY_HOOK_STATE_IDENTITIES+=("$identity")
+}
+cleanup_safety_hook_state() {
+    local path index
+    for path in "$@"; do
+        for index in ${SAFETY_HOOK_STATE_FILES[@]+"${!SAFETY_HOOK_STATE_FILES[@]}"}; do
+            [[ "${SAFETY_HOOK_STATE_FILES[$index]}" == "$path" ]] || continue
+            python3 - "$path" "${SAFETY_HOOK_STATE_IDENTITIES[$index]}" <<'PYCLEAN' || return
+import os
+import stat
+import sys
+path, identity = sys.argv[1:]
+try:
+    info = os.lstat(path)
+except FileNotFoundError:
+    raise SystemExit(0)
+if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+        or info.st_nlink != 1 or str(info.st_dev) + ":" + str(info.st_ino) != identity):
+    raise SystemExit("refused cleanup of replaced safety fixture metadata")
+os.unlink(path)
+PYCLEAN
+            # A retired path is never revisited by the exit trap after PID reuse.
+            SAFETY_HOOK_STATE_FILES[$index]=""
+        done
+    done
+}
+cleanup_safety_hooks_test() {
+    cleanup_safety_hook_state ${SAFETY_HOOK_STATE_FILES[@]+"${SAFETY_HOOK_STATE_FILES[@]}"}
+    cleanup_test_environment
+}
+trap cleanup_safety_hooks_test EXIT
+
 test_suite "Safety Hooks (careful/freeze/guard)"
 
 CAREFUL_HOOK="$PROJECT_ROOT/hooks/careful-check.sh"
@@ -181,7 +242,7 @@ test_careful_statement_shape_not_substring() {
     _cc_decides() {
         local out rc=0
         out=$(jq -cn --arg c "$1" '{tool_name:"Bash",tool_input:{command:$c}}' \
-            | env "CLAUDE_CODE_SESSION_ID=${sid}" bash "$CAREFUL_HOOK" 2>/dev/null) || rc=$?
+            | env OCTOPUS_HOST=claude "CLAUDE_CODE_SESSION_ID=${sid}" bash "$CAREFUL_HOOK" 2>/dev/null) || rc=$?
         if (( rc != 0 )); then echo "error:$rc"; return 0; fi
         [[ "$out" == *'"permissionDecision":"ask"'* ]] && echo fire || echo quiet
     }
@@ -345,6 +406,115 @@ test_debug_skill_autofreeze() {
     fi
 }
 
+activate_safety_hook_fixture() {
+    local work="$1" block="$2" sid="$3" sf="$4" pid pid_sf rc
+    # Hold the owned child before activation, then admit its actual PID path.
+    # exec preserves $! so the historical PID-fallback mutant stays removable.
+    mkfifo "$work/activate" || { return 1; }
+    (cd "$work" && read -r _activate < "$work/activate" &&
+        exec env -u CLAUDE_SESSION_ID OCTOPUS_HOST=claude "CLAUDE_CODE_SESSION_ID=$sid" bash -c "$block") &
+    pid=$!
+    pid_sf="/tmp/octopus-freeze-${pid}.txt"
+    if [[ -e "$pid_sf" || -L "$pid_sf" ]]; then
+        kill "$pid" 2>/dev/null || true
+        wait "$pid" 2>/dev/null || true
+        rm -f "$work/activate"
+        echo "PID fixture already exists; refused to touch it" >&2
+        return 1
+    fi
+    if [[ -e "$sf" || -L "$sf" ]]; then
+        kill "$pid" 2>/dev/null || true
+        wait "$pid" 2>/dev/null || true
+        rm -f "$work/activate"
+        echo "session fixture already exists; refused to touch it" >&2
+        return 1
+    fi
+    printf '\n' > "$work/activate"
+    rc=0; wait "$pid" || rc=$?
+    rm -f "$work/activate"
+    if [[ -e "$pid_sf" || -L "$pid_sf" ]]; then
+        record_safety_hook_state "$pid_sf" "$work/module" || return 1
+        cleanup_safety_hook_state "$pid_sf" || return 1
+    fi
+    return "$rc"
+}
+
+test_debug_skill_autofreeze_reaches_hook() {
+    test_case "skill-debug auto-freeze writes the state file freeze-check.sh and /octo:unfreeze use, and keeps an existing freeze"
+    # Run each skill copy's freeze block the way a Claude Code Bash tool call runs it:
+    # CLAUDE_CODE_SESSION_ID exported, CLAUDE_SESSION_ID unset. The hook gets the same
+    # session id from its JSON input, so a block keyed on anything else (the shell
+    # PID) writes a file the hook never reads and the boundary is silently unenforced.
+    local sid sf
+    local work fails="" skill label block unfreeze_block rc
+    work=$(mktemp -d "$TEST_TMP_DIR/safety-hooks.XXXXXX") || { test_fail "mktemp failed"; return; }
+    work=$(cd "$work" && pwd -P) || { test_fail "fixture path resolution failed"; return; }
+    sid="octo-debug-freeze-${work##*/}"
+    sf="/tmp/octopus-freeze-${sid}.txt"
+    if [[ -e "$sf" || -L "$sf" ]]; then
+        test_fail "session fixture already exists; refused to touch it"
+        return
+    fi
+    mkdir -p "$work/module" "$work/outside"
+    unfreeze_block=$(awk '/^```bash/{b=1;next} b&&/^```/{exit} b' "$COMMANDS_DIR/unfreeze.md")
+
+    # Prints the hook's verdict for an Edit of $1: deny, allow, or error:<rc>.
+    _freeze_decides() {
+        local out rc=0
+        out=$(jq -cn --arg s "$sid" --arg c "$work" --arg f "$1" \
+                '{session_id:$s,hook_event_name:"PreToolUse",tool_name:"Edit",cwd:$c,
+                  tool_input:{file_path:$f,old_string:"a",new_string:"b"}}' \
+            | env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_SESSION_ID -u OCTO_FREEZE_MODE \
+                OCTOPUS_HOST=claude bash "$FREEZE_HOOK" 2>/dev/null) || rc=$?
+        if (( rc != 0 )); then echo "error:$rc"; return 0; fi
+        [[ "$out" == *'"permissionDecision":"deny"'* ]] && echo deny || echo allow
+    }
+
+    for skill in "$SKILL_DEBUG" "$PROJECT_ROOT/skills/skill-debug/SKILL.md"; do
+        label="${skill#"$PROJECT_ROOT"/}"
+        cleanup_safety_hook_state "$sf"
+        block=$(awk '/^## Scoped freeze guard/{s=1} s&&/^```bash/{b=1;next} b&&/^```/{exit} b' "$skill")
+        if [[ -z "$block" ]]; then fails+=" $label:no-freeze-block"; continue; fi
+        block="${block//<module-directory>/$work/module}"
+        if ! activate_safety_hook_fixture "$work" "$block" "$sid" "$sf"; then
+            fails+=" $label:block-failed"
+            continue
+        fi
+        if [[ ! -f "$sf" ]]; then fails+=" $label:state-file-not-session-keyed"; continue; fi
+        record_safety_hook_state "$sf" "$work/module" || { test_fail "session fixture ownership failed"; return; }
+        [[ "$(_freeze_decides "$work/outside/x.txt")" == deny ]] || fails+=" $label:outside-edit-not-denied"
+        [[ "$(_freeze_decides "$work/module/x.txt")" == allow ]] || fails+=" $label:inside-edit-not-allowed"
+        (cd "$work" && env -u CLAUDE_SESSION_ID OCTOPUS_HOST=claude "CLAUDE_CODE_SESSION_ID=$sid" bash -c "$unfreeze_block")
+        [[ ! -f "$sf" ]] || fails+=" $label:unfreeze-left-state"
+        cleanup_safety_hook_state "$sf"
+
+        # A freeze the user already set (here, on another directory) must survive.
+        (set -C; printf '%s\n' "$work/outside" > "$sf") || { test_fail "existing-state fixture creation failed"; return; }
+        record_safety_hook_state "$sf" "$work/outside" || { test_fail "existing-state fixture ownership failed"; return; }
+        (cd "$work" && env -u CLAUDE_SESSION_ID OCTOPUS_HOST=claude "CLAUDE_CODE_SESSION_ID=$sid" bash -c "$block") >/dev/null
+        [[ "$(cat "$sf" 2>/dev/null)" == "$work/outside" ]] || fails+=" $label:replaced-existing-freeze"
+
+        # Empty state is refused for inspection, with the hook still failing closed.
+        : > "$sf"
+        rc=0
+        (cd "$work" && env -u CLAUDE_SESSION_ID OCTOPUS_HOST=claude "CLAUDE_CODE_SESSION_ID=$sid" bash -c "$block") >/dev/null 2>&1 || rc=$?
+        (( rc != 0 )) || fails+=" $label:admitted-empty-state"
+        [[ -f "$sf" && ! -s "$sf" ]] || fails+=" $label:changed-empty-state"
+        [[ "$(_freeze_decides "$work/outside/x.txt")" == deny ]] || fails+=" $label:empty-state-outside-edit-not-denied"
+        cleanup_safety_hook_state "$sf"
+    done
+
+    cleanup_safety_hook_state "$sf"
+    SAFETY_HOOK_STATE_FILES=()
+    SAFETY_HOOK_STATE_IDENTITIES=()
+    rm -rf "$work"
+    if [[ -z "$fails" ]]; then
+        test_pass
+    else
+        test_fail "skill-debug auto-freeze:$fails"
+    fi
+}
+
 # ── No attribution leaks ─────────────────────────────────────────────
 
 test_no_attribution_leaks() {
@@ -396,6 +566,7 @@ test_commands_registered_in_plugin_json
 test_hooks_registered_in_hooks_json
 
 test_debug_skill_autofreeze
+test_debug_skill_autofreeze_reaches_hook
 test_no_attribution_leaks
 
 test_summary

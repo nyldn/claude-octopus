@@ -921,7 +921,12 @@ EOF
                             [[ -n "$failed_agent" ]] && lock_provider "$failed_agent"
                         fi
                     done <<< "$FAILED_SUBTASKS"
-                    retry_failed_subtasks "$task_group" "$quality_retry_count"
+                    if ! retry_failed_subtasks "$task_group" "$quality_retry_count"; then
+                        log ERROR "Tangle retry supervision failed; stopping validation before revalidation or delivery"
+                        # Status 75 is nonrecoverable retry supervision failure,
+                        # distinct from an ordinary quality-gate failure (1).
+                        return 75
+                    fi
                     sleep 3
                     continue  # Re-validate
                 else

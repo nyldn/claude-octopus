@@ -10,6 +10,73 @@
   retrospective of about two minutes to healthy runs. It now runs only when the
   tangle results record `Quality Gate: FAILED`.
 
+## [11.11.0] - 2026-10-05
+
+### Added
+
+- API Route is available through `api-route-agent`, using its OpenAI-compatible
+  endpoint. Set `API_ROUTE_API_KEY` and an explicit model pin or configured default.
+
+### Changed
+
+- Maintainer documentation designs hourly queue checks and daily release batches,
+  with tests, review and synchronized release artifacts required before publication.
+  The controller and recurring release schedule are not deployed by this change.
+- GitHub maintenance can edit PR descriptions through validated private snapshots,
+  using the same credential checks as other outbound comments.
+- Codex Tangle projects canonical `CODEX_HOME` with read-only configuration and
+  extensions. Runtime caches and a safe configured `TMPDIR` use private storage;
+  existing regular single-link auth files support in-place refresh. Unsafe state
+  paths and configuration backing aliases abort dispatch instead of granting
+  persistent writes. Python is required for inspection, and configured TMPDIR
+  requires `tomllib`. Default SQLite state uses private storage on Codex 0.160;
+  explicit `sqlite_home` settings remain subject to the read-only boundary.
+- Consultative Git workspaces copy selected working-tree bytes through held
+  directory descriptors, reducing per-file process spawning while preserving
+  ignore rules, nested repository content, file modes and timestamps, and path
+  confinement.
+  Unsupported descriptor operations retain the portable shell fallback.
+  Deleted indexed descendants beneath a replacement regular file are skipped;
+  directory races remain fatal, and file-wrapper failures release owned descriptors.
+- Event capture locks also claim their owner PID exclusively, so a raced
+  `mkdir` success cannot admit two holders or overwrite the active owner.
+
+### Fixed
+
+- Concurrent installation receipts use kernel directory admission for the transaction and owner claim, preserving both Claude and Codex records when directory utilities report a raced success. Receipt recording now fails closed when Python 3 is unavailable.
+- Debug freeze activation requires a shared Claude session ID instead of creating
+  unenforced PID state; Claude regression probes ignore inherited Codex host settings.
+- Debug freeze activation preserves an existing owned freeze without reading or
+  printing its contents, refuses unsafe state, and creates new state exclusively.
+- Tangle deadline cleanup rechecks a worker that exits during PID inspection,
+  while unverified live workers still stop supervision, including with a late marker.
+- Native `CLAUDE_MODEL` overrides bypass warm session model caches, so Claude
+  seats honor the current pin consistently across processes and restore role routes when unset.
+- API Route fleet diversity follows the configured effective model family;
+  comma-bearing model tokens cannot bypass the model allowlist.
+- `/octo:debug`'s scoped freeze guard keys its state file on `CLAUDE_CODE_SESSION_ID`,
+  as `/octo:freeze` and `/octo:unfreeze` do. On Claude Code v2.1.132 and newer it was
+  keyed on the shell PID, so the freeze hook never enforced the boundary and
+  `/octo:unfreeze` could not remove the file. The guard now leaves a freeze that
+  is already active in place, and the workflow removes only a freeze it created.
+- Codex Tangle rejects mutable state aliases; use a canonical absolute
+  `CODEX_HOME` path to keep later dispatches from granting writes to protected files.
+- Codex Tangle preserves existing configuration when spawn disables shell
+  globbing, keeps caller glob options unchanged, and canonicalizes HOME only
+  for the implicit state directory. Explicit CODEX_HOME aliases remain refused.
+- Tangle retry workers use the same deadline, stall, zombie, and cancellation
+  supervision as the first pass. Spawn failures preserve failed-task state and
+  restore signal traps; retries retain usable sibling and partial results.
+  Supervision failures stop validation, review recovery, and delivery even when
+  late result artifacts appear successful (#1163).
+- Parallel research children claim lock ownership atomically, preserving the
+  first creator's prompt and manifest when `mkdir` reports success after losing
+  a concurrent directory-creation race (#1166).
+- Event lock cleanup stays attached to the inspected directory, preserving a
+  replacement caller's metadata during stale reclamation and failed writes.
+  Durable locking requires `python3` for kernel directory admission; missing
+  runtimes fail closed, while optional event logging retains its best-effort fallback.
+
 ## [11.10.0] - 2026-10-02
 
 ### Added

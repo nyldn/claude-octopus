@@ -1288,4 +1288,141 @@ else
         "scripts/release.sh still creates a PR with an inline body"
 fi
 
+
+# PR description updates use the same private validated body contract.
+: > "$GH_ARGS_LOG"
+set +e
+PATH="$MOCK_BIN_DIR:$PATH" "$SAFE_POST" \
+    --repo octopus/example pr-edit 1167 "$safe_body" \
+    > "$TEST_TMP_DIR/pr-edit-output.log" 2>&1
+pr_edit_rc=$?
+set -e
+if [[ "$pr_edit_rc" -eq 0 ]] && cmp -s "$safe_body" "$GH_BODY_LOG" && \
+    python3 - "$GH_ARGS_LOG" "$safe_body" <<'EDIT_ARGS'
+from pathlib import Path
+import sys
+args = Path(sys.argv[1]).read_text().splitlines()
+assert args[:6] == ["pr", "edit", "1167", "--repo", "octopus/example", "--body-file"]
+assert len(args) == 7 and args[6] != sys.argv[2]
+assert "--body" not in args
+EDIT_ARGS
+then
+    pass "PR edits preserve body bytes through a private snapshot with exact repository and PR"
+else
+    fail "PR edits preserve body bytes through a private snapshot with exact repository and PR" \
+        "body or CLI argument contract differs"
+fi
+
+: > "$GH_ARGS_LOG"
+set +e
+PATH="$MOCK_BIN_DIR:$PATH" "$SAFE_POST" \
+    --repo octopus/example pr-edit 1167 - < "$safe_body" \
+    > "$TEST_TMP_DIR/pr-edit-stdin-output.log" 2>&1
+pr_edit_stdin_rc=$?
+set -e
+if [[ "$pr_edit_stdin_rc" -eq 0 ]] && cmp -s "$safe_body" "$GH_BODY_LOG"; then
+    pass "PR edits accept standard input through the same snapshot validation"
+else
+    fail "PR edits accept standard input through the same snapshot validation" \
+        "stdin body was rejected or changed"
+fi
+
+pr_edit_secret="$TEST_TMP_DIR/pr-edit-secret.md"
+printf '%s=%s\n' SERVICE_TOKEN hunter2 > "$pr_edit_secret"
+: > "$GH_ARGS_LOG"
+set +e
+PATH="$MOCK_BIN_DIR:$PATH" "$SAFE_POST" \
+    --repo octopus/example pr-edit 1167 "$pr_edit_secret" \
+    > "$TEST_TMP_DIR/pr-edit-secret-output.log" 2>&1
+pr_edit_secret_rc=$?
+set -e
+if [[ "$pr_edit_secret_rc" -eq 65 && ! -s "$GH_ARGS_LOG" ]]; then
+    pass "PR edits block credential assignments before any GitHub invocation"
+else
+    fail "PR edits block credential assignments before any GitHub invocation" \
+        "invalid body reached GitHub or returned the wrong rejection status"
+fi
+
+pr_edit_control="$TEST_TMP_DIR/pr-edit-control.md"
+printf 'Safe prose\001invalid control\n' > "$pr_edit_control"
+: > "$GH_ARGS_LOG"
+set +e
+PATH="$MOCK_BIN_DIR:$PATH" "$SAFE_POST" \
+    --repo octopus/example pr-edit 1167 "$pr_edit_control" \
+    > "$TEST_TMP_DIR/pr-edit-control-output.log" 2>&1
+pr_edit_control_rc=$?
+set -e
+if [[ "$pr_edit_control_rc" -eq 65 && ! -s "$GH_ARGS_LOG" ]]; then
+    pass "PR edits block control characters before any GitHub invocation"
+else
+    fail "PR edits block control characters before any GitHub invocation" \
+        "control body reached GitHub or returned the wrong rejection status"
+fi
+
+pr_edit_invalid_count=0
+for invalid_pr in 0 -1 01 not-a-pr; do
+    : > "$GH_ARGS_LOG"
+    set +e
+    PATH="$MOCK_BIN_DIR:$PATH" "$SAFE_POST" \
+        --repo octopus/example pr-edit "$invalid_pr" "$safe_body" \
+        > "$TEST_TMP_DIR/pr-edit-invalid-output.log" 2>&1
+    pr_edit_invalid_rc=$?
+    set -e
+    if [[ "$pr_edit_invalid_rc" -eq 64 && ! -s "$GH_ARGS_LOG" ]]; then
+        pr_edit_invalid_count=$((pr_edit_invalid_count + 1))
+    fi
+done
+: > "$GH_ARGS_LOG"
+set +e
+PATH="$MOCK_BIN_DIR:$PATH" "$SAFE_POST" \
+    --repo octopus/example pr-edit 1167 \
+    > "$TEST_TMP_DIR/pr-edit-missing-output.log" 2>&1
+pr_edit_missing_rc=$?
+set -e
+if [[ "$pr_edit_missing_rc" -eq 64 && ! -s "$GH_ARGS_LOG" ]]; then
+    pr_edit_invalid_count=$((pr_edit_invalid_count + 1))
+fi
+if [[ "$pr_edit_invalid_count" -eq 5 ]]; then
+    pass "PR edits reject missing bodies and invalid PR identifiers without writes"
+else
+    fail "PR edits reject missing bodies and invalid PR identifiers without writes" \
+        "only $pr_edit_invalid_count of 5 invalid invocations failed safely"
+fi
+
+pr_edit_race_bin="$TEST_TMP_DIR/pr-edit-race-bin"
+pr_edit_race_source="$TEST_TMP_DIR/pr-edit-race-source.md"
+cp "$safe_body" "$pr_edit_race_source"
+mkdir -p "$pr_edit_race_bin"
+cat > "$pr_edit_race_bin/gh" <<'EDIT_RACE_GH'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ "$1 $2 $3 $4 $5 $6" == 'pr edit 1167 --repo octopus/example --body-file' ]]
+python3 - "$7" <<'PRIVATE_SNAPSHOT'
+from pathlib import Path
+import stat
+import sys
+snapshot = Path(sys.argv[1])
+assert stat.S_IMODE(snapshot.stat().st_mode) == 0o600
+assert stat.S_IMODE(snapshot.parent.stat().st_mode) == 0o700
+PRIVATE_SNAPSHOT
+# Change the caller's source after validation, before reading the CLI body file.
+mv "$PR_EDIT_RACE_SOURCE" "$PR_EDIT_RACE_SOURCE.original"
+printf 'Changed bytes after validation.\n' > "$PR_EDIT_RACE_SOURCE"
+cp "$7" "$GH_BODY_LOG"
+EDIT_RACE_GH
+chmod +x "$pr_edit_race_bin/gh"
+set +e
+PR_EDIT_RACE_SOURCE="$pr_edit_race_source" PATH="$pr_edit_race_bin:$MOCK_BIN_DIR:$PATH" \
+    "$SAFE_POST" --repo octopus/example pr-edit 1167 "$pr_edit_race_source" \
+    > "$TEST_TMP_DIR/pr-edit-race-output.log" 2>&1
+pr_edit_race_rc=$?
+set -e
+if [[ "$pr_edit_race_rc" -eq 0 ]] && cmp -s "$safe_body" "$GH_BODY_LOG" && \
+    ! cmp -s "$pr_edit_race_source" "$GH_BODY_LOG"; then
+    pass "PR edits retain validated bytes when the caller replaces the source file"
+else
+    fail "PR edits retain validated bytes when the caller replaces the source file" \
+        "a source replacement substituted bytes or snapshot permissions were not private"
+fi
+
 test_summary

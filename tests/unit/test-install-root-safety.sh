@@ -336,24 +336,24 @@ check receipt_cleanup
 
 lock_released_between_attempts() {
     local root="$work/lock-release-race" marker="$work/lock-release-race.marker"
-    local real_mkdir real_rmdir
-    real_mkdir="$(command -v mkdir)"
+    local real_python real_rmdir
+    real_python="$(command -v python3)"
     real_rmdir="$(command -v rmdir)"
     mkdir -p "$root/bin"
-    cat > "$root/bin/mkdir" <<'EOF'
+    cat > "$root/bin/python3" <<'EOF'
 #!/usr/bin/env bash
 target=""
-for target in "$@"; do :; done
+target="${2:-}"
 if [[ "$target" == *.lock && ! -e "$MKDIR_RACE_MARKER" ]]; then
-    "$REAL_MKDIR" "$@" || exit $?
+    "$REAL_PYTHON" "$@" || exit $?
     "$REAL_RMDIR" "$target" || exit $?
     : > "$MKDIR_RACE_MARKER"
-    exit 1
+    exit 75
 fi
-exec "$REAL_MKDIR" "$@"
+exec "$REAL_PYTHON" "$@"
 EOF
-    chmod +x "$root/bin/mkdir"
-    PATH="$root/bin:$PATH" REAL_MKDIR="$real_mkdir" \
+    chmod +x "$root/bin/python3"
+    PATH="$root/bin:$PATH" REAL_PYTHON="$real_python" \
         REAL_RMDIR="$real_rmdir" MKDIR_RACE_MARKER="$marker" \
         "$TEST_BASH" -c '
             source "$1"

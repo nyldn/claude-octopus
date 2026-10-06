@@ -142,7 +142,11 @@ research_run_dir() {
 research_lock_acquire() {
     local lock="$1" tries=0
     local token="$$.$RANDOM.$RANDOM"
-    while ! mkdir "$lock" 2>/dev/null; do
+    # Some mkdir implementations report success after losing a concurrent
+    # creation race. Claim the owner exclusively as well: no contender may
+    # replace an existing owner's token and enter its critical section (#1166).
+    while ! { mkdir "$lock" 2>/dev/null \
+        && (set -C; printf '%s\n' "$token" > "$lock/owner") 2>/dev/null; }; do
         tries=$((tries + 1))
         # A killed process can leave a mkdir lock behind. Reclaim only locks
         # that have been idle for five minutes. Rename the stale inode first:
@@ -159,10 +163,6 @@ research_lock_acquire() {
         [[ "$tries" -ge 100 ]] && return 1
         sleep 0.02
     done
-    if ! printf '%s\n' "$token" > "$lock/owner" 2>/dev/null; then
-        rmdir "$lock" 2>/dev/null || true
-        return 1
-    fi
     printf '%s\n' "$token"
 }
 

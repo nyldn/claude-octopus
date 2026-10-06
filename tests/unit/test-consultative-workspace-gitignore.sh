@@ -7,6 +7,10 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 source "$PROJECT_ROOT/scripts/lib/agent-sync.sh"
 
+# Exercise the portable fallback's shell-command fault injection. The default
+# descriptor copier has its own filesystem-level race and dispatch tests.
+_octopus_try_descriptor_copy() { return 78; }
+
 test_suite "Consultative Workspace .gitignore Handling"
 
 SOURCE_ROOT="$TEST_TMP_DIR/gitignore-source"
@@ -34,7 +38,7 @@ mkdir -p "$SOURCE_ROOT/vendor" "$SOURCE_ROOT/subdir" "$SOURCE_ROOT/ordinary-dir"
     printf 'ordinary untracked directory\n' > ordinary-dir/content.txt
 )
 
-test_case "directory identity falls back from malformed BSD stat output to GNU stat"
+test_case "directory identity accepts valid GNU stat output"
 STAT_DIALECT_BIN="$TEST_TMP_DIR/stat-dialect-bin"
 mkdir -p "$STAT_DIALECT_BIN"
 cat > "$STAT_DIALECT_BIN/stat" <<'EOF'
@@ -50,7 +54,23 @@ if stat_identity="$(PATH="$STAT_DIALECT_BIN:$PATH" _octopus_directory_identity "
    [[ "$stat_identity" == "42:84" ]]; then
     test_pass
 else
-    test_fail "expected GNU stat fallback after an unusable BSD response: identity=${stat_identity:-none}"
+    test_fail "expected valid GNU stat identity: identity=${stat_identity:-none}"
+fi
+
+test_case "directory identity falls back to BSD stat after unusable GNU output"
+cat > "$STAT_DIALECT_BIN/stat" <<'EOF'
+#!/usr/bin/env bash
+case "${1:-}" in
+    -c) printf 'malformed GNU response\n' ;;
+    -f) printf '42:84\n' ;;
+    *) exit 91 ;;
+esac
+EOF
+if stat_identity="$(PATH="$STAT_DIALECT_BIN:$PATH" _octopus_directory_identity "$SOURCE_ROOT")" &&
+   [[ "$stat_identity" == "42:84" ]]; then
+    test_pass
+else
+    test_fail "expected validated BSD stat fallback: identity=${stat_identity:-none}"
 fi
 
 test_case "Git sources copy exact eligible working-tree bytes without Git metadata"
@@ -1165,6 +1185,7 @@ for copy_list_signal in INT TERM; do
         export SIGNAL_NAME="$copy_list_signal"
         /bin/bash -c '
             source "$1/scripts/lib/agent-sync.sh"
+            _octopus_try_descriptor_copy() { return 78; }
             copy_list_signal_pid_file="$4"
             _octopus_validate_copy_source_path() {
                 local copy_list_subshell_pid
@@ -1289,6 +1310,7 @@ if (
     export REAL_RM COPY_LIST_RM_FAILURE_PID_FILE
     /bin/bash -c '
         source "$1/scripts/lib/agent-sync.sh"
+        _octopus_try_descriptor_copy() { return 78; }
         _octopus_validate_copy_source_path() {
             /bin/sh -c '\''printf "%s\n" "$PPID" > "$1"'\'' _ "$COPY_LIST_RM_FAILURE_PID_FILE" || return 1
             IFS= read -r copy_pid < "$COPY_LIST_RM_FAILURE_PID_FILE" || return 1

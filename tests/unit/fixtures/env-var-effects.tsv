@@ -28,6 +28,7 @@ OCTOPUS_ANTHROPIC_API_MODEL	covered-by	test-anthropic-api-provider.sh
 OCTOPUS_ANTHROPIC_API_REASONING	covered-by	test-anthropic-api-provider.sh
 OCTOPUS_ANTHROPIC_API_THINKING	covered-by	test-anthropic-api-provider.sh
 OCTOPUS_ANTHROPIC_API_TIMEOUT	covered-by	test-anthropic-api-provider.py
+OCTOPUS_API_ROUTE_MODEL	covered-by	test-api-route-provider.sh
 OCTOPUS_AUTO_TITLE	skip	sets the Claude Code session title; observable only in the host UI
 OCTOPUS_AUTO_ROUTER_MODE	covered-by	test-explicit-activation.sh
 OCTOPUS_CHEAPERINFERENCE_MODEL	covered-by	test-cheaperinference-config-parity.sh
@@ -105,6 +106,8 @@ OCTOPUS_TANGLE_ADEQUACY_CONTEXT_BUDGET_RATIO	covered-by	test-tangle-adequacy-jso
 OCTOPUS_TANGLE_RECONSIDERATION_CONTEXT_BUDGET_RATIO	covered-by	test-tangle-reconsideration-json-v1.sh
 OCTOPUS_TANGLE_ALLOW_UNVERIFIED_MIGRATIONS	covered-by	test-tangle-worktree-evidence.sh
 OCTOPUS_TANGLE_CODING_AGENT	covered-by	test-routing-preview.sh
+OCTOPUS_TANGLE_DEADLINE	covered-by	test-tangle-retry-supervision.sh
+OCTOPUS_TANGLE_MISSING_MARKER_GRACE	covered-by	test-tangle-retry-supervision.sh
 OCTOPUS_TANGLE_CONTEXTUAL_READ_ROOTS	covered-by	test-tangle-contextual-read-scope.sh
 OCTOPUS_TANGLE_READ_SCOPE_MODE	covered-by	test-tangle-contextual-read-scope.sh
 OCTOPUS_TANGLE_RUN_WORKTREE	covered-by	test-tangle-run-worktree.sh

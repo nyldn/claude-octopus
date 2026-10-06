@@ -524,6 +524,59 @@ else
     test_fail "boundary refusal was not finalized: spawn=$boundary_spawn_rc worker=$boundary_worker_rc done=$(cat "$boundary_done" 2>/dev/null || printf missing) transition=$(run_contract_latest_transition spawn-boundary-refusal 2>/dev/null || printf missing)"
 fi
 
+test_case "real Codex spawn projects configuration despite worker noglob"
+projection_fixture="$(mktemp -d /var/tmp/octopus-spawn-projection.XXXXXX)"
+projection_fixture="$(cd "$projection_fixture" && pwd -P)"
+mkdir -p "$projection_fixture/worktree" "$projection_fixture/home" "$projection_fixture/state"
+printf 'trusted = true\n' > "$projection_fixture/state/config.toml"
+printf 'synthetic-before\n' > "$projection_fixture/state/auth.json"
+printf 'hidden-trusted\n' > "$projection_fixture/state/.hidden-config"
+projection_provider="$projection_fixture/provider.sh"
+projection_supported=false
+if octopus_tangle_execution_boundary_probe; then projection_supported=true; fi
+cat > "$projection_provider" <<'PROJECTION_PROVIDER'
+#!/usr/bin/env bash
+touch "$OCTOPUS_TANGLE_WORKTREE/provider-ran"
+[[ "$(cat "$CODEX_HOME/config.toml")" == 'trusted = true' ]] || exit 41
+[[ "$(cat "$CODEX_HOME/auth.json")" == synthetic-before ]] || exit 42
+[[ "$(cat "$CODEX_HOME/.hidden-config")" == hidden-trusted ]] || exit 43
+if { printf poison > "$CODEX_HOME/config.toml"; } 2>/dev/null; then exit 44; fi
+printf synthetic-after > "$CODEX_HOME/auth.json" || exit 45
+printf '%s\n' 'Substantive synthetic Codex projection result.'
+PROJECTION_PROVIDER
+chmod 755 "$projection_provider"
+(
+    export HOME="$projection_fixture/home" CODEX_HOME="$projection_fixture/state"
+    export OCTOPUS_TANGLE_EXECUTION_BOUNDARY=true OCTOPUS_TANGLE_WORKTREE="$projection_fixture/worktree"
+    export OCTOPUS_TANGLE_RESULTS_DIR="$RESULTS_DIR"
+    fake_provider="$projection_provider"
+    CODEX_SUBAGENT_PREAMBLE=''
+    export FAKE_SCENARIO=success
+    pid_file="$projection_fixture/spawn.pid"
+    spawn_agent codex-standard 'Synthetic configuration visibility' codex-projection implementer tangle > "$pid_file" || exit 1
+    worker_pid="$(tail -n 1 "$pid_file")"
+    [[ "$worker_pid" =~ ^[0-9]+$ ]] || exit 2
+    worker_rc=0; wait "$worker_pid" || worker_rc=$?
+    if [[ "$projection_supported" != true ]]; then
+        [[ "$worker_rc" == 125 && ! -e "$OCTOPUS_TANGLE_WORKTREE/provider-ran" &&
+           "$(run_contract_latest_transition spawn-codex-projection)" == failed &&
+           "$(cat "$CODEX_HOME/config.toml")" == 'trusted = true' &&
+           "$(cat "$CODEX_HOME/auth.json")" == synthetic-before ]] || exit 6
+        printf 'Projection runtime unsupported; real spawn refusal verified.\n'
+        exit 0
+    fi
+    if [[ "$worker_rc" != 0 ]]; then
+        printf 'Synthetic projection worker exit: %s\n' "$worker_rc" >&2
+        cat "$RESULTS_DIR/codex-standard-codex-projection.md" >&2
+        exit 3
+    fi
+    [[ "$(run_contract_latest_transition spawn-codex-projection)" == contributed &&
+       -e "$OCTOPUS_TANGLE_WORKTREE/provider-ran" ]] || exit 4
+    [[ "$(cat "$CODEX_HOME/config.toml")" == 'trusted = true' &&
+       "$(cat "$CODEX_HOME/auth.json")" == synthetic-after ]] || exit 5
+) && test_pass || test_fail "real noglob worker lost projected configuration or auth"
+rm -rf "$projection_fixture"
+
 test_case "Agent Teams prompt persistence failure terminalizes the seat"
 original_should_use_agent_teams="$(declare -f should_use_agent_teams)"
 original_write_agent_result_prompt="$(declare -f write_agent_result_prompt)"

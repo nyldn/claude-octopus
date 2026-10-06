@@ -22,6 +22,7 @@ _model_resolver_load_error() {
 }
 source "${_model_resolver_lib_dir}/provider-registry.sh" || { _model_resolver_load_error "failed to load provider-registry.sh"; return 1 2>/dev/null || exit 1; }
 source "${_model_resolver_lib_dir}/cheaperinference.sh" || return 1
+source "${_model_resolver_lib_dir}/api-route.sh" || return 1
 source "${_model_resolver_lib_dir}/kimi-model-name.sh" || { _model_resolver_load_error "failed to load kimi-model-name.sh"; return 1 2>/dev/null || exit 1; }
 if ! declare -f octo_model_cache_file >/dev/null 2>&1; then
     source "${_model_resolver_lib_dir}/model-cache-path.sh" 2>/dev/null || true
@@ -250,6 +251,9 @@ validate_model_name_for_provider() {
         cheaperinference)
             octo_cheaperinference_model "$model" >/dev/null
             ;;
+        api-route)
+            octo_api_route_model "$model" >/dev/null
+            ;;
         kimi)
             validate_kimi_model_name "$model"
             ;;
@@ -398,23 +402,36 @@ resolve_octopus_model() {
         octo_cheaperinference_model
         return $?
     fi
+    if [[ "$canonical_provider" == api-route ]]; then
+        octo_api_route_model
+        return $?
+    fi
     local env_var
     if declare -f octo_provider_model_env >/dev/null 2>&1; then
         env_var="$(octo_provider_model_env "$canonical_provider")" || return 1
     else
         env_var="OCTOPUS_$(echo "$canonical_provider" | tr '[:lower:]' '[:upper:]' | tr '-' '_')_MODEL"
     fi
-    if [[ -n "${!env_var:-}" ]]; then
-        if ! validate_model_name_for_provider "$canonical_provider" "${!env_var}"; then
+    local env_model="${!env_var:-}"
+    if [[ -z "$env_model" && "$canonical_provider" == "claude" && -n "${CLAUDE_MODEL:-}" ]]; then
+        env_var="CLAUDE_MODEL"
+        env_model="$CLAUDE_MODEL"
+        [[ -n "${OCTOPUS_TRACE_MODELS:-}" ]] && echo "[model-trace] Tier 0.5 (CC native CLAUDE_MODEL): $CLAUDE_MODEL ← SELECTED" >&2
+    fi
+    if [[ -n "$env_model" ]]; then
+        if ! validate_model_name_for_provider "$canonical_provider" "$env_model"; then
             log ERROR "Invalid model name in $env_var"
             return 1
         fi
         # v9.51: Fable 5 security reroute applies to explicit env pins too.
         if declare -f fable5_maybe_reroute >/dev/null 2>&1; then
-            fable5_maybe_reroute "${!env_var}" "$role" "$agent_type" "$phase"
-        else
-            echo "${!env_var}"
+            env_model="$(fable5_maybe_reroute "$env_model" "$role" "$agent_type" "$phase")" || return $?
+            if ! validate_model_name_for_provider "$canonical_provider" "$env_model"; then
+                log ERROR "Invalid resolved model name for $provider/$agent_type"
+                return 1
+            fi
         fi
+        echo "$env_model"
         return 0
     fi
 
@@ -487,12 +504,6 @@ resolve_octopus_model() {
         [[ -n "$_trace" ]] && echo "[model-trace] Tier 1 (env $env_var): ${!env_var} ← SELECTED" >&2
     elif [[ -n "$_trace" ]]; then
         echo "[model-trace] Tier 1 (env $env_var): —" >&2
-    fi
-
-    # v8.41.0 Priority 0.5: Check native CC model settings
-    if [[ -z "$resolved_model" && "$provider" == "claude" && -n "${CLAUDE_MODEL:-}" ]]; then
-        resolved_model="${CLAUDE_MODEL}"
-        [[ -n "$_trace" ]] && echo "[model-trace] Tier 0.5 (CC native CLAUDE_MODEL): $CLAUDE_MODEL ← SELECTED" >&2
     fi
 
     # Config file lookups
@@ -835,6 +846,7 @@ resolve_octopus_model() {
             vibe*)           resolved_model="default" ;; # Mistral Vibe's own default from ~/.vibe/config.toml; never wired to --model (#797)
             atlascloud*)     resolved_model="" ;; # No safe universal default; atlascloud-agent dispatch already requires an explicit model pin (#797)
             cheaperinference*) resolved_model="" ;; # Like atlascloud: cheaperinference-agent dispatch requires an explicit model pin
+            api-route*) resolved_model="" ;; # Like atlascloud: api-route-agent dispatch requires an explicit model pin
             *)              resolved_model="$(codex_default_model)" ;; # Safest universal fallback
         esac
         [[ -n "$_trace" ]] && echo "[model-trace] Tier 7 (hardcoded fallback): $resolved_model ← SELECTED" >&2
@@ -913,7 +925,9 @@ is_agent_available_v2() {
     [[ -z "$PROVIDER_CODEX_INSTALLED" ]] && load_providers_config
 
     # oco-cbb: skip a provider marked quota/auth-dead earlier this session.
-    if declare -f octo_quota_is_dead >/dev/null 2>&1 && octo_quota_is_dead "${agent%%-*}"; then
+    local quota_provider
+    quota_provider="$(octo_provider_canonical "${agent%%:*}" 2>/dev/null)" || quota_provider="${agent%%-*}"
+    if declare -f octo_quota_is_dead >/dev/null 2>&1 && octo_quota_is_dead "$quota_provider"; then
         return 1
     fi
 
@@ -989,6 +1003,19 @@ is_agent_available_v2() {
                 octo_cheaperinference_model "${agent#*:}" >/dev/null
             else
                 octo_cheaperinference_model >/dev/null
+            fi
+            ;;
+        api-route|api-route-*)
+            if [[ -z "${API_ROUTE_API_KEY:-}" ]] && declare -f resolve_provider_env >/dev/null 2>&1; then
+                resolve_provider_env "API_ROUTE_API_KEY" 2>/dev/null || true
+            fi
+            [[ "${API_ROUTE_API_KEY:-}" =~ [^[:space:]] ]] || return 1
+            if [[ "$agent" == *:* ]]; then
+                local pinned_model="${agent#*:}" effective_model
+                effective_model="$(octo_api_route_effective_model "$pinned_model")" || return 1
+                [[ "$effective_model" == "$pinned_model" ]]
+            else
+                octo_api_route_effective_model >/dev/null
             fi
             ;;
         kimi|kimi-*)

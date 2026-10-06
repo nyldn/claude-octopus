@@ -141,6 +141,18 @@ long-context multipliers for the whole request.
 4. Model choice never changes permissions, repository rules, or quality gates.
 5. User and project configuration always beats release defaults.
 
+### Native Claude model overrides
+
+For Claude seats, `OCTOPUS_CLAUDE_MODEL` takes precedence over the inherited
+`CLAUDE_MODEL`. Both environment pins bypass the process-local and shared
+session model caches. Removing a pin restores the configured route or default.
+
+The native `CLAUDE_MODEL` pin intentionally precedes session configuration,
+`routing.roles`, and phase routes. A verifier explicitly routed to Opus still
+uses Sonnet if the host exports `CLAUDE_MODEL=claude-sonnet-5`. Unset
+`CLAUDE_MODEL` when per-role Claude model routing must determine the seat.
+The native pin does not affect Codex or other providers.
+
 ### Automatic Premium peer check
 
 Premium single-owner routes automatically add one independent peer check after

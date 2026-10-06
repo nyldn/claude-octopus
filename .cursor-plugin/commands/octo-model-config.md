@@ -545,7 +545,7 @@ When invoked WITH arguments (e.g., `/octo:model-config codex gpt-5.6-sol`), skip
 
 ### Validation Gates
 
-- Provider names are validated against the canonical registry: `codex commandcode claude claude-sdk anthropic-api agy perplexity opencode openrouter orcarouter atlascloud cheaperinference openai-compatible openai-tools openai-compatible-agent cursor-agent grok qwen ollama copilot vibe kimi`. Aliases are canonicalized first; for example, `antigravity` becomes `agy`.
+- Provider names are validated against the canonical registry: `codex commandcode claude claude-sdk anthropic-api agy perplexity opencode openrouter orcarouter atlascloud cheaperinference api-route openai-compatible openai-tools openai-compatible-agent cursor-agent grok qwen ollama copilot vibe kimi`. Aliases are canonicalized first; for example, `antigravity` becomes `agy`.
 - Phase names validated against known list
 - Model values reject empty strings, whitespace, shell metacharacters, and leading slashes. Provider-qualified targets such as `codex:default` are allowed.
 - In dot syntax, the suffix is stored as a capability key without separate capability-name validation.
