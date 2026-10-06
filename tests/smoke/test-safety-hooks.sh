@@ -42,7 +42,7 @@ PYRECORD
 cleanup_safety_hook_state() {
     local path index
     for path in "$@"; do
-        for index in "${!SAFETY_HOOK_STATE_FILES[@]}"; do
+        for index in ${SAFETY_HOOK_STATE_FILES[@]+"${!SAFETY_HOOK_STATE_FILES[@]}"}; do
             [[ "${SAFETY_HOOK_STATE_FILES[$index]}" == "$path" ]] || continue
             python3 - "$path" "${SAFETY_HOOK_STATE_IDENTITIES[$index]}" <<'PYCLEAN' || return
 import os
@@ -64,7 +64,7 @@ PYCLEAN
     done
 }
 cleanup_safety_hooks_test() {
-    cleanup_safety_hook_state "${SAFETY_HOOK_STATE_FILES[@]}"
+    cleanup_safety_hook_state ${SAFETY_HOOK_STATE_FILES[@]+"${SAFETY_HOOK_STATE_FILES[@]}"}
     cleanup_test_environment
 }
 trap cleanup_safety_hooks_test EXIT
