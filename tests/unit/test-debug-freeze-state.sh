@@ -33,7 +33,7 @@ bash = os.environ.get("BASH", "/bin/bash")
 mirrors = [".claude/skills/skill-debug/SKILL.md", "skills/skill-debug/SKILL.md"]
 
 with tempfile.TemporaryDirectory(prefix="octo-debug-freeze-test-") as tmp:
-    root = Path(tmp)
+    root = Path(tmp).resolve()
     module = root / "module"
     module.mkdir()
     other = root / "other"
@@ -141,7 +141,9 @@ with tempfile.TemporaryDirectory(prefix="octo-debug-freeze-test-") as tmp:
                     assert not state.exists() and not pid_state.exists(), "unenforced state created"
                 elif case in ("absent", "legacy-only-id", "empty-current-legacy-id"):
                     assert proc.returncode == 0, proc.stderr
-                    assert state.read_text() == str(module) + "\n"
+                    assert state.read_text() == str(module) + "\n", (
+                        "synthetic expected=" + repr(str(module) + "\n")
+                        + " actual=" + repr(state.read_text()))
                     assert state.stat().st_mode & 0o777 == 0o600
                     payload = json.dumps({"tool_name": "Edit", "tool_input": {
                         "file_path": str(other / "outside.py")}, "cwd": str(root)})
