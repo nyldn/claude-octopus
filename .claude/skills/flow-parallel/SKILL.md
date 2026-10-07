@@ -352,7 +352,7 @@ cat > ".octo/parallel/WP-N/instructions.md" << 'INSTREOF'
 
 ## Committing (MANDATORY if you changed any file)
 - Commit your work to this package's own branch before you finish. The worktree is removed once
-  your commit exists, so anything left uncommitted is discarded and the package delivers nothing.
+  your commit exists and the tree is clean. Uncommitted work is retained for recovery.
 - Stage explicit paths. Never `git add -A` or `git add .` — the coordination directory and other
   packages' stray files must not enter your commit.
 
@@ -376,7 +376,6 @@ PROJECT_ROOT="<absolute-project-root-path>"
 WP_ID="WP-N"
 WP_BRANCH="<wp-branch-name>"
 BASE_REF="<base-ref>"
-WORKTREE_DIR="${PROJECT_ROOT}/../.octo-worktree-${WP_ID}"
 REGISTRY="${HOME}/.claude-octopus/plugin/scripts/agent-registry.sh"
 
 # Every exit path must leave exit-code and .done behind, or the orchestrator's
@@ -389,11 +388,20 @@ fail() {
     exit "${2:-1}"
 }
 
+# A retry must not inherit the previous run's completion status.
+rm -f "$SCRIPT_DIR/.done" "$SCRIPT_DIR/exit-code" || fail "ERROR: cannot clear completion markers"
+# Hook environments can otherwise redirect Git away from PROJECT_ROOT.
+while IFS= read -r git_var; do unset "$git_var"; done < <(git rev-parse --local-env-vars)
+
 # v8.44.0: Create isolated worktree for this work package.
 # Each package checks out its OWN branch. git refuses to check one branch out
 # in two worktrees, so reusing the session branch fails every package after the
 # first, and a shared branch would also pile unrelated packages onto one ref.
 cd "$PROJECT_ROOT" || fail "ERROR: cannot enter $PROJECT_ROOT"
+PROJECT_ROOT="$(pwd -P)"
+WORKTREE_DIR="${PROJECT_ROOT}/../.octo-worktree-${PROJECT_ROOT##*/}-${WP_ID}"
+COMMON_DIR="$(git rev-parse --git-common-dir)" || fail "ERROR: not a Git repository"
+COMMON_DIR="$(cd "$COMMON_DIR" && pwd -P)" || fail "ERROR: cannot resolve repository identity"
 git worktree prune 2>/dev/null || true
 if [[ -d "$WORKTREE_DIR" ]]; then
     # Retry: reuse the existing worktree instead of discarding the work in it.
@@ -405,6 +413,17 @@ else
             >> "$SCRIPT_DIR/worktree.log" 2>&1 ||
         fail "ERROR: failed to create worktree at $WORKTREE_DIR (see worktree.log)"
 fi
+
+# Reject stale directories from another project, branch, or non-worktree path.
+cd "$WORKTREE_DIR" || fail "ERROR: cannot enter $WORKTREE_DIR"
+WORKTREE_DIR="$(pwd -P)"
+WORKTREE_TOP="$(git rev-parse --show-toplevel)" || fail "ERROR: not a Git worktree"
+WORKTREE_TOP="$(cd "$WORKTREE_TOP" && pwd -P)" || fail "ERROR: cannot resolve worktree root"
+WORKTREE_COMMON_DIR="$(git rev-parse --git-common-dir)" || fail "ERROR: cannot identify worktree repository"
+WORKTREE_COMMON_DIR="$(cd "$WORKTREE_COMMON_DIR" && pwd -P)" || fail "ERROR: cannot resolve worktree repository"
+WORKTREE_BRANCH="$(git symbolic-ref --quiet --short HEAD)" || fail "ERROR: worktree has detached HEAD"
+[[ "$WORKTREE_TOP" == "$WORKTREE_DIR" && "$WORKTREE_COMMON_DIR" == "$COMMON_DIR" && \
+   "$WORKTREE_BRANCH" == "$WP_BRANCH" ]] || fail "ERROR: worktree repository or branch does not match this package"
 
 # Register agent in registry
 if [[ -x "$REGISTRY" ]]; then
@@ -440,8 +459,11 @@ echo "$COMMITS" > "$SCRIPT_DIR/commit-count"
 cd "$PROJECT_ROOT"
 if [[ -z "$UNCOMMITTED" && "$COMMITS" -gt 0 ]]; then
     git worktree remove "$WORKTREE_DIR" --force 2>/dev/null || true
+elif [[ -n "$UNCOMMITTED" ]]; then
+    echo "KEPT $WORKTREE_DIR: uncommitted work present on $WP_BRANCH" \
+        >> "$SCRIPT_DIR/agent.log"
 else
-    echo "KEPT $WORKTREE_DIR: $COMMITS commit(s) on $WP_BRANCH, uncommitted work present" \
+    echo "KEPT $WORKTREE_DIR: no commits beyond $BASE_REF on $WP_BRANCH" \
         >> "$SCRIPT_DIR/agent.log"
 fi
 touch "$SCRIPT_DIR/.done"
@@ -552,6 +574,8 @@ print(' '.join(wp.get('dependencies',[])))
   for WP_ID in $WAVE_WPS; do
     WP_NUM="${WP_ID#WP-}"
     echo "Launching $WP_ID at $(date '+%H:%M:%S')..."
+    # Clear before background launch, so the monitor cannot see a stale result.
+    rm -f ".octo/parallel/$WP_ID/.done" ".octo/parallel/$WP_ID/exit-code" || exit 1
     bash ".octo/parallel/$WP_ID/launch.sh" &
     WP_PID=$!
     echo "$WP_PID" > ".octo/parallel/$WP_ID/pid"

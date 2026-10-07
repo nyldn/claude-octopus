@@ -17,6 +17,8 @@ PROJECT_ROOT="$(cd -P "$SCRIPT_DIR/../.." && pwd)"
 
 # shellcheck source=/dev/null
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
+# Hook-provided Git variables must not redirect operations into a real repo.
+while IFS= read -r git_var; do unset "$git_var"; done < <(git rev-parse --local-env-vars)
 test_suite "flow-parallel worktree isolation"
 
 SKILL_FILES=(
@@ -28,12 +30,14 @@ SKILL_FILES=(
 # way the orchestrator does rather than re-stating it here, so the test tracks
 # the shipped text.
 extract_launch_template() {
+    # Read the authored heredoc so the test exercises the shipped launcher.
     awk '/^cat > "\.octo\/parallel\/WP-N\/launch\.sh" << .LAUNCHEOF.$/ {grab=1; next}
          grab && /^LAUNCHEOF$/ {exit}
          grab {print}' "$1"
 }
 
 render_launch() {
+    # Substitute the package's explicit project, branch, and base ref.
     local skill="$1" root="$2" wp_id="$3" branch="$4" base="$5" out="$6"
     extract_launch_template "$skill" \
         | sed -e "s|<absolute-project-root-path>|$root|g" \
@@ -84,6 +88,7 @@ git -C "$FIXTURE" commit --quiet -m "seed"
 git -C "$FIXTURE" checkout --quiet -b session/in-progress
 
 make_stub() {
+    # Replace the billed agent with deterministic fixture behavior.
     cat > "$STUB_BIN/claude" <<SH
 #!/usr/bin/env bash
 cat > /dev/null
@@ -93,10 +98,11 @@ SH
 }
 
 run_package() {
-    local wp_id="$1" branch="$2" dir="$TEST_TMP_DIR/$1"
+    # Render and run a package without a live provider or user registry.
+    local wp_id="$1" branch="$2" dir="$TEST_TMP_DIR/$1" root="${3:-$FIXTURE}"
     mkdir -p "$dir"
     printf 'do the thing\n' > "$dir/instructions.md"
-    render_launch "${SKILL_FILES[0]}" "$FIXTURE" "$wp_id" "$branch" main "$dir/launch.sh"
+    render_launch "${SKILL_FILES[0]}" "$root" "$wp_id" "$branch" main "$dir/launch.sh"
     ( PATH="$STUB_BIN:$PATH" HOME="$TEST_TMP_DIR/home" bash "$dir/launch.sh" ) >/dev/null 2>&1 || true
 }
 
@@ -117,17 +123,20 @@ else
 fi
 
 test_case "a committed package lands its commit and its worktree is reclaimed"
-commits="$(git -C "$FIXTURE" rev-list --count main..octo/wp-1 2>/dev/null || echo 0)"
-if [[ "$commits" == "1" && ! -d "$FIXTURE/../.octo-worktree-WP-1" ]]; then
+run_package WP-CLEAN octo/wp-clean
+commits="$(git -C "$FIXTURE" rev-list --count main..octo/wp-clean 2>/dev/null || echo 0)"
+registered="$(git -C "$FIXTURE" worktree list --porcelain)"
+if [[ "$commits" == "1" && ! -d "$FIXTURE/../.octo-worktree-repo-WP-CLEAN" ]] &&
+    ! grep -q '^branch refs/heads/octo/wp-clean$' <<< "$registered"; then
     test_pass
 else
-    test_fail "commits=$commits worktree_present=$([[ -d "$FIXTURE/../.octo-worktree-WP-1" ]] && echo yes || echo no)"
+    test_fail "commits=$commits; committed package worktree or registration was not reclaimed"
 fi
 
 test_case "uncommitted work is kept, not force-removed"
 make_stub 'printf "unsaved\n" > stranded.txt; echo done'
 run_package WP-3 octo/wp-3
-kept_dir="$FIXTURE/../.octo-worktree-WP-3"
+kept_dir="$FIXTURE/../.octo-worktree-repo-WP-3"
 if [[ -f "$kept_dir/stranded.txt" ]]; then
     test_pass
 else
@@ -144,6 +153,68 @@ if [[ -f "$TEST_TMP_DIR/WP-4/.done" && "$code" == "42" ]]; then
 else
     test_fail "exit-code=$code done=$([[ -f "$TEST_TMP_DIR/WP-4/.done" ]] && echo yes || echo no)"
 fi
-git -C "$FIXTURE" worktree remove "$FIXTURE/../.octo-worktree-WP-4" --force 2>/dev/null || true
+git -C "$FIXTURE" worktree remove "$FIXTURE/../.octo-worktree-repo-WP-4" --force 2>/dev/null || true
+
+test_case "sibling projects keep separate worktrees for the same package ID"
+OTHER_FIXTURE="$TEST_TMP_DIR/other-repo"
+git clone --quiet "$FIXTURE" "$OTHER_FIXTURE"
+git -C "$OTHER_FIXTURE" checkout --quiet main
+make_stub 'printf "retained\n" > retained.txt; echo done'
+run_package WP-SIB octo/wp-sibling
+run_package WP-SIB octo/wp-sibling "$OTHER_FIXTURE"
+if [[ -f "$TEST_TMP_DIR/.octo-worktree-repo-WP-SIB/retained.txt" &&
+      -f "$TEST_TMP_DIR/.octo-worktree-other-repo-WP-SIB/retained.txt" ]]; then
+    test_pass
+else
+    test_fail "sibling projects shared or lost their worktree"
+fi
+
+test_case "an existing worktree from another repository is rejected"
+foreign_dir="$TEST_TMP_DIR/.octo-worktree-repo-WP-FOREIGN"
+git -C "$OTHER_FIXTURE" worktree add --quiet -b octo/wp-foreign "$foreign_dir" main
+run_package WP-FOREIGN octo/wp-foreign
+if [[ "$(cat "$TEST_TMP_DIR/WP-FOREIGN/exit-code")" == "1" &&
+      -f "$TEST_TMP_DIR/WP-FOREIGN/.done" && ! -e "$foreign_dir/retained.txt" &&
+      ! -e "$TEST_TMP_DIR/WP-FOREIGN/output.md" ]]; then
+    test_pass
+else
+    test_fail "the agent ran in another repository's worktree"
+fi
+
+test_case "an existing worktree on the wrong branch is rejected"
+wrong_dir="$TEST_TMP_DIR/.octo-worktree-repo-WP-WRONG"
+git -C "$FIXTURE" worktree add --quiet -b octo/wrong-branch "$wrong_dir" main
+run_package WP-WRONG octo/expected-branch
+if [[ "$(cat "$TEST_TMP_DIR/WP-WRONG/exit-code")" == "1" &&
+      -f "$TEST_TMP_DIR/WP-WRONG/.done" && ! -e "$wrong_dir/retained.txt" &&
+      "$(git -C "$wrong_dir" branch --show-current)" == "octo/wrong-branch" ]]; then
+    test_pass
+else
+    test_fail "the agent ran on or changed an unrelated branch"
+fi
+
+test_case "a retry clears old completion markers before calling the agent"
+make_stub 'echo first run'
+run_package WP-RETRY octo/wp-retry
+MARKER_DIR="$TEST_TMP_DIR/WP-RETRY"
+export MARKER_DIR
+# The generated stub expands MARKER_DIR when the package invokes it.
+# shellcheck disable=SC2016
+make_stub '[[ ! -e "$MARKER_DIR/.done" && ! -e "$MARKER_DIR/exit-code" ]] || exit 91; echo fresh retry'
+run_package WP-RETRY octo/wp-retry
+if [[ "$(cat "$MARKER_DIR/exit-code")" == "0" && -f "$MARKER_DIR/.done" ]] &&
+    grep -q 'fresh retry' "$MARKER_DIR/output.md"; then
+    test_pass
+else
+    test_fail "the retry's agent observed old completion markers"
+fi
+
+test_case "a clean worktree with no commits reports its actual retention reason"
+if grep -q 'no commits beyond main' "$MARKER_DIR/agent.log" &&
+    ! grep -q 'uncommitted work present' "$MARKER_DIR/agent.log"; then
+    test_pass
+else
+    test_fail "the clean retry was described as containing uncommitted work"
+fi
 
 test_summary
