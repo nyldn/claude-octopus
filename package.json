@@ -28,6 +28,7 @@
     "bin/",
     "hooks/",
     "skills/",
+    "docs/",
     "config/workflows/",
     "config/templates/",
     "config/",

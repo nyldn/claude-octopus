@@ -25,6 +25,8 @@
 
 ### Fixed
 
+- Package archives include the public documentation, including the council
+  evidence guide, so installed copies can read the release guidance locally.
 - Council source checks exclude injected agent-instruction files, including
   `CLAUDE.md`, `AGENTS.md`, their `-OCTO.md` variants, `GEMINI.md`, and Cursor
   and Copilot instruction basenames, including nested and mixed-case names.
