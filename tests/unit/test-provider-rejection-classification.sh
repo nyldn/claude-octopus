@@ -85,6 +85,69 @@ check "octo_output_is_substantive false for a missing file" \
 check "raw detector still matches the phrase anywhere" \
     "0" "$(octo_file_has_provider_rejection "$long_findings" && echo 0 || echo 1)"
 
+# Configuration is decimal data, including when changed after the library loads.
+export OCTO_PROVIDER_REJECTION_MAX_OUTPUT_BYTES
+for threshold in abc -1 '1+1' 18446744073709551616 ''; do
+    OCTO_PROVIDER_REJECTION_MAX_OUTPUT_BYTES="$threshold"
+    result="$(classify_agent_output "$short_rejection" 0 codex-standard "$empty_err")"
+    check "invalid threshold '$threshold' retains short rejection detection" \
+        "failed" "$(status_of "$result")"
+done
+OCTO_PROVIDER_REJECTION_MAX_OUTPUT_BYTES=0008
+check "leading-zero threshold uses decimal arithmetic" \
+    "0" "$(octo_output_is_substantive "$short_rejection" && echo 0 || echo 1)"
+OCTO_PROVIDER_REJECTION_MAX_OUTPUT_BYTES=000
+check "zero-byte output is not substantive at zero threshold" \
+    "1" "$(octo_output_is_substantive "$empty_err" && echo 0 || echo 1)"
+OCTO_PROVIDER_REJECTION_MAX_OUTPUT_BYTES=4096
+head -c 4096 /dev/zero > "$TMP/boundary"
+check "threshold boundary is not substantive" \
+    "1" "$(octo_output_is_substantive "$TMP/boundary" && echo 0 || echo 1)"
+printf x >> "$TMP/boundary"
+check "one byte above threshold is substantive" \
+    "0" "$(octo_output_is_substantive "$TMP/boundary" && echo 0 || echo 1)"
+
+# Downstream consumers must retain the launcher's rejection decision even when
+# the prompt and output make the combined artifact larger than the threshold.
+# shellcheck source=/dev/null
+source "$REPO_ROOT/scripts/lib/heuristics.sh"
+mkdir "$TMP/results"
+for format in legacy framed; do
+    artifact="$TMP/results/codex-probe-rejected-$format.md"
+    {
+        echo '# Agent: codex-standard'
+        if [[ "$format" == framed ]]; then
+            write_agent_result_prompt /dev/stdout 'Review the service.'
+        else
+            echo '# Prompt: Review the service.'
+        fi
+        echo '# Started: 2026-10-07T20:00:00Z'
+        printf '## Output\n```\n'
+        cat "$long_findings"
+        printf '\n```\n## Status: FAILED (Prompt rejected by provider (oversize))\n'
+    } > "$artifact"
+    check "$format explicit rejection is not usable" \
+        "1" "$(probe_result_file_is_usable "$artifact" && echo 0 || echo 1)"
+done
+check "ranking excludes long explicitly rejected artifacts" \
+    "" "$(rank_results_by_signals "$TMP/results")"
+
+# A quoted status inside provider output must not overrule the launcher status.
+artifact="$TMP/results/codex-probe-valid.md"
+{
+    echo '# Agent: codex-standard'
+    write_agent_result_prompt /dev/stdout 'Review the service.'
+    echo '# Started: 2026-10-07T20:00:00Z'
+    printf '## Output\n```\n'
+    cat "$long_findings"
+    printf '\n## Status: FAILED (Prompt rejected by provider (oversize))\n'
+    printf '```\n## Status: SUCCESS\n'
+} > "$artifact"
+check "provider text cannot impersonate launcher rejection" \
+    "0" "$(probe_result_file_is_usable "$artifact" && echo 0 || echo 1)"
+check "ranking retains long valid results that discuss context limits" \
+    "$artifact" "$(rank_results_by_signals "$TMP/results")"
+
 echo
 if ((fail > 0)); then
     echo "FAILED: $fail failing, $pass passing"

@@ -268,12 +268,15 @@ octo_file_has_provider_rejection() {
 : "${OCTO_PROVIDER_REJECTION_MAX_OUTPUT_BYTES:=4096}"
 
 octo_output_is_substantive() {
-    local output_file="${1:-}" bytes
+    local output_file="${1:-}" bytes threshold
     [[ -n "$output_file" && -f "$output_file" ]] || return 1
+    threshold=$(octo_json_normalize_uint "${OCTO_PROVIDER_REJECTION_MAX_OUTPUT_BYTES:-4096}") || threshold=4096
+    # Bound decimal conversion below Bash's signed integer overflow range.
+    [[ "${#threshold}" -le 18 ]] || threshold=4096
     # BSD wc pads its output, so strip all whitespace before comparing.
     bytes=$(LC_ALL=C wc -c < "$output_file" 2>/dev/null | tr -d '[:space:]')
     [[ "$bytes" =~ ^[0-9]+$ ]] || return 1
-    ((bytes > OCTO_PROVIDER_REJECTION_MAX_OUTPUT_BYTES))
+    ((10#$bytes > 10#$threshold))
 }
 
 # Trust the rejection signature on the error channel unconditionally; inside the

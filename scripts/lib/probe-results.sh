@@ -89,7 +89,11 @@ probe_result_file_status() {
             echo "failed:timeout-empty"
         fi
     elif [[ "$status_line" == "## Status: FAILED"* ]]; then
-        if [[ "$output_chars" -gt 0 ]]; then
+        # A recorded provider rejection is terminal even with partial output.
+        # Read the launcher status, never a signature in the prompt or answer.
+        if [[ "$status_line" == "## Status: FAILED (Prompt rejected by provider (oversize))" ]]; then
+            echo "failed:provider-rejected"
+        elif [[ "$output_chars" -gt 0 ]]; then
             echo "degraded:failed-with-output"
         else
             echo "failed:provider-failed"
