@@ -50,6 +50,8 @@ OCTOPUS_COMMANDCODE_MODEL	covered-by	test-commandcode-harness.sh
 OCTOPUS_COMPACT_BANNERS	skip	changes banner prose only; asserting it would pin cosmetic output
 OCTOPUS_CONTEXT_SUMMARY_TRIGGER_RATIO	covered-by	test-context-budget.sh
 OCTOPUS_COST_MODE	covered-by	test-cost-mode-toggle.sh
+OCTOPUS_COUNCIL_CONTENT_MATCH_PROXIMITY_CHARS	covered-by	test-council-content-match-proximity.sh
+OCTOPUS_COUNCIL_REQUIRE_CONTEXT	covered-by	test-council-context-guard.sh
 OCTOPUS_COUNCIL_TIMEOUT_	placeholder	doc template fragment for OCTOPUS_COUNCIL_TIMEOUT_<PROVIDER>, not a real variable
 OCTOPUS_CREDENTIAL_ENV_NAMES	covered-by	test-mcp-server.sh
 OCTOPUS_EFFORT_OVERRIDE	covered-by	test-execution-mechanism.sh

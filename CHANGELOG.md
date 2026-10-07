@@ -11,7 +11,7 @@
   Bare filenames and prose without a supported path do not trigger the guard.
   This is a path-text check, not an existence check. Supplying any context file
   suppresses it; it does not verify that every referenced file was supplied.
-  See [council evidence](docs/COUNCIL.md). (#1176)
+  See [council evidence](https://github.com/nyldn/claude-octopus/blob/v11.12.0/docs/COUNCIL.md). (#1176)
 - Optional council quote proximity through
   `OCTOPUS_COUNCIL_CONTENT_MATCH_PROXIMITY_CHARS=N`. A positive integer requires
   source-matching quotes to appear within `N` characters of a filename whose
