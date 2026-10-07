@@ -36,6 +36,17 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
+### Council evidence and faster delivery
+
+Council warns when a task names a supported artifact path without supplying its
+contents. Pass `--context-file` to give every seat the file, or enable
+`OCTOPUS_COUNCIL_REQUIRE_CONTEXT=1` to stop such runs before dispatch. Source
+checks exclude injected instruction files, and an optional filename-proximity
+check tightens quote evidence. See [council evidence](docs/COUNCIL.md) for usage
+and limits.
+
+Successful development runs now skip the failure retrospective during delivery.
+
 ### Engineering methods
 
 Octopus includes eight engineering methods adapted from

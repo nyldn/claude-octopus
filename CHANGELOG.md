@@ -4,48 +4,35 @@
 
 ### Added
 
-- `council` now fails fast — or warns — when a task names a file path to read but
-  no `--context-file` was passed. Council seats default to `permissionMode "plan"`
-  (no file tools), so a plan-mode seat cannot open a referenced path and reviews
-  blind, round after round, until someone notices. The preflight detects a real
-  artifact path in the task with no `--context-file` and prints an actionable
-  warning naming the fix (pass `--context-file <path>` to inline the bytes). Set
-  `OCTOPUS_COUNCIL_REQUIRE_CONTEXT=1` to fail closed instead of warning. Bare
-  prose, a context file already supplied, or a filename mentioned without a path
-  pass silently.
-- Optional named-file proximity for council content-match grounding, off by
-  default. `OCTOPUS_COUNCIL_CONTENT_MATCH_PROXIMITY_CHARS=N` requires a quoted
-  fragment to sit within `N` characters of a *resolving* named-file mention (a
-  basename the scan actually reached) before it counts as grounding. Unset or
-  `0` preserves the shipped quote-sufficiency behavior exactly. Lets a consumer
-  that wants the runner's `blind_seats` accounting to match a stricter grounding
-  gate opt in without changing the default (sail-cruisey #2970).
+- Council warns before dispatch when a task names a supported artifact path and
+  no `--context-file` was supplied. Pass the file with `--context-file <path>`
+  so plan-mode seats receive its contents. Set
+  `OCTOPUS_COUNCIL_REQUIRE_CONTEXT=1` to reject these runs with exit code 2.
+  Bare filenames and prose without a supported path do not trigger the guard.
+  This is a path-text check, not an existence check. Supplying any context file
+  suppresses it; it does not verify that every referenced file was supplied.
+  See [council evidence](docs/COUNCIL.md). (#1176)
+- Optional council quote proximity through
+  `OCTOPUS_COUNCIL_CONTENT_MATCH_PROXIMITY_CHARS=N`. A positive integer requires
+  source-matching quotes to appear within `N` characters of a filename whose
+  basename the bounded scan reached. Unset or `0` retains quote-only matching.
+  Filename proximity is an additional evidence signal, not proof that a seat
+  read that specific file. (#1177)
 
 ### Fixed
 
-- Council proximity grounding continues its bounded scan when a duplicate quote
-  matches before the named source file, preserving valid evidence in either
-  traversal order.
-
-- Council's optional source-quote proximity check no longer stalls on large
-  responses with repeated quotes and filenames within the response size limit.
-- Council source-evidence checks isolate Python imports so project files cannot
-  execute as standard-library modules during grounding.
-
-- Council content-match grounding no longer counts a seat that merely echoes
-  agent-instruction boilerplate. `CLAUDE.md`, `AGENTS.md`, their `-OCTO.md`
-  twins, `GEMINI.md`, and similar files are injected into every seat's prompt
-  context, so a seat could quote their verbatim prose and score a false
-  content-match without reading any source. The scan already skipped hidden
-  paths (`.claude/…`); it now also skips these boilerplate basenames wherever
-  they appear, including the visible repo-root twins (sail-cruisey #2970). Real
-  source quotes still ground.
-
-- Deliver no longer runs the "Quality gate FAILED in tangle phase"
-  retrospective after a tangle phase that passed or recorded no quality gate.
-  The ceremony ran whenever a tangle results file existed, adding a failure
-  retrospective of about two minutes to healthy runs. It now runs only when the
-  tangle results record `Quality Gate: FAILED`.
+- Council source checks exclude injected agent-instruction files, including
+  `CLAUDE.md`, `AGENTS.md`, their `-OCTO.md` variants, `GEMINI.md`, and Cursor
+  and Copilot instruction basenames, including nested and mixed-case names.
+  Echoing those instructions no longer counts as source evidence. (#1177)
+- Optional quote proximity preserves valid evidence when a duplicate quote
+  matches before the named source file. Repeated quotes and filename mentions
+  stay within the existing response and scan budgets without a quadratic
+  comparison. Project-local Python modules cannot execute during source checks.
+  (#1177)
+- Deliver runs the failure retrospective only when the development report
+  records `Quality Gate: FAILED`. Successful runs and reports without a quality
+  gate skip the unnecessary failure ceremony. (#1173)
 
 ## [11.11.0] - 2026-10-05
 
