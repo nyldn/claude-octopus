@@ -383,6 +383,9 @@ REGISTRY="${HOME}/.claude-octopus/plugin/scripts/agent-registry.sh"
 # ends the run.
 fail() {
     echo "${1}" >&2
+    if [[ -x "$REGISTRY" ]]; then
+        "$REGISTRY" update "$WP_ID" --status failed --error "${1}" 2>/dev/null || true
+    fi
     echo "${2:-1}" > "$SCRIPT_DIR/exit-code"
     touch "$SCRIPT_DIR/.done"
     exit "${2:-1}"
@@ -453,12 +456,15 @@ fi
 # A force-remove over uncommitted edits destroys everything the package built;
 # the commits themselves survive removal, because they are already in the
 # shared object store on WP_BRANCH.
-UNCOMMITTED="$(git -C "$WORKTREE_DIR" status --porcelain 2>/dev/null)"
-COMMITS="$(git -C "$WORKTREE_DIR" rev-list --count "$BASE_REF..HEAD" 2>/dev/null || echo 0)"
+UNCOMMITTED="$(git -C "$WORKTREE_DIR" status --porcelain 2>/dev/null)" ||
+    fail "ERROR: cannot inspect worktree status; retained $WORKTREE_DIR"
+COMMITS="$(git -C "$WORKTREE_DIR" rev-list --count "$BASE_REF..HEAD" 2>/dev/null)" ||
+    fail "ERROR: cannot inspect worktree commits; retained $WORKTREE_DIR"
 echo "$COMMITS" > "$SCRIPT_DIR/commit-count"
 cd "$PROJECT_ROOT"
 if [[ -z "$UNCOMMITTED" && "$COMMITS" -gt 0 ]]; then
-    git worktree remove "$WORKTREE_DIR" --force 2>/dev/null || true
+    git worktree remove "$WORKTREE_DIR" 2>/dev/null ||
+        fail "ERROR: cannot remove worktree; retained $WORKTREE_DIR"
 elif [[ -n "$UNCOMMITTED" ]]; then
     echo "KEPT $WORKTREE_DIR: uncommitted work present on $WP_BRANCH" \
         >> "$SCRIPT_DIR/agent.log"

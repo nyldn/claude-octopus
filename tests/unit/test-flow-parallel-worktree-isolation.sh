@@ -217,4 +217,24 @@ else
     test_fail "the clean retry was described as containing uncommitted work"
 fi
 
+test_case "a failed Git status check retains committed and uncommitted work"
+TEST_REAL_GIT="$(command -v git)"
+export TEST_REAL_GIT
+cat > "$STUB_BIN/git" <<'GITSTUB'
+#!/usr/bin/env bash
+if [[ "${3:-}" == "status" ]]; then exit 77; fi
+exec "$TEST_REAL_GIT" "$@"
+GITSTUB
+chmod +x "$STUB_BIN/git"
+make_stub 'printf "committed\n" > wp.txt; git add wp.txt; git commit --quiet -m "committed work"; printf "retained\n" >> wp.txt; echo done'
+run_package WP-STATUSFAIL octo/wp-statusfail
+failed_dir="$TEST_TMP_DIR/.octo-worktree-repo-WP-STATUSFAIL"
+if [[ "$(cat "$TEST_TMP_DIR/WP-STATUSFAIL/exit-code")" == "1" &&
+      -f "$TEST_TMP_DIR/WP-STATUSFAIL/.done" && -f "$failed_dir/wp.txt" ]] &&
+    grep -q 'retained' "$failed_dir/wp.txt"; then
+    test_pass
+else
+    test_fail "a failed status check was treated as a clean worktree"
+fi
+
 test_summary
