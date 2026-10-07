@@ -4387,14 +4387,11 @@ council_print_run_warnings() {
 
 # Warn or reject path-based tasks whose artifact bytes were not supplied.
 council_preflight_context_guard() {
-    # Plan-mode seats (permissionMode "plan", the default) get NO file tools, so a
-    # task that NAMES a path for the seat to open cannot be honored — the seat
-    # reviews blind, round after round, until someone notices (sail-cruisey burned
-    # ~40 min of CP1 rounds exactly this way). The ONLY way a plan-mode seat sees an
-    # artifact is --context-file, which inlines its bytes into the prompt. Surface
-    # the mistake at dispatch instead of letting it fail silently: when no
-    # --context-file was given but the task references a real artifact PATH, warn
-    # (default) or fail closed under OCTOPUS_COUNCIL_REQUIRE_CONTEXT=1.
+    # File access depends on the provider and dispatch transport. A CLI seat may
+    # inspect files in its disposable working-tree copy, while another seat or
+    # artifact may have no file-read path. Inline context gives every seat the
+    # same bytes. This path-text guard warns by default and optionally enforces
+    # that inline-context policy; it does not inspect workspace or tool access.
     [[ ${#COUNCIL_CONTEXT_FILES[@]} -eq 0 ]] || return 0   # context already supplied
 
     # A real filesystem path: a token starting with /, ~/, ./ (or ../) that ends in
@@ -4406,7 +4403,7 @@ council_preflight_context_guard() {
     # repo's shell convention (a pipe into `grep -q` can SIGPIPE under pipefail).
     grep -ciE "$path_re" <<<"$COUNCIL_TASK" >/dev/null || return 0   # no path referenced
 
-    local msg="the task references a file path but no --context-file was passed. Council seats default to permissionMode \"plan\" (no file tools), so a plan-mode seat cannot open that path and will review BLIND. Pass --context-file <path> to inline the artifact's bytes into every seat's prompt."
+    local msg="the task references a file path but no --context-file was passed. File access depends on the provider and dispatch transport; consultative CLI seats may inspect copied project files. Pass --context-file <path> to inline the artifact's bytes into every seat's prompt. OCTOPUS_COUNCIL_REQUIRE_CONTEXT=1 enforces this inline-context policy without checking file-tool or workspace access."
     if [[ "${OCTOPUS_COUNCIL_REQUIRE_CONTEXT:-}" == "1" ]]; then
         council_error_usage "$msg"
         return 2

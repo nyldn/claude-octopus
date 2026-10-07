@@ -1,9 +1,16 @@
 # Council evidence
 
-Council seats use plan mode by default and cannot open files with file tools.
-A path in the task does not supply that file's contents. Pass a readable file
-with `--context-file`; repeat the flag for each artifact. Council includes the
-contents in every seat's prompt as untrusted data.
+Council file access depends on the provider and dispatch transport. Consultative
+CLI seats run in a disposable working-tree copy and can inspect project files
+present there. A tracked relative path such as `./src/service.ts` can therefore
+be reviewed without inline context when that seat has file tools. File-tool
+availability and permission enforcement follow the selected transport.
+
+Pass a readable file with `--context-file` to give every seat the same artifact
+bytes without depending on file tools or workspace visibility. Repeat the flag
+for each artifact. Council includes its contents in every seat's prompt as
+untrusted data. This is useful for artifacts absent from the copied workspace
+and seats without file tools.
 
 ```text
 /octo:council --goal review --context-file ./src/service.ts "Review ./src/service.ts"
@@ -15,12 +22,15 @@ Council warns before the advice phase when the task names a supported artifact
 path and no context file was supplied. Supported forms include `/tmp/plan.md`,
 `~/plans/review.diff`, `./src/service.ts`, and `../docs/design.md`. Bare filenames
 such as `package.json` and prose without a supported path pass silently. The
-check recognizes path text; it does not test whether that path exists.
+check recognizes path text; it does not test whether that path exists, whether
+it is present in a copied workspace, or whether the selected seat can read it.
+It can warn about a tracked-file review that a CLI seat could perform.
 
 Set `OCTOPUS_COUNCIL_REQUIRE_CONTEXT=1` in the runner environment to return exit
-code 2 instead of warning. Supplying any context file suppresses this guard.
-Include every artifact needed for the review; the guard does not check that
-supplied files cover all task references.
+code 2 instead of warning. Strict mode enforces an inline-context policy and can
+reject an otherwise workable tracked-file review. Supplying any context file
+suppresses this guard. Include every artifact needed for the review; the guard
+does not check that supplied files cover all task references.
 
 ## Source quote checks
 

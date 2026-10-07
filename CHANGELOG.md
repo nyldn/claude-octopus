@@ -8,11 +8,13 @@
 
 - Council warns before dispatch when a task names a supported artifact path and
   no `--context-file` was supplied. Pass the file with `--context-file <path>`
-  so plan-mode seats receive its contents. Set
+  so every seat receives the same contents without relying on file tools. Set
   `OCTOPUS_COUNCIL_REQUIRE_CONTEXT=1` to reject these runs with exit code 2.
   Bare filenames and prose without a supported path do not trigger the guard.
-  This is a path-text check, not an existence check. Supplying any context file
-  suppresses it; it does not verify that every referenced file was supplied.
+  The path-text check does not inspect file-tool access or copied-workspace
+  visibility. It can warn or reject a tracked-file review that a CLI seat could
+  perform. Supplying any context file suppresses it; the guard does not verify
+  that every referenced file was supplied.
   See [council evidence](https://github.com/nyldn/claude-octopus/blob/v11.12.0/docs/COUNCIL.md). (#1176)
 - Optional council quote proximity through
   `OCTOPUS_COUNCIL_CONTENT_MATCH_PROXIMITY_CHARS=N`. A positive integer requires
