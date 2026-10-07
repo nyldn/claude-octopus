@@ -108,7 +108,7 @@ rank_results_by_signals() {
         [[ "$result" == *.partial-* ]] && continue
         [[ -n "$filter" && "$result" != *"$filter"* ]] && continue
         probe_result_file_is_usable "$result" || continue
-        type octo_file_has_provider_rejection >/dev/null 2>&1 && octo_file_has_provider_rejection "$result" && continue
+        type octo_seat_was_rejected >/dev/null 2>&1 && octo_seat_was_rejected "$result" && continue
 
         local score
         score=$(score_result_file "$result")
@@ -200,7 +200,7 @@ build_probe_synthesis_context() {
         [[ -z "$ranked_file" ]] && continue
         [[ ! -f "$ranked_file" ]] && continue
         probe_result_file_is_usable "$ranked_file" || continue
-        type octo_file_has_provider_rejection >/dev/null 2>&1 && octo_file_has_provider_rejection "$ranked_file" && continue
+        type octo_seat_was_rejected >/dev/null 2>&1 && octo_seat_was_rejected "$ranked_file" && continue
         usable_files+=("$ranked_file")
     done < <(rank_results_by_signals "$provider_results_dir" "probe-${task_group}")
 
@@ -388,7 +388,7 @@ aggregate_results() {
             [[ "$result" == *.raw-concat* ]] && continue
             [[ -n "$filter" && "$result" != *"$filter"* ]] && continue
             probe_result_file_is_usable "$result" || continue
-            type octo_file_has_provider_rejection >/dev/null 2>&1 && octo_file_has_provider_rejection "$result" && continue
+            type octo_seat_was_rejected >/dev/null 2>&1 && octo_seat_was_rejected "$result" && continue
             ranked_files+="$result"$'\n'
         done
     fi
@@ -402,7 +402,7 @@ aggregate_results() {
         [[ -z "$result" ]] && continue
         [[ ! -f "$result" ]] && continue
         probe_result_file_is_usable "$result" || continue
-        type octo_file_has_provider_rejection >/dev/null 2>&1 && octo_file_has_provider_rejection "$result" && continue
+        type octo_seat_was_rejected >/dev/null 2>&1 && octo_seat_was_rejected "$result" && continue
         local score
         score=$(score_result_file "$result")
         echo "---" >> "$raw_concat"
@@ -539,7 +539,7 @@ synthesize_probe_results() {
     for result in "$provider_results_dir"/*-probe-${task_group}-*.md; do
         [[ -f "$result" ]] || continue
         probe_result_file_is_usable "$result" || { log DEBUG "Skipping $result (unusable probe output)"; continue; }
-        type octo_file_has_provider_rejection >/dev/null 2>&1 && octo_file_has_provider_rejection "$result" && { log DEBUG "Skipping $result (provider rejection)"; continue; }
+        type octo_seat_was_rejected >/dev/null 2>&1 && octo_seat_was_rejected "$result" && { log DEBUG "Skipping $result (provider rejection)"; continue; }
 
         local file_size
         file_size=$(wc -c < "$result" 2>/dev/null || echo "0")

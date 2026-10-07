@@ -261,6 +261,34 @@ octo_file_has_provider_rejection() {
     return 1
 }
 
+# A provider that refuses an oversized prompt answers with a short error, not
+# with work. Past this many bytes an output file is a real result, so a
+# rejection phrase inside it is subject matter rather than a provider error:
+# a code review that discusses a "verify-context limit" matches `context limit`.
+: "${OCTO_PROVIDER_REJECTION_MAX_OUTPUT_BYTES:=4096}"
+
+octo_output_is_substantive() {
+    local output_file="${1:-}" bytes
+    [[ -n "$output_file" && -f "$output_file" ]] || return 1
+    # BSD wc pads its output, so strip all whitespace before comparing.
+    bytes=$(LC_ALL=C wc -c < "$output_file" 2>/dev/null | tr -d '[:space:]')
+    [[ "$bytes" =~ ^[0-9]+$ ]] || return 1
+    ((bytes > OCTO_PROVIDER_REJECTION_MAX_OUTPUT_BYTES))
+}
+
+# Trust the rejection signature on the error channel unconditionally; inside the
+# provider's own answer trust it only while that answer is too short to be a
+# result. Keeps a genuine stdout-only rejection detectable without discarding a
+# long, valid result that merely mentions a context limit.
+octo_seat_was_rejected() {
+    local output_file="${1:-}" stderr_file="${2:-}"
+    if [[ -n "$stderr_file" ]] && octo_file_has_provider_rejection "$stderr_file"; then
+        return 0
+    fi
+    octo_output_is_substantive "$output_file" && return 1
+    octo_file_has_provider_rejection "$output_file"
+}
+
 octo_file_has_codex_stdin_closed() {
     local stderr_file="${1:-}"
     [[ -n "$stderr_file" && -f "$stderr_file" ]] || return 1
@@ -314,7 +342,7 @@ classify_agent_output() {
         return 0
     fi
 
-    if octo_file_has_provider_rejection "$output_file" "$stderr_file"; then
+    if octo_seat_was_rejected "$output_file" "$stderr_file"; then
         echo "failed:Prompt rejected by provider (oversize)"
         return 0
     fi
