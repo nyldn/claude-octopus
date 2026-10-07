@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.12.0] - 2026-10-06
+
 ### Added
 
 - Council warns before dispatch when a task names a supported artifact path and

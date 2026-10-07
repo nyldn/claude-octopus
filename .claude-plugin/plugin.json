@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.11.0",
-  "description": "v11.11.0 \u2014 API Route support and faster, reliable development workflows. Run /octo:setup.",
+  "version": "11.12.0",
+  "description": "v11.12.0 \u2014 Council artifact safeguards, stronger source evidence, and faster successful delivery. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
