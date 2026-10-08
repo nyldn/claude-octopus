@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Tangle's codex execution boundary gives `thread-writer-locks` and `.tmp` in
+  `CODEX_HOME` a private tmpfs, like the other runtime directories. `codex exec`
+  could not start a thread inside the boundary (`EROFS` on
+  `thread-writer-locks/.coordination.lock`), so a codex seat still produced no
+  code after #1164. Checked on Codex 0.155.1 and 0.161.0. (#1182)
+
 ## [11.12.0] - 2026-10-06
 
 ### Added

@@ -557,7 +557,7 @@ octopus_tangle_project_codex_home() {
         [[ -e "$entry" || -L "$entry" ]] || continue
         name="${entry##*/}"
         case "$name" in
-            tmp|sessions|archived_sessions|log|shell_snapshots|installation_id) continue ;;
+            tmp|.tmp|thread-writer-locks|sessions|archived_sessions|log|shell_snapshots|installation_id) continue ;;
         esac
         if [[ "$name" == auth.json && -f "$entry" && ! -L "$entry" && \
               "$(stat -c %h -- "$entry" 2>/dev/null)" == 1 ]]; then
@@ -566,7 +566,13 @@ octopus_tangle_project_codex_home() {
             boundary_cmd+=(--ro-bind "$entry" "$entry")
         fi
     done
-    for runtime_dir in tmp sessions archived_sessions log shell_snapshots; do
+    # `thread-writer-locks` holds Codex's cross-process thread coordination lock
+    # (.coordination.lock, opened read/write before a thread starts) and `.tmp` its
+    # plugin-sync lock (.tmp/plugins.sync.lock). Left read-only, `codex exec`
+    # fails with "thread-store internal error: Read-only file system" before any API
+    # call (checked on Codex 0.155.1, 0.160.0 and 0.161.0). Both are private tmpfs
+    # like the other runtime directories, so nothing persists or reaches the host.
+    for runtime_dir in tmp .tmp thread-writer-locks sessions archived_sessions log shell_snapshots; do
         boundary_cmd+=(--tmpfs "$codex_home/$runtime_dir")
     done
     # Codex 0.160 opens its installation ID read/write even at initialization.

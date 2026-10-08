@@ -179,6 +179,57 @@ else
     test_pass
 fi
 
+test_case "codex lock and plugin-sync directories get private tmpfs, config and extensions stay read-only"
+LOCKS_HOME="$CODEX_ROOT/codex-home-locks"
+mkdir -p "$LOCKS_HOME/thread-writer-locks" "$LOCKS_HOME/.tmp" "$LOCKS_HOME/sessions" "$LOCKS_HOME/skills"
+: > "$LOCKS_HOME/config.toml"
+physical_locks_home="$(cd "$LOCKS_HOME" && pwd -P)"
+boundary_ro_binds() {
+    local i
+    for ((i = 0; i + 2 < ${#cmd_array[@]}; i++)); do
+        [[ "${cmd_array[i]}" == "--" ]] && return 1
+        if [[ "${cmd_array[i]}" == "--ro-bind" && "${cmd_array[i+1]}" == "$1" && \
+              "${cmd_array[i+2]}" == "$1" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+agent_type="codex"
+CODEX_HOME="$LOCKS_HOME"
+cmd_array=(true)
+if ! octopus_tangle_apply_execution_boundary; then
+    test_fail "boundary refused a codex dispatch"
+elif ! boundary_private_tmpfs "$physical_locks_home/thread-writer-locks" || \
+     ! boundary_private_tmpfs "$physical_locks_home/.tmp"; then
+    test_fail "codex lock or plugin-sync directory was not made a private tmpfs"
+elif boundary_ro_binds "$physical_locks_home/thread-writer-locks" || \
+     boundary_ro_binds "$physical_locks_home/.tmp"; then
+    test_fail "codex lock or plugin-sync directory was also bound read-only"
+elif ! boundary_ro_binds "$physical_locks_home/skills" || \
+     ! boundary_ro_binds "$physical_locks_home/config.toml"; then
+    test_fail "codex extension inputs or config lost their read-only bind"
+else
+    test_pass
+fi
+
+test_case "a fresh codex home without lock directories still gets their private tmpfs"
+FRESH_HOME="$CODEX_ROOT/codex-home-fresh"
+mkdir -p "$FRESH_HOME"
+: > "$FRESH_HOME/config.toml"
+physical_fresh_home="$(cd "$FRESH_HOME" && pwd -P)"
+agent_type="codex"
+CODEX_HOME="$FRESH_HOME"
+cmd_array=(true)
+if octopus_tangle_apply_execution_boundary && \
+   boundary_private_tmpfs "$physical_fresh_home/thread-writer-locks" && \
+   boundary_private_tmpfs "$physical_fresh_home/.tmp"; then
+    test_pass
+else
+    test_fail "a home that has not yet created its lock directories stayed read-only"
+fi
+CODEX_HOME="$CODEX_STATE_HOME"
+
 test_case "codex config discovery ignores repository Python startup hooks"
 startup_poison="$CODEX_ROOT/python-startup-poison"
 startup_marker="$CODEX_ROOT/python-startup-fired"
@@ -523,6 +574,29 @@ if octopus_tangle_execution_boundary_probe; then
         test_pass
     else
         test_fail "runtime storage failed or a worker write persisted outside the worktree"
+    fi
+
+    test_case "codex lock directories accept writes inside the boundary and persist nothing"
+    if [[ -z "$OUTSIDE_TMP_ROOT" ]]; then
+        test_skip "needs a writable /var/tmp: the boundary replaces /tmp"
+    elif (
+        agent_type="codex"
+        LOCK_REAL_HOME="$OUTSIDE_TMP_ROOT/codex-lock-home"
+        mkdir -p "$LOCK_REAL_HOME/thread-writer-locks" "$LOCK_REAL_HOME/skills"
+        : > "$LOCK_REAL_HOME/config.toml"
+        cmd_array=(bash -c 'touch "$1/thread-writer-locks/.coordination.lock" || exit 1
+                            mkdir -p "$1/.tmp" && touch "$1/.tmp/plugins.sync.lock" || exit 2
+                            if touch "$1/skills/forged" 2>/dev/null; then exit 3; fi
+                            if touch "$1/config.toml.new" 2>/dev/null; then exit 4; fi' \
+                   _ "$LOCK_REAL_HOME")
+        CODEX_HOME="$LOCK_REAL_HOME" octopus_tangle_apply_execution_boundary || exit 1
+        "${cmd_array[@]}" || exit 1
+        [[ ! -e "$LOCK_REAL_HOME/thread-writer-locks/.coordination.lock" && \
+           ! -e "$LOCK_REAL_HOME/.tmp" && ! -e "$LOCK_REAL_HOME/skills/forged" ]]
+    ); then
+        test_pass
+    else
+        test_fail "codex locks were not writable in the boundary, or a write reached the host or the read-only inputs"
     fi
 
     test_case "a real worker cannot edit config or expose HOME on its next dispatch"
