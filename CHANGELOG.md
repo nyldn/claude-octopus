@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.13.0] - 2026-10-08
+
 ### Fixed
 
 - Parallel work packages use their own branches and retain committed work after

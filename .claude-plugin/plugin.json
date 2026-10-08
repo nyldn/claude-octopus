@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.12.0",
-  "description": "v11.12.0 \u2014 Council artifact safeguards, stronger source evidence, and faster successful delivery. Run /octo:setup.",
+  "version": "11.13.0",
+  "description": "v11.13.0 \u2014 Parallel work preservation, reliable review results and Codex startup. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
