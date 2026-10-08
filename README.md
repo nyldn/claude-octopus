@@ -42,8 +42,9 @@ Parallel work packages now use separate branches. Completed commits remain
 available after cleanup, and worktrees with uncommitted edits are kept for
 recovery. Failed packages record their completion status so the wave can finish.
 
-Reviews and research retain substantial provider results that discuss a context
-limit. Genuine rejection messages still stop the affected seat. The new
+Reviews and research retain provider stdout longer than the configured threshold,
+even when it contains a context-limit rejection phrase. Short stdout-only
+rejections and stderr rejection signatures still fail the affected seat. The new
 `OCTO_PROVIDER_REJECTION_MAX_OUTPUT_BYTES` setting adjusts the output-size
 threshold, with a default of 4096 bytes. See [provider rejection handling](docs/PROVIDERS.md#provider-rejection-handling).
 
