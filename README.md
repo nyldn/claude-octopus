@@ -36,16 +36,21 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
-### Council evidence and faster delivery
+### Parallel work, reliable reviews and Codex startup
 
-Council warns when a task names a supported artifact path without supplying its
-contents. Pass `--context-file` to give every seat the file, or enable
-`OCTOPUS_COUNCIL_REQUIRE_CONTEXT=1` to stop such runs before dispatch. Source
-checks exclude injected instruction files, and an optional filename-proximity
-check tightens quote evidence. See [council evidence](https://github.com/nyldn/claude-octopus/blob/v11.12.0/docs/COUNCIL.md) for usage
-and limits.
+Parallel work packages now use separate branches. Completed commits remain
+available after cleanup, and worktrees with uncommitted edits are kept for
+recovery. Failed packages record their completion status so the wave can finish.
 
-Successful development runs now skip the failure retrospective during delivery.
+Reviews and research retain substantial provider results that discuss a context
+limit. Genuine rejection messages still stop the affected seat. The new
+`OCTO_PROVIDER_REJECTION_MAX_OUTPUT_BYTES` setting adjusts the output-size
+threshold, with a default of 4096 bytes. See [provider rejection handling](docs/PROVIDERS.md#provider-rejection-handling).
+
+Codex can create its thread-coordination and plugin-sync locks inside the Linux
+Tangle execution boundary. The locks use private temporary storage, while
+configuration and extension inputs remain read-only. See [bounded Codex runs](docs/PROVIDERS.md#codex-in-bounded-tangle-runs)
+for host requirements and temporary-directory configuration.
 
 ### Engineering methods
 

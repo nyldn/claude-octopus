@@ -173,12 +173,25 @@ File transport cancellation sends TERM to the direct child, waits up to two
 seconds, then escalates to KILL and reaps it before removing the prompt. It
 does not claim ownership of unregistered descendants.
 
+## Provider rejection handling
+
+A provider result longer than 4096 bytes is retained when its own text mentions
+an oversized-prompt rejection phrase, such as `context limit`. Short stdout-only
+rejections remain detectable. Rejection signatures on stderr still fail the seat
+regardless of result length, and a recorded rejection stays a terminal failure.
+This size check is a heuristic rather than a semantic assessment of the response.
+
+Set `OCTO_PROVIDER_REJECTION_MAX_OUTPUT_BYTES` to a non-negative integer to adjust
+the byte threshold. Invalid values or values exceeding the supported integer
+bound use 4096. A result must be longer than the threshold to count as substantial.
+
 ## Codex in bounded Tangle runs
 
 The Linux execution boundary projects an existing canonical `CODEX_HOME` with
 read-only configuration, instructions, profiles, skills, plugins and other
 entries. Its root cannot create or replace entries. Runtime directories `tmp`,
-`sessions`, `archived_sessions`, `log` and `shell_snapshots` use private temporary
+`.tmp`, `thread-writer-locks`, `sessions`, `archived_sessions`, `log` and
+`shell_snapshots` use private temporary
 filesystems, so worker changes there disappear after each dispatch. The required
 `installation_id` file points into private `tmp` storage instead of host state.
 An existing
@@ -203,6 +216,9 @@ already-private `tmp` subtree is allowed. Configuration subtrees cannot be
 reopened by a later TMPDIR mount. Reading this setting requires Python 3.11 or
 newer; without `tomllib`, a config containing TMPDIR aborts dispatch. Unsafe configured
 TMPDIR layouts also abort, including paths inside the writable worktree.
+If your configuration places TMPDIR under another HOME directory, such as
+`~/.cache`, choose a canonical absolute path outside HOME or the accepted
+`CODEX_HOME/tmp` subtree before running a Codex Tangle seat.
 Other providers receive no Codex state mounts.
 
 For Codex 0.160, `CODEX_SQLITE_HOME` redirects the default state database to

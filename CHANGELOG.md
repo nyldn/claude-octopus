@@ -4,11 +4,31 @@
 
 ### Fixed
 
+- Parallel work packages use their own branches and retain committed work after
+  cleanup. Uncommitted worktrees stay available for recovery, retries validate
+  worktree identity and clear stale markers, and failed launches report completion.
+  ([#1179](https://github.com/nyldn/claude-octopus/pull/1179),
+  commit `9f7aadaafff253d6d6754eb3ef2983ffd167cbf5`.)
+- Reviews and research preserve substantial results that discuss context limits
+  instead of discarding them as oversized-prompt rejections. Error-channel
+  rejections and recorded terminal failures remain failures.
+  ([#1180](https://github.com/nyldn/claude-octopus/pull/1180),
+  commit `4d152db0cd580167cdde7629a9fc70bc20d66f39`.)
 - Tangle's codex execution boundary gives `thread-writer-locks` and `.tmp` in
   `CODEX_HOME` a private tmpfs, like the other runtime directories. `codex exec`
   could not start a thread inside the boundary (`EROFS` on
   `thread-writer-locks/.coordination.lock`), so a codex seat still produced no
-  code after #1164. Checked on Codex 0.155.1 and 0.161.0. (#1182)
+  code after #1164. Checked on Codex 0.155.1 and 0.161.0.
+  ([#1184](https://github.com/nyldn/claude-octopus/pull/1184), fixes
+  [#1182](https://github.com/nyldn/claude-octopus/issues/1182),
+  commit `0b9fd98386ef6197a06de9267037043a4656ece6`.)
+
+### Added
+
+- `OCTO_PROVIDER_REJECTION_MAX_OUTPUT_BYTES` configures when provider stdout
+  is substantial enough to retain despite a rejection phrase. The default is
+  4096 bytes; invalid or overflowing values use that default. Error-channel
+  rejection detection is independent of this setting. (#1180)
 
 ## [11.12.0] - 2026-10-06
 
