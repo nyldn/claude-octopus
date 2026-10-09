@@ -921,8 +921,13 @@ validate_model_name() {
 is_agent_available_v2() {
     local agent="$1"
 
-    # Load config if needed
-    [[ -z "$PROVIDER_CODEX_INSTALLED" || "$PROVIDER_CODEX_INSTALLED" == "false" ]] && load_providers_config
+    # False is also a valid loaded state on hosts without Codex. Standalone
+    # resolver consumers may supply provider flags without the smoke loader.
+    if declare -f load_providers_config >/dev/null 2>&1 && \
+       [[ "${PROVIDERS_CONFIG_LOADED:-false}" != "true" ]] && \
+       [[ -z "$PROVIDER_CODEX_INSTALLED" || "$PROVIDER_CODEX_INSTALLED" == "false" ]]; then
+        load_providers_config || return $?
+    fi
 
     # oco-cbb: skip a provider marked quota/auth-dead earlier this session.
     local quota_provider

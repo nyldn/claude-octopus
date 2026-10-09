@@ -191,4 +191,21 @@ else
     test_fail "Cheaper Inference was rejected despite API key and model"
 fi
 
+test_case "standalone resolver availability does not invoke an undefined loader"
+octo_fixture_value="fixture-value"
+standalone_rc=0
+standalone_out="$(env -i "PATH=$PATH" "HOME=$TEST_TMP_DIR" \
+    "ANTHROPIC_API_KEY=${octo_fixture_value}" bash -e -c '
+        source "$1"
+        PROVIDER_CODEX_INSTALLED=false
+        is_agent_available_v2 anthropic-api
+        printf "available\n"
+    ' _ "$MODEL_RESOLVER" 2>"$TEST_TMP_DIR/standalone-provider.stderr")" || standalone_rc=$?
+if [[ "$standalone_rc" -eq 0 && "$standalone_out" == "available" && \
+      ! -s "$TEST_TMP_DIR/standalone-provider.stderr" ]]; then
+    test_pass
+else
+    test_fail "standalone resolver failed: rc=$standalone_rc out=[$standalone_out]"
+fi
+
 test_summary

@@ -146,4 +146,51 @@ test_no_functional_gemini_dispatch
 test_tangle_decompose_default_is_agy
 test_loaded_provider_state_fallback
 
+test_case "Claude-only discovery runs once when Codex remains unavailable"
+discovery_log="$TEST_TMP_DIR/provider-discovery.log"
+discovery_rc=0
+env -i "PATH=$PATH" "HOME=$TEST_TMP_DIR/home-provider-state" "VERBOSE=false" \
+    bash -e -c '
+        source "$1/scripts/lib/smoke.sh"
+        source "$1/scripts/lib/model-resolver.sh"
+        PROVIDERS_CONFIG_FILE="$2/missing-provider-state"
+        discovery_log="$2/provider-discovery.log"
+        detect_providers() { printf "called\n" >> "$discovery_log"; printf "claude:oauth\n"; }
+        detect_tier_claude() { printf "pro\n"; }
+        get_cost_tier_for_subscription() { printf "medium\n"; }
+        is_agent_available_v2 claude-opus
+        is_agent_available_v2 claude-sonnet
+        is_agent_available_v2 claude-opus-fast
+    ' _ "$PROJECT_ROOT" "$TEST_TMP_DIR" || discovery_rc=$?
+discovery_count=0
+[[ ! -f "$discovery_log" ]] || discovery_count="$(wc -l < "$discovery_log" | tr -d " ")"
+if [[ "$discovery_rc" -eq 0 && "$discovery_count" -eq 1 ]]; then test_pass
+else test_fail "expected one successful discovery, got rc=$discovery_rc calls=$discovery_count"; fi
+
+test_case "saving provider state marks it loaded and explicit refresh still reloads"
+if env -i "PATH=$PATH" "HOME=$TEST_TMP_DIR/home-provider-state" "VERBOSE=false" \
+    bash -e -c '
+        source "$1/scripts/lib/smoke.sh"
+        PROVIDERS_CONFIG_FILE="$2/saved-provider-state"
+        log() { :; }
+        PROVIDER_CLAUDE_INSTALLED=true
+        save_providers_config
+        [[ "$PROVIDERS_CONFIG_LOADED" == "true" ]]
+        PROVIDER_CLAUDE_INSTALLED=false
+        load_providers_config
+        [[ "$PROVIDER_CLAUDE_INSTALLED" == "true" ]]
+    ' _ "$PROJECT_ROOT" "$TEST_TMP_DIR"; then test_pass
+else test_fail "saved state was not marked loaded or explicit refresh was skipped"; fi
+
+test_case "failed provider saves do not mark the configuration loaded"
+mkdir -p "$TEST_TMP_DIR/provider-state-directory"
+if env -i "PATH=$PATH" "HOME=$TEST_TMP_DIR/home-provider-state" "VERBOSE=false" \
+    bash -e -c '
+        source "$1/scripts/lib/smoke.sh"
+        PROVIDERS_CONFIG_FILE="$2/provider-state-directory"
+        if save_providers_config 2>/dev/null; then exit 1; fi
+        [[ "$PROVIDERS_CONFIG_LOADED" == "false" ]]
+    ' _ "$PROJECT_ROOT" "$TEST_TMP_DIR"; then test_pass
+else test_fail "a failed save reported success or marked the configuration loaded"; fi
+
 test_summary

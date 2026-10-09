@@ -61,7 +61,10 @@ names must end in `API_KEY`, `TOKEN`, `CREDENTIAL`, or `CREDENTIALS`.
 ## Availability and host detection
 
 Availability checks load provider state before evaluating fallback candidates,
-including when the initial Codex installed flag is `false`. A configured Codex
+including when the initial Codex installed flag is `false`. Successful loading
+is tracked separately from installation, so a Claude-only host does not repeat
+discovery for every candidate. Standalone resolver users can supply provider
+flags without loading the smoke module. A configured Codex
 seat still requires an authentication method; loading state does not grant
 access to an unauthenticated provider.
 

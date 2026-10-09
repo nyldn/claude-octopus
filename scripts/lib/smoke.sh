@@ -11,6 +11,7 @@ source "${_smoke_policy_dir}/provider-policy.sh" 2>/dev/null || true
 # ═══════════════════════════════════════════════════════════════════════════════
 
 PROVIDERS_CONFIG_FILE="${WORKSPACE_DIR:-$HOME/.claude-octopus}/.providers-config"
+PROVIDERS_CONFIG_LOADED="false"
 
 # Provider configuration variables (loaded from file)
 PROVIDER_CODEX_INSTALLED="false"
@@ -93,7 +94,8 @@ load_providers_config() {
     if [[ ! -f "$PROVIDERS_CONFIG_FILE" ]]; then
         [[ "$VERBOSE" == "true" ]] && log DEBUG "No providers config found at $PROVIDERS_CONFIG_FILE" || true
         # Auto-detect and populate defaults
-        auto_detect_provider_config
+        auto_detect_provider_config || return $?
+        PROVIDERS_CONFIG_LOADED="true"
         return 0
     fi
 
@@ -230,6 +232,7 @@ load_providers_config() {
 
     COST_OPTIMIZATION_STRATEGY="${COST_OPTIMIZATION_STRATEGY:-balanced}"
 
+    PROVIDERS_CONFIG_LOADED="true"
     [[ "$VERBOSE" == "true" ]] && log DEBUG "Loaded providers config: codex=$PROVIDER_CODEX_TIER, agy=$PROVIDER_AGY_TIER, strategy=$COST_OPTIMIZATION_STRATEGY" || true
 }
 
@@ -483,9 +486,9 @@ detect_tier_opencode() {
 
 # Save provider configuration to file
 save_providers_config() {
-    mkdir -p "$(dirname "$PROVIDERS_CONFIG_FILE")"
+    mkdir -p "$(dirname "$PROVIDERS_CONFIG_FILE")" || return $?
 
-    cat > "$PROVIDERS_CONFIG_FILE" << EOF
+    cat > "$PROVIDERS_CONFIG_FILE" << EOF || return $?
 version: "2.0"
 created_at: "$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)"
 updated_at: "$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)"
@@ -535,6 +538,7 @@ cost_optimization:
   strategy: "$COST_OPTIMIZATION_STRATEGY"
 EOF
 
+    PROVIDERS_CONFIG_LOADED="true"
     log INFO "Providers config saved to $PROVIDERS_CONFIG_FILE"
     tier_cache_invalidate  # Invalidate tier cache after config change
 }
