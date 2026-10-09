@@ -118,6 +118,33 @@ else
     test_fail "concurrent history transaction was not serialized: entries=$entry_count leftovers=${leftovers:-none} missing=${missing:-none}"
 fi
 
+test_case "provider history lock rejects utility success for an existing lock"
+lock_file="$WORKSPACE_DIR/held-history.md"
+mkdir "${lock_file}.lock"
+printf 'existing owner\n' > "${lock_file}.lock/owner"
+if (
+    # Simulate a mkdir utility reporting success after losing a creation race.
+    mkdir() { return 0; }
+    sleep() { :; }
+    ! provider_history_lock "$lock_file"
+) && [[ "$(cat "${lock_file}.lock/owner")" == 'existing owner' ]]; then
+    test_pass
+else
+    test_fail "provider history admitted a writer into another owner's lock"
+fi
+rm -rf "${lock_file}.lock"
+
+test_case "provider history lock fails closed when Python is unavailable"
+if (
+    PATH="$TEST_TMP_DIR/no-python"
+    mkdir() { return 0; }
+    ! provider_history_lock "$WORKSPACE_DIR/no-runtime-history.md"
+); then
+    test_pass
+else
+    test_fail "provider history trusted utility admission without kernel locking"
+fi
+
 test_case "provider history append reports write failure and releases its lock"
 rm -rf "$WORKSPACE_DIR"
 mkdir -p "$WORKSPACE_DIR/.octo/providers/codex-history.md" "$RESULTS_DIR"

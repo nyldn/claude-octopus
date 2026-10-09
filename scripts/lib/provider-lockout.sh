@@ -110,13 +110,26 @@ provider_history_file_key() {
 }
 
 provider_history_lock() {
-    local history_file="$1" lock_dir="${1}.lock" tries=0
-    while ! mkdir "$lock_dir" 2>/dev/null; do
-        tries=$((tries + 1))
-        [[ "$tries" -ge 50 ]] && return 1
-        sleep 0.02 2>/dev/null || return 1
-    done
-    return 0
+    # Match event/lifecycle admission: utility mkdir statuses can race. Keep
+    # the bounded retry beside the kernel call and fail closed without Python.
+    command -v python3 >/dev/null 2>&1 || return 1
+    python3 - "${1}.lock" <<'PY'
+import os
+import sys
+import time
+
+for attempt in range(50):
+    try:
+        os.mkdir(sys.argv[1])
+    except FileExistsError:
+        if attempt < 49:
+            time.sleep(0.02)
+    except OSError:
+        sys.exit(1)
+    else:
+        sys.exit(0)
+sys.exit(1)
+PY
 }
 
 provider_history_unlock() {
@@ -151,7 +164,7 @@ append_provider_history() {
     # History is best-effort: if the lock cannot be acquired promptly, skip the
     # diagnostic write rather than falling back to an unsafe concurrent update.
     if ! provider_history_lock "$history_file"; then
-        log WARN "Provider history lock busy for $provider; skipping history append"
+        log WARN "Could not acquire provider history lock for $provider; skipping history append"
         return 0
     fi
 

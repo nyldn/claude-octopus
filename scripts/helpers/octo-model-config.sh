@@ -212,14 +212,21 @@ migrate_retired_gemini_config() {
 
 # v8.49.0: Validate model name for shell safety
 validate_model() {
-    local model="$1"
-    [[ -z "$model" ]] && return 1
-    # Reject shell metacharacters
-    if [[ "$model" =~ [[:space:]\;\|\&\$\`\'\"()\<\>\!*?\[\]\{\}] ]]; then
-        return 1
+    local model="$1" provider="${2:-}"
+    if [[ -z "$provider" && "$model" == *:* ]]; then
+        provider="$(canonical_provider "${model%%:*}")"
     fi
-    [[ "$model" == /* ]] && return 1
-    return 0
+    # Antigravity uses display labels such as "Gemini 3.1 Pro (High)".
+    # Remove only those display characters for validation; callers save the
+    # original label. All other whitespace and shell syntax remain forbidden.
+    if [[ "$provider" == agy ]]; then
+        model="${model//[ ()]/}"
+    fi
+    [[ -n "$model" && "$model" != /* && "${model#*:}" != /* && "$model" != *: ]] || return 1
+    # In a negated ERE class, ] must come first to be treated literally.
+    # Require a successful match so compilation errors also reject the input.
+    local safe_model='^[^][[:space:];|&$`'"'"'"()<>!*?{}\\]+$'
+    [[ "$model" =~ $safe_model ]]
 }
 
 validate_role_name() {
@@ -478,7 +485,7 @@ cmd_tier() {
         return 1
     fi
 
-    if ! validate_model "$target"; then
+    if ! validate_model "$target" "$provider"; then
         log_error "Invalid tier target: '$target'"
         return 1
     fi
@@ -723,7 +730,7 @@ cmd_set() {
     fi
 
     # v8.49.0: Model name validation
-    if ! validate_model "$model"; then
+    if ! validate_model "$model" "$provider"; then
         log_error "Invalid model name: '$model'"
         echo "  Model names must not contain shell metacharacters" >&2
         exit 1

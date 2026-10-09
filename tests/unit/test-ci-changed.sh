@@ -303,4 +303,57 @@ else
     test_fail "GitHub CI no longer separates focused PR coverage from the full non-PR unit matrix"
 fi
 
+test_case "hosted classifier sends unmapped paths to the full unit lane"
+classifier_script="$TEST_TMP_DIR/hosted-classifier.sh"
+classifier_bin="$TEST_TMP_DIR/classifier-bin"
+mkdir -p "$classifier_bin"
+python3 - "$PROJECT_ROOT/.github/workflows/test.yml" "$classifier_script" <<'PY'
+from pathlib import Path
+import sys
+
+workflow = Path(sys.argv[1]).read_text()
+step = workflow.split('      - name: Classify changed files\n', 1)[1]
+lines = step.split('        run: |\n', 1)[1].splitlines()
+block = []
+for line in lines:
+    if line and not line.startswith('          '):
+        break
+    block.append(line[10:])
+script = '\n'.join(block)
+for key, value in {
+    'github.event_name': 'pull_request',
+    'github.event.pull_request.base.sha': 'base',
+    'github.event.pull_request.head.sha': 'head',
+    'github.event.before': '',
+    'github.sha': 'head',
+}.items():
+    script = script.replace('${{ ' + key + ' }}', value)
+assert '${{' not in script
+Path(sys.argv[2]).write_text(script + '\n')
+PY
+cat > "$classifier_bin/git" <<'SH'
+#!/usr/bin/env bash
+[[ "$1" == diff && "$2" == --name-only ]] || exit 1
+printf '%s\n' "$TEST_CHANGED_FILES"
+SH
+chmod +x "$classifier_bin/git"
+classification_failed=false
+for changed in '' 'mcp-server/package.json' 'scripts/helpers/octo-model-config.sh' \
+    'scripts/lib/council.sh' 'scripts/lib/review.sh' 'README.md' $'README.md\nmcp-server/package.json'; do
+    output="$TEST_TMP_DIR/classification.out"
+    : > "$output"
+    case "$changed" in
+        ''|*mcp-server/*|scripts/helpers/*|scripts/lib/council.sh) expected=true ;;
+        *) expected=false ;;
+    esac
+    if ! (cd "$PROJECT_ROOT" && PATH="$classifier_bin:$PATH" TEST_CHANGED_FILES="$changed" \
+        GITHUB_OUTPUT="$output" bash -eo pipefail "$classifier_script") ||
+       ! grep -qx "full_unit=$expected" "$output"; then
+        test_fail "hosted classifier selected the wrong unit lane for $changed"
+        classification_failed=true
+        break
+    fi
+done
+[[ "$classification_failed" == true ]] || test_pass
+
 test_summary
