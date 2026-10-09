@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [11.13.1] - 2026-10-09
+
+### Fixed
+
+- Model configuration rejects unsafe names before saving configuration, while preserving supported Antigravity display labels. Existing provider model identifiers remain supported. Resolves [#1181](https://github.com/nyldn/claude-octopus/issues/1181).
+- Concurrent provider-history writes use exclusive kernel directory creation. This prevents lost entries when a directory utility reports success to multiple writers. History recording safely skips the optional write when Python 3 or the lock is unavailable. Resolves [#1187](https://github.com/nyldn/claude-octopus/issues/1187).
+- GitHub CI uses the repository's test selector to route unmapped and shared changes to the full unit-test lane. MCP dependency updates no longer run the full suite in the shorter focused lane.
+
+### Security
+
+- Upgrade `@modelcontextprotocol/sdk` from 1.26.0 to 1.31.0, incorporating the fix for [GHSA-6qxp-vccf-f47h](https://github.com/advisories/GHSA-6qxp-vccf-f47h). The advisory concerns OAuth client credential forwarding; Octopus's MCP server uses the SDK's stdio server APIs. This update does not establish that credentials were disclosed by Octopus. The dependency update originates from [Dependabot PR #1186](https://github.com/nyldn/claude-octopus/pull/1186).
+
 ## [11.13.0] - 2026-10-08
 
 ### Fixed

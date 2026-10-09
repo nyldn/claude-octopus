@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.13.0",
-  "description": "v11.13.0 \u2014 Parallel work preservation, reliable review results and Codex startup. Run /octo:setup.",
+  "version": "11.13.1",
+  "description": "v11.13.1 \u2014 Safer model configuration, reliable provider history and an MCP dependency security update. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
