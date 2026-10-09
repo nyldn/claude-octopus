@@ -35,14 +35,14 @@ octo_detect_host_runtime() {
         printf 'codex\n'
     elif [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
         printf 'claude\n'
-    elif [[ "$plugin_root" == *"/.codex/"* ]]; then
-        printf 'codex\n'
-    elif [[ "$plugin_root" == *"/.claude/"* ]]; then
-        printf 'claude\n'
     elif [[ -n "${CLAUDECODE:-}" || -n "${CLAUDE_CODE_ENTRYPOINT:-}" || \
             -n "${CLAUDE_CODE_SESSION_ID:-}" ]]; then
         # Claude Code's Bash tool sets these but not CLAUDE_PLUGIN_ROOT, so a
-        # run from a development checkout still identifies Claude Code.
+        # shared plugin pointing into a Codex cache still identifies Claude Code.
+        printf 'claude\n'
+    elif [[ "$plugin_root" == *"/.codex/"* ]]; then
+        printf 'codex\n'
+    elif [[ "$plugin_root" == *"/.claude/"* ]]; then
         printf 'claude\n'
     elif [[ -n "${CODEX_HOME:-}" ]]; then
         printf 'codex\n'

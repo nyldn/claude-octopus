@@ -58,6 +58,18 @@ by `OPENAI_COMPAT_API_KEY_ENV` is forwarded automatically. Other custom
 provider keys require a comma-separated `OCTOPUS_CREDENTIAL_ENV_NAMES` list;
 names must end in `API_KEY`, `TOKEN`, `CREDENTIAL`, or `CREDENTIALS`.
 
+## Availability and host detection
+
+Availability checks load provider state before evaluating fallback candidates,
+including when the initial Codex installed flag is `false`. A configured Codex
+seat still requires an authentication method; loading state does not grant
+access to an unauthenticated provider.
+
+The plugin directory argument is a fallback host hint. Claude Code runtime
+markers identify a Claude host even when a shared plugin points into a Codex
+cache. Active Codex runtime markers take precedence. Hooks also use
+`CLAUDE_PLUGIN_ROOT`; a hook root inside a Codex plugin cache identifies Codex.
+
 ## The seven wiring points
 
 | # | Concern | File | Anchor | What to add |

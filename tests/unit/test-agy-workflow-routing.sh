@@ -90,11 +90,60 @@ test_tangle_decompose_default_is_agy() {
     else test_fail "tangle decompose still defaults to gemini"; fi
 }
 
+provider_state_fallback() {
+    local state="$1" task="$2"
+    env -i "PATH=$PATH" "HOME=$TEST_TMP_DIR/home-provider-state" \
+        "WORKSPACE_DIR=$TEST_TMP_DIR/provider-state" "VERBOSE=false" \
+        "OCTOPUS_PROVIDERS_CONFIG=$TEST_TMP_DIR/missing-provider-routes.json" \
+        bash -c '
+            # Model an absent Antigravity CLI without replacing availability or routing.
+            command() {
+                if [[ "$*" == "-v agy" ]]; then return 1; fi
+                builtin command "$@"
+            }
+            source "$1/scripts/lib/smoke.sh"
+            source "$1/scripts/lib/model-resolver.sh"
+            PROVIDERS_CONFIG_FILE="$2"
+            get_fallback_agent agy "$3"
+        ' _ "$PROJECT_ROOT" "$state" "$task"
+}
+
+test_loaded_provider_state_fallback() {
+    local state="$TEST_TMP_DIR/provider-state.yaml" task out rc
+    mkdir -p "$TEST_TMP_DIR/home-provider-state"
+    printf 'codex:\n  installed: true\n  auth_method: oauth\nclaude:\n  installed: false\n' > "$state"
+    test_case "real fallback loads smoke's default false flags for research/design/copywriting/image (#1174)"
+    for task in research design copywriting image; do
+        rc=0
+        out="$(provider_state_fallback "$state" "$task")" || rc=$?
+        if [[ "$rc" -ne 0 || "$out" != "codex-review" ]]; then
+            test_fail "expected authenticated Codex fallback for $task, got rc=$rc out=[$out]"
+            return
+        fi
+    done
+    test_pass
+
+    test_case "real fallback can load a Claude-only provider configuration (#1174)"
+    printf 'codex:\n  installed: false\nclaude:\n  installed: true\n' > "$state"
+    rc=0
+    out="$(provider_state_fallback "$state" research)" || rc=$?
+    if [[ "$rc" -eq 0 && "$out" == "claude-opus" ]]; then test_pass
+    else test_fail "expected Claude fallback, got rc=$rc out=[$out]"; fi
+
+    test_case "loaded provider configuration still rejects unauthenticated Codex (#1174)"
+    printf 'codex:\n  installed: true\n  auth_method: none\nclaude:\n  installed: false\n' > "$state"
+    rc=0
+    out="$(provider_state_fallback "$state" research)" || rc=$?
+    if [[ "$rc" -ne 0 && -z "$out" ]]; then test_pass
+    else test_fail "expected fallback exhaustion, got rc=$rc out=[$out]"; fi
+}
+
 test_role_map_research_design_copywriting_is_agy
 test_fallback_chain_is_configuration_driven
 test_tiered_routing_propagates_exhaustion
 test_configured_fallback_chain_routes_native_resolver
 test_no_functional_gemini_dispatch
 test_tangle_decompose_default_is_agy
+test_loaded_provider_state_fallback
 
 test_summary

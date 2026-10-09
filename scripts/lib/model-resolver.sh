@@ -922,7 +922,7 @@ is_agent_available_v2() {
     local agent="$1"
 
     # Load config if needed
-    [[ -z "$PROVIDER_CODEX_INSTALLED" ]] && load_providers_config
+    [[ -z "$PROVIDER_CODEX_INSTALLED" || "$PROVIDER_CODEX_INSTALLED" == "false" ]] && load_providers_config
 
     # oco-cbb: skip a provider marked quota/auth-dead earlier this session.
     local quota_provider

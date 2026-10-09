@@ -89,11 +89,20 @@ test_case "Claude Code runtime markers outrank the CODEX_HOME hint"
 if expect claude "$CHECKOUT" "CODEX_HOME=/home/u/.codex" "CLAUDE_CODE_SESSION_ID=c-1" && \
    expect claude "$CHECKOUT" "CODEX_HOME=/home/u/.codex" "CLAUDECODE=1" && \
    expect claude "$CHECKOUT" "CODEX_HOME=/home/u/.codex" "CLAUDE_CODE_ENTRYPOINT=cli" && \
-   expect codex "$CHECKOUT" "CLAUDECODE=1" "CODEX_THREAD_ID=t-1" && \
-   expect codex "$CODEX_INSTALL" "CLAUDECODE=1"; then
+    expect codex "$CHECKOUT" "CLAUDECODE=1" "CODEX_THREAD_ID=t-1"; then
     test_pass
 else
     test_fail "CODEX_HOME outranked Claude Code runtime markers, or Claude markers outranked Codex"
+fi
+
+test_case "Claude Code runtime markers outrank a shared plugin pointing into the Codex cache (#1175)"
+if expect claude "$CODEX_INSTALL" "CLAUDECODE=1" && \
+   expect claude "$CODEX_INSTALL" "CLAUDE_CODE_ENTRYPOINT=cli" && \
+   expect claude "$CODEX_INSTALL" "CLAUDE_CODE_SESSION_ID=c-1" && \
+   expect codex "$CODEX_INSTALL" "CLAUDECODE=1" "CODEX_THREAD_ID=t-1"; then
+    test_pass
+else
+    test_fail "the cached install path outranked the active runtime, or a Codex runtime marker was lost"
 fi
 
 test_case "install paths and CODEX_HOME remain fallbacks"

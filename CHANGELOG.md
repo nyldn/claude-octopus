@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Automatic research, design, copywriting, and image routes load provider configuration before choosing a fallback. Authenticated Codex and installed Claude seats remain available when Antigravity is absent. Resolves [#1174](https://github.com/nyldn/claude-octopus/issues/1174).
+- Claude Code runtime markers take precedence over a shared plugin's Codex installation path, preventing Codex council seats from being incorrectly treated as host-native. Resolves [#1175](https://github.com/nyldn/claude-octopus/issues/1175).
+
 ## [11.13.1] - 2026-10-09
 
 ### Fixed
