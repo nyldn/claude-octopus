@@ -193,4 +193,44 @@ if env -i "PATH=$PATH" "HOME=$TEST_TMP_DIR/home-provider-state" "VERBOSE=false" 
     ' _ "$PROJECT_ROOT" "$TEST_TMP_DIR"; then test_pass
 else test_fail "a failed save reported success or marked the configuration loaded"; fi
 
+test_case "a provider file-open failure remains retryable in the same shell"
+if env -i "PATH=$PATH" "HOME=$TEST_TMP_DIR/home-provider-state" "VERBOSE=false" \
+    bash -e -c '
+        source "$1/scripts/lib/smoke.sh"
+        source "$1/scripts/lib/model-resolver.sh"
+        PROVIDERS_CONFIG_FILE="$2/retry-provider-state"
+        printf "claude:\n  installed: true\n" > "$PROVIDERS_CONFIG_FILE"
+        # Remove the file after the existence check, before the real loop opens it.
+        set -T
+        trap '\''if [[ "$BASH_COMMAND" == "local current_provider="* ]]; then
+            rm "$PROVIDERS_CONFIG_FILE"
+            trap - DEBUG
+        fi'\'' DEBUG
+        if load_providers_config 2>/dev/null; then exit 1; fi
+        set +T
+        trap - DEBUG
+        [[ "$PROVIDERS_CONFIG_LOADED" == "false" ]]
+        printf "claude:\n  installed: true\n" > "$PROVIDERS_CONFIG_FILE"
+        is_agent_available_v2 claude-opus
+        [[ "$PROVIDERS_CONFIG_LOADED" == "true" ]]
+    ' _ "$PROJECT_ROOT" "$TEST_TMP_DIR"; then test_pass
+else test_fail "file-open failure was cached or availability did not retry the repaired file"; fi
+
+test_case "failed provider discovery remains retryable in the same shell"
+if env -i "PATH=$PATH" "HOME=$TEST_TMP_DIR/home-provider-state" "VERBOSE=false" \
+    bash -e -c '
+        source "$1/scripts/lib/smoke.sh"
+        source "$1/scripts/lib/model-resolver.sh"
+        PROVIDERS_CONFIG_FILE="$2/missing-retry-discovery-state"
+        detect_providers() { return 7; }
+        if load_providers_config; then exit 1; fi
+        [[ "$PROVIDERS_CONFIG_LOADED" == "false" ]]
+        detect_providers() { printf "claude:oauth\n"; }
+        detect_tier_claude() { printf "pro\n"; }
+        get_cost_tier_for_subscription() { printf "medium\n"; }
+        is_agent_available_v2 claude-opus
+        [[ "$PROVIDERS_CONFIG_LOADED" == "true" ]]
+    ' _ "$PROJECT_ROOT" "$TEST_TMP_DIR"; then test_pass
+else test_fail "discovery failure was cached or availability did not retry discovery"; fi
+
 test_summary

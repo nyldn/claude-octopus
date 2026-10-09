@@ -188,7 +188,7 @@ load_providers_config() {
                     ;;
             esac
         fi
-    done < "$PROVIDERS_CONFIG_FILE"
+    done < "$PROVIDERS_CONFIG_FILE" || return $?
 
     # Apply defaults for any missing values
     PROVIDER_CODEX_INSTALLED="${PROVIDER_CODEX_INSTALLED:-false}"
@@ -239,7 +239,7 @@ load_providers_config() {
 # Auto-detect provider configuration from installed CLIs and auth
 auto_detect_provider_config() {
     local detected
-    detected=$(detect_providers)
+    detected=$(detect_providers) || return $?
 
     # Process detected providers
     for entry in $detected; do
