@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.13.1",
-  "description": "v11.13.1 \u2014 Safer model configuration, reliable provider history and an MCP dependency security update. Run /octo:setup.",
+  "version": "11.13.2",
+  "description": "v11.13.2 \u2014 Reliable provider fallback routing and active host detection. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
