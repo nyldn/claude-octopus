@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [11.13.2] - 2026-10-10
+
+Provider routing and host detection fixes from [PR #1190](https://github.com/nyldn/claude-octopus/pull/1190), commit `b34780d48d9360d6c349c988e593be440b091c0f`.
+
 ### Fixed
 
 - Automatic research, design, copywriting, and image routes load provider configuration before choosing a fallback. Authenticated Codex and installed Claude seats remain available when Antigravity is absent. Resolves [#1174](https://github.com/nyldn/claude-octopus/issues/1174).

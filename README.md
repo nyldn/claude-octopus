@@ -36,6 +36,16 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
+### Reliable fallback routing and host detection
+
+Research, design, copywriting, and image tasks can use authenticated Codex or
+installed Claude seats when Antigravity is unavailable. Provider configuration
+loads before fallback selection, and failed reads can retry.
+
+Claude Code sessions also identify their active host correctly when the shared
+plugin is installed in a Codex cache. This keeps Codex council seats independent.
+See [provider availability and host detection](docs/PROVIDERS.md#availability-and-host-detection).
+
 ### Safer model configuration and reliable provider history
 
 Model configuration rejects unsafe names while preserving supported Antigravity

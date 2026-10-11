@@ -60,6 +60,10 @@ names must end in `API_KEY`, `TOKEN`, `CREDENTIAL`, or `CREDENTIALS`.
 
 ## Availability and host detection
 
+As of v11.13.2, automatic research, design, copywriting, and image tasks can
+fall back to authenticated Codex or installed Claude seats when Antigravity is
+unavailable. Existing provider configuration and explicit model pins still apply.
+
 Availability checks load provider state before evaluating fallback candidates,
 including when the initial Codex installed flag is `false`. Successful loading
 is tracked separately from installation, so a Claude-only host does not repeat
