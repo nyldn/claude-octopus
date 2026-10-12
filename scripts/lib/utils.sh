@@ -312,7 +312,7 @@ _validate_openai_compatible_agent_command() {
             --provider)
                 [[ -z "$provider" ]] || return 1
                 case "$value" in
-                    generic|atlascloud|cheaperinference|api-route) provider="$value" ;;
+                    generic|atlascloud|cheaperinference|api-route|litellm) provider="$value" ;;
                     *) return 1 ;;
                 esac
                 ;;
@@ -329,7 +329,9 @@ _validate_openai_compatible_agent_command() {
                 ;;
             --base-url)
                 [[ -z "$base_url" ]] || return 1
-                [[ "$value" =~ ^https?://[A-Za-z0-9][A-Za-z0-9.-]*(:[0-9]+)?(/[A-Za-z0-9._/:-]*)?$ ]] || return 1
+                # Hosts may contain underscores (Docker Compose service names).
+                # Keep in sync with OCTO_LITELLM_BASE_URL_RE in litellm.sh.
+                [[ "$value" =~ ^https?://[A-Za-z0-9][A-Za-z0-9._-]*(:[0-9]+)?(/[A-Za-z0-9._/:-]*)?$ ]] || return 1
                 base_url="$value"
                 ;;
             --api-key-env)

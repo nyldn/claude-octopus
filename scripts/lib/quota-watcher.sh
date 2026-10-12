@@ -240,7 +240,8 @@ quota_watcher_mark_after_exit() {
 }
 
 # octo_provider_probe <provider>
-# Opt-in proactive health check for API-key providers (perplexity, openrouter).
+# Opt-in proactive health check for API-key providers (perplexity, openrouter,
+# orcarouter, litellm).
 # Only called when OCTOPUS_PREFLIGHT_PROBE=1. Result is session-cached via the
 # existing quota-dead marker file, so check-providers.sh octo_quota_is_dead
 # reads it without any extra wiring.
@@ -249,6 +250,14 @@ quota_watcher_mark_after_exit() {
 # signals) return 0 and do NOT mark the provider dead. Only definitive 401/402
 # or quota signals mark the provider dead. This avoids false positives on
 # transient connectivity issues.
+#
+# Return codes: 0 alive or unknown (fail open), 1 quota or auth signal, 2 a
+# definitive auth or configuration rejection. Only litellm returns 2 today:
+# its self-hosted proxy answers 401 for a missing or unknown key and 403 for
+# a key that may not use the route, which the operator fixes in config rather
+# than by waiting for a quota window. The provider is still marked dead for
+# the session, as with every other definitive rejection. An unreachable proxy
+# is a network error and fails open, matching the OrcaRouter policy.
 octo_provider_probe() {
     local provider="$1"
     [[ -n "$provider" ]] || return 0
@@ -290,6 +299,23 @@ octo_provider_probe() {
                 -H "Authorization: Bearer ${ORCAROUTER_API_KEY}" \
                 2>/dev/null) || curl_exit=$?
             ;;
+        litellm)
+            [[ -n "${LITELLM_API_KEY:-}" ]] || return 0
+            # The proxy is self-hosted, so its URL is configuration. Load the
+            # shared validator when this file is sourced on its own.
+            if ! declare -f octo_litellm_base_url >/dev/null 2>&1; then
+                source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/litellm.sh" 2>/dev/null || return 0
+            fi
+            local litellm_base_url
+            litellm_base_url="$(octo_litellm_base_url)" || return 0
+            # GET /v1/models lists the proxy's model names, or 401/403 on a
+            # rejected key.
+            http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+                --max-time 10 \
+                -X GET "${litellm_base_url}/models" \
+                -H "Authorization: Bearer ${LITELLM_API_KEY}" \
+                2>/dev/null) || curl_exit=$?
+            ;;
         *)
             # Unknown provider: no probe defined, fail open.
             return 0
@@ -299,6 +325,15 @@ octo_provider_probe() {
     # Network failure (curl_exit != 0) or no response: fail open.
     if [[ $curl_exit -ne 0 || -z "$http_code" ]]; then
         return 0
+    fi
+
+    if [[ "$provider" == litellm ]]; then
+        case "$http_code" in
+            401|403)
+                octo_quota_mark_dead "$provider"
+                return 2
+                ;;
+        esac
     fi
 
     # Definitive auth/quota failure: mark dead and return 1.

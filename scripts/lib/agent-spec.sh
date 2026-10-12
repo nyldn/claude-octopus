@@ -42,6 +42,7 @@ octo_agent_spec_provider() {
         atlascloud|atlascloud-*) echo atlascloud ;;
         cheaperinference|cheaperinference-*) echo cheaperinference ;;
         api-route|api-route-*) echo api-route ;;
+        litellm|litellm-*) echo litellm ;;
         qwen|qwen-*) echo qwen ;;
         grok|grok-*) echo grok ;;
         cursor-agent|cursor-agent-*) echo cursor-agent ;;
@@ -125,6 +126,7 @@ octo_agent_spec_canonicalize_exact() {
         atlascloud) canonical_executor="atlascloud-agent" ;;
         cheaperinference) canonical_executor="cheaperinference-agent" ;;
         api-route) canonical_executor="api-route-agent" ;;
+        litellm) canonical_executor="litellm-agent" ;;
         *) canonical_executor="$provider" ;;
     esac
 
@@ -160,6 +162,7 @@ octo_provider_model_allowlist_var() {
         atlascloud|atlascloud-agent) echo "ATLASCLOUD_ALLOWED_MODELS" ;;
         cheaperinference|cheaperinference-agent) echo "CHEAPER_INFERENCE_ALLOWED_MODELS" ;;
         api-route|api-route-agent) echo "API_ROUTE_ALLOWED_MODELS" ;;
+        litellm|litellm-agent) echo "LITELLM_ALLOWED_MODELS" ;;
         openai-compatible|openai-tools|openai-compatible-agent) echo "OPENAI_COMPAT_ALLOWED_MODELS" ;;
         perplexity) echo "OCTOPUS_PERPLEXITY_ALLOWED_MODELS" ;;
         qwen) echo "OCTOPUS_QWEN_ALLOWED_MODELS" ;;
@@ -235,6 +238,24 @@ octo_agent_spec_model_family() {
                     [[ "$model" == "$pinned_model" ]] || model=""
                 else
                     model="$(octo_api_route_effective_model)" || model=""
+                fi
+            fi
+            # Provider transport is never evidence of model independence.
+            octo_model_family "$model"
+            return
+            ;;
+        litellm|litellm-*)
+            if [[ -z "$effective_model" ]]; then
+                if ! declare -f octo_litellm_effective_model >/dev/null 2>&1; then
+                    source "${_octo_agent_spec_lib_dir}/litellm.sh" || { echo unknown; return; }
+                fi
+                if [[ -n "$model" ]]; then
+                    local pinned_model="$model"
+                    model="$(octo_litellm_effective_model "$pinned_model")" || model=""
+                    # Exact seats cannot substitute an allowlist fallback.
+                    [[ "$model" == "$pinned_model" ]] || model=""
+                else
+                    model="$(octo_litellm_effective_model)" || model=""
                 fi
             fi
             # Provider transport is never evidence of model independence.

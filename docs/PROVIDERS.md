@@ -141,6 +141,47 @@ is excluded from Council, and gateway identity does not establish independent
 model-family diversity. Local readiness does not prove entitlement, quota,
 tool support or billed cost.
 
+## LiteLLM setup
+
+`litellm-agent` uses the same OpenAI-compatible tool-loop helper against a
+self-hosted [LiteLLM](https://docs.litellm.ai/docs/simple_proxy) proxy, which
+routes one OpenAI-format endpoint to 100+ providers (Bedrock, Vertex AI, Azure,
+Anthropic, local Ollama, and so on) under the operator's own keys, budgets and
+fallbacks. Set `LITELLM_BASE_URL` to the proxy (default `http://localhost:4000`;
+a trailing `/v1` is optional and a path prefix such as `https://host/litellm` is
+kept), set `LITELLM_API_KEY` to a virtual key or the master key, and choose a
+model name the proxy serves. No model is selected automatically.
+
+Model selection uses `LITELLM_MODEL`, then `OCTOPUS_LITELLM_MODEL`, then the
+string `providers.litellm.default` in `~/.claude-octopus/config/providers.json`.
+`OPENAI_COMPAT_MODEL` is not read, so another gateway's setting cannot make
+LiteLLM look configured. `OCTOPUS_PROVIDERS_CONFIG` can select
+another file. Detection, health, readiness and dispatch share this resolution.
+An exact seat such as `litellm-agent:claude-sonnet-4-6` uses its model pin
+without requiring a default. `LITELLM_ALLOWED_MODELS` restricts dispatch
+models; missing models, unsafe pins and invalid fallbacks fail closed.
+
+`LITELLM_BASE_URL` and `LITELLM_API_KEY` are resolved from the same places
+(the environment, then the non-interactive shell fallbacks). The URL must use
+`http` or `https`, a host of letters, digits, `.`, `-` or `_` (so a Docker
+Compose service such as `http://litellm_proxy:4000` works), an optional numeric
+port and a path of letters, digits, `.`, `_`, `/`, `:` or `-`. Embedded
+credentials are rejected. This is the same grammar dispatch enforces on
+`--base-url`, so detection, health and readiness never report a URL ready that
+dispatch would refuse; dispatch passes the normalized `/v1` root to the helper.
+The helper follows a redirect only within the same scheme, host and port and
+refuses a cross-origin redirect, so the key is never sent to another origin.
+
+With `OCTOPUS_PREFLIGHT_PROBE=1`, live readiness calls `GET /v1/models` on the
+proxy. A 401 or 403 reports `auth-invalid`, 402 or 429 reports `quota`, and an
+unreachable proxy fails open as with the other probed gateways.
+
+Read-only roles disable local tools. The isolated child receives only
+`LITELLM_API_KEY` and the helper's approved runtime settings. This provider is
+excluded from Council, and gateway identity does not establish independent
+model-family diversity: a proxy model name can resolve to any upstream. Local
+readiness does not prove entitlement, quota, tool support or billed cost.
+
 ## Perplexity Agent API
 
 Perplexity requests use `POST /v1/agent`. Legacy Sonar model names map to
@@ -327,7 +368,7 @@ Use `VERTEXAI_API_KEY` or `GOOGLE_API_KEY` inside the selected provider's
 
 codex, commandcode, claude, claude-sdk (Agent SDK seat), anthropic-api (text-only Messages seat), agy (Antigravity,
 Google seat), perplexity, opencode, openrouter, orcarouter, atlascloud,
-cheaperinference, openai-compatible, openai-tools, openai-compatible-agent, cursor-agent, grok,
+cheaperinference, api-route, litellm, openai-compatible, openai-tools, openai-compatible-agent, cursor-agent, grok,
 qwen, ollama, copilot, vibe, and kimi.
 
 `cursor-agent` is the Cursor CLI (`agent` binary, `cursor` alias). Its auth

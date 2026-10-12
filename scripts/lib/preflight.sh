@@ -5,7 +5,7 @@
 _preflight_registry_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_preflight_registry_dir}/provider-registry.sh" 2>/dev/null || true
 
-for _preflight_dependency in provider-allowlist auth provider-routing cheaperinference api-route qwen openai-compatible grok kimi copilot quota-watcher events; do
+for _preflight_dependency in provider-allowlist auth provider-routing cheaperinference api-route litellm qwen openai-compatible grok kimi copilot quota-watcher events; do
     # shellcheck source=/dev/null
     source "${_preflight_registry_dir}/${_preflight_dependency}.sh" 2>/dev/null || true
 done
@@ -127,6 +127,7 @@ _octo_provider_static_readiness() {
             atlascloud) [[ -n "${ATLASCLOUD_API_KEY:-}" ]] || resolve_provider_env ATLASCLOUD_API_KEY 2>/dev/null || true ;;
             cheaperinference) [[ -n "${CHEAPER_INFERENCE_API_KEY:-}" ]] || resolve_provider_env CHEAPER_INFERENCE_API_KEY 2>/dev/null || true ;;
             api-route) [[ -n "${API_ROUTE_API_KEY:-}" ]] || resolve_provider_env API_ROUTE_API_KEY 2>/dev/null || true ;;
+            litellm) [[ -n "${LITELLM_API_KEY:-}" ]] || resolve_provider_env LITELLM_API_KEY 2>/dev/null || true ;;
             grok) [[ -n "${XAI_API_KEY:-}" ]] || resolve_provider_env XAI_API_KEY 2>/dev/null || true ;;
             vibe) [[ -n "${MISTRAL_API_KEY:-}" ]] || resolve_provider_env MISTRAL_API_KEY 2>/dev/null || true ;;
         esac
@@ -238,6 +239,18 @@ _octo_provider_static_readiness() {
                     status="available"; reason_code="ready"; remediation=""
                 else
                     status="degraded"; reason_code="model-missing"; remediation="Set API_ROUTE_MODEL, OCTOPUS_API_ROUTE_MODEL, or providers.json api-route.default."
+                fi
+            fi
+            ;;
+        litellm)
+            remediation="Set LITELLM_API_KEY, LITELLM_MODEL, and LITELLM_BASE_URL."
+            if _octo_value_has_nonwhitespace "${LITELLM_API_KEY:-}"; then
+                if ! octo_litellm_base_url >/dev/null; then
+                    status="degraded"; reason_code="config-invalid"; remediation="Set LITELLM_BASE_URL to the proxy's http(s) URL without credentials."
+                elif octo_litellm_effective_model >/dev/null; then
+                    status="available"; reason_code="ready"; remediation=""
+                else
+                    status="degraded"; reason_code="model-missing"; remediation="Set LITELLM_MODEL, OCTOPUS_LITELLM_MODEL, or providers.json litellm.default."
                 fi
             fi
             ;;
@@ -431,12 +444,17 @@ EOF
             reason_code="ready"
             remediation=""
             case "$provider" in
-                perplexity|openrouter|orcarouter)
+                perplexity|openrouter|orcarouter|litellm)
                     _octo_run_bare_probe_with_timeout "$live_timeout" "$live_timeout" 0 \
                         bash -c 'source "$1" 2>/dev/null; octo_provider_probe "$2"' _ \
                         "${_preflight_registry_dir}/quota-watcher.sh" "$provider" \
                         >/dev/null || live_rc=$?
-                    if [[ "$live_rc" -ne 0 ]]; then
+                    if [[ "$live_rc" -eq 2 ]]; then
+                        # The probe's definitive auth or configuration rejection.
+                        status="degraded"
+                        reason_code="auth-invalid"
+                        remediation="The provider rejected the credential; check the API key and its access to the configured endpoint."
+                    elif [[ "$live_rc" -ne 0 ]]; then
                         status="degraded"
                         reason_code="quota"
                         remediation="Verify the provider credential or wait for its quota window to reset."
@@ -444,7 +462,7 @@ EOF
                     ;;
             esac
         fi
-        if [[ "$live_rc" -ne 0 && "$reason_code" != "quota" ]]; then
+        if [[ "$live_rc" -ne 0 && "$reason_code" != "quota" && "$reason_code" != "auth-invalid" ]]; then
             status="degraded"
             reason_code="health-failed"
             remediation="Run the provider's authentication or service check, then retry the live preflight."

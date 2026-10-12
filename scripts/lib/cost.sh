@@ -854,6 +854,7 @@ get_model_pricing() {
         atlascloud*) provider="atlascloud" ;;
         cheaperinference*) provider="cheaperinference" ;;
         api-route*) provider="api-route" ;;
+        litellm*) provider="litellm" ;;
         perplexity*) provider="perplexity" ;;
         cursor-agent*) provider="cursor-agent" ;;
         copilot*) provider="copilot" ;;

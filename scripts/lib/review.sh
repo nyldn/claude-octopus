@@ -209,6 +209,7 @@ review_single_provider_override() {
         atlascloud) executor="atlascloud-agent" ;;
         cheaperinference) executor="cheaperinference-agent" ;;
         api-route) executor="api-route-agent" ;;
+        litellm) executor="litellm-agent" ;;
         *) executor="$canonical" ;;
     esac
 

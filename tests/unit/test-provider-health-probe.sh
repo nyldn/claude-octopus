@@ -134,6 +134,7 @@ MOCK
     WORKSPACE_DIR="$workspace" \
     PERPLEXITY_API_KEY="sk-test" \
     OPENROUTER_API_KEY="sk-test" \
+    LITELLM_API_KEY="sk-test" \
     PATH="$mock_bin:$PATH" \
     bash -c '
         log() { :; }
@@ -190,6 +191,95 @@ test_probe_200_stays_open() {
     else
         test_fail "expected exit=0 and dead=0, got exit=${exit_code} dead=${is_dead}"
     fi
+}
+
+
+test_probe_litellm_401_marks_dead() {
+    test_case "octo_provider_probe: 401/403 from the LiteLLM proxy mark litellm dead and return the auth code 2"
+    local code result exit_code is_dead failures=""
+    for code in 401 403; do
+        result="$(run_probe_with_mock_curl litellm "$code")"
+        exit_code="${result%% *}"
+        is_dead="${result##* }"
+        [[ "$exit_code" -eq 2 && "$is_dead" == "1" ]] || failures+=" ${code}:exit=${exit_code},dead=${is_dead}"
+    done
+    result="$(run_probe_with_mock_curl litellm 429)"
+    exit_code="${result%% *}"
+    is_dead="${result##* }"
+    [[ "$exit_code" -eq 1 && "$is_dead" == "1" ]] || failures+=" 429:exit=${exit_code},dead=${is_dead}"
+    if [[ -z "$failures" ]]; then
+        test_pass
+    else
+        test_fail "unexpected LiteLLM probe results:${failures}"
+    fi
+}
+
+litellm_live_readiness_with_probe() {
+    local mock_http_code="$1"
+    local workspace; workspace="$(mktemp -d)"
+    local mock_bin; mock_bin="$(mktemp -d)"
+    cat > "$mock_bin/curl" << MOCK
+#!/bin/bash
+echo -n "${mock_http_code}"
+exit 0
+MOCK
+    chmod +x "$mock_bin/curl"
+    WORKSPACE_DIR="$workspace" HOME="$workspace" \
+    LITELLM_API_KEY="sk-wrong" LITELLM_MODEL="gpt-4o-mini" LITELLM_BASE_URL="http://litellm_proxy:4000" \
+    OCTO_ALLOWED_PROVIDERS=litellm PATH="$mock_bin:$PATH" \
+    bash -c '
+        log() { :; }
+        source "'"$PROJECT_ROOT"'/scripts/lib/preflight.sh"
+        octo_provider_readiness_result litellm live
+    ' 2>/dev/null
+    rm -rf "$workspace" "$mock_bin"
+}
+
+test_live_readiness_litellm_auth_vs_quota() {
+    test_case "live readiness: a rejected LiteLLM key reports auth-invalid, 429 still reports quota"
+    local auth quota forbidden
+    auth="$(litellm_live_readiness_with_probe 401)"
+    forbidden="$(litellm_live_readiness_with_probe 403)"
+    quota="$(litellm_live_readiness_with_probe 429)"
+    if [[ "$auth" == *'"status":"degraded"'* && "$auth" == *'"reason_code":"auth-invalid"'* &&
+          "$forbidden" == *'"reason_code":"auth-invalid"'* &&
+          "$quota" == *'"status":"degraded"'* && "$quota" == *'"reason_code":"quota"'* ]]; then
+        test_pass
+    else
+        test_fail "auth=${auth} forbidden=${forbidden} quota=${quota}"
+    fi
+}
+
+test_probe_litellm_uses_proxy_models_endpoint() {
+    test_case "octo_provider_probe: litellm probes GET <LITELLM_BASE_URL>/v1/models with the key"
+    local workspace; workspace="$(mktemp -d)"
+    local mock_bin; mock_bin="$(mktemp -d)"
+    cat > "$mock_bin/curl" << 'MOCK'
+#!/bin/bash
+printf '%s\n' "$@" > "$CURL_ARGS_FILE"
+echo -n 200
+MOCK
+    chmod +x "$mock_bin/curl"
+    local exit_code=0
+    CURL_ARGS_FILE="$workspace/args" \
+    WORKSPACE_DIR="$workspace" \
+    LITELLM_API_KEY="sk-proxy" \
+    LITELLM_BASE_URL="https://gw.example.com/litellm/" \
+    PATH="$mock_bin:$PATH" \
+    bash -c '
+        log() { :; }
+        source "'"$PROJECT_ROOT"'/scripts/lib/quota-watcher.sh"
+        octo_provider_probe litellm
+    ' || exit_code=$?
+    if [[ "$exit_code" -eq 0 ]] &&
+       grep -qxF "https://gw.example.com/litellm/v1/models" "$workspace/args" &&
+       grep -qxF "Authorization: Bearer sk-proxy" "$workspace/args" &&
+       ! grep -qxF litellm "$workspace/state/.provider-quota-dead" 2>/dev/null; then
+        test_pass
+    else
+        test_fail "unexpected probe: exit=${exit_code} args=$(tr '\n' ' ' < "$workspace/args" 2>/dev/null)"
+    fi
+    rm -rf "$workspace" "$mock_bin"
 }
 
 # ── 3. octo_provider_probe stays open on network error ────────────────────────
@@ -335,6 +425,9 @@ test_perplexity_max_tokens_env_override
 test_probe_401_marks_dead
 test_probe_402_marks_dead
 test_probe_200_stays_open
+test_probe_litellm_401_marks_dead
+test_probe_litellm_uses_proxy_models_endpoint
+test_live_readiness_litellm_auth_vs_quota
 test_probe_network_error_stays_open
 test_probe_noop_when_flag_off
 test_check_providers_probe_on_401_gives_degraded

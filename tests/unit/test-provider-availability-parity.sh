@@ -245,4 +245,21 @@ else
     test_fail "API Route did not map to api-route-agent: $api_route_fleet"
 fi
 
+test_case "fleet maps configured LiteLLM to its executable agent type"
+litellm_fleet=$(
+    env \
+        "HOME=$FAKE_HOME" \
+        "PATH=$FAKE_BIN:/usr/bin:/bin" \
+        "OCTO_ALLOWED_PROVIDERS=litellm" \
+        "LITELLM_API_KEY=fixture-key" \
+        "LITELLM_BASE_URL=http://localhost:4000" \
+        "LITELLM_MODEL=gpt-4.1-mini" \
+        "$BUILD_FLEET" research quick fixture 2>/dev/null
+)
+if grep -q '^litellm-agent|' <<<"$litellm_fleet"; then
+    test_pass
+else
+    test_fail "LiteLLM did not map to litellm-agent: $litellm_fleet"
+fi
+
 test_summary

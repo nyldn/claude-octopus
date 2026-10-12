@@ -143,6 +143,7 @@ def pricing_provider(provider):
         ("atlascloud", "atlascloud"),
         ("cheaperinference", "cheaperinference"),
         ("api-route", "api-route"),
+        ("litellm", "litellm"),
         ("perplexity", "perplexity"),
         ("cursor-agent", "cursor-agent"),
         ("copilot", "copilot"),

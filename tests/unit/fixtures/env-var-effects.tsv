@@ -65,6 +65,7 @@ OCTOPUS_IDE_	placeholder	doc template fragment, not a real variable
 OCTOPUS_JOB_ID	skip	opaque correlation id passed through to logs; no behavioural delta
 OCTOPUS_KIMI_MODEL	covered-by	test-kimi-provider.sh
 OCTOPUS_LEGACY_ROLES	covered-by	test-agy-research-defaults.sh
+OCTOPUS_LITELLM_MODEL	covered-by	test-litellm-provider.sh
 OCTOPUS_MAX_COST_USD	skip	aborts a run mid-dispatch; needs a live provider to reach the check
 OCTOPUS_OLLAMA_ALLOW_PULL	covered-by	test-codex-pull-guard.sh
 OCTOPUS_OLLAMA_MAX_PULL_GB	covered-by	test-codex-pull-guard.sh

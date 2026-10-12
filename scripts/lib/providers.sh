@@ -15,6 +15,7 @@ source "${_providers_lib_dir}/provider-allowlist.sh" 2>/dev/null || true
 source "${_providers_lib_dir}/provider-registry.sh" 2>/dev/null || true
 source "${_providers_lib_dir}/cheaperinference.sh" || return 1
 source "${_providers_lib_dir}/api-route.sh" || return 1
+source "${_providers_lib_dir}/litellm.sh" || return 1
 source "${_providers_lib_dir}/bounded-probe.sh" 2>/dev/null || true
 # Provider detection can run standalone in tests and helper scripts, before the
 # main orchestrator reaches its later provider-routing import. Load the shared
@@ -938,6 +939,25 @@ check_provider_health() {
                 return 1
             fi
             ;;
+        litellm)
+            if [[ -z "${LITELLM_API_KEY:-}" ]]; then
+                resolve_provider_env "LITELLM_API_KEY" 2>/dev/null
+            fi
+            if [[ ! "${LITELLM_API_KEY:-}" =~ [^[:space:]] ]]; then
+                echo "litellm: LITELLM_API_KEY not set" >&2
+                return 1
+            fi
+            if ! octo_litellm_base_url >/dev/null; then
+                echo "litellm: LITELLM_BASE_URL must be an http(s) proxy URL without credentials" >&2
+                return 1
+            fi
+            local ci_health_model="$resolved_model"
+            [[ -n "$ci_health_model" ]] || ci_health_model="$(octo_litellm_model 2>/dev/null || true)"
+            if ! octo_litellm_effective_model "$ci_health_model" >/dev/null; then
+                echo "litellm: set a valid LITELLM_MODEL, OCTOPUS_LITELLM_MODEL, or providers.json litellm.default before dispatch" >&2
+                return 1
+            fi
+            ;;
         ollama)
             if ! command -v ollama &>/dev/null; then
                 echo "ollama CLI not found in PATH" >&2
@@ -1366,6 +1386,15 @@ detect_providers() {
             result="${result}api-route:api-key "
         fi
     fi
+    # Detect LiteLLM (self-hosted proxy URL + API key + explicit model)
+    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed litellm; }; then
+        if [[ -z "${LITELLM_API_KEY:-}" ]]; then
+            resolve_provider_env "LITELLM_API_KEY" 2>/dev/null
+        fi
+        if [[ "${LITELLM_API_KEY:-}" =~ [^[:space:]] ]] && octo_litellm_base_url >/dev/null && octo_litellm_effective_model >/dev/null; then
+            result="${result}litellm:api-key "
+        fi
+    fi
 
     # Detect Perplexity (API key only)
     if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed perplexity; } && [[ -n "${PERPLEXITY_API_KEY:-}" ]]; then
@@ -1494,6 +1523,7 @@ detect_providers() {
         log WARN "  - Atlas Cloud: Set ATLASCLOUD_API_KEY and ATLASCLOUD_MODEL"
         log WARN "  - Cheaper Inference: Set CHEAPER_INFERENCE_API_KEY and CHEAPER_INFERENCE_MODEL"
         log WARN "  - API Route: Set API_ROUTE_API_KEY and API_ROUTE_MODEL"
+        log WARN "  - LiteLLM: Set LITELLM_API_KEY, LITELLM_MODEL, and LITELLM_BASE_URL (self-hosted proxy)"
         log WARN "  - Copilot: brew install copilot-cli (zero additional cost)"
         log WARN "  - Ollama: brew install ollama (free local LLM)"
         log WARN "  - Qwen: npm i -g @qwen-code/qwen-code; set QWEN_API_KEY or configure Coding-Plan"

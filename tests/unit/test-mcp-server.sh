@@ -37,6 +37,12 @@ process.env.API_ROUTE_MODEL = "route-model";
 process.env.OCTOPUS_API_ROUTE_MODEL = "alias-model";
 process.env.API_ROUTE_ALLOWED_MODELS = "route-model";
 process.env.API_ROUTE_UNRELATED_SENTINEL = "must-not-cross";
+process.env.LITELLM_API_KEY = "litellm-fixture";
+process.env.LITELLM_BASE_URL = "https://gw.example.com/litellm";
+process.env.LITELLM_MODEL = "proxy-model";
+process.env.OCTOPUS_LITELLM_MODEL = "litellm-alias-model";
+process.env.LITELLM_ALLOWED_MODELS = "proxy-model";
+process.env.LITELLM_UNRELATED_SENTINEL = "must-not-cross";
 process.env.OPENAI_COMPAT_API_KEY_ENV = "ROUTER_API_KEY";
 process.env.ROUTER_API_KEY = "router-fixture";
 process.env.OCTOPUS_CREDENTIAL_ENV_NAMES = "CUSTOM_MCP_API_KEY";
@@ -74,6 +80,12 @@ assert.equal(calls[0].options.env.API_ROUTE_MODEL, "route-model");
 assert.equal(calls[0].options.env.OCTOPUS_API_ROUTE_MODEL, "alias-model");
 assert.equal(calls[0].options.env.API_ROUTE_ALLOWED_MODELS, "route-model");
 assert.equal(calls[0].options.env.API_ROUTE_UNRELATED_SENTINEL, undefined);
+assert.equal(calls[0].options.env.LITELLM_API_KEY, "litellm-fixture");
+assert.equal(calls[0].options.env.LITELLM_BASE_URL, "https://gw.example.com/litellm");
+assert.equal(calls[0].options.env.LITELLM_MODEL, "proxy-model");
+assert.equal(calls[0].options.env.OCTOPUS_LITELLM_MODEL, "litellm-alias-model");
+assert.equal(calls[0].options.env.LITELLM_ALLOWED_MODELS, "proxy-model");
+assert.equal(calls[0].options.env.LITELLM_UNRELATED_SENTINEL, undefined);
 
 // Exercise shell admission with the environment the MCP adapter actually sent.
 // Reading the key alone would miss model loss and exact-seat restriction bypass.
@@ -93,6 +105,12 @@ const admission = spawnSync("bash", ["-c", `
   command=$(get_agent_command api-route-agent review code-reviewer)
   [[ "$command" == *'--model route-model '* && "$command" == *'--tool-policy none'* ]]
   ! get_agent_command api-route-agent:blocked review code-reviewer >/dev/null 2>&1
+  is_agent_available_v2 litellm-agent
+  is_agent_available_v2 litellm-agent:proxy-model
+  ! is_agent_available_v2 litellm-agent:blocked || exit 1
+  command=$(get_agent_command litellm-agent review code-reviewer)
+  [[ "$command" == *'--base-url https://gw.example.com/litellm/v1 --model proxy-model '* && "$command" == *'--tool-policy none'* ]]
+  ! get_agent_command litellm-agent:blocked review code-reviewer >/dev/null 2>&1
 `, "_", pluginRoot], { env: firstCall.options.env, cwd: canonicalFirst, encoding: "utf8" });
 assert.equal(admission.status, 0, admission.stderr || admission.stdout);
 assert.equal(calls[0].options.env.ROUTER_API_KEY, "router-fixture");

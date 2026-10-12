@@ -4,6 +4,7 @@ source "${_profile_lib_dir}/agent-spec.sh" 2>/dev/null || true
 source "${_profile_lib_dir}/provider-registry.sh" || { echo "dispatch: failed to load provider-registry.sh" >&2; return 1 2>/dev/null || exit 1; }
 source "${_profile_lib_dir}/cheaperinference.sh" || return 1
 source "${_profile_lib_dir}/api-route.sh" || return 1
+source "${_profile_lib_dir}/litellm.sh" || return 1
 if ! declare -f get_model_capability >/dev/null 2>&1; then
     source "${_profile_lib_dir}/models.sh" 2>/dev/null || true
 fi
@@ -654,6 +655,32 @@ get_agent_command() {
             local ci_tool_fragment=""
             octo_tool_loop_requires_no_tools "$phase" "$role" && ci_tool_fragment="--tool-policy none"
             echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider api-route --model ${model} ${ci_tool_fragment} --cwd ${PWD}"
+            ;;
+        litellm-agent)  # LiteLLM via the OpenAI-compatible tool-loop agent
+            if [[ "$agent_type" == *:* ]]; then
+                model="$(get_agent_model "$agent_type" "$phase" "$role")" || return 1
+            else
+                if ! model="$(octo_litellm_model)"; then
+                    log ERROR "LITELLM_MODEL, OCTOPUS_LITELLM_MODEL, or providers.json litellm.default is required"
+                    return 1
+                fi
+            fi
+            if ! model="$(octo_litellm_effective_model "$model")"; then
+                log ERROR "Invalid or disallowed LiteLLM model or fallback"
+                return 1
+            fi
+            if ! _octopus_is_safe_openai_compatible_dispatch_value "${PWD}"; then
+                log ERROR "Invalid LiteLLM cwd: ${PWD}"
+                return 1
+            fi
+            local litellm_base_url
+            if ! litellm_base_url="$(octo_litellm_base_url)"; then
+                log ERROR "Invalid LITELLM_BASE_URL: use an http(s) proxy URL without credentials"
+                return 1
+            fi
+            local ci_tool_fragment=""
+            octo_tool_loop_requires_no_tools "$phase" "$role" && ci_tool_fragment="--tool-policy none"
+            echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider litellm --base-url ${litellm_base_url} --model ${model} ${ci_tool_fragment} --cwd ${PWD}"
             ;;
         perplexity|perplexity-fast)  # v8.24.0: Perplexity Sonar — web-grounded research (Issue #22)
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
@@ -1598,6 +1625,11 @@ get_agent_model() {
             if [[ "$provider" == api-route ]] &&
                ! octo_api_route_model "$fallback" >/dev/null; then
                 log ERROR "Invalid API Route fallback model name"
+                return 1
+            fi
+            if [[ "$provider" == litellm ]] &&
+               ! octo_litellm_model "$fallback" >/dev/null; then
+                log ERROR "Invalid LiteLLM fallback model name"
                 return 1
             fi
             if ! octo_model_automatic_target_allowed "$fallback" "$provider"; then
