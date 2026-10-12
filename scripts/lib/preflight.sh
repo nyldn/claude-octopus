@@ -246,7 +246,7 @@ _octo_provider_static_readiness() {
             remediation="Set LITELLM_API_KEY, LITELLM_MODEL, and LITELLM_BASE_URL."
             if _octo_value_has_nonwhitespace "${LITELLM_API_KEY:-}"; then
                 if ! octo_litellm_base_url >/dev/null; then
-                    status="degraded"; reason_code="config-invalid"; remediation="Set LITELLM_BASE_URL to the proxy's http(s) URL without credentials."
+                    status="degraded"; reason_code="config-invalid"; remediation="Export LITELLM_BASE_URL using HTTPS, or HTTP on localhost or 127.0.0.1, without credentials."
                 elif octo_litellm_effective_model >/dev/null; then
                     status="available"; reason_code="ready"; remediation=""
                 else

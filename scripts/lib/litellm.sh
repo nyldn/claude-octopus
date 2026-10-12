@@ -45,8 +45,8 @@ octo_litellm_effective_model() {
 }
 
 # LiteLLM is self-hosted, so unlike the other gateways its endpoint is user
-# configuration. Resolve LITELLM_BASE_URL (or the argument) the same way as
-# LITELLM_API_KEY, defaulting to http://localhost:4000, and normalize it to the
+# configuration. Read LITELLM_BASE_URL only from the operator's environment
+# (or the argument), defaulting to http://localhost:4000, and normalize it to the
 # proxy's OpenAI-compatible root ending in /v1. The proxy serves its routes with
 # and without /v1, so both spellings resolve to the same endpoint, and a path
 # prefix such as https://host/litellm is kept.
@@ -63,12 +63,14 @@ OCTO_LITELLM_BASE_URL_RE='^https?://[A-Za-z0-9][A-Za-z0-9._-]*(:[0-9]+)?(/[A-Za-
 octo_litellm_base_url() {
     local url="${1:-}"
     if [[ $# -eq 0 ]]; then
-        if [[ -z "${LITELLM_BASE_URL:-}" ]] && declare -f resolve_provider_env >/dev/null 2>&1; then
-            resolve_provider_env LITELLM_BASE_URL 2>/dev/null || true
-        fi
+        # A project .env must not choose where an independently supplied key goes.
         url="${LITELLM_BASE_URL:-http://localhost:4000}"
     fi
     [[ "$url" =~ $OCTO_LITELLM_BASE_URL_RE ]] || return 1
+    # Match the helper's transport policy before any credentialed probe runs.
+    if [[ "$url" == http://* && ! "$url" =~ ^http://(localhost|127\.0\.0\.1)(:[0-9]+)?(/|$) ]]; then
+        return 1
+    fi
     while [[ "$url" == */ ]]; do url="${url%/}"; done
     url="${url%/v1}"
     while [[ "$url" == */ ]]; do url="${url%/}"; done

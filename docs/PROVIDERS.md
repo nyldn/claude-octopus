@@ -161,10 +161,12 @@ An exact seat such as `litellm-agent:claude-sonnet-4-6` uses its model pin
 without requiring a default. `LITELLM_ALLOWED_MODELS` restricts dispatch
 models; missing models, unsafe pins and invalid fallbacks fail closed.
 
-`LITELLM_BASE_URL` and `LITELLM_API_KEY` are resolved from the same places
-(the environment, then the non-interactive shell fallbacks). The URL must use
-`http` or `https`, a host of letters, digits, `.`, `-` or `_` (so a Docker
-Compose service such as `http://litellm_proxy:4000` works), an optional numeric
+Export `LITELLM_BASE_URL` in the operator's environment; without it, Octopus
+uses `http://localhost:4000`. Project `.env` files and shell fallbacks cannot
+select the endpoint that receives an independently supplied key.
+`LITELLM_API_KEY` retains the usual non-interactive shell fallbacks. The URL
+must use HTTPS unless its host is `localhost` or `127.0.0.1`. Hosts may contain
+letters, digits, `.`, `-` or `_` (for example `https://litellm_proxy:4000`), an optional numeric
 port and a path of letters, digits, `.`, `_`, `/`, `:` or `-`. Embedded
 credentials are rejected. This is the same grammar dispatch enforces on
 `--base-url`, so detection, health and readiness never report a URL ready that

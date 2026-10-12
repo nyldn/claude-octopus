@@ -225,7 +225,7 @@ exit 0
 MOCK
     chmod +x "$mock_bin/curl"
     WORKSPACE_DIR="$workspace" HOME="$workspace" \
-    LITELLM_API_KEY="sk-wrong" LITELLM_MODEL="gpt-4o-mini" LITELLM_BASE_URL="http://litellm_proxy:4000" \
+    LITELLM_API_KEY="sk-wrong" LITELLM_MODEL="gpt-4o-mini" LITELLM_BASE_URL="http://localhost:4000" \
     OCTO_ALLOWED_PROVIDERS=litellm PATH="$mock_bin:$PATH" \
     bash -c '
         log() { :; }

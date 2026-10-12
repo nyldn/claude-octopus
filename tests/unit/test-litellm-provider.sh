@@ -311,11 +311,11 @@ then test_pass; else test_fail "helper read another gateway's model setting"; fi
 
 test_case "proxy URL normalizes to the /v1 root and keeps a path prefix"
 if [[ "$(octo_litellm_base_url)" == http://localhost:4000/v1 ]] &&
-   [[ "$(octo_litellm_base_url http://10.0.0.5:4000)" == http://10.0.0.5:4000/v1 ]] &&
+   [[ "$(octo_litellm_base_url http://127.0.0.1:4000)" == http://127.0.0.1:4000/v1 ]] &&
    [[ "$(octo_litellm_base_url https://gw.example.com/v1/)" == https://gw.example.com/v1 ]] &&
    [[ "$(octo_litellm_base_url https://gw.example.com/litellm//)" == https://gw.example.com/litellm/v1 ]] &&
    [[ "$(LITELLM_BASE_URL=https://proxy.example.com:8443 octo_litellm_base_url)" == https://proxy.example.com:8443/v1 ]] &&
-   [[ "$(octo_litellm_base_url http://litellm_proxy:4000)" == http://litellm_proxy:4000/v1 ]]; then
+   [[ "$(octo_litellm_base_url https://litellm_proxy:4000)" == https://litellm_proxy:4000/v1 ]]; then
     test_pass
 else
     test_fail "proxy URL normalization drifted"
@@ -334,7 +334,7 @@ if [[ "$bad" == false ]]; then test_pass; else test_fail "unsafe proxy URL accep
 test_case "every proxy URL detection accepts also passes the dispatch validator"
 source "$PROJECT_ROOT/scripts/lib/utils.sh"
 mismatch=""
-for url in http://localhost:4000 http://litellm_proxy:4000 http://litellm_proxy:4000/v1/ http://10.0.0.5:4000 \
+for url in http://localhost:4000 https://litellm_proxy:4000 https://litellm_proxy:4000/v1/ http://10.0.0.5:4000 \
            https://gw.example.com/litellm/ https://proxy.example.com:8443/v1 http://litellm-proxy.internal_net:4000 \
            https://user:secret@proxy:4000 'http://proxy:4000/%2e' 'http://proxy:4000/~user' http://_proxy:4000 \
            http://proxy:port 'ftp://proxy:4000'; do
@@ -350,39 +350,53 @@ for url in http://localhost:4000 http://litellm_proxy:4000 http://litellm_proxy:
     fi
 done
 if [[ -z "$mismatch" ]] &&
-   [[ "$(PWD=/tmp/octo-cwd LITELLM_BASE_URL=http://litellm_proxy:4000 LITELLM_MODEL=gpt-4o-mini \
-        get_agent_command litellm-agent review code-reviewer)" == *'--base-url http://litellm_proxy:4000/v1 '* ]]; then
+   [[ "$(PWD=/tmp/octo-cwd LITELLM_BASE_URL=https://litellm_proxy:4000 LITELLM_MODEL=gpt-4o-mini \
+        get_agent_command litellm-agent review code-reviewer)" == *'--base-url https://litellm_proxy:4000/v1 '* ]]; then
     test_pass
 else
     test_fail "readiness and dispatch URL grammars disagree:$mismatch"
 fi
 
-test_case "the proxy URL resolves through the same fallbacks as the key"
+test_case "project configuration cannot redirect an independently supplied key"
 if (
-    resolve_provider_env() {
-        case "$1" in
-            LITELLM_BASE_URL) export LITELLM_BASE_URL=http://litellm_proxy:4000 ;;
-            LITELLM_API_KEY) export LITELLM_API_KEY=fixture-key ;;
-            *) return 1 ;;
-        esac
-    }
-    unset LITELLM_BASE_URL LITELLM_API_KEY
-    [[ "$(octo_litellm_base_url)" == http://litellm_proxy:4000/v1 ]] &&
-    [[ "$(PWD=/tmp/octo-cwd LITELLM_MODEL=gpt-4o-mini get_agent_command litellm-agent review code-reviewer)" == *'--base-url http://litellm_proxy:4000/v1 '* ]] &&
+    source "$PROJECT_ROOT/scripts/lib/provider-routing.sh"
+    mkdir -p "$TEST_HOME/untrusted-project"
+    printf '%s\n' 'LITELLM_BASE_URL=https://attacker.example.com' > "$TEST_HOME/untrusted-project/.env"
+    cd "$TEST_HOME/untrusted-project"
+    unset LITELLM_BASE_URL
+    export LITELLM_API_KEY=fixture-key LITELLM_MODEL=gpt-4o-mini
+    [[ "$(octo_litellm_base_url)" == http://localhost:4000/v1 ]] &&
+    [[ "$(get_agent_command litellm-agent review code-reviewer)" == *'--base-url http://localhost:4000/v1 '* ]] &&
     [[ "$(LITELLM_BASE_URL=https://env.example.com octo_litellm_base_url)" == https://env.example.com/v1 ]]
-) && (
-    resolve_provider_env() { [[ "$1" == LITELLM_BASE_URL ]] && export LITELLM_BASE_URL='ftp://from-profile'; }
-    unset LITELLM_BASE_URL
-    ! octo_litellm_base_url >/dev/null &&
-    ! LITELLM_API_KEY=fixture-key LITELLM_MODEL=gpt-4o-mini check_provider_health litellm 2>/dev/null
-) && (
-    unset -f resolve_provider_env
-    unset LITELLM_BASE_URL
-    [[ "$(octo_litellm_base_url)" == http://localhost:4000/v1 ]]
 ); then
     test_pass
 else
-    test_fail "LITELLM_BASE_URL did not share the key's resolution path"
+    test_fail "project configuration changed the credential destination"
+fi
+
+test_case "remote HTTP is rejected by every LiteLLM admission path"
+if (
+    source "$PROJECT_ROOT/scripts/lib/preflight.sh"
+    source "$PROJECT_ROOT/scripts/lib/quota-watcher.sh"
+    export LITELLM_API_KEY=fixture-key LITELLM_MODEL=gpt-4o-mini OCTO_ALLOWED_PROVIDERS=litellm
+    export WORKSPACE_DIR="$TEST_HOME/http-rejection"
+    for url in http://10.0.0.5:4000 http://litellm_proxy:4000 http://localhost.evil:4000 http://127.0.0.1.evil:4000; do
+        export LITELLM_BASE_URL="$url"
+        ! octo_litellm_base_url >/dev/null || exit 1
+        ! get_agent_command litellm-agent review code-reviewer >/dev/null 2>&1 || exit 1
+        ! check_provider_health litellm 2>/dev/null || exit 1
+        ! is_agent_available_v2 litellm-agent || exit 1
+        [[ "$(detect_providers)" != *"litellm:api-key"* ]] || exit 1
+        [[ "$(_octo_provider_static_readiness litellm)" == degraded\|config-invalid\|* ]] || exit 1
+        # Any curl call would expose the fixture credential; record it even in a subshell.
+        curl() { touch "$TEST_HOME/http-probe-called"; return 1; }
+        OCTOPUS_PREFLIGHT_PROBE=1 octo_provider_probe litellm || exit 1
+        [[ ! -e "$TEST_HOME/http-probe-called" ]] || exit 1
+    done
+); then
+    test_pass
+else
+    test_fail "remote HTTP was admitted or received a credentialed probe"
 fi
 
 test_case "dispatch passes the normalized proxy URL to the helper"

@@ -675,7 +675,7 @@ get_agent_command() {
             fi
             local litellm_base_url
             if ! litellm_base_url="$(octo_litellm_base_url)"; then
-                log ERROR "Invalid LITELLM_BASE_URL: use an http(s) proxy URL without credentials"
+                log ERROR "Invalid LITELLM_BASE_URL: use HTTPS, or HTTP on localhost or 127.0.0.1, without credentials"
                 return 1
             fi
             local ci_tool_fragment=""
