@@ -948,7 +948,7 @@ check_provider_health() {
                 return 1
             fi
             if ! octo_litellm_base_url >/dev/null; then
-                echo "litellm: LITELLM_BASE_URL requires HTTPS, or HTTP on localhost or 127.0.0.1, without credentials" >&2
+                log ERROR "litellm: LITELLM_BASE_URL requires HTTPS, or HTTP on localhost or 127.0.0.1, without credentials"
                 return 1
             fi
             local ci_health_model="$resolved_model"
