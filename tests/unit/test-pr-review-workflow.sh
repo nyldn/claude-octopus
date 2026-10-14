@@ -46,12 +46,14 @@ else
     test_fail "expected all three jobs to pin Claude Code 2.1.228, found ${install_count}"
 fi
 
-test_case "artifact uploads use the immutable v7 commit"
-artifact_count="$(grep -c 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' "$WORKFLOW" || true)"
-if [[ "$artifact_count" -eq 2 ]] && ! grep -q 'actions/upload-artifact@v7' "$WORKFLOW"; then
+test_case "artifact uploads use immutable v7 commits"
+artifact_refs="$(grep 'uses: actions/upload-artifact@' "$WORKFLOW" || true)"
+artifact_pin_pattern='^[[:space:]]*uses: actions/upload-artifact@[0-9a-f]{40}[[:space:]]+# v7[[:space:]]*$'
+artifact_count="$(grep -Ec "$artifact_pin_pattern" <<< "$artifact_refs" || true)"
+if [[ "$artifact_count" -eq 2 ]] && ! grep -Evq "$artifact_pin_pattern" <<< "$artifact_refs"; then
     test_pass
 else
-    test_fail "artifact upload references remain mutable"
+    test_fail "expected exactly two immutable v7 artifact upload references"
 fi
 
 test_case "PR review preserves provider diagnostics when orchestration fails"
