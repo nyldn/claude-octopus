@@ -20,6 +20,9 @@
 
 ### Fixed
 
+- Concurrent installation receipt writers retry when the lock holder releases
+  its directory during contention inspection. File and symlink lock objects
+  remain rejected without changing their contents or targets.
 - `commandcode-exec.sh` no longer leaves the Command Code CLI running after the
   helper is killed. A Tangle stall watchdog kill used to orphan the CLI, which
   kept editing the shared worktree next to its own retry. The CLI now runs

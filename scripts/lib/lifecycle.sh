@@ -104,12 +104,21 @@ _octo_lifecycle_mkdir() {
     command -v python3 >/dev/null 2>&1 || return 1
     python3 - "$1" <<'PYCODE'
 import os
+import stat
 import sys
 
 try:
     os.mkdir(sys.argv[1])
 except FileExistsError:
-    sys.exit(75)
+    # Classify contention with one non-following lookup. A normal release may
+    # remove the directory at any point; separate shell probes can disagree.
+    try:
+        existing = os.lstat(sys.argv[1])
+    except FileNotFoundError:
+        sys.exit(75)
+    except OSError:
+        sys.exit(1)
+    sys.exit(75 if stat.S_ISDIR(existing.st_mode) else 1)
 except OSError:
     sys.exit(1)
 PYCODE
@@ -129,7 +138,6 @@ _octo_lifecycle_lock() {
         if [[ ! -e "$lock" && ! -L "$lock" ]]; then
             continue
         fi
-        [[ -d "$lock" && ! -L "$lock" ]] || return 1
         # Removing the empty owner directory elects exactly one reclaimer.
         # Other waiters cannot remove a newly acquired lock after losing here.
         for candidate in "$lock/owner-$lock_host-"*; do

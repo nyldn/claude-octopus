@@ -66,6 +66,50 @@ vanished_directory() {
 }
 check "vanished contention path retries without stealing or delaying" vanished_directory
 
+released_during_inspection() {
+    local target="$fixture/inspection-release" rc=0 race_fired=0
+    command mkdir "$target.lock"
+    # Schedule a real holder release after the absence probe. DEBUG also reaches
+    # the owner scan once directory classification no longer uses shell probes.
+    set -T
+    trap 'case "$BASH_COMMAND" in
+        *"[[ -d \"\$lock\""*|*"for candidate in "*)
+            trap - DEBUG
+            command rmdir "$target.lock" || return 1
+            race_fired=1 ;;
+    esac' DEBUG
+    _octo_lifecycle_lock "$target" "$owner" || rc=$?
+    trap - DEBUG
+    [[ "$race_fired" == 1 && "$rc" == 0 && -d "$target.lock/$owner" ]] || return 1
+    _octo_lifecycle_unlock "$target.lock" "$owner" ""
+    [[ ! -e "$target.lock" ]]
+}
+check "holder release during contention inspection retries successfully" released_during_inspection
+
+unsafe_lock_objects() {
+    local kind target rc
+    command mkdir "$fixture/foreign-target"
+    printf keep > "$fixture/foreign-target/user-data"
+    for kind in file symlink dangling; do
+        target="$fixture/unsafe-$kind"
+        case "$kind" in
+            file) printf keep > "$target.lock" ;;
+            symlink) ln -s "$fixture/foreign-target" "$target.lock" ;;
+            dangling) ln -s "$fixture/missing-target" "$target.lock" ;;
+        esac
+        rc=0
+        _octo_lifecycle_lock "$target" "$owner" || rc=$?
+        [[ "$rc" == 1 && ! -e "$target.lock/$owner" ]] || return 1
+        if [[ "$kind" == file ]]; then
+            [[ -f "$target.lock" && "$(cat "$target.lock")" == keep ]] || return 1
+        else
+            [[ -L "$target.lock" ]] || return 1
+        fi
+    done
+    [[ "$(ls -A "$fixture/foreign-target")" == user-data && "$(cat "$fixture/foreign-target/user-data")" == keep ]]
+}
+check "file and live or dangling symlink lock objects fail closed without mutation" unsafe_lock_objects
+
 owner_failure() {
     local target="$fixture/owner-failure" rc=0
     eval "$(declare -f _octo_lifecycle_mkdir | sed '1s/_octo_lifecycle_mkdir/_real_mkdir/')"
