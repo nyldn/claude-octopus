@@ -73,7 +73,7 @@ released_during_inspection() {
     # the owner scan once directory classification no longer uses shell probes.
     set -T
     trap 'case "$BASH_COMMAND" in
-        *"[[ -d \"\$lock\""*|*"for candidate in "*)
+        *"[[ -d \"\$lock\""*|*"for candidate in "*|*"_octo_lifecycle_reclaim \"\$lock\""*)
             trap - DEBUG
             command rmdir "$target.lock" || return 1
             race_fired=1 ;;
@@ -109,6 +109,27 @@ unsafe_lock_objects() {
     [[ "$(ls -A "$fixture/foreign-target")" == user-data && "$(cat "$fixture/foreign-target/user-data")" == keep ]]
 }
 check "file and live or dangling symlink lock objects fail closed without mutation" unsafe_lock_objects
+
+replaced_lock_directory() {
+    local target="$fixture/replaced-lock" foreign="$fixture/foreign-owners"
+    local rc=0 race_fired=0 stale_pid stale
+    ( exit 0 ) & stale_pid=$!
+    wait "$stale_pid"
+    stale="owner-$lock_host-$stale_pid"
+    command mkdir "$target.lock" "$foreign" "$foreign/$stale"
+    set -T
+    trap 'case "$BASH_COMMAND" in
+        *"[[ ! -e \"\$lock\""*)
+            trap - DEBUG
+            command rmdir "$target.lock" || return 1
+            ln -s "$foreign" "$target.lock" || return 1
+            race_fired=1 ;;
+    esac' DEBUG
+    _octo_lifecycle_lock "$target" "$owner" || rc=$?
+    trap - DEBUG
+    [[ "$race_fired" == 1 && "$rc" == 1 && -L "$target.lock" && -d "$foreign/$stale" ]]
+}
+check "a lock replaced by a symlink cannot reclaim foreign owner metadata" replaced_lock_directory
 
 owner_failure() {
     local target="$fixture/owner-failure" rc=0

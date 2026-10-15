@@ -124,8 +124,57 @@ except OSError:
 PYCODE
 }
 
+_octo_lifecycle_reclaim() {
+    command -v python3 >/dev/null 2>&1 || return 1
+    python3 - "$1" "$2" <<'PYCODE'
+import os
+import stat
+import sys
+
+lock, host = sys.argv[1:]
+try:
+    directory = os.open(lock, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+except FileNotFoundError:
+    sys.exit(0)
+except OSError:
+    sys.exit(1)
+
+try:
+    prefix = "owner-" + host + "-"
+    for candidate in os.listdir(directory):
+        if not candidate.startswith(prefix):
+            continue
+        pid_text = candidate[len(prefix):]
+        if not pid_text or any(c < "0" or c > "9" for c in pid_text):
+            continue
+        try:
+            if not stat.S_ISDIR(os.stat(candidate, dir_fd=directory, follow_symlinks=False).st_mode):
+                continue
+            pid = int(pid_text)
+            if pid <= 0:
+                continue
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            # Directory-relative operations cannot follow a replacement lock
+            # symlink. Removing an empty owner elects one stale-lock reclaimer.
+            try:
+                os.rmdir(candidate, dir_fd=directory)
+            except OSError:
+                continue
+            try:
+                if os.path.samestat(os.fstat(directory), os.lstat(lock)):
+                    os.rmdir(lock)
+            except OSError:
+                pass
+        except (OSError, ValueError, OverflowError):
+            continue
+finally:
+    os.close(directory)
+PYCODE
+}
+
 _octo_lifecycle_lock() {
-    local lock="$1.lock" owner="$2" tries=0 candidate pid probe rc
+    local lock="$1.lock" owner="$2" tries=0 rc
     while :; do
         rc=0
         _octo_lifecycle_mkdir "$lock" 2>/dev/null || rc=$?
@@ -138,18 +187,7 @@ _octo_lifecycle_lock() {
         if [[ ! -e "$lock" && ! -L "$lock" ]]; then
             continue
         fi
-        # Removing the empty owner directory elects exactly one reclaimer.
-        # Other waiters cannot remove a newly acquired lock after losing here.
-        for candidate in "$lock/owner-$lock_host-"*; do
-            [[ -d "$candidate" && ! -L "$candidate" ]] || continue
-            pid="${candidate##*-}"
-            case "$pid" in ''|0|*[!0-9]*) continue ;; esac
-            probe="$(LC_ALL=C kill -0 "$pid" 2>&1)" && continue
-            case "$probe" in
-                *'No such process'*)
-                    if rmdir "$candidate" 2>/dev/null; then rmdir "$lock" 2>/dev/null || true; fi ;;
-            esac
-        done
+        _octo_lifecycle_reclaim "$lock" "$lock_host" 2>/dev/null || return 1
         sleep 0.02 2>/dev/null || return 1
     done
     _octo_lifecycle_mkdir "$lock/$owner" || { rmdir "$lock" 2>/dev/null || true; return 1; }

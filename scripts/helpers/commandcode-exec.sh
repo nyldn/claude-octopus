@@ -51,6 +51,8 @@ kill_cli() {
   else
     kill_process_tree "$cli_pid"
   fi
+  cli_pid=""
+  cli_pgid=""
 }
 cleanup() {
   [[ -n "$heartbeat_pid" ]] && kill "$heartbeat_pid" 2>/dev/null || true
@@ -69,8 +71,8 @@ esac
 # The CLI and its children must not outlive this helper. A stall watchdog or timeout that
 # kills the helper would otherwise orphan an agent that keeps editing the
 # worktree next to its own retry. An isolated process group and the watcher
-# cover child processes when setsid is available; otherwise pdeathsig or the
-# process-tree fallback covers them where those facilities are available.
+# cover child processes when setsid is available; otherwise the watcher stops
+# descendants before their CLI parent, keeping the tree discoverable.
 cli_args=("$bin" "${args[@]}")
 if command -v setsid >/dev/null 2>&1; then
   cli_args=(setsid "${cli_args[@]}")
@@ -78,8 +80,6 @@ if command -v setsid >/dev/null 2>&1; then
 fi
 if [[ "$cli_group_isolated" -eq 1 ]]; then
   "${cli_args[@]}" <"$prompt_file" >"$tmp" &
-elif command -v setpriv >/dev/null 2>&1; then
-  setpriv --pdeathsig KILL -- "${cli_args[@]}" <"$prompt_file" >"$tmp" &
 else
   "${cli_args[@]}" <"$prompt_file" >"$tmp" &
 fi
@@ -139,8 +139,6 @@ else
   rc=$?
 fi
 kill_cli
-cli_pid=""
-cli_pgid=""
 kill "$heartbeat_pid" 2>/dev/null || true
 wait "$heartbeat_pid" 2>/dev/null || true
 heartbeat_pid=""

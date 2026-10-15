@@ -198,41 +198,55 @@ else
 fi
 unset MOCK_PID_FILE MOCK_EVENT_GAP
 
+fallback_descendant_cleanup() {
+    local variant="$1" extra_tool="${2:-}" tool tool_path
+    local tools=(awk bash cat jq mktemp ps rm sleep wc)
+    [[ -z "$extra_tool" ]] || tools+=("$extra_tool")
+    NO_GROUP_BIN="$FIXTURE_DIR/no-process-group-bin-$variant"
+    mkdir -p "$NO_GROUP_BIN"
+    for tool in "${tools[@]}"; do
+        tool_path="$(command -v "$tool" 2>/dev/null || true)"
+        [[ -x "$tool_path" ]] && ln -sf "$tool_path" "$NO_GROUP_BIN/$tool"
+    done
+    export MOCK_PID_FILE="$FIXTURE_DIR/no-group-$variant-cli.pid" MOCK_CHILD_PID_FILE="$FIXTURE_DIR/no-group-$variant-child.pid" MOCK_EVENT_GAP=20
+    rm -f "$MOCK_PID_FILE" "$MOCK_CHILD_PID_FILE"
+    printf 'implement' | PATH="$NO_GROUP_BIN" OCTOPUS_COMMANDCODE_BIN="$SLOW_CLI" \
+        "$PROJECT_ROOT/scripts/helpers/commandcode-exec.sh" deepseek/deepseek-v4-pro yolo >/dev/null 2>"$FIXTURE_DIR/no-group-$variant.err" &
+    helper_pid=$!
+    for _ in $(seq 1 50); do
+        [[ -s "$MOCK_PID_FILE" && -s "$MOCK_CHILD_PID_FILE" ]] && break
+        sleep 0.1
+    done
+    cli_pid="$(cat "$MOCK_PID_FILE" 2>/dev/null || true)"
+    child_pid="$(cat "$MOCK_CHILD_PID_FILE" 2>/dev/null || true)"
+    kill -KILL "$helper_pid" 2>/dev/null || true
+    wait "$helper_pid" 2>/dev/null || true
+    for _ in $(seq 1 50); do cli_gone "$cli_pid" && cli_gone "$child_pid" && break; sleep 0.1; done
+    if [[ -n "$cli_pid" && -n "$child_pid" ]] && cli_gone "$cli_pid" && cli_gone "$child_pid"; then
+        test_pass
+    else
+        kill -KILL "$cli_pid" "$child_pid" 2>/dev/null || true
+        test_fail "CLI $cli_pid or child $child_pid survived fallback cleanup: $(tail -5 "$FIXTURE_DIR/no-group-$variant.err" 2>/dev/null || true)"
+    fi
+    unset MOCK_PID_FILE MOCK_CHILD_PID_FILE MOCK_EVENT_GAP
+}
 test_case "fallback cleanup stops CLI descendants without process-group helpers"
-NO_GROUP_BIN="$FIXTURE_DIR/no-process-group-bin"
-mkdir -p "$NO_GROUP_BIN"
-for tool in awk bash cat jq mktemp ps rm sleep wc; do
-    tool_path="$(command -v "$tool" 2>/dev/null || true)"
-    [[ -x "$tool_path" ]] && ln -sf "$tool_path" "$NO_GROUP_BIN/$tool"
-done
-export MOCK_PID_FILE="$FIXTURE_DIR/no-group-cli.pid" MOCK_CHILD_PID_FILE="$FIXTURE_DIR/no-group-child.pid" MOCK_EVENT_GAP=20
-rm -f "$MOCK_PID_FILE" "$MOCK_CHILD_PID_FILE"
-printf 'implement' | PATH="$NO_GROUP_BIN" OCTOPUS_COMMANDCODE_BIN="$SLOW_CLI" \
-    "$PROJECT_ROOT/scripts/helpers/commandcode-exec.sh" deepseek/deepseek-v4-pro yolo >/dev/null 2>"$FIXTURE_DIR/no-group.err" &
-helper_pid=$!
-for _ in $(seq 1 50); do
-    [[ -s "$MOCK_PID_FILE" && -s "$MOCK_CHILD_PID_FILE" ]] && break
-    sleep 0.1
-done
-cli_pid="$(cat "$MOCK_PID_FILE" 2>/dev/null || true)"
-child_pid="$(cat "$MOCK_CHILD_PID_FILE" 2>/dev/null || true)"
-kill -KILL "$helper_pid" 2>/dev/null || true
-wait "$helper_pid" 2>/dev/null || true
-for _ in $(seq 1 50); do cli_gone "$cli_pid" && cli_gone "$child_pid" && break; sleep 0.1; done
-if [[ -n "$cli_pid" && -n "$child_pid" ]] && cli_gone "$cli_pid" && cli_gone "$child_pid"; then
-    test_pass
+fallback_descendant_cleanup no-group
+
+test_case "fallback cleanup preserves descendants until the watcher can stop them when only setpriv exists"
+if command -v setpriv >/dev/null 2>&1; then
+    fallback_descendant_cleanup setpriv-only setpriv
 else
-    kill -KILL "$cli_pid" "$child_pid" 2>/dev/null || true
-    test_fail "CLI $cli_pid or child $child_pid survived fallback cleanup: $(tail -5 "$FIXTURE_DIR/no-group.err" 2>/dev/null || true)"
+    test_skip "setpriv is unavailable on this platform; portable watcher fallback is covered separately"
 fi
-unset MOCK_PID_FILE MOCK_CHILD_PID_FILE MOCK_EVENT_GAP
 
 test_case "TERM cleanup preserves its status and removes files after the watcher exits"
 cleanup_dir="$FIXTURE_DIR/cancel-tmp"
 mkdir -p "$cleanup_dir"
 export MOCK_PID_FILE="$FIXTURE_DIR/cancel.pid" MOCK_EVENT_GAP=20
+cancel_trace="$FIXTURE_DIR/cancel.trace"
 printf 'implement' | TMPDIR="$cleanup_dir" OCTOPUS_COMMANDCODE_BIN="$SLOW_CLI" \
-    "$PROJECT_ROOT/scripts/helpers/commandcode-exec.sh" deepseek/deepseek-v4-pro yolo >/dev/null 2>&1 &
+    bash -x "$PROJECT_ROOT/scripts/helpers/commandcode-exec.sh" deepseek/deepseek-v4-pro yolo >/dev/null 2>"$cancel_trace" &
 helper_pid=$!
 watcher_pid=""
 cli_pid=""
@@ -252,11 +266,12 @@ kill -TERM "$helper_pid" 2>/dev/null || true
 cleanup_rc=0
 wait "$helper_pid" 2>/dev/null || cleanup_rc=$?
 remaining_files="$(find "$cleanup_dir" -type f -print)"
-if [[ -n "$cli_pid" && -n "$watcher_pid" && "$cleanup_rc" -eq 143 && -z "$remaining_files" ]] && cli_gone "$cli_pid"; then
+cli_kill_attempts="$(grep -Ec "^[+]+ kill -KILL (-- )?-?${cli_pid}$" "$cancel_trace" || true)"
+if [[ -n "$cli_pid" && -n "$watcher_pid" && "$cleanup_rc" -eq 143 && -z "$remaining_files" && "$cli_kill_attempts" -eq 1 ]] && cli_gone "$cli_pid"; then
     test_pass
 else
     kill -KILL "$cli_pid" 2>/dev/null || true
-    test_fail "expected TERM status 143, stopped CLI and no temporary files; got status=$cleanup_rc files=$remaining_files"
+    test_fail "expected TERM status 143, one CLI kill and no temporary files; got status=$cleanup_rc kills=$cli_kill_attempts files=$remaining_files"
 fi
 unset MOCK_PID_FILE MOCK_EVENT_GAP
 

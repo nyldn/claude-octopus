@@ -23,8 +23,9 @@
 ### Fixed
 
 - Concurrent installation receipt writers retry when the lock holder releases
-  its directory during contention inspection. File and symlink lock objects
-  remain rejected without changing their contents or targets.
+  its directory during contention inspection. Stale-owner inspection uses a
+  non-following directory handle, preserving foreign metadata even if the
+  lock is replaced by a symlink. File and symlink lock objects remain rejected.
 
 - Tangle adequacy review accepts a JSON `pass` verdict that omits the empty
   `scope_review` list instead of rejecting it as semantic-invalid and paying
@@ -36,9 +37,9 @@
 - `commandcode-exec.sh` no longer leaves the Command Code CLI running after the
   helper is killed. A Tangle stall watchdog kill used to orphan the CLI, which
   kept editing the shared worktree next to its own retry. The helper now uses
-  an isolated process group where `setsid` is available, `setpriv
-  --pdeathsig KILL` when `setsid` is unavailable and `setpriv` is present,
-  and a watcher-backed process-tree fallback otherwise.
+  an isolated process group where `setsid` is available and a watcher-backed,
+  child-first process-tree fallback otherwise. The CLI remains alive until
+  the watcher can stop its descendants when process-group isolation is absent.
   TERM, INT and HUP cleanup removes private temporary files and preserves
   termination status even when the watcher has already exited.
 - Supervised Tangle implementers on Command Code are no longer stopped as
