@@ -46,6 +46,7 @@ OCTOPUS_GROK_TOOL_POLICY	covered-by	test-grok-provider.sh
 OCTOPUS_GROK_ARGV_MAX	covered-by	test-grok-provider.sh
 OCTOPUS_COMMANDCODE_ALLOWED_MODELS	skip	allowlist for a provider with no CLI on CI runners
 OCTOPUS_COMMANDCODE_BIN	covered-by	test-commandcode-harness.sh
+OCTOPUS_COMMANDCODE_HEARTBEAT_SECS	covered-by	test-commandcode-harness.sh
 OCTOPUS_COMMANDCODE_MODEL	covered-by	test-commandcode-harness.sh
 OCTOPUS_COMPACT_BANNERS	skip	changes banner prose only; asserting it would pin cosmetic output
 OCTOPUS_CONTEXT_SUMMARY_TRIGGER_RATIO	covered-by	test-context-budget.sh
