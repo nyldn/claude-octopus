@@ -151,7 +151,13 @@ printf '%s\n' "$$" > "$MOCK_PID_FILE"
 cat >/dev/null
 for _ in 1 2 3; do
     printf '%s\n' '{"type":"event","event":{"type":"tool_running"}}'
-    sleep "${MOCK_EVENT_GAP:-1}"
+    if [[ -n "${MOCK_CHILD_PID_FILE:-}" ]]; then
+        sleep "${MOCK_EVENT_GAP:-1}" &
+        printf '%s\n' "$!" > "$MOCK_CHILD_PID_FILE"
+        wait "$!"
+    else
+        sleep "${MOCK_EVENT_GAP:-1}"
+    fi
 done
 printf '%s\n' '{"type":"result","subtype":"success","sessionId":"abc","finalText":"SLOW_OK"}'
 MOCK
@@ -191,6 +197,35 @@ else
     test_fail "CLI $cli_pid survived its helper"
 fi
 unset MOCK_PID_FILE MOCK_EVENT_GAP
+
+test_case "fallback cleanup stops CLI descendants without process-group helpers"
+NO_GROUP_BIN="$FIXTURE_DIR/no-process-group-bin"
+mkdir -p "$NO_GROUP_BIN"
+for tool in awk bash cat jq mktemp ps rm sleep wc; do
+    tool_path="$(command -v "$tool" 2>/dev/null || true)"
+    [[ -x "$tool_path" ]] && ln -sf "$tool_path" "$NO_GROUP_BIN/$tool"
+done
+export MOCK_PID_FILE="$FIXTURE_DIR/no-group-cli.pid" MOCK_CHILD_PID_FILE="$FIXTURE_DIR/no-group-child.pid" MOCK_EVENT_GAP=20
+rm -f "$MOCK_PID_FILE" "$MOCK_CHILD_PID_FILE"
+printf 'implement' | PATH="$NO_GROUP_BIN" OCTOPUS_COMMANDCODE_BIN="$SLOW_CLI" \
+    "$PROJECT_ROOT/scripts/helpers/commandcode-exec.sh" deepseek/deepseek-v4-pro yolo >/dev/null 2>"$FIXTURE_DIR/no-group.err" &
+helper_pid=$!
+for _ in $(seq 1 50); do
+    [[ -s "$MOCK_PID_FILE" && -s "$MOCK_CHILD_PID_FILE" ]] && break
+    sleep 0.1
+done
+cli_pid="$(cat "$MOCK_PID_FILE" 2>/dev/null || true)"
+child_pid="$(cat "$MOCK_CHILD_PID_FILE" 2>/dev/null || true)"
+kill -KILL "$helper_pid" 2>/dev/null || true
+wait "$helper_pid" 2>/dev/null || true
+for _ in $(seq 1 50); do cli_gone "$cli_pid" && cli_gone "$child_pid" && break; sleep 0.1; done
+if [[ -n "$cli_pid" && -n "$child_pid" ]] && cli_gone "$cli_pid" && cli_gone "$child_pid"; then
+    test_pass
+else
+    kill -KILL "$cli_pid" "$child_pid" 2>/dev/null || true
+    test_fail "CLI $cli_pid or child $child_pid survived fallback cleanup: $(tail -5 "$FIXTURE_DIR/no-group.err" 2>/dev/null || true)"
+fi
+unset MOCK_PID_FILE MOCK_CHILD_PID_FILE MOCK_EVENT_GAP
 
 test_case "TERM cleanup preserves its status and removes files after the watcher exits"
 cleanup_dir="$FIXTURE_DIR/cancel-tmp"

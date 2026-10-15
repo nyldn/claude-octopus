@@ -30,10 +30,31 @@ prompt="$(cat)"
 tmp="$(mktemp "${TMPDIR:-/tmp}/octopus-commandcode.XXXXXX")" || exit 1
 prompt_file="$(mktemp "${TMPDIR:-/tmp}/octopus-commandcode-prompt.XXXXXX")" || { rm -f "$tmp"; exit 1; }
 cli_pid=""
+cli_pgid=""
+cli_group_isolated=0
 heartbeat_pid=""
+kill_process_tree() {
+  local parent_pid="$1"
+  local child_pid
+  while read -r child_pid; do
+    [[ "$child_pid" =~ ^[0-9]+$ ]] || continue
+    kill_process_tree "$child_pid"
+  done < <(ps -A -o pid= -o ppid= 2>/dev/null | awk -v parent="$parent_pid" '$2 == parent {print $1}')
+  kill -KILL "$parent_pid" 2>/dev/null || true
+}
+kill_cli() {
+  [[ -z "$cli_pid" ]] && return 0
+  if [[ "$cli_group_isolated" -eq 1 && -n "$cli_pgid" ]]; then
+    if ! kill -KILL -- "-$cli_pgid" 2>/dev/null; then
+      kill_process_tree "$cli_pid"
+    fi
+  else
+    kill_process_tree "$cli_pid"
+  fi
+}
 cleanup() {
   [[ -n "$heartbeat_pid" ]] && kill "$heartbeat_pid" 2>/dev/null || true
-  [[ -n "$cli_pid" ]] && kill -KILL "$cli_pid" 2>/dev/null || true
+  kill_cli
   rm -f "$tmp" "$prompt_file"
 }
 trap cleanup EXIT
@@ -45,19 +66,33 @@ case "$permission_mode" in
   *) args+=(--permission-mode "$permission_mode") ;;
 esac
 
-# The CLI must not outlive this helper. A stall watchdog or timeout that
+# The CLI and its children must not outlive this helper. A stall watchdog or timeout that
 # kills the helper would otherwise orphan an agent that keeps editing the
-# worktree next to its own retry. pdeathsig covers SIGKILL where setpriv
-# exists (Linux); the watcher below covers every other platform.
-if command -v setpriv >/dev/null 2>&1; then
-  setpriv --pdeathsig KILL -- "$bin" "${args[@]}" <"$prompt_file" >"$tmp" &
+# worktree next to its own retry. An isolated process group and the watcher
+# cover child processes when setsid is available; otherwise pdeathsig or the
+# process-tree fallback covers them where those facilities are available.
+cli_args=("$bin" "${args[@]}")
+if command -v setsid >/dev/null 2>&1; then
+  cli_args=(setsid "${cli_args[@]}")
+  cli_group_isolated=1
+fi
+if [[ "$cli_group_isolated" -eq 1 ]]; then
+  "${cli_args[@]}" <"$prompt_file" >"$tmp" &
+elif command -v setpriv >/dev/null 2>&1; then
+  setpriv --pdeathsig KILL -- "${cli_args[@]}" <"$prompt_file" >"$tmp" &
 else
-  "$bin" "${args[@]}" <"$prompt_file" >"$tmp" &
+  "${cli_args[@]}" <"$prompt_file" >"$tmp" &
 fi
 cli_pid=$!
-trap 'kill -KILL "$cli_pid" 2>/dev/null; exit 143' TERM
-trap 'kill -KILL "$cli_pid" 2>/dev/null; exit 130' INT
-trap 'kill -KILL "$cli_pid" 2>/dev/null; exit 129' HUP
+if [[ "$cli_group_isolated" -eq 1 ]]; then
+  # setsid creates the child session with the CLI PID as its process-group ID.
+  # Reading it through ps here races with setsid() and can capture our own
+  # process group, making a later negative kill target the dispatcher too.
+  cli_pgid="$cli_pid"
+fi
+trap 'kill_cli; exit 143' TERM
+trap 'kill_cli; exit 130' INT
+trap 'kill_cli; exit 129' HUP
 
 # stdout stays empty until the final result, so a stall watchdog that only
 # sees output would kill a model that is still reading and planning. The CLI
@@ -81,7 +116,7 @@ helper_pid=$$
     watcher_parent="${watcher_parent//[[:space:]]/}"
     if [[ -n "$watcher_parent" && "$watcher_parent" != "$helper_pid" ]] ||
        ! kill -0 "$helper_pid" 2>/dev/null; then
-      kill -KILL "$cli_pid" 2>/dev/null
+      kill_cli
       exit 0
     fi
     waited=$((waited + 1))
@@ -94,6 +129,7 @@ helper_pid=$$
       last_size="$size"
     fi
   done
+  kill_cli
 ) &
 heartbeat_pid=$!
 
@@ -102,7 +138,9 @@ if wait "$cli_pid"; then
 else
   rc=$?
 fi
+kill_cli
 cli_pid=""
+cli_pgid=""
 kill "$heartbeat_pid" 2>/dev/null || true
 wait "$heartbeat_pid" 2>/dev/null || true
 heartbeat_pid=""

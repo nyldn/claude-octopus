@@ -23,20 +23,6 @@
 - Concurrent installation receipt writers retry when the lock holder releases
   its directory during contention inspection. File and symlink lock objects
   remain rejected without changing their contents or targets.
-- `commandcode-exec.sh` no longer leaves the Command Code CLI running after the
-  helper is killed. A Tangle stall watchdog kill used to orphan the CLI, which
-  kept editing the shared worktree next to its own retry. The CLI now runs
-  under `setpriv --pdeathsig KILL` where available (Linux), the helper kills
-  it on TERM, INT or HUP, and on other platforms a watcher kills it within a
-  second of the helper disappearing. TERM, INT and HUP cleanup also removes
-  its private temporary files and preserves the termination status if the
-  watcher has already exited.
-- Supervised Tangle implementers on Command Code are no longer stopped as
-  stalled while the model is still reading and planning. The helper buffers
-  the CLI's NDJSON event stream until the final result, so the watchdog saw
-  no output; it now writes a progress line to stderr at most once per
-  `OCTOPUS_COMMANDCODE_HEARTBEAT_SECS` (default 60, forwarded through the
-  provider's isolated environment) while that stream grows.
 
 - Tangle adequacy review accepts a JSON `pass` verdict that omits the empty
   `scope_review` list instead of rejecting it as semantic-invalid and paying
@@ -45,6 +31,20 @@
   "Deprecated Tangle textual adequacy compatibility path used" for a JSON
   review: the already materialized verdict is checked structurally instead of
   being materialized again.
+- `commandcode-exec.sh` no longer leaves the Command Code CLI running after the
+  helper is killed. A Tangle stall watchdog kill used to orphan the CLI, which
+  kept editing the shared worktree next to its own retry. The helper now uses
+  an isolated process group where `setsid` is available, `setpriv
+  --pdeathsig KILL` when `setsid` is unavailable and `setpriv` is present,
+  and a watcher-backed process-tree fallback otherwise.
+  TERM, INT and HUP cleanup removes private temporary files and preserves
+  termination status even when the watcher has already exited.
+- Supervised Tangle implementers on Command Code are no longer stopped as
+  stalled while the model is still reading and planning. The helper buffers
+  the CLI's NDJSON event stream until the final result, so the watchdog saw
+  no output; it now writes a progress line to stderr at most once per
+  `OCTOPUS_COMMANDCODE_HEARTBEAT_SECS` (default 60, forwarded through the
+  provider's isolated environment) while that stream grows.
 
 ## [11.13.2] - 2026-10-10
 
