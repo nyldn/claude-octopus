@@ -25,7 +25,9 @@
   kept editing the shared worktree next to its own retry. The CLI now runs
   under `setpriv --pdeathsig KILL` where available (Linux), the helper kills
   it on TERM, INT or HUP, and on other platforms a watcher kills it within a
-  second of the helper disappearing.
+  second of the helper disappearing. TERM, INT and HUP cleanup also removes
+  its private temporary files and preserves the termination status if the
+  watcher has already exited.
 - Supervised Tangle implementers on Command Code are no longer stopped as
   stalled while the model is still reading and planning. The helper buffers
   the CLI's NDJSON event stream until the final result, so the watchdog saw

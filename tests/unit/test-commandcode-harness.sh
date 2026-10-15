@@ -192,4 +192,37 @@ else
 fi
 unset MOCK_PID_FILE MOCK_EVENT_GAP
 
+test_case "TERM cleanup preserves its status and removes files after the watcher exits"
+cleanup_dir="$FIXTURE_DIR/cancel-tmp"
+mkdir -p "$cleanup_dir"
+export MOCK_PID_FILE="$FIXTURE_DIR/cancel.pid" MOCK_EVENT_GAP=20
+printf 'implement' | TMPDIR="$cleanup_dir" OCTOPUS_COMMANDCODE_BIN="$SLOW_CLI" \
+    "$PROJECT_ROOT/scripts/helpers/commandcode-exec.sh" deepseek/deepseek-v4-pro yolo >/dev/null 2>&1 &
+helper_pid=$!
+watcher_pid=""
+cli_pid=""
+for _ in $(seq 1 50); do
+    cli_pid="$(cat "$MOCK_PID_FILE" 2>/dev/null || true)"
+    if [[ -n "$cli_pid" ]]; then
+        watcher_pid="$(ps -axo pid=,ppid= | awk -v parent="$helper_pid" -v cli="$cli_pid" '$2 == parent && $1 != cli { print $1; exit }')"
+        [[ -n "$watcher_pid" ]] && break
+    fi
+    sleep 0.1
+done
+if [[ -n "$watcher_pid" ]]; then
+    kill -TERM "$watcher_pid" 2>/dev/null || true
+    for _ in $(seq 1 50); do cli_gone "$watcher_pid" && break; sleep 0.1; done
+fi
+kill -TERM "$helper_pid" 2>/dev/null || true
+cleanup_rc=0
+wait "$helper_pid" 2>/dev/null || cleanup_rc=$?
+remaining_files="$(find "$cleanup_dir" -type f -print)"
+if [[ -n "$cli_pid" && -n "$watcher_pid" && "$cleanup_rc" -eq 143 && -z "$remaining_files" ]] && cli_gone "$cli_pid"; then
+    test_pass
+else
+    kill -KILL "$cli_pid" 2>/dev/null || true
+    test_fail "expected TERM status 143, stopped CLI and no temporary files; got status=$cleanup_rc files=$remaining_files"
+fi
+unset MOCK_PID_FILE MOCK_EVENT_GAP
+
 test_summary

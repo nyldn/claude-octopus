@@ -32,8 +32,8 @@ prompt_file="$(mktemp "${TMPDIR:-/tmp}/octopus-commandcode-prompt.XXXXXX")" || {
 cli_pid=""
 heartbeat_pid=""
 cleanup() {
-  [[ -n "$heartbeat_pid" ]] && kill "$heartbeat_pid" 2>/dev/null
-  [[ -n "$cli_pid" ]] && kill -KILL "$cli_pid" 2>/dev/null
+  [[ -n "$heartbeat_pid" ]] && kill "$heartbeat_pid" 2>/dev/null || true
+  [[ -n "$cli_pid" ]] && kill -KILL "$cli_pid" 2>/dev/null || true
   rm -f "$tmp" "$prompt_file"
 }
 trap cleanup EXIT
