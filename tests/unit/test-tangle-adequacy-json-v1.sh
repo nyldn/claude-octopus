@@ -37,6 +37,19 @@ tangle_adequacy_json_output_usable "$wrapped" && test_pass || test_fail "wrapped
 test_case "multiple adequacy JSON objects fail closed"
 tangle_adequacy_json_output_usable "$pass_json $fail_json" && test_fail "multiple objects accepted" || test_pass
 
+test_case "PASS without scope_review is accepted as an empty review"
+pass_without_scope='{"schema_version":1,"verdict":"pass","reasons":["Decomposition is adequate."]}'
+rendered="$(tangle_materialize_adequacy_response "$pass_without_scope")"
+if [[ "$rendered" == *"VERDICT: PASS"* && "$rendered" == *"SCOPE_REVIEW: NONE"* ]]; then
+  test_pass
+else
+  test_fail "PASS without scope_review rejected: $rendered"
+fi
+
+test_case "FAIL without scope_review still fails closed"
+bad='{"schema_version":1,"verdict":"fail","reasons":["The artifact has no owner."]}'
+tangle_adequacy_json_output_usable "$bad" && test_fail "FAIL without scope_review accepted" || test_pass
+
 test_case "PASS cannot contain scope actions"
 bad='{"schema_version":1,"verdict":"pass","reasons":["Looks good."],"scope_review":[{"action":"add_write","path":"src/a.ts","reason":"Contradiction."}]}'
 tangle_adequacy_json_output_usable "$bad" && test_fail "PASS with scope action accepted" || test_pass
@@ -72,6 +85,15 @@ if tangle_decomposition_adequacy_response_valid "$legacy" && tangle_materialize_
   test_pass
 else
   test_fail "legacy compatibility path missing or unlogged"
+fi
+
+test_case "materialized JSON review is structurally valid without the deprecation warning"
+: > "$log_file"
+rendered="$(tangle_materialize_adequacy_response "$pass_json")"
+if tangle_adequacy_legacy_response_valid "$rendered" && ! grep -q 'Deprecated Tangle textual adequacy' "$log_file"; then
+  test_pass
+else
+  test_fail "materialized JSON review rejected or logged as deprecated"
 fi
 
 test_case "architect adequacy ratio raises only the tangle architect budget"

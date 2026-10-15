@@ -71,6 +71,10 @@ def render(obj):
         print(f"- {names[item['action']]}: {item['path']} — {reason}")
 
 raw=sys.stdin.read(); obj=extract(raw)
+# A PASS verdict cannot carry scope actions, so a reviewer that omits the
+# empty scope_review list has still returned an unambiguous verdict.
+if isinstance(obj,dict) and obj.get("verdict")=="pass" and "scope_review" not in obj:
+    obj["scope_review"]=[]
 if obj is None or not valid(obj): raise SystemExit(1)
 if len(sys.argv)>1 and sys.argv[1]=="render": render(obj)
 else: sys.stdout.write(json.dumps(obj,ensure_ascii=False,separators=(",",":"))+"\n")
