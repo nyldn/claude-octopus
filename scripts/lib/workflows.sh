@@ -5177,7 +5177,10 @@ $(tangle_decomposition_json_contract_guidance)"
         fi
         if [[ "$second_adequacy_review_rc" -ne 0 ]] || \
            [[ -z "${adequacy_review//[[:space:]]/}" ]] || \
-           ! tangle_decomposition_adequacy_response_valid "$adequacy_review"; then
+           ! tangle_adequacy_legacy_response_valid "$adequacy_review"; then
+            # adequacy_review is already materialized into the internal
+            # VERDICT/REASONS/SCOPE_REVIEW form; re-materializing it would
+            # report the deprecated textual path for a JSON review.
             log ERROR "Second decomposition adequacy review did not complete or was malformed; refusing implementation spawn"
             return 1
         fi

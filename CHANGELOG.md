@@ -18,6 +18,16 @@
   `auth-invalid`. The provider is excluded from Council,
   and a proxy model name does not establish model-family independence.
 
+### Fixed
+
+- Tangle adequacy review accepts a JSON `pass` verdict that omits the empty
+  `scope_review` list instead of rejecting it as semantic-invalid and paying
+  for a fallback reviewer. A `fail` verdict still requires the field.
+- The second adequacy review after a planner reconsideration no longer logs
+  "Deprecated Tangle textual adequacy compatibility path used" for a JSON
+  review: the already materialized verdict is checked structurally instead of
+  being materialized again.
+
 ## [11.13.2] - 2026-10-10
 
 Provider routing and host detection fixes from [PR #1190](https://github.com/nyldn/claude-octopus/pull/1190), commit `b34780d48d9360d6c349c988e593be440b091c0f`.

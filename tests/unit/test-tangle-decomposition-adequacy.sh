@@ -140,6 +140,13 @@ EOF
                         printf '%s\n' 'VERDICT: PASS' 'REASONS: reconsidered decomposition now materializes the runnable entry point' 'SCOPE_REVIEW: NONE'
                     fi
                     ;;
+                adequacy-json-reconsideration)
+                    if [[ "$n" -eq 1 ]]; then
+                        printf '%s\n' '{"schema_version":1,"verdict":"fail","reasons":["existing workflow file is context-only and the app artifact is missing"],"scope_review":[{"action":"move_to_reads","path":"scripts/lib/workflows.sh","reason":"context only; create the app in a new tree"}]}'
+                    else
+                        printf '%s\n' '{"schema_version":1,"verdict":"pass","reasons":["write scope is limited to the new application artifacts"]}'
+                    fi
+                    ;;
                 adequacy-repair|reconsider-fallback|reconsider-third-fallback|reconsider-exhaust)
                     if [[ "$n" -eq 1 ]]; then
                         printf '%s\n' 'VERDICT: FAIL' 'REASONS: existing workflow file is context-only and the app artifact is missing' 'SCOPE_REVIEW:' '- MOVE_TO_READS: scripts/lib/workflows.sh — context only; create the app in a new tree'
@@ -274,6 +281,14 @@ if [[ "$(cat "$ADEQUACY_COUNT_FILE")" -eq 2 ]] && [[ "$(cat "$RECONSIDER_COUNT_F
     test_pass
 else
     test_fail "empty-but-valid reconsideration decisions incorrectly aborted the implementation"
+fi
+
+test_case "JSON second adequacy review avoids the deprecated textual warning"
+run_case "adequacy-json-reconsideration"
+if [[ "$(cat "$ADEQUACY_COUNT_FILE")" -eq 2 ]] && [[ "$(cat "$RECONSIDER_COUNT_FILE")" -eq 1 ]] && [[ -s "$SPAWN_FILE" ]] && ! grep -q 'Deprecated Tangle textual adequacy compatibility path used' "$LOG_FILE"; then
+    test_pass
+else
+    test_fail "JSON adequacy reconsideration re-entered the deprecated textual path"
 fi
 
 test_case "unusable planner reconsideration advances through configured fallback chain"
