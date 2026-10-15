@@ -373,6 +373,14 @@ Google seat), perplexity, opencode, openrouter, orcarouter, atlascloud,
 cheaperinference, api-route, litellm, openai-compatible, openai-tools, openai-compatible-agent, cursor-agent, grok,
 qwen, ollama, copilot, vibe, and kimi.
 
+`commandcode` reports progress to stderr while its event stream grows. Set
+`OCTOPUS_COMMANDCODE_HEARTBEAT_SECS` to a positive number of seconds (default
+60) to control the interval; invalid values use the default. The setting is
+forwarded through the provider environment. Progress lines indicate incoming
+events, not task completion. Cancellation stops the CLI and attempts to stop
+its descendants using an isolated process group or a process-tree fallback.
+TERM, INT and HUP also remove private temporary files.
+
 `cursor-agent` is the Cursor CLI (`agent` binary, `cursor` alias). Its auth
 probe lives in `scripts/lib/cursor-agent.sh` (`cursor_agent_is_available`):
 `CURSOR_API_KEY`, else an `authInfo` block in `~/.cursor/cli-config.json`

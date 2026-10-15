@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.14.0] - 2026-10-15
+
 ### Added
 
 - `litellm-agent` runs the OpenAI-compatible tool-loop helper against a
@@ -45,6 +47,10 @@
   no output; it now writes a progress line to stderr at most once per
   `OCTOPUS_COMMANDCODE_HEARTBEAT_SECS` (default 60, forwarded through the
   provider's isolated environment) while that stream grows.
+
+### Maintenance
+
+- CI artifact uploads use the verified immutable upload-artifact v7.0.2 commit.
 
 ## [11.13.2] - 2026-10-10
 
