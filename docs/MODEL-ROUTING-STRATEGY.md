@@ -46,8 +46,11 @@ only with explicit `--reasoning-effort none`; use Codex for reasoning with
 tools. Claude Code added Sonnet 5.5 in v2.1.284. Older clients can keep
 their existing Sonnet pin.
 
-The Chat Completions adapter maps `xhigh` and `max` to `high` for compatibility
-with gateways. Codex can use the reasoning efforts supported by its model list.
+Octopus accepts `ultra` through `OCTOPUS_CODEX_REASONING` or the shared
+`OCTOPUS_REASONING_LEVEL` setting and passes it unchanged to Codex. Select a
+model that supports that effort in the installed client's model list.
+Claude seats map `ultra` to `max`. OpenAI-compatible seats map `xhigh`, `max`,
+and `ultra` to `high` for compatibility with gateways.
 OpenRouter `:nitro` and `:floor` routing suffixes retain the base model's
 capability and standard-price estimates. Actual gateway prices can differ.
 

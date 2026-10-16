@@ -4,11 +4,13 @@
 
 ### Fixed
 
-- `octopus_normalize_reasoning_level` accepts `ultra`, the top Codex reasoning
-  effort for GPT-6 Astra and Sol. Before, `OCTOPUS_CODEX_REASONING=ultra` made
-  the resolver fail and every Codex dispatch ended with `Unknown agent type:
-  codex`, which hid the cause. Claude seats clamp `ultra` to `max` and
-  OpenAI-compatible seats to `high`, the top of their own domains.
+- Codex dispatch accepts `OCTOPUS_CODEX_REASONING=ultra` and the shared
+  `OCTOPUS_REASONING_LEVEL=ultra` setting instead of failing with
+  `Unknown agent type: codex`. Claude seats map `ultra` to `max`, and
+  OpenAI-compatible seats map it to `high`.
+  Resolves [#1200](https://github.com/nyldn/claude-octopus/issues/1200)
+  via [#1201](https://github.com/nyldn/claude-octopus/pull/1201),
+  commit `04b24c6eec77a88e39d2f8d5c2a8cd51aade7b78`.
 
 ## [11.14.0] - 2026-10-15
 
