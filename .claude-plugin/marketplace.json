@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "11.14.0"
+    "version": "11.14.1"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v11.14.0 - LiteLLM gateways, fewer Tangle review retries, and Command Code runs that stop when canceled. 31 personas, 54 commands, 63 skills. Run /octo:setup.",
-      "version": "11.14.0",
+      "description": "v11.14.1 - Codex ultra reasoning no longer fails at dispatch. 31 personas, 54 commands, 63 skills. Run /octo:setup.",
+      "version": "11.14.1",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.14.1] - 2026-10-16
+
 ### Fixed
 
 - Codex dispatch accepts `OCTOPUS_CODEX_REASONING=ultra` and the shared
