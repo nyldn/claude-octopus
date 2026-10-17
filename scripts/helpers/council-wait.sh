@@ -9,6 +9,8 @@
 #   council-wait.sh --run-dir DIR [--interval SECONDS] [--timeout SECONDS]
 #
 # Pool selection uses the creation counter, with run names for legacy ties.
+# --pool also searches the runner's per-session sub-pools (POOL/session-*/),
+# comparing their newest runs by UTC run name since counters are per pool.
 # --since filters immutable UTC creation timestamps in run names.
 # --supersede-key waits only for matching current rounds and follows a newer
 # matching pointer during the wait. Invalid pointers cannot select another pool.
@@ -69,21 +71,61 @@ _resolve_run_dir() {
         return 0
     fi
     [[ -d "$POOL" ]] || return 0
+    # The runner's default pool nests each run under a per-session sub-pool
+    # (POOL/session-<slug>/<run_id>). Search POOL itself and those sub-pools.
+    local pools=("$POOL") s i cand best=""
+    for s in "$POOL"/session-*/; do
+        [[ -d "$s" ]] || continue
+        s="${s%/}"
+        [[ ! -L "$s" && "${s##*/}" =~ ^session-[A-Za-z0-9._-]+$ ]] || continue
+        pools+=("$s")
+    done
     # Prefer the supersede-key pointer when given (the current gate's latest round).
+    # POOL's pointer may name `session-<slug>/<run_id>`; a sub-pool's names a run.
+    # Pointers in different sub-pools compare by their immutable UTC run names.
     if [[ -n "$KEY" ]]; then
-        local ptr="$POOL/latest-$(_slug "$KEY")" rid
-        if [[ -f "$ptr" ]]; then
-            rid="$(cat -- "$ptr" 2>/dev/null || true)"
-            if [[ "$rid" =~ ^2[0-9]{7}-[0-9]{6}-[0-9a-fA-F]+(-[0-9]+)?$ ]] && _eligible "$POOL/$rid"; then
-                printf '%s' "$POOL/$rid"; return 0
-            fi
-        fi
+        local slug
+        slug="$(_slug "$KEY")"
+        for (( i = 0; i < ${#pools[@]}; i++ )); do
+            cand="$(_pointer_target "${pools[$i]}/latest-$slug" "${pools[$i]}" "$(( i == 0 ))")" || continue
+            if [[ -z "$best" || "${cand##*/}" > "${best##*/}" ]]; then best="$cand"; fi
+        done
+        if [[ -n "$best" ]]; then printf '%s' "$best"; return 0; fi
     fi
     # Otherwise the newest timestamped run dir (optionally created at/after --since).
-    local d best="" order best_order=0
-    for d in "$POOL"/2*/; do
+    # Creation counters are per pool, so the newest per pool is compared across
+    # pools by the run name's UTC creation second.
+    for (( i = 0; i < ${#pools[@]}; i++ )); do
         # A partial scan cannot identify the newest run.
-        (( SECONDS <= deadline )) || return 0
+        cand="$(_pool_newest "${pools[$i]}")" || return 0
+        [[ -n "$cand" ]] || continue
+        local c_rid="${cand##*/}" b_rid="${best##*/}"
+        if [[ -z "$best" || "${c_rid:0:15}" > "${b_rid:0:15}" ]]; then best="$cand"; fi
+    done
+    [[ -n "$best" ]] && printf '%s' "$best"
+    return 0
+}
+
+_pointer_target() {
+    # Echo the eligible run dir a latest-<slug> pointer names, or fail.
+    local ptr="$1" base="$2" nested="$3" rid sub
+    [[ -f "$ptr" ]] || return 1
+    rid="$(cat -- "$ptr" 2>/dev/null || true)"
+    if [[ "$nested" == 1 && "$rid" == session-*/* ]]; then
+        sub="${rid%%/*}"; rid="${rid#*/}"
+        [[ "$sub" =~ ^session-[A-Za-z0-9._-]+$ && -d "$base/$sub" && ! -L "$base/$sub" ]] || return 1
+        base="$base/$sub"
+    fi
+    [[ "$rid" =~ ^2[0-9]{7}-[0-9]{6}-[0-9a-fA-F]+(-[0-9]+)?$ ]] && _eligible "$base/$rid" || return 1
+    printf '%s' "$base/$rid"
+}
+
+_pool_newest() {
+    # Echo the newest eligible run in one pool by creation counter (run names
+    # break ties). Fails when the deadline expires mid-scan.
+    local d best="" order best_order=0
+    for d in "$1"/2*/; do
+        (( SECONDS <= deadline )) || return 1
         [[ -d "$d" ]] || continue
         d="${d%/}"
         _eligible "$d" || continue
@@ -94,6 +136,7 @@ _resolve_run_dir() {
         fi
     done
     [[ -n "$best" ]] && printf '%s' "$best"
+    return 0
 }
 
 _eligible() {
