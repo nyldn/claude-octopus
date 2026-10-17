@@ -81,7 +81,7 @@ fi
 # The estimate sums ASCII at 4 chars per token and non-ASCII at 3 UTF-8 bytes
 # per token. The old estimate charged the WHOLE prompt at the byte rate once any
 # non-ASCII character appeared, so an em-dash cost a quarter of the budget
-# (sail-cruisey #3011). Detection needs a locale that counts characters.
+# (sail-cruisey #3011). Exercise UTF-8 calls here and the C locale below.
 utf8_locale=""
 for _loc in C.UTF-8 en_US.UTF-8 C.utf8 en_US.utf8; do
   if LC_ALL="$_loc" bash -c '[[ ${#1} -eq 1 ]]' _ "$(printf '\xe2\x80\x94')" 2>/dev/null; then utf8_locale="$_loc"; break; fi
@@ -95,7 +95,7 @@ else
   dashes50="$(printf '\xe2\x80\x94%.0s' $(seq 1 50))"
   cjk30="$(printf '\xe6\xbc\xa2%.0s' $(seq 1 30))"
   got=""
-  for sample in "$ascii4000" "${ascii4000}a" "${ascii4000:0:3999}${dashes50:0:1}" "${ascii4000:0:3300}${dashes50}" "$cjk30" ""; do
+  for sample in "$ascii4000" "${ascii4000}a" "${ascii4000:0:3999}—" "${ascii4000:0:3300}${dashes50}" "$cjk30" ""; do
     got="${got}$(LC_ALL="$utf8_locale" octo_estimate_prompt_tokens "$sample")|"
   done
   # 4000 ASCII -> 1000; 4001 -> 1001; 3999 + one em-dash -> 999.75 + 1 = 1001
@@ -133,6 +133,51 @@ else
   OCTOPUS_CONTEXT_OVERHEAD_TOKENS=1
 fi
 
+
+test_case "C locale token estimates preserve ASCII and UTF-8 byte rates"
+c_ascii="$(printf 'a%.0s' $(seq 1 3300))"
+c_dashes="$(printf '—%.0s' $(seq 1 50))"
+c_dense="$(printf '—%.0s' $(seq 1 1200))"
+c_cjk="$(printf '漢%.0s' $(seq 1 30))"
+c_estimates=""
+for sample in "" "$c_ascii" "${c_ascii}${c_dashes}" "$c_dense" "$c_cjk"; do
+  c_estimates="${c_estimates}$(LC_ALL=C octo_estimate_prompt_tokens "$sample")|"
+done
+if [[ "$c_estimates" == "0|825|875|1200|30|" ]]; then
+  test_pass
+else
+  test_fail "C-locale estimates=$c_estimates want 0|825|875|1200|30|"
+fi
+
+test_case "failed ASCII byte counting uses the conservative byte rate"
+set +e
+fallback_count="$(LC_ALL=C BASH_ENV=/dev/null bash -c '
+  set -euo pipefail
+  source "$1"
+  tr() { return 1; }
+  octo_estimate_prompt_tokens "$2"
+' _ "$PROJECT_ROOT/scripts/lib/dispatch.sh" "${c_ascii}${c_dashes}" 2>/dev/null)"
+fallback_rc=$?
+set -e
+if [[ "$fallback_rc" -eq 0 && "$fallback_count" == 1150 ]]; then
+  test_pass
+else
+  test_fail "failed counter returned rc=$fallback_rc estimate=$fallback_count, want 1150"
+fi
+
+test_case "C locale refuses a dense Unicode prompt above the token budget"
+OCTOPUS_CONTEXT_BUDGET=1002
+OCTOPUS_CONTEXT_OUTPUT_RESERVE_TOKENS=1
+OCTOPUS_CONTEXT_OVERHEAD_TOKENS=1
+OCTOPUS_OVERSIZE_STRATEGY=fail
+set +e
+LC_ALL=C enforce_context_budget "$c_dense" "" codex review >/dev/null 2>&1
+c_dense_rc=$?
+set -e
+if [[ "$c_dense_rc" -eq 78 ]]; then test_pass; else test_fail "1200-token prompt admitted at 1000 tokens (rc=$c_dense_rc)"; fi
+OCTOPUS_CONTEXT_BUDGET=12
+OCTOPUS_CONTEXT_OUTPUT_RESERVE_TOKENS=1
+OCTOPUS_CONTEXT_OVERHEAD_TOKENS=1
 
 test_case "preflight synthesizer inherits at least the target effective budget"
 OCTOPUS_CONTEXT_BUDGET=12000

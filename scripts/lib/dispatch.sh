@@ -1031,29 +1031,19 @@ octo_normalize_nonnegative_context_value() {
     printf '%s\n' "$normalized"
 }
 
-# Fast conservative estimate without launching a tokenizer. ASCII text counts
-# at 4 characters per token (ordinary prose); non-ASCII text counts at 3 UTF-8
-# bytes per token (about one token per CJK character or em-dash). The two
-# parts are summed, so a handful of non-ASCII characters costs a handful of
-# tokens. The previous estimate switched the WHOLE prompt to the byte rate as
-# soon as one such character appeared, which cut the effective budget of every
-# council prompt by about a quarter (sail-cruisey #3011). A pure-ASCII prompt
-# is still ceil(chars / 4). Non-ASCII detection relies on the caller's locale
-# counting characters, as before: under LC_ALL=C every prompt counts as ASCII.
+# Sum ASCII at four bytes per token and non-ASCII at three UTF-8 bytes per
+# token. Classify bytes in the C locale so the caller's locale cannot change
+# admission. Pure ASCII stays fork-free; failed counts use the stricter rate.
 octo_estimate_prompt_tokens() {
     local prompt="$1"
-    local chars=${#prompt}
     local LC_ALL=C
     local bytes=${#prompt}
-    if [[ "$bytes" -le "$chars" ]]; then
-        printf '%s\n' $(((chars + 3) / 4))
+    if [[ "$prompt" != *[$'\200'-$'\377']* ]]; then
+        printf '%s\n' $(((bytes + 3) / 4))
         return 0
     fi
-    # tr drops the non-ASCII bytes; what remains is the ASCII byte count. The
-    # local LC_ALL above is not exported, so set it for tr explicitly. If the
-    # count fails, 0 charges every byte at the stricter non-ASCII rate.
     local ascii_bytes
-    ascii_bytes="$(printf '%s' "$prompt" | LC_ALL=C tr -d '\200-\377' | wc -c | tr -d '[:space:]')"
+    ascii_bytes="$(printf '%s' "$prompt" | LC_ALL=C tr -d '\200-\377' | wc -c | tr -d '[:space:]')" || ascii_bytes=0
     [[ "$ascii_bytes" =~ ^[0-9]+$ && "$ascii_bytes" -le "$bytes" ]] || ascii_bytes=0
     local non_ascii_bytes=$((bytes - ascii_bytes))
     # ceil(ascii / 4 + non_ascii / 3), computed over the common denominator 12.

@@ -34,6 +34,10 @@
   estimates 875 tokens, not 1150. Pure-ASCII prompts are unchanged, and prompts
   that are mostly non-ASCII (CJK text) are still counted by bytes.
 
+- Token estimates classify UTF-8 bytes independently of the shell locale, so
+  C-locale processes cannot admit dense Unicode prompts at the ASCII rate.
+  Failed ASCII-byte counts retain the conservative byte rate.
+
 ## [11.14.1] - 2026-10-16
 
 ### Fixed
