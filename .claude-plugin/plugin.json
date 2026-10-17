@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.14.1",
-  "description": "v11.14.1 \u2014 Codex ultra reasoning no longer fails at dispatch. Run /octo:setup.",
+  "version": "11.14.2",
+  "description": "v11.14.2 - Council completion discovery across sessions and accurate context budgets for mixed-language prompts. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

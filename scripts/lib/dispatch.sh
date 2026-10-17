@@ -1031,24 +1031,23 @@ octo_normalize_nonnegative_context_value() {
     printf '%s\n' "$normalized"
 }
 
-# Fast conservative estimate without launching a tokenizer. The character
-# estimate is suitable for ordinary prose; the byte estimate closes the gap for
-# UTF-8-heavy prompts where one visible character occupies several bytes.
+# Sum ASCII at four bytes per token and non-ASCII at three UTF-8 bytes per
+# token. Classify bytes in the C locale so the caller's locale cannot change
+# admission. Pure ASCII stays fork-free; failed counts use the stricter rate.
 octo_estimate_prompt_tokens() {
     local prompt="$1"
-    local chars=${#prompt}
-    local char_tokens=$(((chars + 3) / 4))
     local LC_ALL=C
     local bytes=${#prompt}
-    local byte_tokens=0
-    if [[ "$bytes" -gt "$chars" ]]; then
-        byte_tokens=$(((bytes + 2) / 3))
+    if [[ "$prompt" != *[$'\200'-$'\377']* ]]; then
+        printf '%s\n' $(((bytes + 3) / 4))
+        return 0
     fi
-    if [[ "$byte_tokens" -gt "$char_tokens" ]]; then
-        printf '%s\n' "$byte_tokens"
-    else
-        printf '%s\n' "$char_tokens"
-    fi
+    local ascii_bytes
+    ascii_bytes="$(printf '%s' "$prompt" | LC_ALL=C tr -d '\200-\377' | wc -c | tr -d '[:space:]')" || ascii_bytes=0
+    [[ "$ascii_bytes" =~ ^[0-9]+$ && "$ascii_bytes" -le "$bytes" ]] || ascii_bytes=0
+    local non_ascii_bytes=$((bytes - ascii_bytes))
+    # ceil(ascii / 4 + non_ascii / 3), computed over the common denominator 12.
+    printf '%s\n' $(((ascii_bytes * 3 + non_ascii_bytes * 4 + 11) / 12))
 }
 
 octo_saturating_context_add() {
@@ -1501,7 +1500,7 @@ enforce_context_budget() {
     fi
 
     # Preserve the familiar four-character reporting boundary while admission
-    # uses the stricter of character- and UTF-8-byte-based estimates.
+    # uses the token estimate (ASCII at 4 chars per token, non-ASCII bytes at 3).
     local char_budget=$((budget * 4))
     local estimated_tokens summary_trigger_budget strategy admission_limit
     estimated_tokens="$(octo_estimate_prompt_tokens "$prompt")"
