@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.14.2] - 2026-10-17
+
 ### Fixed
 
 - `council-wait.sh --pool` now sees councils in the runner's per-session

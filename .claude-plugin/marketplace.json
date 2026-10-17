@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "11.14.1"
+    "version": "11.14.2"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v11.14.1 - Codex ultra reasoning no longer fails at dispatch. 31 personas, 54 commands, 63 skills. Run /octo:setup.",
-      "version": "11.14.1",
+      "description": "v11.14.2 - Council completion discovery across sessions and accurate context budgets for mixed-language prompts. 31 personas, 54 commands, 63 skills. Run /octo:setup.",
+      "version": "11.14.2",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"
