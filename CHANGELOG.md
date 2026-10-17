@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- The prompt token estimate now sums ASCII text at 4 characters per token and
+  non-ASCII text at 3 UTF-8 bytes per token. It used to charge the whole prompt
+  at the byte rate as soon as one non-ASCII character appeared, so a handful of
+  em-dashes or arrows (a project `AGENTS.md`, a plan, a diff comment) cut the
+  effective context budget of every seat by about a quarter. That is what
+  refused a 32457-character council prompt under a 41856-character limit in
+  sail-cruisey #3011. A prompt of 3300 ASCII characters and 50 em-dashes now
+  estimates 875 tokens, not 1150. Pure-ASCII prompts are unchanged, and prompts
+  that are mostly non-ASCII (CJK text) are still counted by bytes.
+
 ## [11.14.1] - 2026-10-16
 
 ### Fixed

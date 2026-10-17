@@ -78,6 +78,61 @@ else
   test_fail "byte-dense prompt bypassed token admission (rc=$emoji_rc)"
 fi
 
+# The estimate sums ASCII at 4 chars per token and non-ASCII at 3 UTF-8 bytes
+# per token. The old estimate charged the WHOLE prompt at the byte rate once any
+# non-ASCII character appeared, so an em-dash cost a quarter of the budget
+# (sail-cruisey #3011). Detection needs a locale that counts characters.
+utf8_locale=""
+for _loc in C.UTF-8 en_US.UTF-8 C.utf8 en_US.utf8; do
+  if LC_ALL="$_loc" bash -c '[[ ${#1} -eq 1 ]]' _ "$(printf '\xe2\x80\x94')" 2>/dev/null; then utf8_locale="$_loc"; break; fi
+done
+
+test_case "token estimate sums ASCII at 4 chars per token and non-ASCII at 3 bytes per token"
+if [[ -z "$utf8_locale" ]]; then
+  test_skip "no UTF-8 locale available"
+else
+  ascii4000="$(printf 'a%.0s' $(seq 1 4000))"
+  dashes50="$(printf '\xe2\x80\x94%.0s' $(seq 1 50))"
+  cjk30="$(printf '\xe6\xbc\xa2%.0s' $(seq 1 30))"
+  got=""
+  for sample in "$ascii4000" "${ascii4000}a" "${ascii4000:0:3999}${dashes50:0:1}" "${ascii4000:0:3300}${dashes50}" "$cjk30" ""; do
+    got="${got}$(LC_ALL="$utf8_locale" octo_estimate_prompt_tokens "$sample")|"
+  done
+  # 4000 ASCII -> 1000; 4001 -> 1001; 3999 + one em-dash -> 999.75 + 1 = 1001
+  # (was 1334); 3300 + 50 em-dashes -> 825 + 50 = 875 (was 1150); 30 CJK chars =
+  # 90 bytes -> 30; empty -> 0.
+  if [[ "$got" == "1000|1001|1001|875|30|0|" ]]; then
+    test_pass
+  else
+    test_fail "estimates=$got want 1000|1001|1001|875|30|0|"
+  fi
+fi
+
+test_case "a few non-ASCII characters no longer refuse an otherwise-fitting prompt"
+if [[ -z "$utf8_locale" ]]; then
+  test_skip "no UTF-8 locale available"
+else
+  OCTOPUS_CONTEXT_BUDGET=1002
+  OCTOPUS_CONTEXT_OUTPUT_RESERVE_TOKENS=1
+  OCTOPUS_CONTEXT_OVERHEAD_TOKENS=1
+  OCTOPUS_OVERSIZE_STRATEGY=fail
+  # 875 estimated tokens against a 1000-token admission limit. The old estimate
+  # made this 1150 and refused it.
+  mixed_prompt="$(printf 'a%.0s' $(seq 1 3300))$(printf '\xe2\x80\x94%.0s' $(seq 1 50))"
+  set +e
+  mixed_out="$(LC_ALL="$utf8_locale" enforce_context_budget "$mixed_prompt" "" codex review 2>/dev/null)"
+  mixed_rc=$?
+  set -e
+  if [[ "$mixed_rc" -eq 0 && "$mixed_out" == "$mixed_prompt" ]]; then
+    test_pass
+  else
+    test_fail "875-token prompt refused at a 1000-token budget (rc=$mixed_rc out_chars=${#mixed_out})"
+  fi
+  OCTOPUS_CONTEXT_BUDGET=12
+  OCTOPUS_CONTEXT_OUTPUT_RESERVE_TOKENS=1
+  OCTOPUS_CONTEXT_OVERHEAD_TOKENS=1
+fi
+
 
 test_case "preflight synthesizer inherits at least the target effective budget"
 OCTOPUS_CONTEXT_BUDGET=12000
