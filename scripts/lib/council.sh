@@ -4084,6 +4084,24 @@ council_mark_prior_runs_superseded() {
     return 0
 }
 
+council_publish_shared_pool_pointer() {
+    # The default pool nests runs per session (councils/session-<slug>/<run_id>),
+    # and supersession writes latest-<key> inside that session dir. Mirror it one
+    # level up as `session-<slug>/<run_id>` so council-wait.sh --pool councils/
+    # --supersede-key KEY finds the current round without knowing the session slug.
+    local session_pool="$1" key="$2" slug rid shared tmp
+    [[ -n "$key" && -d "$session_pool" ]] || return 0
+    slug="$(council_supersede_key_slug "$key")"
+    rid="$(cat -- "${session_pool}/latest-${slug}" 2>/dev/null || true)"
+    [[ "$rid" =~ ^2[0-9]{7}-[0-9]{6}-[0-9a-fA-F]+(-[0-9]+)?$ ]] || return 0
+    shared="${session_pool%/*}"
+    tmp="${shared}/.latest-${slug}.${BASHPID:-$$}"
+    if printf '%s/%s\n' "${session_pool##*/}" "$rid" > "$tmp" 2>/dev/null; then
+        mv -f "$tmp" "${shared}/latest-${slug}" 2>/dev/null || rm -f "$tmp" 2>/dev/null
+    fi
+    return 0
+}
+
 council_require_run_state_runtime() {
     if ! command -v python3 >/dev/null 2>&1; then
         printf '%s\n' 'council: Python 3 is required for atomic run-state updates. Install python3 and retry.' >&2
@@ -4097,7 +4115,7 @@ council_require_run_state_runtime() {
 
 council_create_run_dir() {
     council_require_run_state_runtime || return $?
-    local parent="$COUNCIL_OUTPUT_DIR"
+    local parent="$COUNCIL_OUTPUT_DIR" session_pool=0
     if [[ -z "$parent" ]]; then
         parent="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/councils"
         # Per-session isolation. Concurrent governed sessions on one machine
@@ -4110,6 +4128,7 @@ council_create_run_dir() {
         # restores the flat shared pool.
         if [[ "${OCTOPUS_COUNCIL_SHARED_POOL:-}" != "1" ]]; then
             parent="${parent}/session-$(council_session_slug)"
+            session_pool=1
         fi
     fi
 
@@ -4155,6 +4174,12 @@ council_create_run_dir() {
     # Now that this run's run-status.json (carrying any supersede key) is published,
     # supersede prior same-key runs in the pool and record the latest pointer.
     council_mark_prior_runs_superseded "$parent" "$COUNCIL_RUN_DIR" "${COUNCIL_SUPERSEDE_KEY:-}"
+    if [[ "$session_pool" == 1 ]]; then
+        council_publish_shared_pool_pointer "$parent" "${COUNCIL_SUPERSEDE_KEY:-}"
+    fi
+    # Name the exact run dir up front so a caller can wait on it with
+    # council-wait.sh --run-dir instead of resolving it from a pool.
+    printf 'Council run dir: %s\n' "$COUNCIL_RUN_DIR" >&2
 }
 
 council_write_summary_json() {

@@ -306,4 +306,56 @@ rc=0
 out="$(cd -- "$rd" && /bin/bash "$WAIT" --run-dir . --timeout 3 2>/dev/null)" || rc=$?
 if [[ "$rc" == 0 && "$out" == './summary.json' ]]; then test_pass; else test_fail "relative directory lost run identity"; fi
 
+# The runner's default pool nests runs as councils/session-<slug>/<run_id>/.
+test_case "a finished run in a session sub-pool returns immediately (sail-cruisey #3011)"
+pool="$(mktemp -d "$TEST_TMP_DIR/session.XXXXXX")"
+rd="$(_mkrun "$pool/session-abc-123" 20260101-000000-00aaaa finished yes "" 1)"
+start=$SECONDS
+_runwait --pool "$pool" --interval 1 --timeout 20
+if [[ $rc -eq 0 && "$out" == "$rd/summary.json" && $(( SECONDS - start )) -lt 5 ]]; then test_pass; else test_fail "rc=$rc out=$out elapsed=$(( SECONDS - start ))s"; fi
+
+test_case "--supersede-key honors a session sub-pool's latest pointer"
+pool="$(mktemp -d "$TEST_TMP_DIR/session-key.XXXXXX")"
+rd="$(_mkrun "$pool/session-abc-123" 20260101-000000-00aaaa finished yes "$key" 1)"
+printf '%s\n' 20260101-000000-00aaaa > "$pool/session-abc-123/latest-$slug"
+_runwait --pool "$pool" --supersede-key "$key" --interval 1 --timeout 5
+if [[ $rc -eq 0 && "$out" == "$rd/summary.json" ]]; then test_pass; else test_fail "rc=$rc out=$out"; fi
+
+test_case "the runner's shared-pool pointer resolves into its session sub-pool"
+pool="$(mktemp -d "$TEST_TMP_DIR/session-shared.XXXXXX")"
+rd="$(_mkrun "$pool/session-abc-123" 20260101-000000-00aaaa finished yes "$key" 1)"
+printf '%s\n' 20260101-000000-00aaaa > "$pool/session-abc-123/latest-$slug"
+if declare -f council_publish_shared_pool_pointer >/dev/null 2>&1; then
+    council_publish_shared_pool_pointer "$pool/session-abc-123" "$key"
+    pointer="$(cat "$pool/latest-$slug" 2>/dev/null || true)"
+    # Without the sub-pool's own pointer, only the shared pointer can resolve it.
+    rm -f "$pool/session-abc-123/latest-$slug"
+    _runwait --pool "$pool" --supersede-key "$key" --interval 1 --timeout 5
+    if [[ "$pointer" == "session-abc-123/20260101-000000-00aaaa" && $rc -eq 0 && "$out" == "$rd/summary.json" ]]; then test_pass; else test_fail "pointer=$pointer rc=$rc out=$out"; fi
+else
+    test_fail "council_publish_shared_pool_pointer unavailable"
+fi
+
+test_case "the newest run across session sub-pools wins over a stale finished one"
+pool="$(mktemp -d "$TEST_TMP_DIR/session-newest.XXXXXX")"
+_mkrun "$pool/session-aaa-1" 20260101-000000-00aaaa finished yes "" 9 >/dev/null
+_mkrun "$pool/session-bbb-2" 20260101-010000-00bbbb running yes "" 1 >/dev/null
+_runwait --pool "$pool" --interval 1 --timeout 2
+if [[ $rc -eq 2 ]]; then test_pass; else test_fail "selected the stale finished run: rc=$rc out=$out"; fi
+
+test_case "a shared pointer cannot escape its pool or follow a symlinked sub-pool"
+parent="$(mktemp -d "$TEST_TMP_DIR/session-escape.XXXXXX")"
+pool="$parent/pool"; mkdir -p "$pool"
+outside="$(_mkrun "$parent/session-out-1" 20260101-000000-00aaaa finished yes "$key" 1)"
+printf '%s\n' "session-x/../../session-out-1/20260101-000000-00aaaa" > "$pool/latest-$slug"
+_runwait --pool "$pool" --supersede-key "$key" --timeout 0
+escape_rc="$rc"
+ln -s "$parent/session-out-1" "$pool/session-out-1"
+printf '%s\n' "session-out-1/20260101-000000-00aaaa" > "$pool/latest-$slug"
+_runwait --pool "$pool" --supersede-key "$key" --timeout 0
+symlink_rc="$rc"
+rm -f "$pool/latest-$slug"
+_runwait --pool "$pool" --timeout 0
+if [[ "$escape_rc" == 2 && "$symlink_rc" == 2 && "$rc" == 2 ]]; then test_pass; else test_fail "escape=$escape_rc symlink=$symlink_rc scan=$rc (outside=$outside)"; fi
+
 test_summary
