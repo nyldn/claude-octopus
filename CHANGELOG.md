@@ -20,6 +20,10 @@
   creation, so callers can use `--run-dir` directly. Pointers still cannot
   leave the pool or follow a symlinked sub-pool.
 
+- A valid shared council pointer wins over session-local pointers when keyed
+  rounds share the same UTC creation second, preventing an older finished round
+  from satisfying a wait for a running round.
+
 - The prompt token estimate now sums ASCII text at 4 characters per token and
   non-ASCII text at 3 UTF-8 bytes per token. It used to charge the whole prompt
   at the byte rate as soon as one non-ASCII character appeared, so a handful of

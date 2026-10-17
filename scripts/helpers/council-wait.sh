@@ -73,7 +73,7 @@ _resolve_run_dir() {
     [[ -d "$POOL" ]] || return 0
     # The runner's default pool nests each run under a per-session sub-pool
     # (POOL/session-<slug>/<run_id>). Search POOL itself and those sub-pools.
-    local pools=("$POOL") s i cand best=""
+    local pools=("$POOL") s i cand best="" c_rid b_rid
     for s in "$POOL"/session-*/; do
         [[ -d "$s" ]] || continue
         s="${s%/}"
@@ -88,7 +88,10 @@ _resolve_run_dir() {
         slug="$(_slug "$KEY")"
         for (( i = 0; i < ${#pools[@]}; i++ )); do
             cand="$(_pointer_target "${pools[$i]}/latest-$slug" "${pools[$i]}" "$(( i == 0 ))")" || continue
-            if [[ -z "$best" || "${cand##*/}" > "${best##*/}" ]]; then best="$cand"; fi
+            c_rid="${cand##*/}"; b_rid="${best##*/}"
+            # The shared pointer is visited first and wins same-second ties.
+            # A run ID's PID suffix does not order creation across sessions.
+            if [[ -z "$best" || "${c_rid:0:15}" > "${b_rid:0:15}" ]]; then best="$cand"; fi
         done
         if [[ -n "$best" ]]; then printf '%s' "$best"; return 0; fi
     fi
@@ -99,7 +102,7 @@ _resolve_run_dir() {
         # A partial scan cannot identify the newest run.
         cand="$(_pool_newest "${pools[$i]}")" || return 0
         [[ -n "$cand" ]] || continue
-        local c_rid="${cand##*/}" b_rid="${best##*/}"
+        c_rid="${cand##*/}"; b_rid="${best##*/}"
         if [[ -z "$best" || "${c_rid:0:15}" > "${b_rid:0:15}" ]]; then best="$cand"; fi
     done
     [[ -n "$best" ]] && printf '%s' "$best"

@@ -336,6 +336,16 @@ else
     test_fail "council_publish_shared_pool_pointer unavailable"
 fi
 
+test_case "a shared pointer wins same-second ties over an older session pointer"
+pool="$(mktemp -d "$TEST_TMP_DIR/session-same-second.XXXXXX")"
+older="$(_mkrun "$pool/session-older-1" 20260101-000000-ffaaaa finished yes "$key" 1)"
+newer="$(_mkrun "$pool/session-newer-2" 20260101-000000-00bbbb running yes "$key" 1)"
+printf '%s\n' "${older##*/}" > "$pool/session-older-1/latest-$slug"
+printf '%s\n' "${newer##*/}" > "$pool/session-newer-2/latest-$slug"
+printf '%s\n' "session-newer-2/${newer##*/}" > "$pool/latest-$slug"
+_runwait --pool "$pool" --supersede-key "$key" --interval 1 --timeout 2
+if [[ $rc -eq 2 ]]; then test_pass; else test_fail "older finished run overrode the shared pointer: rc=$rc out=$out"; fi
+
 test_case "the newest run across session sub-pools wins over a stale finished one"
 pool="$(mktemp -d "$TEST_TMP_DIR/session-newest.XXXXXX")"
 _mkrun "$pool/session-aaa-1" 20260101-000000-00aaaa finished yes "" 9 >/dev/null
