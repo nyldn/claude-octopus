@@ -11,6 +11,8 @@
 # Pool selection uses the creation counter, with run names for legacy ties.
 # --pool also searches the runner's per-session sub-pools (POOL/session-*/),
 # comparing their newest runs by UTC run name since counters are per pool.
+# Different runs in the same newest UTC second are ambiguous across pools.
+# Selection fails closed; use --run-dir to identify one run exactly.
 # --since filters immutable UTC creation timestamps in run names.
 # --supersede-key waits only for matching current rounds and follows a newer
 # matching pointer during the wait. Invalid pointers cannot select another pool.
@@ -65,7 +67,7 @@ _slug() {
 }
 
 _resolve_run_dir() {
-    # Echo the run dir to await, or nothing if none is visible yet.
+    # Echo the run dir to await, or return 3 when its creation time is ambiguous.
     if [[ -n "$RUN_DIR" ]]; then
         [[ -d "$RUN_DIR" ]] && printf '%s' "$RUN_DIR"
         return 0
@@ -73,7 +75,7 @@ _resolve_run_dir() {
     [[ -d "$POOL" ]] || return 0
     # The runner's default pool nests each run under a per-session sub-pool
     # (POOL/session-<slug>/<run_id>). Search POOL itself and those sub-pools.
-    local pools=("$POOL") s i cand best="" c_rid b_rid
+    local pools=("$POOL") s i cand best="" c_rid b_rid ambiguous=0
     for s in "$POOL"/session-*/; do
         [[ -d "$s" ]] || continue
         s="${s%/}"
@@ -89,11 +91,18 @@ _resolve_run_dir() {
         for (( i = 0; i < ${#pools[@]}; i++ )); do
             cand="$(_pointer_target "${pools[$i]}/latest-$slug" "${pools[$i]}" "$(( i == 0 ))")" || continue
             c_rid="${cand##*/}"; b_rid="${best##*/}"
-            # The shared pointer is visited first and wins same-second ties.
-            # A run ID's PID suffix does not order creation across sessions.
-            if [[ -z "$best" || "${c_rid:0:15}" > "${b_rid:0:15}" ]]; then best="$cand"; fi
+            # The shared mirror can be stale; neither it nor PID suffixes
+            # can order different runs created within the same UTC second.
+            if [[ -z "$best" || "${c_rid:0:15}" > "${b_rid:0:15}" ]]; then
+                best="$cand"; ambiguous=0
+            elif [[ "${c_rid:0:15}" == "${b_rid:0:15}" && "$cand" != "$best" ]]; then
+                ambiguous=1
+            fi
         done
-        if [[ -n "$best" ]]; then printf '%s' "$best"; return 0; fi
+        if [[ -n "$best" ]]; then
+            (( ambiguous == 0 )) || return 3
+            printf '%s' "$best"; return 0
+        fi
     fi
     # Otherwise the newest timestamped run dir (optionally created at/after --since).
     # Creation counters are per pool, so the newest per pool is compared across
@@ -103,8 +112,13 @@ _resolve_run_dir() {
         cand="$(_pool_newest "${pools[$i]}")" || return 0
         [[ -n "$cand" ]] || continue
         c_rid="${cand##*/}"; b_rid="${best##*/}"
-        if [[ -z "$best" || "${c_rid:0:15}" > "${b_rid:0:15}" ]]; then best="$cand"; fi
+        if [[ -z "$best" || "${c_rid:0:15}" > "${b_rid:0:15}" ]]; then
+            best="$cand"; ambiguous=0
+        elif [[ "${c_rid:0:15}" == "${b_rid:0:15}" && "$cand" != "$best" ]]; then
+            ambiguous=1
+        fi
     done
+    (( ambiguous == 0 )) || return 3
     [[ -n "$best" ]] && printf '%s' "$best"
     return 0
 }
@@ -172,13 +186,18 @@ _is_finished() {
 }
 
 deadline=$(( SECONDS + TIMEOUT ))
-run_dir=""
+run_dir="" resolution_rc=0
 while :; do
-    if [[ -z "$run_dir" || -n "$KEY" ]]; then run_dir="$(_resolve_run_dir || true)"; fi
+    if [[ -z "$run_dir" || -n "$KEY" ]]; then
+        resolution_rc=0
+        run_dir="$(_resolve_run_dir)" || resolution_rc=$?
+    fi
     if [[ -n "$run_dir" ]] && _is_finished "$run_dir"; then
         (( SECONDS <= deadline )) || break
-        if [[ -n "$KEY" && "$(_resolve_run_dir || true)" != "$run_dir" ]]; then
-            run_dir=""
+        latest_dir="$run_dir" latest_rc=0
+        if [[ -n "$KEY" ]]; then latest_dir="$(_resolve_run_dir)" || latest_rc=$?; fi
+        if [[ "$latest_dir" != "$run_dir" || "$latest_rc" -ne 0 ]]; then
+            run_dir=""; resolution_rc="$latest_rc"
         else
             (( SECONDS <= deadline )) || break
             printf '%s/summary.json\n' "$run_dir"
@@ -191,6 +210,10 @@ while :; do
     (( delay <= remaining )) || delay="$remaining"
     sleep "$delay"
 done
+
+if (( resolution_rc == 3 )); then
+    printf '%s\n' 'council-wait: ambiguous runs created in the same UTC second; pass --run-dir to select an exact run' >&2
+fi
 
 printf 'council-wait: timed out after %ss (run: %s)\n' "$TIMEOUT" "${run_dir:-pending}" >&2
 exit 2
