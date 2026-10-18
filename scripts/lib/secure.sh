@@ -114,6 +114,7 @@ sanitize_secrets() {
         -e 's/xoxb-[A-Za-z0-9-]\{20,\}/[REDACTED-SLACK-BOT]/g' \
         -e 's/xoxp-[A-Za-z0-9-]\{20,\}/[REDACTED-SLACK-USER]/g' \
         -e 's/Bearer [A-Za-z0-9._-]\{20,\}/Bearer [REDACTED-BEARER]/g' \
+        -e 's/\([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]:[[:space:]]*[Bb][Aa][Ss][Ii][Cc][[:space:]]\{1,\}\)[A-Za-z0-9+\/=]\{1,\}/\1[REDACTED-BASIC]/g' \
         -e 's/eyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/[REDACTED-JWT]/g' \
         -e 's/-----BEGIN[A-Z ]*PRIVATE KEY-----[^-]*-----END[A-Z ]*PRIVATE KEY-----/[REDACTED-PRIVATE-KEY]/g' \
         -e 's|postgres://[^[:space:]]*|[REDACTED-CONNECTION-STRING]|g' \

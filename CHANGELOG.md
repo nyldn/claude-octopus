@@ -18,6 +18,7 @@
   Output is redacted before byte limits are applied so truncation cannot leave
   credential suffixes. Accepted complete responses remove their diagnostic
   capture even when the provider exits nonzero.
+  Basic Authorization credentials are also scrubbed from retained diagnostics.
 
 ## [11.14.2] - 2026-10-17
 

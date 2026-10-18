@@ -34,6 +34,8 @@ case "$mode" in
     stdout-error) printf 'ERROR: authentication failed (key sk-abcdefghijklmnopqrstuvwxyz0123)\n' ;;
     stderr-cut) printf 'sk-abcdefghijklmnopqrstuvwxyz0123%16352s' '' >&2 ;;
     stdout-cut) printf 'sk-abcdefghijklmnopqrstuvwxyz0123%4064s' '' ;;
+    stderr-basic) printf 'Authorization: Basic Zml4dHVyZS11c2VyOmZpeHR1cmUtcGFzcw==\n' >&2 ;;
+    stdout-basic) printf 'aUtHoRiZaTiOn: bAsIc Zml4dHVyZS11c2VyOmZpeHR1cmUtcGFzcw==\n' ;;
     silent) : ;;
     segv) printf 'agy native crash\n' >&2; exit 139 ;;
 esac
@@ -165,6 +167,20 @@ fi
 # ── Advice phase: the seat record and warnings carry the cause.
 # shellcheck source=/dev/null
 source "$PROJECT_ROOT/scripts/lib/council.sh" 2>/dev/null
+
+for stream in stderr stdout; do
+    test_case "$stream Basic authorization is redacted from captures and failure details"
+    cap="$CAP_DIR/stderr/$stream-basic.log"
+    run_failing_seat "$stream-basic" "$stream-basic" "$cap" || true
+    detail="$(council_seat_failure_detail "$cap" 1)"
+    if [[ -s "$cap" ]] && ! grep -Fq 'Zml4dHVyZS11c2VyOmZpeHR1cmUtcGFzcw==' "$cap" &&
+       grep -Fq '[REDACTED-BASIC]' "$cap" && [[ "$detail" == *'[REDACTED-BASIC]'* ]] &&
+       [[ "$detail" != *'Zml4dHVyZS11c2VyOmZpeHR1cmUtcGFzcw=='* ]]; then
+        test_pass
+    else
+        test_fail "$stream Basic authorization was retained in diagnostic output"
+    fi
+done
 
 _advice_run() {
     local d="$1" roster="$2"
