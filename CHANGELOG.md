@@ -13,6 +13,8 @@
   the cause. Chair-fallback attempts are captured the same way. Before this, a
   failing Claude seat showed only `no-response` in `summary.json` and
   "Agent claude failed with exit code 1" in the log (sail-cruisey #3032).
+  Redaction covers the failure reason as well as captured output. If the
+  sanitizer is unavailable or fails, provider diagnostics are not retained.
 
 ## [11.14.2] - 2026-10-17
 

@@ -29,8 +29,9 @@ run_failing_seat() (
     cat > "$fake_provider" <<EOF
 #!/usr/bin/env bash
 case "$mode" in
-    stderr) printf 'Error: claude session limit reached (key sk-abcdefghijklmnopqrstuvwxyz0123)\n' >&2 ;;
+    stderr) printf 'ERROR: claude session limit reached (key sk-abcdefghijklmnopqrstuvwxyz0123)\n' >&2 ;;
     stdout) printf '{"type":"result","is_error":true,"result":"Invalid model: claude-fable-5-1"}\n' ;;
+    stdout-error) printf 'ERROR: authentication failed (key sk-abcdefghijklmnopqrstuvwxyz0123)\n' ;;
     silent) : ;;
     segv) printf 'agy native crash\n' >&2; exit 139 ;;
 esac
@@ -76,9 +77,11 @@ else
     test_fail "rc=$rc capture=$(tr '\n' '|' < "$cap" 2>/dev/null)"
 fi
 
-test_case "captured stderr is private and secrets in it are scrubbed"
+test_case "captured stderr is private and secrets in the reason header and body are scrubbed"
 mode="$(stat -c '%a' "$cap" 2>/dev/null || stat -f '%Lp' "$cap" 2>/dev/null)"
-if [[ "$mode" == 600 ]] && ! grep -q 'sk-abcdefghijklmnopqrstuvwxyz0123' "$cap" && grep -q 'REDACTED-API-KEY' "$cap"; then
+if [[ "$mode" == 600 ]] && ! grep -q 'sk-abcdefghijklmnopqrstuvwxyz0123' "$cap" &&
+   grep -q '^== .*Exit code 1: claude session limit reached (key \[REDACTED-API-KEY\])' "$cap" &&
+   grep -q '^ERROR: claude session limit reached (key \[REDACTED-API-KEY\])' "$cap"; then
     test_pass
 else
     test_fail "mode=$mode capture=$(tr '\n' '|' < "$cap")"
@@ -92,6 +95,30 @@ if grep -q '^-- stdout tail (stderr was empty) --$' "$cap" && grep -q 'Invalid m
 else
     test_fail "capture=$(tr '\n' '|' < "$cap" 2>/dev/null)"
 fi
+
+test_case "stdout-only errors redact secrets from both the extracted reason and captured body"
+cap="$CAP_DIR/stderr/stdout-error.log"
+run_failing_seat stdout-error stdout-error "$cap" || true
+if [[ -s "$cap" ]] && ! grep -q 'sk-abcdefghijklmnopqrstuvwxyz0123' "$cap" &&
+   grep -q '^== .*Exit code 1: authentication failed (key \[REDACTED-API-KEY\])' "$cap" &&
+   grep -q '^ERROR: authentication failed (key \[REDACTED-API-KEY\])' "$cap"; then
+    test_pass
+else
+    test_fail "stdout error was not fully redacted"
+fi
+
+test_case "without the sanitizer no provider diagnostic is persisted"
+cap="$CAP_DIR/stderr/no-sanitizer.log"
+(unset -f sanitize_secrets; run_failing_seat no-sanitizer stderr "$cap") || true
+if [[ ! -e "$cap" ]]; then test_pass; else test_fail "capture exists without a sanitizer"; fi
+
+test_case "a sanitizer that emits output and then fails cannot persist a partial diagnostic"
+cap="$CAP_DIR/stderr/failed-sanitizer.log"
+(
+    sanitize_secrets() { printf '%s\n' "$1"; return 1; }
+    run_failing_seat failed-sanitizer stderr "$cap"
+) || true
+if [[ ! -e "$cap" ]]; then test_pass; else test_fail "capture exists after sanitization failed"; fi
 
 test_case "a silent failure still records the exit code"
 cap="$CAP_DIR/stderr/silent-case.log"

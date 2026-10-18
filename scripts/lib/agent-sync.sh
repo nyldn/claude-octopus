@@ -1287,10 +1287,10 @@ run_agent_sync_consultative() {
 # provider's stderr, or the tail of its stdout when stderr is empty (some CLIs
 # print their error there). Secrets are scrubbed and the file is private.
 octo_capture_seat_failure() {
-    local file="${_OCTOPUS_SEAT_STDERR_FILE:-}" agent="$1" rc="$2" reason="$3" err="$4" out="$5" body=""
+    local file="${_OCTOPUS_SEAT_STDERR_FILE:-}" agent="$1" rc="$2" reason="$3" err="$4" out="$5" body="" record=""
     [[ -n "$file" ]] || return 0
-    mkdir -p "$(dirname "$file")" 2>/dev/null || return 0
-    {
+    declare -F sanitize_secrets >/dev/null 2>&1 || return 0
+    record="$(
         printf '== %s %s exited %s: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$agent" "$rc" "$reason"
         if [[ -s "$err" ]]; then
             printf -- '-- stderr --\n'
@@ -1301,14 +1301,13 @@ octo_capture_seat_failure() {
         else
             printf -- '-- no stderr or stdout --\n'
         fi
-        if [[ -n "$body" ]]; then
-            if declare -F sanitize_secrets >/dev/null 2>&1; then
-                sanitize_secrets "$body"
-            else
-                printf '%s\n' "$body"
-            fi
-        fi
-    } | (umask 077; cat >> "$file") 2>/dev/null || true
+        printf '%s\n' "$body"
+    )"
+    # The reason can contain provider output too. Sanitize the entire event
+    # before opening the log, and discard even partial output on failure.
+    record="$(sanitize_secrets "$record")" || return 0
+    mkdir -p "$(dirname "$file")" 2>/dev/null || return 0
+    (umask 077; printf '%s\n' "$record" >> "$file") 2>/dev/null || true
 }
 
 # Print the timeout that replaces run_agent_sync's caller value, or return 1
