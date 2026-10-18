@@ -32,6 +32,8 @@ case "$mode" in
     stderr) printf 'ERROR: claude session limit reached (key sk-abcdefghijklmnopqrstuvwxyz0123)\n' >&2 ;;
     stdout) printf '{"type":"result","is_error":true,"result":"Invalid model: claude-fable-5-1"}\n' ;;
     stdout-error) printf 'ERROR: authentication failed (key sk-abcdefghijklmnopqrstuvwxyz0123)\n' ;;
+    stderr-cut) printf 'sk-abcdefghijklmnopqrstuvwxyz0123%16352s' '' >&2 ;;
+    stdout-cut) printf 'sk-abcdefghijklmnopqrstuvwxyz0123%4064s' '' ;;
     silent) : ;;
     segv) printf 'agy native crash\n' >&2; exit 139 ;;
 esac
@@ -112,10 +114,25 @@ cap="$CAP_DIR/stderr/no-sanitizer.log"
 (unset -f sanitize_secrets; run_failing_seat no-sanitizer stderr "$cap") || true
 if [[ ! -e "$cap" ]]; then test_pass; else test_fail "capture exists without a sanitizer"; fi
 
+for stream in stderr stdout; do
+    test_case "$stream credentials crossing the byte-tail boundary are redacted before truncation"
+    cap="$CAP_DIR/stderr/$stream-cut.log"
+    run_failing_seat "$stream-cut" "$stream-cut" "$cap" || true
+    if [[ -s "$cap" ]] && ! grep -q 'abcdefghijklmnopqrstuvwxyz0123' "$cap" &&
+       grep -q 'REDACTED-API-KEY' "$cap"; then
+        test_pass
+    else
+        test_fail "$stream capture retained a credential fragment at the byte boundary"
+    fi
+done
+
 test_case "a sanitizer that emits output and then fails cannot persist a partial diagnostic"
 cap="$CAP_DIR/stderr/failed-sanitizer.log"
 (
-    sanitize_secrets() { printf '%s\n' "$1"; return 1; }
+    sanitize_secrets() {
+        if (( $# )); then printf '%s\n' "$1"; else cat; fi
+        return 1
+    }
     run_failing_seat failed-sanitizer stderr "$cap"
 ) || true
 if [[ ! -e "$cap" ]]; then test_pass; else test_fail "capture exists after sanitization failed"; fi
@@ -212,6 +229,24 @@ if jq -e 'has("failure") | not' <<< "$rec" >/dev/null && [[ ! -e "$d/stderr/00-c
     test_pass
 else
     test_fail "record=$rec files=$(ls "$d/stderr" 2>/dev/null)"
+fi
+
+test_case "an accepted advice response removes its capture even when the provider exited nonzero"
+d="$(mktemp -d "$TEST_TMP_DIR/council-seat-salvaged.XXXXXX")"
+council_dispatch_member_detached() {
+    mkdir -p "$(dirname "$_OCTOPUS_SEAT_STDERR_FILE")"
+    printf 'trailing transport error\n' > "$_OCTOPUS_SEAT_STDERR_FILE"
+    printf 'Reviewed scripts/lib/agent-sync.sh:1289; the capture guard handles missing sanitizers.\n\nVERDICT: APPROVE\n' > "$3"
+    return 1
+}
+_advice_run "$d" '[{"persona":"code-reviewer","seat":"verifier","provider":"claude","provider_org":"anthropic","model":"m"}]'
+unset -f council_dispatch_member_detached
+rec="$(jq -c '.[0]' <<< "$COUNCIL_SEAT_RECORDS_JSON")"
+if jq -e '.status == "responded" and .verdict == "APPROVE" and (has("failure") | not)' <<< "$rec" >/dev/null &&
+   [[ ! -e "$d/stderr/00-code-reviewer.log" && -z "$COUNCIL_TIMEOUT_WARNINGS" ]]; then
+    test_pass
+else
+    test_fail "accepted response retained failure metadata or capture: $rec"
 fi
 
 test_case "a rejected chair-fallback attempt keeps its capture even when it left a partial response"

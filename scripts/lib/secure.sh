@@ -96,10 +96,16 @@ guard_output() {
 
 # ── Extracted from orchestrate.sh ──
 sanitize_secrets() {
-    local text="$1"
+    local text="${1-}"
 
-    # Apply sed-based stripping patterns
-    echo "$text" | sed \
+    # Accept a text argument or stdin so callers can redact before truncating.
+    {
+        if (( $# )); then
+            echo "$text"
+        else
+            cat
+        fi
+    } | sed \
         -e 's/sk-[A-Za-z0-9_-]\{20,\}/[REDACTED-API-KEY]/g' \
         -e 's/AKIA[A-Z0-9]\{16\}/[REDACTED-AWS-KEY]/g' \
         -e 's/ghp_[A-Za-z0-9]\{36,\}/[REDACTED-GITHUB-PAT]/g' \

@@ -3262,7 +3262,7 @@ council_run_advice_phase() {
             seat_status="timed-out"
             council_note_seat_timeout "$mprovider" "$persona" "$dispatch_rc" "$(council_seat_timeout "$mprovider")"
         fi
-        if (( dispatch_rc != 0 )); then
+        if (( dispatch_rc != 0 )) && [[ "$seat_status" != "responded" ]]; then
             failure="$(council_seat_failure_detail "$stderr_file" "$dispatch_rc")"
             [[ "$seat_status" == "no-response" ]] \
                 && council_note_seat_failure "$mprovider" "$persona" "$dispatch_rc" "$failure" "$stderr_file"

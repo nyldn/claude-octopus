@@ -1288,20 +1288,21 @@ run_agent_sync_consultative() {
 # print their error there). Secrets are scrubbed and the file is private.
 octo_capture_seat_failure() {
     local file="${_OCTOPUS_SEAT_STDERR_FILE:-}" agent="$1" rc="$2" reason="$3" err="$4" out="$5" body="" record=""
+    local section="-- no stderr or stdout --"
     [[ -n "$file" ]] || return 0
     declare -F sanitize_secrets >/dev/null 2>&1 || return 0
+    # Redact the stream first: a raw byte tail can remove a credential prefix.
+    # Keep pipefail local so a failed sanitizer cannot publish partial output.
+    if [[ -s "$err" ]]; then
+        body="$(set -o pipefail; sanitize_secrets < "$err" | tail -c 16384)" || return 0
+        section="-- stderr --"
+    elif [[ -s "$out" ]]; then
+        body="$(set -o pipefail; sanitize_secrets < "$out" | tail -c 4096)" || return 0
+        section="-- stdout tail (stderr was empty) --"
+    fi
     record="$(
         printf '== %s %s exited %s: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$agent" "$rc" "$reason"
-        if [[ -s "$err" ]]; then
-            printf -- '-- stderr --\n'
-            body="$(tail -c 16384 "$err")"
-        elif [[ -s "$out" ]]; then
-            printf -- '-- stdout tail (stderr was empty) --\n'
-            body="$(tail -c 4096 "$out")"
-        else
-            printf -- '-- no stderr or stdout --\n'
-        fi
-        printf '%s\n' "$body"
+        printf '%s\n' "$section" "$body"
     )"
     # The reason can contain provider output too. Sanitize the entire event
     # before opening the log, and discard even partial output on failure.

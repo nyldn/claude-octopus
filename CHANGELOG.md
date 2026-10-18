@@ -15,6 +15,9 @@
   "Agent claude failed with exit code 1" in the log (sail-cruisey #3032).
   Redaction covers the failure reason as well as captured output. If the
   sanitizer is unavailable or fails, provider diagnostics are not retained.
+  Output is redacted before byte limits are applied so truncation cannot leave
+  credential suffixes. Accepted complete responses remove their diagnostic
+  capture even when the provider exits nonzero.
 
 ## [11.14.2] - 2026-10-17
 
