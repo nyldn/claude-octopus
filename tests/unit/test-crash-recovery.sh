@@ -78,14 +78,19 @@ test_sanitize_github_tokens() {
 test_sanitize_bearer_tokens() {
     test_case "Sanitizes Bearer tokens"
 
-    local func_body
-    func_body=$(sed -n '/^sanitize_secrets()/,/^}/p' "$ALL_SRC")
-
-    if grep -q 'Bearer.*REDACTED' <<< "$func_body"; then
-        test_pass
-    else
-        test_fail "Bearer token sanitization not found"
-    fi
+    # Check behavior rather than the spelling of the sanitizer's regex.
+    # shellcheck source=/dev/null
+    source "$PROJECT_ROOT/scripts/lib/secure.sh"
+    local scheme input expected
+    for scheme in Bearer bearer bEaReR; do
+        input="Authorization: $scheme fixture-credential-value-12345"
+        expected="Authorization: $scheme [REDACTED-BEARER]"
+        if [[ "$(sanitize_secrets "$input")" != "$expected" ]]; then
+            test_fail "Bearer token was retained for scheme $scheme"
+            return
+        fi
+    done
+    test_pass
 }
 
 test_sanitize_jwt_tokens() {
