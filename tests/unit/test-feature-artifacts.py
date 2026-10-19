@@ -115,7 +115,7 @@ class Artifacts(unittest.TestCase):
 
     def test_publication_preserves_authentication_and_credential_policy_prose(self):
         feature = self.allocate()['feature']
-        phrases = ('Basic authentication', 'basic usage', 'the bearer of the token',
+        phrases = ('Basic authentication', 'basic usage', 'Basic example', 'the bearer of the token',
                    'Password: must contain 12 characters', 'Password: 12 characters',
                    'secret = rotated monthly')
         for kind, phrase in ((kind, phrase) for kind in

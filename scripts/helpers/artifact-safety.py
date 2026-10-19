@@ -27,7 +27,7 @@ def auth_prose(match):
     # Keep these documentation phrases; headers are always credentials.
     scheme = match.group(0).split()[0].lower()
     value = match.group(1).lower()
-    if scheme == 'basic' and value in ('authentication', 'usage'):
+    if scheme == 'basic' and value in ('authentication', 'usage', 'example'):
         return True
     return (scheme == 'bearer' and value == 'of'
             and re.search(r'\bthe[ \t]+$', match.string[:match.start()], re.I)

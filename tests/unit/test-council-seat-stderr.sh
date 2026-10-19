@@ -210,8 +210,17 @@ for stream in stderr stdout; do
     done <<'CREDENTIALS'
 json-basic|{"Authorization":"Basic dXNlcjpwYXNz"}|dXNlcjpwYXNz
 bare-basic|bAsIc dXNlcjpwYXNz|dXNlcjpwYXNz
+json-basic-short|{"Authorization":"Basic dTpw"}|dTpw
+bare-basic-short|bAsIc dTpw|dTpw
+basic-one-padding|Basic dTo=|dTo=
+basic-two-padding|Basic Og==|Og==
+basic-delimited|Basic dTpw; request rejected|dTpw
 lower-bearer|authorization: bearer fixture-credential-value-12345|fixture-credential-value-12345
 mixed-bearer|{"Authorization":"bEaReR fixture+credential/value~12345="}|fixture+credential/value~12345=
+short-bearer|authorization: bearer tok|tok
+short-json-bearer|{"Authorization":"bearer tok"}|tok
+url-auth|https://fixture-user:fixture-password@example.invalid/api|fixture-password
+mongo-srv|mongodb+srv://fixture-user:fixture-password@example.invalid/db|fixture-password
 fine-grained-pat|github_pat_fixturecredential1234567890|github_pat_fixturecredential1234567890
 github-app|ghs_fixturecredential1234567890|ghs_fixturecredential1234567890
 perplexity|pplx-fixturecredential1234567890|pplx-fixturecredential1234567890
@@ -223,13 +232,62 @@ CREDENTIALS
 done
 
 test_case "Basic prose survives argument and stdin sanitization"
-prose='basic usage; Basic example'
+prose='basic usage; Basic example; BASIC authentication'
 if [[ "$(sanitize_secrets "$prose")" == "$prose" &&
       "$(printf '%s\n' "$prose" | sanitize_secrets)" == "$prose" ]]; then
     test_pass
 else
     test_fail "ordinary Basic prose was redacted"
 fi
+
+test_case "short Basic redaction preserves punctuation and JSON boundaries"
+if [[ "$(sanitize_secrets 'Basic dTpw; request rejected')" == 'Basic [REDACTED-BASIC]; request rejected' &&
+      "$(sanitize_secrets '{"Authorization":"Basic dTo="}')" == '{"Authorization":"Basic [REDACTED-BASIC]"}' ]]; then
+    test_pass
+else
+    test_fail "short Basic redaction lost a token boundary"
+fi
+
+for stream in stderr stdout; do
+    test_case "$stream rejects an opaque named credential before the byte-tail limit"
+    cap="$CAP_DIR/stderr/$stream-opaque.log"
+    err="$CAP_DIR/opaque.err"; out="$CAP_DIR/opaque.out"
+    : > "$err"; : > "$out"
+    opaque='fixture-opaque-credential'
+    limit=16384; target="$err"
+    if [[ "$stream" == stdout ]]; then limit=4096; target="$out"; fi
+    printf '%s=%s%*s\n' MISTRAL_API_KEY "$opaque" "$((limit - ${#opaque}))" '' > "$target"
+    _OCTOPUS_SEAT_STDERR_FILE="$cap" octo_capture_seat_failure claude 1 'provider failed' "$err" "$out"
+    if [[ ! -e "$cap" ]]; then test_pass; else test_fail "opaque credential was retained after truncation"; fi
+done
+
+test_case "an opaque credential in the reason alone is withheld"
+cap="$CAP_DIR/stderr/opaque-reason.log"
+reason="$(printf '%s=%s' CURSOR_API_KEY "$opaque")"
+_OCTOPUS_SEAT_STDERR_FILE="$cap" octo_capture_seat_failure claude 1 "$reason" /dev/null /dev/null
+if [[ ! -e "$cap" ]]; then test_pass; else test_fail "opaque reason was retained"; fi
+
+test_case "oversized diagnostics are withheld before the byte-tail limit"
+cap="$CAP_DIR/stderr/oversized.log"
+err="$CAP_DIR/oversized.err"
+printf '%1048577s' '' > "$err"
+_OCTOPUS_SEAT_STDERR_FILE="$cap" octo_capture_seat_failure claude 1 'provider failed' "$err" /dev/null
+if [[ ! -e "$cap" ]]; then test_pass; else test_fail "oversized diagnostic was retained"; fi
+
+test_case "a failing artifact-safety gate cannot publish partial output"
+cap="$CAP_DIR/stderr/failed-certifier.log"
+(
+    python3() { printf 'partial provider diagnostic\n'; return 1; }
+    _OCTOPUS_SEAT_STDERR_FILE="$cap" octo_capture_seat_failure claude 1 'provider failed' /dev/null /dev/null
+)
+if [[ ! -e "$cap" ]]; then test_pass; else test_fail "capture exists after certification failed"; fi
+
+test_case "ordinary Basic prose remains in a retained diagnostic"
+cap="$CAP_DIR/stderr/basic-prose.log"
+err="$CAP_DIR/prose.err"
+printf '%s\n' "$prose" > "$err"
+_OCTOPUS_SEAT_STDERR_FILE="$cap" octo_capture_seat_failure claude 1 'provider failed' "$err" /dev/null
+if [[ -s "$cap" ]] && grep -Fq "$prose" "$cap"; then test_pass; else test_fail "Basic prose was discarded or redacted"; fi
 
 _advice_run() {
     local d="$1" roster="$2"
@@ -266,13 +324,13 @@ else
     test_fail "record=$rec warns=[$COUNCIL_TIMEOUT_WARNINGS]"
 fi
 
-test_case "a failure before any provider ran still names a cause and a file"
+test_case "a failure without retained diagnostics names an honest fallback and a file"
 d="$(mktemp -d "$TEST_TMP_DIR/council-seat-early.XXXXXX")"
 council_dispatch_member_detached() { return 1; }
 _advice_run "$d" '[{"persona":"code-reviewer","seat":"verifier","provider":"claude","provider_org":"anthropic","model":"m"}]'
 unset -f council_dispatch_member_detached
 rec="$(jq -c '.[0]' <<< "$COUNCIL_SEAT_RECORDS_JSON")"
-if jq -e '.failure.exit_code == 1 and (.failure.detail | contains("before a provider produced output"))' <<< "$rec" >/dev/null &&
+if jq -e '.failure.exit_code == 1 and (.failure.detail | contains("no provider diagnostics were retained"))' <<< "$rec" >/dev/null &&
    grep -q '^== .* dispatch exited 1$' "$d/stderr/00-code-reviewer.log"; then
     test_pass
 else

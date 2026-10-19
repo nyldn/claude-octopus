@@ -1289,15 +1289,18 @@ run_agent_sync_consultative() {
 octo_capture_seat_failure() {
     local file="${_OCTOPUS_SEAT_STDERR_FILE:-}" agent="$1" rc="$2" reason="$3" err="$4" out="$5" body="" record=""
     local section="-- no stderr or stdout --"
+    local scanner="${BASH_SOURCE[0]%/*}/../helpers/artifact-safety.py"
     [[ -n "$file" ]] || return 0
     declare -F sanitize_secrets >/dev/null 2>&1 || return 0
+    command -v python3 >/dev/null 2>&1 && [[ -f "$scanner" ]] || return 0
     # Redact the stream first: a raw byte tail can remove a credential prefix.
-    # Keep pipefail local so a failed sanitizer cannot publish partial output.
+    # Certify before truncation too: a tail can remove an opaque key's field name.
+    # Keep pipefail local so a failed sanitizer or gate cannot publish partial output.
     if [[ -s "$err" ]]; then
-        body="$(set -o pipefail; sanitize_secrets < "$err" | tail -c 16384)" || return 0
+        body="$(set -o pipefail; sanitize_secrets < "$err" | python3 "$scanner" --redact | tail -c 16384)" || return 0
         section="-- stderr --"
     elif [[ -s "$out" ]]; then
-        body="$(set -o pipefail; sanitize_secrets < "$out" | tail -c 4096)" || return 0
+        body="$(set -o pipefail; sanitize_secrets < "$out" | python3 "$scanner" --redact | tail -c 4096)" || return 0
         section="-- stdout tail (stderr was empty) --"
     fi
     record="$(
@@ -1306,7 +1309,7 @@ octo_capture_seat_failure() {
     )"
     # The reason can contain provider output too. Sanitize the entire event
     # before opening the log, and discard even partial output on failure.
-    record="$(sanitize_secrets "$record")" || return 0
+    record="$(set -o pipefail; sanitize_secrets "$record" | python3 "$scanner" --redact)" || return 0
     mkdir -p "$(dirname "$file")" 2>/dev/null || return 0
     (umask 077; printf '%s\n' "$record" >> "$file") 2>/dev/null || true
 }

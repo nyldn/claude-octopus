@@ -21,6 +21,11 @@
   Basic Authorization credentials are also scrubbed from retained diagnostics.
   This includes JSON and bare Basic values, case variants of Bearer tokens,
   fine-grained GitHub tokens, and recognizable provider credential prefixes.
+  Short Basic credentials preserve their token boundaries. Diagnostics also
+  pass the shared credential-safety check before byte limits and retention;
+  unsupported sensitive assignments or output that fails that check are
+  omitted. Missing captures report that diagnostics were not retained rather
+  than assuming the provider never ran.
 
 ## [11.14.2] - 2026-10-17
 

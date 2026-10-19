@@ -3076,13 +3076,13 @@ council_note_seat_timeout() {
 
 council_seat_failure_detail() {
     # One line naming why a seat exited non-zero, from the capture file that
-    # run_agent_sync appends to (octo_capture_seat_failure). A dispatch that
-    # failed before any provider ran leaves no capture, so write one that says
-    # so: summary.json always carries a cause and a file to read.
+    # run_agent_sync appends to (octo_capture_seat_failure). An early dispatch
+    # failure or rejected diagnostic leaves no capture. Do not infer which
+    # happened from a missing file: record only what is known.
     local file="$1" rc="$2" line=""
     if [[ ! -s "$file" ]]; then
         mkdir -p "$(dirname "$file")" 2>/dev/null || true
-        (umask 077; printf '== %s dispatch exited %s\nthe dispatch failed before a provider produced output; no provider stderr was captured\n' \
+        (umask 077; printf '== %s dispatch exited %s\nno provider diagnostics were retained; dispatch may have failed before a provider produced output, or sanitization was unavailable or failed\n' \
             "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$rc" > "$file") 2>/dev/null || true
     fi
     # Prefer the last captured stderr/stdout line; fall back to the attempt header.
