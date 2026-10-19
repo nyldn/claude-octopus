@@ -19,6 +19,8 @@
   credential suffixes. Accepted complete responses remove their diagnostic
   capture even when the provider exits nonzero.
   Basic Authorization credentials are also scrubbed from retained diagnostics.
+  This includes JSON and bare Basic values, case variants of Bearer tokens,
+  fine-grained GitHub tokens, and recognizable provider credential prefixes.
 
 ## [11.14.2] - 2026-10-17
 

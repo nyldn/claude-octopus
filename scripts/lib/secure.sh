@@ -108,13 +108,21 @@ sanitize_secrets() {
     } | sed \
         -e 's/sk-[A-Za-z0-9_-]\{20,\}/[REDACTED-API-KEY]/g' \
         -e 's/AKIA[A-Z0-9]\{16\}/[REDACTED-AWS-KEY]/g' \
+        -e 's/ASIA[A-Z0-9]\{16\}/[REDACTED-AWS-KEY]/g' \
         -e 's/ghp_[A-Za-z0-9]\{36,\}/[REDACTED-GITHUB-PAT]/g' \
+        -e 's/github_pat_[A-Za-z0-9_]\{16,\}/[REDACTED-GITHUB-PAT]/g' \
+        -e 's/gh[usr]_[A-Za-z0-9]\{16,\}/[REDACTED-GITHUB-TOKEN]/g' \
         -e 's/gho_[A-Za-z0-9]\{36,\}/[REDACTED-GITHUB-OAUTH]/g' \
+        -e 's/pplx-[A-Za-z0-9_-]\{16,\}/[REDACTED-API-KEY]/g' \
+        -e 's/AIza[A-Za-z0-9_-]\{16,\}/[REDACTED-API-KEY]/g' \
+        -e 's/hf_[A-Za-z0-9]\{16,\}/[REDACTED-API-KEY]/g' \
         -e 's/glpat-[A-Za-z0-9_-]\{20,\}/[REDACTED-GITLAB-PAT]/g' \
         -e 's/xoxb-[A-Za-z0-9-]\{20,\}/[REDACTED-SLACK-BOT]/g' \
         -e 's/xoxp-[A-Za-z0-9-]\{20,\}/[REDACTED-SLACK-USER]/g' \
-        -e 's/Bearer [A-Za-z0-9._-]\{20,\}/Bearer [REDACTED-BEARER]/g' \
+        -e 's/xox[ars]-[A-Za-z0-9-]\{16,\}/[REDACTED-SLACK-TOKEN]/g' \
+        -e 's/\([Bb][Ee][Aa][Rr][Ee][Rr][[:space:]]\{1,\}\)[A-Za-z0-9._~+\/=-]\{12,\}/\1[REDACTED-BEARER]/g' \
         -e 's/\([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]:[[:space:]]*[Bb][Aa][Ss][Ii][Cc][[:space:]]\{1,\}\)[A-Za-z0-9+\/=]\{1,\}/\1[REDACTED-BASIC]/g' \
+        -e 's/\([Bb][Aa][Ss][Ii][Cc][[:space:]]\{1,\}\)[A-Za-z0-9+\/=]\{12,\}/\1[REDACTED-BASIC]/g' \
         -e 's/eyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*/[REDACTED-JWT]/g' \
         -e 's/-----BEGIN[A-Z ]*PRIVATE KEY-----[^-]*-----END[A-Z ]*PRIVATE KEY-----/[REDACTED-PRIVATE-KEY]/g' \
         -e 's|postgres://[^[:space:]]*|[REDACTED-CONNECTION-STRING]|g' \

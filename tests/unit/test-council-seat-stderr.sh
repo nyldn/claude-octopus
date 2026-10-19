@@ -182,6 +182,55 @@ for stream in stderr stdout; do
     fi
 done
 
+# Exercise both retained streams and the summary/warning detail with inert
+# credentials. Keep the original dispatch tests above as the integration path.
+for stream in stderr stdout; do
+    while IFS='|' read -r label input secret; do
+        # Assemble this inert token so secret scanners do not flag the fixture.
+        if [[ "$label" == slack-app ]]; then
+            input="xoxa-$input"; secret="xoxa-$secret"
+        fi
+        test_case "$stream $label is redacted before capture and failure detail"
+        cap="$CAP_DIR/stderr/$stream-$label.log"
+        err="$CAP_DIR/provider.err"; out="$CAP_DIR/provider.out"
+        : > "$err"; : > "$out"
+        if [[ "$stream" == stderr ]]; then
+            printf '%s\n' "$input" > "$err"
+        else
+            printf '%s\n' "$input" > "$out"
+        fi
+        _OCTOPUS_SEAT_STDERR_FILE="$cap" octo_capture_seat_failure claude 1 "$input" "$err" "$out"
+        detail="$(council_seat_failure_detail "$cap" 1)"
+        if [[ -s "$cap" && "$detail" == *'[REDACTED-'* && "$detail" != *"$secret"* ]] &&
+           ! grep -Fq "$secret" "$cap"; then
+            test_pass
+        else
+            test_fail "$stream $label was retained in the capture or failure detail"
+        fi
+    done <<'CREDENTIALS'
+json-basic|{"Authorization":"Basic dXNlcjpwYXNz"}|dXNlcjpwYXNz
+bare-basic|bAsIc dXNlcjpwYXNz|dXNlcjpwYXNz
+lower-bearer|authorization: bearer fixture-credential-value-12345|fixture-credential-value-12345
+mixed-bearer|{"Authorization":"bEaReR fixture+credential/value~12345="}|fixture+credential/value~12345=
+fine-grained-pat|github_pat_fixturecredential1234567890|github_pat_fixturecredential1234567890
+github-app|ghs_fixturecredential1234567890|ghs_fixturecredential1234567890
+perplexity|pplx-fixturecredential1234567890|pplx-fixturecredential1234567890
+google|AIzaFixtureCredential1234567890|AIzaFixtureCredential1234567890
+huggingface|hf_fixturecredential1234567890|hf_fixturecredential1234567890
+aws-session|ASIA1234567890ABCDEF|ASIA1234567890ABCDEF
+slack-app|fixturecredential1234567890|fixturecredential1234567890
+CREDENTIALS
+done
+
+test_case "Basic prose survives argument and stdin sanitization"
+prose='basic usage; Basic example'
+if [[ "$(sanitize_secrets "$prose")" == "$prose" &&
+      "$(printf '%s\n' "$prose" | sanitize_secrets)" == "$prose" ]]; then
+    test_pass
+else
+    test_fail "ordinary Basic prose was redacted"
+fi
+
 _advice_run() {
     local d="$1" roster="$2"
     mkdir -p "$d/responses"
