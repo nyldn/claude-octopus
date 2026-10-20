@@ -372,6 +372,28 @@ else
     test_fail "accepted response retained failure metadata or capture: $rec"
 fi
 
+for retry_output in empty partial; do
+    test_case "a rejected $retry_output retry retains the failed advice attempt and its exit code"
+    d="$(mktemp -d "$TEST_TMP_DIR/council-seat-retry.XXXXXX")"
+    council_dispatch_member_detached() {
+        mkdir -p "$(dirname "$_OCTOPUS_SEAT_STDERR_FILE")"
+        printf '== 2026-10-17T03:12:42Z agy exited 139: SIGSEGV; retrying once\n-- stderr --\nError: native crash\n' > "$_OCTOPUS_SEAT_STDERR_FILE"
+        if [[ "$retry_output" == partial ]]; then
+            printf 'I cannot access the plan files\n' > "$3"
+        fi
+        return 0
+    }
+    _advice_run "$d" '[{"persona":"code-reviewer","seat":"verifier","provider":"agy","provider_org":"google","model":"m"}]'
+    unset -f council_dispatch_member_detached
+    rec="$(jq -c '.[0]' <<< "$COUNCIL_SEAT_RECORDS_JSON")"
+    if jq -e '.status != "responded" and .failure.exit_code == 139 and .failure.detail == "Error: native crash"' <<< "$rec" >/dev/null &&
+       [[ -s "$d/stderr/00-code-reviewer.log" && "$COUNCIL_TIMEOUT_WARNINGS" == *"exited 139: Error: native crash;"* && "$COUNCIL_TIMEOUT_WARNINGS" != *"exited 0:"* ]]; then
+        test_pass
+    else
+        test_fail "retry discarded or misreported the failed attempt: $rec warns=[$COUNCIL_TIMEOUT_WARNINGS]"
+    fi
+done
+
 test_case "a rejected chair-fallback attempt keeps its capture even when it left a partial response"
 # _advice_run unset its chair-fallback stub, which also removed the real one.
 # shellcheck source=/dev/null
@@ -394,6 +416,49 @@ if [[ "$logs" -ge 1 && "$COUNCIL_TIMEOUT_WARNINGS" == *"(chair fallback "*") exi
     test_pass
 else
     test_fail "logs=$logs warns=[$COUNCIL_TIMEOUT_WARNINGS]"
+fi
+
+
+test_case "a rejected chair retry retains the failed first attempt and reports its exit code"
+d="$(mktemp -d "$TEST_TMP_DIR/council-fallback-retry.XXXXXX")"; mkdir -p "$d/responses"
+COUNCIL_RUN_DIR="$d"; COUNCIL_FIXTURE=""; COUNCIL_TIMEOUT_WARNINGS=""; COUNCIL_SEAT_RECORDS_JSON='[]'
+council_pick_provider() { printf 'agy\n'; }
+council_provider_is_available() { return 0; }
+council_dispatch_member_detached() {
+    mkdir -p "$(dirname "$_OCTOPUS_SEAT_STDERR_FILE")"
+    printf '== 2026-10-17T03:12:42Z agy exited 139: SIGSEGV; retrying once\n-- stderr --\nError: native crash\n' > "$_OCTOPUS_SEAT_STDERR_FILE"
+    printf 'I cannot access the plan files\n' > "$3"
+    return 0
+}
+council_run_chair_fallback sha256:test >/dev/null 2>&1 || true
+unset -f council_pick_provider council_provider_is_available council_dispatch_member_detached
+logs="$({ find "$d/stderr" -name '*chair-fallback*.log' 2>/dev/null || true; } | wc -l | tr -d ' ')"
+if [[ "$logs" -ge 1 && "$COUNCIL_TIMEOUT_WARNINGS" == *"exited 139: Error: native crash;"* && "$COUNCIL_TIMEOUT_WARNINGS" != *"exited 0:"* ]] &&
+   [[ -z "$(find "$d/responses" -name '*chair-fallback*' 2>/dev/null || true)" ]]; then
+    test_pass
+else
+    test_fail "retry captures=$logs warns=[$COUNCIL_TIMEOUT_WARNINGS]"
+fi
+
+test_case "an accepted chair response removes its capture despite a nonzero exit"
+d="$(mktemp -d "$TEST_TMP_DIR/council-fallback-salvaged.XXXXXX")"; mkdir -p "$d/responses"
+COUNCIL_RUN_DIR="$d"; COUNCIL_FIXTURE=""; COUNCIL_TIMEOUT_WARNINGS=""; COUNCIL_SEAT_RECORDS_JSON='[]'
+council_pick_provider() { printf 'claude\n'; }
+council_provider_is_available() { return 0; }
+council_dispatch_member_detached() {
+    mkdir -p "$(dirname "$_OCTOPUS_SEAT_STDERR_FILE")"
+    printf 'trailing transport error\n' > "$_OCTOPUS_SEAT_STDERR_FILE"
+    printf 'Reviewed scripts/lib/agent-sync.sh:1289; the capture guard handles missing sanitizers.\n\nVERDICT: APPROVE\n' > "$3"
+    return 1
+}
+council_run_chair_fallback sha256:test >/dev/null 2>&1 || true
+unset -f council_pick_provider council_provider_is_available council_dispatch_member_detached
+if [[ "$COUNCIL_CHAIR_RESPONSE_RECEIVED" == true && -z "$COUNCIL_TIMEOUT_WARNINGS" ]] &&
+   [[ -z "$(find "$d/stderr" -name '*chair-fallback*.log' 2>/dev/null || true)" ]] &&
+   jq -e 'length == 1 and (.[0] | .status == "responded" and (has("failure") | not))' <<< "$COUNCIL_SEAT_RECORDS_JSON" >/dev/null; then
+    test_pass
+else
+    test_fail "accepted chair retained diagnostic state: $COUNCIL_SEAT_RECORDS_JSON warns=[$COUNCIL_TIMEOUT_WARNINGS]"
 fi
 
 test_summary

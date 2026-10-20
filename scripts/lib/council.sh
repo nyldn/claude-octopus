@@ -3074,6 +3074,21 @@ council_note_seat_timeout() {
 }${line}"
 }
 
+council_seat_failure_exit_code() {
+    # A successful but rejected retry can leave an earlier failed attempt.
+    # Use its last nonzero exit code; malformed or absent captures keep the
+    # dispatch result. Read only event headers, never arbitrary diagnostic lines.
+    local file="$1" fallback="$2" code
+    code="$(awk -v fallback="$fallback" '
+        /^== [^ ]+ [^ ]+ exited [0-9]+:/ {
+            code = $5; sub(/:$/, "", code)
+            if (code > 0 && code <= 255) rc = code
+        }
+        END { print rc ? rc : fallback }
+    ' "$file" 2>/dev/null)" || code="$fallback"
+    printf '%s\n' "$code"
+}
+
 council_seat_failure_detail() {
     # One line naming why a seat exited non-zero, from the capture file that
     # run_agent_sync appends to (octo_capture_seat_failure). An early dispatch
@@ -3186,7 +3201,7 @@ council_run_advice_phase() {
         COUNCIL_SEATS_DISPATCHED=$((COUNCIL_SEATS_DISPATCHED + 1))
         # The detached seat's stderr reaches no one; a seat that exits non-zero
         # leaves its provider stderr here.
-        local stderr_file="${COUNCIL_RUN_DIR}/stderr/$(basename "$output_path" .md).log" failure=""
+        local stderr_file="${COUNCIL_RUN_DIR}/stderr/$(basename "$output_path" .md).log" failure="" failure_rc=0
         rm -f "$stderr_file" 2>/dev/null
         _OCTOPUS_SEAT_STDERR_FILE="$stderr_file" \
             council_dispatch_member_detached "$member" "independent-advice" "$output_path" || dispatch_rc=$?
@@ -3262,10 +3277,11 @@ council_run_advice_phase() {
             seat_status="timed-out"
             council_note_seat_timeout "$mprovider" "$persona" "$dispatch_rc" "$(council_seat_timeout "$mprovider")"
         fi
-        if (( dispatch_rc != 0 )) && [[ "$seat_status" != "responded" ]]; then
-            failure="$(council_seat_failure_detail "$stderr_file" "$dispatch_rc")"
-            [[ "$seat_status" == "no-response" ]] \
-                && council_note_seat_failure "$mprovider" "$persona" "$dispatch_rc" "$failure" "$stderr_file"
+        if [[ "$seat_status" != "responded" ]] && { (( dispatch_rc != 0 )) || [[ -s "$stderr_file" ]]; }; then
+            failure_rc="$(council_seat_failure_exit_code "$stderr_file" "$dispatch_rc")"
+            failure="$(council_seat_failure_detail "$stderr_file" "$failure_rc")"
+            [[ "$seat_status" == "timed-out" ]] \
+                || council_note_seat_failure "$mprovider" "$persona" "$failure_rc" "$failure" "$stderr_file"
         else
             rm -f "$stderr_file" 2>/dev/null
         fi
@@ -3287,7 +3303,7 @@ council_run_advice_phase() {
               contribution:$contribution,
               timeout_provenance:(if $timeout_provenance=="" then null else $timeout_provenance end),
               counted_as_approver:false}')"
-        [[ -n "$failure" ]] && seat_rec="$(jq -c --argjson rc "$dispatch_rc" --arg d "$failure" --arg f "$stderr_file" \
+        [[ -n "$failure" ]] && seat_rec="$(jq -c --argjson rc "$failure_rc" --arg d "$failure" --arg f "$stderr_file" \
             '.failure = {exit_code:$rc, detail:$d, stderr_file:$f}' <<< "$seat_rec")"
         COUNCIL_SEAT_RECORDS_JSON="$(jq -c ". + [$seat_rec]" <<< "$COUNCIL_SEAT_RECORDS_JSON")"
         index=$((index + 1))
@@ -3476,11 +3492,13 @@ council_run_chair_fallback() {
             COUNCIL_SEAT_RECORDS_JSON="$(jq -c ". + [$seat_rec]" <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}")"
             return 0
         fi
-        # Rejected. A non-zero exit keeps its capture and names the cause, even
-        # when the provider left a partial response behind.
-        if (( dispatch_rc != 0 )); then
-            council_note_seat_failure "$(octo_agent_spec_provider "$provider")" "chair fallback ${persona}" "$dispatch_rc" \
-                "$(council_seat_failure_detail "$fallback_stderr" "$dispatch_rc")" "$fallback_stderr"
+        # Rejected retries retain the earlier failed attempt even when the
+        # final dispatch exited zero. Accepted responses already removed it.
+        if (( dispatch_rc != 0 )) || [[ -s "$fallback_stderr" ]]; then
+            local failure_rc
+            failure_rc="$(council_seat_failure_exit_code "$fallback_stderr" "$dispatch_rc")"
+            council_note_seat_failure "$(octo_agent_spec_provider "$provider")" "chair fallback ${persona}" "$failure_rc" \
+                "$(council_seat_failure_detail "$fallback_stderr" "$failure_rc")" "$fallback_stderr"
         else
             rm -f "$fallback_stderr" 2>/dev/null
         fi

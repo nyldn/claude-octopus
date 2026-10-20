@@ -25,7 +25,9 @@
   pass the shared credential-safety check before byte limits and retention;
   unsupported sensitive assignments or output that fails that check are
   omitted. Missing captures report that diagnostics were not retained rather
-  than assuming the provider never ran.
+  than assuming the provider never ran. Failed-attempt captures also survive a
+  retry that exits zero but returns an unusable response, with the original
+  failure exit code in seat metadata and warnings.
 
 ## [11.14.2] - 2026-10-17
 
