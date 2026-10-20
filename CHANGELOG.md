@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- A synchronous provider call that fails now logs a bounded tail of its
+  stdout (`OCTOPUS_SYNC_FAILURE_OUTPUT_TAIL_BYTES`, default 2000) next to the
+  stderr details. Claude Code reports errors such as "Prompt is too long" or
+  "Not logged in" on stdout and exits 1 with only warnings on stderr, so the
+  failure log showed the warnings and the cause was deleted with the temp file.
+
 ## [11.14.2] - 2026-10-17
 
 ### Fixed
