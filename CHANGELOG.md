@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- A worker subshell that receives SIGTERM no longer deletes the orchestrator's
+  temporary directory or cancels the whole run. Helpers that save and restore
+  signal traps read them with `$(trap -p TERM)`, which inside a subshell
+  reports the parent's trap, so they re-armed the orchestrator's TERM handler
+  in the worker. When the Tangle correction stall watchdog then sent SIGTERM to
+  the stalled correction, the worker ran that handler, removed
+  `$OCTOPUS_TMP_DIR` and cancelled the active task group while the orchestrator
+  kept running; the next contextual review failed at `mktemp` ("unable to
+  collect complete all-changes diff for tangle review snapshot"). The EXIT and
+  signal handlers now act only in the orchestrator process itself.
+
 ## [11.14.2] - 2026-10-17
 
 ### Fixed

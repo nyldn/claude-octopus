@@ -635,6 +635,11 @@ fi
 
 # Secure temporary directory (cleaned up on exit)
 OCTOPUS_TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/claude-octopus.XXXXXX")
+# Subshells can re-arm these handlers: `$(trap -p TERM)` inside a subshell
+# reports the parent's trap, and helpers that save and restore traps install
+# it there. Only the orchestrator process itself may cancel the run and remove
+# the shared temporary directory.
+OCTOPUS_ORCHESTRATOR_PID=$$
 octopus_cleanup_tmp() {
     rm -rf "${OCTOPUS_TMP_DIR:?}" 2>/dev/null || true
 }
@@ -653,6 +658,7 @@ octopus_orchestrator_cancel_active() {
 octopus_orchestrator_handle_exit() {
     local exit_code="${1:-0}"
     trap - EXIT
+    [[ "$BASHPID" == "$OCTOPUS_ORCHESTRATOR_PID" ]] || return "$exit_code"
     octopus_orchestrator_cancel_active TERM
     octopus_cleanup_tmp
     return "$exit_code"
@@ -663,6 +669,7 @@ octopus_orchestrator_handle_signal() {
     local exit_code=143
     [[ "$signal_name" == "INT" ]] && exit_code=130
     trap - INT TERM
+    [[ "$BASHPID" == "$OCTOPUS_ORCHESTRATOR_PID" ]] || exit "$exit_code"
 
     octopus_orchestrator_cancel_active "$signal_name"
     if declare -F review_kill_descendants_frozen >/dev/null 2>&1; then

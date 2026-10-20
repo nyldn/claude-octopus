@@ -346,7 +346,7 @@ exit_cleanup_log="$TEST_TMP_DIR/exit-cleanup.log"
 octopus_orchestrator_cancel_active() { printf 'cancel:%s\n' "$1" >> "$exit_cleanup_log"; }
 octopus_cleanup_tmp() { printf 'tmp\n' >> "$exit_cleanup_log"; }
 if declare -F octopus_orchestrator_handle_exit >/dev/null 2>&1; then
-    if ( octopus_orchestrator_handle_exit 37 ); then exit_handler_rc=0; else exit_handler_rc=$?; fi
+    if ( OCTOPUS_ORCHESTRATOR_PID=$BASHPID; octopus_orchestrator_handle_exit 37 ); then exit_handler_rc=0; else exit_handler_rc=$?; fi
 else
     exit_handler_rc=127
 fi
@@ -356,6 +356,36 @@ if [[ "$exit_handler_rc" -eq 37 ]] \
     test_pass
 else
     test_fail "EXIT handler did not cancel active work, preserve status 37, and clean temp state"
+fi
+
+test_case "a subshell that re-armed the orchestrator traps leaves the run and its temp state alone"
+if declare -F octopus_orchestrator_handle_signal >/dev/null 2>&1; then
+    unset -f octopus_orchestrator_handle_signal
+fi
+eval "$(sed -n '/^octopus_orchestrator_handle_signal() {/,/^}/p' "$orchestrator_source")"
+subshell_cleanup_log="$TEST_TMP_DIR/subshell-cleanup.log"
+: > "$subshell_cleanup_log"
+octopus_orchestrator_cancel_active() { printf 'cancel:%s\n' "$1" >> "$subshell_cleanup_log"; }
+octopus_cleanup_tmp() { printf 'tmp\n' >> "$subshell_cleanup_log"; }
+OCTOPUS_ORCHESTRATOR_PID=$$
+# Same shape as the correction stall watchdog: a background worker restores
+# the orchestrator's TERM trap from $(trap -p TERM), then receives SIGTERM.
+(
+    trap 'octopus_orchestrator_handle_signal TERM' TERM
+    trap 'octopus_orchestrator_handle_exit "$?"' EXIT
+    saved_term_trap=$(trap -p TERM)
+    trap ':' TERM
+    eval "$saved_term_trap"
+    sleep 5 & wait
+) &
+worker_pid=$!
+sleep 1
+kill -TERM "$worker_pid" 2>/dev/null || true
+if wait "$worker_pid"; then worker_rc=0; else worker_rc=$?; fi
+if [[ "$worker_rc" -eq 143 && ! -s "$subshell_cleanup_log" ]]; then
+    test_pass
+else
+    test_fail "subshell ran orchestrator cleanup (rc=$worker_rc, log: $(tr '\n' ' ' < "$subshell_cleanup_log"))"
 fi
 
 test_summary
