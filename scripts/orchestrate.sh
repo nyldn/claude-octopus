@@ -640,6 +640,17 @@ OCTOPUS_TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/claude-octopus.XXXXXX")
 # it there. Only the orchestrator process itself may cancel the run and remove
 # the shared temporary directory.
 OCTOPUS_ORCHESTRATOR_PID=$$
+octopus_in_orchestrator_process() {
+    local pid="${BASHPID:-}"
+    # Bash 3.2 has no BASHPID; ask a child shell for its parent instead.
+    if [[ -z "$pid" ]] && declare -F octo_capture_current_shell_pid >/dev/null 2>&1 \
+       && octo_capture_current_shell_pid; then
+        pid="$OCTO_CAPTURED_SHELL_PID"
+    fi
+    # When the current PID cannot be determined, keep the cleanup.
+    [[ -z "$pid" || "$pid" == "$OCTOPUS_ORCHESTRATOR_PID" ]]
+}
+
 octopus_cleanup_tmp() {
     rm -rf "${OCTOPUS_TMP_DIR:?}" 2>/dev/null || true
 }
@@ -658,7 +669,7 @@ octopus_orchestrator_cancel_active() {
 octopus_orchestrator_handle_exit() {
     local exit_code="${1:-0}"
     trap - EXIT
-    [[ "$BASHPID" == "$OCTOPUS_ORCHESTRATOR_PID" ]] || return "$exit_code"
+    octopus_in_orchestrator_process || return "$exit_code"
     octopus_orchestrator_cancel_active TERM
     octopus_cleanup_tmp
     return "$exit_code"
@@ -669,7 +680,7 @@ octopus_orchestrator_handle_signal() {
     local exit_code=143
     [[ "$signal_name" == "INT" ]] && exit_code=130
     trap - INT TERM
-    [[ "$BASHPID" == "$OCTOPUS_ORCHESTRATOR_PID" ]] || exit "$exit_code"
+    octopus_in_orchestrator_process || exit "$exit_code"
 
     octopus_orchestrator_cancel_active "$signal_name"
     if declare -F review_kill_descendants_frozen >/dev/null 2>&1; then
