@@ -6,6 +6,9 @@
 
 ### Fixed
 
+- Blank lines between a proposal lead-in and its code no longer make council
+  label the proposal fabricated. Inline formatting inside a blockquote counts
+  once, preventing duplicate units from exhausting the quote budget.
 - Council verification failures cannot grant grounding. Crashed
   verifiers and malformed grounding reports reject the seat; partial output is
   discarded and unverified quotes are not labeled fabricated.

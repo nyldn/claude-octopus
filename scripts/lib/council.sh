@@ -2994,7 +2994,7 @@ if not citations:
     emit()
 
 # Quote units: fenced blocks, ">" blockquote runs, inline backtick spans outside
-# fences, and bare code lines directly under a citation-only line. Each unit is
+# those blocks, and bare code lines directly under a citation-only line. Each unit is
 # (outer start, end, kind, block lines, removed lines, fence info).
 GUTTER = re.compile(r"^\s*\d+\s*[:|]\s?")
 units = []
@@ -3029,6 +3029,7 @@ def in_fence(start, end):
     i = bisect_right(fence_starts, end - 1) - 1
     return i >= 0 and fence_ranges[i][1] > start
 
+blockquote_ranges = []
 for match in re.finditer(r"(?:^[ \t]*>[^\n]*(?:\n|$))+", resp, re.M):
     if in_fence(match.start(), match.end()):
         continue
@@ -3036,9 +3037,13 @@ for match in re.finditer(r"(?:^[ \t]*>[^\n]*(?:\n|$))+", resp, re.M):
     # Whole-line inline formatting is Markdown, not literal source backticks.
     lines = [re.sub(r"^[ \t]*`([^`\n]+)`[ \t]*$", r"\1", l) for l in lines if l.strip()]
     if lines:
+        blockquote_ranges.append((match.start(), match.end()))
         units.append((match.start(), match.end(), "blockquote", lines, [], ""))
+blockquote_starts = [q_start for q_start, _ in blockquote_ranges]
 for match in re.finditer(r"`([^`\n]+)`", resp):
-    if in_fence(match.start(), match.end()):
+    quote_index = bisect_right(blockquote_starts, match.start()) - 1
+    if in_fence(match.start(), match.end()) or (
+            quote_index >= 0 and blockquote_ranges[quote_index][1] > match.start()):
         continue
     units.append((match.start(), match.end(), "inline", [match.group(1).strip()], [], ""))
 # The "path:line" list shape: a line holding only a citation, followed by the
@@ -3316,12 +3321,15 @@ def attribution(token, gap):
 
 def proposed(start):
     # "Cover inputs such as `...`", "should become:" then a fence: the seat's own
-    # suggestion, not a claim about what a file contains today.
+    # suggestion, not a claim about what a file contains today. Blank lines do
+    # not sever that lead-in; other nonempty lines still end its scope.
     line_start = resp.rfind("\n", 0, start) + 1
-    if resp[line_start:start].strip(" \t>`") == "":
-        line_start = resp.rfind("\n", 0, max(0, line_start - 1)) + 1
+    prose = resp[line_start:start]
+    if prose.strip(" \t>`") == "":
+        preceding = resp[:line_start].rstrip()
+        prose = preceding[preceding.rfind("\n") + 1:]
     # A source filename such as example.ts is not proposal language.
-    prose = CITATION.sub("", LINK_TARGET.sub("", resp[line_start:start]))
+    prose = CITATION.sub("", LINK_TARGET.sub("", prose))
     return bool(PROPOSAL.search(prose))
 
 def record_unverified(text):

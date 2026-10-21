@@ -63,7 +63,8 @@ quote that fails verification also rejects the seat, even if other quotes match.
 
 The verifier recognizes inline code, fenced blocks and blockquotes. Whole-line
 inline backticks inside blockquotes are formatting; backticks within source
-expressions remain literal. It checks
+expressions remain literal. A blockquote counts as one quote unit, including
+any inline spans inside it. It checks
 removed and added lines from attached diff context and `git diff` against
 `OCTOPUS_COUNCIL_DIFF_BASE`, which defaults to `HEAD`. Repository textconv,
 external diff drivers, clean/process filters and fsmonitor commands are disabled.
@@ -72,7 +73,9 @@ diff, including drivers selected by `.git/info/attributes` or a configured
 attributes file. Failed or oversized configuration lookup, or a driver name
 containing `=`, leaves the diff unavailable. Quotes of proposed
 code, shell commands, unattributed prose, unreadable files or unresolved paths
-are unverifiable rather than fabricated. Ordinary sentence punctuation and
+are unverifiable rather than fabricated. A proposal lead-in can precede its
+quote across blank lines; another nonempty line ends that local context.
+Ordinary sentence punctuation and
 dotted names within prose do not make it a code quote. Plain-text spans explicitly
 attributed to source still undergo verification. A truncated diff sets
 `diff_truncated`; a failed or timed-out Git diff sets `diff_unavailable`.

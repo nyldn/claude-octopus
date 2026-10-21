@@ -569,7 +569,7 @@ $quoted
 VERDICT: APPROVE")"
     r="$(_report "$formatted")"
     record="$(council_contribution_record_json "$formatted" "$ROOT" sha256:blockquote)"
-    if jq -e '.quotes_verified > 0 and .quotes_attributed_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null &&
+    if jq -e '.quotes_checked == 1 and .quotes_verified == 1 and .quotes_attributed_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null &&
        jq -e '.validation_result == "valid-grounded"' <<< "$record" >/dev/null &&
        ! council_response_is_blind "$formatted" "$ROOT"; then
         test_pass
@@ -600,11 +600,57 @@ literal="$(_resp 'src/literal.ts:1 reads:
 
 VERDICT: APPROVE')"
 r="$(_report "$literal")"
-if jq -e '.quotes_verified > 0 and .quotes_attributed_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null &&
+if jq -e '.quotes_checked == 1 and .quotes_verified == 1 and .quotes_attributed_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null &&
    ! council_response_is_blind "$literal" "$ROOT"; then
     test_pass
 else
     test_fail "literal source backticks were changed: $r"
+fi
+
+test_case "nested inline formatting does not exhaust the quote-unit budget"
+formatted_budget="$(_resp "$(for i in $(seq 1 130); do
+    printf 'src/pricing.ts:2 reads:\n> `%s`\n\n' "$REAL_NEAR"
+done)
+VERDICT: APPROVE")"
+r="$(_report "$formatted_budget")"
+if jq -e '.quotes_checked == 130 and .quotes_verified == 130 and .quotes_omitted == 0 and .fabricated == false' <<< "$r" >/dev/null &&
+   ! council_response_is_blind "$formatted_budget" "$ROOT"; then
+    test_pass
+else
+    test_fail "nested formatting consumed duplicate quote units: $r"
+fi
+
+for proposal_gap in $'\n\n' $'\n \t\n\n'; do
+    test_case "blank lines preserve the nearest proposal lead-in"
+    spaced_proposal="$(_resp "src/pricing.ts:2 should become:${proposal_gap}\`\`\`ts
+$FAKE
+\`\`\`
+VERDICT: REVISE")"
+    r="$(_report "$spaced_proposal")"
+    if jq -e '.quotes_unverifiable_proposed == 1 and .quotes_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null &&
+       ! council_response_is_blind "$spaced_proposal" "$ROOT"; then
+        test_pass
+    else
+        test_fail "proposed code was labeled fabricated: $r"
+    fi
+done
+
+test_case "an earlier proposal cannot excuse a later current-source claim"
+later_claim="$(_resp "We should revise this path.
+
+src/pricing.ts:2 reads:
+
+
+\`\`\`ts
+$FAKE
+\`\`\`
+VERDICT: APPROVE")"
+r="$(_report "$later_claim")"
+if jq -e '.quotes_unverifiable_proposed == 0 and .quotes_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null &&
+   council_response_is_blind "$later_claim" "$ROOT"; then
+    test_pass
+else
+    test_fail "earlier proposal excused invented current source: $r"
 fi
 
 test_case "#3032: a blockquote attributed to an upstream file outside the root is unverifiable, not checked against local files"
