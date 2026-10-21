@@ -1281,11 +1281,7 @@ run_agent_sync_consultative() {
     return "$rc"
 }
 
-# Council seats run detached, so a failed provider's stderr reaches no one and
-# summary.json could only say "no-response". When the caller names a capture
-# file, append this failed attempt there: the exit code and reason, the
-# provider's stderr, or the tail of its stdout when stderr is empty (some CLIs
-# print their error there). Secrets are scrubbed and the file is private.
+# Redact and certify a diagnostic stream before returning a bounded tail.
 octo_safe_diagnostic_tail() {
     local file="$1" limit="${2:-2000}"
     local scanner="${BASH_SOURCE[0]%/*}/../helpers/artifact-safety.py"
@@ -1299,6 +1295,11 @@ octo_safe_diagnostic_tail() {
     (set -o pipefail; sanitize_secrets < "$file" | python3 "$scanner" --redact | tail -c "$limit")
 }
 
+# Council seats run detached, so a failed provider's stderr reaches no one and
+# summary.json could only say "no-response". When the caller names a capture
+# file, append this failed attempt there: the exit code and reason, the
+# provider's stderr, or the tail of its stdout when stderr is empty (some CLIs
+# print their error there). Secrets are scrubbed and the file is private.
 octo_capture_seat_failure() {
     local file="${_OCTOPUS_SEAT_STDERR_FILE:-}" agent="$1" rc="$2" reason="$3" err="$4" out="$5" body="" record=""
     local section="-- no stderr or stdout --"

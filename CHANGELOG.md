@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.15.0] - 2026-10-20
+
 ### Fixed
 
 - A council seat that exits non-zero now leaves its cause in the run dir. When
