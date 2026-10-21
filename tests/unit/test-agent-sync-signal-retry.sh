@@ -281,6 +281,28 @@ else
     test_fail "failed redaction published provider output"
 fi
 
+test_case "direct diagnostic callers receive no partial output when redaction fails"
+direct_tail="$TEST_TMP_DIR/direct-failed-tail"
+if (
+    sanitize_secrets() { printf 'untrusted partial output'; return 7; }
+    octo_safe_diagnostic_tail "$PROJECT_ROOT/scripts/orchestrate.sh"
+) > "$direct_tail"; then direct_rc=0; else direct_rc=$?; fi
+if [[ "$direct_rc" == 7 && ! -s "$direct_tail" ]]; then
+    test_pass
+else
+    test_fail "failed redaction returned rc=$direct_rc with $(wc -c < "$direct_tail") output bytes"
+fi
+
+test_case "direct diagnostic tails preserve trailing newlines and the exact byte limit"
+printf 'safe diagnostic.\n\n\n' > "$TEST_TMP_DIR/direct-input"
+tail -c 10 "$TEST_TMP_DIR/direct-input" > "$TEST_TMP_DIR/direct-expected"
+if (sanitize_secrets() { cat; }; octo_safe_diagnostic_tail "$TEST_TMP_DIR/direct-input" 10) > "$TEST_TMP_DIR/direct-tail" &&
+   cmp -s "$TEST_TMP_DIR/direct-expected" "$TEST_TMP_DIR/direct-tail"; then
+    test_pass
+else
+    test_fail "successful diagnostic tail changed bytes or trailing newlines"
+fi
+
 test_case "stderr failure diagnostics are redacted before logging"
 stderr_log="$TEST_TMP_DIR/stderr-redaction.log"
 STDOUT_FAILURE='Not logged in' STDERR_FAILURE="Authentication failed: $synthetic_credential" LOG_FILE="$stderr_log" \

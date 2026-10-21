@@ -6,6 +6,10 @@
 
 ### Fixed
 
+- Council contribution records reverify current evidence instead of reusing
+  preliminary quote reports after source, context or diff contents change.
+- Direct diagnostic-tail callers receive no partial output when sanitization
+  fails. Successful tails retain their exact byte limit and trailing newlines.
 - Blank lines between a proposal lead-in and its code no longer make council
   label the proposal fabricated. Inline formatting inside a blockquote counts
   once, preventing duplicate units from exhausting the quote budget.

@@ -738,8 +738,8 @@ VERDICT: APPROVE")"
 r="$(_report "$dotdot")"
 if jq -e '.citations_unresolved == 1 and .quotes_unverifiable_unresolved_citation == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
-# ── One verifier run per response (CodeRabbit on #1207).
-test_case "the verifier runs once per response across the blind check and the contribution record"
+# Preliminary checks share a report; contribution records always reverify.
+test_case "preliminary checks share one verifier run and each contribution record runs afresh"
 count_file="$TEST_TMP_DIR/qv-count"; : > "$count_file"
 shim_dir="$TEST_TMP_DIR/qv-shim"; mkdir -p "$shim_dir"
 real_python="$(command -v python3)"
@@ -761,16 +761,82 @@ cached="$(_resp "In src/pricing.ts:2 the base price is \`$FAKE\` which caches co
 VERDICT: APPROVE")"
 council_response_is_substantive "$cached" "$ROOT" || true
 council_response_is_blind "$cached" "$ROOT" || true
+preliminary="$(wc -l < "$count_file" | tr -d ' ')"
 council_contribution_record_json "$cached" "$ROOT" sha256:t >/dev/null
 first="$(wc -l < "$count_file" | tr -d ' ')"
 printf 'In src/pricing.ts:2 the fallback `%s` is correct.\nVERDICT: APPROVE\n' "$REAL_NEAR" > "$cached"
 record="$(council_contribution_record_json "$cached" "$ROOT" sha256:t)"
 second="$(wc -l < "$count_file" | tr -d ' ')"
 PATH="$saved_path"
-if [[ "$first" == 1 && "$second" == 2 ]] && jq -e '.validation_result == "valid-grounded"' <<< "$record" >/dev/null; then
+if [[ "$preliminary" == 1 && "$first" == 2 && "$second" == 3 ]] && jq -e '.validation_result == "valid-grounded"' <<< "$record" >/dev/null; then
     test_pass
 else
-    test_fail "runs: first=$first second=$second record=$record"
+    test_fail "runs: preliminary=$preliminary first=$first second=$second record=$record"
+fi
+
+test_case "contribution records reverify a changed ignored cited file"
+cache_root="$TEST_TMP_DIR/cache-evidence"; mkdir -p "$cache_root/src"
+git -C "$cache_root" init -q
+printf 'src/\n' > "$cache_root/.gitignore"
+git -C "$cache_root" add .gitignore
+git -C "$cache_root" -c user.name=Test -c user.email=test@example.invalid commit -qm initial
+printf '%s\n' "$REAL_NEAR" > "$cache_root/src/pricing.ts"
+cache_response="$(_resp "src/pricing.ts:1 reads \`$REAL_NEAR\`.
+VERDICT: APPROVE")"
+record="$(
+    council_response_quote_report_cached "$cache_response" "$cache_root"
+    jq -e '.quotes_verified == 1' <<< "$COUNCIL_QUOTE_REPORT" >/dev/null || exit 1
+    printf '%s\n' "$FAKE" > "$cache_root/src/pricing.ts"
+    council_contribution_record_json "$cache_response" "$cache_root" sha256:t
+)"
+if jq -e '.validation_result == "invalid-ungrounded" and .grounding.fabricated == true
+          and .grounding.quotes_verified == 0' <<< "$record" >/dev/null; then
+    test_pass
+else
+    test_fail "changed ignored evidence reused grounding: $record"
+fi
+
+test_case "contribution records reverify context contents when the configured path is unchanged"
+cache_context="$TEST_TMP_DIR/cache-context.md"
+printf '%s\n' "$REAL_NEAR" > "$cache_context"
+cache_response="$(_resp "cache-context.md:1 reads \`$REAL_NEAR\`.
+VERDICT: APPROVE")"
+record="$(
+    COUNCIL_CONTEXT_FILES=("$cache_context")
+    council_response_quote_report_cached "$cache_response" "$cache_root"
+    jq -e '.quotes_verified == 1' <<< "$COUNCIL_QUOTE_REPORT" >/dev/null || exit 1
+    printf '%s\n' "$FAKE" > "$cache_context"
+    council_contribution_record_json "$cache_response" "$cache_root" sha256:t
+)"
+if jq -e '.validation_result == "invalid-ungrounded" and .grounding.fabricated == true
+          and .grounding.quotes_verified == 0' <<< "$record" >/dev/null; then
+    test_pass
+else
+    test_fail "changed context reused grounding: $record"
+fi
+
+test_case "contribution records reverify resolved diffs when the configured base is unchanged"
+cache_diff_root="$TEST_TMP_DIR/cache-diff"; mkdir -p "$cache_diff_root/src"
+git -C "$cache_diff_root" init -q
+printf '%s\n' "$REAL_NEAR" > "$cache_diff_root/src/pricing.ts"
+git -C "$cache_diff_root" add src/pricing.ts
+git -C "$cache_diff_root" -c user.name=Test -c user.email=test@example.invalid commit -qm original
+printf '%s\n' "$FAKE" > "$cache_diff_root/src/pricing.ts"
+cache_response="$(_resp "src/pricing.ts:1 reads \`$REAL_NEAR\` in the reviewed diff.
+VERDICT: APPROVE")"
+record="$(
+    OCTOPUS_COUNCIL_DIFF_BASE=HEAD
+    council_response_quote_report_cached "$cache_response" "$cache_diff_root"
+    jq -e '.quotes_verified_in_diff_removed == 1' <<< "$COUNCIL_QUOTE_REPORT" >/dev/null || exit 1
+    git -C "$cache_diff_root" add src/pricing.ts
+    git -C "$cache_diff_root" -c user.name=Test -c user.email=test@example.invalid commit -qm replacement
+    council_contribution_record_json "$cache_response" "$cache_diff_root" sha256:t
+)"
+if jq -e '.validation_result == "invalid-ungrounded" and .grounding.fabricated == true
+          and .grounding.quotes_verified == 0' <<< "$record" >/dev/null; then
+    test_pass
+else
+    test_fail "changed diff reused grounding: $record"
 fi
 
 test_case "a path cited many times is resolved once"

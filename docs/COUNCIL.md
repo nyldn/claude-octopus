@@ -101,6 +101,12 @@ A match in any cited file or the reviewed diff verifies a quote; exact file
 attribution is not proven. These checks cannot establish that a provider read
 the source.
 
+Preliminary checks may share a cached report. Contribution records always run
+verification again, including when cited files, attached context contents or a
+resolved diff change without a configuration change. Verification and evidence
+digest collection use separate reads, so the record is not an atomic snapshot.
+Keep review evidence unchanged while council validates and records responses.
+
 For a committed change, set `OCTOPUS_COUNCIL_DIFF_BASE` to the reviewed base
 in the runner environment, or attach the reviewed diff with `--context-file`.
 The default `HEAD` covers uncommitted working-tree changes. Council accepts

@@ -1283,7 +1283,7 @@ run_agent_sync_consultative() {
 
 # Redact and certify a diagnostic stream before returning a bounded tail.
 octo_safe_diagnostic_tail() {
-    local file="$1" limit="${2:-2000}"
+    local file="$1" limit="${2:-2000}" diagnostic
     local scanner="${BASH_SOURCE[0]%/*}/../helpers/artifact-safety.py"
     # Reject tail's +N form, invalid counts, and overrides above 64 KiB.
     [[ "$limit" =~ ^[1-9][0-9]{0,4}$ && "$limit" -le 65536 ]] || limit=2000
@@ -1292,7 +1292,16 @@ octo_safe_diagnostic_tail() {
     command -v python3 >/dev/null 2>&1 && [[ -f "$scanner" ]] || return 1
     # Redact and certify the complete stream before truncation can hide a key's
     # prefix or field name. Discard partial output if either stage fails.
-    (set -o pipefail; sanitize_secrets < "$file" | python3 "$scanner" --redact | tail -c "$limit")
+    if diagnostic="$(
+        set -o pipefail
+        sanitize_secrets < "$file" | python3 "$scanner" --redact | tail -c "$limit" || exit "$?"
+        # Prevent command substitution from stripping diagnostic newlines.
+        printf '.'
+    )"; then
+        printf '%s' "${diagnostic%.}"
+    else
+        return "$?"
+    fi
 }
 
 # Council seats run detached, so a failed provider's stderr reaches no one and

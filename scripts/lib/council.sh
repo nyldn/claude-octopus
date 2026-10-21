@@ -3446,9 +3446,10 @@ for start, end, kind, block, removed_block, info in units[:MAX_UNITS]:
     else:
         result["quotes_unverifiable"] += 1
 
-# Fabricated when every checked quote failed, or when any quote the seat
-# attributed to a specific cited file is in neither that file, the other cited
-# files, nor the reviewed diff (sail-cruisey #3005: five real quotes alongside
+# Fabricated when every checked quote failed, or when an attributed quote is
+# absent from every cited file and the reviewed diff. Attribution identifies
+# source claims; matching does not prove which file supplied the quote
+# (sail-cruisey #3005: five real quotes alongside
 # two invented "Checked Source Citations" blocks).
 result["fabricated"] = (result["quotes_attributed_unverified"] > 0 or
                         (result["quotes_unverified"] > 0 and result["quotes_verified"] == 0))
@@ -3464,12 +3465,9 @@ PY
 
 council_response_quote_report_cached() {
     # Sets COUNCIL_QUOTE_REPORT to the verification report for this response,
-    # running the verifier only when the response bytes, root, context files, or
-    # diff base changed since the last call in this shell. One seat is otherwise
-    # verified up to five times (substantive, blind, contribution record), each
-    # run possibly paying a git diff and a root index walk. Subshells inherit the
-    # cached value, so a record computed in $(...) after the parent's blind
-    # check reuses it.
+    # sharing preliminary checks when response bytes and evidence configuration
+    # are unchanged. This key does not fingerprint evidence contents. Contribution
+    # records must clear it to reverify current evidence before serialization.
     local f="$1" evidence_root="$2" stamp key
     # Content checksum, not mtime: a response rewritten within one second must
     # not reuse the previous report.
@@ -3587,6 +3585,9 @@ council_contribution_record_json() {
     if council_response_nonempty "$response_path"; then
         verdict="$(council_response_verdict "$response_path")"
         if [[ "${OCTOPUS_COUNCIL_QUOTE_VERIFY:-1}" != "0" ]]; then
+            # Source, context and resolved diff bytes can change after the
+            # preliminary checks even when this response and its config do not.
+            COUNCIL_QUOTE_REPORT_KEY=""
             council_response_quote_report_cached "$response_path" "$evidence_root"
             grounding="$COUNCIL_QUOTE_REPORT"
             jq -se 'length == 1 and (.[0] | type == "object")' <<< "$grounding" >/dev/null 2>&1 \
