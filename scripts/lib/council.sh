@@ -2750,7 +2750,8 @@ print(json.dumps(validated, separators=(",", ":")))
 PY
 }
 
-COUNCIL_EMPTY_GROUNDING_JSON='{"citations":0,"citations_unresolved":0,"quotes_checked":0,"quotes_verified":0,"quotes_near_line":0,"quotes_attributed":0,"quotes_attributed_unverified":0,"quotes_verified_in_diff_removed":0,"quotes_verified_in_diff_added":0,"quotes_unverified":0,"quotes_unverifiable":0,"quotes_unverifiable_claimed_removed":0,"quotes_unverifiable_unresolved_citation":0,"quotes_unverifiable_command":0,"quotes_unverifiable_proposed":0,"quotes_unverifiable_prose":0,"quotes_unverifiable_diff_incomplete":0,"quotes_omitted":0,"response_oversized":false,"diff_truncated":false,"diff_unavailable":false,"diff_sources":[],"fabricated":false,"unverified_samples":[]}'
+COUNCIL_EMPTY_GROUNDING_JSON='{"verification_failed":false,"citations":0,"citations_unresolved":0,"quotes_checked":0,"quotes_verified":0,"quotes_near_line":0,"quotes_attributed":0,"quotes_attributed_unverified":0,"quotes_verified_in_diff_removed":0,"quotes_verified_in_diff_added":0,"quotes_unverified":0,"quotes_unverifiable":0,"quotes_unverifiable_claimed_removed":0,"quotes_unverifiable_unresolved_citation":0,"quotes_unverifiable_command":0,"quotes_unverifiable_proposed":0,"quotes_unverifiable_prose":0,"quotes_unverifiable_diff_incomplete":0,"quotes_omitted":0,"response_oversized":false,"diff_truncated":false,"diff_unavailable":false,"diff_sources":[],"fabricated":false,"unverified_samples":[]}'
+COUNCIL_FAILED_GROUNDING_JSON="${COUNCIL_EMPTY_GROUNDING_JSON/\"verification_failed\":false/\"verification_failed\":true}"
 
 council_response_quote_verification_json() {
     # Verify the code a seat QUOTES next to its `path:line` citations (sail-cruisey
@@ -2775,8 +2776,9 @@ council_response_quote_verification_json() {
     # ">" blockquotes and bare lines under a citation-only line are quotes too.
     local response_path="$1" evidence_root="$2"
     local empty="$COUNCIL_EMPTY_GROUNDING_JSON"
+    local failed="$COUNCIL_FAILED_GROUNDING_JSON" report
     [[ -f "$response_path" && -n "$evidence_root" && -d "$evidence_root" ]] || { printf '%s\n' "$empty"; return 0; }
-    command -v python3 >/dev/null 2>&1 || { printf '%s\n' "$empty"; return 0; }
+    command -v python3 >/dev/null 2>&1 || { printf '%s\n' "$failed"; return 0; }
     # Every readable --context-file is passed as a trailing argv entry. Each one
     # can be the target of a citation ("phase-3-plan.md:8"), and those that look
     # like a unified diff, plus `git diff` of the evidence root against
@@ -2788,8 +2790,8 @@ council_response_quote_verification_json() {
         [[ -f "$ctx" && -r "$ctx" ]] && diff_context_files+=("$ctx")
     done
     # Source evidence is data; never import project-local Python modules.
-    OCTOPUS_COUNCIL_DIFF_BASE="${OCTOPUS_COUNCIL_DIFF_BASE:-HEAD}" \
-    python3 -I - "$response_path" "$evidence_root" ${diff_context_files[@]+"${diff_context_files[@]}"} <<'PY' 2>/dev/null || printf '%s\n' "$empty"
+    if report="$(OCTOPUS_COUNCIL_DIFF_BASE="${OCTOPUS_COUNCIL_DIFF_BASE:-HEAD}" \
+    python3 -I - "$response_path" "$evidence_root" ${diff_context_files[@]+"${diff_context_files[@]}"} <<'PY' 2>/dev/null
 import html
 import json
 import os
@@ -2813,7 +2815,7 @@ NEAR_LINES = 40
 MIN_TOKENS = 3
 MIN_CHARS = 20
 
-result = {"citations": 0, "citations_unresolved": 0, "quotes_checked": 0, "quotes_verified": 0,
+result = {"verification_failed": False, "citations": 0, "citations_unresolved": 0, "quotes_checked": 0, "quotes_verified": 0,
           "quotes_near_line": 0, "quotes_attributed": 0, "quotes_attributed_unverified": 0,
           "quotes_verified_in_diff_removed": 0, "quotes_verified_in_diff_added": 0,
           "quotes_unverified": 0, "quotes_unverifiable": 0,
@@ -2839,6 +2841,7 @@ try:
     resp = html.unescape(raw.decode("utf-8", "replace"))
     root = Path(sys.argv[2]).resolve(strict=True)
 except (OSError, RuntimeError, ValueError):
+    result["verification_failed"] = True
     emit()
 
 context_files = []
@@ -3439,6 +3442,12 @@ result["fabricated"] = (result["quotes_attributed_unverified"] > 0 or
                         (result["quotes_unverified"] > 0 and result["quotes_verified"] == 0))
 emit()
 PY
+)"; then
+        printf '%s\n' "$report"
+    else
+        # Discard partial stdout; a crashed verifier cannot grant grounding.
+        printf '%s\n' "$failed"
+    fi
 }
 
 council_response_quote_report_cached() {
@@ -3463,10 +3472,11 @@ council_response_quote_report_cached() {
 }
 
 council_response_quotes_fabricated() {
-    # Reject fabricated citation quotes and responses above either verification budget.
+    # Reject fabricated quotes, verification failures and responses above either budget.
     # Opt out with OCTOPUS_COUNCIL_QUOTE_VERIFY=0. A precomputed JSON may be passed
     # as $3 to avoid re-scanning. Oversized responses and omitted quote units are
     # rejected because they cannot be checked, without labeling them fabricated.
+    # Verification or report parsing failures reject the seat for the same reason.
     local f="$1" evidence_root="${2:-}" precomputed="${3:-}"
     [[ "${OCTOPUS_COUNCIL_QUOTE_VERIFY:-1}" != "0" ]] || return 1
     [[ -f "$f" && -n "$evidence_root" && -d "$evidence_root" ]] || return 1
@@ -3475,7 +3485,12 @@ council_response_quotes_fabricated() {
         council_response_quote_report_cached "$f" "$evidence_root"
         report="$COUNCIL_QUOTE_REPORT"
     fi
-    jq -e '.fabricated == true or .response_oversized == true or ((.quotes_omitted // 0) > 0)' <<< "$report" >/dev/null 2>&1
+    local rc=0
+    jq -se 'length != 1 or (.[0] | type != "object" or .verification_failed == true
+        or .fabricated == true or .response_oversized == true or ((.quotes_omitted // 0) > 0))' \
+        <<< "$report" >/dev/null 2>&1 || rc=$?
+    # Only jq's false result permits the seat; parse or tool errors reject.
+    (( rc != 1 ))
 }
 
 council_artifact_digest() {
@@ -3562,12 +3577,12 @@ council_contribution_record_json() {
         if [[ "${OCTOPUS_COUNCIL_QUOTE_VERIFY:-1}" != "0" ]]; then
             council_response_quote_report_cached "$response_path" "$evidence_root"
             grounding="$COUNCIL_QUOTE_REPORT"
-            jq -e 'type == "object"' <<< "$grounding" >/dev/null 2>&1 \
-                || grounding="$COUNCIL_EMPTY_GROUNDING_JSON"
+            jq -se 'length == 1 and (.[0] | type == "object")' <<< "$grounding" >/dev/null 2>&1 \
+                || grounding="$COUNCIL_FAILED_GROUNDING_JSON"
         fi
         if council_response_quotes_fabricated "$response_path" "$evidence_root" "$grounding"; then
             # Distinct from invalid-access: evidence is rejected for fabricated
-            # quotes or a response above the verification budget.
+            # quotes, verification failure, or a response above the budgets.
             access_state="evidence-rejected"
             validation_result="invalid-ungrounded"
         elif council_response_is_blind "$response_path" "$evidence_root"; then

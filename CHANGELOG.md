@@ -6,6 +6,9 @@
 
 ### Fixed
 
+- Council verification failures cannot grant grounding. Missing or crashed
+  verifiers and malformed grounding reports reject the seat; partial output is
+  discarded and unverified quotes are not labeled fabricated.
 - Real code wrapped in inline backticks inside a blockquote keeps its council
   grounding. Markdown formatting no longer creates a duplicate fabricated quote;
   literal backticks within source expressions are preserved.

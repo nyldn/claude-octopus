@@ -161,6 +161,61 @@ fi
 test_case "OCTOPUS_COUNCIL_QUOTE_VERIFY=0 disables the check"
 if ! OCTOPUS_COUNCIL_QUOTE_VERIFY=0 council_response_quotes_fabricated "$fab" "$ROOT"; then test_pass; else test_fail "opt-out ignored"; fi
 
+test_case "an overflowing citation cannot hide an invented quote behind a verifier crash"
+overflow="$(_resp "src/pricing.ts:2 reads \`$FAKE\`.
+
+Noise src/ghost.ts:$(printf '%05000d' 0 | tr 0 9)
+VERDICT: APPROVE")"
+record="$(council_contribution_record_json "$overflow" "$ROOT" sha256:overflow)"
+if jq -e '.validation_result == "invalid-ungrounded"' <<< "$record" >/dev/null &&
+   council_response_is_blind "$overflow" "$ROOT"; then test_pass; else test_fail "verifier crash granted grounding: $record"; fi
+
+for failure_output in empty partial; do
+    test_case "a verifier process failure with $failure_output stdout rejects a real citation"
+    failure_response="$(_resp "src/pricing.ts:2 reads \`$REAL_NEAR\`.
+VERDICT: APPROVE")"
+    failure_record="$(
+        python3() {
+            if [[ "${1:-}" == -I ]]; then
+                [[ "$failure_output" != partial ]] || printf '{"verification_failed":false'
+                return 1
+            fi
+            command python3 "$@"
+        }
+        council_contribution_record_json "$failure_response" "$ROOT" sha256:process-failure
+    )" || failure_record='{}'
+    if jq -e '.validation_result == "invalid-ungrounded" and .grounding.verification_failed == true
+            and .grounding.fabricated == false' <<< "$failure_record" >/dev/null; then
+        test_pass
+    else
+        test_fail "failed verifier granted grounding or returned malformed JSON: $failure_record"
+    fi
+done
+
+test_case "a missing Python verifier is reported as verification failure"
+missing_python="$(PATH=/nonexistent council_response_quote_verification_json "$fab" "$ROOT")"
+if jq -e '.verification_failed == true and .fabricated == false' <<< "$missing_python" >/dev/null; then
+    test_pass
+else
+    test_fail "missing verifier looked like successful empty verification: $missing_python"
+fi
+
+for malformed_report in 'not-json' '{"fabricated":false} {"fabricated":false}' 'null'; do
+    test_case "an invalid precomputed grounding report cannot grant approval"
+    if council_response_quotes_fabricated "$fab" "$ROOT" "$malformed_report"; then
+        test_pass
+    else
+        test_fail "invalid grounding report was accepted: $malformed_report"
+    fi
+done
+
+test_case "the explicit quote-verification opt-out still bypasses failure reports"
+if ! OCTOPUS_COUNCIL_QUOTE_VERIFY=0 council_response_quotes_fabricated "$fab" "$ROOT" '{"verification_failed":true}'; then
+    test_pass
+else
+    test_fail "verification failure ignored the explicit opt-out"
+fi
+
 test_case "missing evidence root reports nothing and never fabricates"
 if [[ "$(council_response_quote_verification_json "$fab" "$ROOT/does-not-exist" | jq -r '.fabricated')" == false ]] &&
    ! council_response_quotes_fabricated "$fab" ""; then test_pass; else test_fail "no-root path fabricated"; fi
