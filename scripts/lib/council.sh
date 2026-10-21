@@ -2794,9 +2794,11 @@ import html
 import json
 import os
 import re
+import selectors
 import subprocess
 import sys
-from bisect import bisect_right
+import time
+from bisect import bisect_left, bisect_right
 from pathlib import Path
 
 MAX_RESPONSE_BYTES = 1_048_576
@@ -2879,10 +2881,10 @@ def build_index():
                     if entry.name not in INDEX_SKIP and depth < MAX_INDEX_DEPTH:
                         stack.append((Path(entry.path), depth + 1))
                 elif entry.is_file(follow_symlinks=False):
-                    paths.append(Path(entry.path))
+                    paths.append((entry.path[::-1], Path(entry.path)))
             except OSError:
                 continue
-    return paths
+    return sorted(paths)
 
 def contained(candidate):
     try:
@@ -2912,7 +2914,11 @@ def resolve_citation(relative):
     global suffix_index
     if suffix_index is None:
         suffix_index = build_index()
-    hits = [p for p in suffix_index if ("/" + p.as_posix()).endswith(tail)]
+    # Reversing paths turns a component suffix into a sorted prefix range.
+    # Only its first two entries are needed to distinguish unique from ambiguous.
+    key = tail[::-1]
+    at = bisect_left(suffix_index, (key,))
+    hits = [p for suffix, p in suffix_index[at:at + 2] if suffix.startswith(key)]
     return hits[0] if len(hits) == 1 else None
 
 # Same citation grammar as council_response_evidence_paths_json, plus offsets.
@@ -2956,8 +2962,7 @@ def resolve_outside_form(raw):
             return candidate
     return None
 
-# Resolve each distinct path once; a long response repeats the same few paths,
-# and an unresolved multi-part one rescans the whole suffix index.
+# Resolve each distinct path once, using the shared sorted suffix index.
 resolved = {}
 for match in CITATION.finditer(resp):
     raw = match.group(1).strip()
@@ -3164,6 +3169,32 @@ def split_diff(text):
                 added.append(piece)
     return removed, added
 
+def read_git_diff(command, env):
+    # Read one byte past the cap to detect truncation without buffering the
+    # remaining diff. Keep the original ten-second deadline, including exit.
+    deadline = time.monotonic() + 10
+    with subprocess.Popen(command, env=env, stdout=subprocess.PIPE,
+                          stderr=subprocess.DEVNULL) as proc:
+        try:
+            raw = bytearray()
+            with selectors.DefaultSelector() as selector:
+                selector.register(proc.stdout, selectors.EVENT_READ)
+                while len(raw) <= MAX_DIFF_BYTES:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0 or not selector.select(remaining):
+                        raise subprocess.TimeoutExpired(command, 10)
+                    chunk = os.read(proc.stdout.fileno(), min(65536, MAX_DIFF_BYTES + 1 - len(raw)))
+                    if not chunk:
+                        break
+                    raw.extend(chunk)
+            if len(raw) > MAX_DIFF_BYTES:
+                proc.kill()
+                return raw
+            return raw if proc.wait(timeout=max(0, deadline - time.monotonic())) == 0 else b""
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+
 def load_diff_sides():
     removed, added = [], []
     for path in context_files:
@@ -3185,13 +3216,12 @@ def load_diff_sides():
         env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
         env.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull, GIT_OPTIONAL_LOCKS="0")
         try:
-            proc = subprocess.run(["git", "-C", str(root), "-c", "core.fsmonitor=false",
-                                   "diff", "--no-color", "--no-ext-diff",
-                                   "--no-textconv", "--unified=0", base, "--"],
-                                  env=env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=10)
-            if proc.returncode == 0 and proc.stdout:
-                result["diff_truncated"] |= len(proc.stdout) > MAX_DIFF_BYTES
-                r, a = split_diff(proc.stdout[:MAX_DIFF_BYTES].decode("utf-8", "replace"))
+            raw_diff = read_git_diff(["git", "-C", str(root), "-c", "core.fsmonitor=false",
+                                      "diff", "--no-color", "--no-ext-diff",
+                                      "--no-textconv", "--unified=0", base, "--"], env)
+            if raw_diff:
+                result["diff_truncated"] |= len(raw_diff) > MAX_DIFF_BYTES
+                r, a = split_diff(raw_diff[:MAX_DIFF_BYTES].decode("utf-8", "replace"))
                 if r or a:
                     removed += r
                     added += a

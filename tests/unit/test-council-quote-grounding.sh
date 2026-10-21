@@ -703,6 +703,88 @@ VERDICT: APPROVE")"
 r="$(council_response_quote_verification_json "$f" "$large_root")"
 if jq -e '.diff_truncated == true and .quotes_unverifiable_diff_incomplete == 1 and .quotes_attributed_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
+test_case "distinct unresolved citations finish within the lookup budget in a large root"
+indexed_root="$TEST_TMP_DIR/indexed-root"
+indexed_response="$TEST_TMP_DIR/indexed-response.md"
+python3 - "$indexed_root" "$indexed_response" "$REAL_NEAR" <<'PY_INDEX'
+import sys
+from pathlib import Path
+root, response = map(Path, sys.argv[1:3])
+root.mkdir()
+for i in range(20_000):
+    (root / ('file-%05d.ts' % i)).touch()
+(root / '.hidden' / 'src').mkdir(parents=True)
+(root / '.hidden' / 'src' / 'target.ts').write_text(sys.argv[3] + '\n')
+response.write_text('\n'.join('Unresolved: missing/path-%d.ts:1 not read' % i for i in range(8_000)) +
+                    '\n\nsrc/target.ts:1 reads `' + sys.argv[3] + '`.\nVERDICT: APPROVE\n')
+PY_INDEX
+r="$(bounded 10 bash -c 'source "$1"; council_response_quote_verification_json "$2" "$3"' _ \
+    "$PROJECT_ROOT/scripts/lib/council.sh" "$indexed_response" "$indexed_root" 2>/dev/null || true)"
+if jq -e '.citations == 1 and .citations_unresolved == 8000 and .quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null 2>&1; then
+    test_pass
+else
+    test_fail "citation lookup exceeded 10s or lost evidence: ${r:0:200}"
+fi
+
+test_case "suffix lookup preserves ambiguity and requires a path-component boundary"
+mkdir -p "$indexed_root/.other/src" "$indexed_root/.hidden/othersrc"
+printf '%s\n' "$REAL_NEAR" > "$indexed_root/.other/src/target.ts"
+printf '%s\n' "$REAL_NEAR" > "$indexed_root/.hidden/src/unique.ts"
+printf '%s\n' "$REAL_NEAR" > "$indexed_root/.hidden/othersrc/unique.ts"
+f="$(_resp "src/target.ts:1 reads \`$FAKE\`.
+src/unique.ts:1 reads \`$REAL_NEAR\`.
+VERDICT: APPROVE")"
+r="$(council_response_quote_verification_json "$f" "$indexed_root")"
+if jq -e '.citations == 1 and .citations_unresolved == 1 and .quotes_verified == 1 and .quotes_unverifiable_unresolved_citation == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "an oversized git diff producer is stopped while its retained prefix verifies"
+fake_git_bin="$TEST_TMP_DIR/streaming-git-bin"
+mkdir -p "$fake_git_bin"
+printf '%s\n' "$FAKE" > "$ROOT/removed-quote.txt"
+cat > "$fake_git_bin/git" <<'PY_GIT'
+#!/usr/bin/env python3
+import os
+import sys
+import time
+from pathlib import Path
+root = Path(sys.argv[sys.argv.index('-C') + 1])
+if (root / 'stall-diff').exists():
+    (root / 'diff-producer-pid').write_text(str(os.getpid()))
+    time.sleep(30)
+prefix = ('diff --git a/service.ts b/service.ts\n--- a/service.ts\n+++ b/service.ts\n@@ -1 +0,0 @@\n-' +
+          (root / 'removed-quote.txt').read_text() + '\n').encode()
+sys.stdout.buffer.write(prefix)
+chunk = b'+' + b'x' * 65534 + b'\n'
+for _ in range(1024):
+    sys.stdout.buffer.write(chunk)
+sys.stdout.buffer.flush()
+(root / 'diff-producer-completed').write_text('unbounded output consumed\n')
+PY_GIT
+chmod 755 "$fake_git_bin/git"
+f="$(_resp "src/pricing.ts:2 reads \`$FAKE\` in the reviewed diff.
+VERDICT: APPROVE")"
+r="$(PATH="$fake_git_bin:$PATH" _report "$f")"
+if [[ ! -e "$ROOT/diff-producer-completed" ]] &&
+   jq -e '.diff_truncated == true and .quotes_verified_in_diff_removed == 1 and .fabricated == false' <<< "$r" >/dev/null; then
+    test_pass
+else
+    test_fail "producer completed or retained evidence was lost: $r"
+fi
+
+test_case "a stalled git diff producer reaches its deadline and is reaped"
+touch "$ROOT/stall-diff"
+r="$(PATH="$fake_git_bin:$PATH" bounded 15 bash -c \
+    'source "$1"; council_response_quote_verification_json "$2" "$3"' _ \
+    "$PROJECT_ROOT/scripts/lib/council.sh" "$f" "$ROOT" 2>/dev/null || true)"
+producer_pid="$(cat "$ROOT/diff-producer-pid" 2>/dev/null || true)"
+if [[ "$producer_pid" =~ ^[0-9]+$ ]] && ! kill -0 "$producer_pid" 2>/dev/null &&
+   jq -e '.quotes_checked == 1 and .quotes_unverified == 1 and .diff_sources == []' <<< "$r" >/dev/null 2>&1; then
+    test_pass
+else
+    test_fail "diff deadline failed or left the producer alive: ${r:0:200}"
+fi
+rm -f "$ROOT/stall-diff"
+
 test_case "a chair-fallback seat record carries grounding like an advice seat"
 fbdir="$(mktemp -d "$TEST_TMP_DIR/fallback-grounding.XXXXXX")"; mkdir -p "$fbdir/responses"
 COUNCIL_RUN_DIR="$fbdir"; COUNCIL_FIXTURE=""; COUNCIL_SEAT_RECORDS_JSON='[]'

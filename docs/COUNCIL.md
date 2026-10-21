@@ -70,7 +70,11 @@ are unverifiable rather than fabricated. Ordinary sentence punctuation does not
 make inline prose a code quote. Plain-text spans explicitly attributed to source
 still undergo verification. A truncated diff sets `diff_truncated`;
 unmatched quotes remain unverifiable because the omitted suffix may contain
-their evidence. `quotes_omitted` reports units beyond the 256-unit scan limit.
+their evidence. Git diff capture stops after 8 MiB plus one truncation byte,
+terminates and reaps an oversized producer, and retains a ten-second deadline.
+Distinct citations share a sorted path suffix index instead of scanning every
+indexed file for each missing path. `quotes_omitted` reports units beyond the
+256-unit scan limit.
 A multi-line quote can verify as a whole or when two thirds of its specific
 lines match. These checks cannot establish that a provider read the source.
 
