@@ -115,14 +115,16 @@ Research Parameters:
 
 ### STEP 3: Execute orchestrate.sh (MANDATORY - Use Bash Tool)
 
+**Resolve the intensity first.** Use the `[intensity=quick|standard|deep]` token from the skill args when present. Otherwise map a `[breadth=…]` token (`light → quick`, `standard → standard`, `exhaustive → deep`). Otherwise map `depth_choice` (Quick overview → `quick`, Moderate depth → `standard`, Comprehensive or Deep dive → `deep`). Strip both tokens from the research question.
+
 **You MUST execute this command via the native shell command tool:**
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh probe "<user's research question>" \
-  --depth "${depth_choice}" \
-  --focus "${focus_choice}" \
-  --format "${format_choice}"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh --intensity=<quick|standard|deep> probe \
+  "<user's research question> (focus: ${focus_choice}; output: ${format_choice})"
 ```
+
+orchestrate.sh takes the intensity only as the `--intensity=` flag. It has no `--depth`, `--focus` or `--format` options, and a bracket token such as `[intensity=deep]` is not an option either: either form would be read as prompt text and the probe would run at standard intensity.
 
 **CRITICAL: You are PROHIBITED from:**
 - ❌ Researching directly without calling orchestrate.sh

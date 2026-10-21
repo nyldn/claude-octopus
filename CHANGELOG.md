@@ -4,6 +4,16 @@
 
 ### Fixed
 
+- `/octo:discover` and `/octo:research` now reach `orchestrate.sh` with the
+  intensity the user chose. `commands/discover.md` documented
+  `orchestrate.sh probe [intensity=quick|standard|deep] <args>`, but
+  orchestrate.sh only parses `--intensity=`. Under bash the bracket token
+  became prompt text and the probe ran at standard intensity. Under zsh it
+  failed as an unmatched glob before orchestrate.sh started. The research skill
+  dropped the routed `[intensity=…]` and passed `--depth`, `--focus` and
+  `--format`, which orchestrate.sh has never parsed, so they also became prompt
+  text. Both now pass `--intensity=<quick|standard|deep>` before `probe`, and a
+  dry-run test executes the documented discover example.
 - A council seat that exits non-zero now leaves its cause in the run dir. When
   the provider fails, `run_agent_sync` appends the exit code and the provider's
   stderr to `stderr/<seat>.log`, with secrets scrubbed and file mode 0600. When
