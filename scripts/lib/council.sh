@@ -2430,6 +2430,16 @@ council_response_is_blind() {
         return 0
     fi
 
+    # Fabricated grounding (sail-cruisey #2997): the seat pairs real path:line
+    # citations with quoted "source" that appears in none of the cited files. A
+    # real citation token is not evidence of reading when the code it quotes is
+    # invented, so this overrides the citation exemptions below. Seats that quote
+    # nothing beside their citations, or whose cited files are unreadable, are
+    # unaffected.
+    if council_response_quotes_fabricated "$f" "$evidence_root"; then
+        return 0
+    fi
+
     # A softer evasion: the seat never admits an access failure, but its verdict
     # rests entirely on the task summary / prior rounds / a clean test suite
     # rather than on reading the artifact, and it cites no real source location.
@@ -2740,6 +2750,656 @@ print(json.dumps(validated, separators=(",", ":")))
 PY
 }
 
+COUNCIL_EMPTY_GROUNDING_JSON='{"citations":0,"citations_unresolved":0,"quotes_checked":0,"quotes_verified":0,"quotes_near_line":0,"quotes_attributed":0,"quotes_attributed_unverified":0,"quotes_verified_in_diff_removed":0,"quotes_verified_in_diff_added":0,"quotes_unverified":0,"quotes_unverifiable":0,"quotes_unverifiable_claimed_removed":0,"quotes_unverifiable_unresolved_citation":0,"quotes_unverifiable_command":0,"quotes_unverifiable_proposed":0,"diff_sources":[],"fabricated":false,"unverified_samples":[]}'
+
+council_response_quote_verification_json() {
+    # Verify the code a seat QUOTES next to its `path:line` citations (sail-cruisey
+    # #2997). council_response_evidence_paths_json only proves a cited file exists
+    # and has that many lines; a seat that invents the "source" it quotes beside a
+    # real path:line still passed as valid-grounded. Here every backtick span or
+    # fenced block within QUOTE_PROXIMITY chars of a resolving citation, and long
+    # enough to be specific (the sail-cruisey hook's floor: >=3 tokens and >=20
+    # normalized chars), must appear whitespace-normalized in a cited file. A match
+    # within NEAR_LINES of the cited line is also reported. A quote whose candidate
+    # files cannot be read is unverifiable, never failed. Prints one JSON object;
+    # "fabricated" is true when at least one quote was checked, none verified,
+    # and at least one definitively failed, OR when a quote the seat attributed to
+    # one citation (directly under it, or "x.ts:12 reads `...`") is in no cited
+    # file and not in the reviewed diff (sail-cruisey #3005).
+    #
+    # Citations resolve against the evidence root, then an attached
+    # --context-file by basename or path suffix, then a unique path suffix under
+    # the root including hidden directories such as .todo/ (sail-cruisey #3032).
+    # A quote attributed to a citation that resolves nowhere, and a command the
+    # seat ran, are unverifiable. HTML entities are decoded on both sides, and
+    # ">" blockquotes and bare lines under a citation-only line are quotes too.
+    local response_path="$1" evidence_root="$2"
+    local empty="$COUNCIL_EMPTY_GROUNDING_JSON"
+    [[ -f "$response_path" && -n "$evidence_root" && -d "$evidence_root" ]] || { printf '%s\n' "$empty"; return 0; }
+    command -v python3 >/dev/null 2>&1 || { printf '%s\n' "$empty"; return 0; }
+    # Every readable --context-file is passed as a trailing argv entry. Each one
+    # can be the target of a citation ("phase-3-plan.md:8"), and those that look
+    # like a unified diff, plus `git diff` of the evidence root against
+    # OCTOPUS_COUNCIL_DIFF_BASE (default HEAD, i.e. the uncommitted working-tree
+    # change), supply quotes of REMOVED (or not-yet-on-disk added) code.
+    local -a diff_context_files=()
+    local ctx
+    for ctx in ${COUNCIL_CONTEXT_FILES[@]+"${COUNCIL_CONTEXT_FILES[@]}"}; do
+        [[ -f "$ctx" && -r "$ctx" ]] && diff_context_files+=("$ctx")
+    done
+    # Source evidence is data; never import project-local Python modules.
+    OCTOPUS_COUNCIL_DIFF_BASE="${OCTOPUS_COUNCIL_DIFF_BASE:-HEAD}" \
+    python3 -I - "$response_path" "$evidence_root" ${diff_context_files[@]+"${diff_context_files[@]}"} <<'PY' 2>/dev/null || printf '%s\n' "$empty"
+import html
+import json
+import os
+import re
+import subprocess
+import sys
+from bisect import bisect_right
+from pathlib import Path
+
+MAX_RESPONSE_BYTES = 1_048_576
+MAX_FILE_BYTES = 1_500_000
+MAX_DIFF_BYTES = 8_388_608
+MAX_UNITS = 256
+MAX_INDEX_ENTRIES = 50_000
+MAX_INDEX_DEPTH = 32
+QUOTE_PROXIMITY = 1500
+REMOVAL_WINDOW = 200
+NEAR_LINES = 40
+MIN_TOKENS = 3
+MIN_CHARS = 20
+
+result = {"citations": 0, "citations_unresolved": 0, "quotes_checked": 0, "quotes_verified": 0,
+          "quotes_near_line": 0, "quotes_attributed": 0, "quotes_attributed_unverified": 0,
+          "quotes_verified_in_diff_removed": 0, "quotes_verified_in_diff_added": 0,
+          "quotes_unverified": 0, "quotes_unverifiable": 0,
+          "quotes_unverifiable_claimed_removed": 0, "quotes_unverifiable_unresolved_citation": 0,
+          "quotes_unverifiable_command": 0, "quotes_unverifiable_proposed": 0, "diff_sources": [],
+          "fabricated": False, "unverified_samples": []}
+
+def emit():
+    print(json.dumps(result, separators=(",", ":")))
+    sys.exit(0)
+
+try:
+    with open(sys.argv[1], "rb") as handle:
+        raw = handle.read(MAX_RESPONSE_BYTES + 1)
+    if len(raw) > MAX_RESPONSE_BYTES:
+        emit()
+    # Some transports deliver Markdown HTML-escaped ("&gt; quote", "=&gt;").
+    # Unescape before parsing so blockquotes and operators read as written; the
+    # file side is unescaped the same way so an HTML source still matches.
+    resp = html.unescape(raw.decode("utf-8", "replace"))
+    root = Path(sys.argv[2]).resolve(strict=True)
+except (OSError, RuntimeError, ValueError):
+    emit()
+
+context_files = []
+for name in sys.argv[3:]:
+    try:
+        path = Path(name).resolve(strict=True)
+    except (OSError, RuntimeError):
+        continue
+    if path.is_file() and path not in context_files:
+        context_files.append(path)
+
+def norm(text):
+    return re.sub(r"\s+", " ", text).strip()
+
+def specific(text):
+    text = norm(text)
+    return len(text) >= MIN_CHARS and len(text.split(" ")) >= MIN_TOKENS
+
+# Hidden directories (.todo/, .claude/) hold real review artifacts, so a cited
+# path under one is resolved like any other. Only VCS and dependency trees are
+# pruned from the suffix index; containment and no-symlink rules still apply.
+INDEX_SKIP = {".git", ".hg", ".svn", "node_modules", "__pycache__", ".venv"}
+suffix_index = None
+def build_index():
+    paths, entries = [], 0
+    stack = [(root, 0)]
+    while stack and entries < MAX_INDEX_ENTRIES:
+        directory, depth = stack.pop()
+        try:
+            listing = list(os.scandir(directory))
+        except OSError:
+            continue
+        for entry in listing:
+            entries += 1
+            if entries >= MAX_INDEX_ENTRIES:
+                break
+            try:
+                if entry.is_symlink():
+                    continue
+                if entry.is_dir(follow_symlinks=False):
+                    if entry.name not in INDEX_SKIP and depth < MAX_INDEX_DEPTH:
+                        stack.append((Path(entry.path), depth + 1))
+                elif entry.is_file(follow_symlinks=False):
+                    paths.append(Path(entry.path))
+            except OSError:
+                continue
+    return paths
+
+def contained(candidate):
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        return False
+    return candidate.is_file()
+
+def resolve_citation(relative):
+    # 1) Relative to the evidence root, as written.
+    try:
+        candidate = (root / relative).resolve(strict=True)
+        if contained(candidate):
+            return candidate
+    except (OSError, RuntimeError):
+        pass
+    # 2) An attached --context-file, named by its basename or a path suffix
+    #    ("phase-3-plan.md:8" for .todo/claude-octopus/3032/phase-3-plan.md).
+    tail = "/" + relative.as_posix()
+    hits = [p for p in context_files if ("/" + p.as_posix()).endswith(tail)]
+    if len(hits) == 1:
+        return hits[0]
+    # 3) A unique path suffix under the root, including hidden directories. A bare
+    #    basename is too ambiguous to resolve this way.
+    if len(relative.parts) < 2:
+        return None
+    global suffix_index
+    if suffix_index is None:
+        suffix_index = build_index()
+    hits = [p for p in suffix_index if ("/" + p.as_posix()).endswith(tail)]
+    return hits[0] if len(hits) == 1 else None
+
+# Same citation grammar as council_response_evidence_paths_json, plus offsets.
+CITATION = re.compile(r"(?<![A-Za-z0-9_./-])([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9]*)\s*:\s*([0-9]+)(?:-([0-9]+))?(?![A-Za-z0-9_/-]|\.(?:[A-Za-z0-9_/-]|\.))")
+tokens = []      # every citation-shaped token: (start, end, path-or-None, line)
+citations = []   # the resolving subset
+CONSULTATIVE = re.compile(r"octopus-consultative\.(?:[^/]{6}|[0-9]+\.[0-9]+\.[^/.]{6})")
+
+def resolve_outside_form(raw):
+    # Absolute and ".." paths are kept as tokens so a quote written about them
+    # is never checked against some other nearby file. An existing file
+    # resolves only inside the root or as an attached context file. A deleted
+    # path maps back to the root only when it sits under a disposable
+    # consultative workspace, whose layout mirrors the root
+    # (".../octopus-consultative.<pid>.<run>.<random>/workspace/scripts/x.mjs").
+    try:
+        candidate = (raw if raw.is_absolute() else root / raw).resolve(strict=True)
+    except (OSError, RuntimeError):
+        candidate = None
+    if candidate is not None:
+        if contained(candidate) or candidate in context_files:
+            return candidate
+        return None
+    if raw.is_absolute():
+        parts = [part for part in raw.parts[1:] if part not in ("", ".")]
+        workspace = next(
+            (i for i, part in enumerate(parts)
+             if part == "workspace" and i > 0 and CONSULTATIVE.fullmatch(parts[i - 1])),
+            None,
+        )
+        if workspace is None:
+            return None
+        rest = parts[workspace + 1:]
+        if not rest or ".." in rest:
+            return None
+        try:
+            candidate = (root / Path(*rest)).resolve(strict=True)
+        except (OSError, RuntimeError):
+            return None
+        if contained(candidate):
+            return candidate
+    return None
+
+# Resolve each distinct path once; a long response repeats the same few paths,
+# and an unresolved multi-part one rescans the whole suffix index.
+resolved = {}
+for match in CITATION.finditer(resp):
+    raw = match.group(1).strip()
+    if raw not in resolved:
+        relative = Path(raw)
+        if relative.is_absolute() or ".." in relative.parts:
+            resolved[raw] = resolve_outside_form(relative)
+        else:
+            resolved[raw] = resolve_citation(relative)
+    candidate = resolved[raw]
+    token = (match.start(), match.end(), candidate, int(match.group(2)))
+    tokens.append(token)
+    if candidate is not None:
+        citations.append(token)
+result["citations"] = len(citations)
+result["citations_unresolved"] = len(tokens) - len(citations)
+if not citations:
+    emit()
+
+# Quote units: fenced blocks, ">" blockquote runs, inline backtick spans outside
+# fences, and bare code lines directly under a citation-only line. Each unit is
+# (outer start, end, kind, block lines, removed lines, fence info).
+GUTTER = re.compile(r"^\s*\d+\s*[:|]\s?")
+units = []
+fence_ranges = []
+for match in re.finditer(r"```([^\n]*)\n(.*?)```", resp, re.S):
+    fence_ranges.append((match.start(), match.end()))
+    info = match.group(1).strip().lower()
+    lines = match.group(2).split("\n")
+    diff_like = info in ("diff", "patch") or any(l.startswith(("@@", "+++ ", "--- ")) for l in lines)
+    kept, removed_kept = [], []
+    for line in lines:
+        if diff_like:
+            if line.startswith(("@@", "+++ ", "--- ")):
+                continue
+            if line.startswith("-"):
+                # Removed code: verifiable only against the diff's removed side.
+                if line[1:].strip():
+                    removed_kept.append(line[1:])
+                continue
+            if line.startswith("+"):
+                line = line[1:]
+        if line.strip():
+            kept.append(line)
+    units.append((match.start(), match.end(), "fence", kept, removed_kept, info))
+
+# Fences come from one finditer pass, so they are sorted and disjoint: only the
+# last fence starting before the span ends can overlap it. A bisect keeps a
+# response with many fences and spans linear-log instead of quadratic.
+fence_starts = [f_start for f_start, _ in fence_ranges]
+
+def in_fence(start, end):
+    i = bisect_right(fence_starts, end - 1) - 1
+    return i >= 0 and fence_ranges[i][1] > start
+
+for match in re.finditer(r"(?:^[ \t]*>[^\n]*(?:\n|$))+", resp, re.M):
+    if in_fence(match.start(), match.end()):
+        continue
+    lines = [re.sub(r"^[ \t]*>+ ?", "", l) for l in match.group(0).split("\n")]
+    lines = [l for l in lines if l.strip()]
+    if lines:
+        units.append((match.start(), match.end(), "blockquote", lines, [], ""))
+for match in re.finditer(r"`([^`\n]+)`", resp):
+    if in_fence(match.start(), match.end()):
+        continue
+    units.append((match.start(), match.end(), "inline", [match.group(1).strip()], [], ""))
+# The "path:line" list shape: a line holding only a citation, followed by the
+# quoted source line with no markup. These can only add verified evidence; an
+# unmatched bare line may be prose, so it is never counted against the seat.
+LINK_TARGET = re.compile(r"\]\([^)\s]*\)")
+for c_start, c_end, _, _ in tokens:
+    line_start = resp.rfind("\n", 0, c_start) + 1
+    line_end = resp.find("\n", c_end)
+    if line_end < 0:
+        continue
+    rest = LINK_TARGET.sub("", resp[line_start:c_start] + resp[c_end:line_end])
+    if re.sub(r"[\s`*_\[\]():#.\-0-9]", "", rest):
+        continue
+    next_end = resp.find("\n", line_end + 1)
+    next_end = len(resp) if next_end < 0 else next_end
+    line = resp[line_end + 1:next_end]
+    stripped = line.strip()
+    if not stripped or "`" in line or stripped.startswith((">", "#", "|")) or in_fence(line_end + 1, next_end):
+        continue
+    units.append((line_end + 1, next_end, "bare", [line], [], ""))
+units.sort(key=lambda unit: unit[0])
+
+def checkable(text):
+    # A quoted citation or a bare path is not a code quote.
+    if CITATION.search(text):
+        return False
+    if " " not in norm(text) and "/" in text:
+        return False
+    return specific(text)
+
+def specific_lines(block):
+    out = []
+    for line in block:
+        variants = [line.strip()]
+        stripped = GUTTER.sub("", line).strip()
+        if stripped != variants[0]:
+            variants.append(stripped)
+        variants = [v for v in variants if checkable(v)]
+        if variants:
+            out.append(variants)
+    return out
+
+def unit_wholes(block):
+    whole = " ".join(l.strip() for l in block)
+    out = [whole] if whole else []
+    unguttered = " ".join(GUTTER.sub("", l).strip() for l in block)
+    if unguttered and unguttered != whole:
+        out.append(unguttered)
+    return [v for v in out if checkable(v)]
+
+file_cache = {}
+def load(path):
+    if path in file_cache:
+        return file_cache[path]
+    entry = None
+    try:
+        if path.stat().st_size <= MAX_FILE_BYTES:
+            data = html.unescape(path.read_bytes().decode("utf-8", "replace"))
+            starts, parts, pos = [], [], 0
+            for line in data.split("\n"):
+                piece = norm(line)
+                if not piece:
+                    continue
+                starts.append(pos)
+                parts.append(piece)
+                pos += len(piece) + 1
+            entry = (" ".join(parts), starts, [i for i, l in enumerate(data.split("\n"), 1) if norm(l)])
+    except (OSError, ValueError):
+        entry = None
+    file_cache[path] = entry
+    return entry
+
+ELLIPSIS = re.compile(r"\s*(?:\.\.\.|…)\s*")
+def find_lines(hay, starts, line_numbers, needle, limit=50):
+    found, at = [], hay.find(needle)
+    while at >= 0 and len(found) < limit:
+        found.append(line_numbers[bisect_right(starts, at) - 1] if starts else 1)
+        at = hay.find(needle, at + 1)
+    return found
+
+def match_variant(text, entry):
+    hay, starts, line_numbers = entry
+    needle = norm(text)
+    lines = find_lines(hay, starts, line_numbers, needle)
+    if lines:
+        return lines
+    # An elided quote ("a(...) ... b") verifies when every specific piece does.
+    pieces = [p for p in ELLIPSIS.split(needle) if specific(p)]
+    if len(pieces) > 1 or (pieces and pieces[0] != needle):
+        piece_lines = [find_lines(hay, starts, line_numbers, p) for p in pieces]
+        if all(piece_lines):
+            return piece_lines[0]
+    return []
+
+def match_unit(wholes, line_variants, entry):
+    # A multi-line block verifies as a whole or when at least two thirds of its
+    # specific lines are in the file. One generic real line (a signature, an
+    # "if (flag) {") can no longer carry an otherwise invented block.
+    for variant in wholes:
+        lines = match_variant(variant, entry)
+        if lines:
+            return lines
+    if not line_variants:
+        return []
+    found = []
+    for variants in line_variants:
+        for variant in variants:
+            lines = match_variant(variant, entry)
+            if lines:
+                found.append(lines)
+                break
+    if found and len(found) * 3 >= len(line_variants) * 2:
+        return found[0]
+    return []
+
+all_cited = []
+for _, _, path, _ in citations:
+    if path not in all_cited:
+        all_cited.append(path)
+
+# Removed/added sides of the reviewed diff. Reviewers routinely quote deleted
+# code ("this guard was removed"); that code is in no working-tree file, so it
+# is checked here instead of being reported as fabricated. Loaded lazily, only
+# when a quote fails against the cited files.
+DIFF_HEADER = re.compile(r"^(@@ |diff --git |\+\+\+ |--- )", re.M)
+diff_sides = None
+def split_diff(text):
+    removed, added = [], []
+    for line in html.unescape(text).split("\n"):
+        if line.startswith(("+++ ", "--- ")):
+            continue
+        if line.startswith("-"):
+            piece = norm(line[1:])
+            if piece:
+                removed.append(piece)
+        elif line.startswith("+"):
+            piece = norm(line[1:])
+            if piece:
+                added.append(piece)
+    return removed, added
+
+def load_diff_sides():
+    removed, added = [], []
+    for path in context_files:
+        try:
+            with open(path, "rb") as handle:
+                data = handle.read(MAX_DIFF_BYTES).decode("utf-8", "replace")
+        except OSError:
+            continue
+        if not DIFF_HEADER.search(data):
+            continue  # a plan or prose artifact; its "- " bullets are not removed code
+        r, a = split_diff(data)
+        removed += r
+        added += a
+        result["diff_sources"].append("context-file")
+    base = os.environ.get("OCTOPUS_COUNCIL_DIFF_BASE", "HEAD") or "HEAD"
+    if re.fullmatch(r"[A-Za-z0-9._/@^~-]{1,200}", base) and not base.startswith("-"):
+        env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+        env.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull, GIT_OPTIONAL_LOCKS="0")
+        try:
+            proc = subprocess.run(["git", "-C", str(root), "diff", "--no-color", "--no-ext-diff",
+                                   "--unified=0", base, "--"],
+                                  env=env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=10)
+            if proc.returncode == 0 and proc.stdout:
+                r, a = split_diff(proc.stdout[:MAX_DIFF_BYTES].decode("utf-8", "replace"))
+                if r or a:
+                    removed += r
+                    added += a
+                    result["diff_sources"].append("git-diff:" + base)
+        except (OSError, subprocess.SubprocessError):
+            pass
+    # Joined so a multi-line quote of consecutive diff lines still matches.
+    return (" ".join(removed), " ".join(added))
+
+def in_diff_side(variants, side):
+    if not side:
+        return False
+    for variant in variants:
+        needle = norm(variant)
+        if needle in side:
+            return True
+        pieces = [p for p in ELLIPSIS.split(needle) if specific(p)]
+        if (len(pieces) > 1 or (pieces and pieces[0] != needle)) and all(p in side for p in pieces):
+            return True
+    return False
+
+REMOVAL_WORDS = re.compile(r"\b(remov(?:e|ed|es|ing|al)|delet(?:e|ed|es|ing|ion)|drop(?:ped|s)?|no longer|was gone|got rid of)\b", re.I)
+# A command the seat ran ("`npm ci --dry-run`") is not a claim about file
+# content. If it is not in the cited file, it is unverifiable, never fabricated.
+COMMAND = re.compile(r"^\$?\s*(?:npm|npx|pnpm|yarn|node|deno|bun|git|gh|make|bash|sh|zsh|cd|ls|cat|grep|rg|sed|awk|curl|python3?|pip|uv|cargo|go|tsc|vitest|jest|pytest|docker|kubectl|psql|netlify|supabase|env)\s")
+SHELL_FENCES = {"sh", "bash", "shell", "console", "zsh", "terminal", "shell-session"}
+# A unit is ATTRIBUTED when it sits directly under or after a citation, with only
+# markup or a reading verb between them ("x.ts:12 reads `...`", "x.ts:12:" then a
+# fence). That is the seat stating the cited file contains this code, so the
+# quote must be found in that file, and a failure counts against the seat even
+# when other quotes verify. A proposal on the citation's line ("change x.ts:12
+# to:") is not a claim about current content.
+GAP_WORDS = {"reads", "read", "shows", "show", "contains", "contain", "has", "says", "is", "at",
+             "line", "lines", "source", "code", "verbatim", "quote", "quoted", "excerpt",
+             "current", "currently", "actual", "l"}
+PROPOSAL = re.compile(r"\b(should|propos\w*|suggest\w*|recommend\w*|replace with|instead|would|could|change (?:it |this )?to|rewrit\w*|becomes?|example|e\.g\.|such as|consider|cover|prefer\w*|expected|want)\b", re.I)
+
+def association(start):
+    # The citation a quote is written about: the nearest one before it in the
+    # same paragraph, with no other quote between them.
+    preceding = [t for t in tokens if t[1] <= start]
+    if not preceding:
+        return None, ""
+    token = max(preceding, key=lambda t: t[1])
+    gap = LINK_TARGET.sub("", resp[token[1]:start]).lstrip("`")
+    if len(gap) > 300 or "`" in gap or re.search(r"\n[ \t]*\n", gap):
+        return None, ""
+    return token, gap
+
+def attribution(token, gap):
+    if token is None or len(gap) > 200 or gap.count("\n") > 2:
+        return None
+    if any(word.lower() not in GAP_WORDS for word in re.findall(r"[A-Za-z]+", gap)):
+        return None
+    line_start = resp.rfind("\n", 0, token[0]) + 1
+    if PROPOSAL.search(LINK_TARGET.sub("", resp[line_start:token[0]])):
+        return None
+    return token
+
+def proposed(start):
+    # "Cover inputs such as `...`", "should become:" then a fence: the seat's own
+    # suggestion, not a claim about what a file contains today.
+    line_start = resp.rfind("\n", 0, start) + 1
+    if resp[line_start:start].strip(" \t>`") == "":
+        line_start = resp.rfind("\n", 0, max(0, line_start - 1)) + 1
+    return bool(PROPOSAL.search(LINK_TARGET.sub("", resp[line_start:start])))
+
+def record_unverified(text):
+    result["quotes_unverified"] += 1
+    if len(result["unverified_samples"]) < 3:
+        result["unverified_samples"].append(norm(text)[:120])
+
+for start, end, kind, block, removed_block, info in units[:MAX_UNITS]:
+    wholes = unit_wholes(block) if len(block) > 1 else []
+    line_variants = specific_lines(block)
+    removed_variants = [v for v in [" ".join(l.strip() for l in removed_block)] + [l.strip() for l in removed_block]
+                        if v and checkable(v)]
+    if not wholes and not line_variants and not removed_variants:
+        continue
+    flat_variants = wholes + [v for variants in line_variants for v in variants]
+    associated, gap = association(start)
+    attributed = attribution(associated, gap)
+    if associated is not None and associated[2] is None:
+        # Written about a citation that names a file outside the evidence root
+        # (an upstream repo, a symlinked dependency tree): unverifiable, and never
+        # checked against some other file the seat cited nearby.
+        if kind != "bare":
+            result["quotes_checked"] += 1
+            result["quotes_unverifiable"] += 1
+            result["quotes_unverifiable_unresolved_citation"] += 1
+        continue
+    if attributed is not None:
+        bound = [(attributed[2], attributed[3])]
+    else:
+        bound = [(path, line) for c_start, c_end, path, line in citations
+                 if c_start <= end + QUOTE_PROXIMITY and c_end >= start - QUOTE_PROXIMITY]
+    if not bound:
+        continue
+    bound_paths = []
+    for path, _ in bound:
+        if path not in bound_paths:
+            bound_paths.append(path)
+    # A miss is only checkable when every file the quote is bound to loaded; a
+    # readable neighbor cannot stand in for an oversized or unreadable bound file.
+    readable = True
+    verified = near = False
+    for path in bound_paths + [p for p in all_cited if p not in bound_paths]:
+        entry = load(path)
+        if entry is None:
+            if path in bound_paths:
+                readable = False
+            continue
+        lines = match_unit(wholes, line_variants, entry)
+        if not lines:
+            continue
+        verified = True
+        cited_lines = [line for p, line in bound if p == path]
+        near = any(abs(found - cited) <= NEAR_LINES for found in lines for cited in cited_lines)
+        break
+    if kind == "bare":
+        # Positive evidence only: a matched bare line is a verified quote; an
+        # unmatched one may be the seat's own prose and is not counted.
+        if verified:
+            result["quotes_checked"] += 1
+            result["quotes_verified"] += 1
+            result["quotes_near_line"] += int(near)
+            if attributed is not None:
+                result["quotes_attributed"] += 1
+        continue
+    result["quotes_checked"] += 1
+    if attributed is not None:
+        result["quotes_attributed"] += 1
+    diff_side_hit = None
+    if not verified:
+        if diff_sides is None:
+            diff_sides = load_diff_sides()
+        removed_side, added_side = diff_sides
+        if in_diff_side(flat_variants + removed_variants, removed_side):
+            diff_side_hit = "removed"
+        elif in_diff_side(flat_variants, added_side):
+            diff_side_hit = "added"
+    sample = (flat_variants or removed_variants)[0]
+    if verified:
+        result["quotes_verified"] += 1
+        if near:
+            result["quotes_near_line"] += 1
+    elif diff_side_hit:
+        result["quotes_verified"] += 1
+        result["quotes_verified_in_diff_" + diff_side_hit] += 1
+    elif not diff_sides[0] and not diff_sides[1] and (
+            removed_variants or REMOVAL_WORDS.search(resp[max(0, start - REMOVAL_WINDOW):end + REMOVAL_WINDOW])):
+        # No diff to check a claimed removal against: unverifiable, not fabricated.
+        result["quotes_unverifiable"] += 1
+        result["quotes_unverifiable_claimed_removed"] += 1
+    elif info in SHELL_FENCES or all(COMMAND.match(norm(l) + " ") for l in block):
+        result["quotes_unverifiable"] += 1
+        result["quotes_unverifiable_command"] += 1
+    elif proposed(start):
+        result["quotes_unverifiable"] += 1
+        result["quotes_unverifiable_proposed"] += 1
+    elif readable:
+        record_unverified(sample)
+        if attributed is not None:
+            result["quotes_attributed_unverified"] += 1
+    else:
+        result["quotes_unverifiable"] += 1
+
+# Fabricated when every checked quote failed, or when any quote the seat
+# attributed to a specific cited file is in neither that file, the other cited
+# files, nor the reviewed diff (sail-cruisey #3005: five real quotes alongside
+# two invented "Checked Source Citations" blocks).
+result["fabricated"] = (result["quotes_attributed_unverified"] > 0 or
+                        (result["quotes_unverified"] > 0 and result["quotes_verified"] == 0))
+emit()
+PY
+}
+
+council_response_quote_report_cached() {
+    # Sets COUNCIL_QUOTE_REPORT to the verification report for this response,
+    # running the verifier only when the response bytes, root, context files, or
+    # diff base changed since the last call in this shell. One seat is otherwise
+    # verified up to five times (substantive, blind, contribution record), each
+    # run possibly paying a git diff and a root index walk. Subshells inherit the
+    # cached value, so a record computed in $(...) after the parent's blind
+    # check reuses it.
+    local f="$1" evidence_root="$2" stamp key
+    # Content checksum, not mtime: a response rewritten within one second must
+    # not reuse the previous report.
+    stamp="$(cksum < "$f" 2>/dev/null)" || stamp=""
+    [[ -n "$stamp" ]] || { COUNCIL_QUOTE_REPORT="$(council_response_quote_verification_json "$f" "$evidence_root")"; COUNCIL_QUOTE_REPORT_KEY=""; return 0; }
+    key="${f}|${evidence_root}|${stamp}|${OCTOPUS_COUNCIL_DIFF_BASE:-HEAD}|${COUNCIL_CONTEXT_FILES[*]+${COUNCIL_CONTEXT_FILES[*]}}"
+    if [[ -n "${COUNCIL_QUOTE_REPORT_KEY:-}" && "$COUNCIL_QUOTE_REPORT_KEY" == "$key" && -n "${COUNCIL_QUOTE_REPORT:-}" ]]; then
+        return 0
+    fi
+    COUNCIL_QUOTE_REPORT="$(council_response_quote_verification_json "$f" "$evidence_root")"
+    COUNCIL_QUOTE_REPORT_KEY="$key"
+}
+
+council_response_quotes_fabricated() {
+    # True when a seat quotes code beside its path:line citations and NONE of those
+    # quotes appear in the cited files (council_response_quote_verification_json).
+    # Opt out with OCTOPUS_COUNCIL_QUOTE_VERIFY=0. A precomputed JSON may be passed
+    # as $3 to avoid re-scanning.
+    local f="$1" evidence_root="${2:-}" precomputed="${3:-}"
+    [[ "${OCTOPUS_COUNCIL_QUOTE_VERIFY:-1}" != "0" ]] || return 1
+    [[ -f "$f" && -n "$evidence_root" && -d "$evidence_root" ]] || return 1
+    local report="$precomputed"
+    if [[ -z "$report" ]]; then
+        council_response_quote_report_cached "$f" "$evidence_root"
+        report="$COUNCIL_QUOTE_REPORT"
+    fi
+    jq -e '.fabricated == true' <<< "$report" >/dev/null 2>&1
+}
+
 council_artifact_digest() {
     local evidence_root="$1" task="${2:-${COUNCIL_TASK:-}}"
     [[ -d "$evidence_root" ]] || return 1
@@ -2818,9 +3478,21 @@ council_contribution_record_json() {
     local response_path="$1" evidence_root="$2" artifact_digest="$3"
     local workspace_digest="$artifact_digest"
     local verdict="" evidence='[]' access_state="unverified" validation_result="invalid-empty"
+    local grounding="$COUNCIL_EMPTY_GROUNDING_JSON"
     if council_response_nonempty "$response_path"; then
         verdict="$(council_response_verdict "$response_path")"
-        if council_response_is_blind "$response_path" "$evidence_root"; then
+        if [[ "${OCTOPUS_COUNCIL_QUOTE_VERIFY:-1}" != "0" ]]; then
+            council_response_quote_report_cached "$response_path" "$evidence_root"
+            grounding="$COUNCIL_QUOTE_REPORT"
+            jq -e 'type == "object"' <<< "$grounding" >/dev/null 2>&1 \
+                || grounding="$COUNCIL_EMPTY_GROUNDING_JSON"
+        fi
+        if council_response_quotes_fabricated "$response_path" "$evidence_root" "$grounding"; then
+            # Distinct from invalid-access: the seat did not report an access
+            # failure, its quoted source simply is not in the files it cited.
+            access_state="evidence-rejected"
+            validation_result="invalid-ungrounded"
+        elif council_response_is_blind "$response_path" "$evidence_root"; then
             access_state="failed"
             validation_result="invalid-access"
         elif ! council_response_has_verdict "$response_path"; then
@@ -2850,10 +3522,11 @@ PY
     fi
     jq -cn --arg artifact_digest "$artifact_digest" --arg workspace_digest "$workspace_digest" --arg access_state "$access_state" \
         --arg validation_result "$validation_result" --arg verdict "$verdict" \
-        --argjson evidence_paths "$evidence" \
+        --argjson evidence_paths "$evidence" --argjson grounding "$grounding" \
         '{artifact_digest:$artifact_digest, workspace_digest:$workspace_digest, access_state:$access_state,
           evidence_paths:$evidence_paths, validation_result:$validation_result,
           verdict:(if $verdict=="" then null else $verdict end),
+          grounding:$grounding,
           comprehension_verified:false}'
 }
 
@@ -3301,6 +3974,7 @@ council_run_advice_phase() {
               verdict:(if $verdict=="" then null else $verdict end),
               status:$status,
               contribution:$contribution,
+              grounding:($contribution.grounding // null),
               timeout_provenance:(if $timeout_provenance=="" then null else $timeout_provenance end),
               counted_as_approver:false}')"
         [[ -n "$failure" ]] && seat_rec="$(jq -c --argjson rc "$failure_rc" --arg d "$failure" --arg f "$stderr_file" \
@@ -3487,6 +4161,7 @@ council_run_chair_fallback() {
                   verdict:(if $verdict=="" then null else $verdict end),
                   status:$status,
                   contribution:$contribution,
+                  grounding:($contribution.grounding // null),
                   timeout_provenance:(if $timeout_provenance=="" then null else $timeout_provenance end),
                   counted_as_approver:false}')"
             COUNCIL_SEAT_RECORDS_JSON="$(jq -c ". + [$seat_rec]" <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}")"

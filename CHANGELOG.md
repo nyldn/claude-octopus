@@ -28,6 +28,31 @@
   than assuming the provider never ran. Failed-attempt captures also survive a
   retry that exits zero but returns an unusable response, with the original
   failure exit code in seat metadata and warnings.
+- Council grounding now checks the code a seat quotes, not just the shape of
+  its citations. A real `path:line` citation used to make a seat
+  `valid-grounded` even when the code quoted beside it existed nowhere
+  (sail-cruisey #2997, #3005). Each specific quote near a resolving citation is
+  now checked against the cited files and the reviewed diff, including removed
+  lines from a `--context-file` diff or `git diff OCTOPUS_COUNCIL_DIFF_BASE`.
+  - A seat is marked blind, with contribution `invalid-ungrounded`, when none
+    of its quotes verify.
+  - It is also marked blind when a quote it attributes to one citation is in
+    no cited file and not in the diff. Attributed means directly under the
+    citation, or introduced as "`x.ts:12` reads `...`".
+  - A multi-line block verifies as a whole, or when two thirds of its specific
+    lines are in the file.
+
+  Grounded seats are not marked blind in these cases from sail-cruisey #3032:
+  - They cite an attached `--context-file` by basename, or a file under a
+    hidden directory such as `.todo/`.
+  - They quote as `>` or HTML-escaped `&gt;` blockquotes.
+  - They quote a command they ran.
+  - They quote a file outside the evidence root.
+  - They write proposed code.
+
+  Unreadable files and quotes tied to a citation that resolves nowhere are
+  unverifiable, never fabricated. Per-seat counts appear in `summary.json`
+  under `seats[].grounding`. Set `OCTOPUS_COUNCIL_QUOTE_VERIFY=0` to opt out.
 
 ## [11.14.2] - 2026-10-17
 
