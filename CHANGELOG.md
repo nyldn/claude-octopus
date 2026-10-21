@@ -6,6 +6,8 @@
 
 ### Fixed
 
+- Council checks source quotes inside malformed backtick fences whose info
+  strings contain backticks, matching verdict parsing so they cannot hide invention.
 - Council recognizes `defines` and `declares` source attributions. A genuine
   quote cannot mask an invented quote introduced by either verb.
 - Uncited quote spans no longer consume council's citation-bound verification

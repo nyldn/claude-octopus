@@ -65,7 +65,9 @@ the base and past forms of `define` and `declare`. Proposal lead-ins still mark
 the following quote as a suggestion rather than current source.
 
 The verifier recognizes inline code, backtick or tilde fenced blocks and
-blockquotes. Closing fences must use the opening marker and at least its width;
+blockquotes. Marker lines with malformed info strings also open a quote block,
+matching verdict parsing. Backticks in an info string cannot hide source quotes.
+Closing fences must use the opening marker and at least its width;
 an unterminated fence extends to the end of the response. Whole-line
 inline backticks inside blockquotes are formatting; backticks within source
 expressions remain literal. A blockquote counts as one quote unit, including

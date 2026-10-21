@@ -188,6 +188,55 @@ VERDICT: APPROVE")"
        ! council_response_is_substantive "$fenced" "$fence_root"; then test_pass; else test_fail "record: $record"; fi
 done
 
+for marker in '```' '````'; do
+    test_case "a $marker fence with backticks in its info cannot hide invented source"
+    fenced="$(_resp "src/pricing.ts:2 reads:
+$marker \`evil\` marker
+$FAKE
+$marker
+VERDICT: APPROVE")"
+    record="$(council_contribution_record_json "$fenced" "$fence_root" sha256:test)"
+    if jq -e '.validation_result == "invalid-ungrounded" and .access_state == "evidence-rejected"
+            and .evidence_paths == [] and .grounding.quotes_checked == 1
+            and .grounding.quotes_attributed_unverified == 1 and .grounding.fabricated == true' <<< "$record" >/dev/null &&
+       ! council_response_is_substantive "$fenced" "$fence_root"; then test_pass; else test_fail "record: $record"; fi
+
+    test_case "a genuine quote cannot mask invention inside a malformed $marker fence"
+    fenced="$(_resp "src/pricing.ts:2 reads:
+$marker \`evil\` marker
+$FAKE
+$marker
+
+src/pricing.ts:2 reads \`$REAL_NEAR\`
+VERDICT: APPROVE")"
+    record="$(council_contribution_record_json "$fenced" "$fence_root" sha256:test)"
+    if jq -e '.validation_result == "invalid-ungrounded" and .evidence_paths == []
+            and .grounding.quotes_checked == 2 and .grounding.quotes_verified == 1
+            and .grounding.quotes_attributed_unverified == 1 and .grounding.fabricated == true' <<< "$record" >/dev/null; then test_pass; else test_fail "record: $record"; fi
+
+    test_case "a genuine quote inside a malformed $marker fence retains grounding"
+    fenced="$(_resp "src/pricing.ts:2 reads:
+$marker \`ts\` marker
+$REAL_NEAR
+$marker
+VERDICT: APPROVE")"
+    record="$(council_contribution_record_json "$fenced" "$fence_root" sha256:test)"
+    if jq -e '.validation_result == "valid-grounded" and .verdict == "APPROVE"
+            and .grounding.quotes_checked == 1 and .grounding.quotes_verified == 1
+            and .grounding.fabricated == false' <<< "$record" >/dev/null; then test_pass; else test_fail "record: $record"; fi
+
+    test_case "a proposal inside a malformed $marker fence is not fabricated source"
+    fenced="$(_resp "src/pricing.ts:2 should become:
+$marker \`ts\` marker
+$FAKE
+$marker
+VERDICT: REVISE")"
+    record="$(council_contribution_record_json "$fenced" "$fence_root" sha256:test)"
+    if jq -e '.validation_result == "valid-grounded" and .verdict == "REVISE"
+            and .grounding.quotes_unverifiable_proposed == 1
+            and .grounding.quotes_attributed_unverified == 0 and .grounding.fabricated == false' <<< "$record" >/dev/null; then test_pass; else test_fail "record: $record"; fi
+done
+
 test_case "a real tilde-fenced quote with inline backticks is checked once"
 printf '%s\n' 'const label = `cabin ${cabin.id}`;' > "$fence_root/src/template.ts"
 fenced="$(_resp 'src/template.ts:1 reads:

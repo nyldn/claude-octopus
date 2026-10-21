@@ -3016,11 +3016,11 @@ fences = []
 opener = None
 # A closing fence uses the same marker and at least the opening width. Scan
 # marker lines once so mismatched or unterminated fences cannot hide quotes.
+# Treat malformed info strings as openers too, matching the verdict parser.
 for match in re.finditer(r"^ {0,3}(`{3,}|~{3,})([^\n]*)(?:\n|$)", resp, re.M):
     marker, info = match.groups()
     if opener is None:
-        if marker[0] != "`" or "`" not in info:
-            opener = match
+        opener = match
     elif (marker[0] == opener.group(1)[0] and len(marker) >= len(opener.group(1))
           and not info.strip()):
         fences.append((opener.start(), match.end(), opener.group(2), resp[opener.end():match.start()]))
