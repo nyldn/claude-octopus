@@ -720,6 +720,56 @@ else
     test_fail "fsmonitor control failed, a repository command ran, or the quote result was lost"
 fi
 
+for attribute_source in tracked info configured; do
+    for filter_kind in clean process; do
+        test_case "$attribute_source attributes cannot execute a repository $filter_kind filter"
+        filter_root="$TEST_TMP_DIR/filter-$attribute_source-$filter_kind"
+        mkdir -p "$filter_root/src"
+        git -C "$filter_root" init -q
+        printf 'export const originalValue = 1;\n' > "$filter_root/src/service.ts"
+        git -C "$filter_root" add .
+        git -C "$filter_root" -c user.name=Fixture -c user.email=fixture@example.invalid commit -qm baseline
+        attributes="$filter_root/.gitattributes"
+        if [[ "$attribute_source" == info ]]; then
+            attributes="$filter_root/.git/info/attributes"
+        elif [[ "$attribute_source" == configured ]]; then
+            attributes="$TEST_TMP_DIR/configured-$filter_kind.attributes"
+            git -C "$filter_root" config core.attributesFile "$attributes"
+        fi
+        printf '*.ts filter=fixture.with.dots\n' > "$attributes"
+        filter_script="$TEST_TMP_DIR/filter-$attribute_source-$filter_kind.sh"
+        filter_marker="$TEST_TMP_DIR/filter-$attribute_source-$filter_kind-ran"
+        printf '#!/bin/sh\nprintf ran > "%s"\n' "$filter_marker" > "$filter_script"
+        if [[ "$filter_kind" == clean ]]; then
+            printf 'cat\n' >> "$filter_script"
+        else
+            # A process filter starts a protocol exchange; exit after the marker
+            # instead of implementing a fake Git filter protocol.
+            printf 'exit 1\n' >> "$filter_script"
+        fi
+        chmod 755 "$filter_script"
+        git -C "$filter_root" config "filter.fixture.with.dots.$filter_kind" "$filter_script"
+        printf 'export const updatedValue = 2;\n' > "$filter_root/src/service.ts"
+        GIT_OPTIONAL_LOCKS=0 git -C "$filter_root" -c core.fsmonitor=false diff --no-ext-diff --no-textconv HEAD -- >/dev/null 2>&1 || true
+        filter_control=false
+        [[ ! -e "$filter_marker" ]] || filter_control=true
+        rm -f "$filter_marker"
+        f="$(_resp 'src/service.ts:1 reads `export const inventedValue = 3;`.
+VERDICT: APPROVE')"
+        r="$(council_response_quote_verification_json "$f" "$filter_root")"
+        real_removed="$(_resp 'src/service.ts:1 reads `export const originalValue = 1;` in the reviewed diff.
+VERDICT: REVISE')"
+        removed_r="$(council_response_quote_verification_json "$real_removed" "$filter_root")"
+        if [[ "$filter_control" == true && ! -e "$filter_marker" ]] &&
+           jq -e '.quotes_checked == 1 and .fabricated == true and .diff_unavailable == false' <<< "$r" >/dev/null &&
+           jq -e '.quotes_verified_in_diff_removed == 1 and .diff_unavailable == false' <<< "$removed_r" >/dev/null; then
+            test_pass
+        else
+            test_fail "repository $filter_kind filter ran, control failed or evidence was lost: $r $removed_r"
+        fi
+    done
+done
+
 for prose in \
     'the response counted as blind' \
     'the response counted as blind!' \
@@ -964,6 +1014,16 @@ import sys
 import time
 from pathlib import Path
 root = Path(sys.argv[sys.argv.index('-C') + 1])
+if 'config' in sys.argv:
+    failure = root / 'filter-config-failure'
+    if failure.exists():
+        if failure.read_text() == 'oversized':
+            sys.stdout.buffer.write(b'x' * 65537)
+            sys.exit(0)
+        sys.exit(1)
+    sys.exit(0)
+if (root / 'filter-config-failure').exists():
+    (root / 'unsafe-diff-ran').touch()
 if (root / 'stall-diff').exists():
     (root / 'diff-producer-pid').write_text(str(os.getpid()))
     time.sleep(30)
@@ -1001,6 +1061,20 @@ else
     test_fail "diff deadline failed or left the producer alive: ${r:0:200}"
 fi
 rm -f "$ROOT/stall-diff"
+
+for config_failure in unavailable oversized; do
+    test_case "an $config_failure filter configuration prevents the worktree diff"
+    printf '%s' "$config_failure" > "$ROOT/filter-config-failure"
+    rm -f "$ROOT/unsafe-diff-ran"
+    r="$(PATH="$fake_git_bin:$PATH" _report "$f")"
+    if [[ ! -e "$ROOT/unsafe-diff-ran" ]] &&
+       jq -e '.diff_unavailable == true and .quotes_verified == 0 and .fabricated == false' <<< "$r" >/dev/null; then
+        test_pass
+    else
+        test_fail "unknown filter configuration allowed a diff or lost uncertainty: $r"
+    fi
+    rm -f "$ROOT/filter-config-failure"
+done
 
 test_case "a chair-fallback seat record carries grounding like an advice seat"
 fbdir="$(mktemp -d "$TEST_TMP_DIR/fallback-grounding.XXXXXX")"; mkdir -p "$fbdir/responses"

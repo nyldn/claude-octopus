@@ -6,6 +6,10 @@
 
 ### Fixed
 
+- Council verifier diffs disable repository clean and process filters as well
+  as textconv, external diff drivers and fsmonitor. Filters selected through
+  tracked, private or configured attributes cannot execute repository commands
+  during quote verification. Filter lookup is bounded and fails closed.
 - Multi-line source quotes need the same whole-block or two-thirds match in
   reviewed diffs as in source files. One real diff line cannot verify an
   otherwise invented block. Responses above 1 MiB report `response_oversized`

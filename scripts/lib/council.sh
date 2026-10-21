@@ -3177,7 +3177,7 @@ def split_diff(text):
                 added.append(piece)
     return removed, added
 
-def read_git_diff(command, env):
+def read_git_diff(command, env, limit=MAX_DIFF_BYTES):
     # Read one byte past the cap to detect truncation without buffering the
     # remaining diff. Keep the original ten-second deadline, including exit.
     deadline = time.monotonic() + 10
@@ -3187,15 +3187,15 @@ def read_git_diff(command, env):
             raw = bytearray()
             with selectors.DefaultSelector() as selector:
                 selector.register(proc.stdout, selectors.EVENT_READ)
-                while len(raw) <= MAX_DIFF_BYTES:
+                while len(raw) <= limit:
                     remaining = deadline - time.monotonic()
                     if remaining <= 0 or not selector.select(remaining):
                         raise subprocess.TimeoutExpired(command, 10)
-                    chunk = os.read(proc.stdout.fileno(), min(65536, MAX_DIFF_BYTES + 1 - len(raw)))
+                    chunk = os.read(proc.stdout.fileno(), min(65536, limit + 1 - len(raw)))
                     if not chunk:
                         break
                     raw.extend(chunk)
-            if len(raw) > MAX_DIFF_BYTES:
+            if len(raw) > limit:
                 proc.kill()
                 return raw
             return raw if proc.wait(timeout=max(0, deadline - time.monotonic())) == 0 else None
@@ -3224,9 +3224,22 @@ def load_diff_sides():
         env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
         env.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull, GIT_OPTIONAL_LOCKS="0")
         try:
-            raw_diff = read_git_diff(["git", "-C", str(root), "-c", "core.fsmonitor=false",
-                                      "diff", "--no-color", "--no-ext-diff",
-                                      "--no-textconv", "--unified=0", base, "--"], env)
+            git_command = ["git", "-C", str(root), "-c", "core.fsmonitor=false"]
+            # Attributes can select clean/process commands even with textconv
+            # disabled. Override every configured driver, including those used by
+            # .git/info/attributes and core.attributesFile. Read names, not values.
+            config = read_git_diff(git_command + ["config", "--null", "--name-only", "--list"], env, 65_536)
+            if config is None or len(config) > 65_536:
+                raise subprocess.SubprocessError("filter configuration unavailable")
+            drivers = {key.rsplit(b".", 1)[0] for key in bytes(config).split(b"\0")
+                       if key.lower().startswith(b"filter.") and
+                       key.rsplit(b".", 1)[-1].lower() in (b"clean", b"process", b"required")}
+            for driver in sorted(drivers):
+                name = os.fsdecode(driver)
+                git_command += ["-c", name + ".clean=", "-c", name + ".process=",
+                                "-c", name + ".required=false"]
+            raw_diff = read_git_diff(git_command + ["diff", "--no-color", "--no-ext-diff",
+                                                   "--no-textconv", "--unified=0", base, "--"], env)
             if raw_diff is None:
                 # A plain evidence directory has no default Git diff. In a
                 # worktree, or with a requested base, failure is missing evidence.
