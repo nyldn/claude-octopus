@@ -47,6 +47,11 @@ attempt=0
 [[ -f "$ATTEMPT_FILE" ]] && attempt="$(cat "$ATTEMPT_FILE")"
 attempt=$((attempt + 1))
 printf '%s\n' "$attempt" > "$ATTEMPT_FILE"
+if [[ -n "${STDOUT_FAILURE:-}" ]]; then
+    printf 'a harmless warning\n' >&2
+    printf '%s\n' "$STDOUT_FAILURE"
+    exit 1
+fi
 if [[ "$attempt" -le "$FAIL_COUNT" ]]; then
     if [[ "${OVERLONG_FIRST_ATTEMPT:-false}" == "true" ]] && [[ "$attempt" -eq 1 ]]; then
         if [[ -n "${OVERLONG_COMPLETION_FILE:-}" ]]; then
@@ -69,7 +74,7 @@ printf 'recovered provider output\n'
 EOF
     chmod 755 "$fake_provider"
 
-    log() { :; }
+    log() { [[ -z "${LOG_FILE:-}" ]] || printf '%s %s\n' "$1" "$2" >> "$LOG_FILE"; }
     classify_task() { printf 'standard\n'; }
     get_role_for_context() { printf 'reviewer\n'; }
     apply_persona() { printf '%s\n' "$2"; }
@@ -185,6 +190,19 @@ if [[ -s "$degraded_artifact" ]] && [[ -s "$degraded_result_artifact" ]] && \
     test_pass
 else
     test_fail "recovery status overwrote the classifier's degraded reason"
+fi
+
+test_case "a failure reported only on stdout is kept in the log"
+stdout_log="$TEST_TMP_DIR/stdout-failure.log"
+set +e
+STDOUT_FAILURE='Not logged in · Please run /login' LOG_FILE="$stdout_log" \
+    run_sync_fixture openrouter 0 stdout-failure >/dev/null 2>&1
+stdout_rc=$?
+set -e
+if [[ "$stdout_rc" -eq 1 ]] && grep -Fq 'Not logged in · Please run /login' "$stdout_log"; then
+    test_pass
+else
+    test_fail "stdout failure detail was dropped (rc=$stdout_rc log: $(tr '\n' ' ' < "$stdout_log" 2>/dev/null))"
 fi
 
 test_case "successful sync dispatch preserves a caller with errexit disabled"
