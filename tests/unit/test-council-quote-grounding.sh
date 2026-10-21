@@ -493,6 +493,57 @@ r="$(_hreport "$escaped")"
 if jq -e '.quotes_checked == 1 and .quotes_verified == 1 and .quotes_attributed == 1 and .fabricated == false' <<< "$r" >/dev/null &&
    ! council_response_is_blind "$escaped" "$HROOT"; then test_pass; else test_fail "report: $r"; fi
 
+for block_style in single escaped multiline; do
+    test_case "a real $block_style blockquote with inline formatting stays grounded"
+    prefix='>'
+    [[ "$block_style" != escaped ]] || prefix='&gt;'
+    quoted="$prefix \`$REAL_NEAR\`"
+    [[ "$block_style" != multiline ]] || quoted="$quoted
+> \`return applyTaxes(base, sailing.portFees);\`"
+    formatted="$(_resp "src/pricing.ts:2 reads:
+$quoted
+
+VERDICT: APPROVE")"
+    r="$(_report "$formatted")"
+    record="$(council_contribution_record_json "$formatted" "$ROOT" sha256:blockquote)"
+    if jq -e '.quotes_verified > 0 and .quotes_attributed_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null &&
+       jq -e '.validation_result == "valid-grounded"' <<< "$record" >/dev/null &&
+       ! council_response_is_blind "$formatted" "$ROOT"; then
+        test_pass
+    else
+        test_fail "real formatted blockquote rejected: $r $record"
+    fi
+done
+
+test_case "an invented formatted blockquote remains fabricated beside a real quote"
+formatted_fake="$(_resp "src/pricing.ts:2 reads \`$REAL_NEAR\`.
+
+src/pricing.ts:2 reads:
+> \`$FAKE\`
+
+VERDICT: APPROVE")"
+r="$(_report "$formatted_fake")"
+if jq -e '.quotes_verified > 0 and .quotes_attributed_unverified > 0 and .fabricated == true' <<< "$r" >/dev/null &&
+   council_response_is_blind "$formatted_fake" "$ROOT"; then
+    test_pass
+else
+    test_fail "invented formatted blockquote gained grounding: $r"
+fi
+
+test_case "literal source backticks inside a blockquote remain source content"
+printf 'export const message = `hello from source`;\n' > "$ROOT/src/literal.ts"
+literal="$(_resp 'src/literal.ts:1 reads:
+> export const message = `hello from source`;
+
+VERDICT: APPROVE')"
+r="$(_report "$literal")"
+if jq -e '.quotes_verified > 0 and .quotes_attributed_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null &&
+   ! council_response_is_blind "$literal" "$ROOT"; then
+    test_pass
+else
+    test_fail "literal source backticks were changed: $r"
+fi
+
 test_case "#3032: a blockquote attributed to an upstream file outside the root is unverifiable, not checked against local files"
 upstream="$(_resp "- \`functions-v2/_lib/handler.ts:2\`:
   > const extra = { url: request.url, method: request.method };

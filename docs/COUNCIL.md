@@ -61,7 +61,9 @@ the cited files and reviewed diff. A seat whose checked quotes are fabricated
 receives `invalid-ungrounded` and cannot count toward approval. An attributed
 quote that fails verification also rejects the seat, even if other quotes match.
 
-The verifier recognizes inline code, fenced blocks and blockquotes. It checks
+The verifier recognizes inline code, fenced blocks and blockquotes. Whole-line
+inline backticks inside blockquotes are formatting; backticks within source
+expressions remain literal. It checks
 removed and added lines from attached diff context and `git diff` against
 `OCTOPUS_COUNCIL_DIFF_BASE`, which defaults to `HEAD`. Repository textconv,
 external diff drivers, clean/process filters and fsmonitor commands are disabled.

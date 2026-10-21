@@ -6,6 +6,9 @@
 
 ### Fixed
 
+- Real code wrapped in inline backticks inside a blockquote keeps its council
+  grounding. Markdown formatting no longer creates a duplicate fabricated quote;
+  literal backticks within source expressions are preserved.
 - Council responses with quotes beyond the 256-unit verification budget cannot
   count toward quorum, including when earlier quotes verify. Git filter driver
   names containing `=` prevent diff capture because they cannot be safely

@@ -3030,7 +3030,8 @@ for match in re.finditer(r"(?:^[ \t]*>[^\n]*(?:\n|$))+", resp, re.M):
     if in_fence(match.start(), match.end()):
         continue
     lines = [re.sub(r"^[ \t]*>+ ?", "", l) for l in match.group(0).split("\n")]
-    lines = [l for l in lines if l.strip()]
+    # Whole-line inline formatting is Markdown, not literal source backticks.
+    lines = [re.sub(r"^[ \t]*`([^`\n]+)`[ \t]*$", r"\1", l) for l in lines if l.strip()]
     if lines:
         units.append((match.start(), match.end(), "blockquote", lines, [], ""))
 for match in re.finditer(r"`([^`\n]+)`", resp):
