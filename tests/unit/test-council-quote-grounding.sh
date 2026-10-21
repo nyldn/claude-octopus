@@ -192,12 +192,20 @@ VERDICT: APPROVE")"
     fi
 done
 
-test_case "a missing Python verifier is reported as verification failure"
+test_case "missing Python preserves the legacy unverified prose fallback"
 missing_python="$(PATH=/nonexistent council_response_quote_verification_json "$fab" "$ROOT")"
-if jq -e '.verification_failed == true and .fabricated == false' <<< "$missing_python" >/dev/null; then
+missing_record="$(
+    command() {
+        [[ "$*" != '-v python3' ]] || return 1
+        builtin command "$@"
+    }
+    council_contribution_record_json "$noquote" "$ROOT" sha256:missing-python
+)"
+if jq -e '(.verification_failed // false) == false and .citations == 0 and .fabricated == false' <<< "$missing_python" >/dev/null &&
+   jq -e '.validation_result == "valid-unverified" and .evidence_paths == []' <<< "$missing_record" >/dev/null; then
     test_pass
 else
-    test_fail "missing verifier looked like successful empty verification: $missing_python"
+    test_fail "missing Python changed availability or granted validated evidence: $missing_python $missing_record"
 fi
 
 for malformed_report in 'not-json' '{"fabricated":false} {"fabricated":false}' 'null'; do

@@ -2778,7 +2778,7 @@ council_response_quote_verification_json() {
     local empty="$COUNCIL_EMPTY_GROUNDING_JSON"
     local failed="$COUNCIL_FAILED_GROUNDING_JSON" report
     [[ -f "$response_path" && -n "$evidence_root" && -d "$evidence_root" ]] || { printf '%s\n' "$empty"; return 0; }
-    command -v python3 >/dev/null 2>&1 || { printf '%s\n' "$failed"; return 0; }
+    command -v python3 >/dev/null 2>&1 || { printf '%s\n' "$empty"; return 0; }
     # Every readable --context-file is passed as a trailing argv entry. Each one
     # can be the target of a citation ("phase-3-plan.md:8"), and those that look
     # like a unified diff, plus `git diff` of the evidence root against

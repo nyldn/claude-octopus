@@ -6,7 +6,7 @@
 
 ### Fixed
 
-- Council verification failures cannot grant grounding. Missing or crashed
+- Council verification failures cannot grant grounding. Crashed
   verifiers and malformed grounding reports reject the seat; partial output is
   discarded and unverified quotes are not labeled fabricated.
 - Real code wrapped in inline backticks inside a blockquote keeps its council

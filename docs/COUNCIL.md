@@ -88,9 +88,10 @@ files still resolve independently. `quotes_omitted` reports units beyond the
 256-unit scan limit. Any omitted units cause `invalid-ungrounded`, even if
 earlier quotes verify. Responses above 1 MiB set `response_oversized` and also
 receive `invalid-ungrounded`. Neither limit labels unchecked quotes fabricated.
-A missing or crashed verifier sets `verification_failed` and rejects the seat
+A crashed verifier sets `verification_failed` and rejects the seat
 without labeling its quotes fabricated. Malformed grounding reports also reject
-the seat. Partial output from a failed verifier is discarded.
+the seat. Partial output from a failed verifier is discarded. Without Python,
+the prior prose fallback remains available and does not validate evidence.
 A multi-line quote can verify as a whole or when two thirds of its specific
 lines match, including matches against either side of the diff. Removed-only diff fences undergo the same fabrication checks.
 A match in any cited file or the reviewed diff verifies a quote; exact file
