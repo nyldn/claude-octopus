@@ -87,8 +87,10 @@ Distinct citations share a sorted path suffix index instead of scanning every
 indexed file for each missing path. Directory entries stream within a 50,000-entry
 budget. Suffix inference stays unresolved when the index reaches its entry or
 depth limit, or a directory cannot be scanned. Direct paths and attached context
-files still resolve independently. `quotes_omitted` reports units beyond the
-256-unit scan limit. Any omitted units cause `invalid-ungrounded`, even if
+files still resolve independently. Only units with specific, checkable variants
+consume the 256-unit scan limit; short inline identifiers do not count.
+`quotes_omitted` reports checkable units beyond that limit.
+Any omitted units cause `invalid-ungrounded`, even if
 earlier quotes verify. Responses above 1 MiB set `response_oversized` and also
 receive `invalid-ungrounded`. Neither limit labels unchecked quotes fabricated.
 A crashed verifier sets `verification_failed` and rejects the seat

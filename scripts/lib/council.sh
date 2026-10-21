@@ -3341,14 +3341,20 @@ def record_unverified(text):
     if len(result["unverified_samples"]) < 3:
         result["unverified_samples"].append(norm(text)[:120])
 
-result["quotes_omitted"] = max(0, len(units) - MAX_UNITS)
-for start, end, kind, block, removed_block, info in units[:MAX_UNITS]:
+checkable_units = 0
+for start, end, kind, block, removed_block, info in units:
     wholes = unit_wholes(block) if len(block) > 1 else []
     line_variants = specific_lines(block)
     removed_variants = [v for v in [" ".join(l.strip() for l in removed_block)] + [l.strip() for l in removed_block]
                         if v and checkable(v)]
     if not wholes and not line_variants and not removed_variants:
         continue
+    # Short identifiers and other uncheckable spans do not consume verification
+    # capacity. Count omitted specific units without matching more than the cap.
+    if checkable_units >= MAX_UNITS:
+        result["quotes_omitted"] += 1
+        continue
+    checkable_units += 1
     flat_variants = wholes + [v for variants in line_variants for v in variants]
     associated, gap = association(start)
     attributed = attribution(associated, gap)

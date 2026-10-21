@@ -6,6 +6,8 @@
 
 ### Fixed
 
+- Short inline identifiers no longer exhaust council's quote budget. The
+  256-unit limit still rejects unchecked specific quotes beyond the budget.
 - Council quorum counts and chair admission use the refreshed contribution's
   validation and verdict. Rejected or unavailable records cannot retain a vote
   from preliminary checks.

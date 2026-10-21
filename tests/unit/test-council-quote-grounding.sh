@@ -998,10 +998,24 @@ bounded() {
 }
 r="$(bounded 10 bash -c 'source "$1"; council_response_quote_verification_json "$2" "$3"' _ \
     "$PROJECT_ROOT/scripts/lib/council.sh" "$many" "$ROOT" 2>/dev/null || true)"
-if jq -e '.citations == 1 and .quotes_verified == 1 and .quotes_omitted > 0 and .fabricated == false' <<< "$r" >/dev/null 2>&1; then
+if jq -e '.citations == 1 and .quotes_verified == 1 and .quotes_omitted == 0 and .fabricated == false' <<< "$r" >/dev/null 2>&1; then
     test_pass
 else
     test_fail "verifier did not finish inside 10s or misreported: ${r:0:200}"
+fi
+
+test_case "short inline identifiers do not consume the checkable quote budget"
+identifiers="$(_resp "$(for i in $(seq 1 100); do printf '\140id\140 \140null\140 \140value\140 '; done)
+src/pricing.ts:2 reads \`$REAL_NEAR\`.
+VERDICT: APPROVE")"
+r="$(_report "$identifiers")"
+record="$(council_contribution_record_json "$identifiers" "$ROOT" sha256:short-identifiers)"
+if jq -e '.quotes_checked == 1 and .quotes_verified == 1 and .quotes_omitted == 0 and .fabricated == false' <<< "$r" >/dev/null &&
+   jq -e '.validation_result == "valid-grounded"' <<< "$record" >/dev/null &&
+   ! council_response_is_blind "$identifiers" "$ROOT"; then
+    test_pass
+else
+    test_fail "short identifiers exhausted the quote budget: $r $record"
 fi
 
 for quote_limit_case in boundary overflow mixed; do
@@ -1012,24 +1026,25 @@ import sys
 path, case, real, fake = sys.argv[1:]
 quote = lambda text: "\nsrc/pricing.ts:2 reads `%s`.\n" % text
 if case == "boundary":
-    parts = ["`x` "] * 255 + [quote(real)]
+    parts = [quote(real)] * 256
 elif case == "overflow":
-    parts = ["`x` "] * 256 + [quote(fake)]
+    parts = [quote(fake)] * 257
 else:
-    parts = [quote(real) + "\n"] + ["`x` "] * 255 + [quote(fake)]
+    parts = [quote(real)] * 256 + [quote(fake)]
 open(path, "w").write("".join(parts) + "\nVERDICT: APPROVE\n")
 PY_QUOTE_LIMIT
     r="$(_report "$limited")"
     record="$(council_contribution_record_json "$limited" "$ROOT" sha256:quote-limit)"
     if [[ "$quote_limit_case" == boundary ]]; then
-        if jq -e '.quotes_omitted == 0 and .quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null &&
+        if jq -e '.quotes_omitted == 0 and .quotes_checked == 256 and .quotes_verified == 256 and .fabricated == false' <<< "$r" >/dev/null &&
            jq -e '.validation_result == "valid-grounded"' <<< "$record" >/dev/null &&
            ! council_response_is_blind "$limited" "$ROOT"; then
             test_pass
         else
             test_fail "exact quote boundary lost grounding: $r $record"
         fi
-    elif jq -e '.quotes_omitted == 1 and .fabricated == false' <<< "$r" >/dev/null &&
+    elif jq -e --arg case "$quote_limit_case" '.quotes_omitted == 1 and .quotes_checked == 256
+             and .fabricated == ($case == "overflow")' <<< "$r" >/dev/null &&
          jq -e '.validation_result == "invalid-ungrounded" and .evidence_paths == [] and .grounding.quotes_omitted == 1' <<< "$record" >/dev/null &&
          council_response_is_blind "$limited" "$ROOT" &&
          ! council_response_is_substantive "$limited" "$ROOT"; then
