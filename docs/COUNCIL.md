@@ -61,7 +61,9 @@ the cited files and reviewed diff. A seat whose checked quotes are fabricated
 receives `invalid-ungrounded` and cannot count toward approval. An attributed
 quote that fails verification also rejects the seat, even if other quotes match.
 
-The verifier recognizes inline code, fenced blocks and blockquotes. Whole-line
+The verifier recognizes inline code, backtick or tilde fenced blocks and
+blockquotes. Closing fences must use the opening marker and at least its width;
+an unterminated fence extends to the end of the response. Whole-line
 inline backticks inside blockquotes are formatting; backticks within source
 expressions remain literal. A blockquote counts as one quote unit, including
 any inline spans inside it. It checks

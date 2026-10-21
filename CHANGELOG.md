@@ -6,6 +6,8 @@
 
 ### Fixed
 
+- Council verifies tilde-fenced source quotes and matches fence markers and
+  widths, preventing invented quotes from bypassing grounding through Markdown.
 - Rejected chair fallbacks retain their grounding report, response and failed
   attempt diagnostics while remaining excluded from chair admission and quorum.
 - The subshell TERM regression requires proof that its restored trap executed.

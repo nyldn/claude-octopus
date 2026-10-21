@@ -3012,10 +3012,25 @@ if not citations:
 GUTTER = re.compile(r"^\s*\d+\s*[:|]\s?")
 units = []
 fence_ranges = []
-for match in re.finditer(r"```([^\n]*)\n(.*?)```", resp, re.S):
-    fence_ranges.append((match.start(), match.end()))
-    info = match.group(1).strip().lower()
-    lines = match.group(2).split("\n")
+fences = []
+opener = None
+# A closing fence uses the same marker and at least the opening width. Scan
+# marker lines once so mismatched or unterminated fences cannot hide quotes.
+for match in re.finditer(r"^ {0,3}(`{3,}|~{3,})([^\n]*)(?:\n|$)", resp, re.M):
+    marker, info = match.groups()
+    if opener is None:
+        if marker[0] != "`" or "`" not in info:
+            opener = match
+    elif (marker[0] == opener.group(1)[0] and len(marker) >= len(opener.group(1))
+          and not info.strip()):
+        fences.append((opener.start(), match.end(), opener.group(2), resp[opener.end():match.start()]))
+        opener = None
+if opener is not None:
+    fences.append((opener.start(), len(resp), opener.group(2), resp[opener.end():]))
+for start, end, info, body in fences:
+    fence_ranges.append((start, end))
+    info = info.strip().lower()
+    lines = body.split("\n")
     diff_like = info in ("diff", "patch") or any(l.startswith(("@@", "+++ ", "--- ")) for l in lines)
     kept, removed_kept = [], []
     for line in lines:
@@ -3031,9 +3046,9 @@ for match in re.finditer(r"```([^\n]*)\n(.*?)```", resp, re.S):
                 line = line[1:]
         if line.strip():
             kept.append(line)
-    units.append((match.start(), match.end(), "fence", kept, removed_kept, info))
+    units.append((start, end, "fence", kept, removed_kept, info))
 
-# Fences come from one finditer pass, so they are sorted and disjoint: only the
+# Fences come from one marker scan, so they are sorted and disjoint: only the
 # last fence starting before the span ends can overlap it. A bisect keeps a
 # response with many fences and spans linear-log instead of quadratic.
 fence_starts = [f_start for f_start, _ in fence_ranges]

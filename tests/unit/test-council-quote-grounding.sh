@@ -109,6 +109,59 @@ VERDICT: APPROVE")"
 r="$(_report "$fenced")"
 if jq -e '.quotes_checked == 2 and .quotes_verified == 2 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
+# A known empty diff makes these fabricated-source assertions independent of
+# the host's temporary-directory Git configuration.
+fence_root="$(mktemp -d "$TEST_TMP_DIR/fence-evidence.XXXXXX")"
+mkdir -p "$fence_root/src"
+cp "$ROOT/src/pricing.ts" "$fence_root/src/pricing.ts"
+git -C "$fence_root" init -q
+git -C "$fence_root" add src
+git -C "$fence_root" -c user.name=Test -c user.email=test@example.invalid commit -qm baseline
+for marker in '~~~' '~~~~' '````'; do
+    test_case "invented source in a $marker fence rejects the contribution"
+    fenced="$(_resp "src/pricing.ts:2 reads:
+${marker}ts
+$FAKE
+$marker
+VERDICT: APPROVE")"
+    record="$(council_contribution_record_json "$fenced" "$fence_root" sha256:test)"
+    if jq -e '.validation_result == "invalid-ungrounded" and .access_state == "evidence-rejected"
+            and .evidence_paths == [] and .grounding.quotes_checked == 1
+            and .grounding.quotes_attributed_unverified == 1 and .grounding.fabricated == true' <<< "$record" >/dev/null &&
+       ! council_response_is_substantive "$fenced" "$fence_root"; then test_pass; else test_fail "record: $record"; fi
+done
+
+test_case "a real tilde-fenced quote with inline backticks is checked once"
+printf '%s\n' 'const label = `cabin ${cabin.id}`;' > "$fence_root/src/template.ts"
+fenced="$(_resp 'src/template.ts:1 reads:
+~~~ts
+const label = `cabin ${cabin.id}`;
+~~~~
+VERDICT: APPROVE')"
+record="$(council_contribution_record_json "$fenced" "$fence_root" sha256:test)"
+if jq -e '.validation_result == "valid-grounded" and .verdict == "APPROVE"
+        and .grounding.quotes_checked == 1 and .grounding.quotes_verified == 1
+        and .grounding.fabricated == false' <<< "$record" >/dev/null; then test_pass; else test_fail "record: $record"; fi
+
+for false_close in '~~~' '````' '~~~~ts'; do
+    test_case "$false_close cannot close a four-tilde fence before an invented quote"
+    fenced="$(_resp "src/pricing.ts:2 reads:
+~~~~ts
+$false_close
+$FAKE
+~~~~
+VERDICT: APPROVE")"
+    r="$(council_response_quote_verification_json "$fenced" "$fence_root")"
+    if jq -e '.quotes_checked == 1 and .quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+
+test_case "an unterminated tilde fence still checks its source quote"
+fenced="$(_resp "src/pricing.ts:2 reads:
+~~~ts
+$FAKE")"
+r="$(council_response_quote_verification_json "$fenced" "$fence_root")"
+if jq -e '.quotes_checked == 1 and .quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
 test_case "an elided quote verifies when each specific piece is in the file"
 elided="$(_resp "src/pricing.ts:1 \`export function priceFor(cabin, sailing) { ... return applyTaxes(base, sailing.portFees);\`
 VERDICT: APPROVE")"
@@ -943,23 +996,32 @@ fi
 test_case "a path cited many times is resolved once"
 resolve_count="$TEST_TMP_DIR/qv-resolve-count"; : > "$resolve_count"
 # Wrap both resolvers with a call counter just before the citation loop.
-cat > "$shim_dir/python3" <<SHIM
-#!/usr/bin/env bash
-if [[ "\$1" == "-I" && "\$2" == "-" ]]; then
-    script="\$(cat)"
-    if [[ "\$script" == *quotes_unverifiable_proposed* ]]; then
-        hook='def _counted(f):
+# Keep source rewriting in Python. Bash 3.2 string substitution over the full
+# verifier can consume its process-group budget on native macOS.
+resolve_loader="$TEST_TMP_DIR/qv-resolve-loader.py"
+cat > "$resolve_loader" <<'PY_RESOLVE_LOADER'
+import sys
+
+counter_path = sys.argv.pop(1)
+sys.argv[0] = "-"
+script = sys.stdin.read()
+hook = f'''def _counted(f):
     def g(*a):
-        with open("$resolve_count", "a") as h:
+        with open({counter_path!r}, "a") as h:
             h.write("r\\n")
         return f(*a)
     return g
 resolve_citation = _counted(resolve_citation)
 resolve_outside_form = _counted(resolve_outside_form)
-for match in CITATION.finditer(resp):'
-        script="\${script/for match in CITATION.finditer(resp):/\$hook}"
-    fi
-    printf '%s' "\$script" | exec "$real_python" "\$@"
+for match in CITATION.finditer(resp):'''
+assert script.count("for match in CITATION.finditer(resp):") == 1
+script = script.replace("for match in CITATION.finditer(resp):", hook, 1)
+exec(compile(script, "<stdin>", "exec"))
+PY_RESOLVE_LOADER
+cat > "$shim_dir/python3" <<SHIM
+#!/usr/bin/env bash
+if [[ "\$1" == "-I" && "\$2" == "-" ]]; then
+    exec "$real_python" -I "$resolve_loader" "$resolve_count" "\${@:3}"
 fi
 exec "$real_python" "\$@"
 SHIM
@@ -1050,7 +1112,7 @@ else
     test_fail "missing supervisor granted grounding: ${r:0:200}"
 fi
 
-test_case "a sub-megabyte adversarial response cannot run the quote verifier without a deadline"
+test_case "a sub-megabyte adversarial response returns a correct report or fails closed within the deadline"
 adversarial="$TEST_TMP_DIR/adversarial-fence-markers.md"
 python3 - "$adversarial" "$REAL_NEAR" <<'PY_ADVERSARIAL'
 import sys
@@ -1060,11 +1122,16 @@ with open(sys.argv[1], "w") as out:
 PY_ADVERSARIAL
 r="$(bounded 20 bash -c 'source "$1"; council_response_quote_verification_json "$2" "$3"' _ \
     "$PROJECT_ROOT/scripts/lib/council.sh" "$adversarial" "$ROOT" 2>/dev/null || true)"
-if jq -e '.verification_failed == true and .quotes_verified == 0 and .fabricated == false' <<< "$r" >/dev/null 2>&1 &&
-   council_response_quotes_fabricated "$adversarial" "$ROOT" "$r"; then
+# The marker scan can finish this formerly pathological input. A complete
+# report must verify the real quote; a timed-out run must discard partial output.
+if jq -e '.verification_failed == false and .quotes_checked == 1 and .quotes_verified == 1
+        and .quotes_unverified == 0 and .quotes_omitted == 0 and .fabricated == false' <<< "$r" >/dev/null 2>&1; then
+    test_pass
+elif jq -e '.verification_failed == true and .quotes_verified == 0 and .fabricated == false' <<< "$r" >/dev/null 2>&1 &&
+     council_response_quotes_fabricated "$adversarial" "$ROOT" "$r"; then
     test_pass
 else
-    test_fail "adversarial response exceeded the deadline or gained grounding: ${r:0:200}"
+    test_fail "adversarial response exceeded the deadline or returned an incorrect report: ${r:0:200}"
 fi
 
 test_case "short inline identifiers do not consume the checkable quote budget"
