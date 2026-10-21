@@ -241,6 +241,33 @@ else
     test_fail "report: $r"
 fi
 
+test_case "invented all-removed diff fences are fabricated when real diff evidence exists"
+invented_removed="$(_resp "src/pricing.ts:2 reads:
+\`\`\`diff
+- $FAKE
+\`\`\`
+VERDICT: APPROVE")"
+r="$(COUNCIL_CONTEXT_FILES=("$ctx_diff"); _report "$invented_removed")"
+if jq -e '.quotes_checked == 1 and .quotes_unverified == 1 and .quotes_attributed_unverified == 1
+          and .quotes_unverifiable_command == 0 and .fabricated == true' <<< "$r" >/dev/null; then
+    test_pass
+else
+    test_fail "report: $r"
+fi
+
+test_case "a source quote present in another cited file follows the grounding contract"
+cross_root="$(mktemp -d "$TEST_TMP_DIR/cross-cited.XXXXXX")"
+mkdir -p "$cross_root/src"
+cp "$ROOT/src/pricing.ts" "$cross_root/src/pricing.ts"
+printf '%s\n' "$FAKE" > "$cross_root/src/elsewhere.ts"
+cross_cited="$(_resp "src/pricing.ts:2 reads \`$FAKE\`.
+
+See src/elsewhere.ts:1 for related evidence.
+VERDICT: APPROVE")"
+r="$(council_response_quote_verification_json "$cross_cited" "$cross_root")"
+if jq -e '.citations == 2 and .quotes_verified == 1 and .quotes_attributed_unverified == 0
+          and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
 test_case "a quote found only on the diff's added side verifies (working tree vs cited file timing)"
 printf 'diff --git a/src/pricing.ts b/src/pricing.ts\n@@ -4,1 +4,1 @@\n-  return applyTaxes(base, sailing.portFees);\n+  return applyTaxes(base, sailing.portFees, sailing.region);\n' > "$ctx_diff"
 added_resp="$(_resp "src/pricing.ts:4 now does \`return applyTaxes(base, sailing.portFees, sailing.region);\` correctly.

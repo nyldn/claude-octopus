@@ -3391,7 +3391,7 @@ for start, end, kind, block, removed_block, info in units[:MAX_UNITS]:
         # No diff to check a claimed removal against: unverifiable, not fabricated.
         result["quotes_unverifiable"] += 1
         result["quotes_unverifiable_claimed_removed"] += 1
-    elif info in SHELL_FENCES or all(COMMAND.match(norm(l) + " ") for l in block):
+    elif info in SHELL_FENCES or (block and all(COMMAND.match(norm(l) + " ") for l in block)):
         result["quotes_unverifiable"] += 1
         result["quotes_unverifiable_command"] += 1
     elif proposed(start):

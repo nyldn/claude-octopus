@@ -79,7 +79,10 @@ depth limit, or a directory cannot be scanned. Direct paths and attached context
 files still resolve independently. `quotes_omitted` reports units beyond the
 256-unit scan limit.
 A multi-line quote can verify as a whole or when two thirds of its specific
-lines match. These checks cannot establish that a provider read the source.
+lines match. Removed-only diff fences undergo the same fabrication checks.
+A match in any cited file or the reviewed diff verifies a quote; exact file
+attribution is not proven. These checks cannot establish that a provider read
+the source.
 
 Counts appear in each seat's `grounding` object in `summary.json`. Set
 `OCTOPUS_COUNCIL_QUOTE_VERIFY=0` to disable citation quote verification.
