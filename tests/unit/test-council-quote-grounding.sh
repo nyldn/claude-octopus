@@ -641,6 +641,21 @@ VERDICT: APPROVE")"
     if jq -e '.quotes_unverified == 1 and .quotes_unverifiable_prose == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 done
 
+test_case "a long question-filled prose span finishes inside the verifier budget"
+punctuated="$(mktemp "$TEST_TMP_DIR/punctuated.XXXXXX")"
+python3 - "$punctuated" <<'PY_PUNCTUATED'
+import sys
+from pathlib import Path
+Path(sys.argv[1]).write_text('At src/pricing.ts:2 the outcome was `' + 'word ? value ' * 60_000 + '`, which describes the review result.\nVERDICT: APPROVE\n')
+PY_PUNCTUATED
+r="$(bounded 10 bash -c 'source "$1"; council_response_quote_verification_json "$2" "$3"' _ \
+    "$PROJECT_ROOT/scripts/lib/council.sh" "$punctuated" "$ROOT" 2>/dev/null || true)"
+if jq -e '.quotes_checked == 1 and .quotes_unverifiable_prose == 1 and .fabricated == false' <<< "$r" >/dev/null 2>&1; then
+    test_pass
+else
+    test_fail "punctuated prose exceeded 10s or was rejected: ${r:0:200}"
+fi
+
 test_case "an explicit source attribution still checks a plain-text quotation"
 f="$(_resp 'src/pricing.ts:2 reads `the response counted as blind`.
 VERDICT: APPROVE')"

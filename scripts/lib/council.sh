@@ -3232,7 +3232,7 @@ PROPOSAL = re.compile(r"\b(should|propos\w*|suggest\w*|recommend\w*|replace with
 # is not code syntax; calls, indexing, operators and member access still are.
 CODE_SYNTAX = re.compile(
     r"[{}=<>+*/%|&]|\w[./]\w|\b[\w$]+[\[(]|!=|\?\?|\?\.|"
-    r"\S\s+\?\s+\S.*:\s+\S")
+    r"\S\s+\?\s+[^?\s:][^?:]*:\s+\S")
 
 def association(start):
     # The citation a quote is written about: the nearest one before it in the
