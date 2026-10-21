@@ -559,7 +559,7 @@ bounded() {
 }
 r="$(bounded 10 bash -c 'source "$1"; council_response_quote_verification_json "$2" "$3"' _ \
     "$PROJECT_ROOT/scripts/lib/council.sh" "$many" "$ROOT" 2>/dev/null || true)"
-if jq -e '.citations == 1 and .quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null 2>&1; then
+if jq -e '.citations == 1 and .quotes_verified == 1 and .quotes_omitted > 0 and .fabricated == false' <<< "$r" >/dev/null 2>&1; then
     test_pass
 else
     test_fail "verifier did not finish inside 10s or misreported: ${r:0:200}"
@@ -580,7 +580,7 @@ VERDICT: APPROVE")"
 done
 [[ "$proposal_names_passed" != true ]] || test_pass
 
-test_case "quote verification never executes repository textconv drivers"
+test_case "quote verification never executes repository textconv or fsmonitor commands"
 diff_root="$TEST_TMP_DIR/textconv-root"
 mkdir -p "$diff_root/src"
 git -C "$diff_root" init -q
@@ -593,15 +593,80 @@ textconv_marker="$TEST_TMP_DIR/textconv-ran"
 printf '#!/bin/sh\nprintf ran > "%s"\ncat "$1"\n' "$textconv_marker" > "$textconv"
 chmod 755 "$textconv"
 git -C "$diff_root" config diff.fixture.textconv "$textconv"
+fsmonitor="$TEST_TMP_DIR/fixture-fsmonitor"
+fsmonitor_marker="$TEST_TMP_DIR/fsmonitor-ran"
+printf '#!/bin/sh\nprintf ran > "%s"\nexit 1\n' "$fsmonitor_marker" > "$fsmonitor"
+chmod 755 "$fsmonitor"
+git -C "$diff_root" config core.fsmonitor "$fsmonitor"
 printf 'export const updatedValue = 2;\n' > "$diff_root/src/service.ts"
+# Prove this Git actually executes the fixture before testing its suppression.
+GIT_OPTIONAL_LOCKS=0 git -C "$diff_root" diff --no-ext-diff --no-textconv HEAD -- >/dev/null
+fsmonitor_control=false
+[[ ! -e "$fsmonitor_marker" ]] || fsmonitor_control=true
+rm -f "$fsmonitor_marker"
 f="$(_resp 'src/service.ts:1 reads `export const inventedValue = 3;`.
 VERDICT: APPROVE')"
 r="$(council_response_quote_verification_json "$f" "$diff_root")"
-if [[ ! -e "$textconv_marker" ]] && jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then
+if [[ "$fsmonitor_control" == true && ! -e "$textconv_marker" && ! -e "$fsmonitor_marker" ]] &&
+   jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then
     test_pass
 else
-    test_fail "repository textconv was executed or the quote result was lost"
+    test_fail "fsmonitor control failed, a repository command ran, or the quote result was lost"
 fi
+
+test_case "unattributed prose in backticks is unverifiable rather than fabricated"
+f="$(_resp 'At src/pricing.ts:2 the outcome was `the response counted as blind`, which describes the review result.
+VERDICT: APPROVE')"
+r="$(_report "$f")"
+if jq -e '.quotes_checked == 1 and .quotes_unverifiable_prose == 1 and .quotes_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null &&
+   ! council_response_is_blind "$f" "$ROOT"; then test_pass; else test_fail "report: $r"; fi
+
+test_case "an explicit source attribution still checks a plain-text quotation"
+f="$(_resp 'src/pricing.ts:2 reads `the response counted as blind`.
+VERDICT: APPROVE')"
+r="$(_report "$f")"
+if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "a quote beyond the attached diff byte limit is unverifiable"
+large_context="$TEST_TMP_DIR/large-context.diff"
+python3 - "$large_context" "$FAKE" <<'PY_DIFF'
+import sys
+from pathlib import Path
+Path(sys.argv[1]).write_text('diff --git a/pad.ts b/pad.ts\n--- a/pad.ts\n+++ b/pad.ts\n@@ -1 +1 @@\n+const visibleCounter = count + 1;\n+' + 'x' * 8_388_608 + '\n-' + sys.argv[2] + '\n')
+PY_DIFF
+f="$(_resp "src/pricing.ts:2 reads \`$FAKE\` in the reviewed diff.
+VERDICT: APPROVE")"
+r="$(COUNCIL_CONTEXT_FILES=("$large_context"); _report "$f")"
+if jq -e '.diff_truncated == true and .quotes_unverifiable_diff_incomplete == 1 and .quotes_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "a matching quote in a truncated diff prefix remains verified"
+f="$(_resp 'src/pricing.ts:2 reads `const visibleCounter = count + 1;` in the reviewed diff.
+VERDICT: APPROVE')"
+r="$(COUNCIL_CONTEXT_FILES=("$large_context"); _report "$f")"
+if jq -e '.diff_truncated == true and .quotes_verified_in_diff_added == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "a real removal beyond the git diff byte limit is unverifiable"
+large_root="$TEST_TMP_DIR/large-diff-root"
+mkdir -p "$large_root"
+git -C "$large_root" init -q
+python3 - "$large_root/a-padding.ts" old <<'PY_PAD'
+import sys
+from pathlib import Path
+Path(sys.argv[1]).write_text(sys.argv[2] + 'x' * 8_388_608 + '\n')
+PY_PAD
+printf '%s\n' "$FAKE" > "$large_root/z-service.ts"
+git -C "$large_root" add .
+git -C "$large_root" -c user.name=Fixture -c user.email=fixture@example.invalid commit -qm baseline
+python3 - "$large_root/a-padding.ts" new <<'PY_PAD'
+import sys
+from pathlib import Path
+Path(sys.argv[1]).write_text(sys.argv[2] + 'x' * 8_388_608 + '\n')
+PY_PAD
+printf 'export const updatedValue = 2;\n' > "$large_root/z-service.ts"
+f="$(_resp "z-service.ts:1 reads \`$FAKE\` in the reviewed diff.
+VERDICT: APPROVE")"
+r="$(council_response_quote_verification_json "$f" "$large_root")"
+if jq -e '.diff_truncated == true and .quotes_unverifiable_diff_incomplete == 1 and .quotes_attributed_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
 test_case "a chair-fallback seat record carries grounding like an advice seat"
 fbdir="$(mktemp -d "$TEST_TMP_DIR/fallback-grounding.XXXXXX")"; mkdir -p "$fbdir/responses"

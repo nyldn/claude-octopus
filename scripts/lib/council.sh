@@ -2750,7 +2750,7 @@ print(json.dumps(validated, separators=(",", ":")))
 PY
 }
 
-COUNCIL_EMPTY_GROUNDING_JSON='{"citations":0,"citations_unresolved":0,"quotes_checked":0,"quotes_verified":0,"quotes_near_line":0,"quotes_attributed":0,"quotes_attributed_unverified":0,"quotes_verified_in_diff_removed":0,"quotes_verified_in_diff_added":0,"quotes_unverified":0,"quotes_unverifiable":0,"quotes_unverifiable_claimed_removed":0,"quotes_unverifiable_unresolved_citation":0,"quotes_unverifiable_command":0,"quotes_unverifiable_proposed":0,"diff_sources":[],"fabricated":false,"unverified_samples":[]}'
+COUNCIL_EMPTY_GROUNDING_JSON='{"citations":0,"citations_unresolved":0,"quotes_checked":0,"quotes_verified":0,"quotes_near_line":0,"quotes_attributed":0,"quotes_attributed_unverified":0,"quotes_verified_in_diff_removed":0,"quotes_verified_in_diff_added":0,"quotes_unverified":0,"quotes_unverifiable":0,"quotes_unverifiable_claimed_removed":0,"quotes_unverifiable_unresolved_citation":0,"quotes_unverifiable_command":0,"quotes_unverifiable_proposed":0,"quotes_unverifiable_prose":0,"quotes_unverifiable_diff_incomplete":0,"quotes_omitted":0,"diff_truncated":false,"diff_sources":[],"fabricated":false,"unverified_samples":[]}'
 
 council_response_quote_verification_json() {
     # Verify the code a seat QUOTES next to its `path:line` citations (sail-cruisey
@@ -2816,7 +2816,9 @@ result = {"citations": 0, "citations_unresolved": 0, "quotes_checked": 0, "quote
           "quotes_verified_in_diff_removed": 0, "quotes_verified_in_diff_added": 0,
           "quotes_unverified": 0, "quotes_unverifiable": 0,
           "quotes_unverifiable_claimed_removed": 0, "quotes_unverifiable_unresolved_citation": 0,
-          "quotes_unverifiable_command": 0, "quotes_unverifiable_proposed": 0, "diff_sources": [],
+          "quotes_unverifiable_command": 0, "quotes_unverifiable_proposed": 0,
+          "quotes_unverifiable_prose": 0, "quotes_unverifiable_diff_incomplete": 0,
+          "quotes_omitted": 0, "diff_truncated": False, "diff_sources": [],
           "fabricated": False, "unverified_samples": []}
 
 def emit():
@@ -3167,11 +3169,13 @@ def load_diff_sides():
     for path in context_files:
         try:
             with open(path, "rb") as handle:
-                data = handle.read(MAX_DIFF_BYTES).decode("utf-8", "replace")
+                raw_diff = handle.read(MAX_DIFF_BYTES + 1)
         except OSError:
             continue
+        data = raw_diff[:MAX_DIFF_BYTES].decode("utf-8", "replace")
         if not DIFF_HEADER.search(data):
             continue  # a plan or prose artifact; its "- " bullets are not removed code
+        result["diff_truncated"] |= len(raw_diff) > MAX_DIFF_BYTES
         r, a = split_diff(data)
         removed += r
         added += a
@@ -3181,10 +3185,12 @@ def load_diff_sides():
         env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
         env.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull, GIT_OPTIONAL_LOCKS="0")
         try:
-            proc = subprocess.run(["git", "-C", str(root), "diff", "--no-color", "--no-ext-diff",
+            proc = subprocess.run(["git", "-C", str(root), "-c", "core.fsmonitor=false",
+                                   "diff", "--no-color", "--no-ext-diff",
                                    "--no-textconv", "--unified=0", base, "--"],
                                   env=env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=10)
             if proc.returncode == 0 and proc.stdout:
+                result["diff_truncated"] |= len(proc.stdout) > MAX_DIFF_BYTES
                 r, a = split_diff(proc.stdout[:MAX_DIFF_BYTES].decode("utf-8", "replace"))
                 if r or a:
                     removed += r
@@ -3222,6 +3228,9 @@ GAP_WORDS = {"reads", "read", "shows", "show", "contains", "contain", "has", "sa
              "line", "lines", "source", "code", "verbatim", "quote", "quoted", "excerpt",
              "current", "currently", "actual", "l"}
 PROPOSAL = re.compile(r"\b(should|propos\w*|suggest\w*|recommend\w*|replace with|instead|would|could|change (?:it |this )?to|rewrit\w*|becomes?|example|e\.g\.|such as|consider|cover|prefer\w*|expected|want)\b", re.I)
+# Backticks also format prose and multiword values. Without code syntax or an
+# explicit source attribution, a miss cannot establish a fabricated quotation.
+CODE_SYNTAX = re.compile(r"[{}()\[\];=<>+*/%!?|&:]|\w[./]\w")
 
 def association(start):
     # The citation a quote is written about: the nearest one before it in the
@@ -3260,6 +3269,7 @@ def record_unverified(text):
     if len(result["unverified_samples"]) < 3:
         result["unverified_samples"].append(norm(text)[:120])
 
+result["quotes_omitted"] = max(0, len(units) - MAX_UNITS)
 for start, end, kind, block, removed_block, info in units[:MAX_UNITS]:
     wholes = unit_wholes(block) if len(block) > 1 else []
     line_variants = specific_lines(block)
@@ -3348,6 +3358,14 @@ for start, end, kind, block, removed_block, info in units[:MAX_UNITS]:
     elif proposed(start):
         result["quotes_unverifiable"] += 1
         result["quotes_unverifiable_proposed"] += 1
+    elif kind == "inline" and attributed is None and not CODE_SYNTAX.search(sample):
+        result["quotes_unverifiable"] += 1
+        result["quotes_unverifiable_prose"] += 1
+    elif result["diff_truncated"]:
+        # A missing quote may be in the unread suffix, including a genuine
+        # removal that is absent from the current cited file.
+        result["quotes_unverifiable"] += 1
+        result["quotes_unverifiable_diff_incomplete"] += 1
     elif readable:
         record_unverified(sample)
         if attributed is not None:
