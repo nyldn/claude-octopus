@@ -67,8 +67,8 @@ removed and added lines from attached diff context and `git diff` against
 external diff drivers, clean/process filters and fsmonitor commands are disabled.
 Filter driver names are read within a 64 KiB budget and overridden for the
 diff, including drivers selected by `.git/info/attributes` or a configured
-attributes file. Failed or oversized configuration lookup leaves the diff
-unavailable. Quotes of proposed
+attributes file. Failed or oversized configuration lookup, or a driver name
+containing `=`, leaves the diff unavailable. Quotes of proposed
 code, shell commands, unattributed prose, unreadable files or unresolved paths
 are unverifiable rather than fabricated. Ordinary sentence punctuation and
 dotted names within prose do not make it a code quote. Plain-text spans explicitly
@@ -83,8 +83,9 @@ indexed file for each missing path. Directory entries stream within a 50,000-ent
 budget. Suffix inference stays unresolved when the index reaches its entry or
 depth limit, or a directory cannot be scanned. Direct paths and attached context
 files still resolve independently. `quotes_omitted` reports units beyond the
-256-unit scan limit. Responses above 1 MiB set `response_oversized` and receive
-`invalid-ungrounded`; their unchecked quotes cannot establish grounding.
+256-unit scan limit. Any omitted units cause `invalid-ungrounded`, even if
+earlier quotes verify. Responses above 1 MiB set `response_oversized` and also
+receive `invalid-ungrounded`. Neither limit labels unchecked quotes fabricated.
 A multi-line quote can verify as a whole or when two thirds of its specific
 lines match, including matches against either side of the diff. Removed-only diff fences undergo the same fabrication checks.
 A match in any cited file or the reviewed diff verifies a quote; exact file

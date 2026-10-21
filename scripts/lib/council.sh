@@ -2435,7 +2435,7 @@ council_response_is_blind() {
     # real citation token is not evidence of reading when the code it quotes is
     # invented, so this overrides the citation exemptions below. Seats that quote
     # nothing beside their citations, or whose cited files are unreadable, are
-    # unaffected.
+    # unaffected within the verification budgets.
     if council_response_quotes_fabricated "$f" "$evidence_root"; then
         return 0
     fi
@@ -3235,6 +3235,8 @@ def load_diff_sides():
                        if key.lower().startswith(b"filter.") and
                        key.rsplit(b".", 1)[-1].lower() in (b"clean", b"process", b"required")}
             for driver in sorted(drivers):
+                if b"=" in driver:
+                    raise subprocess.SubprocessError("unsafe filter driver name")
                 name = os.fsdecode(driver)
                 git_command += ["-c", name + ".clean=", "-c", name + ".process=",
                                 "-c", name + ".required=false"]
@@ -3460,10 +3462,10 @@ council_response_quote_report_cached() {
 }
 
 council_response_quotes_fabricated() {
-    # Reject fabricated citation quotes and responses above the verification budget.
+    # Reject fabricated citation quotes and responses above either verification budget.
     # Opt out with OCTOPUS_COUNCIL_QUOTE_VERIFY=0. A precomputed JSON may be passed
-    # as $3 to avoid re-scanning. Oversized responses are also rejected because
-    # their quotes cannot be checked; the report does not label them fabricated.
+    # as $3 to avoid re-scanning. Oversized responses and omitted quote units are
+    # rejected because they cannot be checked, without labeling them fabricated.
     local f="$1" evidence_root="${2:-}" precomputed="${3:-}"
     [[ "${OCTOPUS_COUNCIL_QUOTE_VERIFY:-1}" != "0" ]] || return 1
     [[ -f "$f" && -n "$evidence_root" && -d "$evidence_root" ]] || return 1
@@ -3472,7 +3474,7 @@ council_response_quotes_fabricated() {
         council_response_quote_report_cached "$f" "$evidence_root"
         report="$COUNCIL_QUOTE_REPORT"
     fi
-    jq -e '.fabricated == true or .response_oversized == true' <<< "$report" >/dev/null 2>&1
+    jq -e '.fabricated == true or .response_oversized == true or ((.quotes_omitted // 0) > 0)' <<< "$report" >/dev/null 2>&1
 }
 
 council_artifact_digest() {

@@ -671,6 +671,41 @@ else
     test_fail "verifier did not finish inside 10s or misreported: ${r:0:200}"
 fi
 
+for quote_limit_case in boundary overflow mixed; do
+    test_case "$quote_limit_case quote units cannot bypass the grounding gate"
+    limited="$TEST_TMP_DIR/quote-limit-$quote_limit_case.md"
+    python3 - "$limited" "$quote_limit_case" "$REAL_NEAR" "$FAKE" <<'PY_QUOTE_LIMIT'
+import sys
+path, case, real, fake = sys.argv[1:]
+quote = lambda text: "\nsrc/pricing.ts:2 reads `%s`.\n" % text
+if case == "boundary":
+    parts = ["`x` "] * 255 + [quote(real)]
+elif case == "overflow":
+    parts = ["`x` "] * 256 + [quote(fake)]
+else:
+    parts = [quote(real) + "\n"] + ["`x` "] * 255 + [quote(fake)]
+open(path, "w").write("".join(parts) + "\nVERDICT: APPROVE\n")
+PY_QUOTE_LIMIT
+    r="$(_report "$limited")"
+    record="$(council_contribution_record_json "$limited" "$ROOT" sha256:quote-limit)"
+    if [[ "$quote_limit_case" == boundary ]]; then
+        if jq -e '.quotes_omitted == 0 and .quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null &&
+           jq -e '.validation_result == "valid-grounded"' <<< "$record" >/dev/null &&
+           ! council_response_is_blind "$limited" "$ROOT"; then
+            test_pass
+        else
+            test_fail "exact quote boundary lost grounding: $r $record"
+        fi
+    elif jq -e '.quotes_omitted == 1 and .fabricated == false' <<< "$r" >/dev/null &&
+         jq -e '.validation_result == "invalid-ungrounded" and .evidence_paths == [] and .grounding.quotes_omitted == 1' <<< "$record" >/dev/null &&
+         council_response_is_blind "$limited" "$ROOT" &&
+         ! council_response_is_substantive "$limited" "$ROOT"; then
+        test_pass
+    else
+        test_fail "omitted quotes retained grounding: $r $record"
+    fi
+done
+
 test_case "citation filenames cannot label fabricated source as proposed code"
 proposal_names_passed=true
 for basename in example expected cover; do
@@ -721,9 +756,11 @@ else
 fi
 
 for attribute_source in tracked info configured; do
-    for filter_kind in clean process; do
-        test_case "$attribute_source attributes cannot execute a repository $filter_kind filter"
-        filter_root="$TEST_TMP_DIR/filter-$attribute_source-$filter_kind"
+    for filter_spec in clean:fixture.with.dots process:fixture.with.dots clean:fixture=x process:fixture=x; do
+        filter_kind="${filter_spec%%:*}"
+        filter_name="${filter_spec#*:}"
+        test_case "$attribute_source attributes cannot execute a repository $filter_kind filter named $filter_name"
+        filter_root="$TEST_TMP_DIR/filter-$attribute_source-$filter_kind-$filter_name"
         mkdir -p "$filter_root/src"
         git -C "$filter_root" init -q
         printf 'export const originalValue = 1;\n' > "$filter_root/src/service.ts"
@@ -733,12 +770,12 @@ for attribute_source in tracked info configured; do
         if [[ "$attribute_source" == info ]]; then
             attributes="$filter_root/.git/info/attributes"
         elif [[ "$attribute_source" == configured ]]; then
-            attributes="$TEST_TMP_DIR/configured-$filter_kind.attributes"
+            attributes="$TEST_TMP_DIR/configured-$filter_kind-$filter_name.attributes"
             git -C "$filter_root" config core.attributesFile "$attributes"
         fi
-        printf '*.ts filter=fixture.with.dots\n' > "$attributes"
-        filter_script="$TEST_TMP_DIR/filter-$attribute_source-$filter_kind.sh"
-        filter_marker="$TEST_TMP_DIR/filter-$attribute_source-$filter_kind-ran"
+        printf '*.ts filter=%s\n' "$filter_name" > "$attributes"
+        filter_script="$TEST_TMP_DIR/filter-$attribute_source-$filter_kind-$filter_name.sh"
+        filter_marker="$TEST_TMP_DIR/filter-$attribute_source-$filter_kind-$filter_name-ran"
         printf '#!/bin/sh\nprintf ran > "%s"\n' "$filter_marker" > "$filter_script"
         if [[ "$filter_kind" == clean ]]; then
             printf 'cat\n' >> "$filter_script"
@@ -748,7 +785,7 @@ for attribute_source in tracked info configured; do
             printf 'exit 1\n' >> "$filter_script"
         fi
         chmod 755 "$filter_script"
-        git -C "$filter_root" config "filter.fixture.with.dots.$filter_kind" "$filter_script"
+        git -C "$filter_root" config "filter.$filter_name.$filter_kind" "$filter_script"
         printf 'export const updatedValue = 2;\n' > "$filter_root/src/service.ts"
         GIT_OPTIONAL_LOCKS=0 git -C "$filter_root" -c core.fsmonitor=false diff --no-ext-diff --no-textconv HEAD -- >/dev/null 2>&1 || true
         filter_control=false
@@ -760,8 +797,16 @@ VERDICT: APPROVE')"
         real_removed="$(_resp 'src/service.ts:1 reads `export const originalValue = 1;` in the reviewed diff.
 VERDICT: REVISE')"
         removed_r="$(council_response_quote_verification_json "$real_removed" "$filter_root")"
-        if [[ "$filter_control" == true && ! -e "$filter_marker" ]] &&
-           jq -e '.quotes_checked == 1 and .fabricated == true and .diff_unavailable == false' <<< "$r" >/dev/null &&
+        if [[ "$filter_control" != true || -e "$filter_marker" ]]; then
+            test_fail "repository $filter_kind filter ran or control failed: $filter_name"
+        elif [[ "$filter_name" == fixture=x ]]; then
+            if jq -e '.quotes_checked == 1 and .fabricated == false and .diff_unavailable == true and .quotes_unverifiable_diff_incomplete == 1' <<< "$r" >/dev/null &&
+               jq -e '.fabricated == false and .diff_unavailable == true and .quotes_unverifiable_diff_incomplete == 1' <<< "$removed_r" >/dev/null; then
+                test_pass
+            else
+                test_fail "unsafe driver name lost diff uncertainty: $r $removed_r"
+            fi
+        elif jq -e '.quotes_checked == 1 and .fabricated == true and .diff_unavailable == false' <<< "$r" >/dev/null &&
            jq -e '.quotes_verified_in_diff_removed == 1 and .diff_unavailable == false' <<< "$removed_r" >/dev/null; then
             test_pass
         else

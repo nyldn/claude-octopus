@@ -6,6 +6,10 @@
 
 ### Fixed
 
+- Council responses with quotes beyond the 256-unit verification budget cannot
+  count toward quorum, including when earlier quotes verify. Git filter driver
+  names containing `=` prevent diff capture because they cannot be safely
+  overridden through `git -c`; unavailable diff evidence retains uncertainty.
 - Council verifier diffs disable repository clean and process filters as well
   as textconv, external diff drivers and fsmonitor. Filters selected through
   tracked, private or configured attributes cannot execute repository commands
