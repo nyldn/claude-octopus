@@ -6,6 +6,14 @@
 
 ### Fixed
 
+- Multi-line source quotes need the same whole-block or two-thirds match in
+  reviewed diffs as in source files. One real diff line cannot verify an
+  otherwise invented block. Responses above 1 MiB report `response_oversized`
+  and receive `invalid-ungrounded` instead of gaining credit for unchecked
+  citations. Unavailable contribution records retain the grounding schema.
+- Provider stderr diagnostics now use the same redaction and certification as
+  stdout. Log messages preserve literal backslashes after certification, so
+  provider output cannot turn escape text into terminal control bytes.
 - A council seat that exits non-zero now leaves its cause in the run dir. When
   the provider fails, `run_agent_sync` appends the exit code and the provider's
   stderr to `stderr/<seat>.log`, with secrets scrubbed and file mode 0600. When

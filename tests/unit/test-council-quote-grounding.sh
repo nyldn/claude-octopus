@@ -52,6 +52,14 @@ else
     test_fail "record: $record"
 fi
 
+test_case "unavailable contribution records retain the grounding schema"
+record="$(council_unavailable_contribution_record_json)"
+if jq -e '.validation_result == "invalid-record" and (.grounding | type == "object") and .grounding.fabricated == false' <<< "$record" >/dev/null; then
+    test_pass
+else
+    test_fail "fallback record lacks grounding: $record"
+fi
+
 test_case "a real quote near the cited line verifies (near_line) and stays valid-grounded"
 real="$(_resp "In src/pricing.ts:2 the fallback \`$REAL_NEAR\` is correct.
 VERDICT: APPROVE")"
@@ -214,6 +222,63 @@ VERDICT: REVISE")"
 r="$(_greport "$git_mixed")"
 if jq -e '.quotes_checked == 2 and .quotes_verified_in_diff_removed == 1 and .quotes_unverified == 1 and .fabricated == false' <<< "$r" >/dev/null &&
    ! council_response_is_blind "$git_mixed" "$GROOT"; then test_pass; else test_fail "report: $r"; fi
+
+# One real diff line must not verify an otherwise invented multi-line quote.
+for diff_side in removed added; do
+    reviewed="$TEST_TMP_DIR/threshold-$diff_side.diff"
+    sign=-
+    [[ "$diff_side" != added ]] || sign=+
+    printf 'diff --git a/src/book.ts b/src/book.ts\n--- a/src/book.ts\n+++ b/src/book.ts\n@@ -1,3 +1,3 @@\n%s%s\n%s%s\n' \
+        "$sign" "$GUARD" "$sign" 'const closedBookings = sailing.closedBookings ?? [];' > "$reviewed"
+    for quote_kind in ts diff; do
+        [[ "$quote_kind" != diff || "$diff_side" == removed ]] || continue
+        prefix=""
+        [[ "$quote_kind" != diff ]] || prefix=-
+        for genuine_lines in 1 2; do
+            test_case "a $quote_kind quote with $genuine_lines real $diff_side lines out of three"
+            second='const inventedReservations = fetchUnknownReservations(sailing);'
+            [[ "$genuine_lines" != 2 ]] || second='const closedBookings = sailing.closedBookings ?? [];'
+            f="$(_resp "src/book.ts:2 reads:
+\`\`\`$quote_kind
+$prefix$GUARD
+$prefix$second
+${prefix}return approveImaginaryRefund(sailing, cabin);
+\`\`\`
+VERDICT: APPROVE")"
+            # The citation must resolve in the selected evidence root.
+            r="$(COUNCIL_CONTEXT_FILES=("$reviewed"); _greport "$f")"
+            if [[ "$genuine_lines" == 1 ]]; then
+                if ! jq -e '.quotes_verified == 0 and .quotes_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then
+                    test_fail "one real $diff_side line verified a $quote_kind block: $r"
+                    continue
+                fi
+            elif ! jq -e --arg field "quotes_verified_in_diff_$diff_side" '.quotes_verified == 1 and .[$field] == 1 and .fabricated == false' <<< "$r" >/dev/null; then
+                test_fail "two real $diff_side lines failed to verify a $quote_kind block: $r"
+                continue
+            fi
+            test_pass
+        done
+    done
+done
+
+test_case "an oversized response reports the limit and cannot count as grounded"
+oversized="$TEST_TMP_DIR/oversized-response.md"
+python3 - "$oversized" "$FAKE" <<'PY_OVERSIZED'
+import sys
+with open(sys.argv[1], "w") as handle:
+    handle.write("src/pricing.ts:2 reads `%s`.\n" % sys.argv[2])
+    handle.write("Padding " * 150000)
+    handle.write("\nVERDICT: APPROVE\n")
+PY_OVERSIZED
+r="$(_report "$oversized")"
+record="$(council_contribution_record_json "$oversized" "$ROOT" sha256:oversized)"
+if jq -e '.response_oversized == true and .fabricated == false and .quotes_verified == 0' <<< "$r" >/dev/null &&
+   jq -e '.validation_result == "invalid-ungrounded" and .evidence_paths == [] and .grounding.response_oversized == true' <<< "$record" >/dev/null &&
+   ! council_response_is_substantive "$oversized" "$ROOT"; then
+    test_pass
+else
+    test_fail "oversized report: $r record: $record"
+fi
 
 test_case "OCTOPUS_COUNCIL_DIFF_BASE selects a committed base (removal already committed)"
 git -C "$GROOT" -c user.email=t@example.invalid -c user.name=t commit -q -am remove-guard

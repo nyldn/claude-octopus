@@ -1725,8 +1725,9 @@ ${provider_ctx}"
     # Check exit code and handle errors
     if [[ $exit_code -ne 0 ]]; then
         log ERROR "Agent $agent_type failed with exit code $exit_code (role=$role, phase=$phase)"
-        if [[ -s "$temp_err" ]]; then
-            log ERROR "Error details: $(cat "$temp_err")"
+        local _sync_error_tail=""
+        if _sync_error_tail="$(octo_safe_diagnostic_tail "$temp_err" 16384 2>/dev/null)" && [[ -n "$_sync_error_tail" ]]; then
+            log ERROR "Error details: $_sync_error_tail"
         fi
         # Some CLIs report the failure itself on stdout (Claude Code prints
         # "Prompt is too long" or "Not logged in" there and exits 1), leaving
@@ -1994,8 +1995,9 @@ ${provider_ctx}"
     # Check if output is suspiciously empty or placeholder
     if [[ -z "$output" || "$output" == "Provider available" ]]; then
         log WARN "Agent $agent_type returned empty or placeholder output (role=$role, phase=$phase)"
-        if [[ -s "$temp_err" ]]; then
-            log WARN "Possible issue: $(cat "$temp_err")"
+        local _sync_empty_tail=""
+        if _sync_empty_tail="$(octo_safe_diagnostic_tail "$temp_err" 16384 2>/dev/null)" && [[ -n "$_sync_empty_tail" ]]; then
+            log WARN "Possible issue: $_sync_empty_tail"
         fi
     fi
 

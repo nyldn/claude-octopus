@@ -1128,10 +1128,10 @@ log() {
     fi
 
     case "$level" in
-        INFO)  echo -e "${BLUE}[$_LOG_TS]${NC} ${GREEN}INFO${NC}: $*" >&2 ;;
-        WARN)  echo -e "${BLUE}[$_LOG_TS]${NC} ${YELLOW}WARN${NC}: $*" >&2 ;;
-        ERROR) echo -e "${BLUE}[$_LOG_TS]${NC} ${RED}ERROR${NC}: $*" >&2 ;;
-        DEBUG) echo -e "${BLUE}[$_LOG_TS]${NC} ${CYAN}DEBUG${NC}: $*" >&2 ;;
+        INFO)  printf '%b[%s]%b %bINFO%b: %s\n' "$BLUE" "$_LOG_TS" "$NC" "$GREEN" "$NC" "$*" >&2 ;;
+        WARN)  printf '%b[%s]%b %bWARN%b: %s\n' "$BLUE" "$_LOG_TS" "$NC" "$YELLOW" "$NC" "$*" >&2 ;;
+        ERROR) printf '%b[%s]%b %bERROR%b: %s\n' "$BLUE" "$_LOG_TS" "$NC" "$RED" "$NC" "$*" >&2 ;;
+        DEBUG) printf '%b[%s]%b %bDEBUG%b: %s\n' "$BLUE" "$_LOG_TS" "$NC" "$CYAN" "$NC" "$*" >&2 ;;
     esac
 }
 

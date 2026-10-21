@@ -2750,7 +2750,7 @@ print(json.dumps(validated, separators=(",", ":")))
 PY
 }
 
-COUNCIL_EMPTY_GROUNDING_JSON='{"citations":0,"citations_unresolved":0,"quotes_checked":0,"quotes_verified":0,"quotes_near_line":0,"quotes_attributed":0,"quotes_attributed_unverified":0,"quotes_verified_in_diff_removed":0,"quotes_verified_in_diff_added":0,"quotes_unverified":0,"quotes_unverifiable":0,"quotes_unverifiable_claimed_removed":0,"quotes_unverifiable_unresolved_citation":0,"quotes_unverifiable_command":0,"quotes_unverifiable_proposed":0,"quotes_unverifiable_prose":0,"quotes_unverifiable_diff_incomplete":0,"quotes_omitted":0,"diff_truncated":false,"diff_unavailable":false,"diff_sources":[],"fabricated":false,"unverified_samples":[]}'
+COUNCIL_EMPTY_GROUNDING_JSON='{"citations":0,"citations_unresolved":0,"quotes_checked":0,"quotes_verified":0,"quotes_near_line":0,"quotes_attributed":0,"quotes_attributed_unverified":0,"quotes_verified_in_diff_removed":0,"quotes_verified_in_diff_added":0,"quotes_unverified":0,"quotes_unverifiable":0,"quotes_unverifiable_claimed_removed":0,"quotes_unverifiable_unresolved_citation":0,"quotes_unverifiable_command":0,"quotes_unverifiable_proposed":0,"quotes_unverifiable_prose":0,"quotes_unverifiable_diff_incomplete":0,"quotes_omitted":0,"response_oversized":false,"diff_truncated":false,"diff_unavailable":false,"diff_sources":[],"fabricated":false,"unverified_samples":[]}'
 
 council_response_quote_verification_json() {
     # Verify the code a seat QUOTES next to its `path:line` citations (sail-cruisey
@@ -2820,7 +2820,7 @@ result = {"citations": 0, "citations_unresolved": 0, "quotes_checked": 0, "quote
           "quotes_unverifiable_claimed_removed": 0, "quotes_unverifiable_unresolved_citation": 0,
           "quotes_unverifiable_command": 0, "quotes_unverifiable_proposed": 0,
           "quotes_unverifiable_prose": 0, "quotes_unverifiable_diff_incomplete": 0,
-          "quotes_omitted": 0, "diff_truncated": False, "diff_unavailable": False, "diff_sources": [],
+          "quotes_omitted": 0, "response_oversized": False, "diff_truncated": False, "diff_unavailable": False, "diff_sources": [],
           "fabricated": False, "unverified_samples": []}
 
 def emit():
@@ -2831,6 +2831,7 @@ try:
     with open(sys.argv[1], "rb") as handle:
         raw = handle.read(MAX_RESPONSE_BYTES + 1)
     if len(raw) > MAX_RESPONSE_BYTES:
+        result["response_oversized"] = True
         emit()
     # Some transports deliver Markdown HTML-escaped ("&gt; quote", "=&gt;").
     # Unescape before parsing so blockquotes and operators read as written; the
@@ -3245,17 +3246,9 @@ def load_diff_sides():
     # Joined so a multi-line quote of consecutive diff lines still matches.
     return (" ".join(removed), " ".join(added))
 
-def in_diff_side(variants, side):
-    if not side:
-        return False
-    for variant in variants:
-        needle = norm(variant)
-        if needle in side:
-            return True
-        pieces = [p for p in ELLIPSIS.split(needle) if specific(p)]
-        if (len(pieces) > 1 or (pieces and pieces[0] != needle)) and all(p in side for p in pieces):
-            return True
-    return False
+def in_diff_side(wholes, line_variants, side):
+    # Reuse the source-file threshold, including elision and gutter handling.
+    return bool(side and match_unit(wholes, line_variants, (side, [0], [1])))
 
 REMOVAL_WORDS = re.compile(r"\b(remov(?:e|ed|es|ing|al)|delet(?:e|ed|es|ing|ion)|drop(?:ped|s)?|no longer|was gone|got rid of)\b", re.I)
 # A command the seat ran ("`npm ci --dry-run`") is not a claim about file
@@ -3383,9 +3376,10 @@ for start, end, kind, block, removed_block, info in units[:MAX_UNITS]:
         if diff_sides is None:
             diff_sides = load_diff_sides()
         removed_side, added_side = diff_sides
-        if in_diff_side(flat_variants + removed_variants, removed_side):
+        if (in_diff_side(wholes, line_variants, removed_side) or
+                (removed_block and in_diff_side(unit_wholes(removed_block), specific_lines(removed_block), removed_side))):
             diff_side_hit = "removed"
-        elif in_diff_side(flat_variants, added_side):
+        elif in_diff_side(wholes, line_variants, added_side):
             diff_side_hit = "added"
     sample = (flat_variants or removed_variants)[0]
     if verified:
@@ -3453,10 +3447,10 @@ council_response_quote_report_cached() {
 }
 
 council_response_quotes_fabricated() {
-    # True when a seat quotes code beside its path:line citations and NONE of those
-    # quotes appear in the cited files (council_response_quote_verification_json).
+    # Reject fabricated citation quotes and responses above the verification budget.
     # Opt out with OCTOPUS_COUNCIL_QUOTE_VERIFY=0. A precomputed JSON may be passed
-    # as $3 to avoid re-scanning.
+    # as $3 to avoid re-scanning. Oversized responses are also rejected because
+    # their quotes cannot be checked; the report does not label them fabricated.
     local f="$1" evidence_root="${2:-}" precomputed="${3:-}"
     [[ "${OCTOPUS_COUNCIL_QUOTE_VERIFY:-1}" != "0" ]] || return 1
     [[ -f "$f" && -n "$evidence_root" && -d "$evidence_root" ]] || return 1
@@ -3465,7 +3459,7 @@ council_response_quotes_fabricated() {
         council_response_quote_report_cached "$f" "$evidence_root"
         report="$COUNCIL_QUOTE_REPORT"
     fi
-    jq -e '.fabricated == true' <<< "$report" >/dev/null 2>&1
+    jq -e '.fabricated == true or .response_oversized == true' <<< "$report" >/dev/null 2>&1
 }
 
 council_artifact_digest() {
@@ -3556,8 +3550,8 @@ council_contribution_record_json() {
                 || grounding="$COUNCIL_EMPTY_GROUNDING_JSON"
         fi
         if council_response_quotes_fabricated "$response_path" "$evidence_root" "$grounding"; then
-            # Distinct from invalid-access: the seat did not report an access
-            # failure, its quoted source simply is not in the files it cited.
+            # Distinct from invalid-access: evidence is rejected for fabricated
+            # quotes or a response above the verification budget.
             access_state="evidence-rejected"
             validation_result="invalid-ungrounded"
         elif council_response_is_blind "$response_path" "$evidence_root"; then
@@ -3599,7 +3593,7 @@ PY
 }
 
 council_unavailable_contribution_record_json() {
-    printf '%s\n' '{"artifact_digest":"unavailable","workspace_digest":"unavailable","access_state":"unverified","evidence_paths":[],"validation_result":"invalid-record","verdict":null,"comprehension_verified":false}'
+    printf '{"artifact_digest":"unavailable","workspace_digest":"unavailable","access_state":"unverified","evidence_paths":[],"validation_result":"invalid-record","verdict":null,"comprehension_verified":false,"grounding":%s}\n' "$COUNCIL_EMPTY_GROUNDING_JSON"
 }
 
 council_received_non_chair() {

@@ -49,7 +49,7 @@ attempt=0
 attempt=$((attempt + 1))
 printf '%s\n' "$attempt" > "$ATTEMPT_FILE"
 if [[ -n "${STDOUT_FAILURE:-}" ]]; then
-    printf 'a harmless warning\n' >&2
+    printf '%s\n' "${STDERR_FAILURE:-a harmless warning}" >&2
     printf '%s\n' "$STDOUT_FAILURE"
     exit 1
 fi
@@ -76,6 +76,11 @@ EOF
     chmod 755 "$fake_provider"
 
     log() { [[ -z "${LOG_FILE:-}" ]] || printf '%s %s\n' "$1" "$2" >> "$LOG_FILE"; }
+    if [[ "${USE_PRODUCTION_LOGGER:-false}" == true ]]; then
+        eval "$(sed -n '/^log() {/,/^}/p' "$PROJECT_ROOT/scripts/orchestrate.sh")"
+        VERBOSE=false OCTOPUS_DEBUG=false _LOG_TS=fixed _LOG_TS_AT=$SECONDS
+        BLUE='' GREEN='' YELLOW='' RED='' CYAN='' NC=''
+    fi
     classify_task() { printf 'standard\n'; }
     get_role_for_context() { printf 'reviewer\n'; }
     apply_persona() { printf '%s\n' "$2"; }
@@ -206,10 +211,28 @@ else
     test_fail "stdout failure detail was dropped (rc=$stdout_rc log: $(tr '\n' ' ' < "$stdout_log" 2>/dev/null))"
 fi
 
+test_case "the production logger preserves certified stdout as literal text"
+stdout_log="$TEST_TMP_DIR/stdout-literal.log"
+literal_diagnostic='Not logged in: \e]0;provider-title\a \x1b[2J \c final diagnostic'
+STDOUT_FAILURE="$literal_diagnostic" USE_PRODUCTION_LOGGER=true \
+    run_sync_fixture openrouter 0 stdout-literal > /dev/null 2> "$stdout_log" && stdout_rc=0 || stdout_rc=$?
+if [[ "$stdout_rc" == 1 ]] && grep -Fq "Output tail: $literal_diagnostic" "$stdout_log" &&
+   python3 - "$stdout_log" <<'PY_LITERAL'
+import pathlib
+import sys
+text = pathlib.Path(sys.argv[1]).read_bytes()
+assert b"\x1b" not in text and b"\x07" not in text
+PY_LITERAL
+then
+    test_pass
+else
+    test_fail "production logging reinterpreted certified output"
+fi
+
 test_case "invalid stdout-tail limits fall back to a bounded diagnostic"
 large_failure="$(python3 -c 'print("x" * 6000 + " final diagnostic")')"
 invalid_limits_passed=true
-for tail_limit in +1 0 nonsense 99999999999999999999; do
+for tail_limit in +1 0 65537 nonsense 99999999999999999999; do
     stdout_log="$TEST_TMP_DIR/stdout-invalid-${tail_limit}.log"
     STDOUT_FAILURE="$large_failure" LOG_FILE="$stdout_log" \
         OCTOPUS_SYNC_FAILURE_OUTPUT_TAIL_BYTES="$tail_limit" \
@@ -256,6 +279,28 @@ if [[ "$stdout_rc" -eq 1 ]] && ! grep -Fq 'Output tail:' "$stdout_log"; then
     test_pass
 else
     test_fail "failed redaction published provider output"
+fi
+
+test_case "stderr failure diagnostics are redacted before logging"
+stderr_log="$TEST_TMP_DIR/stderr-redaction.log"
+STDOUT_FAILURE='Not logged in' STDERR_FAILURE="Authentication failed: $synthetic_credential" LOG_FILE="$stderr_log" \
+    run_sync_fixture openrouter 0 stderr-redaction >/dev/null 2>&1 && stdout_rc=0 || stdout_rc=$?
+if [[ "$stdout_rc" == 1 ]] && grep -Fq 'Error details: Authentication failed' "$stderr_log" &&
+   ! grep -Fq 'xxxxxxxxxxxxxxxx' "$stderr_log"; then
+    test_pass
+else
+    test_fail "stderr retained a credential suffix or dropped safe context"
+fi
+
+test_case "diagnostic helper omits output without a sanitizer or with an empty file"
+empty_diagnostic="$TEST_TMP_DIR/empty-diagnostic"
+: > "$empty_diagnostic"
+if ! octo_safe_diagnostic_tail "$empty_diagnostic" > "$TEST_TMP_DIR/empty-tail" &&
+   (unset -f sanitize_secrets; ! octo_safe_diagnostic_tail "$PROJECT_ROOT/scripts/orchestrate.sh" > "$TEST_TMP_DIR/missing-sanitizer-tail") &&
+   [[ ! -s "$TEST_TMP_DIR/empty-tail" && ! -s "$TEST_TMP_DIR/missing-sanitizer-tail" ]]; then
+    test_pass
+else
+    test_fail "unavailable diagnostic dependencies published output"
 fi
 
 test_case "successful sync dispatch preserves a caller with errexit disabled"

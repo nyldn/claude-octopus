@@ -79,12 +79,27 @@ indexed file for each missing path. Directory entries stream within a 50,000-ent
 budget. Suffix inference stays unresolved when the index reaches its entry or
 depth limit, or a directory cannot be scanned. Direct paths and attached context
 files still resolve independently. `quotes_omitted` reports units beyond the
-256-unit scan limit.
+256-unit scan limit. Responses above 1 MiB set `response_oversized` and receive
+`invalid-ungrounded`; their unchecked quotes cannot establish grounding.
 A multi-line quote can verify as a whole or when two thirds of its specific
-lines match. Removed-only diff fences undergo the same fabrication checks.
+lines match, including matches against either side of the diff. Removed-only diff fences undergo the same fabrication checks.
 A match in any cited file or the reviewed diff verifies a quote; exact file
 attribution is not proven. These checks cannot establish that a provider read
 the source.
+
+For a committed change, set `OCTOPUS_COUNCIL_DIFF_BASE` to the reviewed base
+in the runner environment, or attach the reviewed diff with `--context-file`.
+The default `HEAD` covers uncommitted working-tree changes. Council accepts
+general review tasks, so it cannot infer a committed review's base from the task
+text. For example, attach a diff produced against the intended base:
+
+```bash
+git diff --no-ext-diff --no-textconv origin/main -- > /tmp/reviewed.diff
+```
+
+```text
+/octo:council --goal review --context-file /tmp/reviewed.diff "Review the attached change"
+```
 
 Counts appear in each seat's `grounding` object in `summary.json`. Set
 `OCTOPUS_COUNCIL_QUOTE_VERIFY=0` to disable citation quote verification.
@@ -102,4 +117,7 @@ and its actual error to stdout. `OCTOPUS_SYNC_FAILURE_OUTPUT_TAIL_BYTES` sets
 the tail length, with a default of 2000 bytes. Accepted values are decimal
 integers from 1 through 65536 without a sign or leading zeroes. Invalid values
 use the default. Redaction and credential checks run before truncation; their
-failure omits provider output from the log.
+failure omits provider output from the log. The same checks protect stderr
+diagnostics. The logger preserves literal backslashes in messages after
+certification, so provider text cannot introduce control bytes through escape
+interpretation.
