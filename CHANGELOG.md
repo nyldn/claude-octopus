@@ -6,6 +6,9 @@
 
 ### Fixed
 
+- Rejected chair fallbacks retain their grounding report, response and failed
+  attempt diagnostics while remaining excluded from chair admission and quorum.
+- The subshell TERM regression requires proof that its restored trap executed.
 - Council warnings distinguish rejected grounding from provider access failures.
   Both remain blind and excluded from quorum; only access failures suggest
   switching provider mode/model or supplying file access.

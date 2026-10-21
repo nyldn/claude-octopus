@@ -1548,14 +1548,22 @@ source "$PROJECT_ROOT/scripts/lib/council.sh"
 rec="$(jq -c '[.[] | select(.seat == "chair")][0] // {}' <<< "$COUNCIL_SEAT_RECORDS_JSON")"
 if jq -e '.grounding.quotes_verified == 1 and .grounding == .contribution.grounding' <<< "$rec" >/dev/null; then test_pass; else test_fail "record: $rec"; fi
 
-test_case "chair fallback rejects evidence changed before contribution admission"
+for fallback_scenario in quiet failure retry missing; do
+test_case "chair fallback retains rejected evidence and $fallback_scenario diagnostics without admission"
 record="$(
     d="$(mktemp -d "$TEST_TMP_DIR/fallback-refresh.XXXXXX")"
-    mkdir -p "$d/evidence/src" "$d/run/responses"
+    mkdir -p "$d/evidence/src" "$d/run/responses" "$d/run/stderr"
+    # A known empty diff must not preserve uncertainty about the removed quote.
+    printf '%s\n' "$FAKE" > "$d/evidence/src/pricing.ts"
+    git -C "$d/evidence" init -q
+    git -C "$d/evidence" add src
+    git -C "$d/evidence" -c user.name=Test -c user.email=test@example.invalid commit -qm baseline
     printf '%s\n' "$REAL_NEAR" > "$d/evidence/src/pricing.ts"
+    OCTOPUS_COUNCIL_DIFF_BASE=HEAD
     OCTOPUS_PROJECT_DIR="$d/evidence"; COUNCIL_RUN_DIR="$d/run"
     COUNCIL_RESPONSES_RECEIVED=0; COUNCIL_CHAIR_RESPONSE_RECEIVED=false
     COUNCIL_CHAIR_FALLBACK_USED=false; COUNCIL_SEAT_RECORDS_JSON='[]'
+    COUNCIL_TIMEOUT_WARNINGS=""
     COUNCIL_RUN_START_EPOCH=""; COUNCIL_CONTEXT_FILES=()
     council_synthesis_capable_persona() { [[ "$1" == strategy-analyst ]]; }
     council_persona_should_fail() { return 1; }
@@ -1563,6 +1571,10 @@ record="$(
     council_provider_is_available() { return 0; }
     council_dispatch_member_detached() {
         printf 'Reviewed src/pricing.ts:1: `%s` handles the fallback.\nVERDICT: APPROVE\n' "$REAL_NEAR" > "$3"
+        if [[ "$fallback_scenario" == failure || "$fallback_scenario" == retry ]]; then
+            printf '== 2026-10-21T20:00:00Z claude exited 17: transport failure\n-- stderr --\nError: fixture transport failure\n' > "$_OCTOPUS_SEAT_STDERR_FILE"
+        fi
+        [[ "$fallback_scenario" != failure && "$fallback_scenario" != missing ]] || return 17
     }
     eval "$(declare -f council_contribution_record_json | sed '1s/council_contribution_record_json/_fallback_contribution_before_mutation/')"
     council_contribution_record_json() {
@@ -1574,13 +1586,25 @@ record="$(
     jq -cn --argjson rc "$rc" --argjson seats "$COUNCIL_SEAT_RECORDS_JSON" \
         --argjson received "$COUNCIL_RESPONSES_RECEIVED" --argjson chair "$COUNCIL_CHAIR_RESPONSE_RECEIVED" \
         --argjson used "$COUNCIL_CHAIR_FALLBACK_USED" \
-        '{rc:$rc, seats:$seats, received:$received, chair:$chair, used:$used}'
+        --arg warnings "$COUNCIL_TIMEOUT_WARNINGS" \
+        --argjson responses "$(find "$d/run/responses" -type f | wc -l | tr -d '[:space:]')" \
+        --argjson captures "$(find "$d/run/stderr" -type f | wc -l | tr -d '[:space:]')" \
+        '{rc:$rc, seats:$seats, received:$received, chair:$chair, used:$used,
+          warnings:$warnings, responses:$responses, captures:$captures}'
 )"
-if jq -e '.rc != 0 and .received == 0 and .chair == false and .used == false
-        and all(.seats[]; .status != "responded")' <<< "$record" >/dev/null; then
+if jq -e --arg scenario "$fallback_scenario" '.rc != 0 and .received == 0 and .chair == false and .used == false
+        and .responses == 1 and (.seats | length == 1)
+        and (.seats[0] | .seat == "chair" and .status == "no-response"
+            and .counted_as_approver == false
+            and .contribution.access_state == "evidence-rejected"
+            and .grounding.fabricated == true and .grounding == .contribution.grounding)
+        and (if $scenario == "quiet" then .warnings == "" and .captures == 0
+             elif $scenario == "missing" then .captures == 1 and (.warnings | contains("exited 17: no provider diagnostics were retained;"))
+             else .captures == 1 and (.warnings | contains("exited 17: Error: fixture transport failure;")) end)' <<< "$record" >/dev/null; then
     test_pass
 else
     test_fail "invalid contribution became a recovered chair: $record"
 fi
+done
 
 test_summary

@@ -114,7 +114,12 @@ a rejected or unavailable record cannot contribute to quorum. Verification and
 evidence digest collection use separate reads, so the record is not an atomic snapshot.
 Keep review evidence unchanged while council validates and records responses.
 
-Evidence-rejected seats retain `blind` status and remain in
+Rejected dispatched chair fallbacks retain their contribution record, grounding
+report and response while trying the next fallback. They cannot establish chair
+presence or increase response counts. Failed-attempt diagnostics remain available
+for rejected fallbacks, including when the last retry exits zero.
+
+Evidence-rejected advice seats retain `blind` status and remain in
 `quorum.blind_seats`, but their warning reports a grounding verification failure.
 Inspect `seats[].contribution.grounding` and the response for verifier failures,
 verification limits or unverified source quotes. Provider mode/model and file-read

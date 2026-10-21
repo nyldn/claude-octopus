@@ -391,6 +391,7 @@ if declare -F octopus_orchestrator_handle_signal >/dev/null 2>&1; then
 fi
 eval "$(sed -n '/^octopus_orchestrator_handle_signal() {/,/^}/p' "$orchestrator_source")"
 subshell_cleanup_log="$TEST_TMP_DIR/subshell-cleanup.log"
+term_trap_marker="$TEST_TMP_DIR/subshell-term-trap"
 ready_file="$TEST_TMP_DIR/subshell-ready"
 : > "$subshell_cleanup_log"
 octopus_orchestrator_cancel_active() { printf 'cancel:%s\n' "$1" >> "$subshell_cleanup_log"; }
@@ -399,7 +400,7 @@ OCTOPUS_ORCHESTRATOR_PID=$$
 # Same shape as the correction stall watchdog: a background worker restores
 # the orchestrator's TERM trap from $(trap -p TERM), then receives SIGTERM.
 (
-    trap 'octopus_orchestrator_handle_signal TERM' TERM
+    trap 'printf "%s\n" handled > "$term_trap_marker"; octopus_orchestrator_handle_signal TERM' TERM
     trap 'octopus_orchestrator_handle_exit "$?"' EXIT
     saved_term_trap=$(trap -p TERM)
     trap ':' TERM
@@ -418,10 +419,10 @@ if [[ "$ready" == true ]]; then
     IFS= read -r worker_child_pid < "$ready_file"
     kill -TERM "$worker_pid" 2>/dev/null || true
     if wait "$worker_pid"; then worker_rc=0; else worker_rc=$?; fi
-    if [[ "$worker_rc" -eq 143 && ! -s "$subshell_cleanup_log" ]]; then
+    if [[ "$worker_rc" -eq 143 && -s "$term_trap_marker" && ! -s "$subshell_cleanup_log" ]]; then
         test_pass
     else
-        test_fail "subshell ran orchestrator cleanup (rc=$worker_rc, log: $(tr '\n' ' ' < "$subshell_cleanup_log"))"
+        test_fail "subshell TERM handler was not proved or ran orchestrator cleanup (rc=$worker_rc, log: $(tr '\n' ' ' < "$subshell_cleanup_log"))"
     fi
 else
     test_fail "worker did not install its signal traps before the readiness deadline"

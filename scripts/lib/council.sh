@@ -4257,7 +4257,8 @@ council_run_chair_fallback() {
         contribution_json="$(council_contribution_record_json "$output_path" "$evidence_root" "$artifact_digest")" \
             || contribution_json="$(council_unavailable_contribution_record_json)"
         if council_response_nonempty "$output_path" \
-                && council_response_is_substantive "$output_path" "$evidence_root" \
+                && { jq -e '.access_state == "evidence-rejected"' <<< "$contribution_json" >/dev/null 2>&1 \
+                     || council_response_is_substantive "$output_path" "$evidence_root"; } \
                 && { (( dispatch_rc == 0 )) || council_response_has_verdict "$output_path"; }; then
             # Persist completed fallback attempts, including rejected metadata,
             # so their output and admission state remain inspectable.
@@ -4297,7 +4298,8 @@ council_run_chair_fallback() {
             [[ "$seat_status" != "responded" ]] || return 0
             # Keep completed output and its rejected record for diagnosis while
             # trying another fallback. A metadata failure must not erase work.
-            continue
+        else
+            rm -f "$output_path"
         fi
         # Rejected retries retain the earlier failed attempt even when the
         # final dispatch exited zero. Accepted responses already removed it.
@@ -4309,7 +4311,6 @@ council_run_chair_fallback() {
         else
             rm -f "$fallback_stderr" 2>/dev/null
         fi
-        rm -f "$output_path"
     done < <(printf '%s\n' strategy-analyst research-synthesizer code-reviewer exec-communicator business-analyst)
 
     return 1
