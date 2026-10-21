@@ -6,6 +6,8 @@
 
 ### Fixed
 
+- Council quote verification has a 15-second process-group budget. Stalled
+  parsing or evidence reads reject the seat and discard partial reports.
 - Short inline identifiers no longer exhaust council's quote budget. The
   256-unit limit still rejects unchecked specific quotes beyond the budget.
 - Council quorum counts and chair admission use the refreshed contribution's

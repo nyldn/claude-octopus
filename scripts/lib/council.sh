@@ -2779,6 +2779,11 @@ council_response_quote_verification_json() {
     local failed="$COUNCIL_FAILED_GROUNDING_JSON" report
     [[ -f "$response_path" && -n "$evidence_root" && -d "$evidence_root" ]] || { printf '%s\n' "$empty"; return 0; }
     command -v python3 >/dev/null 2>&1 || { printf '%s\n' "$empty"; return 0; }
+    # Bound parsing, evidence reads and descendants together. Missing supervision
+    # is a verification failure, not an unbounded fallback.
+    if ! declare -f _octo_run_bare_probe_with_timeout >/dev/null 2>&1; then
+        source "${_council_registry_dir}/bounded-probe.sh" 2>/dev/null || { printf '%s\n' "$failed"; return 0; }
+    fi
     # Every readable --context-file is passed as a trailing argv entry. Each one
     # can be the target of a citation ("phase-3-plan.md:8"), and those that look
     # like a unified diff, plus `git diff` of the evidence root against
@@ -2793,7 +2798,11 @@ council_response_quote_verification_json() {
     # Bash 3.2 misparses quoted heredocs inside command substitutions. Redirect
     # the group so Python inherits its input before the report is captured.
     if {
-        report="$(OCTOPUS_COUNCIL_DIFF_BASE="${OCTOPUS_COUNCIL_DIFF_BASE:-HEAD}" \
+        # Verification is not a provider dispatch. Preserve peer accounting and
+        # event logs while reusing the strict 15-second process-group budget.
+        report="$(OCTO_EVENT_LOG="" OCTOPUS_AUTO_PEER_DISPATCH_MARKER="" \
+        OCTOPUS_COUNCIL_DIFF_BASE="${OCTOPUS_COUNCIL_DIFF_BASE:-HEAD}" \
+        _octo_run_bare_probe_with_timeout 15 13 2 \
         python3 -I - "$response_path" "$evidence_root" ${diff_context_files[@]+"${diff_context_files[@]}"} 2>/dev/null)"
     } <<'PY'
 import html

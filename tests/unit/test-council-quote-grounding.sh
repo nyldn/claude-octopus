@@ -1004,6 +1004,69 @@ else
     test_fail "verifier did not finish inside 10s or misreported: ${r:0:200}"
 fi
 
+test_case "quote supervision preserves provider dispatch accounting"
+verification_events="$TEST_TMP_DIR/verification-events.jsonl"
+verification_peer_marker="$TEST_TMP_DIR/verification-peer-started"
+r="$(OCTO_EVENT_LOG="$verification_events" OCTOPUS_AUTO_PEER_DISPATCH_MARKER="$verification_peer_marker" \
+    council_response_quote_verification_json "$real" "$ROOT")"
+if jq -e '.verification_failed == false and .quotes_verified == 1' <<< "$r" >/dev/null &&
+   [[ ! -e "$verification_events" && ! -e "$verification_peer_marker" ]]; then
+    test_pass
+else
+    test_fail "verification changed dispatch accounting or lost grounding: ${r:0:200}"
+fi
+
+test_case "a verifier that stalls after valid partial output is contained and rejects the report"
+stalled_pid="$TEST_TMP_DIR/stalled-verifier.pid"
+r="$(bounded 20 bash -c '
+    source "$1"
+    # Keep the marker outside the worker argv contract.
+    worker_marker="$4"
+    python3() {
+        trap "" TERM
+        /bin/sh -c '\''printf "%s\n" "$PPID"'\'' > "$worker_marker"
+        printf "%s\n" "$COUNCIL_EMPTY_GROUNDING_JSON"
+        while :; do sleep 1; done
+    }
+    council_response_quote_verification_json "$2" "$3"
+' _ "$PROJECT_ROOT/scripts/lib/council.sh" "$real" "$ROOT" "$stalled_pid" 2>/dev/null || true)"
+if jq -e '.verification_failed == true and .quotes_verified == 0 and .fabricated == false' <<< "$r" >/dev/null 2>&1 &&
+   [[ -s "$stalled_pid" ]] && ! kill -0 "$(cat "$stalled_pid")" 2>/dev/null &&
+   council_response_quotes_fabricated "$real" "$ROOT" "$r"; then
+    test_pass
+else
+    test_fail "stalled worker survived or partial output gained grounding: ${r:0:200}"
+fi
+
+test_case "unavailable verifier supervision fails closed"
+r="$(
+    _council_registry_dir="$TEST_TMP_DIR/missing-verifier-libs"
+    unset -f _octo_run_bare_probe_with_timeout
+    council_response_quote_verification_json "$real" "$ROOT"
+)"
+if jq -e '.verification_failed == true and .quotes_verified == 0 and .fabricated == false' <<< "$r" >/dev/null 2>&1; then
+    test_pass
+else
+    test_fail "missing supervisor granted grounding: ${r:0:200}"
+fi
+
+test_case "a sub-megabyte adversarial response cannot run the quote verifier without a deadline"
+adversarial="$TEST_TMP_DIR/adversarial-fence-markers.md"
+python3 - "$adversarial" "$REAL_NEAR" <<'PY_ADVERSARIAL'
+import sys
+with open(sys.argv[1], "w") as out:
+    out.write("src/pricing.ts:2 reads `%s`.\nVERDICT: APPROVE\n" % sys.argv[2])
+    out.write("`" * 300000)
+PY_ADVERSARIAL
+r="$(bounded 20 bash -c 'source "$1"; council_response_quote_verification_json "$2" "$3"' _ \
+    "$PROJECT_ROOT/scripts/lib/council.sh" "$adversarial" "$ROOT" 2>/dev/null || true)"
+if jq -e '.verification_failed == true and .quotes_verified == 0 and .fabricated == false' <<< "$r" >/dev/null 2>&1 &&
+   council_response_quotes_fabricated "$adversarial" "$ROOT" "$r"; then
+    test_pass
+else
+    test_fail "adversarial response exceeded the deadline or gained grounding: ${r:0:200}"
+fi
+
 test_case "short inline identifiers do not consume the checkable quote budget"
 identifiers="$(_resp "$(for i in $(seq 1 100); do printf '\140id\140 \140null\140 \140value\140 '; done)
 src/pricing.ts:2 reads \`$REAL_NEAR\`.
