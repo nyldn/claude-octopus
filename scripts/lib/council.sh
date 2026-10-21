@@ -4051,10 +4051,9 @@ council_run_advice_phase() {
                 # for diagnosis, but cannot count as a response or approver.
                 seat_status="no-response"
             elif council_response_is_blind "$output_path" "$evidence_root"; then
-                # Returned a verdict without reading the artifact (no file tools /
-                # permission). Label it distinctly and surface which provider, so
-                # the operator can switch its mode after ROUND ONE, not round six.
-                # Still excluded from quorum (not "responded").
+                # Access failures and rejected grounding both remain blind and
+                # excluded from quorum. Warnings use the contribution's access
+                # state to distinguish provider access from evidence rejection.
                 seat_status="blind"
                 council_note_blind_seat "$mprovider"
             else
@@ -5274,7 +5273,15 @@ council_print_run_warnings() {
     fi
 
     if [[ -n "${COUNCIL_BLIND_SEATS:-}" ]]; then
-        echo "Council warning: blind seat(s) returned a verdict without reading the artifact and were excluded from quorum: ${COUNCIL_BLIND_SEATS} — switch that provider's mode/model (e.g. give it file-read tools) or inline the artifact into the prompt. See summary.json quorum.blind_seats."
+        local provider_blind_seats grounding_failed_seats
+        provider_blind_seats="$(jq -r '[.[] | select(.status == "blind" and .contribution.access_state != "evidence-rejected") | .provider] | unique | join(" ")' <<< "$COUNCIL_SEAT_RECORDS_JSON")"
+        grounding_failed_seats="$(jq -r '[.[] | select(.status == "blind" and .contribution.access_state == "evidence-rejected") | .provider] | unique | join(" ")' <<< "$COUNCIL_SEAT_RECORDS_JSON")"
+        if [[ -n "$provider_blind_seats" ]]; then
+            echo "Council warning: blind seat(s) returned a verdict without reading the artifact and were excluded from quorum: ${provider_blind_seats} — switch that provider's mode/model (e.g. give it file-read tools) or inline the artifact into the prompt. See summary.json quorum.blind_seats."
+        fi
+        if [[ -n "$grounding_failed_seats" ]]; then
+            echo "Council warning: grounding verification failed for seat(s) excluded from quorum: ${grounding_failed_seats}. Inspect summary.json seats[].contribution.grounding and responses/*.md for verifier failures or unverified source quotes."
+        fi
     fi
 
     if [[ "$COUNCIL_QUORUM_MET" == "true" && "${COUNCIL_CHAIR_SYNTHESIS_AVAILABLE:-}" != "true" ]]; then

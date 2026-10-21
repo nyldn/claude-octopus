@@ -114,6 +114,12 @@ a rejected or unavailable record cannot contribute to quorum. Verification and
 evidence digest collection use separate reads, so the record is not an atomic snapshot.
 Keep review evidence unchanged while council validates and records responses.
 
+Evidence-rejected seats retain `blind` status and remain in
+`quorum.blind_seats`, but their warning reports a grounding verification failure.
+Inspect `seats[].contribution.grounding` and the response for verifier failures,
+verification limits or unverified source quotes. Provider mode/model and file-read
+guidance applies to other blind seats.
+
 For a committed change, set `OCTOPUS_COUNCIL_DIFF_BASE` to the reviewed base
 in the runner environment, or attach the reviewed diff with `--context-file`.
 The default `HEAD` covers uncommitted working-tree changes. Council accepts

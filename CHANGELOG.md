@@ -6,6 +6,9 @@
 
 ### Fixed
 
+- Council warnings distinguish rejected grounding from provider access failures.
+  Both remain blind and excluded from quorum; only access failures suggest
+  switching provider mode/model or supplying file access.
 - Council quote verification has a 15-second process-group budget. Stalled
   parsing or evidence reads reject the seat and discard partial reports.
 - Short inline identifiers no longer exhaust council's quote budget. The
