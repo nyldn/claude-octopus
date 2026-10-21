@@ -229,6 +229,66 @@ else
     test_fail "production logging reinterpreted certified output"
 fi
 
+for diagnostic_stream in stdout stderr; do
+    test_case "real control bytes in $diagnostic_stream retain safe sync and seat diagnostics"
+    control_diagnostic="$(printf '\033[31mAuthentication failed: sk-%s\007%s\033[0m\177' \
+        'cccccccccccccccc' 'cccccccccccccccc')"
+    control_log="$TEST_TMP_DIR/control-$diagnostic_stream.log"
+    control_err="$TEST_TMP_DIR/control-$diagnostic_stream.err"
+    control_out="$TEST_TMP_DIR/control-$diagnostic_stream.out"
+    control_seat="$TEST_TMP_DIR/control-$diagnostic_stream-seat.log"
+    : > "$control_err"; : > "$control_out"
+    if [[ "$diagnostic_stream" == stderr ]]; then
+        printf '%s\n' "$control_diagnostic" > "$control_err"
+        control_stderr="$control_diagnostic"
+    else
+        printf '%s\n' "$control_diagnostic" > "$control_out"
+        control_stderr='a harmless warning'
+    fi
+    STDOUT_FAILURE="$control_diagnostic" STDERR_FAILURE="$control_stderr" USE_PRODUCTION_LOGGER=true \
+        run_sync_fixture openrouter 0 "control-$diagnostic_stream" >/dev/null 2> "$control_log" && stdout_rc=0 || stdout_rc=$?
+    _OCTOPUS_SEAT_STDERR_FILE="$control_seat" \
+        octo_capture_seat_failure fixture 1 failed "$control_err" "$control_out"
+    if [[ "$stdout_rc" == 1 ]] && python3 - "$control_log" "$control_seat" <<'PY_CONTROLS'
+import pathlib
+import stat
+import sys
+for name in sys.argv[1:]:
+    data = pathlib.Path(name).read_bytes()
+    assert b'Authentication failed' in data and b'[REDACTED-' in data
+    assert b'cccccccccccccccc' not in data
+    assert not any(c < 32 and c not in (9, 10, 13) or c == 127 for c in data)
+assert stat.S_IMODE(pathlib.Path(sys.argv[2]).stat().st_mode) == 0o600
+PY_CONTROLS
+    then test_pass; else test_fail "safe $diagnostic_stream failure details were lost or uncertified"; fi
+done
+
+test_case "control cleanup preserves permitted whitespace and UTF-8 bytes"
+python3 - "$TEST_TMP_DIR/control-input" "$TEST_TMP_DIR/control-expected" <<'PY_CONTROL_BYTES'
+from pathlib import Path
+import sys
+suffix = 'Erreur dépassée\n\n'.encode()
+Path(sys.argv[1]).write_bytes(bytes(range(32)) + b'\x7f' + suffix)
+Path(sys.argv[2]).write_bytes(b'\t\n\r' + suffix)
+PY_CONTROL_BYTES
+if octo_safe_diagnostic_tail "$TEST_TMP_DIR/control-input" > "$TEST_TMP_DIR/control-actual" &&
+   cmp -s "$TEST_TMP_DIR/control-expected" "$TEST_TMP_DIR/control-actual"; then
+    test_pass
+else
+    test_fail "control cleanup changed permitted whitespace or UTF-8"
+fi
+
+test_case "failed control cleanup returns its status without partial output"
+if (
+    tr() { printf 'untrusted partial output'; return 9; }
+    octo_safe_diagnostic_tail "$TEST_TMP_DIR/control-input"
+) > "$TEST_TMP_DIR/control-failed-tail"; then control_rc=0; else control_rc=$?; fi
+if [[ "$control_rc" == 9 && ! -s "$TEST_TMP_DIR/control-failed-tail" ]]; then
+    test_pass
+else
+    test_fail "failed control cleanup returned rc=$control_rc or published partial output"
+fi
+
 test_case "invalid stdout-tail limits fall back to a bounded diagnostic"
 large_failure="$(python3 -c 'print("x" * 6000 + " final diagnostic")')"
 invalid_limits_passed=true

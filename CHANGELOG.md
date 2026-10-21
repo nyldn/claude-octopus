@@ -6,6 +6,12 @@
 
 ### Fixed
 
+- Council recognizes `defines` and `declares` source attributions. A genuine
+  quote cannot mask an invented quote introduced by either verb.
+- Uncited quote spans no longer consume council's citation-bound verification
+  budget. Bound overflow still rejects approval.
+- Colored provider failures retain safe diagnostic text. Control bytes are
+  removed before redaction and certification, with no partial output on failure.
 - Council verifies tilde-fenced source quotes and matches fence markers and
   widths, preventing invented quotes from bypassing grounding through Markdown.
 - Rejected chair fallbacks retain their grounding report, response and failed

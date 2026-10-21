@@ -117,6 +117,63 @@ cp "$ROOT/src/pricing.ts" "$fence_root/src/pricing.ts"
 git -C "$fence_root" init -q
 git -C "$fence_root" add src
 git -C "$fence_root" -c user.name=Test -c user.email=test@example.invalid commit -qm baseline
+for verb in defines declares define declare defined declared; do
+    test_case "an invented quote after $verb rejects approval even beside a genuine quote"
+    response="$(_resp "src/pricing.ts:2 $verb \`$FAKE\`
+
+src/pricing.ts:2 reads \`$REAL_NEAR\`
+VERDICT: APPROVE")"
+    record="$(council_contribution_record_json "$response" "$fence_root" sha256:test)"
+    if jq -e '.validation_result == "invalid-ungrounded" and .access_state == "evidence-rejected"
+            and .evidence_paths == [] and .grounding.quotes_checked == 2
+            and .grounding.quotes_verified == 1 and .grounding.quotes_attributed == 2
+            and .grounding.quotes_attributed_unverified == 1 and .grounding.fabricated == true' <<< "$record" >/dev/null &&
+       ! council_response_is_substantive "$response" "$fence_root"; then test_pass; else test_fail "record: $record"; fi
+done
+
+for verb in defines declares; do
+    test_case "a genuine quote after $verb remains valid"
+    response="$(_resp "src/pricing.ts:2 $verb \`$REAL_NEAR\`
+VERDICT: APPROVE")"
+    record="$(council_contribution_record_json "$response" "$fence_root" sha256:test)"
+    if jq -e '.validation_result == "valid-grounded" and .verdict == "APPROVE"
+            and .grounding.quotes_verified == 1 and .grounding.quotes_attributed == 1
+            and .grounding.fabricated == false' <<< "$record" >/dev/null; then test_pass; else test_fail "record: $record"; fi
+
+    test_case "a proposed quote before $verb is not a claim about current source"
+    response="$(_resp "Proposal: src/pricing.ts:2 $verb \`$FAKE\`
+
+src/pricing.ts:2 reads \`$REAL_NEAR\`
+VERDICT: REVISE")"
+    record="$(council_contribution_record_json "$response" "$fence_root" sha256:test)"
+    if jq -e '.validation_result == "valid-grounded" and .verdict == "REVISE"
+            and .grounding.quotes_verified == 1 and .grounding.quotes_unverifiable_proposed == 1
+            and .grounding.quotes_attributed_unverified == 0 and .grounding.fabricated == false' <<< "$record" >/dev/null; then test_pass; else test_fail "record: $record"; fi
+
+    test_case "an inline suggestion after the citation remains a proposal despite $verb"
+    response="$(_resp "src/pricing.ts:2 should be rewritten so it $verb \`$FAKE\`
+
+src/pricing.ts:2 reads \`$REAL_NEAR\`
+VERDICT: REVISE")"
+    record="$(council_contribution_record_json "$response" "$fence_root" sha256:test)"
+    if jq -e '.validation_result == "valid-grounded" and .grounding.quotes_verified == 1
+            and .grounding.quotes_unverifiable_proposed == 1
+            and .grounding.quotes_attributed_unverified == 0 and .grounding.fabricated == false' <<< "$record" >/dev/null; then test_pass; else test_fail "record: $record"; fi
+
+    test_case "a tilde-fenced invention after $verb rejects approval beside a genuine quote"
+    response="$(_resp "src/pricing.ts:2 $verb:
+~~~ts
+$FAKE
+~~~
+
+src/pricing.ts:2 reads \`$REAL_NEAR\`
+VERDICT: APPROVE")"
+    record="$(council_contribution_record_json "$response" "$fence_root" sha256:test)"
+    if jq -e '.validation_result == "invalid-ungrounded" and .access_state == "evidence-rejected"
+            and .evidence_paths == [] and .grounding.quotes_verified == 1
+            and .grounding.quotes_attributed_unverified == 1 and .grounding.fabricated == true' <<< "$record" >/dev/null; then test_pass; else test_fail "record: $record"; fi
+done
+
 for marker in '~~~' '~~~~' '````'; do
     test_case "invented source in a $marker fence rejects the contribution"
     fenced="$(_resp "src/pricing.ts:2 reads:
@@ -1147,6 +1204,48 @@ if jq -e '.quotes_checked == 1 and .quotes_verified == 1 and .quotes_omitted == 
 else
     test_fail "short identifiers exhausted the quote budget: $r $record"
 fi
+
+for distant_case in before after boundary overflow unresolved; do
+    test_case "uncited spans do not consume the citation-bound quote budget: $distant_case"
+    distant="$TEST_TMP_DIR/distant-$distant_case.md"
+    python3 - "$distant" "$distant_case" "$REAL_NEAR" "$FAKE" <<'PY_DISTANT_UNITS'
+from pathlib import Path
+import sys
+path, case, real, fake = sys.argv[1:]
+quote = lambda text: '\nsrc/pricing.ts:2 reads `%s`.\n' % text
+spans = '\n'.join('`const distant_%d = inventedValue + 99;`' % i for i in range(300))
+padding = '\n\n' + ' ' * 2000 + '\n\n'
+if case == 'after':
+    response = quote(real) + padding + spans
+elif case == 'unresolved':
+    response = ('\nmissing/upstream.ts:1 reads `%s`.\n' % fake) * 300 + padding + quote(real)
+else:
+    response = spans + padding + quote(real) * (256 if case in ('boundary', 'overflow') else 1)
+    if case == 'overflow':
+        response += quote(fake)
+Path(path).write_text(response + '\nVERDICT: APPROVE\n')
+PY_DISTANT_UNITS
+    record="$(council_contribution_record_json "$distant" "$ROOT" sha256:distant-quotes)"
+    if [[ "$distant_case" == overflow ]]; then
+        if jq -e '.validation_result == "invalid-ungrounded" and .evidence_paths == []
+                and .grounding.quotes_checked == 256 and .grounding.quotes_verified == 256
+                and .grounding.quotes_omitted == 1 and .grounding.fabricated == false' <<< "$record" >/dev/null; then
+            test_pass
+        else test_fail "bound overflow was not rejected: $record"; fi
+    else
+        expected_verified=1
+        [[ "$distant_case" != boundary ]] || expected_verified=256
+        expected_unresolved=0
+        [[ "$distant_case" != unresolved ]] || expected_unresolved=300
+        if jq -e --argjson verified "$expected_verified" --argjson unresolved "$expected_unresolved" \
+            '.validation_result == "valid-grounded" and .grounding.quotes_omitted == 0
+             and .grounding.quotes_verified == $verified
+             and .grounding.quotes_unverifiable_unresolved_citation == $unresolved
+             and .grounding.fabricated == false' <<< "$record" >/dev/null; then
+            test_pass
+        else test_fail "unbound spans exhausted matching capacity: $record"; fi
+    fi
+done
 
 for quote_limit_case in boundary overflow mixed; do
     test_case "$quote_limit_case quote units cannot bypass the grounding gate"

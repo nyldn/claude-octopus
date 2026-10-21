@@ -60,6 +60,9 @@ Council also checks specific code quotes beside `path:line` citations against
 the cited files and reviewed diff. A seat whose checked quotes are fabricated
 receives `invalid-ungrounded` and cannot count toward approval. An attributed
 quote that fails verification also rejects the seat, even if other quotes match.
+Direct citation lead-ins include `reads`, `defines` and `declares`, including
+the base and past forms of `define` and `declare`. Proposal lead-ins still mark
+the following quote as a suggestion rather than current source.
 
 The verifier recognizes inline code, backtick or tilde fenced blocks and
 blockquotes. Closing fences must use the opening marker and at least its width;
@@ -90,7 +93,8 @@ indexed file for each missing path. Directory entries stream within a 50,000-ent
 budget. Suffix inference stays unresolved when the index reaches its entry or
 depth limit, or a directory cannot be scanned. Direct paths and attached context
 files still resolve independently. Only units with specific, checkable variants
-consume the 256-unit scan limit; short inline identifiers do not count.
+bound to a resolving citation consume the 256-unit matching limit. Short inline
+identifiers, distant uncited spans and unresolved citations do not count.
 `quotes_omitted` reports checkable units beyond that limit.
 Any omitted units cause `invalid-ungrounded`, even if
 earlier quotes verify. Responses above 1 MiB set `response_oversized` and also
@@ -156,8 +160,9 @@ errors such as "Not logged in" visible when a CLI writes warnings to stderr
 and its actual error to stdout. `OCTOPUS_SYNC_FAILURE_OUTPUT_TAIL_BYTES` sets
 the tail length, with a default of 2000 bytes. Accepted values are decimal
 integers from 1 through 65536 without a sign or leading zeroes. Invalid values
-use the default. Redaction and credential checks run before truncation; their
-failure omits provider output from the log. The same checks protect stderr
+use the default. Disallowed control bytes are removed before redaction, preserving
+tabs, carriage returns and newlines. Redaction and credential checks run before
+truncation; their failure omits provider output from the log. The same checks protect stderr
 diagnostics. The logger preserves literal backslashes in messages after
 certification, so provider text cannot introduce control bytes through escape
 interpretation.

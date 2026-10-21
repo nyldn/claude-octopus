@@ -3308,12 +3308,13 @@ REMOVAL_WORDS = re.compile(r"\b(remov(?:e|ed|es|ing|al)|delet(?:e|ed|es|ing|ion)
 COMMAND = re.compile(r"^\$?\s*(?:npm|npx|pnpm|yarn|node|deno|bun|git|gh|make|bash|sh|zsh|cd|ls|cat|grep|rg|sed|awk|curl|python3?|pip|uv|cargo|go|tsc|vitest|jest|pytest|docker|kubectl|psql|netlify|supabase|env)\s")
 SHELL_FENCES = {"sh", "bash", "shell", "console", "zsh", "terminal", "shell-session"}
 # A unit is ATTRIBUTED when it sits directly under or after a citation, with only
-# markup or a reading verb between them ("x.ts:12 reads `...`", "x.ts:12:" then a
+# markup or a source verb between them ("x.ts:12 defines `...`", "x.ts:12:" then a
 # fence). That is the seat stating the cited file contains this code, so the
 # quote must be found in that file, and a failure counts against the seat even
 # when other quotes verify. A proposal on the citation's line ("change x.ts:12
 # to:") is not a claim about current content.
 GAP_WORDS = {"reads", "read", "shows", "show", "contains", "contain", "has", "says", "is", "at",
+             "defines", "define", "defined", "declares", "declare", "declared",
              "line", "lines", "source", "code", "verbatim", "quote", "quoted", "excerpt",
              "current", "currently", "actual", "l"}
 PROPOSAL = re.compile(r"\b(should|propos\w*|suggest\w*|recommend\w*|replace with|instead|would|could|change (?:it |this )?to|rewrit\w*|becomes?|example|e\.g\.|such as|consider|cover|prefer\w*|expected|want)\b", re.I)
@@ -3325,13 +3326,17 @@ CODE_SYNTAX = re.compile(
     r"^\s*(?:return|yield|raise|throw|delete)\s+[\w$]+(?:\.[\w$]+)+\b|"
     r"\S\s+\?\s+[^?\s:][^?:]*:\s+\S")
 
+token_ends = [t[1] for t in tokens]
+citation_starts = [c[0] for c in citations]
+citation_ends = [c[1] for c in citations]
+
 def association(start):
     # The citation a quote is written about: the nearest one before it in the
     # same paragraph, with no other quote between them.
-    preceding = [t for t in tokens if t[1] <= start]
-    if not preceding:
+    index = bisect_right(token_ends, start) - 1
+    if index < 0:
         return None, ""
-    token = max(preceding, key=lambda t: t[1])
+    token = tokens[index]
     gap = LINK_TARGET.sub("", resp[token[1]:start]).lstrip("`")
     if len(gap) > 300 or "`" in gap or re.search(r"\n[ \t]*\n", gap):
         return None, ""
@@ -3373,12 +3378,6 @@ for start, end, kind, block, removed_block, info in units:
                         if v and checkable(v)]
     if not wholes and not line_variants and not removed_variants:
         continue
-    # Short identifiers and other uncheckable spans do not consume verification
-    # capacity. Count omitted specific units without matching more than the cap.
-    if checkable_units >= MAX_UNITS:
-        result["quotes_omitted"] += 1
-        continue
-    checkable_units += 1
     flat_variants = wholes + [v for variants in line_variants for v in variants]
     associated, gap = association(start)
     attributed = attribution(associated, gap)
@@ -3394,10 +3393,17 @@ for start, end, kind, block, removed_block, info in units:
     if attributed is not None:
         bound = [(attributed[2], attributed[3])]
     else:
-        bound = [(path, line) for c_start, c_end, path, line in citations
-                 if c_start <= end + QUOTE_PROXIMITY and c_end >= start - QUOTE_PROXIMITY]
+        lo = bisect_left(citation_ends, start - QUOTE_PROXIMITY)
+        hi = bisect_right(citation_starts, end + QUOTE_PROXIMITY)
+        bound = [(path, line) for _, _, path, line in citations[lo:hi]]
     if not bound:
         continue
+    # Only specific, citation-bound units consume matching capacity. Count
+    # omitted units without reading or matching evidence beyond the cap.
+    if checkable_units >= MAX_UNITS:
+        result["quotes_omitted"] += 1
+        continue
+    checkable_units += 1
     bound_paths = []
     for path, _ in bound:
         if path not in bound_paths:

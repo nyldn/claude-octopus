@@ -1291,10 +1291,13 @@ octo_safe_diagnostic_tail() {
     declare -F sanitize_secrets >/dev/null 2>&1 || return 1
     command -v python3 >/dev/null 2>&1 && [[ -f "$scanner" ]] || return 1
     # Redact and certify the complete stream before truncation can hide a key's
-    # prefix or field name. Discard partial output if either stage fails.
+    # prefix or field name. Remove prohibited control bytes before redaction so
+    # colored output stays useful and split credentials cannot evade matching.
+    # Discard partial output if any stage fails.
     if diagnostic="$(
         set -o pipefail
-        sanitize_secrets < "$file" | python3 "$scanner" --redact | tail -c "$limit" || exit "$?"
+        LC_ALL=C tr -d '\000-\010\013\014\016-\037\177' < "$file" \
+            | sanitize_secrets | python3 "$scanner" --redact | tail -c "$limit" || exit "$?"
         # Prevent command substitution from stripping diagnostic newlines.
         printf '.'
     )"; then
