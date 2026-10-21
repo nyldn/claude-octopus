@@ -73,7 +73,10 @@ unmatched quotes remain unverifiable because the omitted suffix may contain
 their evidence. Git diff capture stops after 8 MiB plus one truncation byte,
 terminates and reaps an oversized producer, and retains a ten-second deadline.
 Distinct citations share a sorted path suffix index instead of scanning every
-indexed file for each missing path. `quotes_omitted` reports units beyond the
+indexed file for each missing path. Directory entries stream within a 50,000-entry
+budget. Suffix inference stays unresolved when the index reaches its entry or
+depth limit, or a directory cannot be scanned. Direct paths and attached context
+files still resolve independently. `quotes_omitted` reports units beyond the
 256-unit scan limit.
 A multi-line quote can verify as a whole or when two thirds of its specific
 lines match. These checks cannot establish that a provider read the source.

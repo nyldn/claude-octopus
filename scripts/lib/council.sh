@@ -2861,30 +2861,34 @@ def specific(text):
 # pruned from the suffix index; containment and no-symlink rules still apply.
 INDEX_SKIP = {".git", ".hg", ".svn", "node_modules", "__pycache__", ".venv"}
 suffix_index = None
+suffix_index_complete = False
 def build_index():
-    paths, entries = [], 0
+    paths, entries, complete = [], 0, True
     stack = [(root, 0)]
-    while stack and entries < MAX_INDEX_ENTRIES:
+    while stack:
         directory, depth = stack.pop()
         try:
-            listing = list(os.scandir(directory))
+            with os.scandir(directory) as listing:
+                for entry in listing:
+                    entries += 1
+                    if entries >= MAX_INDEX_ENTRIES:
+                        return [], False
+                    try:
+                        if entry.is_symlink():
+                            continue
+                        if entry.is_dir(follow_symlinks=False):
+                            if entry.name not in INDEX_SKIP:
+                                if depth < MAX_INDEX_DEPTH:
+                                    stack.append((Path(entry.path), depth + 1))
+                                else:
+                                    complete = False
+                        elif entry.is_file(follow_symlinks=False):
+                            paths.append((entry.path[::-1], Path(entry.path)))
+                    except OSError:
+                        complete = False
         except OSError:
-            continue
-        for entry in listing:
-            entries += 1
-            if entries >= MAX_INDEX_ENTRIES:
-                break
-            try:
-                if entry.is_symlink():
-                    continue
-                if entry.is_dir(follow_symlinks=False):
-                    if entry.name not in INDEX_SKIP and depth < MAX_INDEX_DEPTH:
-                        stack.append((Path(entry.path), depth + 1))
-                elif entry.is_file(follow_symlinks=False):
-                    paths.append((entry.path[::-1], Path(entry.path)))
-            except OSError:
-                continue
-    return sorted(paths)
+            complete = False
+    return sorted(paths), complete
 
 def contained(candidate):
     try:
@@ -2911,9 +2915,12 @@ def resolve_citation(relative):
     #    basename is too ambiguous to resolve this way.
     if len(relative.parts) < 2:
         return None
-    global suffix_index
+    global suffix_index, suffix_index_complete
     if suffix_index is None:
-        suffix_index = build_index()
+        suffix_index, suffix_index_complete = build_index()
+    # An unread subtree can contain another hit for any apparent unique suffix.
+    if not suffix_index_complete:
+        return None
     # Reversing paths turns a component suffix into a sorted prefix range.
     # Only its first two entries are needed to distinguish unique from ambiguous.
     key = tail[::-1]

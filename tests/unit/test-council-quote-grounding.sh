@@ -737,6 +737,110 @@ VERDICT: APPROVE")"
 r="$(council_response_quote_verification_json "$f" "$indexed_root")"
 if jq -e '.citations == 1 and .citations_unresolved == 1 and .quotes_verified == 1 and .quotes_unverifiable_unresolved_citation == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
+# Execute the real embedded verifier with a deterministic directory stream.
+# Duplicate suffixes live on disk; synthetic skipped entries exercise the real
+# 50,000-entry budget without creating a large filesystem fixture.
+index_runner="$TEST_TMP_DIR/index-limits.py"
+cat > "$index_runner" <<'PY_INDEX_LIMITS'
+import contextlib
+import io
+import json
+import os
+import sys
+from pathlib import Path
+from unittest.mock import patch
+
+source, fixture, mode = sys.argv[1], Path(sys.argv[2]), sys.argv[3]
+root = fixture / mode
+root.mkdir(parents=True)
+real_quote = 'const verifiedPrice = cabin.basePrice ?? sailing.defaultPrice;'
+direct_quote = 'const directControl = verifiedPrice + portFees;'
+(root / 'direct.ts').write_text(direct_quote + '\n')
+visible = root / 'z-visible' / 'src'
+visible.mkdir(parents=True)
+(visible / 'target.ts').write_text('const unrelatedValue = 17;\n')
+hidden = root / 'a-hidden'
+if mode == 'depth':
+    hidden = hidden.joinpath(*(['nested'] * 32))
+(hidden / 'src').mkdir(parents=True)
+(hidden / 'src' / 'target.ts').write_text(real_quote + '\n')
+response = fixture / (mode + '.md')
+response.write_text('src/target.ts:1 reads `' + real_quote + '`.\n\n'
+                    'direct.ts:1 reads `' + direct_quote + '`.\nVERDICT: APPROVE\n')
+function = Path(source).read_text().split('council_response_quote_verification_json() {', 1)[1]
+script = function.split("<<'PY'", 1)[1].split('\n', 1)[1].split('\nPY\n', 1)[0]
+native_scandir = os.scandir
+consumed = 0
+
+class SkippedEntry:
+    def is_symlink(self):
+        return True
+
+class Scan:
+    def __init__(self, entries):
+        self.entries = iter(entries)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        global consumed
+        entry = next(self.entries)
+        consumed += 1
+        if mode == 'stream' and consumed > 50_000:
+            raise AssertionError('directory stream consumed beyond the entry budget')
+        return entry
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.entries.close() if hasattr(self.entries, 'close') else None
+
+def directory_entries(directory):
+    with native_scandir(directory) as entries:
+        # Only this small root needs deterministic traversal order, so the
+        # misleading match is visited before the genuine duplicate.
+        if directory == root:
+            yield from sorted(entries, key=lambda entry: entry.name)
+        else:
+            yield from entries
+    if mode in ('cap', 'stream') and directory == visible:
+        yield from (SkippedEntry() for _ in range(60_000))
+
+def scandir(directory):
+    directory = Path(directory)
+    if mode == 'unreadable' and directory == hidden:
+        raise PermissionError('fixture directory cannot be scanned')
+    return Scan(directory_entries(directory))
+
+output = io.StringIO()
+sys.argv = ['-', str(response), str(root)]
+with patch('os.scandir', scandir), contextlib.redirect_stdout(output):
+    try:
+        exec(compile(script, source, 'exec'), {'__name__': '__main__'})
+    except SystemExit as error:
+        assert error.code == 0, error.code
+report = json.loads(output.getvalue())
+assert report['citations'] == 1 and report['citations_unresolved'] == 1, report
+assert report['quotes_verified'] == 1, report
+assert report['quotes_unverifiable_unresolved_citation'] == 1, report
+assert report['quotes_attributed_unverified'] == 0 and not report['fabricated'], report
+if mode == 'stream':
+    assert consumed <= 50_000, consumed
+print(json.dumps({'mode': mode, 'consumed': consumed, 'report': report}))
+PY_INDEX_LIMITS
+
+for index_mode in cap stream depth unreadable; do
+    test_case "incomplete suffix scan stays unresolved: $index_mode"
+    if index_output="$(python3 "$index_runner" "$PROJECT_ROOT/scripts/lib/council.sh" \
+        "$TEST_TMP_DIR/index-limits" "$index_mode" 2>&1)"; then
+        test_pass
+    else
+        test_fail "index limit $index_mode: ${index_output:0:1200}"
+    fi
+done
+
 test_case "an oversized git diff producer is stopped while its retained prefix verifies"
 fake_git_bin="$TEST_TMP_DIR/streaming-git-bin"
 mkdir -p "$fake_git_bin"
