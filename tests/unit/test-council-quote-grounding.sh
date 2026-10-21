@@ -839,6 +839,107 @@ else
     test_fail "changed diff reused grounding: $record"
 fi
 
+_advice_with_refreshed_evidence() (
+    # Mutate evidence exactly when the contribution is serialized. The response
+    # has already passed the old advice-phase checks at this boundary.
+    local mutation="$1" d
+    d="$(mktemp -d "$TEST_TMP_DIR/quorum-refresh.XXXXXX")"
+    mkdir -p "$d/evidence/src" "$d/run/responses"
+    printf '%s\n' "$REAL_NEAR" > "$d/evidence/src/changing.ts"
+    printf '%s\n' "$REAL_FAR" > "$d/evidence/src/stable.ts"
+    OCTOPUS_PROJECT_DIR="$d/evidence"
+    COUNCIL_RUN_DIR="$d/run"; COUNCIL_DEPTH="standard"; COUNCIL_FIXTURE=""
+    COUNCIL_TASK="Review the source"; COUNCIL_RUN_START_EPOCH=""
+    COUNCIL_CONTEXT_FILES=()
+    COUNCIL_ROSTER_JSON='[
+      {"persona":"code-reviewer","provider":"codex","seat":"member","model_family":"gpt"},
+      {"persona":"backend-architect","provider":"agy","seat":"member","model_family":"gemini"}
+    ]'
+    [[ "$mutation" != chair ]] || COUNCIL_ROSTER_JSON="$(jq -c '.[0].seat = "chair"' <<< "$COUNCIL_ROSTER_JSON")"
+    local citation="src/changing.ts:1"
+    if [[ "$mutation" == context ]]; then
+        printf '%s\n' "$REAL_NEAR" > "$d/context.md"
+        COUNCIL_CONTEXT_FILES=("$d/context.md")
+        citation="context.md:1"
+    elif [[ "$mutation" == diff ]]; then
+        git -C "$d/evidence" init -q
+        git -C "$d/evidence" add src
+        git -C "$d/evidence" -c user.name=Test -c user.email=test@example.invalid commit -qm original
+        printf '%s\n' "$FAKE" > "$d/evidence/src/changing.ts"
+        OCTOPUS_COUNCIL_DIFF_BASE=HEAD
+    fi
+    council_dispatch_member_detached() {
+        if [[ "$(jq -r '.provider' <<< "$1")" == codex ]]; then
+            printf 'Reviewed %s: `%s` handles the fallback.\nVERDICT: APPROVE\n' "$citation" "$REAL_NEAR" > "$3"
+        else
+            printf 'Reviewed src/stable.ts:1: `%s` defines the discount rules.\nVERDICT: APPROVE\n' "$REAL_FAR" > "$3"
+        fi
+    }
+    council_run_chair_fallback() { :; }
+    eval "$(declare -f council_contribution_record_json | sed '1s/council_contribution_record_json/_contribution_before_mutation/')"
+    council_contribution_record_json() {
+        if [[ "$1" == *00-code-reviewer.md ]]; then
+            case "$mutation" in
+                source|chair) printf '%s\n' "$FAKE" > "$d/evidence/src/changing.ts" ;;
+                context) printf '%s\n' "$FAKE" > "$d/context.md" ;;
+                diff)
+                    git -C "$d/evidence" add src/changing.ts
+                    git -C "$d/evidence" -c user.name=Test -c user.email=test@example.invalid commit -qm replacement
+                    ;;
+                verdict) sed 's/VERDICT: APPROVE/VERDICT: REVISE/' "$1" > "$d/revised.md"; cp "$d/revised.md" "$1" ;;
+                failure) return 1 ;;
+            esac
+        fi
+        _contribution_before_mutation "$@"
+    }
+    council_run_advice_phase >/dev/null 2>&1 || return 1
+    jq -cn --argjson seats "$COUNCIL_SEAT_RECORDS_JSON" \
+        --argjson received "$COUNCIL_RESPONSES_RECEIVED" --argjson met "$COUNCIL_QUORUM_MET" \
+        --argjson chair "$COUNCIL_CHAIR_RESPONSE_RECEIVED" \
+        --arg providers "$COUNCIL_RESPONDING_PROVIDERS" --arg approving "$COUNCIL_APPROVING_PROVIDERS" \
+        --arg families "$COUNCIL_RESPONDING_MODEL_FAMILIES" --arg approving_families "$COUNCIL_APPROVING_MODEL_FAMILIES" \
+        --argjson distinct "$COUNCIL_DISTINCT_APPROVING_PROVIDERS" \
+        --argjson distinct_families "$COUNCIL_DISTINCT_APPROVING_MODEL_FAMILIES" \
+        '{seats:$seats, received:$received, met:$met, chair:$chair, providers:$providers, approving:$approving,
+          families:$families, approving_families:$approving_families,
+          distinct:$distinct, distinct_families:$distinct_families}'
+)
+
+for mutation in source context diff failure chair; do
+    test_case "advice quorum excludes a contribution rejected after $mutation changes"
+    record="$(_advice_with_refreshed_evidence "$mutation")"
+    if jq -e '.received == 1 and .met == false and .chair == false and .distinct == 1 and .distinct_families == 1
+            and (.providers | contains("codex") | not) and (.families | contains("gpt") | not)
+            and (.approving | contains("codex") | not) and (.approving_families | contains("gpt") | not)
+            and .seats[0].status != "responded" and .seats[0].counted_as_approver == false
+            and (.seats[0].contribution.validation_result | startswith("invalid-"))
+            and .seats[1].status == "responded" and .seats[1].counted_as_approver == true' <<< "$record" >/dev/null; then
+        test_pass
+    else
+        test_fail "rejected contribution still affected quorum: $record"
+    fi
+done
+
+test_case "advice quorum uses the verdict serialized in the refreshed contribution"
+record="$(_advice_with_refreshed_evidence verdict)"
+if jq -e '.received == 2 and .met == false and .distinct == 1 and .distinct_families == 1
+        and .seats[0].verdict == "REVISE" and .seats[0].contribution.verdict == "REVISE"
+        and .seats[0].status == "responded" and .seats[0].counted_as_approver == false' <<< "$record" >/dev/null; then
+    test_pass
+else
+    test_fail "preliminary verdict overrode refreshed contribution: $record"
+fi
+
+test_case "unchanged grounded contributions still reach advice quorum"
+record="$(_advice_with_refreshed_evidence unchanged)"
+if jq -e '.received == 2 and .met == true and .distinct == 2 and .distinct_families == 2
+        and all(.seats[]; .status == "responded" and .counted_as_approver == true
+            and .contribution.validation_result == "valid-grounded")' <<< "$record" >/dev/null; then
+    test_pass
+else
+    test_fail "stable grounded votes were lost: $record"
+fi
+
 test_case "a path cited many times is resolved once"
 resolve_count="$TEST_TMP_DIR/qv-resolve-count"; : > "$resolve_count"
 # Wrap both resolvers with a call counter just before the citation loop.
@@ -1368,5 +1469,40 @@ unset -f council_pick_provider council_provider_is_available council_dispatch_me
 source "$PROJECT_ROOT/scripts/lib/council.sh"
 rec="$(jq -c '[.[] | select(.seat == "chair")][0] // {}' <<< "$COUNCIL_SEAT_RECORDS_JSON")"
 if jq -e '.grounding.quotes_verified == 1 and .grounding == .contribution.grounding' <<< "$rec" >/dev/null; then test_pass; else test_fail "record: $rec"; fi
+
+test_case "chair fallback rejects evidence changed before contribution admission"
+record="$(
+    d="$(mktemp -d "$TEST_TMP_DIR/fallback-refresh.XXXXXX")"
+    mkdir -p "$d/evidence/src" "$d/run/responses"
+    printf '%s\n' "$REAL_NEAR" > "$d/evidence/src/pricing.ts"
+    OCTOPUS_PROJECT_DIR="$d/evidence"; COUNCIL_RUN_DIR="$d/run"
+    COUNCIL_RESPONSES_RECEIVED=0; COUNCIL_CHAIR_RESPONSE_RECEIVED=false
+    COUNCIL_CHAIR_FALLBACK_USED=false; COUNCIL_SEAT_RECORDS_JSON='[]'
+    COUNCIL_RUN_START_EPOCH=""; COUNCIL_CONTEXT_FILES=()
+    council_synthesis_capable_persona() { [[ "$1" == strategy-analyst ]]; }
+    council_persona_should_fail() { return 1; }
+    council_pick_provider() { printf 'claude\n'; }
+    council_provider_is_available() { return 0; }
+    council_dispatch_member_detached() {
+        printf 'Reviewed src/pricing.ts:1: `%s` handles the fallback.\nVERDICT: APPROVE\n' "$REAL_NEAR" > "$3"
+    }
+    eval "$(declare -f council_contribution_record_json | sed '1s/council_contribution_record_json/_fallback_contribution_before_mutation/')"
+    council_contribution_record_json() {
+        printf '%s\n' "$FAKE" > "$d/evidence/src/pricing.ts"
+        _fallback_contribution_before_mutation "$@"
+    }
+    rc=0
+    council_run_chair_fallback sha256:t >/dev/null 2>&1 || rc=$?
+    jq -cn --argjson rc "$rc" --argjson seats "$COUNCIL_SEAT_RECORDS_JSON" \
+        --argjson received "$COUNCIL_RESPONSES_RECEIVED" --argjson chair "$COUNCIL_CHAIR_RESPONSE_RECEIVED" \
+        --argjson used "$COUNCIL_CHAIR_FALLBACK_USED" \
+        '{rc:$rc, seats:$seats, received:$received, chair:$chair, used:$used}'
+)"
+if jq -e '.rc != 0 and .received == 0 and .chair == false and .used == false
+        and all(.seats[]; .status != "responded")' <<< "$record" >/dev/null; then
+    test_pass
+else
+    test_fail "invalid contribution became a recovered chair: $record"
+fi
 
 test_summary

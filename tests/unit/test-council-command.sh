@@ -1067,7 +1067,7 @@ test_council_chair_fallback_warning_prints_to_cli() {
 }
 
 test_council_contribution_record_failure_is_nonfatal() {
-    test_case "Council keeps advice and chair fallback seats when contribution records fail"
+    test_case "Council preserves failed-record advice and fallback output without granting quorum"
     load_council_lib || return 1
 
     local tmp_dir out_file count_file status summary
@@ -1092,18 +1092,22 @@ test_council_contribution_record_failure_is_nonfatal() {
     set -e
 
     summary="$(find "$tmp_dir" -name summary.json -type f -print -quit)"
-    if [[ $status -eq 0 && -f "$summary" ]] \
+    if [[ $status -eq 1 && -f "$summary" ]] \
             && jq -e '
-                .status == "completed"
-                and .warnings.chair_fallback == true
-                and (.seats | length) == 4
+                .status == "partial"
+                and .warnings.chair_fallback == false
+                and .quorum.met == false and .quorum.received_non_chair == 0
+                and (.seats | length) == 7
+                and ([.seats[] | select(.response_bytes > 0)] | length) == 6
                 and (.seats | all(
                     .contribution.validation_result == "invalid-record"
                     and .contribution.access_state == "unverified"
                     and .contribution.evidence_paths == []
+                    and .status != "responded" and .counted_as_approver == false
                 ))
             ' "$summary" >/dev/null \
-            && [[ "$(wc -l < "$count_file" | tr -d '[:space:]')" -eq 4 ]]; then
+            && [[ "$(wc -l < "$count_file" | tr -d '[:space:]')" -eq 7 ]] \
+            && [[ "$(find "$tmp_dir" -path '*/responses/*.md' -type f | wc -l | tr -d '[:space:]')" -eq 6 ]]; then
         test_pass
     else
         test_fail "contribution failure aborted or omitted a production caller: rc=$status attempts=$(wc -l < "$count_file" | tr -d '[:space:]')"

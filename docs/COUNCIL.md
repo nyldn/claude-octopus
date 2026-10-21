@@ -103,8 +103,11 @@ the source.
 
 Preliminary checks may share a cached report. Contribution records always run
 verification again, including when cited files, attached context contents or a
-resolved diff change without a configuration change. Verification and evidence
-digest collection use separate reads, so the record is not an atomic snapshot.
+resolved diff change without a configuration change. Advice and chair fallback
+admit only valid contributions before updating response counts, chair presence or
+provider and model-family votes. Votes use the contribution's serialized verdict;
+a rejected or unavailable record cannot contribute to quorum. Verification and
+evidence digest collection use separate reads, so the record is not an atomic snapshot.
 Keep review evidence unchanged while council validates and records responses.
 
 For a committed change, set `OCTOPUS_COUNCIL_DIFF_BASE` to the reviewed base

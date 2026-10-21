@@ -3985,11 +3985,18 @@ council_run_advice_phase() {
         _OCTOPUS_SEAT_STDERR_FILE="$stderr_file" \
             council_dispatch_member_detached "$member" "independent-advice" "$output_path" || dispatch_rc=$?
         dispatch_timeout_provenance="$COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE"
+        # Admit the serialized contribution before changing any response or vote
+        # counters. A refreshed report can reject evidence that passed earlier
+        # checks, and its verdict must be the one recorded and tallied below.
+        contribution_json="$(council_contribution_record_json "$output_path" "$evidence_root" "$artifact_digest")" \
+            || contribution_json="$(council_unavailable_contribution_record_json)"
         # Confirm-finish-before-shortage: a non-zero dispatch (e.g. the per-seat
         # timeout fired) may still have left a COMPLETE, verdict-bearing review that
         # the seat finished writing right at the boundary. Salvage that instead of
         # discarding a usable verdict as a provider shortage (sail-cruisey #2077).
-        if council_response_nonempty "$output_path" \
+        if jq -e '.validation_result == "valid-grounded" or .validation_result == "valid-unverified"' \
+                <<< "$contribution_json" >/dev/null 2>&1 \
+                && council_response_nonempty "$output_path" \
                 && council_response_is_substantive "$output_path" "$evidence_root" \
                 && { (( dispatch_rc == 0 )) || council_response_has_verdict "$output_path"; }; then
             COUNCIL_RESPONSES_RECEIVED=$((COUNCIL_RESPONSES_RECEIVED + 1))
@@ -4012,7 +4019,7 @@ council_run_advice_phase() {
             # independent approver plus the chair's own vendor could pass a 2-vendor
             # quorum. The chair-fallback path never added to this set either, so gating
             # on non-chair seats keeps seats[] and quorum consistent (#670).
-            verdict="$(council_response_verdict "$output_path")"
+            verdict="$(jq -r '.verdict' <<< "$contribution_json")"
             seat_status="responded"
             if [[ "$seat" != "chair" ]]; then
                 COUNCIL_RESPONDING_PROVIDERS="${COUNCIL_RESPONDING_PROVIDERS} ${mprovider}"
@@ -4064,8 +4071,6 @@ council_run_advice_phase() {
         else
             rm -f "$stderr_file" 2>/dev/null
         fi
-        contribution_json="$(council_contribution_record_json "$output_path" "$evidence_root" "$artifact_digest")" \
-            || contribution_json="$(council_unavailable_contribution_record_json)"
         # Per-seat record for summary.json — makes quorum integrity machine-checkable
         # (a chair or degenerate seat can no longer masquerade as a distinct approving
         # vendor). payload_kind is "full" here; #2 (agy chunking) populates delta/chunk,
@@ -4123,6 +4128,8 @@ council_run_advice_phase() {
         map(.model_family as $f
             | .counted_as_approver = (.seat != "chair"
                 and .status == "responded" and .verdict == "APPROVE"
+                and (.contribution.validation_result == "valid-grounded"
+                    or .contribution.validation_result == "valid-unverified")
                 and ($approving_families | contains(" " + $f + " "))))' <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}")"
 
     # Chair presence: a dispatched chair response OR a host-native chair (which
@@ -4233,18 +4240,13 @@ council_run_chair_fallback() {
         _OCTOPUS_SEAT_STDERR_FILE="$fallback_stderr" \
             council_dispatch_member_detached "$member_json" "independent-advice" "$output_path" || dispatch_rc=$?
         dispatch_timeout_provenance="$COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE"
+        contribution_json="$(council_contribution_record_json "$output_path" "$evidence_root" "$artifact_digest")" \
+            || contribution_json="$(council_unavailable_contribution_record_json)"
         if council_response_nonempty "$output_path" \
                 && council_response_is_substantive "$output_path" "$evidence_root" \
                 && { (( dispatch_rc == 0 )) || council_response_has_verdict "$output_path"; }; then
-            COUNCIL_RESPONSES_RECEIVED=$((COUNCIL_RESPONSES_RECEIVED + 1))
-            rm -f "$fallback_stderr" 2>/dev/null
-            COUNCIL_CHAIR_RESPONSE_RECEIVED="true"
-            COUNCIL_CHAIR_FALLBACK_USED="true"
-            COUNCIL_CHAIR_FALLBACK_PERSONA="$persona"
-            # The fallback is an additional advice dispatch outside the resolved
-            # roster, so persist it as an additional seat execution record. Without
-            # this, summary.json claims to expose every seat while silently omitting
-            # the chair response that actually made synthesis possible.
+            # Persist completed fallback attempts, including rejected metadata,
+            # so their output and admission state remain inspectable.
             seat_agent_spec="$(jq -r '.agent_spec // .provider // ""' <<< "$member_json")"
             seat_org="$(jq -r '.provider_org // ""' <<< "$member_json")"
             seat_model="$(jq -r '.model // ""' <<< "$member_json")"
@@ -4252,10 +4254,17 @@ council_run_chair_fallback() {
             [[ -n "$seat_model_family" ]] || seat_model_family="$(council_model_family "$seat_agent_spec" "$seat_model")"
             resp_bytes="$(wc -c < "$output_path" 2>/dev/null | tr -d '[:space:]')"
             [[ -z "$resp_bytes" ]] && resp_bytes=0
-            verdict="$(council_response_verdict "$output_path")"
-            seat_status="responded"
-            contribution_json="$(council_contribution_record_json "$output_path" "$evidence_root" "$artifact_digest")" \
-                || contribution_json="$(council_unavailable_contribution_record_json)"
+            verdict="$(jq -r '.verdict // ""' <<< "$contribution_json")"
+            seat_status="no-response"
+            if jq -e '.validation_result == "valid-grounded" or .validation_result == "valid-unverified"' \
+                    <<< "$contribution_json" >/dev/null 2>&1; then
+                seat_status="responded"
+                COUNCIL_RESPONSES_RECEIVED=$((COUNCIL_RESPONSES_RECEIVED + 1))
+                rm -f "$fallback_stderr" 2>/dev/null
+                COUNCIL_CHAIR_RESPONSE_RECEIVED="true"
+                COUNCIL_CHAIR_FALLBACK_USED="true"
+                COUNCIL_CHAIR_FALLBACK_PERSONA="$persona"
+            fi
             seat_rec="$(jq -cn --argjson idx "$index" --arg persona "$persona" \
                 --arg agent_spec "$seat_agent_spec" --arg provider "$(octo_agent_spec_provider "$provider")" --arg org "$seat_org" --arg model "$seat_model" --arg model_family "$seat_model_family" \
                 --argjson bytes "${resp_bytes:-0}" --arg verdict "$verdict" --arg status "$seat_status" \
@@ -4271,7 +4280,10 @@ council_run_chair_fallback() {
                   timeout_provenance:(if $timeout_provenance=="" then null else $timeout_provenance end),
                   counted_as_approver:false}')"
             COUNCIL_SEAT_RECORDS_JSON="$(jq -c ". + [$seat_rec]" <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}")"
-            return 0
+            [[ "$seat_status" != "responded" ]] || return 0
+            # Keep completed output and its rejected record for diagnosis while
+            # trying another fallback. A metadata failure must not erase work.
+            continue
         fi
         # Rejected retries retain the earlier failed attempt even when the
         # final dispatch exited zero. Accepted responses already removed it.

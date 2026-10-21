@@ -6,6 +6,9 @@
 
 ### Fixed
 
+- Council quorum counts and chair admission use the refreshed contribution's
+  validation and verdict. Rejected or unavailable records cannot retain a vote
+  from preliminary checks.
 - Council contribution records reverify current evidence instead of reusing
   preliminary quote reports after source, context or diff contents change.
 - Direct diagnostic-tail callers receive no partial output when sanitization
