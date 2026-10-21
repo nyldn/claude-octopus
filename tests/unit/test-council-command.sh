@@ -1591,7 +1591,8 @@ test_council_dispatch_strips_blocked_env_but_sets_disposable_mode() {
 
     run_agent_sync() {
         env > "$env_capture"
-        echo "ok"
+        # A completed seat needs a final verdict for contribution admission.
+        printf 'Reviewed the disposable workspace.\nVERDICT: APPROVE\n'
     }
 
     if ! (
