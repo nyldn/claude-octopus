@@ -614,12 +614,32 @@ else
     test_fail "fsmonitor control failed, a repository command ran, or the quote result was lost"
 fi
 
-test_case "unattributed prose in backticks is unverifiable rather than fabricated"
-f="$(_resp 'At src/pricing.ts:2 the outcome was `the response counted as blind`, which describes the review result.
-VERDICT: APPROVE')"
-r="$(_report "$f")"
-if jq -e '.quotes_checked == 1 and .quotes_unverifiable_prose == 1 and .quotes_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null &&
-   ! council_response_is_blind "$f" "$ROOT"; then test_pass; else test_fail "report: $r"; fi
+for prose in \
+    'the response counted as blind' \
+    'the response counted as blind!' \
+    'the response counted as blind?' \
+    'the response counted as blind:' \
+    'the response counted as blind;' \
+    'outcome: the response counted as blind' \
+    'the response counted as blind (after review)' \
+    '(the response counted as blind)' \
+    '[the response counted as blind]' \
+    'the response counted as blind; no seat voted'; do
+    test_case "unattributed prose in backticks is unverifiable: $prose"
+    f="$(_resp "At src/pricing.ts:2 the outcome was \`$prose\`, which describes the review result.
+VERDICT: APPROVE")"
+    r="$(_report "$f")"
+    if jq -e '.quotes_checked == 1 and .quotes_unverifiable_prose == 1 and .quotes_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null &&
+       ! council_response_is_blind "$f" "$ROOT"; then test_pass; else test_fail "report: $r"; fi
+done
+
+for source_quote in 'return await fetchCabinPrice(cabin)' 'return available ? cabin : sailing'; do
+    test_case "unattributed fabricated code remains checkable: $source_quote"
+    f="$(_resp "At src/pricing.ts:2 the outcome was \`$source_quote\`, which describes the review result.
+VERDICT: APPROVE")"
+    r="$(_report "$f")"
+    if jq -e '.quotes_unverified == 1 and .quotes_unverifiable_prose == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
 
 test_case "an explicit source attribution still checks a plain-text quotation"
 f="$(_resp 'src/pricing.ts:2 reads `the response counted as blind`.

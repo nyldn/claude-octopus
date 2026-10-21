@@ -3228,9 +3228,11 @@ GAP_WORDS = {"reads", "read", "shows", "show", "contains", "contain", "has", "sa
              "line", "lines", "source", "code", "verbatim", "quote", "quoted", "excerpt",
              "current", "currently", "actual", "l"}
 PROPOSAL = re.compile(r"\b(should|propos\w*|suggest\w*|recommend\w*|replace with|instead|would|could|change (?:it |this )?to|rewrit\w*|becomes?|example|e\.g\.|such as|consider|cover|prefer\w*|expected|want)\b", re.I)
-# Backticks also format prose and multiword values. Without code syntax or an
-# explicit source attribution, a miss cannot establish a fabricated quotation.
-CODE_SYNTAX = re.compile(r"[{}()\[\];=<>+*/%!?|&:]|\w[./]\w")
+# Backticks also format prose and multiword values. Sentence punctuation alone
+# is not code syntax; calls, indexing, operators and member access still are.
+CODE_SYNTAX = re.compile(
+    r"[{}=<>+*/%|&]|\w[./]\w|\b[\w$]+[\[(]|!=|\?\?|\?\.|"
+    r"\S\s+\?\s+\S.*:\s+\S")
 
 def association(start):
     # The citation a quote is written about: the nearest one before it in the
