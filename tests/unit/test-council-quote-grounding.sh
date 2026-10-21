@@ -193,7 +193,13 @@ VERDICT: APPROVE")"
 done
 
 test_case "missing Python preserves the legacy unverified prose fallback"
-missing_python="$(PATH=/nonexistent council_response_quote_verification_json "$fab" "$ROOT")"
+missing_python="$(
+    # Bash 3.2 can retain a cached command with a function-local PATH override.
+    # Clear it in this subshell to simulate an actually unavailable executable.
+    PATH=/nonexistent
+    hash -r
+    council_response_quote_verification_json "$fab" "$ROOT"
+)"
 missing_record="$(
     command() {
         [[ "$*" != '-v python3' ]] || return 1

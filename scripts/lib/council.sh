@@ -2790,8 +2790,12 @@ council_response_quote_verification_json() {
         [[ -f "$ctx" && -r "$ctx" ]] && diff_context_files+=("$ctx")
     done
     # Source evidence is data; never import project-local Python modules.
-    if report="$(OCTOPUS_COUNCIL_DIFF_BASE="${OCTOPUS_COUNCIL_DIFF_BASE:-HEAD}" \
-    python3 -I - "$response_path" "$evidence_root" ${diff_context_files[@]+"${diff_context_files[@]}"} <<'PY' 2>/dev/null
+    # Bash 3.2 misparses quoted heredocs inside command substitutions. Redirect
+    # the group so Python inherits its input before the report is captured.
+    if {
+        report="$(OCTOPUS_COUNCIL_DIFF_BASE="${OCTOPUS_COUNCIL_DIFF_BASE:-HEAD}" \
+        python3 -I - "$response_path" "$evidence_root" ${diff_context_files[@]+"${diff_context_files[@]}"} 2>/dev/null)"
+    } <<'PY'
 import html
 import json
 import os
@@ -3450,7 +3454,7 @@ result["fabricated"] = (result["quotes_attributed_unverified"] > 0 or
                         (result["quotes_unverified"] > 0 and result["quotes_verified"] == 0))
 emit()
 PY
-)"; then
+    then
         printf '%s\n' "$report"
     else
         # Discard partial stdout; a crashed verifier cannot grant grounding.
