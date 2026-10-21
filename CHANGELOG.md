@@ -53,6 +53,8 @@
   Unreadable files and quotes tied to a citation that resolves nowhere are
   unverifiable, never fabricated. Per-seat counts appear in `summary.json`
   under `seats[].grounding`. Set `OCTOPUS_COUNCIL_QUOTE_VERIFY=0` to opt out.
+  Repeated checks share a report for unchanged response bytes. Verification
+  disables repository textconv and external diff drivers.
 - A worker subshell that receives SIGTERM no longer deletes the orchestrator's
   temporary directory or cancels the whole run. Helpers that save and restore
   signal traps read them with `$(trap -p TERM)`, which inside a subshell
@@ -62,12 +64,17 @@
   `$OCTOPUS_TMP_DIR` and cancelled the active task group while the orchestrator
   kept running; the next contextual review failed at `mktemp` ("unable to
   collect complete all-changes diff for tangle review snapshot"). The EXIT and
-  signal handlers now act only in the orchestrator process itself.
+  signal handlers now act only in the orchestrator process itself. Unknown
+  ownership also denies cleanup, including when portable PID capture fails.
+  Regression tests wait for the worker to install its traps before signaling.
 - A synchronous provider call that fails now logs a bounded tail of its
-  stdout (`OCTOPUS_SYNC_FAILURE_OUTPUT_TAIL_BYTES`, default 2000) next to the
+  redacted stdout (`OCTOPUS_SYNC_FAILURE_OUTPUT_TAIL_BYTES`, default 2000,
+  accepted range 1 through 65536) next to the
   stderr details. Claude Code reports errors such as "Prompt is too long" or
   "Not logged in" on stdout and exits 1 with only warnings on stderr, so the
   failure log showed the warnings and the cause was deleted with the temp file.
+  Invalid limits use the default. Diagnostics pass redaction and credential
+  checks before truncation and are omitted if those checks fail.
 
 ## [11.14.2] - 2026-10-17
 

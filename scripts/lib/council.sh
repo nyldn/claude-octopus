@@ -3182,7 +3182,7 @@ def load_diff_sides():
         env.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull, GIT_OPTIONAL_LOCKS="0")
         try:
             proc = subprocess.run(["git", "-C", str(root), "diff", "--no-color", "--no-ext-diff",
-                                   "--unified=0", base, "--"],
+                                   "--no-textconv", "--unified=0", base, "--"],
                                   env=env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=10)
             if proc.returncode == 0 and proc.stdout:
                 r, a = split_diff(proc.stdout[:MAX_DIFF_BYTES].decode("utf-8", "replace"))

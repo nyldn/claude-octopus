@@ -1286,6 +1286,19 @@ run_agent_sync_consultative() {
 # file, append this failed attempt there: the exit code and reason, the
 # provider's stderr, or the tail of its stdout when stderr is empty (some CLIs
 # print their error there). Secrets are scrubbed and the file is private.
+octo_safe_diagnostic_tail() {
+    local file="$1" limit="${2:-2000}"
+    local scanner="${BASH_SOURCE[0]%/*}/../helpers/artifact-safety.py"
+    # Reject tail's +N form, invalid counts, and overrides above 64 KiB.
+    [[ "$limit" =~ ^[1-9][0-9]{0,4}$ && "$limit" -le 65536 ]] || limit=2000
+    [[ -s "$file" ]] || return 1
+    declare -F sanitize_secrets >/dev/null 2>&1 || return 1
+    command -v python3 >/dev/null 2>&1 && [[ -f "$scanner" ]] || return 1
+    # Redact and certify the complete stream before truncation can hide a key's
+    # prefix or field name. Discard partial output if either stage fails.
+    (set -o pipefail; sanitize_secrets < "$file" | python3 "$scanner" --redact | tail -c "$limit")
+}
+
 octo_capture_seat_failure() {
     local file="${_OCTOPUS_SEAT_STDERR_FILE:-}" agent="$1" rc="$2" reason="$3" err="$4" out="$5" body="" record=""
     local section="-- no stderr or stdout --"
@@ -1297,10 +1310,10 @@ octo_capture_seat_failure() {
     # Certify before truncation too: a tail can remove an opaque key's field name.
     # Keep pipefail local so a failed sanitizer or gate cannot publish partial output.
     if [[ -s "$err" ]]; then
-        body="$(set -o pipefail; sanitize_secrets < "$err" | python3 "$scanner" --redact | tail -c 16384)" || return 0
+        body="$(octo_safe_diagnostic_tail "$err" 16384)" || return 0
         section="-- stderr --"
     elif [[ -s "$out" ]]; then
-        body="$(set -o pipefail; sanitize_secrets < "$out" | python3 "$scanner" --redact | tail -c 4096)" || return 0
+        body="$(octo_safe_diagnostic_tail "$out" 4096)" || return 0
         section="-- stdout tail (stderr was empty) --"
     fi
     record="$(
@@ -1718,8 +1731,10 @@ ${provider_ctx}"
         # "Prompt is too long" or "Not logged in" there and exits 1), leaving
         # only warnings on stderr. Keep a bounded tail so the cause survives
         # the temp file cleanup below.
-        if [[ -s "$temp_out" ]]; then
-            log ERROR "Output tail: $(tail -c "${OCTOPUS_SYNC_FAILURE_OUTPUT_TAIL_BYTES:-2000}" "$temp_out")"
+        local _sync_failure_tail=""
+        if _sync_failure_tail="$(octo_safe_diagnostic_tail "$temp_out" "${OCTOPUS_SYNC_FAILURE_OUTPUT_TAIL_BYTES:-2000}" 2>/dev/null)" \
+           && [[ -n "$_sync_failure_tail" ]]; then
+            log ERROR "Output tail: $_sync_failure_tail"
         fi
         # Hint callers when codex wrote deliverables under workspace-write
         # before SIGTERM — a bare "TIMEOUT" banner otherwise hides that work.

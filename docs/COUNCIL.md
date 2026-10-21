@@ -53,3 +53,36 @@ named file; scanning continues within the existing budgets to resolve names.
 This option tightens the content-match signal. Basename resolution and proximity
 do not prove that the quote came from that exact file or that a seat read it.
 Validated citations and the council's other grounding paths still apply.
+
+## Citation quote verification
+
+Council also checks specific code quotes beside `path:line` citations against
+the cited files and reviewed diff. A seat whose checked quotes are fabricated
+receives `invalid-ungrounded` and cannot count toward approval. An attributed
+quote that fails verification also rejects the seat, even if other quotes match.
+
+The verifier recognizes inline code, fenced blocks and blockquotes. It checks
+removed and added lines from attached diff context and `git diff` against
+`OCTOPUS_COUNCIL_DIFF_BASE`, which defaults to `HEAD`. Repository textconv and
+external diff drivers are disabled. Quotes of proposed code, shell commands,
+unreadable files or unresolved paths are unverifiable rather than fabricated.
+A multi-line quote can verify as a whole or when two thirds of its specific
+lines match. These checks cannot establish that a provider read the source.
+
+Counts appear in each seat's `grounding` object in `summary.json`. Set
+`OCTOPUS_COUNCIL_QUOTE_VERIFY=0` to disable citation quote verification.
+
+## Failed provider diagnostics
+
+A failed council seat retains redacted diagnostics in `stderr/<seat>.log`.
+Its `summary.json` record names the failure code, detail and diagnostic file.
+Failed retries retain earlier attempt evidence; an accepted response removes
+the diagnostic capture.
+
+Failed synchronous provider calls also log a redacted stdout tail. This keeps
+errors such as "Not logged in" visible when a CLI writes warnings to stderr
+and its actual error to stdout. `OCTOPUS_SYNC_FAILURE_OUTPUT_TAIL_BYTES` sets
+the tail length, with a default of 2000 bytes. Accepted values are decimal
+integers from 1 through 65536 without a sign or leading zeroes. Invalid values
+use the default. Redaction and credential checks run before truncation; their
+failure omits provider output from the log.

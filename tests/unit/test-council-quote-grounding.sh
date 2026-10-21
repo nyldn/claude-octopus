@@ -565,6 +565,29 @@ else
     test_fail "verifier did not finish inside 10s or misreported: ${r:0:200}"
 fi
 
+test_case "quote verification never executes repository textconv drivers"
+diff_root="$TEST_TMP_DIR/textconv-root"
+mkdir -p "$diff_root/src"
+git -C "$diff_root" init -q
+printf '*.ts diff=fixture\n' > "$diff_root/.gitattributes"
+printf 'export const originalValue = 1;\n' > "$diff_root/src/service.ts"
+git -C "$diff_root" add .
+git -C "$diff_root" -c user.name=Fixture -c user.email=fixture@example.invalid commit -qm baseline
+textconv="$TEST_TMP_DIR/fixture-textconv"
+textconv_marker="$TEST_TMP_DIR/textconv-ran"
+printf '#!/bin/sh\nprintf ran > "%s"\ncat "$1"\n' "$textconv_marker" > "$textconv"
+chmod 755 "$textconv"
+git -C "$diff_root" config diff.fixture.textconv "$textconv"
+printf 'export const updatedValue = 2;\n' > "$diff_root/src/service.ts"
+f="$(_resp 'src/service.ts:1 reads `export const inventedValue = 3;`.
+VERDICT: APPROVE')"
+r="$(council_response_quote_verification_json "$f" "$diff_root")"
+if [[ ! -e "$textconv_marker" ]] && jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then
+    test_pass
+else
+    test_fail "repository textconv was executed or the quote result was lost"
+fi
+
 test_case "a chair-fallback seat record carries grounding like an advice seat"
 fbdir="$(mktemp -d "$TEST_TMP_DIR/fallback-grounding.XXXXXX")"; mkdir -p "$fbdir/responses"
 COUNCIL_RUN_DIR="$fbdir"; COUNCIL_FIXTURE=""; COUNCIL_SEAT_RECORDS_JSON='[]'

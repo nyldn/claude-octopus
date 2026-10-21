@@ -647,8 +647,8 @@ octopus_in_orchestrator_process() {
        && octo_capture_current_shell_pid; then
         pid="$OCTO_CAPTURED_SHELL_PID"
     fi
-    # When the current PID cannot be determined, keep the cleanup.
-    [[ -z "$pid" || "$pid" == "$OCTOPUS_ORCHESTRATOR_PID" ]]
+    # Unknown ownership must never let a worker tear down the shared run.
+    [[ -n "$pid" && "$pid" == "$OCTOPUS_ORCHESTRATOR_PID" ]]
 }
 
 octopus_cleanup_tmp() {

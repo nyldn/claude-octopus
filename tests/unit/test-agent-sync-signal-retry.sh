@@ -12,6 +12,7 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "synchronous provider signal retry"
 
 # shellcheck source=/dev/null
+source "$PROJECT_ROOT/scripts/lib/secure.sh"
 source "$PROJECT_ROOT/scripts/lib/agent-sync.sh"
 # shellcheck source=/dev/null
 source "$PROJECT_ROOT/scripts/lib/heartbeat.sh"
@@ -203,6 +204,58 @@ if [[ "$stdout_rc" -eq 1 ]] && grep -Fq 'Not logged in · Please run /login' "$s
     test_pass
 else
     test_fail "stdout failure detail was dropped (rc=$stdout_rc log: $(tr '\n' ' ' < "$stdout_log" 2>/dev/null))"
+fi
+
+test_case "invalid stdout-tail limits fall back to a bounded diagnostic"
+large_failure="$(python3 -c 'print("x" * 6000 + " final diagnostic")')"
+invalid_limits_passed=true
+for tail_limit in +1 0 nonsense 99999999999999999999; do
+    stdout_log="$TEST_TMP_DIR/stdout-invalid-${tail_limit}.log"
+    STDOUT_FAILURE="$large_failure" LOG_FILE="$stdout_log" \
+        OCTOPUS_SYNC_FAILURE_OUTPUT_TAIL_BYTES="$tail_limit" \
+        run_sync_fixture openrouter 0 "stdout-invalid-${tail_limit}" >/dev/null 2>&1 && stdout_rc=0 || stdout_rc=$?
+    output_tail="$(sed -n 's/^ERROR Output tail: //p' "$stdout_log")"
+    if [[ "$stdout_rc" -ne 1 || "${#output_tail}" -gt 2000 || "$output_tail" != *'final diagnostic' ]]; then
+        invalid_limits_passed=false
+        test_fail "invalid limit $tail_limit escaped its bound or lost diagnostics"
+        break
+    fi
+done
+[[ "$invalid_limits_passed" != true ]] || test_pass
+
+test_case "a positive stdout-tail override controls the diagnostic byte limit"
+stdout_log="$TEST_TMP_DIR/stdout-custom-limit.log"
+STDOUT_FAILURE="$large_failure" LOG_FILE="$stdout_log" OCTOPUS_SYNC_FAILURE_OUTPUT_TAIL_BYTES=32 \
+    run_sync_fixture openrouter 0 stdout-custom-limit >/dev/null 2>&1 && stdout_rc=0 || stdout_rc=$?
+output_tail="$(sed -n 's/^ERROR Output tail: //p' "$stdout_log")"
+if [[ "$stdout_rc" -eq 1 && "${#output_tail}" -le 32 && "$output_tail" == *'final diagnostic' ]]; then
+    test_pass
+else
+    test_fail "custom byte limit was ignored or lost the diagnostic"
+fi
+
+test_case "stdout diagnostics redact credential suffixes before truncation"
+synthetic_credential="$(python3 -c 'print("sk-" + "x" * 4000)')"
+stdout_log="$TEST_TMP_DIR/stdout-redaction.log"
+STDOUT_FAILURE="Not logged in: $synthetic_credential" LOG_FILE="$stdout_log" \
+    run_sync_fixture openrouter 0 stdout-redaction >/dev/null 2>&1 && stdout_rc=0 || stdout_rc=$?
+if [[ "$stdout_rc" -eq 1 ]] && grep -Fq 'Not logged in' "$stdout_log" && ! grep -Fq 'xxxxxxxxxxxxxxxx' "$stdout_log"; then
+    test_pass
+else
+    test_fail "stdout retained a credential suffix or dropped safe context"
+fi
+
+test_case "stdout diagnostics are omitted when redaction fails"
+stdout_log="$TEST_TMP_DIR/stdout-redaction-failure.log"
+(
+    sanitize_secrets() { printf 'untrusted partial output'; return 1; }
+    STDOUT_FAILURE='Not logged in' LOG_FILE="$stdout_log" \
+        run_sync_fixture openrouter 0 stdout-redaction-failure >/dev/null 2>&1
+) && stdout_rc=0 || stdout_rc=$?
+if [[ "$stdout_rc" -eq 1 ]] && ! grep -Fq 'Output tail:' "$stdout_log"; then
+    test_pass
+else
+    test_fail "failed redaction published provider output"
 fi
 
 test_case "successful sync dispatch preserves a caller with errexit disabled"
