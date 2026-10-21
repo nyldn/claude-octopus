@@ -3241,7 +3241,7 @@ def attribution(token, gap):
     if any(word.lower() not in GAP_WORDS for word in re.findall(r"[A-Za-z]+", gap)):
         return None
     line_start = resp.rfind("\n", 0, token[0]) + 1
-    if PROPOSAL.search(LINK_TARGET.sub("", resp[line_start:token[0]])):
+    if PROPOSAL.search(CITATION.sub("", LINK_TARGET.sub("", resp[line_start:token[0]]))):
         return None
     return token
 
@@ -3251,7 +3251,9 @@ def proposed(start):
     line_start = resp.rfind("\n", 0, start) + 1
     if resp[line_start:start].strip(" \t>`") == "":
         line_start = resp.rfind("\n", 0, max(0, line_start - 1)) + 1
-    return bool(PROPOSAL.search(LINK_TARGET.sub("", resp[line_start:start])))
+    # A source filename such as example.ts is not proposal language.
+    prose = CITATION.sub("", LINK_TARGET.sub("", resp[line_start:start]))
+    return bool(PROPOSAL.search(prose))
 
 def record_unverified(text):
     result["quotes_unverified"] += 1

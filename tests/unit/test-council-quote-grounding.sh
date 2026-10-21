@@ -565,6 +565,21 @@ else
     test_fail "verifier did not finish inside 10s or misreported: ${r:0:200}"
 fi
 
+test_case "citation filenames cannot label fabricated source as proposed code"
+proposal_names_passed=true
+for basename in example expected cover; do
+    cp "$ROOT/src/pricing.ts" "$ROOT/src/${basename}.ts"
+    f="$(_resp "src/${basename}.ts:2 reads \`$FAKE\`.
+VERDICT: APPROVE")"
+    r="$(_report "$f")"
+    if ! jq -e '.quotes_checked == 1 and .quotes_unverified == 1 and .quotes_unverifiable_proposed == 0 and .fabricated == true' <<< "$r" >/dev/null; then
+        proposal_names_passed=false
+        test_fail "citation filename was mistaken for proposal prose: ${basename}.ts report: $r"
+        break
+    fi
+done
+[[ "$proposal_names_passed" != true ]] || test_pass
+
 test_case "quote verification never executes repository textconv drivers"
 diff_root="$TEST_TMP_DIR/textconv-root"
 mkdir -p "$diff_root/src"

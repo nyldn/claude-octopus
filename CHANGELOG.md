@@ -56,7 +56,8 @@
   unverifiable, never fabricated. Per-seat counts appear in `summary.json`
   under `seats[].grounding`. Set `OCTOPUS_COUNCIL_QUOTE_VERIFY=0` to opt out.
   Repeated checks share a report for unchanged response bytes. Verification
-  disables repository textconv and external diff drivers.
+  disables repository textconv and external diff drivers. Citation filenames
+  such as `example.ts` cannot classify invented source as proposed code.
 - A worker subshell that receives SIGTERM no longer deletes the orchestrator's
   temporary directory or cancels the whole run. Helpers that save and restore
   signal traps read them with `$(trap -p TERM)`, which inside a subshell
