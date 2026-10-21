@@ -226,6 +226,20 @@ else
     test_fail "head: $r_head base: $r_base"
 fi
 
+for unavailable_base in missing-review-revision --invalid-option; do
+    test_case "an unavailable diff base preserves uncertainty: $unavailable_base"
+    f="$(_resp "src/book.ts:2 reads \`$GUARD\`.
+VERDICT: REVISE")"
+    r="$(OCTOPUS_COUNCIL_DIFF_BASE="$unavailable_base" _greport "$f")"
+    if jq -e '.diff_unavailable == true and .diff_truncated == false and .quotes_unverifiable_diff_incomplete == 1
+              and .quotes_attributed_unverified == 0 and .quotes_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null &&
+       ! OCTOPUS_COUNCIL_DIFF_BASE="$unavailable_base" council_response_quotes_fabricated "$f" "$GROOT"; then
+        test_pass
+    else
+        test_fail "failed diff became definitive negative evidence: $r"
+    fi
+done
+
 test_case "a --context-file diff supplies the removed side (non-git root, fenced '-' lines)"
 ctx_diff="$TEST_TMP_DIR/reviewed.diff"
 printf 'diff --git a/src/pricing.ts b/src/pricing.ts\n--- a/src/pricing.ts\n+++ b/src/pricing.ts\n@@ -2,2 +2,1 @@\n-  if (cabin.soldOut) return { price: null, reason: "sold-out" };\n+  const base = cabin.basePrice ?? sailing.defaultPrice;\n' > "$ctx_diff"
@@ -651,7 +665,12 @@ for prose in \
     'the response counted as blind (after review)' \
     '(the response counted as blind)' \
     '[the response counted as blind]' \
-    'the response counted as blind; no seat voted'; do
+    'the response counted as blind; no seat voted' \
+    'the summary.json record remains valid' \
+    'the cabin.soldOut value remains false' \
+    'the version 1.2.3 remains supported' \
+    'summary.json remains valid' \
+    'the e.g. wording remains ordinary prose'; do
     test_case "unattributed prose in backticks is unverifiable: $prose"
     f="$(_resp "At src/pricing.ts:2 the outcome was \`$prose\`, which describes the review result.
 VERDICT: APPROVE")"
@@ -660,7 +679,8 @@ VERDICT: APPROVE")"
        ! council_response_is_blind "$f" "$ROOT"; then test_pass; else test_fail "report: $r"; fi
 done
 
-for source_quote in 'return await fetchCabinPrice(cabin)' 'return available ? cabin : sailing'; do
+for source_quote in 'return await fetchCabinPrice(cabin)' 'return available ? cabin : sailing' \
+    'return cabin.soldOut and sailing.isBookable'; do
     test_case "unattributed fabricated code remains checkable: $source_quote"
     f="$(_resp "At src/pricing.ts:2 the outcome was \`$source_quote\`, which describes the review result.
 VERDICT: APPROVE")"
@@ -909,7 +929,8 @@ r="$(PATH="$fake_git_bin:$PATH" bounded 15 bash -c \
     "$PROJECT_ROOT/scripts/lib/council.sh" "$f" "$ROOT" 2>/dev/null || true)"
 producer_pid="$(cat "$ROOT/diff-producer-pid" 2>/dev/null || true)"
 if [[ "$producer_pid" =~ ^[0-9]+$ ]] && ! kill -0 "$producer_pid" 2>/dev/null &&
-   jq -e '.quotes_checked == 1 and .quotes_unverified == 1 and .diff_sources == []' <<< "$r" >/dev/null 2>&1; then
+   jq -e '.quotes_checked == 1 and .diff_unavailable == true and .quotes_unverifiable_diff_incomplete == 1
+          and .quotes_unverified == 0 and .fabricated == false and .diff_sources == []' <<< "$r" >/dev/null 2>&1; then
     test_pass
 else
     test_fail "diff deadline failed or left the producer alive: ${r:0:200}"

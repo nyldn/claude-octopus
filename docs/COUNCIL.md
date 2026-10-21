@@ -66,11 +66,13 @@ removed and added lines from attached diff context and `git diff` against
 `OCTOPUS_COUNCIL_DIFF_BASE`, which defaults to `HEAD`. Repository textconv,
 external diff drivers and fsmonitor commands are disabled. Quotes of proposed
 code, shell commands, unattributed prose, unreadable files or unresolved paths
-are unverifiable rather than fabricated. Ordinary sentence punctuation does not
-make inline prose a code quote. Plain-text spans explicitly attributed to source
-still undergo verification. A truncated diff sets `diff_truncated`;
-unmatched quotes remain unverifiable because the omitted suffix may contain
-their evidence. Git diff capture stops after 8 MiB plus one truncation byte,
+are unverifiable rather than fabricated. Ordinary sentence punctuation and
+dotted names within prose do not make it a code quote. Plain-text spans explicitly
+attributed to source still undergo verification. A truncated diff sets
+`diff_truncated`; a failed or timed-out Git diff sets `diff_unavailable`.
+Unmatched quotes remain unverifiable when diff evidence is incomplete. A plain
+evidence directory without a Git worktree has no default diff to check.
+Git diff capture stops after 8 MiB plus one truncation byte,
 terminates and reaps an oversized producer, and retains a ten-second deadline.
 Distinct citations share a sorted path suffix index instead of scanning every
 indexed file for each missing path. Directory entries stream within a 50,000-entry
