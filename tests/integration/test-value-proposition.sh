@@ -119,7 +119,9 @@ test_multi_agent_parallel_execution() {
     fi
 
     ((TESTS_RUN++)) || true
-    if echo "$probe_code" | grep -q "perspectives="; then
+    # Pass source directly: quiet grep can close a pipe before echo finishes,
+    # making a successful match fail under pipefail.
+    if grep -q "perspectives=" <<< "$probe_code"; then
         echo -e "${GREEN}✓${NC} Probe phase spawns agents with different perspectives"
         ((TESTS_PASSED++)) || true
     else
@@ -128,7 +130,7 @@ test_multi_agent_parallel_execution() {
     fi
 
     ((TESTS_RUN++)) || true
-    if echo "$probe_code" | grep -qE "parallel|pids"; then
+    if grep -qE "parallel|pids" <<< "$probe_code"; then
         echo -e "${GREEN}✓${NC} Execution uses parallel spawning"
         ((TESTS_PASSED++)) || true
     else
@@ -206,7 +208,7 @@ test_multi_perspective_research() {
     fi
 
     ((TESTS_RUN++)) || true
-    if echo "$probe_code" | grep -q "perspective"; then
+    if grep -q "perspective" <<< "$probe_code"; then
         echo -e "${GREEN}✓${NC} Probe uses multiple perspectives"
         ((TESTS_PASSED++)) || true
     else
@@ -238,7 +240,7 @@ test_consensus_building() {
     fi
 
     ((TESTS_RUN++)) || true
-    if echo "$grasp_code" | grep -qE "consensus|agreement"; then
+    if grep -qE "consensus|agreement" <<< "$grasp_code"; then
         echo -e "${GREEN}✓${NC} Grasp phase builds consensus"
         ((TESTS_PASSED++)) || true
     else
@@ -247,7 +249,7 @@ test_consensus_building() {
     fi
 
     ((TESTS_RUN++)) || true
-    if echo "$grasp_code" | grep -q "perspective"; then
+    if grep -q "perspective" <<< "$grasp_code"; then
         echo -e "${GREEN}✓${NC} Grasp gathers multiple perspectives"
         ((TESTS_PASSED++)) || true
     else
@@ -285,7 +287,7 @@ test_workflow_automation() {
     fi
 
     ((TESTS_RUN++)) || true
-    if echo "$embrace_code" | grep -qE "probe|research"; then
+    if grep -qE "probe|research" <<< "$embrace_code"; then
         echo -e "${GREEN}✓${NC} Embrace includes research phase"
         ((TESTS_PASSED++)) || true
     else
@@ -294,7 +296,7 @@ test_workflow_automation() {
     fi
 
     ((TESTS_RUN++)) || true
-    if echo "$embrace_code" | grep -qE "grasp|define"; then
+    if grep -qE "grasp|define" <<< "$embrace_code"; then
         echo -e "${GREEN}✓${NC} Embrace includes define phase"
         ((TESTS_PASSED++)) || true
     else
@@ -303,7 +305,7 @@ test_workflow_automation() {
     fi
 
     ((TESTS_RUN++)) || true
-    if echo "$embrace_code" | grep -qE "tangle|develop"; then
+    if grep -qE "tangle|develop" <<< "$embrace_code"; then
         echo -e "${GREEN}✓${NC} Embrace includes develop phase"
         ((TESTS_PASSED++)) || true
     else
@@ -312,7 +314,7 @@ test_workflow_automation() {
     fi
 
     ((TESTS_RUN++)) || true
-    if echo "$embrace_code" | grep -qE "ink|deliver"; then
+    if grep -qE "ink|deliver" <<< "$embrace_code"; then
         echo -e "${GREEN}✓${NC} Embrace includes deliver phase"
         ((TESTS_PASSED++)) || true
     else
