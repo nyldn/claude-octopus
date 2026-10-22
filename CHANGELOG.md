@@ -6,6 +6,10 @@
 
 ### Fixed
 
+- Upgrade the MCP SDK from 1.31.0 to 1.32.0 for
+  [GHSA-22jm-h49p-29qw](https://github.com/advisories/GHSA-22jm-h49p-29qw).
+  Octopus uses stdio without the HTTP task store required by this advisory.
+
 - Unattributed prose blockquotes no longer reject council seats as fabricated.
   Attributed and code-shaped blockquotes retain source verification.
 - Reused chair responses must pass current contribution validation. Retained
