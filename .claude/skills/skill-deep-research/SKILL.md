@@ -133,7 +133,7 @@ Research Parameters:
 
 ### STEP 3: Execute orchestrate.sh (MANDATORY - Use Bash Tool)
 
-**Resolve the intensity first.** Use the `[intensity=quick|standard|deep]` token from the skill args when present. Otherwise map a `[breadth=…]` token (`light → quick`, `standard → standard`, `exhaustive → deep`). Otherwise map `depth_choice` (Quick overview → `quick`, Moderate depth → `standard`, Comprehensive or Deep dive → `deep`). Strip both tokens from the research question.
+**Resolve the intensity first.** Use the `[intensity=quick|standard|deep]` token from the skill args when present. Otherwise map a `[breadth=…]` token the way `--breadth=` does (`light → quick`, `exhaustive → deep`; `quick`, `standard` and `deep` pass through unchanged). Otherwise map `depth_choice` (Quick overview → `quick`, Moderate depth → `standard`, Comprehensive or Deep dive → `deep`). Strip both tokens from the research question.
 
 **You MUST execute this command via the Bash tool:**
 

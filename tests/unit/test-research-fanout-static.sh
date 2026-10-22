@@ -27,6 +27,7 @@ fi
 test_case "research skill forwards the routed intensity as an orchestrate.sh flag"
 research_skill="$(<"$(resolve_claude_skill_path "skill-deep-research")")"
 if [[ "$research_skill" == *'[intensity=quick|standard|deep]` token from the skill args'* \
+   && "$research_skill" == *'`light → quick`, `exhaustive → deep`; `quick`, `standard` and `deep` pass through unchanged'* \
    && "$research_skill" == *'orchestrate.sh --intensity=<quick|standard|deep> probe'* \
    && "$research_skill" != *'--depth "${depth_choice}"'* \
    && "$research_skill" != *'--focus "${focus_choice}"'* \
