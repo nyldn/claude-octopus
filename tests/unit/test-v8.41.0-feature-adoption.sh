@@ -284,10 +284,21 @@ echo "Suite 4: Auto-Memory Integration"
 echo "─────────────────────────────────"
 
 # 4.1 SessionEnd persists to auto-memory directory
-if grep -c 'MEMORY_DIR\|\.claude/projects' "$PLUGIN_ROOT/hooks/session-end.sh" >/dev/null 2>&1; then
-    pass "4.1 SessionEnd references auto-memory directory"
+if (
+    memory_home="$TEST_TMP_DIR/auto-memory-home"
+    memory_config="$TEST_TMP_DIR/auto-memory-config"
+    memory_dir="$memory_config/projects/-octopus-feature-project/memory"
+    mkdir -p "$memory_home/.claude-octopus" "$memory_dir" &&
+        printf '%s\n' '{"autonomy":"supervised","providers":"codex"}' \
+            > "$memory_home/.claude-octopus/session.json" &&
+        env HOME="$memory_home" CLAUDE_CONFIG_DIR="$memory_config" \
+            CLAUDE_PROJECT_DIR=/octopus-feature-project CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+            bash "$PLUGIN_ROOT/hooks/session-end.sh" </dev/null >/dev/null &&
+        grep -q 'Preferred autonomy: supervised' "$memory_dir/octopus-preferences.md"
+); then
+    pass "4.1 SessionEnd persists preferences to auto-memory directory"
 else
-    fail "4.1 SessionEnd does NOT reference auto-memory"
+    fail "4.1 SessionEnd did NOT persist preferences to auto-memory"
 fi
 
 # 4.2 Writes octopus-preferences.md
