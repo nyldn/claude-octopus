@@ -337,10 +337,72 @@ $FAKE")"
 r="$(council_response_quote_verification_json "$fenced" "$fence_root")"
 if jq -e '.quotes_checked == 1 and .quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
-test_case "an elided quote verifies when each specific piece is in the file"
+test_case "an elided quote verifies when its specific pieces occur in source order"
 elided="$(_resp "src/pricing.ts:1 \`export function priceFor(cabin, sailing) { ... return applyTaxes(base, sailing.portFees);\`
 VERDICT: APPROVE")"
 if [[ "$(_field "$elided" quotes_verified)" == 1 ]]; then test_pass; else test_fail "report: $(_report "$elided")"; fi
+
+# Elided fragments must advance by character offsets, including within a line.
+elision_root="$(mktemp -d "$TEST_TMP_DIR/elision-order.XXXXXX")"
+mkdir -p "$elision_root/src"
+elision_first='const firstValue = source.first ?? fallbackFirst;'
+elision_second='const secondValue = source.second ?? fallbackSecond;'
+elision_third='const thirdValue = source.third ?? fallbackThird;'
+for elision_case in reversed same-line-reversed same-line-ordered reused-occurrence repeated-ordered three-piece-reversed; do
+    printf '%s\n' "$elision_first" "$elision_second" "$elision_third" > "$elision_root/src/ordered.ts"
+    elision_verified=0
+    case "$elision_case" in
+        reversed) elision_quote="$elision_second ... $elision_first" ;;
+        same-line-reversed)
+            printf '%s %s\n' "$elision_first" "$elision_second" > "$elision_root/src/ordered.ts"
+            elision_quote="$elision_second … $elision_first" ;;
+        same-line-ordered)
+            printf '%s %s\n' "$elision_first" "$elision_second" > "$elision_root/src/ordered.ts"
+            elision_quote="$elision_first … $elision_second"; elision_verified=1 ;;
+        reused-occurrence) elision_quote="$elision_first ... $elision_first" ;;
+        repeated-ordered)
+            printf '%s\n' "$elision_second" "$elision_first" "$elision_second" > "$elision_root/src/ordered.ts"
+            elision_quote="$elision_second ... $elision_first ... $elision_second"; elision_verified=1 ;;
+        three-piece-reversed) elision_quote="$elision_first ... $elision_third ... $elision_second" ;;
+    esac
+    test_case "elided source order: $elision_case"
+    elision_response="$(_resp "src/ordered.ts:1 reads \`$elision_quote\`.")"
+    r="$(council_response_quote_verification_json "$elision_response" "$elision_root")"
+    if jq -e --argjson verified "$elision_verified" '
+        .quotes_checked == 1 and .quotes_verified == $verified
+        and .quotes_unverified == (1 - $verified)
+        and .quotes_attributed_unverified == (1 - $verified)
+        and .fabricated == ($verified == 0)' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+elision_diff="$TEST_TMP_DIR/elision-reviewed.diff"
+elision_added_first='const addedFirst = revised.first ?? revisedFallback;'
+elision_added_second='const addedSecond = revised.second ?? revisedFallback;'
+printf '@@ -1,2 +1,2 @@\n-%s\n-%s\n+%s\n+%s\n' \
+    "$elision_first" "$elision_second" "$elision_added_first" "$elision_added_second" > "$elision_diff"
+printf 'export const currentValue = source.current;\n' > "$elision_root/src/ordered.ts"
+for elision_side in removed added; do
+    elision_a="$elision_first"; elision_b="$elision_second"
+    if [[ "$elision_side" == added ]]; then
+        elision_a="$elision_added_first"; elision_b="$elision_added_second"
+    fi
+    for elision_order in ordered reversed; do
+        elision_quote="$elision_a ... $elision_b"
+        if [[ "$elision_order" == reversed ]]; then
+            elision_quote="$elision_b ... $elision_a"
+        fi
+        elision_verified=0
+        [[ "$elision_order" != ordered ]] || elision_verified=1
+        test_case "elided source order in $elision_side diff: $elision_order"
+        elision_response="$(_resp "The $elision_side code in src/ordered.ts:1 reads \`$elision_quote\`.")"
+        r="$(COUNCIL_CONTEXT_FILES=("$elision_diff"); council_response_quote_verification_json "$elision_response" "$elision_root")"
+        if jq -e --argjson verified "$elision_verified" --arg side "$elision_side" '
+            .quotes_checked == 1 and .quotes_verified == $verified
+            and .quotes_unverified == (1 - $verified)
+            and .["quotes_verified_in_diff_" + $side] == $verified
+            and .fabricated == ($verified == 0)' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+    done
+done
+# End elided source order controls.
 
 test_case "a quote far beyond the proximity window of every citation is not checked"
 pad="$(head -c 1700 /dev/zero | tr '\0' 'x')"

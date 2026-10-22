@@ -3186,9 +3186,15 @@ def load(path):
     return entry
 
 ELLIPSIS = re.compile(r"\s*(?:\.\.\.|…)\s*")
-def find_lines(hay, starts, line_numbers, needle, limit=50):
+def find_lines(hay, starts, line_numbers, needle, limit=50, following=()):
     found, at = [], hay.find(needle)
     while at >= 0 and len(found) < limit:
+        end = at + len(needle)
+        for piece in following:
+            pos = hay.find(piece, end)
+            if pos < 0:
+                return found  # Later starts cannot complete this sequence either.
+            end = pos + len(piece)
         found.append(line_numbers[bisect_right(starts, at) - 1] if starts else 1)
         at = hay.find(needle, at + 1)
     return found
@@ -3199,12 +3205,10 @@ def match_variant(text, entry):
     lines = find_lines(hay, starts, line_numbers, needle)
     if lines:
         return lines
-    # An elided quote ("a(...) ... b") verifies when every specific piece does.
+    # Elided fragments must occur in source order without reusing characters.
     pieces = [p for p in ELLIPSIS.split(needle) if specific(p)]
     if len(pieces) > 1 or (pieces and pieces[0] != needle):
-        piece_lines = [find_lines(hay, starts, line_numbers, p) for p in pieces]
-        if all(piece_lines):
-            return piece_lines[0]
+        return find_lines(hay, starts, line_numbers, pieces[0], following=pieces[1:])
     return []
 
 def match_unit(wholes, line_variants, entry):
