@@ -4380,11 +4380,11 @@ council_run_chair_fallback() {
         grounding_report="$(jq -ce '.grounding | objects' <<< "$contribution_json" 2>/dev/null)" \
             || grounding_report="$COUNCIL_FAILED_GROUNDING_JSON"
         if council_response_nonempty "$output_path" \
-                && { jq -e '.access_state == "evidence-rejected"' <<< "$contribution_json" >/dev/null 2>&1 \
+                && { council_response_quotes_fabricated "$output_path" "$evidence_root" "$grounding_report" \
                      || council_response_is_substantive "$output_path" "$evidence_root" "$grounding_report"; } \
                 && { (( dispatch_rc == 0 )) || council_response_has_verdict "$output_path"; }; then
             # Persist completed fallback attempts, including rejected metadata,
-            # so their output and admission state remain inspectable.
+            # even when access failure takes priority in their classification.
             seat_agent_spec="$(jq -r '.agent_spec // .provider // ""' <<< "$member_json")"
             seat_org="$(jq -r '.provider_org // ""' <<< "$member_json")"
             seat_model="$(jq -r '.model // ""' <<< "$member_json")"

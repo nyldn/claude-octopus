@@ -2036,8 +2036,10 @@ source "$PROJECT_ROOT/scripts/lib/council.sh"
 rec="$(jq -c '[.[] | select(.seat == "chair")][0] // {}' <<< "$COUNCIL_SEAT_RECORDS_JSON")"
 if jq -e '.grounding.quotes_verified == 1 and .grounding == .contribution.grounding' <<< "$rec" >/dev/null; then test_pass; else test_fail "record: $rec"; fi
 
+# Chair fallback rejection retention controls.
+for fallback_access in available failed; do
 for fallback_scenario in quiet failure retry missing; do
-test_case "chair fallback retains rejected evidence and $fallback_scenario diagnostics without admission"
+test_case "chair fallback retains $fallback_access access rejected evidence and $fallback_scenario diagnostics without admission"
 record="$(
     d="$(mktemp -d "$TEST_TMP_DIR/fallback-refresh.XXXXXX")"
     mkdir -p "$d/evidence/src" "$d/run/responses" "$d/run/stderr"
@@ -2048,7 +2050,7 @@ record="$(
     git -C "$d/evidence" -c user.name=Test -c user.email=test@example.invalid commit -qm baseline
     printf '%s\n' "$REAL_NEAR" > "$d/evidence/src/pricing.ts"
     OCTOPUS_COUNCIL_DIFF_BASE=HEAD
-    OCTOPUS_PROJECT_DIR="$d/evidence"; COUNCIL_RUN_DIR="$d/run"
+    OCTOPUS_PROJECT_DIR="$d/evidence"; COUNCIL_RUN_DIR="$d/run"; COUNCIL_FIXTURE=""
     COUNCIL_RESPONSES_RECEIVED=0; COUNCIL_CHAIR_RESPONSE_RECEIVED=false
     COUNCIL_CHAIR_FALLBACK_USED=false; COUNCIL_SEAT_RECORDS_JSON='[]'
     COUNCIL_TIMEOUT_WARNINGS=""
@@ -2058,7 +2060,12 @@ record="$(
     council_pick_provider() { printf 'claude\n'; }
     council_provider_is_available() { return 0; }
     council_dispatch_member_detached() {
-        printf 'Reviewed src/pricing.ts:1: `%s` handles the fallback.\nVERDICT: APPROVE\n' "$REAL_NEAR" > "$3"
+        if [[ "$fallback_access" == failed ]]; then
+            printf 'I cannot read the file.\n' > "$3"
+        else
+            : > "$3"
+        fi
+        printf 'Reviewed src/pricing.ts:1: `%s` handles the fallback.\nVERDICT: APPROVE\n' "$REAL_NEAR" >> "$3"
         if [[ "$fallback_scenario" == failure || "$fallback_scenario" == retry ]]; then
             printf '== 2026-10-21T20:00:00Z claude exited 17: transport failure\n-- stderr --\nError: fixture transport failure\n' > "$_OCTOPUS_SEAT_STDERR_FILE"
         fi
@@ -2080,11 +2087,11 @@ record="$(
         '{rc:$rc, seats:$seats, received:$received, chair:$chair, used:$used,
           warnings:$warnings, responses:$responses, captures:$captures}'
 )"
-if jq -e --arg scenario "$fallback_scenario" '.rc != 0 and .received == 0 and .chair == false and .used == false
+if jq -e --arg scenario "$fallback_scenario" --arg access "$fallback_access" '.rc != 0 and .received == 0 and .chair == false and .used == false
         and .responses == 1 and (.seats | length == 1)
         and (.seats[0] | .seat == "chair" and .status == "no-response"
             and .counted_as_approver == false
-            and .contribution.access_state == "evidence-rejected"
+            and .contribution.access_state == (if $access == "failed" then "failed" else "evidence-rejected" end)
             and .grounding.fabricated == true and .grounding == .contribution.grounding)
         and (if $scenario == "quiet" then .warnings == "" and .captures == 0
              elif $scenario == "missing" then .captures == 1 and (.warnings | contains("exited 17: no provider diagnostics were retained;"))
@@ -2094,6 +2101,8 @@ else
     test_fail "invalid contribution became a recovered chair: $record"
 fi
 done
+done
+# End chair fallback rejection retention controls.
 
 # Retained chair response admission controls.
 for reuse_mode in grounded unverified invalid-verdict record-failure malformed-record; do
