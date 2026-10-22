@@ -262,7 +262,9 @@ Multi-tentacled problem definition:
 - Constraints and boundaries
 
 ```bash
-# Optional second argument: the probe-synthesis-<id>.md path the probe phase printed
+# Optional second argument: no phase sets this variable; copy the path the probe
+# phase printed after "Probe synthesis saved to:"
+PROBE_SYNTHESIS="<printed probe-synthesis-*.md path>"
 ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh grasp "Define requirements for notification system" "$PROBE_SYNTHESIS"
 ```
 
@@ -275,7 +277,9 @@ Enhanced map-reduce with validation:
 - Quality gate (75% success threshold)
 
 ```bash
-# Optional second argument: the grasp-consensus-<id>.md path the grasp phase printed
+# Optional second argument: no phase sets this variable; copy the path the grasp
+# phase printed after "Problem definition saved to:"
+GRASP_CONSENSUS="<printed grasp-consensus-*.md path>"
 ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh tangle "Implement notification service" "$GRASP_CONSENSUS"
 ```
 
@@ -288,7 +292,9 @@ Pre-delivery validation:
 - Final deliverable generation
 
 ```bash
-# Optional second argument: the tangle-validation-<id>.md path the tangle phase printed
+# Optional second argument: no phase sets this variable; copy the path the tangle
+# phase printed after "Validation complete:"
+TANGLE_VALIDATION="<printed tangle-validation-*.md path>"
 ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh ink "Deliver notification system" "$TANGLE_VALIDATION"
 ```
 
@@ -598,7 +604,8 @@ ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh setup
 # 1. Explore the problem space
 ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh probe "Authentication patterns for microservices"
 
-# 2. Define the approach (with the probe-synthesis-<id>.md path step 1 printed)
+# 2. Define the approach (with the path step 1 printed after "Probe synthesis saved to:")
+PROBE_SYNTHESIS="<printed probe-synthesis-*.md path>"
 ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh grasp "OAuth2 with JWT for our API" \
   "$PROBE_SYNTHESIS"
 

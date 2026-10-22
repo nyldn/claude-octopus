@@ -42,7 +42,7 @@ for path in sys.argv[2:]:
             try:
                 args = shlex.split(match.group(1))
             except ValueError:
-                continue
+                args = ["!unparsable", match.group(1)]
             print("\x1f".join([f"{path}:{start + 1}"] + args))
 PY
 }
@@ -84,6 +84,11 @@ check_dry_run_examples() {
         location="${parts[0]#"$PROJECT_ROOT"/}"
         subcommand="${parts[1]}"
         prompt="${parts[${#parts[@]}-1]}"
+        if [[ "$subcommand" == "!unparsable" ]]; then
+            test_case "$location: documented example parses as shell words"
+            test_fail "unbalanced quoting: ${parts[2]}"
+            continue
+        fi
         marker="$(dry_run_marker "$subcommand")"
         seen+=("$subcommand")
 
@@ -117,29 +122,64 @@ check_dry_run_examples() {
 check_dry_run_examples "KNOWLEDGE-WORKERS.md" "advise|synthesize|empathize|grapple" "$KW_DOC"
 check_dry_run_examples "skill-security-audit" "squeeze" "$AUDIT_SKILL"
 
-test_case "skill-parallel-agents chains phases through the positional results file"
+prior_phase_output() {
+    case "$1" in
+        grasp|define) printf '%s' probe-synthesis ;;
+        tangle|develop) printf '%s' grasp-consensus ;;
+        ink|deliver) printf '%s' tangle-validation ;;
+    esac
+}
+
+names_output() {
+    [[ "$(printf '%s' "$1" | tr '[:upper:]_' '[:lower:]-')" == *"$2"* ]]
+}
+
 phase_records="$(extract_examples "grasp|tangle|ink|define|develop|deliver" "$PARALLEL_SKILL")"
-phase_flags=""
-phase_chained=0
+
+test_case "skill-parallel-agents phase examples pass only <prompt> [previous phase's results file]"
+phase_problems=""
 while IFS= read -r record; do
     [[ -n "$record" ]] || continue
     IFS=$'\x1f' read -r -a parts <<< "$record"
+    location="${parts[0]#"$PROJECT_ROOT"/}"
+    if [[ "${parts[1]}" == "!unparsable" ]]; then
+        phase_problems+="$location: unbalanced quoting: ${parts[2]}"$'\n'
+        continue
+    fi
     for arg in "${parts[@]:2}"; do
         if [[ "$arg" == -* ]]; then
-            phase_flags+="${parts[0]#"$PROJECT_ROOT"/}: ${parts[*]:1}"$'\n'
+            phase_problems+="$location: passes an option: ${parts[*]:1}"$'\n'
         fi
     done
-    if [[ "${#parts[@]}" -eq 4 ]]; then
-        phase_chained=$((phase_chained + 1))
+    if [[ "${#parts[@]}" -gt 4 ]]; then
+        phase_problems+="$location: passes more than two arguments: ${parts[*]:1}"$'\n'
+    elif [[ "${#parts[@]}" -eq 4 ]] && ! names_output "${parts[3]}" "$(prior_phase_output "${parts[1]}")"; then
+        phase_problems+="$location: results file '${parts[3]}' is not the $(prior_phase_output "${parts[1]}") output"$'\n'
     fi
 done <<< "$phase_records"
-if [[ -n "$phase_flags" ]]; then
-    test_fail "phase commands read only <prompt> [results-file]; these pass an option:
-$phase_flags"
-elif [[ "$phase_chained" -lt 3 ]]; then
-    test_fail "expected grasp, tangle and ink examples that pass a results file, found $phase_chained"
-else
+if [[ -z "$phase_problems" ]]; then
     test_pass
+else
+    test_fail "$phase_problems"
 fi
+
+for phase in grasp tangle ink; do
+    expected_output="$(prior_phase_output "$phase")"
+    test_case "skill-parallel-agents shows $phase chained from the $expected_output file"
+    phase_chained=false
+    while IFS= read -r record; do
+        [[ -n "$record" ]] || continue
+        IFS=$'\x1f' read -r -a parts <<< "$record"
+        if [[ "${#parts[@]}" -eq 4 && "$(prior_phase_output "${parts[1]}")" == "$expected_output" ]] \
+            && names_output "${parts[3]}" "$expected_output"; then
+            phase_chained=true
+        fi
+    done <<< "$phase_records"
+    if [[ "$phase_chained" == true ]]; then
+        test_pass
+    else
+        test_fail "no $phase example passes the $expected_output results file"
+    fi
+done
 
 test_summary
