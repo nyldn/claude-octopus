@@ -24,6 +24,19 @@ else
     test_fail "expected /octo:research to load its dedicated source, not discover"
 fi
 
+test_case "research skill forwards the routed intensity as an orchestrate.sh flag"
+research_skill="$(<"$(resolve_claude_skill_path "skill-deep-research")")"
+if [[ "$research_skill" == *'[intensity=quick|standard|deep]` token from the skill args'* \
+   && "$research_skill" == *'`light → quick`, `exhaustive → deep`; `quick`, `standard` and `deep` pass through unchanged'* \
+   && "$research_skill" == *'orchestrate.sh --intensity=<quick|standard|deep> probe'* \
+   && "$research_skill" != *'--depth "${depth_choice}"'* \
+   && "$research_skill" != *'--focus "${focus_choice}"'* \
+   && "$research_skill" != *'--format "${format_choice}"'* ]]; then
+    test_pass
+else
+    test_fail "expected the research skill to pass --intensity= before probe and no unparsed flags"
+fi
+
 test_case "discover skill requires dynamic multi-provider fleet"
 discover_skill="$(<"$(resolve_claude_skill_path "flow-discover")")"
 if [[ "$discover_skill" == *"build-fleet.sh"* && "$discover_skill" == *"codex, agy, copilot, qwen, opencode"* ]]; then

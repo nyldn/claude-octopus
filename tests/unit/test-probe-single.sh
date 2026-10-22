@@ -321,8 +321,34 @@ DISCOVER_CMD="$PROJECT_ROOT/commands/discover.md"
 assert_contains "$(grep -c 'Research Intensity' "$DISCOVER_CMD" 2>/dev/null || echo 0)" \
   "[1-9]" "discover.md: has Research Intensity header"
 
-assert_contains "$(grep -c 'intensity=' "$DISCOVER_CMD" 2>/dev/null || echo 0)" \
-  "[1-9]" "discover.md: passes intensity in Skill args"
+DISCOVER_EXAMPLE="$(grep -m1 '^Example: `bash ' "$DISCOVER_CMD" || true)"
+DISCOVER_EXAMPLE="${DISCOVER_EXAMPLE#*orchestrate.sh\" }"
+DISCOVER_EXAMPLE="${DISCOVER_EXAMPLE%\`}"
+assert_contains "$DISCOVER_EXAMPLE" "^--intensity=standard probe [^[]" \
+  "discover.md: example passes intensity as an orchestrate.sh flag"
+
+discover_home="$TEST_TMP_DIR/discover-intensity-home"
+discover_project="$TEST_TMP_DIR/discover-intensity-project"
+mkdir -p "$discover_home" "$discover_project"
+for intensity_case in "quick|Would spawn 2 diverse research agents" \
+                      "deep|Would spawn 5-7 research agents"; do
+  intensity="${intensity_case%%|*}"
+  expected_fleet="${intensity_case#*|}"
+  read -r -a example_args <<< "${DISCOVER_EXAMPLE/--intensity=standard/--intensity=$intensity}"
+  example_output="$(
+    unset OCTOPUS_RESEARCH_INTENSITY
+    cd "$discover_project"
+    env "HOME=$discover_home" "OCTOPUS_NON_INTERACTIVE=1" "OCTOPUS_HOST=standalone" \
+      bash "$ORCHESTRATE" --dry-run "${example_args[@]}" 2>&1
+  )" || true
+  if grep -qF "$expected_fleet" <<< "$example_output" \
+     && grep -qE 'Would probe: OAuth authentication patterns$' <<< "$example_output"; then
+    pass "discover.md: documented probe invocation runs at $intensity intensity"
+  else
+    fail "discover.md: documented probe invocation runs at $intensity intensity" \
+      "expected '$expected_fleet' and a prompt without the intensity token"
+  fi
+done
 
 # ── research report template structure ──────────────────────────────────────
 

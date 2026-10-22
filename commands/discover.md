@@ -98,10 +98,12 @@ After receiving answers, incorporate them into the `orchestrate.sh probe` invoca
 ### Step 2: Run Discovery via orchestrate.sh
 
 ```bash
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" probe [intensity=quick|standard|deep] <user's arguments>
+bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" --intensity=<quick|standard|deep> probe <user's arguments>
 ```
 
-Example: `bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" probe [intensity=standard] OAuth authentication patterns`
+Example: `bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" --intensity=standard probe OAuth authentication patterns`
+
+Pass the intensity only as the `--intensity=` flag. A bracket token such as `[intensity=deep]` is not an orchestrate.sh option: bash reads it as prompt text and runs at standard intensity, and zsh rejects it as an unmatched glob.
 
 ### Step 3: Post-Completion — Interactive Next Steps
 

@@ -17,6 +17,17 @@
   depth in the quoted prompt and pass the results file positionally, and a unit
   test runs the knowledge-work and squeeze examples as dry runs.
 
+- `/octo:discover` and `/octo:research` now reach `orchestrate.sh` with the
+  intensity the user chose. `commands/discover.md` documented
+  `orchestrate.sh probe [intensity=quick|standard|deep] <args>`, but
+  orchestrate.sh only parses `--intensity=`. Under bash the bracket token
+  became prompt text and the probe ran at standard intensity. Under zsh it
+  failed as an unmatched glob before orchestrate.sh started. The research skill
+  dropped the routed `[intensity=…]` and passed `--depth`, `--focus` and
+  `--format`, which orchestrate.sh has never parsed, so they also became prompt
+  text. Both now pass `--intensity=<quick|standard|deep>` before `probe`, and a
+  dry-run test executes the documented discover example.
+
 ## [11.15.0] - 2026-10-20
 
 ### Fixed

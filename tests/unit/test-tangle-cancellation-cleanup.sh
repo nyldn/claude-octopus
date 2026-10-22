@@ -373,6 +373,27 @@ else
     test_pass
 fi
 
+test_case "unknown process ownership blocks EXIT cleanup"
+unknown_owner_cleanup_log="$TEST_TMP_DIR/unknown-owner-exit-cleanup.log"
+: > "$unknown_owner_cleanup_log"
+octopus_orchestrator_cancel_active() { printf 'cancel:%s\n' "$1" >> "$unknown_owner_cleanup_log"; }
+octopus_cleanup_tmp() { printf 'tmp\n' >> "$unknown_owner_cleanup_log"; }
+if (
+    unset BASHPID
+    OCTOPUS_ORCHESTRATOR_PID=$$
+    octo_capture_current_shell_pid() { OCTO_CAPTURED_SHELL_PID=""; return 1; }
+    octopus_orchestrator_handle_exit 37
+); then
+    unknown_owner_exit_rc=0
+else
+    unknown_owner_exit_rc=$?
+fi
+if [[ "$unknown_owner_exit_rc" -eq 37 && ! -s "$unknown_owner_cleanup_log" ]]; then
+    test_pass
+else
+    test_fail "EXIT handler cleaned up with unknown process ownership (rc=$unknown_owner_exit_rc, log: $(tr '\n' ' ' < "$unknown_owner_cleanup_log"))"
+fi
+
 test_case "the Bash 3.2 PID fallback recognizes the owning shell"
 if (
     unset BASHPID
