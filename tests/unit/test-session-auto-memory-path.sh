@@ -112,4 +112,35 @@ else
     test_fail "SessionStart used a different memory mapping than SessionEnd"
 fi
 
+# Literal fixtures independently pin Claude Code's project-key convention.
+# Dots, underscores, spaces and parentheses become dashes, not only slashes.
+source "$PROJECT_ROOT/hooks/helpers/claude-project-memory.sh"
+while IFS='|' read -r native_project native_key; do
+    test_case "native Claude project key for $native_project"
+    prepare_case "native-$native_key"
+    native_memory="$case_home/.claude/projects/$native_key/memory"
+    mkdir -p "$native_memory"
+    native_result="$(CLAUDE_PROJECT_DIR="$native_project" \
+        CLAUDE_CONFIG_DIR="$case_home/.claude" octo_claude_project_memory_dir)"
+    if [[ "$native_result" == "$native_memory" ]]; then
+        test_pass
+    else
+        test_fail "literal Claude project-key fixture did not resolve"
+    fi
+done <<'NATIVE_PROJECT_KEYS'
+/home/octopus/my.app|-home-octopus-my-app
+/home/octopus/proj_v2|-home-octopus-proj-v2
+/home/octopus/work (copy)|-home-octopus-work--copy-
+NATIVE_PROJECT_KEYS
+
+test_case "slash-only punctuation key is not an auto-memory fallback"
+prepare_case slash-only
+mkdir -p "$case_home/.claude/projects/-home-octopus-my.app/memory"
+if native_result="$(CLAUDE_PROJECT_DIR=/home/octopus/my.app \
+    CLAUDE_CONFIG_DIR="$case_home/.claude" octo_claude_project_memory_dir)"; then
+    test_fail "resolved a directory that preserves punctuation in the project key"
+else
+    test_pass
+fi
+
 test_summary
