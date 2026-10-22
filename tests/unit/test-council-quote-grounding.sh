@@ -2413,7 +2413,8 @@ printf '%s\n' "$absence_real" > "$absence_root/src/pricing.ts"
 git -C "$absence_root" init -q
 git -C "$absence_root" add src/pricing.ts
 git -C "$absence_root" -c user.name=Test -c user.email=test@example.invalid -c core.hooksPath=/dev/null commit -qm initial
-for absence_lead in 'does not contain' "doesn't define" 'does not currently contain'; do
+for absence_lead in 'does not contain' "doesn't define" 'does not currently contain' \
+    'does not contain a class and does not define' 'does not define a class and does not contain'; do
     for absence_shape in inline fenced; do
         test_case "$absence_shape negative source claim stays unverifiable: $absence_lead"
         if [[ "$absence_shape" == inline ]]; then
@@ -2437,15 +2438,18 @@ VERDICT: APPROVE")"
     done
 done
 
-test_case "a negative claim cannot verify quoted text that happens to exist"
-response="$(_resp "src/pricing.ts:1 does not contain \`$absence_real\`
+for absence_lead in 'does not contain' 'does not contain a class and does not define'; do
+    test_case "a negative claim cannot verify quoted text that happens to exist: $absence_lead"
+    response="$(_resp "src/pricing.ts:1 $absence_lead \`$absence_real\`
 VERDICT: APPROVE")"
-record="$(council_contribution_record_json "$response" "$absence_root" sha256:test)"
-if jq -e '.grounding.quotes_checked == 1 and .grounding.quotes_verified == 0
-    and .grounding.quotes_unverifiable == 1 and .grounding.quotes_attributed == 0
-    and .grounding.fabricated == false' <<< "$record" >/dev/null; then test_pass; else test_fail "negative claim verified: $record"; fi
+    record="$(council_contribution_record_json "$response" "$absence_root" sha256:test)"
+    if jq -e '.grounding.quotes_checked == 1 and .grounding.quotes_verified == 0
+        and .grounding.quotes_unverifiable == 1 and .grounding.quotes_attributed == 0
+        and .grounding.fabricated == false' <<< "$record" >/dev/null; then test_pass; else test_fail "negative claim verified: $record"; fi
+done
 
-for absence_positive in "does not contain a class but defines" "does not contain a class.
+for absence_positive in "does not contain a class but defines" \
+    "does not contain a class and does not define a function but contains" "does not contain a class.
 src/pricing.ts:1 reads"; do
     test_case "a negative clause cannot excuse a subsequent positive source claim"
     response="$(_resp "src/pricing.ts:1 reads \`$absence_real\`.

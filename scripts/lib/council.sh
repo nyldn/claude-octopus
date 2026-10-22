@@ -3467,7 +3467,8 @@ for start, end, kind, block, removed_block, info in units:
         result["quotes_omitted"] += 1
         continue
     checkable_units += 1
-    absence = SOURCE_ABSENCE.search(gap)
+    absences = list(SOURCE_ABSENCE.finditer(gap))
+    absence = absences[-1] if absences else None
     if (associated is not None and absence and len(gap) <= 200 and gap.count("\n") <= 2
             and not re.search(r"[.!?;]", gap) and not SOURCE_VERB.search(gap, absence.end())):
         # An explicit absence claim is not positive source evidence. Do not
