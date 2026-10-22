@@ -6,6 +6,9 @@
 
 ### Fixed
 
+- Council checks multiline code spans with matching backtick delimiters and
+  preserves literal backticks within source. Direct source attributions retain
+  verification through ordinary modifiers and command-shaped quoted content.
 - Mixed council diff quotes must verify both their removed and retained or added
   portions. A genuine portion cannot validate an invented opposite portion.
   Prefix increment and decrement source lines remain checked, including short

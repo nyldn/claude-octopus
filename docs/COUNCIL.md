@@ -61,11 +61,14 @@ the cited files and reviewed diff. A seat whose checked quotes are fabricated
 receives `invalid-ungrounded` and cannot count toward approval. An attributed
 quote that fails verification also rejects the seat, even if other quotes match.
 Direct citation lead-ins include `reads`, `defines` and `declares`, including
-the base and past forms of `define` and `declare`. Proposal lead-ins still mark
-the following quote as a suggestion rather than current source.
+the base and past forms of `define` and `declare`. Modifiers such as `reads
+exactly` retain attribution within the same clause. Proposal lead-ins still
+mark the following quote as a suggestion rather than current source.
 
 The verifier recognizes inline code, backtick or tilde fenced blocks and
-blockquotes. Marker lines with malformed info strings also open a quote block,
+blockquotes. Inline code spans use matching backtick-run widths, preserve
+embedded runs of other widths and normalize line endings to spaces.
+Marker lines with malformed info strings also open a quote block,
 matching verdict parsing. Backticks in an info string cannot hide source quotes.
 Closing fences must use the opening marker and at least its width;
 an unterminated fence extends to the end of the response. Whole-line
@@ -79,8 +82,10 @@ Filter driver names are read within a 64 KiB budget and overridden for the
 diff, including drivers selected by `.git/info/attributes` or a configured
 attributes file. Failed or oversized configuration lookup, or a driver name
 containing `=`, leaves the diff unavailable. Quotes of proposed
-code, shell commands, unattributed prose, unreadable files or unresolved paths
-are unverifiable rather than fabricated. A proposal lead-in can precede its
+code, commands the reviewer ran, unattributed prose, unreadable files or
+unresolved paths are unverifiable rather than fabricated. A command explicitly
+attributed to source still undergoes verification, including shell-fenced code.
+A proposal lead-in can precede its
 quote across blank lines; another nonempty line ends that local context.
 The unattributed-prose exemption covers inline spans and blockquotes. Attributed
 prose and code-shaped blockquotes still undergo source verification.

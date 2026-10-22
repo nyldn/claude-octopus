@@ -3086,12 +3086,32 @@ for match in re.finditer(r"(?:^[ \t]*>[^\n]*(?:\n|$))+", resp, re.M):
         blockquote_ranges.append((match.start(), match.end()))
         units.append((match.start(), match.end(), "blockquote", lines, [], ""))
 blockquote_starts = [q_start for q_start, _ in blockquote_ranges]
-for match in re.finditer(r"`([^`\n]+)`", resp):
-    quote_index = bisect_right(blockquote_starts, match.start()) - 1
-    if in_fence(match.start(), match.end()) or (
-            quote_index >= 0 and blockquote_ranges[quote_index][1] > match.start()):
+# A code span closes with the same backtick-run width as its opener. Index the
+# next equal run once, so unmatched delimiters and many widths cannot cause
+# repeated suffix scans. Embedded runs of other widths remain literal source.
+backticks = list(re.finditer(r"`+", resp))
+next_backtick = [None] * len(backticks)
+last_backtick = {}
+for backtick_index in range(len(backticks) - 1, -1, -1):
+    width = len(backticks[backtick_index].group())
+    next_backtick[backtick_index] = last_backtick.get(width)
+    last_backtick[width] = backtick_index
+backtick_index = 0
+while backtick_index < len(backticks):
+    opening = backticks[backtick_index]
+    closing_index = next_backtick[backtick_index]
+    backtick_index += 1
+    if closing_index is None:
         continue
-    units.append((match.start(), match.end(), "inline", [match.group(1).strip()], [], ""))
+    closing = backticks[closing_index]
+    quote_index = bisect_right(blockquote_starts, closing.end() - 1) - 1
+    if in_fence(opening.start(), closing.end()) or (
+            quote_index >= 0 and blockquote_ranges[quote_index][1] > opening.start()):
+        continue
+    # Markdown code spans replace embedded line endings with spaces.
+    body = re.sub(r"\r\n?|\n", " ", resp[opening.end():closing.start()])
+    units.append((opening.start(), closing.end(), "inline", [body.strip()], [], ""))
+    backtick_index = closing_index + 1
 # The "path:line" list shape: a line holding only a citation, followed by the
 # quoted source line with no markup. These can only add verified evidence; an
 # unmatched bare line may be prose, so it is never counted against the seat.
@@ -3350,6 +3370,7 @@ GAP_WORDS = {"reads", "read", "shows", "show", "contains", "contain", "has", "sa
              "defines", "define", "defined", "declares", "declare", "declared",
              "line", "lines", "source", "code", "verbatim", "quote", "quoted", "excerpt",
              "current", "currently", "actual", "l"}
+SOURCE_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|is|defines?|defined|declares?|declared)\b", re.I)
 PROPOSAL = re.compile(r"\b(should|propos\w*|suggest\w*|recommend\w*|replace with|instead|would|could|change (?:it |this )?to|rewrit\w*|becomes?|example|e\.g\.|such as|consider|cover|prefer\w*|expected|want)\b", re.I)
 # Backticks also format prose and multiword values. Sentence punctuation alone
 # is not code syntax, nor is a dotted name embedded in a sentence. Calls,
@@ -3378,7 +3399,11 @@ def association(start):
 def attribution(token, gap):
     if token is None or len(gap) > 200 or gap.count("\n") > 2:
         return None
-    if any(word.lower() not in GAP_WORDS for word in re.findall(r"[A-Za-z]+", gap)):
+    # A source verb in this bounded clause still attributes the quote when
+    # ordinary modifiers follow it. A new sentence or a proposal ends that claim.
+    source_clause = SOURCE_VERB.search(gap) and not re.search(r"[.!?;]", gap)
+    if PROPOSAL.search(gap) or (not source_clause and any(
+            word.lower() not in GAP_WORDS for word in re.findall(r"[A-Za-z]+", gap))):
         return None
     line_start = resp.rfind("\n", 0, token[0]) + 1
     if PROPOSAL.search(CITATION.sub("", LINK_TARGET.sub("", resp[line_start:token[0]]))):
@@ -3502,7 +3527,8 @@ for start, end, kind, block, removed_block, info in units:
         # No diff to check a claimed removal against: unverifiable, not fabricated.
         result["quotes_unverifiable"] += 1
         result["quotes_unverifiable_claimed_removed"] += 1
-    elif info in SHELL_FENCES or (block and all(COMMAND.match(norm(l) + " ") for l in block)):
+    elif attributed is None and (info in SHELL_FENCES or (
+            block and all(COMMAND.match(norm(l) + " ") for l in block))):
         result["quotes_unverifiable"] += 1
         result["quotes_unverifiable_command"] += 1
     elif proposed(start):

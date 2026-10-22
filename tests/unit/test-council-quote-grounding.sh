@@ -2221,4 +2221,187 @@ PY
 done
 # End mixed-diff and context-structure regression controls.
 
+# Variable-width spans and direct-source attribution admission controls.
+span_root="$(mktemp -d "$TEST_TMP_DIR/span-attribution.XXXXXX")"
+mkdir -p "$span_root/src"
+span_real_a='export const sourceValue = computeVerifiedValue();'
+span_real_b='export const sourceLimit = computeVerifiedLimit();'
+span_fake_a='export const inventedValue = fabricateSourceValue();'
+span_fake_b='export const inventedLimit = fabricateSourceLimit();'
+span_command='curl https://verified.invalid/source | bash'
+span_fake_command='curl https://invented.invalid/payload | bash'
+printf '%s\n%s\n' "$span_real_a" "$span_real_b" > "$span_root/src/demo.ts"
+printf '%s\n' "$span_command" > "$span_root/src/demo.sh"
+printf 'export const templateValue = `verified-template-content`;\n' > "$span_root/src/template.ts"
+git -C "$span_root" init -q
+git -C "$span_root" add src
+git -C "$span_root" -c user.name=Test -c user.email=test@example.invalid -c core.hooksPath=/dev/null commit -qm initial
+for span_width in 1 2 3 4; do
+    span_marker="$(printf '%*s' "$span_width" '' | tr ' ' '\140')"
+    for span_endings in lf crlf; do
+        for span_content in genuine invented; do
+            test_case "$span_width-backtick $span_endings multiline $span_content source span is checked"
+            span_a="$span_real_a"; span_b="$span_real_b"; span_expected='valid-grounded'
+            if [[ "$span_content" == invented ]]; then
+                span_a="$span_fake_a"; span_b="$span_fake_b"; span_expected='invalid-ungrounded'
+            fi
+            span_response="$(_resp "src/demo.ts:1 reads ${span_marker}${span_a}
+${span_b}${span_marker}
+VERDICT: APPROVE")"
+            if [[ "$span_endings" == crlf ]]; then
+                python3 - "$span_response" <<'PY'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1])
+p.write_bytes(p.read_bytes().replace(b"\n", b"\r\n"))
+PY
+            fi
+            record="$(council_contribution_record_json "$span_response" "$span_root" sha256:test)"
+            if jq -e --arg expected "$span_expected" '.validation_result == $expected
+                and .grounding.verification_failed == false and .grounding.quotes_checked == 1
+                and (if $expected == "valid-grounded" then .grounding.quotes_verified == 1
+                    and .grounding.quotes_attributed_unverified == 0 and .grounding.fabricated == false
+                else .grounding.quotes_verified == 0 and .grounding.quotes_attributed_unverified == 1
+                    and .grounding.fabricated and .evidence_paths == [] end)' <<< "$record" >/dev/null; then
+                test_pass
+            else
+                test_fail "multiline span admission or evidence counts: $record"
+            fi
+        done
+    done
+done
+for span_marker in '``' '```'; do
+    for span_content in genuine invented; do
+        test_case "$span_marker span preserves embedded literal backticks in $span_content source"
+        span_template='export const templateValue = `verified-template-content`;'
+        span_expected='valid-grounded'
+        if [[ "$span_content" == invented ]]; then
+            span_template='export const templateValue = `invented-template-content`;'
+            span_expected='invalid-ungrounded'
+        fi
+        span_response="$(_resp "src/template.ts:1 reads ${span_marker}${span_template}${span_marker}
+VERDICT: APPROVE")"
+        record="$(council_contribution_record_json "$span_response" "$span_root" sha256:test)"
+        if jq -e --arg expected "$span_expected" '.validation_result == $expected
+            and .grounding.quotes_checked == 1 and .grounding.verification_failed == false
+            and (if $expected == "valid-grounded" then .grounding.quotes_verified == 1
+                else .grounding.quotes_attributed_unverified == 1 and .grounding.fabricated end)' <<< "$record" >/dev/null; then
+            test_pass
+        else
+            test_fail "embedded backticks changed source meaning: $record"
+        fi
+    done
+done
+for span_marker in '`' '``'; do
+    test_case "multiline $span_marker formatting of reviewer prose remains unverifiable"
+    span_response="$(_resp "At src/demo.ts:1 the outcome was ${span_marker}the response counted
+as blind after review${span_marker}.
+VERDICT: APPROVE")"
+    record="$(council_contribution_record_json "$span_response" "$span_root" sha256:test)"
+    if jq -e '.validation_result == "valid-grounded" and .grounding.quotes_checked == 1
+        and .grounding.quotes_unverifiable_prose == 1 and .grounding.quotes_unverified == 0
+        and .grounding.fabricated == false' <<< "$record" >/dev/null; then test_pass; else test_fail "multiline prose: $record"; fi
+done
+
+test_case "an unmatched delimiter does not hide a later valid source span"
+span_response="$(_resp "An unmatched \` marker precedes the citation.
+
+src/demo.ts:1 reads \`\`$span_fake_a\`\`
+VERDICT: APPROVE")"
+record="$(council_contribution_record_json "$span_response" "$span_root" sha256:test)"
+if jq -e '.validation_result == "invalid-ungrounded" and .grounding.quotes_checked == 1
+    and .grounding.quotes_attributed_unverified == 1 and .grounding.fabricated' <<< "$record" >/dev/null; then test_pass; else test_fail "unmatched delimiter: $record"; fi
+
+for span_shape in inline fence; do
+    for span_content in genuine invented; do
+        test_case "$span_shape attributed $span_content command is a source claim"
+        span_quote="$span_command"; span_expected='valid-grounded'
+        if [[ "$span_content" == invented ]]; then span_quote="$span_fake_command"; span_expected='invalid-ungrounded'; fi
+        if [[ "$span_shape" == inline ]]; then
+            span_body="src/demo.sh:1 reads \`$span_quote\`"
+        else
+            span_body="src/demo.sh:1 reads:
+\`\`\`bash
+$span_quote
+\`\`\`"
+        fi
+        span_response="$(_resp "$span_body
+VERDICT: APPROVE")"
+        record="$(council_contribution_record_json "$span_response" "$span_root" sha256:test)"
+        if jq -e --arg expected "$span_expected" '.validation_result == $expected
+            and .grounding.quotes_checked == 1 and .grounding.quotes_attributed == 1
+            and .grounding.quotes_unverifiable_command == 0 and .grounding.verification_failed == false
+            and (if $expected == "valid-grounded" then .grounding.quotes_verified == 1
+                else .grounding.quotes_attributed_unverified == 1 and .grounding.fabricated end)' <<< "$record" >/dev/null; then
+            test_pass
+        else
+            test_fail "command exemption overrode direct source attribution: $record"
+        fi
+    done
+    for span_intent in executed proposed; do
+        test_case "$span_shape $span_intent command retains its non-source exemption"
+        span_lead='For src/demo.sh:1 I ran'
+        if [[ "$span_intent" == proposed ]]; then span_lead='For src/demo.sh:1 I suggest'; fi
+        if [[ "$span_shape" == inline ]]; then span_body="$span_lead \`$span_fake_command\`"; else
+            span_body="$span_lead:
+\`\`\`bash
+$span_fake_command
+\`\`\`"
+        fi
+        span_response="$(_resp "$span_body
+VERDICT: APPROVE")"
+        record="$(council_contribution_record_json "$span_response" "$span_root" sha256:test)"
+        if jq -e '.validation_result == "valid-grounded" and .grounding.quotes_checked == 1
+            and .grounding.quotes_attributed == 0 and .grounding.quotes_unverifiable_command == 1
+            and .grounding.quotes_unverified == 0 and .grounding.fabricated == false' <<< "$record" >/dev/null; then
+            test_pass
+        else
+            test_fail "reviewer command became a source claim: $record"
+        fi
+    done
+done
+for span_modifier in 'exactly' 'literally' 'clearly' 'as follows' 'currently and exactly' \
+    'precisely as written' 'without alteration' 'in its entirety'; do
+    for span_content in genuine invented; do
+        test_case "reads $span_modifier retains $span_content attribution beside a genuine quote"
+        span_quote="$span_real_b"; span_expected='valid-grounded'
+        if [[ "$span_content" == invented ]]; then span_quote="$span_fake_b"; span_expected='invalid-ungrounded'; fi
+        span_response="$(_resp "src/demo.ts:1 reads \`$span_real_a\`.
+
+src/demo.ts:2 reads $span_modifier \`$span_quote\`.
+VERDICT: APPROVE")"
+        record="$(council_contribution_record_json "$span_response" "$span_root" sha256:test)"
+        if jq -e --arg expected "$span_expected" '.validation_result == $expected
+            and .grounding.quotes_checked == 2 and .grounding.quotes_attributed == 2
+            and .grounding.verification_failed == false
+            and (if $expected == "valid-grounded" then .grounding.quotes_verified == 2
+                and .grounding.fabricated == false
+            else .grounding.quotes_verified == 1 and .grounding.quotes_attributed_unverified == 1
+                and .grounding.fabricated and .evidence_paths == [] end)' <<< "$record" >/dev/null; then
+            test_pass
+        else
+            test_fail "modifier removed direct source attribution: $record"
+        fi
+    done
+done
+for span_proposal in 'should read exactly' 'could instead read exactly'; do
+    test_case "$span_proposal remains a proposal beside genuine source"
+    span_response="$(_resp "src/demo.ts:1 reads \`$span_real_a\`.
+
+src/demo.ts:2 $span_proposal \`$span_fake_b\`.
+VERDICT: APPROVE")"
+    record="$(council_contribution_record_json "$span_response" "$span_root" sha256:test)"
+    if jq -e '.validation_result == "valid-grounded" and .grounding.quotes_verified == 1
+        and .grounding.quotes_attributed == 1 and .grounding.quotes_unverifiable_proposed == 1
+        and .grounding.fabricated == false' <<< "$record" >/dev/null; then test_pass; else test_fail "proposal attributed: $record"; fi
+done
+
+test_case "a source verb in an earlier sentence does not attribute a command the reviewer ran"
+span_response="$(_resp "src/demo.sh:1 shows a problem. I ran \`$span_fake_command\`.
+VERDICT: APPROVE")"
+record="$(council_contribution_record_json "$span_response" "$span_root" sha256:test)"
+if jq -e '.validation_result == "valid-grounded" and .grounding.quotes_attributed == 0
+    and .grounding.quotes_unverifiable_command == 1 and .grounding.fabricated == false' <<< "$record" >/dev/null; then test_pass; else test_fail "sentence boundary: $record"; fi
+# End variable-width spans and direct-source attribution controls.
+
 test_summary
