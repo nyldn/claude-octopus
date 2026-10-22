@@ -2069,6 +2069,70 @@ VERDICT: APPROVE")"
         test_fail "non-source context became diff evidence or a real hunk was lost: $record"
     fi
 done
+# A source prefix operator gains a third sign in a unified diff. It remains
+# source inside a hunk or a headerless excerpt, even when the side is too short
+# to meet the standalone specificity floor.
+for prefix_layout in excerpt hunk headers; do
+    for prefix_case in fake-added-short fake-removed-short fake-added-specific fake-removed-specific genuine-added-short genuine-removed-short genuine-added-specific genuine-removed-specific fake-both-added-short fake-both-removed-short genuine-both-short; do
+        test_case "mixed diff preserves prefix operators: $prefix_layout/$prefix_case"
+        removed_truth="$old_a"; added_truth="$new_a"
+        case "$prefix_case" in
+            *both*) removed_truth='-- previousCounter;'; added_truth='++ actualCounter;' ;;
+            *added*) added_truth='++ actualCounter;' ;;
+            *removed*) removed_truth='-- previousCounter;' ;;
+        esac
+        if [[ "$prefix_case" == *specific ]]; then
+            [[ "$prefix_case" != *added* ]] || added_truth="$added_truth // actual added source"
+            [[ "$prefix_case" != *removed* ]] || removed_truth="$removed_truth // actual removed source"
+        fi
+        removed_text="$removed_truth"; added_text="$added_truth"; expected=valid-grounded
+        case "$prefix_case" in
+            fake-added*|fake-both-added*) added_text="${added_truth/actualCounter/inventedCounter}"; expected=invalid-ungrounded ;;
+            fake-removed*|fake-both-removed*) removed_text="${removed_truth/previousCounter/inventedCounter}"; expected=invalid-ungrounded ;;
+        esac
+        prefix_diff="$TEST_TMP_DIR/prefix.diff"
+        printf '@@ -1 +1 @@\n-%s\n+%s\n' "$removed_truth" "$added_truth" > "$prefix_diff"
+        prefix_body="$(printf -- '-%s\n+%s\n' "$removed_text" "$added_text")"
+        case "$prefix_layout" in
+            hunk) prefix_body="$(printf '@@ -1 +1 @@\n%s\n' "$prefix_body")" ;;
+            headers) prefix_body="$(printf -- '--- a/src/demo.ts\n+++ b/src/demo.ts\n@@ -1 +1 @@\n%s\n' "$prefix_body")" ;;
+        esac
+        prefix_response="$(_resp "src/demo.ts:1 reads:
+\`\`\`diff
+$prefix_body
+\`\`\`
+VERDICT: APPROVE")"
+        record="$(COUNCIL_CONTEXT_FILES=("$prefix_diff"); council_contribution_record_json "$prefix_response" "$struct_root" sha256:test)"
+        if jq -e --arg expected "$expected" '.validation_result == $expected and .grounding.verification_failed == false
+            and .grounding.diff_unavailable == false and .grounding.quotes_checked == 1
+            and (if $expected == "invalid-ungrounded" then .evidence_paths == []
+                and .grounding.quotes_verified == 0 and .grounding.quotes_attributed_unverified == 1 and .grounding.fabricated
+            else .grounding.quotes_verified == 1 and .grounding.quotes_verified_in_diff_removed == 1
+                and .grounding.fabricated == false end)' <<< "$record" >/dev/null; then
+            test_pass
+        else
+            test_fail "prefix source was discarded or invented source admitted: $record"
+        fi
+    done
+done
+for short_kept in "$new_a" '++ actualCounter;'; do
+    test_case "short removed portion without diff evidence remains uncertain: $short_kept"
+    prefix_response="$(_resp "src/demo.ts:1 reads:
+\`\`\`diff
+--- previousCounter;
++$short_kept
+\`\`\`
+VERDICT: APPROVE")"
+    record="$(COUNCIL_CONTEXT_FILES=(); council_contribution_record_json "$prefix_response" "$struct_root" sha256:test)"
+    if jq -e '.grounding.quotes_checked == 1 and .grounding.quotes_verified == 0
+        and .grounding.quotes_unverifiable_claimed_removed == 1 and .grounding.quotes_unverified == 0
+        and .grounding.verification_failed == false and .grounding.diff_unavailable == false
+        and .grounding.fabricated == false' <<< "$record" >/dev/null; then
+        test_pass
+    else
+        test_fail "short removal lost missing-diff uncertainty: $record"
+    fi
+done
 # End mixed-diff and context-structure regression controls.
 
 test_summary

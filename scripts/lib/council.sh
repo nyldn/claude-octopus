@@ -3012,6 +3012,7 @@ if not citations:
 # those blocks, and bare code lines directly under a citation-only line. Each unit is
 # (outer start, end, kind, block lines, removed lines, fence info).
 GUTTER = re.compile(r"^\s*\d+\s*[:|]\s?")
+DIFF_HUNK = re.compile(r"^@@ -[0-9]{1,10}(?:,([0-9]{1,10}))? \+[0-9]{1,10}(?:,([0-9]{1,10}))? @@(?: .*)?\r?$", re.M)
 units = []
 fence_ranges = []
 fences = []
@@ -3035,9 +3036,23 @@ for start, end, info, body in fences:
     lines = body.split("\n")
     diff_like = info in ("diff", "patch") or any(l.startswith(("@@", "+++ ", "--- ")) for l in lines)
     kept, removed_kept = [], []
-    for line in lines:
+    remaining, header_end = None, -1
+    for index, line in enumerate(lines):
         if diff_like:
-            if line.startswith(("@@", "+++ ", "--- ")):
+            hunk = DIFF_HUNK.fullmatch(line)
+            if hunk:
+                remaining = [int(n) if n is not None else 1 for n in hunk.groups()]
+                continue
+            if remaining is not None and any(remaining):
+                consumed = (int(line.startswith(("-", " "))), int(line.startswith(("+", " "))))
+                remaining = ([left - n for left, n in zip(remaining, consumed)]
+                             if any(consumed) and all(n <= left for n, left in zip(consumed, remaining)) else None)
+            elif (line.startswith("--- ") and index + 2 < len(lines)
+                  and lines[index + 1].startswith("+++ ") and DIFF_HUNK.fullmatch(lines[index + 2])):
+                # A file header is a pair before a hunk. Inside the hunk, or
+                # in a headerless excerpt, +++/--- can be ++/-- source code.
+                header_end = index + 1
+            if index <= header_end:
                 continue
             if line.startswith("-"):
                 # Removed code: verifiable only against the diff's removed side.
@@ -3199,7 +3214,6 @@ for _, _, path, _ in citations:
 # code ("this guard was removed"); that code is in no working-tree file, so it
 # is checked here instead of being reported as fabricated. Loaded lazily, only
 # when a quote fails against the cited files.
-DIFF_HUNK = re.compile(r"^@@ -[0-9]{1,10}(?:,([0-9]{1,10}))? \+[0-9]{1,10}(?:,([0-9]{1,10}))? @@(?: .*)?\r?$", re.M)
 diff_sides = None
 def split_diff(text):
     removed, added = [], []
@@ -3387,8 +3401,13 @@ for start, end, kind, block, removed_block, info in units:
     line_variants = specific_lines(block)
     removed_variants = [v for v in [" ".join(l.strip() for l in removed_block)] + [l.strip() for l in removed_block]
                         if v and checkable(v)]
-    if not wholes and not line_variants and not removed_variants:
+    if not wholes and not line_variants and not removed_variants and not (
+            removed_block and checkable(" ".join(block + removed_block))):
         continue
+    # Specificity selects the entire quote. A short nonempty side of a mixed
+    # quote still needs an exact whole-side match; it is not an absent side.
+    if removed_block and block and not (wholes or line_variants):
+        wholes = [norm(" ".join(block))]
     flat_variants = wholes + [v for variants in line_variants for v in variants]
     associated, gap = association(start)
     attributed = attribution(associated, gap)
@@ -3450,15 +3469,16 @@ for start, end, kind, block, removed_block, info in units:
     if attributed is not None:
         result["quotes_attributed"] += 1
     diff_side_hit = None
-    if not verified or removed_variants:
+    if not verified or removed_block:
         if diff_sides is None:
             diff_sides = load_diff_sides()
         removed_side, added_side = diff_sides
-        if removed_variants:
+        if removed_block:
             # A mixed fence makes claims about both versions. A genuine
             # addition cannot excuse invented removals, or the reverse.
-            removed_hit = in_diff_side(unit_wholes(removed_block), specific_lines(removed_block), removed_side)
-            kept_hit = verified or not (wholes or line_variants) or in_diff_side(wholes, line_variants, added_side)
+            removed_wholes = unit_wholes(removed_block) or [norm(" ".join(removed_block))]
+            removed_hit = in_diff_side(removed_wholes, specific_lines(removed_block), removed_side)
+            kept_hit = verified or not block or in_diff_side(wholes, line_variants, added_side)
             verified = False
             if removed_hit and kept_hit:
                 diff_side_hit = "removed"
@@ -3475,7 +3495,7 @@ for start, end, kind, block, removed_block, info in units:
         result["quotes_verified"] += 1
         result["quotes_verified_in_diff_" + diff_side_hit] += 1
     elif not diff_sides[0] and not diff_sides[1] and (
-            removed_variants or REMOVAL_WORDS.search(resp[max(0, start - REMOVAL_WINDOW):end + REMOVAL_WINDOW])):
+            removed_block or REMOVAL_WORDS.search(resp[max(0, start - REMOVAL_WINDOW):end + REMOVAL_WINDOW])):
         # No diff to check a claimed removal against: unverifiable, not fabricated.
         result["quotes_unverifiable"] += 1
         result["quotes_unverifiable_claimed_removed"] += 1

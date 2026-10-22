@@ -8,6 +8,8 @@
 
 - Mixed council diff quotes must verify both their removed and retained or added
   portions. A genuine portion cannot validate an invented opposite portion.
+  Prefix increment and decrement source lines remain checked, including short
+  portions that resemble diff file headers.
 - Context files supply diff evidence only within unified hunk line counts.
   Markdown rules and bullets outside hunks cannot fabricate removed source.
 - Colored seat-failure reasons receive control-byte cleanup before whole-record

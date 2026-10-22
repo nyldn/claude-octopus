@@ -112,6 +112,9 @@ the prior prose fallback remains available and does not validate evidence.
 A multi-line quote can verify as a whole or when two thirds of its specific
 lines match, including matches against either side of the diff. Mixed diff fences
 must meet that threshold separately for removed and retained or added portions.
+Short nonempty portions require a whole-portion match. File headers are paired
+before a hunk; `+++` and `---` within hunks or headerless excerpts retain the
+source's increment or decrement operators.
 Removed-only diff fences undergo the same fabrication checks. Context-file diff
 evidence requires unified hunk headers and stays within their declared line counts;
 Markdown rules and bullets outside hunks are not removed source.
