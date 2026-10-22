@@ -2836,6 +2836,8 @@ result = {"verification_failed": False, "citations": 0, "citations_unresolved": 
           "quotes_unverifiable_command": 0, "quotes_unverifiable_proposed": 0,
           "quotes_unverifiable_prose": 0, "quotes_unverifiable_diff_incomplete": 0,
           "quotes_omitted": 0, "response_oversized": False, "diff_truncated": False, "diff_unavailable": False, "diff_sources": [],
+          # Preserve the report schema without copying provider excerpts into
+          # persistent contribution records. Counts retain the rejection reason.
           "fabricated": False, "unverified_samples": []}
 
 def emit():
@@ -3365,11 +3367,6 @@ def proposed(start):
     prose = CITATION.sub("", LINK_TARGET.sub("", prose))
     return bool(PROPOSAL.search(prose))
 
-def record_unverified(text):
-    result["quotes_unverified"] += 1
-    if len(result["unverified_samples"]) < 3:
-        result["unverified_samples"].append(norm(text)[:120])
-
 checkable_units = 0
 for start, end, kind, block, removed_block, info in units:
     wholes = unit_wholes(block) if len(block) > 1 else []
@@ -3476,7 +3473,7 @@ for start, end, kind, block, removed_block, info in units:
         result["quotes_unverifiable"] += 1
         result["quotes_unverifiable_diff_incomplete"] += 1
     elif readable:
-        record_unverified(sample)
+        result["quotes_unverified"] += 1
         if attributed is not None:
             result["quotes_attributed_unverified"] += 1
     else:

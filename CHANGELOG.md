@@ -6,6 +6,8 @@
 
 ### Fixed
 
+- Council grounding reports omit provider quote excerpts from `summary.json`.
+  Counts and rejection decisions remain available without redaction prerequisites.
 - Council checks source quotes inside malformed backtick fences whose info
   strings contain backticks, matching verdict parsing so they cannot hide invention.
 - Council recognizes `defines` and `declares` source attributions. A genuine

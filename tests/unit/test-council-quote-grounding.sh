@@ -38,7 +38,7 @@ fab="$(_resp "In src/pricing.ts:2 the base price is \`$FAKE\` which caches corre
 VERDICT: APPROVE")"
 r="$(_report "$fab")"
 if jq -e '.citations == 1 and .quotes_checked == 1 and .quotes_verified == 0 and .quotes_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null &&
-   jq -e '.unverified_samples[0] | contains("fetchCabinPrice")' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+   jq -e '.unverified_samples == []' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
 test_case "a seat whose only citation quotes are fabricated is blind and not substantive"
 if council_response_is_blind "$fab" "$ROOT" && ! council_response_is_substantive "$fab" "$ROOT"; then test_pass; else test_fail "fabricated-quote seat still counted"; fi
@@ -59,6 +59,63 @@ if jq -e '.validation_result == "invalid-record" and (.grounding | type == "obje
 else
     test_fail "fallback record lacks grounding: $record"
 fi
+
+# Grounding report privacy: exercise both direct reports and the contribution
+# object that is persisted in summary.json, without redaction prerequisites.
+sample_root="$(mktemp -d "$TEST_TMP_DIR/quote-private.XXXXXX")"
+mkdir -p "$sample_root/src"
+cp "$ROOT/src/pricing.ts" "$sample_root/src/pricing.ts"
+git -C "$sample_root" init -q
+git -C "$sample_root" add src/pricing.ts
+git -C "$sample_root" -c user.name=Test -c user.email=test@example.invalid -c core.hooksPath=/dev/null commit -qm initial
+private_marker="sk-$(printf 'q%.0s' {1..48})"
+private_quote="const credential = \"$private_marker\";"
+for sample_kind in inline fenced mixed repeated; do
+    sample_checked=1; sample_verified=0; sample_unverified=1
+    case "$sample_kind" in
+        inline) sample_body="src/pricing.ts:2 reads \`$private_quote\`" ;;
+        fenced) sample_body="src/pricing.ts:2 reads
+\`\`\`ts
+$private_quote
+\`\`\`" ;;
+        mixed)
+            sample_body="src/pricing.ts:2 reads \`$REAL_NEAR\`.
+
+src/pricing.ts:2 reads \`$private_quote\`"
+            sample_checked=2; sample_verified=1 ;;
+        repeated)
+            sample_body=""
+            for sample_number in 1 2 3 4; do
+                sample_body="${sample_body}src/pricing.ts:2 reads \`$private_quote\`
+
+"
+            done
+            sample_checked=4; sample_unverified=4 ;;
+    esac
+    sample_response="$(_resp "$sample_body
+VERDICT: APPROVE")"
+    for sample_api in report contribution; do
+        test_case "$sample_kind unverified quotes retain counts without provider excerpts in $sample_api"
+        if [[ "$sample_api" == report ]]; then
+            sample_result="$(unset -f sanitize_secrets; council_response_quote_verification_json "$sample_response" "$sample_root")"
+        else
+            sample_result="$(unset -f sanitize_secrets; council_contribution_record_json "$sample_response" "$sample_root" sha256:test)"
+        fi
+        if [[ "$sample_result" != *"$private_marker"* ]] &&
+           jq -e --arg api "$sample_api" --argjson checked "$sample_checked" \
+               --argjson verified "$sample_verified" --argjson unverified "$sample_unverified" '
+               (if $api == "contribution" then select(.validation_result == "invalid-ungrounded") | .grounding else . end)
+               | .verification_failed == false and .diff_unavailable == false and .quotes_checked == $checked
+                 and .quotes_verified == $verified and .quotes_unverified == $unverified
+                 and .quotes_attributed_unverified == $unverified and .fabricated == true
+                 and .unverified_samples == []' <<< "$sample_result" >/dev/null; then
+            test_pass
+        else
+            test_fail "provider excerpts escaped or grounding counts/rejection changed"
+        fi
+    done
+done
+# End grounding report privacy controls.
 
 test_case "a real quote near the cited line verifies (near_line) and stays valid-grounded"
 real="$(_resp "In src/pricing.ts:2 the fallback \`$REAL_NEAR\` is correct.
@@ -632,7 +689,7 @@ r3005="$(_resp "The sync writes \`SET royalup_price = (mut.bid_amount * 2)::nume
 VERDICT: APPROVE")"
 r="$(_rreport "$r3005")"
 if jq -e '.quotes_verified >= 2 and .quotes_attributed == 1 and .quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null &&
-   jq -e '.unverified_samples | index("c.royalup_price = ub.bid_amount * 2,")' <<< "$r" >/dev/null &&
+   jq -e '.unverified_samples == []' <<< "$r" >/dev/null &&
    council_response_is_blind "$r3005" "$RROOT"; then test_pass; else test_fail "report: $r"; fi
 
 test_case "#3005: a reconstructed block where only generic lines are real does not verify"

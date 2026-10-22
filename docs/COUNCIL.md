@@ -113,6 +113,10 @@ A match in any cited file or the reviewed diff verifies a quote; exact file
 attribution is not proven. These checks cannot establish that a provider read
 the source.
 
+Grounding reports retain quote counts and classifications, without copying
+provider excerpts into `summary.json`. The `unverified_samples` field remains an
+empty array for schema compatibility, including when redaction tools are absent.
+
 Preliminary checks may share a cached report. Contribution records always run
 verification again, including when cited files, attached context contents or a
 resolved diff change without a configuration change. Advice and chair fallback
