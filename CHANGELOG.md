@@ -6,6 +6,10 @@
 
 ### Fixed
 
+- Unattributed prose blockquotes no longer reject council seats as fabricated.
+  Attributed and code-shaped blockquotes retain source verification.
+- Reused chair responses must pass current contribution validation. Retained
+  output without a verdict or a usable record cannot recover the chair.
 - Council grounding reports omit provider quote excerpts from `summary.json`.
   Counts and rejection decisions remain available without redaction prerequisites.
 - Council checks source quotes inside malformed backtick fences whose info

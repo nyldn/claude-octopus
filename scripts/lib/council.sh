@@ -3464,7 +3464,7 @@ for start, end, kind, block, removed_block, info in units:
     elif proposed(start):
         result["quotes_unverifiable"] += 1
         result["quotes_unverifiable_proposed"] += 1
-    elif kind == "inline" and attributed is None and not CODE_SYNTAX.search(sample):
+    elif kind in ("inline", "blockquote") and attributed is None and not CODE_SYNTAX.search(sample):
         result["quotes_unverifiable"] += 1
         result["quotes_unverifiable_prose"] += 1
     elif result["diff_truncated"] or result["diff_unavailable"]:
@@ -4237,14 +4237,17 @@ council_run_chair_fallback() {
         slug="$(council_slug "$persona")"
         existing_response="$(find "${COUNCIL_RUN_DIR}/responses" -type f -name "*-${slug}.md" -print -quit)"
         # Reuse an existing synthesis-capable member only when the advice phase
-        # accepted that seat. A timed-out partial or degenerate artifact is kept for
-        # diagnosis, but must not masquerade as a recovered chair response.
+        # accepted that seat and its current response still passes contribution
+        # validation. Retained invalid output must not become a recovered chair.
         if [[ -n "$existing_response" ]] \
                 && council_response_nonempty "$existing_response" \
                 && council_response_is_substantive "$existing_response" "$evidence_root" \
                 && jq -e --arg persona "$persona" \
                     'any(.[]; .persona == $persona and .status == "responded")' \
-                    <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}" >/dev/null; then
+                    <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}" >/dev/null \
+                && contribution_json="$(council_contribution_record_json "$existing_response" "$evidence_root" "$artifact_digest")" \
+                && jq -e '.validation_result == "valid-grounded" or .validation_result == "valid-unverified"' \
+                    <<< "$contribution_json" >/dev/null 2>&1; then
             COUNCIL_CHAIR_RESPONSE_RECEIVED="true"
             COUNCIL_CHAIR_FALLBACK_USED="true"
             COUNCIL_CHAIR_FALLBACK_PERSONA="$persona"

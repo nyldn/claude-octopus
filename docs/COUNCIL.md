@@ -82,6 +82,8 @@ containing `=`, leaves the diff unavailable. Quotes of proposed
 code, shell commands, unattributed prose, unreadable files or unresolved paths
 are unverifiable rather than fabricated. A proposal lead-in can precede its
 quote across blank lines; another nonempty line ends that local context.
+The unattributed-prose exemption covers inline spans and blockquotes. Attributed
+prose and code-shaped blockquotes still undergo source verification.
 Ordinary sentence punctuation and
 dotted names within prose do not make it a code quote. Plain-text spans explicitly
 attributed to source still undergo verification. A truncated diff sets
@@ -116,6 +118,12 @@ the source.
 Grounding reports retain quote counts and classifications, without copying
 provider excerpts into `summary.json`. The `unverified_samples` field remains an
 empty array for schema compatibility, including when redaction tools are absent.
+
+Reusing a retained response as the chair requires a fresh contribution record
+with `valid-grounded` or `valid-unverified` validation. A prior responded record
+for the same persona cannot admit a response that now lacks a verdict or whose
+contribution record is unavailable or malformed. Valid reuse preserves response
+counts and the non-chair vote.
 
 Preliminary checks may share a cached report. Contribution records always run
 verification again, including when cited files, attached context contents or a

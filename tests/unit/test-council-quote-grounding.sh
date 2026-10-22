@@ -1498,6 +1498,44 @@ VERDICT: REVISE')"
     done
 done
 
+# Prose blockquote admission controls.
+prose_root="$(mktemp -d "$TEST_TMP_DIR/prose-blockquote.XXXXXX")"
+mkdir -p "$prose_root/src"
+cp "$ROOT/src/pricing.ts" "$prose_root/src/pricing.ts"
+git -C "$prose_root" init -q
+git -C "$prose_root" add src
+git -C "$prose_root" -c user.name=Test -c user.email=test@example.invalid -c core.hooksPath=/dev/null commit -qm initial
+for prose_mode in plain html attributed code; do
+    test_case "blockquote prose admission preserves source checks: $prose_mode"
+    prose_quote='The reviewer must confirm the refresh path is covered.'
+    prose_lead='At src/pricing.ts:2 the review requirement was'
+    prose_marker='>'
+    case "$prose_mode" in
+        html) prose_marker='&gt;' ;;
+        attributed) prose_lead='src/pricing.ts:2 reads' ;;
+        code) prose_quote='const status = await fetchCabinPrice(cabin.id);' ;;
+    esac
+    prose_response="$(_resp "$prose_lead
+$prose_marker $prose_quote
+VERDICT: APPROVE")"
+    r="$(council_response_quote_verification_json "$prose_response" "$prose_root")"
+    record="$(council_contribution_record_json "$prose_response" "$prose_root" sha256:test)"
+    if jq -e --arg mode "$prose_mode" --argjson record "$record" '
+        .verification_failed == false and .diff_unavailable == false and .quotes_checked == 1
+        and (if $mode == "plain" or $mode == "html" then
+            .quotes_unverifiable_prose == 1 and .quotes_unverified == 0 and .fabricated == false
+            and $record.validation_result == "valid-grounded"
+        else
+            .quotes_unverifiable_prose == 0 and .quotes_unverified == 1 and .fabricated == true
+            and $record.validation_result == "invalid-ungrounded"
+        end)' <<< "$r" >/dev/null; then
+        test_pass
+    else
+        test_fail "blockquote admission: $r $record"
+    fi
+done
+# End prose blockquote admission controls.
+
 for prose in \
     'the response counted as blind' \
     'the response counted as blind!' \
@@ -1878,5 +1916,56 @@ else
     test_fail "invalid contribution became a recovered chair: $record"
 fi
 done
+
+# Retained chair response admission controls.
+for reuse_mode in grounded unverified invalid-verdict record-failure malformed-record; do
+    test_case "retained chair response requires current contribution admission: $reuse_mode"
+    record="$(
+        d="$(mktemp -d "$TEST_TMP_DIR/retained-chair.XXXXXX")"
+        mkdir -p "$d/evidence" "$d/run/responses" "$d/run/stderr"
+        response="$d/run/responses/00-chair-fallback-strategy-analyst.md"
+        if [[ "$reuse_mode" == unverified ]]; then
+            printf 'The review recommends checking the refresh behavior before publishing.\nVERDICT: APPROVE\n' > "$response"
+        else
+            mkdir -p "$d/evidence/src"
+            cp "$ROOT/src/pricing.ts" "$d/evidence/src/pricing.ts"
+            printf 'Reviewed src/pricing.ts:2: `%s` handles the fallback.\n' "$REAL_NEAR" > "$response"
+            [[ "$reuse_mode" == invalid-verdict ]] || printf 'VERDICT: APPROVE\n' >> "$response"
+        fi
+        git -C "$d/evidence" init -q
+        git -C "$d/evidence" add .
+        git -C "$d/evidence" -c user.name=Test -c user.email=test@example.invalid -c core.hooksPath=/dev/null commit --allow-empty -qm initial
+        OCTOPUS_PROJECT_DIR="$d/evidence"; COUNCIL_RUN_DIR="$d/run"
+        COUNCIL_CONTEXT_FILES=(); COUNCIL_RUN_START_EPOCH=""; COUNCIL_FIXTURE=""
+        COUNCIL_RESPONSES_RECEIVED=1; COUNCIL_CHAIR_RESPONSE_RECEIVED=false
+        COUNCIL_CHAIR_FALLBACK_USED=false; COUNCIL_CHAIR_FALLBACK_PERSONA=""
+        COUNCIL_SEAT_RECORDS_JSON='[{"persona":"strategy-analyst","seat":"adviser","status":"responded","contribution":{"validation_result":"valid-grounded"}}]'
+        council_synthesis_capable_persona() { [[ "$1" == strategy-analyst ]]; }
+        council_persona_should_fail() { return 1; }
+        council_pick_provider() { printf 'claude\n'; }
+        council_provider_is_available() { return 1; }
+        if [[ "$reuse_mode" == record-failure ]]; then
+            council_contribution_record_json() { return 1; }
+        elif [[ "$reuse_mode" == malformed-record ]]; then
+            council_contribution_record_json() { printf '{'; }
+        fi
+        rc=0
+        council_run_chair_fallback sha256:test >/dev/null 2>&1 || rc=$?
+        jq -cn --argjson rc "$rc" --argjson chair "$COUNCIL_CHAIR_RESPONSE_RECEIVED" \
+            --argjson used "$COUNCIL_CHAIR_FALLBACK_USED" --arg persona "$COUNCIL_CHAIR_FALLBACK_PERSONA" \
+            --argjson received "$COUNCIL_RESPONSES_RECEIVED" --argjson seats "$COUNCIL_SEAT_RECORDS_JSON" \
+            --argjson retained "$([[ -s "$response" ]] && printf true || printf false)" \
+            '{rc:$rc,chair:$chair,used:$used,persona:$persona,received:$received,seats:$seats,retained:$retained}'
+    )"
+    if jq -e --arg mode "$reuse_mode" '.received == 1 and (.seats | length == 1) and .retained
+        and (if $mode == "grounded" or $mode == "unverified" then
+            .rc == 0 and .chair and .used and .persona == "strategy-analyst"
+        else .rc != 0 and .chair == false and .used == false and .persona == "" end)' <<< "$record" >/dev/null; then
+        test_pass
+    else
+        test_fail "retained response bypassed current admission: $record"
+    fi
+done
+# End retained chair response admission controls.
 
 test_summary
