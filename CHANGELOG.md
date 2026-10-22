@@ -14,6 +14,12 @@
   `--format`, which orchestrate.sh has never parsed, so they also became prompt
   text. Both now pass `--intensity=<quick|standard|deep>` before `probe`, and a
   dry-run test executes the documented discover example.
+- Session hooks read and write Octopus preferences and learnings only in the
+  current project's existing Claude auto-memory directory. `CLAUDE_PROJECT_DIR`
+  no longer creates `memory/` in the user's repository, and missing memory
+  storage no longer falls back to an unrelated project. Custom
+  `CLAUDE_CONFIG_DIR` and CWD fallback use the same mapping at session start
+  and end. Fixes #1183.
 
 ## [11.15.0] - 2026-10-20
 

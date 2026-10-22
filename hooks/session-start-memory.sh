@@ -110,23 +110,17 @@ fi
 export CLAUDE_OCTOPUS_SESSION_ID="${CLAUDE_SESSION_ID:-}"
 
 SESSION_FILE="${HOME}/.claude-octopus/session.json"
-MEMORY_DIR="${HOME}/.claude/projects"
 
 # --- 1. Find and read persisted preferences from auto-memory ---
-# Priority: CLAUDE_PROJECT_DIR (set by CC) > CWD-based lookup > fallback scan
+# Use the same project mapping as SessionEnd, never repository-local memory.
 PREFS_FILE=""
-
-if [[ -n "${CLAUDE_PROJECT_DIR:-}" && -f "${CLAUDE_PROJECT_DIR}/memory/octopus-preferences.md" ]]; then
-    PREFS_FILE="${CLAUDE_PROJECT_DIR}/memory/octopus-preferences.md"
-else
-    # CWD-based lookup then fallback scan
-    CWD_ENCODED=$(pwd | tr '/' '-' | sed 's/^-//')
-    for mem_dir in "$MEMORY_DIR"/*"${CWD_ENCODED}"*/memory; do
-        if [[ -f "${mem_dir}/octopus-preferences.md" ]]; then
-            PREFS_FILE="${mem_dir}/octopus-preferences.md"
-            break
-        fi
-    done
+MEMORY_LIB="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd -P)}/hooks/helpers/claude-project-memory.sh"
+if [[ -r "$MEMORY_LIB" ]]; then
+    # shellcheck source=helpers/claude-project-memory.sh
+    source "$MEMORY_LIB"
+    if PROJECT_MEMORY_DIR="$(octo_claude_project_memory_dir)"; then
+        PREFS_FILE="$PROJECT_MEMORY_DIR/octopus-preferences.md"
+    fi
 fi
 
 SKIP_PREFS=0

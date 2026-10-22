@@ -22,7 +22,6 @@ trap _octo_hook_exit EXIT
 
 SESSION_FILE="${HOME}/.claude-octopus/session.json"
 METRICS_DIR="${HOME}/.claude-octopus/metrics"
-MEMORY_DIR="${HOME}/.claude/projects"
 
 # Session state is a best-effort cache shared by workflow commands and hooks.
 # A stale install, interrupted write, or concurrent process can leave it
@@ -55,24 +54,14 @@ if [[ "$SESSION_JSON_VALID" == "true" ]]; then
     AUTONOMY=$(jq -r '.autonomy // empty' "$SESSION_FILE" 2>/dev/null)
     PROVIDERS=$(jq -r '.providers // empty' "$SESSION_FILE" 2>/dev/null)
 
-    # Find the correct project memory directory
-    # Priority: CLAUDE_PROJECT_DIR (set by CC) > CWD-based lookup > fallback scan
+    # CLAUDE_PROJECT_DIR is the working tree, not Claude's configuration root.
+    # Persist only when this project's auto-memory directory already exists.
     TARGET_MEM_DIR=""
-
-    if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
-        # CC sets this to the project-specific config dir (e.g., ~/.claude/projects/-Users-foo-myproject/)
-        TARGET_MEM_DIR="${CLAUDE_PROJECT_DIR}/memory"
-    else
-        # Derive from CWD: CC encodes paths as -Users-foo-myproject
-        CWD_ENCODED=$(pwd | tr '/' '-' | sed 's/^-//')
-        for candidate in "$MEMORY_DIR"/*"${CWD_ENCODED}"*/memory "$MEMORY_DIR"/*; do
-            if [[ -d "$candidate" ]]; then
-                TARGET_MEM_DIR="$candidate"
-                # If candidate ends in /memory, use it directly; otherwise append
-                [[ "$candidate" != */memory ]] && TARGET_MEM_DIR="${candidate}/memory"
-                break
-            fi
-        done
+    MEMORY_LIB="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd -P)}/hooks/helpers/claude-project-memory.sh"
+    if [[ -r "$MEMORY_LIB" ]]; then
+        # shellcheck source=helpers/claude-project-memory.sh
+        source "$MEMORY_LIB"
+        TARGET_MEM_DIR="$(octo_claude_project_memory_dir)" || TARGET_MEM_DIR=""
     fi
 
     if [[ -n "$TARGET_MEM_DIR" && -n "$AUTONOMY" && "$AUTONOMY" != "null" ]]; then
