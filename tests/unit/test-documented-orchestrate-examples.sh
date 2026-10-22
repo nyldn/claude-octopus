@@ -11,6 +11,8 @@ test_suite "Documented orchestrate.sh examples pass only options orchestrate.sh 
 KW_DOC="$PROJECT_ROOT/docs/KNOWLEDGE-WORKERS.md"
 AUDIT_SKILL="$PROJECT_ROOT/.claude/skills/skill-security-audit/SKILL.md"
 PARALLEL_SKILL="$PROJECT_ROOT/.claude/skills/skill-parallel-agents/SKILL.md"
+GENERATED_AUDIT_SKILL="$PROJECT_ROOT/skills/octopus-security-audit/SKILL.md"
+GENERATED_PARALLEL_SKILL="$PROJECT_ROOT/skills/skill-parallel-agents/SKILL.md"
 
 example_home="$TEST_TMP_DIR/documented-examples-home"
 example_project="$TEST_TMP_DIR/documented-examples-project"
@@ -121,6 +123,7 @@ check_dry_run_examples() {
 
 check_dry_run_examples "KNOWLEDGE-WORKERS.md" "advise|synthesize|empathize|grapple" "$KW_DOC"
 check_dry_run_examples "skill-security-audit" "squeeze" "$AUDIT_SKILL"
+check_dry_run_examples "octopus-security-audit" "squeeze" "$GENERATED_AUDIT_SKILL"
 
 prior_phase_output() {
     case "$1" in
@@ -130,58 +133,68 @@ prior_phase_output() {
     esac
 }
 
-names_output() {
-    [[ "$(printf '%s' "$1" | tr '[:upper:]_' '[:lower:]-')" == *"$2"* ]]
+is_output_token() {
+    local arg="$1" output="$2"
+    [[ "$arg" == "\$$(printf '%s' "$output" | tr '[:lower:]-' '[:upper:]_')" \
+        || "${arg##*/}" == "$output"-*.md ]]
 }
 
-phase_records="$(extract_examples "grasp|tangle|ink|define|develop|deliver" "$PARALLEL_SKILL")"
+check_phase_examples() {
+    local label="$1" doc="$2"
+    local phase_records phase_problems record location arg phase expected_output phase_chained
+    local -a parts=()
+    phase_records="$(extract_examples "grasp|tangle|ink|define|develop|deliver" "$doc")"
 
-test_case "skill-parallel-agents phase examples pass only <prompt> [previous phase's results file]"
-phase_problems=""
-while IFS= read -r record; do
-    [[ -n "$record" ]] || continue
-    IFS=$'\x1f' read -r -a parts <<< "$record"
-    location="${parts[0]#"$PROJECT_ROOT"/}"
-    if [[ "${parts[1]}" == "!unparsable" ]]; then
-        phase_problems+="$location: unbalanced quoting: ${parts[2]}"$'\n'
-        continue
-    fi
-    for arg in "${parts[@]:2}"; do
-        if [[ "$arg" == -* ]]; then
-            phase_problems+="$location: passes an option: ${parts[*]:1}"$'\n'
-        fi
-    done
-    if [[ "${#parts[@]}" -lt 3 ]]; then
-        phase_problems+="$location: missing the prompt: ${parts[*]:1}"$'\n'
-    elif [[ "${#parts[@]}" -gt 4 ]]; then
-        phase_problems+="$location: passes more than two arguments: ${parts[*]:1}"$'\n'
-    elif [[ "${#parts[@]}" -eq 4 ]] && ! names_output "${parts[3]}" "$(prior_phase_output "${parts[1]}")"; then
-        phase_problems+="$location: results file '${parts[3]}' is not the $(prior_phase_output "${parts[1]}") output"$'\n'
-    fi
-done <<< "$phase_records"
-if [[ -z "$phase_problems" ]]; then
-    test_pass
-else
-    test_fail "$phase_problems"
-fi
-
-for phase in grasp tangle ink; do
-    expected_output="$(prior_phase_output "$phase")"
-    test_case "skill-parallel-agents shows $phase chained from the $expected_output file"
-    phase_chained=false
+    test_case "$label phase examples pass only <prompt> [previous phase's results file]"
+    phase_problems=""
     while IFS= read -r record; do
         [[ -n "$record" ]] || continue
         IFS=$'\x1f' read -r -a parts <<< "$record"
-        if [[ "${#parts[@]}" -eq 4 && "${parts[1]}" == "$phase" ]] \
-            && names_output "${parts[3]}" "$expected_output"; then
-            phase_chained=true
+        location="${parts[0]#"$PROJECT_ROOT"/}"
+        if [[ "${parts[1]}" == "!unparsable" ]]; then
+            phase_problems+="$location: unbalanced quoting: ${parts[2]}"$'\n'
+            continue
+        fi
+        for arg in "${parts[@]:2}"; do
+            if [[ "$arg" == -* ]]; then
+                phase_problems+="$location: passes an option: ${parts[*]:1}"$'\n'
+            fi
+        done
+        if [[ "${#parts[@]}" -lt 3 ]]; then
+            phase_problems+="$location: missing the prompt: ${parts[*]:1}"$'\n'
+        elif [[ "${#parts[@]}" -gt 4 ]]; then
+            phase_problems+="$location: passes more than two arguments: ${parts[*]:1}"$'\n'
+        elif [[ "${#parts[@]}" -eq 4 ]] && ! is_output_token "${parts[3]}" "$(prior_phase_output "${parts[1]}")"; then
+            phase_problems+="$location: results file '${parts[3]}' is not the $(prior_phase_output "${parts[1]}") output"$'\n'
         fi
     done <<< "$phase_records"
-    if [[ "$phase_chained" == true ]]; then
+    if [[ -z "$phase_problems" ]]; then
         test_pass
     else
-        test_fail "no $phase example passes the $expected_output results file"
+        test_fail "$phase_problems"
     fi
-done
+
+    for phase in grasp tangle ink; do
+        expected_output="$(prior_phase_output "$phase")"
+        test_case "$label shows $phase chained from the $expected_output file"
+        phase_chained=false
+        while IFS= read -r record; do
+            [[ -n "$record" ]] || continue
+            IFS=$'\x1f' read -r -a parts <<< "$record"
+            if [[ "${#parts[@]}" -eq 4 && "${parts[1]}" == "$phase" ]] \
+                && is_output_token "${parts[3]}" "$expected_output"; then
+                phase_chained=true
+            fi
+        done <<< "$phase_records"
+        if [[ "$phase_chained" == true ]]; then
+            test_pass
+        else
+            test_fail "no $phase example passes the $expected_output results file"
+        fi
+    done
+}
+
+check_phase_examples "skill-parallel-agents" "$PARALLEL_SKILL"
+check_phase_examples "generated skill-parallel-agents" "$GENERATED_PARALLEL_SKILL"
 
 test_summary
