@@ -178,12 +178,14 @@ ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh squeeze "[user's security 
 
 ### Advanced Options
 
+`squeeze` takes only a prompt and runs one four-phase pass. It has no `--principles`, `--loop` or `--quality` option, so put scope and strictness in the prompt:
+
 ```bash
 # Focus on specific vulnerabilities
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh squeeze --principles security "Audit for auth bypass only"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh squeeze "Audit for auth bypass only"
 
-# Loop until all vulnerabilities fixed
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh squeeze --loop --quality 100 "Zero tolerance audit"
+# Report every finding, however minor
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh squeeze "Zero tolerance audit: report every vulnerability, however minor"
 ```
 
 ### When to Use Adversarial Mode

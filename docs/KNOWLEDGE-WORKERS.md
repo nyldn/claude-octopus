@@ -261,22 +261,25 @@ Setting `KNOWLEDGE_WORK_MODE="true"` or running `/octo:km on` changes the follow
 
 ## Workflow Customization
 
-You can customize the depth and focus of any knowledge workflow by adding specific constraints to your prompt.
+You can customize the depth and focus of any knowledge workflow by adding specific constraints to your prompt. `advise`, `synthesize` and `empathize` take only a prompt: `orchestrate.sh` reads an unrecognized `--flag` after the subcommand as prompt text, so write the constraint inside the quoted prompt.
 
 ### Customizing Frameworks
-By default, the `advise` workflow uses standard management consulting frameworks. You can override these:
-- `./scripts/orchestrate.sh advise "Should we pivot?" --use-frameworks "Blue Ocean Strategy, 7S Framework"`
-- `./scripts/orchestrate.sh advise "Market entry" --focus "Geopolitical risk analysis"`
+By default, the `advise` workflow uses standard management consulting frameworks. Name the frameworks or focus you want in the prompt:
+- `./scripts/orchestrate.sh advise "Should we pivot? Apply Blue Ocean Strategy and the 7S Framework."`
+- `./scripts/orchestrate.sh advise "Market entry, focused on geopolitical risk analysis"`
 
 ### Adjusting Synthesis Granularity
-The `synthesize` workflow can be tuned for breadth or depth:
-- `./scripts/orchestrate.sh synthesize "Edge computing" --breadth high` (Scans a wide range of sub-topics)
-- `./scripts/orchestrate.sh synthesize "Edge computing" --depth critical` (Deep-dives into the 3 most controversial papers)
+The `synthesize` workflow can be tuned for breadth or depth in the prompt:
+- `./scripts/orchestrate.sh synthesize "Edge computing: scan a wide range of sub-topics"`
+- `./scripts/orchestrate.sh synthesize "Edge computing: deep-dive into the 3 most controversial papers"`
 
-### Persona-Driven Critiques
-Use the `grapple` command to have two different knowledge agents debate a topic:
-- `./scripts/orchestrate.sh grapple "What is our 2026 product strategy?" --persona1 strategy-analyst --persona2 product-writer`
-This forces a debate between high-level business strategy and low-level product feasibility.
+`--breadth` and `--intensity` set `probe` research intensity (`quick`, `standard` or `deep`). `synthesize` does not read them.
+
+### Adversarial Debates
+Use the `grapple` command to have the configured debate providers (Codex, Antigravity and Sonnet by default) argue a topic. Name the perspectives to weigh in the prompt:
+- `./scripts/orchestrate.sh grapple "What is our 2026 product strategy? Weigh high-level business strategy against low-level product feasibility."`
+
+`grapple` has no persona options. Its own options (`-r N`, `--principles`, `--mode`) go before the prompt.
 
 ---
 
@@ -295,7 +298,7 @@ This usually happens when the raw research data provided is too thin.
 
 **3. "Adversarial review is too aggressive"**
 In Phase 4 of Empathize, the agent is trained to be highly critical to avoid groupthink.
-- If the critique is too harsh, you can dial it back in your prompt: `./scripts/orchestrate.sh empathize "..." --critique-tone constructive`.
+- If the critique is too harsh, you can dial it back in your prompt: `./scripts/orchestrate.sh empathize "... Keep the critique constructive."`.
 
 ---
 
