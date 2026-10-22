@@ -3041,6 +3041,9 @@ for start, end, info, body in fences:
     remaining, header_end = None, -1
     for index, line in enumerate(lines):
         if diff_like:
+            # Git metadata does not quote source or consume hunk capacity.
+            if line.rstrip("\r") == "\\ No newline at end of file":
+                continue
             hunk = DIFF_HUNK.fullmatch(line)
             if hunk:
                 remaining = [int(n) if n is not None else 1 for n in hunk.groups()]
@@ -3714,7 +3717,11 @@ council_contribution_record_json() {
             jq -se 'length == 1 and (.[0] | type == "object")' <<< "$grounding" >/dev/null 2>&1 \
                 || grounding="$COUNCIL_FAILED_GROUNDING_JSON"
         fi
-        if council_response_quotes_fabricated "$response_path" "$evidence_root" "$grounding"; then
+        if council_response_has_access_failure "$response_path"; then
+            # Keep file-access guidance authoritative even when quotes fail.
+            access_state="failed"
+            validation_result="invalid-access"
+        elif council_response_quotes_fabricated "$response_path" "$evidence_root" "$grounding"; then
             # Distinct from invalid-access: evidence is rejected for fabricated
             # quotes, verification failure, or a response above the budgets.
             access_state="evidence-rejected"
