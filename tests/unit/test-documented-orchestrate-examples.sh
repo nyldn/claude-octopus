@@ -151,7 +151,9 @@ while IFS= read -r record; do
             phase_problems+="$location: passes an option: ${parts[*]:1}"$'\n'
         fi
     done
-    if [[ "${#parts[@]}" -gt 4 ]]; then
+    if [[ "${#parts[@]}" -lt 3 ]]; then
+        phase_problems+="$location: missing the prompt: ${parts[*]:1}"$'\n'
+    elif [[ "${#parts[@]}" -gt 4 ]]; then
         phase_problems+="$location: passes more than two arguments: ${parts[*]:1}"$'\n'
     elif [[ "${#parts[@]}" -eq 4 ]] && ! names_output "${parts[3]}" "$(prior_phase_output "${parts[1]}")"; then
         phase_problems+="$location: results file '${parts[3]}' is not the $(prior_phase_output "${parts[1]}") output"$'\n'
@@ -170,7 +172,7 @@ for phase in grasp tangle ink; do
     while IFS= read -r record; do
         [[ -n "$record" ]] || continue
         IFS=$'\x1f' read -r -a parts <<< "$record"
-        if [[ "${#parts[@]}" -eq 4 && "$(prior_phase_output "${parts[1]}")" == "$expected_output" ]] \
+        if [[ "${#parts[@]}" -eq 4 && "${parts[1]}" == "$phase" ]] \
             && names_output "${parts[3]}" "$expected_output"; then
             phase_chained=true
         fi
