@@ -2404,4 +2404,101 @@ if jq -e '.validation_result == "valid-grounded" and .grounding.quotes_attribute
     and .grounding.quotes_unverifiable_command == 1 and .grounding.fabricated == false' <<< "$record" >/dev/null; then test_pass; else test_fail "sentence boundary: $record"; fi
 # End variable-width spans and direct-source attribution controls.
 
+# Begin contribution report admission controls.
+source "$PROJECT_ROOT/scripts/lib/council.sh"
+# Each fixture runs in its own subshell. The real verifier supplies the first
+# report; a later failure models the bounded verifier's existing timeout path.
+_admission_report_case() (
+    local admission_case_flow="$1" admission_case_failure="$2" d response admission_case_calls rc=0 warnings
+    d="$(mktemp -d "$TEST_TMP_DIR/admission-report.XXXXXX")"
+    mkdir -p "$d/evidence/src" "$d/run/responses" "$d/run/stderr"
+    printf '%s\n' 'const originalValue = loadOriginalValue(input);' > "$d/evidence/src/demo.ts"
+    git -C "$d/evidence" init -q
+    git -C "$d/evidence" add src/demo.ts
+    git -C "$d/evidence" -c user.name=Test -c user.email=test@example.invalid -c core.hooksPath=/dev/null commit -qm original
+    OCTOPUS_PROJECT_DIR="$d/evidence"; COUNCIL_RUN_DIR="$d/run"
+    COUNCIL_DEPTH=quick; COUNCIL_TASK='Review source'; COUNCIL_FIXTURE=''
+    COUNCIL_CONTEXT_FILES=(); COUNCIL_RUN_START_EPOCH=''
+    COUNCIL_RESPONSES_RECEIVED=0; COUNCIL_CHAIR_RESPONSE_RECEIVED=false
+    COUNCIL_CHAIR_FALLBACK_USED=false; COUNCIL_TIMEOUT_WARNINGS=''
+    COUNCIL_BLIND_SEATS=''; COUNCIL_SEAT_RECORDS_JSON='[]'
+    COUNCIL_QUOTE_REPORT_KEY=''; COUNCIL_QUOTE_REPORT=''
+    admission_case_calls="$d/verifier-calls"; : > "$admission_case_calls"
+    eval "$(declare -f council_response_quote_verification_json | sed '1s/council_response_quote_verification_json/_admission_real_verifier/')"
+    council_response_quote_verification_json() {
+        local count
+        printf 'call\n' >> "$admission_case_calls"
+        count="$(wc -l < "$admission_case_calls" | tr -d '[:space:]')"
+        if { [[ "$admission_case_failure" == second-failure || "$admission_case_failure" == fresh-failure ]] && (( count > 1 )); } \
+                || { [[ "$admission_case_failure" == first-failure || "$admission_case_failure" == preliminary-failed ]] && (( count == 1 )); }; then
+            printf '%s\n' "$COUNCIL_FAILED_GROUNDING_JSON"
+        else
+            _admission_real_verifier "$@"
+        fi
+    }
+    council_dispatch_member_detached() {
+        printf 'src/demo.ts:1 reads `const originalValue = loadOriginalValue(input);`.\nVERDICT: APPROVE\n' > "$3"
+        if [[ "$admission_case_failure" == preliminary-failed || "$admission_case_failure" == fresh-failure ]]; then
+            council_response_quote_report_cached "$3" "$d/evidence"
+        fi
+    }
+    if [[ "$admission_case_flow" == advice ]]; then
+        COUNCIL_ROSTER_JSON='[{"persona":"code-reviewer","provider":"codex","seat":"member","model_family":"gpt"}]'
+        council_run_chair_fallback() { :; }
+        council_run_advice_phase >/dev/null 2>&1 || rc=$?
+    else
+        council_synthesis_capable_persona() { [[ "$1" == strategy-analyst ]]; }
+        council_persona_should_fail() { return 1; }
+        council_pick_provider() { printf 'claude\n'; }
+        council_provider_is_available() { [[ "$admission_case_flow" != retained-chair ]]; }
+        if [[ "$admission_case_flow" == retained-chair ]]; then
+            response="$d/run/responses/00-chair-fallback-strategy-analyst.md"
+            council_dispatch_member_detached '' '' "$response"
+            COUNCIL_RESPONSES_RECEIVED=1
+            COUNCIL_SEAT_RECORDS_JSON='[{"persona":"strategy-analyst","seat":"adviser","status":"responded","contribution":{"validation_result":"valid-grounded"}}]'
+        fi
+        council_run_chair_fallback sha256:test >/dev/null 2>&1 || rc=$?
+    fi
+    warnings="$(council_print_run_warnings)"
+    jq -cn --arg flow "$admission_case_flow" --argjson rc "$rc" \
+        --argjson calls "$(wc -l < "$admission_case_calls" | tr -d '[:space:]')" \
+        --argjson seats "$COUNCIL_SEAT_RECORDS_JSON" --argjson received "$COUNCIL_RESPONSES_RECEIVED" \
+        --argjson chair "$COUNCIL_CHAIR_RESPONSE_RECEIVED" --arg warnings "$warnings" \
+        '{flow:$flow,rc:$rc,calls:$calls,seats:$seats,received:$received,chair:$chair,warnings:$warnings}'
+)
+
+for admission_flow in advice fresh-chair retained-chair; do
+    for admission_failure in stable second-failure first-failure preliminary-failed fresh-failure; do
+        test_case "$admission_flow uses one fresh report: $admission_failure"
+        record="$(_admission_report_case "$admission_flow" "$admission_failure")"
+        if jq -e --arg failure "$admission_failure" '.calls ==
+                (if $failure == "preliminary-failed" or $failure == "fresh-failure" then 2 else 1 end)
+            and (if $failure == "first-failure" or $failure == "fresh-failure" then
+                if .flow == "retained-chair" then .rc != 0 and .chair == false
+                else .received == 0 and .chair == false
+                    and .seats[0].contribution.access_state == "evidence-rejected"
+                    and .seats[0].contribution.validation_result == "invalid-ungrounded"
+                    and .seats[0].contribution.grounding.verification_failed
+                    and (.seats[0].counted_as_approver == false)
+                    and (if .flow == "advice" then
+                        (.warnings | contains("grounding verification failed"))
+                        and (.warnings | contains("switch that provider") | not)
+                        else true end)
+                end
+            elif .flow == "retained-chair" then .rc == 0 and .chair and .received == 1
+            else .rc == 0 and .received == 1
+                and .seats[0].status == "responded"
+                and .seats[0].contribution.validation_result == "valid-grounded"
+                and .seats[0].grounding.quotes_verified == 1
+                and .seats[0].grounding == .seats[0].contribution.grounding
+                and (if .flow == "advice" then .seats[0].counted_as_approver else .chair end)
+            end)' <<< "$record" >/dev/null; then
+            test_pass
+        else
+            test_fail "record and admission did not share a fresh report: $record"
+        fi
+    done
+done
+# End contribution report admission controls.
+
 test_summary

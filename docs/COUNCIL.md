@@ -142,8 +142,9 @@ counts and the non-chair vote.
 Preliminary checks may share a cached report. Contribution records always run
 verification again, including when cited files, attached context contents or a
 resolved diff change without a configuration change. Advice and chair fallback
-admit only valid contributions before updating response counts, chair presence or
-provider and model-family votes. Votes use the contribution's serialized verdict;
+use each contribution's fresh report for admission, including retained chair
+responses, before updating response counts, chair presence or provider and
+model-family votes. Votes use the contribution's serialized verdict;
 a rejected or unavailable record cannot contribute to quorum. Verification and
 evidence digest collection use separate reads, so the record is not an atomic snapshot.
 Keep review evidence unchanged while council validates and records responses.

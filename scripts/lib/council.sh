@@ -2051,8 +2051,9 @@ council_response_is_substantive() {
     # plan, PRD, or security audit files" REVISE was counted as the 2nd provider.)
     # A live evidence root lets the detector distinguish a real citation from
     # a fabricated file:line token. Standalone callers may omit it for plan or
-    # PRD reviews that have no source tree.
-    local f="$1" evidence_root="${2:-}"
+    # PRD reviews that have no source tree. Admission can pass the contribution's
+    # fresh grounding report as $3 so record and decision use the same result.
+    local f="$1" evidence_root="${2:-}" grounding_report="${3:-}"
     [[ -f "$f" ]] || return 1
 
     # 1) Host self-dispatch stub — runner-emitted, exact match. (grep -c … >/dev/null,
@@ -2077,7 +2078,7 @@ council_response_is_substantive() {
     #    be scored as a substantive responder. Fold it in here so the single
     #    substantive gate the quorum tally keys on and the advice-phase `blind` label
     #    agree; the advice phase still re-tests is_blind to label it distinctly.
-    if council_response_is_blind "$f" "$evidence_root"; then
+    if council_response_is_blind "$f" "$evidence_root" "$grounding_report"; then
         return 1
     fi
 
@@ -2420,7 +2421,8 @@ council_response_is_blind() {
     # round instead of eating several. First-person access failure is checked
     # independently of length; less-specific refusal and permission shapes remain
     # brevity-gated to protect genuine reviews that discuss those failures.
-    local f="$1" evidence_root="${2:-}"
+    # Optional $3 carries the report already created for this contribution.
+    local f="$1" evidence_root="${2:-}" grounding_report="${3:-}"
     [[ -f "$f" ]] || return 1
 
     # A first-person access failure is authoritative. Citation-shaped prose is not
@@ -2436,7 +2438,7 @@ council_response_is_blind() {
     # invented, so this overrides the citation exemptions below. Seats that quote
     # nothing beside their citations, or whose cited files are unreadable, are
     # unaffected within the verification budgets.
-    if council_response_quotes_fabricated "$f" "$evidence_root"; then
+    if council_response_quotes_fabricated "$f" "$evidence_root" "$grounding_report"; then
         return 0
     fi
 
@@ -3701,7 +3703,7 @@ council_contribution_record_json() {
             # quotes, verification failure, or a response above the budgets.
             access_state="evidence-rejected"
             validation_result="invalid-ungrounded"
-        elif council_response_is_blind "$response_path" "$evidence_root"; then
+        elif council_response_is_blind "$response_path" "$evidence_root" "$grounding"; then
             access_state="failed"
             validation_result="invalid-access"
         elif ! council_response_has_verdict "$response_path"; then
@@ -4037,7 +4039,7 @@ council_run_advice_phase() {
 
     local index=0 member persona slug output_path seat mprovider mprovider_spec verdict
     local seat_org seat_model seat_model_family resp_bytes seat_status seat_rec dispatch_timeout_provenance
-    local evidence_root="${OCTOPUS_PROJECT_DIR:-${PROJECT_ROOT:-$PWD}}" artifact_digest contribution_json
+    local evidence_root="${OCTOPUS_PROJECT_DIR:-${PROJECT_ROOT:-$PWD}}" artifact_digest contribution_json grounding_report
     [[ -d "$evidence_root" ]] || evidence_root="$PWD"
     artifact_digest="$(council_artifact_digest "$evidence_root" "${COUNCIL_TASK:-}")" || artifact_digest="unavailable"
     COUNCIL_ARTIFACT_DIGEST="$artifact_digest"
@@ -4093,6 +4095,10 @@ council_run_advice_phase() {
         # checks, and its verdict must be the one recorded and tallied below.
         contribution_json="$(council_contribution_record_json "$output_path" "$evidence_root" "$artifact_digest")" \
             || contribution_json="$(council_unavailable_contribution_record_json)"
+        # Command substitution cannot share the verifier's shell cache. Carry
+        # this contribution's fresh report through every admission check instead.
+        grounding_report="$(jq -ce '.grounding | objects' <<< "$contribution_json" 2>/dev/null)" \
+            || grounding_report="$COUNCIL_FAILED_GROUNDING_JSON"
         # Confirm-finish-before-shortage: a non-zero dispatch (e.g. the per-seat
         # timeout fired) may still have left a COMPLETE, verdict-bearing review that
         # the seat finished writing right at the boundary. Salvage that instead of
@@ -4100,7 +4106,7 @@ council_run_advice_phase() {
         if jq -e '.validation_result == "valid-grounded" or .validation_result == "valid-unverified"' \
                 <<< "$contribution_json" >/dev/null 2>&1 \
                 && council_response_nonempty "$output_path" \
-                && council_response_is_substantive "$output_path" "$evidence_root" \
+                && council_response_is_substantive "$output_path" "$evidence_root" "$grounding_report" \
                 && { (( dispatch_rc == 0 )) || council_response_has_verdict "$output_path"; }; then
             COUNCIL_RESPONSES_RECEIVED=$((COUNCIL_RESPONSES_RECEIVED + 1))
             resp_bytes="$(wc -c < "$output_path" 2>/dev/null | tr -d '[:space:]')"; [[ -z "$resp_bytes" ]] && resp_bytes=0
@@ -4134,11 +4140,11 @@ council_run_advice_phase() {
             fi
         elif council_response_nonempty "$output_path"; then
             resp_bytes="$(wc -c < "$output_path" 2>/dev/null | tr -d '[:space:]')"; [[ -z "$resp_bytes" ]] && resp_bytes=0
-            if council_response_is_substantive "$output_path" "$evidence_root"; then
+            if council_response_is_substantive "$output_path" "$evidence_root" "$grounding_report"; then
                 # A timed-out/truncated review without a final verdict is preserved
                 # for diagnosis, but cannot count as a response or approver.
                 seat_status="no-response"
-            elif council_response_is_blind "$output_path" "$evidence_root"; then
+            elif council_response_is_blind "$output_path" "$evidence_root" "$grounding_report"; then
                 # Access failures and rejected grounding both remain blind and
                 # excluded from quorum. Warnings use the contribution's access
                 # state to distinguish provider access from evidence rejection.
@@ -4293,7 +4299,7 @@ council_synthesis_capable_persona() {
 council_run_chair_fallback() {
     local persona provider member_json slug output_path index
     local seat_agent_spec seat_org seat_model seat_model_family resp_bytes verdict seat_status seat_rec existing_response dispatch_rc
-    local dispatch_timeout_provenance contribution_json artifact_digest="${1:-}"
+    local dispatch_timeout_provenance contribution_json grounding_report artifact_digest="${1:-}"
     local evidence_root="${OCTOPUS_PROJECT_DIR:-${PROJECT_ROOT:-$PWD}}"
     [[ -d "$evidence_root" ]] || evidence_root="$PWD"
     if [[ -z "$artifact_digest" ]]; then
@@ -4311,13 +4317,14 @@ council_run_chair_fallback() {
         # validation. Retained invalid output must not become a recovered chair.
         if [[ -n "$existing_response" ]] \
                 && council_response_nonempty "$existing_response" \
-                && council_response_is_substantive "$existing_response" "$evidence_root" \
                 && jq -e --arg persona "$persona" \
                     'any(.[]; .persona == $persona and .status == "responded")' \
                     <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}" >/dev/null \
                 && contribution_json="$(council_contribution_record_json "$existing_response" "$evidence_root" "$artifact_digest")" \
                 && jq -e '.validation_result == "valid-grounded" or .validation_result == "valid-unverified"' \
-                    <<< "$contribution_json" >/dev/null 2>&1; then
+                    <<< "$contribution_json" >/dev/null 2>&1 \
+                && grounding_report="$(jq -ce '.grounding | objects' <<< "$contribution_json" 2>/dev/null)" \
+                && council_response_is_substantive "$existing_response" "$evidence_root" "$grounding_report"; then
             COUNCIL_CHAIR_RESPONSE_RECEIVED="true"
             COUNCIL_CHAIR_FALLBACK_USED="true"
             COUNCIL_CHAIR_FALLBACK_PERSONA="$persona"
@@ -4347,9 +4354,11 @@ council_run_chair_fallback() {
         dispatch_timeout_provenance="$COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE"
         contribution_json="$(council_contribution_record_json "$output_path" "$evidence_root" "$artifact_digest")" \
             || contribution_json="$(council_unavailable_contribution_record_json)"
+        grounding_report="$(jq -ce '.grounding | objects' <<< "$contribution_json" 2>/dev/null)" \
+            || grounding_report="$COUNCIL_FAILED_GROUNDING_JSON"
         if council_response_nonempty "$output_path" \
                 && { jq -e '.access_state == "evidence-rejected"' <<< "$contribution_json" >/dev/null 2>&1 \
-                     || council_response_is_substantive "$output_path" "$evidence_root"; } \
+                     || council_response_is_substantive "$output_path" "$evidence_root" "$grounding_report"; } \
                 && { (( dispatch_rc == 0 )) || council_response_has_verdict "$output_path"; }; then
             # Persist completed fallback attempts, including rejected metadata,
             # so their output and admission state remain inspectable.

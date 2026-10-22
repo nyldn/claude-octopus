@@ -6,6 +6,9 @@
 
 ### Fixed
 
+- Council admission and contribution records share one fresh grounding report,
+  including retained and newly dispatched chair fallbacks. A second verifier
+  failure or stale preliminary report cannot contradict the recorded result.
 - Council checks multiline code spans with matching backtick delimiters and
   preserves literal backticks within source. Direct source attributions retain
   verification through ordinary modifiers and command-shaped quoted content.
