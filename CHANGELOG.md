@@ -6,6 +6,13 @@
 
 ### Fixed
 
+- Mixed council diff quotes must verify both their removed and retained or added
+  portions. A genuine portion cannot validate an invented opposite portion.
+- Context files supply diff evidence only within unified hunk line counts.
+  Markdown rules and bullets outside hunks cannot fabricate removed source.
+- Colored seat-failure reasons receive control-byte cleanup before whole-record
+  redaction, preserving safe error details that certification previously omitted.
+
 - Upgrade the MCP SDK from 1.31.0 to 1.32.0 for
   [GHSA-22jm-h49p-29qw](https://github.com/advisories/GHSA-22jm-h49p-29qw).
   Octopus uses stdio without the HTTP task store required by this advisory.

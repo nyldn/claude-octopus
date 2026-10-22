@@ -1333,9 +1333,11 @@ octo_capture_seat_failure() {
         printf '== %s %s exited %s: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$agent" "$rc" "$reason"
         printf '%s\n' "$section" "$body"
     )"
-    # The reason can contain provider output too. Sanitize the entire event
-    # before opening the log, and discard even partial output on failure.
-    record="$(set -o pipefail; sanitize_secrets "$record" | python3 "$scanner" --redact)" || return 0
+    # The reason can contain provider output too. Clean controls before
+    # redacting the entire event, discarding partial output on any failure.
+    record="$(set -o pipefail; printf '%s\n' "$record" \
+        | LC_ALL=C tr -d '\000-\010\013\014\016-\037\177' \
+        | sanitize_secrets | python3 "$scanner" --redact)" || return 0
     mkdir -p "$(dirname "$file")" 2>/dev/null || return 0
     (umask 077; printf '%s\n' "$record" >> "$file") 2>/dev/null || true
 }

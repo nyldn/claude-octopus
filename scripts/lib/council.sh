@@ -3199,13 +3199,25 @@ for _, _, path, _ in citations:
 # code ("this guard was removed"); that code is in no working-tree file, so it
 # is checked here instead of being reported as fabricated. Loaded lazily, only
 # when a quote fails against the cited files.
-DIFF_HEADER = re.compile(r"^(@@ |diff --git |\+\+\+ |--- )", re.M)
+DIFF_HUNK = re.compile(r"^@@ -[0-9]{1,10}(?:,([0-9]{1,10}))? \+[0-9]{1,10}(?:,([0-9]{1,10}))? @@(?: .*)?\r?$", re.M)
 diff_sides = None
 def split_diff(text):
     removed, added = [], []
+    remaining = None
     for line in html.unescape(text).split("\n"):
-        if line.startswith(("+++ ", "--- ")):
+        hunk = DIFF_HUNK.fullmatch(line)
+        if hunk:
+            remaining = [int(n) if n is not None else 1 for n in hunk.groups()]
             continue
+        # Only unified hunk lines are source evidence. Headers and Markdown
+        # bullets outside the declared line counts cannot manufacture removals.
+        if remaining is None or line.startswith("\\ No newline at end of file"):
+            continue
+        consumed = (int(line.startswith(("-", " "))), int(line.startswith(("+", " "))))
+        if not any(consumed) or any(n > left for n, left in zip(consumed, remaining)):
+            remaining = None
+            continue
+        remaining = [left - n for left, n in zip(remaining, consumed)]
         if line.startswith("-"):
             piece = norm(line[1:])
             if piece:
@@ -3251,10 +3263,12 @@ def load_diff_sides():
         except OSError:
             continue
         data = raw_diff[:MAX_DIFF_BYTES].decode("utf-8", "replace")
-        if not DIFF_HEADER.search(data):
-            continue  # a plan or prose artifact; its "- " bullets are not removed code
+        if not DIFF_HUNK.search(data):
+            continue  # a file header or Markdown rule alone is not diff evidence
         result["diff_truncated"] |= len(raw_diff) > MAX_DIFF_BYTES
         r, a = split_diff(data)
+        if not r and not a:
+            continue  # a plan or prose artifact; its "- " bullets are not removed code
         removed += r
         added += a
         result["diff_sources"].append("context-file")
@@ -3436,12 +3450,19 @@ for start, end, kind, block, removed_block, info in units:
     if attributed is not None:
         result["quotes_attributed"] += 1
     diff_side_hit = None
-    if not verified:
+    if not verified or removed_variants:
         if diff_sides is None:
             diff_sides = load_diff_sides()
         removed_side, added_side = diff_sides
-        if (in_diff_side(wholes, line_variants, removed_side) or
-                (removed_block and in_diff_side(unit_wholes(removed_block), specific_lines(removed_block), removed_side))):
+        if removed_variants:
+            # A mixed fence makes claims about both versions. A genuine
+            # addition cannot excuse invented removals, or the reverse.
+            removed_hit = in_diff_side(unit_wholes(removed_block), specific_lines(removed_block), removed_side)
+            kept_hit = verified or not (wholes or line_variants) or in_diff_side(wholes, line_variants, added_side)
+            verified = False
+            if removed_hit and kept_hit:
+                diff_side_hit = "removed"
+        elif in_diff_side(wholes, line_variants, removed_side):
             diff_side_hit = "removed"
         elif in_diff_side(wholes, line_variants, added_side):
             diff_side_hit = "added"

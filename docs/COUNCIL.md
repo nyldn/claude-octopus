@@ -110,7 +110,11 @@ Missing supervision also fails closed. Malformed grounding reports reject
 the seat. Partial output from a failed verifier is discarded. Without Python,
 the prior prose fallback remains available and does not validate evidence.
 A multi-line quote can verify as a whole or when two thirds of its specific
-lines match, including matches against either side of the diff. Removed-only diff fences undergo the same fabrication checks.
+lines match, including matches against either side of the diff. Mixed diff fences
+must meet that threshold separately for removed and retained or added portions.
+Removed-only diff fences undergo the same fabrication checks. Context-file diff
+evidence requires unified hunk headers and stays within their declared line counts;
+Markdown rules and bullets outside hunks are not removed source.
 A match in any cited file or the reviewed diff verifies a quote; exact file
 attribution is not proven. These checks cannot establish that a provider read
 the source.
@@ -177,6 +181,7 @@ integers from 1 through 65536 without a sign or leading zeroes. Invalid values
 use the default. Disallowed control bytes are removed before redaction, preserving
 tabs, carriage returns and newlines. Redaction and credential checks run before
 truncation; their failure omits provider output from the log. The same checks protect stderr
-diagnostics. The logger preserves literal backslashes in messages after
+diagnostics and the whole seat-failure record, including provider-derived reasons.
+The logger preserves literal backslashes in messages after
 certification, so provider text cannot introduce control bytes through escape
 interpretation.

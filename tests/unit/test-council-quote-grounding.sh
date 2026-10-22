@@ -158,13 +158,25 @@ fenced="$(_resp "Reviewed src/pricing.ts:2:
 \`\`\`
 and the change:
 \`\`\`diff
-@@ -1,4 +1,4 @@
+@@ -2 +3 @@
 -  const base = cabin.oldPrice || sailing.legacyPrice;
 +  if (!base) return null;
 \`\`\`
 VERDICT: APPROVE")"
+gutter_diff="$TEST_TMP_DIR/gutter-reviewed.diff"
+printf '@@ -2 +3 @@\n-  const base = cabin.oldPrice || sailing.legacyPrice;\n+  if (!base) return null;\n' > "$gutter_diff"
+r="$(COUNCIL_CONTEXT_FILES=("$gutter_diff"); _report "$fenced")"
+if jq -e '.quotes_checked == 2 and .quotes_verified == 2 and .quotes_verified_in_diff_removed == 1
+          and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "a current added line cannot verify an unsupported removal in the same fence"
 r="$(_report "$fenced")"
-if jq -e '.quotes_checked == 2 and .quotes_verified == 2 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+if jq -e '.quotes_checked == 2 and .quotes_verified == 1 and .quotes_unverifiable_claimed_removed == 1
+          and .quotes_verified_in_diff_removed == 0 and .fabricated == false' <<< "$r" >/dev/null; then
+    test_pass
+else
+    test_fail "the source-only match vouched for removed code: $r"
+fi
 
 # A known empty diff makes these fabricated-source assertions independent of
 # the host's temporary-directory Git configuration.
@@ -1967,5 +1979,96 @@ for reuse_mode in grounded unverified invalid-verdict record-failure malformed-r
     fi
 done
 # End retained chair response admission controls.
+
+# Begin mixed-diff and context-structure regression controls.
+struct_root="$(mktemp -d "$TEST_TMP_DIR/structured-diff.XXXXXX")"
+mkdir -p "$struct_root/src"
+old_a='const previousValue = loadPreviousValue(input);'
+old_b='const previousState = loadPreviousState(input);'
+new_a='const actualValue = loadCurrentValue(input);'
+new_b='const actualState = loadCurrentState(input);'
+not_source='const inventedValue = fabricateResult(input);'
+printf '%s\n' "$new_a" "$new_b" > "$struct_root/src/demo.ts"
+git -C "$struct_root" init -q
+git -C "$struct_root" add src/demo.ts
+git -C "$struct_root" -c user.name=Test -c user.email=test@example.invalid -c core.hooksPath=/dev/null commit -qm baseline
+struct_diff="$TEST_TMP_DIR/structured.diff"
+printf 'diff --git a/src/demo.ts b/src/demo.ts\n--- a/src/demo.ts\n+++ b/src/demo.ts\n@@ -1,2 +1,2 @@\n-%s\n-%s\n+%s\n+%s\n' \
+    "$old_a" "$old_b" "$new_a" "$new_b" > "$struct_diff"
+for mixed_case in fake-added fake-removed minority-added minority-removed genuine majority-added majority-removed diff-only; do
+    test_case "mixed diff quote verifies both portions: $mixed_case"
+    removed_text="$old_a"; added_text="$new_a"; expected=valid-grounded
+    case "$mixed_case" in
+        fake-added) added_text="$not_source
++const inventedState = fabricateState(input);
++return approveImaginaryResult(input);"; expected=invalid-ungrounded ;;
+        fake-removed) removed_text="$not_source"; expected=invalid-ungrounded ;;
+        minority-added) added_text="$new_a
++$not_source
++return approveImaginaryResult(input);"; expected=invalid-ungrounded ;;
+        minority-removed) removed_text="$old_a
+-$not_source
+-return approveImaginaryResult(input);"; expected=invalid-ungrounded ;;
+        majority-added) added_text="$new_a
++$new_b
++$not_source" ;;
+        majority-removed) removed_text="$old_a
+-$old_b
+-$not_source" ;;
+        diff-only) added_text='const futureValue = loadFutureValue(input);' ;;
+    esac
+    selected_diff="$struct_diff"
+    if [[ "$mixed_case" == diff-only ]]; then
+        selected_diff="$TEST_TMP_DIR/future.diff"
+        printf '@@ -1 +1 @@\n-%s\n+%s\n' "$old_a" "$added_text" > "$selected_diff"
+    fi
+    mixed_response="$(_resp "src/demo.ts:1 reads:
+\`\`\`diff
+-$removed_text
++$added_text
+\`\`\`
+VERDICT: APPROVE")"
+    record="$(COUNCIL_CONTEXT_FILES=("$selected_diff"); council_contribution_record_json "$mixed_response" "$struct_root" sha256:test)"
+    if jq -e --arg expected "$expected" '.validation_result == $expected and .grounding.verification_failed == false
+        and .grounding.diff_unavailable == false and .grounding.quotes_checked == 1
+        and (if $expected == "invalid-ungrounded" then .evidence_paths == []
+            and .grounding.quotes_verified == 0 and .grounding.quotes_attributed_unverified == 1 and .grounding.fabricated
+        else .grounding.quotes_verified == 1 and .grounding.quotes_verified_in_diff_removed == 1
+            and .grounding.fabricated == false end)' <<< "$record" >/dev/null; then
+        test_pass
+    else
+        test_fail "mixed diff was admitted or rejected incorrectly: $record"
+    fi
+done
+for structure_case in rule file-header git-header malformed-hunk after-hunk unified hunk-only markdown-diff crlf; do
+    test_case "attached context imports only unified hunk lines: $structure_case"
+    plan_file="$TEST_TMP_DIR/structure-$structure_case.md"
+    expected=invalid-ungrounded
+    case "$structure_case" in
+        rule) printf '# Plan\n\n--- \n- %s\n' "$not_source" > "$plan_file" ;;
+        file-header) printf '%s\n' '+++ Plan' "- $not_source" > "$plan_file" ;;
+        git-header) printf 'diff --git a/plan b/plan\n- %s\n' "$not_source" > "$plan_file" ;;
+        malformed-hunk) printf '@@ summary @@\n- %s\n' "$not_source" > "$plan_file" ;;
+        after-hunk) cat "$struct_diff" > "$plan_file"; printf -- '- %s\n' "$not_source" >> "$plan_file" ;;
+        unified) cp "$struct_diff" "$plan_file"; not_source_selected="$old_a"; expected=valid-grounded ;;
+        hunk-only) printf '@@ -1 +1 @@\n-%s\n+%s\n' "$old_a" "$new_a" > "$plan_file"; not_source_selected="$old_a"; expected=valid-grounded ;;
+        markdown-diff) printf '# Review\n```diff\n' > "$plan_file"; cat "$struct_diff" >> "$plan_file"; printf '```\n- %s\n' "$not_source" >> "$plan_file"; not_source_selected="$old_a"; expected=valid-grounded ;;
+        crlf) python3 -c 'import sys; sys.stdout.buffer.write(open(sys.argv[1], "rb").read().replace(b"\n", b"\r\n"))' "$struct_diff" > "$plan_file"; not_source_selected="$old_a"; expected=valid-grounded ;;
+    esac
+    [[ "$expected" != invalid-ungrounded ]] || not_source_selected="$not_source"
+    structure_response="$(_resp "src/demo.ts:1 reads \`$not_source_selected\`.
+VERDICT: APPROVE")"
+    record="$(COUNCIL_CONTEXT_FILES=("$plan_file"); council_contribution_record_json "$structure_response" "$struct_root" sha256:test)"
+    if jq -e --arg expected "$expected" '.validation_result == $expected and .grounding.verification_failed == false
+        and .grounding.diff_unavailable == false and .grounding.quotes_checked == 1
+        and (if $expected == "invalid-ungrounded" then .evidence_paths == []
+            and .grounding.quotes_verified_in_diff_removed == 0 and .grounding.fabricated
+        else .grounding.quotes_verified_in_diff_removed == 1 and .grounding.fabricated == false end)' <<< "$record" >/dev/null; then
+        test_pass
+    else
+        test_fail "non-source context became diff evidence or a real hunk was lost: $record"
+    fi
+done
+# End mixed-diff and context-structure regression controls.
 
 test_summary

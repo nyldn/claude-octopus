@@ -418,4 +418,45 @@ else
     test_fail "overlong attempt escaped its deadline (rc=$overlong_rc attempts=$(cat "$overlong_root/attempts" 2>/dev/null || echo 0) timeout=${overlong_attempt_timeout:-missing} completed=$([[ -e "$overlong_completion" ]] && echo yes || echo no) elapsed=${overlong_elapsed}s)"
 fi
 
+# Begin seat-reason control-byte regression controls.
+for reason_stream in stderr stdout; do
+    test_case "provider-derived $reason_stream reason is cleaned before seat publication"
+    reason_err="$TEST_TMP_DIR/reason-$reason_stream.err"
+    reason_out="$TEST_TMP_DIR/reason-$reason_stream.out"
+    reason_seat="$TEST_TMP_DIR/reason-$reason_stream.log"
+    : > "$reason_err"; : > "$reason_out"
+    reason_input="$reason_err"
+    [[ "$reason_stream" != stdout ]] || reason_input="$reason_out"
+    printf 'ERROR: \033[31mAuthentication failed: sk-%s\007%s\033[0m\177\n' \
+        'cccccccccccccccc' 'cccccccccccccccc' > "$reason_input"
+    (
+        source "$PROJECT_ROOT/scripts/lib/error-tracking.sh"
+        provider_reason="$(octo_failure_reason 1 'review this change' "$reason_err" "$reason_out")"
+        _OCTOPUS_SEAT_STDERR_FILE="$reason_seat" \
+            octo_capture_seat_failure fixture 1 "$provider_reason" "$reason_err" "$reason_out"
+    )
+    if python3 - "$reason_seat" <<'PY_REASON'
+from pathlib import Path
+import stat
+import sys
+data = Path(sys.argv[1]).read_bytes()
+header = data.splitlines()[0]
+assert b'Exit code 1' in header and b'Authentication failed' in header and b'[REDACTED-' in header
+assert b'cccccccccccccccc' not in data
+assert not any(c < 32 and c not in (9, 10, 13) or c == 127 for c in data)
+assert stat.S_IMODE(Path(sys.argv[1]).stat().st_mode) == 0o600
+PY_REASON
+    then test_pass; else test_fail "reason escaped control cleanup or credential redaction"; fi
+done
+
+test_case "header-only seat reasons discard partial output if control cleanup fails"
+reason_seat="$TEST_TMP_DIR/reason-partial.log"
+(
+    tr() { printf 'untrusted partial header'; return 9; }
+    _OCTOPUS_SEAT_STDERR_FILE="$reason_seat" \
+        octo_capture_seat_failure fixture 1 failed /dev/null /dev/null
+)
+if [[ ! -e "$reason_seat" ]]; then test_pass; else test_fail "failed header cleanup published partial output"; fi
+# End seat-reason control-byte regression controls.
+
 test_summary
