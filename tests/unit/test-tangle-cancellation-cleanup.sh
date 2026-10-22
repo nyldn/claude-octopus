@@ -20,6 +20,8 @@ source "$PROJECT_ROOT/scripts/lib/review.sh"
 # shellcheck source=/dev/null
 source "$PROJECT_ROOT/scripts/lib/workflows.sh"
 source "$PROJECT_ROOT/scripts/lib/pid-ledger.sh"
+# shellcheck source=/dev/null
+source "$PROJECT_ROOT/scripts/lib/spawn.sh"
 
 test_suite "Tangle cancellation cleanup (#900)"
 
@@ -341,12 +343,13 @@ test_case "unexpected orchestrator exit cancels registered Tangle work"
 if declare -F octopus_orchestrator_handle_exit >/dev/null 2>&1; then
     unset -f octopus_orchestrator_handle_exit
 fi
+eval "$(sed -n '/^octopus_in_orchestrator_process() {/,/^}/p' "$orchestrator_source")"
 eval "$(sed -n '/^octopus_orchestrator_handle_exit() {/,/^}/p' "$orchestrator_source")"
 exit_cleanup_log="$TEST_TMP_DIR/exit-cleanup.log"
 octopus_orchestrator_cancel_active() { printf 'cancel:%s\n' "$1" >> "$exit_cleanup_log"; }
 octopus_cleanup_tmp() { printf 'tmp\n' >> "$exit_cleanup_log"; }
 if declare -F octopus_orchestrator_handle_exit >/dev/null 2>&1; then
-    if ( octopus_orchestrator_handle_exit 37 ); then exit_handler_rc=0; else exit_handler_rc=$?; fi
+    if ( octo_capture_current_shell_pid && OCTOPUS_ORCHESTRATOR_PID=$OCTO_CAPTURED_SHELL_PID && octopus_orchestrator_handle_exit 37 ); then exit_handler_rc=0; else exit_handler_rc=$?; fi
 else
     exit_handler_rc=127
 fi
@@ -357,5 +360,75 @@ if [[ "$exit_handler_rc" -eq 37 ]] \
 else
     test_fail "EXIT handler did not cancel active work, preserve status 37, and clean temp state"
 fi
+
+test_case "unknown process ownership never permits orchestrator cleanup"
+if (
+    unset BASHPID
+    OCTOPUS_ORCHESTRATOR_PID=$$
+    octo_capture_current_shell_pid() { OCTO_CAPTURED_SHELL_PID=""; return 1; }
+    octopus_in_orchestrator_process
+); then
+    test_fail "unknown PID was allowed to clean up the shared run"
+else
+    test_pass
+fi
+
+test_case "the Bash 3.2 PID fallback recognizes the owning shell"
+if (
+    unset BASHPID
+    octo_capture_current_shell_pid || exit 1
+    OCTOPUS_ORCHESTRATOR_PID=$OCTO_CAPTURED_SHELL_PID
+    octopus_in_orchestrator_process
+); then
+    test_pass
+else
+    test_fail "portable PID capture did not recognize its own shell"
+fi
+
+test_case "a subshell that re-armed the orchestrator traps leaves the run and its temp state alone"
+if declare -F octopus_orchestrator_handle_signal >/dev/null 2>&1; then
+    unset -f octopus_orchestrator_handle_signal
+fi
+eval "$(sed -n '/^octopus_orchestrator_handle_signal() {/,/^}/p' "$orchestrator_source")"
+subshell_cleanup_log="$TEST_TMP_DIR/subshell-cleanup.log"
+term_trap_marker="$TEST_TMP_DIR/subshell-term-trap"
+ready_file="$TEST_TMP_DIR/subshell-ready"
+: > "$subshell_cleanup_log"
+octopus_orchestrator_cancel_active() { printf 'cancel:%s\n' "$1" >> "$subshell_cleanup_log"; }
+octopus_cleanup_tmp() { printf 'tmp\n' >> "$subshell_cleanup_log"; }
+OCTOPUS_ORCHESTRATOR_PID=$$
+# Same shape as the correction stall watchdog: a background worker restores
+# the orchestrator's TERM trap from $(trap -p TERM), then receives SIGTERM.
+(
+    trap 'printf "%s\n" handled > "$term_trap_marker"; octopus_orchestrator_handle_signal TERM' TERM
+    trap 'octopus_orchestrator_handle_exit "$?"' EXIT
+    saved_term_trap=$(trap -p TERM)
+    trap ':' TERM
+    eval "$saved_term_trap"
+    sleep 30 &
+    printf '%s\n' "$!" > "$ready_file"
+    wait
+) &
+worker_pid=$!
+ready=false
+for ((attempt=0; attempt<100; attempt++)); do
+    if [[ -s "$ready_file" ]]; then ready=true; break; fi
+    sleep 0.05
+done
+if [[ "$ready" == true ]]; then
+    IFS= read -r worker_child_pid < "$ready_file"
+    kill -TERM "$worker_pid" 2>/dev/null || true
+    if wait "$worker_pid"; then worker_rc=0; else worker_rc=$?; fi
+    if [[ "$worker_rc" -eq 143 && -s "$term_trap_marker" && ! -s "$subshell_cleanup_log" ]]; then
+        test_pass
+    else
+        test_fail "subshell TERM handler was not proved or ran orchestrator cleanup (rc=$worker_rc, log: $(tr '\n' ' ' < "$subshell_cleanup_log"))"
+    fi
+else
+    test_fail "worker did not install its signal traps before the readiness deadline"
+fi
+cleanup_tangle_processes
+worker_pid=""
+worker_child_pid=""
 
 test_summary

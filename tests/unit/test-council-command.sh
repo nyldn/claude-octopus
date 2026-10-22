@@ -1067,7 +1067,7 @@ test_council_chair_fallback_warning_prints_to_cli() {
 }
 
 test_council_contribution_record_failure_is_nonfatal() {
-    test_case "Council keeps advice and chair fallback seats when contribution records fail"
+    test_case "Council preserves failed-record advice and fallback output without granting quorum"
     load_council_lib || return 1
 
     local tmp_dir out_file count_file status summary
@@ -1092,18 +1092,22 @@ test_council_contribution_record_failure_is_nonfatal() {
     set -e
 
     summary="$(find "$tmp_dir" -name summary.json -type f -print -quit)"
-    if [[ $status -eq 0 && -f "$summary" ]] \
+    if [[ $status -eq 1 && -f "$summary" ]] \
             && jq -e '
-                .status == "completed"
-                and .warnings.chair_fallback == true
-                and (.seats | length) == 4
+                .status == "partial"
+                and .warnings.chair_fallback == false
+                and .quorum.met == false and .quorum.received_non_chair == 0
+                and (.seats | length) == 7
+                and ([.seats[] | select(.response_bytes > 0)] | length) == 6
                 and (.seats | all(
                     .contribution.validation_result == "invalid-record"
                     and .contribution.access_state == "unverified"
                     and .contribution.evidence_paths == []
+                    and .status != "responded" and .counted_as_approver == false
                 ))
             ' "$summary" >/dev/null \
-            && [[ "$(wc -l < "$count_file" | tr -d '[:space:]')" -eq 4 ]]; then
+            && [[ "$(wc -l < "$count_file" | tr -d '[:space:]')" -eq 7 ]] \
+            && [[ "$(find "$tmp_dir" -path '*/responses/*.md' -type f | wc -l | tr -d '[:space:]')" -eq 6 ]]; then
         test_pass
     else
         test_fail "contribution failure aborted or omitted a production caller: rc=$status attempts=$(wc -l < "$count_file" | tr -d '[:space:]')"
@@ -1587,7 +1591,8 @@ test_council_dispatch_strips_blocked_env_but_sets_disposable_mode() {
 
     run_agent_sync() {
         env > "$env_capture"
-        echo "ok"
+        # A completed seat needs a final verdict for contribution admission.
+        printf 'Reviewed the disposable workspace.\nVERDICT: APPROVE\n'
     }
 
     if ! (
@@ -2583,12 +2588,75 @@ test_council_advice_marks_blind_seat() {
           && "$access_blind" == "y" && "$access_not_substantive" == "y" \
           && "$perm_is_blind" == "y" && "$access_is_blind" == "y" && "$blind" == "agy" \
           && "$status" == "blind" && "$blind" == *"agy"* && "$responding" != *"agy"* \
-          && "$output" == *"blind seat"* && "$output" == *"agy"* ]]; then
+          && "$output" == *"blind seat"* && "$output" == *"agy"* \
+          && "$output" == *"switch that provider's mode/model"* \
+          && "$output" != *"grounding verification failed"* ]]; then
         test_pass
     else
         test_fail "blind detection wrong: unit(blind=$blind_yes real_not_blind=$blind_no perm_blind=$perm_blind perm_not_substantive=$perm_not_substantive access_blind=$access_blind access_not_substantive=$access_not_substantive) status='$status' blind=[$blind] responding=[$responding] output=[$output]"
         return 1
     fi
+}
+
+test_council_grounding_rejection_warning() {
+    load_council_lib || return 1
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/council-grounding-warning.XXXXXX")"
+    mkdir -p "$d/responses" "$d/project"
+    local OCTOPUS_PROJECT_DIR="$d/project"
+    local cause grounding_report output provider_warning
+    COUNCIL_RUN_DIR="$d"
+    COUNCIL_DEPTH="quick"
+    COUNCIL_FIXTURE=""
+    COUNCIL_ROSTER_JSON='[{"persona":"code-reviewer","seat":"member","provider":"codex","provider_org":"openai","model":"gpt"}]'
+    council_dispatch_member_detached() {
+        if [[ "$(jq -r '.provider' <<< "$1")" == agy ]]; then
+            printf 'Access is denied. VERDICT: REVISE\n' > "$3"
+        else
+            printf 'src/app.ts:1 contains `return inventedValue();`.\nVERDICT: APPROVE\n' > "$3"
+        fi
+    }
+    council_run_chair_fallback() { :; }
+    council_response_quote_verification_json() {
+        if grep -q 'Access is denied' "$1"; then
+            printf '%s\n' "$COUNCIL_EMPTY_GROUNDING_JSON"
+        else
+            printf '%s\n' "$grounding_report"
+        fi
+    }
+
+    for cause in fabricated verification_failed response_oversized quotes_omitted; do
+        test_case "$cause rejection warns about grounding while keeping the seat blind and excluded"
+        grounding_report="$(jq -c --arg cause "$cause" \
+            '.[$cause] = (if $cause == "quotes_omitted" then 1 else true end)' <<< "$COUNCIL_EMPTY_GROUNDING_JSON")"
+        council_run_advice_phase >/dev/null 2>&1 || true
+        output="$(council_print_run_warnings)"
+        if jq -e '.[0] | .status == "blind" and .counted_as_approver == false
+                and .contribution.access_state == "evidence-rejected"
+                and .contribution.validation_result == "invalid-ungrounded"' <<< "$COUNCIL_SEAT_RECORDS_JSON" >/dev/null \
+            && [[ "$COUNCIL_RESPONSES_RECEIVED" == 0 && -z "$COUNCIL_RESPONDING_PROVIDERS" \
+                && "$COUNCIL_DISTINCT_APPROVING_MODEL_FAMILIES" == 0 && "$COUNCIL_QUORUM_MET" == false \
+                && "$COUNCIL_BLIND_SEATS" == codex \
+                && "$output" == *"grounding verification failed"*"codex"* \
+                && "$output" != *"switch that provider's mode/model"* ]]; then
+            test_pass
+        else
+            test_fail "$cause diagnostic/admission mismatch: $COUNCIL_SEAT_RECORDS_JSON warnings=[$output]"
+        fi
+    done
+
+    test_case "mixed blind seats keep provider guidance limited to access failures"
+    COUNCIL_ROSTER_JSON="$(jq -c '. + [{persona:"security-auditor",seat:"member",provider:"agy",provider_org:"google",model:"gemini"}]' <<< "$COUNCIL_ROSTER_JSON")"
+    council_run_advice_phase >/dev/null 2>&1 || true
+    output="$(council_print_run_warnings)"
+    provider_warning="$(printf '%s\n' "$output" | grep "switch that provider's mode/model" || true)"
+    if [[ "$output" == *"grounding verification failed"*"codex"* \
+          && "$provider_warning" == *"excluded from quorum: agy "* \
+          && "$provider_warning" != *"codex"* ]]; then
+        test_pass
+    else
+        test_fail "mixed warning mislabeled a provider: [$output]"
+    fi
+    unset -f council_dispatch_member_detached council_run_chair_fallback council_response_quote_verification_json
 }
 
 test_council_blind_summary_deference() {
@@ -3657,6 +3725,7 @@ test_council_live_response_uses_synthesis_timeout_for_chair
 test_council_rc_is_timeout_requires_watchdog_provenance
 test_council_advice_marks_timed_out_seat
 test_council_advice_marks_blind_seat
+test_council_grounding_rejection_warning
 test_council_blind_fabricated_narrative
 test_council_blind_summary_deference
 test_council_permission_denied_finding_is_substantive

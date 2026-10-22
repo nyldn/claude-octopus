@@ -635,6 +635,22 @@ fi
 
 # Secure temporary directory (cleaned up on exit)
 OCTOPUS_TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/claude-octopus.XXXXXX")
+# Subshells can re-arm these handlers: `$(trap -p TERM)` inside a subshell
+# reports the parent's trap, and helpers that save and restore traps install
+# it there. Only the orchestrator process itself may cancel the run and remove
+# the shared temporary directory.
+OCTOPUS_ORCHESTRATOR_PID=$$
+octopus_in_orchestrator_process() {
+    local pid="${BASHPID:-}"
+    # Bash 3.2 has no BASHPID; ask a child shell for its parent instead.
+    if [[ -z "$pid" ]] && declare -F octo_capture_current_shell_pid >/dev/null 2>&1 \
+       && octo_capture_current_shell_pid; then
+        pid="$OCTO_CAPTURED_SHELL_PID"
+    fi
+    # Unknown ownership must never let a worker tear down the shared run.
+    [[ -n "$pid" && "$pid" == "$OCTOPUS_ORCHESTRATOR_PID" ]]
+}
+
 octopus_cleanup_tmp() {
     rm -rf "${OCTOPUS_TMP_DIR:?}" 2>/dev/null || true
 }
@@ -653,6 +669,7 @@ octopus_orchestrator_cancel_active() {
 octopus_orchestrator_handle_exit() {
     local exit_code="${1:-0}"
     trap - EXIT
+    octopus_in_orchestrator_process || return "$exit_code"
     octopus_orchestrator_cancel_active TERM
     octopus_cleanup_tmp
     return "$exit_code"
@@ -663,6 +680,7 @@ octopus_orchestrator_handle_signal() {
     local exit_code=143
     [[ "$signal_name" == "INT" ]] && exit_code=130
     trap - INT TERM
+    octopus_in_orchestrator_process || exit "$exit_code"
 
     octopus_orchestrator_cancel_active "$signal_name"
     if declare -F review_kill_descendants_frozen >/dev/null 2>&1; then
@@ -1110,10 +1128,10 @@ log() {
     fi
 
     case "$level" in
-        INFO)  echo -e "${BLUE}[$_LOG_TS]${NC} ${GREEN}INFO${NC}: $*" >&2 ;;
-        WARN)  echo -e "${BLUE}[$_LOG_TS]${NC} ${YELLOW}WARN${NC}: $*" >&2 ;;
-        ERROR) echo -e "${BLUE}[$_LOG_TS]${NC} ${RED}ERROR${NC}: $*" >&2 ;;
-        DEBUG) echo -e "${BLUE}[$_LOG_TS]${NC} ${CYAN}DEBUG${NC}: $*" >&2 ;;
+        INFO)  printf '%b[%s]%b %bINFO%b: %s\n' "$BLUE" "$_LOG_TS" "$NC" "$GREEN" "$NC" "$*" >&2 ;;
+        WARN)  printf '%b[%s]%b %bWARN%b: %s\n' "$BLUE" "$_LOG_TS" "$NC" "$YELLOW" "$NC" "$*" >&2 ;;
+        ERROR) printf '%b[%s]%b %bERROR%b: %s\n' "$BLUE" "$_LOG_TS" "$NC" "$RED" "$NC" "$*" >&2 ;;
+        DEBUG) printf '%b[%s]%b %bDEBUG%b: %s\n' "$BLUE" "$_LOG_TS" "$NC" "$CYAN" "$NC" "$*" >&2 ;;
     esac
 }
 

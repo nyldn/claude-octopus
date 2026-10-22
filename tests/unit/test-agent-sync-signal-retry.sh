@@ -12,6 +12,7 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "synchronous provider signal retry"
 
 # shellcheck source=/dev/null
+source "$PROJECT_ROOT/scripts/lib/secure.sh"
 source "$PROJECT_ROOT/scripts/lib/agent-sync.sh"
 # shellcheck source=/dev/null
 source "$PROJECT_ROOT/scripts/lib/heartbeat.sh"
@@ -47,6 +48,11 @@ attempt=0
 [[ -f "$ATTEMPT_FILE" ]] && attempt="$(cat "$ATTEMPT_FILE")"
 attempt=$((attempt + 1))
 printf '%s\n' "$attempt" > "$ATTEMPT_FILE"
+if [[ -n "${STDOUT_FAILURE:-}" ]]; then
+    printf '%s\n' "${STDERR_FAILURE:-a harmless warning}" >&2
+    printf '%s\n' "$STDOUT_FAILURE"
+    exit 1
+fi
 if [[ "$attempt" -le "$FAIL_COUNT" ]]; then
     if [[ "${OVERLONG_FIRST_ATTEMPT:-false}" == "true" ]] && [[ "$attempt" -eq 1 ]]; then
         if [[ -n "${OVERLONG_COMPLETION_FILE:-}" ]]; then
@@ -69,7 +75,12 @@ printf 'recovered provider output\n'
 EOF
     chmod 755 "$fake_provider"
 
-    log() { :; }
+    log() { [[ -z "${LOG_FILE:-}" ]] || printf '%s %s\n' "$1" "$2" >> "$LOG_FILE"; }
+    if [[ "${USE_PRODUCTION_LOGGER:-false}" == true ]]; then
+        eval "$(sed -n '/^log() {/,/^}/p' "$PROJECT_ROOT/scripts/orchestrate.sh")"
+        VERBOSE=false OCTOPUS_DEBUG=false _LOG_TS=fixed _LOG_TS_AT=$SECONDS
+        BLUE='' GREEN='' YELLOW='' RED='' CYAN='' NC=''
+    fi
     classify_task() { printf 'standard\n'; }
     get_role_for_context() { printf 'reviewer\n'; }
     apply_persona() { printf '%s\n' "$2"; }
@@ -187,6 +198,193 @@ else
     test_fail "recovery status overwrote the classifier's degraded reason"
 fi
 
+test_case "a failure reported only on stdout is kept in the log"
+stdout_log="$TEST_TMP_DIR/stdout-failure.log"
+set +e
+STDOUT_FAILURE='Not logged in · Please run /login' LOG_FILE="$stdout_log" \
+    run_sync_fixture openrouter 0 stdout-failure >/dev/null 2>&1
+stdout_rc=$?
+set -e
+if [[ "$stdout_rc" -eq 1 ]] && grep -Fq 'Not logged in · Please run /login' "$stdout_log"; then
+    test_pass
+else
+    test_fail "stdout failure detail was dropped (rc=$stdout_rc log: $(tr '\n' ' ' < "$stdout_log" 2>/dev/null))"
+fi
+
+test_case "the production logger preserves certified stdout as literal text"
+stdout_log="$TEST_TMP_DIR/stdout-literal.log"
+literal_diagnostic='Not logged in: \e]0;provider-title\a \x1b[2J \c final diagnostic'
+STDOUT_FAILURE="$literal_diagnostic" USE_PRODUCTION_LOGGER=true \
+    run_sync_fixture openrouter 0 stdout-literal > /dev/null 2> "$stdout_log" && stdout_rc=0 || stdout_rc=$?
+if [[ "$stdout_rc" == 1 ]] && grep -Fq "Output tail: $literal_diagnostic" "$stdout_log" &&
+   python3 - "$stdout_log" <<'PY_LITERAL'
+import pathlib
+import sys
+text = pathlib.Path(sys.argv[1]).read_bytes()
+assert b"\x1b" not in text and b"\x07" not in text
+PY_LITERAL
+then
+    test_pass
+else
+    test_fail "production logging reinterpreted certified output"
+fi
+
+for diagnostic_stream in stdout stderr; do
+    test_case "real control bytes in $diagnostic_stream retain safe sync and seat diagnostics"
+    control_diagnostic="$(printf '\033[31mAuthentication failed: sk-%s\007%s\033[0m\177' \
+        'cccccccccccccccc' 'cccccccccccccccc')"
+    control_log="$TEST_TMP_DIR/control-$diagnostic_stream.log"
+    control_err="$TEST_TMP_DIR/control-$diagnostic_stream.err"
+    control_out="$TEST_TMP_DIR/control-$diagnostic_stream.out"
+    control_seat="$TEST_TMP_DIR/control-$diagnostic_stream-seat.log"
+    : > "$control_err"; : > "$control_out"
+    if [[ "$diagnostic_stream" == stderr ]]; then
+        printf '%s\n' "$control_diagnostic" > "$control_err"
+        control_stderr="$control_diagnostic"
+    else
+        printf '%s\n' "$control_diagnostic" > "$control_out"
+        control_stderr='a harmless warning'
+    fi
+    STDOUT_FAILURE="$control_diagnostic" STDERR_FAILURE="$control_stderr" USE_PRODUCTION_LOGGER=true \
+        run_sync_fixture openrouter 0 "control-$diagnostic_stream" >/dev/null 2> "$control_log" && stdout_rc=0 || stdout_rc=$?
+    _OCTOPUS_SEAT_STDERR_FILE="$control_seat" \
+        octo_capture_seat_failure fixture 1 failed "$control_err" "$control_out"
+    if [[ "$stdout_rc" == 1 ]] && python3 - "$control_log" "$control_seat" <<'PY_CONTROLS'
+import pathlib
+import stat
+import sys
+for name in sys.argv[1:]:
+    data = pathlib.Path(name).read_bytes()
+    assert b'Authentication failed' in data and b'[REDACTED-' in data
+    assert b'cccccccccccccccc' not in data
+    assert not any(c < 32 and c not in (9, 10, 13) or c == 127 for c in data)
+assert stat.S_IMODE(pathlib.Path(sys.argv[2]).stat().st_mode) == 0o600
+PY_CONTROLS
+    then test_pass; else test_fail "safe $diagnostic_stream failure details were lost or uncertified"; fi
+done
+
+test_case "control cleanup preserves permitted whitespace and UTF-8 bytes"
+python3 - "$TEST_TMP_DIR/control-input" "$TEST_TMP_DIR/control-expected" <<'PY_CONTROL_BYTES'
+from pathlib import Path
+import sys
+suffix = 'Erreur dépassée\n\n'.encode()
+Path(sys.argv[1]).write_bytes(bytes(range(32)) + b'\x7f' + suffix)
+Path(sys.argv[2]).write_bytes(b'\t\n\r' + suffix)
+PY_CONTROL_BYTES
+if octo_safe_diagnostic_tail "$TEST_TMP_DIR/control-input" > "$TEST_TMP_DIR/control-actual" &&
+   cmp -s "$TEST_TMP_DIR/control-expected" "$TEST_TMP_DIR/control-actual"; then
+    test_pass
+else
+    test_fail "control cleanup changed permitted whitespace or UTF-8"
+fi
+
+test_case "failed control cleanup returns its status without partial output"
+if (
+    tr() { printf 'untrusted partial output'; return 9; }
+    octo_safe_diagnostic_tail "$TEST_TMP_DIR/control-input"
+) > "$TEST_TMP_DIR/control-failed-tail"; then control_rc=0; else control_rc=$?; fi
+if [[ "$control_rc" == 9 && ! -s "$TEST_TMP_DIR/control-failed-tail" ]]; then
+    test_pass
+else
+    test_fail "failed control cleanup returned rc=$control_rc or published partial output"
+fi
+
+test_case "invalid stdout-tail limits fall back to a bounded diagnostic"
+large_failure="$(python3 -c 'print("x" * 6000 + " final diagnostic")')"
+invalid_limits_passed=true
+for tail_limit in +1 0 65537 nonsense 99999999999999999999; do
+    stdout_log="$TEST_TMP_DIR/stdout-invalid-${tail_limit}.log"
+    STDOUT_FAILURE="$large_failure" LOG_FILE="$stdout_log" \
+        OCTOPUS_SYNC_FAILURE_OUTPUT_TAIL_BYTES="$tail_limit" \
+        run_sync_fixture openrouter 0 "stdout-invalid-${tail_limit}" >/dev/null 2>&1 && stdout_rc=0 || stdout_rc=$?
+    output_tail="$(sed -n 's/^ERROR Output tail: //p' "$stdout_log")"
+    if [[ "$stdout_rc" -ne 1 || "${#output_tail}" -gt 2000 || "$output_tail" != *'final diagnostic' ]]; then
+        invalid_limits_passed=false
+        test_fail "invalid limit $tail_limit escaped its bound or lost diagnostics"
+        break
+    fi
+done
+[[ "$invalid_limits_passed" != true ]] || test_pass
+
+test_case "a positive stdout-tail override controls the diagnostic byte limit"
+stdout_log="$TEST_TMP_DIR/stdout-custom-limit.log"
+STDOUT_FAILURE="$large_failure" LOG_FILE="$stdout_log" OCTOPUS_SYNC_FAILURE_OUTPUT_TAIL_BYTES=32 \
+    run_sync_fixture openrouter 0 stdout-custom-limit >/dev/null 2>&1 && stdout_rc=0 || stdout_rc=$?
+output_tail="$(sed -n 's/^ERROR Output tail: //p' "$stdout_log")"
+if [[ "$stdout_rc" -eq 1 && "${#output_tail}" -le 32 && "$output_tail" == *'final diagnostic' ]]; then
+    test_pass
+else
+    test_fail "custom byte limit was ignored or lost the diagnostic"
+fi
+
+test_case "stdout diagnostics redact credential suffixes before truncation"
+synthetic_credential="$(python3 -c 'print("sk-" + "x" * 4000)')"
+stdout_log="$TEST_TMP_DIR/stdout-redaction.log"
+STDOUT_FAILURE="Not logged in: $synthetic_credential" LOG_FILE="$stdout_log" \
+    run_sync_fixture openrouter 0 stdout-redaction >/dev/null 2>&1 && stdout_rc=0 || stdout_rc=$?
+if [[ "$stdout_rc" -eq 1 ]] && grep -Fq 'Not logged in' "$stdout_log" && ! grep -Fq 'xxxxxxxxxxxxxxxx' "$stdout_log"; then
+    test_pass
+else
+    test_fail "stdout retained a credential suffix or dropped safe context"
+fi
+
+test_case "stdout diagnostics are omitted when redaction fails"
+stdout_log="$TEST_TMP_DIR/stdout-redaction-failure.log"
+(
+    sanitize_secrets() { printf 'untrusted partial output'; return 1; }
+    STDOUT_FAILURE='Not logged in' LOG_FILE="$stdout_log" \
+        run_sync_fixture openrouter 0 stdout-redaction-failure >/dev/null 2>&1
+) && stdout_rc=0 || stdout_rc=$?
+if [[ "$stdout_rc" -eq 1 ]] && ! grep -Fq 'Output tail:' "$stdout_log"; then
+    test_pass
+else
+    test_fail "failed redaction published provider output"
+fi
+
+test_case "direct diagnostic callers receive no partial output when redaction fails"
+direct_tail="$TEST_TMP_DIR/direct-failed-tail"
+if (
+    sanitize_secrets() { printf 'untrusted partial output'; return 7; }
+    octo_safe_diagnostic_tail "$PROJECT_ROOT/scripts/orchestrate.sh"
+) > "$direct_tail"; then direct_rc=0; else direct_rc=$?; fi
+if [[ "$direct_rc" == 7 && ! -s "$direct_tail" ]]; then
+    test_pass
+else
+    test_fail "failed redaction returned rc=$direct_rc with $(wc -c < "$direct_tail") output bytes"
+fi
+
+test_case "direct diagnostic tails preserve trailing newlines and the exact byte limit"
+printf 'safe diagnostic.\n\n\n' > "$TEST_TMP_DIR/direct-input"
+tail -c 10 "$TEST_TMP_DIR/direct-input" > "$TEST_TMP_DIR/direct-expected"
+if (sanitize_secrets() { cat; }; octo_safe_diagnostic_tail "$TEST_TMP_DIR/direct-input" 10) > "$TEST_TMP_DIR/direct-tail" &&
+   cmp -s "$TEST_TMP_DIR/direct-expected" "$TEST_TMP_DIR/direct-tail"; then
+    test_pass
+else
+    test_fail "successful diagnostic tail changed bytes or trailing newlines"
+fi
+
+test_case "stderr failure diagnostics are redacted before logging"
+stderr_log="$TEST_TMP_DIR/stderr-redaction.log"
+STDOUT_FAILURE='Not logged in' STDERR_FAILURE="Authentication failed: $synthetic_credential" LOG_FILE="$stderr_log" \
+    run_sync_fixture openrouter 0 stderr-redaction >/dev/null 2>&1 && stdout_rc=0 || stdout_rc=$?
+if [[ "$stdout_rc" == 1 ]] && grep -Fq 'Error details: Authentication failed' "$stderr_log" &&
+   ! grep -Fq 'xxxxxxxxxxxxxxxx' "$stderr_log"; then
+    test_pass
+else
+    test_fail "stderr retained a credential suffix or dropped safe context"
+fi
+
+test_case "diagnostic helper omits output without a sanitizer or with an empty file"
+empty_diagnostic="$TEST_TMP_DIR/empty-diagnostic"
+: > "$empty_diagnostic"
+if ! octo_safe_diagnostic_tail "$empty_diagnostic" > "$TEST_TMP_DIR/empty-tail" &&
+   (unset -f sanitize_secrets; ! octo_safe_diagnostic_tail "$PROJECT_ROOT/scripts/orchestrate.sh" > "$TEST_TMP_DIR/missing-sanitizer-tail") &&
+   [[ ! -s "$TEST_TMP_DIR/empty-tail" && ! -s "$TEST_TMP_DIR/missing-sanitizer-tail" ]]; then
+    test_pass
+else
+    test_fail "unavailable diagnostic dependencies published output"
+fi
+
 test_case "successful sync dispatch preserves a caller with errexit disabled"
 CALLER_ERREXIT=off run_sync_fixture agy 0 caller-errexit-off >/dev/null
 caller_options="$(cat "$TEST_TMP_DIR/caller-errexit-off/caller-options-after")"
@@ -219,5 +417,46 @@ if [[ "$overlong_rc" -eq 124 ]] && [[ "$(cat "$overlong_root/attempts")" == "1" 
 else
     test_fail "overlong attempt escaped its deadline (rc=$overlong_rc attempts=$(cat "$overlong_root/attempts" 2>/dev/null || echo 0) timeout=${overlong_attempt_timeout:-missing} completed=$([[ -e "$overlong_completion" ]] && echo yes || echo no) elapsed=${overlong_elapsed}s)"
 fi
+
+# Begin seat-reason control-byte regression controls.
+for reason_stream in stderr stdout; do
+    test_case "provider-derived $reason_stream reason is cleaned before seat publication"
+    reason_err="$TEST_TMP_DIR/reason-$reason_stream.err"
+    reason_out="$TEST_TMP_DIR/reason-$reason_stream.out"
+    reason_seat="$TEST_TMP_DIR/reason-$reason_stream.log"
+    : > "$reason_err"; : > "$reason_out"
+    reason_input="$reason_err"
+    [[ "$reason_stream" != stdout ]] || reason_input="$reason_out"
+    printf 'ERROR: \033[31mAuthentication failed: sk-%s\007%s\033[0m\177\n' \
+        'cccccccccccccccc' 'cccccccccccccccc' > "$reason_input"
+    (
+        source "$PROJECT_ROOT/scripts/lib/error-tracking.sh"
+        provider_reason="$(octo_failure_reason 1 'review this change' "$reason_err" "$reason_out")"
+        _OCTOPUS_SEAT_STDERR_FILE="$reason_seat" \
+            octo_capture_seat_failure fixture 1 "$provider_reason" "$reason_err" "$reason_out"
+    )
+    if python3 - "$reason_seat" <<'PY_REASON'
+from pathlib import Path
+import stat
+import sys
+data = Path(sys.argv[1]).read_bytes()
+header = data.splitlines()[0]
+assert b'Exit code 1' in header and b'Authentication failed' in header and b'[REDACTED-' in header
+assert b'cccccccccccccccc' not in data
+assert not any(c < 32 and c not in (9, 10, 13) or c == 127 for c in data)
+assert stat.S_IMODE(Path(sys.argv[1]).stat().st_mode) == 0o600
+PY_REASON
+    then test_pass; else test_fail "reason escaped control cleanup or credential redaction"; fi
+done
+
+test_case "header-only seat reasons discard partial output if control cleanup fails"
+reason_seat="$TEST_TMP_DIR/reason-partial.log"
+(
+    tr() { printf 'untrusted partial header'; return 9; }
+    _OCTOPUS_SEAT_STDERR_FILE="$reason_seat" \
+        octo_capture_seat_failure fixture 1 failed /dev/null /dev/null
+)
+if [[ ! -e "$reason_seat" ]]; then test_pass; else test_fail "failed header cleanup published partial output"; fi
+# End seat-reason control-byte regression controls.
 
 test_summary

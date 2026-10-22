@@ -53,6 +53,8 @@ OCTOPUS_COMPACT_BANNERS	skip	changes banner prose only; asserting it would pin c
 OCTOPUS_CONTEXT_SUMMARY_TRIGGER_RATIO	covered-by	test-context-budget.sh
 OCTOPUS_COST_MODE	covered-by	test-cost-mode-toggle.sh
 OCTOPUS_COUNCIL_CONTENT_MATCH_PROXIMITY_CHARS	covered-by	test-council-content-match-proximity.sh
+OCTOPUS_COUNCIL_DIFF_BASE	covered-by	test-council-quote-grounding.sh
+OCTOPUS_COUNCIL_QUOTE_VERIFY	covered-by	test-council-quote-grounding.sh
 OCTOPUS_COUNCIL_REQUIRE_CONTEXT	covered-by	test-council-context-guard.sh
 OCTOPUS_COUNCIL_TIMEOUT_	placeholder	doc template fragment for OCTOPUS_COUNCIL_TIMEOUT_<PROVIDER>, not a real variable
 OCTOPUS_CREDENTIAL_ENV_NAMES	covered-by	test-mcp-server.sh
@@ -107,6 +109,7 @@ OCTOPUS_REVIEWER_FLIP	covered-by	test-fable5-escalation.sh
 OCTOPUS_ROUTING_POLICY	covered-by	test-routing-evals-v10.sh
 OCTOPUS_RUN_ID	covered-by	test-agent-summary.sh
 OCTOPUS_SENTINEL_ENABLED	covered-by	test-sentinel.sh
+OCTOPUS_SYNC_FAILURE_OUTPUT_TAIL_BYTES	covered-by	test-agent-sync-signal-retry.sh
 OCTOPUS_TANGLE_ALLOW_DB_APPLY	covered-by	test-tangle-subtask-context.sh
 OCTOPUS_TANGLE_ADEQUACY_CONTEXT_BUDGET_RATIO	covered-by	test-tangle-adequacy-json-v1.sh
 OCTOPUS_TANGLE_RECONSIDERATION_CONTEXT_BUDGET_RATIO	covered-by	test-tangle-reconsideration-json-v1.sh

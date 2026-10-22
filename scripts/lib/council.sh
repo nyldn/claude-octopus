@@ -2051,8 +2051,9 @@ council_response_is_substantive() {
     # plan, PRD, or security audit files" REVISE was counted as the 2nd provider.)
     # A live evidence root lets the detector distinguish a real citation from
     # a fabricated file:line token. Standalone callers may omit it for plan or
-    # PRD reviews that have no source tree.
-    local f="$1" evidence_root="${2:-}"
+    # PRD reviews that have no source tree. Admission can pass the contribution's
+    # fresh grounding report as $3 so record and decision use the same result.
+    local f="$1" evidence_root="${2:-}" grounding_report="${3:-}"
     [[ -f "$f" ]] || return 1
 
     # 1) Host self-dispatch stub — runner-emitted, exact match. (grep -c … >/dev/null,
@@ -2077,7 +2078,7 @@ council_response_is_substantive() {
     #    be scored as a substantive responder. Fold it in here so the single
     #    substantive gate the quorum tally keys on and the advice-phase `blind` label
     #    agree; the advice phase still re-tests is_blind to label it distinctly.
-    if council_response_is_blind "$f" "$evidence_root"; then
+    if council_response_is_blind "$f" "$evidence_root" "$grounding_report"; then
         return 1
     fi
 
@@ -2420,13 +2421,24 @@ council_response_is_blind() {
     # round instead of eating several. First-person access failure is checked
     # independently of length; less-specific refusal and permission shapes remain
     # brevity-gated to protect genuine reviews that discuss those failures.
-    local f="$1" evidence_root="${2:-}"
+    # Optional $3 carries the report already created for this contribution.
+    local f="$1" evidence_root="${2:-}" grounding_report="${3:-}"
     [[ -f "$f" ]] || return 1
 
     # A first-person access failure is authoritative. Citation-shaped prose is not
     # evidence that the seat read the cited file, and must never override the
     # seat's own statement that it could not reach the artifact.
     if council_response_has_access_failure "$f"; then
+        return 0
+    fi
+
+    # Fabricated grounding (sail-cruisey #2997): the seat pairs real path:line
+    # citations with quoted "source" that appears in none of the cited files. A
+    # real citation token is not evidence of reading when the code it quotes is
+    # invented, so this overrides the citation exemptions below. Seats that quote
+    # nothing beside their citations, or whose cited files are unreadable, are
+    # unaffected within the verification budgets.
+    if council_response_quotes_fabricated "$f" "$evidence_root" "$grounding_report"; then
         return 0
     fi
 
@@ -2740,6 +2752,881 @@ print(json.dumps(validated, separators=(",", ":")))
 PY
 }
 
+COUNCIL_EMPTY_GROUNDING_JSON='{"verification_failed":false,"citations":0,"citations_unresolved":0,"quotes_checked":0,"quotes_verified":0,"quotes_near_line":0,"quotes_attributed":0,"quotes_attributed_unverified":0,"quotes_verified_in_diff_removed":0,"quotes_verified_in_diff_added":0,"quotes_unverified":0,"quotes_unverifiable":0,"quotes_unverifiable_claimed_removed":0,"quotes_unverifiable_unresolved_citation":0,"quotes_unverifiable_command":0,"quotes_unverifiable_proposed":0,"quotes_unverifiable_prose":0,"quotes_unverifiable_diff_incomplete":0,"quotes_omitted":0,"response_oversized":false,"diff_truncated":false,"diff_unavailable":false,"diff_sources":[],"fabricated":false,"unverified_samples":[]}'
+COUNCIL_FAILED_GROUNDING_JSON="${COUNCIL_EMPTY_GROUNDING_JSON/\"verification_failed\":false/\"verification_failed\":true}"
+
+council_response_quote_verification_json() {
+    # Verify the code a seat QUOTES next to its `path:line` citations (sail-cruisey
+    # #2997). council_response_evidence_paths_json only proves a cited file exists
+    # and has that many lines; a seat that invents the "source" it quotes beside a
+    # real path:line still passed as valid-grounded. Here every backtick span or
+    # fenced block within QUOTE_PROXIMITY chars of a resolving citation, and long
+    # enough to be specific (the sail-cruisey hook's floor: >=3 tokens and >=20
+    # normalized chars), must appear whitespace-normalized in a cited file. A match
+    # within NEAR_LINES of the cited line is also reported. A quote whose candidate
+    # files cannot be read is unverifiable, never failed. Prints one JSON object;
+    # "fabricated" is true when at least one quote was checked, none verified,
+    # and at least one definitively failed, OR when a quote the seat attributed to
+    # one citation (directly under it, or "x.ts:12 reads `...`") is in no cited
+    # file and not in the reviewed diff (sail-cruisey #3005).
+    #
+    # Citations resolve against the evidence root, then an attached
+    # --context-file by basename or path suffix, then a unique path suffix under
+    # the root including hidden directories such as .todo/ (sail-cruisey #3032).
+    # A quote attributed to a citation that resolves nowhere, and a command the
+    # seat ran, are unverifiable. HTML entities are decoded on both sides, and
+    # ">" blockquotes and bare lines under a citation-only line are quotes too.
+    local response_path="$1" evidence_root="$2"
+    local empty="$COUNCIL_EMPTY_GROUNDING_JSON"
+    local failed="$COUNCIL_FAILED_GROUNDING_JSON" report
+    [[ -f "$response_path" && -n "$evidence_root" && -d "$evidence_root" ]] || { printf '%s\n' "$empty"; return 0; }
+    command -v python3 >/dev/null 2>&1 || { printf '%s\n' "$empty"; return 0; }
+    # Bound parsing, evidence reads and descendants together. Missing supervision
+    # is a verification failure, not an unbounded fallback.
+    if ! declare -f _octo_run_bare_probe_with_timeout >/dev/null 2>&1; then
+        source "${_council_registry_dir}/bounded-probe.sh" 2>/dev/null || { printf '%s\n' "$failed"; return 0; }
+    fi
+    # Every readable --context-file is passed as a trailing argv entry. Each one
+    # can be the target of a citation ("phase-3-plan.md:8"), and those that look
+    # like a unified diff, plus `git diff` of the evidence root against
+    # OCTOPUS_COUNCIL_DIFF_BASE (default HEAD, i.e. the uncommitted working-tree
+    # change), supply quotes of REMOVED (or not-yet-on-disk added) code.
+    local -a diff_context_files=()
+    local ctx
+    for ctx in ${COUNCIL_CONTEXT_FILES[@]+"${COUNCIL_CONTEXT_FILES[@]}"}; do
+        [[ -f "$ctx" && -r "$ctx" ]] && diff_context_files+=("$ctx")
+    done
+    # Source evidence is data; never import project-local Python modules.
+    # Bash 3.2 misparses quoted heredocs inside command substitutions. Redirect
+    # the group so Python inherits its input before the report is captured.
+    if {
+        # Verification is not a provider dispatch. Preserve peer accounting and
+        # event logs while reusing the strict 15-second process-group budget.
+        report="$(OCTO_EVENT_LOG="" OCTOPUS_AUTO_PEER_DISPATCH_MARKER="" \
+        OCTOPUS_COUNCIL_DIFF_BASE="${OCTOPUS_COUNCIL_DIFF_BASE:-HEAD}" \
+        _octo_run_bare_probe_with_timeout 15 13 2 \
+        python3 -I - "$response_path" "$evidence_root" ${diff_context_files[@]+"${diff_context_files[@]}"} 2>/dev/null)"
+    } <<'PY'
+import html
+import json
+import os
+import re
+import selectors
+import subprocess
+import sys
+import time
+from bisect import bisect_left, bisect_right
+from pathlib import Path
+
+MAX_RESPONSE_BYTES = 1_048_576
+MAX_FILE_BYTES = 1_500_000
+MAX_DIFF_BYTES = 8_388_608
+MAX_UNITS = 256
+MAX_INDEX_ENTRIES = 50_000
+MAX_INDEX_DEPTH = 32
+QUOTE_PROXIMITY = 1500
+REMOVAL_WINDOW = 200
+NEAR_LINES = 40
+MIN_TOKENS = 3
+MIN_CHARS = 20
+
+result = {"verification_failed": False, "citations": 0, "citations_unresolved": 0, "quotes_checked": 0, "quotes_verified": 0,
+          "quotes_near_line": 0, "quotes_attributed": 0, "quotes_attributed_unverified": 0,
+          "quotes_verified_in_diff_removed": 0, "quotes_verified_in_diff_added": 0,
+          "quotes_unverified": 0, "quotes_unverifiable": 0,
+          "quotes_unverifiable_claimed_removed": 0, "quotes_unverifiable_unresolved_citation": 0,
+          "quotes_unverifiable_command": 0, "quotes_unverifiable_proposed": 0,
+          "quotes_unverifiable_prose": 0, "quotes_unverifiable_diff_incomplete": 0,
+          "quotes_omitted": 0, "response_oversized": False, "diff_truncated": False, "diff_unavailable": False, "diff_sources": [],
+          # Preserve the report schema without copying provider excerpts into
+          # persistent contribution records. Counts retain the rejection reason.
+          "fabricated": False, "unverified_samples": []}
+
+def emit():
+    print(json.dumps(result, separators=(",", ":")))
+    sys.exit(0)
+
+try:
+    with open(sys.argv[1], "rb") as handle:
+        raw = handle.read(MAX_RESPONSE_BYTES + 1)
+    if len(raw) > MAX_RESPONSE_BYTES:
+        result["response_oversized"] = True
+        emit()
+    # Some transports deliver Markdown HTML-escaped ("&gt; quote", "=&gt;").
+    # Unescape before parsing so blockquotes and operators read as written; the
+    # file side is unescaped the same way so an HTML source still matches.
+    resp = html.unescape(raw.decode("utf-8", "replace"))
+    root = Path(sys.argv[2]).resolve(strict=True)
+except (OSError, RuntimeError, ValueError):
+    result["verification_failed"] = True
+    emit()
+
+context_files = []
+for name in sys.argv[3:]:
+    try:
+        path = Path(name).resolve(strict=True)
+    except (OSError, RuntimeError):
+        continue
+    if path.is_file() and path not in context_files:
+        context_files.append(path)
+
+def norm(text):
+    return re.sub(r"\s+", " ", text).strip()
+
+def specific(text):
+    text = norm(text)
+    return len(text) >= MIN_CHARS and len(text.split(" ")) >= MIN_TOKENS
+
+# Hidden directories (.todo/, .claude/) hold real review artifacts, so a cited
+# path under one is resolved like any other. Only VCS and dependency trees are
+# pruned from the suffix index; containment and no-symlink rules still apply.
+INDEX_SKIP = {".git", ".hg", ".svn", "node_modules", "__pycache__", ".venv"}
+suffix_index = None
+suffix_index_complete = False
+def build_index():
+    paths, entries, complete = [], 0, True
+    stack = [(root, 0)]
+    while stack:
+        directory, depth = stack.pop()
+        try:
+            with os.scandir(directory) as listing:
+                for entry in listing:
+                    entries += 1
+                    if entries >= MAX_INDEX_ENTRIES:
+                        return [], False
+                    try:
+                        if entry.is_symlink():
+                            continue
+                        if entry.is_dir(follow_symlinks=False):
+                            if entry.name not in INDEX_SKIP:
+                                if depth < MAX_INDEX_DEPTH:
+                                    stack.append((Path(entry.path), depth + 1))
+                                else:
+                                    complete = False
+                        elif entry.is_file(follow_symlinks=False):
+                            paths.append((entry.path[::-1], Path(entry.path)))
+                    except OSError:
+                        complete = False
+        except OSError:
+            complete = False
+    return sorted(paths), complete
+
+def contained(candidate):
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        return False
+    return candidate.is_file()
+
+def resolve_citation(relative):
+    # 1) Relative to the evidence root, as written.
+    try:
+        candidate = (root / relative).resolve(strict=True)
+        if contained(candidate):
+            return candidate
+    except (OSError, RuntimeError):
+        pass
+    # 2) An attached --context-file, named by its basename or a path suffix
+    #    ("phase-3-plan.md:8" for .todo/claude-octopus/3032/phase-3-plan.md).
+    tail = "/" + relative.as_posix()
+    hits = [p for p in context_files if ("/" + p.as_posix()).endswith(tail)]
+    if len(hits) == 1:
+        return hits[0]
+    # 3) A unique path suffix under the root, including hidden directories. A bare
+    #    basename is too ambiguous to resolve this way.
+    if len(relative.parts) < 2:
+        return None
+    global suffix_index, suffix_index_complete
+    if suffix_index is None:
+        suffix_index, suffix_index_complete = build_index()
+    # An unread subtree can contain another hit for any apparent unique suffix.
+    if not suffix_index_complete:
+        return None
+    # Reversing paths turns a component suffix into a sorted prefix range.
+    # Only its first two entries are needed to distinguish unique from ambiguous.
+    key = tail[::-1]
+    at = bisect_left(suffix_index, (key,))
+    hits = [p for suffix, p in suffix_index[at:at + 2] if suffix.startswith(key)]
+    return hits[0] if len(hits) == 1 else None
+
+# Same citation grammar as council_response_evidence_paths_json, plus offsets.
+CITATION = re.compile(r"(?<![A-Za-z0-9_./-])([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9]*)\s*:\s*([0-9]+)(?:-([0-9]+))?(?![A-Za-z0-9_/-]|\.(?:[A-Za-z0-9_/-]|\.))")
+tokens = []      # every citation-shaped token: (start, end, path-or-None, line)
+citations = []   # the resolving subset
+CONSULTATIVE = re.compile(r"octopus-consultative\.(?:[^/]{6}|[0-9]+\.[0-9]+\.[^/.]{6})")
+
+def resolve_outside_form(raw):
+    # Absolute and ".." paths are kept as tokens so a quote written about them
+    # is never checked against some other nearby file. An existing file
+    # resolves only inside the root or as an attached context file. A deleted
+    # path maps back to the root only when it sits under a disposable
+    # consultative workspace, whose layout mirrors the root
+    # (".../octopus-consultative.<pid>.<run>.<random>/workspace/scripts/x.mjs").
+    try:
+        candidate = (raw if raw.is_absolute() else root / raw).resolve(strict=True)
+    except (OSError, RuntimeError):
+        candidate = None
+    if candidate is not None:
+        if contained(candidate) or candidate in context_files:
+            return candidate
+        return None
+    if raw.is_absolute():
+        parts = [part for part in raw.parts[1:] if part not in ("", ".")]
+        workspace = next(
+            (i for i, part in enumerate(parts)
+             if part == "workspace" and i > 0 and CONSULTATIVE.fullmatch(parts[i - 1])),
+            None,
+        )
+        if workspace is None:
+            return None
+        rest = parts[workspace + 1:]
+        if not rest or ".." in rest:
+            return None
+        try:
+            candidate = (root / Path(*rest)).resolve(strict=True)
+        except (OSError, RuntimeError):
+            return None
+        if contained(candidate):
+            return candidate
+    return None
+
+# Resolve each distinct path once, using the shared sorted suffix index.
+resolved = {}
+for match in CITATION.finditer(resp):
+    raw = match.group(1).strip()
+    if raw not in resolved:
+        relative = Path(raw)
+        if relative.is_absolute() or ".." in relative.parts:
+            resolved[raw] = resolve_outside_form(relative)
+        else:
+            resolved[raw] = resolve_citation(relative)
+    candidate = resolved[raw]
+    token = (match.start(), match.end(), candidate, int(match.group(2)))
+    tokens.append(token)
+    if candidate is not None:
+        citations.append(token)
+result["citations"] = len(citations)
+result["citations_unresolved"] = len(tokens) - len(citations)
+if not citations:
+    emit()
+
+# Quote units: fenced blocks, ">" blockquote runs, inline backtick spans outside
+# those blocks, and bare code lines directly under a citation-only line. Each unit is
+# (outer start, end, kind, block lines, removed lines, fence info).
+GUTTER = re.compile(r"^\s*\d+\s*[:|]\s?")
+DIFF_HUNK = re.compile(r"^@@ -[0-9]{1,10}(?:,([0-9]{1,10}))? \+[0-9]{1,10}(?:,([0-9]{1,10}))? @@(?: .*)?\r?$", re.M)
+units = []
+fence_ranges = []
+fences = []
+opener = None
+# A closing fence uses the same marker and at least the opening width. Scan
+# marker lines once so mismatched or unterminated fences cannot hide quotes.
+# Treat malformed info strings as openers too, matching the verdict parser.
+for match in re.finditer(r"^ {0,3}(`{3,}|~{3,})([^\n]*)(?:\n|$)", resp, re.M):
+    marker, info = match.groups()
+    if opener is None:
+        opener = match
+    elif (marker[0] == opener.group(1)[0] and len(marker) >= len(opener.group(1))
+          and not info.strip()):
+        fences.append((opener.start(), match.end(), opener.group(2), resp[opener.end():match.start()]))
+        opener = None
+if opener is not None:
+    fences.append((opener.start(), len(resp), opener.group(2), resp[opener.end():]))
+for start, end, info, body in fences:
+    fence_ranges.append((start, end))
+    info = info.strip().lower()
+    lines = body.split("\n")
+    diff_like = info in ("diff", "patch") or any(l.startswith(("@@", "+++ ", "--- ")) for l in lines)
+    kept, removed_kept = [], []
+    remaining, header_end = None, -1
+    for index, line in enumerate(lines):
+        if diff_like:
+            # Git metadata does not quote source or consume hunk capacity.
+            if line.rstrip("\r") == "\\ No newline at end of file":
+                continue
+            hunk = DIFF_HUNK.fullmatch(line)
+            if hunk:
+                remaining = [int(n) if n is not None else 1 for n in hunk.groups()]
+                continue
+            if remaining is not None and any(remaining):
+                context = line.startswith(" ") or (not line.rstrip("\r") and all(remaining))
+                consumed = (int(context or line.startswith("-")), int(context or line.startswith("+")))
+                remaining = ([left - n for left, n in zip(remaining, consumed)]
+                             if any(consumed) and all(n <= left for n, left in zip(consumed, remaining)) else None)
+            elif (line.startswith("--- ") and index + 2 < len(lines)
+                  and lines[index + 1].startswith("+++ ") and DIFF_HUNK.fullmatch(lines[index + 2])):
+                # A file header is a pair before a hunk. Inside the hunk, or
+                # in a headerless excerpt, +++/--- can be ++/-- source code.
+                header_end = index + 1
+            if index <= header_end:
+                continue
+            if line.startswith("-"):
+                # Removed code: verifiable only against the diff's removed side.
+                if line[1:].strip():
+                    removed_kept.append(line[1:])
+                continue
+            if line.startswith("+"):
+                line = line[1:]
+        if line.strip():
+            kept.append(line)
+    units.append((start, end, "fence", kept, removed_kept, info))
+
+# Fences come from one marker scan, so they are sorted and disjoint: only the
+# last fence starting before the span ends can overlap it. A bisect keeps a
+# response with many fences and spans linear-log instead of quadratic.
+fence_starts = [f_start for f_start, _ in fence_ranges]
+
+def in_fence(start, end):
+    i = bisect_right(fence_starts, end - 1) - 1
+    return i >= 0 and fence_ranges[i][1] > start
+
+blockquote_ranges = []
+for match in re.finditer(r"(?:^[ \t]*>[^\n]*(?:\n|$))+", resp, re.M):
+    if in_fence(match.start(), match.end()):
+        continue
+    lines = [re.sub(r"^[ \t]*>+ ?", "", l) for l in match.group(0).split("\n")]
+    # Whole-line inline formatting is Markdown, not literal source backticks.
+    lines = [re.sub(r"^[ \t]*`([^`\n]+)`[ \t]*$", r"\1", l) for l in lines if l.strip()]
+    if lines:
+        blockquote_ranges.append((match.start(), match.end()))
+        units.append((match.start(), match.end(), "blockquote", lines, [], ""))
+blockquote_starts = [q_start for q_start, _ in blockquote_ranges]
+# A code span closes with the same backtick-run width as its opener. Index the
+# next equal run once, so unmatched delimiters and many widths cannot cause
+# repeated suffix scans. Embedded runs of other widths remain literal source.
+backticks = list(re.finditer(r"`+", resp))
+next_backtick = [None] * len(backticks)
+last_backtick = {}
+for backtick_index in range(len(backticks) - 1, -1, -1):
+    width = len(backticks[backtick_index].group())
+    next_backtick[backtick_index] = last_backtick.get(width)
+    last_backtick[width] = backtick_index
+backtick_index = 0
+while backtick_index < len(backticks):
+    opening = backticks[backtick_index]
+    closing_index = next_backtick[backtick_index]
+    backtick_index += 1
+    if closing_index is None:
+        continue
+    closing = backticks[closing_index]
+    quote_index = bisect_right(blockquote_starts, closing.end() - 1) - 1
+    if in_fence(opening.start(), closing.end()) or (
+            quote_index >= 0 and blockquote_ranges[quote_index][1] > opening.start()):
+        continue
+    # Markdown code spans replace embedded line endings with spaces.
+    body = re.sub(r"\r\n?|\n", " ", resp[opening.end():closing.start()])
+    units.append((opening.start(), closing.end(), "inline", [body.strip()], [], ""))
+    backtick_index = closing_index + 1
+# The "path:line" list shape: a line holding only a citation, followed by the
+# quoted source line with no markup. These can only add verified evidence; an
+# unmatched bare line may be prose, so it is never counted against the seat.
+LINK_TARGET = re.compile(r"\]\([^)\s]*\)")
+for c_start, c_end, _, _ in tokens:
+    line_start = resp.rfind("\n", 0, c_start) + 1
+    line_end = resp.find("\n", c_end)
+    if line_end < 0:
+        continue
+    rest = LINK_TARGET.sub("", resp[line_start:c_start] + resp[c_end:line_end])
+    if re.sub(r"[\s`*_\[\]():#.\-0-9]", "", rest):
+        continue
+    next_end = resp.find("\n", line_end + 1)
+    next_end = len(resp) if next_end < 0 else next_end
+    line = resp[line_end + 1:next_end]
+    stripped = line.strip()
+    if not stripped or "`" in line or stripped.startswith((">", "#", "|")) or in_fence(line_end + 1, next_end):
+        continue
+    units.append((line_end + 1, next_end, "bare", [line], [], ""))
+units.sort(key=lambda unit: unit[0])
+
+def checkable(text):
+    # A quoted citation or a bare path is not a code quote.
+    if CITATION.search(text):
+        return False
+    if " " not in norm(text) and "/" in text:
+        return False
+    return specific(text)
+
+def specific_lines(block):
+    out = []
+    for line in block:
+        variants = [line.strip()]
+        stripped = GUTTER.sub("", line).strip()
+        if stripped != variants[0]:
+            variants.append(stripped)
+        variants = [v for v in variants if checkable(v)]
+        if variants:
+            out.append(variants)
+    return out
+
+def unit_wholes(block):
+    whole = " ".join(l.strip() for l in block)
+    out = [whole] if whole else []
+    unguttered = " ".join(GUTTER.sub("", l).strip() for l in block)
+    if unguttered and unguttered != whole:
+        out.append(unguttered)
+    return [v for v in out if checkable(v)]
+
+file_cache = {}
+def load(path):
+    if path in file_cache:
+        return file_cache[path]
+    entry = None
+    try:
+        if path.stat().st_size <= MAX_FILE_BYTES:
+            data = html.unescape(path.read_bytes().decode("utf-8", "replace"))
+            starts, parts, pos = [], [], 0
+            for line in data.split("\n"):
+                piece = norm(line)
+                if not piece:
+                    continue
+                starts.append(pos)
+                parts.append(piece)
+                pos += len(piece) + 1
+            entry = (" ".join(parts), starts, [i for i, l in enumerate(data.split("\n"), 1) if norm(l)])
+    except (OSError, ValueError):
+        entry = None
+    file_cache[path] = entry
+    return entry
+
+ELLIPSIS = re.compile(r"\s*(?:\.\.\.|…)\s*")
+def find_lines(hay, starts, line_numbers, needle, limit=50, following=()):
+    found, at = [], hay.find(needle)
+    while at >= 0 and len(found) < limit:
+        end = at + len(needle)
+        for piece in following:
+            pos = hay.find(piece, end)
+            if pos < 0:
+                return found  # Later starts cannot complete this sequence either.
+            end = pos + len(piece)
+        found.append(line_numbers[bisect_right(starts, at) - 1] if starts else 1)
+        at = hay.find(needle, at + 1)
+    return found
+
+def match_variant(text, entry):
+    hay, starts, line_numbers = entry
+    needle = norm(text)
+    lines = find_lines(hay, starts, line_numbers, needle)
+    if lines:
+        return lines
+    # Elided fragments must occur in source order without reusing characters.
+    pieces = [p for p in ELLIPSIS.split(needle) if specific(p)]
+    if len(pieces) > 1 or (pieces and pieces[0] != needle):
+        return find_lines(hay, starts, line_numbers, pieces[0], following=pieces[1:])
+    return []
+
+def match_unit(wholes, line_variants, entry):
+    # A multi-line block verifies as a whole or when at least two thirds of its
+    # specific lines are in the file. One generic real line (a signature, an
+    # "if (flag) {") can no longer carry an otherwise invented block.
+    for variant in wholes:
+        lines = match_variant(variant, entry)
+        if lines:
+            return lines
+    if not line_variants:
+        return []
+    found = []
+    for variants in line_variants:
+        for variant in variants:
+            lines = match_variant(variant, entry)
+            if lines:
+                found.append(lines)
+                break
+    if found and len(found) * 3 >= len(line_variants) * 2:
+        return found[0]
+    return []
+
+all_cited = []
+for _, _, path, _ in citations:
+    if path not in all_cited:
+        all_cited.append(path)
+
+# Removed/added sides of the reviewed diff. Reviewers routinely quote deleted
+# code ("this guard was removed"); that code is in no working-tree file, so it
+# is checked here instead of being reported as fabricated. Loaded lazily, only
+# when a quote fails against the cited files.
+diff_sides = None
+def split_diff(text):
+    removed, added = [], []
+    remaining = None
+    for line in html.unescape(text).split("\n"):
+        hunk = DIFF_HUNK.fullmatch(line)
+        if hunk:
+            remaining = [int(n) if n is not None else 1 for n in hunk.groups()]
+            continue
+        # Only unified hunk lines are source evidence. Headers and Markdown
+        # bullets outside the declared line counts cannot manufacture removals.
+        if remaining is None or line.startswith("\\ No newline at end of file"):
+            continue
+        # Git's diff.suppressBlankEmpty omits the marker on empty context.
+        context = line.startswith(" ") or (not line.rstrip("\r") and all(remaining))
+        consumed = (int(context or line.startswith("-")), int(context or line.startswith("+")))
+        if not any(consumed) or any(n > left for n, left in zip(consumed, remaining)):
+            remaining = None
+            continue
+        remaining = [left - n for left, n in zip(remaining, consumed)]
+        if line.startswith("-"):
+            piece = norm(line[1:])
+            if piece:
+                removed.append(piece)
+        elif line.startswith("+"):
+            piece = norm(line[1:])
+            if piece:
+                added.append(piece)
+    return removed, added
+
+def read_git_diff(command, env, limit=MAX_DIFF_BYTES):
+    # Read one byte past the cap to detect truncation without buffering the
+    # remaining diff. Keep the original ten-second deadline, including exit.
+    deadline = time.monotonic() + 10
+    with subprocess.Popen(command, env=env, stdout=subprocess.PIPE,
+                          stderr=subprocess.DEVNULL) as proc:
+        try:
+            raw = bytearray()
+            with selectors.DefaultSelector() as selector:
+                selector.register(proc.stdout, selectors.EVENT_READ)
+                while len(raw) <= limit:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0 or not selector.select(remaining):
+                        raise subprocess.TimeoutExpired(command, 10)
+                    chunk = os.read(proc.stdout.fileno(), min(65536, limit + 1 - len(raw)))
+                    if not chunk:
+                        break
+                    raw.extend(chunk)
+            if len(raw) > limit:
+                proc.kill()
+                return raw
+            return raw if proc.wait(timeout=max(0, deadline - time.monotonic())) == 0 else None
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+
+def load_diff_sides():
+    removed, added = [], []
+    for path in context_files:
+        try:
+            with open(path, "rb") as handle:
+                raw_diff = handle.read(MAX_DIFF_BYTES + 1)
+        except OSError:
+            continue
+        data = raw_diff[:MAX_DIFF_BYTES].decode("utf-8", "replace")
+        if not DIFF_HUNK.search(data):
+            continue  # a file header or Markdown rule alone is not diff evidence
+        result["diff_truncated"] |= len(raw_diff) > MAX_DIFF_BYTES
+        r, a = split_diff(data)
+        if not r and not a:
+            continue  # a plan or prose artifact; its "- " bullets are not removed code
+        removed += r
+        added += a
+        result["diff_sources"].append("context-file")
+    base = os.environ.get("OCTOPUS_COUNCIL_DIFF_BASE", "HEAD") or "HEAD"
+    if re.fullmatch(r"[A-Za-z0-9._/@^~-]{1,200}", base) and not base.startswith("-"):
+        env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+        env.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull, GIT_OPTIONAL_LOCKS="0")
+        try:
+            git_command = ["git", "-C", str(root), "-c", "core.fsmonitor=false"]
+            # Attributes can select clean/process commands even with textconv
+            # disabled. Override every configured driver, including those used by
+            # .git/info/attributes and core.attributesFile. Read names, not values.
+            config = read_git_diff(git_command + ["config", "--null", "--name-only", "--list"], env, 65_536)
+            if config is None or len(config) > 65_536:
+                raise subprocess.SubprocessError("filter configuration unavailable")
+            drivers = {key.rsplit(b".", 1)[0] for key in bytes(config).split(b"\0")
+                       if key.lower().startswith(b"filter.") and
+                       key.rsplit(b".", 1)[-1].lower() in (b"clean", b"process", b"required")}
+            for driver in sorted(drivers):
+                if b"=" in driver:
+                    raise subprocess.SubprocessError("unsafe filter driver name")
+                name = os.fsdecode(driver)
+                git_command += ["-c", name + ".clean=", "-c", name + ".process=",
+                                "-c", name + ".required=false"]
+            raw_diff = read_git_diff(git_command + ["diff", "--no-color", "--no-ext-diff",
+                                                   "--no-textconv", "--unified=0", base, "--"], env)
+            if raw_diff is None:
+                # A plain evidence directory has no default Git diff. In a
+                # worktree, or with a requested base, failure is missing evidence.
+                result["diff_unavailable"] = base != "HEAD" or any(
+                    (parent / ".git").exists() for parent in (root, *root.parents))
+            elif raw_diff:
+                result["diff_truncated"] |= len(raw_diff) > MAX_DIFF_BYTES
+                r, a = split_diff(raw_diff[:MAX_DIFF_BYTES].decode("utf-8", "replace"))
+                if r or a:
+                    removed += r
+                    added += a
+                    result["diff_sources"].append("git-diff:" + base)
+        except (OSError, subprocess.SubprocessError):
+            result["diff_unavailable"] = True
+    else:
+        result["diff_unavailable"] = True
+    # Joined so a multi-line quote of consecutive diff lines still matches.
+    return (" ".join(removed), " ".join(added))
+
+def in_diff_side(wholes, line_variants, side):
+    # Reuse the source-file threshold, including elision and gutter handling.
+    return bool(side and match_unit(wholes, line_variants, (side, [0], [1])))
+
+REMOVAL_WORDS = re.compile(r"\b(remov(?:e|ed|es|ing|al)|delet(?:e|ed|es|ing|ion)|drop(?:ped|s)?|no longer|was gone|got rid of)\b", re.I)
+# A command the seat ran ("`npm ci --dry-run`") is not a claim about file
+# content. If it is not in the cited file, it is unverifiable, never fabricated.
+COMMAND = re.compile(r"^\$?\s*(?:npm|npx|pnpm|yarn|node|deno|bun|git|gh|make|bash|sh|zsh|cd|ls|cat|grep|rg|sed|awk|curl|python3?|pip|uv|cargo|go|tsc|vitest|jest|pytest|docker|kubectl|psql|netlify|supabase|env)\s")
+SHELL_FENCES = {"sh", "bash", "shell", "console", "zsh", "terminal", "shell-session"}
+# A unit is ATTRIBUTED when it sits directly under or after a citation, with only
+# markup or a source verb between them ("x.ts:12 defines `...`", "x.ts:12:" then a
+# fence). That is the seat stating the cited file contains this code, so the
+# quote must be found in that file, and a failure counts against the seat even
+# when other quotes verify. A proposal on the citation's line ("change x.ts:12
+# to:") is not a claim about current content.
+GAP_WORDS = {"reads", "read", "shows", "show", "contains", "contain", "has", "says", "is", "at",
+             "defines", "define", "defined", "declares", "declare", "declared",
+             "line", "lines", "source", "code", "verbatim", "quote", "quoted", "excerpt",
+             "current", "currently", "actual", "l"}
+SOURCE_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|is|defines?|defined|declares?|declared)\b", re.I)
+SOURCE_ABSENCE = re.compile(
+    r"\b(?:(?:does|do|did)\s+not|(?:doesn|don|didn)['’]t)\s+"
+    r"(?:currently\s+)?(?:contain|show|read|say|define|declare|have)\b", re.I)
+PROPOSAL = re.compile(r"\b(should|propos\w*|suggest\w*|recommend\w*|replace with|instead|would|could|change (?:it |this )?to|rewrit\w*|becomes?|example|e\.g\.|such as|consider|cover|prefer\w*|expected|want)\b", re.I)
+# Backticks also format prose and multiword values. Sentence punctuation alone
+# is not code syntax, nor is a dotted name embedded in a sentence. Calls,
+# indexing, operators and statements returning a member expression still are.
+CODE_SYNTAX = re.compile(
+    r"[{}=<>+*/%|&]|\b[\w$]+[\[(]|!=|\?\?|\?\.|"
+    r"^\s*(?:return|yield|raise|throw|delete)\s+[\w$]+(?:\.[\w$]+)+\b|"
+    r"\S\s+\?\s+[^?\s:][^?:]*:\s+\S")
+
+token_ends = [t[1] for t in tokens]
+citation_starts = [c[0] for c in citations]
+citation_ends = [c[1] for c in citations]
+
+def association(start):
+    # The citation a quote is written about: the nearest one before it in the
+    # same paragraph, with no other quote between them.
+    index = bisect_right(token_ends, start) - 1
+    if index < 0:
+        return None, ""
+    token = tokens[index]
+    gap = LINK_TARGET.sub("", resp[token[1]:start]).lstrip("`")
+    if len(gap) > 300 or "`" in gap or re.search(r"\n[ \t]*\n", gap):
+        return None, ""
+    return token, gap
+
+def attribution(token, gap):
+    if token is None or len(gap) > 200 or gap.count("\n") > 2:
+        return None
+    # A source verb in this bounded clause still attributes the quote when
+    # ordinary modifiers follow it. A new sentence or a proposal ends that claim.
+    source_clause = SOURCE_VERB.search(gap) and not re.search(r"[.!?;]", gap)
+    if PROPOSAL.search(gap) or (not source_clause and any(
+            word.lower() not in GAP_WORDS for word in re.findall(r"[A-Za-z]+", gap))):
+        return None
+    line_start = resp.rfind("\n", 0, token[0]) + 1
+    if PROPOSAL.search(CITATION.sub("", LINK_TARGET.sub("", resp[line_start:token[0]]))):
+        return None
+    return token
+
+def proposed(start):
+    # "Cover inputs such as `...`", "should become:" then a fence: the seat's own
+    # suggestion, not a claim about what a file contains today. Blank lines do
+    # not sever that lead-in; other nonempty lines still end its scope.
+    line_start = resp.rfind("\n", 0, start) + 1
+    prose = resp[line_start:start]
+    if prose.strip(" \t>`") == "":
+        preceding = resp[:line_start].rstrip()
+        prose = preceding[preceding.rfind("\n") + 1:]
+    # A source filename such as example.ts is not proposal language.
+    prose = CITATION.sub("", LINK_TARGET.sub("", prose))
+    return bool(PROPOSAL.search(prose))
+
+checkable_units = 0
+for start, end, kind, block, removed_block, info in units:
+    wholes = unit_wholes(block) if len(block) > 1 else []
+    line_variants = specific_lines(block)
+    removed_variants = [v for v in [" ".join(l.strip() for l in removed_block)] + [l.strip() for l in removed_block]
+                        if v and checkable(v)]
+    if not wholes and not line_variants and not removed_variants and not (
+            removed_block and checkable(" ".join(block + removed_block))):
+        continue
+    # Specificity selects the entire quote. A short nonempty side of a mixed
+    # quote still needs an exact whole-side match; it is not an absent side.
+    if removed_block and block and not (wholes or line_variants):
+        wholes = [norm(" ".join(block))]
+    flat_variants = wholes + [v for variants in line_variants for v in variants]
+    associated, gap = association(start)
+    attributed = attribution(associated, gap)
+    if associated is not None and associated[2] is None:
+        # Written about a citation that names a file outside the evidence root
+        # (an upstream repo, a symlinked dependency tree): unverifiable, and never
+        # checked against some other file the seat cited nearby.
+        if kind != "bare":
+            result["quotes_checked"] += 1
+            result["quotes_unverifiable"] += 1
+            result["quotes_unverifiable_unresolved_citation"] += 1
+        continue
+    if attributed is not None:
+        bound = [(attributed[2], attributed[3])]
+    else:
+        lo = bisect_left(citation_ends, start - QUOTE_PROXIMITY)
+        hi = bisect_right(citation_starts, end + QUOTE_PROXIMITY)
+        bound = [(path, line) for _, _, path, line in citations[lo:hi]]
+    if not bound:
+        continue
+    # Only specific, citation-bound units consume matching capacity. Count
+    # omitted units without reading or matching evidence beyond the cap.
+    if checkable_units >= MAX_UNITS:
+        result["quotes_omitted"] += 1
+        continue
+    checkable_units += 1
+    absences = list(SOURCE_ABSENCE.finditer(gap))
+    absence = absences[-1] if absences else None
+    if (associated is not None and absence and len(gap) <= 200 and gap.count("\n") <= 2
+            and not re.search(r"[.!?;]", gap) and not SOURCE_VERB.search(gap, absence.end())):
+        # An explicit absence claim is not positive source evidence. Do not
+        # match it as a quote, even when its text happens to exist in a file.
+        result["quotes_checked"] += 1
+        result["quotes_unverifiable"] += 1
+        continue
+    bound_paths = []
+    for path, _ in bound:
+        if path not in bound_paths:
+            bound_paths.append(path)
+    # A miss is only checkable when every file the quote is bound to loaded; a
+    # readable neighbor cannot stand in for an oversized or unreadable bound file.
+    readable = True
+    verified = near = False
+    for path in bound_paths + [p for p in all_cited if p not in bound_paths]:
+        entry = load(path)
+        if entry is None:
+            if path in bound_paths:
+                readable = False
+            continue
+        lines = match_unit(wholes, line_variants, entry)
+        if not lines:
+            continue
+        verified = True
+        cited_lines = [line for p, line in bound if p == path]
+        near = any(abs(found - cited) <= NEAR_LINES for found in lines for cited in cited_lines)
+        break
+    if kind == "bare":
+        # Positive evidence only: a matched bare line is a verified quote; an
+        # unmatched one may be the seat's own prose and is not counted.
+        if verified:
+            result["quotes_checked"] += 1
+            result["quotes_verified"] += 1
+            result["quotes_near_line"] += int(near)
+            if attributed is not None:
+                result["quotes_attributed"] += 1
+        continue
+    result["quotes_checked"] += 1
+    if attributed is not None:
+        result["quotes_attributed"] += 1
+    diff_side_hit = None
+    if not verified or removed_block:
+        if diff_sides is None:
+            diff_sides = load_diff_sides()
+        removed_side, added_side = diff_sides
+        if removed_block:
+            # A mixed fence makes claims about both versions. A genuine
+            # addition cannot excuse invented removals, or the reverse.
+            removed_wholes = unit_wholes(removed_block) or [norm(" ".join(removed_block))]
+            removed_hit = in_diff_side(removed_wholes, specific_lines(removed_block), removed_side)
+            kept_hit = verified or not block or in_diff_side(wholes, line_variants, added_side)
+            verified = False
+            if removed_hit and kept_hit:
+                diff_side_hit = "removed"
+        elif in_diff_side(wholes, line_variants, removed_side):
+            diff_side_hit = "removed"
+        elif in_diff_side(wholes, line_variants, added_side):
+            diff_side_hit = "added"
+    sample = (flat_variants or removed_variants)[0]
+    if verified:
+        result["quotes_verified"] += 1
+        if near:
+            result["quotes_near_line"] += 1
+    elif diff_side_hit:
+        result["quotes_verified"] += 1
+        result["quotes_verified_in_diff_" + diff_side_hit] += 1
+    elif not diff_sides[0] and not diff_sides[1] and (
+            removed_block or REMOVAL_WORDS.search(resp[max(0, start - REMOVAL_WINDOW):end + REMOVAL_WINDOW])):
+        # No diff to check a claimed removal against: unverifiable, not fabricated.
+        result["quotes_unverifiable"] += 1
+        result["quotes_unverifiable_claimed_removed"] += 1
+    elif attributed is None and (info in SHELL_FENCES or (
+            block and all(COMMAND.match(norm(l) + " ") for l in block))):
+        result["quotes_unverifiable"] += 1
+        result["quotes_unverifiable_command"] += 1
+    elif proposed(start):
+        result["quotes_unverifiable"] += 1
+        result["quotes_unverifiable_proposed"] += 1
+    elif kind in ("inline", "blockquote") and attributed is None and not CODE_SYNTAX.search(sample):
+        result["quotes_unverifiable"] += 1
+        result["quotes_unverifiable_prose"] += 1
+    elif result["diff_truncated"] or result["diff_unavailable"]:
+        # A missing quote may be in omitted or unavailable diff evidence,
+        # including a genuine removal absent from the current cited file.
+        result["quotes_unverifiable"] += 1
+        result["quotes_unverifiable_diff_incomplete"] += 1
+    elif readable:
+        result["quotes_unverified"] += 1
+        if attributed is not None:
+            result["quotes_attributed_unverified"] += 1
+    else:
+        result["quotes_unverifiable"] += 1
+
+# Fabricated when every checked quote failed, or when an attributed quote is
+# absent from every cited file and the reviewed diff. Attribution identifies
+# source claims; matching does not prove which file supplied the quote
+# (sail-cruisey #3005: five real quotes alongside
+# two invented "Checked Source Citations" blocks).
+result["fabricated"] = (result["quotes_attributed_unverified"] > 0 or
+                        (result["quotes_unverified"] > 0 and result["quotes_verified"] == 0))
+emit()
+PY
+    then
+        printf '%s\n' "$report"
+    else
+        # Discard partial stdout; a crashed verifier cannot grant grounding.
+        printf '%s\n' "$failed"
+    fi
+}
+
+council_response_quote_report_cached() {
+    # Sets COUNCIL_QUOTE_REPORT to the verification report for this response,
+    # sharing preliminary checks when response bytes and evidence configuration
+    # are unchanged. This key does not fingerprint evidence contents. Contribution
+    # records must clear it to reverify current evidence before serialization.
+    local f="$1" evidence_root="$2" stamp key
+    # Content checksum, not mtime: a response rewritten within one second must
+    # not reuse the previous report.
+    stamp="$(cksum < "$f" 2>/dev/null)" || stamp=""
+    [[ -n "$stamp" ]] || { COUNCIL_QUOTE_REPORT="$(council_response_quote_verification_json "$f" "$evidence_root")"; COUNCIL_QUOTE_REPORT_KEY=""; return 0; }
+    key="${f}|${evidence_root}|${stamp}|${OCTOPUS_COUNCIL_DIFF_BASE:-HEAD}|${COUNCIL_CONTEXT_FILES[*]+${COUNCIL_CONTEXT_FILES[*]}}"
+    if [[ -n "${COUNCIL_QUOTE_REPORT_KEY:-}" && "$COUNCIL_QUOTE_REPORT_KEY" == "$key" && -n "${COUNCIL_QUOTE_REPORT:-}" ]]; then
+        return 0
+    fi
+    COUNCIL_QUOTE_REPORT="$(council_response_quote_verification_json "$f" "$evidence_root")"
+    COUNCIL_QUOTE_REPORT_KEY="$key"
+}
+
+council_response_quotes_fabricated() {
+    # Reject fabricated quotes, verification failures and responses above either budget.
+    # Opt out with OCTOPUS_COUNCIL_QUOTE_VERIFY=0. A precomputed JSON may be passed
+    # as $3 to avoid re-scanning. Oversized responses and omitted quote units are
+    # rejected because they cannot be checked, without labeling them fabricated.
+    # Verification or report parsing failures reject the seat for the same reason.
+    local f="$1" evidence_root="${2:-}" precomputed="${3:-}"
+    [[ "${OCTOPUS_COUNCIL_QUOTE_VERIFY:-1}" != "0" ]] || return 1
+    [[ -f "$f" && -n "$evidence_root" && -d "$evidence_root" ]] || return 1
+    local report="$precomputed"
+    if [[ -z "$report" ]]; then
+        council_response_quote_report_cached "$f" "$evidence_root"
+        report="$COUNCIL_QUOTE_REPORT"
+    fi
+    local rc=0
+    jq -se 'length != 1 or (.[0] | type != "object" or .verification_failed == true
+        or .fabricated == true or .response_oversized == true or ((.quotes_omitted // 0) > 0))' \
+        <<< "$report" >/dev/null 2>&1 || rc=$?
+    # Only jq's false result permits the seat; parse or tool errors reject.
+    (( rc != 1 ))
+}
+
 council_artifact_digest() {
     local evidence_root="$1" task="${2:-${COUNCIL_TASK:-}}"
     [[ -d "$evidence_root" ]] || return 1
@@ -2818,9 +3705,28 @@ council_contribution_record_json() {
     local response_path="$1" evidence_root="$2" artifact_digest="$3"
     local workspace_digest="$artifact_digest"
     local verdict="" evidence='[]' access_state="unverified" validation_result="invalid-empty"
+    local grounding="$COUNCIL_EMPTY_GROUNDING_JSON"
     if council_response_nonempty "$response_path"; then
         verdict="$(council_response_verdict "$response_path")"
-        if council_response_is_blind "$response_path" "$evidence_root"; then
+        if [[ "${OCTOPUS_COUNCIL_QUOTE_VERIFY:-1}" != "0" ]]; then
+            # Source, context and resolved diff bytes can change after the
+            # preliminary checks even when this response and its config do not.
+            COUNCIL_QUOTE_REPORT_KEY=""
+            council_response_quote_report_cached "$response_path" "$evidence_root"
+            grounding="$COUNCIL_QUOTE_REPORT"
+            jq -se 'length == 1 and (.[0] | type == "object")' <<< "$grounding" >/dev/null 2>&1 \
+                || grounding="$COUNCIL_FAILED_GROUNDING_JSON"
+        fi
+        if council_response_has_access_failure "$response_path"; then
+            # Keep file-access guidance authoritative even when quotes fail.
+            access_state="failed"
+            validation_result="invalid-access"
+        elif council_response_quotes_fabricated "$response_path" "$evidence_root" "$grounding"; then
+            # Distinct from invalid-access: evidence is rejected for fabricated
+            # quotes, verification failure, or a response above the budgets.
+            access_state="evidence-rejected"
+            validation_result="invalid-ungrounded"
+        elif council_response_is_blind "$response_path" "$evidence_root" "$grounding"; then
             access_state="failed"
             validation_result="invalid-access"
         elif ! council_response_has_verdict "$response_path"; then
@@ -2850,15 +3756,16 @@ PY
     fi
     jq -cn --arg artifact_digest "$artifact_digest" --arg workspace_digest "$workspace_digest" --arg access_state "$access_state" \
         --arg validation_result "$validation_result" --arg verdict "$verdict" \
-        --argjson evidence_paths "$evidence" \
+        --argjson evidence_paths "$evidence" --argjson grounding "$grounding" \
         '{artifact_digest:$artifact_digest, workspace_digest:$workspace_digest, access_state:$access_state,
           evidence_paths:$evidence_paths, validation_result:$validation_result,
           verdict:(if $verdict=="" then null else $verdict end),
+          grounding:$grounding,
           comprehension_verified:false}'
 }
 
 council_unavailable_contribution_record_json() {
-    printf '%s\n' '{"artifact_digest":"unavailable","workspace_digest":"unavailable","access_state":"unverified","evidence_paths":[],"validation_result":"invalid-record","verdict":null,"comprehension_verified":false}'
+    printf '{"artifact_digest":"unavailable","workspace_digest":"unavailable","access_state":"unverified","evidence_paths":[],"validation_result":"invalid-record","verdict":null,"comprehension_verified":false,"grounding":%s}\n' "$COUNCIL_EMPTY_GROUNDING_JSON"
 }
 
 council_received_non_chair() {
@@ -3155,7 +4062,7 @@ council_run_advice_phase() {
 
     local index=0 member persona slug output_path seat mprovider mprovider_spec verdict
     local seat_org seat_model seat_model_family resp_bytes seat_status seat_rec dispatch_timeout_provenance
-    local evidence_root="${OCTOPUS_PROJECT_DIR:-${PROJECT_ROOT:-$PWD}}" artifact_digest contribution_json
+    local evidence_root="${OCTOPUS_PROJECT_DIR:-${PROJECT_ROOT:-$PWD}}" artifact_digest contribution_json grounding_report
     [[ -d "$evidence_root" ]] || evidence_root="$PWD"
     artifact_digest="$(council_artifact_digest "$evidence_root" "${COUNCIL_TASK:-}")" || artifact_digest="unavailable"
     COUNCIL_ARTIFACT_DIGEST="$artifact_digest"
@@ -3206,12 +4113,23 @@ council_run_advice_phase() {
         _OCTOPUS_SEAT_STDERR_FILE="$stderr_file" \
             council_dispatch_member_detached "$member" "independent-advice" "$output_path" || dispatch_rc=$?
         dispatch_timeout_provenance="$COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE"
+        # Admit the serialized contribution before changing any response or vote
+        # counters. A refreshed report can reject evidence that passed earlier
+        # checks, and its verdict must be the one recorded and tallied below.
+        contribution_json="$(council_contribution_record_json "$output_path" "$evidence_root" "$artifact_digest")" \
+            || contribution_json="$(council_unavailable_contribution_record_json)"
+        # Command substitution cannot share the verifier's shell cache. Carry
+        # this contribution's fresh report through every admission check instead.
+        grounding_report="$(jq -ce '.grounding | objects' <<< "$contribution_json" 2>/dev/null)" \
+            || grounding_report="$COUNCIL_FAILED_GROUNDING_JSON"
         # Confirm-finish-before-shortage: a non-zero dispatch (e.g. the per-seat
         # timeout fired) may still have left a COMPLETE, verdict-bearing review that
         # the seat finished writing right at the boundary. Salvage that instead of
         # discarding a usable verdict as a provider shortage (sail-cruisey #2077).
-        if council_response_nonempty "$output_path" \
-                && council_response_is_substantive "$output_path" "$evidence_root" \
+        if jq -e '.validation_result == "valid-grounded" or .validation_result == "valid-unverified"' \
+                <<< "$contribution_json" >/dev/null 2>&1 \
+                && council_response_nonempty "$output_path" \
+                && council_response_is_substantive "$output_path" "$evidence_root" "$grounding_report" \
                 && { (( dispatch_rc == 0 )) || council_response_has_verdict "$output_path"; }; then
             COUNCIL_RESPONSES_RECEIVED=$((COUNCIL_RESPONSES_RECEIVED + 1))
             resp_bytes="$(wc -c < "$output_path" 2>/dev/null | tr -d '[:space:]')"; [[ -z "$resp_bytes" ]] && resp_bytes=0
@@ -3233,7 +4151,7 @@ council_run_advice_phase() {
             # independent approver plus the chair's own vendor could pass a 2-vendor
             # quorum. The chair-fallback path never added to this set either, so gating
             # on non-chair seats keeps seats[] and quorum consistent (#670).
-            verdict="$(council_response_verdict "$output_path")"
+            verdict="$(jq -r '.verdict' <<< "$contribution_json")"
             seat_status="responded"
             if [[ "$seat" != "chair" ]]; then
                 COUNCIL_RESPONDING_PROVIDERS="${COUNCIL_RESPONDING_PROVIDERS} ${mprovider}"
@@ -3245,15 +4163,14 @@ council_run_advice_phase() {
             fi
         elif council_response_nonempty "$output_path"; then
             resp_bytes="$(wc -c < "$output_path" 2>/dev/null | tr -d '[:space:]')"; [[ -z "$resp_bytes" ]] && resp_bytes=0
-            if council_response_is_substantive "$output_path" "$evidence_root"; then
+            if council_response_is_substantive "$output_path" "$evidence_root" "$grounding_report"; then
                 # A timed-out/truncated review without a final verdict is preserved
                 # for diagnosis, but cannot count as a response or approver.
                 seat_status="no-response"
-            elif council_response_is_blind "$output_path" "$evidence_root"; then
-                # Returned a verdict without reading the artifact (no file tools /
-                # permission). Label it distinctly and surface which provider, so
-                # the operator can switch its mode after ROUND ONE, not round six.
-                # Still excluded from quorum (not "responded").
+            elif council_response_is_blind "$output_path" "$evidence_root" "$grounding_report"; then
+                # Access failures and rejected grounding both remain blind and
+                # excluded from quorum. Warnings use the contribution's access
+                # state to distinguish provider access from evidence rejection.
                 seat_status="blind"
                 council_note_blind_seat "$mprovider"
             else
@@ -3285,8 +4202,6 @@ council_run_advice_phase() {
         else
             rm -f "$stderr_file" 2>/dev/null
         fi
-        contribution_json="$(council_contribution_record_json "$output_path" "$evidence_root" "$artifact_digest")" \
-            || contribution_json="$(council_unavailable_contribution_record_json)"
         # Per-seat record for summary.json — makes quorum integrity machine-checkable
         # (a chair or degenerate seat can no longer masquerade as a distinct approving
         # vendor). payload_kind is "full" here; #2 (agy chunking) populates delta/chunk,
@@ -3301,6 +4216,7 @@ council_run_advice_phase() {
               verdict:(if $verdict=="" then null else $verdict end),
               status:$status,
               contribution:$contribution,
+              grounding:($contribution.grounding // null),
               timeout_provenance:(if $timeout_provenance=="" then null else $timeout_provenance end),
               counted_as_approver:false}')"
         [[ -n "$failure" ]] && seat_rec="$(jq -c --argjson rc "$failure_rc" --arg d "$failure" --arg f "$stderr_file" \
@@ -3343,6 +4259,8 @@ council_run_advice_phase() {
         map(.model_family as $f
             | .counted_as_approver = (.seat != "chair"
                 and .status == "responded" and .verdict == "APPROVE"
+                and (.contribution.validation_result == "valid-grounded"
+                    or .contribution.validation_result == "valid-unverified")
                 and ($approving_families | contains(" " + $f + " "))))' <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}")"
 
     # Chair presence: a dispatched chair response OR a host-native chair (which
@@ -3404,7 +4322,7 @@ council_synthesis_capable_persona() {
 council_run_chair_fallback() {
     local persona provider member_json slug output_path index
     local seat_agent_spec seat_org seat_model seat_model_family resp_bytes verdict seat_status seat_rec existing_response dispatch_rc
-    local dispatch_timeout_provenance contribution_json artifact_digest="${1:-}"
+    local dispatch_timeout_provenance contribution_json grounding_report artifact_digest="${1:-}"
     local evidence_root="${OCTOPUS_PROJECT_DIR:-${PROJECT_ROOT:-$PWD}}"
     [[ -d "$evidence_root" ]] || evidence_root="$PWD"
     if [[ -z "$artifact_digest" ]]; then
@@ -3418,14 +4336,18 @@ council_run_chair_fallback() {
         slug="$(council_slug "$persona")"
         existing_response="$(find "${COUNCIL_RUN_DIR}/responses" -type f -name "*-${slug}.md" -print -quit)"
         # Reuse an existing synthesis-capable member only when the advice phase
-        # accepted that seat. A timed-out partial or degenerate artifact is kept for
-        # diagnosis, but must not masquerade as a recovered chair response.
+        # accepted that seat and its current response still passes contribution
+        # validation. Retained invalid output must not become a recovered chair.
         if [[ -n "$existing_response" ]] \
                 && council_response_nonempty "$existing_response" \
-                && council_response_is_substantive "$existing_response" "$evidence_root" \
                 && jq -e --arg persona "$persona" \
                     'any(.[]; .persona == $persona and .status == "responded")' \
-                    <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}" >/dev/null; then
+                    <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}" >/dev/null \
+                && contribution_json="$(council_contribution_record_json "$existing_response" "$evidence_root" "$artifact_digest")" \
+                && jq -e '.validation_result == "valid-grounded" or .validation_result == "valid-unverified"' \
+                    <<< "$contribution_json" >/dev/null 2>&1 \
+                && grounding_report="$(jq -ce '.grounding | objects' <<< "$contribution_json" 2>/dev/null)" \
+                && council_response_is_substantive "$existing_response" "$evidence_root" "$grounding_report"; then
             COUNCIL_CHAIR_RESPONSE_RECEIVED="true"
             COUNCIL_CHAIR_FALLBACK_USED="true"
             COUNCIL_CHAIR_FALLBACK_PERSONA="$persona"
@@ -3453,18 +4375,16 @@ council_run_chair_fallback() {
         _OCTOPUS_SEAT_STDERR_FILE="$fallback_stderr" \
             council_dispatch_member_detached "$member_json" "independent-advice" "$output_path" || dispatch_rc=$?
         dispatch_timeout_provenance="$COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE"
+        contribution_json="$(council_contribution_record_json "$output_path" "$evidence_root" "$artifact_digest")" \
+            || contribution_json="$(council_unavailable_contribution_record_json)"
+        grounding_report="$(jq -ce '.grounding | objects' <<< "$contribution_json" 2>/dev/null)" \
+            || grounding_report="$COUNCIL_FAILED_GROUNDING_JSON"
         if council_response_nonempty "$output_path" \
-                && council_response_is_substantive "$output_path" "$evidence_root" \
+                && { council_response_quotes_fabricated "$output_path" "$evidence_root" "$grounding_report" \
+                     || council_response_is_substantive "$output_path" "$evidence_root" "$grounding_report"; } \
                 && { (( dispatch_rc == 0 )) || council_response_has_verdict "$output_path"; }; then
-            COUNCIL_RESPONSES_RECEIVED=$((COUNCIL_RESPONSES_RECEIVED + 1))
-            rm -f "$fallback_stderr" 2>/dev/null
-            COUNCIL_CHAIR_RESPONSE_RECEIVED="true"
-            COUNCIL_CHAIR_FALLBACK_USED="true"
-            COUNCIL_CHAIR_FALLBACK_PERSONA="$persona"
-            # The fallback is an additional advice dispatch outside the resolved
-            # roster, so persist it as an additional seat execution record. Without
-            # this, summary.json claims to expose every seat while silently omitting
-            # the chair response that actually made synthesis possible.
+            # Persist completed fallback attempts, including rejected metadata,
+            # even when access failure takes priority in their classification.
             seat_agent_spec="$(jq -r '.agent_spec // .provider // ""' <<< "$member_json")"
             seat_org="$(jq -r '.provider_org // ""' <<< "$member_json")"
             seat_model="$(jq -r '.model // ""' <<< "$member_json")"
@@ -3472,10 +4392,17 @@ council_run_chair_fallback() {
             [[ -n "$seat_model_family" ]] || seat_model_family="$(council_model_family "$seat_agent_spec" "$seat_model")"
             resp_bytes="$(wc -c < "$output_path" 2>/dev/null | tr -d '[:space:]')"
             [[ -z "$resp_bytes" ]] && resp_bytes=0
-            verdict="$(council_response_verdict "$output_path")"
-            seat_status="responded"
-            contribution_json="$(council_contribution_record_json "$output_path" "$evidence_root" "$artifact_digest")" \
-                || contribution_json="$(council_unavailable_contribution_record_json)"
+            verdict="$(jq -r '.verdict // ""' <<< "$contribution_json")"
+            seat_status="no-response"
+            if jq -e '.validation_result == "valid-grounded" or .validation_result == "valid-unverified"' \
+                    <<< "$contribution_json" >/dev/null 2>&1; then
+                seat_status="responded"
+                COUNCIL_RESPONSES_RECEIVED=$((COUNCIL_RESPONSES_RECEIVED + 1))
+                rm -f "$fallback_stderr" 2>/dev/null
+                COUNCIL_CHAIR_RESPONSE_RECEIVED="true"
+                COUNCIL_CHAIR_FALLBACK_USED="true"
+                COUNCIL_CHAIR_FALLBACK_PERSONA="$persona"
+            fi
             seat_rec="$(jq -cn --argjson idx "$index" --arg persona "$persona" \
                 --arg agent_spec "$seat_agent_spec" --arg provider "$(octo_agent_spec_provider "$provider")" --arg org "$seat_org" --arg model "$seat_model" --arg model_family "$seat_model_family" \
                 --argjson bytes "${resp_bytes:-0}" --arg verdict "$verdict" --arg status "$seat_status" \
@@ -3487,10 +4414,15 @@ council_run_chair_fallback() {
                   verdict:(if $verdict=="" then null else $verdict end),
                   status:$status,
                   contribution:$contribution,
+                  grounding:($contribution.grounding // null),
                   timeout_provenance:(if $timeout_provenance=="" then null else $timeout_provenance end),
                   counted_as_approver:false}')"
             COUNCIL_SEAT_RECORDS_JSON="$(jq -c ". + [$seat_rec]" <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}")"
-            return 0
+            [[ "$seat_status" != "responded" ]] || return 0
+            # Keep completed output and its rejected record for diagnosis while
+            # trying another fallback. A metadata failure must not erase work.
+        else
+            rm -f "$output_path"
         fi
         # Rejected retries retain the earlier failed attempt even when the
         # final dispatch exited zero. Accepted responses already removed it.
@@ -3502,7 +4434,6 @@ council_run_chair_fallback() {
         else
             rm -f "$fallback_stderr" 2>/dev/null
         fi
-        rm -f "$output_path"
     done < <(printf '%s\n' strategy-analyst research-synthesizer code-reviewer exec-communicator business-analyst)
 
     return 1
@@ -4466,7 +5397,15 @@ council_print_run_warnings() {
     fi
 
     if [[ -n "${COUNCIL_BLIND_SEATS:-}" ]]; then
-        echo "Council warning: blind seat(s) returned a verdict without reading the artifact and were excluded from quorum: ${COUNCIL_BLIND_SEATS} — switch that provider's mode/model (e.g. give it file-read tools) or inline the artifact into the prompt. See summary.json quorum.blind_seats."
+        local provider_blind_seats grounding_failed_seats
+        provider_blind_seats="$(jq -r '[.[] | select(.status == "blind" and .contribution.access_state != "evidence-rejected") | .provider] | unique | join(" ")' <<< "$COUNCIL_SEAT_RECORDS_JSON")"
+        grounding_failed_seats="$(jq -r '[.[] | select(.status == "blind" and .contribution.access_state == "evidence-rejected") | .provider] | unique | join(" ")' <<< "$COUNCIL_SEAT_RECORDS_JSON")"
+        if [[ -n "$provider_blind_seats" ]]; then
+            echo "Council warning: blind seat(s) returned a verdict without reading the artifact and were excluded from quorum: ${provider_blind_seats} — switch that provider's mode/model (e.g. give it file-read tools) or inline the artifact into the prompt. See summary.json quorum.blind_seats."
+        fi
+        if [[ -n "$grounding_failed_seats" ]]; then
+            echo "Council warning: grounding verification failed for seat(s) excluded from quorum: ${grounding_failed_seats}. Inspect summary.json seats[].contribution.grounding and responses/*.md for verifier failures or unverified source quotes."
+        fi
     fi
 
     if [[ "$COUNCIL_QUORUM_MET" == "true" && "${COUNCIL_CHAIR_SYNTHESIS_AVAILABLE:-}" != "true" ]]; then

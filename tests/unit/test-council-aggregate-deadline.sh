@@ -220,7 +220,7 @@ test_fallback_reuses_completed_response_after_deadline() {
         council_reset_defaults
         COUNCIL_RUN_DIR="$TEST_TMP_DIR/fallback-reuse"
         mkdir -p "$COUNCIL_RUN_DIR/responses"
-        printf 'accepted advice\n' > "$COUNCIL_RUN_DIR/responses/00-strategy-analyst.md"
+        printf 'Reviewed scripts/lib/council.sh:1.\nVERDICT: APPROVE\n' > "$COUNCIL_RUN_DIR/responses/00-strategy-analyst.md"
         COUNCIL_SEAT_RECORDS_JSON='[{"persona":"strategy-analyst","status":"responded"}]'
         OCTOPUS_COUNCIL_DEADLINE_SECS=1
         COUNCIL_RUN_START_EPOCH=$(( $(date +%s) - 120 ))
