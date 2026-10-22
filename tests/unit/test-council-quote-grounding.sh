@@ -2529,6 +2529,12 @@ done
 
 # Begin contribution report admission controls.
 source "$PROJECT_ROOT/scripts/lib/council.sh"
+# Bash 5.2 cannot reparse declare -f output for this grouped heredoc. Load the
+# verifier from source so instrumentation leaves its shell structure intact.
+admission_verifier="$TEST_TMP_DIR/admission-real-verifier.sh"
+sed -n '/^council_response_quote_verification_json() {$/,/^}$/p' \
+    "$PROJECT_ROOT/scripts/lib/council.sh" | sed '1s/council_response_quote_verification_json/_admission_real_verifier/' > "$admission_verifier"
+source "$admission_verifier"
 # Each fixture runs in its own subshell. The real verifier supplies the first
 # report; a later failure models the bounded verifier's existing timeout path.
 _admission_report_case() (
@@ -2547,7 +2553,6 @@ _admission_report_case() (
     COUNCIL_BLIND_SEATS=''; COUNCIL_SEAT_RECORDS_JSON='[]'
     COUNCIL_QUOTE_REPORT_KEY=''; COUNCIL_QUOTE_REPORT=''
     admission_case_calls="$d/verifier-calls"; : > "$admission_case_calls"
-    eval "$(declare -f council_response_quote_verification_json | sed '1s/council_response_quote_verification_json/_admission_real_verifier/')"
     council_response_quote_verification_json() {
         local count
         printf 'call\n' >> "$admission_case_calls"
