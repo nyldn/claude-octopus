@@ -3373,6 +3373,9 @@ GAP_WORDS = {"reads", "read", "shows", "show", "contains", "contain", "has", "sa
              "line", "lines", "source", "code", "verbatim", "quote", "quoted", "excerpt",
              "current", "currently", "actual", "l"}
 SOURCE_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|is|defines?|defined|declares?|declared)\b", re.I)
+SOURCE_ABSENCE = re.compile(
+    r"\b(?:(?:does|do|did)\s+not|(?:doesn|don|didn)['’]t)\s+"
+    r"(?:currently\s+)?(?:contain|show|read|say|define|declare|have)\b", re.I)
 PROPOSAL = re.compile(r"\b(should|propos\w*|suggest\w*|recommend\w*|replace with|instead|would|could|change (?:it |this )?to|rewrit\w*|becomes?|example|e\.g\.|such as|consider|cover|prefer\w*|expected|want)\b", re.I)
 # Backticks also format prose and multiword values. Sentence punctuation alone
 # is not code syntax, nor is a dotted name embedded in a sentence. Calls,
@@ -3464,6 +3467,14 @@ for start, end, kind, block, removed_block, info in units:
         result["quotes_omitted"] += 1
         continue
     checkable_units += 1
+    absence = SOURCE_ABSENCE.search(gap)
+    if (associated is not None and absence and len(gap) <= 200 and gap.count("\n") <= 2
+            and not re.search(r"[.!?;]", gap) and not SOURCE_VERB.search(gap, absence.end())):
+        # An explicit absence claim is not positive source evidence. Do not
+        # match it as a quote, even when its text happens to exist in a file.
+        result["quotes_checked"] += 1
+        result["quotes_unverifiable"] += 1
+        continue
     bound_paths = []
     for path, _ in bound:
         if path not in bound_paths:

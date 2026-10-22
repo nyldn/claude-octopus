@@ -2404,6 +2404,63 @@ if jq -e '.validation_result == "valid-grounded" and .grounding.quotes_attribute
     and .grounding.quotes_unverifiable_command == 1 and .grounding.fabricated == false' <<< "$record" >/dev/null; then test_pass; else test_fail "sentence boundary: $record"; fi
 # End variable-width spans and direct-source attribution controls.
 
+# Negative source claims describe absence, not quoted source evidence.
+absence_root="$(mktemp -d "$TEST_TMP_DIR/negative-source.XXXXXX")"
+mkdir -p "$absence_root/src"
+absence_real='export const fallbackValue = cabin.defaultPrice;'
+absence_fake='const legacyValue = fallbackValue ?? cachedPrice;'
+printf '%s\n' "$absence_real" > "$absence_root/src/pricing.ts"
+git -C "$absence_root" init -q
+git -C "$absence_root" add src/pricing.ts
+git -C "$absence_root" -c user.name=Test -c user.email=test@example.invalid -c core.hooksPath=/dev/null commit -qm initial
+for absence_lead in 'does not contain' "doesn't define" 'does not currently contain'; do
+    for absence_shape in inline fenced; do
+        test_case "$absence_shape negative source claim stays unverifiable: $absence_lead"
+        if [[ "$absence_shape" == inline ]]; then
+            absence_quote="\`$absence_fake\`"
+        else
+            absence_quote="
+\`\`\`ts
+$absence_fake
+\`\`\`"
+        fi
+        response="$(_resp "src/pricing.ts:1 $absence_lead $absence_quote
+VERDICT: APPROVE")"
+        record="$(council_contribution_record_json "$response" "$absence_root" sha256:test)"
+        if jq -e '.validation_result == "valid-grounded" and .grounding.quotes_checked == 1
+            and .grounding.quotes_verified == 0 and .grounding.quotes_unverifiable == 1
+            and .grounding.quotes_attributed == 0 and .grounding.fabricated == false' <<< "$record" >/dev/null; then
+            test_pass
+        else
+            test_fail "absence was treated as positive source evidence: $record"
+        fi
+    done
+done
+
+test_case "a negative claim cannot verify quoted text that happens to exist"
+response="$(_resp "src/pricing.ts:1 does not contain \`$absence_real\`
+VERDICT: APPROVE")"
+record="$(council_contribution_record_json "$response" "$absence_root" sha256:test)"
+if jq -e '.grounding.quotes_checked == 1 and .grounding.quotes_verified == 0
+    and .grounding.quotes_unverifiable == 1 and .grounding.quotes_attributed == 0
+    and .grounding.fabricated == false' <<< "$record" >/dev/null; then test_pass; else test_fail "negative claim verified: $record"; fi
+
+for absence_positive in "does not contain a class but defines" "does not contain a class.
+src/pricing.ts:1 reads"; do
+    test_case "a negative clause cannot excuse a subsequent positive source claim"
+    response="$(_resp "src/pricing.ts:1 reads \`$absence_real\`.
+
+src/pricing.ts:1 does not contain \`$absence_fake\`.
+
+src/pricing.ts:1 $absence_positive \`$absence_fake\`
+VERDICT: APPROVE")"
+    record="$(council_contribution_record_json "$response" "$absence_root" sha256:test)"
+    if jq -e '.validation_result == "invalid-ungrounded" and .grounding.quotes_verified == 1
+        and .grounding.quotes_unverifiable == 1 and .grounding.quotes_attributed_unverified == 1
+        and .grounding.fabricated == true' <<< "$record" >/dev/null; then test_pass; else test_fail "negative clause excused positive source: $record"; fi
+done
+# End negative source claim controls.
+
 # Begin contribution report admission controls.
 source "$PROJECT_ROOT/scripts/lib/council.sh"
 # Each fixture runs in its own subshell. The real verifier supplies the first

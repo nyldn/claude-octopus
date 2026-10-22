@@ -87,6 +87,8 @@ unresolved paths are unverifiable rather than fabricated. A command explicitly
 attributed to source still undergoes verification, including shell-fenced code.
 A proposal lead-in can precede its
 quote across blank lines; another nonempty line ends that local context.
+Explicit negative source claims such as "does not contain" stay unverifiable.
+They cannot count as verified source quotations, even if the quoted text exists.
 The unattributed-prose exemption covers inline spans and blockquotes. Attributed
 prose and code-shaped blockquotes still undergo source verification.
 Ordinary sentence punctuation and
