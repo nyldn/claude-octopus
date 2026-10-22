@@ -12,6 +12,8 @@
   portions that resemble diff file headers.
 - Context files supply diff evidence only within unified hunk line counts.
   Markdown rules and bullets outside hunks cannot fabricate removed source.
+  Git's suppressed blank context markers preserve later source evidence and
+  cannot turn prefix-operator source inside a hunk into file headers.
 - Colored seat-failure reasons receive control-byte cleanup before whole-record
   redaction, preserving safe error details that certification previously omitted.
 

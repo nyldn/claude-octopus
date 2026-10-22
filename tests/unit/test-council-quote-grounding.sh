@@ -2133,6 +2133,92 @@ VERDICT: APPROVE")"
         test_fail "short removal lost missing-diff uncertainty: $record"
     fi
 done
+# Git can omit the marker on empty context lines. Generate both real Git
+# formats in a separate repository so the evidence root's own diff cannot
+# accidentally verify a removal that the attached patch parser discarded.
+blank_patch_root="$(mktemp -d "$TEST_TMP_DIR/blank-context-git.XXXXXX")"
+mkdir -p "$blank_patch_root/src"
+blank_old_head='const previousMode = readPreviousMode(input);'
+blank_new_head='const currentMode = readCurrentMode(input);'
+blank_tail='const retainedTail = readRetainedTail(input);'
+printf '%s\n\n%s\n%s\n' "$blank_old_head" "$old_a" "$blank_tail" > "$blank_patch_root/src/demo.ts"
+git -C "$blank_patch_root" init -q
+git -C "$blank_patch_root" add src/demo.ts
+git -C "$blank_patch_root" -c user.name=Test -c user.email=test@example.invalid -c core.hooksPath=/dev/null commit -qm baseline
+printf '%s\n\n%s\n%s\n' "$blank_new_head" "$new_a" "$blank_tail" > "$blank_patch_root/src/demo.ts"
+for blank_case in canonical suppressed crlf clipped-canonical clipped-suppressed unbalanced; do
+    test_case "attached patch bounds empty context lines: $blank_case"
+    blank_patch="$TEST_TMP_DIR/blank-context-$blank_case.diff"
+    suppress_blank=true; expected=valid-grounded
+    case "$blank_case" in canonical|clipped-canonical) suppress_blank=false ;; esac
+    git -C "$blank_patch_root" -c diff.suppressBlankEmpty="$suppress_blank" diff --no-ext-diff --no-textconv HEAD > "$blank_patch"
+    python3 - "$blank_patch" "$blank_case" <<'PY'
+from pathlib import Path
+import sys
+path, kind = Path(sys.argv[1]), sys.argv[2]
+raw = path.read_bytes()
+if kind == "crlf":
+    raw = raw.replace(b"\n", b"\r\n")
+elif kind.startswith("clipped-"):
+    raw = raw.replace(b"@@ -1,4 +1,4 @@", b"@@ -1 +1 @@")
+elif kind == "unbalanced":
+    raw = raw.replace(b"@@ -1,4 +1,4 @@", b"@@ -1,2 +1 @@")
+path.write_bytes(raw)
+PY
+    case "$blank_case" in clipped-*|unbalanced) expected=invalid-ungrounded ;; esac
+    blank_response="$(_resp "src/demo.ts:1 reads \`$old_a\`.
+VERDICT: APPROVE")"
+    record="$(COUNCIL_CONTEXT_FILES=("$blank_patch"); council_contribution_record_json "$blank_response" "$struct_root" sha256:test)"
+    if jq -e --arg expected "$expected" '.validation_result == $expected and .grounding.verification_failed == false
+        and .grounding.diff_unavailable == false and .grounding.quotes_checked == 1
+        and (if $expected == "invalid-ungrounded" then .grounding.quotes_verified == 0
+            and .grounding.fabricated and .evidence_paths == []
+        else .grounding.quotes_verified_in_diff_removed == 1 and .grounding.fabricated == false end)' <<< "$record" >/dev/null; then
+        test_pass
+    else
+        test_fail "empty context lost source or exceeded a hunk boundary: $record"
+    fi
+done
+for blank_endings in lf crlf; do
+    for blank_prefix_case in genuine invented; do
+        test_case "empty context preserves prefix source inside a quoted hunk: $blank_endings/$blank_prefix_case"
+        blank_prefix_old='-- previousCounter; // actual previous source'
+        blank_prefix_new='++ actualCounter; // actual current source'
+        blank_prefix_patch="$TEST_TMP_DIR/blank-prefix.diff"
+        printf '@@ -1,2 +1,2 @@\n\n-%s\n+%s\n@@ -3 +3 @@\n-%s\n+%s\n' \
+            "$blank_prefix_old" "$blank_prefix_new" "$old_a" "$new_a" > "$blank_prefix_patch"
+        expected=valid-grounded
+        if [[ "$blank_prefix_case" == invented ]]; then
+            blank_prefix_old="${blank_prefix_old/previousCounter/inventedCounter}"; expected=invalid-ungrounded
+        fi
+        blank_prefix_body="$(printf '@@ -1,2 +1,2 @@\n\n-%s\n+%s\n@@ -3 +3 @@\n-%s\n+%s\n' \
+            "$blank_prefix_old" "$blank_prefix_new" "$old_a" "$new_a")"
+        blank_response="$(_resp "src/demo.ts:1 reads:
+\`\`\`diff
+$blank_prefix_body
+\`\`\`
+VERDICT: APPROVE")"
+        if [[ "$blank_endings" == crlf ]]; then
+            python3 - "$blank_prefix_patch" "$blank_response" <<'PY'
+from pathlib import Path
+import sys
+for name in sys.argv[1:]:
+    path = Path(name)
+    path.write_bytes(path.read_bytes().replace(b"\n", b"\r\n"))
+PY
+        fi
+        record="$(COUNCIL_CONTEXT_FILES=("$blank_prefix_patch"); council_contribution_record_json "$blank_response" "$struct_root" sha256:test)"
+        if jq -e --arg expected "$expected" '.validation_result == $expected and .grounding.verification_failed == false
+            and .grounding.diff_unavailable == false and .grounding.quotes_checked == 1
+            and (if $expected == "invalid-ungrounded" then .grounding.quotes_verified == 0
+                and .grounding.fabricated and .evidence_paths == []
+            else .grounding.quotes_verified_in_diff_removed == 1 and .grounding.fabricated == false end)' <<< "$record" >/dev/null; then
+            test_pass
+        else
+            test_fail "empty context hid prefix source inside a hunk: $record"
+        fi
+    done
+done
 # End mixed-diff and context-structure regression controls.
 
 test_summary

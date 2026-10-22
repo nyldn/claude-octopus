@@ -3044,7 +3044,8 @@ for start, end, info, body in fences:
                 remaining = [int(n) if n is not None else 1 for n in hunk.groups()]
                 continue
             if remaining is not None and any(remaining):
-                consumed = (int(line.startswith(("-", " "))), int(line.startswith(("+", " "))))
+                context = line.startswith(" ") or (not line.rstrip("\r") and all(remaining))
+                consumed = (int(context or line.startswith("-")), int(context or line.startswith("+")))
                 remaining = ([left - n for left, n in zip(remaining, consumed)]
                              if any(consumed) and all(n <= left for n, left in zip(consumed, remaining)) else None)
             elif (line.startswith("--- ") and index + 2 < len(lines)
@@ -3227,7 +3228,9 @@ def split_diff(text):
         # bullets outside the declared line counts cannot manufacture removals.
         if remaining is None or line.startswith("\\ No newline at end of file"):
             continue
-        consumed = (int(line.startswith(("-", " "))), int(line.startswith(("+", " "))))
+        # Git's diff.suppressBlankEmpty omits the marker on empty context.
+        context = line.startswith(" ") or (not line.rstrip("\r") and all(remaining))
+        consumed = (int(context or line.startswith("-")), int(context or line.startswith("+")))
         if not any(consumed) or any(n > left for n, left in zip(consumed, remaining)):
             remaining = None
             continue

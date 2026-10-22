@@ -118,6 +118,8 @@ source's increment or decrement operators.
 Removed-only diff fences undergo the same fabrication checks. Context-file diff
 evidence requires unified hunk headers and stays within their declared line counts;
 Markdown rules and bullets outside hunks are not removed source.
+Empty context lines emitted by Git's `diff.suppressBlankEmpty` setting consume
+one line on each side, only while both sides have remaining hunk capacity.
 A match in any cited file or the reviewed diff verifies a quote; exact file
 attribution is not proven. These checks cannot establish that a provider read
 the source.
