@@ -43,13 +43,17 @@ selection to the research engine. The workflow examples also pass prior-phase
 results correctly and put focus, depth, and audit scope in the prompt.
 See [knowledge workflows](docs/KNOWLEDGE-WORKERS.md#workflow-customization).
 
-### Session memory stays with the current project
+### Session preferences stay outside your repository
 
-Session hooks save and restore Octopus preferences and learnings in the current
-project's existing Claude auto-memory directory. They no longer create a
-`memory/` directory in your repository or use another project's memory when
-storage is missing. Custom Claude configuration directories use the same mapping
-at session start and end. See [session memory troubleshooting](docs/TROUBLESHOOTING.md#session-preferences-and-memory).
+SessionEnd saves preferences and Markdown session learnings in the current
+project's existing Claude auto-memory directory. SessionStart restores
+preferences from that directory. The hooks no longer create `memory/` in your
+repository or fall back to an unrelated project's memory. Custom Claude
+configuration directories use the same mapping at session start and end.
+
+SessionEnd also saves structured cross-task learnings as JSON under
+`~/.claude-octopus/learnings`. That store is shared across projects and is not
+automatically read by SessionStart. See [session memory troubleshooting](docs/TROUBLESHOOTING.md#session-preferences-and-memory).
 
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.15.1 — Honor selected research intensity, correct workflow examples, and keep session memory outside repositories.**

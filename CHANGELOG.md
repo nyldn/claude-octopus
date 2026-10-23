@@ -17,11 +17,14 @@
   so the next phase receives it. Focus, depth, and audit scope go in the prompt.
   [#1223](https://github.com/nyldn/claude-octopus/pull/1223),
   commit [733e717](https://github.com/nyldn/claude-octopus/commit/733e717f3ef3a8619da9f9edfa381c68c2a88b14).
-- Session hooks save and restore preferences and learnings only in the current
-  project's existing Claude auto-memory directory. They no longer create
-  `memory/` in the repository or fall back to another project's storage.
-  Custom `CLAUDE_CONFIG_DIR` and CWD fallback use the same mapping at session
-  start and end. Fixes [#1183](https://github.com/nyldn/claude-octopus/issues/1183).
+- SessionEnd writes preferences and Markdown session learnings to the current
+  project's existing Claude auto-memory directory; SessionStart restores
+  preferences from that directory. The hooks no longer create repository-local
+  `memory/` or fall back to another project's storage. Custom `CLAUDE_CONFIG_DIR`
+  and CWD fallback use the same mapping at session start and end. Structured
+  cross-task JSON learnings remain shared across projects under
+  `~/.claude-octopus/learnings` and are not automatically read by SessionStart.
+  Fixes [#1183](https://github.com/nyldn/claude-octopus/issues/1183).
   [#1225](https://github.com/nyldn/claude-octopus/pull/1225),
   commit [286ef4d](https://github.com/nyldn/claude-octopus/commit/286ef4d75c0a782416854d0ac8d8f9b31756e090).
 
