@@ -4,6 +4,19 @@
 
 ### Fixed
 
+- Documented `orchestrate.sh` examples no longer pass options it never parses.
+  `docs/KNOWLEDGE-WORKERS.md` showed `advise --focus`/`--use-frameworks`,
+  `synthesize --depth`, `empathize --critique-tone` and
+  `grapple --persona1`/`--persona2`. Those tokens became prompt text or grapple
+  principles and rounds, and `synthesize --breadth high` exited 2. The security
+  audit skill's `squeeze --principles` and `squeeze --loop --quality` examples
+  stopped at the flag-as-prompt guard. The parallel-agents skill chained phases
+  with `--context`, which grasp, tangle and ink read as the results-file path,
+  so the previous phase's file was dropped. `hooks/setup-hook.md` showed
+  `init --quiet`, which init ignores. The examples now state focus and
+  depth in the quoted prompt and pass the results file positionally, and a unit
+  test runs the knowledge-work and squeeze examples as dry runs.
+
 - `/octo:discover` and `/octo:research` now reach `orchestrate.sh` with the
   intensity the user chose. `commands/discover.md` documented
   `orchestrate.sh probe [intensity=quick|standard|deep] <args>`, but

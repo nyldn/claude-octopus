@@ -262,7 +262,10 @@ Multi-tentacled problem definition:
 - Constraints and boundaries
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh grasp "Define requirements for notification system" --context probe-synthesis-*.md
+# Optional second argument: no phase sets this variable; copy the path the probe
+# phase printed after "Probe synthesis saved to:"
+PROBE_SYNTHESIS="<printed probe-synthesis-*.md path>"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh grasp "Define requirements for notification system" "$PROBE_SYNTHESIS"
 ```
 
 ### Phase 3: TANGLE (Develop)
@@ -274,7 +277,10 @@ Enhanced map-reduce with validation:
 - Quality gate (75% success threshold)
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh tangle "Implement notification service" --context grasp-consensus-*.md
+# Optional second argument: no phase sets this variable; copy the path the grasp
+# phase printed after "Problem definition saved to:"
+GRASP_CONSENSUS="<printed grasp-consensus-*.md path>"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh tangle "Implement notification service" "$GRASP_CONSENSUS"
 ```
 
 ### Phase 4: INK (Deliver)
@@ -286,7 +292,10 @@ Pre-delivery validation:
 - Final deliverable generation
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh ink "Deliver notification system" --context tangle-validation-*.md
+# Optional second argument: no phase sets this variable; copy the path the tangle
+# phase printed after "Validation complete:"
+TANGLE_VALIDATION="<printed tangle-validation-*.md path>"
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh ink "Deliver notification system" "$TANGLE_VALIDATION"
 ```
 
 ### Full Workflow: EMBRACE
@@ -455,7 +464,6 @@ The `tangle` phase enforces quality gates:
 | `-t, --timeout` | 600 | Timeout per task (seconds); also replaces fixed per-call budgets such as grasp's 300s. `OCTOPUS_AGENT_TIMEOUT` overrides it |
 | `-v, --verbose` | false | Verbose logging |
 | `-n, --dry-run` | false | Show without executing |
-| `--context <file>` | - | Context from previous phase |
 
 ## Agent Selection (Premium Defaults)
 
@@ -596,9 +604,10 @@ ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh setup
 # 1. Explore the problem space
 ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh probe "Authentication patterns for microservices"
 
-# 2. Define the approach (with probe context)
+# 2. Define the approach (with the path step 1 printed after "Probe synthesis saved to:")
+PROBE_SYNTHESIS="<printed probe-synthesis-*.md path>"
 ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh grasp "OAuth2 with JWT for our API" \
-  --context ~/.claude-octopus/results/probe-synthesis-*.md
+  "$PROBE_SYNTHESIS"
 
 # 3. Implement with validation
 ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh tangle "Implement OAuth2 authentication"
@@ -624,7 +633,7 @@ ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh embrace "Create a user not
 1. **Start with `embrace`** for new features requiring exploration
 2. **Use `probe` alone** when researching before committing to an approach
 3. **Use `auto`** for smart routing based on your intent
-4. **Chain phases** with `--context` for incremental workflows
+4. **Chain phases** by passing the previous phase's result file as the second argument for incremental workflows
 5. **Run `preflight`** before long workflows to verify dependencies
 6. **Review quality gates** in tangle output before proceeding to ink
 

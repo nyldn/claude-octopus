@@ -73,6 +73,11 @@ commands/brainstorm.md	tests/unit/test-consultative-advisor-launch.sh
 commands/*.md	tests/unit/test-command-frontmatter.sh tests/unit/test-command-registration.sh tests/unit/test-public-reference-integrity.sh tests/unit/test-argument-placeholder-safety.sh
 README.md	tests/unit/test-readme-release-sync.sh tests/integration/test-readme-compliance.sh
 PRODUCT.md	tests/unit/test-readme-release-sync.sh tests/integration/test-readme-compliance.sh
+docs/KNOWLEDGE-WORKERS.md	tests/unit/test-documented-orchestrate-examples.sh
+.claude/skills/skill-security-audit/SKILL.md	tests/unit/test-documented-orchestrate-examples.sh
+.claude/skills/skill-parallel-agents/SKILL.md	tests/unit/test-documented-orchestrate-examples.sh
+skills/octopus-security-audit/SKILL.md	tests/unit/test-documented-orchestrate-examples.sh
+skills/skill-parallel-agents/SKILL.md	tests/unit/test-documented-orchestrate-examples.sh
 docs/*	tests/integration/test-native-first-docs.sh tests/integration/test-readme-compliance.sh tests/unit/test-public-reference-integrity.sh
 CHANGELOG.md	tests/unit/test-readme-release-sync.sh
 .beads.gate.lock	@ignore
