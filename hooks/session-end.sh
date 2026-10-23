@@ -63,10 +63,12 @@ if [[ "$SESSION_JSON_VALID" == "true" ]]; then
         source "$MEMORY_LIB"
         TARGET_MEM_DIR="$(octo_claude_project_memory_dir)" || TARGET_MEM_DIR=""
     fi
+    [[ -w "$TARGET_MEM_DIR" ]] || TARGET_MEM_DIR=""
 
-    if [[ -n "$TARGET_MEM_DIR" && -n "$AUTONOMY" && "$AUTONOMY" != "null" ]]; then
+    OCTOPUS_MEM="${TARGET_MEM_DIR}/octopus-preferences.md"
+    if [[ -n "$TARGET_MEM_DIR" && -n "$AUTONOMY" && "$AUTONOMY" != "null" ]] \
+        && [[ ! -e "$OCTOPUS_MEM" || ( -f "$OCTOPUS_MEM" && -w "$OCTOPUS_MEM" ) ]]; then
         mkdir -p "$TARGET_MEM_DIR"
-        OCTOPUS_MEM="${TARGET_MEM_DIR}/octopus-preferences.md"
         {
             echo "# Octopus User Preferences"
             echo ""
@@ -80,8 +82,9 @@ fi
 # --- 3. Learnings layer — meta-reflection across sessions (v8.41.0) ---
 # Appends session-level learnings (errors hit, patterns discovered, tools used)
 # to octopus-learnings.md for cross-session meta-reflection.
-if [[ -n "${TARGET_MEM_DIR:-}" ]] && [[ "$SESSION_JSON_VALID" == "true" ]]; then
-    LEARNINGS_FILE="${TARGET_MEM_DIR}/octopus-learnings.md"
+LEARNINGS_FILE="${TARGET_MEM_DIR:-}/octopus-learnings.md"
+if [[ -n "${TARGET_MEM_DIR:-}" && "$SESSION_JSON_VALID" == "true" ]] \
+    && [[ ! -e "$LEARNINGS_FILE" || ( -f "$LEARNINGS_FILE" && -r "$LEARNINGS_FILE" && -w "$LEARNINGS_FILE" ) ]]; then
     # Extract session signals for learnings
     PHASE=$(jq -r '.current_phase // .phase // "none"' "$SESSION_FILE" 2>/dev/null)
     WORKFLOW=$(jq -r '.workflow // "none"' "$SESSION_FILE" 2>/dev/null)

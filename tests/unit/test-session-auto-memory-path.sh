@@ -112,6 +112,86 @@ else
     test_fail "SessionStart used a different memory mapping than SessionEnd"
 fi
 
+if [[ "$(id -u)" -eq 0 ]]; then
+    test_case "auto-memory permission failures"
+    test_skip "root bypasses the permission restrictions exercised here"
+else
+    for permission_case in unwritable:500 unreadable:300 unsearchable:600; do
+        label="${permission_case%:*}"
+        test_case "SessionEnd skips an $label auto-memory directory"
+        prepare_case "$label"
+        mkdir -p "$case_memory"
+        chmod "${permission_case#*:}" "$case_memory"
+        hook_status=0
+        run_hook session-end || hook_status=$?
+        chmod 700 "$case_memory"
+        if [[ "$hook_status" -eq 0 && ! -e "$case_memory/octopus-preferences.md" \
+            && ! -e "$case_memory/octopus-learnings.md" ]]; then
+            test_pass
+        else
+            test_fail "inaccessible memory was used or made SessionEnd fail"
+        fi
+    done
+
+    test_case "SessionStart restores readable preferences from a read-only directory"
+    prepare_case readonly-restore
+    mkdir -p "$case_memory"
+    printf '%s\n' '- Preferred autonomy: manual' > "$case_memory/octopus-preferences.md"
+    chmod 500 "$case_memory"
+    hook_status=0
+    run_hook session-start-memory || hook_status=$?
+    chmod 700 "$case_memory"
+    if [[ "$hook_status" -eq 0 ]] && jq -e '.autonomy == "manual" and .restored_from_memory == true' \
+        "$case_home/.claude-octopus/session.json" >/dev/null; then
+        test_pass
+    else
+        test_fail "read-only memory prevented restoration of readable preferences"
+    fi
+
+    test_case "SessionStart skips an unreadable preferences file"
+    prepare_case unreadable-prefs
+    mkdir -p "$case_memory"
+    printf '%s\n' '- Preferred autonomy: manual' > "$case_memory/octopus-preferences.md"
+    chmod 000 "$case_memory/octopus-preferences.md"
+    hook_status=0
+    run_hook session-start-memory || hook_status=$?
+    chmod 600 "$case_memory/octopus-preferences.md"
+    if [[ "$hook_status" -eq 0 ]] && jq -e '.autonomy == "supervised" and (.restored_from_memory != true)' \
+        "$case_home/.claude-octopus/session.json" >/dev/null; then
+        test_pass
+    else
+        test_fail "unreadable preferences changed state or made SessionStart fail"
+    fi
+
+    test_case "SessionEnd preserves a read-only preferences file without failing"
+    prepare_case readonly-prefs
+    mkdir -p "$case_memory"
+    printf 'protected preferences\n' > "$case_memory/octopus-preferences.md"
+    chmod 400 "$case_memory/octopus-preferences.md"
+    hook_status=0
+    run_hook session-end || hook_status=$?
+    chmod 600 "$case_memory/octopus-preferences.md"
+    if [[ "$hook_status" -eq 0 && "$(cat "$case_memory/octopus-preferences.md")" == 'protected preferences' ]]; then
+        test_pass
+    else
+        test_fail "read-only preferences were changed or made SessionEnd fail"
+    fi
+
+    test_case "SessionEnd preserves unreadable learnings without failing"
+    prepare_case unreadable-learnings
+    mkdir -p "$case_memory"
+    printf 'protected learnings\n' > "$case_memory/octopus-learnings.md"
+    chmod 000 "$case_memory/octopus-learnings.md"
+    hook_status=0
+    run_hook session-end || hook_status=$?
+    chmod 600 "$case_memory/octopus-learnings.md"
+    if [[ "$hook_status" -eq 0 && "$(cat "$case_memory/octopus-learnings.md")" == 'protected learnings' ]]; then
+        test_pass
+    else
+        test_fail "unreadable learnings were changed or made SessionEnd fail"
+    fi
+fi
+
 # Literal fixtures independently pin Claude Code's project-key convention.
 # Dots, underscores, spaces and parentheses become dashes, not only slashes.
 source "$PROJECT_ROOT/hooks/helpers/claude-project-memory.sh"

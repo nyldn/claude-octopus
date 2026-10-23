@@ -124,8 +124,8 @@ if [[ -r "$MEMORY_LIB" ]]; then
 fi
 
 SKIP_PREFS=0
-if [[ -z "$PREFS_FILE" || ! -f "$PREFS_FILE" ]]; then
-    # No persisted preferences — first session or memory cleared.
+if [[ -z "$PREFS_FILE" || ! -f "$PREFS_FILE" || ! -r "$PREFS_FILE" ]]; then
+    # Missing or inaccessible preferences must not interrupt the session.
     # Skip prefs/managed-settings/claude-mem blocks but still run cache hygiene.
     SKIP_PREFS=1
 fi
