@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.15.0",
-  "description": "v11.15.0 \u2014 Council source quote verification, safer cancellation, and redacted provider failure diagnostics. Run /octo:setup.",
+  "version": "11.15.1",
+  "description": "v11.15.1 \u2014 Honor selected research intensity, correct workflow examples, and keep session memory outside repositories. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
