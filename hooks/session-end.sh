@@ -124,7 +124,7 @@ fi
 # --- 4. Cross-task learning extraction (v9.8.0) ---
 # Extracts structured learnings from the session and persists them as individual
 # JSON files in .claude-octopus/learnings/. Capped at 5 learnings per session
-# to stay within budget. These are consumed at session start for relevance matching.
+# to stay within budget. SessionStart hooks do not read these files.
 LEARNINGS_DIR="${HOME}/.claude-octopus/learnings"
 if [[ "$SESSION_JSON_VALID" == "true" ]]; then
     mkdir -p "$LEARNINGS_DIR"
