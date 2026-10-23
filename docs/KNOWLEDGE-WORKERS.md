@@ -263,6 +263,16 @@ Setting `KNOWLEDGE_WORK_MODE="true"` or running `/octo:km on` changes the follow
 
 You can customize the depth and focus of any knowledge workflow by adding specific constraints to your prompt. `advise`, `synthesize` and `empathize` take only a prompt: `orchestrate.sh` reads an unrecognized `--flag` after the subcommand as prompt text, so write the constraint inside the quoted prompt.
 
+For `/octo:discover` and `/octo:research`, choose quick, standard, or deep
+research when prompted. Shell callers pass the selection before `probe`:
+
+```bash
+./scripts/orchestrate.sh --intensity=deep probe "Compare the deployment options"
+```
+
+The research skill carries that selection into the engine and puts focus and
+output-format preferences in the prompt.
+
 ### Customizing Frameworks
 By default, the `advise` workflow uses standard management consulting frameworks. Name the frameworks or focus you want in the prompt:
 - `./scripts/orchestrate.sh advise "Should we pivot? Apply Blue Ocean Strategy and the 7S Framework."`

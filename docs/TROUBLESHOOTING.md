@@ -51,6 +51,25 @@ A provider is used only when its CLI is installed AND its auth check passes. If 
 
 **Empty results from a dispatch that "succeeded"** — check `~/.claude-octopus/results/` for the raw artifact and `~/.claude-octopus/logs/` for the dispatch log. `--verbose` on the next run shows the constructed command.
 
+## Session preferences and memory
+
+Session hooks use the current project's existing Claude auto-memory directory
+under `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/<project-key>/memory`.
+They use `CLAUDE_PROJECT_DIR`, or the working directory when it is absent, to
+select that project. Both hooks use the same mapping, including punctuation in
+the project path.
+
+If preferences are not restored, check that this project's memory directory
+exists and its preferences file is readable. Saving also requires write access.
+When storage is missing or inaccessible, hooks skip persistence and leave other
+projects' memory alone. A `memory/` folder inside your repository is not used
+for session preferences. Existing repository-local memory files are left for
+you to review; the hooks do not migrate or remove them.
+
+Project paths that Claude maps to the same project key can still share a memory
+directory. Octopus follows that native key convention and does not distinguish
+colliding paths.
+
 ## Uninstall the plugin and keep local data
 
 Run this from a terminal:

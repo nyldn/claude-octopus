@@ -36,60 +36,20 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
-### Reliable fallback routing and host detection
+### Research uses your chosen intensity
 
-Research, design, copywriting, and image tasks can use authenticated Codex or
-installed Claude seats when Antigravity is unavailable. Provider configuration
-loads before fallback selection.
+`/octo:discover` and `/octo:research` pass your quick, standard, or deep
+selection to the research engine. The workflow examples also pass prior-phase
+results correctly and put focus, depth, and audit scope in the prompt.
+See [knowledge workflows](docs/KNOWLEDGE-WORKERS.md#workflow-customization).
 
-Claude Code sessions also identify their active host correctly when the shared
-plugin is installed in a Codex cache. This keeps Codex council seats independent.
-See [provider availability and host detection](docs/PROVIDERS.md#availability-and-host-detection).
+### Session memory stays with the current project
 
-### Safer model configuration and reliable provider history
-
-Model configuration rejects unsafe names while preserving supported Antigravity
-display labels. Concurrent provider-history updates retain entries even when a
-directory utility reports success to multiple writers. Optional history recording
-requires Python 3 and skips the write if it cannot acquire the lock.
-
-The MCP SDK is updated to 1.31.0, including an upstream OAuth client security fix.
-See [the changelog](CHANGELOG.md) for details.
-
-### Parallel work, reliable reviews and Codex startup
-
-Parallel work packages now use separate branches. Completed commits remain
-available after cleanup, and worktrees with uncommitted edits are kept for
-recovery. Failed packages record their completion status so the wave can finish.
-
-Reviews and research retain provider stdout longer than the configured threshold,
-even when it contains a context-limit rejection phrase. Short stdout-only
-rejections and stderr rejection signatures still fail the affected seat. The new
-`OCTO_PROVIDER_REJECTION_MAX_OUTPUT_BYTES` setting adjusts the output-size
-threshold, with a default of 4096 bytes. See [provider rejection handling](docs/PROVIDERS.md#provider-rejection-handling).
-
-Codex can create its thread-coordination and plugin-sync locks inside the Linux
-Tangle execution boundary. The locks use private temporary storage, while
-configuration and extension inputs remain read-only. See [bounded Codex runs](docs/PROVIDERS.md#codex-in-bounded-tangle-runs)
-for host requirements and temporary-directory configuration.
-
-### Engineering methods
-
-Octopus includes eight engineering methods adapted from
-[Matt Pocock's skills](THIRD_PARTY_NOTICES.md). Routine architecture, TDD, and
-debugging use your current host. Ask for an independent opinion when a reviewer
-would help. Plans capture domain terms and blocking decisions, compare interface
-designs, and can propose a time-limited prototype.
-
-Setup can resume an interrupted configuration and rechecks readiness before
-reporting success. See [workflow methods](docs/WORKFLOW-METHODS.md)
-for usage and [the changelog](CHANGELOG.md) for release details.
-
-Premium `/octo:auto` routes also run one bounded cross-provider peer check after
-an eligible single-owner result, without requiring a second command or flag.
-Budget and Standard routes do not add the check, and existing multi-model
-workflows are not double-reviewed. Set `OCTOPUS_PREMIUM_PEER_CHECK=off` to
-disable it.
+Session hooks save and restore Octopus preferences and learnings in the current
+project's existing Claude auto-memory directory. They no longer create a
+`memory/` directory in your repository or use another project's memory when
+storage is missing. Custom Claude configuration directories use the same mapping
+at session start and end. See [session memory troubleshooting](docs/TROUBLESHOOTING.md#session-preferences-and-memory).
 
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.15.0 — Council source quote verification, safer cancellation, and redacted provider failure diagnostics.**

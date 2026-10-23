@@ -2,37 +2,34 @@
 
 ## [Unreleased]
 
+## [11.15.1] - 2026-10-23
+
 ### Fixed
 
-- Documented `orchestrate.sh` examples no longer pass options it never parses.
-  `docs/KNOWLEDGE-WORKERS.md` showed `advise --focus`/`--use-frameworks`,
-  `synthesize --depth`, `empathize --critique-tone` and
-  `grapple --persona1`/`--persona2`. Those tokens became prompt text or grapple
-  principles and rounds, and `synthesize --breadth high` exited 2. The security
-  audit skill's `squeeze --principles` and `squeeze --loop --quality` examples
-  stopped at the flag-as-prompt guard. The parallel-agents skill chained phases
-  with `--context`, which grasp, tangle and ink read as the results-file path,
-  so the previous phase's file was dropped. `hooks/setup-hook.md` showed
-  `init --quiet`, which init ignores. The examples now state focus and
-  depth in the quoted prompt and pass the results file positionally, and a unit
-  test runs the knowledge-work and squeeze examples as dry runs.
+- `/octo:discover` and `/octo:research` now use the quick, standard, or deep
+  intensity you selected. The command passes `--intensity=` to the research
+  engine, avoiding a bracket token that became prompt text in Bash and failed
+  as an unmatched glob in zsh. Research focus and output format stay in the
+  prompt. [#1213](https://github.com/nyldn/claude-octopus/pull/1213),
+  commit [fa1eab5](https://github.com/nyldn/claude-octopus/commit/fa1eab5e7e2d49d274c06f81dd0d1ebada1ee9c3).
+- Knowledge-work and security-audit examples use supported command arguments.
+  Parallel workflow examples pass the previous phase's result file positionally
+  so the next phase receives it. Focus, depth, and audit scope go in the prompt.
+  [#1223](https://github.com/nyldn/claude-octopus/pull/1223),
+  commit [733e717](https://github.com/nyldn/claude-octopus/commit/733e717f3ef3a8619da9f9edfa381c68c2a88b14).
+- Session hooks save and restore preferences and learnings only in the current
+  project's existing Claude auto-memory directory. They no longer create
+  `memory/` in the repository or fall back to another project's storage.
+  Custom `CLAUDE_CONFIG_DIR` and CWD fallback use the same mapping at session
+  start and end. Fixes [#1183](https://github.com/nyldn/claude-octopus/issues/1183).
+  [#1225](https://github.com/nyldn/claude-octopus/pull/1225),
+  commit [286ef4d](https://github.com/nyldn/claude-octopus/commit/286ef4d75c0a782416854d0ac8d8f9b31756e090).
 
-- `/octo:discover` and `/octo:research` now reach `orchestrate.sh` with the
-  intensity the user chose. `commands/discover.md` documented
-  `orchestrate.sh probe [intensity=quick|standard|deep] <args>`, but
-  orchestrate.sh only parses `--intensity=`. Under bash the bracket token
-  became prompt text and the probe ran at standard intensity. Under zsh it
-  failed as an unmatched glob before orchestrate.sh started. The research skill
-  dropped the routed `[intensity=…]` and passed `--depth`, `--focus` and
-  `--format`, which orchestrate.sh has never parsed, so they also became prompt
-  text. Both now pass `--intensity=<quick|standard|deep>` before `probe`, and a
-  dry-run test executes the documented discover example.
-- Session hooks read and write Octopus preferences and learnings only in the
-  current project's existing Claude auto-memory directory. `CLAUDE_PROJECT_DIR`
-  no longer creates `memory/` in the user's repository, and missing memory
-  storage no longer falls back to an unrelated project. Custom
-  `CLAUDE_CONFIG_DIR` and CWD fallback use the same mapping at session start
-  and end. Fixes #1183.
+### Development
+
+- Add regression coverage for orchestrator EXIT cleanup when ownership is
+  unknown. [#1210](https://github.com/nyldn/claude-octopus/pull/1210),
+  commit [c06ffc0](https://github.com/nyldn/claude-octopus/commit/c06ffc0ddb35600c5498e51da22eb24394be9b2c).
 
 ## [11.15.0] - 2026-10-20
 
