@@ -3146,14 +3146,79 @@ def checkable(text):
         return False
     return specific(text)
 
-def specific_lines(block):
+# GFM table rows: a delimiter row, the header line above it, and the rows
+# below it that still contain a pipe, up to a line that starts another block
+# (heading, quote, fence, list item, thematic break or HTML). Only a code span
+# in one of these rows can carry a table-escaped "\|".
+DELIMITER_ROW = re.compile(r"^[ \t]*\|?(?:[ \t]*:?-+:?[ \t]*\|)*[ \t]*:?-+:?[ \t]*\|?[ \t]*$")
+BLOCK_START = re.compile(r"^ {0,3}(?:#{1,6}(?:[ \t]|$)|>|```|~~~|[-+*][ \t]|\d{1,9}[.)][ \t]|<|(?:[-*_][ \t]*){3,}$)")
+table_ranges = []
+resp_lines = []
+offset = 0
+for raw in resp.split("\n"):
+    resp_lines.append((offset, offset + len(raw), raw))
+    offset += len(raw) + 1
+def cell_count(text):
+    # Unescaped pipes separate cells; one leading and one trailing pipe are
+    # borders. GFM requires the header and delimiter rows to match.
+    row_text = text.strip()
+    if row_text.startswith("|"):
+        row_text = row_text[1:]
+    if row_text.endswith("|") and not row_text.endswith("\\|"):
+        row_text = row_text[:-1]
+    return len(re.split(r"(?<!\\)\|", row_text))
+
+def indented_code(text):
+    # Four columns of indentation make an indented code block, not a table.
+    indent = text[:len(text) - len(text.lstrip(" \t"))]
+    return len(indent.expandtabs(4)) >= 4
+
+def table_line(index):
+    l_start, l_end, text = resp_lines[index]
+    return ("|" in text and not indented_code(text) and not BLOCK_START.match(text)
+            and not in_fence(l_start, l_end + 1))
+
+row = 1
+while row < len(resp_lines):
+    delimiter = resp_lines[row]
+    # The delimiter skips BLOCK_START, since a "- | -" delimiter also looks
+    # like a list item.
+    if not ("|" in delimiter[2] and DELIMITER_ROW.match(delimiter[2]) and not indented_code(delimiter[2])
+            and not in_fence(delimiter[0], delimiter[1] + 1) and table_line(row - 1)
+            and cell_count(resp_lines[row - 1][2]) == cell_count(delimiter[2])):
+        row += 1
+        continue
+    last = row
+    while last + 1 < len(resp_lines) and table_line(last + 1):
+        last += 1
+    table_ranges.append((resp_lines[row - 1][0], resp_lines[last][1]))
+    row = last + 2
+
+# Tables come from one forward scan, so they are sorted and disjoint.
+table_starts = [t_start for t_start, _ in table_ranges]
+
+def in_table(start, end):
+    i = bisect_right(table_starts, start) - 1
+    return i >= 0 and end <= table_ranges[i][1]
+
+def unescaped(variants, table):
+    # "\|" is how a seat writes "|" inside a Markdown table cell (sail-cruisey
+    # #3125: `a \|\| b` for `a || b`). Only in a table cell: elsewhere "\|" is
+    # literal and can change a regular expression. Quote side only, after the
+    # literal variant: source text keeps its backslashes, so a quote that drops
+    # a source line's own "\|" still does not match it.
+    if not table:
+        return variants
+    return variants + [v.replace("\\|", "|") for v in variants if "\\|" in v]
+
+def specific_lines(block, table=False):
     out = []
     for line in block:
         variants = [line.strip()]
         stripped = GUTTER.sub("", line).strip()
         if stripped != variants[0]:
             variants.append(stripped)
-        variants = [v for v in variants if checkable(v)]
+        variants = [v for v in unescaped(variants, table) if checkable(v)]
         if variants:
             out.append(variants)
     return out
@@ -3438,7 +3503,8 @@ def proposed(start):
 checkable_units = 0
 for start, end, kind, block, removed_block, info in units:
     wholes = unit_wholes(block) if len(block) > 1 else []
-    line_variants = specific_lines(block)
+    # Only an inline code span can sit in a table cell.
+    line_variants = specific_lines(block, kind == "inline" and in_table(start, end))
     removed_variants = [v for v in [" ".join(l.strip() for l in removed_block)] + [l.strip() for l in removed_block]
                         if v and checkable(v)]
     if not wholes and not line_variants and not removed_variants and not (
