@@ -3564,14 +3564,28 @@ def unescaped(variants, table):
         return variants
     return variants + [v.replace("\\|", "|") for v in variants if "\\|" in v]
 
-def specific_lines(block, table=False):
+# A seat that writes a quoted source line as a string literal ("…", with \"
+# for each inner quote) quotes that line exactly; codex does this routinely
+# (sail-cruisey #3139, #3193, #3234). Inline code spans only, quote side only,
+# after the literal variant, and only for a whole value wrapped in double
+# quotes: the inner text must still be found in the file, so this cannot
+# verify an invented line. Only \" is unescaped; other backslashes stay
+# literal, as codex writes them (a quoted regex keeps its "\."), so "\\" is
+# not halved into a different regex.
+STRING_LITERAL = re.compile(r'^"(?:[^"\\]|\\.)+"$')
+def unwrapped(variants, literal):
+    if not literal:
+        return variants
+    return variants + [v[1:-1].replace('\\"', '"').strip() for v in variants if STRING_LITERAL.match(v)]
+
+def specific_lines(block, table=False, literal=False):
     out = []
     for line in block:
         variants = [line.strip()]
         stripped = GUTTER.sub("", line).strip()
         if stripped != variants[0]:
             variants.append(stripped)
-        variants = [v for v in unescaped(variants, table) if checkable(v)]
+        variants = [v for v in unwrapped(unescaped(variants, table), literal) if checkable(v)]
         if variants:
             out.append(variants)
     return out
@@ -4208,8 +4222,8 @@ def cited_after(end):
 checkable_units = 0
 for start, end, kind, block, removed_block, info in units:
     wholes = unit_wholes(block) if len(block) > 1 else []
-    # Only an inline code span can sit in a table cell.
-    line_variants = specific_lines(block, kind == "inline" and in_table(start, end))
+    # Only an inline code span can sit in a table cell or be a string literal.
+    line_variants = specific_lines(block, kind == "inline" and in_table(start, end), kind == "inline")
     short = short_lines(block)
     removed_variants = [v for v in [" ".join(l.strip() for l in removed_block)] + [l.strip() for l in removed_block]
                         if v and checkable(v)]

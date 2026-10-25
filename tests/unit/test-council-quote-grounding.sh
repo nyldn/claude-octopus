@@ -1512,6 +1512,54 @@ if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; th
 
 ROOT="$table_previous_root"
 
+# codex writes a quoted line as a string literal inside the code span:
+# `"if (url.pathname.startsWith(\"//\")) continue;"` (sail-cruisey #3139, #3193,
+# #3234 flagged it blind on real lines every time).
+cat > "$ROOT/src/guard-3234.mjs" <<'SRC'
+export const LOOPBACK_HOST_RE = /localhost|127\.0\.0\.1|\[::1\]/i;
+for (const url of urls) {
+  if (url.pathname.startsWith("//")) continue;
+}
+SRC
+
+test_case "#3234: a real line written as a string literal verifies"
+lit="$(_resp 'src/pricing.ts:2 uses `"const base = cabin.basePrice ?? sailing.defaultPrice;"` as the fallback.
+VERDICT: APPROVE')"
+r="$(_report "$lit")"
+if jq -e '.quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3234: a string literal with \\\" escapes and a regex with \\. verify"
+esc="$(_resp 'src/guard-3234.mjs:3 contains `"if (url.pathname.startsWith(\"//\")) continue;"` and src/guard-3234.mjs:1 has `"export const LOOPBACK_HOST_RE = /localhost|127\.0\.0\.1|\[::1\]/i;"`.
+VERDICT: APPROVE')"
+r="$(_report "$esc")"
+if jq -e '.quotes_checked == 2 and .quotes_verified == 2 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3234: an invented line wrapped as a string literal is still fabricated"
+fake_lit="$(_resp 'src/pricing.ts:2 uses `"const base = await fetchCabinPrice(cabin.id, { cache: true });"` here.
+VERDICT: APPROVE')"
+r="$(_report "$fake_lit")"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# The wrapper is the only encoding: backslashes inside stay literal, as codex
+# writes them (`\.` above). A JSON reading would halve "\\" and match a
+# different regex.
+test_case "#3234: a string literal's '\\\\' is not read as one backslash"
+halved="$(_resp 'src/guard-3234.mjs:1 has `"export const LOOPBACK_HOST_RE = /localhost|127\\.0\\.0\\.1|\\[::1\\]/i;"`.
+VERDICT: APPROVE')"
+r="$(_report "$halved")"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3234: a fenced line that is a string literal is not unwrapped"
+fenced_lit="$(_resp 'src/pricing.ts:2 is:
+
+```ts
+"const base = cabin.basePrice ?? sailing.defaultPrice;"
+```
+
+VERDICT: APPROVE')"
+r="$(_report "$fenced_lit")"
+if jq -e '.quotes_verified == 0' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
 test_case "no diff available: a quote the seat says was removed is unverifiable, not fabricated"
 claimed="$(_resp "At src/pricing.ts:2 the check \`if (cabin.soldOut) return { price: null };\` was deleted in this change.
 VERDICT: REVISE")"
