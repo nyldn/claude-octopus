@@ -11,6 +11,9 @@ _INTELLIGENCE_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if ! declare -f count_words >/dev/null 2>&1; then
     source "${_INTELLIGENCE_LIB_DIR}/utils.sh" || { return 1 2>/dev/null || exit 1; }
 fi
+if ! declare -f octo_project_scope_root >/dev/null 2>&1; then
+    source "${_INTELLIGENCE_LIB_DIR}/project-scope.sh" || { return 1 2>/dev/null || exit 1; }
+fi
 if ! declare -f octo_provider_canonical >/dev/null 2>&1; then
     source "${_INTELLIGENCE_LIB_DIR}/provider-registry.sh" || {
         if declare -f log >/dev/null 2>&1; then
@@ -887,10 +890,14 @@ run_file_validation() {
 # Kill switch: OCTOPUS_HEURISTIC_LEARNING=off
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Record files mentioned in a successful agent run for co-occurrence learning
+# Record files mentioned in a successful agent run for co-occurrence learning.
+# Each entry carries its project scope root (lib/project-scope.sh) and only
+# relative paths that exist under it, so a later run in another worktree never
+# sees this run's paths.
 # Usage: record_run_pattern <agent_type> <prompt> <result_file>
 record_run_pattern() {
     [[ "${OCTOPUS_HEURISTIC_LEARNING:-on}" == "off" ]] && return 0
+    command -v jq >/dev/null 2>&1 || return 0
 
     local agent_type="$1"
     local prompt="$2"
@@ -899,41 +906,54 @@ record_run_pattern() {
     [[ -f "$result_file" ]] || return 0
 
     local patterns_file="${HOME}/.claude-octopus/.octo/patterns.jsonl"
+    local scope_root
+    scope_root="$(octo_project_scope_root)" || return 0
 
     # Extract file paths mentioned in the result (look for common path patterns)
     local result_content
     result_content=$(head -c 4000 "$result_file" 2>/dev/null) || return 0
 
-    # Match file paths like src/foo.ts, ./bar/baz.js, lib/thing.sh etc.
-    local files_found
-    files_found=$(echo "$result_content" | grep -oE '[a-zA-Z0-9_./-]+\.[a-zA-Z]{1,5}' | \
-        grep -vE '^\.' | grep '/' | sort -u | head -20 | tr '\n' ',' | sed 's/,$//')
+    # Match file paths like src/foo.ts, bar/baz.js, lib/thing.sh etc.
+    local files_found="" path
+    while IFS= read -r path; do
+        octo_project_scope_has_path "$scope_root" "$path" || continue
+        files_found="${files_found:+${files_found},}${path}"
+    done < <(printf '%s\n' "$result_content" | grep -oE '[a-zA-Z0-9_./-]+\.[a-zA-Z]{1,5}' | \
+        grep -vE '^\.' | grep '/' | sort -u | head -20)
 
     [[ -z "$files_found" ]] && return 0
 
     # Extract a compact prompt signature (first 100 chars, no newlines)
     local prompt_sig
-    prompt_sig="${prompt:0:100}"; prompt_sig="${prompt_sig//$'\n'/ }"; prompt_sig="${prompt_sig//\"/}"
+    prompt_sig="${prompt:0:100}"; prompt_sig="${prompt_sig//$'\n'/ }"
 
     local timestamp
     timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
 
-    local entry="{\"ts\":\"$timestamp\",\"agent\":\"$agent_type\",\"prompt_sig\":\"$prompt_sig\",\"files\":\"$files_found\"}"
+    local entry
+    entry="$(jq -cn --arg ts "$timestamp" --arg agent "$agent_type" --arg prompt_sig "$prompt_sig" \
+        --arg files "$files_found" --arg root "$scope_root" \
+        '{ts: $ts, agent: $agent, prompt_sig: $prompt_sig, files: $files, root: $root}')" || return 0
 
     octo_db_append "$patterns_file" "$entry" 200
     log "DEBUG" "Recorded run pattern: ${files_found:0:80}..." 2>/dev/null || true
 }
 
-# Build heuristic context from past successful runs
+# Build heuristic context from past successful runs in this project scope.
+# Entries from another scope root, or legacy entries with no root, are
+# ignored, and only paths that exist under this root are suggested.
 # Returns a short hint string (≤500 chars) or empty if no relevant patterns
 # Usage: build_heuristic_context <prompt>
 build_heuristic_context() {
     [[ "${OCTOPUS_HEURISTIC_LEARNING:-on}" == "off" ]] && return 0
+    command -v jq >/dev/null 2>&1 || return 0
 
     local prompt="$1"
     local patterns_file="${HOME}/.claude-octopus/.octo/patterns.jsonl"
 
     [[ -f "$patterns_file" ]] || return 0
+    local scope_root
+    scope_root="$(octo_project_scope_root)" || return 0
 
     # Extract candidate file names from the current prompt
     local target_files
@@ -947,13 +967,17 @@ build_heuristic_context() {
     local file
     while IFS= read -r file; do
         [[ -z "$file" ]] && continue
-        # Find patterns that mention this file and extract their co-occurring files
-        local cooccurring
-        cooccurring=$(grep -F "$file" "$patterns_file" 2>/dev/null | \
-            grep -oE '[a-zA-Z0-9_./-]+\.[a-zA-Z]{1,5}' | \
-            grep -vE "^${file//\//\\/}$" | \
-            grep '/' | sort | uniq -c | sort -rn | \
-            awk '$1 >= 2 { print $2 }' | head -3 | tr '\n' ', ' | sed 's/,$//')
+        # Patterns from this scope whose files include this exact path
+        local cooccurring="" candidate
+        while IFS= read -r candidate; do
+            octo_project_scope_has_path "$scope_root" "$candidate" || continue
+            cooccurring="${cooccurring:+${cooccurring}, }${candidate}"
+        done < <(jq -rR --arg root "$scope_root" --arg file "$file" '
+                fromjson? | select(type == "object" and .root == $root and (.files | type) == "string")
+                | (.files | split(",")) as $files
+                | select($files | index($file))
+                | $files[] | select(. != $file)' "$patterns_file" 2>/dev/null | \
+            sort | uniq -c | sort -rn | awk '$1 >= 2 { print $2 }' | head -3)
         if [[ -n "$cooccurring" ]]; then
             hints="${hints}When modifying ${file}, successful runs usually first read: ${cooccurring}. "
         fi

@@ -6,6 +6,8 @@ if source "${_provider_lockout_dir}/agent-spec.sh" 2>/dev/null \
     && declare -F octo_agent_spec_slug >/dev/null 2>&1; then
     _provider_lockout_agent_spec_ready=true
 fi
+declare -F octo_project_scope_key >/dev/null 2>&1 \
+    || source "${_provider_lockout_dir}/project-scope.sh" 2>/dev/null || true
 # ═══════════════════════════════════════════════════════════════════════════════
 # lib/provider-lockout.sh — single owner of the provider lockout + history protocol
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -137,7 +139,16 @@ provider_history_unlock() {
 }
 
 # v8.18.0 Feature: Per-Provider History Files
-# Each provider accumulates project-specific knowledge in .octo/providers/{name}-history.md
+# Each provider accumulates project-specific knowledge in
+# .octo/providers/<project scope key>/{name}-history.md. The scope key
+# (lib/project-scope.sh) keeps one worktree's history out of another's
+# prompts; without a resolvable scope, history is neither written nor read.
+provider_history_dir() {
+    declare -F octo_project_scope_key >/dev/null 2>&1 || return 1
+    local scope_key
+    scope_key="$(octo_project_scope_key)" || return 1
+    printf '%s\n' "${WORKSPACE_DIR}/.octo/providers/${scope_key}"
+}
 
 append_provider_history() {
     case "${OCTOPUS_PROVIDER_HISTORY:-on}" in
@@ -152,7 +163,8 @@ append_provider_history() {
     local task_brief="$3"
     local learned="$4"
 
-    local history_dir="${WORKSPACE_DIR}/.octo/providers"
+    local history_dir
+    history_dir="$(provider_history_dir)" || return 0
     local history_file="$history_dir/${history_key}-history.md"
     mkdir -p "$history_dir"
 
@@ -217,7 +229,9 @@ read_provider_history() {
     [[ "${_provider_lockout_agent_spec_ready:-false}" == true ]] || return 127
     provider="$(octo_agent_spec_provider "$1")" || return $?
     history_key="$(provider_history_file_key "$provider")" || return $?
-    local history_file="${WORKSPACE_DIR}/.octo/providers/${history_key}-history.md"
+    local history_dir
+    history_dir="$(provider_history_dir)" || return 0
+    local history_file="$history_dir/${history_key}-history.md"
 
     if [[ -f "$history_file" ]]; then
         cat "$history_file"

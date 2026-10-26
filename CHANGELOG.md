@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Learned file hints and provider history no longer cross projects or
+  worktrees. Heuristic learning wrote every run's file paths, absolute ones
+  included, to one global `~/.claude-octopus/.octo/patterns.jsonl`, and later
+  prompts in any project got "File Heuristics" hints from it. One worktree's
+  provider prompt named another worktree's review-prompt file that way.
+  Patterns now record the run's git worktree root and only relative paths that
+  exist under it. Hints read only entries from the current root and suggest
+  only files that exist there. Provider history moves to
+  `.octo/providers/<project key>/`. `patterns.jsonl` stays the pattern store:
+  its older entries, which have no root, are ignored. The old per-provider
+  `.octo/providers/<provider>-history.md` files stay on disk, unused.
+
 ## [11.15.1] - 2026-10-23
 
 ### Fixed

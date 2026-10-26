@@ -24,10 +24,10 @@ assert_provider_history_toggle_for_script() (
 
     export OCTOPUS_PROVIDER_HISTORY=off
     append_provider_history codex tangle "task" "learned"
-    [[ ! -e "$WORKSPACE_DIR/.octo/providers/codex-history.md" ]] || return 1
+    [[ ! -e "$(provider_history_dir)/codex-history.md" ]] || return 1
 
-    mkdir -p "$WORKSPACE_DIR/.octo/providers"
-    cat > "$WORKSPACE_DIR/.octo/providers/codex-history.md" <<'EOF'
+    mkdir -p "$(provider_history_dir)"
+    cat > "$(provider_history_dir)/codex-history.md" <<'EOF'
 ### tangle | 2026-01-01T00:00:00Z
 **Task:** stale task
 **Learned:** stale learning
@@ -65,9 +65,9 @@ mkdir -p "$WORKSPACE_DIR" "$RESULTS_DIR"
 source "$PROJECT_ROOT/scripts/lib/provider-lockout.sh"
 unset OCTOPUS_PROVIDER_HISTORY || true
 append_provider_history 'commandcode:stealth/ox-alpha' tangle "task" "model-aware history"
-if [[ -f "$WORKSPACE_DIR/.octo/providers/commandcode-history.md" ]] && \
-   [[ ! -e "$WORKSPACE_DIR/.octo/providers/commandcode:stealth/ox-alpha-history.md" ]] && \
-   grep -Fq 'model-aware history' "$WORKSPACE_DIR/.octo/providers/commandcode-history.md"; then
+if [[ -f "$(provider_history_dir)/commandcode-history.md" ]] && \
+   [[ ! -e "$(provider_history_dir)/commandcode:stealth/ox-alpha-history.md" ]] && \
+   grep -Fq 'model-aware history' "$(provider_history_dir)/commandcode-history.md"; then
     test_pass
 else
     test_fail "model-qualified provider history was not normalized to commandcode-history.md"
@@ -80,9 +80,9 @@ mkdir -p "$WORKSPACE_DIR" "$RESULTS_DIR"
 source "$PROJECT_ROOT/scripts/lib/provider-lockout.sh"
 unset OCTOPUS_PROVIDER_HISTORY || true
 append_provider_history '../../escaped' tangle "task" "safe history"
-safe_file="$(find "$WORKSPACE_DIR/.octo/providers" -maxdepth 1 -type f -name '*escaped*-history.md' | head -1)"
+safe_file="$(find "$(provider_history_dir)" -maxdepth 1 -type f -name '*escaped*-history.md' | head -1)"
 if [[ -n "$safe_file" ]] && \
-   [[ "$safe_file" == "$WORKSPACE_DIR/.octo/providers/"* ]] && \
+   [[ "$safe_file" == "$(provider_history_dir)/"* ]] && \
    [[ ! -e "$WORKSPACE_DIR/escaped-history.md" ]] && \
    [[ ! -e "$WORKSPACE_DIR/.octo/escaped-history.md" ]]; then
     test_pass
@@ -105,9 +105,9 @@ for i in $(seq 49 56); do
     pids="$pids $!"
 done
 for pid in $pids; do wait "$pid"; done
-history_file="$WORKSPACE_DIR/.octo/providers/commandcode-history.md"
+history_file="$(provider_history_dir)/commandcode-history.md"
 entry_count="$(grep -c '^### ' "$history_file" 2>/dev/null || true)"
-leftovers="$(find "$WORKSPACE_DIR/.octo/providers" -maxdepth 1 \( -name 'commandcode-history.md.tmp.*' -o -name 'commandcode-history.md.lock' \) -print)"
+leftovers="$(find "$(provider_history_dir)" -maxdepth 1 \( -name 'commandcode-history.md.tmp.*' -o -name 'commandcode-history.md.lock' \) -print)"
 missing=""
 for i in $(seq 49 56); do
     grep -Fq "**Task:** concurrent-$i" "$history_file" || missing="$missing $i"
@@ -147,12 +147,12 @@ fi
 
 test_case "provider history append reports write failure and releases its lock"
 rm -rf "$WORKSPACE_DIR"
-mkdir -p "$WORKSPACE_DIR/.octo/providers/codex-history.md" "$RESULTS_DIR"
+mkdir -p "$(provider_history_dir)/codex-history.md" "$RESULTS_DIR"
 source "$PROJECT_ROOT/scripts/lib/provider-lockout.sh"
 unset OCTOPUS_PROVIDER_HISTORY || true
 if append_provider_history codex tangle "task" "write must fail"; then
     test_fail "provider history append reported success when the history path was a directory"
-elif [[ -e "$WORKSPACE_DIR/.octo/providers/codex-history.md.lock" ]]; then
+elif [[ -e "$(provider_history_dir)/codex-history.md.lock" ]]; then
     test_fail "provider history append left its lock behind after a write failure"
 else
     test_pass
