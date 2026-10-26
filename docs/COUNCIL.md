@@ -85,6 +85,14 @@ quote occurrence must fall within `N` characters of that mention. Fenced lines
 use their own response offsets. Duplicate source content can match before the
 named file; scanning continues within the existing budgets to resolve names.
 
+By default, a short approval is exempt from the grounding check, so a terse
+"no findings. VERDICT: APPROVE" counts toward quorum. Set
+`OCTOPUS_COUNCIL_REQUIRE_GROUNDED_APPROVE=1` to mark an APPROVE blind when it
+has no resolving source `path:line` and no verified quote, at any length.
+Citations of documentation files (`.md`, `.mdx`, `.markdown`, `.txt`, `.rst`)
+do not count. The rule needs a live evidence root and is skipped in fixture
+mode. `summary.json` reports it as `quorum.grounded_approve_required`.
+
 This option tightens the content-match signal. Basename resolution and proximity
 do not prove that the quote came from that exact file or that a seat read it.
 Validated citations and the council's other grounding paths still apply.

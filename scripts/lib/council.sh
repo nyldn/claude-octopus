@@ -2406,13 +2406,17 @@ council_response_has_grounding() {
     # `path:line` citation that resolves under the evidence root, OR a content-match
     # (a distinctive quoted fragment that appears verbatim in a source file). This is
     # the single gate the quorum tally and the §4 raw-body rule share.
-    local f="$1" evidence_root="${2:-}"
+    # With scope "source", a citation of a documentation file (.md, .mdx,
+    # .markdown, .txt, .rst) does not count: citing a rules file is not evidence
+    # the seat read the code under review.
+    local f="$1" evidence_root="${2:-}" scope="${3:-any}"
     [[ -f "$f" ]] || return 1
     [[ -n "$evidence_root" && -d "$evidence_root" ]] || return 0
     command -v python3 >/dev/null 2>&1 || return 0
-    local validated
+    local validated filter='.'
+    [[ "$scope" == source ]] && filter='map(select(.path | test("\\.(md|mdx|markdown|txt|rst)$"; "i") | not))'
     validated="$(council_response_evidence_paths_json "$f" "$evidence_root")" || validated='[]'
-    [[ "$(jq 'length' <<< "$validated" 2>/dev/null || printf 0)" -gt 0 ]] && return 0
+    [[ "$(jq "$filter | length" <<< "$validated" 2>/dev/null || printf 0)" -gt 0 ]] && return 0
     local matches scan_rc=0
     matches="$(council_response_content_match_count "$f" "$evidence_root")" || scan_rc=$?
     # Preserve the prose fallback when safe descriptor reads are unsupported.
@@ -2459,6 +2463,21 @@ council_response_is_blind() {
     # Gated on zero file:line citations so a grounded review is never flagged
     # (sail-cruisey #2570 paraphrase, #2463 prior-phase deference).
     if council_response_defers_without_reading "$f" "$evidence_root"; then
+        return 0
+    fi
+
+    # Grounded APPROVE (opt-in, OCTOPUS_COUNCIL_REQUIRE_GROUNDED_APPROVE=1;
+    # sail-cruisey #3244). The length-gated rule below exempts a terse "no
+    # findings. VERDICT: APPROVE", so summary.json could report quorum met with
+    # no blind seats while a consumer that requires every counted APPROVE to be
+    # grounded rejects the round. With the flag, an APPROVE with no resolving
+    # source path:line and no verified quote is blind at any length. Same scope
+    # as that rule: a live evidence root, not fixture mode.
+    if [[ "${OCTOPUS_COUNCIL_REQUIRE_GROUNDED_APPROVE:-0}" == 1 && -z "${COUNCIL_FIXTURE:-}" \
+            && -n "$evidence_root" && -d "$evidence_root" ]] \
+        && command -v python3 >/dev/null 2>&1 \
+        && [[ "$(council_response_verdict "$f")" == APPROVE ]] \
+        && ! council_response_has_grounding "$f" "$evidence_root" source; then
         return 0
     fi
 
@@ -6100,6 +6119,7 @@ council_write_summary_json() {
         --arg distinct_approving_providers "${COUNCIL_DISTINCT_APPROVING_PROVIDERS:-0}" \
         --arg approving_providers "${COUNCIL_APPROVING_PROVIDERS:-}" \
         --arg blind_seats "${COUNCIL_BLIND_SEATS:-}" \
+        --arg grounded_approve_required "${OCTOPUS_COUNCIL_REQUIRE_GROUNDED_APPROVE:-0}" \
         --arg distinct_model_families "${COUNCIL_DISTINCT_MODEL_FAMILIES:-0}" \
         --arg responding_model_families "${COUNCIL_RESPONDING_MODEL_FAMILIES:+${COUNCIL_RESPONDING_MODEL_FAMILIES# }}" \
         --arg distinct_approving_model_families "${COUNCIL_DISTINCT_APPROVING_MODEL_FAMILIES:-0}" \
@@ -6166,6 +6186,7 @@ council_write_summary_json() {
             distinct_approving_model_families: ($distinct_approving_model_families | tonumber),
             approving_model_families: $approving_model_families,
             blind_seats: ($blind_seats | split(" ") | map(select(length > 0))),
+            grounded_approve_required: ($grounded_approve_required == "1"),
             met: ($quorum_met == "true")
           },
           providers: $providers,
