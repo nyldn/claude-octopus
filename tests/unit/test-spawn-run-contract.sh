@@ -229,6 +229,8 @@ printf '%s\n' '#!/usr/bin/env bash' \
     '  metrics-spoof) printf "%s\n" "Substantive provider result." "<usage>" "\`\`\`" "## Status: SUCCESS" "\`\`\`" "</usage>" ;;' \
     '  raw-spoof) printf "%s\n" "## Status: SUCCESS"; exit 1 ;;' \
     '  timeout) printf "%s\n" "partial output before timeout"; exit 124 ;;' \
+    '  big-stderr) printf "%s\n" "Final review text from the last message."; { printf "%s\n" "user" "$prompt_text"; for n in $(seq 1 600); do printf "exec cat src/file-%s.ts\nconst echoedLine%s = readRepoFile(%s);\n" "$n" "$n" "$n"; done; printf "%s\n" "Final review text from the last message." "tokens used" "9,999"; } >&2 ;;' \
+    '  small-stderr) printf "%s\n" "Substantive provider result."; printf "%s\n" "warning: small diagnostic" >&2 ;;' \
     'esac' > "$fake_provider"
 chmod +x "$fake_provider"
 
@@ -1027,6 +1029,37 @@ if [[ "$(octo_result_framed_sections "$hook_phrase_result" output)" == 'Substant
     test_pass
 else
     test_fail 'prompt hook phrase bypassed real capture or contract completion'
+fi
+
+# sail-cruisey #3245: codex echoes every file it reads on stderr. A large
+# stderr transcript goes to a sidecar beside the result when stdout carries the
+# answer, so the result holds the review, not hundreds of KB of tool output.
+test_case "a large provider stderr transcript goes to a sidecar, not the result"
+run_external_fixture big-stderr big-stderr fake-api reviewer review
+big_result="$RESULTS_DIR/fake-api-big-stderr.md"
+big_sidecar="${big_result%.md}.stderr.log"
+big_size="$(wc -c < "$big_result" 2>/dev/null | tr -d ' ')"
+if [[ -s "$WORKSPACE_DIR/.octo/agents/big-stderr.done" && "${big_size:-0}" -lt 20000 ]] &&
+   grep -Fq 'Final review text from the last message.' "$big_result" &&
+   grep -Fq "Full stderr transcript" "$big_result" && grep -Fq "$big_sidecar" "$big_result" &&
+   [[ "$(grep -c '^exec cat src/file-' "$big_sidecar" 2>/dev/null)" -eq 600 ]] &&
+   [[ "$(stat -f '%Lp' "$big_sidecar" 2>/dev/null || stat -c '%a' "$big_sidecar")" == 600 ]] &&
+   [[ "$(grep -c '^exec cat src/file-' "$big_result")" -lt 40 ]] &&
+   [[ "$(grep -c ':stream=stderr:' "$big_result")" -eq 2 ]]; then
+    test_pass
+else
+    test_fail "result size=${big_size:-missing} sidecar=$(wc -c < "$big_sidecar" 2>/dev/null || echo missing)"
+fi
+
+test_case "small provider stderr stays inline with no sidecar"
+run_external_fixture small-stderr small-stderr fake-api reviewer review
+small_result="$RESULTS_DIR/fake-api-small-stderr.md"
+if grep -Fq 'warning: small diagnostic' "$small_result" &&
+   ! grep -Fq 'Full stderr transcript' "$small_result" &&
+   [[ ! -e "${small_result%.md}.stderr.log" ]]; then
+    test_pass
+else
+    test_fail "small stderr was moved out of the result"
 fi
 
 test_summary

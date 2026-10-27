@@ -15,6 +15,13 @@
   `.octo/providers/<project key>/`. `patterns.jsonl` stays the pattern store:
   its older entries, which have no root, are ignored. The old per-provider
   `.octo/providers/<provider>-history.md` files stay on disk, unused.
+- A large provider stderr transcript no longer fills the result file. Codex
+  echoes every file it reads on stderr, and `spawn.sh` appended all of it
+  under "Warnings/Errors": one review result was 294 KB around a 2 KB answer.
+  When stderr is over 16 KB and stdout holds the answer, the full transcript
+  goes to `<result>.stderr.log` (mode 600). The result keeps its last 40 lines,
+  inside the same untrusted wrapper, plus a line with the size and path. A run
+  with no stdout keeps stderr inline, since its answer is recovered from there.
 
 ## [11.15.1] - 2026-10-23
 
