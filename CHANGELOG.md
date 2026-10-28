@@ -27,6 +27,24 @@
   1 MiB limit keep full stderr inline. Truncated excerpts preserve UTF-8.
   Expiring a per-agent result also removes its full stderr transcript; retained
   synthesis reports and recent results keep their transcripts.
+- Preflight checks the council roster that `OCTOPUS_COUNCIL_DEFAULT_PROVIDERS`
+  pins. A Codex-led session pins `claude,agy`, but preflight ignored the list:
+  the static pass checked every non-Claude provider, the smoke test always
+  tried Codex, and nothing reported on the Claude seat. With a roster set,
+  `orchestrate.sh preflight` checks exactly those seats, Claude included, names
+  the list it used, and fails naming any seat that is not ready. The smoke test
+  and `/octo:preflight` cover only the roster, and the smoke test fails when
+  any roster seat it tested fails. A pinned Codex seat with an expired OAuth
+  token fails the roster even when other seats are ready. A seat with no
+  provider detection, such as `openai-tools`, is listed as not checked instead
+  of failing the roster or counting as degraded. The JSON gains `roster`, `roster_unchecked` and `sandbox`, and cached results are
+  keyed on the roster. Unset or `auto` keeps the previous behavior.
+- Preflight readiness inside a macOS sandbox. The `/octo:preflight` loop sent
+  stderr through `2> >(cat >&2)`, a `/dev/fd` write that Codex and Claude Code
+  sandboxes deny, so every provider read `check-failed` there. Inside such a
+  sandbox (`CODEX_SANDBOX` or `SANDBOX_RUNTIME`), a provider that is not ready
+  now carries a note that keychain logins, network access or files outside the
+  workspace can fail there, with the remedy to re-run preflight outside it.
 
 ## [11.15.1] - 2026-10-23
 

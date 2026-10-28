@@ -896,8 +896,16 @@ preflight_cache_valid() {
     current_time=$(date +%s)
     cache_age=$((current_time - cache_time))
 
-    # Cache valid if less than TTL
-    [[ $cache_age -lt $PREFLIGHT_CACHE_TTL ]]
+    # Cache valid if less than TTL and written for the same council roster
+    [[ $cache_age -lt $PREFLIGHT_CACHE_TTL ]] || return 1
+    [[ "$(echo "$cache_content" | sed -n '3p')" == "$(_preflight_cache_roster_key)" ]]
+}
+
+# The pinned council roster a cached result was computed for ("" when none).
+_preflight_cache_roster_key() {
+    local roster=""
+    declare -f octo_preflight_roster >/dev/null 2>&1 && roster="$(octo_preflight_roster 2>/dev/null || printf 'invalid')"
+    printf '%s\n' "${roster//$'\n'/,}"
 }
 
 # Write preflight cache (stores timestamp and status)
@@ -907,12 +915,15 @@ preflight_cache_write() {
     {
         date +%s
         echo "$status"
+        _preflight_cache_roster_key
     } > "$PREFLIGHT_CACHE_FILE"
 }
 
 # Read cached preflight status (0=passed, 1=failed)
 preflight_cache_read() {
-    tail -1 "$PREFLIGHT_CACHE_FILE" 2>/dev/null || echo "1"
+    local status
+    status="$(sed -n '2p' "$PREFLIGHT_CACHE_FILE" 2>/dev/null)"
+    printf '%s\n' "${status:-1}"
 }
 
 # Invalidate preflight cache (call after setup or config changes)

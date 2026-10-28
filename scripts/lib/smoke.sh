@@ -845,7 +845,16 @@ smoke_test_cache_key() {
     if _smoke_claude_available; then
         claude_seat="${OCTOPUS_CLAUDE_BIN:-claude}/$(get_agent_model "claude-sonnet" 2>/dev/null || echo "default")"
     fi
-    echo "${codex_model}:${cursor_agent_model}:${cursor_agent_state}:${codex_sandbox}:claude=${claude_seat}"
+    local roster=""
+    declare -f octo_preflight_roster >/dev/null 2>&1 && roster="$(octo_preflight_roster 2>/dev/null || printf 'invalid')"
+    # The roster segment appears only when one is pinned, so the default key
+    # (and every existing cache) is unchanged.
+    echo "${codex_model}:${cursor_agent_model}:${cursor_agent_state}:${codex_sandbox}:claude=${claude_seat}${roster:+:roster=${roster//$'\n'/,}}"
+}
+
+# A pinned council roster limits the smoke test to its seats.
+_smoke_in_roster() {
+    ! declare -f octo_preflight_in_roster >/dev/null 2>&1 || octo_preflight_in_roster "$1"
 }
 
 # Claude seats run as `claude --print` subprocesses with the CLI's own
@@ -1115,12 +1124,12 @@ provider_smoke_test() {
 
     # Determine which providers are available (from preflight state)
     local has_codex=false has_cursor_agent=false has_agy=false has_claude=false
-    command -v codex &>/dev/null && has_codex=true
-    if declare -f cursor_agent_is_available >/dev/null 2>&1 && cursor_agent_is_available; then
+    command -v codex &>/dev/null && _smoke_in_roster codex && has_codex=true
+    if declare -f cursor_agent_is_available >/dev/null 2>&1 && cursor_agent_is_available && _smoke_in_roster cursor-agent; then
         has_cursor_agent=true
     fi
-    command -v agy &>/dev/null && has_agy=true
-    _smoke_claude_available && has_claude=true
+    command -v agy &>/dev/null && _smoke_in_roster agy && has_agy=true
+    _smoke_claude_available && _smoke_in_roster claude && has_claude=true
 
     if [[ "$has_codex" == "false" && "$has_cursor_agent" == "false" && "$has_agy" == "false" && "$has_claude" == "false" ]]; then
         log WARN "Smoke test: no providers to test"
@@ -1206,6 +1215,9 @@ provider_smoke_test() {
             local claude_model="${claude_result#*:}"
             _display_smoke_test_error "Claude" "$claude_error" "$claude_model"
         fi
+        if declare -f octo_preflight_sandbox_note >/dev/null 2>&1; then
+            octo_preflight_sandbox_note | sed 's/^/  /'
+        fi
         echo ""
     fi
 
@@ -1228,6 +1240,30 @@ provider_smoke_test() {
             return 1
             ;;
     esac
+
+    # A pinned council roster needs every seat it launched to pass: one seat
+    # passing must not cover for another failing auth. A timeout stays
+    # degraded, as above (slow is not dead).
+    if declare -f octo_preflight_roster >/dev/null 2>&1 && [[ -n "$(octo_preflight_roster 2>/dev/null)" ]]; then
+        local roster_failed="" seat seat_result
+        for seat in codex cursor-agent agy claude; do
+            case "$seat" in
+                codex) seat_result="$codex_result" ;;
+                cursor-agent) seat_result="$cursor_agent_result" ;;
+                agy) seat_result="$agy_result" ;;
+                claude) seat_result="$claude_result" ;;
+            esac
+            case "${seat_result%%:*}" in
+                PASS|SKIP|TIMEOUT) ;;
+                *) roster_failed="${roster_failed}${roster_failed:+ }${seat}" ;;
+            esac
+        done
+        if [[ -n "$roster_failed" ]]; then
+            log ERROR "Smoke test failed: council roster seat(s) failed: ${roster_failed}"
+            smoke_test_cache_write "1"
+            return 1
+        fi
+    fi
 
     # Pass if at least one provider succeeds (consistent with v7.9.1 single-provider mode)
     if [[ $pass_count -gt 0 ]]; then
