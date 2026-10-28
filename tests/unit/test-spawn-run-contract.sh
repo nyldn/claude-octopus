@@ -231,6 +231,9 @@ printf '%s\n' '#!/usr/bin/env bash' \
     '  timeout) printf "%s\n" "partial output before timeout"; exit 124 ;;' \
     '  big-stderr) printf "%s\n" "Final review text from the last message."; { printf "%s\n" "user" "$prompt_text"; for n in $(seq 1 600); do printf "exec cat src/file-%s.ts\nconst echoedLine%s = readRepoFile(%s);\n" "$n" "$n" "$n"; done; printf "%s\n" "Final review text from the last message." "tokens used" "9,999"; } >&2 ;;' \
     '  small-stderr) printf "%s\n" "Substantive provider result."; printf "%s\n" "warning: small diagnostic" >&2 ;;' \
+    '  banner-stderr) printf "%s\n" "Provider banner only" "--------"; printf "%s\n" "Answer carried on stderr before the transcript." >&2; for n in $(seq 1 600); do printf "diagnostic line %s with enough text to exceed the sidecar threshold\n" "$n" >&2; done ;;' \
+    '  long-stderr) printf "%s\n" "Substantive provider result."; printf "%050000d\n" 0 >&2 ;;' \
+    '  stderr-only) printf "%s\n" "# Completed: Answer carried only on stderr." >&2; for n in $(seq 1 600); do printf "diagnostic line %s with enough text to exceed the sidecar threshold\n" "$n" >&2; done ;;' \
     'esac' > "$fake_provider"
 chmod +x "$fake_provider"
 
@@ -1043,7 +1046,7 @@ if [[ -s "$WORKSPACE_DIR/.octo/agents/big-stderr.done" && "${big_size:-0}" -lt 2
    grep -Fq 'Final review text from the last message.' "$big_result" &&
    grep -Fq "Full stderr transcript" "$big_result" && grep -Fq "$big_sidecar" "$big_result" &&
    [[ "$(grep -c '^exec cat src/file-' "$big_sidecar" 2>/dev/null)" -eq 600 ]] &&
-   [[ "$(stat -f '%Lp' "$big_sidecar" 2>/dev/null || stat -c '%a' "$big_sidecar")" == 600 ]] &&
+   [[ "$(stat -c '%a' "$big_sidecar" 2>/dev/null || stat -f '%Lp' "$big_sidecar")" == 600 ]] &&
    [[ "$(grep -c '^exec cat src/file-' "$big_result")" -lt 40 ]] &&
    [[ "$(grep -c ':stream=stderr:' "$big_result")" -eq 2 ]]; then
     test_pass
@@ -1060,6 +1063,48 @@ if grep -Fq 'warning: small diagnostic' "$small_result" &&
     test_pass
 else
     test_fail "small stderr was moved out of the result"
+fi
+
+test_case "banner-only stdout keeps the complete stderr answer inline"
+run_external_fixture banner-stderr banner-stderr fake-api reviewer review
+banner_result="$RESULTS_DIR/fake-api-banner-stderr.md"
+if [[ -z "$(octo_result_framed_sections "$banner_result" output)" ]] &&
+   grep -Fq 'Answer carried on stderr before the transcript.' "$banner_result" &&
+   grep -Fq 'diagnostic line 600 ' "$banner_result" &&
+   ! grep -Fq 'Full stderr transcript' "$banner_result" &&
+   [[ ! -e "${banner_result%.md}.stderr.log" ]]; then
+    test_pass
+else
+    test_fail "banner-only stdout caused the stderr answer to be truncated"
+fi
+
+test_case "one long stderr line cannot exceed the inline byte budget"
+run_external_fixture long-stderr long-stderr fake-api reviewer review
+long_result="$RESULTS_DIR/fake-api-long-stderr.md"
+long_sidecar="${long_result%.md}.stderr.log"
+if [[ "$(wc -c < "$long_result")" -lt 30000 ]] &&
+   [[ "$(wc -c < "$long_sidecar")" -eq 50001 ]] &&
+   grep -Fq 'Substantive provider result.' "$long_result" &&
+   [[ "$(grep -c ':stream=stderr:' "$long_result")" -eq 2 ]]; then
+    test_pass
+else
+    test_fail "long stderr result=$(wc -c < "$long_result") sidecar=$(wc -c < "$long_sidecar")"
+fi
+
+test_case "a Codex recovery notice cannot move a stderr-only answer to a sidecar"
+(
+    CODEX_SUBAGENT_PREAMBLE=''
+    run_external_fixture stderr-only stderr-only codex-standard reviewer review
+)
+stderr_only_result="$RESULTS_DIR/codex-standard-stderr-only.md"
+if grep -Fq 'Codex response was emitted on stderr' "$stderr_only_result" &&
+   grep -Fq '# Completed: Answer carried only on stderr.' "$stderr_only_result" &&
+   grep -Fq 'diagnostic line 600 ' "$stderr_only_result" &&
+   ! grep -Fq 'Full stderr transcript' "$stderr_only_result" &&
+   [[ ! -e "${stderr_only_result%.md}.stderr.log" ]]; then
+    test_pass
+else
+    test_fail "launcher recovery notice caused the stderr-only answer to be truncated"
 fi
 
 test_summary

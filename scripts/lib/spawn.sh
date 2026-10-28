@@ -1788,7 +1788,9 @@ ${heuristic_ctx}"
             if [[ -s "$temp_errors" ]] && ! grep -q "^mcp startup:" "$temp_errors"; then
                 local _stderr_bytes _stderr_sidecar=""
                 _stderr_bytes="$(wc -c < "$temp_errors" | tr -d '[:space:]')"
-                if [[ "${_stderr_bytes:-0}" -gt 16384 ]] && grep -q '[[:alnum:]]' "$temp_output" 2>/dev/null; then
+                if [[ "${_stderr_bytes:-0}" -gt 16384 ]] &&
+                   grep -q '[[:alnum:]]' "$temp_output" 2>/dev/null &&
+                   octo_result_framed_sections "$result_file" output | grep '[[:alnum:]]' >/dev/null; then
                     _stderr_sidecar="${result_file%.md}.stderr.log"
                     if ! ( umask 077 && cp "$temp_errors" "$_stderr_sidecar" ); then
                         _stderr_sidecar=""
@@ -1801,7 +1803,8 @@ ${heuristic_ctx}"
                 fi
                 echo '```' >> "$result_file"
                 if [[ -n "$_stderr_sidecar" ]]; then
-                    tail -n 40 "$temp_errors" >> "$result_file"
+                    tail -c 16384 "$temp_errors" | tail -n 40 >> "$result_file"
+                    printf '\n' >> "$result_file"
                 else
                     cat "$temp_errors" >> "$result_file"
                 fi
@@ -1810,7 +1813,7 @@ ${heuristic_ctx}"
                     echo "<!-- END-UNTRUSTED:provider=${agent_type}:stream=stderr:nonce=${_untrusted_nonce} -->" >> "$result_file"
                 fi
                 if [[ -n "$_stderr_sidecar" ]]; then
-                    echo "(Last 40 lines shown. Full stderr transcript, ${_stderr_bytes} bytes: ${_stderr_sidecar})" >> "$result_file"
+                    echo "(Last 40 lines, at most 16 KB shown. Full stderr transcript, ${_stderr_bytes} bytes: ${_stderr_sidecar})" >> "$result_file"
                 fi
             fi
 

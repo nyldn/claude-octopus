@@ -19,9 +19,10 @@
   echoes every file it reads on stderr, and `spawn.sh` appended all of it
   under "Warnings/Errors": one review result was 294 KB around a 2 KB answer.
   When stderr is over 16 KB and stdout holds the answer, the full transcript
-  goes to `<result>.stderr.log` (mode 600). The result keeps its last 40 lines,
-  inside the same untrusted wrapper, plus a line with the size and path. A run
-  with no stdout keeps stderr inline, since its answer is recovered from there.
+  goes to `<result>.stderr.log` (mode 600). The result keeps at most 16 KB
+  from its last 40 lines, inside the same untrusted wrapper, plus a line with
+  the size and path. A run with no answer after stdout filtering keeps stderr
+  inline, since its answer may be recovered from there.
 
 ## [11.15.1] - 2026-10-23
 
