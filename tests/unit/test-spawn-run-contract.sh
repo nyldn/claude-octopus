@@ -8,7 +8,9 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "v10 background run contract"
 
-export WORKSPACE_DIR="$TEST_TMP_DIR/workspace"
+# macOS /tmp is a symlink. Give the private writer a physical fixture root;
+# symlinks inside that root must still be refused.
+export WORKSPACE_DIR="$(cd "$TEST_TMP_DIR" && pwd -P)/workspace"
 export OCTOPUS_WORKSPACE="$WORKSPACE_DIR"
 export OCTOPUS_RUN_ID="spawn-contract-test"
 export RESULTS_DIR="$WORKSPACE_DIR/results"

@@ -25,6 +25,8 @@
   inline, since its answer may be recovered from there. Existing sidecars are
   replaced privately; unsafe paths and transcripts above the private writer's
   1 MiB limit keep full stderr inline. Truncated excerpts preserve UTF-8.
+  Expiring a per-agent result also removes its full stderr transcript; retained
+  synthesis reports and recent results keep their transcripts.
 
 ## [11.15.1] - 2026-10-23
 
