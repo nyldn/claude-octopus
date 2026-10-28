@@ -35,7 +35,20 @@ A provider is used only when its CLI is installed AND its auth check passes. If 
 
 **"Circuit open for <provider> — skipping"** — the provider failed repeatedly this session and its circuit breaker tripped. It recovers automatically after the cooldown; to force it back immediately, start a new session or clear session state.
 
-**Provider quota-dead** — a provider that hit quota or auth-death earlier in the session is skipped for the rest of it. Check the provider's own dashboard, then restart the session.
+**Provider quota-dead**: smoke tests persist only explicit authentication or
+rate-limit failures observed outside Codex or Claude Code sandboxes. Preflight
+labels those entries `cached HH:MM, not re-checked`, using the provider's own
+timestamp when available. A passing smoke test clears the mark; otherwise check
+the provider's account or quota window before retrying. Unknown errors, timeouts,
+and sandbox denials exclude the provider for the current run without creating a
+persistent quota mark. Preflight labels these failures `not cached`. An unknown
+failure also prevents caching a successful overall check, so the next run tests
+the provider again. Timeouts retain the existing slow-provider pass-cache policy.
+
+**Sandbox denied a provider check**: `Operation not permitted` and recognized
+sandbox denials identify a restriction on the check. Run preflight outside that
+sandbox before treating the provider as unavailable. Smoke-test failures inside
+these sandboxes are never saved as quota or authentication failures.
 
 **"TIMEOUT EXCEEDED" on every provider in a phase**: each provider call has a per-call budget. Raise it for the whole run with `--timeout SECS` or `OCTOPUS_AGENT_TIMEOUT=SECS`; the environment variable wins when both are set. Calls a workflow runs deliberately unbounded stay unbounded. Council seats use `--seat-timeout` or `OCTOPUS_COUNCIL_TIMEOUT_<PROVIDER>` instead. If a provider keeps exploring the repository for a narrow question, a shorter prompt that asks for decisions rather than investigation is usually faster than a larger budget.
 
@@ -50,6 +63,26 @@ A provider is used only when its CLI is installed AND its auth check passes. If 
 **Fable dispatch refused or empty** — possible for security-audit phrasing on `claude-fable-5-1` or preserved `claude-fable-5` pins; the plugin reroutes security passes and retries refused claude-sdk dispatches once on Opus 5 by default. Set `OCTOPUS_FABLE5_FALLBACK_MODEL` to replace that fallback target. Details: `skills/blocks/fable5-prompting.md`. Disable the guards with `OCTOPUS_FABLE5_MODE=off`.
 
 **Empty results from a dispatch that "succeeded"** — check `~/.claude-octopus/results/` for the raw artifact and `~/.claude-octopus/logs/` for the dispatch log. `--verbose` on the next run shows the constructed command.
+
+**Large provider stderr transcripts**: when stdout contains an answer and stderr
+exceeds 16 KB, Octopus saves the full stderr beside the result as
+`<result-name>.stderr.log`, with file mode `600`. The result includes the last
+40 lines, bounded to 16 KB, and the transcript path. Runs without a usable stdout
+answer keep stderr inline. If the private writer rejects the path or the
+transcript exceeds its 1 MiB limit, full stderr also stays inline. Expiring a
+per-agent result removes its transcript; retained synthesis reports and recent
+results keep theirs.
+
+## Learned file hints and provider history
+
+Heuristic file hints and provider history are scoped to the current Git
+worktree root, or the project directory outside Git. Hints use only existing
+relative paths within that root. Patterns in
+`~/.claude-octopus/.octo/patterns.jsonl` without a recorded root are ignored.
+Provider histories use `.octo/providers/<project-key>/` under the Octopus
+workspace. Older `.octo/providers/<provider>-history.md` files remain on disk
+but are no longer read. Each worktree builds its own history from subsequent
+runs.
 
 ## Session preferences and memory
 

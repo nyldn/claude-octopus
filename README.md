@@ -36,24 +36,27 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
-### Research uses your chosen intensity
+### Learned context stays in its worktree
 
-`/octo:discover` and `/octo:research` pass your quick, standard, or deep
-selection to the research engine. The workflow examples also pass prior-phase
-results correctly and put focus, depth, and audit scope in the prompt.
-See [knowledge workflows](docs/KNOWLEDGE-WORKERS.md#workflow-customization).
+File hints and provider history now use only learning from the current project
+or Git worktree. A review in one worktree no longer supplies file paths to a
+provider working in another. Older unscoped patterns and provider histories
+remain on disk but are no longer used.
 
-### Session preferences stay outside your repository
+### Provider results keep the answer readable
 
-SessionEnd saves preferences and Markdown session learnings in the current
-project's existing Claude auto-memory directory. SessionStart restores
-preferences from that directory. The hooks no longer create `memory/` in your
-repository or fall back to an unrelated project's memory. Custom Claude
-configuration directories use the same mapping at session start and end.
+When a provider returns an answer with a large stderr transcript, the result
+shows a bounded excerpt and links to the full private transcript beside it.
+Runs without an answer keep stderr inline for recovery. Result expiry also
+removes the matching transcript.
 
-SessionEnd also saves structured cross-task learnings as JSON under
-`~/.claude-octopus/learnings`. That store is shared across projects and is not
-automatically read by SessionStart. See [session memory troubleshooting](docs/TROUBLESHOOTING.md#session-preferences-and-memory).
+### Failed checks no longer imply a quota lockout
+
+Smoke tests cache only explicit authentication or rate-limit failures observed
+outside coding sandboxes. Other failures exclude the provider for the current
+run without marking it quota-dead for later runs. Preflight distinguishes cached
+failures from failures in the current run and names sandbox denials.
+See [provider troubleshooting](docs/TROUBLESHOOTING.md#common-non-auth-failures).
 
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.15.1 — Honor selected research intensity, correct workflow examples, and keep session memory outside repositories.**

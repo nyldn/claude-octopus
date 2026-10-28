@@ -4,41 +4,32 @@
 
 ### Fixed
 
-- Learned file hints and provider history no longer cross projects or
-  worktrees. Heuristic learning wrote every run's file paths, absolute ones
-  included, to one global `~/.claude-octopus/.octo/patterns.jsonl`, and later
-  prompts in any project got "File Heuristics" hints from it. One worktree's
-  provider prompt named another worktree's review-prompt file that way.
-  Patterns now record the run's git worktree root and only relative paths that
-  exist under it. Hints read only entries from the current root and suggest
-  only files that exist there. Provider history moves to
-  `.octo/providers/<project key>/`. `patterns.jsonl` stays the pattern store:
-  its older entries, which have no root, are ignored. The old per-provider
-  `.octo/providers/<provider>-history.md` files stay on disk, unused.
-- A large provider stderr transcript no longer fills the result file. Codex
-  echoes every file it reads on stderr, and `spawn.sh` appended all of it
-  under "Warnings/Errors": one review result was 294 KB around a 2 KB answer.
-  When stderr is over 16 KB and stdout holds the answer, the full transcript
-  goes to `<result>.stderr.log` (mode 600). The result keeps at most 16 KB
-  from its last 40 lines, inside the same untrusted wrapper, plus a line with
-  the size and path. A run with no answer after stdout filtering keeps stderr
-  inline, since its answer may be recovered from there. Existing sidecars are
-  replaced privately; unsafe paths and transcripts above the private writer's
-  1 MiB limit keep full stderr inline. Truncated excerpts preserve UTF-8.
-  Expiring a per-agent result also removes its full stderr transcript; retained
-  synthesis reports and recent results keep their transcripts.
-- A smoke-test failure that is not a quota or auth rejection no longer marks
-  the provider quota-dead for later runs. Every failed result, including an
-  unknown error or a timeout, was written to `.provider-quota-dead`. The next
-  preflight then reported a healthy provider as "degraded (quota)" without
-  calling it, so a run inside the Codex sandbox blocked the escalated preflight
-  that followed. Now only `AUTH_FAILURE` and `RATE_LIMITED` are cached, each
-  with its own timestamp, and nothing is cached inside a Codex or Claude Code
-  sandbox. Other failures still exclude the provider for the rest of the run,
-  and a smoke test or preflight that passes with one of them is not cached as a
-  pass, so the next run checks that provider again. `Operation not permitted`
-  is reported as a sandbox denial. Preflight labels a cached entry "cached
-  HH:MM, not re-checked", and a failure from this run "not cached".
+- Learned file hints and provider history stay within the current project or
+  Git worktree. Hints record and suggest only existing relative paths inside
+  that root. Older patterns without a root and unscoped provider histories
+  remain on disk but are ignored. Provider history now uses
+  `.octo/providers/<project-key>/` under the Octopus workspace.
+  [#1228](https://github.com/nyldn/claude-octopus/pull/1228),
+  commit [ee7bcb4](https://github.com/nyldn/claude-octopus/commit/ee7bcb42e47ba6740100482e5be4155c3e6ebc46).
+- Provider answers stay readable when stderr contains a large transcript.
+  With a usable stdout answer and stderr over 16 KB, the full transcript goes
+  to a private `.stderr.log` sidecar. The result keeps at most 16 KB from its
+  last 40 lines, preserving UTF-8 and the untrusted-content wrapper. Runs
+  without an answer, unsafe sidecar paths, and transcripts over the private
+  writer's 1 MiB limit keep stderr inline. Result expiry removes the matching
+  transcript while preserving transcripts for retained reports.
+  [#1232](https://github.com/nyldn/claude-octopus/pull/1232),
+  commit [931b13e](https://github.com/nyldn/claude-octopus/commit/931b13e20393e7bb3d4b178e6d6ac97c959e8df0).
+- Smoke-test failures no longer mark a healthy provider quota-dead for later
+  runs unless they are explicit authentication or rate-limit rejections
+  observed outside coding sandboxes. Other failures exclude the provider only
+  for the current run. Unknown failures prevent caching a successful overall
+  check, while timeouts retain the existing slow-provider pass-cache policy.
+  Preflight distinguishes cached quota/auth failures, with their individual
+  timestamps, from current-run failures. Sandbox denials identify the check's
+  restriction and advise retrying outside the sandbox.
+  [#1233](https://github.com/nyldn/claude-octopus/pull/1233),
+  commit [16dd9e6](https://github.com/nyldn/claude-octopus/commit/16dd9e67d4be42e1bed11c89fed251b3cea4d7b5).
 
 ## [11.15.1] - 2026-10-23
 
