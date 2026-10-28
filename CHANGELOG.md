@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.15.2] - 2026-10-28
+
 ### Fixed
 
 - Learned file hints and provider history stay within the current project or
