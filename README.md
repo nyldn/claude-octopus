@@ -45,10 +45,12 @@ remain on disk but are no longer used.
 
 ### Provider results keep the answer readable
 
-When a provider returns an answer on stdout with a large stderr transcript,
-the result shows a bounded excerpt and the path to the full private transcript
-beside it. Runs without a usable stdout answer keep stderr inline for recovery.
-Result expiry also removes the matching transcript.
+With a usable stdout answer and stderr over 16 KiB, Octopus attempts to save
+a private transcript. When that succeeds, the result shows a bounded excerpt
+and the transcript path. If the writer cannot save it, including an unsafe
+sidecar path or a transcript over its 1 MiB limit, stderr stays inline. Runs
+without a usable stdout answer also keep stderr inline. Result expiry removes
+the matching transcript. See [transcript troubleshooting](docs/TROUBLESHOOTING.md#common-non-auth-failures).
 
 ### Failed checks no longer imply a quota lockout
 
