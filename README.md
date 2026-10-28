@@ -45,10 +45,10 @@ remain on disk but are no longer used.
 
 ### Provider results keep the answer readable
 
-When a provider returns an answer with a large stderr transcript, the result
-shows a bounded excerpt and links to the full private transcript beside it.
-Runs without an answer keep stderr inline for recovery. Result expiry also
-removes the matching transcript.
+When a provider returns an answer on stdout with a large stderr transcript,
+the result shows a bounded excerpt and the path to the full private transcript
+beside it. Runs without a usable stdout answer keep stderr inline for recovery.
+Result expiry also removes the matching transcript.
 
 ### Failed checks no longer imply a quota lockout
 
