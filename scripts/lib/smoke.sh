@@ -898,7 +898,10 @@ _classify_smoke_error() {
         local _re_rate='rate.?limit|429|too many requests|quota'
         local _re_policy='policy|blocked|safety|filtered|content.?filter|recitation'
         local _re_gitrepo='not inside a trusted directory|skip-git-repo-check|not a git repository'
-        if [[ "$stderr_output" =~ $_re_gitrepo ]]; then
+        local _re_sandbox='operation not permitted|EPERM|denied by sandbox|forbidden by sandbox|sandbox.*(denied|blocked)'
+        if [[ "$stderr_output" =~ $_re_sandbox ]]; then
+            echo "SANDBOX_DENIED"
+        elif [[ "$stderr_output" =~ $_re_gitrepo ]]; then
             echo "GIT_REPO_REQUIRED"
         elif [[ "$stderr_output" =~ $_re_model ]]; then
             echo "MODEL_NOT_FOUND"
@@ -956,6 +959,10 @@ _display_smoke_test_error() {
             ;;
         TIMEOUT)
             echo -e "  ${YELLOW}⚠${NC} ${provider}: Smoke test timed out. Provider may be slow or down."
+            ;;
+        SANDBOX_DENIED)
+            echo -e "  ${YELLOW}⚠${NC} ${provider}: Smoke test was denied by the sandbox (Operation not permitted), not by the provider"
+            echo -e "    ${DIM}Fix: re-run the preflight outside the sandbox before treating the provider as unavailable${NC}"
             ;;
         GIT_REPO_REQUIRED)
             echo -e "  ${YELLOW}⚠${NC} ${provider}: Requires a git repository (configuration issue, not a provider failure)"
@@ -1068,11 +1075,17 @@ _smoke_test_provider() {
     rm -f "$stderr_file" 2>/dev/null
 }
 
-# Tally one provider's smoke-test result and, on failure, mark it quota/auth-dead
-# for the rest of this session so get_dispatch_strategy() (embrace.sh) and the
-# other octo_quota_is_dead() consumers stop selecting it. Without this, a smoke
-# test failure was only ever logged — the provider stayed selectable and got
+# Tally one provider's smoke-test result and, on failure, mark it dead for the
+# rest of this run so get_dispatch_strategy() (embrace.sh) and the other
+# octo_quota_is_dead() consumers stop selecting it. Without this, a smoke test
+# failure was only ever logged — the provider stayed selectable and got
 # dispatched into the same failure a moment later. (#840)
+#
+# Only a definitive auth or quota/rate rejection seen outside a sandbox is
+# cached for later runs, with its own timestamp. An unknown error, a timeout or
+# a sandbox denial says nothing about the next run: caching it made the next
+# preflight report a healthy provider as "degraded (quota)" without calling it
+# (sail-cruisey #2905).
 _smoke_tally_result() {
     local provider="$1" result="$2"
     case "${result%%:*}" in
@@ -1085,9 +1098,37 @@ _smoke_tally_result() {
         SKIP) ((++skip_count)) ;;
         *)
             ((++fail_count))
-            declare -f octo_quota_mark_dead >/dev/null 2>&1 && octo_quota_mark_dead "$provider"
+            local persist=false
+            case "${result%%:*}" in
+                AUTH_FAILURE|RATE_LIMITED) persist=true ;;
+            esac
+            if declare -f octo_quota_in_sandbox >/dev/null 2>&1 && octo_quota_in_sandbox; then
+                persist=false
+            fi
+            if [[ "$persist" == true ]] && declare -f octo_quota_mark_dead >/dev/null 2>&1; then
+                octo_quota_mark_dead "$provider" "${OCTOPUS_QUOTA_DEAD_TTL:-3600}"
+            elif declare -f octo_quota_mark_failed_this_run >/dev/null 2>&1; then
+                # A timeout is slow, not dead: excluded in this run, but it does
+                # not stop a pass from being cached.
+                if [[ "${result%%:*}" == TIMEOUT ]]; then
+                    octo_quota_mark_failed_this_run "$provider" no-recheck
+                else
+                    octo_quota_mark_failed_this_run "$provider"
+                fi
+            fi
             ;;
     esac
+}
+
+# Status to cache for a passing smoke test: 0, unless a provider failed for an
+# unexplained reason. That provider is excluded only in this process, so a
+# cached pass would let the next run dispatch to it without testing it again.
+_smoke_pass_cache_status() {
+    if declare -f octo_quota_needs_recheck >/dev/null 2>&1 && octo_quota_needs_recheck; then
+        echo 1
+    else
+        echo 0
+    fi
 }
 
 # Orchestrate parallel smoke tests for all available providers
@@ -1218,7 +1259,7 @@ provider_smoke_test() {
         TIMEOUT)
             if [[ $pass_count -eq 0 && $fail_count -eq 1 ]]; then
                 log WARN "Smoke test: degraded mode (the claude CLI timed out and no other provider was tested)"
-                smoke_test_cache_write "0"
+                smoke_test_cache_write "$(_smoke_pass_cache_status)"
                 return 0
             fi
             ;;
@@ -1236,7 +1277,7 @@ provider_smoke_test() {
         else
             log INFO "Smoke test passed ($pass_count provider(s) verified)"
         fi
-        smoke_test_cache_write "0"
+        smoke_test_cache_write "$(_smoke_pass_cache_status)"
         return 0
     fi
 

@@ -27,6 +27,18 @@
   1 MiB limit keep full stderr inline. Truncated excerpts preserve UTF-8.
   Expiring a per-agent result also removes its full stderr transcript; retained
   synthesis reports and recent results keep their transcripts.
+- A smoke-test failure that is not a quota or auth rejection no longer marks
+  the provider quota-dead for later runs. Every failed result, including an
+  unknown error or a timeout, was written to `.provider-quota-dead`. The next
+  preflight then reported a healthy provider as "degraded (quota)" without
+  calling it, so a run inside the Codex sandbox blocked the escalated preflight
+  that followed. Now only `AUTH_FAILURE` and `RATE_LIMITED` are cached, each
+  with its own timestamp, and nothing is cached inside a Codex or Claude Code
+  sandbox. Other failures still exclude the provider for the rest of the run,
+  and a smoke test or preflight that passes with one of them is not cached as a
+  pass, so the next run checks that provider again. `Operation not permitted`
+  is reported as a sandbox denial. Preflight labels a cached entry "cached
+  HH:MM, not re-checked", and a failure from this run "not cached".
 
 ## [11.15.1] - 2026-10-23
 

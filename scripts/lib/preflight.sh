@@ -384,10 +384,27 @@ _octo_provider_static_readiness() {
             ;;
     esac
 
-    if [[ "$status" == "available" ]] && declare -f octo_quota_is_dead >/dev/null 2>&1 && octo_quota_is_dead "$provider"; then
+    if [[ "$status" == "available" ]] && declare -f octo_quota_failed_this_run >/dev/null 2>&1 &&
+       octo_quota_failed_this_run "$provider"; then
+        # An inconclusive smoke failure in this run: excluded for now, not cached.
+        status="degraded"
+        reason_code="health-failed"
+        remediation="Failed this run's smoke test (not cached); excluded for the rest of this run."
+    elif [[ "$status" == "available" ]] && declare -f octo_quota_is_dead >/dev/null 2>&1 && octo_quota_is_dead "$provider"; then
         status="degraded"
         reason_code="quota"
         remediation="Wait for the provider quota window to reset or choose another provider."
+        # The mark is cached from an earlier quota or auth failure; say so, so a
+        # lead does not report it as a live quota error.
+        local _quota_marked_at _quota_marked_time=""
+        if declare -f octo_quota_dead_marked_at >/dev/null 2>&1; then
+            _quota_marked_at="$(octo_quota_dead_marked_at "$provider" 2>/dev/null)" || _quota_marked_at=""
+            if [[ "$_quota_marked_at" =~ ^[0-9]+$ ]]; then
+                _quota_marked_time="$(date -r "$_quota_marked_at" +%H:%M 2>/dev/null ||
+                    date -d "@$_quota_marked_at" +%H:%M 2>/dev/null)" || _quota_marked_time=""
+            fi
+            remediation="Quota or auth failure (cached${_quota_marked_time:+ ${_quota_marked_time}}, not re-checked). A passing smoke test clears it; otherwise wait for the provider quota window to reset or choose another provider."
+        fi
     fi
 
     printf '%s|%s|%s\n' "$status" "$reason_code" "$remediation"
@@ -772,6 +789,12 @@ preflight_check() {
         return 1
     fi
 
-    preflight_cache_write "0"  # Cache success
+    # A provider that failed inconclusively is excluded only in this process, so
+    # do not cache a pass that would let the next run skip checking it again.
+    if declare -f octo_quota_needs_recheck >/dev/null 2>&1 && octo_quota_needs_recheck; then
+        preflight_cache_write "1"
+    else
+        preflight_cache_write "0"  # Cache success
+    fi
     return 0
 }
