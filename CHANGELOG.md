@@ -22,7 +22,9 @@
   goes to `<result>.stderr.log` (mode 600). The result keeps at most 16 KB
   from its last 40 lines, inside the same untrusted wrapper, plus a line with
   the size and path. A run with no answer after stdout filtering keeps stderr
-  inline, since its answer may be recovered from there.
+  inline, since its answer may be recovered from there. Existing sidecars are
+  replaced privately; unsafe paths and transcripts above the private writer's
+  1 MiB limit keep full stderr inline. Truncated excerpts preserve UTF-8.
 
 ## [11.15.1] - 2026-10-23
 

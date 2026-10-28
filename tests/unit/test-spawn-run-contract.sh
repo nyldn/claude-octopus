@@ -232,6 +232,9 @@ printf '%s\n' '#!/usr/bin/env bash' \
     '  big-stderr) printf "%s\n" "Final review text from the last message."; { printf "%s\n" "user" "$prompt_text"; for n in $(seq 1 600); do printf "exec cat src/file-%s.ts\nconst echoedLine%s = readRepoFile(%s);\n" "$n" "$n" "$n"; done; printf "%s\n" "Final review text from the last message." "tokens used" "9,999"; } >&2 ;;' \
     '  small-stderr) printf "%s\n" "Substantive provider result."; printf "%s\n" "warning: small diagnostic" >&2 ;;' \
     '  banner-stderr) printf "%s\n" "Provider banner only" "--------"; printf "%s\n" "Answer carried on stderr before the transcript." >&2; for n in $(seq 1 600); do printf "diagnostic line %s with enough text to exceed the sidecar threshold\n" "$n" >&2; done ;;' \
+    '  noise-stderr) printf "%s\n" "Loading extension: banner only"; printf "%s\n" "Answer at the start of stderr." >&2; for n in $(seq 1 600); do printf "diagnostic line %s with enough text to exceed the sidecar threshold\n" "$n" >&2; done ;;' \
+    '  unicode-stderr) printf "%s\n" "Substantive provider result."; python3 -c "import sys; sys.stderr.write(chr(233) * 25000 + chr(10))" ;;' \
+    '  oversized-stderr) printf "%s\n" "Substantive provider result."; printf "%01100000d\n" 0 >&2 ;;' \
     '  long-stderr) printf "%s\n" "Substantive provider result."; printf "%050000d\n" 0 >&2 ;;' \
     '  stderr-only) printf "%s\n" "# Completed: Answer carried only on stderr." >&2; for n in $(seq 1 600); do printf "diagnostic line %s with enough text to exceed the sidecar threshold\n" "$n" >&2; done ;;' \
     'esac' > "$fake_provider"
@@ -1105,6 +1108,75 @@ if grep -Fq 'Codex response was emitted on stderr' "$stderr_only_result" &&
     test_pass
 else
     test_fail "launcher recovery notice caused the stderr-only answer to be truncated"
+fi
+
+test_case "stdout noise removed by grep cannot truncate an answer on stderr"
+run_external_fixture noise-stderr noise-stderr fake-api reviewer review
+noise_result="$RESULTS_DIR/fake-api-noise-stderr.md"
+if [[ -z "$(octo_result_framed_sections "$noise_result" output)" ]] &&
+   grep -Fq 'Answer at the start of stderr.' "$noise_result" &&
+   grep -Fq 'diagnostic line 600 ' "$noise_result" &&
+   [[ ! -e "${noise_result%.md}.stderr.log" ]]; then
+    test_pass
+else
+    test_fail "filtered noise caused the stderr answer to be truncated"
+fi
+
+test_case "an existing permissive sidecar is replaced with a private file"
+existing_sidecar="$RESULTS_DIR/fake-api-existing-sidecar.stderr.log"
+printf '%s\n' 'stale transcript' > "$existing_sidecar"
+chmod 644 "$existing_sidecar"
+run_external_fixture big-stderr existing-sidecar fake-api reviewer review
+if [[ "$(stat -c '%a' "$existing_sidecar" 2>/dev/null || stat -f '%Lp' "$existing_sidecar")" == 600 ]] &&
+   [[ "$(grep -c '^exec cat src/file-' "$existing_sidecar")" -eq 600 ]]; then
+    test_pass
+else
+    test_fail "existing sidecar retained unsafe permissions or stale content"
+fi
+
+test_case "a sidecar symlink is refused without overwriting its target"
+symlink_target="$TEST_TMP_DIR/sidecar-victim"
+printf '%s\n' 'do not overwrite' > "$symlink_target"
+symlink_sidecar="$RESULTS_DIR/fake-api-symlink-sidecar.stderr.log"
+ln -s "$symlink_target" "$symlink_sidecar"
+run_external_fixture big-stderr symlink-sidecar fake-api reviewer review
+if [[ -L "$symlink_sidecar" && "$(cat "$symlink_target")" == 'do not overwrite' ]] &&
+   [[ "$(grep -c '^exec cat src/file-' "$RESULTS_DIR/fake-api-symlink-sidecar.md")" -eq 600 ]] &&
+   ! grep -Fq 'Full stderr transcript' "$RESULTS_DIR/fake-api-symlink-sidecar.md"; then
+    test_pass
+else
+    test_fail "sidecar symlink was followed or stderr was lost"
+fi
+
+test_case "an oversized transcript refused by the writer stays inline"
+run_external_fixture oversized-stderr oversized-stderr fake-api reviewer review
+oversized_result="$RESULTS_DIR/fake-api-oversized-stderr.md"
+if [[ "$(wc -c < "$oversized_result")" -gt 1100000 ]] &&
+   [[ ! -e "${oversized_result%.md}.stderr.log" ]] &&
+   ! grep -Fq 'Full stderr transcript' "$oversized_result"; then
+    test_pass
+else
+    test_fail "oversized stderr was dropped on writer refusal"
+fi
+
+test_case "the bounded stderr excerpt remains valid UTF-8"
+run_external_fixture unicode-stderr unicode-stderr fake-api reviewer review
+unicode_result="$RESULTS_DIR/fake-api-unicode-stderr.md"
+if python3 - "$unicode_result" <<'PY_UTF8'
+import pathlib
+import sys
+path = pathlib.Path(sys.argv[1])
+result = path.read_bytes()
+result.decode("utf-8", errors="strict")
+sidecar = path.with_suffix(".stderr.log").read_bytes()
+assert sidecar == (chr(233) * 25000 + "\n").encode("utf-8")
+assert len(result) < 30000
+assert result.count(chr(233).encode("utf-8")) > 0
+PY_UTF8
+then
+    test_pass
+else
+    test_fail "UTF-8 stderr was corrupted or the excerpt exceeded its budget"
 fi
 
 test_summary

@@ -1732,7 +1732,13 @@ ${heuristic_ctx}"
                     -e '^Using FileKeychain' \
                     -e '^Loaded cached credentials' \
                     -e '^Run /mcp' \
-                    "$temp_output" >> "$result_file" 2>/dev/null || cat "$temp_output" >> "$result_file"
+                    "$temp_output" >> "$result_file" 2>/dev/null || {
+                    local _filter_status=$?
+                    # grep returns 1 when every line was intentionally removed.
+                    if [[ "$_filter_status" -gt 1 ]]; then
+                        cat "$temp_output" >> "$result_file"
+                    fi
+                }
             fi
             if [[ "$agent_type" == codex* ]] \
                 && ! grep -q '[[:alnum:]]' "$temp_output" 2>/dev/null \
@@ -1792,7 +1798,10 @@ ${heuristic_ctx}"
                    grep -q '[[:alnum:]]' "$temp_output" 2>/dev/null &&
                    octo_result_framed_sections "$result_file" output | grep '[[:alnum:]]' >/dev/null; then
                     _stderr_sidecar="${result_file%.md}.stderr.log"
-                    if ! ( umask 077 && cp "$temp_errors" "$_stderr_sidecar" ); then
+                    # Reuse the path-safe writer. Refused paths or transcripts
+                    # above its 1 MiB input limit retain the full inline copy.
+                    if ! python3 "${_octopus_spawn_lib_dir}/../helpers/private-atomic-write.py" \
+                        "$_stderr_sidecar" < "$temp_errors" 2>/dev/null; then
                         _stderr_sidecar=""
                     fi
                 fi
@@ -1803,7 +1812,10 @@ ${heuristic_ctx}"
                 fi
                 echo '```' >> "$result_file"
                 if [[ -n "$_stderr_sidecar" ]]; then
-                    tail -c 16384 "$temp_errors" | tail -n 40 >> "$result_file"
+                    tail -c 16384 "$temp_errors" | tail -n 40 | python3 -c '
+import sys
+sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore").encode("utf-8"))
+' >> "$result_file"
                     printf '\n' >> "$result_file"
                 else
                     cat "$temp_errors" >> "$result_file"
