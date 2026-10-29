@@ -344,6 +344,21 @@ octopus_effective_agent_timeout() {
         elif [[ "${OCTOPUS_TIMEOUT_EXPLICIT:-0}" != "1" ]]; then
             configured_timeout=0
         fi
+    elif [[ "$phase" == "probe" ]] && declare -F octopus_sync_timeout_override >/dev/null 2>&1; then
+        # Probe seats take run_agent_sync's precedence: OCTOPUS_AGENT_TIMEOUT,
+        # then the captured --timeout, then TIMEOUT. Nothing copies the
+        # variable into TIMEOUT, so a seat stopped at the 600s default while
+        # its timeout message said to set the variable that was already set.
+        # Probe's progress watchdog reads this value too. Other async
+        # workflows still wait for their seats against TIMEOUT.
+        local probe_timeout_raw probe_timeout
+        if probe_timeout_raw="$(octopus_sync_timeout_override "$configured_timeout" "$phase")"; then
+            if ! probe_timeout="$(_octo_timeout_normalize_seconds "$probe_timeout_raw")"; then
+                log "ERROR" "Probe timeout '$probe_timeout_raw' must be a non-negative integer of at most 1073741823 seconds"
+                return 2
+            fi
+            configured_timeout="$probe_timeout"
+        fi
     fi
 
     printf '%s\n' "$configured_timeout"
@@ -1965,7 +1980,10 @@ sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore")
             echo "" >> "$result_file"
             echo "**Recommendations**:" >> "$result_file"
             echo "- Partial results may still be valuable" >> "$result_file"
-            if [[ "$_eff_timeout" =~ ^[0-9]+$ && "$_eff_timeout" -gt 0 ]]; then
+            if [[ "$_eff_timeout" =~ ^[0-9]+$ && "$_eff_timeout" -gt 0 && \
+                  "$phase" == "probe" && -n "${OCTOPUS_AGENT_TIMEOUT:-}" ]]; then
+                echo "- Consider increasing timeout: \`OCTOPUS_AGENT_TIMEOUT=$((_eff_timeout * 2))\` (overrides \`--timeout\`)" >> "$result_file"
+            elif [[ "$_eff_timeout" =~ ^[0-9]+$ && "$_eff_timeout" -gt 0 ]]; then
                 echo "- Consider increasing timeout: \`--timeout $((_eff_timeout * 2))\`" >> "$result_file"
             else
                 echo "- Consider setting an explicit timeout only if this task needs a wall-clock cap" >> "$result_file"
