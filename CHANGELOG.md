@@ -28,6 +28,15 @@
   timestamp, the process id and `$RANDOM`. `OCTOPUS_PROOF_RUN_ID` still sets
   the whole run id. `run.json` and `seats.json` stay in `runs/<session-id>/`.
 
+- A council seat that cites files by their bare name, such as
+  `pr-watchdog.yml:249` for `.github/workflows/pr-watchdog.yml`, is no longer
+  marked blind (sail-cruisey #3295). Grounding and quote verification now
+  accept a bare name or path suffix when exactly one file under the evidence
+  root has it. Files in nested checkouts such as `.claude/worktrees/<issue>`
+  are left out, so their copies no longer make every name ambiguous. An
+  ambiguous or missing name, or a line past the end of the file, still
+  grounds nothing.
+
 ## [11.15.2] - 2026-10-28
 
 ### Fixed
