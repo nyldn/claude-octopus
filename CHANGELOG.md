@@ -13,8 +13,8 @@
   `review-debate-*.json`. The default id is now the epoch second plus a suffix
   reserved with `mktemp` in the spawn layer's task-id reservation directory.
   If no id can be reserved, the review stops before writing anything. A dry
-  run, which writes nothing, keeps the plain epoch second. Ids built from an
-  `artifactId` are unchanged.
+  run spawns no seats, so it keeps the plain epoch second and reserves no id.
+  Ids built from an `artifactId` are unchanged.
 
 ## [11.15.2] - 2026-10-28
 
