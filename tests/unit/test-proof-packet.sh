@@ -116,6 +116,45 @@ else
     test_fail "octo_proof_init is not defined"
 fi
 
+test_case "parallel runs in one Claude session get their own run directories"
+if declare -F octo_proof_init >/dev/null 2>&1; then
+    tmp_home=$(mktemp -d)
+    run_in_session() {
+        env -u OCTOPUS_PROOF_RUN_ID -u OCTOPUS_PROOF_PACKET -u CLAUDE_CODE_SESSION -u CLAUDE_SESSION_ID \
+            HOME="$tmp_home" OCTOPUS_PROOF_ROOT="$tmp_home/proofs" CLAUDE_CODE_SESSION_ID="sess-parallel" \
+            bash -c '
+                source "$1"
+                run_dir=$(octo_proof_init "review" "$2" "{}") || exit 1
+                sleep 1
+                octo_proof_finalize "$run_dir" "pass" "$2"
+                printf "%s\n" "$run_dir"
+            ' _ "$PROOF_LIB" "$1" > "$tmp_home/$2"
+    }
+    run_in_session "target=2141" out-a &
+    pid_a=$!
+    run_in_session "target=2142" out-b &
+    pid_b=$!
+    wait "$pid_a" "$pid_b" || true
+    dir_a=$(cat "$tmp_home/out-a" 2>/dev/null || true)
+    dir_b=$(cat "$tmp_home/out-b" 2>/dev/null || true)
+    if [[ -n "$dir_a" && -n "$dir_b" && "$dir_a" != "$dir_b" ]] \
+       && [[ "${dir_a##*/}" == sess-parallel-* && "${dir_b##*/}" == sess-parallel-* ]] \
+       && jq -e '.goal == "target=2141"' "$dir_a/state.json" >/dev/null \
+       && jq -e '.goal == "target=2142"' "$dir_b/state.json" >/dev/null \
+       && grep -qx "Goal: target=2141" "$dir_a/summary.md" \
+       && grep -qx "Goal: target=2142" "$dir_b/summary.md" \
+       && [[ "$(jq -s '[.[] | select(.type == "started")] | length' "$dir_a/proof.jsonl")" == 1 ]] \
+       && [[ "$(jq -s '[.[] | select(.type == "started")] | length' "$dir_b/proof.jsonl")" == 1 ]]; then
+        test_pass
+    else
+        test_fail "parallel runs shared a proof packet: a=${dir_a:-<none>} b=${dir_b:-<none>}"
+    fi
+    unset -f run_in_session
+    rm -rf "$tmp_home"
+else
+    test_fail "octo_proof_init is not defined"
+fi
+
 test_case "events, claims, commands, and artifacts append valid JSONL"
 if declare -F octo_proof_event >/dev/null 2>&1; then
     tmp_home=$(mktemp -d)

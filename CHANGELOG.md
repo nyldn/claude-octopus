@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Two Octopus runs in one Claude Code session no longer write into one proof
+  packet. The run id was the session id whenever `CLAUDE_CODE_SESSION_ID` was
+  set, which is always the case inside Claude Code, so every run in a session
+  wrote to `~/.claude-octopus/runs/<session-id>/`. Two `/octo:review` runs
+  launched in parallel interleaved their events in one `proof.jsonl` and shared
+  one `state.json` and `summary.md`. The surviving summary listed both runs'
+  artifacts under a single goal and finding count, and the other run's summary
+  was lost. A later review in the same session truncated the earlier review's
+  `proof.jsonl`. The session id is now a prefix, followed by the workflow, a UTC
+  timestamp, the process id and `$RANDOM`. `OCTOPUS_PROOF_RUN_ID` still sets
+  the whole run id. `run.json` and `seats.json` stay in `runs/<session-id>/`.
+
 ## [11.15.2] - 2026-10-28
 
 ### Fixed
