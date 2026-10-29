@@ -1732,6 +1732,14 @@ print_provider_report() {
     rm -f "$extra_status_file"
 }
 
+review_next_run_id() {
+    if declare -F _octopus_next_spawn_task_id >/dev/null 2>&1; then
+        _octopus_next_spawn_task_id
+        return
+    fi
+    printf '%s-%s\n' "$(date +%s)" "${BASHPID:-$$}${RANDOM}"
+}
+
 # parallel fleet (Round 1) + verification (Round 2) + synthesis (Round 3)
 # that competes with CC Code Review's managed service.
 #
@@ -1783,7 +1791,12 @@ review_run() {
 
     # Include the caller-provided identity in every cooperative worker task ID.
     # Cancellation can then reap only the workers owned by this review invocation.
-    local timestamp="$_ts${artifact_id:+-${artifact_id}}"
+    local timestamp
+    if [[ -n "$artifact_id" ]]; then
+        timestamp="$_ts-$artifact_id"
+    else
+        timestamp=$(review_next_run_id)
+    fi
     local results_dir="${RESULTS_DIR:-$HOME/.claude-octopus/results}"
     # Sync RESULTS_DIR global so spawn_agent writes to the same directory
     RESULTS_DIR="$results_dir"

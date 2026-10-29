@@ -314,6 +314,33 @@ else
   fail "review_run: artifactId identifies exactly one findings file"
 fi
 
+# ── same-second default run identities ───────────────────────────────────────
+
+SAME_SECOND_RESULTS="$TMPDIR_TEST/review-same-second-results"
+mkdir -p "$SAME_SECOND_RESULTS"
+(
+  cd "$ARTIFACT_REPO"
+  eval "$(sed -n '/^_octopus_prune_task_id_reservations() {/,/^}/p' "$PROJECT_ROOT/scripts/lib/spawn.sh")"
+  eval "$(sed -n '/^_octopus_next_spawn_task_id() {/,/^}/p' "$PROJECT_ROOT/scripts/lib/spawn.sh")"
+  date() {
+    if [[ "${1:-}" == "+%s" ]]; then printf '1793297807\n'; else command date "$@"; fi
+  }
+  log() { :; }
+  render_terminal_report() { :; }
+  check_codex_auth_freshness() { return 0; }
+  export WORKSPACE_DIR="$TMPDIR_TEST/review-same-second-workspace"
+  RESULTS_DIR="$SAME_SECOND_RESULTS" review_run '{"target":"staged"}' >/dev/null 2>&1 || true
+  RESULTS_DIR="$SAME_SECOND_RESULTS" review_run '{"target":"staged"}' >/dev/null 2>&1 || true
+)
+same_second_count=$(find "$SAME_SECOND_RESULTS" -maxdepth 1 -type f \
+  -name 'review-findings-1793297807-*.json' | wc -l | tr -d ' ')
+if [[ "$same_second_count" == "2" ]]; then
+  pass "review_run: same-second runs without artifactId get distinct run ids"
+else
+  fail "review_run: same-second runs without artifactId get distinct run ids" \
+    "expected 2 findings files, got: $(ls "$SAME_SECOND_RESULTS" | tr '\n' ' ')"
+fi
+
 # ── MCP schema ───────────────────────────────────────────────────────────────
 
 MCP_INDEX="$PROJECT_ROOT/mcp-server/src/index.ts"
