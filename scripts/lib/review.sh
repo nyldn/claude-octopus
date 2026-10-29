@@ -1733,12 +1733,11 @@ print_provider_report() {
 }
 
 review_next_run_id() {
-    if declare -F _octopus_next_spawn_task_id >/dev/null 2>&1; then
-        _octopus_next_spawn_task_id
-        return
-    fi
     local reservation_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/task-ids" reservation
     mkdir -p "$reservation_dir" 2>/dev/null || true
+    if declare -F _octopus_prune_task_id_reservations >/dev/null 2>&1; then
+        _octopus_prune_task_id_reservations "$reservation_dir"
+    fi
     reservation=$(mktemp "${reservation_dir}/XXXXXX" 2>/dev/null) || return 1
     printf '%s-%s\n' "$(date +%s)" "${reservation##*/}"
 }
