@@ -10,8 +10,10 @@
   run could not plan its seats' execution contracts ("Unable to persist planned
   execution contract"), so none of its seats spawned, and both runs read and
   overwrote one `review-findings-*.json`, `review-round1-findings-*.json` and
-  `review-debate-*.json`. The default id is now the epoch second plus a suffix
-  from the collision-free spawn task-id allocator. Ids built from an
+  `review-debate-*.json`. The default id is now the epoch second plus a
+  reserved, collision-free suffix from the spawn task-id allocator, or from an
+  equivalent `mktemp` reservation when `spawn.sh` is not loaded. A dry run,
+  which writes nothing, keeps the plain epoch second. Ids built from an
   `artifactId` are unchanged.
 
 ## [11.15.2] - 2026-10-28

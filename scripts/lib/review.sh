@@ -1737,7 +1737,10 @@ review_next_run_id() {
         _octopus_next_spawn_task_id
         return
     fi
-    printf '%s-%s\n' "$(date +%s)" "${BASHPID:-$$}${RANDOM}"
+    local reservation_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/task-ids" reservation
+    mkdir -p "$reservation_dir" 2>/dev/null || true
+    reservation=$(mktemp "${reservation_dir}/XXXXXX" 2>/dev/null) || return 1
+    printf '%s-%s\n' "$(date +%s)" "${reservation##*/}"
 }
 
 # parallel fleet (Round 1) + verification (Round 2) + synthesis (Round 3)
@@ -1794,8 +1797,12 @@ review_run() {
     local timestamp
     if [[ -n "$artifact_id" ]]; then
         timestamp="$_ts-$artifact_id"
-    else
-        timestamp=$(review_next_run_id)
+    elif [[ "${DRY_RUN:-false}" == "true" ]]; then
+        timestamp="$_ts"
+    elif ! timestamp=$(review_next_run_id); then
+        log ERROR "review_run: could not reserve a run id"
+        rm -f "$provider_status_file"
+        return 1
     fi
     local results_dir="${RESULTS_DIR:-$HOME/.claude-octopus/results}"
     # Sync RESULTS_DIR global so spawn_agent writes to the same directory
