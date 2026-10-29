@@ -314,6 +314,73 @@ else
   fail "review_run: artifactId identifies exactly one findings file"
 fi
 
+# ── same-second default run identities ───────────────────────────────────────
+
+same_second_review_ids() {
+  local spawn_helpers="$1"
+  local results="$TMPDIR_TEST/review-same-second-$spawn_helpers"
+  mkdir -p "$results"
+  (
+    cd "$ARTIFACT_REPO"
+    if [[ "$spawn_helpers" == "loaded" ]]; then
+      eval "$(sed -n '/^_octopus_prune_task_id_reservations() {/,/^}/p' "$PROJECT_ROOT/scripts/lib/spawn.sh")"
+      eval "$(sed -n '/^_octopus_next_spawn_task_id() {/,/^}/p' "$PROJECT_ROOT/scripts/lib/spawn.sh")"
+    else
+      unset -f _octopus_next_spawn_task_id _octopus_prune_task_id_reservations 2>/dev/null || true
+    fi
+    date() {
+      if [[ "${1:-}" == "+%s" ]]; then printf '1793297807\n'; else command date "$@"; fi
+    }
+    log() { :; }
+    render_terminal_report() { :; }
+    check_codex_auth_freshness() { return 0; }
+    export WORKSPACE_DIR="$results-workspace"
+    RESULTS_DIR="$results" review_run '{"target":"staged"}' >/dev/null 2>&1 || true
+    RESULTS_DIR="$results" review_run '{"target":"staged"}' >/dev/null 2>&1 || true
+  )
+  find "$results" -maxdepth 1 -type f -name 'review-findings-1793297807-*.json' |
+    sed 's|.*/review-findings-1793297807-||; s|\.json$||'
+}
+
+for spawn_helpers in loaded absent; do
+  label="review_run: same-second runs without artifactId get distinct reserved run ids (spawn.sh $spawn_helpers)"
+  ids=$(same_second_review_ids "$spawn_helpers")
+  reserved=0
+  while IFS= read -r id; do
+    if [[ -n "$id" && -f "$TMPDIR_TEST/review-same-second-$spawn_helpers-workspace/.octo/task-ids/$id" ]]; then
+      reserved=$((reserved + 1))
+    fi
+  done <<< "$ids"
+  if [[ "$reserved" == "2" ]]; then
+    pass "$label"
+  else
+    fail "$label" "expected 2 reserved ids, got: $(tr '\n' ' ' <<< "$ids")"
+  fi
+done
+
+# ── unreservable default run identity ────────────────────────────────────────
+
+UNRESERVED_RESULTS="$TMPDIR_TEST/review-unreserved-results"
+mkdir -p "$UNRESERVED_RESULTS"
+: > "$TMPDIR_TEST/review-unreserved-workspace"
+unreserved_out=$(
+  cd "$ARTIFACT_REPO"
+  eval "$(sed -n '/^_octopus_prune_task_id_reservations() {/,/^}/p' "$PROJECT_ROOT/scripts/lib/spawn.sh")"
+  eval "$(sed -n '/^_octopus_next_spawn_task_id() {/,/^}/p' "$PROJECT_ROOT/scripts/lib/spawn.sh")"
+  log() { printf '%s: %s\n' "$1" "$2"; }
+  render_terminal_report() { :; }
+  check_codex_auth_freshness() { return 0; }
+  export WORKSPACE_DIR="$TMPDIR_TEST/review-unreserved-workspace"
+  RESULTS_DIR="$UNRESERVED_RESULTS" review_run '{"target":"staged"}' 2>&1 && echo "rc=0" || echo "rc=$?"
+)
+if [[ "$unreserved_out" == *"could not reserve a run id"* && "$unreserved_out" != *"rc=0"* ]] &&
+   [[ -z "$(find "$UNRESERVED_RESULTS" -maxdepth 1 -type f -name 'review-findings-*.json' -print -quit)" ]]; then
+  pass "review_run: stops without writing findings when no run id can be reserved"
+else
+  fail "review_run: stops without writing findings when no run id can be reserved" \
+    "output: $(tr '\n' ' ' <<< "$unreserved_out") files: $(ls "$UNRESERVED_RESULTS" | tr '\n' ' ')"
+fi
+
 # ── MCP schema ───────────────────────────────────────────────────────────────
 
 MCP_INDEX="$PROJECT_ROOT/mcp-server/src/index.ts"

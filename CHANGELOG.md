@@ -4,6 +4,18 @@
 
 ### Fixed
 
+- Two code reviews started in the same second without an `artifactId` no
+  longer share a run id. The default id was the epoch second alone, and every
+  run in a Claude Code session writes to one results directory. The second
+  run could not plan its seats' execution contracts ("Unable to persist planned
+  execution contract"), so none of its seats spawned, and both runs read and
+  overwrote one `review-findings-*.json`, `review-round1-findings-*.json` and
+  `review-debate-*.json`. The default id is now the epoch second plus a suffix
+  reserved with `mktemp` in the spawn layer's task-id reservation directory.
+  If no id can be reserved, the review stops before writing anything. A dry
+  run spawns no seats, so it keeps the plain epoch second and reserves no id.
+  Ids built from an `artifactId` are unchanged.
+
 - Two Octopus runs in one Claude Code session no longer write into one proof
   packet. The run id was the session id whenever `CLAUDE_CODE_SESSION_ID` was
   set, which is always the case inside Claude Code, so every run in a session
