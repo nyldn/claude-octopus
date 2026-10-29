@@ -823,6 +823,49 @@ printf '# Plan\n\n- const base = await fetchCabinPrice(cabin.id, { cache: true }
 r="$(COUNCIL_CONTEXT_FILES=("$ctx_plan"); _report "$fab")"
 if jq -e '.fabricated == true and .diff_sources == []' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
+# sail-cruisey #3247 chunk A: a seat describing a test input it built is not
+# quoting the file it cites. Its only checked quote failed, so the seat was
+# fabricated and blind despite eight real citations.
+test_case "#3247: an input the seat constructed is its own, not a quote"
+r="$(_report "$(_resp 'At src/pricing.ts:2, a 360-character row constructed as `"Order total $5.00".padEnd(80, " ") + "invalid".repeat(40)` becomes a valid total.
+VERDICT: REVISE')")"
+if jq -e '.quotes_unverifiable_proposed == 1 and .quotes_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3247: an invented quote the citation reads is still fabricated"
+r="$(_report "$(_resp "src/pricing.ts:2 reads \`$FAKE\` and the row is constructed later.
+VERDICT: REVISE")")"
+if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# sail-cruisey #3247 chunk C: a fence of mostly real lines verifies at the
+# two-thirds threshold even when one line is invented. The report now counts
+# such a fence as partial, without changing the verdict.
+test_case "#3247: a fence that verifies with an invented line is counted as partial"
+r="$(_report "$(_resp "src/pricing.ts:1 reads:
+
+\`\`\`ts
+export function priceFor(cabin, sailing) {
+  const base = cabin.basePrice ?? sailing.defaultPrice;
+  if (!base) return null;
+  $FAKE
+  return applyTaxes(base, sailing.portFees);
+\`\`\`
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_verified == 1 and .quotes_partial == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3247: an exact fence is not partial"
+r="$(_report "$(_resp "src/pricing.ts:1 reads:
+
+\`\`\`ts
+export function priceFor(cabin, sailing) {
+  const base = cabin.basePrice ?? sailing.defaultPrice;
+  if (!base) return null;
+  return applyTaxes(base, sailing.portFees);
+\`\`\`
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_verified == 1 and .quotes_partial == 0' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
 test_case "no diff available: a quote the seat says was removed is unverifiable, not fabricated"
 claimed="$(_resp "At src/pricing.ts:2 the check \`if (cabin.soldOut) return { price: null };\` was deleted in this change.
 VERDICT: REVISE")"

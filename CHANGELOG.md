@@ -100,6 +100,15 @@
   An unsafe existing path cannot fall back to a different file.
   [#1236](https://github.com/nyldn/claude-octopus/pull/1236).
 
+- A council seat is no longer marked fabricated for a test input it built
+  itself (sail-cruisey #3247). A span introduced as "constructed as", "built
+  as" or "crafted as" is the seat's own proposal, like one introduced by
+  "such as", so a seat whose only checked quote was such an input is no longer
+  dropped as blind beside real citations. Quote reports also gain
+  `quotes_partial`, which counts fences that verify at the two-thirds
+  threshold but contain lines found in no cited file. It does not change the
+  verdict.
+
 ## [11.15.2] - 2026-10-28
 
 ### Fixed
