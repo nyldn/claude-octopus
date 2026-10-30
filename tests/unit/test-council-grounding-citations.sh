@@ -987,7 +987,8 @@ else test_fail "an ungrounded confident approval remained a valid contribution";
 # file or a line past the end still validates nothing.
 BASE_ROOT="$(mktemp -d "${TEST_TMP_DIR:-/tmp}/baseroot.XXXXXX")"
 mkdir -p "$BASE_ROOT/.github/workflows" "$BASE_ROOT/a" "$BASE_ROOT/b"
-printf '%s\n' 'name: PR watchdog' 'on: [pull_request]' 'jobs:' '  watchdog:' '    runs-on: ubuntu-latest' > "$BASE_ROOT/.github/workflows/pr-watchdog.yml"
+printf '%s\n' 'name: PR watchdog' 'on: [pull_request]' 'jobs:' '  watchdog:' '    runs-on: ubuntu-latest' \
+    '      - run: gh pr checks "$PR_NUMBER" --required --watch --fail-fast' > "$BASE_ROOT/.github/workflows/pr-watchdog.yml"
 printf '%s\n' 'one' 'two' > "$BASE_ROOT/a/config.ts"
 printf '%s\n' 'one' 'two' > "$BASE_ROOT/b/config.ts"
 
@@ -1002,9 +1003,9 @@ mkdir -p "$BASE_ROOT/.claude/worktrees/other/.github/workflows"
 printf 'gitdir: /elsewhere\n' > "$BASE_ROOT/.claude/worktrees/other/.git"
 cp "$BASE_ROOT/.github/workflows/pr-watchdog.yml" "$BASE_ROOT/.claude/worktrees/other/.github/workflows/"
 evidence="$(council_response_evidence_paths_json "$bare_resp" "$BASE_ROOT")"
-r="$(council_response_quote_verification_json "$(_mk bare-nested.md 'pr-watchdog.yml:2 reads `on: [pull_request]` today.' 'VERDICT: APPROVE')" "$BASE_ROOT")"
+r="$(council_response_quote_verification_json "$(_mk bare-nested.md 'pr-watchdog.yml:6 reads `gh pr checks "$PR_NUMBER" --required --watch --fail-fast` today.' 'VERDICT: APPROVE')" "$BASE_ROOT")"
 if jq -e 'length == 1 and .[0].path == ".github/workflows/pr-watchdog.yml"' <<< "$evidence" >/dev/null &&
-   jq -e '.citations == 1' <<< "$r" >/dev/null; then test_pass
+   jq -e '.citations == 1 and .citations_unresolved == 0 and .quotes_checked == 1 and .quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass
 else test_fail "evidence: $evidence report: $r"; fi
 
 test_case "#3295: an ambiguous, missing or out-of-range bare filename validates nothing"
@@ -1013,9 +1014,9 @@ evidence="$(council_response_evidence_paths_json "$bare_bad" "$BASE_ROOT")"
 if [[ "$evidence" == "[]" ]]; then test_pass; else test_fail "evidence: $evidence"; fi
 
 test_case "#3295: a unique bare filename citation resolves for quote verification"
-bare_quote="$(_mk bare-quote.md 'pr-watchdog.yml:2 reads `on: [pull_request]` today.' 'VERDICT: APPROVE')"
+bare_quote="$(_mk bare-quote.md 'pr-watchdog.yml:6 reads `gh pr checks "$PR_NUMBER" --required --watch --fail-fast` today.' 'VERDICT: APPROVE')"
 r="$(council_response_quote_verification_json "$bare_quote" "$BASE_ROOT")"
-if jq -e '.citations == 1 and .citations_unresolved == 0' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+if jq -e '.citations == 1 and .citations_unresolved == 0 and .quotes_checked == 1 and .quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
 test_case "#3295: a full-length review citing only unique bare filenames is not blind"
 bare_review="$TEST_TMP_DIR/bare-review.md"
