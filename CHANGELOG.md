@@ -35,7 +35,8 @@
   root has it. Files in nested checkouts such as `.claude/worktrees/<issue>`
   are left out, so their copies no longer make every name ambiguous. An
   ambiguous or missing name, or a line past the end of the file, still
-  grounds nothing.
+  grounds nothing. Unsafe existing paths and non-file paths are rejected before
+  suffix fallback, so a citation cannot be grounded against a different file.
 
 ## [11.15.2] - 2026-10-28
 

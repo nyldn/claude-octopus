@@ -1030,4 +1030,34 @@ if council_response_is_blind "$bare_review" "$BASE_ROOT"; then
     test_fail "a review citing real files by bare name was flagged blind"
 else test_pass; fi
 
+# An existing unsafe path must not be reinterpreted as an unrelated suffix hit.
+mkdir -p "$BASE_ROOT/other/linked-parent" "$BASE_ROOT/directory.ts"
+for name in outside.ts dangling.ts inside.ts directory.ts; do
+    printf '%s\n' 'export const citation = "the actual source evidence";' > "$BASE_ROOT/other/$name"
+done
+printf '%s\n' 'export const citation = "the actual source evidence";' > "$BASE_ROOT/other/linked-parent/entry.ts"
+printf '%s\n' 'external content is not evidence' > "$TEST_TMP_DIR/outside-source.ts"
+mkdir -p "$TEST_TMP_DIR/outside-directory"
+ln -s "$TEST_TMP_DIR/outside-source.ts" "$BASE_ROOT/outside.ts"
+ln -s "$TEST_TMP_DIR/missing-source.ts" "$BASE_ROOT/dangling.ts"
+ln -s "$BASE_ROOT/other/inside.ts" "$BASE_ROOT/inside.ts"
+ln -s "$TEST_TMP_DIR/outside-directory" "$BASE_ROOT/linked-parent"
+for citation in outside.ts dangling.ts directory.ts linked-parent/entry.ts; do
+    test_case "unsafe direct citation $citation cannot use suffix fallback"
+    unsafe_resp="$(_mk unsafe-citation.md "$citation:1 reads \`export const citation = \"the actual source evidence\";\`" 'VERDICT: APPROVE')"
+    evidence="$(council_response_evidence_paths_json "$unsafe_resp" "$BASE_ROOT")"
+    r="$(council_response_quote_verification_json "$unsafe_resp" "$BASE_ROOT")"
+    if [[ "$evidence" == "[]" ]] &&
+       jq -e '.verification_failed == false and .citations == 0 and .citations_unresolved == 1 and .quotes_checked == 0 and .quotes_verified == 0' <<< "$r" >/dev/null; then test_pass
+    else test_fail "evidence: $evidence report: $r"; fi
+done
+
+test_case "safe in-root symlink citations retain their existing identity"
+safe_resp="$(_mk safe-citation.md 'inside.ts:1 reads `export const citation = "the actual source evidence";`' 'VERDICT: APPROVE')"
+evidence="$(council_response_evidence_paths_json "$safe_resp" "$BASE_ROOT")"
+r="$(council_response_quote_verification_json "$safe_resp" "$BASE_ROOT")"
+if jq -e 'length == 1 and .[0].path == "inside.ts"' <<< "$evidence" >/dev/null &&
+   jq -e '.citations == 1 and .citations_unresolved == 0 and .quotes_checked == 1 and .quotes_verified == 1' <<< "$r" >/dev/null; then test_pass
+else test_fail "evidence: $evidence report: $r"; fi
+
 test_summary

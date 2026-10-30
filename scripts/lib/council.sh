@@ -2767,9 +2767,15 @@ for raw_path, raw_start, raw_end in pattern.findall(response.read_text(encoding=
     try:
         candidate = (root / relative).resolve(strict=True)
         candidate.relative_to(root)
-    except (OSError, ValueError):
+    except FileNotFoundError:
+        # A dangling link is an existing citation, not a missing suffix.
+        if any(root.joinpath(*relative.parts[:i]).is_symlink()
+               for i in range(1, len(relative.parts) + 1)):
+            continue
         candidate = None
-    if candidate is None or not candidate.is_file():
+    except (OSError, RuntimeError, ValueError):
+        continue
+    if candidate is None:
         relative = unique_suffix(relative)
         if relative is None:
             continue
@@ -2778,8 +2784,8 @@ for raw_path, raw_start, raw_end in pattern.findall(response.read_text(encoding=
             candidate.relative_to(root)
         except (OSError, ValueError):
             continue
-        if not candidate.is_file():
-            continue
+    if not candidate.is_file():
+        continue
     try:
         start_line = int(raw_start)
         end_line = int(raw_end or raw_start)
@@ -2975,12 +2981,16 @@ def contained(candidate):
 
 def resolve_citation(relative):
     # 1) Relative to the evidence root, as written.
+    # An existing unsafe path must never become a different suffix/context hit.
     try:
         candidate = (root / relative).resolve(strict=True)
-        if contained(candidate):
-            return candidate
+        return candidate if contained(candidate) else None
+    except FileNotFoundError:
+        if any(root.joinpath(*relative.parts[:i]).is_symlink()
+               for i in range(1, len(relative.parts) + 1)):
+            return None
     except (OSError, RuntimeError):
-        pass
+        return None
     # 2) An attached --context-file, named by its basename or a path suffix
     #    ("phase-3-plan.md:8" for .todo/claude-octopus/3032/phase-3-plan.md).
     tail = "/" + relative.as_posix()
