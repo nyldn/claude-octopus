@@ -36,29 +36,21 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
-### Learned context stays in its worktree
+### Reviews keep their own findings and proof packets
 
-File hints and provider history now use only learning from the current project
-or Git worktree. A review in one worktree no longer supplies file paths to a
-provider working in another. Older unscoped patterns and provider histories
-remain on disk but are no longer used.
+Reviews without an `artifactId` now reserve separate run IDs, so starting two
+reviews in the same second no longer blocks seats or overwrites findings.
+Repeated and concurrent Octopus runs within a Claude Code session also keep
+separate proof packets, preserving each run's events and summary.
+See [review evidence](commands/review.md).
 
-### Provider results keep the answer readable
+### Councils recognize unique filename citations
 
-With a usable stdout answer and stderr over 16 KiB, Octopus attempts to save
-a private transcript. When that succeeds, the result shows a bounded excerpt
-and the transcript path. If the writer cannot save it, including an unsafe
-sidecar path or a transcript over its 1 MiB limit, stderr stays inline. Runs
-without a usable stdout answer also keep stderr inline. Result expiry removes
-the matching transcript. See [transcript troubleshooting](docs/TROUBLESHOOTING.md#common-non-auth-failures).
-
-### Failed checks no longer imply a quota lockout
-
-Smoke tests cache only explicit authentication or rate-limit failures observed
-outside coding sandboxes. Other failures exclude the provider for the current
-run without marking it quota-dead for later runs. Preflight distinguishes cached
-failures from failures in the current run and names sandbox denials.
-See [provider troubleshooting](docs/TROUBLESHOOTING.md#common-non-auth-failures).
+A council seat can cite a unique filename such as `pr-watchdog.yml:249`
+without being marked blind because it omitted `.github/workflows/`. Grounding
+and quote verification resolve unique filenames and path suffixes, excluding
+copies in nested checkouts. Ambiguous, missing, unsafe and out-of-range
+citations still provide no evidence. See [citation verification](docs/COUNCIL.md#citation-quote-verification).
 
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.15.2 — Keep file hints and provider history per worktree, keep provider results readable, and prevent false quota lockouts.**

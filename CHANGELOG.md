@@ -4,39 +4,23 @@
 
 ### Fixed
 
-- Two code reviews started in the same second without an `artifactId` no
-  longer share a run id. The default id was the epoch second alone, and every
-  run in a Claude Code session writes to one results directory. The second
-  run could not plan its seats' execution contracts ("Unable to persist planned
-  execution contract"), so none of its seats spawned, and both runs read and
-  overwrote one `review-findings-*.json`, `review-round1-findings-*.json` and
-  `review-debate-*.json`. The default id is now the epoch second plus a suffix
-  reserved with `mktemp` in the spawn layer's task-id reservation directory.
-  If no id can be reserved, the review stops before writing anything. A dry
-  run spawns no seats, so it keeps the plain epoch second and reserves no id.
-  Ids built from an `artifactId` are unchanged.
-
-- Two Octopus runs in one Claude Code session no longer write into one proof
-  packet. The run id was the session id whenever `CLAUDE_CODE_SESSION_ID` was
-  set, which is always the case inside Claude Code, so every run in a session
-  wrote to `~/.claude-octopus/runs/<session-id>/`. Two `/octo:review` runs
-  launched in parallel interleaved their events in one `proof.jsonl` and shared
-  one `state.json` and `summary.md`. The surviving summary listed both runs'
-  artifacts under a single goal and finding count, and the other run's summary
-  was lost. A later review in the same session truncated the earlier review's
-  `proof.jsonl`. The session id is now a prefix, followed by the workflow, a UTC
-  timestamp, the process id and `$RANDOM`. `OCTOPUS_PROOF_RUN_ID` still sets
-  the whole run id. `run.json` and `seats.json` stay in `runs/<session-id>/`.
-
-- A council seat that cites files by their bare name, such as
-  `pr-watchdog.yml:249` for `.github/workflows/pr-watchdog.yml`, is no longer
-  marked blind (sail-cruisey #3295). Grounding and quote verification now
-  accept a bare name or path suffix when exactly one file under the evidence
-  root has it. Files in nested checkouts such as `.claude/worktrees/<issue>`
-  are left out, so their copies no longer make every name ambiguous. An
-  ambiguous or missing name, or a line past the end of the file, still
-  grounds nothing. Unsafe existing paths and non-file paths are rejected before
-  suffix fallback, so a citation cannot be grounded against a different file.
+- Reviews started in the same second without an `artifactId` now reserve
+  separate run IDs before starting seats. Their findings no longer overwrite
+  each other, and one review cannot block another's execution contracts by
+  reusing its ID. If no ID can be reserved, the review stops before writing
+  findings. Explicit `artifactId` values and dry-run behavior are preserved.
+  [#1239](https://github.com/nyldn/claude-octopus/pull/1239).
+- Repeated and concurrent workflows within one Claude Code session now write
+  separate proof packets. Events, findings and summaries no longer mix with
+  or overwrite another run's packet. `OCTOPUS_PROOF_RUN_ID` still overrides
+  the complete run ID.
+  [#1238](https://github.com/nyldn/claude-octopus/pull/1238).
+- Council grounding and quote verification accept a bare filename or path
+  suffix when exactly one eligible file matches. Nested checkout copies no
+  longer make names ambiguous. Missing, ambiguous and unsafe paths remain
+  unresolved, and grounding still rejects line numbers past the end of a file.
+  An unsafe existing path cannot fall back to a different file.
+  [#1236](https://github.com/nyldn/claude-octopus/pull/1236).
 
 ## [11.15.2] - 2026-10-28
 
