@@ -724,6 +724,24 @@ VERDICT: APPROVE")"
     done
 done
 
+# A fence partial on the removed side but exact on the added side is not
+# partial; the removed side still decides where it verified.
+test_case "#3247: a fence exact on the added side is not partial"
+both_sides="$TEST_TMP_DIR/both-sides.diff"
+window='const refundWindow = sailing.refundWindowDays ?? 14;'
+printf 'diff --git a/src/book.ts b/src/book.ts\n--- a/src/book.ts\n+++ b/src/book.ts\n@@ -1,2 +1,3 @@\n-%s\n-%s\n+%s\n+%s\n+%s\n' \
+    "$GUARD" 'const closedBookings = sailing.closedBookings ?? [];' \
+    "$GUARD" 'const closedBookings = sailing.closedBookings ?? [];' "$window" > "$both_sides"
+f="$(_resp "src/book.ts:2 reads:
+\`\`\`ts
+$GUARD
+const closedBookings = sailing.closedBookings ?? [];
+$window
+\`\`\`
+VERDICT: APPROVE")"
+r="$(COUNCIL_CONTEXT_FILES=("$both_sides"); _greport "$f")"
+if jq -e '.quotes_verified == 1 and .quotes_verified_in_diff_removed == 1 and .quotes_partial == 0' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
 test_case "an oversized response reports the limit and cannot count as grounded"
 oversized="$TEST_TMP_DIR/oversized-response.md"
 python3 - "$oversized" "$FAKE" <<'PY_OVERSIZED'
@@ -899,6 +917,43 @@ r="$(_report "$(_resp "src/pricing.ts:1 reads:
   return applyTaxes(base, sailing.portFees);
 }
 \`\`\`
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_verified == 1 and .quotes_partial == 0' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3247: an invented short line between elision markers is counted as partial"
+r="$(_report "$(_resp "src/pricing.ts:1 reads:
+
+\`\`\`ts
+  const base = cabin.basePrice ?? sailing.defaultPrice;
+  ...
+  return true;
+  ...
+  return applyTaxes(base, sailing.portFees);
+\`\`\`
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_verified == 1 and .quotes_partial == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3247: an elided fence of real lines is not partial"
+r="$(_report "$(_resp "src/pricing.ts:1 reads:
+
+\`\`\`ts
+  const base = cabin.basePrice ?? sailing.defaultPrice;
+  ...
+  return applyTaxes(base, sailing.portFees);
+}
+\`\`\`
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_verified == 1 and .quotes_partial == 0' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3247: a blockquote with an unmatched line is not a partial fence"
+r="$(_report "$(_resp "src/pricing.ts:1 reads:
+
+> const base = cabin.basePrice ?? sailing.defaultPrice;
+> const invented = fetchUnknownReservations(sailing);
+> return applyTaxes(base, sailing.portFees);
 
 VERDICT: APPROVE")")"
 if jq -e '.quotes_verified == 1 and .quotes_partial == 0' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi

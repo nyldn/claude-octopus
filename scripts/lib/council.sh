@@ -3228,6 +3228,9 @@ def short_lines(block):
     out = []
     for line in block:
         variants = [line.strip(), GUTTER.sub("", line).strip()]
+        # An elision marker stands for omitted source; it is never a miss.
+        if ELLIPSIS.fullmatch(variants[-1]) or ELLIPSIS.fullmatch(variants[0]):
+            continue
         if line.strip() and not any(checkable(v) for v in variants):
             out.append([norm(v) for v in dict.fromkeys(variants) if norm(v)])
     return [v for v in out if v]
@@ -3292,11 +3295,19 @@ def match_unit(wholes, line_variants, entry, misses=None, short=()):
     # A multi-line block verifies as a whole or when at least two thirds of its
     # specific lines are in the file. One generic real line (a signature, an
     # "if (flag) {") can no longer carry an otherwise invented block. When the
-    # threshold carries it, the lines it did not find, short ones included, are
-    # appended to misses.
+    # threshold or elision carries it, the lines it did not find, short ones
+    # included, are appended to misses.
+    hay = entry[0]
+    def missing(found_count):
+        return (len(line_variants) - found_count +
+                sum(1 for variants in short if not any(v in hay for v in variants)))
     for variant in wholes:
         lines = match_variant(variant, entry)
         if lines:
+            if misses is not None and norm(variant) not in hay:
+                # Elided fragments matched; a line between them may be invented.
+                misses.append(missing(sum(1 for variants in line_variants
+                                          if any(match_variant(v, entry) for v in variants))))
             return lines
     if not line_variants:
         return []
@@ -3309,9 +3320,7 @@ def match_unit(wholes, line_variants, entry, misses=None, short=()):
                 break
     if found and len(found) * 3 >= len(line_variants) * 2:
         if misses is not None:
-            hay = entry[0]
-            missing_short = sum(1 for variants in short if not any(v in hay for v in variants))
-            misses.append(len(line_variants) - len(found) + missing_short)
+            misses.append(missing(len(found)))
         return found[0]
     return []
 
@@ -3618,7 +3627,7 @@ for start, end, kind, block, removed_block, info in units:
     if attributed is not None:
         result["quotes_attributed"] += 1
     diff_side_hit = None
-    diff_misses = []
+    diff_partial = False
     if not verified or removed_block:
         if diff_sides is None:
             diff_sides = load_diff_sides()
@@ -3627,16 +3636,24 @@ for start, end, kind, block, removed_block, info in units:
             # A mixed fence makes claims about both versions. A genuine
             # addition cannot excuse invented removals, or the reverse.
             removed_wholes = unit_wholes(removed_block) or [norm(" ".join(removed_block))]
+            diff_misses = []
             removed_hit = in_diff_side(removed_wholes, specific_lines(removed_block), removed_side,
                                        diff_misses, short_lines(removed_block))
             kept_hit = verified or not block or in_diff_side(wholes, line_variants, added_side, diff_misses, short)
             verified = False
             if removed_hit and kept_hit:
                 diff_side_hit = "removed"
-        elif in_diff_side(wholes, line_variants, removed_side, diff_misses, short):
-            diff_side_hit = "removed"
-        elif in_diff_side(wholes, line_variants, added_side, diff_misses, short):
-            diff_side_hit = "added"
+                diff_partial = partial or any(diff_misses)
+        else:
+            # Check both sides: the removed side keeps precedence, but an exact
+            # match on either side means the fence is not partial.
+            removed_misses, added_misses = [], []
+            hits = [(side_name, side_misses) for side_name, side, side_misses in
+                    (("removed", removed_side, removed_misses), ("added", added_side, added_misses))
+                    if in_diff_side(wholes, line_variants, side, side_misses, short)]
+            if hits:
+                diff_side_hit = hits[0][0]
+                diff_partial = all(any(side_misses) for _, side_misses in hits)
     sample = (flat_variants or removed_variants)[0]
     if verified:
         result["quotes_verified"] += 1
@@ -3644,11 +3661,11 @@ for start, end, kind, block, removed_block, info in units:
             result["quotes_near_line"] += 1
         # sail-cruisey #3247: a mostly real fence can carry an invented line.
         # Report it; the two-thirds threshold still decides the verdict.
-        result["quotes_partial"] += int(partial)
+        result["quotes_partial"] += int(kind == "fence" and partial)
     elif diff_side_hit:
         result["quotes_verified"] += 1
         result["quotes_verified_in_diff_" + diff_side_hit] += 1
-        result["quotes_partial"] += int(partial or any(diff_misses))
+        result["quotes_partial"] += int(kind == "fence" and diff_partial)
     elif not diff_sides[0] and not diff_sides[1] and (
             removed_block or REMOVAL_WORDS.search(resp[max(0, start - REMOVAL_WINDOW):end + REMOVAL_WINDOW])):
         # No diff to check a claimed removal against: unverifiable, not fabricated.
