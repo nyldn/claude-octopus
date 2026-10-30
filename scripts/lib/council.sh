@@ -3215,6 +3215,21 @@ def find_lines(hay, starts, line_numbers, needle, limit=50, following=()):
         at = hay.find(needle, at + 1)
     return found
 
+# sail-cruisey #3316: a seat joins "if (" / "a &&" / "b" / ") {" onto one line
+# as "if (a && b)". A space next to punctuation is layout, not content, so a
+# quote that misses only on that verifies. A space between two words still
+# counts: "await limit" is never "awaitlimit".
+LAYOUT_SPACE = re.compile(r" (?=[^\w ])|(?<=[^\w ]) ")
+tight_cache = {}
+def tight_entry(entry):
+    hay, starts, line_numbers = entry
+    got = tight_cache.get(hay)
+    if got is None:
+        removed = [m.start() for m in LAYOUT_SPACE.finditer(hay)]
+        got = (LAYOUT_SPACE.sub("", hay), [s - bisect_left(removed, s) for s in starts], line_numbers)
+        tight_cache[hay] = got
+    return got
+
 def match_variant(text, entry):
     hay, starts, line_numbers = entry
     needle = norm(text)
@@ -3225,6 +3240,8 @@ def match_variant(text, entry):
     pieces = [p for p in ELLIPSIS.split(needle) if specific(p)]
     if len(pieces) > 1 or (pieces and pieces[0] != needle):
         return find_lines(hay, starts, line_numbers, pieces[0], following=pieces[1:])
+    if specific(needle):
+        return find_lines(*tight_entry(entry), LAYOUT_SPACE.sub("", needle))
     return []
 
 def match_unit(wholes, line_variants, entry, misses=None, short=()):
