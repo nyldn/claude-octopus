@@ -1196,7 +1196,7 @@ ${_blind_spot_checklist}"
     # are required.
     if type render_agent_summary >/dev/null 2>&1; then
         local summary_status=0
-        render_agent_summary || summary_status=$?
+        render_agent_summary "-probe-${task_group}-" || summary_status=$?
         if [[ "$summary_status" -ne 0 ]]; then
             if [[ -n "$synthesis_monitor_pid" ]]; then
                 kill "$synthesis_monitor_pid" 2>/dev/null || true

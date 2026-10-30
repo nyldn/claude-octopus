@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- The agent run summary no longer reports a provider's successful seat as
+  failed when another of its seats times out. The status ledger kept the
+  latest row per agent name, so a probe with two Claude seats printed "2 of 2
+  agents failed or timed out" after one seat's 603-second timeout replaced the
+  other seat's completed result. The same lookup left that result out of the
+  outputs offered to synthesis. Rows are now kept per seat, by seat ID or else
+  by result file, in the summary, the `agents.json` snapshot and the output
+  list. Probe and aggregate summaries count only their own seats, because the
+  ledger spans every command in a session.
+
 ## [11.15.3] - 2026-10-30
 
 ### Fixed

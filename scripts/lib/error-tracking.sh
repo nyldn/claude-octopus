@@ -379,6 +379,18 @@ classify_agent_output() {
     echo "ok:"
 }
 
+# A provider can hold several seats in one run: probe gives each perspective
+# its own. Keeping the latest row per agent name let one seat's timeout
+# replace another seat's success. A row names its seat by seat_id, else by
+# its result file, which is unique per task; older rows with neither stay
+# keyed by agent name.
+_OCTO_AGENT_STATUS_LATEST_PER_SEAT='def latest_per_seat:
+    group_by(if (.seat_id // "") != "" then "seat:" + .seat_id
+             elif (.output_file // "") != "" then "file:" + .output_file
+             else "agent:" + .agent end)
+    | map(.[-1])
+    | sort_by(.agent);'
+
 write_agent_run_snapshot() {
     command -v jq >/dev/null 2>&1 || return 0
 
@@ -393,8 +405,8 @@ write_agent_run_snapshot() {
         --arg run_id "$run_id" \
         --arg command "${OCTOPUS_COMMAND:-${COMMAND:-unknown}}" \
         --arg args "${OCTOPUS_COMMAND_ARGS:-}" \
-        'group_by(.agent)
-         | map(.[-1])
+        "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
+         latest_per_seat
          | {
              run_id: $run_id,
              command: $command,
@@ -522,9 +534,8 @@ agent_status_output_files() {
     [[ -s "$jsonl" ]] || return 0
     command -v jq >/dev/null 2>&1 || return 0
 
-    jq -rs --arg filter "$filter" '
-        group_by(.agent)
-        | map(.[-1])
+    jq -rs --arg filter "$filter" "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
+        latest_per_seat
         | .[]
         | [
             .status,
@@ -547,7 +558,11 @@ agent_status_output_files() {
     done
 }
 
+# The ledger spans every command in a session, so a filter limits the table to
+# seats whose result file contains it, as agent_status_output_files does. One
+# probe then does not count the seats of an earlier probe in the same session.
 render_agent_summary() {
+    local filter="${1:-}"
     local dir jsonl
     dir=$(octo_run_dir)
     jsonl="$dir/agents.jsonl"
@@ -595,10 +610,10 @@ render_agent_summary() {
         fi
 
         reconciled_rows+="${agent}"$'\t'"${status}"$'\t'"${tokens_out}"$'\t'"${seconds}"$'\t'"${reason}"$'\n'
-    done < <(jq -rs '
-        group_by(.agent)
-        | map(.[-1])
+    done < <(jq -rs --arg filter "$filter" "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
+        latest_per_seat
         | .[]
+        | select($filter == "" or ((.output_file // "") | contains($filter)))
         | [
             .agent,
             .status,
