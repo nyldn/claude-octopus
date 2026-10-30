@@ -40,8 +40,10 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 Reviews without an `artifactId` now reserve separate run IDs, so starting two
 reviews in the same second no longer blocks seats or overwrites findings.
-Repeated and concurrent Octopus runs within a Claude Code session also keep
-separate proof packets, preserving each run's events and summary.
+By default, repeated and concurrent Octopus runs within a Claude Code session
+also keep separate proof packets, preserving each run's events and summary.
+If you set `OCTOPUS_PROOF_RUN_ID`, use a unique value per run to keep packets
+separate.
 See [review evidence](commands/review.md).
 
 ### Councils recognize unique filename citations
@@ -49,8 +51,11 @@ See [review evidence](commands/review.md).
 A council seat can cite a unique filename such as `pr-watchdog.yml:249`
 without being marked blind because it omitted `.github/workflows/`. Grounding
 and quote verification resolve unique filenames and path suffixes, excluding
-copies in nested checkouts. Ambiguous, missing, unsafe and out-of-range
-citations still provide no evidence. See [citation verification](docs/COUNCIL.md#citation-quote-verification).
+copies in nested checkouts. Grounding rejects ambiguous, missing and unsafe
+paths, and line numbers past the end of a file. Quote verification checks
+matching text in the resolved file and may succeed despite an out-of-range
+line number. It checks uniquely matching attached context before repository
+suffixes. See [citation verification](docs/COUNCIL.md#citation-quote-verification).
 
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.15.3 — Keep concurrent reviews and proof packets separate, and resolve unique filename citations in councils.**

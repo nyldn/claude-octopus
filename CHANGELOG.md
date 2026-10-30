@@ -12,15 +12,18 @@
   reusing its ID. If no ID can be reserved, the review stops before writing
   findings. Explicit `artifactId` values and dry-run behavior are preserved.
   [#1239](https://github.com/nyldn/claude-octopus/pull/1239).
-- Repeated and concurrent workflows within one Claude Code session now write
-  separate proof packets. Events, findings and summaries no longer mix with
-  or overwrite another run's packet. `OCTOPUS_PROOF_RUN_ID` still overrides
-  the complete run ID.
+- By default, repeated and concurrent workflows within one Claude Code session
+  now write separate proof packets, keeping events, findings and summaries
+  separate. `OCTOPUS_PROOF_RUN_ID` still overrides the complete run ID. Use a
+  unique override per run; reusing one shares the directory and can overwrite
+  the earlier packet.
   [#1238](https://github.com/nyldn/claude-octopus/pull/1238).
 - Council grounding and quote verification accept a bare filename or path
   suffix when exactly one eligible file matches. Nested checkout copies no
-  longer make names ambiguous. Missing, ambiguous and unsafe paths remain
-  unresolved, and grounding still rejects line numbers past the end of a file.
+  longer make names ambiguous. Grounding rejects missing, ambiguous and unsafe
+  paths, and line numbers past the end of a file. Quote verification checks
+  uniquely matching attached context before repository suffixes and can verify
+  matching file text even when the cited line number is out of range.
   An unsafe existing path cannot fall back to a different file.
   [#1236](https://github.com/nyldn/claude-octopus/pull/1236).
 
