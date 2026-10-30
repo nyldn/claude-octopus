@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.15.3] - 2026-10-30
+
 ### Fixed
 
 - Reviews started in the same second without an `artifactId` now reserve

@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "11.15.2"
+    "version": "11.15.3"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v11.15.2 - Keep file hints and provider history per worktree, keep provider results readable, and prevent false quota lockouts. 31 personas, 54 commands, 63 skills. Run /octo:setup.",
-      "version": "11.15.2",
+      "description": "v11.15.3 - Keep concurrent reviews and proof packets separate, and resolve unique filename citations in councils. 31 personas, 54 commands, 63 skills. Run /octo:setup.",
+      "version": "11.15.3",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"

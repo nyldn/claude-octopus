@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.15.2",
-  "description": "v11.15.2 \u2014 Keep file hints and provider history per worktree, keep provider results readable, and prevent false quota lockouts. Run /octo:setup.",
+  "version": "11.15.3",
+  "description": "v11.15.3 \u2014 Keep concurrent reviews and proof packets separate, and resolve unique filename citations in councils. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
