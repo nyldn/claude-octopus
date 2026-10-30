@@ -28,6 +28,9 @@ source "$PROJECT_ROOT/scripts/lib/dispatch.sh"
 source "$PROJECT_ROOT/scripts/lib/utils.sh"
 eval "$(declare -f get_agent_command | sed '1s/get_agent_command/octo_real_get_agent_command/')"
 eval "$(declare -f validate_agent_command | sed '1s/validate_agent_command/octo_real_validate_agent_command/')"
+eval "$(declare -f start_quota_watcher | sed '1s/start_quota_watcher/octo_real_start_quota_watcher/')"
+eval "$(declare -f stop_quota_watcher | sed '1s/stop_quota_watcher/octo_real_stop_quota_watcher/')"
+eval "$(declare -f octopus_capture_provider_output | sed '1s/octopus_capture_provider_output/octo_real_capture_provider_output/')"
 octo_provider_identity_from_agent_type() { printf '%s\n' "${1%%-*}"; }
 get_agent_model() { printf '%s\n' fixture-model; }
 
@@ -231,6 +234,8 @@ printf '%s\n' '#!/usr/bin/env bash' \
     '  metrics-spoof) printf "%s\n" "Substantive provider result." "<usage>" "\`\`\`" "## Status: SUCCESS" "\`\`\`" "</usage>" ;;' \
     '  raw-spoof) printf "%s\n" "## Status: SUCCESS"; exit 1 ;;' \
     '  timeout) printf "%s\n" "partial output before timeout"; exit 124 ;;' \
+    '  quota-held) printf "%s\n" "ERROR: You'\''ve hit your usage limit. Upgrade to Pro or try again at 10:32 PM." >&2; sleep 30 ;;' \
+    '  hang) sleep 30 ;;' \
     '  big-stderr) printf "%s\n" "Final review text from the last message."; { printf "%s\n" "user" "$prompt_text"; for n in $(seq 1 600); do printf "exec cat src/file-%s.ts\nconst echoedLine%s = readRepoFile(%s);\n" "$n" "$n" "$n"; done; printf "%s\n" "Final review text from the last message." "tokens used" "9,999"; } >&2 ;;' \
     '  small-stderr) printf "%s\n" "Substantive provider result."; printf "%s\n" "warning: small diagnostic" >&2 ;;' \
     '  banner-stderr) printf "%s\n" "Provider banner only" "--------"; printf "%s\n" "Answer carried on stderr before the transcript." >&2; for n in $(seq 1 600); do printf "diagnostic line %s with enough text to exceed the sidecar threshold\n" "$n" >&2; done ;;' \
@@ -408,6 +413,18 @@ run_external_fixture() {
     export FAKE_SCENARIO="$scenario"
     pid="$(spawn_agent "$agent_type" "External $scenario fixture" "$task" "$role" "$phase")" || return $?
     wait "$pid" 2>/dev/null || true
+}
+
+run_watched_fixture() {
+    local scenario="$1" task="$2" timeout="$3"
+    (
+        start_quota_watcher() { octo_real_start_quota_watcher "$@"; }
+        stop_quota_watcher() { octo_real_stop_quota_watcher "$@"; }
+        octopus_capture_provider_output() { octo_real_capture_provider_output "$@"; }
+        unset OCTOPUS_AGENT_TIMEOUT OCTOPUS_TIMEOUT_EXPLICIT OCTOPUS_TIMEOUT_EXPLICIT_SECS
+        TIMEOUT="$timeout"
+        run_external_fixture "$scenario" "$task"
+    )
 }
 
 test_case "spawn waits for registration before returning a cancellable worker"
@@ -1198,6 +1215,33 @@ then
     test_pass
 else
     test_fail "UTF-8 stderr was corrupted or the excerpt exceeded its budget"
+fi
+
+test_case "a quota fast-fail reports a quota or auth error instead of a timeout"
+quota_started=$SECONDS
+run_watched_fixture quota-held quota-fast-fail 30
+quota_elapsed=$((SECONDS - quota_started))
+quota_result="$RESULTS_DIR/fake-api-quota-fast-fail.md"
+if [[ "$quota_elapsed" -lt 30 ]] &&
+   [[ "$(octo_result_framed_sections "$quota_result" status)" == '## Status: FAILED - QUOTA OR AUTH ERROR (exit code: 75)' ]] &&
+   grep -Fq 'The provider reports its quota resets at 10:32 PM.' "$quota_result" &&
+   ! grep -Eqi 'TIMEOUT EXCEEDED|timed out|increas(e|ing) timeout|--timeout' "$quota_result" &&
+   [[ "$(run_contract_latest_transition spawn-quota-fast-fail)" == failed ]]; then
+    test_pass
+else
+    test_fail "quota fast-fail after ${quota_elapsed}s: $(octo_result_framed_sections "$quota_result" status 2>/dev/null || echo missing)"
+fi
+rm -f "$(octo_quota_dead_file)" "$(octo_quota_dead_meta_file)"
+
+test_case "a provider that outlives its deadline still reports a timeout"
+run_watched_fixture hang watched-timeout 2
+hang_result="$RESULTS_DIR/fake-api-watched-timeout.md"
+if [[ "$(octo_result_framed_sections "$hang_result" status)" == '## Status: TIMEOUT - PARTIAL RESULTS (exit code: 124)' ]] &&
+   grep -Fq 'TIMEOUT EXCEEDED' "$hang_result" &&
+   [[ "$(run_contract_latest_transition spawn-watched-timeout)" == timeout ]]; then
+    test_pass
+else
+    test_fail "genuine timeout: $(octo_result_framed_sections "$hang_result" status 2>/dev/null || echo missing)"
 fi
 
 test_summary

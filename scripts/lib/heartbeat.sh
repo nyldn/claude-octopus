@@ -578,8 +578,15 @@ run_with_timeout() {
         return "$_octo_portable_supervisor_interrupted_status"
     fi
 
+    if [[ $exit_code -eq 143 ]]; then
+        if declare -f octo_event_emit >/dev/null 2>&1; then
+            octo_event_emit "dispatch.end" command="$_octo_cmd_label" exit_code="$exit_code" outcome="error" || true
+        fi
+        return 124
+    fi
+
     # Enhanced timeout error messaging (v7.16.0 Feature 3)
-    if [[ $exit_code -eq 124 ]] || [[ $exit_code -eq 143 ]]; then
+    if [[ $exit_code -eq 124 ]]; then
         local timeout_mins=$((timeout_secs / 60))
         local recommended_timeout=$((timeout_secs * 2))
         local recommended_mins=$((recommended_timeout / 60))
