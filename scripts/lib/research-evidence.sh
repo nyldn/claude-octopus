@@ -620,9 +620,22 @@ research_extract_numbers() {
     printf '%s\n' "$line" | research_numeric_claims | sort -u || true
 }
 
+# A synthesis that numbers its findings refers back to them: "See point 2.",
+# "points 2 and 3", "item 4:". A whole number after point(s) or item(s), or
+# continuing such a list with a comma, "and" or "or", is not a numeric claim
+# when no other word follows it. "2 retries", "point 40 requests" and
+# "section 2" are still checked.
 research_numeric_claims() {
-    LC_ALL=C awk '{
-        line = $0; pos = 1; id_end = -1
+    LC_ALL=C awk '
+    function ordinal_reference(before, after, start, number,    gap) {
+        if (number !~ /^[0-9]+$/ || after ~ /^[0-9A-Za-z]/) return 0
+        if (after ~ /^[ \t]+[0-9A-Za-z]/ && tolower(after) !~ /^[ \t]+(and|or)[ \t]/) return 0
+        if (tolower(before) ~ /(^|[^0-9a-z_])(points?|items?)[ \t]+$/) return 1
+        gap = tolower(substr(line, ord_end, start - ord_end))
+        return (ord_end > 0 && gap ~ /^(,[ \t]*|[ \t]*,?[ \t]*(and|or)[ \t]+)$/)
+    }
+    {
+        line = $0; pos = 1; id_end = -1; ord_end = 0
         while (match(substr(line, pos), /[0-9]+([.,][0-9]+)*%?/)) {
             start = pos + RSTART - 1; len = RLENGTH; pos = start + len
             before = substr(line, 1, start - 1); after = substr(line, pos)
@@ -634,6 +647,10 @@ research_numeric_claims() {
                 || (start == id_end + 1 && before ~ /-$/) \
                 || (length(word) >= 7 && length(word) <= 40 && word ~ /^[0-9a-f]*[a-f][0-9a-f]*$/)) {
                 id_end = pos
+                continue
+            }
+            if (ordinal_reference(before, after, start, substr(line, start, len))) {
+                ord_end = pos
                 continue
             }
             print substr(line, start, len)

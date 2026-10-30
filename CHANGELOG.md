@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Research verification no longer fails a synthesis for referring to its own
+  numbered points. A synthesis line such as "See point 2." or "Corrected in
+  point 2: ..." next to a workspace citation failed with `number_mismatch`,
+  because the cited file did not contain a standalone 2. A whole number after
+  `point`, `points`, `item` or `items`, or continuing such a list with a comma,
+  "and" or "or", is now skipped when no other word follows it. Numbers with a
+  unit, such as `16 MiB` or `2 retries`, and section numbers are still checked.
+
 ## [11.15.3] - 2026-10-30
 
 ### Fixed
