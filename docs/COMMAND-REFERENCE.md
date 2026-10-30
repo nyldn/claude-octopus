@@ -1388,7 +1388,7 @@ octopus summary
 ```
 
 **What it shows:**
-- Provider/agent name
+- Provider/agent name, one row per seat: a provider with several seats in a run, such as probe perspectives, gets a row for each
 - Status: `ok`, `degraded`, `failed`, or `timeout`
 - Output token count and duration
 - Failure or degradation reason, including oversize prompt handling

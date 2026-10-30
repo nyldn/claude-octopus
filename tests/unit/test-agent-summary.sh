@@ -150,4 +150,41 @@ else
     test_fail "expected exit 78 when all providers required, got: $rc"
 fi
 
+seat_statuses() {
+    printf '%s\n' "$1" | grep "^$2 " | awk -F '|' '{ gsub(/[^a-z]/, "", $2); print $2 }' | sort | paste -sd, -
+}
+
+test_case "a later seat of the same provider does not replace an earlier seat's result"
+export OCTOPUS_RUN_ID="multi-seat-run"
+seat_one="$WORKSPACE_DIR/results/claude-sonnet-probe-7-1.md"
+seat_three="$WORKSPACE_DIR/results/claude-sonnet-probe-7-3.md"
+printf 'partial output before timeout\n' > "$seat_one"
+printf 'complete probe answer\n' > "$seat_three"
+write_agent_status "claude-sonnet" "running" 100 0 "" 0 "$seat_one" "researcher"
+write_agent_status "claude-sonnet" "running" 100 0 "" 0 "$seat_three" "researcher"
+write_agent_status "claude-sonnet" "ok" 100 50 "" 557000 "$seat_three" "researcher"
+write_agent_status "claude-sonnet" "timeout" 100 0 "Timed out before completion" 603000 "$seat_one" "researcher"
+summary="$(render_agent_summary)"
+files="$(agent_status_output_files)"
+snapshot_statuses="$(jq -r '[.agents[].status] | sort | join(",")' "$WORKSPACE_DIR/runs/multi-seat-run/agents.json")"
+if [[ "$(seat_statuses "$summary" claude-sonnet)" == "ok,timeout" ]] && \
+   [[ "$summary" == *"1 of 2 agents failed or timed out"* ]] && \
+   [[ "$files" == "$seat_three" && "$snapshot_statuses" == "ok,timeout" ]]; then
+    test_pass
+else
+    test_fail "seat results collapsed per provider: rows=[$(seat_statuses "$summary" claude-sonnet)] files=[${files:-<none>}] snapshot=[$snapshot_statuses]"
+fi
+
+test_case "a filtered summary counts only the seats of that probe"
+write_agent_status "codex" "failed" 100 0 "Exit code 1" 1000 "$WORKSPACE_DIR/results/codex-probe-8-0.md" "researcher"
+write_agent_status "claude-sonnet" "ok" 100 50 "" 1000 "$WORKSPACE_DIR/results/sync-result-8.md" "synthesizer" "sync-probe-claude-sonnet-8"
+summary="$(render_agent_summary "-probe-7-")"
+if [[ "$(seat_statuses "$summary" claude-sonnet)" == "ok,timeout" ]] && \
+   [[ "$summary" != *"codex"* && "$summary" == *"1 of 2 agents failed or timed out"* ]] && \
+   [[ "$(seat_statuses "$(render_agent_summary)" claude-sonnet)" == "ok,ok,timeout" ]]; then
+    test_pass
+else
+    test_fail "filtered summary included other seats: $(tr '\n' ' ' <<< "$summary")"
+fi
+
 test_summary
