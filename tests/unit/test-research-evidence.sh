@@ -783,6 +783,43 @@ else
     test_fail "identifier digits were checked as claims, or real numbers escaped: $identifier_kinds"
 fi
 
+test_case "references to the synthesis's own numbered points are not extracted as numbers"
+ordinal_numbers=""
+while IFS= read -r ordinal_line; do
+    ordinal_numbers="${ordinal_numbers}$(research_extract_numbers "$ordinal_line")"
+done <<'EOF'
+| Eligibility checks | Partial | Workspace evidence | See point 2. |
+| The probe said eligibility uses the caller. | Corrected in point 2: entitlement uses the owner. |
+- See points 2 and 3, items 4, 5 or 6, and Item 7.
+EOF
+ordinal_claims=$(research_extract_numbers \
+    'Point 2 retries twice; see point 2 above; section 3 and points 4 and 5 MiB; at one point 40% and 16 MiB; 2 retries; 3 points.' \
+    | LC_ALL=C sort | tr '\n' ' ')
+if [[ -z "$ordinal_numbers" && "$ordinal_claims" == "16 2 3 40% 5 " ]]; then
+    test_pass
+else
+    test_fail "ordinal references leaked [$ordinal_numbers] or claims were lost [$ordinal_claims]"
+fi
+
+test_case "an ordinal self-reference needs no evidence while units beside it still do"
+ordinal_draft="$RESEARCH_RUN_DIR/local-ordinals.md"
+{
+    printf '%s\n' '- Unexpected errors return 500 (`src/handler.ts:4`). See point 2.'
+    printf '%s\n' '| The probe said errors return 503. | Corrected in point 2: they return 500 (`src/handler.ts:4`). |'
+    printf '%s\n' '- Unexpected errors return 500 under the 16 MiB document limit (`src/handler.ts:4`).'
+    printf '%s\n' '- Unexpected errors return 500 after 2 retries (`src/handler.ts:4`).'
+    printf '%s\n' '- Section 2 requires that unexpected errors return 500 (`src/handler.ts:4`).'
+} > "$ordinal_draft"
+ordinal_status=0
+research_verify_synthesis "$ordinal_draft" || ordinal_status=$?
+ordinal_kinds=$(jq -r '.checks[] | "\(.line):\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$ordinal_status" -ne 0 \
+      && "$ordinal_kinds" == "2:number_mismatch:503 3:number_mismatch:16 4:number_mismatch:2 5:number_mismatch:2 " ]]; then
+    test_pass
+else
+    test_fail "ordinal self-references were checked as numbers, or unit-bearing numbers escaped: $ordinal_kinds"
+fi
+
 test_case "an unresolved workspace citation is reported by name and its line numbers are not claims"
 unresolved_draft="$RESEARCH_RUN_DIR/local-unresolved.md"
 {

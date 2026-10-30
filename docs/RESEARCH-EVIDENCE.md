@@ -49,6 +49,8 @@ The verifier fails closed for unknown source IDs, unsupported consensus claims, 
 
 Digits that belong to an identifier are not numeric claims: a ticket or requirement ID such as `PLAT-1181`, `T-1` or `R2`, a reference such as `#1728` or `§4.2`, a name such as `p95` or `k8s`, and a git SHA such as `89a941fda`. Standalone numbers, percentages, decimals, numbers with a unit suffix such as `15m` or `5xx`, and ranges such as `10-13` are still checked.
 
+A reference to the synthesis's own numbered points is not a numeric claim either: a whole number after `point`, `points`, `item` or `items`, as in `See point 2.`, `Corrected in point 2:` or `points 2 and 3`, when no other word follows the number. `2 retries`, `point 40 requests`, `16 MiB` and `section 2` are still checked.
+
 When a probe synthesis fails verification, its synthesizer gets one repair
 pass with the findings, evidence catalog and numbered draft. Missing citations,
 unresolved workspace paths, unknown source IDs, unsupported consensus, number
