@@ -2173,6 +2173,23 @@ for config_failure in unavailable oversized; do
     rm -f "$ROOT/filter-config-failure"
 done
 
+# sail-cruisey #3316: a seat joins a multi-line condition onto one line. The
+# tokens are the file's; only the whitespace around punctuation differs.
+WROOT="$(mktemp -d "${TEST_TMP_DIR:-/tmp}/quote-joined.XXXXXX")"
+mkdir -p "$WROOT/src"
+printf '%s\n' 'export async function handle(request) {' '  // 3.5. Rate limiting' '  if (' \
+    '    request.method !== "OPTIONS" &&' '    !request.headers.get("x-nf-scheduled")' '  ) {' \
+    '    await limit(request);' '  }' '}' > "$WROOT/src/handler.ts"
+test_case "#3316: a multi-line condition joined onto one line verifies"
+r="$(council_response_quote_verification_json "$(_resp '`src/handler.ts:3-6` is `if (request.method !== "OPTIONS" && !request.headers.get("x-nf-scheduled"))`. It wraps the whole limiter.
+VERDICT: APPROVE')" "$WROOT")"
+if jq -e '.quotes_verified == 1 and .quotes_attributed_unverified == 0 and .quotes_near_line == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3316: joining words that the file separates does not verify"
+r="$(council_response_quote_verification_json "$(_resp '`src/handler.ts:3-6` is `!request.headers.get("x-nf-scheduled") ) { awaitlimit(request);`.
+VERDICT: APPROVE')" "$WROOT")"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
 test_case "a chair-fallback seat record carries grounding like an advice seat"
 fbdir="$(mktemp -d "$TEST_TMP_DIR/fallback-grounding.XXXXXX")"; mkdir -p "$fbdir/responses"
 COUNCIL_RUN_DIR="$fbdir"; COUNCIL_FIXTURE=""; COUNCIL_SEAT_RECORDS_JSON='[]'
