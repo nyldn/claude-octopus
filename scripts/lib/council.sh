@@ -2810,7 +2810,7 @@ print(json.dumps(validated, separators=(",", ":")))
 PY
 }
 
-COUNCIL_EMPTY_GROUNDING_JSON='{"verification_failed":false,"citations":0,"citations_unresolved":0,"quotes_checked":0,"quotes_verified":0,"quotes_near_line":0,"quotes_attributed":0,"quotes_attributed_unverified":0,"quotes_verified_in_diff_removed":0,"quotes_verified_in_diff_added":0,"quotes_unverified":0,"quotes_unverifiable":0,"quotes_unverifiable_claimed_removed":0,"quotes_unverifiable_unresolved_citation":0,"quotes_unverifiable_command":0,"quotes_unverifiable_proposed":0,"quotes_unverifiable_prose":0,"quotes_unverifiable_diff_incomplete":0,"quotes_omitted":0,"response_oversized":false,"diff_truncated":false,"diff_unavailable":false,"diff_sources":[],"fabricated":false,"unverified_samples":[]}'
+COUNCIL_EMPTY_GROUNDING_JSON='{"verification_failed":false,"citations":0,"citations_unresolved":0,"quotes_checked":0,"quotes_verified":0,"quotes_near_line":0,"quotes_attributed":0,"quotes_attributed_unverified":0,"quotes_verified_in_diff_removed":0,"quotes_verified_in_diff_added":0,"quotes_unverified":0,"quotes_unverifiable":0,"quotes_unverifiable_claimed_removed":0,"quotes_unverifiable_unresolved_citation":0,"quotes_unverifiable_command":0,"quotes_unverifiable_proposed":0,"quotes_unverifiable_prose":0,"quotes_unverifiable_diff_incomplete":0,"quotes_omitted":0,"quotes_partial":0,"response_oversized":false,"diff_truncated":false,"diff_unavailable":false,"diff_sources":[],"fabricated":false,"unverified_samples":[]}'
 COUNCIL_FAILED_GROUNDING_JSON="${COUNCIL_EMPTY_GROUNDING_JSON/\"verification_failed\":false/\"verification_failed\":true}"
 
 council_response_quote_verification_json() {
@@ -2895,7 +2895,7 @@ result = {"verification_failed": False, "citations": 0, "citations_unresolved": 
           "quotes_unverifiable_claimed_removed": 0, "quotes_unverifiable_unresolved_citation": 0,
           "quotes_unverifiable_command": 0, "quotes_unverifiable_proposed": 0,
           "quotes_unverifiable_prose": 0, "quotes_unverifiable_diff_incomplete": 0,
-          "quotes_omitted": 0, "response_oversized": False, "diff_truncated": False, "diff_unavailable": False, "diff_sources": [],
+          "quotes_omitted": 0, "quotes_partial": 0, "response_oversized": False, "diff_truncated": False, "diff_unavailable": False, "diff_sources": [],
           # Preserve the report schema without copying provider excerpts into
           # persistent contribution records. Counts retain the rejection reason.
           "fabricated": False, "unverified_samples": []}
@@ -3222,6 +3222,19 @@ def specific_lines(block):
             out.append(variants)
     return out
 
+def short_lines(block):
+    # Nonempty lines too short to check on their own. They never count toward
+    # the two-thirds threshold, but an invented one still makes a fence partial.
+    out = []
+    for line in block:
+        variants = [line.strip(), GUTTER.sub("", line).strip()]
+        # An elision marker stands for omitted source; it is never a miss.
+        if ELLIPSIS.fullmatch(variants[-1]) or ELLIPSIS.fullmatch(variants[0]):
+            continue
+        if line.strip() and not any(checkable(v) for v in variants):
+            out.append([norm(v) for v in dict.fromkeys(variants) if norm(v)])
+    return [v for v in out if v]
+
 def unit_wholes(block):
     whole = " ".join(l.strip() for l in block)
     out = [whole] if whole else []
@@ -3278,13 +3291,23 @@ def match_variant(text, entry):
         return find_lines(hay, starts, line_numbers, pieces[0], following=pieces[1:])
     return []
 
-def match_unit(wholes, line_variants, entry):
+def match_unit(wholes, line_variants, entry, misses=None, short=()):
     # A multi-line block verifies as a whole or when at least two thirds of its
     # specific lines are in the file. One generic real line (a signature, an
-    # "if (flag) {") can no longer carry an otherwise invented block.
+    # "if (flag) {") can no longer carry an otherwise invented block. When the
+    # threshold or elision carries it, the lines it did not find, short ones
+    # included, are appended to misses.
+    hay = entry[0]
+    def missing(found_count):
+        return (len(line_variants) - found_count +
+                sum(1 for variants in short if not any(v in hay for v in variants)))
     for variant in wholes:
         lines = match_variant(variant, entry)
         if lines:
+            if misses is not None and norm(variant) not in hay:
+                # Elided fragments matched; a line between them may be invented.
+                misses.append(missing(sum(1 for variants in line_variants
+                                          if any(match_variant(v, entry) for v in variants))))
             return lines
     if not line_variants:
         return []
@@ -3296,6 +3319,8 @@ def match_unit(wholes, line_variants, entry):
                 found.append(lines)
                 break
     if found and len(found) * 3 >= len(line_variants) * 2:
+        if misses is not None:
+            misses.append(missing(len(found)))
         return found[0]
     return []
 
@@ -3424,9 +3449,9 @@ def load_diff_sides():
     # Joined so a multi-line quote of consecutive diff lines still matches.
     return (" ".join(removed), " ".join(added))
 
-def in_diff_side(wholes, line_variants, side):
+def in_diff_side(wholes, line_variants, side, misses=None, short=()):
     # Reuse the source-file threshold, including elision and gutter handling.
-    return bool(side and match_unit(wholes, line_variants, (side, [0], [1])))
+    return bool(side and match_unit(wholes, line_variants, (side, [0], [1]), misses, short))
 
 REMOVAL_WORDS = re.compile(r"\b(remov(?:e|ed|es|ing|al)|delet(?:e|ed|es|ing|ion)|drop(?:ped|s)?|no longer|was gone|got rid of)\b", re.I)
 # A command the seat ran ("`npm ci --dry-run`") is not a claim about file
@@ -3444,10 +3469,24 @@ GAP_WORDS = {"reads", "read", "shows", "show", "contains", "contain", "has", "sa
              "line", "lines", "source", "code", "verbatim", "quote", "quoted", "excerpt",
              "current", "currently", "actual", "l"}
 SOURCE_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|is|defines?|defined|declares?|declared)\b", re.I)
+# A content verb before "built as" keeps the citation's claim ("x.ts:2 contains
+# the code built as `...`"); a first-person subject after it marks the seat's
+# own input ("x.ts:2 reads a row I constructed as `...`").
+OWN_INPUT = re.compile(r"(?:constructed|built|crafted) as", re.I)
+CONTENT_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|defines?|defined|declares?|declared)\b", re.I)
+FIRST_PERSON = re.compile(r"\b(?:I|[Ww]e|[Mm]y|[Oo]ur|[Mm]e|[Uu]s)\b")
+def proposes(text):
+    for match in PROPOSAL.finditer(text):
+        if OWN_INPUT.fullmatch(match.group(0)) and not re.search(r"[.!?;]", text):
+            verbs = list(CONTENT_VERB.finditer(text, 0, match.start()))
+            if verbs and not FIRST_PERSON.search(text, verbs[-1].end(), match.start()):
+                continue
+        return True
+    return False
 SOURCE_ABSENCE = re.compile(
     r"\b(?:(?:does|do|did)\s+not|(?:doesn|don|didn)['’]t)\s+"
     r"(?:currently\s+)?(?:contain|show|read|say|define|declare|have)\b", re.I)
-PROPOSAL = re.compile(r"\b(should|propos\w*|suggest\w*|recommend\w*|replace with|instead|would|could|change (?:it |this )?to|rewrit\w*|becomes?|example|e\.g\.|such as|consider|cover|prefer\w*|expected|want)\b", re.I)
+PROPOSAL = re.compile(r"\b(should|propos\w*|suggest\w*|recommend\w*|replace with|instead|would|could|change (?:it |this )?to|rewrit\w*|becomes?|example|e\.g\.|such as|consider|cover|prefer\w*|expected|want|(?:constructed|built|crafted) as)\b", re.I)
 # Backticks also format prose and multiword values. Sentence punctuation alone
 # is not code syntax, nor is a dotted name embedded in a sentence. Calls,
 # indexing, operators and statements returning a member expression still are.
@@ -3478,7 +3517,7 @@ def attribution(token, gap):
     # A source verb in this bounded clause still attributes the quote when
     # ordinary modifiers follow it. A new sentence or a proposal ends that claim.
     source_clause = SOURCE_VERB.search(gap) and not re.search(r"[.!?;]", gap)
-    if PROPOSAL.search(gap) or (not source_clause and any(
+    if proposes(gap) or (not source_clause and any(
             word.lower() not in GAP_WORDS for word in re.findall(r"[A-Za-z]+", gap))):
         return None
     line_start = resp.rfind("\n", 0, token[0]) + 1
@@ -3497,12 +3536,13 @@ def proposed(start):
         prose = preceding[preceding.rfind("\n") + 1:]
     # A source filename such as example.ts is not proposal language.
     prose = CITATION.sub("", LINK_TARGET.sub("", prose))
-    return bool(PROPOSAL.search(prose))
+    return proposes(prose)
 
 checkable_units = 0
 for start, end, kind, block, removed_block, info in units:
     wholes = unit_wholes(block) if len(block) > 1 else []
     line_variants = specific_lines(block)
+    short = short_lines(block)
     removed_variants = [v for v in [" ".join(l.strip() for l in removed_block)] + [l.strip() for l in removed_block]
                         if v and checkable(v)]
     if not wholes and not line_variants and not removed_variants and not (
@@ -3554,20 +3594,25 @@ for start, end, kind, block, removed_block, info in units:
     # A miss is only checkable when every file the quote is bound to loaded; a
     # readable neighbor cannot stand in for an oversized or unreadable bound file.
     readable = True
-    verified = near = False
+    verified = near = partial = False
     for path in bound_paths + [p for p in all_cited if p not in bound_paths]:
         entry = load(path)
         if entry is None:
             if path in bound_paths:
                 readable = False
             continue
-        lines = match_unit(wholes, line_variants, entry)
+        misses = []
+        lines = match_unit(wholes, line_variants, entry, misses, short)
         if not lines:
             continue
-        verified = True
         cited_lines = [line for p, line in bound if p == path]
-        near = any(abs(found - cited) <= NEAR_LINES for found in lines for cited in cited_lines)
-        break
+        near = near or any(abs(found - cited) <= NEAR_LINES for found in lines for cited in cited_lines)
+        # A partial match may be complete in a later cited file; keep looking
+        # for the report. The first match already decides the verdict.
+        partial = bool(misses and misses[0])
+        verified = True
+        if not partial:
+            break
     if kind == "bare":
         # Positive evidence only: a matched bare line is a verified quote; an
         # unmatched one may be the seat's own prose and is not counted.
@@ -3582,6 +3627,7 @@ for start, end, kind, block, removed_block, info in units:
     if attributed is not None:
         result["quotes_attributed"] += 1
     diff_side_hit = None
+    diff_partial = False
     if not verified or removed_block:
         if diff_sides is None:
             diff_sides = load_diff_sides()
@@ -3590,23 +3636,43 @@ for start, end, kind, block, removed_block, info in units:
             # A mixed fence makes claims about both versions. A genuine
             # addition cannot excuse invented removals, or the reverse.
             removed_wholes = unit_wholes(removed_block) or [norm(" ".join(removed_block))]
-            removed_hit = in_diff_side(removed_wholes, specific_lines(removed_block), removed_side)
-            kept_hit = verified or not block or in_diff_side(wholes, line_variants, added_side)
+            removed_misses, kept_misses = [], []
+            removed_hit = in_diff_side(removed_wholes, specific_lines(removed_block), removed_side,
+                                       removed_misses, short_lines(removed_block))
+            # Each portion is partial on its own side. A kept portion partial in
+            # the cited file but exact on the added side is not partial.
+            kept_on_added = bool(block) and in_diff_side(wholes, line_variants, added_side, kept_misses, short)
+            kept_hit = verified or not block or kept_on_added
+            if kept_on_added:
+                kept_partial = any(kept_misses) and (partial or not verified)
+            else:
+                kept_partial = verified and partial
             verified = False
             if removed_hit and kept_hit:
                 diff_side_hit = "removed"
-        elif in_diff_side(wholes, line_variants, removed_side):
-            diff_side_hit = "removed"
-        elif in_diff_side(wholes, line_variants, added_side):
-            diff_side_hit = "added"
+                diff_partial = any(removed_misses) or kept_partial
+        else:
+            # Check both sides: the removed side keeps precedence, but an exact
+            # match on either side means the fence is not partial.
+            removed_misses, added_misses = [], []
+            hits = [(side_name, side_misses) for side_name, side, side_misses in
+                    (("removed", removed_side, removed_misses), ("added", added_side, added_misses))
+                    if in_diff_side(wholes, line_variants, side, side_misses, short)]
+            if hits:
+                diff_side_hit = hits[0][0]
+                diff_partial = all(any(side_misses) for _, side_misses in hits)
     sample = (flat_variants or removed_variants)[0]
     if verified:
         result["quotes_verified"] += 1
         if near:
             result["quotes_near_line"] += 1
+        # sail-cruisey #3247: a mostly real fence can carry an invented line.
+        # Report it; the two-thirds threshold still decides the verdict.
+        result["quotes_partial"] += int(kind == "fence" and partial)
     elif diff_side_hit:
         result["quotes_verified"] += 1
         result["quotes_verified_in_diff_" + diff_side_hit] += 1
+        result["quotes_partial"] += int(kind == "fence" and diff_partial)
     elif not diff_sides[0] and not diff_sides[1] and (
             removed_block or REMOVAL_WORDS.search(resp[max(0, start - REMOVAL_WINDOW):end + REMOVAL_WINDOW])):
         # No diff to check a claimed removal against: unverifiable, not fabricated.

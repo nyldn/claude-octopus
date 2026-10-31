@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- A council seat is no longer marked fabricated for a test input it built
+  itself (sail-cruisey #3247). A span introduced as "constructed as", "built
+  as" or "crafted as" is the seat's own proposal, like one introduced by
+  "such as", so a seat whose only checked quote was such an input is no longer
+  dropped as blind beside real citations. After a content verb, as in
+  "x.ts:2 contains the code built as", the span is still the file's code and is
+  checked, unless "I" or "we" built it. Quote reports also gain
+  `quotes_partial`, which counts fences that verify at the two-thirds
+  threshold, in a cited file or the reviewed diff, but contain a line found
+  nowhere, short lines included. A fence complete in a later cited file is not
+  partial. It does not change the verdict.
+
 ## [11.15.3] - 2026-10-30
 
 ### Fixed

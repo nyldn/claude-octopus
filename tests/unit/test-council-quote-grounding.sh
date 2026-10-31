@@ -715,7 +715,7 @@ VERDICT: APPROVE")"
                     test_fail "one real $diff_side line verified a $quote_kind block: $r"
                     continue
                 fi
-            elif ! jq -e --arg field "quotes_verified_in_diff_$diff_side" '.quotes_verified == 1 and .[$field] == 1 and .fabricated == false' <<< "$r" >/dev/null; then
+            elif ! jq -e --arg field "quotes_verified_in_diff_$diff_side" '.quotes_verified == 1 and .[$field] == 1 and .quotes_partial == 1 and .fabricated == false' <<< "$r" >/dev/null; then
                 test_fail "two real $diff_side lines failed to verify a $quote_kind block: $r"
                 continue
             fi
@@ -723,6 +723,24 @@ VERDICT: APPROVE")"
         done
     done
 done
+
+# A fence partial on the removed side but exact on the added side is not
+# partial; the removed side still decides where it verified.
+test_case "#3247: a fence exact on the added side is not partial"
+both_sides="$TEST_TMP_DIR/both-sides.diff"
+window='const refundWindow = sailing.refundWindowDays ?? 14;'
+printf 'diff --git a/src/book.ts b/src/book.ts\n--- a/src/book.ts\n+++ b/src/book.ts\n@@ -1,2 +1,3 @@\n-%s\n-%s\n+%s\n+%s\n+%s\n' \
+    "$GUARD" 'const closedBookings = sailing.closedBookings ?? [];' \
+    "$GUARD" 'const closedBookings = sailing.closedBookings ?? [];' "$window" > "$both_sides"
+f="$(_resp "src/book.ts:2 reads:
+\`\`\`ts
+$GUARD
+const closedBookings = sailing.closedBookings ?? [];
+$window
+\`\`\`
+VERDICT: APPROVE")"
+r="$(COUNCIL_CONTEXT_FILES=("$both_sides"); _greport "$f")"
+if jq -e '.quotes_verified == 1 and .quotes_verified_in_diff_removed == 1 and .quotes_partial == 0' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
 test_case "an oversized response reports the limit and cannot count as grounded"
 oversized="$TEST_TMP_DIR/oversized-response.md"
@@ -822,6 +840,141 @@ ctx_plan="$TEST_TMP_DIR/plan.md"
 printf '# Plan\n\n- const base = await fetchCabinPrice(cabin.id, { cache: true });\n' > "$ctx_plan"
 r="$(COUNCIL_CONTEXT_FILES=("$ctx_plan"); _report "$fab")"
 if jq -e '.fabricated == true and .diff_sources == []' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# sail-cruisey #3247 chunk A: a seat describing a test input it built is not
+# quoting the file it cites. Its only checked quote failed, so the seat was
+# fabricated and blind despite eight real citations.
+test_case "#3247: an input the seat constructed is its own, not a quote"
+r="$(_report "$(_resp 'At src/pricing.ts:2, a 360-character row constructed as `"Order total $5.00".padEnd(80, " ") + "invalid".repeat(40)` becomes a valid total.
+VERDICT: REVISE')")"
+if jq -e '.quotes_unverifiable_proposed == 1 and .quotes_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3247: an invented quote the citation reads is still fabricated"
+r="$(_report "$(_resp "src/pricing.ts:2 reads \`$FAKE\` and the row is constructed later.
+VERDICT: REVISE")")"
+if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# sail-cruisey #3247 chunk C: a fence of mostly real lines verifies at the
+# two-thirds threshold even when one line is invented. The report now counts
+# such a fence as partial, without changing the verdict.
+test_case "#3247: a fence that verifies with an invented line is counted as partial"
+r="$(_report "$(_resp "src/pricing.ts:1 reads:
+
+\`\`\`ts
+export function priceFor(cabin, sailing) {
+  const base = cabin.basePrice ?? sailing.defaultPrice;
+  if (!base) return null;
+  $FAKE
+  return applyTaxes(base, sailing.portFees);
+\`\`\`
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_verified == 1 and .quotes_partial == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3247: an exact fence is not partial"
+r="$(_report "$(_resp "src/pricing.ts:1 reads:
+
+\`\`\`ts
+export function priceFor(cabin, sailing) {
+  const base = cabin.basePrice ?? sailing.defaultPrice;
+  if (!base) return null;
+  return applyTaxes(base, sailing.portFees);
+\`\`\`
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_verified == 1 and .quotes_partial == 0' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# A content verb before the proposal wording keeps the citation's claim: the
+# seat says the file holds this code. A first-person subject between them
+# still marks the seat's own input.
+test_case "#3247: a citation that contains code built as an invented quote is fabricated"
+r="$(_report "$(_resp "src/pricing.ts:2 contains the code built as \`$FAKE\` today.
+VERDICT: REVISE")")"
+if jq -e '.quotes_attributed_unverified == 1 and .quotes_unverifiable_proposed == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3247: an input the seat itself built after a content verb stays its own"
+r="$(_report "$(_resp 'src/pricing.ts:2 reads the base price from a row I constructed as `"Order total $5.00".padEnd(80, " ") + "invalid".repeat(40)` for this test.
+VERDICT: REVISE')")"
+if jq -e '.quotes_unverifiable_proposed == 1 and .quotes_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3247: an invented short line in a fence that verifies is counted as partial"
+r="$(_report "$(_resp "src/pricing.ts:1 reads:
+
+\`\`\`ts
+  const base = cabin.basePrice ?? sailing.defaultPrice;
+  return true;
+  return applyTaxes(base, sailing.portFees);
+\`\`\`
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_verified == 1 and .quotes_partial == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3247: a real short line in a fence that verifies is not partial"
+r="$(_report "$(_resp "src/pricing.ts:1 reads:
+
+\`\`\`ts
+  const base = cabin.basePrice ?? sailing.defaultPrice;
+  return applyTaxes(base, sailing.portFees);
+}
+\`\`\`
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_verified == 1 and .quotes_partial == 0' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3247: an invented short line between elision markers is counted as partial"
+r="$(_report "$(_resp "src/pricing.ts:1 reads:
+
+\`\`\`ts
+  const base = cabin.basePrice ?? sailing.defaultPrice;
+  ...
+  return true;
+  ...
+  return applyTaxes(base, sailing.portFees);
+\`\`\`
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_verified == 1 and .quotes_partial == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3247: an elided fence of real lines is not partial"
+r="$(_report "$(_resp "src/pricing.ts:1 reads:
+
+\`\`\`ts
+  const base = cabin.basePrice ?? sailing.defaultPrice;
+  ...
+  return applyTaxes(base, sailing.portFees);
+}
+\`\`\`
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_verified == 1 and .quotes_partial == 0' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3247: a blockquote with an unmatched line is not a partial fence"
+r="$(_report "$(_resp "src/pricing.ts:1 reads:
+
+> const base = cabin.basePrice ?? sailing.defaultPrice;
+> const invented = fetchUnknownReservations(sailing);
+> return applyTaxes(base, sailing.portFees);
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_verified == 1 and .quotes_partial == 0' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3247: a fence complete in a later cited file is not partial"
+PROOT="$(mktemp -d "${TEST_TMP_DIR:-/tmp}/quote-partial.XXXXXX")"
+mkdir -p "$PROOT/src"
+printf '%s\n' 'export function priceFor(cabin, sailing) {' '  const base = cabin.basePrice ?? sailing.defaultPrice;' \
+    '  return applyTaxes(base, sailing.portFees);' '}' > "$PROOT/src/a.ts"
+printf '%s\n' 'export function priceFor(cabin, sailing) {' '  const base = cabin.basePrice ?? sailing.defaultPrice;' \
+    '  const fees = sailing.portFees.filter(Boolean);' '  return applyTaxes(base, sailing.portFees);' '}' > "$PROOT/src/b.ts"
+r="$(council_response_quote_verification_json "$(_resp "src/a.ts:1 and src/b.ts:1 read:
+
+\`\`\`ts
+  const base = cabin.basePrice ?? sailing.defaultPrice;
+  const fees = sailing.portFees.filter(Boolean);
+  return applyTaxes(base, sailing.portFees);
+\`\`\`
+
+VERDICT: APPROVE")" "$PROOT")"
+if jq -e '.quotes_verified == 1 and .quotes_partial == 0' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
 test_case "no diff available: a quote the seat says was removed is unverifiable, not fabricated"
 claimed="$(_resp "At src/pricing.ts:2 the check \`if (cabin.soldOut) return { price: null };\` was deleted in this change.
@@ -2213,6 +2366,37 @@ VERDICT: APPROVE")"
         test_pass
     else
         test_fail "mixed diff was admitted or rejected incorrectly: $record"
+    fi
+done
+# A mixed fence makes claims about both versions. A kept portion that is
+# partial in the cited file but exact on the added side is not partial; a
+# partial removed portion still is.
+extra_new='const extraState = loadExtraState(input);'
+extra_diff="$TEST_TMP_DIR/extra-added.diff"
+printf 'diff --git a/src/demo.ts b/src/demo.ts\n--- a/src/demo.ts\n+++ b/src/demo.ts\n@@ -1,2 +1,3 @@\n-%s\n-%s\n+%s\n+%s\n+%s\n' \
+    "$old_a" "$old_b" "$new_a" "$new_b" "$extra_new" > "$extra_diff"
+for partial_case in kept-exact-on-added removed-partial; do
+    test_case "#3247: mixed fence partial counts each portion on its own side: $partial_case"
+    removed_text="$old_a"; expected_partial=0
+    if [[ "$partial_case" == removed-partial ]]; then
+        removed_text="$old_a
+-$old_b
+-$not_source"; expected_partial=1
+    fi
+    mixed_response="$(_resp "src/demo.ts:1 reads:
+\`\`\`diff
+-$removed_text
++$new_a
++$new_b
++$extra_new
+\`\`\`
+VERDICT: APPROVE")"
+    r="$(COUNCIL_CONTEXT_FILES=("$extra_diff"); council_response_quote_verification_json "$mixed_response" "$struct_root")"
+    if jq -e --argjson p "$expected_partial" '.quotes_verified == 1 and .quotes_verified_in_diff_removed == 1
+        and .quotes_partial == $p and .fabricated == false' <<< "$r" >/dev/null; then
+        test_pass
+    else
+        test_fail "report: $r"
     fi
 done
 for structure_case in rule file-header git-header malformed-hunk after-hunk unified hunk-only markdown-diff crlf; do
