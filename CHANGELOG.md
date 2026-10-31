@@ -40,6 +40,18 @@
   nowhere, short lines included. A fence complete in a later cited file is not
   partial. It does not change the verdict.
 
+- Council seats with real citations are no longer marked fabricated for
+  quotes the verifier misread (sail-cruisey #3316, #3338, #3339, #3340). A
+  multi-line condition written on one line verifies, because a space next to
+  punctuation is layout. A code span stays inside one paragraph, a backtick
+  opened in link text is literal, and paired `` \` `` inside a span are
+  literal backticks. Citations of files with no extension, such as
+  `.githooks/pre-commit:48`, bind their quotes. The inputs a seat says it fed
+  to the code under review, and code it says the file avoids, are its own
+  words, not quotes of a file. After a content verb, "built as" marks the
+  seat's own input only when "I" or "we" built it. A fence partial in a cited
+  file but complete in the reviewed diff is not counted as partial.
+
 ## [11.15.2] - 2026-10-28
 
 ### Fixed
