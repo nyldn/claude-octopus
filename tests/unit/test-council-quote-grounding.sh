@@ -726,6 +726,21 @@ done
 
 # A fence partial on the removed side but exact on the added side is not
 # partial; the removed side still decides where it verified.
+# A fence partial in the cited file but complete in the reviewed diff is not
+# partial; the file match still decides the verified count.
+test_case "#3247: a fence partial in the file but complete in the diff is not partial"
+full_added="$TEST_TMP_DIR/full-added.diff"
+printf 'diff --git a/src/book.ts b/src/book.ts\n--- a/src/book.ts\n+++ b/src/book.ts\n@@ -0,0 +1,3 @@\n+%s\n+  %s\n+%s\n' \
+    'export function book(sailing, cabin) {' "$GUARD" '  return reserve(sailing, cabin);' > "$full_added"
+r="$(COUNCIL_CONTEXT_FILES=("$full_added"); _greport "$(_resp "src/book.ts:1 reads:
+\`\`\`ts
+export function book(sailing, cabin) {
+  $GUARD
+  return reserve(sailing, cabin);
+\`\`\`
+VERDICT: REVISE")")"
+if jq -e '.quotes_verified == 1 and .quotes_verified_in_diff_removed == 0 and .quotes_partial == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
 test_case "#3247: a fence exact on the added side is not partial"
 both_sides="$TEST_TMP_DIR/both-sides.diff"
 window='const refundWindow = sailing.refundWindowDays ?? 14;'
@@ -2252,6 +2267,15 @@ if jq -e '.quotes_unverified == 0 and .quotes_unverifiable_proposed == 1 and .fa
 test_case "#3338: a negated quote the citation reads is still checked"
 r="$(_xreport '`scripts/entry.mjs:3` reads `run(process.argv.slice(2), { permissionDecision: "allow" });` and never asks.')"
 if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# The seat's own input needs the seat as the subject of "built as": another
+# first-person word in the clause does not make a teammate's code the seat's.
+for owner_case in "reads what my teammate built as" "reads code I reviewed that my teammate built as" "shows our helper, which the author built as"; do
+    test_case "an invented quote another author built is still checked: $owner_case"
+    r="$(_report "$(_resp "src/pricing.ts:2 $owner_case \`$FAKE\`.
+VERDICT: APPROVE")")"
+    if jq -e '.quotes_unverifiable_proposed == 0 and .quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
 
 test_case "a chair-fallback seat record carries grounding like an advice seat"
 fbdir="$(mktemp -d "$TEST_TMP_DIR/fallback-grounding.XXXXXX")"; mkdir -p "$fbdir/responses"
