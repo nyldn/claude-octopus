@@ -823,6 +823,88 @@ printf '# Plan\n\n- const base = await fetchCabinPrice(cabin.id, { cache: true }
 r="$(COUNCIL_CONTEXT_FILES=("$ctx_plan"); _report "$fab")"
 if jq -e '.fabricated == true and .diff_sources == []' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
+# A seat's own arithmetic is a computed value, not a quote of the payload
+# (sail-cruisey #3246 CP1: codex disputed a size estimate with its own sum and
+# was marked fabricated on it).
+test_case "#3246: a seat's own arithmetic in backticks is not a quote"
+sum_resp="$(_resp 'src/pricing.ts:2 keeps the fallback. The estimate `8 + 10 + 0.5 = 18.5 KB` adds up.
+VERDICT: APPROVE')"
+r="$(_report "$sum_resp")"
+if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: arithmetic in scientific notation is a computed value"
+r="$(_report "$(_resp 'src/pricing.ts:2 keeps the fallback. The estimate `1.5e6 + 2.5E+6 = 4.0e6 tokens` adds up.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: an identifier beside scientific notation is still a code quote"
+r="$(_report "$(_resp 'src/pricing.ts:2 computes `const total = 1.5e6 + base * 2e3;` before returning.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: arithmetic with digit-group underscores is a computed value"
+r="$(_report "$(_resp 'src/pricing.ts:2 keeps the fallback. The estimate `1_000_000 * 3 = 3_000_000 rows` adds up.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: an underscore identifier beside a grouped number is still a code quote"
+r="$(_report "$(_resp 'src/pricing.ts:2 computes `const cap = max_rows * 1_000;` before returning.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: arithmetic a citation computes is still checked"
+r="$(_report "$(_resp 'src/pricing.ts:2 computes `1024 * 1024 * 1024 * 10 x` for the cap.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: arithmetic with variables is still a code quote"
+var_resp="$(_resp 'src/pricing.ts:2 computes `const total = base + taxes * 2;` before returning.
+VERDICT: APPROVE')"
+r="$(_report "$var_resp")"
+if jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: a long unit word after a number still makes arithmetic a computed value"
+r="$(_report "$(_resp 'src/pricing.ts:2 keeps the fallback. The estimate `8 + 10 + 0.5 = 18.5 kilobytes` adds up.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: modulo arithmetic is a computed value"
+r="$(_report "$(_resp 'src/pricing.ts:2 keeps the fallback. Check: `100000 % 1000 % 100 % 10` is zero.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: a conditional expression is not taken for numbers with units"
+r="$(_report "$(_resp 'src/pricing.ts:2 keeps the fallback. Elsewhere it computes `100 if 1000 > 500 else 1` first.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: arithmetic a seat says a cited file contains is still verified"
+r="$(_report "$(_resp 'src/pricing.ts:2 reads `1024 * 1024 * 1024 * 10`.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 1 and .quotes_attributed == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: arithmetic followed by its citation is still verified"
+r="$(_report "$(_resp 'The cap is `1024 * 1024 * 1024 * 10` (src/pricing.ts:2).
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: an arithmetic line in a fence does not lower the fence's match threshold"
+r="$(_report "$(_resp "src/pricing.ts:2 keeps the fallback. The block:
+\`\`\`ts
+${REAL_NEAR}
+1024 * 1024 * 1024 * 10
+\`\`\`
+VERDICT: APPROVE")")"
+if jq -e '.quotes_checked == 1 and .quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: an arithmetic line claimed as a diff removal is still checked"
+r="$(_report "$(_resp 'src/pricing.ts:2 keeps the fallback. The change:
+```diff
+-1024 * 1024 * 1024 * 10
+```
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 1' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
 test_case "no diff available: a quote the seat says was removed is unverifiable, not fabricated"
 claimed="$(_resp "At src/pricing.ts:2 the check \`if (cabin.soldOut) return { price: null };\` was deleted in this change.
 VERDICT: REVISE")"
