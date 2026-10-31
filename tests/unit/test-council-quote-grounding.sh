@@ -2190,6 +2190,69 @@ r="$(council_response_quote_verification_json "$(_resp '`src/handler.ts:3-6` is 
 VERDICT: APPROVE')" "$WROOT")"
 if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
+# sail-cruisey #3338: a double-backtick span holds single backticks, and a seat
+# writes \` for a literal backtick. Neither may split into prose "quotes".
+XROOT="$(mktemp -d "${TEST_TMP_DIR:-/tmp}/quote-blind.XXXXXX")"
+mkdir -p "$XROOT/scripts" "$XROOT/.githooks"
+printf '%s\n' 'import { run } from "./run.mjs";' 'if (import.meta.url === `file://${process.argv[1]}`) {' '  run(process.argv.slice(2));' '}' > "$XROOT/scripts/entry.mjs"
+printf '%s\n' '#!/bin/sh' 'hook="scripts/hooks/pii-guard.mjs"' '[ -f "$hook" ] || exit 0' 'node "$hook" --staged || exit 1' > "$XROOT/.githooks/pre-commit"
+_xreport() { council_response_quote_verification_json "$(_resp "$1
+VERDICT: APPROVE")" "$XROOT"; }
+test_case "#3338: a double-backtick span with inner backticks is one quote"
+r="$(_xreport '`scripts/entry.mjs:2` uses the fragile ``import.meta.url === `file://${process.argv[1]}` `` comparison. The decoded compare is the precedent the plan cites. Adding realpath is a strict improvement.')"
+if jq -e '.quotes_unverified == 0 and .quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+test_case "#3338: an escaped backtick inside a span does not end it"
+r="$(_xreport 'The sibling hook uses a raw string compare at `scripts/entry.mjs:2` (`import.meta.url === \`file://${process.argv[1]}\``). The plan'"'"'s precedent for the decoded compare is correct at `scripts/entry.mjs:3`.')"
+if jq -e '.quotes_unverified == 0 and .quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3338: a span holding only a backslash closes on the next backtick"
+r="$(_xreport 'A comment ending in `\` hides the next line. At `scripts/entry.mjs:2` the scanner joins `\`+newline lines before it strips comments.')"
+if jq -e '.quotes_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3338: an unclosed backtick in link text does not pair with the next paragraph"
+r="$(_xreport '1. `PreToolUse` runs the guard ([`scripts/entry.mjs:2](file:///scripts/entry.mjs#L2)).
+2. `UserPromptSubmit` runs it too ([scripts/entry.mjs:3](file:///scripts/entry.mjs#L3)).
+  Using `import { run } from "./run.mjs";` keeps the entry stable across working directories.
+
+#### B. Limits
+- **Latency** caps the scan, which would otherwise fail the hook open.')"
+if jq -e '.quotes_unverified == 0 and .quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3338: a citation of a file with no extension binds its quote"
+r="$(_xreport 'The node check at `.githooks/pre-commit:4` sits after `[ -f "$hook" ] || exit 0` in `scripts/entry.mjs:2`.')"
+if jq -e '.citations == 2 and .quotes_verified == 1 and .quotes_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+test_case "#3338: an invented quote under an extensionless citation is still fabricated"
+r="$(_xreport '`.githooks/pre-commit:3` reads `[ -x "$hook" ] && exec node "$hook" --all`.')"
+if jq -e '.citations == 1 and .quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# sail-cruisey #3339: more shapes of a seat's own probe inputs.
+more_probes=(
+    'Wrapper options bypass detection. `command -- gh run rerun 123`, `env -i gh run rerun 123`, and `time -p gh run rerun 123` all return `[]`. References: scripts/entry.mjs:2.'
+    'Redirections still hide reruns. `gh >/dev/null run rerun 123` and `2>&1 gh run rerun 123` both execute with arguments `run rerun 123`. References: scripts/entry.mjs:2.'
+    'Likewise, `timeout --signal KILL 60 gh run rerun 123` misses detection, and `echo x\\ #; gh run rerun 123` executes the rerun. References: scripts/entry.mjs:2.'
+    'Long options are not consumed at scripts/entry.mjs:2. Bypasses: `timeout --kill-after 10 60 gh run rerun 9`, `timeout --signal KILL 60 gh run rerun 9` and `nice --adjustment 5 gh run rerun 9`.'
+)
+for probe in "${more_probes[@]}"; do
+    test_case "#3339: a seat's probe input is not a fabricated quote: ${probe:0:50}"
+    r="$(_xreport "$probe")"
+    if jq -e '.quotes_unverified == 0 and .quotes_unverifiable_proposed >= 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+test_case "#3339: the input column of a probe table is the seat's own input"
+r="$(_xreport 'I ran the scanner on both versions; the branch order at scripts/entry.mjs:2 decides it.
+
+| Input | Real code | Broken copy |
+|---|---|---|
+| `echo '"'"'a \⏎'"'"' ; gh run rerun 113` (row below it) | `[{run,113}]` | `[{run,113}]` |
+| `# note \⏎gh run rerun 111` | `[{run,111}]` | `[{run,111}]` |')"
+if jq -e '.quotes_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3338: a quote the seat says the code avoids is not a fabricated quote"
+r="$(_xreport 'The new hook at scripts/entry.mjs:3 asks the user. Crucially, it avoids returning `{ permissionDecision: "allow" }`, preserving the approval gate.')"
+if jq -e '.quotes_unverified == 0 and .quotes_unverifiable_proposed == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+test_case "#3338: a negated quote the citation reads is still checked"
+r="$(_xreport '`scripts/entry.mjs:3` reads `run(process.argv.slice(2), { permissionDecision: "allow" });` and never asks.')"
+if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
 test_case "a chair-fallback seat record carries grounding like an advice seat"
 fbdir="$(mktemp -d "$TEST_TMP_DIR/fallback-grounding.XXXXXX")"; mkdir -p "$fbdir/responses"
 COUNCIL_RUN_DIR="$fbdir"; COUNCIL_FIXTURE=""; COUNCIL_SEAT_RECORDS_JSON='[]'

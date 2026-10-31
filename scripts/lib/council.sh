@@ -3005,6 +3005,26 @@ for match in CITATION.finditer(resp):
     tokens.append(token)
     if candidate is not None:
         citations.append(token)
+# sail-cruisey #3338: a file with no extension (".githooks/pre-commit:48",
+# "Makefile:12") is a citation only when it names a file under the root as
+# written; otherwise "host/path:80" shapes would count.
+EXTENSIONLESS = re.compile(r"(?<![A-Za-z0-9_./:-])((?:[A-Za-z0-9_.-]+/)+[A-Za-z0-9_-]+|Makefile|Dockerfile|Gemfile|Rakefile|Procfile|Jenkinsfile|Brewfile)"
+                           r"\s*:\s*([0-9]+)(?:-([0-9]+))?(?![A-Za-z0-9_/-]|\.[A-Za-z0-9_/-])")
+for match in EXTENSIONLESS.finditer(resp):
+    raw = match.group(1)
+    if raw not in resolved:
+        relative = Path(raw)
+        try:
+            candidate = (root / relative).resolve(strict=True)
+            resolved[raw] = candidate if ".." not in relative.parts and contained(candidate) and candidate.is_file() else None
+        except (OSError, RuntimeError):
+            resolved[raw] = None
+    if resolved[raw] is not None:
+        token = (match.start(), match.end(), resolved[raw], int(match.group(2)))
+        tokens.append(token)
+        citations.append(token)
+tokens.sort()
+citations.sort()
 result["citations"] = len(citations)
 result["citations_unresolved"] = len(tokens) - len(citations)
 if not citations:
@@ -3101,20 +3121,55 @@ for backtick_index in range(len(backticks) - 1, -1, -1):
     width = len(backticks[backtick_index].group())
     next_backtick[backtick_index] = last_backtick.get(width)
     last_backtick[width] = backtick_index
+backtick_starts = [b.start() for b in backticks]
+# sail-cruisey #3338: a seat writes `a \`b\` c` for a span holding backticks.
+# Paired \` inside a single-backtick span are literal; a lone `\` stays a
+# backslash, as in CommonMark.
+ESCAPED_SPAN = re.compile(r"((?:[^`\\\n]|\\[^\n])*?)`(?!`)")
+def escaped_pair_span(opening):
+    if len(opening.group()) != 1:
+        return None
+    match = ESCAPED_SPAN.match(resp, opening.end())
+    if not match or match.group(1).count("\\`") < 2 or match.group(1).count("\\`") % 2:
+        return None
+    # The closer may end a run whose first backtick is escaped ("\``").
+    index = bisect_right(backtick_starts, match.end() - 1) - 1
+    if index < 0 or backticks[index].end() != match.end():
+        return None
+    return index, match.group(1).replace("\\`", "`")
+# A span stays inside one paragraph: it never crosses a blank line or a line
+# that opens a new block (list item, heading, quote, table row, fence). A seat's
+# unclosed backtick in link text ("[`a.ts:3](file:///a.ts#L3)") is literal.
+# Otherwise one stray backtick pairs with the next paragraph and turns prose into
+# "quotes" (sail-cruisey #3338).
+SPAN_BREAK = re.compile(r"\n[ \t]*(?:\r?\n|[-+*][ \t]|\d{1,9}[.)][ \t]|#{1,6}[ \t]|>|\||```|~~~)")
+def link_text_opener(opening, closing):
+    if resp[opening.start() - 1:opening.start()] != "[":
+        return False
+    link = resp.find("](", opening.end())
+    return 0 <= link < closing.start()
 backtick_index = 0
 while backtick_index < len(backticks):
     opening = backticks[backtick_index]
     closing_index = next_backtick[backtick_index]
+    escaped_body = None
+    paired = escaped_pair_span(opening)
+    if paired is not None:
+        closing_index, escaped_body = paired
     backtick_index += 1
     if closing_index is None:
         continue
     closing = backticks[closing_index]
+    if SPAN_BREAK.search(resp, opening.end(), closing.start()) or link_text_opener(opening, closing):
+        continue
     quote_index = bisect_right(blockquote_starts, closing.end() - 1) - 1
     if in_fence(opening.start(), closing.end()) or (
             quote_index >= 0 and blockquote_ranges[quote_index][1] > opening.start()):
         continue
     # Markdown code spans replace embedded line endings with spaces.
     body = re.sub(r"\r\n?|\n", " ", resp[opening.end():closing.start()])
+    if escaped_body is not None:
+        body = escaped_body
     units.append((opening.start(), closing.end(), "inline", [body.strip()], [], ""))
     backtick_index = closing_index + 1
 # The "path:line" list shape: a line holding only a citation, followed by the
@@ -3491,6 +3546,69 @@ def proposed(start):
     prose = CITATION.sub("", LINK_TARGET.sub("", prose))
     return proposes(prose)
 
+# sail-cruisey #3340/#3339: a seat that ran the code under review names the
+# input it fed in ("probing returns `[]` for `x`", "`a`, `b` and `c` all return
+# `[]`", "Bypasses: `x`", the Input column of a results table). An unattributed
+# inline span next to that wording, alone or in a run of spans joined by "and",
+# "or" or commas, is the seat's own string. So is code the seat says the file
+# avoids ("it avoids returning `x`").
+inline_spans = sorted((u[0], u[1]) for u in units if u[2] == "inline")
+SPAN_JOIN = re.compile(r"\s*(?:,\s*(?:and|or)?|and|or|followed by|then)\s*", re.I)
+PROBE_BEFORE = re.compile(r"(?:\b(?:reproduc\w*|fed|feeding|passing|called with|for input|inputs?|synthetic [\w-]+|lets|bypass(?:es|ed)?:?)"
+                          r"|\breturns? `[^`\n]*` for)(?: both| either)?\s*$", re.I)
+PROBE_AFTER = re.compile(r"^\s*(?:(?:all|both|each|also|still|then|now) )?(?:returns?|yields?|produces?|pass(?:es)?|still pass\w*"
+                         r"|execut(?:es?|ed)|miss(?:es|ed)?|evad(?:es?|ed)|bypass(?:es|ed)?|slips?|leaks?"
+                         r"|(?:is|are) (?:not )?(?:flagged|rejected|accepted|ignored|detected|caught|blocked|missed|allowed)"
+                         r"|becomes? an?)\b", re.I)
+NEGATED = re.compile(r"\b(?:avoids?|avoiding|never|(?:does|do|did)(?: not|n'?t)|without)(?: \w+ing| \w+s?)?\s*$", re.I)
+INPUT_HEADER = re.compile(r"^\s*(?:inputs?|commands?|cases?|probes?|payloads?|samples?|strings?)\s*$", re.I)
+TABLE_DELIMITER = re.compile(r"^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$")
+def pipes(text):
+    # Cell separators, ignoring pipes inside code spans or escaped.
+    text = re.sub(r"`+[^`]*`+|\\.", lambda m: "x" * len(m.group(0)), text)
+    return [i for i, ch in enumerate(text) if ch == "|"]
+def input_cell(start):
+    # The input column of a table of probe results ("| Input | Real | Broken |").
+    row_start = resp.rfind("\n", 0, start) + 1
+    rows = []
+    line_start = row_start
+    while True:
+        line_end = resp.find("\n", line_start)
+        line = resp[line_start:line_end if line_end >= 0 else len(resp)]
+        if "|" not in line:
+            break
+        rows.append(line)
+        if line_start == 0:
+            break
+        line_start = resp.rfind("\n", 0, line_start - 1) + 1
+    if len(rows) < 3:
+        return False
+    header, delimiter = rows[-1], rows[-2]
+    if not TABLE_DELIMITER.match(delimiter):
+        return False
+    prefix = resp[row_start:start]
+    column = len(pipes(prefix)) - (1 if prefix.lstrip().startswith("|") else 0)
+    bounds = pipes(header)
+    names = [header[a + 1:b] for a, b in zip([-1] + bounds, bounds + [len(header)])]
+    if header.lstrip().startswith("|"):
+        names = names[1:]
+    return 0 <= column < len(names) and bool(INPUT_HEADER.match(names[column]))
+def probe_input(start, end):
+    i = bisect_left(inline_spans, (start, end))
+    if i >= len(inline_spans) or inline_spans[i][0] != start:
+        return False
+    first = last = i
+    while first > 0 and SPAN_JOIN.fullmatch(resp[inline_spans[first - 1][1]:inline_spans[first][0]]):
+        first -= 1
+    while last + 1 < len(inline_spans) and SPAN_JOIN.fullmatch(resp[inline_spans[last][1]:inline_spans[last + 1][0]]):
+        last += 1
+    line_start = resp.rfind("\n", 0, inline_spans[first][0]) + 1
+    line_end = resp.find("\n", inline_spans[last][1])
+    before = resp[max(line_start, inline_spans[first][0] - 200):inline_spans[first][0]]
+    after = resp[inline_spans[last][1]:line_end if line_end >= 0 else len(resp)]
+    return bool(PROBE_BEFORE.search(before) or PROBE_AFTER.match(after) or NEGATED.search(before)
+                or input_cell(start))
+
 checkable_units = 0
 for start, end, kind, block, removed_block, info in units:
     wholes = unit_wholes(block) if len(block) > 1 else []
@@ -3635,7 +3753,7 @@ for start, end, kind, block, removed_block, info in units:
             block and all(COMMAND.match(norm(l) + " ") for l in block))):
         result["quotes_unverifiable"] += 1
         result["quotes_unverifiable_command"] += 1
-    elif proposed(start):
+    elif proposed(start) or (kind == "inline" and attributed is None and probe_input(start, end)):
         result["quotes_unverifiable"] += 1
         result["quotes_unverifiable_proposed"] += 1
     elif kind in ("inline", "blockquote") and attributed is None and not CODE_SYNTAX.search(sample):
