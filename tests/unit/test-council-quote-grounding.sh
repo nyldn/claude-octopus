@@ -823,6 +823,110 @@ printf '# Plan\n\n- const base = await fetchCabinPrice(cabin.id, { cache: true }
 r="$(COUNCIL_CONTEXT_FILES=("$ctx_plan"); _report "$fab")"
 if jq -e '.fabricated == true and .diff_sources == []' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
+# ── sail-cruisey #3125: '||' quoted inside a Markdown table cell is written '\|\|'.
+printf 'export function tierOf(member) {\n  const tier = member.tier || member.legacyTier || DEFAULT_TIER;\n  return tier;\n}\n' > "$ROOT/src/tier-3125.ts"
+test_case "#3125: a table-escaped '\\|\\|' quote of a real '||' line verifies"
+table="$(_resp "| File | Code |
+|---|---|
+| src/tier-3125.ts:2 | \`const tier = member.tier \\|\\| member.legacyTier \\|\\| DEFAULT_TIER;\` |
+VERDICT: APPROVE")"
+r="$(_report "$table")"
+if jq -e '.quotes_checked == 1 and .quotes_verified == 1 and .quotes_near_line == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3125 placebo: a table-escaped quote that differs from the file is still unverified"
+table_fab="$(_resp "| File | Code |
+|---|---|
+| src/tier-3125.ts:2 | \`const tier = member.tier \\|\\| member.vipTier \\|\\| DEFAULT_TIER;\` |
+VERDICT: APPROVE")"
+r="$(_report "$table_fab")"
+if jq -e '.quotes_verified == 0 and .quotes_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# A source line that itself contains a literal '\|' keeps its backslash: a
+# quote that drops it is not that line, and a quote that keeps it still is.
+cat > "$ROOT/src/pattern-3125.ts" <<'SRC'
+export function tierPattern(tierName, legacyTierName) {
+  const pattern = escapeRegex(tierName) + "\|" + legacyTierName;
+  return new RegExp(pattern, "u");
+}
+SRC
+test_case "#3125: a quote that drops a source line's literal '\\|' is not verified"
+dropped="$(_resp "src/pattern-3125.ts:2 reads \`const pattern = escapeRegex(tierName) + \"|\" + legacyTierName;\`.
+VERDICT: APPROVE")"
+r="$(_report "$dropped")"
+if jq -e '.quotes_verified == 0 and .quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3125: a quote that keeps a source line's literal '\\|' verifies"
+kept="$(_resp "src/pattern-3125.ts:2 reads \`const pattern = escapeRegex(tierName) + \"\\|\" + legacyTierName;\`.
+VERDICT: APPROVE")"
+r="$(_report "$kept")"
+if jq -e '.quotes_verified == 1 and .quotes_near_line == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# Outside a table, '\|' is literal: in a regular expression it is a different
+# pattern, so it must not match a source '|' (maintainer repro on #1224).
+printf 'export const pattern = /alpha|beta/;\n' > "$ROOT/src/regex-3125.ts"
+test_case "#3125: an escaped '\\|' quote outside a Markdown table does not match a source '|'"
+prose_escaped="$(_resp "src/regex-3125.ts:1 contains \`export const pattern = /alpha\\|beta/;\`.
+VERDICT: APPROVE")"
+r="$(_report "$prose_escaped")"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3125: a table row without outer pipes still reads '\\|' as '|'"
+bare_table="$(_resp "File | Code
+--- | ---
+src/regex-3125.ts:1 | \`export const pattern = /alpha\\|beta/;\`
+VERDICT: APPROVE")"
+r="$(_report "$bare_table")"
+if jq -e '.quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3125: prose with a pipe but no delimiter row is not a table"
+pipe_prose="$(_resp "Either path | both: src/regex-3125.ts:1 contains \`export const pattern = /alpha\\|beta/;\`.
+VERDICT: APPROVE")"
+r="$(_report "$pipe_prose")"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3125: a heading after a table ends the table"
+table_heading="$(_resp "| File | Note |
+|---|---|
+| a | b |
+## Notes | src/regex-3125.ts:1 contains \`export const pattern = /alpha\\|beta/;\`
+VERDICT: APPROVE")"
+r="$(_report "$table_heading")"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3125: a list item after a table ends the table"
+table_list="$(_resp "| File | Note |
+|---|---|
+| a | b |
+- src/regex-3125.ts:1 | contains \`export const pattern = /alpha\\|beta/;\`
+VERDICT: APPROVE")"
+r="$(_report "$table_list")"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3125: a delimiter row with fewer cells than its header is not a table"
+cell_mismatch="$(_resp "src/regex-3125.ts:1 | contains \`export const pattern = /alpha\\|beta/;\`
+|---|
+VERDICT: APPROVE")"
+r="$(_report "$cell_mismatch")"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3125: a table-shaped indented code block is not a table"
+indented_table="$(_resp "Example:
+
+    | File | Code |
+    |---|---|
+    | src/regex-3125.ts:1 | \`export const pattern = /alpha\\|beta/;\` |
+
+VERDICT: APPROVE")"
+r="$(_report "$indented_table")"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3125: an escaped backslash before a header pipe still separates cells"
+even_backslash="$(_resp "src/regex-3125.ts:1 \\\\| contains \`export const pattern = /alpha\\|beta/;\`
+|---|
+VERDICT: APPROVE")"
+r="$(_report "$even_backslash")"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
 test_case "no diff available: a quote the seat says was removed is unverifiable, not fabricated"
 claimed="$(_resp "At src/pricing.ts:2 the check \`if (cabin.soldOut) return { price: null };\` was deleted in this change.
 VERDICT: REVISE")"
