@@ -823,6 +823,147 @@ printf '# Plan\n\n- const base = await fetchCabinPrice(cabin.id, { cache: true }
 r="$(COUNCIL_CONTEXT_FILES=("$ctx_plan"); _report "$fab")"
 if jq -e '.fabricated == true and .diff_sources == []' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
+# An `octopus-policy-findings` block is the feature workflow's structured
+# findings format (checked by digest in feature-workflow.py), not a code quote.
+# sail-cruisey #3244 CP1: codex's only "quote" was this block, so it was
+# marked fabricated beside real citations.
+test_case "#3244: an octopus-policy-findings block is not a code quote"
+policy='src/pricing.ts:2 keeps the fallback, but the plan skips a required audit.
+
+```octopus-policy-findings
+{
+  "findings": [
+    {
+      "source": "RULES.md",
+      "line_start": 3,
+      "quote": "**Audit:** run `/octo:security` when the\ndiff touches external input\nhandling.",
+      "recommendation": "Run the audit before CP2."
+    }
+  ]
+}
+```
+
+VERDICT: REVISE'
+r="$(_report "$(_resp "$policy")")"
+if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3244: an invented quote beside an octopus-policy-findings block is still fabricated"
+policy_fab="$policy
+src/pricing.ts:2 has \`const base = await fetchCabinPrice(cabin.id, { cache: true });\`."
+r="$(_report "$(_resp "$policy_fab")")"
+if jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# Only a closed, exact-label block whose body is findings JSON is skipped; the
+# feature workflow reads no other form. Anything else stays a quote unit, so a
+# seat cannot hide an invented quote behind the label.
+invented='const base = await fetchCabinPrice(cabin.id, { cache: true });'
+test_case "#3244: an unterminated octopus-policy-findings fence does not hide a quote"
+r="$(_report "$(_resp "src/pricing.ts:2 keeps the fallback.
+
+\`\`\`octopus-policy-findings
+$invented
+VERDICT: APPROVE")")"
+if jq -e '.quotes_checked >= 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3244: an octopus-policy-findings fence that is not findings JSON does not hide a quote"
+r="$(_report "$(_resp "src/pricing.ts:2 keeps the fallback.
+
+\`\`\`octopus-policy-findings
+$invented
+\`\`\`
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3244: a case-variant findings label does not hide a quote"
+r="$(_report "$(_resp "src/pricing.ts:2 keeps the fallback.
+
+\`\`\`OCTOPUS-POLICY-FINDINGS
+$invented
+\`\`\`
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# The exempt form follows feature-analysis.py's fences(): any indentation, the
+# label right after the marker, a closing marker of the same width, and a
+# findings list or an object whose "findings" is one.
+findings_json='{
+  "findings": [
+    {"source": "RULES.md", "line_start": 3, "quote": "run `/octo:security` first", "recommendation": "Run the audit."}
+  ],
+  "summary": "one gap"
+}'
+test_case "#3244: a findings object with other keys is not a code quote"
+r="$(_report "$(_resp "src/pricing.ts:2 keeps the fallback.
+
+\`\`\`octopus-policy-findings
+$findings_json
+\`\`\`
+
+VERDICT: REVISE")")"
+if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3244: an indented octopus-policy-findings block is not a code quote"
+indented_block='- Policy:
+
+    ```octopus-policy-findings
+    {"findings": [{"source": "RULES.md", "line_start": 3, "quote": "run `/octo:security` first"}]}
+    ```'
+r="$(_report "$(_resp "src/pricing.ts:2 keeps the fallback.
+
+$indented_block
+
+VERDICT: REVISE")")"
+if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3244: quotes after an indented findings block with an unindented closer are still checked"
+mixed_block='    ```octopus-policy-findings
+    {"findings": [{"source": "RULES.md", "line_start": 3, "quote": "run the audit"}]}
+```'
+r="$(_report "$(_resp "src/pricing.ts:2 keeps the fallback.
+
+$mixed_block
+
+src/pricing.ts:2 reads \`$invented\`.
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3244: a fence after an indented findings block with an unindented closer is still checked"
+r="$(_report "$(_resp "src/pricing.ts:2 keeps the fallback.
+
+$mixed_block
+
+src/pricing.ts:2 reads:
+
+\`\`\`ts
+$invented
+\`\`\`
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3244: a findings fence closed by a wider marker stays a quote unit"
+r="$(_report "$(_resp "src/pricing.ts:2 keeps the fallback.
+
+\`\`\`octopus-policy-findings
+[{\"quote\": \"$invented\"}]
+\`\`\`\`
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_checked >= 1' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3244: a findings label after a space stays a quote unit"
+r="$(_report "$(_resp "src/pricing.ts:2 keeps the fallback.
+
+\`\`\` octopus-policy-findings
+[{\"quote\": \"$invented\"}]
+\`\`\`
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_checked >= 1' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
 test_case "no diff available: a quote the seat says was removed is unverifiable, not fabricated"
 claimed="$(_resp "At src/pricing.ts:2 the check \`if (cabin.soldOut) return { price: null };\` was deleted in this change.
 VERDICT: REVISE")"
