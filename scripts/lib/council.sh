@@ -3909,8 +3909,9 @@ GAP_WORDS = {"reads", "read", "shows", "show", "contains", "contain", "has", "sa
              "current", "currently", "actual", "l"}
 SOURCE_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|is|defines?|defined|declares?|declared|computes?)\b", re.I)
 # A content verb before "built as" keeps the citation's claim ("x.ts:2 contains
-# the code built as `...`"); a first-person subject after it marks the seat's
-# own input ("x.ts:2 reads a row I constructed as `...`").
+# the code built as `...`"); "I" or "we" as the subject of "built as" marks the
+# seat's own input ("x.ts:2 reads a row I constructed as `...`"). Another
+# first-person word does not: "reads what my teammate built as" is a claim.
 OWN_INPUT = re.compile(r"(?:constructed|built|crafted) as", re.I)
 CONTENT_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|is|defines?|defined|declares?|declared|computes?)\b", re.I)
 FIRST_PERSON_SUBJECT = re.compile(
