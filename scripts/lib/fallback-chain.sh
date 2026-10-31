@@ -9,6 +9,9 @@ fi
 if ! declare -f octo_model_canonical_id >/dev/null 2>&1; then
     source "${_octo_fallback_lib_dir}/models.sh" 2>/dev/null || true
 fi
+if ! declare -f octo_provider_allowed >/dev/null 2>&1; then
+    source "${_octo_fallback_lib_dir}/provider-allowlist.sh" 2>/dev/null || true
+fi
 unset _octo_fallback_lib_dir
 
 _octo_fallback_config_file() {
@@ -297,6 +300,7 @@ octo_fallback_agent_available() {
     local spec="${1:-}" executor="" provider="" model=""
     executor="${spec%%:*}"
     [[ -n "$executor" ]] || return 1
+    octo_fallback_spec_allowed "$spec" || return 1
 
     if [[ "$spec" == *:* ]]; then
         model="${spec#*:}"
@@ -333,6 +337,13 @@ _octo_fallback_provider_identity() {
         openrouter|openrouter-*) echo openrouter ;;
         *) echo "$executor" ;;
     esac
+}
+
+octo_fallback_spec_allowed() {
+    local spec="${1:-}"
+    [[ -n "$spec" ]] || return 1
+    declare -f octo_provider_allowed >/dev/null 2>&1 || return 0
+    octo_provider_allowed "$(_octo_fallback_provider_identity "$spec")"
 }
 
 octo_fallback_first_available() {
@@ -393,6 +404,12 @@ run_agent_sync_fallback_chain() {
 
     while IFS= read -r spec; do
         [[ -n "$spec" ]] || continue
+        if ! octo_fallback_spec_allowed "$spec"; then
+            if declare -f log >/dev/null 2>&1; then
+                log INFO "Fallback chain '$chain_name': skipping $spec (not in the provider allowlist)"
+            fi
+            continue
+        fi
         output=""
         rc=0
         if output=$(run_agent_sync "$spec" "$prompt" "$timeout_secs" "$semantic_role" "$phase"); then

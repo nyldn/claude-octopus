@@ -333,4 +333,69 @@ else
     test_fail "real fallback path did not handle all failure classes or deduplicate aliases"
 fi
 
+ALLOWLIST_LOG="$TMP_ROOT/allowlist.log"
+run_agent_sync() {
+    printf '%s\n' "$1" >> "$ATTEMPTS"
+    case "$1" in
+        codex|codex:*|codex-review|codex-review:*) return 1 ;;
+        claude:claude-opus-4.8) printf 'DECISIONS:\n- ACCEPT\nDECOMPOSITION:\n1. [CODING] allowed\n' ;;
+        *) printf 'DECISIONS:\n- ACCEPT\nDECOMPOSITION:\n1. [CODING] disallowed\n' ;;
+    esac
+}
+log() { printf '%s %s\n' "$1" "$2" >> "$ALLOWLIST_LOG"; }
+
+test_case "fallback chain never dispatches a candidate outside the provider allowlist"
+: > "$ATTEMPTS"
+: > "$ALLOWLIST_LOG"
+out=$(OCTO_ALLOWED_PROVIDERS="codex claude" run_agent_sync_fallback_chain agy 'plan it' 30 researcher tangle validate_protocol default codex)
+attempted=$(paste -sd, - < "$ATTEMPTS")
+if [[ "$attempted" == "codex,codex:gpt-5.6-luna,codex:gpt-5.6-sol,claude:claude-opus-4.8" && \
+      "$out" == *"[CODING] allowed"* ]] && \
+   grep -q "skipping agy (not in the provider allowlist)" "$ALLOWLIST_LOG"; then
+    test_pass
+else
+    test_fail "allowlist was bypassed: attempted=[$attempted] out=[$out] log=[$(cat "$ALLOWLIST_LOG")]"
+fi
+
+test_case "fallback chain fails closed without dispatch when the allowlist admits no candidate"
+: > "$ATTEMPTS"
+rc=0
+out=$(OCTO_ALLOWED_PROVIDERS="perplexity" run_agent_sync_fallback_chain agy 'plan it' 30 researcher tangle validate_protocol default codex) || rc=$?
+if [[ "$rc" -ne 0 && -z "$out" && ! -s "$ATTEMPTS" ]]; then
+    test_pass
+else
+    test_fail "disallowed candidates dispatched: rc=$rc attempted=[$(paste -sd, - < "$ATTEMPTS")]"
+fi
+
+test_case "tangle decomposition skips a disallowed agy primary"
+: > "$ATTEMPTS"
+run_agent_sync() {
+    printf '%s\n' "$1" >> "$ATTEMPTS"
+    case "$1" in
+        codex|codex:*|codex-review|codex-review:*) return 1 ;;
+        *) printf '%s\n' '{"schema_version":1,"subtasks":[{"id":1,"kind":"coding","title":"Fix","reads":[],"files":["scripts/lib/fallback-chain.sh"],"creates":[],"task":"Fix it"}]}' ;;
+    esac
+}
+rc=0
+out=$(OCTO_ALLOWED_PROVIDERS="codex claude" tangle_run_decomposition_fallbacks agy codex 'plan it' 0) || rc=$?
+attempted=$(paste -sd, - < "$ATTEMPTS")
+if [[ "$rc" -eq 0 && "$out" == "1. [CODING] Fix — Files: scripts/lib/fallback-chain.sh — Task: Fix it" && \
+      ",$attempted," != *",agy,"* && "$attempted" == *"claude:claude-opus-4.8" ]]; then
+    test_pass
+else
+    test_fail "decomposition dispatched outside the allowlist: rc=$rc attempted=[$attempted] out=[$out]"
+fi
+
+test_case "technical fallback availability honours the provider allowlist"
+is_agent_available_v2() { return 0; }
+chosen=$(OCTO_ALLOWED_PROVIDERS="claude" get_fallback_agent agy research 2>/dev/null || true)
+if ! OCTO_ALLOWED_PROVIDERS="claude" octo_fallback_agent_available agy && \
+   octo_fallback_agent_available agy && \
+   [[ "$chosen" == "claude:claude-opus-4.8" ]]; then
+    test_pass
+else
+    test_fail "availability ignored the allowlist: chosen=[$chosen]"
+fi
+is_agent_available_v2() { [[ "$1" == "claude" ]]; }
+
 test_summary
