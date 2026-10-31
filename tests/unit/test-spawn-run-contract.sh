@@ -395,6 +395,9 @@ octopus_capture_provider_output() {
     if [[ -n "${CAPTURED_PROVIDER_PROMPT_FILE:-}" ]]; then
         printf '%s' "$prompt" > "$CAPTURED_PROVIDER_PROMPT_FILE"
     fi
+    if [[ -n "${CAPTURED_PROVIDER_TIMEOUT_FILE:-}" ]]; then
+        printf '%s\n' "$_timeout" > "$CAPTURED_PROVIDER_TIMEOUT_FILE"
+    fi
     printf '%s' "$prompt" > "$input"
     "$@" < "$input" > "$output" 2> "$errors"
 }
@@ -728,6 +731,22 @@ if [[ "$external_success_transitions" == "planned,starting,authenticated,running
     test_pass
 else
     test_fail "supervised success or PID retirement mismatch (transitions=${external_success_transitions:-missing}, eligible=$external_success_eligible, model=${external_success_model:-missing}, reason=${external_success_reason:-none})"
+fi
+
+test_case "a probe seat runs on OCTOPUS_AGENT_TIMEOUT instead of the TIMEOUT default"
+probe_budget_file="$TEST_TMP_DIR/probe-agent-timeout"
+review_budget_file="$TEST_TMP_DIR/review-agent-timeout"
+OCTOPUS_AGENT_TIMEOUT=30 CAPTURED_PROVIDER_TIMEOUT_FILE="$probe_budget_file" \
+    run_external_fixture success probe-agent-timeout
+OCTOPUS_AGENT_TIMEOUT=30 CAPTURED_PROVIDER_TIMEOUT_FILE="$review_budget_file" \
+    run_external_fixture success review-agent-timeout fake-api reviewer review
+probe_budget="$(cat "$probe_budget_file" 2>/dev/null || true)"
+review_budget="$(cat "$review_budget_file" 2>/dev/null || true)"
+if [[ "$probe_budget" =~ ^[0-9]+$ && "$probe_budget" -gt "$TIMEOUT" && "$probe_budget" -le 30 ]] && \
+   [[ "$review_budget" =~ ^[0-9]+$ && "$review_budget" -le "$TIMEOUT" ]]; then
+    test_pass
+else
+    test_fail "provider budgets were probe=${probe_budget:-missing} review=${review_budget:-missing} with TIMEOUT=$TIMEOUT and OCTOPUS_AGENT_TIMEOUT=30"
 fi
 
 test_case "result prompt is exactly the enhanced and budgeted provider stdin"
