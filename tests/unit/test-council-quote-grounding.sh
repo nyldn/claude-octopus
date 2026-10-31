@@ -2368,6 +2368,37 @@ VERDICT: APPROVE")"
         test_fail "mixed diff was admitted or rejected incorrectly: $record"
     fi
 done
+# A mixed fence makes claims about both versions. A kept portion that is
+# partial in the cited file but exact on the added side is not partial; a
+# partial removed portion still is.
+extra_new='const extraState = loadExtraState(input);'
+extra_diff="$TEST_TMP_DIR/extra-added.diff"
+printf 'diff --git a/src/demo.ts b/src/demo.ts\n--- a/src/demo.ts\n+++ b/src/demo.ts\n@@ -1,2 +1,3 @@\n-%s\n-%s\n+%s\n+%s\n+%s\n' \
+    "$old_a" "$old_b" "$new_a" "$new_b" "$extra_new" > "$extra_diff"
+for partial_case in kept-exact-on-added removed-partial; do
+    test_case "#3247: mixed fence partial counts each portion on its own side: $partial_case"
+    removed_text="$old_a"; expected_partial=0
+    if [[ "$partial_case" == removed-partial ]]; then
+        removed_text="$old_a
+-$old_b
+-$not_source"; expected_partial=1
+    fi
+    mixed_response="$(_resp "src/demo.ts:1 reads:
+\`\`\`diff
+-$removed_text
++$new_a
++$new_b
++$extra_new
+\`\`\`
+VERDICT: APPROVE")"
+    r="$(COUNCIL_CONTEXT_FILES=("$extra_diff"); council_response_quote_verification_json "$mixed_response" "$struct_root")"
+    if jq -e --argjson p "$expected_partial" '.quotes_verified == 1 and .quotes_verified_in_diff_removed == 1
+        and .quotes_partial == $p and .fabricated == false' <<< "$r" >/dev/null; then
+        test_pass
+    else
+        test_fail "report: $r"
+    fi
+done
 for structure_case in rule file-header git-header malformed-hunk after-hunk unified hunk-only markdown-diff crlf; do
     test_case "attached context imports only unified hunk lines: $structure_case"
     plan_file="$TEST_TMP_DIR/structure-$structure_case.md"

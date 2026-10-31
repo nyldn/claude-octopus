@@ -3636,14 +3636,21 @@ for start, end, kind, block, removed_block, info in units:
             # A mixed fence makes claims about both versions. A genuine
             # addition cannot excuse invented removals, or the reverse.
             removed_wholes = unit_wholes(removed_block) or [norm(" ".join(removed_block))]
-            diff_misses = []
+            removed_misses, kept_misses = [], []
             removed_hit = in_diff_side(removed_wholes, specific_lines(removed_block), removed_side,
-                                       diff_misses, short_lines(removed_block))
-            kept_hit = verified or not block or in_diff_side(wholes, line_variants, added_side, diff_misses, short)
+                                       removed_misses, short_lines(removed_block))
+            # Each portion is partial on its own side. A kept portion partial in
+            # the cited file but exact on the added side is not partial.
+            kept_on_added = bool(block) and in_diff_side(wholes, line_variants, added_side, kept_misses, short)
+            kept_hit = verified or not block or kept_on_added
+            if kept_on_added:
+                kept_partial = any(kept_misses) and (partial or not verified)
+            else:
+                kept_partial = verified and partial
             verified = False
             if removed_hit and kept_hit:
                 diff_side_hit = "removed"
-                diff_partial = partial or any(diff_misses)
+                diff_partial = any(removed_misses) or kept_partial
         else:
             # Check both sides: the removed side keeps precedence, but an exact
             # match on either side means the fence is not partial.
