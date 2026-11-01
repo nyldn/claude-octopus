@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.15.3",
-  "description": "v11.15.3 \u2014 Keep concurrent reviews and proof packets separate, and resolve unique filename citations in councils. Run /octo:setup.",
+  "version": "11.15.4",
+  "description": "v11.15.4 \u2014 Honor configured timeout budgets for probe research. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

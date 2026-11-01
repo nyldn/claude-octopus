@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.15.4] - 2026-11-01
+
 ### Fixed
 
 - A probe seat now runs for the `OCTOPUS_AGENT_TIMEOUT` budget. `orchestrate.sh
