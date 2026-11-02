@@ -128,6 +128,7 @@ generate_state_template() {
 # Octo State
 
 **Schema:** 2.0
+**History Format:** status-first-v1
 **Last Updated:** $timestamp
 **Current Phase:** 1
 **Current Position:** Project initialized
@@ -139,7 +140,7 @@ generate_state_template() {
 
 ## History
 
-- [$timestamp] Phase 1: Project initialized (ready)
+- [$timestamp] Phase 1: [ready] Project initialized
 EOF
 }
 
@@ -487,11 +488,16 @@ write_state() {
     fi
     
     # Read current state
-    local current_schema current_phase_val current_position_val current_status
+    local current_schema current_phase_val current_position_val current_status current_history_format
     current_schema=$(grep -E "^\*\*Schema:\*\*" "$STATE_FILE" | sed 's/\*\*Schema:\*\* //' || echo "2.0")
     current_phase_val=$(grep -E "^\*\*Current Phase:\*\*" "$STATE_FILE" | sed 's/\*\*Current Phase:\*\* //' || echo "1")
     current_position_val=$(grep -E "^\*\*Current Position:\*\*" "$STATE_FILE" | sed 's/\*\*Current Position:\*\* //' || echo "unknown")
     current_status=$(grep -E "^\*\*Status:\*\*" "$STATE_FILE" | sed 's/\*\*Status:\*\* //' || echo "ready")
+    current_history_format=$(sed -n 's/^\*\*History Format:\*\* //p' "$STATE_FILE")
+    case "$current_history_format" in
+        ''|status-first-v1) ;;
+        *) error "Unsupported history format: $current_history_format" ;;
+    esac
     
     # Extract existing history (everything after "## History")
     local history
@@ -508,6 +514,32 @@ write_state() {
     case "$new_position$blocker" in
         *$'\n'*|*$'\r'*) error "Position and blocker must be single-line values; use --history for notes" ;;
     esac
+
+    if [[ -z "$current_history_format" ]]; then
+        history=$(printf '%s\n' "$history" | awk -v statuses="$VALID_STATUSES" '
+            BEGIN {
+                count=split(statuses, values, " ")
+                for (i=1; i<=count; i++) valid[values[i]]=1
+            }
+            /^## / { outside=1 }
+            !outside && /^- \[[^]]+\] Phase [0-9]+: / {
+                if ($0 ~ / \([a-z_]+\)$/) {
+                    status=$0; sub(/^.* \(/, "", status); sub(/\)$/, "", status)
+                    if (status in valid) {
+                        prefix=$0; sub(/: .*/, ": ", prefix)
+                        position=$0; sub(/^- \[[^]]+\] Phase [0-9]+: /, "", position)
+                        sub(/ \([a-z_]+\)$/, "", position)
+                        print prefix "[" status "] " position
+                        next
+                    }
+                }
+                # Preserve unrecognized legacy records as notes, never statuses.
+                print "  " $0
+                next
+            }
+            { print }
+        ')
+    fi
     
     local timestamp
     timestamp=$(get_timestamp)
@@ -519,7 +551,7 @@ write_state() {
     fi
     
     # Build new history entry
-    local new_history_entry="- [$timestamp] Phase $new_phase: $new_position ($new_status)"
+    local new_history_entry="- [$timestamp] Phase $new_phase: [$new_status] $new_position"
     if [[ -n "$history_note" ]]; then
         new_history_entry+=$'\n'"$(printf '%s\n' "$history_note" | sed 's/^/  /')"
     fi
@@ -530,6 +562,7 @@ write_state() {
 # Octo State
 
 **Schema:** $current_schema
+**History Format:** status-first-v1
 **Last Updated:** $timestamp
 **Current Phase:** $new_phase
 **Current Position:** $new_position
@@ -570,7 +603,7 @@ update_phase() {
 }
 
 get_phase_status() {
-    local phase="${1:-}" current_phase current_status found=""
+    local phase="${1:-}" current_phase current_status history_format found=""
     validate_phase "$phase"
     [[ $# -eq 1 ]] || error "Usage: get_phase_status <phase>"
     [[ -f "$STATE_FILE" ]] || error "State file not found. Run 'init_project' first."
@@ -581,12 +614,23 @@ get_phase_status() {
         printf '%s\n' "$current_status"
         return
     fi
-    # Read only the final status field. Position text and indented history notes
-    # cannot turn an incomplete phase into a completed one.
-    found=$(awk -v phase="$phase" '
+    history_format=$(sed -n 's/^\*\*History Format:\*\* //p' "$STATE_FILE")
+    case "$history_format" in
+        ''|status-first-v1) ;;
+        *) error "Unsupported history format: $history_format" ;;
+    esac
+    # The marker selects one format for the whole history. Never interpret a
+    # new position suffix as legacy status; writes migrate old records first.
+    found=$(awk -v phase="$phase" -v format="$history_format" '
         /^## History$/ { history=1; next }
         history && /^## / { exit }
-        history && $0 ~ "^- \\[[^]]+\\] Phase " phase ": .* \\([a-z_]+\\)$" {
+        history && format == "status-first-v1" && $0 ~ "^- \\[[^]]+\\] Phase " phase ": \\[[a-z_]+\\] " {
+            sub("^- \\[[^]]+\\] Phase " phase ": \\[", "")
+            sub(/\].*$/, "")
+            print
+            exit
+        }
+        history && format == "" && $0 ~ "^- \\[[^]]+\\] Phase " phase ": .* \\([a-z_]+\\)$" {
             sub(/^.* \(/, "")
             sub(/\)$/, "")
             print
@@ -601,7 +645,8 @@ get_phase_status() {
     fi
 }
 
-update_roadmap() (
+# Keep cancellation in the public CLI process before it can replace the roadmap.
+update_roadmap() {
     [[ $# -eq 2 && "$1" == "--from-synthesis" ]] || error "Usage: update_roadmap --from-synthesis <file>"
     local source_file="$2" content_bytes temp_file
     [[ -f "$ROADMAP_FILE" ]] || error "Roadmap file not found. Run 'init_project' first."
@@ -609,7 +654,7 @@ update_roadmap() (
     content_bytes=$(LC_ALL=C wc -c < "$source_file")
     content_bytes=${content_bytes//[[:space:]]/}
     [[ "$content_bytes" -le "$MAX_PROJECT_SECTION_BYTES" ]] || error "Synthesis exceeds ${MAX_PROJECT_SECTION_BYTES} bytes"
-    if grep -cE '^<!-- octopus:definition-synthesis:(start|end) -->$' "$source_file" >/dev/null; then
+    if grep -cE -- '^<!-- octopus:definition-synthesis:(start|end) -->$' "$source_file" >/dev/null; then
         error "Synthesis contains reserved roadmap markers"
     fi
     temp_file=$(mktemp "${ROADMAP_FILE}.tmp.XXXXXX") || error "Failed to allocate temporary roadmap"
@@ -646,7 +691,7 @@ update_roadmap() (
     mv "$temp_file" "$ROADMAP_FILE" || { rm -f "$temp_file"; error "Failed to update roadmap"; }
     trap - EXIT INT TERM HUP
     success "Updated roadmap definition synthesis; existing phase plans preserved"
-)
+}
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # GET_CONTEXT_TIER

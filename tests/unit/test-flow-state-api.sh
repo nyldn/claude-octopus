@@ -19,6 +19,14 @@ else
     test_fail "workflow state commands are not implemented"
 fi
 
+test_case "new history uses an explicitly marked status-first field"
+if grep -qx '\*\*History Format:\*\* status-first-v1' .octo/STATE.md &&
+   grep -qE '^- \[[^]]+\] Phase 1: \[complete\] Discovery$' .octo/STATE.md; then
+    test_pass
+else
+    test_fail "new history lacks the marked fixed status field"
+fi
+
 test_case "a prior phase status survives advancing to the next phase"
 if "$STATE" update_state --phase 2 --position Definition --status in_progress >/dev/null 2>&1 &&
    [[ "$("$STATE" get_phase_status 1)" == complete ]] &&
@@ -53,13 +61,17 @@ cat > "$TEST_TMP_DIR/legacy-project/.octo/STATE.md" <<'EOF'
 
 - [2026-11-01T12:01:00Z] Phase 2: [complete] Description (complete) (in_progress)
 - [2026-11-01T12:00:00Z] Phase 1: Discovery complete (complete)
+- [2026-11-01T11:59:00Z] Phase 4: [complete] incomplete legacy entry
 EOF
 if (
     cd "$TEST_TMP_DIR/legacy-project"
     [[ "$("$STATE" get_phase_status 1)" == complete ]] &&
     "$STATE" update_state --phase 3 --status in_progress --position Development >/dev/null &&
     [[ "$("$STATE" get_phase_status 1)" == complete ]] &&
-    [[ "$("$STATE" get_phase_status 2)" == in_progress ]]
+    [[ "$("$STATE" get_phase_status 2)" == in_progress ]] &&
+    [[ "$("$STATE" get_phase_status 4)" == unknown ]] &&
+    grep -qx '\*\*History Format:\*\* status-first-v1' .octo/STATE.md &&
+    grep -qE '^- \[[^]]+\] Phase 1: \[complete\] Discovery complete$' .octo/STATE.md
 ); then test_pass; else test_fail "existing history lost status or free text forged completion"; fi
 
 test_case "missing option values fail without changing state"
@@ -136,25 +148,53 @@ if (
     grep -q 'Revised synthesis.' .octo/PROJECT.md
 ); then test_pass; else test_fail "real lifecycle snippets failed against the real state script"; fi
 
-test_case "TERM during roadmap import preserves the plan and removes its temporary file"
-if (
-    mkdir -p "$TEST_TMP_DIR/interrupted-project" "$TEST_TMP_DIR/interrupt-bin"
-    cd "$TEST_TMP_DIR/interrupted-project"
-    "$STATE" init_project >/dev/null
-    cp .octo/ROADMAP.md "$TEST_TMP_DIR/interrupted-roadmap-before"
-    cat > "$TEST_TMP_DIR/interrupt-bin/awk" <<'EOF'
-#!/bin/sh
-kill -TERM "$PPID"
-exit 0
-EOF
-    chmod +x "$TEST_TMP_DIR/interrupt-bin/awk"
-    rc=0
-    PATH="$TEST_TMP_DIR/interrupt-bin:$PATH" "$STATE" update_roadmap \
-        --from-synthesis "$TEST_TMP_DIR/synthesis.md" >/dev/null 2>&1 || rc=$?
-    shopt -s nullglob
-    roadmap_temporaries=(.octo/ROADMAP.md.tmp.*)
-    [[ "$rc" -eq 143 && "${#roadmap_temporaries[@]}" -eq 0 ]] &&
-        cmp -s .octo/ROADMAP.md "$TEST_TMP_DIR/interrupted-roadmap-before"
-); then test_pass; else test_fail "interrupted import changed the plan or left a temporary file"; fi
+test_case "TERM to the public CLI PID cancels roadmap publication and cleans its temporary file"
+if python3 - "$STATE" "$TEST_TMP_DIR" <<'PY'
+from pathlib import Path
+import os
+import shutil
+import signal
+import subprocess
+import sys
+import time
+state, base = sys.argv[1], Path(sys.argv[2])
+project, shim = base / 'public-signal-project', base / 'interrupt-bin'
+project.mkdir(); shim.mkdir()
+subprocess.run([state, 'init_project'], cwd=project, stdout=subprocess.DEVNULL, check=True)
+roadmap = project / '.octo/ROADMAP.md'
+before = roadmap.read_bytes()
+ready, release = base / 'awk-ready', base / 'awk-release'
+awk = shim / 'awk'
+awk.write_text('#!/bin/sh\n: > "$OCTO_TEST_AWK_READY"\n'
+               'while [ ! -f "$OCTO_TEST_AWK_RELEASE" ]; do /bin/sleep 0.02; done\n'
+               'exec "$OCTO_TEST_REAL_AWK" "$@"\n')
+awk.chmod(0o755)
+env = dict(os.environ, PATH=str(shim) + os.pathsep + os.environ['PATH'],
+           OCTO_TEST_AWK_READY=str(ready), OCTO_TEST_AWK_RELEASE=str(release),
+           OCTO_TEST_REAL_AWK=shutil.which('awk'))
+process = subprocess.Popen([state, 'update_roadmap', '--from-synthesis', str(base / 'synthesis.md')],
+                           cwd=project, env=env, start_new_session=True,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+try:
+    deadline = time.monotonic() + 10
+    while not ready.exists():
+        if process.poll() is not None or time.monotonic() >= deadline:
+            raise AssertionError('roadmap import did not reach the controlled read')
+        time.sleep(0.02)
+    process.terminate()
+    release.touch()
+    output, errors = process.communicate(timeout=10)
+    problems = []
+    if process.returncode != 143: problems.append('exit=' + str(process.returncode))
+    if roadmap.read_bytes() != before: problems.append('roadmap changed after public-PID cancellation')
+    if list((project / '.octo').glob('ROADMAP.md.tmp.*')): problems.append('temporary file remained')
+    assert not problems, (problems, output, errors)
+finally:
+    release.touch()
+    try: os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError: pass
+    process.wait(timeout=5)
+PY
+then test_pass; else test_fail "public-PID cancellation failed to preserve the roadmap"; fi
 
 test_summary
