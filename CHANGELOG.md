@@ -4,6 +4,17 @@
 
 ### Fixed
 
+- Configured fallback chains now honor `OCTO_ALLOWED_PROVIDERS` and the
+  session or global provider allowlist. `run_agent_sync_fallback_chain`
+  dispatched its primary, preferred fallback and chain candidates without
+  checking the allowlist. With `OCTO_ALLOWED_PROVIDERS="codex claude"`, Tangle
+  decomposition still sent the prompt to its default `agy` researcher seat
+  first. The chain now skips any candidate outside the allowlist and logs the
+  skip. If no candidate is allowed, it fails closed without dispatching.
+  `octo_fallback_agent_available` applies the same check, so
+  `get_fallback_agent` and `octo_fallback_first_available` no longer return a
+  disallowed provider just because its CLI is installed.
+
 - Preflight checks the council roster that `OCTOPUS_COUNCIL_DEFAULT_PROVIDERS`
   pins. A Codex-led session pins `claude,agy`, but preflight ignored the list:
   the static pass checked every non-Claude provider, the smoke test always
