@@ -124,6 +124,14 @@
   seat's own input only when "I" or "we" built it. A fence partial in a cited
   file but complete in the reviewed diff is not counted as partial.
 
+- `council-wait.sh --pool --supersede-key` no longer returns the previous
+  round when the wait starts before the new round's run dir exists
+  (sail-cruisey #3364). A keyed round already finished at first sight is held
+  for `--settle` seconds (default 60) while a newer same-key round may appear;
+  `--since` skips the hold. `--background` drops the 570-second bound for a
+  wait run as a background task, and a timeout now says the round may still
+  be running and how to re-arm.
+
 ## [11.15.2] - 2026-10-28
 
 ### Fixed
