@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Workflow skills can now persist phase state through `update_state`, query
+  completed phases and import definition synthesis into the roadmap. History
+  notes cannot change a phase's recorded status. Initializing a project with
+  a missing state file preserves existing issues, lessons and phase plans.
+  Fixes [#1169](https://github.com/nyldn/claude-octopus/issues/1169).
+
 ## [11.15.4] - 2026-11-01
 
 ### Fixed
