@@ -101,6 +101,15 @@ else
     test_fail "roadmap import is unavailable"
 fi
 
+test_case "roadmap import preserves the existing file permissions"
+chmod 640 .octo/ROADMAP.md
+if "$STATE" update_roadmap --from-synthesis "$TEST_TMP_DIR/synthesis.md" >/dev/null 2>&1 &&
+   python3 -c 'import os; assert os.stat(".octo/ROADMAP.md").st_mode & 0o7777 == 0o640'; then
+    test_pass
+else
+    test_fail "roadmap import changed its existing permissions"
+fi
+
 test_case "unreadable roadmap input leaves the roadmap unchanged"
 cp .octo/ROADMAP.md "$TEST_TMP_DIR/roadmap-before"
 rc=0

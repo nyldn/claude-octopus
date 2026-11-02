@@ -603,9 +603,9 @@ update_phase() {
 }
 
 get_phase_status() {
-    local phase="${1:-}" current_phase current_status history_format found=""
-    validate_phase "$phase"
     [[ $# -eq 1 ]] || error "Usage: get_phase_status <phase>"
+    local phase="$1" current_phase current_status history_format found=""
+    validate_phase "$phase"
     [[ -f "$STATE_FILE" ]] || error "State file not found. Run 'init_project' first."
     current_phase=$(sed -n 's/^\*\*Current Phase:\*\* //p' "$STATE_FILE")
     if [[ "$current_phase" == "$phase" ]]; then
@@ -648,9 +648,11 @@ get_phase_status() {
 # Keep cancellation in the public CLI process before it can replace the roadmap.
 update_roadmap() {
     [[ $# -eq 2 && "$1" == "--from-synthesis" ]] || error "Usage: update_roadmap --from-synthesis <file>"
-    local source_file="$2" content_bytes temp_file
+    local source_file="$2" content_bytes temp_file roadmap_mode
     [[ ! -L "$ROADMAP_FILE" ]] || error "Roadmap file must not be a symlink"
     [[ -f "$ROADMAP_FILE" ]] || error "Roadmap file not found. Run 'init_project' first."
+    roadmap_mode=$(stat -c '%a' "$ROADMAP_FILE" 2>/dev/null || stat -f '%Lp' "$ROADMAP_FILE" 2>/dev/null) || error "Failed to read roadmap permissions"
+    [[ "$roadmap_mode" =~ ^[0-7]{1,4}$ ]] || error "Invalid roadmap permissions"
     [[ -f "$source_file" && -r "$source_file" && -s "$source_file" ]] || error "Synthesis file is missing, unreadable, or empty: $source_file"
     content_bytes=$(LC_ALL=C wc -c < "$source_file")
     content_bytes=${content_bytes//[[:space:]]/}
@@ -689,6 +691,8 @@ update_roadmap() {
         rm -f "$temp_file"
         error "Roadmap has malformed synthesis markers"
     fi
+    # Keep partial output private, then restore the roadmap mode before publication.
+    chmod "$roadmap_mode" "$temp_file" || error "Failed to preserve roadmap permissions"
     [[ ! -L "$ROADMAP_FILE" ]] || error "Roadmap became a symlink during import"
     mv "$temp_file" "$ROADMAP_FILE" || { rm -f "$temp_file"; error "Failed to update roadmap"; }
     trap - EXIT INT TERM HUP
