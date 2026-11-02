@@ -139,7 +139,7 @@ generate_state_template() {
 
 ## History
 
-- [$timestamp] Phase 1: [ready] Project initialized
+- [$timestamp] Phase 1: Project initialized (ready)
 EOF
 }
 
@@ -519,7 +519,7 @@ write_state() {
     fi
     
     # Build new history entry
-    local new_history_entry="- [$timestamp] Phase $new_phase: [$new_status] $new_position"
+    local new_history_entry="- [$timestamp] Phase $new_phase: $new_position ($new_status)"
     if [[ -n "$history_note" ]]; then
         new_history_entry+=$'\n'"$(printf '%s\n' "$history_note" | sed 's/^/  /')"
     fi
@@ -581,14 +581,14 @@ get_phase_status() {
         printf '%s\n' "$current_status"
         return
     fi
-    # Read only the fixed status slot. Position text and indented history notes
+    # Read only the final status field. Position text and indented history notes
     # cannot turn an incomplete phase into a completed one.
     found=$(awk -v phase="$phase" '
         /^## History$/ { history=1; next }
         history && /^## / { exit }
-        history && $0 ~ "^- \\[[^]]+\\] Phase " phase ": \\[[a-z_]+\\] " {
-            sub("^- \\[[^]]+\\] Phase " phase ": \\[", "")
-            sub(/\].*$/, "")
+        history && $0 ~ "^- \\[[^]]+\\] Phase " phase ": .* \\([a-z_]+\\)$" {
+            sub(/^.* \(/, "")
+            sub(/\)$/, "")
             print
             exit
         }

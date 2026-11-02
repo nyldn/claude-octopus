@@ -39,6 +39,29 @@ else
     test_fail "free text changed an earlier phase status"
 fi
 
+test_case "existing schema 2.0 histories retain completion across new writes"
+mkdir -p "$TEST_TMP_DIR/legacy-project/.octo"
+cat > "$TEST_TMP_DIR/legacy-project/.octo/STATE.md" <<'EOF'
+# Octo State
+
+**Schema:** 2.0
+**Current Phase:** 2
+**Current Position:** [complete] Description (complete)
+**Status:** in_progress
+
+## History
+
+- [2026-11-01T12:01:00Z] Phase 2: [complete] Description (complete) (in_progress)
+- [2026-11-01T12:00:00Z] Phase 1: Discovery complete (complete)
+EOF
+if (
+    cd "$TEST_TMP_DIR/legacy-project"
+    [[ "$("$STATE" get_phase_status 1)" == complete ]] &&
+    "$STATE" update_state --phase 3 --status in_progress --position Development >/dev/null &&
+    [[ "$("$STATE" get_phase_status 1)" == complete ]] &&
+    [[ "$("$STATE" get_phase_status 2)" == in_progress ]]
+); then test_pass; else test_fail "existing history lost status or free text forged completion"; fi
+
 test_case "missing option values fail without changing state"
 cp .octo/STATE.md "$TEST_TMP_DIR/state-before"
 rc=0
