@@ -13,7 +13,7 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 <p align="center">
   <a href="https://claude.ai"><img src="https://img.shields.io/badge/Claude-Built_with_AI-c96442?logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTEyIDJhMTAgMTAgMCAxIDAgMCAyMCAxMCAxMCAwIDAgMCAwLTIwbTAgMS44YTEuMiAxLjIgMCAwIDEgLjg1LjM1bDEuNSA0LjVhLjYuNiAwIDAgMCAuMzUuMzVsNC41IDEuNWExLjIgMS4yIDAgMCAxIDAgMi4yN2wtNC41IDEuNWEuNi42IDAgMCAwLS4zNS4zNWwtMS41IDQuNWExLjIgMS4yIDAgMCAxLTIuMjcgMGwtMS41LTQuNWEuNi42IDAgMCAwLS4zNS0uMzVsLTQuNS0xLjVhMS4yIDEuMiAwIDAgMSAwLTIuMjdsNC41LTEuNWEuNi42IDAgMCAwIC4zNS0uMzVsMS41LTQuNUExLjIgMS4yIDAgMCAxIDEyIDMuOCIvPjwvc3ZnPg==&labelColor=333" alt="Built with Claude"></a>
   <a href="https://github.com/nyldn/claude-octopus/actions/workflows/test.yml"><img src="https://github.com/nyldn/claude-octopus/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
-  <img src="https://img.shields.io/badge/Version-11.15.1-blue" alt="Version 11.15.1">
+  <img src="https://img.shields.io/badge/Version-11.15.4-blue" alt="Version 11.15.4">
   <img src="https://img.shields.io/badge/Claude_Code-v2.1.14+_required-blueviolet" alt="Requires Claude Code v2.1.14+">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
 </p>
@@ -36,27 +36,29 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
-### Research uses your chosen intensity
+### Reviews keep their own findings and proof packets
 
-`/octo:discover` and `/octo:research` pass your quick, standard, or deep
-selection to the research engine. The workflow examples also pass prior-phase
-results correctly and put focus, depth, and audit scope in the prompt.
-See [knowledge workflows](docs/KNOWLEDGE-WORKERS.md#workflow-customization).
+Reviews without an `artifactId` now reserve separate run IDs, so starting two
+reviews in the same second no longer blocks seats or overwrites findings.
+By default, repeated and concurrent Octopus runs within a Claude Code session
+also keep separate proof packets, preserving each run's events and summary.
+If you set `OCTOPUS_PROOF_RUN_ID`, use a unique value per run to keep packets
+separate.
+See [review evidence](commands/review.md).
 
-### Session preferences stay outside your repository
+### Councils recognize unique filename citations
 
-SessionEnd saves preferences and Markdown session learnings in the current
-project's existing Claude auto-memory directory. SessionStart restores
-preferences from that directory. The hooks no longer create `memory/` in your
-repository or fall back to an unrelated project's memory. Custom Claude
-configuration directories use the same mapping at session start and end.
-
-SessionEnd also saves structured cross-task learnings as JSON under
-`~/.claude-octopus/learnings`. That store is shared across projects and is not
-automatically read by SessionStart. See [session memory troubleshooting](docs/TROUBLESHOOTING.md#session-preferences-and-memory).
+A council seat can cite a unique filename such as `pr-watchdog.yml:249`
+without being marked blind because it omitted `.github/workflows/`. Grounding
+and quote verification resolve unique filenames and path suffixes, excluding
+copies in nested checkouts. Grounding rejects ambiguous, missing and unsafe
+paths, and line numbers past the end of a file. Quote verification checks
+matching text in the resolved file and may succeed despite an out-of-range
+line number. It checks uniquely matching attached context before repository
+suffixes. See [citation verification](docs/COUNCIL.md#citation-quote-verification).
 
 <!-- BEGIN CURRENT RELEASE -->
-> 🆕 **v11.15.1 — Honor selected research intensity, correct workflow examples, and keep session memory outside repositories.**
+> 🆕 **v11.15.4 — Honor configured timeout budgets for probe research.**
 >
 > **Default roster:** Claude Opus 5.5 leads architecture, planning, security reasoning, and final judgment; GPT-5.6 Sol is the independent implementation/review peer; Claude Sonnet 5.5 is the standard Claude seat; Fable 5.1 remains an opt-in judgment escalation. Existing model pins and provider configuration still win. See [the routing strategy](docs/MODEL-ROUTING-STRATEGY.md).
 <!-- END CURRENT RELEASE -->
@@ -79,7 +81,7 @@ automatically read by SessionStart. See [session memory troubleshooting](docs/TR
 
 | Version | Best Features |
 |---------|--------------|
-| **v11.15.1** (new) | Honor selected research intensity, correct workflow examples, and keep session memory outside repositories. |
+| **v11.15.4** (new) | Honor configured timeout budgets for probe research. |
 | **v9.50** | **Claude Code 2026 compatibility layer** — routines manifest (schedule + GitHub-event automations), SubagentStop quality/cost gate, `/octo:usage` cost attribution, `worktree.bgIsolation` opt-out, Claude Agent SDK seat (introduced with Opus 4.8 and now following the current Opus 5 default), starter skills pack, `/plugin browse` manifest with projected context cost. |
 | **v9.41** | **`/octo:council`** promoted to first-class workflow — structured multi-LLM deliberation with goal modes, adversarial/red-team styles, benchmark-aware persona routing, quorum and critical-veto gates, budget preflight, and gated worktree handoff for approved implementation plans. |
 | **v9** | Up to 10 external provider integrations (Codex, Antigravity CLI, Copilot, Qwen, Ollama, Perplexity, OpenRouter, OrcaRouter, OpenCode, and Grok) alongside the Claude Code host. Structured provider debates and configurable multi-LLM councils. Explicit-only activation by default, with an optional smart router. Agent summary tables show which providers actually contributed. Provider-aware prompt preflight prevents silent oversize failures. Research breadth modes fan out light, standard, or exhaustive investigations. Setup aliases and fuzzy `/octo:*` corrections reduce command friction. Opt-in discipline gates and token compression. Two-stage review. Circuit breakers with automatic provider recovery inside active workflows. Cursor + OpenCode + Codex cross-compatibility. `bin/octopus` CLI. 182 Claude Code capability flags through v2.1.219, including Opus 5, Sonnet 5, and dynamic workflow awareness. |

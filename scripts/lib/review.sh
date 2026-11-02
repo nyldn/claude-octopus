@@ -1732,6 +1732,16 @@ print_provider_report() {
     rm -f "$extra_status_file"
 }
 
+review_next_run_id() {
+    local reservation_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/task-ids" reservation
+    mkdir -p "$reservation_dir" 2>/dev/null || true
+    if declare -F _octopus_prune_task_id_reservations >/dev/null 2>&1; then
+        _octopus_prune_task_id_reservations "$reservation_dir"
+    fi
+    reservation=$(mktemp "${reservation_dir}/XXXXXX" 2>/dev/null) || return 1
+    printf '%s-%s\n' "$(date +%s)" "${reservation##*/}"
+}
+
 # parallel fleet (Round 1) + verification (Round 2) + synthesis (Round 3)
 # that competes with CC Code Review's managed service.
 #
@@ -1783,7 +1793,16 @@ review_run() {
 
     # Include the caller-provided identity in every cooperative worker task ID.
     # Cancellation can then reap only the workers owned by this review invocation.
-    local timestamp="$_ts${artifact_id:+-${artifact_id}}"
+    local timestamp
+    if [[ -n "$artifact_id" ]]; then
+        timestamp="$_ts-$artifact_id"
+    elif [[ "${DRY_RUN:-false}" == "true" ]]; then
+        timestamp="$_ts"
+    elif ! timestamp=$(review_next_run_id); then
+        log ERROR "review_run: could not reserve a run id"
+        rm -f "$provider_status_file"
+        return 1
+    fi
     local results_dir="${RESULTS_DIR:-$HOME/.claude-octopus/results}"
     # Sync RESULTS_DIR global so spawn_agent writes to the same directory
     RESULTS_DIR="$results_dir"

@@ -981,4 +981,83 @@ if ! council_response_is_substantive "$B2" "$ROOT" &&
    jq -e '.validation_result == "invalid-access" and .access_state == "failed" and .verdict == "APPROVE" and .evidence_paths == []' <<< "$record" >/dev/null; then test_pass
 else test_fail "an ungrounded confident approval remained a valid contribution"; fi
 
+# sail-cruisey #3295: a seat that cites a file by its bare name (`pr-watchdog.yml:3`)
+# grounds the review when exactly one file under the evidence root has that name,
+# including under hidden directories such as .github/. An ambiguous name, a missing
+# file or a line past the end still validates nothing.
+BASE_ROOT="$(mktemp -d "${TEST_TMP_DIR:-/tmp}/baseroot.XXXXXX")"
+mkdir -p "$BASE_ROOT/.github/workflows" "$BASE_ROOT/a" "$BASE_ROOT/b"
+printf '%s\n' 'name: PR watchdog' 'on: [pull_request]' 'jobs:' '  watchdog:' '    runs-on: ubuntu-latest' \
+    '      - run: gh pr checks "$PR_NUMBER" --required --watch --fail-fast' > "$BASE_ROOT/.github/workflows/pr-watchdog.yml"
+printf '%s\n' 'one' 'two' > "$BASE_ROOT/a/config.ts"
+printf '%s\n' 'one' 'two' > "$BASE_ROOT/b/config.ts"
+
+test_case "#3295: a unique bare filename citation validates against its real path"
+bare_resp="$(_mk bare-unique.md 'The watchdog only requires two names (`pr-watchdog.yml:3`).')"
+evidence="$(council_response_evidence_paths_json "$bare_resp" "$BASE_ROOT")"
+if jq -e 'length == 1 and .[0].path == ".github/workflows/pr-watchdog.yml" and .[0].line == 3' <<< "$evidence" >/dev/null; then test_pass
+else test_fail "evidence: $evidence"; fi
+
+test_case "#3295: a nested checkout's copy does not make a bare filename ambiguous"
+mkdir -p "$BASE_ROOT/.claude/worktrees/other/.github/workflows"
+printf 'gitdir: /elsewhere\n' > "$BASE_ROOT/.claude/worktrees/other/.git"
+cp "$BASE_ROOT/.github/workflows/pr-watchdog.yml" "$BASE_ROOT/.claude/worktrees/other/.github/workflows/"
+evidence="$(council_response_evidence_paths_json "$bare_resp" "$BASE_ROOT")"
+r="$(council_response_quote_verification_json "$(_mk bare-nested.md 'pr-watchdog.yml:6 reads `gh pr checks "$PR_NUMBER" --required --watch --fail-fast` today.' 'VERDICT: APPROVE')" "$BASE_ROOT")"
+if jq -e 'length == 1 and .[0].path == ".github/workflows/pr-watchdog.yml"' <<< "$evidence" >/dev/null &&
+   jq -e '.citations == 1 and .citations_unresolved == 0 and .quotes_checked == 1 and .quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass
+else test_fail "evidence: $evidence report: $r"; fi
+
+test_case "#3295: an ambiguous, missing or out-of-range bare filename validates nothing"
+bare_bad="$(_mk bare-bad.md 'See config.ts:1, missing.ts:1 and pr-watchdog.yml:99.')"
+evidence="$(council_response_evidence_paths_json "$bare_bad" "$BASE_ROOT")"
+if [[ "$evidence" == "[]" ]]; then test_pass; else test_fail "evidence: $evidence"; fi
+
+test_case "#3295: a unique bare filename citation resolves for quote verification"
+bare_quote="$(_mk bare-quote.md 'pr-watchdog.yml:6 reads `gh pr checks "$PR_NUMBER" --required --watch --fail-fast` today.' 'VERDICT: APPROVE')"
+r="$(council_response_quote_verification_json "$bare_quote" "$BASE_ROOT")"
+if jq -e '.citations == 1 and .citations_unresolved == 0 and .quotes_checked == 1 and .quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3295: a full-length review citing only unique bare filenames is not blind"
+bare_review="$TEST_TMP_DIR/bare-review.md"
+{
+    for _ in {1..12}; do
+        printf '%s\n' 'The watchdog fires on ready_for_review before the test workflow has created any check runs, so the merge gate sees only stale runs (pr-watchdog.yml:2). The job definition at pr-watchdog.yml:4 runs without a concurrency key.'
+    done
+    printf '\nVERDICT: APPROVE\n'
+} > "$bare_review"
+if council_response_is_blind "$bare_review" "$BASE_ROOT"; then
+    test_fail "a review citing real files by bare name was flagged blind"
+else test_pass; fi
+
+# An existing unsafe path must not be reinterpreted as an unrelated suffix hit.
+mkdir -p "$BASE_ROOT/other/linked-parent" "$BASE_ROOT/directory.ts"
+for name in outside.ts dangling.ts inside.ts directory.ts; do
+    printf '%s\n' 'export const citation = "the actual source evidence";' > "$BASE_ROOT/other/$name"
+done
+printf '%s\n' 'export const citation = "the actual source evidence";' > "$BASE_ROOT/other/linked-parent/entry.ts"
+printf '%s\n' 'external content is not evidence' > "$TEST_TMP_DIR/outside-source.ts"
+mkdir -p "$TEST_TMP_DIR/outside-directory"
+ln -s "$TEST_TMP_DIR/outside-source.ts" "$BASE_ROOT/outside.ts"
+ln -s "$TEST_TMP_DIR/missing-source.ts" "$BASE_ROOT/dangling.ts"
+ln -s "$BASE_ROOT/other/inside.ts" "$BASE_ROOT/inside.ts"
+ln -s "$TEST_TMP_DIR/outside-directory" "$BASE_ROOT/linked-parent"
+for citation in outside.ts dangling.ts directory.ts linked-parent/entry.ts; do
+    test_case "unsafe direct citation $citation cannot use suffix fallback"
+    unsafe_resp="$(_mk unsafe-citation.md "$citation:1 reads \`export const citation = \"the actual source evidence\";\`" 'VERDICT: APPROVE')"
+    evidence="$(council_response_evidence_paths_json "$unsafe_resp" "$BASE_ROOT")"
+    r="$(council_response_quote_verification_json "$unsafe_resp" "$BASE_ROOT")"
+    if [[ "$evidence" == "[]" ]] &&
+       jq -e '.verification_failed == false and .citations == 0 and .citations_unresolved == 1 and .quotes_checked == 0 and .quotes_verified == 0' <<< "$r" >/dev/null; then test_pass
+    else test_fail "evidence: $evidence report: $r"; fi
+done
+
+test_case "safe in-root symlink citations retain their existing identity"
+safe_resp="$(_mk safe-citation.md 'inside.ts:1 reads `export const citation = "the actual source evidence";`' 'VERDICT: APPROVE')"
+evidence="$(council_response_evidence_paths_json "$safe_resp" "$BASE_ROOT")"
+r="$(council_response_quote_verification_json "$safe_resp" "$BASE_ROOT")"
+if jq -e 'length == 1 and .[0].path == "inside.ts"' <<< "$evidence" >/dev/null &&
+   jq -e '.citations == 1 and .citations_unresolved == 0 and .quotes_checked == 1 and .quotes_verified == 1' <<< "$r" >/dev/null; then test_pass
+else test_fail "evidence: $evidence report: $r"; fi
+
 test_summary

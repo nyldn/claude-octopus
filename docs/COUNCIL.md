@@ -56,6 +56,27 @@ Validated citations and the council's other grounding paths still apply.
 
 ## Citation quote verification
 
+Evidence-path grounding resolves citations relative to the evidence root first.
+If the written path is missing, a bare filename or path suffix can resolve when
+exactly one eligible file under the root matches, including files in hidden
+directories. For example, `pr-watchdog.yml:249` can resolve to
+`.github/workflows/pr-watchdog.yml:249`. Nested checkouts with their own `.git`
+entry are excluded from suffix matching. Ambiguous repository suffixes remain
+unresolved. Line numbers past the end of a file do not validate an evidence-path
+entry.
+
+Quote verification checks the written path first, then a uniquely matching
+attached context file, then a unique repository suffix. It evaluates ambiguity
+separately in the attached context list and the repository index. A unique
+context match takes precedence even when the repository suffix is ambiguous;
+multiple context matches can still fall back to a unique repository suffix.
+Quote matching checks file contents and can succeed despite an out-of-range
+cited line number.
+
+An existing unsafe path or directory is rejected before suffix matching, so
+a citation cannot silently refer to another file. Direct symlinks to files
+inside the evidence root keep their existing behavior.
+
 Council also checks specific code quotes beside `path:line` citations against
 the cited files and reviewed diff. A seat whose checked quotes are fabricated
 receives `invalid-ungrounded` and cannot count toward approval. An attributed

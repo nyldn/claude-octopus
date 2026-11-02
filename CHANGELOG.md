@@ -4,29 +4,6 @@
 
 ### Fixed
 
-- Learned file hints and provider history no longer cross projects or
-  worktrees. Heuristic learning wrote every run's file paths, absolute ones
-  included, to one global `~/.claude-octopus/.octo/patterns.jsonl`, and later
-  prompts in any project got "File Heuristics" hints from it. One worktree's
-  provider prompt named another worktree's review-prompt file that way.
-  Patterns now record the run's git worktree root and only relative paths that
-  exist under it. Hints read only entries from the current root and suggest
-  only files that exist there. Provider history moves to
-  `.octo/providers/<project key>/`. `patterns.jsonl` stays the pattern store:
-  its older entries, which have no root, are ignored. The old per-provider
-  `.octo/providers/<provider>-history.md` files stay on disk, unused.
-- A large provider stderr transcript no longer fills the result file. Codex
-  echoes every file it reads on stderr, and `spawn.sh` appended all of it
-  under "Warnings/Errors": one review result was 294 KB around a 2 KB answer.
-  When stderr is over 16 KB and stdout holds the answer, the full transcript
-  goes to `<result>.stderr.log` (mode 600). The result keeps at most 16 KB
-  from its last 40 lines, inside the same untrusted wrapper, plus a line with
-  the size and path. A run with no answer after stdout filtering keeps stderr
-  inline, since its answer may be recovered from there. Existing sidecars are
-  replaced privately; unsafe paths and transcripts above the private writer's
-  1 MiB limit keep full stderr inline. Truncated excerpts preserve UTF-8.
-  Expiring a per-agent result also removes its full stderr transcript; retained
-  synthesis reports and recent results keep their transcripts.
 - Preflight checks the council roster that `OCTOPUS_COUNCIL_DEFAULT_PROVIDERS`
   pins. A Codex-led session pins `claude,agy`, but preflight ignored the list:
   the static pass checked every non-Claude provider, the smoke test always
@@ -45,6 +22,78 @@
   sandbox (`CODEX_SANDBOX` or `SANDBOX_RUNTIME`), a provider that is not ready
   now carries a note that keychain logins, network access or files outside the
   workspace can fail there, with the remedy to re-run preflight outside it.
+
+## [11.15.4] - 2026-11-01
+
+### Fixed
+
+- A probe seat now runs for the `OCTOPUS_AGENT_TIMEOUT` budget. `orchestrate.sh
+  probe` gave each seat the 600-second `TIMEOUT` default even with
+  `OCTOPUS_AGENT_TIMEOUT=1200` set, and the timeout message then recommended
+  setting the variable that was already set. Probe seats, `probe-single` and
+  the probe progress watchdog now use the budget `run_agent_sync` uses:
+  `OCTOPUS_AGENT_TIMEOUT`, then `--timeout`, then the default. A timed-out
+  probe seat recommends `OCTOPUS_AGENT_TIMEOUT` when it is set. Other
+  background workflows still wait for their seats against `--timeout`, so
+  their seats keep that budget.
+  [#1241](https://github.com/nyldn/claude-octopus/pull/1241),
+  commit [1f8d395](https://github.com/nyldn/claude-octopus/commit/1f8d3951b2a2b4326d5f2e4710864217812588c3).
+
+## [11.15.3] - 2026-10-30
+
+### Fixed
+
+- Reviews started in the same second without an `artifactId` now reserve
+  separate run IDs before starting seats. Their findings no longer overwrite
+  each other, and one review cannot block another's execution contracts by
+  reusing its ID. If no ID can be reserved, the review stops before writing
+  findings. Explicit `artifactId` values and dry-run behavior are preserved.
+  [#1239](https://github.com/nyldn/claude-octopus/pull/1239).
+- By default, repeated and concurrent workflows within one Claude Code session
+  now write separate proof packets, keeping events, findings and summaries
+  separate. `OCTOPUS_PROOF_RUN_ID` still overrides the complete run ID. Use a
+  unique override per run; reusing one shares the directory and can overwrite
+  the earlier packet.
+  [#1238](https://github.com/nyldn/claude-octopus/pull/1238).
+- Council grounding and quote verification accept a bare filename or path
+  suffix when exactly one eligible file matches. Nested checkout copies no
+  longer make names ambiguous. Grounding rejects missing, ambiguous and unsafe
+  paths, and line numbers past the end of a file. Quote verification checks
+  uniquely matching attached context before repository suffixes and can verify
+  matching file text even when the cited line number is out of range.
+  An unsafe existing path cannot fall back to a different file.
+  [#1236](https://github.com/nyldn/claude-octopus/pull/1236).
+
+## [11.15.2] - 2026-10-28
+
+### Fixed
+
+- Learned file hints and provider history stay within the current project or
+  Git worktree. Hints record and suggest only existing relative paths inside
+  that root. Older patterns without a root and unscoped provider histories
+  remain on disk but are ignored. Provider history now uses
+  `.octo/providers/<project-key>/` under the Octopus workspace.
+  [#1228](https://github.com/nyldn/claude-octopus/pull/1228),
+  commit [ee7bcb4](https://github.com/nyldn/claude-octopus/commit/ee7bcb42e47ba6740100482e5be4155c3e6ebc46).
+- Provider answers stay readable when stderr contains a large transcript.
+  With a usable stdout answer and stderr over 16 KB, the full transcript goes
+  to a private `.stderr.log` sidecar. The result keeps at most 16 KB from its
+  last 40 lines, preserving UTF-8 and the untrusted-content wrapper. Runs
+  without an answer, unsafe sidecar paths, and transcripts over the private
+  writer's 1 MiB limit keep stderr inline. Result expiry removes the matching
+  transcript while preserving transcripts for retained reports.
+  [#1232](https://github.com/nyldn/claude-octopus/pull/1232),
+  commit [931b13e](https://github.com/nyldn/claude-octopus/commit/931b13e20393e7bb3d4b178e6d6ac97c959e8df0).
+- Smoke-test failures no longer mark a healthy provider quota-dead for later
+  runs unless they are explicit authentication or rate-limit rejections
+  observed outside coding sandboxes. Other failures exclude the provider only
+  for the current run. Unknown failures prevent caching a successful overall
+  check, while timeouts retain the existing slow-provider pass-cache policy.
+  Preflight distinguishes cached quota/auth failures, with their individual
+  timestamps, from current-run failures. Sandbox denials identify the check's
+  restriction and advise retrying outside the sandbox.
+  [#1233](https://github.com/nyldn/claude-octopus/pull/1233),
+  commit [16dd9e6](https://github.com/nyldn/claude-octopus/commit/16dd9e67d4be42e1bed11c89fed251b3cea4d7b5).
 
 ## [11.15.1] - 2026-10-23
 
