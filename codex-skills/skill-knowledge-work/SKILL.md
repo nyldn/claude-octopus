@@ -113,7 +113,7 @@ When workflows run, you'll see the detected context in the banner:
 
 ### Example 3: Override When Auto Gets It Wrong
 
-**User:** "octo research React patterns"  
+**User:** "octo research React patterns"
 **Claude:** (auto-detects Dev) `🔍 [Dev] Discover Phase...`
 
 **User:** "Actually, this is for a presentation. Force knowledge mode."
@@ -123,14 +123,14 @@ When workflows run, you'll see the detected context in the banner:
 /octo:km on
 ```
 
-**User:** "octo research React patterns"  
+**User:** "octo research React patterns"
 **Claude:** (uses override) `🔍 [Knowledge] Discover Phase...` (focuses on trends, adoption, strategic implications)
 
 ### Example 4: Check Current Status
 
 **User:** "What context mode am I in?"
 
-**Claude:** 
+**Claude:**
 ```
 Current mode: Auto-detection (no override set)
 Last detected context: Dev (based on project having package.json)

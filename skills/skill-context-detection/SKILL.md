@@ -177,7 +177,7 @@ When this skill activates:
    ```
    🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider [research|implementation|validation] mode
    [Phase Emoji] [Context] [Phase Name]: [Description]
-   
+
    Detected Context: [Dev|Knowledge] (confidence: [high|medium|low])
    ```
 
@@ -197,7 +197,7 @@ Users can still explicitly set context when auto-detection is wrong:
 # Force knowledge mode
 /octo:km on
 
-# Force dev mode  
+# Force dev mode
 /octo:km off
 
 # Return to auto-detection
