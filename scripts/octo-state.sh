@@ -601,7 +601,7 @@ get_phase_status() {
     fi
 }
 
-update_roadmap() {
+update_roadmap() (
     [[ $# -eq 2 && "$1" == "--from-synthesis" ]] || error "Usage: update_roadmap --from-synthesis <file>"
     local source_file="$2" content_bytes temp_file
     [[ -f "$ROADMAP_FILE" ]] || error "Roadmap file not found. Run 'init_project' first."
@@ -609,10 +609,14 @@ update_roadmap() {
     content_bytes=$(LC_ALL=C wc -c < "$source_file")
     content_bytes=${content_bytes//[[:space:]]/}
     [[ "$content_bytes" -le "$MAX_PROJECT_SECTION_BYTES" ]] || error "Synthesis exceeds ${MAX_PROJECT_SECTION_BYTES} bytes"
-    if grep -qE '^<!-- octopus:definition-synthesis:(start|end) -->$' "$source_file"; then
+    if grep -cE '^<!-- octopus:definition-synthesis:(start|end) -->$' "$source_file" >/dev/null; then
         error "Synthesis contains reserved roadmap markers"
     fi
     temp_file=$(mktemp "${ROADMAP_FILE}.tmp.XXXXXX") || error "Failed to allocate temporary roadmap"
+    trap 'rm -f -- "$temp_file"' EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    trap 'exit 129' HUP
     if ! OCTO_ROADMAP_SYNTHESIS_FILE="$source_file" awk '
         function emit( line) {
             print "<!-- octopus:definition-synthesis:start -->"
@@ -640,8 +644,9 @@ update_roadmap() {
         error "Roadmap has malformed synthesis markers"
     fi
     mv "$temp_file" "$ROADMAP_FILE" || { rm -f "$temp_file"; error "Failed to update roadmap"; }
+    trap - EXIT INT TERM HUP
     success "Updated roadmap definition synthesis; existing phase plans preserved"
-}
+)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # GET_CONTEXT_TIER

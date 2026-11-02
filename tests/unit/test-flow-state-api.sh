@@ -136,4 +136,25 @@ if (
     grep -q 'Revised synthesis.' .octo/PROJECT.md
 ); then test_pass; else test_fail "real lifecycle snippets failed against the real state script"; fi
 
+test_case "TERM during roadmap import preserves the plan and removes its temporary file"
+if (
+    mkdir -p "$TEST_TMP_DIR/interrupted-project" "$TEST_TMP_DIR/interrupt-bin"
+    cd "$TEST_TMP_DIR/interrupted-project"
+    "$STATE" init_project >/dev/null
+    cp .octo/ROADMAP.md "$TEST_TMP_DIR/interrupted-roadmap-before"
+    cat > "$TEST_TMP_DIR/interrupt-bin/awk" <<'EOF'
+#!/bin/sh
+kill -TERM "$PPID"
+exit 0
+EOF
+    chmod +x "$TEST_TMP_DIR/interrupt-bin/awk"
+    rc=0
+    PATH="$TEST_TMP_DIR/interrupt-bin:$PATH" "$STATE" update_roadmap \
+        --from-synthesis "$TEST_TMP_DIR/synthesis.md" >/dev/null 2>&1 || rc=$?
+    shopt -s nullglob
+    roadmap_temporaries=(.octo/ROADMAP.md.tmp.*)
+    [[ "$rc" -eq 143 && "${#roadmap_temporaries[@]}" -eq 0 ]] &&
+        cmp -s .octo/ROADMAP.md "$TEST_TMP_DIR/interrupted-roadmap-before"
+); then test_pass; else test_fail "interrupted import changed the plan or left a temporary file"; fi
+
 test_summary
