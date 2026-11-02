@@ -370,27 +370,28 @@ User: "Should I use TypeScript or stick with JavaScript? Help me decide."
 
 Response structure:
 1. Clarify decision factors (team size, project scope, timeline)
-2. Present structured comparison
-3. Make recommendation based on their specific context
+2. Compare the alternatives, including the current setup and its cost of delay
+3. Recommend after comparing against the agreed criteria
 4. Support whatever they choose
 
 Example:
 
 Let me help you decide between TypeScript and JavaScript.
 
-**TypeScript:**
+**Option 1: TypeScript**
 Pros: Type safety, better tooling, catches errors early
 Cons: Learning curve, build step, more setup
 Best for: Larger teams, long-term projects, complex domains
 
-**JavaScript:**
+**Option 2: Keep JavaScript, the current setup**
 Pros: Simpler, no build step, familiar to all devs
 Cons: Runtime errors, less IDE support, harder to refactor
 Best for: Small projects, prototypes, simple applications
+Ongoing cost and cost of delay: [Quantify current maintenance costs and any consequences of delaying migration. State when no change is needed.]
 
-**For your [context]:** I recommend TypeScript because [reason].
+**After comparing against the agreed criteria, recommend Option [N] because [evidence].**
 
-Would you like to proceed with TypeScript, or would JavaScript be better for your needs?
+Which option would you like to proceed with?
 ```
 
 ---
