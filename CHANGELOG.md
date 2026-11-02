@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Decision support now includes the cost of doing nothing, sets criteria and
+  weights before scoring, and shows raw and weighted scores. Presentation
+  templates no longer recommend the first option before analysis. Uncertain
+  decisions can include an optional scenario stress test.
+  Fixes [#1220](https://github.com/nyldn/claude-octopus/issues/1220).
+
 ## [11.15.4] - 2026-11-01
 
 ### Fixed
