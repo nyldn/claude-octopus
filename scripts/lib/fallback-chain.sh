@@ -329,6 +329,9 @@ _octo_fallback_provider_identity() {
     if declare -f octo_agent_spec_provider >/dev/null 2>&1; then
         octo_agent_spec_provider "$spec" 2>/dev/null && return 0
     fi
+    if declare -f octo_provider_canonical >/dev/null 2>&1; then
+        octo_provider_canonical "$executor" 2>/dev/null && return 0
+    fi
     case "$executor" in
         codex|codex-*) echo codex ;;
         claude|claude-*) echo claude ;;
@@ -342,7 +345,7 @@ _octo_fallback_provider_identity() {
 octo_fallback_spec_allowed() {
     local spec="${1:-}"
     [[ -n "$spec" ]] || return 1
-    declare -f octo_provider_allowed >/dev/null 2>&1 || return 0
+    declare -f octo_provider_allowed >/dev/null 2>&1 || return 1
     octo_provider_allowed "$(_octo_fallback_provider_identity "$spec")"
 }
 

@@ -12,8 +12,11 @@ test_suite "configurable fallback chains"
 TMP_ROOT="$TEST_TMP_DIR"
 CFG="$TEST_TMP_DIR/providers.json"
 mkdir -p "$TEST_TMP_DIR/model-cache"
+mkdir -p "$TEST_TMP_DIR/provider-allowlist"
 export TMPDIR="$TEST_TMP_DIR/model-cache"
 export OCTOPUS_PROVIDERS_CONFIG="$CFG"
+unset OCTO_ALLOWED_PROVIDERS
+export OCTOPUS_CONFIG_DIR="$TEST_TMP_DIR/provider-allowlist"
 
 write_config() {
     cat > "$CFG" <<'JSON'
@@ -397,5 +400,30 @@ else
     test_fail "availability ignored the allowlist: chosen=[$chosen]"
 fi
 is_agent_available_v2() { [[ "$1" == "claude" ]]; }
+
+test_case "fallback dispatch fails closed when the allowlist helper is unavailable"
+: > "$ATTEMPTS"
+if (
+    unset -f octo_provider_allowed
+    export OCTO_ALLOWED_PROVIDERS=codex
+    rc=0
+    run_agent_sync_fallback_chain agy 'plan it' 30 researcher tangle validate_protocol default codex >/dev/null || rc=$?
+    [[ "$rc" -ne 0 && ! -s "$ATTEMPTS" ]]
+); then
+    test_pass
+else
+    test_fail "fallback dispatched without the allowlist helper"
+fi
+
+test_case "standalone fallback preserves the distinct Claude SDK provider"
+if (
+    unset -f octo_agent_spec_provider
+    export OCTO_ALLOWED_PROVIDERS=claude
+    ! octo_fallback_spec_allowed claude-sdk && octo_fallback_spec_allowed claude
+); then
+    test_pass
+else
+    test_fail "standalone fallback admitted Claude SDK under a Claude-only allowlist"
+fi
 
 test_summary
