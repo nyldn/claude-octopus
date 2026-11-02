@@ -15,6 +15,22 @@
   `get_fallback_agent` and `octo_fallback_first_available` no longer return a
   disallowed provider just because its CLI is installed.
 
+## [11.15.4] - 2026-11-01
+
+### Fixed
+
+- A probe seat now runs for the `OCTOPUS_AGENT_TIMEOUT` budget. `orchestrate.sh
+  probe` gave each seat the 600-second `TIMEOUT` default even with
+  `OCTOPUS_AGENT_TIMEOUT=1200` set, and the timeout message then recommended
+  setting the variable that was already set. Probe seats, `probe-single` and
+  the probe progress watchdog now use the budget `run_agent_sync` uses:
+  `OCTOPUS_AGENT_TIMEOUT`, then `--timeout`, then the default. A timed-out
+  probe seat recommends `OCTOPUS_AGENT_TIMEOUT` when it is set. Other
+  background workflows still wait for their seats against `--timeout`, so
+  their seats keep that budget.
+  [#1241](https://github.com/nyldn/claude-octopus/pull/1241),
+  commit [1f8d395](https://github.com/nyldn/claude-octopus/commit/1f8d3951b2a2b4326d5f2e4710864217812588c3).
+
 ## [11.15.3] - 2026-10-30
 
 ### Fixed

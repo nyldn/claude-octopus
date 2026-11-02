@@ -139,6 +139,11 @@ probe_single_agent() {
         role="$routed_role"
     fi
 
+    local seat_timeout="${TIMEOUT:-0}"
+    if declare -F octopus_effective_agent_timeout >/dev/null 2>&1; then
+        seat_timeout="$(octopus_effective_agent_timeout "$seat_timeout" "$phase" "$role")" || return 2
+    fi
+
     # v8.53.0: Pre-compute curated_name for readonly frontmatter check
     local curated_name_early=""
     if [[ "$SUPPORTS_AGENT_TYPE_ROUTING" == "true" ]]; then
@@ -244,7 +249,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     bridge_register_task "$task_id" "$agent_type" "$phase" "$role" || true
 
     local result_file="${RESULTS_DIR}/${agent_type}-${task_id}.md"
-    update_agent_status "$agent_type" "running" 0 "$estimated_cost" "$TIMEOUT" "$task_id" "$phase" "$result_file"
+    update_agent_status "$agent_type" "running" 0 "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
 
     # Build command array with credential isolation
     local -a cmd_array
@@ -271,7 +276,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     printf '# Prompt metadata: original_chars=%s final_chars=%s compression=%s\n' \
         "$_budget_original_chars" "$_budget_final_chars" "$_budget_compression" >> "$result_file"
     if ! write_agent_result_prompt "$result_file" "$enhanced_prompt"; then
-        update_agent_status "$agent_type" "failed" 0 "$estimated_cost" "$TIMEOUT" "$task_id" "$phase" "$result_file"
+        update_agent_status "$agent_type" "failed" 0 "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
         type write_agent_status >/dev/null 2>&1 && write_agent_status \
             "$agent_type" "failed" "$tokens_in" 0 "Failed to persist dispatched prompt" \
             0 "$result_file" "$role" || true
@@ -283,7 +288,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     _probe_nonce=$(od -An -N16 -tx1 /dev/urandom 2>/dev/null | tr -d ' \n') || _probe_nonce=""
     if [[ ! "$_probe_nonce" =~ $_probe_nonce_pattern ]]; then
         printf '## Output\n```\n(no provider launched)\n```\n## Status: FAILED (Unable to generate result nonce)\n' >> "$result_file"
-        update_agent_status "$agent_type" "failed" 0 "$estimated_cost" "$TIMEOUT" "$task_id" "$phase" "$result_file"
+        update_agent_status "$agent_type" "failed" 0 "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
         type write_agent_status >/dev/null 2>&1 && write_agent_status \
             "$agent_type" "failed" "$tokens_in" 0 "Unable to generate result nonce" \
             0 "$result_file" "$role" || true
@@ -319,7 +324,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         # v9.2.2: All agents use stdin to avoid ARG_MAX. File-backed capture is
         # portable to Git Bash and cannot be held open by provider descendants.
         if octopus_capture_provider_output \
-            "$enhanced_prompt" "$TIMEOUT" "$temp_input" \
+            "$enhanced_prompt" "$seat_timeout" "$temp_input" \
             "$raw_output" "$temp_errors" "${cmd_array[@]}"; then
             exit_code=0
         else
@@ -443,21 +448,21 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
                     echo '```' >> "$result_file"
                     echo "<!-- END-UNTRUSTED:provider=${agent_type}:stream=stderr:nonce=${_probe_nonce} -->" >> "$result_file"
                 fi
-                update_agent_status "$agent_type" "failed" "$elapsed_ms" "$estimated_cost" "$TIMEOUT" "$task_id" "$phase" "$result_file"
+                update_agent_status "$agent_type" "failed" "$elapsed_ms" "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
                 record_outcome "$agent_type" "$agent_type" "research" "$phase" "fail" "$elapsed_ms" 2>/dev/null || true
                 type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "${reason:-unusable output}" "$elapsed_ms" "$result_file" "$role" || true
                 final_rc=1
                 ;;
             degraded)
                 echo "## Status: SUCCESS (DEGRADED: ${reason:-partial output})" >> "$result_file"
-                update_agent_status "$agent_type" "degraded" "$elapsed_ms" "$estimated_cost" "$TIMEOUT" "$task_id" "$phase" "$result_file"
+                update_agent_status "$agent_type" "degraded" "$elapsed_ms" "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
                 record_outcome "$agent_type" "$agent_type" "research" "$phase" "success" "$elapsed_ms" 2>/dev/null || true
                 record_run_pattern "$agent_type" "${enhanced_prompt:-$original_prompt}" "$result_file" 2>/dev/null || true
                 type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "degraded" "$tokens_in" "$tokens_out" "${reason:-partial output}" "$elapsed_ms" "$result_file" "$role" || true
                 ;;
             *)
                 echo "## Status: SUCCESS" >> "$result_file"
-                update_agent_status "$agent_type" "completed" "$elapsed_ms" "$estimated_cost" "$TIMEOUT" "$task_id" "$phase" "$result_file"
+                update_agent_status "$agent_type" "completed" "$elapsed_ms" "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
                 record_outcome "$agent_type" "$agent_type" "research" "$phase" "success" "$elapsed_ms" 2>/dev/null || true
                 # v9.3.0: Record file co-occurrence pattern for heuristic learning
                 record_run_pattern "$agent_type" "${enhanced_prompt:-$original_prompt}" "$result_file" 2>/dev/null || true
@@ -491,7 +496,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         end_time_ms=$(( $(date +%s) * 1000 ))
         elapsed_ms=$((end_time_ms - start_time_ms))
         tokens_out=$(octo_estimate_tokens_for_file "$temp_output" 2>/dev/null || echo 0)
-        update_agent_status "$agent_type" "timeout" "$elapsed_ms" "$estimated_cost" "$TIMEOUT" "$task_id" "$phase" "$result_file"
+        update_agent_status "$agent_type" "timeout" "$elapsed_ms" "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
         type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "timeout" "$tokens_in" "$tokens_out" "Timed out before completion" "$elapsed_ms" "$result_file" "$role" || true
         final_rc=$exit_code
     else
@@ -517,7 +522,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         end_time_ms=$(( $(date +%s) * 1000 ))
         elapsed_ms=$((end_time_ms - start_time_ms))
         tokens_out=$(octo_estimate_tokens_for_file "$temp_output" 2>/dev/null || echo 0)
-        update_agent_status "$agent_type" "failed" "$elapsed_ms" "$estimated_cost" "$TIMEOUT" "$task_id" "$phase" "$result_file"
+        update_agent_status "$agent_type" "failed" "$elapsed_ms" "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
         local failure_reason="Exit code $exit_code"
         declare -F octo_failure_reason >/dev/null 2>&1 && \
             failure_reason=$(octo_failure_reason "$exit_code" "$enhanced_prompt" "$temp_errors" "$temp_output")
