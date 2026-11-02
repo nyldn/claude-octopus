@@ -25,9 +25,11 @@ Both Claude `disable-model-invocation: true` and generated Codex
 Skills carry reusable method, domain rules, and workflow discipline. Commands
 and agents may reference skills, but should not duplicate long skill logic.
 
-Every plugin-root skill must live at `skills/<skill-name>/SKILL.md`.
-Compatibility skills may also live under `.claude/skills/*.md` until the legacy
-manifest surface is retired.
+Claude Code registers native skills under `.claude/skills/<skill-name>/SKILL.md`.
+Its `skill-verify` compatibility alias lives under the native verification
+skill's `aliases/` directory. Host-neutral council and starter-pack skills stay
+under `skills/`. Codex registers the generated `skills/` tree through its own
+manifest. Never register a Codex-adapted body in the Claude Code manifest.
 
 Each skill must include YAML frontmatter with:
 

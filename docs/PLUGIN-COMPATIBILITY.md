@@ -60,7 +60,11 @@ requests `--peer-review` or a multi-model workflow. `/octo:setup` uses a separat
 revisioned resume receipt and leaves browser login to the user.
 
 `.claude-plugin/plugin.json` retains the `octo` namespace and its explicit
-command/skill paths. Root `hooks/hooks.json` is discovered by the host. Skills
+command/skill paths. Claude Code skill paths select the native `.claude/skills/`
+sources, including the native verification alias. Council and starter-pack
+entries use shared host-neutral bodies. Codex retains the generated `skills/`
+tree, so Claude Code does not load its Codex host preamble or tool rewrites.
+Root `hooks/hooks.json` is discovered by the host. Skills
 use `disable-model-invocation: true` to keep provider workflows explicitly
 invoked. Native plugin and marketplace validation passes; Claude's warning
 that root `CLAUDE.md` is not loaded as plugin context is expected. Runtime

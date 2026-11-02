@@ -365,23 +365,13 @@ echo ""
 # ============================================================================
 echo "🎯 Checking skill registration..."
 
-# Skills normally live at skills/<name>/SKILL.md (depth 2 below skills/), but
-# supported packs nest one level deeper at skills/<pack>/<name>/SKILL.md (see
-# skills/octopus-starter-pack/, issue #829) — search both depths.
-find_skill_md_files() {
-    find "$1" -mindepth 2 -maxdepth 3 -name "SKILL.md" -type f 2>/dev/null
-}
-
-if command -v jq >/dev/null 2>&1 && jq -e '.skills[]? | select(startswith("./skills/"))' "$ROOT_DIR/.claude-plugin/plugin.json" >/dev/null 2>&1; then
-    SKILL_FILES=$(find_skill_md_files "$ROOT_DIR/skills" | sed "s|^$ROOT_DIR/skills/||;s|/SKILL.md$||" | sort)
-    REGISTERED_SKILLS=$(jq -r '.skills[]? | select(startswith("./skills/")) | sub("^\\./skills/"; "") | sub("/$"; "")' "$ROOT_DIR/.claude-plugin/plugin.json" | sort)
-else
-    SKILL_FILES=$({
-        find "$ROOT_DIR/.claude/skills" -maxdepth 1 -type f -name '*.md' -print 2>/dev/null | xargs -n1 basename 2>/dev/null
-        find "$ROOT_DIR/.claude/skills" -mindepth 2 -maxdepth 2 -type f -name 'SKILL.md' -print 2>/dev/null | sed "s|^$ROOT_DIR/.claude/skills/||;s|/SKILL.md$||"
-    } | sort)
-    REGISTERED_SKILLS=$(grep -o '\.claude/skills/[^"]*\.md' "$ROOT_DIR/.claude-plugin/plugin.json" | sed 's|.*\.claude/skills/||' | sort)
-fi
+# Claude Code registers its native tree plus the shared, host-neutral skills.
+# The generated root tree remains registered separately by the Codex manifest.
+SKILL_FILES=$({
+    find "$ROOT_DIR/.claude/skills" -type f -name SKILL.md -print
+    find "$ROOT_DIR/skills/skill-council" "$ROOT_DIR/skills/octopus-starter-pack" -type f -name SKILL.md -print
+} | sed "s|^$ROOT_DIR/|./|;s|/SKILL.md$||" | LC_ALL=C sort)
+REGISTERED_SKILLS=$(jq -r '.skills[]' "$ROOT_DIR/.claude-plugin/plugin.json" | LC_ALL=C sort)
 
 skill_registration_errors=0
 for skill_file in $SKILL_FILES; do
@@ -415,18 +405,12 @@ echo ""
 echo "🏷️  Checking skill frontmatter format..."
 
 invalid_skill_names=0
-if command -v jq >/dev/null 2>&1 && jq -e '.skills[]? | select(startswith("./skills/"))' "$ROOT_DIR/.claude-plugin/plugin.json" >/dev/null 2>&1; then
-    # Intentionally NOT find_skill_md_files: nested skills/octopus-starter-pack/*
-    # skills use bare frontmatter names (no skill-/flow-/octopus-/sys- prefix,
-    # namespaced by directory instead) and are out of scope for issue #829,
-    # which is only about the registration check below.
-    SKILL_FRONTMATTER_FILES=("$ROOT_DIR"/skills/*/SKILL.md)
-else
-    mapfile -t SKILL_FRONTMATTER_FILES < <({
-        find "$ROOT_DIR/.claude/skills" -maxdepth 1 -type f -name '*.md' -print 2>/dev/null
-        find "$ROOT_DIR/.claude/skills" -mindepth 2 -maxdepth 2 -type f -name 'SKILL.md' -print 2>/dev/null
-    } | LC_ALL=C sort)
-fi
+SKILL_FRONTMATTER_FILES=()
+while IFS= read -r skill_path; do
+    # Starter pack names are intentionally bare and namespaced by directory.
+    [[ "$skill_path" == ./skills/octopus-starter-pack/* ]] && continue
+    SKILL_FRONTMATTER_FILES+=("$ROOT_DIR/${skill_path#./}/SKILL.md")
+done <<< "$REGISTERED_SKILLS"
 
 for skill_file in "${SKILL_FRONTMATTER_FILES[@]}"; do
     [[ -f "$skill_file" ]] || continue

@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Claude Code now loads the native skill instructions instead of the Codex
+  adaptations. Codex keeps its generated skills, and the verification alias
+  and starter pack remain available. Fixes #1214.
+
 - Configured fallback chains now honor `OCTO_ALLOWED_PROVIDERS` and the
   session or global provider allowlist. `run_agent_sync_fallback_chain`
   dispatched its primary, preferred fallback and chain candidates without

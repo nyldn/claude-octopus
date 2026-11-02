@@ -127,4 +127,17 @@ else
     fi
 fi
 
+
+test_case "validator rejects a Codex-adapted skill registered for Claude"
+mkdir -p "$fixture/skills/portable"
+printf '%s\n' '---' 'name: portable' 'description: fixture' 'disable-model-invocation: true' '---' '> **Host: Codex CLI**' > "$fixture/skills/portable/SKILL.md"
+printf '%s\n' '{"name":"fixture","version":"0.0.0","description":"fixture","skills":["./skills/portable"]}' > "$fixture/.claude-plugin/plugin.json"
+if output=$(python3 "$PROJECT_ROOT/scripts/validate-plugin-assembly.py" --root "$fixture" 2>&1); then
+    test_fail "validator accepted Codex instructions for Claude"
+elif [[ "$output" == *"Claude Code registers a Codex-adapted skill"* ]]; then
+    test_pass
+else
+    test_fail "missing host mismatch diagnostic: $output"
+fi
+
 test_summary

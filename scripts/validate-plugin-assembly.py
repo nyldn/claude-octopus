@@ -119,6 +119,17 @@ def validate_plugin_manifest(root: Path, errors: list[str]) -> None:
         if not data.get(field):
             errors.append(f"{rel(root, manifest)}: missing required field: {field}")
 
+    skills = data.get("skills", [])
+    if not isinstance(skills, list) or any(not isinstance(path, str) for path in skills):
+        errors.append(f"{rel(root, manifest)}: skills must be a list of relative paths")
+        return
+    for path in skills:
+        skill = (root / path / "SKILL.md").resolve()
+        if not skill.is_relative_to(root) or not skill.is_file():
+            errors.append(f"{rel(root, manifest)}: missing or unsafe skill path: {path}")
+        elif "Host: Codex CLI" in skill.read_text(encoding="utf-8"):
+            errors.append(f"{rel(root, manifest)}: Claude Code registers a Codex-adapted skill: {path}")
+
 
 def validate_json_files(root: Path, errors: list[str]) -> None:
     candidates = [
