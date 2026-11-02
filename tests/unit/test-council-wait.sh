@@ -417,4 +417,59 @@ rm -f "$pool/latest-$slug"
 _runwait --pool "$pool" --timeout 0
 if [[ "$escape_rc" == 2 && "$symlink_rc" == 2 && "$rc" == 2 ]]; then test_pass; else test_fail "escape=$escape_rc symlink=$symlink_rc scan=$rc (outside=$outside)"; fi
 
+test_case "a keyed wait started before the next round publishes returns that round, not the previous one"
+pool="$(mktemp -d "$TEST_TMP_DIR/settle-next.XXXXXX")"
+prev="$(_mkrun "$pool" 20260101-172823-00aaaa finished yes "$key" 1)"
+printf '%s\n' 20260101-172823-00aaaa > "$pool/latest-$slug"
+( sleep 2
+  next="$(_mkrun "$pool" 20260101-173700-00bbbb running yes "$key" 2)"
+  printf '%s\n' 20260101-173700-00bbbb > "$pool/latest-$slug"
+  sleep 2
+  printf '{"status":"completed"}\n' > "$next/summary.json"
+  printf '{"state":"finished","run_id":"20260101-173700-00bbbb","supersede_key":"%s"}\n' "$key" > "$next/run-status.json" ) &
+next_pid=$!
+_runwait --pool "$pool" --supersede-key "$key" --interval 1 --timeout 30
+wait "$next_pid" 2>/dev/null || true
+if [[ $rc -eq 0 && "$out" == "$pool/20260101-173700-00bbbb/summary.json" ]]; then test_pass; else test_fail "rc=$rc out=$out (previous round: $prev)"; fi
+
+test_case "a keyed round finished at first sight returns after the settle window"
+pool="$(mktemp -d "$TEST_TMP_DIR/settle-only.XXXXXX")"
+rd="$(_mkrun "$pool" 20260101-172823-00aaaa finished yes "$key" 1)"
+printf '%s\n' 20260101-172823-00aaaa > "$pool/latest-$slug"
+start=$SECONDS
+_runwait --pool "$pool" --supersede-key "$key" --settle 2 --interval 1 --timeout 30
+elapsed=$(( SECONDS - start ))
+if [[ $rc -eq 0 && "$out" == "$rd/summary.json" && $elapsed -ge 2 && $elapsed -lt 10 ]]; then test_pass; else test_fail "rc=$rc elapsed=${elapsed}s out=$out"; fi
+
+test_case "--since skips the settle hold"
+pool="$(mktemp -d "$TEST_TMP_DIR/settle-since.XXXXXX")"
+rd="$(_mkrun "$pool" 20260101-172823-00aaaa finished yes "$key" 1)"
+printf '%s\n' 20260101-172823-00aaaa > "$pool/latest-$slug"
+start=$SECONDS
+_runwait --pool "$pool" --supersede-key "$key" --since 1767288000 --interval 1 --timeout 30
+elapsed=$(( SECONDS - start ))
+if [[ $rc -eq 0 && "$out" == "$rd/summary.json" && $elapsed -lt 2 ]]; then test_pass; else test_fail "rc=$rc elapsed=${elapsed}s out=$out"; fi
+
+test_case "--background waits past the default bound's role and rejects --timeout"
+pool="$(mktemp -d "$TEST_TMP_DIR/background.XXXXXX")"
+rd="$(_mkrun "$pool" 20260101-020000-00eeee running)"
+( sleep 2; printf '{"status":"completed"}\n' > "$rd/summary.json"
+  printf '{"state":"finished","run_id":"20260101-020000-00eeee"}\n' > "$rd/run-status.json" ) &
+flip_pid=$!
+_runwait --pool "$pool" --interval 1 --background
+bg_rc=$rc bg_out=$out
+wait "$flip_pid" 2>/dev/null || true
+_runwait --pool "$pool" --background --timeout 5
+if [[ $bg_rc -eq 0 && "$bg_out" == "$rd/summary.json" && $rc -eq 64 ]]; then test_pass; else test_fail "bg_rc=$bg_rc bg_out=$bg_out conflict_rc=$rc"; fi
+
+test_case "a timeout says the round may still be running and how to re-arm"
+pool="$(mktemp -d "$TEST_TMP_DIR/timeout-hint.XXXXXX")"
+_mkrun "$pool" 20260101-000000-00bbbb running >/dev/null
+err="$(bash "$WAIT" --pool "$pool" --interval 1 --timeout 1 2>&1 >/dev/null)" && trc=0 || trc=$?
+if [[ $trc -eq 2 && "$err" == *"re-run the same command"* && "$err" == *"--background"* ]]; then test_pass; else test_fail "rc=$trc err=$err"; fi
+
+test_case "usage documents --settle and --background"
+help="$(bash "$WAIT" --help)"
+if [[ "$help" == *"--settle SECONDS"* && "$help" == *"--background"* && "$help" == *"previous round"* ]]; then test_pass; else test_fail "help: $help"; fi
+
 test_summary
