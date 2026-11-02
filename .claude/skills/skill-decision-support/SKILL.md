@@ -156,6 +156,8 @@ optional; do not add provider calls without the user's existing authorization.
 
 #### Format for Presentation
 
+Omit unused option sections and table columns when presenting fewer than four options.
+
 ```markdown
 # Decision: [What needs to be decided]
 
@@ -197,6 +199,34 @@ optional; do not add provider calls without the user's existing authorization.
 
 ---
 
+## Option 4: [Option name, if needed]
+
+[Same structure as Option 1]
+
+---
+
+## Quick Comparison
+
+| Criteria | Option 1 | Option 2 | Option 3 | Option 4 |
+|----------|----------|----------|----------|----------|
+| Effort | [level] | [level] | [level] | [level] |
+| Risk | [level] | [level] | [level] | [level] |
+| Reversible | [yes/no] | [yes/no] | [yes/no] | [yes/no] |
+| Timeline | [time] | [time] | [time] | [time] |
+| Best for | [scenario] | [scenario] | [scenario] | [scenario] |
+
+## Criteria and scores
+
+| Criterion | Weight | Option 1 raw / weighted | Option 2 raw / weighted | Option 3 raw / weighted | Option 4 raw / weighted |
+|-----------|--------|-------------------------|-------------------------|-------------------------|-------------------------|
+| [Criterion fixed before scoring] | [percentage] | [raw / weighted] | [raw / weighted] | [raw / weighted] | [raw / weighted] |
+| **Total** | **100%** | [weighted total] | [weighted total] | [weighted total] | [weighted total] |
+
+[State the scoring scale, evidence and uncertainty. Include the status quo as
+one of the options above and explain its ongoing cost and the cost of delay.]
+
+---
+
 ## Recommendation
 
 **I recommend Option [N]: [Name]**
@@ -209,28 +239,6 @@ optional; do not add provider calls without the user's existing authorization.
 3. [Reason 3]
 
 **This option is best because:** [summary of key advantage relative to context]
-
----
-
-## Quick Comparison
-
-| Criteria | Option 1 | Option 2 | Option 3 |
-|----------|----------|----------|----------|
-| Effort | [level] | [level] | [level] |
-| Risk | [level] | [level] | [level] |
-| Reversible | [yes/no] | [yes/no] | [yes/no] |
-| Timeline | [time] | [time] | [time] |
-| Best for | [scenario] | [scenario] | [scenario] |
-
-## Criteria and scores
-
-| Criterion | Weight | Option 1 raw / weighted | Option 2 raw / weighted | Option 3 raw / weighted |
-|-----------|--------|-------------------------|-------------------------|-------------------------|
-| [Criterion fixed before scoring] | [percentage] | [raw / weighted] | [raw / weighted] | [raw / weighted] |
-| **Total** | **100%** | [weighted total] | [weighted total] | [weighted total] |
-
-[State the scoring scale, evidence and uncertainty. Include the status quo as
-one of the options above and explain its ongoing cost and the cost of delay.]
 
 ---
 
@@ -311,7 +319,7 @@ I can see the auth issue. Here are your options:
 - Cons: Takes longer, more testing needed
 
 **Option 3: Keep the current implementation**
-- State the cost and risk of leaving the defect in place.
+- State the ongoing cost, risk and consequences of delaying the fix.
 
 Recommend an option only after comparing these against the agreed criteria.
 
