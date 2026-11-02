@@ -2927,7 +2927,7 @@ done
 # End contribution report admission controls.
 
 # PR #1237: an unrelated first-person pronoun does not own a construction.
-for builder in "I reviewed that my teammate built as" "my teammate's code built as" "we reviewed code crafted as"; do
+for builder in "I reviewed that my teammate built as" "my teammate's code built as" "we reviewed code crafted as" "the row from my.module built as" "the row (important!) built as"; do
     test_case "construction ownership requires the builder as subject: $builder"
     r="$(_report "$(_resp "src/pricing.ts:2 contains code $builder \`$FAKE\` today.
 VERDICT: REVISE")")"
@@ -2935,6 +2935,17 @@ VERDICT: REVISE")")"
         test_pass
     else
         test_fail "invented source quote bypassed verification: $r"
+    fi
+done
+
+for own_input in 'the current code. An input built as' 'the current code; an input built as' 'a row I constructed as' 'a row we built as'; do
+    test_case "new clauses and direct builders retain proposed input: $own_input"
+    r="$(_report "$(_resp "src/pricing.ts:2 contains $own_input \`$FAKE\` for this test.
+VERDICT: REVISE")")"
+    if jq -e '.quotes_unverifiable_proposed == 1 and .quotes_attributed == 0 and .fabricated == false' <<< "$r" >/dev/null; then
+        test_pass
+    else
+        test_fail "own input incorrectly treated as source: $r"
     fi
 done
 

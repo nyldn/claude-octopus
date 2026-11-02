@@ -3474,12 +3474,17 @@ SOURCE_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|is|defines?|de
 # own input ("x.ts:2 reads a row I constructed as `...`").
 OWN_INPUT = re.compile(r"(?:constructed|built|crafted) as", re.I)
 CONTENT_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|defines?|defined|declares?|declared)\b", re.I)
-FIRST_PERSON_SUBJECT = re.compile(r"\b(?:I|we)\s+(?:constructed|built|crafted)\s+as\b", re.I)
+FIRST_PERSON_SUBJECT = re.compile(r"\b(?:I|we)\s+$", re.I)
+CLAUSE_BOUNDARY = re.compile(r"[.!?;](?:\s|$)")
+def clause_start(text, end):
+    boundaries = list(CLAUSE_BOUNDARY.finditer(text, 0, end))
+    return boundaries[-1].end() if boundaries else 0
+
 def proposes(text):
     for match in PROPOSAL.finditer(text):
-        if OWN_INPUT.fullmatch(match.group(0)) and not re.search(r"[.!?;]", text):
-            verbs = list(CONTENT_VERB.finditer(text, 0, match.start()))
-            if verbs and not FIRST_PERSON_SUBJECT.search(text, verbs[-1].end(), match.end()):
+        if OWN_INPUT.fullmatch(match.group(0)):
+            verbs = list(CONTENT_VERB.finditer(text, clause_start(text, match.start()), match.start()))
+            if verbs and not FIRST_PERSON_SUBJECT.search(text, verbs[-1].end(), match.start()):
                 continue
         return True
     return False
@@ -3516,7 +3521,7 @@ def attribution(token, gap):
         return None
     # A source verb in this bounded clause still attributes the quote when
     # ordinary modifiers follow it. A new sentence or a proposal ends that claim.
-    source_clause = SOURCE_VERB.search(gap) and not re.search(r"[.!?;]", gap)
+    source_clause = SOURCE_VERB.search(gap, clause_start(gap, len(gap)))
     if proposes(gap) or (not source_clause and any(
             word.lower() not in GAP_WORDS for word in re.findall(r"[A-Za-z]+", gap))):
         return None
