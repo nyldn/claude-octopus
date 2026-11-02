@@ -10,17 +10,19 @@ disable-model-invocation: true
 > For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
 
 
-## Execution Contract (MANDATORY - CANNOT SKIP)
+# Two-Stage Review Pipeline
 
-This generated Codex skill preserves an enforced workflow contract from the source skill.
+## EXECUTION CONTRACT: MANDATORY
+
+Run the referenced workflow commands and verify their output before reporting
+completion.
 
 **PROHIBITED:**
-- Do not summarize, simulate, or skip the referenced workflow command when this skill requires execution.
-- Do not claim provider output or validation artifacts exist without checking the actual files or command output.
-- Do not continue silently when a required provider, command, or host capability is unavailable; report the unavailable dependency and use a supported fallback.
+- Do not simulate or skip a command that this workflow requires.
+- Do not claim provider results or validation artifacts without checking them.
+- Do not continue silently when a required provider or host capability is
+  unavailable. Report the missing dependency and use a supported fallback.
 
-
-# Two-Stage Review Pipeline
 
 Separates **spec compliance** (did you build the right thing?) from **code quality**
 (did you build it right?). Stage 1 must pass before Stage 2 runs.

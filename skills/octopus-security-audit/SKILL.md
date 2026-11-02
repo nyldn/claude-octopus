@@ -24,6 +24,18 @@ paths:
 
 # Security Audit Skill
 
+## EXECUTION CONTRACT: MANDATORY
+
+Run the referenced workflow commands and verify their output before reporting
+completion.
+
+**PROHIBITED:**
+- Do not simulate or skip a command that this workflow requires.
+- Do not claim provider results or validation artifacts without checking them.
+- Do not continue silently when a required provider or host capability is
+  unavailable. Report the missing dependency and use a supported fallback.
+
+
 **Your first output line MUST be:** `🐙 **CLAUDE OCTOPUS ACTIVATED** - Security Audit`
 
 Invokes the security-auditor persona for thorough security analysis during the `ink` (deliver) phase. Supports both quick OWASP scanning and full adversarial red/blue team testing.
