@@ -3474,12 +3474,12 @@ SOURCE_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|is|defines?|de
 # own input ("x.ts:2 reads a row I constructed as `...`").
 OWN_INPUT = re.compile(r"(?:constructed|built|crafted) as", re.I)
 CONTENT_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|defines?|defined|declares?|declared)\b", re.I)
-FIRST_PERSON = re.compile(r"\b(?:I|[Ww]e|[Mm]y|[Oo]ur|[Mm]e|[Uu]s)\b")
+FIRST_PERSON_SUBJECT = re.compile(r"\b(?:I|we)\s+(?:constructed|built|crafted)\s+as\b", re.I)
 def proposes(text):
     for match in PROPOSAL.finditer(text):
         if OWN_INPUT.fullmatch(match.group(0)) and not re.search(r"[.!?;]", text):
             verbs = list(CONTENT_VERB.finditer(text, 0, match.start()))
-            if verbs and not FIRST_PERSON.search(text, verbs[-1].end(), match.start()):
+            if verbs and not FIRST_PERSON_SUBJECT.search(text, verbs[-1].end(), match.end()):
                 continue
         return True
     return False
@@ -3628,6 +3628,16 @@ for start, end, kind, block, removed_block, info in units:
         result["quotes_attributed"] += 1
     diff_side_hit = None
     diff_partial = False
+    if verified and partial and not removed_block:
+        # A complete diff match clears partial reporting while the source-file
+        # match retains its verification count and attribution.
+        if diff_sides is None:
+            diff_sides = load_diff_sides()
+        for side in diff_sides:
+            side_misses = []
+            if in_diff_side(wholes, line_variants, side, side_misses, short) and not any(side_misses):
+                partial = False
+                break
     if not verified or removed_block:
         if diff_sides is None:
             diff_sides = load_diff_sides()

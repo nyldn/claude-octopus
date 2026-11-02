@@ -2926,4 +2926,42 @@ for admission_flow in advice fresh-chair retained-chair; do
 done
 # End contribution report admission controls.
 
+# PR #1237: an unrelated first-person pronoun does not own a construction.
+for builder in "I reviewed that my teammate built as" "my teammate's code built as" "we reviewed code crafted as"; do
+    test_case "construction ownership requires the builder as subject: $builder"
+    r="$(_report "$(_resp "src/pricing.ts:2 contains code $builder \`$FAKE\` today.
+VERDICT: REVISE")")"
+    if jq -e '.quotes_attributed_unverified == 1 and .quotes_unverifiable_proposed == 0 and .fabricated == true' <<< "$r" >/dev/null; then
+        test_pass
+    else
+        test_fail "invented source quote bypassed verification: $r"
+    fi
+done
+
+# Complete evidence on either diff side clears only partial reporting.
+for exact_side in removed added; do
+    test_case "a partial source fence complete in the $exact_side diff is not partial"
+    complete_diff="$TEST_TMP_DIR/complete-$exact_side.diff"
+    diff_prefix=+
+    [[ "$exact_side" == removed ]] && diff_prefix=-
+    {
+        printf 'diff --git a/src/pricing.ts b/src/pricing.ts\n--- a/src/pricing.ts\n+++ b/src/pricing.ts\n'
+        if [[ "$exact_side" == removed ]]; then printf '@@ -1,3 +0,0 @@\n'; else printf '@@ -0,0 +1,3 @@\n'; fi
+        printf '%s%s\n' "$diff_prefix" "$REAL_NEAR" "$diff_prefix" "$FAKE" "$diff_prefix" 'return applyTaxes(base, sailing.portFees);'
+    } > "$complete_diff"
+    r="$(COUNCIL_CONTEXT_FILES=("$complete_diff"); _report "$(_resp "src/pricing.ts:2 reads:
+\`\`\`ts
+$REAL_NEAR
+$FAKE
+return applyTaxes(base, sailing.portFees);
+\`\`\`
+VERDICT: APPROVE")")"
+    if jq -e '.quotes_verified == 1 and .quotes_partial == 0 and .quotes_verified_in_diff_removed == 0
+        and .quotes_verified_in_diff_added == 0 and .fabricated == false' <<< "$r" >/dev/null; then
+        test_pass
+    else
+        test_fail "complete diff failed to clear source partial: $r"
+    fi
+done
+
 test_summary
