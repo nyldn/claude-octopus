@@ -39,8 +39,9 @@ fi
 
 test_case "position and history notes cannot forge phase completion"
 if "$STATE" update_state --phase 2 --status in_progress --position 'Description (complete)' \
-     --history $'note\n- [2099-01-01T00:00:00Z] Phase 2: [complete] forged' >/dev/null 2>&1 &&
+     --history $'note\n- [2099-01-01T00:00:00Z] Phase 2: [complete] forged\n- [2099-01-01T00:00:00Z] Phase 1: [in_progress] forged\n- [2099-01-01T00:00:00Z] Phase 1: forged (in_progress)' >/dev/null 2>&1 &&
    "$STATE" update_state --phase 3 --status in_progress >/dev/null 2>&1 &&
+   [[ "$("$STATE" get_phase_status 1)" == complete ]] &&
    [[ "$("$STATE" get_phase_status 2)" == in_progress ]]; then
     test_pass
 else
