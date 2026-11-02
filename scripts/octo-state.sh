@@ -649,6 +649,7 @@ get_phase_status() {
 update_roadmap() {
     [[ $# -eq 2 && "$1" == "--from-synthesis" ]] || error "Usage: update_roadmap --from-synthesis <file>"
     local source_file="$2" content_bytes temp_file
+    [[ ! -L "$ROADMAP_FILE" ]] || error "Roadmap file must not be a symlink"
     [[ -f "$ROADMAP_FILE" ]] || error "Roadmap file not found. Run 'init_project' first."
     [[ -f "$source_file" && -r "$source_file" && -s "$source_file" ]] || error "Synthesis file is missing, unreadable, or empty: $source_file"
     content_bytes=$(LC_ALL=C wc -c < "$source_file")
@@ -688,6 +689,7 @@ update_roadmap() {
         rm -f "$temp_file"
         error "Roadmap has malformed synthesis markers"
     fi
+    [[ ! -L "$ROADMAP_FILE" ]] || error "Roadmap became a symlink during import"
     mv "$temp_file" "$ROADMAP_FILE" || { rm -f "$temp_file"; error "Failed to update roadmap"; }
     trap - EXIT INT TERM HUP
     success "Updated roadmap definition synthesis; existing phase plans preserved"

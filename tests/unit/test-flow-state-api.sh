@@ -107,6 +107,20 @@ rc=0
 "$STATE" update_roadmap --from-synthesis "$TEST_TMP_DIR/missing.md" >/dev/null 2>&1 || rc=$?
 if [[ "$rc" -ne 0 ]] && cmp -s .octo/ROADMAP.md "$TEST_TMP_DIR/roadmap-before"; then test_pass; else test_fail "failed roadmap import changed the plan"; fi
 
+test_case "roadmap import rejects a file symlink without changing the link or its target"
+if (
+    mkdir -p "$TEST_TMP_DIR/symlink-project"
+    cd "$TEST_TMP_DIR/symlink-project"
+    "$STATE" init_project >/dev/null
+    mv .octo/ROADMAP.md "$TEST_TMP_DIR/roadmap-target.md"
+    cp "$TEST_TMP_DIR/roadmap-target.md" "$TEST_TMP_DIR/roadmap-target-before.md"
+    ln -s "$TEST_TMP_DIR/roadmap-target.md" .octo/ROADMAP.md
+    rc=0
+    "$STATE" update_roadmap --from-synthesis "$TEST_TMP_DIR/synthesis.md" >/dev/null 2>&1 || rc=$?
+    [[ "$rc" -ne 0 && -L .octo/ROADMAP.md ]] &&
+        cmp -s "$TEST_TMP_DIR/roadmap-target.md" "$TEST_TMP_DIR/roadmap-target-before.md"
+); then test_pass; else test_fail "roadmap import replaced a symlink or changed its target"; fi
+
 test_case "initialization preserves issues and lessons when STATE.md is absent"
 printf 'Keep existing issues.\n' > .octo/ISSUES.md
 printf 'Keep existing lessons.\n' > .octo/LESSONS.md
