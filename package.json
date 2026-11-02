@@ -28,6 +28,7 @@
     "bin/",
     "hooks/",
     "skills/",
+    "codex-skills/",
     "docs/",
     "config/workflows/",
     "config/templates/",

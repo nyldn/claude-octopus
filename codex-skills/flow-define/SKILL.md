@@ -1,0 +1,738 @@
+---
+name: flow-define
+description: "Multi-AI requirements scoping using available external providers (Double Diamond Define phase). Priority triggers: octo define, octo scope, co-define, co-scope. DO NOT use for implementation, research, review/validation, or built-in commands."
+disable-model-invocation: true
+---
+
+> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
+> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
+> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
+> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
+
+
+{{PREAMBLE}}
+
+Load `skills/blocks/engineering-method-selection.md` from the installed plugin
+and apply only the methods relevant to this task. Preserve this entry point's
+execution contract and output format. Read referenced skills as instructions;
+do not invoke the current command recursively or add provider calls from a seat.
+
+## Shared definitions
+
+Load the project's existing glossary and decisions when they apply. If none
+exists, use `skills/blocks/domain-modeling.md` and add a short definitions section
+to the current design artifact. Do not create a parallel context or memory file.
+Keep installation, authentication, entitlement, readiness, billing, quota, seat,
+contribution, and vote distinct.
+
+## Pre-Definition: State Check
+
+Before starting definition:
+1. Read `.octo/STATE.md` to verify Discover phase complete
+2. Update STATE.md:
+   - current_phase: 2
+   - phase_position: "Definition"
+   - status: "in_progress"
+
+```bash
+# Verify Discover phase is complete
+if [[ -f ".octo/STATE.md" ]]; then
+  discover_status=$("${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" get_phase_status 1)
+  if [[ "$discover_status" != "complete" ]]; then
+    echo "⚠️ Warning: Discover phase not marked complete. Consider running discovery first."
+  fi
+fi
+
+# Update state for Definition phase
+"${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_state \
+  --phase 2 \
+  --position "Definition" \
+  --status "in_progress"
+```
+
+
+## Execution Contract
+
+This skill uses **ENFORCED execution mode**. You MUST follow this exact sequence.
+
+### STEP 1: Display Visual Indicators
+
+**MANDATORY: You MUST use the native shell command tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
+
+```bash
+provider_check_output=$(bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh")
+provider_status_lines=$(printf '%s\n' "$provider_check_output" | awk '
+  /^PROVIDER_CHECK_START$/ { capture=1; next }
+  /^PROVIDER_CHECK_END$/ { capture=0 }
+  capture && /^[a-z0-9-]+:(available|missing|degraded)$/ { print }
+')
+
+if [[ -z "$provider_status_lines" ]]; then
+  echo "Provider availability check returned no usable status lines."
+  exit 1
+fi
+
+# Exclude providers intentionally disabled by environment, session, or global
+# allowlist policy; show every allowed provider, including missing/degraded.
+source "${HOME}/.claude-octopus/plugin/scripts/lib/provider-allowlist.sh"
+provider_availability=""
+available_provider_count=0
+while IFS=: read -r provider status; do
+  octo_provider_allowed "$provider" || continue
+  case "$status" in
+    available)
+      provider_availability="${provider_availability}🟢 ${provider}: Available ✓"$'\n'
+      available_provider_count=$((available_provider_count + 1))
+      ;;
+    degraded)
+      provider_availability="${provider_availability}🟠 ${provider}: Degraded ⚠"$'\n'
+      ;;
+    missing)
+      provider_availability="${provider_availability}🔴 ${provider}: Missing/unavailable ✗"$'\n'
+      ;;
+  esac
+done <<< "$provider_status_lines"
+
+if [[ "$available_provider_count" -eq 0 ]]; then
+  printf '%s' "$provider_availability"
+  echo "No external provider is available. Run /octo:setup and retry."
+  exit 1
+fi
+
+# Task status for the banner's Tasks line, if the session has one.
+task_status=$("${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" get-task-status 2>/dev/null || echo "")
+```
+
+List every provider the check reports, not only Claude. A banner showing one seat when several ran misrepresents what the user is paying for.
+
+If `OCTO_ALLOWED_PROVIDERS` is set, treat it as the source of truth for which providers may participate. Providers filtered out by that allowlist are intentionally reported as unavailable; do not invoke or recommend them in the workflow.
+
+
+**Display this banner BEFORE orchestrate.sh execution:**
+
+```
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider definition mode
+🎯 Define Phase: [Brief description of what you're defining/scoping]
+📋 Session: ${CLAUDE_SESSION_ID}
+📝 Tasks: ${task_status}
+
+Provider Availability:
+${provider_availability}
+🔵 Claude: Available ✓ - Consensus building and synthesis
+
+💰 Estimated Cost: 0.01-0.05 USD
+⏱️  Estimated Time: 2-5 minutes
+```
+
+**DO NOT PROCEED TO STEP 2 until banner displayed.** The banner shows users which providers will run and what costs they'll incur — starting API calls without this visibility violates cost transparency.
+
+
+### STEP 2: Read Prior State
+
+**Before executing the workflow, read any prior context:**
+
+```bash
+# Initialize state if needed
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" init_state
+
+# Set current workflow
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" set_current_workflow "flow-define" "define"
+
+# Get prior decisions (if any)
+prior_decisions=$("${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" get_decisions "all")
+
+# Get context from discover phase
+discover_context=$("${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" get_context "discover")
+
+# Display what you found (if any)
+if [[ "$discover_context" != "null" ]]; then
+  echo "📋 Building on discovery findings:"
+  echo "  $discover_context"
+fi
+
+if [[ "$prior_decisions" != "[]" && "$prior_decisions" != "null" ]]; then
+  echo "📋 Respecting prior decisions:"
+  echo "$prior_decisions" | jq -r '.[] | "  - \(.decision) (\(.phase)): \(.rationale)"'
+fi
+```
+
+**This provides context from:**
+- Discovery phase research (if completed)
+- Prior architectural decisions
+- User vision captured earlier
+- If **claude-mem** is installed, its MCP tools (`search`, `timeline`, `get_observations`) are available — use them to find past decisions on similar topics
+
+**DO NOT PROCEED TO STEP 3 until state read.**
+
+
+### STEP 3: Phase Discussion — Capture User Vision
+
+**Before executing expensive multi-AI orchestration, capture the user's vision to scope the work effectively.**
+
+**Ask clarifying questions using AskUserQuestion:**
+
+```
+Use AskUserQuestion tool to ask:
+
+1. **User Experience**
+   Question: "How should users interact with this feature?"
+   Header: "User Flow"
+   Options:
+   - label: "API-first (programmatic access)"
+     description: "Build API endpoints first, UI later"
+   - label: "UI-first (user-facing interface)"
+     description: "Build user interface first, API supports it"
+   - label: "Both simultaneously"
+     description: "Develop API and UI in parallel"
+   - label: "Not applicable"
+     description: "This feature doesn't have a user interaction"
+
+2. **Implementation Approach**
+   Question: "What technical approach do you prefer?"
+   Header: "Approach"
+   Options:
+   - label: "Fastest to market"
+     description: "Prioritize speed, use existing libraries"
+   - label: "Most maintainable"
+     description: "Focus on clean architecture, may take longer"
+   - label: "Best performance"
+     description: "Optimize for speed and efficiency"
+   - label: "Multi-LLM debate (Claude + available providers)"
+     description: "Multiple AI models debate the best approach — may use external provider credits or subscriptions"
+
+3. **Scope Boundaries**
+   Question: "What's explicitly OUT of scope for this phase?"
+   Header: "Out of Scope"
+   Options:
+   - label: "Testing and QA"
+     description: "Focus on implementation, test later"
+   - label: "Performance optimization"
+     description: "Get it working first, optimize later"
+   - label: "Edge cases"
+     description: "Handle happy path only initially"
+   - label: "Nothing excluded"
+     description: "Everything is in scope"
+   multiSelect: true
+```
+
+**If user selected "Multi-LLM debate (Claude + available providers)" for approach:**
+Before proceeding with orchestrate.sh, run a Multi-LLM debate to determine the technical approach:
+```
+/octo:debate --rounds 2 --debate-style collaborative "What is the best technical approach for [feature]? Consider: speed to market, maintainability, performance, and the existing codebase patterns."
+```
+Use the debate synthesis to set the approach context for the Define phase.
+
+**After gathering answers, create context file:**
+
+```bash
+# Source context manager
+source "${HOME}/.claude-octopus/plugin/scripts/context-manager.sh"
+
+# Extract user answers from AskUserQuestion results
+user_flow="[Answer from question 1]"
+approach="[Answer from question 2]"
+out_of_scope="[Answer from question 3]"
+
+# Create context file with user vision
+create_templated_context \
+  "define" \
+  "$(echo "$USER_REQUEST" | head -c 50)..." \
+  "User wants: $user_flow approach with $approach priority" \
+  "$approach" \
+  "Implementation of requested feature" \
+  "$out_of_scope"
+
+echo "📋 Context captured and saved to .claude-octopus/context/define-context.md"
+```
+
+**This context will be used to:**
+- Scope the multi-AI research (discover phase)
+- Focus the requirements definition (define phase)
+- Guide implementation decisions (develop phase)
+- Validate against user expectations (deliver phase)
+
+**DO NOT PROCEED TO STEP 4 until context captured.** User vision (UX approach, priorities, out-of-scope items) scopes the multi-AI research — without it, providers research too broadly and the definition misses the user's actual intent.
+
+
+### STEP 4: Execute orchestrate.sh define
+
+**You MUST execute this command via the native shell command tool:**
+
+```bash
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh define "<user's clarification request>"
+```
+
+**CRITICAL: You are PROHIBITED from:**
+- ❌ Defining requirements directly without calling orchestrate.sh — single-model analysis misses the technical, business, and external-model perspective split that provider fanout supplies, producing requirements with blind spots
+- ❌ Using direct analysis instead of orchestrate.sh
+- ❌ Claiming you're "simulating" the workflow
+- ❌ Proceeding to Step 5 without running this command
+
+**You MUST use the native shell command tool to invoke orchestrate.sh.**
+
+#### What Users See During Execution (v7.16.0+)
+
+If running in Claude Code v2.1.16+, users will see **real-time progress indicators** in the task spinner:
+
+**Phase 1 - External Provider Execution (Parallel):**
+- 🔴 Analyzing technical requirements (Codex)...
+- 🟡 Clarifying user needs and context (Antigravity)...
+
+**Phase 2 - Synthesis (Sequential):**
+- 🔵 Building consensus on problem definition...
+
+These spinner verb updates happen automatically - orchestrate.sh calls `update_task_progress()` before each agent execution. Users see exactly which provider is working and what it's doing.
+
+**If NOT running in Claude Code v2.1.16+:** Progress indicators are silently skipped, no errors shown.
+
+
+### STEP 5: Verify Execution
+
+**After orchestrate.sh completes, verify it succeeded:**
+
+```bash
+# Find the latest synthesis file (created within last 10 minutes)
+SYNTHESIS_FILE=$(find ~/.claude-octopus/results -name "grasp-synthesis-*.md" -mmin -10 2>/dev/null | head -n1)
+
+if [[ -z "$SYNTHESIS_FILE" ]]; then
+  echo "❌ VALIDATION FAILED: No synthesis file found"
+  echo "orchestrate.sh did not execute properly"
+  exit 1
+fi
+
+echo "✅ VALIDATION PASSED: $SYNTHESIS_FILE"
+cat "$SYNTHESIS_FILE"
+```
+
+**If validation fails:**
+1. Report error to user
+2. Show logs from `~/.claude-octopus/logs/`
+3. DO NOT proceed with presenting results
+4. DO NOT substitute with direct analysis — fallback to single-model analysis defeats the purpose of multi-provider consensus and produces narrower requirements
+
+
+### STEP 6: Update State
+
+**After synthesis is verified, record findings and decisions in state:**
+
+```bash
+# Extract key definition from synthesis
+key_definition=$(head -50 "$SYNTHESIS_FILE" | grep -A 3 "## Problem Definition\|## Summary" | tail -3 | tr '\n' ' ')
+
+# Record any architectural decisions made
+# (You should identify these from the synthesis - e.g., tech stack, approach, patterns)
+decision_made=$(echo "$key_definition" | grep -o "decided to\|chose to\|selected\|using [A-Za-z0-9 ]*" | head -1)
+
+if [[ -n "$decision_made" ]]; then
+  "${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" write_decision \
+    "define" \
+    "$decision_made" \
+    "Consensus from multi-AI definition phase"
+fi
+
+# Update define phase context
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" update_context \
+  "define" \
+  "$key_definition"
+
+# Update metrics
+"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" update_metrics "phases_completed" "1"
+```
+
+**DO NOT PROCEED TO STEP 7 until state updated.**
+
+
+### STEP 7: Present Problem Definition (Only After Steps 1-6 Complete)
+
+Read the synthesis file and present:
+- Core requirements (must have, should have, nice to have)
+- Technical constraints
+- User needs
+- Edge cases to handle
+- Out of scope items
+- Perspectives from all providers
+- Requirements checklist
+- Next steps (usually tangle phase for implementation)
+
+**Include attribution:**
+```
+*Multi-AI Problem Definition powered by Claude Octopus*
+*Providers: available external providers + 🔵 Claude*
+*Full problem definition: $SYNTHESIS_FILE*
+```
+
+
+# Define Workflow - Define Phase 🎯
+
+<!-- Banner requirement lives in Execution Contract STEP 1 above. -->
+
+## What This Workflow Does
+
+The **define** phase clarifies and scopes problems using external CLI providers:
+
+1. **🔴 Codex CLI** - Technical requirements analysis, edge cases, constraints
+2. **🟡 Antigravity CLI** - User needs, business requirements, context understanding
+3. **🧭 Antigravity CLI** - Additional external-model challenge
+4. **🔵 Claude (You)** - Problem synthesis and requirement definition
+
+This is the **convergent** phase after discovery - we narrow down from broad research to specific problem definition.
+
+
+## When to Use Define
+
+Use define when you need:
+- **Requirement Definition**: "Define exactly what the auth system needs to do"
+- **Problem Clarification**: "Clarify the caching requirements"
+- **Scope Definition**: "What's the scope of the notification feature?"
+- **Constraint Identification**: "What are the technical constraints for X?"
+- **Edge Case Analysis**: "What edge cases do we need to handle for Y?"
+- **Requirement Validation**: "Are these requirements complete for Z?"
+
+**Don't use define for:**
+- Research and exploration (use probe-workflow)
+- Building implementations (use tangle-workflow)
+- Code review and validation (use ink-workflow)
+- Simple questions Claude can answer
+
+
+## Visual Indicators
+
+Before execution, you'll see a banner in this shape. The provider rows below are illustrative; replace them with every live status from Step 1 and omit only providers excluded by the active allowlist:
+
+```text
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider problem definition
+🎯 Define Phase: Clarifying requirements and scope
+📋 Session: ${CLAUDE_SESSION_ID}
+📝 Tasks: ${task_status}
+
+Provider Availability:
+🟢 codex: Available ✓
+🧭 agy: Degraded ⚠
+🔴 agy: Missing/unavailable ✗
+🔵 Claude: Available ✓ - Consensus building and synthesis
+```
+
+
+## How It Works
+
+### Stage A: Invoke Grasp Phase
+
+```bash
+${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh define "<user's clarification request>"
+```
+
+### Stage B: Multi-Provider Problem Definition
+
+The orchestrate.sh script will:
+1. Call **Codex CLI** for technical requirement analysis
+2. Call **Antigravity CLI** for business/user need analysis
+3. Call **Antigravity CLI** for additional external-model challenge
+4. You (Claude) synthesize into clear problem definition
+5. Identify gaps and missing requirements
+
+### Stage C: Read Results
+
+Results are saved to:
+
+```text
+~/.claude-octopus/results/${SESSION_ID}/grasp-synthesis-<timestamp>.md
+```
+
+### Stage D: Present Problem Definition
+
+Read the synthesis and present clear, actionable requirements to the user.
+
+
+## Implementation Instructions
+
+When this skill is invoked, follow the EXECUTION CONTRACT above exactly. The contract includes:
+
+1. **Blocking Step 1**: Check providers and display live visual indicators
+2. **Blocking Step 2**: Read prior workflow state
+3. **Blocking Step 3**: Capture and persist the user's vision
+4. **Blocking Step 4**: Execute orchestrate.sh define via native shell command tool
+5. **Blocking Step 5**: Verify the synthesis file exists
+6. **Blocking Step 6**: Update workflow state
+7. **Step 7**: Present the formatted problem definition
+
+Each step is **mandatory and blocking** - you cannot proceed to the next step until the current one completes successfully.
+
+### Task Management Integration
+
+Create tasks to track execution progress:
+
+```javascript
+// At start of skill execution
+TaskCreate({
+  subject: "Execute define workflow with multi-AI providers",
+  description: "Run orchestrate.sh define for problem clarification",
+  activeForm: "Running multi-AI define workflow"
+})
+
+// Mark in_progress when calling orchestrate.sh
+TaskUpdate({taskId: "...", status: "in_progress"})
+
+// Mark completed ONLY after synthesis file verified
+TaskUpdate({taskId: "...", status: "completed"})
+```
+
+### Error Handling
+
+If any step fails:
+- **Step 1 (Providers)**: If all external providers are unavailable, suggest `/octo:setup` and STOP
+- **Step 4 (orchestrate.sh)**: Show bash error, check logs, report to user
+- **Step 5 (Validation)**: If synthesis is missing, show orchestrate.sh logs and do not substitute direct analysis
+
+Never fall back to direct analysis if orchestrate.sh execution fails. Report the failure and let the user decide how to proceed.
+
+### Problem Definition Format
+
+After successful execution, present problem definition with:
+   ```
+   # Problem Definition: <task>
+
+   ## Core Requirements
+   [Essential requirements that must be met]
+
+   ## Technical Constraints
+   [Technical limitations and considerations]
+
+   ## User Needs
+   [What users actually need from this]
+
+   ## Edge Cases to Handle
+   [Specific edge cases identified]
+
+   ## Out of Scope
+   [What is explicitly NOT included]
+
+   ## Perspectives
+
+   ### Codex Analysis (Technical)
+   [Technical requirements and constraints]
+
+   ### Antigravity Analysis (Business/User)
+   [User needs and business context]
+
+   ### Claude Synthesis
+   [Integrated problem definition]
+
+   ## Requirements Checklist
+   - [ ] Functional requirements defined
+   - [ ] Non-functional requirements defined
+   - [ ] Technical constraints identified
+   - [ ] Edge cases documented
+   - [ ] Out-of-scope items clarified
+   - [ ] Success criteria established
+
+   ## Next Steps
+   [Recommended next actions - usually tangle phase for implementation]
+
+   Full problem definition saved to: <synthesis file path>
+   ```
+
+
+## Example Usage
+
+### Example 1: Define Auth Requirements
+
+```
+User: Define the exact requirements for our user authentication system
+
+Claude:
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider problem definition
+🎯 Define Phase: Clarifying authentication requirements
+
+[Executes: ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh define "Define exact requirements for user authentication system"]
+
+[After completion, reads synthesis and presents:]
+
+# Problem Definition: User Authentication System
+
+## Core Requirements
+
+### Must Have (P0)
+1. User registration with email + password
+2. Secure login with JWT token generation
+3. Password reset via email
+4. Session management with token refresh
+5. Logout (token invalidation)
+
+### Should Have (P1)
+6. Remember me functionality
+7. Account lockout after failed attempts
+8. Email verification on signup
+9. Password strength requirements
+
+### Nice to Have (P2)
+10. OAuth social login (Google, GitHub)
+11. Two-factor authentication
+12. Single sign-on (SSO)
+
+## Technical Constraints
+
+- Must work with existing Express.js backend
+- Token storage: Redis for production, in-memory for dev
+- Password hashing: bcrypt (min 12 rounds)
+- Token expiry: Access token 15min, refresh token 7 days
+- Rate limiting: Max 5 login attempts per 15min per IP
+
+## User Needs
+
+- Simple registration process (< 2 minutes)
+- Secure password recovery without support tickets
+- Stay logged in across browser sessions (remember me)
+- Clear error messages for failed login
+- Ability to log out from all devices
+
+## Edge Cases to Handle
+
+1. **Concurrent logins**: Same user, multiple devices
+2. **Expired tokens**: Graceful refresh without re-login
+3. **Password reset race condition**: Multiple reset requests
+4. **Account enumeration**: Don't reveal if email exists
+5. **Token theft**: Detect suspicious login locations
+6. **Deleted users**: Handle auth for soft-deleted accounts
+
+## Out of Scope
+
+- ❌ Biometric authentication (fingerprint, face ID)
+- ❌ LDAP/Active Directory integration
+- ❌ Custom OAuth provider implementation
+- ❌ Device fingerprinting
+- ❌ Passwordless email magic links
+
+## Perspectives
+
+### Codex Analysis (Technical)
+- JWT structure: { userId, role, exp, iat, jti }
+- Database schema for users, refresh_tokens, password_resets
+- API endpoints: POST /register, POST /login, POST /logout, POST /refresh, POST /reset-password
+- Middleware for auth verification
+- Security: HTTPS only, secure cookies, CSRF protection
+
+### Antigravity Analysis (Business/User)
+- User journey: Registration -> Email verification -> Login -> Access app
+- Error handling: Clear messages without security leaks
+- Performance: Auth checks < 50ms
+- Compliance: GDPR (data deletion), password policies
+- Analytics: Track signup conversion, failed login rates
+
+### Claude Synthesis
+- Hybrid approach: Core auth (P0) first, iterate on P1/P2
+- Security-first: All requirements validated against OWASP
+- User experience: Balance security with convenience
+- Scalable: Design for 100K users, plan for 1M+
+
+## Requirements Checklist
+- ✅ Functional requirements defined (registration, login, reset)
+- ✅ Non-functional requirements defined (performance, security)
+- ✅ Technical constraints identified (Express, Redis, bcrypt)
+- ✅ Edge cases documented (6 critical cases)
+- ✅ Out-of-scope items clarified (4 items)
+- ✅ Success criteria established (< 2min registration, < 50ms auth)
+
+## Next Steps
+
+1. **Immediate**: Review and confirm requirements with stakeholders
+2. **Then**: Use **tangle-workflow** to implement the auth system
+3. **Finally**: Use **ink-workflow** to validate implementation
+
+Ready to proceed to implementation?
+
+Full problem definition saved to: ~/.claude-octopus/results/abc-123/grasp-synthesis-20250118-144530.md
+```
+
+### Example 2: Clarify Feature Scope
+
+```
+User: What exactly does the notification feature need to do?
+
+Claude:
+🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider problem definition
+🎯 Define Phase: Clarifying notification requirements
+
+[Executes grasp workflow]
+
+[Presents detailed problem definition with:]
+- Core notification types (email, push, in-app)
+- Delivery requirements (real-time vs batched)
+- User preferences (opt-in/out, frequency)
+- Technical constraints (message queue, delivery tracking)
+- Edge cases (offline users, rate limits)
+
+Ready to build once requirements are confirmed.
+```
+
+
+## Integration with Other Workflows
+
+Grasp is the **second phase** of the Double Diamond:
+
+```
+PROBE (Discover) → GRASP (Define) → TANGLE (Develop) → INK (Deliver)
+```
+
+**Typical flow:**
+1. **Probe**: "Research authentication best practices" (discover options)
+2. **Grasp**: "Define exact requirements for our auth system" (narrow down)
+3. **Tangle**: "Implement the auth system" (build it)
+4. **Ink**: "Validate the auth implementation" (deliver it)
+
+Or use grasp standalone when requirements are unclear.
+
+
+## Quality Checklist
+
+Before completing grasp workflow, ensure:
+
+- [ ] Core requirements clearly defined (must have, should have, nice to have)
+- [ ] Technical constraints documented
+- [ ] User needs understood and articulated
+- [ ] Edge cases identified and documented
+- [ ] Out-of-scope items explicitly listed
+- [ ] Success criteria established
+- [ ] Next steps recommended to user
+- [ ] Full problem definition shared
+
+
+## Cost Awareness
+
+**External API Usage:**
+- 🔴 Codex CLI uses your OPENAI_API_KEY (costs apply)
+- 🟡 Antigravity CLI uses your AGY_AUTH_TOKEN (costs apply)
+- 🧭 Antigravity CLI uses your Antigravity account/model configuration (costs may apply)
+- 🔵 Claude analysis included with Claude Code
+
+Grasp workflows typically cost 0.01-0.05 USD per task depending on complexity.
+
+
+## Post-Definition: State Update
+
+After definition completes:
+1. Update `.octo/STATE.md` with completion
+2. Populate `.octo/ROADMAP.md` with defined phases and success criteria
+
+```bash
+# Update state after Definition completion
+"${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_state \
+  --status "complete" \
+  --history "Define phase completed"
+
+# Populate ROADMAP.md with defined requirements
+if [[ -f "$SYNTHESIS_FILE" ]]; then
+  echo "📝 Updating .octo/ROADMAP.md with defined phases..."
+  "${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_roadmap \
+    --from-synthesis "$SYNTHESIS_FILE"
+fi
+```
+
+
+## Terminal State
+
+The Define phase is complete ONLY when requirements are synthesized and the user has
+approved the scope. After approval, invoke `flow-develop` if implementation is requested.
+Otherwise, deliver the requirements document and stop. Do NOT begin
+implementation from here without an approved scope.
+
+**Ready to define!** This skill is used after explicit invocation when users request requirement clarification or problem definition.

@@ -1,0 +1,434 @@
+---
+name: skill-doctor
+description: "Environment diagnostics — check providers, auth, config, hooks, scheduler, and more"
+disable-model-invocation: true
+---
+
+> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
+> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
+> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
+> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
+
+
+# Environment Doctor
+
+## Overview
+
+Run environment diagnostics across 15 check categories. Doctor 2.0 identifies
+misconfigured providers, stale loaded or cached plugin versions, invalid plugin
+assembly, unwritable state, non-terminal run records, orphan process evidence,
+broken hooks, and other issues that prevent Claude Octopus from working
+correctly.
+
+**Core principle:** Detect problems before they surface in workflows.
+
+
+## When to Use
+
+**Use this skill when:**
+- Something isn't working and you're not sure why
+- After installing or updating the plugin
+- Before a demo or important workflow run
+- Checking if providers are properly authenticated
+- Verifying scheduler, hooks, or skills are correctly configured
+
+**Do NOT use for:**
+- First-time setup (use `/octo:setup` — it guides configuration)
+- Project workflow status (use `/octo:status`)
+- Debugging application code (use `/octo:debug`)
+
+
+## The Process
+
+### Step 1: Resolve Plugin Root and Run Full Diagnostics
+
+Use this resolver before running Octopus scripts. Prefer the active host root,
+then the stable root or the installed CLI. Do not create or replace a stable
+link while collecting diagnostics. Run this as a single Bash call.
+
+```bash
+OCTO_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-}}"
+if [[ -z "$OCTO_PLUGIN_ROOT" || ! -x "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" ]]; then
+  OCTO_PLUGIN_ROOT="${HOME}/.claude-octopus/plugin"
+fi
+if [[ ! -x "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" ]] && command -v octopus >/dev/null 2>&1; then
+  OCTO_BIN="$(command -v octopus)"
+  OCTO_LINK_HOPS=0
+  while [[ -L "$OCTO_BIN" ]]; do
+    OCTO_LINK_HOPS=$((OCTO_LINK_HOPS + 1))
+    if [[ "$OCTO_LINK_HOPS" -le 40 ]]; then
+      OCTO_BIN_DIR="$(cd -P "$(dirname "$OCTO_BIN")" 2>/dev/null && pwd -P)" || { OCTO_BIN=""; break; }
+      OCTO_LINK_TARGET="$(readlink "$OCTO_BIN")" || { OCTO_BIN=""; break; }
+      case "$OCTO_LINK_TARGET" in
+        /*) OCTO_BIN="$OCTO_LINK_TARGET" ;;
+        *) OCTO_BIN="$OCTO_BIN_DIR/$OCTO_LINK_TARGET" ;;
+      esac
+    else
+      OCTO_BIN=""
+      break
+    fi
+  done
+  if [[ -n "$OCTO_BIN" ]]; then
+    OCTO_BIN_DIR="$(cd -P "$(dirname "$OCTO_BIN")" 2>/dev/null && pwd -P)" || OCTO_BIN_DIR=""
+    [[ -z "$OCTO_BIN_DIR" ]] || OCTO_PLUGIN_ROOT="$(cd "$OCTO_BIN_DIR/.." 2>/dev/null && pwd -P)"
+  fi
+fi
+if [[ ! -x "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" ]]; then
+  OCTO_PLUGIN_ROOT="$(
+    find "${HOME}/.claude/plugins" -type f -path "*/scripts/orchestrate.sh" -print 2>/dev/null \
+      | sed 's#/scripts/orchestrate.sh$##' \
+      | { grep -E '(nyldn-plugins|claude-octopus|/octo(/[0-9]|$))' || true; } \
+      | sort \
+      | tail -1
+  )"
+fi
+if [[ -z "$OCTO_PLUGIN_ROOT" || ! -x "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" ]]; then
+  echo "Claude Octopus plugin root not found. Reinstall the octo plugin, then retry doctor diagnostics."
+  exit 1
+fi
+export OCTO_PLUGIN_ROOT
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor --verbose
+```
+
+This runs all 15 check categories and displays a formatted report. The
+installation category reports a missing or mismatched stable root; it does not
+repair it.
+
+### Step 2: Filter by Category (Optional)
+
+If the user asks about a specific area, reuse the resolver from Step 1 and
+replace its final `doctor --verbose` invocation with one of these lines. These
+are replacement lines, not standalone shell calls; `OCTO_PLUGIN_ROOT` must be
+resolved in the same Bash call.
+
+```bash
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor providers
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor providers --live
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor companions
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor auth
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor config
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor updates
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor state
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor smoke
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor hooks
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor scheduler
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor skills
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor conflicts
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor agents
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor recurrence
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor cache
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor installation
+```
+
+### Step 3: Check & Install Dependencies
+
+Reuse the Step 1 resolver and replace its final invocation with the dependency
+checker to find missing CLIs, statusline config, and recommended plugins:
+
+```bash
+bash "$OCTO_PLUGIN_ROOT/scripts/install-deps.sh" check
+```
+
+If the check reports missing deps, offer to install them:
+
+```bash
+bash "$OCTO_PLUGIN_ROOT/scripts/install-deps.sh" install
+```
+
+This auto-installs Codex CLI, jq, and the statusline resolver. Antigravity CLI (`agy`) setup is detected and reported with install guidance. For plugins (claude-mem, document-skills), it prints `/plugin install` commands the user must run manually.
+
+### Step 4: Verbose or JSON Output
+
+As above, run these as the final line of the Step 1 resolver call:
+
+```bash
+# Detailed output for troubleshooting
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor --verbose
+
+# Machine-readable output
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor --json
+
+# Combine: specific category + verbose
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor auth --verbose
+```
+
+Doctor 2.0 JSON always uses this outer contract:
+
+```json
+{
+  "schema_version": "10.0",
+  "summary": {"passed": 0, "warnings": 0, "failures": 0, "exit_code": 0},
+  "results": []
+}
+```
+
+A check with status `fail` makes both `summary.exit_code` and the process exit
+code `1`, while stdout remains valid JSON. Warnings remain structured but do not
+make the command fail. Unknown flags, unknown categories, and multiple category
+arguments are usage errors with exit code `2`; do not retry them as full scans.
+
+The `providers --live` variant is an explicit, bounded AGY capability check. It
+uses one small real request to verify the CLI version, live model catalog and
+keyring authentication, configured model, and print-mode dispatch. Do not run
+it from startup hooks or routine preflight. If its catalog/auth stage fails,
+tell the user to launch plain `agy` and complete the browser sign-in; AGY has no
+separate login shell subcommand. On macOS keyring errors, direct them to Keychain
+Access, the Antigravity CLI item, and its Access Control settings.
+
+### Step 5: Interactive Remediation (MANDATORY for fixable issues)
+
+After running diagnostics, if ANY fixable issues are found, you MUST use
+AskUserQuestion to offer fixes. Do not just print instructions. Offer to
+execute them.
+
+Stable-root repair is bounded and requires explicit authorization. First show
+the proposed change with:
+
+```bash
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" repair --dry-run
+```
+
+Only after the user authorizes that exact repair may you run:
+
+```bash
+bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" repair --apply
+```
+
+Never recreate the stable link in the resolver or as an automatic doctor
+follow-up. Cache cleanup, stale PID cleanup, login flows, package installation,
+and plugin updates also require explicit confirmation.
+
+Before each accepted repair, restate the exact target and action. Configuration
+repairs must use a validated sibling temporary file and atomic rename; if any
+step fails, keep the original and report the failure. Cache cleanup, stale PID
+cleanup, login flows, package installation, and plugin updates always require
+explicit confirmation. After repair, rerun only the affected category first,
+then offer a full scan.
+
+**RTK not installed:**
+
+```javascript
+AskUserQuestion({
+  questions: [{
+    question: "RTK saves 60-90% on bash output tokens. Install it now?",
+    header: "Install RTK",
+    multiSelect: false,
+    options: [
+      {label: "Install via brew (Recommended)", description: "brew install rtk — fast, macOS"},
+      {label: "Install via cargo", description: "cargo install rtk-token-killer"},
+      {label: "Skip", description: "Continue without RTK"}
+    ]
+  }]
+})
+```
+
+If user chooses install, run it, then offer hook setup.
+
+**RTK installed but hook not configured on macOS/Linux:**
+
+On Windows Git Bash, do not offer `rtk init -g`. RTK uses CLAUDE.md injection
+mode there, so report the hook check as skipped.
+
+```javascript
+AskUserQuestion({
+  questions: [{
+    question: "RTK is installed but the Claude Code hook isn't active. Configure it?",
+    header: "RTK Hook",
+    multiSelect: false,
+    options: [
+      {label: "Run rtk init -g (Recommended)", description: "Auto-installs Claude Code bash hook on macOS/Linux"},
+      {label: "Skip", description: "I'll configure it later"}
+    ]
+  }]
+})
+```
+
+**Missing optional providers:**
+
+```javascript
+AskUserQuestion({
+  questions: [{
+    question: "Some providers are missing. Install them?",
+    header: "Providers",
+    multiSelect: true,
+    options: [
+      {label: "Codex CLI", description: "npm install -g @openai/codex"},
+      {label: "Antigravity CLI", description: "Install agy, then verify with agy --version && agy models"},
+      {label: "Skip all", description: "Continue with available providers"}
+    ]
+  }]
+})
+```
+
+**Auth expired:**
+Offer to run the login command for the expired provider.
+
+**Multiple fixable issues:** Batch them into a single AskUserQuestion with multiSelect where appropriate, rather than asking one at a time.
+
+
+## Check Categories
+
+| Category | What it checks |
+|----------|---------------|
+| `providers` | Claude Code version, Codex CLI installed, Antigravity CLI installed, Perplexity API key, Ollama local LLM (server + models), circuit breaker status, provider fallback history |
+| `companions` | Optional companion tools and integrations |
+| `auth` | Authentication status for each provider |
+| `config` | Plugin version, install scope, feature flags, strict `claude plugin validate` result |
+| `updates` | Loaded, installed, catalog, and cache versions; Claude marketplace auto-update; reload requirement |
+| `state` | Project state.json, workspace and probe-cache writability, stale results, non-terminal runs, orphan and stale PID evidence |
+| `smoke` | Smoke test cache, model configuration |
+| `hooks` | hooks.json validity, hook scripts |
+| `scheduler` | Scheduler daemon, jobs, budget gates, kill switches |
+| `skills` | Skill files loaded and valid |
+| `conflicts` | Conflicting plugins detection |
+| `agents` | Agent definitions, worktree isolation, CLI registration, version compatibility |
+| `recurrence` | Failure pattern detection — flags repeated quality gate failures, source hotspots, 48h trends |
+| `cache` | Cache size, freshness, and hygiene |
+| `installation` | Loaded plugin root, stable root, host-scoped install metadata, and context profile |
+
+Software dependency installation is checked separately by
+`scripts/install-deps.sh check` in Step 3, including Node.js, jq, provider CLIs,
+RTK token compression, the statusline resolver, and recommended plugins.
+
+
+## Interpreting Results
+
+### Healthy Output
+
+All checks pass — no action needed.
+
+### Common Issues and Fixes
+
+| Issue | Fix |
+|-------|-----|
+| Codex CLI not found | `npm install -g @openai/codex` or install via `codex login` |
+| Antigravity CLI not found | Install `agy`, then verify with `agy --version` and `agy models` |
+| Perplexity not configured | `export PERPLEXITY_API_KEY="pplx-..."` (optional) |
+| Auth expired | Re-run `codex login`; for AGY, launch plain `agy` and complete its browser sign-in |
+| Circuit breaker OPEN | Provider had 3+ consecutive transient failures — wait for cooldown or check provider status |
+| Stale state | Delete `.octo/state.json` and re-initialize |
+| Invalid hooks.json | Check `hooks.json` syntax — must be valid JSON |
+| RTK not installed | Offer to install: `brew install rtk && rtk init -g` (saves 60-90% tokens). Use AskUserQuestion to offer brew vs cargo install. |
+| RTK installed but hook not configured | On macOS/Linux, offer `rtk init -g`; on Windows Git Bash, report skipped because RTK uses CLAUDE.md injection mode |
+| RTK gain stats unavailable | Run some bash commands first, then check `rtk gain` to see token savings |
+| Conflicting plugins | Uninstall conflicting plugins or adjust scope |
+
+
+## Integration with Other Skills
+
+| Scenario | Route |
+|----------|-------|
+| Doctor finds missing provider | Suggest `/octo:setup` to configure |
+| Doctor finds stale project state | Suggest `/octo:status` to review |
+| Doctor finds hook errors | Guide user to fix hooks.json |
+| All checks pass, user still has issues | Suggest `/octo:debug` for deeper investigation |
+
+
+## Context and intensity profiles
+
+The installation report exposes two optional context settings:
+
+- `OCTOPUS_CONTEXT_PROFILE` selects `core`, `orchestration`, or `full` context
+  behavior. The `octopus profile` command reads and writes this setting.
+- `OCTOPUS_HOOK_PROFILE` can override the optional context-hook profile with
+  `core`, `orchestration`, or `full`.
+
+These settings control optional context work only. They never disable safety or
+lifecycle hooks. A missing or invalid hook-profile registry fails closed.
+
+`OCTO_PROFILE` is a separate legacy intensity setting with `budget`,
+`balanced`, and `quality` values. It is not an alias for either context
+setting, and it must not be used to claim that safety hooks are disabled.
+
+
+## Legacy intensity profile
+
+Some older workflow paths use `OCTO_PROFILE` as an intensity setting for model
+selection, phase skipping, and context verbosity. This setting is separate
+from the optional context-hook profiles above.
+
+### What the Doctor Checks
+
+- **Context profile**: `OCTOPUS_CONTEXT_PROFILE` value, default `core`
+- **Optional hook profile**: `OCTOPUS_HOOK_PROFILE` when set, otherwise the
+  context profile
+- **Legacy intensity**: `OCTO_PROFILE` when a legacy workflow reads it
+- **Hook gating**: optional context hooks only; safety and lifecycle hooks remain
+  active
+- **Model hints**: which model (sonnet/opus) is recommended for each phase
+- **Context verbosity**: compressed/standard/full
+
+### Legacy intensity summary
+
+| Dimension | budget | balanced | quality |
+|-----------|--------|----------|---------|
+| Models | Sonnet everywhere | Sonnet + Opus for synthesis | Opus for most phases |
+| Phases | Skip discover if context given | Skip re-discovery | All phases run |
+| Context | Compressed | Standard | Full inlining |
+
+### Optional context profile summary
+
+| Dimension | core | orchestration | full |
+|-----------|------|----------------|------|
+| Optional context hooks | Off | Workflow context only | All profile-managed context hooks |
+| Safety and lifecycle hooks | Active | Active | Active |
+
+
+## Project Tier Hint
+
+Also report `OCTO_TIER` when set. This is a recommendation hint, not a hard policy.
+
+| Tier | Doctor guidance |
+|------|-----------------|
+| `prototype` | Prefer faster checks and warn before high-cost provider fanout |
+| `mvp` | Use balanced defaults and consensus on risky changes |
+| `production` | Recommend full verification, security review, and stricter release gates |
+
+If unset, show `OCTO_TIER=unset` and suggest setting it only when the project has a stable risk profile.
+
+
+## Remote Session Checks
+
+If `CLAUDE_CODE_REMOTE=true` or `OCTOPUS_REMOTE_SESSION=true`, report:
+
+- remote session detected
+- autonomous mode default active when no explicit autonomy is set
+- provider probes skipped to conserve time/quota
+- full HUD disabled unless `OCTOPUS_REMOTE_STATUSLINE=full`
+- provider CLIs may need to be installed in the cloud setup script
+
+Suggest `/octo:setup` only for configuration guidance; do not recommend interactive provider logins inside the remote session.
+
+
+## Runtime Context
+
+The doctor checks for project-level `RUNTIME.md` — a file that provides project-specific context (API endpoints, env vars, test commands, build steps) to orchestration prompts.
+
+### What the Doctor Checks
+
+- **RUNTIME.md exists** in the project root (also checks `.octopus/RUNTIME.md` and `.claude-octopus/RUNTIME.md`)
+- If missing, suggest creating one from the template: `cp "${HOME}/.claude-octopus/plugin/config/templates/RUNTIME.md" ./RUNTIME.md`
+- If present, confirm it contains at least one populated section (not just the template defaults)
+
+### Why It Matters
+
+Without a `RUNTIME.md`, orchestration prompts lack project-specific details — leading to generic advice about test commands, environment variables, and build steps. A populated `RUNTIME.md` makes every workflow more accurate.
+
+
+## Quick Reference
+
+`/octo:doctor` was removed in v9.41.0 to preserve Claude Code's native `/doctor` command.
+Invoke this manual skill explicitly, or run the CLI directly:
+
+| What to say / run | Action |
+|-------------------|--------|
+| `/octo:skill-doctor` | Run all 15 categories inside Claude Code |
+| `octopus doctor providers` | Check provider installation only |
+| `octopus doctor auth --verbose` | Detailed auth status |
+| `octopus doctor --json` | Machine-readable output |
+| `bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor auth --verbose` | Detailed auth status when the CLI is unavailable |
+| `bash "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" doctor --json` | Machine-readable output when the CLI is unavailable |
+
+If the `octopus` CLI is not on `PATH`, resolve and export `OCTO_PLUGIN_ROOT`
+with the Step 1 resolver, then run the equivalent `scripts/orchestrate.sh`
+command directly.

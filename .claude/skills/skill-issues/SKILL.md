@@ -13,7 +13,7 @@ trigger: |
   - "add issue" or "create issue"
   - "resolve issue" or "close issue"
   - "show issues" or "list issues"
-  
+
   DO NOT activate for:
   - Git issues (use git commands)
   - GitHub issues (use gh CLI)
@@ -348,7 +348,7 @@ if [ -z "$TODAY_ISSUES" ]; then
 else
   # Get highest number for today
   HIGHEST=$(echo "$TODAY_ISSUES" | sed "s/ISS-${TODAY}-//" | sort -n | tail -1)
-  
+
   # Increment
   NEXT_NUM=$(printf "%03d" $((10#$HIGHEST + 1)))
 fi

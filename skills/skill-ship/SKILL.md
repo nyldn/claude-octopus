@@ -1,14 +1,13 @@
 ---
 name: skill-ship
-description: "Package and finalize completed work for delivery — use when a feature is done and ready to ship"
 disable-model-invocation: true
+user-invocable: true
+description: "Package and finalize completed work for delivery — use when a feature is done and ready to ship"
+trigger: |
+  EXPLICITLY USE when user mentions:
+  - "ship" or "deliver" or "finalize"
+  - "done" or "complete the project"
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Ship Project - Multi-AI Delivery Validation
 
@@ -16,6 +15,7 @@ Finalize and deliver completed work with Multi-AI security audit, lessons captur
 
 **Core principle:** Verify ready -> Multi-AI audit -> Capture lessons -> Archive -> Ship.
 
+---
 
 ## When to Use
 
@@ -30,6 +30,7 @@ Finalize and deliver completed work with Multi-AI security audit, lessons captur
 - Implementation (use /octo:develop)
 - Research (use /octo:research)
 
+---
 
 ## The Process
 
@@ -103,6 +104,7 @@ echo "Current Phase: $CURRENT_PHASE"
 
 **STOP unless user says "ship anyway".**
 
+---
 
 ### Phase 2: Multi-AI Security Audit
 
@@ -130,7 +132,7 @@ command -v agy &> /dev/null && agy_status="Available" || agy_status="Not install
 
 #### Step 2: Execute orchestrate.sh Security Audit
 
-**You MUST execute this via native shell command tool:**
+**You MUST execute this via Bash tool:**
 
 ```bash
 # Run Multi-AI security audit for delivery
@@ -181,6 +183,7 @@ Resolve issues and run `/octo:ship` again.
 
 **STOP if critical issues found.**
 
+---
 
 ### Phase 3: Capture Lessons Learned
 
@@ -238,6 +241,7 @@ LESSON_COUNT=$(grep -c "^## " .octo/LESSONS.md 2>/dev/null || echo "0")
 echo "Total lessons captured: $LESSON_COUNT"
 ```
 
+---
 
 ### Phase 4: Archive Project State
 
@@ -287,6 +291,7 @@ echo "Archived to: $ARCHIVE_DIR"
 ls -la "$ARCHIVE_DIR"
 ```
 
+---
 
 ### Phase 5: Create Delivery Summary
 
@@ -333,6 +338,7 @@ echo "Issues resolved: $ISSUES_RESOLVED"
 echo "Lessons captured: $LESSONS_COUNT"
 ```
 
+---
 
 ### Phase 6: Display Completion
 
@@ -368,6 +374,7 @@ Tag: `{CHECKPOINT_TAG}`
 
 Restore with: `/octo:rollback {CHECKPOINT_TAG}`
 
+---
 
 **To start a new project:** `/octo:embrace`
 
@@ -375,6 +382,7 @@ Restore with: `/octo:rollback {CHECKPOINT_TAG}`
 *Providers: Codex | Antigravity | Claude*
 ```
 
+---
 
 ## Error Handling
 
@@ -386,6 +394,7 @@ Restore with: `/octo:rollback {CHECKPOINT_TAG}`
 | Critical audit issues | Block ship, show issues |
 | Git tag fails | Warn but continue (non-blocking) |
 
+---
 
 ## Safety Measures
 
@@ -397,6 +406,7 @@ Restore with: `/octo:rollback {CHECKPOINT_TAG}`
 | **Git checkpoint** | Tag created for rollback capability |
 | **No file deletion** | Archive copies, doesn't delete source files |
 
+---
 
 ## Integration with Other Skills
 
@@ -423,6 +433,7 @@ After ship: status shows "shipped"
 → Suggests /octo:embrace for new project
 ```
 
+---
 
 ## Red Flags - Never Do
 
@@ -434,6 +445,7 @@ After ship: status shows "shipped"
 | Ship without ready check | Incomplete work shipped |
 | Skip checkpoint creation | No rollback recovery path |
 
+---
 
 ## Quick Reference
 
@@ -446,6 +458,7 @@ After ship: status shows "shipped"
 | 5 | Update STATE.md | Mark as shipped |
 | 6 | git tag | Create shipped checkpoint |
 
+---
 
 ## The Bottom Line
 

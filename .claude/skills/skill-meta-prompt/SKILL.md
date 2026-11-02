@@ -14,7 +14,7 @@ trigger: |
   - "generate a meta-prompt", "help me write a prompt"
   - "prompt engineering", "better prompt"
   - "create instructions for [task]"
-  
+
   DO NOT use for:
   - Direct task execution (just do the task)
   - Simple questions (just answer)
@@ -92,17 +92,17 @@ Decomposition:
    - Gather OAuth 2.0 specifications
    - Find common implementation examples
    - Identify security best practices
-   
+
 2. Structure Phase
    - Outline main sections
    - Plan code examples
    - Design diagrams/visuals
-   
+
 3. Writing Phase
    - Write introduction
    - Write technical sections
    - Write conclusion/CTA
-   
+
 4. Review Phase
    - Technical accuracy check
    - Code example testing

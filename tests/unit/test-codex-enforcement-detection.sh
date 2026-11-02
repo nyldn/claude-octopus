@@ -77,6 +77,8 @@ test_case "generated primary and alias metadata preserve source text and bound U
 fixture_root="$TEST_TMP_DIR/codex-generator"
 SKILLS_DIR="$fixture_root/source"
 OUTPUT_DIR="$fixture_root/output"
+NATIVE_OUTPUT_DIR="$fixture_root/native"
+mkdir -p "$NATIVE_OUTPUT_DIR"
 mkdir -p "$SKILLS_DIR/skill-verification-gate"
 cat > "$SKILLS_DIR/skill-verification-gate/SKILL.md" <<'EOF'
 ---

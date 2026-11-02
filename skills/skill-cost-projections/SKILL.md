@@ -1,14 +1,27 @@
 ---
 name: skill-cost-projections
-description: "Project remaining workflow cost from per-phase averages — warns on budget ceiling overruns"
 disable-model-invocation: true
+effort: low
+aliases:
+  - cost-projections
+  - cost-forecast
+  - budget-projection
+description: "Project remaining workflow cost from per-phase averages — warns on budget ceiling overruns"
+trigger: |
+  EXPLICITLY USE when user asks about workflow costs:
+  - "cost projection", "estimate remaining cost"
+  - "budget forecast", "how much will this cost"
+  - "project cost", "cost estimate", "spending forecast"
+  - "what's the cost so far", "am I over budget"
+
+  DO NOT activate for:
+  - General pricing questions about API models
+  - One-time cost lookups unrelated to a running workflow
+  - Provider availability or configuration questions
+paths:
+  - "**/.claude-octopus/**"
+  - "**/analytics/**"
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Cost Projections Skill
 
@@ -18,6 +31,7 @@ Projects remaining workflow cost based on per-phase averages from completed work
 
 **Minimum data requirement:** Needs **2+ completed steps** before projecting. With fewer than 2 data points, the average is unreliable — display actual spend only and skip projection.
 
+---
 
 ## Step 1: Collect Completed Phase Costs
 
@@ -45,6 +59,7 @@ If fewer than 2 completed steps are available, display only actual spend:
 💰 Spent: 0.42 USD (1 step complete — need 2+ for projection)
 ```
 
+---
 
 ## Step 2: Compute Average Cost Per Step
 
@@ -61,6 +76,7 @@ avg_cost = total_cost / completed_steps
 
 **Example:** If 3 steps cost 0.30 USD, 0.50 USD, 0.40 USD → avg = 1.20 USD / 3 = 0.40 USD/step
 
+---
 
 ## Step 3: Project Remaining Cost
 
@@ -86,6 +102,7 @@ projected_total     = total_spent + projected_remaining
 | review   | 3           | Fleet, Verifier, Synthesis |
 | debate   | 3           | Opening, Rebuttal, Synthesis |
 
+---
 
 ## Step 4: Display in HUD
 
@@ -109,6 +126,7 @@ Format the cost projection for the HUD/statusline display.
 
 **Integration:** This display line is emitted by the octopus-hud hook and rendered in the statusline alongside phase progress and provider status.
 
+---
 
 ## Step 5: Budget Ceiling Warning
 
@@ -138,6 +156,7 @@ fi
 
 **Note:** `OCTO_BUDGET_CEILING` is optional. When unset, no ceiling check is performed.
 
+---
 
 ## Step 6: Profile Suggestion
 
@@ -159,6 +178,7 @@ fi
 
 The budget profile (`OCTO_PROFILE=budget`) routes to cheaper models and reduces agent count to minimize spend.
 
+---
 
 ## Complete Display Examples
 
@@ -184,6 +204,7 @@ The budget profile (`OCTO_PROFILE=budget`) routes to cheaper models and reduces 
 💰 Spent: 0.80 USD | Est. remaining: 0.80 USD | Total: ~1.60 USD
 ```
 
+---
 
 ## Integration
 
@@ -196,6 +217,7 @@ Reads per-phase cost data written by the metrics tracker. Each completed phase l
 ### With OCTO_PROFILE
 When `OCTO_PROFILE=budget` is active, the projection accounts for reduced per-step costs from cheaper model routing.
 
+---
 
 ## Error Handling
 

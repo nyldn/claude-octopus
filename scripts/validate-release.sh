@@ -365,12 +365,10 @@ echo ""
 # ============================================================================
 echo "🎯 Checking skill registration..."
 
-# Claude Code registers its native tree plus the shared, host-neutral skills.
-# The generated root tree remains registered separately by the Codex manifest.
-SKILL_FILES=$({
-    find "$ROOT_DIR/.claude/skills" -type f -name SKILL.md -print
-    find "$ROOT_DIR/skills/skill-council" "$ROOT_DIR/skills/octopus-starter-pack" -type f -name SKILL.md -print
-} | sed "s|^$ROOT_DIR/|./|;s|/SKILL.md$||" | LC_ALL=C sort)
+# Claude Code discovers native root skills automatically. Codex uses its
+# separate adapted tree, outside that default discovery location.
+SKILL_FILES=$(find "$ROOT_DIR/skills" -mindepth 2 -maxdepth 3 -type f -name SKILL.md \
+    | sed "s|^$ROOT_DIR/|./|;s|/SKILL.md$||" | LC_ALL=C sort)
 REGISTERED_SKILLS=$(jq -r '.skills[]' "$ROOT_DIR/.claude-plugin/plugin.json" | LC_ALL=C sort)
 
 skill_registration_errors=0

@@ -1,14 +1,19 @@
 ---
 name: skill-verify
-description: "Use when a nontrivial change needs end-to-end verification before committing or shipping"
 disable-model-invocation: true
+effort: low
+description: "Use when about to declare work complete, fixed, passing, or done"
+codex_alias_description: "Use when a nontrivial change needs end-to-end verification before committing or shipping"
+trigger: |
+  EXPLICITLY USE when:
+  - About to claim work is complete, fixed, or passing
+  - Before committing, creating PRs, or marking tasks done
+  - After subagent reports success (verify independently)
+  - Before moving to next task in a workflow
+paths:
+  - "**/test*"
+  - "**/*.test.*"
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Verification Gate
 

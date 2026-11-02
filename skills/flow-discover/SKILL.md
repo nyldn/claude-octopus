@@ -1,14 +1,52 @@
 ---
 name: flow-discover
-description: "Multi-AI research using available external providers (Double Diamond Discover phase)"
 disable-model-invocation: true
+aliases:
+  - discover
+  - discover-workflow
+  - probe
+  - probe-workflow
+description: Multi-AI research using available external providers (Double Diamond Discover phase)
+  - Questions about best practices, patterns, or ecosystem research
+
+  PRIORITY TRIGGERS (always invoke): "octo research", "octo discover", "co-research", "co-discover"
+
+  DO NOT use for: simple file searches (use Read/Grep), questions Claude can answer directly,
+  debugging issues (use skill-debug), or "what are my options" for decision support.
+
+# Claude Code v2.1.12+ Integration
+agent: Explore
+context: fork
+task_management: true
+task_dependencies:
+  - skill-context-detection
+  - skill-visual-feedback
+execution_mode: enforced
+pre_execution_contract:
+  - context_detected
+  - visual_indicators_displayed
+validation_gates:
+  - orchestrate_sh_executed
+  - synthesis_file_exists
+trigger: |
+  EXPLICITLY USE when user requests research or exploration:
+  - "research X" or "explore Y" or "investigate Z"
+  - "what are the options for X" or "what are my choices for Y"
+  - "find information about Y" or "look up Z"
+  - "analyze different approaches to Z" or "evaluate approaches"
+  - Questions about best practices, patterns, or ecosystem research
+  - Comparative analysis ("compare X vs Y" or "X vs Y comparison")
+  - "what should I use for X" or "best tool for Y"
+  - "pros and cons of X" or "tradeoffs between Y and Z"
+
+  DO NOT activate for:
+  - Simple file searches or code reading (use Read/Grep tools)
+  - Questions Claude can answer directly from knowledge
+  - Built-in commands (/plugin, /help, etc.)
+  - Questions about specific code in the current project
+  - Debugging issues (use skill-debug instead)
+  - "what are my options" when asking for alternatives (use skill-decision-support)
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 {{PREAMBLE}}
 
@@ -44,6 +82,7 @@ if [[ "${OCTOPUS_PROJECT_PERSISTENCE:-false}" == "true" ]]; then
 fi
 ```
 
+---
 
 ## Native Plan Mode Compatibility (v7.23.0+)
 
@@ -75,6 +114,7 @@ fi
 
 **No action required** - state management handles this automatically via STEP 3 in the execution contract.
 
+---
 
 ## ⚠️ EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)
 
@@ -99,10 +139,11 @@ Analyze the user's prompt and project to determine context:
 
 **DO NOT PROCEED TO STEP 2 until context determined.** Context type (Dev vs Knowledge) determines which provider prompts to use — wrong context produces irrelevant research that wastes provider credits.
 
+---
 
 ### STEP 2: Display Visual Indicators (MANDATORY - BLOCKING)
 
-**MANDATORY: You MUST use the native shell command tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
+**MANDATORY: You MUST use the Bash tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
 
 ```bash
 bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh"
@@ -149,6 +190,7 @@ Provider Availability:
 
 **DO NOT PROCEED TO STEP 3 until banner displayed.** The banner shows users which providers will run and what costs they'll incur — starting API calls without this visibility violates cost transparency.
 
+---
 
 ### STEP 3: Read Prior State (MANDATORY - State Management)
 
@@ -182,6 +224,7 @@ fi
 
 **DO NOT PROCEED TO STEP 4 until state read.**
 
+---
 
 ### STEP 3.5: Parse Intensity & Build Agent Fleet (MANDATORY)
 
@@ -225,18 +268,19 @@ RUN_ID="flow-${RUN_TIMESTAMP}-${RUN_NONCE}"
 
 Use `probe-${RUN_TIMESTAMP}-${RUN_NONCE}-<index>` for every probe task ID. Do not call `date` again for this run; every probe artifact, the synthesis file, and verification must carry this same identity.
 
+---
 
 ### STEP 4: Launch Parallel Agent Subagents (MANDATORY - Use Agent Tool)
 
 **Launch each perspective as a background Agent subagent.** Each agent calls `orchestrate.sh probe-single` which handles persona application, credential isolation, result file writing, and durable evidence-run recording. Pass the nonce-bearing `$RUN_ID` to every child and include `$RUN_NONCE` in every task ID so parallel runs cannot share result filenames.
 
-**CRITICAL: You MUST use the host subagent tool with `background execution: true` for each perspective.** Launch providers strictly in the runtime FLEET_OUTPUT sequence.
+**CRITICAL: You MUST use the Agent tool with `run_in_background: true` for each perspective.** Launch providers strictly in the runtime FLEET_OUTPUT sequence.
 
 For each perspective in the fleet, launch:
 
 ```
 Agent(
-  background execution: true,
+  run_in_background: true,
   description: "<label> (<agent_type>)",
   prompt: "Run this command and return its COMPLETE stdout output, including the result file path on the last line:
 
@@ -256,6 +300,7 @@ Replace `<run_id>` with the current nonce-bearing `$RUN_ID` value when creating 
 - ❌ Using web search instead of orchestrate.sh
 - ❌ Claiming you're "simulating" the workflow
 
+---
 
 ### STEP 5: Collect Results (MANDATORY - Wait for Background Agents)
 
@@ -277,6 +322,7 @@ Run the status table before synthesis:
 
 Only cite providers with usable output (`ok`, `degraded`, or timeout with partial content). Failed provider output, context-limit errors, and empty outputs are evidence of coverage gaps only.
 
+---
 
 ### STEP 6: Synthesize In-Conversation (MANDATORY - Claude Synthesizes)
 
@@ -322,6 +368,7 @@ fi
 
 If verification reports an unfetched source, retain the warning in the report; do not present that claim as independently verified.
 
+---
 
 ### STEP 7: Verify, Update State & Present (Only After Steps 1-6 Complete)
 
@@ -367,11 +414,13 @@ done
 
 **Include attribution:**
 ```
+---
 *Multi-AI Research powered by Claude Octopus*
 *Providers: available external providers + 🔵 Claude*
 *Full synthesis: $SYNTHESIS_FILE*
 ```
 
+---
 
 # Discover Workflow - Discovery Phase 🔍
 
@@ -429,6 +478,7 @@ Providers:
 
 {{VISUAL_INDICATORS}}
 
+---
 
 **Part of Double Diamond: DISCOVER** (divergent thinking)
 
@@ -456,6 +506,7 @@ The **discover** phase executes multi-perspective research using external CLI pr
 
 This is the **divergent** phase - we cast a wide net to explore all possibilities before narrowing down.
 
+---
 
 ## When to Use Discover
 
@@ -478,6 +529,7 @@ Use discover when you need:
 - Questions about specific implementation details (use code review)
 - Quick factual questions Claude knows (no need for multi-provider)
 
+---
 
 ## Visual Indicators
 
@@ -494,6 +546,7 @@ Providers:
 🔵 Claude - Strategic synthesis
 ```
 
+---
 
 ## How It Works
 
@@ -541,6 +594,7 @@ Results are saved to:
 
 Read the synthesis file and present key findings to the user in the chat.
 
+---
 
 ## Implementation Instructions
 
@@ -646,6 +700,7 @@ After successful execution, present findings formatted for context:
    [Strategic action items]
    ```
 
+---
 
 ## Example Usage
 
@@ -712,6 +767,7 @@ Claude:
 [Includes pros/cons, use cases, and strategic recommendation]
 ```
 
+---
 
 ## Integration with Other Workflows
 
@@ -728,6 +784,7 @@ After probe completes, you may continue to:
 
 Or use standalone for pure research tasks.
 
+---
 
 ## Quality Checklist
 
@@ -740,6 +797,7 @@ Before completing probe workflow, ensure:
 - [ ] User understands next steps
 - [ ] Full research path shared with user
 
+---
 
 ## Cost Awareness
 
@@ -751,6 +809,7 @@ Before completing probe workflow, ensure:
 
 Probe workflows typically cost 0.01-0.05 USD per query depending on complexity and response length.
 
+---
 
 ## Security: External Content
 
@@ -805,6 +864,7 @@ See **skill-security-framing.md** for complete documentation on:
 - Content sanitization patterns
 - Prompt injection defense
 
+---
 
 ## Post-Discovery: State Update
 
@@ -845,6 +905,7 @@ if [[ "${OCTOPUS_PROJECT_PERSISTENCE:-false}" == "true" ]]; then
 fi
 ```
 
+---
 
 ## Terminal State
 

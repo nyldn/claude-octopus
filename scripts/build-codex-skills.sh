@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# build-codex-skills.sh — Generate portable root skills/ from .claude/skills/
+# build-codex-skills.sh — Generate native skills/ and codex-skills/ from .claude/skills/
 #
 # Transforms Claude Code skill files (.claude/skills/*.md or
 # .claude/skills/*/SKILL.md) into Codex CLI
-# compatible directory structure (skills/<name>/SKILL.md) with adapted
+# compatible directory structure (codex-skills/<name>/SKILL.md) with adapted
 # frontmatter, host preamble, and Codex interface metadata.
 #
 # Usage:
@@ -14,7 +14,7 @@
 #   --verbose   Show per-skill processing details
 #
 # Codex skill format requirements:
-#   - Directory per skill: skills/<name>/SKILL.md
+#   - Directory per skill: codex-skills/<name>/SKILL.md
 #   - Frontmatter: name (max 64 chars), description (max 1024 chars)
 #   - Name charset: a-zA-Z0-9_- (colons added by auto-namespacing)
 #   - Invocation: $skill-name (not /skill-name)
@@ -27,7 +27,8 @@ export LC_ALL=C
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SKILLS_DIR="$PLUGIN_ROOT/.claude/skills"
-OUTPUT_DIR="$PLUGIN_ROOT/skills"
+OUTPUT_DIR="$PLUGIN_ROOT/codex-skills"
+NATIVE_OUTPUT_DIR="$PLUGIN_ROOT/skills"
 CHECK_MODE=false
 VERBOSE=false
 
@@ -417,27 +418,30 @@ _preserve_find_args() {
 }
 
 prepare_target_dir() {
-    local target_dir="$1"
-
-    if [[ "$target_dir" == "$OUTPUT_DIR" ]]; then
-        mkdir -p "$target_dir"
+    local target_dir="$1" d
+    if [[ "$target_dir" == "$NATIVE_OUTPUT_DIR" ]]; then
         local -a keep=()
-        while IFS= read -r a; do keep+=("$a"); done < <(_preserve_find_args)
+        while IFS= read -r d; do keep+=("$d"); done < <(_preserve_find_args)
         find "$target_dir" -mindepth 1 -maxdepth 1 -type d "${keep[@]}" -exec rm -rf {} +
         find "$target_dir" -mindepth 1 -maxdepth 1 -type f -delete
     else
         rm -rf "$target_dir"
         mkdir -p "$target_dir"
-        local d
         for d in "${PRESERVED_SKILL_DIRS[@]}"; do
-            if [[ -d "$OUTPUT_DIR/$d" ]]; then
+            if [[ -d "$NATIVE_OUTPUT_DIR/$d" ]]; then
                 mkdir -p "$target_dir/$d"
-                cp -R "$OUTPUT_DIR/$d/." "$target_dir/$d/"
+                cp -R "$NATIVE_OUTPUT_DIR/$d/." "$target_dir/$d/"
             fi
         done
     fi
+}
 
-    write_codex_adapter_block "$target_dir"
+write_native_skill() {
+    local file="$1" target="$2" name="$3"
+    mkdir -p "$target"
+    # Preserve native frontmatter and tools. Only a compatibility alias changes name.
+    awk -v name="$name" '!renamed && /^name:/ { print "name: " name; renamed=1; next } { print }' \
+        "$file" > "$target/SKILL.md"
 }
 
 # --- Main ---
@@ -454,10 +458,15 @@ main() {
         mkdir -p "$check_output"
     fi
 
-    local target_dir="$OUTPUT_DIR"
-    $CHECK_MODE && target_dir="$check_output"
+    local target_dir="$OUTPUT_DIR" native_target="$NATIVE_OUTPUT_DIR"
+    if $CHECK_MODE; then
+        target_dir="$check_output"
+        native_target="$tmp_dir/native-skills"
+    fi
 
     prepare_target_dir "$target_dir"
+    prepare_target_dir "$native_target"
+    write_codex_adapter_block "$target_dir"
 
     while IFS= read -r file; do
         [[ -f "$file" ]] || continue
@@ -502,6 +511,7 @@ main() {
         local codex_short_desc
         codex_short_desc="$(ui_short_description "$description" "$codex_display_name")"
 
+        write_native_skill "$file" "$native_target/$codex_name" "$codex_name"
         write_skill "$file" "$target_dir/$codex_name" "$codex_name" "$codex_desc" "$codex_display_name" "$codex_short_desc"
 
         ((count++)) || true
@@ -522,6 +532,7 @@ main() {
             local alias_short_desc
             alias_short_desc="$(ui_short_description "$alias_desc" "$alias_display_name")"
 
+            write_native_skill "$file" "$native_target/$alias_name" "$alias_name"
             write_skill "$file" "$target_dir/$alias_name" "$alias_name" "$alias_desc" "$alias_display_name" "$alias_short_desc"
             ((count++)) || true
             $VERBOSE && echo "  OK: $basename → skills/$alias_name/SKILL.md (compat alias)"
@@ -532,15 +543,16 @@ main() {
 
     if $CHECK_MODE; then
         if [[ -d "$OUTPUT_DIR" ]]; then
-            if diff -rq "$check_output" "$OUTPUT_DIR" >/dev/null 2>&1; then
-                echo "CHECK: skills/ is up to date"
+            if diff -rq "$check_output" "$OUTPUT_DIR" >/dev/null 2>&1 &&
+               diff -rq "$native_target" "$NATIVE_OUTPUT_DIR" >/dev/null 2>&1; then
+                echo "CHECK: native and Codex skills/ is up to date"
                 return 0
             else
-                echo "CHECK: skills/ is out of date — run scripts/build-codex-skills.sh" >&2
+                echo "CHECK: native and Codex skills/ is out of date — run scripts/build-codex-skills.sh" >&2
                 return 1
             fi
         else
-            echo "CHECK: skills/ does not exist — run scripts/build-codex-skills.sh" >&2
+            echo "CHECK: native and Codex skills/ does not exist — run scripts/build-codex-skills.sh" >&2
             return 1
         fi
     fi

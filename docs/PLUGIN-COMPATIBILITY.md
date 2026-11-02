@@ -60,10 +60,10 @@ requests `--peer-review` or a multi-model workflow. `/octo:setup` uses a separat
 revisioned resume receipt and leaves browser login to the user.
 
 `.claude-plugin/plugin.json` retains the `octo` namespace and its explicit
-command/skill paths. Claude Code skill paths select the native `.claude/skills/`
-sources, including the native verification alias. Council and starter-pack
-entries use shared host-neutral bodies. Codex retains the generated `skills/`
-tree, so Claude Code does not load its Codex host preamble or tool rewrites.
+command/skill paths. Claude Code automatically discovers native copies in
+`skills/`; manifest paths add to that scan rather than replacing it. Codex
+adaptations live in `codex-skills/`, outside Claude's automatic scan. Council,
+starter-pack entries and the verification alias remain available in both hosts.
 Root `hooks/hooks.json` is discovered by the host. Skills
 use `disable-model-invocation: true` to keep provider workflows explicitly
 invoked. Native plugin and marketplace validation passes; Claude's warning
@@ -78,7 +78,7 @@ helpers ship in the package. Native discovery proves installation only; it does
 not prove provider login, model entitlement, billing mode, or hosted ChatGPT
 directory eligibility.
 
-`.codex-plugin/plugin.json` retains `claude-octopus`, points to `./skills/`, and
+`.codex-plugin/plugin.json` retains `claude-octopus`, points to `./codex-skills/`, and
 uses relative icon paths. Codex discovers `hooks/hooks.json` without a redundant
 manifest field. Its runtime supplies `CLAUDE_PLUGIN_ROOT` for compatibility.
 Users must review and trust hook definitions; installation alone does not

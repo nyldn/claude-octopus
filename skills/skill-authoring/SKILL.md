@@ -1,14 +1,9 @@
 ---
 name: skill-authoring
-description: "Principles for writing skills that behave the same way every run — use when adding, editing, or reviewing a skill in this plugin"
 disable-model-invocation: true
+description: "Principles for writing skills that behave the same way every run — use when adding, editing, or reviewing a skill in this plugin"
+codex_display_name: "Skill Authoring"
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Skill Authoring
 

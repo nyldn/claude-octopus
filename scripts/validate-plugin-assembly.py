@@ -154,9 +154,8 @@ def validate_skills(root: Path, errors: list[str]) -> int:
         )
         checked += 1
 
-    legacy = root / ".claude" / "skills"
-    if legacy.is_dir():
-        for file in sorted(legacy.rglob("SKILL.md")):
+    for directory in (root / ".claude" / "skills", root / "codex-skills"):
+        for file in sorted(directory.rglob("SKILL.md")):
             require_frontmatter(
                 root, file, ("name", "description"), errors,
                 validate_name=True,

@@ -18,12 +18,14 @@ for path, text in registered.items():
     assert 'Host: Codex CLI' not in text, f'Claude loads Codex instructions: {path}'
 native = list((root / '.claude/skills').glob('*/SKILL.md'))
 for source in native:
-    assert './' + str(source.parent.relative_to(root)) in registered, f'unregistered native skill: {source}'
+    name = re.search(r'^name: (.+)$', source.read_text(), re.M)[1]
+    assert (root / 'skills' / name / 'SKILL.md').read_text() == source.read_text(), f'native body changed: {source}'
+assert set(registered) == {'./' + str(f.parent.relative_to(root)) for f in (root / 'skills').rglob('SKILL.md')}, 'automatic and explicit discovery differ'
 assert len(registered) == 63, 'existing skill registration count changed'
 assert any(re.search(r'^name: skill-verify$', text, re.M) for text in registered.values()), 'verification alias lost'
 assert sum('/octopus-starter-pack/' in path for path in registered) == 4, 'starter pack lost'
-assert json.loads((root / '.codex-plugin/plugin.json').read_text())['skills'] == './skills/'
-assert 'Host: Codex CLI' in (root / 'skills/flow-develop/SKILL.md').read_text()
+assert json.loads((root / '.codex-plugin/plugin.json').read_text())['skills'] == './codex-skills/'
+assert 'Host: Codex CLI' in (root / 'codex-skills/flow-develop/SKILL.md').read_text()
 assert 'Bash tool' in (root / '.claude/skills/flow-develop/SKILL.md').read_text()
 print(f'{len(native)} native sources and {len(registered)} registrations checked')
 PY
