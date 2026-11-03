@@ -24,13 +24,15 @@ class OpenCodeCompatibility(unittest.TestCase):
         self.cli = self.bin / "opencode"
         self.cli.write_text("""#!/bin/sh
 printf called >> "$PROBE_MARKER"
-if [ "$1" = --version ]; then printf '%s\\n' "${CLI_VERSION:-1.18.34}"; exit 0; fi
+if [ "$1" = --version ]; then sleep "${VERSION_DELAY:-0}"; printf '%s\\n' "${CLI_VERSION:-1.18.34}"; exit 0; fi
 if [ "$1" = --pure ]; then exit 64; fi
 if [ "$1" = run ]; then
     [ "$OPENCODE_PURE" = 1 ] || exit 65
     printf '%s\\n' "$*"
 else
     [ "$1 $2" = 'auth list' ] || exit 66
+    sleep "${AUTH_DELAY:-0}"
+    if [ -n "${AUTH_LIST_FILE:-}" ]; then cat "$AUTH_LIST_FILE"; exit 0; fi
     case "$*" in
         *--format*) printf '%s\\n' "$AUTH_JSON" ;;
         *) printf '%s\\n' "$AUTH_LIST" ;;
@@ -112,6 +114,49 @@ probe_single_agent opencode perspective login-test
         (self.data / "opencode-dev.db").touch()
         self.assertEqual(self.readiness("static")["reason_code"], "live-check-required")
         self.assertFalse(self.marker.exists())
+
+    def test_large_legacy_listing_is_consumed_under_pipefail(self):
+        listing = self.base / 'listing.txt'
+        listing.write_text('└  2 credentials\n' + 'account metadata\n' * 20000)
+        self.env['AUTH_LIST_FILE'] = str(listing)
+        result = self.shell('set -o pipefail; source scripts/lib/auth.sh; _octo_opencode_has_saved_login')
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_live_deadline_includes_shell_startup_and_both_probes(self):
+        (self.data / 'auth.json').touch()
+        startup = self.base / 'startup.sh'
+        startup.write_text('case "${1:-}" in */providers.sh) sleep 1.6 ;; esac\n')
+        self.env.update(BASH_ENV=str(startup), VERSION_DELAY='1.8', AUTH_DELAY='1.8')
+        self.assertEqual(self.readiness('live')['status'], 'available')
+        # An explicit short user deadline still takes precedence.
+        self.env['OCTOPUS_PROVIDER_LIVE_TIMEOUT'] = '1'
+        self.assertEqual(self.readiness('live')['status'], 'degraded')
+
+    def test_failed_direct_probe_completes_its_durable_seat(self):
+        self.env.update(CLI_VERSION='2.0.23', AUTH_JSON='[]')
+        script = r'''
+source scripts/lib/workflows.sh
+source scripts/lib/providers.sh
+source scripts/lib/research-evidence.sh
+log() { :; }
+preflight_check() { :; }
+classify_task() { echo research; }
+match_routing_rule() { return 1; }
+apply_persona() { printf '%s' "$2"; }
+enforce_context_budget() { printf '%s' "$1"; }
+octo_routing_policy() { echo off; }
+get_agent_model() { echo vendor/model; }
+RESULTS_DIR="$HOME/results" LOGS_DIR="$HOME/logs"
+SUPPORTS_AGENT_TYPE_ROUTING=false OCTOPUS_PERSONA_PACKS=off
+probe_single_agent opencode perspective probe-123-0 'Check compatibility'
+'''
+        result = self.shell(script)
+        self.assertNotEqual(result.returncode, 0)
+        events = self.base / 'home/results/research-runs/flow-123/events.jsonl'
+        records = [json.loads(line) for line in events.read_text().splitlines()]
+        self.assertEqual([r['event'] for r in records if r['event'].startswith('provider.')],
+                         ['provider.started', 'provider.completed'])
+        self.assertIn('status=failed', records[-1]['detail'])
 
     def test_legacy_environment_only_login_is_accepted(self):
         self.env.update(AUTH_LIST="└  0 credentials\n┌ Environment\n└  1 environment variable", OPENROUTER_API_KEY="fixture")

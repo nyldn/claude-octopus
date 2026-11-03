@@ -307,6 +307,6 @@ _octo_opencode_has_saved_login() {
     else
         listing="$(_octo_run_bare_probe_with_timeout 3 2 1 opencode auth list </dev/null 2>/dev/null)" || return 1
         listing="$(printf '%s\n' "$listing" | sed $'s/\033\\[[0-9;]*m//g')"
-        printf '%s\n' "$listing" | grep -Eq '^[[:space:]│└]*[1-9][0-9]* (credentials?|environment variables?)[[:space:]]*$'
+        printf '%s\n' "$listing" | grep -Ec '^[[:space:]│└]*[1-9][0-9]* (credentials?|environment variables?)[[:space:]]*$' >/dev/null
     fi
 }

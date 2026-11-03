@@ -510,8 +510,12 @@ EOF
         # Live mode is explicit. Execute the registry-selected health handler in
         # a fresh bounded shell so a provider CLI cannot stall setup or Doctor.
         source "${_preflight_registry_dir}/providers.sh" 2>/dev/null || true
-        live_timeout="${OCTOPUS_PROVIDER_LIVE_TIMEOUT:-5}"
-        case "$live_timeout" in ''|*[!0-9]*) live_timeout=5 ;; esac
+        # OpenCode checks version and login sequentially, each within three
+        # seconds. Include shell startup while preserving an explicit deadline.
+        local default_live_timeout=5
+        [[ "$provider" != opencode ]] || default_live_timeout=8
+        live_timeout="${OCTOPUS_PROVIDER_LIVE_TIMEOUT:-$default_live_timeout}"
+        case "$live_timeout" in ''|*[!0-9]*) live_timeout="$default_live_timeout" ;; esac
         (( live_timeout > 30 )) && live_timeout=30
         (( live_timeout < 1 )) && live_timeout=1
         if declare -f _octo_run_bare_probe_with_timeout >/dev/null 2>&1; then

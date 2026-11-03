@@ -215,10 +215,16 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         health_handler="$(octo_provider_health_handler opencode)" || return 1
         if [[ "$health_handler" == none ]] || ! declare -F "$health_handler" >/dev/null 2>&1; then
             log ERROR "OpenCode health handler unavailable"
+            if declare -F research_probe_single_record >/dev/null 2>&1; then
+                research_probe_single_record "$task_id" "$agent_type" failed || true
+            fi
             return 1
         fi
         if ! health_diag=$("$health_handler" opencode "$model" 2>&1); then
             log WARN "OpenCode health check failed: $health_diag"
+            if declare -F research_probe_single_record >/dev/null 2>&1; then
+                research_probe_single_record "$task_id" "$agent_type" failed || true
+            fi
             return 1
         fi
     fi

@@ -11,6 +11,9 @@
   with bounded version and login commands. Version-aware 2.x dispatch uses a
   private server so tools stay inside the selected process boundary; unknown
   CLI versions refuse real dispatch. Empty or failed listings remain unavailable.
+  Large legacy login listings survive strict pipeline checks, the live deadline
+  covers both probes and startup, and failed direct probes record a terminal seat
+  event in durable research history.
   Addresses [#1172](https://github.com/nyldn/claude-octopus/issues/1172).
 
 ## [11.16.0] - 2026-11-02
