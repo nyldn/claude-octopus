@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Council quote verification recognizes valid `octopus-policy-findings` JSON
+  without marking the seat fabricated. Entity-encoded quotes remain intact,
+  and runtime policy extraction accepts the same indented, backtick and tilde
+  fences as analysis. Invalid blocks and invented quotes outside a findings
+  block still undergo quote verification.
+  [#1230](https://github.com/nyldn/claude-octopus/pull/1230).
+
 ## [11.16.0] - 2026-11-02
 
 ### Fixed
@@ -99,19 +108,6 @@
   matching file text even when the cited line number is out of range.
   An unsafe existing path cannot fall back to a different file.
   [#1236](https://github.com/nyldn/claude-octopus/pull/1236).
-
-- A seat's `octopus-policy-findings` block no longer marks it fabricated. The
-  feature workflow asks seats for that fenced JSON block and checks each
-  finding by digest, but the council quote verifier read the block as a code
-  quote. With JSON escapes it never matches a file, so a seat with real
-  citations whose only other "quote" was that block was marked fabricated and
-  blind. The block now stays a fence, so code spans inside it are skipped too,
-  but is not checked as a quote. Only a block `feature-analysis.py` reads is
-  exempt: a marker line holding only the label `octopus-policy-findings` (at
-  any indentation), closed by the same marker, around a findings list or an
-  object holding one. An unclosed, invalid, case-variant or wider-closed block
-  is checked like any other fence, and an invented quote beside a valid one is
-  still fabricated.
 
 ## [11.15.2] - 2026-10-28
 

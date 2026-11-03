@@ -2913,7 +2913,8 @@ try:
     # Some transports deliver Markdown HTML-escaped ("&gt; quote", "=&gt;").
     # Unescape before parsing so blockquotes and operators read as written; the
     # file side is unescaped the same way so an HTML source still matches.
-    resp = html.unescape(raw.decode("utf-8", "replace"))
+    raw_resp = raw.decode("utf-8", "replace")
+    resp = html.unescape(raw_resp)
     root = Path(sys.argv[2]).resolve(strict=True)
 except (OSError, RuntimeError, ValueError):
     result["verification_failed"] = True
@@ -3099,10 +3100,13 @@ def policy_findings_blocks():
         return value
     def nonfinite(_):
         raise ValueError("nonfinite JSON number")
-    lines, offsets, offset = resp.split("\n"), [], 0
-    for line in lines:
+    # JSON and fence syntax belong to the raw transport text. Decoding entities
+    # can break JSON strings or invent markers that policy ingestion never saw.
+    # Quote units still use resp, so translate line boundaries to that view.
+    lines, offsets, offset = raw_resp.splitlines(), [], 0
+    for line in raw_resp.splitlines(keepends=True):
         offsets.append(offset)
-        offset += len(line) + 1
+        offset += len(html.unescape(line))
     blocks, index = [], 0
     while index < len(lines):
         match = re.fullmatch(r"\s*(`{3,}|~{3,})octopus-policy-findings\s*", lines[index])
@@ -3125,7 +3129,7 @@ def policy_findings_blocks():
             if isinstance(value, dict):
                 value = value.get("findings")
             if isinstance(value, list) and all(isinstance(item, dict) for item in value):
-                blocks.append((offsets[first - 1], offsets[index] + len(lines[index])))
+                blocks.append((offsets[first - 1], offsets[index] + len(html.unescape(lines[index]))))
         index += 1
     return blocks
 

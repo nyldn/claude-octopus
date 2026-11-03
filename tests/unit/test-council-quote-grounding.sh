@@ -827,6 +827,16 @@ if jq -e '.fabricated == true and .diff_sources == []' <<< "$r" >/dev/null; then
 # findings format (checked by digest in feature-workflow.py), not a code quote.
 # sail-cruisey #3244 CP1: codex's only "quote" was this block, so it was
 # marked fabricated beside real citations.
+# An initialized evidence repository makes an empty diff conclusive. A missing
+# repository intentionally preserves diff uncertainty on current main.
+policy_original_root="$ROOT"
+ROOT="$(mktemp -d "$TEST_TMP_DIR/policy-root.XXXXXX")"
+mkdir -p "$ROOT/src"
+cp "$policy_original_root/src/pricing.ts" "$ROOT/src/pricing.ts"
+git -C "$ROOT" init -q
+git -C "$ROOT" add src/pricing.ts
+git -C "$ROOT" -c user.name=Test -c user.email=test@example.invalid \
+    -c core.hooksPath=/dev/null commit -qm baseline
 test_case "#3244: an octopus-policy-findings block is not a code quote"
 policy='src/pricing.ts:2 keeps the fallback, but the plan skips a required audit.
 
@@ -963,6 +973,8 @@ r="$(_report "$(_resp "src/pricing.ts:2 keeps the fallback.
 
 VERDICT: APPROVE")")"
 if jq -e '.quotes_checked >= 1' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+ROOT="$policy_original_root"
 
 test_case "no diff available: a quote the seat says was removed is unverifiable, not fabricated"
 claimed="$(_resp "At src/pricing.ts:2 the check \`if (cabin.soldOut) return { price: null };\` was deleted in this change.
