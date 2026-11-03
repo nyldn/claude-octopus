@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/result-file.sh"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/secure.sh"
 
 # testing.sh — Extracted from orchestrate.sh
 # Contains: validate_tangle_results, squeeze_test
@@ -19,12 +20,41 @@ extract_explicit_file_refs() {
 
 extract_tangle_result_output() {
     local result_file="$1"
+    local framed_rc=0
+    octo_result_framed_sections "$result_file" output && return 0 || framed_rc=$?
+    [[ "$framed_rc" -eq 2 ]] || return 1
 
     awk '
         /^## Output[[:space:]]*$/ { capture = 1; next }
         /^## Status:/ { capture = 0 }
         capture { print }
     ' "$result_file" 2>/dev/null || true
+}
+
+# Give the challenger bounded, policy-filtered changes from the run's start.
+# Missing helpers or an unverifiable baseline omit the diff, never widen reads.
+tangle_challenge_change_evidence() {
+    local baseline="${1:-}" paths="${2:-}" repo_root path excerpt count=0
+    [[ "$baseline" =~ ^[0-9a-fA-F]{40}$ ]] || return 0
+    declare -F tangle_read_scope_is_allowed >/dev/null || return 0
+    repo_root=$(tangle_resolve_repo_root 2>/dev/null) || return 0
+    git -C "$repo_root" cat-file -e "${baseline}^{commit}" 2>/dev/null || return 0
+    while IFS= read -r path; do
+        [[ -n "$path" ]] || continue
+        count=$((count + 1))
+        [[ "$count" -le 20 ]] || break
+        OCTOPUS_TANGLE_READ_SCOPE_MODE=strict tangle_read_scope_is_allowed "$path" || continue
+        # A directory or gitlink could recursively include forbidden children.
+        [[ ! -d "$repo_root/$path" && ! -L "$repo_root/$path" ]] || continue
+        [[ ! -e "$repo_root/$path" || -f "$repo_root/$path" ]] || continue
+        case "$(git -C "$repo_root" cat-file -t "${baseline}:$path" 2>/dev/null)" in
+            tree|commit) continue ;;
+        esac
+        excerpt=$(git -C "$repo_root" diff --no-ext-diff --no-textconv --no-renames \
+            --submodule=short "$baseline" -- ":(literal)$path" 2>/dev/null | head -c 4096) || true
+        [[ -n "$excerpt" ]] || continue
+        printf '\n### %s\n%s\n' "$path" "$excerpt"
+    done <<< "$paths"
 }
 
 extract_tangle_result_body() {
@@ -771,6 +801,16 @@ $(<"$correction_file")
             # Randomized bypass token prevents prompt injection from LLM-generated results
             local clean_token="GENUINELY_CLEAN_${RANDOM}${RANDOM}"
             local challenge_result=""
+            local challenge_evidence challenge_changes
+            challenge_changes=$(tangle_challenge_change_evidence "$baseline_head" "$worktree_changes" | head -c 12000) || true
+            challenge_evidence=$(sanitize_external_content "Provider output excerpts, capped at 6000 bytes:
+$(head -c 6000 <<< "$result_outputs")
+
+Tracked change excerpts from the run's starting commit, capped at 20 paths,
+4096 bytes per path and 12000 bytes total. Binary contents, untracked files,
+directories, symlinks and credential paths are omitted. Missing excerpts are
+not evidence that no changes occurred.
+${challenge_changes:-No eligible change excerpt is available.}" "tangle-challenge")
             challenge_result=$(run_agent_sync "claude-sonnet" "
 IMPORTANT: Do NOT read, explore, or modify any files. Do NOT run any shell commands. Output TEXT only.
 
@@ -788,7 +828,7 @@ Do NOT invent problems that don't exist — but be genuinely critical.
 Original task: ${original_prompt}
 
 Results to challenge:
-$(head -c 3000 <<< "$results")
+${challenge_evidence}
 " 60 "code-reviewer" "quality-gate") || true
 
             if [[ -n "$challenge_result" ]] && ! echo "$challenge_result" | grep -Fc "$clean_token" >/dev/null 2>&1; then

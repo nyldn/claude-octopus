@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- The develop quality challenger now sees provider output and bounded change
+  excerpts from the run's starting commit. Long executor prompts no longer
+  hide the implementation. Change excerpts exclude credential paths,
+  directories and symlinks and are marked as untrusted content. Fixes #1171.
+
 ## [11.16.0] - 2026-11-02
 
 ### Fixed
