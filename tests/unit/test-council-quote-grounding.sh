@@ -823,6 +823,15 @@ printf '# Plan\n\n- const base = await fetchCabinPrice(cabin.id, { cache: true }
 r="$(COUNCIL_CONTEXT_FILES=("$ctx_plan"); _report "$fab")"
 if jq -e '.fabricated == true and .diff_sources == []' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
+# These table fixtures require a complete diff for definitive negative
+# grounding. Isolate them from the suite's non-repository evidence root.
+table_previous_root="$ROOT"
+ROOT="$(mktemp -d "$TEST_TMP_DIR/table-root.XXXXXX")"
+mkdir -p "$ROOT/src"
+git -C "$ROOT" init -q
+git -C "$ROOT" -c user.name=Test -c user.email=test@example.invalid \
+    -c core.hooksPath=/dev/null commit --allow-empty -qm fixture
+
 # ── sail-cruisey #3125: '||' quoted inside a Markdown table cell is written '\|\|'.
 printf 'export function tierOf(member) {\n  const tier = member.tier || member.legacyTier || DEFAULT_TIER;\n  return tier;\n}\n' > "$ROOT/src/tier-3125.ts"
 test_case "#3125: a table-escaped '\\|\\|' quote of a real '||' line verifies"
@@ -926,6 +935,8 @@ even_backslash="$(_resp "src/regex-3125.ts:1 \\\\| contains \`export const patte
 VERDICT: APPROVE")"
 r="$(_report "$even_backslash")"
 if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+ROOT="$table_previous_root"
 
 test_case "no diff available: a quote the seat says was removed is unverifiable, not fabricated"
 claimed="$(_resp "At src/pricing.ts:2 the check \`if (cabin.soldOut) return { price: null };\` was deleted in this change.
