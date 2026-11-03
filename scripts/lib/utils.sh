@@ -464,6 +464,20 @@ _validate_claude_agent_command() {
 
 # Validate agent command to prevent command injection
 # Only allows whitelisted command prefixes
+_validate_opencode_env_command() {
+    local -a opencode_parts
+    octo_dispatch_command_to_argv "$1" || return 1
+    opencode_parts=("${OCTO_COMMAND_ARGV[@]}")
+    [[ "${#opencode_parts[@]}" -eq 4 || "${#opencode_parts[@]}" -eq 6 ]] || return 1
+    [[ "${opencode_parts[0]}" == env && "${opencode_parts[1]}" == OPENCODE_PURE=1 &&
+       "${opencode_parts[2]}" == opencode && "${opencode_parts[3]}" == run ]] || return 1
+    if [[ "${#opencode_parts[@]}" -eq 6 ]]; then
+        [[ "${opencode_parts[4]}" == -m && "${opencode_parts[5]}" != [-/]* ]] || return 1
+        _octopus_is_safe_openai_compatible_value "${opencode_parts[5]}" || return 1
+    fi
+    return 0
+}
+
 validate_agent_command() {
     local cmd="$1"
     local cmd_executable="${cmd%%[[:space:]]*}"
@@ -505,17 +519,7 @@ validate_agent_command() {
         return 0
     fi
     if [[ "$cmd_executable" == "env" ]]; then
-        if [[ "$cmd" == "env OPENCODE_PURE="* ]]; then
-            local -a opencode_parts
-            octo_dispatch_command_to_argv "$cmd" || return 1
-            opencode_parts=("${OCTO_COMMAND_ARGV[@]}")
-            [[ "${#opencode_parts[@]}" -eq 4 || "${#opencode_parts[@]}" -eq 6 ]] || return 1
-            [[ "${opencode_parts[0]}" == env && "${opencode_parts[1]}" == OPENCODE_PURE=1 &&
-               "${opencode_parts[2]}" == opencode && "${opencode_parts[3]}" == run ]] || return 1
-            if [[ "${#opencode_parts[@]}" -eq 6 ]]; then
-                [[ "${opencode_parts[4]}" == -m && "${opencode_parts[5]}" != [-/]* ]] || return 1
-                _octopus_is_safe_openai_compatible_value "${opencode_parts[5]}" || return 1
-            fi
+        if _validate_opencode_env_command "$cmd"; then
             return 0
         fi
         if _validate_env_prefixed_shim_command "$cmd" "OCTOPUS_GROK_MODEL" "/scripts/helpers/grok-exec.sh" || \
