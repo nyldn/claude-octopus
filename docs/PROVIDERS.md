@@ -373,6 +373,19 @@ Google seat), perplexity, opencode, openrouter, orcarouter, atlascloud,
 cheaperinference, api-route, litellm, openai-compatible, openai-tools, openai-compatible-agent, cursor-agent, grok,
 qwen, ollama, copilot, vibe, and kimi.
 
+`vibe` readiness accepts `MISTRAL_API_KEY`, `~/.vibe/.env`, the existing
+`api_key` config field, or a key saved by `vibe --setup` in the OS keyring.
+The keyring presence check uses Vibe's Python environment and native backend,
+never prints the key, and does not migrate credentials or call a model. It
+stops within three seconds, including process cleanup. A locked or unreadable
+keyring remains unavailable. `OCTOPUS_SKIP_PROVIDER_PROBES=true` skips this
+check. Non-Python wrappers and installations whose Python environment cannot
+import Vibe remain unverified; use an existing environment or file credential
+route for those installations.
+
+This follows Mistral's documented [credential search order](https://docs.mistral.ai/vibe/code/cli/api-keys-profiles)
+and its [read-only keyring probe](https://github.com/mistralai/mistral-vibe/blob/main/vibe/utils/keyring.py).
+
 `commandcode` reports progress to stderr while its event stream grows. Set
 `OCTOPUS_COMMANDCODE_HEARTBEAT_SECS` to a positive number of seconds (default
 60) to control the interval; invalid values use the default. The setting is

@@ -1107,7 +1107,8 @@ check_provider_health() {
             # Check auth: env-file with MISTRAL_API_KEY, env var, or config.toml api_key
             if ! _octo_value_has_nonwhitespace "${MISTRAL_API_KEY:-}" && \
                ! _octo_assignment_has_nonempty_value "${HOME}/.vibe/.env" "MISTRAL_API_KEY" && \
-               ! _octo_assignment_has_nonempty_value "${HOME}/.vibe/config.toml" "api_key"; then
+               ! _octo_assignment_has_nonempty_value "${HOME}/.vibe/config.toml" "api_key" && \
+               ! _octo_vibe_keyring_has_key; then
                 echo "vibe: not authenticated (run: vibe --setup or set MISTRAL_API_KEY)" >&2
                 return 1
             fi
@@ -1494,6 +1495,8 @@ detect_providers() {
             vibe_auth="api-key"
         elif _octo_assignment_has_nonempty_value "${HOME}/.vibe/config.toml" "api_key"; then
             vibe_auth="config"
+        elif _octo_vibe_keyring_has_key; then
+            vibe_auth="keyring"
         fi
         result="${result}vibe:${vibe_auth} "
     fi

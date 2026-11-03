@@ -55,6 +55,25 @@ _octo_assignment_has_nonempty_value() {
     _octo_value_has_nonwhitespace "$value"
 }
 
+# Check only for credential presence using Vibe's own Python environment.
+# Never launch its interactive CLI, print a secret or migrate keyring entries.
+_octo_vibe_keyring_has_key() {
+    case "${OCTOPUS_SKIP_PROVIDER_PROBES:-false}" in true|1) return 1 ;; esac
+    local binary shebang interpreter extra lib_dir
+    binary="$(command -v vibe 2>/dev/null)" || return 1
+    [[ -f "$binary" ]] || return 1
+    shebang="$(head -c 512 "$binary" 2>/dev/null | head -n 1)"
+    [[ "$shebang" == '#!'/* ]] || return 1
+    read -r interpreter extra <<< "${shebang#\#!}"
+    [[ -z "$extra" && -x "$interpreter" && "${interpreter##*/}" == python* ]] || return 1
+    lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)" || return 1
+    source "$lib_dir/bounded-probe.sh" 2>/dev/null || return 1
+    # The shared supervisor includes termination and cleanup in the 3s budget.
+    _octo_run_bare_probe_with_timeout 3 1 2 \
+        "$interpreter" -I "$lib_dir/../helpers/vibe-keyring-check.py" \
+        </dev/null >/dev/null 2>&1
+}
+
 # Check if Codex is authenticated
 # Returns auth method: "api_key", "oauth", or "none"
 # Always returns 0 (success) - use the output to determine status

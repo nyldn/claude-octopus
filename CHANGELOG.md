@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Vibe setup and readiness now recognize a key stored by `vibe --setup` in
+  the OS keyring. The local presence check is silent, read-only and bounded;
+  it does not launch Vibe or make a model request. Fixes #1191.
+
 - Decision support now includes the cost of doing nothing, sets criteria and
   weights before scoring, and shows raw and weighted scores. Presentation
   templates no longer recommend the first option before analysis. Uncertain

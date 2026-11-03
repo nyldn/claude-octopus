@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+"""Exercise Vibe readiness against an isolated, inert Python installation."""
+import os
+import json
+from pathlib import Path
+import shlex
+import subprocess
+import sys
+import tempfile
+import time
+import unittest
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+class VibeKeyringTest(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.base = Path(self.temporary.name)
+        self.home = self.base / 'home'
+        self.bin = self.base / 'bin'
+        self.home.mkdir()
+        self.bin.mkdir()
+        environment = self.base / 'venv'
+        (environment / 'bin').mkdir(parents=True)
+        (environment / 'pyvenv.cfg').write_text(
+            f'home = {Path(sys.executable).resolve().parent}\ninclude-system-site-packages = false\n')
+        self.python = environment / 'bin/python3'
+        self.python.symlink_to(sys.executable)
+        packages = environment / f'lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages'
+        self.module = packages / 'vibe/utils/keyring.py'
+        self.module.parent.mkdir(parents=True)
+        (packages / 'vibe/__init__.py').touch()
+        (packages / 'vibe/utils/__init__.py').touch()
+        self.vibe = self.bin / 'vibe'
+        self.vibe.write_text(f'#!{self.python}\nraise RuntimeError("CLI must not execute")\n')
+        self.vibe.chmod(0o755)
+        self.marker = self.base / 'probed'
+        self.env = dict(os.environ, HOME=str(self.home), PATH=f'{self.bin}:/usr/bin:/bin',
+                        OCTOPUS_SKIP_PROVIDER_PROBES='false', OCTO_ALLOWED_PROVIDERS='vibe',
+                        MISTRAL_API_KEY='', VIBE_PROBE_MARKER=str(self.marker))
+        self.write_module('return "inert-fixture-value"')
+
+    def write_module(self, body):
+        self.module.write_text('import os\nfrom pathlib import Path\n'
+                               'def get_api_key_from_keyring(*args, **kwargs):\n'
+                               '    raise RuntimeError("migration-capable lookup forbidden")\n'
+                               'def probe_api_key_from_keyring(key):\n'
+                               '    assert key == "MISTRAL_API_KEY"\n'
+                               '    Path(os.environ["VIBE_PROBE_MARKER"]).touch()\n'
+                               + '\n'.join('    ' + line for line in body.splitlines()) + '\n')
+
+    def shell(self, command):
+        return subprocess.run(['bash', '-c', f'source {shlex.quote(str(ROOT / "scripts/lib/preflight.sh"))}; '
+                               f'source {shlex.quote(str(ROOT / "scripts/lib/providers.sh"))}; {command}'],
+                              cwd=self.home, env=self.env, capture_output=True, text=True, timeout=12)
+
+    def test_keyring_only_auth_reaches_every_readiness_consumer(self):
+        result = self.shell('octo_provider_readiness_result vibe static; check_provider_health vibe && detect_providers')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        readiness = json.loads(result.stdout.splitlines()[0])
+        self.assertEqual((readiness['status'], readiness['reason_code']), ('available', 'ready'))
+        self.assertIn('vibe:keyring', result.stdout)
+        self.assertNotIn('inert-fixture-value', result.stdout + result.stderr)
+        self.assertTrue(self.marker.exists())
+
+    def test_missing_blank_and_broken_keyring_fail_closed_and_silent(self):
+        for body in ('return None', 'return "  "', 'raise RuntimeError("inert-fixture-value")'):
+            with self.subTest(body=body):
+                self.write_module(body)
+                result = self.shell('_octo_vibe_keyring_has_key')
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout + result.stderr, '')
+
+    def test_read_only_fallback_never_uses_migrating_lookup(self):
+        self.module.write_text('_KEYRING_SERVICE = "ai.mistral.vibe"\n'
+                               '_LEGACY_KEYRING_SERVICES = ("vibe",)\n'
+                               'def _get_password(service, key):\n'
+                               '    assert key == "MISTRAL_API_KEY"\n'
+                               '    return "inert-fixture-value" if service == "vibe" else None\n'
+                               'def get_api_key_from_keyring(*args):\n'
+                               '    raise RuntimeError("must not migrate")\n')
+        result = self.shell('_octo_vibe_keyring_has_key')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout + result.stderr, '')
+
+    def test_probe_output_is_suppressed(self):
+        self.write_module('print("inert-fixture-value")\nreturn "inert-fixture-value"')
+        result = self.shell('_octo_vibe_keyring_has_key')
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout + result.stderr, '')
+
+    def test_skip_setting_and_non_python_wrapper_do_not_execute(self):
+        for skip in ('true', '1'):
+            self.env['OCTOPUS_SKIP_PROVIDER_PROBES'] = skip
+            self.assertNotEqual(self.shell('_octo_vibe_keyring_has_key').returncode, 0)
+            self.assertFalse(self.marker.exists())
+        self.env['OCTOPUS_SKIP_PROVIDER_PROBES'] = 'false'
+        self.vibe.write_text('#!/bin/sh\nexit 99\n')
+        self.assertNotEqual(self.shell('_octo_vibe_keyring_has_key').returncode, 0)
+        self.assertFalse(self.marker.exists())
+
+    def test_existing_credentials_do_not_probe_keyring(self):
+        self.env['MISTRAL_API_KEY'] = 'inert-fixture-value'
+        result = self.shell('_octo_provider_static_readiness vibe; check_provider_health vibe; detect_providers')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('available|ready|', result.stdout)
+        self.assertIn('vibe:api-key', result.stdout)
+        self.assertFalse(self.marker.exists())
+
+    def test_locked_keyring_has_a_real_wall_clock_bound(self):
+        self.write_module('import time\ntime.sleep(60)\nreturn "inert-fixture-value"')
+        start = time.monotonic()
+        result = self.shell('_octo_vibe_keyring_has_key')
+        elapsed = time.monotonic() - start
+        self.assertTrue(self.marker.exists(), 'probe must start for timeout test to count')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertLess(elapsed, 6)
+        self.assertEqual(result.stdout + result.stderr, '')
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -423,7 +423,8 @@ _octo_provider_static_readiness() {
             if command -v vibe >/dev/null 2>&1; then
                 if _octo_value_has_nonwhitespace "${MISTRAL_API_KEY:-}" ||
                    _octo_assignment_has_nonempty_value "${HOME}/.vibe/.env" "MISTRAL_API_KEY" ||
-                   _octo_assignment_has_nonempty_value "${HOME}/.vibe/config.toml" "api_key"; then
+                   _octo_assignment_has_nonempty_value "${HOME}/.vibe/config.toml" "api_key" ||
+                   _octo_vibe_keyring_has_key; then
                     status="available"; reason_code="ready"; remediation=""
                 else
                     status="degraded"; reason_code="auth-missing"
