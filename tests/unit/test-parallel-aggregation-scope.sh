@@ -97,4 +97,40 @@ if [[ "$rc" == 1 && ! -e "$TEST_TMP_DIR/unsafe-spawn" ]] && \
 else
     test_fail "undeletable prior output remained in dispatch or aggregation"
 fi
+test_case "distinct tasks cannot delete or overwrite a completed task's result"
+if (
+    trap - EXIT
+    AVAILABLE_AGENTS='codex codex-standard claude claude-opus-fast'
+    for pair in 'codex standard-build codex-standard build' 'claude opus-build claude-opus-fast build'; do
+        read -r first_agent first_id second_agent second_id <<< "$pair"
+        collision_file="$RESULTS_DIR/$first_agent-$first_id.md"
+        rm -f "$TEST_TMP_DIR/colliding-spawn"
+        spawn_agent_capture_pid() {
+            if [[ "$3" == "$first_id" ]]; then
+                printf 'completed first task\n' > "$collision_file"
+                mkdir -p "$WORKSPACE_DIR/.octo/agents"
+                printf '0\n' > "$WORKSPACE_DIR/.octo/agents/$3.done"
+                printf '99999999\n'
+            else
+                touch "$TEST_TMP_DIR/colliding-spawn"
+                return 1
+            fi
+        }
+        jq -n --arg a "$first_agent" --arg i "$first_id" \
+            --arg b "$second_agent" --arg j "$second_id" \
+            '{tasks:[{id:$i,agent:$a,prompt:"first"},{id:$j,agent:$b,prompt:"second"}]}' \
+            > "$TEST_TMP_DIR/tasks.json"
+        parallel_execute "$TEST_TMP_DIR/tasks.json" > "$TEST_TMP_DIR/parallel-collision.log" 2>&1 && rc=0 || rc=$?
+        [[ "$rc" == 0 && ! -e "$TEST_TMP_DIR/colliding-spawn" ]] || exit 1
+        [[ "$(cat "$collision_file")" == 'completed first task' ]] || exit 1
+        jq -e '.status == "degraded" and .counts.completed == 1 and .counts.failed == 1 and
+            .results[1].reason == "output-path-collision"' \
+            "$WORKSPACE_DIR/state/parallel-report.json" >/dev/null || exit 1
+        jq -e 'length == 1' "$TEST_TMP_DIR/aggregation-tasks.json" >/dev/null || exit 1
+    done
+); then
+    test_pass
+else
+    test_fail "colliding task dispatched, removed completed output, or entered aggregation"
+fi
 test_summary

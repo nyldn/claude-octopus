@@ -651,6 +651,16 @@ parallel_execute() {
         if declare -F octo_agent_spec_slug >/dev/null 2>&1; then
             result_slug=$(octo_agent_spec_slug "$result_slug")
         fi
+        # Agent/task pairs can share a filename, including normalized aliases.
+        # Never remove or dispatch into a result already owned by this batch.
+        if jq -e --arg file "$RESULTS_DIR/$result_slug-$task_id.md" \
+            'any(.output_file == $file)' <<< "$aggregate_task_scope" >/dev/null; then
+            log ERROR "Output path collision for task $task_id"
+            _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" true \
+                "failed" "output-path-collision" ""
+            ((failed++)) || true
+            continue
+        fi
         if ! rm -f -- "$RESULTS_DIR/$result_slug-$task_id.md"; then
             log ERROR "Cannot remove previous output for task $task_id"
             _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" true \
