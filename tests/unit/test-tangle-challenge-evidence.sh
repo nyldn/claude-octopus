@@ -8,6 +8,10 @@ source "$PROJECT_ROOT/scripts/lib/workflows.sh"
 # shellcheck source=/dev/null
 source "${TESTING_LIB:-$PROJECT_ROOT/scripts/lib/testing.sh}"
 
+# Fixture writes must never follow an inherited repository or object/index route.
+for git_env_name in ${!GIT_@}; do unset "$git_env_name"; done
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+
 repo="$TEST_TMP_DIR/repo"
 mkdir -p "$repo" "$TEST_TMP_DIR/results"
 git -C "$repo" init -q
