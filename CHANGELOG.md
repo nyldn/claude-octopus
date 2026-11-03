@@ -10,7 +10,9 @@
   because the cited file did not contain a standalone 2. A whole number after
   `point`, `points`, `item` or `items`, or continuing such a list with a comma,
   "and" or "or", is now skipped when no other word follows it. Numbers with a
-  unit, such as `16 MiB` or `2 retries`, and section numbers are still checked.
+  unit, including formatted units such as `5 **MiB**`, and section numbers are
+  still checked. Compact lists such as `points 2,3` are also recognized, while
+  decimals and thousands-formatted numeric claims remain checked.
 
 ## [11.16.0] - 2026-11-02
 

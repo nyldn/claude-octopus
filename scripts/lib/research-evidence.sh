@@ -628,8 +628,13 @@ research_extract_numbers() {
 research_numeric_claims() {
     LC_ALL=C awk '
     function ordinal_reference(before, after, start, number,    gap) {
-        if (number !~ /^[0-9]+$/ || after ~ /^[0-9A-Za-z]/) return 0
-        if (after ~ /^[ \t]+[0-9A-Za-z]/ && tolower(after) !~ /^[ \t]+(and|or)[ \t]/) return 0
+        # Commas without spaces can join references, but keep thousands groups
+        # and decimal values as claims even beside point/item labels.
+        if (number !~ /^[0-9]+$/) {
+            if (number !~ /^[0-9]+(,[0-9]+)+$/ || number ~ /^[0-9][0-9]?[0-9]?(,[0-9][0-9][0-9])+$/) return 0
+            if (tolower(before) !~ /(^|[^0-9a-z_])(points|items)[ \t]+$/ && ord_end == 0) return 0
+        }
+        if (after ~ /^[ \t]*[*_`(]*[0-9A-Za-z]/ && tolower(after) !~ /^[ \t]+(and|or)[ \t]/) return 0
         if (tolower(before) ~ /(^|[^0-9a-z_])(points?|items?)[ \t]+$/) return 1
         gap = tolower(substr(line, ord_end, start - ord_end))
         return (ord_end > 0 && gap ~ /^(,[ \t]*|[ \t]*,?[ \t]*(and|or)[ \t]+)$/)

@@ -820,6 +820,31 @@ else
     test_fail "ordinal self-references were checked as numbers, or unit-bearing numbers escaped: $ordinal_kinds"
 fi
 
+test_case "compact point references are skipped while formatted units and numeric values remain claims"
+compact_refs=$(research_extract_numbers 'See points 2,3 and items 4,5,6.' | tr '\n' ' ')
+formatted_claims=""
+for ordinal_unit in '**MiB**' '*MiB*' '__MiB__' '_MiB_' '`MiB`' '(MiB)' '(**MiB**)'; do
+    formatted_claims="${formatted_claims}$(research_extract_numbers "See points 4 and 5 $ordinal_unit." | tr '\n' ' ')"
+done
+numeric_refs=$(research_extract_numbers 'See points 2.3, 1,000 and 12,345,678; items 3.14 and 4,000%.' | LC_ALL=C sort | tr '\n' ' ')
+if [[ -z "$compact_refs" && "$formatted_claims" == "5 5 5 5 5 5 5 " \
+      && "$numeric_refs" == "1,000 12,345,678 2.3 3.14 4,000% " ]]; then
+    test_pass
+else
+    test_fail "compact references leaked [$compact_refs] or claims were lost [$formatted_claims] [$numeric_refs]"
+fi
+
+test_case "formatted units still produce verification mismatches beside compact references"
+printf '%s\n' '- Unexpected errors return 500 (`src/handler.ts:4`). See points 2,3; points 4 and 5 **MiB**.' > "$ordinal_draft"
+ordinal_status=0
+research_verify_synthesis "$ordinal_draft" || ordinal_status=$?
+ordinal_kinds=$(jq -r '.checks[] | "\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$ordinal_status" -ne 0 && "$ordinal_kinds" == "number_mismatch:5 " ]]; then
+    test_pass
+else
+    test_fail "compact reference or formatted unit verification regressed: $ordinal_kinds"
+fi
+
 test_case "an unresolved workspace citation is reported by name and its line numbers are not claims"
 unresolved_draft="$RESEARCH_RUN_DIR/local-unresolved.md"
 {
