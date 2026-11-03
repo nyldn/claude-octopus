@@ -57,12 +57,35 @@ fi
         return json.loads(result.stdout)
 
     def test_dispatch_keeps_v1_pure_environment_without_v2_removed_flag(self):
-        result = self.shell('source scripts/lib/dispatch.sh; get_agent_model() { echo vendor/model; }; get_agent_command opencode')
+        result = self.shell("source scripts/lib/dispatch.sh; source scripts/lib/utils.sh; get_agent_model() { echo vendor/model; }; cmd=$(get_agent_command opencode); validate_agent_command \"$cmd\" || exit; echo \"$cmd\"")
         self.assertEqual(result.returncode, 0, result.stderr)
         cmd = shlex.split(result.stdout)
         run = subprocess.run(cmd, env=self.env, capture_output=True, text=True, timeout=3)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout.strip(), "run -m vendor/model")
+
+    def test_dispatch_validator_rejects_other_environment_and_injection(self):
+        for command in (
+            "env OPENCODE_PURE=0 opencode run",
+            "env OPENCODE_PURE=1 OTHER=1 opencode run",
+            "env OPENCODE_PURE=1 sh run",
+            "env OPENCODE_PURE=1 opencode auth list",
+            "env OPENCODE_PURE=1 opencode run -m vendor/model;touch /tmp/probe",
+            "env OPENCODE_PURE=1 opencode run -m $(id)",
+            "env OPENCODE_PURE=1 opencode run -m --help",
+        ):
+            with self.subTest(command=command):
+                self.env["CANDIDATE_COMMAND"] = command
+                result = self.shell('source scripts/lib/utils.sh; validate_agent_command "$CANDIDATE_COMMAND"')
+                self.assertNotEqual(result.returncode, 0)
+        result = self.shell('source scripts/lib/utils.sh; validate_agent_command "env OPENCODE_PURE=1 opencode run"')
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_v2_long_account_labels_remain_valid(self):
+        (self.data / "opencode.db").touch()
+        for label in ("x" * 28, "x" * 45):
+            self.env["AUTH_LIST"] = "OpenAI  " + label + "stored"
+            self.assertEqual(self.readiness("live")["status"], "available")
 
     def test_static_sqlite_store_requires_live_confirmation_without_cli(self):
         (self.data / "opencode.db").touch()

@@ -9,7 +9,7 @@
   Discovery recognizes SQLite login storage without launching OpenCode. An
   explicit live readiness check confirms a nonempty login listing, with a
   three-second process budget. Empty or failed listings remain unavailable.
-  Fixes [#1172](https://github.com/nyldn/claude-octopus/issues/1172).
+  Addresses [#1172](https://github.com/nyldn/claude-octopus/issues/1172).
 
 ## [11.16.0] - 2026-11-02
 

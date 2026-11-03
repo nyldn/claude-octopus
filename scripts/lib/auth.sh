@@ -282,5 +282,5 @@ _octo_opencode_has_saved_login() {
     # v1 ends with an N-credentials summary. v2 prints one aligned row per
     # stored/environment connection and no summary. Neither exposes values.
     listing="$(printf '%s\n' "$listing" | sed $'s/\033\[[0-9;]*m//g')"
-    printf '%s\n' "$listing" | grep -Eq '(^|[^0-9])[1-9][0-9]* credentials?([[:space:]]|$)|^[^[:space:]].*[[:space:]](stored|environment)[[:space:]]*$'
+    printf '%s\n' "$listing" | grep -Eq '(^|[^0-9])[1-9][0-9]* credentials?([[:space:]]|$)|^[^[:space:]].*[[:space:]]{2}.*(stored|environment)[[:space:]]*$'
 }
