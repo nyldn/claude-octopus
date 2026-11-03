@@ -138,7 +138,7 @@ command -v agy &> /dev/null && agy_status="Available" || agy_status="Not install
 # Run Multi-AI security audit for delivery
 RUN_MARKER=$(mktemp) || exit 1
 RUN_STATUS=0
-"${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" ink "Security audit for delivery - comprehensive review of all code changes for production readiness" || RUN_STATUS=$?
+OCTOPUS_WORKFLOW_INVOCATION_ID="${RUN_MARKER##*/}" "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" ink "Security audit for delivery - comprehensive review of all code changes for production readiness" || RUN_STATUS=$?
 REPORT_STATUS=0
 VALIDATION_FILE=$("${HOME}/.claude-octopus/plugin/scripts/helpers/workflow-result.sh" ink "$RUN_MARKER" "$RUN_STATUS") || REPORT_STATUS=$?
 rm -f "$RUN_MARKER"

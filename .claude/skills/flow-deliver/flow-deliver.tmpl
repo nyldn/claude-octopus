@@ -207,7 +207,7 @@ fi
 # Keep execution and report validation in the same shell invocation.
 RUN_MARKER=$(mktemp) || exit 1
 RUN_STATUS=0
-"${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" deliver "<user's validation request>" || RUN_STATUS=$?
+OCTOPUS_WORKFLOW_INVOCATION_ID="${RUN_MARKER##*/}" "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" deliver "<user's validation request>" || RUN_STATUS=$?
 REPORT_STATUS=0
 VALIDATION_FILE=$("${HOME}/.claude-octopus/plugin/scripts/helpers/workflow-result.sh" deliver "$RUN_MARKER" "$RUN_STATUS") || REPORT_STATUS=$?
 rm -f "$RUN_MARKER"

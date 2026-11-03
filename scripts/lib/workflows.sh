@@ -1380,6 +1380,7 @@ Constraints: $def3"
 
     cat > "$consensus_file" << EOF
 # GRASP Phase - Problem Definition Consensus
+<!-- octopus-workflow-invocation: ${OCTOPUS_WORKFLOW_INVOCATION_ID:-} -->
 ## Task: $prompt
 ## Generated: $(date)
 
@@ -6143,6 +6144,7 @@ $all_results"
 
     cat > "$delivery_file" << EOF
 # DELIVERY DOCUMENT
+<!-- octopus-workflow-invocation: ${OCTOPUS_WORKFLOW_INVOCATION_ID:-} -->
 ## Task: $prompt
 ## Generated: $(date)
 ## Status: $([[ "$checks_passed" == "true" ]] && echo "COMPLETE" || echo "PARTIAL - Review Required")

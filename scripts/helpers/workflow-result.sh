@@ -35,6 +35,14 @@ try:
     report = reports[0]
     data = report.read_bytes()
     text = data.decode("utf-8")
+    # The launcher owns the line immediately after the title, before any task
+    # or provider text. Freshness alone cannot distinguish overlapping writers.
+    title, separator, body = text.partition("\n")
+    invocation = "<!-- octopus-workflow-invocation: " + pathlib.Path(marker).name + " -->\n"
+    if not separator or not body.startswith(invocation):
+        raise ValueError("report does not belong to this invocation: " + str(report))
+    text = title + separator + body[len(invocation):]
+    data = text.encode("utf-8")
     if phase == "define":
         # Grasp has no status heading. Its launcher footer identifies the
         # synthesizer, or explicitly records a failed auto-consensus as none.

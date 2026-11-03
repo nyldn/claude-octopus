@@ -832,6 +832,7 @@ $challenge_result
         task_prompt_bytes=$(LC_ALL=C printf '%s' "$original_prompt" | wc -c | tr -d '[:space:]')
         cat > "$validation_file" << EOF
 # TANGLE Phase Validation Report
+<!-- octopus-workflow-invocation: ${OCTOPUS_WORKFLOW_INVOCATION_ID:-} -->
 <!-- octopus-task-bytes: ${task_prompt_bytes} -->
 ## Task: $original_prompt
 ## Generated: $(date)
