@@ -394,8 +394,7 @@ _OCTO_AGENT_STATUS_LATEST_PER_SEAT='def latest_per_seat:
     ((($filter == "") or ((.output_file // "") | contains($filter)) or
       ((.seat_id // "") | contains($filter)))) and
     ($task_scope == null or (. as $row | any($task_scope[];
-        . as $task | ($row.seat_id == ("spawn-" + $task.id)) or
-        ($row.output_file == $task.output_file))));'
+        . as $task | ($row.seat_id == ("spawn-" + $task.id)))));'
 
 write_agent_run_snapshot() {
     command -v jq >/dev/null 2>&1 || return 0

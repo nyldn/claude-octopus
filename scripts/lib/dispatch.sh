@@ -1455,6 +1455,7 @@ enforce_context_budget() {
     local role="${2:-}"
     local agent_type="${3:-}"
     local phase="${4:-}"
+    local seat_id="${5:-}"
     # Authenticate the envelope before budget fitting or lossy summarization.
     # An echoed duplicate must never replace the controller's real contract.
     if ! octo_json_contract_block "$prompt" >/dev/null; then
@@ -1521,7 +1522,7 @@ enforce_context_budget() {
             fail)
                 log "ERROR" "Context budget: prompt for $target is ${original_chars} chars; limit is $char_budget chars (~$budget tokens)"
                 type record_oversize_event >/dev/null 2>&1 && record_oversize_event "$target" "$original_chars" "$original_chars" "failed" "$role" "$phase" "$budget" || true
-                type write_agent_status >/dev/null 2>&1 && write_agent_status "$target" "failed" "$((original_chars / 4))" 0 "Prompt exceeded context budget" 0 "" "$role" || true
+                type write_agent_status >/dev/null 2>&1 && write_agent_status "$target" "failed" "$((original_chars / 4))" 0 "Prompt exceeded context budget" 0 "" "$role" "$seat_id" || true
                 return 78
                 ;;
             summarize)

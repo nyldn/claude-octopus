@@ -161,8 +161,8 @@ seat_three="$WORKSPACE_DIR/results/claude-sonnet-probe-7-3.md"
 printf 'partial output before timeout\n' > "$seat_one"
 printf 'complete probe answer\n' > "$seat_three"
 write_agent_status "claude-sonnet" "running" 100 0 "" 0 "$seat_one" "researcher"
-write_agent_status "claude-sonnet" "running" 100 0 "" 0 "$seat_three" "researcher"
-write_agent_status "claude-sonnet" "ok" 100 50 "" 557000 "$seat_three" "researcher"
+write_agent_status "claude-sonnet" "running" 100 0 "" 0 "$seat_three" "researcher" "spawn-probe-7-3"
+write_agent_status "claude-sonnet" "ok" 100 50 "" 557000 "$seat_three" "researcher" "spawn-probe-7-3"
 write_agent_status "claude-sonnet" "timeout" 100 0 "Timed out before completion" 603000 "$seat_one" "researcher"
 summary="$(render_agent_summary)"
 files="$(agent_status_output_files)"
@@ -224,4 +224,37 @@ if [[ "$summary" == *'use 1 available outputs'* ]]; then
 else
     test_fail "probe synthesis can use partial output that the summary did not count: $summary"
 fi
+
+test_case "exact task scope does not inherit a legacy failure through a reused path"
+write_agent_status codex failed 1 0 "old task" 0 "$seat_three" researcher
+summary="$(render_agent_summary "" "$tasks")"
+if [[ "$summary" != *codex* ]]; then test_pass; else test_fail "old seat entered current scope: $summary"; fi
+
+test_case "budget helper and caller keep one rejected seat"
+source "$PROJECT_ROOT/scripts/lib/dispatch.sh"
+get_provider_context_limit() { echo 1; }
+get_role_budget_proportion() { echo 100; }
+log() { :; }
+export OCTOPUS_RUN_ID=budget-identity OCTOPUS_OVERSIZE_STRATEGY=fail
+budget_rc=0
+enforce_context_budget 'too much context' '' codex probe spawn-budget-1 >/dev/null || budget_rc=$?
+write_agent_status codex failed 4 0 "Prompt exceeded context budget" 0 '' '' spawn-budget-1
+if [[ "$budget_rc" == 78 ]] && jq -e '.agents | length == 1' "$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID/agents.json" >/dev/null; then
+    test_pass
+else test_fail "one rejection became multiple seats"; fi
+
+test_case "probe budget failure remains in its filtered summary"
+source "$PROJECT_ROOT/scripts/lib/workflows.sh"
+preflight_check() { :; }
+match_routing_rule() { :; }
+classify_task() { :; }
+apply_persona() { printf '%s' 'too much context'; }
+SUPPORTS_AGENT_TYPE_ROUTING=false OCTOPUS_PERSONA_PACKS=off
+RESULTS_DIR="$WORKSPACE_DIR/results" LOGS_DIR="$WORKSPACE_DIR/logs"
+probe_rc=0
+probe_single_agent codex perspective probe-budget-2 original >/dev/null || probe_rc=$?
+summary="$(render_agent_summary '-probe-budget-2')"
+if [[ "$probe_rc" == 78 && "$summary" == *'1 of 1 agents failed'* ]]; then test_pass
+else test_fail "probe rejection disappeared: $summary, rc=$probe_rc"; fi
+
 test_summary

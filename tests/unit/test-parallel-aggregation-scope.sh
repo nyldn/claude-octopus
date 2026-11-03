@@ -14,7 +14,7 @@ old="$RESULTS_DIR/codex-old-t1.md"
 printf '## Output\nCURRENT_IMPLEMENTATION\n## Status: SUCCESS\n' > "$current"
 printf '## Output\nUNRELATED_EARLIER_IMPLEMENTATION\n## Status: SUCCESS\n' > "$old"
 write_agent_status codex ok 10 10 '' 1 "$old"
-write_agent_status codex ok 10 10 '' 1 "$current"
+write_agent_status codex ok 10 10 '' 1 "$current" researcher spawn-t1
 tasks="$(jq -nc --arg file "$current" '[{id:"t1",output_file:$file}]')"
 log() { :; }
 guard_output() { :; }
@@ -92,7 +92,9 @@ spawn_agent_capture_pid() { touch "$TEST_TMP_DIR/unsafe-spawn"; return 1; }
 printf '{"tasks":[{"id":"blocked","agent":"codex","prompt":"implement"}]}' > "$TEST_TMP_DIR/tasks.json"
 parallel_execute "$TEST_TMP_DIR/tasks.json" > "$TEST_TMP_DIR/parallel-blocked.log" 2>&1 && rc=0 || rc=$?
 if [[ "$rc" == 1 && ! -e "$TEST_TMP_DIR/unsafe-spawn" ]] && \
-    jq -e '. == []' "$TEST_TMP_DIR/aggregation-tasks.json" > /dev/null; then
+    jq -e '. == [{id:"blocked",output_file:""}]' "$TEST_TMP_DIR/aggregation-tasks.json" > /dev/null && \
+    jq -e '.agents | any(.reason == "stale-output-removal" and .seat_id == "spawn-blocked" and .output_file == "")' \
+        "$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID/agents.json" >/dev/null; then
     test_pass
 else
     test_fail "undeletable prior output remained in dispatch or aggregation"
@@ -126,11 +128,37 @@ if (
         jq -e '.status == "degraded" and .counts.completed == 1 and .counts.failed == 1 and
             .results[1].reason == "output-path-collision"' \
             "$WORKSPACE_DIR/state/parallel-report.json" >/dev/null || exit 1
-        jq -e 'length == 1' "$TEST_TMP_DIR/aggregation-tasks.json" >/dev/null || exit 1
+        summary="$(render_agent_summary '' "$(cat "$TEST_TMP_DIR/aggregation-tasks.json")")"
+        [[ "$summary" == *'failed'* ]] || exit 1
+        jq -e '.agents | any(.reason == "output-path-collision" and .output_file == "")' \
+            "$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID/agents.json" >/dev/null || exit 1
+        jq -e 'length == 2' "$TEST_TMP_DIR/aggregation-tasks.json" >/dev/null || exit 1
     done
 ); then
     test_pass
 else
     test_fail "colliding task dispatched, removed completed output, or entered aggregation"
 fi
+
+for owner in claim legacy-ledger; do
+    test_case "a $owner owner keeps its output when another invocation reuses the task"
+    export OCTOPUS_RUN_ID="ownership-$owner"
+    owned="$RESULTS_DIR/codex-owned.md"
+    printf 'active partial output\n' > "$owned"
+    rm -f "$TEST_TMP_DIR/unsafe-spawn"
+    if [[ "$owner" == claim ]]; then
+        mkdir "$RESULTS_DIR/.codex-owned.claim"
+    else
+        write_agent_status codex running 1 0 '' 0 "$owned" researcher spawn-owned
+    fi
+    printf '{"tasks":[{"id":"owned","agent":"codex","prompt":"implement"}]}' > "$TEST_TMP_DIR/tasks.json"
+    AVAILABLE_AGENTS=codex
+    parallel_execute "$TEST_TMP_DIR/tasks.json" > "$TEST_TMP_DIR/parallel-owned.log" 2>&1 && rc=0 || rc=$?
+    if [[ "$rc" == 1 && ! -e "$TEST_TMP_DIR/unsafe-spawn" && "$(cat "$owned")" == 'active partial output' ]] &&
+       jq -e '.results[0].reason == "output-path-owned"' "$WORKSPACE_DIR/state/parallel-report.json" >/dev/null; then
+        test_pass
+    else test_fail "another invocation deleted or dispatched into an owned output"; fi
+    [[ "$owner" != claim ]] || rmdir "$RESULTS_DIR/.codex-owned.claim"
+done
+
 test_summary

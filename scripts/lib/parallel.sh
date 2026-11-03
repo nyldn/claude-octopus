@@ -296,12 +296,20 @@ parallel_execute() {
     local task_ids=()
     local task_agents=()
     local task_sequences=()
+    local output_claims=()
     _parallel_cleanup_cron() {
         if [[ "$_parallel_cron_disabled" == "true" ]]; then
             unset CLAUDE_CODE_DISABLE_CRON 2>/dev/null || true
         fi
     }
     _parallel_cleanup_resources() {
+        local claim
+        if [[ ${#output_claims[@]} -gt 0 ]]; then
+            for claim in "${output_claims[@]}"; do
+                rmdir -- "$claim" 2>/dev/null || true
+            done
+        fi
+        output_claims=()
         [[ -z "$spawn_output" ]] || rm -f "$spawn_output" 2>/dev/null || true
         [[ -z "$spawn_pid_handoff" ]] || rm -f "$spawn_pid_handoff" 2>/dev/null || true
         [[ -z "$outcome_dir" ]] || rm -rf "$outcome_dir" 2>/dev/null || true
@@ -658,6 +666,36 @@ parallel_execute() {
             log ERROR "Output path collision for task $task_id"
             _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" true \
                 "failed" "output-path-collision" ""
+            type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent" failed 0 0 \
+                output-path-collision 0 "" "" "spawn-$task_id" || true
+            aggregate_task_scope=$(jq -c --arg id "$task_id" \
+                '. + [{id: $id, output_file: ""}]' <<< "$aggregate_task_scope")
+            ((failed++)) || true
+            continue
+        fi
+        # Claims live beside the output so separate invocations sharing a
+        # results directory cannot unlink or dispatch into each other's file.
+        local claim="$RESULTS_DIR/.$result_slug-$task_id.claim"
+        mkdir -p "$RESULTS_DIR"
+        if ! mkdir -- "$claim" 2>/dev/null; then
+            log ERROR "Output path is already claimed for task $task_id"
+            _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" true \
+                failed output-path-owned ""
+            ((failed++)) || true
+            continue
+        fi
+        output_claims+=("$claim")
+        # Preserve active outputs from older dispatchers without claim support.
+        local ledger=""
+        if declare -F octo_run_dir >/dev/null 2>&1; then
+            ledger="$(octo_run_dir)/agents.jsonl"
+        fi
+        if [[ -s "$ledger" ]] && jq -es --arg file "$RESULTS_DIR/$result_slug-$task_id.md" \
+            "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'latest_per_seat | any(.output_file == $file and .status == "running")' \
+            "$ledger" >/dev/null 2>&1; then
+            log ERROR "Output path has a running seat for task $task_id"
+            _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" true \
+                failed output-path-owned ""
             ((failed++)) || true
             continue
         fi
@@ -665,6 +703,10 @@ parallel_execute() {
             log ERROR "Cannot remove previous output for task $task_id"
             _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" true \
                 "failed" "stale-output-removal" ""
+            type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent" failed 0 0 \
+                stale-output-removal 0 "" "" "spawn-$task_id" || true
+            aggregate_task_scope=$(jq -c --arg id "$task_id" \
+                '. + [{id: $id, output_file: ""}]' <<< "$aggregate_task_scope")
             ((failed++)) || true
             continue
         fi
