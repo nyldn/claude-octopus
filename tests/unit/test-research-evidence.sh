@@ -834,6 +834,15 @@ else
     test_fail "compact references leaked [$compact_refs] or claims were lost [$formatted_claims] [$numeric_refs]"
 fi
 
+test_case "degree units and nonbreaking spaces preserve quantities and ordinal lists"
+unicode_units=$(research_extract_numbers $'points 2 and 5 °C; points 3 and 6\302\240MB; items 4 and 7\342\200\257MiB' | LC_ALL=C sort | tr '\n' ' ')
+unicode_refs=$(research_extract_numbers $'points\302\2402\302\240and\302\2403, items 4\342\200\257or\342\200\2575.' | tr '\n' ' ')
+if [[ "$unicode_units" == "5 6 7 " && -z "$unicode_refs" ]]; then
+    test_pass
+else
+    test_fail "Unicode quantities were lost [$unicode_units] or references leaked [$unicode_refs]"
+fi
+
 test_case "formatted units still produce verification mismatches beside compact references"
 printf '%s\n' '- Unexpected errors return 500 (`src/handler.ts:4`). See points 2,3; points 4 and 5 **MiB**.' > "$ordinal_draft"
 ordinal_status=0

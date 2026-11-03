@@ -634,13 +634,16 @@ research_numeric_claims() {
             if (number !~ /^[0-9]+(,[0-9]+)+$/ || number ~ /^[0-9][0-9]?[0-9]?(,[0-9][0-9][0-9])+$/) return 0
             if (tolower(before) !~ /(^|[^0-9a-z_])(points|items)[ \t]+$/ && ord_end == 0) return 0
         }
-        if (after ~ /^[ \t]*[*_`(]*[0-9A-Za-z]/ && tolower(after) !~ /^[ \t]+(and|or)[ \t]/) return 0
+        if (after ~ /^[ \t]*[*_`(]*([0-9A-Za-z]|\302\260)/ && tolower(after) !~ /^[ \t]+(and|or)[ \t]/) return 0
         if (tolower(before) ~ /(^|[^0-9a-z_])(points?|items?)[ \t]+$/) return 1
         gap = tolower(substr(line, ord_end, start - ord_end))
         return (ord_end > 0 && gap ~ /^(,[ \t]*|[ \t]*,?[ \t]*(and|or)[ \t]+)$/)
     }
     {
-        line = $0; pos = 1; id_end = -1; ord_end = 0
+        line = $0
+        # Treat common nonbreaking unit/list spaces like ASCII spaces under C locale.
+        gsub(/\302\240|\342\200\257/, " ", line)
+        pos = 1; id_end = -1; ord_end = 0
         while (match(substr(line, pos), /[0-9]+([.,][0-9]+)*%?/)) {
             start = pos + RSTART - 1; len = RLENGTH; pos = start + len
             before = substr(line, 1, start - 1); after = substr(line, pos)
