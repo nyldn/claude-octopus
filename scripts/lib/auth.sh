@@ -258,3 +258,29 @@ handle_auth_command() {
             ;;
     esac
 }
+
+# OpenCode v2 migrated local credentials into SQLite. Store presence is only
+# configuration evidence; static discovery must not launch the CLI or open it.
+_octo_opencode_auth_store_present() {
+    local data_dir="${XDG_DATA_HOME:-${HOME}/.local/share}/opencode"
+    local database="${OPENCODE_DB:-opencode.db}"
+    [[ -f "${data_dir}/auth.json" ]] && return 0
+    [[ "$database" != :memory: ]] || return 1
+    [[ "$database" == /* ]] || database="${data_dir}/${database}"
+    [[ -f "$database" ]]
+}
+
+# Explicit live check only. A successful empty listing is not a login. Keep
+# all account labels and command output private and bound the process group.
+_octo_opencode_has_saved_login() {
+    local listing
+    [[ "${OCTOPUS_SKIP_PROVIDER_PROBES:-false}" != true ]] || return 1
+    if ! declare -f _octo_run_bare_probe_with_timeout >/dev/null 2>&1; then
+        source "${BASH_SOURCE[0]%/*}/bounded-probe.sh" 2>/dev/null || return 1
+    fi
+    listing="$(_octo_run_bare_probe_with_timeout 3 2 1 opencode auth list </dev/null 2>/dev/null)" || return 1
+    # v1 ends with an N-credentials summary. v2 prints one aligned row per
+    # stored/environment connection and no summary. Neither exposes values.
+    listing="$(printf '%s\n' "$listing" | sed $'s/\033\[[0-9;]*m//g')"
+    printf '%s\n' "$listing" | grep -Eq '(^|[^0-9])[1-9][0-9]* credentials?([[:space:]]|$)|^[^[:space:]].*[[:space:]](stored|environment)[[:space:]]*$'
+}

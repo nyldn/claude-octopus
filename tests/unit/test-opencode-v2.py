@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+"""Exercise both OpenCode generations without auth, installs, or model calls."""
+import json
+import os
+from pathlib import Path
+import shlex
+import subprocess
+import tempfile
+import unittest
+
+ROOT = Path(os.environ.get("OCTO_TEST_ROOT", Path(__file__).resolve().parents[2]))
+
+
+class OpenCodeCompatibility(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.base = Path(self.tmp.name)
+        self.bin = self.base / "bin"
+        self.bin.mkdir()
+        self.data = self.base / "data" / "opencode"
+        self.data.mkdir(parents=True)
+        self.marker = self.base / "called"
+        self.cli = self.bin / "opencode"
+        self.cli.write_text("""#!/bin/sh
+printf called >> "$PROBE_MARKER"
+if [ "$1" = --pure ]; then exit 64; fi
+if [ "$1" = run ]; then
+    [ "$OPENCODE_PURE" = 1 ] || exit 65
+    printf '%s\\n' "$*"
+else
+    [ "$1 $2" = 'auth list' ] || exit 66
+    printf '%s\\n' "$AUTH_LIST"
+    exit "${AUTH_RC:-0}"
+fi
+""")
+        self.cli.chmod(0o755)
+        self.env = {
+            "PATH": str(self.bin) + ":/usr/bin:/bin",
+            "HOME": str(self.base / "home"),
+            "XDG_DATA_HOME": str(self.base / "data"),
+            "PLUGIN_DIR": str(ROOT),
+            "PROBE_MARKER": str(self.marker),
+            "AUTH_LIST": "OpenAI  Default                     stored",
+            "OCTO_ALLOWED_PROVIDERS": "opencode",
+            "OCTOPUS_SKIP_PROVIDER_PROBES": "false",
+        }
+        Path(self.env["HOME"]).mkdir()
+
+    def shell(self, script, *, root=ROOT):
+        return subprocess.run(["bash", "-c", script], env=self.env, cwd=root,
+                              text=True, capture_output=True, timeout=8)
+
+    def readiness(self, kind):
+        result = self.shell(f'source scripts/lib/preflight.sh; octo_provider_readiness_result opencode {kind}')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return json.loads(result.stdout)
+
+    def test_dispatch_keeps_v1_pure_environment_without_v2_removed_flag(self):
+        result = self.shell('source scripts/lib/dispatch.sh; get_agent_model() { echo vendor/model; }; get_agent_command opencode')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        cmd = shlex.split(result.stdout)
+        run = subprocess.run(cmd, env=self.env, capture_output=True, text=True, timeout=3)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout.strip(), "run -m vendor/model")
+
+    def test_static_sqlite_store_requires_live_confirmation_without_cli(self):
+        (self.data / "opencode.db").touch()
+        result = self.readiness("static")
+        self.assertEqual(result["reason_code"], "live-check-required")
+        self.assertEqual(result["status"], "degraded")
+        self.assertFalse(self.marker.exists())
+
+    def test_live_v2_stored_and_environment_rows_are_recognized(self):
+        (self.data / "opencode.db").touch()
+        for kind in ("stored", "environment"):
+            with self.subTest(kind=kind):
+                self.env["AUTH_LIST"] = "OpenAI  Default                     " + kind
+                self.assertEqual(self.readiness("live")["status"], "available")
+        self.assertTrue(self.marker.exists())
+
+    def test_empty_failed_and_unknown_listings_never_pass(self):
+        (self.data / "opencode.db").touch()
+        for listing, rc in [("No authenticated integrations", "0"), ("", "0"),
+                            ("unknown output", "0"), (self.env["AUTH_LIST"], "1"),
+                            ("0 credentials", "0")]:
+            with self.subTest(listing=listing, rc=rc):
+                self.env.update(AUTH_LIST=listing, AUTH_RC=rc)
+                self.assertEqual(self.readiness("live")["status"], "degraded")
+
+    def test_legacy_ansi_credential_summary_passes(self):
+        (self.data / "auth.json").write_text("{}")
+        self.env["AUTH_LIST"] = "\x1b[32m└  2 credentials\x1b[0m"
+        self.assertEqual(self.readiness("live")["status"], "available")
+
+    def test_static_discovery_does_not_execute_cli(self):
+        (self.data / "opencode.db").touch()
+        result = self.shell('log() { :; }; source scripts/lib/providers.sh; detect_providers')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("opencode:configured", result.stdout)
+        self.assertFalse(self.marker.exists())
+
+    def test_database_override_paths_and_memory(self):
+        for database in ("named.db", str(self.base / "absolute.db")):
+            with self.subTest(database=database):
+                self.env["OPENCODE_DB"] = database
+                path = Path(database) if database.startswith("/") else self.data / database
+                path.touch()
+                self.assertEqual(self.readiness("static")["reason_code"], "live-check-required")
+                path.unlink()
+        self.env["OPENCODE_DB"] = ":memory:"
+        self.assertEqual(self.readiness("static")["reason_code"], "auth-missing")
+
+    def test_skip_probes_preserves_no_execution(self):
+        (self.data / "opencode.db").touch()
+        self.env["OCTOPUS_SKIP_PROVIDER_PROBES"] = "true"
+        self.assertEqual(self.readiness("live")["status"], "degraded")
+        self.assertFalse(self.marker.exists())
+
+    def test_stalled_login_list_is_bounded(self):
+        (self.data / "opencode.db").touch()
+        self.cli.write_text("#!/bin/sh\nsleep 20\n")
+        self.assertEqual(self.readiness("live")["status"], "degraded")
+
+    def test_provider_allowlist_prevents_live_probe(self):
+        (self.data / "opencode.db").touch()
+        self.env["OCTO_ALLOWED_PROVIDERS"] = "claude"
+        self.assertEqual(self.readiness("live")["reason_code"], "disabled")
+        self.assertFalse(self.marker.exists())
+
+
+if __name__ == "__main__":
+    unittest.main()

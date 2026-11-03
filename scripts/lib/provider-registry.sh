@@ -57,7 +57,7 @@ claude-sdk|api-key|check_provider_health|detect_providers|OCTOPUS_CLAUDE_SDK_MOD
 anthropic-api|api-key|check_provider_health|detect_providers|OCTOPUS_ANTHROPIC_API_MODEL|resolve_octopus_model|12000|metered|plugin-isolated|anthropic
 agy|cli-session|check_provider_health|detect_providers|OCTOPUS_AGY_MODEL|resolve_octopus_model|12000|bundled|plugin-isolated|google
 perplexity|api-key|check_provider_health|detect_providers|OCTOPUS_PERPLEXITY_MODEL|resolve_octopus_model|12000|metered|provider-managed|perplexity
-opencode|provider-config|none|detect_providers|OCTOPUS_OPENCODE_MODEL|resolve_octopus_model|12000|variable|provider-managed|opencode
+opencode|provider-config|check_provider_health|detect_providers|OCTOPUS_OPENCODE_MODEL|resolve_octopus_model|12000|variable|provider-managed|opencode
 openrouter|api-key|check_provider_health|detect_providers|OCTOPUS_OPENROUTER_MODEL|resolve_octopus_model|12000|metered|provider-managed|openrouter
 orcarouter|api-key|check_provider_health|detect_providers|OCTOPUS_ORCAROUTER_MODEL|resolve_octopus_model|12000|metered|provider-managed|orcarouter
 atlascloud|api-key|check_provider_health|detect_providers|OCTOPUS_ATLASCLOUD_MODEL|resolve_octopus_model|12000|metered|plugin-isolated|atlascloud
@@ -292,7 +292,6 @@ octo_provider_limitations_rows() {
 claude-sdk|council|sdk-agent-runtime-is-not-a-supported-council-seat
 anthropic-api|council|text-only-api-seat-has-no-tools-or-council-runtime
 perplexity|council|research-api-runtime-is-not-a-supported-council-seat
-opencode|health|no-provider-specific-health-probe
 atlascloud|council|atlascloud-runtime-is-not-a-supported-council-seat
 cheaperinference|council|cheaperinference-runtime-is-not-a-supported-council-seat
 api-route|council|api-route-runtime-is-not-a-supported-council-seat

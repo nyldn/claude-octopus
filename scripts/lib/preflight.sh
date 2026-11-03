@@ -436,6 +436,9 @@ _octo_provider_static_readiness() {
                 if [[ -f "${HOME}/.local/share/opencode/auth.json" ]] ||
                    _octo_value_has_nonwhitespace "${GITHUB_TOKEN:-${OPENROUTER_API_KEY:-${Z_AI_API_KEY:-${MINIMAX_API_KEY:-}}}}"; then
                     status="available"; reason_code="ready"; remediation=""
+                elif _octo_opencode_auth_store_present; then
+                    status="degraded"; reason_code="live-check-required"
+                    remediation="OpenCode login storage detected; run an explicit live readiness check to confirm a saved login."
                 else
                     status="degraded"; reason_code="auth-missing"
                 fi

@@ -435,3 +435,25 @@ allowance can require a larger configured context budget.
 
 See the [thinking migration](MODEL-ROUTING-STRATEGY.md#sonnet-55-api-thinking-2026-10-01)
 for the current CLI and Agent SDK limitation and the API compatibility rules.
+
+### OpenCode CLI generations
+
+Octopus dispatches both OpenCode 1.x and 2.x with
+`env OPENCODE_PURE=1 opencode run -m <provider/model>`. In 1.x this preserves
+`--pure` behavior without sending the removed flag to 2.x. It does not claim
+that 2.x supports the old plugin-disable mode or that killing a client stops
+work on its shared background server.
+
+Static discovery recognizes `auth.json` and `opencode.db` in
+`${XDG_DATA_HOME:-~/.local/share}/opencode`, plus `OPENCODE_DB` overrides.
+A relative database override resolves under that data directory. Store presence
+is configuration evidence only. A SQLite-only installation needs an explicit
+live readiness check; this runs a bounded `opencode auth list` and requires a
+positive legacy credential count or a 2.x `stored`/`environment` row. It does
+not prove model entitlement or make a model request. Unknown output and empty
+listings fail closed. No credential database is opened or changed by Octopus.
+
+Compatibility sources checked on 2026-11-03:
+[1.18.34 flag implementation](https://github.com/anomalyco/opencode/blob/v1.18.34/packages/opencode/src/index.ts),
+[2.0.23 login listing](https://github.com/anomalyco/opencode/blob/v2.0.23/packages/cli/src/commands/handlers/auth/list.ts),
+and [provider storage](https://github.com/anomalyco/opencode/blob/v2.0.23/services/www/src/docs/content/cli/providers.mdx).

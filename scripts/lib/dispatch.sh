@@ -889,13 +889,10 @@ get_agent_command() {
             if [[ -n "$model" && "$model" != "default" ]]; then
                 oc_model_flag="-m ${model}"
             fi
-            # --pure skips opencode's external-plugin auto-title path, which
-            # otherwise resolves an SDK handle for a hardcoded small model
-            # before the prompt is even sent — an unresolvable catalog/model
-            # there hangs `opencode run` indefinitely with no timeout or error
-            # (Issue #566). It's a global flag, so it must precede the `run`
-            # subcommand or risk being ignored/rejected.
-            echo "opencode --pure run ${oc_model_flag}"
+            # OpenCode 1.x implements --pure by setting this environment
+            # variable. Preserve its plugin-hang protection (#566) without
+            # passing the removed global flag to OpenCode 2.x (#1172).
+            echo "env OPENCODE_PURE=1 opencode run ${oc_model_flag}"
             ;;
         *) return 1 ;;
     esac
