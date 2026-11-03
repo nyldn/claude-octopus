@@ -3,10 +3,11 @@
 ## Check your roster
 
 Run `/octo:preflight` before a council to check the providers you configured.
-When `OCTOPUS_COUNCIL_DEFAULT_PROVIDERS` pins a roster, preflight checks those
-seats, including Claude, and names any seat that is not ready. Unset or `auto`
-keeps the usual detection behavior. A seat without local provider detection
-is reported as not checked.
+When the council provider roster is pinned, preflight checks those seats,
+including Claude, and names any seat that is not ready. An unset roster or
+`auto` keeps the usual detection behavior. See the
+[preflight configuration](../commands/preflight.md). A seat without local
+provider detection is reported as not checked.
 
 A sandbox can hide a valid keychain login, network access or files outside
 the workspace. Preflight now reports this limitation. Re-run it outside the
