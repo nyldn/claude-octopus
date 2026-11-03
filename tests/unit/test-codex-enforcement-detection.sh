@@ -135,4 +135,13 @@ else
     test_fail "ui_short_description did not preserve exact boundaries or trim at a complete word"
 fi
 
+
+test_case "native output cleanup initializes an absent output directory"
+NATIVE_OUTPUT_DIR="$fixture_root/absent-native"
+if prepare_target_dir "$NATIVE_OUTPUT_DIR" && [[ -d "$NATIVE_OUTPUT_DIR" ]]; then
+    test_pass
+else
+    test_fail "missing native output directory cannot be rebuilt"
+fi
+
 test_summary

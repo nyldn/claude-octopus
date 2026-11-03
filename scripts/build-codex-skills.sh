@@ -420,6 +420,7 @@ _preserve_find_args() {
 prepare_target_dir() {
     local target_dir="$1" d
     if [[ "$target_dir" == "$NATIVE_OUTPUT_DIR" ]]; then
+        mkdir -p "$target_dir"
         local -a keep=()
         while IFS= read -r d; do keep+=("$d"); done < <(_preserve_find_args)
         find "$target_dir" -mindepth 1 -maxdepth 1 -type d "${keep[@]}" -exec rm -rf {} +
