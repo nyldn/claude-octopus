@@ -2998,4 +2998,16 @@ VERDICT: APPROVE")")"
     fi
 done
 
+# Dotted abbreviations belong to their surrounding proposal clause.
+for abbreviation in 'e.g.' 'i.e.'; do
+    test_case "dotted abbreviation preserves a proposed replacement: $abbreviation"
+    r="$(_report "$(_resp "src/pricing.ts:2 should use $abbreviation the following code: \`$FAKE\`.
+VERDICT: REVISE")")"
+    if jq -e '.quotes_unverifiable_proposed == 1 and .quotes_attributed == 0 and .fabricated == false' <<< "$r" >/dev/null; then
+        test_pass
+    else
+        test_fail "abbreviation split a proposal clause: $r"
+    fi
+done
+
 test_summary

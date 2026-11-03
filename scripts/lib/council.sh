@@ -3475,10 +3475,15 @@ SOURCE_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|is|defines?|de
 OWN_INPUT = re.compile(r"(?:constructed|built|crafted) as", re.I)
 CONTENT_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|defines?|defined|declares?|declared)\b", re.I)
 FIRST_PERSON_SUBJECT = re.compile(r"\b(?:I|we)\s+$", re.I)
+DOTTED_ABBREVIATION = re.compile(r"\b(?:[A-Za-z]\.){2,}")
 CLAUSE_BOUNDARY = re.compile(r"[.!?;](?:\s|$)")
 def clause_start(text, end):
-    boundaries = list(CLAUSE_BOUNDARY.finditer(text, 0, end))
-    return boundaries[-1].end() if boundaries else 0
+    abbreviations = [(m.start(), m.end()) for m in DOTTED_ABBREVIATION.finditer(text, 0, end)]
+    last = 0
+    for boundary in CLAUSE_BOUNDARY.finditer(text, 0, end):
+        if not any(start <= boundary.start() < stop for start, stop in abbreviations):
+            last = boundary.end()
+    return last
 
 def proposes(text):
     # A proposal in an earlier sentence cannot excuse a current source claim.
