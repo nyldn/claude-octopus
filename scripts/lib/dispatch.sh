@@ -896,7 +896,7 @@ get_agent_command() {
             if [[ "${DRY_RUN:-false}" != true ]]; then
                 declare -f _octo_opencode_cli_major >/dev/null 2>&1 || source "${BASH_SOURCE[0]%/*}/auth.sh" || return 1
                 oc_major="$(_octo_opencode_cli_major)" || {
-                    echo "OpenCode version unavailable; cannot select a safe server mode" >&2
+                    log ERROR "OpenCode version unavailable; cannot select a safe server mode"
                     return 1
                 }
                 [[ "$oc_major" != 2 ]] || oc_standalone="--standalone "

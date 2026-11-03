@@ -451,8 +451,8 @@ Static discovery recognizes `auth.json`, `opencode.db` and channel-specific
 `opencode-*.db` files under `${XDG_DATA_HOME:-~/.local/share}/opencode`, plus
 `OPENCODE_DB` overrides. A relative override resolves under that data directory.
 Store presence is configuration evidence only. A SQLite-only installation
-needs explicit live confirmation. Both synchronous and background dispatch
-check health before launching a model task.
+needs explicit live confirmation. Synchronous, background and direct
+`probe-single` dispatch check health before launching a model task.
 
 Live checks use bounded version and login commands. OpenCode 1.x must report a
 positive credential or environment-variable count. OpenCode 2.x checks

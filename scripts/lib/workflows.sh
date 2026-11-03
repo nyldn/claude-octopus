@@ -208,6 +208,21 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     local model
     model=$(get_agent_model "$agent_type" "$phase" "$role")
 
+    # OpenCode's direct probe path must confirm login just like normal dispatch.
+    # Resolve the registered handler rather than duplicating credential checks.
+    if [[ "$agent_type" == opencode ]]; then
+        local health_handler health_diag
+        health_handler="$(octo_provider_health_handler opencode)" || return 1
+        if [[ "$health_handler" == none ]] || ! declare -F "$health_handler" >/dev/null 2>&1; then
+            log ERROR "OpenCode health handler unavailable"
+            return 1
+        fi
+        if ! health_diag=$("$health_handler" opencode "$model" 2>&1); then
+            log WARN "OpenCode health check failed: $health_diag"
+            return 1
+        fi
+    fi
+
     local cmd
     if ! cmd=$(get_agent_command "$agent_type" "$phase" "$role" "$(octo_prompt_byte_length "$enhanced_prompt")"); then
         log ERROR "Unknown agent type: $agent_type"

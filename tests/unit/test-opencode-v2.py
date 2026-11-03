@@ -81,6 +81,33 @@ fi
         result = self.shell('source scripts/lib/dispatch.sh; get_agent_model() { echo vendor/model; }; get_agent_command opencode')
         self.assertNotEqual(result.returncode, 0)
 
+    def test_probe_single_checks_login_before_constructing_command(self):
+        self.env.update(CLI_VERSION="2.0.23", DISPATCH_MARKER=str(self.base / "dispatch"))
+        script = r'''
+source scripts/lib/workflows.sh
+source scripts/lib/providers.sh
+log() { :; }
+preflight_check() { :; }
+classify_task() { echo research; }
+match_routing_rule() { return 1; }
+apply_persona() { printf '%s' "$2"; }
+enforce_context_budget() { printf '%s' "$1"; }
+octo_routing_policy() { echo off; }
+get_agent_model() { echo vendor/model; }
+get_agent_command() { echo command > "$DISPATCH_MARKER"; return 77; }
+RESULTS_DIR="$HOME/results" LOGS_DIR="$HOME/logs"
+SUPPORTS_AGENT_TYPE_ROUTING=false OCTOPUS_PERSONA_PACKS=off
+probe_single_agent opencode perspective login-test
+'''
+        for connected in (False, True):
+            with self.subTest(connected=connected):
+                self.env["AUTH_JSON"] = ('[{"id":"openai","connections":[{"type":"credential"}]}]'
+                                         if connected else "[]")
+                result = self.shell(script)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(Path(self.env["DISPATCH_MARKER"]).exists(), connected)
+                self.assertTrue(self.marker.exists())
+
     def test_channel_database_is_configuration_evidence(self):
         (self.data / "opencode-dev.db").touch()
         self.assertEqual(self.readiness("static")["reason_code"], "live-check-required")
