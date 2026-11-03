@@ -31,14 +31,47 @@ extract_tangle_result_output() {
     ' "$result_file" 2>/dev/null || true
 }
 
+# Keep the byte bound before shell capture, which would silently drop NULs.
+# Attributes may force binary files through Git's text-diff path.
+tangle_challenge_text_excerpt() {
+    python3 -I -c 'import sys
+data = sys.stdin.buffer.read(4096)
+try:
+    data.decode("utf-8")
+except UnicodeDecodeError:
+    sys.exit(0)
+if not any(c < 32 and c not in (9, 10, 13) for c in data) and b"\nBinary files " not in data:
+    sys.stdout.buffer.write(data)
+'
+}
+
 # Give the challenger bounded, policy-filtered changes from the run's start.
 # Missing helpers or an unverifiable baseline omit the diff, never widen reads.
-tangle_challenge_change_evidence() {
-    local baseline="${1:-}" paths="${2:-}" repo_root path excerpt count=0
+tangle_challenge_change_evidence() (
+    local baseline="${1:-}" paths="${2:-}" repo_root path excerpt count=0 key driver filter_keys
     [[ "$baseline" =~ ^[0-9a-fA-F]{40}$ ]] || return 0
     declare -F tangle_read_scope_is_allowed >/dev/null || return 0
+    # Resolve and read this repository without caller-supplied Git routing.
+    for key in ${!GIT_@}; do unset "$key"; done
+    export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_OPTIONAL_LOCKS=0
     repo_root=$(tangle_resolve_repo_root 2>/dev/null) || return 0
-    git -C "$repo_root" cat-file -e "${baseline}^{commit}" 2>/dev/null || return 0
+    local -a git_command=(git -C "$repo_root" -c core.fsmonitor=false)
+    "${git_command[@]}" cat-file -e "${baseline}^{commit}" 2>/dev/null || return 0
+    # --no-textconv does not disable attribute-selected clean/process filters.
+    # Read only configuration names and override every driver before any diff.
+    filter_keys=$(mktemp "${TMPDIR:-/tmp}/octo-challenge-config.XXXXXX") || return 0
+    trap 'rm -f "$filter_keys"' EXIT
+    "${git_command[@]}" config --null --name-only --list > "$filter_keys" 2>/dev/null || return 0
+    [[ $(wc -c < "$filter_keys") -le 65536 ]] || return 0
+    while IFS= read -r -d '' key; do
+        case "$key" in
+            filter.*.clean|filter.*.process|filter.*.required)
+                driver=${key%.*}
+                [[ "$driver" != *=* ]] || return 0
+                git_command+=(-c "$driver.clean=" -c "$driver.process=" -c "$driver.required=false")
+                ;;
+        esac
+    done < "$filter_keys"
     while IFS= read -r path; do
         [[ -n "$path" ]] || continue
         [[ "$count" -lt 20 ]] || break
@@ -46,16 +79,16 @@ tangle_challenge_change_evidence() {
         # A directory or gitlink could recursively include forbidden children.
         [[ ! -d "$repo_root/$path" && ! -L "$repo_root/$path" ]] || continue
         [[ ! -e "$repo_root/$path" || -f "$repo_root/$path" ]] || continue
-        case "$(git -C "$repo_root" cat-file -t "${baseline}:$path" 2>/dev/null)" in
+        case "$("${git_command[@]}" cat-file -t "${baseline}:$path" 2>/dev/null)" in
             tree|commit) continue ;;
         esac
-        if git -C "$repo_root" cat-file -e "${baseline}:$path" 2>/dev/null ||
-           git -C "$repo_root" ls-files --error-unmatch -- ":(literal)$path" >/dev/null 2>&1; then
-            excerpt=$(git -C "$repo_root" diff --no-ext-diff --no-textconv --no-renames \
-                --submodule=short "$baseline" -- ":(literal)$path" 2>/dev/null | head -c 4096) || true
+        if "${git_command[@]}" cat-file -e "${baseline}:$path" 2>/dev/null ||
+           "${git_command[@]}" ls-files --error-unmatch -- ":(literal)$path" >/dev/null 2>&1; then
+            excerpt=$("${git_command[@]}" diff --no-ext-diff --no-textconv --no-renames \
+                --submodule=short "$baseline" -- ":(literal)$path" 2>/dev/null | tangle_challenge_text_excerpt) || true
         elif [[ -f "$repo_root/$path" ]]; then
-            excerpt=$(git -C "$repo_root" diff --no-index --no-ext-diff --no-textconv \
-                -- /dev/null "$repo_root/$path" 2>/dev/null | head -c 4096) || true
+            excerpt=$("${git_command[@]}" diff --no-index --no-ext-diff --no-textconv \
+                -- /dev/null "$repo_root/$path" 2>/dev/null | tangle_challenge_text_excerpt) || true
         else
             continue
         fi
@@ -63,7 +96,7 @@ tangle_challenge_change_evidence() {
         count=$((count + 1))
         printf '\n### %s\n%s\n' "$path" "$excerpt"
     done <<< "$paths"
-}
+)
 
 extract_tangle_result_body() {
     local result_file="$1"

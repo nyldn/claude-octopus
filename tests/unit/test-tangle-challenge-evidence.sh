@@ -128,4 +128,70 @@ if [[ "$provider_section" == *'corrective provider output'* ]]; then
 else
     test_fail "earlier provider output hid the correction"
 fi
+test_case "change excerpts cannot execute repository clean filters"
+filter="$TEST_TMP_DIR/clean-filter.sh"
+cat > "$filter" <<'FILTER'
+#!/bin/sh
+printf 'executed\n' > "$0.ran"
+cat
+FILTER
+chmod +x "$filter"
+git -C "$repo" config filter.challenge.clean "$filter"
+git -C "$repo" config filter.challenge.required true
+printf 'code.txt filter=challenge\n' > "$repo/.gitattributes"
+printf 'implementation after filter configuration\n' > "$repo/code.txt"
+rm -f "$filter.ran"
+excerpt="$(tangle_challenge_change_evidence "$baseline" code.txt)"
+if [[ ! -e "$filter.ran" && "$excerpt" == *'+implementation after filter configuration'* ]]; then
+    test_pass
+else
+    test_fail "change collection ran a repository filter or lost the raw diff"
+fi
+
+test_case "change excerpts cannot execute repository process filters"
+git -C "$repo" config filter.challenge.process "$filter"
+rm -f "$filter.ran"
+excerpt="$(tangle_challenge_change_evidence "$baseline" code.txt)"
+if [[ ! -e "$filter.ran" && "$excerpt" == *'+implementation after filter configuration'* ]]; then
+    test_pass
+else
+    test_fail "change collection ran a process filter or lost the raw diff"
+fi
+
+test_case "change excerpts cannot execute filesystem monitors"
+monitor="$TEST_TMP_DIR/fsmonitor.sh"
+cat > "$monitor" <<'MONITOR'
+#!/bin/sh
+printf 'executed\n' > "$0.ran"
+printf '\0'
+MONITOR
+chmod +x "$monitor"
+git -C "$repo" config core.fsmonitor "$monitor"
+excerpt="$(tangle_challenge_change_evidence "$baseline" code.txt)"
+if [[ ! -e "$monitor.ran" && "$excerpt" == *'+implementation after filter configuration'* ]]; then
+    test_pass
+else
+    test_fail "change collection ran a filesystem monitor or lost the raw diff"
+fi
+
+test_case "inherited Git routing cannot replace the evidence repository"
+foreign="$TEST_TMP_DIR/foreign"
+git init -q "$foreign"
+excerpt="$(GIT_DIR="$foreign/.git" GIT_WORK_TREE="$foreign" \
+    tangle_challenge_change_evidence "$baseline" code.txt)"
+if [[ "$excerpt" == *'+implementation after filter configuration'* ]]; then
+    test_pass
+else
+    test_fail "inherited Git routing hid the intended repository's diff"
+fi
+test_case "binary diff markers are omitted from challenge excerpts"
+printf 'binary\000content\n' > "$repo/binary.bin"
+excerpt="$(tangle_challenge_change_evidence "$baseline" binary.bin)"
+if [[ -z "$excerpt" ]]; then test_pass; else test_fail "binary diff entered the challenge"; fi
+
+test_case "attributes cannot force binary content into a text excerpt"
+printf 'binary.bin diff\n' > "$repo/.gitattributes"
+git -C "$repo" -c core.fsmonitor=false add --intent-to-add -- binary.bin
+excerpt="$(tangle_challenge_change_evidence "$baseline" binary.bin)"
+if [[ -z "$excerpt" ]]; then test_pass; else test_fail "forced-text binary diff entered the challenge"; fi
 test_summary

@@ -8,6 +8,9 @@
   excerpts from the run's starting commit. Long executor prompts no longer
   hide the implementation. Change excerpts exclude credential paths,
   directories and symlinks and are marked as untrusted content. Fixes #1171.
+  Collecting those excerpts disables Git clean/process filters and filesystem
+  monitors, and ignores inherited Git routing and global configuration.
+  Binary diff markers and nontext excerpts are omitted before shell capture.
 
 ## [11.16.0] - 2026-11-02
 
