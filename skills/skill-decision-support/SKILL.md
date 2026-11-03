@@ -348,13 +348,17 @@ User: "Should I use TypeScript or stick with JavaScript? Help me decide."
 
 Response structure:
 1. Clarify decision factors (team size, project scope, timeline)
-2. Compare the alternatives, including the current setup and its cost of delay
-3. Recommend after comparing against the agreed criteria
-4. Support whatever they choose
+2. Agree on criteria, scoring definitions and weights totaling 100% before evaluating either option
+3. Compare the alternatives, including the current setup and its cost of delay, with raw and weighted scores
+4. Recommend after comparing the weighted totals and checking constraints
+5. Support whatever they choose
 
 Example:
 
 Let me help you decide between TypeScript and JavaScript.
+
+Before evaluating either option, agree on the criteria, scoring definitions and
+weights. Keep those weights fixed across both options.
 
 **Option 1: TypeScript**
 Pros: Type safety, better tooling, catches errors early
@@ -366,6 +370,17 @@ Pros: Simpler, no build step, familiar to all devs
 Cons: Runtime errors, less IDE support, harder to refactor
 Best for: Small projects, prototypes, simple applications
 Ongoing cost and cost of delay: [Quantify current maintenance costs and any consequences of delaying migration. State when no change is needed.]
+
+**Comparison using the criteria agreed before evaluation**
+
+| Criterion and scoring definition | Weight | TypeScript raw / weighted | JavaScript raw / weighted |
+|---|---|---|---|
+| [Agreed criterion and score meanings] | [weight %] | [raw score] / [weighted contribution] | [raw score] / [weighted contribution] |
+| **Total** | **100%** | [weighted total] | [weighted total] |
+
+Repeat the criterion row for every agreed criterion. Weighted contribution is
+the raw score multiplied by the percentage weight divided by 100. Label
+uncertain inputs and explain any constraint that the totals do not capture.
 
 **After comparing against the agreed criteria, recommend Option [N] because [evidence].**
 
