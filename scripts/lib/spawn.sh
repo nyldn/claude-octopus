@@ -1235,6 +1235,7 @@ ${heuristic_ctx}"
         claude-sdk*) _provider_for_health="claude-sdk" ;;
         claude*) _provider_for_health="claude" ;;
         openrouter*) _provider_for_health="openrouter" ;;
+        opencode*) _provider_for_health="opencode" ;;
         perplexity*) _provider_for_health="perplexity" ;;
         cursor-agent*) _provider_for_health="cursor-agent" ;;
         kimi*) _provider_for_health="kimi" ;;

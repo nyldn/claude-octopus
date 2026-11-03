@@ -267,20 +267,46 @@ _octo_opencode_auth_store_present() {
     [[ -f "${data_dir}/auth.json" ]] && return 0
     [[ "$database" != :memory: ]] || return 1
     [[ "$database" == /* ]] || database="${data_dir}/${database}"
-    [[ -f "$database" ]]
+    [[ -f "$database" ]] && return 0
+    [[ -z "${OPENCODE_DB:-}" ]] || return 1
+    for database in "$data_dir"/opencode-*.db; do
+        [[ ! -f "$database" ]] || return 0
+    done
+    return 1
 }
 
-# Explicit live check only. A successful empty listing is not a login. Keep
-# all account labels and command output private and bound the process group.
-_octo_opencode_has_saved_login() {
-    local listing
+# Runtime-only, bounded version detection. Unknown generations cannot safely
+# select private-server flags, so real dispatch fails closed.
+_octo_opencode_cli_major() {
+    local version
     [[ "${OCTOPUS_SKIP_PROVIDER_PROBES:-false}" != true ]] || return 1
     if ! declare -f _octo_run_bare_probe_with_timeout >/dev/null 2>&1; then
         source "${BASH_SOURCE[0]%/*}/bounded-probe.sh" 2>/dev/null || return 1
     fi
-    listing="$(_octo_run_bare_probe_with_timeout 3 2 1 opencode auth list </dev/null 2>/dev/null)" || return 1
-    # v1 ends with an N-credentials summary. v2 prints one aligned row per
-    # stored/environment connection and no summary. Neither exposes values.
-    listing="$(printf '%s\n' "$listing" | sed $'s/\033\[[0-9;]*m//g')"
-    printf '%s\n' "$listing" | grep -Eq '(^|[^0-9])[1-9][0-9]* credentials?([[:space:]]|$)|^[^[:space:]].*[[:space:]]{2}.*(stored|environment)[[:space:]]*$'
+    version="$(_octo_run_bare_probe_with_timeout 3 2 1 opencode --version </dev/null 2>/dev/null)" || return 1
+    if [[ "$version" =~ ^(opencode[[:space:]]+)?v?([12])\.[0-9]+\.[0-9]+([+-][[:alnum:].-]+)?$ ]]; then
+        printf '%s\n' "${BASH_REMATCH[2]}"
+    else
+        return 1
+    fi
+}
+
+# Explicit live check only. Keep all account metadata private. V2 checks the
+# same private-server environment used by dispatch, never the shared service.
+_octo_opencode_has_saved_login() {
+    local listing major
+    declare -f _octo_run_bare_probe_with_timeout >/dev/null 2>&1 || source "${BASH_SOURCE[0]%/*}/bounded-probe.sh" || return 1
+    major="$(_octo_opencode_cli_major)" || return 1
+    if [[ "$major" == 2 ]]; then
+        listing="$(_octo_run_bare_probe_with_timeout 3 2 1 opencode auth list --standalone --format json </dev/null 2>/dev/null)" || return 1
+        printf '%s\n' "$listing" | jq -e '
+            type == "array" and any(.[];
+                (.id | type == "string" and length > 0) and
+                (.connections | type == "array" and any(.[];
+                    .type == "credential" or .type == "environment")))' >/dev/null 2>&1
+    else
+        listing="$(_octo_run_bare_probe_with_timeout 3 2 1 opencode auth list </dev/null 2>/dev/null)" || return 1
+        listing="$(printf '%s\n' "$listing" | sed $'s/\033\\[[0-9;]*m//g')"
+        printf '%s\n' "$listing" | grep -Eq '^[[:space:]│└]*[1-9][0-9]* (credentials?|environment variables?)[[:space:]]*$'
+    fi
 }

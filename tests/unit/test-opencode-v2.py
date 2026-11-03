@@ -24,13 +24,17 @@ class OpenCodeCompatibility(unittest.TestCase):
         self.cli = self.bin / "opencode"
         self.cli.write_text("""#!/bin/sh
 printf called >> "$PROBE_MARKER"
+if [ "$1" = --version ]; then printf '%s\\n' "${CLI_VERSION:-1.18.34}"; exit 0; fi
 if [ "$1" = --pure ]; then exit 64; fi
 if [ "$1" = run ]; then
     [ "$OPENCODE_PURE" = 1 ] || exit 65
     printf '%s\\n' "$*"
 else
     [ "$1 $2" = 'auth list' ] || exit 66
-    printf '%s\\n' "$AUTH_LIST"
+    case "$*" in
+        *--format*) printf '%s\\n' "$AUTH_JSON" ;;
+        *) printf '%s\\n' "$AUTH_LIST" ;;
+    esac
     exit "${AUTH_RC:-0}"
 fi
 """)
@@ -41,7 +45,8 @@ fi
             "XDG_DATA_HOME": str(self.base / "data"),
             "PLUGIN_DIR": str(ROOT),
             "PROBE_MARKER": str(self.marker),
-            "AUTH_LIST": "OpenAI  Default                     stored",
+            "AUTH_LIST": "└  2 credentials",
+            "AUTH_JSON": json.dumps([{"id": "openai", "connections": [{"type": "credential", "label": "Default"}]}]),
             "OCTO_ALLOWED_PROVIDERS": "opencode",
             "OCTOPUS_SKIP_PROVIDER_PROBES": "false",
         }
@@ -63,6 +68,32 @@ fi
         run = subprocess.run(cmd, env=self.env, capture_output=True, text=True, timeout=3)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout.strip(), "run -m vendor/model")
+
+    def test_v2_dispatch_uses_a_private_server(self):
+        self.env["CLI_VERSION"] = "2.0.23"
+        result = self.shell('source scripts/lib/dispatch.sh; source scripts/lib/utils.sh; get_agent_model() { echo vendor/model; }; cmd=$(get_agent_command opencode); validate_agent_command "$cmd" || exit; echo "$cmd"')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        run = subprocess.run(shlex.split(result.stdout), env=self.env, capture_output=True, text=True, timeout=3)
+        self.assertEqual(run.stdout.strip(), "run --standalone -m vendor/model")
+
+    def test_unknown_generation_refuses_dispatch(self):
+        self.env["CLI_VERSION"] = "unknown"
+        result = self.shell('source scripts/lib/dispatch.sh; get_agent_model() { echo vendor/model; }; get_agent_command opencode')
+        self.assertNotEqual(result.returncode, 0)
+
+    def test_channel_database_is_configuration_evidence(self):
+        (self.data / "opencode-dev.db").touch()
+        self.assertEqual(self.readiness("static")["reason_code"], "live-check-required")
+        self.assertFalse(self.marker.exists())
+
+    def test_legacy_environment_only_login_is_accepted(self):
+        self.env.update(AUTH_LIST="└  0 credentials\n┌ Environment\n└  1 environment variable", OPENROUTER_API_KEY="fixture")
+        self.assertEqual(self.readiness("live")["status"], "available")
+
+    def test_legacy_expired_summary_is_rejected(self):
+        (self.data / "auth.json").touch()
+        self.env["AUTH_LIST"] = "3 credentials expired, run login again"
+        self.assertEqual(self.readiness("live")["status"], "degraded")
 
     def test_registry_declares_the_implemented_health_contract(self):
         result = self.shell('source scripts/lib/provider-registry.sh; octo_provider_validate_contracts && octo_provider_has_capability opencode health && test "$(octo_provider_health_handler opencode)" = check_provider_health')
@@ -87,8 +118,9 @@ fi
 
     def test_v2_long_account_labels_remain_valid(self):
         (self.data / "opencode.db").touch()
+        self.env["CLI_VERSION"] = "2.0.23"
         for label in ("x" * 28, "x" * 45):
-            self.env["AUTH_LIST"] = "OpenAI  " + label + "stored"
+            self.env["AUTH_JSON"] = json.dumps([{"id":"openai","connections":[{"type":"credential","label":label}]}])
             self.assertEqual(self.readiness("live")["status"], "available")
 
     def test_static_sqlite_store_requires_live_confirmation_without_cli(self):
@@ -100,9 +132,10 @@ fi
 
     def test_live_v2_stored_and_environment_rows_are_recognized(self):
         (self.data / "opencode.db").touch()
-        for kind in ("stored", "environment"):
+        self.env["CLI_VERSION"] = "2.0.23"
+        for kind in ("credential", "environment"):
             with self.subTest(kind=kind):
-                self.env["AUTH_LIST"] = "OpenAI  Default                     " + kind
+                self.env["AUTH_JSON"] = json.dumps([{"id":"openai","connections":[{"type":kind}]}])
                 self.assertEqual(self.readiness("live")["status"], "available")
         self.assertTrue(self.marker.exists())
 
@@ -113,6 +146,22 @@ fi
                             ("0 credentials", "0")]:
             with self.subTest(listing=listing, rc=rc):
                 self.env.update(AUTH_LIST=listing, AUTH_RC=rc)
+                self.assertEqual(self.readiness("live")["status"], "degraded")
+
+    def test_v2_environment_only_login_is_checked_without_a_store(self):
+        self.env.update(CLI_VERSION="2.0.23", OPENAI_API_KEY="fixture")
+        self.env["AUTH_JSON"] = '[{"id":"openai","connections":[{"type":"environment"}]}]'
+        self.assertEqual(self.readiness("static")["reason_code"], "auth-missing")
+        self.assertFalse(self.marker.exists())
+        self.assertEqual(self.readiness("live")["status"], "available")
+        self.assertTrue(self.marker.exists())
+
+    def test_v2_empty_malformed_or_unknown_connections_are_rejected(self):
+        (self.data / "opencode.db").touch()
+        self.env["CLI_VERSION"] = "2.0.23"
+        for listing in ("[]", "{}", "not json", '[{"id":"openai","connections":[]}]', '[{"id":"openai","connections":[{"type":"unknown"}]}]'):
+            with self.subTest(listing=listing):
+                self.env["AUTH_JSON"] = listing
                 self.assertEqual(self.readiness("live")["status"], "degraded")
 
     def test_legacy_ansi_credential_summary_passes(self):

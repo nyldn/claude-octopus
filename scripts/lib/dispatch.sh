@@ -892,7 +892,16 @@ get_agent_command() {
             # OpenCode 1.x implements --pure by setting this environment
             # variable. Preserve its plugin-hang protection (#566) without
             # passing the removed global flag to OpenCode 2.x (#1172).
-            echo "env OPENCODE_PURE=1 opencode run ${oc_model_flag}"
+            local oc_major oc_standalone=""
+            if [[ "${DRY_RUN:-false}" != true ]]; then
+                declare -f _octo_opencode_cli_major >/dev/null 2>&1 || source "${BASH_SOURCE[0]%/*}/auth.sh" || return 1
+                oc_major="$(_octo_opencode_cli_major)" || {
+                    echo "OpenCode version unavailable; cannot select a safe server mode" >&2
+                    return 1
+                }
+                [[ "$oc_major" != 2 ]] || oc_standalone="--standalone "
+            fi
+            echo "env OPENCODE_PURE=1 opencode run ${oc_standalone}${oc_model_flag}"
             ;;
         *) return 1 ;;
     esac

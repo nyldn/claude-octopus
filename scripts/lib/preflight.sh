@@ -433,7 +433,7 @@ _octo_provider_static_readiness() {
         opencode)
             remediation="Install OpenCode, then run: opencode auth login"
             if command -v opencode >/dev/null 2>&1; then
-                if [[ -f "${HOME}/.local/share/opencode/auth.json" ]] ||
+                if [[ -f "${XDG_DATA_HOME:-${HOME}/.local/share}/opencode/auth.json" ]] ||
                    _octo_value_has_nonwhitespace "${GITHUB_TOKEN:-${OPENROUTER_API_KEY:-${Z_AI_API_KEY:-${MINIMAX_API_KEY:-}}}}"; then
                     status="available"; reason_code="ready"; remediation=""
                 elif _octo_opencode_auth_store_present; then
@@ -505,7 +505,8 @@ EOF
     fi
 
     if [[ "$check_kind" == "live" && "$health_handler" != "none" ]] &&
-       { [[ "$status" == "available" ]] || [[ "$reason_code" == "live-check-required" ]]; }; then
+       { [[ "$status" == "available" ]] || [[ "$reason_code" == "live-check-required" ]] ||
+         { [[ "$provider" == opencode && "$reason_code" == auth-missing ]]; }; }; then
         # Live mode is explicit. Execute the registry-selected health handler in
         # a fresh bounded shell so a provider CLI cannot stall setup or Doctor.
         source "${_preflight_registry_dir}/providers.sh" 2>/dev/null || true

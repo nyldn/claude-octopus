@@ -438,22 +438,32 @@ for the current CLI and Agent SDK limitation and the API compatibility rules.
 
 ### OpenCode CLI generations
 
-Octopus dispatches both OpenCode 1.x and 2.x with
-`env OPENCODE_PURE=1 opencode run -m <provider/model>`. In 1.x this preserves
-`--pure` behavior without sending the removed flag to 2.x. It does not claim
-that 2.x supports the old plugin-disable mode or that killing a client stops
-work on its shared background server.
+Octopus uses a bounded version check at real dispatch. OpenCode 1.x runs
+`env OPENCODE_PURE=1 opencode run -m <provider/model>`, preserving its
+plugin-hang protection without the removed `--pure` flag. OpenCode 2.x adds
+`--standalone` to keep tool execution in a private server inside the selected
+process boundary. Unknown versions and disabled probes refuse real dispatch;
+dry-run previews launch no CLI. No equivalent 2.x plugin-disable guarantee is
+claimed. Authenticated tool execution and cancellation still require live
+acceptance on the target host.
 
-Static discovery recognizes `auth.json` and `opencode.db` in
-`${XDG_DATA_HOME:-~/.local/share}/opencode`, plus `OPENCODE_DB` overrides.
-A relative database override resolves under that data directory. Store presence
-is configuration evidence only. A SQLite-only installation needs an explicit
-live readiness check; this runs a bounded `opencode auth list` and requires a
-positive legacy credential count or a 2.x `stored`/`environment` row. It does
-not prove model entitlement or make a model request. Unknown output and empty
-listings fail closed. No credential database is opened or changed by Octopus.
+Static discovery recognizes `auth.json`, `opencode.db` and channel-specific
+`opencode-*.db` files under `${XDG_DATA_HOME:-~/.local/share}/opencode`, plus
+`OPENCODE_DB` overrides. A relative override resolves under that data directory.
+Store presence is configuration evidence only. A SQLite-only installation
+needs explicit live confirmation. Both synchronous and background dispatch
+check health before launching a model task.
+
+Live checks use bounded version and login commands. OpenCode 1.x must report a
+positive credential or environment-variable count. OpenCode 2.x checks
+`auth list --standalone --format json` for stored or environment connections,
+using the same private-server environment as dispatch. Empty, failed and
+unrecognized listings fail closed. Account metadata is never printed. Checks
+neither prove model entitlement nor make a model request. Octopus does not open
+or modify credential databases itself; OpenCode manages its own storage.
 
 Compatibility sources checked on 2026-11-03:
 [1.18.34 flag implementation](https://github.com/anomalyco/opencode/blob/v1.18.34/packages/opencode/src/index.ts),
 [2.0.23 login listing](https://github.com/anomalyco/opencode/blob/v2.0.23/packages/cli/src/commands/handlers/auth/list.ts),
+[private-server commands](https://dev.opencode.ai/v2/docs/cli/commands/),
 and [provider storage](https://github.com/anomalyco/opencode/blob/v2.0.23/services/www/src/docs/content/cli/providers.mdx).

@@ -468,13 +468,15 @@ _validate_opencode_env_command() {
     local -a opencode_parts
     octo_dispatch_command_to_argv "$1" || return 1
     opencode_parts=("${OCTO_COMMAND_ARGV[@]}")
-    [[ "${#opencode_parts[@]}" -eq 4 || "${#opencode_parts[@]}" -eq 6 ]] || return 1
+    [[ "${#opencode_parts[@]}" -ge 4 ]] || return 1
     [[ "${opencode_parts[0]}" == env && "${opencode_parts[1]}" == OPENCODE_PURE=1 &&
        "${opencode_parts[2]}" == opencode && "${opencode_parts[3]}" == run ]] || return 1
-    if [[ "${#opencode_parts[@]}" -eq 6 ]]; then
-        [[ "${opencode_parts[4]}" == -m && "${opencode_parts[5]}" != [-/]* ]] || return 1
-        _octopus_is_safe_openai_compatible_value "${opencode_parts[5]}" || return 1
-    fi
+    local model_index=4
+    [[ "${opencode_parts[4]:-}" != --standalone ]] || model_index=5
+    [[ "${#opencode_parts[@]}" -eq "$model_index" ]] && return 0
+    [[ "${#opencode_parts[@]}" -eq $((model_index + 2)) ]] || return 1
+    [[ "${opencode_parts[$model_index]}" == -m && "${opencode_parts[$((model_index + 1))]}" != [-/]* ]] || return 1
+    _octopus_is_safe_openai_compatible_value "${opencode_parts[$((model_index + 1))]}" || return 1
     return 0
 }
 

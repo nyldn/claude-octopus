@@ -7,8 +7,10 @@
 - OpenCode 2.x dispatch no longer passes the removed `--pure` flag. OpenCode
   1.x keeps its external-plugin hang protection through `OPENCODE_PURE=1`.
   Discovery recognizes SQLite login storage without launching OpenCode. An
-  explicit live readiness check confirms a nonempty login listing, with a
-  three-second process budget. Empty or failed listings remain unavailable.
+  explicit live readiness check confirms saved or environment credentials,
+  with bounded version and login commands. Version-aware 2.x dispatch uses a
+  private server so tools stay inside the selected process boundary; unknown
+  CLI versions refuse real dispatch. Empty or failed listings remain unavailable.
   Addresses [#1172](https://github.com/nyldn/claude-octopus/issues/1172).
 
 ## [11.16.0] - 2026-11-02
