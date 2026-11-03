@@ -125,12 +125,13 @@ def validate_plugin_manifest(root: Path, errors: list[str]) -> None:
     if not isinstance(skills, list) or any(not isinstance(path, str) for path in skills):
         errors.append(f"{rel(root, manifest)}: skills must be a path or list of relative paths")
         return
-    # Claude always loads root skills in addition to explicitly registered paths.
+    registrations = [(path, True) for path in skills]
+    # Claude also scans root skills; an empty default directory is harmless.
     if (root / "skills").exists():
-        skills = ["./skills", *skills]
-    for path in skills:
-        if not path.startswith("./"):
-            errors.append(f"{rel(root, manifest)}: skill path must start with ./ : {path}")
+        registrations.insert(0, ("./skills", False))
+    for path, required in registrations:
+        if path != "." and not path.startswith("./"):
+            errors.append(f"{rel(root, manifest)}: skill path must be . or start with ./: {path}")
             continue
         directory = (root / path).resolve()
         if not directory.is_relative_to(root) or not directory.is_dir():
@@ -138,7 +139,7 @@ def validate_plugin_manifest(root: Path, errors: list[str]) -> None:
             continue
         direct = directory / "SKILL.md"
         files = [direct] if direct.is_file() else sorted(directory.rglob("SKILL.md"))
-        if not files:
+        if required and not files:
             errors.append(f"{rel(root, manifest)}: no skills found at: {path}")
         for skill in files:
             if not skill.resolve().is_relative_to(root) or not skill.is_file():

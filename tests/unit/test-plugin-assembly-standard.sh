@@ -189,11 +189,21 @@ Path(sys.argv[1]).write_text(json.dumps({"name":"fixture", "version":"0.0.0", "d
 PY_MANIFEST
     if output=$(python3 "$PROJECT_ROOT/scripts/validate-plugin-assembly.py" --root "$scalar_fixture" 2>&1); then
         test_fail "malformed registration accepted"
-    elif [[ "$output" == *"skill path must start with ./"* ]]; then
+    elif [[ "$output" == *"skill path must be . or start with ./"* ]]; then
         test_pass
     else
         test_fail "missing path-shape diagnostic: $output"
     fi
 done
+
+test_case "native registration permits an empty automatic root skills directory"
+mkdir -p "$scalar_fixture/skills"
+printf '%s\n' '{"name":"fixture","version":"0.0.0","description":"fixture","skills":"./native/demo"}' > "$scalar_fixture/.claude-plugin/plugin.json"
+if output=$(python3 "$PROJECT_ROOT/scripts/validate-plugin-assembly.py" --root "$scalar_fixture" 2>&1); then test_pass; else test_fail "$output"; fi
+
+test_case "native registration permits a plugin-root skill"
+cp "$scalar_fixture/native/demo/SKILL.md" "$scalar_fixture/SKILL.md"
+printf '%s\n' '{"name":"fixture","version":"0.0.0","description":"fixture","skills":"."}' > "$scalar_fixture/.claude-plugin/plugin.json"
+if output=$(python3 "$PROJECT_ROOT/scripts/validate-plugin-assembly.py" --root "$scalar_fixture" 2>&1); then test_pass; else test_fail "$output"; fi
 
 test_summary
