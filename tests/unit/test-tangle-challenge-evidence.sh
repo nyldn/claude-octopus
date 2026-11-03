@@ -105,4 +105,27 @@ if [[ "$provider_section" == *'corrective provider output'* ]] &&
 else
     test_fail "coverage paths were mislabeled as provider output"
 fi
+test_case "incomplete framed prompts are not provider output"
+incomplete="$RESULTS_DIR/incomplete.md"
+printf '# Agent: codex\n' > "$incomplete"
+write_agent_result_prompt "$incomplete" "unfinished executor prompt without output"
+printf '# Started: test\n' >> "$incomplete"
+if [[ -z "$(extract_tangle_result_body "$incomplete")" ]]; then
+    test_pass
+else
+    test_fail "unfinished executor prompt entered the output corpus"
+fi
+test_case "correction output survives a full earlier provider budget"
+printf '# Agent: codex\n# Task ID: tangle-evidence-0\n# Role: implementer\n' > "$RESULT"
+write_agent_result_prompt "$RESULT" "$prompt"
+printf '# Started: test\n\n## Output\n' >> "$RESULT"
+python3 -c 'print("earlier provider output " * 400)' >> "$RESULT"
+printf '\n## Status: SUCCESS\n' >> "$RESULT"
+validate_tangle_results evidence 'Review this implementation' "$TEST_TMP_DIR/before" "$baseline" > "$TEST_TMP_DIR/correction-budget.log" 2>&1
+provider_section="$(sed -n '/Provider output excerpts/,/^Change excerpts/p' "$TEST_TMP_DIR/challenge")"
+if [[ "$provider_section" == *'corrective provider output'* ]]; then
+    test_pass
+else
+    test_fail "earlier provider output hid the correction"
+fi
 test_summary

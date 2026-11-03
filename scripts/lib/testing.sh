@@ -67,7 +67,11 @@ tangle_challenge_change_evidence() {
 
 extract_tangle_result_body() {
     local result_file="$1"
+    local framed_rc=0
     [[ -f "$result_file" ]] || return 0
+    octo_result_framed_sections "$result_file" output && return 0 || framed_rc=$?
+    # A known but incomplete/malformed frame cannot supply provider output.
+    [[ "$framed_rc" -eq 2 ]] || return 0
     if grep -q '^## Output[[:space:]]*$' "$result_file" 2>/dev/null; then
         extract_tangle_result_output "$result_file"
     else
@@ -723,7 +727,7 @@ $(<"$correction_file")
 "
             result_outputs+="$correction_result_body"$'
 '
-            challenge_outputs+="$correction_result_body"$'\n'
+            challenge_outputs="$correction_result_body"$'\n'"$challenge_outputs"
             result_outputs+="$worktree_changes"$'
 '
         fi
