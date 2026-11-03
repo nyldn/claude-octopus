@@ -33,7 +33,8 @@ try:
     if len(reports) != 1:
         raise ValueError("ambiguous reports from overlapping invocations in " + str(root))
     report = reports[0]
-    text = report.read_text()
+    data = report.read_bytes()
+    text = data.decode("utf-8")
     if phase == "define":
         # Grasp has no status heading. Its launcher footer identifies the
         # synthesizer, or explicitly records a failed auto-consensus as none.
@@ -41,8 +42,14 @@ try:
         match = re.fullmatch(r"\*Consensus built from multiple agent perspectives \(task group: [^;]+; synthesizer: ([^)]+)\)\*", footer)
         valid = bool(match and match[1] != "none")
     elif phase == "develop":
-        status = re.findall(r"^### Quality Gate: (.+)$", text, re.MULTILINE)
-        valid = len(status) == 1 and status[0] in {"PASSED", "WARNING", "CHALLENGED"}
+        # The engine length-prefixes the task. Its own status immediately follows
+        # that byte frame; task and provider headings cannot become metadata.
+        frame = re.match(rb"# TANGLE Phase Validation Report\n<!-- octopus-task-bytes: ([0-9]+) -->\n## Task: ", data)
+        status = None
+        if frame:
+            metadata = data[frame.end() + int(frame[1]):].decode("utf-8")
+            status = re.match(r"\n## Generated: [^\n]+\n\n### Quality Gate: ([A-Z]+)\n", metadata)
+        valid = bool(status and status[1] in {"PASSED", "WARNING", "CHALLENGED"})
     else:
         # Task text can span lines and contain fake status/metadata headings.
         # Match the generated/status pair and the final launcher certification,
