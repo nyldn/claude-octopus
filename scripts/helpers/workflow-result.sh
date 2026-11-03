@@ -28,21 +28,20 @@ try:
     root = pathlib.Path(directory).resolve()
     reports = [p for p in root.glob(prefix + "-*.md")
                if p.is_file() and not p.is_symlink() and p.resolve().parent == root and p.stat().st_mtime_ns > started]
-    if not reports:
-        raise ValueError("no report from this invocation in " + str(root))
-    if len(reports) != 1:
-        raise ValueError("ambiguous reports from overlapping invocations in " + str(root))
-    report = reports[0]
-    data = report.read_bytes()
-    text = data.decode("utf-8")
     # The launcher owns the line immediately after the title, before any task
     # or provider text. Freshness alone cannot distinguish overlapping writers.
-    title, separator, body = text.partition("\n")
-    invocation = "<!-- octopus-workflow-invocation: " + pathlib.Path(marker).name + " -->\n"
-    if not separator or not body.startswith(invocation):
-        raise ValueError("report does not belong to this invocation: " + str(report))
-    text = title + separator + body[len(invocation):]
-    data = text.encode("utf-8")
+    invocation = ("<!-- octopus-workflow-invocation: " + pathlib.Path(marker).name + " -->\n").encode("utf-8")
+    owned = []
+    for report in reports:
+        title, separator, body = report.read_bytes().partition(b"\n")
+        if separator and body.startswith(invocation):
+            owned.append((report, title + separator + body[len(invocation):]))
+    if not owned:
+        raise ValueError("report does not belong to this invocation in " + str(root))
+    if len(owned) != 1:
+        raise ValueError("ambiguous reports from this invocation in " + str(root))
+    report, data = owned[0]
+    text = data.decode("utf-8")
     if phase == "define":
         # Grasp has no status heading. Its launcher footer identifies the
         # synthesizer, or explicitly records a failed auto-consensus as none.

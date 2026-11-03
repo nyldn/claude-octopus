@@ -281,11 +281,37 @@ sys.exit(1 if mode == "failed" else 0)
 
     def test_overlapping_fresh_reports_fail_closed(self):
         def setup():
+            self.actual_delivery_report('Review this', True)
+            source = (self.results / 'delivery-actual.md').read_bytes()
             for name in ('delivery-a.md', 'delivery-b.md'):
-                (self.results / name).write_text('# Report\n## Task: fixture\n## Generated: fixture\n## Status: COMPLETE\n')
+                (self.results / name).write_bytes(source)
         result = self.validator(setup)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('ambiguous', result.stderr)
+
+    def test_unique_owned_report_survives_fresh_foreign_reports(self):
+        for phase, prefix in (('define', 'grasp-consensus'), ('develop', 'tangle-validation'),
+                              ('deliver', 'delivery'), ('ink', 'delivery')):
+            with self.subTest(phase=phase):
+                for old in self.results.glob('*.md'):
+                    old.unlink()
+                def setup():
+                    if phase == 'develop':
+                        self.actual_develop_report('Implement café', 'done')
+                    elif phase in ('deliver', 'ink'):
+                        self.actual_delivery_report('Review café', True)
+                    else:
+                        subprocess.run([str(self.engine), phase], env=self.env, check=True)
+                    own = next(self.results.glob(prefix + '-*.md'))
+                    foreign = own.read_bytes().replace(
+                        b'<!-- octopus-workflow-invocation: marker -->',
+                        b'<!-- octopus-workflow-invocation: foreign -->', 1)
+                    (self.results / (prefix + '-foreign.md')).write_bytes(foreign)
+                    # A foreign malformed body must not poison owned selection.
+                    (self.results / (prefix + '-malformed.md')).write_bytes(foreign + b'\xff')
+                result = self.validator(setup, phase)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertNotIn('foreign', result.stdout)
 
     def test_symlinked_report_is_not_accepted(self):
         def setup():
