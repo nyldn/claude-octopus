@@ -115,6 +115,24 @@ probe_single_agent opencode perspective login-test
         self.assertEqual(self.readiness("static")["reason_code"], "live-check-required")
         self.assertFalse(self.marker.exists())
 
+    def test_direct_probe_dry_run_stops_before_preflight_and_dispatch(self):
+        self.env.update(DRY_RUN='true', PREFLIGHT_MARKER=str(self.base / 'preflight'))
+        script = r'''
+source scripts/lib/workflows.sh
+source scripts/lib/providers.sh
+log() { printf '%s\n' "$*"; }
+preflight_check() { echo called > "$PREFLIGHT_MARKER"; return 77; }
+probe_single_agent "$PREVIEW_PROVIDER" perspective preview-task
+'''
+        for provider in ('opencode', 'codex'):
+            with self.subTest(provider=provider):
+                self.env['PREVIEW_PROVIDER'] = provider
+                result = self.shell(script)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn('[DRY-RUN]', result.stdout)
+                self.assertFalse(Path(self.env['PREFLIGHT_MARKER']).exists())
+                self.assertFalse(self.marker.exists())
+
     def test_large_legacy_listing_is_consumed_under_pipefail(self):
         listing = self.base / 'listing.txt'
         listing.write_text('└  2 credentials\n' + 'account metadata\n' * 20000)
@@ -125,8 +143,8 @@ probe_single_agent opencode perspective login-test
     def test_live_deadline_includes_shell_startup_and_both_probes(self):
         (self.data / 'auth.json').touch()
         startup = self.base / 'startup.sh'
-        startup.write_text('case "${1:-}" in */providers.sh) sleep 1.6 ;; esac\n')
-        self.env.update(BASH_ENV=str(startup), VERSION_DELAY='1.8', AUTH_DELAY='1.8')
+        startup.write_text('case "${1:-}" in */providers.sh) sleep 4.5 ;; esac\n')
+        self.env.update(BASH_ENV=str(startup), VERSION_DELAY='0.5', AUTH_DELAY='0.5')
         self.assertEqual(self.readiness('live')['status'], 'available')
         # An explicit short user deadline still takes precedence.
         self.env['OCTOPUS_PROVIDER_LIVE_TIMEOUT'] = '1'

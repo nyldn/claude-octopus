@@ -109,6 +109,11 @@ probe_single_agent() {
         log "DEBUG" "probe_single_agent: perspective=${perspective:0:100}..."
     fi
 
+    if [[ "${DRY_RUN:-false}" == true ]]; then
+        log INFO "[DRY-RUN] Would dispatch $agent_type for task $task_id"
+        return 0
+    fi
+
     # Pre-flight validation
     preflight_check || return 1
 

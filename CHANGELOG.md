@@ -14,6 +14,8 @@
   Large legacy login listings survive strict pipeline checks, the live deadline
   covers both probes and startup, and failed direct probes record a terminal seat
   event in durable research history.
+  Direct `probe-single --dry-run` previews stop before health checks or provider
+  execution.
   Addresses [#1172](https://github.com/nyldn/claude-octopus/issues/1172).
 
 ## [11.16.0] - 2026-11-02
