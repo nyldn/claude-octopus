@@ -170,6 +170,8 @@ Run one static, local-only readiness check. This is the same Provider Registry
 2.0 contract used by Doctor, `detect-providers`, and workflow admission.
 
 ```bash
+SETUP_FLOW="$(jq -r '.record.flow // ""' <<<"$SETUP_RECEIPT")"
+SETUP_PROVIDER="$(jq -r '.record.provider // ""' <<<"$SETUP_RECEIPT")"
 if ! READINESS_JSON="$(setup_readiness_capture 2>/dev/null)"; then
   setup_invalidate_existing initial-readiness-check-failed || exit $?
   echo "Provider readiness check failed or returned invalid data. Run /octo:skill-doctor in Claude Code or 'octopus doctor providers --json' in a shell."

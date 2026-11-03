@@ -516,6 +516,7 @@ EOF
         (( live_timeout < 1 )) && live_timeout=1
         if declare -f _octo_run_bare_probe_with_timeout >/dev/null 2>&1; then
             _octo_run_bare_probe_with_timeout "$live_timeout" "$live_timeout" 0 \
+                env "_octo_vibe_check_context=${_octo_vibe_check_context:-selected}" \
                 bash -c 'source "$1" 2>/dev/null; "$2" "$3"' _ \
                 "${_preflight_registry_dir}/providers.sh" "$health_handler" "$provider" \
                 >/dev/null || live_rc=$?

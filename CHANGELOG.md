@@ -2,8 +2,6 @@
 
 ## [Unreleased]
 
-## [11.16.0] - 2026-11-02
-
 ### Fixed
 
 - Vibe setup and readiness now recognize a key stored by `vibe --setup` in
@@ -11,6 +9,10 @@
   local presence check is silent, read-only and bounded, and receives a
   minimal environment. Automatic discovery defers keyring inspection.
   It does not launch Vibe or make a model request. Fixes #1191.
+
+## [11.16.0] - 2026-11-02
+
+### Fixed
 
 - Decision support now includes the cost of doing nothing, sets criteria and
   weights before scoring, and shows raw and weighted scores. Presentation

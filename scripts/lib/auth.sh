@@ -80,7 +80,7 @@ _octo_vibe_keyring_has_key() {
     # The shared supervisor includes termination and cleanup in the 3s budget.
     (
         cd / || exit 1
-        _octo_run_bare_probe_with_timeout 3 1 2 \
+        _octo_run_bare_probe_with_timeout 3 2 1 \
             "${probe_env[@]}" "$interpreter" -I "$lib_dir/../helpers/vibe-keyring-check.py"
     ) </dev/null >/dev/null 2>&1
 }

@@ -41,6 +41,8 @@ class VibeKeyringTest(unittest.TestCase):
         self.env = dict(os.environ, HOME=str(self.home), PATH=f'{self.bin}:/usr/bin:/bin',
                         OCTOPUS_SKIP_PROVIDER_PROBES='false', OCTO_ALLOWED_PROVIDERS='vibe',
                         MISTRAL_API_KEY='', VIBE_PROBE_MARKER=str(self.marker))
+        self.env.pop('OCTOPUS_COUNCIL_DEFAULT_PROVIDERS', None)
+        self.env.pop('_octo_vibe_check_context', None)
         self.write_module('return "inert-fixture-value"')
 
     def write_module(self, body):
@@ -127,6 +129,49 @@ class VibeKeyringTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('vibe:none', result.stdout)
         self.assertFalse(self.marker.exists(), 'unselected Vibe code ran during discovery')
+
+    def test_broad_live_readiness_does_not_load_vibe_code(self):
+        result = self.shell('octo_provider_readiness_all live')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(self.marker.exists(), 'broad live scan loaded unselected Vibe code')
+        selected = self.shell('octo_provider_readiness_all live vibe')
+        self.assertEqual(selected.returncode, 0, selected.stderr)
+        self.assertTrue(self.marker.exists(), 'explicit selection must still inspect Vibe')
+
+    def test_keyring_read_can_use_two_seconds_of_total_budget(self):
+        self.write_module('import time\ntime.sleep(1.3)\nreturn "inert-fixture-value"')
+        result = self.shell('_octo_vibe_keyring_has_key selected')
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_total_probe_budget_stays_three_seconds(self):
+        budget = self.base / 'budget'
+        result = self.shell('run_with_timeout() { printf "%s %s" "$2" '
+                            '"$OCTOPUS_TIMEOUT_KILL_GRACE" > ' + shlex.quote(str(budget)) +
+                            '; return 1; }; _octo_vibe_keyring_has_key selected')
+        self.assertNotEqual(result.returncode, 0)
+        term, grace = map(int, budget.read_text().split())
+        self.assertEqual(term + grace, 3)
+
+    def test_resumed_setup_preserves_completed_keyring_selection(self):
+        for path in ('commands/setup.md', '.cursor-plugin/commands/octo-setup.md'):
+            with self.subTest(path=path):
+                for receipt in (self.home / '.claude-octopus/setup').glob('*.json'):
+                    receipt.unlink()
+                text = (ROOT / path).read_text()
+                helpers = text.split('SETUP_STATE_HELPER=', 1)[1].split('\n```', 1)[0]
+                helpers = 'SETUP_STATE_HELPER=' + helpers
+                initial = text.split('### 2. Show shared readiness', 1)[1].split('```bash\n', 1)[1].split('\n```', 1)[0]
+                command = (f'OCTO_ROOT={shlex.quote(str(ROOT))}; ' + helpers + '\n'
+                           'SETUP_FLOW=one-provider; SETUP_PROVIDER=vibe; '
+                           'setup_record selected null >/dev/null; '
+                           'setup_record rechecked \'{"result":"passed","reason_code":"ready","checked_at":"test"}\' >/dev/null; '
+                           'setup_record verified \'{"result":"passed","reason_code":"ready","checked_at":"test"}\' >/dev/null; '
+                           + helpers + '\nunset SETUP_FLOW SETUP_PROVIDER\n' + initial + '\n'
+                           'printf "\\nSTAGE=%s" "$(jq -r .record.stage <<<"$SETUP_RECEIPT")"')
+                result = self.shell(command)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn('STAGE=verified', result.stdout)
+                self.assertIn('vibe: available [ready]', result.stdout)
 
     def test_probe_does_not_receive_other_credentials_or_loader_environment(self):
         self.env.update(OPENAI_API_KEY='inert-fixture-value', GITHUB_TOKEN='inert-fixture-value',
