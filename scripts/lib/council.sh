@@ -3241,7 +3241,39 @@ def indented_code(text):
 def table_line(index):
     l_start, l_end, text = resp_lines[index]
     return ("|" in text and not indented_code(text) and not BLOCK_START.match(text)
-            and not in_fence(l_start, l_end + 1))
+            and index not in html_lines and not in_fence(l_start, l_end + 1))
+
+# Raw HTML blocks suppress Markdown table parsing. Comments and the other
+# explicit terminators can cross blank lines; ordinary HTML blocks end at a
+# blank line. Be conservative about tag-like openers at this evidence boundary.
+html_lines = set()
+html_end = None
+for index, (l_start, l_end, text) in enumerate(resp_lines):
+    if html_end is None:
+        if in_fence(l_start, l_end + 1):
+            continue
+        if re.match(r"^ {0,3}<!--", text):
+            html_end = re.compile(r"-->")
+        elif re.match(r"^ {0,3}<\?", text):
+            html_end = re.compile(r"\?>")
+        elif re.match(r"^ {0,3}<!\[CDATA\[", text):
+            html_end = re.compile(r"\]\]>")
+        elif re.match(r"^ {0,3}<![A-Z]", text):
+            html_end = re.compile(r">")
+        else:
+            tag = re.match(r"^ {0,3}<(script|pre|style|textarea)(?:[ \t>]|$)", text, re.I)
+            if tag:
+                html_end = re.compile(r"</" + tag.group(1) + r">", re.I)
+            elif re.match(r"^ {0,3}<", text):
+                html_end = False  # Blank-line-terminated block.
+            else:
+                continue
+    if html_end is False and not text.strip():
+        html_end = None
+        continue
+    html_lines.add(index)
+    if html_end and html_end.search(text):
+        html_end = None
 
 row = 1
 while row < len(resp_lines):
@@ -3249,7 +3281,7 @@ while row < len(resp_lines):
     # The delimiter skips BLOCK_START, since a "- | -" delimiter also looks
     # like a list item.
     if not ("|" in delimiter[2] and DELIMITER_ROW.match(delimiter[2]) and not indented_code(delimiter[2])
-            and not in_fence(delimiter[0], delimiter[1] + 1) and table_line(row - 1)
+            and row not in html_lines and not in_fence(delimiter[0], delimiter[1] + 1) and table_line(row - 1)
             and len(table_cells(resp_lines[row - 1][2])) == len(table_cells(delimiter[2]))):
         row += 1
         continue
