@@ -120,15 +120,25 @@ def validate_plugin_manifest(root: Path, errors: list[str]) -> None:
             errors.append(f"{rel(root, manifest)}: missing required field: {field}")
 
     skills = data.get("skills", [])
+    if isinstance(skills, str):
+        skills = [skills]
     if not isinstance(skills, list) or any(not isinstance(path, str) for path in skills):
-        errors.append(f"{rel(root, manifest)}: skills must be a list of relative paths")
+        errors.append(f"{rel(root, manifest)}: skills must be a path or list of relative paths")
         return
     for path in skills:
-        skill = (root / path / "SKILL.md").resolve()
-        if not skill.is_relative_to(root) or not skill.is_file():
+        directory = (root / path).resolve()
+        if not directory.is_relative_to(root) or not directory.is_dir():
             errors.append(f"{rel(root, manifest)}: missing or unsafe skill path: {path}")
-        elif "Host: Codex CLI" in skill.read_text(encoding="utf-8"):
-            errors.append(f"{rel(root, manifest)}: Claude Code registers a Codex-adapted skill: {path}")
+            continue
+        direct = directory / "SKILL.md"
+        files = [direct] if direct.is_file() else sorted(directory.rglob("SKILL.md"))
+        if not files:
+            errors.append(f"{rel(root, manifest)}: no skills found at: {path}")
+        for skill in files:
+            if not skill.resolve().is_relative_to(root) or not skill.is_file():
+                errors.append(f"{rel(root, manifest)}: missing or unsafe skill file: {rel(root, skill)}")
+            elif "Host: Codex CLI" in skill.read_text(encoding="utf-8"):
+                errors.append(f"{rel(root, manifest)}: Claude Code registers a Codex-adapted skill: {path}")
 
 
 def validate_json_files(root: Path, errors: list[str]) -> None:

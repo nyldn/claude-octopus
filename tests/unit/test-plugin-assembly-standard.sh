@@ -140,4 +140,32 @@ else
     test_fail "missing host mismatch diagnostic: $output"
 fi
 
+
+scalar_fixture="$TEST_TMP_DIR/assembly-scalar"
+mkdir -p "$scalar_fixture/.claude-plugin" "$scalar_fixture/skills/demo"
+printf '%s\n' '---' 'name: demo' 'description: fixture' 'disable-model-invocation: true' '---' '# Native skill' > "$scalar_fixture/skills/demo/SKILL.md"
+for skill_path in './skills/demo' './skills/'; do
+    test_case "validator accepts native scalar skill registration: $skill_path"
+    python3 - "$scalar_fixture/.claude-plugin/plugin.json" "$skill_path" <<'PY_MANIFEST'
+import json, sys
+from pathlib import Path
+Path(sys.argv[1]).write_text(json.dumps({"name":"fixture", "version":"0.0.0", "description":"fixture", "skills":sys.argv[2]}))
+PY_MANIFEST
+    if output=$(python3 "$PROJECT_ROOT/scripts/validate-plugin-assembly.py" --root "$scalar_fixture" 2>&1); then
+        test_pass
+    else
+        test_fail "supported scalar registration rejected: $output"
+    fi
+done
+
+test_case "container registrations still reject nested Codex adaptations"
+printf '%s\n' '> **Host: Codex CLI**' >> "$scalar_fixture/skills/demo/SKILL.md"
+if output=$(python3 "$PROJECT_ROOT/scripts/validate-plugin-assembly.py" --root "$scalar_fixture" 2>&1); then
+    test_fail "container bypassed host validation"
+elif [[ "$output" == *"Claude Code registers a Codex-adapted skill"* ]]; then
+    test_pass
+else
+    test_fail "missing nested host mismatch diagnostic: $output"
+fi
+
 test_summary
