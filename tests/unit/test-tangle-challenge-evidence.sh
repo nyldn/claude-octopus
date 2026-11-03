@@ -84,6 +84,35 @@ if [[ ${#excerpt} -lt 4200 ]]; then
 else
     test_fail "oversized diff was not bounded"
 fi
+test_case "UTF-8 diffs retain complete characters at every byte-boundary alignment"
+unicode_ok=true
+for padding in '' x xx; do
+    python3 -c 'import sys; print("Unicode:" + sys.argv[1] + "界" * 2000)' "$padding" > "$repo/code.txt"
+    excerpt="$(tangle_challenge_change_evidence "$baseline" code.txt)"
+    if [[ "$excerpt" != *'+Unicode:'* ]] || ! printf '%s' "$excerpt" | python3 -c 'import sys; sys.stdin.buffer.read().decode("utf-8")'; then
+        unicode_ok=false
+    fi
+done
+if [[ "$unicode_ok" == true ]]; then test_pass; else test_fail "UTF-8 truncation discarded an implementation diff"; fi
+
+test_case "short malformed UTF-8 and invalid interior bytes remain excluded"
+short_invalid="$(printf 'bad\347' | tangle_challenge_text_excerpt)"
+interior_invalid="$(python3 -c 'import sys; sys.stdout.buffer.write(b"x" * 100 + b"\xff" + b"x" * 5000)' | tangle_challenge_text_excerpt)"
+if [[ -z "$short_invalid" && -z "$interior_invalid" ]]; then test_pass; else test_fail "malformed text entered the challenge"; fi
+
+test_case "candidate scanning stops after 200 excluded paths"
+(
+    tangle_read_scope_is_allowed() { printf '%s\n' "$1" >> "$TEST_TMP_DIR/examined-paths"; return 1; }
+    paths="$(printf '.env.skip%s\n' {1..250})"
+    tangle_challenge_change_evidence "$baseline" "$paths" > "$TEST_TMP_DIR/excluded-excerpt"
+)
+examined="$(wc -l < "$TEST_TMP_DIR/examined-paths" | tr -d '[:space:]')"
+if [[ "$examined" -eq 200 && ! -s "$TEST_TMP_DIR/excluded-excerpt" ]]; then
+    test_pass
+else
+    test_fail "examined $examined excluded paths instead of stopping at 200"
+fi
+
 test_case "excluded paths do not exhaust the implementation excerpt budget"
 paths="$(printf '.env.skip%s\n' {1..20}; printf 'code.txt\n')"
 excerpt="$(tangle_challenge_change_evidence "$baseline" "$paths")"

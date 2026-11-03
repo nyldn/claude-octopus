@@ -34,12 +34,13 @@ extract_tangle_result_output() {
 # Keep the byte bound before shell capture, which would silently drop NULs.
 # Attributes may force binary files through Git's text-diff path.
 tangle_challenge_text_excerpt() {
-    python3 -I -c 'import sys
+    python3 -I -c 'import codecs, sys
 data = sys.stdin.buffer.read(4096)
 try:
-    data.decode("utf-8")
+    text = codecs.getincrementaldecoder("utf-8")().decode(data, final=len(data) < 4096)
 except UnicodeDecodeError:
     sys.exit(0)
+data = text.encode("utf-8")
 if not any(c < 32 and c not in (9, 10, 13) for c in data) and b"\nBinary files " not in data:
     sys.stdout.buffer.write(data)
 '
@@ -48,7 +49,7 @@ if not any(c < 32 and c not in (9, 10, 13) for c in data) and b"\nBinary files "
 # Give the challenger bounded, policy-filtered changes from the run's start.
 # Missing helpers or an unverifiable baseline omit the diff, never widen reads.
 tangle_challenge_change_evidence() (
-    local baseline="${1:-}" paths="${2:-}" repo_root path excerpt count=0 key driver filter_keys
+    local baseline="${1:-}" paths="${2:-}" repo_root path excerpt count=0 examined=0 key driver filter_keys
     [[ "$baseline" =~ ^[0-9a-fA-F]{40}$ ]] || return 0
     declare -F tangle_read_scope_is_allowed >/dev/null || return 0
     # Resolve and read this repository without caller-supplied Git routing.
@@ -74,7 +75,8 @@ tangle_challenge_change_evidence() (
     done < "$filter_keys"
     while IFS= read -r path; do
         [[ -n "$path" ]] || continue
-        [[ "$count" -lt 20 ]] || break
+        [[ "$count" -lt 20 && "$examined" -lt 200 ]] || break
+        examined=$((examined + 1))
         OCTOPUS_TANGLE_READ_SCOPE_MODE=strict tangle_read_scope_is_allowed "$path" || continue
         # A directory or gitlink could recursively include forbidden children.
         [[ ! -d "$repo_root/$path" && ! -L "$repo_root/$path" ]] || continue
@@ -856,7 +858,8 @@ $(<"$correction_file")
             challenge_evidence=$(sanitize_external_content "Provider output excerpts, capped at 6000 bytes:
 $(head -c 6000 <<< "$challenge_outputs")
 
-Change excerpts from the run's starting commit, capped at 20 paths,
+Change excerpts from the run's starting commit, examining at most 200 candidate
+paths and emitting at most 20 paths,
 4096 bytes per path and 12000 bytes total. Untracked regular files are shown
 as additions. Binary contents,
 directories, symlinks and credential paths are omitted. Missing excerpts are

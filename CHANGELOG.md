@@ -11,6 +11,8 @@
   Collecting those excerpts disables Git clean/process filters and filesystem
   monitors, and ignores inherited Git routing and global configuration.
   Binary diff markers and nontext excerpts are omitted before shell capture.
+  UTF-8 excerpts retain complete characters at the byte limit, and collection
+  examines at most 200 candidate paths per pass.
 
 ## [11.16.0] - 2026-11-02
 
