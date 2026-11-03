@@ -3100,6 +3100,9 @@ def policy_findings_blocks():
         return value
     def nonfinite(_):
         raise ValueError("nonfinite JSON number")
+    # Runtime extraction rejects the entire response on any invalid block or
+    # more than 100 findings in total. Such a response has no policy-digest
+    # coverage, so none of its blocks may bypass ordinary quote verification.
     # JSON and fence syntax belong to the raw transport text. Decoding entities
     # can break JSON strings or invent markers that policy ingestion never saw.
     # Quote units still use resp, so translate line boundaries to that view.
@@ -3107,7 +3110,7 @@ def policy_findings_blocks():
     for line in raw_resp.splitlines(keepends=True):
         offsets.append(offset)
         offset += len(html.unescape(line))
-    blocks, index = [], 0
+    blocks, index, total_findings = [], 0, 0
     while index < len(lines):
         match = re.fullmatch(r"\s*(`{3,}|~{3,})octopus-policy-findings\s*", lines[index])
         marker = match.group(1) if match else None
@@ -3120,16 +3123,22 @@ def policy_findings_blocks():
             continue
         while index < len(lines) and not re.fullmatch(r"\s*" + re.escape(marker) + r"\s*", lines[index]):
             index += 1
+        if match and index == len(lines):
+            return []
         if match and index < len(lines):
             try:
                 value = json.loads("\n".join(lines[first:index]), object_pairs_hook=pairs,
                                    parse_constant=nonfinite)
             except (ValueError, RecursionError):
-                value = None
+                return []
             if isinstance(value, dict):
                 value = value.get("findings")
-            if isinstance(value, list) and all(isinstance(item, dict) for item in value):
-                blocks.append((offsets[first - 1], offsets[index] + len(html.unescape(lines[index]))))
+            if not isinstance(value, list) or not all(isinstance(item, dict) for item in value):
+                return []
+            total_findings += len(value)
+            if total_findings > 100:
+                return []
+            blocks.append((offsets[first - 1], offsets[index] + len(html.unescape(lines[index]))))
         index += 1
     return blocks
 

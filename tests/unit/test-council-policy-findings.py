@@ -94,6 +94,28 @@ class PolicyFindings(unittest.TestCase):
         result = self.extract('~~~octopus-policy-findings\n' + json.dumps(FINDINGS))
         self.assertNotEqual(result.returncode, 0, result.stdout)
 
+    def test_rejected_findings_cannot_receive_a_quote_exemption(self):
+        def block(findings):
+            return '```octopus-policy-findings\n' + json.dumps(findings, indent=2) + '\n```\n'
+        finding = {"quote": FAKE}
+        for text in (block([finding] * 101),
+                     block([finding] * 60) + '\n' + block([finding] * 41),
+                     block([finding]) + '\n' + block({"findings": "invalid"}),
+                     block([finding]) + '\n```octopus-policy-findings\nnot JSON'):
+            with self.subTest(blocks=text.count('octopus-policy-findings')):
+                text = 'pricing.ts:1 needs an audit.\n\n' + text
+                self.assertNotEqual(self.extract(text).returncode, 0)
+                report = self.grounding(text)
+                self.assertGreaterEqual(report["quotes_checked"], 1, report)
+                self.assertTrue(report["fabricated"], report)
+
+        for text in (block([finding] * 100),
+                     block([finding] * 60) + '\n' + block([finding] * 40)):
+            with self.subTest(accepted_blocks=text.count('octopus-policy-findings')):
+                text = 'pricing.ts:1 needs an audit.\n\n' + text
+                self.assertEqual(self.extract(text).returncode, 0)
+                self.assertEqual(self.grounding(text)["quotes_checked"], 0)
+
     def test_encoded_markers_do_not_create_an_exemption(self):
         text = 'pricing.ts:1 needs an audit.\n\n&#96;&#96;&#96;octopus-policy-findings\n'
         text += json.dumps([{"quote": FAKE}]) + '\n&#96;&#96;&#96;\n'
