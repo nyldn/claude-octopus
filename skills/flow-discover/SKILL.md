@@ -7,12 +7,6 @@ aliases:
   - probe
   - probe-workflow
 description: Multi-AI research using available external providers (Double Diamond Discover phase)
-  - Questions about best practices, patterns, or ecosystem research
-
-  PRIORITY TRIGGERS (always invoke): "octo research", "octo discover", "co-research", "co-discover"
-
-  DO NOT use for: simple file searches (use Read/Grep), questions Claude can answer directly,
-  debugging issues (use skill-debug), or "what are my options" for decision support.
 
 # Claude Code v2.1.12+ Integration
 task_management: true
@@ -27,6 +21,8 @@ validation_gates:
   - orchestrate_sh_executed
   - synthesis_file_exists
 trigger: |
+  PRIORITY TRIGGERS (always invoke): "octo research", "octo discover", "co-research", "co-discover"
+
   EXPLICITLY USE when user requests research or exploration:
   - "research X" or "explore Y" or "investigate Z"
   - "what are the options for X" or "what are my choices for Y"

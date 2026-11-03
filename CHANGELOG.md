@@ -6,7 +6,14 @@
 
 - Claude Code now loads the native skill instructions instead of the Codex
   adaptations. Codex keeps its generated skills, and the verification alias
-  and starter pack remain available. Fixes #1214.
+  and starter pack remain available. Rollback now stops when local changes
+  cannot be recovered by its safety checkpoint. Fixes #1214.
+
+- Decision support now includes the cost of doing nothing, sets criteria and
+  weights before scoring, and shows raw and weighted scores. Presentation
+  templates no longer recommend the first option before analysis. Uncertain
+  decisions can include an optional scenario stress test.
+  Fixes [#1220](https://github.com/nyldn/claude-octopus/issues/1220).
 
 - Workflow skills can now persist phase state through `update_state`, query
   completed phases and import definition synthesis into the roadmap. History

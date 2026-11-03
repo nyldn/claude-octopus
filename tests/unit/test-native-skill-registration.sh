@@ -31,4 +31,50 @@ assert 'Bash tool' in (root / '.claude/skills/flow-develop/SKILL.md').read_text(
 print(f'{len(native)} native sources and {len(registered)} registrations checked')
 PY
 then test_pass; else test_fail "host-specific skill registration contract failed"; fi
+
+test_case "rollback safety checkpoint refuses staged, unstaged and untracked work"
+if python3 - "$PROJECT_ROOT" <<'PY'
+import os
+import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+root = Path(sys.argv[1])
+env = dict(os.environ, GIT_AUTHOR_NAME='Test', GIT_AUTHOR_EMAIL='test@example.invalid',
+           GIT_COMMITTER_NAME='Test', GIT_COMMITTER_EMAIL='test@example.invalid')
+for tree in ('.claude/skills', 'skills', 'codex-skills'):
+    text = (root / tree / 'skill-rollback/SKILL.md').read_text()
+    step = text.split('### Step 4:', 1)[1].split('### Step 5:', 1)[0]
+    command = re.search(r'```bash\n(.*?)\n```', step, re.S)[1]
+    for state in ('clean', 'staged', 'unstaged', 'untracked'):
+        with tempfile.TemporaryDirectory() as temporary:
+            repo = Path(temporary)
+            def git(*args):
+                return subprocess.check_output(['git', *args], cwd=repo, env=env)
+            git('init', '-q')
+            (repo / 'work.txt').write_text('committed\n')
+            git('add', 'work.txt')
+            git('commit', '-qm', 'baseline')
+            if state in ('staged', 'unstaged'):
+                (repo / 'work.txt').write_text('keep my edits\n')
+            if state == 'staged':
+                git('add', 'work.txt')
+            if state == 'untracked':
+                (repo / 'new.txt').write_text('keep new work\n')
+            before = git('status', '--porcelain=v1', '--untracked-files=all')
+            work = (repo / 'work.txt').read_bytes()
+            result = subprocess.run(['bash', '-eu', '-c', command], cwd=repo,
+                                    env=dict(env, CHECKPOINT_TAG='target'), capture_output=True)
+            tags = git('tag', '--list', 'octo-checkpoint-pre-rollback-*')
+            assert (result.returncode == 0) == (state == 'clean'), (tree, state, result.stderr)
+            assert bool(tags) == (state == 'clean'), (tree, state, 'unsafe safety tag')
+            assert git('status', '--porcelain=v1', '--untracked-files=all') == before
+            assert (repo / 'work.txt').read_bytes() == work
+            if state == 'untracked':
+                assert (repo / 'new.txt').read_text() == 'keep new work\n'
+print('12 rollback checkpoint scenarios passed across all three skill trees')
+PY
+then test_pass; else test_fail "rollback can misrepresent uncommitted work as recoverable"; fi
 test_summary

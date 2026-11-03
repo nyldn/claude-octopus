@@ -120,9 +120,18 @@ Any other input will cancel.
 
 ### Step 4: Create Safety Checkpoint
 
-Before any rollback, create a pre-rollback checkpoint:
+Before any rollback, require a clean index and working tree, including untracked
+files. A Git tag records committed files only. If this check fails, stop and let
+the user preserve their work before starting rollback again.
 
 ```bash
+# Refuse work that the safety tag cannot recover. Fail closed on Git errors.
+ROLLBACK_STATUS=$(git status --porcelain=v1 --untracked-files=all) || exit 1
+if [[ -n "$ROLLBACK_STATUS" ]]; then
+  echo "Rollback stopped: preserve staged, unstaged and untracked work first." >&2
+  exit 1
+fi
+
 # Generate timestamp
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 
@@ -151,8 +160,15 @@ fi
 ### Step 6: Execute Rollback
 
 ```bash
+# Recheck immediately before restoring in case work changed after confirmation.
+ROLLBACK_STATUS=$(git status --porcelain=v1 --untracked-files=all) || exit 1
+if [[ -n "$ROLLBACK_STATUS" ]]; then
+  echo "Rollback stopped: the working tree changed after the safety checkpoint." >&2
+  exit 1
+fi
+
 # Restore files from checkpoint (does NOT move HEAD)
-git checkout $CHECKPOINT_TAG -- .
+git checkout "$CHECKPOINT_TAG" -- .
 
 # Restore preserved LESSONS.md
 if [ "$LESSONS_PRESERVED" = "true" ]; then
