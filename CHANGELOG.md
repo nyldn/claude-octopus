@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.16.0] - 2026-11-02
+
 ### Fixed
 
 - Decision support now includes the cost of doing nothing, sets criteria and
