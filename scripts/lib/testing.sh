@@ -41,8 +41,7 @@ tangle_challenge_change_evidence() {
     git -C "$repo_root" cat-file -e "${baseline}^{commit}" 2>/dev/null || return 0
     while IFS= read -r path; do
         [[ -n "$path" ]] || continue
-        count=$((count + 1))
-        [[ "$count" -le 20 ]] || break
+        [[ "$count" -lt 20 ]] || break
         OCTOPUS_TANGLE_READ_SCOPE_MODE=strict tangle_read_scope_is_allowed "$path" || continue
         # A directory or gitlink could recursively include forbidden children.
         [[ ! -d "$repo_root/$path" && ! -L "$repo_root/$path" ]] || continue
@@ -61,6 +60,7 @@ tangle_challenge_change_evidence() {
             continue
         fi
         [[ -n "$excerpt" ]] || continue
+        count=$((count + 1))
         printf '\n### %s\n%s\n' "$path" "$excerpt"
     done <<< "$paths"
 }

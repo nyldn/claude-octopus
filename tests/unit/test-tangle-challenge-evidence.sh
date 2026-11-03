@@ -84,4 +84,12 @@ if [[ ${#excerpt} -lt 4200 ]]; then
 else
     test_fail "oversized diff was not bounded"
 fi
+test_case "excluded paths do not exhaust the implementation excerpt budget"
+paths="$(printf '.env.skip%s\n' {1..20}; printf 'code.txt\n')"
+excerpt="$(tangle_challenge_change_evidence "$baseline" "$paths")"
+if [[ "$excerpt" == *'### code.txt'* ]]; then
+    test_pass
+else
+    test_fail "excluded paths hid a later implementation file"
+fi
 test_summary
