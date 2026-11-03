@@ -14,6 +14,80 @@
   list. Probe and aggregate summaries count only their own seats, because the
   ledger spans every command in a session.
 
+
+## [11.16.0] - 2026-11-02
+
+### Fixed
+
+- Decision support now includes the cost of doing nothing, sets criteria and
+  weights before scoring, and shows raw and weighted scores. Presentation
+  templates no longer recommend the first option before analysis. Uncertain
+  decisions can include an optional scenario stress test.
+  Fixes [#1220](https://github.com/nyldn/claude-octopus/issues/1220).
+  [#1247](https://github.com/nyldn/claude-octopus/pull/1247).
+
+- Workflow skills can now persist phase state through `update_state`, query
+  completed phases and import definition synthesis into the roadmap. History
+  notes cannot change a phase's recorded status. Initializing a project with
+  a missing state file preserves existing issues, lessons and phase plans.
+  Fixes [#1169](https://github.com/nyldn/claude-octopus/issues/1169).
+  [#1248](https://github.com/nyldn/claude-octopus/pull/1248).
+
+- Configured fallback chains now honor `OCTO_ALLOWED_PROVIDERS` and the
+  session or global provider allowlist. `run_agent_sync_fallback_chain`
+  dispatched its primary, preferred fallback and chain candidates without
+  checking the allowlist. With `OCTO_ALLOWED_PROVIDERS="codex claude"`, Tangle
+  decomposition still sent the prompt to its default `agy` researcher seat
+  first. The chain now skips any candidate outside the allowlist and logs the
+  skip. If no candidate is allowed, it fails closed without dispatching.
+  `octo_fallback_agent_available` applies the same check, so
+  `get_fallback_agent` and `octo_fallback_first_available` no longer return a
+  disallowed provider just because its CLI is installed.
+  [#1244](https://github.com/nyldn/claude-octopus/pull/1244).
+
+- Preflight checks the council roster that `OCTOPUS_COUNCIL_DEFAULT_PROVIDERS`
+  pins. A Codex-led session pins `claude,agy`, but preflight ignored the list:
+  the static pass checked every non-Claude provider, the smoke test always
+  tried Codex, and nothing reported on the Claude seat. With a roster set,
+  `orchestrate.sh preflight` checks exactly those seats, Claude included, names
+  the list it used, and fails naming any seat that is not ready. The smoke test
+  and `/octo:preflight` cover only the roster, and the smoke test fails when
+  any roster seat it tested fails. A pinned Codex seat with an expired OAuth
+  token fails the roster even when other seats are ready. A seat with no
+  provider detection, such as `openai-tools`, is listed as not checked instead
+  of failing the roster or counting as degraded. The JSON gains `roster`, `roster_unchecked` and `sandbox`, and cached results are
+  keyed on the roster. Unset or `auto` keeps the previous behavior.
+- Preflight readiness inside a macOS sandbox. The `/octo:preflight` loop sent
+  stderr through `2> >(cat >&2)`, a `/dev/fd` write that Codex and Claude Code
+  sandboxes deny, so every provider read `check-failed` there. Inside such a
+  sandbox (`CODEX_SANDBOX` or `SANDBOX_RUNTIME`), a provider that is not ready
+  now carries a note that keychain logins, network access or files outside the
+  workspace can fail there, with the remedy to re-run preflight outside it.
+  [#1229](https://github.com/nyldn/claude-octopus/pull/1229).
+
+### Maintenance
+
+- Updated the MCP server's Zod dependency.
+  [#1235](https://github.com/nyldn/claude-octopus/pull/1235).
+- The timer regression waits for completion before checking failure precedence.
+  [#1249](https://github.com/nyldn/claude-octopus/pull/1249).
+
+## [11.15.4] - 2026-11-01
+
+### Fixed
+
+- A probe seat now runs for the `OCTOPUS_AGENT_TIMEOUT` budget. `orchestrate.sh
+  probe` gave each seat the 600-second `TIMEOUT` default even with
+  `OCTOPUS_AGENT_TIMEOUT=1200` set, and the timeout message then recommended
+  setting the variable that was already set. Probe seats, `probe-single` and
+  the probe progress watchdog now use the budget `run_agent_sync` uses:
+  `OCTOPUS_AGENT_TIMEOUT`, then `--timeout`, then the default. A timed-out
+  probe seat recommends `OCTOPUS_AGENT_TIMEOUT` when it is set. Other
+  background workflows still wait for their seats against `--timeout`, so
+  their seats keep that budget.
+  [#1241](https://github.com/nyldn/claude-octopus/pull/1241),
+  commit [1f8d395](https://github.com/nyldn/claude-octopus/commit/1f8d3951b2a2b4326d5f2e4710864217812588c3).
+
 ## [11.15.3] - 2026-10-30
 
 ### Fixed

@@ -50,7 +50,18 @@ sandbox denials identify a restriction on the check. Run preflight outside that
 sandbox before treating the provider as unavailable. Smoke-test failures inside
 these sandboxes are never saved as quota or authentication failures.
 
-**"TIMEOUT EXCEEDED" on every provider in a phase**: each provider call has a per-call budget. Raise it for the whole run with `--timeout SECS` or `OCTOPUS_AGENT_TIMEOUT=SECS`; the environment variable wins when both are set. Calls a workflow runs deliberately unbounded stay unbounded. Council seats use `--seat-timeout` or `OCTOPUS_COUNCIL_TIMEOUT_<PROVIDER>` instead. If a provider keeps exploring the repository for a narrow question, a shorter prompt that asks for decisions rather than investigation is usually faster than a larger budget.
+**"TIMEOUT EXCEEDED" on every provider in a phase**: raise the background seat budget with `--timeout SECS`. Probe-specific overrides are described below. Calls a workflow runs deliberately unbounded stay unbounded. Council seats use `--seat-timeout` or `OCTOPUS_COUNCIL_TIMEOUT_<PROVIDER>` instead. If a provider keeps exploring the repository for a narrow question, a shorter prompt that asks for decisions rather than investigation is usually faster than a larger budget.
+
+For `probe` and `probe-single`, seats use `OCTOPUS_AGENT_TIMEOUT` first when
+it contains only digits. If it is unset or nonnumeric, seats use a valid
+explicit `--timeout`, then the default budget. Numeric values above
+1,073,741,823 seconds are rejected. For example,
+`OCTOPUS_AGENT_TIMEOUT=1200 ./scripts/orchestrate.sh probe "Research a topic"`
+gives each probe seat 1,200 seconds. The probe progress watchdog uses that
+same budget plus its grace period, and status rows show the selected budget.
+If the environment variable is set, a timed-out probe seat recommends
+increasing it. Other background workflows continue to use their `--timeout`
+budget.
 
 **Antigravity reports "Individual quota reached"**: the quota belongs to the account `agy` is signed into for headless runs, and a working interactive session does not rule it out. Run plain `agy`, check the signed-in account and plan in the startup banner and `/usage`, and use `/logout` then `/login` to switch accounts or choose an enterprise sign-in with a Cloud project. Octopus marks `agy` quota-dead until the reported reset, and grasp then uses Claude for success criteria and consensus.
 
