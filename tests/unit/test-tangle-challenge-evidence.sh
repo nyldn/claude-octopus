@@ -22,6 +22,7 @@ git -C "$repo" commit -qm baseline
 baseline="$(git -C "$repo" rev-parse HEAD)"
 printf 'actual implementation change\n' > "$repo/code.txt"
 printf 'private-after\n' > "$repo/.env"
+printf 'new implementation file\n' > "$repo/new.txt"
 ln -s .env "$repo/alias.txt"
 PROJECT_ROOT="$repo"
 RESULTS_DIR="$TEST_TMP_DIR/results"
@@ -37,7 +38,7 @@ record_task_metric() { :; }
 write_structured_decision() { :; }
 get_gate_threshold() { echo 75; }
 evaluate_quality_branch() { echo proceed; }
-check_tangle_worktree_changes() { printf 'code.txt\n.env\nfolder\nalias.txt\n'; }
+check_tangle_worktree_changes() { printf 'code.txt\nnew.txt\n.env\nfolder\nalias.txt\n'; }
 run_agent_sync() {
     printf '%s' "$2" > "$TEST_TMP_DIR/challenge"
     printf '%s' "$2" | grep -oE 'GENUINELY_CLEAN_[0-9]+' | head -n 1
@@ -57,6 +58,7 @@ else
 fi
 test_case "challenger receives the implementation diff with untrusted boundaries"
 if grep -q '+actual implementation change' "$TEST_TMP_DIR/challenge" &&
+   grep -q '+new implementation file' "$TEST_TMP_DIR/challenge" &&
    grep -q 'BEGIN-UNTRUSTED:tangle-challenge:' "$TEST_TMP_DIR/challenge"; then
     test_pass
 else

@@ -50,8 +50,16 @@ tangle_challenge_change_evidence() {
         case "$(git -C "$repo_root" cat-file -t "${baseline}:$path" 2>/dev/null)" in
             tree|commit) continue ;;
         esac
-        excerpt=$(git -C "$repo_root" diff --no-ext-diff --no-textconv --no-renames \
-            --submodule=short "$baseline" -- ":(literal)$path" 2>/dev/null | head -c 4096) || true
+        if git -C "$repo_root" cat-file -e "${baseline}:$path" 2>/dev/null ||
+           git -C "$repo_root" ls-files --error-unmatch -- ":(literal)$path" >/dev/null 2>&1; then
+            excerpt=$(git -C "$repo_root" diff --no-ext-diff --no-textconv --no-renames \
+                --submodule=short "$baseline" -- ":(literal)$path" 2>/dev/null | head -c 4096) || true
+        elif [[ -f "$repo_root/$path" ]]; then
+            excerpt=$(git -C "$repo_root" diff --no-index --no-ext-diff --no-textconv \
+                -- /dev/null "$repo_root/$path" 2>/dev/null | head -c 4096) || true
+        else
+            continue
+        fi
         [[ -n "$excerpt" ]] || continue
         printf '\n### %s\n%s\n' "$path" "$excerpt"
     done <<< "$paths"
@@ -806,8 +814,9 @@ $(<"$correction_file")
             challenge_evidence=$(sanitize_external_content "Provider output excerpts, capped at 6000 bytes:
 $(head -c 6000 <<< "$result_outputs")
 
-Tracked change excerpts from the run's starting commit, capped at 20 paths,
-4096 bytes per path and 12000 bytes total. Binary contents, untracked files,
+Change excerpts from the run's starting commit, capped at 20 paths,
+4096 bytes per path and 12000 bytes total. Untracked regular files are shown
+as additions. Binary contents,
 directories, symlinks and credential paths are omitted. Missing excerpts are
 not evidence that no changes occurred.
 ${challenge_changes:-No eligible change excerpt is available.}" "tangle-challenge")
