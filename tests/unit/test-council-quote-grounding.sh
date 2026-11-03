@@ -2188,6 +2188,46 @@ for config_failure in unavailable oversized; do
     rm -f "$ROOT/filter-config-failure"
 done
 
+# sail-cruisey #3386: a seat that ran the code quotes the error it threw. That
+# is runtime output, not file content.
+runtime_cases=(
+    '`src/pricing.ts:2` (`cabin.basePrice ?? sailing.defaultPrice`) throws `RangeError: Maximum call stack size exceeded` at 3,000,000 characters. I measured this in Node.'
+    'Calling priceFor with a cyclic cabin at src/pricing.ts:4 crashes with `TypeError: Converting circular structure to JSON`.'
+    'Loading src/pricing.ts:3 in the browser raised `Uncaught SyntaxError: Unexpected token }` before any assertion.'
+)
+for runtime in "${runtime_cases[@]}"; do
+    test_case "#3386: a quoted runtime error is not a fabricated quote: ${runtime:0:50}"
+    r="$(_report "$(_resp "$runtime
+VERDICT: APPROVE")")"
+    if jq -e '.quotes_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+
+test_case "#3386: a runtime error attributed to a cited file is still checked"
+r="$(_report "$(_resp 'src/pricing.ts:3 reads `RangeError: invalid cabin price`.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3386: an example the seat makes up (\"a template like\") is not a fabricated quote"
+r="$(_report "$(_resp 'The new branch at src/pricing.ts:3 fires on any colon. So a template like `Request to https://api.example failed: %s` now ships whole as `[REDACTED]`.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# sail-cruisey #3386: a single-backtick span cannot hold a backtick, so a seat
+# quoting `describe("... `map`", ...)` drops the inner ones.
+BROOT="$(mktemp -d "${TEST_TMP_DIR:-/tmp}/quote-backtick.XXXXXX")"
+mkdir -p "$BROOT/src"
+printf '%s\n' 'import { describe, it } from "vitest";' 'describe("#3386 box 5: span links with a caller-controlled `map`", () => {' '  it("skips the own map", () => {});' '});' > "$BROOT/src/sentry.test.ts"
+test_case "#3386: a quote that drops the file's inner backticks verifies"
+r="$(council_response_quote_verification_json "$(_resp 'Approval at src/sentry.test.ts:2:
+  `describe("#3386 box 5: span links with a caller-controlled map", () => {`
+VERDICT: APPROVE')" "$BROOT")"
+if jq -e '.quotes_verified == 1 and .quotes_attributed_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+test_case "#3386: dropping backticks does not let other words change"
+r="$(council_response_quote_verification_json "$(_resp 'Approval at src/sentry.test.ts:2:
+  `describe("#3386 box 5: span links with a caller-controlled filter", () => {`
+VERDICT: APPROVE')" "$BROOT")"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
 # sail-cruisey #3316: a seat joins a multi-line condition onto one line. The
 # tokens are the file's; only the whitespace around punctuation differs.
 WROOT="$(mktemp -d "${TEST_TMP_DIR:-/tmp}/quote-joined.XXXXXX")"

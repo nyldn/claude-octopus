@@ -3339,15 +3339,20 @@ def find_lines(hay, starts, line_numbers, needle, limit=50, following=()):
 # quote that misses only on that verifies. A space between two words still
 # counts: "await limit" is never "awaitlimit".
 LAYOUT_SPACE = re.compile(r" (?=[^\w ])|(?<=[^\w ]) ")
-tight_cache = {}
-def tight_entry(entry):
+# sail-cruisey #3386: a single-backtick span cannot hold a backtick, so a seat
+# quoting `describe("... `map`")` drops the file's inner backticks.
+BACKTICK = re.compile(r"`")
+stripped_cache = {}
+def stripped_entry(entry, pattern):
     hay, starts, line_numbers = entry
-    got = tight_cache.get(hay)
+    got = stripped_cache.get((hay, pattern))
     if got is None:
-        removed = [m.start() for m in LAYOUT_SPACE.finditer(hay)]
-        got = (LAYOUT_SPACE.sub("", hay), [s - bisect_left(removed, s) for s in starts], line_numbers)
-        tight_cache[hay] = got
+        removed = [m.start() for m in pattern.finditer(hay)]
+        got = (pattern.sub("", hay), [s - bisect_left(removed, s) for s in starts], line_numbers)
+        stripped_cache[(hay, pattern)] = got
     return got
+def tight_entry(entry):
+    return stripped_entry(entry, LAYOUT_SPACE)
 
 def match_variant(text, entry):
     hay, starts, line_numbers = entry
@@ -3360,7 +3365,10 @@ def match_variant(text, entry):
     if len(pieces) > 1 or (pieces and pieces[0] != needle):
         return find_lines(hay, starts, line_numbers, pieces[0], following=pieces[1:])
     if specific(needle):
-        return find_lines(*tight_entry(entry), LAYOUT_SPACE.sub("", needle))
+        lines = find_lines(*tight_entry(entry), LAYOUT_SPACE.sub("", needle))
+        if not lines and "`" not in needle and "`" in hay:
+            lines = find_lines(*stripped_entry(entry, BACKTICK), needle)
+        return lines
     return []
 
 def match_unit(wholes, line_variants, entry, misses=None, short=()):
@@ -3530,6 +3538,11 @@ REMOVAL_WORDS = re.compile(r"\b(remov(?:e|ed|es|ing|al)|delet(?:e|ed|es|ing|ion)
 # content. If it is not in the cited file, it is unverifiable, never fabricated.
 COMMAND = re.compile(r"^\$?\s*(?:npm|npx|pnpm|yarn|node|deno|bun|git|gh|make|bash|sh|zsh|cd|ls|cat|grep|rg|sed|awk|curl|python3?|pip|uv|cargo|go|tsc|vitest|jest|pytest|docker|kubectl|psql|netlify|supabase|env)\s")
 SHELL_FENCES = {"sh", "bash", "shell", "console", "zsh", "terminal", "shell-session"}
+# Nor is the error a seat's probe threw ("throws `RangeError: Maximum call stack
+# size exceeded`", sail-cruisey #3386): an error class and its message, a
+# traceback header or a panic.
+RUNTIME_ERROR = re.compile(r"^(?:Uncaught (?:\(in promise\) )?)?[A-Z][A-Za-z]*(?:Error|Exception)(?: \[[\w-]+\])?: \S"
+                           r"|^Traceback \(most recent call last\)|^panic: \S")
 # A unit is ATTRIBUTED when it sits directly under or after a citation, with only
 # markup or a source verb between them ("x.ts:12 defines `...`", "x.ts:12:" then a
 # fence). That is the seat stating the cited file contains this code, so the
@@ -3559,7 +3572,8 @@ def proposes(text):
 SOURCE_ABSENCE = re.compile(
     r"\b(?:(?:does|do|did)\s+not|(?:doesn|don|didn)['’]t)\s+"
     r"(?:currently\s+)?(?:contain|show|read|say|define|declare|have)\b", re.I)
-PROPOSAL = re.compile(r"\b(should|propos\w*|suggest\w*|recommend\w*|replace with|instead|would|could|change (?:it |this )?to|rewrit\w*|becomes?|example|e\.g\.|such as|consider|cover|prefer\w*|expected|want|(?:constructed|built|crafted) as)\b", re.I)
+PROPOSAL = re.compile(r"\b(should|propos\w*|suggest\w*|recommend\w*|replace with|instead|would|could|change (?:it |this )?to|rewrit\w*|becomes?|example|e\.g\.|such as|consider|cover|prefer\w*|expected|want|(?:constructed|built|crafted) as"
+                      r"|(?:an?|any|some) [\w-]+(?: [\w-]+)? like)\b", re.I)
 # Backticks also format prose and multiword values. Sentence punctuation alone
 # is not code syntax, nor is a dotted name embedded in a sentence. Calls,
 # indexing, operators and statements returning a member expression still are.
@@ -3825,7 +3839,8 @@ for start, end, kind, block, removed_block, info in units:
         result["quotes_unverifiable"] += 1
         result["quotes_unverifiable_claimed_removed"] += 1
     elif attributed is None and (info in SHELL_FENCES or (
-            block and all(COMMAND.match(norm(l) + " ") for l in block))):
+            block and all(COMMAND.match(norm(l) + " ") for l in block)) or (
+            kind == "inline" and block and RUNTIME_ERROR.match(norm(block[0])))):
         result["quotes_unverifiable"] += 1
         result["quotes_unverifiable_command"] += 1
     elif proposed(start) or (kind == "inline" and attributed is None and probe_input(start, end)):
