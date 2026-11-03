@@ -58,4 +58,43 @@ if [[ "$rc" == 1 ]] && jq -e --arg file "$current" \
 else
     test_fail "executor lost attempted task scope, exit=$rc"
 fi
+test_case "a failed repeated spawn cannot retain an earlier output at the same path"
+if [[ ! -e "$current" ]]; then
+    test_pass
+else
+    test_fail "failed spawn retained a previous answer at its current task path"
+fi
+test_case "legacy Opus fast alias uses the normalized dispatch result path"
+AVAILABLE_AGENTS=claude-opus-fast
+printf '{"tasks":[{"id":"t2","agent":"claude-opus-fast","prompt":"implement"}]}' > "$TEST_TMP_DIR/tasks.json"
+parallel_execute "$TEST_TMP_DIR/tasks.json" > "$TEST_TMP_DIR/parallel-alias.log" 2>&1 && rc=0 || rc=$?
+if [[ "$rc" == 1 ]] && jq -e --arg file "$RESULTS_DIR/claude-opus-t2.md" \
+    '.[0].output_file == $file' "$TEST_TMP_DIR/aggregation-tasks.json" > /dev/null; then
+    test_pass
+else
+    test_fail "aggregation expected a different path than the normalized dispatcher"
+fi
+test_case "dry-run preserves previous outputs"
+AVAILABLE_AGENTS=codex DRY_RUN=true
+spawn_agent() { :; }
+printf 'preserve previous answer\n' > "$current"
+printf '{"tasks":[{"id":"t1","agent":"codex","prompt":"preview"}]}' > "$TEST_TMP_DIR/tasks.json"
+parallel_execute "$TEST_TMP_DIR/tasks.json" > "$TEST_TMP_DIR/parallel-preview.log" 2>&1
+if [[ "$(cat "$current")" == 'preserve previous answer' ]]; then
+    test_pass
+else
+    test_fail "preview removed an existing result"
+fi
+test_case "failure to remove an old output fails closed before dispatch"
+DRY_RUN=false
+mkdir "$RESULTS_DIR/codex-blocked.md"
+spawn_agent_capture_pid() { touch "$TEST_TMP_DIR/unsafe-spawn"; return 1; }
+printf '{"tasks":[{"id":"blocked","agent":"codex","prompt":"implement"}]}' > "$TEST_TMP_DIR/tasks.json"
+parallel_execute "$TEST_TMP_DIR/tasks.json" > "$TEST_TMP_DIR/parallel-blocked.log" 2>&1 && rc=0 || rc=$?
+if [[ "$rc" == 1 && ! -e "$TEST_TMP_DIR/unsafe-spawn" ]] && \
+    jq -e '. == []' "$TEST_TMP_DIR/aggregation-tasks.json" > /dev/null; then
+    test_pass
+else
+    test_fail "undeletable prior output remained in dispatch or aggregation"
+fi
 test_summary

@@ -645,8 +645,17 @@ parallel_execute() {
         done
 
         local result_slug="$agent"
+        # spawn_agent normalizes this legacy alias before choosing its filename.
+        [[ "$result_slug" != claude-opus-fast ]] || result_slug=claude-opus
         if declare -F octo_agent_spec_slug >/dev/null 2>&1; then
-            result_slug=$(octo_agent_spec_slug "$agent")
+            result_slug=$(octo_agent_spec_slug "$result_slug")
+        fi
+        if ! rm -f -- "$RESULTS_DIR/$result_slug-$task_id.md"; then
+            log ERROR "Cannot remove previous output for task $task_id"
+            _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" true \
+                "failed" "stale-output-removal" ""
+            ((failed++)) || true
+            continue
         fi
         aggregate_task_scope=$(jq -c --arg id "$task_id" \
             --arg output_file "$RESULTS_DIR/$result_slug-$task_id.md" \

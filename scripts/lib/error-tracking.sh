@@ -534,6 +534,7 @@ record_oversize_event() {
 
 agent_status_output_files() {
     local filter="${1:-}" task_scope="${2:-null}"
+    local eligibility="${3:-ledger}"
     local dir jsonl
     dir=$(octo_run_dir)
     jsonl="$dir/agents.jsonl"
@@ -553,6 +554,14 @@ agent_status_output_files() {
     ' "$jsonl" 2>/dev/null | while IFS=$'\t' read -r status contribution file; do
         [[ -n "$file" && -f "$file" ]] || continue
         [[ -z "$filter" || "$file" == *"$filter"* ]] || continue
+        if [[ "$eligibility" == probe ]]; then
+            probe_result_file_is_usable "$file" || continue
+            if type octo_seat_was_rejected >/dev/null 2>&1 && octo_seat_was_rejected "$file"; then
+                continue
+            fi
+            printf '%s\n' "$file"
+            continue
+        fi
         if [[ "$status" == "ok" && "$contribution" == "eligible" ]] && \
            _octo_run_output_usable_file "$file"; then
             printf '%s\n' "$file"
@@ -570,6 +579,7 @@ agent_status_output_files() {
 # probe then does not count the seats of an earlier probe in the same session.
 render_agent_summary() {
     local filter="${1:-}" task_scope="${2:-null}"
+    local eligibility="${3:-ledger}"
     local dir jsonl
     dir=$(octo_run_dir)
     jsonl="$dir/agents.jsonl"
@@ -661,7 +671,7 @@ render_agent_summary() {
     echo ""
 
     local available_outputs
-    available_outputs=$(agent_status_output_files "$filter" "$task_scope" | awk 'END {print NR+0}')
+    available_outputs=$(agent_status_output_files "$filter" "$task_scope" "$eligibility" | awk 'END {print NR+0}')
     if [[ $failed -gt 0 || $timeout -gt 0 ]]; then
         printf '⚠ %d of %d agents failed or timed out — synthesis should use %d available outputs. Details: %s\n' \
             "$((failed + timeout))" "$total" "$available_outputs" "$dir"

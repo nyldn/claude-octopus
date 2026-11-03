@@ -576,7 +576,7 @@ synthesize_probe_results() {
         evidence_catalog=$(research_source_catalog 2>/dev/null || true)
     fi
     local agent_status
-    agent_status=$(type render_agent_summary >/dev/null 2>&1 && render_agent_summary "-probe-${task_group}-" 2>/dev/null || echo "No agent status ledger available")
+    agent_status=$(type render_agent_summary >/dev/null 2>&1 && render_agent_summary "-probe-${task_group}-" null probe 2>/dev/null || echo "No agent status ledger available")
     local local_evidence_root="${RESEARCH_PROJECT_ROOT:-${PROJECT_ROOT:-$PWD}}"
 
     local synth_agent="" synthesis=""

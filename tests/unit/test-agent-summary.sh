@@ -214,4 +214,14 @@ else
     test_fail "unrelated session seats entered exact task selection: $summary / $files"
 fi
 
+test_case "probe summaries count genuinely usable timeout output"
+partial="$WORKSPACE_DIR/results/codex-probe-partial-1.md"
+printf '## Output\nuseful partial research\n## Status: TIMEOUT\n' > "$partial"
+write_agent_status codex timeout 100 10 "Timed out" 1000 "$partial"
+summary="$(render_agent_summary '-probe-partial-' null probe)"
+if [[ "$summary" == *'use 1 available outputs'* ]]; then
+    test_pass
+else
+    test_fail "probe synthesis can use partial output that the summary did not count: $summary"
+fi
 test_summary
