@@ -2,6 +2,7 @@
 """Exercise Vibe readiness against an isolated, inert Python installation."""
 import os
 import json
+import re
 from pathlib import Path
 import shlex
 import subprocess
@@ -138,6 +139,23 @@ class VibeKeyringTest(unittest.TestCase):
         result = self.shell('_octo_vibe_keyring_has_key selected')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout + result.stderr, '')
+
+    def test_one_provider_setup_carries_the_selected_vibe_context(self):
+        text = (ROOT / 'commands/setup.md').read_text()
+        capture = re.search(r'^setup_readiness_capture\(\) \{.*?^\}', text, re.M | re.S)[0]
+        selected = text.split('Before showing provider instructions,', 1)[1].split('```bash\n', 1)[1].split('\n```', 1)[0]
+        command = (f'OCTO_ROOT={shlex.quote(str(ROOT))}; '
+                   f'READINESS_CONTRACT_HELPER={shlex.quote(str(ROOT / "scripts/helpers/readiness-contract.py"))}; '
+                   'SETUP_FLOW=one-provider; SETUP_PROVIDER=vibe; '
+                   'READINESS_JSON=\'{"results":[{"provider":"vibe","status":"degraded",'
+                   '"reason_code":"live-check-required","checked_at":"test"}]}\'; '
+                   'setup_record() { :; }; setup_fail_recheck() { return 1; }; '
+                   + capture + '\n' + selected + '\nprintf "%s" "$SETUP_PROVIDER_RESULT"')
+        result = self.shell(command)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        vibe = json.loads(result.stdout)
+        self.assertEqual((vibe['status'], vibe['reason_code']), ('available', 'ready'))
+        self.assertTrue(self.marker.exists())
 
 
 if __name__ == '__main__':

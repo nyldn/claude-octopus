@@ -567,7 +567,7 @@ octo_provider_readiness_all() {
     # An optional provider list (a pinned council roster) replaces the
     # registry's detectable providers.
     local check_kind="${1:-static}" providers="${2:-}" provider result
-    local _octo_vibe_check_context=automatic
+    local _octo_vibe_check_context="${_octo_vibe_check_context:-automatic}"
     [[ -z "$providers" ]] || _octo_vibe_check_context=selected
     [[ -n "$providers" ]] || providers="$(octo_provider_ids detect)"
     for provider in $providers; do
