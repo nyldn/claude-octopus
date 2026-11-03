@@ -2749,6 +2749,61 @@ r="$(council_response_quote_verification_json "$(_resp 'Approval at src/sentry.t
 VERDICT: APPROVE')" "$BROOT")"
 if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
+# sail-cruisey #3389: a seat writes `$n` for the numbered placeholder that
+# differs per call site, and elides an argument list as `(...)`.
+PROOT="$(mktemp -d "${TEST_TMP_DIR:-/tmp}/quote-placeholder.XXXXXX")"
+mkdir -p "$PROOT/src"
+printf '%s\n' 'export async function update(id, ids) {' '  return query(`SELECT 1 FROM credits WHERE id = $1 AND household_id = ANY($3)`, [id, null, ids]);' '}' > "$PROOT/src/credits.ts"
+printf '%s\n' 'for (const row of rows) {' '  if (row.method !== "POST" || !row.path.endsWith("sync-royal")) {' '    expect(wrote()).toBe(true);' '  }' '}' > "$PROOT/src/rbac.test.ts"
+_preport() { council_response_quote_verification_json "$(_resp "$1
+VERDICT: APPROVE")" "$PROOT"; }
+test_case "#3389: \$n stands for a numbered SQL placeholder"
+r="$(_preport 'PUT still matches rows with `household_id = ANY($n)` (`src/credits.ts:2`). Keep it.')"
+if jq -e '.quotes_verified == 1 and .quotes_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+test_case "#3389: \$n does not excuse other changed code"
+r="$(_preport 'PUT still matches rows with `household_id = ALL($n)` (`src/credits.ts:2`). Keep it.')"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+test_case "#3389: an elided quote verifies when its tokens are in order on one line"
+r="$(_preport '`src/rbac.test.ts:2`: `!== "POST" || !endsWith(...)` reads awkwardly.')"
+if jq -e '.quotes_verified == 1 and .quotes_attributed_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+test_case "#3389: an elided quote's tokens must be on one line, not spread across the file"
+r="$(_preport '`src/rbac.test.ts:2`: `row !== "POST" ... toBe(true)` reads awkwardly.')"
+if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+test_case "#3389: an elided quote with a changed token is still fabricated"
+r="$(_preport '`src/rbac.test.ts:2`: `!== "GET" || !endsWith(...)` reads awkwardly.')"
+if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# sail-cruisey #3390: two files share a basename. A seat that cites one by its
+# full path and then by basename means that one, not "unresolved".
+AROOT="$(mktemp -d "${TEST_TMP_DIR:-/tmp}/quote-ambiguous.XXXXXX")"
+mkdir -p "$AROOT/src/lib" "$AROOT/functions/_lib"
+printf '%s\n' 'export function scrub(v) {' '  return v.replace(BROWSER_TOKEN, "[x]");' '}' > "$AROOT/src/lib/sentry.ts"
+printf '%s\n' 'export function scrub(v) {' '  return v.replace(BACKEND_TOKEN, "[REDACTED]");' '}' > "$AROOT/functions/_lib/sentry.ts"
+_areport() { council_response_quote_verification_json "$(_resp "$1
+VERDICT: APPROVE")" "$AROOT"; }
+test_case "#3390: a basename resolves to the same-named file the seat cited by full path"
+r="$(_areport 'Reviewed functions/_lib/sentry.ts:1. The pass at sentry.ts:2 reads `return v.replace(BACKEND_TOKEN, "[REDACTED]");`.')"
+if jq -e '.citations == 2 and .citations_unresolved == 0 and .quotes_attributed_unverified == 0 and .quotes_verified == 1' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+test_case "#3390: a quote under the resolved basename is checked against that file"
+r="$(_areport 'Reviewed functions/_lib/sentry.ts:1. The pass at sentry.ts:2 reads `return v.replace(BROWSER_TOKEN, "[x]");`.')"
+if jq -e '.citations_unresolved == 0 and .quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+test_case "#3390: an ambiguous basename the seat never disambiguated stays unresolved"
+r="$(_areport 'The pass at sentry.ts:2 reads `return v.replace(BACKEND_TOKEN, "[REDACTED]");`.')"
+if jq -e '.citations == 0 and .citations_unresolved == 1' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# sail-cruisey #3390: a citation's sentence ends at its bullet. The next
+# bullet's span is not attributed to it.
+test_case "#3390: a span on the next bullet after a finished sentence is not attributed"
+r="$(_report "$(_resp "- \`$REAL_NEAR\` ships the fallback (\`src/pricing.ts:2\`).
+- \`GET https://h/p?q=a b=c\` ships \`b=c\` (I checked this one by running the snippet).
+VERDICT: APPROVE")")"
+if jq -e '.quotes_attributed_unverified == 0 and .quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+test_case "#3390: a citation ending in a colon still attributes the bullet under it"
+r="$(_report "$(_resp "src/pricing.ts:2:
+- \`$FAKE\`
+VERDICT: APPROVE")")"
+if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
 # sail-cruisey #3316: a seat joins a multi-line condition onto one line. The
 # tokens are the file's; only the whitespace around punctuation differs.
 WROOT="$(mktemp -d "${TEST_TMP_DIR:-/tmp}/quote-joined.XXXXXX")"

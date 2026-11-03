@@ -3013,7 +3013,8 @@ def resolve_citation(relative):
         return hits[0]
     # 3) A unique path suffix under the root, including hidden directories. A
     #    bare basename counts too when only one file has it (sail-cruisey #3295:
-    #    "pr-watchdog.yml:249" for .github/workflows/pr-watchdog.yml).
+    #    "pr-watchdog.yml:249" for .github/workflows/pr-watchdog.yml). A shared
+    #    name resolves only to the one the seat also cited by full path (below).
     global suffix_index, suffix_index_complete
     if suffix_index is None:
         suffix_index, suffix_index_complete = build_index()
@@ -3025,7 +3026,17 @@ def resolve_citation(relative):
     key = tail[::-1]
     at = bisect_left(suffix_index, (key,))
     hits = [p for suffix, p in suffix_index[at:at + 2] if suffix.startswith(key)]
+    if len(hits) > 1:
+        # Keep every same-named file, bounded, for the full-path tie-break below.
+        hits = []
+        for suffix, p in suffix_index[at:at + 64]:
+            if not suffix.startswith(key):
+                break
+            hits.append(p)
+        ambiguous[relative.as_posix()] = hits
+        return None
     return hits[0] if len(hits) == 1 else None
+ambiguous = {}
 
 # Same citation grammar as council_response_evidence_paths_json, plus offsets.
 CITATION = re.compile(r"(?<![A-Za-z0-9_./-])([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9]*)\s*:\s*([0-9]+)(?:-([0-9]+))?(?![A-Za-z0-9_/-]|\.(?:[A-Za-z0-9_/-]|\.))")
@@ -3070,7 +3081,9 @@ def resolve_outside_form(raw):
 
 # Resolve each distinct path once, using the shared sorted suffix index.
 resolved = {}
+citation_matches = []
 for match in CITATION.finditer(resp):
+    citation_matches.append(match)
     raw = match.group(1).strip()
     if raw not in resolved:
         relative = Path(raw)
@@ -3078,6 +3091,22 @@ for match in CITATION.finditer(resp):
             resolved[raw] = resolve_outside_form(relative)
         else:
             resolved[raw] = resolve_citation(relative)
+# sail-cruisey #3390: "sentry.ts:169" names two files, but a seat that also
+# cited functions-v2/_lib/sentry.ts by its full path means that one.
+cited_in_full = set()
+for value in resolved.values():
+    if value is not None:
+        try:
+            cited_in_full.add(value.resolve())
+        except (OSError, RuntimeError):
+            pass
+for raw, hits in ambiguous.items():
+    if resolved.get(raw) is None:
+        chosen = [hit for hit in hits if hit.resolve() in cited_in_full]
+        if len(chosen) == 1:
+            resolved[raw] = chosen[0]
+for match in citation_matches:
+    raw = match.group(1).strip()
     candidate = resolved[raw]
     token = (match.start(), match.end(), candidate, int(match.group(2)))
     tokens.append(token)
@@ -3614,13 +3643,47 @@ def match_variant(text, entry):
     # Elided fragments must occur in source order without reusing characters.
     pieces = [p for p in ELLIPSIS.split(needle) if specific(p)]
     if len(pieces) > 1 or (pieces and pieces[0] != needle):
-        return find_lines(hay, starts, line_numbers, pieces[0], following=pieces[1:])
+        lines = find_lines(hay, starts, line_numbers, pieces[0], following=pieces[1:])
+        return lines or elided_lines(entry, needle)
     if specific(needle):
         lines = find_lines(*tight_entry(entry), LAYOUT_SPACE.sub("", needle))
         if not lines and "`" not in needle and "`" in hay:
             lines = find_lines(*stripped_entry(entry, BACKTICK), needle)
+        if not lines and PLACEHOLDER.search(needle):
+            lines = pattern_lines(entry, r"\$\d+".join(re.escape(part) for part in PLACEHOLDER.split(needle)))
+        if not lines and ELLIPSIS.search(needle):
+            lines = elided_lines(entry, needle)
         return lines
     return []
+
+# sail-cruisey #3389: "`household_id = ANY($n)` (:386, :427, :467)" stands for
+# $3, $4 and $5 at three call sites.
+PLACEHOLDER = re.compile(r"\$[nNix](?![\w$])")
+def pattern_lines(entry, pattern):
+    hay, starts, line_numbers = entry
+    return [line_numbers[bisect_right(starts, m.start()) - 1] if starts else 1
+            for m in re.finditer(pattern, hay)]
+
+# sail-cruisey #3389: "`!== "POST" || !endsWith(...)`" marks itself abbreviated.
+# It verifies when its tokens appear in order on one source line, with at
+# least two names and every token the file's.
+TOKEN = re.compile(r"\w+|[^\w\s]")
+def elided_lines(entry, needle):
+    tokens_in = TOKEN.findall(ELLIPSIS.sub(" ", needle))
+    if len(tokens_in) < 4 or sum(1 for t in tokens_in if len(t) >= 3 and t[0].isalpha()) < 2:
+        return []
+    # The file text is one space-joined string, so test each source line alone,
+    # and bound the span so a joined diff side cannot carry it either.
+    pattern = re.compile(r".*?".join(re.escape(t) for t in tokens_in))
+    hay, starts, line_numbers = entry
+    limit = 2 * len(needle) + 40
+    found = []
+    for i, line_start in enumerate(starts):
+        line_end = starts[i + 1] if i + 1 < len(starts) else len(hay)
+        match = pattern.search(hay, line_start, line_end)
+        if match and match.end() - match.start() <= limit:
+            found.append(line_numbers[i])
+    return found
 
 # Batch small literal-line queries across all quotes. A failure-link trie scans
 # each source once instead of searching a megabyte file for every short line.
@@ -4013,8 +4076,11 @@ def association(start):
         return None, ""
     return token, gap
 
+# sail-cruisey #3390: "... (`x.ts:375`).\n- `GET https://h/p?q=a b=c` ships"
+# starts a new claim. A citation's sentence ends at a new list item.
+NEXT_ITEM = re.compile(r"[.!?][)\]`*_]*[ \t]*\n[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]")
 def attribution(token, gap):
-    if token is None or len(gap) > 200 or gap.count("\n") > 2:
+    if token is None or len(gap) > 200 or gap.count("\n") > 2 or NEXT_ITEM.search(gap):
         return None
     # A source verb in this bounded clause still attributes the quote when
     # ordinary modifiers follow it. A new sentence or a proposal ends that claim.

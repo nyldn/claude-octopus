@@ -399,6 +399,14 @@
   cannot hold (sail-cruisey #3386). A runtime error attributed to a cited
   file is still checked.
 
+- A quote with `$n` for a numbered placeholder, or abbreviated with `...`
+  (`!== "POST" || !endsWith(...)`), verifies when it matches one line of the
+  cited file (sail-cruisey #3389). A basename that two files share, such as
+  `sentry.ts:169`, now resolves to the one the seat also cited by full path,
+  so its quotes are checked instead of left unresolved (sail-cruisey #3390).
+  A span on a new list item is no longer attributed to the previous item's
+  citation.
+
 - `council-wait.sh --pool --supersede-key` no longer returns the previous
   round when the wait starts before the new round's run dir exists
   (sail-cruisey #3364). A keyed round already finished at first sight is held
