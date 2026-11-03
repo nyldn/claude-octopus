@@ -392,6 +392,13 @@
   seat's own input only when "I" or "we" built it. A fence partial in a cited
   file but complete in the reviewed diff is not counted as partial.
 
+- Council seats with real citations are no longer marked fabricated for
+  quoting the error a probe threw (`RangeError: Maximum call stack size
+  exceeded`), for an example they made up ("a template like `...`"), or for
+  a quote that drops the file's inner backticks, which a single-backtick span
+  cannot hold (sail-cruisey #3386). A runtime error attributed to a cited
+  file is still checked.
+
 - `council-wait.sh --pool --supersede-key` no longer returns the previous
   round when the wait starts before the new round's run dir exists
   (sail-cruisey #3364). A keyed round already finished at first sight is held
