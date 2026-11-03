@@ -8,6 +8,12 @@
   adaptations. Codex keeps its generated skills, and the verification alias
   and starter pack remain available. Fixes #1214.
 
+- Workflow skills can now persist phase state through `update_state`, query
+  completed phases and import definition synthesis into the roadmap. History
+  notes cannot change a phase's recorded status. Initializing a project with
+  a missing state file preserves existing issues, lessons and phase plans.
+  Fixes [#1169](https://github.com/nyldn/claude-octopus/issues/1169).
+
 - Configured fallback chains now honor `OCTO_ALLOWED_PROVIDERS` and the
   session or global provider allowlist. `run_agent_sync_fallback_chain`
   dispatched its primary, preferred fallback and chain candidates without
@@ -18,6 +24,25 @@
   `octo_fallback_agent_available` applies the same check, so
   `get_fallback_agent` and `octo_fallback_first_available` no longer return a
   disallowed provider just because its CLI is installed.
+
+- Preflight checks the council roster that `OCTOPUS_COUNCIL_DEFAULT_PROVIDERS`
+  pins. A Codex-led session pins `claude,agy`, but preflight ignored the list:
+  the static pass checked every non-Claude provider, the smoke test always
+  tried Codex, and nothing reported on the Claude seat. With a roster set,
+  `orchestrate.sh preflight` checks exactly those seats, Claude included, names
+  the list it used, and fails naming any seat that is not ready. The smoke test
+  and `/octo:preflight` cover only the roster, and the smoke test fails when
+  any roster seat it tested fails. A pinned Codex seat with an expired OAuth
+  token fails the roster even when other seats are ready. A seat with no
+  provider detection, such as `openai-tools`, is listed as not checked instead
+  of failing the roster or counting as degraded. The JSON gains `roster`, `roster_unchecked` and `sandbox`, and cached results are
+  keyed on the roster. Unset or `auto` keeps the previous behavior.
+- Preflight readiness inside a macOS sandbox. The `/octo:preflight` loop sent
+  stderr through `2> >(cat >&2)`, a `/dev/fd` write that Codex and Claude Code
+  sandboxes deny, so every provider read `check-failed` there. Inside such a
+  sandbox (`CODEX_SANDBOX` or `SANDBOX_RUNTIME`), a provider that is not ready
+  now carries a note that keychain logins, network access or files outside the
+  workspace can fail there, with the remedy to re-run preflight outside it.
 
 ## [11.15.4] - 2026-11-01
 
