@@ -2914,6 +2914,7 @@ try:
     # Unescape before parsing so blockquotes and operators read as written; the
     # file side is unescaped the same way so an HTML source still matches.
     raw_resp = raw.decode("utf-8", "replace")
+    policy_text_valid = raw_resp.encode("utf-8") == raw
     resp = html.unescape(raw_resp)
     root = Path(sys.argv[2]).resolve(strict=True)
 except (OSError, RuntimeError, ValueError):
@@ -3103,6 +3104,8 @@ def policy_findings_blocks():
     # Runtime extraction rejects the entire response on any invalid block or
     # more than 100 findings in total. Such a response has no policy-digest
     # coverage, so none of its blocks may bypass ordinary quote verification.
+    if not policy_text_valid:
+        return []
     # JSON and fence syntax belong to the raw transport text. Decoding entities
     # can break JSON strings or invent markers that policy ingestion never saw.
     # Quote units still use resp, so translate line boundaries to that view.
@@ -3123,7 +3126,9 @@ def policy_findings_blocks():
             continue
         while index < len(lines) and not re.fullmatch(r"\s*" + re.escape(marker) + r"\s*", lines[index]):
             index += 1
-        if match and index == len(lines):
+        # Analysis can fall back to the first body line when the full source
+        # quotation exceeds 16 KiB, but it rejects an oversized first line too.
+        if match and (index == len(lines) or len(lines[first]) > 16384):
             return []
         if match and index < len(lines):
             try:

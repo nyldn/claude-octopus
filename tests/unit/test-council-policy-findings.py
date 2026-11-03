@@ -32,14 +32,14 @@ class PolicyFindings(unittest.TestCase):
         self.temp.cleanup()
 
     def extract(self, text):
-        self.response.write_text(text)
+        self.response.write_bytes(text if isinstance(text, bytes) else text.encode('utf-8'))
         return subprocess.run([
             "python3", str(REPO / "scripts/helpers/feature-workflow.py"), "extract",
             "--input", str(self.response), "--label", "octopus-policy-findings",
         ], capture_output=True, text=True, env=self.env, timeout=20)
 
     def grounding(self, text):
-        self.response.write_text(text)
+        self.response.write_bytes(text if isinstance(text, bytes) else text.encode('utf-8'))
         result = subprocess.run([
             "bash", "-c", 'source "$1/scripts/lib/council.sh"; '
             'council_response_quote_verification_json "$2" "$3"',
@@ -123,6 +123,16 @@ class PolicyFindings(unittest.TestCase):
         report = self.grounding(text)
         self.assertGreaterEqual(report["quotes_checked"], 1, report)
         self.assertTrue(report["fabricated"], report)
+
+    def test_rejected_source_text_keeps_quote_verification(self):
+        def response(quote):
+            return 'pricing.ts:1 needs an audit.\n\n```octopus-policy-findings\n' + json.dumps([{"quote": quote}]) + '\n```\n'
+        for text in (response(FAKE * 400), b'\xff\n' + response(FAKE).encode('utf-8')):
+            with self.subTest(transport=type(text).__name__):
+                self.assertNotEqual(self.extract(text).returncode, 0)
+                report = self.grounding(text)
+                self.assertGreaterEqual(report["quotes_checked"], 1, report)
+                self.assertTrue(report["fabricated"], report)
 
 
 if __name__ == "__main__":
