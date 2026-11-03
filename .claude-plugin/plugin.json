@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.15.4",
-  "description": "v11.15.4 \u2014 Honor configured timeout budgets for probe research. Run /octo:setup.",
+  "version": "11.16.0",
+  "description": "v11.16.0 \u2014 Compare decisions, preserve workflow progress, and honor provider choices. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

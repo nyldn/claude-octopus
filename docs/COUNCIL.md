@@ -1,5 +1,21 @@
 # Council evidence
 
+## Check your roster
+
+Run `/octo:preflight` before a council to check the providers you configured.
+When the council provider roster is pinned, preflight checks those seats,
+including Claude, and names any seat that is not ready. An unset roster or
+`auto` keeps the usual detection behavior. See the
+[preflight configuration](../commands/preflight.md). A seat without local
+provider detection is reported as not checked.
+
+A sandbox can hide a valid keychain login, network access or files outside
+the workspace. Preflight now reports this limitation. Re-run it outside the
+sandbox before treating the provider as unauthenticated. A successful local
+check still does not prove account entitlement or remaining quota.
+
+## Provide review evidence
+
 Council file access depends on the provider and dispatch transport. Consultative
 CLI seats run in a disposable working-tree copy and can inspect project files
 present there. A tracked relative path such as `./src/service.ts` can therefore

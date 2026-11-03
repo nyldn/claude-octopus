@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.16.0] - 2026-11-02
+
 ### Fixed
 
 - Vibe setup and readiness now recognize a key stored by `vibe --setup` in
@@ -15,12 +17,14 @@
   templates no longer recommend the first option before analysis. Uncertain
   decisions can include an optional scenario stress test.
   Fixes [#1220](https://github.com/nyldn/claude-octopus/issues/1220).
+  [#1247](https://github.com/nyldn/claude-octopus/pull/1247).
 
 - Workflow skills can now persist phase state through `update_state`, query
   completed phases and import definition synthesis into the roadmap. History
   notes cannot change a phase's recorded status. Initializing a project with
   a missing state file preserves existing issues, lessons and phase plans.
   Fixes [#1169](https://github.com/nyldn/claude-octopus/issues/1169).
+  [#1248](https://github.com/nyldn/claude-octopus/pull/1248).
 
 - Configured fallback chains now honor `OCTO_ALLOWED_PROVIDERS` and the
   session or global provider allowlist. `run_agent_sync_fallback_chain`
@@ -32,6 +36,7 @@
   `octo_fallback_agent_available` applies the same check, so
   `get_fallback_agent` and `octo_fallback_first_available` no longer return a
   disallowed provider just because its CLI is installed.
+  [#1244](https://github.com/nyldn/claude-octopus/pull/1244).
 
 - Preflight checks the council roster that `OCTOPUS_COUNCIL_DEFAULT_PROVIDERS`
   pins. A Codex-led session pins `claude,agy`, but preflight ignored the list:
@@ -51,6 +56,14 @@
   sandbox (`CODEX_SANDBOX` or `SANDBOX_RUNTIME`), a provider that is not ready
   now carries a note that keychain logins, network access or files outside the
   workspace can fail there, with the remedy to re-run preflight outside it.
+  [#1229](https://github.com/nyldn/claude-octopus/pull/1229).
+
+### Maintenance
+
+- Updated the MCP server's Zod dependency.
+  [#1235](https://github.com/nyldn/claude-octopus/pull/1235).
+- The timer regression waits for completion before checking failure precedence.
+  [#1249](https://github.com/nyldn/claude-octopus/pull/1249).
 
 ## [11.15.4] - 2026-11-01
 
