@@ -92,15 +92,18 @@ matched command with an explanation, because Codex does not support the hook
 when active, they fail closed if the helper or input cannot be validated.
 These are opt-in guardrails, not a sandbox for arbitrary shell commands.
 
-Every skill also declares `policy.allow_implicit_invocation: false` in
+Every Codex skill also declares `policy.allow_implicit_invocation: false` in
 `agents/openai.yaml`. This is Codex's documented invocation control, distinct
 from Claude's frontmatter. Explicit skill mentions still work. See
 [OpenAI's skill metadata](https://learn.chatgpt.com/docs/build-skills).
 
-Verified with Codex CLI 0.153.4: installation from an isolated local marketplace
-and native `skills/list` discovery, without a model request. The runtime loaded
-63 packaged skills and 20 converted command entries without skill-load errors.
-This checks installation and discovery, not a live multi-provider workflow.
+The earlier root `skills/` layout was verified with Codex CLI 0.153.4 through
+an isolated local marketplace and native `skills/list`, without a model request.
+It loaded 63 skills and 20 converted command entries. Those results do not
+establish runtime acceptance of the new `codex-skills/` layout. Package and
+manifest checks pass for the separate tree, but current offline runtime
+discovery remains unverified: Codex 0.166 did not initialize within a bounded
+retry. No model request or account change was made.
 
 The bundled OpenAI plugin-creator ingestion validator rejects the shared
 Claude frontmatter's explicit-invocation flag and the nested starter/block

@@ -20,6 +20,7 @@ native = list((root / '.claude/skills').glob('*/SKILL.md'))
 for source in native:
     name = re.search(r'^name: (.+)$', source.read_text(), re.M)[1]
     assert (root / 'skills' / name / 'SKILL.md').read_text() == source.read_text(), f'native body changed: {source}'
+    assert not re.search(r'^agent: (Explore|Plan)$', source.read_text().split('---', 2)[1], re.M), f'read-only agent cannot execute native workflow: {source}'
 assert set(registered) == {'./' + str(f.parent.relative_to(root)) for f in (root / 'skills').rglob('SKILL.md')}, 'automatic and explicit discovery differ'
 assert len(registered) == 63, 'existing skill registration count changed'
 assert any(re.search(r'^name: skill-verify$', text, re.M) for text in registered.values()), 'verification alias lost'

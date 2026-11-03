@@ -26,8 +26,8 @@ paths:
 
 ## EXECUTION CONTRACT: MANDATORY
 
-Run the referenced workflow commands and verify their output before reporting
-completion.
+Execute a referenced command when the selected workflow requires it, and
+verify its actual output before reporting completion.
 
 **PROHIBITED:**
 - Do not simulate or skip a command that this workflow requires.

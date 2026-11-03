@@ -15,8 +15,6 @@ description: Multi-AI research using available external providers (Double Diamon
   debugging issues (use skill-debug), or "what are my options" for decision support.
 
 # Claude Code v2.1.12+ Integration
-agent: Explore
-context: fork
 task_management: true
 task_dependencies:
   - skill-context-detection
