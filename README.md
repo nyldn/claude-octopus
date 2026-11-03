@@ -36,6 +36,22 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
+### Compare decisions and check the providers you use
+
+Decision support compares doing nothing with the alternatives, sets criteria
+and weights before scoring, and shows how each option earns its score. An
+optional scenario stress test shows which assumptions would change the
+recommendation.
+
+Workflow phase updates, completed-phase history and roadmap imports now work
+through the documented state commands. Reinitializing a missing state file
+preserves your existing issues, lessons and phase plans.
+
+Preflight checks your pinned council roster, including Claude, and explains
+when sandbox restrictions may hide a working login. Fallback chains honor
+your provider allowlist before dispatching a prompt. See
+[council roster checks](docs/COUNCIL.md#check-your-roster).
+
 ### Reviews keep their own findings and proof packets
 
 Reviews without an `artifactId` now reserve separate run IDs, so starting two
