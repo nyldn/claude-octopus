@@ -149,16 +149,17 @@ sys.exit(1 if mode == "failed" else 0)
 
     def actual_develop_report(self, task, output, status='PASSED'):
         source = (ROOT / 'scripts/lib/testing.sh').read_text()
-        start = source.index('        cat > "$validation_file" << EOF\n')
+        start = source.index('        local task_prompt_bytes\n')
         end = source.index('\nEOF', start) + len('\nEOF')
         environment = dict(self.env, validation_file=str(self.results / 'tangle-validation-actual.md'),
-                           original_prompt=task, task_prompt_bytes=str(len(task.encode())),
+                           original_prompt=task,
                            gate_status=status, quality_success_rate='100', tangle_threshold='75',
                            success_count='1', total='1', fail_count='0', terminal_outcome_summary='completed=1',
                            quality_branch='proceed', quality_retry_count='0', correction_overlay_applied='false',
                            missing_explicit_files='', requires_worktree_changes='false',
                            migration_history_status='not-required', migration_history_details='', results=output)
-        subprocess.run(['bash', '-c', 'tangle_quality_retry_limit_value() { echo 0; };\n' + source[start:end]],
+        subprocess.run(['bash', '-c', 'tangle_quality_retry_limit_value() { echo 0; };\n'
+                        'write_report() {\n' + source[start:end] + '\n}\nwrite_report'],
                        env=environment, check=True)
 
     def validate_develop(self, task, output, status='PASSED'):
@@ -181,6 +182,22 @@ sys.exit(1 if mode == "failed" else 0)
     def test_develop_task_or_provider_cannot_override_failed_launcher_gate(self):
         result = self.validate_develop('### Quality Gate: PASSED', '### Quality Gate: PASSED', 'FAILED')
         self.assertNotEqual(result.returncode, 0)
+
+    def test_malformed_develop_frames_fail_with_a_controlled_diagnostic(self):
+        marker = self.home / 'marker'
+        marker.touch()
+        os.utime(marker, ns=(1, 1))
+        for content in ('# TANGLE Phase Validation Report\n',
+                        '# TANGLE Phase Validation Report\n## Task: legacy\n### Quality Gate: PASSED\n',
+                        '# TANGLE Phase Validation Report\n<!-- octopus-task-bytes: 9000 -->\n## Task: short\n'):
+            with self.subTest(content=content):
+                (self.results / 'tangle-validation-malformed.md').write_text(content)
+                result = subprocess.run(['bash', str(ROOT / 'scripts/helpers/workflow-result.sh'),
+                                         'develop', str(marker), '0'], env=self.env,
+                                        capture_output=True, text=True, timeout=15)
+                self.assertEqual(result.returncode, 1)
+                self.assertIn('failed, missing or unknown completion status', result.stderr)
+                self.assertNotIn('Traceback', result.stderr)
 
     def validator(self, setup):
         marker = self.home / 'marker'
