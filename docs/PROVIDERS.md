@@ -373,8 +373,9 @@ Google seat), perplexity, opencode, openrouter, orcarouter, atlascloud,
 cheaperinference, api-route, litellm, openai-compatible, openai-tools, openai-compatible-agent, cursor-agent, grok,
 qwen, ollama, copilot, vibe, and kimi.
 
-An explicit `vibe` readiness or health check accepts `MISTRAL_API_KEY`, `~/.vibe/.env`, the existing
-`api_key` config field, or a key saved by `vibe --setup` in the OS keyring.
+An explicit `vibe` readiness or health check accepts `MISTRAL_API_KEY`,
+`~/.vibe/.env`, the existing `api_key` config field, or a key saved by
+`vibe --setup` in the OS keyring.
 The keyring presence check uses Vibe's Python environment and native backend,
 never prints the key, and does not migrate credentials or call a model. It
 stops within three seconds, including process cleanup. The selected package
@@ -383,8 +384,8 @@ other provider keys, proxy settings and language-loader controls removed.
 Automatic provider discovery does not load Vibe's Python package. A general
 static readiness scan reports that a keyring-only login needs an explicit
 provider check; selecting Vibe or pinning its council roster permits that check.
-A locked or unreadable
-keyring remains unavailable. `OCTOPUS_SKIP_PROVIDER_PROBES=true` skips this
+A locked or unreadable keyring remains unavailable.
+`OCTOPUS_SKIP_PROVIDER_PROBES=true` skips this
 check. Non-Python wrappers and installations whose Python environment cannot
 import Vibe remain unverified; use an existing environment or file credential
 route for those installations.

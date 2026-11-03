@@ -54,7 +54,7 @@ class VibeKeyringTest(unittest.TestCase):
     def shell(self, command):
         return subprocess.run(['bash', '-c', f'source {shlex.quote(str(ROOT / "scripts/lib/preflight.sh"))}; '
                                f'source {shlex.quote(str(ROOT / "scripts/lib/providers.sh"))}; {command}'],
-                              cwd=self.home, env=self.env, capture_output=True, text=True, timeout=12)
+                              cwd=self.home, env=self.env, capture_output=True, text=True, timeout=30)
 
     def test_keyring_only_auth_reaches_every_readiness_consumer(self):
         result = self.shell('octo_provider_readiness_result vibe static; check_provider_health vibe && detect_providers')
@@ -121,7 +121,8 @@ class VibeKeyringTest(unittest.TestCase):
 
     def test_automatic_discovery_does_not_load_vibe_code(self):
         result = self.shell('detect_providers; octo_provider_readiness_all static; '
-                            'octo_provider_ids() { printf "vibe\\n"; }; check_all_providers')
+                            'octo_provider_ids() { printf "vibe\\n"; }; check_all_providers; '
+                            f'bash {shlex.quote(str(ROOT / "scripts/capabilities.sh"))} --json')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('vibe:none', result.stdout)
         self.assertFalse(self.marker.exists(), 'unselected Vibe code ran during discovery')

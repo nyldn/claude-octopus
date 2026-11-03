@@ -696,6 +696,7 @@ _preflight_provider_candidates() {
 # Supports single-provider mode with any detectable dispatch provider.
 preflight_check() {
     local force_check="${1:-false}"
+    local _octo_vibe_check_context=automatic
 
     # Performance: Return cached result if valid (unless forced)
     if [[ "$force_check" != "true" ]] && preflight_cache_valid; then
@@ -724,6 +725,7 @@ preflight_check() {
         return 1
     fi
     if [[ -n "$roster" ]]; then
+        _octo_vibe_check_context=selected
         candidates="$roster"
         echo -e "Checking the council roster from OCTOPUS_COUNCIL_DEFAULT_PROVIDERS: ${CYAN}${roster//$'\n'/ }${NC}"
     else
