@@ -59,21 +59,33 @@ Use AskUserQuestion if needed to understand:
 - Timeline constraints
 - Budget/resource constraints
 
+#### Step 3: Set the decision criteria before scoring
+
+Choose criteria, scoring definitions and weights before evaluating the options.
+Use the user's stated priorities. If priorities are missing, state the assumed
+weights and the effect those assumptions may have. Weights must total 100%.
+Keep the same criteria and weights for every option. Do not change them to
+make a preferred option win; record any later revision and rescore all options.
+
 
 ### Phase 2: Generate Options
 
 #### Step 1: Identify Viable Approaches
 
-Generate 2-4 distinct options (not just variations):
+Generate 2-4 distinct options, including the status quo. Always include doing
+nothing as the comparison baseline and state its cost, risks and consequences
+of delay. If it violates a requirement, retain it for comparison and explain
+why it is not viable. Do not assume that changing something is beneficial.
 
 | Option Type | When to Include |
 |-------------|-----------------|
+| **Status quo / do nothing** | Always; include its ongoing cost and cost of delay |
 | **Conservative** | Low risk, proven approach |
 | **Moderate** | Balanced risk/reward |
 | **Innovative** | Higher risk, potentially better outcome |
 | **Minimal** | Simplest possible solution |
 
-**Don't generate options that:**
+**Except for the required status-quo baseline, don't generate options that:**
 - Violate stated constraints
 - Are clearly inferior to others
 - Are essentially the same with minor tweaks
@@ -89,7 +101,11 @@ For each option, understand:
 
 ### Phase 3: Trade-off Analysis
 
-For each option, analyze:
+For each option, analyze the trade-offs below, then score it against the criteria
+and weights set in Phase 1. Show raw scores beside weighted scores and the total.
+Label uncertain inputs and assumptions; do not invent measurements to fill a
+scoring table. Choose the recommendation only after this analysis, with reasons
+that refer to the user's requirements and the comparison baseline.
 
 ```markdown
 ### Option N: [Name]
@@ -114,10 +130,20 @@ For each option, analyze:
 **Best for:** [when this option makes sense]
 ```
 
+#### Optional scenario stress test
+
+For a decision that depends on uncertain assumptions, select the two drivers
+with the most uncertainty and impact. Describe three or four plausible futures
+and check how each option performs in each. Report which option holds up across
+the futures and which assumptions would change the recommendation. Keep this
+optional; do not add provider calls without the user's existing authorization.
+
 
 ### Phase 4: Present Options
 
 #### Format for Presentation
+
+Omit unused option sections and table columns when presenting fewer than four options.
 
 ```markdown
 # Decision: [What needs to be decided]
@@ -125,7 +151,7 @@ For each option, analyze:
 **Context:** [Brief summary of why this decision is needed]
 
 
-## Option 1: [Conservative/Proven Approach] ⭐ (Recommended)
+## Option 1: [Option name]
 
 **What it is:**
 [Clear explanation in 1-2 sentences]
@@ -146,19 +172,47 @@ For each option, analyze:
 **Risk Level:** Low/Medium/High
 
 
-## Option 2: [Alternative Approach]
+## Option 2: [Option name]
 
 [Same structure as Option 1]
 
 
-## Option 3: [Another Alternative]
+## Option 3: [Option name, if needed]
 
 [Same structure as Option 1]
+
+
+## Option 4: [Option name, if needed]
+
+[Same structure as Option 1]
+
+
+## Quick Comparison
+
+| Criteria | Option 1 | Option 2 | Option 3 | Option 4 |
+|----------|----------|----------|----------|----------|
+| Effort | [level] | [level] | [level] | [level] |
+| Risk | [level] | [level] | [level] | [level] |
+| Reversible | [yes/no] | [yes/no] | [yes/no] | [yes/no] |
+| Timeline | [time] | [time] | [time] | [time] |
+| Best for | [scenario] | [scenario] | [scenario] | [scenario] |
+
+## Criteria and scores
+
+| Criterion | Weight | Option 1 raw / weighted | Option 2 raw / weighted | Option 3 raw / weighted | Option 4 raw / weighted |
+|-----------|--------|-------------------------|-------------------------|-------------------------|-------------------------|
+| [Criterion fixed before scoring] | [percentage] | [raw / weighted] | [raw / weighted] | [raw / weighted] | [raw / weighted] |
+| **Total** | **100%** | [weighted total] | [weighted total] | [weighted total] | [weighted total] |
+
+[State the scoring scale, evidence and uncertainty. Include the status quo as
+one of the options above and explain its ongoing cost and the cost of delay.]
 
 
 ## Recommendation
 
 **I recommend Option [N]: [Name]**
+
+[Select N from the completed analysis. No option is recommended by default.]
 
 **Why:**
 1. [Reason 1]
@@ -168,24 +222,13 @@ For each option, analyze:
 **This option is best because:** [summary of key advantage relative to context]
 
 
-## Quick Comparison
-
-| Criteria | Option 1 | Option 2 | Option 3 |
-|----------|----------|----------|----------|
-| Effort | [level] | [level] | [level] |
-| Risk | [level] | [level] | [level] |
-| Reversible | [yes/no] | [yes/no] | [yes/no] |
-| Timeline | [time] | [time] | [time] |
-| Best for | [scenario] | [scenario] | [scenario] |
-
-
 **Which option would you like to proceed with?**
 ```
 
 #### Guidelines for Presentation
 
-1. **Mark recommendation clearly** with ⭐ or "(Recommended)"
-2. **Limit to 2-4 options** (too many = decision paralysis)
+1. **Mark the analyzed recommendation clearly**, after comparing every option.
+2. **Limit to 2-4 options including the status quo** (too many = decision paralysis)
 3. **Be honest about cons** (don't oversell any option)
 4. **Make comparison easy** (use consistent structure)
 5. **Support with reasoning** (explain why recommendation makes sense)
@@ -243,7 +286,7 @@ Example:
 
 I can see the auth issue. Here are your options:
 
-**Option 1: Quick Fix** (Recommended for immediate deployment)
+**Option 1: Quick Fix**
 - Patch the current JWT validation
 - Pros: Fast, low risk
 - Cons: Doesn't address underlying architecture
@@ -252,6 +295,11 @@ I can see the auth issue. Here are your options:
 - Rebuild auth with better patterns
 - Pros: Long-term solution
 - Cons: Takes longer, more testing needed
+
+**Option 3: Keep the current implementation**
+- State the ongoing cost, risk and consequences of delaying the fix.
+
+Recommend an option only after comparing these against the agreed criteria.
 
 **Which approach fits your timeline?**
 ```
@@ -263,7 +311,7 @@ User: "I need to add caching. What are my options?"
 
 Response structure:
 1. Understand requirements (what needs caching, scale, etc.)
-2. Generate 3-4 caching options
+2. Generate 2-4 options including keeping the API uncached
 3. Present with trade-offs
 4. Recommend based on their context
 
@@ -271,7 +319,7 @@ Example:
 
 For caching your API responses, here are the main options:
 
-**Option 1: In-Memory Cache (Node-cache)** ⭐
+**Option 1: In-Memory Cache (Node-cache)**
 - Best for: Single-server setup
 - Pros: Simple, fast, no external dependencies
 - Cons: Lost on restart, doesn't scale across servers
@@ -286,7 +334,10 @@ For caching your API responses, here are the main options:
 - Pros: Global distribution, handles scale
 - Cons: Less control, costs, public content only
 
-**Based on your single-server setup, Option 1 is recommended.**
+**Option 4: Keep the API uncached**
+- State the current operating cost, latency and consequences of delaying a change.
+
+**After scoring against the agreed criteria, recommend Option [N] because [evidence].**
 Which would you like to use?
 ```
 
@@ -297,27 +348,43 @@ User: "Should I use TypeScript or stick with JavaScript? Help me decide."
 
 Response structure:
 1. Clarify decision factors (team size, project scope, timeline)
-2. Present structured comparison
-3. Make recommendation based on their specific context
-4. Support whatever they choose
+2. Agree on criteria, scoring definitions and weights totaling 100% before evaluating either option
+3. Compare the alternatives, including the current setup and its cost of delay, with raw and weighted scores
+4. Recommend after comparing the weighted totals and checking constraints
+5. Support whatever they choose
 
 Example:
 
 Let me help you decide between TypeScript and JavaScript.
 
-**TypeScript:**
+Before evaluating either option, agree on the criteria, scoring definitions and
+weights. Keep those weights fixed across both options.
+
+**Option 1: TypeScript**
 Pros: Type safety, better tooling, catches errors early
 Cons: Learning curve, build step, more setup
 Best for: Larger teams, long-term projects, complex domains
 
-**JavaScript:**
+**Option 2: Keep JavaScript, the current setup**
 Pros: Simpler, no build step, familiar to all devs
 Cons: Runtime errors, less IDE support, harder to refactor
 Best for: Small projects, prototypes, simple applications
+Ongoing cost and cost of delay: [Quantify current maintenance costs and any consequences of delaying migration. State when no change is needed.]
 
-**For your [context]:** I recommend TypeScript because [reason].
+**Comparison using the criteria agreed before evaluation**
 
-Would you like to proceed with TypeScript, or would JavaScript be better for your needs?
+| Criterion and scoring definition | Weight | TypeScript raw / weighted | JavaScript raw / weighted |
+|---|---|---|---|
+| [Agreed criterion and score meanings] | [weight %] | [raw score] / [weighted contribution] | [raw score] / [weighted contribution] |
+| **Total** | **100%** | [weighted total] | [weighted total] |
+
+Repeat the criterion row for every agreed criterion. Weighted contribution is
+the raw score multiplied by the percentage weight divided by 100. Label
+uncertain inputs and explain any constraint that the totals do not capture.
+
+**After comparing against the agreed criteria, recommend Option [N] because [evidence].**
+
+Which option would you like to proceed with?
 ```
 
 

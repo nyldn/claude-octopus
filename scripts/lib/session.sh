@@ -218,7 +218,12 @@ display_rich_progress() {
     # should finish within TIMEOUT plus dispatch overhead. A straggler PID that
     # never reaps (zombie, stuck watcher child) would otherwise block this loop
     # forever and the synthesis step downstream would never run (bug 260609).
-    local watchdog_limit=$(( ${TIMEOUT:-300} + ${OCTOPUS_PROGRESS_GRACE:-120} ))
+    # Wait on the budget the probe seats were given, not the TIMEOUT default.
+    local seat_timeout="${TIMEOUT:-300}"
+    if declare -F octopus_effective_agent_timeout >/dev/null 2>&1; then
+        seat_timeout="$(octopus_effective_agent_timeout "$seat_timeout" probe researcher)" || seat_timeout="${TIMEOUT:-300}"
+    fi
+    local watchdog_limit=$(( seat_timeout + ${OCTOPUS_PROGRESS_GRACE:-120} ))
 
     while true; do
         local all_done=true
@@ -226,7 +231,7 @@ display_rich_progress() {
 
         if (( $(date +%s) - start_time > watchdog_limit )); then
             echo ""
-            echo -e "${YELLOW}⚠ Progress watchdog: agents still reported running after ${watchdog_limit}s (timeout ${TIMEOUT:-300}s + grace). Terminating stragglers and continuing to synthesis with completed results.${NC}"
+            echo -e "${YELLOW}⚠ Progress watchdog: agents still reported running after ${watchdog_limit}s (timeout ${seat_timeout}s + grace). Terminating stragglers and continuing to synthesis with completed results.${NC}"
             local straggler_pid
             for straggler_pid in "${pids[@]}"; do
                 kill -0 "$straggler_pid" 2>/dev/null && kill -TERM "$straggler_pid" 2>/dev/null || true
