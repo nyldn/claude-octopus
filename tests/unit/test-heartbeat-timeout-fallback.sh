@@ -147,9 +147,15 @@ EOF
         return 71
     }
     _octo_timeout_job_is_running() {
-        if [[ "${_octo_delayed_first_poll:-false}" == false ]]; then
+        if [[ "${_octo_delayed_first_poll:-false}" == false && -n "${timer_pid:-}" ]]; then
             _octo_delayed_first_poll=true
-            /bin/sleep 0.2
+            # Observe timer completion without reaping it. A fixed sleep can
+            # leave the timer running when the scheduler is under load.
+            local timer_poll=0
+            while _octo_timeout_job_is_running_real "$timer_pid" && (( timer_poll < 250 )); do
+                /bin/sleep 0.02
+                timer_poll=$((timer_poll + 1))
+            done
         fi
         _octo_timeout_job_is_running_real "$@"
     }

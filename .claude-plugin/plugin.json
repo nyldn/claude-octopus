@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.15.2",
-  "description": "v11.15.2 \u2014 Keep file hints and provider history per worktree, keep provider results readable, and prevent false quota lockouts. Run /octo:setup.",
+  "version": "11.16.0",
+  "description": "v11.16.0 \u2014 Compare decisions, preserve workflow progress, and honor provider choices. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
