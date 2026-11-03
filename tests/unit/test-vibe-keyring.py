@@ -48,7 +48,7 @@ class VibeKeyringTest(unittest.TestCase):
                                '    raise RuntimeError("migration-capable lookup forbidden")\n'
                                'def probe_api_key_from_keyring(key):\n'
                                '    assert key == "MISTRAL_API_KEY"\n'
-                               '    Path(os.environ["VIBE_PROBE_MARKER"]).touch()\n'
+                               f'    Path({str(self.marker)!r}).touch()\n'
                                + '\n'.join('    ' + line for line in body.splitlines()) + '\n')
 
     def shell(self, command):
@@ -61,7 +61,7 @@ class VibeKeyringTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         readiness = json.loads(result.stdout.splitlines()[0])
         self.assertEqual((readiness['status'], readiness['reason_code']), ('available', 'ready'))
-        self.assertIn('vibe:keyring', result.stdout)
+        self.assertIn('vibe:none', result.stdout)
         self.assertNotIn('inert-fixture-value', result.stdout + result.stderr)
         self.assertTrue(self.marker.exists())
 
@@ -69,7 +69,7 @@ class VibeKeyringTest(unittest.TestCase):
         for body in ('return None', 'return "  "', 'raise RuntimeError("inert-fixture-value")'):
             with self.subTest(body=body):
                 self.write_module(body)
-                result = self.shell('_octo_vibe_keyring_has_key')
+                result = self.shell('_octo_vibe_keyring_has_key selected')
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(result.stdout + result.stderr, '')
 
@@ -81,24 +81,24 @@ class VibeKeyringTest(unittest.TestCase):
                                '    return "inert-fixture-value" if service == "vibe" else None\n'
                                'def get_api_key_from_keyring(*args):\n'
                                '    raise RuntimeError("must not migrate")\n')
-        result = self.shell('_octo_vibe_keyring_has_key')
+        result = self.shell('_octo_vibe_keyring_has_key selected')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout + result.stderr, '')
 
     def test_probe_output_is_suppressed(self):
         self.write_module('print("inert-fixture-value")\nreturn "inert-fixture-value"')
-        result = self.shell('_octo_vibe_keyring_has_key')
+        result = self.shell('_octo_vibe_keyring_has_key selected')
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stdout + result.stderr, '')
 
     def test_skip_setting_and_non_python_wrapper_do_not_execute(self):
         for skip in ('true', '1'):
             self.env['OCTOPUS_SKIP_PROVIDER_PROBES'] = skip
-            self.assertNotEqual(self.shell('_octo_vibe_keyring_has_key').returncode, 0)
+            self.assertNotEqual(self.shell('_octo_vibe_keyring_has_key selected').returncode, 0)
             self.assertFalse(self.marker.exists())
         self.env['OCTOPUS_SKIP_PROVIDER_PROBES'] = 'false'
         self.vibe.write_text('#!/bin/sh\nexit 99\n')
-        self.assertNotEqual(self.shell('_octo_vibe_keyring_has_key').returncode, 0)
+        self.assertNotEqual(self.shell('_octo_vibe_keyring_has_key selected').returncode, 0)
         self.assertFalse(self.marker.exists())
 
     def test_existing_credentials_do_not_probe_keyring(self):
@@ -112,11 +112,30 @@ class VibeKeyringTest(unittest.TestCase):
     def test_locked_keyring_has_a_real_wall_clock_bound(self):
         self.write_module('import time\ntime.sleep(60)\nreturn "inert-fixture-value"')
         start = time.monotonic()
-        result = self.shell('_octo_vibe_keyring_has_key')
+        result = self.shell('_octo_vibe_keyring_has_key selected')
         elapsed = time.monotonic() - start
         self.assertTrue(self.marker.exists(), 'probe must start for timeout test to count')
         self.assertNotEqual(result.returncode, 0)
         self.assertLess(elapsed, 6)
+        self.assertEqual(result.stdout + result.stderr, '')
+
+    def test_automatic_discovery_does_not_load_vibe_code(self):
+        result = self.shell('detect_providers; octo_provider_readiness_all static; '
+                            'octo_provider_ids() { printf "vibe\\n"; }; check_all_providers')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('vibe:none', result.stdout)
+        self.assertFalse(self.marker.exists(), 'unselected Vibe code ran during discovery')
+
+    def test_probe_does_not_receive_other_credentials_or_loader_environment(self):
+        self.env.update(OPENAI_API_KEY='inert-fixture-value', GITHUB_TOKEN='inert-fixture-value',
+                        ANTHROPIC_API_KEY='inert-fixture-value', PYTHONPATH=str(self.base),
+                        HTTP_PROXY='http://example.invalid')
+        self.write_module('assert not any(name in os.environ for name in '
+                          '("OPENAI_API_KEY", "GITHUB_TOKEN", "ANTHROPIC_API_KEY", '
+                          '"PYTHONPATH", "HTTP_PROXY", "VIBE_PROBE_MARKER"))\n'
+                          'return "inert-fixture-value"')
+        result = self.shell('_octo_vibe_keyring_has_key selected')
+        self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout + result.stderr, '')
 
 

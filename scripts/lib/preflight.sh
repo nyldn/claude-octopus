@@ -424,8 +424,11 @@ _octo_provider_static_readiness() {
                 if _octo_value_has_nonwhitespace "${MISTRAL_API_KEY:-}" ||
                    _octo_assignment_has_nonempty_value "${HOME}/.vibe/.env" "MISTRAL_API_KEY" ||
                    _octo_assignment_has_nonempty_value "${HOME}/.vibe/config.toml" "api_key" ||
-                   _octo_vibe_keyring_has_key; then
+                   _octo_vibe_keyring_has_key "${_octo_vibe_check_context:-selected}"; then
                     status="available"; reason_code="ready"; remediation=""
+                elif [[ "${_octo_vibe_check_context:-selected}" != selected ]]; then
+                    status="degraded"; reason_code="live-check-required"
+                    remediation="Select Vibe and run its provider readiness check to inspect the OS keyring."
                 else
                     status="degraded"; reason_code="auth-missing"
                 fi
@@ -564,6 +567,8 @@ octo_provider_readiness_all() {
     # An optional provider list (a pinned council roster) replaces the
     # registry's detectable providers.
     local check_kind="${1:-static}" providers="${2:-}" provider result
+    local _octo_vibe_check_context=automatic
+    [[ -z "$providers" ]] || _octo_vibe_check_context=selected
     [[ -n "$providers" ]] || providers="$(octo_provider_ids detect)"
     for provider in $providers; do
         # Stderr already passes through; a "2> >(cat >&2)" redirect writes to

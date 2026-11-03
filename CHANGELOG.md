@@ -5,8 +5,10 @@
 ### Fixed
 
 - Vibe setup and readiness now recognize a key stored by `vibe --setup` in
-  the OS keyring. The local presence check is silent, read-only and bounded;
-  it does not launch Vibe or make a model request. Fixes #1191.
+  the OS keyring when Vibe is explicitly selected for a provider check. The
+  local presence check is silent, read-only and bounded, and receives a
+  minimal environment. Automatic discovery defers keyring inspection.
+  It does not launch Vibe or make a model request. Fixes #1191.
 
 - Decision support now includes the cost of doing nothing, sets criteria and
   weights before scoring, and shows raw and weighted scores. Presentation
