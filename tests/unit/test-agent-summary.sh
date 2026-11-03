@@ -187,4 +187,31 @@ else
     test_fail "filtered summary included other seats: $(tr '\n' ' ' <<< "$summary")"
 fi
 
+test_case "available-output count excludes timed-out partial files"
+summary="$(render_agent_summary "-probe-7-")"
+if [[ "$summary" == *"use 1 available outputs"* ]]; then
+    test_pass
+else
+    test_fail "expected only the completed seat to count: $summary"
+fi
+
+test_case "task-group summary retains a rejected prompt without an output file"
+write_agent_status "codex" "failed" 100 0 "Prompt exceeded context budget" 0 "" "researcher" "spawn-77-subtask-1"
+summary="$(render_agent_summary "77")"
+if [[ "$summary" == *"codex"* && "$summary" == *"1 of 1 agents failed"* ]]; then
+    test_pass
+else
+    test_fail "output-less task failure disappeared: $summary"
+fi
+
+test_case "exact task selection excludes earlier same-provider seats"
+tasks="$(jq -nc --arg file "$seat_three" '[{id:"probe-7-3",output_file:$file}]')"
+summary="$(render_agent_summary "" "$tasks")"
+files="$(agent_status_output_files "" "$tasks")"
+if [[ "$(seat_statuses "$summary" claude-sonnet)" == ok && "$summary" != *codex* && "$files" == "$seat_three" ]]; then
+    test_pass
+else
+    test_fail "unrelated session seats entered exact task selection: $summary / $files"
+fi
+
 test_summary

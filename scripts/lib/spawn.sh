@@ -1104,7 +1104,7 @@ ${heuristic_ctx}"
     if [[ $_budget_rc -ne 0 ]]; then
         octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
             "Prompt exceeded context budget" "$_budget_rc" "" >/dev/null 2>&1 || true
-        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" 0 "Prompt exceeded context budget" 0 "" "${role:-}" || true
+        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" 0 "Prompt exceeded context budget" 0 "" "${role:-}" "$_contract_seat_id" || true
         return "$_budget_rc"
     fi
     _budget_final_chars=${#enhanced_prompt}

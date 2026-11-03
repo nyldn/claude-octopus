@@ -389,7 +389,13 @@ _OCTO_AGENT_STATUS_LATEST_PER_SEAT='def latest_per_seat:
              elif (.output_file // "") != "" then "file:" + .output_file
              else "agent:" + .agent end)
     | map(.[-1])
-    | sort_by(.agent);'
+    | sort_by(.agent);
+ def in_scope($filter; $task_ids):
+    ((($filter == "") or ((.output_file // "") | contains($filter)) or
+      ((.seat_id // "") | contains($filter)))) and
+    ($task_ids == null or (. as $row | any($task_ids[];
+        . as $task | ($row.seat_id == ("spawn-" + $task.id)) or
+        ($row.output_file == $task.output_file))));'
 
 write_agent_run_snapshot() {
     command -v jq >/dev/null 2>&1 || return 0
@@ -527,16 +533,17 @@ record_oversize_event() {
 }
 
 agent_status_output_files() {
-    local filter="${1:-}"
+    local filter="${1:-}" task_ids="${2:-null}"
     local dir jsonl
     dir=$(octo_run_dir)
     jsonl="$dir/agents.jsonl"
     [[ -s "$jsonl" ]] || return 0
     command -v jq >/dev/null 2>&1 || return 0
 
-    jq -rs --arg filter "$filter" "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
+    jq -rs --arg filter "$filter" --argjson task_ids "$task_ids" "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
         latest_per_seat
         | .[]
+        | select(in_scope($filter; $task_ids))
         | [
             .status,
             (.contribution // ""),
@@ -562,7 +569,7 @@ agent_status_output_files() {
 # seats whose result file contains it, as agent_status_output_files does. One
 # probe then does not count the seats of an earlier probe in the same session.
 render_agent_summary() {
-    local filter="${1:-}"
+    local filter="${1:-}" task_ids="${2:-null}"
     local dir jsonl
     dir=$(octo_run_dir)
     jsonl="$dir/agents.jsonl"
@@ -610,10 +617,10 @@ render_agent_summary() {
         fi
 
         reconciled_rows+="${agent}"$'\t'"${status}"$'\t'"${tokens_out}"$'\t'"${seconds}"$'\t'"${reason}"$'\n'
-    done < <(jq -rs --arg filter "$filter" "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
+    done < <(jq -rs --arg filter "$filter" --argjson task_ids "$task_ids" "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
         latest_per_seat
         | .[]
-        | select($filter == "" or ((.output_file // "") | contains($filter)))
+        | select(in_scope($filter; $task_ids))
         | [
             .agent,
             .status,
@@ -653,9 +660,11 @@ render_agent_summary() {
     done <<< "$rows"
     echo ""
 
+    local available_outputs
+    available_outputs=$(agent_status_output_files "$filter" "$task_ids" | awk 'END {print NR+0}')
     if [[ $failed -gt 0 || $timeout -gt 0 ]]; then
         printf '⚠ %d of %d agents failed or timed out — synthesis should use %d available outputs. Details: %s\n' \
-            "$((failed + timeout))" "$total" "$((ok + degraded + timeout))" "$dir"
+            "$((failed + timeout))" "$total" "$available_outputs" "$dir"
         if [[ "${OCTOPUS_REQUIRE_ALL:-false}" == "true" ]]; then
             echo "Aborting: OCTOPUS_REQUIRE_ALL=true."
             return 78
