@@ -20,7 +20,7 @@ claude-sdk|claude-agent*|claude-agent|anthropic|model-config,health,detect,dispa
 anthropic-api||python3|anthropic|model-config,health,detect,dispatch,env,text-only
 agy|antigravity*,gemini,gemini-*|agy|google|model-config,council,health,detect,dispatch,env,custom-model-auto
 perplexity||perplexity|perplexity|model-config,health,detect,dispatch,env
-opencode||opencode|opencode|model-config,council,detect,dispatch,env,model-gateway,custom-model-auto
+opencode||opencode|opencode|model-config,council,detect,dispatch,health,env,model-gateway,custom-model-auto
 openrouter||openrouter|openrouter|model-config,council,health,detect,dispatch,env,model-gateway,custom-model-auto
 orcarouter||orcarouter|orcarouter|model-config,council,health,detect,dispatch,env,model-gateway,custom-model-auto
 atlascloud|atlas,atlas-cloud|atlascloud|atlascloud|model-config,health,detect,dispatch,env,model-gateway,custom-model-auto

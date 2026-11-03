@@ -64,6 +64,10 @@ fi
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout.strip(), "run -m vendor/model")
 
+    def test_registry_declares_the_implemented_health_contract(self):
+        result = self.shell('source scripts/lib/provider-registry.sh; octo_provider_validate_contracts && octo_provider_has_capability opencode health && test "$(octo_provider_health_handler opencode)" = check_provider_health')
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_dispatch_validator_rejects_other_environment_and_injection(self):
         for command in (
             "env OPENCODE_PURE=0 opencode run",
