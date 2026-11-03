@@ -9,6 +9,9 @@ PROJECT_ROOT="$(cd -P "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "Native manual-only skill gate"
 
+codex_skill_path="$(jq -r '.skills' "$PROJECT_ROOT/.codex-plugin/plugin.json")"
+codex_skill_root="$PROJECT_ROOT/${codex_skill_path#./}"
+
 frontmatter_value() {
     local file="$1" key="$2"
     awk -v key="$key" '
@@ -33,7 +36,7 @@ test_case "all generated skills preserve the native gate"
 bad=""
 while IFS= read -r file; do
     [[ "$(frontmatter_value "$file" disable-model-invocation)" == "true" ]] || bad="$bad ${file#$PROJECT_ROOT/}"
-done < <(find "$PROJECT_ROOT/skills" -name SKILL.md -type f | sort)
+done < <(find "$PROJECT_ROOT/skills" "$codex_skill_root" -name SKILL.md -type f | sort)
 if [[ -z "$bad" ]]; then test_pass; else test_fail "generated gate drift:$bad"; fi
 
 test_case "all portable skills declare the Codex explicit-invocation policy"
@@ -41,7 +44,7 @@ bad=""
 while IFS= read -r file; do
     metadata="${file%SKILL.md}agents/openai.yaml"
     [[ -f "$metadata" ]] && grep -q '^  allow_implicit_invocation: false$' "$metadata" || bad="$bad ${file#$PROJECT_ROOT/}"
-done < <(find "$PROJECT_ROOT/skills" -name SKILL.md -type f | sort)
+done < <(find "$codex_skill_root" -name SKILL.md -type f | sort)
 if [[ -z "$bad" ]]; then test_pass; else test_fail "Codex invocation policy missing:$bad"; fi
 
 test_case "workflow reinforcement is session-affine"
