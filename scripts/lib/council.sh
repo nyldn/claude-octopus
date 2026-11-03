@@ -2913,7 +2913,8 @@ try:
     # Some transports deliver Markdown HTML-escaped ("&gt; quote", "=&gt;").
     # Unescape before parsing so blockquotes and operators read as written; the
     # file side is unescaped the same way so an HTML source still matches.
-    resp = html.unescape(raw.decode("utf-8", "replace"))
+    raw_resp = raw.decode("utf-8", "replace")
+    resp = html.unescape(raw_resp)
     root = Path(sys.argv[2]).resolve(strict=True)
 except (OSError, RuntimeError, ValueError):
     result["verification_failed"] = True
@@ -3211,7 +3212,7 @@ def checkable(text):
     return specific(text)
 
 # GFM table rows: a delimiter row, the header line above it, and the rows
-# below it that still contain a pipe, up to a line that starts another block
+# below it until a blank line or a line that starts another block
 # (heading, quote, fence, list item, thematic break or HTML). Only a code span
 # in one of these rows can carry a table-escaped "\|".
 DELIMITER_ROW = re.compile(r"^[ \t]*\|?(?:[ \t]*:?-+:?[ \t]*\|)*[ \t]*:?-+:?[ \t]*\|?[ \t]*$")
@@ -3219,9 +3220,12 @@ BLOCK_START = re.compile(r"^ {0,3}(?:#{1,6}(?:[ \t]|$)|>|```|~~~|[-+*][ \t]|\d{1
 table_ranges = []
 resp_lines = []
 offset = 0
-for raw in resp.split("\n"):
-    resp_lines.append((offset, offset + len(raw), raw))
-    offset += len(raw) + 1
+# Parse structure before entity decoding: "&#124;" is cell content, never a
+# separator. Keep offsets in the decoded response used by quote units.
+for raw_line in raw_resp.split("\n"):
+    end = offset + len(html.unescape(raw_line))
+    resp_lines.append((offset, end, raw_line))
+    offset = end + 1
 def table_cells(text):
     # Consume escape pairs before recognizing separators, including inside
     # backticks. GFM splits cells before it parses inline code spans.
@@ -3240,7 +3244,7 @@ def indented_code(text):
 
 def table_line(index):
     l_start, l_end, text = resp_lines[index]
-    return ("|" in text and not indented_code(text) and not BLOCK_START.match(text)
+    return (bool(text.strip()) and not indented_code(text) and not BLOCK_START.match(text)
             and index not in html_lines and not in_fence(l_start, l_end + 1))
 
 # Raw HTML blocks suppress Markdown table parsing. Comments and the other
@@ -3293,8 +3297,14 @@ while row < len(resp_lines):
     columns = len(table_cells(delimiter[2]))
     for index in [row - 1] + list(range(row + 1, last + 1)):
         l_start, _, text = resp_lines[index]
-        table_ranges.extend((l_start + start, l_start + end)
-                            for start, end in table_cells(text)[:columns])
+        # Decode disjoint pieces once to map raw cell boundaries into the
+        # decoded quote coordinate space, without repeated prefix scans.
+        cursor, decoded_offset = 0, l_start
+        for start, end in table_cells(text)[:columns]:
+            decoded_offset += len(html.unescape(text[cursor:start]))
+            decoded_end = decoded_offset + len(html.unescape(text[start:end]))
+            table_ranges.append((decoded_offset, decoded_end))
+            cursor, decoded_offset = end, decoded_end
     row = last + 2
 
 # Cells come from one forward scan, so they are sorted and disjoint.

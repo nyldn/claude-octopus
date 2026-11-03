@@ -96,4 +96,47 @@ VERDICT: APPROVE')"
 r="$(_report "$closed_html")"
 if jq -e '.quotes_checked == 1 and .quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
+test_case "#1224: entity-encoded delimiters cannot create a table"
+entity_table="$(_resp '| File | Code |
+&#124;---&#124;---&#124;
+| src/regex-3125.ts:1 | `export const pattern = /alpha\|beta/;` |
+VERDICT: APPROVE')"
+r="$(_report "$entity_table")"
+if jq -e '.quotes_checked == 1 and .quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#1224: a pipe-free single-column table header is valid"
+single_column="$(_resp 'Code
+|---|
+| src/regex-3125.ts:1 reads `export const pattern = /alpha\|beta/;` |
+VERDICT: APPROVE')"
+r="$(_report "$single_column")"
+if jq -e '.quotes_checked == 1 and .quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#1224: a nonempty pipe-free body row does not end a table"
+pipe_free_body="$(_resp '| File | Code |
+|---|---|
+continued
+| src/regex-3125.ts:1 | `export const pattern = /alpha\|beta/;` |
+VERDICT: APPROVE')"
+r="$(_report "$pipe_free_body")"
+if jq -e '.quotes_checked == 1 and .quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#1224: entity decoding preserves offsets before a real table quote"
+entity_offsets="$(_resp 'Pr\u00e9face &amp; &#x1F419;
+
+| File | Code |
+|---|---|
+| &amp; src/regex-3125.ts:1 | `export const pattern = /alpha\|beta/;` |
+VERDICT: APPROVE')"
+r="$(_report "$entity_offsets")"
+if jq -e '.quotes_checked == 1 and .quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#1224: an entity pipe inside a real cell does not split it"
+entity_cell="$(_resp '| File | Code |
+|---|---|
+| src/regex-3125.ts:1 | &#124; `export const pattern = /alpha\|beta/;` |
+VERDICT: APPROVE')"
+r="$(_report "$entity_cell")"
+if jq -e '.quotes_checked == 1 and .quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
 test_summary

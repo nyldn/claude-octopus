@@ -17,6 +17,10 @@
   cell. Quotes crossing cells or rows, and cells discarded beyond the header
   width, keep their literal backslashes.
 
+  Table structure is recognized before HTML entity decoding, so encoded pipes
+  cannot manufacture a delimiter or split a cell. Single-column headers and
+  nonempty body rows without pipes also retain their table context.
+
 ## [11.16.0] - 2026-11-02
 
 ### Fixed
