@@ -92,4 +92,17 @@ if [[ "$excerpt" == *'### code.txt'* ]]; then
 else
     test_fail "excluded paths hid a later implementation file"
 fi
+test_case "correction coverage paths stay outside the provider-output excerpt"
+export OCTOPUS_TANGLE_VALIDATION_CORRECTION_FILE="$RESULTS_DIR/correction.md"
+export OCTOPUS_TANGLE_VALIDATION_CORRECTION_STATUS=SUCCESS
+export OCTOPUS_TANGLE_VALIDATION_CORRECTION_CHANGED=true
+printf '## Output\ncorrective provider output\n## Status: SUCCESS\n' > "$OCTOPUS_TANGLE_VALIDATION_CORRECTION_FILE"
+validate_tangle_results evidence 'Review this implementation' "$TEST_TMP_DIR/before" "$baseline" > "$TEST_TMP_DIR/correction.log" 2>&1
+provider_section="$(sed -n '/Provider output excerpts/,/^Change excerpts/p' "$TEST_TMP_DIR/challenge")"
+if [[ "$provider_section" == *'corrective provider output'* ]] &&
+   ! grep -q '^\.env$' <<<"$provider_section"; then
+    test_pass
+else
+    test_fail "coverage paths were mislabeled as provider output"
+fi
 test_summary

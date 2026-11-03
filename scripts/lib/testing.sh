@@ -612,6 +612,7 @@ validate_tangle_results() {
         # Collect all results
         local results=""
         local result_outputs=""
+        local challenge_outputs=""
         local success_result_files=""
         local retry_candidate_result_files=""
         local success_count=0
@@ -660,7 +661,10 @@ validate_tangle_results() {
                 fi
             fi
             results+="$(<"$result")\n\n---\n\n"
-            result_outputs+="$(extract_tangle_result_body "$result")"$'\n'
+            local result_body
+            result_body=$(extract_tangle_result_body "$result")
+            result_outputs+="$result_body"$'\n'
+            challenge_outputs+="$result_body"$'\n'
         done <<< "$effective_result_files"
 
         local terminal_outcome_summary
@@ -719,6 +723,7 @@ $(<"$correction_file")
 "
             result_outputs+="$correction_result_body"$'
 '
+            challenge_outputs+="$correction_result_body"$'\n'
             result_outputs+="$worktree_changes"$'
 '
         fi
@@ -812,7 +817,7 @@ $(<"$correction_file")
             local challenge_evidence challenge_changes
             challenge_changes=$(tangle_challenge_change_evidence "$baseline_head" "$worktree_changes" | head -c 12000) || true
             challenge_evidence=$(sanitize_external_content "Provider output excerpts, capped at 6000 bytes:
-$(head -c 6000 <<< "$result_outputs")
+$(head -c 6000 <<< "$challenge_outputs")
 
 Change excerpts from the run's starting commit, capped at 20 paths,
 4096 bytes per path and 12000 bytes total. Untracked regular files are shown
