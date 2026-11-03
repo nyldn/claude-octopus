@@ -2949,6 +2949,29 @@ VERDICT: REVISE")")"
     fi
 done
 
+for earlier_proposal in 'A test input I built as a long row exercises the parser.' 'I suggest checking a long input.'; do
+    test_case "earlier proposal sentences cannot hide a current source claim: $earlier_proposal"
+    r="$(_report "$(_resp "src/pricing.ts:2: $earlier_proposal The file contains \`$FAKE\` today.
+VERDICT: REVISE")")"
+    if jq -e '.quotes_attributed_unverified == 1 and .quotes_unverifiable_proposed == 0 and .fabricated == true' <<< "$r" >/dev/null; then
+        test_pass
+    else
+        test_fail "earlier proposal hid a current source claim: $r"
+    fi
+done
+
+test_case "a standalone proposed fence lead-in may end with a period"
+r="$(_report "$(_resp "src/pricing.ts:2. I propose this replacement.
+\`\`\`ts
+$FAKE
+\`\`\`
+VERDICT: REVISE")")"
+if jq -e '.quotes_unverifiable_proposed == 1 and .fabricated == false' <<< "$r" >/dev/null; then
+    test_pass
+else
+    test_fail "terminal punctuation lost the proposal lead-in: $r"
+fi
+
 # Complete evidence on either diff side clears only partial reporting.
 for exact_side in removed added; do
     test_case "a partial source fence complete in the $exact_side diff is not partial"

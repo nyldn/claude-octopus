@@ -3481,7 +3481,10 @@ def clause_start(text, end):
     return boundaries[-1].end() if boundaries else 0
 
 def proposes(text):
-    for match in PROPOSAL.finditer(text):
+    # A proposal in an earlier sentence cannot excuse a current source claim.
+    # Keep terminal punctuation on a standalone fence lead-in in its clause.
+    end = len(text.rstrip(" \t\r\n.!?;"))
+    for match in PROPOSAL.finditer(text, clause_start(text, end)):
         if OWN_INPUT.fullmatch(match.group(0)):
             verbs = list(CONTENT_VERB.finditer(text, clause_start(text, match.start()), match.start()))
             if verbs and not FIRST_PERSON_SUBJECT.search(text, verbs[-1].end(), match.start()):
