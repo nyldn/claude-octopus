@@ -273,6 +273,7 @@ _parallel_write_report() {
 
 parallel_execute() {
     local tasks_file="${1:-$TASKS_FILE}"
+    local RESULTS_DIR="${RESULTS_DIR:-${WORKSPACE_DIR:-${HOME}/.claude-octopus}/results}"
     if [[ "${OCTOPUS_FEATURE_PARALLEL_WAVE_ACTIVE:-false}" != true ]]; then
         if [[ -n "${FEATURE_TASK_CONTRACT:-}" && "$tasks_file" == "$FEATURE_TASK_CONTRACT" ]] || \
            { [[ -f "$tasks_file" ]] && jq -e '.schema_version == 1 and (.feature_id|type == "string")' "$tasks_file" >/dev/null 2>&1; }; then
