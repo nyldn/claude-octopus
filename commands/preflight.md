@@ -28,6 +28,17 @@ separate binary, authentication, model, quota, or network checks while
 rendering the result. Use `reason_code` and `remediation` from the shared
 objects when explaining a provider that needs attention.
 
+When `OCTOPUS_COUNCIL_DEFAULT_PROVIDERS` pins a council roster (for example
+`claude,agy` when Codex leads the session), preflight checks exactly those
+seats, names the list it used, and reports a seat that is not ready; the
+orchestrator's `preflight` command fails in that case, and so does its smoke
+test when any roster seat it tested fails. A roster seat with no provider
+detection, such as `openai-tools`, is listed as not checked (`roster_unchecked`
+in the JSON) rather than as not ready. When preflight runs inside a
+Codex or Claude Code sandbox, a provider that needs a keychain login, the
+network or files outside the workspace can fail there and work outside it; the
+output says so, and the remedy is to re-run preflight outside the sandbox.
+
 Use this before `/octo:embrace`, `/octo:research`, or `/octo:council` to confirm provider readiness and avoid mid-workflow surprises.
 
 **Common issues:**
