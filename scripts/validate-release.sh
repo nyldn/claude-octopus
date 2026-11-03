@@ -367,7 +367,10 @@ echo "🎯 Checking skill registration..."
 
 # Claude Code discovers native root skills automatically. Codex uses its
 # separate adapted tree, outside that default discovery location.
-SKILL_FILES=$(find "$ROOT_DIR/skills" -mindepth 2 -maxdepth 3 -type f -name SKILL.md \
+find_skill_md_files() {
+    find "$1" -mindepth 2 -maxdepth 3 -name "SKILL.md" -type f 2>/dev/null
+}
+SKILL_FILES=$(find_skill_md_files "$ROOT_DIR/skills" \
     | sed "s|^$ROOT_DIR/|./|;s|/SKILL.md$||" | LC_ALL=C sort)
 REGISTERED_SKILLS=$(jq -r '.skills[]' "$ROOT_DIR/.claude-plugin/plugin.json" | LC_ALL=C sort)
 

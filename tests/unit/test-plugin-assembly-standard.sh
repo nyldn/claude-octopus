@@ -168,4 +168,32 @@ else
     test_fail "missing nested host mismatch diagnostic: $output"
 fi
 
+test_case "default root discovery rejects unlisted Codex skills"
+mkdir -p "$scalar_fixture/native/demo"
+grep -v 'Host: Codex CLI' "$scalar_fixture/skills/demo/SKILL.md" > "$scalar_fixture/native/demo/SKILL.md"
+printf '%s\n' '{"name":"fixture","version":"0.0.0","description":"fixture","skills":"./native/demo"}' > "$scalar_fixture/.claude-plugin/plugin.json"
+if output=$(python3 "$PROJECT_ROOT/scripts/validate-plugin-assembly.py" --root "$scalar_fixture" 2>&1); then
+    test_fail "unlisted root skill bypassed native host validation"
+elif [[ "$output" == *"Claude Code registers a Codex-adapted skill"* ]]; then
+    test_pass
+else
+    test_fail "missing default-root diagnostic: $output"
+fi
+rm -rf "$scalar_fixture/skills"
+for invalid_path in 'native/demo' "$scalar_fixture/native/demo" ''; do
+    test_case "native manifest rejects malformed skill path: $invalid_path"
+    python3 - "$scalar_fixture/.claude-plugin/plugin.json" "$invalid_path" <<'PY_MANIFEST'
+import json, sys
+from pathlib import Path
+Path(sys.argv[1]).write_text(json.dumps({"name":"fixture", "version":"0.0.0", "description":"fixture", "skills":sys.argv[2]}))
+PY_MANIFEST
+    if output=$(python3 "$PROJECT_ROOT/scripts/validate-plugin-assembly.py" --root "$scalar_fixture" 2>&1); then
+        test_fail "malformed registration accepted"
+    elif [[ "$output" == *"skill path must start with ./"* ]]; then
+        test_pass
+    else
+        test_fail "missing path-shape diagnostic: $output"
+    fi
+done
+
 test_summary

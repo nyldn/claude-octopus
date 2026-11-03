@@ -384,7 +384,7 @@ for contract in "${trigger_only_contracts[@]}"; do
     skill=${contract%%|*}
     expected=${contract#*|}
     description=$(sed -n 's/^description: *"\(.*\)"$/\1/p' \
-        "$PROJECT_ROOT/skills/$skill/SKILL.md" | head -1 || true)
+        "$PROJECT_ROOT/codex-skills/$skill/SKILL.md" | head -1 || true)
     if [[ "$description" != "$expected" ]]; then
         metadata_ok=false
         break

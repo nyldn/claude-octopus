@@ -12,6 +12,15 @@ test_suite "Native manual-only skill gate"
 codex_skill_path="$(jq -r '.skills' "$PROJECT_ROOT/.codex-plugin/plugin.json")"
 codex_skill_root="$PROJECT_ROOT/${codex_skill_path#./}"
 
+test_case "all registered skill trees exist and contain skills"
+missing=""
+for directory in "$PROJECT_ROOT/.claude/skills" "$PROJECT_ROOT/skills" "$codex_skill_root"; do
+    if [[ ! -d "$directory" ]] || [[ -z "$(find "$directory" -name SKILL.md -type f -print -quit)" ]]; then
+        missing="$missing $directory"
+    fi
+done
+if [[ -z "$missing" ]]; then test_pass; else test_fail "missing or empty skill trees:$missing"; fi
+
 frontmatter_value() {
     local file="$1" key="$2"
     awk -v key="$key" '
