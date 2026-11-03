@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Define, develop, deliver and ship now validate the report names the engine
+  writes, within the current session and after the current invocation starts.
+  A failed command, stale report or missing completion status cannot pass the
+  skill's result gate. Fixes #1170.
+
 ## [11.16.0] - 2026-11-02
 
 ### Fixed

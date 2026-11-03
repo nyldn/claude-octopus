@@ -182,7 +182,16 @@ fi
 **You MUST execute this command via the native shell command tool:**
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh deliver "<user's validation request>"
+# Keep execution and report validation in the same shell invocation.
+RUN_MARKER=$(mktemp) || exit 1
+RUN_STATUS=0
+"${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" deliver "<user's validation request>" || RUN_STATUS=$?
+REPORT_STATUS=0
+VALIDATION_FILE=$("${HOME}/.claude-octopus/plugin/scripts/helpers/workflow-result.sh" deliver "$RUN_MARKER" "$RUN_STATUS") || REPORT_STATUS=$?
+rm -f "$RUN_MARKER"
+[[ "$REPORT_STATUS" == 0 ]] || exit "$REPORT_STATUS"
+echo "VALIDATION PASSED: $VALIDATION_FILE"
+cat "$VALIDATION_FILE"
 ```
 
 **CRITICAL: You are PROHIBITED from:**
@@ -213,19 +222,14 @@ These spinner verb updates happen automatically - orchestrate.sh calls `update_t
 
 **After orchestrate.sh completes, verify it succeeded:**
 
-```bash
-# Find the latest validation file (created within last 10 minutes)
-VALIDATION_FILE=$(find ~/.claude-octopus/results -name "ink-validation-*.md" -mmin -10 2>/dev/null | head -n1)
+Step 4 checks the workflow exit status and validates a fresh
+`delivery-*.md` report in this host's current session results directory.
+It rejects missing reports and failed or unknown completion states. The validator
+honors `CLAUDE_PLUGIN_DATA` and `CLAUDE_OCTOPUS_WORKSPACE`.
 
-if [[ -z "$VALIDATION_FILE" ]]; then
-  echo "❌ VALIDATION FAILED: No validation file found"
-  echo "orchestrate.sh did not execute properly"
-  exit 1
-fi
-
-echo "✅ VALIDATION PASSED: $VALIDATION_FILE"
-cat "$VALIDATION_FILE"
-```
+Use the validated path printed by Step 4. If a later tool call starts a new shell,
+set `VALIDATION_FILE` to that exact path. Do not search for a different report
+or rerun the workflow to recover a shell variable.
 
 **If validation fails:**
 1. Report error to user
@@ -477,7 +481,7 @@ The ink phase includes automatic quality validation via PostToolUse hook:
 
 Results are saved to:
 ```
-~/.claude-octopus/results/${SESSION_ID}/ink-validation-<timestamp>.md
+~/.claude-octopus/results/${SESSION_ID}/delivery-<timestamp>.md
 ```
 
 ### Step 5: Present Validation Report
@@ -715,7 +719,7 @@ const JWT_SECRET = 'my-secret-key-123'; // Should be process.env.JWT_SECRET
    - Implement "remember me" functionality
    - Add comprehensive logging and monitoring
 
-Full validation report saved to: ~/.claude-octopus/results/abc-123/ink-validation-20250118-145600.md
+Full validation report saved to: ~/.claude-octopus/results/abc-123/delivery-20250118-145600.md
 ```
 
 ### Example 2: Validate API Endpoints

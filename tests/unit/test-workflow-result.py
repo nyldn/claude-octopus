@@ -1,0 +1,144 @@
+#!/usr/bin/env python3
+"""Run workflow skill shell blocks against an inert report-writing engine."""
+import os
+from pathlib import Path
+import re
+import subprocess
+import tempfile
+import unittest
+
+ROOT = Path(os.environ.get('WORKFLOW_SKILL_ROOT', Path(__file__).resolve().parents[2]))
+
+
+class WorkflowResultTest(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.home = Path(temporary.name)
+        self.workspace = self.home / 'workspace'
+        self.results = self.workspace / 'results/session-a'
+        self.results.mkdir(parents=True)
+        plugin = self.home / '.claude-octopus/plugin'
+        (plugin / 'scripts/helpers').mkdir(parents=True)
+        (plugin / 'scripts/helpers/workflow-result.sh').symlink_to(
+            ROOT / 'scripts/helpers/workflow-result.sh')
+        # The validator resolves its own root, so copy the source-safe libraries
+        # into the fixture install alongside the linked validator.
+        (plugin / 'scripts/state-manager.sh').symlink_to(ROOT / 'scripts/state-manager.sh')
+        (plugin / 'scripts/lib').symlink_to(ROOT / 'scripts/lib')
+        self.engine = plugin / 'scripts/orchestrate.sh'
+        self.engine.write_text('''#!/usr/bin/env python3
+import os
+from pathlib import Path
+import sys
+phase = sys.argv[1]
+prefix = {"define":"grasp-consensus", "develop":"tangle-validation", "deliver":"delivery", "ink":"delivery"}[phase]
+directory = Path(os.environ["FIXTURE_RESULTS"])
+mode = os.environ.get("FIXTURE_MODE", "complete")
+if mode != "missing":
+    if phase == "define":
+        text = "# Consensus\\n*Consensus built from multiple agent perspectives (task group: fixture; synthesizer: " + ("none" if mode == "invalid" else "codex") + ")*\\n"
+    elif phase == "develop":
+        text = "# TANGLE Phase Validation Report\\n## Task: fixture\\n## Generated: fixture\\n\\n### Quality Gate: " + ("UNKNOWN" if mode == "invalid" else "PASSED") + "\\n"
+    else:
+        text = "# Delivery Report\\n## Task: fixture\\n## Generated: fixture\\n## Status: " + ("PARTIAL - Review Required" if mode == "invalid" else "COMPLETE") + "\\n"
+    (directory / (prefix + "-current.md")).write_text(text)
+sys.exit(1 if mode == "failed" else 0)
+''')
+        self.engine.chmod(0o755)
+        self.env = {k: v for k, v in os.environ.items()
+                    if not k.startswith(('CLAUDE_', 'CODEX_', 'DROID_'))}
+        self.env.update(HOME=str(self.home), CLAUDE_PLUGIN_DATA=str(self.workspace),
+                        CLAUDE_CODE_SESSION_ID='session-a', FIXTURE_RESULTS=str(self.results),
+                        TMPDIR=str(self.home))
+
+    def skill_command(self, phase, generated=False):
+        name = 'skill-ship' if phase == 'ink' else 'flow-' + phase
+        path = ROOT / ('skills' if generated else '.claude/skills') / name / 'SKILL.md'
+        blocks = re.findall(r'```bash\n(.*?)\n```', path.read_text(), re.S)
+        return next(block for block in blocks
+                    if re.search(r'orchestrate\.sh[" ]+ ' + phase + r' ', block)
+                    or 'orchestrate.sh ' + phase + ' ' in block)
+
+    def run_skill(self, phase, mode='complete', generated=False):
+        self.env['FIXTURE_MODE'] = mode
+        return subprocess.run(['bash', '-c', self.skill_command(phase, generated)],
+                              env=self.env, cwd=self.home, text=True,
+                              capture_output=True, timeout=15)
+
+    def test_native_skills_find_engine_reports(self):
+        for phase in ('define', 'develop', 'deliver', 'ink'):
+            with self.subTest(phase=phase):
+                result = self.run_skill(phase)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn('-current.md', result.stdout)
+
+    def test_generated_skills_find_engine_reports(self):
+        for phase in ('define', 'develop', 'deliver', 'ink'):
+            with self.subTest(phase=phase):
+                result = self.run_skill(phase, generated=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn('-current.md', result.stdout)
+
+    def test_failed_command_cannot_use_a_passing_report(self):
+        for phase in ('define', 'develop', 'deliver', 'ink'):
+            with self.subTest(phase=phase):
+                self.assertNotEqual(self.run_skill(phase, 'failed').returncode, 0)
+
+    def test_missing_or_unknown_status_fails(self):
+        for phase in ('define', 'develop', 'deliver', 'ink'):
+            with self.subTest(phase=phase):
+                self.assertNotEqual(self.run_skill(phase, 'invalid').returncode, 0)
+
+    def test_prior_delivery_cannot_satisfy_ship(self):
+        self.assertEqual(self.run_skill('deliver').returncode, 0)
+        self.assertNotEqual(self.run_skill('ink', 'missing').returncode, 0)
+
+    def test_other_session_and_root_reports_cannot_satisfy_gate(self):
+        for directory in (self.workspace / 'results', self.workspace / 'results/session-b'):
+            directory.mkdir(exist_ok=True)
+            self.env['FIXTURE_RESULTS'] = str(directory)
+            self.assertNotEqual(self.run_skill('deliver').returncode, 0)
+
+    def test_workspace_override_without_plugin_data(self):
+        self.env.pop('CLAUDE_PLUGIN_DATA')
+        self.env['CLAUDE_OCTOPUS_WORKSPACE'] = str(self.workspace)
+        self.assertEqual(self.run_skill('deliver').returncode, 0)
+
+    def test_codex_session_matches_engine_precedence(self):
+        self.env.update(CODEX_SESSION_ID='codex-a', FIXTURE_RESULTS=str(self.workspace / 'results/codex-a'))
+        Path(self.env['FIXTURE_RESULTS']).mkdir()
+        self.assertEqual(self.run_skill('deliver').returncode, 0)
+
+    def validator(self, setup):
+        marker = self.home / 'marker'
+        marker.touch()
+        # Fix the marker in the past to avoid timing assumptions in direct tests.
+        os.utime(marker, ns=(1, 1))
+        setup()
+        return subprocess.run(['bash', str(ROOT / 'scripts/helpers/workflow-result.sh'),
+                               'deliver', str(marker), '0'], env=self.env,
+                              capture_output=True, text=True, timeout=15)
+
+    def test_overlapping_fresh_reports_fail_closed(self):
+        def setup():
+            for name in ('delivery-a.md', 'delivery-b.md'):
+                (self.results / name).write_text('# Report\n## Task: fixture\n## Generated: fixture\n## Status: COMPLETE\n')
+        result = self.validator(setup)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('ambiguous', result.stderr)
+
+    def test_symlinked_report_is_not_accepted(self):
+        def setup():
+            external = self.home / 'external.md'
+            external.write_text('# Report\n## Task: fixture\n## Generated: fixture\n## Status: COMPLETE\n')
+            (self.results / 'delivery-link.md').symlink_to(external)
+        self.assertNotEqual(self.validator(setup).returncode, 0)
+
+    def test_missing_status_is_not_accepted(self):
+        self.assertNotEqual(self.validator(
+            lambda: (self.results / 'delivery-empty.md').write_text('')).returncode, 0)
+
+
+if __name__ == '__main__':
+    unittest.main()

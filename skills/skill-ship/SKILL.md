@@ -134,7 +134,14 @@ command -v agy &> /dev/null && agy_status="Available" || agy_status="Not install
 
 ```bash
 # Run Multi-AI security audit for delivery
-"${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" ink "Security audit for delivery - comprehensive review of all code changes for production readiness"
+RUN_MARKER=$(mktemp) || exit 1
+RUN_STATUS=0
+"${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" ink "Security audit for delivery - comprehensive review of all code changes for production readiness" || RUN_STATUS=$?
+REPORT_STATUS=0
+VALIDATION_FILE=$("${HOME}/.claude-octopus/plugin/scripts/helpers/workflow-result.sh" ink "$RUN_MARKER" "$RUN_STATUS") || REPORT_STATUS=$?
+rm -f "$RUN_MARKER"
+[[ "$REPORT_STATUS" == 0 ]] || exit "$REPORT_STATUS"
+echo "AUDIT COMPLETE: $VALIDATION_FILE"
 ```
 
 ## MANDATORY COMPLIANCE
@@ -147,17 +154,10 @@ command -v agy &> /dev/null && agy_status="Available" || agy_status="Not install
 
 #### Step 3: Verify Audit Completed
 
-```bash
-# Find the latest validation file
-VALIDATION_FILE=$(find ~/.claude-octopus/results -name "ink-validation-*.md" -mmin -10 2>/dev/null | head -n1)
-
-if [[ -z "$VALIDATION_FILE" ]]; then
-    echo "AUDIT FAILED: No validation file found"
-    exit 1
-fi
-
-echo "AUDIT COMPLETE: $VALIDATION_FILE"
-```
+Step 2 must exit successfully and validate a fresh `delivery-*.md` report
+whose launcher status is `COMPLETE`. A report from a previous deliver run,
+a partial report, or a failed command cannot pass this audit.
+Use the exact validated path printed by Step 2 for the summary.
 
 #### Step 4: Display Audit Summary
 
