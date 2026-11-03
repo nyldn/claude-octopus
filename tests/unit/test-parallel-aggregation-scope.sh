@@ -26,6 +26,7 @@ for implementation in parallel heuristics; do
     [[ "$implementation" == parallel ]] || source "${AGGREGATION_LIB_ROOT:-$PROJECT_ROOT}/scripts/lib/heuristics.sh"
     _aggregate_pick_synth_agent() { :; }
     test_case "$implementation aggregation includes only exact current result paths"
+    rm -f "$RESULTS_DIR"/aggregate-*.md
     aggregate_results '' '' "$tasks" > /dev/null
     content="$(cat "$RESULTS_DIR"/aggregate-*.md)"
     if [[ "$content" == *CURRENT_IMPLEMENTATION* && "$content" != *UNRELATED_EARLIER* ]]; then
@@ -34,6 +35,7 @@ for implementation in parallel heuristics; do
         test_fail "earlier same-provider task entered aggregation: $content"
     fi
     test_case "$implementation empty task scope cannot fall back to earlier outputs"
+    rm -f "$RESULTS_DIR"/aggregate-*.md
     aggregate_results '' '' '[]' > /dev/null
     content="$(cat "$RESULTS_DIR"/aggregate-*.md)"
     if [[ "$content" == *'Total Results: 0'* && "$content" != *IMPLEMENTATION* ]]; then

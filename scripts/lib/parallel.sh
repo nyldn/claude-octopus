@@ -515,7 +515,7 @@ parallel_execute() {
     local previewed=0
     local sequence=0
     local seen_task_ids=$'\n'
-    local aggregate_task_ids='[]'
+    local aggregate_task_scope='[]'
 
     while IFS= read -r task; do
         local task_id="" agent="" prompt="" current_sequence="$sequence"
@@ -648,9 +648,9 @@ parallel_execute() {
         if declare -F octo_agent_spec_slug >/dev/null 2>&1; then
             result_slug=$(octo_agent_spec_slug "$agent")
         fi
-        aggregate_task_ids=$(jq -c --arg id "$task_id" \
+        aggregate_task_scope=$(jq -c --arg id "$task_id" \
             --arg output_file "$RESULTS_DIR/$result_slug-$task_id.md" \
-            '. + [{id: $id, output_file: $output_file}]' <<< "$aggregate_task_ids")
+            '. + [{id: $id, output_file: $output_file}]' <<< "$aggregate_task_scope")
         local pid="" spawn_status=0
         spawn_output=""
         spawn_pid_handoff=""
@@ -738,7 +738,7 @@ parallel_execute() {
         fi
     fi
     local aggregate_status=0
-    if aggregate_results "" "" "$aggregate_task_ids"; then
+    if aggregate_results "" "" "$aggregate_task_scope"; then
         aggregate_status=0
     else
         aggregate_status=$?
@@ -886,7 +886,7 @@ _aggregate_pick_synth_agent() {
 aggregate_results() {
     local _ts; _ts=$(date +%s)
     local filter="${1:-}"
-    local task_ids="${3:-null}"
+    local task_scope="${3:-null}"
     local user_query="${2:-}"  # v8.49.0: Optional user query for relevance-aware synthesis
     local aggregate_file="${RESULTS_DIR}/aggregate-${_ts}.md"
     local raw_concat="${RESULTS_DIR}/.raw-concat-$$.md"
@@ -913,8 +913,8 @@ aggregate_results() {
 
     while IFS= read -r result; do
         [[ -z "$result" ]] && continue
-        if [[ "$task_ids" != null ]]; then
-            jq -en --arg file "$result" --argjson ids "$task_ids" \
+        if [[ "$task_scope" != null ]]; then
+            jq -en --arg file "$result" --argjson ids "$task_scope" \
                 '$ids | any(.output_file == $file)' >/dev/null || continue
         fi
         local score

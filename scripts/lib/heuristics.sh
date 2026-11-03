@@ -364,7 +364,7 @@ EOF
 aggregate_results() {
     local _ts; _ts=$(date +%s)
     local filter="${1:-}"
-    local task_ids="${3:-null}"
+    local task_scope="${3:-null}"
     local user_query="${2:-}"  # v8.49.0: Optional user query for relevance-aware synthesis
     local aggregate_file="${RESULTS_DIR}/aggregate-${_ts}.md"
     local raw_concat="${RESULTS_DIR}/.raw-concat-$$.md"
@@ -377,7 +377,7 @@ aggregate_results() {
     : > "$raw_concat"
     local ranked_files=""
     if type agent_status_output_files >/dev/null 2>&1; then
-        ranked_files=$(agent_status_output_files "$filter" "$task_ids" 2>/dev/null || true)
+        ranked_files=$(agent_status_output_files "$filter" "$task_scope" 2>/dev/null || true)
     fi
     [[ -z "$ranked_files" ]] && ranked_files=$(rank_results_by_signals "$RESULTS_DIR" "$filter")
 
@@ -396,13 +396,13 @@ aggregate_results() {
 
     local agent_summary=""
     if type render_agent_summary >/dev/null 2>&1; then
-        agent_summary=$(render_agent_summary "$filter" "$task_ids" 2>/dev/null || true)
+        agent_summary=$(render_agent_summary "$filter" "$task_scope" 2>/dev/null || true)
     fi
 
     while IFS= read -r result; do
         [[ -z "$result" ]] && continue
-        if [[ "$task_ids" != null ]]; then
-            jq -en --arg file "$result" --argjson ids "$task_ids" \
+        if [[ "$task_scope" != null ]]; then
+            jq -en --arg file "$result" --argjson ids "$task_scope" \
                 '$ids | any(.output_file == $file)' >/dev/null || continue
         fi
         [[ ! -f "$result" ]] && continue
