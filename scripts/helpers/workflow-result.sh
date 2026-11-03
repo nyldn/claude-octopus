@@ -59,10 +59,13 @@ try:
             status = re.match(r"\n## Generated: [^\n]+\n\n### Quality Gate: ([A-Z]+)\n", metadata)
         valid = bool(status and status[1] in {"PASSED", "WARNING", "CHALLENGED"})
     else:
-        # Task text can span lines and contain fake status/metadata headings.
-        # Match the generated/status pair and the final launcher certification,
-        # appended after all provider text. A prompt cannot override that footer.
-        header_complete = re.search(r"^## Generated: [^\n]+\n## Status: COMPLETE$", text, re.MULTILINE)
+        # Read metadata after the exact task byte frame, as in development.
+        # The final certification remains an independent completion check.
+        frame = re.match(rb"# DELIVERY DOCUMENT\n<!-- octopus-task-bytes: ([0-9]+) -->\n## Task: ", data)
+        header_complete = None
+        if frame:
+            metadata = data[frame.end() + int(frame[1]):].decode("utf-8")
+            header_complete = re.match(r"\n## Generated: [^\n]+\n## Status: COMPLETE\n\n---\n", metadata)
         parts = text.rsplit("\n## Quality Certification\n", 1)
         footer = parts[-1].splitlines()
         valid = bool(header_complete and len(parts) == 2 and len(footer) == 5 and
