@@ -3222,17 +3222,16 @@ offset = 0
 for raw in resp.split("\n"):
     resp_lines.append((offset, offset + len(raw), raw))
     offset += len(raw) + 1
-def cell_count(text):
-    # Unescaped pipes separate cells; one leading and one trailing pipe are
-    # borders. GFM requires the header and delimiter rows to match. A
-    # backslash escapes the next character, so "\\|" is an escaped backslash
-    # and then a separator.
-    row_text = re.sub(r"\\.", "x", text.strip())
-    if row_text.startswith("|"):
-        row_text = row_text[1:]
-    if row_text.endswith("|"):
-        row_text = row_text[:-1]
-    return row_text.count("|") + 1
+def table_cells(text):
+    # Consume escape pairs before recognizing separators, including inside
+    # backticks. GFM splits cells before it parses inline code spans.
+    separators = [-1] + [m.start() for m in re.finditer(r"\\.|(\|)", text) if m.group(1)] + [len(text)]
+    cells = [(left + 1, right) for left, right in zip(separators, separators[1:])]
+    if len(cells) > 1 and not text[cells[0][0]:cells[0][1]].strip():
+        cells.pop(0)
+    if len(cells) > 1 and not text[cells[-1][0]:cells[-1][1]].strip():
+        cells.pop()
+    return cells
 
 def indented_code(text):
     # Four columns of indentation make an indented code block, not a table.
@@ -3251,16 +3250,22 @@ while row < len(resp_lines):
     # like a list item.
     if not ("|" in delimiter[2] and DELIMITER_ROW.match(delimiter[2]) and not indented_code(delimiter[2])
             and not in_fence(delimiter[0], delimiter[1] + 1) and table_line(row - 1)
-            and cell_count(resp_lines[row - 1][2]) == cell_count(delimiter[2])):
+            and len(table_cells(resp_lines[row - 1][2])) == len(table_cells(delimiter[2]))):
         row += 1
         continue
     last = row
     while last + 1 < len(resp_lines) and table_line(last + 1):
         last += 1
-    table_ranges.append((resp_lines[row - 1][0], resp_lines[last][1]))
+    # Excess body cells are discarded by GFM. Only a complete code span
+    # within one rendered header/body cell may receive table decoding.
+    columns = len(table_cells(delimiter[2]))
+    for index in [row - 1] + list(range(row + 1, last + 1)):
+        l_start, _, text = resp_lines[index]
+        table_ranges.extend((l_start + start, l_start + end)
+                            for start, end in table_cells(text)[:columns])
     row = last + 2
 
-# Tables come from one forward scan, so they are sorted and disjoint.
+# Cells come from one forward scan, so they are sorted and disjoint.
 table_starts = [t_start for t_start, _ in table_ranges]
 
 def in_table(start, end):

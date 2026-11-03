@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Table-only quote decoding must stay within a rendered GFM cell.
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+source "$PROJECT_ROOT/scripts/lib/council.sh"
+test_suite "Council table cell quote boundaries"
+ROOT="$(mktemp -d "$TEST_TMP_DIR/table-cells.XXXXXX")"
+mkdir -p "$ROOT/src"
+printf 'export const pattern = /alpha|beta/;\n' > "$ROOT/src/regex-3125.ts"
+printf 'export const pattern = /alpha|beta|gamma/;\n' > "$ROOT/src/cell-boundary.ts"
+printf 'export const pattern = /alpha| beta/;\n' > "$ROOT/src/multiline-cell.ts"
+# Definitive negative grounding requires a readable complete diff.
+git -C "$ROOT" init -q
+git -C "$ROOT" add src
+git -C "$ROOT" -c user.name=Test -c user.email=test@example.invalid \
+    -c core.hooksPath=/dev/null commit -qm fixture
+unset OCTOPUS_COUNCIL_DIFF_BASE
+_resp() { local f; f="$(mktemp "$TEST_TMP_DIR/response.XXXXXX")"; printf '%s\n' "$1" > "$f"; printf '%s\n' "$f"; }
+_report() { council_response_quote_verification_json "$1" "$ROOT"; }
+
+# Table escaping is valid only inside one rendered cell, not across cells,
+# across rows, or in excess cells discarded by the renderer.
+printf 'export const pattern = /alpha|beta|gamma/;\n' > "$ROOT/src/cell-boundary.ts"
+test_case "#1224: a code span crossing an unescaped table separator stays literal"
+cross_cell="$(_resp '| File | Code | Note |
+|---|---|---|
+| src/cell-boundary.ts:1 | `export const pattern = /alpha\|beta|gamma/;` |
+VERDICT: APPROVE')"
+r="$(_report "$cross_cell")"
+if jq -e '.quotes_checked == 1 and .quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#1224: an ignored excess table cell cannot enable pipe decoding"
+excess_cell="$(_resp '| File | Note |
+|---|---|
+| src/regex-3125.ts:1 | note | `export const pattern = /alpha\|beta/;` |
+VERDICT: APPROVE')"
+r="$(_report "$excess_cell")"
+if jq -e '.quotes_checked == 1 and .quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+printf 'export const pattern = /alpha| beta/;\n' > "$ROOT/src/multiline-cell.ts"
+test_case "#1224: a code span crossing table rows cannot enable pipe decoding"
+cross_row="$(_resp '| File | Code |
+|---|---|
+src/multiline-cell.ts:1 | `export const pattern = /alpha\|
+beta/;` | note
+VERDICT: APPROVE')"
+r="$(_report "$cross_row")"
+if jq -e '.quotes_checked == 1 and .quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#1224: all pipes escaped inside a single table cell still verify"
+single_cell="$(_resp '| File | Code |
+|---|---|
+| src/cell-boundary.ts:1 | `export const pattern = /alpha\|beta\|gamma/;` |
+VERDICT: APPROVE')"
+r="$(_report "$single_cell")"
+if jq -e '.quotes_checked == 1 and .quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_summary
