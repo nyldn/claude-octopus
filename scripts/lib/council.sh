@@ -2867,6 +2867,7 @@ council_response_quote_verification_json() {
     } <<'PY'
 import html
 import json
+import math
 import os
 import re
 import selectors
@@ -3101,6 +3102,11 @@ def policy_findings_blocks():
         return value
     def nonfinite(_):
         raise ValueError("nonfinite JSON number")
+    def finite_float(text):
+        value = float(text)
+        if not math.isfinite(value):
+            raise ValueError("nonfinite JSON number")
+        return value
     # Runtime extraction rejects the entire response on any invalid block or
     # more than 100 findings in total. Such a response has no policy-digest
     # coverage, so none of its blocks may bypass ordinary quote verification.
@@ -3133,7 +3139,7 @@ def policy_findings_blocks():
         if match and index < len(lines):
             try:
                 value = json.loads("\n".join(lines[first:index]), object_pairs_hook=pairs,
-                                   parse_constant=nonfinite)
+                                   parse_constant=nonfinite, parse_float=finite_float)
             except (ValueError, RecursionError):
                 return []
             if isinstance(value, dict):

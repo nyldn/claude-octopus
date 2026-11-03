@@ -252,6 +252,39 @@ if feature_workflow_gate develop T002; then printf independent; fi
         p = subprocess.run(['/bin/bash', '-c', script], cwd=self.root, env=env, capture_output=True, text=True)
         self.assertEqual(p.stdout.strip(), 'spawned')
 
+    def test_invalid_findings_cannot_erase_a_blocking_policy_finding(self):
+        context = self.adapter('prepare', 'spec', 'export')
+        self.adapter('save', 'spec', str(self.spec), 'claude', 'unknown', 'overflow-run', context['feature'])
+        plan = self.root / context['feature'] / 'plan.md'
+        plan.write_text('Remove the public API.\n')
+        policy = json.loads(Path(context['policy_snapshot']).read_text())
+        finding = {'source': 'AGENTS.md', 'digest': policy['digest'], 'line_start': 1, 'line_end': 1,
+                   'quote': 'Keep the public API stable.', 'plan_digest': hashlib.sha256(plan.read_bytes()).hexdigest(),
+                   'plan_line_start': 1, 'plan_line_end': 1, 'plan_action': 'Remove the public API.'}
+        response = self.base / 'review.md'
+        runtime_findings = Path(context['runtime_dir']) / 'policy-findings.json'
+        env = dict(self.env, LIB=str(LIB), RESPONSE=str(response), OCTOPUS_FEATURE=context['feature'])
+        for route in ('response', 'runtime', 'plan'):
+            for number in ('1e999', '-1e999'):
+                with self.subTest(route=route, number=number):
+                    body = '[' + json.dumps(finding) + ', {"score": ' + number + '}]'
+                    response.write_text('```octopus-policy-findings\n' + body + '\n```\n')
+                    runtime_findings.unlink(missing_ok=True)
+                    setup = ''
+                    if route == 'response':
+                        setup = 'feature_workflow_policy_response "$(cat "$RESPONSE")"; '
+                    elif route == 'runtime':
+                        runtime_findings.write_text(body)
+                    else:
+                        plan.write_text('Remove the public API.\n' + response.read_text())
+                    script = 'source "$LIB"; feature_workflow_begin develop feature false; ' + setup
+                    script += 'if feature_workflow_gate develop; then echo spawned; else echo blocked; fi'
+                    result = subprocess.run(['/bin/bash', '-c', script], cwd=self.root, env=env,
+                                            capture_output=True, text=True, timeout=20)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout.strip(), 'blocked', result.stderr)
+                    self.assertIn('policy verification unavailable', result.stderr)
+
     def test_policy_response_blocks_legacy_plan_without_spec(self):
         plan = self.root / 'plan.md'
         plan.write_text('Remove the public API.\n')

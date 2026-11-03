@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Keep policy extraction and council quote exemptions on the same wire format."""
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -89,6 +90,30 @@ class PolicyFindings(unittest.TestCase):
         result = self.extract(text)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout), [])
+
+    def test_overflowing_numbers_are_rejected_by_all_findings_readers(self):
+        spec = importlib.util.spec_from_file_location('policy', REPO / 'scripts/helpers/feature-policy.py')
+        policy = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(policy)
+        for number in ('1e999', '-1e999', 'NaN', 'Infinity', '-Infinity'):
+            with self.subTest(number=number):
+                body = '[{"quote": ' + json.dumps(FAKE) + ', "extra": {"score": ' + number + '}}]'
+                text = 'pricing.ts:1 needs an audit.\n\n```octopus-policy-findings\n' + body + '\n```\n'
+                self.assertNotEqual(self.extract(text).returncode, 0)
+                report = self.grounding(text)
+                self.assertGreaterEqual(report['quotes_checked'], 1, report)
+                self.assertTrue(report['fabricated'], report)
+                self.response.write_text(body)
+                with self.assertRaises(ValueError):
+                    policy.load_json(str(self.response))
+
+    def test_finite_numbers_keep_the_findings_exemption(self):
+        for number in ('1e308', '-1e308', '1e-999', '0.5'):
+            with self.subTest(number=number):
+                body = '[{"quote": ' + json.dumps(FAKE) + ', "score": ' + number + '}]'
+                text = 'pricing.ts:1 needs an audit.\n\n```octopus-policy-findings\n' + body + '\n```\n'
+                self.assertEqual(self.extract(text).returncode, 0)
+                self.assertEqual(self.grounding(text)['quotes_checked'], 0)
 
     def test_runtime_rejects_unclosed_findings(self):
         result = self.extract('~~~octopus-policy-findings\n' + json.dumps(FINDINGS))

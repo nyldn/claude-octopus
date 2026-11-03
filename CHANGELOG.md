@@ -9,6 +9,9 @@
   and runtime policy extraction accepts the same indented, backtick and tilde
   fences as analysis. Invalid blocks and invented quotes outside a findings
   block still undergo quote verification.
+  Overflowing JSON numbers are rejected by every findings reader, and failed
+  policy extraction or verification defers implementation instead of dropping
+  blocking findings.
   [#1230](https://github.com/nyldn/claude-octopus/pull/1230).
 
 ## [11.16.0] - 2026-11-02
