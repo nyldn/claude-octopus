@@ -795,11 +795,22 @@ EOF
 ordinal_claims=$(research_extract_numbers \
     'Point 2 retries twice; see point 2 above; section 3 and points 4 and 5 MiB; at one point 40% and 16 MiB; 2 retries; 3 points.' \
     | LC_ALL=C sort | tr '\n' ' ')
-if [[ -z "$ordinal_numbers" && "$ordinal_claims" == "16 2 3 40% 5 " ]]; then
+point_quantity=$(research_extract_numbers 'Point 2 retries twice.')
+standalone_quantity=$(research_extract_numbers '2 retries.')
+if [[ -z "$ordinal_numbers" && "$ordinal_claims" == "16 2 3 40% 5 " \
+      && "$point_quantity" == 2 && "$standalone_quantity" == 2 ]]; then
     test_pass
 else
     test_fail "ordinal references leaked [$ordinal_numbers] or claims were lost [$ordinal_claims]"
 fi
+
+test_case "numeric ranges beside point labels retain both endpoints"
+range_claims=$(research_extract_numbers 'points 2 and 5-10 MiB' | LC_ALL=C sort | tr '\n' ' ')
+if [[ "$range_claims" == "10 5 " ]]; then test_pass; else test_fail "range endpoint was lost: $range_claims"; fi
+
+test_case "colon-separated reference labels do not create factual quantities"
+colon_refs=$(research_extract_numbers 'See points: 2 and 3; items:4,5.' | tr '\n' ' ')
+if [[ -z "$colon_refs" ]]; then test_pass; else test_fail "colon references became claims: $colon_refs"; fi
 
 test_case "an ordinal self-reference needs no evidence while units beside it still do"
 ordinal_draft="$RESEARCH_RUN_DIR/local-ordinals.md"
