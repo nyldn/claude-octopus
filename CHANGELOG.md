@@ -10,6 +10,12 @@
   decisions can include an optional scenario stress test.
   Fixes [#1220](https://github.com/nyldn/claude-octopus/issues/1220).
 
+- Workflow skills can now persist phase state through `update_state`, query
+  completed phases and import definition synthesis into the roadmap. History
+  notes cannot change a phase's recorded status. Initializing a project with
+  a missing state file preserves existing issues, lessons and phase plans.
+  Fixes [#1169](https://github.com/nyldn/claude-octopus/issues/1169).
+
 - Configured fallback chains now honor `OCTO_ALLOWED_PROVIDERS` and the
   session or global provider allowlist. `run_agent_sync_fallback_chain`
   dispatched its primary, preferred fallback and chain candidates without
