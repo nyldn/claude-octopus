@@ -196,8 +196,8 @@ else
 fi
 
 test_case "task-group summary retains a rejected prompt without an output file"
-write_agent_status "codex" "failed" 100 0 "Prompt exceeded context budget" 0 "" "researcher" "spawn-77-subtask-1"
-summary="$(render_agent_summary "77")"
+write_agent_status "codex" "failed" 100 0 "Prompt exceeded context budget" 0 "" "researcher" "spawn-summary-budget-subtask-1"
+summary="$(render_agent_summary "summary-budget-subtask-")"
 if [[ "$summary" == *"codex"* && "$summary" == *"1 of 1 agents failed"* ]]; then
     test_pass
 else
