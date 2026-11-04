@@ -280,8 +280,8 @@ Output Goal: Academic paper format
 Steps:
 1. Read the synthesize markdown
 2. Structure as: Abstract, Introduction, Literature Review, Gaps, Conclusions
-3. Resolve and invoke the PDF renderer with the selected template
-4. Apply academic formatting (citations, references)
+3. Apply academic formatting (citations, references)
+4. Resolve and invoke the PDF renderer with the selected template
 5. Save as "AI-Safety-Literature-Review-2026-01-18.pdf" and report its actual path
 ```
 
