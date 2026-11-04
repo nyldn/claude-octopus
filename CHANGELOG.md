@@ -4,6 +4,11 @@
 
 ### Fixed
 
+- Haiku 5.5 can be saved as a Claude budget pin. Its estimates use the published
+  base rate through 100K input tokens and the whole-request tariff above that
+  boundary. Existing model defaults are unchanged.
+  Fixes [#1250](https://github.com/nyldn/claude-octopus/issues/1250).
+
 - A code-span quote written inside a Markdown table cell now matches its
   source line. Seats escape `|` as `\|` in a table, so a quote of
   `member.tier || member.legacyTier` arrived as `member.tier \|\| member.legacyTier`

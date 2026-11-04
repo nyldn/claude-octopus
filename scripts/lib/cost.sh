@@ -405,6 +405,7 @@ display_workflow_cost_estimate() {
         *:claude-sonnet-5)    claude_model_label="Sonnet 5" ;;
         *:claude-sonnet-4.6)  claude_model_label="Sonnet 4.6" ;;
         *:claude-haiku-4.5)   claude_model_label="Haiku 4.5" ;;
+        *:claude-haiku-5-5)   claude_model_label="Haiku 5.5" ;;
     esac
     echo -e "  ${BLUE}🔵 Claude${NC} ($claude_model_label): ${DIM}Included in Claude Code subscription${NC}"
     if [[ "$perplexity_is_api" == "true" ]]; then

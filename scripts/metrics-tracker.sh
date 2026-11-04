@@ -218,6 +218,7 @@ get_model_cost() {
         claude-sonnet-5|claude-sonnet-5-5) echo "2.00" ;;
         claude-sonnet-4.6|claude-sonnet-4.5|claude-sonnet-4-6|claude-sonnet-4-5) echo "3.00" ;;
         claude-sonnet-4)        echo "3.00" ;;
+        claude-haiku-5-5)       echo "0.10" ;;    # base rate; request tariff is in model-pricing.tsv
         claude-haiku-*)         echo "0.25" ;;
 
         # OpenAI/Codex models (rough estimates)

@@ -107,6 +107,44 @@ else
     test_fail "GPT-6 pricing lost the threshold or whole-request multiplier"
 fi
 
+test_case "Haiku 5.5 can be saved as a budget pin without changing defaults"
+pin_home="$TEST_TMP_DIR/haiku-pin-home"
+if env "HOME=$pin_home" OCTO_ALLOWED_PROVIDERS=claude bash "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" set claude.budget claude-haiku-5-5 >/dev/null 2>&1 &&
+   [[ "$(jq -r '.providers.claude.budget' "$pin_home/.claude-octopus/config/providers.json")" == "claude-haiku-5-5" ]] &&
+   [[ "$(get_model_catalog claude-haiku-5-5)" == "1000|yes|yes|yes|claude|budget|active" ]] &&
+   grep -Fqx 'claude-haiku-5-5' < <(octo_model_ids) &&
+   grep -Fq '"budget": "claude-haiku-4.5"' "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh"; then
+    test_pass
+else
+    test_fail "Haiku 5.5 pin admission failed or the existing budget default changed"
+fi
+
+test_case "Haiku 5.5 billing applies the whole-request tariff strictly above 100K"
+if PRICING_FILE="$pricing_file" python3 - <<'PY'
+import os, subprocess
+root = os.path.dirname(os.path.dirname(os.environ["PRICING_FILE"]))
+for model in ("claude-haiku-5-5", "anthropic/claude-haiku-5-5"):
+    for input_tokens in (99999, 100000, 100001):
+        command = 'source "$1/scripts/lib/models.sh"; source "$1/scripts/lib/cost.sh"; is_api_based_provider() { return 0; }; estimate_tokens() { printf "%s" "$test_input_tokens"; }; test_input_tokens="$3"; estimate_agent_call_cost claude-sdk "$2" ignored'
+        actual = float(subprocess.check_output(["bash", "-c", command, "test", root, model, str(input_tokens)], text=True))
+        multiplier = 5 if input_tokens > 100000 else 1
+        expected = input_tokens * (.1 + 2 * .5) * multiplier / 1e6
+        assert abs(actual - expected) < .000001, (model, input_tokens, actual, expected)
+PY
+then
+    test_pass
+else
+    test_fail "Haiku 5.5 pricing lost the strict threshold or whole-request multiplier"
+fi
+
+test_case "standalone metrics use the Haiku 5.5 base input rate"
+source "$PROJECT_ROOT/scripts/metrics-tracker.sh"
+if [[ "$(get_model_cost claude-haiku-5-5)" == "0.10" ]]; then
+    test_pass
+else
+    test_fail "Haiku 5.5 standalone input estimate is missing"
+fi
+
 test_case "routing suffix normalization preserves custom model identities"
 if [[ "$(octo_model_canonical_id floor)" == "floor" &&
       "$(octo_model_canonical_id :nitro)" == ":nitro" &&
