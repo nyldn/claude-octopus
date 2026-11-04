@@ -900,6 +900,13 @@ r="$(_report "$(_resp 'The cap is `1024 * 1024 * 1024 * 10` (`src/pricing.ts:2`)
 VERDICT: APPROVE')")"
 if jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
+for negative_compute in 'does not compute' "doesn't compute" 'did not compute'; do
+    test_case "#3246: negated compute claim is not positive source evidence: $negative_compute"
+    r="$(_report "$(_resp "src/pricing.ts:2 $negative_compute \`1024 * 1024 * 1024 * 10\`.
+VERDICT: APPROVE")")"
+    if jq -e '.quotes_checked == 1 and .quotes_verified == 0 and .quotes_unverifiable == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+
 test_case "#3246: an arithmetic line in a fence does not lower the fence's match threshold"
 r="$(_report "$(_resp "src/pricing.ts:2 keeps the fallback. The block:
 \`\`\`ts

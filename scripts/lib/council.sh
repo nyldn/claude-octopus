@@ -3462,7 +3462,7 @@ GAP_WORDS = {"reads", "read", "shows", "show", "contains", "contain", "has", "sa
 SOURCE_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|is|defines?|defined|declares?|declared|computes?)\b", re.I)
 SOURCE_ABSENCE = re.compile(
     r"\b(?:(?:does|do|did)\s+not|(?:doesn|don|didn)['’]t)\s+"
-    r"(?:currently\s+)?(?:contain|show|read|say|define|declare|have)\b", re.I)
+    r"(?:currently\s+)?(?:contain|show|read|say|define|declare|have|compute)\b", re.I)
 PROPOSAL = re.compile(r"\b(should|propos\w*|suggest\w*|recommend\w*|replace with|instead|would|could|change (?:it |this )?to|rewrit\w*|becomes?|example|e\.g\.|such as|consider|cover|prefer\w*|expected|want)\b", re.I)
 # Backticks also format prose and multiword values. Sentence punctuation alone
 # is not code syntax, nor is a dotted name embedded in a sentence. Calls,
