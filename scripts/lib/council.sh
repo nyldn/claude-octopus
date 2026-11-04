@@ -2810,7 +2810,7 @@ print(json.dumps(validated, separators=(",", ":")))
 PY
 }
 
-COUNCIL_EMPTY_GROUNDING_JSON='{"verification_failed":false,"citations":0,"citations_unresolved":0,"quotes_checked":0,"quotes_verified":0,"quotes_near_line":0,"quotes_attributed":0,"quotes_attributed_unverified":0,"quotes_verified_in_diff_removed":0,"quotes_verified_in_diff_added":0,"quotes_unverified":0,"quotes_unverifiable":0,"quotes_unverifiable_claimed_removed":0,"quotes_unverifiable_unresolved_citation":0,"quotes_unverifiable_command":0,"quotes_unverifiable_proposed":0,"quotes_unverifiable_prose":0,"quotes_unverifiable_diff_incomplete":0,"quotes_omitted":0,"response_oversized":false,"diff_truncated":false,"diff_unavailable":false,"diff_sources":[],"fabricated":false,"unverified_samples":[]}'
+COUNCIL_EMPTY_GROUNDING_JSON='{"verification_failed":false,"citations":0,"citations_unresolved":0,"quotes_checked":0,"quotes_verified":0,"quotes_near_line":0,"quotes_attributed":0,"quotes_attributed_unverified":0,"quotes_verified_in_diff_removed":0,"quotes_verified_in_diff_added":0,"quotes_unverified":0,"quotes_unverifiable":0,"quotes_unverifiable_claimed_removed":0,"quotes_unverifiable_unresolved_citation":0,"quotes_unverifiable_command":0,"quotes_unverifiable_proposed":0,"quotes_unverifiable_prose":0,"quotes_unverifiable_diff_incomplete":0,"quotes_omitted":0,"quotes_partial":0,"response_oversized":false,"diff_truncated":false,"diff_unavailable":false,"diff_sources":[],"fabricated":false,"unverified_samples":[]}'
 COUNCIL_FAILED_GROUNDING_JSON="${COUNCIL_EMPTY_GROUNDING_JSON/\"verification_failed\":false/\"verification_failed\":true}"
 
 council_response_quote_verification_json() {
@@ -2895,7 +2895,7 @@ result = {"verification_failed": False, "citations": 0, "citations_unresolved": 
           "quotes_unverifiable_claimed_removed": 0, "quotes_unverifiable_unresolved_citation": 0,
           "quotes_unverifiable_command": 0, "quotes_unverifiable_proposed": 0,
           "quotes_unverifiable_prose": 0, "quotes_unverifiable_diff_incomplete": 0,
-          "quotes_omitted": 0, "response_oversized": False, "diff_truncated": False, "diff_unavailable": False, "diff_sources": [],
+          "quotes_omitted": 0, "quotes_partial": 0, "response_oversized": False, "diff_truncated": False, "diff_unavailable": False, "diff_sources": [],
           # Preserve the report schema without copying provider excerpts into
           # persistent contribution records. Counts retain the rejection reason.
           "fabricated": False, "unverified_samples": []}
@@ -2999,7 +2999,8 @@ def resolve_citation(relative):
         return hits[0]
     # 3) A unique path suffix under the root, including hidden directories. A
     #    bare basename counts too when only one file has it (sail-cruisey #3295:
-    #    "pr-watchdog.yml:249" for .github/workflows/pr-watchdog.yml).
+    #    "pr-watchdog.yml:249" for .github/workflows/pr-watchdog.yml). A shared
+    #    name resolves only to the one the seat also cited by full path (below).
     global suffix_index, suffix_index_complete
     if suffix_index is None:
         suffix_index, suffix_index_complete = build_index()
@@ -3011,7 +3012,17 @@ def resolve_citation(relative):
     key = tail[::-1]
     at = bisect_left(suffix_index, (key,))
     hits = [p for suffix, p in suffix_index[at:at + 2] if suffix.startswith(key)]
+    if len(hits) > 1:
+        # Keep every same-named file, bounded, for the full-path tie-break below.
+        hits = []
+        for suffix, p in suffix_index[at:at + 64]:
+            if not suffix.startswith(key):
+                break
+            hits.append(p)
+        ambiguous[relative.as_posix()] = hits
+        return None
     return hits[0] if len(hits) == 1 else None
+ambiguous = {}
 
 # Same citation grammar as council_response_evidence_paths_json, plus offsets.
 CITATION = re.compile(r"(?<![A-Za-z0-9_./-])([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9]*)\s*:\s*([0-9]+)(?:-([0-9]+))?(?![A-Za-z0-9_/-]|\.(?:[A-Za-z0-9_/-]|\.))")
@@ -3056,7 +3067,9 @@ def resolve_outside_form(raw):
 
 # Resolve each distinct path once, using the shared sorted suffix index.
 resolved = {}
+citation_matches = []
 for match in CITATION.finditer(resp):
+    citation_matches.append(match)
     raw = match.group(1).strip()
     if raw not in resolved:
         relative = Path(raw)
@@ -3064,11 +3077,47 @@ for match in CITATION.finditer(resp):
             resolved[raw] = resolve_outside_form(relative)
         else:
             resolved[raw] = resolve_citation(relative)
+# sail-cruisey #3390: "sentry.ts:169" names two files, but a seat that also
+# cited functions-v2/_lib/sentry.ts by its full path means that one.
+cited_in_full = set()
+for value in resolved.values():
+    if value is not None:
+        try:
+            cited_in_full.add(value.resolve())
+        except (OSError, RuntimeError):
+            pass
+for raw, hits in ambiguous.items():
+    if resolved.get(raw) is None:
+        chosen = [hit for hit in hits if hit.resolve() in cited_in_full]
+        if len(chosen) == 1:
+            resolved[raw] = chosen[0]
+for match in citation_matches:
+    raw = match.group(1).strip()
     candidate = resolved[raw]
     token = (match.start(), match.end(), candidate, int(match.group(2)))
     tokens.append(token)
     if candidate is not None:
         citations.append(token)
+# sail-cruisey #3338: a file with no extension (".githooks/pre-commit:48",
+# "Makefile:12") is a citation only when it names a file under the root as
+# written; otherwise "host/path:80" shapes would count.
+EXTENSIONLESS = re.compile(r"(?<![A-Za-z0-9_./:-])((?:[A-Za-z0-9_.-]+/)+[A-Za-z0-9_-]+|Makefile|Dockerfile|Gemfile|Rakefile|Procfile|Jenkinsfile|Brewfile)"
+                           r"\s*:\s*([0-9]+)(?:-([0-9]+))?(?![A-Za-z0-9_/-]|\.[A-Za-z0-9_/-])")
+for match in EXTENSIONLESS.finditer(resp):
+    raw = match.group(1)
+    if raw not in resolved:
+        relative = Path(raw)
+        try:
+            candidate = (root / relative).resolve(strict=True)
+            resolved[raw] = candidate if ".." not in relative.parts and contained(candidate) and candidate.is_file() else None
+        except (OSError, RuntimeError):
+            resolved[raw] = None
+    if resolved[raw] is not None:
+        token = (match.start(), match.end(), resolved[raw], int(match.group(2)))
+        tokens.append(token)
+        citations.append(token)
+tokens.sort()
+citations.sort()
 result["citations"] = len(citations)
 result["citations_unresolved"] = len(tokens) - len(citations)
 if not citations:
@@ -3165,20 +3214,55 @@ for backtick_index in range(len(backticks) - 1, -1, -1):
     width = len(backticks[backtick_index].group())
     next_backtick[backtick_index] = last_backtick.get(width)
     last_backtick[width] = backtick_index
+backtick_starts = [b.start() for b in backticks]
+# sail-cruisey #3338: a seat writes `a \`b\` c` for a span holding backticks.
+# Paired \` inside a single-backtick span are literal; a lone `\` stays a
+# backslash, as in CommonMark.
+ESCAPED_SPAN = re.compile(r"((?:[^`\\\n]|\\[^\n])*?)`(?!`)")
+def escaped_pair_span(opening):
+    if len(opening.group()) != 1:
+        return None
+    match = ESCAPED_SPAN.match(resp, opening.end())
+    if not match or match.group(1).count("\\`") < 2 or match.group(1).count("\\`") % 2:
+        return None
+    # The closer may end a run whose first backtick is escaped ("\``").
+    index = bisect_right(backtick_starts, match.end() - 1) - 1
+    if index < 0 or backticks[index].end() != match.end():
+        return None
+    return index, match.group(1).replace("\\`", "`")
+# A span stays inside one paragraph: it never crosses a blank line or a line
+# that opens a new block (list item, heading, quote, table row, fence). A seat's
+# unclosed backtick in link text ("[`a.ts:3](file:///a.ts#L3)") is literal.
+# Otherwise one stray backtick pairs with the next paragraph and turns prose into
+# "quotes" (sail-cruisey #3338).
+SPAN_BREAK = re.compile(r"\n[ \t]*(?:\r?\n|[-+*][ \t]|\d{1,9}[.)][ \t]|#{1,6}[ \t]|>|\||```|~~~)")
+def link_text_opener(opening, closing):
+    if resp[opening.start() - 1:opening.start()] != "[":
+        return False
+    link = resp.find("](", opening.end())
+    return 0 <= link < closing.start()
 backtick_index = 0
 while backtick_index < len(backticks):
     opening = backticks[backtick_index]
     closing_index = next_backtick[backtick_index]
+    escaped_body = None
+    paired = escaped_pair_span(opening)
+    if paired is not None:
+        closing_index, escaped_body = paired
     backtick_index += 1
     if closing_index is None:
         continue
     closing = backticks[closing_index]
+    if SPAN_BREAK.search(resp, opening.end(), closing.start()) or link_text_opener(opening, closing):
+        continue
     quote_index = bisect_right(blockquote_starts, closing.end() - 1) - 1
     if in_fence(opening.start(), closing.end()) or (
             quote_index >= 0 and blockquote_ranges[quote_index][1] > opening.start()):
         continue
     # Markdown code spans replace embedded line endings with spaces.
     body = re.sub(r"\r\n?|\n", " ", resp[opening.end():closing.start()])
+    if escaped_body is not None:
+        body = escaped_body
     units.append((opening.start(), closing.end(), "inline", [body.strip()], [], ""))
     backtick_index = closing_index + 1
 # The "path:line" list shape: a line holding only a citation, followed by the
@@ -3221,6 +3305,19 @@ def specific_lines(block):
         if variants:
             out.append(variants)
     return out
+
+def short_lines(block):
+    # Nonempty lines too short to check on their own. They never count toward
+    # the two-thirds threshold, but an invented one still makes a fence partial.
+    out = []
+    for line in block:
+        variants = [line.strip(), GUTTER.sub("", line).strip()]
+        # An elision marker stands for omitted source; it is never a miss.
+        if ELLIPSIS.fullmatch(variants[-1]) or ELLIPSIS.fullmatch(variants[0]):
+            continue
+        if line.strip() and not any(checkable(v) for v in variants):
+            out.append([norm(v) for v in dict.fromkeys(variants) if norm(v)])
+    return [v for v in out if v]
 
 def unit_wholes(block):
     whole = " ".join(l.strip() for l in block)
@@ -3266,6 +3363,26 @@ def find_lines(hay, starts, line_numbers, needle, limit=50, following=()):
         at = hay.find(needle, at + 1)
     return found
 
+# sail-cruisey #3316: a seat joins "if (" / "a &&" / "b" / ") {" onto one line
+# as "if (a && b)". A space next to punctuation is layout, not content, so a
+# quote that misses only on that verifies. A space between two words still
+# counts: "await limit" is never "awaitlimit".
+LAYOUT_SPACE = re.compile(r" (?=[^\w ])|(?<=[^\w ]) ")
+# sail-cruisey #3386: a single-backtick span cannot hold a backtick, so a seat
+# quoting `describe("... `map`")` drops the file's inner backticks.
+BACKTICK = re.compile(r"`")
+stripped_cache = {}
+def stripped_entry(entry, pattern):
+    hay, starts, line_numbers = entry
+    got = stripped_cache.get((hay, pattern))
+    if got is None:
+        removed = [m.start() for m in pattern.finditer(hay)]
+        got = (pattern.sub("", hay), [s - bisect_left(removed, s) for s in starts], line_numbers)
+        stripped_cache[(hay, pattern)] = got
+    return got
+def tight_entry(entry):
+    return stripped_entry(entry, LAYOUT_SPACE)
+
 def match_variant(text, entry):
     hay, starts, line_numbers = entry
     needle = norm(text)
@@ -3275,16 +3392,65 @@ def match_variant(text, entry):
     # Elided fragments must occur in source order without reusing characters.
     pieces = [p for p in ELLIPSIS.split(needle) if specific(p)]
     if len(pieces) > 1 or (pieces and pieces[0] != needle):
-        return find_lines(hay, starts, line_numbers, pieces[0], following=pieces[1:])
+        lines = find_lines(hay, starts, line_numbers, pieces[0], following=pieces[1:])
+        return lines or elided_lines(entry, needle)
+    if specific(needle):
+        lines = find_lines(*tight_entry(entry), LAYOUT_SPACE.sub("", needle))
+        if not lines and "`" not in needle and "`" in hay:
+            lines = find_lines(*stripped_entry(entry, BACKTICK), needle)
+        if not lines and PLACEHOLDER.search(needle):
+            lines = pattern_lines(entry, r"\$\d+".join(re.escape(part) for part in PLACEHOLDER.split(needle)))
+        if not lines and ELLIPSIS.search(needle):
+            lines = elided_lines(entry, needle)
+        return lines
     return []
 
-def match_unit(wholes, line_variants, entry):
+# sail-cruisey #3389: "`household_id = ANY($n)` (:386, :427, :467)" stands for
+# $3, $4 and $5 at three call sites.
+PLACEHOLDER = re.compile(r"\$[nNix](?![\w$])")
+def pattern_lines(entry, pattern):
+    hay, starts, line_numbers = entry
+    return [line_numbers[bisect_right(starts, m.start()) - 1] if starts else 1
+            for m in re.finditer(pattern, hay)]
+
+# sail-cruisey #3389: "`!== "POST" || !endsWith(...)`" marks itself abbreviated.
+# It verifies when its tokens appear in order on one source line, with at
+# least two names and every token the file's.
+TOKEN = re.compile(r"\w+|[^\w\s]")
+def elided_lines(entry, needle):
+    tokens_in = TOKEN.findall(ELLIPSIS.sub(" ", needle))
+    if len(tokens_in) < 4 or sum(1 for t in tokens_in if len(t) >= 3 and t[0].isalpha()) < 2:
+        return []
+    # The file text is one space-joined string, so test each source line alone,
+    # and bound the span so a joined diff side cannot carry it either.
+    pattern = re.compile(r".*?".join(re.escape(t) for t in tokens_in))
+    hay, starts, line_numbers = entry
+    limit = 2 * len(needle) + 40
+    found = []
+    for i, line_start in enumerate(starts):
+        line_end = starts[i + 1] if i + 1 < len(starts) else len(hay)
+        match = pattern.search(hay, line_start, line_end)
+        if match and match.end() - match.start() <= limit:
+            found.append(line_numbers[i])
+    return found
+
+def match_unit(wholes, line_variants, entry, misses=None, short=()):
     # A multi-line block verifies as a whole or when at least two thirds of its
     # specific lines are in the file. One generic real line (a signature, an
-    # "if (flag) {") can no longer carry an otherwise invented block.
+    # "if (flag) {") can no longer carry an otherwise invented block. When the
+    # threshold or elision carries it, the lines it did not find, short ones
+    # included, are appended to misses.
+    hay = entry[0]
+    def missing(found_count):
+        return (len(line_variants) - found_count +
+                sum(1 for variants in short if not any(v in hay for v in variants)))
     for variant in wholes:
         lines = match_variant(variant, entry)
         if lines:
+            if misses is not None and norm(variant) not in hay:
+                # Elided fragments matched; a line between them may be invented.
+                misses.append(missing(sum(1 for variants in line_variants
+                                          if any(match_variant(v, entry) for v in variants))))
             return lines
     if not line_variants:
         return []
@@ -3296,6 +3462,8 @@ def match_unit(wholes, line_variants, entry):
                 found.append(lines)
                 break
     if found and len(found) * 3 >= len(line_variants) * 2:
+        if misses is not None:
+            misses.append(missing(len(found)))
         return found[0]
     return []
 
@@ -3424,15 +3592,20 @@ def load_diff_sides():
     # Joined so a multi-line quote of consecutive diff lines still matches.
     return (" ".join(removed), " ".join(added))
 
-def in_diff_side(wholes, line_variants, side):
+def in_diff_side(wholes, line_variants, side, misses=None, short=()):
     # Reuse the source-file threshold, including elision and gutter handling.
-    return bool(side and match_unit(wholes, line_variants, (side, [0], [1])))
+    return bool(side and match_unit(wholes, line_variants, (side, [0], [1]), misses, short))
 
 REMOVAL_WORDS = re.compile(r"\b(remov(?:e|ed|es|ing|al)|delet(?:e|ed|es|ing|ion)|drop(?:ped|s)?|no longer|was gone|got rid of)\b", re.I)
 # A command the seat ran ("`npm ci --dry-run`") is not a claim about file
 # content. If it is not in the cited file, it is unverifiable, never fabricated.
 COMMAND = re.compile(r"^\$?\s*(?:npm|npx|pnpm|yarn|node|deno|bun|git|gh|make|bash|sh|zsh|cd|ls|cat|grep|rg|sed|awk|curl|python3?|pip|uv|cargo|go|tsc|vitest|jest|pytest|docker|kubectl|psql|netlify|supabase|env)\s")
 SHELL_FENCES = {"sh", "bash", "shell", "console", "zsh", "terminal", "shell-session"}
+# Nor is the error a seat's probe threw ("throws `RangeError: Maximum call stack
+# size exceeded`", sail-cruisey #3386): an error class and its message, a
+# traceback header or a panic.
+RUNTIME_ERROR = re.compile(r"^(?:Uncaught (?:\(in promise\) )?)?[A-Z][A-Za-z]*(?:Error|Exception)(?: \[[\w-]+\])?: \S"
+                           r"|^Traceback \(most recent call last\)|^panic: \S")
 # A unit is ATTRIBUTED when it sits directly under or after a citation, with only
 # markup or a source verb between them ("x.ts:12 defines `...`", "x.ts:12:" then a
 # fence). That is the seat stating the cited file contains this code, so the
@@ -3444,10 +3617,26 @@ GAP_WORDS = {"reads", "read", "shows", "show", "contains", "contain", "has", "sa
              "line", "lines", "source", "code", "verbatim", "quote", "quoted", "excerpt",
              "current", "currently", "actual", "l"}
 SOURCE_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|is|defines?|defined|declares?|declared)\b", re.I)
+# A content verb before "built as" keeps the citation's claim ("x.ts:2 contains
+# the code built as `...`"); "I" or "we" as the subject of "built as" marks the
+# seat's own input ("x.ts:2 reads a row I constructed as `...`"). Another
+# first-person word does not: "reads what my teammate built as" is a claim.
+OWN_INPUT = re.compile(r"(?:constructed|built|crafted) as", re.I)
+CONTENT_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|defines?|defined|declares?|declared)\b", re.I)
+FIRST_PERSON_SUBJECT = re.compile(r"\b(?:I|[Ww]e)\s+(?:constructed|built|crafted)\s+as\b")
+def proposes(text):
+    for match in PROPOSAL.finditer(text):
+        if OWN_INPUT.fullmatch(match.group(0)) and not re.search(r"[.!?;]", text):
+            verbs = list(CONTENT_VERB.finditer(text, 0, match.start()))
+            if verbs and not FIRST_PERSON_SUBJECT.search(text, verbs[-1].end(), match.end()):
+                continue
+        return True
+    return False
 SOURCE_ABSENCE = re.compile(
     r"\b(?:(?:does|do|did)\s+not|(?:doesn|don|didn)['’]t)\s+"
     r"(?:currently\s+)?(?:contain|show|read|say|define|declare|have)\b", re.I)
-PROPOSAL = re.compile(r"\b(should|propos\w*|suggest\w*|recommend\w*|replace with|instead|would|could|change (?:it |this )?to|rewrit\w*|becomes?|example|e\.g\.|such as|consider|cover|prefer\w*|expected|want)\b", re.I)
+PROPOSAL = re.compile(r"\b(should|propos\w*|suggest\w*|recommend\w*|replace with|instead|would|could|change (?:it |this )?to|rewrit\w*|becomes?|example|e\.g\.|such as|consider|cover|prefer\w*|expected|want|(?:constructed|built|crafted) as"
+                      r"|(?:an?|any|some) [\w-]+(?: [\w-]+)? like)\b", re.I)
 # Backticks also format prose and multiword values. Sentence punctuation alone
 # is not code syntax, nor is a dotted name embedded in a sentence. Calls,
 # indexing, operators and statements returning a member expression still are.
@@ -3472,13 +3661,16 @@ def association(start):
         return None, ""
     return token, gap
 
+# sail-cruisey #3390: "... (`x.ts:375`).\n- `GET https://h/p?q=a b=c` ships"
+# starts a new claim. A citation's sentence ends at a new list item.
+NEXT_ITEM = re.compile(r"[.!?][)\]`*_]*[ \t]*\n[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]")
 def attribution(token, gap):
-    if token is None or len(gap) > 200 or gap.count("\n") > 2:
+    if token is None or len(gap) > 200 or gap.count("\n") > 2 or NEXT_ITEM.search(gap):
         return None
     # A source verb in this bounded clause still attributes the quote when
     # ordinary modifiers follow it. A new sentence or a proposal ends that claim.
     source_clause = SOURCE_VERB.search(gap) and not re.search(r"[.!?;]", gap)
-    if PROPOSAL.search(gap) or (not source_clause and any(
+    if proposes(gap) or (not source_clause and any(
             word.lower() not in GAP_WORDS for word in re.findall(r"[A-Za-z]+", gap))):
         return None
     line_start = resp.rfind("\n", 0, token[0]) + 1
@@ -3497,12 +3689,76 @@ def proposed(start):
         prose = preceding[preceding.rfind("\n") + 1:]
     # A source filename such as example.ts is not proposal language.
     prose = CITATION.sub("", LINK_TARGET.sub("", prose))
-    return bool(PROPOSAL.search(prose))
+    return proposes(prose)
+
+# sail-cruisey #3340/#3339: a seat that ran the code under review names the
+# input it fed in ("probing returns `[]` for `x`", "`a`, `b` and `c` all return
+# `[]`", "Bypasses: `x`", the Input column of a results table). An unattributed
+# inline span next to that wording, alone or in a run of spans joined by "and",
+# "or" or commas, is the seat's own string. So is code the seat says the file
+# avoids ("it avoids returning `x`").
+inline_spans = sorted((u[0], u[1]) for u in units if u[2] == "inline")
+SPAN_JOIN = re.compile(r"\s*(?:,\s*(?:and|or)?|and|or|followed by|then)\s*", re.I)
+PROBE_BEFORE = re.compile(r"(?:\b(?:reproduc\w*|fed|feeding|passing|called with|for input|inputs?|synthetic [\w-]+|lets|bypass(?:es|ed)?:?)"
+                          r"|\breturns? `[^`\n]*` for)(?: both| either)?\s*$", re.I)
+PROBE_AFTER = re.compile(r"^\s*(?:(?:all|both|each|also|still|then|now) )?(?:returns?|yields?|produces?|pass(?:es)?|still pass\w*"
+                         r"|execut(?:es?|ed)|miss(?:es|ed)?|evad(?:es?|ed)|bypass(?:es|ed)?|slips?|leaks?"
+                         r"|(?:is|are) (?:not )?(?:flagged|rejected|accepted|ignored|detected|caught|blocked|missed|allowed)"
+                         r"|becomes? an?)\b", re.I)
+NEGATED = re.compile(r"\b(?:avoids?|avoiding|never|(?:does|do|did)(?: not|n'?t)|without)(?: \w+ing| \w+s?)?\s*$", re.I)
+INPUT_HEADER = re.compile(r"^\s*(?:inputs?|commands?|cases?|probes?|payloads?|samples?|strings?)\s*$", re.I)
+TABLE_DELIMITER = re.compile(r"^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$")
+def pipes(text):
+    # Cell separators, ignoring pipes inside code spans or escaped.
+    text = re.sub(r"`+[^`]*`+|\\.", lambda m: "x" * len(m.group(0)), text)
+    return [i for i, ch in enumerate(text) if ch == "|"]
+def input_cell(start):
+    # The input column of a table of probe results ("| Input | Real | Broken |").
+    row_start = resp.rfind("\n", 0, start) + 1
+    rows = []
+    line_start = row_start
+    while True:
+        line_end = resp.find("\n", line_start)
+        line = resp[line_start:line_end if line_end >= 0 else len(resp)]
+        if "|" not in line:
+            break
+        rows.append(line)
+        if line_start == 0:
+            break
+        line_start = resp.rfind("\n", 0, line_start - 1) + 1
+    if len(rows) < 3:
+        return False
+    header, delimiter = rows[-1], rows[-2]
+    if not TABLE_DELIMITER.match(delimiter):
+        return False
+    prefix = resp[row_start:start]
+    column = len(pipes(prefix)) - (1 if prefix.lstrip().startswith("|") else 0)
+    bounds = pipes(header)
+    names = [header[a + 1:b] for a, b in zip([-1] + bounds, bounds + [len(header)])]
+    if header.lstrip().startswith("|"):
+        names = names[1:]
+    return 0 <= column < len(names) and bool(INPUT_HEADER.match(names[column]))
+def probe_input(start, end):
+    i = bisect_left(inline_spans, (start, end))
+    if i >= len(inline_spans) or inline_spans[i][0] != start:
+        return False
+    first = last = i
+    while first > 0 and SPAN_JOIN.fullmatch(resp[inline_spans[first - 1][1]:inline_spans[first][0]]):
+        first -= 1
+    while last + 1 < len(inline_spans) and SPAN_JOIN.fullmatch(resp[inline_spans[last][1]:inline_spans[last + 1][0]]):
+        last += 1
+    line_start = resp.rfind("\n", 0, inline_spans[first][0]) + 1
+    line_end = resp.find("\n", inline_spans[last][1])
+    before = resp[max(line_start, inline_spans[first][0] - 200):inline_spans[first][0]]
+    after = resp[inline_spans[last][1]:line_end if line_end >= 0 else len(resp)]
+    return bool(PROBE_BEFORE.search(before) or PROBE_AFTER.match(after) or NEGATED.search(before)
+                or input_cell(start))
 
 checkable_units = 0
 for start, end, kind, block, removed_block, info in units:
     wholes = unit_wholes(block) if len(block) > 1 else []
     line_variants = specific_lines(block)
+    short = short_lines(block)
     removed_variants = [v for v in [" ".join(l.strip() for l in removed_block)] + [l.strip() for l in removed_block]
                         if v and checkable(v)]
     if not wholes and not line_variants and not removed_variants and not (
@@ -3554,20 +3810,25 @@ for start, end, kind, block, removed_block, info in units:
     # A miss is only checkable when every file the quote is bound to loaded; a
     # readable neighbor cannot stand in for an oversized or unreadable bound file.
     readable = True
-    verified = near = False
+    verified = near = partial = False
     for path in bound_paths + [p for p in all_cited if p not in bound_paths]:
         entry = load(path)
         if entry is None:
             if path in bound_paths:
                 readable = False
             continue
-        lines = match_unit(wholes, line_variants, entry)
+        misses = []
+        lines = match_unit(wholes, line_variants, entry, misses, short)
         if not lines:
             continue
-        verified = True
         cited_lines = [line for p, line in bound if p == path]
-        near = any(abs(found - cited) <= NEAR_LINES for found in lines for cited in cited_lines)
-        break
+        near = near or any(abs(found - cited) <= NEAR_LINES for found in lines for cited in cited_lines)
+        # A partial match may be complete in a later cited file; keep looking
+        # for the report. The first match already decides the verdict.
+        partial = bool(misses and misses[0])
+        verified = True
+        if not partial:
+            break
     if kind == "bare":
         # Positive evidence only: a matched bare line is a verified quote; an
         # unmatched one may be the seat's own prose and is not counted.
@@ -3582,6 +3843,17 @@ for start, end, kind, block, removed_block, info in units:
     if attributed is not None:
         result["quotes_attributed"] += 1
     diff_side_hit = None
+    diff_partial = False
+    if verified and partial and not removed_block:
+        # A fence partial in the cited file but complete on either side of the
+        # reviewed diff is not partial. The file match keeps the verified count.
+        if diff_sides is None:
+            diff_sides = load_diff_sides()
+        for side in diff_sides:
+            side_misses = []
+            if in_diff_side(wholes, line_variants, side, side_misses, short) and not any(side_misses):
+                partial = False
+                break
     if not verified or removed_block:
         if diff_sides is None:
             diff_sides = load_diff_sides()
@@ -3590,33 +3862,54 @@ for start, end, kind, block, removed_block, info in units:
             # A mixed fence makes claims about both versions. A genuine
             # addition cannot excuse invented removals, or the reverse.
             removed_wholes = unit_wholes(removed_block) or [norm(" ".join(removed_block))]
-            removed_hit = in_diff_side(removed_wholes, specific_lines(removed_block), removed_side)
-            kept_hit = verified or not block or in_diff_side(wholes, line_variants, added_side)
+            removed_misses, kept_misses = [], []
+            removed_hit = in_diff_side(removed_wholes, specific_lines(removed_block), removed_side,
+                                       removed_misses, short_lines(removed_block))
+            # Each portion is partial on its own side. A kept portion partial in
+            # the cited file but exact on the added side is not partial.
+            kept_on_added = bool(block) and in_diff_side(wholes, line_variants, added_side, kept_misses, short)
+            kept_hit = verified or not block or kept_on_added
+            if kept_on_added:
+                kept_partial = any(kept_misses) and (partial or not verified)
+            else:
+                kept_partial = verified and partial
             verified = False
             if removed_hit and kept_hit:
                 diff_side_hit = "removed"
-        elif in_diff_side(wholes, line_variants, removed_side):
-            diff_side_hit = "removed"
-        elif in_diff_side(wholes, line_variants, added_side):
-            diff_side_hit = "added"
+                diff_partial = any(removed_misses) or kept_partial
+        else:
+            # Check both sides: the removed side keeps precedence, but an exact
+            # match on either side means the fence is not partial.
+            removed_misses, added_misses = [], []
+            hits = [(side_name, side_misses) for side_name, side, side_misses in
+                    (("removed", removed_side, removed_misses), ("added", added_side, added_misses))
+                    if in_diff_side(wholes, line_variants, side, side_misses, short)]
+            if hits:
+                diff_side_hit = hits[0][0]
+                diff_partial = all(any(side_misses) for _, side_misses in hits)
     sample = (flat_variants or removed_variants)[0]
     if verified:
         result["quotes_verified"] += 1
         if near:
             result["quotes_near_line"] += 1
+        # sail-cruisey #3247: a mostly real fence can carry an invented line.
+        # Report it; the two-thirds threshold still decides the verdict.
+        result["quotes_partial"] += int(kind == "fence" and partial)
     elif diff_side_hit:
         result["quotes_verified"] += 1
         result["quotes_verified_in_diff_" + diff_side_hit] += 1
+        result["quotes_partial"] += int(kind == "fence" and diff_partial)
     elif not diff_sides[0] and not diff_sides[1] and (
             removed_block or REMOVAL_WORDS.search(resp[max(0, start - REMOVAL_WINDOW):end + REMOVAL_WINDOW])):
         # No diff to check a claimed removal against: unverifiable, not fabricated.
         result["quotes_unverifiable"] += 1
         result["quotes_unverifiable_claimed_removed"] += 1
     elif attributed is None and (info in SHELL_FENCES or (
-            block and all(COMMAND.match(norm(l) + " ") for l in block))):
+            block and all(COMMAND.match(norm(l) + " ") for l in block)) or (
+            kind == "inline" and block and RUNTIME_ERROR.match(norm(block[0])))):
         result["quotes_unverifiable"] += 1
         result["quotes_unverifiable_command"] += 1
-    elif proposed(start):
+    elif proposed(start) or (kind == "inline" and attributed is None and probe_input(start, end)):
         result["quotes_unverifiable"] += 1
         result["quotes_unverifiable_proposed"] += 1
     elif kind in ("inline", "blockquote") and attributed is None and not CODE_SYNTAX.search(sample):

@@ -100,6 +100,53 @@
   An unsafe existing path cannot fall back to a different file.
   [#1236](https://github.com/nyldn/claude-octopus/pull/1236).
 
+- A council seat is no longer marked fabricated for a test input it built
+  itself (sail-cruisey #3247). A span introduced as "constructed as", "built
+  as" or "crafted as" is the seat's own proposal, like one introduced by
+  "such as", so a seat whose only checked quote was such an input is no longer
+  dropped as blind beside real citations. After a content verb, as in
+  "x.ts:2 contains the code built as", the span is still the file's code and is
+  checked, unless "I" or "we" built it. Quote reports also gain
+  `quotes_partial`, which counts fences that verify at the two-thirds
+  threshold, in a cited file or the reviewed diff, but contain a line found
+  nowhere, short lines included. A fence complete in a later cited file is not
+  partial. It does not change the verdict.
+
+- Council seats with real citations are no longer marked fabricated for
+  quotes the verifier misread (sail-cruisey #3316, #3338, #3339, #3340). A
+  multi-line condition written on one line verifies, because a space next to
+  punctuation is layout. A code span stays inside one paragraph, a backtick
+  opened in link text is literal, and paired `` \` `` inside a span are
+  literal backticks. Citations of files with no extension, such as
+  `.githooks/pre-commit:48`, bind their quotes. The inputs a seat says it fed
+  to the code under review, and code it says the file avoids, are its own
+  words, not quotes of a file. After a content verb, "built as" marks the
+  seat's own input only when "I" or "we" built it. A fence partial in a cited
+  file but complete in the reviewed diff is not counted as partial.
+
+- Council seats with real citations are no longer marked fabricated for
+  quoting the error a probe threw (`RangeError: Maximum call stack size
+  exceeded`), for an example they made up ("a template like `...`"), or for
+  a quote that drops the file's inner backticks, which a single-backtick span
+  cannot hold (sail-cruisey #3386). A runtime error attributed to a cited
+  file is still checked.
+
+- A quote with `$n` for a numbered placeholder, or abbreviated with `...`
+  (`!== "POST" || !endsWith(...)`), verifies when it matches one line of the
+  cited file (sail-cruisey #3389). A basename that two files share, such as
+  `sentry.ts:169`, now resolves to the one the seat also cited by full path,
+  so its quotes are checked instead of left unresolved (sail-cruisey #3390).
+  A span on a new list item is no longer attributed to the previous item's
+  citation.
+
+- `council-wait.sh --pool --supersede-key` no longer returns the previous
+  round when the wait starts before the new round's run dir exists
+  (sail-cruisey #3364). A keyed round already finished at first sight is held
+  for `--settle` seconds (default 60) while a newer same-key round may appear;
+  `--since` skips the hold. `--background` drops the 570-second bound for a
+  wait run as a background task, and a timeout now says the round may still
+  be running and how to re-arm.
+
 ## [11.15.2] - 2026-10-28
 
 ### Fixed
