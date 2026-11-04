@@ -72,6 +72,26 @@ class PolicyFindings(unittest.TestCase):
                 self.assertEqual(report["quotes_checked"], 1, report)
                 self.assertTrue(report["fabricated"], report)
 
+    def test_encoded_outer_fence_excludes_accepted_policy_block(self):
+        block = "```octopus-policy-findings\n" + json.dumps(FINDINGS) + "\n```\n"
+        source = (self.root / "pricing.ts").read_text().strip()
+        for closer in ("&#96;&#96;&#96;\n", ""):
+            for before, after, unverified in ((source, source, 0),
+                                              (FAKE, source, 1),
+                                              (source, FAKE, 1),
+                                              (FAKE, FAKE, 2)):
+                with self.subTest(closed=bool(closer), before=before, after=after):
+                    text = ("pricing.ts:1 contains:\n\n&#96;&#96;&#96;ts\n"
+                            + before + "\n" + block + after + "\n" + closer)
+                    result = self.extract(text)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(json.loads(result.stdout), FINDINGS)
+                    report = self.grounding(text)
+                    self.assertEqual(report["quotes_checked"], 2, report)
+                    self.assertEqual(report["quotes_unverified"], unverified, report)
+                    self.assertEqual(report["quotes_verified"], 2 - unverified, report)
+                    self.assertEqual(report["fabricated"], unverified == 2, report)
+
     def test_runtime_rejects_invalid_json_and_shapes(self):
         for body in [
             '{"findings": [], "findings": []}',

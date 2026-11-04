@@ -3160,25 +3160,38 @@ def in_policy_block(start):
     i = bisect_right(policy_starts, start) - 1
     return i >= 0 and policy_ranges[i][1] > start
 
+def capture_fence(opener, end, body_end):
+    # Accepted raw policy blocks can sit inside an entity-decoded ordinary
+    # fence. Split its quote units so neither side absorbs the findings JSON.
+    start, body_start = opener.start(), opener.end()
+    index = max(0, bisect_right(policy_starts, body_start) - 1)
+    for index in range(index, len(policy_ranges)):
+        policy_start, policy_end = policy_ranges[index]
+        if policy_start >= body_end:
+            break
+        if policy_end <= body_start:
+            continue
+        fences.append((start, policy_start, opener.group(2), resp[body_start:policy_start]))
+        start = body_start = policy_end
+    fences.append((start, end, opener.group(2), resp[body_start:body_end]))
+
 opener = None
 # A closing fence uses the same marker and at least the opening width. Scan
 # marker lines once so mismatched or unterminated fences cannot hide quotes.
 # Treat malformed info strings as openers too, matching the verdict parser.
 for match in re.finditer(r"^ {0,3}(`{3,}|~{3,})([^\n]*)(?:\n|$)", resp, re.M):
     marker, info = match.groups()
+    # Policy markers cannot open or close an ordinary fence.
+    if in_policy_block(match.start()):
+        continue
     if opener is None:
-        # Findings-block markers belong to that block, whose range is added
-        # below; an indented opener with an unindented closer must not leave
-        # the closer open as a fence that runs to the end of the response.
-        if in_policy_block(match.start()):
-            continue
         opener = match
     elif (marker[0] == opener.group(1)[0] and len(marker) >= len(opener.group(1))
           and not info.strip()):
-        fences.append((opener.start(), match.end(), opener.group(2), resp[opener.end():match.start()]))
+        capture_fence(opener, match.end(), match.start())
         opener = None
 if opener is not None:
-    fences.append((opener.start(), len(resp), opener.group(2), resp[opener.end():]))
+    capture_fence(opener, len(resp), len(resp))
 for start, end, info, body in fences:
     fence_ranges.append((start, end))
     info = info.strip().lower()
