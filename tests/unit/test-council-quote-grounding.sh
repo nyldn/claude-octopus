@@ -3052,6 +3052,17 @@ printf called > "$OCTO_TEST_PARTIAL_GIT_MARKER"
 exit 1
 GIT_PARTIAL_QUOTE
 chmod +x "$partial_quote_bin/git"
+test_case "the partial-fence Git shim runs as a positive control"
+partial_fence_response="$(_resp "src/pricing.ts:2 reads:
+\`\`\`ts
+$REAL_NEAR
+$FAKE
+return applyTaxes(base, sailing.portFees);
+\`\`\`
+VERDICT: APPROVE")"
+r="$(OCTO_TEST_PARTIAL_GIT_MARKER="$partial_quote_marker" PATH="$partial_quote_bin:$PATH" _report "$partial_fence_response")"
+if [[ -e "$partial_quote_marker" ]] && jq -e '.verification_failed == false and .quotes_verified == 1 and .quotes_partial == 1' <<< "$r" >/dev/null; then test_pass; else test_fail "partial fence did not reach the Git shim: $r"; fi
+rm -f "$partial_quote_marker"
 partial_quote_response="$(_resp "src/pricing.ts:2 reads:
 > $REAL_NEAR
 > $FAKE
@@ -3059,5 +3070,45 @@ partial_quote_response="$(_resp "src/pricing.ts:2 reads:
 VERDICT: APPROVE")"
 r="$(OCTO_TEST_PARTIAL_GIT_MARKER="$partial_quote_marker" PATH="$partial_quote_bin:$PATH" _report "$partial_quote_response")"
 if [[ ! -e "$partial_quote_marker" ]] && jq -e '.verification_failed == false and .quotes_verified == 1 and .quotes_partial == 0' <<< "$r" >/dev/null; then test_pass; else test_fail "verified blockquote consulted Git: $r"; fi
+
+# PR #1237 follow-up: short inline elisions obey the same matching contract
+# as specific lines, including failure when a retained fragment is invented.
+printf '%s\n' "$REAL_NEAR" 'if (x) { return result; }' 'foo(actualArgument);' \
+    'return applyTaxes(base, sailing.portFees);' > "$ROOT/src/elision.ts"
+for short_elision in 'if (x) { ... }' 'foo(...);' 'foo(…);' 'bar(...);'; do
+    test_case "short inline elision reports only missing fragments: $short_elision"
+    expected_partial=0
+    [[ "$short_elision" == 'bar(...);' ]] && expected_partial=1
+    r="$(_report "$(_resp "src/elision.ts:1 reads:
+\`\`\`ts
+$REAL_NEAR
+$short_elision
+return applyTaxes(base, sailing.portFees);
+\`\`\`
+VERDICT: APPROVE")")"
+    if jq -e --argjson partial "$expected_partial" '.verification_failed == false and .quotes_verified == 1
+        and .quotes_partial == $partial and .fabricated == false' <<< "$r" >/dev/null; then
+        test_pass
+    else
+        test_fail "short elision lost its fragment classification: $r"
+    fi
+done
+
+for repeated_prefix in 'has built as ' 'has built as built as ' 'built as '; do
+    test_case "repeated construction wording stays within the verifier budget: $repeated_prefix"
+    repeated_proposal="$TEST_TMP_DIR/repeated-construction.md"
+    python3 - "$repeated_proposal" "$repeated_prefix" "$REAL_NEAR" <<'PY_REPEATED_CONSTRUCTION'
+import sys
+from pathlib import Path
+Path(sys.argv[1]).write_text("has " + sys.argv[2] * 40000 + "src/pricing.ts:2 contains `" + sys.argv[3] + "`\nVERDICT: REVISE\n")
+PY_REPEATED_CONSTRUCTION
+    r="$(_report "$repeated_proposal")"
+    if jq -e '.verification_failed == false and .quotes_attributed == 1 and .quotes_verified == 1
+        and .quotes_unverifiable_proposed == 0 and .fabricated == false' <<< "$r" >/dev/null; then
+        test_pass
+    else
+        test_fail "repeated construction wording exhausted verification: $r"
+    fi
+done
 
 test_summary

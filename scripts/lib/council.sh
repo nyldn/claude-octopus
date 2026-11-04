@@ -3300,7 +3300,9 @@ def match_unit(wholes, line_variants, entry, misses=None, short=()):
     hay = entry[0]
     def missing(found_count):
         return (len(line_variants) - found_count +
-                sum(1 for variants in short if not any(v in hay for v in variants)))
+                sum(1 for variants in short if not any(
+                    all(piece in hay for piece in ELLIPSIS.split(v) if piece)
+                    for v in variants)))
     for variant in wholes:
         lines = match_variant(variant, entry)
         if lines:
@@ -3494,10 +3496,21 @@ def proposes(text):
     # A proposal in an earlier sentence cannot excuse a current source claim.
     # Keep terminal punctuation on a standalone fence lead-in in its clause.
     end = len(text.rstrip(" \t\r\n.!?;"))
-    for match in PROPOSAL.finditer(text, clause_start(text, end)):
+    start = clause_start(text, end)
+    verbs = CONTENT_VERB.finditer(text, start)
+    verb = next(verbs, None)
+    verb_end = None
+    previous_end = start
+    for match in PROPOSAL.finditer(text, start):
         if OWN_INPUT.fullmatch(match.group(0)):
-            verbs = list(CONTENT_VERB.finditer(text, clause_start(text, match.start()), match.start()))
-            if verbs and not FIRST_PERSON_SUBJECT.search(text, verbs[-1].end(), match.start()):
+            # Advance through verbs once. A direct I/we subject cannot contain
+            # an earlier proposal, so its search need not rescan that prefix.
+            while verb is not None and verb.end() <= match.start():
+                verb_end = verb.end()
+                verb = next(verbs, None)
+            if verb_end is not None and not FIRST_PERSON_SUBJECT.search(
+                    text, max(verb_end, previous_end), match.start()):
+                previous_end = match.end()
                 continue
         return True
     return False
