@@ -114,8 +114,7 @@ probe_single_agent opencode perspective login-test
                     self.assertEqual(Path(self.env["DISPATCH_MARKER"]).exists(), connected)
                     self.assertTrue(self.marker.exists())
 
-    def test_workflow_admission_confirms_sqlite_login_before_rejecting(self):
-        (self.data / "opencode.db").touch()
+    def test_workflow_admission_confirms_sqlite_and_environment_logins(self):
         self.env["CLI_VERSION"] = "2.0.23"
         script = r'''
 source scripts/lib/preflight.sh
@@ -127,21 +126,78 @@ provider_smoke_test() { :; }
 WORKSPACE_DIR="$HOME"; PREFLIGHT_CACHE_FILE="$HOME/preflight-cache"
 preflight_check true
 '''
-        for roster in ('', 'opencode'):
-            for connected in (False, True):
-                with self.subTest(roster=roster, connected=connected):
-                    self.marker.unlink(missing_ok=True)
-                    self.env['OCTOPUS_COUNCIL_DEFAULT_PROVIDERS'] = roster
-                    self.env['AUTH_JSON'] = ('[{"id":"openai","connections":[{"type":"credential"}]}]'
-                                             if connected else '[]')
-                    result = self.shell(script)
-                    self.assertEqual(result.returncode == 0, connected, result.stdout + result.stderr)
-                    self.assertTrue(self.marker.exists(), 'runtime admission never confirmed login')
-        self.env['OCTOPUS_SKIP_PROVIDER_PROBES'] = 'true'
-        self.marker.unlink(missing_ok=True)
-        result = self.shell(script)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertFalse(self.marker.exists())
+        for storage in ("sqlite", "environment"):
+            database = self.data / "opencode.db"
+            if storage == "sqlite":
+                database.touch()
+            else:
+                database.unlink()
+                self.env["OPENAI_API_KEY"] = "fixture"
+            for roster in ("", "opencode"):
+                for connected in (False, True):
+                    with self.subTest(storage=storage, roster=roster, connected=connected):
+                        self.marker.unlink(missing_ok=True)
+                        self.env["OCTOPUS_COUNCIL_DEFAULT_PROVIDERS"] = roster
+                        self.env["AUTH_JSON"] = json.dumps([
+                            {"id": "openai", "connections": [{"type": "credential" if storage == "sqlite" else "environment"}]}
+                        ] if connected else [])
+                        result = self.shell(script)
+                        self.assertEqual(result.returncode == 0, connected, result.stdout + result.stderr)
+                        self.assertTrue(self.marker.exists(), "admission never checked login")
+            self.env["OCTOPUS_SKIP_PROVIDER_PROBES"] = "true"
+            self.marker.unlink(missing_ok=True)
+            self.assertNotEqual(self.shell(script).returncode, 0)
+            self.assertFalse(self.marker.exists())
+            self.env["OCTOPUS_SKIP_PROVIDER_PROBES"] = "false"
+
+    def test_background_version_detection_uses_the_worker_directory(self):
+        caller = self.base / "caller"
+        project = self.base / "project"
+        caller.mkdir()
+        project.mkdir()
+        self.env.update(PROJECT_ROOT=str(project), COMMAND_FILE=str(self.base / "command"),
+                        HEALTH_DIRECTORY=str(self.base / "health-directory"))
+        script = r'''
+source "$PLUGIN_DIR/scripts/lib/spawn.sh"
+source "$PLUGIN_DIR/scripts/lib/dispatch.sh"
+for helper in log match_routing_rule load_agent_checkpoint load_earned_skills build_provider_context octo_spawn_contract_plan octo_spawn_contract_resolve octo_spawn_contract_authenticated octo_spawn_contract_finish; do
+    eval "$helper() { :; }"
+done
+check_provider_health() { pwd > "$HEALTH_DIRECTORY"; }
+octo_spawn_contract_seat_id() { echo spawn-fixture; }
+classify_task() { echo standard; }
+apply_persona() { printf %s "$2"; }
+octo_with_engineering_methods() { printf %s "$2"; }
+enforce_context_budget() { printf %s "$1"; }
+octopus_effective_agent_timeout() { echo 0; }
+get_agent_model() { echo vendor/model; }
+validate_agent_command() { printf %s "$1" > "$COMMAND_FILE"; return 1; }
+RESULTS_DIR="$HOME/results" LOGS_DIR="$HOME/logs"
+spawn_agent opencode fixture fixture reviewer probe
+'''
+        for relative_path, target_version in ((False, "2.0.23"), (False, "1.18.34"),
+                                               (True, "2.0.23"), (True, "1.18.34")):
+            with self.subTest(relative_path=relative_path, target_version=target_version):
+                caller_version = "1.18.34" if target_version.startswith("2.") else "2.0.23"
+                self.env.update(TARGET_VERSION=target_version, CALLER_VERSION=caller_version)
+                self.env["PATH"] = str(self.bin) + ":/usr/bin:/bin"
+                Path(self.env["COMMAND_FILE"]).unlink(missing_ok=True)
+                self.cli.write_text('#!/bin/sh\nif [ "$PWD" = "$PROJECT_ROOT" ]; then echo "$TARGET_VERSION"; else echo "$CALLER_VERSION"; fi\n')
+                if relative_path:
+                    for directory, version in ((caller, caller_version), (project, target_version)):
+                        bindir = directory / "bin"
+                        bindir.mkdir(exist_ok=True)
+                        cli = bindir / "opencode"
+                        cli.write_text(f"#!/bin/sh\necho {version}\n")
+                        cli.chmod(0o755)
+                    self.env["PATH"] = "bin:/usr/bin:/bin"
+                result = self.shell(script, root=caller)
+                self.assertNotEqual(result.returncode, 0)
+                command_file = Path(self.env["COMMAND_FILE"])
+                self.assertTrue(command_file.exists(), result.stderr)
+                self.assertEqual("--standalone" in shlex.split(command_file.read_text()),
+                                 target_version.startswith("2."))
+                self.assertEqual(Path(self.env["HEALTH_DIRECTORY"]).read_text().strip(), str(project))
 
     def test_channel_database_is_configuration_evidence(self):
         (self.data / "opencode-dev.db").touch()

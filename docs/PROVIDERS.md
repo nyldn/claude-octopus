@@ -452,11 +452,20 @@ Static discovery recognizes `auth.json`, `opencode.db` and channel-specific
 `OPENCODE_DB` overrides. A relative override resolves under that data directory.
 Store presence is configuration evidence only. A SQLite-only installation
 needs explicit live confirmation. Workflow admission performs that bounded
-confirmation when SQLite storage is the only login evidence, including pinned
-council rosters. Static discovery and readiness dashboards remain probe-free.
+confirmation when SQLite storage is the only login evidence or static discovery
+finds no store, including pinned council rosters. This lets supported environment
+credentials reach the same login check. Static discovery and readiness dashboards
+remain probe-free.
 Synchronous, background and direct `probe-single` dispatch check health before
 launching a model task. Direct probes include the standard, fast and research
 OpenCode seats.
+
+Background version detection and login checks run from the worker's project
+directory, so relative executable paths and directory-sensitive shims select
+the same CLI generation as execution. Standalone 2.x session creation inside
+the bounded Tangle filesystem still requires host acceptance. Its default
+SQLite state is outside the writable worktree. Do not switch to the shared
+server or broaden writable host mounts to work around that limitation.
 
 Live checks use bounded version and login commands. OpenCode 1.x must report a
 positive credential or environment-variable count. OpenCode 2.x checks

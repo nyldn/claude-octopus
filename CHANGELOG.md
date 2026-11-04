@@ -17,6 +17,9 @@
   Workflow admission confirms SQLite-only logins, including pinned rosters,
   before rejecting readiness. Direct OpenCode probes check login for the
   standard, fast and research seats.
+  Environment-only logins also receive runtime confirmation before admission.
+  Background login and version checks use the worker's project directory, so
+  directory-sensitive executables select the correct private-server flags.
   Direct `probe-single --dry-run` previews stop before health checks or provider
   execution.
   Addresses [#1172](https://github.com/nyldn/claude-octopus/issues/1172).
