@@ -3042,7 +3042,6 @@ src/pricing.ts:2 reads \`$REAL_NEAR\`.
 VERDICT: APPROVE")")"
 if jq -e '.quotes_verified == 1 and .quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "earlier prefix hid source attribution: $r"; fi
 
-test_case "a verified partial blockquote does not look up a Git diff"
 partial_quote_bin="$TEST_TMP_DIR/partial-quote-bin"
 partial_quote_marker="$TEST_TMP_DIR/partial-quote-git-called"
 mkdir -p "$partial_quote_bin"
@@ -3063,6 +3062,7 @@ VERDICT: APPROVE")"
 r="$(OCTO_TEST_PARTIAL_GIT_MARKER="$partial_quote_marker" PATH="$partial_quote_bin:$PATH" _report "$partial_fence_response")"
 if [[ -e "$partial_quote_marker" ]] && jq -e '.verification_failed == false and .quotes_verified == 1 and .quotes_partial == 1' <<< "$r" >/dev/null; then test_pass; else test_fail "partial fence did not reach the Git shim: $r"; fi
 rm -f "$partial_quote_marker"
+test_case "a verified partial blockquote does not look up a Git diff"
 partial_quote_response="$(_resp "src/pricing.ts:2 reads:
 > $REAL_NEAR
 > $FAKE
