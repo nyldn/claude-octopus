@@ -3493,7 +3493,9 @@ def attribution(token, gap):
         return None
     # A source verb in this bounded clause still attributes the quote when
     # ordinary modifiers follow it. A new sentence or a proposal ends that claim.
-    source_clause = SOURCE_VERB.search(gap) and not re.search(r"[.!?;]|\bI\b", gap)
+    source_verb = SOURCE_VERB.search(gap)
+    source_clause = (source_verb and not re.search(r"[.!?;]", gap)
+                     and not re.search(r"\b(?:I|we)\b", gap[source_verb.end():], re.I))
     if PROPOSAL.search(gap) or (not source_clause and any(
             word.lower() not in GAP_WORDS for word in re.findall(r"[A-Za-z]+", gap))):
         return None
@@ -3536,7 +3538,13 @@ for start, end, kind, block, removed_block, info in units:
     # A seat's own arithmetic in an inline span is a value it computed, unless a
     # citation claims it: then it is a claim about the cited file to verify.
     if kind == "inline" and attributed is None and computed(block[0]) and not cited_after(end):
-        continue
+        # A removal claim asserts old source content. Keep that span for the
+        # existing diff matcher, without borrowing removal words from another
+        # sentence. Bound the prose scan as in ordinary removal classification.
+        before = re.split(r"(?<=[.!?])\s+|\n", resp[max(0, start - REMOVAL_WINDOW):start])[-1]
+        after = re.split(r"(?<=[.!?])\s+|\n", resp[end:end + REMOVAL_WINDOW], maxsplit=1)[0]
+        if not REMOVAL_WORDS.search(before + after):
+            continue
     # Specificity selects the entire quote. A short nonempty side of a mixed
     # quote still needs an exact whole-side match; it is not an absent side.
     if removed_block and block and not (wholes or line_variants):

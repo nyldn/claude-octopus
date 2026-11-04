@@ -907,6 +907,37 @@ VERDICT: APPROVE")")"
     if jq -e '.quotes_checked == 1 and .quotes_verified == 0 and .quotes_unverifiable == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 done
 
+for reader in 'I read' 'we read' 'We read'; do
+    test_case "#3246: first-person source reader preserves arithmetic verification: $reader"
+    r="$(_report "$(_resp "src/pricing.ts:2 $reader \`1024 * 1024 * 1024 * 10\`.
+VERDICT: APPROVE")")"
+    if jq -e '.quotes_checked == 1 and .quotes_attributed == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+
+for estimator in we We; do
+    test_case "#3246: $estimator estimate ends the preceding compute claim"
+    r="$(_report "$(_resp "src/pricing.ts:2 computes the baseline and $estimator estimate \`8 + 10 + 0.5 = 18.5 KB\`.
+VERDICT: APPROVE")")"
+    if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+
+test_case "#3246: inline arithmetic claimed removed remains eligible for diff matching"
+compute_removal_diff="$TEST_TMP_DIR/compute-removal.diff"
+printf 'diff --git a/src/pricing.ts b/src/pricing.ts\n--- a/src/pricing.ts\n+++ b/src/pricing.ts\n@@ -1 +1 @@\n-1024 * 1024 * 1024 * 10\n+const cap = 10;\n' > "$compute_removal_diff"
+r="$(COUNCIL_CONTEXT_FILES=("$compute_removal_diff"); _report "$(_resp 'At src/pricing.ts:2 the code `1024 * 1024 * 1024 * 10` was removed.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 1 and .quotes_verified_in_diff_removed == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: an inline removal without diff evidence is still checked"
+r="$(_report "$(_resp 'At src/pricing.ts:2 the code `1024 * 1024 * 1024 * 10` was removed.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 1 and .quotes_unverifiable_claimed_removed == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: a removal in another sentence does not turn an estimate into source"
+r="$(_report "$(_resp 'src/pricing.ts:2 no longer caches. I estimate `8 + 10 + 0.5 = 18.5 KB`.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
 test_case "#3246: an arithmetic line in a fence does not lower the fence's match threshold"
 r="$(_report "$(_resp "src/pricing.ts:2 keeps the fallback. The block:
 \`\`\`ts
