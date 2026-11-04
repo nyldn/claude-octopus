@@ -41,10 +41,12 @@ done
 
 # preflight_check with every probe stubbed: readiness from a table, no smoke.
 READY_CALLS="$TEST_TMP_DIR/ready-calls"
+READY_KINDS="$TEST_TMP_DIR/ready-kinds"
 # Providers named in STUB_UNREADY report degraded; the rest are available.
 STUB_UNREADY=""
 octo_provider_readiness_result() {
     printf '%s\n' "$1" >> "$READY_CALLS"
+    printf '%s %s\n' "$1" "${2:-static}" >> "$READY_KINDS"
     local status=available reason=ready
     [[ " $STUB_UNREADY " == *" $1 "* ]] && status=degraded reason=auth-required
     # As the real readiness does for a provider the registry cannot detect.
@@ -54,7 +56,7 @@ octo_provider_readiness_result() {
 check_codex_auth_freshness() { return 0; }
 detect_enterprise_backend() { :; }
 provider_smoke_test() { return 0; }
-run_preflight() { rm -f "$READY_CALLS" "$PREFLIGHT_CACHE_FILE"; preflight_check true 2>&1; }
+run_preflight() { rm -f "$READY_CALLS" "$READY_KINDS" "$PREFLIGHT_CACHE_FILE"; preflight_check true 2>&1; }
 
 test_case "an invalid whitespace roster fails before any provider is checked"
 out="$(OCTOPUS_COUNCIL_DEFAULT_PROVIDERS=$' \t\n' run_preflight)" && rc=0 || rc=$?
@@ -78,10 +80,11 @@ else test_fail "rc=$rc out=$out"; fi
 test_case "without a roster, preflight still checks the non-Claude providers"
 STUB_UNREADY=""
 out="$(run_preflight)" && rc=0 || rc=$?
-calls=" $(tr '\n' ' ' < "$READY_CALLS")"
+calls=" $(awk '$2 == "static" {print $1}' "$READY_KINDS" | tr '\n' ' ')"
+live_calls="$(awk '$2 == "live" {print $1}' "$READY_KINDS" | tr '\n' ' ')"
 expected=" $(_preflight_provider_candidates | tr '\n' ' ')"
-if [[ "$rc" -eq 0 && "$calls" == "$expected" && "$calls" != *" claude "* && "$out" != *"council roster"* ]]; then test_pass
-else test_fail "rc=$rc calls='$calls' expected='$expected'"; fi
+if [[ "$rc" -eq 0 && "$calls" == "$expected" && "$live_calls" == "opencode " && "$calls" != *" claude "* && "$out" != *"council roster"* ]]; then test_pass
+else test_fail "rc=$rc static='$calls' expected='$expected' live='$live_calls'"; fi
 
 for blocked_status in missing degraded; do
     test_case "without a roster, $blocked_status providers still fail preflight"
