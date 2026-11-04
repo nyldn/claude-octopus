@@ -178,6 +178,32 @@ else
     test_fail "link stayed at $(resolved); expected $INSTALLED_CUR"
 fi
 
+for raced_root_kind in symlink wrapper; do
+    test_case "a development checkout cannot reclaim a $raced_root_kind root changed before locking"
+    point_at "$DEV"
+    (
+        # Deterministically interleave an installed session after the outer
+        # guard passes, before the development session acquires its lock.
+        _octo_stable_root_lock() {
+            rm -rf "$STABLE"
+            if [[ "$raced_root_kind" == symlink ]]; then
+                ln -s "$INSTALLED_CUR" "$STABLE"
+            else
+                mkdir -p "$STABLE/scripts"
+                _octo_stable_wrapper "$INSTALLED_CUR/scripts/orchestrate.sh" > "$STABLE/scripts/orchestrate.sh"
+                chmod +x "$STABLE/scripts/orchestrate.sh"
+            fi
+            mkdir "$1"
+        }
+        octo_self_heal_stable_plugin_root "$DEV" "$STABLE"
+    )
+    if [[ "$(_octo_stable_root_target "$STABLE")" == "$INSTALLED_CUR" ]]; then
+        test_pass
+    else
+        test_fail "development checkout replaced the installed $raced_root_kind root after the outer guard"
+    fi
+done
+
 test_case "a busy lock leaves the link unchanged"
 point_at "$INSTALLED_CUR"
 mkdir "$STABLE.lock"

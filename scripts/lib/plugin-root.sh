@@ -281,6 +281,9 @@ _octo_self_heal_stable_plugin_root_locked() {
             octo_ensure_stable_plugin_root "$plugin_root" "$stable_root"
             return $?
         fi
+        # The outer guard may have passed while this checkout still owned the
+        # link. Preserve a working root another session claimed before locking.
+        octo_is_installed_plugin_root "$plugin_root" || return 0
         if octo_is_installed_plugin_root "$current_root"; then
             candidate_version="$(_octo_plugin_root_version "$plugin_root")"
             current_version="$(_octo_plugin_root_version "$current_root")"
