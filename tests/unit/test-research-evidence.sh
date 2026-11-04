@@ -820,6 +820,28 @@ test_case "Unicode numeric ranges beside point labels retain both endpoints"
 range_claims=$(research_extract_numbers 'points 2 and 5–10 MiB' | LC_ALL=C sort | tr '\n' ' ')
 if [[ "$range_claims" == "10 5 " ]]; then test_pass; else test_fail "Unicode range endpoint was lost: $range_claims"; fi
 
+for range_text in 'See points 5 – 10 MiB' 'See points 2 and 5 – 10 MiB' 'See points 5 - 10 MiB'; do
+    test_case "spaced range retains both endpoints: $range_text"
+    range_claims=$(research_extract_numbers "$range_text" | LC_ALL=C sort | tr '\n' ' ')
+    if [[ "$range_claims" == "10 5 " ]]; then test_pass; else test_fail "range endpoint was lost: $range_claims"; fi
+done
+
+test_case "linked units retain quantities after reference labels"
+linked_claims=$(research_extract_numbers 'See points 2 and 5 [MiB](https://example.com).' | tr '\n' ' ')
+if [[ "$linked_claims" == "5 " ]]; then test_pass; else test_fail "linked quantity escaped: $linked_claims"; fi
+
+for reference_text in 'Refer to point 2.' '**Points:** 2 and 3.' '- **Items**: 4' 'See **points**: 2 and 3.'; do
+    test_case "explicit or emphasized self-reference: $reference_text"
+    reference_claims=$(research_extract_numbers "$reference_text")
+    if [[ -z "$reference_claims" ]]; then test_pass; else test_fail "self-reference became a claim: $reference_claims"; fi
+done
+
+for quantity_text in 'Score in **points**: 50' 'Total **items:** 50' '**Points:** 50 MiB' 'See **points:** 50 [MiB](https://example.com)'; do
+    test_case "emphasized quantity requires evidence: $quantity_text"
+    quantity_claims=$(research_extract_numbers "$quantity_text")
+    if [[ "$quantity_claims" == 50 ]]; then test_pass; else test_fail "quantity escaped: $quantity_claims"; fi
+done
+
 test_case "an ordinal self-reference needs no evidence while units beside it still do"
 ordinal_draft="$RESEARCH_RUN_DIR/local-ordinals.md"
 {
