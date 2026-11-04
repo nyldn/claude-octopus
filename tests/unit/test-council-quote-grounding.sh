@@ -3024,4 +3024,40 @@ else
     test_fail "long proposal exhausted verification: $r"
 fi
 
+test_case "gutter-only blank fence lines do not make a complete quote partial"
+r="$(_report "$(_resp "src/pricing.ts:1 reads:
+\`\`\`ts
+1 | export function priceFor(cabin, sailing) {
+2 | $REAL_NEAR
+3 |
+4 | return applyTaxes(base, sailing.portFees);
+5 | }
+\`\`\`
+VERDICT: APPROVE")")"
+if jq -e '.quotes_verified == 1 and .quotes_partial == 0' <<< "$r" >/dev/null; then test_pass; else test_fail "blank gutter counted as missing: $r"; fi
+
+test_case "an earlier construction sentence cannot hide a later attributed fabricated quote"
+r="$(_report "$(_resp "The service is built as a singleton. src/pricing.ts:2 contains \`$FAKE\`.
+src/pricing.ts:2 reads \`$REAL_NEAR\`.
+VERDICT: APPROVE")")"
+if jq -e '.quotes_verified == 1 and .quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "earlier prefix hid source attribution: $r"; fi
+
+test_case "a verified partial blockquote does not look up a Git diff"
+partial_quote_bin="$TEST_TMP_DIR/partial-quote-bin"
+partial_quote_marker="$TEST_TMP_DIR/partial-quote-git-called"
+mkdir -p "$partial_quote_bin"
+cat > "$partial_quote_bin/git" <<'GIT_PARTIAL_QUOTE'
+#!/usr/bin/env bash
+printf called > "$OCTO_TEST_PARTIAL_GIT_MARKER"
+exit 1
+GIT_PARTIAL_QUOTE
+chmod +x "$partial_quote_bin/git"
+partial_quote_response="$(_resp "src/pricing.ts:2 reads:
+> $REAL_NEAR
+> $FAKE
+> return applyTaxes(base, sailing.portFees);
+VERDICT: APPROVE")"
+r="$(OCTO_TEST_PARTIAL_GIT_MARKER="$partial_quote_marker" PATH="$partial_quote_bin:$PATH" _report "$partial_quote_response")"
+if [[ ! -e "$partial_quote_marker" ]] && jq -e '.verification_failed == false and .quotes_verified == 1 and .quotes_partial == 0' <<< "$r" >/dev/null; then test_pass; else test_fail "verified blockquote consulted Git: $r"; fi
+
 test_summary

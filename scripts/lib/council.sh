@@ -3229,7 +3229,7 @@ def short_lines(block):
     for line in block:
         variants = [line.strip(), GUTTER.sub("", line).strip()]
         # An elision marker stands for omitted source; it is never a miss.
-        if ELLIPSIS.fullmatch(variants[-1]) or ELLIPSIS.fullmatch(variants[0]):
+        if not variants[-1] or ELLIPSIS.fullmatch(variants[-1]) or ELLIPSIS.fullmatch(variants[0]):
             continue
         if line.strip() and not any(checkable(v) for v in variants):
             out.append([norm(v) for v in dict.fromkeys(variants) if norm(v)])
@@ -3539,7 +3539,10 @@ def attribution(token, gap):
             word.lower() not in GAP_WORDS for word in re.findall(r"[A-Za-z]+", gap))):
         return None
     line_start = resp.rfind("\n", 0, token[0]) + 1
-    if PROPOSAL.search(CITATION.sub("", LINK_TARGET.sub("", resp[line_start:token[0]]))):
+    prefix = CITATION.sub("", LINK_TARGET.sub("", resp[line_start:token[0]]))
+    # Here terminal punctuation closes an earlier sentence; it is not the
+    # standalone proposed fence lead-in that proposes() otherwise preserves.
+    if proposes(prefix[clause_start(prefix, len(prefix)) :]):
         return None
     return token
 
@@ -3646,7 +3649,7 @@ for start, end, kind, block, removed_block, info in units:
         result["quotes_attributed"] += 1
     diff_side_hit = None
     diff_partial = False
-    if verified and partial and not removed_block:
+    if kind == "fence" and verified and partial and not removed_block:
         # A complete diff match clears partial reporting while the source-file
         # match retains its verification count and attribution.
         if diff_sides is None:
