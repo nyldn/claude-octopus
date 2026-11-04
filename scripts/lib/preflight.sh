@@ -745,7 +745,7 @@ preflight_check() {
         # through the same bounded live check before rejecting the runtime.
         if [[ "$provider" == opencode ]] &&
            [[ "$reason" == live-check-required || "$reason" == auth-missing ]]; then
-            readiness="$(octo_provider_readiness_result "$provider" live)"
+            readiness="$(cd "${PROJECT_ROOT:-$PWD}" && octo_provider_readiness_result "$provider" live)"
             status="$(_octo_readiness_json_field "$readiness" status)"
             reason="$(_octo_readiness_json_field "$readiness" reason_code)"
         fi

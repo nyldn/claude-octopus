@@ -115,7 +115,11 @@ probe_single_agent opencode perspective login-test
                     self.assertTrue(self.marker.exists())
 
     def test_workflow_admission_confirms_sqlite_and_environment_logins(self):
-        self.env["CLI_VERSION"] = "2.0.23"
+        project = self.base / "admission-project"
+        project.mkdir()
+        self.env.update(CLI_VERSION="2.0.23", PROJECT_ROOT=str(project))
+        self.cli.write_text(self.cli.read_text().replace(
+            'printf called >>', '[ "$PWD" = "$PROJECT_ROOT" ] || exit 67\nprintf called >>', 1))
         script = r'''
 source scripts/lib/preflight.sh
 source scripts/lib/config-display.sh
