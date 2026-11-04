@@ -12,7 +12,9 @@
   "and" or "or", is now skipped when no other word follows it. Numbers with a
   unit, including formatted units such as `5 **MiB**`, and section numbers are
   still checked. Compact lists such as `points 2,3` are also recognized, while
-  decimals and thousands-formatted numeric claims remain checked.
+  decimals and thousands-formatted numeric claims remain checked. Scores and
+  counts introduced by a colon and both endpoints of en-dash ranges also
+  remain checked.
 
 ## [11.16.0] - 2026-11-02
 

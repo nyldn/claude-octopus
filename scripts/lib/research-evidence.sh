@@ -634,8 +634,13 @@ research_numeric_claims() {
             if (number !~ /^[0-9]+(,[0-9]+)+$/ || number ~ /^[0-9][0-9]?[0-9]?(,[0-9][0-9][0-9])+$/) return 0
             if (tolower(before) !~ /(^|[^0-9a-z_])(points|items)([ \t]+|[ \t]*:[ \t]*)$/ && ord_end == 0) return 0
         }
+        # A colon may introduce a quantity measured in points/items. Require
+        # a standalone label or an explicit "see" reference in that case.
+        if (tolower(before) ~ /(^|[^0-9a-z_])(points?|items?)[ \t]*:[ \t]*$/ &&
+            tolower(before) !~ /(^|[;.!?|])[ \t]*(points?|items?)[ \t]*:[ \t]*$/ &&
+            tolower(before) !~ /(^|[^0-9a-z_])see[ \t]+(points?|items?)[ \t]*:[ \t]*$/) return 0
         # A numeric range is substantive even when its first endpoint follows a list.
-        if (after ~ /^-[ \t]*[0-9]/) return 0
+        if (after ~ /^(-|\342\200\223)[ \t]*[0-9]/) return 0
         if (after ~ /^[ \t]*[*_`(]*([0-9A-Za-z]|\302\260)/ && tolower(after) !~ /^[ \t]+(and|or)[ \t]/) return 0
         if (tolower(before) ~ /(^|[^0-9a-z_])(points?|items?)([ \t]+|[ \t]*:[ \t]*)$/) return 1
         gap = tolower(substr(line, ord_end, start - ord_end))

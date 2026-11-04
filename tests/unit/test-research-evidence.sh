@@ -812,6 +812,14 @@ test_case "colon-separated reference labels do not create factual quantities"
 colon_refs=$(research_extract_numbers 'See points: 2 and 3; items:4,5.' | tr '\n' ' ')
 if [[ -z "$colon_refs" ]]; then test_pass; else test_fail "colon references became claims: $colon_refs"; fi
 
+test_case "colon scores and item counts remain numeric claims"
+colon_quantities=$(research_extract_numbers 'The mean score in points: 50; the number of items: 60.' | LC_ALL=C sort | tr '\n' ' ')
+if [[ "$colon_quantities" == "50 60 " ]]; then test_pass; else test_fail "colon quantities were lost: $colon_quantities"; fi
+
+test_case "Unicode numeric ranges beside point labels retain both endpoints"
+range_claims=$(research_extract_numbers 'points 2 and 5–10 MiB' | LC_ALL=C sort | tr '\n' ' ')
+if [[ "$range_claims" == "10 5 " ]]; then test_pass; else test_fail "Unicode range endpoint was lost: $range_claims"; fi
+
 test_case "an ordinal self-reference needs no evidence while units beside it still do"
 ordinal_draft="$RESEARCH_RUN_DIR/local-ordinals.md"
 {
@@ -829,6 +837,20 @@ if [[ "$ordinal_status" -ne 0 \
     test_pass
 else
     test_fail "ordinal self-references were checked as numbers, or unit-bearing numbers escaped: $ordinal_kinds"
+fi
+
+test_case "colon quantities and Unicode range endpoints require source evidence"
+{
+    printf '%s\n' '- The mean score in points: 50 (`src/handler.ts:4`).'
+    printf '%s\n' '- See points 2 and 5–500 MiB (`src/handler.ts:4`).'
+} > "$ordinal_draft"
+ordinal_status=0
+research_verify_synthesis "$ordinal_draft" || ordinal_status=$?
+ordinal_kinds=$(jq -r '.checks[] | "\(.line):\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$ordinal_status" -ne 0 && "$ordinal_kinds" == "1:number_mismatch:50 2:number_mismatch:5 " ]]; then
+    test_pass
+else
+    test_fail "colon quantity or Unicode range escaped verification: $ordinal_kinds"
 fi
 
 test_case "compact point references are skipped while formatted units and numeric values remain claims"
