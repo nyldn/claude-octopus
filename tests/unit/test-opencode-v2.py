@@ -373,6 +373,29 @@ _octo_opencode_has_saved_login
                 self.assertEqual(result.returncode == 0, valid, result.stderr)
                 self.assertEqual(result.stdout + result.stderr, "")
 
+    def test_json_fallback_ignores_project_modules_and_pythonpath(self):
+        shadow = self.base / "project"
+        shadow.mkdir()
+        imported = self.base / "shadow-imported"
+        (shadow / "json.py").write_text(
+            f'from pathlib import Path\nPath({str(imported)!r}).touch()\n'
+            'raise RuntimeError("project module must not load")\n')
+        self.env["PYTHONPATH"] = str(shadow)
+        result = self.shell(r'''
+source "$PLUGIN_DIR/scripts/lib/auth.sh"
+command() {
+    if [[ "$1" == -v && "${2:-}" == jq ]]; then return 1; fi
+    builtin command "$@"
+}
+jq() { return 127; }
+_octo_opencode_cli_major() { echo 2; }
+_octo_run_bare_probe_with_timeout() { shift 3; "$@"; }
+_octo_opencode_has_saved_login
+''', root=shadow)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(imported.exists(), "JSON validation loaded a project module")
+        self.assertEqual(result.stdout + result.stderr, "")
+
     def test_legacy_ansi_credential_summary_passes(self):
         (self.data / "auth.json").write_text("{}")
         self.env["AUTH_LIST"] = "\x1b[32m└  2 credentials\x1b[0m"

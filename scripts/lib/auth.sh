@@ -306,7 +306,7 @@ _octo_opencode_has_saved_login() {
                 (.connections | type == "array" and any(.[];
                     .type == "credential" or .type == "environment")))' >/dev/null 2>&1
         elif command -v python3 >/dev/null 2>&1; then
-            printf '%s\n' "$listing" | python3 -c '
+            printf '%s\n' "$listing" | python3 -I -c '
 import json
 import sys
 
