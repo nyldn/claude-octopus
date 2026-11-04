@@ -3429,7 +3429,7 @@ def attribution(token, gap):
         return None
     # A source verb in this bounded clause still attributes the quote when
     # ordinary modifiers follow it. A new sentence or a proposal ends that claim.
-    source_clause = SOURCE_VERB.search(gap) and not re.search(r"[.!?;]", gap)
+    source_clause = SOURCE_VERB.search(gap) and not re.search(r"[.!?;]|\bI\b", gap)
     if PROPOSAL.search(gap) or (not source_clause and any(
             word.lower() not in GAP_WORDS for word in re.findall(r"[A-Za-z]+", gap))):
         return None
@@ -3456,7 +3456,7 @@ def cited_after(end):
     # "`1024 * 10` (src/pricing.ts:2)": a citation right after the span.
     index = bisect_left(token_starts, end)
     return index < len(tokens) and re.fullmatch(
-        r"[ \t]*(?:[(\[]|[:,\u2013\u2014-]|in|at|from)?[ \t]*", resp[end:tokens[index][0]], re.I) is not None
+        r"[ \t]*(?:[(\[]|[:,\u2013\u2014-]|in|at|from)?[ \t]*`?", resp[end:tokens[index][0]], re.I) is not None
 
 checkable_units = 0
 for start, end, kind, block, removed_block, info in units:

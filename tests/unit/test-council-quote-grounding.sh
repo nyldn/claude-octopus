@@ -888,6 +888,18 @@ r="$(_report "$(_resp 'The cap is `1024 * 1024 * 1024 * 10` (src/pricing.ts:2).
 VERDICT: APPROVE')")"
 if jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
+for source_verb in computes is reads; do
+    test_case "#3246: first-person estimate ends the $source_verb source clause"
+    r="$(_report "$(_resp "src/pricing.ts:2 $source_verb the baseline and I estimate \`8 + 10 + 0.5 = 18.5 KB\`.
+VERDICT: APPROVE")")"
+    if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+
+test_case "#3246: arithmetic followed by a backtick-formatted citation is still verified"
+r="$(_report "$(_resp 'The cap is `1024 * 1024 * 1024 * 10` (`src/pricing.ts:2`).
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
 test_case "#3246: an arithmetic line in a fence does not lower the fence's match threshold"
 r="$(_report "$(_resp "src/pricing.ts:2 keeps the fallback. The block:
 \`\`\`ts

@@ -37,7 +37,7 @@
   identifier or keyword, as in `base + taxes * 2` or
   `100 if 1000 > 500 else 1`, still makes it a checked code quote. Arithmetic
   a citation claims, before or right after the span, is still verified against
-  that file. The exemption never covers a code fence or a diff removal: their
+  cited evidence. The exemption never covers a code fence or a diff removal: their
   arithmetic lines go through the usual checks, so a specific enough line is
   still verified.
 
