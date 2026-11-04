@@ -35,7 +35,8 @@ Just describe what you need:
 - The outline step lets you reshape the deck before rendering
 - Uses any suitable advertised renderer, including a standalone `pptx` skill
 - Name a renderer and template in the request, or save them in
-  `~/.claude-octopus/document-renderers.json`. See [renderer configuration](../docs/DOCUMENT-RENDERERS.md).
+  `~/.claude-octopus/document-renderers.json`. See `docs/DOCUMENT-RENDERERS.md`
+  in the installed Octopus root.
 
 ## Examples
 
