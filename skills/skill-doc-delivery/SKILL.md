@@ -24,17 +24,24 @@ This skill helps you transform knowledge work results into polished, deliverable
 
 ## Prerequisites Check
 
-Before converting documents, verify the document-skills plugin is installed:
+Inspect the current session's advertised skills for the requested format.
+A standalone `pptx`, `docx`, `xlsx` or `pdf` skill, or a namespaced equivalent,
+is sufficient. The `document-skills` plugin is one possible source. Files on
+disk do not establish that a skill is enabled for this session.
 
-```bash
-/plugin list | grep document-skills
-```
+Set `OCTO_ROOT` to the installed Octopus root identified by this loaded skill or
+the host's plugin-root metadata. Verify that it contains
+`scripts/helpers/document-renderer.py`, then run it with
+`--format FORMAT` and one `--available-skill NAME` for each advertised skill.
+Pass `--renderer NAME` and `--template PATH` when explicitly requested, quoting
+arguments as data. Use the returned `skill` and `template` for conversion.
+The helper also reads saved choices from
+`~/.claude-octopus/document-renderers.json`. See `docs/DOCUMENT-RENDERERS.md`.
 
-If not installed:
-
-```bash
-/plugin install document-skills@anthropic-agent-skills
-```
+If the selected skill is unavailable, discovery is ambiguous or the template is
+missing, report that specific problem. Do not replace a saved or explicit choice
+silently. Offer installation guidance only when the needed capability is absent;
+do not install plugins automatically.
 
 ## Format Recommendations by Workflow
 
@@ -103,9 +110,15 @@ Ask yourself:
 - **Final publication?** → PDF (archival, unchangeable)
 - **Data/frameworks?** → XLSX (tables, calculations)
 
-### Step 3: Use Document-Skills Plugin
+### Step 3: Invoke the selected renderer
 
-The document-skills plugin provides these capabilities:
+Invoke the resolved skill with the source markdown, requested format and
+selected template. For slides, include the approved slide skeleton, visual
+callout plan and appendix list. Follow that skill's supported-format,
+authentication, publication and sharing rules. Report its actual artifact path
+or native deck URL, and report failures without claiming a completed conversion.
+
+When the default document-skills renderers are selected, their capabilities are:
 
 **For DOCX (Word):**
 ```
@@ -145,7 +158,7 @@ User: "Export my latest synthesis to a Word document"
 1. Check ~/.claude-octopus/results/ for most recent .md file
 2. Identify it's from synthesize workflow
 3. Recommend DOCX for academic report format
-4. Use document-skills:docx to convert
+4. Invoke the resolved DOCX renderer with the selected template
 5. Save to appropriate location
 ```
 
@@ -158,7 +171,7 @@ User: "Create a PowerPoint from this research"
 
 1. Locate the research markdown
 2. Identify key sections (## headings)
-3. Use document-skills:pptx to convert
+3. Invoke the resolved presentation renderer with the selected template
 4. Each ## heading becomes a slide
 5. Recommend adding title slide and summary
 ```
@@ -171,8 +184,8 @@ User wants multiple formats:
 User: "Create both a Word doc and PowerPoint from this strategy"
 
 1. Locate source markdown
-2. Convert to DOCX using document-skills:docx
-3. Convert to PPTX using document-skills:pptx
+2. Resolve and invoke the DOCX renderer
+3. Resolve and invoke the PPTX renderer
 4. Provide both file paths
 ```
 
@@ -217,7 +230,7 @@ Output Goal: Stakeholder presentation
 Steps:
 1. Read the empathize markdown
 2. Extract persona sections
-3. Convert to PPTX using document-skills:pptx
+3. Convert with the resolved presentation renderer
 4. Each persona becomes a slide
 5. Add title slide and key insights summary
 6. Save as "UX-Personas-2026-01-18.pptx"
@@ -233,7 +246,7 @@ Output Goal: Comprehensive business case document
 Steps:
 1. Read the advise markdown
 2. Structure as: Executive Summary, Analysis, Recommendations, Appendix
-3. Convert to DOCX using document-skills:docx
+3. Convert with the resolved DOCX renderer
 4. Add table of contents
 5. Format tables and charts properly
 6. Save as "Market-Analysis-Business-Case-2026-01-18.docx"
@@ -249,7 +262,7 @@ Output Goal: Academic paper format
 Steps:
 1. Read the synthesize markdown
 2. Structure as: Abstract, Introduction, Literature Review, Gaps, Conclusions
-3. Convert to DOCX using document-skills:docx
+3. Convert with the resolved DOCX renderer
 4. Apply academic formatting (citations, references)
 5. Export to PDF for final version
 6. Save as "AI-Safety-Literature-Review-2026-01-18.pdf"
@@ -296,13 +309,14 @@ Response: "I found several knowledge work outputs:
 Which would you like to convert?"
 ```
 
-### Document-Skills Not Installed
+### No renderer available
 
-If plugin missing:
+If no suitable skill is advertised:
 
 ```
-Response: "The document-skills plugin is required for conversion.
-Install it with:
+Response: "No renderer for the requested format is available in this session.
+Enable an installed skill for that format, name an available renderer, or install
+a suitable plugin such as:
 
 /plugin install document-skills@anthropic-agent-skills
 
@@ -337,8 +351,8 @@ Knowledge Work Flow:
 # List recent knowledge work outputs
 ls -lht ~/.claude-octopus/results/ | head -5
 
-# Check document-skills installed
-/plugin list | grep document-skills
+# Resolve from the actual advertised skills, for example a standalone pptx skill
+python3 "$OCTO_ROOT/scripts/helpers/document-renderer.py" --format pptx --available-skill pptx
 
 # Install document-skills
 /plugin install document-skills@anthropic-agent-skills
