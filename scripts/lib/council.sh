@@ -2707,6 +2707,7 @@ council_response_evidence_paths_json() {
     python3 - "$response_path" "$evidence_root" <<'PY'
 import hashlib
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -2717,6 +2718,48 @@ pattern = re.compile(r"(?<![A-Za-z0-9_./-])([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9
 validated = []
 seen = set()
 file_facts = {}
+index = None
+INDEX_SKIP = {".git", ".hg", ".svn", "node_modules", "__pycache__", ".venv"}
+
+def build_index():
+    # Bounded like the quote verifier's index. An unread subtree could hold
+    # another file with the same name, so an incomplete walk resolves nothing.
+    paths, entries, stack = [], 0, [(root, 0)]
+    while stack:
+        directory, depth = stack.pop()
+        try:
+            with os.scandir(directory) as listing:
+                for entry in listing:
+                    entries += 1
+                    if entries >= 50_000:
+                        return None
+                    if entry.is_symlink():
+                        continue
+                    if entry.is_dir(follow_symlinks=False):
+                        # A nested checkout (.claude/worktrees/<issue>) is another
+                        # tree, and its copies would make every name ambiguous.
+                        if entry.name in INDEX_SKIP or os.path.lexists(os.path.join(entry.path, ".git")):
+                            continue
+                        if depth >= 32:
+                            return None
+                        stack.append((Path(entry.path), depth + 1))
+                    elif entry.is_file(follow_symlinks=False):
+                        paths.append("/" + Path(entry.path).relative_to(root).as_posix())
+        except OSError:
+            return None
+    return paths
+
+def unique_suffix(relative):
+    # sail-cruisey #3295: seats cite "pr-watchdog.yml:249" for
+    # .github/workflows/pr-watchdog.yml. A bare name or path suffix counts only
+    # when exactly one file under the root ends with it.
+    global index
+    if index is None:
+        index = build_index() or []
+    tail = "/" + relative.as_posix()
+    hits = [p for p in index if p.endswith(tail)][:2]
+    return Path(hits[0][1:]) if len(hits) == 1 else None
+
 for raw_path, raw_start, raw_end in pattern.findall(response.read_text(encoding="utf-8", errors="replace")):
     relative = Path(raw_path.strip())
     if relative.is_absolute() or ".." in relative.parts:
@@ -2724,8 +2767,23 @@ for raw_path, raw_start, raw_end in pattern.findall(response.read_text(encoding=
     try:
         candidate = (root / relative).resolve(strict=True)
         candidate.relative_to(root)
-    except (OSError, ValueError):
+    except FileNotFoundError:
+        # A dangling link is an existing citation, not a missing suffix.
+        if any(root.joinpath(*relative.parts[:i]).is_symlink()
+               for i in range(1, len(relative.parts) + 1)):
+            continue
+        candidate = None
+    except (OSError, RuntimeError, ValueError):
         continue
+    if candidate is None:
+        relative = unique_suffix(relative)
+        if relative is None:
+            continue
+        try:
+            candidate = (root / relative).resolve(strict=True)
+            candidate.relative_to(root)
+        except (OSError, ValueError):
+            continue
     if not candidate.is_file():
         continue
     try:
@@ -2898,7 +2956,10 @@ def build_index():
                         if entry.is_symlink():
                             continue
                         if entry.is_dir(follow_symlinks=False):
-                            if entry.name not in INDEX_SKIP:
+                            # A nested checkout (.claude/worktrees/<issue>) is
+                            # another tree; its copies are not this root's files.
+                            if (entry.name not in INDEX_SKIP
+                                    and not os.path.lexists(os.path.join(entry.path, ".git"))):
                                 if depth < MAX_INDEX_DEPTH:
                                     stack.append((Path(entry.path), depth + 1))
                                 else:
@@ -2920,22 +2981,25 @@ def contained(candidate):
 
 def resolve_citation(relative):
     # 1) Relative to the evidence root, as written.
+    # An existing unsafe path must never become a different suffix/context hit.
     try:
         candidate = (root / relative).resolve(strict=True)
-        if contained(candidate):
-            return candidate
+        return candidate if contained(candidate) else None
+    except FileNotFoundError:
+        if any(root.joinpath(*relative.parts[:i]).is_symlink()
+               for i in range(1, len(relative.parts) + 1)):
+            return None
     except (OSError, RuntimeError):
-        pass
+        return None
     # 2) An attached --context-file, named by its basename or a path suffix
     #    ("phase-3-plan.md:8" for .todo/claude-octopus/3032/phase-3-plan.md).
     tail = "/" + relative.as_posix()
     hits = [p for p in context_files if ("/" + p.as_posix()).endswith(tail)]
     if len(hits) == 1:
         return hits[0]
-    # 3) A unique path suffix under the root, including hidden directories. A bare
-    #    basename is too ambiguous to resolve this way.
-    if len(relative.parts) < 2:
-        return None
+    # 3) A unique path suffix under the root, including hidden directories. A
+    #    bare basename counts too when only one file has it (sail-cruisey #3295:
+    #    "pr-watchdog.yml:249" for .github/workflows/pr-watchdog.yml).
     global suffix_index, suffix_index_complete
     if suffix_index is None:
         suffix_index, suffix_index_complete = build_index()

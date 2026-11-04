@@ -28,7 +28,42 @@ if ! command -v jq >/dev/null 2>&1; then
     exit 1
 fi
 
-results_json="$({ octo_provider_readiness_all "$CHECK_KIND"; } | jq -s '.')"
+# A pinned council roster (OCTOPUS_COUNCIL_DEFAULT_PROVIDERS) is checked
+# instead of every registered provider.
+roster="" roster_rc=0 sandbox=""
+if declare -F octo_preflight_roster >/dev/null 2>&1; then
+    roster="$(octo_preflight_roster)" || roster_rc=$?
+fi
+if [[ "$roster_rc" -ne 0 ]]; then
+    echo "ERROR: OCTOPUS_COUNCIL_DEFAULT_PROVIDERS is not a valid council roster: ${OCTOPUS_COUNCIL_DEFAULT_PROVIDERS:-}" >&2
+    exit 2
+fi
+roster_json='null'
+[[ -z "$roster" ]] || roster_json="$(printf '%s\n' "$roster" | jq -R . | jq -cs .)"
+if declare -F octo_preflight_sandbox >/dev/null 2>&1; then
+    sandbox="$(octo_preflight_sandbox)"
+fi
+
+# Roster seats the registry cannot detect are listed as not checked rather than
+# unready; the council checks them when it dispatches.
+roster_unchecked=""
+if [[ -n "$roster" ]] && declare -F octo_preflight_seat_checkable >/dev/null 2>&1; then
+    for seat in $roster; do
+        octo_preflight_seat_checkable "$seat" || roster_unchecked="${roster_unchecked}${roster_unchecked:+ }${seat}"
+    done
+fi
+roster_unchecked_json="$(printf '%s\n' $roster_unchecked | jq -R 'select(length > 0)' | jq -cs .)"
+
+# Unchecked seats are listed separately, never counted as ready or degraded.
+roster_checked=""
+for seat in $roster; do
+    [[ " $roster_unchecked " == *" $seat "* ]] || roster_checked="${roster_checked}${roster_checked:+ }${seat}"
+done
+if [[ -n "$roster" && -z "$roster_checked" ]]; then
+    results_json='[]'
+else
+    results_json="$({ octo_provider_readiness_all "$CHECK_KIND" "$roster_checked"; } | jq -s '.')"
+fi
 providers_ready="$(jq '[.[] | select(.status == "available")] | length' <<<"$results_json")"
 providers_degraded="$(jq '[.[] | select(.status != "available")] | length' <<<"$results_json")"
 
@@ -54,9 +89,15 @@ if [[ "$OUTPUT_MODE" == "json" ]]; then
         --argjson versions "$versions_json" \
         --argjson ollama_models "$ollama_json" \
         --arg check_kind "$CHECK_KIND" \
+        --argjson roster "$roster_json" \
+        --argjson roster_unchecked "$roster_unchecked_json" \
+        --arg sandbox "$sandbox" \
         '{providers_ready:$providers_ready,
           providers_degraded:$providers_degraded,
           check_kind:$check_kind,
+          roster:$roster,
+          roster_unchecked:$roster_unchecked,
+          sandbox:(if $sandbox == "" then null else $sandbox end),
           results:$results,
           versions:$versions,
           ollama_models:$ollama_models}'
@@ -66,6 +107,9 @@ fi
 echo ""
 echo "🐙 Octopus Provider Readiness (${CHECK_KIND})"
 echo "────────────────────────────────────"
+if [[ -n "$roster" ]]; then
+    echo "  Council roster (OCTOPUS_COUNCIL_DEFAULT_PROVIDERS): ${roster//$'\n'/ }"
+fi
 while IFS=$'\t' read -r provider status reason; do
     case "$status" in
         available) icon="✅" ;;
@@ -78,7 +122,17 @@ echo ""
 echo "  Ready: $providers_ready  |  Needs attention: $providers_degraded"
 echo ""
 ready_provider_names="$(jq -r '.[] | select(.status == "available") | .provider' <<<"$results_json")"
-if [[ "$providers_ready" -eq 0 ]]; then
+if [[ -n "$roster" ]]; then
+    roster_not_ready="$(jq -r --arg unchecked " $roster_unchecked " '[.[] | select(.status != "available") | .provider as $p | select(($unchecked | contains(" " + $p + " ")) | not) | $p] | join(" ")' <<<"$results_json")"
+    if [[ -z "$roster_not_ready" ]]; then
+        echo "  Council roster ready."
+    else
+        echo "  Council roster seat(s) not ready: $roster_not_ready"
+    fi
+    if [[ -n "$roster_unchecked" ]]; then
+        echo "  Not checked by preflight (no provider detection; the council checks it when it dispatches): $roster_unchecked"
+    fi
+elif [[ "$providers_ready" -eq 0 ]]; then
     echo "  No provider is ready. Run /octo:setup to configure one provider."
 elif [[ "$providers_ready" -eq 1 && "$ready_provider_names" == "claude" ]]; then
     echo "  Claude-only mode is available. Run /octo:setup to add one provider."
@@ -86,6 +140,9 @@ elif [[ "$providers_ready" -eq 1 ]]; then
     echo "  One provider is ready: $ready_provider_names. Run /octo:setup to add another."
 else
     echo "  Multi-provider mode is ready. Run /octo:embrace for full orchestration."
+fi
+if [[ "$providers_degraded" -gt 0 && -n "$sandbox" ]]; then
+    echo "  $(octo_preflight_sandbox_note)"
 fi
 
 if [[ -f "$CHECK_VERSIONS" ]]; then

@@ -2,31 +2,103 @@
 
 ## [Unreleased]
 
+## [11.16.0] - 2026-11-02
+
 ### Fixed
 
-- Two code reviews started in the same second without an `artifactId` no
-  longer share a run id. The default id was the epoch second alone, and every
-  run in a Claude Code session writes to one results directory. The second
-  run could not plan its seats' execution contracts ("Unable to persist planned
-  execution contract"), so none of its seats spawned, and both runs read and
-  overwrote one `review-findings-*.json`, `review-round1-findings-*.json` and
-  `review-debate-*.json`. The default id is now the epoch second plus a suffix
-  reserved with `mktemp` in the spawn layer's task-id reservation directory.
-  If no id can be reserved, the review stops before writing anything. A dry
-  run spawns no seats, so it keeps the plain epoch second and reserves no id.
-  Ids built from an `artifactId` are unchanged.
+- Decision support now includes the cost of doing nothing, sets criteria and
+  weights before scoring, and shows raw and weighted scores. Presentation
+  templates no longer recommend the first option before analysis. Uncertain
+  decisions can include an optional scenario stress test.
+  Fixes [#1220](https://github.com/nyldn/claude-octopus/issues/1220).
+  [#1247](https://github.com/nyldn/claude-octopus/pull/1247).
 
-- Two Octopus runs in one Claude Code session no longer write into one proof
-  packet. The run id was the session id whenever `CLAUDE_CODE_SESSION_ID` was
-  set, which is always the case inside Claude Code, so every run in a session
-  wrote to `~/.claude-octopus/runs/<session-id>/`. Two `/octo:review` runs
-  launched in parallel interleaved their events in one `proof.jsonl` and shared
-  one `state.json` and `summary.md`. The surviving summary listed both runs'
-  artifacts under a single goal and finding count, and the other run's summary
-  was lost. A later review in the same session truncated the earlier review's
-  `proof.jsonl`. The session id is now a prefix, followed by the workflow, a UTC
-  timestamp, the process id and `$RANDOM`. `OCTOPUS_PROOF_RUN_ID` still sets
-  the whole run id. `run.json` and `seats.json` stay in `runs/<session-id>/`.
+- Workflow skills can now persist phase state through `update_state`, query
+  completed phases and import definition synthesis into the roadmap. History
+  notes cannot change a phase's recorded status. Initializing a project with
+  a missing state file preserves existing issues, lessons and phase plans.
+  Fixes [#1169](https://github.com/nyldn/claude-octopus/issues/1169).
+  [#1248](https://github.com/nyldn/claude-octopus/pull/1248).
+
+- Configured fallback chains now honor `OCTO_ALLOWED_PROVIDERS` and the
+  session or global provider allowlist. `run_agent_sync_fallback_chain`
+  dispatched its primary, preferred fallback and chain candidates without
+  checking the allowlist. With `OCTO_ALLOWED_PROVIDERS="codex claude"`, Tangle
+  decomposition still sent the prompt to its default `agy` researcher seat
+  first. The chain now skips any candidate outside the allowlist and logs the
+  skip. If no candidate is allowed, it fails closed without dispatching.
+  `octo_fallback_agent_available` applies the same check, so
+  `get_fallback_agent` and `octo_fallback_first_available` no longer return a
+  disallowed provider just because its CLI is installed.
+  [#1244](https://github.com/nyldn/claude-octopus/pull/1244).
+
+- Preflight checks the council roster that `OCTOPUS_COUNCIL_DEFAULT_PROVIDERS`
+  pins. A Codex-led session pins `claude,agy`, but preflight ignored the list:
+  the static pass checked every non-Claude provider, the smoke test always
+  tried Codex, and nothing reported on the Claude seat. With a roster set,
+  `orchestrate.sh preflight` checks exactly those seats, Claude included, names
+  the list it used, and fails naming any seat that is not ready. The smoke test
+  and `/octo:preflight` cover only the roster, and the smoke test fails when
+  any roster seat it tested fails. A pinned Codex seat with an expired OAuth
+  token fails the roster even when other seats are ready. A seat with no
+  provider detection, such as `openai-tools`, is listed as not checked instead
+  of failing the roster or counting as degraded. The JSON gains `roster`, `roster_unchecked` and `sandbox`, and cached results are
+  keyed on the roster. Unset or `auto` keeps the previous behavior.
+- Preflight readiness inside a macOS sandbox. The `/octo:preflight` loop sent
+  stderr through `2> >(cat >&2)`, a `/dev/fd` write that Codex and Claude Code
+  sandboxes deny, so every provider read `check-failed` there. Inside such a
+  sandbox (`CODEX_SANDBOX` or `SANDBOX_RUNTIME`), a provider that is not ready
+  now carries a note that keychain logins, network access or files outside the
+  workspace can fail there, with the remedy to re-run preflight outside it.
+  [#1229](https://github.com/nyldn/claude-octopus/pull/1229).
+
+### Maintenance
+
+- Updated the MCP server's Zod dependency.
+  [#1235](https://github.com/nyldn/claude-octopus/pull/1235).
+- The timer regression waits for completion before checking failure precedence.
+  [#1249](https://github.com/nyldn/claude-octopus/pull/1249).
+
+## [11.15.4] - 2026-11-01
+
+### Fixed
+
+- A probe seat now runs for the `OCTOPUS_AGENT_TIMEOUT` budget. `orchestrate.sh
+  probe` gave each seat the 600-second `TIMEOUT` default even with
+  `OCTOPUS_AGENT_TIMEOUT=1200` set, and the timeout message then recommended
+  setting the variable that was already set. Probe seats, `probe-single` and
+  the probe progress watchdog now use the budget `run_agent_sync` uses:
+  `OCTOPUS_AGENT_TIMEOUT`, then `--timeout`, then the default. A timed-out
+  probe seat recommends `OCTOPUS_AGENT_TIMEOUT` when it is set. Other
+  background workflows still wait for their seats against `--timeout`, so
+  their seats keep that budget.
+  [#1241](https://github.com/nyldn/claude-octopus/pull/1241),
+  commit [1f8d395](https://github.com/nyldn/claude-octopus/commit/1f8d3951b2a2b4326d5f2e4710864217812588c3).
+
+## [11.15.3] - 2026-10-30
+
+### Fixed
+
+- Reviews started in the same second without an `artifactId` now reserve
+  separate run IDs before starting seats. Their findings no longer overwrite
+  each other, and one review cannot block another's execution contracts by
+  reusing its ID. If no ID can be reserved, the review stops before writing
+  findings. Explicit `artifactId` values and dry-run behavior are preserved.
+  [#1239](https://github.com/nyldn/claude-octopus/pull/1239).
+- By default, repeated and concurrent workflows within one Claude Code session
+  now write separate proof packets, keeping events, findings and summaries
+  separate. `OCTOPUS_PROOF_RUN_ID` still overrides the complete run ID. Use a
+  unique override per run; reusing one shares the directory and can overwrite
+  the earlier packet.
+  [#1238](https://github.com/nyldn/claude-octopus/pull/1238).
+- Council grounding and quote verification accept a bare filename or path
+  suffix when exactly one eligible file matches. Nested checkout copies no
+  longer make names ambiguous. Grounding rejects missing, ambiguous and unsafe
+  paths, and line numbers past the end of a file. Quote verification checks
+  uniquely matching attached context before repository suffixes and can verify
+  matching file text even when the cited line number is out of range.
+  An unsafe existing path cannot fall back to a different file.
+  [#1236](https://github.com/nyldn/claude-octopus/pull/1236).
 
 - A council seat is no longer marked fabricated for its own arithmetic. An
   inline code span made only of numbers (`1.5e6` and `1_000` included), known
