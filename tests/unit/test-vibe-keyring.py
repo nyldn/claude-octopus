@@ -139,6 +139,27 @@ class VibeKeyringTest(unittest.TestCase):
         self.assertIn('vibe:api-key', result.stdout)
         self.assertFalse(self.marker.exists())
 
+    def test_existing_file_credentials_keep_automatic_and_selected_checks_ready(self):
+        config = self.home / '.vibe'
+        config.mkdir()
+        for name, assignment in (('.env', 'MISTRAL_API_KEY'), ('config.toml', 'api_key')):
+            with self.subTest(name=name):
+                credential = config / name
+                credential.write_text(f'{assignment}="inert-fixture-value"\n')
+                try:
+                    for context in ('automatic', 'selected'):
+                        result = self.shell(f'_octo_vibe_check_context={context}; '
+                                            'octo_provider_readiness_result vibe static; '
+                                            'check_provider_health vibe')
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        readiness = json.loads(result.stdout)
+                        self.assertEqual((readiness['status'], readiness['reason_code']),
+                                         ('available', 'ready'))
+                        self.assertFalse(self.marker.exists(), 'file credential loaded Vibe code')
+                        self.assertNotIn('inert-fixture-value', result.stdout + result.stderr)
+                finally:
+                    credential.unlink()
+
     def test_locked_keyring_has_a_real_wall_clock_bound(self):
         self.write_module('import time\ntime.sleep(60)\nreturn "inert-fixture-value"')
         start = time.monotonic()
