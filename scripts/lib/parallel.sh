@@ -631,11 +631,6 @@ parallel_execute() {
             continue
         fi
 
-        # A reused task ID must not inherit a completion marker from an earlier
-        # run. IDs are filename-safe by the validation above.
-        rm -f "${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents/${task_id}.done" \
-            2>/dev/null || true
-
         while [[ $running -ge $max_parallel ]]; do
             for i in "${!pids[@]}"; do
                 if _parallel_pid_has_finished "${pids[$i]}"; then
@@ -699,8 +694,11 @@ parallel_execute() {
             ((failed++)) || true
             continue
         fi
-        if ! rm -f -- "$RESULTS_DIR/$result_slug-$task_id.md"; then
-            log ERROR "Cannot remove previous output for task $task_id"
+        # Clear stale task artifacts only after both ownership checks. A
+        # rejected contender must leave the current owner's marker collectible.
+        if ! rm -f -- "$RESULTS_DIR/$result_slug-$task_id.md" \
+            "${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents/${task_id}.done"; then
+            log ERROR "Cannot remove previous output or completion marker for task $task_id"
             _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" true \
                 "failed" "stale-output-removal" ""
             type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent" failed 0 0 \

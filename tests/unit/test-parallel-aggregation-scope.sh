@@ -146,6 +146,8 @@ for owner in claim legacy-ledger; do
     owned="$RESULTS_DIR/codex-owned.md"
     printf 'active partial output\n' > "$owned"
     rm -f "$TEST_TMP_DIR/unsafe-spawn"
+    mkdir -p "$WORKSPACE_DIR/.octo/agents"
+    printf '0\n' > "$WORKSPACE_DIR/.octo/agents/owned.done"
     if [[ "$owner" == claim ]]; then
         mkdir "$RESULTS_DIR/.codex-owned.claim"
     else
@@ -158,7 +160,26 @@ for owner in claim legacy-ledger; do
        jq -e '.results[0].reason == "output-path-owned"' "$WORKSPACE_DIR/state/parallel-report.json" >/dev/null; then
         test_pass
     else test_fail "another invocation deleted or dispatched into an owned output"; fi
+    test_case "a rejected $owner contender preserves the owner's completion marker"
+    if [[ -f "$WORKSPACE_DIR/.octo/agents/owned.done" ]] && \
+       [[ "$(cat "$WORKSPACE_DIR/.octo/agents/owned.done")" == 0 ]]; then
+        test_pass
+    else
+        test_fail "rejected contender removed a completed owner's marker"
+    fi
     [[ "$owner" != claim ]] || rmdir "$RESULTS_DIR/.codex-owned.claim"
 done
+
+test_case "an admitted retry clears its old marker before dispatch"
+mkdir -p "$WORKSPACE_DIR/.octo/agents"
+printf '0\n' > "$WORKSPACE_DIR/.octo/agents/retry.done"
+spawn_agent_capture_pid() {
+    [[ ! -e "$WORKSPACE_DIR/.octo/agents/retry.done" ]] && touch "$TEST_TMP_DIR/retry-cleared"
+    return 1
+}
+printf '{"tasks":[{"id":"retry","agent":"codex","prompt":"implement"}]}' > "$TEST_TMP_DIR/tasks.json"
+parallel_execute "$TEST_TMP_DIR/tasks.json" > "$TEST_TMP_DIR/parallel-retry.log" 2>&1 && rc=0 || rc=$?
+if [[ "$rc" == 1 && -f "$TEST_TMP_DIR/retry-cleared" ]]; then test_pass
+else test_fail "retry dispatched with its previous completion marker"; fi
 
 test_summary
