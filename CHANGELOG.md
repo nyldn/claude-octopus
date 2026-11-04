@@ -22,6 +22,8 @@
   directory-sensitive executables select the correct private-server flags.
   Direct `probe-single --dry-run` previews stop before health checks or provider
   execution.
+  Both `OCTOPUS_SKIP_PROVIDER_PROBES=true` and `=1` suppress OpenCode version
+  and login probes and refuse real dispatch without selecting a server mode.
   Addresses [#1172](https://github.com/nyldn/claude-octopus/issues/1172).
 
 ## [11.16.0] - 2026-11-02

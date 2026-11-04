@@ -376,6 +376,19 @@ probe_single_agent opencode perspective probe-123-0 'Check compatibility'
         self.assertEqual(self.readiness("live")["status"], "degraded")
         self.assertFalse(self.marker.exists())
 
+    def test_skip_probes_blocks_version_login_and_dispatch_for_both_true_values(self):
+        self.env["CLI_VERSION"] = "2.0.23"
+        for value in ("true", "1"):
+            for command in ("_octo_opencode_cli_major", "_octo_opencode_has_saved_login",
+                            "get_agent_command opencode"):
+                with self.subTest(value=value, command=command):
+                    self.marker.unlink(missing_ok=True)
+                    self.env["OCTOPUS_SKIP_PROVIDER_PROBES"] = value
+                    result = self.shell('source scripts/lib/auth.sh; source scripts/lib/dispatch.sh; '
+                                        'log() { :; }; get_agent_model() { echo vendor/model; }; ' + command)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertFalse(self.marker.exists(), "disabled probe executed OpenCode")
+
     def test_stalled_login_list_is_bounded(self):
         (self.data / "opencode.db").touch()
         self.cli.write_text("#!/bin/sh\nsleep 20\n")

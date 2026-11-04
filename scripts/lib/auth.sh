@@ -279,7 +279,7 @@ _octo_opencode_auth_store_present() {
 # select private-server flags, so real dispatch fails closed.
 _octo_opencode_cli_major() {
     local version
-    [[ "${OCTOPUS_SKIP_PROVIDER_PROBES:-false}" != true ]] || return 1
+    case "${OCTOPUS_SKIP_PROVIDER_PROBES:-false}" in true|1) return 1 ;; esac
     if ! declare -f _octo_run_bare_probe_with_timeout >/dev/null 2>&1; then
         source "${BASH_SOURCE[0]%/*}/bounded-probe.sh" 2>/dev/null || return 1
     fi
