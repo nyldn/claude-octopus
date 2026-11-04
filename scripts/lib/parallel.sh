@@ -415,6 +415,25 @@ parallel_execute() {
         eval "set -- ${saved_trap#trap -- }"
         eval "$1"
     }
+    _parallel_cancel_running_seats() {
+        # Call after terminating workers and before releasing their claims.
+        # Include a seat whose PID is still being handed back by spawn.
+        declare -F write_agent_status >/dev/null || return 0
+        declare -F octo_run_dir >/dev/null || return 0
+        local ledger agent seat output role
+        ledger="$(octo_run_dir)/agents.jsonl"
+        [[ -s "$ledger" ]] || return 0
+        while IFS=$'\t' read -r agent seat output role; do
+            write_agent_status "$agent" cancelled 0 0 "Parallel execution interrupted" \
+                0 "$output" "$role" "$seat" || true
+        done < <(jq -rs --argjson tasks "${aggregate_task_scope:-[]}" \
+            "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
+            latest_per_seat | .[] | select(.status == "running") |
+            select(. as $row | any($tasks[];
+                $row.seat_id == ("spawn-" + .id) and
+                $row.output_file == .output_file)) |
+            [.agent, .seat_id, .output_file, (.role // "")] | @tsv' "$ledger")
+    }
     _parallel_handle_signal() {
         local signal="$1" signal_status=143 saved_trap current_pid
         [[ "$signal" == "INT" ]] && signal_status=130
@@ -424,6 +443,7 @@ parallel_execute() {
             saved_trap="$_parallel_previous_term_trap"
         fi
         _parallel_terminate_tracked_processes
+        _parallel_cancel_running_seats
         _parallel_cleanup_resources
         _parallel_restore_traps
         if [[ -n "$saved_trap" ]]; then
