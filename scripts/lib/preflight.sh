@@ -741,6 +741,14 @@ preflight_check() {
         readiness="$(octo_provider_readiness_result "$provider" static)"
         status="$(_octo_readiness_json_field "$readiness" status)"
         reason="$(_octo_readiness_json_field "$readiness" reason_code)"
+        # This is workflow admission, not static discovery. SQLite store
+        # presence alone cannot prove login, but must reach its bounded live
+        # confirmation before admission rejects the selected runtime.
+        if [[ "$provider" == opencode && "$reason" == live-check-required ]]; then
+            readiness="$(octo_provider_readiness_result "$provider" live)"
+            status="$(_octo_readiness_json_field "$readiness" status)"
+            reason="$(_octo_readiness_json_field "$readiness" reason_code)"
+        fi
         remediation="$(_octo_readiness_json_field "$readiness" remediation)"
         candidate_ids+=("$provider")
         candidate_statuses+=("$status")

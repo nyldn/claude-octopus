@@ -101,14 +101,47 @@ RESULTS_DIR="$HOME/results" LOGS_DIR="$HOME/logs"
 SUPPORTS_AGENT_TYPE_ROUTING=false OCTOPUS_PERSONA_PACKS=off
 probe_single_agent opencode perspective login-test
 '''
-        for connected in (False, True):
-            with self.subTest(connected=connected):
-                self.env["AUTH_JSON"] = ('[{"id":"openai","connections":[{"type":"credential"}]}]'
-                                         if connected else "[]")
-                result = self.shell(script)
-                self.assertNotEqual(result.returncode, 0)
-                self.assertEqual(Path(self.env["DISPATCH_MARKER"]).exists(), connected)
-                self.assertTrue(self.marker.exists())
+        for provider in ('opencode', 'opencode-fast', 'opencode-research'):
+            for connected in (False, True):
+                with self.subTest(provider=provider, connected=connected):
+                    Path(self.env["DISPATCH_MARKER"]).unlink(missing_ok=True)
+                    self.marker.unlink(missing_ok=True)
+                    self.env["AUTH_JSON"] = ('[{"id":"openai","connections":[{"type":"credential"}]}]'
+                                             if connected else "[]")
+                    result = self.shell(script.replace('probe_single_agent opencode ',
+                                                      f'probe_single_agent {provider} '))
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(Path(self.env["DISPATCH_MARKER"]).exists(), connected)
+                    self.assertTrue(self.marker.exists())
+
+    def test_workflow_admission_confirms_sqlite_login_before_rejecting(self):
+        (self.data / "opencode.db").touch()
+        self.env["CLI_VERSION"] = "2.0.23"
+        script = r'''
+source scripts/lib/preflight.sh
+source scripts/lib/config-display.sh
+log() { :; }
+_preflight_provider_candidates() { echo opencode; }
+detect_enterprise_backend() { :; }
+provider_smoke_test() { :; }
+WORKSPACE_DIR="$HOME"; PREFLIGHT_CACHE_FILE="$HOME/preflight-cache"
+preflight_check true
+'''
+        for roster in ('', 'opencode'):
+            for connected in (False, True):
+                with self.subTest(roster=roster, connected=connected):
+                    self.marker.unlink(missing_ok=True)
+                    self.env['OCTOPUS_COUNCIL_DEFAULT_PROVIDERS'] = roster
+                    self.env['AUTH_JSON'] = ('[{"id":"openai","connections":[{"type":"credential"}]}]'
+                                             if connected else '[]')
+                    result = self.shell(script)
+                    self.assertEqual(result.returncode == 0, connected, result.stdout + result.stderr)
+                    self.assertTrue(self.marker.exists(), 'runtime admission never confirmed login')
+        self.env['OCTOPUS_SKIP_PROVIDER_PROBES'] = 'true'
+        self.marker.unlink(missing_ok=True)
+        result = self.shell(script)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(self.marker.exists())
 
     def test_channel_database_is_configuration_evidence(self):
         (self.data / "opencode-dev.db").touch()

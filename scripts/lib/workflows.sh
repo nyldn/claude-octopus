@@ -215,7 +215,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
 
     # OpenCode's direct probe path must confirm login just like normal dispatch.
     # Resolve the registered handler rather than duplicating credential checks.
-    if [[ "$agent_type" == opencode ]]; then
+    if [[ "$agent_type" == opencode* ]]; then
         local health_handler health_diag
         health_handler="$(octo_provider_health_handler opencode)" || return 1
         if [[ "$health_handler" == none ]] || ! declare -F "$health_handler" >/dev/null 2>&1; then
