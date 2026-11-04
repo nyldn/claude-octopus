@@ -839,6 +839,15 @@ else
     test_fail "ordinal self-references were checked as numbers, or unit-bearing numbers escaped: $ordinal_kinds"
 fi
 
+test_case "Markdown reference labels remain references while count labels remain claims"
+list_refs=$(research_extract_numbers '- Points: 2 and 3; + Items: 4,5.' | tr '\n' ' ')
+table_counts=$(research_extract_numbers '| Failed items 12 | Total items 30 | Score in points 50 |' | LC_ALL=C sort | tr '\n' ' ')
+if [[ -z "$list_refs" && "$table_counts" == "12 30 50 " ]]; then
+    test_pass
+else
+    test_fail "Markdown references leaked [$list_refs] or count labels escaped [$table_counts]"
+fi
+
 test_case "colon quantities and Unicode range endpoints require source evidence"
 {
     printf '%s\n' '- The mean score in points: 50 (`src/handler.ts:4`).'

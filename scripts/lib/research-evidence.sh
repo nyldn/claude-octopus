@@ -634,11 +634,11 @@ research_numeric_claims() {
             if (number !~ /^[0-9]+(,[0-9]+)+$/ || number ~ /^[0-9][0-9]?[0-9]?(,[0-9][0-9][0-9])+$/) return 0
             if (tolower(before) !~ /(^|[^0-9a-z_])(points|items)([ \t]+|[ \t]*:[ \t]*)$/ && ord_end == 0) return 0
         }
-        # A colon may introduce a quantity measured in points/items. Require
-        # a standalone label or an explicit "see" reference in that case.
-        if (tolower(before) ~ /(^|[^0-9a-z_])(points?|items?)[ \t]*:[ \t]*$/ &&
-            tolower(before) !~ /(^|[;.!?|])[ \t]*(points?|items?)[ \t]*:[ \t]*$/ &&
-            tolower(before) !~ /(^|[^0-9a-z_])see[ \t]+(points?|items?)[ \t]*:[ \t]*$/) return 0
+        # A label may describe a score or count. Only standalone labels,
+        # including Markdown list items, and explicit references are exempt.
+        if (tolower(before) ~ /(^|[^0-9a-z_])(points?|items?)([ \t]+|[ \t]*:[ \t]*)$/ &&
+            tolower(before) !~ /(^|[;.!?|,])[ \t]*([-*+][ \t]+)?(points?|items?)([ \t]+|[ \t]*:[ \t]*)$/ &&
+            tolower(before) !~ /(^|[^0-9a-z_])(see|and|or|(corrected|covered|described|discussed|explained|listed|shown|noted|mentioned|addressed|detailed)[ \t]+in)[ \t]+(points?|items?)([ \t]+|[ \t]*:[ \t]*)$/) return 0
         # A numeric range is substantive even when its first endpoint follows a list.
         if (after ~ /^(-|\342\200\223)[ \t]*[0-9]/) return 0
         if (after ~ /^[ \t]*[*_`(]*([0-9A-Za-z]|\302\260)/ && tolower(after) !~ /^[ \t]+(and|or)[ \t]/) return 0
