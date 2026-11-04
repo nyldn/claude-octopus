@@ -108,7 +108,7 @@ sys.exit(1 if mode == "failed" else 0)
                     stable.symlink_to(stale)
                     result = self.run_skill(phase, generated=generated)
                     self.assertEqual(result.returncode, 0, result.stderr)
-                    self.assertEqual(stable.resolve(), loaded)
+                    self.assertEqual(stable.resolve(), loaded.resolve())
 
     def test_inferred_checkout_runs_without_redirecting_another_install(self):
         stable = self.home / '.claude-octopus/plugin'
