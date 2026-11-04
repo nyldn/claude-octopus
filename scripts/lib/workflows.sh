@@ -237,6 +237,9 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     local cmd
     if ! cmd=$(get_agent_command "$agent_type" "$phase" "$role" "$(octo_prompt_byte_length "$enhanced_prompt")"); then
         log ERROR "Unknown agent type: $agent_type"
+        if declare -F research_probe_single_record >/dev/null 2>&1; then
+            research_probe_single_record "$task_id" "$agent_type" failed || true
+        fi
         return 1
     fi
     if declare -f octo_dispatch_command_model >/dev/null 2>&1; then

@@ -456,6 +456,8 @@ confirmation when SQLite storage is the only login evidence or static discovery
 finds no store, including pinned council rosters. This lets supported environment
 credentials reach the same login check. Static discovery and readiness dashboards
 remain probe-free.
+Explicit workflow admission also confirms statically available OpenCode seats.
+Both admission checks resolve OpenCode from the worker's project directory.
 Synchronous, background and direct `probe-single` dispatch check health before
 launching a model task. Direct probes include the standard, fast and research
 OpenCode seats.

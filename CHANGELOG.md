@@ -26,6 +26,9 @@
   and login probes and refuse real dispatch without selecting a server mode.
   OpenCode 2.x login validation also works without `jq`, using Python 3's
   standard-library JSON parser while retaining connection validation.
+  Admission confirms logins even when static token evidence is present and
+  checks project-relative executables from the worker directory. Failed command
+  construction closes its durable research-seat event.
   Addresses [#1172](https://github.com/nyldn/claude-octopus/issues/1172).
 
 ## [11.16.0] - 2026-11-02

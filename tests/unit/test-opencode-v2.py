@@ -2,6 +2,7 @@
 """Exercise both OpenCode generations without auth, installs, or model calls."""
 import json
 import os
+from itertools import product
 from pathlib import Path
 import shlex
 import subprocess
@@ -120,6 +121,11 @@ probe_single_agent opencode perspective login-test
         self.env.update(CLI_VERSION="2.0.23", PROJECT_ROOT=str(project))
         self.cli.write_text(self.cli.read_text().replace(
             'printf called >>', '[ "$PWD" = "$PROJECT_ROOT" ] || exit 67\nprintf called >>', 1))
+        project_bin = project / "bin"
+        project_bin.mkdir()
+        project_cli = project_bin / "opencode"
+        project_cli.write_text(self.cli.read_text())
+        project_cli.chmod(0o755)
         script = r'''
 source scripts/lib/preflight.sh
 source scripts/lib/config-display.sh
@@ -130,28 +136,30 @@ provider_smoke_test() { :; }
 WORKSPACE_DIR="$HOME"; PREFLIGHT_CACHE_FILE="$HOME/preflight-cache"
 preflight_check true
 '''
-        for storage in ("sqlite", "environment"):
+        for relative_path, storage, roster, connected in product(
+                (False, True), ("sqlite", "environment", "known-environment"), ("", "opencode"), (False, True)):
+            self.env["PATH"] = "bin:/usr/bin:/bin" if relative_path else f"{self.bin}:/usr/bin:/bin"
+            self.env.pop("OPENAI_API_KEY", None)
+            self.env.pop("OPENROUTER_API_KEY", None)
             database = self.data / "opencode.db"
             if storage == "sqlite":
                 database.touch()
             else:
-                database.unlink()
-                self.env["OPENAI_API_KEY"] = "fixture"
-            for roster in ("", "opencode"):
-                for connected in (False, True):
-                    with self.subTest(storage=storage, roster=roster, connected=connected):
-                        self.marker.unlink(missing_ok=True)
-                        self.env["OCTOPUS_COUNCIL_DEFAULT_PROVIDERS"] = roster
-                        self.env["AUTH_JSON"] = json.dumps([
-                            {"id": "openai", "connections": [{"type": "credential" if storage == "sqlite" else "environment"}]}
-                        ] if connected else [])
-                        result = self.shell(script)
-                        self.assertEqual(result.returncode == 0, connected, result.stdout + result.stderr)
-                        self.assertTrue(self.marker.exists(), "admission never checked login")
-            self.env["OCTOPUS_SKIP_PROVIDER_PROBES"] = "true"
-            self.marker.unlink(missing_ok=True)
-            self.assertNotEqual(self.shell(script).returncode, 0)
-            self.assertFalse(self.marker.exists())
+                database.unlink(missing_ok=True)
+                self.env["OPENROUTER_API_KEY" if storage == "known-environment" else "OPENAI_API_KEY"] = "fixture"
+            with self.subTest(relative_path=relative_path, storage=storage, roster=roster, connected=connected):
+                self.marker.unlink(missing_ok=True)
+                self.env["OCTOPUS_COUNCIL_DEFAULT_PROVIDERS"] = roster
+                self.env["AUTH_JSON"] = json.dumps([
+                    {"id": "openai", "connections": [{"type": "credential" if storage == "sqlite" else "environment"}]}
+                ] if connected else [])
+                result = self.shell(script)
+                self.assertEqual(result.returncode == 0, connected, result.stdout + result.stderr)
+                self.assertTrue(self.marker.exists(), "admission never checked login")
+                self.env["OCTOPUS_SKIP_PROVIDER_PROBES"] = "true"
+                self.marker.unlink(missing_ok=True)
+                self.assertNotEqual(self.shell(script).returncode, 0)
+                self.assertFalse(self.marker.exists())
             self.env["OCTOPUS_SKIP_PROVIDER_PROBES"] = "false"
 
     def test_background_version_detection_uses_the_worker_directory(self):
@@ -257,17 +265,23 @@ apply_persona() { printf '%s' "$2"; }
 enforce_context_budget() { printf '%s' "$1"; }
 octo_routing_policy() { echo off; }
 get_agent_model() { echo vendor/model; }
+get_agent_command() { return 1; }
 RESULTS_DIR="$HOME/results" LOGS_DIR="$HOME/logs"
 SUPPORTS_AGENT_TYPE_ROUTING=false OCTOPUS_PERSONA_PACKS=off
 probe_single_agent opencode perspective probe-123-0 'Check compatibility'
 '''
-        result = self.shell(script)
-        self.assertNotEqual(result.returncode, 0)
-        events = self.base / 'home/results/research-runs/flow-123/events.jsonl'
-        records = [json.loads(line) for line in events.read_text().splitlines()]
-        self.assertEqual([r['event'] for r in records if r['event'].startswith('provider.')],
-                         ['provider.started', 'provider.completed'])
-        self.assertIn('status=failed', records[-1]['detail'])
+        for connected in (False, True):
+            with self.subTest(failure="command" if connected else "health"):
+                self.env['AUTH_JSON'] = ('[{"id":"openai","connections":[{"type":"credential"}]}]'
+                                         if connected else '[]')
+                task = 124 if connected else 123
+                result = self.shell(script.replace('probe-123-0', f'probe-{task}-0'))
+                self.assertNotEqual(result.returncode, 0)
+                events = self.base / f'home/results/research-runs/flow-{task}/events.jsonl'
+                records = [json.loads(line) for line in events.read_text().splitlines()]
+                self.assertEqual([r['event'] for r in records if r['event'].startswith('provider.')],
+                                 ['provider.started', 'provider.completed'])
+                self.assertIn('status=failed', records[-1]['detail'])
 
     def test_legacy_environment_only_login_is_accepted(self):
         self.env.update(AUTH_LIST="└  0 credentials\n┌ Environment\n└  1 environment variable", OPENROUTER_API_KEY="fixture")

@@ -738,13 +738,17 @@ preflight_check() {
             roster_unchecked="${roster_unchecked}${roster_unchecked:+ }${provider}"
             continue
         fi
-        readiness="$(octo_provider_readiness_result "$provider" static)"
+        if [[ "$provider" == opencode ]]; then
+            readiness="$(cd "${PROJECT_ROOT:-$PWD}" && octo_provider_readiness_result "$provider" static)"
+        else
+            readiness="$(octo_provider_readiness_result "$provider" static)"
+        fi
         status="$(_octo_readiness_json_field "$readiness" status)"
         reason="$(_octo_readiness_json_field "$readiness" reason_code)"
         # Workflow admission confirms SQLite-only or environment-only logins
         # through the same bounded live check before rejecting the runtime.
         if [[ "$provider" == opencode ]] &&
-           [[ "$reason" == live-check-required || "$reason" == auth-missing ]]; then
+           [[ "$status" == available || "$reason" == live-check-required || "$reason" == auth-missing ]]; then
             readiness="$(cd "${PROJECT_ROOT:-$PWD}" && octo_provider_readiness_result "$provider" live)"
             status="$(_octo_readiness_json_field "$readiness" status)"
             reason="$(_octo_readiness_json_field "$readiness" reason_code)"
