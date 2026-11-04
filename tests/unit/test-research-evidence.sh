@@ -848,6 +848,18 @@ else
     test_fail "Markdown references leaked [$list_refs] or count labels escaped [$table_counts]"
 fi
 
+test_case "emphasized references are skipped while emphasized quantities remain claims"
+emphasis_refs="" emphasis_claims=""
+for marker in '**' '*' '__' '_'; do
+    emphasis_refs="${emphasis_refs}$(research_extract_numbers "See points ${marker}2${marker},${marker}3${marker}.")"
+    emphasis_claims="${emphasis_claims}$(research_extract_numbers "The mean score in points: ${marker}50${marker}; points 2 and ${marker}5${marker} **MiB**." | LC_ALL=C sort | tr '\n' ' ')"
+done
+if [[ -z "$emphasis_refs" && "$emphasis_claims" == "5 50 5 50 5 50 5 50 " ]]; then
+    test_pass
+else
+    test_fail "emphasized references leaked [$emphasis_refs] or quantities escaped [$emphasis_claims]"
+fi
+
 test_case "colon quantities and Unicode range endpoints require source evidence"
 {
     printf '%s\n' '- The mean score in points: 50 (`src/handler.ts:4`).'

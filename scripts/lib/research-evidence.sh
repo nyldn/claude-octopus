@@ -654,6 +654,18 @@ research_numeric_claims() {
         while (match(substr(line, pos), /[0-9]+([.,][0-9]+)*%?/)) {
             start = pos + RSTART - 1; len = RLENGTH; pos = start + len
             before = substr(line, 1, start - 1); after = substr(line, pos)
+            # Strip paired emphasis around this number before checking either
+            # reference context or identifier boundaries. Units still follow
+            # the closing marker and must remain substantive quantities.
+            emphasis_width = 0
+            if (match(before, /(\*\*|__|\*|_)$/)) {
+                emphasis = substr(before, RSTART)
+                if (substr(after, 1, length(emphasis)) == emphasis) {
+                    emphasis_width = length(emphasis)
+                    before = substr(before, 1, length(before) - emphasis_width)
+                    after = substr(after, emphasis_width + 1)
+                }
+            }
             match(before, /[0-9A-Za-z]*$/); word = substr(before, RSTART)
             match(after, /^[0-9A-Za-z]*/); word = word substr(line, start, len) substr(after, 1, RLENGTH)
             hyphen_word = ""
@@ -664,8 +676,8 @@ research_numeric_claims() {
                 id_end = pos
                 continue
             }
-            if (ordinal_reference(before, after, start, substr(line, start, len))) {
-                ord_end = pos
+            if (ordinal_reference(before, after, start - emphasis_width, substr(line, start, len))) {
+                ord_end = pos + emphasis_width
                 continue
             }
             print substr(line, start, len)
