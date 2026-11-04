@@ -105,11 +105,21 @@ interior_invalid="$(python3 -c 'import sys; sys.stdout.buffer.write(b"x" * 100 +
 if [[ -z "$short_invalid" && -z "$interior_invalid" ]]; then test_pass; else test_fail "malformed text entered the challenge"; fi
 
 test_case "candidate scanning stops after 200 excluded paths"
-(
-    tangle_read_scope_is_allowed() { printf '%s\n' "$1" >> "$TEST_TMP_DIR/examined-paths"; return 1; }
-    paths="$(printf '.env.skip%s\n' {1..250})"
+# Bash 3.2 can retain a replacement function's BASH_SOURCE after a subshell
+# exits. Keep this stub in a separate process so later scope checks use the
+# real helper's source location.
+"$BASH" -c '
+    set -euo pipefail
+    source "$1/scripts/lib/workflows.sh"
+    source "$2"
+    PROJECT_ROOT="$3"
+    TEST_TMP_DIR="$4"
+    baseline="$5"
+    tangle_read_scope_is_allowed() { printf "%s\n" "$1" >> "$TEST_TMP_DIR/examined-paths"; return 1; }
+    paths="$(printf ".env.skip%s\n" {1..250})"
     tangle_challenge_change_evidence "$baseline" "$paths" > "$TEST_TMP_DIR/excluded-excerpt"
-)
+' evidence-test "$SCRIPT_DIR/../.." "${TESTING_LIB:-$SCRIPT_DIR/../../scripts/lib/testing.sh}" \
+    "$repo" "$TEST_TMP_DIR" "$baseline"
 examined="$(wc -l < "$TEST_TMP_DIR/examined-paths" | tr -d '[:space:]')"
 if [[ "$examined" -eq 200 && ! -s "$TEST_TMP_DIR/excluded-excerpt" ]]; then
     test_pass
