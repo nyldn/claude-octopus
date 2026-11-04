@@ -2852,6 +2852,26 @@ r="$(_report "$(_resp "src/pricing.ts:2:
 VERDICT: APPROVE")")"
 if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
+# sail-cruisey #3400: agy wraps each quoted line in a code span inside a
+# blockquote. The span's backticks are markdown, not part of the code.
+QROOT="$(mktemp -d "${TEST_TMP_DIR:-/tmp}/quote-blockspan.XXXXXX")"
+mkdir -p "$QROOT/src"
+printf '%s\n' 'export function cut(key, credentialOnly) {' '  return key.startsWith("db.") ? credentialOnly : cutPieces(credentialOnly);' '}' 'test("labels", () => {' '  expect(out[field], `${JSON.stringify(input)} / ${field}`).toBe(' '    want,' '  );' '});' > "$QROOT/src/sentry.ts"
+_qreport() { council_response_quote_verification_json "$(_resp "$1
+VERDICT: APPROVE")" "$QROOT"; }
+test_case "#3400: a blockquoted code span verifies without its backticks"
+r="$(_qreport '1. **Cut** — `src/sentry.ts:2`
+   > `return key.startsWith("db.") ? credentialOnly : cutPieces(credentialOnly);`  ')"
+if jq -e '.quotes_verified == 1 and .quotes_attributed_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+test_case "#3400: a blockquoted code span keeps the indentation and inner backticks it quotes"
+r="$(_qreport '1. **Labels** — `src/sentry.ts:5`
+   > `  expect(out[field], `${JSON.stringify(input)} / ${field}`).toBe(`')"
+if jq -e '.quotes_verified == 1 and .quotes_attributed_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+test_case "#3400: an invented line in a blockquoted code span is still fabricated"
+r="$(_qreport '1. **Cut** — `src/sentry.ts:2`
+   > `return key.startsWith("sql.") ? credentialOnly : cutPieces(credentialOnly);`')"
+if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
 # sail-cruisey #3316: a seat joins a multi-line condition onto one line. The
 # tokens are the file's; only the whitespace around punctuation differs.
 WROOT="$(mktemp -d "${TEST_TMP_DIR:-/tmp}/quote-joined.XXXXXX")"

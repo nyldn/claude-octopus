@@ -3327,13 +3327,17 @@ def in_fence(start, end):
     i = bisect_right(fence_starts, end - 1) - 1
     return i >= 0 and fence_ranges[i][1] > start
 
+# sail-cruisey #3400: "> `code`" wraps a quoted line in a code span. The span's
+# backticks are markdown; the whole line is the quote, inner backticks included.
+WRAPPED_LINE = re.compile(r"(`+)(?=[^`])(.*[^`])\1[ \t]*")
 blockquote_ranges = []
 for match in re.finditer(r"(?:^[ \t]*>[^\n]*(?:\n|$))+", resp, re.M):
     if in_fence(match.start(), match.end()):
         continue
     lines = [re.sub(r"^[ \t]*>+ ?", "", l) for l in match.group(0).split("\n")]
     # Whole-line inline formatting is Markdown, not literal source backticks.
-    lines = [re.sub(r"^[ \t]*`([^`\n]+)`[ \t]*$", r"\1", l) for l in lines if l.strip()]
+    lines = [(lambda w: w.group(2) if w else l)(WRAPPED_LINE.fullmatch(l.lstrip(" \t")))
+             for l in lines if l.strip()]
     if lines:
         blockquote_ranges.append((match.start(), match.end()))
         units.append((match.start(), match.end(), "blockquote", lines, [], ""))
