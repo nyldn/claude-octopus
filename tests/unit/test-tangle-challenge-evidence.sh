@@ -234,6 +234,7 @@ for route in provider changes; do
         read -r character offset <<< "$spec"
         if ! (
             unset OCTOPUS_TANGLE_VALIDATION_CORRECTION_FILE OCTOPUS_TANGLE_VALIDATION_CORRECTION_STATUS OCTOPUS_TANGLE_VALIDATION_CORRECTION_CHANGED
+            rm -f "$TEST_TMP_DIR/challenge"
             cap=6000
             [[ "$route" != changes ]] || cap=12000
             python3 -c 'import sys; sys.stdout.buffer.write(b"x" * (int(sys.argv[1])-int(sys.argv[2])) + sys.argv[3].encode() + b"TRUNCATED_TAIL")' \
@@ -249,7 +250,7 @@ for route in provider changes; do
                 printf 'provider result' >> "$RESULT"
             fi
             printf '\n## Status: SUCCESS\n' >> "$RESULT"
-            validate_tangle_results evidence 'Review this implementation' "$TEST_TMP_DIR/before" "$baseline" > "$TEST_TMP_DIR/aggregate-$route.log" 2>&1
+            validate_tangle_results evidence 'Review this implementation' "$TEST_TMP_DIR/before" "$baseline" > "$TEST_TMP_DIR/aggregate-$route.log" 2>&1 || exit 1
             python3 - "$TEST_TMP_DIR/challenge" <<'CHECK'
 import pathlib, sys
 text = pathlib.Path(sys.argv[1]).read_bytes().decode("utf-8")
