@@ -313,6 +313,28 @@ sys.exit(1 if mode == "failed" else 0)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertNotIn('foreign', result.stdout)
 
+    @unittest.skipUnless(sys.platform.startswith('linux'), 'requires Linux address-space limits')
+    def test_large_foreign_report_does_not_exhaust_validator_memory(self):
+        import resource
+        marker = self.home / 'marker'
+        marker.touch()
+        os.utime(marker, ns=(1, 1))
+        self.actual_delivery_report('Review this', True)
+        foreign = self.results / 'delivery-large-foreign.md'
+        with foreign.open('wb') as stream:
+            stream.write(b'# DELIVERY DOCUMENT\n<!-- octopus-workflow-invocation: foreign -->\n')
+            stream.truncate(128 * 1024 * 1024)
+
+        def limit_memory():
+            resource.setrlimit(resource.RLIMIT_AS, (96 * 1024 * 1024, 96 * 1024 * 1024))
+
+        result = subprocess.run(['bash', str(ROOT / 'scripts/helpers/workflow-result.sh'),
+                                 'deliver', str(marker), '0'], env=self.env,
+                                capture_output=True, text=True, timeout=15,
+                                preexec_fn=limit_memory)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('delivery-actual.md', result.stdout)
+
     def test_symlinked_report_is_not_accepted(self):
         def setup():
             external = self.home / 'external.md'

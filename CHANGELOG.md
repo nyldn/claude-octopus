@@ -7,7 +7,9 @@
 - Define, develop, deliver and ship now validate the report names the engine
   writes, within the current session and after the current invocation starts.
   A failed command, stale report or missing completion status cannot pass the
-  skill's result gate. Fixes #1170.
+  skill's result gate. Reports from other invocations are identified before
+  their bodies are loaded, so unrelated large output cannot exhaust the
+  validator's memory. Fixes #1170.
 
 ## [11.16.0] - 2026-11-02
 

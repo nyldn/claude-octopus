@@ -33,9 +33,12 @@ try:
     invocation = ("<!-- octopus-workflow-invocation: " + pathlib.Path(marker).name + " -->\n").encode("utf-8")
     owned = []
     for report in reports:
-        title, separator, body = report.read_bytes().partition(b"\n")
-        if separator and body.startswith(invocation):
-            owned.append((report, title + separator + body[len(invocation):]))
+        # Inspect only the bounded launcher header before loading a body. Other
+        # invocations can leave large reports in this same results directory.
+        with report.open("rb") as stream:
+            title = stream.readline(256)
+            if title.endswith(b"\n") and stream.read(len(invocation)) == invocation:
+                owned.append((report, title + stream.read()))
     if not owned:
         raise ValueError("report does not belong to this invocation in " + str(root))
     if len(owned) != 1:
