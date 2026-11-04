@@ -136,14 +136,15 @@ fi
 # cannot prompt for. Either way the council seat is silently empty, and the
 # silent-empty retry below cannot help because it reproduces the same behaviour.
 # This directive pins the full answer to the stdout response so the seat is captured.
-AGY_INLINE_DIRECTIVE="CRITICAL OUTPUT RULES: Respond with your COMPLETE answer directly inline as plain text in THIS response. Do NOT create files. Do NOT write artifacts or brain documents. Do NOT use terminal, command, or file tools. Do NOT say 'see the artifact' or reference any external document. Write the full answer here now, from your own expertise.
+# Reading stays allowed: told to avoid file tools and answer "from your own
+# expertise", agy reviewed a plan against source it never opened and wrote the
+# cited lines from memory, so every quote failed grounding (sail-cruisey #3396).
+AGY_INLINE_DIRECTIVE="CRITICAL OUTPUT RULES: Respond with your COMPLETE answer directly inline as plain text in THIS response. You may read files in the workspace to check claims and quote them verbatim; do NOT create, edit or delete files, do NOT write artifacts or brain documents, and do NOT use terminal or command tools. Do NOT say 'see the artifact' or reference any external document. Write the full answer here now.
 
 "
 # Oversized prompts are handed over as a file path (see the size ceiling below), so
-# that branch needs a directive that permits reading exactly that one file. Reusing
-# the blanket no-file-tools wording above would contradict its own instruction to
-# read the prompt file.
-AGY_INLINE_DIRECTIVE_FILE="CRITICAL OUTPUT RULES: Respond with your COMPLETE answer directly inline as plain text in THIS response. You may read ONLY the prompt file named below. Apart from reading that one file, do NOT create files, do NOT write artifacts or brain documents, and do NOT use terminal or command tools. Do NOT say 'see the artifact' or reference any external document. Write the full answer here now.
+# that branch's directive also names the prompt file to read first.
+AGY_INLINE_DIRECTIVE_FILE="CRITICAL OUTPUT RULES: Respond with your COMPLETE answer directly inline as plain text in THIS response. Read the prompt file named below. You may read files in the workspace to check claims and quote them verbatim; do NOT create, edit or delete files, do NOT write artifacts or brain documents, and do NOT use terminal or command tools. Do NOT say 'see the artifact' or reference any external document. Write the full answer here now.
 
 "
 if [[ "${OCTOPUS_AGY_FORCE_INLINE:-1}" != "1" ]]; then

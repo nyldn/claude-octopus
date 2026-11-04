@@ -275,12 +275,48 @@ test_agy_file_prompt_directive_permits_reading_prompt_file() {
     # the file-permitting variant while still forbidding artifacts.
     local helper="$PROJECT_ROOT/scripts/helpers/agy-exec.sh"
     if grep -q -- '--print "${AGY_INLINE_DIRECTIVE_FILE}Read the file' "$helper" && \
-       grep -q 'You may read ONLY the prompt file named below' "$helper" && \
+       grep -q 'Read the prompt file named below' "$helper" && \
        grep -q 'AGY_INLINE_DIRECTIVE_FILE=""' "$helper"; then
         test_pass
     else
         test_fail "the oversized-prompt branch should use AGY_INLINE_DIRECTIVE_FILE, which permits reading the supplied prompt file and is cleared by the opt-out"
     fi
+}
+
+test_agy_directives_permit_reading_workspace_files() {
+    # sail-cruisey #3396: told not to use file tools and to answer "from your own
+    # expertise", agy reviewed a plan against src/lib/sentry.ts without opening it
+    # and wrote the cited lines from memory, so every CP1 round was flagged blind.
+    # Both directives must let it read workspace files while still forbidding
+    # writes, artifacts and commands.
+    local tmp_bin="$TEST_TMP_DIR/agy-read-bin"
+    local args="$TEST_TMP_DIR/agy-read.args"
+    mkdir -p "$tmp_bin"
+    cat > "$tmp_bin/agy" <<'MOCK_AGY'
+#!/usr/bin/env bash
+printf '%s\n' "$@" > "${AGY_ARGS_FILE:?}"
+echo "mock-response"
+MOCK_AGY
+    chmod +x "$tmp_bin/agy"
+
+    local size prompt
+    for size in small oversized; do
+        test_case "agy's $size-prompt directive permits reading workspace files"
+        rm -f "$args"
+        prompt="Review src/a.ts against the plan."
+        [[ "$size" == small ]] || prompt="$prompt $(printf '%*s' 100001 '' | tr ' ' x)"
+        printf '%s' "$prompt" | AGY_ARGS_FILE="$args" PATH="$tmp_bin:$PATH" \
+            bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" >/dev/null 2>&1
+        if [[ -f "$args" ]] &&
+           grep -q 'You may read files in the workspace' "$args" &&
+           grep -q 'do NOT create, edit or delete files' "$args" &&
+           grep -q 'do NOT use terminal or command tools' "$args" &&
+           ! grep -qE 'file tools|own expertise|read ONLY' "$args"; then
+            test_pass
+        else
+            test_fail "agy --print directive must permit workspace reads and forbid writes: $(grep -m1 'CRITICAL' "$args" 2>/dev/null | cut -c1-300)"
+        fi
+    done
 }
 
 test_agy_oversize_payload_skips_gracefully() {
@@ -1660,6 +1696,7 @@ test_agy_review_sized_prompt_dispatches_promptly
 test_agy_review_sized_silent_output_retries_promptly
 test_agy_force_inline_directive_prepended_by_default
 test_agy_file_prompt_directive_permits_reading_prompt_file
+test_agy_directives_permit_reading_workspace_files
 test_agy_oversize_payload_skips_gracefully
 test_agy_oversize_ceiling_is_configurable
 test_agy_oversize_uses_documented_default_ceiling
