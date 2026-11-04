@@ -387,8 +387,11 @@ provider check; selecting Vibe permits that check. Vibe is not a supported
 council seat, so it cannot be selected through the council roster.
 A locked or unreadable keyring remains unavailable.
 `OCTOPUS_SKIP_PROVIDER_PROBES=true` skips this
-check. Non-Python wrappers and installations whose Python environment cannot
-import Vibe remain unverified; use an existing environment or file credential
+check. Direct Python entrypoints and simple `#!/usr/bin/env python` or
+`python3` entrypoints (including versioned Python 3 names) are supported.
+The latter resolve Python through the selected command search path, without
+executing the wrapper. Shebang options, non-Python wrappers and installations
+whose Python environment cannot import Vibe remain unverified; use an existing environment or file credential
 route for those installations.
 
 This follows Mistral's documented [credential search order](https://docs.mistral.ai/vibe/code/cli/api-keys-profiles)

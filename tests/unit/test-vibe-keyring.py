@@ -104,6 +104,33 @@ class VibeKeyringTest(unittest.TestCase):
         self.assertNotEqual(self.shell('_octo_vibe_keyring_has_key selected').returncode, 0)
         self.assertFalse(self.marker.exists())
 
+    def test_env_python_entrypoints_use_the_selected_environment(self):
+        for name in ('python', 'python3', f'python3.{sys.version_info.minor}'):
+            with self.subTest(name=name):
+                self.marker.unlink(missing_ok=True)
+                alias = self.python.parent / name
+                if not alias.exists():
+                    alias.symlink_to(self.python)
+                self.env['PATH'] = f'{self.python.parent}:{self.bin}:/usr/bin:/bin'
+                self.vibe.write_text(f'#!/usr/bin/env {name}\nraise RuntimeError("CLI must not execute")\n')
+                result = self.shell('octo_provider_readiness_result vibe static')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(json.loads(result.stdout)['status'], 'available')
+                self.assertTrue(self.marker.exists())
+                self.marker.unlink()
+                result = self.shell('octo_provider_readiness_all static')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertFalse(self.marker.exists(), 'env wrapper bypassed automatic discovery deferral')
+
+    def test_env_entrypoints_with_options_or_non_python_commands_fail_closed(self):
+        for command in ('-S python3', 'python3 -I', 'bash', 'python3; echo unsafe'):
+            with self.subTest(command=command):
+                self.vibe.write_text(f'#!/usr/bin/env {command}\nexit 99\n')
+                result = self.shell('_octo_vibe_keyring_has_key selected')
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout + result.stderr, '')
+                self.assertFalse(self.marker.exists())
+
     def test_existing_credentials_do_not_probe_keyring(self):
         self.env['MISTRAL_API_KEY'] = 'inert-fixture-value'
         result = self.shell('_octo_provider_static_readiness vibe; check_provider_health vibe; detect_providers')

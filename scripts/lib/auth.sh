@@ -67,7 +67,16 @@ _octo_vibe_keyring_has_key() {
     shebang="$(head -c 512 "$binary" 2>/dev/null | head -n 1)"
     [[ "$shebang" == '#!'/* ]] || return 1
     read -r interpreter extra <<< "${shebang#\#!}"
-    [[ -z "$extra" && -x "$interpreter" && "${interpreter##*/}" == python* ]] || return 1
+    case "$interpreter" in
+        /usr/bin/env|/bin/env)
+            # Match the simple env shebang only. Resolve the same PATH entry as
+            # the CLI without executing env, parsing options or evaluating text.
+            [[ "$extra" =~ ^python(3(\.[0-9]+)?)?$ ]] || return 1
+            interpreter="$(command -v "$extra" 2>/dev/null)" || return 1
+            extra=""
+            ;;
+    esac
+    [[ -z "$extra" && "$interpreter" == /* && -f "$interpreter" && -x "$interpreter" && "${interpreter##*/}" == python* ]] || return 1
     lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)" || return 1
     source "$lib_dir/bounded-probe.sh" 2>/dev/null || return 1
     # A selected external package must not inherit other providers' credentials,
