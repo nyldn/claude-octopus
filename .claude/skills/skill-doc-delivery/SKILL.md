@@ -280,10 +280,9 @@ Output Goal: Academic paper format
 Steps:
 1. Read the synthesize markdown
 2. Structure as: Abstract, Introduction, Literature Review, Gaps, Conclusions
-3. Convert with the resolved DOCX renderer
+3. Resolve and invoke the PDF renderer with the selected template
 4. Apply academic formatting (citations, references)
-5. Export to PDF for final version
-6. Save as "AI-Safety-Literature-Review-2026-01-18.pdf"
+5. Save as "AI-Safety-Literature-Review-2026-01-18.pdf" and report its actual path
 ```
 
 ## Handling Edge Cases
