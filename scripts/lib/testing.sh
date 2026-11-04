@@ -46,6 +46,28 @@ if not any(c < 32 and c not in (9, 10, 13) for c in data) and b"\nBinary files "
 '
 }
 
+# Match head -c for malformed bytes, trimming only a valid UTF-8 character
+# that crosses the cap. Three lookahead bytes cover the longest UTF-8 suffix.
+tangle_challenge_cap_bytes() {
+    python3 -I -c 'import sys
+limit = int(sys.argv[1])
+data = sys.stdin.buffer.read(limit + 3)
+prefix = data[:limit]
+for start in range(max(0, limit - 3), min(limit, len(data))):
+    lead = data[start]
+    width = 2 if 0xC2 <= lead <= 0xDF else 3 if 0xE0 <= lead <= 0xEF else 4 if 0xF0 <= lead <= 0xF4 else 0
+    if not width or start + width <= limit:
+        continue
+    try:
+        data[start:start + width].decode("utf-8")
+    except UnicodeDecodeError:
+        continue
+    prefix = data[:start]
+    break
+sys.stdout.buffer.write(prefix)
+' "$1"
+}
+
 # Give the challenger bounded, policy-filtered changes from the run's start.
 # Missing helpers or an unverifiable baseline omit the diff, never widen reads.
 tangle_challenge_change_evidence() (
@@ -854,9 +876,9 @@ $(<"$correction_file")
             local clean_token="GENUINELY_CLEAN_${RANDOM}${RANDOM}"
             local challenge_result=""
             local challenge_evidence challenge_changes
-            challenge_changes=$(tangle_challenge_change_evidence "$baseline_head" "$worktree_changes" | head -c 12000) || true
+            challenge_changes=$(tangle_challenge_change_evidence "$baseline_head" "$worktree_changes" | tangle_challenge_cap_bytes 12000) || true
             challenge_evidence=$(sanitize_external_content "Provider output excerpts, capped at 6000 bytes:
-$(head -c 6000 <<< "$challenge_outputs")
+$(tangle_challenge_cap_bytes 6000 <<< "$challenge_outputs")
 
 Change excerpts from the run's starting commit, examining at most 200 candidate
 paths and emitting at most 20 paths,

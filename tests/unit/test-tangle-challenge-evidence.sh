@@ -227,4 +227,55 @@ printf 'binary.bin diff\n' > "$repo/.gitattributes"
 git -C "$repo" -c core.fsmonitor=false add --intent-to-add -- binary.bin
 excerpt="$(tangle_challenge_change_evidence "$baseline" binary.bin)"
 if [[ -z "$excerpt" ]]; then test_pass; else test_fail "forced-text binary diff entered the challenge"; fi
+for route in provider changes; do
+    test_case "$route aggregate cap retains complete UTF-8 at every character alignment"
+    aggregate_ok=true
+    for spec in 'é 1' '界 1' '界 2' '😀 1' '😀 2' '😀 3'; do
+        read -r character offset <<< "$spec"
+        if ! (
+            unset OCTOPUS_TANGLE_VALIDATION_CORRECTION_FILE OCTOPUS_TANGLE_VALIDATION_CORRECTION_STATUS OCTOPUS_TANGLE_VALIDATION_CORRECTION_CHANGED
+            cap=6000
+            [[ "$route" != changes ]] || cap=12000
+            python3 -c 'import sys; sys.stdout.buffer.write(b"x" * (int(sys.argv[1])-int(sys.argv[2])) + sys.argv[3].encode() + b"TRUNCATED_TAIL")' \
+                "$cap" "$offset" "$character" > "$TEST_TMP_DIR/aggregate-input"
+            tangle_challenge_change_evidence() { cat "$TEST_TMP_DIR/aggregate-input"; }
+            printf '# Agent: codex\n# Task ID: tangle-evidence-0\n# Role: implementer\n' > "$RESULT"
+            write_agent_result_prompt "$RESULT" "$prompt"
+            printf '# Started: test\n\n## Output\n' >> "$RESULT"
+            if [[ "$route" == provider ]]; then
+                cat "$TEST_TMP_DIR/aggregate-input" >> "$RESULT"
+                tangle_challenge_change_evidence() { :; }
+            else
+                printf 'provider result' >> "$RESULT"
+            fi
+            printf '\n## Status: SUCCESS\n' >> "$RESULT"
+            validate_tangle_results evidence 'Review this implementation' "$TEST_TMP_DIR/before" "$baseline" > "$TEST_TMP_DIR/aggregate-$route.log" 2>&1
+            python3 - "$TEST_TMP_DIR/challenge" <<'CHECK'
+import pathlib, sys
+text = pathlib.Path(sys.argv[1]).read_bytes().decode("utf-8")
+assert "x" * 100 in text
+assert "TRUNCATED_TAIL" not in text
+CHECK
+        ); then aggregate_ok=false; fi
+    done
+    if [[ "$aggregate_ok" == true ]]; then test_pass
+    else test_fail "$route aggregate cap split a valid UTF-8 character"; fi
+done
+
+test_case "byte caps preserve malformed input and already-complete characters"
+if python3 - "${TESTING_LIB:-$SCRIPT_DIR/../../scripts/lib/testing.sh}" <<'CHECK'
+import subprocess, sys
+library = sys.argv[1]
+for cap in (6000, 12000):
+    cases = [b"short\xffoutput", b"x" * (cap - 1) + b"\xe7", b"x" * (cap - 1) + b"\xe7\xffafter",
+             b"x" * (cap - 2) + b"\xc0\xafmore", b"x" * (cap - 1) + b"\xed\xa0\x80more",
+             b"x" * (cap - 1) + b"\xf4\x90\x80\x80more"]
+    cases += [b"x" * (cap - len(c.encode())) + c.encode() + b"after" for c in "é界😀"]
+    for data in cases:
+        actual = subprocess.run(["bash", "-c", 'source "$1"; tangle_challenge_cap_bytes "$2"',
+                                 "_", library, str(cap)], input=data, stdout=subprocess.PIPE, check=True).stdout
+        assert actual == data[:cap], (cap, data[-12:], actual[-12:])
+CHECK
+then test_pass; else test_fail "byte cap changed malformed input or a complete character"; fi
+
 test_summary
