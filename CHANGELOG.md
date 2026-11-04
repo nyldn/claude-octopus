@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- A council seat is no longer marked fabricated for its own arithmetic. An
+  inline code span made only of numbers (`1.5e6` and `1_000` included), known
+  units right after a number (`KB`, `kilobytes`, `ms`, `%`, `tokens`, ...),
+  and operators including `%`, such as `8 + 10 + 0.5 = 18.5 KB`, is a value
+  the seat computed, not a quote of the code. The verifier found it in no
+  file, and when it was the only quote the seat was dropped as blind. Any
+  identifier or keyword, as in `base + taxes * 2` or
+  `100 if 1000 > 500 else 1`, still makes it a checked code quote. Arithmetic
+  a citation claims, before or right after the span, is still verified against
+  cited evidence. The exemption never covers a code fence or a diff removal: their
+  arithmetic lines go through the usual checks, so a specific enough line is
+  still verified.
+
 ## [11.16.0] - 2026-11-02
 
 ### Fixed
@@ -99,19 +114,6 @@
   matching file text even when the cited line number is out of range.
   An unsafe existing path cannot fall back to a different file.
   [#1236](https://github.com/nyldn/claude-octopus/pull/1236).
-
-- A council seat is no longer marked fabricated for its own arithmetic. An
-  inline code span made only of numbers (`1.5e6` and `1_000` included), known
-  units right after a number (`KB`, `kilobytes`, `ms`, `%`, `tokens`, ...),
-  and operators including `%`, such as `8 + 10 + 0.5 = 18.5 KB`, is a value
-  the seat computed, not a quote of the code. The verifier found it in no
-  file, and when it was the only quote the seat was dropped as blind. Any
-  identifier or keyword, as in `base + taxes * 2` or
-  `100 if 1000 > 500 else 1`, still makes it a checked code quote. Arithmetic
-  a citation claims, before or right after the span, is still verified against
-  cited evidence. The exemption never covers a code fence or a diff removal: their
-  arithmetic lines go through the usual checks, so a specific enough line is
-  still verified.
 
 ## [11.15.2] - 2026-10-28
 
