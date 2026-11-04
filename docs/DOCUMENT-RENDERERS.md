@@ -32,6 +32,8 @@ Supported keys are `pptx`, `docx`, `xlsx` and `pdf`. Template paths must name
 existing files. Relative paths resolve from the invocation's working directory.
 An explicit renderer replaces the saved renderer and its template. An explicit
 template overrides the saved template. Selection never rewrites this file.
+An explicit renderer ignores saved configuration, including malformed settings.
+The `--config` path accepts `~` and resolves to an absolute path before reading.
 
 Without an explicit or saved choice, Octopus prefers `document-skills:<format>`
 when advertised, then a single advertised `<format>` or `<namespace>:<format>`

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Renderer selection uses the host's advertised skills, not plugin ownership."""
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -58,6 +59,28 @@ class DocumentRendererTest(unittest.TestCase):
         self.config.write_text(json.dumps({"pptx": {"skill": "house:slides", "template": "missing.pptx"}}))
         result = self.selection("--available-skill", "house:slides", "--template", str(template))
         self.assertEqual(result["template"], str(template))
+
+    def test_explicit_renderer_bypasses_malformed_saved_configuration(self):
+        template = self.base / "explicit.pptx"
+        template.touch()
+        for config in ("not json", '{"pptx":42}'):
+            for template_args in ((), ("--template", str(template))):
+                with self.subTest(config=config, template_args=template_args):
+                    self.config.write_text(config)
+                    result = self.selection("--renderer", "pptx", "--available-skill", "pptx", *template_args)
+                    self.assertEqual(result["skill"], "pptx")
+                    self.assertEqual(result["template"], str(template) if template_args else None)
+
+    def test_literal_tilde_config_path_keeps_the_saved_selection(self):
+        self.config.write_text('{"pptx":{"skill":"house:slides"}}')
+        # Reach the fixture through ~ without writing to the host home.
+        config_path = "~/" + os.path.relpath(self.config.resolve(), Path.home().resolve())
+        result = subprocess.run([sys.executable, str(HELPER), "--format", "pptx",
+                                 "--config", config_path, "--available-skill", "house:slides",
+                                 "--available-skill", "document-skills:pptx"],
+                                text=True, capture_output=True, timeout=5)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["skill"], "house:slides")
 
     def test_missing_explicit_or_saved_renderer_never_falls_back(self):
         self.config.write_text('{"pptx":{"skill":"house:slides"}}')

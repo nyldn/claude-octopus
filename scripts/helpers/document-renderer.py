@@ -67,9 +67,9 @@ def main():
     parser.add_argument("--template")
     args = parser.parse_args()
     try:
-        entry = read_config(args.config, args.format)
+        entry = {} if args.renderer is not None else read_config(args.config.expanduser().resolve(), args.format)
         result = resolve_renderer(args.format, args.available_skill, entry, args.renderer, args.template)
-    except (OSError, ValueError, RecursionError) as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
         print(f"Renderer selection failed: {exc}", file=sys.stderr)
         return 1
     print(json.dumps(result))
