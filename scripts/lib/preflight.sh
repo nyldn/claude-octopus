@@ -506,7 +506,9 @@ EOF
     fi
 
     if [[ "$check_kind" == "live" && "$health_handler" != "none" ]] &&
-       { [[ "$status" == "available" ]] || [[ "$reason_code" == "live-check-required" ]]; }; then
+       { [[ "$status" == "available" ]] || [[ "$reason_code" == "live-check-required" ]]; } &&
+       ! [[ "$provider" == vibe && "$reason_code" == live-check-required &&
+            "${_octo_vibe_check_context:-selected}" != selected ]]; then
         # Live mode is explicit. Execute the registry-selected health handler in
         # a fresh bounded shell so a provider CLI cannot stall setup or Doctor.
         source "${_preflight_registry_dir}/providers.sh" 2>/dev/null || true

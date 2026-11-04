@@ -51,7 +51,7 @@ class VibeKeyringTest(unittest.TestCase):
                                '    raise RuntimeError("migration-capable lookup forbidden")\n'
                                'def probe_api_key_from_keyring(key):\n'
                                '    assert key == "MISTRAL_API_KEY"\n'
-                               f'    Path({str(self.marker)!r}).touch()\n'
+                               f'    Path({str(self.marker)!r}).write_text(str(os.getpid()))\n'
                                + '\n'.join('    ' + line for line in body.splitlines()) + '\n')
 
     def shell(self, command):
@@ -148,6 +148,15 @@ class VibeKeyringTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertLess(elapsed, 6)
         self.assertEqual(result.stdout + result.stderr, '')
+        pid = int(self.marker.read_text())
+        for _ in range(20):
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                break
+            time.sleep(0.05)
+        else:
+            self.fail(f'timed-out probe process {pid} survived cleanup')
 
     def test_automatic_discovery_does_not_load_vibe_code(self):
         result = self.shell('detect_providers; octo_provider_readiness_all static; '
@@ -161,6 +170,10 @@ class VibeKeyringTest(unittest.TestCase):
         result = self.shell('octo_provider_readiness_all live')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse(self.marker.exists(), 'broad live scan loaded unselected Vibe code')
+        vibe = next(json.loads(line) for line in result.stdout.splitlines()
+                    if json.loads(line)['provider'] == 'vibe')
+        self.assertEqual((vibe['status'], vibe['reason_code']), ('degraded', 'live-check-required'))
+        self.assertIn('Select Vibe', vibe['remediation'])
         selected = self.shell('octo_provider_readiness_all live vibe')
         self.assertEqual(selected.returncode, 0, selected.stderr)
         self.assertTrue(self.marker.exists(), 'explicit selection must still inspect Vibe')
