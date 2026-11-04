@@ -3478,10 +3478,15 @@ FIRST_PERSON_SUBJECT = re.compile(r"\b(?:I|we)\s+$", re.I)
 DOTTED_ABBREVIATION = re.compile(r"\b(?:[A-Za-z]\.){2,}")
 CLAUSE_BOUNDARY = re.compile(r"[.!?;](?:\s|$)")
 def clause_start(text, end):
-    abbreviations = [(m.start(), m.end()) for m in DOTTED_ABBREVIATION.finditer(text, 0, end)]
+    # Both scans advance in source order; never rescan all abbreviation ranges
+    # for each punctuation mark on a long response line.
+    abbreviations = DOTTED_ABBREVIATION.finditer(text, 0, end)
+    abbreviation = next(abbreviations, None)
     last = 0
     for boundary in CLAUSE_BOUNDARY.finditer(text, 0, end):
-        if not any(start <= boundary.start() < stop for start, stop in abbreviations):
+        while abbreviation is not None and abbreviation.end() <= boundary.start():
+            abbreviation = next(abbreviations, None)
+        if abbreviation is None or boundary.start() < abbreviation.start():
             last = boundary.end()
     return last
 

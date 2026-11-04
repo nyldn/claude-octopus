@@ -3010,4 +3010,18 @@ VERDICT: REVISE")")"
     fi
 done
 
+test_case "long abbreviation-heavy proposals stay within the verifier budget"
+long_proposal="$TEST_TMP_DIR/long-proposal.md"
+python3 - "$long_proposal" "$FAKE" <<'PY_LONG_PROPOSAL'
+import sys
+from pathlib import Path
+Path(sys.argv[1]).write_text("We should use " + "e.g. " * 40000 + "src/pricing.ts:2: `" + sys.argv[2] + "`\nVERDICT: REVISE\n")
+PY_LONG_PROPOSAL
+r="$(_report "$long_proposal")"
+if jq -e '.verification_failed == false and .quotes_unverifiable_proposed == 1 and .fabricated == false' <<< "$r" >/dev/null; then
+    test_pass
+else
+    test_fail "long proposal exhausted verification: $r"
+fi
+
 test_summary
