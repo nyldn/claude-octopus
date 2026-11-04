@@ -299,11 +299,34 @@ _octo_opencode_has_saved_login() {
     major="$(_octo_opencode_cli_major)" || return 1
     if [[ "$major" == 2 ]]; then
         listing="$(_octo_run_bare_probe_with_timeout 3 2 1 opencode auth list --standalone --format json </dev/null 2>/dev/null)" || return 1
-        printf '%s\n' "$listing" | jq -e '
+        if command -v jq >/dev/null 2>&1; then
+            printf '%s\n' "$listing" | jq -e '
             type == "array" and any(.[];
                 (.id | type == "string" and length > 0) and
                 (.connections | type == "array" and any(.[];
                     .type == "credential" or .type == "environment")))' >/dev/null 2>&1
+        elif command -v python3 >/dev/null 2>&1; then
+            printf '%s\n' "$listing" | python3 -c '
+import json
+import sys
+
+try:
+    providers = json.load(sys.stdin)
+    valid = isinstance(providers, list) and any(
+        isinstance(provider, dict)
+        and isinstance(provider.get("id"), str) and bool(provider["id"])
+        and isinstance(provider.get("connections"), list)
+        and any(isinstance(connection, dict)
+                and connection.get("type") in ("credential", "environment")
+                for connection in provider["connections"])
+        for provider in providers)
+except (ValueError, TypeError, RecursionError):
+    valid = False
+sys.exit(0 if valid else 1)
+' >/dev/null 2>&1
+        else
+            return 1
+        fi
     else
         listing="$(_octo_run_bare_probe_with_timeout 3 2 1 opencode auth list </dev/null 2>/dev/null)" || return 1
         listing="$(printf '%s\n' "$listing" | sed $'s/\033\\[[0-9;]*m//g')"

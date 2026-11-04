@@ -24,6 +24,8 @@
   execution.
   Both `OCTOPUS_SKIP_PROVIDER_PROBES=true` and `=1` suppress OpenCode version
   and login probes and refuse real dispatch without selecting a server mode.
+  OpenCode 2.x login validation also works without `jq`, using Python 3's
+  standard-library JSON parser while retaining connection validation.
   Addresses [#1172](https://github.com/nyldn/claude-octopus/issues/1172).
 
 ## [11.16.0] - 2026-11-02

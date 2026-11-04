@@ -471,7 +471,8 @@ Live checks use bounded version and login commands. OpenCode 1.x must report a
 positive credential or environment-variable count. OpenCode 2.x checks
 `auth list --standalone --format json` for `credential` or `environment` connections,
 using the same private-server environment as dispatch. Empty, failed and
-unrecognized listings fail closed. Account metadata is never printed. Checks
+unrecognized listings fail closed. JSON validation uses `jq` when available,
+or Python 3's standard library. Account metadata is never printed. Checks
 neither prove model entitlement nor make a model request. Octopus does not open
 or modify credential databases itself; OpenCode manages its own storage.
 

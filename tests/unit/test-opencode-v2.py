@@ -347,6 +347,32 @@ probe_single_agent opencode perspective probe-123-0 'Check compatibility'
                 self.env["AUTH_JSON"] = listing
                 self.assertEqual(self.readiness("live")["status"], "degraded")
 
+    def test_v2_login_without_jq_still_validates_connection_structure(self):
+        self.env["CLI_VERSION"] = "2.0.23"
+        script = r'''
+source scripts/lib/auth.sh
+command() {
+    if [[ "$1" == -v && "${2:-}" == jq ]]; then return 1; fi
+    builtin command "$@"
+}
+jq() { return 127; }
+_octo_opencode_has_saved_login
+'''
+        for listing, valid in (
+            ('[{"id":"openai","connections":[{"type":"credential"}]}]', True),
+            ('[{"id":"openai","connections":[{"type":"environment"}]}]', True),
+            ('[]', False), ('{}', False), ('not json', False),
+            ('[{"id":"openai","connections":[]}]', False),
+            ('[{"id":"","connections":[{"type":"credential"}]}]', False),
+            ('[{"id":"openai","connections":[{"type":"unknown"}]}]', False),
+            ('[{"id":"openai","connections":[null]}]', False),
+        ):
+            with self.subTest(listing=listing):
+                self.env["AUTH_JSON"] = listing
+                result = self.shell(script)
+                self.assertEqual(result.returncode == 0, valid, result.stderr)
+                self.assertEqual(result.stdout + result.stderr, "")
+
     def test_legacy_ansi_credential_summary_passes(self):
         (self.data / "auth.json").write_text("{}")
         self.env["AUTH_LIST"] = "\x1b[32m└  2 credentials\x1b[0m"
