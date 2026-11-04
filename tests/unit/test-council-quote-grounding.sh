@@ -3074,11 +3074,12 @@ if [[ ! -e "$partial_quote_marker" ]] && jq -e '.verification_failed == false an
 # PR #1237 follow-up: short inline elisions obey the same matching contract
 # as specific lines, including failure when a retained fragment is invented.
 printf '%s\n' "$REAL_NEAR" 'if (x) { return result; }' 'foo(actualArgument);' \
+    'if (isReady) { return result; }' \
     'return applyTaxes(base, sailing.portFees);' > "$ROOT/src/elision.ts"
-for short_elision in 'if (x) { ... }' 'foo(...);' 'foo(…);' 'bar(...);'; do
+for short_elision in 'if (x) { ... }' 'foo(...);' 'foo(…);' 'bar(...);' 'if (isReady) { ... }' 'if (isWrong) { ... }'; do
     test_case "short inline elision reports only missing fragments: $short_elision"
     expected_partial=0
-    [[ "$short_elision" == 'bar(...);' ]] && expected_partial=1
+    case "$short_elision" in 'bar(...);'|'if (isWrong) { ... }') expected_partial=1 ;; esac
     r="$(_report "$(_resp "src/elision.ts:1 reads:
 \`\`\`ts
 $REAL_NEAR
@@ -3110,5 +3111,24 @@ PY_REPEATED_CONSTRUCTION
         test_fail "repeated construction wording exhausted verification: $r"
     fi
 done
+
+test_case "repeated short fence lines do not multiply full-file partial scans"
+large_partial_response="$TEST_TMP_DIR/large-partial.md"
+python3 - "$ROOT/src/large-partial.ts" "$large_partial_response" "$REAL_NEAR" <<'PY_LARGE_PARTIAL'
+import sys
+from pathlib import Path
+first = sys.argv[3]
+last = 'return applyTaxes(base, sailing.portFees);'
+Path(sys.argv[1]).write_text(first + '\n' + last + '\n' + 'x' * 1400000)
+Path(sys.argv[2]).write_text('src/large-partial.ts:1 reads:\n```ts\n' + first + '\n' +
+                            'return true;\n' * 60000 + last + '\n```\nVERDICT: APPROVE\n')
+PY_LARGE_PARTIAL
+r="$(_report "$large_partial_response")"
+if jq -e '.verification_failed == false and .quotes_verified == 1 and .quotes_partial == 1
+    and .fabricated == false' <<< "$r" >/dev/null; then
+    test_pass
+else
+    test_fail "repeated short lines exhausted partial accounting: $r"
+fi
 
 test_summary

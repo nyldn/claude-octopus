@@ -3298,18 +3298,29 @@ def match_unit(wholes, line_variants, entry, misses=None, short=()):
     # threshold or elision carries it, the lines it did not find, short ones
     # included, are appended to misses.
     hay = entry[0]
-    def missing(found_count):
-        return (len(line_variants) - found_count +
-                sum(1 for variants in short if not any(
-                    all(piece in hay for piece in ELLIPSIS.split(v) if piece)
-                    for v in variants)))
+    partial_misses = {}
+    def missing():
+        count = 0
+        for variants in line_variants + list(short):
+            key = tuple(variants)
+            if key not in partial_misses:
+                partial_misses[key] = True
+                for variant in variants:
+                    # Partial accounting checks every retained fragment, even
+                    # below the specificity floor used by the verdict.
+                    pieces = [p for p in ELLIPSIS.split(norm(variant)) if p]
+                    if pieces and find_lines(hay, [], [], pieces[0], following=pieces[1:]):
+                        partial_misses[key] = False
+                        break
+            # Repeated lines retain their count without rescanning the file.
+            count += partial_misses[key]
+        return count
     for variant in wholes:
         lines = match_variant(variant, entry)
         if lines:
             if misses is not None and norm(variant) not in hay:
                 # Elided fragments matched; a line between them may be invented.
-                misses.append(missing(sum(1 for variants in line_variants
-                                          if any(match_variant(v, entry) for v in variants))))
+                misses.append(missing())
             return lines
     if not line_variants:
         return []
@@ -3322,7 +3333,7 @@ def match_unit(wholes, line_variants, entry, misses=None, short=()):
                 break
     if found and len(found) * 3 >= len(line_variants) * 2:
         if misses is not None:
-            misses.append(missing(len(found)))
+            misses.append(missing())
         return found[0]
     return []
 
