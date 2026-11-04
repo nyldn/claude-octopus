@@ -124,7 +124,8 @@ Once the outline is approved:
 3. Preserve the approved titles, content and template requirements. Follow the
    selected skill's format and authentication rules. Stop on an unsupported
    format or template instead of silently changing the renderer.
-4. For a PPTX renderer, save a descriptively named file in the working directory.
+4. For a PPTX renderer, save a descriptively named file in the working directory
+   and report the actual saved artifact path in the response.
    For a native Slides renderer, report the actual deck URL. Follow its approval
    rules for publication and sharing. On failure, report the failure and retain
    the approved outline; do not claim a finished deck.

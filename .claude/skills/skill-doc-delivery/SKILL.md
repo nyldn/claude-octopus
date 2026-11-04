@@ -129,8 +129,10 @@ Ask yourself:
 ### Step 3: Invoke the selected renderer
 
 Invoke the resolved skill with the source markdown, requested format and
-selected template. For slides, include the approved slide skeleton, visual
-callout plan and appendix list. Follow that skill's supported-format,
+selected template. For slides with approved materials, include the approved
+slide skeleton, visual callout plan and appendix list. Otherwise, pass the source
+markdown without implying that an outline or slide materials were approved.
+Follow that skill's supported-format,
 authentication, publication and sharing rules. Report its actual artifact path
 or native deck URL, and report failures without claiming a completed conversion.
 

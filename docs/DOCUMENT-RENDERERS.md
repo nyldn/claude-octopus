@@ -52,8 +52,10 @@ Pass one `--available-skill` per advertised skill. The helper selects a skill an
 validates the template path; it does not discover skills from disk, execute
 renderers, install plugins or establish that a renderer can complete a task.
 
-The rendering handoff contains the approved slide skeleton, visual callouts,
-appendix list and selected template. Preserve those inputs through conversion.
+When approved slide materials exist, the rendering handoff contains the slide
+skeleton, visual callouts, appendix list and selected template. Preserve those
+inputs through conversion. Direct document exports pass the source markdown
+without implying outline approval.
 For a native Slides renderer, return the actual deck URL. For a file renderer,
 return the actual artifact path. Report a renderer failure without claiming a
 completed deck or switching renderers silently.
