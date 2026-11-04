@@ -27,6 +27,8 @@ class WorkflowResultTest(unittest.TestCase):
         # into the fixture install alongside the linked validator.
         (plugin / 'scripts/state-manager.sh').symlink_to(ROOT / 'scripts/state-manager.sh')
         (plugin / 'scripts/lib').symlink_to(ROOT / 'scripts/lib')
+        (plugin / 'scripts/helpers/ensure-plugin-root.sh').write_text(
+            (ROOT / 'scripts/helpers/ensure-plugin-root.sh').read_text())
         self.engine = plugin / 'scripts/orchestrate.sh'
         self.engine.write_text(f'#!{sys.executable} -I\n' + '''import os
 from pathlib import Path
@@ -83,6 +85,50 @@ sys.exit(1 if mode == "failed" else 0)
                 result = self.run_skill(phase, generated=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn('-current.md', result.stdout)
+
+    def test_loaded_install_is_used_instead_of_a_stale_stable_root(self):
+        stable = self.home / '.claude-octopus/plugin'
+        loaded = self.home / '.claude/plugins/cache/nyldn-plugins/octo/99.0.0'
+        loaded.parent.mkdir(parents=True)
+        stable.rename(loaded)
+        (loaded / 'package.json').write_text('{"version":"99.0.0"}')
+        stale = loaded.parent / '1.0.0'
+        (stale / 'scripts').mkdir(parents=True)
+        (stale / 'package.json').write_text('{"version":"1.0.0"}')
+        engine = stale / 'scripts/orchestrate.sh'
+        engine.write_text('#!/usr/bin/env bash\nexit 77\n')
+        engine.chmod(0o755)
+        stable.symlink_to(stale)
+        self.env['CLAUDE_PLUGIN_ROOT'] = str(loaded)
+        for generated in (False, True):
+            for phase in ('define', 'develop', 'deliver', 'ink'):
+                with self.subTest(phase=phase, generated=generated):
+                    if stable.is_symlink():
+                        stable.unlink()
+                    stable.symlink_to(stale)
+                    result = self.run_skill(phase, generated=generated)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(stable.resolve(), loaded)
+
+    def test_inferred_checkout_runs_without_redirecting_another_install(self):
+        stable = self.home / '.claude-octopus/plugin'
+        loaded = self.home / 'loaded-checkout'
+        stable.rename(loaded)
+        (stable / 'scripts').mkdir(parents=True)
+        engine = stable / 'scripts/orchestrate.sh'
+        engine.write_text('#!/usr/bin/env bash\nexit 77\n')
+        engine.chmod(0o755)
+        for generated in (False, True):
+            for phase in ('define', 'develop', 'deliver', 'ink'):
+                with self.subTest(phase=phase, generated=generated):
+                    command = self.skill_command(phase, generated).replace(
+                        '${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}', str(loaded))
+                    self.env['FIXTURE_MODE'] = 'complete'
+                    result = subprocess.run(['bash', '-c', command], env=self.env,
+                                            cwd=self.home, text=True, capture_output=True, timeout=15)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertFalse(stable.is_symlink())
+                    self.assertEqual(engine.read_text(), '#!/usr/bin/env bash\nexit 77\n')
 
     def test_failed_command_cannot_use_a_passing_report(self):
         for phase in ('define', 'develop', 'deliver', 'ink'):

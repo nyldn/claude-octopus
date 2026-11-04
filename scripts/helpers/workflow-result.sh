@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 # Validate the report produced after one workflow invocation.
 set -euo pipefail
-[[ $# == 3 ]] || { echo "Usage: workflow-result.sh PHASE START_MARKER EXIT_STATUS" >&2; exit 64; }
+log() {
+    local level="$1"
+    shift
+    printf '[%s] %s\n' "$level" "$*" >&2
+}
+[[ $# == 3 ]] || { log ERROR "Usage: workflow-result.sh PHASE START_MARKER EXIT_STATUS"; exit 64; }
 phase="$1" marker="$2" run_status="$3"
-[[ "$run_status" == 0 ]] || { echo "Workflow failed with exit status $run_status" >&2; exit 1; }
+[[ "$run_status" == 0 ]] || { log ERROR "Workflow failed with exit status $run_status"; exit 1; }
 plugin_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 source "$plugin_root/scripts/state-manager.sh"
 source "$plugin_root/scripts/lib/host-runtime.sh"

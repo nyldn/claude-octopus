@@ -132,13 +132,22 @@ command -v agy &> /dev/null && agy_status="Available" || agy_status="Not install
 
 **You MUST execute this via native shell command tool:**
 
+Use the installation that loaded this skill for both execution and validation.
+If `CLAUDE_PLUGIN_ROOT` is absent, replace the `OCTO_ROOT` fallback below with
+the absolute plugin root derived from this loaded skill's path. Do not infer it
+from the project directory or an existing stable link. The root helper refreshes
+installed copies while preserving another session's working root when called
+from an inferred development checkout.
+
 ```bash
 # Run Multi-AI security audit for delivery
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+bash "$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh" || exit 1
 RUN_MARKER=$(mktemp) || exit 1
 RUN_STATUS=0
-OCTOPUS_WORKFLOW_INVOCATION_ID="${RUN_MARKER##*/}" "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" ink "Security audit for delivery - comprehensive review of all code changes for production readiness" || RUN_STATUS=$?
+OCTOPUS_WORKFLOW_INVOCATION_ID="${RUN_MARKER##*/}" "$OCTO_ROOT/scripts/orchestrate.sh" ink "Security audit for delivery - comprehensive review of all code changes for production readiness" || RUN_STATUS=$?
 REPORT_STATUS=0
-VALIDATION_FILE=$("${HOME}/.claude-octopus/plugin/scripts/helpers/workflow-result.sh" ink "$RUN_MARKER" "$RUN_STATUS") || REPORT_STATUS=$?
+VALIDATION_FILE=$("$OCTO_ROOT/scripts/helpers/workflow-result.sh" ink "$RUN_MARKER" "$RUN_STATUS") || REPORT_STATUS=$?
 rm -f "$RUN_MARKER"
 [[ "$REPORT_STATUS" == 0 ]] || exit "$REPORT_STATUS"
 echo "AUDIT COMPLETE: $VALIDATION_FILE"

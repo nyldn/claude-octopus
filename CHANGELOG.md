@@ -9,7 +9,8 @@
   A failed command, stale report or missing completion status cannot pass the
   skill's result gate. Reports from other invocations are identified before
   their bodies are loaded, so unrelated large output cannot exhaust the
-  validator's memory. Fixes #1170.
+  validator's memory. Execution and validation use the installation that loaded
+  the skill, even when the stable link still points at an older copy. Fixes #1170.
 
 ## [11.16.0] - 2026-11-02
 
