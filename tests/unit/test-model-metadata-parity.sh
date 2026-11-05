@@ -111,6 +111,7 @@ test_case "Haiku 5.5 can be saved as a budget pin without changing defaults"
 pin_home="$TEST_TMP_DIR/haiku-pin-home"
 if env "HOME=$pin_home" OCTO_ALLOWED_PROVIDERS=claude bash "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" set claude.budget claude-haiku-5-5 >/dev/null 2>&1 &&
    [[ "$(jq -r '.providers.claude.budget' "$pin_home/.claude-octopus/config/providers.json")" == "claude-haiku-5-5" ]] &&
+   [[ "$(env "HOME=$pin_home" "OCTOPUS_PROVIDERS_CONFIG=$pin_home/.claude-octopus/config/providers.json" OCTOPUS_COST_MODE=budget OCTOPUS_CLAUDE_MODEL= CLAUDE_MODEL= OCTOPUS_ROUTING_POLICY=off bash -c 'source "$1/scripts/lib/model-resolver.sh"; resolve_octopus_model claude claude' _ "$PROJECT_ROOT")" == "claude-haiku-5-5" ]] &&
    [[ "$(get_model_catalog claude-haiku-5-5)" == "1000|yes|yes|yes|claude|budget|active" ]] &&
    grep -Fqx 'claude-haiku-5-5' < <(octo_model_ids) &&
    grep -Fq '"budget": "claude-haiku-4.5"' "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh"; then
