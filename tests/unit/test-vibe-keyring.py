@@ -252,7 +252,8 @@ class VibeKeyringTest(unittest.TestCase):
 
     def test_user_site_keyring_login_without_processing_pth_or_project_modules(self):
         """Explicit user-site selection must retain Python loader isolation."""
-        result = subprocess.run([sys.executable, '-I', '-c',
+        base_python = getattr(sys, '_base_executable', None) or sys.executable
+        result = subprocess.run([base_python, '-I', '-c',
                                  'import site; print(site.getusersitepackages())'],
                                 env=self.env, capture_output=True, text=True, check=True)
         packages = Path(result.stdout.strip())
@@ -264,7 +265,7 @@ class VibeKeyringTest(unittest.TestCase):
         # Exclude host-global packages too, so a developer's real Vibe install
         # cannot be imported or touch its keyring during this inert regression.
         interpreter = self.bin / 'python-user-site'
-        interpreter.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} -S "$@"\n')
+        interpreter.write_text(f'#!/bin/sh\nexec {shlex.quote(base_python)} -S "$@"\n')
         interpreter.chmod(0o755)
         self.vibe.write_text(f'#!{interpreter}\nraise RuntimeError("CLI must not execute")\n')
         loader_marker = self.base / 'loader-executed'
