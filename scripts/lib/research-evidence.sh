@@ -627,7 +627,7 @@ research_extract_numbers() {
 # "section 2" are still checked.
 research_numeric_claims() {
     LC_ALL=C awk '
-    function ordinal_reference(before, after, start, number,    gap, label) {
+    function ordinal_reference(before, after, start, number,    gap, label, list_reference) {
         label = "[*_]*(points?|items?)[*_]*([ \\t]+|[ \\t]*:[*_]*[ \\t]*)$"
         # Commas without spaces can join references, but keep thousands groups
         # and decimal values as claims even beside point/item labels.
@@ -639,13 +639,15 @@ research_numeric_claims() {
         if (after ~ /^[ \t]*(-|\342\200\223)[ \t]*[*_]*[0-9]/) return 0
         if (after ~ /^[ \t]*\[[^]]+\]\([A-Za-z][A-Za-z0-9+.-]*:/) return 0
         if (after ~ /^[ \t]*[*_`(]*([0-9A-Za-z]|\302\260|\302\265|\316\274)/ && tolower(after) !~ /^[ \t]+(and|or)[ \t]/) return 0
+        gap = tolower(substr(line, ord_end, start - ord_end))
+        list_reference = (ord_end > 0 && gap ~ ("^,[ \\t]*" label))
         # A label may describe a score or count. Only standalone labels,
         # including Markdown list items, and explicit references are exempt.
         if (tolower(before) ~ ("(^|[^0-9a-z_])" label) &&
-            tolower(before) !~ ("(^|[;.!?|,])[ \\t]*([-*+][ \\t]+)?" label) &&
+            tolower(before) !~ ("(^|[;.!?|])[ \\t]*([-*+][ \\t]+)?" label) &&
+            !list_reference &&
             tolower(before) !~ ("(^|[^0-9a-z_])(see|and|or|refer[ \\t]+to|(corrected|covered|described|discussed|explained|listed|shown|noted|mentioned|addressed|detailed)[ \\t]+in)[ \\t]+" label)) return 0
         if (tolower(before) ~ ("(^|[^0-9a-z_])" label)) return 1
-        gap = tolower(substr(line, ord_end, start - ord_end))
         return (ord_end > 0 && gap ~ /^(,[ \t]*|[ \t]*,?[ \t]*(and|or)[ \t]+)$/)
     }
     {
