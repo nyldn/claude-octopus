@@ -13,8 +13,8 @@
   unit, including formatted units such as `5 **MiB**`, and section numbers are
   still checked. Compact lists such as `points 2,3` are also recognized, while
   decimals and thousands-formatted numeric claims remain checked. Scores and
-  counts introduced by a colon and both endpoints of en-dash ranges also
-  remain checked.
+  counts introduced by a colon, both endpoints of en-dash ranges, and
+  quantities with either Unicode micro-unit prefix also remain checked.
 
 - Vibe setup and readiness now recognize a key stored by `vibe --setup` in
   the OS keyring when Vibe is explicitly selected for a provider check. The

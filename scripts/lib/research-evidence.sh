@@ -638,7 +638,7 @@ research_numeric_claims() {
         # Quantities remain substantive before any label/list exemptions.
         if (after ~ /^[ \t]*(-|\342\200\223)[ \t]*[*_]*[0-9]/) return 0
         if (after ~ /^[ \t]*\[[^]]+\]\([A-Za-z][A-Za-z0-9+.-]*:/) return 0
-        if (after ~ /^[ \t]*[*_`(]*([0-9A-Za-z]|\302\260)/ && tolower(after) !~ /^[ \t]+(and|or)[ \t]/) return 0
+        if (after ~ /^[ \t]*[*_`(]*([0-9A-Za-z]|\302\260|\302\265|\316\274)/ && tolower(after) !~ /^[ \t]+(and|or)[ \t]/) return 0
         # A label may describe a score or count. Only standalone labels,
         # including Markdown list items, and explicit references are exempt.
         if (tolower(before) ~ ("(^|[^0-9a-z_])" label) &&

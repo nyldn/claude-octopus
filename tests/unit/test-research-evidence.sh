@@ -939,6 +939,26 @@ else
     test_fail "Unicode quantities were lost [$unicode_units] or references leaked [$unicode_refs]"
 fi
 
+for micro_unit in 'μg' 'µg' '**μg**' '(µg)' $'\302\240μg' $'\342\200\257µg'; do
+    test_case "micro-unit quantities remain claims beside point references: $micro_unit"
+    micro_claims=$(research_extract_numbers "See points 2 and 5 $micro_unit.")
+    if [[ "$micro_claims" == 5 ]]; then test_pass; else test_fail "micro-unit quantity escaped: $micro_claims"; fi
+done
+
+test_case "micro-unit quantities require cited evidence beside point references"
+{
+    printf '%s\n' '- See points 2 and 5 μg (`src/handler.ts:4`).'
+    printf '%s\n' '- See points 2 and 5 µg (`src/handler.ts:4`).'
+} > "$ordinal_draft"
+ordinal_status=0
+research_verify_synthesis "$ordinal_draft" || ordinal_status=$?
+ordinal_kinds=$(jq -r '.checks[] | "\(.line):\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$ordinal_status" -ne 0 && "$ordinal_kinds" == "1:number_mismatch:5 2:number_mismatch:5 " ]]; then
+    test_pass
+else
+    test_fail "micro-unit quantities escaped verification: $ordinal_kinds"
+fi
+
 test_case "formatted units still produce verification mismatches beside compact references"
 printf '%s\n' '- Unexpected errors return 500 (`src/handler.ts:4`). See points 2,3; points 4 and 5 **MiB**.' > "$ordinal_draft"
 ordinal_status=0
