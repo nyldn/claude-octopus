@@ -3738,9 +3738,10 @@ def proposed(start):
 token_starts = [t[0] for t in tokens]
 def cited_after(end):
     # "`1024 * 10` (src/pricing.ts:2)": a citation right after the span.
+    # Consume leading whitespace once; two optional runs can backtrack quadratically.
     index = bisect_left(token_starts, end)
     return index < len(tokens) and re.fullmatch(
-        r"[ \t]*(?:[(\[]|[:,\u2013\u2014-]|in|at|from)?[ \t]*`?", resp[end:tokens[index][0]], re.I) is not None
+        r"(?:[(\[]|[:,\u2013\u2014-]|in|at|from)?[ \t]*`?", resp[end:tokens[index][0]].lstrip(" \t"), re.I) is not None
 
 checkable_units = 0
 for start, end, kind, block, removed_block, info in units:

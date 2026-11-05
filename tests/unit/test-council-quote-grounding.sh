@@ -1008,6 +1008,18 @@ for removal in 'removed the expression' 'deleted the code'; do
 VERDICT: APPROVE")")"
     if jq -e '.quotes_checked == 1 and .quotes_verified_in_diff_removed == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 done
+
+test_case "#3246: a long nonmatching citation gap cannot exhaust verification"
+long_gap_response="$TEST_TMP_DIR/computed-citation-gap.md"
+python3 - "$long_gap_response" <<'PY'
+import sys
+from pathlib import Path
+Path(sys.argv[1]).write_text('src/pricing.ts:2 keeps the fallback. I estimate '
+    '`8 + 10 + 0.5 = 18.5 KB`' + ' ' * 200_000 +
+    'outside (src/pricing.ts:2).\nVERDICT: APPROVE\n')
+PY
+r="$(_report "$long_gap_response")"
+if jq -e '.verification_failed == false and .citations == 2 and .quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 ROOT="$arithmetic_original_root"
 
 test_case "#3246: an arithmetic line in a fence does not lower the fence's match threshold"
