@@ -198,6 +198,21 @@ class DocumentRendererTest(unittest.TestCase):
                 self.assertIn("one backup slide per expected question", gate)
                 self.assertIn("MUST approve", gate)
 
+    def test_informational_board_decks_and_short_targets_remain_supported(self):
+        for tree in (".claude/skills", "skills"):
+            with self.subTest(tree=tree):
+                deck = (ROOT / tree / "skill-deck/SKILL.md").read_text()
+                outline = deck.split("### Step 3: Generate Outline", 1)[1].split("### Step 4:", 1)[0]
+                purpose = outline.split("#### Executive and board outline", 1)[0]
+                self.assertIn("informational", purpose)
+                self.assertIn("Q1 results", purpose)
+                self.assertIn("do not require a decision or approval ask", purpose)
+                self.assertIn("slide 2", purpose)
+                board = outline.split("#### Executive and board outline", 1)[1].split("```markdown", 1)[0]
+                self.assertIn("Combine", board)
+                self.assertIn("five-slide", board)
+                self.assertIn("approve a larger target", board)
+
 
 if __name__ == "__main__":
     unittest.main()

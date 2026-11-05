@@ -84,9 +84,14 @@ This step is OPTIONAL. Many decks are built from the user's own knowledge or exi
 
 ### Step 3: Generate Outline
 
-Build a slide-by-slide outline in markdown format. For Executives / Board,
-use the executive and board outline below. For other audiences, use this
-general structure:
+Build a slide-by-slide outline in Markdown format. For Executives / Board,
+infer the purpose from the brief. When it calls for a decision, use the
+executive and board outline below. For an informational brief such as a
+Q1 results update, do not require a decision or approval ask. Use the general
+structure with an executive summary on slide 2 covering results, key drivers
+and implications, then evidence and follow-up. Do not invent a decision to
+fit the template. If the purpose is unclear, clarify it before outlining.
+For other audiences, use this general structure:
 
 ```markdown
 ## Slide 1: [Title Slide]
@@ -108,9 +113,14 @@ general structure:
 
 #### Executive and board outline
 
-Put the decision on slide 2. Use this structure instead of the agenda-first
+For decision briefs, put the decision on slide 2. Use this structure instead of the agenda-first
 template or a summary saved for the end. Expand evidence slides as needed;
 agree the main-deck and appendix slide counts within the user's target.
+Combine the evidence and decision slides for a five-slide total, keeping
+the executive summary on slide 2 and an appendix. If the required material,
+including one backup slide per expected question, cannot fit, ask the user to
+approve a larger target before expanding it. The six-slide example is not a
+minimum slide count.
 
 ```markdown
 ## Slide 1: [Decision topic]
@@ -142,7 +152,7 @@ agree the main-deck and appendix slide counts within the user's target.
 
 #### Board outline check
 
-Check the following before asking for outline approval:
+For decision briefs, check the following before asking for outline approval:
 
 - Could the audience make the requested decision from slide 2 alone? It must
   lead with one recommendation, then context, two or three pillars, the ask
@@ -205,7 +215,8 @@ Apply these when generating outlines:
 ### By Audience Type
 
 **Executives / Board:**
-- Use the executive and board outline and its check in Step 3.
+- Match the brief's decision or informational purpose in Step 3. Apply the
+  decision outline and its check only when a decision is requested.
 - Lead with business impact and source-backed financial implications.
 - Keep the main deck focused on the decision; put expected-question evidence
   in the approved appendix.
