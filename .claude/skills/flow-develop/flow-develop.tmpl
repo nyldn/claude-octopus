@@ -46,6 +46,13 @@ do not invoke the current command recursively or add provider calls from a seat.
 
 Before implementation, select the existing feature and run its boundary adapter:
 
+Use the installation that loaded this skill for both execution and validation.
+If `CLAUDE_PLUGIN_ROOT` is absent, replace every `OCTO_ROOT` fallback in this skill with
+the absolute plugin root derived from this loaded skill's path. Do not infer it
+from the project directory or an existing stable link. The root helper refreshes
+installed copies while preserving another session's working root when called
+from an inferred development checkout.
+
 ```bash
 OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
 bash "$OCTO_ROOT/scripts/helpers/feature-workflow.sh" boundary develop "${OCTOPUS_FEATURE:-}"
@@ -248,7 +255,18 @@ fi
 **You MUST execute this command via the Bash tool:**
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh develop "<user's implementation request>"
+# Keep execution and report validation in the same shell invocation.
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+bash "$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh" || exit 1
+RUN_MARKER=$(mktemp) || exit 1
+RUN_STATUS=0
+OCTOPUS_WORKFLOW_INVOCATION_ID="${RUN_MARKER##*/}" "$OCTO_ROOT/scripts/orchestrate.sh" develop "<user's implementation request>" || RUN_STATUS=$?
+REPORT_STATUS=0
+SYNTHESIS_FILE=$("$OCTO_ROOT/scripts/helpers/workflow-result.sh" develop "$RUN_MARKER" "$RUN_STATUS") || REPORT_STATUS=$?
+rm -f "$RUN_MARKER"
+[[ "$REPORT_STATUS" == 0 ]] || exit "$REPORT_STATUS"
+echo "VALIDATION PASSED: $SYNTHESIS_FILE"
+cat "$SYNTHESIS_FILE"
 ```
 
 **CRITICAL: You are PROHIBITED from:**
@@ -280,19 +298,14 @@ These spinner verb updates happen automatically - orchestrate.sh calls `update_t
 
 **After orchestrate.sh completes, verify it succeeded:**
 
-```bash
-# Find the latest synthesis file (created within last 10 minutes)
-SYNTHESIS_FILE=$(find ~/.claude-octopus/results -name "tangle-synthesis-*.md" -mmin -10 2>/dev/null | head -n1)
+Step 4 checks the workflow exit status and validates a fresh
+`tangle-validation-*.md` report in this host's current session results directory.
+It rejects missing reports and failed or unknown completion states. The validator
+honors `CLAUDE_PLUGIN_DATA` and `CLAUDE_OCTOPUS_WORKSPACE`.
 
-if [[ -z "$SYNTHESIS_FILE" ]]; then
-  echo "❌ VALIDATION FAILED: No synthesis file found"
-  echo "orchestrate.sh did not execute properly"
-  exit 1
-fi
-
-echo "✅ VALIDATION PASSED: $SYNTHESIS_FILE"
-cat "$SYNTHESIS_FILE"
-```
+Use the validated path printed by Step 4. If a later tool call starts a new shell,
+set `SYNTHESIS_FILE` to that exact path. Do not search for a different report
+or rerun the workflow to recover a shell variable.
 
 **If validation fails:**
 1. Report error to user
@@ -515,7 +528,7 @@ Note: The `Agent(resume: ...)` parameter was removed in CC v2.1.77. Always use `
 
 Results are saved to:
 ```
-~/.claude-octopus/results/${SESSION_ID}/tangle-synthesis-<timestamp>.md
+~/.claude-octopus/results/${SESSION_ID}/tangle-validation-<timestamp>.md
 ```
 
 ### Step 5: Implement Solution
