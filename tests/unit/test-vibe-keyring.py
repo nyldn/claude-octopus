@@ -284,6 +284,51 @@ class VibeKeyringTest(unittest.TestCase):
         self.assertFalse(loader_marker.exists(), 'isolated probe executed a Python loader hook')
         self.assertNotIn('inert-fixture-value', result.stdout + result.stderr)
 
+    def test_user_site_precedes_global_packages_without_shadowing_stdlib(self):
+        """A user-installed CLI must inspect its own keyring implementation."""
+        base_python = getattr(sys, '_base_executable', None) or sys.executable
+        result = subprocess.run([base_python, '-I', '-S', '-c',
+                                 'import site; print(site.getusersitepackages())'],
+                                env=self.env, capture_output=True, text=True, check=True)
+        user_site = Path(result.stdout.strip())
+        global_site = self.base / 'global-site'
+        global_marker = self.base / 'global-imported'
+        self.write_module('import sys\n'
+                          f'assert sys.path.index({str(user_site)!r}) < '
+                          f'sys.path.index({str(global_site)!r})\n'
+                          'import fractions\nreturn "inert-fixture-value"')
+        for packages, source in ((user_site, self.module.read_text()),
+                                 (global_site, 'from pathlib import Path\n'
+                                  f'Path({str(global_marker)!r}).touch()\n'
+                                  'def probe_api_key_from_keyring(key):\n    return None\n')):
+            target = packages / 'vibe/utils/keyring.py'
+            target.parent.mkdir(parents=True)
+            (packages / 'vibe/__init__.py').touch()
+            (packages / 'vibe/utils/__init__.py').touch()
+            target.write_text(source)
+        loader_marker = self.base / 'loader-executed'
+        (user_site / 'fractions.py').write_text('raise RuntimeError("stdlib shadowed")\n')
+        (user_site / 'unsafe.pth').write_text(
+            f'import pathlib; pathlib.Path({str(loader_marker)!r}).touch()\n')
+        (user_site / 'sitecustomize.py').write_text(
+            f'from pathlib import Path; Path({str(loader_marker)!r}).touch()\n')
+        launcher = ('import runpy, site, sys; '
+                    f'sys.path.append({str(global_site)!r}); '
+                    f'site.getsitepackages = lambda: [{str(global_site)!r}]; '
+                    'runpy.run_path(sys.argv[-1], run_name="__main__")')
+        interpreter = self.bin / 'python-mixed-site'
+        interpreter.write_text(f'#!/bin/sh\nexec {shlex.quote(base_python)} -I -S -c '
+                               f'{shlex.quote(launcher)} "$@"\n')
+        interpreter.chmod(0o755)
+        self.vibe.write_text(f'#!{interpreter}\nraise RuntimeError("CLI must not execute")\n')
+        result = self.shell('octo_provider_readiness_result vibe static; check_provider_health vibe')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)['status'], 'available')
+        self.assertTrue(self.marker.exists(), 'user-site keyring was not checked')
+        self.assertFalse(global_marker.exists(), 'global Vibe shadowed the selected user install')
+        self.assertFalse(loader_marker.exists(), 'user-site loader hooks executed')
+        self.assertNotIn('inert-fixture-value', result.stdout + result.stderr)
+
     def test_one_provider_setup_carries_the_selected_vibe_context(self):
         text = (ROOT / 'commands/setup.md').read_text()
         capture = re.search(r'^setup_readiness_capture\(\) \{.*?^\}', text, re.M | re.S)[0]
