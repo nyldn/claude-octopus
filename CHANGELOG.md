@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.17.0] - 2026-11-05
+
 ### Added
 
 - Deck and document export recognize standalone and alternate-plugin renderer
