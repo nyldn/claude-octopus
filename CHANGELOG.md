@@ -10,6 +10,15 @@
   list. Missing selections fail visibly instead of forcing another plugin or
   discarding the selected renderer. Addresses [#1218](https://github.com/nyldn/claude-octopus/issues/1218).
 
+- The develop quality challenger now sees provider output and bounded change
+  excerpts from the run's starting commit. Long executor prompts no longer
+  hide the implementation. Change excerpts exclude credential paths,
+  directories and symlinks and are marked as untrusted content. Fixes #1171.
+  Collecting those excerpts disables Git clean/process filters and filesystem
+  monitors, and ignores inherited Git routing and global configuration.
+  Binary diff markers and nontext excerpts are omitted before shell capture.
+  UTF-8 excerpts retain complete characters at the byte limit, and collection
+  examines at most 200 candidate paths per pass.
 - A code-span quote written inside a Markdown table cell now matches its
   source line. Seats escape `|` as `\|` in a table, so a quote of
   `member.tier || member.legacyTier` arrived as `member.tier \|\| member.legacyTier`
