@@ -188,6 +188,8 @@ class DocumentRendererTest(unittest.TestCase):
                     self.assertIn(requirement, slides["3"])
                 self.assertIn("highlight", slides["4"])
                 self.assertIn("title", slides["4"])
+                self.assertIn("proof point", slides["4"])
+                self.assertIn("source", slides["4"])
                 for requirement in ("approval", "amount", "resource"):
                     self.assertIn(requirement, slides["5"])
                 self.assertIn("Appendix", slides["6"])
@@ -211,6 +213,8 @@ class DocumentRendererTest(unittest.TestCase):
                 self.assertIn("approve a larger target", sizing)
                 audience = deck.split("**Executives / Board:**", 1)[1].split("**Engineers / Technical:**", 1)[0]
                 self.assertIn("brief's purpose", audience)
+                self.assertIn("decision or informational purpose in Step 3", " ".join(audience.split()))
+                self.assertIn("only when a decision is requested", " ".join(audience.split()))
 
 
 if __name__ == "__main__":
