@@ -20,7 +20,6 @@ trigger: |
   DO NOT activate for:
   - Code-related document requests
   - General file conversions (use document-skills directly)
-  - When document-skills plugin not installed
 paths:
   - "**/docs/**"
   - "**/*.md"

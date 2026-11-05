@@ -16,7 +16,6 @@ trigger: |
   DO NOT activate for:
   - Converting existing markdown to PPTX (use /octo:docs instead)
   - General file conversions (use document-skills directly)
-  - When document-skills plugin not installed
 ---
 
 # Slide Deck Generator
