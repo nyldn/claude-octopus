@@ -1380,6 +1380,7 @@ Constraints: $def3"
 
     cat > "$consensus_file" << EOF
 # GRASP Phase - Problem Definition Consensus
+<!-- octopus-workflow-invocation: ${OCTOPUS_WORKFLOW_INVOCATION_ID:-} -->
 ## Task: $prompt
 ## Generated: $(date)
 
@@ -6141,8 +6142,12 @@ $all_results"
     # Step 3: Generate final document
     local delivery_file="${RESULTS_DIR}/delivery-${task_group}.md"
 
+    local delivery_task_bytes
+    delivery_task_bytes=$(LC_ALL=C printf '%s' "$prompt" | wc -c | tr -d '[:space:]')
     cat > "$delivery_file" << EOF
 # DELIVERY DOCUMENT
+<!-- octopus-workflow-invocation: ${OCTOPUS_WORKFLOW_INVOCATION_ID:-} -->
+<!-- octopus-task-bytes: ${delivery_task_bytes} -->
 ## Task: $prompt
 ## Generated: $(date)
 ## Status: $([[ "$checks_passed" == "true" ]] && echo "COMPLETE" || echo "PARTIAL - Review Required")
