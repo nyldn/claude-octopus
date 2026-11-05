@@ -909,6 +909,16 @@ for count_text in 'Score in points: 50, items: 10' 'Score in points: 50, **items
     fi
 done
 
+for count_text in 'Score in points: 50 and items: 10' 'Score in points 50 or items 10' 'Score in points: 50 and **items:** 10' 'Score in points: 50 or __items__: 10'; do
+    test_case "a conjunction-led count label remains a claim: $count_text"
+    count_claims=$(research_extract_numbers "$count_text" | LC_ALL=C sort | tr '\n' ' ')
+    if [[ "$count_claims" == "10 50 " ]]; then
+        test_pass
+    else
+        test_fail "conjunction-led counts were lost: $count_claims"
+    fi
+done
+
 test_case "comma-led item labels continue an existing point-reference list"
 list_claims=$(research_extract_numbers 'See point 2, item 3; see points 4 and item 5.')
 if [[ -z "$list_claims" ]]; then test_pass; else test_fail "reference list became claims: $list_claims"; fi
