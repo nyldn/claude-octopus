@@ -797,7 +797,7 @@ ordinal_claims=$(research_extract_numbers \
     | LC_ALL=C sort | tr '\n' ' ')
 point_quantity=$(research_extract_numbers 'Point 2 retries twice.')
 standalone_quantity=$(research_extract_numbers '2 retries.')
-if [[ -z "$ordinal_numbers" && "$ordinal_claims" == "16 2 3 40% 5 " \
+if [[ -z "$ordinal_numbers" && "$ordinal_claims" == "16 2 3 4 40% 5 " \
       && "$point_quantity" == 2 && "$standalone_quantity" == 2 ]]; then
     test_pass
 else
@@ -909,8 +909,25 @@ for count_text in 'Score in points: 50, items: 10' 'Score in points: 50, **items
     fi
 done
 
+for count_join in 'and' 'or' ', and' ', or'; do
+    test_case "conjunction-led counts remain claims: $count_join"
+    count_claims=$(research_extract_numbers "Score in points: 50 $count_join items: 10" | LC_ALL=C sort | tr '\n' ' ')
+    if [[ "$count_claims" == "10 50 " ]]; then test_pass; else test_fail "conjunction-led count was lost: $count_claims"; fi
+done
+
+test_case "conjunction-led item counts require cited evidence"
+printf '%s\n' '- Score in points: 500 and items: 10 (`src/handler.ts:4`).' > "$ordinal_draft"
+ordinal_status=0
+research_verify_synthesis "$ordinal_draft" || ordinal_status=$?
+ordinal_kinds=$(jq -r '.checks[] | "\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$ordinal_status" -ne 0 && "$ordinal_kinds" == "number_mismatch:10 " ]]; then
+    test_pass
+else
+    test_fail "conjunction-led count escaped verification: $ordinal_kinds"
+fi
+
 test_case "comma-led item labels continue an existing point-reference list"
-list_claims=$(research_extract_numbers 'See point 2, item 3; see points 4 and item 5.')
+list_claims=$(research_extract_numbers 'See point 2, item 3; see points 4 and item 5; see point 6 or item 7; see points 8, and items 9; see points 10, or items 11.')
 if [[ -z "$list_claims" ]]; then test_pass; else test_fail "reference list became claims: $list_claims"; fi
 
 test_case "a comma-led item count still requires cited evidence"
