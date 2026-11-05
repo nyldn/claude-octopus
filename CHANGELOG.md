@@ -10,7 +10,10 @@
   and includes an appendix for expected questions. Missing decision material
   is identified before outline approval rather than invented. Informational
   updates keep their own purpose, and short decks can combine evidence and
-  decision slides within the approved target. Addresses #1216.
+  decision slides within the approved target. The action closes the main deck,
+  before appendix backup slides. Addresses #1216.
+
+## [11.17.1] - 2026-11-05
 
 ### Fixed
 
@@ -24,6 +27,8 @@
   request. Addresses #1191; automatic scans still defer keyring inspection.
   Explicit single-provider probes carry the Vibe selection into preflight,
   without treating a general cached pass as proof that Vibe is ready.
+  Successful selected checks preserve general readiness cache entries, avoiding
+  repeated discovery in other provider workflows.
 
 - Council quote verification recognizes valid `octopus-policy-findings` JSON
   without marking the seat fabricated. Entity-encoded quotes remain intact,

@@ -211,7 +211,7 @@ Apply these when generating outlines:
 - **One idea per slide**: Keep slides focused
 - **5-7 bullets max**: Per slide for readability
 - **Summary slide**: Key takeaways at the end for decks using the general agenda-first structure; Executives / Board briefs follow the Step 3 purpose-specific structure
-- **Next steps / CTA**: Final slide with clear actions
+- **Next steps / CTA**: Clear actions on the last main-deck slide, before any appendix slides
 
 ### By Audience Type
 

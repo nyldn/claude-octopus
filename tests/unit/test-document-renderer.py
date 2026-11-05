@@ -215,6 +215,9 @@ class DocumentRendererTest(unittest.TestCase):
                 self.assertRegex(sizing, r"If the user selects a five-slide target, combine")
                 self.assertIn("Preserve the selected slide range for longer targets", sizing)
                 rules = deck.split("## Slide Structure Best Practices", 1)[1].split("### By Audience Type", 1)[0]
+                cta_rule = next(line for line in rules.splitlines() if "**Next steps / CTA**" in line)
+                self.assertIn("last main-deck slide", cta_rule)
+                self.assertIn("appendix", cta_rule)
                 for label in ("Agenda slide", "Summary slide"):
                     rule = next(line for line in rules.splitlines() if f"**{label}**" in line)
                     self.assertIn("general agenda-first structure", rule)
