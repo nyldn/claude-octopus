@@ -964,6 +964,11 @@ git -C "$ROOT" add src/pricing.ts
 git -C "$ROOT" -c user.name=Test -c user.email=test@example.invalid \
     -c core.hooksPath=/dev/null commit -qm baseline
 printf '\n// unrelated change\n' >> "$ROOT/src/pricing.ts"
+test_case "#3246: never computes is an absence claim, not invented source"
+r="$(_report "$(_resp 'src/pricing.ts:2 never computes `1024 * 1024 * 1024 * 10`.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 1 and .quotes_unverifiable == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
 for estimator in 'I compute' 'we compute' 'We compute the cap is'; do
     test_case "#3246: $estimator remains the seat's computation"
     r="$(_report "$(_resp "src/pricing.ts:2 $estimator \`8 + 10 + 0.5 = 18.5 KB\`.
@@ -971,7 +976,14 @@ VERDICT: APPROVE")")"
     if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 done
 
-for source_claim in 'reads the expression we use:' 'contains the calculation I use:' 'reads the expression we compute:'; do
+for calculator in I we; do
+    test_case "#3246: a new $calculator calculate clause ends the preceding source claim"
+    r="$(_report "$(_resp "src/pricing.ts:2 computes the baseline and $calculator calculate \`8 + 10 + 0.5 = 18.5 KB\`.
+VERDICT: APPROVE")")"
+    if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+
+for source_claim in 'reads the expression we use:' 'contains the calculation I use:' 'reads the expression we compute:' 'reads the expression we calculate:'; do
     test_case "#3246: $source_claim remains a source claim"
     r="$(_report "$(_resp "src/pricing.ts:2 $source_claim \`1024 * 1024 * 1024 * 10\`.
 VERDICT: APPROVE")")"

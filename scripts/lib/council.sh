@@ -3679,7 +3679,7 @@ GAP_WORDS = {"reads", "read", "shows", "show", "contains", "contain", "has", "sa
 SOURCE_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|is|defines?|defined|declares?|declared|computes?)\b", re.I)
 SOURCE_ABSENCE = re.compile(
     r"\b(?:(?:does|do|did)\s+not|(?:doesn|don|didn)['’]t)\s+"
-    r"(?:currently\s+)?(?:contain|show|read|say|define|declare|have|compute)\b", re.I)
+    r"(?:currently\s+)?(?:contain|show|read|say|define|declare|have|compute)\b|\bnever\s+computes?\b", re.I)
 PROPOSAL = re.compile(r"\b(should|propos\w*|suggest\w*|recommend\w*|replace with|instead|would|could|change (?:it |this )?to|rewrit\w*|becomes?|example|e\.g\.|such as|consider|cover|prefer\w*|expected|want)\b", re.I)
 # Backticks also format prose and multiword values. Sentence punctuation alone
 # is not code syntax, nor is a dotted name embedded in a sentence. Calls,
@@ -3713,7 +3713,7 @@ def attribution(token, gap):
     source_verb = SOURCE_VERB.search(gap)
     source_clause = (source_verb and not re.search(r"[.!?;]", gap)
                      and not re.search(r"\b(?:I|we)\s+estimate\b", gap, re.I)
-                     and not re.search(r"(?:^|[,;:]|\b(?:and|but|so))\s*(?:I|we)\s+compute\b", gap, re.I))
+                     and not re.search(r"(?:^|[,;:]|\b(?:and|but|so))\s*(?:I|we)\s+(?:compute|calculate)\b", gap, re.I))
     if PROPOSAL.search(gap) or (not source_clause and any(
             word.lower() not in GAP_WORDS for word in re.findall(r"[A-Za-z]+", gap))):
         return None
