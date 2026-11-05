@@ -87,16 +87,22 @@ class DocumentRendererTest(unittest.TestCase):
         for args in ((), ("--renderer", "other:slides")):
             with self.subTest(args=args):
                 result = self.run_helper("--available-skill", "document-skills:pptx", *args)
-                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertEqual(result.stdout, "")
+                self.assertIn("Renderer selection failed:", result.stderr)
                 self.assertIn("not advertised", result.stderr)
 
     def test_missing_renderer_and_ambiguous_discovery_require_a_choice(self):
-        for args in ((), ("--available-skill", "one:pptx", "--available-skill", "two:pptx")):
+        cases = (((), "No advertised pptx renderer"),
+                 (("--available-skill", "one:pptx", "--available-skill", "two:pptx"),
+                  "Multiple advertised renderers"))
+        for args, diagnostic in cases:
             with self.subTest(args=args):
                 result = self.run_helper(*args)
-                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertEqual(result.stdout, "")
+                self.assertIn("Renderer selection failed:", result.stderr)
+                self.assertIn(diagnostic, result.stderr)
 
     def test_invalid_config_template_and_skill_fail_without_execution(self):
         for config in ("not json", "[]", '{"pptx":"house:slides"}',
@@ -106,8 +112,9 @@ class DocumentRendererTest(unittest.TestCase):
             with self.subTest(config=config):
                 self.config.write_text(config)
                 result = self.run_helper("--available-skill", "house:slides")
-                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertEqual(result.stdout, "")
+                self.assertIn("Renderer selection failed:", result.stderr)
         self.assertFalse((ROOT / "marker").exists())
 
     def test_other_document_formats_use_the_same_selection_contract(self):
