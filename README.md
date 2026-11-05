@@ -36,21 +36,18 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
-### Use your document renderer and house template
+Vibe keyring logins work in the selected one-provider setup flow and explicit
+Vibe probes. Choose Vibe in `/octo:setup` to check a login saved by `vibe --setup`.
+The check is silent and bounded. Automatic inventory scans continue to defer
+keyring inspection. See [Vibe authentication](docs/PROVIDERS.md).
 
-Deck and document export recognize the renderer skills available in your
-session, including standalone PPTX skills and native Slides renderers. Name
-a renderer and template in your request, or save a choice for later exports.
-Without a choice, Octopus can use the preferred or sole advertised renderer.
-Ambiguous or unavailable selections produce a clear error before conversion. See
-[document renderer configuration](docs/DOCUMENT-RENDERERS.md).
+Council reviews accept valid structured policy findings while continuing to
+check invented source quotes. Invalid findings and failed verification retain
+blocking evidence instead of silently allowing implementation.
 
-### Review the implementation evidence
-
-The develop quality challenger examines provider output and code changes even
-when the executor prompt is long. Council quote checks accept escaped pipes
-when the complete quote fits within one rendered table cell. Quotes crossing
-cells or rows, or placed in discarded excess cells, remain unverified.
+Define, develop, deliver and ship check the reports from the current workflow
+invocation. Failed commands, stale reports and missing completion status cannot
+make an unfinished run appear successful.
 
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.17.0 — Honor document renderers and templates, and review implementation evidence.**
