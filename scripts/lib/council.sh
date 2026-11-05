@@ -3712,8 +3712,7 @@ def attribution(token, gap):
     # ordinary modifiers follow it. A new sentence or a proposal ends that claim.
     source_verb = SOURCE_VERB.search(gap)
     source_clause = (source_verb and not re.search(r"[.!?;]", gap)
-                     and not re.search(r"\b(?:I|we)\s+estimate\b", gap, re.I)
-                     and not re.search(r"(?:^|[,;:]|\b(?:and|but|so))\s*(?:I|we)\s+(?:compute|calculate)\b", gap, re.I))
+                     and not re.search(r"(?:^|[,;:]|\b(?:and|but|so|while)\b)\s*(?:I|we)\s+(?:estimate|compute|calculate)\b", gap, re.I))
     if PROPOSAL.search(gap) or (not source_clause and any(
             word.lower() not in GAP_WORDS for word in re.findall(r"[A-Za-z]+", gap))):
         return None
@@ -3736,12 +3735,16 @@ def proposed(start):
     return bool(PROPOSAL.search(prose))
 
 token_starts = [t[0] for t in tokens]
+CITED_AFTER = re.compile(r"(?:[(\[]|[:,\u2013\u2014-]|in|at|from)?[ \t]*`?", re.I)
+HORIZONTAL_SPACE = re.compile(r"[ \t]*")
 def cited_after(end):
-    # "`1024 * 10` (src/pricing.ts:2)": a citation right after the span.
-    # Consume leading whitespace once; two optional runs can backtrack quadratically.
+    """Recognize an adjacent citation without copying the remaining response."""
     index = bisect_left(token_starts, end)
-    return index < len(tokens) and re.fullmatch(
-        r"(?:[(\[]|[:,\u2013\u2014-]|in|at|from)?[ \t]*`?", resp[end:tokens[index][0]].lstrip(" \t"), re.I) is not None
+    if index >= len(tokens):
+        return False
+    limit = tokens[index][0]
+    start = HORIZONTAL_SPACE.match(resp, end, limit).end()
+    return CITED_AFTER.fullmatch(resp, start, limit) is not None
 
 checkable_units = 0
 for start, end, kind, block, removed_block, info in units:

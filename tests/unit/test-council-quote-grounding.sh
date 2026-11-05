@@ -983,11 +983,18 @@ VERDICT: APPROVE")")"
     if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 done
 
-for source_claim in 'reads the expression we use:' 'contains the calculation I use:' 'reads the expression we compute:' 'reads the expression we calculate:'; do
+for source_claim in 'reads the expression we use:' 'contains the calculation I use:' 'reads the expression we compute:' 'reads the expression we calculate:' 'reads the expression we estimate:' 'contains the calculation I estimate:'; do
     test_case "#3246: $source_claim remains a source claim"
     r="$(_report "$(_resp "src/pricing.ts:2 $source_claim \`1024 * 1024 * 1024 * 10\`.
 VERDICT: APPROVE")")"
     if jq -e '.quotes_checked == 1 and .quotes_attributed == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+
+for estimator in 'while we estimate' 'while I estimate' 'and we estimate' 'but I estimate' 'so we estimate'; do
+    test_case "#3246: a separate $estimator clause remains the seat's arithmetic"
+    r="$(_report "$(_resp "src/pricing.ts:2 computes the baseline $estimator \`8 + 10 + 0.5 = 18.5 KB\`.
+VERDICT: APPROVE")")"
+    if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 done
 
 for estimate in 'the old cache was removed, so I estimate' 'I estimate the sum after removing the old cache is'; do
@@ -1021,6 +1028,38 @@ PY
 r="$(_report "$long_gap_response")"
 if jq -e '.verification_failed == false and .citations == 2 and .quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 ROOT="$arithmetic_original_root"
+
+test_case "#3246: repeated citation lookups do not copy every response suffix"
+if python3 - "$PROJECT_ROOT/scripts/lib/council.sh" <<'PY'
+import re
+import sys
+from bisect import bisect_left
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text()
+start = source.index("token_starts = [t[0] for t in tokens]")
+end = source.index("\ncheckable_units =", start)
+
+class CountedResponse(str):
+    copied = 0
+
+    def __getitem__(self, key):
+        result = super().__getitem__(key)
+        if isinstance(key, slice):
+            self.copied += len(result)
+        return result
+
+span = "`1024 * 1024 * 1024 * 1` "
+count = 42000
+resp = CountedResponse(span * count + "(src/pricing.ts:2)")
+tokens = [(len(span) * count, 0)]
+namespace = dict(re=re, bisect_left=bisect_left, resp=resp, tokens=tokens)
+exec(source[start:end], namespace)
+matches = [namespace["cited_after"]((i + 1) * len(span) - 1) for i in range(count)]
+assert sum(matches) == 1, sum(matches)
+assert resp.copied <= len(resp), f"copied {resp.copied} bytes for {len(resp)} response bytes"
+PY
+then test_pass; else test_fail "citation lookup copied repeated suffixes or lost its final citation"; fi
 
 test_case "#3246: an arithmetic line in a fence does not lower the fence's match threshold"
 r="$(_report "$(_resp "src/pricing.ts:2 keeps the fallback. The block:
