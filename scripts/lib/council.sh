@@ -2913,7 +2913,8 @@ try:
     # Some transports deliver Markdown HTML-escaped ("&gt; quote", "=&gt;").
     # Unescape before parsing so blockquotes and operators read as written; the
     # file side is unescaped the same way so an HTML source still matches.
-    resp = html.unescape(raw.decode("utf-8", "replace"))
+    raw_resp = raw.decode("utf-8", "replace")
+    resp = html.unescape(raw_resp)
     root = Path(sys.argv[2]).resolve(strict=True)
 except (OSError, RuntimeError, ValueError):
     result["verification_failed"] = True
@@ -3210,14 +3211,127 @@ def checkable(text):
         return False
     return specific(text)
 
-def specific_lines(block):
+# GFM table rows: a delimiter row, the header line above it, and the rows
+# below it until a blank line or a line that starts another block
+# (heading, quote, fence, list item, thematic break or HTML). Only a code span
+# in one of these rows can carry a table-escaped "\|".
+DELIMITER_ROW = re.compile(r"^[ \t]*\|?(?:[ \t]*:?-+:?[ \t]*\|)*[ \t]*:?-+:?[ \t]*\|?[ \t]*$")
+BLOCK_START = re.compile(r"^ {0,3}(?:#{1,6}(?:[ \t]|$)|>|```|~~~|[-+*][ \t]|\d{1,9}[.)][ \t]|<|(?:[-*_][ \t]*){3,}$)")
+table_ranges = []
+resp_lines = []
+offset = 0
+# Parse structure before entity decoding: "&#124;" is cell content, never a
+# separator. Keep offsets in the decoded response used by quote units.
+for raw_line in raw_resp.split("\n"):
+    end = offset + len(html.unescape(raw_line))
+    resp_lines.append((offset, end, raw_line))
+    offset = end + 1
+def table_cells(text):
+    # Consume escape pairs before recognizing separators, including inside
+    # backticks. GFM splits cells before it parses inline code spans.
+    separators = [-1] + [m.start() for m in re.finditer(r"\\.|(\|)", text) if m.group(1)] + [len(text)]
+    cells = [(left + 1, right) for left, right in zip(separators, separators[1:])]
+    if len(cells) > 1 and not text[cells[0][0]:cells[0][1]].strip():
+        cells.pop(0)
+    if len(cells) > 1 and not text[cells[-1][0]:cells[-1][1]].strip():
+        cells.pop()
+    return cells
+
+def indented_code(text):
+    # Four columns of indentation make an indented code block, not a table.
+    indent = text[:len(text) - len(text.lstrip(" \t"))]
+    return len(indent.expandtabs(4)) >= 4
+
+def table_line(index):
+    l_start, l_end, text = resp_lines[index]
+    return (bool(text.strip()) and not indented_code(text) and not BLOCK_START.match(text)
+            and index not in html_lines and not in_fence(l_start, l_end + 1))
+
+# Raw HTML blocks suppress Markdown table parsing. Comments and the other
+# explicit terminators can cross blank lines; ordinary HTML blocks end at a
+# blank line. Be conservative about tag-like openers at this evidence boundary.
+html_lines = set()
+html_end = None
+for index, (l_start, l_end, text) in enumerate(resp_lines):
+    if html_end is None:
+        if in_fence(l_start, l_end + 1):
+            continue
+        if re.match(r"^ {0,3}<!--", text):
+            html_end = re.compile(r"-->")
+        elif re.match(r"^ {0,3}<\?", text):
+            html_end = re.compile(r"\?>")
+        elif re.match(r"^ {0,3}<!\[CDATA\[", text):
+            html_end = re.compile(r"\]\]>")
+        elif re.match(r"^ {0,3}<![A-Z]", text):
+            html_end = re.compile(r">")
+        else:
+            tag = re.match(r"^ {0,3}<(script|pre|style|textarea)(?:[ \t>]|$)", text, re.I)
+            if tag:
+                html_end = re.compile(r"</" + tag.group(1) + r">", re.I)
+            elif re.match(r"^ {0,3}<", text):
+                html_end = False  # Blank-line-terminated block.
+            else:
+                continue
+    if html_end is False and not text.strip():
+        html_end = None
+        continue
+    html_lines.add(index)
+    if html_end and html_end.search(text):
+        html_end = None
+
+row = 1
+while row < len(resp_lines):
+    delimiter = resp_lines[row]
+    # The delimiter skips BLOCK_START, since a "- | -" delimiter also looks
+    # like a list item.
+    if not ("|" in delimiter[2] and DELIMITER_ROW.match(delimiter[2]) and not indented_code(delimiter[2])
+            and row not in html_lines and not in_fence(delimiter[0], delimiter[1] + 1) and table_line(row - 1)
+            and len(table_cells(resp_lines[row - 1][2])) == len(table_cells(delimiter[2]))):
+        row += 1
+        continue
+    last = row
+    while last + 1 < len(resp_lines) and table_line(last + 1):
+        last += 1
+    # Excess body cells are discarded by GFM. Only a complete code span
+    # within one rendered header/body cell may receive table decoding.
+    columns = len(table_cells(delimiter[2]))
+    for index in [row - 1] + list(range(row + 1, last + 1)):
+        l_start, _, text = resp_lines[index]
+        # Decode disjoint pieces once to map raw cell boundaries into the
+        # decoded quote coordinate space, without repeated prefix scans.
+        cursor, decoded_offset = 0, l_start
+        for start, end in table_cells(text)[:columns]:
+            decoded_offset += len(html.unescape(text[cursor:start]))
+            decoded_end = decoded_offset + len(html.unescape(text[start:end]))
+            table_ranges.append((decoded_offset, decoded_end))
+            cursor, decoded_offset = end, decoded_end
+    row = last + 2
+
+# Cells come from one forward scan, so they are sorted and disjoint.
+table_starts = [t_start for t_start, _ in table_ranges]
+
+def in_table(start, end):
+    i = bisect_right(table_starts, start) - 1
+    return i >= 0 and end <= table_ranges[i][1]
+
+def unescaped(variants, table):
+    # "\|" is how a seat writes "|" inside a Markdown table cell (sail-cruisey
+    # #3125: `a \|\| b` for `a || b`). Only in a table cell: elsewhere "\|" is
+    # literal and can change a regular expression. Quote side only, after the
+    # literal variant: source text keeps its backslashes, so a quote that drops
+    # a source line's own "\|" still does not match it.
+    if not table:
+        return variants
+    return variants + [v.replace("\\|", "|") for v in variants if "\\|" in v]
+
+def specific_lines(block, table=False):
     out = []
     for line in block:
         variants = [line.strip()]
         stripped = GUTTER.sub("", line).strip()
         if stripped != variants[0]:
             variants.append(stripped)
-        variants = [v for v in variants if checkable(v)]
+        variants = [v for v in unescaped(variants, table) if checkable(v)]
         if variants:
             out.append(variants)
     return out
@@ -3586,7 +3700,8 @@ def proposed(start):
 checkable_units = 0
 for start, end, kind, block, removed_block, info in units:
     wholes = unit_wholes(block) if len(block) > 1 else []
-    line_variants = specific_lines(block)
+    # Only an inline code span can sit in a table cell.
+    line_variants = specific_lines(block, kind == "inline" and in_table(start, end))
     short = short_lines(block)
     removed_variants = [v for v in [" ".join(l.strip() for l in removed_block)] + [l.strip() for l in removed_block]
                         if v and checkable(v)]

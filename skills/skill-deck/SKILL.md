@@ -16,17 +16,29 @@ Generate professional slide decks from briefs with optional research, outline ap
 
 ## Prerequisites
 
-The `document-skills` plugin MUST be installed for PPTX rendering:
+Inspect the current session's advertised skills. A standalone `pptx` or another
+plugin's `pptx` skill is sufficient; plugin ownership is not a prerequisite.
+An explicit renderer such as a house-template or Google Slides skill must also
+be advertised. Do not infer availability from files on disk.
 
-```
-/plugin list | grep document-skills
+Set `OCTO_ROOT` to the installed Octopus root identified by this loaded skill or
+the host's plugin-root metadata. Verify that it contains
+`scripts/helpers/document-renderer.py`. Pass `--format pptx`, one `--available-skill NAME` for
+each advertised skill, and `--renderer NAME` or `--template PATH` when the user
+supplied them. Quote each argument as data. For example, when `pptx` is exposed:
+
+```bash
+python3 "$OCTO_ROOT/scripts/helpers/document-renderer.py" --format pptx \
+  --available-skill pptx
 ```
 
-If not installed, tell the user:
-```
-The document-skills plugin is required for PPTX generation.
-Install it with: /plugin install document-skills@anthropic-agent-skills
-```
+The helper reads `~/.claude-octopus/document-renderers.json` for saved choices.
+Use its returned `skill` and `template`. An unavailable selection or ambiguous
+discovery needs correction before rendering; do not silently substitute another
+skill. When no renderer is advertised, explain what format capability is missing
+and offer installation guidance without installing it automatically. An outline
+can still be prepared. See `docs/DOCUMENT-RENDERERS.md` for configuration and
+selection precedence.
 
 ## Pipeline (4 Steps)
 
@@ -86,21 +98,29 @@ Build a slide-by-slide outline in markdown format. Structure:
 
 **IMPORTANT:** Present the outline to the user for approval using **AskUserQuestion**:
 
-- "Looks good, generate PPTX" — Proceed to Step 4
+- "Looks good, render the deck" — Proceed to Step 4 with the selected renderer
 - "Add more slides" — Expand specific sections
 - "Change focus" — Restructure around different themes
 - "Start over" — Return to Step 1
 
 This is the **wireframe gate** — the user MUST approve the outline structure before PPTX generation.
 
-### Step 4: Render PPTX
+### Step 4: Render the approved deck
 
 Once the outline is approved:
 
-1. Use the `document-skills:pptx` skill to convert the approved markdown outline to PowerPoint
-2. Each `##` heading becomes a slide
-3. Bullet points under each heading become slide content
-4. Save the PPTX file to the current working directory with a descriptive filename
+1. Invoke the resolved renderer skill using its advertised host invocation.
+2. Pass the approved slide skeleton, visual callout plan, appendix list and
+   selected template together. Use empty callout or appendix lists when none
+   were approved; do not invent material to fill them.
+3. Preserve the approved titles, content and template requirements. Follow the
+   selected skill's format and authentication rules. Stop on an unsupported
+   format or template instead of silently changing the renderer.
+4. For a PPTX renderer, save a descriptively named file in the working directory
+   and report the actual saved artifact path in the response.
+   For a native Slides renderer, report the actual deck URL. Follow its approval
+   rules for publication and sharing. On failure, report the failure and retain
+   the approved outline; do not claim a finished deck.
 
 Example filename: `Series-A-Pitch-Deck-2026-02-14.pptx`
 
@@ -178,4 +198,4 @@ User: "I need a comprehensive investor deck about the autonomous vehicles market
 ```
 
 
-*Slide deck skill for claude-octopus v8.12.0+*
+*Slide deck skill for claude-octopus.*
