@@ -6,6 +6,7 @@ from itertools import product
 from pathlib import Path
 import shlex
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -43,7 +44,7 @@ fi
 """)
         self.cli.chmod(0o755)
         self.env = {
-            "PATH": str(self.bin) + ":/usr/bin:/bin",
+            "PATH": f"{self.bin}:{Path(sys.executable).parent}:/usr/bin:/bin",
             "HOME": str(self.base / "home"),
             "XDG_DATA_HOME": str(self.base / "data"),
             "PLUGIN_DIR": str(ROOT),
