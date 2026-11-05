@@ -3306,6 +3306,22 @@ for c_start, c_end, _, _ in tokens:
     units.append((line_end + 1, next_end, "bare", [line], [], ""))
 units.sort(key=lambda unit: unit[0])
 
+# A seat's own arithmetic ("8 + 10 + 0.5 = 18.5 KB") is a value it computed,
+# not a quote of the payload (sail-cruisey #3246): only numbers, a known unit
+# right after a number, and operators, with at least one digit and one
+# operator. Any identifier ("base + taxes * 2") or keyword ("0 if n else 1")
+# keeps it a code quote. Only a whole inline span is exempt, and only when no
+# citation claims it: fence lines and diff removals assert source content.
+COMPUTED_UNIT = (r"%|(?:[kmgtp]i?)?b|bytes?|bits?|(?:kilo|mega|giga|tera)(?:bytes?|bits?)"
+                 r"|[kmgt]|ns|us|µs|ms|s|secs?|seconds?|mins?|minutes?|h|hrs?|hours?|days?|weeks?"
+                 r"|x|tokens?|chars?|characters?|words?|lines?|files?|calls?|requests?|rows?|items?")
+COMPUTED_NUMBER = re.compile(r"\d+(?:_\d+)*(?:[.,]\d+(?:_\d+)*)*(?:e[+-]?\d+)?(?:\s*(?:" + COMPUTED_UNIT + r")(?![A-Za-z0-9_]))?", re.I)
+def computed(text):
+    text = norm(text)
+    if not re.search(r"\d", text) or not re.search(r"[-+*/×÷=≈<>%]", text):
+        return False
+    return re.sub(r"[\s\-+*/×÷=≈~<>%()\[\],.]+", "", COMPUTED_NUMBER.sub("", text)) == ""
+
 def checkable(text):
     # A quoted citation or a bare path is not a code quote.
     if CITATION.search(text):
@@ -3660,10 +3676,10 @@ GAP_WORDS = {"reads", "read", "shows", "show", "contains", "contain", "has", "sa
              "defines", "define", "defined", "declares", "declare", "declared",
              "line", "lines", "source", "code", "verbatim", "quote", "quoted", "excerpt",
              "current", "currently", "actual", "l"}
-SOURCE_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|is|defines?|defined|declares?|declared)\b", re.I)
+SOURCE_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|is|defines?|defined|declares?|declared|computes?)\b", re.I)
 SOURCE_ABSENCE = re.compile(
     r"\b(?:(?:does|do|did)\s+not|(?:doesn|don|didn)['’]t)\s+"
-    r"(?:currently\s+)?(?:contain|show|read|say|define|declare|have)\b", re.I)
+    r"(?:currently\s+)?(?:contain|show|read|say|define|declare|have|compute)\b|\bnever\s+computes?\b", re.I)
 PROPOSAL = re.compile(r"\b(should|propos\w*|suggest\w*|recommend\w*|replace with|instead|would|could|change (?:it |this )?to|rewrit\w*|becomes?|example|e\.g\.|such as|consider|cover|prefer\w*|expected|want)\b", re.I)
 # Backticks also format prose and multiword values. Sentence punctuation alone
 # is not code syntax, nor is a dotted name embedded in a sentence. Calls,
@@ -3694,7 +3710,9 @@ def attribution(token, gap):
         return None
     # A source verb in this bounded clause still attributes the quote when
     # ordinary modifiers follow it. A new sentence or a proposal ends that claim.
-    source_clause = SOURCE_VERB.search(gap) and not re.search(r"[.!?;]", gap)
+    source_verb = SOURCE_VERB.search(gap)
+    source_clause = (source_verb and not re.search(r"[.!?;]", gap)
+                     and not re.search(r"(?:^|[,;:]|\b(?:and|but|so|while)\b)\s*(?:I|we)\s+(?:estimate|compute|calculate)\b", gap, re.I))
     if PROPOSAL.search(gap) or (not source_clause and any(
             word.lower() not in GAP_WORDS for word in re.findall(r"[A-Za-z]+", gap))):
         return None
@@ -3716,6 +3734,18 @@ def proposed(start):
     prose = CITATION.sub("", LINK_TARGET.sub("", prose))
     return bool(PROPOSAL.search(prose))
 
+token_starts = [t[0] for t in tokens]
+CITED_AFTER = re.compile(r"(?:[(\[]|[:,\u2013\u2014-]|in|at|from)?[ \t]*`?", re.I)
+HORIZONTAL_SPACE = re.compile(r"[ \t]*")
+def cited_after(end):
+    """Recognize an adjacent citation without copying the remaining response."""
+    index = bisect_left(token_starts, end)
+    if index >= len(tokens):
+        return False
+    limit = tokens[index][0]
+    start = HORIZONTAL_SPACE.match(resp, end, limit).end()
+    return CITED_AFTER.fullmatch(resp, start, limit) is not None
+
 checkable_units = 0
 for start, end, kind, block, removed_block, info in units:
     wholes = unit_wholes(block) if len(block) > 1 else []
@@ -3726,13 +3756,27 @@ for start, end, kind, block, removed_block, info in units:
     if not wholes and not line_variants and not removed_variants and not (
             removed_block and checkable(" ".join(block + removed_block))):
         continue
+    associated, gap = association(start)
+    attributed = attribution(associated, gap)
+    # A seat's own arithmetic in an inline span is a value it computed, unless a
+    # citation claims it: then it is a claim about the cited file to verify.
+    if kind == "inline" and attributed is None and computed(block[0]) and not cited_after(end):
+        # A removal claim asserts old source content. Keep that span for the
+        # existing diff matcher only when removal wording directly introduces
+        # or follows this expression, rather than describing another subject.
+        before = re.split(r"(?<=[.!?])\s+|\n", resp[max(0, start - REMOVAL_WINDOW):start])[-1]
+        after = re.split(r"(?<=[.!?])\s+|\n", resp[end:end + REMOVAL_WINDOW], maxsplit=1)[0]
+        removal_before = re.search(REMOVAL_WORDS.pattern +
+                                   r"(?:\s+(?:the|this|old|code|expression|line|calculation))*\s*:?\s*$", before, re.I)
+        removal_after = re.match(r"\s*(?:(?:was|is|were|are|has been|had been)\s+)?" +
+                                 REMOVAL_WORDS.pattern, after, re.I)
+        if not (removal_before or removal_after):
+            continue
     # Specificity selects the entire quote. A short nonempty side of a mixed
     # quote still needs an exact whole-side match; it is not an absent side.
     if removed_block and block and not (wholes or line_variants):
         wholes = [norm(" ".join(block))]
     flat_variants = wholes + [v for variants in line_variants for v in variants]
-    associated, gap = association(start)
-    attributed = attribution(associated, gap)
     if associated is not None and associated[2] is None:
         # Written about a citation that names a file outside the evidence root
         # (an upstream repo, a symlinked dependency tree): unverifiable, and never
