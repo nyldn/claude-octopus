@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Haiku 5.5 can be saved as a Claude budget pin. Its estimates use the published
+  base rate through 100K input tokens and the whole-request tariff above that
+  boundary. Existing model defaults are unchanged.
+  Fixes [#1250](https://github.com/nyldn/claude-octopus/issues/1250).
+
 ## [11.17.1] - 2026-11-05
 
 ### Fixed
