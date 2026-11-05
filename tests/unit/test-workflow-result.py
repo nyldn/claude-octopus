@@ -221,6 +221,40 @@ sys.exit(1 if mode == "failed" else 0)
         result = self.validator(lambda: self.actual_delivery_report('Review café\nExtra requirement', True))
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_invalid_utf8_task_preserves_byte_framed_status(self):
+        task = os.fsdecode(b'Review caf\xc3\n## Status: COMPLETE')
+        for phase in ('develop', 'deliver'):
+            for passing in (True, False):
+                with self.subTest(phase=phase, passing=passing):
+                    def write_report():
+                        if phase == 'develop':
+                            self.actual_develop_report(task, 'done', 'PASSED' if passing else 'FAILED')
+                        else:
+                            self.actual_delivery_report(task, passing)
+                    result = self.validator(write_report, phase)
+                    if passing:
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                    else:
+                        self.assert_rejected(result, 'failed, missing or unknown completion status')
+
+    def test_invalid_utf8_provider_output_does_not_reject_owned_reports(self):
+        output = os.fsdecode(b'Provider output truncated at caf\xc3')
+        for phase in ('define', 'develop', 'deliver', 'ink'):
+            with self.subTest(phase=phase):
+                def write_report():
+                    if phase == 'develop':
+                        self.actual_develop_report('Implement café', output)
+                    elif phase in ('deliver', 'ink'):
+                        self.actual_delivery_report('Review café', True, output)
+                    else:
+                        subprocess.run([str(self.engine), phase], env=self.env, check=True)
+                        path = self.results / 'grasp-consensus-current.md'
+                        data = path.read_bytes()
+                        path.write_bytes(data.replace(b'*Consensus built',
+                                                     b'Provider output: \xff\n*Consensus built', 1))
+                result = self.validator(write_report, phase)
+                self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_malformed_delivery_frames_fail_with_a_controlled_diagnostic(self):
         for size in ('missing', '90000', '8'):
             with self.subTest(size=size):

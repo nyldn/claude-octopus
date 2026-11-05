@@ -22,7 +22,7 @@ do not invoke the current command recursively or add provider calls from a seat.
 Before implementation, select the existing feature and run its boundary adapter:
 
 Use the installation that loaded this skill for both execution and validation.
-If `CLAUDE_PLUGIN_ROOT` is absent, replace the `OCTO_ROOT` fallback below with
+If `CLAUDE_PLUGIN_ROOT` is absent, replace every `OCTO_ROOT` fallback in this skill with
 the absolute plugin root derived from this loaded skill's path. Do not infer it
 from the project directory or an existing stable link. The root helper refreshes
 installed copies while preserving another session's working root when called

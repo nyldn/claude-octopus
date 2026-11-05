@@ -10,7 +10,9 @@
   skill's result gate. Reports from other invocations are identified before
   their bodies are loaded, so unrelated large output cannot exhaust the
   validator's memory. Execution and validation use the installation that loaded
-  the skill, even when the stable link still points at an older copy. Fixes #1170.
+  the skill, even when the stable link still points at an older copy. Truncated
+  UTF-8 in task or provider text preserves the launcher's completion checks.
+  Fixes #1170.
 - A code-span quote written inside a Markdown table cell now matches its
   source line. Seats escape `|` as `\|` in a table, so a quote of
   `member.tier || member.legacyTier` arrived as `member.tier \|\| member.legacyTier`

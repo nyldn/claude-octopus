@@ -49,7 +49,9 @@ try:
     if len(owned) != 1:
         raise ValueError("ambiguous reports from this invocation in " + str(root))
     report, data = owned[0]
-    text = data.decode("utf-8")
+    # Provider output may be truncated mid-character. Keep byte offsets intact
+    # for task framing and replace invalid text only when interpreting content.
+    text = data.decode("utf-8", errors="replace")
     if phase == "define":
         # Grasp has no status heading. Its launcher footer identifies the
         # synthesizer, or explicitly records a failed auto-consensus as none.
@@ -62,7 +64,7 @@ try:
         frame = re.match(rb"# TANGLE Phase Validation Report\n<!-- octopus-task-bytes: ([0-9]+) -->\n## Task: ", data)
         status = None
         if frame:
-            metadata = data[frame.end() + int(frame[1]):].decode("utf-8")
+            metadata = data[frame.end() + int(frame[1]):].decode("utf-8", errors="replace")
             status = re.match(r"\n## Generated: [^\n]+\n\n### Quality Gate: ([A-Z]+)\n", metadata)
         valid = bool(status and status[1] in {"PASSED", "WARNING", "CHALLENGED"})
     else:
@@ -71,7 +73,7 @@ try:
         frame = re.match(rb"# DELIVERY DOCUMENT\n<!-- octopus-task-bytes: ([0-9]+) -->\n## Task: ", data)
         header_complete = None
         if frame:
-            metadata = data[frame.end() + int(frame[1]):].decode("utf-8")
+            metadata = data[frame.end() + int(frame[1]):].decode("utf-8", errors="replace")
             header_complete = re.match(r"\n## Generated: [^\n]+\n## Status: COMPLETE\n\n---\n", metadata)
         parts = text.rsplit("\n## Quality Certification\n", 1)
         footer = parts[-1].splitlines()
