@@ -108,8 +108,9 @@ For other audiences, use this general structure:
 For decision briefs, put the decision on slide 2. Use this structure instead of the agenda-first
 template or a summary saved for the end. Expand evidence slides as needed;
 agree the main-deck and appendix slide counts within the user's target.
-Combine the evidence and decision slides for a five-slide total, keeping
-the executive summary on slide 2 and an appendix. If the required material,
+If the user selects a five-slide target, combine the evidence and decision
+slides, keeping the executive summary on slide 2 and an appendix. Preserve
+the selected slide range for longer targets. If the required material,
 including one backup slide per expected question, cannot fit, ask the user to
 approve a larger target before expanding it. The six-slide example is not a
 minimum slide count.
@@ -198,10 +199,10 @@ Example filename: `Series-A-Pitch-Deck-2026-02-14.pptx`
 Apply these when generating outlines:
 
 - **Title slide**: Presentation name, subtitle, date, presenter
-- **Agenda slide**: 3-5 key topics for non-board decks > 7 slides; board decks use slide 2 for the executive summary
+- **Agenda slide**: 3-5 key topics for decks using the general agenda-first structure and exceeding 7 slides; Executives / Board briefs follow the Step 3 purpose-specific structure
 - **One idea per slide**: Keep slides focused
 - **5-7 bullets max**: Per slide for readability
-- **Summary slide**: Key takeaways at the end for non-board decks; board decks lead with the executive summary
+- **Summary slide**: Key takeaways at the end for decks using the general agenda-first structure; Executives / Board briefs follow the Step 3 purpose-specific structure
 - **Next steps / CTA**: Final slide with clear actions
 
 ### By Audience Type

@@ -208,9 +208,17 @@ class DocumentRendererTest(unittest.TestCase):
                 self.assertIn("do not require a decision or approval ask", purpose)
                 self.assertIn("slide 2", purpose)
                 sizing = outline_step.split("#### Executive and board outline", 1)[1].split("```markdown", 1)[0]
-                self.assertIn("Combine", sizing)
+                self.assertIn("combine", sizing.lower())
                 self.assertIn("five-slide", sizing)
                 self.assertIn("approve a larger target", sizing)
+                sizing = " ".join(sizing.split())
+                self.assertRegex(sizing, r"If the user selects a five-slide target, combine")
+                self.assertIn("Preserve the selected slide range for longer targets", sizing)
+                rules = deck.split("## Slide Structure Best Practices", 1)[1].split("### By Audience Type", 1)[0]
+                for label in ("Agenda slide", "Summary slide"):
+                    rule = next(line for line in rules.splitlines() if f"**{label}**" in line)
+                    self.assertIn("general agenda-first structure", rule)
+                    self.assertIn("Executives / Board briefs follow the Step 3 purpose-specific structure", rule)
                 audience = deck.split("**Executives / Board:**", 1)[1].split("**Engineers / Technical:**", 1)[0]
                 self.assertIn("brief's purpose", audience)
                 self.assertIn("decision or informational purpose in Step 3", " ".join(audience.split()))
