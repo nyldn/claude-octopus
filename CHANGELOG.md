@@ -30,6 +30,31 @@
   checks project-relative executables from the worker directory. Failed command
   construction closes its durable research-seat event.
   Addresses [#1172](https://github.com/nyldn/claude-octopus/issues/1172).
+- The develop quality challenger now sees provider output and bounded change
+  excerpts from the run's starting commit. Long executor prompts no longer
+  hide the implementation. Change excerpts exclude credential paths,
+  directories and symlinks and are marked as untrusted content. Fixes #1171.
+  Collecting those excerpts disables Git clean/process filters and filesystem
+  monitors, and ignores inherited Git routing and global configuration.
+  Binary diff markers and nontext excerpts are omitted before shell capture.
+  UTF-8 excerpts retain complete characters at the byte limit, and collection
+  examines at most 200 candidate paths per pass.
+- A code-span quote written inside a Markdown table cell now matches its
+  source line. Seats escape `|` as `\|` in a table, so a quote of
+  `member.tier || member.legacyTier` arrived as `member.tier \|\| member.legacyTier`
+  and was counted as invented (sail-cruisey #3125). Quote matching now also
+  tries a table-cell code span with `\|` read as `|`. Outside a table, `\|` is
+  literal (it changes a regular expression), and source text keeps its
+  backslashes, so a quote that drops a source line's own `\|` still does not
+  match it.
+
+  Table decoding also requires the whole quote to fit inside one rendered
+  cell. Quotes crossing cells or rows, and cells discarded beyond the header
+  width, keep their literal backslashes.
+
+  Table structure is recognized before HTML entity decoding, so encoded pipes
+  cannot manufacture a delimiter or split a cell. Single-column headers and
+  nonempty body rows without pipes also retain their table context.
 
 ## [11.16.0] - 2026-11-02
 
@@ -128,6 +153,7 @@
   matching file text even when the cited line number is out of range.
   An unsafe existing path cannot fall back to a different file.
   [#1236](https://github.com/nyldn/claude-octopus/pull/1236).
+
 
 ## [11.15.2] - 2026-10-28
 
