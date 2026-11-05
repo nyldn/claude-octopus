@@ -3712,8 +3712,8 @@ def attribution(token, gap):
     # ordinary modifiers follow it. A new sentence or a proposal ends that claim.
     source_verb = SOURCE_VERB.search(gap)
     source_clause = (source_verb and not re.search(r"[.!?;]", gap)
-                     and not re.search(r"\b(?:I|we)\s+estimate\b", gap[:source_verb.start()], re.I)
-                     and not re.search(r"\b(?:I|we)\b", gap[source_verb.end():], re.I))
+                     and not re.search(r"\b(?:I|we)\s+estimate\b", gap, re.I)
+                     and not re.search(r"(?:^|[,;:]|\b(?:and|but|so))\s*(?:I|we)\s+compute\b", gap, re.I))
     if PROPOSAL.search(gap) or (not source_clause and any(
             word.lower() not in GAP_WORDS for word in re.findall(r"[A-Za-z]+", gap))):
         return None
@@ -3758,11 +3758,15 @@ for start, end, kind, block, removed_block, info in units:
     # citation claims it: then it is a claim about the cited file to verify.
     if kind == "inline" and attributed is None and computed(block[0]) and not cited_after(end):
         # A removal claim asserts old source content. Keep that span for the
-        # existing diff matcher, without borrowing removal words from another
-        # sentence. Bound the prose scan as in ordinary removal classification.
+        # existing diff matcher only when removal wording directly introduces
+        # or follows this expression, rather than describing another subject.
         before = re.split(r"(?<=[.!?])\s+|\n", resp[max(0, start - REMOVAL_WINDOW):start])[-1]
         after = re.split(r"(?<=[.!?])\s+|\n", resp[end:end + REMOVAL_WINDOW], maxsplit=1)[0]
-        if not REMOVAL_WORDS.search(before + after):
+        removal_before = re.search(REMOVAL_WORDS.pattern +
+                                   r"(?:\s+(?:the|this|old|code|expression|line|calculation))*\s*:?\s*$", before, re.I)
+        removal_after = re.match(r"\s*(?:(?:was|is|were|are|has been|had been)\s+)?" +
+                                 REMOVAL_WORDS.pattern, after, re.I)
+        if not (removal_before or removal_after):
             continue
     # Specificity selects the entire quote. A short nonempty side of a mixed
     # quote still needs an exact whole-side match; it is not an absent side.
