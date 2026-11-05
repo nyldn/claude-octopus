@@ -12,6 +12,26 @@ storage = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(storage)
 
 
+def extract_findings(text, label):
+    """Use the analysis parser's raw fence and strict JSON contract at runtime."""
+    spec = importlib.util.spec_from_file_location('feature_analysis', os.path.join(os.path.dirname(__file__), 'feature-analysis.py'))
+    analysis = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = analysis
+    spec.loader.exec_module(analysis)
+    document = analysis.Document('response', text, text.encode('utf-8'))
+    result, warnings = [], []
+    for parsed, _ in analysis.fences(document, label, warnings):
+        if isinstance(parsed, dict):
+            parsed = parsed.get('findings')
+        if (not isinstance(parsed, list) or not all(isinstance(item, dict) for item in parsed)
+                or len(result) + len(parsed) > 100):
+            raise ValueError('invalid bounded findings')
+        result.extend(parsed)
+    if warnings:
+        raise ValueError('invalid findings block')
+    return result
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('command', choices=('extract', 'snapshot', 'research-text', 'render-tasks', 'completion', 'analysis'))
@@ -90,16 +110,7 @@ def main():
             return 0
         if not re.fullmatch(r'octopus-[a-z-]+', args.label):
             raise ValueError('unsupported block label')
-        blocks = re.findall(r'^```' + re.escape(args.label) + r'\s*\n(.*?)^```\s*$', text, re.M | re.S)
-        result = []
-        for block in blocks:
-            parsed = json.loads(block)
-            if isinstance(parsed, dict):
-                parsed = parsed.get('findings', [])
-            if not isinstance(parsed, list) or len(result) + len(parsed) > 100:
-                raise ValueError('invalid bounded findings')
-            result.extend(parsed)
-        print(json.dumps(result))
+        print(json.dumps(extract_findings(text, args.label)))
         return 0
     except (OSError, UnicodeError, ValueError, TypeError):
         print('[]')
