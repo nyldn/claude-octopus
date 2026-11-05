@@ -118,6 +118,44 @@ class DocumentRendererTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(json.loads(result.stdout)["skill"], format_name)
 
+    def test_document_quick_reference_does_not_require_installation(self):
+        """A working standalone renderer must not trigger an install instruction."""
+        for tree in (".claude/skills", "skills"):
+            with self.subTest(tree=tree):
+                text = (ROOT / tree / "skill-doc-delivery/SKILL.md").read_text()
+                quick_reference = text.split("## Quick Reference Commands", 1)[1].split("## Getting Help", 1)[0]
+                self.assertIn("document-renderer.py", quick_reference)
+                self.assertNotIn("/plugin install", quick_reference)
+                self.assertEqual(self.selection("--available-skill", "pptx")["skill"], "pptx")
+
+    def test_renderer_handoff_preserves_direct_export_and_output_contracts(self):
+        """Native and generated skills must agree about approval and deliverables."""
+        for tree in (".claude/skills", "skills"):
+            with self.subTest(tree=tree):
+                delivery = (ROOT / tree / "skill-doc-delivery/SKILL.md").read_text()
+                invocation = delivery.split("### Step 3: Invoke the selected renderer", 1)[1].split("### Step 4:", 1)[0]
+                self.assertIn("For slides with approved materials", invocation)
+                self.assertIn("without implying that an outline or slide materials were approved", invocation)
+                self.assertIn("actual artifact path", invocation)
+                deck = (ROOT / tree / "skill-deck/SKILL.md").read_text()
+                render = deck.split("### Step 4: Render the approved deck", 1)[1].split("## Slide Structure", 1)[0]
+                self.assertIn("actual saved artifact path", render)
+                self.assertIn("actual deck URL", render)
+                self.assertIn("Quote each argument as data", delivery)
+
+    def test_document_examples_prepare_formatting_before_rendering(self):
+        """Rendering must include the promised document formatting."""
+        for tree in (".claude/skills", "skills"):
+            text = (ROOT / tree / "skill-doc-delivery/SKILL.md").read_text()
+            business = text.split("### Example 2:", 1)[1].split("### Example 3:", 1)[0]
+            academic = text.split("### Example 3:", 1)[1].split("## Handling Edge Cases", 1)[0]
+            with self.subTest(tree=tree):
+                render = business.index("Convert with the resolved DOCX renderer")
+                self.assertLess(business.index("Add table of contents"), render)
+                self.assertLess(business.index("Format tables and charts properly"), render)
+                self.assertLess(academic.index("Apply academic formatting"),
+                                academic.index("Resolve and invoke the PDF renderer"))
+
     def test_native_skills_use_the_resolver_and_no_plugin_presence_gate(self):
         for name in ("skill-deck", "skill-doc-delivery"):
             text = (ROOT / f".claude/skills/{name}/SKILL.md").read_text()

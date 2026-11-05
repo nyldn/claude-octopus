@@ -49,8 +49,9 @@ Set `OCTO_ROOT` to the installed Octopus root identified by this loaded skill or
 the host's plugin-root metadata. Verify that it contains
 `scripts/helpers/document-renderer.py`, then run it with
 `--format FORMAT` and one `--available-skill NAME` for each advertised skill.
-Pass `--renderer NAME` and `--template PATH` when explicitly requested, quoting
-arguments as data. Use the returned `skill` and `template` for conversion.
+Pass `--renderer NAME` and `--template PATH` when explicitly requested.
+Quote each argument as data, including every advertised skill name.
+Use the returned `skill` and `template` for conversion.
 The helper also reads saved choices from
 `~/.claude-octopus/document-renderers.json`. See `docs/DOCUMENT-RENDERERS.md`.
 
@@ -264,9 +265,9 @@ Output Goal: Comprehensive business case document
 Steps:
 1. Read the advise markdown
 2. Structure as: Executive Summary, Analysis, Recommendations, Appendix
-3. Convert with the resolved DOCX renderer
-4. Add table of contents
-5. Format tables and charts properly
+3. Add table of contents
+4. Format tables and charts properly
+5. Convert with the resolved DOCX renderer
 6. Save as "Market-Analysis-Business-Case-2026-01-18.docx"
 ```
 
@@ -370,9 +371,6 @@ ls -lht ~/.claude-octopus/results/ | head -5
 
 # Resolve from the actual advertised skills, for example a standalone pptx skill
 python3 "$OCTO_ROOT/scripts/helpers/document-renderer.py" --format pptx --available-skill pptx
-
-# Install document-skills
-/plugin install document-skills@anthropic-agent-skills
 
 # View specific markdown
 cat ~/.claude-octopus/results/[filename].md
