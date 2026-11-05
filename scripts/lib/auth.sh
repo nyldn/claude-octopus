@@ -55,6 +55,45 @@ _octo_assignment_has_nonempty_value() {
     _octo_value_has_nonwhitespace "$value"
 }
 
+# Check only for credential presence using Vibe's own Python environment.
+# Never launch its interactive CLI, print a secret or migrate keyring entries.
+_octo_vibe_keyring_has_key() {
+    [[ "${1:-}" == selected ]] || return 1
+    case "${OCTOPUS_SKIP_PROVIDER_PROBES:-false}" in true|1) return 1 ;; esac
+    local binary shebang interpreter extra lib_dir name
+    local -a probe_env
+    binary="$(command -v vibe 2>/dev/null)" || return 1
+    [[ -f "$binary" ]] || return 1
+    shebang="$(head -c 512 "$binary" 2>/dev/null | head -n 1)"
+    [[ "$shebang" == '#!'/* ]] || return 1
+    read -r interpreter extra <<< "${shebang#\#!}"
+    case "$interpreter" in
+        /usr/bin/env|/bin/env)
+            # Match the simple env shebang only. Resolve the same PATH entry as
+            # the CLI without executing env, parsing options or evaluating text.
+            [[ "$extra" =~ ^python(3(\.[0-9]+)?)?$ ]] || return 1
+            interpreter="$(command -v "$extra" 2>/dev/null)" || return 1
+            extra=""
+            ;;
+    esac
+    [[ -z "$extra" && "$interpreter" == /* && -f "$interpreter" && -x "$interpreter" && "${interpreter##*/}" == python* ]] || return 1
+    lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)" || return 1
+    source "$lib_dir/bounded-probe.sh" 2>/dev/null || return 1
+    # A selected external package must not inherit other providers' credentials,
+    # proxy settings or language-loader controls. Retain only local OS keyring
+    # session information and ordinary runtime paths.
+    probe_env=(env -i "PATH=/usr/bin:/bin:/usr/sbin:/sbin" "HOME=$HOME" "TMPDIR=${TMPDIR:-/tmp}")
+    for name in USER LOGNAME XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS XDG_CONFIG_HOME XDG_DATA_HOME VIBE_TEST_DISABLE_KEYRING; do
+        [[ -z "${!name:-}" ]] || probe_env+=("${name}=${!name}")
+    done
+    # The shared supervisor includes termination and cleanup in the 3s budget.
+    (
+        cd / || exit 1
+        _octo_run_bare_probe_with_timeout 3 2 1 \
+            "${probe_env[@]}" "$interpreter" -I "$lib_dir/../helpers/vibe-keyring-check.py"
+    ) </dev/null >/dev/null 2>&1
+}
+
 # Check if Codex is authenticated
 # Returns auth method: "api_key", "oauth", or "none"
 # Always returns 0 (success) - use the output to determine status

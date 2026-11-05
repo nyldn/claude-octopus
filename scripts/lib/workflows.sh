@@ -110,7 +110,7 @@ probe_single_agent() {
     fi
 
     # Pre-flight validation
-    preflight_check || return 1
+    preflight_check false "$agent_type" || return 1
 
     mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
 

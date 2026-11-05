@@ -24,6 +24,8 @@ log() { :; }
 # shellcheck source=lib/preflight.sh
 source "$SCRIPT_DIR/lib/preflight.sh"
 
+# Inventory is not an explicit provider selection.
+_octo_vibe_check_context=automatic
 providers_json="$({
     for provider in $(octo_provider_ids detect); do
         readiness="$(octo_provider_readiness_result "$provider" static 2>/dev/null)"
