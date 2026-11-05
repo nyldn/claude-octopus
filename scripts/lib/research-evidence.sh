@@ -640,13 +640,15 @@ research_numeric_claims() {
         if (after ~ /^[ \t]*\[[^]]+\]\([A-Za-z][A-Za-z0-9+.-]*:/) return 0
         if (after ~ /^[ \t]*[*_`(]*([0-9A-Za-z]|\302\260|\302\265|\316\274)/ && tolower(after) !~ /^[ \t]+(and|or)[ \t]/) return 0
         gap = tolower(substr(line, ord_end, start - ord_end))
-        list_reference = (ord_end > 0 && gap ~ ("^(,[ \\t]*|[ \\t]*,?[ \\t]*(and|or)[ \\t]+)" label))
+        list_reference = (ord_end > 0 && gap ~ ("^([ \\t]*,[ \\t]*|[ \\t]*,?[ \\t]*(and|or)[ \\t]+)" label))
         # A label may describe a score or count. Only standalone labels,
         # including Markdown list items, and explicit references are exempt.
+        # "and"/"or" continues a reference list only after a skipped reference
+        # or a section number, so "points: 50 and items: 10" stays a claim.
         if (tolower(before) ~ ("(^|[^0-9a-z_])" label) &&
             tolower(before) !~ ("(^|[;.!?|])[ \\t]*([-*+][ \\t]+)?" label) &&
             !list_reference &&
-            tolower(before) !~ ("(^|[^0-9a-z_])(see|refer[ \\t]+to|(corrected|covered|described|discussed|explained|listed|shown|noted|mentioned|addressed|detailed)[ \\t]+in)[ \\t]+" label)) return 0
+            tolower(before) !~ ("(^|[^0-9a-z_])(see|sections?[ \\t]+[0-9]+[ \\t]*,?[ \\t]*(and|or)|refer[ \\t]+to|(corrected|covered|described|discussed|explained|listed|shown|noted|mentioned|addressed|detailed)[ \\t]+in)[ \\t]+" label)) return 0
         if (tolower(before) ~ ("(^|[^0-9a-z_])" label)) return 1
         return (ord_end > 0 && gap ~ /^(,[ \t]*|[ \t]*,?[ \t]*(and|or)[ \t]+)$/)
     }
