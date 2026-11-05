@@ -120,6 +120,8 @@ independent provider diversity.
 
 `/octo:model-config set claude.budget claude-haiku-5-5` selects Haiku 5.5 for
 the existing budget capability. The shipped budget default stays on Haiku 4.5.
+Select budget routing with `/octo:model-config cost-mode budget` to use that
+capability. New configurations use the `standard` cost mode.
 Use Claude Code v2.1.293 or later and confirm account access separately. This
 catalog addition does not extend the `anthropic-api` adapter's model allowlist.
 

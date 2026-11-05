@@ -535,6 +535,16 @@ display_per_phase_cost_table() {
 }
 
 # Export functions
+# Child Bash writers need the same canonical IDs and request tariffs as the
+# sourcing process. Keep the metrics-session writer instead of sourcing cost.sh
+# in the child, which would replace it with the usage-ledger implementation.
+for _octo_metrics_pricing_function in get_model_pricing octo_effective_model_pricing octo_model_canonical_id _octo_get_model_catalog_raw; do
+    if declare -f "$_octo_metrics_pricing_function" >/dev/null 2>&1; then
+        export -f "${_octo_metrics_pricing_function?}"
+    fi
+done
+unset _octo_metrics_pricing_function
+export OCTOPUS_MODEL_PRICING_FILE
 export -f get_metrics_base
 export -f init_metrics_tracking
 export -f record_agent_start
