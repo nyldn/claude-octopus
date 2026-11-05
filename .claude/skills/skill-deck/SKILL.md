@@ -84,7 +84,9 @@ This step is OPTIONAL. Many decks are built from the user's own knowledge or exi
 
 ### Step 3: Generate Outline
 
-Build a slide-by-slide outline in markdown format. Structure:
+Build a slide-by-slide outline in markdown format. For Executives / Board,
+use the executive and board outline below. For other audiences, use this
+general structure:
 
 ```markdown
 ## Slide 1: [Title Slide]
@@ -103,6 +105,63 @@ Build a slide-by-slide outline in markdown format. Structure:
 - Key takeaways
 - Call to action
 ```
+
+#### Executive and board outline
+
+Put the decision on slide 2. Use this structure instead of the agenda-first
+template or a summary saved for the end. Expand evidence slides as needed;
+agree the main-deck and appendix slide counts within the user's target.
+
+```markdown
+## Slide 1: [Decision topic]
+- Presentation title, date and presenter
+
+## Slide 2: Executive summary: [recommendation]
+- One recommendation sentence with a by-when
+- One line of context
+- Two or three supporting pillars
+- The specific ask and what approval unlocks
+
+## Slide 3: [Why the recommended option beats the alternatives]
+- Recommended option: benefit, cost and trade-offs
+- Do nothing: cost and consequences over the same time horizon
+- At least one real alternative: benefit, cost and trade-offs
+
+## Slide 4: [The evidence supports a specific conclusion]
+- One proof point for this data slide, with its source
+- Chart highlight: the single figure that supports the title
+
+## Slide 5: [Approve the specific next action by the decision date]
+- Repeat the same recommendation and by-when
+- Explicit ask: the approval, amount or named resource the audience can grant
+- What approval unlocks and who owns the next action
+
+## Slide 6: Appendix: [Expected question]
+- Backup evidence answering this expected question
+```
+
+#### Board outline check
+
+Check the following before asking for outline approval:
+
+- Could the audience make the requested decision from slide 2 alone? It must
+  lead with one recommendation, then context, two or three pillars, the ask
+  and what approval unlocks. Keep the same recommendation and deadline
+  throughout the deck.
+- Does the options comparison include doing nothing, its cost and at least
+  one real alternative? Use a common time horizon and cite cost estimates.
+- Is the ask something this audience can grant, such as a specific approval,
+  amount or named resource, with a by-when? "Support" alone is insufficient.
+- Does every data slide have one proof point and a chart highlight tied to
+  the single figure claimed by its title? Include the source and the intended
+  highlight in the outline passed to the renderer.
+- Is there one backup slide per expected question in the appendix? Name the
+  questions and include the appendix in the outline submitted for approval.
+
+Do not invent costs, evidence, deadlines or approval authority. If decision
+material is missing, identify the gap and ask for it before presenting the
+outline as ready for approval. This check covers outline content; it does not
+claim that rendered slides have been visually inspected.
 
 **IMPORTANT:** Present the outline to the user for approval using **AskUserQuestion**:
 
@@ -137,19 +196,19 @@ Example filename: `Series-A-Pitch-Deck-2026-02-14.pptx`
 Apply these when generating outlines:
 
 - **Title slide**: Presentation name, subtitle, date, presenter
-- **Agenda slide**: 3-5 key topics (for decks > 7 slides)
+- **Agenda slide**: 3-5 key topics for non-board decks > 7 slides; board decks use slide 2 for the executive summary
 - **One idea per slide**: Keep slides focused
 - **5-7 bullets max**: Per slide for readability
-- **Summary slide**: Key takeaways at the end
+- **Summary slide**: Key takeaways at the end for non-board decks; board decks lead with the executive summary
 - **Next steps / CTA**: Final slide with clear actions
 
 ### By Audience Type
 
 **Executives / Board:**
-- Lead with business impact and metrics
-- Use "So what?" framing for every slide
-- Include financial implications
-- End with decisions needed
+- Use the executive and board outline and its check in Step 3.
+- Lead with business impact and source-backed financial implications.
+- Keep the main deck focused on the decision; put expected-question evidence
+  in the approved appendix.
 
 **Engineers / Technical:**
 - Include architecture diagrams (describe for slides)

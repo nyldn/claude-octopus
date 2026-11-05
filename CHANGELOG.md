@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- Executive and board decks put the recommendation, context, supporting
+  pillars and explicit ask on slide 2. Their outline compares doing nothing
+  with a real alternative, ties data-slide highlights to one proof point,
+  and includes an appendix for expected questions. Missing decision material
+  is identified before outline approval rather than invented. Addresses #1216.
+
 ### Fixed
 
 - Vibe setup and readiness now recognize a key stored by `vibe --setup` in

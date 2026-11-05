@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -170,6 +171,32 @@ class DocumentRendererTest(unittest.TestCase):
             self.assertNotIn("When document-skills plugin not installed", text)
             self.assertIn("document-renderer.py", text)
             self.assertIn("advertised", text)
+
+    def test_board_outline_carries_decision_materials_before_approval(self):
+        """The shipped board example must not fall back to an agenda-first deck."""
+        for tree in (".claude/skills", "skills"):
+            with self.subTest(tree=tree):
+                deck = (ROOT / tree / "skill-deck/SKILL.md").read_text()
+                outline_step = deck.split("### Step 3: Generate Outline", 1)[1].split("### Step 4:", 1)[0]
+                board = outline_step.split("#### Executive and board outline", 1)[1].split("#### Board outline check", 1)[0]
+                slides = dict(re.findall(r"^## Slide (\d+): (.*?)(?=^## Slide |^```)",
+                                         board, re.MULTILINE | re.DOTALL))
+                self.assertIn("Executive summary", slides["2"])
+                for requirement in ("recommendation", "by-when", "context", "pillars", "ask", "unlocks"):
+                    self.assertIn(requirement, slides["2"])
+                for requirement in ("Do nothing", "cost", "alternative"):
+                    self.assertIn(requirement, slides["3"])
+                self.assertIn("highlight", slides["4"])
+                self.assertIn("title", slides["4"])
+                for requirement in ("approval", "amount", "resource"):
+                    self.assertIn(requirement, slides["5"])
+                self.assertIn("Appendix", slides["6"])
+                self.assertIn("expected question", slides["6"])
+                gate = outline_step.split("#### Board outline check", 1)[1]
+                self.assertIn("before asking for outline approval", gate)
+                self.assertIn("Do not invent", gate)
+                self.assertIn("one backup slide per expected question", gate)
+                self.assertIn("MUST approve", gate)
 
 
 if __name__ == "__main__":
