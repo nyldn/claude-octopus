@@ -808,6 +808,12 @@ test_case "numeric ranges beside point labels retain both endpoints"
 range_claims=$(research_extract_numbers 'points 2 and 5-10 MiB' | LC_ALL=C sort | tr '\n' ' ')
 if [[ "$range_claims" == "10 5 " ]]; then test_pass; else test_fail "range endpoint was lost: $range_claims"; fi
 
+for fraction_text in 'Items: 5/10 passed.' '- Items: **5**/**10** passed.' 'Items: 5 / 10 passed.'; do
+    test_case "a fraction after a standalone label keeps its numerator: $fraction_text"
+    fraction_claims=$(research_extract_numbers "$fraction_text" | LC_ALL=C sort | tr '\n' ' ')
+    if [[ "$fraction_claims" == "10 5 " ]]; then test_pass; else test_fail "fraction numerator was lost: $fraction_claims"; fi
+done
+
 test_case "colon-separated reference labels do not create factual quantities"
 colon_refs=$(research_extract_numbers 'See points: 2 and 3; items:4,5.' | tr '\n' ' ')
 if [[ -z "$colon_refs" ]]; then test_pass; else test_fail "colon references became claims: $colon_refs"; fi
@@ -963,6 +969,17 @@ if [[ "$ordinal_status" -ne 0 && "$ordinal_kinds" == "1:number_mismatch:50 2:num
     test_pass
 else
     test_fail "colon quantity or Unicode range escaped verification: $ordinal_kinds"
+fi
+
+test_case "a fraction numerator after a standalone label still requires source evidence"
+printf '%s\n' '- Items: 5/500 passed (`src/handler.ts:4`).' > "$ordinal_draft"
+ordinal_status=0
+research_verify_synthesis "$ordinal_draft" || ordinal_status=$?
+ordinal_kinds=$(jq -r '.checks[] | "\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$ordinal_status" -ne 0 && "$ordinal_kinds" == "number_mismatch:5 " ]]; then
+    test_pass
+else
+    test_fail "fraction numerator escaped verification: $ordinal_kinds"
 fi
 
 test_case "an emphasized range's first endpoint still requires source evidence"
