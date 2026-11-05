@@ -823,6 +823,273 @@ printf '# Plan\n\n- const base = await fetchCabinPrice(cabin.id, { cache: true }
 r="$(COUNCIL_CONTEXT_FILES=("$ctx_plan"); _report "$fab")"
 if jq -e '.fabricated == true and .diff_sources == []' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
+# An `octopus-policy-findings` block is the feature workflow's structured
+# findings format (checked by digest in feature-workflow.py), not a code quote.
+# sail-cruisey #3244 CP1: codex's only "quote" was this block, so it was
+# marked fabricated beside real citations.
+# An initialized evidence repository makes an empty diff conclusive. A missing
+# repository intentionally preserves diff uncertainty on current main.
+policy_original_root="$ROOT"
+ROOT="$(mktemp -d "$TEST_TMP_DIR/policy-root.XXXXXX")"
+mkdir -p "$ROOT/src"
+cp "$policy_original_root/src/pricing.ts" "$ROOT/src/pricing.ts"
+git -C "$ROOT" init -q
+git -C "$ROOT" add src/pricing.ts
+git -C "$ROOT" -c user.name=Test -c user.email=test@example.invalid \
+    -c core.hooksPath=/dev/null commit -qm baseline
+test_case "#3244: an octopus-policy-findings block is not a code quote"
+policy='src/pricing.ts:2 keeps the fallback, but the plan skips a required audit.
+
+```octopus-policy-findings
+{
+  "findings": [
+    {
+      "source": "RULES.md",
+      "line_start": 3,
+      "quote": "**Audit:** run `/octo:security` when the\ndiff touches external input\nhandling.",
+      "recommendation": "Run the audit before CP2."
+    }
+  ]
+}
+```
+
+VERDICT: REVISE'
+r="$(_report "$(_resp "$policy")")"
+if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3244: an invented quote beside an octopus-policy-findings block is still fabricated"
+policy_fab="$policy
+src/pricing.ts:2 has \`const base = await fetchCabinPrice(cabin.id, { cache: true });\`."
+r="$(_report "$(_resp "$policy_fab")")"
+if jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# Only a closed, exact-label block whose body is findings JSON is skipped; the
+# feature workflow reads no other form. Anything else stays a quote unit, so a
+# seat cannot hide an invented quote behind the label.
+invented='const base = await fetchCabinPrice(cabin.id, { cache: true });'
+test_case "#3244: an unterminated octopus-policy-findings fence does not hide a quote"
+r="$(_report "$(_resp "src/pricing.ts:2 keeps the fallback.
+
+\`\`\`octopus-policy-findings
+$invented
+VERDICT: APPROVE")")"
+if jq -e '.quotes_checked >= 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3244: an octopus-policy-findings fence that is not findings JSON does not hide a quote"
+r="$(_report "$(_resp "src/pricing.ts:2 keeps the fallback.
+
+\`\`\`octopus-policy-findings
+$invented
+\`\`\`
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3244: a case-variant findings label does not hide a quote"
+r="$(_report "$(_resp "src/pricing.ts:2 keeps the fallback.
+
+\`\`\`OCTOPUS-POLICY-FINDINGS
+$invented
+\`\`\`
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# The exempt form follows feature-analysis.py's fences(): any indentation, the
+# label right after the marker, a closing marker of the same width, and a
+# findings list or an object whose "findings" is one.
+findings_json='{
+  "findings": [
+    {"source": "RULES.md", "line_start": 3, "quote": "run `/octo:security` first", "recommendation": "Run the audit."}
+  ],
+  "summary": "one gap"
+}'
+test_case "#3244: a findings object with other keys is not a code quote"
+r="$(_report "$(_resp "src/pricing.ts:2 keeps the fallback.
+
+\`\`\`octopus-policy-findings
+$findings_json
+\`\`\`
+
+VERDICT: REVISE")")"
+if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3244: an indented octopus-policy-findings block is not a code quote"
+indented_block='- Policy:
+
+    ```octopus-policy-findings
+    {"findings": [{"source": "RULES.md", "line_start": 3, "quote": "run `/octo:security` first"}]}
+    ```'
+r="$(_report "$(_resp "src/pricing.ts:2 keeps the fallback.
+
+$indented_block
+
+VERDICT: REVISE")")"
+if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3244: quotes after an indented findings block with an unindented closer are still checked"
+mixed_block='    ```octopus-policy-findings
+    {"findings": [{"source": "RULES.md", "line_start": 3, "quote": "run the audit"}]}
+```'
+r="$(_report "$(_resp "src/pricing.ts:2 keeps the fallback.
+
+$mixed_block
+
+src/pricing.ts:2 reads \`$invented\`.
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3244: a fence after an indented findings block with an unindented closer is still checked"
+r="$(_report "$(_resp "src/pricing.ts:2 keeps the fallback.
+
+$mixed_block
+
+src/pricing.ts:2 reads:
+
+\`\`\`ts
+$invented
+\`\`\`
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3244: a findings fence closed by a wider marker stays a quote unit"
+r="$(_report "$(_resp "src/pricing.ts:2 keeps the fallback.
+
+\`\`\`octopus-policy-findings
+[{\"quote\": \"$invented\"}]
+\`\`\`\`
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_checked >= 1' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3244: a findings label after a space stays a quote unit"
+r="$(_report "$(_resp "src/pricing.ts:2 keeps the fallback.
+
+\`\`\` octopus-policy-findings
+[{\"quote\": \"$invented\"}]
+\`\`\`
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_checked >= 1' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+ROOT="$policy_original_root"
+# These table fixtures require a complete diff for definitive negative
+# grounding. Isolate them from the suite's non-repository evidence root.
+table_previous_root="$ROOT"
+ROOT="$(mktemp -d "$TEST_TMP_DIR/table-root.XXXXXX")"
+mkdir -p "$ROOT/src"
+git -C "$ROOT" init -q
+git -C "$ROOT" -c user.name=Test -c user.email=test@example.invalid \
+    -c core.hooksPath=/dev/null commit --allow-empty -qm fixture
+
+# ── sail-cruisey #3125: '||' quoted inside a Markdown table cell is written '\|\|'.
+printf 'export function tierOf(member) {\n  const tier = member.tier || member.legacyTier || DEFAULT_TIER;\n  return tier;\n}\n' > "$ROOT/src/tier-3125.ts"
+test_case "#3125: a table-escaped '\\|\\|' quote of a real '||' line verifies"
+table="$(_resp "| File | Code |
+|---|---|
+| src/tier-3125.ts:2 | \`const tier = member.tier \\|\\| member.legacyTier \\|\\| DEFAULT_TIER;\` |
+VERDICT: APPROVE")"
+r="$(_report "$table")"
+if jq -e '.quotes_checked == 1 and .quotes_verified == 1 and .quotes_near_line == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3125 placebo: a table-escaped quote that differs from the file is still unverified"
+table_fab="$(_resp "| File | Code |
+|---|---|
+| src/tier-3125.ts:2 | \`const tier = member.tier \\|\\| member.vipTier \\|\\| DEFAULT_TIER;\` |
+VERDICT: APPROVE")"
+r="$(_report "$table_fab")"
+if jq -e '.quotes_verified == 0 and .quotes_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# A source line that itself contains a literal '\|' keeps its backslash: a
+# quote that drops it is not that line, and a quote that keeps it still is.
+cat > "$ROOT/src/pattern-3125.ts" <<'SRC'
+export function tierPattern(tierName, legacyTierName) {
+  const pattern = escapeRegex(tierName) + "\|" + legacyTierName;
+  return new RegExp(pattern, "u");
+}
+SRC
+test_case "#3125: a quote that drops a source line's literal '\\|' is not verified"
+dropped="$(_resp "src/pattern-3125.ts:2 reads \`const pattern = escapeRegex(tierName) + \"|\" + legacyTierName;\`.
+VERDICT: APPROVE")"
+r="$(_report "$dropped")"
+if jq -e '.quotes_verified == 0 and .quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3125: a quote that keeps a source line's literal '\\|' verifies"
+kept="$(_resp "src/pattern-3125.ts:2 reads \`const pattern = escapeRegex(tierName) + \"\\|\" + legacyTierName;\`.
+VERDICT: APPROVE")"
+r="$(_report "$kept")"
+if jq -e '.quotes_verified == 1 and .quotes_near_line == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# Outside a table, '\|' is literal: in a regular expression it is a different
+# pattern, so it must not match a source '|' (maintainer repro on #1224).
+printf 'export const pattern = /alpha|beta/;\n' > "$ROOT/src/regex-3125.ts"
+test_case "#3125: an escaped '\\|' quote outside a Markdown table does not match a source '|'"
+prose_escaped="$(_resp "src/regex-3125.ts:1 contains \`export const pattern = /alpha\\|beta/;\`.
+VERDICT: APPROVE")"
+r="$(_report "$prose_escaped")"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3125: a table row without outer pipes still reads '\\|' as '|'"
+bare_table="$(_resp "File | Code
+--- | ---
+src/regex-3125.ts:1 | \`export const pattern = /alpha\\|beta/;\`
+VERDICT: APPROVE")"
+r="$(_report "$bare_table")"
+if jq -e '.quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3125: prose with a pipe but no delimiter row is not a table"
+pipe_prose="$(_resp "Either path | both: src/regex-3125.ts:1 contains \`export const pattern = /alpha\\|beta/;\`.
+VERDICT: APPROVE")"
+r="$(_report "$pipe_prose")"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3125: a heading after a table ends the table"
+table_heading="$(_resp "| File | Note |
+|---|---|
+| a | b |
+## Notes | src/regex-3125.ts:1 contains \`export const pattern = /alpha\\|beta/;\`
+VERDICT: APPROVE")"
+r="$(_report "$table_heading")"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3125: a list item after a table ends the table"
+table_list="$(_resp "| File | Note |
+|---|---|
+| a | b |
+- src/regex-3125.ts:1 | contains \`export const pattern = /alpha\\|beta/;\`
+VERDICT: APPROVE")"
+r="$(_report "$table_list")"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3125: a delimiter row with fewer cells than its header is not a table"
+cell_mismatch="$(_resp "src/regex-3125.ts:1 | contains \`export const pattern = /alpha\\|beta/;\`
+|---|
+VERDICT: APPROVE")"
+r="$(_report "$cell_mismatch")"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3125: a table-shaped indented code block is not a table"
+indented_table="$(_resp "Example:
+
+    | File | Code |
+    |---|---|
+    | src/regex-3125.ts:1 | \`export const pattern = /alpha\\|beta/;\` |
+
+VERDICT: APPROVE")"
+r="$(_report "$indented_table")"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3125: an escaped backslash before a header pipe still separates cells"
+even_backslash="$(_resp "src/regex-3125.ts:1 \\\\| contains \`export const pattern = /alpha\\|beta/;\`
+|---|
+VERDICT: APPROVE")"
+r="$(_report "$even_backslash")"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+ROOT="$table_previous_root"
+
 test_case "no diff available: a quote the seat says was removed is unverifiable, not fabricated"
 claimed="$(_resp "At src/pricing.ts:2 the check \`if (cabin.soldOut) return { price: null };\` was deleted in this change.
 VERDICT: REVISE")"

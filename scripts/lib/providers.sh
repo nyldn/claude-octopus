@@ -1107,8 +1107,13 @@ check_provider_health() {
             # Check auth: env-file with MISTRAL_API_KEY, env var, or config.toml api_key
             if ! _octo_value_has_nonwhitespace "${MISTRAL_API_KEY:-}" && \
                ! _octo_assignment_has_nonempty_value "${HOME}/.vibe/.env" "MISTRAL_API_KEY" && \
-               ! _octo_assignment_has_nonempty_value "${HOME}/.vibe/config.toml" "api_key"; then
-                echo "vibe: not authenticated (run: vibe --setup or set MISTRAL_API_KEY)" >&2
+               ! _octo_assignment_has_nonempty_value "${HOME}/.vibe/config.toml" "api_key" && \
+               ! _octo_vibe_keyring_has_key "${_octo_vibe_check_context:-selected}"; then
+                if [[ "${_octo_vibe_check_context:-selected}" != selected ]]; then
+                    echo "vibe: run /octo:setup and select Vibe to inspect its OS keyring, or set MISTRAL_API_KEY" >&2
+                else
+                    echo "vibe: not authenticated (run: vibe --setup or set MISTRAL_API_KEY)" >&2
+                fi
                 return 1
             fi
             ;;
@@ -1119,6 +1124,7 @@ check_provider_health() {
 # Run health checks for all configured providers, return summary
 # Usage: check_all_providers
 check_all_providers() {
+    local _octo_vibe_check_context=automatic
     local healthy=0 unhealthy=0
     local -a results=()
 
