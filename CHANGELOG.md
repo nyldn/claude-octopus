@@ -2,13 +2,15 @@
 
 ## [Unreleased]
 
-### Fixed
+### Added
 
 - Deck and document export recognize standalone and alternate-plugin renderer
   skills advertised by the session. An explicit or saved renderer can receive a
   house template and the approved slide skeleton, visual callouts and appendix
   list. Missing selections fail visibly instead of forcing another plugin or
-  discarding the selected renderer. Addresses [#1218](https://github.com/nyldn/claude-octopus/issues/1218).
+  discarding the selected renderer. Fixes [#1218](https://github.com/nyldn/claude-octopus/issues/1218).
+
+### Fixed
 
 - The develop quality challenger now sees provider output and bounded change
   excerpts from the run's starting commit. Long executor prompts no longer

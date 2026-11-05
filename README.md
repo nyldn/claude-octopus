@@ -36,42 +36,19 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
-### Compare decisions and check the providers you use
+### Use your document renderer and house template
 
-Decision support compares doing nothing with the alternatives, sets criteria
-and weights before scoring, and shows how each option earns its score. An
-optional scenario stress test shows which assumptions would change the
-recommendation.
+Deck and document export recognize the renderer skills available in your
+session, including standalone PPTX skills and native Slides renderers. Name
+a renderer and template in your request, or save a choice for later exports.
+Missing selections produce a clear error before conversion. See
+[document renderer configuration](docs/DOCUMENT-RENDERERS.md).
 
-Workflow phase updates, completed-phase history and roadmap imports now work
-through the documented state commands. Reinitializing a missing state file
-preserves your existing issues, lessons and phase plans.
+### Review the implementation evidence
 
-Preflight checks your pinned council roster, including Claude, and explains
-when sandbox restrictions may hide a working login. Fallback chains honor
-your provider allowlist before dispatching a prompt. See
-[council roster checks](docs/COUNCIL.md#check-your-roster).
-
-### Reviews keep their own findings and proof packets
-
-Reviews without an `artifactId` now reserve separate run IDs, so starting two
-reviews in the same second no longer blocks seats or overwrites findings.
-By default, repeated and concurrent Octopus runs within a Claude Code session
-also keep separate proof packets, preserving each run's events and summary.
-If you set `OCTOPUS_PROOF_RUN_ID`, use a unique value per run to keep packets
-separate.
-See [review evidence](commands/review.md).
-
-### Councils recognize unique filename citations
-
-A council seat can cite a unique filename such as `pr-watchdog.yml:249`
-without being marked blind because it omitted `.github/workflows/`. Grounding
-and quote verification resolve unique filenames and path suffixes, excluding
-copies in nested checkouts. Grounding rejects ambiguous, missing and unsafe
-paths, and line numbers past the end of a file. Quote verification checks
-matching text in the resolved file and may succeed despite an out-of-range
-line number. It checks uniquely matching attached context before repository
-suffixes. See [citation verification](docs/COUNCIL.md#citation-quote-verification).
+The develop quality challenger examines provider output and code changes even
+when the executor prompt is long. Council quote checks also recognize Markdown
+table escaping, so citations of code containing pipes verify inside tables.
 
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.16.0 — Compare decisions, preserve workflow progress, and honor provider choices.**
