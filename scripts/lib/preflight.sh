@@ -935,11 +935,12 @@ preflight_check() {
         return 1
     fi
 
+    # A selected-only result cannot replace the general discovery cache.
+    [[ "$selected_provider" != vibe ]] || return 0
+
     # A provider that failed inconclusively is excluded only in this process, so
     # do not cache a pass that would let the next run skip checking it again.
-    # Selected Vibe checks must not grant an automatic scan a cached pass.
-    if [[ "$selected_provider" == vibe ]] ||
-       { declare -f octo_quota_needs_recheck >/dev/null 2>&1 && octo_quota_needs_recheck; }; then
+    if declare -f octo_quota_needs_recheck >/dev/null 2>&1 && octo_quota_needs_recheck; then
         preflight_cache_write "1"
     else
         preflight_cache_write "0"  # Cache success

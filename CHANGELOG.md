@@ -15,6 +15,15 @@
   Explicit single-provider probes carry the Vibe selection into preflight,
   without treating a general cached pass as proof that Vibe is ready.
 
+- Council quote verification recognizes valid `octopus-policy-findings` JSON
+  without marking the seat fabricated. Entity-encoded quotes remain intact,
+  and runtime policy extraction accepts the same indented, backtick and tilde
+  fences as analysis. Invalid blocks and invented quotes outside a findings
+  block still undergo quote verification.
+  Overflowing JSON numbers are rejected by every findings reader, and failed
+  policy extraction or verification defers implementation instead of dropping
+  blocking findings.
+  [#1230](https://github.com/nyldn/claude-octopus/pull/1230).
 - Define, develop, deliver and ship now validate the report names the engine
   writes, within the current session and after the current invocation starts.
   A failed command, stale report or missing completion status cannot pass the

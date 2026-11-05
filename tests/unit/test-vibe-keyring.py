@@ -252,8 +252,7 @@ class VibeKeyringTest(unittest.TestCase):
         result = self.shell(command)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertTrue(self.marker.exists(), 'automatic cached pass skipped selected check')
-        self.assertIn('cache-status=1', result.stdout)
-        self.assertNotIn('cache-status=0', result.stdout)
+        self.assertNotIn('cache-status=', result.stdout, 'selected result changed the shared cache')
 
     def test_unselected_workflow_and_invalid_council_roster_do_not_load_vibe(self):
         for selection, roster in (('', ''), ('codex', ''), ('vibe', 'vibe')):
@@ -265,6 +264,24 @@ class VibeKeyringTest(unittest.TestCase):
                                     f'preflight_check true {shlex.quote(selection)}')
                 self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertFalse(self.import_marker.exists(), 'unselected Vibe was imported')
+
+    def test_selected_vibe_preserves_existing_general_cache_without_granting_one(self):
+        """A selected-only success must leave the general cache unchanged."""
+        cache = self.base / 'general-cache'
+        for initial in (None, '0', '1'):
+            with self.subTest(initial=initial):
+                cache.unlink(missing_ok=True)
+                if initial is not None:
+                    cache.write_text(initial)
+                result = self.shell('log() { :; }; '
+                                    'preflight_cache_valid() { return 1; }; '
+                                    'preflight_cache_write() { printf "%s" "$1" > '
+                                    + shlex.quote(str(cache)) + '; }; '
+                                    'detect_enterprise_backend() { :; }; provider_smoke_test() { :; }; '
+                                    'WORKSPACE_DIR="$HOME"; preflight_check true vibe')
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(cache.read_text() if cache.exists() else None, initial)
+                self.assertTrue(self.marker.exists())
 
     def test_non_vibe_selection_preserves_automatic_cache_behavior(self):
         self.env['MISTRAL_API_KEY'] = 'inert-fixture-value'
