@@ -156,11 +156,14 @@ renderer and the session's available viewing tools.
    not-applicable, and pass, fail or unverified. Describe each failure or missing
    check. Link the actual artifact path or deck URL alongside the table.
 
-Correct rendering defects within the approved content and template, then rerender
-and recheck affected slides. Repeat the full titles-only read after a title or
-ordering change. Use at most two repair-and-verification rounds, then report
-remaining defects. Changes to the recommendation, claims or approved structure
-return to the outline approval gate before rendering.
+Correct rendering defects within the approved content and template, then
+reopen every thumbnail after each rerender. Repeat all checks for every slide,
+including the full titles-only read, because a shared layout or template change
+can alter other slides. Rebuild the verification table against the final artifact;
+earlier images cannot establish that the final slides passed. Use at most two
+repair-and-verification rounds, then report remaining defects. Changes to the
+recommendation, claims or approved structure return to the outline approval gate
+before rendering.
 
 When thumbnails, rendered titles, source data or viewing tools are unavailable,
 return the saved artifact as a draft, with verification incomplete. State the
