@@ -170,6 +170,64 @@ for owner in claim legacy-ledger; do
     [[ "$owner" != claim ]] || rmdir "$RESULTS_DIR/.codex-owned.claim"
 done
 
+test_case "a claim stays owned while a process its exited owner started is alive"
+export OCTOPUS_RUN_ID=ownership-orphan
+orphan_output="$RESULTS_DIR/codex-orphan.md"
+orphan_claim="$RESULTS_DIR/.codex-orphan.claim"
+orphan_lock="$RESULTS_DIR/.parallel-owner.orphan"
+printf 'orphaned partial output\n' > "$orphan_output"
+write_agent_status codex running 1 0 '' 0 "$orphan_output" researcher spawn-orphan
+mkdir "$orphan_claim"
+printf '%s\n' "$orphan_lock" > "$orphan_claim/owner"
+(
+    exec 7>"$orphan_lock"
+    python3 "${AGGREGATION_LIB_ROOT:-$PROJECT_ROOT}/scripts/helpers/output-claim.py" hold 7 </dev/null || exit 1
+    : > "$TEST_TMP_DIR/orphan-ready"
+    exec sleep 60
+) &
+orphan_holder=$!
+for _ in $(seq 1 50); do [[ -e "$TEST_TMP_DIR/orphan-ready" ]] && break; sleep 0.1; done
+rm -f "$TEST_TMP_DIR/orphan-spawn"
+spawn_agent_capture_pid() { touch "$TEST_TMP_DIR/orphan-spawn"; return 1; }
+printf '{"tasks":[{"id":"orphan","agent":"codex","prompt":"implement"}]}' > "$TEST_TMP_DIR/tasks.json"
+parallel_execute "$TEST_TMP_DIR/tasks.json" > "$TEST_TMP_DIR/parallel-orphan.log" 2>&1 && rc=0 || rc=$?
+if [[ -e "$TEST_TMP_DIR/orphan-ready" && "$rc" == 1 && ! -e "$TEST_TMP_DIR/orphan-spawn" ]] &&
+   [[ "$(cat "$orphan_output")" == 'orphaned partial output' ]] &&
+   jq -e '.results[0].reason == "output-path-owned"' "$WORKSPACE_DIR/state/parallel-report.json" >/dev/null; then
+    test_pass
+else
+    test_fail "a claim was taken while its owner's descendant still held the owner lock, exit=$rc"
+fi
+
+test_case "a claim is reclaimed and its seat cancelled once every owner process has exited"
+kill "$orphan_holder" 2>/dev/null || true
+wait "$orphan_holder" 2>/dev/null || true
+parallel_execute "$TEST_TMP_DIR/tasks.json" > "$TEST_TMP_DIR/parallel-reclaim.log" 2>&1 && rc=0 || rc=$?
+leftover_locks="$(find "$RESULTS_DIR" -maxdepth 1 -name '.parallel-owner.*' ! -name '.parallel-owner.orphan' | wc -l | tr -d ' ')"
+if [[ "$rc" == 1 && -e "$TEST_TMP_DIR/orphan-spawn" && ! -e "$orphan_output" && ! -e "$orphan_claim" ]] &&
+   [[ "$leftover_locks" == 0 ]] &&
+   jq -e '.results[0].reason == "failed-spawn"' "$WORKSPACE_DIR/state/parallel-report.json" >/dev/null &&
+   jq -e '.agents | any(.seat_id == "spawn-orphan" and .status == "cancelled" and
+       .output_file == "'"$orphan_output"'")' "$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID/agents.json" >/dev/null; then
+    test_pass
+else
+    test_fail "stale claim was not reclaimed, its seat stayed running, or claim state leaked, exit=$rc locks=$leftover_locks"
+fi
+
+test_case "a descriptor 7 opened by the caller survives the executor"
+caller_fd_file="$TEST_TMP_DIR/caller-fd7.log"
+if (
+    trap - EXIT
+    exec 7>"$caller_fd_file"
+    printf '{"tasks":[{"id":"caller-fd","agent":"codex","prompt":"implement"}]}' > "$TEST_TMP_DIR/tasks.json"
+    parallel_execute "$TEST_TMP_DIR/tasks.json" > "$TEST_TMP_DIR/parallel-caller-fd.log" 2>&1 || true
+    printf 'caller still owns fd 7\n' >&7
+) && [[ "$(cat "$caller_fd_file")" == 'caller still owns fd 7' ]]; then
+    test_pass
+else
+    test_fail "the executor replaced or closed the caller's descriptor 7"
+fi
+
 test_case "an admitted retry clears its old marker before dispatch"
 mkdir -p "$WORKSPACE_DIR/.octo/agents"
 printf '0\n' > "$WORKSPACE_DIR/.octo/agents/retry.done"

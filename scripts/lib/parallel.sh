@@ -297,19 +297,80 @@ parallel_execute() {
     local task_agents=()
     local task_sequences=()
     local output_claims=()
+    local owner_lock="" owner_python=""
+    local _parallel_claim_helper="${_parallel_lib_dir}/../helpers/output-claim.py"
     _parallel_cleanup_cron() {
         if [[ "$_parallel_cron_disabled" == "true" ]]; then
             unset CLAUDE_CODE_DISABLE_CRON 2>/dev/null || true
         fi
     }
+    # fd 7 holds this invocation's owner lock. Every worker and provider
+    # inherits it, so the lock stays held until all of them have exited, even
+    # after SIGKILL ends this shell before cleanup can run.
+    _parallel_open_owner_lock() {
+        [[ -z "$owner_lock" ]] || return 0
+        # Leave a descriptor 7 that the caller opened untouched.
+        { : <&7; } 2>/dev/null && return 1
+        if [[ -z "$owner_python" ]]; then
+            if declare -F octopus_pid_python_resolve >/dev/null 2>&1; then
+                owner_python=$(octopus_pid_python_resolve 2>/dev/null) || owner_python=""
+            else
+                owner_python=$(command -v python3 2>/dev/null) || owner_python=""
+            fi
+        fi
+        [[ -n "$owner_python" ]] || return 1
+        owner_lock=$(mktemp "$RESULTS_DIR/.parallel-owner.XXXXXX" 2>/dev/null) || { owner_lock=""; return 1; }
+        if ! { exec 7>"$owner_lock"; } 2>/dev/null || \
+           ! "$owner_python" "$_parallel_claim_helper" hold 7 </dev/null; then
+            exec 7>&-
+            rm -f -- "$owner_lock" 2>/dev/null || true
+            owner_lock=""
+            return 1
+        fi
+    }
+    # Returns 0 when acquired, 3 when reclaimed from an exited owner, and 1
+    # while another invocation, or any process it started, may still own it.
+    _parallel_claim_output() {
+        local claim="$1" claim_status=0
+        if _parallel_open_owner_lock; then
+            "$owner_python" "$_parallel_claim_helper" acquire "$claim" "$owner_lock" </dev/null || claim_status=$?
+            case "$claim_status" in
+                0) return 0 ;;
+                11) return 3 ;;
+                *) return 1 ;;
+            esac
+        fi
+        mkdir -- "$claim" 2>/dev/null
+    }
+    _parallel_cancel_orphaned_seat() {
+        local task_id="$1" output="$2" ledger agent seat role
+        declare -F write_agent_status >/dev/null || return 0
+        declare -F octo_run_dir >/dev/null || return 0
+        ledger="$(octo_run_dir)/agents.jsonl"
+        [[ -s "$ledger" ]] || return 0
+        while IFS=$'\t' read -r agent seat role; do
+            write_agent_status "$agent" cancelled 0 0 "Owning invocation exited before the seat finished" \
+                0 "$output" "$role" "$seat" || true
+        done < <(jq -rs --arg seat "spawn-$task_id" --arg file "$output" \
+            "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
+            latest_per_seat | .[] |
+            select(.status == "running" and .seat_id == $seat and .output_file == $file) |
+            [.agent, .seat_id, (.role // "")] | @tsv' "$ledger")
+    }
     _parallel_cleanup_resources() {
         local claim
         if [[ ${#output_claims[@]} -gt 0 ]]; then
             for claim in "${output_claims[@]}"; do
+                rm -f -- "$claim/owner" 2>/dev/null || true
                 rmdir -- "$claim" 2>/dev/null || true
             done
         fi
         output_claims=()
+        if [[ -n "$owner_lock" ]]; then
+            exec 7>&-
+            rm -f -- "$owner_lock" 2>/dev/null || true
+            owner_lock=""
+        fi
         [[ -z "$spawn_output" ]] || rm -f "$spawn_output" 2>/dev/null || true
         [[ -z "$spawn_pid_handoff" ]] || rm -f "$spawn_pid_handoff" 2>/dev/null || true
         [[ -z "$outcome_dir" ]] || rm -rf "$outcome_dir" 2>/dev/null || true
@@ -690,9 +751,10 @@ parallel_execute() {
         fi
         # Claims live beside the output so separate invocations sharing a
         # results directory cannot unlink or dispatch into each other's file.
-        local claim="$RESULTS_DIR/.$result_slug-$task_id.claim"
+        local claim="$RESULTS_DIR/.$result_slug-$task_id.claim" claim_status=0
         mkdir -p "$RESULTS_DIR"
-        if ! mkdir -- "$claim" 2>/dev/null; then
+        _parallel_claim_output "$claim" || claim_status=$?
+        if [[ "$claim_status" -ne 0 && "$claim_status" -ne 3 ]]; then
             log ERROR "Output path is already claimed for task $task_id"
             _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" true \
                 failed output-path-owned ""
@@ -700,6 +762,10 @@ parallel_execute() {
             continue
         fi
         output_claims+=("$claim")
+        if [[ "$claim_status" -eq 3 ]]; then
+            log WARN "Reclaimed the output of task $task_id from an invocation that has exited"
+            _parallel_cancel_orphaned_seat "$task_id" "$RESULTS_DIR/$result_slug-$task_id.md"
+        fi
         # Preserve active outputs from older dispatchers without claim support.
         local ledger=""
         if declare -F octo_run_dir >/dev/null 2>&1; then
