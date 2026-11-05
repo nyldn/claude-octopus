@@ -44,6 +44,7 @@ class VibeKeyringTest(unittest.TestCase):
                         MISTRAL_API_KEY='', VIBE_PROBE_MARKER=str(self.marker))
         self.env.pop('OCTOPUS_COUNCIL_DEFAULT_PROVIDERS', None)
         self.env.pop('_octo_vibe_check_context', None)
+        self.env.pop('PYTHONUSERBASE', None)
         self.write_module('return "inert-fixture-value"')
 
     def write_module(self, body):
@@ -328,6 +329,17 @@ class VibeKeyringTest(unittest.TestCase):
         self.assertFalse(global_marker.exists(), 'global Vibe shadowed the selected user install')
         self.assertFalse(loader_marker.exists(), 'user-site loader hooks executed')
         self.assertNotIn('inert-fixture-value', result.stdout + result.stderr)
+
+    def test_user_site_fixtures_ignore_inherited_python_user_base(self):
+        """An inherited user base must not redirect fixture writes outside HOME."""
+        external = self.base / 'outside-user-base'
+        environment = dict(self.env, PYTHONUSERBASE=str(external))
+        result = subprocess.run([sys.executable, str(Path(__file__).resolve()),
+                                 'VibeKeyringTest.test_user_site_keyring_login_without_processing_pth_or_project_modules',
+                                 'VibeKeyringTest.test_user_site_precedes_global_packages_without_shadowing_stdlib'],
+                                env=environment, capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(external.exists(), 'fixture wrote into the inherited user base')
 
     def test_one_provider_setup_carries_the_selected_vibe_context(self):
         text = (ROOT / 'commands/setup.md').read_text()
