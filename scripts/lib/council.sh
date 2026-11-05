@@ -3490,10 +3490,10 @@ def split_diff(text):
                 added.append(piece)
     return removed, added
 
-def read_git_diff(command, env, limit=MAX_DIFF_BYTES):
+def read_git_diff(command, env, limit=MAX_DIFF_BYTES, timeout=10):
     # Read one byte past the cap to detect truncation without buffering the
-    # remaining diff. Keep the original ten-second deadline, including exit.
-    deadline = time.monotonic() + 10
+    # remaining diff. Include process exit in the caller's deadline.
+    deadline = time.monotonic() + timeout
     with subprocess.Popen(command, env=env, stdout=subprocess.PIPE,
                           stderr=subprocess.DEVNULL) as proc:
         try:
@@ -3503,7 +3503,7 @@ def read_git_diff(command, env, limit=MAX_DIFF_BYTES):
                 while len(raw) <= limit:
                     remaining = deadline - time.monotonic()
                     if remaining <= 0 or not selector.select(remaining):
-                        raise subprocess.TimeoutExpired(command, 10)
+                        raise subprocess.TimeoutExpired(command, timeout)
                     chunk = os.read(proc.stdout.fileno(), min(65536, limit + 1 - len(raw)))
                     if not chunk:
                         break
@@ -3516,7 +3516,7 @@ def read_git_diff(command, env, limit=MAX_DIFF_BYTES):
             if proc.poll() is None:
                 proc.kill()
 
-def load_diff_sides():
+def load_diff_sides(git_timeout=10):
     removed, added = [], []
     for path in context_files:
         try:
@@ -3543,7 +3543,7 @@ def load_diff_sides():
             # Attributes can select clean/process commands even with textconv
             # disabled. Override every configured driver, including those used by
             # .git/info/attributes and core.attributesFile. Read names, not values.
-            config = read_git_diff(git_command + ["config", "--null", "--name-only", "--list"], env, 65_536)
+            config = read_git_diff(git_command + ["config", "--null", "--name-only", "--list"], env, 65_536, git_timeout)
             if config is None or len(config) > 65_536:
                 raise subprocess.SubprocessError("filter configuration unavailable")
             drivers = {key.rsplit(b".", 1)[0] for key in bytes(config).split(b"\0")
@@ -3556,7 +3556,7 @@ def load_diff_sides():
                 git_command += ["-c", name + ".clean=", "-c", name + ".process=",
                                 "-c", name + ".required=false"]
             raw_diff = read_git_diff(git_command + ["diff", "--no-color", "--no-ext-diff",
-                                                   "--no-textconv", "--unified=0", base, "--"], env)
+                                                   "--no-textconv", "--unified=0", base, "--"], env, timeout=git_timeout)
             if raw_diff is None:
                 # A plain evidence directory has no default Git diff. In a
                 # worktree, or with a requested base, failure is missing evidence.
@@ -3792,7 +3792,10 @@ for start, end, kind, block, removed_block, info in units:
         # A complete diff match clears partial reporting while the source-file
         # match retains its verification count and attribution.
         if diff_sides is None:
-            diff_sides = load_diff_sides()
+            # This lookup only refines partial reporting. Bound both Git calls
+            # within two seconds; a timeout preserves source verification and
+            # marks missing diff evidence unavailable for subsequent quotes.
+            diff_sides = load_diff_sides(git_timeout=1)
         for side in diff_sides:
             side_misses = []
             if in_diff_side(wholes, line_variants, side, side_misses, short) and not any(side_misses):

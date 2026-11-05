@@ -3245,4 +3245,39 @@ else
     test_fail "repeated short lines exhausted partial accounting: $r"
 fi
 
+# Optional diff lookup must not exhaust source-verified report generation.
+slow_partial_bin="$TEST_TMP_DIR/slow-partial-bin"
+mkdir -p "$slow_partial_bin"
+python3 - "$slow_partial_bin/git" <<'PY_SLOW_PARTIAL'
+import os
+import sys
+from pathlib import Path
+Path(sys.argv[1]).write_text('#!' + sys.executable + '\nimport sys, time\ntime.sleep(7)\nsys.exit(0)\n')
+os.chmod(sys.argv[1], 0o755)
+PY_SLOW_PARTIAL
+for later_missing in no yes; do
+    test_case "slow optional diff preserves source evidence and later uncertainty: $later_missing"
+    slow_partial_text="src/pricing.ts:2 reads:
+\`\`\`ts
+$REAL_NEAR
+$FAKE
+return applyTaxes(base, sailing.portFees);
+\`\`\`"
+    expected_uncertain=0
+    if [[ "$later_missing" == yes ]]; then
+        slow_partial_text="$slow_partial_text
+src/pricing.ts:2 reads \`const unknown = loadInventedCustomerRecords();\`."
+        expected_uncertain=1
+    fi
+    r="$(PATH="$slow_partial_bin:$PATH" _report "$(_resp "$slow_partial_text
+VERDICT: APPROVE")")"
+    if jq -e --argjson uncertain "$expected_uncertain" '.verification_failed == false
+        and .quotes_verified == 1 and .quotes_partial == 1 and .diff_unavailable == true
+        and .quotes_unverifiable_diff_incomplete == $uncertain and .fabricated == false' <<< "$r" >/dev/null; then
+        test_pass
+    else
+        test_fail "optional diff lost source evidence or uncertainty: $r"
+    fi
+done
+
 test_summary
