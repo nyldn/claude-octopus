@@ -3,6 +3,15 @@
 # Tracks resource usage (tokens, duration, costs) for multi-AI operations
 # Supports native Task tool metrics from Claude Code v2.1.30+ (token_count, tool_uses, duration_ms)
 
+# Load shared tariffs before defining the metrics-session handlers. Loading
+# cost.sh later would replace record_agent_complete with its usage-ledger writer.
+if ! declare -f get_model_pricing >/dev/null 2>&1; then
+    _octo_metrics_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    source "${_octo_metrics_script_dir}/lib/models.sh"
+    WORKSPACE_DIR="${WORKSPACE_DIR:-${METRICS_BASE:-${HOME}/.claude-octopus}}" \
+        source "${_octo_metrics_script_dir}/lib/cost.sh"
+fi
+
 # Get metrics base directory (evaluate dynamically to support testing)
 get_metrics_base() {
     echo "${METRICS_BASE:-${WORKSPACE_DIR:-${HOME}/.claude-octopus}}"

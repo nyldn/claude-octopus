@@ -137,6 +137,38 @@ else
     test_fail "Haiku 5.5 pricing lost the strict threshold or whole-request multiplier"
 fi
 
+test_case "standalone metrics retain the session writer and complete request pricing"
+if PROJECT_ROOT="$PROJECT_ROOT" python3 - <<'PY'
+import json, os, pathlib, subprocess, tempfile
+root = os.environ["PROJECT_ROOT"]
+command = '''set -euo pipefail
+source "$1/scripts/metrics-tracker.sh"
+init_metrics_tracking
+printf '%s|%s\\n' "$(date +%s)" "$3" > "$METRICS_BASE/.agent-start-pricing"
+record_agent_complete pricing "$4" "$2" '' pricing "$(( $3 + 100000 ))" 0 1 "$3" 100000
+'''
+for model in ("claude-haiku-5-5", "anthropic/claude-haiku-5-5"):
+    for provider in ("claude-sdk", "copilot"):
+        for count in (99999, 100000, 100001):
+            with tempfile.TemporaryDirectory() as workspace:
+                env = dict(os.environ, METRICS_BASE=workspace)
+                env.pop("WORKSPACE_DIR", None)
+                subprocess.run(["bash", "-c", command, "test", root, model, str(count), provider], env=env, check=True)
+                report = json.loads((pathlib.Path(workspace) / "metrics-session.json").read_text())
+                expected = round((count * .1 + 100000 * .5) * (5 if count > 100000 else 1) / 1e6, 4)
+                if provider == "copilot":
+                    expected = 0
+                assert report["totals"]["agent_calls"] == 1, report
+                assert report["phases"][0]["metrics_source"] == "native", report
+                assert abs(report["totals"]["estimated_cost_usd"] - expected) < .000001, (model, provider, count, report, expected)
+                assert not (pathlib.Path(workspace) / "usage-session.json").exists()
+PY
+then
+    test_pass
+else
+    test_fail "standalone metrics lost request pricing or replaced the metrics-session writer"
+fi
+
 test_case "standalone metrics use the Haiku 5.5 base input rate"
 source "$PROJECT_ROOT/scripts/metrics-tracker.sh"
 if [[ "$(get_model_cost claude-haiku-5-5)" == "0.10" ]]; then
