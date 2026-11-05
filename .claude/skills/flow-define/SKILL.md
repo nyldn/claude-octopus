@@ -288,8 +288,26 @@ echo "📋 Context captured and saved to .claude-octopus/context/define-context.
 
 **You MUST execute this command via the Bash tool:**
 
+Use the installation that loaded this skill for both execution and validation.
+If `CLAUDE_PLUGIN_ROOT` is absent, replace the `OCTO_ROOT` fallback below with
+the absolute plugin root derived from this loaded skill's path. Do not infer it
+from the project directory or an existing stable link. The root helper refreshes
+installed copies while preserving another session's working root when called
+from an inferred development checkout.
+
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh define "<user's clarification request>"
+# Keep execution and report validation in the same shell invocation.
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+bash "$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh" || exit 1
+RUN_MARKER=$(mktemp) || exit 1
+RUN_STATUS=0
+OCTOPUS_WORKFLOW_INVOCATION_ID="${RUN_MARKER##*/}" "$OCTO_ROOT/scripts/orchestrate.sh" define "<user's clarification request>" || RUN_STATUS=$?
+REPORT_STATUS=0
+SYNTHESIS_FILE=$("$OCTO_ROOT/scripts/helpers/workflow-result.sh" define "$RUN_MARKER" "$RUN_STATUS") || REPORT_STATUS=$?
+rm -f "$RUN_MARKER"
+[[ "$REPORT_STATUS" == 0 ]] || exit "$REPORT_STATUS"
+echo "VALIDATION PASSED: $SYNTHESIS_FILE"
+cat "$SYNTHESIS_FILE"
 ```
 
 **CRITICAL: You are PROHIBITED from:**
@@ -321,19 +339,14 @@ These spinner verb updates happen automatically - orchestrate.sh calls `update_t
 
 **After orchestrate.sh completes, verify it succeeded:**
 
-```bash
-# Find the latest synthesis file (created within last 10 minutes)
-SYNTHESIS_FILE=$(find ~/.claude-octopus/results -name "grasp-synthesis-*.md" -mmin -10 2>/dev/null | head -n1)
+Step 4 checks the workflow exit status and validates a fresh
+`grasp-consensus-*.md` report in this host's current session results directory.
+It rejects missing reports and failed or unknown completion states. The validator
+honors `CLAUDE_PLUGIN_DATA` and `CLAUDE_OCTOPUS_WORKSPACE`.
 
-if [[ -z "$SYNTHESIS_FILE" ]]; then
-  echo "❌ VALIDATION FAILED: No synthesis file found"
-  echo "orchestrate.sh did not execute properly"
-  exit 1
-fi
-
-echo "✅ VALIDATION PASSED: $SYNTHESIS_FILE"
-cat "$SYNTHESIS_FILE"
-```
+Use the validated path printed by Step 4. If a later tool call starts a new shell,
+set `SYNTHESIS_FILE` to that exact path. Do not search for a different report
+or rerun the workflow to recover a shell variable.
 
 **If validation fails:**
 1. Report error to user
@@ -473,7 +486,7 @@ The orchestrate.sh script will:
 Results are saved to:
 
 ```text
-~/.claude-octopus/results/${SESSION_ID}/grasp-synthesis-<timestamp>.md
+~/.claude-octopus/results/${SESSION_ID}/grasp-consensus-<timestamp>.md
 ```
 
 ### Stage D: Present Problem Definition
@@ -680,7 +693,7 @@ Claude:
 
 Ready to proceed to implementation?
 
-Full problem definition saved to: ~/.claude-octopus/results/abc-123/grasp-synthesis-20250118-144530.md
+Full problem definition saved to: ~/.claude-octopus/results/abc-123/grasp-consensus-20250118-144530.md
 ```
 
 ### Example 2: Clarify Feature Scope

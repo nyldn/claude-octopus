@@ -178,6 +178,32 @@ else
     test_fail "link stayed at $(resolved); expected $INSTALLED_CUR"
 fi
 
+for raced_root_kind in symlink wrapper; do
+    test_case "a development checkout cannot reclaim a $raced_root_kind root changed before locking"
+    point_at "$DEV"
+    (
+        # Deterministically interleave an installed session after the outer
+        # guard passes, before the development session acquires its lock.
+        _octo_stable_root_lock() {
+            rm -rf "$STABLE"
+            if [[ "$raced_root_kind" == symlink ]]; then
+                ln -s "$INSTALLED_CUR" "$STABLE"
+            else
+                mkdir -p "$STABLE/scripts"
+                _octo_stable_wrapper "$INSTALLED_CUR/scripts/orchestrate.sh" > "$STABLE/scripts/orchestrate.sh"
+                chmod +x "$STABLE/scripts/orchestrate.sh"
+            fi
+            mkdir "$1"
+        }
+        octo_self_heal_stable_plugin_root "$DEV" "$STABLE"
+    )
+    if [[ "$(_octo_stable_root_target "$STABLE")" == "$INSTALLED_CUR" ]]; then
+        test_pass
+    else
+        test_fail "development checkout replaced the installed $raced_root_kind root after the outer guard"
+    fi
+done
+
 test_case "a busy lock leaves the link unchanged"
 point_at "$INSTALLED_CUR"
 mkdir "$STABLE.lock"
@@ -213,6 +239,44 @@ if [[ "$wrapper_target" == "$INSTALLED_CUR/scripts/orchestrate.sh" ]]; then
     test_pass
 else
     test_fail "wrapper now targets ${wrapper_target:-nothing}; expected $INSTALLED_CUR"
+fi
+
+test_case "fresh fallback wrappers include workflow report validation"
+mkdir -p "$DEV/scripts/helpers" "$STABLE"
+printf '#!/usr/bin/env bash\nprintf "validated:%%s\\n" "$1"\n' > "$DEV/scripts/helpers/workflow-result.sh"
+chmod +x "$DEV/scripts/helpers/workflow-result.sh"
+if octo_ensure_stable_plugin_root "$DEV" "$STABLE" && \
+   [[ "$("$STABLE/scripts/helpers/workflow-result.sh" fixture)" == validated:fixture ]]; then
+    test_pass
+else
+    test_fail "fresh wrapper directory cannot invoke workflow-result.sh"
+fi
+
+for wrapper_root in "$DEV" "$INSTALLED_CUR"; do
+    test_case "matching wrapper root refreshes missing helpers: $wrapper_root"
+    mkdir -p "$wrapper_root/scripts/helpers"
+    cp "$DEV/scripts/helpers/workflow-result.sh" "$wrapper_root/scripts/helpers/workflow-result.sh" 2>/dev/null || true
+    rm -rf "$STABLE"
+    mkdir -p "$STABLE/scripts"
+    _octo_stable_wrapper "$wrapper_root/scripts/orchestrate.sh" > "$STABLE/scripts/orchestrate.sh"
+    chmod +x "$STABLE/scripts/orchestrate.sh"
+    heal "$wrapper_root"
+    if [[ "$("$STABLE/scripts/helpers/workflow-result.sh" fixture 2>/dev/null)" == validated:fixture ]]; then
+        test_pass
+    else
+        test_fail "matching wrapper directory did not gain workflow-result.sh"
+    fi
+done
+
+test_case "a development checkout leaves a different working wrapper root alone"
+before_wrapper="$(cat "$STABLE/scripts/orchestrate.sh")"
+rm -f "$STABLE/scripts/helpers/workflow-result.sh"
+heal "$DEV"
+if [[ "$(cat "$STABLE/scripts/orchestrate.sh")" == "$before_wrapper" && \
+      ! -e "$STABLE/scripts/helpers/workflow-result.sh" ]]; then
+    test_pass
+else
+    test_fail "development checkout modified another working root"
 fi
 
 test_case "package.json versions parse across layouts"

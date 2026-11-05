@@ -133,3 +133,4 @@ OCTOPUS_TANGLE_TIMEOUT	covered-by	test-tangle-adaptive-timeout-policy.sh
 OCTOPUS_FEATURE	covered-by	test-feature-workflow.py
 OCTOPUS_FEATURE_LAYOUT	covered-by	test-feature-workflow.py
 OCTOPUS_PROJECT_POLICY	covered-by	test-feature-workflow.py
+OCTOPUS_SKIP_PROVIDER_PROBES	covered-by	test-vibe-keyring.py

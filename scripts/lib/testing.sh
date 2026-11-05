@@ -944,8 +944,12 @@ $challenge_result
 
         # Write validation report before branching so abort/escalate/retry paths
         # still leave an actionable artifact for embrace and post-run diagnosis.
+        local task_prompt_bytes
+        task_prompt_bytes=$(LC_ALL=C printf '%s' "$original_prompt" | wc -c | tr -d '[:space:]')
         cat > "$validation_file" << EOF
 # TANGLE Phase Validation Report
+<!-- octopus-workflow-invocation: ${OCTOPUS_WORKFLOW_INVOCATION_ID:-} -->
+<!-- octopus-task-bytes: ${task_prompt_bytes} -->
 ## Task: $original_prompt
 ## Generated: $(date)
 
