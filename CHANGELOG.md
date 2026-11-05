@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.17.1] - 2026-11-05
+
 ### Fixed
 
 - Vibe setup and readiness now recognize a key stored by `vibe --setup` in
