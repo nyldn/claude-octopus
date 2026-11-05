@@ -2867,6 +2867,7 @@ council_response_quote_verification_json() {
     } <<'PY'
 import html
 import json
+import math
 import os
 import re
 import selectors
@@ -2913,7 +2914,9 @@ try:
     # Some transports deliver Markdown HTML-escaped ("&gt; quote", "=&gt;").
     # Unescape before parsing so blockquotes and operators read as written; the
     # file side is unescaped the same way so an HTML source still matches.
-    resp = html.unescape(raw.decode("utf-8", "replace"))
+    raw_resp = raw.decode("utf-8", "replace")
+    policy_text_valid = raw_resp.encode("utf-8") == raw
+    resp = html.unescape(raw_resp)
     root = Path(sys.argv[2]).resolve(strict=True)
 except (OSError, RuntimeError, ValueError):
     result["verification_failed"] = True
@@ -3082,20 +3085,113 @@ DIFF_HUNK = re.compile(r"^@@ -[0-9]{1,10}(?:,([0-9]{1,10}))? \+[0-9]{1,10}(?:,([
 units = []
 fence_ranges = []
 fences = []
+def policy_findings_blocks():
+    # The feature workflow's structured findings block is JSON, not a code
+    # quote; feature-analysis.py checks each finding by digest (sail-cruisey
+    # #3244 CP1). Mirror its fences() reader so only blocks it reads are
+    # exempt: a line of only a marker and the label (any indentation), closed
+    # by the same marker, skipping other fences, with a body that parses as a
+    # findings list or an object whose "findings" is one. Anything else stays
+    # a quote unit, so the label cannot hide an invented quote.
+    def pairs(items):
+        value = {}
+        for key, item in items:
+            if key in value:
+                raise ValueError("duplicate JSON key")
+            value[key] = item
+        return value
+    def nonfinite(_):
+        raise ValueError("nonfinite JSON number")
+    def finite_float(text):
+        value = float(text)
+        if not math.isfinite(value):
+            raise ValueError("nonfinite JSON number")
+        return value
+    # Runtime extraction rejects the entire response on any invalid block or
+    # more than 100 findings in total. Such a response has no policy-digest
+    # coverage, so none of its blocks may bypass ordinary quote verification.
+    if not policy_text_valid:
+        return []
+    # JSON and fence syntax belong to the raw transport text. Decoding entities
+    # can break JSON strings or invent markers that policy ingestion never saw.
+    # Quote units still use resp, so translate line boundaries to that view.
+    lines, offsets, offset = raw_resp.splitlines(), [], 0
+    for line in raw_resp.splitlines(keepends=True):
+        offsets.append(offset)
+        offset += len(html.unescape(line))
+    blocks, index, total_findings = [], 0, 0
+    while index < len(lines):
+        match = re.fullmatch(r"\s*(`{3,}|~{3,})octopus-policy-findings\s*", lines[index])
+        marker = match.group(1) if match else None
+        if not match:
+            other = re.match(r"^\s*(`{3,}|~{3,})", lines[index])
+            marker = other.group(1) if other else None
+        first = index + 1
+        index += 1
+        if marker is None:
+            continue
+        while index < len(lines) and not re.fullmatch(r"\s*" + re.escape(marker) + r"\s*", lines[index]):
+            index += 1
+        # Analysis can fall back to the first body line when the full source
+        # quotation exceeds 16 KiB, but it rejects an oversized first line too.
+        if match and (index == len(lines) or len(lines[first]) > 16384):
+            return []
+        if match and index < len(lines):
+            try:
+                value = json.loads("\n".join(lines[first:index]), object_pairs_hook=pairs,
+                                   parse_constant=nonfinite, parse_float=finite_float)
+            except (ValueError, RecursionError):
+                return []
+            if isinstance(value, dict):
+                value = value.get("findings")
+            if not isinstance(value, list) or not all(isinstance(item, dict) for item in value):
+                return []
+            total_findings += len(value)
+            if total_findings > 100:
+                return []
+            blocks.append((offsets[first - 1], offsets[index] + len(html.unescape(lines[index]))))
+        index += 1
+    return blocks
+
+policy_ranges = policy_findings_blocks()
+policy_starts = [p_start for p_start, _ in policy_ranges]
+
+def in_policy_block(start):
+    i = bisect_right(policy_starts, start) - 1
+    return i >= 0 and policy_ranges[i][1] > start
+
+def capture_fence(opener, end, body_end):
+    # Accepted raw policy blocks can sit inside an entity-decoded ordinary
+    # fence. Split its quote units so neither side absorbs the findings JSON.
+    start, body_start = opener.start(), opener.end()
+    index = max(0, bisect_right(policy_starts, body_start) - 1)
+    for index in range(index, len(policy_ranges)):
+        policy_start, policy_end = policy_ranges[index]
+        if policy_start >= body_end:
+            break
+        if policy_end <= body_start:
+            continue
+        fences.append((start, policy_start, opener.group(2), resp[body_start:policy_start]))
+        start = body_start = policy_end
+    fences.append((start, end, opener.group(2), resp[body_start:body_end]))
+
 opener = None
 # A closing fence uses the same marker and at least the opening width. Scan
 # marker lines once so mismatched or unterminated fences cannot hide quotes.
 # Treat malformed info strings as openers too, matching the verdict parser.
 for match in re.finditer(r"^ {0,3}(`{3,}|~{3,})([^\n]*)(?:\n|$)", resp, re.M):
     marker, info = match.groups()
+    # Policy markers cannot open or close an ordinary fence.
+    if in_policy_block(match.start()):
+        continue
     if opener is None:
         opener = match
     elif (marker[0] == opener.group(1)[0] and len(marker) >= len(opener.group(1))
           and not info.strip()):
-        fences.append((opener.start(), match.end(), opener.group(2), resp[opener.end():match.start()]))
+        capture_fence(opener, match.end(), match.start())
         opener = None
 if opener is not None:
-    fences.append((opener.start(), len(resp), opener.group(2), resp[opener.end():]))
+    capture_fence(opener, len(resp), len(resp))
 for start, end, info, body in fences:
     fence_ranges.append((start, end))
     info = info.strip().lower()
@@ -3135,9 +3231,17 @@ for start, end, info, body in fences:
             kept.append(line)
     units.append((start, end, "fence", kept, removed_kept, info))
 
-# Fences come from one marker scan, so they are sorted and disjoint: only the
-# last fence starting before the span ends can overlap it. A bisect keeps a
+# The fence scan skips findings blocks, so add their ranges (which also hide
+# code spans inside them) and merge any overlap. Fence ranges are then sorted and disjoint: only the last
+# fence starting before the span ends can overlap it. A bisect keeps a
 # response with many fences and spans linear-log instead of quadratic.
+merged = []
+for f_start, f_end in sorted(fence_ranges + policy_ranges):
+    if merged and f_start < merged[-1][1]:
+        merged[-1] = (merged[-1][0], max(merged[-1][1], f_end))
+    else:
+        merged.append((f_start, f_end))
+fence_ranges = merged
 fence_starts = [f_start for f_start, _ in fence_ranges]
 
 def in_fence(start, end):
@@ -3210,14 +3314,127 @@ def checkable(text):
         return False
     return specific(text)
 
-def specific_lines(block):
+# GFM table rows: a delimiter row, the header line above it, and the rows
+# below it until a blank line or a line that starts another block
+# (heading, quote, fence, list item, thematic break or HTML). Only a code span
+# in one of these rows can carry a table-escaped "\|".
+DELIMITER_ROW = re.compile(r"^[ \t]*\|?(?:[ \t]*:?-+:?[ \t]*\|)*[ \t]*:?-+:?[ \t]*\|?[ \t]*$")
+BLOCK_START = re.compile(r"^ {0,3}(?:#{1,6}(?:[ \t]|$)|>|```|~~~|[-+*][ \t]|\d{1,9}[.)][ \t]|<|(?:[-*_][ \t]*){3,}$)")
+table_ranges = []
+resp_lines = []
+offset = 0
+# Parse structure before entity decoding: "&#124;" is cell content, never a
+# separator. Keep offsets in the decoded response used by quote units.
+for raw_line in raw_resp.split("\n"):
+    end = offset + len(html.unescape(raw_line))
+    resp_lines.append((offset, end, raw_line))
+    offset = end + 1
+def table_cells(text):
+    # Consume escape pairs before recognizing separators, including inside
+    # backticks. GFM splits cells before it parses inline code spans.
+    separators = [-1] + [m.start() for m in re.finditer(r"\\.|(\|)", text) if m.group(1)] + [len(text)]
+    cells = [(left + 1, right) for left, right in zip(separators, separators[1:])]
+    if len(cells) > 1 and not text[cells[0][0]:cells[0][1]].strip():
+        cells.pop(0)
+    if len(cells) > 1 and not text[cells[-1][0]:cells[-1][1]].strip():
+        cells.pop()
+    return cells
+
+def indented_code(text):
+    # Four columns of indentation make an indented code block, not a table.
+    indent = text[:len(text) - len(text.lstrip(" \t"))]
+    return len(indent.expandtabs(4)) >= 4
+
+def table_line(index):
+    l_start, l_end, text = resp_lines[index]
+    return (bool(text.strip()) and not indented_code(text) and not BLOCK_START.match(text)
+            and index not in html_lines and not in_fence(l_start, l_end + 1))
+
+# Raw HTML blocks suppress Markdown table parsing. Comments and the other
+# explicit terminators can cross blank lines; ordinary HTML blocks end at a
+# blank line. Be conservative about tag-like openers at this evidence boundary.
+html_lines = set()
+html_end = None
+for index, (l_start, l_end, text) in enumerate(resp_lines):
+    if html_end is None:
+        if in_fence(l_start, l_end + 1):
+            continue
+        if re.match(r"^ {0,3}<!--", text):
+            html_end = re.compile(r"-->")
+        elif re.match(r"^ {0,3}<\?", text):
+            html_end = re.compile(r"\?>")
+        elif re.match(r"^ {0,3}<!\[CDATA\[", text):
+            html_end = re.compile(r"\]\]>")
+        elif re.match(r"^ {0,3}<![A-Z]", text):
+            html_end = re.compile(r">")
+        else:
+            tag = re.match(r"^ {0,3}<(script|pre|style|textarea)(?:[ \t>]|$)", text, re.I)
+            if tag:
+                html_end = re.compile(r"</" + tag.group(1) + r">", re.I)
+            elif re.match(r"^ {0,3}<", text):
+                html_end = False  # Blank-line-terminated block.
+            else:
+                continue
+    if html_end is False and not text.strip():
+        html_end = None
+        continue
+    html_lines.add(index)
+    if html_end and html_end.search(text):
+        html_end = None
+
+row = 1
+while row < len(resp_lines):
+    delimiter = resp_lines[row]
+    # The delimiter skips BLOCK_START, since a "- | -" delimiter also looks
+    # like a list item.
+    if not ("|" in delimiter[2] and DELIMITER_ROW.match(delimiter[2]) and not indented_code(delimiter[2])
+            and row not in html_lines and not in_fence(delimiter[0], delimiter[1] + 1) and table_line(row - 1)
+            and len(table_cells(resp_lines[row - 1][2])) == len(table_cells(delimiter[2]))):
+        row += 1
+        continue
+    last = row
+    while last + 1 < len(resp_lines) and table_line(last + 1):
+        last += 1
+    # Excess body cells are discarded by GFM. Only a complete code span
+    # within one rendered header/body cell may receive table decoding.
+    columns = len(table_cells(delimiter[2]))
+    for index in [row - 1] + list(range(row + 1, last + 1)):
+        l_start, _, text = resp_lines[index]
+        # Decode disjoint pieces once to map raw cell boundaries into the
+        # decoded quote coordinate space, without repeated prefix scans.
+        cursor, decoded_offset = 0, l_start
+        for start, end in table_cells(text)[:columns]:
+            decoded_offset += len(html.unescape(text[cursor:start]))
+            decoded_end = decoded_offset + len(html.unescape(text[start:end]))
+            table_ranges.append((decoded_offset, decoded_end))
+            cursor, decoded_offset = end, decoded_end
+    row = last + 2
+
+# Cells come from one forward scan, so they are sorted and disjoint.
+table_starts = [t_start for t_start, _ in table_ranges]
+
+def in_table(start, end):
+    i = bisect_right(table_starts, start) - 1
+    return i >= 0 and end <= table_ranges[i][1]
+
+def unescaped(variants, table):
+    # "\|" is how a seat writes "|" inside a Markdown table cell (sail-cruisey
+    # #3125: `a \|\| b` for `a || b`). Only in a table cell: elsewhere "\|" is
+    # literal and can change a regular expression. Quote side only, after the
+    # literal variant: source text keeps its backslashes, so a quote that drops
+    # a source line's own "\|" still does not match it.
+    if not table:
+        return variants
+    return variants + [v.replace("\\|", "|") for v in variants if "\\|" in v]
+
+def specific_lines(block, table=False):
     out = []
     for line in block:
         variants = [line.strip()]
         stripped = GUTTER.sub("", line).strip()
         if stripped != variants[0]:
             variants.append(stripped)
-        variants = [v for v in variants if checkable(v)]
+        variants = [v for v in unescaped(variants, table) if checkable(v)]
         if variants:
             out.append(variants)
     return out
@@ -3502,7 +3719,8 @@ def proposed(start):
 checkable_units = 0
 for start, end, kind, block, removed_block, info in units:
     wholes = unit_wholes(block) if len(block) > 1 else []
-    line_variants = specific_lines(block)
+    # Only an inline code span can sit in a table cell.
+    line_variants = specific_lines(block, kind == "inline" and in_table(start, end))
     removed_variants = [v for v in [" ".join(l.strip() for l in removed_block)] + [l.strip() for l in removed_block]
                         if v and checkable(v)]
     if not wholes and not line_variants and not removed_variants and not (
