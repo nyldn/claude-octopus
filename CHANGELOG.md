@@ -12,6 +12,20 @@
   loader hooks. Import and probe failures, including successful package exits,
   cannot report a key as present. It does not launch Vibe or make a model
   request. Addresses #1191; automatic scans still defer keyring inspection.
+  Explicit single-provider probes carry the Vibe selection into preflight,
+  without treating a general cached pass as proof that Vibe is ready.
+
+- Define, develop, deliver and ship now validate the report names the engine
+  writes, within the current session and after the current invocation starts.
+  A failed command, stale report or missing completion status cannot pass the
+  skill's result gate. Reports from other invocations are identified before
+  their bodies are loaded, so unrelated large output cannot exhaust the
+  validator's memory. Execution and validation use the installation that loaded
+  the skill, even when the stable link still points at an older copy. Truncated
+  UTF-8 in task or provider text preserves the launcher's completion checks.
+  Feature development checks every owned wave before returning the final
+  wave report. Descriptor-based reads reject symlink replacements and special
+  files without blocking the validator. Fixes #1170.
 
 ## [11.17.0] - 2026-11-05
 

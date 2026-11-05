@@ -227,6 +227,45 @@ class VibeKeyringTest(unittest.TestCase):
         self.assertEqual(selected.returncode, 0, selected.stderr)
         self.assertTrue(self.marker.exists(), 'explicit selection must still inspect Vibe')
 
+    def test_single_provider_probe_preserves_explicit_vibe_selection(self):
+        """Run the real workflow through preflight, stopping before dispatch."""
+        command = (f'source {shlex.quote(str(ROOT / "scripts/lib/workflows.sh"))}; '
+                   'log() { :; }; preflight_cache_valid() { return 1; }; '
+                   'preflight_cache_write() { :; }; '
+                   '_preflight_provider_candidates() { printf "vibe\\n"; }; '
+                   'detect_enterprise_backend() { :; }; provider_smoke_test() { :; }; '
+                   'WORKSPACE_DIR="$HOME"; RESULTS_DIR="$HOME/results"; LOGS_DIR="$HOME/logs"; '
+                   'research_probe_single_begin() { echo reached-dispatch-boundary; return 1; }; '
+                   'probe_single_agent vibe "inert research" test-selection')
+        result = self.shell(command)
+        self.assertIn('reached-dispatch-boundary', result.stdout, result.stdout + result.stderr)
+        self.assertTrue(self.marker.exists(), 'explicit workflow never inspected keyring')
+        self.assertNotIn('inert-fixture-value', result.stdout + result.stderr)
+
+    def test_selected_preflight_cannot_reuse_or_grant_an_automatic_cache_pass(self):
+        command = ('log() { :; }; preflight_cache_valid() { return 0; }; '
+                   'preflight_cache_read() { echo 0; }; '
+                   'preflight_cache_write() { echo cache-status="$1"; }; '
+                   '_preflight_provider_candidates() { printf "vibe\\n"; }; '
+                   'detect_enterprise_backend() { :; }; provider_smoke_test() { :; }; '
+                   'WORKSPACE_DIR="$HOME"; preflight_check false vibe')
+        result = self.shell(command)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue(self.marker.exists(), 'automatic cached pass skipped selected check')
+        self.assertIn('cache-status=1', result.stdout)
+        self.assertNotIn('cache-status=0', result.stdout)
+
+    def test_unselected_workflow_and_invalid_council_roster_do_not_load_vibe(self):
+        for selection, roster in (('', ''), ('codex', ''), ('vibe', 'vibe')):
+            with self.subTest(selection=selection, roster=roster):
+                self.env['OCTOPUS_COUNCIL_DEFAULT_PROVIDERS'] = roster
+                result = self.shell('log() { :; }; preflight_cache_valid() { return 1; }; '
+                                    'preflight_cache_write() { :; }; '
+                                    '_preflight_provider_candidates() { printf "vibe\\n"; }; '
+                                    f'preflight_check true {shlex.quote(selection)}')
+                self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertFalse(self.import_marker.exists(), 'unselected Vibe was imported')
+
     def test_keyring_read_can_use_two_seconds_of_total_budget(self):
         self.write_module('import time\ntime.sleep(1.3)\nreturn "inert-fixture-value"')
         result = self.shell('_octo_vibe_keyring_has_key selected')
