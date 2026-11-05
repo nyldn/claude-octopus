@@ -393,6 +393,9 @@ The latter resolve Python through the selected command search path, without
 executing the wrapper. Shebang options, non-Python wrappers and installations
 whose Python environment cannot import Vibe remain unverified; use an existing environment or file credential
 route for those installations.
+For a non-virtualenv interpreter, the keyring check also supports its standard
+user-site directory as a fallback for `pip install --user`. It does not process
+user-site `.pth` files or startup customizations, project modules or `PYTHONPATH`.
 
 This follows Mistral's documented [credential search order](https://docs.mistral.ai/vibe/code/cli/api-keys-profiles)
 and its [read-only keyring probe](https://github.com/mistralai/mistral-vibe/blob/main/vibe/utils/keyring.py).

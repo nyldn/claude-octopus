@@ -8,7 +8,8 @@
   the OS keyring when Vibe is explicitly selected for a provider check. The
   local presence check is silent, read-only and bounded, and receives a
   minimal environment. Automatic discovery defers keyring inspection.
-  It does not launch Vibe or make a model request. Fixes #1191.
+  Standard Python user-site installations work without enabling user-site
+  loader hooks. It does not launch Vibe or make a model request. Fixes #1191.
 - A code-span quote written inside a Markdown table cell now matches its
   source line. Seats escape `|` as `\|` in a table, so a quote of
   `member.tier || member.legacyTier` arrived as `member.tier \|\| member.legacyTier`

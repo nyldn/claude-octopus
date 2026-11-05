@@ -38,6 +38,7 @@ class VibeKeyringTest(unittest.TestCase):
         self.vibe.write_text(f'#!{self.python}\nraise RuntimeError("CLI must not execute")\n')
         self.vibe.chmod(0o755)
         self.marker = self.base / 'probed'
+        self.import_marker = self.base / 'imported'
         self.env = dict(os.environ, HOME=str(self.home), PATH=f'{self.bin}:/usr/bin:/bin',
                         OCTOPUS_SKIP_PROVIDER_PROBES='false', OCTO_ALLOWED_PROVIDERS='vibe',
                         MISTRAL_API_KEY='', VIBE_PROBE_MARKER=str(self.marker))
@@ -47,6 +48,7 @@ class VibeKeyringTest(unittest.TestCase):
 
     def write_module(self, body):
         self.module.write_text('import os\nfrom pathlib import Path\n'
+                               f'Path({str(self.import_marker)!r}).touch()\n'
                                'def get_api_key_from_keyring(*args, **kwargs):\n'
                                '    raise RuntimeError("migration-capable lookup forbidden")\n'
                                'def probe_api_key_from_keyring(key):\n'
@@ -186,11 +188,13 @@ class VibeKeyringTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('vibe:none', result.stdout)
         self.assertFalse(self.marker.exists(), 'unselected Vibe code ran during discovery')
+        self.assertFalse(self.import_marker.exists(), 'discovery imported unselected Vibe code')
 
     def test_broad_live_readiness_does_not_load_vibe_code(self):
         result = self.shell('octo_provider_readiness_all live')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse(self.marker.exists(), 'broad live scan loaded unselected Vibe code')
+        self.assertFalse(self.import_marker.exists(), 'broad live scan imported unselected Vibe code')
         vibe = next(json.loads(line) for line in result.stdout.splitlines()
                     if json.loads(line)['provider'] == 'vibe')
         self.assertEqual((vibe['status'], vibe['reason_code']), ('degraded', 'live-check-required'))
@@ -245,6 +249,39 @@ class VibeKeyringTest(unittest.TestCase):
         result = self.shell('_octo_vibe_keyring_has_key selected')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout + result.stderr, '')
+
+    def test_user_site_keyring_login_without_processing_pth_or_project_modules(self):
+        """Explicit user-site selection must retain Python loader isolation."""
+        result = subprocess.run([sys.executable, '-I', '-c',
+                                 'import site; print(site.getusersitepackages())'],
+                                env=self.env, capture_output=True, text=True, check=True)
+        packages = Path(result.stdout.strip())
+        target = packages / 'vibe/utils/keyring.py'
+        target.parent.mkdir(parents=True)
+        (packages / 'vibe/__init__.py').touch()
+        (packages / 'vibe/utils/__init__.py').touch()
+        self.module.rename(target)
+        # Exclude host-global packages too, so a developer's real Vibe install
+        # cannot be imported or touch its keyring during this inert regression.
+        interpreter = self.bin / 'python-user-site'
+        interpreter.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} -S "$@"\n')
+        interpreter.chmod(0o755)
+        self.vibe.write_text(f'#!{interpreter}\nraise RuntimeError("CLI must not execute")\n')
+        loader_marker = self.base / 'loader-executed'
+        malicious = f'open({str(loader_marker)!r}, "w").write("executed")\n'
+        (packages / 'unsafe.pth').write_text('import os; ' + malicious)
+        (packages / 'sitecustomize.py').write_text(malicious)
+        (self.home / 'site.py').write_text(malicious)
+        (self.home / 'vibe.py').write_text(malicious)
+        self.env.update(PYTHONPATH=str(self.home), PYTHONUSERBASE=str(self.base / 'wrong-user-base'))
+        result = self.shell('octo_provider_readiness_result vibe static; check_provider_health vibe')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        readiness = json.loads(result.stdout)
+        self.assertEqual((readiness['status'], readiness['reason_code']), ('available', 'ready'))
+        self.assertTrue(self.marker.exists(), 'selected user-site Vibe keyring was not checked')
+        self.assertTrue(self.import_marker.exists())
+        self.assertFalse(loader_marker.exists(), 'isolated probe executed a Python loader hook')
+        self.assertNotIn('inert-fixture-value', result.stdout + result.stderr)
 
     def test_one_provider_setup_carries_the_selected_vibe_context(self):
         text = (ROOT / 'commands/setup.md').read_text()

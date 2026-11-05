@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 """Return key presence only; executed with the installed Vibe interpreter."""
 import sys
+import site
 
 
 def has_key():
+    """Inspect the selected installation without enabling Python loader hooks."""
+    # Isolated mode excludes pip --user installs. Add only the interpreter's
+    # standard user-site directory as a fallback, without processing .pth files
+    # or allowing project/PYTHONPATH imports. A virtualenv keeps its own packages.
+    if sys.prefix == sys.base_prefix:
+        sys.path.append(site.getusersitepackages())
     import vibe.utils.keyring as store
 
     disabled = getattr(store, '_is_keyring_disabled', None)
