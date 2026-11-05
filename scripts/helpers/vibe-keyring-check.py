@@ -2,6 +2,7 @@
 """Return key presence only; executed with the installed Vibe interpreter."""
 import sys
 import site
+import os
 
 
 def has_key():
@@ -10,8 +11,10 @@ def has_key():
     # standard user site before global packages, without processing .pth files
     # or allowing project/PYTHONPATH imports. A virtualenv keeps its own packages.
     if sys.prefix == sys.base_prefix:
-        global_sites = site.getsitepackages()
-        position = next((i for i, path in enumerate(sys.path) if path in global_sites),
+        global_sites = {os.path.normcase(os.path.realpath(path))
+                        for path in site.getsitepackages()}
+        position = next((i for i, path in enumerate(sys.path)
+                         if os.path.normcase(os.path.realpath(path)) in global_sites),
                         len(sys.path))
         sys.path.insert(position, site.getusersitepackages())
     import vibe.utils.keyring as store

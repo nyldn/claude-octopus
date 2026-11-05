@@ -313,22 +313,28 @@ class VibeKeyringTest(unittest.TestCase):
             f'import pathlib; pathlib.Path({str(loader_marker)!r}).touch()\n')
         (user_site / 'sitecustomize.py').write_text(
             f'from pathlib import Path; Path({str(loader_marker)!r}).touch()\n')
-        launcher = ('import runpy, site, sys; '
-                    f'sys.path.append({str(global_site)!r}); '
-                    f'site.getsitepackages = lambda: [{str(global_site)!r}]; '
-                    'runpy.run_path(sys.argv[-1], run_name="__main__")')
-        interpreter = self.bin / 'python-mixed-site'
-        interpreter.write_text(f'#!/bin/sh\nexec {shlex.quote(base_python)} -I -S -c '
-                               f'{shlex.quote(launcher)} "$@"\n')
-        interpreter.chmod(0o755)
-        self.vibe.write_text(f'#!{interpreter}\nraise RuntimeError("CLI must not execute")\n')
-        result = self.shell('octo_provider_readiness_result vibe static; check_provider_health vibe')
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(json.loads(result.stdout)['status'], 'available')
-        self.assertTrue(self.marker.exists(), 'user-site keyring was not checked')
-        self.assertFalse(global_marker.exists(), 'global Vibe shadowed the selected user install')
-        self.assertFalse(loader_marker.exists(), 'user-site loader hooks executed')
-        self.assertNotIn('inert-fixture-value', result.stdout + result.stderr)
+        global_alias = self.base / 'global-alias'
+        global_alias.symlink_to(global_site, target_is_directory=True)
+        for configured_site in (global_site, global_alias):
+            with self.subTest(configured_site=configured_site):
+                for marker in (self.marker, self.import_marker, global_marker):
+                    marker.unlink(missing_ok=True)
+                launcher = ('import runpy, site, sys; '
+                            f'sys.path.append({str(global_site)!r}); '
+                            f'site.getsitepackages = lambda: [{str(configured_site)!r}]; '
+                            'runpy.run_path(sys.argv[-1], run_name="__main__")')
+                interpreter = self.bin / 'python-mixed-site'
+                interpreter.write_text(f'#!/bin/sh\nexec {shlex.quote(base_python)} -I -S -c '
+                                       f'{shlex.quote(launcher)} "$@"\n')
+                interpreter.chmod(0o755)
+                self.vibe.write_text(f'#!{interpreter}\nraise RuntimeError("CLI must not execute")\n')
+                result = self.shell('octo_provider_readiness_result vibe static; check_provider_health vibe')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(json.loads(result.stdout)['status'], 'available')
+                self.assertTrue(self.marker.exists(), 'user-site keyring was not checked')
+                self.assertFalse(global_marker.exists(), 'global Vibe shadowed the selected user install')
+                self.assertFalse(loader_marker.exists(), 'user-site loader hooks executed')
+                self.assertNotIn('inert-fixture-value', result.stdout + result.stderr)
 
     def test_user_site_fixtures_ignore_inherited_python_user_base(self):
         """An inherited user base must not redirect fixture writes outside HOME."""
