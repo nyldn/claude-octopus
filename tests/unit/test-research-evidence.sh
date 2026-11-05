@@ -891,6 +891,14 @@ else
     test_fail "emphasized references leaked [$emphasis_refs] or quantities escaped [$emphasis_claims]"
 fi
 
+test_case "paired underscores inside identifiers do not turn digit groups into claims"
+identifier_claims=$(research_extract_numbers 'see backup_2024_01_15.tar and 1_000_000; a_5_b; 2024_01_15' | LC_ALL=C sort | tr '\n' ' ')
+if [[ "$identifier_claims" == "1 2024 " ]]; then
+    test_pass
+else
+    test_fail "identifier digit groups became claims: $identifier_claims"
+fi
+
 test_case "colon quantities and Unicode range endpoints require source evidence"
 {
     printf '%s\n' '- The mean score in points: 50 (`src/handler.ts:4`).'

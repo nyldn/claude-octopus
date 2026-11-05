@@ -659,10 +659,12 @@ research_numeric_claims() {
             # Strip paired emphasis around this number before checking either
             # reference context or identifier boundaries. Units still follow
             # the closing marker and must remain substantive quantities.
+            # Underscores within an identifier are not emphasis delimiters.
             emphasis_width = 0
             if (match(before, /(\*\*|__|\*|_)$/)) {
                 emphasis = substr(before, RSTART)
-                if (substr(after, 1, length(emphasis)) == emphasis) {
+                emphasis_prefix = substr(before, 1, RSTART - 1)
+                if (emphasis_prefix !~ /[0-9A-Za-z]$/ && substr(after, 1, length(emphasis)) == emphasis) {
                     emphasis_width = length(emphasis)
                     before = substr(before, 1, length(before) - emphasis_width)
                     after = substr(after, emphasis_width + 1)
