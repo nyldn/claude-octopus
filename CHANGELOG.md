@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Added
+
+- Executive and board decision decks put the recommendation, context, supporting
+  pillars and explicit ask on slide 2. Their outline compares doing nothing
+  with a real alternative, ties data-slide highlights to one proof point,
+  and includes an appendix for expected questions. Missing decision material
+  is identified before outline approval rather than invented. Informational
+  updates keep their own purpose, and short decks can combine evidence and
+  decision slides within the approved target. The action closes the main deck,
+  before appendix backup slides. Addresses #1216.
+
 ## [11.17.1] - 2026-11-05
 
 ### Fixed
