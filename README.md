@@ -41,14 +41,16 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 Deck and document export recognize the renderer skills available in your
 session, including standalone PPTX skills and native Slides renderers. Name
 a renderer and template in your request, or save a choice for later exports.
-Missing selections produce a clear error before conversion. See
+Without a choice, Octopus can use the preferred or sole advertised renderer.
+Ambiguous or unavailable selections produce a clear error before conversion. See
 [document renderer configuration](docs/DOCUMENT-RENDERERS.md).
 
 ### Review the implementation evidence
 
 The develop quality challenger examines provider output and code changes even
-when the executor prompt is long. Council quote checks also recognize Markdown
-table escaping, so citations of code containing pipes verify inside tables.
+when the executor prompt is long. Council quote checks accept escaped pipes
+when the complete quote fits within one rendered table cell. Quotes crossing
+cells or rows, or placed in discarded excess cells, remain unverified.
 
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.17.0 — Honor document renderers and templates, and review implementation evidence.**
