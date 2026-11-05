@@ -420,6 +420,76 @@ sys.exit(1 if mode == "failed" else 0)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('delivery-actual.md', result.stdout)
 
+    def test_all_feature_waves_must_pass_before_the_final_wave_is_returned(self):
+        for statuses in (('PASSED', 'PASSED'), ('FAILED', 'PASSED'), ('PASSED', 'FAILED')):
+            with self.subTest(statuses=statuses):
+                def write_waves():
+                    for path in self.results.glob('tangle-validation-*.md'):
+                        path.unlink()
+                    for wave, status in enumerate(statuses, 1):
+                        self.actual_develop_report('Feature wave', 'implemented', status)
+                        (self.results / 'tangle-validation-actual.md').rename(
+                            self.results / f'tangle-validation-feature-wave-{wave}.md')
+                result = self.validator(write_waves, 'develop')
+                if all(status == 'PASSED' for status in statuses):
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn('feature-wave-2.md', result.stdout)
+                else:
+                    self.assert_rejected(result, 'failed, missing or unknown completion status')
+
+    def test_independent_development_groups_cannot_share_one_invocation(self):
+        def write_groups():
+            for group in ('first-wave-1', 'second-wave-2'):
+                self.actual_develop_report('Feature wave', 'implemented')
+                (self.results / 'tangle-validation-actual.md').rename(
+                    self.results / f'tangle-validation-{group}.md')
+        result = self.validator(write_groups, 'develop')
+        self.assert_rejected(result, 'ambiguous')
+
+    def test_replaced_report_paths_cannot_escape_or_block_validation(self):
+        import textwrap
+        for replacement in ('symlink', 'fifo'):
+            with self.subTest(replacement=replacement):
+                marker = self.home / 'marker'
+                marker.touch()
+                os.utime(marker, ns=(1, 1))
+                report = self.results / 'delivery-actual.md'
+                if report.is_symlink() or report.exists():
+                    report.unlink()
+                self.actual_delivery_report('Review this', True)
+                outside = self.home / 'outside-report.md'
+                outside.write_bytes(report.read_bytes())
+                # Resume the glob iterator after its candidate has passed the
+                # old pathname checks, but before the validator opens it.
+                code = textwrap.dedent("""
+                    import os, pathlib, sys
+                    from unittest.mock import patch
+                    helper, marker, directory, outside, replacement = sys.argv[1:]
+                    source = pathlib.Path(helper).read_text().split("<<'PYTHON'\\n", 1)[1].rsplit('\\nPYTHON', 1)[0]
+                    original = pathlib.Path.glob
+                    def racing_glob(root, pattern):
+                        candidates = list(original(root, pattern))
+                        yield from candidates
+                        for candidate in candidates:
+                            if candidate.name == 'delivery-actual.md':
+                                candidate.unlink()
+                                if replacement == 'fifo':
+                                    os.mkfifo(candidate)
+                                else:
+                                    candidate.symlink_to(outside)
+                    sys.argv = ['validator', 'deliver', marker, directory]
+                    with patch.object(pathlib.Path, 'glob', racing_glob):
+                        exec(compile(source, helper, 'exec'))
+                """)
+                try:
+                    result = subprocess.run([sys.executable, '-I', '-c', code,
+                        str(ROOT / 'scripts/helpers/workflow-result.sh'), str(marker),
+                        str(self.results), str(outside), replacement],
+                        env=self.env, capture_output=True, text=True, timeout=5)
+                except subprocess.TimeoutExpired:
+                    self.fail('replacement FIFO blocked report validation')
+                self.assert_rejected(result, 'does not belong to this invocation')
+
     def test_symlinked_report_is_not_accepted(self):
         def setup():
             self.actual_delivery_report('Review this', True)

@@ -12,7 +12,9 @@
   validator's memory. Execution and validation use the installation that loaded
   the skill, even when the stable link still points at an older copy. Truncated
   UTF-8 in task or provider text preserves the launcher's completion checks.
-  Fixes #1170.
+  Feature development checks every owned wave before returning the final
+  wave report. Descriptor-based reads reject symlink replacements and special
+  files without blocking the validator. Fixes #1170.
 
 ## [11.17.0] - 2026-11-05
 
