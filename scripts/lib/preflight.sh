@@ -703,8 +703,8 @@ preflight_check() {
     local _octo_vibe_check_context=automatic
 
     # Performance: Return cached result if valid (unless forced)
-    # A general cached pass does not prove the explicitly selected seat ready.
-    if [[ "$force_check" != "true" && -z "$selected_provider" ]] && preflight_cache_valid; then
+    # Selected Vibe checks inspect the keyring that automatic scans defer.
+    if [[ "$force_check" != "true" && "$selected_provider" != vibe ]] && preflight_cache_valid; then
         local cached_status
         cached_status=$(preflight_cache_read)
         if [[ "$cached_status" == "0" ]]; then
@@ -937,8 +937,8 @@ preflight_check() {
 
     # A provider that failed inconclusively is excluded only in this process, so
     # do not cache a pass that would let the next run skip checking it again.
-    # Selected checks must not grant an automatic scan a cached pass.
-    if [[ -n "$selected_provider" ]] ||
+    # Selected Vibe checks must not grant an automatic scan a cached pass.
+    if [[ "$selected_provider" == vibe ]] ||
        { declare -f octo_quota_needs_recheck >/dev/null 2>&1 && octo_quota_needs_recheck; }; then
         preflight_cache_write "1"
     else

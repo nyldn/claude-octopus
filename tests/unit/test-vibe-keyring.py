@@ -266,6 +266,23 @@ class VibeKeyringTest(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertFalse(self.import_marker.exists(), 'unselected Vibe was imported')
 
+    def test_non_vibe_selection_preserves_automatic_cache_behavior(self):
+        self.env['MISTRAL_API_KEY'] = 'inert-fixture-value'
+        for force in ('false', 'true'):
+            with self.subTest(force=force):
+                result = self.shell('log() { :; }; preflight_cache_valid() { return 0; }; '
+                                    'preflight_cache_read() { echo 0; }; '
+                                    'preflight_cache_write() { echo cache-status="$1"; }; '
+                                    '_preflight_provider_candidates() { echo discovery-called >&2; printf "vibe\\n"; }; '
+                                    'detect_enterprise_backend() { :; }; provider_smoke_test() { :; }; '
+                                    f'WORKSPACE_DIR="$HOME"; preflight_check {force} codex')
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                if force == 'false':
+                    self.assertNotIn('discovery-called', result.stderr, 'non-Vibe selection lost its cached pass')
+                else:
+                    self.assertIn('cache-status=0', result.stdout, 'automatic-equivalent result was not cached')
+                self.assertFalse(self.import_marker.exists())
+
     def test_keyring_read_can_use_two_seconds_of_total_budget(self):
         self.write_module('import time\ntime.sleep(1.3)\nreturn "inert-fixture-value"')
         result = self.shell('_octo_vibe_keyring_has_key selected')
