@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.17.1] - 2026-11-05
+
 ### Fixed
 
 - Vibe setup and readiness now recognize a key stored by `vibe --setup` in
@@ -14,6 +16,8 @@
   request. Addresses #1191; automatic scans still defer keyring inspection.
   Explicit single-provider probes carry the Vibe selection into preflight,
   without treating a general cached pass as proof that Vibe is ready.
+  Successful selected checks preserve general readiness cache entries, avoiding
+  repeated discovery in other provider workflows.
 
 - Council quote verification recognizes valid `octopus-policy-findings` JSON
   without marking the seat fabricated. Entity-encoded quotes remain intact,
