@@ -27,14 +27,17 @@ Just describe what you need:
 1. **Brief** — Clarify audience, slide count, and tone
 2. **Research** — Optional context gathering (or bring your own content)
 3. **Outline** — Slide-by-slide structure for your approval
-4. **PPTX** — Rendered PowerPoint file via document-skills
+4. **Render** — Use the selected presentation skill and optional house template
 
 ## Tips
 
 - Provide as much context upfront to skip clarification questions
 - Run `/octo:discover [topic]` first for research-heavy presentations
 - The outline step lets you reshape the deck before rendering
-- Works best with `document-skills` plugin installed
+- Uses any suitable advertised renderer, including a standalone `pptx` skill
+- Name a renderer and template in the request, or save them in
+  `~/.claude-octopus/document-renderers.json`. See `docs/DOCUMENT-RENDERERS.md`
+  in the installed Octopus root.
 
 ## Examples
 
