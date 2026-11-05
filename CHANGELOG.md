@@ -4,6 +4,17 @@
 
 ### Fixed
 
+- Vibe setup and readiness now recognize a key stored by `vibe --setup` in
+  the OS keyring when Vibe is explicitly selected for a provider check. The
+  local presence check is silent, read-only and bounded, and receives a
+  minimal environment. Automatic discovery defers keyring inspection.
+  Standard Python user-site installations work without enabling user-site
+  loader hooks. Import and probe failures, including successful package exits,
+  cannot report a key as present. It does not launch Vibe or make a model
+  request. Addresses #1191; automatic scans still defer keyring inspection.
+  Explicit single-provider probes carry the Vibe selection into preflight,
+  without treating a general cached pass as proof that Vibe is ready.
+
 - Council quote verification recognizes valid `octopus-policy-findings` JSON
   without marking the seat fabricated. Entity-encoded quotes remain intact,
   and runtime policy extraction accepts the same indented, backtick and tilde

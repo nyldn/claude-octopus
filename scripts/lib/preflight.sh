@@ -423,8 +423,12 @@ _octo_provider_static_readiness() {
             if command -v vibe >/dev/null 2>&1; then
                 if _octo_value_has_nonwhitespace "${MISTRAL_API_KEY:-}" ||
                    _octo_assignment_has_nonempty_value "${HOME}/.vibe/.env" "MISTRAL_API_KEY" ||
-                   _octo_assignment_has_nonempty_value "${HOME}/.vibe/config.toml" "api_key"; then
+                   _octo_assignment_has_nonempty_value "${HOME}/.vibe/config.toml" "api_key" ||
+                   _octo_vibe_keyring_has_key "${_octo_vibe_check_context:-selected}"; then
                     status="available"; reason_code="ready"; remediation=""
+                elif [[ "${_octo_vibe_check_context:-selected}" != selected ]]; then
+                    status="degraded"; reason_code="live-check-required"
+                    remediation="Run /octo:setup and select Vibe to inspect the OS keyring, or set MISTRAL_API_KEY."
                 else
                     status="degraded"; reason_code="auth-missing"
                 fi
@@ -502,7 +506,9 @@ EOF
     fi
 
     if [[ "$check_kind" == "live" && "$health_handler" != "none" ]] &&
-       { [[ "$status" == "available" ]] || [[ "$reason_code" == "live-check-required" ]]; }; then
+       { [[ "$status" == "available" ]] || [[ "$reason_code" == "live-check-required" ]]; } &&
+       ! [[ "$provider" == vibe && "$reason_code" == live-check-required &&
+            "${_octo_vibe_check_context:-selected}" != selected ]]; then
         # Live mode is explicit. Execute the registry-selected health handler in
         # a fresh bounded shell so a provider CLI cannot stall setup or Doctor.
         source "${_preflight_registry_dir}/providers.sh" 2>/dev/null || true
@@ -512,6 +518,7 @@ EOF
         (( live_timeout < 1 )) && live_timeout=1
         if declare -f _octo_run_bare_probe_with_timeout >/dev/null 2>&1; then
             _octo_run_bare_probe_with_timeout "$live_timeout" "$live_timeout" 0 \
+                env "_octo_vibe_check_context=${_octo_vibe_check_context:-selected}" \
                 bash -c 'source "$1" 2>/dev/null; "$2" "$3"' _ \
                 "${_preflight_registry_dir}/providers.sh" "$health_handler" "$provider" \
                 >/dev/null || live_rc=$?
@@ -563,6 +570,8 @@ octo_provider_readiness_all() {
     # An optional provider list (a pinned council roster) replaces the
     # registry's detectable providers.
     local check_kind="${1:-static}" providers="${2:-}" provider result
+    local _octo_vibe_check_context="${_octo_vibe_check_context:-automatic}"
+    [[ -z "$providers" ]] || _octo_vibe_check_context=selected
     [[ -n "$providers" ]] || providers="$(octo_provider_ids detect)"
     for provider in $providers; do
         # Stderr already passes through; a "2> >(cat >&2)" redirect writes to
@@ -690,9 +699,12 @@ _preflight_provider_candidates() {
 # Supports single-provider mode with any detectable dispatch provider.
 preflight_check() {
     local force_check="${1:-false}"
+    local selected_provider="${2:-}"
+    local _octo_vibe_check_context=automatic
 
     # Performance: Return cached result if valid (unless forced)
-    if [[ "$force_check" != "true" ]] && preflight_cache_valid; then
+    # Selected Vibe checks inspect the keyring that automatic scans defer.
+    if [[ "$force_check" != "true" && "$selected_provider" != vibe ]] && preflight_cache_valid; then
         local cached_status
         cached_status=$(preflight_cache_read)
         if [[ "$cached_status" == "0" ]]; then
@@ -718,8 +730,12 @@ preflight_check() {
         return 1
     fi
     if [[ -n "$roster" ]]; then
+        _octo_vibe_check_context=selected
         candidates="$roster"
         echo -e "Checking the council roster from OCTOPUS_COUNCIL_DEFAULT_PROVIDERS: ${CYAN}${roster//$'\n'/ }${NC}"
+    elif [[ "$selected_provider" == vibe ]]; then
+        _octo_vibe_check_context=selected
+        candidates=vibe
     else
         candidates="$(_preflight_provider_candidates)"
     fi
@@ -918,6 +934,9 @@ preflight_check() {
         preflight_cache_write "1"
         return 1
     fi
+
+    # A selected-only result cannot replace the general discovery cache.
+    [[ "$selected_provider" != vibe ]] || return 0
 
     # A provider that failed inconclusively is excluded only in this process, so
     # do not cache a pass that would let the next run skip checking it again.
