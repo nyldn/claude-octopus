@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/result-file.sh"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/secure.sh"
 
 # testing.sh — Extracted from orchestrate.sh
 # Contains: validate_tangle_results, squeeze_test
@@ -19,6 +20,9 @@ extract_explicit_file_refs() {
 
 extract_tangle_result_output() {
     local result_file="$1"
+    local framed_rc=0
+    octo_result_framed_sections "$result_file" output && return 0 || framed_rc=$?
+    [[ "$framed_rc" -eq 2 ]] || return 1
 
     awk '
         /^## Output[[:space:]]*$/ { capture = 1; next }
@@ -27,9 +31,104 @@ extract_tangle_result_output() {
     ' "$result_file" 2>/dev/null || true
 }
 
+# Keep the byte bound before shell capture, which would silently drop NULs.
+# Attributes may force binary files through Git's text-diff path.
+tangle_challenge_text_excerpt() {
+    python3 -I -c 'import codecs, sys
+data = sys.stdin.buffer.read(4096)
+try:
+    text = codecs.getincrementaldecoder("utf-8")().decode(data, final=len(data) < 4096)
+except UnicodeDecodeError:
+    sys.exit(0)
+data = text.encode("utf-8")
+if not any(c < 32 and c not in (9, 10, 13) for c in data) and b"\nBinary files " not in data:
+    sys.stdout.buffer.write(data)
+'
+}
+
+# Match head -c for malformed bytes, trimming only a valid UTF-8 character
+# that crosses the cap. Three lookahead bytes cover the longest UTF-8 suffix.
+tangle_challenge_cap_bytes() {
+    python3 -I -c 'import sys
+limit = int(sys.argv[1])
+data = sys.stdin.buffer.read(limit + 3)
+prefix = data[:limit]
+for start in range(max(0, limit - 3), min(limit, len(data))):
+    lead = data[start]
+    width = 2 if 0xC2 <= lead <= 0xDF else 3 if 0xE0 <= lead <= 0xEF else 4 if 0xF0 <= lead <= 0xF4 else 0
+    if not width or start + width <= limit:
+        continue
+    try:
+        data[start:start + width].decode("utf-8")
+    except UnicodeDecodeError:
+        continue
+    prefix = data[:start]
+    break
+sys.stdout.buffer.write(prefix)
+' "$1"
+}
+
+# Give the challenger bounded, policy-filtered changes from the run's start.
+# Missing helpers or an unverifiable baseline omit the diff, never widen reads.
+tangle_challenge_change_evidence() (
+    local baseline="${1:-}" paths="${2:-}" repo_root path excerpt count=0 examined=0 key driver filter_keys
+    [[ "$baseline" =~ ^[0-9a-fA-F]{40}$ ]] || return 0
+    declare -F tangle_read_scope_is_allowed >/dev/null || return 0
+    # Resolve and read this repository without caller-supplied Git routing.
+    for key in ${!GIT_@}; do unset "$key"; done
+    export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_OPTIONAL_LOCKS=0
+    repo_root=$(tangle_resolve_repo_root 2>/dev/null) || return 0
+    local -a git_command=(git -C "$repo_root" -c core.fsmonitor=false)
+    "${git_command[@]}" cat-file -e "${baseline}^{commit}" 2>/dev/null || return 0
+    # --no-textconv does not disable attribute-selected clean/process filters.
+    # Read only configuration names and override every driver before any diff.
+    filter_keys=$(mktemp "${TMPDIR:-/tmp}/octo-challenge-config.XXXXXX") || return 0
+    trap 'rm -f "$filter_keys"' EXIT
+    "${git_command[@]}" config --null --name-only --list > "$filter_keys" 2>/dev/null || return 0
+    [[ $(wc -c < "$filter_keys") -le 65536 ]] || return 0
+    while IFS= read -r -d '' key; do
+        case "$key" in
+            filter.*.clean|filter.*.process|filter.*.required)
+                driver=${key%.*}
+                [[ "$driver" != *=* ]] || return 0
+                git_command+=(-c "$driver.clean=" -c "$driver.process=" -c "$driver.required=false")
+                ;;
+        esac
+    done < "$filter_keys"
+    while IFS= read -r path; do
+        [[ -n "$path" ]] || continue
+        [[ "$count" -lt 20 && "$examined" -lt 200 ]] || break
+        examined=$((examined + 1))
+        OCTOPUS_TANGLE_READ_SCOPE_MODE=strict tangle_read_scope_is_allowed "$path" || continue
+        # A directory or gitlink could recursively include forbidden children.
+        [[ ! -d "$repo_root/$path" && ! -L "$repo_root/$path" ]] || continue
+        [[ ! -e "$repo_root/$path" || -f "$repo_root/$path" ]] || continue
+        case "$("${git_command[@]}" cat-file -t "${baseline}:$path" 2>/dev/null)" in
+            tree|commit) continue ;;
+        esac
+        if "${git_command[@]}" cat-file -e "${baseline}:$path" 2>/dev/null ||
+           "${git_command[@]}" ls-files --error-unmatch -- ":(literal)$path" >/dev/null 2>&1; then
+            excerpt=$("${git_command[@]}" diff --no-ext-diff --no-textconv --no-renames \
+                --submodule=short "$baseline" -- ":(literal)$path" 2>/dev/null | tangle_challenge_text_excerpt) || true
+        elif [[ -f "$repo_root/$path" ]]; then
+            excerpt=$("${git_command[@]}" diff --no-index --no-ext-diff --no-textconv \
+                -- /dev/null "$repo_root/$path" 2>/dev/null | tangle_challenge_text_excerpt) || true
+        else
+            continue
+        fi
+        [[ -n "$excerpt" ]] || continue
+        count=$((count + 1))
+        printf '\n### %s\n%s\n' "$path" "$excerpt"
+    done <<< "$paths"
+)
+
 extract_tangle_result_body() {
     local result_file="$1"
+    local framed_rc=0
     [[ -f "$result_file" ]] || return 0
+    octo_result_framed_sections "$result_file" output && return 0 || framed_rc=$?
+    # A known but incomplete/malformed frame cannot supply provider output.
+    [[ "$framed_rc" -eq 2 ]] || return 0
     if grep -q '^## Output[[:space:]]*$' "$result_file" 2>/dev/null; then
         extract_tangle_result_output "$result_file"
     else
@@ -574,6 +673,7 @@ validate_tangle_results() {
         # Collect all results
         local results=""
         local result_outputs=""
+        local challenge_outputs=""
         local success_result_files=""
         local retry_candidate_result_files=""
         local success_count=0
@@ -622,7 +722,10 @@ validate_tangle_results() {
                 fi
             fi
             results+="$(<"$result")\n\n---\n\n"
-            result_outputs+="$(extract_tangle_result_body "$result")"$'\n'
+            local result_body
+            result_body=$(extract_tangle_result_body "$result")
+            result_outputs+="$result_body"$'\n'
+            challenge_outputs+="$result_body"$'\n'
         done <<< "$effective_result_files"
 
         local terminal_outcome_summary
@@ -681,6 +784,7 @@ $(<"$correction_file")
 "
             result_outputs+="$correction_result_body"$'
 '
+            challenge_outputs="$correction_result_body"$'\n'"$challenge_outputs"
             result_outputs+="$worktree_changes"$'
 '
         fi
@@ -771,6 +875,18 @@ $(<"$correction_file")
             # Randomized bypass token prevents prompt injection from LLM-generated results
             local clean_token="GENUINELY_CLEAN_${RANDOM}${RANDOM}"
             local challenge_result=""
+            local challenge_evidence challenge_changes
+            challenge_changes=$(tangle_challenge_change_evidence "$baseline_head" "$worktree_changes" | tangle_challenge_cap_bytes 12000) || true
+            challenge_evidence=$(sanitize_external_content "Provider output excerpts, capped at 6000 bytes:
+$(tangle_challenge_cap_bytes 6000 <<< "$challenge_outputs")
+
+Change excerpts from the run's starting commit, examining at most 200 candidate
+paths and emitting at most 20 paths,
+4096 bytes per path and 12000 bytes total. Untracked regular files are shown
+as additions. Binary contents,
+directories, symlinks and credential paths are omitted. Missing excerpts are
+not evidence that no changes occurred.
+${challenge_changes:-No eligible change excerpt is available.}" "tangle-challenge")
             challenge_result=$(run_agent_sync "claude-sonnet" "
 IMPORTANT: Do NOT read, explore, or modify any files. Do NOT run any shell commands. Output TEXT only.
 
@@ -788,7 +904,7 @@ Do NOT invent problems that don't exist — but be genuinely critical.
 Original task: ${original_prompt}
 
 Results to challenge:
-$(head -c 3000 <<< "$results")
+${challenge_evidence}
 " 60 "code-reviewer" "quality-gate") || true
 
             if [[ -n "$challenge_result" ]] && ! echo "$challenge_result" | grep -Fc "$clean_token" >/dev/null 2>&1; then
@@ -828,8 +944,12 @@ $challenge_result
 
         # Write validation report before branching so abort/escalate/retry paths
         # still leave an actionable artifact for embrace and post-run diagnosis.
+        local task_prompt_bytes
+        task_prompt_bytes=$(LC_ALL=C printf '%s' "$original_prompt" | wc -c | tr -d '[:space:]')
         cat > "$validation_file" << EOF
 # TANGLE Phase Validation Report
+<!-- octopus-workflow-invocation: ${OCTOPUS_WORKFLOW_INVOCATION_ID:-} -->
+<!-- octopus-task-bytes: ${task_prompt_bytes} -->
 ## Task: $original_prompt
 ## Generated: $(date)
 
