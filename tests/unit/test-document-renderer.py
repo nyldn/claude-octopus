@@ -189,6 +189,7 @@ class DocumentRendererTest(unittest.TestCase):
                 self.assertIn("at most two repair-and-verification rounds", gate)
                 self.assertIn("reopen every thumbnail after each rerender", gate)
                 self.assertIn("final artifact", gate)
+                self.assertIn("any fail or unverified result keeps the deck a draft", gate)
 
     def test_deck_command_includes_verification_after_rendering(self):
         text = (ROOT / "commands/deck.md").read_text()

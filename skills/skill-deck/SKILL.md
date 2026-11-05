@@ -157,6 +157,11 @@ repair-and-verification rounds, then report remaining defects. Changes to the
 recommendation, claims or approved structure return to the outline approval gate
 before rendering.
 
+Completion requires a pass for every slide in the final artifact. A proof-point
+check may be not-applicable on a slide without data, but any fail or unverified
+result keeps the deck a draft. Report all remaining defects and missing evidence;
+do not claim a finished deck, even when the two repair rounds have been exhausted.
+
 When thumbnails, rendered titles, source data or viewing tools are unavailable,
 return the saved artifact as a draft, with verification incomplete. State the
 missing capability or evidence and the affected slides; do not claim a finished
