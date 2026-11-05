@@ -218,7 +218,7 @@ Apply these when generating outlines:
 - Match the brief's decision or informational purpose in Step 3. Apply the
   decision outline and its check only when a decision is requested.
 - Lead with business impact and source-backed financial implications.
-- Keep the main deck focused on the decision; put expected-question evidence
+- Keep the main deck focused on the brief's purpose; put expected-question evidence
   in the approved appendix.
 
 **Engineers / Technical:**

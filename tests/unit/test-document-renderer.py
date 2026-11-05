@@ -195,6 +195,8 @@ class DocumentRendererTest(unittest.TestCase):
                 gate = outline_step.split("#### Board outline check", 1)[1]
                 self.assertIn("before asking for outline approval", gate)
                 self.assertIn("Do not invent", gate)
+                self.assertIn("If decision material is missing, identify the gap and ask for it before presenting the outline as ready for approval.",
+                              " ".join(gate.split()))
                 self.assertIn("one backup slide per expected question", gate)
                 self.assertIn("MUST approve", gate)
 
@@ -207,6 +209,8 @@ class DocumentRendererTest(unittest.TestCase):
                 self.assertIn("Combine", sizing)
                 self.assertIn("five-slide", sizing)
                 self.assertIn("approve a larger target", sizing)
+                audience = deck.split("**Executives / Board:**", 1)[1].split("**Engineers / Technical:**", 1)[0]
+                self.assertIn("brief's purpose", audience)
 
 
 if __name__ == "__main__":
