@@ -383,7 +383,8 @@ receives only basic runtime paths and local keyring session variables, with
 other provider keys, proxy settings and language-loader controls removed.
 Automatic provider discovery does not load Vibe's Python package. A general
 static readiness scan reports that a keyring-only login needs an explicit
-provider check; selecting Vibe permits that check. Vibe is not a supported
+provider check; run `/octo:setup` and select Vibe to permit that check, or set
+`MISTRAL_API_KEY`. Vibe is not a supported
 council seat, so it cannot be selected through the council roster.
 A locked or unreadable keyring remains unavailable.
 `OCTOPUS_SKIP_PROVIDER_PROBES=true` skips this

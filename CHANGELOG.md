@@ -9,7 +9,9 @@
   local presence check is silent, read-only and bounded, and receives a
   minimal environment. Automatic discovery defers keyring inspection.
   Standard Python user-site installations work without enabling user-site
-  loader hooks. It does not launch Vibe or make a model request. Fixes #1191.
+  loader hooks. Import and probe failures, including successful package exits,
+  cannot report a key as present. It does not launch Vibe or make a model
+  request. Addresses #1191; automatic scans still defer keyring inspection.
 
 ## [11.17.0] - 2026-11-05
 

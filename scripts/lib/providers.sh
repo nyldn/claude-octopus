@@ -1110,7 +1110,7 @@ check_provider_health() {
                ! _octo_assignment_has_nonempty_value "${HOME}/.vibe/config.toml" "api_key" && \
                ! _octo_vibe_keyring_has_key "${_octo_vibe_check_context:-selected}"; then
                 if [[ "${_octo_vibe_check_context:-selected}" != selected ]]; then
-                    echo "vibe: select this provider and check readiness to inspect its OS keyring" >&2
+                    echo "vibe: run /octo:setup and select Vibe to inspect its OS keyring, or set MISTRAL_API_KEY" >&2
                 else
                     echo "vibe: not authenticated (run: vibe --setup or set MISTRAL_API_KEY)" >&2
                 fi

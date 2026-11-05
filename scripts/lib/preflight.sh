@@ -428,7 +428,7 @@ _octo_provider_static_readiness() {
                     status="available"; reason_code="ready"; remediation=""
                 elif [[ "${_octo_vibe_check_context:-selected}" != selected ]]; then
                     status="degraded"; reason_code="live-check-required"
-                    remediation="Select Vibe and run its provider readiness check to inspect the OS keyring."
+                    remediation="Run /octo:setup and select Vibe to inspect the OS keyring, or set MISTRAL_API_KEY."
                 else
                     status="degraded"; reason_code="auth-missing"
                 fi

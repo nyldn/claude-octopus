@@ -79,6 +79,18 @@ class VibeKeyringTest(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(result.stdout + result.stderr, '')
 
+    def test_import_and_probe_exits_cannot_report_a_credential(self):
+        """An installed package exiting successfully is not key-presence proof."""
+        for stage in ('import', 'probe'):
+            for error in ('SystemExit(0)', 'SystemExit()', 'KeyboardInterrupt()'):
+                with self.subTest(stage=stage, error=error):
+                    self.write_module(f'raise {error}' if stage == 'probe' else 'return None')
+                    if stage == 'import':
+                        self.module.write_text(f'raise {error}\n' + self.module.read_text())
+                    result = self.shell('_octo_vibe_keyring_has_key selected')
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(result.stdout + result.stderr, '')
+
     def test_read_only_fallback_never_uses_migrating_lookup(self):
         self.module.write_text('_KEYRING_SERVICE = "ai.mistral.vibe"\n'
                                '_LEGACY_KEYRING_SERVICES = ("vibe",)\n'
@@ -191,6 +203,17 @@ class VibeKeyringTest(unittest.TestCase):
         self.assertFalse(self.marker.exists(), 'unselected Vibe code ran during discovery')
         self.assertFalse(self.import_marker.exists(), 'discovery imported unselected Vibe code')
 
+    def test_preflight_keyring_deferral_names_the_explicit_setup_flow(self):
+        """The normal CLI must explain how to authorize the deferred check."""
+        result = self.shell(f'bash {shlex.quote(str(ROOT / "scripts/helpers/preflight.sh"))} --json')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        vibe = next(row for row in json.loads(result.stdout)['results'] if row['provider'] == 'vibe')
+        self.assertEqual((vibe['status'], vibe['reason_code']), ('degraded', 'live-check-required'))
+        self.assertIn('/octo:setup', vibe['remediation'])
+        self.assertIn('select Vibe', vibe['remediation'])
+        self.assertIn('MISTRAL_API_KEY', vibe['remediation'])
+        self.assertFalse(self.import_marker.exists(), 'automatic preflight imported Vibe')
+
     def test_broad_live_readiness_does_not_load_vibe_code(self):
         result = self.shell('octo_provider_readiness_all live')
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -199,7 +222,7 @@ class VibeKeyringTest(unittest.TestCase):
         vibe = next(json.loads(line) for line in result.stdout.splitlines()
                     if json.loads(line)['provider'] == 'vibe')
         self.assertEqual((vibe['status'], vibe['reason_code']), ('degraded', 'live-check-required'))
-        self.assertIn('Select Vibe', vibe['remediation'])
+        self.assertIn('select Vibe', vibe['remediation'])
         selected = self.shell('octo_provider_readiness_all live vibe')
         self.assertEqual(selected.returncode, 0, selected.stderr)
         self.assertTrue(self.marker.exists(), 'explicit selection must still inspect Vibe')
@@ -256,7 +279,7 @@ class VibeKeyringTest(unittest.TestCase):
         base_python = getattr(sys, '_base_executable', None) or sys.executable
         result = subprocess.run([base_python, '-I', '-c',
                                  'import site; print(site.getusersitepackages())'],
-                                env=self.env, capture_output=True, text=True, check=True)
+                                env=self.env, capture_output=True, text=True, check=True, timeout=30)
         packages = Path(result.stdout.strip())
         target = packages / 'vibe/utils/keyring.py'
         target.parent.mkdir(parents=True)
@@ -290,7 +313,7 @@ class VibeKeyringTest(unittest.TestCase):
         base_python = getattr(sys, '_base_executable', None) or sys.executable
         result = subprocess.run([base_python, '-I', '-S', '-c',
                                  'import site; print(site.getusersitepackages())'],
-                                env=self.env, capture_output=True, text=True, check=True)
+                                env=self.env, capture_output=True, text=True, check=True, timeout=30)
         user_site = Path(result.stdout.strip())
         global_site = self.base / 'global-site'
         global_marker = self.base / 'global-imported'

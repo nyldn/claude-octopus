@@ -40,6 +40,6 @@ def has_key():
 if __name__ == '__main__':
     try:
         present = has_key()
-    except Exception:
+    except BaseException:  # noqa: BLE001 - import/probe exits must fail closed, including SystemExit(0)
         present = False
     sys.exit(0 if present else 1)
