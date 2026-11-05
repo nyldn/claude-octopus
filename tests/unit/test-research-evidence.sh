@@ -826,6 +826,15 @@ for range_text in 'See points 5 – 10 MiB' 'See points 2 and 5 – 10 MiB' 'See
     if [[ "$range_claims" == "10 5 " ]]; then test_pass; else test_fail "range endpoint was lost: $range_claims"; fi
 done
 
+for range_marker in '**' '*' '__' '_'; do
+    for range_dash in '-' '–' ' - ' ' – '; do
+        range_text="See points ${range_marker}5${range_marker}${range_dash}${range_marker}10${range_marker} MiB"
+        test_case "emphasized range retains both endpoints: $range_text"
+        range_claims=$(research_extract_numbers "$range_text" | LC_ALL=C sort | tr '\n' ' ')
+        if [[ "$range_claims" == "10 5 " ]]; then test_pass; else test_fail "emphasized range endpoint was lost: $range_claims"; fi
+    done
+done
+
 test_case "linked units retain quantities after reference labels"
 linked_claims=$(research_extract_numbers 'See points 2 and 5 [MiB](https://example.com).' | tr '\n' ' ')
 if [[ "$linked_claims" == "5 " ]]; then test_pass; else test_fail "linked quantity escaped: $linked_claims"; fi
@@ -894,6 +903,17 @@ if [[ "$ordinal_status" -ne 0 && "$ordinal_kinds" == "1:number_mismatch:50 2:num
     test_pass
 else
     test_fail "colon quantity or Unicode range escaped verification: $ordinal_kinds"
+fi
+
+test_case "an emphasized range's first endpoint still requires source evidence"
+printf '%s\n' '- See points **5**–**500** MiB (`src/handler.ts:4`).' > "$ordinal_draft"
+ordinal_status=0
+research_verify_synthesis "$ordinal_draft" || ordinal_status=$?
+ordinal_kinds=$(jq -r '.checks[] | "\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$ordinal_status" -ne 0 && "$ordinal_kinds" == "number_mismatch:5 " ]]; then
+    test_pass
+else
+    test_fail "emphasized range escaped verification: $ordinal_kinds"
 fi
 
 test_case "compact point references are skipped while formatted units and numeric values remain claims"
