@@ -219,7 +219,7 @@ octo_quota_is_dead() {
     grep -qxF "$provider" "$f" 2>/dev/null
 }
 
-quota_watcher_has_match() {
+quota_watcher_match_line() {
     local temp_err="$1"
     local temp_out="$2"
     local _matches
@@ -231,9 +231,29 @@ quota_watcher_has_match() {
     # exit 143 and empty output. (issue #536)
     for f in "$temp_err" "$temp_out"; do
         _matches=$(grep -E "$OCTOPUS_QUOTA_PATTERN" "$f" 2>/dev/null | grep -vE "Retrying after") || true
-        [[ -n "$_matches" ]] && return 0
+        if [[ -n "$_matches" ]]; then
+            printf '%s\n' "$_matches" | tail -n 1
+            return 0
+        fi
     done
     return 1
+}
+
+quota_watcher_has_match() {
+    quota_watcher_match_line "$1" "$2" >/dev/null
+}
+
+octo_quota_reset_hint() {
+    local line="$1" hint=""
+    local try_again='[Tt]ry again (at|in) ([A-Za-z0-9:, ]+)'
+    local resets='[Rr]esets in ([0-9][0-9dhms]*)'
+    if [[ "$line" =~ $try_again ]]; then
+        hint="${BASH_REMATCH[1]} ${BASH_REMATCH[2]}"
+    elif [[ "$line" =~ $resets ]]; then
+        hint="in ${BASH_REMATCH[1]}"
+    fi
+    hint="${hint%"${hint##*[! ,]}"}"
+    [[ -z "$hint" ]] || printf '%s\n' "${hint:0:60}"
 }
 
 start_quota_watcher() {
@@ -243,9 +263,11 @@ start_quota_watcher() {
     local kill_callback="$4"
     local warning_message="${5:-Quota exhaustion detected - fast-failing}"
     local provider="${6:-}"   # optional: marked quota-dead for the session on match
+    local fired_file="${7:-}"
 
     : > "$temp_err"
     : > "$temp_out"
+    [[ -z "$fired_file" ]] || rm -f "$fired_file"
 
     (
         _consecutive=0
@@ -257,6 +279,7 @@ start_quota_watcher() {
                 # This lets provider CLIs with their own backoff (e.g. Gemini free-tier
                 # burst 429s) complete their retry before we act on the first match.
                 if [[ $_consecutive -ge 2 ]]; then
+                    [[ -z "$fired_file" ]] || quota_watcher_match_line "$temp_err" "$temp_out" > "$fired_file"
                     log "WARN" "$warning_message"
                     octo_quota_mark_dead "$provider"
                     "$kill_callback" "$target_pid"

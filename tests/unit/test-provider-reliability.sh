@@ -14,6 +14,55 @@ ROUTER="$PROJECT_ROOT/scripts/provider-router.sh"
 pass() { test_case "$1"; test_pass; }
 fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
+source "$ROUTER"
+_PROVIDER_STATE_DIR="$TEST_TMP_DIR/provider-state"
+OCTO_CB_FAILURE_THRESHOLD=1
+log() { :; }
+
+mkdir -p "$_PROVIDER_STATE_DIR"
+for timestamp in '' invalid '1+1' 999999999999999999999999; do
+    printf '%s\n' "$timestamp" > "$_PROVIDER_STATE_DIR/codex.cooldown"
+    if (is_provider_available codex) 2>/dev/null; then
+        pass "invalid cooldown '$timestamp' uses the available-provider fallback"
+    else
+        fail "invalid cooldown '$timestamp' uses the available-provider fallback"
+    fi
+done
+printf '08\n' > "$_PROVIDER_STATE_DIR/codex.cooldown"
+if (is_provider_available codex) 2>/dev/null; then
+    pass "numeric cooldown timestamps use decimal arithmetic"
+else
+    fail "numeric cooldown timestamps use decimal arithmetic"
+fi
+
+printf '1\n' > "$_PROVIDER_STATE_DIR/codex.cooldown"
+mv() {
+    if [[ "$2" == "$_PROVIDER_STATE_DIR/codex.cooldown" ]]; then
+        [[ "$(cat "$2")" == 1 && "$(cat "$1")" =~ ^[0-9]+$ ]] || return 1
+        touch "$TEST_TMP_DIR/atomic-cooldown"
+    fi
+    command mv "$@"
+}
+record_provider_failure codex 75 'temporary usage limit' >/dev/null
+unset -f mv
+if [[ -e "$TEST_TMP_DIR/atomic-cooldown" ]]; then
+    pass "cooldown publication replaces a complete timestamp atomically"
+else
+    fail "cooldown publication replaces a complete timestamp atomically"
+fi
+if ! is_provider_available codex && [[ -s "$_PROVIDER_STATE_DIR/codex.cooldown" ]]; then
+    pass "persisted cooldown blocks another request before its deadline"
+else
+    fail "persisted cooldown blocks another request before its deadline"
+fi
+
+printf '%s\n' 1 > "$_PROVIDER_STATE_DIR/codex.cooldown"
+if is_provider_available codex && [[ ! -e "$_PROVIDER_STATE_DIR/codex.cooldown" ]]; then
+    pass "expired cooldown permits a half-open request"
+else
+    fail "expired cooldown permits a half-open request"
+fi
+
 # ── File existence and syntax ─────────────────────────────────────────────────
 
 if [[ -f "$ROUTER" ]]; then
