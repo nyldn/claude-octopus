@@ -390,6 +390,9 @@ The explicit `probe-single vibe` workflow also carries that selection into
 preflight. It checks Vibe itself and does not reuse or grant a general cached
 readiness pass. A successful selected check preserves any existing general cache. A configured council roster retains its existing validation.
 A locked or unreadable keyring remains unavailable.
+A keyring-only login can complete the one-provider setup flow and is checked
+again when that setup is resumed. Automatic scans continue to report
+`live-check-required` for keyring-only logins.
 `OCTOPUS_SKIP_PROVIDER_PROBES=true` skips this
 check. Direct Python entrypoints and simple `#!/usr/bin/env python` or
 `python3` entrypoints (including versioned Python 3 names) are supported.
