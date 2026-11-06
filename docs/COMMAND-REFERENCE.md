@@ -1,6 +1,6 @@
 # Command and Usage Reference
 
-Complete reference for all 54 Claude Octopus slash commands, CLI tools (`octopus` + `octo-compress`), plus activation rules, provider indicators, and manual-only project-lifecycle skills.
+Complete reference for all 56 Claude Octopus slash commands, CLI tools (`octopus` + `octo-compress`), plus activation rules, provider indicators, and manual-only project-lifecycle skills.
 
 ---
 
@@ -82,6 +82,8 @@ instruction; it is not an `orchestrate.sh` command-line flag.
 | `/octo:factory` | Dark Factory Mode — spec-in, software-out autonomous pipeline |
 | `/octo:multi` | Force multi-provider parallel execution for any task |
 | `/octo:loop` | Iterative execution with conditions until goals are met |
+| `/octo:refine` | Improve an artifact through a frozen rubric, independent models, edits, and bounded rescoring |
+| `/octo:ladder` | Alias for `/octo:refine` |
 | `/octo:quick` | Quick execution without full workflow overhead |
 
 ### Content & Docs
