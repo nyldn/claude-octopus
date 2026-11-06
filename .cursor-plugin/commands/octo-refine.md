@@ -5,6 +5,13 @@ disable-model-invocation: true
 
 # Refine
 
+## MANDATORY COMPLIANCE
+
+Execute the host-managed `skill-refine` workflow with real independent judge
+calls through `scripts/refinement-judge.sh`. PROHIBITED: role-playing other
+models, inventing scores, bypassing the read-only adapter, or declaring success
+without the score validator's passing result for the delivered artifact.
+
 Read and follow `skills/skill-refine/SKILL.md` from the installed Octopus
 root. Use `${CLAUDE_PLUGIN_ROOT}` when available, otherwise
 `${HOME}/.claude-octopus/plugin`. Do not invoke this command recursively.
