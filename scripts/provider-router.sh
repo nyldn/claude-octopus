@@ -116,7 +116,12 @@ record_provider_failure() {
         recent_failures=$(grep -c ":transient:" "$failure_file" 2>/dev/null) || recent_failures=0
         if [[ $recent_failures -ge $OCTO_CB_FAILURE_THRESHOLD ]]; then
             # Open the circuit breaker
-            echo "$timestamp" > "${_PROVIDER_STATE_DIR}/${provider}.cooldown"
+            local cooldown_file="${_PROVIDER_STATE_DIR}/${provider}.cooldown" cooldown_tmp
+            cooldown_tmp=$(mktemp "${cooldown_file}.XXXXXX") || return 1
+            if ! printf '%s\n' "$timestamp" > "$cooldown_tmp" || ! mv "$cooldown_tmp" "$cooldown_file"; then
+                rm -f "$cooldown_tmp"
+                return 1
+            fi
             log "WARN" "Circuit breaker OPEN for $provider — $recent_failures consecutive failures, cooling down ${OCTO_CB_COOLDOWN_SECS}s" 2>/dev/null || true
             declare -f octo_event_emit >/dev/null 2>&1 && octo_event_emit "circuit-breaker.open" provider="$provider" failures="$recent_failures" cooldown="$OCTO_CB_COOLDOWN_SECS" || true
         fi
@@ -151,9 +156,10 @@ is_provider_available() {
 
     local cooldown_start
     cooldown_start=$(cat "$cooldown_file" 2>/dev/null) || return 0
+    [[ "$cooldown_start" =~ ^[0-9]{1,18}$ ]] || return 0
     local now
     now=$(date +%s)
-    local elapsed=$((now - cooldown_start))
+    local elapsed=$((now - 10#$cooldown_start))
 
     if [[ $elapsed -ge $OCTO_CB_COOLDOWN_SECS ]]; then
         # Cooldown expired → half-open state (allow probe)
@@ -200,8 +206,9 @@ get_circuit_breaker_status() {
 
         if [[ -f "$cooldown_file" ]]; then
             local cooldown_start
-            cooldown_start=$(<"$cooldown_file" 2>/dev/null) || continue
-            local elapsed=$((now - cooldown_start))
+            cooldown_start=$(cat "$cooldown_file" 2>/dev/null) || continue
+            [[ "$cooldown_start" =~ ^[0-9]{1,18}$ ]] || continue
+            local elapsed=$((now - 10#$cooldown_start))
             if [[ $elapsed -lt $OCTO_CB_COOLDOWN_SECS ]]; then
                 state="OPEN"
                 local remaining=$((OCTO_CB_COOLDOWN_SECS - elapsed))

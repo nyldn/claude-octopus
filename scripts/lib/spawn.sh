@@ -1685,6 +1685,14 @@ ${heuristic_ctx}"
             if [[ $exit_code -ne 0 && -s "$quota_fired_file" ]]; then
                 _quota_fast_fail_line="$(<"$quota_fired_file")"
                 exit_code=75
+            elif [[ $exit_code -ne 0 && $exit_code -ne 124 && $exit_code -ne 143 && $exit_code -ne 76 ]]; then
+                # A provider can exit before the polling watcher observes its
+                # terminal error. Use the same matcher before considering retry.
+                _quota_fast_fail_line="$(quota_watcher_match_line "$temp_errors" "$raw_output")" || _quota_fast_fail_line=""
+                if [[ -n "$_quota_fast_fail_line" ]]; then
+                    octo_quota_mark_dead "$_provider_prefix"
+                    exit_code=75
+                fi
             fi
 
             # v8.16: Check if failure is auth-related and retryable
@@ -2210,7 +2218,7 @@ sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore")
                     "$_PARSED_REASONING_TOKENS" 2>/dev/null || true
             else
                 local _usage_failure_state=failed
-                [[ "$exit_code" -eq 124 || "$exit_code" -eq 143 ]] && _usage_failure_state=timeout
+                [[ "$exit_code" -eq 124 ]] && _usage_failure_state=timeout
                 record_agent_failure "$metrics_id" "${elapsed_ms:-0}" \
                     "${_octo_success_reason:-Provider exited with code $exit_code}" \
                     "$_usage_failure_state" 2>/dev/null || true
