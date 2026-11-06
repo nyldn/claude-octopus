@@ -142,3 +142,21 @@ or a limit ends the run with an honest partial result and a named blocker.
 Use the final score report only for the exact delivered artifact. Report target
 not met when appropriate, plus the best candidate and remaining work. The
 command does not commit, merge, deploy, publish, or send artifacts by itself.
+
+## Progress report
+
+The final report includes the original score and every attempted round, with
+the changes made and whether the candidate was accepted. It preserves flat
+rounds and regressions. Failed assessments have no numeric score. The best
+delivered candidate is identified separately from the last attempted round.
+
+On hosts with chart rendering, show horizontal bars on a fixed 0-to-100 scale,
+numeric score labels, and a visible target marker. A success color requires a
+passing validator result, including its guards and blocking-finding checks.
+Different rubric versions get separate progress views. A compact table remains
+available when chart rendering is unsupported.
+
+The host builds this view from `trajectory.json`, derived from the saved score
+reports and iteration ledger. Each entry includes its round, conservative score,
+per-model scores, decision, target result, rubric and artifact hashes, and score
+report path. The report also states elapsed time, budget used, and stop reason.

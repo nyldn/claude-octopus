@@ -194,6 +194,29 @@ self-reported arithmetic. Distinguish the resolved model serialized on the
 dispatch command from any server-reported identity; do not claim verification
 of the latter when the provider does not expose it.
 
+### Show the score trajectory
+
+Create `trajectory.json` from the saved validator reports and iteration ledger.
+Include the original and every attempted round in order, with its conservative
+score, per-model scores, accepted/rejected decision, `target_met`, rubric hash,
+artifact hash, and score report path. Use null for a round without a valid
+assessment and label its failure. Preserve plateaus, regressions, and rejected
+candidates. Do not substitute the running best score for a round's actual score.
+
+When the host supports rendered charts, show a horizontal bar chart with a fixed
+0-to-100 axis, an Original row, one row per round, numeric score labels, and a
+visible target marker. Highlight success only when that round's validator says
+`target_met: true`; a high score with a blocking finding remains unpassed.
+Distinguish rejected candidates and identify the best delivered version. Use
+separate charts for different rubric versions rather than joining incomparable
+scores. Build the chart from `trajectory.json`, never from recalled numbers.
+
+Always include a compact table of round, score, change, and decision so the
+report is usable in terminals and without a chart renderer. A charting tool
+failure must not lose the result or trigger another scoring call. Keep the
+trajectory and report beside the existing run evidence. State the elapsed time
+and stop reason below the progress view.
+
 95/100 means attainment against this rubric, not a probability of correctness.
 It does not waive approval, CI, merge, deployment, sending, publishing, or
 domain-specific acceptance requirements. Do not perform those actions as part
