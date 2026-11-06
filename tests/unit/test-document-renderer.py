@@ -171,6 +171,34 @@ class DocumentRendererTest(unittest.TestCase):
             self.assertIn("document-renderer.py", text)
             self.assertIn("advertised", text)
 
+    def test_deck_red_team_is_opt_in_and_precedes_outline_approval(self):
+        """Both hosts must preserve cost consent, real dispatch and the wireframe gate."""
+        for tree in (".claude/skills", "skills"):
+            with self.subTest(tree=tree):
+                text = (ROOT / tree / "skill-deck/SKILL.md").read_text()
+                outline = text.split("### Step 3:", 1)[1].split("### Step 4:", 1)[0]
+                red_team = outline.split("#### Optional stakeholder red team", 1)[1]
+                self.assertLess(red_team.index("--red-team"), red_team.index("wireframe gate"))
+                self.assertIn("Without `--red-team`, skip this pass", red_team)
+                self.assertIn("provider allowlist", red_team)
+                self.assertIn("one round", red_team)
+                self.assertIn("skill-debate", red_team)
+                self.assertIn("orchestrate.sh spawn", red_team)
+                self.assertIn("never simulate", red_team)
+                self.assertIn("decision-maker or influencer", text.split("### Step 2:", 1)[0])
+                self.assertIn("one stakeholder", red_team)
+                self.assertIn("pre-empt", red_team)
+                self.assertIn("Q&A", red_team)
+                self.assertIn("backup-slide checklist", red_team)
+                self.assertIn("unverified", red_team)
+                self.assertIn("not completed", red_team)
+                self.assertIn("user approves", red_team)
+
+    def test_deck_command_exposes_optional_red_team(self):
+        text = (ROOT / "commands/deck.md").read_text()
+        self.assertIn("/octo:deck --red-team", text)
+        self.assertIn("provider calls", text)
+
 
 if __name__ == "__main__":
     unittest.main()
