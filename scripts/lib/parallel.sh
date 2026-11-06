@@ -340,7 +340,11 @@ parallel_execute() {
                 *) return 1 ;;
             esac
         fi
-        mkdir -- "$claim" 2>/dev/null
+        mkdir -- "$claim" 2>/dev/null || return 1
+        # A nonempty fallback claim cannot be replaced by Python's rename.
+        # If Python publishes between mkdir and this exclusive write, its owner
+        # record makes the write fail, so this contender never dispatches.
+        (set -o noclobber; printf '%s\n' fallback > "$claim/owner") 2>/dev/null
     }
     _parallel_cancel_orphaned_seat() {
         local task_id="$1" output="$2" ledger agent seat role

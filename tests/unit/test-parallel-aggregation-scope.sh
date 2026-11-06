@@ -372,4 +372,8 @@ if [[ -e "$TEST_TMP_DIR/damaged-spawn" ]]; then
     test_pass
 else test_fail "valid terminal ownership was rejected"; fi
 
+test_case "fallback and Python claim publication cannot admit two owners"
+if python3 "$PROJECT_ROOT/tests/unit/test-output-claim-races.py"; then test_pass
+else test_fail "controlled claim publication interleavings admitted two owners"; fi
+
 test_summary
