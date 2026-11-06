@@ -394,7 +394,9 @@ _OCTO_AGENT_STATUS_LATEST_PER_SEAT='def latest_per_seat:
     ((($filter == "") or ((.output_file // "") | contains($filter)) or
       ((.seat_id // "") | contains($filter)))) and
     ($task_scope == null or (. as $row | any($task_scope[];
-        . as $task | ($row.seat_id == ("spawn-" + $task.id)))));'
+        . as $task | ($row.seat_id == ("spawn-" + $task.id) and
+            (($row.output_file // "") == "" or
+             $row.output_file == $task.output_file)))));'
 
 write_agent_run_snapshot() {
     command -v jq >/dev/null 2>&1 || return 0
@@ -552,7 +554,6 @@ agent_status_output_files() {
         | @tsv
     ' "$jsonl" 2>/dev/null | while IFS=$'\t' read -r status contribution file; do
         [[ -n "$file" && -f "$file" ]] || continue
-        [[ -z "$filter" || "$file" == *"$filter"* ]] || continue
         if [[ "$eligibility" == probe ]]; then
             probe_result_file_is_usable "$file" || continue
             if type octo_seat_was_rejected >/dev/null 2>&1 && octo_seat_was_rejected "$file"; then
@@ -589,7 +590,7 @@ render_agent_summary() {
         return 0
     }
 
-    local rows ok degraded failed timeout total
+    local rows ok degraded failed timeout cancelled total
     local reconciled_rows=""
     while IFS=$'\t' read -r agent status tokens_out seconds reason output_file; do
         [[ -z "$agent" ]] && continue
@@ -646,7 +647,8 @@ render_agent_summary() {
     degraded=$(awk -F '\t' '$2 == "degraded" { n++ } END { print n + 0 }' <<< "$rows")
     failed=$(awk -F '\t' '$2 == "failed" { n++ } END { print n + 0 }' <<< "$rows")
     timeout=$(awk -F '\t' '$2 == "timeout" { n++ } END { print n + 0 }' <<< "$rows")
-    total=$((ok + degraded + failed + timeout))
+    cancelled=$(awk -F '\t' '$2 == "cancelled" { n++ } END { print n + 0 }' <<< "$rows")
+    total=$((ok + degraded + failed + timeout + cancelled))
 
     echo ""
     echo "Agent run summary"
@@ -661,6 +663,7 @@ render_agent_summary() {
             degraded) glyph="⚠" ;;
             failed) glyph="✗" ;;
             timeout) glyph="⏱" ;;
+            cancelled) glyph="⊘" ;;
             running) glyph="…" ;;
             *) glyph="?" ;;
         esac
@@ -671,9 +674,11 @@ render_agent_summary() {
 
     local available_outputs
     available_outputs=$(agent_status_output_files "$filter" "$task_scope" "$eligibility" | awk 'END {print NR+0}') || available_outputs=0
-    if [[ $failed -gt 0 || $timeout -gt 0 ]]; then
-        printf '⚠ %d of %d agents failed or timed out — synthesis should use %d available outputs. Details: %s\n' \
-            "$((failed + timeout))" "$total" "$available_outputs" "$dir"
+    if [[ $failed -gt 0 || $timeout -gt 0 || $cancelled -gt 0 ]]; then
+        local failure_summary='failed or timed out'
+        [[ $cancelled -eq 0 ]] || failure_summary='failed, timed out or were cancelled'
+        printf '⚠ %d of %d agents %s — synthesis should use %d available outputs. Details: %s\n' \
+            "$((failed + timeout + cancelled))" "$total" "$failure_summary" "$available_outputs" "$dir"
         if [[ "${OCTOPUS_REQUIRE_ALL:-false}" == "true" ]]; then
             echo "Aborting: OCTOPUS_REQUIRE_ALL=true."
             return 78

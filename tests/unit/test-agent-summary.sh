@@ -230,6 +230,39 @@ write_agent_status codex failed 1 0 "old task" 0 "$seat_three" researcher
 summary="$(render_agent_summary "" "$tasks")"
 if [[ "$summary" != *codex* ]]; then test_pass; else test_fail "old seat entered current scope: $summary"; fi
 
+test_case "exact task scope rejects an earlier output for a reused task ID"
+foreign_tasks="$(jq -nc --arg file "$WORKSPACE_DIR/results/agy-probe-7-3.md" '[{id:"probe-7-3",output_file:$file}]')"
+summary="$(render_agent_summary '' "$foreign_tasks")"
+files="$(agent_status_output_files '' "$foreign_tasks")"
+if [[ "$summary" != *claude-sonnet* && -z "$files" ]]; then test_pass
+else test_fail "reused task inherited another provider's result: $summary / $files"; fi
+
+test_case "an output-less scope cannot inherit an earlier output-bearing row"
+empty_tasks='[{"id":"probe-7-3","output_file":""}]'
+files="$(agent_status_output_files '' "$empty_tasks")"
+if [[ -z "$files" ]]; then test_pass
+else test_fail "output-less scope inherited a saved result: $files"; fi
+
+test_case "seat-only filters retain the selected seat's usable output"
+files="$(agent_status_output_files 'spawn-probe-7-3')"
+if [[ "$files" == "$seat_three" ]]; then test_pass
+else test_fail "summary and output selector disagree on seat filter: $files"; fi
+
+test_case "exact output scopes retain genuinely output-less failures"
+empty_tasks='[{"id":"summary-budget-subtask-1","output_file":"/missing-current-output.md"}]'
+summary="$(render_agent_summary '' "$empty_tasks")"
+if [[ "$summary" == *'1 of 1 agents failed'* ]]; then test_pass
+else test_fail "output-less failure disappeared from current scope: $summary"; fi
+
+test_case "cancelled seats count as failures and enforce require-all"
+export OCTOPUS_RUN_ID=cancelled-summary
+write_agent_status codex cancelled 1 0 'Worker exited' 1 '' researcher spawn-cancelled
+cancelled_rc=0
+summary="$(OCTOPUS_REQUIRE_ALL=true render_agent_summary)" || cancelled_rc=$?
+if [[ "$cancelled_rc" == 78 && "$summary" == *'1 of 1 agents failed, timed out or were cancelled'* && "$summary" == *'⊘ cancelled'* ]]; then
+    test_pass
+else test_fail "cancelled seat escaped the summary failure guard: rc=$cancelled_rc $summary"; fi
+
 test_case "budget helper and caller keep one rejected seat"
 source "$PROJECT_ROOT/scripts/lib/dispatch.sh"
 get_provider_context_limit() { echo 1; }
