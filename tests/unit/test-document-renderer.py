@@ -171,6 +171,30 @@ class DocumentRendererTest(unittest.TestCase):
             self.assertIn("document-renderer.py", text)
             self.assertIn("advertised", text)
 
+    def test_deck_completion_requires_rendered_slide_evidence(self):
+        """Saving an artifact alone cannot satisfy the deck completion gate."""
+        for tree in (".claude/skills", "skills"):
+            with self.subTest(tree=tree):
+                text = (ROOT / tree / "skill-deck/SKILL.md").read_text()
+                gate = text.split("### Step 5: Verify the rendered deck", 1)[1].split("## Slide Structure", 1)[0]
+                gate = " ".join(gate.split())
+                for requirement in ("every slide, including appendix slides",
+                                    "text overflow", "empty placeholders", "broken images",
+                                    "rendered titles", "titles-only read",
+                                    "one highlighted proof point supports its title", "source data",
+                                    "slide number", "thumbnail", "pass, fail or unverified"):
+                    self.assertIn(requirement, gate)
+                self.assertIn("draft, with verification incomplete", gate)
+                self.assertIn("do not claim a finished deck", gate)
+                self.assertIn("at most two repair-and-verification rounds", gate)
+                self.assertIn("reopen every thumbnail after each rerender", gate)
+                self.assertIn("final artifact", gate)
+                self.assertIn("any fail or unverified result keeps the deck a draft", gate)
+
+    def test_deck_command_includes_verification_after_rendering(self):
+        text = (ROOT / "commands/deck.md").read_text()
+        self.assertLess(text.index("4. **Render**"), text.index("5. **Verify**"))
+
 
 if __name__ == "__main__":
     unittest.main()

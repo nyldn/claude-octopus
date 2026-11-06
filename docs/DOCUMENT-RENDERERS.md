@@ -59,3 +59,11 @@ without implying outline approval.
 For a native Slides renderer, return the actual deck URL. For a file renderer,
 return the actual artifact path. Report a renderer failure without claiming a
 completed deck or switching renderers silently.
+
+`/octo:deck` verifies the rendered output before reporting completion. It opens
+every slide thumbnail, checks for visual defects, re-reads rendered titles
+against the approved outline and checks each data slide's highlighted claim
+against its source. The response includes a slide-by-slide verification table.
+Missing inspection tools or source evidence leave the artifact a draft with
+verification incomplete. Renderer selection alone does not establish that these
+checks ran, and verification grants no permission to publish or share a deck.
