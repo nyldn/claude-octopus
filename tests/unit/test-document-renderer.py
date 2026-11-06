@@ -196,6 +196,13 @@ class DocumentRendererTest(unittest.TestCase):
                 self.assertIn("unverified", red_team)
                 self.assertIn("not completed", red_team)
                 self.assertIn("user approves", red_team)
+                for requirement in ("octo_launch_advisors", "OCTOPUS_ADVISOR_WAIT_SECONDS",
+                                    "successful completion", "at least two distinct providers",
+                                    "deadline expires", "not completed",
+                                    "Do not count launch logs, partial files or stale artifacts"):
+                    self.assertIn(requirement, " ".join(red_team.split()))
+                self.assertLess(red_team.index("successful completion"),
+                                red_team.index("Merge and deduplicate"))
 
     def test_deck_red_team_checks_costs_and_two_seat_minimum_before_dispatch(self):
         """A one-stakeholder map cannot authorize an underfunded quorum."""
@@ -216,11 +223,16 @@ class DocumentRendererTest(unittest.TestCase):
                 self.assertLess(gate.index("obtain consent"), gate.index("Use real"))
                 self.assertIn("Invoke the installed `skill-deck`", " ".join(text.split()))
                 self.assertNotIn("Use `/octo:deck --red-team", text)
+                self.assertIn('OCTOPUS_PREFLIGHT_PROBE=0 "$ADVISOR_SELECTOR"', gate)
+                self.assertIn("static readiness only", gate)
+                self.assertLess(gate.index("OCTOPUS_PREFLIGHT_PROBE=0"),
+                                gate.index("obtain consent"))
 
     def test_deck_command_exposes_optional_red_team(self):
         text = (ROOT / "commands/deck.md").read_text()
         self.assertIn("/octo:deck --red-team", text)
         self.assertIn("provider calls", text)
+
 
 
 if __name__ == "__main__":
