@@ -482,7 +482,7 @@ validate_agent_command() {
         [[ "${#api_parts[@]}" -eq 7 && "${api_parts[0]}" == "${trusted_plugin_root}/scripts/helpers/anthropic-api-exec.sh" ]] || return 1
         [[ "${api_parts[1]}" == --model && "${api_parts[3]}" == --effort && "${api_parts[5]}" == --thinking ]] || return 1
         case "${api_parts[2]}" in claude-sonnet-5-5|claude-opus-5-5) ;; *) return 1 ;; esac
-        case "${api_parts[4]}" in low|medium|high|xhigh|max) ;; *) return 1 ;; esac
+        case "${api_parts[4]}" in auto|low|medium|high|xhigh|max) ;; *) return 1 ;; esac
         case "${api_parts[6]}" in auto|adaptive|between_tools) ;; *) return 1 ;; esac
         return 0
     fi
