@@ -66,6 +66,9 @@ edit_config '.tiers.budget.codex.reasoning = "auto"'
 expect "explicit automatic effort does not inherit provider high" "$(octopus_resolve_reasoning_level codex)" ''
 configure
 expect "an allowlist fallback does not inherit tier effort" "$(OCTOPUS_CODEX_ALLOWED_MODELS=gpt-5.6-sol octopus_resolve_reasoning_level codex)" high
+expect "a dispatched allowlist fallback does not inherit tier effort" "$(OCTOPUS_CODEX_ALLOWED_MODELS=gpt-5.6-sol octopus_resolve_reasoning_level codex '' '' codex gpt-5.6-sol)" high
+command_line="$(OCTOPUS_CLAUDE_ALLOWED_MODELS=claude-sonnet-5 get_agent_command claude develop implementer)"
+expect "Claude fallback uses provider effort instead of discarded tier effort" "$([[ "$command_line" == *'--model claude-sonnet-5'* && "$command_line" == *'--effort high'* ]] && echo yes || echo no)" yes
 edit_config '.tiers.budget.codex = {reasoning:"low"}'
 test_case "missing capability fails closed"
 if resolve_octopus_model codex codex >/dev/null 2>&1; then test_fail "missing capability admitted"; else test_pass; fi
@@ -79,4 +82,22 @@ command_line="$(OCTOPUS_CODEX_REASONING=medium get_agent_command codex define ar
 expect "frontier replacement still honors explicit effort" "$([[ "$command_line" == *'--model gpt-6-astra'* && "$command_line" == *'model_reasoning_effort="medium"'* ]] && echo yes || echo no)" yes
 command_line="$(get_agent_command codex define implementer 4000)"
 expect "a non-escalated tier retains its effort" "$([[ "$command_line" == *'--model gpt-5.6-sol'* && "$command_line" == *'model_reasoning_effort="low"'* ]] && echo yes || echo no)" yes
+configure
+export OPENAI_COMPAT_BASE_URL=https://example.invalid/v1 "OPENAI_API_KEY=test-only"
+edit_config '.providers["openai-compatible-agent"] = {default:"shared-model",reasoning_effort:"high"} | .providers["openai-compatible"] = {default:"shared-model"} | .providers["openai-tools"] = {default:"shared-model"} | .tiers.budget["openai-compatible-agent"] = {capability:"default",reasoning:"low"}'
+for compatible_seat in openai-compatible openai-tools; do
+    command_line="$(get_agent_command "$compatible_seat" develop implementer)"
+    expect "$compatible_seat cannot borrow another provider's tier effort" "$([[ "$command_line" == *'--model shared-model'* && "$command_line" == *'--reasoning-effort high'* ]] && echo yes || echo no)" yes
+    command_line="$(OCTOPUS_OPENAI_COMPATIBLE_MODEL=shared-model OCTOPUS_OPENAI_TOOLS_MODEL=shared-model get_agent_command "$compatible_seat" develop implementer)"
+    expect "$compatible_seat explicit pin cannot borrow same-model tier effort" "$([[ "$command_line" == *'--model shared-model'* && "$command_line" == *'--reasoning-effort high'* ]] && echo yes || echo no)" yes
+done
+edit_config '.tiers.budget["openai-compatible"] = {capability:"default",reasoning:"medium"} | .tiers.budget["openai-tools"] = {capability:"default",reasoning:"medium"}'
+for compatible_seat in openai-compatible openai-tools openai-compatible-agent; do
+    compatible_effort=medium
+    [[ "$compatible_seat" != openai-compatible-agent ]] || compatible_effort=low
+    command_line="$(get_agent_command "$compatible_seat" develop implementer)"
+    expect "$compatible_seat uses its own tier effort" "$([[ "$command_line" == *"--reasoning-effort $compatible_effort"* ]] && echo yes || echo no)" yes
+    command_line="$(OCTOPUS_OPENAI_COMPATIBLE_AGENT_REASONING=high get_agent_command "$compatible_seat" develop implementer)"
+    expect "$compatible_seat preserves the existing explicit effort override" "$([[ "$command_line" == *'--reasoning-effort high'* ]] && echo yes || echo no)" yes
+done
 test_summary

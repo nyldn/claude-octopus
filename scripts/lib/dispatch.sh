@@ -548,7 +548,7 @@ get_agent_command() {
                 return 1
             fi
             local reasoning_level reasoning_policy reasoning_fragment runtime_config base_url api_key_env tool_fragment=""
-            reasoning_level="$(octopus_resolve_reasoning_level openai-compatible-agent "$phase" "$role" "$agent_type")" || return 1
+            reasoning_level="$(octopus_resolve_reasoning_level openai-compatible-agent "$phase" "$role" "$agent_type" "$model" "$(octo_provider_canonical "$agent_executor")")" || return 1
             reasoning_policy="$(octopus_resolve_reasoning_policy openai-compatible-agent "$phase" "$role")" || return 1
             reasoning_fragment="$(octopus_reasoning_cli_fragment openai-compatible-agent "$reasoning_level" "$reasoning_policy")" || return 1
             runtime_config="$(_octopus_openai_compatible_runtime_config "$agent_type")" || return 1
