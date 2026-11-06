@@ -4,7 +4,8 @@
 
 _octo_stable_script_paths() {
     printf '%s\n' scripts/orchestrate.sh scripts/install-deps.sh \
-        scripts/helpers/check-providers.sh scripts/scheduler/octopus-scheduler.sh \
+        scripts/helpers/check-providers.sh scripts/helpers/workflow-result.sh \
+        scripts/scheduler/octopus-scheduler.sh \
         scripts/state-manager.sh scripts/octo-state.sh scripts/agent-registry.sh \
         scripts/reactions.sh scripts/migrate-todos.sh scripts/claude-mem-bridge.sh
 }
@@ -257,7 +258,8 @@ octo_self_heal_stable_plugin_root() {
     local lock rc=0
 
     if [[ -x "$stable_root/scripts/orchestrate.sh" ]] && \
-       ! octo_is_installed_plugin_root "$plugin_root"; then
+       ! octo_is_installed_plugin_root "$plugin_root" && \
+       [[ "$(_octo_stable_root_target "$stable_root")" != "$plugin_root" ]]; then
         return 0
     fi
     lock="${stable_root}.lock"
@@ -275,7 +277,13 @@ _octo_self_heal_stable_plugin_root_locked() {
     # Re-read under the lock: another session may have changed the link.
     if [[ -x "$stable_root/scripts/orchestrate.sh" ]]; then
         current_root="$(_octo_stable_root_target "$stable_root")"
-        [[ "$current_root" != "$plugin_root" ]] || return 0
+        if [[ "$current_root" == "$plugin_root" ]]; then
+            octo_ensure_stable_plugin_root "$plugin_root" "$stable_root"
+            return $?
+        fi
+        # The outer guard may have passed while this checkout still owned the
+        # link. Preserve a working root another session claimed before locking.
+        octo_is_installed_plugin_root "$plugin_root" || return 0
         if octo_is_installed_plugin_root "$current_root"; then
             candidate_version="$(_octo_plugin_root_version "$plugin_root")"
             current_version="$(_octo_plugin_root_version "$current_root")"

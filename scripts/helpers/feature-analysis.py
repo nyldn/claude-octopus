@@ -5,6 +5,7 @@ import argparse
 import fnmatch
 import hashlib
 import json
+import math
 import os
 import re
 import stat
@@ -64,7 +65,13 @@ def json_object(text):
         return result
     def invalid_constant(_):
         raise ValueError("nonfinite JSON number")
-    return json.loads(text, object_pairs_hook=pairs, parse_constant=invalid_constant)
+    def finite_float(text):
+        value = float(text)
+        if not math.isfinite(value):
+            raise ValueError("nonfinite JSON number")
+        return value
+    return json.loads(text, object_pairs_hook=pairs, parse_constant=invalid_constant,
+                      parse_float=finite_float)
 
 
 def relative_parts(path, patterns=False):

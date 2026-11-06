@@ -9,6 +9,7 @@ import argparse
 import errno
 import hashlib
 import json
+import math
 import os
 import stat
 import sys
@@ -190,10 +191,18 @@ def invalid_constant(_value):
     raise InvalidInput("invalid-json-constant")
 
 
+def finite_float(text):
+    value = float(text)
+    if not math.isfinite(value):
+        raise InvalidInput("invalid-json-constant")
+    return value
+
+
 def load_json(path):
     try:
         return json.loads(decode(explicit_read(path, INPUT_LIMIT)),
-                          object_pairs_hook=unique_object, parse_constant=invalid_constant)
+                          object_pairs_hook=unique_object, parse_constant=invalid_constant,
+                          parse_float=finite_float)
     except (json.JSONDecodeError, RecursionError):
         raise InvalidInput("invalid-json") from None
 
