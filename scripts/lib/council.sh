@@ -4111,18 +4111,6 @@ def proposed(start):
     prose = CITATION.sub("", LINK_TARGET.sub("", prose))
     return proposes(prose)
 
-token_starts = [t[0] for t in tokens]
-CITED_AFTER = re.compile(r"(?:[(\[]|[:,\u2013\u2014-]|in|at|from)?[ \t]*`?", re.I)
-HORIZONTAL_SPACE = re.compile(r"[ \t]*")
-def cited_after(end):
-    """Recognize an adjacent citation without copying the remaining response."""
-    index = bisect_left(token_starts, end)
-    if index >= len(tokens):
-        return False
-    limit = tokens[index][0]
-    start = HORIZONTAL_SPACE.match(resp, end, limit).end()
-    return CITED_AFTER.fullmatch(resp, start, limit) is not None
-
 # sail-cruisey #3340/#3339: a seat that ran the code under review names the
 # input it fed in ("probing returns `[]` for `x`", "`a`, `b` and `c` all return
 # `[]`", "Bypasses: `x`", the Input column of a results table). An unattributed
@@ -4185,6 +4173,18 @@ def probe_input(start, end):
     after = resp[inline_spans[last][1]:line_end if line_end >= 0 else len(resp)]
     return bool(PROBE_BEFORE.search(before) or PROBE_AFTER.match(after) or NEGATED.search(before)
                 or input_cell(start))
+
+token_starts = [t[0] for t in tokens]
+CITED_AFTER = re.compile(r"(?:[(\[]|[:,\u2013\u2014-]|in|at|from)?[ \t]*`?", re.I)
+HORIZONTAL_SPACE = re.compile(r"[ \t]*")
+def cited_after(end):
+    """Recognize an adjacent citation without copying the remaining response."""
+    index = bisect_left(token_starts, end)
+    if index >= len(tokens):
+        return False
+    limit = tokens[index][0]
+    start = HORIZONTAL_SPACE.match(resp, end, limit).end()
+    return CITED_AFTER.fullmatch(resp, start, limit) is not None
 
 checkable_units = 0
 for start, end, kind, block, removed_block, info in units:
