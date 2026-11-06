@@ -470,3 +470,51 @@ allowance can require a larger configured context budget.
 
 See the [thinking migration](MODEL-ROUTING-STRATEGY.md#sonnet-55-api-thinking-2026-10-01)
 for the current CLI and Agent SDK limitation and the API compatibility rules.
+
+### OpenCode CLI generations
+
+Octopus uses a bounded version check at real dispatch. OpenCode 1.x runs
+`env OPENCODE_PURE=1 opencode run -m <provider/model>`, preserving its
+plugin-hang protection without the removed `--pure` flag. OpenCode 2.x adds
+`--standalone` to keep tool execution in a private server inside the selected
+process boundary. Unknown versions and disabled probes refuse real dispatch;
+dry-run previews launch no CLI. No equivalent 2.x plugin-disable guarantee is
+claimed. Authenticated tool execution and cancellation still require live
+acceptance on the target host.
+
+Static discovery recognizes `auth.json`, `opencode.db` and channel-specific
+`opencode-*.db` files under `${XDG_DATA_HOME:-~/.local/share}/opencode`, plus
+`OPENCODE_DB` overrides. A relative override resolves under that data directory.
+Store presence is configuration evidence only. A SQLite-only installation
+needs explicit live confirmation. Workflow admission performs that bounded
+confirmation when SQLite storage is the only login evidence or static discovery
+finds no store, including pinned council rosters. This lets supported environment
+credentials reach the same login check. Static discovery and readiness dashboards
+remain probe-free.
+Explicit workflow admission also confirms statically available OpenCode seats.
+Both admission checks resolve OpenCode from the worker's project directory.
+Synchronous, background and direct `probe-single` dispatch check health before
+launching a model task. Direct probes include the standard, fast and research
+OpenCode seats.
+
+Background version detection and login checks run from the worker's project
+directory, so relative executable paths and directory-sensitive shims select
+the same CLI generation as execution. Standalone 2.x session creation inside
+the bounded Tangle filesystem still requires host acceptance. Its default
+SQLite state is outside the writable worktree. Do not switch to the shared
+server or broaden writable host mounts to work around that limitation.
+
+Live checks use bounded version and login commands. OpenCode 1.x must report a
+positive credential or environment-variable count. OpenCode 2.x checks
+`auth list --standalone --format json` for `credential` or `environment` connections,
+using the same private-server environment as dispatch. Empty, failed and
+unrecognized listings fail closed. JSON validation uses `jq` when available,
+or Python 3's standard library. Account metadata is never printed. Checks
+neither prove model entitlement nor make a model request. Octopus does not open
+or modify credential databases itself; OpenCode manages its own storage.
+
+Compatibility sources checked on 2026-11-03:
+[1.18.34 flag implementation](https://github.com/anomalyco/opencode/blob/v1.18.34/packages/opencode/src/index.ts),
+[2.0.23 login listing](https://github.com/anomalyco/opencode/blob/v2.0.23/packages/cli/src/commands/handlers/auth/list.ts),
+[private-server commands](https://dev.opencode.ai/v2/docs/cli/commands/),
+and [provider storage](https://github.com/anomalyco/opencode/blob/v2.0.23/services/www/src/docs/content/cli/providers.mdx).

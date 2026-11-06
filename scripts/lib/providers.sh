@@ -1094,6 +1094,13 @@ check_provider_health() {
                 return 1
             fi
             ;;
+        opencode)
+            if ! command -v opencode >/dev/null 2>&1 || ! _octo_opencode_has_saved_login; then
+                declare -f _utils_log >/dev/null 2>&1 || source "${_providers_lib_dir}/utils.sh" || return 1
+                _utils_log ERROR "opencode: no confirmed login (run: opencode auth login)"
+                return 1
+            fi
+            ;;
         vibe)
             if ! command -v vibe &>/dev/null; then
                 echo "vibe CLI not found in PATH" >&2
@@ -1507,13 +1514,10 @@ detect_providers() {
     # Detect OpenCode CLI (v9.11.0 — multi-provider router)
     if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed opencode; } && command -v opencode &>/dev/null; then
         local opencode_auth="none"
-        if [[ -f "${HOME}/.local/share/opencode/auth.json" ]]; then
-            # Verify auth is actually valid via auth list (with timeout to prevent hang)
-            if timeout 3 opencode auth list &>/dev/null 2>&1; then
-                opencode_auth="multi"
-            else
-                opencode_auth="expired"
-            fi
+        if _octo_opencode_auth_store_present; then
+            # Discovery is local-only. A live readiness check confirms whether
+            # either CLI generation actually has a usable configured login.
+            opencode_auth="configured"
         fi
         result="${result}opencode:${opencode_auth} "
     fi

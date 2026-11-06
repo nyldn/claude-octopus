@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- OpenCode 2.x dispatch no longer passes the removed `--pure` flag. OpenCode
+  1.x keeps its external-plugin hang protection through `OPENCODE_PURE=1`.
+  Discovery recognizes SQLite login storage without launching OpenCode. An
+  explicit live readiness check confirms saved or environment credentials,
+  with bounded version and login commands. Version-aware 2.x dispatch uses a
+  private server so tools stay inside the selected process boundary; unknown
+  CLI versions refuse real dispatch. Empty or failed listings remain unavailable.
+  Large legacy login listings survive strict pipeline checks, the live deadline
+  covers both probes and startup, and failed direct probes record a terminal seat
+  event in durable research history.
+  Workflow admission confirms SQLite-only logins, including pinned rosters,
+  before rejecting readiness. Direct OpenCode probes check login for the
+  standard, fast and research seats.
+  Environment-only logins also receive runtime confirmation before admission.
+  Background login and version checks use the worker's project directory, so
+  directory-sensitive executables select the correct private-server flags.
+  Direct `probe-single --dry-run` previews stop before health checks or provider
+  execution.
+  Both `OCTOPUS_SKIP_PROVIDER_PROBES=true` and `=1` suppress OpenCode version
+  and login probes and refuse real dispatch without selecting a server mode.
+  OpenCode 2.x login validation also works without `jq`, using Python 3's
+  standard-library JSON parser while retaining connection validation.
+  Admission confirms logins even when static token evidence is present and
+  checks project-relative executables from the worker directory. Failed command
+  construction closes its durable research-seat event.
+  Addresses [#1172](https://github.com/nyldn/claude-octopus/issues/1172).
+
 ## [11.17.1] - 2026-11-05
 
 ### Fixed

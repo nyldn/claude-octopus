@@ -437,9 +437,12 @@ _octo_provider_static_readiness() {
         opencode)
             remediation="Install OpenCode, then run: opencode auth login"
             if command -v opencode >/dev/null 2>&1; then
-                if [[ -f "${HOME}/.local/share/opencode/auth.json" ]] ||
+                if [[ -f "${XDG_DATA_HOME:-${HOME}/.local/share}/opencode/auth.json" ]] ||
                    _octo_value_has_nonwhitespace "${GITHUB_TOKEN:-${OPENROUTER_API_KEY:-${Z_AI_API_KEY:-${MINIMAX_API_KEY:-}}}}"; then
                     status="available"; reason_code="ready"; remediation=""
+                elif _octo_opencode_auth_store_present; then
+                    status="degraded"; reason_code="live-check-required"
+                    remediation="OpenCode login storage detected; run an explicit live readiness check to confirm a saved login."
                 else
                     status="degraded"; reason_code="auth-missing"
                 fi
@@ -506,14 +509,19 @@ EOF
     fi
 
     if [[ "$check_kind" == "live" && "$health_handler" != "none" ]] &&
-       { [[ "$status" == "available" ]] || [[ "$reason_code" == "live-check-required" ]]; } &&
+       { [[ "$status" == "available" ]] || [[ "$reason_code" == "live-check-required" ]] ||
+         { [[ "$provider" == opencode && "$reason_code" == auth-missing ]]; }; } &&
        ! [[ "$provider" == vibe && "$reason_code" == live-check-required &&
             "${_octo_vibe_check_context:-selected}" != selected ]]; then
         # Live mode is explicit. Execute the registry-selected health handler in
         # a fresh bounded shell so a provider CLI cannot stall setup or Doctor.
         source "${_preflight_registry_dir}/providers.sh" 2>/dev/null || true
-        live_timeout="${OCTOPUS_PROVIDER_LIVE_TIMEOUT:-5}"
-        case "$live_timeout" in ''|*[!0-9]*) live_timeout=5 ;; esac
+        # OpenCode checks version and login sequentially, each within three
+        # seconds. Include shell startup while preserving an explicit deadline.
+        local default_live_timeout=5
+        [[ "$provider" != opencode ]] || default_live_timeout=8
+        live_timeout="${OCTOPUS_PROVIDER_LIVE_TIMEOUT:-$default_live_timeout}"
+        case "$live_timeout" in ''|*[!0-9]*) live_timeout="$default_live_timeout" ;; esac
         (( live_timeout > 30 )) && live_timeout=30
         (( live_timeout < 1 )) && live_timeout=1
         if declare -f _octo_run_bare_probe_with_timeout >/dev/null 2>&1; then
@@ -746,9 +754,21 @@ preflight_check() {
             roster_unchecked="${roster_unchecked}${roster_unchecked:+ }${provider}"
             continue
         fi
-        readiness="$(octo_provider_readiness_result "$provider" static)"
+        if [[ "$provider" == opencode ]]; then
+            readiness="$(cd "${PROJECT_ROOT:-$PWD}" && octo_provider_readiness_result "$provider" static)"
+        else
+            readiness="$(octo_provider_readiness_result "$provider" static)"
+        fi
         status="$(_octo_readiness_json_field "$readiness" status)"
         reason="$(_octo_readiness_json_field "$readiness" reason_code)"
+        # Workflow admission confirms SQLite-only or environment-only logins
+        # through the same bounded live check before rejecting the runtime.
+        if [[ "$provider" == opencode ]] &&
+           [[ "$status" == available || "$reason" == live-check-required || "$reason" == auth-missing ]]; then
+            readiness="$(cd "${PROJECT_ROOT:-$PWD}" && octo_provider_readiness_result "$provider" live)"
+            status="$(_octo_readiness_json_field "$readiness" status)"
+            reason="$(_octo_readiness_json_field "$readiness" reason_code)"
+        fi
         remediation="$(_octo_readiness_json_field "$readiness" remediation)"
         candidate_ids+=("$provider")
         candidate_statuses+=("$status")
