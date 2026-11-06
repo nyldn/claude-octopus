@@ -304,10 +304,11 @@ octopus_resolve_reasoning_level() {
   value="$(_octopus_profile_field "$phase" "$role" reasoning 2>/dev/null || true)"
   if [[ -z "$value" && "$agent_type" != *:* ]] && declare -F resolve_octopus_model >/dev/null; then
     cfg="$(_octopus_profile_config_file)"
-    # Only object tiers can supply effort. Query the model resolver rather than
-    # duplicating its model-pin, role, capability, eval and tier precedence.
+    # Validate object tiers even when effort is absent or has the wrong type.
+    # Query the model resolver to preserve model-pin, role, capability, eval
+    # and tier precedence, including routes that bypass the malformed tier.
     if [[ -f "$cfg" ]] && jq -e --arg p "$model_provider" \
-        '[.tiers[]?[$p] | objects | .reasoning | strings] | length > 0' "$cfg" >/dev/null 2>&1; then
+        '[.tiers[]?[$p] | objects] | length > 0' "$cfg" >/dev/null 2>&1; then
       value="$(resolve_octopus_model "$model_provider" "$agent_type" "$phase" "$role" tier-reasoning "$dispatch_model")" || return 1
     fi
   fi

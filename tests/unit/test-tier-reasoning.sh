@@ -55,6 +55,23 @@ configure
 edit_config '.tiers.budget.codex.reasoning = "arbitrary"'
 test_case "invalid effort fails closed"
 if octopus_resolve_reasoning_level codex >/dev/null 2>&1; then test_fail "invalid effort admitted"; else test_pass; fi
+for invalid_profile in '{capability:"mini",reasoning:7}' '{capability:"mini",reasoning:false}' '{capability:"mini",reasoning:null}' '{capability:"mini",reasoning:[]}' '{capability:"mini",reasoning:{}}' '{capability:""}' '{}'; do
+    configure
+    edit_config ".tiers.budget.codex = $invalid_profile"
+    test_case "effort resolution rejects a malformed selected object tier: $invalid_profile"
+    if octopus_resolve_reasoning_level codex >/dev/null 2>&1; then
+        test_fail "malformed tier silently used provider effort"
+    else
+        test_pass
+    fi
+done
+configure
+edit_config '.tiers.budget.codex.reasoning = 7'
+expect "an explicit model bypasses malformed tier effort" "$(OCTOPUS_CODEX_MODEL=gpt-5.6-sol octopus_resolve_reasoning_level codex)" high
+expect "an explicit effort bypasses malformed tier effort" "$(OCTOPUS_CODEX_REASONING=medium octopus_resolve_reasoning_level codex)" medium
+expect "a malformed inactive tier does not affect legacy strings" "$(OCTOPUS_COST_MODE=standard octopus_resolve_reasoning_level codex)" high
+edit_config '.routing.phases.develop = {provider:"codex",model:"gpt-5.6-sol"}'
+expect "an explicit phase model bypasses malformed tier effort" "$(octopus_resolve_reasoning_level codex develop)" high
 configure
 edit_config '.tiers.budget.codex.capability = "gpt-6-astra"'
 expect "object tier preserves explicit-only restrictions" "$(resolve_octopus_model codex codex)" gpt-5.6-sol
