@@ -159,7 +159,8 @@ preflight_check true
 '''
         for relative_path, storage, roster, connected in product(
                 (False, True), ("sqlite", "environment", "known-environment"), ("", "opencode"), (False, True)):
-            self.env["PATH"] = "bin:/usr/bin:/bin" if relative_path else f"{self.bin}:/usr/bin:/bin"
+            self.env["PATH"] = (f"bin:{Path(sys.executable).parent}:/usr/bin:/bin" if relative_path
+                                else f"{self.bin}:{Path(sys.executable).parent}:/usr/bin:/bin")
             self.env.pop("OPENAI_API_KEY", None)
             self.env.pop("OPENROUTER_API_KEY", None)
             database = self.data / "opencode.db"
@@ -213,7 +214,7 @@ spawn_agent opencode fixture fixture reviewer probe
             with self.subTest(relative_path=relative_path, target_version=target_version):
                 caller_version = "1.18.34" if target_version.startswith("2.") else "2.0.23"
                 self.env.update(TARGET_VERSION=target_version, CALLER_VERSION=caller_version)
-                self.env["PATH"] = str(self.bin) + ":/usr/bin:/bin"
+                self.env["PATH"] = f"{self.bin}:{Path(sys.executable).parent}:/usr/bin:/bin"
                 Path(self.env["COMMAND_FILE"]).unlink(missing_ok=True)
                 self.cli.write_text('#!/bin/sh\nif [ "$PWD" = "$PROJECT_ROOT" ]; then echo "$TARGET_VERSION"; else echo "$CALLER_VERSION"; fi\n')
                 if relative_path:
@@ -223,7 +224,7 @@ spawn_agent opencode fixture fixture reviewer probe
                         cli = bindir / "opencode"
                         cli.write_text(f"#!/bin/sh\necho {version}\n")
                         cli.chmod(0o755)
-                    self.env["PATH"] = "bin:/usr/bin:/bin"
+                    self.env["PATH"] = f"bin:{Path(sys.executable).parent}:/usr/bin:/bin"
                 result = self.shell(script, root=caller)
                 self.assertNotEqual(result.returncode, 0)
                 command_file = Path(self.env["COMMAND_FILE"])

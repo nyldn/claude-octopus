@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- OpenCode 2.x dispatchno longer passes the removed `--pure` flag. OpenCode
+- OpenCode 2.x dispatch no longer passes the removed `--pure` flag. OpenCode
   1.x keeps its external-plugin hang protection through `OPENCODE_PURE=1`.
   Discovery recognizes SQLite login storage without launching OpenCode. An
   explicit live readiness check confirms saved or environment credentials,
