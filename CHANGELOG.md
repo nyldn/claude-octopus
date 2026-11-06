@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- OpenCode 2.x dispatch no longer passes the removed `--pure` flag. OpenCode
+- OpenCode 2.x dispatchno longer passes the removed `--pure` flag. OpenCode
   1.x keeps its external-plugin hang protection through `OPENCODE_PURE=1`.
   Discovery recognizes SQLite login storage without launching OpenCode. An
   explicit live readiness check confirms saved or environment credentials,
@@ -31,11 +31,55 @@
   construction closes its durable research-seat event.
   Addresses [#1172](https://github.com/nyldn/claude-octopus/issues/1172).
 
+## [11.17.1] - 2026-11-05
+
+### Fixed
+
+- Vibe setup and readiness now recognize a key stored by `vibe --setup` in
+  the OS keyring when Vibe is explicitly selected for a provider check. The
+  local presence check is silent, read-only and bounded, and receives a
+  minimal environment. Automatic discovery defers keyring inspection.
+  Standard Python user-site installations work without enabling user-site
+  loader hooks. Import and probe failures, including successful package exits,
+  cannot report a key as present. It does not launch Vibe or make a model
+  request. Addresses #1191; automatic scans still defer keyring inspection.
+  Explicit single-provider probes carry the Vibe selection into preflight,
+  without treating a general cached pass as proof that Vibe is ready.
+  Successful selected checks preserve general readiness cache entries, avoiding
+  repeated discovery in other provider workflows.
+
+- Council quote verification recognizes valid `octopus-policy-findings` JSON
+  without marking the seat fabricated. Entity-encoded quotes remain intact,
+  and runtime policy extraction accepts the same indented, backtick and tilde
+  fences as analysis. Invalid blocks and invented quotes outside a findings
+  block still undergo quote verification.
+  Overflowing JSON numbers are rejected by every findings reader, and failed
+  policy extraction or verification defers implementation instead of dropping
+  blocking findings.
+  [#1230](https://github.com/nyldn/claude-octopus/pull/1230).
+- Define, develop, deliver and ship now validate the report names the engine
+  writes, within the current session and after the current invocation starts.
+  A failed command, stale report or missing completion status cannot pass the
+  skill's result gate. Reports from other invocations are identified before
+  their bodies are loaded, so unrelated large output cannot exhaust the
+  validator's memory. Execution and validation use the installation that loaded
+  the skill, even when the stable link still points at an older copy. Truncated
+  UTF-8 in task or provider text preserves the launcher's completion checks.
+  Feature development checks every owned wave before returning the final
+  wave report. Descriptor-based reads reject symlink replacements and special
+  files without blocking the validator. Fixes #1170.
+
+## [11.17.0] - 2026-11-05
+
+### Added
+
 - Deck and document export recognize standalone and alternate-plugin renderer
   skills advertised by the session. An explicit or saved renderer can receive a
   house template and the approved slide skeleton, visual callouts and appendix
-  list. Missing selections fail visibly instead of forcing another plugin or
-  discarding the selected renderer. Addresses [#1218](https://github.com/nyldn/claude-octopus/issues/1218).
+  list. Ambiguous selections and unavailable explicit or saved renderers fail
+  visibly instead of forcing another plugin or discarding the selected renderer. Fixes [#1218](https://github.com/nyldn/claude-octopus/issues/1218).
+
+### Fixed
 
 - The develop quality challenger now sees provider output and bounded change
   excerpts from the run's starting commit. Long executor prompts no longer

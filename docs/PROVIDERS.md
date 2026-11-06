@@ -373,6 +373,41 @@ Google seat), perplexity, opencode, openrouter, orcarouter, atlascloud,
 cheaperinference, api-route, litellm, openai-compatible, openai-tools, openai-compatible-agent, cursor-agent, grok,
 qwen, ollama, copilot, vibe, and kimi.
 
+An explicit `vibe` readiness or health check accepts `MISTRAL_API_KEY`,
+`~/.vibe/.env`, the existing `api_key` config field, or a key saved by
+`vibe --setup` in the OS keyring.
+The keyring presence check uses Vibe's Python environment and native backend,
+never prints the key, and does not migrate credentials or call a model. It
+stops within three seconds, including process cleanup. The selected package
+receives only basic runtime paths and local keyring session variables, with
+other provider keys, proxy settings and language-loader controls removed.
+Automatic provider discovery does not load Vibe's Python package. A general
+static readiness scan reports that a keyring-only login needs an explicit
+provider check; run `/octo:setup` and select Vibe to permit that check, or set
+`MISTRAL_API_KEY`. Vibe is not a supported
+council seat, so it cannot be selected through the council roster.
+The explicit `probe-single vibe` workflow also carries that selection into
+preflight. It checks Vibe itself and does not reuse or grant a general cached
+readiness pass. A successful selected check preserves any existing general cache. A configured council roster retains its existing validation.
+A locked or unreadable keyring remains unavailable.
+A keyring-only login can complete the one-provider setup flow and is checked
+again when that setup is resumed. Automatic scans continue to report
+`live-check-required` for keyring-only logins.
+`OCTOPUS_SKIP_PROVIDER_PROBES=true` skips this
+check. Direct Python entrypoints and simple `#!/usr/bin/env python` or
+`python3` entrypoints (including versioned Python 3 names) are supported.
+The latter resolve Python through the selected command search path, without
+executing the wrapper. Shebang options, non-Python wrappers and installations
+whose Python environment cannot import Vibe remain unverified; use an existing environment or file credential
+route for those installations.
+For a non-virtualenv interpreter, the keyring check also supports its standard
+user-site directory for `pip install --user`, after standard-library paths and
+before global packages. It does not process
+user-site `.pth` files or startup customizations, project modules or `PYTHONPATH`.
+
+This follows Mistral's documented [credential search order](https://docs.mistral.ai/vibe/code/cli/api-keys-profiles)
+and its [read-only keyring probe](https://github.com/mistralai/mistral-vibe/blob/main/vibe/utils/keyring.py).
+
 `commandcode` reports progress to stderr while its event stream grows. Set
 `OCTOPUS_COMMANDCODE_HEARTBEAT_SECS` to a positive number of seconds (default
 60) to control the interval; invalid values use the default. The setting is
