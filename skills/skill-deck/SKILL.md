@@ -112,8 +112,11 @@ flag, run it against the draft skeleton before requesting approval or rendering:
    preflight, provider allowlist, explicit model/effort choices, and real
    `orchestrate.sh spawn` dispatch. Run one round with the agreed provider budget.
    Use at least two seats from different providers; never simulate a
-   multi-provider review inside the host model. If the available seats or budget
-   cannot cover the audience map, ask the user to narrow it or change the budget.
+   multi-provider review inside the host model. Fewer than two eligible providers
+   means the pass cannot run. Report the shortage and let the user choose to
+   continue without red teaming or configure another allowed provider. Do not claim
+   a completed red team. When quorum is available but the seats or budget cannot
+   cover the audience map, ask the user to narrow it or change the budget.
 2. Brief each seat as one stakeholder from the audience map. Give every seat the
    same draft skeleton, governing question or presentation objective, and supplied
    evidence, plus its stakeholder's priority and likely question. Ask for

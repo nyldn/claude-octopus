@@ -185,6 +185,8 @@ class DocumentRendererTest(unittest.TestCase):
                 self.assertIn("skill-debate", red_team)
                 self.assertIn("orchestrate.sh spawn", red_team)
                 self.assertIn("never simulate", red_team)
+                self.assertIn("Fewer than two eligible providers", red_team)
+                self.assertIn("continue without red teaming", red_team)
                 self.assertIn("decision-maker or influencer", text.split("### Step 2:", 1)[0])
                 self.assertIn("one stakeholder", red_team)
                 self.assertIn("pre-empt", red_team)
