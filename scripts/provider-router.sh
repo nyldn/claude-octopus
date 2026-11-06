@@ -150,7 +150,7 @@ is_provider_available() {
     [[ ! -f "$cooldown_file" ]] && return 0
 
     local cooldown_start
-    cooldown_start=$(<"$cooldown_file" 2>/dev/null) || return 0
+    cooldown_start=$(cat "$cooldown_file" 2>/dev/null) || return 0
     local now
     now=$(date +%s)
     local elapsed=$((now - cooldown_start))

@@ -2011,7 +2011,7 @@ sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore")
                 echo "## Contract Status: FAILED (persistence error)" >> "$result_file"
             fi
             record_outcome "$agent_type" "$agent_type" "${task_type:-unknown}" "${phase:-unknown}" "fail" "$elapsed_ms" 2>/dev/null || true
-            type record_failure &>/dev/null && record_failure "$provider_prefix" "transient" 2>/dev/null || true
+            type record_provider_failure &>/dev/null && record_provider_failure "$provider_prefix" "$exit_code" "$_quota_fast_fail_line" >/dev/null 2>&1 || true
         elif [[ $exit_code -eq 124 ]] || [[ $exit_code -eq 143 ]]; then
             # v7.19.0 P0.2: TIMEOUT - Preserve partial output
             # Process whatever output exists (may be significant partial work)

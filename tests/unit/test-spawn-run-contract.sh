@@ -379,7 +379,7 @@ stop_quota_watcher() { :; }
 append_provider_history() { :; }
 record_outcome() { :; }
 record_success() { :; }
-record_failure() { printf '%s %s\n' "$1" "$2" >> "$TEST_TMP_DIR/circuit-breaker-failures"; }
+record_failure() { :; }
 record_run_pattern() { :; }
 record_task_metric() { :; }
 run_drift_check() { :; }
@@ -425,7 +425,18 @@ run_watched_fixture() {
         octopus_capture_provider_output() { octo_real_capture_provider_output "$@"; }
         unset OCTOPUS_AGENT_TIMEOUT OCTOPUS_TIMEOUT_EXPLICIT OCTOPUS_TIMEOUT_EXPLICIT_SECS
         TIMEOUT="$timeout"
+        if [[ "$scenario" == quota-held ]]; then
+            source "$PROJECT_ROOT/scripts/provider-router.sh"
+            _PROVIDER_STATE_DIR="$TEST_TMP_DIR/quota-circuit-breaker"
+            OCTO_CB_FAILURE_THRESHOLD=1
+        fi
         run_external_fixture "$scenario" "$task"
+        if [[ "$scenario" == quota-held ]]; then
+            if spawn_agent fake-api "Must be skipped during cooldown" quota-cooldown reviewer probe; then
+                printf '%s\n' 'quota cooldown failed to block a direct spawn' >&2
+                return 1
+            fi
+        fi
     )
 }
 
@@ -1243,7 +1254,6 @@ else
 fi
 
 test_case "a quota fast-fail reports a quota or auth error instead of a timeout"
-: > "$TEST_TMP_DIR/circuit-breaker-failures"
 quota_started=$SECONDS
 run_watched_fixture quota-held quota-fast-fail 30
 quota_elapsed=$((SECONDS - quota_started))
@@ -1253,7 +1263,8 @@ if [[ "$quota_elapsed" -lt 30 ]] &&
    grep -Fq 'The provider reports its quota resets at 10:32 PM.' "$quota_result" &&
    ! grep -Eqi 'TIMEOUT EXCEEDED|timed out|increas(e|ing) timeout|--timeout' "$quota_result" &&
    [[ "$(run_contract_latest_transition spawn-quota-fast-fail)" == failed ]] &&
-   [[ "$(cat "$TEST_TMP_DIR/circuit-breaker-failures")" == 'fake-api transient' ]]; then
+   [[ -s "$TEST_TMP_DIR/quota-circuit-breaker/fake-api.cooldown" ]] &&
+   [[ "$(run_contract_latest_transition spawn-quota-cooldown)" == skipped ]]; then
     test_pass
 else
     test_fail "quota fast-fail after ${quota_elapsed}s: $(octo_result_framed_sections "$quota_result" status 2>/dev/null || echo missing)"

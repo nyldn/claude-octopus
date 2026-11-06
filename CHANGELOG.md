@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Quota fast-fails preserve a provider's own temporary-failure status and auth
+  retry behavior. Quota stops update the provider circuit breaker, and persisted
+  cooldown timestamps correctly block repeat dispatch until their deadline.
+
 ## [11.17.1] - 2026-11-05
 
 ### Fixed

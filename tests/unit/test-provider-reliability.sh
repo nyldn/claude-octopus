@@ -14,6 +14,25 @@ ROUTER="$PROJECT_ROOT/scripts/provider-router.sh"
 pass() { test_case "$1"; test_pass; }
 fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
+source "$ROUTER"
+_PROVIDER_STATE_DIR="$TEST_TMP_DIR/provider-state"
+OCTO_CB_FAILURE_THRESHOLD=1
+log() { :; }
+
+record_provider_failure codex 75 'temporary usage limit' >/dev/null
+if ! is_provider_available codex && [[ -s "$_PROVIDER_STATE_DIR/codex.cooldown" ]]; then
+    pass "persisted cooldown blocks another request before its deadline"
+else
+    fail "persisted cooldown blocks another request before its deadline"
+fi
+
+printf '%s\n' 1 > "$_PROVIDER_STATE_DIR/codex.cooldown"
+if is_provider_available codex && [[ ! -e "$_PROVIDER_STATE_DIR/codex.cooldown" ]]; then
+    pass "expired cooldown permits a half-open request"
+else
+    fail "expired cooldown permits a half-open request"
+fi
+
 # ── File existence and syntax ─────────────────────────────────────────────────
 
 if [[ -f "$ROUTER" ]]; then
