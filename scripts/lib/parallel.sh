@@ -789,8 +789,10 @@ parallel_execute() {
         if declare -F octo_run_dir >/dev/null 2>&1; then
             ledger="$(octo_run_dir)/agents.jsonl"
         fi
-        if [[ -s "$ledger" ]] && jq -es --arg file "$RESULTS_DIR/$result_slug-$task_id.md" \
-            "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'latest_per_seat | any(.output_file == $file and .status == "running")' \
+        # Only a successfully parsed ledger can establish that no seat owns
+        # this path. A damaged record may contain an active owner's status.
+        if [[ -s "$ledger" ]] && ! jq -es --arg file "$RESULTS_DIR/$result_slug-$task_id.md" \
+            "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'latest_per_seat | all(.output_file != $file or .status != "running")' \
             "$ledger" >/dev/null 2>&1; then
             log ERROR "Output path has a running seat for task $task_id"
             _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" true \

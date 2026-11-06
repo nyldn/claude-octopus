@@ -339,4 +339,37 @@ if [[ "$rc" == 143 && ! -e "$TEST_TMP_DIR/interrupted-spawn" && -e "$TEST_TMP_DI
     test_pass
 else test_fail "interrupted publication blocked retry, rc=$rc"; fi
 
+for damaged_ledger in truncated trailing; do
+    test_case "a $damaged_ledger ownership ledger preserves output and blocks dispatch"
+    export OCTOPUS_RUN_ID="ownership-damaged-$damaged_ledger"
+    ledger="$(octo_run_dir)/agents.jsonl"
+    mkdir -p "$(dirname "$ledger")" "$WORKSPACE_DIR/.octo/agents"
+    owned="$RESULTS_DIR/codex-damaged.md"
+    printf 'active partial output\n' > "$owned"
+    printf '0\n' > "$WORKSPACE_DIR/.octo/agents/damaged.done"
+    if [[ "$damaged_ledger" == trailing ]]; then
+        write_agent_status codex running 1 0 '' 0 "$owned" researcher spawn-damaged
+    fi
+    printf '{"agent":' >> "$ledger"
+    rm -f "$TEST_TMP_DIR/damaged-spawn"
+    spawn_agent_capture_pid() { touch "$TEST_TMP_DIR/damaged-spawn"; return 1; }
+    printf '{"tasks":[{"id":"damaged","agent":"codex","prompt":"implement"}]}' > "$TEST_TMP_DIR/tasks.json"
+    AVAILABLE_AGENTS=codex
+    parallel_execute "$TEST_TMP_DIR/tasks.json" > "$TEST_TMP_DIR/damaged-$damaged_ledger.log" 2>&1 && rc=0 || rc=$?
+    if [[ "$rc" == 1 && ! -e "$TEST_TMP_DIR/damaged-spawn" && "$(cat "$owned")" == 'active partial output' ]] &&
+       [[ "$(cat "$WORKSPACE_DIR/.octo/agents/damaged.done")" == 0 ]] &&
+       jq -e '.results[0].reason == "output-path-owned"' "$WORKSPACE_DIR/state/parallel-report.json" >/dev/null; then
+        test_pass
+    else test_fail "damaged ownership ledger permitted dispatch or removed active artifacts"; fi
+done
+
+test_case "a valid terminal ownership ledger permits a new dispatch"
+export OCTOPUS_RUN_ID=ownership-terminal
+write_agent_status codex failed 1 0 '' 0 "$RESULTS_DIR/codex-damaged.md" researcher spawn-damaged
+rm -f "$TEST_TMP_DIR/damaged-spawn"
+parallel_execute "$TEST_TMP_DIR/tasks.json" > "$TEST_TMP_DIR/terminal-ledger.log" 2>&1 || true
+if [[ -e "$TEST_TMP_DIR/damaged-spawn" ]]; then
+    test_pass
+else test_fail "valid terminal ownership was rejected"; fi
+
 test_summary
