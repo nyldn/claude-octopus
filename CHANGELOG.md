@@ -14,7 +14,10 @@
   `quotes_partial`, which counts fences that verify at the two-thirds
   threshold, in a cited file or the reviewed diff, but contain a line found
   nowhere, short lines included. A fence complete in a later cited file is not
-  partial. It does not change the verdict.
+  partial. It does not change the verdict. Optional diff refinement no longer
+  prevents a later quote from receiving the normal required lookup after a
+  timeout. Repeated plain variants reuse their source scans while preserving
+  short-elision checks and near-line accounting.
 
 ## [11.17.1] - 2026-11-05
 

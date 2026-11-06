@@ -3516,6 +3516,11 @@ def match_unit(wholes, line_variants, entry, misses=None, short=()):
     # included, are appended to misses.
     hay = entry[0]
     partial_misses = {}
+    variant_matches = {}
+    def match(variant):
+        if variant not in variant_matches:
+            variant_matches[variant] = match_variant(variant, entry)
+        return variant_matches[variant]
     def missing():
         count = 0
         for variants in line_variants + list(short):
@@ -3526,14 +3531,16 @@ def match_unit(wholes, line_variants, entry, misses=None, short=()):
                     # Partial accounting checks every retained fragment, even
                     # below the specificity floor used by the verdict.
                     pieces = [p for p in ELLIPSIS.split(norm(variant)) if p]
-                    if pieces and find_lines(hay, [], [], pieces[0], following=pieces[1:]):
+                    present = (match(variant) if not ELLIPSIS.search(norm(variant)) else
+                               pieces and find_lines(hay, [], [], pieces[0], following=pieces[1:]))
+                    if present:
                         partial_misses[key] = False
                         break
             # Repeated lines retain their count without rescanning the file.
             count += partial_misses[key]
         return count
     for variant in wholes:
-        lines = match_variant(variant, entry)
+        lines = match(variant)
         if lines:
             if misses is not None and norm(variant) not in hay:
                 # Elided fragments matched; a line between them may be invented.
@@ -3544,7 +3551,7 @@ def match_unit(wholes, line_variants, entry, misses=None, short=()):
     found = []
     for variants in line_variants:
         for variant in variants:
-            lines = match_variant(variant, entry)
+            lines = match(variant)
             if lines:
                 found.append(lines)
                 break
@@ -3564,6 +3571,7 @@ for _, _, path, _ in citations:
 # is checked here instead of being reported as fabricated. Loaded lazily, only
 # when a quote fails against the cited files.
 diff_sides = None
+optional_diff_sides = None
 def split_diff(text):
     removed, added = [], []
     remaining = None
@@ -3894,12 +3902,18 @@ for start, end, kind, block, removed_block, info in units:
     if kind == "fence" and verified and partial and not removed_block:
         # A complete diff match clears partial reporting while the source-file
         # match retains its verification count and attribution.
-        if diff_sides is None:
+        if diff_sides is None and optional_diff_sides is None:
             # This lookup only refines partial reporting. Bound both Git calls
-            # within two seconds; a timeout preserves source verification and
-            # marks missing diff evidence unavailable for subsequent quotes.
-            diff_sides = load_diff_sides(git_timeout=1)
-        for side in diff_sides:
+            # within two seconds. A failed optional lookup cannot populate the
+            # required cache or mark later claims uncertain without a retry.
+            previous_diff_state = {key: result[key] for key in ("diff_truncated", "diff_unavailable")}
+            previous_diff_state["diff_sources"] = list(result["diff_sources"])
+            optional_diff_sides = load_diff_sides(git_timeout=1)
+            if result["diff_unavailable"]:
+                result.update(previous_diff_state)
+            else:
+                diff_sides = optional_diff_sides
+        for side in diff_sides if diff_sides is not None else optional_diff_sides:
             side_misses = []
             if in_diff_side(wholes, line_variants, side, side_misses, short) and not any(side_misses):
                 partial = False

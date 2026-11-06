@@ -3405,7 +3405,7 @@ python3 - "$slow_partial_bin/git" <<'PY_SLOW_PARTIAL'
 import os
 import sys
 from pathlib import Path
-Path(sys.argv[1]).write_text('#!' + sys.executable + '\nimport sys, time\ntime.sleep(7)\nsys.exit(0)\n')
+Path(sys.argv[1]).write_text('#!' + sys.executable + '\nimport sys, time\ntime.sleep(7)\nsys.exit(1)\n')
 os.chmod(sys.argv[1], 0o755)
 PY_SLOW_PARTIAL
 for later_missing in no yes; do
@@ -3425,12 +3425,117 @@ src/pricing.ts:2 reads \`const unknown = loadInventedCustomerRecords();\`."
     r="$(PATH="$slow_partial_bin:$PATH" _report "$(_resp "$slow_partial_text
 VERDICT: APPROVE")")"
     if jq -e --argjson uncertain "$expected_uncertain" '.verification_failed == false
-        and .quotes_verified == 1 and .quotes_partial == 1 and .diff_unavailable == true
+        and .quotes_verified == 1 and .quotes_partial == 1 and .diff_unavailable == ($uncertain == 1)
         and .quotes_unverifiable_diff_incomplete == $uncertain and .fabricated == false' <<< "$r" >/dev/null; then
         test_pass
     else
         test_fail "optional diff lost source evidence or uncertainty: $r"
     fi
 done
+
+# Optional timeouts cannot decide a later quote that requires diff evidence.
+retry_diff_bin="$TEST_TMP_DIR/retry-diff-bin"
+retry_diff_calls="$TEST_TMP_DIR/retry-diff-calls"
+mkdir -p "$retry_diff_bin"
+python3 - "$retry_diff_bin/git" <<'PY_RETRY_DIFF'
+import os
+import sys
+from pathlib import Path
+Path(sys.argv[1]).write_text('#!' + sys.executable + '''
+import os, sys, time
+with open(os.environ["OCTO_TEST_DIFF_CALLS"], "a") as log:
+    log.write(("config" if "config" in sys.argv else "diff") + "\\n")
+if "config" in sys.argv:
+    time.sleep(1.3)
+else:
+    print("diff --git a/src/pricing.ts b/src/pricing.ts")
+    print("--- a/src/pricing.ts\\n+++ b/src/pricing.ts\\n@@ -1 +0,0 @@")
+    print("-const previousPrice = loadPreviousCabinPrice(cabin);")
+''')
+os.chmod(sys.argv[1], 0o755)
+PY_RETRY_DIFF
+for later_claim in removed invented; do
+    test_case "a required $later_claim quote retries after an optional timeout"
+    rm -f "$retry_diff_calls"
+    later_text='src/pricing.ts:2 reads `const previousPrice = loadPreviousCabinPrice(cabin);`.'
+    [[ "$later_claim" == invented ]] && later_text='src/pricing.ts:2 reads `const unknown = loadInventedCustomerRecords();`.'
+    retry_response="$(_resp "$(cat "$partial_fence_response")
+$later_text")"
+    r="$(OCTO_TEST_DIFF_CALLS="$retry_diff_calls" PATH="$retry_diff_bin:$PATH" _report "$retry_response")"
+    if [[ "$(cat "$retry_diff_calls")" == $'config\nconfig\ndiff' ]] &&
+       jq -e --arg claim "$later_claim" '.verification_failed == false and .diff_unavailable == false
+           and .quotes_partial == 1 and .quotes_unverifiable_diff_incomplete == 0
+           and (if $claim == "removed" then .quotes_verified == 2 and .quotes_verified_in_diff_removed == 1
+                and .fabricated == false else .quotes_verified == 1 and .quotes_attributed_unverified == 1
+                and .fabricated == true end)' <<< "$r" >/dev/null; then
+        test_pass
+    else
+        test_fail "optional timeout suppressed required evidence: $r; calls: $(cat "$retry_diff_calls")"
+    fi
+done
+
+# Count scans rather than relying on host timing for the non-fence hot path.
+test_case "partial matching reuses plain-variant scans without weakening elisions"
+if python3 - "$PROJECT_ROOT/scripts/lib/council.sh" <<'PY_MATCH_CACHE'
+import collections
+import re
+import sys
+from pathlib import Path
+source = Path(sys.argv[1]).read_text()
+function = 'def match_unit(' + source.split('\ndef match_unit(', 1)[1].split('\nall_cited =', 1)[0]
+calls = collections.Counter()
+fragment_scans = []
+def match_variant(variant, entry):
+    calls[variant] += 1
+    # The verdict may admit an elision at its specificity floor.
+    return [1] if variant in entry[0] or '...' in variant else []
+def find_lines(hay, starts, numbers, first, following):
+    fragment_scans.append(first)
+    end = 0
+    for piece in [first] + list(following):
+        at = hay.find(piece, end)
+        if at < 0:
+            return []
+        end = at + len(piece)
+    return [1]
+scope = dict(match_variant=match_variant, find_lines=find_lines,
+             norm=lambda text: ' '.join(text.split()), ELLIPSIS=re.compile(r'\.\.\.|…'))
+exec(compile(function, str(sys.argv[1]), 'exec'), scope)
+known = 'const actual = loadActualPrice(input);'
+missing = 'const invented = loadInventedPrice(input);'
+entry = (known, [0], [1])
+misses = []
+assert scope['match_unit']([], [[known], [known], [missing]], entry, misses) == [1]
+assert misses == [1], misses
+assert calls == {known: 1, missing: 1}, calls
+assert not fragment_scans, fragment_scans
+# Short retained fragments must still all match, in order, below the floor.
+for variant, expected in [('const ...Price(input);', 0), ('wrong ...Price(input);', 1)]:
+    misses = []
+    assert scope['match_unit']([variant], [[variant]], entry, misses) == [1]
+    assert misses == [expected], (variant, misses)
+assert len(fragment_scans) == 2, fragment_scans
+PY_MATCH_CACHE
+then test_pass; else test_fail "matching rescanned plain variants or skipped retained fragments"; fi
+
+test_case "a partial blockquote retains a later cited file's near-line match"
+near_root="$TEST_TMP_DIR/later-near"
+mkdir -p "$near_root"
+{
+    for i in $(seq 1 50); do printf '// distant filler %s\n' "$i"; done
+    printf '%s\n' "$REAL_NEAR" 'return applyTaxes(base, sailing.portFees);'
+} > "$near_root/a.ts"
+printf '%s\n' "$REAL_NEAR" 'return applyTaxes(base, sailing.portFees);' > "$near_root/b.ts"
+r="$(council_response_quote_verification_json "$(_resp "a.ts:1 and b.ts:1 read:
+> $REAL_NEAR
+> $FAKE
+> return applyTaxes(base, sailing.portFees);
+VERDICT: APPROVE")" "$near_root")"
+if jq -e '.quotes_verified == 1 and .quotes_near_line == 1 and .quotes_partial == 0
+    and .fabricated == false' <<< "$r" >/dev/null; then
+    test_pass
+else
+    test_fail "non-fence optimization lost later near-line accounting: $r"
+fi
 
 test_summary
