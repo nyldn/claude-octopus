@@ -33,10 +33,13 @@ if [ "$1" = run ]; then
     printf '%s\\n' "$*"
 else
     [ "$1 $2" = 'auth list' ] || exit 66
+    case "${CLI_VERSION:-1.18.34}" in
+        2.*) [ "$*" = 'auth list --standalone --format json' ] || exit 67 ;;
+    esac
     sleep "${AUTH_DELAY:-0}"
     if [ -n "${AUTH_LIST_FILE:-}" ]; then cat "$AUTH_LIST_FILE"; exit 0; fi
     case "$*" in
-        *--format*) printf '%s\\n' "$AUTH_JSON" ;;
+        *--format*) [ "$*" = 'auth list --standalone --format json' ] || exit 67; printf '%s\\n' "$AUTH_JSON" ;;
         *) printf '%s\\n' "$AUTH_LIST" ;;
     esac
     exit "${AUTH_RC:-0}"
@@ -84,6 +87,23 @@ fi
         self.env["CLI_VERSION"] = "unknown"
         result = self.shell('source scripts/lib/dispatch.sh; get_agent_model() { echo vendor/model; }; get_agent_command opencode')
         self.assertNotEqual(result.returncode, 0)
+
+    def test_health_failure_uses_the_callers_logger(self):
+        self.env.update(CLI_VERSION="2.0.23", AUTH_JSON="[]")
+        result = self.shell('source scripts/lib/providers.sh; '
+                            'log() { printf "logged:%s:%s\\n" "$1" "$2" >&2; }; '
+                            'check_provider_health opencode')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("logged:ERROR:opencode: no confirmed login", result.stderr)
+
+    def test_standalone_health_failure_keeps_its_diagnostic(self):
+        self.env.update(CLI_VERSION="2.0.23", AUTH_JSON="[]")
+        result = self.shell('source scripts/lib/providers.sh; check_provider_health opencode')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("[ERROR] opencode: no confirmed login", result.stderr)
+        self.assertNotIn("command not found", result.stderr)
 
     def test_probe_single_checks_login_before_constructing_command(self):
         self.env.update(CLI_VERSION="2.0.23", DISPATCH_MARKER=str(self.base / "dispatch"))

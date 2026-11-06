@@ -40,6 +40,16 @@ fi
 : "${SUPPORTS_OPUS_5_5:=false}"
 : "${SUPPORTS_SONNET_5_5:=false}"
 
+# Preserve the orchestrator logger when sourced, and keep standalone health
+# checks diagnostic without loading the orchestrator or its entrypoint.
+_providers_log() {
+    if declare -f log >/dev/null 2>&1; then
+        log "$@"
+    else
+        printf '[%s] %s\n' "$1" "${*:2}" >&2
+    fi
+}
+
 # Keep the Claude Code --bare authentication check from wedging every Octopus
 # command when the CLI is waiting on auth, Keychain, or a broken hook. The
 # dedicated runner keeps its termination grace inside the configured total cap
@@ -1096,7 +1106,7 @@ check_provider_health() {
             ;;
         opencode)
             if ! command -v opencode >/dev/null 2>&1 || ! _octo_opencode_has_saved_login; then
-                echo "opencode: no confirmed login (run: opencode auth login)" >&2
+                _providers_log ERROR "opencode: no confirmed login (run: opencode auth login)"
                 return 1
             fi
             ;;
