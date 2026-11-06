@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.17.0",
-  "description": "v11.17.0 \u2014 Honor document renderers and templates, and review implementation evidence. Run /octo:setup.",
+  "version": "11.17.1",
+  "description": "v11.17.1 \u2014 Recognize Vibe logins and verify current workflow reports. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
