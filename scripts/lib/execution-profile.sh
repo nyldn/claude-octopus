@@ -288,6 +288,7 @@ octopus_normalize_reasoning_level() {
 
 octopus_resolve_reasoning_level() {
   local provider="$1" phase="${2:-}" role="${3:-}" phase_key role_key provider_key name value cfg
+  local agent_type="${4:-$provider}"
   phase_key="$(_octopus_profile_env_key "$phase")"
   role_key="$(_octopus_profile_env_key "$role")"
   provider_key="$(_octopus_profile_env_key "$provider")"
@@ -296,6 +297,15 @@ octopus_resolve_reasoning_level() {
     if [[ -n "$value" ]]; then octopus_normalize_reasoning_level "$value"; return $?; fi
   done
   value="$(_octopus_profile_field "$phase" "$role" reasoning 2>/dev/null || true)"
+  if [[ -z "$value" && "$agent_type" != *:* ]] && declare -F resolve_octopus_model >/dev/null; then
+    cfg="$(_octopus_profile_config_file)"
+    # Only object tiers can supply effort. Query the model resolver rather than
+    # duplicating its model-pin, role, capability, eval and tier precedence.
+    if [[ -f "$cfg" ]] && jq -e --arg p "$provider" \
+        '[.tiers[]?[$p] | objects | .reasoning | strings] | length > 0' "$cfg" >/dev/null 2>&1; then
+      value="$(resolve_octopus_model "$provider" "$agent_type" "$phase" "$role" tier-reasoning)" || return 1
+    fi
+  fi
   if [[ -z "$value" ]]; then
     cfg="$(_octopus_profile_config_file)"
     [[ -f "$cfg" ]] && value=$(jq -r --arg p "$provider" '.providers[$p] | .reasoning_effort // (.reasoning | objects | .default) // empty' "$cfg" 2>/dev/null || true)

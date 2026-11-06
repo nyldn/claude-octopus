@@ -373,7 +373,7 @@ get_agent_command() {
                 model="$(octo_frontier_maybe_escalate codex "$model" "$role" "$agent_type" "$phase" "$prompt_bytes")"
             fi
             local reasoning_level reasoning_policy reasoning_fragment
-            reasoning_level="$(octopus_resolve_reasoning_level codex "$phase" "$role")" || return 1
+            reasoning_level="$(octopus_resolve_reasoning_level codex "$phase" "$role" "$agent_type")" || return 1
             reasoning_policy="$(octopus_resolve_reasoning_policy codex "$phase" "$role")" || return 1
             reasoning_fragment="$(octopus_reasoning_cli_fragment codex "$reasoning_level" "$reasoning_policy")" || return 1
             _build_codex_exec_command "$model" "$sandbox_flag" "$reasoning_fragment"
@@ -410,7 +410,7 @@ get_agent_command() {
             ;;
         claude)
             local reasoning_level reasoning_policy reasoning_fragment
-            reasoning_level="$(octopus_resolve_reasoning_level claude "$phase" "$role")" || return 1
+            reasoning_level="$(octopus_resolve_reasoning_level claude "$phase" "$role" "$agent_type")" || return 1
             reasoning_policy="$(octopus_resolve_reasoning_policy claude "$phase" "$role")" || return 1
             reasoning_fragment="$(_octopus_claude_reasoning_fragment "$reasoning_level" "$reasoning_policy")" || return 1
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
@@ -422,7 +422,7 @@ get_agent_command() {
             echo "${_claude_bin}${_BARE_OPT} --print --model ${model} ${reasoning_fragment} ${claude_perm}" ;;
         claude-sonnet)
             local reasoning_level reasoning_policy reasoning_fragment
-            reasoning_level="$(octopus_resolve_reasoning_level claude "$phase" "$role")" || return 1
+            reasoning_level="$(octopus_resolve_reasoning_level claude "$phase" "$role" "$agent_type")" || return 1
             reasoning_policy="$(octopus_resolve_reasoning_policy claude "$phase" "$role")" || return 1
             reasoning_fragment="$(_octopus_claude_reasoning_fragment "$reasoning_level" "$reasoning_policy")" || return 1
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
@@ -548,7 +548,7 @@ get_agent_command() {
                 return 1
             fi
             local reasoning_level reasoning_policy reasoning_fragment runtime_config base_url api_key_env tool_fragment=""
-            reasoning_level="$(octopus_resolve_reasoning_level openai-compatible-agent "$phase" "$role")" || return 1
+            reasoning_level="$(octopus_resolve_reasoning_level openai-compatible-agent "$phase" "$role" "$agent_type")" || return 1
             reasoning_policy="$(octopus_resolve_reasoning_policy openai-compatible-agent "$phase" "$role")" || return 1
             reasoning_fragment="$(octopus_reasoning_cli_fragment openai-compatible-agent "$reasoning_level" "$reasoning_policy")" || return 1
             runtime_config="$(_octopus_openai_compatible_runtime_config "$agent_type")" || return 1
@@ -796,7 +796,7 @@ get_agent_command() {
             esac
             model="$(get_agent_model "$agent_type" "$phase" "$role")" || return 1
             local api_effort api_thinking
-            api_effort="$(octopus_resolve_reasoning_level anthropic-api "$phase" "$role")" || return 1
+            api_effort="$(octopus_resolve_reasoning_level anthropic-api "$phase" "$role" "$agent_type")" || return 1
             api_effort="${api_effort:-high}"
             api_thinking="${OCTOPUS_ANTHROPIC_API_THINKING:-auto}"
             case "$model" in claude-sonnet-5-5|claude-opus-5-5) ;; *) log ERROR "anthropic-api requires Sonnet 5.5 or Opus 5.5"; return 1 ;; esac

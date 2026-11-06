@@ -1,5 +1,34 @@
 # Frontier Model Routing Strategy
 
+## Reasoning effort by cost tier
+
+In `providers.json`, a tier target can remain a string or use an object with a
+`capability` target and optional `reasoning` value. For example:
+
+```json
+"tiers": {
+  "budget": {
+    "codex": {"capability": "default", "reasoning": "low"},
+    "claude": {"capability": "budget", "reasoning": "medium"}
+  }
+}
+```
+
+The target accepts the same capability or model references as the string form.
+Tier effort overrides `providers.<provider>.reasoning_effort` only when the
+model resolver actually selects that tier. Environment effort and role or phase
+effort take precedence. Model pins, role or phase model routes, capability seats,
+eval routing and allowlist fallbacks keep their existing effort behavior.
+`reasoning: "auto"` leaves effort to the provider. Omitting `reasoning` keeps the
+provider default. Invalid effort values or objects without a capability fail
+before dispatch. The supported effort values and CLI compatibility checks remain
+provider specific, and explicit-only model restrictions still apply.
+
+This affects seats that use the unified model and reasoning resolver, including
+Codex and the generic Claude seat. Dedicated Opus seats retain their separate
+phase effort policy. No default models or effort settings change until an
+operator configures an object tier.
+
 Status: accepted and implemented
 Decision date: 2026-07-27
 Last reviewed: 2026-10-01

@@ -378,12 +378,16 @@ _octo_eval_model_for_class() {
     esac
 }
 
-# resolve_octopus_model <provider> <agent_type> <phase> <role>
+# resolve_octopus_model <provider> <agent_type> <phase> <role> [model|tier-reasoning]
+# The optional query returns effort only when this resolution selected the tier.
+# It bypasses model caches so explicit routes cannot inherit stale tier effort.
 resolve_octopus_model() {
     local provider="$1"
     local agent_type="$2"
     local phase="${3:-}"
     local role="${4:-}"
+    local resolution_field="${5:-model}" tier_reasoning="" tier_model=""
+    case "$resolution_field" in model|tier-reasoning) ;; *) return 1 ;; esac
     local config_file="${OCTOPUS_PROVIDERS_CONFIG:-${HOME}/.claude-octopus/config/providers.json}"
     local resolved_model=""
     local cost_mode routing_policy
@@ -439,7 +443,7 @@ resolve_octopus_model() {
                 return 1
             fi
         fi
-        echo "$env_model"
+        [[ "$resolution_field" != model ]] || echo "$env_model"
         return 0
     fi
 
@@ -465,7 +469,7 @@ resolve_octopus_model() {
     cache_key="MC_${safe_p}_A_${safe_a}_P_${safe_ph}_R_${safe_r}_M_${safe_cm}_RP_${safe_rp}_TC_${safe_tc}_C_${safe_cfg}"
     local cached_val
     eval "cached_val=\"\${_OCTO_MODEL_CACHE_${cache_key}:-}\""
-    if [[ -n "$cached_val" ]]; then
+    if [[ "$resolution_field" == model && -n "$cached_val" ]]; then
         if validate_model_name_for_provider "$canonical_provider" "$cached_val" &&
            _octo_automatic_model_allowed "$cached_val" "$canonical_provider"; then
             echo "$cached_val"
@@ -479,7 +483,7 @@ resolve_octopus_model() {
     # Persistent File Cache (optional, for parallel execution speed).
     # Path comes from lib/model-cache-path.sh so writers and invalidators agree.
     local persistent_cache=""
-    if [[ "${OCTOPUS_MODEL_READ_ONLY:-false}" != "true" ]]; then
+    if [[ "$resolution_field" == model && "${OCTOPUS_MODEL_READ_ONLY:-false}" != "true" ]]; then
         persistent_cache="$(octo_model_cache_file 2>/dev/null)" || persistent_cache=""
     fi
     # v8.49.0: Invalidate cache if config file changed since cache was written
@@ -766,7 +770,22 @@ resolve_octopus_model() {
         # 4. Tier Mapping
         if [[ -z "$resolved_model" || "$resolved_model" == "null" ]]; then
             if [[ -n "$cost_mode" ]]; then
-                resolved_model=$(echo "$config_data" | jq -r --arg mode "$cost_mode" --arg p "$canonical_provider" '.tiers[$mode][$p] // empty' 2>/dev/null)
+                local tier_entry
+                tier_entry=$(echo "$config_data" | jq -c --arg mode "$cost_mode" --arg p "$canonical_provider" '.tiers[$mode][$p] // null' 2>/dev/null)
+                if [[ "$tier_entry" == \{* ]]; then
+                    if ! echo "$tier_entry" | jq -e '
+                        (.capability | type == "string" and length > 0) and
+                        ((has("reasoning") | not) or (.reasoning | type == "string"))
+                    ' >/dev/null; then
+                        log ERROR "Invalid tier profile for $cost_mode/$canonical_provider"
+                        return 1
+                    fi
+                    resolved_model=$(jq -r '.capability' <<< "$tier_entry")
+                    tier_reasoning=$(jq -r '.reasoning // empty' <<< "$tier_entry")
+                    octopus_normalize_reasoning_level "$tier_reasoning" >/dev/null || return 1
+                else
+                    resolved_model=$(jq -r '. // empty' <<< "$tier_entry")
+                fi
                 if [[ -n "$resolved_model" && "$resolved_model" == *:* ]]; then
                     resolved_model="$(_octo_tier_target_model "$canonical_provider" "$resolved_model" 2>/dev/null || true)"
                 fi
@@ -779,7 +798,9 @@ resolve_octopus_model() {
                 if [[ -n "$resolved_model" && "$resolved_model" != "null" ]] && ! _octo_automatic_model_allowed "$resolved_model" "$canonical_provider"; then
                     [[ -n "$_trace" ]] && echo "[model-trace] Tier 5 (cost mode ${cost_mode}): REJECTED explicit-only model $resolved_model" >&2
                     resolved_model=""
+                    tier_reasoning=""
                 fi
+                tier_model="$resolved_model"
                 [[ -n "$_trace" ]] && echo "[model-trace] Tier 5 (cost mode ${cost_mode}): ${resolved_model:-—}" >&2
             fi
         fi
@@ -876,6 +897,16 @@ resolve_octopus_model() {
     if ! validate_model_name_for_provider "$canonical_provider" "$resolved_model"; then
         log ERROR "Invalid resolved model name for $provider/$agent_type"
         return 1
+    fi
+
+    if [[ "$resolution_field" == tier-reasoning ]]; then
+        if declare -F validate_model_allowed >/dev/null &&
+           ! validate_model_allowed "$canonical_provider" "$resolved_model" >/dev/null; then
+            return 0
+        fi
+        # A policy reroute must not borrow the original tier's effort.
+        [[ "$resolved_model" != "$tier_model" ]] || printf '%s\n' "$tier_reasoning"
+        return 0
     fi
 
     # Update memory and persistent cache
