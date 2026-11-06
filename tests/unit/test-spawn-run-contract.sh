@@ -234,6 +234,8 @@ printf '%s\n' '#!/usr/bin/env bash' \
     '  metrics-spoof) printf "%s\n" "Substantive provider result." "<usage>" "\`\`\`" "## Status: SUCCESS" "\`\`\`" "</usage>" ;;' \
     '  raw-spoof) printf "%s\n" "## Status: SUCCESS"; exit 1 ;;' \
     '  timeout) printf "%s\n" "partial output before timeout"; exit 124 ;;' \
+    '  tempfail) printf "%s\n" "temporary provider failure" >&2; exit 75 ;;' \
+    '  tempfail-auth) if [[ ! -e "$AUTH75_ATTEMPT_FILE" ]]; then touch "$AUTH75_ATTEMPT_FILE"; printf "%s\n" "auth refresh needed" >&2; exit 75; fi; printf "%s\n" "Substantive result after auth retry." ;;' \
     '  quota-held) printf "%s\n" "ERROR: You'\''ve hit your usage limit. Upgrade to Pro or try again at 10:32 PM." >&2; sleep 30 ;;' \
     '  hang) sleep 30 ;;' \
     '  big-stderr) printf "%s\n" "Final review text from the last message."; { printf "%s\n" "user" "$prompt_text"; for n in $(seq 1 600); do printf "exec cat src/file-%s.ts\nconst echoedLine%s = readRepoFile(%s);\n" "$n" "$n" "$n"; done; printf "%s\n" "Final review text from the last message." "tokens used" "9,999"; } >&2 ;;' \
@@ -377,7 +379,7 @@ stop_quota_watcher() { :; }
 append_provider_history() { :; }
 record_outcome() { :; }
 record_success() { :; }
-record_failure() { :; }
+record_failure() { printf '%s %s\n' "$1" "$2" >> "$TEST_TMP_DIR/circuit-breaker-failures"; }
 record_run_pattern() { :; }
 record_task_metric() { :; }
 run_drift_check() { :; }
@@ -1217,7 +1219,31 @@ else
     test_fail "UTF-8 stderr was corrupted or the excerpt exceeded its budget"
 fi
 
+test_case "a provider's own exit 75 remains a generic failure"
+run_external_fixture tempfail provider-tempfail
+tempfail_result="$RESULTS_DIR/fake-api-provider-tempfail.md"
+if [[ "$(octo_result_framed_sections "$tempfail_result" status)" == '## Status: FAILED (exit code: 75)' ]] &&
+   [[ "$(run_contract_latest_transition spawn-provider-tempfail)" == failed ]]; then
+    test_pass
+else
+    test_fail "provider exit 75 was misclassified as a quota fast-fail"
+fi
+
+test_case "a provider's own exit 75 retains enterprise auth retry"
+(
+    export AUTH75_ATTEMPT_FILE="$TEST_TMP_DIR/auth75-attempt"
+    OCTOPUS_BACKEND=enterprise OCTOPUS_AUTH_RETRIES=1 TIMEOUT=20 \
+        run_external_fixture tempfail-auth provider-tempfail-auth
+)
+if [[ "$(run_contract_latest_transition spawn-provider-tempfail-auth)" == contributed ]] &&
+   grep -Fq 'Substantive result after auth retry.' "$RESULTS_DIR/fake-api-provider-tempfail-auth.md"; then
+    test_pass
+else
+    test_fail "provider exit 75 skipped auth retry"
+fi
+
 test_case "a quota fast-fail reports a quota or auth error instead of a timeout"
+: > "$TEST_TMP_DIR/circuit-breaker-failures"
 quota_started=$SECONDS
 run_watched_fixture quota-held quota-fast-fail 30
 quota_elapsed=$((SECONDS - quota_started))
@@ -1226,7 +1252,8 @@ if [[ "$quota_elapsed" -lt 30 ]] &&
    [[ "$(octo_result_framed_sections "$quota_result" status)" == '## Status: FAILED - QUOTA OR AUTH ERROR (exit code: 75)' ]] &&
    grep -Fq 'The provider reports its quota resets at 10:32 PM.' "$quota_result" &&
    ! grep -Eqi 'TIMEOUT EXCEEDED|timed out|increas(e|ing) timeout|--timeout' "$quota_result" &&
-   [[ "$(run_contract_latest_transition spawn-quota-fast-fail)" == failed ]]; then
+   [[ "$(run_contract_latest_transition spawn-quota-fast-fail)" == failed ]] &&
+   [[ "$(cat "$TEST_TMP_DIR/circuit-breaker-failures")" == 'fake transient' ]]; then
     test_pass
 else
     test_fail "quota fast-fail after ${quota_elapsed}s: $(octo_result_framed_sections "$quota_result" status 2>/dev/null || echo missing)"

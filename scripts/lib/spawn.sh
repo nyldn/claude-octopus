@@ -1671,7 +1671,7 @@ ${heuristic_ctx}"
             fi
 
             # v8.16: Check if failure is auth-related and retryable
-            if [[ $exit_code -ne 0 ]] && [[ $exit_code -ne 75 ]] && [[ $exit_code -ne 76 ]] && [[ $exit_code -ne 124 ]] && [[ $exit_code -ne 143 ]] && \
+            if [[ $exit_code -ne 0 ]] && [[ -z "$_quota_fast_fail_line" ]] && [[ $exit_code -ne 76 ]] && [[ $exit_code -ne 124 ]] && [[ $exit_code -ne 143 ]] && \
                [[ $auth_attempt -lt $max_auth_retries ]]; then
                 local stderr_content=""
                 [[ -s "$temp_errors" ]] && stderr_content=$(<"$temp_errors")
@@ -1952,7 +1952,7 @@ sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore")
             fi
             record_outcome "$agent_type" "$agent_type" "${task_type:-unknown}" "${phase:-unknown}" "stalled" "$elapsed_ms" 2>/dev/null || true
             type record_failure &>/dev/null && record_failure "$provider_prefix" "transient" 2>/dev/null || true
-        elif [[ $exit_code -eq 75 ]]; then
+        elif [[ $exit_code -eq 75 && -n "$_quota_fast_fail_line" ]]; then
             if [[ -s "$temp_output" ]]; then
                 cat "$temp_output" >> "$result_file"
             elif [[ -s "$raw_output" ]]; then
@@ -2011,6 +2011,7 @@ sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore")
                 echo "## Contract Status: FAILED (persistence error)" >> "$result_file"
             fi
             record_outcome "$agent_type" "$agent_type" "${task_type:-unknown}" "${phase:-unknown}" "fail" "$elapsed_ms" 2>/dev/null || true
+            type record_failure &>/dev/null && record_failure "$provider_prefix" "transient" 2>/dev/null || true
         elif [[ $exit_code -eq 124 ]] || [[ $exit_code -eq 143 ]]; then
             # v7.19.0 P0.2: TIMEOUT - Preserve partial output
             # Process whatever output exists (may be significant partial work)
