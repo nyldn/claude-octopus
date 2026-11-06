@@ -13,8 +13,17 @@ disable-model-invocation: true
 # Slide Deck Generator
 
 Generate slide decks from briefs with optional research, stakeholder red teaming,
-outline approval, and PPTX export. Use `/octo:deck --red-team <brief>` to request
-the stakeholder pass, which makes additional provider calls.
+outline approval, and PPTX export. Invoke the installed `skill-deck` with
+`--red-team <brief>` to request the stakeholder pass, which makes additional
+provider calls. Claude Code users can also use the deck slash command.
+
+## EXECUTION CONTRACT (MANDATORY for --red-team)
+
+When `--red-team` is selected, run the readiness and budget checks below before
+dispatch. Use actual provider artifacts for the objection pass and obtain
+approval of the revised outline before rendering. Without the flag, skip the
+provider pass. Simulating seats, bypassing consent, or claiming a completed pass
+with missing outputs is prohibited.
 
 ## Prerequisites
 
@@ -108,15 +117,34 @@ Build a slide-by-slide outline in markdown format. Structure:
 Without `--red-team`, skip this pass and continue to outline approval. With the
 flag, run it against the draft skeleton before requesting approval or rendering:
 
-1. Load the installed `skill-debate` instructions. Use its readiness and cost
-   preflight, provider allowlist, explicit model/effort choices, and real
-   `orchestrate.sh spawn` dispatch. Run one round with the agreed provider budget.
+1. Load the installed `skill-debate` readiness selector and provider allowlist.
+   Before dispatch, prepare a seat plan with stakeholder, provider/transport,
+   resolved model and effort, estimated input tokens, and an output allowance
+   that includes reasoning tokens. Estimate each seat and the total using the
+   installed `config/model-pricing.tsv` rates for that route. Distinguish API
+   charges, subscription allowances and local compute. Label missing prices or
+   uncertain usage as unknown; never treat them as zero or a guaranteed spend cap.
+   Show the plan and obtain consent to a maximum call count and estimated spend
+   before any provider call. Unknown costs need explicit acceptance or an allowed
+   priced alternative. The flag alone does not approve an unknown budget.
+   Encode explicit model choices as model-qualified advisor IDs such as
+   `codex:<model>` before launch. Pass explicit effort through the documented
+   provider reasoning configuration, such as `OCTOPUS_CODEX_REASONING`, in each
+   dispatch's environment. Check higher-priority phase/role overrides and the
+   resolved command before launch; do not silently replace an explicit choice.
+   If a transport cannot honor a choice, report it and offer a supported choice
+   or continuation without the pass. Keep overrides scoped to those dispatches.
+   Use real `orchestrate.sh spawn` dispatch for one round within the approved
+   call count. No extra calls or retries are authorized by this pass.
    Use at least two seats from different providers; never simulate a
    multi-provider review inside the host model. Fewer than two eligible providers
    means the pass cannot run. Report the shortage and let the user choose to
    continue without red teaming or configure another allowed provider. Do not claim
-   a completed red team. When quorum is available but the seats or budget cannot
-   cover the audience map, ask the user to narrow it or change the budget.
+   a completed red team. Even with one stakeholder, the budget must cover at
+   least two seats from different providers. If it cannot, offer to increase the
+   budget or continue without red teaming; narrowing the map cannot remove this
+   minimum. When quorum and the two-seat budget are available but the remaining
+   audience map exceeds them, ask the user to narrow it or change the budget.
 2. Brief each seat as one stakeholder from the audience map. Give every seat the
    same draft skeleton, governing question or presentation objective, and supplied
    evidence, plus its stakeholder's priority and likely question. Ask for

@@ -178,7 +178,8 @@ class DocumentRendererTest(unittest.TestCase):
                 text = (ROOT / tree / "skill-deck/SKILL.md").read_text()
                 outline = text.split("### Step 3:", 1)[1].split("### Step 4:", 1)[0]
                 red_team = outline.split("#### Optional stakeholder red team", 1)[1]
-                self.assertLess(red_team.index("--red-team"), red_team.index("wireframe gate"))
+                self.assertLess(red_team.index("orchestrate.sh spawn"),
+                                red_team.index("Present the revised outline"))
                 self.assertIn("Without `--red-team`, skip this pass", red_team)
                 self.assertIn("provider allowlist", red_team)
                 self.assertIn("one round", red_team)
@@ -195,6 +196,26 @@ class DocumentRendererTest(unittest.TestCase):
                 self.assertIn("unverified", red_team)
                 self.assertIn("not completed", red_team)
                 self.assertIn("user approves", red_team)
+
+    def test_deck_red_team_checks_costs_and_two_seat_minimum_before_dispatch(self):
+        """A one-stakeholder map cannot authorize an underfunded quorum."""
+        for tree in (".claude/skills", "skills"):
+            with self.subTest(tree=tree):
+                text = (ROOT / tree / "skill-deck/SKILL.md").read_text()
+                gate = " ".join(text.split("#### Optional stakeholder red team", 1)[1].split())
+                for requirement in ("Even with one stakeholder", "at least two seats",
+                                    "increase the budget or continue without red teaming",
+                                    "narrowing the map cannot remove this minimum",
+                                    "config/model-pricing.tsv", "includes reasoning tokens",
+                                    "maximum call count and estimated spend",
+                                    "before any provider call", "Unknown costs need explicit acceptance",
+                                    "codex:<model>", "OCTOPUS_CODEX_REASONING",
+                                    "higher-priority phase/role overrides", "resolved command",
+                                    "cannot honor a choice", "No extra calls or retries"):
+                    self.assertIn(requirement, gate)
+                self.assertLess(gate.index("obtain consent"), gate.index("Use real"))
+                self.assertIn("Invoke the installed `skill-deck`", " ".join(text.split()))
+                self.assertNotIn("Use `/octo:deck --red-team", text)
 
     def test_deck_command_exposes_optional_red_team(self):
         text = (ROOT / "commands/deck.md").read_text()
