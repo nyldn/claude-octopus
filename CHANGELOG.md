@@ -12,9 +12,11 @@
   "x.ts:2 contains the code built as", the span is still the file's code and is
   checked, unless "I" or "we" built it. Quote reports also gain
   `quotes_partial`, which counts fences that verify at the two-thirds
-  threshold, in a cited file or the reviewed diff, but contain a line found
-  nowhere, short lines included. A fence complete in a later cited file is not
-  partial. It does not change the verdict. Optional diff refinement no longer
+  threshold in a cited file or diff side, but lack a complete match in any
+  checked source, short lines included. A complete match in another cited file
+  or diff side clears partial status. An optional diff lookup may time out,
+  so partial status does not prove a line is absent from all evidence. It does
+  not change the verdict. Optional diff refinement no longer
   prevents a later quote from receiving the normal required lookup after a
   timeout. Repeated plain variants reuse their source scans while preserving
   short-elision checks and near-line accounting.

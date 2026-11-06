@@ -3518,6 +3518,8 @@ assert len(fragment_scans) == 2, fragment_scans
 PY_MATCH_CACHE
 then test_pass; else test_fail "matching rescanned plain variants or skipped retained fragments"; fi
 
+# A paragraph break keeps this quote unattributed, so both citations stay
+# in source order. An adjacent label would bind it only to b.ts.
 test_case "a partial blockquote retains a later cited file's near-line match"
 near_root="$TEST_TMP_DIR/later-near"
 mkdir -p "$near_root"
@@ -3526,7 +3528,8 @@ mkdir -p "$near_root"
     printf '%s\n' "$REAL_NEAR" 'return applyTaxes(base, sailing.portFees);'
 } > "$near_root/a.ts"
 printf '%s\n' "$REAL_NEAR" 'return applyTaxes(base, sailing.portFees);' > "$near_root/b.ts"
-r="$(council_response_quote_verification_json "$(_resp "a.ts:1 and b.ts:1 read:
+r="$(council_response_quote_verification_json "$(_resp "a.ts:1 and b.ts:1
+
 > $REAL_NEAR
 > $FAKE
 > return applyTaxes(base, sailing.portFees);
