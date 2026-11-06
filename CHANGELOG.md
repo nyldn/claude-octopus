@@ -2,8 +2,6 @@
 
 ## [Unreleased]
 
-## [11.17.1] - 2026-11-05
-
 ### Fixed
 
 - The agent run summary no longer reports a provider's successful seat as
@@ -15,6 +13,12 @@
   by result file, in the summary, the `agents.json` snapshot and the output
   list. Probe and aggregate summaries count only their own seats, because the
   ledger spans every command in a session.
+  Output claims publish their owner atomically, so an interrupted claim
+  preparation cannot permanently block retries. Live owners keep their outputs.
+
+## [11.17.1] - 2026-11-05
+
+### Fixed
 
 - Vibe setup and readiness now recognize a key stored by `vibe --setup` in
   the OS keyring when Vibe is explicitly selected for a provider check. The
