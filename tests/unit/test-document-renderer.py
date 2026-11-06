@@ -186,6 +186,10 @@ class DocumentRendererTest(unittest.TestCase):
                 self.assertIn("Do not invent a decision", step)
                 self.assertNotIn("[First Content Section]", step)
                 self.assertNotIn("[Agenda / Overview]", step)
+                audience = " ".join(deck.split("**Executives / Board:**", 1)[1]
+                                    .split("**Engineers / Technical:**", 1)[0].split())
+                self.assertIn("For decision briefs, end with the specific decision needed", audience)
+                self.assertIn("For informational briefs, end with the supported conclusion", audience)
 
 
     def test_native_skills_use_the_resolver_and_no_plugin_presence_gate(self):

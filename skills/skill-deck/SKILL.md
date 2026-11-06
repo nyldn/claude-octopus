@@ -189,7 +189,8 @@ Apply these when generating outlines:
 - Lead with business impact and metrics
 - Use "So what?" framing for every slide
 - Include financial implications
-- End with decisions needed
+- For decision briefs, end with the specific decision needed. For informational
+  briefs, end with the supported conclusion and follow-up from Step 3.
 
 **Engineers / Technical:**
 - Include architecture diagrams (describe for slides)
