@@ -3508,6 +3508,63 @@ def match_variant(text, entry):
         return find_lines(hay, starts, line_numbers, pieces[0], following=pieces[1:])
     return []
 
+# Batch small literal-line queries across all quotes. A failure-link trie scans
+# each source once instead of searching a megabyte file for every short line.
+# Long lines and ordered elisions retain their existing matching path.
+plain_needles = {norm(v) for unit in units for line in unit[3] + unit[4]
+                 for v in unescaped([line.strip(), GUTTER.sub("", line).strip()], True)
+                 if 0 < len(norm(v)) <= 64 and not ELLIPSIS.search(norm(v))}
+plain_automaton = None
+plain_hits = {}
+def plain_line_present(needle, hay):
+    global plain_automaton
+    if len(plain_needles) < 64 or needle not in plain_needles:
+        return None
+    if plain_automaton is None:
+        edges, failure, output, words = [{}], [0], [0], {}
+        for word in plain_needles:
+            state = 0
+            for char in word:
+                if char not in edges[state]:
+                    edges[state][char] = len(edges)
+                    edges.append({}); failure.append(0); output.append(0)
+                state = edges[state][char]
+            words[state] = word
+        queue = list(edges[0].values())
+        for state in queue:
+            output[state] = state if state in words else output[failure[state]]
+            for char, child in edges[state].items():
+                fallback = failure[state]
+                while fallback and char not in edges[fallback]:
+                    fallback = failure[fallback]
+                failure[child] = edges[fallback].get(char, 0)
+                queue.append(child)
+        plain_automaton = edges, failure, output, words
+    if hay not in plain_hits:
+        edges, failure, output, words = plain_automaton
+        parent = list(range(len(edges)))
+        def unseen(state):
+            while parent[state] != state:
+                parent[state] = parent[parent[state]]
+                state = parent[state]
+            return state
+        hits, state = set(), 0
+        for char in hay:
+            while state and char not in edges[state]:
+                state = failure[state]
+            state = edges[state].get(char, 0)
+            terminal = unseen(output[state])
+            while terminal:
+                hits.add(words[terminal])
+                # Retire each matched pattern, including suffix patterns, once.
+                # Repeated source text cannot multiply output-processing work.
+                parent[terminal] = unseen(output[failure[terminal]])
+                terminal = parent[terminal]
+            if len(hits) == len(plain_needles):
+                break
+        plain_hits[hay] = hits
+    return needle in plain_hits[hay]
+
 # Presence is independent of source line numbers. Reuse it across quote units
 # without changing which source supplies the near-line report.
 partial_presence = {}
@@ -3532,8 +3589,10 @@ def match_unit(wholes, line_variants, entry, misses=None, short=()):
                     # Partial accounting checks every retained fragment, even
                     # below the specificity floor used by the verdict.
                     pieces = [p for p in ELLIPSIS.split(norm(variant)) if p]
-                    present = (match(variant) if not ELLIPSIS.search(norm(variant)) else
-                               pieces and find_lines(hay, [], [], pieces[0], following=pieces[1:]))
+                    present = plain_line_present(norm(variant), hay)
+                    if present is None:
+                        present = (match(variant) if not ELLIPSIS.search(norm(variant)) else
+                                   pieces and find_lines(hay, [], [], pieces[0], following=pieces[1:]))
                     if present:
                         partial_presence[key] = False
                         break
@@ -3714,7 +3773,7 @@ SOURCE_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|is|defines?|de
 # the code built as `...`"); a first-person subject after it marks the seat's
 # own input ("x.ts:2 reads a row I constructed as `...`").
 OWN_INPUT = re.compile(r"(?:constructed|built|crafted) as", re.I)
-CONTENT_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|defines?|defined|declares?|declared)\b", re.I)
+CONTENT_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|is|defines?|defined|declares?|declared)\b", re.I)
 FIRST_PERSON_SUBJECT = re.compile(
     r"\b(?:I|we)\s+(?:(?:have|had|just|recently|already|carefully|deliberately|"
     r"explicitly|locally|manually|originally|previously)\s+)*$", re.I)

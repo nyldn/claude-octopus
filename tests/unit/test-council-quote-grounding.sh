@@ -3216,6 +3216,18 @@ VERDICT: REVISE")")"
     fi
 done
 
+for copula_subject in 'the code my teammate' 'a row I just'; do
+    test_case "construction attribution after is: $copula_subject"
+    r="$(_report "$(_resp "src/pricing.ts:2 is $copula_subject built as \`$FAKE\` today.
+VERDICT: REVISE")")"
+    if [[ "$copula_subject" == 'a row I just' ]]; then
+        assertion='.quotes_unverifiable_proposed == 1 and .fabricated == false'
+    else
+        assertion='.quotes_attributed_unverified == 1 and .fabricated == true'
+    fi
+    if jq -e "$assertion" <<< "$r" >/dev/null; then test_pass; else test_fail "copula lost builder ownership: $r"; fi
+done
+
 for earlier_proposal in 'A test input I built as a long row exercises the parser.' 'I suggest checking a long input.'; do
     test_case "earlier proposal sentences cannot hide a current source claim: $earlier_proposal"
     r="$(_report "$(_resp "src/pricing.ts:2: $earlier_proposal The file contains \`$FAKE\` today.
@@ -3379,7 +3391,7 @@ PY_REPEATED_CONSTRUCTION
     fi
 done
 
-for short_pattern in repeated distinct; do
+for short_pattern in repeated distinct present-reversed embedded-reversed; do
 test_case "$short_pattern short fence lines do not multiply full-file partial scans"
 large_partial_response="$TEST_TMP_DIR/large-partial.md"
 python3 - "$ROOT/src/large-partial.ts" "$large_partial_response" "$REAL_NEAR" "$short_pattern" <<'PY_LARGE_PARTIAL'
@@ -3387,14 +3399,20 @@ import sys
 from pathlib import Path
 first = sys.argv[3]
 last = 'return applyTaxes(base, sailing.portFees);'
-Path(sys.argv[1]).write_text(first + '\n' + last + '\n' + 'x' * 1400000)
 short = ('return true;\n' * 60000 if sys.argv[4] == 'repeated' else
          ''.join('return a%05d;\n' % i for i in range(60000)))
+source_short = short if sys.argv[4] == 'present-reversed' else (short.replace('\n', ' ') if sys.argv[4] == 'embedded-reversed' else '')
+source = first + '\n' + source_short + last + '\n'
+Path(sys.argv[1]).write_text(source + 'x' * (1400097 - len(source)))
+if sys.argv[4] in {'present-reversed', 'embedded-reversed'}:
+    short = '\n'.join(reversed(short.splitlines())) + '\n'
 Path(sys.argv[2]).write_text('src/large-partial.ts:1 reads:\n```ts\n' + first + '\n' +
                             short + last + '\n```\nVERDICT: APPROVE\n')
 PY_LARGE_PARTIAL
 r="$(_report "$large_partial_response")"
-if jq -e '.verification_failed == false and .quotes_verified == 1 and .quotes_partial == 1
+expected_partial=1
+[[ "$short_pattern" == *reversed ]] && expected_partial=0
+if jq -e --argjson partial "$expected_partial" '.verification_failed == false and .quotes_verified == 1 and .quotes_partial == $partial
     and .fabricated == false' <<< "$r" >/dev/null; then
     test_pass
 else
@@ -3478,6 +3496,27 @@ $later_text")"
     fi
 done
 
+# Compare the batch index to literal substring membership, including nested
+# suffix patterns and absent patterns amid highly repeated evidence.
+test_case "batched literal presence preserves substring and suffix matches"
+if python3 - "$PROJECT_ROOT/scripts/lib/council.sh" <<'PY_BATCH_PRESENCE'
+import random
+import sys
+from pathlib import Path
+source = Path(sys.argv[1]).read_text()
+function = 'def plain_line_present(' + source.split('\ndef plain_line_present(', 1)[1].split('\n# Presence is independent', 1)[0]
+rng = random.Random(1260)
+needles = {'a' * size for size in range(1, 65)} | {'absent-pattern', 'he', 'she', 'hers', 'his', '|', 'μg'}
+needles.update(''.join(rng.choices('abcd', k=8)) for _ in range(80))
+scope = dict(plain_needles=needles, plain_automaton=None, plain_hits={})
+exec(compile(function, str(sys.argv[1]), 'exec'), scope)
+for hay in ['ushers his μg | ' + 'a' * 100000, ''.join(rng.choices('abcd', k=10000)), 'nothing matches']:
+    for needle in needles:
+        assert scope['plain_line_present'](needle, hay) == (needle in hay), (needle, hay[:80])
+assert scope['plain_line_present']('not indexed', 'anything') is None
+PY_BATCH_PRESENCE
+then test_pass; else test_fail "batch index changed literal substring matching"; fi
+
 # Count scans rather than relying on host timing for the non-fence hot path.
 test_case "partial matching reuses plain-variant scans without weakening elisions"
 if python3 - "$PROJECT_ROOT/scripts/lib/council.sh" <<'PY_MATCH_CACHE'
@@ -3503,6 +3542,7 @@ def find_lines(hay, starts, numbers, first, following):
         end = at + len(piece)
     return [1]
 scope = dict(match_variant=match_variant, find_lines=find_lines, partial_presence={},
+             plain_line_present=lambda needle, hay: None,
              norm=lambda text: ' '.join(text.split()), ELLIPSIS=re.compile(r'\.\.\.|…'))
 exec(compile(function, str(sys.argv[1]), 'exec'), scope)
 known = 'const actual = loadActualPrice(input);'

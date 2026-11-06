@@ -20,8 +20,9 @@
   time out, so partial status does not prove a line is absent from all evidence.
   It does not change the verdict. Optional diff refinement no longer
   prevents a later quote from receiving the normal required lookup after a
-  timeout. Partial accounting stops at its first missing line and reuses
-  retained-fragment checks across quotes, preserving near-line accounting.
+  timeout. Partial accounting stops at its first missing line, batches short
+  literal matches into one source scan and reuses retained-fragment checks
+  across quotes, preserving near-line accounting.
   First-person builders also recognize modifiers such as "I just built as"
   without excusing code attributed to someone else.
 
