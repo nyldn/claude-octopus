@@ -311,7 +311,7 @@ octopus_resolve_reasoning_level() {
     # Query the model resolver to preserve model-pin, role, capability, eval
     # and tier precedence, including routes that bypass the malformed tier.
     if [[ -f "$cfg" ]] && jq -e --arg p "$model_provider" \
-        '[.tiers[]?[$p] | objects] | length > 0' "$cfg" >/dev/null 2>&1; then
+        '[.tiers[]? | objects | .[$p] | objects] | length > 0' "$cfg" >/dev/null 2>&1; then
       value="$(resolve_octopus_model "$model_provider" "$agent_type" "$phase" "$role" tier-reasoning "$dispatch_model")" || return 1
     fi
   fi

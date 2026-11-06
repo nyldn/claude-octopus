@@ -150,6 +150,13 @@ done
 configure
 edit_config '.tiers.standard.codex = {capability:"default",reasoning:"medium"} | .tiers.budget.codex.reasoning = 7'
 expect "an active object tier ignores a malformed inactive tier" "$(OCTOPUS_COST_MODE=standard octopus_resolve_reasoning_level codex)" medium
+for inactive_mode in '"invalid"' '[]' false 7 null; do
+    configure
+    edit_config ".tiers.unused = $inactive_mode"
+    expect "inactive mode $inactive_mode cannot suppress active tier effort" "$(octopus_resolve_reasoning_level codex)" low
+    command_line="$(get_agent_command codex develop implementer)" || command_line=dispatch-failed
+    expect "dispatch preserves active effort beside inactive mode $inactive_mode" "$([[ "$command_line" == *'model_reasoning_effort="low"'* ]] && echo yes || echo no)" yes
+done
 configure
 edit_config '.providers["anthropic-api"] = {default:"claude-sonnet-5-5",reasoning_effort:"high"} | .tiers.budget["anthropic-api"] = {capability:"default",reasoning:"auto"}'
 command_line="$(get_agent_command anthropic-api probe researcher)" || command_line=dispatch-failed
