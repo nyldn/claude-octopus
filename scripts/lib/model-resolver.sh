@@ -378,15 +378,17 @@ _octo_eval_model_for_class() {
     esac
 }
 
-# resolve_octopus_model <provider> <agent_type> <phase> <role> [model|tier-reasoning]
+# resolve_octopus_model <provider> <agent_type> <phase> <role> [model|tier-reasoning] [dispatch-model]
 # The optional query returns effort only when this resolution selected the tier.
 # It bypasses model caches so explicit routes cannot inherit stale tier effort.
+# A dispatch-model argument also excludes later replacements such as frontier escalation.
 resolve_octopus_model() {
     local provider="$1"
     local agent_type="$2"
     local phase="${3:-}"
     local role="${4:-}"
     local resolution_field="${5:-model}" tier_reasoning="" tier_model=""
+    local dispatch_model="${6:-}"
     case "$resolution_field" in model|tier-reasoning) ;; *) return 1 ;; esac
     local config_file="${OCTOPUS_PROVIDERS_CONFIG:-${HOME}/.claude-octopus/config/providers.json}"
     local resolved_model=""
@@ -900,6 +902,7 @@ resolve_octopus_model() {
     fi
 
     if [[ "$resolution_field" == tier-reasoning ]]; then
+        [[ -z "$dispatch_model" || "$resolved_model" == "$dispatch_model" ]] || return 0
         if declare -F validate_model_allowed >/dev/null &&
            ! validate_model_allowed "$canonical_provider" "$resolved_model" >/dev/null; then
             return 0

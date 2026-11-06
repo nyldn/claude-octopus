@@ -18,7 +18,8 @@ The target accepts the same capability or model references as the string form.
 Tier effort overrides `providers.<provider>.reasoning_effort` only when the
 model resolver actually selects that tier. Environment effort and role or phase
 effort take precedence. Model pins, role or phase model routes, capability seats,
-eval routing and allowlist fallbacks keep their existing effort behavior.
+eval routing, frontier replacements and allowlist fallbacks keep their existing
+effort behavior.
 `reasoning: "auto"` leaves effort to the provider. Omitting `reasoning` keeps the
 provider default. Invalid effort values or objects without a capability fail
 before dispatch. The supported effort values and CLI compatibility checks remain

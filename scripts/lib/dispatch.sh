@@ -373,7 +373,7 @@ get_agent_command() {
                 model="$(octo_frontier_maybe_escalate codex "$model" "$role" "$agent_type" "$phase" "$prompt_bytes")"
             fi
             local reasoning_level reasoning_policy reasoning_fragment
-            reasoning_level="$(octopus_resolve_reasoning_level codex "$phase" "$role" "$agent_type")" || return 1
+            reasoning_level="$(octopus_resolve_reasoning_level codex "$phase" "$role" "$agent_type" "$model")" || return 1
             reasoning_policy="$(octopus_resolve_reasoning_policy codex "$phase" "$role")" || return 1
             reasoning_fragment="$(octopus_reasoning_cli_fragment codex "$reasoning_level" "$reasoning_policy")" || return 1
             _build_codex_exec_command "$model" "$sandbox_flag" "$reasoning_fragment"

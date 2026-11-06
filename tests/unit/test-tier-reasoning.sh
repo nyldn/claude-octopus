@@ -69,4 +69,14 @@ expect "an allowlist fallback does not inherit tier effort" "$(OCTOPUS_CODEX_ALL
 edit_config '.tiers.budget.codex = {reasoning:"low"}'
 test_case "missing capability fails closed"
 if resolve_octopus_model codex codex >/dev/null 2>&1; then test_fail "missing capability admitted"; else test_pass; fi
+configure
+edit_config '.cost_mode = "premium" | .tiers.premium.codex = {capability:"default",reasoning:"low"} | .routing.frontier.codex = {model:"gpt-6-astra",mode:"bounded"}'
+export OCTOPUS_MAX_COST_USD=10 OCTOPUS_DISPATCH_PREVIEW=true
+octo_codex_installed_version() { echo 0.153.3; }
+command_line="$(get_agent_command codex define architect 4000)"
+expect "frontier replacement keeps provider effort instead of discarded tier effort" "$([[ "$command_line" == *'--model gpt-6-astra'* && "$command_line" == *'model_reasoning_effort="high"'* ]] && echo yes || echo no)" yes
+command_line="$(OCTOPUS_CODEX_REASONING=medium get_agent_command codex define architect 4000)"
+expect "frontier replacement still honors explicit effort" "$([[ "$command_line" == *'--model gpt-6-astra'* && "$command_line" == *'model_reasoning_effort="medium"'* ]] && echo yes || echo no)" yes
+command_line="$(get_agent_command codex define implementer 4000)"
+expect "a non-escalated tier retains its effort" "$([[ "$command_line" == *'--model gpt-5.6-sol'* && "$command_line" == *'model_reasoning_effort="low"'* ]] && echo yes || echo no)" yes
 test_summary
