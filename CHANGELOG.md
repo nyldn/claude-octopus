@@ -7,6 +7,8 @@
 - Quota fast-fails preserve a provider's own temporary-failure status and auth
   retry behavior. Quota stops update the provider circuit breaker, and persisted
   cooldown timestamps correctly block repeat dispatch until their deadline.
+- Direct spawns respect terminal quota and auth markers even when no transient
+  cooldown is active. Provider reset hints remain inside untrusted result frames.
 
 ## [11.17.1] - 2026-11-05
 

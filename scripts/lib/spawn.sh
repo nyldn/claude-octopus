@@ -1148,6 +1148,18 @@ ${heuristic_ctx}"
         return 1
     fi
 
+    # Terminal auth errors do not open the transient circuit breaker. Honor
+    # the watcher's shared marker on direct spawns as well as workflow routes.
+    local quota_provider
+    quota_provider="$(octo_provider_canonical "$provider_prefix" 2>/dev/null || printf '%s' "$provider_prefix")"
+    if declare -f octo_quota_is_dead >/dev/null 2>&1 && octo_quota_is_dead "$quota_provider"; then
+        log "WARN" "Quota or auth failure for $quota_provider; skipping $agent_type"
+        record_outcome "$provider_prefix" "$agent_type" "skipped" "${phase:-unknown}" "quota_dead" "0" 2>/dev/null || true
+        octo_spawn_contract_finish "$_contract_seat_id" skipped "" "" \
+            "Provider is quota or auth dead" 1 "" >/dev/null 2>&1 || true
+        return 1
+    fi
+
     # oco-aek: provider selected for dispatch (circuit closed). Opt-in event.
     declare -f octo_event_emit >/dev/null 2>&1 && octo_event_emit "provider.selected" provider="$provider_prefix" provider_label_kind="legacy-alias" executor_alias="$agent_type" configured_provider="$(octo_provider_identity_from_agent_type "${agent_type:-unknown}")" configured_model="$(get_agent_model "$agent_type" "${phase:-}" "${role:-}" 2>/dev/null || echo unresolved)" runtime_provider="unknown" runtime_model="unknown" agent_type="$agent_type" role="${role:-none}" phase="${phase:-unknown}" || true
 
@@ -1975,21 +1987,23 @@ sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore")
             echo "## Status: FAILED - QUOTA OR AUTH ERROR (exit code: 75)" >> "$result_file"
             echo "" >> "$result_file"
             echo "Stopped after $((elapsed_ms / 1000))s: the provider reported a terminal quota or auth error." >> "$result_file"
-            if [[ -n "$_quota_reset" ]]; then
-                echo "The provider reports its quota resets ${_quota_reset}." >> "$result_file"
-            fi
             echo "" >> "$result_file"
             echo "**Recommendations**:" >> "$result_file"
             echo "- Retry after the provider's quota resets, or route this task to another provider" >> "$result_file"
             echo "- If the provider reported an auth failure, check its login and plan" >> "$result_file"
-            if [[ -s "$temp_errors" ]]; then
+            if [[ -s "$temp_errors" || -n "$_quota_reset" ]]; then
                 echo "" >> "$result_file"
                 echo "## Error Log" >> "$result_file"
                 if [[ -n "$_untrusted_nonce" ]]; then
                     echo "<!-- BEGIN-UNTRUSTED:provider=${agent_type}:stream=stderr:nonce=${_untrusted_nonce} -->" >> "$result_file"
                 fi
                 echo '```' >> "$result_file"
-                cat "$temp_errors" >> "$result_file"
+                [[ ! -s "$temp_errors" ]] || cat "$temp_errors" >> "$result_file"
+                # Reset hints are provider text, including when sanitized for
+                # display. Keep them within the nonce-bound untrusted frame.
+                if [[ -n "$_quota_reset" ]]; then
+                    printf '\nThe provider reports its quota resets %s.\n' "$_quota_reset" >> "$result_file"
+                fi
                 echo '```' >> "$result_file"
                 if [[ -n "$_untrusted_nonce" ]]; then
                     echo "<!-- END-UNTRUSTED:provider=${agent_type}:stream=stderr:nonce=${_untrusted_nonce} -->" >> "$result_file"
