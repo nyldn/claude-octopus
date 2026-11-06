@@ -10,6 +10,7 @@ descendants have exited. A claim whose owner lock can be taken is stale.
 import fcntl
 import os
 import sys
+import tempfile
 
 OWNER_RECORD = "owner"
 OWNER_LOCK_PREFIX = ".parallel-owner."
@@ -63,31 +64,25 @@ def acquire(claim, owner_lock):
     owner_lock = os.path.abspath(owner_lock)
     with open(os.path.join(os.path.dirname(claim), GUARD), "a", encoding="utf-8") as guard:
         fcntl.flock(guard, fcntl.LOCK_EX)
-        outcome = ACQUIRED
-        try:
-            os.mkdir(claim, 0o700)
-        except FileExistsError:
-            stale_lock = recorded_owner_lock(claim)
-            if stale_lock is None or not owner_has_exited(stale_lock):
-                return OWNED
-            try:
-                if os.listdir(claim) != [OWNER_RECORD]:
+        # Publish only a complete owner record. A killed preparer can leave a
+        # private directory, but cannot strand an ownerless claim at this path.
+        with tempfile.TemporaryDirectory(prefix=".output-claim.", dir=os.path.dirname(claim)) as prepared:
+            record_owner(prepared, owner_lock)
+            outcome = ACQUIRED
+            if os.path.lexists(claim):
+                stale_lock = recorded_owner_lock(claim)
+                if stale_lock is None or not owner_has_exited(stale_lock):
                     return OWNED
-                os.unlink(os.path.join(claim, OWNER_RECORD))
-                os.rmdir(claim)
-                os.mkdir(claim, 0o700)
-            except OSError:
-                return OWNED
-            outcome = RECLAIMED
-        try:
-            record_owner(claim, owner_lock)
-        except OSError:
-            try:
-                os.rmdir(claim)
-            except OSError:
-                pass
-            raise
-        return outcome
+                try:
+                    if os.listdir(claim) != [OWNER_RECORD]:
+                        return OWNED
+                    os.unlink(os.path.join(claim, OWNER_RECORD))
+                    os.rmdir(claim)
+                except OSError:
+                    return OWNED
+                outcome = RECLAIMED
+            os.rename(prepared, claim)
+            return outcome
 
 
 def main():

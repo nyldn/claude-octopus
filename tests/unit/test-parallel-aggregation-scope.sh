@@ -240,4 +240,41 @@ parallel_execute "$TEST_TMP_DIR/tasks.json" > "$TEST_TMP_DIR/parallel-retry.log"
 if [[ "$rc" == 1 && -f "$TEST_TMP_DIR/retry-cleared" ]]; then test_pass
 else test_fail "retry dispatched with its previous completion marker"; fi
 
+for checkpoint in before-record after-record; do
+    test_case "SIGKILL $checkpoint cannot publish an ownerless output claim"
+    if python3 - "${AGGREGATION_LIB_ROOT:-$PROJECT_ROOT}/scripts/helpers/output-claim.py" "$TEST_TMP_DIR" "$checkpoint" <<'PY'
+import pathlib
+import signal
+import subprocess
+import sys
+
+helper, root, checkpoint = sys.argv[1:]
+root = pathlib.Path(root)
+claim = root / (".interrupted-" + checkpoint + ".claim")
+owner = root / (".parallel-owner." + checkpoint)
+owner.touch()
+code = """
+import importlib.util, os, signal, sys
+spec = importlib.util.spec_from_file_location('claim', sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+original = module.record_owner
+def interrupted(*args):
+    if sys.argv[4] == 'after-record':
+        original(*args)
+    os.kill(os.getpid(), signal.SIGKILL)
+module.record_owner = interrupted
+module.acquire(sys.argv[2], sys.argv[3])
+"""
+killed = subprocess.run([sys.executable, "-c", code, helper, str(claim), str(owner), checkpoint], timeout=5)
+assert killed.returncode == -signal.SIGKILL, killed.returncode
+assert not claim.exists(), "interrupted preparation published a claim"
+retry = subprocess.run([sys.executable, helper, "acquire", str(claim), str(owner)], timeout=5)
+assert retry.returncode == 0, retry.returncode
+assert (claim / "owner").read_text().strip() == str(owner)
+PY
+    then test_pass
+    else test_fail "interrupted claim preparation blocked a retry"; fi
+done
+
 test_summary
