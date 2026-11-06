@@ -1253,7 +1253,7 @@ if [[ "$quota_elapsed" -lt 30 ]] &&
    grep -Fq 'The provider reports its quota resets at 10:32 PM.' "$quota_result" &&
    ! grep -Eqi 'TIMEOUT EXCEEDED|timed out|increas(e|ing) timeout|--timeout' "$quota_result" &&
    [[ "$(run_contract_latest_transition spawn-quota-fast-fail)" == failed ]] &&
-   [[ "$(cat "$TEST_TMP_DIR/circuit-breaker-failures")" == 'fake transient' ]]; then
+   [[ "$(cat "$TEST_TMP_DIR/circuit-breaker-failures")" == 'fake-api transient' ]]; then
     test_pass
 else
     test_fail "quota fast-fail after ${quota_elapsed}s: $(octo_result_framed_sections "$quota_result" status 2>/dev/null || echo missing)"
