@@ -13,13 +13,17 @@
   checked, unless "I" or "we" built it. Quote reports also gain
   `quotes_partial`, which counts fences that verify at the two-thirds
   threshold in a cited file or diff side, but lack a complete match in any
-  checked source, short lines included. A complete match in another cited file
-  or diff side clears partial status. An optional diff lookup may time out,
-  so partial status does not prove a line is absent from all evidence. It does
-  not change the verdict. Optional diff refinement no longer
+  checked source, short lines included. Lines can match separately and out of
+  order. Mixed diff fences check the removed portion against the removed side
+  and the kept portion against a cited file or the added side. A complete
+  match clears partial status for that portion. An optional diff lookup may
+  time out, so partial status does not prove a line is absent from all evidence.
+  It does not change the verdict. Optional diff refinement no longer
   prevents a later quote from receiving the normal required lookup after a
-  timeout. Repeated plain variants reuse their source scans while preserving
-  short-elision checks and near-line accounting.
+  timeout. Partial accounting stops at its first missing line and reuses
+  retained-fragment checks across quotes, preserving near-line accounting.
+  First-person builders also recognize modifiers such as "I just built as"
+  without excusing code attributed to someone else.
 
 ## [11.17.1] - 2026-11-05
 

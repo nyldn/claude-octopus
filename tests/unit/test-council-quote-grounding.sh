@@ -3194,7 +3194,7 @@ done
 # End contribution report admission controls.
 
 # PR #1237: an unrelated first-person pronoun does not own a construction.
-for builder in "I reviewed that my teammate built as" "my teammate's code built as" "we reviewed code crafted as" "the row from my.module built as" "the row (important!) built as"; do
+for builder in "I reviewed that my teammate built as" "my teammate's code built as" "we reviewed code crafted as" "the row from my.module built as" "the row (important!) built as" "I just reviewed code my teammate built as" "we have reviewed code crafted as"; do
     test_case "construction ownership requires the builder as subject: $builder"
     r="$(_report "$(_resp "src/pricing.ts:2 contains code $builder \`$FAKE\` today.
 VERDICT: REVISE")")"
@@ -3205,7 +3205,7 @@ VERDICT: REVISE")")"
     fi
 done
 
-for own_input in 'the current code. An input built as' 'the current code; an input built as' 'a row I constructed as' 'a row we built as'; do
+for own_input in 'the current code. An input built as' 'the current code; an input built as' 'a row I constructed as' 'a row we built as' 'a row I just built as' 'a row we have crafted as' 'a row I had carefully constructed as'; do
     test_case "new clauses and direct builders retain proposed input: $own_input"
     r="$(_report "$(_resp "src/pricing.ts:2 contains $own_input \`$FAKE\` for this test.
 VERDICT: REVISE")")"
@@ -3379,24 +3379,28 @@ PY_REPEATED_CONSTRUCTION
     fi
 done
 
-test_case "repeated short fence lines do not multiply full-file partial scans"
+for short_pattern in repeated distinct; do
+test_case "$short_pattern short fence lines do not multiply full-file partial scans"
 large_partial_response="$TEST_TMP_DIR/large-partial.md"
-python3 - "$ROOT/src/large-partial.ts" "$large_partial_response" "$REAL_NEAR" <<'PY_LARGE_PARTIAL'
+python3 - "$ROOT/src/large-partial.ts" "$large_partial_response" "$REAL_NEAR" "$short_pattern" <<'PY_LARGE_PARTIAL'
 import sys
 from pathlib import Path
 first = sys.argv[3]
 last = 'return applyTaxes(base, sailing.portFees);'
 Path(sys.argv[1]).write_text(first + '\n' + last + '\n' + 'x' * 1400000)
+short = ('return true;\n' * 60000 if sys.argv[4] == 'repeated' else
+         ''.join('return a%05d;\n' % i for i in range(60000)))
 Path(sys.argv[2]).write_text('src/large-partial.ts:1 reads:\n```ts\n' + first + '\n' +
-                            'return true;\n' * 60000 + last + '\n```\nVERDICT: APPROVE\n')
+                            short + last + '\n```\nVERDICT: APPROVE\n')
 PY_LARGE_PARTIAL
 r="$(_report "$large_partial_response")"
 if jq -e '.verification_failed == false and .quotes_verified == 1 and .quotes_partial == 1
     and .fabricated == false' <<< "$r" >/dev/null; then
     test_pass
 else
-    test_fail "repeated short lines exhausted partial accounting: $r"
+    test_fail "$short_pattern short lines exhausted partial accounting: $r"
 fi
+done
 
 # Optional diff lookup must not exhaust source-verified report generation.
 slow_partial_bin="$TEST_TMP_DIR/slow-partial-bin"
@@ -3498,7 +3502,7 @@ def find_lines(hay, starts, numbers, first, following):
             return []
         end = at + len(piece)
     return [1]
-scope = dict(match_variant=match_variant, find_lines=find_lines,
+scope = dict(match_variant=match_variant, find_lines=find_lines, partial_presence={},
              norm=lambda text: ' '.join(text.split()), ELLIPSIS=re.compile(r'\.\.\.|…'))
 exec(compile(function, str(sys.argv[1]), 'exec'), scope)
 known = 'const actual = loadActualPrice(input);'
@@ -3515,6 +3519,18 @@ for variant, expected in [('const ...Price(input);', 0), ('wrong ...Price(input)
     assert scope['match_unit']([variant], [[variant]], entry, misses) == [1]
     assert misses == [expected], (variant, misses)
 assert len(fragment_scans) == 2, fragment_scans
+# Repeated non-fence units reuse presence checks, retaining partial status.
+for variant, expected in [('const ...Price(input);', 0), ('wrong ...Price(input);', 1)]:
+    misses = []
+    assert scope['match_unit']([variant], [[variant]], entry, misses) == [1]
+    assert misses == [expected], (variant, misses)
+assert len(fragment_scans) == 2, fragment_scans
+# A boolean partial result must stop at the first distinct missing short line.
+misses = []
+assert scope['match_unit']([], [[known], [known]], entry, misses,
+    [[missing], ['return another;']]) == [1]
+assert misses == [1], misses
+assert 'return another;' not in calls, calls
 PY_MATCH_CACHE
 then test_pass; else test_fail "matching rescanned plain variants or skipped retained fragments"; fi
 

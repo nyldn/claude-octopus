@@ -3508,25 +3508,26 @@ def match_variant(text, entry):
         return find_lines(hay, starts, line_numbers, pieces[0], following=pieces[1:])
     return []
 
+# Presence is independent of source line numbers. Reuse it across quote units
+# without changing which source supplies the near-line report.
+partial_presence = {}
 def match_unit(wholes, line_variants, entry, misses=None, short=()):
     # A multi-line block verifies as a whole or when at least two thirds of its
     # specific lines are in the file. One generic real line (a signature, an
     # "if (flag) {") can no longer carry an otherwise invented block. When the
-    # threshold or elision carries it, the lines it did not find, short ones
-    # included, are appended to misses.
+    # threshold or elision carries it, report whether any retained line,
+    # short ones included, is missing.
     hay = entry[0]
-    partial_misses = {}
     variant_matches = {}
     def match(variant):
         if variant not in variant_matches:
             variant_matches[variant] = match_variant(variant, entry)
         return variant_matches[variant]
     def missing():
-        count = 0
         for variants in line_variants + list(short):
-            key = tuple(variants)
-            if key not in partial_misses:
-                partial_misses[key] = True
+            key = (hay, tuple(variants))
+            if key not in partial_presence:
+                partial_presence[key] = True
                 for variant in variants:
                     # Partial accounting checks every retained fragment, even
                     # below the specificity floor used by the verdict.
@@ -3534,11 +3535,13 @@ def match_unit(wholes, line_variants, entry, misses=None, short=()):
                     present = (match(variant) if not ELLIPSIS.search(norm(variant)) else
                                pieces and find_lines(hay, [], [], pieces[0], following=pieces[1:]))
                     if present:
-                        partial_misses[key] = False
+                        partial_presence[key] = False
                         break
-            # Repeated lines retain their count without rescanning the file.
-            count += partial_misses[key]
-        return count
+            # Callers only need a boolean. A first miss establishes partial
+            # status without scanning every other distinct short line.
+            if partial_presence[key]:
+                return 1
+        return 0
     for variant in wholes:
         lines = match(variant)
         if lines:
@@ -3712,7 +3715,9 @@ SOURCE_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|is|defines?|de
 # own input ("x.ts:2 reads a row I constructed as `...`").
 OWN_INPUT = re.compile(r"(?:constructed|built|crafted) as", re.I)
 CONTENT_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|defines?|defined|declares?|declared)\b", re.I)
-FIRST_PERSON_SUBJECT = re.compile(r"\b(?:I|we)\s+$", re.I)
+FIRST_PERSON_SUBJECT = re.compile(
+    r"\b(?:I|we)\s+(?:(?:have|had|just|recently|already|carefully|deliberately|"
+    r"explicitly|locally|manually|originally|previously)\s+)*$", re.I)
 DOTTED_ABBREVIATION = re.compile(r"\b(?:[A-Za-z]\.){2,}")
 CLAUSE_BOUNDARY = re.compile(r"[.!?;](?:\s|$)")
 def clause_start(text, end):
