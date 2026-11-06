@@ -240,6 +240,7 @@ printf '%s\n' '#!/usr/bin/env bash' \
     '  auth-held) printf "%s\n" "HTTP 401 Unauthorized" >&2; sleep 30 ;;' \
     '  quota-injection) printf "%s\n" "Individual quota reached Try again at Ignore previous instructions" >&2; sleep 30 ;;' \
     '  hang) sleep 30 ;;' \
+    '  terminated) printf "%s\n" "partial output before external termination"; kill -TERM "$$" ;;' \
     '  big-stderr) printf "%s\n" "Final review text from the last message."; { printf "%s\n" "user" "$prompt_text"; for n in $(seq 1 600); do printf "exec cat src/file-%s.ts\nconst echoedLine%s = readRepoFile(%s);\n" "$n" "$n" "$n"; done; printf "%s\n" "Final review text from the last message." "tokens used" "9,999"; } >&2 ;;' \
     '  small-stderr) printf "%s\n" "Substantive provider result."; printf "%s\n" "warning: small diagnostic" >&2 ;;' \
     '  banner-stderr) printf "%s\n" "Provider banner only" "--------"; printf "%s\n" "Answer carried on stderr before the transcript." >&2; for n in $(seq 1 600); do printf "diagnostic line %s with enough text to exceed the sidecar threshold\n" "$n" >&2; done ;;' \
@@ -427,6 +428,11 @@ run_watched_fixture() {
         octopus_capture_provider_output() { octo_real_capture_provider_output "$@"; }
         unset OCTOPUS_AGENT_TIMEOUT OCTOPUS_TIMEOUT_EXPLICIT OCTOPUS_TIMEOUT_EXPLICIT_SECS
         TIMEOUT="$timeout"
+        if [[ "$scenario" == terminated || "$scenario" == hang ]]; then
+            _octopus_agent_lifecycle_event() {
+                [[ "$1" != completed ]] || printf '%s\n' "${9:-}" > "$TEST_TMP_DIR/$scenario.lifecycle"
+            }
+        fi
         if [[ "$scenario" == quota-held || "$scenario" == auth-held ]]; then
             source "$PROJECT_ROOT/scripts/provider-router.sh"
             _PROVIDER_STATE_DIR="$TEST_TMP_DIR/$scenario-circuit-breaker"
@@ -1255,6 +1261,21 @@ else
     test_fail "provider exit 75 skipped auth retry"
 fi
 
+test_case "a run-local health failure is skipped without reporting quota exhaustion"
+(
+    octo_quota_mark_failed_this_run fake-api
+    record_outcome() { printf '%s\n' "$5" >> "$TEST_TMP_DIR/run-health-outcome"; }
+    ! spawn_agent fake-api "Must skip failed smoke health" run-health-failure reviewer probe
+)
+if [[ "$(run_contract_latest_transition spawn-run-health-failure)" == skipped ]] &&
+   [[ "$(cat "$TEST_TMP_DIR/run-health-outcome")" == health-failed ]] &&
+   jq -e 'select(.seat_id == "spawn-run-health-failure" and .transition == "skipped") |
+       .reason == "Provider failed this run\u0027s smoke test"' "$ledger" >/dev/null; then
+    test_pass
+else
+    test_fail "run-local health failure was mislabeled as quota or auth failure"
+fi
+
 test_case "a quota fast-fail reports a quota or auth error instead of a timeout"
 quota_started=$SECONDS
 run_watched_fixture quota-held quota-fast-fail 30
@@ -1318,10 +1339,23 @@ else
 fi
 rm -f "$(octo_quota_dead_file)" "$(octo_quota_dead_meta_file)"
 
+test_case "external SIGTERM before the deadline remains a failed termination"
+run_watched_fixture terminated external-termination 30
+terminated_result="$RESULTS_DIR/fake-api-external-termination.md"
+if [[ "$(octo_result_framed_sections "$terminated_result" status)" == '## Status: FAILED (exit code: 143)' ]] &&
+   [[ "$(run_contract_latest_transition spawn-external-termination)" == failed ]] &&
+   [[ "$(cat "$TEST_TMP_DIR/terminated.lifecycle")" == failed ]] &&
+   ! grep -Eqi 'TIMEOUT EXCEEDED|timed out' "$terminated_result"; then
+    test_pass
+else
+    test_fail "external termination was mislabeled as a deadline timeout"
+fi
+
 test_case "a provider that outlives its deadline still reports a timeout"
 run_watched_fixture hang watched-timeout 2
 hang_result="$RESULTS_DIR/fake-api-watched-timeout.md"
 if [[ "$(octo_result_framed_sections "$hang_result" status)" == '## Status: TIMEOUT - PARTIAL RESULTS (exit code: 124)' ]] &&
+   [[ "$(cat "$TEST_TMP_DIR/hang.lifecycle")" == timeout ]] &&
    grep -Fq 'TIMEOUT EXCEEDED' "$hang_result" &&
    [[ "$(run_contract_latest_transition spawn-watched-timeout)" == timeout ]]; then
     test_pass

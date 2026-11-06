@@ -582,7 +582,7 @@ run_with_timeout() {
         if declare -f octo_event_emit >/dev/null 2>&1; then
             octo_event_emit "dispatch.end" command="$_octo_cmd_label" exit_code="$exit_code" outcome="error" || true
         fi
-        return 124
+        return 143
     fi
 
     # Enhanced timeout error messaging (v7.16.0 Feature 3)

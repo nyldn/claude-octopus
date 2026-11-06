@@ -9,6 +9,9 @@
   cooldown timestamps correctly block repeat dispatch until their deadline.
 - Direct spawns respect terminal quota and auth markers even when no transient
   cooldown is active. Provider reset hints remain inside untrusted result frames.
+- Run-local smoke failures keep their health-failure reason. External SIGTERM
+  preserves exit 143 through spawn results and lifecycle events instead of
+  claiming the provider exceeded its timeout.
 
 ## [11.17.1] - 2026-11-05
 

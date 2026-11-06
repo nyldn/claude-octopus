@@ -1153,10 +1153,15 @@ ${heuristic_ctx}"
     local quota_provider
     quota_provider="$(octo_provider_canonical "$provider_prefix" 2>/dev/null || printf '%s' "$provider_prefix")"
     if declare -f octo_quota_is_dead >/dev/null 2>&1 && octo_quota_is_dead "$quota_provider"; then
-        log "WARN" "Quota or auth failure for $quota_provider; skipping $agent_type"
-        record_outcome "$provider_prefix" "$agent_type" "skipped" "${phase:-unknown}" "quota_dead" "0" 2>/dev/null || true
+        local skip_kind="quota_dead" skip_reason="Provider is quota or auth dead"
+        if declare -f octo_quota_failed_this_run >/dev/null 2>&1 && octo_quota_failed_this_run "$quota_provider"; then
+            skip_kind="health-failed"
+            skip_reason="Provider failed this run's smoke test"
+        fi
+        log "WARN" "$skip_reason: $quota_provider; skipping $agent_type"
+        record_outcome "$provider_prefix" "$agent_type" "skipped" "${phase:-unknown}" "$skip_kind" "0" 2>/dev/null || true
         octo_spawn_contract_finish "$_contract_seat_id" skipped "" "" \
-            "Provider is quota or auth dead" 1 "" >/dev/null 2>&1 || true
+            "$skip_reason" 1 "" >/dev/null 2>&1 || true
         return 1
     fi
 
@@ -2026,7 +2031,7 @@ sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore")
             fi
             record_outcome "$agent_type" "$agent_type" "${task_type:-unknown}" "${phase:-unknown}" "fail" "$elapsed_ms" 2>/dev/null || true
             type record_provider_failure &>/dev/null && record_provider_failure "$provider_prefix" "$exit_code" "$_quota_fast_fail_line" >/dev/null 2>&1 || true
-        elif [[ $exit_code -eq 124 ]] || [[ $exit_code -eq 143 ]]; then
+        elif [[ $exit_code -eq 124 ]]; then
             # v7.19.0 P0.2: TIMEOUT - Preserve partial output
             # Process whatever output exists (may be significant partial work)
             if [[ -s "$temp_output" ]]; then
@@ -2252,7 +2257,7 @@ sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore")
             else
                 _hook_final_status="completed"
             fi
-        elif [[ "${_spawn_exit:-0}" -eq 124 || "${_spawn_exit:-0}" -eq 143 ]]; then
+        elif [[ "${_spawn_exit:-0}" -eq 124 ]]; then
             _hook_final_status="timeout"
         fi
         _octopus_agent_lifecycle_event "completed" "$agent_type" "$task_id" "$role" "$phase" "$OCTO_CAPTURED_SHELL_PID" "$result_file" "$_spawn_exit" "$_hook_final_status"
