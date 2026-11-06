@@ -367,8 +367,20 @@ parallel_execute() {
         fi
         output_claims=()
         if [[ -n "$owner_lock" ]]; then
+            # A signal can arrive after publication but before the claim was
+            # appended above. Reconcile every claim naming this owner before
+            # unlinking its lock, or that unregistered claim cannot be reclaimed.
+            local keep_owner_lock=false
+            for claim in "$RESULTS_DIR"/.*.claim; do
+                [[ -f "$claim/owner" ]] || continue
+                [[ "$(cat "$claim/owner" 2>/dev/null)" == "$owner_lock" ]] || continue
+                rm -f -- "$claim/owner" 2>/dev/null || true
+                rmdir -- "$claim" 2>/dev/null || keep_owner_lock=true
+            done
             exec 7>&-
-            rm -f -- "$owner_lock" 2>/dev/null || true
+            if [[ "$keep_owner_lock" == false ]]; then
+                rm -f -- "$owner_lock" 2>/dev/null || true
+            fi
             owner_lock=""
         fi
         [[ -z "$spawn_output" ]] || rm -f "$spawn_output" 2>/dev/null || true

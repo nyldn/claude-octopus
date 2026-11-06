@@ -257,6 +257,23 @@ summary="$(render_agent_summary '-probe-budget-2')"
 if [[ "$probe_rc" == 78 && "$summary" == *'1 of 1 agents failed'* ]]; then test_pass
 else test_fail "probe rejection disappeared: $summary, rc=$probe_rc"; fi
 
+test_case "a rejected synchronous call records one failed seat"
+source "$PROJECT_ROOT/scripts/lib/agent-sync.sh"
+load_earned_skills() { :; }
+build_provider_context() { :; }
+run_contract_transition() { :; }
+octo_with_engineering_methods() { printf '%s' "$2"; }
+CODEX_SUBAGENT_PREAMBLE=''
+export OCTOPUS_RUN_ID=sync-budget-identity
+sync_rc=0
+run_agent_sync codex 'too much context' 1 researcher probe >/dev/null || sync_rc=$?
+summary="$(render_agent_summary)"
+if [[ "$sync_rc" == 78 && "$summary" == *'1 of 1 agents failed'* ]] &&
+   jq -e '.agents | length == 1 and all(.seat_id | startswith("sync-"))' \
+       "$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID/agents.json" >/dev/null; then
+    test_pass
+else test_fail "synchronous budget rejection counted multiple seats: $summary, rc=$sync_rc"; fi
+
 test_case "a truncated ledger does not abort a strict-shell summary caller"
 export OCTOPUS_RUN_ID=truncated-ledger
 mkdir -p "$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID"

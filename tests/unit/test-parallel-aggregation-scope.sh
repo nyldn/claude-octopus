@@ -304,4 +304,39 @@ for concurrency in 1 2; do
     else test_fail "dead workers blocked same-run retries"; fi
 done
 
+test_case "TERM after claim publication cannot strand an unregistered claim"
+claim_python="$TEST_TMP_DIR/claim-python"
+cat > "$claim_python" <<'SHIM'
+#!/usr/bin/env python3
+import os
+import runpy
+import signal
+import sys
+if len(sys.argv) > 2 and sys.argv[2] == "acquire":
+    original = os.rename
+    def interrupt_after_publish(*args):
+        original(*args)
+        os.kill(os.getppid(), signal.SIGTERM)
+    os.rename = interrupt_after_publish
+sys.argv = sys.argv[1:]
+runpy.run_path(sys.argv[0], run_name="__main__")
+SHIM
+chmod +x "$claim_python"
+export claim_python
+printf '{"tasks":[{"id":"publish-interrupt","agent":"codex","prompt":"implement"}]}' > "$TEST_TMP_DIR/tasks.json"
+if (
+    trap - EXIT
+    trap 'exit 143' TERM
+    octopus_pid_python_resolve() { printf '%s\n' "$claim_python"; }
+    spawn_agent_capture_pid() { touch "$TEST_TMP_DIR/interrupted-spawn"; return 1; }
+    parallel_execute "$TEST_TMP_DIR/tasks.json" >/dev/null 2>&1
+); then rc=0; else rc=$?; fi
+spawn_agent_capture_pid() { touch "$TEST_TMP_DIR/publication-retry"; return 1; }
+AVAILABLE_AGENTS=codex
+parallel_execute "$TEST_TMP_DIR/tasks.json" > "$TEST_TMP_DIR/publication-retry.log" 2>&1 || true
+if [[ "$rc" == 143 && ! -e "$TEST_TMP_DIR/interrupted-spawn" && -e "$TEST_TMP_DIR/publication-retry" ]] &&
+   [[ ! -e "$RESULTS_DIR/.codex-publish-interrupt.claim" ]]; then
+    test_pass
+else test_fail "interrupted publication blocked retry, rc=$rc"; fi
+
 test_summary
