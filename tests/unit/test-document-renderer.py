@@ -163,6 +163,31 @@ class DocumentRendererTest(unittest.TestCase):
                 self.assertLess(academic.index("Apply academic formatting"),
                                 academic.index("Resolve and invoke the PDF renderer"))
 
+    def test_deck_storyline_is_confirmed_and_checked_before_outline_approval(self):
+        """Topic labels must not satisfy the deck's pre-render argument gate."""
+        for tree in (".claude/skills", "skills"):
+            with self.subTest(tree=tree):
+                deck = (ROOT / tree / "skill-deck/SKILL.md").read_text()
+                step = " ".join(deck.split("### Step 3: Generate Outline", 1)[1]
+                                .split("### Step 4:", 1)[0].split())
+                for requirement in ("governing question", "threshold for yes", "out-of-scope",
+                                    "Confirm the governing question with the user before",
+                                    "situation", "complication", "confirmed governing question",
+                                    "working hypothesis", "two to four pillars",
+                                    "one declarative sentence per slide", "titles-only read",
+                                    "question to the ask", "Market overview",
+                                    "Label titles fail", "revise the skeleton and repeat",
+                                    "MUST approve the sentence skeleton before PPTX generation"):
+                    self.assertIn(requirement, step)
+                self.assertLess(step.index("Confirm the governing question"),
+                                step.index("working hypothesis"))
+                self.assertLess(step.index("titles-only read"), step.index("Looks good, render the deck"))
+                self.assertIn("informational", step)
+                self.assertIn("Do not invent a decision", step)
+                self.assertNotIn("[First Content Section]", step)
+                self.assertNotIn("[Agenda / Overview]", step)
+
+
     def test_native_skills_use_the_resolver_and_no_plugin_presence_gate(self):
         for name in ("skill-deck", "skill-doc-delivery"):
             text = (ROOT / f".claude/skills/{name}/SKILL.md").read_text()
