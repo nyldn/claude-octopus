@@ -289,11 +289,14 @@ octopus_normalize_reasoning_level() {
 # Resolve effort overrides, then the selected model provider's tier, then the
 # reasoning provider's legacy default. The optional model/provider arguments
 # preserve provenance when an executor shares effort settings across providers.
+# A caller default applies only when no effort was configured, before normalizing
+# explicit auto/default values to the provider's automatic mode.
 octopus_resolve_reasoning_level() {
   local provider="$1" phase="${2:-}" role="${3:-}" phase_key role_key provider_key name value cfg
   local agent_type="${4:-$provider}"
   local dispatch_model="${5:-}"
   local model_provider="${6:-$provider}"
+  local default_level="${7:-}"
   phase_key="$(_octopus_profile_env_key "$phase")"
   role_key="$(_octopus_profile_env_key "$role")"
   provider_key="$(_octopus_profile_env_key "$provider")"
@@ -316,7 +319,7 @@ octopus_resolve_reasoning_level() {
     cfg="$(_octopus_profile_config_file)"
     [[ -f "$cfg" ]] && value=$(jq -r --arg p "$provider" '.providers[$p] | .reasoning_effort // (.reasoning | objects | .default) // empty' "$cfg" 2>/dev/null || true)
   fi
-  octopus_normalize_reasoning_level "$value"
+  octopus_normalize_reasoning_level "${value:-$default_level}"
 }
 
 octopus_resolve_reasoning_policy() {

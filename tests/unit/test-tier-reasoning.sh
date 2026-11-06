@@ -117,4 +117,22 @@ for compatible_seat in openai-compatible openai-tools openai-compatible-agent; d
     command_line="$(OCTOPUS_OPENAI_COMPATIBLE_AGENT_REASONING=high get_agent_command "$compatible_seat" develop implementer)"
     expect "$compatible_seat preserves the existing explicit effort override" "$([[ "$command_line" == *'--reasoning-effort high'* ]] && echo yes || echo no)" yes
 done
+configure
+edit_config '.tiers.standard.codex = {capability:"default",reasoning:"medium"} | .tiers.budget.codex.reasoning = 7'
+expect "an active object tier ignores a malformed inactive tier" "$(OCTOPUS_COST_MODE=standard octopus_resolve_reasoning_level codex)" medium
+configure
+edit_config '.providers["anthropic-api"] = {default:"claude-sonnet-5-5",reasoning_effort:"high"} | .tiers.budget["anthropic-api"] = {capability:"default",reasoning:"auto"}'
+command_line="$(get_agent_command anthropic-api probe researcher)" || command_line=dispatch-failed
+expect "API tier automatic effort stays automatic at dispatch" "$([[ "$command_line" == *'--effort auto'* ]] && echo yes || echo no)" yes
+command_line="$(OCTOPUS_ANTHROPIC_API_REASONING=medium get_agent_command anthropic-api probe researcher)" || command_line=dispatch-failed
+expect "explicit API effort wins over automatic tier effort" "$([[ "$command_line" == *'--effort medium'* ]] && echo yes || echo no)" yes
+edit_config 'del(.tiers.budget["anthropic-api"].reasoning)'
+command_line="$(get_agent_command anthropic-api probe researcher)" || command_line=dispatch-failed
+expect "API tier without effort keeps its configured provider effort" "$([[ "$command_line" == *'--effort high'* ]] && echo yes || echo no)" yes
+edit_config 'del(.providers["anthropic-api"].reasoning_effort)'
+command_line="$(get_agent_command anthropic-api probe researcher)" || command_line=dispatch-failed
+expect "API seat without configured effort retains the high default" "$([[ "$command_line" == *'--effort high'* ]] && echo yes || echo no)" yes
+edit_config '.tiers.budget["anthropic-api"] = {capability:"claude-opus-5-5",reasoning:"low"}'
+command_line="$(get_agent_model() { echo claude-sonnet-5-5; }; get_agent_command anthropic-api probe researcher)" || command_line=dispatch-failed
+expect "API replacement model cannot inherit the discarded tier effort" "$([[ "$command_line" == *'--model claude-sonnet-5-5'* && "$command_line" == *'--effort high'* ]] && echo yes || echo no)" yes
 test_summary

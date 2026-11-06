@@ -1,5 +1,9 @@
 # Frontier Model Routing Strategy
 
+Status: accepted and implemented
+Decision date: 2026-07-27
+Last reviewed: 2026-10-01
+
 ## Reasoning effort by cost tier
 
 In `providers.json`, a tier target can remain a string or use an object with a
@@ -25,14 +29,15 @@ provider default. Invalid effort values or objects without a capability fail
 before dispatch. The supported effort values and CLI compatibility checks remain
 provider specific, and explicit-only model restrictions still apply.
 
+For the text-only `anthropic-api` seat, explicit automatic effort omits
+`output_config.effort` from the Messages request and uses adaptive thinking.
+An omitted effort retains the seat's existing `high` fallback. Explicit
+`between_tools` thinking still requires low, medium or high effort on Sonnet 5.5.
+
 This affects seats that use the unified model and reasoning resolver, including
 Codex and the generic Claude seat. Dedicated Opus seats retain their separate
 phase effort policy. No default models or effort settings change until an
 operator configures an object tier.
-
-Status: accepted and implemented
-Decision date: 2026-07-27
-Last reviewed: 2026-10-01
 
 ## Decision
 

@@ -796,13 +796,13 @@ get_agent_command() {
             esac
             model="$(get_agent_model "$agent_type" "$phase" "$role")" || return 1
             local api_effort api_thinking
-            api_effort="$(octopus_resolve_reasoning_level anthropic-api "$phase" "$role" "$agent_type")" || return 1
-            api_effort="${api_effort:-high}"
+            api_effort="$(octopus_resolve_reasoning_level anthropic-api "$phase" "$role" "$agent_type" "$model" anthropic-api high)" || return 1
+            api_effort="${api_effort:-auto}"
             api_thinking="${OCTOPUS_ANTHROPIC_API_THINKING:-auto}"
             case "$model" in claude-sonnet-5-5|claude-opus-5-5) ;; *) log ERROR "anthropic-api requires Sonnet 5.5 or Opus 5.5"; return 1 ;; esac
-            case "$api_effort" in low|medium|high|xhigh|max) ;; *) log ERROR "anthropic-api requires low, medium, high, xhigh, or max effort"; return 1 ;; esac
+            case "$api_effort" in auto|low|medium|high|xhigh|max) ;; *) log ERROR "anthropic-api requires auto, low, medium, high, xhigh, or max effort"; return 1 ;; esac
             case "$api_thinking" in auto|adaptive|between_tools) ;; *) log ERROR "Invalid anthropic-api thinking mode"; return 1 ;; esac
-            if [[ "$api_thinking" == between_tools && ( "$model" != claude-sonnet-5-5 || "$api_effort" == xhigh || "$api_effort" == max ) ]]; then
+            if [[ "$api_thinking" == between_tools && ( "$model" != claude-sonnet-5-5 || "$api_effort" == auto || "$api_effort" == xhigh || "$api_effort" == max ) ]]; then
                 log ERROR "between_tools requires Sonnet 5.5 at low, medium, or high effort"
                 return 1
             fi
