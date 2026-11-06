@@ -26,7 +26,9 @@ eval routing, frontier replacements and allowlist fallbacks keep their existing
 effort behavior.
 `reasoning: "auto"` leaves effort to the provider. Omitting `reasoning` keeps the
 provider default. Invalid effort values or objects without a capability fail
-before dispatch. The supported effort values and CLI compatibility checks remain
+before dispatch. Other tier value types, such as booleans, numbers and arrays,
+also fail validation. Missing or null entries retain default fallback behavior.
+The supported effort values and CLI compatibility checks remain
 provider specific, and explicit-only model restrictions still apply.
 
 For the text-only `anthropic-api` seat, explicit automatic effort omits

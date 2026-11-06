@@ -410,26 +410,26 @@ get_agent_command() {
             ;;
         claude)
             local reasoning_level reasoning_policy reasoning_fragment
-            reasoning_level="$(octopus_resolve_reasoning_level claude "$phase" "$role" "$agent_type")" || return 1
-            reasoning_policy="$(octopus_resolve_reasoning_policy claude "$phase" "$role")" || return 1
-            reasoning_fragment="$(_octopus_claude_reasoning_fragment "$reasoning_level" "$reasoning_policy")" || return 1
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                 return 1
             fi
             _octopus_validate_exact_claude_dispatch_model "$model" "$role" "$agent_type" "$phase" "$prompt_bytes" || return 1
             model="$(_octopus_apply_nonexact_fable_input_gate "$model" "$agent_type" "$prompt_bytes")" || return 1
+            reasoning_level="$(octopus_resolve_reasoning_level claude "$phase" "$role" "$agent_type" "$model")" || return 1
+            reasoning_policy="$(octopus_resolve_reasoning_policy claude "$phase" "$role")" || return 1
+            reasoning_fragment="$(_octopus_claude_reasoning_fragment "$reasoning_level" "$reasoning_policy")" || return 1
             [[ "$agent_type" == *:* ]] || model="${model//./-}"
             echo "${_claude_bin}${_BARE_OPT} --print --model ${model} ${reasoning_fragment} ${claude_perm}" ;;
         claude-sonnet)
             local reasoning_level reasoning_policy reasoning_fragment
-            reasoning_level="$(octopus_resolve_reasoning_level claude "$phase" "$role" "$agent_type")" || return 1
-            reasoning_policy="$(octopus_resolve_reasoning_policy claude "$phase" "$role")" || return 1
-            reasoning_fragment="$(_octopus_claude_reasoning_fragment "$reasoning_level" "$reasoning_policy")" || return 1
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                 return 1
             fi
             _octopus_validate_exact_claude_dispatch_model "$model" "$role" "$agent_type" "$phase" "$prompt_bytes" || return 1
             model="$(_octopus_apply_nonexact_fable_input_gate "$model" "$agent_type" "$prompt_bytes")" || return 1
+            reasoning_level="$(octopus_resolve_reasoning_level claude "$phase" "$role" "$agent_type" "$model")" || return 1
+            reasoning_policy="$(octopus_resolve_reasoning_policy claude "$phase" "$role")" || return 1
+            reasoning_fragment="$(_octopus_claude_reasoning_fragment "$reasoning_level" "$reasoning_policy")" || return 1
             [[ "$agent_type" == *:* ]] || model="${model//./-}"
             echo "${_claude_bin}${_BARE_OPT} --print --model ${model} ${reasoning_fragment} ${claude_perm}" ;;
         claude-opus|claude-opus-fast)

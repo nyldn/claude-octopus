@@ -773,7 +773,7 @@ resolve_octopus_model() {
         if [[ -z "$resolved_model" || "$resolved_model" == "null" ]]; then
             if [[ -n "$cost_mode" ]]; then
                 local tier_entry
-                tier_entry=$(echo "$config_data" | jq -c --arg mode "$cost_mode" --arg p "$canonical_provider" '.tiers[$mode][$p] // null' 2>/dev/null)
+                tier_entry=$(echo "$config_data" | jq -c --arg mode "$cost_mode" --arg p "$canonical_provider" '.tiers[$mode][$p]' 2>/dev/null)
                 if [[ "$tier_entry" == \{* ]]; then
                     if ! echo "$tier_entry" | jq -e '
                         (.capability | type == "string" and length > 0) and
@@ -785,8 +785,13 @@ resolve_octopus_model() {
                     resolved_model=$(jq -r '.capability' <<< "$tier_entry")
                     tier_reasoning=$(jq -r '.reasoning // empty' <<< "$tier_entry")
                     octopus_normalize_reasoning_level "$tier_reasoning" >/dev/null || return 1
+                elif [[ "$tier_entry" == null ]]; then
+                    resolved_model=""
+                elif jq -e 'type == "string"' <<< "$tier_entry" >/dev/null; then
+                    resolved_model=$(jq -r '.' <<< "$tier_entry")
                 else
-                    resolved_model=$(jq -r '. // empty' <<< "$tier_entry")
+                    log ERROR "Invalid tier profile for $cost_mode/$canonical_provider"
+                    return 1
                 fi
                 if [[ -n "$resolved_model" && "$resolved_model" == *:* ]]; then
                     resolved_model="$(_octo_tier_target_model "$canonical_provider" "$resolved_model" 2>/dev/null || true)"

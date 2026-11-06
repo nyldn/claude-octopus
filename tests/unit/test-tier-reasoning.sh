@@ -86,6 +86,36 @@ expect "an allowlist fallback does not inherit tier effort" "$(OCTOPUS_CODEX_ALL
 expect "a dispatched allowlist fallback does not inherit tier effort" "$(OCTOPUS_CODEX_ALLOWED_MODELS=gpt-5.6-sol octopus_resolve_reasoning_level codex '' '' codex gpt-5.6-sol)" high
 command_line="$(OCTOPUS_CLAUDE_ALLOWED_MODELS=claude-sonnet-5 get_agent_command claude develop implementer)"
 expect "Claude fallback uses provider effort instead of discarded tier effort" "$([[ "$command_line" == *'--model claude-sonnet-5'* && "$command_line" == *'--effort high'* ]] && echo yes || echo no)" yes
+# Effort belongs to the final model after admission, including cache or gate replacements.
+configure
+for claude_seat in claude claude-sonnet; do
+    command_line="$(
+        get_agent_model() { echo claude-haiku-4.5; }
+        _octopus_apply_nonexact_fable_input_gate() { echo claude-sonnet-5; }
+        get_agent_command "$claude_seat" develop implementer
+    )" || command_line=dispatch-failed
+    expect "$claude_seat replacement uses provider effort instead of discarded tier effort" "$([[ "$command_line" == *'--model claude-sonnet-5'* && "$command_line" == *'--effort high'* ]] && echo yes || echo no)" yes
+    command_line="$(
+        get_agent_model() { echo claude-haiku-4.5; }
+        _octopus_apply_nonexact_fable_input_gate() { echo claude-sonnet-5; }
+        octopus_resolve_reasoning_level() { [[ "${5:-}" == claude-sonnet-5 ]] || return 1; echo high; }
+        get_agent_command "$claude_seat" develop implementer
+    )" || command_line=dispatch-failed
+    expect "$claude_seat resolves effort after the model gate" "$([[ "$command_line" == *'--effort high'* ]] && echo yes || echo no)" yes
+done
+for invalid_tier in false true 7 '[]' '["default"]'; do
+    configure
+    edit_config ".providers.opencode = {default:\"opencode/default\"} | .tiers.budget.opencode = $invalid_tier"
+    test_case "selected tier rejects non-string/non-object value: $invalid_tier"
+    if resolve_octopus_model opencode opencode >/dev/null 2>&1; then test_fail "invalid tier admitted"; else test_pass; fi
+done
+for fallback_tier in null missing; do
+    configure
+    if [[ "$fallback_tier" == missing ]]; then edit_config 'del(.tiers.budget.codex)'
+    else edit_config '.tiers.budget.codex = null'; fi
+    expect "$fallback_tier tier preserves the provider default" "$(resolve_octopus_model codex codex)" gpt-5.6-sol
+done
+configure
 edit_config '.tiers.budget.codex = {reasoning:"low"}'
 test_case "missing capability fails closed"
 if resolve_octopus_model codex codex >/dev/null 2>&1; then test_fail "missing capability admitted"; else test_pass; fi
