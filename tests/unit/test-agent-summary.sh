@@ -257,4 +257,14 @@ summary="$(render_agent_summary '-probe-budget-2')"
 if [[ "$probe_rc" == 78 && "$summary" == *'1 of 1 agents failed'* ]]; then test_pass
 else test_fail "probe rejection disappeared: $summary, rc=$probe_rc"; fi
 
+test_case "a truncated ledger does not abort a strict-shell summary caller"
+export OCTOPUS_RUN_ID=truncated-ledger
+mkdir -p "$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID"
+printf '{"agent":' > "$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID/agents.jsonl"
+if bash -euo pipefail -c 'source "$1/scripts/lib/error-tracking.sh"; render_agent_summary >/dev/null; echo continued' \
+    _ "$PROJECT_ROOT" > "$TEST_TMP_DIR/truncated-summary.out" 2>/dev/null && \
+    [[ "$(cat "$TEST_TMP_DIR/truncated-summary.out")" == continued ]]; then
+    test_pass
+else test_fail "summary aborted its caller on a truncated ledger"; fi
+
 test_summary

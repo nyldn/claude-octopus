@@ -13,8 +13,10 @@
   by result file, in the summary, the `agents.json` snapshot and the output
   list. Probe and aggregate summaries count only their own seats, because the
   ledger spans every command in a session.
-  Output claims publish their owner atomically, so an interrupted claim
+- Output claims publish their owner atomically, so an interrupted claim
   preparation cannot permanently block retries. Live owners keep their outputs.
+  Workers that exit without recording a terminal status no longer block retries
+  in the same run.
 
 ## [11.17.1] - 2026-11-05
 

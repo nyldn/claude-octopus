@@ -277,4 +277,31 @@ PY
     else test_fail "interrupted claim preparation blocked a retry"; fi
 done
 
+for concurrency in 1 2; do
+    test_case "failed worker clears its running seat at concurrency $concurrency"
+    export OCTOPUS_RUN_ID="worker-exit-$concurrency"
+    MAX_PARALLEL=$concurrency AVAILABLE_AGENTS='codex claude-opus-fast'
+    spawn_agent_capture_pid() {
+        local slug="$1"
+        [[ "$slug" != claude-opus-fast ]] || slug=claude-opus
+        write_agent_status "$1" running 1 0 '' 0 "$RESULTS_DIR/$slug-$3.md" researcher "spawn-$3"
+        (exit 74) &
+        printf '%s\n' "$!"
+    }
+    printf '{"tasks":[{"id":"exit-a","agent":"codex","prompt":"first"},{"id":"exit-b","agent":"claude-opus-fast","prompt":"second"}]}' > "$TEST_TMP_DIR/tasks.json"
+    parallel_execute "$TEST_TMP_DIR/tasks.json" > "$TEST_TMP_DIR/worker-exit-$concurrency.log" 2>&1 && rc=0 || rc=$?
+    if [[ "$rc" == 1 ]] && jq -e '.agents | length == 2 and all(.status == "cancelled" and .role == "researcher")' \
+        "$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID/agents.json" >/dev/null; then
+        test_pass
+    else test_fail "dead worker left a running seat at concurrency $concurrency"; fi
+
+    test_case "failed workers can retry in the same run at concurrency $concurrency"
+    rm -f "$TEST_TMP_DIR/worker-retry"
+    spawn_agent_capture_pid() { printf '%s\n' "$3" >> "$TEST_TMP_DIR/worker-retry"; return 1; }
+    parallel_execute "$TEST_TMP_DIR/tasks.json" > "$TEST_TMP_DIR/worker-retry-$concurrency.log" 2>&1 || true
+    if [[ -f "$TEST_TMP_DIR/worker-retry" && "$(wc -l < "$TEST_TMP_DIR/worker-retry")" -eq 2 ]]; then
+        test_pass
+    else test_fail "dead workers blocked same-run retries"; fi
+done
+
 test_summary

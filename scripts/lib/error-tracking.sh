@@ -670,7 +670,7 @@ render_agent_summary() {
     echo ""
 
     local available_outputs
-    available_outputs=$(agent_status_output_files "$filter" "$task_scope" "$eligibility" | awk 'END {print NR+0}')
+    available_outputs=$(agent_status_output_files "$filter" "$task_scope" "$eligibility" | awk 'END {print NR+0}') || available_outputs=0
     if [[ $failed -gt 0 || $timeout -gt 0 ]]; then
         printf '⚠ %d of %d agents failed or timed out — synthesis should use %d available outputs. Details: %s\n' \
             "$((failed + timeout))" "$total" "$available_outputs" "$dir"

@@ -349,7 +349,7 @@ parallel_execute() {
         ledger="$(octo_run_dir)/agents.jsonl"
         [[ -s "$ledger" ]] || return 0
         while IFS=$'\t' read -r agent seat role; do
-            write_agent_status "$agent" cancelled 0 0 "Owning invocation exited before the seat finished" \
+            write_agent_status "$agent" cancelled 0 0 "Seat owner exited before recording a terminal status" \
                 0 "$output" "$role" "$seat" || true
         done < <(jq -rs --arg seat "spawn-$task_id" --arg file "$output" \
             "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
@@ -719,6 +719,12 @@ parallel_execute() {
                         "${task_sequences[$i]}" "${task_ids[$i]}" "${task_agents[$i]}"; then
                         ((completed++)) || true
                     else
+                        local failed_slug="${task_agents[$i]}"
+                        [[ "$failed_slug" != claude-opus-fast ]] || failed_slug=claude-opus
+                        if declare -F octo_agent_spec_slug >/dev/null 2>&1; then
+                            failed_slug=$(octo_agent_spec_slug "$failed_slug")
+                        fi
+                        _parallel_cancel_orphaned_seat "${task_ids[$i]}" "$RESULTS_DIR/$failed_slug-${task_ids[$i]}.md"
                         ((failed++)) || true
                     fi
                     unset 'pids[i]'
@@ -863,6 +869,12 @@ parallel_execute() {
                     "${task_sequences[$i]}" "${task_ids[$i]}" "${task_agents[$i]}"; then
                     ((completed++)) || true
                 else
+                    local failed_slug="${task_agents[$i]}"
+                    [[ "$failed_slug" != claude-opus-fast ]] || failed_slug=claude-opus
+                    if declare -F octo_agent_spec_slug >/dev/null 2>&1; then
+                        failed_slug=$(octo_agent_spec_slug "$failed_slug")
+                    fi
+                    _parallel_cancel_orphaned_seat "${task_ids[$i]}" "$RESULTS_DIR/$failed_slug-${task_ids[$i]}.md"
                     ((failed++)) || true
                 fi
                 unset 'pids[i]'
