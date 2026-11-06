@@ -181,7 +181,7 @@ class DocumentRendererTest(unittest.TestCase):
                 for requirement in ("every slide, including appendix slides",
                                     "text overflow", "empty placeholders", "broken images",
                                     "rendered titles", "titles-only read",
-                                    "highlighted proof point", "source data",
+                                    "one highlighted proof point supports its title", "source data",
                                     "slide number", "thumbnail", "pass, fail or unverified"):
                     self.assertIn(requirement, gate)
                 self.assertIn("draft, with verification incomplete", gate)
