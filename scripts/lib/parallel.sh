@@ -819,7 +819,25 @@ parallel_execute() {
             ((failed++)) || true
             continue
         fi
-        # Clear stale task artifacts only after both ownership checks. A
+        # A durable seat cannot re-enter planned in the same run. Reject that
+        # retry before deleting its saved answer, even if its output claim and
+        # status ledger are terminal. Use a new task ID for a new attempt.
+        local contract_ledger="" contract_seat="spawn-$task_id"
+        if declare -F octo_run_contract_ledger_path >/dev/null 2>&1; then
+            contract_ledger="$(octo_run_contract_ledger_path)"
+            if declare -F octo_spawn_contract_seat_id >/dev/null 2>&1; then
+                contract_seat="$(octo_spawn_contract_seat_id "$task_id")"
+            fi
+        fi
+        if [[ -s "$contract_ledger" ]] && ! jq -es --arg seat "$contract_seat" \
+            'all(.seat_id != $seat)' "$contract_ledger" >/dev/null 2>&1; then
+            log ERROR "Cannot reuse durable seat $contract_seat; select a new task ID"
+            _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" true \
+                failed contract-seat-unavailable ""
+            ((failed++)) || true
+            continue
+        fi
+        # Clear stale task artifacts only after ownership and admission checks. A
         # rejected contender must leave the current owner's marker collectible.
         if ! rm -f -- "$RESULTS_DIR/$result_slug-$task_id.md" \
             "${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents/${task_id}.done"; then

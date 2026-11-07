@@ -416,4 +416,34 @@ test_case "fallback and Python claim publication cannot admit two owners"
 if python3 "$PROJECT_ROOT/tests/unit/test-output-claim-races.py"; then test_pass
 else test_fail "controlled claim publication interleavings admitted two owners"; fi
 
+test_case "real spawn admission rejects a reused durable seat without deleting its artifacts"
+if (
+    source "$PROJECT_ROOT/scripts/lib/spawn.sh"
+    export OCTOPUS_RUN_ID=durable-retry-artifacts
+    SUPPORTS_WORKTREE_HOOKS=false SUPPORTS_FORK_CONTEXT=false
+    classify_task() { echo implementation; }
+    get_role_for_context() { echo implementer; }
+    match_routing_rule() { :; }
+    # Exercise the actual capture/spawn/contract path. Replanning must fail
+    # before any provider command is constructed, on both old and fixed code.
+    get_agent_command() { touch "$TEST_TMP_DIR/unexpected-provider"; return 1; }
+    octo_spawn_contract_plan durable-retry codex '' '' parallel implementer
+    run_contract_transition spawn-durable-retry failed reason=inert-fixture
+    saved="$RESULTS_DIR/codex-durable-retry.md"
+    marker="$WORKSPACE_DIR/.octo/agents/durable-retry.done"
+    mkdir -p "$(dirname "$marker")"
+    printf 'saved answer\n' > "$saved"
+    printf '74\n' > "$marker"
+    write_agent_status codex failed 1 0 fixture 0 "$saved" implementer spawn-durable-retry
+    printf '{"tasks":[{"id":"durable-retry","agent":"codex","prompt":"inert"}]}' > "$TEST_TMP_DIR/tasks.json"
+    rm -f "$TEST_TMP_DIR/unexpected-provider"
+    # First prove the real spawn admission rejects this exact seat.
+    spawn_agent_capture_pid codex inert durable-retry implementer parallel >/dev/null 2>&1 && exit 1
+    parallel_execute "$TEST_TMP_DIR/tasks.json" > "$TEST_TMP_DIR/durable-retry.log" 2>&1 && exit 1
+    [[ "$(cat "$saved")" == 'saved answer' && "$(cat "$marker")" == 74 &&
+       ! -e "$TEST_TMP_DIR/unexpected-provider" ]] &&
+    jq -e '.results[0].reason == "contract-seat-unavailable"' "$WORKSPACE_DIR/state/parallel-report.json" >/dev/null
+); then test_pass
+else test_fail "rejected durable retry deleted saved artifacts or dispatched a provider"; fi
+
 test_summary

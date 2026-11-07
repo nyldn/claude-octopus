@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- Parallel dispatch preserves saved results and completion markers when a
+  repeated task ID cannot be admitted by its durable run contract. Use a new
+  task ID for a new attempt in the same run.
 - Large parallel task batches retain their scoped results without exceeding
   command-line argument limits, and invalid scopes report an aggregation error.
   A spawn that fails after recording a running seat cancels that seat so a later

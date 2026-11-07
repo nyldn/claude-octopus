@@ -1414,6 +1414,9 @@ If interruption left that exact directory empty with no `owner` file, remove
 only the empty directory with `rmdir`, after the same process-exit checks.
 Normal Python-backed cleanup retires the complete claim atomically. If retiring
 it fails, its owner record and owner lock remain available for a later retry.
+If the task already has a durable execution contract in the same run, use a new
+task ID for the next attempt. Reusing that seat reports
+`contract-seat-unavailable` and preserves its saved result and completion marker.
 
 ---
 
