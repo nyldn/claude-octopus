@@ -168,6 +168,15 @@ _octo_provider_env_forward_council_guard() {
 build_provider_env() {
     _octo_build_provider_env_impl "$@"
     local _rc=$?
+    # Search uses its own credential in the parent, never in a model child.
+    # Some CLI routes inherit the environment rather than using env -i.
+    if [[ -n "${KEENABLE_API_KEY+x}" ]]; then
+        if [[ "${PROVIDER_ENV_ARRAY[0]:-}" == env ]]; then
+            PROVIDER_ENV_ARRAY=(env -u KEENABLE_API_KEY "${PROVIDER_ENV_ARRAY[@]:1}")
+        else
+            PROVIDER_ENV_ARRAY=(env -u KEENABLE_API_KEY "${PROVIDER_ENV_ARRAY[@]}")
+        fi
+    fi
     _octo_provider_env_forward_workspace_dir
     _octo_provider_env_forward_auto_peer_guard
     _octo_provider_env_forward_council_guard

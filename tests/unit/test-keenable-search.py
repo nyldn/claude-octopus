@@ -99,6 +99,33 @@ class SearchTests(unittest.TestCase):
         self.assertEqual(result.stdout, "")
         self.assertLess(time.monotonic() - started, 19)
 
+    def test_search_credential_is_removed_from_actual_model_children(self):
+        script = '''source "$1/scripts/lib/provider-routing.sh"
+build_provider_env "$2"
+"${PROVIDER_ENV_ARRAY[@]}" bash -c '[[ -z "${KEENABLE_API_KEY+x}" ]]'
+child_status=$?
+[[ "$KEENABLE_API_KEY" == inert-fixture ]] || exit 2
+exit "$child_status"
+'''
+        for provider in ("codex", "claude-sonnet", "claude-sdk", "agy"):
+            with self.subTest(provider=provider):
+                result = subprocess.run(["bash", "-c", script, "fixture", str(ROOT), provider],
+                                        env={**os.environ, "KEENABLE_API_KEY": "inert-fixture"},
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, "search key leaked or parent lost search access")
+
+    def test_untrusted_boundary_preserves_literal_backslashes_under_xpg_echo(self):
+        script = '''shopt -s xpg_echo
+source "$1/scripts/lib/secure.sh"
+sanitize_external_content 'literal\\c followed by \\n and \\t' keenable-search
+'''
+        result = subprocess.run(["bash", "-c", script, "fixture", str(ROOT)], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        lines = result.stdout.splitlines()
+        self.assertEqual(len(lines), 3, result.stdout)
+        self.assertEqual(lines[1], r'literal\c followed by \n and \t')
+        self.assertEqual(lines[2], lines[0].replace('BEGIN-UNTRUSTED:', 'END-UNTRUSTED:'))
+
     def test_cli_errors_print_no_key_response_body_or_traceback(self):
         for error in (urllib.error.HTTPError("https://api.keenable.ai", 402, "inert-private-value", {}, None), TimeoutError("inert-private-value"), ValueError("inert-private-value")):
             with self.subTest(error=type(error).__name__), patch.object(api, "search", side_effect=error), patch.object(api.signal, "alarm"), patch.object(api.signal, "signal"), patch.object(api.sys, "stdin", type("Input", (), {"buffer": io.BytesIO(b"question")})()), patch.object(api.sys, "stdout", io.StringIO()) as stdout, patch.object(api.sys, "stderr", io.StringIO()) as stderr:

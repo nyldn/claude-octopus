@@ -1012,7 +1012,7 @@ ${_blind_spot_checklist}"
     # gates and before provider dispatch. A failed lookup leaves prompts intact.
     local web_search_context="" perspective_index
     if [[ "${OCTOPUS_RESEARCH_WEB_SEARCH:-}" == keenable ]] &&
-       source "${BASH_SOURCE[0]%/*}/keenable.sh" &&
+       source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/keenable.sh" &&
        web_search_context=$(probe_keenable_search_context "$prompt"); then
         for perspective_index in "${!perspectives[@]}"; do
             perspectives[$perspective_index]="${perspectives[$perspective_index]}

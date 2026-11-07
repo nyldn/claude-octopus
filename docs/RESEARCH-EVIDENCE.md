@@ -22,8 +22,10 @@ Python 3's standard library handles the request; no SDK or CLI installation is
 needed. The question is sent to Keenable only when this option and the allowlist
 permit it. With no key, the helper uses `/v1/search/public` and identifies Claude
 Octopus with `X-Keenable-Title`. An optional `KEENABLE_API_KEY` selects `/v1/search`
-with `X-API-Key`; it is never included in model prompts. Keyless limits are shared
-by egress IP. Authenticated usage follows the account's credits and rate limits.
+with `X-API-Key`; it is excluded from model-child environments and prompts.
+Search result text is preserved literally inside its untrusted boundaries.
+Keyless limits are shared by egress IP. Authenticated usage follows the account's
+credits and rate limits.
 No live search or model request is required by the offline tests.
 
 HTTP contract checked on 2026-11-07 against the official
