@@ -590,7 +590,30 @@ render_agent_summary() {
         return 0
     }
 
-    local rows ok degraded failed timeout cancelled total
+    local rows ok degraded failed timeout cancelled total selected_rows
+    # Process substitutions hide jq's exit status from the loop. Parse first
+    # so a damaged ledger cannot turn a required failed seat into an empty table.
+    if ! selected_rows=$(jq -rs --arg filter "$filter" --argjson task_scope "$task_scope" "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
+        latest_per_seat
+        | .[]
+        | select(in_scope($filter; $task_scope))
+        | [
+            .agent,
+            .status,
+            ((.tokens_out // 0) | tostring),
+            (((.duration_ms // 0) / 1000) | floor | tostring),
+            (if ((.reason // "") | length) > 0 then .reason else "-" end),
+            (.output_file // "")
+          ]
+        | @tsv
+    ' "$jsonl" 2>/dev/null); then
+        printf 'Warning: cannot read agent status ledger: %s\n' "$jsonl"
+        if [[ "${OCTOPUS_REQUIRE_ALL:-false}" == true ]]; then
+            echo "Aborting: OCTOPUS_REQUIRE_ALL=true."
+            return 78
+        fi
+        return 0
+    fi
     local reconciled_rows=""
     while IFS=$'\t' read -r agent status tokens_out seconds reason output_file; do
         [[ -z "$agent" ]] && continue
@@ -627,20 +650,7 @@ render_agent_summary() {
         fi
 
         reconciled_rows+="${agent}"$'\t'"${status}"$'\t'"${tokens_out}"$'\t'"${seconds}"$'\t'"${reason}"$'\n'
-    done < <(jq -rs --arg filter "$filter" --argjson task_scope "$task_scope" "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
-        latest_per_seat
-        | .[]
-        | select(in_scope($filter; $task_scope))
-        | [
-            .agent,
-            .status,
-            ((.tokens_out // 0) | tostring),
-            (((.duration_ms // 0) / 1000) | floor | tostring),
-            (if ((.reason // "") | length) > 0 then .reason else "-" end),
-            (.output_file // "")
-          ]
-        | @tsv
-    ' "$jsonl" 2>/dev/null) || return 0
+    done <<< "$selected_rows"
     rows="$reconciled_rows"
 
     ok=$(awk -F '\t' '$2 == "ok" { n++ } END { print n + 0 }' <<< "$rows")

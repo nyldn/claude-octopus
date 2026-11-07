@@ -317,4 +317,31 @@ if bash -euo pipefail -c 'source "$1/scripts/lib/error-tracking.sh"; render_agen
     test_pass
 else test_fail "summary aborted its caller on a truncated ledger"; fi
 
+for damaged_ledger in truncated trailing; do
+    test_case "require-all rejects a $damaged_ledger ledger"
+    export OCTOPUS_RUN_ID="require-all-$damaged_ledger"
+    ledger="$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID/agents.jsonl"
+    mkdir -p "$(dirname "$ledger")"
+    if [[ "$damaged_ledger" == trailing ]]; then
+        write_agent_status codex failed 1 0 'Provider failed' 0 '' researcher spawn-damaged
+    fi
+    printf '{"agent":' >> "$ledger"
+    summary_rc=0
+    summary="$(OCTOPUS_REQUIRE_ALL=true render_agent_summary)" || summary_rc=$?
+    if [[ "$summary_rc" == 78 && "$summary" == *'cannot read agent status ledger'* ]]; then
+        test_pass
+    else
+        test_fail "damaged ledger bypassed require-all: rc=$summary_rc $summary"
+    fi
+
+    test_case "optional agents continue with a warning for a $damaged_ledger ledger"
+    summary_rc=0
+    summary="$(OCTOPUS_REQUIRE_ALL=false render_agent_summary)" || summary_rc=$?
+    if [[ "$summary_rc" == 0 && "$summary" == *'cannot read agent status ledger'* ]]; then
+        test_pass
+    else
+        test_fail "damaged ledger failed optional continuation or lacked a warning: rc=$summary_rc $summary"
+    fi
+done
+
 test_summary
