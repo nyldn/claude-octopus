@@ -234,6 +234,41 @@ class DocumentRendererTest(unittest.TestCase):
         self.assertIn("/octo:deck --red-team", text)
         self.assertIn("provider calls", text)
 
+    def test_deck_recipe_rejects_oversize_without_summarizer_calls(self):
+        """Use the production budget enforcer with an inert summarizer."""
+        stub = self.base / "budget-collector"
+        stub.write_text('''source "$PLUGIN_ROOT/scripts/lib/dispatch.sh"
+log() { :; }
+get_provider_context_limit() { printf '16\\n'; }
+octo_summarizer_candidates() { printf 'agy\\n'; }
+run_agent_sync() { printf 'attempt\\n' >> "$SUMMARY_CALLS"; printf 'Condensed prompt\\n'; }
+octo_launch_advisors() { enforce_context_budget "$STAKEHOLDER_PROMPT" "" codex review; }
+''')
+        for tree in (".claude/skills", "skills"):
+            with self.subTest(tree=tree):
+                seat_dir = self.base / tree.replace("/", "-")
+                seat_dir.mkdir()
+                calls = seat_dir / "summary-calls"
+                env = dict(os.environ, PLUGIN_ROOT=str(ROOT), BUDGET_STUB=str(stub),
+                           ADVISOR_ID="codex:fixture", ORCHESTRATOR="inert",
+                           STAKEHOLDER_PROMPT="Stakeholder evidence " * 300,
+                           SEAT_DIR=str(seat_dir), SEAT_WAIT_SECONDS="5",
+                           SUMMARY_CALLS=str(calls), OCTOPUS_OVERSIZE_STRATEGY="summarize")
+                control = subprocess.run(["bash", "-c", 'source "$BUDGET_STUB"; octo_launch_advisors'],
+                                         env=env, text=True, capture_output=True, timeout=10)
+                self.assertTrue(calls.exists(), control.stderr)
+                self.assertEqual(calls.read_text(), "attempt\n", control.stderr)
+                calls.unlink()
+                text = (ROOT / tree / "skill-deck/SKILL.md").read_text()
+                recipe = textwrap.dedent(text.split("<!-- deck-seat-collection:start -->", 1)[1].split(
+                    "<!-- deck-seat-collection:end -->", 1)[0].split("```bash\n", 1)[1].split("```", 1)[0])
+                recipe = recipe.replace('source "$PLUGIN_ROOT/scripts/lib/consultative-advisors.sh"',
+                                        'source "$BUDGET_STUB"')
+                result = subprocess.run(["bash", "-euo", "pipefail", "-c", recipe],
+                                        env=env, text=True, capture_output=True, timeout=10)
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertFalse(calls.exists(), result.stderr)
+
     def test_deck_agy_recipe_bounds_actual_adapter_invocations(self):
         """Exercise adapter retries using the environment of the shipped recipe."""
         bin_dir = self.base / "agy-bin"
