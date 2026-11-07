@@ -3518,10 +3518,19 @@ plain_automaton = None
 plain_batches = None
 plain_batch_ids = {}
 plain_hits = {}
+plain_queries = {}
 def plain_line_present(needle, hay):
     global plain_automaton, plain_batches
     if len(plain_needles) < 64 or needle not in plain_needles:
         return None
+    # Most files supply only a few lines from the response-wide pattern set.
+    # Use native substring searches for sparse queries; amortize a Python trie
+    # scan only after this evidence actually receives many distinct queries.
+    queried = plain_queries.setdefault(hay, set())
+    if len(queried) <= 1024:
+        queried.add(needle)
+        if len(queried) <= 1024:
+            return needle in hay
     if plain_batches is None:
         # A response can contain many unrelated 64-character lines. Limit the
         # active trie to 65,537 nodes, and build only batches actually queried.
@@ -4059,7 +4068,8 @@ for start, end, kind, block, removed_block, info in units:
             removed_misses, added_misses = [], []
             hits = [(side_name, side_misses) for side_name, side, side_misses in
                     (("removed", removed_side, removed_misses), ("added", added_side, added_misses))
-                    if in_diff_side(wholes, line_variants, side, side_misses, short)]
+                    if in_diff_side(wholes, line_variants, side,
+                                    side_misses if kind == "fence" else None, short)]
             if hits:
                 diff_side_hit = hits[0][0]
                 diff_partial = all(any(side_misses) for _, side_misses in hits)

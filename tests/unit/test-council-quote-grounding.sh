@@ -3508,7 +3508,7 @@ function = 'def plain_line_present(' + source.split('\ndef plain_line_present(',
 rng = random.Random(1260)
 needles = {'a' * size for size in range(1, 65)} | {'absent-pattern', 'he', 'she', 'hers', 'his', '|', 'μg'}
 needles.update(''.join(rng.choices('abcd', k=8)) for _ in range(80))
-scope = dict(plain_needles=needles, plain_automaton=None, plain_hits={}, plain_batches=None, plain_batch_ids={})
+scope = dict(plain_needles=needles, plain_automaton=None, plain_hits={}, plain_batches=None, plain_batch_ids={}, plain_queries={})
 exec(compile(function, str(sys.argv[1]), 'exec'), scope)
 for hay in ['ushers his μg | ' + 'a' * 100000, ''.join(rng.choices('abcd', k=10000)), 'nothing matches']:
     for needle in needles:
@@ -3517,10 +3517,17 @@ assert scope['plain_line_present']('not indexed', 'anything') is None
 # Distinct long patterns share few edges. The active index must stay bounded
 # even when uncited units supply most of the response's literal patterns.
 needles = {''.join(rng.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=64)) for _ in range(12000)}
-scope.update(plain_needles=needles, plain_automaton=None, plain_hits={}, plain_batches=None, plain_batch_ids={})
+scope.update(plain_needles=needles, plain_automaton=None, plain_hits={}, plain_batches=None, plain_batch_ids={}, plain_queries={})
 ordered = sorted(needles)
 # Revisit the same evidence after switching batches, including absent patterns.
 hay = ordered[0] + ' ' + ordered[len(ordered) // 2] + ' ' + ordered[-1]
+# Sparse per-file queries should not scan the entire pattern set in Python.
+for needle in ordered[:1024]:
+    assert scope['plain_line_present'](needle, hay) == (needle in hay)
+assert scope['plain_automaton'] is None
+assert scope['plain_batches'] is None
+# Promote dense queries, then revisit evidence across pattern batches.
+assert scope['plain_line_present'](ordered[1024], hay) == (ordered[1024] in hay)
 for needle in [ordered[i] for i in (0, len(ordered) // 2, -1, 1, -2, 0)]:
     assert scope['plain_line_present'](needle, hay) == (needle in hay)
     automaton = scope['plain_automaton']
@@ -3657,6 +3664,35 @@ if jq -e '.verification_failed == false and .quotes_verified == 100
 else
     test_fail "report-only non-fence accounting exhausted verification: $r"
 fi
+
+for fence_shape in missing present-reversed; do
+test_case "$fence_shape threshold fences across large files stay within the verifier budget"
+python3 - "$nonfence_root" "$nonfence_response" "$fence_shape" <<'PY_FENCE_BUDGET'
+import sys
+from pathlib import Path
+root = Path(sys.argv[1])
+quotes = []
+for index in range(100):
+    first = f'const first_{index} = loadActualPrice(input);'
+    last = f'return applyActualTaxes_{index}(price, sailing);'
+    short = [f'return missing_{index};']
+    if sys.argv[3] == 'present-reversed':
+        short = [f'return value_{index}_{line};' for line in range(65)]
+        (root / f'file{index}.ts').write_text(first + '\n' + '\n'.join(short) + '\n' + last + '\n' + 'x' * 1400000)
+        short.reverse()
+    quotes.append(f'file{index}.ts:1 reads:\n```ts\n{first}\n' + '\n'.join(short) + f'\n{last}\n```\n')
+Path(sys.argv[2]).write_text('\n'.join(quotes) + '\nVERDICT: APPROVE\n')
+PY_FENCE_BUDGET
+r="$(council_response_quote_verification_json "$nonfence_response" "$nonfence_root")"
+expected_partial=100
+[[ "$fence_shape" == present-reversed ]] && expected_partial=0
+if jq -e --argjson partial "$expected_partial" '.verification_failed == false and .quotes_verified == 100
+    and .quotes_partial == $partial and .fabricated == false' <<< "$r" >/dev/null; then
+    test_pass
+else
+    test_fail "sparse per-file partial accounting exhausted verification: $r"
+fi
+done
 
 test_case "complete far quotes keep supplemental near-line work bounded"
 python3 - "$nonfence_root" "$nonfence_response" <<'PY_COMPLETE_BUDGET'
