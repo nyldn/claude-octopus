@@ -377,7 +377,7 @@ aggregate_results() {
     : > "$raw_concat"
     local ranked_files=""
     if type agent_status_output_files >/dev/null 2>&1; then
-        ranked_files=$(agent_status_output_files "$filter" "$task_scope" 2>/dev/null || true)
+        ranked_files=$(agent_status_output_files "$filter" "$task_scope" || true)
     fi
     [[ -z "$ranked_files" ]] && ranked_files=$(rank_results_by_signals "$RESULTS_DIR" "$filter")
 
@@ -396,14 +396,21 @@ aggregate_results() {
 
     local agent_summary=""
     if type render_agent_summary >/dev/null 2>&1; then
-        agent_summary=$(render_agent_summary "$filter" "$task_scope" 2>/dev/null || true)
+        agent_summary=$(render_agent_summary "$filter" "$task_scope" || true)
     fi
 
     while IFS= read -r result; do
         [[ -z "$result" ]] && continue
         if [[ "$task_scope" != null ]]; then
-            jq -en --arg file "$result" --argjson ids "$task_scope" \
-                '$ids | any(.output_file == $file)' >/dev/null || continue
+            local scope_status=0
+            jq -e --arg file "$result" 'any(.output_file == $file)' \
+                <<< "$task_scope" >/dev/null || scope_status=$?
+            if [[ "$scope_status" -ne 0 ]]; then
+                [[ "$scope_status" -ne 1 ]] || continue
+                log ERROR "Cannot read aggregation task scope (jq exit $scope_status)"
+                rm -f -- "$raw_concat"
+                return "$scope_status"
+            fi
         fi
         [[ ! -f "$result" ]] && continue
         probe_result_file_is_usable "$result" || continue

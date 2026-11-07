@@ -43,6 +43,27 @@ for implementation in parallel heuristics; do
     else
         test_fail "empty current task list included stale results: $content"
     fi
+    test_case "$implementation aggregates a scope larger than the per-argument OS limit"
+    large_tasks=$(jq -nc --arg file "$current" \
+        '[range(0; 3500) | {id:("t" + tostring),output_file:$file}]')
+    rm -f "$RESULTS_DIR"/aggregate-*.md
+    aggregate_results '' '' "$large_tasks" > "$TEST_TMP_DIR/large-scope.log" 2>&1 && rc=0 || rc=$?
+    content="$(cat "$RESULTS_DIR"/aggregate-*.md)"
+    if [[ "$rc" == 0 && "$content" == *CURRENT_IMPLEMENTATION* && "$content" != *UNRELATED_EARLIER* ]]; then
+        test_pass
+    else
+        test_fail "large task scope lost current results, exit=$rc"
+    fi
+    test_case "$implementation reports invalid task scope instead of silently dropping results"
+    if (
+        log() { printf '%s: %s\n' "$1" "$2" >&2; }
+        aggregate_results '' '' '['
+    ) > "$TEST_TMP_DIR/invalid-scope.log" 2>&1; then rc=0; else rc=$?; fi
+    if [[ "$rc" -gt 1 ]] && grep -q 'Cannot read aggregation task scope' "$TEST_TMP_DIR/invalid-scope.log"; then
+        test_pass
+    else
+        test_fail "invalid scope was silently accepted, exit=$rc"
+    fi
 done
 
 test_case "parallel executor passes attempted task identities even when spawning fails"
@@ -371,6 +392,25 @@ parallel_execute "$TEST_TMP_DIR/tasks.json" > "$TEST_TMP_DIR/terminal-ledger.log
 if [[ -e "$TEST_TMP_DIR/damaged-spawn" ]]; then
     test_pass
 else test_fail "valid terminal ownership was rejected"; fi
+
+test_case "a spawn that records running then fails cancels only its own seat and permits retry"
+export OCTOPUS_RUN_ID=spawn-admission-failure
+write_agent_status codex running 1 0 '' 0 "$RESULTS_DIR/codex-other.md" researcher spawn-other
+spawn_agent_capture_pid() {
+    write_agent_status "$1" running 1 0 '' 0 "$RESULTS_DIR/$1-$3.md" researcher "spawn-$3"
+    printf '%s\n' "$3" >> "$TEST_TMP_DIR/spawn-attempts"
+    return 74
+}
+printf '{"tasks":[{"id":"admission-failed","agent":"codex","prompt":"inert"}]}' > "$TEST_TMP_DIR/tasks.json"
+for _ in 1 2; do
+    parallel_execute "$TEST_TMP_DIR/tasks.json" > "$TEST_TMP_DIR/admission-failure.log" 2>&1 || true
+done
+if [[ -f "$TEST_TMP_DIR/spawn-attempts" && "$(wc -l < "$TEST_TMP_DIR/spawn-attempts")" -eq 2 ]] &&
+   jq -e '.agents | any(.seat_id == "spawn-admission-failed" and .status == "cancelled") and
+       any(.seat_id == "spawn-other" and .status == "running")' \
+       "$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID/agents.json" >/dev/null; then
+    test_pass
+else test_fail "failed admission left its seat running or cancelled an unrelated seat"; fi
 
 test_case "fallback and Python claim publication cannot admit two owners"
 if python3 "$PROJECT_ROOT/tests/unit/test-output-claim-races.py"; then test_pass

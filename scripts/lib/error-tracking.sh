@@ -542,7 +542,8 @@ agent_status_output_files() {
     [[ -s "$jsonl" ]] || return 0
     command -v jq >/dev/null 2>&1 || return 0
 
-    jq -rs --arg filter "$filter" --argjson task_scope "$task_scope" "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
+    jq -rs --arg filter "$filter" --rawfile task_scope /dev/stdin "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
+        ($task_scope | fromjson) as $task_scope |
         latest_per_seat
         | .[]
         | select(in_scope($filter; $task_scope))
@@ -552,7 +553,7 @@ agent_status_output_files() {
             (.output_file // "")
           ]
         | @tsv
-    ' "$jsonl" 2>/dev/null | while IFS=$'\t' read -r status contribution file; do
+    ' "$jsonl" <<< "$task_scope" | while IFS=$'\t' read -r status contribution file; do
         [[ -n "$file" && -f "$file" ]] || continue
         if [[ "$eligibility" == probe ]]; then
             probe_result_file_is_usable "$file" || continue
@@ -593,7 +594,8 @@ render_agent_summary() {
     local rows ok degraded failed timeout cancelled total selected_rows
     # Process substitutions hide jq's exit status from the loop. Parse first
     # so a damaged ledger cannot turn a required failed seat into an empty table.
-    if ! selected_rows=$(jq -rs --arg filter "$filter" --argjson task_scope "$task_scope" "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
+    if ! selected_rows=$(jq -rs --arg filter "$filter" --rawfile task_scope /dev/stdin "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
+        ($task_scope | fromjson) as $task_scope |
         latest_per_seat
         | .[]
         | select(in_scope($filter; $task_scope))
@@ -606,7 +608,7 @@ render_agent_summary() {
             (.output_file // "")
           ]
         | @tsv
-    ' "$jsonl" 2>/dev/null); then
+    ' "$jsonl" <<< "$task_scope"); then
         printf 'Warning: cannot read agent status ledger: %s\n' "$jsonl"
         if [[ "${OCTOPUS_REQUIRE_ALL:-false}" == true ]]; then
             echo "Aborting: OCTOPUS_REQUIRE_ALL=true."

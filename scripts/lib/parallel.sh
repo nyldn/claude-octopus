@@ -340,6 +340,7 @@ parallel_execute() {
                 *) return 1 ;;
             esac
         fi
+        log WARN "Shell output claim at $claim: interrupted claims need manual recovery; see docs/COMMAND-REFERENCE.md"
         mkdir -- "$claim" 2>/dev/null || return 1
         # A nonempty fallback claim cannot be replaced by Python's rename.
         # If Python publishes between mkdir and this exclusive write, its owner
@@ -503,13 +504,14 @@ parallel_execute() {
         while IFS=$'\t' read -r agent seat output role; do
             write_agent_status "$agent" cancelled 0 0 "Parallel execution interrupted" \
                 0 "$output" "$role" "$seat" || true
-        done < <(jq -rs --argjson tasks "${aggregate_task_scope:-[]}" \
+        done < <(jq -rs --rawfile tasks /dev/stdin \
             "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
+            ($tasks | fromjson) as $tasks |
             latest_per_seat | .[] | select(.status == "running") |
             select(. as $row | any($tasks[];
                 $row.seat_id == ("spawn-" + .id) and
                 $row.output_file == .output_file)) |
-            [.agent, .seat_id, .output_file, (.role // "")] | @tsv' "$ledger")
+            [.agent, .seat_id, .output_file, (.role // "")] | @tsv' "$ledger" <<< "${aggregate_task_scope:-[]}")
     }
     _parallel_handle_signal() {
         local signal="$1" signal_status=143 saved_trap current_pid
@@ -861,6 +863,7 @@ parallel_execute() {
             log WARN "Skipping task $task_id: failed to spawn agent '$agent'"
             _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" true \
                 "failed" "failed-spawn" "$spawn_status"
+            _parallel_cancel_orphaned_seat "$task_id" "$RESULTS_DIR/$result_slug-$task_id.md"
             ((failed++)) || true
             continue
         fi
@@ -1090,8 +1093,15 @@ aggregate_results() {
     while IFS= read -r result; do
         [[ -z "$result" ]] && continue
         if [[ "$task_scope" != null ]]; then
-            jq -en --arg file "$result" --argjson ids "$task_scope" \
-                '$ids | any(.output_file == $file)' >/dev/null || continue
+            local scope_status=0
+            jq -e --arg file "$result" 'any(.output_file == $file)' \
+                <<< "$task_scope" >/dev/null || scope_status=$?
+            if [[ "$scope_status" -ne 0 ]]; then
+                [[ "$scope_status" -ne 1 ]] || continue
+                log ERROR "Cannot read aggregation task scope (jq exit $scope_status)"
+                rm -f -- "$raw_concat"
+                return "$scope_status"
+            fi
         fi
         local score
         score=$(score_result_file "$result")

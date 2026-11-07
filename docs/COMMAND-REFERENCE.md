@@ -1389,9 +1389,20 @@ octopus summary
 
 **What it shows:**
 - Provider/agent name, one row per seat: a provider with several seats in a run, such as probe perspectives, gets a row for each
-- Status: `ok`, `degraded`, `failed`, or `timeout`
+- Status: `ok`, `degraded`, `failed`, `timeout`, or `cancelled`
 - Output token count and duration
 - Failure or degradation reason, including oversize prompt handling
+
+Parallel dispatch normally uses Python-backed output claims that can detect
+exited owners. When Python locking is unavailable or the caller already owns
+descriptor 7, the executor warns that it is using a shell claim. An interrupted
+shell claim stays reserved because the fallback cannot prove its owner exited.
+Before recovering it, stop the owning invocation and verify all its workers and
+provider processes have exited. Inspect the exact claim directory named in the
+warning and confirm its `owner` file contains only `fallback`. Remove that one
+`owner` file, then remove its now-empty claim directory with `rmdir`. Preserve
+the result file; a newly admitted retry clears stale output itself. Never remove
+claims belonging to a live or unknown owner, or use a wildcard to clear claims.
 - Whether synthesis will continue or abort when `OCTOPUS_REQUIRE_ALL=true`
 
 Multi-provider commands call this automatically before synthesis when a run ledger is available.

@@ -4,6 +4,11 @@
 
 ### Fixed
 
+- Large parallel task batches retain their scoped results without exceeding
+  command-line argument limits, and invalid scopes report an aggregation error.
+  A spawn that fails after recording a running seat cancels that seat so a later
+  attempt can proceed. Interrupted shell-only claims report their manual
+  recovery procedure.
 - The agent run summary no longer reports a provider's successful seat as
   failed when another of its seats times out. The status ledger kept the
   latest row per agent name, so a probe with two Claude seats printed "2 of 2
