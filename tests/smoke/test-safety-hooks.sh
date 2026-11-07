@@ -121,6 +121,7 @@ test_freeze_hook_valid_syntax() {
 
 # ── Careful hook: destructive pattern coverage ───────────────────────
 
+# test_careful_rm_rf_pattern: Check that recursive forced deletion delegates to the safety helper.
 test_careful_rm_rf_pattern() {
     test_case "careful-check.sh detects rm -rf"
     if grep -c 'careful-rm' "$CAREFUL_HOOK" >/dev/null 2>&1; then
@@ -228,6 +229,7 @@ test_careful_returns_ask_decision() {
     fi
 }
 
+# test_careful_statement_shape_not_substring: Exercise destructive statements and harmless literal text through the hook.
 test_careful_statement_shape_not_substring() {
     test_case "careful-check.sh gates on executable context and command boundaries"
     # Activate careful mode for a pinned session so the hook and this test resolve the
@@ -406,6 +408,7 @@ test_debug_skill_autofreeze() {
     fi
 }
 
+# activate_safety_hook_fixture: Create only the synthetic state needed by this hook test.
 activate_safety_hook_fixture() {
     local work="$1" block="$2" sid="$3" sf="$4" pid pid_sf rc
     # Hold the owned child before activation, then admit its actual PID path.
@@ -439,6 +442,7 @@ activate_safety_hook_fixture() {
     return "$rc"
 }
 
+# test_debug_skill_autofreeze_reaches_hook: Check that debug freeze activation reaches the real write boundary hook.
 test_debug_skill_autofreeze_reaches_hook() {
     test_case "skill-debug auto-freeze writes the state file freeze-check.sh and /octo:unfreeze use, and keeps an existing freeze"
     # Run each skill copy's freeze block the way a Claude Code Bash tool call runs it:

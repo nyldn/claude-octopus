@@ -20,6 +20,7 @@ SESSION_LIB="$PROJECT_ROOT/scripts/lib/session-id.sh"
 pass() { test_case "$1"; test_pass; }
 fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
+# assert_contains: Record whether the selected source contains the required session contract.
 assert_contains() {
     local file="$1"
     local pattern="$2"

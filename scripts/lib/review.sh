@@ -2723,6 +2723,7 @@ review_emit_finding_events() {
     done
 }
 
+# render_terminal_report: Render findings, verification gaps, and publication status for the user.
 render_terminal_report() {
     local findings_file="$1"
     local findings_json="" finding_count="0"

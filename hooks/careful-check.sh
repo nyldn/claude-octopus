@@ -47,6 +47,7 @@ _octo_invalid_input() {
     printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Careful mode could not validate the tool input. Check that Python 3 is installed and the hook input is valid JSON before retrying."}}'
     exit 0
 }
+# _octo_careful_decision: Emit a host-compatible decision without executing the supplied command.
 _octo_careful_decision() {
     python3 "$_HOOK_DIR/safety-contract.py" careful-decision "$1" 2>/dev/null || _octo_invalid_input
 }

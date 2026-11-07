@@ -13,6 +13,7 @@ base_env = dict(os.environ)
 for key in ['CLAUDE_CODE_SESSION_ID', 'CLAUDE_SESSION_ID', 'CLAUDE_CODE_SESSION', 'CODEX_SESSION_ID', 'CODEX_TASK_ID', 'CODEX_PLUGIN_ROOT', 'CLAUDE_PLUGIN_ROOT', 'CODEX_SANDBOX', 'CODEX_HOME', 'OCTOPUS_HOST', 'PLUGIN_ROOT', 'OCTO_CAREFUL_MODE', 'OCTO_FREEZE_MODE']:
     base_env.pop(key, None)
 def hook(name, data, env):
+    """Run a real hook with isolated identity and return its permission decision."""
     result = subprocess.run(['bash', str(root/'hooks'/name)], input=json.dumps(data), env=env, text=True, capture_output=True, check=True)
     return json.loads(result.stdout)['hookSpecificOutput']['permissionDecision'] if result.stdout else 'allow'
 state = Path('/tmp/octopus-careful-' + sid + '.txt')
@@ -59,6 +60,21 @@ finally:
     state.unlink(missing_ok=True)
 with tempfile.TemporaryDirectory() as temporary:
     helper = root/'scripts/helpers/guard-state.sh'
+    for action, kind in [('careful-on', 'careful'), ('freeze-on', 'freeze')]:
+        directory = Path('/tmp/octopus-'+kind+'-'+sid+'.txt')
+        directory.mkdir()
+        marker = directory/'preserved'; marker.write_text('existing state directory')
+        env = dict(base_env, OCTOPUS_HOST='claude', CLAUDE_CODE_SESSION_ID=sid)
+        try:
+            args = ['bash', str(helper), action] + ([temporary] if kind == 'freeze' else [])
+            result = subprocess.run(args, env=env, capture_output=True, text=True)
+            assert result.returncode != 0, (action, 'directory destination reported success')
+            assert list(directory.iterdir()) == [marker], 'temporary state was moved into the directory'
+            assert marker.read_text() == 'existing state directory'
+        finally:
+            for owned in directory.iterdir():
+                owned.unlink()
+            directory.rmdir()
     for host, key in [('claude','CLAUDE_CODE_SESSION_ID'),('claude','CLAUDE_CODE_SESSION'),('codex','CODEX_SESSION_ID'),('codex','CODEX_TASK_ID')]:
         env = dict(base_env, OCTOPUS_HOST=host, **{key:sid, ('CLAUDE_PLUGIN_ROOT' if host=='claude' else 'CODEX_PLUGIN_ROOT'):str(root)})
         freeze = Path('/tmp/octopus-freeze-'+sid+'.txt')

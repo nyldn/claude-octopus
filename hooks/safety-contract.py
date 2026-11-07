@@ -10,12 +10,14 @@ import sys
 
 
 def decision(kind, reason):
+    """Emit one permission decision in the host hook JSON format."""
     print(json.dumps({"hookSpecificOutput": {
         "hookEventName": "PreToolUse", "permissionDecision": kind,
         "permissionDecisionReason": reason}}, separators=(",", ":")))
 
 
 def codex_host():
+    """Detect a Codex hook from host markers or the loaded plugin cache path."""
     if (os.environ.get("OCTOPUS_HOST") == "codex"
             or os.environ.get("CODEX_SANDBOX")
             or os.environ.get("CODEX_PLUGIN_ROOT")):
@@ -30,12 +32,14 @@ def codex_host():
 
 
 def string(value):
+    """Require a string that can be passed to filesystem operations."""
     if not isinstance(value, str) or "\0" in value:
         raise ValueError("expected a string without NUL bytes")
     return value
 
 
 def payload():
+    """Read one hook input object from standard input."""
     data = json.load(sys.stdin)
     if not isinstance(data, dict):
         raise ValueError("expected a hook JSON object")
@@ -43,6 +47,7 @@ def payload():
 
 
 def tool_input(data):
+    """Return tool arguments after requiring an object-shaped input."""
     value = data.get("tool_input", {})
     if not isinstance(value, dict):
         raise ValueError("expected a tool_input object")
@@ -50,6 +55,7 @@ def tool_input(data):
 
 
 def patch_paths(command):
+    """Parse literal patch paths without executing heredocs or shell wrappers."""
     text = string(command).strip()
     # Accept a literal patch or a single quoted heredoc, never execute a wrapper.
     if not text.startswith("*** Begin Patch\n"):
@@ -112,6 +118,7 @@ def patch_paths(command):
 
 
 def canonical_path(value, cwd):
+    """Resolve a path relative to cwd, rejecting invalid or inaccessible paths."""
     value = string(value)
     if not value.strip() or any(ord(char) < 32 for char in value):
         raise ValueError("empty path or control character in path")
@@ -130,6 +137,7 @@ def canonical_path(value, cwd):
 
 
 def freeze(data, boundary):
+    """Deny writes and patch operations whose resolved paths leave the boundary."""
     name = string(data.get("tool_name"))
     if name not in ("Edit", "Write", "apply_patch"):
         return

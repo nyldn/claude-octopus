@@ -115,6 +115,7 @@ sys.exit(1 if mode == "failed" else 0)
                     self.assertEqual(stable.resolve(), loaded.resolve())
 
     def test_inferred_checkout_runs_without_redirecting_another_install(self):
+        """Keep another installation pinned while validating an inferred checkout."""
         stable = self.home / '.claude-octopus/plugin'
         loaded = self.home / 'loaded-checkout'
         stable.rename(loaded)

@@ -114,6 +114,7 @@ fi
 test_case "format-only recovery parses a wrapped reformatted document without the python fallback"
 recovery_document='{"findings":[{"file":"package.json","line":7,"severity":"normal","category":"correctness","title":"Recovered","detail":"same finding","confidence":0.9}]}'
 original_sync="$(declare -f review_run_agent_sync_progress)"
+# review_run_agent_sync_progress: Return inert provider fixtures or the requested verifier failure.
 review_run_agent_sync_progress() { OCTOPUS_SECURITY_V870=true wrap_cli_output "$1" "$recovery_document"; }
 python3() { return 127; }
 recovered="$(review_recover_malformed_findings codex implementation-logic-reviewer '{findings:[{severity:normal,title:"Recovered"}]}' test-recovery 2>/dev/null || true)"
@@ -195,6 +196,7 @@ review_run_agent_sync_progress() {
 }
 render_terminal_report() { :; }
 print_provider_report() { :; }
+# gh: Expose only a synthetic PR when publication is explicitly enabled.
 gh() { [[ "${PUBLICATION_FIXTURE:-false}" == true ]] || return 1; echo 999; }
 post_inline_comments() { echo PUBLISHED >> "$HARNESS_LOG"; }
 review_pr_metadata() { echo '{"number":999,"headRefOid":"fixture"}'; }
@@ -224,6 +226,7 @@ review_harness_findings() {
     jq -c '[.findings[] | {title, verdict, synthesized}]' "$findings_file"
 }
 
+# review_harness_diagnostics: Summarize the isolated review result when a behavioral assertion fails.
 review_harness_diagnostics() {
     printf 'rc=%s findings=%s log=[%s] output=[%s]' "$2" \
         "$(review_harness_findings "$1" 2>/dev/null || printf 'missing')" \

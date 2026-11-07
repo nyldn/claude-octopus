@@ -21,11 +21,21 @@ if [[ "$action" == freeze-on || ( "$action" == guard-on && -n "${2:-}" ) ]]; the
     [[ -n "${2:-}" ]] || { echo 'ERROR: directory required.' >&2; exit 2; }
     boundary="$(cd "$2" && pwd -P)" || { echo 'ERROR: freeze directory does not exist.' >&2; exit 2; }
 fi
+# write_state: Atomically publish private state; never move it into a directory.
 write_state() {
     local kind="$1" value="$2" temporary
     umask 077
     temporary="$(mktemp "/tmp/octopus-${kind}-${sid}.XXXXXX")"
-    if ! printf '%s\n' "$value" > "$temporary" || ! mv -f "$temporary" "/tmp/octopus-${kind}-${sid}.txt"; then
+    if ! printf '%s\n' "$value" > "$temporary" || ! python3 - "$temporary" "/tmp/octopus-${kind}-${sid}.txt" <<'PYREPLACE'
+import os
+import sys
+
+try:
+    os.replace(sys.argv[1], sys.argv[2])
+except OSError:
+    raise SystemExit("Guard activation failed: state could not be replaced.")
+PYREPLACE
+    then
         rm -f "$temporary"
         return 1
     fi
