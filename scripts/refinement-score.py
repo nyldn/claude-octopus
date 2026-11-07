@@ -10,11 +10,13 @@ import sys
 
 
 def require(condition, message):
+    """Reject a violated input contract with a readable error."""
     if not condition:
         raise ValueError(message)
 
 
 def number(value, low, high, label):
+    """Validate a finite numeric field and preserve its exact decimal value."""
     require(type(value) in (int, float, Decimal), f"{label} must be a number")
     decimal = Decimal(str(value))
     require(decimal.is_finite() and low <= decimal <= high,
@@ -23,16 +25,19 @@ def number(value, low, high, label):
 
 
 def text(value, label):
+    """Require nonempty evidence or metadata text."""
     require(isinstance(value, str) and bool(value.strip()), f"{label} is required")
     return value
 
 
 def object_value(value, label):
+    """Require an object before reading its fields."""
     require(isinstance(value, dict), f"{label} must be an object")
     return value
 
 
 def indexed(values, label):
+    """Index entries by unique nonempty IDs."""
     require(isinstance(values, list), f"{label} must be an array")
     result = {}
     for value in values:
@@ -44,6 +49,7 @@ def indexed(values, label):
 
 
 def evaluate(rubric, assessment, rubric_hash, artifact_hash):
+    """Validate both assessments and compute target eligibility from exact scores."""
     object_value(rubric, "rubric")
     object_value(assessment, "assessment")
     require(type(rubric.get("schema_version")) is int and rubric["schema_version"] == 1,
@@ -116,6 +122,7 @@ def evaluate(rubric, assessment, rubric_hash, artifact_hash):
 
 
 def unique_object(pairs):
+    """Reject duplicate JSON keys rather than silently replacing a value."""
     result = {}
     for key, value in pairs:
         require(key not in result, f"duplicate JSON key: {key}")
@@ -124,10 +131,12 @@ def unique_object(pairs):
 
 
 def load_json(data):
+    """Parse decimal scores exactly and reject duplicate keys."""
     return json.loads(data, object_pairs_hook=unique_object, parse_float=Decimal)
 
 
 def main(argv):
+    """Read snapshots, validate their hashes, and print the score result."""
     if len(argv) != 4:
         print("Usage: refinement-score.py RUBRIC ARTIFACT ASSESSMENT", file=sys.stderr)
         return 2

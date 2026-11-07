@@ -7,6 +7,7 @@ import sys
 
 
 def flags(servers):
+    """Build disable overrides from safely named MCP inventory entries."""
     if not isinstance(servers, list):
         raise ValueError("invalid MCP inventory")
     result = ["-c", "features.apps=false", "-c", "features.plugins=false"]
@@ -19,6 +20,7 @@ def flags(servers):
 
 
 def main():
+    """Read the local inventory and emit flags without exposing credentials."""
     try:
         result = subprocess.run(["codex", "mcp", "list", "--json", "-c", "features.apps=false",
                                  "-c", "features.plugins=false"],

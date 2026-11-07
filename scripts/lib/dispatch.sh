@@ -225,6 +225,7 @@ _build_codex_exec_command() {
     local base="codex exec --skip-git-repo-check --model ${model}"
     if [[ "${OCTOPUS_REFINEMENT_JUDGE:-false}" == true ]]; then
         local judge_policy
+        # The policy helper emits only fixed flags and restricted server names.
         judge_policy="$(python3 "${PLUGIN_DIR}/scripts/helpers/refinement-codex-policy.py")" || return 1
         base+=" ${judge_policy}"
     fi

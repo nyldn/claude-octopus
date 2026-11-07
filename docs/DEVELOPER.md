@@ -143,6 +143,7 @@ remains mandatory.
 Test fixtures default to a separate `octopus-tests-<pid>` directory under
 `TMPDIR`, or `/tmp` when unset. Set `TMPDIR` to a private directory with readable
 ancestors when a host's temporary-file policy prevents descriptor traversal.
+Relative `TMPDIR` values are anchored to the suite's original working directory.
 Leave `TEST_TMP_DIR` unset for nested suites so each process owns its cleanup.
 Keep UTF-8 character classification enabled; use `LC_COLLATE=C` for consistent
 sorting rather than forcing `LC_ALL=C` across Unicode tests.

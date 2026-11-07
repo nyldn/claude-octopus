@@ -2,7 +2,10 @@
 # Check dispatch boundaries without launching providers or using authentication.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-python3 - "$ROOT" <<'PY'
+source "$ROOT/tests/helpers/test-framework.sh"
+test_suite "Refinement judge dispatch"
+test_case "read-only dispatch, timeout reservations, and provider restrictions"
+if python3 - "$ROOT" <<'PY'
 import json
 import importlib.util
 import os
@@ -79,5 +82,10 @@ print(json.dumps({"argv":sys.argv[1:], "judge":os.environ["OCTOPUS_REFINEMENT_JU
     denied = subprocess.run(args, env=dict(environment, OCTOPUS_CLAUDE_BIN="claude --mcp-config unsafe.json"),
                             capture_output=True, text=True)
     assert denied.returncode == 2 and not denied.stdout, denied
-print("PASS: constrained dispatch, exact pins, no retries, unsupported providers and invalid timeouts")
 PY
+then
+    test_pass
+else
+    test_fail "refinement judge dispatch regression"
+fi
+test_summary

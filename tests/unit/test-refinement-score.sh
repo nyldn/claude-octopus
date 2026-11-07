@@ -2,7 +2,10 @@
 # Exercise score validation against malformed, stale, and blocking assessments.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-python3 - "$ROOT" <<'PY'
+source "$ROOT/tests/helpers/test-framework.sh"
+test_suite "Refinement score validation"
+test_case "exact scoring and invalid assessment rejection"
+if python3 - "$ROOT" <<'PY'
 import copy
 import hashlib
 import json
@@ -170,3 +173,9 @@ class RefinementScoreTests(unittest.TestCase):
 
 unittest.main()
 PY
+then
+    test_pass
+else
+    test_fail "refinement score validation regression"
+fi
+test_summary
