@@ -44,6 +44,57 @@ parallel_execute "$TASKS"
 '''
 
 
+class StaleClaimRetirement(unittest.TestCase):
+    def test_killed_stale_retirement_does_not_strand_public_claim(self):
+        with tempfile.TemporaryDirectory(prefix="claim-retirement-") as directory:
+            root = Path(directory)
+            claim = root / ".answer.claim"
+            claim.mkdir()
+            old_owner = root / ".parallel-owner.old"
+            new_owner = root / ".parallel-owner.new"
+            old_owner.touch()
+            new_owner.touch()
+            (claim / "owner").write_text(str(old_owner) + "\n")
+            code = r'''
+import importlib.util, os, signal, sys
+spec = importlib.util.spec_from_file_location("claims", sys.argv[1])
+claims = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(claims)
+original = os.unlink
+def interrupt(path, *args, **kwargs):
+    original(path, *args, **kwargs)
+    if os.path.basename(path) == "owner":
+        os.kill(os.getpid(), signal.SIGKILL)
+claims.os.unlink = interrupt
+claims.acquire(sys.argv[2], sys.argv[3])
+'''
+            killed = subprocess.run(["python3", "-c", code, str(ROOT / "scripts/helpers/output-claim.py"),
+                                     str(claim), str(new_owner)], timeout=5)
+            self.assertEqual(killed.returncode, -signal.SIGKILL)
+            self.assertIn(claims.acquire(str(claim), str(new_owner)),
+                          (claims.ACQUIRED, claims.RECLAIMED))
+            self.assertEqual((claim / "owner").read_text().strip(), str(new_owner))
+
+    def test_failed_public_directory_removal_preserves_retry(self):
+        with tempfile.TemporaryDirectory(prefix="claim-removal-") as directory:
+            root = Path(directory)
+            claim = root / ".answer.claim"
+            claim.mkdir()
+            old_owner = root / ".parallel-owner.old"
+            new_owner = root / ".parallel-owner.new"
+            old_owner.touch()
+            new_owner.touch()
+            (claim / "owner").write_text(str(old_owner) + "\n")
+            original = os.rmdir
+            def reject_public_removal(path, *args, **kwargs):
+                if os.fspath(path) == str(claim):
+                    raise OSError("injected public rmdir failure")
+                return original(path, *args, **kwargs)
+            with patch.object(claims.os, "rmdir", reject_public_removal):
+                claims.acquire(str(claim), str(new_owner))
+            self.assertNotEqual(claims.acquire(str(claim), str(new_owner)), claims.OWNED)
+
+
 class ClaimRaces(unittest.TestCase):
     def exercise(self, pause_fallback):
         with tempfile.TemporaryDirectory(prefix="claim-race-") as directory:

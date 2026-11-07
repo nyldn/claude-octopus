@@ -76,8 +76,12 @@ def acquire(claim, owner_lock):
                 try:
                     if os.listdir(claim) != [OWNER_RECORD]:
                         return OWNED
-                    os.unlink(os.path.join(claim, OWNER_RECORD))
-                    os.rmdir(claim)
+                    # Retire the complete record atomically before deleting it.
+                    # A crash or cleanup error must never leave an ownerless
+                    # public claim that all later acquisitions treat as live.
+                    with tempfile.TemporaryDirectory(prefix=".retired-claim.",
+                                                     dir=os.path.dirname(claim)) as retired:
+                        os.rename(claim, retired)
                 except OSError:
                     return OWNED
                 outcome = RECLAIMED
