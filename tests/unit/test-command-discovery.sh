@@ -68,4 +68,27 @@ test_case "unknown CLI commands return a usage error"
 rc=0
 output="$(HOME="$TEST_TMP_DIR" "$PROJECT_ROOT/bin/octopus" not-a-command 2>&1)" || rc=$?
 if [[ "$rc" == 2 && "$output" == *"Unknown octopus command"* ]]; then test_pass; else test_fail "unknown command did not return exit 2"; fi
+
+test_case "every installed command path honors both host pins ahead of the shared alias"
+if python3 - "$PROJECT_ROOT" <<'ROOTS'
+from pathlib import Path
+import os, subprocess, sys, tempfile
+root = Path(sys.argv[1])
+expression = '${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}'
+checked = 0
+for path in (root/'commands').glob('*.md'):
+    text = path.read_text()
+    if '${HOME}/.claude-octopus/plugin' not in text:
+        continue
+    assert '${HOME}/.claude-octopus/plugin' not in text.replace(expression, ''), path
+    for pins, expected in [({'CLAUDE_PLUGIN_ROOT':'/selected-claude','CODEX_PLUGIN_ROOT':'/other-codex'}, '/selected-claude'), ({'CODEX_PLUGIN_ROOT':'/selected-codex'}, '/selected-codex'), ({}, '/fixture-home/.claude-octopus/plugin')]:
+        env = dict(os.environ, HOME='/fixture-home')
+        env.pop('CLAUDE_PLUGIN_ROOT',None);env.pop('CODEX_PLUGIN_ROOT',None);env.update(pins)
+        result = subprocess.run(['bash','-c','printf "%s" "'+expression+'"'], env=env, capture_output=True,text=True,check=True)
+        assert result.stdout == expected, (path, result.stdout)
+    checked += 1
+assert checked >= 24, checked
+ROOTS
+then test_pass; else test_fail "a command can use another installation"; fi
+
 test_summary

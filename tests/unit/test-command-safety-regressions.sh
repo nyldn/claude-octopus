@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "$ROOT/tests/helpers/test-framework.sh"
+test_suite "Command safety regressions"
+test_case "deletion targets and stable guard sessions"
+if python3 - "$ROOT" <<'CHECKS'
+from pathlib import Path
+import json, os, subprocess, sys, tempfile, uuid
+root = Path(sys.argv[1])
+sid = 'audit-' + uuid.uuid4().hex
+base_env = dict(os.environ)
+for key in ['CLAUDE_CODE_SESSION_ID', 'CLAUDE_SESSION_ID', 'CLAUDE_CODE_SESSION', 'CODEX_SESSION_ID', 'CODEX_TASK_ID', 'CODEX_PLUGIN_ROOT', 'OCTO_CAREFUL_MODE', 'OCTO_FREEZE_MODE']:
+    base_env.pop(key, None)
+def hook(name, data, env):
+    result = subprocess.run(['bash', str(root/'hooks'/name)], input=json.dumps(data), env=env, text=True, capture_output=True, check=True)
+    return json.loads(result.stdout)['hookSpecificOutput']['permissionDecision'] if result.stdout else 'allow'
+state = Path('/tmp/octopus-careful-' + sid + '.txt')
+try:
+    state.write_text('active')
+    env = dict(base_env, OCTOPUS_HOST='claude', CLAUDE_CODE_SESSION_ID=sid)
+    for cmd, expected in [
+        ('rm -rf /tmp/important node_modules', 'ask'),
+        ('rm -rf node_modules && rm -rf /tmp/important', 'ask'),
+        ('rm -fr /tmp/important', 'ask'),
+        ('rm -R -f /tmp/important', 'ask'),
+        ('/bin/rm --force --recursive /tmp/important', 'ask'),
+        ('rm -rf node_modules dist', 'allow'),
+        ('sudo -u somebody rm -rf /tmp/important', 'ask'),
+        ('cd /tmp && rm -rf node_modules', 'ask'),
+        ('xargs rm -fr /tmp/important', 'ask'),
+        ('rm -rf node_modules/../../important', 'ask'),
+        ('rm -rf "$TARGET"', 'ask'),
+        ("echo 'rm -rf /tmp/important'", 'allow'),
+    ]:
+        assert hook('careful-check.sh', {'tool_name':'Bash','tool_input':{'command':cmd}}, env)==expected, cmd
+    with tempfile.TemporaryDirectory() as temporary:
+        link = Path(temporary)/'node_modules'; outside = Path(temporary)/'private'; outside.mkdir(); link.symlink_to(outside)
+        assert hook('careful-check.sh', {'tool_name':'Bash','tool_input':{'command':'rm -rf '+str(link)}}, env)=='ask'
+finally:
+    state.unlink(missing_ok=True)
+with tempfile.TemporaryDirectory() as temporary:
+    helper = root/'scripts/helpers/guard-state.sh'
+    for host, key in [('claude','CLAUDE_CODE_SESSION_ID'),('claude','CLAUDE_CODE_SESSION'),('codex','CODEX_SESSION_ID'),('codex','CODEX_TASK_ID')]:
+        env = dict(base_env, OCTOPUS_HOST=host, **{key:sid})
+        freeze = Path('/tmp/octopus-freeze-'+sid+'.txt')
+        careful = Path('/tmp/octopus-careful-'+sid+'.txt')
+        try:
+            subprocess.run(['bash',str(helper),'guard-on',temporary],env=env,check=True,capture_output=True)
+            assert freeze.read_text().strip()==str(Path(temporary).resolve())
+            assert hook('freeze-check.sh',{'tool_name':'Write','cwd':temporary,'tool_input':{'file_path':'/tmp/outside-command-audit'}},env)=='deny'
+            assert hook('careful-check.sh',{'tool_name':'Bash','tool_input':{'command':'rm -rf /tmp/important'}},env)==('deny' if host=='codex' else 'ask')
+            subprocess.run(['bash',str(helper),'freeze-off'],env=env,check=True,capture_output=True)
+            assert not freeze.exists() and careful.exists()
+            subprocess.run(['bash',str(helper),'careful-off'],env=env,check=True,capture_output=True)
+        finally:
+            freeze.unlink(missing_ok=True); careful.unlink(missing_ok=True)
+    result=subprocess.run(['bash',str(helper),'freeze-on',temporary],env=dict(base_env,OCTOPUS_HOST='claude'),capture_output=True,text=True)
+    assert result.returncode==2 and 'no stable host session ID' in result.stderr
+CHECKS
+then test_pass; else test_fail "command safety regression"; fi
+test_summary

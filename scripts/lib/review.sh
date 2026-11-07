@@ -2267,6 +2267,7 @@ ${round1_prompts[$retry_idx]}"
 
     # ── ROUND 2: Verification ─────────────────────────────────────────────────
     log INFO "review_run: Round 2 — verification"
+    local verification_incomplete=false
     local verifier_prompt
     verifier_prompt="You are a code review verifier. For each finding below, check whether it is a real bug (confirmed), a false positive, or needs debate (uncertain/conflicting).
 
@@ -2291,10 +2292,11 @@ Return ONLY valid JSON with 'findings' array including verdict field."
         verified_findings=$(review_run_agent_sync_progress "$verifier_provider" "$verifier_prompt" "implementation-verifier" "review" "verifier-$(octo_agent_spec_slug "$verifier_provider")") && {
             review_append_provider_status "$provider_status_file" "$verifier_provider" implementation-verifier ok "Round 2 verification"
         } || {
-            log WARN "review_run: ${verifier_provider} verification failed, using all findings as confirmed"
+            log WARN "review_run: ${verifier_provider} verification failed, preserving unverified findings"
+            verification_incomplete=true
             review_append_provider_status "$provider_status_file" "$verifier_provider" implementation-verifier fallback "Round 2 verification failed; preserving Round 1 findings"
             verified_findings=$(printf '{"findings":%s}' "$(
-                echo "$all_findings" | jq 'map(. + {"verdict":"confirmed"})' 2>/dev/null || echo "[]"
+                echo "$all_findings" | jq 'map(. + {"verdict":"unverified"})' 2>/dev/null || echo "[]"
             )")
         }
     else
@@ -2305,9 +2307,10 @@ Return ONLY valid JSON with 'findings' array including verdict field."
             log "USER" "⚠ Round 2: Codex unavailable → claude-sonnet (fallback). Codex API usage will NOT change."
             review_append_provider_status "$provider_status_file" codex implementation-verifier fallback "Round 2 → claude-sonnet"
             verified_findings=$(review_run_agent_sync_progress "claude-sonnet" "$verifier_prompt" "implementation-verifier" "review" "verifier-claude-sonnet") || {
-                log WARN "review_run: verification failed entirely, using all findings as confirmed"
+                log WARN "review_run: verification failed entirely, preserving unverified findings"
+                verification_incomplete=true
                 verified_findings=$(printf '{"findings":%s}' "$(
-                    echo "$all_findings" | jq 'map(. + {"verdict":"confirmed"})' 2>/dev/null || echo "[]"
+                    echo "$all_findings" | jq 'map(. + {"verdict":"unverified"})' 2>/dev/null || echo "[]"
                 )")
             }
         }
@@ -2315,13 +2318,22 @@ Return ONLY valid JSON with 'findings' array including verdict field."
     # v9.3.1: Strip markdown fences that LLMs wrap around JSON responses (#188)
     verified_findings=$(echo "$verified_findings" | review_strip_external_cli_wrapper | sed '/^```json$/d; /^```JSON$/d; /^```$/d')
     local normalized_verified_findings
-    if normalized_verified_findings=$(printf '%s' "$verified_findings" | review_normalize_findings_json 2>/dev/null); then
+    if normalized_verified_findings=$(printf '%s' "$verified_findings" | review_normalize_findings_json 2>/dev/null) &&
+       printf '%s' "$normalized_verified_findings" | jq -e 'all(.findings[]; .verdict == "confirmed" or .verdict == "false-positive" or .verdict == "needs-debate" or .verdict == "unverified")' >/dev/null; then
         verified_findings="$normalized_verified_findings"
     else
         log WARN "review_run: verification returned invalid or multi-document findings JSON; preserving Round 1 findings"
+        verification_incomplete=true
         verified_findings=$(printf '{"findings":%s}' "$(
-            echo "$all_findings" | jq 'map(. + {"verdict":"confirmed"})' 2>/dev/null || echo "[]"
+            echo "$all_findings" | jq 'map(. + {"verdict":"unverified"})' 2>/dev/null || echo "[]"
         )")
+    fi
+
+    if printf '%s' "$verified_findings" | jq -e 'any(.findings[]; .verdict == "unverified")' >/dev/null; then
+        verification_incomplete=true
+    fi
+    if [[ "$verification_incomplete" == true ]]; then
+        round1_warning="${round1_warning:+$round1_warning }Independent verification was unavailable or invalid; findings remain unverified and publication is disabled."
     fi
 
     # Filter false positives
@@ -2412,7 +2424,7 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
         review_append_provider_status "$provider_status_file" "$synthesis_provider" implementation-synthesizer ok "Round 3 synthesis"
     } || {
         synth_ok="false"
-        log WARN "review_run: ${synthesis_provider} synthesis failed, using confirmed findings sorted as-is"
+        log WARN "review_run: ${synthesis_provider} synthesis failed, using retained findings sorted as-is"
         review_append_provider_status "$provider_status_file" "$synthesis_provider" implementation-synthesizer fallback "Round 3 synthesis failed; using local deterministic fallback"
         final_json="$(review_local_synthesis_json "$confirmed_findings" "$round1_warning")"
     }
@@ -2440,6 +2452,13 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
 
     if [[ "$debate_audit" != "[]" ]]; then
         final_json=$(printf '%s\n%s\n%s\n' "$final_json" "$debate_audit" "$debate_excluded" | jq -sc --arg provider "$debate_provider" '.[0] + {debate:{provider:$provider,decisions:.[1]},excluded:.[2]}')
+    fi
+
+    # Synthesis cannot upgrade findings when the independent verifier failed.
+    if [[ "$verification_incomplete" == true ]]; then
+        final_json="$(review_local_synthesis_json "$confirmed_findings" "$round1_warning")"
+        final_json=$(printf '%s' "$final_json" | jq '. + {verification_status:"incomplete"}')
+        synth_ok=false
     fi
 
     # Write findings file
@@ -2483,7 +2502,7 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
         pr_number=$(gh pr view --json number -q .number 2>/dev/null || true)
     fi
 
-    if [[ -n "$pr_number" && "$publish" != "never" ]]; then
+    if [[ -n "$pr_number" && "$publish" != "never" && "$verification_incomplete" != true ]]; then
         local avg_confidence
         avg_confidence=$(jq '[.findings[].confidence] | if length > 0 then add/length else 0 end' \
             "$findings_file" 2>/dev/null | head -n 1)

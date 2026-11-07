@@ -11,12 +11,20 @@ When the user invokes `/octo:careful`, activate careful mode for the current ses
 
 ### Activation
 
-Write the activation state file:
+Resolve the active installation and use its session-state helper. Replace
+`<directory>` with the supplied directory as one quoted argument. For `guard-on`,
+omit that argument when only careful mode was requested.
 
 ```bash
-_OCTO_SESSION_ID="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-$$}}"
-echo "active" > "/tmp/octopus-careful-${_OCTO_SESSION_ID}.txt"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+bash "$OCTO_ROOT/scripts/helpers/guard-state.sh" careful-on
 ```
+
+A nonzero result means protection was not activated or changed. Do not announce
+success. The helper requires a stable host session ID; a shell PID is not a
+session identity. A missing directory fails before activation changes.
+
+To deactivate, call the same helper with `careful-off`.
 
 ### What It Does
 

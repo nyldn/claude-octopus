@@ -184,7 +184,9 @@ review_run_agent_sync_progress() {
     local provider_output
     printf 'SYNC %s %s\n' "$1" "$3" >> "$HARNESS_LOG"
     case "$3" in
-        implementation-verifier) provider_output="$VERIFIER_OUTPUT" ;;
+        implementation-verifier)
+            [[ "${VERIFIER_FAIL:-false}" != true ]] || return "${VERIFIER_EXIT:-1}"
+            provider_output="$VERIFIER_OUTPUT" ;;
         implementation-synthesizer)
             provider_output="$(printf '%s\n' "$2" | sed -n 's/^Findings: //p' | jq -c '{findings: map(. + {synthesized: true})}')" ;;
         *) return 1 ;;
@@ -193,8 +195,10 @@ review_run_agent_sync_progress() {
 }
 render_terminal_report() { :; }
 print_provider_report() { :; }
-gh() { return 1; }
-review_run '{"target":"staged","debate":"off","publish":"never"}'
+gh() { [[ "${PUBLICATION_FIXTURE:-false}" == true ]] || return 1; echo 999; }
+post_inline_comments() { echo PUBLISHED >> "$HARNESS_LOG"; }
+review_pr_metadata() { echo '{"number":999,"headRefOid":"fixture"}'; }
+review_run '{"target":"staged","debate":"off","publish":"auto"}'
 HARNESS
 
 e2e_round1_output='{"findings":[{"file":"src/app.ts","line":3,"severity":"normal","category":"correctness","title":"Kept","detail":"Null dereference on empty input","confidence":0.9},{"file":"src/app.ts","line":8,"severity":"normal","category":"correctness","title":"Dismissed","detail":"Guarded by the caller","confidence":0.6}]}'
@@ -254,5 +258,40 @@ if [[ "$single_rc" -eq 0 ]] &&
 else
     test_fail "$(review_harness_diagnostics "$single_run" "$single_rc")"
 fi
+
+
+for failure in quota timeout malformed copilot; do
+    test_case "verifier $failure preserves uncertainty through synthesis"
+    failure_run="$TEST_TMP_DIR/failed-$failure"
+    old_verifier="$e2e_verifier_output"
+    e2e_verifier_output='not valid JSON'
+    failure_rc=0
+    if [[ "$failure" == malformed ]]; then
+        run_review_harness "$failure_run" PUBLICATION_FIXTURE=true || failure_rc=$?
+    else
+        if [[ "$failure" == copilot ]]; then
+            run_review_harness "$failure_run" PUBLICATION_FIXTURE=true VERIFIER_FAIL=true OCTOPUS_REVIEW_SINGLE_PROVIDER=copilot || failure_rc=$?
+        else
+            verifier_exit=1; [[ "$failure" != timeout ]] || verifier_exit=124
+            run_review_harness "$failure_run" PUBLICATION_FIXTURE=true VERIFIER_FAIL=true VERIFIER_EXIT="$verifier_exit" || failure_rc=$?
+        fi
+    fi
+    e2e_verifier_output="$old_verifier"
+    result_file="$(find "$failure_run/results" -name 'review-findings-*.json' -type f | head -1)"
+    if [[ "$failure_rc" -eq 0 && -n "$result_file" ]] && jq -e '
+        .verification_status == "incomplete" and (.warning | contains("unverified")) and
+        (.findings | length == 2) and all(.findings[]; .verdict == "unverified")
+    ' "$result_file" >/dev/null && ! grep -q PUBLISHED "$failure_run/log"; then
+        test_pass
+    else
+        test_fail "$(review_harness_diagnostics "$failure_run" "$failure_rc")"
+    fi
+done
+
+test_case "verified high-confidence review can still publish in the inert harness"
+positive_run="$TEST_TMP_DIR/publish-positive"
+positive_rc=0
+run_review_harness "$positive_run" PUBLICATION_FIXTURE=true || positive_rc=$?
+if [[ "$positive_rc" == 0 ]] && grep -q '^PUBLISHED$' "$positive_run/log"; then test_pass; else test_fail "positive publication fixture did not publish"; fi
 
 test_summary

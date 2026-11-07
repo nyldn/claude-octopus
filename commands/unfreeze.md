@@ -12,12 +12,18 @@ When the user invokes `/octo:unfreeze`, remove the freeze mode restriction.
 
 ### Deactivation
 
-Remove the freeze state file:
+Resolve the active installation and use its session-state helper. Replace
+`<directory>` with the supplied directory as one quoted argument. For `guard-on`,
+omit that argument when only careful mode was requested.
 
 ```bash
-_OCTO_SESSION_ID="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-$$}}"
-rm -f "/tmp/octopus-freeze-${_OCTO_SESSION_ID}.txt"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+bash "$OCTO_ROOT/scripts/helpers/guard-state.sh" freeze-off
 ```
+
+A nonzero result means protection was not activated or changed. Do not announce
+success. The helper requires a stable host session ID; a shell PID is not a
+session identity. A missing directory fails before activation changes.
 
 ### What It Does
 

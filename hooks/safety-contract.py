@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import sys
 
 
@@ -148,6 +149,80 @@ def freeze(data, boundary):
             return
 
 
+def unsafe_recursive_delete(command, cwd=None):
+    """Check each recursive forced rm target without executing shell input."""
+    safe_names = {"node_modules", "dist", ".next", "__pycache__", "build", "coverage", ".turbo"}
+    try:
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()\n")
+        lexer.whitespace = " \t\r"
+        lexer.whitespace_split = True
+        lexer.commenters = "#"
+        tokens = list(lexer)
+    except ValueError:
+        return bool(re.search(r"\brm\b", command))
+    working_directory = Path(cwd or os.getcwd())
+    segments, current = [], []
+    for token in tokens:
+        if token and all(c in ";&|()\n" for c in token):
+            segments.append(current)
+            current = []
+        else:
+            current.append(token)
+    segments.append(current)
+    for args in segments:
+        wrapper = bool(args and Path(args[0]).name in ("sudo", "command", "env", "exec", "busybox", "xargs"))
+        if wrapper:
+            rm_index = next((i for i, value in enumerate(args) if Path(value).name == "rm"), None)
+            if rm_index is not None:
+                args = args[rm_index:]
+        while args and (re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*=.*", args[0])
+                        or args[0] in ("sudo", "command", "env", "exec")):
+            args = args[1:]
+        if not args:
+            continue
+        executable = Path(args[0]).name
+        if executable in ("cd", "pushd", "popd"):
+            working_directory = None
+        if executable in ("bash", "sh", "zsh", "eval"):
+            if any(unsafe_recursive_delete(a, cwd) for a in args[1:]):
+                return True
+        if executable != "rm":
+            # Embedded execution forms cannot be exempted as a safe deletion.
+            if any(a in ("-exec", "-execdir") for a in args) and "rm" in args:
+                return True
+            continue
+        recursive = force = False
+        targets, options = [], True
+        for arg in args[1:]:
+            if options and arg == "--":
+                options = False
+            elif options and arg.startswith("--"):
+                if arg == "--recursive": recursive = True
+                elif arg == "--force": force = True
+                elif arg not in ("--verbose", "--dir", "--interactive", "--preserve-root"):
+                    return True
+            elif options and arg.startswith("-"):
+                recursive |= "r" in arg or "R" in arg
+                force |= "f" in arg
+            else:
+                targets.append(arg)
+        if not (recursive and force):
+            # Dynamic shell options may contain recursive/force flags.
+            if any(c in a for a in args[1:] for c in ("$", "`")):
+                return True
+            continue
+        if working_directory is None:
+            return True
+        for target in targets:
+            if any(c in target for c in ("$", "`", "*", "?", "[", "~")):
+                return True
+            path = Path(target)
+            resolved = (path if path.is_absolute() else working_directory / path).resolve()
+            if not any(part in safe_names for part in resolved.parts):
+                return True
+    return False
+
+
 def main():
     mode = ""
     try:
@@ -161,6 +236,10 @@ def main():
                          "The hook environment also supports OCTO_CAREFUL_MODE=off.")
             else:
                 decision("ask", reason + " Confirm you want to proceed.")
+        elif mode == "careful-rm":
+            data = payload()
+            command = string(tool_input(data).get("command", data.get("command", "")))
+            print("unsafe" if unsafe_recursive_delete(command, data.get("cwd")) else "safe")
         elif mode == "field":
             data = payload()
             field = sys.argv[2]

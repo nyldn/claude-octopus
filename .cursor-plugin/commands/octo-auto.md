@@ -45,7 +45,7 @@ For every non-meta request, pass the complete original query to the shared
 automatic runtime before doing any local intent matching:
 
 ```bash
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 bash "${OCTO_ROOT}/scripts/orchestrate.sh" auto "<full original query>"
 ```
 
@@ -174,7 +174,7 @@ on the same workflow-root path as direct `orchestrate.sh auto` calls, including
 the Premium automatic peer gate:
 
 ```bash
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 bash "${OCTO_ROOT}/scripts/orchestrate.sh" auto "<full original query>"
 ```
 
@@ -197,7 +197,7 @@ Wait for user confirmation. After confirmation, pass the confirmed allowlisted
 workflow token to the shared automatic router with the full original query:
 
 ```bash
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 bash "${OCTO_ROOT}/scripts/orchestrate.sh" auto --workflow "<confirmed token>" "<full original query>"
 ```
 
