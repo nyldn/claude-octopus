@@ -45,7 +45,10 @@ parallel_execute "$TASKS"
 
 
 class StaleClaimRetirement(unittest.TestCase):
+    """Retiring an exited owner's claim must preserve future retry admission."""
+
     def test_killed_stale_retirement_does_not_strand_public_claim(self):
+        """A crash while deleting retired metadata cannot strand a public claim."""
         with tempfile.TemporaryDirectory(prefix="claim-retirement-") as directory:
             root = Path(directory)
             claim = root / ".answer.claim"
@@ -76,6 +79,7 @@ claims.acquire(sys.argv[2], sys.argv[3])
             self.assertEqual((claim / "owner").read_text().strip(), str(new_owner))
 
     def test_failed_retirement_preserves_owner_and_retry(self):
+        """A failed retirement rename leaves the old record available for retry."""
         with tempfile.TemporaryDirectory(prefix="claim-removal-") as directory:
             root = Path(directory)
             claim = root / ".answer.claim"
@@ -95,7 +99,10 @@ claims.acquire(sys.argv[2], sys.argv[3])
 
 
 class ClaimRaces(unittest.TestCase):
+    """Interleave Python publication with the actual executor's shell fallback."""
+
     def exercise(self, pause_fallback):
+        """Pause before or after fallback publication and verify the sole owner."""
         with tempfile.TemporaryDirectory(prefix="claim-race-") as directory:
             root = Path(directory)
             workspace, results = root / "workspace", root / "results"
@@ -118,6 +125,7 @@ class ClaimRaces(unittest.TestCase):
             rename = os.rename
 
             def publish_after_fallback(*args):
+                """Publish Python's record at the controlled fallback boundary."""
                 nonlocal process
                 process = subprocess.Popen(["bash", "-c", RUNNER], env=env,
                                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -163,9 +171,11 @@ class ClaimRaces(unittest.TestCase):
                         process.wait(timeout=5)
 
     def test_live_fallback_prevents_python_publication(self):
+        """A dispatched shell worker retains its output and nonempty claim."""
         self.exercise(False)
 
     def test_python_publication_prevents_late_fallback_admission(self):
+        """A late fallback cannot dispatch after Python publishes its record."""
         self.exercise(True)
 
 

@@ -19,11 +19,13 @@ ACQUIRED, OWNED, RECLAIMED = 0, 10, 11
 
 
 def hold(descriptor):
+    """Lock the descriptor inherited by this invocation and its descendants."""
     fcntl.flock(int(descriptor), fcntl.LOCK_EX | fcntl.LOCK_NB)
     return 0
 
 
 def recorded_owner_lock(claim):
+    """Read a validated sibling owner-lock path without following a symlink."""
     try:
         descriptor = os.open(os.path.join(claim, OWNER_RECORD), os.O_RDONLY | os.O_NOFOLLOW)
     except OSError:
@@ -39,6 +41,7 @@ def recorded_owner_lock(claim):
 
 
 def owner_has_exited(owner_lock):
+    """Require an existing lock that no controller or descendant still holds."""
     try:
         descriptor = os.open(owner_lock, os.O_RDONLY | os.O_NOFOLLOW)
     except OSError:
@@ -53,6 +56,7 @@ def owner_has_exited(owner_lock):
 
 
 def record_owner(claim, owner_lock):
+    """Create an exclusive owner record inside a private prepared claim."""
     descriptor = os.open(os.path.join(claim, OWNER_RECORD),
                          os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     with os.fdopen(descriptor, "w", encoding="utf-8") as record:
@@ -60,6 +64,7 @@ def record_owner(claim, owner_lock):
 
 
 def acquire(claim, owner_lock):
+    """Publish a complete claim, replacing only an exited owner's record."""
     claim = os.path.abspath(claim)
     owner_lock = os.path.abspath(owner_lock)
     with open(os.path.join(os.path.dirname(claim), GUARD), "a", encoding="utf-8") as guard:
@@ -109,6 +114,7 @@ def release(claim, owner_lock):
 
 
 def main():
+    """Dispatch lock acquisition and claim operations for the shell executor."""
     if len(sys.argv) == 3 and sys.argv[1] == "hold":
         return hold(sys.argv[2])
     if len(sys.argv) == 4 and sys.argv[1] == "acquire":
