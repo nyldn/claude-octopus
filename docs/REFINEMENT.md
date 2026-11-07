@@ -104,8 +104,13 @@ model, effort, and hashes from dispatch metadata, then assembles this envelope:
 ```
 
 The values above are illustrative placeholders. Never substitute a guessed
-identity for a real result. Exactly two distinct providers and models are
-required. Every judge must include exactly the rubric's criterion IDs and a
+identity for a real result. Exactly one canonical `claude` provider and one
+canonical `codex` provider are required, with distinct model IDs. The host takes
+these identities from verified dispatch metadata, resolving executor aliases
+through the shared provider registry rather than trusting the judge's labels.
+The validator rejects executor aliases, alternate casing, and unknown provider
+labels; it cannot independently prove the provenance of host-supplied metadata.
+Every judge must include exactly the rubric's criterion IDs and a
 nonempty evidence string per criterion. All required guards must appear once,
 with status `pass`, `fail`, or `unverified` and evidence. Use an empty guard list
 only when the artifact has no additional acceptance checks, with that limitation

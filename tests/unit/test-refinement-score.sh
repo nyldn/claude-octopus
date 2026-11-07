@@ -149,6 +149,16 @@ class RefinementScoreTests(unittest.TestCase):
         self.assertEqual(rc, 2)
         self.assertFalse(result["target_met"])
 
+    def test_requires_canonical_claude_and_codex_provider_ids(self):
+        for label in ["claude-opus", "claude-sonnet", "codex-standard", "Claude", " codex ", "other"]:
+            with self.subTest(label=label):
+                def alias(a):
+                    a["judges"][1].update(provider=label, model="different-model")
+                rc, result = self.run_score(alias)
+                self.assertEqual(rc, 2)
+                self.assertFalse(result["target_met"])
+                self.assertIn("canonical", result["error"])
+
     def test_invalid_rubrics_are_rejected(self):
         original = copy.deepcopy(self.rubric)
         for mutate in [lambda r: r.update(target=True),

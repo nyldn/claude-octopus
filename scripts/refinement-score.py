@@ -78,6 +78,8 @@ def evaluate(rubric, assessment, rubric_hash, artifact_hash):
     for judge in judges:
         object_value(judge, "judge")
         provider = text(judge.get("provider"), "judge provider")
+        require(provider in {"claude", "codex"},
+                "judge provider must be canonical claude or codex from dispatch metadata")
         model = text(judge.get("model"), "judge model")
         text(judge.get("effort"), "judge effort")
         require(provider not in providers and model not in models,
