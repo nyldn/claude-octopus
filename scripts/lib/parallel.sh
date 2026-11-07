@@ -362,12 +362,27 @@ parallel_execute() {
             select(.status == "running" and .seat_id == $seat and .output_file == $file) |
             [.agent, .seat_id, (.role // "")] | @tsv' "$ledger")
     }
+    _parallel_release_output() {
+        local claim="$1" retired
+        if [[ -n "$owner_lock" ]]; then
+            "$owner_python" "$_parallel_claim_helper" release "$claim" "$owner_lock" </dev/null
+            return $?
+        fi
+        # Fallback claims cannot be reclaimed by other invocations. Move the
+        # complete directory before removing anything, including without Python.
+        [[ "$(cat "$claim/owner" 2>/dev/null)" == fallback ]] || return 1
+        retired=$(mktemp -d "$RESULTS_DIR/.retired-claim.XXXXXX") || return 1
+        if ! mv -- "$claim" "$retired/claim"; then
+            rmdir -- "$retired" 2>/dev/null || true
+            return 1
+        fi
+        rm -rf -- "$retired"
+    }
     _parallel_cleanup_resources() {
-        local claim
+        local claim keep_owner_lock=false
         if [[ ${#output_claims[@]} -gt 0 ]]; then
             for claim in "${output_claims[@]}"; do
-                rm -f -- "$claim/owner" 2>/dev/null || true
-                rmdir -- "$claim" 2>/dev/null || true
+                _parallel_release_output "$claim" 2>/dev/null || keep_owner_lock=true
             done
         fi
         output_claims=()
@@ -375,12 +390,10 @@ parallel_execute() {
             # A signal can arrive after publication but before the claim was
             # appended above. Reconcile every claim naming this owner before
             # unlinking its lock, or that unregistered claim cannot be reclaimed.
-            local keep_owner_lock=false
             for claim in "$RESULTS_DIR"/.*.claim; do
                 [[ -f "$claim/owner" ]] || continue
                 [[ "$(cat "$claim/owner" 2>/dev/null)" == "$owner_lock" ]] || continue
-                rm -f -- "$claim/owner" 2>/dev/null || true
-                rmdir -- "$claim" 2>/dev/null || keep_owner_lock=true
+                _parallel_release_output "$claim" 2>/dev/null || keep_owner_lock=true
             done
             exec 7>&-
             if [[ "$keep_owner_lock" == false ]]; then

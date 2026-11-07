@@ -169,5 +169,126 @@ class ClaimRaces(unittest.TestCase):
         self.exercise(True)
 
 
+class ControllerClaimRetirement(unittest.TestCase):
+    """Keep both controller cleanup paths recoverable across interruptions."""
+
+    def exercise(self, unregistered, failure):
+        """Interrupt the real cleanup path, then reclaim without a running seat."""
+        with tempfile.TemporaryDirectory(prefix="controller-retirement-") as directory:
+            root = Path(directory)
+            workspace, results = root / "workspace", root / "results"
+            workspace.mkdir()
+            results.mkdir()
+            tasks = root / "tasks.json"
+            tasks.write_text(json.dumps({"tasks": [{"id": "race", "agent": "codex", "prompt": "inert"}]}))
+            wrapper = root / "python-wrapper"
+            wrapper.write_text(r'''#!/usr/bin/env python3
+import os, runpy, signal, sys
+from pathlib import Path
+controller = int(os.environ["CONTROLLER_PID"])
+operation = sys.argv[2]
+original_rename, original_unlink = os.rename, os.unlink
+def rename(source, destination, *args, **kwargs):
+    if operation == "release" and os.environ["FAILURE"] == "rename":
+        Path(os.environ["INJECTED"]).touch()
+        raise OSError("injected retirement failure")
+    result = original_rename(source, destination, *args, **kwargs)
+    if operation == "acquire" and os.environ["UNREGISTERED"] == "1" and str(source).split("/")[-1].startswith(".output-claim."):
+        os.kill(controller, signal.SIGTERM)
+    return result
+def unlink(path, *args, **kwargs):
+    result = original_unlink(path, *args, **kwargs)
+    if operation == "release" and os.path.basename(path) == "owner" and os.environ["FAILURE"] == "kill":
+        Path(os.environ["INJECTED"]).touch()
+        os.kill(controller, signal.SIGKILL)
+    return result
+os.rename, os.unlink = rename, unlink
+sys.argv = sys.argv[1:]
+try:
+    runpy.run_path(sys.argv[0], run_name="__main__")
+finally:
+    if operation == "release":
+        Path(os.environ["HELPER_FINISHED"]).touch()
+''')
+            wrapper.chmod(0o755)
+            runner = r'''
+set -euo pipefail
+source "$PROJECT_ROOT/scripts/lib/agent-spec.sh"
+source "$PROJECT_ROOT/scripts/lib/error-tracking.sh"
+source "$PROJECT_ROOT/scripts/lib/parallel.sh"
+export CONTROLLER_PID=$BASHPID
+octopus_pid_python_resolve() { printf '%s\n' "$PYTHON_WRAPPER"; }
+log() { :; }
+aggregate_results() { :; }
+spawn_agent_capture_pid() { return 1; }
+rm() {
+    command rm "$@" || return
+    if [[ "$*" == *'.codex-race.claim/owner'* ]]; then
+        touch "$INJECTED"
+        [[ "$FAILURE" != kill ]] || kill -KILL "$BASHPID"
+    fi
+}
+rmdir() {
+    if [[ "$FAILURE" == rename && "$*" == *'.codex-race.claim'* ]]; then return 1; fi
+    command rmdir "$@"
+}
+AVAILABLE_AGENTS=codex MAX_PARALLEL=1 SUPPORTS_DISABLE_CRON_ENV=false DRY_RUN=false
+TIMEOUT=1 GREEN='' NC=''
+parallel_execute "$TASKS"
+'''
+            injected, finished = root / "injected", root / "finished"
+            env = dict(os.environ, PROJECT_ROOT=str(ROOT), WORKSPACE_DIR=str(workspace),
+                       RESULTS_DIR=str(results), TASKS=str(tasks), PYTHON_WRAPPER=str(wrapper),
+                       INJECTED=str(injected), HELPER_FINISHED=str(finished), FAILURE=failure,
+                       UNREGISTERED="1" if unregistered else "0", OCTOPUS_RUN_ID="retirement")
+            process = subprocess.run(["bash", "-c", runner], env=env,
+                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10)
+            self.assertTrue(injected.exists(), process.stderr.decode())
+            if failure == "kill":
+                self.assertEqual(process.returncode, -signal.SIGKILL, process.stderr.decode())
+            claim = results / ".codex-race.claim"
+            if failure == "rename":
+                self.assertTrue((claim / "owner").is_file(), "failed retirement destroyed the owner record")
+                self.assertTrue(Path((claim / "owner").read_text().strip()).is_file(), "failed release unlinked the owner lock")
+            else:
+                deadline = time.monotonic() + 5
+                while not finished.exists() and time.monotonic() < deadline:
+                    time.sleep(0.01)
+            new_owner = results / ".parallel-owner.retry"
+            new_owner.touch()
+            self.assertIn(claims.acquire(str(claim), str(new_owner)), (claims.ACQUIRED, claims.RECLAIMED))
+
+    def test_registered_cleanup_survives_kill(self):
+        """A killed release cannot leave an ownerless registered public claim."""
+        self.exercise(False, "kill")
+
+    def test_unregistered_cleanup_survives_kill(self):
+        """Signal reconciliation must retire an unregistered claim atomically."""
+        self.exercise(True, "kill")
+
+    def test_registered_cleanup_preserves_failed_retirement(self):
+        """A failed registered release retains its owner record and lock."""
+        self.exercise(False, "rename")
+
+    def test_unregistered_cleanup_preserves_failed_retirement(self):
+        """A failed unregistered release retains enough state for reclamation."""
+        self.exercise(True, "rename")
+
+    def test_release_cannot_retire_another_owner(self):
+        """An old controller must not delete a replacement owner's claim."""
+        with tempfile.TemporaryDirectory(prefix="claim-owner-check-") as directory:
+            root = Path(directory)
+            claim = root / ".answer.claim"
+            owner = root / ".parallel-owner.current"
+            previous = root / ".parallel-owner.previous"
+            owner.touch()
+            previous.touch()
+            self.assertEqual(claims.acquire(str(claim), str(owner)), claims.ACQUIRED)
+            self.assertEqual(claims.release(str(claim), str(previous)), claims.OWNED)
+            self.assertEqual((claim / "owner").read_text().strip(), str(owner))
+            self.assertEqual(claims.release(str(claim), str(owner)), claims.ACQUIRED)
+            self.assertFalse(claim.exists())
+
+
 if __name__ == "__main__":
     unittest.main()

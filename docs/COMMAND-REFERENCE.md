@@ -1410,6 +1410,10 @@ warning and confirm its `owner` file contains only `fallback`. Remove that one
 `owner` file, then remove its now-empty claim directory with `rmdir`. Preserve
 the result file; a newly admitted retry clears stale output itself. Never remove
 claims belonging to a live or unknown owner, or use a wildcard to clear claims.
+If interruption left that exact directory empty with no `owner` file, remove
+only the empty directory with `rmdir`, after the same process-exit checks.
+Normal Python-backed cleanup retires the complete claim atomically. If retiring
+it fails, its owner record and owner lock remain available for a later retry.
 
 ---
 

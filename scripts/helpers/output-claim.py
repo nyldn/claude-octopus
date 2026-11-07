@@ -89,12 +89,33 @@ def acquire(claim, owner_lock):
             return outcome
 
 
+def release(claim, owner_lock):
+    """Retire a claim under the acquisition guard without losing its owner."""
+    claim = os.path.abspath(claim)
+    owner_lock = os.path.abspath(owner_lock)
+    with open(os.path.join(os.path.dirname(claim), GUARD), "a", encoding="utf-8") as guard:
+        fcntl.flock(guard, fcntl.LOCK_EX)
+        if not os.path.lexists(claim):
+            return ACQUIRED
+        if recorded_owner_lock(claim) != owner_lock:
+            return OWNED
+        try:
+            with tempfile.TemporaryDirectory(prefix=".retired-claim.",
+                                             dir=os.path.dirname(claim)) as retired:
+                os.rename(claim, retired)
+        except OSError:
+            return OWNED
+    return ACQUIRED
+
+
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == "hold":
         return hold(sys.argv[2])
     if len(sys.argv) == 4 and sys.argv[1] == "acquire":
         return acquire(sys.argv[2], sys.argv[3])
-    print("usage: output-claim.py hold FD | acquire CLAIM OWNER_LOCK", file=sys.stderr)
+    if len(sys.argv) == 4 and sys.argv[1] == "release":
+        return release(sys.argv[2], sys.argv[3])
+    print("usage: output-claim.py hold FD | acquire CLAIM OWNER_LOCK | release CLAIM OWNER_LOCK", file=sys.stderr)
     return 2
 
 
