@@ -160,12 +160,14 @@ def freeze(data, boundary):
 def unsafe_recursive_delete(command, cwd=None):
     """Check each recursive forced rm target without executing shell input."""
     safe_names = {"node_modules", "dist", ".next", "__pycache__", "build", "coverage", ".turbo"}
+    literal_text = command.replace("\\\n", "").replace("'", "").replace('"', "").replace("\\", "")
+    mentions_rm = bool(re.search(r"\brm\b", literal_text))
     # Quoted command substitutions still execute. Do not exempt their contents.
-    if re.search(r"\brm\b", command) and ("$(" in command or "`" in command):
+    if mentions_rm and ("$(" in command or "`" in command):
         return True
     # POSIX shlex removes quotes and escapes from literal operator arguments.
     # Reject ambiguous input before those arguments can become segment breaks.
-    if re.search(r"\brm\b", command):
+    if mentions_rm:
         quote, escaped = None, False
         for char in command:
             if escaped:
@@ -190,7 +192,11 @@ def unsafe_recursive_delete(command, cwd=None):
         lexer.commenters = ""
         tokens = list(lexer)
     except ValueError:
-        return bool(re.search(r"\brm\b", command))
+        return mentions_rm
+    # Shells can execute stdin or a file, not just their visible arguments.
+    # A producer's data-only exemption cannot establish safety for that input.
+    if mentions_rm and any(Path(token).name in ("bash", "sh", "zsh", "eval") for token in tokens):
+        return True
     working_directory = Path(cwd or os.getcwd())
     if not working_directory.is_absolute():
         raise ValueError("hook cwd must be absolute")
@@ -250,7 +256,7 @@ def unsafe_recursive_delete(command, cwd=None):
         if working_directory is None:
             return True
         for target in targets:
-            if any(c in target for c in ("$", "`", "*", "?", "[", "~")):
+            if any(c in target for c in ("$", "`", "*", "?", "[", "~", "{", "}")):
                 return True
             path = Path(target)
             resolved = (path if path.is_absolute() else working_directory / path).resolve()
