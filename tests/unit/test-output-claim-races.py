@@ -75,7 +75,7 @@ claims.acquire(sys.argv[2], sys.argv[3])
                           (claims.ACQUIRED, claims.RECLAIMED))
             self.assertEqual((claim / "owner").read_text().strip(), str(new_owner))
 
-    def test_failed_public_directory_removal_preserves_retry(self):
+    def test_failed_retirement_preserves_owner_and_retry(self):
         with tempfile.TemporaryDirectory(prefix="claim-removal-") as directory:
             root = Path(directory)
             claim = root / ".answer.claim"
@@ -85,14 +85,13 @@ claims.acquire(sys.argv[2], sys.argv[3])
             old_owner.touch()
             new_owner.touch()
             (claim / "owner").write_text(str(old_owner) + "\n")
-            original = os.rmdir
-            def reject_public_removal(path, *args, **kwargs):
-                if os.fspath(path) == str(claim):
-                    raise OSError("injected public rmdir failure")
-                return original(path, *args, **kwargs)
-            with patch.object(claims.os, "rmdir", reject_public_removal):
-                claims.acquire(str(claim), str(new_owner))
-            self.assertNotEqual(claims.acquire(str(claim), str(new_owner)), claims.OWNED)
+            with patch.object(claims.os, "rename", side_effect=OSError("injected retirement failure")) as retire:
+                self.assertEqual(claims.acquire(str(claim), str(new_owner)), claims.OWNED)
+                retire.assert_called_once()
+                self.assertEqual(Path(retire.call_args.args[0]), claim)
+                self.assertEqual((claim / "owner").read_text().strip(), str(old_owner))
+            self.assertEqual(claims.acquire(str(claim), str(new_owner)), claims.RECLAIMED)
+            self.assertEqual((claim / "owner").read_text().strip(), str(new_owner))
 
 
 class ClaimRaces(unittest.TestCase):
