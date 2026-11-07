@@ -140,6 +140,13 @@ new source surface has a proven focused regression set, add its path and suites
 to `tests/changed-scope.tsv`; otherwise leave it unmapped so the full matrix
 remains mandatory.
 
+Test fixtures default to a separate `octopus-tests-<pid>` directory under
+`TMPDIR`, or `/tmp` when unset. Set `TMPDIR` to a private directory with readable
+ancestors when a host's temporary-file policy prevents descriptor traversal.
+Leave `TEST_TMP_DIR` unset for nested suites so each process owns its cleanup.
+Keep UTF-8 character classification enabled; use `LC_COLLATE=C` for consistent
+sorting rather than forcing `LC_ALL=C` across Unicode tests.
+
 ## Tangle Input and Migration Safety
 
 Keep `OCTOPUS_TANGLE_RUN_WORKTREE=true` (the default). A clean source checkout

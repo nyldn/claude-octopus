@@ -35,7 +35,9 @@ FAILED_TESTS=()
 SKIPPED_TESTS=()
 
 # Temporary directories
-TEST_TMP_DIR="${TEST_TMP_DIR:-/tmp/octopus-tests-$$}"
+_octopus_test_temp_base="${TMPDIR:-/tmp}"
+TEST_TMP_DIR="${TEST_TMP_DIR:-${_octopus_test_temp_base%/}/octopus-tests-$$}"
+unset _octopus_test_temp_base
 MOCK_BIN_DIR="$TEST_TMP_DIR/mock-bin"
 
 # Hooks
