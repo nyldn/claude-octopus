@@ -299,4 +299,27 @@ positive_rc=0
 run_review_harness "$positive_run" PUBLICATION_FIXTURE=true || positive_rc=$?
 if [[ "$positive_rc" == 0 ]] && grep -q '^PUBLISHED$' "$positive_run/log"; then test_pass; else test_fail "positive publication fixture did not publish"; fi
 
+for kind in identical distinct-verdicts; do
+    test_case "complete duplicate-location verification retains each verdict: $kind"
+    saved_round1="$e2e_round1_output"; saved_verifier="$e2e_verifier_output"
+    if [[ "$kind" == identical ]]; then
+        e2e_round1_output="$(printf '%s' "$saved_round1" | jq '{findings:[.findings[0],.findings[0]]}')"
+        e2e_verifier_output="$(printf '%s' "$e2e_round1_output" | jq '.findings |= map(. + {verdict:"confirmed"})')"
+    else
+        e2e_round1_output="$(printf '%s' "$saved_round1" | jq '{findings:[.findings[0],(.findings[0] + {detail:"Distinct second provider evidence"})]}')"
+        e2e_verifier_output="$(printf '%s' "$e2e_round1_output" | jq '.findings[0].verdict="false-positive" | .findings[1].verdict="confirmed"')"
+    fi
+    duplicate_run="$TEST_TMP_DIR/complete-duplicate-$kind"; duplicate_rc=0
+    run_review_harness "$duplicate_run" PUBLICATION_FIXTURE=true || duplicate_rc=$?
+    e2e_round1_output="$saved_round1";e2e_verifier_output="$saved_verifier"
+    findings="$(find "$duplicate_run/results" -name 'review-findings-*.json' -type f | head -1)"
+    if [[ "$duplicate_rc" == 0 && -n "$findings" ]] && jq -e '
+        .verification_status != "incomplete" and (.findings|length == 1) and .findings[0].verdict == "confirmed"
+    ' "$findings" >/dev/null && grep -q '^PUBLISHED$' "$duplicate_run/log"; then
+        if [[ "$kind" == distinct-verdicts ]] && ! jq -e '.findings[0].detail == "Distinct second provider evidence"' "$findings" >/dev/null; then
+            test_fail "a false positive displaced the independently confirmed finding"
+        else test_pass; fi
+    else test_fail "$(review_harness_diagnostics "$duplicate_run" "$duplicate_rc")"; fi
+done
+
 test_summary

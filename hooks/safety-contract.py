@@ -233,6 +233,7 @@ def unsafe_recursive_delete(command, cwd=None):
 
 
 def main():
+    """Dispatch a hook operation and reject malformed safety inputs."""
     mode = ""
     try:
         mode = sys.argv[1]

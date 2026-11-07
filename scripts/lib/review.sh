@@ -2318,7 +2318,15 @@ Return ONLY valid JSON with 'findings' array including verdict field."
     # v9.3.1: Strip markdown fences that LLMs wrap around JSON responses (#188)
     verified_findings=$(echo "$verified_findings" | review_strip_external_cli_wrapper | sed '/^```json$/d; /^```JSON$/d; /^```$/d')
     local normalized_verified_findings
-    if normalized_verified_findings=$(printf '%s' "$verified_findings" | review_normalize_findings_json 2>/dev/null) &&
+    # Preserve every verifier entry until coverage and each verdict are checked.
+    # The display normalizer deduplicates by location/title and can erase a
+    # separate provider finding, or its distinct verdict, before validation.
+    if normalized_verified_findings=$(printf '%s' "$verified_findings" | review_slurp_provider_json '
+           if length == 1 and (.[0] | type == "object")
+              and (.[0].findings | type == "array")
+              and all(.[0].findings[]; type == "object")
+           then .[0] else error("expected one verifier findings document") end
+       ' 2>/dev/null) &&
        printf '%s' "$normalized_verified_findings" | jq -e --argjson original "$all_findings" '
            def identity: [.file, .line, .title, .detail, .category, .severity] | tojson;
            all(.findings[]; .verdict == "confirmed" or .verdict == "false-positive" or .verdict == "needs-debate" or .verdict == "unverified") and
