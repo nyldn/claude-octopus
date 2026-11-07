@@ -11,6 +11,10 @@ MAX_QUERY_BYTES = 16384
 MAX_RESPONSE_BYTES = 65536
 
 
+class DeadlineExceeded(Exception):
+    """Escape socket address retries, which catch OSError and TimeoutError."""
+
+
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
@@ -52,7 +56,7 @@ def search(query):
 
 
 def deadline(signum, frame):
-    raise TimeoutError("search deadline exceeded")
+    raise DeadlineExceeded("search deadline exceeded")
 
 
 def main():
@@ -61,7 +65,7 @@ def main():
     try:
         query = sys.stdin.buffer.read(MAX_QUERY_BYTES + 1).decode("utf-8")
         output = search(query)
-    except (OSError, ValueError):
+    except (OSError, ValueError, DeadlineExceeded):
         print("Optional Keenable search unavailable; continuing without search suggestions.", file=sys.stderr)
         return 1
     finally:

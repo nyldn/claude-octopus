@@ -4,6 +4,7 @@ import importlib.util
 import io
 import json
 import os
+import socket
 from pathlib import Path
 import subprocess
 import tempfile
@@ -12,7 +13,7 @@ import unittest
 from unittest.mock import patch
 import urllib.error
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(os.environ.get("KEENABLE_LIB_ROOT", Path(__file__).resolve().parents[2]))
 spec = importlib.util.spec_from_file_location("keenable_search", ROOT / "scripts/helpers/keenable-search.py")
 api = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(api)
@@ -64,8 +65,31 @@ class SearchTests(unittest.TestCase):
 
     def test_redirects_and_deadline_do_not_retry_or_forward_credentials(self):
         self.assertIsNone(api.NoRedirect().redirect_request(None, None, 302, "redirect", {}, "https://elsewhere.invalid"))
-        with self.assertRaises(TimeoutError):
+        with self.assertRaises(api.DeadlineExceeded):
             api.deadline(None, None)
+
+    def test_deadline_escapes_real_socket_address_retries(self):
+        addresses = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.0.2.1", 443)),
+                     (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.0.2.2", 443))]
+        with patch.object(socket, "getaddrinfo", return_value=addresses), patch.object(socket, "socket") as factory:
+            attempts = []
+            def connect(address):
+                attempts.append(address)
+                if len(attempts) == 1:
+                    api.deadline(None, None)
+            factory.return_value.connect.side_effect = connect
+            with self.assertRaises(Exception) as raised:
+                socket.create_connection(("example.invalid", 443), timeout=15)
+            self.assertNotIsInstance(raised.exception, OSError)
+            self.assertEqual(factory.call_count, 1)
+
+    def test_mcp_adapter_forwards_the_optional_credential(self):
+        script = "import {loadProviderEnvAllowlist,providerEnvironment} from './shared/adapter-runtime.mjs'; const result=providerEnvironment(loadProviderEnvAllowlist(process.cwd()),{KEENABLE_API_KEY:'inert-fixture'}); if(result.KEENABLE_API_KEY!=='inert-fixture') process.exit(1);"
+        result = subprocess.run(["node", "--input-type=module", "-e", script], cwd=ROOT, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        isolation = 'source "$1/scripts/lib/provider-routing.sh"; build_provider_env codex; for entry in "${PROVIDER_ENV_ARRAY[@]}"; do case "$entry" in KEENABLE_API_KEY=*) exit 1;; esac; done'
+        result = subprocess.run(["bash", "-c", isolation, "fixture", str(ROOT)], env={**os.environ, "KEENABLE_API_KEY": "inert-fixture"}, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, "search credential reached a model child or environment construction failed")
 
     def test_cli_deadline_interrupts_a_slow_transport(self):
         script = "import importlib.util,sys,time; s=importlib.util.spec_from_file_location('search',sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); m.search=lambda query: time.sleep(30); sys.exit(m.main())"
