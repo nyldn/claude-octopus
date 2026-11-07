@@ -221,10 +221,10 @@ def unsafe_recursive_delete(command, cwd=None):
         executable = args[0] if args[0] == "." else Path(args[0]).name
         if executable in ("cd", "pushd", "popd"):
             working_directory = None
-        if executable in command_readers:
-            # These commands execute stdin or files, not just visible arguments.
-            if mentions_rm or any(unsafe_recursive_delete(a, cwd) for a in args[1:]):
-                return True
+        # These commands execute stdin or files, not just visible arguments.
+        if executable in command_readers and (
+                mentions_rm or any(unsafe_recursive_delete(a, cwd) for a in args[1:])):
+            return True
         if executable != "rm":
             # Only known data-only forms can ignore literal rm text. Unknown
             # shell grammar and execution wrappers must not obtain an exemption.

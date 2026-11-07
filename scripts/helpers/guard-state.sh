@@ -21,24 +21,62 @@ if [[ "$action" == freeze-on || ( "$action" == guard-on && -n "${2:-}" ) ]]; the
     [[ -n "${2:-}" ]] || { echo 'ERROR: directory required.' >&2; exit 2; }
     boundary="$(cd "$2" && pwd -P)" || { echo 'ERROR: freeze directory does not exist.' >&2; exit 2; }
 fi
-# write_state: Atomically publish private state; never move it into a directory.
+# write_state: Stage related writes and restore prior files if publication fails.
 write_state() {
-    local kind="$1" value="$2" temporary
     umask 077
-    temporary="$(mktemp "/tmp/octopus-${kind}-${sid}.XXXXXX")"
-    if ! printf '%s\n' "$value" > "$temporary" || ! python3 - "$temporary" "/tmp/octopus-${kind}-${sid}.txt" <<'PYREPLACE'
+    python3 - "$sid" "$@" <<'PYREPLACE'
 import os
+from pathlib import Path
+import shutil
+import stat
 import sys
+import tempfile
 
+staging = Path(tempfile.mkdtemp(prefix="octopus-guard-state-", dir="/tmp"))
+preserve_backup = False
 try:
-    os.replace(sys.argv[1], sys.argv[2])
+    entries = []
+    for index, (kind, value) in enumerate(zip(sys.argv[2::2], sys.argv[3::2])):
+        destination = Path(f"/tmp/octopus-{kind}-{sys.argv[1]}.txt")
+        backup = staging / f"previous-{index}"
+        try:
+            if stat.S_ISDIR(destination.lstat().st_mode):
+                raise IsADirectoryError("guard state destination is a directory")
+            # Snapshot the inode without reading state or following symlinks.
+            os.link(destination, backup, follow_symlinks=False)
+        except FileNotFoundError:
+            backup = None
+        candidate = staging / f"candidate-{index}"
+        candidate.write_text(value + "\n", encoding="utf-8", errors="surrogateescape")
+        entries.append((destination, candidate, backup))
+
+    published = []
+    try:
+        for destination, candidate, backup in entries:
+            identity = candidate.stat()
+            os.replace(candidate, destination)
+            published.append((destination, backup, identity))
+    except OSError:
+        for destination, backup, identity in reversed(published):
+            try:
+                current = destination.lstat()
+                if (current.st_dev, current.st_ino) != (identity.st_dev, identity.st_ino):
+                    raise OSError("state changed during rollback")
+                if backup is None:
+                    destination.unlink()
+                else:
+                    os.replace(backup, destination)
+            except OSError:
+                preserve_backup = True
+        raise
 except OSError:
+    if preserve_backup:
+        raise SystemExit(f"Guard rollback was blocked; prior state is preserved in {staging}.")
     raise SystemExit("Guard activation failed: state could not be replaced.")
+finally:
+    if not preserve_backup:
+        shutil.rmtree(staging)
 PYREPLACE
-    then
-        rm -f "$temporary"
-        return 1
-    fi
 }
 case "$action" in
     careful-on) write_state careful active ;;
@@ -46,8 +84,11 @@ case "$action" in
     freeze-on) write_state freeze "$boundary" ;;
     freeze-off) rm -f "/tmp/octopus-freeze-${sid}.txt" ;;
     guard-on)
-        write_state careful active
-        if [[ -n "$boundary" ]]; then write_state freeze "$boundary"; fi
+        if [[ -n "$boundary" ]]; then
+            write_state careful active freeze "$boundary"
+        else
+            write_state careful active
+        fi
         ;;
 esac
 printf '%s for session %s\n' "$action" "$sid"

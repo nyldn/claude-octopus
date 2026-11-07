@@ -77,6 +77,37 @@ finally:
     state.unlink(missing_ok=True)
 with tempfile.TemporaryDirectory() as temporary:
     helper = root/'scripts/helpers/guard-state.sh'
+    for existing in [False, True]:
+        for failure in ['directory', 'replace']:
+            careful = Path('/tmp/octopus-careful-'+sid+'.txt')
+            freeze = Path('/tmp/octopus-freeze-'+sid+'.txt')
+            prior = b'prior careful state\n'
+            env = dict(base_env, OCTOPUS_HOST='claude', CLAUDE_CODE_SESSION_ID=sid)
+            if existing:
+                careful.write_bytes(prior)
+            if failure == 'directory':
+                freeze.mkdir()
+            else:
+                shim_dir = Path(temporary)/'rename-failure'; shim_dir.mkdir(exist_ok=True)
+                shim = shim_dir/'python3'
+                shim.write_text('#!'+sys.executable+'\nimport os,sys\noriginal=os.replace\n'
+                    'def replace(source, destination):\n'
+                    '    """Inject only the selected freeze publication failure."""\n'
+                    '    if str(destination)==os.environ["FAIL_FREEZE_DEST"]: raise PermissionError("injected rename failure")\n'
+                    '    return original(source,destination)\n'
+                    'os.replace=replace\nsys.argv=sys.argv[1:]\n'
+                    'exec(compile(sys.stdin.read(),"guard-replace-fixture","exec"))\n')
+                shim.chmod(0o700)
+                env.update(PATH=str(shim_dir)+os.pathsep+env['PATH'], FAIL_FREEZE_DEST=str(freeze))
+            try:
+                result = subprocess.run(['bash',str(helper),'guard-on',temporary],env=env,capture_output=True,text=True)
+                assert result.returncode != 0, (existing, failure, 'guard unexpectedly succeeded')
+                assert careful.read_bytes()==prior if existing else not careful.exists(), (existing, failure, 'careful state changed on failure')
+                assert freeze.is_dir() if failure == 'directory' else not freeze.exists()
+            finally:
+                careful.unlink(missing_ok=True)
+                if freeze.is_dir(): freeze.rmdir()
+                else: freeze.unlink(missing_ok=True)
     for action, kind in [('careful-on', 'careful'), ('freeze-on', 'freeze')]:
         directory = Path('/tmp/octopus-'+kind+'-'+sid+'.txt')
         directory.mkdir()
