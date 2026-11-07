@@ -7,7 +7,9 @@
 - Claude Code now loads the native skill instructions instead of the Codex
   adaptations. Codex keeps its generated skills, and the verification alias
   and starter pack remain available. Rollback now stops when local changes
-  cannot be recovered by its safety checkpoint. Fixes #1214.
+  cannot be recovered by its safety checkpoint. Release validation accepts
+  the same scalar, leaf and container skill registrations as assembly validation.
+  Fixes #1214.
 - Vibe setup and readiness now recognize a key stored by `vibe --setup` in
   the OS keyring when Vibe is explicitly selected for a provider check. The
   local presence check is silent, read-only and bounded, and receives a

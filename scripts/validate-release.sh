@@ -368,11 +368,43 @@ echo "🎯 Checking skill registration..."
 # Claude Code discovers native root skills automatically. Codex uses its
 # separate adapted tree, outside that default discovery location.
 find_skill_md_files() {
-    find "$1" -mindepth 2 -maxdepth 3 -name "SKILL.md" -type f 2>/dev/null
+    find "$1" -mindepth 2 -name "SKILL.md" -type f 2>/dev/null
 }
 SKILL_FILES=$(find_skill_md_files "$ROOT_DIR/skills" \
     | sed "s|^$ROOT_DIR/|./|;s|/SKILL.md$||" | LC_ALL=C sort)
-REGISTERED_SKILLS=$(jq -r '.skills[]' "$ROOT_DIR/.claude-plugin/plugin.json" | LC_ALL=C sort)
+registered_skill_directories() {
+    python3 -I - "$1" <<'PY_REGISTERED_SKILLS'
+import importlib.util
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1]).resolve()
+spec = importlib.util.spec_from_file_location("octo_assembly", root / "scripts/validate-plugin-assembly.py")
+assembly = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(assembly)
+errors = []
+assembly.validate_plugin_manifest(root, errors)
+if errors:
+    print("\n".join(errors), file=sys.stderr)
+    sys.exit(1)
+registrations = json.loads((root / ".claude-plugin/plugin.json").read_text()).get("skills", [])
+if isinstance(registrations, str):
+    registrations = [registrations]
+skills = set()
+for registration in registrations:
+    directory = (root / registration).resolve()
+    direct = directory / "SKILL.md"
+    files = [direct] if direct.is_file() else directory.rglob("SKILL.md")
+    skills.update("./" + str(file.parent.relative_to(root)) for file in files)
+print("\n".join(sorted(skills)))
+PY_REGISTERED_SKILLS
+}
+if ! REGISTERED_SKILLS=$(registered_skill_directories "$ROOT_DIR"); then
+    log ERROR "Unable to validate registered skill directories"
+    ((errors++)) || true
+    REGISTERED_SKILLS=""
+fi
 
 skill_registration_errors=0
 for skill_file in $SKILL_FILES; do
