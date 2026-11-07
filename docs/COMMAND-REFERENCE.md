@@ -82,7 +82,7 @@ instruction; it is not an `orchestrate.sh` command-line flag.
 | `/octo:factory` | Dark Factory Mode — spec-in, software-out autonomous pipeline |
 | `/octo:multi` | Force multi-provider parallel execution for any task |
 | `/octo:loop` | Iterative execution with conditions until goals are met |
-| `/octo:refine` | Improve an artifact through a frozen rubric, independent models, edits, and bounded rescoring |
+| [`/octo:refine`](REFINEMENT.md) | Improve an artifact with Claude and Codex judges; see the guide for review-only mode and budget controls |
 | `/octo:ladder` | Alias for `/octo:refine` |
 | `/octo:quick` | Quick execution without full workflow overhead |
 

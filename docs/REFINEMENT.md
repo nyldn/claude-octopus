@@ -11,6 +11,16 @@ verified improvement also stop it. Research and retries share the call budget.
 `--review-only` scores the artifact and returns recommendations without edits.
 Explicit model choices and project approval requirements remain in force.
 
+Set a budget with `--max-rounds <1..10>`, `--max-minutes <positive integer>`,
+and `--max-calls <positive integer>`. Use `--target <0..100>` to change the
+score target or `--rubric <file>` to supply a rubric. These are instructions to
+the host workflow, not flags for `orchestrate.sh`.
+
+```text
+/octo:refine plan.md --max-rounds 3 --max-minutes 15 --max-calls 10
+/octo:refine draft.md --review-only
+```
+
 ## Rubric strategy
 
 Use a supplied rubric first. Otherwise start with
