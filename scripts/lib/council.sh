@@ -3954,6 +3954,7 @@ for start, end, kind, block, removed_block, info in units:
     # readable neighbor cannot stand in for an oversized or unreadable bound file.
     readable = True
     verified = near = partial = False
+    near_budget = 65536
     for path in bound_paths + [p for p in all_cited if p not in bound_paths]:
         # Once complete, only later bound files can improve near-line reporting.
         if verified and not partial and path not in bound_paths:
@@ -3963,6 +3964,24 @@ for start, end, kind, block, removed_block, info in units:
             if path in bound_paths:
                 readable = False
             continue
+        cited_lines = [line for p, line in bound if p == path]
+        if verified and not partial:
+            # Near-line counts are supplemental: cap refinement after complete
+            # verification so large later files cannot exhaust the verdict's
+            # deadline. Search actual source windows, never concatenate gaps.
+            if not near_budget:
+                break
+            hay, starts, numbers = entry
+            first = bisect_left(numbers, max(1, min(cited_lines) - NEAR_LINES))
+            last = bisect_right(numbers, max(cited_lines) + NEAR_LINES)
+            if first == last:
+                continue
+            offset = starts[first]
+            stop = min(starts[last] if last < len(starts) else len(hay), offset + near_budget)
+            near_budget -= stop - offset
+            window_end = min(last, bisect_left(starts, stop))
+            entry = (hay[offset:stop], [at - offset for at in starts[first:window_end]],
+                     numbers[first:window_end])
         misses = []
         # Partial reporting applies only to fences. Non-fence threshold and
         # elision matches need no short-line presence scans.
@@ -3970,7 +3989,6 @@ for start, end, kind, block, removed_block, info in units:
                            misses if kind == "fence" else None, short)
         if not lines:
             continue
-        cited_lines = [line for p, line in bound if p == path]
         near = near or any(abs(found - cited) <= NEAR_LINES for found in lines for cited in cited_lines)
         # A partial match may be complete in a later cited file; keep looking
         # for the report. The first match already decides the verdict.

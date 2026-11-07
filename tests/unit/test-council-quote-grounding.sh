@@ -3658,6 +3658,25 @@ else
     test_fail "report-only non-fence accounting exhausted verification: $r"
 fi
 
+test_case "complete far quotes keep supplemental near-line work bounded"
+python3 - "$nonfence_root" "$nonfence_response" <<'PY_COMPLETE_BUDGET'
+import sys
+from pathlib import Path
+root = Path(sys.argv[1])
+quotes = [f'const verified_{index} = loadActualPrice(input);' for index in range(256)]
+(root / 'a.ts').write_text('// distant filler\n' * 100 + '\n'.join(quotes))
+citations = 'a.ts:1 ' + ' '.join(f'file{index}.ts:1' for index in range(100))
+Path(sys.argv[2]).write_text('\n\n'.join(citations + '\n\n`' + quote + '`' for quote in quotes)
+                            + '\nVERDICT: APPROVE\n')
+PY_COMPLETE_BUDGET
+r="$(council_response_quote_verification_json "$nonfence_response" "$nonfence_root")"
+if jq -e '.verification_failed == false and .quotes_verified == 256
+    and .fabricated == false' <<< "$r" >/dev/null; then
+    test_pass
+else
+    test_fail "supplemental near-line work rejected complete quotes: $r"
+fi
+
 # A complete far match must not hide a later bound near-line match either.
 test_case "a complete blockquote retains a later cited file's near-line match"
 r="$(council_response_quote_verification_json "$(_resp "a.ts:1 and b.ts:1

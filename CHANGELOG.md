@@ -23,7 +23,9 @@
   timeout. Partial accounting stops at its first missing line, batches short
   literal matches into bounded index batches and reuses retained-fragment checks
   across quotes. Non-fence quotes skip report-only partial scans, while later
-  bound files can still supply near-line evidence after a complete match.
+  bound files can still supply near-line evidence after a complete match,
+  within a 64 KiB per-quote refinement budget. Exhausting that supplemental
+  budget can undercount near-line matches but does not reject a verified quote.
   First-person builders also recognize modifiers such as "I just built as"
   without excusing code attributed to someone else.
 
