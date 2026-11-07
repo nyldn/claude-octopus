@@ -2,8 +2,6 @@
 
 ## [Unreleased]
 
-## [11.17.1] - 2026-11-05
-
 ### Fixed
 
 - Research verification no longer fails a synthesis for referring to its own
@@ -15,8 +13,12 @@
   unit, including formatted units such as `5 **MiB**`, and section numbers are
   still checked. Compact lists such as `points 2,3` are also recognized, while
   decimals and thousands-formatted numeric claims remain checked. Scores and
-  counts introduced by a colon, both endpoints of hyphen and Unicode dash ranges, and
-  quantities with either Unicode micro-unit prefix also remain checked.
+  counts introduced by a colon, both endpoints of hyphen and Unicode
+  dash ranges, and quantities with either Unicode micro-unit prefix also remain checked.
+
+## [11.17.1] - 2026-11-05
+
+### Fixed
 
 - Vibe setup and readiness now recognize a key stored by `vibe --setup` in
   the OS keyring when Vibe is explicitly selected for a provider check. The
