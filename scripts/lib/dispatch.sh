@@ -1691,7 +1691,7 @@ apply_tool_policy() {
 
     # Disabled by env var
     if [[ "${OCTOPUS_TOOL_POLICIES}" != "true" ]]; then
-        echo "$prompt"
+        printf '%s\n' "$prompt"
         return
     fi
 
@@ -1700,7 +1700,7 @@ apply_tool_policy() {
         local is_readonly
         is_readonly=$(get_agent_readonly "$agent_name")
         if [[ "$is_readonly" == "true" ]]; then
-            echo "TOOL POLICY (readonly: true): You MUST NOT use Write, Edit, or Bash for modifications. Only Read, Glob, Grep, WebSearch, and WebFetch are permitted.
+            printf '%s\n' "TOOL POLICY (readonly: true): You MUST NOT use Write, Edit, or Bash for modifications. Only Read, Glob, Grep, WebSearch, and WebFetch are permitted.
 
 ${prompt}"
             return
@@ -1723,17 +1723,17 @@ ${prompt}"
             ;;
         full)
             # No restrictions
-            echo "$prompt"
+            printf '%s\n' "$prompt"
             return
             ;;
     esac
 
     if [[ -n "$restriction" ]]; then
-        echo "${restriction}
+        printf '%s\n' "${restriction}
 
 ${prompt}"
     else
-        echo "$prompt"
+        printf '%s\n' "$prompt"
     fi
 }
 
@@ -1767,7 +1767,7 @@ apply_persona() {
 
     # Allow opt-out for backward compatibility
     if [[ "$skip_persona" == "true" || "$DISABLE_PERSONAS" == "true" ]]; then
-        echo "$prompt"
+        printf '%s\n' "$prompt"
         return
     fi
 
@@ -1776,7 +1776,7 @@ apply_persona() {
     persona=$(get_persona_instruction "$persona_role")
 
     if [[ -z "$persona" ]]; then
-        echo "$prompt"
+        printf '%s\n' "$prompt"
         return
     fi
 
@@ -1795,7 +1795,7 @@ EOF
     # v8.19.0: Apply tool policy RBAC (v8.53.0: pass agent_name for readonly check)
     combined=$(apply_tool_policy "$persona_role" "$combined" "$agent_name")
 
-    echo "$combined"
+    printf '%s\n' "$combined"
 }
 
 # v8.53.0: Get readonly flag from agent persona frontmatter

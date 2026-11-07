@@ -126,6 +126,34 @@ sanitize_external_content 'literal\\c followed by \\n and \\t' keenable-search
         self.assertEqual(lines[1], r'literal\c followed by \n and \t')
         self.assertEqual(lines[2], lines[0].replace('BEGIN-UNTRUSTED:', 'END-UNTRUSTED:'))
 
+    def test_untrusted_search_survives_the_actual_persona_and_tool_policy_path(self):
+        script = r'''shopt -s xpg_echo
+source "$1/scripts/lib/secure.sh"
+source "$1/scripts/lib/dispatch.sh"
+source "$1/scripts/lib/persona-loader.sh"
+PLUGIN_DIR="$1"
+DISABLE_PERSONAS="$2"
+OCTOPUS_TOOL_POLICIES="$3"
+payload=$(sanitize_external_content 'literal\c followed by \n and \t' keenable-search)
+apply_persona "$4" "$payload" "$5" "$6"
+'''
+        cases = (("false", "true", "researcher", "false", ""),
+                 ("false", "true", "implementer", "false", ""),
+                 ("false", "false", "researcher", "false", ""),
+                 ("false", "true", "unknown-persona", "false", ""),
+                 ("true", "true", "researcher", "false", ""),
+                 ("false", "true", "researcher", "true", ""),
+                 ("false", "true", "researcher", "false", "code-reviewer"))
+        for case in cases:
+            with self.subTest(case=case):
+                result = subprocess.run(["bash", "-c", script, "fixture", str(ROOT), *case],
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                lines = result.stdout.splitlines()
+                self.assertIn(r'literal\c followed by \n and \t', lines)
+                begin = next(line for line in lines if line.startswith('<!-- BEGIN-UNTRUSTED:'))
+                self.assertIn(begin.replace('BEGIN-UNTRUSTED:', 'END-UNTRUSTED:'), lines)
+
     def test_cli_errors_print_no_key_response_body_or_traceback(self):
         for error in (urllib.error.HTTPError("https://api.keenable.ai", 402, "inert-private-value", {}, None), TimeoutError("inert-private-value"), ValueError("inert-private-value")):
             with self.subTest(error=type(error).__name__), patch.object(api, "search", side_effect=error), patch.object(api.signal, "alarm"), patch.object(api.signal, "signal"), patch.object(api.sys, "stdin", type("Input", (), {"buffer": io.BytesIO(b"question")})()), patch.object(api.sys, "stdout", io.StringIO()) as stdout, patch.object(api.sys, "stderr", io.StringIO()) as stderr:
