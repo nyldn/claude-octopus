@@ -29,6 +29,8 @@
   Admission confirms logins even when static token evidence is present and
   checks project-relative executables from the worker directory. Failed command
   construction closes its durable research-seat event.
+  MCP research also forwards the optional Mistral environment credential to
+  OpenCode, while isolated model children keep their own credential boundary.
   Addresses [#1172](https://github.com/nyldn/claude-octopus/issues/1172).
 
 ## [11.17.1] - 2026-11-05

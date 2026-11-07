@@ -375,6 +375,30 @@ probe_single_agent opencode perspective probe-123-0 'Check compatibility'
         self.assertEqual(self.readiness("live")["status"], "available")
         self.assertTrue(self.marker.exists())
 
+    def test_mcp_environment_only_mistral_login_reaches_the_private_server(self):
+        """Adapter filtering must retain the key that OpenCode confirms live."""
+        script = """import {loadProviderEnvAllowlist, providerEnvironment} from './shared/adapter-runtime.mjs';
+console.log(JSON.stringify(providerEnvironment(loadProviderEnvAllowlist(process.cwd()),
+    {MISTRAL_API_KEY:'fixture', UNRELATED_PRIVATE_VALUE:'excluded'})));"""
+        filtered = subprocess.run(["node", "--input-type=module", "-e", script],
+                                  cwd=ROOT, capture_output=True, text=True, check=False)
+        self.assertEqual(filtered.returncode, 0, filtered.stderr)
+        forwarded = json.loads(filtered.stdout)
+        self.assertNotIn("UNRELATED_PRIVATE_VALUE", forwarded)
+        self.env.update(forwarded, CLI_VERSION="2.2.6")
+        self.env["AUTH_JSON"] = '[{"id":"mistral","connections":[{"type":"environment"}]}]'
+        self.cli.write_text(self.cli.read_text().replace(
+            'sleep "${AUTH_DELAY:-0}"',
+            '[ "$MISTRAL_API_KEY" = fixture ] || { printf "[]\\n"; exit 0; }\n'
+            '    sleep "${AUTH_DELAY:-0}"'))
+        self.assertEqual(self.readiness("static")["reason_code"], "auth-missing")
+        self.assertFalse(self.marker.exists())
+        self.assertEqual(self.readiness("live")["status"], "available")
+        isolated = self.shell('''source scripts/lib/provider-routing.sh; build_provider_env codex
+"${PROVIDER_ENV_ARRAY[@]}" bash -c '[[ -z "${MISTRAL_API_KEY+x}" ]]'
+''')
+        self.assertEqual(isolated.returncode, 0, "Mistral key reached the isolated Codex child")
+
     def test_v2_empty_malformed_or_unknown_connections_are_rejected(self):
         (self.data / "opencode.db").touch()
         self.env["CLI_VERSION"] = "2.0.23"
