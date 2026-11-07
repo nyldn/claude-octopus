@@ -3632,4 +3632,40 @@ else
     test_fail "non-fence optimization lost later near-line accounting: $r"
 fi
 
+# Report-only partial accounting must not rescan unrelated short patterns for
+# non-fence units. Exercise the production wrapper and its normal deadline.
+test_case "threshold blockquotes across large files stay within the verifier budget"
+nonfence_root="$TEST_TMP_DIR/nonfence-budget"
+nonfence_response="$TEST_TMP_DIR/nonfence-budget.md"
+mkdir -p "$nonfence_root"
+python3 - "$nonfence_root" "$nonfence_response" <<'PY_NONFENCE_BUDGET'
+import sys
+from pathlib import Path
+root = Path(sys.argv[1])
+quotes = []
+for index in range(100):
+    first = f'const first_{index} = loadActualPrice(input);'
+    last = f'return applyActualTaxes_{index}(price, sailing);'
+    (root / f'file{index}.ts').write_text(first + '\n' + last + '\n' + 'x' * 1400000)
+    quotes.append(f'file{index}.ts:1 reads:\n> {first}\n> return missing_{index};\n> {last}\n')
+Path(sys.argv[2]).write_text('\n'.join(quotes) + '\nVERDICT: APPROVE\n')
+PY_NONFENCE_BUDGET
+r="$(council_response_quote_verification_json "$nonfence_response" "$nonfence_root")"
+if jq -e '.verification_failed == false and .quotes_verified == 100
+    and .quotes_partial == 0 and .fabricated == false' <<< "$r" >/dev/null; then
+    test_pass
+else
+    test_fail "report-only non-fence accounting exhausted verification: $r"
+fi
+
+# A complete far match must not hide a later bound near-line match either.
+test_case "a complete blockquote retains a later cited file's near-line match"
+r="$(council_response_quote_verification_json "$(_resp "a.ts:1 and b.ts:1
+
+> $REAL_NEAR
+> return applyTaxes(base, sailing.portFees);
+VERDICT: APPROVE")" "$near_root")"
+if jq -e '.quotes_verified == 1 and .quotes_near_line == 1 and .quotes_partial == 0
+    and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "complete match lost later near-line evidence: $r"; fi
+
 test_summary

@@ -11,8 +11,8 @@
   dropped as blind beside real citations. After a content verb, as in
   "x.ts:2 contains the code built as", the span is still the file's code and is
   checked, unless "I" or "we" built it. Quote reports also gain
-  `quotes_partial`, which counts fences that verify at the two-thirds
-  threshold in a cited file or diff side, but lack a complete match in any
+  `quotes_partial`, which counts fences that verify through a whole-fence elision or the two-thirds
+  specific-line threshold in a cited file or diff side, but lack a complete match in any
   checked source, short lines included. Lines can match separately and out of
   order. Mixed diff fences check the removed portion against the removed side
   and the kept portion against a cited file or the added side. A complete
@@ -22,7 +22,8 @@
   prevents a later quote from receiving the normal required lookup after a
   timeout. Partial accounting stops at its first missing line, batches short
   literal matches into bounded index batches and reuses retained-fragment checks
-  across quotes, preserving near-line accounting.
+  across quotes. Non-fence quotes skip report-only partial scans, while later
+  bound files can still supply near-line evidence after a complete match.
   First-person builders also recognize modifiers such as "I just built as"
   without excusing code attributed to someone else.
 

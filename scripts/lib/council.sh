@@ -3955,22 +3955,28 @@ for start, end, kind, block, removed_block, info in units:
     readable = True
     verified = near = partial = False
     for path in bound_paths + [p for p in all_cited if p not in bound_paths]:
+        # Once complete, only later bound files can improve near-line reporting.
+        if verified and not partial and path not in bound_paths:
+            break
         entry = load(path)
         if entry is None:
             if path in bound_paths:
                 readable = False
             continue
         misses = []
-        lines = match_unit(wholes, line_variants, entry, misses, short)
+        # Partial reporting applies only to fences. Non-fence threshold and
+        # elision matches need no short-line presence scans.
+        lines = match_unit(wholes, line_variants, entry,
+                           misses if kind == "fence" else None, short)
         if not lines:
             continue
         cited_lines = [line for p, line in bound if p == path]
         near = near or any(abs(found - cited) <= NEAR_LINES for found in lines for cited in cited_lines)
         # A partial match may be complete in a later cited file; keep looking
         # for the report. The first match already decides the verdict.
-        partial = bool(misses and misses[0])
+        partial = bool(misses and misses[0]) and (partial or not verified)
         verified = True
-        if not partial:
+        if not partial and near:
             break
     if kind == "bare":
         # Positive evidence only: a matched bare line is a verified quote; an
