@@ -15,6 +15,7 @@
   decimals and thousands-formatted numeric claims remain checked. Scores and
   counts introduced by a colon, both endpoints of hyphen and Unicode
   dash ranges, and quantities with either Unicode micro-unit prefix also remain checked.
+  Nested emphasis and whitespace before a percent sign cannot hide quantities.
 
 ## [11.17.1] - 2026-11-05
 

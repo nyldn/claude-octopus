@@ -627,6 +627,32 @@ research_extract_numbers() {
 # "section 2" are still checked.
 research_numeric_claims() {
     LC_ALL=C awk '
+    function unformat(text,    at, marker, width, previous, following, depth, result, piece, key, marks, starts, drops) {
+        at = 1; depth = 0
+        while (at <= length(text)) {
+            marker = substr(text, at, 1)
+            if (marker != "*" && marker != "_") { at++; continue }
+            while (substr(text, at + length(marker), 1) == substr(marker, 1, 1)) marker = marker substr(marker, 1, 1)
+            width = length(marker)
+            previous = substr(text, at - 1, 1)
+            following = substr(text, at + width, 1)
+            if (depth > 0 && marks[depth] == marker && previous !~ /[ \t]/ && following !~ /[0-9A-Za-z]/) {
+                drops[starts[depth]] = width; drops[at] = width; depth--
+            } else if (following != "" && following !~ /[ \t]/ &&
+                       (at == 1 || previous !~ /[0-9A-Za-z_]/ || (depth > 0 && previous == "_"))) {
+                depth++; marks[depth] = marker; starts[depth] = at
+            }
+            at += width
+        }
+        result = ""; piece = 1
+        for (at = 1; at <= length(text); at++) {
+            if (at in drops) {
+                result = result substr(text, piece, at - piece)
+                at += drops[at] - 1; piece = at + 1
+            }
+        }
+        return result substr(text, piece)
+    }
     function ordinal_reference(before, after, start, number,    gap, label, list_reference) {
         label = "[*_]*(points?|items?)[*_]*([ \\t]+|[ \\t]*:[*_]*[ \\t]*)$"
         # Commas without spaces can join references, but keep thousands groups
@@ -638,6 +664,7 @@ research_numeric_claims() {
         # Quantities, including range endpoints and fraction numerators,
         # remain substantive before any label/list exemptions.
         if (after ~ /^[ \t]*(-|\342\200\223|\342\200\224|\342\210\222|\/)[ \t]*[*_]*[0-9]/) return 0
+        if (after ~ /^[ \t]*%/) return 0
         if (after ~ /^[ \t]*\[[^]]+\]\([A-Za-z][A-Za-z0-9+.-]*:/) return 0
         if (after ~ /^[ \t]*[*_`(]*([0-9A-Za-z]|\302\260|\302\265|\316\274)/ && tolower(after) !~ /^[ \t]+(and|or)[ \t]/) return 0
         gap = tolower(substr(line, ord_end, start - ord_end))
@@ -657,6 +684,7 @@ research_numeric_claims() {
         line = $0
         # Treat common nonbreaking unit/list spaces like ASCII spaces under C locale.
         gsub(/\302\240|\342\200\257/, " ", line)
+        line = unformat(line)
         pos = 1; id_end = -1; ord_end = 0
         while (match(substr(line, pos), /[0-9]+([.,][0-9]+)*%?/)) {
             start = pos + RSTART - 1; len = RLENGTH; pos = start + len

@@ -1015,6 +1015,37 @@ for range_dash in '—' '−'; do
     fi
 done
 
+for nested_value in '_**16**_' '**_16_**' '__**16**__' '**__16__**' '___16___' '***16***'; do
+    test_case "nested emphasis preserves substantive quantities: $nested_value"
+    nested_claims=$(research_extract_numbers "The limit is $nested_value MiB.")
+    if [[ "$nested_claims" == 16 ]]; then test_pass; else test_fail "nested quantity escaped: $nested_claims"; fi
+done
+
+test_case "emphasis across a range and a reference list preserves their different meanings"
+nested_range=$(research_extract_numbers 'See points _**5**—**500**_ MiB' | LC_ALL=C sort | tr '\n' ' ')
+nested_refs=$(research_extract_numbers 'See points _**2**,**3**_ and **_item 4_**.')
+nested_ids=$(research_extract_numbers 'backup_**5**_b a_5_b backup_2024_01_15.tar')
+if [[ "$nested_range" == "5 500 " && -z "$nested_refs" && -z "$nested_ids" ]]; then test_pass
+else test_fail "nested range [$nested_range], references [$nested_refs], identifiers [$nested_ids]"; fi
+
+for percent_space in ' ' $'\302\240' $'\342\200\257'; do
+    test_case "spaced percentages after labels remain factual quantities"
+    percent_claims=$(research_extract_numbers "Items: 5${percent_space}% passed.")
+    if [[ "$percent_claims" == 5 ]]; then test_pass; else test_fail "percentage escaped: $percent_claims"; fi
+done
+
+test_case "nested quantities, formatted ranges and spaced percentages require cited evidence"
+{
+    printf '%s\n' '- The limit is _**16**_ MiB (`src/handler.ts:4`).'
+    printf '%s\n' '- See points _**5**—**500**_ MiB (`src/handler.ts:4`).'
+    printf '%s\n' '- Items: 5 % passed (`src/handler.ts:4`).'
+} > "$ordinal_draft"
+ordinal_status=0
+research_verify_synthesis "$ordinal_draft" || ordinal_status=$?
+ordinal_kinds=$(jq -r '.checks[] | "\(.line):\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$ordinal_status" -ne 0 && "$ordinal_kinds" == "1:number_mismatch:16 2:number_mismatch:5 3:number_mismatch:5 " ]]; then test_pass
+else test_fail "formatted quantities escaped verification: $ordinal_kinds"; fi
+
 test_case "compact point references are skipped while formatted units and numeric values remain claims"
 compact_refs=$(research_extract_numbers 'See points 2,3 and items 4,5,6.' | tr '\n' ' ')
 formatted_claims=""
