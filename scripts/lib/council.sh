@@ -3608,7 +3608,12 @@ def match_unit(wholes, line_variants, entry, misses=None, short=()):
                     # Partial accounting checks every retained fragment, even
                     # below the specificity floor used by the verdict.
                     pieces = [p for p in ELLIPSIS.split(norm(variant)) if p]
-                    present = plain_line_present(norm(variant), hay)
+                    # Reuse an exact literal match already computed for the
+                    # verdict before indexing every report-only short line.
+                    # Elisions still need their lower-specificity presence check.
+                    present = (bool(variant_matches[variant])
+                               if variant in variant_matches and not ELLIPSIS.search(norm(variant))
+                               else plain_line_present(norm(variant), hay))
                     if present is None:
                         present = (match(variant) if not ELLIPSIS.search(norm(variant)) else
                                    pieces and find_lines(hay, [], [], pieces[0], following=pieces[1:]))

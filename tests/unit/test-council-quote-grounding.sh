@@ -3531,6 +3531,27 @@ for needle in [ordered[i] for i in (0, len(ordered) // 2, -1, 1, -2, 0)]:
 PY_BATCH_PRESENCE
 then test_pass; else test_fail "batch index changed literal substring matching"; fi
 
+# A verified literal must not scan unrelated batch needles in that evidence file.
+test_case "verified literal variants reuse their match before batch presence scans"
+if python3 - "$PROJECT_ROOT/scripts/lib/council.sh" <<'PY_LITERAL_CACHE'
+import re
+import sys
+from pathlib import Path
+source = Path(sys.argv[1]).read_text()
+function = 'def match_unit(' + source.split('\ndef match_unit(', 1)[1].split('\nall_cited =', 1)[0]
+known = 'const actual = loadActualPrice(input);'
+def batch_presence(needle, hay):
+    raise AssertionError('already matched literal triggered a full evidence scan')
+scope = dict(match_variant=lambda variant, entry: [1] if variant in entry[0] else [],
+             plain_line_present=batch_presence, partial_presence={},
+             norm=lambda text: ' '.join(text.split()), ELLIPSIS=re.compile(r'\.\.\.|…'))
+exec(compile(function, sys.argv[1], 'exec'), scope)
+misses = []
+assert scope['match_unit']([], [[known]], (known + ' ' + 'x' * 1400000, [0], [1]), misses) == [1]
+assert misses == [0], misses
+PY_LITERAL_CACHE
+then test_pass; else test_fail "verified literal performed report-only batch work"; fi
+
 # Count scans rather than relying on host timing for the non-fence hot path.
 test_case "partial matching reuses plain-variant scans without weakening elisions"
 if python3 - "$PROJECT_ROOT/scripts/lib/council.sh" <<'PY_MATCH_CACHE'
