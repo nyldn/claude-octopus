@@ -35,6 +35,15 @@ target in their prompts. The host preserves their actual responses and runtime
 identities. The lower total is the reported aggregate. This conservative rule
 does not remove model bias or turn the score into a probability of correctness.
 
+Before an external call, the host must inspect the candidate and supporting
+evidence for credentials and private tokens. Exclude secret values from prompts
+and model-assisted research. If sanitization is needed, work on a separate copy
+and identify it as the artifact being refined. Hash, validate, and score that
+exact copy; do not report its score as a judgment of the unchanged original.
+Read-only judges can still read permitted project files, so sanitizing a prompt
+alone does not isolate secrets elsewhere in the project. This is a host review
+step, not an automatic secret scanner or a guarantee of data isolation.
+
 The initial judge adapter supports Claude and Codex. It forces a read-only
 Codex sandbox, disables configured Codex MCP servers, apps, and plugins, and limits Claude
 to Read/Glob/Grep with ambient MCP disabled. Codex MCP inventory failures stop
