@@ -3254,16 +3254,20 @@ fi
 # Contracted auxiliaries still identify reviewer-owned construction. Keep a
 # later source-claim control so an earlier builder cannot excuse fabricated code.
 for builder in "I've" "we've" "I'd" "we'd" 'I’ve' 'we’ve' 'I’d' 'we’d'; do
-    for claim in own later-source; do
+    for claim in own later-source same-sentence-source same-sentence-own; do
         test_case "contracted builder $builder preserves $claim attribution"
         introduction="a row $builder carefully built as"
         if [[ "$claim" == later-source ]]; then
             introduction="a row $builder built as a test. The file contains"
+        elif [[ "$claim" == same-sentence-source ]]; then
+            introduction="a fixture $builder built as a test, but the file reads"
+        elif [[ "$claim" == same-sentence-own ]]; then
+            introduction="a fixture $builder built as a test, but the file reads a row $builder carefully built as"
         fi
         r="$(_report "$(_resp "src/pricing.ts:2 reads $introduction \`$FAKE\`.
 VERDICT: REVISE")")"
         if jq -e --arg claim "$claim" '.verification_failed == false and
-            (if $claim == "own" then .quotes_unverifiable_proposed == 1
+            (if ($claim == "own" or $claim == "same-sentence-own") then .quotes_unverifiable_proposed == 1
                 and .quotes_attributed == 0 and .fabricated == false
              else .quotes_unverifiable_proposed == 0
                 and .quotes_attributed_unverified == 1 and .fabricated == true end)' <<< "$r" >/dev/null; then

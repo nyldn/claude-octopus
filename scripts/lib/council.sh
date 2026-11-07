@@ -3810,6 +3810,12 @@ CONTENT_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|is|defines?|d
 FIRST_PERSON_SUBJECT = re.compile(
     r"\b(?:I|we)(?:['’](?:ve|d))?\s+(?:(?:have|had|just|recently|already|carefully|deliberately|"
     r"explicitly|locally|manually|originally|previously)\s+)*$", re.I)
+# An explicit source subject restarts attribution even in the same sentence,
+# after a reviewer describes a proposed input or replacement.
+EXPLICIT_SOURCE_CLAIM = re.compile(
+    r"\b(?:but|however|whereas|and)\s+(?:(?:the|this|that|current|actual|cited)\s+)+"
+    r"(?:file|source|code)\s+"
+    r"(?:(?:now|currently|actually)\s+)?" + SOURCE_VERB.pattern, re.I)
 DOTTED_ABBREVIATION = re.compile(r"\b(?:[A-Za-z]\.){2,}")
 CLAUSE_BOUNDARY = re.compile(r"[.!?;](?:\s|$)")
 def clause_start(text, end):
@@ -3830,6 +3836,8 @@ def proposes(text):
     # Keep terminal punctuation on a standalone fence lead-in in its clause.
     end = len(text.rstrip(" \t\r\n.!?;"))
     start = clause_start(text, end)
+    for claim in EXPLICIT_SOURCE_CLAIM.finditer(text, start):
+        start = claim.start()
     verbs = CONTENT_VERB.finditer(text, start)
     verb = next(verbs, None)
     verb_end = None
