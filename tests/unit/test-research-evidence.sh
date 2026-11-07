@@ -1110,6 +1110,26 @@ test_case "an unterminated destination does not consume surrounding emphasis"
 literal_claims=$(research_extract_numbers 'The limit is _**16** [MiB](unterminated_.')
 if [[ "$literal_claims" == 16 ]]; then test_pass; else test_fail "invalid destination hid quantity: $literal_claims"; fi
 
+test_case "many unterminated destinations have a bounded scan"
+if python3 - "$PROJECT_ROOT" <<'PY'
+import subprocess
+import sys
+import os
+import signal
+with subprocess.Popen(
+    ['bash', '-c', 'source "$1/scripts/lib/research-evidence.sh"; research_numeric_claims', 'fixture', sys.argv[1]],
+    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True,
+) as process:
+    try:
+        output, _ = process.communicate('](oops ' * 8000 + '16 MiB\n', timeout=5)
+    except subprocess.TimeoutExpired:
+        os.killpg(process.pid, signal.SIGKILL)
+        process.communicate()
+        sys.exit(1)
+sys.exit(0 if process.returncode == 0 and output == '16\n' else 1)
+PY
+then test_pass; else test_fail "malformed destinations exceeded five seconds or lost the quantity"; fi
+
 for linked_unit in '[MiB](#units)' '[MiB](./units.md)' '[MiB][units]' '[MiB][]' '[MiB]'; do
     test_case "linked unit remains a quantity: $linked_unit"
     linked_claims=$(research_extract_numbers "Items: 5 $linked_unit.")

@@ -627,7 +627,7 @@ research_extract_numbers() {
 # "section 2" are still checked.
 research_numeric_claims() {
     LC_ALL=C awk '
-    function unformat(text,    at, marker, width, previous, following, depth, result, piece, scan, balance, marks, starts, drops, ticks, next_tick) {
+    function unformat(text,    at, marker, width, previous, following, depth, result, piece, scan, paren_depth, marks, starts, drops, ticks, next_tick, parens, close_paren) {
         # Pair equal-length backtick runs once. Literal code and destinations
         # must not open or close emphasis in the surrounding prose.
         scan = 1
@@ -635,6 +635,20 @@ research_numeric_claims() {
             at = scan + RSTART - 1; width = RLENGTH
             if (width in ticks) next_tick[ticks[width]] = at
             ticks[width] = at; scan = at + width
+        }
+        # Index balanced destinations once, including nested parentheses.
+        # Re-scanning an unterminated destination at every ]( is quadratic.
+        scan = 1; paren_depth = 0
+        while (scan <= length(text)) {
+            marker = substr(text, scan, 1)
+            if (marker == "\\") { scan += 2; continue }
+            if (scan in next_tick) {
+                match(substr(text, scan), /^`+/)
+                scan = next_tick[scan] + RLENGTH; continue
+            }
+            if (marker == "(") parens[++paren_depth] = scan
+            if (marker == ")" && paren_depth > 0) close_paren[parens[paren_depth--]] = scan
+            scan++
         }
         at = 1; depth = 0
         while (at <= length(text)) {
@@ -644,16 +658,8 @@ research_numeric_claims() {
                 match(substr(text, at), /^`+/)
                 at = next_tick[at] + RLENGTH; continue
             }
-            if (substr(text, at, 2) == "](") {
-                scan = at + 2; balance = 1
-                while (scan <= length(text) && balance > 0) {
-                    marker = substr(text, scan, 1)
-                    if (marker == "\\") { scan += 2; continue }
-                    if (marker == "(") balance++
-                    if (marker == ")") balance--
-                    scan++
-                }
-                if (balance == 0) { at = scan; continue }
+            if (substr(text, at, 2) == "](" && (at + 1) in close_paren) {
+                at = close_paren[at + 1] + 1; continue
             }
             if (substr(text, at, 2) == "][" && match(substr(text, at + 2), /^[^]]*\]/)) {
                 at += 2 + RLENGTH; continue
