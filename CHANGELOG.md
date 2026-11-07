@@ -6,7 +6,8 @@
 
 - The branch-finishing workflow executes the action shown in its menu.
   Choosing Create PR preserves the branch for review; choosing Merge locally
-  runs the local merge recipe. Source, Claude and Codex instructions agree.
+  runs the local merge recipe. The menu, quick reference, integration example and cleanup rules agree
+  across source, Claude and Codex instructions.
 
 - Claude Code now loads the native skill instructions instead of the Codex
   adaptations. Codex keeps its generated skills, and the verification alias

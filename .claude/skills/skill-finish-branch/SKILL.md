@@ -289,7 +289,7 @@ Work has been permanently discarded.
 
 ### Step 5: Cleanup (If Using Worktrees)
 
-**For Options 1, 2, 4:** Check if in a worktree and clean up:
+**For Options 2, 4:** Check if in a worktree and clean up:
 
 ```bash
 # Check if current directory is a worktree
@@ -307,7 +307,7 @@ if git worktree list | grep -q "$(pwd)"; then
 fi
 ```
 
-**For Option 3:** Keep worktree intact.
+**For Options 1, 3:** Keep worktree intact.
 
 ---
 
@@ -315,8 +315,8 @@ fi
 
 | Option | Merge | Push | Keep Branch | Cleanup |
 |--------|-------|------|-------------|---------|
-| 1. Merge locally | ✓ | - | Delete | ✓ |
-| 2. Create PR | - | ✓ | Keep | - |
+| 1. Create PR | - | ✓ | Keep | - |
+| 2. Merge locally | ✓ | - | Delete | ✓ |
 | 3. Keep as-is | - | - | Keep | - |
 | 4. Discard | - | - | Delete | ✓ |
 
@@ -334,7 +334,7 @@ After completing octopus workflows, use this skill:
 # → Invoke finishing-branch skill
 # → Verify tests
 # → Present options
-# → Execute Option 2 (Create PR)
+# → Execute Option 1 (Create PR)
 ```
 
 ### With Octopus Validation

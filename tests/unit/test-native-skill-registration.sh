@@ -161,7 +161,22 @@ root = Path(sys.argv[1])
 for tree in ('.claude/skills', 'skills', 'codex-skills'):
     text = (root / tree / 'skill-finish-branch/SKILL.md').read_text()
     menu = dict(re.findall(r'^(\d+)\. \*\*([^*]+)\*\*', text, re.M))
-    for choice in ('1', '2'):
+    references = re.findall(r'^\| (\d+)\. ([^|]+)\|', text, re.M)
+    examples = re.findall(r'Execute Option (\d+) \((Create PR|Merge locally)\)', text)
+    assert len(references) == len(menu) and examples, (tree, 'missing choice references')
+    cleanup = text.split('### Step 5: Cleanup', 1)[1].split('## Quick Reference', 1)[0]
+    policies = re.findall(r'For Options ([\d, ]+):', cleanup)
+    assert len(policies) == 2, (tree, 'missing cleanup/preservation policy')
+    cleanup_choices, preserve_choices = (set(re.findall(r'\d+', policy)) for policy in policies)
+    assert preserve_choices == set(menu) - cleanup_choices, (tree, 'worktree preservation incomplete')
+    rows = re.findall(r'^\| (\d+)\. [^|]+\|([^\n]+)', text, re.M)
+    advertised_cleanup = {choice for choice, columns in rows if columns.split('|')[-2].strip() == '✓'}
+    assert cleanup_choices == advertised_cleanup, (tree, 'cleanup contradicts reference')
+    cases = [(choice, menu[choice], 'menu') for choice in ('1', '2')]
+    cases += [(choice, action.strip(), 'quick reference') for choice, action in references
+              if action.strip().lower() in ('create pr', 'merge locally')]
+    cases += [(choice, action, 'integration example') for choice, action in examples]
+    for choice, action, origin in cases:
         section = re.search(r'^#### Option ' + choice + r':[^\n]*\n(.*?)(?=^#### Option |\Z)',
                             text, re.M | re.S)[1]
         command = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
@@ -189,19 +204,19 @@ npm() { printf 'npm %s\n' "$*" >> "$CALLS"; }
                                     env=env, capture_output=True, text=True, check=False)
             assert result.returncode == 0, (tree, choice, result.stderr)
             actions = calls.read_text().splitlines()
-            if menu[choice].lower() == 'create pr':
+            if action.lower() == 'create pr':
                 assert 'git push -u origin feature' in actions, (tree, choice, actions)
                 assert any(a.startswith('safe-helper ') and ' pr-create ' in a for a in actions), actions
                 assert not any(a.startswith(('git checkout ', 'git pull ', 'git merge ', 'git branch -d '))
                                for a in actions), (tree, choice, 'unexpected local merge', actions)
-            elif menu[choice].lower() == 'merge locally':
+            elif action.lower() == 'merge locally':
                 for action in ('git checkout main', 'git pull origin main', 'git merge feature',
                                'npm test', 'git branch -d feature'):
                     assert action in actions, (tree, choice, actions)
                 assert not any(a.startswith(('git push ', 'safe-helper ')) for a in actions), actions
             else:
-                raise AssertionError((tree, choice, 'unknown displayed choice', menu[choice]))
-print('6 displayed-choice recipes passed across source, native and Codex trees')
+                raise AssertionError((tree, choice, 'unknown displayed choice', action))
+print('15 menu/reference/example recipes passed across source, native and Codex trees')
 PY_CHOICES
 then test_pass; else test_fail "finish-branch execution contradicts the selected menu action"; fi
 
