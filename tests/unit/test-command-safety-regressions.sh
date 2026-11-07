@@ -43,6 +43,8 @@ try:
         ("echo 'rm -rf /tmp/important'", 'allow'),
     ]:
         assert hook('careful-check.sh', {'tool_name':'Bash','tool_input':{'command':cmd}}, env)==expected, cmd
+    assert hook('careful-check.sh', {'tool_name':'Bash','cwd':42,'tool_input':{'command':'rm -rf node_modules'}}, env)=='deny'
+    assert hook('careful-check.sh', {'tool_name':'Bash','cwd':'relative','tool_input':{'command':'rm -rf node_modules'}}, env)=='deny'
     with tempfile.TemporaryDirectory() as temporary:
         link = Path(temporary)/'node_modules'; outside = Path(temporary)/'private'; outside.mkdir(); link.symlink_to(outside)
         assert hook('careful-check.sh', {'tool_name':'Bash','tool_input':{'command':'rm -rf '+str(link)}}, env)=='ask'

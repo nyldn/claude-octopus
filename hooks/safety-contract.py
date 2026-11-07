@@ -166,6 +166,8 @@ def unsafe_recursive_delete(command, cwd=None):
     except ValueError:
         return bool(re.search(r"\brm\b", command))
     working_directory = Path(cwd or os.getcwd())
+    if not working_directory.is_absolute():
+        raise ValueError("hook cwd must be absolute")
     segments, current = [], []
     for token in tokens:
         if token and all(c in ";&|()\n" for c in token):
@@ -258,7 +260,7 @@ def main():
         else:
             raise ValueError("unknown safety helper mode")
     except (ValueError, TypeError, OSError, RuntimeError, IndexError) as error:
-        if mode == "field":
+        if mode in ("field", "careful-rm"):
             return 1
         decision("deny", f"Safety check could not validate this operation: {error}. "
                  "Correct the hook input or patch before retrying.")

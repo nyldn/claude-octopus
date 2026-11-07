@@ -65,6 +65,10 @@ CHECK_TEXT="$COMMAND"
 # Safe-only targets: node_modules dist .next __pycache__ build coverage .turbo.
 # A safe target never exempts another target or a later shell statement.
 RM_RISK=$(printf '%s' "$INPUT" | python3 "$_HOOK_DIR/safety-contract.py" careful-rm 2>/dev/null) || _octo_invalid_input
+case "$RM_RISK" in
+    safe|unsafe) ;;
+    *) _octo_invalid_input ;;
+esac
 if [[ "$RM_RISK" == "unsafe" ]]; then
     _octo_careful_decision 'Destructive command detected: recursive forced deletion outside safe build artifacts.'
     exit 0
