@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- `/octo:refine`, with `/octo:ladder` as an alias, improves artifacts through a frozen rubric, independent Claude/Codex scoring, and bounded rounds. Reports retain each attempted round and the best verified result.
+
 ### Fixed
 
 - Guard modes now check every recursive deletion target and share stable session identity across activation, hooks, and deactivation.
