@@ -99,14 +99,15 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
     for step in (4, 6):
         section = text.split(f'### Step {step}:', 1)[1].split(f'### Step {step + 1}:', 1)[0]
         commands[step] = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
-    for state in ('ignored-file', 'ignored-directory', 'ignored-parent', 'unrelated-ignored'):
+    for state in ('ignored-file', 'ignored-directory', 'ignored-parent', 'unrelated-ignored',
+                  'ignored-nested-directory', 'ignored-nested-file'):
         for step in (4, 6):
             with tempfile.TemporaryDirectory() as temporary:
                 repo = Path(temporary)
                 def git(*args):
                     return subprocess.check_output(['git', *args], cwd=repo, env=env)
                 git('init', '-q')
-                target = 'archive' if state == 'ignored-directory' else 'archive/data.txt'
+                target = 'archive' if state in ('ignored-directory', 'ignored-nested-file') else 'archive/data.txt'
                 path = repo / target
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text('checkpoint bytes\n')
@@ -117,11 +118,18 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 (repo / '.gitignore').write_text('archive\ncache\n')
                 git('add', '.gitignore')
                 git('commit', '-qm', 'ignore local archive')
-                saved = repo / ('archive/local.txt' if state == 'ignored-directory' else
+                saved = repo / ('archive/local.txt' if state in ('ignored-directory', 'ignored-nested-file') else
                                 'archive' if state == 'ignored-parent' else
                                 'cache/data.txt' if state == 'unrelated-ignored' else target)
                 saved.parent.mkdir(parents=True, exist_ok=True)
                 saved.write_text('private local bytes\n')
+                nested_head = None
+                if state.startswith('ignored-nested-'):
+                    git('-C', 'archive', 'init', '-q')
+                    git('-C', 'archive', 'add', '.')
+                    git('-C', 'archive', 'commit', '-qm', 'private nested work')
+                    nested_head = git('-C', 'archive', 'rev-parse', 'HEAD')
+                    assert b'archive/\0' in git('ls-files', '-z', '--others', '--ignored', '--exclude-standard')
                 before = git('status', '--porcelain=v1', '--untracked-files=all')
                 assert before == b'', (state, before)
                 result = subprocess.run(['bash', '-eu', '-c', commands[step]], cwd=repo,
@@ -129,12 +137,14 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 allowed = state == 'unrelated-ignored'
                 assert (result.returncode == 0) == allowed, (tree, state, step, result.stderr)
                 assert saved.read_text() == 'private local bytes\n', (tree, state, step)
+                if nested_head is not None:
+                    assert git('-C', 'archive', 'rev-parse', 'HEAD') == nested_head
                 if not allowed:
                     assert git('status', '--porcelain=v1', '--untracked-files=all') == before
                     assert not git('tag', '--list', 'octo-checkpoint-pre-rollback-*')
                 elif step == 6:
                     assert (repo / target).read_text() == 'checkpoint bytes\n'
-print('24 ignored-file rollback scenarios passed across all three skill trees')
+print('36 ignored-file rollback scenarios passed across all three skill trees')
 PY_IGNORED
 then test_pass; else test_fail "rollback can overwrite ignored local work"; fi
 

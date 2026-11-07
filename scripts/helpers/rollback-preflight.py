@@ -23,7 +23,8 @@ def check_tree(checkpoint):
     for raw_path in ignored.split(b"\0"):
         if not raw_path:
             continue
-        path = os.fsdecode(raw_path)
+        # Git collapses ignored nested repositories to a directory entry.
+        path = os.fsdecode(raw_path).rstrip("/")
         if path in paths or path in directories or any(str(parent) in paths for parent in PurePosixPath(path).parents):
             raise ValueError(f"preserve ignored path {path!r} before restoring this checkpoint")
 
