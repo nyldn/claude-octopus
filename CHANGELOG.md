@@ -2,6 +2,36 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- A council seat is no longer marked fabricated for a test input it built
+  itself (sail-cruisey #3247). A span introduced as "constructed as", "built
+  as" or "crafted as" is the seat's own proposal, like one introduced by
+  "such as", so a seat whose only checked quote was such an input is no longer
+  dropped as blind beside real citations. After a content verb, as in
+  "x.ts:2 contains the code built as", the span is still the file's code and is
+  checked, unless "I" or "we" built it. Quote reports also gain
+  `quotes_partial`, which counts fences that verify through a whole-fence
+  elision or the two-thirds specific-line threshold in a cited file or diff side,
+  but lack a complete match in any checked source, short lines included. Short
+  lines do not count toward that threshold; a whole-fence elision match does
+  not require it. Lines can match separately and out of
+  order. Mixed diff fences check the removed portion against the removed side
+  and the kept portion against a cited file or the added side. A complete
+  match clears partial status for that portion. An optional diff lookup may
+  time out, so partial status does not prove a line is absent from all evidence.
+  It does not change the verdict. Optional diff refinement no longer
+  prevents a later quote from receiving the normal required lookup after a
+  timeout. Partial accounting stops at its first missing line, batches short
+  literal matches into bounded index batches after sparse per-file substring
+  searches, and reuses retained-fragment checks across quotes. Non-fence quotes
+  skip report-only partial scans in source files and diff sides, while later
+  bound files can still supply near-line evidence after a complete match,
+  within a 64 KiB per-quote refinement budget. Exhausting that supplemental
+  budget can undercount near-line matches but does not reject a verified quote.
+  First-person builders also recognize modifiers such as "I just built as"
+  without excusing code attributed to someone else.
+
 ## [11.17.1] - 2026-11-05
 
 ### Fixed
