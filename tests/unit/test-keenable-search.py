@@ -154,6 +154,35 @@ apply_persona "$4" "$payload" "$5" "$6"
                 begin = next(line for line in lines if line.startswith('<!-- BEGIN-UNTRUSTED:'))
                 self.assertIn(begin.replace('BEGIN-UNTRUSTED:', 'END-UNTRUSTED:'), lines)
 
+    def test_shell_function_providers_keep_auth_and_drop_only_the_search_key(self):
+        script = '''source "$1/scripts/lib/provider-routing.sh"
+source "$1/scripts/lib/heartbeat.sh"
+fixture_provider() { [[ -z "${KEENABLE_API_KEY+x}" && "$PERPLEXITY_API_KEY" == inert-auth && "$OCTOPUS_AUTO_PEER_ACTIVE" == true ]]; }
+build_provider_env "$2" || exit 2
+"${PROVIDER_ENV_ARRAY[@]}" fixture_provider || exit 3
+run_with_timeout 5 "${PROVIDER_ENV_ARRAY[@]}" fixture_provider || exit 4
+[[ "$KEENABLE_API_KEY" == inert-fixture ]]
+'''
+        for provider in ("perplexity", "openrouter", "orcarouter"):
+            with self.subTest(provider=provider):
+                result = subprocess.run(["bash", "-c", script, "fixture", str(ROOT), provider],
+                                        env={**os.environ, "KEENABLE_API_KEY": "inert-fixture",
+                                             "PERPLEXITY_API_KEY": "inert-auth", "OCTOPUS_AUTO_PEER_ACTIVE": "true"},
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_search_key_cannot_be_reintroduced_as_a_custom_provider_credential(self):
+        script = '''source "$1/scripts/lib/provider-routing.sh"
+octopus_provider_definition_field() { printf '%s\\n' KEENABLE_API_KEY; }
+if build_provider_env openai-compatible-agent; then exit 2; fi
+# Even a caller that ignores the failed build cannot launch a model child.
+"${PROVIDER_ENV_ARRAY[@]}" bash -c 'exit 0'
+[[ $? != 0 && "$KEENABLE_API_KEY" == inert-fixture ]]
+'''
+        result = subprocess.run(["bash", "-c", script, "fixture", str(ROOT)],
+                                env={**os.environ, "KEENABLE_API_KEY": "inert-fixture"}, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_cli_errors_print_no_key_response_body_or_traceback(self):
         for error in (urllib.error.HTTPError("https://api.keenable.ai", 402, "inert-private-value", {}, None), TimeoutError("inert-private-value"), ValueError("inert-private-value")):
             with self.subTest(error=type(error).__name__), patch.object(api, "search", side_effect=error), patch.object(api.signal, "alarm"), patch.object(api.signal, "signal"), patch.object(api.sys, "stdin", type("Input", (), {"buffer": io.BytesIO(b"question")})()), patch.object(api.sys, "stdout", io.StringIO()) as stdout, patch.object(api.sys, "stderr", io.StringIO()) as stderr:
