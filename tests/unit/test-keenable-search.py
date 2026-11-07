@@ -183,6 +183,43 @@ if build_provider_env openai-compatible-agent; then exit 2; fi
                                 env={**os.environ, "KEENABLE_API_KEY": "inert-fixture"}, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_binary_provider_prefix_is_executable_after_an_external_boundary(self):
+        """Compose the actual model argv with a launcher that uses execvp."""
+        script = '''set -eu
+source "$1/scripts/lib/provider-routing.sh"
+build_provider_env "$2"
+launcher="$3" provider="$2"
+set -- bash -c '
+    [[ -z "${KEENABLE_API_KEY+x}" && "$OCTOPUS_AUTO_PEER_ACTIVE" == true ]] || exit 3
+    [[ "$1" != agy || "$OCTOPUS_AGY_MODEL" == "fixture model" ]]
+' fixture "$provider"
+[[ "$provider" != agy ]] || set -- 'OCTOPUS_AGY_MODEL=fixture model' "$@"
+"$launcher" -c 'import os,sys; os.execvp(sys.argv[1], sys.argv[1:])' "${PROVIDER_ENV_ARRAY[@]}" "$@"
+child_status=$?
+[[ "$KEENABLE_API_KEY" == inert-fixture ]] || exit 4
+exit "$child_status"
+'''
+        for provider in ("agy", "kimi", "grok", "codex"):
+            for security in ("true", "false"):
+                with self.subTest(provider=provider, security=security):
+                    env = {**os.environ, "KEENABLE_API_KEY": "inert-fixture",
+                           "OCTOPUS_SECURITY_V870": security, "OCTOPUS_AGY_MODEL": "parent model",
+                           "OCTOPUS_AUTO_PEER_ACTIVE": "true",
+                           "OCTOPUS_ALLOW_FULL_AGY_ENV": "true", "OCTOPUS_ALLOW_FULL_KIMI_ENV": "true",
+                           "OCTOPUS_ALLOW_FULL_GROK_ENV": "true"}
+                    result = subprocess.run(["bash", "-c", script, "fixture", str(ROOT), provider, os.sys.executable],
+                                            env=env, capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_malformed_url_does_not_discard_valid_sibling_results(self):
+        """A bad third-party URL affects that row alone."""
+        good = {"title": "valid", "url": "https://example.com/good", "snippet": "valid text"}
+        for malformed in ("https://[::1", "https://[not-an-ip]/"):
+            with self.subTest(url=malformed):
+                result, _ = self.invoke({"results": [good, {**good, "url": malformed}, good]})
+                self.assertEqual(result.count(good["url"]), 2)
+                self.assertNotIn(malformed, result)
+
     def test_cli_errors_print_no_key_response_body_or_traceback(self):
         for error in (urllib.error.HTTPError("https://api.keenable.ai", 402, "inert-private-value", {}, None), TimeoutError("inert-private-value"), ValueError("inert-private-value")):
             with self.subTest(error=type(error).__name__), patch.object(api, "search", side_effect=error), patch.object(api.signal, "alarm"), patch.object(api.signal, "signal"), patch.object(api.sys, "stdin", type("Input", (), {"buffer": io.BytesIO(b"question")})()), patch.object(api.sys, "stdout", io.StringIO()) as stdout, patch.object(api.sys, "stderr", io.StringIO()) as stderr:

@@ -23,7 +23,9 @@ needed. The question is sent to Keenable only when this option and the allowlist
 permit it. With no key, the helper uses `/v1/search/public` and identifies Claude
 Octopus with `X-Keenable-Title`. An optional `KEENABLE_API_KEY` selects `/v1/search`
 with `X-API-Key`; it is excluded from model-child environments and prompts.
-Search result text is preserved literally inside its untrusted boundaries.
+The helper normalizes title and snippet whitespace and bounds their lengths.
+The resulting formatted suggestions are preserved literally inside their
+untrusted boundaries; they are not exact quotations of the source fields.
 Keyless limits are shared by egress IP. Authenticated usage follows the account's
 credits and rate limits.
 No live search or model request is required by the offline tests.

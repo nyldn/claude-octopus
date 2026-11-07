@@ -48,7 +48,10 @@ def search(query):
             continue
         if len(url) > 2048 or any(character.isspace() or ord(character) < 32 for character in url):
             continue
-        parsed = urlsplit(url)
+        try:
+            parsed = urlsplit(url)
+        except ValueError:
+            continue
         if parsed.scheme not in {"https", "http"} or not parsed.hostname or parsed.username or parsed.password:
             continue
         results.append(f"{len(results) + 1}. {' '.join(title.split())[:300]}\n{url}\n{' '.join(snippet.split())[:500]}")

@@ -185,7 +185,7 @@ build_provider_env() {
     # Search uses its own credential in the parent, never in a model child.
     # Some CLI routes inherit the environment rather than using env -i.
     local entry
-    for entry in "${PROVIDER_ENV_ARRAY[@]}"; do
+    for entry in ${PROVIDER_ENV_ARRAY[@]+"${PROVIDER_ENV_ARRAY[@]}"}; do
         if [[ "$entry" == KEENABLE_API_KEY=* ]]; then
             printf '%s\n' 'The search credential cannot authenticate a model provider.' >&2
             PROVIDER_ENV_ARRAY=(false)
@@ -193,10 +193,17 @@ build_provider_env() {
         fi
     done
     if [[ -n "${KEENABLE_API_KEY+x}" ]]; then
+        local search_provider="${1:-}"
+        search_provider="$(octo_provider_canonical "${search_provider%%:*}" 2>/dev/null || printf '%s' "${search_provider%%:*}")"
         if [[ "${PROVIDER_ENV_ARRAY[0]:-}" == env ]]; then
             PROVIDER_ENV_ARRAY=(env -u KEENABLE_API_KEY "${PROVIDER_ENV_ARRAY[@]:1}")
+        elif [[ "$search_provider" == perplexity* || "$search_provider" == openrouter* || "$search_provider" == orcarouter* ]]; then
+            # These providers execute shell functions in the current shell.
+            PROVIDER_ENV_ARRAY=(_octo_run_model_without_search_key ${PROVIDER_ENV_ARRAY[@]+"${PROVIDER_ENV_ARRAY[@]}"})
         else
-            PROVIDER_ENV_ARRAY=(_octo_run_model_without_search_key "${PROVIDER_ENV_ARRAY[@]}")
+            # Binary routes must stay executable after an external launcher
+            # such as Tangle's bwrap. env also interprets model assignments.
+            PROVIDER_ENV_ARRAY=(env -u KEENABLE_API_KEY ${PROVIDER_ENV_ARRAY[@]+"${PROVIDER_ENV_ARRAY[@]}"})
         fi
     fi
     return "$_rc"
