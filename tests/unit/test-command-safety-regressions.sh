@@ -48,6 +48,8 @@ try:
         ("printf '%s' 'rm -rf /tmp/important' | xargs", 'ask'),
         ("printf '%s' 'rm -rf /tmp/important' | timeout 5 parallel", 'ask'),
         ("printf '%s' 'rm -rf /tmp/important' | \"$SHELL\"", 'ask'),
+        ("printf '%s' 'rm -rf /tmp/important' | timeout 5 \"$SHELL\"", 'ask'),
+        ("printf '%s' 'rm -rf /tmp/important' | sudo -u somebody \"$SHELL\"", 'ask'),
         ('sudo -u somebody rm -rf /tmp/important', 'ask'),
         ('if true; then rm -rf /tmp/important; fi', 'ask'),
         ('for x in once; do rm -rf /tmp/important; done', 'ask'),

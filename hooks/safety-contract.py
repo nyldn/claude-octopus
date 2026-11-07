@@ -232,7 +232,7 @@ def unsafe_recursive_delete(command, cwd=None):
                 if any(re.search(r"\brm\b", arg) for arg in args):
                     return True
                 if mentions_rm:
-                    if any(char in args[0] for char in ("$", "`")):
+                    if any(char in arg for arg in args for char in ("$", "`")):
                         return True
                     if any(Path(arg).name in command_readers for arg in args[1:]):
                         return True
