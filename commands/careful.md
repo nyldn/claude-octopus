@@ -30,7 +30,7 @@ To deactivate, call the same helper with `careful-off`.
 Careful mode adds a PreToolUse safety net on Bash commands. Before any destructive command executes, you will be prompted to confirm. This catches accidental damage without blocking normal work.
 
 **Detected patterns:**
-- `rm -rf` (except safe targets: node_modules, dist, .next, __pycache__, build, coverage, .turbo)
+- `rm -rf` (except targets resolved below the working directory inside node_modules, dist, .next, __pycache__, build, coverage, or .turbo)
 - `DROP TABLE`, `DROP DATABASE`, `TRUNCATE`
 - `git push --force`, `git push -f`
 - `git reset --hard`

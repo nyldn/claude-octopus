@@ -32,8 +32,8 @@ For fast sanity checks (staged changes, small PRs), skip the full review pipelin
 
 ```bash
 # Quick: grasp (consensus on scope) → tangle (parallel review)
-${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh grasp "[review request]"
-${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh tangle "[synthesized scope]"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" grasp "[review request]"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" tangle "[synthesized scope]"
 ```
 
 Use quick mode when user says "check this PR", "quick review", "sanity check my changes", or for pre-commit checks. Use the full review for PRs with security/architecture impact.
@@ -42,10 +42,10 @@ Use quick mode when user says "check this PR", "quick review", "sanity check my 
 
 ```bash
 # Via orchestrate.sh
-${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh spawn code-reviewer "Review this pull request for security issues"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn code-reviewer "Review this pull request for security issues"
 
 # Via auto-routing (detects review intent)
-${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh auto "review the authentication implementation"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" auto "review the authentication implementation"
 ```
 
 ## Capabilities

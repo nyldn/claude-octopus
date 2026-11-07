@@ -146,7 +146,7 @@ Before committing to the expensive embrace phase, verify scenario coverage by di
 ### Step 4: Execute Factory Pipeline
 
 ```bash
-${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh factory --spec "<spec-path>"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" factory --spec "<spec-path>"
 ```
 
 With optional flags:

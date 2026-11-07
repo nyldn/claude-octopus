@@ -155,6 +155,24 @@ def unsafe_recursive_delete(command, cwd=None):
     # Quoted command substitutions still execute. Do not exempt their contents.
     if re.search(r"\brm\b", command) and ("$(" in command or "`" in command):
         return True
+    # POSIX shlex removes quotes and escapes from literal operator arguments.
+    # Reject ambiguous input before those arguments can become segment breaks.
+    if re.search(r"\brm\b", command):
+        quote, escaped = None, False
+        for char in command:
+            if escaped:
+                if char in ";&|()\n":
+                    return True
+                escaped = False
+            elif char == "\\" and quote != "'":
+                escaped = True
+            elif quote:
+                if char == quote:
+                    quote = None
+                elif char in ";&|()\n":
+                    return True
+            elif char in "'\"":
+                quote = char
     try:
         lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()\n")
         lexer.whitespace = " \t\r"
@@ -168,6 +186,7 @@ def unsafe_recursive_delete(command, cwd=None):
     working_directory = Path(cwd or os.getcwd())
     if not working_directory.is_absolute():
         raise ValueError("hook cwd must be absolute")
+    working_directory = working_directory.resolve()
     segments, current = [], []
     for token in tokens:
         if token and all(c in ";&|()\n" for c in token):
@@ -227,7 +246,13 @@ def unsafe_recursive_delete(command, cwd=None):
                 return True
             path = Path(target)
             resolved = (path if path.is_absolute() else working_directory / path).resolve()
-            if not any(part in safe_names for part in resolved.parts):
+            # Only artifacts below this working directory qualify. Ancestor
+            # names and similarly named directories outside it grant no exemption.
+            try:
+                relative = resolved.relative_to(working_directory)
+            except ValueError:
+                return True
+            if not any(part in safe_names for part in relative.parts):
                 return True
     return False
 

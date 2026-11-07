@@ -138,7 +138,7 @@ Research Parameters:
 **You MUST execute this command via the Bash tool:**
 
 ```bash
-${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh --intensity=<quick|standard|deep> probe \
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" --intensity=<quick|standard|deep> probe \
   "<user's research question> (focus: ${focus_choice}; output: ${format_choice})"
 ```
 

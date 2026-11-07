@@ -491,6 +491,11 @@ The strategy-rotation hook and self-regulation are complementary:
 
 ## Safety Mechanisms
 
+For metric runs, Metric Verification Mode replaces the general iteration limits
+and 30-minute continue prompt below. Its stop budgets cannot be extended by a
+checkpoint. Self-regulation revert counters do not apply because metric runs
+forbid reverts in the original workspace.
+
 ### 1. Iteration Limit
 
 ```python
@@ -555,7 +560,9 @@ bounded candidate-copy experiment. Without a metric, use the normal loop above.
 ### Scope and budgets
 
 Freeze the metric, direction, guard, and authorized editable paths before the
-baseline. Defaults are five iterations, 30 elapsed minutes, and 14 additional
+baseline. The guard is optional. Without a guard, accept only a measured
+improvement and report that no guard ran; do not claim safety validation.
+Defaults are five iterations, 30 elapsed minutes, and 14 additional
 model calls. `Iterations: N` accepts integers 1 through 20. `Minutes: N` and
 `Calls: N` accept positive integers. Explicit choices replace those defaults;
 invalid options stop before edits or calls. Stop at the first exhausted budget
@@ -569,7 +576,7 @@ dispatch. Never reset elapsed time or consumed calls on resume.
 |-----------|---------|
 | `Metric: <command>` | Must print one finite number |
 | `Direction: higher` or `Direction: lower` | Select the improving direction |
-| `Guard: <command>` | Must exit zero to accept a candidate |
+| `Guard: <command>` | Optional. When supplied, must exit zero to accept a candidate |
 | `Iterations: N`, `Minutes: N`, `Calls: N` | Override the finite defaults above |
 
 ### Preserve the user's workspace
@@ -590,15 +597,16 @@ not the experiment store. Preserve the original index exactly.
 
 ### Execute and record
 
-1. In the isolated baseline, run the metric and guard with deadlines. A baseline
-   failure must be reported; it is not evidence that a later change is safe.
+1. In the isolated baseline, run the metric and any supplied guard with deadlines.
+   A baseline failure must be reported; it is not evidence that a later change is safe.
 2. Record baseline hashes, metric, guard evidence, start time, budget limits,
    and consumed calls in the run's append-only `iterations.jsonl`.
 3. Before each iteration, check remaining time, iterations, and calls. Copy the
    best candidate into a new candidate directory and make one scoped change.
-4. Run the same metric and guard. Keep only a measured improvement whose guard
-   passes. On equal results, keep the simpler candidate only with evidence of
-   reduced complexity. Failed, unverified, or worse candidates are rejected.
+4. Run the same metric and any supplied guard. Keep only a measured improvement
+   whose guard passes when supplied. Without a guard, report that no guard ran
+   and do not claim safety validation. On equal results, keep the simpler
+   candidate only with evidence of reduced complexity. Failed, unverified, or worse candidates are rejected.
 5. Reject by discarding only the owned candidate directory; never undo changes
    in the original workspace. Preserve logs for rejected and failed attempts.
 6. Stop on budget exhaustion, two stalled rounds, cancellation, or missing

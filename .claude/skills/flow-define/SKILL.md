@@ -469,7 +469,7 @@ Provider Availability:
 ### Stage A: Invoke Grasp Phase
 
 ```bash
-${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh define "<user's clarification request>"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" define "<user's clarification request>"
 ```
 
 ### Stage B: Multi-Provider Problem Definition
@@ -596,7 +596,7 @@ Claude:
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider problem definition
 🎯 Define Phase: Clarifying authentication requirements
 
-[Executes: ${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh define "Define exact requirements for user authentication system"]
+[Executes: "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" define "Define exact requirements for user authentication system"]
 
 [After completion, reads synthesis and presents:]
 

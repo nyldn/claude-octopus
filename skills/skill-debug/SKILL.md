@@ -70,6 +70,9 @@ to a physical directory before editing and activate the existing freeze guard:
 ```bash
 OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 source "$OCTO_ROOT/scripts/lib/session-id.sh"
+if [[ -z "${OCTOPUS_HOST:-}" && -z "${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-${CLAUDE_CODE_SESSION:-}}}" && -n "${CODEX_PLUGIN_ROOT:-${CODEX_SESSION_ID:-${CODEX_TASK_ID:-}}}" ]]; then
+    export OCTOPUS_HOST=codex
+fi
 _OCTO_SESSION_ID="$(octo_resolve_session_id "" 2>/dev/null || true)"
 if [[ -z "$_OCTO_SESSION_ID" ]]; then
     printf 'Freeze activation requires a stable host session ID; stop before editing.\n' >&2

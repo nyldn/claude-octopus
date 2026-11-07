@@ -97,7 +97,8 @@ Or use the explicit command:
 ## Metric Verification Mode
 
 `Metric: <command>` measures each candidate using a frozen numeric metric and
-optional `Guard: <command>`. Set `Direction: higher` or `Direction: lower`.
+optional `Guard: <command>`. Without a guard, accept only a measured
+improvement and report that no guard ran; do not claim safety validation. Set `Direction: higher` or `Direction: lower`.
 Defaults are five iterations, 30 elapsed minutes, and 14 additional model
 calls. `Iterations: N` accepts 1 through 20; `Minutes: N` and `Calls: N` accept
 positive integers. Stop at the first exhausted budget or two stalled rounds.

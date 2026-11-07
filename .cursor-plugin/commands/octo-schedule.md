@@ -28,7 +28,7 @@ If the output is `plugin-root:missing`, stop and ask the user to run `/octo:setu
 
 
 ```bash
-${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/scheduler/octopus-scheduler.sh [subcommand]
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/scheduler/octopus-scheduler.sh" [subcommand]
 ```
 
 ## Instructions for Claude
@@ -64,7 +64,7 @@ If intent is ambiguous, show the dashboard first, then ask what they'd like to d
 Display the banner, then run:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/scheduler/octopus-scheduler.sh dashboard
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/scheduler/octopus-scheduler.sh" dashboard
 ```
 
 Present the output as-is. After showing it, offer quick actions:
@@ -251,12 +251,12 @@ Then store the job JSON (with `backend: coworkd`) to `~/.claude-octopus/schedule
 
 **If `backend: daemon`:**
 ```bash
-${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/scheduler/octopus-scheduler.sh add "$TMPFILE"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/scheduler/octopus-scheduler.sh" add "$TMPFILE"
 ```
 Ensure the daemon is running:
 ```bash
-${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/scheduler/octopus-scheduler.sh status | grep -q "RUNNING" || \
-  ${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/scheduler/octopus-scheduler.sh start
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/scheduler/octopus-scheduler.sh" status | grep -q "RUNNING" || \
+  "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/scheduler/octopus-scheduler.sh" start
 ```
 
 **Cleanup:**

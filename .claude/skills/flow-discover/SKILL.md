@@ -52,9 +52,9 @@ trigger: |
 
 ## Compaction-Resistant Contract
 
-- Dispatch MUST go through background agents that call `${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh probe-single`; direct single-model research is not a valid substitute.
+- Dispatch MUST go through background agents that call `"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" probe-single`; direct single-model research is not a valid substitute.
 - Use the dynamic fleet from `build-fleet.sh`; the plugin can route across Codex, Antigravity, Copilot, Qwen, OpenCode, Ollama, Perplexity, OpenRouter, Cursor Agent, and Claude depending on local availability.
-- Before synthesis, run `${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh agent-summary` and use only providers reported as `ok`, `degraded`, or `timeout` with usable output.
+- Before synthesis, run `"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" agent-summary` and use only providers reported as `ok`, `degraded`, or `timeout` with usable output.
 - For `standard` and `deep` research, require at least 2 usable provider outputs unless fewer providers are installed; failed/rejected providers are reported as gaps, not cited as evidence.
 
 ## Pre-Discovery: Optional Project Persistence
@@ -261,6 +261,7 @@ The output is one line per agent: `agent_type|label|perspective_prompt`
 Create one durable run identity after building the fleet and before generating task IDs:
 
 ```bash
+OCTO_RESEARCH_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 RUN_TIMESTAMP="$(date +%s)"
 RUN_NONCE="$(od -An -N16 -tx1 /dev/urandom | tr -d '[:space:]')"
 RUN_ID="flow-${RUN_TIMESTAMP}-${RUN_NONCE}"
@@ -284,13 +285,13 @@ Agent(
   description: "<label> (<agent_type>)",
   prompt: "Run this command and return its COMPLETE stdout output, including the result file path on the last line:
 
-${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh probe-single <agent_type> '<perspective_prompt>' <task_id> '<original_prompt>' --research-run '<run_id>'
+"$OCTO_RESEARCH_ROOT/scripts/orchestrate.sh" probe-single <agent_type> '<perspective_prompt>' <task_id> '<original_prompt>' --research-run '<run_id>'
 
 After the command completes, read the result file path that was printed and return the full file contents."
 )
 ```
 
-Replace `<run_id>` with the current nonce-bearing `$RUN_ID` value when creating each Agent prompt.
+Replace `<run_id>` with the current nonce-bearing `$RUN_ID` value when creating each Agent prompt. Substitute the resolved `$OCTO_RESEARCH_ROOT` as a literal quoted path in each child command. Reuse that installation for evidence verification; do not resolve a different root midway through the run.
 
 **Launch order:** Iterate the parsed `FLEET_OUTPUT` order from `build-fleet.sh`. Launch all entries from that runtime fleet in parallel when possible; do not reorder by hardcoded provider names.
 
@@ -359,7 +360,7 @@ Write the synthesis content to `$SYNTHESIS_FILE`. The file MUST exist for the va
 Before presenting the synthesis, run the mechanical evidence gate when the durable run is available:
 
 ```bash
-if ! "$HOME/.claude-octopus/plugin/scripts/orchestrate.sh" research-verify \
+if ! "$OCTO_RESEARCH_ROOT/scripts/orchestrate.sh" research-verify \
     "$RUN_ID" "$SYNTHESIS_FILE"; then
   echo "VALIDATION FAILED: Research evidence verification failed"
   exit 1
@@ -553,7 +554,7 @@ Providers:
 ### Step 1: Invoke Discover Phase
 
 ```bash
-${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh discover "<user's research question>"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" discover "<user's research question>"
 ```
 
 ### Step 2: Multi-Provider Research
@@ -713,7 +714,7 @@ Claude:
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
 🔍 Discover Phase: Researching OAuth 2.0 patterns
 
-[Executes: ${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh probe "OAuth 2.0 authentication patterns for React apps"]
+[Executes: "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" probe "OAuth 2.0 authentication patterns for React apps"]
 
 [After completion, reads synthesis and presents:]
 

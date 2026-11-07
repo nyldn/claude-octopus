@@ -214,7 +214,7 @@ If the output is `plugin-root:missing`, stop and ask the user to run `/octo:setu
 Run via Bash tool:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh code-review '<profile-json>'
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" code-review '<profile-json>'
 ```
 
 Where `<profile-json>` is the JSON profile built in Step 2.

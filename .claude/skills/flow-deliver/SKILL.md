@@ -508,7 +508,7 @@ Providers:
 ### Step 1: Invoke Ink Phase
 
 ```bash
-${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh deliver "<user's validation request>"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" deliver "<user's validation request>"
 ```
 
 ### Step 2: Multi-Provider Validation
@@ -651,7 +651,7 @@ Claude:
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider validation
 ✅ Deliver Phase: Reviewing authentication implementation
 
-[Executes: ${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh deliver "Review authentication implementation in src/auth/"]
+[Executes: "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" deliver "Review authentication implementation in src/auth/"]
 
 [After completion, reads validation and presents:]
 

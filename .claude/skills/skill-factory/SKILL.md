@@ -119,7 +119,7 @@ fi
 
 ### STEP 5: Execute orchestrate.sh factory (MANDATORY — Bash Tool)
 ```bash
-${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh factory --spec "<spec_path>"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" factory --spec "<spec_path>"
 ```
 
 With optional flags based on Step 1 answers:

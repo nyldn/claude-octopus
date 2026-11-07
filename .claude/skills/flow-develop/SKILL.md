@@ -504,7 +504,7 @@ Providers:
 ### Step 1: Invoke Tangle Phase
 
 ```bash
-${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh develop "<user's implementation request>"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" develop "<user's implementation request>"
 ```
 
 ### Step 2: Multi-Provider Implementation
@@ -641,7 +641,7 @@ Claude:
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider implementation mode
 🛠️ Develop Phase: Building authentication system
 
-[Executes: ${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh develop "Build a user authentication system with JWT"]
+[Executes: "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" develop "Build a user authentication system with JWT"]
 
 [After completion, reads synthesis and presents:]
 

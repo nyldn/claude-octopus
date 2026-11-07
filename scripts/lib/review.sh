@@ -2329,7 +2329,7 @@ Return ONLY valid JSON with 'findings' array including verdict field."
        ' 2>/dev/null) &&
        printf '%s' "$normalized_verified_findings" | jq -e --argjson original "$all_findings" '
            def identity: [.file, .line, .title, .detail, .category, .severity] | tojson;
-           all(.findings[]; .verdict == "confirmed" or .verdict == "false-positive" or .verdict == "needs-debate" or .verdict == "unverified") and
+           all(.findings[]; .verdict == "confirmed" or .verdict == "false-positive" or .verdict == "needs-debate") and
            ([.findings[] | identity] | sort) == ([$original[] | identity] | sort)
        ' >/dev/null; then
         verified_findings="$normalized_verified_findings"
@@ -2462,15 +2462,15 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
         fi
     fi
 
-    if [[ "$debate_audit" != "[]" ]]; then
-        final_json=$(printf '%s\n%s\n%s\n' "$final_json" "$debate_audit" "$debate_excluded" | jq -sc --arg provider "$debate_provider" '.[0] + {debate:{provider:$provider,decisions:.[1]},excluded:.[2]}')
-    fi
-
     # Synthesis cannot upgrade findings when the independent verifier failed.
     if [[ "$verification_incomplete" == true ]]; then
         final_json="$(review_local_synthesis_json "$confirmed_findings" "$round1_warning")"
         final_json=$(printf '%s' "$final_json" | jq '. + {verification_status:"incomplete"}')
         synth_ok=false
+    fi
+
+    if [[ "$debate_audit" != "[]" ]]; then
+        final_json=$(printf '%s\n%s\n%s\n' "$final_json" "$debate_audit" "$debate_excluded" | jq -sc --arg provider "$debate_provider" '.[0] + {debate:{provider:$provider,decisions:.[1]},excluded:.[2]}')
     fi
 
     # Write findings file
@@ -2766,6 +2766,16 @@ render_terminal_report() {
 
     echo "Found $finding_count issue(s):"
     echo ""
+
+    local warning_msg
+    warning_msg=$(printf '%s' "$findings_json" | jq -r '.warning // empty' 2>/dev/null)
+    if [[ -n "$warning_msg" ]]; then
+        printf 'WARNING: %s\n\n' "$warning_msg"
+    fi
+    if [[ "$(printf '%s' "$findings_json" | jq -r '.verification_status // empty')" == incomplete ]]; then
+        echo "Independent verification is incomplete. Findings remain unverified and publication is disabled."
+        echo ""
+    fi
 
     printf '%s' "$findings_json" | jq -c '.findings[]' 2>/dev/null | while IFS= read -r finding; do
         local severity title file line detail

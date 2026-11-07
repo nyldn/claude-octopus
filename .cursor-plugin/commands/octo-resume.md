@@ -57,7 +57,7 @@ If the output is `plugin-root:missing`, stop and ask the user to run `/octo:setu
 
 
 ```bash
-${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh agent-resume "$ARGUMENTS"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" agent-resume "$ARGUMENTS"
 ```
 
 Pass the agent ID as `$ARGUMENTS`. Optionally append a follow-up prompt:

@@ -22,6 +22,6 @@ When the user invokes `/octo:octo <query>`, you MUST:
 2. Immediately read `${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/commands/auto.md` and
    execute it with the full user query. Do not use the Skill tool; Octopus
    commands are explicit-only and hidden from model invocation.
-3. If the routed workflow dispatches multiple providers, surface `${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh agent-summary` before final synthesis when available.
+3. If the routed workflow dispatches multiple providers, surface `"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" agent-summary` before final synthesis when available.
 
 Do NOT duplicate the routing logic here — delegate entirely to `/octo:auto`.

@@ -260,7 +260,7 @@ else
 fi
 
 
-for failure in quota timeout malformed copilot partial empty duplicate; do
+for failure in quota timeout malformed copilot partial empty duplicate unverified; do
     test_case "verifier $failure preserves uncertainty through synthesis"
     failure_run="$TEST_TMP_DIR/failed-$failure"
     old_verifier="$e2e_verifier_output"
@@ -268,10 +268,11 @@ for failure in quota timeout malformed copilot partial empty duplicate; do
     case "$failure" in
         partial) e2e_verifier_output="$(printf '%s' "$old_verifier" | jq '{findings:[.findings[0]]}')" ;;
         empty) e2e_verifier_output='{"findings":[]}' ;;
+        unverified) e2e_verifier_output="$(printf '%s' "$old_verifier" | jq '.findings[0].verdict="unverified"')" ;;
         duplicate) e2e_verifier_output="$(printf '%s' "$old_verifier" | jq '{findings:[.findings[0],.findings[0]]}')" ;;
     esac
     failure_rc=0
-    if [[ "$failure" == malformed || "$failure" == partial || "$failure" == empty || "$failure" == duplicate ]]; then
+    if [[ "$failure" == malformed || "$failure" == partial || "$failure" == empty || "$failure" == duplicate || "$failure" == unverified ]]; then
         run_review_harness "$failure_run" PUBLICATION_FIXTURE=true || failure_rc=$?
     else
         if [[ "$failure" == copilot ]]; then
@@ -321,5 +322,12 @@ for kind in identical distinct-verdicts; do
         else test_pass; fi
     else test_fail "$(review_harness_diagnostics "$duplicate_run" "$duplicate_rc")"; fi
 done
+
+
+test_case "nonempty terminal report exposes incomplete verification and publication block"
+warning_file="$TEST_TMP_DIR/incomplete-findings.json"
+printf '%s' "$e2e_round1_output" | jq '. + {verification_status:"incomplete", warning:"Verifier output was invalid"}' > "$warning_file"
+terminal_output="$(render_terminal_report "$warning_file")"
+if [[ "$terminal_output" == *"Verifier output was invalid"* && "$terminal_output" == *"Findings remain unverified and publication is disabled"* && "$terminal_output" == *"Kept"* ]]; then test_pass; else test_fail "terminal hid incomplete verification: $terminal_output"; fi
 
 test_summary

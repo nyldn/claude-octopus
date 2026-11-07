@@ -74,7 +74,7 @@ DIFF_FILES=$(git diff --name-only $(git merge-base HEAD main)..HEAD)
 
 ```bash
 # Quick review via orchestrate.sh (uses available providers)
-${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh spawn reviewer "Review this diff for bugs, security issues, and code quality problems. Be concise — only flag real issues, not style preferences.
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn reviewer "Review this diff for bugs, security issues, and code quality problems. Be concise — only flag real issues, not style preferences.
 
 $(git diff $(git merge-base HEAD main)..HEAD | head -500)"
 ```
@@ -341,7 +341,7 @@ After completing octopus workflows, use this skill:
 
 ```bash
 # Run octopus validation before finishing
-${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh ink "Validate before merge"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" ink "Validate before merge"
 
 # If validation passes, proceed with finishing-branch
 ```

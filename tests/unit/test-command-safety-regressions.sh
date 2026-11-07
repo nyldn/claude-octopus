@@ -10,7 +10,7 @@ import json, os, re, subprocess, sys, tempfile, uuid
 root = Path(sys.argv[1])
 sid = 'audit-' + uuid.uuid4().hex
 base_env = dict(os.environ)
-for key in ['CLAUDE_CODE_SESSION_ID', 'CLAUDE_SESSION_ID', 'CLAUDE_CODE_SESSION', 'CODEX_SESSION_ID', 'CODEX_TASK_ID', 'CODEX_PLUGIN_ROOT', 'CLAUDE_PLUGIN_ROOT', 'OCTO_CAREFUL_MODE', 'OCTO_FREEZE_MODE']:
+for key in ['CLAUDE_CODE_SESSION_ID', 'CLAUDE_SESSION_ID', 'CLAUDE_CODE_SESSION', 'CODEX_SESSION_ID', 'CODEX_TASK_ID', 'CODEX_PLUGIN_ROOT', 'CLAUDE_PLUGIN_ROOT', 'CODEX_SANDBOX', 'CODEX_HOME', 'OCTOPUS_HOST', 'PLUGIN_ROOT', 'OCTO_CAREFUL_MODE', 'OCTO_FREEZE_MODE']:
     base_env.pop(key, None)
 def hook(name, data, env):
     result = subprocess.run(['bash', str(root/'hooks'/name)], input=json.dumps(data), env=env, text=True, capture_output=True, check=True)
@@ -26,6 +26,10 @@ try:
         ('rm -R -f /tmp/important', 'ask'),
         ('/bin/rm --force --recursive /tmp/important', 'ask'),
         ('rm -rf node_modules dist', 'allow'),
+        ("rm -rf ';' /tmp/important", 'ask'),
+        ("rm -rf node_modules ';' /tmp/important", 'ask'),
+        (r'rm -rf node_modules \; /tmp/important', 'ask'),
+        ('rm -rf "|" /tmp/important', 'ask'),
         ('sudo -u somebody rm -rf /tmp/important', 'ask'),
         ('if true; then rm -rf /tmp/important; fi', 'ask'),
         ('for x in once; do rm -rf /tmp/important; done', 'ask'),
@@ -46,6 +50,9 @@ try:
     assert hook('careful-check.sh', {'tool_name':'Bash','cwd':42,'tool_input':{'command':'rm -rf node_modules'}}, env)=='deny'
     assert hook('careful-check.sh', {'tool_name':'Bash','cwd':'relative','tool_input':{'command':'rm -rf node_modules'}}, env)=='deny'
     with tempfile.TemporaryDirectory() as temporary:
+        checkout = Path(temporary)/'build'/'app'; checkout.mkdir(parents=True)
+        for target, expected in [('.', 'ask'), ('src', 'ask'), ('node_modules', 'allow'), ('dist/assets', 'allow'), ('../node_modules', 'ask')]:
+            assert hook('careful-check.sh', {'tool_name':'Bash','cwd':str(checkout),'tool_input':{'command':'rm -rf '+target}}, env)==expected, target
         link = Path(temporary)/'node_modules'; outside = Path(temporary)/'private'; outside.mkdir(); link.symlink_to(outside)
         assert hook('careful-check.sh', {'tool_name':'Bash','tool_input':{'command':'rm -rf '+str(link)}}, env)=='ask'
 finally:
