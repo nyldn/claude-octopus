@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+
+- `/octo:deck --red-team` can review a draft outline through stakeholder seats
+  before approval, map decision-blocking objections to the main deck, and prepare
+  draft answers and appendix backup slides for Q&A. The pass is opt-in and uses
+  the existing debate provider and cost controls.
+
 ## [11.17.1] - 2026-11-05
 
 ### Fixed

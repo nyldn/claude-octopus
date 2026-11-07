@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -170,6 +171,213 @@ class DocumentRendererTest(unittest.TestCase):
             self.assertNotIn("When document-skills plugin not installed", text)
             self.assertIn("document-renderer.py", text)
             self.assertIn("advertised", text)
+
+    def test_deck_red_team_is_opt_in_and_precedes_outline_approval(self):
+        """Both hosts must preserve cost consent, real dispatch and the wireframe gate."""
+        for tree in (".claude/skills", "skills"):
+            with self.subTest(tree=tree):
+                text = (ROOT / tree / "skill-deck/SKILL.md").read_text()
+                outline = text.split("### Step 3:", 1)[1].split("### Step 4:", 1)[0]
+                red_team = outline.split("#### Optional stakeholder red team", 1)[1]
+                self.assertLess(red_team.index("orchestrate.sh spawn"),
+                                red_team.index("Present the revised outline"))
+                self.assertIn("Without `--red-team`, skip this pass", red_team)
+                self.assertIn("provider allowlist", red_team)
+                self.assertIn("one round", red_team)
+                self.assertIn("skill-debate", red_team)
+                self.assertIn("orchestrate.sh spawn", red_team)
+                self.assertIn("never simulate", red_team)
+                self.assertIn("Fewer than two eligible providers", red_team)
+                self.assertIn("continue without red teaming", red_team)
+                self.assertIn("decision-maker or influencer", text.split("### Step 2:", 1)[0])
+                self.assertIn("one stakeholder", red_team)
+                self.assertIn("pre-empt", red_team)
+                self.assertIn("Q&A", red_team)
+                self.assertIn("backup-slide checklist", red_team)
+                self.assertIn("unverified", red_team)
+                self.assertIn("not completed", red_team)
+                self.assertIn("user approves", red_team)
+                for requirement in ("octo_launch_advisors", "OCTOPUS_ADVISOR_WAIT_SECONDS",
+                                    "successful completion", "at least two distinct providers",
+                                    "deadline expires", "not completed",
+                                    "Do not count launch logs, partial files or stale artifacts"):
+                    self.assertIn(requirement, " ".join(red_team.split()))
+                self.assertLess(red_team.index("successful completion"),
+                                red_team.index("Merge and deduplicate"))
+
+    def test_deck_red_team_checks_costs_and_two_seat_minimum_before_dispatch(self):
+        """A one-stakeholder map cannot authorize an underfunded quorum."""
+        for tree in (".claude/skills", "skills"):
+            with self.subTest(tree=tree):
+                text = (ROOT / tree / "skill-deck/SKILL.md").read_text()
+                gate = " ".join(text.split("#### Optional stakeholder red team", 1)[1].split())
+                for requirement in ("Even with one stakeholder", "at least two seats",
+                                    "increase the budget or continue without red teaming",
+                                    "narrowing the map cannot remove this minimum",
+                                    "config/model-pricing.tsv", "includes reasoning tokens",
+                                    "maximum call count and estimated spend",
+                                    "before any provider call", "Unknown costs need explicit acceptance",
+                                    "codex:<model>", "OCTOPUS_CODEX_REASONING",
+                                    "higher-priority phase/role overrides", "resolved command",
+                                    "cannot honor a choice", "No extra calls or retries"):
+                    self.assertIn(requirement, gate)
+                self.assertLess(gate.index("obtain consent"), gate.index("Use real"))
+                self.assertIn("Invoke the installed `skill-deck`", " ".join(text.split()))
+                self.assertNotIn("Use `/octo:deck --red-team", text)
+                self.assertIn('OCTOPUS_PREFLIGHT_PROBE=0 "$ADVISOR_SELECTOR"', gate)
+                self.assertIn("static readiness only", gate)
+                self.assertLess(gate.index("OCTOPUS_PREFLIGHT_PROBE=0"),
+                                gate.index("obtain consent"))
+
+    def test_deck_command_exposes_optional_red_team(self):
+        text = (ROOT / "commands/deck.md").read_text()
+        self.assertIn("/octo:deck --red-team", text)
+        self.assertIn("provider calls", text)
+
+    def test_deck_recipe_rejects_oversize_without_summarizer_calls(self):
+        """Use the production budget enforcer with an inert summarizer."""
+        stub = self.base / "budget-collector"
+        stub.write_text('''source "$PLUGIN_ROOT/scripts/lib/dispatch.sh"
+log() { :; }
+get_provider_context_limit() { printf '16\\n'; }
+octo_summarizer_candidates() { printf 'agy\\n'; }
+run_agent_sync() { printf 'attempt\\n' >> "$SUMMARY_CALLS"; printf 'Condensed prompt\\n'; }
+octo_launch_advisors() { enforce_context_budget "$STAKEHOLDER_PROMPT" "" codex review; }
+''')
+        for tree in (".claude/skills", "skills"):
+            with self.subTest(tree=tree):
+                seat_dir = self.base / tree.replace("/", "-")
+                seat_dir.mkdir()
+                calls = seat_dir / "summary-calls"
+                env = dict(os.environ, PLUGIN_ROOT=str(ROOT), BUDGET_STUB=str(stub),
+                           ADVISOR_ID="codex:fixture", ORCHESTRATOR="inert",
+                           STAKEHOLDER_PROMPT="Stakeholder evidence " * 300,
+                           SEAT_DIR=str(seat_dir), SEAT_WAIT_SECONDS="5",
+                           SUMMARY_CALLS=str(calls), OCTOPUS_OVERSIZE_STRATEGY="summarize")
+                control = subprocess.run(["bash", "-c", 'source "$BUDGET_STUB"; octo_launch_advisors'],
+                                         env=env, text=True, capture_output=True, timeout=10)
+                self.assertTrue(calls.exists(), control.stderr)
+                self.assertEqual(calls.read_text(), "attempt\n", control.stderr)
+                calls.unlink()
+                text = (ROOT / tree / "skill-deck/SKILL.md").read_text()
+                recipe = textwrap.dedent(text.split("<!-- deck-seat-collection:start -->", 1)[1].split(
+                    "<!-- deck-seat-collection:end -->", 1)[0].split("```bash\n", 1)[1].split("```", 1)[0])
+                recipe = recipe.replace('source "$PLUGIN_ROOT/scripts/lib/consultative-advisors.sh"',
+                                        'source "$BUDGET_STUB"')
+                result = subprocess.run(["bash", "-euo", "pipefail", "-c", recipe],
+                                        env=env, text=True, capture_output=True, timeout=10)
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertFalse(calls.exists(), result.stderr)
+
+    def test_deck_agy_recipe_bounds_actual_adapter_invocations(self):
+        """Exercise adapter retries using the environment of the shipped recipe."""
+        bin_dir = self.base / "agy-bin"
+        bin_dir.mkdir()
+        agy = bin_dir / "agy"
+        agy.write_text('''#!/usr/bin/env bash
+printf 'attempt\\n' >> "$AGY_CALLS"
+if [[ "$AGY_FAILURE" == tty ]]; then
+    if [[ -t 0 || -t 1 ]]; then printf 'Stakeholder objection\\n'; exit 0; fi
+    printf 'bubbletea: could not open TTY\\n' >&2
+    exit 1
+fi
+''')
+        agy.chmod(0o755)
+        # Replace only the collector body; the recipe still sets the actual
+        # process environment and waits for the adapter's result.
+        stub = self.base / "capture-env"
+        stub.write_text('''octo_launch_advisors() {
+    printf '%s' "$STAKEHOLDER_PROMPT" | bash "$AGY_ADAPTER"
+}
+''')
+        has_pty = subprocess.run(["bash", "-c", "command -v script"],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+        for tree in (".claude/skills", "skills"):
+            text = (ROOT / tree / "skill-deck/SKILL.md").read_text()
+            recipe = textwrap.dedent(text.split("<!-- deck-seat-collection:start -->", 1)[1].split(
+                "<!-- deck-seat-collection:end -->", 1)[0].split("```bash\n", 1)[1].split("```", 1)[0])
+            recipe = recipe.replace('source "$PLUGIN_ROOT/scripts/lib/consultative-advisors.sh"',
+                                    'source "$ADAPTER_COLLECTOR_STUB"')
+            for failure in ("empty", "tty"):
+                with self.subTest(tree=tree, failure=failure):
+                    seat_dir = self.base / (tree.replace("/", "-") + failure)
+                    seat_dir.mkdir()
+                    calls = seat_dir / "calls"
+                    env = dict(os.environ, PATH=str(bin_dir) + os.pathsep + os.environ["PATH"],
+                               AGY_FAILURE=failure, AGY_CALLS=str(calls),
+                               AGY_ADAPTER=str(ROOT / "scripts/helpers/agy-exec.sh"),
+                               ADAPTER_COLLECTOR_STUB=str(stub), ADVISOR_ID="agy:default",
+                               ORCHESTRATOR="inert", STAKEHOLDER_PROMPT="Stakeholder prompt",
+                               SEAT_DIR=str(seat_dir), SEAT_WAIT_SECONDS="5",
+                               OCTOPUS_AGY_NO_RETRY="0", OCTOPUS_AGY_NO_PTY_FALLBACK="0",
+                               OCTOPUS_AGY_FORCE_INLINE="0")
+                    # A control proves that the actual adapter replays this
+                    # condition when the recipe's overrides are absent.
+                    control = subprocess.run(["bash", env["AGY_ADAPTER"]], input="prompt",
+                                             env=env, text=True, capture_output=True, timeout=10)
+                    expected_calls = 2 if failure == "empty" or has_pty else 1
+                    self.assertEqual(len(calls.read_text().splitlines()), expected_calls, control.stderr)
+                    calls.unlink()
+                    result = subprocess.run(["bash", "-euo", "pipefail", "-c", recipe +
+                                             '\n[[ "$OCTOPUS_AGY_NO_RETRY" == 0 && "$OCTOPUS_AGY_NO_PTY_FALLBACK" == 0 ]]'],
+                                            env=env, text=True, capture_output=True, timeout=10)
+                    self.assertEqual(len(calls.read_text().splitlines()), 1, result.stderr)
+                    if failure == "tty":
+                        self.assertNotEqual(result.returncode, 0)
+                    else:
+                        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_deck_collection_example_waits_for_answers_and_stops_on_failure(self):
+        """Execute the shipped seat recipe against delayed lifecycle events."""
+        orchestrator = self.base / "orchestrator"
+        orchestrator.write_text('''#!/usr/bin/env bash
+set -euo pipefail
+[[ "$1" == spawn && "$2" == codex:fixture && "$3" == "$STAKEHOLDER_PROMPT" ]]
+[[ "${OCTOPUS_AUTH_RETRIES:-missing}" == 0 ]]
+(
+    sleep 0.2
+    printf '# Started: fixture\\n## Output\\n```\\nStakeholder objection\\n```\\n## Status: SUCCESS\\n' > "$FIXTURE_RESULT"
+    printf 'completed\\n' >> "$SEAT_DIR/sequence"
+    OCTOPUS_AGENT_PID="$BASHPID" OCTOPUS_AGENT_STATUS="$FIXTURE_STATUS" \\
+        OCTOPUS_AGENT_RESULT_FILE="$FIXTURE_RESULT" "$OCTOPUS_AGENT_LIFECYCLE_HOOK" completed
+) &
+worker=$!
+OCTOPUS_AGENT_PID="$worker" OCTOPUS_AGENT_RESULT_FILE="$FIXTURE_RESULT" \\
+    "$OCTOPUS_AGENT_LIFECYCLE_HOOK" spawned
+printf 'Provider launch log\\n%s\\n' "$worker"
+''')
+        orchestrator.chmod(0o755)
+        for tree in (".claude/skills", "skills"):
+            text = (ROOT / tree / "skill-deck/SKILL.md").read_text()
+            recipe = text.split("<!-- deck-seat-collection:start -->", 1)[1].split(
+                "<!-- deck-seat-collection:end -->", 1)[0].split("```bash\n", 1)[1].split("```", 1)[0]
+            recipe = textwrap.dedent(recipe)
+            for status in ("completed", "failed"):
+                with self.subTest(tree=tree, status=status):
+                    seat_dir = self.base / tree.replace("/", "-") / status
+                    seat_dir.mkdir(parents=True)
+                    response = seat_dir / "answer-codex_fixture.md"
+                    response.write_text("stale answer")
+                    env = dict(os.environ, PLUGIN_ROOT=str(ROOT), ORCHESTRATOR=str(orchestrator),
+                               ADVISOR_ID="codex:fixture", SEAT_DIR=str(seat_dir),
+                               STAKEHOLDER_PROMPT='Objection with "quotes"\nand a second line',
+                               SEAT_WAIT_SECONDS="5", OCTO_ALLOWED_PROVIDERS="codex",
+                               OCTOPUS_AUTH_RETRIES="2",
+                               FIXTURE_RESULT=str(seat_dir / "worker.md"), FIXTURE_STATUS=status)
+                    env.pop("OCTOPUS_AGENT_LIFECYCLE_HOOK", None)
+                    result = subprocess.run(["bash", "-euo", "pipefail", "-c", recipe +
+                                             '\n[[ "$OCTOPUS_AUTH_RETRIES" == 2 ]]\nprintf "synthesis\\n" >> "$SEAT_DIR/sequence"\nprintf "SYNTHESIS_READY\\n"'],
+                                            env=env, text=True, capture_output=True, timeout=10)
+                    if status == "completed":
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertEqual(response.read_text(), "Stakeholder objection\n")
+                        self.assertEqual((seat_dir / "sequence").read_text(), "completed\nsynthesis\n")
+                        self.assertIn("SYNTHESIS_READY", result.stdout)
+                    else:
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertNotIn("SYNTHESIS_READY", result.stdout)
+                        self.assertFalse(response.exists())
+
 
 
 if __name__ == "__main__":
