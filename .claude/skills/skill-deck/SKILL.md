@@ -148,7 +148,9 @@ flag, run it against the draft skeleton before requesting approval or rendering:
    If a transport cannot honor a choice, report it and offer a supported choice
    or continuation without the pass. Keep overrides scoped to those dispatches.
    Use real `orchestrate.sh spawn` dispatch for one round within the approved
-   call count. No extra calls or retries are authorized by this pass.
+   call count. Scope `OCTOPUS_AUTH_RETRIES=0` to each dispatch so enterprise
+   backend authentication failures cannot trigger extra provider invocations.
+   No extra calls or retries are authorized by this pass.
    Use at least two seats from different providers; never simulate a
    multi-provider review inside the host model. Fewer than two eligible providers
    means the pass cannot run. Report the shortage and let the user choose to
@@ -189,7 +191,7 @@ flag, run it against the draft skeleton before requesting approval or rendering:
    <!-- deck-seat-collection:start -->
    ```bash
    source "$PLUGIN_ROOT/scripts/lib/consultative-advisors.sh"
-   OCTOPUS_ADVISOR_WAIT_SECONDS="$SEAT_WAIT_SECONDS" \
+   OCTOPUS_AUTH_RETRIES=0 OCTOPUS_ADVISOR_WAIT_SECONDS="$SEAT_WAIT_SECONDS" \
        octo_launch_advisors "$ORCHESTRATOR" "$ADVISOR_ID" "$SEAT_DIR" \
        'answer-' "$STAKEHOLDER_PROMPT" 1 > "$SEAT_DIR/collection-count.txt" &
    collector_pid=$!

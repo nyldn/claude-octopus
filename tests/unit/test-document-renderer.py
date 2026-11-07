@@ -240,6 +240,7 @@ class DocumentRendererTest(unittest.TestCase):
         orchestrator.write_text('''#!/usr/bin/env bash
 set -euo pipefail
 [[ "$1" == spawn && "$2" == codex:fixture && "$3" == "$STAKEHOLDER_PROMPT" ]]
+[[ "${OCTOPUS_AUTH_RETRIES:-missing}" == 0 ]]
 (
     sleep 0.2
     printf '# Started: fixture\\n## Output\\n```\\nStakeholder objection\\n```\\n## Status: SUCCESS\\n' > "$FIXTURE_RESULT"
@@ -268,10 +269,11 @@ printf 'Provider launch log\\n%s\\n' "$worker"
                                ADVISOR_ID="codex:fixture", SEAT_DIR=str(seat_dir),
                                STAKEHOLDER_PROMPT='Objection with "quotes"\nand a second line',
                                SEAT_WAIT_SECONDS="5", OCTO_ALLOWED_PROVIDERS="codex",
+                               OCTOPUS_AUTH_RETRIES="2",
                                FIXTURE_RESULT=str(seat_dir / "worker.md"), FIXTURE_STATUS=status)
                     env.pop("OCTOPUS_AGENT_LIFECYCLE_HOOK", None)
                     result = subprocess.run(["bash", "-euo", "pipefail", "-c", recipe +
-                                             '\nprintf "synthesis\\n" >> "$SEAT_DIR/sequence"\nprintf "SYNTHESIS_READY\\n"'],
+                                             '\n[[ "$OCTOPUS_AUTH_RETRIES" == 2 ]]\nprintf "synthesis\\n" >> "$SEAT_DIR/sequence"\nprintf "SYNTHESIS_READY\\n"'],
                                             env=env, text=True, capture_output=True, timeout=10)
                     if status == "completed":
                         self.assertEqual(result.returncode, 0, result.stderr)
