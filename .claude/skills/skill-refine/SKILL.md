@@ -31,6 +31,16 @@ For binary, visual, or remote artifacts, obtain a faithful readable or rendered
 snapshot with the appropriate host tools. If you cannot inspect it, stop and
 name the missing capability. Do not score an unseen attachment or a URL title.
 
+Before any external provider call, including model-assisted research, inspect
+the candidate and supporting evidence for credentials and private tokens.
+Exclude secret values from prompts and research queries. If sanitization is
+needed, use a separate copy and identify it as the artifact being refined.
+Hash, validate, and score that exact copy; do not attribute its score to the
+unchanged original. Repeat this inspection for new content before dispatch.
+Read-only judges can still read permitted project files, so sanitizing a prompt
+alone does not isolate project secrets. This host review is not an automatic
+secret scanner or a guarantee of data isolation.
+
 Record the audience, intended outcome, constraints, editable paths, and what
 must be preserved. A request to improve a plan authorizes editing the plan,
 not executing the project described by it. A scoring or review-only request
