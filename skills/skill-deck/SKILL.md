@@ -206,12 +206,13 @@ Apply these when generating outlines:
 - Reference technical specifications
 
 **Investors / Fundraising:**
-- For decision briefs, use Problem → Solution → Market → Traction → Team → Ask.
-  Include the funding ask and use of funds when they answer the confirmed question.
+- For decision briefs, follow the confirmed question, approved pillars and out-of-scope list.
+- Treat this fundraising example as optional: Problem → Solution → Market → Traction → Team → Ask.
+  Choose or omit topics to support the confirmed question. Include market size,
+  growth metrics, projections, a funding ask and use of funds only when relevant
+  to a fundraising decision brief.
 - For informational briefs, end with the supported conclusion and follow-up.
   Do not add a funding ask to an informational update.
-- Include market size (TAM/SAM/SOM)
-- Show growth metrics and projections
 
 **General / Mixed:**
 - Balance detail with accessibility

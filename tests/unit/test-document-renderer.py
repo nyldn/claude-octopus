@@ -201,6 +201,10 @@ class DocumentRendererTest(unittest.TestCase):
                     self.assertIn("For informational briefs", investors)
                     self.assertIn("supported conclusion and follow-up", investors)
                     self.assertIn("Do not add a funding ask", investors)
+                    self.assertIn("fundraising example", investors)
+                    self.assertIn("optional", investors)
+                    self.assertIn("confirmed question", investors)
+                    self.assertIn("approved pillars and out-of-scope list", investors)
                 example = deck.split("```markdown", 1)[1].split("```", 1)[0]
                 slides = example.split("## Slide ")[1:]
                 self.assertEqual(len(slides), 4)
