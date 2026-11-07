@@ -2319,7 +2319,11 @@ Return ONLY valid JSON with 'findings' array including verdict field."
     verified_findings=$(echo "$verified_findings" | review_strip_external_cli_wrapper | sed '/^```json$/d; /^```JSON$/d; /^```$/d')
     local normalized_verified_findings
     if normalized_verified_findings=$(printf '%s' "$verified_findings" | review_normalize_findings_json 2>/dev/null) &&
-       printf '%s' "$normalized_verified_findings" | jq -e 'all(.findings[]; .verdict == "confirmed" or .verdict == "false-positive" or .verdict == "needs-debate" or .verdict == "unverified")' >/dev/null; then
+       printf '%s' "$normalized_verified_findings" | jq -e --argjson original "$all_findings" '
+           def identity: [.file, .line, .title, .detail, .category, .severity] | tojson;
+           all(.findings[]; .verdict == "confirmed" or .verdict == "false-positive" or .verdict == "needs-debate" or .verdict == "unverified") and
+           ([.findings[] | identity] | sort) == ([$original[] | identity] | sort)
+       ' >/dev/null; then
         verified_findings="$normalized_verified_findings"
     else
         log WARN "review_run: verification returned invalid or multi-document findings JSON; preserving Round 1 findings"

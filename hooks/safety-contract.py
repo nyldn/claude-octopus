@@ -152,11 +152,16 @@ def freeze(data, boundary):
 def unsafe_recursive_delete(command, cwd=None):
     """Check each recursive forced rm target without executing shell input."""
     safe_names = {"node_modules", "dist", ".next", "__pycache__", "build", "coverage", ".turbo"}
+    # Quoted command substitutions still execute. Do not exempt their contents.
+    if re.search(r"\brm\b", command) and ("$(" in command or "`" in command):
+        return True
     try:
         lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()\n")
         lexer.whitespace = " \t\r"
         lexer.whitespace_split = True
-        lexer.commenters = "#"
+        # shlex treats a midword # as a comment, unlike the shell. Keeping #
+        # literal may over-warn on comments but cannot hide a later rm.
+        lexer.commenters = ""
         tokens = list(lexer)
     except ValueError:
         return bool(re.search(r"\brm\b", command))
@@ -170,7 +175,7 @@ def unsafe_recursive_delete(command, cwd=None):
             current.append(token)
     segments.append(current)
     for args in segments:
-        wrapper = bool(args and Path(args[0]).name in ("sudo", "command", "env", "exec", "busybox", "xargs"))
+        wrapper = bool(args and Path(args[0]).name in ("sudo", "command", "env", "exec", "busybox", "rtk"))
         if wrapper:
             rm_index = next((i for i, value in enumerate(args) if Path(value).name == "rm"), None)
             if rm_index is not None:
@@ -187,8 +192,10 @@ def unsafe_recursive_delete(command, cwd=None):
             if any(unsafe_recursive_delete(a, cwd) for a in args[1:]):
                 return True
         if executable != "rm":
-            # Embedded execution forms cannot be exempted as a safe deletion.
-            if any(a in ("-exec", "-execdir") for a in args) and "rm" in args:
+            # Only known data-only forms can ignore literal rm text. Unknown
+            # shell grammar and execution wrappers must not obtain an exemption.
+            if executable not in ("echo", "printf", "grep", "rg") and any(
+                    re.search(r"\brm\b", arg) for arg in args):
                 return True
             continue
         recursive = force = False

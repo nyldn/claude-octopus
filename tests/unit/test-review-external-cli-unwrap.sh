@@ -260,13 +260,18 @@ else
 fi
 
 
-for failure in quota timeout malformed copilot; do
+for failure in quota timeout malformed copilot partial empty duplicate; do
     test_case "verifier $failure preserves uncertainty through synthesis"
     failure_run="$TEST_TMP_DIR/failed-$failure"
     old_verifier="$e2e_verifier_output"
     e2e_verifier_output='not valid JSON'
+    case "$failure" in
+        partial) e2e_verifier_output="$(printf '%s' "$old_verifier" | jq '{findings:[.findings[0]]}')" ;;
+        empty) e2e_verifier_output='{"findings":[]}' ;;
+        duplicate) e2e_verifier_output="$(printf '%s' "$old_verifier" | jq '{findings:[.findings[0],.findings[0]]}')" ;;
+    esac
     failure_rc=0
-    if [[ "$failure" == malformed ]]; then
+    if [[ "$failure" == malformed || "$failure" == partial || "$failure" == empty || "$failure" == duplicate ]]; then
         run_review_harness "$failure_run" PUBLICATION_FIXTURE=true || failure_rc=$?
     else
         if [[ "$failure" == copilot ]]; then
