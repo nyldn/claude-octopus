@@ -841,6 +841,15 @@ for range_marker in '**' '*' '__' '_'; do
     done
 done
 
+for range_dash in '—' '−' ' — ' ' − '; do
+    for range_marker in '' '**'; do
+        range_text="See points ${range_marker}5${range_marker}${range_dash}${range_marker}10${range_marker} MiB"
+        test_case "dash range after a reference label keeps both endpoints: $range_text"
+        range_claims=$(research_extract_numbers "$range_text" | LC_ALL=C sort | tr '\n' ' ')
+        if [[ "$range_claims" == "10 5 " ]]; then test_pass; else test_fail "range endpoint was lost: $range_claims"; fi
+    done
+done
+
 test_case "linked units retain quantities after reference labels"
 linked_claims=$(research_extract_numbers 'See points 2 and 5 [MiB](https://example.com).' | tr '\n' ' ')
 if [[ "$linked_claims" == "5 " ]]; then test_pass; else test_fail "linked quantity escaped: $linked_claims"; fi
@@ -992,6 +1001,19 @@ if [[ "$ordinal_status" -ne 0 && "$ordinal_kinds" == "number_mismatch:5 " ]]; th
 else
     test_fail "emphasized range escaped verification: $ordinal_kinds"
 fi
+
+for range_dash in '—' '−'; do
+    test_case "dash range first endpoint requires cited evidence: $range_dash"
+    printf '%s\n' "- See points **5**${range_dash}**500** MiB (\`src/handler.ts:4\`)." > "$ordinal_draft"
+    ordinal_status=0
+    research_verify_synthesis "$ordinal_draft" || ordinal_status=$?
+    ordinal_kinds=$(jq -r '.checks[] | "\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+    if [[ "$ordinal_status" -ne 0 && "$ordinal_kinds" == "number_mismatch:5 " ]]; then
+        test_pass
+    else
+        test_fail "dash range escaped verification: $ordinal_kinds"
+    fi
+done
 
 test_case "compact point references are skipped while formatted units and numeric values remain claims"
 compact_refs=$(research_extract_numbers 'See points 2,3 and items 4,5,6.' | tr '\n' ' ')
