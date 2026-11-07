@@ -30,7 +30,8 @@
   within a 64 KiB per-quote refinement budget. Exhausting that supplemental
   budget can undercount near-line matches but does not reject a verified quote.
   First-person builders also recognize modifiers such as "I just built as"
-  without excusing code attributed to someone else.
+  and contracted subjects such as "I've built as" and "we'd built as",
+  without excusing code attributed to someone else or a later source claim.
 
 ## [11.17.1] - 2026-11-05
 

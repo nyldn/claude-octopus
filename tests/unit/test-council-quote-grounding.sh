@@ -3251,6 +3251,29 @@ else
     test_fail "terminal punctuation lost the proposal lead-in: $r"
 fi
 
+# Contracted auxiliaries still identify reviewer-owned construction. Keep a
+# later source-claim control so an earlier builder cannot excuse fabricated code.
+for builder in "I've" "we've" "I'd" "we'd" 'I’ve' 'we’ve' 'I’d' 'we’d'; do
+    for claim in own later-source; do
+        test_case "contracted builder $builder preserves $claim attribution"
+        introduction="a row $builder carefully built as"
+        if [[ "$claim" == later-source ]]; then
+            introduction="a row $builder built as a test. The file contains"
+        fi
+        r="$(_report "$(_resp "src/pricing.ts:2 reads $introduction \`$FAKE\`.
+VERDICT: REVISE")")"
+        if jq -e --arg claim "$claim" '.verification_failed == false and
+            (if $claim == "own" then .quotes_unverifiable_proposed == 1
+                and .quotes_attributed == 0 and .fabricated == false
+             else .quotes_unverifiable_proposed == 0
+                and .quotes_attributed_unverified == 1 and .fabricated == true end)' <<< "$r" >/dev/null; then
+            test_pass
+        else
+            test_fail "contracted builder changed quote ownership: $r"
+        fi
+    done
+done
+
 # Complete evidence on either diff side clears only partial reporting.
 for exact_side in removed added; do
     test_case "a partial source fence complete in the $exact_side diff is not partial"
