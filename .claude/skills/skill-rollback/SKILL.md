@@ -124,16 +124,16 @@ Any other input will cancel.
 ### Step 4: Create Safety Checkpoint
 
 Before any rollback, require a clean index and working tree, including untracked
-files. A Git tag records committed files only. If this check fails, stop and let
-the user preserve their work before starting rollback again.
+files. Check ignored files against the selected checkpoint too, including file
+and directory collisions. A Git tag records committed files only. If either
+check fails, stop and let the user preserve their work before starting again.
+Use the plugin installation that loaded this skill. If `CLAUDE_PLUGIN_ROOT` is
+absent, replace the fallback below with that installation's absolute path.
 
 ```bash
 # Refuse work that the safety tag cannot recover. Fail closed on Git errors.
-ROLLBACK_STATUS=$(git status --porcelain=v1 --untracked-files=all) || exit 1
-if [[ -n "$ROLLBACK_STATUS" ]]; then
-  echo "Rollback stopped: preserve staged, unstaged and untracked work first." >&2
-  exit 1
-fi
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+python3 "$OCTO_ROOT/scripts/helpers/rollback-preflight.py" "$CHECKPOINT_TAG" || exit 1
 
 # Generate timestamp
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
@@ -164,11 +164,8 @@ fi
 
 ```bash
 # Recheck immediately before restoring in case work changed after confirmation.
-ROLLBACK_STATUS=$(git status --porcelain=v1 --untracked-files=all) || exit 1
-if [[ -n "$ROLLBACK_STATUS" ]]; then
-  echo "Rollback stopped: the working tree changed after the safety checkpoint." >&2
-  exit 1
-fi
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+python3 "$OCTO_ROOT/scripts/helpers/rollback-preflight.py" "$CHECKPOINT_TAG" || exit 1
 
 # Restore files from checkpoint (does NOT move HEAD)
 git checkout "$CHECKPOINT_TAG" -- .
@@ -230,6 +227,7 @@ Rollback Complete
 | Measure | Implementation |
 |---------|----------------|
 | **Always create safety checkpoint** | Pre-rollback tag created BEFORE any file changes |
+| **Preserve ignored local files** | Check checkpoint path collisions before tagging and immediately before restore |
 | **Preserve LESSONS.md** | Copy before rollback, restore after |
 | **Require explicit confirmation** | Must type "ROLLBACK" exactly |
 | **Show affected files first** | Preview before confirmation |
