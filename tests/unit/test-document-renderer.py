@@ -194,6 +194,20 @@ class DocumentRendererTest(unittest.TestCase):
                                     .split("**Engineers / Technical:**", 1)[0].split())
                 self.assertIn("For decision briefs, end with the specific decision needed", audience)
                 self.assertIn("For informational briefs, end with the supported conclusion", audience)
+                investors = " ".join(deck.split("**Investors / Fundraising:**", 1)[1]
+                                     .split("**General / Mixed:**", 1)[0].split())
+                with self.subTest(contract="investor-purpose"):
+                    self.assertIn("For decision briefs", investors)
+                    self.assertIn("For informational briefs", investors)
+                    self.assertIn("supported conclusion and follow-up", investors)
+                    self.assertIn("Do not add a funding ask", investors)
+                example = deck.split("```markdown", 1)[1].split("```", 1)[0]
+                slides = example.split("## Slide ")[1:]
+                self.assertEqual(len(slides), 4)
+                for slide in slides:
+                    with self.subTest(slide=slide.splitlines()[0]):
+                        self.assertRegex(slide, r"(?m)^- Evidence: .+")
+                        self.assertRegex(slide, r"(?m)^- Visual: .+")
 
 
     def test_native_skills_use_the_resolver_and_no_plugin_presence_gate(self):

@@ -125,15 +125,22 @@ Should we [action] by [date], given [decision threshold]?
 
 ## Slide 1: [The audience should take a specific action by a specific date]
 - Context and the decision at stake
+- Evidence: [source for the decision context and timing]
+- Visual: [decision statement with the deadline highlighted]
 
 ## Slide 2: [The recommendation meets the agreed decision threshold]
 - Supporting pillars and the specific ask
+- Evidence: [source showing how the recommendation meets the threshold]
+- Visual: [comparison of the recommendation with the agreed threshold]
 
 ## Slide 3: [A specific proof point supports the first pillar]
-- Evidence, source and planned visual
+- Evidence: [source for the proof point and its link to the pillar]
+- Visual: [chart or diagram showing the proof point]
 
 ## Slide N: [The requested action unlocks a specific outcome]
 - Ask, owner and next step
+- Evidence: [source linking the action to the expected outcome]
+- Visual: [action, owner and next-step timeline]
 ```
 
 #### Storyline gate: titles-only read
@@ -207,10 +214,12 @@ Apply these when generating outlines:
 - Reference technical specifications
 
 **Investors / Fundraising:**
-- Problem → Solution → Market → Traction → Team → Ask
+- For decision briefs, use Problem → Solution → Market → Traction → Team → Ask.
+  Include the funding ask and use of funds when they answer the confirmed question.
+- For informational briefs, end with the supported conclusion and follow-up.
+  Do not add a funding ask to an informational update.
 - Include market size (TAM/SAM/SOM)
 - Show growth metrics and projections
-- Clear funding ask and use of funds
 
 **General / Mixed:**
 - Balance detail with accessibility
