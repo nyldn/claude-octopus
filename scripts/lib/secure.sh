@@ -24,7 +24,7 @@ sanitize_external_content() {
     local nonce
     nonce=$(head -c 8 /dev/urandom 2>/dev/null | od -An -tx1 | tr -d ' \n' 2>/dev/null) || nonce="${RANDOM}${RANDOM}${RANDOM}$(date +%s)"
 
-    echo "<!-- BEGIN-UNTRUSTED:${label}:${nonce} -->
+    printf '%s\n' "<!-- BEGIN-UNTRUSTED:${label}:${nonce} -->
 ${content}
 <!-- END-UNTRUSTED:${label}:${nonce} -->"
 }

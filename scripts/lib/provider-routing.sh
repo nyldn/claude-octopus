@@ -106,6 +106,11 @@ _octo_build_openai_tool_loop_env() {
     # The selected key name can come from providers.json. Never use it for
     # indirect expansion until it has passed the same identifier contract as
     # dispatch-time configuration validation.
+    if [[ "$credential_env" == KEENABLE_API_KEY ]]; then
+        printf '%s\n' 'The search credential cannot authenticate a model provider.' >&2
+        PROVIDER_ENV_ARRAY=(false)
+        return 1
+    fi
     if [[ ! "$credential_env" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
         PROVIDER_ENV_ARRAY=(env -i "PATH=$PATH" "HOME=$HOME" "TERM=${TERM:-dumb}" "TMPDIR=${TMPDIR:-/tmp}")
         return 0
@@ -165,12 +170,35 @@ _octo_provider_env_forward_council_guard() {
     _octo_provider_env_append_once OCTOPUS_COUNCIL_ACTIVE "$OCTOPUS_COUNCIL_ACTIVE"
 }
 
+_octo_run_model_without_search_key() (
+    unset KEENABLE_API_KEY || return 1
+    "$@"
+)
+
 build_provider_env() {
     _octo_build_provider_env_impl "$@"
     local _rc=$?
+    [[ "${PROVIDER_ENV_ARRAY[0]:-}" != false ]] || return 1
     _octo_provider_env_forward_workspace_dir
     _octo_provider_env_forward_auto_peer_guard
     _octo_provider_env_forward_council_guard
+    # Search uses its own credential in the parent, never in a model child.
+    # Some CLI routes inherit the environment rather than using env -i.
+    local entry
+    for entry in "${PROVIDER_ENV_ARRAY[@]}"; do
+        if [[ "$entry" == KEENABLE_API_KEY=* ]]; then
+            printf '%s\n' 'The search credential cannot authenticate a model provider.' >&2
+            PROVIDER_ENV_ARRAY=(false)
+            return 1
+        fi
+    done
+    if [[ -n "${KEENABLE_API_KEY+x}" ]]; then
+        if [[ "${PROVIDER_ENV_ARRAY[0]:-}" == env ]]; then
+            PROVIDER_ENV_ARRAY=(env -u KEENABLE_API_KEY "${PROVIDER_ENV_ARRAY[@]:1}")
+        else
+            PROVIDER_ENV_ARRAY=(_octo_run_model_without_search_key "${PROVIDER_ENV_ARRAY[@]}")
+        fi
+    fi
     return "$_rc"
 }
 

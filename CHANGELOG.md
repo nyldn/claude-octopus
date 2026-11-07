@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- Research can optionally share one Keenable web search across its perspectives.
+  Set `OCTOPUS_RESEARCH_WEB_SEARCH=keenable` and include `keenable` in any active
+  provider allowlist. Search suggestions remain untrusted, and lookup failures
+  keep the original research prompts. No API key is required for the public
+  endpoint. Addresses [#1261](https://github.com/nyldn/claude-octopus/issues/1261).
+
 ## [11.17.1] - 2026-11-05
 
 ### Fixed
