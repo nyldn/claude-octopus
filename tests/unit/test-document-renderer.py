@@ -234,6 +234,61 @@ class DocumentRendererTest(unittest.TestCase):
         self.assertIn("/octo:deck --red-team", text)
         self.assertIn("provider calls", text)
 
+    def test_deck_agy_recipe_bounds_actual_adapter_invocations(self):
+        """Exercise adapter retries using the environment of the shipped recipe."""
+        bin_dir = self.base / "agy-bin"
+        bin_dir.mkdir()
+        agy = bin_dir / "agy"
+        agy.write_text('''#!/usr/bin/env bash
+printf 'attempt\\n' >> "$AGY_CALLS"
+if [[ "$AGY_FAILURE" == tty ]]; then
+    if [[ -t 0 || -t 1 ]]; then printf 'Stakeholder objection\\n'; exit 0; fi
+    printf 'bubbletea: could not open TTY\\n' >&2
+    exit 1
+fi
+''')
+        agy.chmod(0o755)
+        # Replace only the collector body; the recipe still sets the actual
+        # process environment and waits for the adapter's result.
+        stub = self.base / "capture-env"
+        stub.write_text('''octo_launch_advisors() {
+    printf '%s' "$STAKEHOLDER_PROMPT" | bash "$AGY_ADAPTER"
+}
+''')
+        for tree in (".claude/skills", "skills"):
+            text = (ROOT / tree / "skill-deck/SKILL.md").read_text()
+            recipe = textwrap.dedent(text.split("<!-- deck-seat-collection:start -->", 1)[1].split(
+                "<!-- deck-seat-collection:end -->", 1)[0].split("```bash\n", 1)[1].split("```", 1)[0])
+            recipe = recipe.replace('source "$PLUGIN_ROOT/scripts/lib/consultative-advisors.sh"',
+                                    'source "$ADAPTER_COLLECTOR_STUB"')
+            for failure in ("empty", "tty"):
+                with self.subTest(tree=tree, failure=failure):
+                    seat_dir = self.base / (tree.replace("/", "-") + failure)
+                    seat_dir.mkdir()
+                    calls = seat_dir / "calls"
+                    env = dict(os.environ, PATH=str(bin_dir) + os.pathsep + os.environ["PATH"],
+                               AGY_FAILURE=failure, AGY_CALLS=str(calls),
+                               AGY_ADAPTER=str(ROOT / "scripts/helpers/agy-exec.sh"),
+                               ADAPTER_COLLECTOR_STUB=str(stub), ADVISOR_ID="agy:default",
+                               ORCHESTRATOR="inert", STAKEHOLDER_PROMPT="Stakeholder prompt",
+                               SEAT_DIR=str(seat_dir), SEAT_WAIT_SECONDS="5",
+                               OCTOPUS_AGY_NO_RETRY="0", OCTOPUS_AGY_NO_PTY_FALLBACK="0",
+                               OCTOPUS_AGY_FORCE_INLINE="0")
+                    # A control proves that the actual adapter replays this
+                    # condition when the recipe's overrides are absent.
+                    control = subprocess.run(["bash", env["AGY_ADAPTER"]], input="prompt",
+                                             env=env, text=True, capture_output=True, timeout=10)
+                    self.assertEqual(len(calls.read_text().splitlines()), 2, control.stderr)
+                    calls.unlink()
+                    result = subprocess.run(["bash", "-euo", "pipefail", "-c", recipe +
+                                             '\n[[ "$OCTOPUS_AGY_NO_RETRY" == 0 && "$OCTOPUS_AGY_NO_PTY_FALLBACK" == 0 ]]'],
+                                            env=env, text=True, capture_output=True, timeout=10)
+                    self.assertEqual(len(calls.read_text().splitlines()), 1, result.stderr)
+                    if failure == "tty":
+                        self.assertNotEqual(result.returncode, 0)
+                    else:
+                        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_deck_collection_example_waits_for_answers_and_stops_on_failure(self):
         """Execute the shipped seat recipe against delayed lifecycle events."""
         orchestrator = self.base / "orchestrator"
