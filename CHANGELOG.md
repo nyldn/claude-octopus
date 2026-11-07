@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- Deck outlines now start with a confirmed governing question, a brief
+  situation/complication/question opener and an answer supported by two to four
+  pillars. Slide titles form a sentence skeleton that must carry the argument
+  in a titles-only read before the user approves rendering. Informational decks
+  retain their own purpose. Addresses #1215.
+
 ## [11.17.1] - 2026-11-05
 
 ### Fixed

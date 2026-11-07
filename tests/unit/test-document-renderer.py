@@ -163,6 +163,64 @@ class DocumentRendererTest(unittest.TestCase):
                 self.assertLess(academic.index("Apply academic formatting"),
                                 academic.index("Resolve and invoke the PDF renderer"))
 
+    def test_deck_storyline_is_confirmed_and_checked_before_outline_approval(self):
+        """Topic labels must not satisfy the deck's pre-render argument gate."""
+        for tree in (".claude/skills", "skills"):
+            with self.subTest(tree=tree):
+                deck = (ROOT / tree / "skill-deck/SKILL.md").read_text()
+                step = " ".join(deck.split("### Step 3: Generate Outline", 1)[1]
+                                .split("### Step 4:", 1)[0].split())
+                for requirement in ("governing question", "threshold for yes", "out-of-scope",
+                                    "Confirm the governing question with the user before",
+                                    "situation", "complication", "confirmed governing question",
+                                    "working hypothesis", "two to four pillars",
+                                    "one declarative sentence per storyline slide", "titles-only read",
+                                    "question to the ask", "Market overview",
+                                    "Label titles fail", "revise the skeleton and repeat",
+                                    "MUST approve the sentence skeleton before PPTX generation"):
+                    self.assertIn(requirement, step)
+                self.assertLess(step.index("Confirm the governing question"),
+                                step.index("working hypothesis"))
+                read = step.index("Read only the slide-title sentences, top to bottom.")
+                revise = step.index("revise the skeleton and repeat the titles-only read before")
+                approve = step.index("Present the confirmed question, opener, hypothesis and sentence skeleton")
+                self.assertLess(read, revise)
+                self.assertLess(revise, approve)
+                skeleton, gate = step.split("#### Storyline gate:", 1)
+                self.assertIn("Exclude the cover slide", skeleton)
+                self.assertIn("approved slide-count target", skeleton)
+                self.assertIn("Exclude the cover slide", gate)
+                self.assertIn("Changing the governing question or slide claims after approval returns to this gate", gate)
+                self.assertIn("approved cover title", gate)
+                self.assertIn("informational", step)
+                self.assertIn("Do not invent a decision", step)
+                self.assertNotIn("[First Content Section]", step)
+                self.assertNotIn("[Agenda / Overview]", step)
+                audience = " ".join(deck.split("**Executives / Board:**", 1)[1]
+                                    .split("**Engineers / Technical:**", 1)[0].split())
+                self.assertIn("For decision briefs, end with the specific decision needed", audience)
+                self.assertIn("For informational briefs, end with the supported conclusion", audience)
+                investors = " ".join(deck.split("**Investors / Fundraising:**", 1)[1]
+                                     .split("**General / Mixed:**", 1)[0].split())
+                with self.subTest(contract="investor-purpose"):
+                    self.assertIn("For decision briefs", investors)
+                    self.assertIn("For informational briefs", investors)
+                    self.assertIn("supported conclusion and follow-up", investors)
+                    self.assertIn("Do not add a funding ask", investors)
+                    self.assertIn("fundraising example", investors)
+                    self.assertIn("optional", investors)
+                    self.assertIn("confirmed question", investors)
+                    self.assertIn("approved pillars and out-of-scope list", investors)
+                example = deck.split("```markdown", 1)[1].split("```", 1)[0]
+                slides = example.split("## Slide ")[1:]
+                self.assertEqual(len(slides), 4)
+                self.assertIn("[Presentation name]", slides[0].splitlines()[0])
+                for slide in slides[1:]:
+                    with self.subTest(slide=slide.splitlines()[0]):
+                        self.assertRegex(slide, r"(?m)^- Evidence: .+")
+                        self.assertRegex(slide, r"(?m)^- Visual: .+")
+
+
     def test_native_skills_use_the_resolver_and_no_plugin_presence_gate(self):
         for name in ("skill-deck", "skill-doc-delivery"):
             text = (ROOT / f".claude/skills/{name}/SKILL.md").read_text()

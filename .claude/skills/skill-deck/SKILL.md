@@ -84,34 +84,93 @@ This step is OPTIONAL. Many decks are built from the user's own knowledge or exi
 
 ### Step 3: Generate Outline
 
-Build a slide-by-slide outline in markdown format. Structure:
+Build the outline as an answer-first storyline before choosing slide layouts.
+Keep the brief's audience, purpose and approved slide-count target.
+
+1. Define one **governing question** from the brief. For a decision deck, state
+   the decision, the threshold for yes and an out-of-scope list. For an
+   informational brief, state the question the audience needs answered and
+   what would count as a useful answer. Do not invent a decision or approval
+   ask for an informational update. Confirm the governing question with the user before
+   building the skeleton, using **AskUserQuestion**. Reuse an already explicit
+   confirmation of that exact question; an unanswered question is not approval.
+2. Write an **SCQA opener** with the situation, complication and question.
+   The question must match the confirmed governing question. Keep the opener
+   brief and use supplied or sourced facts; mark evidence gaps rather than
+   inventing context.
+3. Write a **working hypothesis**: a one-sentence answer with two to four pillars
+   that must be true. Tie each pillar to available evidence or label it as an
+   assumption to validate. An informational deck's answer can be a conclusion
+   about results rather than a recommendation to approve something.
+4. Build the **sentence skeleton** with one declarative sentence per storyline slide,
+   in order. Exclude the cover slide from this skeleton; keep its presentation
+   name, subtitle, date and presenter as metadata. The cover still counts toward
+   the approved slide-count target. Each storyline title must make a claim that
+   advances the answer. Under each claim, record its supporting evidence and
+   intended visual. Keep unverified claims marked as assumptions; do not turn
+   them into asserted facts.
+
+For example, a decision storyline could use this shape. Replace bracketed
+material with supported claims before presenting it as ready for approval:
 
 ```markdown
-## Slide 1: [Title Slide]
-- Presentation title
-- Subtitle / Date / Author
+## Governing question
+Should we [action] by [date], given [decision threshold]?
+- Out of scope: [excluded topics]
 
-## Slide 2: [Agenda / Overview]
-- Key topics to cover
+## SCQA opener
+- Situation: [established context]
+- Complication: [change that makes the question matter]
+- Question: [the confirmed governing question]
 
-## Slide 3: [First Content Section]
-- Bullet point 1
-- Bullet point 2
-- Bullet point 3
+## Working hypothesis
+[One-sentence answer], because [two to four evidence-backed pillars].
 
-## Slide N: [Summary / Next Steps]
-- Key takeaways
-- Call to action
+## Slide 1: [Presentation name]
+- Cover: [subtitle, date and presenter]
+- Visual: [cover layout]
+
+## Slide 2: [The recommendation meets the agreed decision threshold]
+- Supporting pillars and the specific ask
+- Evidence: [source showing how the recommendation meets the threshold]
+- Visual: [comparison of the recommendation with the agreed threshold]
+
+## Slide 3: [A specific proof point supports the first pillar]
+- Evidence: [source for the proof point and its link to the pillar]
+- Visual: [chart or diagram showing the proof point]
+
+## Slide N: [The requested action unlocks a specific outcome]
+- Ask, owner and next step
+- Evidence: [source linking the action to the expected outcome]
+- Visual: [action, owner and next-step timeline]
 ```
 
-**IMPORTANT:** Present the outline to the user for approval using **AskUserQuestion**:
+#### Storyline gate: titles-only read
 
-- "Looks good, render the deck" — Proceed to Step 4 with the selected renderer
-- "Add more slides" — Expand specific sections
-- "Change focus" — Restructure around different themes
-- "Start over" — Return to Step 1
+Read only the slide-title sentences, top to bottom. Exclude the cover slide
+from this titles-only read. The storyline titles must carry the
+argument from the governing question to the ask without relying on body
+bullets. For informational decks, read from the question to the supported
+conclusion and follow-up instead. Label titles fail: "Market overview",
+"Financials" and "Next steps" name topics without saying what the audience
+should understand. Rewrite them as supported declarative claims. If the
+argument skips a pillar, contradicts the hypothesis or ends without answering
+the question, revise the skeleton and repeat the titles-only read before
+asking for outline approval. A passing titles-only read does not establish
+that the evidence is true or that rendered slides have been inspected.
 
-This is the **wireframe gate** — the user MUST approve the outline structure before PPTX generation.
+Present the confirmed question, opener, hypothesis and sentence skeleton with
+its evidence notes for approval using **AskUserQuestion**:
+
+- "Looks good, render the deck" - Proceed to Step 4 with the selected renderer
+- "Add more slides" - Expand specific parts, then repeat the titles-only read
+- "Change focus" - Revise the question if needed, confirm it and rebuild the storyline
+- "Start over" - Return to Step 1
+
+This is the **wireframe gate**. The user MUST approve the sentence skeleton before PPTX generation.
+Changing the governing question or slide claims after approval returns to
+this gate. Preserve the approved cover title and pass the approved sentences
+to the renderer as the storyline slide titles.
 
 ### Step 4: Render the approved deck
 
@@ -137,10 +196,10 @@ Example filename: `Series-A-Pitch-Deck-2026-02-14.pptx`
 Apply these when generating outlines:
 
 - **Title slide**: Presentation name, subtitle, date, presenter
-- **Agenda slide**: 3-5 key topics (for decks > 7 slides)
+- **Storyline**: Slide titles carry the argument in the approved sentence order
 - **One idea per slide**: Keep slides focused
 - **5-7 bullets max**: Per slide for readability
-- **Summary slide**: Key takeaways at the end
+- **Summary slide**: State the supported answer to the governing question
 - **Next steps / CTA**: Final slide with clear actions
 
 ### By Audience Type
@@ -149,7 +208,8 @@ Apply these when generating outlines:
 - Lead with business impact and metrics
 - Use "So what?" framing for every slide
 - Include financial implications
-- End with decisions needed
+- For decision briefs, end with the specific decision needed. For informational
+  briefs, end with the supported conclusion and follow-up from Step 3.
 
 **Engineers / Technical:**
 - Include architecture diagrams (describe for slides)
@@ -158,10 +218,14 @@ Apply these when generating outlines:
 - Reference technical specifications
 
 **Investors / Fundraising:**
-- Problem → Solution → Market → Traction → Team → Ask
-- Include market size (TAM/SAM/SOM)
-- Show growth metrics and projections
-- Clear funding ask and use of funds
+- For decision briefs, follow the confirmed question, approved pillars and out-of-scope list.
+- Treat this fundraising example as optional: Problem → Solution → Market → Traction → Team → Ask.
+  Choose or omit topics to support the confirmed question. In a fundraising
+  decision brief, include a funding ask and use of funds when they answer that question.
+- Include market size (TAM/SAM/SOM), growth metrics and projections when they
+  support the confirmed question.
+- For informational briefs, end with the supported conclusion and follow-up.
+  Do not add a funding ask to an informational update.
 
 **General / Mixed:**
 - Balance detail with accessibility
@@ -185,7 +249,7 @@ This skill works well in combination with:
 User: "Create a 10-slide deck about our Q1 results"
 → Step 1: Clarify audience (executives)
 → Step 2: Skip (user has the data)
-→ Step 3: Generate outline, get approval
+→ Step 3: Confirm the question, check the sentence skeleton, get approval
 → Step 4: Render PPTX
 ```
 
@@ -194,7 +258,7 @@ User: "Create a 10-slide deck about our Q1 results"
 User: "Build a presentation about AI trends in healthcare"
 → Step 1: Clarify audience and scope
 → Step 2: Research using Task agents
-→ Step 3: Generate outline from research, get approval
+→ Step 3: Confirm the question, build a sourced sentence skeleton, get approval
 → Step 4: Render PPTX
 ```
 
