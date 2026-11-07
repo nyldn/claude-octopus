@@ -195,12 +195,13 @@ test_flow_skill_frontmatter() {
             return 1
         fi
 
-        # Check for agent field
-        if grep -q "^agent:" "$skill_path"; then
-            log_pass "Skill $skill has agent field"
-        else
-            log_fail "Skill $skill missing agent field"
+        # Writable workflows may run in the main context. Read-only defaults
+        # cannot produce their required artifacts or invoke orchestration.
+        if grep -qE '^agent: (Explore|Plan)$' "$skill_path"; then
+            log_fail "Skill $skill defaults to a read-only agent"
             return 1
+        else
+            log_pass "Skill $skill preserves a writable execution context"
         fi
 
         # Check for context field

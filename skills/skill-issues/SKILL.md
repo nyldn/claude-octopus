@@ -1,14 +1,25 @@
 ---
 name: skill-issues
-description: "Track project blockers, bugs, and gaps across sessions — use when issues pile up or need triage"
 disable-model-invocation: true
+user-invocable: true
+aliases:
+  - issues
+  - issue-tracking
+description: "Track project blockers, bugs, and gaps across sessions — use when issues pile up or need triage"
+trigger: |
+  EXPLICITLY USE when user mentions:
+  - "issue" or "issues" or "problem"
+  - "track this" or "remember this blocker"
+  - "add issue" or "create issue"
+  - "resolve issue" or "close issue"
+  - "show issues" or "list issues"
+
+  DO NOT activate for:
+  - Git issues (use git commands)
+  - GitHub issues (use gh CLI)
+  - General problem-solving without tracking
+argument-hint: "[list|add|resolve|show] [description or ID]"
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Issue Tracking
 
@@ -18,6 +29,7 @@ Cross-session issue tracking for persistent problem management. Issues are store
 
 **Core principle:** Track → Resolve → Learn.
 
+---
 
 ## When to Use
 
@@ -31,8 +43,9 @@ Cross-session issue tracking for persistent problem management. Issues are store
 **Do NOT use for:**
 - GitHub issue management (use gh CLI)
 - Git-tracked issues (use git commands)
-- Temporary todos (use task plan tool)
+- Temporary todos (use TodoWrite)
 
+---
 
 ## Subcommands
 
@@ -62,6 +75,7 @@ Show all open issues in table format:
 3. Read and parse Open Issues section
 4. Display in table format
 
+---
 
 ### 2. Add Issue
 
@@ -157,6 +171,7 @@ Add new row to Open Issues table:
 View with: /octo:issues show ISS-20260203-003
 ```
 
+---
 
 ### 3. Resolve Issue
 
@@ -214,6 +229,7 @@ Please provide resolution notes:
 View with: /octo:issues show ISS-20260203-001
 ```
 
+---
 
 ### 4. Show Issue Details
 
@@ -267,6 +283,7 @@ Search both Open and Resolved sections for issue ID.
 Use `/octo:issues list` to see all open issues.
 ```
 
+---
 
 ## File Management
 
@@ -306,6 +323,7 @@ EXISTING=$(cat .octo/ISSUES.md)
 echo "$MODIFIED" > .octo/ISSUES.md
 ```
 
+---
 
 ## ID Generation Algorithm
 
@@ -330,7 +348,7 @@ if [ -z "$TODAY_ISSUES" ]; then
 else
   # Get highest number for today
   HIGHEST=$(echo "$TODAY_ISSUES" | sed "s/ISS-${TODAY}-//" | sort -n | tail -1)
-  
+
   # Increment
   NEXT_NUM=$(printf "%03d" $((10#$HIGHEST + 1)))
 fi
@@ -340,6 +358,7 @@ ISSUE_ID="ISS-${TODAY}-${NEXT_NUM}"
 echo "$ISSUE_ID"
 ```
 
+---
 
 ## Severity Levels
 
@@ -350,6 +369,7 @@ echo "$ISSUE_ID"
 | **medium** | Should address | Performance degradation, UX issue |
 | **low** | Nice to fix | Minor bug, cosmetic issue |
 
+---
 
 ## Integration with Other Skills
 
@@ -383,6 +403,7 @@ User: "implement fix for ISS-20260203-001"
 3. Link commit SHA in resolution notes
 ```
 
+---
 
 ## Best Practices
 
@@ -418,6 +439,7 @@ Commit: abc123
 Fixed
 ```
 
+---
 
 ## Common Patterns
 
@@ -454,6 +476,7 @@ Action:
 3. Offer to show details or resolve
 ```
 
+---
 
 ## Red Flags - Don't Do This
 
@@ -465,6 +488,7 @@ Action:
 | Vague descriptions | Can't remember what issue was |
 | Resolve without notes | No record of what was done |
 
+---
 
 ## Quick Reference
 
@@ -475,6 +499,7 @@ Action:
 | "resolve ISS-X" | Move to Resolved section | Issue resolved |
 | "show ISS-X" | Find and display details | Issue details |
 
+---
 
 ## The Bottom Line
 

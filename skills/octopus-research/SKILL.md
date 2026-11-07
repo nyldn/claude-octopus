@@ -1,19 +1,33 @@
 ---
 name: octopus-research
-description: "Thorough research across multiple sources — use for complex topics needing broad synthesis"
 disable-model-invocation: true
+effort: high
+aliases:
+  - research
+  - deep-research
+description: "Thorough research across multiple sources — use for complex topics needing broad synthesis"
+task_management: true
+task_dependencies:
+  - skill-visual-feedback
+  - skill-context-detection
+execution_mode: enforced
+pre_execution_contract:
+  - interactive_questions_answered
+  - visual_indicators_displayed
+validation_gates:
+  - orchestrate_sh_executed
+  - synthesis_file_exists
+trigger: |
+  Use this skill when the user wants to "research this topic", "investigate how X works",
+  "analyze the architecture", "explore different approaches to Y", or "what are the options for Z".
+
+  Execution: orchestrate.sh probe via Bash tool (multi-provider research with available providers)
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 ## ⚠️ EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)
 
 <HARD-GATE>
-**CRITICAL: You MUST call orchestrate.sh via the native shell command tool. Do NOT research the topic yourself.
+**CRITICAL: You MUST call orchestrate.sh via the Bash tool. Do NOT research the topic yourself.
 Do NOT use Task agents, web search, or your own knowledge as a substitute. The ONLY valid
 execution path is: Bash → orchestrate.sh probe. If you produce research findings without
 a Bash call to orchestrate.sh, you have violated this contract.**
@@ -74,6 +88,7 @@ AskUserQuestion({
 
 **Optional**: If **claude-mem** is installed, use its MCP tools (`search`) to check for relevant past research on this topic before launching new research agents.
 
+---
 
 ### STEP 2: Provider Detection & Visual Indicators (MANDATORY)
 
@@ -112,12 +127,13 @@ Research Parameters:
 
 **DO NOT PROCEED TO STEP 3 until banner displayed.**
 
+---
 
 ### STEP 3: Execute orchestrate.sh (MANDATORY - Use Bash Tool)
 
 **Resolve the intensity first.** Use the `[intensity=quick|standard|deep]` token from the skill args when present. Otherwise map a `[breadth=…]` token the way `--breadth=` does (`light → quick`, `exhaustive → deep`; `quick`, `standard` and `deep` pass through unchanged). Otherwise map `depth_choice` (Quick overview → `quick`, Moderate depth → `standard`, Comprehensive or Deep dive → `deep`). Strip both tokens from the research question.
 
-**You MUST execute this command via the native shell command tool:**
+**You MUST execute this command via the Bash tool:**
 
 ```bash
 ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh --intensity=<quick|standard|deep> probe \
@@ -132,8 +148,9 @@ orchestrate.sh takes the intensity only as the `--intensity=` flag. It has no `-
 - ❌ Claiming you're "simulating" the workflow
 - ❌ Proceeding to Step 4 without running this command
 
-**This is NOT optional. You MUST use the native shell command tool to invoke orchestrate.sh.**
+**This is NOT optional. You MUST use the Bash tool to invoke orchestrate.sh.**
 
+---
 
 ### STEP 4: Verify Execution (MANDATORY - Validation Gate)
 
@@ -159,6 +176,7 @@ cat "$SYNTHESIS_FILE"
 3. DO NOT proceed with presenting results
 4. DO NOT substitute with direct research
 
+---
 
 ### STEP 5: Present Results (Only After Steps 1-4 Complete)
 
@@ -170,11 +188,13 @@ Read the synthesis file and format according to `format_choice`:
 
 **Include attribution:**
 ```
+---
 *Multi-AI Research powered by Claude Octopus*
 *Providers: available external providers + 🔵 Claude*
 *Full synthesis: $SYNTHESIS_FILE*
 ```
 
+---
 
 ## Task Management Integration
 

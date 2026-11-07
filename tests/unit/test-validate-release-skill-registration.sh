@@ -61,4 +61,39 @@ else
     test_fail "could not confirm skill registration passed; output:\n$OUTPUT"
 fi
 
+test_case "release registration accepts the same leaf, scalar and container forms as assembly"
+if python3 - "$PROJECT_ROOT" <<'PY_REGISTRATION_FORMS'
+import json
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+root = Path(sys.argv[1])
+source = (root / 'scripts/validate-release.sh').read_text()
+section = source[source.index('find_skill_md_files()'):source.index('# 7. SKILL FRONTMATTER FORMAT CHECK')]
+with tempfile.TemporaryDirectory() as temporary:
+    fixture = Path(temporary)
+    (fixture / '.claude-plugin').mkdir()
+    (fixture / 'scripts').mkdir()
+    shutil.copyfile(root / 'scripts/validate-plugin-assembly.py', fixture / 'scripts/validate-plugin-assembly.py')
+    for name in ('one', 'pack/two'):
+        path = fixture / 'skills' / name
+        path.mkdir(parents=True)
+        (path / 'SKILL.md').write_text('---\nname: ' + name.split('/')[-1] + '\ndescription: Fixture\n---\nNative skill\n')
+    manifest = fixture / '.claude-plugin/plugin.json'
+    valid = [['./skills/one/', './skills/pack/two/'], './skills/', ['./skills/'],
+             ['./skills/one', './skills/pack/'], ['./skills/', './skills/one/']]
+    invalid = [['./skills/missing/'], ['../escape'], [7], {'path': './skills/'}]
+    for registrations in valid + invalid:
+        manifest.write_text(json.dumps(dict(name='octo', version='1.0.0', description='Fixture', skills=registrations)))
+        command = 'set -euo pipefail\nROOT_DIR="$1"\nerrors=0\nGREEN=\nNC=\nlog() { printf "%s\\n" "$*" >&2; }\n' + section + '\nexit "$errors"\n'
+        result = subprocess.run(['bash', '-c', command, 'registration-check', str(fixture)], capture_output=True, text=True)
+        assert (result.returncode == 0) == (registrations in valid), (registrations, result.stdout, result.stderr)
+        if registrations in valid:
+            assert 'All 2 skills properly registered' in result.stdout, (registrations, result.stdout)
+print('5 supported and 4 invalid registration forms checked through the release section')
+PY_REGISTRATION_FORMS
+then test_pass; else test_fail "release and assembly disagree on supported registration forms"; fi
+
 test_summary

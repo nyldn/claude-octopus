@@ -17,6 +17,18 @@ validation_gates:
 
 # Two-Stage Review Pipeline
 
+## EXECUTION CONTRACT: MANDATORY
+
+Execute a referenced command when the selected workflow requires it, and
+verify its actual output before reporting completion.
+
+**PROHIBITED:**
+- Do not simulate or skip a command that this workflow requires.
+- Do not claim provider results or validation artifacts without checking them.
+- Do not continue silently when a required provider or host capability is
+  unavailable. Report the missing dependency and use a supported fallback.
+
+
 Separates **spec compliance** (did you build the right thing?) from **code quality**
 (did you build it right?). Stage 1 must pass before Stage 2 runs.
 

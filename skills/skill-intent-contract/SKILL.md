@@ -1,14 +1,8 @@
 ---
 name: skill-intent-contract
-description: "Use when starting a complex or ambiguous task that risks scope drift"
 disable-model-invocation: true
+description: "Use when starting a complex or ambiguous task that risks scope drift"
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Intent Contract System
 
@@ -23,6 +17,7 @@ The intent contract creates a **persistent record of user intent** that:
 
 This closes the loop between intention and delivery.
 
+---
 
 ## Intent Contract Structure
 
@@ -83,6 +78,7 @@ What this should NOT be:
 - [ ] Allocation still fits what the task turned out to be
 ```
 
+---
 
 ## Implementation Instructions
 
@@ -345,6 +341,7 @@ Update the `Status` field in the resolved plan directory's `session-intent.md`:
 - `completed` → all criteria met, boundaries respected
 - `incomplete` → some criteria not met, gaps identified
 
+---
 
 ## Integration with Workflows
 
@@ -383,6 +380,7 @@ Update the `Status` field in the resolved plan directory's `session-intent.md`:
 6. Present validation report
 ```
 
+---
 
 ## Example Intent Contract
 
@@ -436,6 +434,7 @@ What this should NOT be:
 - [ ] Builds on existing assets appropriately
 ```
 
+---
 
 ## Benefits
 
@@ -451,5 +450,6 @@ What this should NOT be:
 - Context for better decisions
 - Validation framework built-in
 
+---
 
 **Ready to use!** Workflows can now create and validate against persistent intent contracts.

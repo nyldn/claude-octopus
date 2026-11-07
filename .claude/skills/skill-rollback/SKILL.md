@@ -123,9 +123,18 @@ Any other input will cancel.
 
 ### Step 4: Create Safety Checkpoint
 
-Before any rollback, create a pre-rollback checkpoint:
+Before any rollback, require a clean index and working tree, including untracked
+files. Check ignored files against the selected checkpoint too, including file
+and directory collisions. A Git tag records committed files only. If either
+check fails, stop and let the user preserve their work before starting again.
+Use the plugin installation that loaded this skill. If `CLAUDE_PLUGIN_ROOT` is
+absent, replace the fallback below with that installation's absolute path.
 
 ```bash
+# Refuse work that the safety tag cannot recover. Fail closed on Git errors.
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+python3 "$OCTO_ROOT/scripts/helpers/rollback-preflight.py" "$CHECKPOINT_TAG" || exit 1
+
 # Generate timestamp
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 
@@ -154,8 +163,12 @@ fi
 ### Step 6: Execute Rollback
 
 ```bash
+# Recheck immediately before restoring in case work changed after confirmation.
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+python3 "$OCTO_ROOT/scripts/helpers/rollback-preflight.py" "$CHECKPOINT_TAG" || exit 1
+
 # Restore files from checkpoint (does NOT move HEAD)
-git checkout $CHECKPOINT_TAG -- .
+git checkout "$CHECKPOINT_TAG" -- .
 
 # Restore preserved LESSONS.md
 if [ "$LESSONS_PRESERVED" = "true" ]; then
@@ -214,6 +227,7 @@ Rollback Complete
 | Measure | Implementation |
 |---------|----------------|
 | **Always create safety checkpoint** | Pre-rollback tag created BEFORE any file changes |
+| **Preserve ignored local files** | Check checkpoint path collisions before tagging and immediately before restore |
 | **Preserve LESSONS.md** | Copy before rollback, restore after |
 | **Require explicit confirmation** | Must type "ROLLBACK" exactly |
 | **Show affected files first** | Preview before confirmation |

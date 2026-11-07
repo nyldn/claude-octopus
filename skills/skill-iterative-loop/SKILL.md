@@ -1,14 +1,24 @@
 ---
 name: skill-iterative-loop
-description: "Run tasks in a loop until goals are met — use for iterative refinement, polling, or convergence"
 disable-model-invocation: true
+aliases:
+  - iterative-loop
+  - loop-execution
+  - repeat-until
+description: "Run tasks in a loop until goals are met — use for iterative refinement, polling, or convergence"
+trigger: |
+  EXPLICITLY USE when user requests iterative execution:
+  - "loop X times" or "loop around N times"
+  - "loop around 5 times auditing, enhancing, testing"
+  - "keep trying until" or "iterate until"
+  - "run until X passes" or "loop until Y works"
+  - "repeat N times" or "try N times"
+
+  DO NOT activate for:
+  - Single execution requests
+  - Manual retry requests
+  - Infinite loops (require max iterations)
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Iterative Loop Execution
 
@@ -18,6 +28,7 @@ Systematic iterative execution with clear goals, exit conditions, and progress t
 
 **Core principle:** Define goal → Set max iterations → Execute → Evaluate → Loop or complete.
 
+---
 
 ## When to Use
 
@@ -34,6 +45,7 @@ Systematic iterative execution with clear goals, exit conditions, and progress t
 - Infinite loops without bounds
 - Simple retry logic (use skill-debug)
 
+---
 
 ## The Process
 
@@ -73,6 +85,7 @@ Use AskUserQuestion if unclear:
 
 **Never proceed without max iterations defined.**
 
+---
 
 ### Phase 2: Loop Execution
 
@@ -85,6 +98,7 @@ Goal: [description]
 Max iterations: [N]
 Success criteria: [condition]
 
+---
 
 ### Iteration 1 / [N]
 ```
@@ -111,11 +125,12 @@ For each iteration:
 
 **Status:** [Continue/Success/Need intervention]
 
+---
 ```
 
 #### Step 3: Progress Tracking
 
-Use task plan tool to track iterations:
+Use TodoWrite to track iterations:
 
 ```
 Iteration Progress:
@@ -126,6 +141,7 @@ Iteration Progress:
 - Iteration 5 - [pending]
 ```
 
+---
 
 ### Phase 3: Exit Conditions
 
@@ -193,6 +209,7 @@ Rather than continue looping, let's:
 Shall we pause and reassess?
 ```
 
+---
 
 ## Common Patterns
 
@@ -292,6 +309,7 @@ Implementation:
 Execute each iteration with progressive improvement
 ```
 
+---
 
 ## Integration with Other Skills
 
@@ -332,6 +350,7 @@ Each iteration:
 - Evaluate and continue
 ```
 
+---
 
 ## Best Practices
 
@@ -393,6 +412,7 @@ Iteration 6: 10/15 tests passing
 ⚠️ No progress in 3 iterations - stopping to reassess approach
 ```
 
+---
 
 ## Red Flags - Don't Do This
 
@@ -404,11 +424,13 @@ Iteration 6: 10/15 tests passing
 | Ignoring stalls | Waste time on ineffective approach |
 | Same action each loop | If not working, need different approach |
 
+---
 
 ## Strategy Rotation
 
 If the strategy-rotation hook fires, immediately change approach. Do not retry the same approach. Explain what you'll do differently before the next attempt. The hook fires after consecutive failures of the same tool — this is a strong signal that the current approach is fundamentally wrong, not just slightly off.
 
+---
 
 ## Self-Regulation (MANDATORY)
 
@@ -488,6 +510,7 @@ The strategy-rotation hook and self-regulation are complementary:
 - Self-regulation fires on **outcome** patterns (cycles, reverts, scope creep)
 - Both can fire independently. If both fire, **HALT** — the loop is definitely stuck.
 
+---
 
 ## Safety Mechanisms
 
@@ -535,6 +558,7 @@ Every N iterations:
   → Ask if should continue or adjust approach
 ```
 
+---
 
 ## Quick Reference
 
@@ -546,6 +570,7 @@ Every N iterations:
 | Incremental refinement | 3-7 | Quality threshold met | Maybe |
 | Comprehensive audit | 3-5 | All areas covered | No |
 
+---
 
 ## Metric Verification Mode
 
@@ -688,6 +713,7 @@ This will:
 4. If coverage drops OR tests fail → `git revert HEAD --no-edit`
 5. After 20 iterations, report total improvement
 
+---
 
 ## The Bottom Line
 

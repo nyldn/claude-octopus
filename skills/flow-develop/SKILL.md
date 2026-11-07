@@ -1,14 +1,40 @@
 ---
 name: flow-develop
-description: "Multi-AI implementation using available external providers (Double Diamond Develop phase). DO NOT use for simple code edits, reading/reviewing code, built-in commands, or trivial single-file changes."
 disable-model-invocation: true
+aliases:
+  - develop
+  - develop-workflow
+  - tangle
+  - tangle-workflow
+description: "Multi-AI implementation using available external providers (Double Diamond Develop phase). DO NOT use for simple code edits, reading/reviewing code, built-in commands, or trivial single-file changes."
+
+# Claude Code v2.1.12+ Integration
+agent: general-purpose
+context: fork
+task_management: true
+task_dependencies:
+  - flow-define
+execution_mode: enforced
+pre_execution_contract:
+  - context_detected
+  - visual_indicators_displayed
+validation_gates:
+  - orchestrate_sh_executed
+  - synthesis_file_exists
+trigger: |
+  EXPLICITLY USE when user requests building or implementation:
+  - "build X" or "implement Y" or "create Z"
+  - "develop a feature for X"
+  - "write code to do Y"
+  - "add functionality for Z"
+  - "generate implementation for X"
+
+  DO NOT activate for:
+  - Simple code edits (use Edit tool)
+  - Reading or reviewing code (use Read/review skills)
+  - Built-in commands (/plugin, /help, etc.)
+  - Trivial single-file changes
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 {{PREAMBLE}}
 
@@ -64,6 +90,7 @@ fi
   --status "in_progress"
 ```
 
+---
 
 ## ⚠️ EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)
 
@@ -137,10 +164,11 @@ orchestrate.sh develop "<user prompt>\n\nQuality requirements for this deliverab
 
 **DO NOT PROCEED TO STEP 2 until context determined.** Context type (Dev vs Knowledge) and dev subtype determine which quality supplements and design intelligence to inject — wrong context wastes provider credits on irrelevant analysis.
 
+---
 
 ### STEP 2: Display Visual Indicators (MANDATORY - BLOCKING)
 
-**MANDATORY: You MUST use the native shell command tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
+**MANDATORY: You MUST use the Bash tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
 
 ```bash
 bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh"
@@ -185,6 +213,7 @@ Provider Availability:
 
 **DO NOT PROCEED TO STEP 3 until banner displayed.** The banner shows users which providers will run and what costs they'll incur — starting API calls without this visibility violates cost transparency.
 
+---
 
 ### STEP 3: Read Prior State (MANDATORY - State Management)
 
@@ -229,10 +258,11 @@ fi
 
 **DO NOT PROCEED TO STEP 4 until state read.**
 
+---
 
 ### STEP 4: Execute orchestrate.sh develop (MANDATORY - Use Bash Tool)
 
-**You MUST execute this command via the native shell command tool:**
+**You MUST execute this command via the Bash tool:**
 
 ```bash
 # Keep execution and report validation in the same shell invocation.
@@ -255,7 +285,7 @@ cat "$SYNTHESIS_FILE"
 - ❌ Claiming you're "simulating" the workflow
 - ❌ Proceeding to Step 4 without running this command
 
-**You MUST use the native shell command tool to invoke orchestrate.sh.**
+**You MUST use the Bash tool to invoke orchestrate.sh.**
 
 #### What Users See During Execution (v7.16.0+)
 
@@ -272,6 +302,7 @@ These spinner verb updates happen automatically - orchestrate.sh calls `update_t
 
 **If NOT running in Claude Code v2.1.16+:** Progress indicators are silently skipped, no errors shown.
 
+---
 
 ### STEP 5: Verify Execution (MANDATORY - Validation Gate)
 
@@ -292,6 +323,7 @@ or rerun the workflow to recover a shell variable.
 3. DO NOT proceed with presenting results
 4. DO NOT substitute with direct implementation — fallback to single-model implementation skips the multi-provider synthesis that catches design flaws early
 
+---
 
 ### STEP 6: Update State (MANDATORY - Post-Execution)
 
@@ -322,6 +354,7 @@ fi
 
 **DO NOT PROCEED TO STEP 7 until state updated.**
 
+---
 
 ### STEP 7: Present Implementation Plan (Only After Steps 1-6 Complete)
 
@@ -336,11 +369,13 @@ Read the synthesis file and present:
 
 **Include attribution:**
 ```
+---
 *Multi-AI Implementation powered by Claude Octopus*
 *Providers: available external providers + 🔵 Claude*
 *Full implementation plan: $SYNTHESIS_FILE*
 ```
 
+---
 
 # Develop Workflow - Develop Phase 🛠️
 
@@ -392,6 +427,7 @@ Providers:
 
 {{VISUAL_INDICATORS}}
 
+---
 
 **Part of Double Diamond: DEVELOP** (divergent thinking)
 
@@ -418,6 +454,7 @@ The **develop** phase generates multiple implementation approaches using externa
 
 This is the **divergent** phase for solutions - we explore different implementation paths before converging on the best approach.
 
+---
 
 ## When to Use Develop
 
@@ -444,6 +481,7 @@ Use develop when you need:
 - Reading or exploring code (use Read tool)
 - Simple document edits (use Write tool)
 
+---
 
 ## Visual Indicators
 
@@ -459,6 +497,7 @@ Providers:
 🔵 Claude - Integration and refinement
 ```
 
+---
 
 ## How It Works
 
@@ -506,6 +545,7 @@ Results are saved to:
 
 After reviewing all perspectives, implement the final solution using Write/Edit tools.
 
+---
 
 ## Implementation Instructions
 
@@ -513,7 +553,7 @@ When this skill is invoked, follow the EXECUTION CONTRACT above exactly. The con
 
 1. **Blocking Step 1**: Detect work context (Dev vs Knowledge)
 2. **Blocking Step 2**: Check providers, display visual indicators
-3. **Blocking Step 3**: Execute orchestrate.sh develop via native shell command tool
+3. **Blocking Step 3**: Execute orchestrate.sh develop via Bash tool
 4. **Blocking Step 4**: Verify synthesis file exists
 5. **Step 5**: Present implementation plan, get user confirmation
 6. **After confirmation**: Implement the solution using Write/Edit tools
@@ -588,6 +628,7 @@ After successful execution, present implementation plan with:
    - Add tests if applicable
    - Document the implementation
 
+---
 
 ## Example Usage
 
@@ -670,6 +711,7 @@ Claude:
 [Implements the endpoint after user confirmation]
 ```
 
+---
 
 ## Quality Gates Integration
 
@@ -682,6 +724,7 @@ The tangle phase automatically runs quality checks via `.claude/hooks/quality-ga
 
 {{QUALITY_GATES}}
 
+---
 
 ## Integration with Other Workflows
 
@@ -696,6 +739,7 @@ After tangle completes, you may continue to:
 
 Or use standalone for implementation tasks.
 
+---
 
 ## Before Implementation Checklist
 
@@ -708,6 +752,7 @@ Before writing code, ensure:
 - [ ] Dependencies identified and available
 - [ ] Tests planned (if applicable)
 
+---
 
 ## After Implementation: Auto Code Review & E2E Verification (MANDATORY)
 
@@ -720,7 +765,7 @@ Before writing code, ensure:
 Agent(
   model: "sonnet",
   subagent_type: "feature-dev:code-reviewer",
-  background execution: true,
+  run_in_background: true,
   description: "Code review: post-develop",
   prompt: "Review the code changes from this development session. Focus on:
 1. Bugs, logic errors, security vulnerabilities
@@ -736,7 +781,7 @@ Check git diff for the changed files. Report only high-confidence issues."
 ```
 Agent(
   model: "sonnet",
-  background execution: true,
+  run_in_background: true,
   description: "E2E test: post-develop",
   prompt: "Run end-to-end verification of the development changes:
 1. Run the project's test suite (detect from package.json scripts, Makefile, or pyproject.toml)
@@ -756,6 +801,7 @@ Report: tests passed/failed, any integration issues found."
 
 WHY: The user should never have to manually request a code review after development work. Fresh-eyes review from a different model (Sonnet vs Opus) catches issues the implementer is blind to. Running tests automatically catches regressions before the user discovers them.
 
+---
 
 ## After Implementation Checklist
 
@@ -774,6 +820,7 @@ After writing code, ensure:
 - [ ] User notified of completion with review findings
 - [ ] Suggest running ink-workflow for validation
 
+---
 
 ## Cost Awareness
 
@@ -784,6 +831,7 @@ After writing code, ensure:
 
 Tangle workflows typically cost 0.02-0.10 USD per task depending on complexity and code length.
 
+---
 
 ## Post-Development: Checkpoint
 
@@ -810,6 +858,7 @@ modified_files=$(git diff --name-only HEAD~1 2>/dev/null || echo "See git log")
   --history "Files modified: $modified_files"
 ```
 
+---
 
 ## Terminal State
 

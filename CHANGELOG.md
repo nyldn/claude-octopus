@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Claude Code now loads the native skill instructions instead of the Codex
+  adaptations. Codex keeps its generated skills, and the verification alias
+  and starter pack remain available. Rollback now stops when local changes
+  cannot be recovered by its safety checkpoint, including ignored paths that
+  the selected checkpoint would overwrite. Release validation accepts
+  the same scalar, leaf and container skill registrations as assembly validation.
+  Fixes #1214.
+
 ## [11.17.1] - 2026-11-05
 
 ### Fixed

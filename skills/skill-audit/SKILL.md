@@ -1,14 +1,24 @@
 ---
 name: skill-audit
-description: "Audit codebases for quality, consistency, and broken patterns — use for pre-release or tech debt review"
 disable-model-invocation: true
+effort: high
+aliases:
+  - audit
+  - systematic-check
+  - comprehensive-audit
+description: "Audit codebases for quality, consistency, and broken patterns — use for pre-release or tech debt review"
+trigger: |
+  EXPLICITLY USE when user requests auditing:
+  - "audit and check the entire app"
+  - "audit X for Y" or "check for broken features"
+  - "process to audit" or "systematic check"
+  - "scan for issues" or "find all instances of X"
+
+  DO NOT activate for:
+  - Security audits (use skill-security-audit)
+  - Code reviews (use skill-code-review)
+  - Simple grep/search operations
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Systematic Audit Process
 
@@ -30,6 +40,7 @@ removing a small wrapper when it centralizes a security, cleanup, precedence, or
 failure invariant. A `simplify` verdict needs source evidence, a concrete caller,
 and migration and rollback steps.
 
+---
 
 ## When to Use
 
@@ -46,6 +57,7 @@ and migration and rollback steps.
 - Single file searches (use Grep/Glob directly)
 - Performance profiling
 
+---
 
 ## The Process
 
@@ -99,6 +111,7 @@ Which aspects should I audit?
 **Estimated Coverage:** [X components, Y files, Z features]
 ```
 
+---
 
 ### Phase 2: Discovery
 
@@ -142,8 +155,9 @@ Total instances: [N]
 Total items to audit: [N]
 ```
 
-Use task plan tool to track audit progress.
+Use TodoWrite to track audit progress.
 
+---
 
 ### Phase 3: Systematic Execution
 
@@ -173,6 +187,7 @@ For each item:
 **Issues:**
 [If any issues, list them here]
 
+---
 ```
 
 #### Step 2: Track Progress
@@ -188,6 +203,7 @@ Audit Progress:
 ...
 ```
 
+---
 
 ### Phase 4: Analysis & Reporting
 
@@ -245,6 +261,7 @@ Total Items Audited: [N]
 - Code paths verified: [N]
 ```
 
+---
 
 ### Phase 5: Remediation Plan
 
@@ -291,6 +308,7 @@ Would you like me to:
 What's your preference?
 ```
 
+---
 
 ## Common Patterns
 
@@ -380,6 +398,7 @@ Implementation:
 - Standardize all buttons to design system
 ```
 
+---
 
 ## Integration with Other Skills
 
@@ -415,6 +434,7 @@ Audit includes security concerns?
 → Use skill-audit for functional checks
 ```
 
+---
 
 ## Best Practices
 
@@ -473,6 +493,7 @@ Issue: Some button broken somewhere
 Fix: Fix it
 ```
 
+---
 
 ## Red Flags - Don't Do This
 
@@ -485,6 +506,7 @@ Fix: Fix it
 | Fix while auditing | Confuses audit with remediation |
 | Ignore patterns | Miss systemic issues |
 
+---
 
 ## Audit Templates
 
@@ -541,6 +563,7 @@ Fix: Fix it
 **Issues:** [if any]
 ```
 
+---
 
 ## Quick Reference
 
@@ -551,6 +574,7 @@ Fix: Fix it
 | Consistency | Find all instances | Compare to standard | Consistent/inconsistent |
 | Completeness | List requirements | Verify each exists | Complete/incomplete |
 
+---
 
 ## The Bottom Line
 

@@ -15,7 +15,7 @@ trigger: |
   - "create an anatomy guide from X"
   - "what makes this content work"
   - "reverse engineer this [article/thread/video]"
-  
+
   DO NOT use for:
   - General web research (use flow-discover)
   - Simple URL summarization

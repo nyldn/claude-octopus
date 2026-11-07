@@ -9,8 +9,6 @@ aliases:
 description: "Multi-AI requirements scoping using available external providers (Double Diamond Define phase). Priority triggers: octo define, octo scope, co-define, co-scope. DO NOT use for implementation, research, review/validation, or built-in commands."
 
 # Claude Code v2.1.12+ Integration
-agent: Plan
-context: fork
 task_management: true
 task_dependencies:
   - flow-discover

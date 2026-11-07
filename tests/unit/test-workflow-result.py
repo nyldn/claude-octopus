@@ -60,7 +60,8 @@ sys.exit(1 if mode == "failed" else 0)
 
     def skill_command(self, phase, generated=False):
         name = 'skill-ship' if phase == 'ink' else 'flow-' + phase
-        path = ROOT / ('skills' if generated else '.claude/skills') / name / 'SKILL.md'
+        tree = 'codex-skills' if generated == 'codex' else 'skills' if generated else '.claude/skills'
+        path = ROOT / tree / name / 'SKILL.md'
         blocks = re.findall(r'```bash\n(.*?)\n```', path.read_text(), re.S)
         return next(block for block in blocks
                     if re.search(r'orchestrate\.sh[" ]+ ' + phase + r' ', block)
@@ -84,11 +85,22 @@ sys.exit(1 if mode == "failed" else 0)
                 self.assertIn('-current.md', result.stdout)
 
     def test_generated_skills_find_engine_reports(self):
-        for phase in ('define', 'develop', 'deliver', 'ink'):
-            with self.subTest(phase=phase):
-                result = self.run_skill(phase, generated=True)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertIn('-current.md', result.stdout)
+        for generated in (True, 'codex'):
+            for phase in ('define', 'develop', 'deliver', 'ink'):
+                with self.subTest(phase=phase, generated=generated):
+                    result = self.run_skill(phase, generated=generated)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn('-current.md', result.stdout)
+
+    def test_codex_adaptations_reject_failed_foreign_missing_and_invalid_reports(self):
+        for mode, diagnostic in (('failed', 'Workflow failed with exit status'),
+                                 ('foreign', 'invocation'), ('missing', 'invocation'),
+                                 ('invalid', 'failed, missing or unknown completion status')):
+            for phase in ('define', 'develop', 'deliver', 'ink'):
+                with self.subTest(phase=phase, mode=mode):
+                    for report in self.results.glob('*-current.md'):
+                        report.unlink()
+                    self.assert_rejected(self.run_skill(phase, mode, generated='codex'), diagnostic)
 
     def test_loaded_install_is_used_instead_of_a_stale_stable_root(self):
         stable = self.home / '.claude-octopus/plugin'
@@ -104,7 +116,7 @@ sys.exit(1 if mode == "failed" else 0)
         engine.chmod(0o755)
         stable.symlink_to(stale)
         self.env['CLAUDE_PLUGIN_ROOT'] = str(loaded)
-        for generated in (False, True):
+        for generated in (False, True, 'codex'):
             for phase in ('define', 'develop', 'deliver', 'ink'):
                 with self.subTest(phase=phase, generated=generated):
                     if stable.is_symlink():
@@ -122,7 +134,7 @@ sys.exit(1 if mode == "failed" else 0)
         engine = stable / 'scripts/orchestrate.sh'
         engine.write_text('#!/usr/bin/env bash\nexit 77\n')
         engine.chmod(0o755)
-        for generated in (False, True):
+        for generated in (False, True, 'codex'):
             for phase in ('define', 'develop', 'deliver', 'ink'):
                 with self.subTest(phase=phase, generated=generated):
                     command = self.skill_command(phase, generated).replace(

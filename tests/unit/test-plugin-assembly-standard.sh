@@ -127,4 +127,83 @@ else
     fi
 fi
 
+
+test_case "validator rejects a Codex-adapted skill registered for Claude"
+mkdir -p "$fixture/skills/portable"
+printf '%s\n' '---' 'name: portable' 'description: fixture' 'disable-model-invocation: true' '---' '> **Host: Codex CLI**' > "$fixture/skills/portable/SKILL.md"
+printf '%s\n' '{"name":"fixture","version":"0.0.0","description":"fixture","skills":["./skills/portable"]}' > "$fixture/.claude-plugin/plugin.json"
+if output=$(python3 "$PROJECT_ROOT/scripts/validate-plugin-assembly.py" --root "$fixture" 2>&1); then
+    test_fail "validator accepted Codex instructions for Claude"
+elif [[ "$output" == *"Claude Code registers a Codex-adapted skill"* ]]; then
+    test_pass
+else
+    test_fail "missing host mismatch diagnostic: $output"
+fi
+
+
+scalar_fixture="$TEST_TMP_DIR/assembly-scalar"
+mkdir -p "$scalar_fixture/.claude-plugin" "$scalar_fixture/skills/demo"
+printf '%s\n' '---' 'name: demo' 'description: fixture' 'disable-model-invocation: true' '---' '# Native skill' > "$scalar_fixture/skills/demo/SKILL.md"
+for skill_path in './skills/demo' './skills/'; do
+    test_case "validator accepts native scalar skill registration: $skill_path"
+    python3 - "$scalar_fixture/.claude-plugin/plugin.json" "$skill_path" <<'PY_MANIFEST'
+import json, sys
+from pathlib import Path
+Path(sys.argv[1]).write_text(json.dumps({"name":"fixture", "version":"0.0.0", "description":"fixture", "skills":sys.argv[2]}))
+PY_MANIFEST
+    if output=$(python3 "$PROJECT_ROOT/scripts/validate-plugin-assembly.py" --root "$scalar_fixture" 2>&1); then
+        test_pass
+    else
+        test_fail "supported scalar registration rejected: $output"
+    fi
+done
+
+test_case "container registrations still reject nested Codex adaptations"
+printf '%s\n' '> **Host: Codex CLI**' >> "$scalar_fixture/skills/demo/SKILL.md"
+if output=$(python3 "$PROJECT_ROOT/scripts/validate-plugin-assembly.py" --root "$scalar_fixture" 2>&1); then
+    test_fail "container bypassed host validation"
+elif [[ "$output" == *"Claude Code registers a Codex-adapted skill"* ]]; then
+    test_pass
+else
+    test_fail "missing nested host mismatch diagnostic: $output"
+fi
+
+test_case "default root discovery rejects unlisted Codex skills"
+mkdir -p "$scalar_fixture/native/demo"
+grep -v 'Host: Codex CLI' "$scalar_fixture/skills/demo/SKILL.md" > "$scalar_fixture/native/demo/SKILL.md"
+printf '%s\n' '{"name":"fixture","version":"0.0.0","description":"fixture","skills":"./native/demo"}' > "$scalar_fixture/.claude-plugin/plugin.json"
+if output=$(python3 "$PROJECT_ROOT/scripts/validate-plugin-assembly.py" --root "$scalar_fixture" 2>&1); then
+    test_fail "unlisted root skill bypassed native host validation"
+elif [[ "$output" == *"Claude Code registers a Codex-adapted skill"* ]]; then
+    test_pass
+else
+    test_fail "missing default-root diagnostic: $output"
+fi
+rm -rf "$scalar_fixture/skills"
+for invalid_path in 'native/demo' "$scalar_fixture/native/demo" ''; do
+    test_case "native manifest rejects malformed skill path: $invalid_path"
+    python3 - "$scalar_fixture/.claude-plugin/plugin.json" "$invalid_path" <<'PY_MANIFEST'
+import json, sys
+from pathlib import Path
+Path(sys.argv[1]).write_text(json.dumps({"name":"fixture", "version":"0.0.0", "description":"fixture", "skills":sys.argv[2]}))
+PY_MANIFEST
+    if output=$(python3 "$PROJECT_ROOT/scripts/validate-plugin-assembly.py" --root "$scalar_fixture" 2>&1); then
+        test_fail "malformed registration accepted"
+    elif [[ "$output" == *"skill path must be . or start with ./"* ]]; then
+        test_pass
+    else
+        test_fail "missing path-shape diagnostic: $output"
+    fi
+done
+
+test_case "native registration permits an empty automatic root skills directory"
+mkdir -p "$scalar_fixture/skills"
+printf '%s\n' '{"name":"fixture","version":"0.0.0","description":"fixture","skills":"./native/demo"}' > "$scalar_fixture/.claude-plugin/plugin.json"
+if output=$(python3 "$PROJECT_ROOT/scripts/validate-plugin-assembly.py" --root "$scalar_fixture" 2>&1); then test_pass; else test_fail "$output"; fi
+
+test_case "native registration permits a plugin-root skill"
+cp "$scalar_fixture/native/demo/SKILL.md" "$scalar_fixture/SKILL.md"
+printf '%s\n' '{"name":"fixture","version":"0.0.0","description":"fixture","skills":"."}' > "$scalar_fixture/.claude-plugin/plugin.json"
+if output=$(python3 "$PROJECT_ROOT/scripts/validate-plugin-assembly.py" --root "$scalar_fixture" 2>&1); then test_pass; else test_fail "$output"; fi
+
 test_summary

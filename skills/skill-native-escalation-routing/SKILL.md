@@ -1,14 +1,8 @@
 ---
 name: skill-native-escalation-routing
-description: "Use when choosing native or multi-LLM handling for init, review, or security requests"
 disable-model-invocation: true
+description: "Use when choosing native or multi-LLM handling for init, review, or security requests"
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Native-First Escalation Routing
 

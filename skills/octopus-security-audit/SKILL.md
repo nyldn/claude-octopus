@@ -1,26 +1,40 @@
 ---
 name: octopus-security-audit
-description: "OWASP compliance, vulnerability scanning, and adversarial red team testing — use for security reviews"
 disable-model-invocation: true
+aliases:
+  - security
+  - security-audit
+description: OWASP compliance, vulnerability scanning, and adversarial red team testing — use for security reviews
+trigger: |
+  Use this skill when the user says "security audit this code", "find vulnerabilities in X",
+  "red team review", "pentest this API", or "check for OWASP issues".
+execution_mode: enforced
+pre_execution_contract:
+  - visual_indicators_displayed
+validation_gates:
+  - orchestrate_sh_executed
+  - output_artifact_exists
+paths:
+  - "**/.env*"
+  - "**/auth*"
+  - "**/security*"
+  - "**/oauth*"
+  - "Dockerfile*"
 ---
 
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
+# Security Audit Skill
 
+## EXECUTION CONTRACT: MANDATORY
 
-## Execution Contract (MANDATORY - CANNOT SKIP)
-
-This generated Codex skill preserves an enforced workflow contract from the source skill.
+Execute a referenced command when the selected workflow requires it, and
+verify its actual output before reporting completion.
 
 **PROHIBITED:**
-- Do not summarize, simulate, or skip the referenced workflow command when this skill requires execution.
-- Do not claim provider output or validation artifacts exist without checking the actual files or command output.
-- Do not continue silently when a required provider, command, or host capability is unavailable; report the unavailable dependency and use a supported fallback.
+- Do not simulate or skip a command that this workflow requires.
+- Do not claim provider results or validation artifacts without checking them.
+- Do not continue silently when a required provider or host capability is
+  unavailable. Report the missing dependency and use a supported fallback.
 
-
-# Security Audit Skill
 
 **Your first output line MUST be:** `🐙 **CLAUDE OCTOPUS ACTIVATED** - Security Audit`
 
@@ -143,6 +157,7 @@ This skill wraps the `security-auditor` persona defined in:
 "Red team review the payment API"
 ```
 
+---
 
 ## Adversarial Mode (squeeze workflow)
 

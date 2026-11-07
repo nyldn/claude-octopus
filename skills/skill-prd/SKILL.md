@@ -1,19 +1,14 @@
 ---
 name: skill-prd
-description: "Write an AI-optimized PRD using multi-AI orchestration — use when scoping a new feature or product"
 disable-model-invocation: true
+description: Write an AI-optimized PRD using multi-AI orchestration — use when scoping a new feature or product
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # STOP - SKILL ALREADY LOADED
 
 **DO NOT call Skill() again. DO NOT load any more skills. Execute directly.**
 
+---
 
 ## PHASE 0: CLARIFICATION (MANDATORY)
 
@@ -35,6 +30,7 @@ Please answer these (even briefly) so I can create a more targeted PRD.
 
 If user says "skip" or provides the feature description inline, extract what you can and note assumptions.
 
+---
 
 ## PHASE 1: QUICK RESEARCH (Max 2 searches)
 
@@ -44,6 +40,7 @@ Only search if topic is unfamiliar. Limit to 2 web searches max:
 
 Do NOT over-research. 60 seconds max for this phase.
 
+---
 
 ## PHASE 2: WRITE PRD
 
@@ -57,6 +54,7 @@ Structure:
 7. **Implementation Phases** - Dependency-ordered, time-boxed
 8. **Risks & Mitigations** - Top 3-5 risks with mitigation strategies
 
+---
 
 ## PHASE 2.5: ADVERSARIAL PRD REVIEW (RECOMMENDED)
 
@@ -73,6 +71,7 @@ Dispatch the PRD draft to a different provider (Codex, Antigravity, or Sonnet as
 
 **Skip with `--fast` or when user requests speed over thoroughness.** See `prd.md` command for full dispatch syntax.
 
+---
 
 ## PHASE 3: SELF-SCORE
 
@@ -82,10 +81,12 @@ Score against 100-point framework:
 - Implementation Clarity: 30 pts (FRs with codes, NFRs, architecture, phases)
 - Completeness: 20 pts (risks, dependencies, examples, doc quality)
 
+---
 
 ## PHASE 4: SAVE
 
 Write to user-specified filename or generate based on feature name.
 
+---
 
 **START WITH PHASE 0 CLARIFICATION QUESTIONS NOW.**

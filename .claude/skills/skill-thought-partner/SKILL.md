@@ -15,7 +15,7 @@ trigger: |
   - "help me figure out", "work through this"
   - "what am I missing", "fresh perspective"
   - "explore my approach", "challenge my thinking"
-  
+
   DO NOT use for:
   - Technical research (use flow-discover)
   - Implementation planning (use skill-writing-plans)

@@ -77,6 +77,8 @@ test_case "generated primary and alias metadata preserve source text and bound U
 fixture_root="$TEST_TMP_DIR/codex-generator"
 SKILLS_DIR="$fixture_root/source"
 OUTPUT_DIR="$fixture_root/output"
+NATIVE_OUTPUT_DIR="$fixture_root/native"
+mkdir -p "$NATIVE_OUTPUT_DIR"
 mkdir -p "$SKILLS_DIR/skill-verification-gate"
 cat > "$SKILLS_DIR/skill-verification-gate/SKILL.md" <<'EOF'
 ---
@@ -131,6 +133,15 @@ if [[ "$(ui_short_description "$input_24" Fixture)" == "Help with Fixture tasks 
     test_pass
 else
     test_fail "ui_short_description did not preserve exact boundaries or trim at a complete word"
+fi
+
+
+test_case "native output cleanup initializes an absent output directory"
+NATIVE_OUTPUT_DIR="$fixture_root/absent-native"
+if prepare_target_dir "$NATIVE_OUTPUT_DIR" && [[ -d "$NATIVE_OUTPUT_DIR" ]]; then
+    test_pass
+else
+    test_fail "missing native output directory cannot be rebuilt"
 fi
 
 test_summary
