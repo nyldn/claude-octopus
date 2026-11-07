@@ -3814,7 +3814,7 @@ FIRST_PERSON_SUBJECT = re.compile(
 # after a reviewer describes a proposed input or replacement.
 EXPLICIT_SOURCE_CLAIM = re.compile(
     r"\b(?:but|however|whereas|and)\s+(?:(?:the|this|that|current|actual|cited)\s+)+"
-    r"(?:file|source|code)\s+"
+    r"(?:file|source|code)\s+(?:itself\s+)?"
     r"(?:(?:now|currently|actually)\s+)?" + SOURCE_VERB.pattern, re.I)
 DOTTED_ABBREVIATION = re.compile(r"\b(?:[A-Za-z]\.){2,}")
 CLAUSE_BOUNDARY = re.compile(r"[.!?;](?:\s|$)")

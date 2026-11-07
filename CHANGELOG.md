@@ -32,8 +32,8 @@
   First-person builders also recognize modifiers such as "I just built as"
   and contracted subjects such as "I've built as" and "we'd built as",
   without excusing code attributed to someone else. An explicit later source
-  subject such as "but the file reads" restarts the source claim even in the
-  same sentence.
+  subject such as "but the file reads" or "but the file itself reads" restarts
+  the source claim even in the same sentence.
 
 ## [11.17.1] - 2026-11-05
 
