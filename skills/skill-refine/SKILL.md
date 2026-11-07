@@ -38,14 +38,16 @@ snapshot with the appropriate host tools. If you cannot inspect it, stop and
 name the missing capability. Do not score an unseen attachment or a URL title.
 
 Before any external provider call, including model-assisted research, inspect
-the candidate and supporting evidence for credentials and private tokens.
-Exclude secret values from prompts and research queries. If sanitization is
-needed, use a separate copy and identify it as the artifact being refined.
-Hash, validate, and score that exact copy; do not attribute its score to the
-unchanged original. Repeat this inspection for new content before dispatch.
-Read-only judges can still read permitted project files, so sanitizing a prompt
-alone does not isolate project secrets. This host review is not an automatic
-secret scanner or a guarantee of data isolation.
+the candidate, supporting evidence, and accessible project context for
+credentials and private tokens. Repeat this inspection for new content before
+dispatch. If secrets are found, stop the run before research or judging and
+report the affected input or file without quoting its secret values. Do not
+continue by creating a sanitized copy, changing working directories, or asking
+a judge to ignore the original. The current adapter restricts writes and tools;
+it does not enforce isolation from the secret-bearing original or other
+readable files. Secret-bearing inputs require an execution boundary that
+prevents those reads, which this adapter does not provide. Host inspection is
+not an automatic secret scanner or a guarantee of data isolation.
 
 Record the audience, intended outcome, constraints, editable paths, and what
 must be preserved. A request to improve a plan authorizes editing the plan,
