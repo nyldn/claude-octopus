@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- The branch-finishing workflow executes the action shown in its menu.
+  Choosing Create PR preserves the branch for review; choosing Merge locally
+  runs the local merge recipe. Source, Claude and Codex instructions agree.
+
 - Claude Code now loads the native skill instructions instead of the Codex
   adaptations. Codex keeps its generated skills, and the verification alias
   and starter pack remain available. Rollback now stops when local changes

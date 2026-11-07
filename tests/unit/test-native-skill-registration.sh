@@ -148,4 +148,61 @@ print('36 ignored-file rollback scenarios passed across all three skill trees')
 PY_IGNORED
 then test_pass; else test_fail "rollback can overwrite ignored local work"; fi
 
+test_case "finish-branch choices execute the action displayed to the user"
+if python3 - "$PROJECT_ROOT" <<'PY_CHOICES'
+import os
+import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+root = Path(sys.argv[1])
+for tree in ('.claude/skills', 'skills', 'codex-skills'):
+    text = (root / tree / 'skill-finish-branch/SKILL.md').read_text()
+    menu = dict(re.findall(r'^(\d+)\. \*\*([^*]+)\*\*', text, re.M))
+    for choice in ('1', '2'):
+        section = re.search(r'^#### Option ' + choice + r':[^\n]*\n(.*?)(?=^#### Option |\Z)',
+                            text, re.M | re.S)[1]
+        command = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            calls = base / 'calls'
+            helper = base / 'scripts/safe-gh-comment.sh'
+            helper.parent.mkdir()
+            helper.write_text('#!/bin/bash\nprintf "safe-helper %s\\n" "$*" >> "$CALLS"\ncat >/dev/null\n')
+            helper.chmod(0o755)
+            # Functions replace only commands executed by this recipe. No real
+            # remote, branch mutation, package manager or GitHub call can run.
+            stubs = r"""
+git() {
+    printf 'git %s\n' "$*" >> "$CALLS"
+    if [[ "$*" == 'branch --show-current' ]]; then printf 'feature\n'; fi
+}
+gh() { printf 'gh %s\n' "$*" >> "$CALLS"; printf 'fixture/repository\n'; }
+npm() { printf 'npm %s\n' "$*" >> "$CALLS"; }
+"""
+            env = dict(os.environ, CALLS=str(calls), CLAUDE_PLUGIN_ROOT=str(base),
+                       PR_TITLE='Fixture title', CHANGE_SUMMARY='Fixture summary',
+                       CHANGE_REASON='Fixture reason')
+            result = subprocess.run(['bash', '-euo', 'pipefail', '-c', stubs + command],
+                                    env=env, capture_output=True, text=True, check=False)
+            assert result.returncode == 0, (tree, choice, result.stderr)
+            actions = calls.read_text().splitlines()
+            if menu[choice].lower() == 'create pr':
+                assert 'git push -u origin feature' in actions, (tree, choice, actions)
+                assert any(a.startswith('safe-helper ') and ' pr-create ' in a for a in actions), actions
+                assert not any(a.startswith(('git checkout ', 'git pull ', 'git merge ', 'git branch -d '))
+                               for a in actions), (tree, choice, 'unexpected local merge', actions)
+            elif menu[choice].lower() == 'merge locally':
+                for action in ('git checkout main', 'git pull origin main', 'git merge feature',
+                               'npm test', 'git branch -d feature'):
+                    assert action in actions, (tree, choice, actions)
+                assert not any(a.startswith(('git push ', 'safe-helper ')) for a in actions), actions
+            else:
+                raise AssertionError((tree, choice, 'unknown displayed choice', menu[choice]))
+print('6 displayed-choice recipes passed across source, native and Codex trees')
+PY_CHOICES
+then test_pass; else test_fail "finish-branch execution contradicts the selected menu action"; fi
+
 test_summary

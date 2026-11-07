@@ -139,40 +139,7 @@ Which option? (1-4)
 
 ### Step 4: Execute Choice
 
-#### Option 1: Merge Locally
-
-```bash
-# Get current branch name
-FEATURE_BRANCH=$(git branch --show-current)
-BASE_BRANCH="main"  # or detected base
-
-# Switch to base branch
-git checkout $BASE_BRANCH
-
-# Pull latest
-git pull origin $BASE_BRANCH
-
-# Merge feature branch
-git merge $FEATURE_BRANCH
-
-# Verify tests on merged result
-npm test  # or appropriate test command
-
-# If tests pass, delete feature branch
-git branch -d $FEATURE_BRANCH
-```
-
-**Report:**
-```
-✅ Merged $FEATURE_BRANCH into $BASE_BRANCH
-✅ Tests pass on merged result
-✅ Feature branch deleted
-
-Ready to push when you want: git push origin $BASE_BRANCH
-```
-
-
-#### Option 2: Create PR
+#### Option 1: Create PR
 
 ```bash
 # Get branch info
@@ -211,6 +178,39 @@ fi
 ✅ PR created: https://github.com/owner/repo/pull/123
 
 Branch preserved for review process.
+```
+
+
+#### Option 2: Merge Locally
+
+```bash
+# Get current branch name
+FEATURE_BRANCH=$(git branch --show-current)
+BASE_BRANCH="main"  # or detected base
+
+# Switch to base branch
+git checkout $BASE_BRANCH
+
+# Pull latest
+git pull origin $BASE_BRANCH
+
+# Merge feature branch
+git merge $FEATURE_BRANCH
+
+# Verify tests on merged result
+npm test  # or appropriate test command
+
+# If tests pass, delete feature branch
+git branch -d $FEATURE_BRANCH
+```
+
+**Report:**
+```
+✅ Merged $FEATURE_BRANCH into $BASE_BRANCH
+✅ Tests pass on merged result
+✅ Feature branch deleted
+
+Ready to push when you want: git push origin $BASE_BRANCH
 ```
 
 
