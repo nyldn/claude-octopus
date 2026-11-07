@@ -1392,6 +1392,13 @@ octopus summary
 - Status: `ok`, `degraded`, `failed`, `timeout`, or `cancelled`
 - Output token count and duration
 - Failure or degradation reason, including oversize prompt handling
+- Whether synthesis will continue or abort when `OCTOPUS_REQUIRE_ALL=true`
+
+Multi-provider commands call this automatically before synthesis when a run ledger is available.
+
+---
+
+### Parallel dispatch output claim recovery
 
 Parallel dispatch normally uses Python-backed output claims that can detect
 exited owners. When Python locking is unavailable or the caller already owns
@@ -1403,9 +1410,6 @@ warning and confirm its `owner` file contains only `fallback`. Remove that one
 `owner` file, then remove its now-empty claim directory with `rmdir`. Preserve
 the result file; a newly admitted retry clears stale output itself. Never remove
 claims belonging to a live or unknown owner, or use a wildcard to clear claims.
-- Whether synthesis will continue or abort when `OCTOPUS_REQUIRE_ALL=true`
-
-Multi-provider commands call this automatically before synthesis when a run ledger is available.
 
 ---
 
