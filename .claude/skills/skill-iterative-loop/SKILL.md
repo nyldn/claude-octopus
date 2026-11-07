@@ -590,6 +590,13 @@ cannot enforce a subprocess deadline, report the missing capability and stop.
 Charge retries, research, and model-assisted edits to the call budget before
 dispatch. Never reset elapsed time or consumed calls on resume.
 
+| Parameter | Meaning |
+|-----------|---------|
+| `Metric: <command>` | Must print one finite number |
+| `Direction: higher` or `Direction: lower` | Select the improving direction |
+| `Guard: <command>` | Must exit zero to accept a candidate |
+| `Iterations: N`, `Minutes: N`, `Calls: N` | Override the finite defaults above |
+
 ### Preserve the user's workspace
 
 Inspect repository status, including the staged index, dirty tracked files, and
@@ -629,6 +636,15 @@ and index have not changed. On a concurrent edit or index change, stop and
 preserve the candidate for review. Publish only the exact authorized files,
 then rerun the required checks against delivered bytes. Do not create a commit
 unless the user separately requested one.
+
+Example ledger record, with paths and hashes referring only to this run:
+
+```json
+{"iteration":1,"timestamp":"2026-11-07T12:00:00Z","metric":72.5,"best":72.5,"status":"kept","description":"One measured change","artifact_sha256":"<candidate hash>","elapsed_seconds":45,"calls_used":1}
+```
+
+Use `kept`, `rejected`, or `error` for attempted rounds. Preserve rejected
+candidate evidence and failed guard outputs without changing the original.
 
 ### Resume and reporting
 

@@ -11,9 +11,7 @@ When the user invokes `/octo:careful`, activate careful mode for the current ses
 
 ### Activation
 
-Resolve the active installation and use its session-state helper. Replace
-`<directory>` with the supplied directory as one quoted argument. For `guard-on`,
-omit that argument when only careful mode was requested.
+Resolve the active installation and use its session-state helper.
 
 ```bash
 OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
@@ -41,12 +39,15 @@ Careful mode adds a PreToolUse safety net on Bash commands. Before any destructi
 
 ### Deactivation
 
-Remove the state file to deactivate:
+Use the same host-aware helper in a new shell:
 
 ```bash
-_OCTO_SESSION_ID="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-$$}}"
-rm -f "/tmp/octopus-careful-${_OCTO_SESSION_ID}.txt"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+bash "$OCTO_ROOT/scripts/helpers/guard-state.sh" careful-off
 ```
+
+If the helper cannot identify the session, report that warnings were not
+deactivated; do not remove another process's state file.
 
 ### Usage
 

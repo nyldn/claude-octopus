@@ -6,11 +6,11 @@ test_suite "Command safety regressions"
 test_case "deletion targets and stable guard sessions"
 if python3 - "$ROOT" <<'CHECKS'
 from pathlib import Path
-import json, os, subprocess, sys, tempfile, uuid
+import json, os, re, subprocess, sys, tempfile, uuid
 root = Path(sys.argv[1])
 sid = 'audit-' + uuid.uuid4().hex
 base_env = dict(os.environ)
-for key in ['CLAUDE_CODE_SESSION_ID', 'CLAUDE_SESSION_ID', 'CLAUDE_CODE_SESSION', 'CODEX_SESSION_ID', 'CODEX_TASK_ID', 'CODEX_PLUGIN_ROOT', 'OCTO_CAREFUL_MODE', 'OCTO_FREEZE_MODE']:
+for key in ['CLAUDE_CODE_SESSION_ID', 'CLAUDE_SESSION_ID', 'CLAUDE_CODE_SESSION', 'CODEX_SESSION_ID', 'CODEX_TASK_ID', 'CODEX_PLUGIN_ROOT', 'CLAUDE_PLUGIN_ROOT', 'OCTO_CAREFUL_MODE', 'OCTO_FREEZE_MODE']:
     base_env.pop(key, None)
 def hook(name, data, env):
     result = subprocess.run(['bash', str(root/'hooks'/name)], input=json.dumps(data), env=env, text=True, capture_output=True, check=True)
@@ -53,7 +53,7 @@ finally:
 with tempfile.TemporaryDirectory() as temporary:
     helper = root/'scripts/helpers/guard-state.sh'
     for host, key in [('claude','CLAUDE_CODE_SESSION_ID'),('claude','CLAUDE_CODE_SESSION'),('codex','CODEX_SESSION_ID'),('codex','CODEX_TASK_ID')]:
-        env = dict(base_env, OCTOPUS_HOST=host, **{key:sid})
+        env = dict(base_env, OCTOPUS_HOST=host, **{key:sid, ('CLAUDE_PLUGIN_ROOT' if host=='claude' else 'CODEX_PLUGIN_ROOT'):str(root)})
         freeze = Path('/tmp/octopus-freeze-'+sid+'.txt')
         careful = Path('/tmp/octopus-careful-'+sid+'.txt')
         try:
@@ -64,6 +64,13 @@ with tempfile.TemporaryDirectory() as temporary:
             subprocess.run(['bash',str(helper),'freeze-off'],env=env,check=True,capture_output=True)
             assert not freeze.exists() and careful.exists()
             subprocess.run(['bash',str(helper),'careful-off'],env=env,check=True,capture_output=True)
+            for document in ['commands/careful.md','.cursor-plugin/commands/octo-careful.md']:
+                blocks = re.findall(r'```bash\n(.*?)\n```', (root/document).read_text(), re.S)
+                assert len(blocks) == 2, document
+                subprocess.run(['bash','-c',blocks[0]],env=env,check=True,capture_output=True)
+                assert careful.exists(), (host, document, 'activation')
+                subprocess.run(['bash','-c',blocks[1]],env=env,check=True,capture_output=True)
+                assert not careful.exists(), (host, document, 'deactivation')
         finally:
             freeze.unlink(missing_ok=True); careful.unlink(missing_ok=True)
     result=subprocess.run(['bash',str(helper),'freeze-on',temporary],env=dict(base_env,OCTOPUS_HOST='claude'),capture_output=True,text=True)

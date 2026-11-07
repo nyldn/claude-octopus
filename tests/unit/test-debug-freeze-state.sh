@@ -53,8 +53,9 @@ with tempfile.TemporaryDirectory(prefix="octo-debug-freeze-test-") as tmp:
             legacy = Path("/tmp/octopus-freeze-" + legacy_sid + ".txt")
             target = root / uuid.uuid4().hex
             marker = "SYNTHETIC_NONSECRET_" + sid
-            env = dict(os.environ, CLAUDE_CODE_SESSION_ID=sid,
+            env = dict(os.environ, CLAUDE_PLUGIN_ROOT=str(source), CLAUDE_CODE_SESSION_ID=sid,
                        CLAUDE_SESSION_ID=legacy_sid, OCTOPUS_HOST="claude")
+            env.pop("CLAUDE_CODE_SESSION", None)
             missing_id = case in ("missing-id", "empty-ids")
             if missing_id:
                 env.pop("CLAUDE_CODE_SESSION_ID", None)
@@ -136,7 +137,7 @@ with tempfile.TemporaryDirectory(prefix="octo-debug-freeze-test-") as tmp:
                 assert not legacy.exists(), "legacy ID overrode current Claude session ID"
                 if missing_id:
                     assert proc.returncode != 0, "missing shared ID admitted"
-                    assert "requires a shared Claude session ID" in proc.stderr
+                    assert "requires a stable host session ID" in proc.stderr
                     assert trace.read_text() == "", "state path selected without shared ID"
                     assert not state.exists() and not pid_state.exists(), "unenforced state created"
                 elif case in ("absent", "legacy-only-id", "empty-current-legacy-id"):
