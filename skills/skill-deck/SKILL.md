@@ -169,6 +169,32 @@ flag, run it against the draft skeleton before requesting approval or rendering:
    Require usable successful answers from at least two distinct providers before
    synthesis. A failed or missing selected seat means the pass is not completed;
    report it and offer retry within renewed consent or continuation without it.
+
+   For each external seat, use this collection recipe in its own shell process
+   with the approved provider environment. Resolve `PLUGIN_ROOT` and
+   `ORCHESTRATOR` from the installed plugin. Set `ADVISOR_ID` to that seat's
+   model-qualified advisor, `STAKEHOLDER_PROMPT` to its complete brief,
+   `SEAT_DIR` to its fresh writable artifact directory, and `SEAT_WAIT_SECONDS`
+   to the approved deadline. The launcher's six arguments include the output
+   prefix and the required success count; a single-seat collection requires 1.
+
+   <!-- deck-seat-collection:start -->
+   ```bash
+   source "$PLUGIN_ROOT/scripts/lib/consultative-advisors.sh"
+   OCTOPUS_ADVISOR_WAIT_SECONDS="$SEAT_WAIT_SECONDS" \
+       octo_launch_advisors "$ORCHESTRATOR" "$ADVISOR_ID" "$SEAT_DIR" \
+       'answer-' "$STAKEHOLDER_PROMPT" 1 > "$SEAT_DIR/collection-count.txt" &
+   collector_pid=$!
+   if ! wait "$collector_pid"; then
+       printf 'Seat incomplete: %s\n' "$SEAT_DIR" >&2
+       exit 1
+   fi
+   ```
+   <!-- deck-seat-collection:end -->
+
+   A successful collector yields that seat's `answer-*.md` artifact, not the
+   launch log. Await all collectors and verify the two-provider requirement
+   before continuing. A single successful collector does not complete the pass.
    Merge and deduplicate objections while keeping
    the stakeholder attribution and disagreements. Label invented or unsupported
    answers as unverified; request evidence rather than adding them as facts.

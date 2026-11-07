@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -232,6 +233,55 @@ class DocumentRendererTest(unittest.TestCase):
         text = (ROOT / "commands/deck.md").read_text()
         self.assertIn("/octo:deck --red-team", text)
         self.assertIn("provider calls", text)
+
+    def test_deck_collection_example_waits_for_answers_and_stops_on_failure(self):
+        """Execute the shipped seat recipe against delayed lifecycle events."""
+        orchestrator = self.base / "orchestrator"
+        orchestrator.write_text('''#!/usr/bin/env bash
+set -euo pipefail
+[[ "$1" == spawn && "$2" == codex:fixture && "$3" == "$STAKEHOLDER_PROMPT" ]]
+(
+    sleep 0.2
+    printf '# Started: fixture\\n## Output\\n```\\nStakeholder objection\\n```\\n## Status: SUCCESS\\n' > "$FIXTURE_RESULT"
+    printf 'completed\\n' >> "$SEAT_DIR/sequence"
+    OCTOPUS_AGENT_PID="$BASHPID" OCTOPUS_AGENT_STATUS="$FIXTURE_STATUS" \\
+        OCTOPUS_AGENT_RESULT_FILE="$FIXTURE_RESULT" "$OCTOPUS_AGENT_LIFECYCLE_HOOK" completed
+) &
+worker=$!
+OCTOPUS_AGENT_PID="$worker" OCTOPUS_AGENT_RESULT_FILE="$FIXTURE_RESULT" \\
+    "$OCTOPUS_AGENT_LIFECYCLE_HOOK" spawned
+printf 'Provider launch log\\n%s\\n' "$worker"
+''')
+        orchestrator.chmod(0o755)
+        for tree in (".claude/skills", "skills"):
+            text = (ROOT / tree / "skill-deck/SKILL.md").read_text()
+            recipe = text.split("<!-- deck-seat-collection:start -->", 1)[1].split(
+                "<!-- deck-seat-collection:end -->", 1)[0].split("```bash\n", 1)[1].split("```", 1)[0]
+            recipe = textwrap.dedent(recipe)
+            for status in ("completed", "failed"):
+                with self.subTest(tree=tree, status=status):
+                    seat_dir = self.base / tree.replace("/", "-") / status
+                    seat_dir.mkdir(parents=True)
+                    response = seat_dir / "answer-codex_fixture.md"
+                    response.write_text("stale answer")
+                    env = dict(os.environ, PLUGIN_ROOT=str(ROOT), ORCHESTRATOR=str(orchestrator),
+                               ADVISOR_ID="codex:fixture", SEAT_DIR=str(seat_dir),
+                               STAKEHOLDER_PROMPT='Objection with "quotes"\nand a second line',
+                               SEAT_WAIT_SECONDS="5", OCTO_ALLOWED_PROVIDERS="codex",
+                               FIXTURE_RESULT=str(seat_dir / "worker.md"), FIXTURE_STATUS=status)
+                    env.pop("OCTOPUS_AGENT_LIFECYCLE_HOOK", None)
+                    result = subprocess.run(["bash", "-euo", "pipefail", "-c", recipe +
+                                             '\nprintf "synthesis\\n" >> "$SEAT_DIR/sequence"\nprintf "SYNTHESIS_READY\\n"'],
+                                            env=env, text=True, capture_output=True, timeout=10)
+                    if status == "completed":
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertEqual(response.read_text(), "Stakeholder objection\n")
+                        self.assertEqual((seat_dir / "sequence").read_text(), "completed\nsynthesis\n")
+                        self.assertIn("SYNTHESIS_READY", result.stdout)
+                    else:
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertNotIn("SYNTHESIS_READY", result.stdout)
+                        self.assertFalse(response.exists())
 
 
 
