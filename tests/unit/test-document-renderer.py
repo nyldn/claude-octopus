@@ -174,7 +174,7 @@ class DocumentRendererTest(unittest.TestCase):
                                     "Confirm the governing question with the user before",
                                     "situation", "complication", "confirmed governing question",
                                     "working hypothesis", "two to four pillars",
-                                    "one declarative sentence per slide", "titles-only read",
+                                    "one declarative sentence per storyline slide", "titles-only read",
                                     "question to the ask", "Market overview",
                                     "Label titles fail", "revise the skeleton and repeat",
                                     "MUST approve the sentence skeleton before PPTX generation"):
@@ -186,6 +186,12 @@ class DocumentRendererTest(unittest.TestCase):
                 approve = step.index("Present the confirmed question, opener, hypothesis and sentence skeleton")
                 self.assertLess(read, revise)
                 self.assertLess(revise, approve)
+                skeleton, gate = step.split("#### Storyline gate:", 1)
+                self.assertIn("Exclude the cover slide", skeleton)
+                self.assertIn("approved slide-count target", skeleton)
+                self.assertIn("Exclude the cover slide", gate)
+                self.assertIn("Changing the governing question or slide claims after approval returns to this gate", gate)
+                self.assertIn("approved cover title", gate)
                 self.assertIn("informational", step)
                 self.assertIn("Do not invent a decision", step)
                 self.assertNotIn("[First Content Section]", step)
@@ -208,7 +214,8 @@ class DocumentRendererTest(unittest.TestCase):
                 example = deck.split("```markdown", 1)[1].split("```", 1)[0]
                 slides = example.split("## Slide ")[1:]
                 self.assertEqual(len(slides), 4)
-                for slide in slides:
+                self.assertIn("[Presentation name]", slides[0].splitlines()[0])
+                for slide in slides[1:]:
                     with self.subTest(slide=slide.splitlines()[0]):
                         self.assertRegex(slide, r"(?m)^- Evidence: .+")
                         self.assertRegex(slide, r"(?m)^- Visual: .+")

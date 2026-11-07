@@ -102,10 +102,13 @@ Keep the brief's audience, purpose and approved slide-count target.
    that must be true. Tie each pillar to available evidence or label it as an
    assumption to validate. An informational deck's answer can be a conclusion
    about results rather than a recommendation to approve something.
-4. Build the **sentence skeleton** with one declarative sentence per slide,
-   in order. Each title must make a claim that advances the answer. Under each
-   title, record its supporting evidence and intended visual. Keep unverified
-   claims marked as assumptions; do not turn them into asserted facts.
+4. Build the **sentence skeleton** with one declarative sentence per storyline slide,
+   in order. Exclude the cover slide from this skeleton; keep its presentation
+   name, subtitle, date and presenter as metadata. The cover still counts toward
+   the approved slide-count target. Each storyline title must make a claim that
+   advances the answer. Under each claim, record its supporting evidence and
+   intended visual. Keep unverified claims marked as assumptions; do not turn
+   them into asserted facts.
 
 For example, a decision storyline could use this shape. Replace bracketed
 material with supported claims before presenting it as ready for approval:
@@ -123,10 +126,9 @@ Should we [action] by [date], given [decision threshold]?
 ## Working hypothesis
 [One-sentence answer], because [two to four evidence-backed pillars].
 
-## Slide 1: [The audience should take a specific action by a specific date]
-- Context and the decision at stake
-- Evidence: [source for the decision context and timing]
-- Visual: [decision statement with the deadline highlighted]
+## Slide 1: [Presentation name]
+- Cover: [subtitle, date and presenter]
+- Visual: [cover layout]
 
 ## Slide 2: [The recommendation meets the agreed decision threshold]
 - Supporting pillars and the specific ask
@@ -145,7 +147,8 @@ Should we [action] by [date], given [decision threshold]?
 
 #### Storyline gate: titles-only read
 
-Read only the slide-title sentences, top to bottom. They must carry the
+Read only the slide-title sentences, top to bottom. Exclude the cover slide
+from this titles-only read. The storyline titles must carry the
 argument from the governing question to the ask without relying on body
 bullets. For informational decks, read from the question to the supported
 conclusion and follow-up instead. Label titles fail: "Market overview",
@@ -166,7 +169,8 @@ its evidence notes for approval using **AskUserQuestion**:
 
 This is the **wireframe gate**. The user MUST approve the sentence skeleton before PPTX generation.
 Changing the governing question or slide claims after approval returns to
-this gate. Pass the approved sentences to the renderer as the slide titles.
+this gate. Preserve the approved cover title and pass the approved sentences
+to the renderer as the storyline slide titles.
 
 ### Step 4: Render the approved deck
 
