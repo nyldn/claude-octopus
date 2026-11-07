@@ -1008,6 +1008,19 @@ ${_blind_spot_checklist}"
         log INFO "Perplexity web research seat skipped: disabled by provider allowlist"
     fi
 
+    # One optional lookup shared by all perspectives, after admission/cost/cache
+    # gates and before provider dispatch. A failed lookup leaves prompts intact.
+    local web_search_context="" perspective_index
+    if [[ "${OCTOPUS_RESEARCH_WEB_SEARCH:-}" == keenable ]] &&
+       source "${BASH_SOURCE[0]%/*}/keenable.sh" &&
+       web_search_context=$(probe_keenable_search_context "$prompt"); then
+        for perspective_index in "${!perspectives[@]}"; do
+            perspectives[$perspective_index]="${perspectives[$perspective_index]}
+
+$web_search_context"
+        done
+    fi
+
     # Initialize progress tracking with actual agent count (dynamic, may be 5, 6, or 7)
     init_progress_tracking "discover" "${#perspectives[@]}"
 
