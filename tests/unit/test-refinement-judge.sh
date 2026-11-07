@@ -39,16 +39,19 @@ with tempfile.TemporaryDirectory(prefix="refinement-judge-") as temporary:
     shutil.copyfile(root / "scripts/refinement-judge.sh", adapter)
     runner = fixture / "orchestrate.sh"
     runner.write_text('''#!/usr/bin/env python3
-import json,os,sys
+import json,os,sys,subprocess
+resolver = 'source "$1/scripts/lib/heartbeat.sh"; source "$1/scripts/lib/agent-sync.sh"; source "$1/scripts/lib/spawn.sh"; octopus_effective_agent_timeout "$2" probe researcher'
+effective = subprocess.check_output(['bash', '-c', resolver, 'test', os.environ['REFINE_TEST_ROOT'], sys.argv[2]],
+    env=dict(os.environ, OCTOPUS_TIMEOUT_EXPLICIT='1', OCTOPUS_TIMEOUT_EXPLICIT_SECS=sys.argv[2]), text=True).strip()
 print(json.dumps({"argv":sys.argv[1:], "judge":os.environ["OCTOPUS_REFINEMENT_JUDGE"], "retry":os.environ["OCTOPUS_AUTH_RETRIES"],
- "sandbox":os.environ["OCTOPUS_CODEX_SANDBOX"], "claude":os.environ["OCTOPUS_CLAUDE_BIN"]}))
+ "sandbox":os.environ["OCTOPUS_CODEX_SANDBOX"], "claude":os.environ["OCTOPUS_CLAUDE_BIN"], "effective_timeout":effective}))
 ''')
     runner.chmod(0o755)
     prompt = fixture / "prompt with spaces"
     prompt.write_text("Score the candidate; do not edit it.")
     args = ["bash", str(adapter), "codex:exact-model", "008", str(prompt), "round-0", str(fixture)]
     environment = dict(os.environ, OCTOPUS_AUTH_RETRIES="9", OCTOPUS_CODEX_SANDBOX="danger-full-access",
-                       OCTOPUS_CLAUDE_BIN="custom-claude --setting-sources project,local")
+                       OCTOPUS_CLAUDE_BIN="custom-claude --setting-sources project,local", REFINE_TEST_ROOT=str(root))
     result = subprocess.run(args, env=environment, capture_output=True, text=True, check=True)
     data = json.loads(result.stdout)
     assert data["judge"] == "true", data
@@ -56,6 +59,10 @@ print(json.dumps({"argv":sys.argv[1:], "judge":os.environ["OCTOPUS_REFINEMENT_JU
     assert data["claude"] == "custom-claude --setting-sources project,local --tools Read,Glob,Grep --strict-mcp-config", data
     assert data["argv"] == ["--timeout", "8", "probe-single", "codex:exact-model",
                             "--perspective-file", str(prompt), "round-0", "--output-dir", str(fixture)], data
+    for ambient_timeout in ["600", "0"]:
+        result = subprocess.run(args, env=dict(environment, OCTOPUS_AGENT_TIMEOUT=ambient_timeout),
+                                capture_output=True, text=True, check=True)
+        assert json.loads(result.stdout)["effective_timeout"] == "8", result.stdout
     for provider in ["claude-opus:exact-model", "claude-sonnet", "codex"]:
         args[2] = provider
         subprocess.run(args, env=environment, capture_output=True, text=True, check=True)
