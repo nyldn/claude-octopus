@@ -3515,14 +3515,32 @@ plain_needles = {norm(v) for unit in units for line in unit[3] + unit[4]
                  for v in unescaped([line.strip(), GUTTER.sub("", line).strip()], True)
                  if 0 < len(norm(v)) <= 64 and not ELLIPSIS.search(norm(v))}
 plain_automaton = None
+plain_batches = None
+plain_batch_ids = {}
 plain_hits = {}
 def plain_line_present(needle, hay):
-    global plain_automaton
+    global plain_automaton, plain_batches
     if len(plain_needles) < 64 or needle not in plain_needles:
         return None
-    if plain_automaton is None:
+    if plain_batches is None:
+        # A response can contain many unrelated 64-character lines. Limit the
+        # active trie to 65,537 nodes, and build only batches actually queried.
+        plain_batches = [[]]
+        budget = 0
+        for word in sorted(plain_needles):
+            if budget + len(word) > 65536:
+                plain_batches.append([])
+                budget = 0
+            plain_batch_ids[word] = len(plain_batches) - 1
+            plain_batches[-1].append(word)
+            budget += len(word)
+    batch = plain_batch_ids[needle]
+    cache_key = (hay, batch)
+    if cache_key in plain_hits:
+        return needle in plain_hits[cache_key]
+    if plain_automaton is None or plain_automaton[0] != batch:
         edges, failure, output, words = [{}], [0], [0], {}
-        for word in plain_needles:
+        for word in plain_batches[batch]:
             state = 0
             for char in word:
                 if char not in edges[state]:
@@ -3539,9 +3557,10 @@ def plain_line_present(needle, hay):
                     fallback = failure[fallback]
                 failure[child] = edges[fallback].get(char, 0)
                 queue.append(child)
-        plain_automaton = edges, failure, output, words
-    if hay not in plain_hits:
-        edges, failure, output, words = plain_automaton
+        # Retain only the active batch's arrays, rather than every trie.
+        plain_automaton = batch, edges, failure, output, words
+    if cache_key not in plain_hits:
+        _, edges, failure, output, words = plain_automaton
         parent = list(range(len(edges)))
         def unseen(state):
             while parent[state] != state:
@@ -3560,10 +3579,10 @@ def plain_line_present(needle, hay):
                 # Repeated source text cannot multiply output-processing work.
                 parent[terminal] = unseen(output[failure[terminal]])
                 terminal = parent[terminal]
-            if len(hits) == len(plain_needles):
+            if len(hits) == len(plain_batches[batch]):
                 break
-        plain_hits[hay] = hits
-    return needle in plain_hits[hay]
+        plain_hits[cache_key] = hits
+    return needle in plain_hits[cache_key]
 
 # Presence is independent of source line numbers. Reuse it across quote units
 # without changing which source supplies the near-line report.

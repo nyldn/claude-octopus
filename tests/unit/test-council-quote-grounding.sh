@@ -3508,12 +3508,26 @@ function = 'def plain_line_present(' + source.split('\ndef plain_line_present(',
 rng = random.Random(1260)
 needles = {'a' * size for size in range(1, 65)} | {'absent-pattern', 'he', 'she', 'hers', 'his', '|', 'μg'}
 needles.update(''.join(rng.choices('abcd', k=8)) for _ in range(80))
-scope = dict(plain_needles=needles, plain_automaton=None, plain_hits={})
+scope = dict(plain_needles=needles, plain_automaton=None, plain_hits={}, plain_batches=None, plain_batch_ids={})
 exec(compile(function, str(sys.argv[1]), 'exec'), scope)
 for hay in ['ushers his μg | ' + 'a' * 100000, ''.join(rng.choices('abcd', k=10000)), 'nothing matches']:
     for needle in needles:
         assert scope['plain_line_present'](needle, hay) == (needle in hay), (needle, hay[:80])
 assert scope['plain_line_present']('not indexed', 'anything') is None
+# Distinct long patterns share few edges. The active index must stay bounded
+# even when uncited units supply most of the response's literal patterns.
+needles = {''.join(rng.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=64)) for _ in range(12000)}
+scope.update(plain_needles=needles, plain_automaton=None, plain_hits={}, plain_batches=None, plain_batch_ids={})
+ordered = sorted(needles)
+# Revisit the same evidence after switching batches, including absent patterns.
+hay = ordered[0] + ' ' + ordered[len(ordered) // 2] + ' ' + ordered[-1]
+for needle in [ordered[i] for i in (0, len(ordered) // 2, -1, 1, -2, 0)]:
+    assert scope['plain_line_present'](needle, hay) == (needle in hay)
+    automaton = scope['plain_automaton']
+    # The repair stores the active batch ID before the existing trie arrays.
+    edges = automaton[1] if isinstance(automaton[0], int) else automaton[0]
+    assert len(edges) <= 65537, len(edges)
+
 PY_BATCH_PRESENCE
 then test_pass; else test_fail "batch index changed literal substring matching"; fi
 
