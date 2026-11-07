@@ -160,6 +160,8 @@ def freeze(data, boundary):
 def unsafe_recursive_delete(command, cwd=None):
     """Check each recursive forced rm target without executing shell input."""
     safe_names = {"node_modules", "dist", ".next", "__pycache__", "build", "coverage", ".turbo"}
+    shell_names = {"bash", "sh", "zsh", "eval", "dash", "ksh", "mksh", "lksh", "ash", "fish", "csh", "tcsh"}
+    command_readers = shell_names | {"source", ".", "xargs", "parallel"}
     literal_text = command.replace("\\\n", "").replace("'", "").replace('"', "").replace("\\", "")
     mentions_rm = bool(re.search(r"\brm\b", literal_text))
     # Quoted command substitutions still execute. Do not exempt their contents.
@@ -193,10 +195,6 @@ def unsafe_recursive_delete(command, cwd=None):
         tokens = list(lexer)
     except ValueError:
         return mentions_rm
-    # Shells can execute stdin or a file, not just their visible arguments.
-    # A producer's data-only exemption cannot establish safety for that input.
-    if mentions_rm and any(Path(token).name in ("bash", "sh", "zsh", "eval") for token in tokens):
-        return True
     working_directory = Path(cwd or os.getcwd())
     if not working_directory.is_absolute():
         raise ValueError("hook cwd must be absolute")
@@ -220,18 +218,24 @@ def unsafe_recursive_delete(command, cwd=None):
             args = args[1:]
         if not args:
             continue
-        executable = Path(args[0]).name
+        executable = args[0] if args[0] == "." else Path(args[0]).name
         if executable in ("cd", "pushd", "popd"):
             working_directory = None
-        if executable in ("bash", "sh", "zsh", "eval"):
-            if any(unsafe_recursive_delete(a, cwd) for a in args[1:]):
+        if executable in command_readers:
+            # These commands execute stdin or files, not just visible arguments.
+            if mentions_rm or any(unsafe_recursive_delete(a, cwd) for a in args[1:]):
                 return True
         if executable != "rm":
             # Only known data-only forms can ignore literal rm text. Unknown
             # shell grammar and execution wrappers must not obtain an exemption.
-            if executable not in ("echo", "printf", "grep", "rg") and any(
-                    re.search(r"\brm\b", arg) for arg in args):
-                return True
+            if executable not in ("echo", "printf", "grep", "rg"):
+                if any(re.search(r"\brm\b", arg) for arg in args):
+                    return True
+                if mentions_rm:
+                    if any(char in args[0] for char in ("$", "`")):
+                        return True
+                    if any(Path(arg).name in command_readers for arg in args[1:]):
+                        return True
             continue
         recursive = force = False
         targets, options = [], True
