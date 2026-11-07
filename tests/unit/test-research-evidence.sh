@@ -1100,6 +1100,42 @@ else
     test_fail "compact reference or formatted unit verification regressed: $ordinal_kinds"
 fi
 
+for literal_text in '`_buffer`' '``literal `_buffer``' '[MiB](https://example.com/_unit)' '[MiB](./_unit_(name))' '[MiB][_unit]'; do
+    test_case "literal Markdown markers do not consume outer emphasis: $literal_text"
+    literal_claims=$(research_extract_numbers "The limit is _**16** ${literal_text}_ .")
+    if [[ "$literal_claims" == 16 ]]; then test_pass; else test_fail "literal marker hid quantity: $literal_claims"; fi
+done
+
+test_case "an unterminated destination does not consume surrounding emphasis"
+literal_claims=$(research_extract_numbers 'The limit is _**16** [MiB](unterminated_.')
+if [[ "$literal_claims" == 16 ]]; then test_pass; else test_fail "invalid destination hid quantity: $literal_claims"; fi
+
+for linked_unit in '[MiB](#units)' '[MiB](./units.md)' '[MiB][units]' '[MiB][]' '[MiB]'; do
+    test_case "linked unit remains a quantity: $linked_unit"
+    linked_claims=$(research_extract_numbers "Items: 5 $linked_unit.")
+    if [[ "$linked_claims" == 5 ]]; then test_pass; else test_fail "linked unit hid quantity: $linked_claims"; fi
+done
+
+for list_label in '**_3._**' '_**3)**_' '___3.___'; do
+    test_case "nested formatted list label is excluded: $list_label"
+    list_claims=$(research_extract_numbers "- $list_label Unexpected errors return 500.")
+    if [[ "$list_claims" == 500 ]]; then test_pass; else test_fail "list label became a claim: $list_claims"; fi
+done
+
+test_case "Markdown literals and linked units cannot hide citation mismatches"
+{
+    printf '%s\n' '- The limit is _**16** [MiB](https://example.com/_unit)_ (`src/handler.ts:4`).'
+    printf '%s\n' '- The limit is _**16** with `_buffer`_ (`src/handler.ts:4`).'
+    printf '%s\n' '- Items: 5 [MiB](#units) (`src/handler.ts:4`).'
+    printf '%s\n' '- Items: 5 [MiB][units] (`src/handler.ts:4`).'
+    printf '%s\n' '- **_3._** Unexpected errors return 500 (`src/handler.ts:4`).'
+} > "$ordinal_draft"
+ordinal_status=0
+research_verify_synthesis "$ordinal_draft" || ordinal_status=$?
+ordinal_kinds=$(jq -r '.checks[] | "\(.line):\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$ordinal_status" -ne 0 && "$ordinal_kinds" == "1:number_mismatch:16 2:number_mismatch:16 3:number_mismatch:5 4:number_mismatch:5 " ]]; then test_pass
+else test_fail "Markdown literal verification regressed: $ordinal_kinds"; fi
+
 test_case "an unresolved workspace citation is reported by name and its line numbers are not claims"
 unresolved_draft="$RESEARCH_RUN_DIR/local-unresolved.md"
 {

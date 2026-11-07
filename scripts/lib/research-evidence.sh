@@ -627,10 +627,37 @@ research_extract_numbers() {
 # "section 2" are still checked.
 research_numeric_claims() {
     LC_ALL=C awk '
-    function unformat(text,    at, marker, width, previous, following, depth, result, piece, key, marks, starts, drops) {
+    function unformat(text,    at, marker, width, previous, following, depth, result, piece, scan, balance, marks, starts, drops, ticks, next_tick) {
+        # Pair equal-length backtick runs once. Literal code and destinations
+        # must not open or close emphasis in the surrounding prose.
+        scan = 1
+        while (match(substr(text, scan), /`+/)) {
+            at = scan + RSTART - 1; width = RLENGTH
+            if (width in ticks) next_tick[ticks[width]] = at
+            ticks[width] = at; scan = at + width
+        }
         at = 1; depth = 0
         while (at <= length(text)) {
             marker = substr(text, at, 1)
+            if (marker == "\\") { at += 2; continue }
+            if (at in next_tick) {
+                match(substr(text, at), /^`+/)
+                at = next_tick[at] + RLENGTH; continue
+            }
+            if (substr(text, at, 2) == "](") {
+                scan = at + 2; balance = 1
+                while (scan <= length(text) && balance > 0) {
+                    marker = substr(text, scan, 1)
+                    if (marker == "\\") { scan += 2; continue }
+                    if (marker == "(") balance++
+                    if (marker == ")") balance--
+                    scan++
+                }
+                if (balance == 0) { at = scan; continue }
+            }
+            if (substr(text, at, 2) == "][" && match(substr(text, at + 2), /^[^]]*\]/)) {
+                at += 2 + RLENGTH; continue
+            }
             if (marker != "*" && marker != "_") { at++; continue }
             while (substr(text, at + length(marker), 1) == substr(marker, 1, 1)) marker = marker substr(marker, 1, 1)
             width = length(marker)
@@ -665,7 +692,9 @@ research_numeric_claims() {
         # remain substantive before any label/list exemptions.
         if (after ~ /^[ \t]*(-|\342\200\223|\342\200\224|\342\210\222|\/)[ \t]*[*_]*[0-9]/) return 0
         if (after ~ /^[ \t]*%/) return 0
-        if (after ~ /^[ \t]*\[[^]]+\]\([A-Za-z][A-Za-z0-9+.-]*:/) return 0
+        # Link labels, including relative, fragment and reference links, can
+        # name units. Keep the quantity even for a shortcut reference label.
+        if (after ~ /^[ \t]*\[[^]]+\]/) return 0
         if (after ~ /^[ \t]*[*_`(]*([0-9A-Za-z]|\302\260|\302\265|\316\274)/ && tolower(after) !~ /^[ \t]+(and|or)[ \t]/) return 0
         gap = tolower(substr(line, ord_end, start - ord_end))
         list_reference = (ord_end > 0 && gap ~ ("^([ \\t]*,[ \\t]*|[ \\t]*,?[ \\t]*(and|or)[ \\t]+)" label))
@@ -685,6 +714,8 @@ research_numeric_claims() {
         # Treat common nonbreaking unit/list spaces like ASCII spaces under C locale.
         gsub(/\302\240|\342\200\257/, " ", line)
         line = unformat(line)
+        # Nested emphasis can expose a list marker missed by the first pass.
+        sub(/^[ \t]*([-*+][ \t]*)?[0-9]+[.)][ \t]+/, "", line)
         pos = 1; id_end = -1; ord_end = 0
         while (match(substr(line, pos), /[0-9]+([.,][0-9]+)*%?/)) {
             start = pos + RSTART - 1; len = RLENGTH; pos = start + len
