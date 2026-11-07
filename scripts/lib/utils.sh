@@ -388,6 +388,13 @@ _validate_claude_agent_command() {
         if [[ $configured_index -gt 0 ]]; then
             case "$configured_token" in
                 --strict-mcp-config) ;;
+                --tools)
+                    [[ $((configured_index + 1)) -lt ${#configured_parts[@]} ]] || return 1
+                    [[ "${configured_parts[$((configured_index + 1))]}" == "Read,Glob,Grep" ]] || return 1
+                    configured_index=$((configured_index + 1))
+                    i=$((i + 1))
+                    [[ $i -lt ${#parts[@]} && "${parts[$i]}" == "Read,Glob,Grep" ]] || return 1
+                    ;;
                 --setting-sources)
                     [[ $((configured_index + 1)) -lt ${#configured_parts[@]} ]] || return 1
                     [[ "${configured_parts[$((configured_index + 1))]}" == "project,local" ]] || return 1
