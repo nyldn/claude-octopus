@@ -181,7 +181,11 @@ class DocumentRendererTest(unittest.TestCase):
                     self.assertIn(requirement, step)
                 self.assertLess(step.index("Confirm the governing question"),
                                 step.index("working hypothesis"))
-                self.assertLess(step.index("titles-only read"), step.index("Looks good, render the deck"))
+                read = step.index("Read only the slide-title sentences, top to bottom.")
+                revise = step.index("revise the skeleton and repeat the titles-only read before")
+                approve = step.index("Present the confirmed question, opener, hypothesis and sentence skeleton")
+                self.assertLess(read, revise)
+                self.assertLess(revise, approve)
                 self.assertIn("informational", step)
                 self.assertIn("Do not invent a decision", step)
                 self.assertNotIn("[First Content Section]", step)
