@@ -273,6 +273,7 @@ _parallel_write_report() {
 
 parallel_execute() {
     local tasks_file="${1:-$TASKS_FILE}"
+    local RESULTS_DIR="${RESULTS_DIR:-${WORKSPACE_DIR:-${HOME}/.claude-octopus}/results}"
     if [[ "${OCTOPUS_FEATURE_PARALLEL_WAVE_ACTIVE:-false}" != true ]]; then
         if [[ -n "${FEATURE_TASK_CONTRACT:-}" && "$tasks_file" == "$FEATURE_TASK_CONTRACT" ]] || \
            { [[ -f "$tasks_file" ]] && jq -e '.schema_version == 1 and (.feature_id|type == "string")' "$tasks_file" >/dev/null 2>&1; }; then
@@ -295,12 +296,111 @@ parallel_execute() {
     local task_ids=()
     local task_agents=()
     local task_sequences=()
+    local output_claims=()
+    local owner_lock="" owner_python=""
+    local _parallel_claim_helper="${_parallel_lib_dir}/../helpers/output-claim.py"
     _parallel_cleanup_cron() {
         if [[ "$_parallel_cron_disabled" == "true" ]]; then
             unset CLAUDE_CODE_DISABLE_CRON 2>/dev/null || true
         fi
     }
+    # fd 7 holds this invocation's owner lock. Every worker and provider
+    # inherits it, so the lock stays held until all of them have exited, even
+    # after SIGKILL ends this shell before cleanup can run.
+    _parallel_open_owner_lock() {
+        [[ -z "$owner_lock" ]] || return 0
+        # Leave a descriptor 7 that the caller opened untouched.
+        { : <&7; } 2>/dev/null && return 1
+        if [[ -z "$owner_python" ]]; then
+            if declare -F octopus_pid_python_resolve >/dev/null 2>&1; then
+                owner_python=$(octopus_pid_python_resolve 2>/dev/null) || owner_python=""
+            else
+                owner_python=$(command -v python3 2>/dev/null) || owner_python=""
+            fi
+        fi
+        [[ -n "$owner_python" ]] || return 1
+        owner_lock=$(mktemp "$RESULTS_DIR/.parallel-owner.XXXXXX" 2>/dev/null) || { owner_lock=""; return 1; }
+        if ! { exec 7>"$owner_lock"; } 2>/dev/null || \
+           ! "$owner_python" "$_parallel_claim_helper" hold 7 </dev/null; then
+            exec 7>&-
+            rm -f -- "$owner_lock" 2>/dev/null || true
+            owner_lock=""
+            return 1
+        fi
+    }
+    # Returns 0 when acquired, 3 when reclaimed from an exited owner, and 1
+    # while another invocation, or any process it started, may still own it.
+    _parallel_claim_output() {
+        local claim="$1" claim_status=0
+        if _parallel_open_owner_lock; then
+            "$owner_python" "$_parallel_claim_helper" acquire "$claim" "$owner_lock" </dev/null || claim_status=$?
+            case "$claim_status" in
+                0) return 0 ;;
+                11) return 3 ;;
+                *) return 1 ;;
+            esac
+        fi
+        log WARN "Shell output claim at $claim: interrupted claims need manual recovery; see docs/COMMAND-REFERENCE.md"
+        mkdir -- "$claim" 2>/dev/null || return 1
+        # A nonempty fallback claim cannot be replaced by Python's rename.
+        # If Python publishes between mkdir and this exclusive write, its owner
+        # record makes the write fail, so this contender never dispatches.
+        (set -o noclobber; printf '%s\n' fallback > "$claim/owner") 2>/dev/null
+    }
+    _parallel_cancel_orphaned_seat() {
+        local task_id="$1" output="$2" ledger agent seat role
+        declare -F write_agent_status >/dev/null || return 0
+        declare -F octo_run_dir >/dev/null || return 0
+        ledger="$(octo_run_dir)/agents.jsonl"
+        [[ -s "$ledger" ]] || return 0
+        while IFS=$'\t' read -r agent seat role; do
+            write_agent_status "$agent" cancelled 0 0 "Seat owner exited before recording a terminal status" \
+                0 "$output" "$role" "$seat" || true
+        done < <(jq -rs --arg seat "spawn-$task_id" --arg file "$output" \
+            "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
+            latest_per_seat | .[] |
+            select(.status == "running" and .seat_id == $seat and .output_file == $file) |
+            [.agent, .seat_id, (.role // "")] | @tsv' "$ledger")
+    }
+    _parallel_release_output() {
+        local claim="$1" retired
+        if [[ -n "$owner_lock" ]]; then
+            "$owner_python" "$_parallel_claim_helper" release "$claim" "$owner_lock" </dev/null
+            return $?
+        fi
+        # Fallback claims cannot be reclaimed by other invocations. Move the
+        # complete directory before removing anything, including without Python.
+        [[ "$(cat "$claim/owner" 2>/dev/null)" == fallback ]] || return 1
+        retired=$(mktemp -d "$RESULTS_DIR/.retired-claim.XXXXXX") || return 1
+        if ! mv -- "$claim" "$retired/claim"; then
+            rmdir -- "$retired" 2>/dev/null || true
+            return 1
+        fi
+        rm -rf -- "$retired"
+    }
     _parallel_cleanup_resources() {
+        local claim keep_owner_lock=false
+        if [[ ${#output_claims[@]} -gt 0 ]]; then
+            for claim in "${output_claims[@]}"; do
+                _parallel_release_output "$claim" 2>/dev/null || keep_owner_lock=true
+            done
+        fi
+        output_claims=()
+        if [[ -n "$owner_lock" ]]; then
+            # A signal can arrive after publication but before the claim was
+            # appended above. Reconcile every claim naming this owner before
+            # unlinking its lock, or that unregistered claim cannot be reclaimed.
+            for claim in "$RESULTS_DIR"/.*.claim; do
+                [[ -f "$claim/owner" ]] || continue
+                [[ "$(cat "$claim/owner" 2>/dev/null)" == "$owner_lock" ]] || continue
+                _parallel_release_output "$claim" 2>/dev/null || keep_owner_lock=true
+            done
+            exec 7>&-
+            if [[ "$keep_owner_lock" == false ]]; then
+                rm -f -- "$owner_lock" 2>/dev/null || true
+            fi
+            owner_lock=""
+        fi
         [[ -z "$spawn_output" ]] || rm -f "$spawn_output" 2>/dev/null || true
         [[ -z "$spawn_pid_handoff" ]] || rm -f "$spawn_pid_handoff" 2>/dev/null || true
         [[ -z "$outcome_dir" ]] || rm -rf "$outcome_dir" 2>/dev/null || true
@@ -406,6 +506,26 @@ parallel_execute() {
         eval "set -- ${saved_trap#trap -- }"
         eval "$1"
     }
+    _parallel_cancel_running_seats() {
+        # Call after terminating workers and before releasing their claims.
+        # Include a seat whose PID is still being handed back by spawn.
+        declare -F write_agent_status >/dev/null || return 0
+        declare -F octo_run_dir >/dev/null || return 0
+        local ledger agent seat output role
+        ledger="$(octo_run_dir)/agents.jsonl"
+        [[ -s "$ledger" ]] || return 0
+        while IFS=$'\t' read -r agent seat output role; do
+            write_agent_status "$agent" cancelled 0 0 "Parallel execution interrupted" \
+                0 "$output" "$role" "$seat" || true
+        done < <(jq -rs --rawfile tasks /dev/stdin \
+            "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
+            ($tasks | fromjson) as $tasks |
+            latest_per_seat | .[] | select(.status == "running") |
+            select(. as $row | any($tasks[];
+                $row.seat_id == ("spawn-" + .id) and
+                $row.output_file == .output_file)) |
+            [.agent, .seat_id, .output_file, (.role // "")] | @tsv' "$ledger" <<< "${aggregate_task_scope:-[]}")
+    }
     _parallel_handle_signal() {
         local signal="$1" signal_status=143 saved_trap current_pid
         [[ "$signal" == "INT" ]] && signal_status=130
@@ -415,6 +535,7 @@ parallel_execute() {
             saved_trap="$_parallel_previous_term_trap"
         fi
         _parallel_terminate_tracked_processes
+        _parallel_cancel_running_seats
         _parallel_cleanup_resources
         _parallel_restore_traps
         if [[ -n "$saved_trap" ]]; then
@@ -515,6 +636,7 @@ parallel_execute() {
     local previewed=0
     local sequence=0
     local seen_task_ids=$'\n'
+    local aggregate_task_scope='[]'
 
     while IFS= read -r task; do
         local task_id="" agent="" prompt="" current_sequence="$sequence"
@@ -621,11 +743,6 @@ parallel_execute() {
             continue
         fi
 
-        # A reused task ID must not inherit a completion marker from an earlier
-        # run. IDs are filename-safe by the validation above.
-        rm -f "${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents/${task_id}.done" \
-            2>/dev/null || true
-
         while [[ $running -ge $max_parallel ]]; do
             for i in "${!pids[@]}"; do
                 if _parallel_pid_has_finished "${pids[$i]}"; then
@@ -633,6 +750,12 @@ parallel_execute() {
                         "${task_sequences[$i]}" "${task_ids[$i]}" "${task_agents[$i]}"; then
                         ((completed++)) || true
                     else
+                        local failed_slug="${task_agents[$i]}"
+                        [[ "$failed_slug" != claude-opus-fast ]] || failed_slug=claude-opus
+                        if declare -F octo_agent_spec_slug >/dev/null 2>&1; then
+                            failed_slug=$(octo_agent_spec_slug "$failed_slug")
+                        fi
+                        _parallel_cancel_orphaned_seat "${task_ids[$i]}" "$RESULTS_DIR/$failed_slug-${task_ids[$i]}.md"
                         ((failed++)) || true
                     fi
                     unset 'pids[i]'
@@ -643,6 +766,76 @@ parallel_execute() {
             [[ $running -ge $max_parallel ]] && sleep "${OCTOPUS_PARALLEL_POLL_INTERVAL:-0.2}"
         done
 
+        local result_slug="$agent"
+        # spawn_agent normalizes this legacy alias before choosing its filename.
+        [[ "$result_slug" != claude-opus-fast ]] || result_slug=claude-opus
+        if declare -F octo_agent_spec_slug >/dev/null 2>&1; then
+            result_slug=$(octo_agent_spec_slug "$result_slug")
+        fi
+        # Agent/task pairs can share a filename, including normalized aliases.
+        # Never remove or dispatch into a result already owned by this batch.
+        if jq -e --arg file "$RESULTS_DIR/$result_slug-$task_id.md" \
+            'any(.output_file == $file)' <<< "$aggregate_task_scope" >/dev/null; then
+            log ERROR "Output path collision for task $task_id"
+            _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" true \
+                "failed" "output-path-collision" ""
+            type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent" failed 0 0 \
+                output-path-collision 0 "" "" "spawn-$task_id" || true
+            aggregate_task_scope=$(jq -c --arg id "$task_id" \
+                '. + [{id: $id, output_file: ""}]' <<< "$aggregate_task_scope")
+            ((failed++)) || true
+            continue
+        fi
+        # Claims live beside the output so separate invocations sharing a
+        # results directory cannot unlink or dispatch into each other's file.
+        local claim="$RESULTS_DIR/.$result_slug-$task_id.claim" claim_status=0
+        mkdir -p "$RESULTS_DIR"
+        _parallel_claim_output "$claim" || claim_status=$?
+        if [[ "$claim_status" -ne 0 && "$claim_status" -ne 3 ]]; then
+            log ERROR "Output path is already claimed for task $task_id"
+            _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" true \
+                failed output-path-owned ""
+            ((failed++)) || true
+            continue
+        fi
+        output_claims+=("$claim")
+        if [[ "$claim_status" -eq 3 ]]; then
+            log WARN "Reclaimed the output of task $task_id from an invocation that has exited"
+            _parallel_cancel_orphaned_seat "$task_id" "$RESULTS_DIR/$result_slug-$task_id.md"
+        fi
+        # Preserve active outputs from older dispatchers without claim support.
+        local ledger=""
+        if declare -F octo_run_dir >/dev/null 2>&1; then
+            ledger="$(octo_run_dir)/agents.jsonl"
+        fi
+        # Only a successfully parsed ledger can establish that no seat owns
+        # this path. A damaged record may contain an active owner's status.
+        if [[ -s "$ledger" ]] && ! jq -es --arg file "$RESULTS_DIR/$result_slug-$task_id.md" \
+            "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'latest_per_seat | all(.output_file != $file or .status != "running")' \
+            "$ledger" >/dev/null 2>&1; then
+            log ERROR "Output path has a running seat for task $task_id"
+            _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" true \
+                failed output-path-owned ""
+            ((failed++)) || true
+            continue
+        fi
+        # Clear stale task artifacts only after both ownership checks. A
+        # rejected contender must leave the current owner's marker collectible.
+        if ! rm -f -- "$RESULTS_DIR/$result_slug-$task_id.md" \
+            "${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents/${task_id}.done"; then
+            log ERROR "Cannot remove previous output or completion marker for task $task_id"
+            _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" true \
+                "failed" "stale-output-removal" ""
+            type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent" failed 0 0 \
+                stale-output-removal 0 "" "" "spawn-$task_id" || true
+            aggregate_task_scope=$(jq -c --arg id "$task_id" \
+                '. + [{id: $id, output_file: ""}]' <<< "$aggregate_task_scope")
+            ((failed++)) || true
+            continue
+        fi
+        aggregate_task_scope=$(jq -c --arg id "$task_id" \
+            --arg output_file "$RESULTS_DIR/$result_slug-$task_id.md" \
+            '. + [{id: $id, output_file: $output_file}]' <<< "$aggregate_task_scope")
         local pid="" spawn_status=0
         spawn_output=""
         spawn_pid_handoff=""
@@ -683,6 +876,7 @@ parallel_execute() {
             log WARN "Skipping task $task_id: failed to spawn agent '$agent'"
             _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" true \
                 "failed" "failed-spawn" "$spawn_status"
+            _parallel_cancel_orphaned_seat "$task_id" "$RESULTS_DIR/$result_slug-$task_id.md"
             ((failed++)) || true
             continue
         fi
@@ -709,6 +903,12 @@ parallel_execute() {
                     "${task_sequences[$i]}" "${task_ids[$i]}" "${task_agents[$i]}"; then
                     ((completed++)) || true
                 else
+                    local failed_slug="${task_agents[$i]}"
+                    [[ "$failed_slug" != claude-opus-fast ]] || failed_slug=claude-opus
+                    if declare -F octo_agent_spec_slug >/dev/null 2>&1; then
+                        failed_slug=$(octo_agent_spec_slug "$failed_slug")
+                    fi
+                    _parallel_cancel_orphaned_seat "${task_ids[$i]}" "$RESULTS_DIR/$failed_slug-${task_ids[$i]}.md"
                     ((failed++)) || true
                 fi
                 unset 'pids[i]'
@@ -730,7 +930,7 @@ parallel_execute() {
         fi
     fi
     local aggregate_status=0
-    if aggregate_results; then
+    if aggregate_results "" "" "$aggregate_task_scope"; then
         aggregate_status=0
     else
         aggregate_status=$?
@@ -878,6 +1078,7 @@ _aggregate_pick_synth_agent() {
 aggregate_results() {
     local _ts; _ts=$(date +%s)
     local filter="${1:-}"
+    local task_scope="${3:-null}"
     local user_query="${2:-}"  # v8.49.0: Optional user query for relevance-aware synthesis
     local aggregate_file="${RESULTS_DIR}/aggregate-${_ts}.md"
     local raw_concat="${RESULTS_DIR}/.raw-concat-$$.md"
@@ -904,6 +1105,17 @@ aggregate_results() {
 
     while IFS= read -r result; do
         [[ -z "$result" ]] && continue
+        if [[ "$task_scope" != null ]]; then
+            local scope_status=0
+            jq -e --arg file "$result" 'any(.output_file == $file)' \
+                <<< "$task_scope" >/dev/null || scope_status=$?
+            if [[ "$scope_status" -ne 0 ]]; then
+                [[ "$scope_status" -ne 1 ]] || continue
+                log ERROR "Cannot read aggregation task scope (jq exit $scope_status)"
+                rm -f -- "$raw_concat"
+                return "$scope_status"
+            fi
+        fi
         local score
         score=$(score_result_file "$result")
         echo "---" >> "$raw_concat"

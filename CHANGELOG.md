@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Large parallel task batches retain their scoped results without exceeding
+  command-line argument limits, and invalid scopes report an aggregation error.
+  A spawn that fails after recording a running seat cancels that seat so a later
+  attempt can proceed. Interrupted shell-only claims report their manual
+  recovery procedure.
+- The agent run summary no longer reports a provider's successful seat as
+  failed when another of its seats times out. The status ledger kept the
+  latest row per agent name, so a probe with two Claude seats printed "2 of 2
+  agents failed or timed out" after one seat's 603-second timeout replaced the
+  other seat's completed result. The same lookup left that result out of the
+  outputs offered to synthesis. Rows are now kept per seat, by seat ID or else
+  by result file, in the summary, the `agents.json` snapshot and the output
+  list. Probe and aggregate summaries count only their own seats, because the
+  ledger spans every command in a session.
+- Output claims publish their owner atomically, so an interrupted claim
+  preparation cannot permanently block retries. Live owners keep their outputs.
+  Workers that exit without recording a terminal status no longer block retries
+  in the same run.
+
 ## [11.17.1] - 2026-11-05
 
 ### Fixed

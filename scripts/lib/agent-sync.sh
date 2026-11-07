@@ -1502,7 +1502,7 @@ ${provider_ctx}"
     fi
     local tokens_in
     tokens_in=$(( ${#enhanced_prompt} / 4 ))
-    enhanced_prompt=$(enforce_context_budget "$enhanced_prompt" "$role" "$agent_type" "$phase")
+    enhanced_prompt=$(enforce_context_budget "$enhanced_prompt" "$role" "$agent_type" "$phase" "$_sync_seat_id")
     local _budget_rc=$?
     if [[ $_budget_rc -ne 0 ]]; then
         run_contract_transition "$_sync_seat_id" failed \
