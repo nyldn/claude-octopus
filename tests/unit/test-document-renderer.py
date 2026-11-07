@@ -255,6 +255,8 @@ fi
     printf '%s' "$STAKEHOLDER_PROMPT" | bash "$AGY_ADAPTER"
 }
 ''')
+        has_pty = subprocess.run(["bash", "-c", "command -v script"],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
         for tree in (".claude/skills", "skills"):
             text = (ROOT / tree / "skill-deck/SKILL.md").read_text()
             recipe = textwrap.dedent(text.split("<!-- deck-seat-collection:start -->", 1)[1].split(
@@ -278,7 +280,8 @@ fi
                     # condition when the recipe's overrides are absent.
                     control = subprocess.run(["bash", env["AGY_ADAPTER"]], input="prompt",
                                              env=env, text=True, capture_output=True, timeout=10)
-                    self.assertEqual(len(calls.read_text().splitlines()), 2, control.stderr)
+                    expected_calls = 2 if failure == "empty" or has_pty else 1
+                    self.assertEqual(len(calls.read_text().splitlines()), expected_calls, control.stderr)
                     calls.unlink()
                     result = subprocess.run(["bash", "-euo", "pipefail", "-c", recipe +
                                              '\n[[ "$OCTOPUS_AGY_NO_RETRY" == 0 && "$OCTOPUS_AGY_NO_PTY_FALLBACK" == 0 ]]'],
