@@ -293,6 +293,7 @@ class DocumentRendererTest(unittest.TestCase):
                 self.assertIn("brief's purpose", audience)
                 self.assertIn("decision or informational purpose in Step 3", " ".join(audience.split()))
                 self.assertIn("only when a decision is requested", " ".join(audience.split()))
+                self.assertIn("Include financial implications only when relevant and supported by sources", " ".join(audience.split()))
 
 
 if __name__ == "__main__":
