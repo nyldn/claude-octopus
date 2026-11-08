@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### Improved
+
+- Leading CLI help skips workflow initialization. Complete, valid reviews with
+  no findings skip verifier and synthesis calls after confirming the diff is unchanged.
+- Council advice, critique and revision use bounded concurrency with ordered
+  usage reservations. Refinement can overlap its two pinned, independent judges
+  under one call budget and deadline.
+- Preparation can check an explicit provider panel and validate a short-lived
+  readiness receipt. Fresh dispatch authorization remains required.
+- Discovery and refinement load phase instructions as needed. Brainstorm, PRD
+  and security workflows reuse supplied answers and ask about material gaps.
+- Correction loops detect completed workers sooner. Provider retries distinguish
+  terminal authentication failures from recoverable refresh or transport failures.
+- Worktree metadata sampling, usage reports, context lookup and convergence
+  checks avoid repeated subprocesses, whole-log buffering or unchanged file reads.
+
 ## [11.19.0] - 2026-11-08
 
 ### Added

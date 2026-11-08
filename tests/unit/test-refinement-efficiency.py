@@ -1,0 +1,211 @@
+#!/usr/bin/env python3
+"""Offline panel, receipt, paired reservation, and phase packaging regressions."""
+import importlib.util
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import signal
+import subprocess
+import tempfile
+import time
+import unittest
+from unittest.mock import patch
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+class Efficiency(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(prefix="octo-efficiency-")
+        self.addCleanup(self.tmp.cleanup)
+        self.base = Path(self.tmp.name)
+
+    def test_nul_fields_bash32(self):
+        script = r'''source "$1/scripts/lib/preflight.sh"
+{ IFS= read -r -d '' a; IFS= read -r -d '' b; IFS= read -r -d '' c; IFS= read -r -d '' d; } < <(_octo_readiness_json_fields '{"a":"","b":null,"c":"x\n\t\n","d":"last"}' a b c d)
+[[ "$a" == "" && "$b" == "" && "$c" == $'x\n\t\n' && "$d" == last ]]
+'''
+        subprocess.run(["/bin/bash", "-eu", "-c", script, "test", str(ROOT)], check=True)
+
+    def fixture_panel(self):
+        helpers = self.base / "scripts/helpers"
+        lib = self.base / "scripts/lib"
+        helpers.mkdir(parents=True)
+        lib.mkdir()
+        for name in ("preflight.sh", "readiness-receipt.py"):
+            shutil.copy(ROOT / "scripts/helpers" / name, helpers / name)
+        (lib / "preflight.sh").write_text(f'source "{ROOT}/scripts/lib/preflight.sh"\n' + r'''
+octo_provider_ids() { printf '%s\n' claude codex agy; }
+octo_provider_readiness_result() {
+    jq -cn --arg p "$1" --arg k "$2" --arg s "${TEST_STATUS:-available}" '{provider:$p,status:$s,reason_code:"fixture",check_kind:$k,checked_at:"fixture",duration_ms:0,remediation:""}'
+}
+''')
+        return helpers / "preflight.sh"
+
+    def test_scope_receipt_parity_pins_and_fail_closed(self):
+        helper = self.fixture_panel()
+        env = dict(os.environ, OCTOPUS_PREFLIGHT_PROVIDERS="", OCTOPUS_COUNCIL_DEFAULT_PROVIDERS="")
+        def run(*args, changes=None):
+            return subprocess.run(["bash", str(helper), "--json", *args], env=dict(env, **(changes or {})), capture_output=True, text=True)
+        full = json.loads(run().stdout)
+        selected = json.loads(run("--providers", "claude,codex").stdout)
+        self.assertEqual(selected["results"], full["results"][:2])
+        pinned = json.loads(run(changes={"OCTOPUS_COUNCIL_DEFAULT_PROVIDERS":"claude,codex"}).stdout)
+        self.assertEqual(selected["results"], pinned["results"])
+        override = json.loads(run("--providers", "claude,codex", changes={"OCTOPUS_COUNCIL_DEFAULT_PROVIDERS":"agy"}).stdout)
+        self.assertEqual(override["roster"], ["claude", "codex"])
+        for scope in ("unknown", "openai-tools", "claude,,codex", ",", "claude:"):
+            self.assertNotEqual(run("--providers", scope).returncode, 0, scope)
+        receipt = self.base / "receipt.json"
+        self.assertEqual(run("--providers", "claude,codex", "--run-id", "one", "--report-out", str(receipt)).returncode, 0)
+        args = ("--providers", "claude,codex", "--run-id", "one", "--report-in", str(receipt))
+        self.assertEqual(run(*args).returncode, 0)
+        self.assertNotEqual(run(*args, changes={"TEST_STATUS":"degraded"}).returncode, 0)
+        self.assertNotEqual(run(*args, changes={"OCTOPUS_CODEX_MODEL":"changed"}).returncode, 0)
+        self.assertNotEqual(run(*args, changes={"OCTO_ALLOWED_PROVIDERS":"agy"}).returncode, 0)
+        # Transport into preparation uses the panel environment without altering receipt identity.
+        self.assertEqual(run(*args, changes={"OCTOPUS_PREFLIGHT_PROVIDERS":"claude,codex"}).returncode, 0)
+        config = self.base/'scripts/lib/config-fixture.sh'
+        config.write_text('changed')
+        self.assertNotEqual(run(*args).returncode, 0)
+        config.unlink()
+        binary_dir = self.base/'bin'; binary_dir.mkdir()
+        binary = binary_dir/'codex'; binary.write_text('#!/bin/sh\nexit 0\n'); binary.chmod(0o755)
+        binary_receipt = self.base/'binary-receipt.json'
+        scoped_env = {'PATH':str(binary_dir)+':'+os.environ['PATH'], 'WORKSPACE_DIR':str(self.base/'workspace')}
+        self.assertEqual(run('--providers','claude,codex','--run-id','one','--report-out',str(binary_receipt),changes=scoped_env).returncode,0)
+        binary_args = ('--providers','claude,codex','--run-id','one','--report-in',str(binary_receipt))
+        self.assertEqual(run(*binary_args,changes=scoped_env).returncode,0)
+        binary.write_text('#!/bin/sh\nexit 1\n')
+        self.assertNotEqual(run(*binary_args,changes=scoped_env).returncode,0)
+        binary_receipt.unlink()
+        self.assertEqual(run('--providers','claude,codex','--run-id','one','--report-out',str(binary_receipt),changes=scoped_env).returncode,0)
+        self.assertEqual(run(*binary_args,changes=scoped_env).returncode,0)
+        quota = self.base/'workspace/state/.provider-quota-dead'; quota.parent.mkdir(parents=True)
+        quota.write_text('codex')
+        self.assertNotEqual(run(*binary_args,changes=scoped_env).returncode,0)
+        original = receipt.read_text()
+        for key, value in (("created_at", 0), ("version", 99), ("scope", ["agy"]), ("run_id", "two"), ("state", "bad")):
+            data = json.loads(original); data[key] = value; receipt.write_text(json.dumps(data))
+            self.assertNotEqual(run(*args).returncode, 0, key)
+        receipt.write_text("{bad")
+        self.assertNotEqual(run(*args).returncode, 0)
+
+    def test_optional_diagnostics_scope(self):
+        binaries = self.base/'bin'; binaries.mkdir()
+        log = self.base/'versions'
+        for name in ('codex','agy','qwen','gh','opencode'):
+            cli = binaries/name
+            cli.write_text('#!/bin/sh\necho '+name+' >> "'+str(log)+'"\necho 1.0.0\n')
+            cli.chmod(0o755)
+        subprocess.run(['bash',str(ROOT/'scripts/helpers/check-versions.sh'),'--json'],
+            env=dict(os.environ, PATH=str(binaries)+':'+os.environ['PATH'], OCTO_ROOT=str(ROOT),
+                     OCTOPUS_PREFLIGHT_DIAGNOSTIC_PROVIDERS='codex'), check=True,capture_output=True)
+        self.assertEqual(log.read_text().splitlines(), ['codex'])
+
+    def pair_fixture(self):
+        scripts = self.base / "scripts"
+        scripts.mkdir()
+        for name in ("refinement-pair.py", "refinement-judge.sh"):
+            shutil.copy2(ROOT / "scripts" / name, scripts / name)
+        # Inert orchestrator behind the real mandatory adapter. No credentials/model CLI.
+        runner = scripts / "orchestrate.sh"
+        runner.write_text('''#!/usr/bin/env python3
+import json,os,sys,time,hashlib
+from pathlib import Path
+args=sys.argv
+provider=args[4]
+prompt=Path(args[args.index('--perspective-file')+1])
+out=Path(args[args.index('--output-dir')+1])
+(out/'started').write_text(str(time.time()))
+(out/'record.json').write_text(json.dumps(dict(provider=provider, request=hashlib.sha256(prompt.read_bytes()).hexdigest(), retry=os.environ['OCTOPUS_AUTH_RETRIES'], effort=os.environ['OCTOPUS_REASONING_LEVEL'], sandbox=os.environ['OCTOPUS_CODEX_SANDBOX'], tools=os.environ['OCTOPUS_CLAUDE_BIN'])))
+time.sleep(float(os.environ.get('TEST_DELAY','0.4')))
+(out/'ended').write_text(str(time.time()))
+if os.environ.get('TEST_FAIL') == provider: sys.exit(1)
+print('raw unvalidated output')
+''')
+        runner.chmod(0o755)
+        run = self.base / "run"; run.mkdir()
+        prompt = self.base / "prompt"; prompt.write_text("blind same candidate and rubric")
+        self.deadline = str(time.time() + 20)
+        self.pair_args = [str(scripts / "refinement-pair.py"), str(run), "round-0", str(prompt), str(prompt), str(prompt), self.deadline, "4", "claude-opus:fixed", "high", "codex:fixed", "high"]
+        return run
+
+    def test_pair_overlap_identity_reservation_and_failure(self):
+        run = self.pair_fixture()
+        result = subprocess.run(self.pair_args, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        seats = [run / "round-0" / str(i) for i in range(2)]
+        self.assertLess(max(float((s/'started').read_text()) for s in seats), min(float((s/'ended').read_text()) for s in seats))
+        records = [json.loads((s/'record.json').read_text()) for s in seats]
+        self.assertEqual(records[0]['request'], records[1]['request'])
+        for record in records:
+            self.assertEqual(record['retry'], '0'); self.assertEqual(record['effort'], 'high')
+            self.assertEqual(record['sandbox'], 'read-only'); self.assertIn('--strict-mcp-config', record['tools'])
+        manifest = json.loads((run/'round-0/manifest.json').read_text())
+        self.assertFalse(manifest['score_validated'])
+        self.assertNotEqual(subprocess.run(self.pair_args, capture_output=True).returncode, 0)
+        self.pair_args[2] = 'round-1'
+        failed = subprocess.run(self.pair_args, env=dict(os.environ, TEST_FAIL='codex:fixed'), capture_output=True)
+        self.assertNotEqual(failed.returncode, 0)
+        self.assertEqual(len((run/'calls.jsonl').read_text().splitlines()), 2)
+        self.pair_args[2] = 'round-2'
+        self.assertNotEqual(subprocess.run(self.pair_args, capture_output=True).returncode, 0)
+
+    def test_deadline_and_cancellation(self):
+        run = self.pair_fixture()
+        self.pair_args[6] = str(time.time() + 1.5)
+        result = subprocess.run(self.pair_args, env=dict(os.environ, TEST_DELAY='5'), capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(json.loads((run/'round-0/manifest.json').read_text())['state'], 'failed')
+        # Both normal termination and a lost terminal cancel every owned seat.
+        for signum in (signal.SIGTERM, signal.SIGHUP):
+            other = self.base / f'cancel-{signum}'; other.mkdir()
+            self.pair_args[1] = str(other)
+            self.pair_args[6] = str(time.time() + 20)
+            child = subprocess.Popen(self.pair_args, env=dict(os.environ, TEST_DELAY='5'), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            limit = time.time() + 4
+            while not (other / 'round-0/1/started').exists() and time.time() < limit:
+                time.sleep(.02)
+            self.assertTrue((other / 'round-0/1/started').exists())
+            child.send_signal(signum)
+            child.communicate(timeout=3)
+            self.assertNotEqual(child.returncode, 0)
+            time.sleep(.1)
+            self.assertFalse((other / 'round-0/0/ended').exists())
+            self.assertFalse((other / 'round-0/1/ended').exists())
+
+    def test_group_signals_precede_reaping(self):
+        spec = importlib.util.spec_from_file_location('refinement_pair', ROOT / 'scripts/refinement-pair.py')
+        module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        events = []
+        class Child:
+            def __init__(self, pid): self.pid = pid
+            def wait(self, timeout): events.append(('wait', self.pid))
+        with patch.object(module.os, 'killpg', side_effect=lambda pid, sig: events.append(('signal', pid, sig))), patch.object(module.time, 'sleep'):
+            module.terminate_owned_children([Child(101), Child(102)])
+        self.assertEqual([event[0] for event in events], ['signal'] * 4 + ['wait'] * 2)
+        self.assertEqual([event[2] for event in events[:4]], [signal.SIGTERM] * 2 + [signal.SIGKILL] * 2)
+
+    def test_resources_and_packaging(self):
+        for skill in ('skill-refine','flow-discover'):
+            text=(ROOT/'skills'/skill/'SKILL.md').read_text()
+            self.assertIn('disable-model-invocation: true', text)
+            for link in re.findall(r'skills/[^`\s]+\.md',text):
+                self.assertTrue((ROOT/link).is_file(),link)
+        fixture=self.base/'plugin'; (fixture/'scripts').mkdir(parents=True)
+        (fixture/'.claude/skills').mkdir(parents=True)
+        shutil.copy2(ROOT/'scripts/build-codex-skills.sh',fixture/'scripts')
+        shutil.copytree(ROOT/'skills',fixture/'skills')
+        for skill in ('skill-refine','flow-discover'):
+            shutil.copytree(ROOT/'.claude/skills'/skill,fixture/'.claude/skills'/skill)
+        subprocess.run(['bash',str(fixture/'scripts/build-codex-skills.sh')],check=True,capture_output=True)
+        for skill in ('skill-refine','flow-discover'):
+            self.assertEqual((fixture/'skills'/skill/'SKILL.md').read_bytes(),(fixture/'.claude/skills'/skill/'SKILL.md').read_bytes())
+            self.assertEqual(sorted(p.name for p in (ROOT/'skills'/skill/'references').iterdir()), sorted(p.name for p in (fixture/'skills'/skill/'references').iterdir()))
+        subprocess.run(['bash',str(fixture/'scripts/build-codex-skills.sh'),'--check'],check=True,capture_output=True)
+
+if __name__ == '__main__':
+    unittest.main()

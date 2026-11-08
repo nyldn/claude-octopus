@@ -39,6 +39,41 @@ octo_preflight_roster() {
     [[ "$seen" != " " ]] || return 2
 }
 
+# A fixed internal panel is separate from the user's council policy.
+octo_preflight_panel() {
+    local raw="${1:-${OCTOPUS_PREFLIGHT_PROVIDERS:-}}" seat provider seen=" "
+    [[ -n "$raw" ]] || return 2
+    case "$raw" in *,|,*|*,,*|*[!a-zA-Z0-9,_-]*) echo "ERROR: invalid preflight panel" >&2; return 2 ;; esac
+    for seat in ${raw//,/ }; do
+        provider="$(octo_provider_canonical "$seat")" || { echo "ERROR: unknown required preflight provider: $seat" >&2; return 2; }
+        if [[ -z "$provider" ]] || ! octo_provider_has_capability "$provider" detect; then
+            echo "ERROR: unsupported required preflight provider: $seat" >&2
+            return 2
+        fi
+        [[ "$seen" == *" $provider "* ]] && continue
+        seen="${seen}${provider} "
+        printf '%s\n' "$provider"
+    done
+}
+
+# NUL fields preserve empty strings and embedded/trailing newlines on Bash 3.2.
+# Null follows the legacy scalar helper's empty-string convention.
+_octo_readiness_json_fields() {
+    local json="$1" jq_bin; shift
+    jq_bin="$(type -P jq 2>/dev/null || true)"
+    if [[ -n "$jq_bin" ]]; then
+        printf '%s' "$json" | "$jq_bin" -j --args '. as $o | $ARGS.positional[] | . as $k | ($o[$k] // ""), "\u0000"' -- "$@"
+    else
+        OCTO_READINESS_JSON="$json" python3 - "$@" <<'PYFIELDS'
+import json, os, sys
+row = json.loads(os.environ["OCTO_READINESS_JSON"])
+for field in sys.argv[1:]:
+    value = row.get(field)
+    sys.stdout.write(("" if value is None or value is False else str(value)) + "\0")
+PYFIELDS
+    fi
+}
+
 # True when no roster is pinned, or the provider is on it.
 octo_preflight_in_roster() {
     local roster
@@ -592,8 +627,7 @@ octo_provider_readiness_legacy() {
     printf '%s\n' "PROVIDER_CHECK_START"
     while IFS= read -r result; do
         [[ -n "$result" ]] || continue
-        provider="$(_octo_readiness_json_field "$result" provider)"
-        status="$(_octo_readiness_json_field "$result" status)"
+        { IFS= read -r -d '' provider; IFS= read -r -d '' status; } < <(_octo_readiness_json_fields "$result" provider status)
         printf '%s:%s\n' "$provider" "$status"
         if declare -f octo_event_emit >/dev/null 2>&1; then
             octo_event_emit "provider.status" provider="$provider" status="$status" source="check-providers" || true
@@ -652,9 +686,7 @@ cmd_detect_providers() {
     {
         while IFS= read -r readiness_result; do
             [[ -n "$readiness_result" ]] || continue
-            provider="$(_octo_readiness_json_field "$readiness_result" provider)"
-            status="$(_octo_readiness_json_field "$readiness_result" status)"
-            reason_code="$(_octo_readiness_json_field "$readiness_result" reason_code)"
+            { IFS= read -r -d '' provider; IFS= read -r -d '' status; IFS= read -r -d '' reason_code; } < <(_octo_readiness_json_fields "$readiness_result" provider status reason_code)
             env_name="$(printf '%s' "$provider" | tr '[:lower:]-' '[:upper:]_')"
             case "$status" in
                 available) env_status="ok" ;;
@@ -702,6 +734,21 @@ preflight_check() {
     local selected_provider="${2:-}"
     local _octo_vibe_check_context=automatic
 
+    # Fixed panels never consume or populate the broad discovery cache.
+    if [[ -n "${OCTOPUS_PREFLIGHT_PROVIDERS:-}" ]]; then
+        local panel_report panel_args=(--json --providers "$OCTOPUS_PREFLIGHT_PROVIDERS")
+        if [[ -n "${OCTOPUS_PREFLIGHT_REPORT:-}" ]]; then
+            panel_args+=(--report-in "$OCTOPUS_PREFLIGHT_REPORT" --run-id "${OCTOPUS_PREFLIGHT_RUN_ID:-}")
+        fi
+        panel_report="$(WORKSPACE_DIR="$WORKSPACE_DIR" bash "${_preflight_registry_dir}/../helpers/preflight.sh" "${panel_args[@]}")" || return 1
+        jq -e '.providers_degraded == 0' <<< "$panel_report" >/dev/null || { log ERROR "Required provider panel is not ready"; return 1; }
+        if [[ ",$OCTOPUS_PREFLIGHT_PROVIDERS," == *,codex,* ]]; then
+            check_codex_auth_freshness || return 1
+        fi
+        [[ -d "$WORKSPACE_DIR" ]] || init_workspace
+        return 0
+    fi
+
     # Performance: Return cached result if valid (unless forced)
     # Selected Vibe checks inspect the keyring that automatic scans defer.
     if [[ "$force_check" != "true" && "$selected_provider" != vibe ]] && preflight_cache_valid; then
@@ -747,9 +794,7 @@ preflight_check() {
             continue
         fi
         readiness="$(octo_provider_readiness_result "$provider" static)"
-        status="$(_octo_readiness_json_field "$readiness" status)"
-        reason="$(_octo_readiness_json_field "$readiness" reason_code)"
-        remediation="$(_octo_readiness_json_field "$readiness" remediation)"
+        { IFS= read -r -d '' status; IFS= read -r -d '' reason; IFS= read -r -d '' remediation; } < <(_octo_readiness_json_fields "$readiness" status reason_code remediation)
         candidate_ids+=("$provider")
         candidate_statuses+=("$status")
         candidate_reasons+=("$reason")

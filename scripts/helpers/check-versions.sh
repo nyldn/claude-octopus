@@ -39,6 +39,9 @@ ANY_BELOW_FLOOR=0
 check_version() {
   local name="$1" cmd="$2" min="$3" flag="${4:---version}"
 
+  if [[ -n "${OCTOPUS_PREFLIGHT_DIAGNOSTIC_PROVIDERS:-}" ]]; then
+    case " ${OCTOPUS_PREFLIGHT_DIAGNOSTIC_PROVIDERS//$'\n'/ } " in *" $name "*) ;; *) return 0 ;; esac
+  fi
   # Skip if CLI not installed — version check only applies to present providers.
   command -v "${cmd}" &>/dev/null || return 0
 

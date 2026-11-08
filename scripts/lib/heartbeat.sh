@@ -627,9 +627,11 @@ _octo_capture_file_signature() {
     elif stat -c '%s:%Y' "$path" >/dev/null 2>&1; then
         stat -c '%s:%Y' "$path"
     else
-        printf '%s:%s\n' "$(wc -c < "$path" 2>/dev/null || echo 0)" unknown
+        printf '%s\n' '0:unknown'
     fi
 }
+
+_OCTO_WORKTREE_METADATA_HELPER="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/worktree-metadata.py"
 
 _octo_capture_worktree_fingerprint() {
     local worktree="${1:-}"
@@ -646,12 +648,21 @@ _octo_capture_worktree_fingerprint() {
             git -C "$worktree" diff --name-only -z 2>/dev/null || true
             git -C "$worktree" diff --cached --name-only -z 2>/dev/null || true
             git -C "$worktree" ls-files --others --exclude-standard -z 2>/dev/null || true
-        } | while IFS= read -r -d '' rel; do
-            [[ -n "$rel" ]] || continue
-            case "$rel" in .octo|.octo/*) continue ;; esac
-            printf 'path=%s;' "$rel"
-            _octo_capture_file_signature "$worktree/$rel"
-        done
+        } | {
+            local first_rel
+            IFS= read -r -d '' first_rel || return 0
+            if command -v python3 >/dev/null 2>&1; then
+                { printf '%s\0' "$first_rel"; cat; } |
+                    python3 "$_OCTO_WORKTREE_METADATA_HELPER" "$worktree"
+            else
+                { printf '%s\0' "$first_rel"; cat; } | while IFS= read -r -d '' rel; do
+                    [[ -n "$rel" ]] || continue
+                    case "$rel" in .octo|.octo/*) continue ;; esac
+                    printf 'path=%s;' "$rel"
+                    _octo_capture_file_signature "$worktree/$rel"
+                done
+            fi
+        }
     }
 
     if command -v sha256sum >/dev/null 2>&1; then
