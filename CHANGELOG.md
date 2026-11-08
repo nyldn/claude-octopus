@@ -16,6 +16,8 @@
   counts introduced by a colon, both endpoints of hyphen and Unicode
   dash ranges, and quantities with either Unicode micro-unit prefix also remain checked.
   Nested emphasis and whitespace before a percent sign cannot hide quantities.
+  Literal destination backticks and emphasis before attached units also retain
+  unsupported quantities for evidence checks.
 
 ## [11.18.0] - 2026-11-07
 

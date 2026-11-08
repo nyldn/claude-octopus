@@ -627,7 +627,7 @@ research_extract_numbers() {
 # "section 2" are still checked.
 research_numeric_claims() {
     LC_ALL=C awk '
-    function unformat(text,    at, marker, width, previous, following, depth, result, piece, scan, paren_depth, marks, starts, drops, ticks, next_tick, parens, close_paren) {
+    function unformat(text,    at, marker, width, previous, following, depth, result, piece, scan, paren_depth, marks, starts, drops, ticks, next_tick, parens, close_paren, destination_depth) {
         # Pair equal-length backtick runs once. Literal code and destinations
         # must not open or close emphasis in the surrounding prose.
         scan = 1
@@ -638,16 +638,24 @@ research_numeric_claims() {
         }
         # Index balanced destinations once, including nested parentheses.
         # Re-scanning an unterminated destination at every ]( is quadratic.
-        scan = 1; paren_depth = 0
+        scan = 1; paren_depth = 0; destination_depth = 0
         while (scan <= length(text)) {
             marker = substr(text, scan, 1)
             if (marker == "\\") { scan += 2; continue }
-            if (scan in next_tick) {
+            if (scan in next_tick && destination_depth == 0) {
                 match(substr(text, scan), /^`+/)
                 scan = next_tick[scan] + RLENGTH; continue
             }
-            if (marker == "(") parens[++paren_depth] = scan
-            if (marker == ")" && paren_depth > 0) close_paren[parens[paren_depth--]] = scan
+            if (marker == "(") {
+                parens[++paren_depth] = scan
+                # Backticks inside a destination are literal, even if a
+                # matching run follows the link in ordinary prose.
+                if (destination_depth == 0 && substr(text, scan - 1, 1) == "]") destination_depth = paren_depth
+            }
+            if (marker == ")" && paren_depth > 0) {
+                if (paren_depth == destination_depth) destination_depth = 0
+                close_paren[parens[paren_depth--]] = scan
+            }
             scan++
         }
         at = 1; depth = 0
@@ -669,7 +677,8 @@ research_numeric_claims() {
             width = length(marker)
             previous = substr(text, at - 1, 1)
             following = substr(text, at + width, 1)
-            if (depth > 0 && marks[depth] == marker && previous !~ /[ \t]/ && following !~ /[0-9A-Za-z]/) {
+            if (depth > 0 && marks[depth] == marker && previous !~ /[ \t]/ &&
+                (substr(marker, 1, 1) == "*" || following !~ /[0-9A-Za-z]/)) {
                 drops[starts[depth]] = width; drops[at] = width; depth--
             } else if (following != "" && following !~ /[ \t]/ &&
                        (at == 1 || previous !~ /[0-9A-Za-z_]/ || (depth > 0 && previous == "_"))) {

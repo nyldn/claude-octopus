@@ -1156,6 +1156,29 @@ ordinal_kinds=$(jq -r '.checks[] | "\(.line):\(.kind):\(.detail)"' "$RESEARCH_RU
 if [[ "$ordinal_status" -ne 0 && "$ordinal_kinds" == "1:number_mismatch:16 2:number_mismatch:16 3:number_mismatch:5 4:number_mismatch:5 " ]]; then test_pass
 else test_fail "Markdown literal verification regressed: $ordinal_kinds"; fi
 
+for literal_destination in 'https://example.com/`unit' './`unit_(name)' '#`unit'; do
+    test_case "destination backticks cannot pair with following prose code: $literal_destination"
+    literal_claims=$(research_extract_numbers "The limit is _**16** [MiB](${literal_destination})_ and \`buffer\`.")
+    if [[ "$literal_claims" == 16 ]]; then test_pass; else test_fail "destination backtick hid quantity: $literal_claims"; fi
+done
+
+for attached_quantity in '_**16**ms_' '_*16*ms_' '__**16**ms__' '_**16**%_'; do
+    test_case "asterisk emphasis closes before an attached unit: $attached_quantity"
+    attached_claims=$(research_extract_numbers "The delay is ${attached_quantity}.")
+    if [[ "$attached_claims" == 16 || "$attached_claims" == 16% ]]; then test_pass; else test_fail "attached unit hid quantity: $attached_claims"; fi
+done
+
+test_case "destination backticks and attached units cannot hide citation mismatches"
+{
+    printf '%s\n' '- The limit is _**16** [MiB](https://example.com/`unit)_ and `buffer` (`src/handler.ts:4`).'
+    printf '%s\n' '- The delay is _**16**ms_ (`src/handler.ts:4`).'
+} > "$ordinal_draft"
+ordinal_status=0
+research_verify_synthesis "$ordinal_draft" || ordinal_status=$?
+ordinal_kinds=$(jq -r '.checks[] | "\(.line):\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$ordinal_status" -ne 0 && "$ordinal_kinds" == "1:number_mismatch:16 2:number_mismatch:16 " ]]; then test_pass
+else test_fail "Markdown boundary claims escaped verification: $ordinal_kinds"; fi
+
 test_case "an unresolved workspace citation is reported by name and its line numbers are not claims"
 unresolved_draft="$RESEARCH_RUN_DIR/local-unresolved.md"
 {
