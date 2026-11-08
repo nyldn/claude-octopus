@@ -30,7 +30,7 @@ made a choice.
 ```bash
 OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
 if [[ ! -r "$OCTO_ROOT/scripts/helpers/preflight.sh" ]]; then
-  OCTO_ROOT="${HOME}/.claude-octopus/plugin"
+  OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 fi
 if [[ ! -r "$OCTO_ROOT/scripts/helpers/preflight.sh" ]]; then
   OCTO_ROOT="$(find "${HOME}/.claude/plugins/cache" "${HOME}/Library/Application Support/Claude" "${LOCALAPPDATA:-/dev/null}/Claude" "${XDG_DATA_HOME:-${HOME}/.local/share}/Claude" -maxdepth 8 -path '*/nyldn-plugins/octo/*/scripts/helpers/preflight.sh' -exec test -r '{}' \; -print -quit 2>/dev/null | sed 's#/scripts/helpers/preflight.sh$##')"

@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-11-05
+last_reviewed: 2026-11-07
 ---
 
 # PRODUCT.md
@@ -41,7 +41,7 @@ Claude Octopus is a **multi-runtime orchestration plugin** with three architectu
 | **Workflow engine** (`skills/`) | Structures every task into Discover → Define → Develop → Deliver with quality gates | Stops ad-hoc "just ask Claude" from shipping low-confidence output |
 | **Consensus layer** | 75% gate: flags disagreements across providers before code is finalized | The actual blind-spot catcher — surfaces the 1-in-5 case where Claude was wrong |
 
-54 slash commands, 63 skills, and 31 specialized personas provide explicit escalation entrypoints. Installation alone activates none of them.
+56 slash commands, 64 skills, and 31 specialized personas provide explicit escalation entrypoints. Installation alone activates none of them.
 
 ## Core Value Propositions
 
@@ -77,11 +77,11 @@ Frontier AI models will remain individually overconfident for the foreseeable fu
 
 ## Evidence
 
-**Traction (as of 2026-11-05):**
+**Traction (as of 2026-11-07):**
 - GitHub stars: 4,048
 - GitHub forks: 380
 - Local CI parity: `make ci-local` runs the same smoke, unit, and integration suites as CI
-- Version: 11.17.1 (active release cadence)
+- Version: 11.18.0 (active release cadence)
 - Runtimes supported: Claude Code, Codex CLI, Command Code CLI, Cursor (MCP), Antigravity CLI
 
 **Measured Impact:**

@@ -165,10 +165,10 @@ fi
 
 test_case "provider validator is host-filtered to orchestrate.sh commands"
 if python3 - "$PROJECT_ROOT/hooks/hooks.json" <<'PY'
-import json, sys
+import json, shlex, sys
 d = json.load(open(sys.argv[1]))["hooks"]["PreToolUse"]
 matches = [h for group in d for h in group.get("hooks", [])
-           if h.get("command", "").endswith("provider-routing-validator.sh")]
+           if h.get("command") and shlex.split(h["command"])[0].endswith("provider-routing-validator.sh")]
 raise SystemExit(0 if len(matches) == 1 and "orchestrate.sh" in matches[0].get("if", "") else 1)
 PY
 then
@@ -189,7 +189,7 @@ fi
 test_case "quality gate is host-filtered and stale-client safe"
 if jq -e '
     .hooks.PostToolUse[].hooks[]
-    | select(.command == "${CLAUDE_PLUGIN_ROOT}/hooks/quality-gate.sh")
+    | select(.command == "\"${CLAUDE_PLUGIN_ROOT}/hooks/quality-gate.sh\"")
     | .if == "Bash(*orchestrate.sh*)"
 ' "$PROJECT_ROOT/hooks/hooks.json" >/dev/null 2>&1 \
     && [[ -z "$(printf '%s\n' '{"tool_name":"Bash","tool_input":{"command":"pwd"}}' \
@@ -201,10 +201,10 @@ fi
 
 test_case "direct-provider guard is host-filtered to provider commands"
 if python3 - "$PROJECT_ROOT/hooks/hooks.json" <<'PY'
-import json, sys
+import json, shlex, sys
 d = json.load(open(sys.argv[1]))["hooks"]["PreToolUse"]
 filters = sorted(h.get("if", "") for group in d for h in group.get("hooks", [])
-                 if h.get("command", "").endswith("codex-exec-guard.sh"))
+                 if h.get("command") and shlex.split(h["command"])[0].endswith("codex-exec-guard.sh"))
 expected = ["Bash(codex *)", "Bash(gemini *)", "Bash(qwen *)"]
 raise SystemExit(0 if filters == expected else 1)
 PY

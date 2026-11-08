@@ -141,7 +141,7 @@ from an inferred development checkout.
 
 ```bash
 # Run Multi-AI security audit for delivery
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 bash "$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh" || exit 1
 RUN_MARKER=$(mktemp) || exit 1
 RUN_STATUS=0
