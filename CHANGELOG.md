@@ -14,7 +14,9 @@
   Lock contention does not turn an expired cooldown into an open circuit, and
   failure-log trimming uses private temporary files without following stale links.
   Quota stops also clean up owned provider and timer processes, so a stopped
-  call does not wait for a leftover timeout before returning.
+  call does not wait for a leftover timeout before returning. Helpers already
+  reparented within a still-owned private group are captured by native identity
+  before the timeout supervisor stops.
 - Direct spawns respect terminal quota and auth markers even when no transient
   cooldown is active. Provider reset hints remain inside untrusted result frames.
 - Quota and termination status summaries use launcher-authored reasons so provider diagnostics

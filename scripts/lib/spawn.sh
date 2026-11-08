@@ -25,7 +25,7 @@ quota_watcher_kill_spawn_children() {
     # Bind the whole owned tree before stopping its supervisor. Killing only
     # that direct child can orphan provider/timer groups and their descriptors.
     if ! _octo_pid_python_run "${_octopus_spawn_lib_dir}/../helpers/process_control.py" \
-        "$spawn_pid" --frozen --descendants >/dev/null; then
+        "$spawn_pid" --frozen --descendants --owned-groups >/dev/null; then
         log "ERROR" "Quota cleanup refused: owned descendants could not be verified" 2>/dev/null || true
         return 1
     fi

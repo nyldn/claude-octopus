@@ -290,6 +290,68 @@ PROVIDER
     else test_fail "quota cleanup orphaned a provider/timer or lost termination status"; fi
 }
 
+test_quota_cleanup_stops_reparented_group_member() {
+    test_case "quota cleanup stops a helper already reparented inside an owned group"
+    if (
+        source "$PROJECT_ROOT/scripts/lib/heartbeat.sh"
+        source "$PROJECT_ROOT/scripts/lib/spawn.sh"
+        export QUOTA_ORPHAN_FIXTURE="$FIXTURE/orphan"
+        mkdir -p "$QUOTA_ORPHAN_FIXTURE"
+        cat > "$QUOTA_ORPHAN_FIXTURE/provider.py" <<'PROVIDER'
+import os
+from pathlib import Path
+import signal
+import sys
+import time
+
+root = Path(os.environ["QUOTA_ORPHAN_FIXTURE"])
+sys.stdin.read()
+intermediate = os.fork()
+if intermediate == 0:
+    if os.fork() != 0:
+        os._exit(0)
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    (root / "helper.pid").write_text(str(os.getpid()))
+    while True:
+        time.sleep(1)
+os.waitpid(intermediate, 0)
+while not (root / "helper.pid").exists():
+    time.sleep(0.01)
+print("ERROR: Individual quota reached.", file=sys.stderr, flush=True)
+time.sleep(30)
+PROVIDER
+        quota_start=$SECONDS
+        worker=$(
+            set -m
+            (
+                octo_capture_current_shell_pid || exit 1
+                watcher=$(start_quota_watcher "$OCTO_CAPTURED_SHELL_PID" \
+                    "$QUOTA_ORPHAN_FIXTURE/err" "$QUOTA_ORPHAN_FIXTURE/out" \
+                    quota_watcher_kill_spawn_children quota orphan-fixture \
+                    "$QUOTA_ORPHAN_FIXTURE/fired")
+                capture_rc=0
+                octopus_capture_provider_output question 60 "$QUOTA_ORPHAN_FIXTURE/in" \
+                    "$QUOTA_ORPHAN_FIXTURE/out" "$QUOTA_ORPHAN_FIXTURE/err" \
+                    python3 "$QUOTA_ORPHAN_FIXTURE/provider.py" || capture_rc=$?
+                printf '%s\n' "$capture_rc" > "$QUOTA_ORPHAN_FIXTURE/status"
+                stop_quota_watcher "$watcher"
+            ) &
+            printf '%s\n' "$!"
+        )
+        elapsed=$((SECONDS - quota_start))
+        helper_pid=$(cat "$QUOTA_ORPHAN_FIXTURE/helper.pid")
+        helper_state=$(ps -o stat= -p "$helper_pid" 2>/dev/null || true)
+        # Always clean the inert helper, even when the regression fails.
+        _octo_pid_python_run "${PROJECT_ROOT}/scripts/helpers/process_control.py" \
+            "$helper_pid" --frozen >/dev/null 2>&1 || true
+        [[ "$worker" =~ ^[0-9]+$ && "$elapsed" -lt 15 && \
+           -s "$QUOTA_ORPHAN_FIXTURE/fired" ]] || exit 1
+        [[ "$(cat "$QUOTA_ORPHAN_FIXTURE/status")" =~ ^(137|143)$ ]] || exit 1
+        [[ -z "$helper_state" || "$helper_state" == *Z* ]]
+    ); then test_pass
+    else test_fail "quota cleanup left an already-reparented group member alive"; fi
+}
+
 test_quota_cleanup_refuses_unverified_processes() {
     test_case "refused native quota cleanup never falls back to numeric signals"
     if (
@@ -320,6 +382,7 @@ test_pattern_matches_agy_and_gemini_terminal_errors
 test_quota_dead_mark_expires
 test_check_providers_applies_dead_marker_to_every_provider
 test_quota_cleanup_preserves_supervisor_owned_groups
+test_quota_cleanup_stops_reparented_group_member
 test_quota_cleanup_refuses_unverified_processes
 
 test_summary

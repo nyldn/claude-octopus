@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import select
 import signal
+import subprocess
 import sys
 import time
 
@@ -300,7 +301,53 @@ def _wait(handles, seconds):
     return True
 
 
-def terminate(pid, grace=1, frozen=False, descendants=False, expected=None):
+def _owned_group_candidates(leaders):
+    """Enumerate members only while a bound, stopped private leader is alive."""
+    if not leaders:
+        return
+    active = {}
+    for leader in leaders:
+        pid = leader.info.pid
+        if not leader.running() or os.getpgid(pid) != pid:
+            raise StaleProcess("private group leader exited during group admission")
+        active[pid] = leader
+    # Both supported hosts provide this numeric-only ps view. A failed or timed
+    # out enumeration is not proof of an empty group. No shell or group signal.
+    result = subprocess.run(["/bin/ps", "-axo", "pid=,pgid="], check=True,
+                            stdout=subprocess.PIPE, timeout=2)
+    for row in result.stdout.splitlines():
+        pid, pgid = map(int, row.split())
+        if pgid in active:
+            yield pid, active[pgid]
+
+
+def _admit_owned_group_members(leaders, handles, seen, excluded):
+    """Bind group members before adding them to the caller's freeze queue."""
+    admitted = []
+    for child, leader in _owned_group_candidates(leaders):
+        if child in seen or child in excluded:
+            continue
+        if len(handles) >= 4096:
+            raise OSError(errno.EOVERFLOW, "process tree exceeds cancellation limit")
+        try:
+            member = Process(child)
+        except (ProcessLookupError, StaleProcess):
+            continue
+        handles.append(member)
+        try:
+            same_group = os.getpgid(child) == leader.info.pid
+        except ProcessLookupError:
+            continue
+        if not member.running():
+            continue
+        if not same_group or not leader.running():
+            raise StaleProcess("private group changed during member admission")
+        seen.add(child)
+        admitted.append((member, True))
+    return admitted
+
+
+def terminate(pid, grace=1, frozen=False, descendants=False, expected=None, owned_groups=False):
     _validate_pid(pid)
     excluded = _ancestors()
     if pid in excluded and not descendants:
@@ -312,10 +359,19 @@ def terminate(pid, grace=1, frozen=False, descendants=False, expected=None):
         except ProcessLookupError:
             return "already-exited"
         handles.append(root)
-        pending = [(root, not descendants)]
+        pending = [None, (root, not descendants)] if owned_groups else [(root, not descendants)]
+        group_leaders = []
         seen = {pid}
         while pending:
-            handle, freeze = pending.pop()
+            entry = pending.pop()
+            if entry is None:
+                admitted = _admit_owned_group_members(group_leaders, handles, seen, excluded)
+                # Members can fork before STOP. Rescan after freezing every new
+                # member, until the still-owned groups contain no unseen process.
+                if admitted:
+                    pending.extend([None, *admitted])
+                continue
+            handle, freeze = entry
             if freeze:
                 # Record responsibility before delivery: a signal handler can
                 # interrupt Python immediately after the native STOP succeeds.
@@ -356,6 +412,8 @@ def terminate(pid, grace=1, frozen=False, descendants=False, expected=None):
                     continue
             if not handle.running():
                 continue
+            if owned_groups and freeze and os.getpgid(handle.info.pid) == handle.info.pid:
+                group_leaders.append(handle)
             for child in children(handle.info.pid):
                 if child in seen or child in excluded:
                     continue
@@ -414,14 +472,15 @@ def main():
     parser.add_argument("--grace", type=float, default=1)
     parser.add_argument("--frozen", action="store_true")
     parser.add_argument("--descendants", action="store_true")
+    parser.add_argument("--owned-groups", action="store_true")
     args = parser.parse_args()
     if not 0 <= args.grace <= 60:
         parser.error("grace must be between 0 and 60 seconds")
     try:
-        result = terminate(args.pid, args.grace, args.frozen, args.descendants, args.identity)
+        result = terminate(args.pid, args.grace, args.frozen, args.descendants, args.identity, args.owned_groups)
         print(result)
         return int(result == "survived")
-    except (OSError, StaleProcess, UnsupportedPlatform, ValueError) as error:
+    except (OSError, StaleProcess, UnsupportedPlatform, ValueError, subprocess.SubprocessError) as error:
         print(f"Process cleanup refused: {error}", file=sys.stderr)
         print("unverified")
         return 1

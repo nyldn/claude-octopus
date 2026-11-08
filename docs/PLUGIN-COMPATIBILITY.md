@@ -26,7 +26,12 @@ an `unverified` result. This helper never falls back to numeric PID or process-g
 signals. An exited group leader alone is not proof that its former group still
 belongs to Octopus. Cancellation can clean descendants it captured while the
 original worker was alive, but cannot safely recover an already-orphaned group
-from its numeric group ID alone.
+from its numeric group ID alone. Quota cleanup can also capture reparented
+members of a private group while its original leader remains a verified,
+stopped descendant. It enumerates group membership with a bounded numeric-only
+`ps` query, binds each member to its native identity, and rescans after freezing
+new members. A missing leader or failed enumeration refuses cleanup; it never
+sends a signal to a numeric group ID.
 
 Worker registration checks native cancellation support before provider dispatch.
 If cleanup later fails, workflow cancellation retains the worker ledger for retry

@@ -132,6 +132,84 @@ class ProcessControlTests(unittest.TestCase):
                 finally:
                     descendant.send(signal.SIGKILL)
 
+    def test_owned_group_captures_orphan_without_signalling_another_group(self):
+        """A double-forked helper stays owned by its still-live private leader."""
+        unrelated = self.child()
+        with tempfile.TemporaryDirectory(prefix="octo-group-test-") as temporary:
+            marker = Path(temporary) / "helper"
+            root = self.child(
+                "import os,pathlib,signal,time; os.setsid(); p=os.fork(); "
+                "\nif p == 0:"
+                "\n if os.fork() != 0: os._exit(0)"
+                "\n signal.signal(signal.SIGTERM,signal.SIG_IGN)"
+                f"\n pathlib.Path({str(marker)!r}).write_text(str(os.getpid()))"
+                "\n while True: time.sleep(1)"
+                "\nos.waitpid(p,0); time.sleep(30)"
+            )
+            deadline = time.monotonic() + 3
+            while not marker.exists() and time.monotonic() < deadline:
+                time.sleep(0.01)
+            self.assertTrue(marker.exists())
+            with control.Process(int(marker.read_text())) as orphan:
+                try:
+                    self.assertNotEqual(orphan.info.ppid, root.pid)
+                    self.assertEqual(os.getpgid(orphan.info.pid), root.pid)
+                    with mock.patch.object(os, "kill") as kill, \
+                         mock.patch.object(os, "killpg") as killpg:
+                        self.assertEqual(control.terminate(root.pid, frozen=True, owned_groups=True),
+                                         "terminated")
+                        kill.assert_not_called()
+                        killpg.assert_not_called()
+                    self.assertFalse(orphan.running())
+                    self.assertIsNone(unrelated.poll())
+                finally:
+                    orphan.send(signal.SIGKILL)
+
+    def test_owned_group_requires_live_original_leader_before_enumeration(self):
+        """An exited or changed leader cannot authorize numeric group recovery."""
+        leader = mock.Mock()
+        leader.info.pid = 4242
+        for running, pgid in [(False, 4242), (True, 4343)]:
+            leader.running.return_value = running
+            with mock.patch.object(os, "getpgid", return_value=pgid), \
+                 mock.patch.object(subprocess, "run") as scan:
+                with self.assertRaises(control.StaleProcess):
+                    list(control._owned_group_candidates([leader]))
+                scan.assert_not_called()
+
+    def test_owned_group_member_must_still_belong_to_bound_leader(self):
+        """Membership races refuse admission before any signal is delivered."""
+        leader, member = mock.Mock(), mock.Mock()
+        leader.info.pid = 4242
+        member.running.return_value = True
+        handles = []
+        with mock.patch.object(control, "_owned_group_candidates", return_value=[(4343, leader)]), \
+             mock.patch.object(control, "Process", return_value=member), \
+             mock.patch.object(os, "getpgid", return_value=4444), \
+             mock.patch.object(os, "kill") as kill, mock.patch.object(os, "killpg") as killpg:
+            with self.assertRaises(control.StaleProcess):
+                control._admit_owned_group_members([leader], handles, set(), set())
+            member.send.assert_not_called()
+            kill.assert_not_called()
+            killpg.assert_not_called()
+        self.assertEqual(handles, [member], "caller retains the handle for final cleanup")
+
+    def test_owned_group_scan_failure_resumes_bound_leader(self):
+        """Unavailable group metadata refuses cleanup without stranding STOP."""
+        root = self.child("import os,time; os.setsid(); time.sleep(30)")
+        deadline = time.monotonic() + 3
+        while os.getpgid(root.pid) != root.pid and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.assertEqual(os.getpgid(root.pid), root.pid)
+        with mock.patch.object(subprocess, "run", side_effect=subprocess.TimeoutExpired("ps", 2)):
+            with self.assertRaises(subprocess.TimeoutExpired):
+                control.terminate(root.pid, frozen=True, owned_groups=True)
+        deadline = time.monotonic() + 1
+        while control.snapshot(root.pid).stopped and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.assertFalse(control.snapshot(root.pid).stopped)
+        self.assertIsNone(root.poll())
+
     def test_stop_confirmation_retries_the_identity_bound_signal(self):
         handle = mock.Mock()
         handle.info = control.ProcessInfo(4242, 20, "original", 0, False)
