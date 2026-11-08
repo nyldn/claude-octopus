@@ -4030,12 +4030,16 @@ for start, end, kind, block, removed_block, info in units:
                 diff_side_hit = "removed"
                 diff_partial = any(removed_misses) or kept_partial
         else:
-            # Check both sides: the removed side keeps precedence, but an exact
-            # match on either side means the fence is not partial.
+            # The removed side keeps precedence. Once a side matches completely,
+            # further searches cannot improve verification or partial reporting.
             removed_misses, added_misses = [], []
-            hits = [(side_name, side_misses) for side_name, side, side_misses in
-                    (("removed", removed_side, removed_misses), ("added", added_side, added_misses))
-                    if in_diff_side(wholes, line_variants, side, side_misses, short)]
+            hits = []
+            for side_name, side, side_misses in (
+                    ("removed", removed_side, removed_misses), ("added", added_side, added_misses)):
+                if in_diff_side(wholes, line_variants, side, side_misses, short):
+                    hits.append((side_name, side_misses))
+                    if not any(side_misses):
+                        break
             if hits:
                 diff_side_hit = hits[0][0]
                 diff_partial = all(any(side_misses) for _, side_misses in hits)
