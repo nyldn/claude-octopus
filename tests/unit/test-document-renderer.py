@@ -266,6 +266,7 @@ class DocumentRendererTest(unittest.TestCase):
                 self.assertIn("informational", purpose)
                 self.assertIn("Q1 results", purpose)
                 self.assertIn("do not require a decision or approval ask", purpose)
+                self.assertIn("key findings and implications, including results when applicable", " ".join(purpose.split()))
                 self.assertIn("slide 2", purpose)
                 sizing = outline_step.split("#### Executive and board outline", 1)[1].split("```markdown", 1)[0]
                 self.assertIn("combine", sizing.lower())

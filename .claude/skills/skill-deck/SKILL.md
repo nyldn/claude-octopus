@@ -150,8 +150,9 @@ sentence skeleton to the purpose-specific outline below. For executive and
 board decision briefs, the board content check and the titles-only read must
 both pass before outline approval.
 For an informational brief such as a Q1 results update, do not require a decision or approval ask.
-Put an executive summary on slide 2 covering results, key drivers and
-implications, followed by supporting evidence and follow-up. Do not invent a decision.
+Put an executive summary on slide 2 covering key findings and implications,
+including results when applicable, followed by supporting evidence and
+follow-up. Do not invent a decision.
 
 #### Executive and board outline
 
