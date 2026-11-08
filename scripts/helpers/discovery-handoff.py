@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Commit completed discovery research and give Define a verified private snapshot."""
 from contextlib import contextmanager
+import base64
 import fcntl
 import hashlib
 import json
@@ -8,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import stat
+import subprocess
 import sys
 import tempfile
 
@@ -62,7 +64,7 @@ def locked(state_file):
                          os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     try:
         fcntl.flock(descriptor, fcntl.LOCK_EX)
-        yield directory / 'discovery-handoff.json'
+        yield directory / 'discovery-handoff.json', descriptor
     finally:
         os.close(descriptor)
 
@@ -94,38 +96,176 @@ def save(path, state):
             os.unlink(temporary)
 
 
+def current(path, run_id):
+    """Require the caller's run under the lock and recover unfinished writes."""
+    state = recover(path, load(path))
+    if state['run_id'] != run_id or run_id is None:
+        raise ValueError('another discovery superseded this run')
+    return state
+
+
+@contextmanager
+def project_parent(relative):
+    """Open a fixed project file's parent without following directory links."""
+    descriptor = os.open(project_root(), os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for part in Path(relative).parts[:-1]:
+            try:
+                os.mkdir(part, 0o755, dir_fd=descriptor)
+            except FileExistsError:
+                pass
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                            dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+        yield descriptor, Path(relative).name
+    finally:
+        os.close(descriptor)
+
+
+def backup_project(relative):
+    """Preserve exact pre-transaction project bytes and permissions for recovery."""
+    with project_parent(relative) as (directory, name):
+        try:
+            descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                                 dir_fd=directory)
+        except FileNotFoundError:
+            return None
+        with os.fdopen(descriptor, 'rb') as stream:
+            info = os.fstat(stream.fileno())
+            if not stat.S_ISREG(info.st_mode):
+                raise ValueError('project lifecycle file is not regular')
+            return {'bytes': base64.b64encode(stream.read()).decode('ascii'),
+                    'mode': stat.S_IMODE(info.st_mode)}
+
+
+def restore_project(relative, backup):
+    """Restore a journaled file atomically without writing through project links."""
+    with project_parent(relative) as (directory, name):
+        if backup is None:
+            try:
+                os.unlink(name, dir_fd=directory)
+            except FileNotFoundError:
+                pass
+            return
+        temporary = '.discovery-rollback-' + os.urandom(16).hex()
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                             0o600, dir_fd=directory)
+        try:
+            with os.fdopen(descriptor, 'wb') as stream:
+                stream.write(base64.b64decode(backup['bytes'], validate=True))
+                stream.flush()
+                os.fsync(stream.fileno())
+                os.fchmod(stream.fileno(), backup['mode'])
+            os.replace(temporary, name, src_dir_fd=directory, dst_dir_fd=directory)
+        finally:
+            try:
+                os.unlink(temporary, dir_fd=directory)
+            except FileNotFoundError:
+                pass
+
+
+def recover(path, state):
+    """Roll back an interrupted project transaction before any next operation."""
+    journal = state.get('transaction')
+    if journal is not None:
+        # Restore the incomplete state first; leave the journal if any restore fails.
+        for relative in ('.octo/STATE.md', '.octo/phases/phase-1-summary.md'):
+            restore_project(relative, journal[relative])
+        state.pop('transaction')
+        state.update(status='failed', artifact=None)
+        save(path, state)
+    return state
+
+
 def begin(state_file, run_id):
-    """Invalidate old research and establish the latest discovery under lock."""
+    """Invalidate old research before preparation; recover prior unfinished writes."""
     if run_id is not None and not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}', run_id):
         raise ValueError('invalid discovery run identity')
-    with locked(state_file) as path:
-        save(path, {'version': 1, 'project': str(project_root()),
-                    'run_id': run_id, 'artifact': None})
+    with locked(state_file) as (path, lock_fd):
+        if path.exists():
+            try:
+                previous = load(path)
+            except (ValueError, KeyError, TypeError, AttributeError):
+                # Explicit start/discard can replace corrupt metadata, never files.
+                previous = None
+            if previous is not None:
+                recover(path, previous)
+        save(path, {'version': 1, 'project': str(project_root()), 'run_id': run_id,
+                    'status': 'discarded' if run_id is None else 'running', 'artifact': None})
+
+
+def project_prepare(state_file, run_id):
+    """Initialize opted-in project state only while this discovery is current."""
+    with locked(state_file) as (path, lock_fd):
+        state = current(path, run_id)
+        try:
+            # Validate .octo before invoking the existing lifecycle API.
+            backup_project('.octo/STATE.md')
+            script = Path(__file__).absolute().parents[1] / 'octo-state.sh'
+            if not (project_root() / '.octo/STATE.md').exists():
+                subprocess.run([str(script), 'init_project'], cwd=project_root(), check=True, pass_fds=(lock_fd,))
+            subprocess.run([str(script), 'update_state', '--phase', '1', '--position',
+                            'Discovery', '--status', 'in_progress'], cwd=project_root(), check=True, pass_fds=(lock_fd,))
+            state['project_prepared'] = True
+            save(path, state)
+        except Exception:
+            state.update(status='failed', artifact=None)
+            save(path, state)
+            raise
 
 
 def publish(state_file, run_id, value):
-    """Commit completed research only while this run is still current."""
+    """Present and commit research plus optional project writes as a transaction."""
     if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}', run_id):
         raise ValueError('invalid discovery run identity')
-    with locked(state_file) as path:
-        state = load(path)
-        if state['run_id'] != run_id or run_id is None:
-            raise ValueError('another discovery superseded this run')
-        artifact, contents = research_bytes(value, run_id)
-        state['artifact'] = {'path': str(artifact),
-                             'sha256': hashlib.sha256(contents).hexdigest()}
-        save(path, state)
+    with locked(state_file) as (path, lock_fd):
+        state = current(path, run_id)
+        try:
+            artifact, contents = research_bytes(value, run_id)
+            with tempfile.TemporaryDirectory(prefix='.discovery-complete-', dir=path.parent) as temporary:
+                verified = Path(temporary) / 'research.md'
+                verified.write_bytes(contents)
+                verified.chmod(0o400)
+                print('Discovery findings:', flush=True)
+                subprocess.run(['cat', str(verified)], check=True, pass_fds=(lock_fd,))
+                if os.environ.get('OCTOPUS_PROJECT_PERSISTENCE') == 'true':
+                    if not state.get('project_prepared'):
+                        raise ValueError('opt-in project state was not prepared for this run')
+                    state['transaction'] = {relative: backup_project(relative) for relative in
+                        ('.octo/STATE.md', '.octo/phases/phase-1-summary.md')}
+                    state.update(status='committing', artifact=None)
+                    save(path, state)
+                    script = Path(__file__).absolute().parent / 'discovery-project-complete.sh'
+                    subprocess.run(['bash', str(script), str(verified)], cwd=project_root(), check=True, pass_fds=(lock_fd,))
+                completed = dict(state)
+                completed.pop('transaction', None)
+                completed.update(status='complete', artifact={'path': str(artifact),
+                                 'sha256': hashlib.sha256(contents).hexdigest()})
+                save(path, completed)
+        except Exception:
+            # Asynchronous termination leaves the journal for the next holder.
+            # Children inherit the lock, so recovery waits until writers exit.
+            # For ordinary errors restore project files before exposing failure.
+            if state.get('transaction') is not None:
+                recover(path, state)
+            else:
+                state.update(status='failed', artifact=None)
+                save(path, state)
+            raise
 
 
 def snapshot(state_file, directory):
     """Copy exactly the validated bytes into a caller-owned private directory."""
     if not os.path.lexists(Path(state_file).parent / 'discovery-handoff.json'):
         return ''
-    with locked(state_file) as path:
-        state = load(path)
+    with locked(state_file) as (path, lock_fd):
+        state = recover(path, load(path))
         record = state.get('artifact')
-        if record is None:
+        if state.get('status') == 'discarded':
             return ''
+        if state.get('status') != 'complete' or record is None:
+            raise ValueError('discovery is incomplete; resume it or explicitly discard its binding')
         run_id = state['run_id']
         if not isinstance(run_id, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}', run_id):
             raise ValueError('invalid discovery run identity')
@@ -154,6 +294,8 @@ def main():
         args = sys.argv[1:]
         if len(args) == 3 and args[0] == 'begin':
             begin(args[1], args[2])
+        elif len(args) == 3 and args[0] == 'prepare':
+            project_prepare(args[1], args[2])
         elif len(args) == 4 and args[0] == 'publish':
             publish(args[1], args[2], args[3])
         elif len(args) == 3 and args[0] == 'snapshot':
@@ -161,8 +303,8 @@ def main():
         elif len(args) == 2 and args[0] == 'discard':
             begin(args[1], None)
         else:
-            raise ValueError('expected begin STATE RUN, publish STATE RUN FILE, snapshot STATE DIRECTORY, or discard STATE')
-    except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
+            raise ValueError('expected begin/prepare STATE RUN, publish STATE RUN FILE, snapshot STATE DIRECTORY, or discard STATE')
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, subprocess.CalledProcessError) as error:
         print('Discovery handoff rejected: ' + str(error), file=sys.stderr)
         return 1
     return 0

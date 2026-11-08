@@ -23,6 +23,7 @@ class WorkflowResultTest(unittest.TestCase):
         plugin = self.home / '.claude-octopus/plugin'
         (plugin / 'scripts/helpers').mkdir(parents=True)
         (plugin / 'scripts/helpers/discovery-handoff.py').symlink_to(ROOT / 'scripts/helpers/discovery-handoff.py')
+        (plugin / 'scripts/helpers/discovery-project-complete.sh').symlink_to(ROOT / 'scripts/helpers/discovery-project-complete.sh')
         (plugin / 'scripts/helpers/workflow-result.sh').symlink_to(
             ROOT / 'scripts/helpers/workflow-result.sh')
         # The validator resolves its own root, so copy the source-safe libraries
@@ -67,6 +68,7 @@ sys.exit(1 if mode == "failed" else 0)
                     if not k.startswith(('CLAUDE_', 'CODEX_', 'DROID_'))}
         self.env.pop('OCTOPUS_STATE_PROJECT_ROOT', None)
         self.env.pop('OCTOPUS_WORKFLOW_STATE_DIR', None)
+        self.env.pop('OCTOPUS_PROJECT_PERSISTENCE', None)
         self.env.update(HOME=str(self.home), CLAUDE_PLUGIN_DATA=str(self.workspace),
                         CLAUDE_CODE_SESSION_ID='session-a', FIXTURE_RESULTS=str(self.results),
                         TMPDIR=str(self.home), OCTOPUS_WORKFLOW_INVOCATION_ID='marker')
@@ -162,9 +164,7 @@ sys.exit(1 if mode == "failed" else 0)
         capture = self.home / 'research-capture.json'
         self.env['FIXTURE_RESEARCH_CAPTURE'] = str(capture)
         self.handoff_command('begin', 'discovery-b')
-        result = self.run_skill('define')
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(json.loads(capture.read_text())['path'], '')
+        self.assert_rejected(self.run_skill('define'), 'discovery is incomplete')
         artifact = self.home / '.claude-octopus/results/probe-synthesis-discovery-b.md'
         artifact.parent.mkdir(parents=True)
         artifact.write_text('new research B with sources')
@@ -192,9 +192,7 @@ sys.exit(1 if mode == "failed" else 0)
         self.assertEqual(synthesized.returncode, 0, synthesized.stderr)
         capture = self.home / 'research-capture.json'
         self.env['FIXTURE_RESEARCH_CAPTURE'] = str(capture)
-        result = self.run_skill('define')
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(json.loads(capture.read_text())['path'], '')
+        self.assert_rejected(self.run_skill('define'), 'discovery is incomplete')
         completed = self.complete_discovery(artifact, run_id)
         self.assertEqual(completed.returncode, 0, completed.stderr)
         result = self.run_skill('define')
@@ -235,6 +233,7 @@ sys.exit(1 if mode == "failed" else 0)
         for failed_tool in ('cat', 'cp'):
             with self.subTest(failed_tool=failed_tool):
                 self.handoff_command('begin', run_id)
+                self.handoff_command('prepare', run_id)
                 shim = self.home / ('fail-' + failed_tool)
                 shim.mkdir()
                 executable = shim / failed_tool
@@ -349,9 +348,11 @@ sys.exit(1 if mode == "failed" else 0)
         self.bind_discovery(summary)
         summary.unlink()
         self.assert_rejected(self.run_skill('define'), 'Discovery handoff rejected')
-        state_file = self.state_command('state_path').stdout.strip()
-        discarded = subprocess.run([sys.executable, str(ROOT / 'scripts/helpers/discovery-handoff.py'),
-                                    'discard', state_file], cwd=self.home, env=self.env,
+        text = (ROOT / '.claude/skills/flow-define/SKILL.md').read_text()
+        block = next(b for b in re.findall(r'```bash\n(.*?)\n```', text, re.S) if 'discovery-handoff.py\" discard' in b)
+        env = dict(self.env)
+        env.pop('OCTO_ROOT', None)
+        discarded = subprocess.run(['bash', '-c', block], cwd=self.home, env=env,
                                    text=True, capture_output=True)
         self.assertEqual(discarded.returncode, 0, discarded.stderr)
         capture = self.home / 'research-capture.json'
@@ -360,6 +361,109 @@ sys.exit(1 if mode == "failed" else 0)
             result = self.run_skill('define', generated=generated)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(json.loads(capture.read_text())['path'], '')
+
+    def test_bootstrap_identity_survives_separate_completion(self):
+        """Printed identity is restored in a fresh completion shell without guessing."""
+        text = (ROOT / 'skills/flow-discover/SKILL.md').read_text()
+        bootstrap = next(b for b in re.findall(r'```bash\n(.*?)\n```', text, re.S) if 'discovery-handoff.py" begin' in b)
+        env = dict(self.env, OCTO_ROOT=str(self.engine.parents[1]))
+        begun = subprocess.run(['bash', '-c', bootstrap], cwd=self.home, env=env,
+                               text=True, capture_output=True, timeout=15)
+        self.assertEqual(begun.returncode, 0, begun.stderr)
+        assignments = dict(line.split('=', 1) for line in begun.stdout.splitlines())
+        self.assertRegex(assignments['RUN_ID'], r'^flow-[0-9]+-[0-9a-f]{32}$')
+        self.assertTrue(assignments['RUN_ID'].endswith(assignments['RUN_NONCE']))
+        artifact = self.home / ('.claude-octopus/results/probe-synthesis-' + assignments['RUN_ID'] + '.md')
+        artifact.parent.mkdir(parents=True)
+        artifact.write_text('research from the printed run with sources')
+        completed = self.complete_discovery(artifact, assignments['RUN_ID'])
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        sidecar = Path(self.state_command('state_path').stdout.strip()).parent / 'discovery-handoff.json'
+        self.assertEqual(json.loads(sidecar.read_text())['run_id'], assignments['RUN_ID'])
+
+    def test_begin_invalidates_research_before_opt_in_preparation_failure(self):
+        """A failed project write cannot leave the preceding research selectable."""
+        artifact = self.home / '.claude-octopus/results/probe-synthesis-discovery-a.md'
+        artifact.parent.mkdir(parents=True)
+        artifact.write_text('old research')
+        self.bind_discovery(artifact)
+        text = (ROOT / 'skills/flow-discover/SKILL.md').read_text()
+        bootstrap = next(b for b in re.findall(r'```bash\n(.*?)\n```', text, re.S) if 'discovery-handoff.py" begin' in b)
+        env = dict(self.env, OCTO_ROOT=str(self.engine.parents[1]))
+        begun = subprocess.run(['bash', '-c', bootstrap], cwd=self.home, env=env, text=True, capture_output=True)
+        self.assertEqual(begun.returncode, 0, begun.stderr)
+        env.update(dict(line.split('=', 1) for line in begun.stdout.splitlines()))
+        state = self.engine.parent / 'octo-state.sh'
+        state.write_text('#!/bin/sh\nexit 42\n')
+        state.chmod(0o755)
+        prepare = (ROOT / 'skills/flow-discover/references/prepare.md').read_text()
+        block = re.search(r'```bash\n(.*?)\n```', prepare, re.S).group(1)
+        env['OCTOPUS_PROJECT_PERSISTENCE'] = 'true'
+        prepared = subprocess.run(['bash', '-c', block], cwd=self.home, env=env, text=True, capture_output=True)
+        self.assertNotEqual(prepared.returncode, 0)
+        self.assert_rejected(self.run_skill('define'), 'discovery is incomplete')
+
+    def test_superseded_completion_preserves_the_newer_project_files(self):
+        """Reject A before any project write after B has completed."""
+        self.state_command('init_state')
+        (self.engine.parent / 'octo-state.sh').symlink_to(ROOT / 'scripts/octo-state.sh')
+        self.env['OCTOPUS_PROJECT_PERSISTENCE'] = 'true'
+        artifacts = {}
+        for run_id in ('discovery-a', 'discovery-b'):
+            artifact = self.home / ('.claude-octopus/results/probe-synthesis-' + run_id + '.md')
+            artifact.parent.mkdir(parents=True, exist_ok=True)
+            artifact.write_text(run_id + ' findings and sources')
+            artifacts[run_id] = artifact
+            self.handoff_command('begin', run_id)
+            self.handoff_command('prepare', run_id)
+        completed = self.complete_discovery(artifacts['discovery-b'], 'discovery-b', {'OCTOPUS_PROJECT_PERSISTENCE': 'true'})
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        files = [self.home / p for p in ('.octo/STATE.md', '.octo/phases/phase-1-summary.md', '.octo/PROJECT.md')]
+        before = [p.read_bytes() for p in files]
+        rejected = self.complete_discovery(artifacts['discovery-a'], 'discovery-a', {'OCTOPUS_PROJECT_PERSISTENCE': 'true'})
+        self.assertNotEqual(rejected.returncode, 0)
+        self.assertEqual([p.read_bytes() for p in files], before)
+        rejected = self.handoff_command('prepare', 'discovery-a', check=False)
+        self.assertNotEqual(rejected.returncode, 0)
+        self.assertEqual([p.read_bytes() for p in files], before)
+
+    def test_publication_failure_and_crash_restore_incomplete_project_state(self):
+        """Rollback a failed final commit and recover its journal after process death."""
+        self.state_command('init_state')
+        self.env['OCTOPUS_PROJECT_PERSISTENCE'] = 'true'
+        artifact = self.home / '.claude-octopus/results/probe-synthesis-discovery-a.md'
+        artifact.parent.mkdir(parents=True)
+        artifact.write_text('new research and sources')
+        for crash in (False, True):
+            with self.subTest(crash=crash):
+                self.handoff_command('begin', 'discovery-a')
+                self.handoff_command('prepare', 'discovery-a')
+                state_file = Path(self.state_command('state_path').stdout.strip())
+                summary = self.home / '.octo/phases/phase-1-summary.md'
+                summary.write_text('previous summary retained on failure')
+                project_state = self.home / '.octo/STATE.md'
+                before = [project_state.read_bytes(), summary.read_bytes()]
+                script = """import importlib.util,os,sys
+spec=importlib.util.spec_from_file_location('handoff',sys.argv[1])
+m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+original=m.save
+def fail_final(path,state):
+    if state.get('status')=='complete':
+        if sys.argv[4]=='crash': os._exit(99)
+        raise OSError('injected final publication failure')
+    original(path,state)
+m.save=fail_final
+m.publish(sys.argv[2],'discovery-a',sys.argv[3])
+"""
+                failed = subprocess.run([sys.executable, '-c', script, str(ROOT / 'scripts/helpers/discovery-handoff.py'),
+                                         str(state_file), str(artifact), 'crash' if crash else 'error'],
+                                        cwd=self.home, env=self.env, text=True, capture_output=True, timeout=15)
+                self.assertNotEqual(failed.returncode, 0)
+                self.assert_rejected(self.run_skill('define'), 'discovery is incomplete')
+                self.assertEqual([project_state.read_bytes(), summary.read_bytes()], before)
+                record = json.loads((state_file.parent / 'discovery-handoff.json').read_text())
+                self.assertEqual(record['status'], 'failed')
+                self.assertNotIn('transaction', record)
 
     def test_generated_skills_find_engine_reports(self):
         for phase in ('define', 'develop', 'deliver', 'ink'):

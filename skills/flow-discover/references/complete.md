@@ -7,50 +7,17 @@ After discovery completes:
    `.octo/phases/phase-1-summary.md`, then update `.octo/STATE.md`:
    - status: "complete" (for this phase)
    - Add history entry: "Discover phase completed"
+4. Publish the host handoff record. The helper journals the previous project
+   summary and incomplete state before writing, and restores them on failure.
+   After interruption, the next handoff operation recovers the transaction
+   before starting, selecting or discarding research. A running or failed
+   discovery blocks Define until completion or explicit discard.
 
 ```bash
-# The phase remains incomplete unless there is a synthesis to present.
-if [[ ! -s "${SYNTHESIS_FILE:-}" ]]; then
-  echo "Discover incomplete: synthesis file is missing or empty." >&2
-  exit 1
-fi
-
-# Present findings before recording the phase as complete.
-echo "Discovery findings:"
-cat "$SYNTHESIS_FILE" || exit 1
-
-# Project-local lifecycle documents are a separate, explicit opt-in.
-if [[ "${OCTOPUS_PROJECT_PERSISTENCE:-false}" == "true" ]]; then
-  echo "📝 Saving opt-in discovery phase summary..."
-  # Phase summaries are read by the existing execution context loader.
-  # Replace the whole summary so nested headings cannot retain old findings.
-  if ! (
-    SUMMARY_DIR=".octo/phases"
-    SUMMARY_FILE="$SUMMARY_DIR/phase-1-summary.md"
-    [[ ! -L .octo && ! -L "$SUMMARY_DIR" && ! -L "$SUMMARY_FILE" && ! -d "$SUMMARY_FILE" ]] || exit 1
-    mkdir -p "$SUMMARY_DIR" || exit 1
-    SUMMARY_TEMP=$(mktemp "${SUMMARY_FILE}.tmp.XXXXXX") || exit 1
-    trap 'rm -f "$SUMMARY_TEMP"' EXIT
-    trap 'exit 129' HUP
-    trap 'exit 130' INT
-    trap 'exit 143' TERM
-    cp "$SYNTHESIS_FILE" "$SUMMARY_TEMP" || exit 1
-    mv "$SUMMARY_TEMP" "$SUMMARY_FILE"
-  ); then
-    echo "Discover incomplete: could not persist the discovery phase summary." >&2
-    exit 1
-  fi
-  if ! "${OCTO_ROOT:?}/scripts/octo-state.sh" update_state \
-      --status "complete" \
-      --history "Discover phase completed"; then
-    echo "Discover incomplete: could not persist completion state." >&2
-    exit 1
-  fi
-fi
-
-# Publish only after presentation and all requested project persistence succeed.
+# Restore the literal OCTO_ROOT and RUN_ID from the bootstrap, including on resume.
+# The helper validates, presents, persists and publishes under one run lock.
 HANDOFF_STATE_FILE=$("${OCTO_ROOT:?}/scripts/state-manager.sh" state_path) || exit 1
-python3 "$OCTO_ROOT/scripts/helpers/discovery-handoff.py" publish "$HANDOFF_STATE_FILE" "$RUN_ID" "$SYNTHESIS_FILE" || exit 1
+python3 "$OCTO_ROOT/scripts/helpers/discovery-handoff.py" publish "$HANDOFF_STATE_FILE" "${RUN_ID:?Restore the discovery run ID}" "${SYNTHESIS_FILE:?Restore the synthesis path}" || exit 1
 ```
 
 

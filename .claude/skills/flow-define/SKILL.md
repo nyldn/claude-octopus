@@ -332,7 +332,8 @@ it or discard its binding. Only after the user explicitly chooses to discard
 it, run this command and retry Define, including standalone requests:
 
 ```bash
-WORKFLOW_STATE_FILE=$("${OCTO_ROOT:?}/scripts/state-manager.sh" state_path) || exit 1
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+WORKFLOW_STATE_FILE=$("$OCTO_ROOT/scripts/state-manager.sh" state_path) || exit 1
 python3 "$OCTO_ROOT/scripts/helpers/discovery-handoff.py" discard "$WORKFLOW_STATE_FILE"
 ```
 

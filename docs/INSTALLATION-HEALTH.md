@@ -228,8 +228,8 @@ The hosted branch checks must pass against the PR's current commit.
 
 ## Recover a discovery handoff
 
-Define stops before provider dispatch if its saved research is missing, changed
-or unsafe to read. Restore the original artifact to keep using that research.
+Define stops before provider dispatch if discovery is incomplete or its saved
+research is missing, changed or unsafe to read. Restore the original artifact to keep using that research.
 To proceed without it, explicitly discard the handoff binding and retry
 `/octo:define`. Standalone Define requests use the same recovery.
 
@@ -244,3 +244,9 @@ Discarding clears only the current project's handoff record. It preserves
 research files, project documents, decisions and provider settings. A new
 discovery also invalidates the prior binding. Completed research becomes
 available to Define only after presentation and requested persistence succeed.
+
+Discovery completion holds the current-run lock while saving an opted-in
+project summary and completion status. It records rollback data before those
+writes. If publication fails or the process stops, the next handoff operation
+restores the previous summary and incomplete state before proceeding. A
+superseded run cannot change the current project's completion files.

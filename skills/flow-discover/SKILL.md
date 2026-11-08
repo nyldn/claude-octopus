@@ -40,6 +40,26 @@ fi
 }
 ```
 
+For a **new discovery only**, execute this bootstrap in the same shell call as
+the root-resolution block above, before loading preparation or writing project
+state. Do not split these two blocks across shell calls:
+
+```bash
+RUN_TIMESTAMP="$(date +%s)"
+RUN_NONCE="$(od -An -N16 -tx1 /dev/urandom | tr -d '[:space:]')"
+RUN_ID="flow-${RUN_TIMESTAMP}-${RUN_NONCE}"
+HANDOFF_STATE_FILE=$("${OCTO_ROOT:?}/scripts/state-manager.sh" state_path) || exit 1
+python3 "$OCTO_ROOT/scripts/helpers/discovery-handoff.py" begin "$HANDOFF_STATE_FILE" "$RUN_ID" || exit 1
+printf 'OCTO_ROOT=%q\nRUN_ID=%q\nRUN_TIMESTAMP=%q\nRUN_NONCE=%q\n' "$OCTO_ROOT" "$RUN_ID" "$RUN_TIMESTAMP" "$RUN_NONCE"
+```
+
+Preserve these printed literal assignments in the task handoff. Include them
+at the start of each later shell call and use the same literal run ID in every
+child prompt, synthesis and completion call. After compaction, restore these
+values and reload the current resource. Do not bootstrap again or infer a
+replacement run ID. If the saved values are unavailable, stop and recover the
+task context before dispatching or completing research.
+
 Use this absolute root for every resource and executable. Include its literal
 assignment in each new shell invocation. Use native host shell and task tools,
 and load `skills/blocks/codex-host-adapter.md` on Codex. Confirm exposed

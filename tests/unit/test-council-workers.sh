@@ -69,10 +69,21 @@ CHECK
 test_case "explicit global, outer and provider limits resolve without octal arithmetic"
 if [[ "$(OCTOPUS_COUNCIL_MAX_PARALLEL=08 MAX_PARALLEL=3 council_pool_global_limit)" == 3 && "$(OCTOPUS_COUNCIL_MAX_PARALLEL_CODEX=2 council_pool_provider_limit codex)" == 2 && "$(MAX_PARALLEL=1 council_pool_global_limit)" == 1 ]]; then test_pass; else test_fail "configured limits changed"; fi
 
-test_case "independent seats overlap within global and provider caps in roster order"
+test_case "independent seats overlap within caps and reserve each provider in FIFO order"
 prepare overlap
-council_run_seat_pool independent-advice responses
-if check_events 2 1 && [[ "$(awk '{print $3}' "$COUNCIL_RUN_DIR/reservations" | tr '\n' ' ')" == "one two three four " ]] && [[ "$(find "$COUNCIL_RUN_DIR/responses" -name '*.admitted' | wc -l | tr -d ' ')" == 4 ]]; then test_pass; else test_fail "overlap/cap/admission mismatch"; fi
+INERT_SLEEP_FIRST=1.5 INERT_SLEEP=0.1 council_run_seat_pool independent-advice responses
+if check_events 2 1 && python3 - "$COUNCIL_RUN_DIR/reservations" <<'CHECK'
+import sys
+rows = [line.split() for line in open(sys.argv[1])]
+seats = [row[2] for row in rows]
+assert sorted(seats) == ['four', 'one', 'three', 'two'], seats
+for provider, expected in [('codex', ['one', 'three']), ('gemini', ['two', 'four'])]:
+    actual = [row[2] for row in rows if row[0] == provider]
+    assert actual == expected, (provider, actual)
+CHECK
+then
+    if [[ "$(find "$COUNCIL_RUN_DIR/responses" -name '*.admitted' | wc -l | tr -d ' ')" == 4 ]]; then test_pass; else test_fail "missing admission record"; fi
+else test_fail "overlap/cap/provider FIFO mismatch"; fi
 
 test_case "a capped provider does not block a later eligible seat"
 prepare provider-gap

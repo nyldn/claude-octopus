@@ -5,21 +5,10 @@ project-local `.octo/` lifecycle artifacts when the user explicitly opts in by
 setting `OCTOPUS_PROJECT_PERSISTENCE=true`.
 
 ```bash
+# Restore the literal OCTO_ROOT and RUN_ID emitted by the new-run bootstrap.
 if [[ "${OCTOPUS_PROJECT_PERSISTENCE:-false}" == "true" ]]; then
-  if [[ ! -d ".octo" ]]; then
-    echo "📁 Initializing opt-in .octo/ project state..."
-    if ! "${OCTO_ROOT:?}/scripts/octo-state.sh" init_project; then
-      echo "Discover incomplete: could not initialize opt-in project state." >&2
-      exit 1
-    fi
-  fi
-  if ! "${OCTO_ROOT:?}/scripts/octo-state.sh" update_state \
-      --phase 1 \
-      --position "Discovery" \
-      --status "in_progress"; then
-    echo "Discover incomplete: could not persist in-progress state." >&2
-    exit 1
-  fi
+  HANDOFF_STATE_FILE=$("${OCTO_ROOT:?}/scripts/state-manager.sh" state_path) || exit 1
+  python3 "$OCTO_ROOT/scripts/helpers/discovery-handoff.py" prepare "$HANDOFF_STATE_FILE" "${RUN_ID:?Restore the discovery run ID}" || exit 1
 fi
 ```
 
@@ -137,15 +126,6 @@ Provider Availability:
 # Initialize state if needed
 "${OCTO_ROOT:?}/scripts/state-manager.sh" init_state
 
-# Establish this discovery before any work; a later begin supersedes this run.
-OCTO_RESEARCH_ROOT="${OCTO_ROOT:?}"
-RUN_TIMESTAMP="$(date +%s)"
-RUN_NONCE="$(od -An -N16 -tx1 /dev/urandom | tr -d '[:space:]')"
-RUN_ID="flow-${RUN_TIMESTAMP}-${RUN_NONCE}"
-HANDOFF_STATE_FILE=$("$OCTO_ROOT/scripts/state-manager.sh" state_path) || exit 1
-python3 "$OCTO_ROOT/scripts/helpers/discovery-handoff.py" begin "$HANDOFF_STATE_FILE" "$RUN_ID" || exit 1
-
-
 # Set current workflow
 "${OCTO_ROOT:?}/scripts/state-manager.sh" set_current_workflow "flow-discover" "discover"
 
@@ -204,4 +184,5 @@ The output is one line per agent: `agent_type|label|perspective_prompt`
 **DO NOT PROCEED TO STEP 4 until the fleet is built.**
 
 
-Use `probe-${RUN_TIMESTAMP}-${RUN_NONCE}-<index>` for every probe task ID. Do not call `date` again for this run; every probe artifact, the synthesis file, and verification must carry this same identity.
+Restore the printed bootstrap assignments in each shell; never generate another
+identity here. Use `probe-${RUN_TIMESTAMP}-${RUN_NONCE}-<index>` for every probe task ID. Do not call `date` again for this run; every probe artifact, the synthesis file, and verification must carry this same identity.
