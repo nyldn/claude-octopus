@@ -19,6 +19,50 @@ def project_root():
     return Path(os.environ.get('OCTOPUS_STATE_PROJECT_ROOT') or os.getcwd()).resolve()
 
 
+def locate(workspace, legacy_hint=None):
+    """Keep a physical project's handoff location stable across remote changes.
+
+    Adopt a single legacy record in place, preserving its existing lock and any
+    recovery journal. The canonical index is keyed only by the physical path.
+    """
+    workspace = Path(workspace).resolve()
+    identity = hashlib.sha256(os.fsencode(str(project_root()))).hexdigest()
+    stable = workspace / 'handoffs' / identity / 'discovery-handoff.json'
+    with locked(stable) as (stable_record, _):
+        index = stable.parent / 'location.json'
+        hint = None if legacy_hint is None else Path(legacy_hint).parent.resolve() / 'discovery-handoff.json'
+        if index.exists():
+            saved = load(index)
+            location = Path(saved['location']).parent.resolve() / Path(saved['location']).name
+            allowed = location == stable or (location.parent.parent == workspace / 'projects'
+                                               and location.name == 'discovery-handoff.json')
+            if not allowed:
+                raise ValueError('handoff index points outside this workspace')
+            if hint is not None and hint != location and os.path.lexists(hint):
+                raise ValueError('another legacy handoff exists for the current namespace; automatic selection stopped')
+            return str(location)
+        candidates = []
+        for candidate in (workspace / 'projects').glob('*/discovery-handoff.json'):
+            try:
+                if candidate.parent.is_symlink():
+                    raise ValueError('legacy handoff directory is a symlink')
+                # Atomic legacy records can be filtered before acquiring a lock;
+                # unrelated project directories must remain untouched.
+                load(candidate)
+                with locked(candidate) as (legacy, _):
+                    load(legacy)
+                candidates.append(candidate)
+            except (OSError, ValueError, KeyError, TypeError, AttributeError):
+                if candidate == hint:
+                    raise ValueError('current legacy handoff is unreadable or belongs to another project')
+                continue
+        if len(candidates) > 1:
+            raise ValueError('multiple legacy handoffs match this project; automatic adoption stopped')
+        location = candidates[0] if candidates else stable_record
+        save(index, {'version': 1, 'project': str(project_root()), 'location': str(location)})
+        return str(location)
+
+
 def research_bytes(value, run_id):
     """Read regular nonempty research without following any child symlinks."""
     project = project_root()
@@ -248,10 +292,16 @@ def publish(state_file, run_id, value):
             # Children inherit the lock, so recovery waits until writers exit.
             # For ordinary errors restore project files before exposing failure.
             if state.get('transaction') is not None:
-                recover(path, state)
+                try:
+                    recover(path, state)
+                except Exception as restore_error:
+                    print('Discovery rollback incomplete; journal retained: ' + str(restore_error), file=sys.stderr)
             else:
-                state.update(status='failed', artifact=None)
-                save(path, state)
+                try:
+                    state.update(status='failed', artifact=None)
+                    save(path, state)
+                except Exception as state_error:
+                    print('Discovery failure state could not be recorded: ' + str(state_error), file=sys.stderr)
             raise
 
 
@@ -292,7 +342,9 @@ def main():
     """Expose lifecycle, recovery and snapshot commands to the shipped skills."""
     try:
         args = sys.argv[1:]
-        if len(args) == 3 and args[0] == 'begin':
+        if len(args) in (2, 3) and args[0] == 'locate':
+            print(locate(args[1], args[2] if len(args) == 3 else None))
+        elif len(args) == 3 and args[0] == 'begin':
             begin(args[1], args[2])
         elif len(args) == 3 and args[0] == 'prepare':
             project_prepare(args[1], args[2])
@@ -303,7 +355,7 @@ def main():
         elif len(args) == 2 and args[0] == 'discard':
             begin(args[1], None)
         else:
-            raise ValueError('expected begin/prepare STATE RUN, publish STATE RUN FILE, snapshot STATE DIRECTORY, or discard STATE')
+            raise ValueError('expected locate WORKSPACE [LEGACY_STATE], begin/prepare STATE RUN, publish STATE RUN FILE, snapshot STATE DIRECTORY, or discard STATE')
     except (OSError, ValueError, KeyError, TypeError, AttributeError, subprocess.CalledProcessError) as error:
         print('Discovery handoff rejected: ' + str(error), file=sys.stderr)
         return 1

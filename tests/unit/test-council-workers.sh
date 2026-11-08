@@ -33,10 +33,20 @@ council_dispatch_member() {
     local persona provider
     persona="$(jq -r .persona <<< "$1")"; provider="$(jq -r .provider <<< "$1")"
     [[ "$persona" != one ]] || sleep "${INERT_PREPARE_FIRST:-0.2}"
+    [[ "$persona" != two ]] || sleep "${INERT_PREPARE_SECOND:-0}"
     record_agent_call "$provider" "vendor/model:qualified" $'prompt\n' council "$persona" 0 "$persona"
     # One append per event, each comfortably under PIPE_BUF.
     printf 'start %s %s\n' "$persona" "$provider" >> "$COUNCIL_RUN_DIR/events"
     printf 'partial %s\n' "$persona"
+    if [[ "${INERT_OVERLAP_BARRIER:-0}" == 1 && ( "$persona" == one || "$persona" == two ) ]]; then
+        local ready=false attempt peer=one
+        [[ "$persona" != one ]] || peer=two
+        for ((attempt=0; attempt<200; attempt++)); do
+            if grep -q "^start $peer " "$COUNCIL_RUN_DIR/events"; then ready=true; break; fi
+            sleep 0.05
+        done
+        [[ "$ready" == true ]] || { printf 'overlap readiness timed out: %s\n' "$persona" >&2; return 76; }
+    fi
     if [[ "$persona" == one ]]; then sleep "${INERT_SLEEP_FIRST:-${INERT_SLEEP:-1}}"; else sleep "${INERT_SLEEP:-1}"; fi
     printf 'end %s %s\n' "$persona" "$provider" >> "$COUNCIL_RUN_DIR/events"
     [[ "$persona" != "${INERT_FAIL:-}" ]] || return 7
@@ -71,7 +81,7 @@ if [[ "$(OCTOPUS_COUNCIL_MAX_PARALLEL=08 MAX_PARALLEL=3 council_pool_global_limi
 
 test_case "independent seats overlap within caps and reserve each provider in FIFO order"
 prepare overlap
-INERT_SLEEP_FIRST=1.5 INERT_SLEEP=0.1 council_run_seat_pool independent-advice responses
+INERT_OVERLAP_BARRIER=1 INERT_PREPARE_SECOND=0.3 INERT_SLEEP_FIRST=0.02 INERT_SLEEP=0.02 INERT_TIMEOUT=20 council_run_seat_pool independent-advice responses
 if check_events 2 1 && python3 - "$COUNCIL_RUN_DIR/reservations" <<'CHECK'
 import sys
 rows = [line.split() for line in open(sys.argv[1])]

@@ -48,7 +48,7 @@ state. Do not split these two blocks across shell calls:
 RUN_TIMESTAMP="$(date +%s)"
 RUN_NONCE="$(od -An -N16 -tx1 /dev/urandom | tr -d '[:space:]')"
 RUN_ID="flow-${RUN_TIMESTAMP}-${RUN_NONCE}"
-HANDOFF_STATE_FILE=$("${OCTO_ROOT:?}/scripts/state-manager.sh" state_path) || exit 1
+HANDOFF_STATE_FILE=$("${OCTO_ROOT:?}/scripts/state-manager.sh" handoff_path) || exit 1
 python3 "$OCTO_ROOT/scripts/helpers/discovery-handoff.py" begin "$HANDOFF_STATE_FILE" "$RUN_ID" || exit 1
 printf 'OCTO_ROOT=%q\nRUN_ID=%q\nRUN_TIMESTAMP=%q\nRUN_NONCE=%q\n' "$OCTO_ROOT" "$RUN_ID" "$RUN_TIMESTAMP" "$RUN_NONCE"
 ```

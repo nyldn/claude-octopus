@@ -236,7 +236,7 @@ To proceed without it, explicitly discard the handoff binding and retry
 Use the absolute installed plugin root for `OCTO_ROOT`, then run:
 
 ```bash
-WORKFLOW_STATE_FILE=$("${OCTO_ROOT:?Set OCTO_ROOT to the installed plugin root}/scripts/state-manager.sh" state_path)
+WORKFLOW_STATE_FILE=$("${OCTO_ROOT:?Set OCTO_ROOT to the installed plugin root}/scripts/state-manager.sh" handoff_path)
 python3 "$OCTO_ROOT/scripts/helpers/discovery-handoff.py" discard "$WORKFLOW_STATE_FILE"
 ```
 
@@ -250,3 +250,8 @@ project summary and completion status. It records rollback data before those
 writes. If publication fails or the process stops, the next handoff operation
 restores the previous summary and incomplete state before proceeding. A
 superseded run cannot change the current project's completion files.
+
+The discovery handoff uses the physical project path as its identity, so adding
+or changing a Git remote does not hide completed research. Existing records
+are adopted in place through a stable index. Their locks and recovery journals
+stay in their original location. The general workflow state remains separate.

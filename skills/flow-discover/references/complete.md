@@ -16,7 +16,7 @@ After discovery completes:
 ```bash
 # Restore the literal OCTO_ROOT and RUN_ID from the bootstrap, including on resume.
 # The helper validates, presents, persists and publishes under one run lock.
-HANDOFF_STATE_FILE=$("${OCTO_ROOT:?}/scripts/state-manager.sh" state_path) || exit 1
+HANDOFF_STATE_FILE=$("${OCTO_ROOT:?}/scripts/state-manager.sh" handoff_path) || exit 1
 python3 "$OCTO_ROOT/scripts/helpers/discovery-handoff.py" publish "$HANDOFF_STATE_FILE" "${RUN_ID:?Restore the discovery run ID}" "${SYNTHESIS_FILE:?Restore the synthesis path}" || exit 1
 ```
 

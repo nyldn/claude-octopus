@@ -7,7 +7,7 @@ setting `OCTOPUS_PROJECT_PERSISTENCE=true`.
 ```bash
 # Restore the literal OCTO_ROOT and RUN_ID emitted by the new-run bootstrap.
 if [[ "${OCTOPUS_PROJECT_PERSISTENCE:-false}" == "true" ]]; then
-  HANDOFF_STATE_FILE=$("${OCTO_ROOT:?}/scripts/state-manager.sh" state_path) || exit 1
+  HANDOFF_STATE_FILE=$("${OCTO_ROOT:?}/scripts/state-manager.sh" handoff_path) || exit 1
   python3 "$OCTO_ROOT/scripts/helpers/discovery-handoff.py" prepare "$HANDOFF_STATE_FILE" "${RUN_ID:?Restore the discovery run ID}" || exit 1
 fi
 ```

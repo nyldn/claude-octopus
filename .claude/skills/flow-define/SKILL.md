@@ -306,7 +306,7 @@ trap 'rm -f "$DEFINE_RUN_DIR/research.md" "$RUN_MARKER"; rmdir "$DEFINE_RUN_DIR"
 trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
-WORKFLOW_STATE_FILE=$("$OCTO_ROOT/scripts/state-manager.sh" state_path) || exit 1
+WORKFLOW_STATE_FILE=$("$OCTO_ROOT/scripts/state-manager.sh" handoff_path) || exit 1
 DISCOVERY_RESULTS_FILE=$(python3 "$OCTO_ROOT/scripts/helpers/discovery-handoff.py" snapshot "$WORKFLOW_STATE_FILE" "$DEFINE_RUN_DIR") || {
   echo "Define stopped. Restore the saved research, or explicitly discard its binding using the recovery command below before retrying." >&2
   exit 1
@@ -333,7 +333,7 @@ it, run this command and retry Define, including standalone requests:
 
 ```bash
 OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
-WORKFLOW_STATE_FILE=$("$OCTO_ROOT/scripts/state-manager.sh" state_path) || exit 1
+WORKFLOW_STATE_FILE=$("$OCTO_ROOT/scripts/state-manager.sh" handoff_path) || exit 1
 python3 "$OCTO_ROOT/scripts/helpers/discovery-handoff.py" discard "$WORKFLOW_STATE_FILE"
 ```
 
