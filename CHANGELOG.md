@@ -9,6 +9,21 @@
   boundary. Existing model defaults are unchanged.
   Fixes [#1250](https://github.com/nyldn/claude-octopus/issues/1250).
 
+- Research verification no longer fails a synthesis for referring to its own
+  numbered points. A synthesis line such as "See point 2." or "Corrected in
+  point 2: ..." next to a workspace citation failed with `number_mismatch`,
+  because the cited file did not contain a standalone 2. A whole number after
+  `point`, `points`, `item` or `items`, or continuing such a list with a comma,
+  "and" or "or", is now skipped when no other word follows it. Numbers with a
+  unit, including formatted units such as `5 **MiB**`, and section numbers are
+  still checked. Compact lists such as `points 2,3` are also recognized, while
+  decimals and thousands-formatted numeric claims remain checked. Scores and
+  counts introduced by a colon, both endpoints of hyphen and Unicode
+  dash ranges, and quantities with either Unicode micro-unit prefix also remain checked.
+  Nested emphasis and whitespace before a percent sign cannot hide quantities.
+  Literal destination backticks and emphasis before attached units also retain
+  unsupported quantities for evidence checks.
+
 ## [11.18.0] - 2026-11-07
 
 ### Added
