@@ -107,7 +107,7 @@ _octo_build_openai_tool_loop_env() {
     # indirect expansion until it has passed the same identifier contract as
     # dispatch-time configuration validation.
     if [[ "$credential_env" == KEENABLE_API_KEY ]]; then
-        printf '%s\n' 'The search credential cannot authenticate a model provider.' >&2
+        _octo_provider_routing_load_error 'The search credential cannot authenticate a model provider.'
         PROVIDER_ENV_ARRAY=(false)
         return 1
     fi
@@ -191,7 +191,7 @@ build_provider_env() {
     local entry
     for entry in ${PROVIDER_ENV_ARRAY[@]+"${PROVIDER_ENV_ARRAY[@]}"}; do
         if [[ "$entry" == KEENABLE_API_KEY=* ]]; then
-            printf '%s\n' 'The search credential cannot authenticate a model provider.' >&2
+            _octo_provider_routing_load_error 'The search credential cannot authenticate a model provider.'
             PROVIDER_ENV_ARRAY=(false)
             return 1
         fi

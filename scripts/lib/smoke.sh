@@ -977,6 +977,10 @@ _display_smoke_test_error() {
             echo -e "  ${YELLOW}⚠${NC} ${provider}: Requires a git repository (configuration issue, not a provider failure)"
             echo -e "    ${DIM}Fix: Run from a git repo or use 'codex exec --skip-git-repo-check'${NC}"
             ;;
+        ERROR)
+            echo -e "  ${RED}✗${NC} ${provider}: Provider environment construction failed"
+            echo -e "    ${DIM}Fix: check the selected provider credentials and environment allowlist${NC}"
+            ;;
         UNKNOWN)
             echo -e "  ${RED}✗${NC} ${provider}: Smoke test failed (unknown error)"
             echo -e "    ${DIM}Run with VERBOSE=true for details${NC}"

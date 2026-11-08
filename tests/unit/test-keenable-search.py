@@ -133,6 +133,8 @@ if [[ "$3" == rejected ]]; then
 fi
 VERBOSE=false
 _smoke_test_provider "$2" 7 "$FIXTURE_DIR/result"
+smoke_result=$(cat "$FIXTURE_DIR/result")
+_display_smoke_test_error "$2" "${smoke_result%%:*}" fixture-model
 [[ "$KEENABLE_API_KEY" == inert-fixture ]] || exit 2
 '''
         with tempfile.TemporaryDirectory() as directory:
@@ -156,6 +158,9 @@ _smoke_test_provider "$2" 7 "$FIXTURE_DIR/result"
                         self.assertFalse((root / "call").exists())
                         self.assertFalse((root / "timeout").exists())
                         self.assertEqual((root / "result").read_text().strip(), "ERROR:fixture-model")
+                        self.assertIn(f"{name}: Provider environment construction failed", result.stdout)
+                        self.assertIn("credentials", result.stdout)
+                        self.assertNotIn("inert-fixture", result.stdout + result.stderr)
                     else:
                         self.assertEqual((root / "result").read_text().strip(), "PASS")
                         self.assertEqual((root / "timeout").read_text(), "7")
@@ -233,6 +238,33 @@ if build_provider_env openai-compatible-agent; then exit 2; fi
         result = subprocess.run(["bash", "-c", script, "fixture", str(ROOT)],
                                 env={**os.environ, "KEENABLE_API_KEY": "inert-fixture"}, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_search_credential_rejection_uses_logger_or_standalone_stderr(self):
+        """Both credential rejection paths report safely without permitting launch."""
+        script = r'''source "$1/scripts/lib/provider-routing.sh"
+if [[ "$2" == logger ]]; then
+    log() { printf 'LOG|%s|%s\n' "$1" "$2" >&2; }
+else
+    unset -f log
+fi
+if [[ "$3" == custom ]]; then
+    if _octo_build_openai_tool_loop_env openai-compatible-agent KEENABLE_API_KEY; then exit 2; fi
+else
+    _octo_build_provider_env_impl() { PROVIDER_ENV_ARRAY=(env "KEENABLE_API_KEY=${KEENABLE_API_KEY}"); }
+    if build_provider_env codex; then exit 3; fi
+fi
+printf '%s\n' "${PROVIDER_ENV_ARRAY[@]}"
+'''
+        message = "The search credential cannot authenticate a model provider."
+        for logger, route in itertools.product(("logger", "standalone"), ("custom", "wrapped")):
+            with self.subTest(logger=logger, route=route):
+                result = subprocess.run(["bash", "-c", script, "fixture", str(ROOT), logger, route],
+                    env={**os.environ, "KEENABLE_API_KEY": "inert-fixture"},
+                    capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout, "false\n")
+                self.assertEqual(result.stderr, ("LOG|ERROR|" if logger == "logger" else "") + message + "\n")
+                self.assertNotIn("inert-fixture", result.stdout + result.stderr)
 
     def test_failed_environment_builder_discards_its_partial_prefix(self):
         """A partial environment must remain non-executable even for legacy callers."""

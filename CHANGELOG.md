@@ -10,6 +10,12 @@
   keep the original research prompts. No API key is required for the public
   endpoint. Addresses [#1261](https://github.com/nyldn/claude-octopus/issues/1261).
 
+### Fixed
+
+- Provider smoke tests explain environment construction failures instead of
+  failing silently. Search-credential rejection uses the routing error logger,
+  with a stderr fallback for standalone callers.
+
 ## [11.19.0] - 2026-11-08
 
 ### Added
