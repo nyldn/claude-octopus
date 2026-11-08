@@ -314,8 +314,10 @@ Review feature choices added since installation that still need your decision.
 ```
 
 Only features marked as requiring a decision are offered. The command asks for
-each choice and records your answers for the current repository, including a
-choice to keep the default. Features with missing prerequisites are listed as
+each choice and records your answers, including a choice to keep the default.
+Choices are stored in `~/.claude-octopus/state.json` by default and shared by
+repositories using the same state directory. Set `OCTOPUS_STATE_DIR` to use
+another state directory. Features with missing prerequisites are listed as
 blocked. Nothing is applied without your selection, and recorded choices are
 not asked again. If there are no outstanding choices, the command reports that
 there is nothing new to decide.
