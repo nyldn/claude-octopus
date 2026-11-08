@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Fetch a bounded set of search suggestions, never page contents or model output."""
+import ipaddress
 import json
 import os
+import re
 import signal
 import sys
 import urllib.request
@@ -18,6 +20,15 @@ class DeadlineExceeded(Exception):
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
+
+
+def validated_hostname(parsed):
+    """Validate bracketed hosts independently of the interpreter patch level."""
+    hostname = parsed.hostname
+    if hostname and "[" in parsed.netloc and not re.fullmatch(r"v[0-9a-f]+\..+", hostname):
+        if ipaddress.ip_address(hostname).version != 6:
+            raise ValueError("invalid bracketed host")
+    return hostname
 
 
 def search(query):
@@ -50,9 +61,10 @@ def search(query):
             continue
         try:
             parsed = urlsplit(url)
+            hostname = validated_hostname(parsed)
         except ValueError:
             continue
-        if parsed.scheme not in {"https", "http"} or not parsed.hostname or parsed.username or parsed.password:
+        if parsed.scheme not in {"https", "http"} or not hostname or parsed.username or parsed.password:
             continue
         results.append(f"{len(results) + 1}. {' '.join(title.split())[:300]}\n{url}\n{' '.join(snippet.split())[:500]}")
     return "\n\n".join(results)

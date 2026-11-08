@@ -312,6 +312,17 @@ octopus_tangle_apply_execution_boundary
                 self.assertEqual(result.count(good["url"]), 2)
                 self.assertNotIn(malformed, result)
 
+    def test_bracketed_hosts_are_checked_even_with_a_legacy_url_parser(self):
+        """Older urlsplit builds return bracketed DNS/IPv4 hosts without validation."""
+        from urllib.parse import SplitResult
+        good = {"title": "valid", "url": "https://example.com/good", "snippet": "valid text"}
+        for host, accepted in (("not-an-ip", False), ("127.0.0.1", False),
+                               ("::1", True), ("v1.example", True), ("vZ.example", False)):
+            url = f"https://[{host}]/"
+            with self.subTest(host=host), patch.object(api, "urlsplit", return_value=SplitResult("https", f"[{host}]", "/", "", "")):
+                result, _ = self.invoke({"results": [{**good, "url": url}]})
+                self.assertEqual(url in result, accepted)
+
     def test_cli_errors_print_no_key_response_body_or_traceback(self):
         for error in (urllib.error.HTTPError("https://api.keenable.ai", 402, "inert-private-value", {}, None), TimeoutError("inert-private-value"), ValueError("inert-private-value")):
             with self.subTest(error=type(error).__name__), patch.object(api, "search", side_effect=error), patch.object(api.signal, "alarm"), patch.object(api.signal, "signal"), patch.object(api.sys, "stdin", type("Input", (), {"buffer": io.BytesIO(b"question")})()), patch.object(api.sys, "stdout", io.StringIO()) as stdout, patch.object(api.sys, "stderr", io.StringIO()) as stderr:
