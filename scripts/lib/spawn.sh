@@ -2186,8 +2186,13 @@ sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore")
             update_agent_status "$agent_type" "failed" "$elapsed_ms" "$_estimated_cost" "$_eff_timeout" "$task_id" "${phase:-unknown}" "$result_file"
             local tokens_out _failure_reason="Exit code $exit_code"
             tokens_out=$(octo_estimate_tokens_for_file "$temp_output" 2>/dev/null || echo 0)
-            declare -F octo_failure_reason >/dev/null 2>&1 && \
+            if [[ "$exit_code" -eq 143 ]]; then
+                # Termination diagnostics remain untrusted provider text. This
+                # path formerly used fixed timeout metadata before preserving 143.
+                _failure_reason="Provider terminated by SIGTERM"
+            elif declare -F octo_failure_reason >/dev/null 2>&1; then
                 _failure_reason=$(octo_failure_reason "$exit_code" "$enhanced_prompt" "$temp_errors" "$raw_output")
+            fi
             type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "$_failure_reason" "$elapsed_ms" "$result_file" "${role:-none}" || true
             if ! octo_spawn_contract_finish "$_contract_seat_id" failed "$result_file" "$temp_errors" \
                 "$_failure_reason" "$exit_code" "$elapsed_ms" >/dev/null 2>&1; then

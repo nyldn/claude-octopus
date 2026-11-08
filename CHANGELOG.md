@@ -9,7 +9,7 @@
   cooldown timestamps correctly block repeat dispatch until their deadline.
 - Direct spawns respect terminal quota and auth markers even when no transient
   cooldown is active. Provider reset hints remain inside untrusted result frames.
-- Quota status summaries use launcher-authored reasons so provider diagnostics
+- Quota and termination status summaries use launcher-authored reasons so provider diagnostics
   cannot enter synthesis instructions through trusted failure metadata.
 - Run-local smoke failures keep their health-failure reason. External SIGTERM
   preserves exit 143 through spawn results and lifecycle events instead of
