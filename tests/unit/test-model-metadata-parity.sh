@@ -161,6 +161,32 @@ else
     test_fail "a saved budget pin displaced an explicit model or failed to resume afterward"
 fi
 
+test_case "Haiku 5.5 budget dispatch composes with tier effort and explicit overrides"
+tier_config="$TEST_TMP_DIR/haiku-tier.json"
+jq '.cost_mode = "budget" | .tiers.budget.claude = {capability:"budget",reasoning:"low"} |
+    .providers.claude.reasoning_effort = "high"' \
+    "$pin_home/.claude-octopus/config/providers.json" > "$tier_config"
+if env "HOME=$pin_home" "PLUGIN_DIR=$PROJECT_ROOT" "OCTOPUS_PROVIDERS_CONFIG=$tier_config" \
+    OCTOPUS_MODEL_READ_ONLY=true OCTOPUS_SKIP_PROVIDER_PROBES=1 OCTOPUS_DISPATCH_PREVIEW=true \
+    OCTOPUS_COST_MODE= OCTOPUS_CLAUDE_MODEL= CLAUDE_MODEL= OCTOPUS_EFFORT_OVERRIDE= \
+    OCTOPUS_ROUTING_POLICY=off SUPPORTS_EFFORT_COMMAND=true SUPPORTS_EFFORT_CLI_FLAG=true \
+    bash -euo pipefail -c '
+        log() { :; }
+        _BARE_OPT=""
+        source "$1/scripts/lib/model-resolver.sh"
+        source "$1/scripts/lib/dispatch.sh"
+        command_line=$(get_agent_command claude develop implementer)
+        [[ "$command_line" == *"--model claude-haiku-5-5"* && "$command_line" == *"--effort low"* ]]
+        command_line=$(OCTOPUS_EFFORT_OVERRIDE=medium get_agent_command claude develop implementer)
+        [[ "$command_line" == *"--model claude-haiku-5-5"* && "$command_line" == *"--effort medium"* ]]
+        command_line=$(OCTOPUS_CLAUDE_MODEL=claude-sonnet-5 get_agent_command claude develop implementer)
+        [[ "$command_line" == *"--model claude-sonnet-5"* && "$command_line" == *"--effort high"* ]]
+    ' _ "$PROJECT_ROOT"; then
+    test_pass
+else
+    test_fail "saved budget dispatch lost its model, tier effort or explicit override precedence"
+fi
+
 test_case "Haiku 5.5 billing applies the whole-request tariff strictly above 100K"
 if PRICING_FILE="$pricing_file" python3 - <<'PY'
 import os, subprocess

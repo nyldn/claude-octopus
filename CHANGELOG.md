@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Added
+
+- Deck generation verifies rendered slides before reporting completion. It
+  checks thumbnails, rendered titles and highlighted data claims, then reports
+  each slide's result. Artifacts with missing evidence remain drafts.
+  Addresses [#1219](https://github.com/nyldn/claude-octopus/issues/1219).
+- Cost tiers can now pair a model or capability with reasoning effort in
+  `providers.json`, such as `{"capability":"default","reasoning":"low"}`.
+  Existing string targets still work. Tier effort applies only when that tier
+  selects the model; explicit model routes and effort overrides keep precedence.
+
 ### Fixed
 
 - Haiku 5.5 can be saved as a Claude budget pin. Its estimates use the published
