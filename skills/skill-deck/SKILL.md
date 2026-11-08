@@ -145,8 +145,8 @@ board decision briefs, the board content check and the titles-only read must
 both pass before outline approval.
 For an informational brief such as a Q1 results update, do not require a decision or approval ask.
 Put an executive summary on slide 2 covering key findings and implications,
-including results when applicable, followed by supporting evidence and
-follow-up. Do not invent a decision.
+including results when applicable, followed by supporting evidence. Include
+follow-up only when the brief calls for it. Do not invent a decision.
 
 #### Executive and board outline
 
@@ -232,7 +232,8 @@ argument read. Check appendix titles separately against their expected
 questions and evidence. The main-deck storyline titles must carry the
 argument from the governing question to the ask without relying on body
 bullets. For informational decks, read from the question to the supported
-conclusion and follow-up instead. Label titles fail: "Market overview",
+conclusion instead, with follow-up only when the brief calls for it.
+Label titles fail: "Market overview",
 "Financials" and "Next steps" name topics without saying what the audience
 should understand. Rewrite them as supported declarative claims. If the
 argument skips a pillar, contradicts the hypothesis or ends without answering
@@ -285,7 +286,7 @@ renderer and the session's available viewing tools.
 2. Read the rendered titles in slide order and repeat the titles-only read.
    Compare them with the approved outline. Flag truncation, reflow that hides a
    claim, missing slides and changes that break the argument from question to
-   ask. Preserve approved label titles unless the user approves a storyline
+   ask, or to the supported conclusion for informational decks. Preserve approved label titles unless the user approves a storyline
    change; verification does not authorize rewriting the approved outline.
 3. For each data slide, confirm one highlighted proof point supports its title.
    Compare the displayed value, units, period and chart emphasis with the source
@@ -326,7 +327,7 @@ Apply these when generating outlines:
 - **One idea per slide**: Keep slides focused
 - **5-7 bullets max**: Per slide for readability
 - **Summary slide**: State the supported answer to the governing question; Executives / Board briefs put the executive summary on slide 2 as required in Step 3
-- **Next steps / CTA**: Clear actions on the last main-deck slide, before any appendix slides
+- **Next steps / CTA**: When the brief calls for action, put clear actions on the last main-deck slide, before any appendix slides; otherwise end the main deck with a supported conclusion
 
 ### By Audience Type
 
@@ -338,7 +339,8 @@ Apply these when generating outlines:
 - Keep the main deck focused on the brief's purpose; put expected-question evidence
   in the approved appendix.
 - For decision briefs, end with the specific decision needed. For informational
-  briefs, end with the supported conclusion and follow-up from Step 3.
+  briefs, end with the supported conclusion; include follow-up only when the
+  brief calls for it.
 
 **Engineers / Technical:**
 - Include architecture diagrams (describe for slides)
@@ -353,7 +355,8 @@ Apply these when generating outlines:
   decision brief, include a funding ask and use of funds when they answer that question.
 - Include market size (TAM/SAM/SOM), growth metrics and projections when they
   support the confirmed question.
-- For informational briefs, end with the supported conclusion and follow-up.
+- For informational briefs, end with the supported conclusion; include follow-up
+  only when the brief calls for it.
   Do not add a funding ask to an informational update.
 
 **General / Mixed:**

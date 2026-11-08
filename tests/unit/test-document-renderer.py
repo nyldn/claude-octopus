@@ -198,6 +198,8 @@ class DocumentRendererTest(unittest.TestCase):
                 self.assertIn("Check appendix titles separately against their expected questions and evidence", gate)
                 self.assertIn("Changing the governing question or slide claims after approval returns to this gate", gate)
                 self.assertIn("approved cover title", gate)
+                self.assertIn("conclusion instead, with follow-up only when the brief calls for it", gate)
+                self.assertIn("supported conclusion for informational decks", deck.split("### Step 5:", 1)[1])
                 self.assertIn("informational", step)
                 self.assertIn("Do not invent a decision", step)
                 self.assertNotIn("[First Content Section]", step)
@@ -206,12 +208,13 @@ class DocumentRendererTest(unittest.TestCase):
                                     .split("**Engineers / Technical:**", 1)[0].split())
                 self.assertIn("For decision briefs, end with the specific decision needed", audience)
                 self.assertIn("For informational briefs, end with the supported conclusion", audience)
+                self.assertIn("include follow-up only when the brief calls for it", audience)
                 investors = " ".join(deck.split("**Investors / Fundraising:**", 1)[1]
                                      .split("**General / Mixed:**", 1)[0].split())
                 with self.subTest(contract="investor-purpose"):
                     self.assertIn("For decision briefs", investors)
                     self.assertIn("For informational briefs", investors)
-                    self.assertIn("supported conclusion and follow-up", investors)
+                    self.assertIn("supported conclusion; include follow-up only when the brief calls for it", investors)
                     self.assertIn("Do not add a funding ask", investors)
                     self.assertIn("fundraising example", investors)
                     self.assertIn("optional", investors)
@@ -265,12 +268,12 @@ class DocumentRendererTest(unittest.TestCase):
                 self.assertIn("one backup slide per expected question", gate)
                 self.assertIn("MUST approve", gate)
 
-                purpose = outline_step.split("#### Executive and board outline", 1)[0]
-                self.assertIn("informational", purpose)
-                self.assertIn("Q1 results", purpose)
-                self.assertIn("do not require a decision or approval ask", purpose)
-                self.assertIn("key findings and implications, including results when applicable", " ".join(purpose.split()))
-                self.assertIn("slide 2", purpose)
+                purpose = " ".join(outline_step.split("#### Executive and board outline", 1)[0].split())
+                for requirement in ("informational", "Q1 results", "do not require a decision or approval ask",
+                                    "key findings and implications, including results when applicable",
+                                    "follow-up only when the brief calls for it", "slide 2"):
+                    self.assertIn(requirement, purpose)
+                self.assertNotIn("[Summary / Next Steps]", purpose)
                 sizing = outline_step.split("#### Executive and board outline", 1)[1].split("```markdown", 1)[0]
                 self.assertIn("combine", sizing.lower())
                 self.assertIn("five-slide", sizing)
@@ -280,8 +283,9 @@ class DocumentRendererTest(unittest.TestCase):
                 self.assertIn("Preserve the selected slide range for longer targets", sizing)
                 rules = deck.split("## Slide Structure Best Practices", 1)[1].split("### By Audience Type", 1)[0]
                 cta_rule = next(line for line in rules.splitlines() if "**Next steps / CTA**" in line)
-                self.assertIn("last main-deck slide", cta_rule)
-                self.assertIn("appendix", cta_rule)
+                for requirement in ("last main-deck slide", "appendix", "When the brief calls for action",
+                                    "otherwise end the main deck with a supported conclusion"):
+                    self.assertIn(requirement, cta_rule)
                 self.assertIn("**Storyline**: Slide titles carry the argument", rules)
                 self.assertNotIn("**Agenda slide**", rules)
                 summary_rule = next(line for line in rules.splitlines() if "**Summary slide**" in line)
@@ -308,6 +312,7 @@ class DocumentRendererTest(unittest.TestCase):
                 for requirement in ("every slide, including appendix slides",
                                     "text overflow", "empty placeholders", "broken images",
                                     "rendered titles", "titles-only read",
+                                    "supported conclusion for informational decks",
                                     "one highlighted proof point supports its title", "source data",
                                     "slide number", "thumbnail", "pass, fail or unverified"):
                     self.assertIn(requirement, gate)
