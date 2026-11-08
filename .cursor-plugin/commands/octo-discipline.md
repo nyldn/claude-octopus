@@ -24,7 +24,7 @@ When **on**, you MUST follow these rules automatically — no user prompt needed
 **1. Brainstorm gate** — Before writing ANY code or making changes, check:
 - Has the approach been discussed/planned? If not, read and follow the
   `skill-thought-partner` or `skill-writing-plans` source under
-  `${HOME}/.claude-octopus/plugin/.claude/skills/`.
+  `${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/.claude/skills/`.
 - This applies even for "simple" changes
 
 **2. Verification gate** — Before saying "done", "fixed", "passing", or committing, read and follow `skill-verification-gate`:

@@ -189,7 +189,7 @@ Scope: [answer]  Focus: [answer]  Autonomy: [answer]
 Run the Discover phase via orchestrate.sh:
 
 ```bash
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" probe <user's prompt>
+bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" probe <user's prompt>
 ```
 
 This will dispatch to Codex, Antigravity, and other available providers. Results saved to `probe-synthesis-*.md` in the session results directory.
@@ -202,7 +202,7 @@ This will dispatch to Codex, Antigravity, and other available providers. Results
 Run the define phase via orchestrate.sh:
 
 ```bash
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" grasp <user's prompt>
+bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" grasp <user's prompt>
 ```
 
 This builds consensus across providers. Results saved to `grasp-consensus-*.md` in the session results directory.
@@ -216,7 +216,7 @@ If user selected debate gates at Define→Develop transition:
 2. Run the explicit Embrace gate via orchestrate.sh. Pass no context file: the gate reads the newest `grasp-consensus-*.md` from the session results directory the Define phase wrote to.
 
 ```bash
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" embrace-gate define-develop "<user's prompt>"
+bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" embrace-gate define-develop "<user's prompt>"
 ```
 
 3. Verify the gate logged `Debate gate completed:` with an `embrace-gate-define-develop-*.md` file that exists, before Phase 3. If the command fails or no artifact exists, STOP.
@@ -243,7 +243,7 @@ AskUserQuestion({
 Run the develop phase via orchestrate.sh:
 
 ```bash
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" tangle <user's prompt>
+bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" tangle <user's prompt>
 ```
 
 This dispatches implementation with quality gates. Results saved to `tangle-validation-*.md` in the session results directory.
@@ -253,7 +253,7 @@ This dispatches implementation with quality gates. Results saved to `tangle-vali
 If `DEBATE_GATES=both`, run this before Phase 4. Pass no context file: the gate reads the newest `tangle-validation-*.md` from the session results directory the Develop phase wrote to.
 
 ```bash
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" embrace-gate develop-deliver "<user's prompt>"
+bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" embrace-gate develop-deliver "<user's prompt>"
 ```
 
 Verify the gate logged `Debate gate completed:` with an `embrace-gate-develop-deliver-*.md` file that exists, before Phase 4. If the command fails or no artifact exists, STOP. In autonomous mode, continue only after the gate artifact exists; do not silently skip this gate.
@@ -263,7 +263,7 @@ Verify the gate logged `Debate gate completed:` with an `embrace-gate-develop-de
 Run the deliver phase via orchestrate.sh:
 
 ```bash
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" ink <user's prompt>
+bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" ink <user's prompt>
 ```
 
 This runs multi-provider validation. Results saved to `delivery-*.md` in the session results directory.

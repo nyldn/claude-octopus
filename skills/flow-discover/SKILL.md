@@ -14,9 +14,9 @@ disable-model-invocation: true
 
 ## Compaction-Resistant Contract
 
-- Dispatch MUST go through background agents that call `${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh probe-single`; direct single-model research is not a valid substitute.
+- Dispatch MUST go through background agents that call `"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" probe-single`; direct single-model research is not a valid substitute.
 - Use the dynamic fleet from `build-fleet.sh`; the plugin can route across Codex, Antigravity, Copilot, Qwen, OpenCode, Ollama, Perplexity, OpenRouter, Cursor Agent, and Claude depending on local availability.
-- Before synthesis, run `${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh agent-summary` and use only providers reported as `ok`, `degraded`, or `timeout` with usable output.
+- Before synthesis, run `"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" agent-summary` and use only providers reported as `ok`, `degraded`, or `timeout` with usable output.
 - For `standard` and `deep` research, require at least 2 usable provider outputs unless fewer providers are installed; failed/rejected providers are reported as gaps, not cited as evidence.
 
 ## Pre-Discovery: Optional Project Persistence
@@ -29,12 +29,12 @@ setting `OCTOPUS_PROJECT_PERSISTENCE=true`.
 if [[ "${OCTOPUS_PROJECT_PERSISTENCE:-false}" == "true" ]]; then
   if [[ ! -d ".octo" ]]; then
     echo "📁 Initializing opt-in .octo/ project state..."
-    if ! "${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" init_project; then
+    if ! "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" init_project; then
       echo "Discover incomplete: could not initialize opt-in project state." >&2
       exit 1
     fi
   fi
-  if ! "${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_state \
+  if ! "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_state \
       --phase 1 \
       --position "Discovery" \
       --status "in_progress"; then
@@ -105,7 +105,7 @@ Analyze the user's prompt and project to determine context:
 **MANDATORY: You MUST use the native shell command tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
 
 ```bash
-bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh"
+bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/check-providers.sh"
 ```
 
 **Use the ACTUAL results below. PROHIBITED: Showing only "🔵 Claude: Available ✓" without listing all providers.**
@@ -156,16 +156,16 @@ Provider Availability:
 
 ```bash
 # Initialize state if needed
-"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" init_state
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" init_state
 
 # Set current workflow
-"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" set_current_workflow "flow-discover" "discover"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" set_current_workflow "flow-discover" "discover"
 
 # Get prior decisions (if any)
-prior_decisions=$("${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" get_decisions "all")
+prior_decisions=$("${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" get_decisions "all")
 
 # Get context from previous phases
-prior_context=$("${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" read_state | jq -r '.context')
+prior_context=$("${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" read_state | jq -r '.context')
 
 # Display what you found (if any)
 if [[ "$prior_decisions" != "[]" && "$prior_decisions" != "null" ]]; then
@@ -190,7 +190,7 @@ fi
 **Build the fleet dynamically using `build-fleet.sh`** — this is the single source of truth for provider-to-perspective assignment. It detects ALL available providers (codex, agy, copilot, qwen, opencode, ollama, perplexity, openrouter) and assigns perspectives with model family diversity enforcement.
 
 ```bash
-FLEET_OUTPUT=$("${HOME}/.claude-octopus/plugin/scripts/helpers/build-fleet.sh" research "${INTENSITY}" "${PROMPT}" 2>/dev/null)
+FLEET_OUTPUT=$("${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/build-fleet.sh" research "${INTENSITY}" "${PROMPT}" 2>/dev/null)
 ```
 
 The output is one line per agent: `agent_type|label|perspective_prompt`
@@ -218,6 +218,7 @@ The output is one line per agent: `agent_type|label|perspective_prompt`
 Create one durable run identity after building the fleet and before generating task IDs:
 
 ```bash
+OCTO_RESEARCH_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 RUN_TIMESTAMP="$(date +%s)"
 RUN_NONCE="$(od -An -N16 -tx1 /dev/urandom | tr -d '[:space:]')"
 RUN_ID="flow-${RUN_TIMESTAMP}-${RUN_NONCE}"
@@ -240,13 +241,13 @@ Agent(
   description: "<label> (<agent_type>)",
   prompt: "Run this command and return its COMPLETE stdout output, including the result file path on the last line:
 
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh probe-single <agent_type> '<perspective_prompt>' <task_id> '<original_prompt>' --research-run '<run_id>'
+"$OCTO_RESEARCH_ROOT/scripts/orchestrate.sh" probe-single <agent_type> '<perspective_prompt>' <task_id> '<original_prompt>' --research-run '<run_id>'
 
 After the command completes, read the result file path that was printed and return the full file contents."
 )
 ```
 
-Replace `<run_id>` with the current nonce-bearing `$RUN_ID` value when creating each Agent prompt.
+Replace `<run_id>` with the current nonce-bearing `$RUN_ID` value when creating each Agent prompt. Substitute the resolved `$OCTO_RESEARCH_ROOT` as a literal quoted path in each child command. Reuse that installation for evidence verification; do not resolve a different root midway through the run.
 
 **Launch order:** Iterate the parsed `FLEET_OUTPUT` order from `build-fleet.sh`. Launch all entries from that runtime fleet in parallel when possible; do not reorder by hardcoded provider names.
 
@@ -272,7 +273,7 @@ Replace `<run_id>` with the current nonce-bearing `$RUN_ID` value when creating 
 Run the status table before synthesis:
 
 ```bash
-"${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" agent-summary
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" agent-summary
 ```
 
 Only cite providers with usable output (`ok`, `degraded`, or timeout with partial content). Failed provider output, context-limit errors, and empty outputs are evidence of coverage gaps only.
@@ -313,7 +314,7 @@ Write the synthesis content to `$SYNTHESIS_FILE`. The file MUST exist for the va
 Before presenting the synthesis, run the mechanical evidence gate when the durable run is available:
 
 ```bash
-if ! "$HOME/.claude-octopus/plugin/scripts/orchestrate.sh" research-verify \
+if ! "$OCTO_RESEARCH_ROOT/scripts/orchestrate.sh" research-verify \
     "$RUN_ID" "$SYNTHESIS_FILE"; then
   echo "VALIDATION FAILED: Research evidence verification failed"
   exit 1
@@ -341,11 +342,11 @@ echo "✅ VALIDATION PASSED: $SYNTHESIS_FILE"
 ```bash
 key_findings=$(head -50 "$SYNTHESIS_FILE" | grep -A 3 "## Key Findings\|## Summary" | tail -3 | tr '\n' ' ')
 
-"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" update_context "discover" "$key_findings"
-"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" update_metrics "phases_completed" "1"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_context "discover" "$key_findings"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_metrics "phases_completed" "1"
 # Track actual providers used (dynamic — from fleet output, not hardcoded)
 for _provider in $(echo "$FLEET_OUTPUT" | cut -d'|' -f1 | sort -u); do
-  "${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" update_metrics "provider" "$_provider"
+  "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_metrics "provider" "$_provider"
 done
 ```
 
@@ -399,7 +400,7 @@ Analyze the user's prompt and project to determine context:
 **First, check task status (if available):**
 ```bash
 # Get task status summary from orchestrate.sh (v2.1.12+)
-task_status=$("${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" get-task-status 2>/dev/null || echo "")
+task_status=$("${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" get-task-status 2>/dev/null || echo "")
 ```
 
 **For Dev Context:**
@@ -500,7 +501,7 @@ Providers:
 ### Step 1: Invoke Discover Phase
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh discover "<user's research question>"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" discover "<user's research question>"
 ```
 
 ### Step 2: Multi-Provider Research
@@ -658,7 +659,7 @@ Claude:
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
 🔍 Discover Phase: Researching OAuth 2.0 patterns
 
-[Executes: ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh probe "OAuth 2.0 authentication patterns for React apps"]
+[Executes: "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" probe "OAuth 2.0 authentication patterns for React apps"]
 
 [After completion, reads synthesis and presents:]
 
@@ -830,13 +831,13 @@ cat "$SYNTHESIS_FILE"
 # Project-local lifecycle documents are a separate, explicit opt-in.
 if [[ "${OCTOPUS_PROJECT_PERSISTENCE:-false}" == "true" ]]; then
   echo "📝 Updating opt-in .octo/PROJECT.md with discovery findings..."
-  if ! "${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_project \
+  if ! "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_project \
       --section "vision" \
       --content-file "$SYNTHESIS_FILE"; then
     echo "Discover incomplete: could not persist findings to .octo/PROJECT.md." >&2
     exit 1
   fi
-  if ! "${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_state \
+  if ! "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_state \
       --status "complete" \
       --history "Discover phase completed"; then
     echo "Discover incomplete: could not persist completion state." >&2
