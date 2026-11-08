@@ -18,7 +18,7 @@ It is scheduled for removal in v11.
 When the user invokes `/octo:costs`, run the helper once with the Bash tool:
 
 ```bash
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 helper="$OCTO_ROOT/scripts/helpers/usage-report.sh"
 if [[ ! -x "$helper" ]]; then
   echo "ERROR: Claude Octopus usage report helper is unavailable. Run /octo:setup." >&2

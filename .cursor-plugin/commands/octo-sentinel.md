@@ -68,7 +68,7 @@ When the user invokes `/octo:sentinel`, you MUST:
 ### 2. Execute Sentinel
 
 ```bash
-OCTO_ROOT="${OCTO_ROOT:-${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 OCTOPUS_SENTINEL_ENABLED=true bash "${OCTO_ROOT}/scripts/orchestrate.sh" sentinel $ARGUMENTS
 ```
 
@@ -78,7 +78,7 @@ After triage, run the reaction engine to auto-respond to detected events:
 
 ```bash
 # Check all active agents and fire reactions
-OCTO_ROOT="${OCTO_ROOT:-${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 REACTIONS="${OCTO_ROOT}/scripts/reactions.sh"
 if [[ -x "$REACTIONS" ]]; then
   "$REACTIONS" check-all

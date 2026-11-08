@@ -102,7 +102,7 @@ missing, non-numeric, or outside 1-10, stop and obtain a valid value rather than
 **MANDATORY: You MUST use the native shell command tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
 
 ```bash
-bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh"
+bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/check-providers.sh"
 ```
 
 **Use the ACTUAL results below. PROHIBITED: Showing only "🔵 Claude: Available ✓" without listing all providers.**
@@ -133,7 +133,7 @@ Tools:
 ### STEP 3: Check Design Intelligence
 
 ```bash
-SEARCH_PY="${HOME}/.claude-octopus/plugin/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py"
+SEARCH_PY="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py"
 if [ -f "$SEARCH_PY" ]; then
     python3 -c "import csv, re, math" 2>/dev/null && echo "READY" || echo "MISSING_PYTHON"
 else
@@ -152,7 +152,7 @@ continue to Step 4 when preflight returns `READY`.
 **You MUST execute at least 3 of these searches. This is NOT optional.**
 
 ```bash
-SEARCH_PY="${HOME}/.claude-octopus/plugin/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py"
+SEARCH_PY="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py"
 
 # 1. Product type search — what design patterns fit this product?
 python3 "$SEARCH_PY" "<user's product description>" --domain product
@@ -303,7 +303,7 @@ command -v agy >/dev/null 2>&1 && providers+=(agy)
 
 for provider in "${providers[@]}"; do
     safe_provider=$(printf '%s' "$provider" | tr -c '[:alnum:]_-' '_')
-    "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" spawn "$provider" \
+    "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn "$provider" \
       "<critique prompt>" > "/tmp/design-critique-${safe_provider}.md" &
 done
 
@@ -376,7 +376,7 @@ mcp__shadcn__search_items_in_registries({ query: "<component name>" })
 1. **Accessibility audit — run the checker, do not eyeball.** Every text/background pair in the token set goes through the contrast validator:
 
 ```bash
-python3 "${HOME}/.claude-octopus/plugin/scripts/helpers/contrast-check.py" \
+python3 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/contrast-check.py" \
   '<text-hex>:<bg-hex>' '<heading-hex>:<bg-hex>:large' '<muted-hex>:<bg-hex>' ...
 ```
 

@@ -51,7 +51,7 @@ Participants:
 For debate rounds, dispatch every external advisor through Octopus routing:
 
 ```bash
-"${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" spawn "$advisor" "$prompt"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn "$advisor" "$prompt"
 ```
 
 Do not call provider CLIs directly from the debate workflow. The router applies
@@ -261,7 +261,7 @@ When the user invokes `/octo:debate`:
 For provider checks, never use `grep -P`; use portable `grep -E`/`case` checks and capture the exit code so missing optional CLIs do not fail open or abort the command.
 
 ```bash
-bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh"
+bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/check-providers.sh"
 ```
 
 **Use the ACTUAL results below. PROHIBITED: Showing only "🔵 Claude: Available ✓" without listing all providers.**
@@ -354,8 +354,8 @@ ROUNDS=3
 STYLE="thorough"
 
 # Dynamic advisor selection — the fleet builder remains the admission authority.
-CONSULTATIVE_LIB="${HOME}/.claude-octopus/plugin/scripts/lib/consultative-advisors.sh"
-ADVISOR_SELECTOR="${HOME}/.claude-octopus/plugin/scripts/helpers/select-fleet-advisors.sh"
+CONSULTATIVE_LIB="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/lib/consultative-advisors.sh"
+ADVISOR_SELECTOR="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/select-fleet-advisors.sh"
 source "$CONSULTATIVE_LIB" || exit 1
 HOST_CLAUDE_ALLOWED=false
 HOST_ADVISOR_SUCCESS=0
@@ -434,7 +434,7 @@ the launcher waits up to `OCTOPUS_ADVISOR_WAIT_SECONDS` (default 3600 s). Each a
 An advisor that fails leaves no file:
 
 ```bash
-ORCH="${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh"
+ORCH="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh"
 DEBATE_PROMPT="You are {{advisor}} participating in debate round 1.
 
 DEBATE QUESTION: ${QUESTION}

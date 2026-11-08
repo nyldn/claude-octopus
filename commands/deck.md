@@ -11,7 +11,7 @@ description: Generate slide deck presentations from briefs or research
 ## Instructions
 
 Read and follow the full skill instructions from:
-`${HOME}/.claude-octopus/plugin/.claude/skills/skill-deck/SKILL.md`
+`${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/.claude/skills/skill-deck/SKILL.md`
 
 ## Quick Usage
 

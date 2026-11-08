@@ -31,7 +31,7 @@ When the user invokes this command (e.g., `/octo:discover <arguments>`):
 
 **✓ CORRECT - Run the orchestrated probe workflow:**
 ```bash
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" probe <user's arguments>
+bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" probe <user's arguments>
 ```
 
 Run this from the user's project directory — never `cd` into the plugin first. Dispatched providers sandbox file access to the invoking directory, so a plugin cwd makes the user's project files unreadable to every provider.
@@ -98,10 +98,10 @@ After receiving answers, incorporate them into the `orchestrate.sh probe` invoca
 ### Step 2: Run Discovery via orchestrate.sh
 
 ```bash
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" --intensity=<quick|standard|deep> probe <user's arguments>
+bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" --intensity=<quick|standard|deep> probe <user's arguments>
 ```
 
-Example: `bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" --intensity=standard probe OAuth authentication patterns`
+Example: `bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" --intensity=standard probe OAuth authentication patterns`
 
 Pass the intensity only as the `--intensity=` flag. A bracket token such as `[intensity=deep]` is not an orchestrate.sh option: bash reads it as prompt text and runs at standard intensity, and zsh rejects it as an unmatched glob.
 

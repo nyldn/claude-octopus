@@ -8,10 +8,9 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 MATRIX="$PROJECT_ROOT/tests/fixtures/reported-issue-patterns.tsv"
 LIVE_SUITE="$PROJECT_ROOT/tests/live/test-installed-package-issue-patterns.sh"
 RUNNER="$PROJECT_ROOT/tests/run-all.sh"
-WORKFLOW="$PROJECT_ROOT/.github/workflows/test.yml"
-MAKEFILE="$PROJECT_ROOT/Makefile"
 
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
+source "$SCRIPT_DIR/../helpers/ci-coverage.sh"
 test_suite "reported issue pattern coverage"
 
 test_case "the public regression matrix defines all six recurring families"
@@ -33,27 +32,10 @@ fi
 test_case "every deterministic suite named by the matrix exists and is CI-reachable"
 missing=""
 ci_suites=""
-while IFS= read -r target; do
-    [[ -n "$target" ]] || continue
-    category="$(awk -v target="$target" '
-        $0 ~ "^" target ":" {in_target = 1; next}
-        in_target && /^[[:alnum:]_.-]+:/ {exit}
-        in_target && /run-all\.sh/ {
-            command = $0
-            sub(/^.*run-all\.sh[[:space:]]+/, "", command)
-            split(command, args, /[[:space:]]+/)
-            print args[1]
-            exit
-        }
-    ' "$MAKEFILE")"
+while IFS= read -r category; do
     [[ -n "$category" ]] || continue
     ci_suites+="$(bash "$RUNNER" "$category" --list | sed -n 's/^[[:space:]]*- /tests\//p')"$'\n'
-done < <(
-    sed 's/#.*//' "$WORKFLOW" |
-        grep -ohE 'make test-[a-z0-9-]+' |
-        awk '{print $2}' |
-        sort -u
-)
+done < <(ci_test_categories "$PROJECT_ROOT")
 while IFS= read -r suite; do
     [[ -n "$suite" ]] || continue
     if [[ ! -f "$PROJECT_ROOT/$suite" ]]; then

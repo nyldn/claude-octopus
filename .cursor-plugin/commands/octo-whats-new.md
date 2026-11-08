@@ -29,7 +29,7 @@ a question and must not be raised as one.
 ### Step 1 — Load the outstanding questions
 
 ```bash
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 source "$OCTO_ROOT/scripts/lib/features.sh"
 
 octo_features_available || {

@@ -9,6 +9,27 @@
   boundary. Existing model defaults are unchanged.
   Fixes [#1250](https://github.com/nyldn/claude-octopus/issues/1250).
 
+## [11.18.0] - 2026-11-07
+
+### Added
+
+- `/octo:refine`, with `/octo:ladder` as an alias, improves artifacts through a frozen rubric, independent Claude/Codex scoring, and bounded rounds. Reports retain each attempted round and the best verified result.
+
+### Fixed
+
+- Guard modes now check forced recursive removal targets, require review of unclassified executable input, and share stable session identity across activation, hooks, and deactivation.
+- Metric-loop instructions direct the host to preserve existing edits and the staged index through isolated candidates, finite iteration/time/call budgets, and resume accounting. These steps depend on host compliance; they are not an executable supervisor.
+- Failed or malformed independent review verification leaves findings unverified and disables publication.
+- Commands, skills, and registered hooks use the current host installation with quoted executable paths, including sessions using different versions or installation paths containing spaces.
+- Budget, standard, and premium shortcuts remain supported; removed the obsolete v11 removal notice.
+
+### Development
+
+- Run affected PR tests on both supported systems and shard full unit coverage into four weighted lanes per system. Run integration beside units and use targeted symlink regressions on every event.
+- Remove duplicate local sync/smoke runs, standalone packaging jobs, repeated full local release requirements, and automatic advisory model reviews unless explicitly enabled. Required CI and approval remain intact.
+- Keep release validation read-only and publish through the gated release process. Reject unknown test-runner flags before execution.
+- Bound full unit steps and retain their output before the job deadline so stalled tests produce actionable diagnostics.
+
 ## [11.17.1] - 2026-11-05
 
 ### Fixed

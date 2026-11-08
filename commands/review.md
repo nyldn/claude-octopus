@@ -197,7 +197,7 @@ If the user includes `fresh` in the command text, do not treat it as a file path
 ## Step 2.5: Ensure plugin root is resolvable (run via Bash tool)
 
 ```bash
-OCTO_ROOT="${HOME}/.claude-octopus/plugin"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 if [[ ! -x "$OCTO_ROOT/scripts/orchestrate.sh" ]]; then
   helper="$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh"
   if [[ ! -x "$helper" ]]; then
@@ -215,7 +215,7 @@ If the output is `plugin-root:missing`, stop and ask the user to run `/octo:setu
 Run via Bash tool:
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh code-review '<profile-json>'
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" code-review '<profile-json>'
 ```
 
 Where `<profile-json>` is the JSON profile built in Step 2.
