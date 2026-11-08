@@ -80,8 +80,8 @@ Build a slide-by-slide outline in Markdown format. For Executives / Board,
 infer the purpose from the brief. When it calls for a decision, use the
 executive and board outline below. For an informational brief such as a
 Q1 results update, do not require a decision or approval ask. Use the general
-structure with an executive summary on slide 2 covering results, key drivers
-and implications, then evidence and follow-up. Do not invent a decision to
+structure with an executive summary on slide 2 covering key findings and
+implications, including results when applicable, then evidence and follow-up. Do not invent a decision to
 fit the template. If the purpose is unclear, clarify it before outlining.
 For other audiences, use this general structure:
 
