@@ -65,6 +65,55 @@ fi
 
 # ── File existence and syntax ─────────────────────────────────────────────────
 
+test_case "concurrent failures serialize the complete circuit-breaker transaction"
+if (
+    _PROVIDER_STATE_DIR="$TEST_TMP_DIR/concurrent-state"
+    OCTO_CB_FAILURE_THRESHOLD=2
+    mkdir -p "$_PROVIDER_STATE_DIR"
+    tail() {
+        command tail "$@"
+        touch "$TEST_TMP_DIR/failure-snapshot"
+        for attempt in {1..250}; do
+            [[ ! -e "$TEST_TMP_DIR/release-snapshot" ]] || return 0
+            sleep 0.02
+        done
+        return 1
+    }
+    record_provider_failure codex 75 'temporary limit' > "$TEST_TMP_DIR/first-failure" &
+    first=$!
+    for attempt in {1..250}; do
+        [[ ! -e "$TEST_TMP_DIR/failure-snapshot" ]] || break
+        sleep 0.02
+    done
+    (
+        unset -f tail
+        touch "$TEST_TMP_DIR/second-failure-started"
+        record_provider_failure codex 75 'temporary limit'
+    ) > "$TEST_TMP_DIR/second-failure" &
+    second=$!
+    for attempt in {1..250}; do
+        [[ ! -e "$TEST_TMP_DIR/second-failure-started" ]] || break
+        sleep 0.02
+    done
+    sleep 0.2
+    before=$(wc -l < "$_PROVIDER_STATE_DIR/codex.failures")
+    touch "$TEST_TMP_DIR/release-snapshot"
+    first_rc=0 second_rc=0
+    wait "$first" || first_rc=$?
+    wait "$second" || second_rc=$?
+    if [[ "$before" -eq 1 && "$first_rc" -eq 0 && "$second_rc" -eq 0 ]] &&
+       [[ "$(wc -l < "$_PROVIDER_STATE_DIR/codex.failures")" -eq 2 ]] &&
+       ! is_provider_available codex; then
+        exit 0
+    else
+        exit 1
+    fi
+); then
+    test_pass
+else
+    test_fail "concurrent writers lost history or skipped the cooldown"
+fi
+
 if [[ -f "$ROUTER" ]]; then
     pass "provider-router.sh exists"
 else

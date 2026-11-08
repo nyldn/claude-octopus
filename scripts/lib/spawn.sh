@@ -2253,7 +2253,9 @@ sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore")
         fi
 
         # Cleanup temp files (keep raw_output for debugging if result is empty)
-        rm -f "$temp_input" "$temp_output" "$temp_errors" "$quota_fired_file"
+        rm -f "$temp_input" "$temp_output" "$temp_errors"
+        # Optional diagnostic persistence must not prevent worker completion.
+        rm -f "$quota_fired_file" 2>/dev/null || true
         if [[ $result_size -ge 1024 ]]; then
             rm -f "$raw_output"  # Clean up if result looks good
         fi

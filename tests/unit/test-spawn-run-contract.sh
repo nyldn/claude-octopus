@@ -422,6 +422,19 @@ run_external_fixture() {
     wait "$pid" 2>/dev/null || true
 }
 
+run_errexit_marker_fixture() {
+    local task="$1" pid rc=0
+    set -e
+    export FAKE_SCENARIO=quota-marker-failure
+    # An unconditional invocation preserves errexit in the worker, unlike the
+    # guarded command substitution used by run_external_fixture.
+    spawn_agent fake-api "Quota marker cleanup fixture" "$task" reviewer probe > "$TEST_TMP_DIR/marker-worker.pid"
+    pid="$(tail -n 1 "$TEST_TMP_DIR/marker-worker.pid")"
+    wait "$pid" || rc=$?
+    printf '%s\n' "$rc" > "$TEST_TMP_DIR/marker-worker.exit"
+    rmdir "$RESULTS_DIR/.tmp-${task}.quota"
+}
+
 run_watched_fixture() {
     local scenario="$1" task="$2" timeout="$3"
     (
@@ -453,7 +466,11 @@ run_watched_fixture() {
         fi
         record_agent_start() { printf '%s\n' "call-$scenario"; }
         record_agent_failure() { printf '%s\n' "${4:-failed}" > "$TEST_TMP_DIR/$scenario.usage"; }
-        if [[ "$scenario" == terminated || "$scenario" == terminated-injection || "$scenario" == hang ]]; then
+        if [[ "$scenario" == quota-marker-failure ]]; then
+            _octopus_agent_lifecycle_event() {
+                [[ "$1" != completed ]] || printf '%s:%s\n' "${8:-}" "${9:-}" > "$TEST_TMP_DIR/$scenario.lifecycle"
+            }
+        elif [[ "$scenario" == terminated || "$scenario" == terminated-injection || "$scenario" == hang ]]; then
             _octopus_agent_lifecycle_event() {
                 [[ "$1" != completed ]] || printf '%s\n' "${9:-}" > "$TEST_TMP_DIR/$scenario.lifecycle"
             }
@@ -463,9 +480,10 @@ run_watched_fixture() {
             _PROVIDER_STATE_DIR="$TEST_TMP_DIR/$scenario-circuit-breaker"
             OCTO_CB_FAILURE_THRESHOLD=1
         fi
-        run_external_fixture "$scenario" "$task"
         if [[ "$scenario" == quota-marker-failure ]]; then
-            rmdir "$RESULTS_DIR/.tmp-${task}.quota"
+            run_errexit_marker_fixture "$task"
+        else
+            run_external_fixture "$scenario" "$task"
         fi
         if [[ "$scenario" == quota-held || "$scenario" == auth-held ]]; then
             if spawn_agent fake-api "Must be skipped after terminal quota/auth failure" "$scenario-blocked" reviewer probe; then
@@ -1473,6 +1491,9 @@ if [[ -e "$TEST_TMP_DIR/quota-marker-write-injected" ]] &&
    [[ "$((SECONDS - marker_started))" -lt 12 ]] &&
    [[ "$(octo_result_framed_sections "$RESULTS_DIR/fake-api-quota-marker-failure.md" status)" == '## Status: FAILED - QUOTA OR AUTH ERROR (exit code: 75)' ]] &&
    [[ "$(run_contract_latest_transition spawn-quota-marker-failure)" == failed ]] &&
+   [[ "$(cat "$TEST_TMP_DIR/marker-worker.exit")" == 75 ]] &&
+   [[ "$(cat "$WORKSPACE_DIR/.octo/agents/quota-marker-failure.done")" == 75 ]] &&
+   [[ "$(cat "$TEST_TMP_DIR/quota-marker-failure.lifecycle")" == 75:failed ]] &&
    octo_quota_is_dead fake-api; then
     test_pass
 else

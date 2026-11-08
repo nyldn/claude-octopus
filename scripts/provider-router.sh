@@ -15,7 +15,7 @@ _ROUTER_STATS_FILE="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.provider-stats.js
 
 # Opt-in lifecycle event stream (oco-aek) — no-op unless OCTO_EVENT_LOG is set.
 # Sourced guarded; emits below are also declare-f guarded.
-if ! declare -f octo_event_emit >/dev/null 2>&1; then
+if ! declare -f _octo_event_lock >/dev/null 2>&1; then
     _octo_pr_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
     # shellcheck source=/dev/null
     source "${_octo_pr_lib_dir}/lib/events.sh" 2>/dev/null || true
@@ -90,12 +90,17 @@ extract_retry_after() {
 
 # Record a provider failure for circuit breaker tracking
 # Args: provider exit_code error_text
-record_provider_failure() {
+record_provider_failure() (
     local provider="$1"
     local exit_code="${2:-1}"
     local error_text="${3:-}"
 
-    mkdir -p "$_PROVIDER_STATE_DIR"
+    mkdir -p "$_PROVIDER_STATE_DIR" || return 1
+    # All writers share one bounded, portable lock per provider. Atomic rename
+    # alone cannot protect the preceding append/trim/count transaction.
+    local state_key="${_PROVIDER_STATE_DIR}/${provider}.breaker"
+    _octo_event_lock "$state_key" || return $?
+    trap '_octo_event_unlock "$state_key"' EXIT
 
     local error_class
     error_class=$(classify_provider_error "$exit_code" "$error_text")
@@ -104,10 +109,10 @@ record_provider_failure() {
 
     # Append failure to provider's failure log (keep last 20 entries)
     local failure_file="${_PROVIDER_STATE_DIR}/${provider}.failures"
-    echo "${timestamp}:${error_class}:${exit_code}" >> "$failure_file"
+    echo "${timestamp}:${error_class}:${exit_code}" >> "$failure_file" || return 1
     # Trim to last 20 entries
     if [[ -f "$failure_file" ]]; then
-        tail -20 "$failure_file" > "${failure_file}.tmp" && mv "${failure_file}.tmp" "$failure_file"
+        tail -20 "$failure_file" > "${failure_file}.tmp" && mv "${failure_file}.tmp" "$failure_file" || return 1
     fi
 
     # Check if circuit should open (only on transient — permanent errors don't trigger breaker)
@@ -128,12 +133,16 @@ record_provider_failure() {
     fi
 
     echo "$error_class"
-}
+)
 
 # Record a provider success (clears failure state)
 # Args: provider
-record_provider_success() {
+record_provider_success() (
     local provider="$1"
+    mkdir -p "$_PROVIDER_STATE_DIR" || return 1
+    local state_key="${_PROVIDER_STATE_DIR}/${provider}.breaker"
+    _octo_event_lock "$state_key" || return $?
+    trap '_octo_event_unlock "$state_key"' EXIT
 
     # Clear failure log and cooldown on success
     local _was_open=0
@@ -143,16 +152,20 @@ record_provider_success() {
     if [[ "$_was_open" == "1" ]] && declare -f octo_event_emit >/dev/null 2>&1; then
         octo_event_emit "circuit-breaker.closed" provider="$provider" || true
     fi
-}
+)
 
 # Check if a provider is available (not in cooldown)
 # Args: provider
 # Returns: 0 if available, 1 if in cooldown
-is_provider_available() {
+is_provider_available() (
     local provider="$1"
     local cooldown_file="${_PROVIDER_STATE_DIR}/${provider}.cooldown"
 
     [[ ! -f "$cooldown_file" ]] && return 0
+    # Expiry must not remove a new cooldown published by a concurrent failure.
+    local state_key="${_PROVIDER_STATE_DIR}/${provider}.breaker"
+    _octo_event_lock "$state_key" || return 1
+    trap '_octo_event_unlock "$state_key"' EXIT
 
     local cooldown_start
     cooldown_start=$(cat "$cooldown_file" 2>/dev/null) || return 0
@@ -172,7 +185,7 @@ is_provider_available() {
     local remaining=$((OCTO_CB_COOLDOWN_SECS - elapsed))
     log "DEBUG" "Provider $provider in cooldown (${remaining}s remaining)" 2>/dev/null || true
     return 1
-}
+)
 
 # Filter candidate providers, removing those in cooldown
 # Args: candidate1 candidate2 ...
