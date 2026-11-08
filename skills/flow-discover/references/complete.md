@@ -3,8 +3,8 @@
 After discovery completes:
 1. Verify the synthesis file exists and is non-empty.
 2. Present its findings to the user.
-3. If project-local persistence was explicitly enabled, populate
-   `.octo/PROJECT.md`, then update `.octo/STATE.md`:
+3. If project-local persistence was explicitly enabled, save the synthesis in
+   `.octo/phases/phase-1-summary.md`, then update `.octo/STATE.md`:
    - status: "complete" (for this phase)
    - Add history entry: "Discover phase completed"
 
@@ -21,11 +21,23 @@ cat "$SYNTHESIS_FILE"
 
 # Project-local lifecycle documents are a separate, explicit opt-in.
 if [[ "${OCTOPUS_PROJECT_PERSISTENCE:-false}" == "true" ]]; then
-  echo "📝 Updating opt-in .octo/PROJECT.md with discovery findings..."
-  if ! "${OCTO_ROOT:?}/scripts/octo-state.sh" update_project \
-      --section "vision" \
-      --content-file "$SYNTHESIS_FILE"; then
-    echo "Discover incomplete: could not persist findings to .octo/PROJECT.md." >&2
+  echo "📝 Saving opt-in discovery phase summary..."
+  # Phase summaries are read by the existing execution context loader.
+  # Replace the whole summary so nested headings cannot retain old findings.
+  if ! (
+    SUMMARY_DIR=".octo/phases"
+    SUMMARY_FILE="$SUMMARY_DIR/phase-1-summary.md"
+    [[ ! -L .octo && ! -L "$SUMMARY_DIR" && ! -L "$SUMMARY_FILE" && ! -d "$SUMMARY_FILE" ]] || exit 1
+    mkdir -p "$SUMMARY_DIR" || exit 1
+    SUMMARY_TEMP=$(mktemp "${SUMMARY_FILE}.tmp.XXXXXX") || exit 1
+    trap 'rm -f "$SUMMARY_TEMP"' EXIT
+    trap 'exit 129' HUP
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    cp "$SYNTHESIS_FILE" "$SUMMARY_TEMP" || exit 1
+    mv "$SUMMARY_TEMP" "$SUMMARY_FILE"
+  ); then
+    echo "Discover incomplete: could not persist the discovery phase summary." >&2
     exit 1
   fi
   if ! "${OCTO_ROOT:?}/scripts/octo-state.sh" update_state \
@@ -42,7 +54,8 @@ fi
 
 The Discover phase is complete ONLY when the synthesis file exists and its complete findings
 are presented to the user. When `OCTOPUS_PROJECT_PERSISTENCE=true`, the findings must also
-be persisted in `.octo/PROJECT.md`. Then
+be persisted in `.octo/phases/phase-1-summary.md`. Preserve `.octo/PROJECT.md`,
+including the user's vision, requirements, constraints and decisions. Then
 either invoke `flow-define` (embrace workflow, or the user wants requirements next) or
 stop with research delivered. Do NOT begin scoping, designing, or implementation from
 here — that work belongs to later phases.

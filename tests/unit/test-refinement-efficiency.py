@@ -240,7 +240,9 @@ print('raw unvalidated output')
                 self.assertTrue((ROOT/link).is_file(),link)
         for skill in ('skill-refine', 'flow-discover'):
             text = (ROOT / 'skills' / skill / 'SKILL.md').read_text()
-            block = re.search(r'```bash\n(.*?)\n```', text, re.S).group(1)
+            match = re.search(r'```bash\n(.*?)\n```', text, re.S)
+            self.assertIsNotNone(match, f'{skill}: no fenced bash block')
+            block = match.group(1)
             for entry in (ROOT / 'skills' / skill / 'SKILL.md', ROOT / '.claude/skills' / skill / 'SKILL.md'):
                 isolated = {k: v for k, v in os.environ.items() if k not in ('CLAUDE_PLUGIN_ROOT', 'CODEX_PLUGIN_ROOT', 'OCTO_ROOT')}
                 isolated.update(HOME=str(self.base), OCTO_SKILL_FILE=str(entry))
