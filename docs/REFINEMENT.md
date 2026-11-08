@@ -207,6 +207,17 @@ process groups. It produces raw responses, never valid-score claims. The host
 must inspect both result identities, assemble the assessment, and run the score
 validator. One successful seat cannot become a passing pair.
 
+A material rubric correction uses the same run and ledger. Append
+`--rubric-correction PREVIOUS_SHA256 REASON` to the first pair command under
+the corrected rubric, with the latest rubric hash and a specific reason of at
+most 2,000 characters. That pair must rescore the original candidate. The helper
+records the new `rubric_version`, both hashes and the reason before dispatch.
+Rescore the best candidate next under that version with a new pair ID. Keep
+the fixed models, efforts, deadline and total call limit; both pairs consume
+the remaining budget. Silent changes and stale hashes fail. Restoring historical
+rubric bytes also creates a new version rather than reusing earlier assessments.
+Retain earlier assessments and compare scores only within a rubric version.
+
 Use `scripts/helpers/preflight.sh --providers claude,codex --json` for this fixed
 panel. The public dashboard still checks all detectable providers when neither
 a panel nor council roster is pinned. A panel does not change the council roster.

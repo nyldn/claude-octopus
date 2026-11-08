@@ -3,6 +3,7 @@
 # Variables assigned here are consumed by council.sh through Bash dynamic scope.
 # shellcheck disable=SC2034
 
+# Decode one roster record into the caller's seat variables using NUL separators.
 council_read_seat_fields() {
     # Assign into the advice loop's local variables, preserving empty strings.
     {
@@ -17,12 +18,15 @@ council_read_seat_fields() {
         | .[] | (if . == null then "null" else tostring end), "\u0000"' <<< "$1")
 }
 
+# Print monotonic milliseconds shared by seat preparation and timeout accounting.
 council_pool_now_ms() {
     # EPOCHREALTIME is a wall clock and can jump during a timeout. Keep one
     # monotonic clock domain for preparation, reservation waits and dispatch.
     python3 -c 'import time; print(int(time.monotonic() * 1000))'
 }
 
+# Normalize a positive decimal concurrency limit, using the supplied fallback
+# for zero, malformed or excessively long input before performing arithmetic.
 council_pool_limit() {
     local value="$1" fallback="$2"
     case "$value" in ''|*[!0-9]*) value="$fallback" ;; esac
@@ -31,6 +35,7 @@ council_pool_limit() {
     printf '%s\n' "$((10#$value))"
 }
 
+# Resolve the pool limit within MAX_PARALLEL; fixtures and inline mode stay serial.
 council_pool_global_limit() {
     local limit outer
     limit="$(council_pool_limit "${OCTOPUS_COUNCIL_MAX_PARALLEL:-2}" 2)"
@@ -40,6 +45,7 @@ council_pool_global_limit() {
     printf '%s\n' "$limit"
 }
 
+# Resolve a canonical provider's override or the shared per-provider limit.
 council_pool_provider_limit() {
     local provider="$1" knob limit specific
     knob="OCTOPUS_COUNCIL_MAX_PARALLEL_$(printf '%s' "$provider" | tr '[:lower:]-' '[:upper:]_')"
@@ -48,6 +54,8 @@ council_pool_provider_limit() {
     printf '%s\n' "$specific"
 }
 
+# Return a pooled seat's saved status and timeout provenance, or dispatch inline
+# when no pooled result exists and the aggregate deadline still permits it.
 council_collect_seat() {
     local output="$3" rc
     COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE=""
@@ -79,6 +87,8 @@ council_pool_request_reservation() {
     [[ "$(<"${output}.reserved")" == 0 ]]
 }
 
+# Record one seat's requested usage in scheduler order and publish its result
+# atomically so the waiting provider can proceed only after reservation succeeds.
 council_pool_reserve_call() {
     local output="$1" value rc=0
     local -a args
@@ -115,6 +125,8 @@ $old_hup"
     return "$rc"
 }
 
+# Schedule one phase in roster order under global, provider and deadline limits.
+# Retain each seat's completion record and partial evidence when cancelling.
 _council_seat_pool_impl() {
     umask 077
     local phase="$1" directory="$2" through limit

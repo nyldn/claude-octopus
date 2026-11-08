@@ -36,6 +36,8 @@ declare -a CHECK_LINES
 declare -a CHECK_STATUSES
 ANY_BELOW_FLOOR=0
 
+# Record a version-floor diagnostic for an installed CLI in the selected panel.
+# Unknown versions stay informational; below-floor versions set the shared flag.
 check_version() {
   local name="$1" cmd="$2" min="$3" flag="${4:---version}" provider="$1"
 

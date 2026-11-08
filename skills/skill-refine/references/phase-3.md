@@ -48,6 +48,8 @@ the remaining budget. A stale lock requires inspection, never automatic deletion
 Both calls overlap and share the remaining deadline. Wait for both. The manifest
 contains raw output paths only; `raw-results` is not a valid score. Inspect both
 actual result files and identities and run the existing score validator.
+For a necessary rubric correction, follow phase 2's explicit transition before
+rescoring. Ordinary resume still requires the current rubric bytes to match.
 
 `PROVIDER_SPEC` may be a configured executor such as `codex` or `claude-opus`,
 or a supported exact `executor:model` pin. Use the dispatch plan's constrained

@@ -1869,6 +1869,8 @@ _council_cancel_tree() {
     kill -KILL "$pid" 2>/dev/null || true
 }
 
+# Run one roster member with bounded detached output, or use the inline fixture
+# path; publish the seat PID so the phase scheduler can collect it later.
 council_dispatch_member_detached() {
     # Signal-isolated dispatch with atomic output and completion records. The
     # phase scheduler can launch this seat now and reap it after other seats.
@@ -1946,6 +1948,8 @@ council_dispatch_member_detached() {
     council_reap_member_detached "$output_path" "$seat_pid" "$timeout_secs"
 }
 
+# Collect a detached seat's completion status within its timeout and reap grace.
+# Kill an overdue process tree before discarding output that could publish late.
 council_reap_member_detached() {
     local output_path="$1" seat_pid="$2" timeout_secs="$3"
     local partial="${output_path}.partial" done_file="${output_path}.done"
@@ -4337,6 +4341,8 @@ council_chair_is_host_native() {
     [[ "$status" == "host-native" ]]
 }
 
+# Collect independent advice and build seat, quorum and dissent records from
+# completed outputs, retaining failures and deadline omissions in the evidence.
 council_run_advice_phase() {
     COUNCIL_RESPONSES_RECEIVED="0"
     COUNCIL_CHAIR_RESPONSE_RECEIVED="false"
@@ -4724,6 +4730,8 @@ council_run_chair_fallback() {
     return 1
 }
 
+# Collect cross-critiques after the advice barrier, except at quick depth.
+# Discard failed critique outputs while retaining completed pooled seats.
 council_run_critique_phase() {
     if [[ "$COUNCIL_DEPTH" == "quick" ]]; then
         return 0
@@ -4743,6 +4751,8 @@ council_run_critique_phase() {
     done < <(jq -c '.[]' <<< "$COUNCIL_ROSTER_JSON")
 }
 
+# At deep depth, collect each member's revision after all critiques complete.
+# Failed or unlaunched seats do not contribute a revision artifact.
 council_run_revision_phase() {
     if [[ "$COUNCIL_DEPTH" != "deep" ]]; then
         return 0

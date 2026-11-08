@@ -1747,11 +1747,14 @@ review_next_run_id() {
 #
 # Args: JSON profile string with fields:
 #   target, focus, provenance, autonomy, publish, debate
-# Close every proof/report path when the clean-review gate cannot be verified.
+# Close failed review proof/report paths, optionally preserving saved findings.
 review_fail_closed() {
     local findings="$1" proof="$2" providers="$3" message="$4"
+    local preserve_findings="${5:-false}"
     log ERROR "review_run: $message"
-    review_local_synthesis_json "[]" "$message" > "$findings" || true
+    if [[ "$preserve_findings" != true ]]; then
+        review_local_synthesis_json "[]" "$message" > "$findings" || true
+    fi
     if [[ -n "$proof" ]]; then
         [[ ! -s "$findings" ]] || octo_proof_artifact "$proof" "review-findings" "$findings" "$message" || true
         octo_proof_capture_provider_status "$proof" "$providers" || true
@@ -1763,6 +1766,8 @@ review_fail_closed() {
     return 1
 }
 
+# Run independent review, verification and synthesis from a JSON profile. A strict
+# clean first round may skip later calls; findings, proof and provider reports remain.
 review_run() {
     local _ts; _ts=$(date +%s)
     local profile_json="${1:-"{}"}"
@@ -2569,7 +2574,10 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
     fi
 
     if [[ -n "$proof_dir" ]]; then
-        octo_proof_artifact "$proof_dir" "review-findings" "$findings_file" "final review findings" || return 1
+        octo_proof_artifact "$proof_dir" "review-findings" "$findings_file" "final review findings" || {
+            review_fail_closed "$findings_file" "$proof_dir" "$provider_status_file" "Could not attach review findings to the proof packet" true
+            return 1
+        }
     fi
 
     if [[ -n "$review_state_file" ]] && declare -F pr_review_state_append_round >/dev/null 2>&1; then
@@ -2583,7 +2591,10 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
         if pr_review_state_append_round "$review_state_file" "$review_host" "$review_repo" "$review_pr_number" "$review_head_sha" "$providers_json" "$final_findings" "$classification" 2>/dev/null; then
             log INFO "review_run: round-aware state saved to $review_state_file"
             if [[ -n "$proof_dir" ]]; then
-                octo_proof_artifact "$proof_dir" "review-history-state" "$review_state_file" "round-aware PR review state"
+                octo_proof_artifact "$proof_dir" "review-history-state" "$review_state_file" "round-aware PR review state" || {
+                    review_fail_closed "$findings_file" "$proof_dir" "$provider_status_file" "Could not attach review history to the proof packet" true
+                    return 1
+                }
             fi
         fi
     fi
@@ -2641,9 +2652,18 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
             proof_verdict="pass"
         fi
         proof_summary="/octo:review completed with ${proof_finding_count} finding(s)."
-        octo_proof_claim "$proof_dir" "Review findings were written to disk" "verified" "$findings_file" || return 1
-        octo_proof_capture_provider_status "$proof_dir" "$provider_status_file" || return 1
-        octo_proof_finalize "$proof_dir" "$proof_verdict" "$proof_summary" || return 1
+        octo_proof_claim "$proof_dir" "Review findings were written to disk" "verified" "$findings_file" || {
+            review_fail_closed "$findings_file" "$proof_dir" "$provider_status_file" "Could not record the review findings proof claim" true
+            return 1
+        }
+        octo_proof_capture_provider_status "$proof_dir" "$provider_status_file" || {
+            review_fail_closed "$findings_file" "$proof_dir" "$provider_status_file" "Could not capture providers in the review proof packet" true
+            return 1
+        }
+        octo_proof_finalize "$proof_dir" "$proof_verdict" "$proof_summary" || {
+            review_fail_closed "$findings_file" "$proof_dir" "$provider_status_file" "Could not finalize the review proof packet" true
+            return 1
+        }
         echo ""
         echo "Proof packet: $proof_dir"
     fi

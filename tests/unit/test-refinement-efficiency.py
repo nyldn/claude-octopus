@@ -214,6 +214,98 @@ print('raw unvalidated output')
             self.assertFalse((other / 'round-0/0/ended').exists())
             self.assertFalse((other / 'round-0/1/ended').exists())
 
+    def test_explicit_rubric_correction_retains_run_limits(self):
+        """Version a corrected rubric without resetting calls, time or model pins."""
+        run = self.pair_fixture()
+        rubric = self.base / 'rubric'
+        rubric.write_text('initial rubric')
+        self.pair_args[5] = str(rubric)
+        self.pair_args[7] = '6'
+        baseline = subprocess.run(self.pair_args, capture_output=True, text=True)
+        self.assertEqual(baseline.returncode, 0, baseline.stderr)
+        ledger = run / 'calls.jsonl'
+        prior_ledger = ledger.read_bytes()
+        original = json.loads(prior_ledger.splitlines()[0])
+        previous = original['hashes']['rubric']
+        rubric.write_text('corrected rubric with the missing criterion')
+        self.pair_args[2] = 'rubric-v2-original'
+        silent = subprocess.run(self.pair_args, capture_output=True, text=True)
+        self.assertNotEqual(silent.returncode, 0)
+        transition = ['--rubric-correction', previous, 'Add the omitted user requirement']
+        stale = subprocess.run(self.pair_args + ['--rubric-correction', '0' * 64, transition[-1]], capture_output=True, text=True)
+        self.assertNotEqual(stale.returncode, 0)
+        self.assertIn('current hash', stale.stderr)
+        best = self.base / 'best'; best.write_text('improved candidate')
+        original_candidate = self.pair_args[4]
+        self.pair_args[4] = str(best)
+        wrong_candidate = subprocess.run(self.pair_args + transition, capture_output=True, text=True)
+        self.assertNotEqual(wrong_candidate.returncode, 0)
+        self.assertIn('original candidate', wrong_candidate.stderr)
+        self.pair_args[4] = original_candidate
+        self.pair_args[8] = 'claude-opus:changed'
+        changed_panel = subprocess.run(self.pair_args + transition, capture_output=True, text=True)
+        self.assertNotEqual(changed_panel.returncode, 0)
+        self.assertIn('panel, models, or efforts', changed_panel.stderr)
+        self.pair_args[8] = 'claude-opus:fixed'
+        self.assertEqual(ledger.read_bytes(), prior_ledger)
+        corrected = subprocess.run(self.pair_args + transition, capture_output=True, text=True)
+        self.assertEqual(corrected.returncode, 0, corrected.stderr)
+        self.assertTrue(ledger.read_bytes().startswith(prior_ledger))
+        revised = json.loads(ledger.read_text().splitlines()[1])
+        self.assertEqual(revised['rubric_version'], 2)
+        self.assertEqual(revised['rubric_correction']['previous_sha256'], previous)
+        self.assertEqual(revised['rubric_correction']['reason'], transition[-1])
+        self.assertEqual(revised['deadline'], original['deadline'])
+        self.assertEqual(revised['max_calls'], 6)
+        self.pair_args[2] = 'rubric-v2-best'
+        repeated = subprocess.run(self.pair_args + transition, capture_output=True, text=True)
+        self.assertNotEqual(repeated.returncode, 0)
+        self.assertIn('changed rubric bytes', repeated.stderr)
+        self.pair_args[4] = str(best)
+        rescored = subprocess.run(self.pair_args, capture_output=True, text=True)
+        self.assertEqual(rescored.returncode, 0, rescored.stderr)
+        entries = [json.loads(line) for line in ledger.read_text().splitlines()]
+        self.assertEqual(sum(entry['calls'] for entry in entries), 6)
+        self.assertEqual(entries[-1]['rubric_version'], 2)
+        self.pair_args[2] = 'over-budget'
+        self.assertNotEqual(subprocess.run(self.pair_args, capture_output=True).returncode, 0)
+        self.pair_args[7] = '8'
+        self.assertNotEqual(subprocess.run(self.pair_args, capture_output=True).returncode, 0)
+        self.pair_args[7] = '6'
+        self.pair_args[6] = str(float(self.deadline) + 60)
+        self.assertNotEqual(subprocess.run(self.pair_args, capture_output=True).returncode, 0)
+        self.assertEqual(len(ledger.read_text().splitlines()), 3)
+
+    def test_reusing_historical_rubric_bytes_requires_a_new_version(self):
+        """Preserve version history when an explicit correction restores prior bytes."""
+        spec = importlib.util.spec_from_file_location('refinement_pair', ROOT / 'scripts/refinement-pair.py')
+        module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        entries = [{'hashes': {'rubric': 'old', 'candidate': 'original'}},
+                   {'hashes': {'rubric': 'current', 'candidate': 'original'}, 'rubric_version': 2}]
+        frozen = {'rubric': 'old', 'candidate': 'original'}
+        with self.assertRaisesRegex(ValueError, '--rubric-correction'):
+            module.rubric_transition(entries, frozen, None)
+        revision = module.rubric_transition(entries, frozen, ['current', 'Undo an incorrect criterion'])
+        self.assertEqual(revision['rubric_version'], 3)
+        self.assertEqual(revision['rubric_correction']['previous_sha256'], 'current')
+        self.assertEqual(revision['rubric_correction']['new_sha256'], 'old')
+
+    def test_rubric_correction_needs_budget_for_both_rescores(self):
+        """Keep the ledger unchanged when only one scoring pair remains."""
+        run = self.pair_fixture()
+        rubric = self.base / 'rubric'; rubric.write_text('initial rubric')
+        self.pair_args[5] = str(rubric)
+        baseline = subprocess.run(self.pair_args, capture_output=True, text=True)
+        self.assertEqual(baseline.returncode, 0, baseline.stderr)
+        ledger = run / 'calls.jsonl'; before = ledger.read_bytes()
+        previous = json.loads(before)['hashes']['rubric']
+        rubric.write_text('corrected rubric')
+        self.pair_args[2] = 'correction'
+        result = subprocess.run(self.pair_args + ['--rubric-correction', previous, 'Add missing requirement'], capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('call budget exhausted', result.stderr)
+        self.assertEqual(ledger.read_bytes(), before)
+
     def test_group_signals_precede_reaping(self):
         """Keep process-group ownership until every cancellation signal is sent."""
         spec = importlib.util.spec_from_file_location('refinement_pair', ROOT / 'scripts/refinement-pair.py')

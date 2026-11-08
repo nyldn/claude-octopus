@@ -69,21 +69,38 @@ review_resolve_history_context() { :; }
 octo_proof_enabled() { return 0; }
 octo_proof_init() { echo "$TMP/proof"; }
 octo_proof_event() { :; }
-octo_proof_artifact() { :; }
-octo_proof_claim() { :; }
-octo_proof_capture_provider_status() { cp "$2" "$TMP/provider-status"; printf '%s\n' "$2" > "$TMP/provider-state-path"; }
-octo_proof_finalize() { echo "$2" > "$TMP/verdict"; }
+octo_proof_artifact() {
+    if [[ "$2" == review-findings && "$CASE" == proof-* ]]; then
+        [[ -f "$TMP/findings-before-proof" ]] || cp "$3" "$TMP/findings-before-proof"
+        [[ "$CASE" != proof-artifact && "$CASE" != proof-artifact-finalize ]] || return 42
+    fi
+}
+octo_proof_claim() { [[ "$CASE" != proof-claim ]]; }
+octo_proof_capture_provider_status() {
+    printf '%s\n' "$2" > "$TMP/provider-state-path"
+    [[ "$CASE" != proof-status ]] || return 42
+    cp "$2" "$TMP/provider-status"
+}
+octo_proof_finalize() {
+    echo "$2" >> "$TMP/finalize-attempts"
+    [[ "$CASE" != proof-finalize && "$CASE" != proof-artifact-finalize ]] || return 42
+    echo "$2" > "$TMP/verdict"
+}
 render_terminal_report() { :; }
-print_provider_report() { :; }
+print_provider_report() {
+    printf '%s\n' "$1" > "$TMP/provider-report-path"
+    cp "$1" "$TMP/reported-status"
+}
 gh() { [[ "$CASE" == publication || "$CASE" == finding-publication ]] && echo 123; }
 post_inline_comments() { touch "$TMP/publication-attempt"; return 1; }
 git() { return 1; }
 export HOME="$TMP/home" TMPDIR="$TMP"
 mkdir -p "$HOME"
-for CASE in clean missing timeout failed malformed prose finding changed diff-error snapshot-bad zero publication finding-publication allfailed statusless multi warning error; do
+for CASE in clean missing timeout failed malformed prose finding changed diff-error snapshot-bad zero publication finding-publication allfailed statusless multi warning error proof-artifact proof-claim proof-status proof-finalize proof-artifact-finalize; do
     test_case "$CASE dispatches downstream stages or fails closed"
     RESULTS_DIR="$TMP/$CASE"; mkdir -p "$RESULTS_DIR"
     rm -f "$TMP/dispatched" "$TMP/calls" "$TMP/round1-calls" "$TMP/verdict" "$TMP/provider-status" "$TMP/provider-state-path" "$TMP/publication-attempt"
+    rm -f "$TMP/findings-before-proof" "$TMP/finalize-attempts" "$TMP/provider-report-path" "$TMP/reported-status"
     rc=0
     profile='{"publish":"never","history":"fresh","debate":"off"}'
     [[ "$CASE" != publication && "$CASE" != finding-publication ]] || profile='{"publish":"ask","history":"fresh","debate":"off"}'
@@ -92,6 +109,13 @@ for CASE in clean missing timeout failed malformed prose finding changed diff-er
     verdict=""; [[ ! -f "$TMP/verdict" ]] || verdict="$(cat "$TMP/verdict")"
     calls=""; [[ ! -f "$TMP/calls" ]] || calls="$(cat "$TMP/calls")"
     case "$CASE" in
+        proof-*)
+            if [[ "$rc" == 1 && "$count" == 0 && -s "$TMP/reported-status" && -f "$TMP/provider-report-path" ]] &&
+               grep -c '^fail$' "$TMP/finalize-attempts" >/dev/null &&
+               [[ ! -e "$(cat "$TMP/provider-report-path")" ]] &&
+               cmp -s "$TMP/findings-before-proof" "$RESULTS_DIR"/review-findings-*.json; then
+                test_pass
+            else test_fail "proof failure lost findings, finalization or cleanup: rc=$rc $(cat "$TMP/output")"; fi ;;
         clean)
             if [[ "$rc" == 0 && "$count" == 0 && "$verdict" == pass && "$(wc -l < "$TMP/round1-calls" | tr -d ' ')" == 2 ]] &&
                jq -e '.findings == [] and (.warning // "") == ""' "$RESULTS_DIR"/review-findings-*.json >/dev/null &&

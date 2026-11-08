@@ -118,6 +118,8 @@ Always use `refinement-pair.py` through its mandatory single-judge adapter.
 Reserve both calls before launch and count failures, cancellation, research,
 retries, and resume against the same total budget and absolute deadline. Never
 redispatch a reserved pair ID. Raw stdout and one successful seat cannot pass.
+For a material rubric correction, follow phase 2's explicit version transition
+and rescore the original before the best candidate within the remaining budget.
 
 Bind assessment identities to actual dispatch metadata, exactly one canonical
 `claude` and one `codex`, plus rubric and candidate hashes. Run
@@ -126,7 +128,7 @@ score, criterion minima, no blockers, passing guards and disagreement limit of
 10 points control acceptance. Verify findings before edits. Never average away
 failure or weaken the rubric. Accept only verified improvement with no regression.
 Stop after two stalled rounds or any budget, evidence, cancellation or provider
-blocker. Resume only with matching ledger, original, candidate, rubric, fixed
+blocker. Resume only with matching ledger, original, candidate, current rubric version, fixed
 panel, models and efforts; never reset counters. Label target success only when
 the validator reports `target_met: true` for the delivered bytes. Preserve
 concurrent edits and existing approval boundaries through delivery.

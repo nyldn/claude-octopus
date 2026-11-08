@@ -622,6 +622,7 @@ octo_provider_readiness_all() {
     done
 }
 
+# Convert one shared readiness result to the legacy status text expected by callers.
 octo_provider_readiness_legacy() {
     local check_kind="${1:-static}" result provider status
     printf '%s\n' "PROVIDER_CHECK_START"

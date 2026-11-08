@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Run workflow skill shell blocks against an inert report-writing engine."""
 import os
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -30,10 +31,13 @@ class WorkflowResultTest(unittest.TestCase):
         (plugin / 'scripts/helpers/ensure-plugin-root.sh').write_text(
             (ROOT / 'scripts/helpers/ensure-plugin-root.sh').read_text())
         self.engine = plugin / 'scripts/orchestrate.sh'
-        self.engine.write_text(f'#!{sys.executable} -I\n' + '''import os
+        self.engine.write_text(f'#!{sys.executable} -I\n' + '''import os,json
 from pathlib import Path
 import sys
 phase = sys.argv[1]
+if phase == "define" and os.environ.get("FIXTURE_RESEARCH_CAPTURE"):
+    research = sys.argv[3] if len(sys.argv) > 3 else ""
+    Path(os.environ["FIXTURE_RESEARCH_CAPTURE"]).write_text(json.dumps({"path": research, "content": Path(research).read_text() if research else ""}))
 prefix = {"define":"grasp-consensus", "develop":"tangle-validation", "deliver":"delivery", "ink":"delivery"}[phase]
 directory = Path(os.environ["FIXTURE_RESULTS"])
 mode = os.environ.get("FIXTURE_MODE", "complete")
@@ -82,6 +86,36 @@ sys.exit(1 if mode == "failed" else 0)
                 result = self.run_skill(phase)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn('-current.md', result.stdout)
+
+    def test_define_recovers_the_complete_saved_discovery(self):
+        """Pass project research after restart without using a truncated preview."""
+        plugin = self.engine.parents[1]
+        state = plugin / 'scripts/octo-state.sh'
+        state.symlink_to(ROOT / 'scripts/octo-state.sh')
+        subprocess.run([str(state), 'init_project'], cwd=self.home, check=True, capture_output=True)
+        subprocess.run([str(state), 'update_state', '--phase', '1', '--status', 'complete'], cwd=self.home, check=True, capture_output=True)
+        summary = self.home / '.octo/phases/phase-1-summary.md'
+        content = '# Research\n\n' + 'finding\n' * 40 + '\n## Sources\nlate source\n'
+        summary.write_text(content)
+        capture = self.home / 'research-capture.json'
+        self.env['FIXTURE_RESEARCH_CAPTURE'] = str(capture)
+        for generated in (False, True):
+            with self.subTest(generated=generated):
+                result = self.run_skill('define', generated=generated)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                research = json.loads(capture.read_text())
+                self.assertEqual(Path(research['path']).resolve(), summary.resolve())
+                self.assertEqual(research['content'], content)
+        subprocess.run([str(state), 'update_state', '--phase', '1', '--status', 'in_progress'], cwd=self.home, check=True, capture_output=True)
+        result = self.run_skill('define')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(capture.read_text())['path'], '')
+        subprocess.run([str(state), 'update_state', '--phase', '1', '--status', 'complete'], cwd=self.home, check=True, capture_output=True)
+        summary.write_text('')
+        capture.unlink()
+        result = self.run_skill('define')
+        self.assert_rejected(result, 'saved discovery summary is unreadable or empty')
+        self.assertFalse(capture.exists())
 
     def test_generated_skills_find_engine_reports(self):
         for phase in ('define', 'develop', 'deliver', 'ink'):

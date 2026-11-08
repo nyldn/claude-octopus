@@ -31,6 +31,7 @@ octopus_provider_failure_classify() {
     fi
 }
 
+# Succeed only for a recoverable classification; terminal auth and quota errors fail.
 octopus_provider_failure_retryable() {
     [[ "$(octopus_provider_failure_classify "$@")" == retryable ]]
 }

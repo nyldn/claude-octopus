@@ -1695,6 +1695,8 @@ tangle_resolve_repo_root() {
     printf '%s\n' "$resolved_root"
 }
 
+# Resolve concrete task paths against a supplied tracked-file snapshot, or take
+# one snapshot when omitted; bound basename matches and the final file count.
 tangle_resolve_repo_context_files() {
     local text="$1"
     local max_files="${OCTOPUS_TANGLE_CONTEXT_MAX_FILES:-16}"
@@ -1824,6 +1826,8 @@ tangle_require_execution_boundary() {
     export OCTOPUS_TANGLE_EXECUTION_BOUNDARY=true
 }
 
+# Build task context from one tracked-file snapshot and the active write policy,
+# keeping path resolution and the displayed repository inventory consistent.
 tangle_build_repo_context_block() {
     local assigned_subtask="$1"
     local repo_root
@@ -4137,6 +4141,8 @@ tangle_correction_identity_message() {
     printf '%s\n' "Step 5: Applying contextual review corrections (round=${round_num}, role=implementer, strategy=${correction_strategy}, stall_window=${stall_window}s, executor_alias=${correction_agent}, configured_provider=$(octo_provider_identity_from_agent_type "${correction_agent}"), configured_model=${correction_model}, runtime_provider=unknown, runtime_model=unknown)..."
 }
 
+# Apply verified normal findings within the correction budget. Track worktree
+# progress and completion separately so progress reporting cannot delay reaping.
 tangle_apply_review_corrections() {
     local resolved_prompt="$1"
     local context_file="$2"

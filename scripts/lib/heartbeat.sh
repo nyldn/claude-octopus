@@ -619,6 +619,8 @@ run_with_timeout() {
     return $exit_code
 }
 
+# Print size and second-resolution mtime in the existing signature format;
+# retain size through wc when neither platform's stat command succeeds.
 _octo_capture_file_signature() {
     local path="$1"
     [[ -e "$path" ]] || { printf '%s\n' missing; return 0; }
@@ -633,6 +635,8 @@ _octo_capture_file_signature() {
 
 _OCTO_WORKTREE_METADATA_HELPER="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/worktree-metadata.py"
 
+# Hash changed and untracked paths with metadata, without reading file contents.
+# Use the batch sampler when available and preserve the shell fallback format.
 _octo_capture_worktree_fingerprint() {
     local worktree="${1:-}"
     [[ -n "$worktree" && -d "$worktree" ]] || { printf '%s\n' none; return 0; }

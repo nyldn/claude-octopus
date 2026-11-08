@@ -27,3 +27,25 @@ Freeze the rubric bytes and hash. Do not change weights, lower standards, remove
 hard findings, or increase verbosity merely to raise the score. A necessary
 rubric correction starts a new version and requires rescoring the original and
 best candidate under the new version, within the same remaining budget.
+
+Record the defect and supporting evidence before correcting the rubric. Keep
+the previous pair's frozen rubric and assessments. Reserve enough remaining
+time and at least four calls to rescore the original and best candidate. If
+that budget is unavailable, stop and report the correction as unscored.
+
+For the first pair under the corrected rubric, use the original candidate
+snapshot and append these arguments to the mandatory phase 3 pair command:
+
+```bash
+--rubric-correction "$PREVIOUS_RUBRIC_SHA256" "$CORRECTION_REASON"
+```
+
+Use the latest rubric hash from `calls.jsonl` and a specific correction reason,
+at most 2,000 characters. The helper records the old and new hashes, reason and
+incremented `rubric_version` in its reservation. It rejects a stale hash,
+an unchanged rubric, or scoring an edited candidate before the original.
+Restoring historical rubric bytes also requires a new version. Rescore the best
+candidate with another unique pair ID and the same corrected rubric, without
+the correction flag.
+Preserve the ledger, fixed panel, absolute deadline and total call limit.
+Compare scores only within the same rubric version.

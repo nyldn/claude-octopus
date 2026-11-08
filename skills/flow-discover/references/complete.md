@@ -60,4 +60,9 @@ either invoke `flow-define` (embrace workflow, or the user wants requirements ne
 stop with research delivered. Do NOT begin scoping, designing, or implementation from
 here — that work belongs to later phases.
 
+When resuming into Define, use this project's saved phase summary as the
+research-results file for `orchestrate.sh define`. The Define execution block
+reloads that full file when Discover is complete. A short state preview or
+execution-context excerpt does not replace the synthesis and its sources.
+
 **Ready to research!** This skill is used after explicit invocation when users request research or exploration.
