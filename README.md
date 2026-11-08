@@ -36,18 +36,18 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
-Vibe keyring logins work in the selected one-provider setup flow and explicit
-Vibe probes. Choose Vibe in `/octo:setup` to check a login saved by `vibe --setup`.
-The check is silent and bounded. Automatic inventory scans continue to defer
-keyring inspection. See [Vibe authentication](docs/PROVIDERS.md).
+Deck generation checks rendered slides before reporting completion. It compares
+titles and highlighted data claims with the approved outline and reviews slide
+thumbnails. Missing evidence leaves the deck as a draft. See
+[document renderers](docs/DOCUMENT-RENDERERS.md).
 
-Council reviews accept valid structured policy findings while continuing to
-check invented source quotes. Invalid findings and failed verification retain
-blocking evidence instead of silently allowing implementation.
+Cost tiers can pair a model with reasoning effort, so a budget task can use a
+lighter setting while a difficult task uses a deeper one. Explicit model and
+effort choices keep precedence. See [model routing](docs/MODEL-ROUTING-STRATEGY.md).
 
-Define, develop, deliver and ship check the reports from the current workflow
-invocation. Failed commands, stale reports and missing completion status cannot
-make an unfinished run appear successful.
+Research verification recognizes references to a synthesis's own numbered
+points without treating them as unsupported measurements. Numeric claims with
+units, percentages, scores and ranges still require source evidence.
 
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.18.0 — Rubric-guided refinement, bounded improvement loops, and safer guard and review workflows.**
