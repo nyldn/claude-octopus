@@ -201,6 +201,7 @@ OCTO_RESEARCH_ROOT="${OCTO_ROOT:?}"
 RUN_TIMESTAMP="$(date +%s)"
 RUN_NONCE="$(od -An -N16 -tx1 /dev/urandom | tr -d '[:space:]')"
 RUN_ID="flow-${RUN_TIMESTAMP}-${RUN_NONCE}"
+"${OCTO_ROOT:?}/scripts/state-manager.sh" update_context "discovery_run" "$RUN_ID" || exit 1
 ```
 
 Use `probe-${RUN_TIMESTAMP}-${RUN_NONCE}-<index>` for every probe task ID. Do not call `date` again for this run; every probe artifact, the synthesis file, and verification must carry this same identity.

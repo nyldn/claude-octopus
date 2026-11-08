@@ -60,9 +60,10 @@ either invoke `flow-define` (embrace workflow, or the user wants requirements ne
 stop with research delivered. Do NOT begin scoping, designing, or implementation from
 here — that work belongs to later phases.
 
-When resuming into Define, use this project's saved phase summary as the
-research-results file for `orchestrate.sh define`. The Define execution block
-reloads that full file when Discover is complete. A short state preview or
-execution-context excerpt does not replace the synthesis and its sources.
+When resuming into Define, use the full artifact recorded in the project-scoped
+host state for the current discovery run. Define verifies its project, run and
+content hash and rejects symlinks before dispatch. Starting another discovery
+invalidates the previous binding, including when project persistence is off.
+An old `.octo` summary or a short context preview cannot replace this binding.
 
 **Ready to research!** This skill is used after explicit invocation when users request research or exploration.

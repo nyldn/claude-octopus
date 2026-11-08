@@ -95,7 +95,7 @@ council_pool_reserve_call() {
     args=()
     while IFS= read -r -d '' value; do args[${#args[@]}]="$value"; done < "${output}.reserve"
     # record_agent_call is the existing usage reservation helper, called exactly
-    # once in roster order. The provider cannot execute until its acknowledgement.
+    # once in admission order. The provider cannot execute until its acknowledgement.
     record_agent_call "${args[@]}" || rc=$?
     printf '%s\n' "$rc" > "${output}.reserved.tmp"
     mv -f "${output}.reserved.tmp" "${output}.reserved"
@@ -125,7 +125,7 @@ $old_hup"
     return "$rc"
 }
 
-# Schedule one phase in roster order under global, provider and deadline limits.
+# Admit eligible seats by roster scan under global, provider and deadline limits.
 # Retain each seat's completion record and partial evidence when cancelling.
 _council_seat_pool_impl() {
     umask 077
@@ -137,11 +137,11 @@ _council_seat_pool_impl() {
     export _COUNCIL_POOL_PID
     case "$phase" in independent-advice) through=advice ;; cross-critique) through=critique ;; *) through=revision ;; esac
     limit="$(council_pool_global_limit)"
-    local -a members providers outputs pids timeouts starts
+    local -a members providers outputs pids timeouts starts launch_order launched
     local member persona provider spec output index=0 i running=0 same cap rc elapsed now wait_start reservation_now
     local grace
     grace="$(council_deadline_reap_grace)"
-    members=(); providers=(); outputs=(); pids=(); timeouts=(); starts=()
+    members=(); providers=(); outputs=(); pids=(); timeouts=(); starts=(); launch_order=(); launched=()
     # NUL separators retain empty fields, embedded newlines and qualified specs.
     # No tab splitting, command substitution trimming or eval is involved.
     while IFS= read -r -d '' member && IFS= read -r -d '' persona && IFS= read -r -d '' spec; do
@@ -151,7 +151,7 @@ _council_seat_pool_impl() {
         rm -f "${outputs[index]}.pool-result" "${outputs[index]}.admitted" \
             "${outputs[index]}.reserve" "${outputs[index]}.reserve.tmp"             "${outputs[index]}.reserve-start" "${outputs[index]}.reserve-start.tmp" \
             "${outputs[index]}.reserved" "${outputs[index]}.reserved.tmp"
-        pids[index]=""; timeouts[index]=0; starts[index]=0
+        pids[index]=""; timeouts[index]=0; starts[index]=0; launched[index]=0
         index=$((index + 1))
     done < <(jq -j '.[] | (tojson + "\u0000"), ((.persona | if . == null then "null" else tostring end) + "\u0000"), ((.agent_spec // .provider // "") + "\u0000")' <<< "$COUNCIL_ROSTER_JSON")
 
@@ -177,12 +177,12 @@ _council_seat_pool_impl() {
         exit 143
     }
     trap '_council_pool_cancel' INT TERM HUP
-    local next=0 reservation_next=0
+    local next=0 reservation_next=0 launch_count=0 pending="$index" seat_index
     COUNCIL_ASYNC_PID=""
-    while (( next < index || running > 0 )); do
+    while (( pending > 0 || running > 0 )); do
         now="$(council_pool_now_ms)" || { _council_pool_cancel; }
         [[ "$now" =~ ^[0-9]+$ ]] || { _council_pool_cancel; }
-        for ((i=0; i<next; i++)); do
+        for ((i=0; i<index; i++)); do
             [[ -n "${pids[i]}" ]] || continue
             elapsed=$(( now - starts[i] ))
             if [[ -f "${outputs[i]}.reserve-start" && ! -f "${outputs[i]}.reserved" ]]; then
@@ -203,36 +203,45 @@ _council_seat_pool_impl() {
                 pids[i]=""; running=$((running - 1))
             fi
         done
-        # A later seat may finish preparing first, but accounting admission follows
-        # the roster. Failed/host-native seats need no usage reservation.
-        while (( reservation_next < next )); do
-            output="${outputs[reservation_next]}"
-            if [[ -n "${pids[reservation_next]}" && -f "${output}.reserve" && ! -f "${output}.reserved" ]]; then
+        # Preparation may finish out of order. Reserve in deterministic admission
+        # order, skipping seats still queued behind a capped provider. Never charge
+        # those unlaunched seats merely to allow another provider to start.
+        while (( reservation_next < launch_count )); do
+            seat_index="${launch_order[reservation_next]}"
+            output="${outputs[seat_index]}"
+            if [[ -n "${pids[seat_index]}" && -f "${output}.reserve" && ! -f "${output}.reserved" ]]; then
                 IFS= read -r wait_start < "${output}.reserve-start" || { _council_pool_cancel; }
                 [[ "$wait_start" =~ ^[0-9]+$ ]] || { _council_pool_cancel; }
                 council_pool_reserve_call "$output" || { _council_pool_cancel; }
                 reservation_now="$(council_pool_now_ms)" || { _council_pool_cancel; }
                 [[ "$reservation_now" =~ ^[0-9]+$ ]] || { _council_pool_cancel; }
-                starts[reservation_next]=$((starts[reservation_next] + reservation_now - wait_start))
+                starts[seat_index]=$((starts[seat_index] + reservation_now - wait_start))
             elif [[ ! -f "${output}.pool-result" ]]; then
                 break
             fi
             reservation_next=$((reservation_next + 1))
         done
-        if (( next < index && running < limit )); then
+        if (( pending > 0 && running < limit )); then
             if council_deadline_exceeded; then
-                next="$index"
+                pending=0
                 continue
             fi
-            provider="${providers[next]}"; same=0
-            cap="$(council_pool_provider_limit "$provider")"
-            for ((i=0; i<next; i++)); do
-                [[ -z "${pids[i]}" || "${providers[i]}" != "$provider" ]] || same=$((same + 1))
+            # Scan from the start each time to retain FIFO order within a provider
+            # while allowing another provider to use otherwise idle capacity.
+            next="$index"
+            for ((seat_index=0; seat_index<index; seat_index++)); do
+                (( launched[seat_index] == 0 )) || continue
+                provider="${providers[seat_index]}"; same=0
+                cap="$(council_pool_provider_limit "$provider")"
+                for ((i=0; i<index; i++)); do
+                    [[ -z "${pids[i]}" || "${providers[i]}" != "$provider" ]] || same=$((same + 1))
+                done
+                if (( same < cap )); then next="$seat_index"; break; fi
             done
-            if (( same < cap )); then
+            if (( next < index )); then
                 # The existing estimator admits ALL required calls through this
                 # phase, including earlier phases. Reserve that cumulative bound
-                # before every launch in roster order; children never admit budget.
+                # before every admitted launch; children never admit budget.
                 if [[ -n "${COUNCIL_MAX_COST:-}" ]] && council_cost_exceeds_cap "$through"; then
                     printf 'Council phase exceeds its projected cost cap: %s\n' "$through" >&2
                     _council_pool_cancel
@@ -240,6 +249,8 @@ _council_seat_pool_impl() {
                 output="${outputs[next]}"
                 printf '%s\n' "${COUNCIL_COST_CHECK_ESTIMATED:-0}" > "${output}.admitted.tmp"
                 mv -f "${output}.admitted.tmp" "${output}.admitted"
+                launch_order[launch_count]="$next"; launch_count=$((launch_count + 1))
+                launched[next]=1; pending=$((pending - 1))
                 COUNCIL_ASYNC_PID=""; COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE=""; rc=0
                 _COUNCIL_POOL_LAUNCH=1 _OCTOPUS_SEAT_STDERR_FILE="${COUNCIL_RUN_DIR}/stderr/$(basename "$output" .md).log" \
                     council_dispatch_member_detached "${members[next]}" "$phase" "$output" || rc=$?
@@ -251,7 +262,6 @@ _council_seat_pool_impl() {
                     mv -f "${output}.pool-result.tmp" "${output}.pool-result"
                 fi
                 COUNCIL_ASYNC_PID=""
-                next=$((next + 1))
                 continue
             fi
         fi

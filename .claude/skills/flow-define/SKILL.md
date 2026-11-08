@@ -299,17 +299,12 @@ from an inferred development checkout.
 # Keep execution and report validation in the same shell invocation.
 OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 bash "$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh" || exit 1
-# Restore the full completed discovery from this project, including after resume.
+# Restore only research bound to this project's current discovery run.
+# An old completed .octo summary alone cannot identify the current research.
 DISCOVERY_RESULTS_FILE=""
-if [[ -f .octo/STATE.md && -e .octo/phases/phase-1-summary.md ]]; then
-  DISCOVER_STATUS=$("$OCTO_ROOT/scripts/octo-state.sh" get_phase_status 1) || exit 1
-  if [[ "$DISCOVER_STATUS" == complete ]]; then
-    if [[ ! -f .octo/phases/phase-1-summary.md || ! -r .octo/phases/phase-1-summary.md || ! -s .octo/phases/phase-1-summary.md ]]; then
-      echo "Define incomplete: saved discovery summary is unreadable or empty." >&2
-      exit 1
-    fi
-    DISCOVERY_RESULTS_FILE="$(pwd -P)/.octo/phases/phase-1-summary.md"
-  fi
+WORKFLOW_STATE_FILE=$("$OCTO_ROOT/scripts/state-manager.sh" state_path) || exit 1
+if [[ -f "$WORKFLOW_STATE_FILE" ]]; then
+  DISCOVERY_RESULTS_FILE=$(python3 "$OCTO_ROOT/scripts/helpers/discovery-handoff.py" select < "$WORKFLOW_STATE_FILE") || exit 1
 fi
 RUN_MARKER=$(mktemp) || exit 1
 RUN_STATUS=0
@@ -322,9 +317,10 @@ echo "VALIDATION PASSED: $SYNTHESIS_FILE"
 cat "$SYNTHESIS_FILE"
 ```
 
-The saved phase summary is the research-results input, not the short state
-preview. This also applies after restart or compaction. When no completed
-project discovery summary is available, the optional research input stays empty.
+The project-scoped host state identifies the current full research artifact,
+including after restart or compaction. Define verifies its run and content hash
+and rejects symlinks. An unbound `.octo` summary is never selected. Without a
+current binding, the optional research input stays empty.
 
 **CRITICAL: You are PROHIBITED from:**
 - ❌ Defining requirements directly without calling orchestrate.sh — single-model analysis misses the technical, business, and external-model perspective split that provider fanout supplies, producing requirements with blind spots

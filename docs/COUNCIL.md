@@ -17,8 +17,10 @@ check still does not prove account entitlement or remaining quota.
 ## Concurrent seats
 
 Advice, critique and revision phases run up to two seats at once, with one call
-per provider. Usage reservations follow roster order before dispatch. Each phase
-still waits for every selected seat before applying its existing quorum,
+per provider. The scheduler scans the roster for an eligible provider when a
+slot opens. Usage reservations follow admission order before dispatch; queued
+seats consume no calls. Seats for the same provider retain roster order. Each
+phase still waits for every selected seat before applying its existing quorum,
 grounding and dissent checks.
 
 | Environment variable | Default | Effect |

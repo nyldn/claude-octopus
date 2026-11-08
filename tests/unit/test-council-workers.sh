@@ -37,7 +37,7 @@ council_dispatch_member() {
     # One append per event, each comfortably under PIPE_BUF.
     printf 'start %s %s\n' "$persona" "$provider" >> "$COUNCIL_RUN_DIR/events"
     printf 'partial %s\n' "$persona"
-    sleep "${INERT_SLEEP:-1}"
+    if [[ "$persona" == one ]]; then sleep "${INERT_SLEEP_FIRST:-${INERT_SLEEP:-1}}"; else sleep "${INERT_SLEEP:-1}"; fi
     printf 'end %s %s\n' "$persona" "$provider" >> "$COUNCIL_RUN_DIR/events"
     [[ "$persona" != "${INERT_FAIL:-}" ]] || return 7
     printf 'VERDICT: APPROVE\n'
@@ -73,6 +73,33 @@ test_case "independent seats overlap within global and provider caps in roster o
 prepare overlap
 council_run_seat_pool independent-advice responses
 if check_events 2 1 && [[ "$(awk '{print $3}' "$COUNCIL_RUN_DIR/reservations" | tr '\n' ' ')" == "one two three four " ]] && [[ "$(find "$COUNCIL_RUN_DIR/responses" -name '*.admitted' | wc -l | tr -d ' ')" == 4 ]]; then test_pass; else test_fail "overlap/cap/admission mismatch"; fi
+
+test_case "a capped provider does not block a later eligible seat"
+prepare provider-gap
+roster_before="$COUNCIL_ROSTER_JSON"
+COUNCIL_ROSTER_JSON='[{"persona":"one","provider":"codex","seat":"member"},{"persona":"two","provider":"codex","seat":"member"},{"persona":"three","provider":"gemini","seat":"member"}]'
+INERT_SLEEP_FIRST=1.5 INERT_SLEEP=0.1 council_run_seat_pool independent-advice responses
+if python3 - "$COUNCIL_RUN_DIR" <<'CHECK'
+from pathlib import Path
+import sys
+root = Path(sys.argv[1])
+events = root.joinpath('events').read_text().splitlines()
+assert events.index('end three gemini') < events.index('end one codex'), events
+assert events.index('start two codex') > events.index('end one codex'), events
+assert [line.split()[-1] for line in root.joinpath('reservations').read_text().splitlines()] == ['one', 'three', 'two']
+assert all(path.read_text().splitlines()[0] == '0' for path in root.joinpath('responses').glob('*.pool-result'))
+CHECK
+then test_pass; else test_fail "eligible provider starved or accounting order changed"; fi
+test_case "an aggregate deadline retains the eligible provider without charging a queued seat"
+prepare provider-gap-deadline
+COUNCIL_RUN_START_EPOCH="$(date +%s)" OCTOPUS_COUNCIL_DEADLINE_SECS=4 OCTOPUS_COUNCIL_DEADLINE_SEAT_FLOOR_SECS=1 INERT_SLEEP_FIRST=8 INERT_SLEEP=0.1 \
+    council_run_seat_pool independent-advice responses
+if grep -q '^end three gemini$' "$COUNCIL_RUN_DIR/events" &&
+   [[ ! -e "$COUNCIL_RUN_DIR/responses/01-two.md.admitted" ]] &&
+   [[ "$(awk '{print $3}' "$COUNCIL_RUN_DIR/reservations" | tr '\n' ' ')" == "one three " ]]; then
+    test_pass
+else test_fail "deadline starved the eligible provider or charged a queued seat"; fi
+COUNCIL_ROSTER_JSON="$roster_before"
 
 test_case "queued reservation time does not consume a later provider's timeout"
 prepare preparation-wait
