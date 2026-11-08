@@ -327,6 +327,66 @@ fi
                     else:
                         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_deck_compatible_recipe_bounds_transport_and_effort_fallback_requests(self):
+        """Count actual helper requests under transient and unsupported-effort responses."""
+        probe = self.base / "compatible-probe.py"
+        probe.write_text('''import importlib.util,io,json,os,sys,urllib.error
+from pathlib import Path
+spec=importlib.util.spec_from_file_location("compat", Path(os.environ["PLUGIN_ROOT"])/"scripts/helpers/openai-compatible-agent.py")
+mod=importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+def transport(request, **kwargs):
+    with open(os.environ["COMPAT_CALLS"], "a") as out: out.write("attempt\\n")
+    payload=json.loads(request.data)
+    code=int(os.environ["COMPAT_RESPONSE"])
+    if code == 503 or "reasoning_effort" in payload:
+        body=b"Unsupported parameter: reasoning_effort" if code == 400 else b"unavailable"
+        raise urllib.error.HTTPError(request.full_url,code,"fixture",{},io.BytesIO(body))
+    return io.BytesIO(json.dumps({"choices":[{"message":{"content":"Stakeholder objection"},"finish_reason":"stop"}]}).encode())
+mod.open_credentialed_request=transport
+mod.time.sleep=lambda seconds:None
+sys.argv=["fixture", "--provider","generic","--base-url","https://example.invalid/v1", "--api-key-env","COMPAT_FIXTURE_KEY", "--model","fixture-model", "--cwd",os.environ["SEAT_DIR"], "--reasoning-effort","high", "--reasoning-policy",os.environ["COMPAT_EFFECTIVE_POLICY"], "--tool-policy","none"]
+sys.exit(mod.main())
+''')
+        collector = self.base / "compatible-collector"
+        collector.write_text('''source "$PLUGIN_ROOT/scripts/lib/execution-profile.sh"
+_octopus_profile_field() { :; }
+_octopus_profile_config_file() { printf '%s' "$SEAT_DIR/nonexistent-config"; }
+octo_launch_advisors() {
+    local policy
+    policy="$(octopus_resolve_reasoning_policy openai-compatible-agent review reviewer)" || return 1
+    COMPAT_EFFECTIVE_POLICY="$policy" python3 "$COMPAT_PROBE"
+}
+''')
+        for tree in (".claude/skills", "skills"):
+            for response in (503, 400):
+                with self.subTest(tree=tree, response=response):
+                    seat_dir = self.base / (tree.replace("/", "-") + str(response))
+                    seat_dir.mkdir()
+                    calls = seat_dir / "calls"
+                    env = dict(os.environ, PLUGIN_ROOT=str(ROOT), COMPAT_PROBE=str(probe),
+                               COMPAT_COLLECTOR=str(collector), COMPAT_CALLS=str(calls),
+                               COMPAT_RESPONSE=str(response), COMPAT_FIXTURE_KEY="inert-fixture",
+                               OPENAI_COMPAT_MAX_RETRIES="3", OCTOPUS_REASONING_POLICY="best_effort",
+                               ADVISOR_ID="openai-compatible:fixture-model", ORCHESTRATOR="inert",
+                               STAKEHOLDER_PROMPT="Stakeholder prompt", SEAT_DIR=str(seat_dir),
+                               SEAT_WAIT_SECONDS="5")
+                    control = subprocess.run(["bash", "-c", 'source "$COMPAT_COLLECTOR"; octo_launch_advisors'],
+                                             env=env, input="prompt", text=True, capture_output=True,
+                                             check=False, timeout=10)
+                    self.assertEqual(len(calls.read_text().splitlines()), 3 if response == 503 else 2, control.stderr)
+                    calls.unlink()
+                    text = (ROOT / tree / "skill-deck/SKILL.md").read_text()
+                    recipe = textwrap.dedent(text.split("<!-- deck-seat-collection:start -->", 1)[1].split(
+                        "<!-- deck-seat-collection:end -->", 1)[0].split("```bash\n", 1)[1].split("```", 1)[0])
+                    recipe = recipe.replace('source "$PLUGIN_ROOT/scripts/lib/consultative-advisors.sh"',
+                                            'source "$COMPAT_COLLECTOR"')
+                    result = subprocess.run(["bash", "-euo", "pipefail", "-c", recipe],
+                                            env=env, input="prompt", text=True, capture_output=True,
+                                            check=False, timeout=10)
+                    self.assertEqual(len(calls.read_text().splitlines()), 1, result.stderr)
+                    self.assertNotEqual(result.returncode, 0)
+
     def test_deck_fable_recipe_does_not_spend_an_unapproved_fallback_call(self):
         """Exercise the SDK adapter's real refusal retry under the shipped recipe."""
         bin_dir = self.base / "sdk-bin"
