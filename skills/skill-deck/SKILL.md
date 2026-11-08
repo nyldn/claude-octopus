@@ -12,7 +12,7 @@ disable-model-invocation: true
 
 # Slide Deck Generator
 
-Generate professional slide decks from briefs with optional research, outline approval, and PPTX export.
+Generate slide decks from briefs with optional research, outline approval, rendering and slide-by-slide verification.
 
 ## Prerequisites
 
@@ -40,7 +40,7 @@ and offer installation guidance without installing it automatically. An outline
 can still be prepared. See `docs/DOCUMENT-RENDERERS.md` for configuration and
 selection precedence.
 
-## Pipeline (4 Steps)
+## Pipeline (5 Steps)
 
 ### Step 1: Gather Brief
 
@@ -91,7 +91,9 @@ Keep the brief's audience, purpose and approved slide-count target.
    brief and use supplied or sourced facts; mark evidence gaps rather than
    inventing context.
 3. Write a **working hypothesis**: a one-sentence answer with two to four pillars
-   that must be true. Tie each pillar to available evidence or label it as an
+   that must be true. For executive and board decision briefs, use two or three
+   pillars so the hypothesis matches the executive summary. Tie each pillar
+   to available evidence or label it as an
    assumption to validate. An informational deck's answer can be a conclusion
    about results rather than a recommendation to approve something.
 4. Build the **sentence skeleton** with one declarative sentence per storyline slide,
@@ -270,6 +272,51 @@ Once the outline is approved:
 
 Example filename: `Series-A-Pitch-Deck-2026-02-14.pptx`
 
+### Step 5: Verify the rendered deck
+
+Saving a file or receiving a deck URL starts verification. It does not complete
+the deck. Inspect the actual saved artifact or native deck with the selected
+renderer and the session's available viewing tools.
+
+1. Render a thumbnail of every slide, including appendix slides, and open each
+   image. Check text overflow, clipped content, empty placeholders, broken images
+   and unreadable charts. Use the rendered images, not a successful export status,
+   as evidence of visual inspection.
+2. Read the rendered titles in slide order and repeat the titles-only read.
+   Compare them with the approved outline. Flag truncation, reflow that hides a
+   claim, missing slides and changes that break the argument from question to
+   ask. Preserve approved label titles unless the user approves a storyline
+   change; verification does not authorize rewriting the approved outline.
+3. For each data slide, confirm one highlighted proof point supports its title.
+   Compare the displayed value, units, period and chart emphasis with the source
+   data. If the source is missing or the claim cannot be checked, mark that slide
+   unverified. Do not invent evidence or add unapproved data.
+4. Report a verification table with one row per slide: slide number, rendered
+   title, thumbnail path or reference, visual checks, proof-point check or
+   not-applicable, and pass, fail or unverified. Describe each failure or missing
+   check. Link the actual artifact path or deck URL alongside the table.
+
+Correct rendering defects within the approved content and template, then
+reopen every thumbnail after each rerender. Repeat all checks for every slide,
+including the full titles-only read, because a shared layout or template change
+can alter other slides. Rebuild the verification table against the final artifact;
+earlier images cannot establish that the final slides passed. Use at most two
+repair-and-verification rounds, then report remaining defects. Changes to the
+recommendation, claims or approved structure return to the outline approval gate
+before rendering.
+
+Completion requires a pass for every slide in the final artifact. A proof-point
+check may be not-applicable on a slide without data, but any fail or unverified
+result keeps the deck a draft. Report all remaining defects and missing evidence;
+do not claim a finished deck, even when the two repair rounds have been exhausted.
+
+When thumbnails, rendered titles, source data or viewing tools are unavailable,
+return the saved artifact as a draft, with verification incomplete. State the
+missing capability or evidence and the affected slides; do not claim a finished
+deck. Keep the approved outline and available inspection artifacts so the user
+can resume verification. Do not install tools or publish/share a deck to obtain
+verification access without authorization.
+
 ## Slide Structure Best Practices
 
 Apply these when generating outlines:
@@ -333,6 +380,7 @@ User: "Create a 10-slide deck about our Q1 results"
 → Step 2: Skip (user has the data)
 → Step 3: Confirm the question, check the sentence skeleton, get approval
 → Step 4: Render PPTX
+→ Step 5: Inspect every rendered slide and report verification
 ```
 
 ### Research-Backed Deck
@@ -342,6 +390,7 @@ User: "Build a presentation about AI trends in healthcare"
 → Step 2: Research using Task agents
 → Step 3: Confirm the question, build a sourced sentence skeleton, get approval
 → Step 4: Render PPTX
+→ Step 5: Inspect every rendered slide and report verification
 ```
 
 ### Deep Research + Deck
