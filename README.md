@@ -47,7 +47,9 @@ effort choices keep precedence. See [model routing](docs/MODEL-ROUTING-STRATEGY.
 
 Research verification recognizes references to a synthesis's own numbered
 points without treating them as unsupported measurements. Numeric claims with
-units, percentages, scores and ranges still require source evidence.
+units, percentages, scores and ranges keep the existing verification rules:
+unfetched sources leave numbers unverified, and claims marked `[inference]`
+can pass without citations. See [research evidence](docs/RESEARCH-EVIDENCE.md).
 
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.19.0 — Verified decks and configurable reasoning effort.**
