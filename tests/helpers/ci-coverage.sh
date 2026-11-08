@@ -2,6 +2,7 @@
 # Category discovery shared by the CI reachability checks. Exact shard coverage
 # is tested separately against the real runner by test-ci-tiers.sh.
 
+# List test Make targets named by the workflow without evaluating its text.
 ci_make_targets() {
     local root="$1"
     sed 's/#.*//' "$root/.github/workflows/test.yml" |
@@ -9,6 +10,7 @@ ci_make_targets() {
         awk '{print $2}' | sort -u
 }
 
+# Combine Make recipes and direct runner commands into one category inventory.
 ci_test_categories() {
     local root="$1" target
     {

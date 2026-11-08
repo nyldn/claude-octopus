@@ -12,6 +12,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# Write validator diagnostics to stderr, separate from command output.
 log() {
     local level="$1"
     shift
@@ -461,6 +462,7 @@ echo ""
 # Validation never creates or pushes release artifacts. scripts/release.sh is
 # the publication entry point and owns approval, CI, and exact-commit gates.
 CURRENT_BRANCH=$(git -C "$ROOT_DIR" branch --show-current 2>/dev/null || echo "")
+# Keep tag mismatches fatal on main, release branches, and detached heads.
 tag_mismatch_is_fatal() {
     [[ -z "$CURRENT_BRANCH" || "$CURRENT_BRANCH" == "main" || "$CURRENT_BRANCH" == release/* ]]
 }

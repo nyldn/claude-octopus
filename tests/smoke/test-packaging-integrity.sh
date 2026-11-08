@@ -464,6 +464,7 @@ PYTEST
     fi
 }
 
+# Keep archive validation reachable through unconditional smoke coverage.
 test_metadata_fast_path_validates_archive() {
     test_case "every CI event runs extracted archive validation through smoke"
     local smoke_job
@@ -477,6 +478,7 @@ test_metadata_fast_path_validates_archive() {
     fi
 }
 
+# Require a pinned packaging checkout without persisted Git credentials.
 test_package_integrity_checkout_is_hardened() {
     test_case "package integrity pins checkout and does not persist credentials"
     local workflow="$PROJECT_ROOT/.github/workflows/test.yml"

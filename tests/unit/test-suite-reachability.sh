@@ -18,6 +18,7 @@ WORKFLOW="$PROJECT_ROOT/.github/workflows/test.yml"
 
 source "$SCRIPT_DIR/../helpers/ci-coverage.sh"
 
+# Reject workflow references to missing Make targets before category discovery.
 makefile_has_target() {
     grep -qE "^${1}:" "$MAKEFILE"
 }

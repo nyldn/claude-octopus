@@ -10,6 +10,7 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 
 test_suite "validate-release tag mismatch scope"
 
+# Load only the tag-scope function so fixtures cannot run the whole validator.
 load_tag_scope_helper() {
     local helper
     helper=$(awk '

@@ -176,6 +176,7 @@ test_release_ci_timeout_covers_macos() {
     fi
 }
 
+# Exercise aggregate review, thread, and pinned-head approval requirements.
 test_release_requires_clean_review_state() {
     test_case "release requires explicit approval and paginates every review thread"
 
@@ -206,6 +207,7 @@ test_release_requires_clean_review_state() {
     fi
 }
 
+# Check every review page using inert current, stale, and malformed API records.
 test_release_requires_approval_on_expected_head() {
     test_case "release approval requires the expected commit and validates every review page"
 
@@ -220,9 +222,11 @@ head = 'a' * 40
 old_head = 'b' * 40
 
 def review(state='APPROVED', oid=head):
+    """Build a review fixture with a valid SHA or an explicit null commit."""
     return {'state': state, 'commit': {'oid': oid} if oid else None}
 
 def page(nodes, more=False, cursor=None):
+    """Wrap review records and cursors in the GraphQL response shape."""
     return json.dumps({'data': {'repository': {'pullRequest': {'reviews': {
         'nodes': nodes, 'pageInfo': {'hasNextPage': more, 'endCursor': cursor}}}}}})
 

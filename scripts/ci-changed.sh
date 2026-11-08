@@ -18,6 +18,7 @@ declare -a MAPPING_LINES=()
 declare -a FULL_REASONS=()
 FULL_MATRIX=false
 
+# Describe the selector interface without reading Git or running tests.
 usage() {
     cat <<'EOF'
 Usage: scripts/ci-changed.sh [--list] [--base REF] [--changed PATH ...]
@@ -74,6 +75,7 @@ done
 
 cd "$PROJECT_ROOT"
 
+# Check membership before unioning changed paths and selected suites.
 array_contains() {
     local needle="$1"
     shift
@@ -84,6 +86,7 @@ array_contains() {
     return 1
 }
 
+# Keep each changed path once so mapping order cannot duplicate work.
 append_unique_changed() {
     local path="$1"
     [[ -n "$path" ]] || return 0
@@ -92,6 +95,7 @@ append_unique_changed() {
     fi
 }
 
+# Admit an existing mapped suite or require the full matrix.
 append_selected_suite() {
     local suite="$1"
     local changed="$2"

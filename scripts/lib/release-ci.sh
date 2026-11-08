@@ -44,6 +44,7 @@ else:
 PY
 }
 
+# Require aggregate approval, resolved threads, and approval of the pinned head.
 octo_release_review_gate() {
     local review_decision="$1"
     local unresolved_threads="$2"
@@ -54,6 +55,7 @@ octo_release_review_gate() {
     [[ "$unresolved_threads" == "0" && "$current_head_approved" == "true" ]]
 }
 
+# Read every review page; print true only for an approval of the expected SHA.
 octo_release_current_head_approval() {
     local repo_owner="$1" repo_name="$2" pr_number="$3" expected_head="$4"
     local query response page_approved has_next cursor="" seen_cursors=$'\n'

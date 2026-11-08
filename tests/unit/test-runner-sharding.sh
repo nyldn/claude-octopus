@@ -13,6 +13,7 @@ TEST_TMP_DIR="${TEST_TMP_DIR:-/tmp/octopus-tests-$$}"
 mkdir -p "$TEST_TMP_DIR"
 trap 'rm -rf "$TEST_TMP_DIR"' EXIT INT TERM
 
+# Normalize discovery output for exact shard and exclusion comparisons.
 list_suites() {
     /bin/bash "$RUNNER" "$@" --list | sed -n 's/^  - //p'
 }
