@@ -8,6 +8,8 @@ Complete reference for all 56 Claude Octopus slash commands, CLI tools (`octopus
 
 All slash commands use the `/octo:` namespace. The smart router command is `/octo:auto`, and the plain-language trigger remains `octo ...`.
 
+Use `/octo:guide list` to see the registered command names in your installation.
+
 ### Smart Router
 
 | Command | Description |
@@ -20,8 +22,13 @@ All slash commands use the `/octo:` namespace. The smart router command is `/oct
 |---------|-------------|
 | `/octo:guide` | Browse installed commands without starting a provider workflow |
 | `/octo:setup` | Check setup status and configure providers (aliases: `/octo:configure`, `/octo:config`, `/octo:init`, `/octo:wizard`, `/octo:sys-setup`) |
+| `/octo:preflight` | Check provider readiness locally; live checks require an explicit request |
+| `/octo:whats-new` | Review outstanding feature choices after an upgrade and record your selections |
 | `/octo:skill-doctor` | Manually invoke fail-closed diagnostics without shadowing Claude Code's native `/doctor` |
 | `/octo:model-config` | Configure provider model selection per workflow phase |
+| `/octo:budget-mode` | Switch routing to the configured budget tier |
+| `/octo:standard-mode` | Switch routing to the configured standard tier |
+| `/octo:premium-mode` | Switch routing to the configured premium tier |
 | `/octo:km` | Toggle Knowledge Work mode |
 | `/octo:dev` | Switch to Dev Work mode |
 
@@ -118,7 +125,8 @@ instruction; it is not an `orchestrate.sh` command-line flag.
 
 | Command | Description |
 |---------|-------------|
-| `/octo:costs` | Show cost breakdown by provider and workflow for the current session |
+| `/octo:costs` | Show the cost-focused compatibility view of recorded usage |
+| `/octo:usage` | Report recorded provider, skill, and MCP usage with estimated costs |
 | `/octo:retro` | Generate engineering retrospectives from git history with trends |
 | `/octo:history` | Query past workflow results — filter by workflow type, date, or provider |
 | `/octo:resume` | Resume a previous agent by ID — continue an interrupted task |
@@ -224,8 +232,20 @@ an `auto_router_mode` value already present in
 
 **Alias and fuzzy matching:**
 - Setup aliases such as `/octo:configure`, `/octo:config`, `/octo:init`, `/octo:install`, `/octo:settings`, and `/octo:wizard` resolve to `/octo:setup`.
-- Common shortcut aliases resolve before routing: `/octo:cost` -> `/octo:costs`, `/octo:usage` -> `/octo:costs`, and `/octo:optimize` -> `/octo:auto`.
+- Common shortcut aliases resolve before routing: `/octo:cost` -> `/octo:costs` and `/octo:optimize` -> `/octo:auto`.
+- `/octo:usage` is a separate registered command for the full recorded-usage report. `/octo:costs` provides its cost-focused compatibility view.
 - Mistyped explicit `/octo:*` commands return close matches and write the event to `~/.claude-octopus/alias-log.tsv`.
+
+Additional compatibility spellings resolve as follows. Use the registered target
+name when choosing a command from the installed guide.
+
+| Compatibility names after `/octo:` | Registered target |
+|---|---|
+| `configure`, `config`, `init`, `install`, `settings`, `wizard`, `octopus-configure`, `sys-setup` | `/octo:setup` |
+| `ex`, `extr` | `/octo:extract` |
+| `cost` | `/octo:costs` |
+| `optimize`, `optimise`, `router`, `smart` | `/octo:auto` |
+| `co-research`, `co-discover` | `/octo:discover` |
 
 **Router promotion:** Prompts that name multiple concrete options, such as "Redis or DynamoDB" or "Option A vs Option B", are promoted to `/octo:debate` so the answer gets structured multi-model scoring instead of a single-model response.
 
@@ -237,7 +257,7 @@ an `auto_router_mode` value already present in
 
 Check setup status and configure AI providers.
 
-**Aliases:** `/octo:configure`, `/octo:config`, `/octo:init`, `/octo:install`, `/octo:settings`, `/octo:wizard`, `/octo:sys-setup`
+**Aliases:** `/octo:configure`, `/octo:config`, `/octo:init`, `/octo:install`, `/octo:settings`, `/octo:wizard`, `/octo:octopus-configure`, `/octo:sys-setup`
 
 **Usage:**
 ```
@@ -268,6 +288,37 @@ a shell-only report, run `octopus doctor installation` and
 `octopus repair --dry-run` and authorize `octopus repair --apply` separately.
 
 ---
+
+### `/octo:preflight`
+
+Check provider readiness before a workflow. The default check reads local
+installation, safe configuration metadata, and known quota state without
+contacting provider services.
+
+```text
+/octo:preflight
+/octo:preflight --live
+```
+
+Request `--live` explicitly for bounded live provider checks. Explain failures
+using the readiness report's reason and remediation. A provider blocked by a
+sandbox may need the check repeated outside that sandbox. Use `/octo:setup` to
+configure missing providers.
+
+### `/octo:whats-new`
+
+Review feature choices added since installation that still need your decision.
+
+```text
+/octo:whats-new
+```
+
+Only features marked as requiring a decision are offered. The command asks for
+each choice and records your answers for the current repository, including a
+choice to keep the default. Features with missing prerequisites are listed as
+blocked. Nothing is applied without your selection, and recorded choices are
+not asked again. If there are no outstanding choices, the command reports that
+there is nothing new to decide.
 
 ### Doctor diagnostics
 
@@ -580,8 +631,6 @@ Intelligent plan builder — creates strategic execution plans without executing
 - Saves every plan and intent contract to a unique resolved run directory: `<project-root>/.octo/plans/<run-id>/` in a project, or `~/.claude-octopus/sessions/<session-id>/plans/<run-id>/` elsewhere. It never writes loose artifacts into `~/.claude/`.
 - Offers to execute immediately with `/octo:embrace` or save for later
 
-**Aliases:** `build-plan`, `intent`
-
 **When to use:** When you want to think through a complex task before committing to execution. Use `/octo:embrace` to execute a plan.
 
 ---
@@ -794,8 +843,6 @@ Score an existing PRD against the 100-point AI-optimization framework.
 
 NLSpec authoring — structured specification from multi-AI research.
 
-**Aliases:** `nlspec`, `specification`
-
 **Usage:**
 ```
 /octo:spec user authentication system
@@ -839,8 +886,6 @@ Enhanced multi-LLM review with comprehensive quality assessment and PR comment p
 ### `/octo:staged-review`
 
 Two-stage review pipeline: spec compliance then code quality.
-
-**Aliases:** `two-stage-review`, `full-review`
 
 **Usage:**
 ```
@@ -919,8 +964,6 @@ Test-driven development with red-green-refactor discipline.
 
 Team of Teams — decompose compound tasks across independent Claude instances.
 
-**Aliases:** `team`, `teams`
-
 **Usage:**
 ```
 /octo:parallel build a full authentication system with OAuth, RBAC, and audit logging
@@ -943,8 +986,6 @@ Team of Teams — decompose compound tasks across independent Claude instances.
 ### `/octo:factory`
 
 Dark Factory Mode — spec-in, software-out autonomous pipeline.
-
-**Aliases:** `dark-factory`, `build-from-spec`
 
 **Usage:**
 ```
@@ -1115,8 +1156,6 @@ Generate optimized prompts using proven meta-prompting techniques.
 
 Design system & product reverse-engineering — extract tokens, components, architecture, and PRDs from codebases or live products.
 
-**Aliases:** `reverse-engineer`, `analyze-codebase`
-
 **Usage:**
 ```
 /octo:extract src/components/
@@ -1137,8 +1176,6 @@ Design system & product reverse-engineering — extract tokens, components, arch
 ### `/octo:design-ui-ux`
 
 Full UI/UX design workflow with BM25 design intelligence and optional Figma integration.
-
-**Aliases:** `design`, `ui-design`, `ux-design`
 
 **Usage:**
 ```
@@ -1204,8 +1241,6 @@ GitHub-aware work monitor — triages issues, PRs, and CI failures.
 
 Manage scheduled workflow jobs — add, list, enable, disable, remove, view logs.
 
-**Aliases:** `jobs`, `cron`
-
 **Usage:**
 ```
 /octo:schedule                          # Dashboard — show all jobs
@@ -1228,8 +1263,6 @@ Manage scheduled workflow jobs — add, list, enable, disable, remove, view logs
 ### `/octo:scheduler`
 
 Manage the Claude Octopus scheduled workflow runner daemon.
-
-**Aliases:** `sched`
 
 **Usage:**
 ```
@@ -1362,20 +1395,23 @@ When you invoke any `/octo:` command, the session is automatically titled "Octop
 
 ### `/octo:costs`
 
-Show a cost breakdown by provider and workflow for the current session.
+Show a cost-focused compatibility view of recorded Octopus usage.
 
 **Usage:**
 ```
 /octo:costs
+/octo:costs --format json
 ```
 
 **What it shows:**
-- Per-provider token usage (input/output) and estimated cost
-- Per-workflow breakdown (which commands consumed what)
-- Cumulative session total
-- Historical comparison when previous session data exists
+- Per-provider token usage and estimated cost
+- Per-workflow cost breakdown
+- Totals across the selected workspace's recorded usage
 
-**Data sources:** `~/.claude-octopus/usage/`, `~/.claude-octopus/routing.log`
+The helper reads `usage/*.jsonl` and saved `results/**/summary.json` artifacts
+under `~/.claude-octopus`, or the workspace selected by `OCTOPUS_WORKSPACE`.
+Costs are usage-based estimates, not verified billing or a forecast for a
+proposed run. `/octo:usage` shows the full usage view, including MCP attribution.
 
 ---
 

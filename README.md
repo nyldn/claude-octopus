@@ -428,7 +428,7 @@ Nine high-traffic commands cover the common Octopus workflows: lifecycle executi
 /octo:council --goal decision "Should we keep this service monolithic?"  # Persona council with budget/veto gates
 /octo:debate monorepo vs microservices     # Structured provider debate with consensus
 /octo:research --breadth=standard htmx vs react in 2026  # Attributed multi-provider research
-/octo:design mobile checkout redesign       # UI/UX design with BM25 style intelligence
+/octo:design-ui-ux mobile checkout redesign # UI/UX design with BM25 style intelligence
 /octo:tdd create user auth                 # Red-green-refactor with test discipline
 /octo:security                              # OWASP vulnerability scan + remediation
 /octo:prd mobile checkout redesign          # AI-optimized PRD with 100-point scoring
@@ -436,7 +436,14 @@ Nine high-traffic commands cover the common Octopus workflows: lifecycle executi
 
 `/octo:council` uses the real runner by default. Single-model simulation is only used when explicitly requested with `--simulate` or `--single-model`; `--research-first` writes a research artifact before fanout, and `--corpus-mode append|require` preserves synthesis and plans in project corpus workflows.
 
-Plus 40+ more: review, debug, extract, deck, docs, schedule, parallel, sentinel, optimize, brainstorm, doctor, and [the full set](docs/COMMAND-REFERENCE.md).
+Score and improve an existing artifact with `/octo:refine plan.md --max-rounds 3`.
+It uses a frozen rubric and independent Claude and Codex scoring. `/octo:ladder`
+is an alias. See the [refinement guide](docs/REFINEMENT.md) for review-only mode
+and limits on rounds, elapsed time, and model calls.
+
+Find other commands with `/octo:guide list` or browse the
+[complete command reference](docs/COMMAND-REFERENCE.md). For diagnostics, invoke
+the manual `/octo:skill-doctor` skill or run `octopus doctor` in a shell.
 
 Don't remember the command name? Just describe what you need:
 
@@ -462,7 +469,8 @@ Not sure which command to use? Pick by goal:
 | Get a panel recommendation or gated implementation plan | `/octo:council` |
 | Debate two approaches | `/octo:debate` |
 | Build a feature end-to-end | `/octo:embrace` |
-| Design a UI or style system | `/octo:design` |
+| Design a UI or style system | `/octo:design-ui-ux` |
+| Score and improve an existing artifact | `/octo:refine`, alias `/octo:ladder` |
 | Review existing code | `/octo:review` |
 | Write tests first, then code | `/octo:tdd` |
 | Scan for vulnerabilities | `/octo:security` |
@@ -615,7 +623,10 @@ The table excludes provider tool charges. Sonar Pro adds a **request fee** of $6
 | Council (4-6 seats + synthesis) | 60-150K tokens | $0.50-2.50 |
 | Full embrace (4 phases, multi-provider) | 150-400K tokens | $1.00-6.00+ |
 
-Before an expensive run, `/octo:costs` shows a session cost projection; after runs, `/octo:usage` breaks down actual spend per provider and skill. Anything projected over $1 is called out before dispatch.
+`/octo:usage` reports recorded provider, skill, and MCP usage with estimated
+costs. `/octo:costs` shows a cost-focused compatibility view of the same records.
+These reports do not forecast a proposed run or verify provider billing. Use the
+workflow's available budget controls before dispatch.
 
 ### What You Get With Just Claude
 
