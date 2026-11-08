@@ -168,7 +168,7 @@ jq '.cost_mode = "budget" | .tiers.budget.claude = {capability:"budget",reasonin
     "$pin_home/.claude-octopus/config/providers.json" > "$tier_config"
 if env "HOME=$pin_home" "PLUGIN_DIR=$PROJECT_ROOT" "OCTOPUS_PROVIDERS_CONFIG=$tier_config" \
     OCTOPUS_MODEL_READ_ONLY=true OCTOPUS_SKIP_PROVIDER_PROBES=1 OCTOPUS_DISPATCH_PREVIEW=true \
-    OCTOPUS_COST_MODE= OCTOPUS_CLAUDE_MODEL= CLAUDE_MODEL= OCTOPUS_EFFORT_OVERRIDE= \
+    OCTOPUS_COST_MODE= OCTOPUS_CLAUDE_MODEL= CLAUDE_MODEL= OCTOPUS_CLAUDE_REASONING= \
     OCTOPUS_ROUTING_POLICY=off SUPPORTS_EFFORT_COMMAND=true SUPPORTS_EFFORT_CLI_FLAG=true \
     bash -euo pipefail -c '
         log() { :; }
@@ -177,7 +177,7 @@ if env "HOME=$pin_home" "PLUGIN_DIR=$PROJECT_ROOT" "OCTOPUS_PROVIDERS_CONFIG=$ti
         source "$1/scripts/lib/dispatch.sh"
         command_line=$(get_agent_command claude develop implementer)
         [[ "$command_line" == *"--model claude-haiku-5-5"* && "$command_line" == *"--effort low"* ]]
-        command_line=$(OCTOPUS_EFFORT_OVERRIDE=medium get_agent_command claude develop implementer)
+        command_line=$(OCTOPUS_CLAUDE_REASONING=medium get_agent_command claude develop implementer)
         [[ "$command_line" == *"--model claude-haiku-5-5"* && "$command_line" == *"--effort medium"* ]]
         command_line=$(OCTOPUS_CLAUDE_MODEL=claude-sonnet-5 get_agent_command claude develop implementer)
         [[ "$command_line" == *"--model claude-sonnet-5"* && "$command_line" == *"--effort high"* ]]
