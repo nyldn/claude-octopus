@@ -125,8 +125,8 @@ if [[ "$(jq -r '.cost_mode' "$pin_home/.claude-octopus/config/providers.json")" 
        OCTOPUS_COST_MODE= OCTOPUS_CLAUDE_MODEL= CLAUDE_MODEL= OCTOPUS_ROUTING_POLICY=off \
        bash -euo pipefail -c '
            source "$1/scripts/lib/model-resolver.sh"
-           resolved=$(resolve_octopus_model claude claude)
-           [[ "$resolved" != claude-haiku-5-5 && "$resolved" != claude-haiku-4.5 ]]
+           expected=$(jq -r .providers.claude.default "$OCTOPUS_PROVIDERS_CONFIG")
+           [[ "$(resolve_octopus_model claude claude)" == "$expected" ]]
        ' _ "$PROJECT_ROOT"; then
     test_pass
 else
