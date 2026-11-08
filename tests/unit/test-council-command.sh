@@ -1290,6 +1290,26 @@ test_council_cross_critique_prompt_includes_peer_responses() {
     fi
 }
 
+test_council_prompt_requires_exact_code_quotes() {
+    test_case "seat prompts require exact source lines in backticks and plain words for paraphrase (sail-cruisey #3423 C13)"
+    load_council_lib || return 1
+    COUNCIL_TASK="Review the plan."; COUNCIL_GOAL="g"; COUNCIL_DOMAIN="d"; COUNCIL_STYLE="balanced"
+    COUNCIL_DEPTH="standard"; COUNCIL_RESEARCH_FIRST="false"; COUNCIL_CONTEXT_FILES=()
+    local phase prompt missing="" synth
+    for phase in independent-advice cross-critique revision-after-critique; do
+        prompt="$(council_prompt_for_member "backend-architect" "$phase")"
+        grep -q "copy each source line exactly" <<< "$prompt" && grep -q "plain words, without backticks" <<< "$prompt" \
+            || missing="$missing $phase"
+    done
+    synth="$(council_prompt_for_member "strategy-analyst" "chair-synthesis")"
+    if [[ -z "$missing" ]] && ! grep -q "copy each source line exactly" <<< "$synth"; then
+        test_pass
+    else
+        test_fail "rule missing in:${missing:- none}; in synthesis: $(grep -c 'copy each source line exactly' <<< "$synth")"
+        return 1
+    fi
+}
+
 test_council_prompt_task_block_is_authoritative() {
     test_case "Council prompt trust boundary: task authoritative, artifact blocks untrusted, task format wins"
     load_council_lib || return 1
@@ -2253,6 +2273,7 @@ test_council_deep_fixture_writes_revision_artifacts
 test_council_cross_critique_prompt_includes_peer_responses
 test_council_revision_prompt_includes_prior_critiques
 test_council_prompt_task_block_is_authoritative
+test_council_prompt_requires_exact_code_quotes
 test_council_context_file_inlined_into_prompt
 test_council_context_file_parser_accepts_and_rejects
 test_council_context_file_delimiter_is_unforgeable

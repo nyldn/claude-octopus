@@ -1645,6 +1645,8 @@ EOF
 
 If the Task specifies an output format or structure, produce that format. Otherwise return concise Markdown with recommendation, assumptions, risks, implementation notes, and confidence.
 
+Code in backticks or a code block is checked against the files you cite. Inside them, copy each source line exactly as it appears in the file. To summarize, shorten or paraphrase code, write it in plain words, without backticks.
+
 End your response with a single line, exactly one of:
 VERDICT: APPROVE
 VERDICT: REVISE
