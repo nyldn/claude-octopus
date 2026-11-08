@@ -285,7 +285,9 @@ jobs:
         run: make test-deps
 
       - name: Run full unit shard
-        run: python3 tests/helpers/run-ci-step.py --timeout=1200 --log "$RUNNER_TEMP/octopus-ci-output/unit.log" -- ./tests/run-all.sh unit --shard-index=${{ matrix.shard_index }} --shard-count=4
+        env:
+          SHARD_INDEX: ${{ matrix.shard_index }}
+        run: python3 tests/helpers/run-ci-step.py --timeout=1200 --log "$RUNNER_TEMP/octopus-ci-output/unit.log" -- ./tests/run-all.sh unit --shard-index="$SHARD_INDEX" --shard-count=4
 
       - name: Upload test results
         if: always()

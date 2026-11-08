@@ -19,7 +19,9 @@ jobs = dict(re.findall(r'^  ([\w-]+):\n(.*?)(?=^  [\w-]+:|\Z)', workflow, re.M |
 
 def script(job):
     """Read the aggregate's shell gate from the workflow itself."""
-    return jobs[job].split('        run: |\n', 1)[1]
+    marker = '        run: |\n'
+    assert marker in jobs[job], (job, 'missing multiline run block')
+    return jobs[job].split(marker, 1)[1]
 
 def check(job, updates, expected):
     """Execute a gate with the same status values GitHub supplies."""
@@ -98,7 +100,9 @@ oses = re.search(r'^        os: \[(.+)\]', job, re.M)[1].split(', ')
 assert set(oses) == {'ubuntu-latest', 'macos-latest'}
 indexes = re.search(r'^        shard_index: \[(.+)\]', job, re.M)[1].split(', ')
 command = re.search(r'^        run: (python3 tests/helpers/run-ci-step.py .+)$', job, re.M)[1]
-parts = shlex.split(command.replace('${{ matrix.shard_index }}', '0'))
+assert re.search(r'^          SHARD_INDEX: \$\{\{ matrix.shard_index \}\}$', job, re.M)
+assert '${{' not in command, 'pass workflow expressions through the environment'
+parts = shlex.split(command.replace('$SHARD_INDEX', '0'))
 timeout = int(next(part.split('=', 1)[1] for part in parts if part.startswith('--timeout=')))
 job_timeout = int(re.search(r'^    timeout-minutes: (\d+)$', job, re.M)[1]) * 60
 assert 0 < timeout < job_timeout - 60, (timeout, job_timeout)
@@ -118,7 +122,7 @@ assert 'unit/test-council-command.sh' in expected
 for os_name in oses:
     selected = []
     for index in indexes:
-        parts = shlex.split(command.replace('${{ matrix.shard_index }}', index))
+        parts = shlex.split(command.replace('$SHARD_INDEX', index))
         runner_command = parts[parts.index('--') + 1:]
         assert runner_command[:2] == ['./tests/run-all.sh', 'unit'], runner_command
         args = runner_command[1:]

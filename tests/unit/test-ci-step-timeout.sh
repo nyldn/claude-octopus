@@ -22,12 +22,12 @@ helper = root / "tests/helpers/run-ci-step.py"
 work = tmp / case
 work.mkdir(mode=0o700)
 log = work / "logs" / "output.log"
-base = [sys.executable, str(helper), "--timeout", "1", "--log", str(log), "--"]
+base = [sys.executable, str(helper), "--timeout", "3", "--log", str(log), "--"]
 
 def run(code, *args, prefix=None):
     """Execute an inert command with an independent outer deadline."""
     return subprocess.run((prefix or base) + [sys.executable, "-c", code, *map(str, args)],
-                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=8)
+                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=12)
 
 def stopped(pid):
     """Treat absent or zombie fixture processes as terminated."""
@@ -61,7 +61,7 @@ elif case == "nonzero":
 elif case == "timeout":
     result = run("import time; print('partial-output', flush=True); time.sleep(30)")
     assert result.returncode == 124, result.stdout
-    assert b"partial-output" in result.stdout and b"timed out after 1s" in result.stdout
+    assert b"partial-output" in result.stdout and b"timed out after 3s" in result.stdout
     assert b"time.sleep(30)" in result.stdout
     assert result.stdout == log.read_bytes()
 elif case == "selfsignal":
@@ -82,29 +82,32 @@ print('tree-started', flush=True)
 time.sleep(30)
 """
     caller_group = os.getpgrp()
-    if case == "tree":
-        result = run(fixture, pidfile)
-        assert result.returncode == 124, result.stdout
-    else:
-        command = base.copy()
-        command[command.index("1")] = "5"
-        process = subprocess.Popen(command + [sys.executable, "-c", fixture, str(pidfile)],
-                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        try:
-            deadline = time.monotonic() + 3
-            while not pidfile.exists() and time.monotonic() < deadline:
-                time.sleep(.01)
-            assert pidfile.exists(), "fixture did not start"
+    command = base.copy()
+    if case == "interrupt":
+        command[command.index("--timeout") + 1] = "5"
+    process = subprocess.Popen(command + [sys.executable, "-c", fixture, str(pidfile)],
+                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    try:
+        deadline = time.monotonic() + 5
+        while not pidfile.exists() and process.poll() is None and time.monotonic() < deadline:
+            time.sleep(.01)
+        assert pidfile.exists(), "fixture did not publish its PIDs before timeout"
+        if case == "interrupt":
             process.send_signal(signal.SIGTERM)
-            output, _ = process.communicate(timeout=4)
-            assert process.returncode == 143, output
+        output, _ = process.communicate(timeout=8)
+        assert process.returncode == (143 if case == "interrupt" else 124), output
+        if case == "interrupt":
             assert b"interrupted by signal 15" in output
-        finally:
-            if process.poll() is None:
+    finally:
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.communicate(timeout=2)
+            except subprocess.TimeoutExpired:
                 process.kill()
                 process.wait(timeout=2)
-    pids = list(map(int, pidfile.read_text().split()))
-    assert_stopped(pids)
+        if pidfile.exists():
+            assert_stopped(list(map(int, pidfile.read_text().split())))
     assert os.getpgrp() == caller_group
     os.killpg(caller_group, 0)
 elif case == "invalid":
@@ -112,7 +115,7 @@ elif case == "invalid":
     fixture = "from pathlib import Path; import sys; Path(sys.argv[1]).touch()"
     for invalid in ("0", "-1", "nan", "inf", "bad"):
         prefix = base.copy()
-        prefix[prefix.index("1")] = invalid
+        prefix[prefix.index("--timeout") + 1] = invalid
         assert run(fixture, marker, prefix=prefix).returncode != 0
         assert not marker.exists()
     public = work / "public"
@@ -129,7 +132,7 @@ elif case == "invalid":
 elif case == "tail":
     limit = 16 * 1024 * 1024
     prefix = base.copy()
-    prefix[prefix.index("1")] = "5"
+    prefix[prefix.index("--timeout") + 1] = "5"
     result = run("import sys; sys.stdout.write('x' * (17 * 1024 * 1024)); print('TAIL-END')", prefix=prefix)
     assert result.returncode == 0
     assert len(log.read_bytes()) == limit
