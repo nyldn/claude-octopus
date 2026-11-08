@@ -2328,6 +2328,25 @@ test_council_live_response_host_native_fails_for_synthesis() {
     fi
 }
 
+test_council_live_response_agy_print_timeout_follows_seat() {
+    test_case "an agy seat's print timeout follows the seat timeout, not agy's 5m default (sail-cruisey #3422)"
+    load_council_lib || return 1
+    local seen explicit
+    COUNCIL_PROVIDER_STATUS_JSON='{"agy":"available","codex":"available"}'
+    council_provider_is_available() { return 0; }
+    run_agent_sync_consultative() { printf '%s|%s' "${OCTOPUS_AGY_PRINT_TIMEOUT:-unset}" "$3"; }
+    seen="$(unset OCTOPUS_AGY_PRINT_TIMEOUT COUNCIL_RUN_START_EPOCH; OCTOPUS_COUNCIL_TIMEOUT_AGY=900 \
+        council_live_response agy code-reviewer "p" independent-advice)"
+    explicit="$(unset COUNCIL_RUN_START_EPOCH; OCTOPUS_AGY_PRINT_TIMEOUT=2m OCTOPUS_COUNCIL_TIMEOUT_AGY=900 \
+        council_live_response agy code-reviewer "p" independent-advice)"
+    if [[ "$seen" == "885s|900" && "$explicit" == "2m|900" ]]; then
+        test_pass
+    else
+        test_fail "derived='$seen' (want 885s|900) explicit='$explicit' (want 2m|900)"
+    fi
+    unset -f run_agent_sync_consultative council_provider_is_available
+}
+
 test_council_split_double_seat_fails_quorum() {
     test_case "Council quorum fails when a double-seated vendor splits (sail-cruisey #1992)"
     load_council_lib || return 1
@@ -3711,6 +3730,7 @@ test_council_seats_array_makes_quorum_inspectable() {
 test_council_host_native_detection
 test_council_live_response_host_native_skips_subprocess
 test_council_live_response_host_native_fails_for_synthesis
+test_council_live_response_agy_print_timeout_follows_seat
 # Pure parser and approver-set contracts run in the fast contribution suite.
 test_council_split_double_seat_fails_quorum
 test_council_all_approve_meets_quorum

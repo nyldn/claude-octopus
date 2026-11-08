@@ -1789,7 +1789,21 @@ EOF
         else
             _seat_timeout="$(council_seat_timeout "$agent_type")"
         fi
-        run_agent_sync_consultative "$agent_type" "$prompt" "$_seat_timeout" "$persona" "council"
+        local _agy_print_timeout
+        # agy stops a turn at its own print timeout (agy-exec defaults to 5m) even
+        # when the seat may run 900s: an agy seat busy beside other councils was cut
+        # off at 300s in 3 rounds (sail-cruisey #3422). Follow the seat cap, a little
+        # under it so agy returns before the watchdog. An explicit setting wins.
+        _agy_print_timeout="${OCTOPUS_AGY_PRINT_TIMEOUT:-}"
+        if [[ -z "$_agy_print_timeout" && "$_seat_timeout" =~ ^[0-9]+$ ]]; then
+            if (( _seat_timeout > 60 )); then
+                _agy_print_timeout="$(( _seat_timeout - 15 ))s"
+            else
+                _agy_print_timeout="${_seat_timeout}s"
+            fi
+        fi
+        OCTOPUS_AGY_PRINT_TIMEOUT="${_agy_print_timeout:-5m0s}" \
+            run_agent_sync_consultative "$agent_type" "$prompt" "$_seat_timeout" "$persona" "council"
         return $?
     fi
 
