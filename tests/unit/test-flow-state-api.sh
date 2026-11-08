@@ -161,6 +161,7 @@ for name, title in (("pre", "Pre-Discovery: Optional Project Persistence"), ("po
     block = re.search(r"```bash\n(.*?)\n```", section, re.S).group(1)
     block = block.replace('"${HOME}/.claude-octopus/plugin/scripts/octo-state.sh"', '"' + sys.argv[2] + '"')
     block = block.replace('"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh"', '"' + sys.argv[2] + '"')
+    block = block.replace('"${OCTO_ROOT:?}/scripts/octo-state.sh"', '"' + sys.argv[2] + '"')
     Path(sys.argv[3], name + ".sh").write_text(block)
 PY
 mkdir -p "$TEST_TMP_DIR/discover-project"

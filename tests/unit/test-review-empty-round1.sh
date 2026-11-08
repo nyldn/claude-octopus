@@ -4,14 +4,25 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$ROOT/tests/helpers/test-framework.sh"
 test_suite "complete empty review"
-TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+TMP="$TEST_TMP_DIR/review-empty"
+mkdir -p "$TMP"
 source "$ROOT/scripts/lib/review.sh"
 log() { :; }
 check_codex_auth_freshness() { return 0; }
+# Settings are consumed by the sourced review pipeline.
+# shellcheck disable=SC2034
 parse_review_md() { REVIEW_ALWAYS_CHECK=""; REVIEW_STYLE_RULES=""; REVIEW_SKIP_PATTERNS=""; }
+# The caller owns the snapshot through Bash dynamic scope.
+# shellcheck disable=SC2154
 review_collect_diff() {
-    if [[ "$CASE" == changed && -e "$TMP/dispatched" ]]; then echo changed; else echo original; fi
+    if [[ -e "$TMP/dispatched" ]]; then
+        [[ "$CASE" != diff-error ]] || return 42
+        if [[ "$CASE" == changed ]]; then echo changed; return; fi
+        if [[ "$CASE" == snapshot-bad ]]; then
+            printf '%s\n' '{"findings":[],"warning":"corrupted snapshot"}' > "$round1_findings_file"
+        fi
+    fi
+    echo original
 }
 build_review_fleet() {
     [[ "$CASE" != zero ]] || return 0
@@ -37,7 +48,7 @@ spawn_agent_capture_pid() {
         failed:security) status=FAILED ;;
         malformed:security) body='{"findings":"bad"}' ;;
         prose:security) body='No issues.' ;;
-        finding:security) body='{"findings":[{"file":"a","line":1,"title":"bug","detail":"bad","category":"logic","severity":"normal","confidence":0.9}]}' ;;
+        finding:security|finding-publication:security) body='{"findings":[{"file":"a","line":1,"title":"bug","detail":"bad","category":"logic","severity":"normal","confidence":0.9}]}' ;;
     esac
     printf '## Output\n%s\n## Status: %s\n' "$body" "$status" > "$RESULTS_DIR/$(octo_agent_spec_slug "$1")-$3.md"
     echo 999999
@@ -46,7 +57,10 @@ review_recover_malformed_findings() { return 1; }
 review_run_agent_sync_progress() {
     echo "$3" >> "$TMP/calls"
     case "$3" in
-        implementation-verifier) echo '{"findings":[]}' ;;
+        implementation-verifier)
+            if [[ "$CASE" == finding-publication ]]; then
+                echo '{"findings":[{"file":"a","line":1,"title":"bug","detail":"bad","category":"logic","severity":"normal","confidence":0.9,"verdict":"confirmed"}]}'
+            else echo '{"findings":[]}'; fi ;;
         *) echo '{"findings":[]}' ;;
     esac
 }
@@ -57,30 +71,53 @@ octo_proof_init() { echo "$TMP/proof"; }
 octo_proof_event() { :; }
 octo_proof_artifact() { :; }
 octo_proof_claim() { :; }
-octo_proof_capture_provider_status() { cp "$2" "$TMP/provider-status"; }
+octo_proof_capture_provider_status() { cp "$2" "$TMP/provider-status"; printf '%s\n' "$2" > "$TMP/provider-state-path"; }
 octo_proof_finalize() { echo "$2" > "$TMP/verdict"; }
 render_terminal_report() { :; }
 print_provider_report() { :; }
-gh() { [[ "$CASE" == publication ]] && echo 123; }
-post_inline_comments() { return 1; }
+gh() { [[ "$CASE" == publication || "$CASE" == finding-publication ]] && echo 123; }
+post_inline_comments() { touch "$TMP/publication-attempt"; return 1; }
 git() { return 1; }
 export HOME="$TMP/home" TMPDIR="$TMP"
 mkdir -p "$HOME"
-for CASE in clean missing timeout failed malformed prose finding changed zero publication allfailed statusless multi warning error; do
+for CASE in clean missing timeout failed malformed prose finding changed diff-error snapshot-bad zero publication finding-publication allfailed statusless multi warning error; do
     test_case "$CASE dispatches downstream stages or fails closed"
     RESULTS_DIR="$TMP/$CASE"; mkdir -p "$RESULTS_DIR"
-    rm -f "$TMP/dispatched" "$TMP/calls" "$TMP/round1-calls"
+    rm -f "$TMP/dispatched" "$TMP/calls" "$TMP/round1-calls" "$TMP/verdict" "$TMP/provider-status" "$TMP/provider-state-path" "$TMP/publication-attempt"
     rc=0
     profile='{"publish":"never","history":"fresh","debate":"off"}'
-    [[ "$CASE" != publication ]] || profile='{"publish":"ask","history":"fresh","debate":"off"}'
+    [[ "$CASE" != publication && "$CASE" != finding-publication ]] || profile='{"publish":"ask","history":"fresh","debate":"off"}'
     review_run "$profile" <<< y > "$TMP/output" 2>&1 || rc=$?
     count=0; [[ ! -f "$TMP/calls" ]] || count=$(wc -l < "$TMP/calls" | tr -d ' ')
-    if [[ "$CASE" == clean ]]; then
-        if [[ "$rc" == 0 && "$count" == 0 && "$(wc -l < "$TMP/round1-calls" | tr -d ' ')" == 2 ]] && jq -e '.findings == [] and (.warning // "") == ""' "$RESULTS_DIR"/review-findings-*.json >/dev/null; then
-            if [[ "$(cat "$TMP/verdict")" == pass ]] && [[ "$(wc -l < "$TMP/provider-status" | tr -d ' ')" -ge 2 ]]; then test_pass; else test_fail "provider proof missing"; fi
-        else test_fail "rc=$rc calls=$count $(cat "$TMP/output")"; fi
-    elif [[ "$CASE" == publication && "$rc" != 0 && "$(cat "$TMP/verdict")" == fail ]]; then test_pass
-    elif [[ "$CASE" != publication && ( "$count" -ge 2 || "$rc" != 0 ) ]]; then test_pass
-    else test_fail "unsafe short circuit: rc=$rc calls=$count $(cat "$TMP/output")"; fi
+    verdict=""; [[ ! -f "$TMP/verdict" ]] || verdict="$(cat "$TMP/verdict")"
+    calls=""; [[ ! -f "$TMP/calls" ]] || calls="$(cat "$TMP/calls")"
+    case "$CASE" in
+        clean)
+            if [[ "$rc" == 0 && "$count" == 0 && "$verdict" == pass && "$(wc -l < "$TMP/round1-calls" | tr -d ' ')" == 2 ]] &&
+               jq -e '.findings == [] and (.warning // "") == ""' "$RESULTS_DIR"/review-findings-*.json >/dev/null &&
+               [[ -s "$TMP/provider-status" ]]; then test_pass; else test_fail "clean review lost reports or used downstream models"; fi ;;
+        changed|diff-error|snapshot-bad)
+            case "$CASE" in
+                changed) expected_warning='Diff changed during review' ;;
+                diff-error) expected_warning='Could not collect the current diff' ;;
+                snapshot-bad) expected_warning='Round 1 snapshot could not be verified' ;;
+            esac
+            if [[ "$rc" == 1 && "$count" == 0 && "$verdict" == fail && -s "$TMP/provider-status" && -f "$TMP/provider-state-path" ]] &&
+               [[ ! -e "$(cat "$TMP/provider-state-path")" ]] &&
+               jq -e --arg warning "$expected_warning" '.warning == $warning' "$RESULTS_DIR"/review-findings-*.json >/dev/null; then
+                test_pass
+            else test_fail "gate failure did not close its proof and report: rc=$rc calls=$calls verdict=$verdict"; fi ;;
+        zero|allfailed)
+            if [[ "$rc" == 1 && "$count" == 0 && "$verdict" == fail ]] &&
+               jq -e '.warning | length > 0' "$RESULTS_DIR"/review-findings-*.json >/dev/null; then test_pass; else test_fail "fleet failure missed its warning proof"; fi ;;
+        publication)
+            [[ "$rc" == 1 && "$count" == 0 && "$verdict" == fail ]] && test_pass || test_fail "empty publication failure returned success" ;;
+        finding-publication)
+            [[ "$rc" == 1 && "$calls" == $'implementation-verifier\nimplementation-synthesizer' && "$verdict" == fail && -f "$TMP/publication-attempt" ]] && test_pass || test_fail "nonempty publication failure: rc=$rc calls=$calls verdict=$verdict $(cat "$TMP/output")" ;;
+        *)
+            if [[ "$calls" == $'implementation-verifier\nimplementation-synthesizer' && "$rc" == 0 && -n "$verdict" ]]; then
+                test_pass
+            else test_fail "expected verified downstream stages: rc=$rc calls=$calls $(cat "$TMP/output")"; fi ;;
+    esac
 done
 test_summary

@@ -112,6 +112,7 @@ for lifecycle_code in "$discover_pre_code" "$discover_post_code"; do
         cd "$persistence_project"
         rm -rf .octo
         HOME="$persistence_home" \
+        OCTO_ROOT="$persistence_home/.claude-octopus/plugin" \
         OCTOPUS_PROJECT_PERSISTENCE=true \
         SYNTHESIS_FILE="$persistence_synthesis" \
         bash -c "$lifecycle_code"
@@ -133,6 +134,7 @@ for lifecycle_case in init_project pre_update_state update_project post_update_s
         cd "$persistence_project"
         rm -rf .octo
         HOME="$persistence_home" \
+        OCTO_ROOT="$persistence_home/.claude-octopus/plugin" \
         OCTOPUS_PROJECT_PERSISTENCE=true \
         OCTOPUS_TEST_FAIL_COMMAND="$failure_command" \
         SYNTHESIS_FILE="$persistence_synthesis" \

@@ -18,6 +18,8 @@ council_read_seat_fields() {
 }
 
 council_pool_now_ms() {
+    # EPOCHREALTIME is a wall clock and can jump during a timeout. Keep one
+    # monotonic clock domain for preparation, reservation waits and dispatch.
     python3 -c 'import time; print(int(time.monotonic() * 1000))'
 }
 
@@ -65,8 +67,15 @@ council_collect_seat() {
 council_pool_request_reservation() {
     local output="$1"; shift
     (umask 077; printf '%s\0' "$@" > "${output}.reserve.tmp") || return 74
+    council_pool_now_ms > "${output}.reserve-start.tmp" || return 74
+    mv -f "${output}.reserve-start.tmp" "${output}.reserve-start" || return 74
     mv -f "${output}.reserve.tmp" "${output}.reserve" || return 74
-    while [[ ! -f "${output}.reserved" ]]; do sleep 0.05; done
+    while [[ ! -f "${output}.reserved" ]]; do
+        [[ "${_COUNCIL_POOL_PID:-}" =~ ^[1-9][0-9]*$ ]] || return 75
+        kill -0 "$_COUNCIL_POOL_PID" 2>/dev/null || return 75
+        council_deadline_exceeded && return 124
+        sleep 0.05
+    done
     [[ "$(<"${output}.reserved")" == 0 ]]
 }
 
@@ -96,6 +105,7 @@ council_run_seat_pool() {
     trap 'interrupted=143; [[ -z "$pool_pid" ]] || kill -TERM "$pool_pid" 2>/dev/null || true' TERM HUP
     _council_seat_pool_impl "$@" &
     pool_pid=$!
+    (( interrupted == 0 )) || kill -TERM "$pool_pid" 2>/dev/null || true
     wait "$pool_pid" || rc=$?
     if (( interrupted != 0 )); then wait "$pool_pid" 2>/dev/null || true; rc="$interrupted"; fi
     trap - INT TERM HUP
@@ -108,10 +118,15 @@ $old_hup"
 _council_seat_pool_impl() {
     umask 077
     local phase="$1" directory="$2" through limit
+    # exec makes Python's PPID this scheduler, including on Bash 3.2 where $$
+    # remains the top-level shell's PID inside a background function.
+    local _COUNCIL_POOL_PID
+    _COUNCIL_POOL_PID="$(exec python3 -c 'import os; print(os.getppid())')" || return 1
+    export _COUNCIL_POOL_PID
     case "$phase" in independent-advice) through=advice ;; cross-critique) through=critique ;; *) through=revision ;; esac
     limit="$(council_pool_global_limit)"
     local -a members providers outputs pids timeouts starts
-    local member persona provider spec output index=0 i running=0 same cap rc elapsed now
+    local member persona provider spec output index=0 i running=0 same cap rc elapsed now wait_start reservation_now
     local grace
     grace="$(council_deadline_reap_grace)"
     members=(); providers=(); outputs=(); pids=(); timeouts=(); starts=()
@@ -122,7 +137,7 @@ _council_seat_pool_impl() {
         providers[index]="$(octo_agent_spec_provider "$spec")"
         outputs[index]="${COUNCIL_RUN_DIR}/${directory}/$(printf '%02d' "$index")-$(council_slug "$persona").md"
         rm -f "${outputs[index]}.pool-result" "${outputs[index]}.admitted" \
-            "${outputs[index]}.reserve" "${outputs[index]}.reserve.tmp" \
+            "${outputs[index]}.reserve" "${outputs[index]}.reserve.tmp"             "${outputs[index]}.reserve-start" "${outputs[index]}.reserve-start.tmp" \
             "${outputs[index]}.reserved" "${outputs[index]}.reserved.tmp"
         pids[index]=""; timeouts[index]=0; starts[index]=0
         index=$((index + 1))
@@ -153,12 +168,20 @@ _council_seat_pool_impl() {
     local next=0 reservation_next=0
     COUNCIL_ASYNC_PID=""
     while (( next < index || running > 0 )); do
-        now="$(council_pool_now_ms)"
+        now="$(council_pool_now_ms)" || { _council_pool_cancel; }
+        [[ "$now" =~ ^[0-9]+$ ]] || { _council_pool_cancel; }
         for ((i=0; i<next; i++)); do
             [[ -n "${pids[i]}" ]] || continue
             elapsed=$(( now - starts[i] ))
+            if [[ -f "${outputs[i]}.reserve-start" && ! -f "${outputs[i]}.reserved" ]]; then
+                IFS= read -r wait_start < "${outputs[i]}.reserve-start" || { _council_pool_cancel; }
+                [[ "$wait_start" =~ ^[0-9]+$ ]] || { _council_pool_cancel; }
+                # Exclude queue waiting, while still charging this seat's own
+                # preparation time. The aggregate deadline always keeps running.
+                elapsed=$((elapsed - now + wait_start))
+            fi
             if [[ -f "${outputs[i]}.done" ]] || ! kill -0 "${pids[i]}" 2>/dev/null \
-                    || (( elapsed >= (timeouts[i] + grace) * 1000 )); then
+                    || (( elapsed >= (timeouts[i] + grace) * 1000 )) || council_deadline_exceeded; then
                 rc=0
                 COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE=""
                 council_reap_member_detached "${outputs[i]}" "${pids[i]}" "${timeouts[i]}" "$elapsed" || rc=$?
@@ -173,7 +196,12 @@ _council_seat_pool_impl() {
         while (( reservation_next < next )); do
             output="${outputs[reservation_next]}"
             if [[ -n "${pids[reservation_next]}" && -f "${output}.reserve" && ! -f "${output}.reserved" ]]; then
+                IFS= read -r wait_start < "${output}.reserve-start" || { _council_pool_cancel; }
+                [[ "$wait_start" =~ ^[0-9]+$ ]] || { _council_pool_cancel; }
                 council_pool_reserve_call "$output" || { _council_pool_cancel; }
+                reservation_now="$(council_pool_now_ms)" || { _council_pool_cancel; }
+                [[ "$reservation_now" =~ ^[0-9]+$ ]] || { _council_pool_cancel; }
+                starts[reservation_next]=$((starts[reservation_next] + reservation_now - wait_start))
             elif [[ ! -f "${output}.pool-result" ]]; then
                 break
             fi

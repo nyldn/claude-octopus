@@ -57,7 +57,7 @@ for f in "$PROJECT_ROOT"/skills/*/SKILL.md; do
     uses_orchestrate=$(grep -c 'orchestrate\.sh' "$f" 2>/dev/null || true)
 
     if [[ "$uses_orchestrate" -gt 0 ]]; then
-        if grep -q 'MANDATORY COMPLIANCE\|EXECUTION CONTRACT.*MANDATORY\|CANNOT SKIP' "$f" 2>/dev/null; then
+        if grep -c 'MANDATORY COMPLIANCE\|EXECUTION CONTRACT.*MANDATORY\|CANNOT SKIP' <<< "$(read_skill_contract "$f")" >/dev/null; then
             pass "$name has enforcement (uses orchestrate.sh)"
         else
             fail "$name missing enforcement" "calls orchestrate.sh but has no MANDATORY COMPLIANCE or EXECUTION CONTRACT"

@@ -46,7 +46,8 @@ octo_provider_readiness_result() {
 
     def test_scope_receipt_parity_pins_and_fail_closed(self):
         helper = self.fixture_panel()
-        env = dict(os.environ, OCTOPUS_PREFLIGHT_PROVIDERS="", OCTOPUS_COUNCIL_DEFAULT_PROVIDERS="")
+        workspace = self.base / "workspace"; workspace.mkdir()
+        env = dict(os.environ, OCTOPUS_PREFLIGHT_PROVIDERS="", OCTOPUS_COUNCIL_DEFAULT_PROVIDERS="", WORKSPACE_DIR=str(workspace))
         def run(*args, changes=None):
             return subprocess.run(["bash", str(helper), "--json", *args], env=dict(env, **(changes or {})), capture_output=True, text=True)
         full = json.loads(run().stdout)
@@ -62,6 +63,22 @@ octo_provider_readiness_result() {
         self.assertEqual(run("--providers", "claude,codex", "--run-id", "one", "--report-out", str(receipt)).returncode, 0)
         args = ("--providers", "claude,codex", "--run-id", "one", "--report-in", str(receipt))
         self.assertEqual(run(*args).returncode, 0)
+        fresh = self.base / 'fresh-codex-check'
+        transport = f'''source "{ROOT}/scripts/lib/preflight.sh"
+_preflight_registry_dir="{helper.parent.parent / 'lib'}"
+WORKSPACE_DIR="{workspace}"
+check_codex_auth_freshness() {{ touch "{fresh}"; }}
+log() {{ :; }}
+preflight_check true
+'''
+        transport_env = dict(env, OCTOPUS_PREFLIGHT_PROVIDERS='claude,codex',
+                             OCTOPUS_PREFLIGHT_REPORT=str(receipt), OCTOPUS_PREFLIGHT_RUN_ID='one')
+        prepared = subprocess.run(['bash', '-eu', '-c', transport], env=transport_env, capture_output=True, text=True)
+        self.assertEqual(prepared.returncode, 0, prepared.stderr)
+        self.assertTrue(fresh.is_file())
+        prepared = subprocess.run(['bash', '-eu', '-c', transport],
+            env=dict(transport_env, OCTOPUS_PREFLIGHT_RUN_ID='wrong-run'), capture_output=True, text=True)
+        self.assertNotEqual(prepared.returncode, 0)
         self.assertNotEqual(run(*args, changes={"TEST_STATUS":"degraded"}).returncode, 0)
         self.assertNotEqual(run(*args, changes={"OCTOPUS_CODEX_MODEL":"changed"}).returncode, 0)
         self.assertNotEqual(run(*args, changes={"OCTO_ALLOWED_PROVIDERS":"agy"}).returncode, 0)
@@ -86,6 +103,11 @@ octo_provider_readiness_result() {
         quota = self.base/'workspace/state/.provider-quota-dead'; quota.parent.mkdir(parents=True)
         quota.write_text('codex')
         self.assertNotEqual(run(*binary_args,changes=scoped_env).returncode,0)
+        blank = run('--providers', 'claude,codex', '--run-id', 'blank', '--report-out', str(self.base / 'blank.json'), changes={'OCTOPUS_CODEX_BIN': '   '})
+        self.assertEqual(blank.returncode, 0, blank.stderr)
+        malformed = run('--providers', 'claude,codex', '--run-id', 'bad', '--report-out', str(self.base / 'bad.json'), changes={'OCTOPUS_CODEX_BIN': "'"})
+        self.assertEqual(malformed.returncode, 2)
+        self.assertNotIn('Traceback', malformed.stderr)
         original = receipt.read_text()
         for key, value in (("created_at", 0), ("version", 99), ("scope", ["agy"]), ("run_id", "two"), ("state", "bad")):
             data = json.loads(original); data[key] = value; receipt.write_text(json.dumps(data))
@@ -201,6 +223,16 @@ print('raw unvalidated output')
             self.assertIn('disable-model-invocation: true', text)
             for link in re.findall(r'skills/[^`\s]+\.md',text):
                 self.assertTrue((ROOT/link).is_file(),link)
+        for skill in ('skill-refine', 'flow-discover'):
+            text = (ROOT / 'skills' / skill / 'SKILL.md').read_text()
+            block = re.search(r'```bash\n(.*?)\n```', text, re.S).group(1)
+            for entry in (ROOT / 'skills' / skill / 'SKILL.md', ROOT / '.claude/skills' / skill / 'SKILL.md'):
+                isolated = {k: v for k, v in os.environ.items() if k not in ('CLAUDE_PLUGIN_ROOT', 'CODEX_PLUGIN_ROOT', 'OCTO_ROOT')}
+                isolated.update(HOME=str(self.base), OCTO_SKILL_FILE=str(entry))
+                result = subprocess.run(['bash', '-eu', '-c', block + '\nprintf "%s" "$OCTO_ROOT"'],
+                    env=isolated, cwd=self.base, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(Path(result.stdout), ROOT)
         fixture=self.base/'plugin'; (fixture/'scripts').mkdir(parents=True)
         (fixture/'.claude/skills').mkdir(parents=True)
         shutil.copy2(ROOT/'scripts/build-codex-skills.sh',fixture/'scripts')

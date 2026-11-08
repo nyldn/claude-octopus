@@ -8,12 +8,12 @@ setting `OCTOPUS_PROJECT_PERSISTENCE=true`.
 if [[ "${OCTOPUS_PROJECT_PERSISTENCE:-false}" == "true" ]]; then
   if [[ ! -d ".octo" ]]; then
     echo "📁 Initializing opt-in .octo/ project state..."
-    if ! "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" init_project; then
+    if ! "${OCTO_ROOT:?}/scripts/octo-state.sh" init_project; then
       echo "Discover incomplete: could not initialize opt-in project state." >&2
       exit 1
     fi
   fi
-  if ! "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_state \
+  if ! "${OCTO_ROOT:?}/scripts/octo-state.sh" update_state \
       --phase 1 \
       --position "Discovery" \
       --status "in_progress"; then
@@ -84,7 +84,7 @@ Analyze the user's prompt and project to determine context:
 **MANDATORY: You MUST use the native shell command tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/check-providers.sh"
+bash "${OCTO_ROOT:?}/scripts/helpers/check-providers.sh"
 ```
 
 **Use the ACTUAL results below. PROHIBITED: Showing only "🔵 Claude: Available ✓" without listing all providers.**
@@ -135,16 +135,16 @@ Provider Availability:
 
 ```bash
 # Initialize state if needed
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" init_state
+"${OCTO_ROOT:?}/scripts/state-manager.sh" init_state
 
 # Set current workflow
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" set_current_workflow "flow-discover" "discover"
+"${OCTO_ROOT:?}/scripts/state-manager.sh" set_current_workflow "flow-discover" "discover"
 
 # Get prior decisions (if any)
-prior_decisions=$("${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" get_decisions "all")
+prior_decisions=$("${OCTO_ROOT:?}/scripts/state-manager.sh" get_decisions "all")
 
 # Get context from previous phases
-prior_context=$("${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" read_state | jq -r '.context')
+prior_context=$("${OCTO_ROOT:?}/scripts/state-manager.sh" read_state | jq -r '.context')
 
 # Display what you found (if any)
 if [[ "$prior_decisions" != "[]" && "$prior_decisions" != "null" ]]; then
@@ -169,7 +169,7 @@ fi
 **Build the fleet dynamically using `build-fleet.sh`** — this is the single source of truth for provider-to-perspective assignment. It detects ALL available providers (codex, agy, copilot, qwen, opencode, ollama, perplexity, openrouter) and assigns perspectives with model family diversity enforcement.
 
 ```bash
-FLEET_OUTPUT=$("${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/build-fleet.sh" research "${INTENSITY}" "${PROMPT}" 2>/dev/null)
+FLEET_OUTPUT=$("${OCTO_ROOT:?}/scripts/helpers/build-fleet.sh" research "${INTENSITY}" "${PROMPT}" 2>/dev/null)
 ```
 
 The output is one line per agent: `agent_type|label|perspective_prompt`
@@ -197,7 +197,7 @@ The output is one line per agent: `agent_type|label|perspective_prompt`
 Create one durable run identity after building the fleet and before generating task IDs:
 
 ```bash
-OCTO_RESEARCH_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+OCTO_RESEARCH_ROOT="${OCTO_ROOT:?}"
 RUN_TIMESTAMP="$(date +%s)"
 RUN_NONCE="$(od -An -N16 -tx1 /dev/urandom | tr -d '[:space:]')"
 RUN_ID="flow-${RUN_TIMESTAMP}-${RUN_NONCE}"

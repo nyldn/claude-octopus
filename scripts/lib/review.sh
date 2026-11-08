@@ -1747,6 +1747,22 @@ review_next_run_id() {
 #
 # Args: JSON profile string with fields:
 #   target, focus, provenance, autonomy, publish, debate
+# Close every proof/report path when the clean-review gate cannot be verified.
+review_fail_closed() {
+    local findings="$1" proof="$2" providers="$3" message="$4"
+    log ERROR "review_run: $message"
+    review_local_synthesis_json "[]" "$message" > "$findings" || true
+    if [[ -n "$proof" ]]; then
+        [[ ! -s "$findings" ]] || octo_proof_artifact "$proof" "review-findings" "$findings" "$message" || true
+        octo_proof_capture_provider_status "$proof" "$providers" || true
+        octo_proof_finalize "$proof" fail "$message" || true
+    fi
+    render_terminal_report "$findings" || true
+    print_provider_report "$providers" || true
+    rm -f "$providers"
+    return 1
+}
+
 review_run() {
     local _ts; _ts=$(date +%s)
     local profile_json="${1:-"{}"}"
@@ -2309,12 +2325,18 @@ ${round1_prompts[$retry_idx]}"
             fi
         done
         if [[ "$complete_empty" == true ]]; then
-            current_diff=$(review_collect_diff "$target") || return 1
-            [[ "$current_diff" == "$review_input_diff" ]] || {
-                log ERROR "review_run: diff changed during review; refusing clean result"
+            current_diff=$(review_collect_diff "$target") || {
+                review_fail_closed "$findings_file" "$proof_dir" "$provider_status_file" "Could not collect the current diff"
                 return 1
             }
-            jq -e '.findings == [] and (.warning // "") == ""' "$round1_findings_file" >/dev/null || return 1
+            [[ "$current_diff" == "$review_input_diff" ]] || {
+                review_fail_closed "$findings_file" "$proof_dir" "$provider_status_file" "Diff changed during review"
+                return 1
+            }
+            jq -e '.findings == [] and (.warning // "") == ""' "$round1_findings_file" >/dev/null || {
+                review_fail_closed "$findings_file" "$proof_dir" "$provider_status_file" "Round 1 snapshot could not be verified"
+                return 1
+            }
         fi
     fi
     local verification_incomplete=false final_json synth_ok=false synthesis_provider synthesis_provider_key
@@ -2628,7 +2650,7 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
 
     # v9.0: Print provider report card — always last, impossible to miss
     print_provider_report "$provider_status_file" || return $?
-    [[ "$complete_empty" != true || "$publication_failed" != true ]]
+    [[ "$publication_failed" != true ]]
 }
 
 # review_post_safe_body: stream generated text to the shared helper, which

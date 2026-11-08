@@ -627,7 +627,7 @@ _octo_capture_file_signature() {
     elif stat -c '%s:%Y' "$path" >/dev/null 2>&1; then
         stat -c '%s:%Y' "$path"
     else
-        printf '%s\n' '0:unknown'
+        printf '%s:%s\n' "$(wc -c < "$path" 2>/dev/null || echo 0)" unknown
     fi
 }
 

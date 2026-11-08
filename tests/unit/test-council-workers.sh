@@ -8,8 +8,6 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 source "$PROJECT_ROOT/scripts/lib/council.sh"
 test_suite "Council bounded workers"
-TEST_TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "$TEST_TMP_DIR"' EXIT
 COUNCIL_FIXTURE=""
 COUNCIL_MAX_COST=5
 COUNCIL_DEPTH=deep
@@ -20,7 +18,11 @@ OCTOPUS_COUNCIL_MAX_PARALLEL=2
 OCTOPUS_COUNCIL_PROVIDER_MAX_PARALLEL=1
 OCTOPUS_COUNCIL_REAP_GRACE_SECS=0
 OCTOPUS_COUNCIL_DEADLINE_SECS=0
-council_seat_timeout() { echo "${INERT_TIMEOUT:-10}"; }
+council_seat_timeout() {
+    if [[ "${INERT_WAIT_TEST:-0}" == 1 ]]; then
+        case "$1" in codex) echo 4 ;; *) echo 1 ;; esac
+    else echo "${INERT_TIMEOUT:-10}"; fi
+}
 record_agent_call() {
     # Inert accounting helper, executed by the scheduler in production order.
     [[ "$2" == vendor/model:qualified && "$3" == $'prompt\n' ]] || return 75
@@ -30,7 +32,7 @@ record_agent_call() {
 council_dispatch_member() {
     local persona provider
     persona="$(jq -r .persona <<< "$1")"; provider="$(jq -r .provider <<< "$1")"
-    [[ "$persona" != one ]] || sleep 0.2
+    [[ "$persona" != one ]] || sleep "${INERT_PREPARE_FIRST:-0.2}"
     record_agent_call "$provider" "vendor/model:qualified" $'prompt\n' council "$persona" 0 "$persona"
     # One append per event, each comfortably under PIPE_BUF.
     printf 'start %s %s\n' "$persona" "$provider" >> "$COUNCIL_RUN_DIR/events"
@@ -71,6 +73,39 @@ test_case "independent seats overlap within global and provider caps in roster o
 prepare overlap
 council_run_seat_pool independent-advice responses
 if check_events 2 1 && [[ "$(awk '{print $3}' "$COUNCIL_RUN_DIR/reservations" | tr '\n' ' ')" == "one two three four " ]] && [[ "$(find "$COUNCIL_RUN_DIR/responses" -name '*.admitted' | wc -l | tr -d ' ')" == 4 ]]; then test_pass; else test_fail "overlap/cap/admission mismatch"; fi
+
+test_case "queued reservation time does not consume a later provider's timeout"
+prepare preparation-wait
+roster_before="$COUNCIL_ROSTER_JSON"
+COUNCIL_ROSTER_JSON='[{"persona":"one","provider":"codex","seat":"member"},{"persona":"two","provider":"gemini","seat":"member"}]'
+INERT_WAIT_TEST=1 INERT_PREPARE_FIRST=2 INERT_SLEEP=0.7 council_run_seat_pool independent-advice responses
+if [[ "$(head -1 "$COUNCIL_RUN_DIR/responses/00-one.md.pool-result")" == 0 && "$(head -1 "$COUNCIL_RUN_DIR/responses/01-two.md.pool-result")" == 0 ]] &&
+   grep -c '^end two ' "$COUNCIL_RUN_DIR/events" >/dev/null; then test_pass; else test_fail "reservation waiting exhausted the provider budget"; fi
+COUNCIL_ROSTER_JSON="$roster_before"
+
+test_case "a reservation wait exits when its scheduler disappears"
+prepare orphaned-reservation
+sleep 20 & scheduler=$!
+(
+    _COUNCIL_POOL_PID="$scheduler"
+    result=0
+    council_pool_request_reservation "$COUNCIL_RUN_DIR/orphan" inert || result=$?
+    printf '%s\n' "$result" > "$COUNCIL_RUN_DIR/orphan-result"
+) & waiter=$!
+for attempt in {1..100}; do
+    [[ -f "$COUNCIL_RUN_DIR/orphan.reserve" ]] && break
+    sleep 0.02
+done
+kill -KILL "$scheduler"; wait "$scheduler" 2>/dev/null || true
+for attempt in {1..100}; do
+    [[ -f "$COUNCIL_RUN_DIR/orphan-result" ]] && break
+    sleep 0.02
+done
+if [[ -f "$COUNCIL_RUN_DIR/orphan-result" && "$(cat "$COUNCIL_RUN_DIR/orphan-result")" == 75 ]]; then test_pass; else
+    kill "$waiter" 2>/dev/null || true
+    test_fail "reservation worker outlived its missing scheduler"
+fi
+wait "$waiter" 2>/dev/null || true
 
 test_case "serial configuration keeps the inline collector behavior"
 prepare serial

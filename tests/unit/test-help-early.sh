@@ -4,8 +4,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$ROOT/tests/helpers/test-framework.sh"
 test_suite "early help dispatch"
-TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+TMP="$TEST_TMP_DIR/help-early"
+mkdir -p "$TMP"
 mkdir -p "$TMP/plugin/scripts/lib" "$TMP/home/.claude/agents"
 printf 'custom agent fixture\n' > "$TMP/home/.claude/agents/example.md"
 cp "$ROOT/scripts/orchestrate.sh" "$TMP/plugin/scripts/"

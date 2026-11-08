@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/result-file.sh"
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/feature-scheduler.sh"
+_octopus_workflows_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_octopus_workflows_lib_dir/result-file.sh"
+source "$_octopus_workflows_lib_dir/feature-scheduler.sh"
 
 # Double Diamond workflow phases
 # Extracted from orchestrate.sh to reduce file size
 # Functions: probe_single_agent, probe_discover, grasp_define, tangle_develop, ink_deliver
 
 # shellcheck source=scripts/lib/json-contract.sh
-source "${BASH_SOURCE[0]%/*}/json-contract.sh" || return 1
-source "${BASH_SOURCE[0]%/*}/provider-failure.sh" || return 1
+source "$_octopus_workflows_lib_dir/json-contract.sh" || return 1
+source "$_octopus_workflows_lib_dir/provider-failure.sh" || return 1
+unset _octopus_workflows_lib_dir
 
 if ! type probe_result_file_status >/dev/null 2>&1; then
     _octo_probe_results_lib="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/probe-results.sh"

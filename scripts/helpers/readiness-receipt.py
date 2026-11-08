@@ -32,7 +32,7 @@ def state():
             if len(fields) == 5 and "dispatch" in fields[4]:
                 commands.add(fields[2])
     for name, value in os.environ.items():
-        if name.startswith("OCTOPUS_") and name.endswith("_BIN") and value:
+        if name.startswith("OCTOPUS_") and name.endswith("_BIN") and value.strip():
             commands.add(shlex.split(value)[0])
     for command in commands:
         binary = shutil.which(command)

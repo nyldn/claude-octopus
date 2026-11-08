@@ -24,7 +24,7 @@ Analyze the user's prompt and project to determine context:
 **First, check task status (if available):**
 ```bash
 # Get task status summary from orchestrate.sh (v2.1.12+)
-task_status=$("${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" get-task-status 2>/dev/null || echo "")
+task_status=$("${OCTO_ROOT:?}/scripts/orchestrate.sh" get-task-status 2>/dev/null || echo "")
 ```
 
 **For Dev Context:**
@@ -125,7 +125,7 @@ Providers:
 ### Step 1: Invoke Discover Phase
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" discover "<user's research question>"
+"${OCTO_ROOT:?}/scripts/orchestrate.sh" discover "<user's research question>"
 ```
 
 ### Step 2: Multi-Provider Research
@@ -283,7 +283,7 @@ Claude:
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
 🔍 Discover Phase: Researching OAuth 2.0 patterns
 
-[Executes: "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" probe "OAuth 2.0 authentication patterns for React apps"]
+[Executes: "${OCTO_ROOT:?}/scripts/orchestrate.sh" probe "OAuth 2.0 authentication patterns for React apps"]
 
 [After completion, reads synthesis and presents:]
 

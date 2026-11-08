@@ -167,4 +167,4 @@ Write to user-specified filename or generate one.
 
 ---
 
-**BEGIN PHASE 0 - ASK CLARIFICATION QUESTIONS FOR: $ARGUMENTS.feature**
+**BEGIN PHASE 0 FOR: $ARGUMENTS.feature. Reuse supplied information and ask only about material gaps or contradictions.**

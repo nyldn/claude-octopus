@@ -11,13 +11,25 @@ Execute the workflow below when invoked through `/octo:refine` or
 Never role-play other models or invent their scores. The score validator checks
 structure and arithmetic; it does not verify the truth of a model's judgments.
 
-Resolve the installed plugin root before reading its resources or running its
-commands:
+Set `OCTO_SKILL_FILE` to the absolute path of this loaded `SKILL.md` supplied by
+the host. Resolve its installation before reading resources or running commands.
+This works without a stable plugin link or trusted startup hooks. If the host
+supplies no skill path, use its explicit plugin root; stop if neither resolves.
 
 ```bash
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${OCTO_ROOT:-}}}"
+if [[ -n "${OCTO_SKILL_FILE:-}" ]]; then
+  [[ "$OCTO_SKILL_FILE" == /* && -f "$OCTO_SKILL_FILE" ]] || exit 1
+  OCTO_ROOT="$(cd "$(dirname "$OCTO_SKILL_FILE")" && pwd -P)"
+  while [[ "$OCTO_ROOT" != / && ! -f "$OCTO_ROOT/.claude-plugin/plugin.json" && ! -f "$OCTO_ROOT/.codex-plugin/plugin.json" ]]; do
+    OCTO_ROOT="$(dirname "$OCTO_ROOT")"
+  done
+fi
+[[ -n "$OCTO_ROOT" && -f "$OCTO_ROOT/scripts/refinement-judge.sh" && -f "$OCTO_ROOT/scripts/refinement-score.py" && -f "$OCTO_ROOT/skills/skill-refine/SKILL.md" ]] || {
+  printf '%s\n' 'Cannot resolve this installed Octopus skill' >&2
+  exit 1
+}
 ```
-
 Keep this absolute root in the workflow context and include its assignment in
 each new shell invocation. Shell variables may not persist between tool calls.
 If the judge adapter or score validator is missing at this root, stop and name

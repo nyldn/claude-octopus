@@ -48,7 +48,7 @@ Replace `<run_id>` with the current nonce-bearing `$RUN_ID` value when creating 
 Run the status table before synthesis:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" agent-summary
+"${OCTO_ROOT:?}/scripts/orchestrate.sh" agent-summary
 ```
 
 Only cite providers with usable output (`ok`, `degraded`, or timeout with partial content). Failed provider output, context-limit errors, and empty outputs are evidence of coverage gaps only.

@@ -61,11 +61,11 @@ echo "✅ VALIDATION PASSED: $SYNTHESIS_FILE"
 ```bash
 key_findings=$(head -50 "$SYNTHESIS_FILE" | grep -A 3 "## Key Findings\|## Summary" | tail -3 | tr '\n' ' ')
 
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_context "discover" "$key_findings"
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_metrics "phases_completed" "1"
+"${OCTO_ROOT:?}/scripts/state-manager.sh" update_context "discover" "$key_findings"
+"${OCTO_ROOT:?}/scripts/state-manager.sh" update_metrics "phases_completed" "1"
 # Track actual providers used (dynamic — from fleet output, not hardcoded)
 for _provider in $(echo "$FLEET_OUTPUT" | cut -d'|' -f1 | sort -u); do
-  "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_metrics "provider" "$_provider"
+  "${OCTO_ROOT:?}/scripts/state-manager.sh" update_metrics "provider" "$_provider"
 done
 ```
 

@@ -76,6 +76,35 @@ run
 '''
                 self.assertEqual(int(shell(script).strip()), expected, diagnostic)
 
+    def test_workflows_can_be_sourced_by_basename(self):
+        output = shell('source workflows.sh; declare -F octopus_provider_failure_classify', cwd=LIB)
+        self.assertEqual(output.strip(), 'octopus_provider_failure_classify')
+
+    def test_large_diagnostics_preserve_pipefail_classification(self):
+        for first, expected in [('ERROR: invalid API key', 'terminal'),
+                                ('ERROR: ECONNRESET', 'retryable'),
+                                ('ERROR: sandbox permission denied', 'other'),
+                                ('RATE_LIMIT', 'terminal')]:
+            script = f'''set -o pipefail
+source "{LIB}/provider-failure.sh"
+OCTOPUS_QUOTA_PATTERN=RATE_LIMIT
+diagnostic="{first}"
+for ((i=0; i<20000; i++)); do diagnostic+=$'\\ncontext line'; done
+octopus_provider_failure_classify codex "$diagnostic"
+'''
+            self.assertEqual(shell(script).strip(), expected)
+
+    def test_stat_fallback_remains_size_sensitive(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, 'artifact'); path.write_text('first')
+            script = f'''source "{LIB}/heartbeat.sh"
+stat() {{ return 1; }}
+_octo_capture_file_signature "{path}"
+printf 'longer content' > "{path}"
+_octo_capture_file_signature "{path}"
+'''
+            self.assertEqual([line.strip() for line in shell(script).splitlines()], ['5:unknown', '14:unknown'])
+
     def test_metadata_framing_and_freshness(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -95,7 +124,7 @@ run
                 sig = "missing"
                 if (root / n).exists():
                     st = (root / n).lstat()
-                    sig = f"{st.st_size}:{int(st.st_mtime)}"
+                    sig = f"{st.st_size}:{st.st_mtime_ns // 1_000_000_000}"
                 expected += b"path=" + os.fsencode(n) + b";" + sig.encode() + b"\n"
             self.assertEqual(sample(), expected)
             (root / names[0]).write_text("longer data")

@@ -22,13 +22,13 @@ cat "$SYNTHESIS_FILE"
 # Project-local lifecycle documents are a separate, explicit opt-in.
 if [[ "${OCTOPUS_PROJECT_PERSISTENCE:-false}" == "true" ]]; then
   echo "📝 Updating opt-in .octo/PROJECT.md with discovery findings..."
-  if ! "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_project \
+  if ! "${OCTO_ROOT:?}/scripts/octo-state.sh" update_project \
       --section "vision" \
       --content-file "$SYNTHESIS_FILE"; then
     echo "Discover incomplete: could not persist findings to .octo/PROJECT.md." >&2
     exit 1
   fi
-  if ! "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_state \
+  if ! "${OCTO_ROOT:?}/scripts/octo-state.sh" update_state \
       --status "complete" \
       --history "Discover phase completed"; then
     echo "Discover incomplete: could not persist completion state." >&2

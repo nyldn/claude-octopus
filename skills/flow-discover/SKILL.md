@@ -19,11 +19,31 @@ validation_gates:
 
 # Discover contract
 
-Execute research only after explicit invocation. Resolve the installed plugin
-root as `OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"`.
-Use this absolute root for every resource and executable. Keep host adaptation:
-use native host shell and task tools, and load `skills/blocks/codex-host-adapter.md`
-on Codex. Confirm exposed provider/task capabilities before claiming availability.
+Execute research only after explicit invocation. Set `OCTO_SKILL_FILE` to the
+absolute path of this loaded `SKILL.md` supplied by the host, then run the block
+below. It finds the installation even when Codex has not run trusted hooks or
+created the stable plugin link. An explicit host root can be used when the host
+supplies no skill path; stop if neither source resolves this installation.
+
+```bash
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${OCTO_ROOT:-}}}"
+if [[ -n "${OCTO_SKILL_FILE:-}" ]]; then
+  [[ "$OCTO_SKILL_FILE" == /* && -f "$OCTO_SKILL_FILE" ]] || exit 1
+  OCTO_ROOT="$(cd "$(dirname "$OCTO_SKILL_FILE")" && pwd -P)"
+  while [[ "$OCTO_ROOT" != / && ! -f "$OCTO_ROOT/.claude-plugin/plugin.json" && ! -f "$OCTO_ROOT/.codex-plugin/plugin.json" ]]; do
+    OCTO_ROOT="$(dirname "$OCTO_ROOT")"
+  done
+fi
+[[ -n "$OCTO_ROOT" && -f "$OCTO_ROOT/scripts/orchestrate.sh" && -f "$OCTO_ROOT/skills/flow-discover/SKILL.md" ]] || {
+  printf '%s\n' 'Cannot resolve this installed Octopus skill' >&2
+  exit 1
+}
+```
+
+Use this absolute root for every resource and executable. Include its literal
+assignment in each new shell invocation. Use native host shell and task tools,
+and load `skills/blocks/codex-host-adapter.md` on Codex. Confirm exposed
+provider/task capabilities before claiming availability.
 
 Before each phase, read the entire next resource below from the resolved installed
 root. Paths are identical in Claude and Codex layouts. Stop on a missing resource;
