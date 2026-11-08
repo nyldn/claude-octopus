@@ -119,6 +119,20 @@ else
     test_fail "Haiku 5.5 pin admission failed or the existing budget default changed"
 fi
 
+test_case "saving a Haiku budget pin preserves the selected standard cost mode"
+if [[ "$(jq -r '.cost_mode' "$pin_home/.claude-octopus/config/providers.json")" == standard ]] &&
+   env "HOME=$pin_home" "OCTOPUS_PROVIDERS_CONFIG=$pin_home/.claude-octopus/config/providers.json" \
+       OCTOPUS_COST_MODE= OCTOPUS_CLAUDE_MODEL= CLAUDE_MODEL= OCTOPUS_ROUTING_POLICY=off \
+       bash -euo pipefail -c '
+           source "$1/scripts/lib/model-resolver.sh"
+           resolved=$(resolve_octopus_model claude claude)
+           [[ "$resolved" != claude-haiku-5-5 && "$resolved" != claude-haiku-4.5 ]]
+       ' _ "$PROJECT_ROOT"; then
+    test_pass
+else
+    test_fail "saving a budget pin changed standard routing without a cost-mode selection"
+fi
+
 test_case "an unpinned configuration still resolves the Haiku 4.5 budget default"
 default_home="$TEST_TMP_DIR/haiku-default-home"
 if env "HOME=$default_home" OCTO_ALLOWED_PROVIDERS=claude bash "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" cost-mode budget >/dev/null 2>&1 &&

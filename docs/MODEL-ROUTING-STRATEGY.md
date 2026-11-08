@@ -130,7 +130,9 @@ catalog addition does not extend the `anthropic-api` adapter's model allowlist.
 Haiku 5.5 accepts text and images, tools and structured output with 1M context
 and 128K maximum output. It supports adaptive thinking and `low`, `medium`,
 `high`, `xhigh` and `max` effort. Its API and Claude Code default is `medium`;
-an explicit Octopus effort still applies. Start with medium for bounded agent
+an explicit Octopus effort still applies. Disabled thinking is accepted at low,
+medium or high effort; xhigh and max require adaptive thinking. Changing effort
+mid-conversation also requires adaptive thinking. Start with medium for bounded agent
 tasks. Use low for short tasks whose results can be checked; the provider warns
 that low effort can skip searches or verification in long agent prompts. Raise
 effort or use the existing stronger-model route when acceptance checks fail,
