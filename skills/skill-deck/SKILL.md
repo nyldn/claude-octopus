@@ -208,7 +208,7 @@ renderer and the session's available viewing tools.
 2. Read the rendered titles in slide order and repeat the titles-only read.
    Compare them with the approved outline. Flag truncation, reflow that hides a
    claim, missing slides and changes that break the argument from question to
-   ask. Preserve approved label titles unless the user approves a storyline
+   ask, or to the supported conclusion for informational decks. Preserve approved label titles unless the user approves a storyline
    change; verification does not authorize rewriting the approved outline.
 3. For each data slide, confirm one highlighted proof point supports its title.
    Compare the displayed value, units, period and chart emphasis with the source
