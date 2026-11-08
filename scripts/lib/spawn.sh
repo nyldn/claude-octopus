@@ -22,9 +22,13 @@ fi
 
 quota_watcher_kill_spawn_children() {
     local spawn_pid="$1"
-    pkill -TERM -P "$spawn_pid" 2>/dev/null || true
-    sleep 1
-    pkill -KILL -P "$spawn_pid" 2>/dev/null || true
+    # Bind the whole owned tree before stopping its supervisor. Killing only
+    # that direct child can orphan provider/timer groups and their descriptors.
+    if ! _octo_pid_python_run "${_octopus_spawn_lib_dir}/../helpers/process_control.py" \
+        "$spawn_pid" --frozen --descendants >/dev/null; then
+        log "ERROR" "Quota cleanup refused: owned descendants could not be verified" 2>/dev/null || true
+        return 1
+    fi
 }
 
 # Background execution contract helpers. Native Agent Teams dispatch and the

@@ -237,6 +237,75 @@ test_dead_mark_survives_isolated_env() {
     fi
 }
 
+test_quota_cleanup_preserves_supervisor_owned_groups() {
+    test_case "quota cleanup stops owned groups when supervisor cleanup is delayed"
+    if (
+        source "$PROJECT_ROOT/scripts/lib/heartbeat.sh"
+        source "$PROJECT_ROOT/scripts/lib/spawn.sh"
+        export QUOTA_SUPERVISION_FIXTURE="$FIXTURE/supervision"
+        mkdir -p "$QUOTA_SUPERVISION_FIXTURE"
+        eval "$(declare -f _octo_timeout_supervisor_handle_signal |
+            sed '1s/_octo_timeout_supervisor_handle_signal/real_supervisor_handle_signal/')"
+        _octo_timeout_supervisor_handle_signal() {
+            # Model a handler scheduled after the old one-second KILL grace.
+            sleep 3
+            real_supervisor_handle_signal "$@"
+        }
+        cat > "$QUOTA_SUPERVISION_FIXTURE/provider" <<'PROVIDER'
+#!/usr/bin/env bash
+cat >/dev/null
+printf '%s\n' "$$" > "$QUOTA_SUPERVISION_FIXTURE/provider.pid"
+printf '%s\n' 'ERROR: Individual quota reached.' >&2
+exec sleep 30
+PROVIDER
+        chmod +x "$QUOTA_SUPERVISION_FIXTURE/provider"
+        quota_start=$SECONDS
+        # The outer substitution must finish, not just the worker's capture.
+        # A stranded 60-second timer otherwise retains its output descriptor.
+        worker=$(
+            set -m
+            (
+                octo_capture_current_shell_pid || exit 1
+                watcher=$(start_quota_watcher "$OCTO_CAPTURED_SHELL_PID" \
+                    "$QUOTA_SUPERVISION_FIXTURE/err" "$QUOTA_SUPERVISION_FIXTURE/out" \
+                    quota_watcher_kill_spawn_children quota supervision-fixture \
+                    "$QUOTA_SUPERVISION_FIXTURE/fired")
+                capture_rc=0
+                octopus_capture_provider_output question 60 "$QUOTA_SUPERVISION_FIXTURE/in" \
+                    "$QUOTA_SUPERVISION_FIXTURE/out" "$QUOTA_SUPERVISION_FIXTURE/err" \
+                    "$QUOTA_SUPERVISION_FIXTURE/provider" || capture_rc=$?
+                printf '%s\n' "$capture_rc" > "$QUOTA_SUPERVISION_FIXTURE/status"
+                stop_quota_watcher "$watcher"
+            ) &
+            printf '%s\n' "$!"
+        )
+        elapsed=$((SECONDS - quota_start))
+        [[ "$worker" =~ ^[0-9]+$ && "$elapsed" -lt 15 && \
+           -s "$QUOTA_SUPERVISION_FIXTURE/fired" ]] || exit 1
+        [[ "$(cat "$QUOTA_SUPERVISION_FIXTURE/status")" =~ ^(137|143)$ ]] || exit 1
+        provider_pid=$(cat "$QUOTA_SUPERVISION_FIXTURE/provider.pid")
+        provider_state=$(ps -o stat= -p "$provider_pid" 2>/dev/null || true)
+        [[ -z "$provider_state" || "$provider_state" == *Z* ]]
+    ); then test_pass
+    else test_fail "quota cleanup orphaned a provider/timer or lost termination status"; fi
+}
+
+test_quota_cleanup_refuses_unverified_processes() {
+    test_case "refused native quota cleanup never falls back to numeric signals"
+    if (
+        source "$PROJECT_ROOT/scripts/lib/spawn.sh"
+        _octo_pid_python_run() { return 1; }
+        kill() { touch "$FIXTURE/unsafe-signal"; }
+        pkill() { touch "$FIXTURE/unsafe-signal"; }
+        log() { printf '%s\n' "$2" > "$FIXTURE/cleanup-refusal"; }
+        cleanup_rc=0
+        quota_watcher_kill_spawn_children 999999 || cleanup_rc=$?
+        [[ "$cleanup_rc" != 0 && ! -e "$FIXTURE/unsafe-signal" ]] &&
+            grep -Fq 'Quota cleanup refused' "$FIXTURE/cleanup-refusal"
+    ); then test_pass
+    else test_fail "unverified cleanup signalled a numeric PID or claimed success"; fi
+}
+
 test_quota_dead_cache_roundtrip
 test_quota_dead_cache_dedup
 test_provider_env_forwards_workspace_dir
@@ -250,5 +319,7 @@ test_retired_gemini_timeout_override_absent
 test_pattern_matches_agy_and_gemini_terminal_errors
 test_quota_dead_mark_expires
 test_check_providers_applies_dead_marker_to_every_provider
+test_quota_cleanup_preserves_supervisor_owned_groups
+test_quota_cleanup_refuses_unverified_processes
 
 test_summary
