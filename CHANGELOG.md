@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+
+- Cost tiers can now pair a model or capability with reasoning effort in
+  `providers.json`, such as `{"capability":"default","reasoning":"low"}`.
+  Existing string targets still work. Tier effort applies only when that tier
+  selects the model; explicit model routes and effort overrides keep precedence.
+
 ### Fixed
 
 - Research verification no longer fails a synthesis for referring to its own
