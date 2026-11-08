@@ -30,7 +30,7 @@ Keyless limits are shared by egress IP. Authenticated usage follows the account'
 credits and rate limits.
 No live search or model request is required by the offline tests.
 
-HTTP contract checked on 2026-11-07 against the official
+HTTP contract checked on 2026-11-08 against the official
 [search reference](https://docs.keenable.ai/api-reference/search),
 [quickstart](https://docs.keenable.ai/) and
 [authentication documentation](https://docs.keenable.ai/authentication).
