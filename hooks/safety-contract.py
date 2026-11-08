@@ -158,7 +158,7 @@ def freeze(data, boundary):
 
 
 def unwrap_safety_command(args):
-    """Identify supported wrapper executables; return None for opaque forms.
+    """Identify supported prefixes and wrappers; return None for opaque forms.
 
     Preserve arguments after the executable. An empty list denotes a wrapper
     query that does not execute a child command.
@@ -171,6 +171,7 @@ def unwrap_safety_command(args):
         "command": ({"-p"}, set()),
         "exec": ({"-c", "-l"}, {"-a"}),
         "timeout": ({"--preserve-status", "--foreground", "--verbose", "-v"}, {"-s", "--signal", "-k", "--kill-after"}),
+        "time": ({"-p"}, set()),
         "nice": (set(), {"-n", "--adjustment"}),
         "nohup": (set(), set()),
         "setsid": ({"-c", "--ctty", "-f", "--fork", "-w", "--wait"}, set()),
@@ -179,6 +180,9 @@ def unwrap_safety_command(args):
     args = list(args)
     shell_assignments = True
     while args:
+        if args[0] == "!":
+            args = args[1:]
+            continue
         if re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*=.*", args[0]):
             if not shell_assignments and any(char in args[0] for char in ("$", "`")):
                 return None
@@ -187,7 +191,8 @@ def unwrap_safety_command(args):
         executable = Path(args[0]).name
         if executable not in options and executable not in ("rtk", "busybox"):
             return args
-        shell_assignments = False
+        # Bare time is shell syntax; its child may start with assignments.
+        shell_assignments = shell_assignments and args[0] == "time"
         remaining = args[1:]
         if not remaining:
             return []
@@ -255,7 +260,9 @@ def protect_literal_globs(command):
 
 
 def executable_glob(word):
-    """Detect executable expansion while preserving the literal [ command."""
+    """Detect executable expansion, preserving [ and standalone [[ conditions."""
+    if word == "[[":
+        return False
     pattern = re.sub("\0.", "", word)
     brackets = pattern[:-1] if Path(pattern).name == "[" else pattern
     return any(char in pattern for char in "*?{}") or "[" in brackets
