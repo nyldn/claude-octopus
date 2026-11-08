@@ -2,6 +2,7 @@
 """Offline HTTP and prompt-boundary tests for optional research search."""
 import importlib.util
 import io
+import itertools
 import json
 import os
 import socket
@@ -113,6 +114,56 @@ exit "$child_status"
                                         env={**os.environ, "KEENABLE_API_KEY": "inert-fixture"},
                                         capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, "search key leaked or parent lost search access")
+
+    def test_smoke_children_use_scoped_environment_and_fail_closed(self):
+        """Exercise every smoke launch with inert providers and the real env builder."""
+        script = r'''source "$1/scripts/lib/smoke.sh"
+source "$1/scripts/lib/provider-routing.sh"
+log() { :; }
+secure_tempfile() { mktemp "$FIXTURE_DIR/stderr.XXXXXX"; }
+get_agent_model() { printf 'fixture-model'; }
+get_agent_command() { printf '%s --model fixture-model %s' "$FIXTURE_DIR/provider" "$FIXTURE_DIR/call"; }
+run_with_timeout() {
+    printf '%s' "$1" > "$FIXTURE_DIR/timeout"
+    shift
+    "$@"
+}
+if [[ "$3" == rejected ]]; then
+    build_provider_env() { PROVIDER_ENV_ARRAY=(); return 1; }
+fi
+VERBOSE=false
+_smoke_test_provider "$2" 7 "$FIXTURE_DIR/result"
+[[ "$KEENABLE_API_KEY" == inert-fixture ]] || exit 2
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "home").mkdir()
+            provider = root / "provider"
+            provider.write_text('#!/usr/bin/env bash\n[[ -z "${KEENABLE_API_KEY+x}" ]] || exit 42\nprintf "%s\\n" "$1" "$2" > "$3"\ncat >> "$3"\n')
+            provider.chmod(0o755)
+            for name, security, mode in itertools.product(
+                    ("codex", "cursor-agent", "agy", "claude"),
+                    ("true", "false"), ("allowed", "rejected")):
+                with self.subTest(provider=name, security=security, mode=mode):
+                    (root / "call").unlink(missing_ok=True)
+                    (root / "timeout").unlink(missing_ok=True)
+                    result = subprocess.run(["bash", "-c", script, "fixture", str(ROOT), name, mode],
+                        env={**os.environ, "HOME": str(root / "home"), "CODEX_HOME": str(root / "home"),
+                             "FIXTURE_DIR": directory, "KEENABLE_API_KEY": "inert-fixture",
+                             "OCTOPUS_SECURITY_V870": security}, capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    if mode == "rejected":
+                        self.assertFalse((root / "call").exists())
+                        self.assertFalse((root / "timeout").exists())
+                        self.assertEqual((root / "result").read_text().strip(), "ERROR:fixture-model")
+                    else:
+                        self.assertEqual((root / "result").read_text().strip(), "PASS")
+                        self.assertEqual((root / "timeout").read_text(), "7")
+                        call = (root / "call").read_text()
+                        self.assertTrue(call.startswith("--model\nfixture-model\n"), call)
+                        self.assertIn("Reply with exactly: ok", call)
+                        if name == "agy":
+                            self.assertIn("do not use web search or any tools", call)
 
     def test_untrusted_boundary_preserves_literal_backslashes_under_xpg_echo(self):
         script = '''shopt -s xpg_echo
