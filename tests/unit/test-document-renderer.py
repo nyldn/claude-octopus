@@ -327,6 +327,54 @@ fi
                     else:
                         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_deck_fable_recipe_does_not_spend_an_unapproved_fallback_call(self):
+        """Exercise the SDK adapter's real refusal retry under the shipped recipe."""
+        bin_dir = self.base / "sdk-bin"
+        bin_dir.mkdir()
+        sdk = bin_dir / "claude-agent"
+        sdk.write_text('''#!/usr/bin/env bash
+while [[ "$#" -gt 0 ]]; do
+    if [[ "$1" == --model ]]; then model="$2"; break; fi
+    shift
+done
+printf '%s\\n' "$model" >> "$SDK_CALLS"
+[[ "$model" != claude-fable-5-1 ]] || exit 1
+printf 'Stakeholder objection\\n'
+''')
+        sdk.chmod(0o755)
+        collector = self.base / "sdk-collector"
+        collector.write_text('''octo_launch_advisors() {
+    printf '%s' "$STAKEHOLDER_PROMPT" | bash "$SDK_ADAPTER"
+}
+''')
+        for tree in (".claude/skills", "skills"):
+            with self.subTest(tree=tree):
+                seat_dir = self.base / tree.replace("/", "-")
+                seat_dir.mkdir()
+                calls = seat_dir / "calls"
+                env = dict(os.environ, PATH=str(bin_dir) + os.pathsep + os.environ["PATH"],
+                           CLAUDE_SDK_API_KEY="inert-fixture", OCTOPUS_CLAUDE_SDK_MODEL="claude-fable-5-1",
+                           OCTOPUS_FABLE5_NO_RETRY="0", OCTOPUS_FABLE5_MODE="auto",
+                           OCTOPUS_FABLE5_FALLBACK_MODEL="claude-opus-5", SDK_CALLS=str(calls),
+                           SDK_ADAPTER=str(ROOT / "scripts/helpers/claude-sdk-exec.sh"),
+                           SDK_COLLECTOR=str(collector), ADVISOR_ID="claude-sdk:claude-fable-5-1",
+                           ORCHESTRATOR="inert", STAKEHOLDER_PROMPT="Stakeholder prompt",
+                           SEAT_DIR=str(seat_dir), SEAT_WAIT_SECONDS="5")
+                control = subprocess.run(["bash", env["SDK_ADAPTER"]], input="prompt",
+                                         env=env, text=True, capture_output=True, timeout=10, check=False)
+                self.assertEqual(control.returncode, 0, control.stderr)
+                self.assertEqual(calls.read_text().splitlines(), ["claude-fable-5-1", "claude-opus-5"])
+                calls.unlink()
+                text = (ROOT / tree / "skill-deck/SKILL.md").read_text()
+                recipe = textwrap.dedent(text.split("<!-- deck-seat-collection:start -->", 1)[1].split(
+                    "<!-- deck-seat-collection:end -->", 1)[0].split("```bash\n", 1)[1].split("```", 1)[0])
+                recipe = recipe.replace('source "$PLUGIN_ROOT/scripts/lib/consultative-advisors.sh"',
+                                        'source "$SDK_COLLECTOR"')
+                result = subprocess.run(["bash", "-euo", "pipefail", "-c", recipe],
+                                        env=env, text=True, capture_output=True, timeout=10, check=False)
+                self.assertEqual(calls.read_text().splitlines(), ["claude-fable-5-1"], result.stderr)
+                self.assertNotEqual(result.returncode, 0)
+
     def test_deck_collection_example_waits_for_answers_and_stops_on_failure(self):
         """Execute the shipped seat recipe against delayed lifecycle events."""
         orchestrator = self.base / "orchestrator"
@@ -338,15 +386,23 @@ set -euo pipefail
     sleep 0.2
     printf '# Started: fixture\\n## Output\\n```\\nStakeholder objection\\n```\\n## Status: SUCCESS\\n' > "$FIXTURE_RESULT"
     printf 'completed\\n' >> "$SEAT_DIR/sequence"
-    OCTOPUS_AGENT_PID="$BASHPID" OCTOPUS_AGENT_STATUS="$FIXTURE_STATUS" \\
+    for attempt in {1..100}; do
+        [[ -s "$SEAT_DIR/worker-pid" ]] && break
+        sleep 0.01
+    done
+    worker_pid="$(cat "$SEAT_DIR/worker-pid")"
+    OCTOPUS_AGENT_PID="$worker_pid" OCTOPUS_AGENT_STATUS="$FIXTURE_STATUS" \\
         OCTOPUS_AGENT_RESULT_FILE="$FIXTURE_RESULT" "$OCTOPUS_AGENT_LIFECYCLE_HOOK" completed
 ) &
 worker=$!
+printf '%s\\n' "$worker" > "$SEAT_DIR/worker-pid"
 OCTOPUS_AGENT_PID="$worker" OCTOPUS_AGENT_RESULT_FILE="$FIXTURE_RESULT" \\
     "$OCTOPUS_AGENT_LIFECYCLE_HOOK" spawned
 printf 'Provider launch log\\n%s\\n' "$worker"
 ''')
         orchestrator.chmod(0o755)
+        bash_env = self.base / "portable-bash-env"
+        bash_env.write_text("unset BASHPID\n")
         for tree in (".claude/skills", "skills"):
             text = (ROOT / tree / "skill-deck/SKILL.md").read_text()
             recipe = text.split("<!-- deck-seat-collection:start -->", 1)[1].split(
@@ -358,7 +414,7 @@ printf 'Provider launch log\\n%s\\n' "$worker"
                     seat_dir.mkdir(parents=True)
                     response = seat_dir / "answer-codex_fixture.md"
                     response.write_text("stale answer")
-                    env = dict(os.environ, PLUGIN_ROOT=str(ROOT), ORCHESTRATOR=str(orchestrator),
+                    env = dict(os.environ, BASH_ENV=str(bash_env), PLUGIN_ROOT=str(ROOT), ORCHESTRATOR=str(orchestrator),
                                ADVISOR_ID="codex:fixture", SEAT_DIR=str(seat_dir),
                                STAKEHOLDER_PROMPT='Objection with "quotes"\nand a second line',
                                SEAT_WAIT_SECONDS="5", OCTO_ALLOWED_PROVIDERS="codex",

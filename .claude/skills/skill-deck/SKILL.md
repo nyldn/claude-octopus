@@ -156,6 +156,9 @@ flag, run it against the draft skeleton before requesting approval or rendering:
    Scope `OCTOPUS_OVERSIZE_STRATEGY=fail` to each collection so oversized
    briefs stop before a preflight summarizer can make an unbudgeted provider
    call. Ask for a shorter brief or renewed consent before trying again.
+   For Claude SDK seats, scope `OCTOPUS_FABLE5_NO_RETRY=1` to prevent a
+   Fable refusal or empty response from invoking a different model without
+   renewed consent. Keep the explicit model choice and report the failed seat.
    No extra calls or retries are authorized by this pass.
    Use at least two seats from different providers; never simulate a
    multi-provider review inside the host model. Fewer than two eligible providers
@@ -197,7 +200,7 @@ flag, run it against the draft skeleton before requesting approval or rendering:
    <!-- deck-seat-collection:start -->
    ```bash
    source "$PLUGIN_ROOT/scripts/lib/consultative-advisors.sh"
-   OCTOPUS_OVERSIZE_STRATEGY=fail \
+   OCTOPUS_OVERSIZE_STRATEGY=fail OCTOPUS_FABLE5_NO_RETRY=1 \
    OCTOPUS_AGY_NO_RETRY=1 OCTOPUS_AGY_NO_PTY_FALLBACK=1 \
    OCTOPUS_AUTH_RETRIES=0 OCTOPUS_ADVISOR_WAIT_SECONDS="$SEAT_WAIT_SECONDS" \
        octo_launch_advisors "$ORCHESTRATOR" "$ADVISOR_ID" "$SEAT_DIR" \
