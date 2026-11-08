@@ -121,24 +121,20 @@ claude --add-dir=config/workflows          # Double Diamond
 
 ---
 
-## Local CI Gates
+## Test gates
 
-Use the smallest gate that matches the delivery stage:
+Run affected suites while editing and `make ci-quick` before push. Inspect
+`scripts/ci-changed.sh --list` to use its audited focused mapping from
+`tests/changed-scope.tsv`. Shared or unmapped changes select the complete local
+matrix for offline diagnosis. Do not repeat that full matrix locally when
+successful exact-commit hosted coverage is available.
 
-| Stage | Command | Contract |
-|-------|---------|----------|
-| Edit loop | affected test files | Fast feedback while the change is still moving |
-| Ordinary branch push | `make ci-changed` | Always runs sync and all smoke checks, then audited suites from `tests/changed-scope.tsv` |
-| Pull request | `make ci-changed` | Generated checks, smoke, and audited suites for changed surfaces |
-| Merge or release | `make ci-local` | Complete smoke, full unit, integration, and CI-only matrix |
-| Main, nightly, manual, or merge queue | explicit deep council lane | Deep council lifecycle contract in addition to the core unit matrix |
-
-Inspect a selection without executing it with `scripts/ci-changed.sh --list`.
-The selector fails closed to `make ci-local` for shared orchestration,
-generators, manifests, unknown paths, missing bases, or stale mappings. When a
-new source surface has a proven focused regression set, add its path and suites
-to `tests/changed-scope.tsv`; otherwise leave it unmapped so the full matrix
-remains mandatory.
+Hosted checks use focused PR coverage or the full weighted-shard tier. Main,
+nightly, manual, and merge-queue runs always use the full unit inventory on
+Linux and macOS. Required Smoke Tests, Unit Tests, and Integration Tests,
+exact-commit approval, and resolved threads still gate merge and publication.
+See [test tiers](../tests/README.md#test-tiers) and [releasing](../RELEASING.md)
+for the delivery contract. `make ci-local` remains the complete offline fallback.
 
 Test fixtures default to a separate `octopus-tests-<pid>` directory under
 `TMPDIR`, or `/tmp` when unset. Set `TMPDIR` to a private directory with readable

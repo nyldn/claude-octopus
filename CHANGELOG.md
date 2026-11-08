@@ -16,6 +16,13 @@
 - Commands, skills, and registered hooks use the current host installation with quoted executable paths, including sessions using different versions or installation paths containing spaces.
 - Budget, standard, and premium shortcuts remain supported; removed the obsolete v11 removal notice.
 
+### Development
+
+- Run affected PR tests on both supported systems and shard full unit coverage into four weighted lanes per system. Run integration beside units and use targeted symlink regressions on every event.
+- Remove duplicate local sync/smoke runs, standalone packaging jobs, repeated full local release requirements, and automatic advisory model reviews unless explicitly enabled. Required CI and approval remain intact.
+- Keep release validation read-only and publish through the gated release process. Reject unknown test-runner flags before execution.
+- Bound full unit steps and retain their output before the job deadline so stalled tests produce actionable diagnostics.
+
 ## [11.17.1] - 2026-11-05
 
 ### Fixed

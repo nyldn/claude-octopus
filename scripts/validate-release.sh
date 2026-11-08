@@ -12,6 +12,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# Write validator diagnostics to stderr, separate from command output.
 log() {
     local level="$1"
     shift
@@ -146,18 +147,6 @@ fi
 
 if [[ $errors -eq 0 ]] && [[ "$PLUGIN_VERSION" == "$MARKETPLACE_VERSION" ]] && [[ "$PLUGIN_VERSION" == "$PACKAGE_VERSION" ]]; then
     echo -e "  ${GREEN}✓ All versions synchronized: v$PLUGIN_VERSION${NC}"
-fi
-
-# Marketplace installers resolve by git ref; an un-tagged release silently
-# pins every consumer to main@HEAD.
-if git -C "$ROOT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    if git -C "$ROOT_DIR" show-ref --verify --quiet "refs/tags/v$PLUGIN_VERSION" \
-       || git -C "$ROOT_DIR" show-ref --verify --quiet "refs/tags/$PLUGIN_VERSION"; then
-        echo -e "  ${GREEN}✓ git tag v$PLUGIN_VERSION exists${NC}"
-    else
-        echo -e "  ${YELLOW}WARNING: no git tag v$PLUGIN_VERSION — fresh installs pin to main@HEAD${NC}"
-        ((warnings++)) || true
-    fi
 fi
 
 echo ""
@@ -470,21 +459,16 @@ fi
 
 echo ""
 
-# Release artifact creation is intentionally limited to a clean main checkout.
-# Running validation on a dirty release branch should validate files only, not
-# create tags/releases that point at the wrong commit.
+# Validation never creates or pushes release artifacts. scripts/release.sh is
+# the publication entry point and owns approval, CI, and exact-commit gates.
 CURRENT_BRANCH=$(git -C "$ROOT_DIR" branch --show-current 2>/dev/null || echo "")
-WORKTREE_DIRTY=$(git -C "$ROOT_DIR" status --porcelain 2>/dev/null || echo "")
-can_create_release_artifacts() {
-    [[ "$CURRENT_BRANCH" == "main" && -z "$WORKTREE_DIRTY" ]]
-}
-
+# Keep tag mismatches fatal on main, release branches, and detached heads.
 tag_mismatch_is_fatal() {
     [[ -z "$CURRENT_BRANCH" || "$CURRENT_BRANCH" == "main" || "$CURRENT_BRANCH" == release/* ]]
 }
 
 # ============================================================================
-# 9. GIT TAG CHECK & AUTO-CREATE
+# 9. GIT TAG CHECK
 # ============================================================================
 echo "🔖 Checking git tag..."
 
@@ -506,29 +490,15 @@ if git tag -l "$EXPECTED_TAG" | grep -q "$EXPECTED_TAG"; then
         echo -e "  ${GREEN}✓ Existing release tag remains unchanged${NC}"
     fi
 else
-    echo -e "  ${YELLOW}NOTE: Tag $EXPECTED_TAG not yet created${NC}"
-    if can_create_release_artifacts; then
-        echo -e "  ${GREEN}  Auto-creating tag...${NC}"
-
-        # Extract CHANGELOG entry for tag message
-        TAG_MESSAGE=$(awk "/## \[$PLUGIN_VERSION\]/,/^## \[/" "$ROOT_DIR/CHANGELOG.md" | head -20 | tail -n +2)
-        if [[ -n "$TAG_MESSAGE" ]]; then
-            git tag -a "$EXPECTED_TAG" -m "$TAG_MESSAGE"
-            echo -e "  ${GREEN}✓ Tag $EXPECTED_TAG created with CHANGELOG excerpt${NC}"
-        else
-            git tag -a "$EXPECTED_TAG" -m "Release $EXPECTED_TAG"
-            echo -e "  ${GREEN}✓ Tag $EXPECTED_TAG created${NC}"
-        fi
-    else
-        echo -e "  ${YELLOW}  Deferring tag creation until release changes are merged to clean main${NC}"
-        ((warnings++)) || true
-    fi
+    echo -e "  ${YELLOW}WARNING: Tag $EXPECTED_TAG has not been created${NC}"
+    echo "  Publish only through scripts/release.sh after its approval and CI gates pass."
+    ((warnings++)) || true
 fi
 
 echo ""
 
 # ============================================================================
-# 9. CHANGELOG ENTRY CHECK
+# 10. CHANGELOG ENTRY CHECK
 # ============================================================================
 echo "📝 Checking CHANGELOG entry..."
 
@@ -552,7 +522,7 @@ fi
 echo ""
 
 # ============================================================================
-# 10. GITHUB RELEASE CHECK & AUTO-CREATE
+# 11. GITHUB RELEASE CHECK
 # ============================================================================
 echo "🚀 Checking GitHub release..."
 
@@ -572,89 +542,14 @@ else
         if gh release view "$EXPECTED_TAG" &> /dev/null; then
             echo -e "  ${GREEN}✓ GitHub release $EXPECTED_TAG exists${NC}"
         else
-            echo -e "  ${YELLOW}NOTE: GitHub release $EXPECTED_TAG does not exist${NC}"
-
-            # Check if tag exists on remote
-            REMOTE_TAG_SHA=$(git ls-remote origin "refs/tags/$EXPECTED_TAG" 2>/dev/null | cut -f1)
-
-            if [[ -n "$REMOTE_TAG_SHA" ]] && can_create_release_artifacts; then
-                echo -e "  ${GREEN}  Auto-creating GitHub release from CHANGELOG...${NC}"
-
-                # Extract CHANGELOG entry for this version
-                RELEASE_NOTES=$(awk "/## \\[$PLUGIN_VERSION\\]/,/^---$/" "$ROOT_DIR/CHANGELOG.md" | sed '$d' | tail -n +3)
-
-                if [[ -n "$RELEASE_NOTES" ]]; then
-                    # Create release with CHANGELOG notes and mark as latest
-                    if gh release create "$EXPECTED_TAG" --title "v$PLUGIN_VERSION" --notes "$RELEASE_NOTES" --latest >/dev/null 2>&1; then
-                        echo -e "  ${GREEN}✓ GitHub release $EXPECTED_TAG created${NC}"
-                    else
-                        echo -e "  ${YELLOW}WARNING: Failed to create GitHub release${NC}"
-                        ((warnings++)) || true
-                    fi
-                else
-                    echo -e "  ${YELLOW}WARNING: No CHANGELOG entry found for v$PLUGIN_VERSION${NC}"
-                    echo -e "  ${YELLOW}  Cannot auto-create release without release notes${NC}"
-                    ((warnings++)) || true
-                fi
-            else
-                echo -e "  ${YELLOW}  Release creation deferred until tag exists on clean main${NC}"
-            fi
+            echo -e "  ${YELLOW}WARNING: GitHub release $EXPECTED_TAG does not exist${NC}"
+            echo "  Publish only through scripts/release.sh after its approval and CI gates pass."
+            ((warnings++)) || true
         fi
     fi
 fi
 
 echo ""
-
-# ============================================================================
-# HELPER: Push tag if needed
-# ============================================================================
-push_tag_if_needed() {
-    local tag="$1"
-    if ! can_create_release_artifacts; then
-        echo -e "${YELLOW}NOTE: Not pushing/creating release artifacts outside a clean main checkout${NC}"
-        return 0
-    fi
-
-    if git tag -l "$tag" | grep -q "$tag"; then
-        REMOTE_TAG_SHA=$(git ls-remote origin "refs/tags/$tag^{}" 2>/dev/null | cut -f1)
-        if [[ -z "$REMOTE_TAG_SHA" ]]; then
-            REMOTE_TAG_SHA=$(git ls-remote origin "refs/tags/$tag" 2>/dev/null | cut -f1)
-        fi
-        LOCAL_TAG_SHA=$(git rev-list -n 1 "$tag" 2>/dev/null)
-        HEAD_COMMIT=$(git rev-parse HEAD)
-
-        if [[ "$LOCAL_TAG_SHA" != "$HEAD_COMMIT" ]]; then
-            echo -e "${YELLOW}WARNING: Not pushing $tag because it does not point to HEAD${NC}"
-            return 0
-        fi
-
-        if [[ -n "$REMOTE_TAG_SHA" ]] && [[ "$REMOTE_TAG_SHA" != "$LOCAL_TAG_SHA" ]]; then
-            echo -e "${RED}ERROR: Remote tag $tag already exists at ${REMOTE_TAG_SHA:0:7}; refusing to rewrite it${NC}"
-            return 1
-        fi
-
-        if [[ "$REMOTE_TAG_SHA" == "$LOCAL_TAG_SHA" ]] && [[ -n "$REMOTE_TAG_SHA" ]]; then
-            echo -e "${GREEN}✓ Tag $tag already up to date on remote${NC}"
-            return 0
-        fi
-
-        echo ""
-        echo -e "${GREEN}📤 Pushing tag $tag to remote...${NC}"
-        git push --no-verify origin "$tag" 2>/dev/null
-        echo -e "${GREEN}✓ Tag pushed to remote${NC}"
-
-        # Auto-create GitHub release if gh is available and authenticated
-        if command -v gh &> /dev/null && gh auth status &> /dev/null; then
-            if ! gh release view "$tag" &> /dev/null; then
-                echo -e "${GREEN}📝 Creating GitHub release...${NC}"
-                RELEASE_NOTES=$(awk "/## \\[$PLUGIN_VERSION\\]/,/^---$/" "$ROOT_DIR/CHANGELOG.md" | sed '$d' | tail -n +3)
-                if [[ -n "$RELEASE_NOTES" ]] && gh release create "$tag" --title "v$PLUGIN_VERSION" --notes "$RELEASE_NOTES" --latest >/dev/null 2>&1; then
-                    echo -e "${GREEN}✓ GitHub release $tag created${NC}"
-                fi
-            fi
-        fi
-    fi
-}
 
 # ============================================================================
 # SUMMARY
@@ -669,12 +564,10 @@ elif [[ $warnings -gt 0 ]]; then
     echo -e "${YELLOW}⚠️  VALIDATION PASSED WITH WARNINGS: $warnings warning(s)${NC}"
     echo ""
     echo "Consider fixing the warnings before releasing."
-    push_tag_if_needed "v$PLUGIN_VERSION"
     exit 0
 else
     echo -e "${GREEN}✅ VALIDATION PASSED${NC}"
     echo ""
-    echo "Ready to release v$PLUGIN_VERSION!"
-    push_tag_if_needed "v$PLUGIN_VERSION"
+    echo "Local validation passed for v$PLUGIN_VERSION. Publish through scripts/release.sh."
     exit 0
 fi

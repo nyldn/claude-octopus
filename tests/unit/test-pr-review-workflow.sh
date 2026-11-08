@@ -12,6 +12,15 @@ test_suite "PR review workflow uses the actual diff and fails closed"
 WORKFLOW="$PROJECT_ROOT/.github/workflows/claude-octopus.yml"
 ACTIONLINT_CONFIG="$PROJECT_ROOT/.github/actionlint.yaml"
 
+test_case "automatic advisory model review requires explicit repository opt-in"
+if grep -Fq "vars.OCTOPUS_AUTOMATED_PR_REVIEW == 'true'" "$WORKFLOW" &&
+   grep -Fq "github.event_name == 'workflow_dispatch'" "$WORKFLOW" &&
+   grep -Fq '  comment-command:' "$WORKFLOW"; then
+    test_pass
+else
+    test_fail "advisory review runs on every push or explicit review paths disappeared"
+fi
+
 test_case "first-party jobs install the provider that has a configured credential"
 if grep -q 'npm install -g @anthropic-ai/claude-code' "$WORKFLOW" &&
    ! grep -q 'npm install -g @openai/codex' "$WORKFLOW"; then
@@ -189,5 +198,79 @@ if grep -q 'if:.*always()' <<< "$reply_header"; then
 else
     test_fail "failed issue-comment output is hidden because the reply step is success-only"
 fi
+
+test_case "manual review dispatch fetches a PR diff and invokes code-review"
+if python3 - "$WORKFLOW" "$TEST_TMP_DIR" <<'PY'
+from pathlib import Path
+import json
+import os
+import subprocess
+import sys
+
+workflow = Path(sys.argv[1]).read_text().split('  pr-review:', 1)[0]
+block = workflow.split('      - name: Run Claude Octopus\n', 1)[1].split('        run: |\n', 1)[1]
+lines = []
+for line in block.splitlines():
+    if line and not line.startswith('          '):
+        break
+    lines.append(line[10:])
+script = '\n'.join(lines)
+fixture = Path(sys.argv[2]) / 'manual dispatch with spaces'
+(fixture / 'scripts').mkdir(parents=True)
+(fixture / 'bin').mkdir()
+calls = fixture / 'calls.jsonl'
+orchestrate = fixture / 'scripts/orchestrate.sh'
+orchestrate.write_text('''#!'''+sys.executable+'''
+import json, os, sys
+from pathlib import Path
+with open(os.environ['FIXTURE_CALLS'], 'a') as f:
+    f.write(json.dumps(['orchestrate', *sys.argv[1:]])+'\\n')
+if 'code-review' in sys.argv:
+    profile = json.loads(sys.argv[-1])
+    assert profile['target'] == 'pr-review.diff' and profile['publish'] == 'never'
+    assert profile['contextText'] == os.environ['OCTOPUS_PROMPT']
+    assert Path(profile['target']).read_text() == 'fixture diff\\n'
+''')
+orchestrate.chmod(0o700)
+gh = fixture / 'bin/gh'
+gh.write_text('''#!'''+sys.executable+'''
+import json, os, sys
+with open(os.environ['FIXTURE_CALLS'], 'a') as f:
+    f.write(json.dumps(['gh', *sys.argv[1:]])+'\\n')
+if os.environ.get('FIXTURE_DIFF_FAIL'): sys.exit(42)
+if not os.environ.get('FIXTURE_DIFF_EMPTY'): print('fixture diff')
+''')
+gh.chmod(0o700)
+base = dict(os.environ, PATH=str(fixture/'bin')+os.pathsep+os.environ['PATH'],
+            FIXTURE_CALLS=str(calls), GITHUB_REPOSITORY='owner/repo',
+            OCTOPUS_PR_NUMBER='1275', OCTOPUS_PROMPT='focus with spaces', OCTOPUS_TIER='standard')
+
+def run(command, **updates):
+    """Execute the workflow's real dispatch block with inert command targets."""
+    calls.write_text('')
+    result = subprocess.run(['bash', '-eo', 'pipefail', '-c', script], cwd=fixture,
+                            env=dict(base, OCTOPUS_COMMAND=command, **updates),
+                            capture_output=True, text=True)
+    return result.returncode, [json.loads(line) for line in calls.read_text().splitlines()]
+
+rc, invoked = run('review', OCTOPUS_TIER='premium')
+assert rc == 0, (rc, invoked)
+assert invoked[0] == ['gh', 'pr', 'diff', '1275', '--repo', 'owner/repo'], invoked
+assert invoked[1][:-1] == ['orchestrate', '--ci', '-P', 'code-review'], invoked
+rc, invoked = run('review')
+assert rc == 0 and invoked[1][:-1] == ['orchestrate', '--ci', 'code-review'], invoked
+for command in ('auto', 'embrace', 'research', 'develop', 'deliver'):
+    rc, invoked = run(command, OCTOPUS_TIER='quick')
+    assert rc == 0 and invoked == [['orchestrate', '--ci', '-Q', command, base['OCTOPUS_PROMPT']]], invoked
+for number in ('', 'abc', '-1', '1275;touch marker'):
+    rc, invoked = run('review', OCTOPUS_PR_NUMBER=number)
+    assert rc != 0 and not invoked, (number, rc, invoked)
+for update in ({'FIXTURE_DIFF_FAIL':'1'}, {'FIXTURE_DIFF_EMPTY':'1'}):
+    rc, invoked = run('review', **update)
+    assert rc != 0 and len(invoked) == 1 and invoked[0][0] == 'gh', invoked
+rc, invoked = run('not-a-command')
+assert rc != 0 and not invoked
+PY
+then test_pass; else test_fail "manual review dispatch did not reach code-review safely"; fi
 
 test_summary
