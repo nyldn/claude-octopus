@@ -68,6 +68,7 @@ COUNCIL_DIVERSITY_REPLACED=""
 COUNCIL_DIVERSITY_WARNING=""
 COUNCIL_TIMEOUT_WARNINGS=""
 COUNCIL_BLIND_SEATS=""
+COUNCIL_QUOTA_LIMITED_SEATS=""
 COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE=""
 COUNCIL_BENCHMARK_FRESHNESS_WEIGHT=""
 COUNCIL_COST_CHECK_ESTIMATED=""
@@ -174,6 +175,7 @@ council_reset_defaults() {
     COUNCIL_CHAIR_HOST_NATIVE="false"
     COUNCIL_CHAIR_SYNTHESIS_AVAILABLE="false"
     COUNCIL_BLIND_SEATS=""
+    COUNCIL_QUOTA_LIMITED_SEATS=""
     COUNCIL_CHAIR_FALLBACK_USED="false"
     COUNCIL_CHAIR_FALLBACK_PERSONA=""
     COUNCIL_IMPLEMENTATION_PLAN_WRITTEN="false"
@@ -4916,6 +4918,35 @@ council_seat_failure_detail() {
     printf '%s\n' "$(printf '%s' "$line" | tr -d '\r' | cut -c1-300)"
 }
 
+council_seat_quota_limited() {
+    # True when a seat's failure capture shows a terminal provider quota or
+    # session limit (quota-watcher's pattern), e.g. claude's "You've hit your
+    # session limit · resets 7:10pm" on stdout with exit 1.
+    local file="$1"
+    [[ -s "$file" ]] || return 1
+    if ! declare -F quota_watcher_has_match >/dev/null 2>&1; then
+        # shellcheck source=/dev/null
+        source "${BASH_SOURCE[0]%/*}/quota-watcher.sh" 2>/dev/null || return 1
+    fi
+    quota_watcher_has_match "$file" /dev/null
+}
+
+council_note_seat_quota_limited() {
+    # A seat stopped by its provider's quota or session limit is retryable once
+    # the limit resets, not a failed review. Take the provider out of this run so
+    # the chair fallback does not re-dispatch it into the same limit, and say so.
+    local provider="$1" persona="$2" detail="$3" line
+    COUNCIL_PROVIDER_STATUS_JSON="$(jq -c --arg p "$provider" '.[$p] = "quota-limited"' \
+        <<< "${COUNCIL_PROVIDER_STATUS_JSON:-{\}}" 2>/dev/null || printf '%s' "${COUNCIL_PROVIDER_STATUS_JSON:-{\}}")"
+    case " $COUNCIL_QUOTA_LIMITED_SEATS " in
+        *" $provider "*) ;;
+        *) COUNCIL_QUOTA_LIMITED_SEATS="${COUNCIL_QUOTA_LIMITED_SEATS:+$COUNCIL_QUOTA_LIMITED_SEATS }$provider" ;;
+    esac
+    line="seat ${provider} (${persona}) hit its provider limit: ${detail:-quota or session limit}; retry after it resets. ${provider} is skipped for the rest of this run."
+    COUNCIL_TIMEOUT_WARNINGS="${COUNCIL_TIMEOUT_WARNINGS:+${COUNCIL_TIMEOUT_WARNINGS}
+}${line}"
+}
+
 council_note_seat_failure() {
     # End-of-run warning for a seat that exited non-zero with no usable response.
     local provider="$1" persona="$2" rc="$3" detail="$4" file="$5" line
@@ -4963,6 +4994,7 @@ council_run_advice_phase() {
     COUNCIL_SEAT_RECORDS_JSON="[]"
     COUNCIL_TIMEOUT_WARNINGS=""
     COUNCIL_BLIND_SEATS=""
+    COUNCIL_QUOTA_LIMITED_SEATS=""
     local dissenting_providers="" dissenting_model_families=""
 
     local index=0 member persona slug output_path seat mprovider mprovider_spec verdict
@@ -5098,8 +5130,12 @@ council_run_advice_phase() {
         if [[ "$seat_status" != "responded" ]] && { (( dispatch_rc != 0 )) || [[ -s "$stderr_file" ]]; }; then
             failure_rc="$(council_seat_failure_exit_code "$stderr_file" "$dispatch_rc")"
             failure="$(council_seat_failure_detail "$stderr_file" "$failure_rc")"
-            [[ "$seat_status" == "timed-out" ]] \
-                || council_note_seat_failure "$mprovider" "$persona" "$failure_rc" "$failure" "$stderr_file"
+            if [[ "$seat_status" == "no-response" ]] && council_seat_quota_limited "$stderr_file"; then
+                seat_status="quota-limited"
+                council_note_seat_quota_limited "$mprovider" "$persona" "$failure"
+            elif [[ "$seat_status" != "timed-out" ]]; then
+                council_note_seat_failure "$mprovider" "$persona" "$failure_rc" "$failure" "$stderr_file"
+            fi
         else
             rm -f "$stderr_file" 2>/dev/null
         fi
@@ -5330,8 +5366,13 @@ council_run_chair_fallback() {
         if (( dispatch_rc != 0 )) || [[ -s "$fallback_stderr" ]]; then
             local failure_rc
             failure_rc="$(council_seat_failure_exit_code "$fallback_stderr" "$dispatch_rc")"
-            council_note_seat_failure "$(octo_agent_spec_provider "$provider")" "chair fallback ${persona}" "$failure_rc" \
-                "$(council_seat_failure_detail "$fallback_stderr" "$failure_rc")" "$fallback_stderr"
+            if council_seat_quota_limited "$fallback_stderr"; then
+                council_note_seat_quota_limited "$(octo_agent_spec_provider "$provider")" "chair fallback ${persona}" \
+                    "$(council_seat_failure_detail "$fallback_stderr" "$failure_rc")"
+            else
+                council_note_seat_failure "$(octo_agent_spec_provider "$provider")" "chair fallback ${persona}" "$failure_rc" \
+                    "$(council_seat_failure_detail "$fallback_stderr" "$failure_rc")" "$fallback_stderr"
+            fi
         else
             rm -f "$fallback_stderr" 2>/dev/null
         fi
@@ -6151,6 +6192,7 @@ council_write_summary_json() {
         --arg distinct_approving_providers "${COUNCIL_DISTINCT_APPROVING_PROVIDERS:-0}" \
         --arg approving_providers "${COUNCIL_APPROVING_PROVIDERS:-}" \
         --arg blind_seats "${COUNCIL_BLIND_SEATS:-}" \
+        --arg quota_limited_seats "${COUNCIL_QUOTA_LIMITED_SEATS:-}" \
         --arg grounded_approve_required "${OCTOPUS_COUNCIL_REQUIRE_GROUNDED_APPROVE:-0}" \
         --arg distinct_model_families "${COUNCIL_DISTINCT_MODEL_FAMILIES:-0}" \
         --arg responding_model_families "${COUNCIL_RESPONDING_MODEL_FAMILIES:+${COUNCIL_RESPONDING_MODEL_FAMILIES# }}" \
@@ -6218,6 +6260,8 @@ council_write_summary_json() {
             distinct_approving_model_families: ($distinct_approving_model_families | tonumber),
             approving_model_families: $approving_model_families,
             blind_seats: ($blind_seats | split(" ") | map(select(length > 0))),
+            quota_limited_seats: ($quota_limited_seats | split(" ") | map(select(length > 0))),
+            retryable: ($quorum_met != "true" and ($quota_limited_seats | length) > 0),
             grounded_approve_required: ($grounded_approve_required == "1"),
             met: ($quorum_met == "true")
           },

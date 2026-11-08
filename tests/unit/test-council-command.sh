@@ -2553,6 +2553,69 @@ test_council_advice_marks_timed_out_seat() {
     fi
 }
 
+test_council_advice_marks_quota_limited_seat() {
+    test_case "a seat that hits its provider session limit is quota-limited and retryable, and the chair fallback skips that provider"
+    load_council_lib || return 1
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/council-quota.XXXXXX")"; mkdir -p "$d/responses" "$d/stderr"
+    COUNCIL_RUN_DIR="$d"
+    COUNCIL_ROSTER_JSON='[{"persona":"code-reviewer","seat":"verifier","provider":"claude","provider_org":"anthropic","model":"sonnet"}]'
+    COUNCIL_PROVIDER_STATUS_JSON='{"claude":"available","codex":"available"}'
+    COUNCIL_FIXTURE=""
+    COUNCIL_TIMEOUT_WARNINGS=""
+    COUNCIL_QUOTA_LIMITED_SEATS=""
+    # The 2026-11-05 case: claude exits 1 and prints the limit on stdout.
+    council_dispatch_member_detached() {
+        printf '== 2026-11-05T20:48:18Z claude exited 1: Exit code 1\n-- stdout tail (stderr was empty) --\nYou%sve hit your session limit · resets 7:10pm (America/New_York)\n' "'" \
+            >> "$_OCTOPUS_SEAT_STDERR_FILE"
+        return 1
+    }
+    council_run_chair_fallback() { :; }
+    council_run_advice_phase >/dev/null 2>&1 || true
+    local status warns available="yes"
+    status="$(jq -r '.[0].status' <<< "$COUNCIL_SEAT_RECORDS_JSON" 2>/dev/null)"
+    warns="$COUNCIL_TIMEOUT_WARNINGS"
+    council_provider_is_available claude || available="no"
+    unset -f council_dispatch_member_detached council_run_chair_fallback
+    if [[ "$status" == "quota-limited" && "$available" == "no" && "$COUNCIL_QUOTA_LIMITED_SEATS" == "claude" ]] &&
+       [[ "$warns" == *"session limit"* && "$warns" == *"retry"* && "$warns" != *"exited 1"* ]]; then
+        test_pass
+    else
+        test_fail "status='$status' claude_available=$available quota_seats='$COUNCIL_QUOTA_LIMITED_SEATS' warns=[$warns]"
+        return 1
+    fi
+}
+
+test_council_chair_fallback_stops_on_quota_limited_provider() {
+    test_case "chair fallback stops dispatching a provider after it hits its session limit"
+    load_council_lib || return 1
+    local d calls rc=0; d="$(mktemp -d "$TEST_TMP_DIR/chair-quota.XXXXXX")"; mkdir -p "$d/responses" "$d/stderr"
+    COUNCIL_RUN_DIR="$d"
+    COUNCIL_SEAT_RECORDS_JSON='[]'
+    COUNCIL_PROVIDER_STATUS_JSON='{"claude":"available"}'
+    COUNCIL_TIMEOUT_WARNINGS=""
+    COUNCIL_QUOTA_LIMITED_SEATS=""
+    COUNCIL_CHAIR_RESPONSE_RECEIVED="false"
+    printf '0' > "$d/calls"
+    council_pick_provider() { printf 'claude'; }
+    council_roster_entry_json() {
+        jq -cn --arg persona "$1" --arg provider "$2" '{persona:$persona,provider:$provider,provider_org:"anthropic",model:"sonnet",seat:"member"}'
+    }
+    council_dispatch_member_detached() {
+        printf '%s' "$(( $(cat "$COUNCIL_RUN_DIR/calls") + 1 ))" > "$COUNCIL_RUN_DIR/calls"
+        printf -- '-- stdout tail (stderr was empty) --\nYou%sve hit your session limit · resets 7:10pm (America/New_York)\n' "'" >> "$_OCTOPUS_SEAT_STDERR_FILE"
+        return 1
+    }
+    council_run_chair_fallback || rc=$?
+    calls="$(cat "$d/calls")"
+    unset -f council_pick_provider council_roster_entry_json council_dispatch_member_detached
+    if [[ $rc -ne 0 && "$calls" == 1 && "$COUNCIL_QUOTA_LIMITED_SEATS" == "claude" ]]; then
+        test_pass
+    else
+        test_fail "expected one claude dispatch then stop; calls=$calls rc=$rc quota_seats='$COUNCIL_QUOTA_LIMITED_SEATS'"
+        return 1
+    fi
+}
+
 test_council_advice_marks_blind_seat() {
     test_case "advice phase flags a seat that verdicts without reading the artifact as blind, excludes it from quorum, and surfaces it"
     load_council_lib || return 1
@@ -3744,6 +3807,8 @@ test_council_synthesis_timeout_overrides_seat_cap
 test_council_live_response_uses_synthesis_timeout_for_chair
 test_council_rc_is_timeout_requires_watchdog_provenance
 test_council_advice_marks_timed_out_seat
+test_council_advice_marks_quota_limited_seat
+test_council_chair_fallback_stops_on_quota_limited_provider
 test_council_advice_marks_blind_seat
 test_council_grounding_rejection_warning
 test_council_blind_fabricated_narrative

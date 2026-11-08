@@ -20,7 +20,10 @@
 #                                 "try again at" time. Anchored to the CLI's own
 #                                 error line so a transcript that greps a file
 #                                 quoting the message does not match.
-OCTOPUS_QUOTA_PATTERN=${OCTOPUS_QUOTA_PATTERN:-'QUOTA_EXHAUSTED|TerminalQuotaError|exhausted your capacity|insufficient_quota|HTTP 401|Individual quota reached|IneligibleTierError|^ERROR: You.ve hit your usage limit'}
+#   "You've hit your session limit · resets 7:10pm" — claude CLI on a plan whose
+#                                 session window is spent; printed alone on stdout.
+#                                 Anchored at line start for the same reason.
+OCTOPUS_QUOTA_PATTERN=${OCTOPUS_QUOTA_PATTERN:-'QUOTA_EXHAUSTED|TerminalQuotaError|exhausted your capacity|insufficient_quota|HTTP 401|Individual quota reached|IneligibleTierError|^ERROR: You.ve hit your usage limit|^You.ve hit your session limit'}
 
 # Session-scoped "this provider is quota/auth-dead" cache (oco-cbb). When a
 # terminal quota/auth error is seen at dispatch, the provider is marked here so

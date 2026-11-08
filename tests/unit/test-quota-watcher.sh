@@ -45,6 +45,23 @@ else
     test_pass
 fi
 
+test_case "quota_watcher_has_match detects the claude session-limit line (sail-cruisey council 2026-11-05)"
+printf '%s\n' "You've hit your session limit · resets 7:10pm (America/New_York)" > "$out_file"
+: > "$err_file"
+if quota_watcher_has_match "$err_file" "$out_file"; then
+    test_pass
+else
+    test_fail "claude session-limit line was not detected"
+fi
+
+test_case "quota_watcher_has_match ignores the claude message quoted mid-line"
+printf '%s\n' "The seat wrote: You've hit your session limit, so I stopped." > "$out_file"
+if quota_watcher_has_match "$err_file" "$out_file"; then
+    test_fail "a quoted session-limit message matched as a live quota error"
+else
+    test_pass
+fi
+
 test_case "quota_watcher_mark_after_exit marks a provider that failed on a quota error"
 export WORKSPACE_DIR="$tmp_dir/workspace"
 printf '%s\n' "ERROR: You've hit your usage limit. Try again at 10:25 PM." > "$err_file"
