@@ -1,18 +1,7 @@
 #!/usr/bin/env bash
-# Every test file must be reachable by a gate that CI actually runs (#752).
-#
-# tests/run-all-tests.sh defines five categories and its default includes all of
-# them, but nothing invokes the default: Makefile:21 and .github/workflows/test.yml
-# call test-smoke, test-unit and test-integration individually, each passing a
-# single category flag. So the `root` branch never fires, and 37 test files —
-# including test-credential-isolation.sh — have never run in any gate (#741).
-#
-# Relocating those files fixes today. This fixes tomorrow: a file added anywhere
-# the CI categories do not reach fails here instead of silently asserting nothing.
-#
-# Note the discovery rule being mirrored: discover_tests() uses
-# `find <dir> -maxdepth 1`, so a nested subdirectory under unit/ is unreachable
-# too, not just tests/ root.
+# Every deterministic test file must be reachable by CI. Share category
+# discovery with the public issue matrix and retain the legacy-root baseline.
+# Nested category directories are not discovered by the runner.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -27,61 +16,10 @@ MAKEFILE="$PROJECT_ROOT/Makefile"
 
 WORKFLOW="$PROJECT_ROOT/.github/workflows/test.yml"
 
-# Derived, not hardcoded: read the make targets CI invokes, then resolve each to
-# the runner category its Makefile recipe passes. Adding a `test-root` target and
-# a CI step for it therefore widens what counts as reachable automatically, and
-# this suite stops reporting those files.
-# The single extractor for "which make targets does CI actually invoke".
-#
-# Both consumers below read through this rather than each running their own
-# grep: two spellings of the same parse is the duplication class this repo keeps
-# getting bitten by, and I introduced an instance of it here — one copy matched
-# `test-[a-z0-9]+` and the other `test-[a-z0-9-]+`, so a hyphenated target like
-# `test-plugin-name` would parse as `test-plugin` in one and correctly in the
-# other. They agree today only because no hyphenated target is invoked yet.
-#
-# Comment lines are stripped first. A commented-out step is not an invocation,
-# and treating one as active would either demand a target nobody calls or let a
-# deleted step keep satisfying the count guard below.
-workflow_make_targets() {
-    sed 's/#.*//' "$WORKFLOW" 2>/dev/null \
-        | grep -ohE 'make test-[a-z0-9-]+' \
-        | awk '{print $2}' | sort -u
-}
+source "$SCRIPT_DIR/../helpers/ci-coverage.sh"
 
 makefile_has_target() {
     grep -qE "^${1}:" "$MAKEFILE"
-}
-
-# Derived, not hardcoded: read the make targets CI invokes, then resolve each to
-# the runner category its Makefile recipe passes. Adding a `test-root` target and
-# a CI step for it therefore widens what counts as reachable automatically, and
-# this suite stops reporting those files.
-#
-# The awk stops at the next target definition, so a recipe further down the
-# Makefile cannot donate its `run-all.sh` line to a target whose own recipe has
-# none.
-ci_categories() {
-    local target cat
-    while IFS= read -r target; do
-        [[ -n "$target" ]] || continue
-        cat=$(awk -v t="^${target}:" '
-            $0 ~ t { f = 1; next }
-            f && /^[a-zA-Z0-9_.-]+:/ { exit }
-            f && /run-all\.sh/ {
-                command = $0
-                sub(/^.*run-all\.sh[[:space:]]+/, "", command)
-                split(command, args, /[[:space:]]+/)
-                print args[1]
-                exit
-            }
-        ' "$MAKEFILE")
-        [[ -n "$cat" ]] && printf '%s\n' "$cat"
-    done < <(workflow_make_targets)
-    # Sharded lanes invoke the runner directly rather than through Make.
-    sed 's/#.*//' "$WORKFLOW" |
-        grep -oE 'run-all\.sh[[:space:]]+(smoke|unit|integration|root|live)([[:space:]]|$)' |
-        awk '{print $2}'
 }
 
 # Mirror discover_tests(): find <dir> -maxdepth 1 -name 'test-*.sh'
@@ -90,7 +28,7 @@ reachable_files() {
     while IFS= read -r cat; do
         [[ -n "$cat" ]] || continue
         find "$TESTS_DIR/$cat" -maxdepth 1 -name 'test-*.sh' -type f 2>/dev/null
-    done < <(ci_categories | sort -u)
+    done < <(ci_test_categories "$PROJECT_ROOT")
 }
 
 # Two directories are excluded by directory, not filename, so a genuine suite
@@ -105,7 +43,7 @@ all_files() {
 }
 
 test_case "the Makefile names at least one runnable category"
-cats="$(ci_categories | sort -u)"
+cats="$(ci_test_categories "$PROJECT_ROOT")"
 if [[ -n "$cats" ]]; then
     test_pass
 else
@@ -173,7 +111,7 @@ while IFS= read -r cat; do
     grep -qE "^[[:space:]]*${cat}\)" "$RUNNER" && continue
     grep -qE -- "^[[:space:]]*--${cat}\)" "$RUNNER" && continue
     bad="$bad $cat"
-done < <(ci_categories | sort -u)
+done < <(ci_test_categories "$PROJECT_ROOT")
 if [[ -z "$bad" ]]; then
     test_pass
 else
@@ -185,7 +123,7 @@ missing_targets=""
 while IFS= read -r target; do
     [[ -n "$target" ]] || continue
     makefile_has_target "$target" || missing_targets="$missing_targets $target"
-done < <(workflow_make_targets)
+done < <(ci_make_targets "$PROJECT_ROOT")
 if [[ -z "$missing_targets" ]]; then
     test_pass
 else
@@ -195,7 +133,7 @@ fi
 # Paired with the above: a target that exists but resolves to no runner
 # category is equally broken, just later in the pipeline.
 test_case "the workflow invokes at least one make target (guards a silent empty set)"
-n_targets="$(workflow_make_targets | grep -c . || true)"
+n_targets="$(ci_make_targets "$PROJECT_ROOT" | grep -c . || true)"
 if [[ "${n_targets:-0}" -ge 3 ]]; then
     test_pass
 else

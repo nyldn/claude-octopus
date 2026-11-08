@@ -247,6 +247,8 @@ cases = [
     ('dismissed approval', page([review('DISMISSED')]), '', '', 'false', 1),
     ('pending review', page([review('PENDING', None)]), '', '', 'false', 1),
     ('empty reviews', page([]), '', '', 'false', 1),
+    ('null commit approval', page([review(oid=None)]), '', '', 'false', 1),
+    ('null then current', page([review(oid=None)], True, 'NEXT_PAGE'), page([review()]), '', 'true', 2),
     ('later approval', page([review(oid=old_head)], True, 'NEXT_PAGE'), page([review()]), '', 'true', 2),
     ('later dismissed', page([], True, 'NEXT_PAGE'), page([review('DISMISSED')]), '', 'false', 2),
     ('first API failure', page([review()]), '', 'first', None, 1),

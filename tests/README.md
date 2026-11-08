@@ -100,7 +100,9 @@ an isolated passing rerun does not rewrite the earlier full-run result.
 
 Automatic Octopus multi-model PR reviews are opt-in through repository variable
 `OCTOPUS_AUTOMATED_PR_REVIEW=true`. Manual and trusted comment commands remain
-available. This advisory workflow had unavailable verifier tooling and truncated
+available. For a manual `review`, supply the PR number and use the prompt for
+review context. It fetches the diff and invokes `code-review` without publishing
+findings. This advisory workflow had unavailable verifier tooling and truncated
 prompts, so its incomplete output cannot approve a release. The independent
 approval requirement remains intact.
 

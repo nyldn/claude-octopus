@@ -128,9 +128,9 @@ in [release.sh](../scripts/release.sh) and
 must first be separated from the existing one-shot publisher through tested
 stage interfaces. **Do not invoke `release.sh` merely to prepare a batch.** It
 currently also pushes, merges, tags, publishes and syncs another repository.
-Likewise, [validate-release.sh](../scripts/validate-release.sh) can create release
-artifacts on clean `main`; it requires a pure check-only interface before an
-auditor may use it.
+[validate-release.sh](../scripts/validate-release.sh) is read-only. Auditors can
+use it to check consistency; missing tags or releases produce warnings and never
+trigger publication.
 
 Run `make sync`, repeat it to prove an unchanged result, and run
 `make sync-check`. Review generated metadata, current README/PRODUCT facts and
@@ -162,8 +162,9 @@ Checks must identify the current applicable run and attempt, not select the firs
 matching name from historical results. Reuse the bounded timeout, merge-head
 comparison and paginated thread helper in
 [release-ci.sh](../scripts/lib/release-ci.sh), extending their tests for exact
-review identity and all gate results. The documentation/version CI fast path is
-useful for normal development; it does not replace the full release gate.
+review identity and all gate results. Focused PR coverage replaces the previous
+documentation/version fast path. Main still runs the full unit tier before
+publication.
 Recheck executable modes after tests and restore only verified unchanged-byte
 fixture mode effects. Record necessary accepted quality tradeoffs and scan
 limitations explicitly rather than suppressing or relabeling a failure.

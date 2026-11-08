@@ -29,6 +29,10 @@ on:
         description: 'Prompt for the AI agents'
         required: true
         type: string
+      pull_request:
+        description: 'PR number to review, required when command is review'
+        required: false
+        type: string
       tier:
         description: 'Model tier (quick, standard, premium)'
         required: false
@@ -52,6 +56,9 @@ jobs:
   manual-run:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
 
     steps:
       - name: Checkout repository
@@ -71,24 +78,36 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           OCTOPUS_DISABLE_BARE: 1
           CI: true
-          GITHUB_OUTPUT: ${{ github.output }}
           # SECURITY: Pass inputs via env vars to prevent shell injection
           OCTOPUS_COMMAND: ${{ inputs.command }}
           OCTOPUS_PROMPT: ${{ inputs.prompt }}
+          OCTOPUS_PR_NUMBER: ${{ inputs.pull_request }}
+          GH_TOKEN: ${{ github.token }}
           OCTOPUS_TIER: ${{ inputs.tier }}
         run: |
           chmod +x ./scripts/orchestrate.sh
 
-          TIER_FLAG=""
+          TIER_ARGS=()
           case "$OCTOPUS_TIER" in
-            quick) TIER_FLAG="-Q" ;;
-            premium) TIER_FLAG="-P" ;;
+            quick) TIER_ARGS=(-Q) ;;
+            premium) TIER_ARGS=(-P) ;;
           esac
 
           # SECURITY: Validate command against allowlist
           case "$OCTOPUS_COMMAND" in
-            auto|embrace|research|develop|deliver|review)
-              ./scripts/orchestrate.sh --ci $TIER_FLAG "$OCTOPUS_COMMAND" "$OCTOPUS_PROMPT"
+            review)
+              if ! [[ "$OCTOPUS_PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+                echo "::error::Select a positive PR number for manual review"
+                exit 1
+              fi
+              gh pr diff "$OCTOPUS_PR_NUMBER" --repo "$GITHUB_REPOSITORY" > pr-review.diff
+              [[ -s pr-review.diff ]] || { echo "::error::PR diff is empty"; exit 1; }
+              profile=$(jq -cn --arg context "$OCTOPUS_PROMPT" \
+                '{target:"pr-review.diff",publish:"never",contextText:$context,contextLabel:"Manual review request"}')
+              ./scripts/orchestrate.sh --ci "${TIER_ARGS[@]}" code-review "$profile"
+              ;;
+            auto|embrace|research|develop|deliver)
+              ./scripts/orchestrate.sh --ci "${TIER_ARGS[@]}" "$OCTOPUS_COMMAND" "$OCTOPUS_PROMPT"
               ;;
             *)
               echo "::error::Invalid command: $OCTOPUS_COMMAND"

@@ -89,9 +89,9 @@ octo_release_current_head_approval() {
             if type != "object" or (.nodes | type) != "array" then
                 error("invalid review page")
             elif all(.nodes[];
-                type == "object" and
+                type == "object" and has("commit") and
                 (.state as $state | ["APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED", "PENDING"] | index($state) != null) and
-                ((.commit == null and .state != "APPROVED") or
+                (.commit == null or
                  ((.commit | type) == "object" and
                   (.commit.oid | type) == "string" and
                   (.commit.oid | test("^[0-9a-fA-F]{40}$"))))) then
