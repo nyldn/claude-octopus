@@ -1775,7 +1775,7 @@ ${provider_ctx}"
                     _ts=$(date -d "@${_dispatch_start}" '+%H:%M:%S' 2>/dev/null \
                           || date -r "${_dispatch_start}" '+%H:%M:%S' 2>/dev/null \
                           || echo "dispatch")
-                    log WARN "Timeout with ${_n_changed} file(s) modified in $_dispatch_cwd since dispatch — provider may have written deliverables. Inspect before retrying."
+                    log WARN "Provider stopped with ${_n_changed} file(s) modified in $_dispatch_cwd since dispatch — provider may have written deliverables. Inspect before retrying."
                     log INFO "Partial writes detected (${_n_changed} files changed since ${_ts})"
                     local _s
                     for _s in "${_samples[@]}"; do log INFO "   $_s"; done
@@ -1785,11 +1785,14 @@ ${provider_ctx}"
         fi
         local _sync_status="failed"
         local _sync_reason="Exit code $exit_code"
-        declare -F octo_failure_reason >/dev/null 2>&1 && \
-            _sync_reason=$(octo_failure_reason "$exit_code" "$enhanced_prompt" "$temp_err" "$temp_out")
-        if [[ $exit_code -eq 124 || $exit_code -eq 143 ]]; then
+        if [[ $exit_code -eq 124 ]]; then
             _sync_status="timeout"
             _sync_reason="Timed out before completion"
+        elif [[ $exit_code -eq 143 ]]; then
+            # Keep termination diagnostics out of trusted status and metrics.
+            _sync_reason="Provider terminated by SIGTERM"
+        elif declare -F octo_failure_reason >/dev/null 2>&1; then
+            _sync_reason=$(octo_failure_reason "$exit_code" "$enhanced_prompt" "$temp_err" "$temp_out")
         fi
         octo_capture_seat_failure "$agent_type" "$exit_code" "$_sync_reason" "$temp_err" "$temp_out"
         run_contract_transition "$_sync_seat_id" "$_sync_status" \

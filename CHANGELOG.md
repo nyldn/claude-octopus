@@ -31,6 +31,8 @@
 - Run-local smoke failures keep their health-failure reason. External SIGTERM
   preserves exit 143 through spawn results and lifecycle events instead of
   claiming the provider exceeded its timeout.
+  Synchronous dispatch also records a failed termination in status and usage
+  rather than a timeout, with a launcher-authored reason.
 
 - Research verification no longer fails a synthesis for referring to its own
   numbered points. A synthesis line such as "See point 2." or "Corrected in
