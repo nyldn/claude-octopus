@@ -71,7 +71,7 @@ case "$RM_RISK" in
     *) _octo_invalid_input ;;
 esac
 if [[ "$RM_RISK" == "unsafe" ]]; then
-    _octo_careful_decision 'Destructive command detected: recursive forced deletion outside safe build artifacts.'
+    _octo_careful_decision 'Careful mode requires review: recursive deletion or unclassified executable input.'
     exit 0
 fi
 

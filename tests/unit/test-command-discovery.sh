@@ -95,4 +95,32 @@ assert checked >= 24, checked
 ROOTS
 then test_pass; else test_fail "a command can use another installation"; fi
 
+test_case "workflow source templates preserve host-root precedence"
+if python3 - "$PROJECT_ROOT" <<'TEMPLATE_ROOTS'
+from pathlib import Path
+import os
+import re
+import subprocess
+import sys
+
+root = Path(sys.argv[1])
+old = '${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}'
+clean = {key: value for key, value in os.environ.items()
+         if key not in ('CLAUDE_PLUGIN_ROOT', 'CODEX_PLUGIN_ROOT')}
+clean['HOME'] = '/fixture home'
+for template in (root / '.claude/skills').glob('*/*.tmpl'):
+    text = template.read_text()
+    assert old not in text, template
+    assignments = re.findall(r'^OCTO_(?:RESEARCH_)?ROOT=(.+)$', text, re.M)
+    assert assignments, template
+    for expression in assignments:
+        for pins, expected in [({'CLAUDE_PLUGIN_ROOT': '/claude root', 'CODEX_PLUGIN_ROOT': '/codex root'}, '/claude root'),
+                               ({'CODEX_PLUGIN_ROOT': '/codex root'}, '/codex root'),
+                               ({}, '/fixture home/.claude-octopus/plugin')]:
+            result = subprocess.run(['bash', '-c', 'selected=' + expression + '; printf "%s" "$selected"'],
+                env=dict(clean, **pins), capture_output=True, text=True, check=True)
+            assert result.stdout == expected, (template, expression, expected, result.stdout)
+TEMPLATE_ROOTS
+then test_pass; else test_fail "source template lost the selected host root"; fi
+
 test_summary

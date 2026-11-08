@@ -177,15 +177,17 @@ def unwrap_safety_command(args):
         "stdbuf": (set(), {"-i", "--input", "-o", "--output", "-e", "--error"}),
     }
     args = list(args)
+    shell_assignments = True
     while args:
         if re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*=.*", args[0]):
-            if any(char in args[0] for char in ("$", "`")):
+            if not shell_assignments and any(char in args[0] for char in ("$", "`")):
                 return None
             args = args[1:]
             continue
         executable = Path(args[0]).name
         if executable not in options and executable not in ("rtk", "busybox"):
             return args
+        shell_assignments = False
         remaining = args[1:]
         if not remaining:
             return []
@@ -233,7 +235,7 @@ def unwrap_safety_command(args):
 
 
 def unsafe_recursive_delete(command, cwd=None):
-    """Check each recursive forced rm target without executing shell input."""
+    """Require review for unsafe deletion or unclassified executable input."""
     safe_names = {"node_modules", "dist", ".next", "__pycache__", "build", "coverage", ".turbo"}
     shell_names = {"bash", "sh", "zsh", "eval", "dash", "ksh", "mksh", "lksh", "ash", "fish", "csh", "tcsh"}
     command_readers = shell_names | {"source", ".", "xargs", "parallel"}
@@ -275,27 +277,33 @@ def unsafe_recursive_delete(command, cwd=None):
         raise ValueError("hook cwd must be absolute")
     working_directory = working_directory.resolve()
     segments, current = [], []
+    piped_input = False
     for token in tokens:
         if token and all(c in ";&|()\n" for c in token):
-            segments.append(current)
+            segments.append((current, piped_input))
             current = []
+            piped_input = token in ("|", "|&")
         else:
             current.append(token)
-    segments.append(current)
-    for args in segments:
-        args = unwrap_safety_command(args)
+    segments.append((current, piped_input))
+    for original_args, piped_input in segments:
+        args = unwrap_safety_command(original_args)
         if args is None:
-            if mentions_rm:
+            if mentions_rm or piped_input or any(
+                    char in arg for arg in original_args for char in ("$", "`")):
                 return True
             continue
         if not args:
             continue
+        # A computed executable can be rm even when its name is never literal.
+        if any(char in args[0] for char in ("$", "`")):
+            return True
         executable = args[0] if args[0] == "." else Path(args[0]).name
         if executable in ("cd", "pushd", "popd"):
             working_directory = None
         # These commands execute stdin or files, not just visible arguments.
         if executable in command_readers and (
-                mentions_rm or any(unsafe_recursive_delete(a, cwd) for a in args[1:])):
+                mentions_rm or piped_input or any(unsafe_recursive_delete(a, cwd) for a in args[1:])):
             return True
         if executable != "rm":
             # Only known data-only forms can ignore literal rm text. Unknown
@@ -304,8 +312,6 @@ def unsafe_recursive_delete(command, cwd=None):
                 if any(re.search(r"\brm\b", arg) for arg in args):
                     return True
                 if mentions_rm:
-                    if any(char in args[0] for char in ("$", "`")):
-                        return True
                     if any(Path(arg).name in command_readers for arg in args[1:]):
                         return True
             continue

@@ -10,7 +10,7 @@
 
 ### Fixed
 
-- Guard modes now check every target of forced recursive removals and share stable session identity across activation, hooks, and deactivation.
+- Guard modes now check forced recursive removal targets, require review of unclassified executable input, and share stable session identity across activation, hooks, and deactivation.
 - Metric-loop instructions direct the host to preserve existing edits and the staged index through isolated candidates, finite iteration/time/call budgets, and resume accounting. These steps depend on host compliance; they are not an executable supervisor.
 - Failed or malformed independent review verification leaves findings unverified and disables publication.
 - Commands, skills, and registered hooks use the current host installation with quoted executable paths, including sessions using different versions or installation paths containing spaces.
