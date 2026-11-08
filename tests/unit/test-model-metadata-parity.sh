@@ -128,6 +128,25 @@ else
     test_fail "the effective unpinned budget default changed"
 fi
 
+test_case "a saved Haiku 5.5 budget pin preserves explicit session model choices"
+if env "HOME=$pin_home" "OCTOPUS_PROVIDERS_CONFIG=$pin_home/.claude-octopus/config/providers.json" \
+    OCTOPUS_COST_MODE=budget OCTOPUS_CLAUDE_MODEL= CLAUDE_MODEL= OCTOPUS_ROUTING_POLICY=off \
+    bash -euo pipefail -c '
+        source "$1/scripts/lib/model-resolver.sh"
+        [[ "$(resolve_octopus_model claude claude)" == claude-haiku-5-5 ]]
+        OCTOPUS_CLAUDE_MODEL=claude-opus-5-5
+        [[ "$(resolve_octopus_model claude claude)" == claude-opus-5-5 ]]
+        unset OCTOPUS_CLAUDE_MODEL
+        CLAUDE_MODEL=claude-sonnet-5-5
+        [[ "$(resolve_octopus_model claude claude)" == claude-sonnet-5-5 ]]
+        unset CLAUDE_MODEL
+        [[ "$(resolve_octopus_model claude claude)" == claude-haiku-5-5 ]]
+    ' _ "$PROJECT_ROOT"; then
+    test_pass
+else
+    test_fail "a saved budget pin displaced an explicit model or failed to resume afterward"
+fi
+
 test_case "Haiku 5.5 billing applies the whole-request tariff strictly above 100K"
 if PRICING_FILE="$pricing_file" python3 - <<'PY'
 import os, subprocess

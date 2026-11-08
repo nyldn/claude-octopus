@@ -122,6 +122,8 @@ independent provider diversity.
 the existing budget capability. The shipped budget default stays on Haiku 4.5.
 Select budget routing with `/octo:model-config cost-mode budget` to use that
 capability. New configurations use the `standard` cost mode.
+An explicit `OCTOPUS_CLAUDE_MODEL` or native `CLAUDE_MODEL` session choice takes
+precedence over the saved budget pin. Removing that override restores the pin.
 Use Claude Code v2.1.293 or later and confirm account access separately. This
 catalog addition does not extend the `anthropic-api` adapter's model allowlist.
 
@@ -142,7 +144,7 @@ model cache or batch discounts, gateway surcharges or subscription allowances.
 Thinking counts toward output. The newer tokenizer can increase token counts,
 so compare total task cost, including retries, rather than price alone.
 
-Sources checked 2026-11-04: [model specifications and tariff](https://platform.claude.com/docs/en/models/haiku-5-5/overview),
+Sources rechecked 2026-11-08: [model specifications and tariff](https://platform.claude.com/docs/en/models/haiku-5-5/overview),
 [effort guidance](https://platform.claude.com/docs/en/build-with-claude/effort),
 [migration constraints](https://platform.claude.com/docs/en/models/haiku-5-5/migration-guide),
 and [Claude Code version and model selection](https://code.claude.com/docs/en/model-config).
