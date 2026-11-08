@@ -10,6 +10,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import time
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 import urllib.error
@@ -193,6 +194,47 @@ sanitize_external_content 'literal\\c followed by \\n and \\t' keenable-search
         self.assertEqual(len(lines), 3, result.stdout)
         self.assertEqual(lines[1], r'literal\c followed by \n and \t')
         self.assertEqual(lines[2], lines[0].replace('BEGIN-UNTRUSTED:', 'END-UNTRUSTED:'))
+
+    def test_uncached_codex_tier_probe_uses_the_scoped_environment(self):
+        """Subscription probes isolate search access even when optional search is off."""
+        script = r'''source "$1/scripts/lib/smoke.sh"
+source "$1/scripts/lib/provider-routing.sh"
+log() { :; }
+tier_cache_valid() { return 1; }
+tier_cache_write() { printf '%s' "$2" > "$FIXTURE_DIR/tier"; }
+run_with_timeout() { printf '%s' "$1" > "$FIXTURE_DIR/timeout"; shift; "$@"; }
+if [[ "$2" == rejected ]]; then build_provider_env() { PROVIDER_ENV_ARRAY=(); return 1; }; fi
+VERBOSE=false
+detect_tier_openai api-key
+[[ "$KEENABLE_API_KEY" == inert-search-access ]]
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            shim = root / "codex"
+            shim.write_text('#!/bin/sh\nFIXTURE_DIR=$(dirname "$0")\nprintf "called\\n" > "$FIXTURE_DIR/called"\n'
+                            '[ -z "${KEENABLE_API_KEY+x}" ] || printf "present\\n" > "$FIXTURE_DIR/leak"\n'
+                            '[ "$OPENAI_API_KEY" = inert-model-access ] || exit 42\n'
+                            'printf "%s\\n" "$@" > "$FIXTURE_DIR/args"\nprintf "gpt-4\\n"\n')
+            shim.chmod(0o755)
+            for security, mode in itertools.product(("true", "false"), ("allowed", "rejected")):
+                with self.subTest(security=security, mode=mode):
+                    for name in ("called", "leak", "timeout", "tier", "args"):
+                        (root / name).unlink(missing_ok=True)
+                    result = subprocess.run(["bash", "-c", script, "fixture", str(ROOT), mode],
+                        env={**os.environ, "PATH": directory + os.pathsep + os.environ["PATH"],
+                             "FIXTURE_DIR": directory, "KEENABLE_API_KEY": "inert-search-access",
+                             "OPENAI_API_KEY": "inert-model-access", "OCTOPUS_RESEARCH_WEB_SEARCH": "",
+                             "OCTOPUS_SECURITY_V870": security, "OCTOPUS_SKIP_PROVIDER_PROBES": "false",
+                             "CLAUDE_CODE_REMOTE": "false", "OCTOPUS_REMOTE_SESSION": "false"},
+                        capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertFalse((root / "leak").exists(), "search access reached the tier probe")
+                    self.assertEqual((root / "called").exists(), mode == "allowed")
+                    self.assertEqual((root / "timeout").exists(), mode == "allowed")
+                    self.assertEqual((root / "tier").read_text(), "plus" if mode == "allowed" else "api-only")
+                    if mode == "allowed":
+                        self.assertEqual((root / "timeout").read_text(), "5")
+                        self.assertEqual((root / "args").read_text(), "exec\n--skip-git-repo-check\nok\n")
 
     def test_untrusted_search_survives_the_actual_persona_and_tool_policy_path(self):
         """Persona and policy formatting must preserve search text and nonce boundaries."""
@@ -429,6 +471,53 @@ octopus_tangle_apply_execution_boundary
                 self.assertEqual(stdout.getvalue(), "")
                 self.assertNotIn("inert-private-value", stderr.getvalue())
                 self.assertNotIn("Traceback", stderr.getvalue())
+
+    def test_cli_without_alarm_support_skips_transport_safely(self):
+        """Unavailable total-deadline APIs must skip search before transport starts."""
+        for missing in ("SIGALRM", "alarm"):
+            features = {name: getattr(api.signal, name) for name in ("SIGALRM", "alarm", "signal")
+                        if name != missing}
+            with self.subTest(missing=missing), \
+                 patch.object(api, "signal", SimpleNamespace(**features)), \
+                 patch.object(api, "search") as search, \
+                 patch.object(api.sys, "stdout", io.StringIO()) as stdout, \
+                 patch.object(api.sys, "stderr", io.StringIO()) as stderr:
+                self.assertEqual(api.main(), 1)
+                search.assert_not_called()
+                self.assertEqual(stdout.getvalue(), "")
+                self.assertIn("continuing without search suggestions", stderr.getvalue())
+                self.assertNotIn("Traceback", stderr.getvalue())
+
+    def test_shell_failed_or_empty_search_warns_without_exposing_output(self):
+        """An admitted lookup failure warns once with or without the shared logger."""
+        script = r'''source "$1/scripts/lib/keenable.sh"
+if [[ "$2" == logger ]]; then
+    log() { printf 'LOG|%s|%s\n' "$1" "$2" >&2; }
+else
+    unset -f log
+fi
+probe_keenable_search_context question
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            shim = root / "python3"
+            shim.write_text('#!/bin/sh\nprintf "inert-private-value\\n" >&2\n'
+                            '[ "$SEARCH_MODE" = empty ] && exit 0\n'
+                            'printf "inert-private-value\\n"\nexit 1\n')
+            shim.chmod(0o755)
+            for logger, mode in itertools.product(("logger", "standalone"), ("failed", "empty")):
+                with self.subTest(logger=logger, mode=mode):
+                    result = subprocess.run(["bash", "-c", script, "fixture", str(ROOT), logger],
+                        env={**os.environ, "PATH": directory + os.pathsep + os.environ["PATH"],
+                             "OCTOPUS_RESEARCH_WEB_SEARCH": "keenable", "OCTO_ALLOWED_PROVIDERS": "keenable",
+                             "DRY_RUN": "false", "SEARCH_MODE": mode, "KEENABLE_API_KEY": "inert-private-value"},
+                        capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertEqual(result.stdout, "")
+                    warnings = [line for line in result.stderr.splitlines() if "WARN" in line]
+                    prefix = "LOG|WARN|" if logger == "logger" else "WARN: "
+                    self.assertEqual(warnings, [prefix + "Keenable: search unavailable or empty; continuing without search suggestions."])
+                    self.assertNotIn("inert-private-value", result.stdout + result.stderr)
 
     def test_shell_opt_in_allowlist_and_nonce_boundaries(self):
         """Verify lookup admission, one-call behavior and untrusted result framing."""

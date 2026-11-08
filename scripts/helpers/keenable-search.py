@@ -78,16 +78,21 @@ def deadline(signum, frame):
 
 def main():
     """Emit bounded search suggestions or a diagnostic that contains no secrets."""
-    signal.signal(signal.SIGALRM, deadline)
-    signal.alarm(15)
+    alarm_armed = False
     try:
+        if not hasattr(signal, "SIGALRM") or not callable(getattr(signal, "alarm", None)):
+            raise OSError("total search deadline unavailable")
+        signal.signal(signal.SIGALRM, deadline)
+        signal.alarm(15)
+        alarm_armed = True
         query = sys.stdin.buffer.read(MAX_QUERY_BYTES + 1).decode("utf-8")
         output = search(query)
     except (OSError, ValueError, DeadlineExceeded):
         print("Optional Keenable search unavailable; continuing without search suggestions.", file=sys.stderr)
         return 1
     finally:
-        signal.alarm(0)
+        if alarm_armed:
+            signal.alarm(0)
     if output:
         print(output)
     return 0

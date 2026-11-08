@@ -15,6 +15,10 @@
 - Provider smoke tests explain environment construction failures instead of
   failing silently. Search-credential rejection uses the routing error logger,
   with a stderr fallback for standalone callers.
+- Optional search skips interpreters without total-deadline support and warns
+  when a lookup fails or returns no suggestions, while research continues.
+- Codex subscription probes exclude search credentials and skip execution if
+  provider environment construction fails.
 
 ## [11.19.0] - 2026-11-08
 

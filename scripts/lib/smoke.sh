@@ -411,8 +411,20 @@ detect_tier_openai() {
     # Attempt API detection with minimal test call
     if command -v codex &>/dev/null; then
         local test_response
+        local -a PROVIDER_ENV_ARRAY=()
+        if ! { declare -F build_provider_env >/dev/null || source "${_smoke_policy_dir}/provider-routing.sh"; } ||
+           ! build_provider_env codex; then
+            if declare -F log >/dev/null; then
+                log WARN "Codex tier probe skipped: provider environment construction failed" >&2
+            else
+                printf '%s\n' 'Codex tier probe skipped: provider environment construction failed' >&2
+            fi
+            tier_cache_write "codex" "$fallback_tier"
+            echo "$fallback_tier"
+            return 0
+        fi
         # Use 5-second timeout for minimal "ok" prompt (3 tokens)
-        test_response=$(run_with_timeout 5 codex exec --skip-git-repo-check "ok" 2>&1 || echo "")
+        test_response=$(run_with_timeout 5 ${PROVIDER_ENV_ARRAY[@]+"${PROVIDER_ENV_ARRAY[@]}"} codex exec --skip-git-repo-check "ok" 2>&1 || echo "")
 
         # Check for tier indicators in response
         # o3-mini/gpt-4 access suggests plus tier
