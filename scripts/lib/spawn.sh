@@ -1923,6 +1923,7 @@ sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore")
                 record_outcome "$agent_type" "$agent_type" "${task_type:-unknown}" "${phase:-unknown}" "success" "$elapsed_ms" 2>/dev/null || true
                 # v9.13: Reset circuit breaker on success
                 type record_success &>/dev/null && record_success "$provider_prefix" 2>/dev/null || true
+                type record_provider_success &>/dev/null && record_provider_success "$provider_prefix" 2>/dev/null || true
                 # v9.3.0: Record file co-occurrence pattern for heuristic learning
                 record_run_pattern "$agent_type" "${enhanced_prompt:-$prompt}" "$result_file" 2>/dev/null || true
                 # v8.20.1: Record task duration metric

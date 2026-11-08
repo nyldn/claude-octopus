@@ -1419,4 +1419,30 @@ else
     test_fail "a fast-exiting terminal quota error lost its classification or reset guidance"
 fi
 
+test_case "successful recovery breaks the sequence of quota failures"
+if (
+    source "$PROJECT_ROOT/scripts/provider-router.sh"
+    _PROVIDER_STATE_DIR="$TEST_TMP_DIR/quota-recovery-circuit-breaker"
+    OCTO_CB_FAILURE_THRESHOLD=3
+    for attempt in 1 2 3; do
+        rm -f "$(octo_quota_dead_file)" "$(octo_quota_dead_meta_file)"
+        run_external_fixture quota-immediate "recovery-quota-$attempt"
+        [[ "$(run_contract_latest_transition "spawn-recovery-quota-$attempt")" == failed ]] || exit 1
+        [[ "$(wc -l < "$_PROVIDER_STATE_DIR/fake-api.failures")" -eq 1 ]] || exit 1
+        [[ ! -e "$_PROVIDER_STATE_DIR/fake-api.cooldown" ]] || exit 1
+        if [[ "$attempt" -lt 3 ]]; then
+            # Simulate a quota reset before admitting the recovery request.
+            rm -f "$(octo_quota_dead_file)" "$(octo_quota_dead_meta_file)"
+            run_external_fixture success "recovery-success-$attempt"
+            [[ "$(run_contract_latest_transition "spawn-recovery-success-$attempt")" == contributed ]] || exit 1
+            [[ ! -e "$_PROVIDER_STATE_DIR/fake-api.failures" ]] || exit 1
+        fi
+    done
+); then
+    test_pass
+else
+    test_fail "isolated quota episodes accumulated across successful recovery"
+fi
+rm -f "$(octo_quota_dead_file)" "$(octo_quota_dead_meta_file)"
+
 test_summary
