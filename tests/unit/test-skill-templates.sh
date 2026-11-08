@@ -147,6 +147,30 @@ else
     fail "legacy discovery template preserves the canonical phase-loaded entry" "canonical entry was overwritten"
 fi
 
+# Missing canonical inputs must fail in both modes without restoring a legacy entry.
+canonical="$FIXTURE_ROOT/skills/flow-discover/SKILL.md"
+cp "$FIXTURE_ROOT/.claude/skills/flow-discover/SKILL.md" "$TEST_TMP_DIR/canonical-entry-before"
+mv "$canonical" "$canonical.saved"
+canonical_guard_ok=true
+for mode in normal dry-run; do
+    canonical_rc=0
+    if [[ "$mode" == dry-run ]]; then
+        canonical_output=$(run_gen --dry-run 2>&1) || canonical_rc=$?
+    else
+        canonical_output=$(run_gen 2>&1) || canonical_rc=$?
+    fi
+    if [[ "$canonical_rc" != 1 || "$canonical_output" != *'Missing canonical skill entry:'* ]] ||
+       ! cmp -s "$TEST_TMP_DIR/canonical-entry-before" "$FIXTURE_ROOT/.claude/skills/flow-discover/SKILL.md"; then
+        canonical_guard_ok=false
+    fi
+done
+mv "$canonical.saved" "$canonical"
+if [[ "$canonical_guard_ok" == true ]]; then
+    pass "missing canonical discovery entry fails without replacing its mirror"
+else
+    fail "missing canonical discovery entry fails without replacing its mirror" "legacy fallback modified the entry or returned success"
+fi
+
 # Now dry-run should pass
 dry_run_output=$(run_gen --dry-run 2>&1)
 dry_run_exit=$?

@@ -96,6 +96,7 @@ with open(pricing_file, encoding="utf-8") as pricing:
             RATES[ident.lower()] = rate
 
 def records():
+    """Yield valid rows while retaining open-file append and rotation behavior."""
     for path in sorted(glob.glob(os.path.join(usage_dir, "*.jsonl"))):
         try:
             with open(path) as f:

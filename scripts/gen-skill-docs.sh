@@ -100,7 +100,11 @@ while IFS= read -r tmpl; do
     # Phase-loaded skills are authored under root skills/. Their legacy
     # templates must never restore an obsolete single-file contract.
     canonical_source="$PLUGIN_ROOT/skills/$tmpl_name/SKILL.md"
-    if [[ "$tmpl_name" == flow-discover || "$tmpl_name" == skill-refine ]] && [[ -f "$canonical_source" ]]; then
+    if [[ "$tmpl_name" == flow-discover || "$tmpl_name" == skill-refine ]]; then
+        if [[ ! -f "$canonical_source" ]]; then
+            printf 'Missing canonical skill entry: %s\n' "$canonical_source" >&2
+            exit 1
+        fi
         processed=$((processed + 1))
         if $DRY_RUN; then
             if cmp -s "$canonical_source" "$target"; then

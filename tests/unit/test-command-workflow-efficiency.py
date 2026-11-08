@@ -13,12 +13,14 @@ LIB = ROOT / "scripts/lib"
 
 
 def shell(script, cwd=ROOT, timeout=12):
+    """Run an inert shell fixture with a bounded timeout."""
     return subprocess.check_output(["bash", "-c", script], cwd=cwd,
                                    stderr=subprocess.PIPE, timeout=timeout).decode()
 
 
 class EfficiencyTests(unittest.TestCase):
     def test_correction_completion_and_failure(self):
+        """Notice fast worker completion without waiting for the progress cadence."""
         for rc in (0, 9):
             with tempfile.TemporaryDirectory() as tmp:
                 script = f'''source "{LIB}/workflows.sh"
@@ -45,6 +47,7 @@ cat "$TANGLE_CORRECTION_FILE"
 
     def test_retry_policy_and_inert_probe_loop(self):
         # Exercise the actual probe retry loop with file-backed inert captures.
+        """Retry recoverable failures while preserving terminal-error behavior."""
         src = (LIB / "workflows.sh").read_text()
         start = src.index('    local auth_deadline=0')
         loop = src[start:src.index('    # Process output', start)]
@@ -77,10 +80,12 @@ run
                 self.assertEqual(int(shell(script).strip()), expected, diagnostic)
 
     def test_workflows_can_be_sourced_by_basename(self):
+        """Resolve workflow imports independently of the source path spelling."""
         output = shell('source workflows.sh; declare -F octopus_provider_failure_classify', cwd=LIB)
         self.assertEqual(output.strip(), 'octopus_provider_failure_classify')
 
     def test_large_diagnostics_preserve_pipefail_classification(self):
+        """Consume large diagnostics without losing their classification to SIGPIPE."""
         for first, expected in [('ERROR: invalid API key', 'terminal'),
                                 ('ERROR: ECONNRESET', 'retryable'),
                                 ('ERROR: sandbox permission denied', 'other'),
@@ -95,6 +100,7 @@ octopus_provider_failure_classify codex "$diagnostic"
             self.assertEqual(shell(script).strip(), expected)
 
     def test_stat_fallback_remains_size_sensitive(self):
+        """Retain size sensitivity when both stat variants fail."""
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp, 'artifact'); path.write_text('first')
             script = f'''source "{LIB}/heartbeat.sh"
@@ -106,6 +112,7 @@ _octo_capture_file_signature "{path}"
             self.assertEqual([line.strip() for line in shell(script).splitlines()], ['5:unknown', '14:unknown'])
 
     def test_metadata_framing_and_freshness(self):
+        """Preserve path framing and observe renames without reading file contents."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             names = ["space name", "line\nname", "unicode-雪", "deleted", "link", "broken", ".octo/runtime"]
@@ -115,6 +122,7 @@ _octo_capture_file_signature "{path}"
             (root / "broken").symlink_to("absent")
             paths = names + [names[0]]  # staged/unstaged duplicates stay framed
             def sample():
+                """Collect the real metadata sampler output for the current fixture paths."""
                 return subprocess.check_output(["python3", str(LIB / "worktree-metadata.py"), tmp],
                     input=b"\0".join(os.fsencode(n) for n in paths) + b"\0")
             expected = b""
@@ -133,6 +141,7 @@ _octo_capture_file_signature "{path}"
             self.assertIn(b"path=space name;missing", sample())
             stop = threading.Event()
             def rename_repeatedly():
+                """Move the fixture path while the sampler observes concurrent changes."""
                 while not stop.is_set():
                     (root / "renamed").rename(root / names[0])
                     (root / names[0]).rename(root / "renamed")
@@ -154,6 +163,7 @@ with m.patch("os.path.exists", return_value=True), m.patch("os.lstat", side_effe
             self.assertIn(b"0:unknown", subprocess.check_output(["python3", "-c", code]))
 
     def test_worktree_digest_matches_original_framing(self):
+        """Match the original digest for staged, changed and unusual paths."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp, "repo")
             repo.mkdir()
@@ -184,6 +194,7 @@ _octo_capture_worktree_fingerprint "{repo}"
             self.assertEqual(after, shell(f'source "{LIB}/heartbeat.sh"; _octo_capture_worktree_fingerprint "{repo}"'))
 
     def test_context_snapshot_is_per_call(self):
+        """Reuse one tracked-file snapshot without hiding later index changes."""
         with tempfile.TemporaryDirectory() as tmp:
             subprocess.run(["git", "init", "-q", tmp], check=True)
             for i in range(6):
@@ -209,6 +220,7 @@ tangle_resolve_repo_context_files "wrong/another.py"
 
     def test_usage_stream_matches_baseline(self):
         # Frozen v11.19.0 output fixtures also work without repository history.
+        """Keep report bytes stable while streaming the synthetic usage log."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "usage").mkdir()
@@ -227,6 +239,7 @@ tangle_resolve_repo_context_files "wrong/another.py"
                     self.assertEqual(old, new)
 
     def test_usage_append_and_rotation_keep_open_file_semantics(self):
+        """Read appended rows from the open file after its pathname rotates."""
         script = (ROOT / "scripts/helpers/usage-report.sh").read_text()
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -265,6 +278,7 @@ builtins.open = hooked_open
         self.assertEqual(totals["tokens_in"], 3)
 
     def test_yaml_wait_has_one_budget_and_keeps_required_workers(self):
+        """Wait for required workers within one shared phase budget."""
         src = (LIB / "yaml-workflow.sh").read_text()
         start = src.index('    # Wait for remaining parallel agents')
         block = src[start:src.index('    # Result files land', start)]
@@ -286,6 +300,7 @@ run
             self.assertIn(f"remaining={remaining}", out)
 
     def test_explicit_convergence_files_and_cache(self):
+        """Invalidate cached convergence only when the explicit inputs change."""
         with tempfile.TemporaryDirectory() as tmp:
             a, b = Path(tmp, "a space.md"), Path(tmp, "b\n雪.md")
             a.write_text("# Same\n")

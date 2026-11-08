@@ -11,6 +11,7 @@ import time
 
 
 def state():
+    """Fingerprint selection metadata without reading credential values."""
     root = Path(__file__).resolve().parents[2]
     paths = list((root / "scripts/lib").glob("*.sh")) + list((root / "config").glob("*"))
     home = Path.home() / ".claude-octopus"
@@ -52,6 +53,7 @@ def state():
 
 
 def main():
+    """Compare fresh checks with saved evidence and optionally create a receipt."""
     run, kind, scope, source, destination = sys.argv[1:]
     results = json.load(sys.stdin)  # Always produced by fresh per-provider checks.
     scope = json.loads(scope)

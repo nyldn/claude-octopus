@@ -2,8 +2,6 @@
 name: flow-discover
 description: "Multi-AI research using available external providers (Double Diamond Discover phase)"
 disable-model-invocation: true
-agent: Explore
-context: fork
 task_management: true
 task_dependencies:
   - skill-context-detection
@@ -19,7 +17,9 @@ validation_gates:
 
 # Discover contract
 
-Execute research only after explicit invocation. Set `OCTO_SKILL_FILE` to the
+Execute research only after explicit invocation. Run discovery in the main
+conversation, using its available file and delegation tools. Carry forward the
+requirements and constraints already supplied by the user. Set `OCTO_SKILL_FILE` to the
 absolute path of this loaded `SKILL.md` supplied by the host, then run the block
 below. It finds the installation even when Codex has not run trusted hooks or
 created the stable plugin link. An explicit host root can be used when the host

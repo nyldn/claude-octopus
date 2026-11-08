@@ -20,10 +20,12 @@ import time
 
 
 def digest(path):
+    """Hash artifact bytes to bind both judges to the same input."""
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
 def save(path, data):
+    """Publish a JSON record through an atomic rename."""
     temporary = path.with_suffix(".tmp")
     temporary.write_text(json.dumps(data, indent=2) + "\n")
     temporary.replace(path)
@@ -32,6 +34,7 @@ def save(path, data):
 def terminate_owned_children(children):
     # Unreaped leaders reserve their PIDs and process-group IDs. Reaping a leader
     # before the final group signal could target a subsequently reused group ID.
+    """Signal owned process groups before reaping their session leaders."""
     for child in children:
         try:
             os.killpg(child.pid, signal.SIGTERM)
@@ -49,6 +52,7 @@ def terminate_owned_children(children):
 
 
 def main():
+    """Reserve both calls and preserve paired raw results within the run budget."""
     if len(sys.argv) != 12:
         raise ValueError(__doc__)
     directory, pair, prompt, candidate, rubric, deadline, budget, claude, ce, codex, xe = sys.argv[1:]
@@ -103,6 +107,7 @@ def main():
         lock.rmdir()
     children, streams, statuses = [], [], []
     def cancel(signum, frame):
+        """Enter finalization so every owned judge process is stopped."""
         raise InterruptedError("paired dispatch cancelled")
     signal.signal(signal.SIGTERM, cancel)
     signal.signal(signal.SIGINT, cancel)

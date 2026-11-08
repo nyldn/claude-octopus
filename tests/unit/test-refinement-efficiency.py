@@ -18,11 +18,13 @@ ROOT = Path(__file__).resolve().parents[2]
 
 class Efficiency(unittest.TestCase):
     def setUp(self):
+        """Give each case an isolated directory with automatic cleanup."""
         self.tmp = tempfile.TemporaryDirectory(prefix="octo-efficiency-")
         self.addCleanup(self.tmp.cleanup)
         self.base = Path(self.tmp.name)
 
     def test_nul_fields_bash32(self):
+        """Keep empty fields and embedded whitespace intact on Bash 3.2."""
         script = r'''source "$1/scripts/lib/preflight.sh"
 { IFS= read -r -d '' a; IFS= read -r -d '' b; IFS= read -r -d '' c; IFS= read -r -d '' d; } < <(_octo_readiness_json_fields '{"a":"","b":null,"c":"x\n\t\n","d":"last"}' a b c d)
 [[ "$a" == "" && "$b" == "" && "$c" == $'x\n\t\n' && "$d" == last ]]
@@ -30,6 +32,7 @@ class Efficiency(unittest.TestCase):
         subprocess.run(["/bin/bash", "-eu", "-c", script, "test", str(ROOT)], check=True)
 
     def fixture_panel(self):
+        """Build an inert provider panel behind the real preflight helper."""
         helpers = self.base / "scripts/helpers"
         lib = self.base / "scripts/lib"
         helpers.mkdir(parents=True)
@@ -45,10 +48,12 @@ octo_provider_readiness_result() {
         return helpers / "preflight.sh"
 
     def test_scope_receipt_parity_pins_and_fail_closed(self):
+        """Require fresh panel evidence and reject changed receipt identity."""
         helper = self.fixture_panel()
         workspace = self.base / "workspace"; workspace.mkdir()
         env = dict(os.environ, OCTOPUS_PREFLIGHT_PROVIDERS="", OCTOPUS_COUNCIL_DEFAULT_PROVIDERS="", WORKSPACE_DIR=str(workspace))
         def run(*args, changes=None):
+            """Invoke fixture readiness checks with only the requested environment changes."""
             return subprocess.run(["bash", str(helper), "--json", *args], env=dict(env, **(changes or {})), capture_output=True, text=True)
         full = json.loads(run().stdout)
         selected = json.loads(run("--providers", "claude,codex").stdout)
@@ -116,6 +121,7 @@ preflight_check true
         self.assertNotEqual(run(*args).returncode, 0)
 
     def test_optional_diagnostics_scope(self):
+        """Run version diagnostics only for the selected provider panel."""
         binaries = self.base/'bin'; binaries.mkdir()
         log = self.base/'versions'
         for name in ('codex','agy','qwen','gh','opencode'):
@@ -129,11 +135,12 @@ preflight_check true
         log.unlink()
         result = subprocess.run(['bash', str(ROOT / 'scripts/helpers/check-versions.sh'), '--json'],
             env=dict(os.environ, PATH=str(binaries)+':'+os.environ['PATH'], OCTO_ROOT=str(ROOT),
-                     OCTOPUS_PREFLIGHT_DIAGNOSTIC_PROVIDERS='copilot'), check=True, capture_output=True, text=True)
+                     OCTOPUS_PREFLIGHT_DIAGNOSTIC_PROVIDERS='copilot', OCTO_GH_MIN_VERSION='2.0.0'), check=True, capture_output=True, text=True)
         self.assertEqual(log.read_text().splitlines(), ['gh'])
         self.assertTrue(json.loads(result.stdout)['any_below_floor'])
 
     def pair_fixture(self):
+        """Put inert provider execution behind the mandatory judge adapter."""
         scripts = self.base / "scripts"
         scripts.mkdir()
         for name in ("refinement-pair.py", "refinement-judge.sh"):
@@ -162,6 +169,7 @@ print('raw unvalidated output')
         return run
 
     def test_pair_overlap_identity_reservation_and_failure(self):
+        """Overlap two pinned judges and retain failed calls in the budget ledger."""
         run = self.pair_fixture()
         result = subprocess.run(self.pair_args, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -183,6 +191,7 @@ print('raw unvalidated output')
         self.assertNotEqual(subprocess.run(self.pair_args, capture_output=True).returncode, 0)
 
     def test_deadline_and_cancellation(self):
+        """Stop owned judges at the shared deadline or on interruption."""
         run = self.pair_fixture()
         self.pair_args[6] = str(time.time() + 1.5)
         result = subprocess.run(self.pair_args, env=dict(os.environ, TEST_DELAY='5'), capture_output=True)
@@ -206,6 +215,7 @@ print('raw unvalidated output')
             self.assertFalse((other / 'round-0/1/ended').exists())
 
     def test_group_signals_precede_reaping(self):
+        """Keep process-group ownership until every cancellation signal is sent."""
         spec = importlib.util.spec_from_file_location('refinement_pair', ROOT / 'scripts/refinement-pair.py')
         module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
         events = []
@@ -218,9 +228,14 @@ print('raw unvalidated output')
         self.assertEqual([event[2] for event in events[:4]], [signal.SIGTERM] * 2 + [signal.SIGKILL] * 2)
 
     def test_resources_and_packaging(self):
+        """Retain explicit invocation, installed-root lookup and phase resources."""
         for skill in ('skill-refine','flow-discover'):
             text=(ROOT/'skills'/skill/'SKILL.md').read_text()
             self.assertIn('disable-model-invocation: true', text)
+            if skill == 'flow-discover':
+                frontmatter = text.split('---', 2)[1]
+                self.assertNotRegex(frontmatter, r'(?m)^(agent|context):')
+                self.assertIn('main\nconversation', text)
             for link in re.findall(r'skills/[^`\s]+\.md',text):
                 self.assertTrue((ROOT/link).is_file(),link)
         for skill in ('skill-refine', 'flow-discover'):
