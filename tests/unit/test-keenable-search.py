@@ -183,6 +183,55 @@ if build_provider_env openai-compatible-agent; then exit 2; fi
                                 env={**os.environ, "KEENABLE_API_KEY": "inert-fixture"}, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_failed_environment_builder_discards_its_partial_prefix(self):
+        """A partial environment must remain non-executable even for legacy callers."""
+        script = r'''source "$1/scripts/lib/provider-routing.sh"
+_octo_build_provider_env_impl() { PROVIDER_ENV_ARRAY=(env); return 23; }
+build_provider_env codex
+[[ $? == 23 && "${PROVIDER_ENV_ARRAY[0]}" == false ]]
+'''
+        result = subprocess.run(["bash", "-c", script, "fixture", str(ROOT)],
+                                check=False, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_rejected_environment_stops_probe_and_stateless_dispatch(self):
+        """Neither caller may parse or execute argv after isolation fails."""
+        script = r'''source "$1/scripts/lib/workflows.sh"
+source "$1/scripts/lib/state-root.sh"
+log() { :; }
+preflight_check() { :; }
+match_routing_rule() { :; }
+classify_task() { :; }
+apply_persona() { printf '%s' "$2"; }
+enforce_context_budget() { printf '%s' "$1"; }
+get_agent_model() { printf 'fixture-model'; }
+get_agent_command() { printf 'fixture-provider'; }
+octo_prompt_byte_length() { printf '1'; }
+validate_agent_command() { :; }
+record_agent_call() { :; }
+update_metrics() { :; }
+bridge_register_task() { :; }
+update_agent_status() { printf '%s\n' "$2" >> "$FIXTURE_DIR/status"; }
+write_agent_status() { :; }
+octopus_persistence_diagnostic() { :; }
+# A failed builder can leave an empty or otherwise executable prefix.
+build_provider_env() { PROVIDER_ENV_ARRAY=(); return 1; }
+octo_dispatch_command_to_argv() { touch "$FIXTURE_DIR/parsed"; return 1; }
+RESULTS_DIR="$FIXTURE_DIR/results" LOGS_DIR="$FIXTURE_DIR/logs"
+SUPPORTS_AGENT_TYPE_ROUTING=false
+probe_single_agent codex evidence fixture
+probe_status=$?
+[[ "$probe_status" != 0 && ! -e "$FIXTURE_DIR/parsed" ]] || exit 2
+[[ "$(tail -n 1 "$FIXTURE_DIR/status")" == failed ]] || exit 3
+octopus_run_provider_without_persistence codex evidence 1 fixture-provider
+[[ $? != 0 && ! -e "$FIXTURE_DIR/parsed" ]]
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            result = subprocess.run(["bash", "-c", script, "fixture", str(ROOT)],
+                                    env={**os.environ, "FIXTURE_DIR": directory},
+                                    check=False, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_binary_provider_prefix_is_executable_after_an_external_boundary(self):
         """Compose the actual model argv with a launcher that uses execvp."""
         script = '''set -eu
@@ -208,8 +257,51 @@ exit "$child_status"
                            "OCTOPUS_ALLOW_FULL_AGY_ENV": "true", "OCTOPUS_ALLOW_FULL_KIMI_ENV": "true",
                            "OCTOPUS_ALLOW_FULL_GROK_ENV": "true"}
                     result = subprocess.run(["bash", "-c", script, "fixture", str(ROOT), provider, os.sys.executable],
-                                            env=env, capture_output=True, text=True)
+                                            env=env, check=False, capture_output=True, text=True)
                     self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_binary_environment_survives_real_tangle_boundary_composition(self):
+        """Run the production argv composer with an inert Bubblewrap launcher."""
+        script = r'''set -eu
+source "$1/scripts/lib/provider-routing.sh"
+source "$1/scripts/lib/spawn.sh"
+log() { :; }
+octopus_tangle_execution_boundary_probe() { return 0; }
+export OCTOPUS_TANGLE_EXECUTION_BOUNDARY=true
+OCTOPUS_TANGLE_WORKTREE="$FIXTURE_DIR/project"
+OCTOPUS_TANGLE_RESULTS_DIR="$FIXTURE_DIR/results"
+mkdir -p "$OCTOPUS_TANGLE_WORKTREE" "$OCTOPUS_TANGLE_RESULTS_DIR"
+agent_type="$2" role=reviewer phase=tangle
+build_provider_env "$agent_type"
+cmd_array=("${PROVIDER_ENV_ARRAY[@]}" bash -c '
+    [[ -z "${KEENABLE_API_KEY+x}" && "$OCTOPUS_AUTO_PEER_ACTIVE" == true ]] || exit 3
+    [[ "$1" != agy || "$OCTOPUS_AGY_MODEL" == "fixture model" ]]
+' fixture "$agent_type")
+if [[ "$agent_type" == agy ]]; then
+    cmd_array=("${PROVIDER_ENV_ARRAY[@]}" 'OCTOPUS_AGY_MODEL=fixture model' bash -c '
+        [[ -z "${KEENABLE_API_KEY+x}" && "$OCTOPUS_AGY_MODEL" == "fixture model" ]]
+    ')
+fi
+octopus_tangle_apply_execution_boundary
+[[ "${cmd_array[0]}" == bwrap ]]
+"${cmd_array[@]}"
+[[ "$KEENABLE_API_KEY" == inert-fixture ]]
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            launcher = Path(directory) / "bwrap"
+            launcher.write_text('#!/bin/sh\nwhile [ "$#" -gt 0 ] && [ "$1" != -- ]; do shift; done\n[ "$#" -gt 0 ] || exit 64\nshift\nexec "$@"\n')
+            launcher.chmod(0o755)
+            for provider in ("agy", "kimi", "grok"):
+                for security in ("true", "false"):
+                    with self.subTest(provider=provider, security=security):
+                        result = subprocess.run(["bash", "-c", script, "fixture", str(ROOT), provider],
+                            env={**os.environ, "PATH": directory + os.pathsep + os.environ["PATH"],
+                                 "FIXTURE_DIR": directory, "KEENABLE_API_KEY": "inert-fixture",
+                                 "OCTOPUS_SECURITY_V870": security, "OCTOPUS_AUTO_PEER_ACTIVE": "true",
+                                 "OCTOPUS_ALLOW_FULL_AGY_ENV": "true", "OCTOPUS_ALLOW_FULL_KIMI_ENV": "true",
+                                 "OCTOPUS_ALLOW_FULL_GROK_ENV": "true"},
+                            check=False, capture_output=True, text=True)
+                        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_malformed_url_does_not_discard_valid_sibling_results(self):
         """A bad third-party URL affects that row alone."""

@@ -176,8 +176,12 @@ _octo_run_model_without_search_key() (
 )
 
 build_provider_env() {
-    _octo_build_provider_env_impl "$@"
-    local _rc=$?
+    local _rc=0
+    _octo_build_provider_env_impl "$@" || _rc=$?
+    if [[ "$_rc" -ne 0 ]]; then
+        PROVIDER_ENV_ARRAY=(false)
+        return "$_rc"
+    fi
     [[ "${PROVIDER_ENV_ARRAY[0]:-}" != false ]] || return 1
     _octo_provider_env_forward_workspace_dir
     _octo_provider_env_forward_auto_peer_guard
