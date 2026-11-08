@@ -104,6 +104,12 @@ octo_provider_readiness_result() {
             env=dict(os.environ, PATH=str(binaries)+':'+os.environ['PATH'], OCTO_ROOT=str(ROOT),
                      OCTOPUS_PREFLIGHT_DIAGNOSTIC_PROVIDERS='codex'), check=True,capture_output=True)
         self.assertEqual(log.read_text().splitlines(), ['codex'])
+        log.unlink()
+        result = subprocess.run(['bash', str(ROOT / 'scripts/helpers/check-versions.sh'), '--json'],
+            env=dict(os.environ, PATH=str(binaries)+':'+os.environ['PATH'], OCTO_ROOT=str(ROOT),
+                     OCTOPUS_PREFLIGHT_DIAGNOSTIC_PROVIDERS='copilot'), check=True, capture_output=True, text=True)
+        self.assertEqual(log.read_text().splitlines(), ['gh'])
+        self.assertTrue(json.loads(result.stdout)['any_below_floor'])
 
     def pair_fixture(self):
         scripts = self.base / "scripts"

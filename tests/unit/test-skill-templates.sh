@@ -122,6 +122,7 @@ cp -R "$PROJECT_ROOT/commands/." "$FIXTURE_ROOT/commands/" 2>/dev/null || true
 cp -R "$PROJECT_ROOT/agents/personas/." "$FIXTURE_ROOT/agents/personas/" 2>/dev/null || true
 [[ -d "$PROJECT_ROOT/hooks" ]] && cp -R "$PROJECT_ROOT/hooks/." "$FIXTURE_ROOT/hooks/" 2>/dev/null || true
 cp "$PROJECT_ROOT/package.json" "$FIXTURE_ROOT/package.json"
+cp -R "$PROJECT_ROOT/skills/flow-discover" "$FIXTURE_ROOT/skills/flow-discover"
 
 run_gen() { env "GEN_SKILL_DOCS_ROOT=${FIXTURE_ROOT}" "$GEN_SCRIPT" "$@"; }
 
@@ -139,6 +140,12 @@ dry_run_output=$(run_gen --dry-run 2>&1) || true
 
 # First regenerate the fixture to ensure freshness
 run_gen > /dev/null 2>&1
+
+if cmp -s "$FIXTURE_ROOT/skills/flow-discover/SKILL.md" "$FIXTURE_ROOT/.claude/skills/flow-discover/SKILL.md"; then
+    pass "legacy discovery template preserves the canonical phase-loaded entry"
+else
+    fail "legacy discovery template preserves the canonical phase-loaded entry" "canonical entry was overwritten"
+fi
 
 # Now dry-run should pass
 dry_run_output=$(run_gen --dry-run 2>&1)

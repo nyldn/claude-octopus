@@ -97,6 +97,25 @@ while IFS= read -r tmpl; do
         target="$(dirname "$tmpl")/SKILL.md"
     fi
 
+    # Phase-loaded skills are authored under root skills/. Their legacy
+    # templates must never restore an obsolete single-file contract.
+    canonical_source="$PLUGIN_ROOT/skills/$tmpl_name/SKILL.md"
+    if [[ "$tmpl_name" == flow-discover || "$tmpl_name" == skill-refine ]] && [[ -f "$canonical_source" ]]; then
+        processed=$((processed + 1))
+        if $DRY_RUN; then
+            if cmp -s "$canonical_source" "$target"; then
+                echo "  OK: $tmpl_name (canonical)"
+            else
+                echo "  STALE: $tmpl_name (canonical)"
+                changed=$((changed + 1))
+            fi
+        else
+            cp "$canonical_source" "$target"
+            echo "  Generated: $tmpl_name (canonical)"
+        fi
+        continue
+    fi
+
     # Start with the template
     cp "$tmpl" "$WORK_DIR/current.md"
 

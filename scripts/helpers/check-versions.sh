@@ -37,10 +37,11 @@ declare -a CHECK_STATUSES
 ANY_BELOW_FLOOR=0
 
 check_version() {
-  local name="$1" cmd="$2" min="$3" flag="${4:---version}"
+  local name="$1" cmd="$2" min="$3" flag="${4:---version}" provider="$1"
 
   if [[ -n "${OCTOPUS_PREFLIGHT_DIAGNOSTIC_PROVIDERS:-}" ]]; then
-    case " ${OCTOPUS_PREFLIGHT_DIAGNOSTIC_PROVIDERS//$'\n'/ } " in *" $name "*) ;; *) return 0 ;; esac
+    [[ "$name" != gh ]] || provider=copilot
+    case " ${OCTOPUS_PREFLIGHT_DIAGNOSTIC_PROVIDERS//$'\n'/ } " in *" $provider "*|*" $name "*) ;; *) return 0 ;; esac
   fi
   # Skip if CLI not installed — version check only applies to present providers.
   command -v "${cmd}" &>/dev/null || return 0

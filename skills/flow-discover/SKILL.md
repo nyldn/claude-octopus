@@ -2,6 +2,19 @@
 name: flow-discover
 description: "Multi-AI research using available external providers (Double Diamond Discover phase)"
 disable-model-invocation: true
+agent: Explore
+context: fork
+task_management: true
+task_dependencies:
+  - skill-context-detection
+  - skill-visual-feedback
+execution_mode: enforced
+pre_execution_contract:
+  - context_detected
+  - visual_indicators_displayed
+validation_gates:
+  - orchestrate_sh_executed
+  - synthesis_file_exists
 ---
 
 # Discover contract

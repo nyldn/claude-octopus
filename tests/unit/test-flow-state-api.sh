@@ -150,7 +150,8 @@ rc=0
 if [[ "$rc" -ne 0 ]] && cmp -s .octo/ROADMAP.md "$TEST_TMP_DIR/malformed-roadmap"; then test_pass; else test_fail "malformed roadmap was overwritten"; fi
 
 test_case "the actual Discover lifecycle blocks work with the real state dispatcher"
-python3 - "$PROJECT_ROOT/.claude/skills/flow-discover/SKILL.md" "$STATE" "$TEST_TMP_DIR" <<'PY'
+read_claude_skill_contract flow-discover > "$TEST_TMP_DIR/discover-contract.md"
+python3 - "$TEST_TMP_DIR/discover-contract.md" "$STATE" "$TEST_TMP_DIR" <<'PY'
 from pathlib import Path
 import re
 import sys
@@ -159,6 +160,7 @@ for name, title in (("pre", "Pre-Discovery: Optional Project Persistence"), ("po
     section = text.split("## " + title, 1)[1].split("\n## ", 1)[0]
     block = re.search(r"```bash\n(.*?)\n```", section, re.S).group(1)
     block = block.replace('"${HOME}/.claude-octopus/plugin/scripts/octo-state.sh"', '"' + sys.argv[2] + '"')
+    block = block.replace('"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh"', '"' + sys.argv[2] + '"')
     Path(sys.argv[3], name + ".sh").write_text(block)
 PY
 mkdir -p "$TEST_TMP_DIR/discover-project"

@@ -2,13 +2,17 @@
 
 **Launch each perspective as a background Agent subagent.** Each agent calls `orchestrate.sh probe-single` which handles persona application, credential isolation, result file writing, and durable evidence-run recording. Pass the nonce-bearing `$RUN_ID` to every child and include `$RUN_NONCE` in every task ID so parallel runs cannot share result filenames.
 
-**CRITICAL: You MUST use the host subagent tool with `background execution: true` for each perspective.** Launch providers strictly in the runtime FLEET_OUTPUT sequence.
+Use the host's supported background-delegation interface for each perspective.
+On Claude Code, use `Agent` with `run_in_background: true`. On Codex or another
+host, use the exposed equivalent and follow that host's tool rules. Do not invent
+an `Agent` tool or unsupported arguments. Launch providers strictly in the runtime
+`FLEET_OUTPUT` sequence.
 
-For each perspective in the fleet, launch:
+For each perspective in the fleet, the Claude Code call is:
 
 ```
 Agent(
-  background execution: true,
+  run_in_background: true,
   description: "<label> (<agent_type>)",
   prompt: "Run this command and return its COMPLETE stdout output, including the result file path on the last line:
 
