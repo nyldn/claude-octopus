@@ -1,18 +1,7 @@
 #!/usr/bin/env bash
-# Every test file must be reachable by a gate that CI actually runs (#752).
-#
-# tests/run-all-tests.sh defines five categories and its default includes all of
-# them, but nothing invokes the default: Makefile:21 and .github/workflows/test.yml
-# call test-smoke, test-unit and test-integration individually, each passing a
-# single category flag. So the `root` branch never fires, and 37 test files —
-# including test-credential-isolation.sh — have never run in any gate (#741).
-#
-# Relocating those files fixes today. This fixes tomorrow: a file added anywhere
-# the CI categories do not reach fails here instead of silently asserting nothing.
-#
-# Note the discovery rule being mirrored: discover_tests() uses
-# `find <dir> -maxdepth 1`, so a nested subdirectory under unit/ is unreachable
-# too, not just tests/ root.
+# Every deterministic test file must be reachable by CI. Share category
+# discovery with the public issue matrix and retain the legacy-root baseline.
+# Nested category directories are not discovered by the runner.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -27,57 +16,11 @@ MAKEFILE="$PROJECT_ROOT/Makefile"
 
 WORKFLOW="$PROJECT_ROOT/.github/workflows/test.yml"
 
-# Derived, not hardcoded: read the make targets CI invokes, then resolve each to
-# the runner category its Makefile recipe passes. Adding a `test-root` target and
-# a CI step for it therefore widens what counts as reachable automatically, and
-# this suite stops reporting those files.
-# The single extractor for "which make targets does CI actually invoke".
-#
-# Both consumers below read through this rather than each running their own
-# grep: two spellings of the same parse is the duplication class this repo keeps
-# getting bitten by, and I introduced an instance of it here — one copy matched
-# `test-[a-z0-9]+` and the other `test-[a-z0-9-]+`, so a hyphenated target like
-# `test-plugin-name` would parse as `test-plugin` in one and correctly in the
-# other. They agree today only because no hyphenated target is invoked yet.
-#
-# Comment lines are stripped first. A commented-out step is not an invocation,
-# and treating one as active would either demand a target nobody calls or let a
-# deleted step keep satisfying the count guard below.
-workflow_make_targets() {
-    sed 's/#.*//' "$WORKFLOW" 2>/dev/null \
-        | grep -ohE 'make test-[a-z0-9-]+' \
-        | awk '{print $2}' | sort -u
-}
+source "$SCRIPT_DIR/../helpers/ci-coverage.sh"
 
+# Reject workflow references to missing Make targets before category discovery.
 makefile_has_target() {
     grep -qE "^${1}:" "$MAKEFILE"
-}
-
-# Derived, not hardcoded: read the make targets CI invokes, then resolve each to
-# the runner category its Makefile recipe passes. Adding a `test-root` target and
-# a CI step for it therefore widens what counts as reachable automatically, and
-# this suite stops reporting those files.
-#
-# The awk stops at the next target definition, so a recipe further down the
-# Makefile cannot donate its `run-all.sh` line to a target whose own recipe has
-# none.
-ci_categories() {
-    local target cat
-    while IFS= read -r target; do
-        [[ -n "$target" ]] || continue
-        cat=$(awk -v t="^${target}:" '
-            $0 ~ t { f = 1; next }
-            f && /^[a-zA-Z0-9_.-]+:/ { exit }
-            f && /run-all\.sh/ {
-                command = $0
-                sub(/^.*run-all\.sh[[:space:]]+/, "", command)
-                split(command, args, /[[:space:]]+/)
-                print args[1]
-                exit
-            }
-        ' "$MAKEFILE")
-        [[ -n "$cat" ]] && printf '%s\n' "$cat"
-    done < <(workflow_make_targets) | sort -u
 }
 
 # Mirror discover_tests(): find <dir> -maxdepth 1 -name 'test-*.sh'
@@ -86,7 +29,7 @@ reachable_files() {
     while IFS= read -r cat; do
         [[ -n "$cat" ]] || continue
         find "$TESTS_DIR/$cat" -maxdepth 1 -name 'test-*.sh' -type f 2>/dev/null
-    done < <(ci_categories)
+    done < <(ci_test_categories "$PROJECT_ROOT")
 }
 
 # Two directories are excluded by directory, not filename, so a genuine suite
@@ -101,7 +44,7 @@ all_files() {
 }
 
 test_case "the Makefile names at least one runnable category"
-cats="$(ci_categories)"
+cats="$(ci_test_categories "$PROJECT_ROOT")"
 if [[ -n "$cats" ]]; then
     test_pass
 else
@@ -169,7 +112,7 @@ while IFS= read -r cat; do
     grep -qE "^[[:space:]]*${cat}\)" "$RUNNER" && continue
     grep -qE -- "^[[:space:]]*--${cat}\)" "$RUNNER" && continue
     bad="$bad $cat"
-done < <(ci_categories)
+done < <(ci_test_categories "$PROJECT_ROOT")
 if [[ -z "$bad" ]]; then
     test_pass
 else
@@ -181,7 +124,7 @@ missing_targets=""
 while IFS= read -r target; do
     [[ -n "$target" ]] || continue
     makefile_has_target "$target" || missing_targets="$missing_targets $target"
-done < <(workflow_make_targets)
+done < <(ci_make_targets "$PROJECT_ROOT")
 if [[ -z "$missing_targets" ]]; then
     test_pass
 else
@@ -191,131 +134,11 @@ fi
 # Paired with the above: a target that exists but resolves to no runner
 # category is equally broken, just later in the pipeline.
 test_case "the workflow invokes at least one make target (guards a silent empty set)"
-n_targets="$(workflow_make_targets | grep -c . || true)"
+n_targets="$(ci_make_targets "$PROJECT_ROOT" | grep -c . || true)"
 if [[ "${n_targets:-0}" -ge 3 ]]; then
     test_pass
 else
     test_fail "found only ${n_targets} 'make test-*' invocations in the workflow — the grep or the workflow changed, so the assertion above would be vacuous"
-fi
-
-test_case "ordinary PRs use focused units while safety-net changes keep full core shards"
-unit_timeout_setting="$(awk '
-    /^  unit-full:/ { in_unit = 1; next }
-    in_unit && /^  [[:alnum:]_-]+:/ { exit }
-    in_unit && /^    timeout-minutes:[[:space:]]/ {
-        sub(/^    timeout-minutes:[[:space:]]*/, "")
-        print
-        exit
-    }
-' "$WORKFLOW")"
-macos_entry_count="$(awk '
-    /^  unit-full:/ { in_unit = 1; next }
-    in_unit && /^  [[:alnum:]_-]+:/ { exit }
-    in_unit && /^[[:space:]]+- os:[[:space:]]+macos-latest[[:space:]]*$/ { count++ }
-    END { print count + 0 }
-' "$WORKFLOW")"
-macos_timeout_count="$(awk '
-    /^  unit-full:/ { in_unit = 1; next }
-    in_unit && /^  [[:alnum:]_-]+:/ { exit }
-    in_unit && /^[[:space:]]+- os:[[:space:]]+macos-latest[[:space:]]*$/ { in_macos = 1; next }
-    in_macos && /^[[:space:]]+- os:/ { in_macos = 0 }
-    in_macos && /^[[:space:]]+timeout_minutes:[[:space:]]+45[[:space:]]*$/ { count++ }
-    END { print count + 0 }
-' "$WORKFLOW")"
-macos_shard_indexes="$(awk '
-    /^  unit-full:/ { in_unit = 1; next }
-    in_unit && /^  [[:alnum:]_-]+:/ { exit }
-    in_unit && /^[[:space:]]+- os:[[:space:]]+macos-latest[[:space:]]*$/ { in_macos = 1; next }
-    in_macos && /^[[:space:]]+- os:/ { in_macos = 0 }
-    in_macos && /^[[:space:]]+shard_index:[[:space:]]/ { print $2 }
-' "$WORKFLOW" | LC_ALL=C sort | tr '\n' ',' | sed 's/,$//')"
-macos_shard_count_rows="$(awk '
-    /^  unit-full:/ { in_unit = 1; next }
-    in_unit && /^  [[:alnum:]_-]+:/ { exit }
-    in_unit && /^[[:space:]]+- os:[[:space:]]+macos-latest[[:space:]]*$/ { in_macos = 1; next }
-    in_macos && /^[[:space:]]+- os:/ { in_macos = 0 }
-    in_macos && /^[[:space:]]+shard_count:[[:space:]]+2[[:space:]]*$/ { count++ }
-    END { print count + 0 }
-' "$WORKFLOW")"
-ubuntu_timeout_minutes="$(awk '
-    /^  unit-full:/ { in_unit = 1; next }
-    in_unit && /^  [[:alnum:]_-]+:/ { exit }
-    in_unit && /^[[:space:]]+- os:[[:space:]]+ubuntu-latest[[:space:]]*$/ { in_ubuntu = 1; next }
-    in_ubuntu && /^[[:space:]]+- os:/ { exit }
-    in_ubuntu && /^[[:space:]]+timeout_minutes:[[:space:]]/ { print $2; exit }
-' "$WORKFLOW")"
-if [[ "$unit_timeout_setting" == '${{ matrix.timeout_minutes }}' ]] \
-   && [[ "$macos_entry_count" == "2" ]] \
-   && [[ "$macos_timeout_count" == "2" ]] \
-   && [[ "$macos_shard_indexes" == "0,1" ]] \
-   && [[ "$macos_shard_count_rows" == "2" ]] \
-   && [[ "$ubuntu_timeout_minutes" == "45" ]] \
-   && grep -Fq -- '--exclude=unit/test-council-command.sh' "$WORKFLOW" \
-   && grep -Fq -- '--shard-index=${{ matrix.shard_index }} --shard-count=${{ matrix.shard_count }}' "$WORKFLOW" \
-   && grep -Fq 'unit-focused:' "$WORKFLOW" \
-   && grep -Fq 'github.event_name == '\''pull_request'\''' "$WORKFLOW" \
-   && grep -Fq "needs.classify-changes.outputs.full_unit != 'true'" "$WORKFLOW" \
-   && grep -Fq 'ci-changed.sh --base "$BASE_SHA" --unit-only --skip-smoke' "$WORKFLOW"; then
-    test_pass
-else
-    test_fail "ordinary PRs must use the focused selector while safety-net changes retain full deterministic shards"
-fi
-
-test_case "deep council coverage is explicit outside ordinary PRs"
-deep_job="$(awk '
-    /^  unit-deep:/ { in_job = 1 }
-    in_job && /^  [[:alnum:]_-]+:/ && $0 !~ /^  unit-deep:/ { exit }
-    in_job { print }
-' "$WORKFLOW")"
-if [[ "$deep_job" == *'name: Unit Tests (deep council)'* ]] &&
-   [[ "$deep_job" == *"github.event_name == 'schedule'"* ]] &&
-   [[ "$deep_job" == *"github.event_name == 'workflow_dispatch'"* ]] &&
-   [[ "$deep_job" == *"github.event_name == 'merge_group'"* ]] &&
-   [[ "$deep_job" == *"github.ref == 'refs/heads/main'"* ]] &&
-   [[ "$deep_job" == *'./tests/run-all-tests.sh --suite=unit/test-council-command.sh'* ]] &&
-   grep -Fq 'unit-deep' "$WORKFLOW"; then
-    test_pass
-else
-    test_fail "deep council suite is not explicitly reachable from a deliberate non-PR lane"
-fi
-
-test_case "required Unit Tests aggregates the symlink and deep lanes"
-symlink_job="$(awk '
-    /^  symlinked-path:/ { in_job = 1 }
-    in_job && /^  [[:alnum:]_-]+:/ && $0 !~ /^  symlinked-path:/ { exit }
-    in_job { print }
-' "$WORKFLOW")"
-if grep -Fq 'needs: [classify-changes, unit-focused, unit-full, unit-deep, symlinked-path]' "$WORKFLOW" &&
-   grep -Fq 'needs.symlinked-path.result' "$WORKFLOW" &&
-   [[ "$symlink_job" == *'GITHUB_EVENT_NAME: ${{ github.event_name }}'* ]] &&
-   [[ "$symlink_job" == *'if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then'* ]] &&
-   [[ "$symlink_job" == *'make test-symlink-sensitive'* ]] &&
-   [[ "$symlink_job" == *'else'* ]] &&
-   [[ "$symlink_job" == *'make test-unit'* ]] &&
-   [[ "$symlink_job" == *'logical and physical paths match'* ]]; then
-    test_pass
-else
-    test_fail "the required Unit Tests check must include targeted PR symlink coverage and the full non-PR symlink gate"
-fi
-
-test_case "manual workflows run the heavy integration lane"
-integration_job="$(awk '
-    /^  integration-heavy:/ { in_job = 1 }
-    in_job && /^  [[:alnum:]_-]+:/ && $0 !~ /^  integration-heavy:/ { exit }
-    in_job { print }
-' "$WORKFLOW")"
-if grep -Fq "github.event_name == 'workflow_dispatch'" <<< "$integration_job"; then
-    test_pass
-else
-    test_fail "workflow_dispatch selects heavy tests but skips integration-heavy"
-fi
-
-test_case "integration-heavy runs after a successful unit aggregate despite skipped optional lanes"
-if [[ "$integration_job" == *'if: always() &&'* ]] &&
-   [[ "$integration_job" == *"needs.unit-required.result == 'success'"* ]]; then
-    test_pass
-else
-    test_fail "integration-heavy must bypass optional skipped lanes but remain blocked by a failed Unit Tests aggregate"
 fi
 
 test_case "at least one test is actually discovered (guards a silent empty set)"

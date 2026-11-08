@@ -361,12 +361,17 @@ if ! UNRESOLVED_THREADS=$(octo_release_unresolved_review_threads \
     echo "   ERROR: Could not read PR review threads."
     exit 1
 fi
-if ! octo_release_review_gate "$REVIEW_DECISION" "$UNRESOLVED_THREADS"; then
-    echo "   REVIEW BLOCKED — decision=${REVIEW_DECISION:-none} | unresolved threads=${UNRESOLVED_THREADS}"
-    echo "   An explicit approval and zero unresolved threads are required."
+if ! CURRENT_HEAD_APPROVED=$(octo_release_current_head_approval \
+    "$REPO_OWNER" "$REPO_NAME" "$PR_NUM" "$PR_HEAD_SHA"); then
+    echo "   ERROR: Could not verify reviews for release head ${PR_HEAD_SHA}."
     exit 1
 fi
-echo "   Review: ${REVIEW_DECISION} | unresolved threads: 0"
+if ! octo_release_review_gate "$REVIEW_DECISION" "$UNRESOLVED_THREADS" "$CURRENT_HEAD_APPROVED"; then
+    echo "   REVIEW BLOCKED — decision=${REVIEW_DECISION:-none} | unresolved threads=${UNRESOLVED_THREADS} | current-head approval=${CURRENT_HEAD_APPROVED}"
+    echo "   An explicit approval on ${PR_HEAD_SHA} and zero unresolved threads are required."
+    exit 1
+fi
+echo "   Review: ${REVIEW_DECISION} on ${PR_HEAD_SHA} | unresolved threads: 0"
 echo ""
 
 # Reject a head replacement between PR creation and the completed gates.

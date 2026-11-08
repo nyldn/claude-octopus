@@ -14,7 +14,7 @@ without the score validator's passing result for the delivered artifact.
 
 Read and follow `skills/skill-refine/SKILL.md` from the installed Octopus
 root. Use `${CLAUDE_PLUGIN_ROOT}` when available, otherwise
-`${HOME}/.claude-octopus/plugin`. Do not invoke this command recursively.
+`${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}`. Do not invoke this command recursively.
 
 Input: $ARGUMENTS
 

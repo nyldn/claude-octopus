@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.17.1",
-  "description": "v11.17.1 \u2014 Recognize Vibe logins and verify current workflow reports. Run /octo:setup.",
+  "version": "11.18.0",
+  "description": "v11.18.0 \u2014 Rubric-guided refinement, bounded improvement loops, and safer guard and review workflows. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
