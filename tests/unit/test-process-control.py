@@ -43,6 +43,15 @@ class ProcessControlTests(unittest.TestCase):
         self.children.append(child)
         return child
 
+    def _private_group_leader(self):
+        """Return a fixture only after its private session is established."""
+        root = self.child("import os,time; os.setsid(); time.sleep(30)")
+        deadline = time.monotonic() + 3
+        while os.getpgid(root.pid) != root.pid and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.assertEqual(os.getpgid(root.pid), root.pid)
+        return root
+
     def test_snapshot_is_stable_and_has_real_parent(self):
         child = self.child()
         first = control.snapshot(child.pid)
@@ -154,12 +163,23 @@ class ProcessControlTests(unittest.TestCase):
                 try:
                     self.assertNotEqual(orphan.info.ppid, root.pid)
                     self.assertEqual(os.getpgid(orphan.info.pid), root.pid)
+                    real_groups = control._process_groups
+                    scans = []
+
+                    def changing_groups():
+                        scans.append(control.snapshot(root.pid).stopped)
+                        if len(scans) == 1:
+                            yield 2**30, root.pid
+                        yield from real_groups()
+
                     with mock.patch.object(os, "kill") as kill, \
-                         mock.patch.object(os, "killpg") as killpg:
+                         mock.patch.object(os, "killpg") as killpg, \
+                         mock.patch.object(control, "_process_groups", changing_groups):
                         self.assertEqual(control.terminate(root.pid, frozen=True, owned_groups=True),
                                          "terminated")
                         kill.assert_not_called()
                         killpg.assert_not_called()
+                    self.assertEqual(scans, [True, True])
                     self.assertFalse(orphan.running())
                     self.assertIsNone(unrelated.poll())
                 finally:
@@ -200,27 +220,52 @@ class ProcessControlTests(unittest.TestCase):
         leader.info.pid = 4242
         with mock.patch.object(control, "_owned_group_candidates", return_value=[(4343, leader)]), \
              mock.patch.object(control, "Process", side_effect=ProcessLookupError()):
-            with self.assertRaises(control.StaleProcess):
-                control._admit_owned_group_members([leader], [], set(), set())
+            self.assertEqual(control._admit_owned_group_members([leader], [], set(), set()),
+                             ([], True))
+
+    def test_owned_group_rescans_after_exit_without_resuming_the_leader(self):
+        """Transient group churn retains the stopped owner until a complete scan."""
+        root = self._private_group_leader()
+        scans = []
+
+        def groups():
+            scans.append(control.snapshot(root.pid).stopped)
+            if len(scans) == 1:
+                yield 2**30, root.pid
+
+        with mock.patch.object(control, "_process_groups", groups):
+            self.assertEqual(control.terminate(root.pid, frozen=True, owned_groups=True), "terminated")
+        self.assertEqual(scans, [True, True])
+
+    def test_owned_group_persistent_churn_is_bounded_and_resumes_the_leader(self):
+        """Exhausted rescans refuse safely and resume the same stopped process."""
+        root = self._private_group_leader()
+        scans = []
+
+        def groups():
+            scans.append(control.snapshot(root.pid).stopped)
+            yield 2**30, root.pid
+
+        with mock.patch.object(control, "_process_groups", groups):
+            with self.assertRaisesRegex(control.StaleProcess, "kept changing"):
+                control.terminate(root.pid, frozen=True, owned_groups=True)
+        self.assertEqual(scans, [True] * 5)
+        deadline = time.monotonic() + 1
+        while control.snapshot(root.pid).stopped and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.assertFalse(control.snapshot(root.pid).stopped)
+        self.assertIsNone(root.poll())
 
     @unittest.skipUnless(sys.platform.startswith("linux"), "Linux procfs enumeration")
     def test_owned_group_cleanup_on_linux_does_not_require_ps(self):
         """Minimal Linux hosts need only the existing readable procfs contract."""
-        root = self.child("import os,time; os.setsid(); time.sleep(30)")
-        deadline = time.monotonic() + 3
-        while os.getpgid(root.pid) != root.pid and time.monotonic() < deadline:
-            time.sleep(0.01)
-        self.assertEqual(os.getpgid(root.pid), root.pid)
+        root = self._private_group_leader()
         with mock.patch.object(subprocess, "run", side_effect=FileNotFoundError("ps")):
             self.assertEqual(control.terminate(root.pid, frozen=True, owned_groups=True), "terminated")
 
     def test_owned_group_scan_failure_resumes_bound_leader(self):
         """Unavailable group metadata refuses cleanup without stranding STOP."""
-        root = self.child("import os,time; os.setsid(); time.sleep(30)")
-        deadline = time.monotonic() + 3
-        while os.getpgid(root.pid) != root.pid and time.monotonic() < deadline:
-            time.sleep(0.01)
-        self.assertEqual(os.getpgid(root.pid), root.pid)
+        root = self._private_group_leader()
         with mock.patch.object(control, "_process_groups", side_effect=PermissionError("group scan")):
             with self.assertRaises(PermissionError):
                 control.terminate(root.pid, frozen=True, owned_groups=True)

@@ -332,8 +332,9 @@ def _owned_group_candidates(leaders):
 
 
 def _admit_owned_group_members(leaders, handles, seen, excluded):
-    """Bind group members before adding them to the caller's freeze queue."""
+    """Return newly bound members and whether exits require another scan."""
     admitted = []
+    rescan = False
     for child, leader in _owned_group_candidates(leaders):
         if child in seen or child in excluded:
             continue
@@ -341,10 +342,11 @@ def _admit_owned_group_members(leaders, handles, seen, excluded):
             raise OSError(errno.EOVERFLOW, "process tree exceeds cancellation limit")
         try:
             member = Process(child)
-        except (ProcessLookupError, StaleProcess) as error:
-            # It may have forked an unseen member before exiting. Refuse this
-            # snapshot so the caller can retry while the private leader lives.
-            raise StaleProcess("group member exited before identity admission") from error
+        except (ProcessLookupError, StaleProcess):
+            # A forked child keeps this PGID. Rescan before leader teardown,
+            # retaining already stopped processes instead of restarting them.
+            rescan = True
+            continue
         handles.append(member)
         try:
             same_group = os.getpgid(child) == leader.info.pid
@@ -356,7 +358,7 @@ def _admit_owned_group_members(leaders, handles, seen, excluded):
             raise StaleProcess("private group changed during member admission")
         seen.add(child)
         admitted.append((member, True))
-    return admitted
+    return admitted, rescan
 
 
 def terminate(pid, grace=1, frozen=False, descendants=False, expected=None, owned_groups=False):
@@ -374,14 +376,19 @@ def terminate(pid, grace=1, frozen=False, descendants=False, expected=None, owne
         handles.append(root)
         pending = [None, (root, not descendants)] if owned_groups else [(root, not descendants)]
         group_leaders = []
+        group_rescans = 0
         seen = {pid}
         while pending:
             entry = pending.pop()
             if entry is None:
-                admitted = _admit_owned_group_members(group_leaders, handles, seen, excluded)
+                admitted, rescan = _admit_owned_group_members(group_leaders, handles, seen, excluded)
+                if rescan:
+                    group_rescans += 1
+                    if group_rescans >= 5:
+                        raise StaleProcess("owned group kept changing during admission")
                 # Members can fork before STOP. Rescan after freezing every new
                 # member, until the still-owned groups contain no unseen process.
-                if admitted:
+                if admitted or rescan:
                     pending.extend([None, *admitted])
                 continue
             handle, freeze = entry

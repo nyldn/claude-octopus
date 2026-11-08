@@ -30,8 +30,10 @@ from its numeric group ID alone. Quota cleanup can also capture reparented
 members of a private group while its original leader remains a verified,
 stopped descendant. It enumerates group membership from Linux procfs or a bounded macOS `/bin/ps`
 query, binds each member to its native identity, and rescans after freezing
-new members. A missing leader, disappearing member or failed enumeration
-refuses cleanup; it never sends a signal to a numeric group ID. The quota
+new members. A member that exits before identity capture requests another scan
+while verified processes remain stopped. Five unstable scans, a missing leader,
+changed membership or failed enumeration refuses cleanup; it never sends a
+signal to a numeric group ID. The quota
 watcher retries refused cleanup up to five times while the worker remains alive,
 then reports that provider work may still be running.
 
