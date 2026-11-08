@@ -458,7 +458,9 @@ anthropic-api`. Set `ANTHROPIC_API_KEY` in the caller environment before use.
 
 Its default model is `claude-sonnet-5-5` with high effort. API `auto` thinking
 selects `between_tools` at low, medium, or high effort, and adaptive thinking
-at xhigh or max. `claude-opus-5-5` uses adaptive thinking. Explicit model and
+at xhigh or max. Explicit automatic effort uses adaptive thinking and omits the
+API effort parameter; omitting effort retains the high fallback.
+`claude-opus-5-5` uses adaptive thinking. Explicit model and
 effort pins reach the request unchanged. Unsupported models and incompatible
 thinking modes fail before transport. Set `OCTOPUS_ANTHROPIC_API_TIMEOUT` to
 change the 120-second request timeout, up to 600 seconds, and
