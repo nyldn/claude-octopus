@@ -2,17 +2,6 @@
 
 ## [Unreleased]
 
-### Added
-
-- Deck generation verifies rendered slides before reporting completion. It
-  checks thumbnails, rendered titles and highlighted data claims, then reports
-  each slide's result. Artifacts with missing evidence remain drafts.
-  Addresses [#1219](https://github.com/nyldn/claude-octopus/issues/1219).
-- Cost tiers can now pair a model or capability with reasoning effort in
-  `providers.json`, such as `{"capability":"default","reasoning":"low"}`.
-  Existing string targets still work. Tier effort applies only when that tier
-  selects the model; explicit model routes and effort overrides keep precedence.
-
 ### Fixed
 
 - Quota fast-fails preserve a provider's own temporary-failure status and auth
@@ -35,6 +24,21 @@
   claiming the provider exceeded its timeout.
   Synchronous dispatch also records a failed termination in status and usage
   rather than a timeout, with a launcher-authored reason.
+
+## [11.19.0] - 2026-11-08
+
+### Added
+
+- Deck generation verifies rendered slides before reporting completion. It
+  checks thumbnails, rendered titles and highlighted data claims, then reports
+  each slide's result. Artifacts with missing evidence remain drafts.
+  Addresses [#1219](https://github.com/nyldn/claude-octopus/issues/1219).
+- Cost tiers can now pair a model or capability with reasoning effort in
+  `providers.json`, such as `{"capability":"default","reasoning":"low"}`.
+  Existing string targets still work. Tier effort applies only when that tier
+  selects the model; explicit model routes and effort overrides keep precedence.
+
+### Fixed
 
 - Research verification no longer fails a synthesis for referring to its own
   numbered points. A synthesis line such as "See point 2." or "Corrected in
