@@ -172,7 +172,7 @@ class ProcessControlTests(unittest.TestCase):
         for running, pgid in [(False, 4242), (True, 4343)]:
             leader.running.return_value = running
             with mock.patch.object(os, "getpgid", return_value=pgid), \
-                 mock.patch.object(subprocess, "run") as scan:
+                 mock.patch.object(control, "_process_groups") as scan:
                 with self.assertRaises(control.StaleProcess):
                     list(control._owned_group_candidates([leader]))
                 scan.assert_not_called()
@@ -210,6 +210,7 @@ class ProcessControlTests(unittest.TestCase):
         deadline = time.monotonic() + 3
         while os.getpgid(root.pid) != root.pid and time.monotonic() < deadline:
             time.sleep(0.01)
+        self.assertEqual(os.getpgid(root.pid), root.pid)
         with mock.patch.object(subprocess, "run", side_effect=FileNotFoundError("ps")):
             self.assertEqual(control.terminate(root.pid, frozen=True, owned_groups=True), "terminated")
 
