@@ -48,6 +48,7 @@ SHARD_COUNT=1
 SHARD_WEIGHTS_FILE="$SCRIPT_DIR/shard-weights.tsv"
 SUITE_TIMINGS=()
 
+# Describe supported runner flags without discovering or executing suites.
 print_usage() {
     cat <<'EOF'
 Usage: ./tests/run-all-tests.sh [OPTIONS] [--CATEGORY ...]
@@ -138,6 +139,7 @@ discover_tests() {
     fi
 }
 
+# Report suite failures and durations after the selected test run.
 print_summary() {
     echo ""
     echo ""
@@ -213,7 +215,10 @@ for arg in "$@"; do
             EXCLUDED_SUITE_ARGS+=("$exclude_arg")
             ;;
         *)
-            echo -e "${YELLOW}Unknown flag '$arg', ignoring${NC}" ;;
+            echo -e "${RED}Unknown flag '$arg'${NC}" >&2
+            print_usage >&2
+            exit 2
+            ;;
     esac
 done
 

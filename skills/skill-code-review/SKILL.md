@@ -32,8 +32,8 @@ For fast sanity checks (staged changes, small PRs), skip the full review pipelin
 
 ```bash
 # Quick: grasp (consensus on scope) → tangle (parallel review)
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh grasp "[review request]"
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh tangle "[synthesized scope]"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" grasp "[review request]"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" tangle "[synthesized scope]"
 ```
 
 Use quick mode when user says "check this PR", "quick review", "sanity check my changes", or for pre-commit checks. Use the full review for PRs with security/architecture impact.
@@ -42,10 +42,10 @@ Use quick mode when user says "check this PR", "quick review", "sanity check my 
 
 ```bash
 # Via orchestrate.sh
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh spawn code-reviewer "Review this pull request for security issues"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn code-reviewer "Review this pull request for security issues"
 
 # Via auto-routing (detects review intent)
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh auto "review the authentication implementation"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" auto "review the authentication implementation"
 ```
 
 ## Capabilities
@@ -274,7 +274,7 @@ ${REVIEW_SYNTHESIS}
     # Post through the outbound credential gate. Never interpolate generated
     # Markdown directly into a gh shell argument.
     REPO_SLUG=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
-    if ! "${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}/scripts/safe-gh-comment.sh" \
+    if ! "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/safe-gh-comment.sh" \
             --repo "$REPO_SLUG" pr-comment "$PR_NUM" - <<< "$REVIEW_BODY"; then
         echo "GitHub write state is unknown; check for the review comment before retrying:" >&2
         gh pr view "$PR_NUM" --repo "$REPO_SLUG" --comments || true
@@ -283,7 +283,7 @@ ${REVIEW_SYNTHESIS}
     echo "Review posted to PR #${PR_NUM}"
 
     # Update agent registry if this agent is tracked
-    REGISTRY="${HOME}/.claude-octopus/plugin/scripts/agent-registry.sh"
+    REGISTRY="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/agent-registry.sh"
     if [[ -x "$REGISTRY" ]]; then
         AGENT_ID=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
         "$REGISTRY" update "$AGENT_ID" --pr "$PR_NUM" 2>/dev/null || true

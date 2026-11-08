@@ -10,7 +10,7 @@ import urllib.request
 
 ENDPOINT = "https://api.anthropic.com/v1/messages"
 MODELS = {"claude-sonnet-5-5", "claude-opus-5-5"}
-EFFORTS = {"low", "medium", "high", "xhigh", "max"}
+EFFORTS = {"auto", "low", "medium", "high", "xhigh", "max"}
 MAX_RESPONSE_BYTES = 16 * 1024 * 1024
 
 
@@ -27,7 +27,7 @@ def thinking_config(model, effort, thinking):
     if model not in MODELS:
         raise ValueError("anthropic-api supports claude-sonnet-5-5 and claude-opus-5-5; use the CLI seat for other models")
     if effort not in EFFORTS:
-        raise ValueError("effort must be low, medium, high, xhigh, or max")
+        raise ValueError("effort must be auto, low, medium, high, xhigh, or max")
     if thinking not in {"auto", "adaptive", "between_tools"}:
         raise ValueError("thinking must be auto, adaptive, or between_tools")
     if thinking == "auto":
@@ -54,8 +54,9 @@ def execute(prompt, *, model="claude-sonnet-5-5", effort="high", thinking="auto"
     if not 1 <= max_tokens <= 128000:
         raise ValueError("max tokens must be between 1 and 128000")
     payload = {"model": model, "max_tokens": max_tokens, "thinking": config,
-               "output_config": {"effort": effort},
                "messages": [{"role": "user", "content": prompt}]}
+    if effort != "auto":
+        payload["output_config"] = {"effort": effort}
     request = urllib.request.Request(ENDPOINT, data=json.dumps(payload).encode("utf-8"),
                                      headers={"x-api-key": key, "anthropic-version": "2023-06-01",
                                               "Content-Type": "application/json"}, method="POST")

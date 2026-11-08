@@ -31,24 +31,19 @@ marketplaces and source/package archives. Use the installation instructions in
 [plugin compatibility](docs/PLUGIN-COMPATIBILITY.md). Keep development additions
 under Unreleased until the release process publishes them.
 
-For changes to workflow documentation, regenerate current facts and run the
-changed-file selector before pushing:
+Before pushing, regenerate current facts, check the fast tier, and run the
+regressions for the changed behavior:
 
 ```bash
 make sync
-make ci-changed
-make validate-plugin-assembly
+make ci-quick
+scripts/ci-changed.sh --list
 ```
 
-During development, run the focused suites for the paths you changed. Do not
-repeat a suite already covered by the successful pre-push run:
-
-```bash
-bash tests/unit/test-workflow-method-contracts.sh
-bash tests/unit/test-routing-preview.sh
-bash tests/unit/test-setup-first-success.sh
-bash tests/unit/test-setup-state.sh
-```
+If the selector reports focused coverage, `make ci-changed` runs those suites.
+For shared or unknown changes it selects the complete local matrix; use that
+for offline diagnosis when needed. Hosted CI runs the required full tier, so
+a second full local pass is not a prerequisite for push or merge.
 
 Before releasing setup or packaging changes, install the candidate in disposable
 Claude Code and Codex environments and verify discovery and the documented first
@@ -107,7 +102,7 @@ Do NOT hand-edit these; CI diffs them against their generators:
 |--------------------|-----------|------------------------------|
 | `README.md`, `.claude-plugin/README.md`, `PRODUCT.md`, `docs/AGENTS.md`, `docs/COMMAND-REFERENCE.md`, and `docs/README.md` mechanical release facts | `./scripts/sync-readme.py` | `tests/unit/test-readme-release-sync.sh` and `make sync-check` |
 | `.claude-plugin/plugin-manifest.json`, `.codex-plugin/plugin.json`, `.factory-plugin/plugin.json`, and `.factory-plugin/marketplace.json` component counts | `./scripts/sync-readme.py` | `tests/unit/test-readme-release-sync.sh` and `make sync-check` |
-| `.claude-plugin/marketplace.json` (octo entry description + counts) | `./scripts/sync-marketplace.sh` | Smoke job step "Verify marketplace.json is up to date" |
+| `.claude-plugin/marketplace.json` (octo entry description + counts) | `./scripts/sync-marketplace.sh` | Smoke job step "Verify generated artifacts" (`make sync-check`) |
 
 Rules learned the hard way:
 - The marketplace generator derives the feature summary from `plugin.json`'s `description` and appends current persona, command, and skill counts. To change the marketplace blurb, edit `plugin.json`'s description and run `make sync` — never edit `marketplace.json` directly. Never hand-write counts into `plugin.json`'s description; the generator appends them and `--check` will fail on the collision (the v9.50 description did this and shipped doubled counts until v9.51).
@@ -117,17 +112,25 @@ Rules learned the hard way:
 `make sync` runs all generators; `make sync-check` runs every corresponding
 check mode.
 
-## 4. Validate locally with CI parity
+## 4. Validate once at each boundary
 
-```bash
-make ci-local
-```
+Run `make ci-quick` and affected behavioral regressions before push. The exact
+PR commit must pass the hosted Smoke Tests, Unit Tests, and Integration Tests
+checks. Full coverage includes all unit suites in weighted shards on Linux and
+macOS; mapped PRs use the shared affected-suite selector on both systems.
+Main, merge-queue, nightly, and manual runs always use the full unit tier.
+See [test tiers](tests/README.md#test-tiers).
 
-This runs generated-file checks and the complete local smoke, unit, and
-integration suites, including docs sync and plugin expert review. Hosted CI
-separately checks Linux/macOS portability, ShellCheck,
-package artifacts, and symlink paths. Local success does not replace those
-checks on the exact release commit.
+`make ci-local` remains available for complete offline diagnosis, or when
+hosted CI cannot run. A local pass does not replace required hosted checks;
+a successful hosted matrix does not need another full local pass. Reuse only
+evidence for the exact commit. A changed commit needs fresh checks and review.
+Native installation acceptance and downloaded release-artifact verification
+remain separate requirements.
+
+`scripts/validate-release.sh` checks release consistency and reports missing
+publication. It never creates a tag or release. Publish through the gated
+`scripts/release.sh` process below.
 
 Known scanner gotcha: `tests/integration/test-plugin-expert-review.sh` greps tracked non-md files for `(API_KEY|SECRET|PASSWORD)\s*=\s*['\"]<20+ chars>`. A shell line like `ANTHROPIC_API_KEY="${VAR}"` false-positives. Quote the whole env argument instead: `"ANTHROPIC_API_KEY=${VAR}"`.
 

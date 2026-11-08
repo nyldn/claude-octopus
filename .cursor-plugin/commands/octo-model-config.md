@@ -18,7 +18,7 @@ echo "provider | model | config | routing | cost"
 **Preflight — Ensure plugin root is resolvable (run via Bash tool):**
 
 ```bash
-OCTO_ROOT="${HOME}/.claude-octopus/plugin"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 if [[ ! -x "$OCTO_ROOT/scripts/orchestrate.sh" ]]; then
   helper="$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh"
   if [[ ! -x "$helper" ]]; then
@@ -209,7 +209,7 @@ session is not usable here; run `kimi` with the same `KIMI_CODE_HOME` and enter
 After selection, apply the change:
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh set <provider> <model>
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/octo-model-config.sh" set <provider> <model>
 ```
 
 Then confirm: `✓ Set <provider> default → <model>`
@@ -360,7 +360,7 @@ AskUserQuestion({
 Apply the selection with the shared helper:
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh cost-mode <mode>
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/octo-model-config.sh" cost-mode <mode>
 ```
 
 The helper persists the selection in `providers.json`. Do not edit the user's
@@ -370,7 +370,7 @@ shell profile. Mention the matching quick command: `/octo:budget-mode`,
 To configure which model or capability a provider uses in a tier:
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh tier <budget|standard|premium> <provider> <model-or-capability>
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/octo-model-config.sh" tier <budget|standard|premium> <provider> <model-or-capability>
 ```
 
 When Premium is selected, offer these optional bounded judgment escalations
@@ -391,14 +391,14 @@ Use role routing when a specific persona or workflow role should use a different
 Show current role overrides:
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh show roles
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/octo-model-config.sh" show roles
 ```
 
 Set or remove an override:
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh route-role <role> <provider:capability-or-model>
-${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh unroute-role <role>
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/octo-model-config.sh" route-role <role> <provider:capability-or-model>
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/octo-model-config.sh" unroute-role <role>
 ```
 
 Role overrides are intentionally sparse. Do not restate defaults; add a role only when it needs deterministic routing different from the provider/persona default.
@@ -410,7 +410,7 @@ Use this when the user wants to turn a provider off for the current session, for
 First show the current allowlist:
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh providers
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/octo-model-config.sh" providers
 ```
 
 Then ask which providers should be available:
@@ -438,15 +438,15 @@ AskUserQuestion({
 Apply the selection as a session allowlist:
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh allow <providers...> --session
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/octo-model-config.sh" allow <providers...> --session
 ```
 
 Useful direct commands:
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh disable codex --session
-${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh allow claude agy --session
-${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh clear-allowlist --session
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/octo-model-config.sh" disable codex --session
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/octo-model-config.sh" allow claude agy --session
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/octo-model-config.sh" clear-allowlist --session
 ```
 
 Explain that `OCTO_ALLOWED_PROVIDERS` still wins when it is set in the shell environment.
