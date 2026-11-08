@@ -225,7 +225,9 @@ claim that rendered slides have been visually inspected.
 #### Storyline gate: titles-only read
 
 Read only the slide-title sentences, top to bottom. Exclude the cover slide
-from this titles-only read. The storyline titles must carry the
+from this titles-only read. Exclude appendix backup slides from the main-deck
+argument read. Check appendix titles separately against their expected
+questions and evidence. The main-deck storyline titles must carry the
 argument from the governing question to the ask without relying on body
 bullets. For informational decks, read from the question to the supported
 conclusion and follow-up instead. Label titles fail: "Market overview",

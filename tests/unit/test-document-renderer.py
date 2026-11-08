@@ -193,6 +193,8 @@ class DocumentRendererTest(unittest.TestCase):
                 self.assertIn("Exclude the cover slide", skeleton)
                 self.assertIn("approved slide-count target", skeleton)
                 self.assertIn("Exclude the cover slide", gate)
+                self.assertIn("Exclude appendix backup slides from the main-deck argument read", gate)
+                self.assertIn("Check appendix titles separately against their expected questions and evidence", gate)
                 self.assertIn("Changing the governing question or slide claims after approval returns to this gate", gate)
                 self.assertIn("approved cover title", gate)
                 self.assertIn("informational", step)
