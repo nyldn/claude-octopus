@@ -188,6 +188,8 @@ class DocumentRendererTest(unittest.TestCase):
                 self.assertIn("do not claim a finished deck", gate)
                 self.assertIn("at most two repair-and-verification rounds", gate)
                 self.assertIn("reopen every thumbnail after each rerender", gate)
+                self.assertIn("Repeat all checks for every slide,", gate)
+                self.assertIn("Rebuild the verification table against the final artifact;", gate)
                 self.assertIn("final artifact", gate)
                 self.assertIn("any fail or unverified result keeps the deck a draft", gate)
 
