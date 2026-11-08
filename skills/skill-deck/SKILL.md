@@ -210,7 +210,8 @@ Apply these when generating outlines:
 **Executives / Board:**
 - Match the brief's decision or informational purpose in Step 3. Apply the
   decision outline and its check only when a decision is requested.
-- Lead with business impact and source-backed financial implications.
+- Lead with the brief's business impact. Include financial implications only
+  when relevant and supported by sources.
 - Keep the main deck focused on the brief's purpose; put expected-question evidence
   in the approved appendix.
 
