@@ -97,8 +97,10 @@ discover_pre_code=$(extract_bash_fence <<< "$discover_pre")
 discover_post_code=$(extract_bash_fence <<< "$discover_block")
 persistence_home="$TEST_TMP_DIR/persistence-home"
 persistence_project="$TEST_TMP_DIR/persistence-project"
-persistence_synthesis="$TEST_TMP_DIR/persistence-synthesis.md"
-mkdir -p "$persistence_home/.claude-octopus/plugin/scripts" "$persistence_project"
+persistence_synthesis="$persistence_home/.claude-octopus/results/probe-synthesis-persistence-fixture.md"
+mkdir -p "$persistence_home/.claude-octopus/plugin/scripts/helpers" "$persistence_project" "$(dirname "$persistence_synthesis")"
+ln -s "$PROJECT_ROOT/scripts/state-manager.sh" "$persistence_home/.claude-octopus/plugin/scripts/state-manager.sh"
+ln -s "$PROJECT_ROOT/scripts/helpers/discovery-handoff.py" "$persistence_home/.claude-octopus/plugin/scripts/helpers/discovery-handoff.py"
 printf '%s\n' fixture > "$persistence_synthesis"
 cat > "$persistence_home/.claude-octopus/plugin/scripts/octo-state.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -123,7 +125,10 @@ for lifecycle_code in "$discover_pre_code" "$discover_post_code"; do
         OCTO_ROOT="$persistence_home/.claude-octopus/plugin" \
         OCTOPUS_PROJECT_PERSISTENCE=true \
         SYNTHESIS_FILE="$persistence_synthesis" \
-        bash -c "$lifecycle_code"
+        RUN_ID=persistence-fixture \
+        CLAUDE_PLUGIN_DATA="$persistence_home/workspace" \
+        OCTOPUS_WORKFLOW_STATE_DIR="$persistence_home/workflow-state" \
+        bash -c 'python3 "$OCTO_ROOT/scripts/helpers/discovery-handoff.py" begin "$OCTOPUS_WORKFLOW_STATE_DIR/state.json" "$RUN_ID" || exit 1; bash -c "$1"' _ "$lifecycle_code"
     ) >/dev/null 2>&1; then
         persistence_baseline_ok=false
         break
@@ -147,7 +152,10 @@ for lifecycle_case in init_project pre_update_state persist_summary post_update_
         OCTOPUS_PROJECT_PERSISTENCE=true \
         OCTOPUS_TEST_FAIL_COMMAND="$failure_command" \
         SYNTHESIS_FILE="$persistence_synthesis" \
-        bash -c "$lifecycle_code"
+        RUN_ID=persistence-fixture \
+        CLAUDE_PLUGIN_DATA="$persistence_home/workspace" \
+        OCTOPUS_WORKFLOW_STATE_DIR="$persistence_home/workflow-state" \
+        bash -c 'python3 "$OCTO_ROOT/scripts/helpers/discovery-handoff.py" begin "$OCTOPUS_WORKFLOW_STATE_DIR/state.json" "$RUN_ID" || exit 1; bash -c "$1"' _ "$lifecycle_code"
     ) >/dev/null 2>&1; then
         persistence_failed_closed=false
         break

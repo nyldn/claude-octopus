@@ -17,7 +17,7 @@ fi
 
 # Present findings before recording the phase as complete.
 echo "Discovery findings:"
-cat "$SYNTHESIS_FILE"
+cat "$SYNTHESIS_FILE" || exit 1
 
 # Project-local lifecycle documents are a separate, explicit opt-in.
 if [[ "${OCTOPUS_PROJECT_PERSISTENCE:-false}" == "true" ]]; then
@@ -47,6 +47,10 @@ if [[ "${OCTOPUS_PROJECT_PERSISTENCE:-false}" == "true" ]]; then
     exit 1
   fi
 fi
+
+# Publish only after presentation and all requested project persistence succeed.
+HANDOFF_STATE_FILE=$("${OCTO_ROOT:?}/scripts/state-manager.sh" state_path) || exit 1
+python3 "$OCTO_ROOT/scripts/helpers/discovery-handoff.py" publish "$HANDOFF_STATE_FILE" "$RUN_ID" "$SYNTHESIS_FILE" || exit 1
 ```
 
 
@@ -62,7 +66,8 @@ here — that work belongs to later phases.
 
 When resuming into Define, use the full artifact recorded in the project-scoped
 host state for the current discovery run. Define verifies its project, run and
-content hash and rejects symlinks before dispatch. Starting another discovery
+content hash and rejects symlinks before dispatch. Define passes a private
+snapshot of those verified bytes to the engine and removes it on exit. Starting another discovery
 invalidates the previous binding, including when project persistence is off.
 An old `.octo` summary or a short context preview cannot replace this binding.
 

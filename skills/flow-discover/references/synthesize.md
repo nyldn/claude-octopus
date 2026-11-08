@@ -61,10 +61,6 @@ echo "✅ VALIDATION PASSED: $SYNTHESIS_FILE"
 ```bash
 key_findings=$(head -50 "$SYNTHESIS_FILE" | grep -A 3 "## Key Findings\|## Summary" | tail -3 | tr '\n' ' ')
 
-# Bind the complete verified artifact, including sources, to this discovery.
-DISCOVERY_BINDING=$(python3 "$OCTO_ROOT/scripts/helpers/discovery-handoff.py" capture "$SYNTHESIS_FILE" "$RUN_ID") || exit 1
-"${OCTO_ROOT:?}/scripts/state-manager.sh" update_context "discovery_artifact" "$DISCOVERY_BINDING" || exit 1
-
 "${OCTO_ROOT:?}/scripts/state-manager.sh" update_context "discover" "$key_findings"
 "${OCTO_ROOT:?}/scripts/state-manager.sh" update_metrics "phases_completed" "1"
 # Track actual providers used (dynamic — from fleet output, not hardcoded)

@@ -202,10 +202,7 @@ set_current_workflow() {
 
     local updated
     updated=$(jq --arg workflow "$workflow" --arg phase "$phase" \
-        '.current_workflow = $workflow | .current_phase = $phase
-        | if $workflow == "flow-discover" then
-            del(.context.discovery_artifact, .context.discovery_run)
-          else . end' \
+        '.current_workflow = $workflow | .current_phase = $phase' \
         "$STATE_FILE")
 
     atomic_write "$updated"

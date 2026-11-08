@@ -299,14 +299,19 @@ from an inferred development checkout.
 # Keep execution and report validation in the same shell invocation.
 OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 bash "$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh" || exit 1
-# Restore only research bound to this project's current discovery run.
-# An old completed .octo summary alone cannot identify the current research.
-DISCOVERY_RESULTS_FILE=""
+# Keep verified research in a private snapshot through dispatch and cost review.
+DEFINE_RUN_DIR=$(mktemp -d) || exit 1
+RUN_MARKER=""
+trap 'rm -f "$DEFINE_RUN_DIR/research.md" "$RUN_MARKER"; rmdir "$DEFINE_RUN_DIR" 2>/dev/null || true' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 WORKFLOW_STATE_FILE=$("$OCTO_ROOT/scripts/state-manager.sh" state_path) || exit 1
-if [[ -f "$WORKFLOW_STATE_FILE" ]]; then
-  DISCOVERY_RESULTS_FILE=$(python3 "$OCTO_ROOT/scripts/helpers/discovery-handoff.py" select < "$WORKFLOW_STATE_FILE") || exit 1
-fi
-RUN_MARKER=$(mktemp) || exit 1
+DISCOVERY_RESULTS_FILE=$(python3 "$OCTO_ROOT/scripts/helpers/discovery-handoff.py" snapshot "$WORKFLOW_STATE_FILE" "$DEFINE_RUN_DIR") || {
+  echo "Define stopped. Restore the saved research, or explicitly discard its binding using the recovery command below before retrying." >&2
+  exit 1
+}
+RUN_MARKER=$(mktemp "$DEFINE_RUN_DIR/invocation.XXXXXX") || exit 1
 RUN_STATUS=0
 OCTOPUS_WORKFLOW_INVOCATION_ID="${RUN_MARKER##*/}" "$OCTO_ROOT/scripts/orchestrate.sh" define "<user's clarification request>" "$DISCOVERY_RESULTS_FILE" || RUN_STATUS=$?
 REPORT_STATUS=0
@@ -321,6 +326,19 @@ The project-scoped host state identifies the current full research artifact,
 including after restart or compaction. Define verifies its run and content hash
 and rejects symlinks. An unbound `.octo` summary is never selected. Without a
 current binding, the optional research input stays empty.
+
+If the saved artifact is missing or invalid, stop by default. Offer to restore
+it or discard its binding. Only after the user explicitly chooses to discard
+it, run this command and retry Define, including standalone requests:
+
+```bash
+WORKFLOW_STATE_FILE=$("${OCTO_ROOT:?}/scripts/state-manager.sh" state_path) || exit 1
+python3 "$OCTO_ROOT/scripts/helpers/discovery-handoff.py" discard "$WORKFLOW_STATE_FILE"
+```
+
+Discarding clears only the handoff record. It preserves research files,
+project documents, decisions and provider settings.
+
 
 **CRITICAL: You are PROHIBITED from:**
 - ❌ Defining requirements directly without calling orchestrate.sh — single-model analysis misses the technical, business, and external-model perspective split that provider fanout supplies, producing requirements with blind spots
