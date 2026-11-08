@@ -25,6 +25,11 @@ You get:    A structured comparison with three independent viewpoints,
 
 Octopus includes research, escalated code review, debugging, TDD, security audits, UI design, PRDs, and full build-to-ship workflows: 56 commands, 64 skills, 31 specialized personas.
 
+Use `/octo:refine plan.md --max-rounds 3` to score and improve an existing
+artifact with a frozen rubric and independent Claude and Codex scoring.
+`/octo:ladder` is an alias. The [refinement guide](../docs/REFINEMENT.md) covers
+review-only mode and limits on rounds, elapsed time, and model calls.
+
 ### Engineering methods
 
 Since v11.1.0, routine architecture, debugging, and TDD run on the

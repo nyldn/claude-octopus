@@ -47,6 +47,7 @@ _octo_invalid_input() {
     printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Careful mode could not validate the tool input. Check that Python 3 is installed and the hook input is valid JSON before retrying."}}'
     exit 0
 }
+# _octo_careful_decision: Emit a host-compatible decision without executing the supplied command.
 _octo_careful_decision() {
     python3 "$_HOOK_DIR/safety-contract.py" careful-decision "$1" 2>/dev/null || _octo_invalid_input
 }
@@ -61,20 +62,17 @@ CHECK_TEXT="$COMMAND"
 
 # ── Destructive pattern checks ────────────────────────────────────────
 
-# 1. rm -rf — but allow safe exceptions (node_modules, dist, .next, __pycache__, build, coverage, .turbo)
-if echo "$CHECK_TEXT" | grep -qE '(^|[^[:alnum:]_])rm\s+(-[a-zA-Z]*r[a-zA-Z]*f|-r\s+-f|-f\s+-r|--recursive\s+--force)'; then
-    # Check if the target is a safe exception
-    safe=false
-    for safe_dir in node_modules dist .next __pycache__ build coverage .turbo; do
-        if echo "$CHECK_TEXT" | grep -qE "rm\s+.*${safe_dir}(\s|$|/)"; then
-            safe=true
-            break
-        fi
-    done
-    if [[ "$safe" == "false" ]]; then
-        _octo_careful_decision 'Destructive command detected: rm -rf. This recursively force-deletes files.'
-        exit 0
-    fi
+# 1. rm -rf: check every executable statement and target, including -fr.
+# Safe-only targets: node_modules dist .next __pycache__ build coverage .turbo.
+# A safe target never exempts another target or a later shell statement.
+RM_RISK=$(printf '%s' "$INPUT" | python3 "$_HOOK_DIR/safety-contract.py" careful-rm 2>/dev/null) || _octo_invalid_input
+case "$RM_RISK" in
+    safe|unsafe) ;;
+    *) _octo_invalid_input ;;
+esac
+if [[ "$RM_RISK" == "unsafe" ]]; then
+    _octo_careful_decision 'Careful mode requires review: recursive deletion or unclassified executable input.'
+    exit 0
 fi
 
 # 2. SQL destructive operations. A SQL-looking string alone is not execution: source

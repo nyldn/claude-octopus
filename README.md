@@ -13,7 +13,7 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 <p align="center">
   <a href="https://claude.ai"><img src="https://img.shields.io/badge/Claude-Built_with_AI-c96442?logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTEyIDJhMTAgMTAgMCAxIDAgMCAyMCAxMCAxMCAwIDAgMCAwLTIwbTAgMS44YTEuMiAxLjIgMCAwIDEgLjg1LjM1bDEuNSA0LjVhLjYuNiAwIDAgMCAuMzUuMzVsNC41IDEuNWExLjIgMS4yIDAgMCAxIDAgMi4yN2wtNC41IDEuNWEuNi42IDAgMCAwLS4zNS4zNWwtMS41IDQuNWExLjIgMS4yIDAgMCAxLTIuMjcgMGwtMS41LTQuNWEuNi42IDAgMCAwLS4zNS0uMzVsLTQuNS0xLjVhMS4yIDEuMiAwIDAgMSAwLTIuMjdsNC41LTEuNWEuNi42IDAgMCAwIC4zNS0uMzVsMS41LTQuNUExLjIgMS4yIDAgMCAxIDEyIDMuOCIvPjwvc3ZnPg==&labelColor=333" alt="Built with Claude"></a>
   <a href="https://github.com/nyldn/claude-octopus/actions/workflows/test.yml"><img src="https://github.com/nyldn/claude-octopus/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
-  <img src="https://img.shields.io/badge/Version-11.17.1-blue" alt="Version 11.17.1">
+  <img src="https://img.shields.io/badge/Version-11.19.0-blue" alt="Version 11.19.0">
   <img src="https://img.shields.io/badge/Claude_Code-v2.1.14+_required-blueviolet" alt="Requires Claude Code v2.1.14+">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
 </p>
@@ -36,21 +36,23 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
-Vibe keyring logins work in the selected one-provider setup flow and explicit
-Vibe probes. Choose Vibe in `/octo:setup` to check a login saved by `vibe --setup`.
-The check is silent and bounded. Automatic inventory scans continue to defer
-keyring inspection. See [Vibe authentication](docs/PROVIDERS.md).
+Deck generation checks rendered slides before reporting completion. It compares
+titles with the approved outline, checks highlighted data claims against their
+source data, and reviews slide thumbnails. Missing evidence leaves the deck as a
+draft. See [document renderers](docs/DOCUMENT-RENDERERS.md).
 
-Council reviews accept valid structured policy findings while continuing to
-check invented source quotes. Invalid findings and failed verification retain
-blocking evidence instead of silently allowing implementation.
+Cost tiers can pair a model with reasoning effort, so a budget task can use a
+lighter setting while a difficult task uses a deeper one. Explicit model and
+effort choices keep precedence. See [model routing](docs/MODEL-ROUTING-STRATEGY.md).
 
-Define, develop, deliver and ship check the reports from the current workflow
-invocation. Failed commands, stale reports and missing completion status cannot
-make an unfinished run appear successful.
+Research verification recognizes references to a synthesis's own numbered
+points without treating them as unsupported measurements. Numeric claims with
+units, percentages, scores and ranges keep the existing verification rules:
+unfetched sources leave numbers unverified, and claims marked `[inference]`
+can pass without citations. See [research evidence](docs/RESEARCH-EVIDENCE.md).
 
 <!-- BEGIN CURRENT RELEASE -->
-> 🆕 **v11.17.1 — Recognize Vibe logins and verify current workflow reports.**
+> 🆕 **v11.19.0 — Verified decks and configurable reasoning effort.**
 >
 > **Default roster:** Claude Opus 5.5 leads architecture, planning, security reasoning, and final judgment; GPT-5.6 Sol is the independent implementation/review peer; Claude Sonnet 5.5 is the standard Claude seat; Fable 5.1 remains an opt-in judgment escalation. Existing model pins and provider configuration still win. See [the routing strategy](docs/MODEL-ROUTING-STRATEGY.md).
 <!-- END CURRENT RELEASE -->
@@ -73,7 +75,7 @@ make an unfinished run appear successful.
 
 | Version | Best Features |
 |---------|--------------|
-| **v11.17.1** (new) | Recognize Vibe logins and verify current workflow reports. |
+| **v11.19.0** (new) | Verified decks and configurable reasoning effort. |
 | **v9.50** | **Claude Code 2026 compatibility layer** — routines manifest (schedule + GitHub-event automations), SubagentStop quality/cost gate, `/octo:usage` cost attribution, `worktree.bgIsolation` opt-out, Claude Agent SDK seat (introduced with Opus 4.8 and now following the current Opus 5 default), starter skills pack, `/plugin browse` manifest with projected context cost. |
 | **v9.41** | **`/octo:council`** promoted to first-class workflow — structured multi-LLM deliberation with goal modes, adversarial/red-team styles, benchmark-aware persona routing, quorum and critical-veto gates, budget preflight, and gated worktree handoff for approved implementation plans. |
 | **v9** | Up to 10 external provider integrations (Codex, Antigravity CLI, Copilot, Qwen, Ollama, Perplexity, OpenRouter, OrcaRouter, OpenCode, and Grok) alongside the Claude Code host. Structured provider debates and configurable multi-LLM councils. Explicit-only activation by default, with an optional smart router. Agent summary tables show which providers actually contributed. Provider-aware prompt preflight prevents silent oversize failures. Research breadth modes fan out light, standard, or exhaustive investigations. Setup aliases and fuzzy `/octo:*` corrections reduce command friction. Opt-in discipline gates and token compression. Two-stage review. Circuit breakers with automatic provider recovery inside active workflows. Cursor + OpenCode + Codex cross-compatibility. `bin/octopus` CLI. 182 Claude Code capability flags through v2.1.219, including Opus 5, Sonnet 5, and dynamic workflow awareness. |
@@ -428,7 +430,7 @@ Nine high-traffic commands cover the common Octopus workflows: lifecycle executi
 /octo:council --goal decision "Should we keep this service monolithic?"  # Persona council with budget/veto gates
 /octo:debate monorepo vs microservices     # Structured provider debate with consensus
 /octo:research --breadth=standard htmx vs react in 2026  # Attributed multi-provider research
-/octo:design mobile checkout redesign       # UI/UX design with BM25 style intelligence
+/octo:design-ui-ux mobile checkout redesign # UI/UX design with BM25 style intelligence
 /octo:tdd create user auth                 # Red-green-refactor with test discipline
 /octo:security                              # OWASP vulnerability scan + remediation
 /octo:prd mobile checkout redesign          # AI-optimized PRD with 100-point scoring
@@ -436,7 +438,14 @@ Nine high-traffic commands cover the common Octopus workflows: lifecycle executi
 
 `/octo:council` uses the real runner by default. Single-model simulation is only used when explicitly requested with `--simulate` or `--single-model`; `--research-first` writes a research artifact before fanout, and `--corpus-mode append|require` preserves synthesis and plans in project corpus workflows.
 
-Plus 40+ more: review, debug, extract, deck, docs, schedule, parallel, sentinel, optimize, brainstorm, doctor, and [the full set](docs/COMMAND-REFERENCE.md).
+Score and improve an existing artifact with `/octo:refine plan.md --max-rounds 3`.
+It uses a frozen rubric and independent Claude and Codex scoring. `/octo:ladder`
+is an alias. See the [refinement guide](docs/REFINEMENT.md) for review-only mode
+and limits on rounds, elapsed time, and model calls.
+
+Find other commands with `/octo:guide list` or browse the
+[complete command reference](docs/COMMAND-REFERENCE.md). For diagnostics, invoke
+the manual `/octo:skill-doctor` skill or run `octopus doctor` in a shell.
 
 Don't remember the command name? Just describe what you need:
 
@@ -462,7 +471,8 @@ Not sure which command to use? Pick by goal:
 | Get a panel recommendation or gated implementation plan | `/octo:council` |
 | Debate two approaches | `/octo:debate` |
 | Build a feature end-to-end | `/octo:embrace` |
-| Design a UI or style system | `/octo:design` |
+| Design a UI or style system | `/octo:design-ui-ux` |
+| Score and improve an existing artifact | `/octo:refine`, alias `/octo:ladder` |
 | Review existing code | `/octo:review` |
 | Write tests first, then code | `/octo:tdd` |
 | Scan for vulnerabilities | `/octo:security` |
@@ -615,7 +625,10 @@ The table excludes provider tool charges. Sonar Pro adds a **request fee** of $6
 | Council (4-6 seats + synthesis) | 60-150K tokens | $0.50-2.50 |
 | Full embrace (4 phases, multi-provider) | 150-400K tokens | $1.00-6.00+ |
 
-Before an expensive run, `/octo:costs` shows a session cost projection; after runs, `/octo:usage` breaks down actual spend per provider and skill. Anything projected over $1 is called out before dispatch.
+`/octo:usage` reports recorded provider, skill, and MCP usage with estimated
+costs. `/octo:costs` shows a cost-focused compatibility view of the same records.
+These reports do not forecast a proposed run or verify provider billing. Use the
+workflow's available budget controls before dispatch.
 
 ### What You Get With Just Claude
 

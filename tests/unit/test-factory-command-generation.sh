@@ -130,7 +130,7 @@ fi
 test_case "portable commands resolve the installed plugin root"
 portable_failures=""
 for command_file in usage whats-new; do
-    if ! grep -Fq '${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}' \
+    if ! grep -Fq '${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}' \
         "$PROJECT_ROOT/commands/${command_file}.md"; then
         portable_failures+="${command_file} has no installed-root fallback"$'\n'
     fi

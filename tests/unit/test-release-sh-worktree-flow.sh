@@ -176,6 +176,7 @@ test_release_ci_timeout_covers_macos() {
     fi
 }
 
+# Exercise aggregate review, thread, and pinned-head approval requirements.
 test_release_requires_clean_review_state() {
     test_case "release requires explicit approval and paginates every review thread"
 
@@ -190,16 +191,131 @@ test_release_requires_clean_review_state() {
     unresolved=$(octo_release_unresolved_review_threads owner repo 687)
     unset -f gh
 
-    if octo_release_review_gate APPROVED 0 \
-        && ! octo_release_review_gate "" 0 \
-        && ! octo_release_review_gate REVIEW_REQUIRED 0 \
-        && ! octo_release_review_gate CHANGES_REQUESTED 0 \
-        && ! octo_release_review_gate APPROVED 1 \
-        && [[ "$unresolved" == "2" ]]; then
+    if octo_release_review_gate APPROVED 0 true \
+        && ! octo_release_review_gate "" 0 true \
+        && ! octo_release_review_gate REVIEW_REQUIRED 0 true \
+        && ! octo_release_review_gate CHANGES_REQUESTED 0 true \
+        && ! octo_release_review_gate APPROVED 1 true \
+        && ! octo_release_review_gate APPROVED 0 false \
+        && ! octo_release_review_gate APPROVED 0 \
+        && [[ "$unresolved" == "2" ]] \
+        && grep -q 'CURRENT_HEAD_APPROVED=$(octo_release_current_head_approval' "$RELEASE_SH" \
+        && grep -Fq 'octo_release_review_gate "$REVIEW_DECISION" "$UNRESOLVED_THREADS" "$CURRENT_HEAD_APPROVED"' "$RELEASE_SH"; then
         test_pass
     else
         test_fail "release review gate accepted an unapproved or unresolved state"
     fi
+}
+
+# Check every review page using inert current, stale, and malformed API records.
+test_release_requires_approval_on_expected_head() {
+    test_case "release approval requires the expected commit and validates every review page"
+
+    if python3 - "$CI_LIB" "$TEST_TMP_DIR" <<'APPROVALS'
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+head = 'a' * 40
+old_head = 'b' * 40
+
+def review(state='APPROVED', oid=head):
+    """Build a review fixture with a valid SHA or an explicit null commit."""
+    return {'state': state, 'commit': {'oid': oid} if oid else None}
+
+def page(nodes, more=False, cursor=None):
+    """Wrap review records and cursors in the GraphQL response shape."""
+    return json.dumps({'data': {'repository': {'pullRequest': {'reviews': {
+        'nodes': nodes, 'pageInfo': {'hasNextPage': more, 'endCursor': cursor}}}}}})
+
+script = '''
+source "$1"
+gh() {
+    [[ "$1" == api && "$2" == graphql ]] || return 90
+    printf '%s\\n' called >> "$FIXTURE_CALLS"
+    if [[ -n "${FIXTURE_HISTORY_PAGE:-}" ]]; then
+        if [[ " $* " == *"reviews(first:100,"* ]]; then
+            printf '%s\\n' "$FIXTURE_HISTORY_PAGE"
+            return
+        fi
+        [[ " $* " == *"latestOpinionatedReviews(first:100,"* ]] || return 91
+    fi
+    if [[ " $* " == *" cursor=NEXT_PAGE "* ]]; then
+        [[ "$FIXTURE_API_FAILURE" != second ]] || return 1
+        printf '%s\\n' "$FIXTURE_SECOND_PAGE"
+    else
+        [[ "$FIXTURE_API_FAILURE" != first ]] || return 1
+        printf '%s\\n' "$FIXTURE_FIRST_PAGE"
+    fi
+}
+octo_release_current_head_approval owner repo 687 "$2"
+'''
+cases = [
+    ('old approval', page([review(oid=old_head)]), '', '', 'false', 1),
+    ('current approval', page([review()]), '', '', 'true', 1),
+    ('dismissed approval', page([review('DISMISSED')]), '', '', 'false', 1),
+    ('pending review', page([review('PENDING', None)]), '', '', 'false', 1),
+    ('empty reviews', page([]), '', '', 'false', 1),
+    ('null commit approval', page([review(oid=None)]), '', '', 'false', 1),
+    ('null then current', page([review(oid=None)], True, 'NEXT_PAGE'), page([review()]), '', 'true', 2),
+    ('later approval', page([review(oid=old_head)], True, 'NEXT_PAGE'), page([review()]), '', 'true', 2),
+    ('later dismissed', page([], True, 'NEXT_PAGE'), page([review('DISMISSED')]), '', 'false', 2),
+    ('first API failure', page([review()]), '', 'first', None, 1),
+    ('later API failure', page([review()], True, 'NEXT_PAGE'), page([]), 'second', None, 2),
+    ('malformed JSON', '{', '', '', None, 1),
+    ('malformed review', page([{'state': 'APPROVED'}]), '', '', None, 1),
+    ('malformed SHA', page([review(oid='not-a-commit')]), '', '', None, 1),
+    ('unknown state', page([review('UNKNOWN')]), '', '', None, 1),
+    ('missing page', '{}', '', '', None, 1),
+    ('later malformed page', page([review()], True, 'NEXT_PAGE'), '{}', '', None, 2),
+    ('missing cursor', page([review()], True), '', '', None, 1),
+    ('repeated cursor', page([review()], True, 'NEXT_PAGE'), page([], True, 'NEXT_PAGE'), '', None, 2),
+    ('invalid pagination', page([review()], 'false'), '', '', None, 1),
+]
+partial = json.loads(page([review()]))
+partial['errors'] = [{'message': 'partial response'}]
+cases.append(('GraphQL error', json.dumps(partial), '', '', None, 1))
+for index, (name, first, second, failure, expected, count) in enumerate(cases):
+    calls = Path(sys.argv[2]) / ('approval-calls-' + str(index))
+    calls.write_text('')
+    env = dict(os.environ, FIXTURE_CALLS=str(calls), FIXTURE_FIRST_PAGE=first,
+               FIXTURE_SECOND_PAGE=second, FIXTURE_API_FAILURE=failure)
+    result = subprocess.run(['bash', '-c', script, '_', sys.argv[1], head],
+                            env=env, capture_output=True, text=True)
+    if expected is None:
+        assert result.returncode != 0, (name, result.stdout, result.stderr)
+    else:
+        assert result.returncode == 0 and result.stdout.strip() == expected, (name, result.stdout, result.stderr)
+    assert len(calls.read_text().splitlines()) == count, name
+
+# GitHub selects one applicable opinion per reviewer. Historical approvals must
+# not be resurrected, while a comment or pending review must not revoke one.
+sequences = [
+    ('approval superseded by changes and stale approval',
+     [review(), review('CHANGES_REQUESTED'), review(oid=old_head)],
+     [review(oid=old_head)], 'false'),
+    ('approval superseded by changes', [review(), review('CHANGES_REQUESTED')],
+     [review('CHANGES_REQUESTED')], 'false'),
+    ('approval dismissed', [review(), review('DISMISSED')],
+     [review('DISMISSED')], 'false'),
+    ('comment preserves approval', [review(), review('COMMENTED')],
+     [review()], 'true'),
+    ('pending review preserves approval', [review(), review('PENDING', None)],
+     [review()], 'true'),
+]
+for index, (name, history, applicable, expected) in enumerate(sequences):
+    calls = Path(sys.argv[2]) / ('applicable-approval-calls-' + str(index))
+    calls.write_text('')
+    env = dict(os.environ, FIXTURE_CALLS=str(calls), FIXTURE_FIRST_PAGE=page(applicable),
+               FIXTURE_SECOND_PAGE='', FIXTURE_API_FAILURE='',
+               FIXTURE_HISTORY_PAGE=page(history))
+    result = subprocess.run(['bash', '-c', script, '_', sys.argv[1], head],
+                            env=env, capture_output=True, text=True)
+    assert result.returncode == 0 and result.stdout.strip() == expected, (name, result.stdout, result.stderr)
+APPROVALS
+    then test_pass; else test_fail "release accepted stale, dismissed, or unverifiable approval"; fi
 }
 
 test_release_verifies_main_before_tag() {
@@ -314,6 +430,7 @@ test_release_rejects_concurrently_changed_merged_head
 test_release_notes_use_private_file
 test_release_ci_timeout_covers_macos
 test_release_requires_clean_review_state
+test_release_requires_approval_on_expected_head
 test_release_verifies_main_before_tag
 test_release_timeout_is_bounded
 test_fetch_head_approach_works_when_main_checked_out_elsewhere

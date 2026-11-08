@@ -109,6 +109,27 @@ assert 'ANTHROPIC_AUTH_TOKEN' not in names and 'ANTHROPIC_BASE_URL' not in names
 PYASSERT
 then test_pass; else test_fail "isolated adapter lost request settings or credential isolation"; fi
 
+test_case "automatic tier effort reaches the isolated adapter without an effort parameter"
+printf '%s\n' '{"cost_mode":"budget","providers":{"anthropic-api":{"default":"claude-sonnet-5-5","reasoning_effort":"high"}},"tiers":{"budget":{"anthropic-api":{"capability":"default","reasoning":"auto"}}}}' > "$OCTOPUS_PROVIDERS_CONFIG"
+auto_command="$(get_agent_command anthropic-api probe researcher)"
+read -r -a auto_argv <<< "$auto_command"
+if validate_agent_command "$auto_command" &&
+   printf 'supplied evidence' | "${PROVIDER_ENV_ARRAY[@]}" "${auto_argv[@]}" > "$TEST_TMP_DIR/auto-answer" &&
+   [[ "$(cat "$TEST_TMP_DIR/auto-answer")" == 'fixture answer' ]] && "$real_python" - "$fixture" <<'PYASSERT'
+import json, pathlib, sys
+payload = json.loads((pathlib.Path(sys.argv[1]) / 'request.json').read_text())
+assert 'output_config' not in payload
+assert payload['thinking'] == {'type': 'adaptive'}
+assert payload['messages'] == [{'role':'user','content':'supplied evidence'}]
+PYASSERT
+then test_pass; else test_fail "automatic tier effort was replaced or lost at the adapter boundary"; fi
+
+test_case "automatic effort rejects explicit between_tools thinking before dispatch"
+if OCTOPUS_ANTHROPIC_API_THINKING=between_tools get_agent_command anthropic-api probe researcher >/dev/null 2>&1; then
+    test_fail "unknown automatic effort admitted between_tools thinking"
+else test_pass; fi
+printf '%s\n' '{"version":"3.0","providers":{}}' > "$OCTOPUS_PROVIDERS_CONFIG"
+
 test_case "API context admission reserves output while allowing an explicit larger input budget"
 if [[ "$(get_provider_context_limit anthropic-api probe researcher)" == 7392 ]] &&
    [[ "$(OCTOPUS_ANTHROPIC_API_CONTEXT_BUDGET=50000 get_provider_context_limit anthropic-api probe researcher)" == 45392 ]]; then

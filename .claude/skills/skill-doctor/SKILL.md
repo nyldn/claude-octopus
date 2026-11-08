@@ -58,7 +58,7 @@ link while collecting diagnostics. Run this as a single Bash call.
 ```bash
 OCTO_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-}}"
 if [[ -z "$OCTO_PLUGIN_ROOT" || ! -x "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" ]]; then
-  OCTO_PLUGIN_ROOT="${HOME}/.claude-octopus/plugin"
+  OCTO_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 fi
 if [[ ! -x "$OCTO_PLUGIN_ROOT/scripts/orchestrate.sh" ]] && command -v octopus >/dev/null 2>&1; then
   OCTO_BIN="$(command -v octopus)"
@@ -424,7 +424,7 @@ The doctor checks for project-level `RUNTIME.md` — a file that provides projec
 ### What the Doctor Checks
 
 - **RUNTIME.md exists** in the project root (also checks `.octopus/RUNTIME.md` and `.claude-octopus/RUNTIME.md`)
-- If missing, suggest creating one from the template: `cp "${HOME}/.claude-octopus/plugin/config/templates/RUNTIME.md" ./RUNTIME.md`
+- If missing, suggest creating one from the template: `cp "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/config/templates/RUNTIME.md" ./RUNTIME.md`
 - If present, confirm it contains at least one populated section (not just the template defaults)
 
 ### Why It Matters
