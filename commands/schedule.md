@@ -17,7 +17,7 @@ Manage scheduled workflow jobs for the Claude Octopus scheduler.
 **Preflight — Ensure plugin root is resolvable (run via Bash tool FIRST):**
 
 ```bash
-OCTO_ROOT="${HOME}/.claude-octopus/plugin"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 if [[ ! -x "$OCTO_ROOT/scripts/orchestrate.sh" ]]; then
   helper="$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh"
   if [[ ! -x "$helper" ]]; then
@@ -32,7 +32,7 @@ If the output is `plugin-root:missing`, stop and ask the user to run `/octo:setu
 
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/scheduler/octopus-scheduler.sh [subcommand]
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/scheduler/octopus-scheduler.sh" [subcommand]
 ```
 
 ## Instructions for Claude
@@ -68,7 +68,7 @@ If intent is ambiguous, show the dashboard first, then ask what they'd like to d
 Display the banner, then run:
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/scheduler/octopus-scheduler.sh dashboard
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/scheduler/octopus-scheduler.sh" dashboard
 ```
 
 Present the output as-is. After showing it, offer quick actions:
@@ -255,12 +255,12 @@ Then store the job JSON (with `backend: coworkd`) to `~/.claude-octopus/schedule
 
 **If `backend: daemon`:**
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/scheduler/octopus-scheduler.sh add "$TMPFILE"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/scheduler/octopus-scheduler.sh" add "$TMPFILE"
 ```
 Ensure the daemon is running:
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/scheduler/octopus-scheduler.sh status | grep -q "RUNNING" || \
-  ${HOME}/.claude-octopus/plugin/scripts/scheduler/octopus-scheduler.sh start
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/scheduler/octopus-scheduler.sh" status | grep -q "RUNNING" || \
+  "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/scheduler/octopus-scheduler.sh" start
 ```
 
 **Cleanup:**

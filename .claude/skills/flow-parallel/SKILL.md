@@ -67,7 +67,7 @@ If user says "skip" for any question, use defaults: 3 work packages, fully indep
 **MANDATORY: You MUST use the Bash tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
 
 ```bash
-bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh"
+bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/check-providers.sh"
 ```
 
 **Use the ACTUAL results below. PROHIBITED: Showing only "🔵 Claude: Available ✓" without listing all providers.**
@@ -193,7 +193,7 @@ command -v codex >/dev/null 2>&1 && review_provider="codex"
 [[ -z "$review_provider" ]] && command -v agy >/dev/null 2>&1 && review_provider="agy"
 
 if [[ -n "$review_provider" ]]; then
-  "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" spawn "$review_provider" \
+  "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn "$review_provider" \
     "Review this Work Breakdown Structure for a parallel execution pipeline. Your job is to find problems BEFORE agents start working.
 
 1. What DEPENDENCIES between work packages were missed? (e.g., WP-2 needs a type definition from WP-1 but doesn't declare it)
@@ -376,7 +376,7 @@ PROJECT_ROOT="<absolute-project-root-path>"
 WP_ID="WP-N"
 WP_BRANCH="<wp-branch-name>"
 BASE_REF="<base-ref>"
-REGISTRY="${HOME}/.claude-octopus/plugin/scripts/agent-registry.sh"
+REGISTRY="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/agent-registry.sh"
 
 # Every exit path must leave exit-code and .done behind, or the orchestrator's
 # monitor loop waits for a marker that never arrives and only the wave timeout
@@ -621,7 +621,7 @@ print(' '.join(wp.get('dependencies',[])))
 
     if [[ "$COMPLETED" -lt "$WAVE_TOTAL" ]]; then
       # v8.45.0: Fire reaction engine between poll cycles
-      REACTIONS="${HOME}/.claude-octopus/plugin/scripts/reactions.sh"
+      REACTIONS="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/reactions.sh"
       if [[ -x "$REACTIONS" ]]; then
         "$REACTIONS" check-all 2>/dev/null || true
       fi
@@ -734,7 +734,7 @@ Coordination Files: .octo/parallel/
 
 ```bash
 # Show agent registry status for this parallel run
-REGISTRY="${HOME}/.claude-octopus/plugin/scripts/agent-registry.sh"
+REGISTRY="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/agent-registry.sh"
 if [[ -x "$REGISTRY" ]]; then
   echo ""
   echo "=== AGENT REGISTRY ==="

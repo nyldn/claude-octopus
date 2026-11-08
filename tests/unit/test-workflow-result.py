@@ -115,6 +115,7 @@ sys.exit(1 if mode == "failed" else 0)
                     self.assertEqual(stable.resolve(), loaded.resolve())
 
     def test_inferred_checkout_runs_without_redirecting_another_install(self):
+        """Keep another installation pinned while validating an inferred checkout."""
         stable = self.home / '.claude-octopus/plugin'
         loaded = self.home / 'loaded-checkout'
         stable.rename(loaded)
@@ -126,7 +127,7 @@ sys.exit(1 if mode == "failed" else 0)
             for phase in ('define', 'develop', 'deliver', 'ink'):
                 with self.subTest(phase=phase, generated=generated):
                     command = self.skill_command(phase, generated).replace(
-                        '${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}', str(loaded))
+                        '${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}', str(loaded))
                     self.env['FIXTURE_MODE'] = 'complete'
                     result = subprocess.run(['bash', '-c', command], env=self.env,
                                             cwd=self.home, text=True, capture_output=True, timeout=15)

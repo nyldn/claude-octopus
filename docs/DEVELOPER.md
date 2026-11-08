@@ -242,3 +242,20 @@ $OCTOPUS_AGENT_LIFECYCLE_HOOK completed
 ```
 
 The hook receives the same lifecycle metadata through `OCTOPUS_AGENT_*` environment variables. Hook stdout/stderr are redirected to the optional hook log or `/dev/null`; hook failures are ignored so observer outages never fail agent execution.
+
+## Command safety acceptance
+
+Run `bash tests/unit/test-command-safety-regressions.sh` for deletion target
+checks and stable guard-state identity across Claude and Codex hosts. The
+fixture passes command text to hooks without running deletion commands.
+`tests/unit/test-review-external-cli-unwrap.sh` covers failed, timed-out, and
+malformed verification and the publication gate using inert providers.
+`tests/unit/test-command-discovery.sh` checks host root precedence across the
+command catalog. Regenerate portable skills and command adapters with
+`make sync` after changing their source instructions.
+
+Metric loops are host-managed candidate-copy workflows. Their contract requires
+preservation of the index and existing edits, concurrent-edit checks, bounded
+subprocesses and persistent budgets. Static tests do not prove a host complied
+with that contract; retain the run's snapshots, hashes, checks, and ledger when
+validating an actual experiment. A missing capability stops the run.

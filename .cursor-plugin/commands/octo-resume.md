@@ -18,7 +18,7 @@ Resume a previously-running Claude agent by ID. Picks up the agent's transcript 
 Before looking for a transcript or machine-local `.octo` state, inspect portable feature artifacts:
 
 ```bash
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 python3 "$OCTO_ROOT/scripts/helpers/feature-contract.py" resume --root "$(pwd -P)" --explicit "<feature directory or spec path, empty when omitted>"
 ```
 
@@ -42,7 +42,7 @@ Use the Bash tool to execute:
 ```bash
 set -euo pipefail
 
-OCTO_ROOT="${HOME}/.claude-octopus/plugin"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 if [[ ! -x "$OCTO_ROOT/scripts/orchestrate.sh" ]]; then
   helper="$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh"
   if [[ ! -x "$helper" ]]; then
@@ -57,7 +57,7 @@ If the output is `plugin-root:missing`, stop and ask the user to run `/octo:setu
 
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh agent-resume "$ARGUMENTS"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" agent-resume "$ARGUMENTS"
 ```
 
 Pass the agent ID as `$ARGUMENTS`. Optionally append a follow-up prompt:
