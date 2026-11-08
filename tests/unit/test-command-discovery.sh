@@ -46,7 +46,7 @@ assert "bad.md" in result.stderr, result.stderr
 PY
 then test_pass; else test_fail "one damaged entry disabled the guide"; fi
 
-test_case "guide and doctor choose the same root when both hosts are set"
+test_case "refine shares host root precedence and defines its standalone fallback"
 if python3 - "$PROJECT_ROOT" <<'PY'
 from pathlib import Path
 import os
@@ -54,13 +54,17 @@ import re
 import subprocess
 import sys
 root = Path(sys.argv[1])
-resolved = []
-for relative in ("commands/guide.md", "skills/skill-doctor/SKILL.md"):
+for relative in ("commands/guide.md", "skills/skill-doctor/SKILL.md", "skills/skill-refine/SKILL.md"):
     match = re.search(r'^OCTO_(?:PLUGIN_)?ROOT=(.+)$', (root / relative).read_text(), re.MULTILINE)
     assert match, relative
-    result = subprocess.run(["bash", "-c", 'selected=' + match.group(1) + '; printf "%s" "$selected"'], env={**os.environ, "CLAUDE_PLUGIN_ROOT": "/claude", "CODEX_PLUGIN_ROOT": "/codex"}, capture_output=True, text=True, check=True)
-    resolved.append(result.stdout)
-assert resolved == ["/claude", "/claude"], resolved
+    clean = {k: v for k, v in os.environ.items() if k not in ("CLAUDE_PLUGIN_ROOT", "CODEX_PLUGIN_ROOT")}
+    cases = [({"CLAUDE_PLUGIN_ROOT": "/claude", "CODEX_PLUGIN_ROOT": "/codex"}, "/claude"),
+             ({"CODEX_PLUGIN_ROOT": "/codex"}, "/codex")]
+    if relative == "skills/skill-refine/SKILL.md":
+        cases.append(({}, str(Path.home() / ".claude-octopus/plugin")))
+    for pins, expected in cases:
+        result = subprocess.run(["bash", "-c", 'selected=' + match.group(1) + '; printf "%s" "$selected"'], env={**clean, **pins}, capture_output=True, text=True, check=True)
+        assert result.stdout == expected, (relative, pins, result.stdout)
 PY
 then test_pass; else test_fail "host root precedence differs"; fi
 
