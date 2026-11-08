@@ -112,7 +112,12 @@ record_provider_failure() (
     echo "${timestamp}:${error_class}:${exit_code}" >> "$failure_file" || return 1
     # Trim to last 20 entries
     if [[ -f "$failure_file" ]]; then
-        tail -20 "$failure_file" > "${failure_file}.tmp" && mv "${failure_file}.tmp" "$failure_file" || return 1
+        local failure_tmp
+        failure_tmp=$(mktemp "${failure_file}.XXXXXX") || return 1
+        if ! tail -20 "$failure_file" > "$failure_tmp" || ! mv "$failure_tmp" "$failure_file"; then
+            rm -f "$failure_tmp" || true
+            return 1
+        fi
     fi
 
     # Check if circuit should open (only on transient — permanent errors don't trigger breaker)
@@ -163,9 +168,15 @@ is_provider_available() (
 
     [[ ! -f "$cooldown_file" ]] && return 0
     # Expiry must not remove a new cooldown published by a concurrent failure.
-    local state_key="${_PROVIDER_STATE_DIR}/${provider}.breaker"
-    _octo_event_lock "$state_key" || return 1
-    trap '_octo_event_unlock "$state_key"' EXIT
+    local state_key="${_PROVIDER_STATE_DIR}/${provider}.breaker" state_locked=0
+    if _octo_event_lock "$state_key"; then
+        state_locked=1
+        trap '_octo_event_unlock "$state_key"' EXIT
+    else
+        # Contention or an unwritable lock is not an open circuit. Inspect the
+        # current deadline without deleting state owned by another writer.
+        log "DEBUG" "Provider $provider breaker lock unavailable; checking cooldown read-only" 2>/dev/null || true
+    fi
 
     local cooldown_start
     cooldown_start=$(cat "$cooldown_file" 2>/dev/null) || return 0
@@ -176,7 +187,7 @@ is_provider_available() (
 
     if [[ $elapsed -ge $OCTO_CB_COOLDOWN_SECS ]]; then
         # Cooldown expired → half-open state (allow probe)
-        rm -f "$cooldown_file"
+        [[ "$state_locked" -eq 0 ]] || rm -f "$cooldown_file"
         log "INFO" "Circuit breaker HALF-OPEN for $provider — allowing probe after ${elapsed}s cooldown" 2>/dev/null || true
         declare -f octo_event_emit >/dev/null 2>&1 && octo_event_emit "circuit-breaker.half-open" provider="$provider" cooldown_elapsed="$elapsed" || true
         return 0

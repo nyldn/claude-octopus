@@ -65,6 +65,62 @@ fi
 
 # ── File existence and syntax ─────────────────────────────────────────────────
 
+for lock_status in 1 75; do
+    test_case "lock failure $lock_status permits an expired probe without changing shared state"
+    if (
+        _octo_event_lock() { return "$lock_status"; }
+        _octo_event_unlock() { touch "$TEST_TMP_DIR/unowned-unlock"; }
+        printf '1\n' > "$_PROVIDER_STATE_DIR/codex.cooldown"
+        [[ "$(filter_available_providers codex)" == codex ]] &&
+            [[ "$(cat "$_PROVIDER_STATE_DIR/codex.cooldown")" == 1 ]] &&
+            [[ ! -e "$TEST_TMP_DIR/unowned-unlock" ]]
+    ); then test_pass; else test_fail "lock failure was treated as an open circuit"; fi
+
+    test_case "lock failure $lock_status preserves an active cooldown"
+    if (
+        _octo_event_lock() { return "$lock_status"; }
+        date +%s > "$_PROVIDER_STATE_DIR/codex.cooldown"
+        [[ -z "$(filter_available_providers codex)" ]] &&
+            [[ -s "$_PROVIDER_STATE_DIR/codex.cooldown" ]]
+    ); then test_pass; else test_fail "lock fallback bypassed an active cooldown"; fi
+done
+
+test_case "a cooldown replaced while acquiring the lock is checked again"
+if (
+    eval "$(declare -f _octo_event_lock | sed '1s/_octo_event_lock/real_event_lock/')"
+    _octo_event_lock() {
+        real_event_lock "$@" || return $?
+        date +%s > "$_PROVIDER_STATE_DIR/codex.cooldown"
+    }
+    printf '1\n' > "$_PROVIDER_STATE_DIR/codex.cooldown"
+    ! is_provider_available codex && [[ -s "$_PROVIDER_STATE_DIR/codex.cooldown" ]]
+); then test_pass; else test_fail "a renewed cooldown was removed"; fi
+
+test_case "failure-log trimming does not follow a predictable temporary symlink"
+if (
+    _PROVIDER_STATE_DIR="$TEST_TMP_DIR/symlink-state"
+    mkdir -p "$_PROVIDER_STATE_DIR"
+    printf 'preserve me\n' > "$TEST_TMP_DIR/symlink-target"
+    ln -s "$TEST_TMP_DIR/symlink-target" "$_PROVIDER_STATE_DIR/codex.failures.tmp"
+    record_provider_failure codex 75 'temporary limit' >/dev/null &&
+        [[ "$(cat "$TEST_TMP_DIR/symlink-target")" == 'preserve me' ]] &&
+        [[ "$(wc -l < "$_PROVIDER_STATE_DIR/codex.failures")" -eq 1 ]]
+); then test_pass; else test_fail "failure-log trim overwrote a symlink target"; fi
+
+for failed_command in tail mv; do
+    test_case "failure-log $failed_command failure cleans up its temporary file and lock"
+    if (
+        _PROVIDER_STATE_DIR="$TEST_TMP_DIR/failed-$failed_command-state"
+        mkdir -p "$_PROVIDER_STATE_DIR"
+        if [[ "$failed_command" == tail ]]; then tail() { return 1; }
+        else mv() { return 1; }; fi
+        if record_provider_failure codex 75 'temporary limit' >/dev/null; then exit 1; fi
+        shopt -s nullglob
+        leftovers=("$_PROVIDER_STATE_DIR"/codex.failures.*)
+        [[ "${#leftovers[@]}" -eq 0 && ! -d "$_PROVIDER_STATE_DIR/codex.breaker.lock" ]]
+    ); then test_pass; else test_fail "failure left temporary state or returned success"; fi
+done
+
 test_case "concurrent failures serialize the complete circuit-breaker transaction"
 if (
     _PROVIDER_STATE_DIR="$TEST_TMP_DIR/concurrent-state"

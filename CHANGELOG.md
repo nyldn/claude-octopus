@@ -22,6 +22,8 @@
   do not count as consecutive failures. Parallel quota failures update the
   breaker together, and an unwritable diagnostic marker cannot prevent worker
   completion after a quota stop.
+  Lock contention does not turn an expired cooldown into an open circuit, and
+  failure-log trimming uses private temporary files without following stale links.
 - Direct spawns respect terminal quota and auth markers even when no transient
   cooldown is active. Provider reset hints remain inside untrusted result frames.
 - Quota and termination status summaries use launcher-authored reasons so provider diagnostics
