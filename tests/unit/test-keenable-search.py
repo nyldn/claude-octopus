@@ -22,6 +22,7 @@ spec.loader.exec_module(api)
 
 class SearchTests(unittest.TestCase):
     def invoke(self, data, key="", raw=None):
+        """Exercise the transport against an in-memory response and return its request."""
         response = io.BytesIO(json.dumps(data).encode() if raw is None else raw)
         with patch.dict(os.environ, {"KEENABLE_API_KEY": key}), patch.object(api.urllib.request, "build_opener") as opener:
             opener.return_value.open.return_value = response
@@ -33,6 +34,7 @@ class SearchTests(unittest.TestCase):
             return result, request
 
     def test_keyless_and_keyed_requests_use_the_documented_origin_and_headers(self):
+        """Verify the public and authenticated HTTP request contracts without network I/O."""
         for key, suffix in (("", "/public"), ("inert-fixture", "")):
             with self.subTest(keyed=bool(key)):
                 output, request = self.invoke({"results": []}, key)
@@ -42,6 +44,7 @@ class SearchTests(unittest.TestCase):
                 self.assertEqual(output, "")
 
     def test_results_are_bounded_and_unsafe_urls_and_malformed_rows_are_not_handed_off(self):
+        """Reject unsafe result rows while enforcing count and display-length limits."""
         good = {"title": "long " * 100, "url": "https://example.com/page", "snippet": "content " * 200}
         result, _ = self.invoke({"results": [good] * 9})
         self.assertEqual(result.count("https://example.com/page"), 5)
@@ -53,11 +56,13 @@ class SearchTests(unittest.TestCase):
                 self.assertEqual(result, "")
 
     def test_invalid_and_oversized_responses_fail_without_partial_output(self):
+        """Malformed response envelopes must fail instead of contributing partial evidence."""
         for raw in (b"not JSON", b"x" * (api.MAX_RESPONSE_BYTES + 1), b"[]", b'{"results":{}}'):
             with self.subTest(size=len(raw)), self.assertRaises(ValueError):
                 self.invoke(None, raw=raw)
 
     def test_invalid_queries_never_contact_transport(self):
+        """Reject blank and oversized UTF-8 queries before constructing a request."""
         with patch.object(api.urllib.request, "build_opener") as opener:
             for query in (" ", "x" * (api.MAX_QUERY_BYTES + 1), "界" * api.MAX_QUERY_BYTES):
                 with self.assertRaises(ValueError):
@@ -65,16 +70,19 @@ class SearchTests(unittest.TestCase):
             opener.assert_not_called()
 
     def test_redirects_and_deadline_do_not_retry_or_forward_credentials(self):
+        """Redirects and elapsed deadlines must not retry with the search credential."""
         self.assertIsNone(api.NoRedirect().redirect_request(None, None, 302, "redirect", {}, "https://elsewhere.invalid"))
         with self.assertRaises(api.DeadlineExceeded):
             api.deadline(None, None)
 
     def test_deadline_escapes_real_socket_address_retries(self):
+        """The total deadline must escape the standard library address retry loop."""
         addresses = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.0.2.1", 443)),
                      (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.0.2.2", 443))]
         with patch.object(socket, "getaddrinfo", return_value=addresses), patch.object(socket, "socket") as factory:
             attempts = []
             def connect(address):
+                """Raise the production deadline exception on the first candidate address."""
                 attempts.append(address)
                 if len(attempts) == 1:
                     api.deadline(None, None)
@@ -85,6 +93,7 @@ class SearchTests(unittest.TestCase):
             self.assertEqual(factory.call_count, 1)
 
     def test_mcp_adapter_forwards_the_optional_credential(self):
+        """Keep search access in orchestration while excluding it from model environments."""
         script = "import {loadProviderEnvAllowlist,providerEnvironment} from './shared/adapter-runtime.mjs'; const result=providerEnvironment(loadProviderEnvAllowlist(process.cwd()),{KEENABLE_API_KEY:'inert-fixture'}); if(result.KEENABLE_API_KEY!=='inert-fixture') process.exit(1);"
         result = subprocess.run(["node", "--input-type=module", "-e", script], cwd=ROOT, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -93,6 +102,7 @@ class SearchTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, "search credential reached a model child or environment construction failed")
 
     def test_cli_deadline_interrupts_a_slow_transport(self):
+        """The CLI must stop a slow transport before its outer test timeout expires."""
         script = "import importlib.util,sys,time; s=importlib.util.spec_from_file_location('search',sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); m.search=lambda query: time.sleep(30); sys.exit(m.main())"
         started = time.monotonic()
         result = subprocess.run([os.sys.executable, "-c", script, str(ROOT / "scripts/helpers/keenable-search.py")], input="question", capture_output=True, text=True, timeout=20)
@@ -101,6 +111,7 @@ class SearchTests(unittest.TestCase):
         self.assertLess(time.monotonic() - started, 19)
 
     def test_search_credential_is_removed_from_actual_model_children(self):
+        """Execute child commands to verify isolation without removing parent search access."""
         script = '''source "$1/scripts/lib/provider-routing.sh"
 build_provider_env "$2"
 "${PROVIDER_ENV_ARRAY[@]}" bash -c '[[ -z "${KEENABLE_API_KEY+x}" ]]'
@@ -171,6 +182,7 @@ _display_smoke_test_error "$2" "${smoke_result%%:*}" fixture-model
                             self.assertIn("do not use web search or any tools", call)
 
     def test_untrusted_boundary_preserves_literal_backslashes_under_xpg_echo(self):
+        """Shell echo settings must not truncate search text or its closing trust marker."""
         script = '''shopt -s xpg_echo
 source "$1/scripts/lib/secure.sh"
 sanitize_external_content 'literal\\c followed by \\n and \\t' keenable-search
@@ -183,6 +195,7 @@ sanitize_external_content 'literal\\c followed by \\n and \\t' keenable-search
         self.assertEqual(lines[2], lines[0].replace('BEGIN-UNTRUSTED:', 'END-UNTRUSTED:'))
 
     def test_untrusted_search_survives_the_actual_persona_and_tool_policy_path(self):
+        """Persona and policy formatting must preserve search text and nonce boundaries."""
         script = r'''shopt -s xpg_echo
 source "$1/scripts/lib/secure.sh"
 source "$1/scripts/lib/dispatch.sh"
@@ -211,6 +224,7 @@ apply_persona "$4" "$payload" "$5" "$6"
                 self.assertIn(begin.replace('BEGIN-UNTRUSTED:', 'END-UNTRUSTED:'), lines)
 
     def test_shell_function_providers_keep_auth_and_drop_only_the_search_key(self):
+        """Function routes must retain model authentication and exclude the search credential."""
         script = '''source "$1/scripts/lib/provider-routing.sh"
 source "$1/scripts/lib/heartbeat.sh"
 fixture_provider() { [[ -z "${KEENABLE_API_KEY+x}" && "$PERPLEXITY_API_KEY" == inert-auth && "$OCTOPUS_AUTO_PEER_ACTIVE" == true ]]; }
@@ -228,6 +242,7 @@ run_with_timeout 5 "${PROVIDER_ENV_ARRAY[@]}" fixture_provider || exit 4
                 self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_search_key_cannot_be_reintroduced_as_a_custom_provider_credential(self):
+        """Reject configurations that repurpose the search credential for a model child."""
         script = '''source "$1/scripts/lib/provider-routing.sh"
 octopus_provider_definition_field() { printf '%s\\n' KEENABLE_API_KEY; }
 if build_provider_env openai-compatible-agent; then exit 2; fi
@@ -407,6 +422,7 @@ octopus_tangle_apply_execution_boundary
                 self.assertEqual(url in result, accepted)
 
     def test_cli_errors_print_no_key_response_body_or_traceback(self):
+        """Transport failures must emit only the fixed safe diagnostic."""
         for error in (urllib.error.HTTPError("https://api.keenable.ai", 402, "inert-private-value", {}, None), TimeoutError("inert-private-value"), ValueError("inert-private-value")):
             with self.subTest(error=type(error).__name__), patch.object(api, "search", side_effect=error), patch.object(api.signal, "alarm"), patch.object(api.signal, "signal"), patch.object(api.sys, "stdin", type("Input", (), {"buffer": io.BytesIO(b"question")})()), patch.object(api.sys, "stdout", io.StringIO()) as stdout, patch.object(api.sys, "stderr", io.StringIO()) as stderr:
                 self.assertEqual(api.main(), 1)
@@ -415,6 +431,7 @@ octopus_tangle_apply_execution_boundary
                 self.assertNotIn("Traceback", stderr.getvalue())
 
     def test_shell_opt_in_allowlist_and_nonce_boundaries(self):
+        """Verify lookup admission, one-call behavior and untrusted result framing."""
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             shim = root / "python3"

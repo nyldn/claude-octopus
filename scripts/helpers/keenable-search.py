@@ -19,6 +19,7 @@ class DeadlineExceeded(Exception):
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
+        """Refuse redirects so search credentials never reach another origin."""
         return None
 
 
@@ -71,10 +72,12 @@ def search(query):
 
 
 def deadline(signum, frame):
+    """Abort total request time without entering socket retry handling."""
     raise DeadlineExceeded("search deadline exceeded")
 
 
 def main():
+    """Emit bounded search suggestions or a diagnostic that contains no secrets."""
     signal.signal(signal.SIGALRM, deadline)
     signal.alarm(15)
     try:
