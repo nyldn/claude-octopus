@@ -37,9 +37,9 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 ## What's New
 
 Deck generation checks rendered slides before reporting completion. It compares
-titles and highlighted data claims with the approved outline and reviews slide
-thumbnails. Missing evidence leaves the deck as a draft. See
-[document renderers](docs/DOCUMENT-RENDERERS.md).
+titles with the approved outline, checks highlighted data claims against their
+source data, and reviews slide thumbnails. Missing evidence leaves the deck as a
+draft. See [document renderers](docs/DOCUMENT-RENDERERS.md).
 
 Cost tiers can pair a model with reasoning effort, so a budget task can use a
 lighter setting while a difficult task uses a deeper one. Explicit model and
