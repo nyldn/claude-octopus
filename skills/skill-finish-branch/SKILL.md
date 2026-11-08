@@ -66,7 +66,7 @@ DIFF_FILES=$(git diff --name-only $(git merge-base HEAD main)..HEAD)
 
 ```bash
 # Quick review via orchestrate.sh (uses available providers)
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh spawn reviewer "Review this diff for bugs, security issues, and code quality problems. Be concise — only flag real issues, not style preferences.
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn reviewer "Review this diff for bugs, security issues, and code quality problems. Be concise — only flag real issues, not style preferences.
 
 $(git diff $(git merge-base HEAD main)..HEAD | head -500)"
 ```
@@ -197,7 +197,7 @@ PR_BODY=$(cat <<EOF
 - [ ] Code review needed
 EOF
 )
-if ! "${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}/scripts/safe-gh-comment.sh" \
+if ! "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/safe-gh-comment.sh" \
     --repo "$REPO_SLUG" pr-create "$PR_TITLE" "$FEATURE_BRANCH" - <<< "$PR_BODY"; then
   echo "GitHub write state is unknown; check for an existing pull request before retrying:" >&2
   gh pr list --repo "$REPO_SLUG" --head "$FEATURE_BRANCH" --state all --json number,state,url || true
@@ -323,7 +323,7 @@ After completing octopus workflows, use this skill:
 
 ```bash
 # Run octopus validation before finishing
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh ink "Validate before merge"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" ink "Validate before merge"
 
 # If validation passes, proceed with finishing-branch
 ```

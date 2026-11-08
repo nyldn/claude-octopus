@@ -281,7 +281,7 @@ Use `/octo:issues list` to see all open issues.
 mkdir -p .octo
 
 # Copy template
-cp ${HOME}/.claude-octopus/plugin/config/templates/ISSUES.md.template .octo/ISSUES.md
+cp ${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/config/templates/ISSUES.md.template .octo/ISSUES.md
 
 # Replace {{PROJECT_NAME}} with actual project name
 PROJECT_NAME=$(basename $(pwd))

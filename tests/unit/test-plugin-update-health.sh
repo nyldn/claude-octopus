@@ -415,7 +415,7 @@ unset OCTOPUS_CLAUDE_DIR OCTOPUS_CODEX_DIR OCTO_TEST_CALL_LOG \
     OCTO_TEST_METADATA_UPDATER OCTO_TEST_UPDATE_MODE
 
 test_case "SessionStart registers update advisory"
-if jq -e '.hooks.SessionStart[].hooks[] | select(.command == "${CLAUDE_PLUGIN_ROOT}/hooks/plugin-update-advisory.sh")' \
+if jq -e '.hooks.SessionStart[].hooks[] | select(.command == "\"${CLAUDE_PLUGIN_ROOT}/hooks/plugin-update-advisory.sh\"")' \
     "$PROJECT_ROOT/hooks/hooks.json" >/dev/null 2>&1; then
     test_pass
 else

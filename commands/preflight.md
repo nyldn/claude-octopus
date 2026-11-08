@@ -12,7 +12,7 @@ a local-only static check: installation, safe configuration metadata, and
 known quota state. It does not contact provider services.
 
 ```bash
-OCTO_ROOT="${OCTO_ROOT:-${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 bash "${OCTO_ROOT}/scripts/helpers/preflight.sh"
 ```
 
