@@ -79,12 +79,14 @@ from pathlib import Path
 import os, subprocess, sys, tempfile
 root = Path(sys.argv[1])
 expression = '${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}'
+prd_expression = '${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${OCTO_ROOT:-${HOME}/.claude-octopus/plugin}}}'
 checked = 0
 for path in (root/'commands').glob('*.md'):
     text = path.read_text()
     if '${HOME}/.claude-octopus/plugin' not in text:
         continue
-    assert '${HOME}/.claude-octopus/plugin' not in text.replace(expression, ''), path
+    allowed = prd_expression if path.name == 'prd.md' else expression
+    assert '${HOME}/.claude-octopus/plugin' not in text.replace(allowed, ''), path
     for pins, expected in [({'CLAUDE_PLUGIN_ROOT':'/selected-claude','CODEX_PLUGIN_ROOT':'/other-codex'}, '/selected-claude'), ({'CODEX_PLUGIN_ROOT':'/selected-codex'}, '/selected-codex'), ({}, '/fixture-home/.claude-octopus/plugin')]:
         env = dict(os.environ, HOME='/fixture-home')
         env.pop('CLAUDE_PLUGIN_ROOT',None);env.pop('CODEX_PLUGIN_ROOT',None);env.update(pins)
@@ -94,6 +96,36 @@ for path in (root/'commands').glob('*.md'):
 assert checked >= 24, checked
 ROOTS
 then test_pass; else test_fail "a command can use another installation"; fi
+
+test_case "PRD dispatch preserves the resolved installation below explicit host roots"
+if python3 - "$PROJECT_ROOT" <<'PRD_ROOTS'
+from pathlib import Path
+import os
+import re
+import subprocess
+import sys
+
+root = Path(sys.argv[1])
+clean = {key: value for key, value in os.environ.items()
+         if key not in ('CLAUDE_PLUGIN_ROOT', 'CODEX_PLUGIN_ROOT', 'OCTO_ROOT')}
+clean['HOME'] = '/fixture home'
+cases = [({'CLAUDE_PLUGIN_ROOT': '/claude root', 'CODEX_PLUGIN_ROOT': '/codex root',
+           'OCTO_ROOT': '/resolved root'}, '/claude root'),
+         ({'CODEX_PLUGIN_ROOT': '/codex root', 'OCTO_ROOT': '/resolved root'}, '/codex root'),
+         ({'OCTO_ROOT': '/resolved root'}, '/resolved root'),
+         ({'CLAUDE_PLUGIN_ROOT': '', 'CODEX_PLUGIN_ROOT': '', 'OCTO_ROOT': '/resolved root'}, '/resolved root'),
+         ({'OCTO_ROOT': ''}, '/fixture home/.claude-octopus/plugin'),
+         ({}, '/fixture home/.claude-octopus/plugin')]
+for relative in ('commands/prd.md', '.cursor-plugin/commands/octo-prd.md'):
+    assignments = re.findall(r'^OCTO_ROOT=.+$', (root / relative).read_text(), re.M)
+    assert len(assignments) == 2, (relative, assignments)
+    for assignment in assignments:
+        for pins, expected in cases:
+            result = subprocess.run(['bash', '-eu', '-c', assignment + '; printf "%s" "$OCTO_ROOT"'],
+                env=dict(clean, **pins), capture_output=True, text=True, check=True)
+            assert result.stdout == expected, (relative, assignment, pins, expected, result.stdout)
+PRD_ROOTS
+then test_pass; else test_fail "PRD replaced the resolved installation"; fi
 
 test_case "workflow source templates preserve host-root precedence"
 if python3 - "$PROJECT_ROOT" <<'TEMPLATE_ROOTS'
