@@ -29,5 +29,5 @@ sessions never open it automatically.
 - First-run onboarding
 
 Do NOT duplicate setup logic here. Read
-`${HOME}/.claude-octopus/plugin/commands/setup.md` and follow it only because
+`${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/commands/setup.md` and follow it only because
 the user explicitly invoked this configuration skill.

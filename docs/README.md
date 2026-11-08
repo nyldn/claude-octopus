@@ -4,7 +4,8 @@
 
 ## Core References
 
-- [COMMAND-REFERENCE.md](./COMMAND-REFERENCE.md) — All 54 slash commands with natural-language triggers
+- [COMMAND-REFERENCE.md](./COMMAND-REFERENCE.md) — All 56 slash commands with natural-language triggers
+- [REFINEMENT.md](./REFINEMENT.md): `/octo:refine` rubric scoring with Claude and Codex, review-only mode, and budget controls
 - [WORKFLOW-METHODS.md](./WORKFLOW-METHODS.md): Architecture, TDD, debugging, decisions, prototypes, routing previews, and resumable setup
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — Provider model mapping, execution contracts, and workflow flow
 - [V10-MIGRATION.md](./V10-MIGRATION.md) — V10 compatibility, verification, and rollback guidance

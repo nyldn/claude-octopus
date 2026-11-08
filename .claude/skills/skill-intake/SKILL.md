@@ -83,7 +83,7 @@ For public comment text, stream the completed note through the outbound gate:
 
 ```bash
 printf '%s\n' "$TRIAGE_NOTE" | \
-  "${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}/scripts/safe-gh-comment.sh" \
+  "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/safe-gh-comment.sh" \
     --repo OWNER/REPO issue-comment ISSUE_NUMBER -
 ```
 

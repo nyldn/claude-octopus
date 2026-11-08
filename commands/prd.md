@@ -55,7 +55,7 @@ To make this PRD highly targeted, please answer briefly:
 
 ```bash
 set -euo pipefail
-OCTO_ROOT="${OCTO_ROOT:-${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${OCTO_ROOT:-${HOME}/.claude-octopus/plugin}}}"
 
 # Check if multi-provider research is available
 CODEX_AVAILABLE="false"
@@ -116,7 +116,7 @@ Include these sections:
 **If an external provider is available, dispatch through Octopus routing:**
 
 ```bash
-OCTO_ROOT="${OCTO_ROOT:-${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${OCTO_ROOT:-${HOME}/.claude-octopus/plugin}}}"
 review_provider=""
 command -v codex >/dev/null 2>&1 && review_provider="codex"
 [[ -z "$review_provider" ]] && command -v agy >/dev/null 2>&1 && review_provider="agy"

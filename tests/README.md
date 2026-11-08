@@ -1,7 +1,7 @@
 # Claude Octopus tests
 
-Use the smallest gate that proves the change while you work. Run the complete
-local gate before merge or release.
+Use affected behavioral checks while editing. Use the exact-commit hosted
+gates for merge and release; keep full local runs for offline diagnosis.
 
 ## Commands
 
@@ -9,10 +9,14 @@ local gate before merge or release.
 # Once per clean checkout, install adapter build/runtime dependencies.
 make test-deps
 
-# Select focused suites from the files changed on this branch.
+# Before push, check generated artifacts and smoke.
+make ci-quick
+
+# Inspect the affected suites; run ci-changed when the plan is focused.
+scripts/ci-changed.sh --list
 make ci-changed
 
-# Match the complete local release gate: generated files, smoke, unit, integration.
+# Optional complete offline diagnosis: generated files, smoke, unit, integration.
 make ci-local
 
 # Run one suite while iterating.
@@ -64,24 +68,55 @@ Prefer assertions on observable behavior. Static source checks are appropriate
 for wiring and generated-file contracts, but they should not duplicate a
 behavior test or claim that model output is deterministic.
 
-## Choosing the final gate
+## Test tiers
 
-`make ci-changed` fails closed to `make ci-local` when a shared, generated,
-manifest, or unmapped file changes. A focused pass is enough for ordinary
-branch pushes when the selector remains focused. Before merge or release, run
-`make ci-local` regardless of the focused result.
+| Tier | When | Coverage |
+| --- | --- | --- |
+| Edit | Each behavior change | Affected regression suites with inert providers |
+| Quick | Before push | `make ci-quick`: generated files, packaging, syntax, discovery, safety smoke |
+| Focused PR | All changed paths have mappings | Affected unit suites on Linux and macOS, both smoke lanes, portability, path-sensitive suites, full integration |
+| Full | Shared/unmapped PRs; every main, queue, nightly, manual run | Every unit suite, including council lifecycle, split into four weighted shards per OS; the other required checks also run |
+| Native/artifact | Installation changes and publication | Isolated native installation/discovery, relevant first use, downloaded artifact and revision checks |
+| Live | Explicit provider changes needing live evidence | Bounded opt-in provider checks, with quota and cost accounted for |
 
-`make test-unit` is the core unit lane used for fast feedback and ordinary CI;
-it excludes the slow council lifecycle contract, whose public CLI contracts are
-covered by smoke tests on every heavy run. `make test-unit-deep` restores the
-complete unit suite, and `make ci-local` uses that complete lane before merge
-or release. Ordinary pull requests use the changed-surface selector on one
-Linux runner; shared CI, runner, generator, and orchestration changes fail
-closed to the cross-platform core matrix. Main, scheduled, manually dispatched,
-and merge-queue runs add the explicit deep council lane. Smoke, portability,
-packaging, symlink, and integration checks remain separate gates because they
-exercise different plugin contracts. This keeps routine plugin changes fast
-without making deep validation optional for release-quality runs.
+Required check names remain `Smoke Tests`, `Unit Tests`, and `Integration Tests`.
+Their aggregate jobs reject failed, cancelled, skipped, or missing expected
+coverage. Approval, zero unresolved review threads, an up-to-date branch, and
+successful main CI for the squash commit remain mandatory. No successful
+advisory/model output substitutes for these gates.
+
+`make ci-changed` uses `tests/changed-scope.tsv`. Missing bases, stale mappings,
+shared code, and unknown paths fail closed to `make ci-local`. Use the focused
+plan for local feedback; don't repeat the full matrix locally when exact-commit
+hosted coverage is available. `make ci-local` remains the complete offline
+fallback. `make test-unit` keeps its historical core selection; the hosted full
+tier and `make test-unit-deep` include council as part of the ordinary inventory.
+
+Integration runs alongside unit tests because it consumes no unit artifacts.
+The symlink lane runs the explicit path-behavior set on every event. Packaging
+already runs in smoke on both platforms, so there is no third standalone pack
+job. Failed checks stay failed until repaired or a justified rerun succeeds;
+an isolated passing rerun does not rewrite the earlier full-run result.
+
+Full unit steps run in an owned process group with a 20-minute budget inside
+the 30-minute job. A timeout retains a bounded output tail and fails the unit
+gate. External cancellation records its signal and cleans up owned children.
+Failed or cancelled jobs upload the step log; the last named suite and test in
+timeout output guide the repair.
+
+Automatic Octopus multi-model PR reviews are opt-in through repository variable
+`OCTOPUS_AUTOMATED_PR_REVIEW=true`. Manual and trusted comment commands remain
+available. For a manual `review`, supply the PR number and use the prompt for
+review context. It fetches the diff and invokes `code-review` without publishing
+findings. This advisory workflow had unavailable verifier tooling and truncated
+prompts, so its incomplete output cannot approve a release. The independent
+approval requirement remains intact.
+
+Refresh `tests/shard-weights.tsv` from successful timing evidence when the slow
+suites change. Shards must be disjoint and their union must equal the discovered
+inventory. New tests remain automatically discovered. Do not delete a regression
+solely because it is slow; replace it only when equivalent behavioral coverage
+is demonstrated.
 
 Live tests are never part of the default or required matrix. Run them only when
 the change requires real-provider evidence and you intend to spend the

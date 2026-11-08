@@ -10,7 +10,7 @@ disable-model-invocation: true
 ## Instructions
 
 Read and follow the full skill instructions from:
-`${HOME}/.claude-octopus/plugin/.claude/skills/skill-iterative-loop/SKILL.md`
+`${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/.claude/skills/skill-iterative-loop/SKILL.md`
 
 ## Quick Usage
 
@@ -95,38 +95,26 @@ Or use the explicit command:
 
 ## Metric Verification Mode
 
-When you specify a `Metric:` command, the loop switches to mechanical metric verification. Each iteration makes ONE atomic change, commits it with an `experiment:` prefix, measures the metric, and automatically reverts if the metric worsens.
+`Metric: <command>` measures each candidate using a frozen numeric metric and
+optional `Guard: <command>`. Without a guard, accept only a measured
+improvement and report that no guard ran; do not claim safety validation. Set `Direction: higher` or `Direction: lower`.
+Defaults are five iterations, 30 elapsed minutes, and 14 additional model
+calls. `Iterations: N` accepts 1 through 20; `Minutes: N` and `Calls: N` accept
+positive integers. Stop at the first exhausted budget or two stalled rounds.
+Retries consume the same budgets, including after an interruption.
 
-### Metric Mode Parameters
+Work on isolated candidate copies. Preserve the user's dirty files, untracked
+files, and staged index. Rejected experiments discard only owned candidates;
+the workflow does not stage, commit, reset, or revert the user's repository.
+Check for concurrent changes before publishing only the authorized files and
+verify the delivered result. Missing isolation or deadline support stops the run.
 
-- **Metric:** `<shell command>` — must output a number (the value to optimize)
-- **Direction:** `higher` or `lower` — whether bigger or smaller numbers are better
-- **Guard:** `<shell command>` — must exit 0 for a change to be kept (run after metric)
-- **Iterations:** `N` — max iterations (default: unbounded)
-
-### Metric Mode Examples
-
-```
-/octo:loop Metric: npm test -- --coverage | grep 'All files' | awk '{print $(10)}' Direction: higher Guard: npm test Iterations: 20
-```
-
-```
-/octo:loop Metric: time npm run build 2>&1 | grep real | awk '{print $(2)}' Direction: lower Iterations: 10
-```
-
-```
-/octo:loop Metric: wc -l src/**/*.ts | tail -1 | awk '{print $(1)}' Direction: lower Guard: npm test Iterations: 15
+```text
+/octo:loop Metric: npm test -- --coverage Direction: higher Guard: npm test Iterations: 5 Minutes: 30 Calls: 14
 ```
 
-### How It Works
-
-1. Establishes baseline by running the metric command
-2. Each iteration: one change → git commit → measure → keep or revert
-3. Results logged to `.claude-octopus/experiments/<date>.jsonl`
-4. Resumes from existing log if experiment was interrupted
-5. Reports improvement summary when complete
-
-See the full skill documentation for detailed execution contract and rules.
+The metric command must output one number. See the delegated skill for the
+complete preservation, scoring, timeout, and resume contract.
 
 ## Integration with Other Skills
 
