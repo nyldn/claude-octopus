@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.19.0] - 2026-11-08
+
 ### Added
 
 - Deck generation verifies rendered slides before reporting completion. It
