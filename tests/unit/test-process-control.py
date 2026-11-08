@@ -194,6 +194,25 @@ class ProcessControlTests(unittest.TestCase):
             killpg.assert_not_called()
         self.assertEqual(handles, [member], "caller retains the handle for final cleanup")
 
+    def test_group_member_disappearance_cannot_report_successful_admission(self):
+        """A listed process may leave a child behind before its identity binds."""
+        leader = mock.Mock()
+        leader.info.pid = 4242
+        with mock.patch.object(control, "_owned_group_candidates", return_value=[(4343, leader)]), \
+             mock.patch.object(control, "Process", side_effect=ProcessLookupError()):
+            with self.assertRaises(control.StaleProcess):
+                control._admit_owned_group_members([leader], [], set(), set())
+
+    @unittest.skipUnless(sys.platform.startswith("linux"), "Linux procfs enumeration")
+    def test_owned_group_cleanup_on_linux_does_not_require_ps(self):
+        """Minimal Linux hosts need only the existing readable procfs contract."""
+        root = self.child("import os,time; os.setsid(); time.sleep(30)")
+        deadline = time.monotonic() + 3
+        while os.getpgid(root.pid) != root.pid and time.monotonic() < deadline:
+            time.sleep(0.01)
+        with mock.patch.object(subprocess, "run", side_effect=FileNotFoundError("ps")):
+            self.assertEqual(control.terminate(root.pid, frozen=True, owned_groups=True), "terminated")
+
     def test_owned_group_scan_failure_resumes_bound_leader(self):
         """Unavailable group metadata refuses cleanup without stranding STOP."""
         root = self.child("import os,time; os.setsid(); time.sleep(30)")
@@ -201,8 +220,8 @@ class ProcessControlTests(unittest.TestCase):
         while os.getpgid(root.pid) != root.pid and time.monotonic() < deadline:
             time.sleep(0.01)
         self.assertEqual(os.getpgid(root.pid), root.pid)
-        with mock.patch.object(subprocess, "run", side_effect=subprocess.TimeoutExpired("ps", 2)):
-            with self.assertRaises(subprocess.TimeoutExpired):
+        with mock.patch.object(control, "_process_groups", side_effect=PermissionError("group scan")):
+            with self.assertRaises(PermissionError):
                 control.terminate(root.pid, frozen=True, owned_groups=True)
         deadline = time.monotonic() + 1
         while control.snapshot(root.pid).stopped and time.monotonic() < deadline:

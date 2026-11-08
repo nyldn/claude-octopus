@@ -271,23 +271,31 @@ start_quota_watcher() {
 
     (
         _consecutive=0
+        _kill_attempts=0
         while kill -0 "$target_pid" 2>/dev/null; do
             sleep 2
-            if quota_watcher_has_match "$temp_err" "$temp_out"; then
+            if [[ $_kill_attempts -gt 0 ]] || quota_watcher_has_match "$temp_err" "$temp_out"; then
                 _consecutive=$((_consecutive + 1))
                 # Require the pattern to persist across two polls (~4 s) before killing.
                 # This lets provider CLIs with their own backoff (e.g. Gemini free-tier
                 # burst 429s) complete their retry before we act on the first match.
                 if [[ $_consecutive -ge 2 ]]; then
-                    # Diagnostic persistence must not prevent the terminal stop,
-                    # including when command substitutions inherit errexit.
-                    if [[ -n "$fired_file" ]]; then
-                        quota_watcher_match_line "$temp_err" "$temp_out" > "$fired_file" 2>/dev/null || true
+                    if [[ $_kill_attempts -eq 0 ]]; then
+                        # Diagnostic persistence must not prevent the terminal stop.
+                        if [[ -n "$fired_file" ]]; then
+                            quota_watcher_match_line "$temp_err" "$temp_out" > "$fired_file" 2>/dev/null || true
+                        fi
+                        log "WARN" "$warning_message"
+                        octo_quota_mark_dead "$provider"
                     fi
-                    log "WARN" "$warning_message"
-                    octo_quota_mark_dead "$provider"
-                    "$kill_callback" "$target_pid"
-                    break
+                    _kill_attempts=$((_kill_attempts + 1))
+                    if "$kill_callback" "$target_pid"; then
+                        break
+                    fi
+                    if [[ $_kill_attempts -ge 5 ]]; then
+                        log "ERROR" "Quota cleanup refused after 5 attempts; provider may still be running" 2>/dev/null || true
+                        break
+                    fi
                 fi
             else
                 _consecutive=0

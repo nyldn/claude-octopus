@@ -28,10 +28,12 @@ belongs to Octopus. Cancellation can clean descendants it captured while the
 original worker was alive, but cannot safely recover an already-orphaned group
 from its numeric group ID alone. Quota cleanup can also capture reparented
 members of a private group while its original leader remains a verified,
-stopped descendant. It enumerates group membership with a bounded numeric-only
-`ps` query, binds each member to its native identity, and rescans after freezing
-new members. A missing leader or failed enumeration refuses cleanup; it never
-sends a signal to a numeric group ID.
+stopped descendant. It enumerates group membership from Linux procfs or a bounded macOS `/bin/ps`
+query, binds each member to its native identity, and rescans after freezing
+new members. A missing leader, disappearing member or failed enumeration
+refuses cleanup; it never sends a signal to a numeric group ID. The quota
+watcher retries refused cleanup up to five times while the worker remains alive,
+then reports that provider work may still be running.
 
 Worker registration checks native cancellation support before provider dispatch.
 If cleanup later fails, workflow cancellation retains the worker ledger for retry

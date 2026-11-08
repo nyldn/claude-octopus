@@ -143,11 +143,8 @@ def snapshot(pid):
     return ProcessInfo(pid, parent, token, version, stopped)
 
 
-def _linux_proc_children(pid):
-    """Enumerate direct children from mandatory process stat records."""
-    result = []
-    # Reading our own record verifies that procfs supports the stat view before
-    # an empty scan can be interpreted as "no children".
+def _linux_proc_records():
+    """Yield PID/stat fields; disappeared records alone are safe to skip."""
     Path("/proc/self/stat").read_bytes()
     with os.scandir("/proc") as entries:
         for entry in entries:
@@ -156,11 +153,13 @@ def _linux_proc_children(pid):
             try:
                 fields = Path(entry.path, "stat").read_bytes().rsplit(b")", 1)[1].split()
             except FileNotFoundError:
-                # Processes may exit while /proc is being scanned.
                 continue
-            if int(fields[1]) == pid:
-                result.append(int(entry.name))
-    return sorted(result)
+            yield int(entry.name), fields
+
+
+def _linux_proc_children(pid):
+    """Enumerate direct children from mandatory process stat records."""
+    return sorted(child for child, fields in _linux_proc_records() if int(fields[1]) == pid)
 
 
 def children(pid):
@@ -301,6 +300,22 @@ def _wait(handles, seconds):
     return True
 
 
+def _process_groups():
+    """Enumerate live process groups without adding a Linux binary dependency."""
+    if sys.platform.startswith("linux"):
+        for pid, fields in _linux_proc_records():
+            if fields[0] not in (b"Z", b"X"):
+                yield pid, int(fields[2])
+        return
+    # macOS supplies this numeric PID/group view. Failure is not an empty group.
+    result = subprocess.run(["/bin/ps", "-axo", "pid=,pgid=,stat="], check=True,
+                            stdout=subprocess.PIPE, timeout=2)
+    for row in result.stdout.splitlines():
+        pid, pgid, state = row.split()
+        if not state.startswith((b"Z", b"X")):
+            yield int(pid), int(pgid)
+
+
 def _owned_group_candidates(leaders):
     """Enumerate members only while a bound, stopped private leader is alive."""
     if not leaders:
@@ -311,12 +326,7 @@ def _owned_group_candidates(leaders):
         if not leader.running() or os.getpgid(pid) != pid:
             raise StaleProcess("private group leader exited during group admission")
         active[pid] = leader
-    # Both supported hosts provide this numeric-only ps view. A failed or timed
-    # out enumeration is not proof of an empty group. No shell or group signal.
-    result = subprocess.run(["/bin/ps", "-axo", "pid=,pgid="], check=True,
-                            stdout=subprocess.PIPE, timeout=2)
-    for row in result.stdout.splitlines():
-        pid, pgid = map(int, row.split())
+    for pid, pgid in _process_groups():
         if pgid in active:
             yield pid, active[pgid]
 
@@ -331,15 +341,17 @@ def _admit_owned_group_members(leaders, handles, seen, excluded):
             raise OSError(errno.EOVERFLOW, "process tree exceeds cancellation limit")
         try:
             member = Process(child)
-        except (ProcessLookupError, StaleProcess):
-            continue
+        except (ProcessLookupError, StaleProcess) as error:
+            # It may have forked an unseen member before exiting. Refuse this
+            # snapshot so the caller can retry while the private leader lives.
+            raise StaleProcess("group member exited before identity admission") from error
         handles.append(member)
         try:
             same_group = os.getpgid(child) == leader.info.pid
-        except ProcessLookupError:
-            continue
+        except ProcessLookupError as error:
+            raise StaleProcess("group member exited before membership verification") from error
         if not member.running():
-            continue
+            raise StaleProcess("group member exited before freezing")
         if not same_group or not leader.running():
             raise StaleProcess("private group changed during member admission")
         seen.add(child)
@@ -348,6 +360,7 @@ def _admit_owned_group_members(leaders, handles, seen, excluded):
 
 
 def terminate(pid, grace=1, frozen=False, descendants=False, expected=None, owned_groups=False):
+    """Cancel bound processes, including still-owned private groups when requested."""
     _validate_pid(pid)
     excluded = _ancestors()
     if pid in excluded and not descendants:
@@ -461,6 +474,7 @@ def terminate(pid, grace=1, frozen=False, descendants=False, expected=None, owne
 
 
 def main():
+    """Expose native cleanup and report incomplete ownership verification."""
     def interrupted(signum, _frame):
         raise InterruptedError(f"cleanup interrupted by signal {signum}")
 

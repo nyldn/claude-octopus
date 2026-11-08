@@ -352,6 +352,48 @@ PROVIDER
     else test_fail "quota cleanup left an already-reparented group member alive"; fi
 }
 
+test_quota_cleanup_retries_refusal() {
+    test_case "quota cleanup retries transient refusal and bounds persistent refusal"
+    if (
+        source "${QUOTA_RETRY_LIB_ROOT:-$PROJECT_ROOT}/scripts/lib/quota-watcher.sh"
+        sleep() { command sleep 0.02; }
+        for mode in recover refuse; do
+            retry_dir="$FIXTURE/retry-$mode"
+            mkdir -p "$retry_dir"
+            _retry_stop() {
+                printf 'attempt\n' >> "$retry_dir/attempts"
+                [[ "$mode" == recover && "$(wc -l < "$retry_dir/attempts")" -ge 3 ]] || return 1
+                kill "$1"
+            }
+            octo_quota_mark_dead() { printf 'dead\n' >> "$retry_dir/dead"; }
+            log() { printf '%s\n' "$1" >> "$retry_dir/log"; }
+            command sleep 30 &
+            target=$!
+            watcher=$(start_quota_watcher "$target" "$retry_dir/err" "$retry_dir/out" \
+                _retry_stop retry retry-fixture "$retry_dir/fired")
+            printf 'ERROR: Individual quota reached.\n' > "$retry_dir/err"
+            for attempt in {1..250}; do
+                count=$(wc -l < "$retry_dir/attempts" 2>/dev/null || printf 0)
+                if [[ "$mode" == recover && "$count" -ge 3 ]] || \
+                   { [[ "$mode" == refuse ]] && grep -q ERROR "$retry_dir/log" 2>/dev/null; }; then break; fi
+                sleep 0.02
+            done
+            sleep 0.02
+            count=$(wc -l < "$retry_dir/attempts" 2>/dev/null || printf 0)
+            kill "$target" 2>/dev/null || true
+            wait "$target" 2>/dev/null || true
+            stop_quota_watcher "$watcher"
+            expected=3
+            [[ "$mode" != refuse ]] || expected=5
+            [[ "$count" -eq "$expected" && -s "$retry_dir/fired" ]] || exit 1
+            [[ "$(wc -l < "$retry_dir/dead")" -eq 1 ]] || exit 1
+            [[ "$(grep -c WARN "$retry_dir/log")" -eq 1 ]] || exit 1
+            [[ "$mode" != refuse ]] || grep -q ERROR "$retry_dir/log" || exit 1
+        done
+    ); then test_pass
+    else test_fail "cleanup was not retried safely or exceeded its retry bound"; fi
+}
+
 test_quota_cleanup_refuses_unverified_processes() {
     test_case "refused native quota cleanup never falls back to numeric signals"
     if (
@@ -383,6 +425,7 @@ test_quota_dead_mark_expires
 test_check_providers_applies_dead_marker_to_every_provider
 test_quota_cleanup_preserves_supervisor_owned_groups
 test_quota_cleanup_stops_reparented_group_member
+test_quota_cleanup_retries_refusal
 test_quota_cleanup_refuses_unverified_processes
 
 test_summary
