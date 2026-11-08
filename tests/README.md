@@ -98,6 +98,12 @@ already runs in smoke on both platforms, so there is no third standalone pack
 job. Failed checks stay failed until repaired or a justified rerun succeeds;
 an isolated passing rerun does not rewrite the earlier full-run result.
 
+Full unit steps run in an owned process group with a 20-minute budget inside
+the 30-minute job. A timeout retains a bounded output tail and fails the unit
+gate. External cancellation records its signal and cleans up owned children.
+Failed or cancelled jobs upload the step log; the last named suite and test in
+timeout output guide the repair.
+
 Automatic Octopus multi-model PR reviews are opt-in through repository variable
 `OCTOPUS_AUTOMATED_PR_REVIEW=true`. Manual and trusted comment commands remain
 available. For a manual `review`, supply the PR number and use the prompt for

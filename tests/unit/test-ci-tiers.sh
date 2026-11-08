@@ -87,6 +87,7 @@ test_case "full tier shards cover every suite exactly once per supported OS"
 if python3 - "$PROJECT_ROOT" <<'PY'
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import sys
 
@@ -96,7 +97,15 @@ job = re.search(r'^  unit-full:\n(.*?)(?=^  [\w-]+:|\Z)', workflow, re.M | re.S)
 oses = re.search(r'^        os: \[(.+)\]', job, re.M)[1].split(', ')
 assert set(oses) == {'ubuntu-latest', 'macos-latest'}
 indexes = re.search(r'^        shard_index: \[(.+)\]', job, re.M)[1].split(', ')
-command = re.search(r'^        run: (\./tests/run-all.sh unit .+)$', job, re.M)[1]
+command = re.search(r'^        run: (python3 tests/helpers/run-ci-step.py .+)$', job, re.M)[1]
+parts = shlex.split(command.replace('${{ matrix.shard_index }}', '0'))
+timeout = int(next(part.split('=', 1)[1] for part in parts if part.startswith('--timeout=')))
+job_timeout = int(re.search(r'^    timeout-minutes: (\d+)$', job, re.M)[1]) * 60
+assert 0 < timeout < job_timeout - 60, (timeout, job_timeout)
+log_path = parts[parts.index('--log') + 1]
+assert log_path.startswith('$RUNNER_TEMP/'), log_path
+artifact_path = '${{ runner.temp }}/' + log_path[len('$RUNNER_TEMP/'):]
+assert artifact_path in job and 'if: failure() || cancelled()' in job
 
 def suites(args):
     """List the real runner's selected suites without starting providers."""
@@ -109,7 +118,10 @@ assert 'unit/test-council-command.sh' in expected
 for os_name in oses:
     selected = []
     for index in indexes:
-        args = command.replace('${{ matrix.shard_index }}', index).split()[1:]
+        parts = shlex.split(command.replace('${{ matrix.shard_index }}', index))
+        runner_command = parts[parts.index('--') + 1:]
+        assert runner_command[:2] == ['./tests/run-all.sh', 'unit'], runner_command
+        args = runner_command[1:]
         subset = suites(args)
         assert subset, (os_name, index)
         selected.extend(subset)
