@@ -3581,7 +3581,10 @@ def unescaped(variants, table):
     # literal variant: source text keeps its backslashes, so a quote that drops
     # a source line's own "\|" still does not match it.
     if not table:
-        return variants
+        # sail-cruisey #3425: a doubled "\|\|" outside a table is the || operator
+        # escaped out of habit; a regular expression rarely holds it. A single
+        # "\|" stays literal.
+        return variants + [v.replace("\\|\\|", "||") for v in variants if "\\|\\|" in v]
     return variants + [v.replace("\\|", "|") for v in variants if "\\|" in v]
 
 # A seat that writes a quoted source line as a string literal ("…", with \"
@@ -3592,11 +3595,16 @@ def unescaped(variants, table):
 # verify an invented line. Only \" is unescaped; other backslashes stay
 # literal, as codex writes them (a quoted regex keeps its "\."), so "\\" is
 # not halved into a different regex.
+# Codex also wraps a line in single quotes (sail-cruisey #3425:
+# `'scenario({ role: "viewer" });'`); there only \' is unescaped.
 STRING_LITERAL = re.compile(r'^"(?:[^"\\]|\\.)+"$')
+SINGLE_LITERAL = re.compile(r"^'(?:[^'\\]|\\.)+'$")
 def unwrapped(variants, literal):
     if not literal:
         return variants
-    return variants + [v[1:-1].replace('\\"', '"').strip() for v in variants if STRING_LITERAL.match(v)]
+    return (variants
+            + [v[1:-1].replace('\\"', '"').strip() for v in variants if STRING_LITERAL.match(v)]
+            + [v[1:-1].replace("\\'", "'").strip() for v in variants if SINGLE_LITERAL.match(v)])
 
 def specific_lines(block, table=False, literal=False):
     out = []

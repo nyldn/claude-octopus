@@ -1467,6 +1467,21 @@ VERDICT: APPROVE")"
 r="$(_report "$pipe_prose")"
 if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
+# sail-cruisey #3425 G: a seat escaped "||" as "\|\|" in a list item, outside
+# any table. A doubled "\|\|" is the || operator, not a regular expression, so
+# it reads as "||"; a single "\|" outside a table stays literal (above).
+test_case "#3425: an escaped '\\|\\|' outside a table matches a source '||'"
+list_escaped="$(_resp "- src/tier-3125.ts:2 reads \`const tier = member.tier \\|\\| member.legacyTier \\|\\| DEFAULT_TIER;\`.
+VERDICT: APPROVE")"
+r="$(_report "$list_escaped")"
+if jq -e '.quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3425 placebo: an escaped '\\|\\|' quote that differs from the file is still fabricated"
+list_fab="$(_resp "- src/tier-3125.ts:2 reads \`const tier = member.tier \\|\\| member.vipTier \\|\\| DEFAULT_TIER;\`.
+VERDICT: APPROVE")"
+r="$(_report "$list_fab")"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
 test_case "#3125: a heading after a table ends the table"
 table_heading="$(_resp "| File | Note |
 |---|---|
@@ -1533,6 +1548,18 @@ esc="$(_resp 'src/guard-3234.mjs:3 contains `"if (url.pathname.startsWith(\"//\"
 VERDICT: APPROVE')"
 r="$(_report "$esc")"
 if jq -e '.quotes_checked == 2 and .quotes_verified == 2 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3425: a real line wrapped in single quotes verifies"
+single_lit="$(_resp "src/pricing.ts:2 uses \`'const base = cabin.basePrice ?? sailing.defaultPrice;'\` as the fallback.
+VERDICT: APPROVE")"
+r="$(_report "$single_lit")"
+if jq -e '.quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3425: an invented line wrapped in single quotes is still fabricated"
+single_fake="$(_resp "src/pricing.ts:2 uses \`'const base = await fetchCabinPrice(cabin.id);'\` here.
+VERDICT: APPROVE")"
+r="$(_report "$single_fake")"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
 test_case "#3234: an invented line wrapped as a string literal is still fabricated"
 fake_lit="$(_resp 'src/pricing.ts:2 uses `"const base = await fetchCabinPrice(cabin.id, { cache: true });"` here.
