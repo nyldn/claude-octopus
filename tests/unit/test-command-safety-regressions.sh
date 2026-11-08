@@ -50,6 +50,15 @@ try:
         ("printf '%s' 'rm -rf /tmp/important' | \"$SHELL\"", 'ask'),
         ("printf '%s' 'rm -rf /tmp/important' | timeout 5 \"$SHELL\"", 'ask'),
         ("printf '%s' 'rm -rf /tmp/important' | sudo -u somebody \"$SHELL\"", 'ask'),
+        ("rg 'rm -rf' README.md | sed -n '$p'", 'allow'),
+        ("env sed -n '$p' README.md | grep 'rm -rf'", 'allow'),
+        ("env \"$SHELL\" -c 'rm -rf /tmp/important' rm", 'ask'),
+        ("sudo -u somebody \"$SHELL\" -c 'rm -rf /tmp/important' rm", 'ask'),
+        ('env FOO=bar rm -rf node_modules', 'allow'),
+        ('sudo -u somebody rm -rf node_modules', 'allow'),
+        ('timeout --kill-after 1s 5 rm -rf node_modules', 'allow'),
+        ('command -v rm', 'allow'),
+        ('rtk proxy echo rm', 'allow'),
         ('sudo -u somebody rm -rf /tmp/important', 'ask'),
         ('if true; then rm -rf /tmp/important; fi', 'ask'),
         ('for x in once; do rm -rf /tmp/important; done', 'ask'),
@@ -131,6 +140,7 @@ with tempfile.TemporaryDirectory() as temporary:
         careful = Path('/tmp/octopus-careful-'+sid+'.txt')
         try:
             subprocess.run(['bash',str(helper),'guard-on',temporary],env=env,check=True,capture_output=True)
+            assert hook('careful-check.sh',{'tool_name':'Bash','tool_input':{'command':"rg 'rm -rf' README.md | sed -n '$p'"}},env)=='allow'
             assert freeze.read_text().strip()==str(Path(temporary).resolve())
             assert hook('freeze-check.sh',{'tool_name':'Write','cwd':temporary,'tool_input':{'file_path':'/tmp/outside-command-audit'}},env)=='deny'
             assert hook('careful-check.sh',{'tool_name':'Bash','tool_input':{'command':'rm -rf /tmp/important'}},env)==('deny' if host=='codex' else 'ask')

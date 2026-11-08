@@ -157,6 +157,81 @@ def freeze(data, boundary):
             return
 
 
+def unwrap_safety_command(args):
+    """Identify supported wrapper executables; return None for opaque forms.
+
+    Preserve arguments after the executable. An empty list denotes a wrapper
+    query that does not execute a child command.
+    """
+    options = {
+        "env": ({"-i", "--ignore-environment", "-0", "--null", "-v", "--debug"}, {"-u", "--unset"}),
+        "sudo": ({"-n", "-E", "-H", "-S", "-k", "-b", "--non-interactive", "--set-home", "--stdin", "--background"},
+                 {"-u", "--user", "-g", "--group", "-h", "--host", "-p", "--prompt", "-C", "--close-from", "-r", "--role", "-t", "--type"}),
+        "doas": ({"-n", "-L"}, {"-u", "-C"}),
+        "command": ({"-p"}, set()),
+        "exec": ({"-c", "-l"}, {"-a"}),
+        "timeout": ({"--preserve-status", "--foreground", "--verbose", "-v"}, {"-s", "--signal", "-k", "--kill-after"}),
+        "nice": (set(), {"-n", "--adjustment"}),
+        "nohup": (set(), set()),
+        "setsid": ({"-c", "--ctty", "-f", "--fork", "-w", "--wait"}, set()),
+        "stdbuf": (set(), {"-i", "--input", "-o", "--output", "-e", "--error"}),
+    }
+    args = list(args)
+    while args:
+        if re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*=.*", args[0]):
+            if any(char in args[0] for char in ("$", "`")):
+                return None
+            args = args[1:]
+            continue
+        executable = Path(args[0]).name
+        if executable not in options and executable not in ("rtk", "busybox"):
+            return args
+        remaining = args[1:]
+        if not remaining:
+            return []
+        if executable in ("rtk", "busybox"):
+            if remaining[0] in ("--help", "--version", "--list", "--list-full"):
+                return []
+            if remaining[0].startswith("-"):
+                return None
+            args = remaining[1:] if executable == "rtk" and remaining[0] == "proxy" else remaining
+            continue
+        flags, values = options[executable]
+        index = 0
+        while index < len(remaining) and remaining[index].startswith("-"):
+            option = remaining[index]
+            if option == "--":
+                index += 1
+                break
+            if option in ("--help", "--version") or (executable == "command" and option in ("-v", "-V")):
+                return []
+            if option in flags:
+                index += 1
+                continue
+            name, equals, value = option.partition("=")
+            if name in values:
+                if not equals:
+                    index += 1
+                    if index >= len(remaining):
+                        return None
+                    value = remaining[index]
+                if any(char in value for char in ("$", "`")):
+                    return None
+                index += 1
+                continue
+            attached = next((name for name in values if len(name) == 2 and option.startswith(name)), None)
+            if attached and len(option) > 2 and not any(char in option for char in ("$", "`")):
+                index += 1
+                continue
+            return None
+        args = remaining[index:]
+        if executable == "timeout":
+            if not args or not re.fullmatch(r"[0-9]+(?:\.[0-9]+)?[smhd]?", args[0]):
+                return None
+            args = args[1:]
+    return args
+
+
 def unsafe_recursive_delete(command, cwd=None):
     """Check each recursive forced rm target without executing shell input."""
     safe_names = {"node_modules", "dist", ".next", "__pycache__", "build", "coverage", ".turbo"}
@@ -208,14 +283,11 @@ def unsafe_recursive_delete(command, cwd=None):
             current.append(token)
     segments.append(current)
     for args in segments:
-        wrapper = bool(args and Path(args[0]).name in ("sudo", "command", "env", "exec", "busybox", "rtk"))
-        if wrapper:
-            rm_index = next((i for i, value in enumerate(args) if Path(value).name == "rm"), None)
-            if rm_index is not None:
-                args = args[rm_index:]
-        while args and (re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*=.*", args[0])
-                        or args[0] in ("sudo", "command", "env", "exec")):
-            args = args[1:]
+        args = unwrap_safety_command(args)
+        if args is None:
+            if mentions_rm:
+                return True
+            continue
         if not args:
             continue
         executable = args[0] if args[0] == "." else Path(args[0]).name
@@ -232,7 +304,7 @@ def unsafe_recursive_delete(command, cwd=None):
                 if any(re.search(r"\brm\b", arg) for arg in args):
                     return True
                 if mentions_rm:
-                    if any(char in arg for arg in args for char in ("$", "`")):
+                    if any(char in args[0] for char in ("$", "`")):
                         return True
                     if any(Path(arg).name in command_readers for arg in args[1:]):
                         return True
