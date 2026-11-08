@@ -213,7 +213,10 @@ for arg in "$@"; do
             EXCLUDED_SUITE_ARGS+=("$exclude_arg")
             ;;
         *)
-            echo -e "${YELLOW}Unknown flag '$arg', ignoring${NC}" ;;
+            echo -e "${RED}Unknown flag '$arg'${NC}" >&2
+            print_usage >&2
+            exit 2
+            ;;
     esac
 done
 

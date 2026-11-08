@@ -12,6 +12,15 @@ test_suite "PR review workflow uses the actual diff and fails closed"
 WORKFLOW="$PROJECT_ROOT/.github/workflows/claude-octopus.yml"
 ACTIONLINT_CONFIG="$PROJECT_ROOT/.github/actionlint.yaml"
 
+test_case "automatic advisory model review requires explicit repository opt-in"
+if grep -Fq "vars.OCTOPUS_AUTOMATED_PR_REVIEW == 'true'" "$WORKFLOW" &&
+   grep -Fq "github.event_name == 'workflow_dispatch'" "$WORKFLOW" &&
+   grep -Fq '  comment-command:' "$WORKFLOW"; then
+    test_pass
+else
+    test_fail "advisory review runs on every push or explicit review paths disappeared"
+fi
+
 test_case "first-party jobs install the provider that has a configured credential"
 if grep -q 'npm install -g @anthropic-ai/claude-code' "$WORKFLOW" &&
    ! grep -q 'npm install -g @openai/codex' "$WORKFLOW"; then

@@ -53,6 +53,41 @@ else
     test_fail "invalid shard count or index was accepted"
 fi
 
+test_case "unknown flags fail before discovery or execution through either entrypoint"
+if python3 - "$RUNNER" "$SCRIPT_DIR/../run-all.sh" "$TEST_TMP_DIR" <<'UNKNOWN_FLAGS'
+from pathlib import Path
+import os
+import shutil
+import subprocess
+import sys
+
+fixture = Path(sys.argv[3]) / "unknown-flags"
+(fixture / "unit").mkdir(parents=True)
+runner = fixture / "run-all-tests.sh"
+wrapper = fixture / "run-all.sh"
+shutil.copy2(sys.argv[1], runner)
+shutil.copy2(sys.argv[2], wrapper)
+marker = fixture / "executed"
+(fixture / "unit/test-fixture.sh").write_text('touch "$EXECUTED_MARKER"\n')
+env = dict(os.environ, EXECUTED_MARKER=str(marker))
+for entrypoint, flags in [(runner, ["--unit", "--list", "--smkoe"]),
+                          (runner, ["--suite=unit/test-fixture.sh", "--shrad-index=0"]),
+                          (runner, ["misspelled-category", "--list"]),
+                          (wrapper, ["unit", "--shrad-index=0"])]:
+    result = subprocess.run(["bash", str(entrypoint), *flags], env=env,
+                            capture_output=True, text=True)
+    assert result.returncode == 2, (entrypoint.name, flags, result.returncode)
+    assert "Unknown flag" in result.stderr, result.stderr
+    assert "Discovered:" not in result.stdout and "Running:" not in result.stdout, result.stdout
+    assert not marker.exists(), (entrypoint.name, flags)
+for entrypoint, flags in [(runner, ["--help"]), (wrapper, ["unit", "--help"])]:
+    result = subprocess.run(["bash", str(entrypoint), *flags], env=env,
+                            capture_output=True, text=True)
+    assert result.returncode == 0 and "Usage:" in result.stdout, (entrypoint.name, result.stderr)
+    assert not marker.exists(), entrypoint.name
+UNKNOWN_FLAGS
+then test_pass; else test_fail "unknown arguments were accepted or executed tests"; fi
+
 test_case "excluded suites are removed before sharding"
 excluded_list="$(list_suites --unit --exclude=unit/test-council-command.sh)"
 if ! grep -Fxq unit/test-council-command.sh <<< "$excluded_list" &&

@@ -339,9 +339,12 @@ After changing commands, skills, agents, plugin metadata, release notes, models,
 providers, or public facts: run `make sync`. During development, run focused
 suites. Before an ordinary branch push, run `make ci-changed`; its checked-in
 manifest always runs sync, smoke, packaging, and reachability checks and fails
-closed to the full matrix for shared or unmapped changes. Before merge and
-release, run `make ci-local` for sync-check plus the local smoke, unit, and
-integration suites. Run the separate portability and symlink jobs in hosted CI.
+closed to the full matrix for shared or unmapped changes. Use `make ci-quick`
+and affected regressions before push; use `make ci-changed` when its mapping
+is focused. Require exact-commit hosted Smoke Tests, Unit Tests, and Integration
+Tests plus approval before merge/release. Do not repeat completed hosted
+coverage locally. `make ci-local` is the complete offline fallback. See
+`tests/README.md` for tiers.
 
 ### Hard rules (each one has broken a real PR)
 

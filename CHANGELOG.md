@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Development
+
+- Run affected PR tests on both supported systems and shard full unit coverage into four weighted lanes per system. Run integration beside units and use targeted symlink regressions on every event.
+- Remove duplicate local sync/smoke runs, standalone packaging jobs, repeated full local release requirements, and automatic advisory model reviews unless explicitly enabled. Required CI and approval remain intact.
+- Keep release validation read-only and publish through the gated release process. Reject unknown test-runner flags before execution.
+
 ## [11.17.1] - 2026-11-05
 
 ### Fixed

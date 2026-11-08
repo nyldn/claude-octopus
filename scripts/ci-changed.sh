@@ -273,13 +273,14 @@ if [[ "$FULL_MATRIX" == "true" ]]; then
         echo "Command: make ci-local"
     fi
     [[ "$LIST_ONLY" == "true" ]] && exit 0
-    make sync-check
-    if [[ "$SKIP_SMOKE" != "true" ]]; then
-        make test-smoke
-    fi
     if [[ "$UNIT_ONLY" == "true" ]]; then
+        make sync-check
+        if [[ "$SKIP_SMOKE" != "true" ]]; then
+            make test-smoke
+        fi
         exec make test-unit
     fi
+    # ci-local owns sync and smoke; running them here repeats both gates.
     exec make ci-local
 fi
 

@@ -151,7 +151,7 @@ acceptance even if an older approval exists.
 | Gate | Required evidence | Blocking condition |
 | --- | --- | --- |
 | Constituent admission | Independent current-head approval; full thread/comment inspection; all required CI; local focused repair controls | Changed head, unresolved finding, missing/pending/failing check or unproved fix |
-| Aggregate local acceptance | Full `make ci-local`; package assembly and focused negative controls; scoped Gitleaks/Semgrep; Trivy where relevant; pre-commit/evals when configured | Failed gate, unexplained fixture mutation, unsupported security assumption or unacknowledged quality debt |
+| Aggregate local acceptance | Exact-commit hosted required gates, package assembly, and focused negative controls; `make ci-local` when hosted evidence is unavailable; scoped security checks where relevant | Failed gate, unexplained fixture mutation, unsupported security assumption or unacknowledged quality debt |
 | Aggregate hosted acceptance | Independent exact-head approval; automated reviewers finished; all paginated threads resolved; required and applicable additional/platform/package checks successful | Stale approval, unknown/duplicate contradictory check result, skipped required coverage or pending review |
 | Merge | Re-fetch candidate and base; pin merge to candidate SHA; verify merged PR head equals approved candidate SHA and squash-main tree equals approved candidate tree; record actual squash SHA separately | Any pre-merge identity drift, merged-head mismatch or squash-tree mismatch |
 | Post-merge CI | Actual full Test Suite execution for the exact squash-main SHA, including platform/package checks and truthful skips | Merely green documentation/version fast-path aggregates, different SHA or failed run |
@@ -200,7 +200,7 @@ stateDiagram-v2
     Repairing --> Ready: exact repair PR gates pass
     Audited --> Ready: existing PR gates pass
     Ready --> Candidate: daily batch
-    Candidate --> Verified: full local proof
+    Candidate --> Verified: exact-commit acceptance proof
     Verified --> Waiting: aggregate PR
     Waiting --> Approved: exact approval and hosted gates
     Approved --> Merged: pinned squash merge

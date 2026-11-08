@@ -39,7 +39,7 @@ on:
           - standard
           - premium
 
-  # Trigger on pull request for code review
+  # Optional advisory review; required approval is handled independently.
   pull_request:
     types: [opened, synchronize, reopened]
 
@@ -110,6 +110,7 @@ jobs:
   pr-review:
     if: >
       github.event_name == 'pull_request' &&
+      vars.OCTOPUS_AUTOMATED_PR_REVIEW == 'true' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
 
@@ -282,7 +283,7 @@ jobs:
             exit 1
           fi
 
-          echo "prompt=$SAFE_PROMPT" >> $GITHUB_OUTPUT
+          echo "prompt=$SAFE_PROMPT" >> "$GITHUB_OUTPUT"
 
       - name: Run Claude Octopus
         id: octopus
