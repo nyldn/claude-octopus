@@ -55,7 +55,7 @@ octo_release_review_gate() {
     [[ "$unresolved_threads" == "0" && "$current_head_approved" == "true" ]]
 }
 
-# Read every review page; print true only for an approval of the expected SHA.
+# Page through GitHub's latest applicable opinion per reviewer, requiring the SHA.
 octo_release_current_head_approval() {
     local repo_owner="$1" repo_name="$2" pr_number="$3" expected_head="$4"
     local query response page_approved has_next cursor="" seen_cursors=$'\n'
@@ -65,7 +65,7 @@ octo_release_current_head_approval() {
     query='query($owner:String!, $name:String!, $number:Int!, $cursor:String) {
       repository(owner:$owner, name:$name) {
         pullRequest(number:$number) {
-          reviews(first:100, after:$cursor) {
+          reviews: latestOpinionatedReviews(first:100, after:$cursor) {
             nodes { state commit { oid } }
             pageInfo { hasNextPage endCursor }
           }

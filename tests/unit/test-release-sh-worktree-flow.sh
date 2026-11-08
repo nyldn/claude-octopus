@@ -235,6 +235,13 @@ source "$1"
 gh() {
     [[ "$1" == api && "$2" == graphql ]] || return 90
     printf '%s\\n' called >> "$FIXTURE_CALLS"
+    if [[ -n "${FIXTURE_HISTORY_PAGE:-}" ]]; then
+        if [[ " $* " == *"reviews(first:100,"* ]]; then
+            printf '%s\\n' "$FIXTURE_HISTORY_PAGE"
+            return
+        fi
+        [[ " $* " == *"latestOpinionatedReviews(first:100,"* ]] || return 91
+    fi
     if [[ " $* " == *" cursor=NEXT_PAGE "* ]]; then
         [[ "$FIXTURE_API_FAILURE" != second ]] || return 1
         printf '%s\\n' "$FIXTURE_SECOND_PAGE"
@@ -282,6 +289,31 @@ for index, (name, first, second, failure, expected, count) in enumerate(cases):
     else:
         assert result.returncode == 0 and result.stdout.strip() == expected, (name, result.stdout, result.stderr)
     assert len(calls.read_text().splitlines()) == count, name
+
+# GitHub selects one applicable opinion per reviewer. Historical approvals must
+# not be resurrected, while a comment or pending review must not revoke one.
+sequences = [
+    ('approval superseded by changes and stale approval',
+     [review(), review('CHANGES_REQUESTED'), review(oid=old_head)],
+     [review(oid=old_head)], 'false'),
+    ('approval superseded by changes', [review(), review('CHANGES_REQUESTED')],
+     [review('CHANGES_REQUESTED')], 'false'),
+    ('approval dismissed', [review(), review('DISMISSED')],
+     [review('DISMISSED')], 'false'),
+    ('comment preserves approval', [review(), review('COMMENTED')],
+     [review()], 'true'),
+    ('pending review preserves approval', [review(), review('PENDING', None)],
+     [review()], 'true'),
+]
+for index, (name, history, applicable, expected) in enumerate(sequences):
+    calls = Path(sys.argv[2]) / ('applicable-approval-calls-' + str(index))
+    calls.write_text('')
+    env = dict(os.environ, FIXTURE_CALLS=str(calls), FIXTURE_FIRST_PAGE=page(applicable),
+               FIXTURE_SECOND_PAGE='', FIXTURE_API_FAILURE='',
+               FIXTURE_HISTORY_PAGE=page(history))
+    result = subprocess.run(['bash', '-c', script, '_', sys.argv[1], head],
+                            env=env, capture_output=True, text=True)
+    assert result.returncode == 0 and result.stdout.strip() == expected, (name, result.stdout, result.stderr)
 APPROVALS
     then test_pass; else test_fail "release accepted stale, dismissed, or unverifiable approval"; fi
 }
