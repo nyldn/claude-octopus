@@ -3251,6 +3251,33 @@ else
     test_fail "terminal punctuation lost the proposal lead-in: $r"
 fi
 
+# Contracted auxiliaries still identify reviewer-owned construction. Keep a
+# later source-claim control so an earlier builder cannot excuse fabricated code.
+for builder in "I've" "we've" "I'd" "we'd" 'I’ve' 'we’ve' 'I’d' 'we’d'; do
+    for claim in own later-source same-sentence-source same-sentence-own; do
+        test_case "contracted builder $builder preserves $claim attribution"
+        introduction="a row $builder carefully built as"
+        if [[ "$claim" == later-source ]]; then
+            introduction="a row $builder built as a test. The file contains"
+        elif [[ "$claim" == same-sentence-source ]]; then
+            introduction="a fixture $builder built as a test, but the file reads"
+        elif [[ "$claim" == same-sentence-own ]]; then
+            introduction="a fixture $builder built as a test, but the file reads a row $builder carefully built as"
+        fi
+        r="$(_report "$(_resp "src/pricing.ts:2 reads $introduction \`$FAKE\`.
+VERDICT: REVISE")")"
+        if jq -e --arg claim "$claim" '.verification_failed == false and
+            (if ($claim == "own" or $claim == "same-sentence-own") then .quotes_unverifiable_proposed == 1
+                and .quotes_attributed == 0 and .fabricated == false
+             else .quotes_unverifiable_proposed == 0
+                and .quotes_attributed_unverified == 1 and .fabricated == true end)' <<< "$r" >/dev/null; then
+            test_pass
+        else
+            test_fail "contracted builder changed quote ownership: $r"
+        fi
+    done
+done
+
 # Complete evidence on either diff side clears only partial reporting.
 for exact_side in removed added; do
     test_case "a partial source fence complete in the $exact_side diff is not partial"
@@ -3508,7 +3535,7 @@ function = 'def plain_line_present(' + source.split('\ndef plain_line_present(',
 rng = random.Random(1260)
 needles = {'a' * size for size in range(1, 65)} | {'absent-pattern', 'he', 'she', 'hers', 'his', '|', 'μg'}
 needles.update(''.join(rng.choices('abcd', k=8)) for _ in range(80))
-scope = dict(plain_needles=needles, plain_automaton=None, plain_hits={}, plain_batches=None, plain_batch_ids={})
+scope = dict(plain_needles=needles, plain_automaton=None, plain_hits={}, plain_batches=None, plain_batch_ids={}, plain_queries={})
 exec(compile(function, str(sys.argv[1]), 'exec'), scope)
 for hay in ['ushers his μg | ' + 'a' * 100000, ''.join(rng.choices('abcd', k=10000)), 'nothing matches']:
     for needle in needles:
@@ -3517,10 +3544,17 @@ assert scope['plain_line_present']('not indexed', 'anything') is None
 # Distinct long patterns share few edges. The active index must stay bounded
 # even when uncited units supply most of the response's literal patterns.
 needles = {''.join(rng.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=64)) for _ in range(12000)}
-scope.update(plain_needles=needles, plain_automaton=None, plain_hits={}, plain_batches=None, plain_batch_ids={})
+scope.update(plain_needles=needles, plain_automaton=None, plain_hits={}, plain_batches=None, plain_batch_ids={}, plain_queries={})
 ordered = sorted(needles)
 # Revisit the same evidence after switching batches, including absent patterns.
 hay = ordered[0] + ' ' + ordered[len(ordered) // 2] + ' ' + ordered[-1]
+# Sparse per-file queries should not scan the entire pattern set in Python.
+for needle in ordered[:1024]:
+    assert scope['plain_line_present'](needle, hay) == (needle in hay)
+assert scope['plain_automaton'] is None
+assert scope['plain_batches'] is None
+# Promote dense queries, then revisit evidence across pattern batches.
+assert scope['plain_line_present'](ordered[1024], hay) == (ordered[1024] in hay)
 for needle in [ordered[i] for i in (0, len(ordered) // 2, -1, 1, -2, 0)]:
     assert scope['plain_line_present'](needle, hay) == (needle in hay)
     automaton = scope['plain_automaton']
@@ -3631,5 +3665,89 @@ if jq -e '.quotes_verified == 1 and .quotes_near_line == 1 and .quotes_partial =
 else
     test_fail "non-fence optimization lost later near-line accounting: $r"
 fi
+
+# Report-only partial accounting must not rescan unrelated short patterns for
+# non-fence units. Exercise the production wrapper and its normal deadline.
+test_case "threshold blockquotes across large files stay within the verifier budget"
+nonfence_root="$TEST_TMP_DIR/nonfence-budget"
+nonfence_response="$TEST_TMP_DIR/nonfence-budget.md"
+mkdir -p "$nonfence_root"
+python3 - "$nonfence_root" "$nonfence_response" <<'PY_NONFENCE_BUDGET'
+import sys
+from pathlib import Path
+root = Path(sys.argv[1])
+quotes = []
+for index in range(100):
+    first = f'const first_{index} = loadActualPrice(input);'
+    last = f'return applyActualTaxes_{index}(price, sailing);'
+    (root / f'file{index}.ts').write_text(first + '\n' + last + '\n' + 'x' * 1400000)
+    quotes.append(f'file{index}.ts:1 reads:\n> {first}\n> return missing_{index};\n> {last}\n')
+Path(sys.argv[2]).write_text('\n'.join(quotes) + '\nVERDICT: APPROVE\n')
+PY_NONFENCE_BUDGET
+r="$(council_response_quote_verification_json "$nonfence_response" "$nonfence_root")"
+if jq -e '.verification_failed == false and .quotes_verified == 100
+    and .quotes_partial == 0 and .fabricated == false' <<< "$r" >/dev/null; then
+    test_pass
+else
+    test_fail "report-only non-fence accounting exhausted verification: $r"
+fi
+
+for fence_shape in missing present-reversed; do
+test_case "$fence_shape threshold fences across large files stay within the verifier budget"
+python3 - "$nonfence_root" "$nonfence_response" "$fence_shape" <<'PY_FENCE_BUDGET'
+import sys
+from pathlib import Path
+root = Path(sys.argv[1])
+quotes = []
+for index in range(100):
+    first = f'const first_{index} = loadActualPrice(input);'
+    last = f'return applyActualTaxes_{index}(price, sailing);'
+    short = [f'return missing_{index};']
+    if sys.argv[3] == 'present-reversed':
+        short = [f'return value_{index}_{line};' for line in range(65)]
+        (root / f'file{index}.ts').write_text(first + '\n' + '\n'.join(short) + '\n' + last + '\n' + 'x' * 1400000)
+        short.reverse()
+    quotes.append(f'file{index}.ts:1 reads:\n```ts\n{first}\n' + '\n'.join(short) + f'\n{last}\n```\n')
+Path(sys.argv[2]).write_text('\n'.join(quotes) + '\nVERDICT: APPROVE\n')
+PY_FENCE_BUDGET
+r="$(council_response_quote_verification_json "$nonfence_response" "$nonfence_root")"
+expected_partial=100
+[[ "$fence_shape" == present-reversed ]] && expected_partial=0
+if jq -e --argjson partial "$expected_partial" '.verification_failed == false and .quotes_verified == 100
+    and .quotes_partial == $partial and .fabricated == false' <<< "$r" >/dev/null; then
+    test_pass
+else
+    test_fail "sparse per-file partial accounting exhausted verification: $r"
+fi
+done
+
+test_case "complete far quotes keep supplemental near-line work bounded"
+python3 - "$nonfence_root" "$nonfence_response" <<'PY_COMPLETE_BUDGET'
+import sys
+from pathlib import Path
+root = Path(sys.argv[1])
+quotes = [f'const verified_{index} = loadActualPrice(input);' for index in range(256)]
+(root / 'a.ts').write_text('// distant filler\n' * 100 + '\n'.join(quotes))
+citations = 'a.ts:1 ' + ' '.join(f'file{index}.ts:1' for index in range(100))
+Path(sys.argv[2]).write_text('\n\n'.join(citations + '\n\n`' + quote + '`' for quote in quotes)
+                            + '\nVERDICT: APPROVE\n')
+PY_COMPLETE_BUDGET
+r="$(council_response_quote_verification_json "$nonfence_response" "$nonfence_root")"
+if jq -e '.verification_failed == false and .quotes_verified == 256
+    and .fabricated == false' <<< "$r" >/dev/null; then
+    test_pass
+else
+    test_fail "supplemental near-line work rejected complete quotes: $r"
+fi
+
+# A complete far match must not hide a later bound near-line match either.
+test_case "a complete blockquote retains a later cited file's near-line match"
+r="$(council_response_quote_verification_json "$(_resp "a.ts:1 and b.ts:1
+
+> $REAL_NEAR
+> return applyTaxes(base, sailing.portFees);
+VERDICT: APPROVE")" "$near_root")"
+if jq -e '.quotes_verified == 1 and .quotes_near_line == 1 and .quotes_partial == 0
+    and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "complete match lost later near-line evidence: $r"; fi
 
 test_summary

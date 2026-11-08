@@ -26,7 +26,7 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 🔄 **Choose the workflow the task needs.** Use a focused method for architecture, debugging, or TDD. Use `/octo:embrace` for Discover → Define → Develop → Deliver, with quality gates between phases.
 
-🐙 **31 specialized personas** (role-specific AI agents like security-auditor, backend-architect), **54 commands** (slash commands you type), **63 skills** (reusable workflow modules). Explicit workflows select the experts they need; ordinary Claude requests do not activate Octopus.
+🐙 **31 specialized personas** (role-specific AI agents like security-auditor, backend-architect), **56 commands** (slash commands you type), **64 skills** (reusable workflow modules). Explicit workflows select the experts they need; ordinary Claude requests do not activate Octopus.
 
 🐙 **Works with just Claude. Adds up to twelve external provider integrations.** Zero external providers are needed to start. Add them one at a time — each becomes available when detected and runs only inside an explicit workflow.
 
@@ -556,7 +556,7 @@ Specialized agents selected by explicit Octopus workflows. `/octo:security` can 
 
 Categories span Software Engineering, Specialized Development, Documentation & Communication, Research & Strategy, Business & Compliance, and Creative & Design.
 
-[Full persona reference](docs/AGENTS.md) | [All 63 skills](docs/COMMAND-REFERENCE.md)
+[Full persona reference](docs/AGENTS.md) | [All 64 skills](docs/COMMAND-REFERENCE.md)
 
 ### Built-in Reaction Engine
 

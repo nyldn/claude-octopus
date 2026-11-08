@@ -3518,10 +3518,19 @@ plain_automaton = None
 plain_batches = None
 plain_batch_ids = {}
 plain_hits = {}
+plain_queries = {}
 def plain_line_present(needle, hay):
     global plain_automaton, plain_batches
     if len(plain_needles) < 64 or needle not in plain_needles:
         return None
+    # Most files supply only a few lines from the response-wide pattern set.
+    # Use native substring searches for sparse queries; amortize a Python trie
+    # scan only after this evidence actually receives many distinct queries.
+    queried = plain_queries.setdefault(hay, set())
+    if len(queried) <= 1024:
+        queried.add(needle)
+        if len(queried) <= 1024:
+            return needle in hay
     if plain_batches is None:
         # A response can contain many unrelated 64-character lines. Limit the
         # active trie to 65,537 nodes, and build only batches actually queried.
@@ -3799,8 +3808,14 @@ SOURCE_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|is|defines?|de
 OWN_INPUT = re.compile(r"(?:constructed|built|crafted) as", re.I)
 CONTENT_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|is|defines?|defined|declares?|declared)\b", re.I)
 FIRST_PERSON_SUBJECT = re.compile(
-    r"\b(?:I|we)\s+(?:(?:have|had|just|recently|already|carefully|deliberately|"
+    r"\b(?:I|we)(?:['’](?:ve|d))?\s+(?:(?:have|had|just|recently|already|carefully|deliberately|"
     r"explicitly|locally|manually|originally|previously)\s+)*$", re.I)
+# An explicit source subject restarts attribution even in the same sentence,
+# after a reviewer describes a proposed input or replacement.
+EXPLICIT_SOURCE_CLAIM = re.compile(
+    r"\b(?:but|however|whereas|and)\s+(?:(?:the|this|that|current|actual|cited)\s+)+"
+    r"(?:file|source|code)\s+(?:itself\s+)?"
+    r"(?:(?:now|currently|actually)\s+)?" + SOURCE_VERB.pattern, re.I)
 DOTTED_ABBREVIATION = re.compile(r"\b(?:[A-Za-z]\.){2,}")
 CLAUSE_BOUNDARY = re.compile(r"[.!?;](?:\s|$)")
 def clause_start(text, end):
@@ -3821,6 +3836,8 @@ def proposes(text):
     # Keep terminal punctuation on a standalone fence lead-in in its clause.
     end = len(text.rstrip(" \t\r\n.!?;"))
     start = clause_start(text, end)
+    for claim in EXPLICIT_SOURCE_CLAIM.finditer(text, start):
+        start = claim.start()
     verbs = CONTENT_VERB.finditer(text, start)
     verb = next(verbs, None)
     verb_end = None
@@ -3954,23 +3971,47 @@ for start, end, kind, block, removed_block, info in units:
     # readable neighbor cannot stand in for an oversized or unreadable bound file.
     readable = True
     verified = near = partial = False
+    near_budget = 65536
     for path in bound_paths + [p for p in all_cited if p not in bound_paths]:
+        # Once complete, only later bound files can improve near-line reporting.
+        if verified and not partial and path not in bound_paths:
+            break
         entry = load(path)
         if entry is None:
             if path in bound_paths:
                 readable = False
             continue
+        cited_lines = [line for p, line in bound if p == path]
+        if verified and not partial:
+            # Near-line counts are supplemental: cap refinement after complete
+            # verification so large later files cannot exhaust the verdict's
+            # deadline. Search actual source windows, never concatenate gaps.
+            if not near_budget:
+                break
+            hay, starts, numbers = entry
+            first = bisect_left(numbers, max(1, min(cited_lines) - NEAR_LINES))
+            last = bisect_right(numbers, max(cited_lines) + NEAR_LINES)
+            if first == last:
+                continue
+            offset = starts[first]
+            stop = min(starts[last] if last < len(starts) else len(hay), offset + near_budget)
+            near_budget -= stop - offset
+            window_end = min(last, bisect_left(starts, stop))
+            entry = (hay[offset:stop], [at - offset for at in starts[first:window_end]],
+                     numbers[first:window_end])
         misses = []
-        lines = match_unit(wholes, line_variants, entry, misses, short)
+        # Partial reporting applies only to fences. Non-fence threshold and
+        # elision matches need no short-line presence scans.
+        lines = match_unit(wholes, line_variants, entry,
+                           misses if kind == "fence" else None, short)
         if not lines:
             continue
-        cited_lines = [line for p, line in bound if p == path]
         near = near or any(abs(found - cited) <= NEAR_LINES for found in lines for cited in cited_lines)
         # A partial match may be complete in a later cited file; keep looking
         # for the report. The first match already decides the verdict.
-        partial = bool(misses and misses[0])
+        partial = bool(misses and misses[0]) and (partial or not verified)
         verified = True
-        if not partial:
+        if not partial and near:
             break
     if kind == "bare":
         # Positive evidence only: a matched bare line is a verified quote; an
@@ -4036,7 +4077,8 @@ for start, end, kind, block, removed_block, info in units:
             hits = []
             for side_name, side, side_misses in (
                     ("removed", removed_side, removed_misses), ("added", added_side, added_misses)):
-                if in_diff_side(wholes, line_variants, side, side_misses, short):
+                if in_diff_side(wholes, line_variants, side,
+                                side_misses if kind == "fence" else None, short):
                     hits.append((side_name, side_misses))
                     if not any(side_misses):
                         break

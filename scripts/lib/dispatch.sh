@@ -223,6 +223,12 @@ _build_codex_exec_command() {
     local model="$1" sandbox_flag="$2" reasoning_fragment="${3:-}"
     _octopus_require_codex_model_version "$model" || return 1
     local base="codex exec --skip-git-repo-check --model ${model}"
+    if [[ "${OCTOPUS_REFINEMENT_JUDGE:-false}" == true ]]; then
+        local judge_policy
+        # The policy helper emits only fixed flags and restricted server names.
+        judge_policy="$(python3 "${PLUGIN_DIR}/scripts/helpers/refinement-codex-policy.py")" || return 1
+        base+=" ${judge_policy}"
+    fi
     [[ -n "$reasoning_fragment" ]] && base+=" ${reasoning_fragment}"
     base+=" ${sandbox_flag} -"
     if _codex_dispatch_is_oss_model "$model"; then
