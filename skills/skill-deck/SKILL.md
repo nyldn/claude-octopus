@@ -81,7 +81,8 @@ infer the purpose from the brief. When it calls for a decision, use the
 executive and board outline below. For an informational brief such as a
 Q1 results update, do not require a decision or approval ask. Use the general
 structure with an executive summary on slide 2 covering key findings and
-implications, including results when applicable, then evidence and follow-up. Do not invent a decision to
+implications, including results when applicable, then evidence. Include
+follow-up only when the brief calls for it. Do not invent a decision to
 fit the template. If the purpose is unclear, clarify it before outlining.
 For other audiences, use this general structure:
 
@@ -100,7 +101,7 @@ For other audiences, use this general structure:
 
 ## Slide N: [Summary / Next Steps]
 - Key takeaways
-- Call to action
+- Call to action only when the brief calls for one
 ```
 
 #### Executive and board outline
@@ -248,7 +249,7 @@ Apply these when generating outlines:
 - **One idea per slide**: Keep slides focused
 - **5-7 bullets max**: Per slide for readability
 - **Summary slide**: Key takeaways at the end for decks using the general agenda-first structure; Executives / Board briefs follow the Step 3 purpose-specific structure
-- **Next steps / CTA**: Clear actions on the last main-deck slide, before any appendix slides
+- **Next steps / CTA**: When the brief calls for action, put clear actions on the last main-deck slide, before any appendix slides; otherwise end the main deck with a supported conclusion
 
 ### By Audience Type
 

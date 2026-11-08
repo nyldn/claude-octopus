@@ -207,6 +207,8 @@ class DocumentRendererTest(unittest.TestCase):
                 self.assertIn("Q1 results", purpose)
                 self.assertIn("do not require a decision or approval ask", purpose)
                 self.assertIn("key findings and implications, including results when applicable", " ".join(purpose.split()))
+                self.assertIn("follow-up only when the brief calls for it", " ".join(purpose.split()))
+                self.assertIn("Call to action only when the brief calls for one", purpose)
                 self.assertIn("slide 2", purpose)
                 sizing = outline_step.split("#### Executive and board outline", 1)[1].split("```markdown", 1)[0]
                 self.assertIn("combine", sizing.lower())
@@ -219,6 +221,8 @@ class DocumentRendererTest(unittest.TestCase):
                 cta_rule = next(line for line in rules.splitlines() if "**Next steps / CTA**" in line)
                 self.assertIn("last main-deck slide", cta_rule)
                 self.assertIn("appendix", cta_rule)
+                self.assertIn("When the brief calls for action", cta_rule)
+                self.assertIn("otherwise end the main deck with a supported conclusion", cta_rule)
                 for label in ("Agenda slide", "Summary slide"):
                     rule = next(line for line in rules.splitlines() if f"**{label}**" in line)
                     self.assertIn("general agenda-first structure", rule)
