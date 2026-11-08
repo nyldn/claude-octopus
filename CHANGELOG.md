@@ -9,6 +9,11 @@
   provider allowlist. Search suggestions remain untrusted, and lookup failures
   keep the original research prompts. No API key is required for the public
   endpoint. Addresses [#1261](https://github.com/nyldn/claude-octopus/issues/1261).
+
+## [11.19.0] - 2026-11-08
+
+### Added
+
 - Deck generation verifies rendered slides before reporting completion. It
   checks thumbnails, rendered titles and highlighted data claims, then reports
   each slide's result. Artifacts with missing evidence remain drafts.
