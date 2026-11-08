@@ -34,7 +34,7 @@ When the user invokes this command (e.g., `/octo:develop <arguments>`):
 **Preflight — Ensure plugin root is resolvable (run via Bash tool FIRST):**
 
 ```bash
-OCTO_ROOT="${HOME}/.claude-octopus/plugin"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 if [[ ! -x "$OCTO_ROOT/scripts/orchestrate.sh" ]]; then
   helper="$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh"
   if [[ ! -x "$helper" ]]; then
@@ -50,7 +50,7 @@ If the output is `plugin-root:missing`, stop and ask the user to run `/octo:setu
 **Step 1 — Run provider preflight via Bash tool:**
 
 ```bash
-bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh"
+bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/check-providers.sh"
 ```
 
 Use the actual preflight output to display the workflow indicator before dispatch:
@@ -70,7 +70,7 @@ If no external provider is available, stop and tell the user to run `/octo:setup
 **Step 2 — Run orchestrate.sh via Bash tool:**
 
 ```bash
-bash "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" develop "<user's arguments here>"
+bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" develop "<user's arguments here>"
 ```
 
 **✗ INCORRECT:**

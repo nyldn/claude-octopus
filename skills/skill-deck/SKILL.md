@@ -137,6 +137,90 @@ Should we [action] by [date], given [decision threshold]?
 - Visual: [action, owner and next-step timeline]
 ```
 
+For Executives / Board, apply the same confirmed question, hypothesis and
+sentence skeleton to the purpose-specific outline below. For executive and
+board decision briefs, the board content check and the titles-only read must
+both pass before outline approval.
+For an informational brief such as a Q1 results update, do not require a decision or approval ask.
+Put an executive summary on slide 2 covering results, key drivers and
+implications, followed by supporting evidence and follow-up. Do not invent a decision.
+
+#### Executive and board outline
+
+For executive and board decision briefs, put the decision on slide 2. Use
+these content requirements within the sentence skeleton, with supported
+declarative titles in place of bracketed placeholders. Keep the question,
+opener and hypothesis above the slides in the approved outline. Expand evidence slides as needed;
+agree the main-deck and appendix slide counts within the user's target.
+If the user selects a five-slide target, combine the evidence and decision
+slides, keeping the executive summary on slide 2 and an appendix. Preserve
+the selected slide range for longer targets. If the required material,
+including one backup slide per expected question, cannot fit, ask the user to
+approve a larger target before expanding it. The six-slide example is not a
+minimum slide count.
+
+```markdown
+## Slide 1: [Decision topic]
+- Presentation title, date and presenter
+
+## Slide 2: Executive summary: [The recommendation meets the decision threshold]
+- One recommendation sentence with a by-when
+- One line of context
+- Two or three supporting pillars
+- The specific ask and what approval unlocks
+- Evidence: [sources supporting the recommendation and pillars]
+- Visual: [recommendation, pillars and ask]
+
+## Slide 3: [The recommended option delivers more value than doing nothing]
+- Recommended option: benefit, cost and trade-offs
+- Do nothing: cost and consequences over the same time horizon
+- At least one real alternative: benefit, cost and trade-offs
+- Evidence: [sources for the common-horizon costs and consequences]
+- Visual: [comparison of the options]
+
+## Slide 4: [The evidence supports a specific conclusion]
+- One proof point for this data slide, with its source
+- Chart highlight: the single figure that supports the title
+- Evidence: [source for the proof point]
+- Visual: [chart with the claimed figure highlighted]
+
+## Slide 5: [The requested approval unlocks the outcome by the decision date]
+- Repeat the same recommendation and by-when
+- Explicit ask: the approval, amount or named resource the audience can grant
+- What approval unlocks and who owns the next action
+- Evidence: [basis for the requested amount, resource and deadline]
+- Visual: [action, owner and next-step timeline]
+
+## Slide 6: Appendix: [The backup evidence answers an expected question]
+- Expected question: [the question this backup answers]
+- Backup evidence answering this expected question
+- Evidence: [source answering the expected question]
+- Visual: [backup chart or diagram]
+```
+
+#### Board outline check
+
+For decision briefs, check the following before asking for outline approval:
+
+- Could the audience make the requested decision from slide 2 alone? It must
+  lead with one recommendation, then context, two or three pillars, the ask
+  and what approval unlocks. Keep the same recommendation and deadline
+  throughout the deck.
+- Does the options comparison include doing nothing, its cost and at least
+  one real alternative? Use a common time horizon and cite cost estimates.
+- Is the ask something this audience can grant, such as a specific approval,
+  amount or named resource, with a by-when? "Support" alone is insufficient.
+- Does every data slide have one proof point and a chart highlight tied to
+  the single figure claimed by its title? Include the source and the intended
+  highlight in the outline passed to the renderer.
+- Is there one backup slide per expected question in the appendix? Name the
+  questions and include the appendix in the outline submitted for approval.
+
+Do not invent costs, evidence, deadlines or approval authority. If decision
+material is missing, identify the gap and ask for it before presenting the
+outline as ready for approval. This check covers outline content; it does not
+claim that rendered slides have been visually inspected.
+
 #### Storyline gate: titles-only read
 
 Read only the slide-title sentences, top to bottom. Exclude the cover slide
@@ -191,15 +275,17 @@ Apply these when generating outlines:
 - **Storyline**: Slide titles carry the argument in the approved sentence order
 - **One idea per slide**: Keep slides focused
 - **5-7 bullets max**: Per slide for readability
-- **Summary slide**: State the supported answer to the governing question
-- **Next steps / CTA**: Final slide with clear actions
+- **Summary slide**: State the supported answer to the governing question; Executives / Board briefs put the executive summary on slide 2 as required in Step 3
+- **Next steps / CTA**: Clear actions on the last main-deck slide, before any appendix slides
 
 ### By Audience Type
 
 **Executives / Board:**
-- Lead with business impact and metrics
-- Use "So what?" framing for every slide
-- Include financial implications
+- Match the brief's decision or informational purpose in Step 3. Apply the
+  decision outline and its check only when a decision is requested.
+- Lead with business impact and source-backed financial implications.
+- Keep the main deck focused on the brief's purpose; put expected-question evidence
+  in the approved appendix.
 - For decision briefs, end with the specific decision needed. For informational
   briefs, end with the supported conclusion and follow-up from Step 3.
 

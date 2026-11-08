@@ -93,7 +93,7 @@ Reading all pages may use 33,750 tokens (~34 API calls).
 check because extraction may use an external provider:
 
 ```bash
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 provider_helper="$OCTO_ROOT/scripts/helpers/check-providers.sh"
 if [[ ! -x "$provider_helper" ]]; then
   echo "ERROR: Claude Octopus provider readiness helper is unavailable. Run /octo:setup." >&2

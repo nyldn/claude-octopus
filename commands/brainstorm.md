@@ -145,15 +145,15 @@ exits, because `$RUN_DIR` is deleted on exit:
 
 ```bash
 TOPIC="[TOPIC]"
-ORCH="${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh"
+ORCH="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh"
 [[ -x "$ORCH" ]] || { echo "Octopus orchestrator not found: $ORCH"; exit 1; }
 ORCH_HELP="$("$ORCH" help --full 2>&1 || true)"
 printf '%s\n' "$ORCH_HELP" | grep -c 'spawn <agent>' >/dev/null || { echo "Octopus orchestrator does not expose spawn"; exit 1; }
 
 RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/octopus-brainstorm.XXXXXX")"
 trap 'rm -rf "$RUN_DIR"' EXIT
-CONSULTATIVE_LIB="${HOME}/.claude-octopus/plugin/scripts/lib/consultative-advisors.sh"
-ADVISOR_SELECTOR="${HOME}/.claude-octopus/plugin/scripts/helpers/select-fleet-advisors.sh"
+CONSULTATIVE_LIB="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/lib/consultative-advisors.sh"
+ADVISOR_SELECTOR="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/select-fleet-advisors.sh"
 source "$CONSULTATIVE_LIB" || exit 1
 HOST_CLAUDE_ALLOWED=false
 HOST_ADVISOR_SUCCESS=0
