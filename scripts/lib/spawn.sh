@@ -1994,8 +1994,9 @@ sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore")
             end_time_ms=$(( $(date +%s) * 1000 ))
             elapsed_ms=$((end_time_ms - start_time_ms))
             _quota_reset="$(octo_quota_reset_hint "$_quota_fast_fail_line")"
-            _quota_reason="${_quota_fast_fail_line#ERROR: }"
-            _quota_reason="Quota or auth error: ${_quota_reason:0:240}"
+            # Status reasons enter synthesis without provider trust framing.
+            # Keep raw diagnostics in the untrusted result/error frames above.
+            _quota_reason="Provider reported a terminal quota or auth error"
             echo "" >> "$result_file"
             echo "## Status: FAILED - QUOTA OR AUTH ERROR (exit code: 75)" >> "$result_file"
             echo "" >> "$result_file"
