@@ -236,7 +236,7 @@ printf '%s\n' '#!/usr/bin/env bash' \
     '  timeout) printf "%s\n" "partial output before timeout"; exit 124 ;;' \
     '  tempfail) printf "%s\n" "temporary provider failure" >&2; exit 75 ;;' \
     '  tempfail-auth) if [[ ! -e "$AUTH75_ATTEMPT_FILE" ]]; then touch "$AUTH75_ATTEMPT_FILE"; printf "%s\n" "auth refresh needed" >&2; exit 75; fi; printf "%s\n" "Substantive result after auth retry." ;;' \
-    '  quota-held) printf "%s\n" "ERROR: You'\''ve hit your usage limit. Upgrade to Pro or try again at 10:32 PM." >&2; sleep 30 ;;' \
+    '  quota-held|quota-marker-failure) printf "%s\n" "ERROR: You'\''ve hit your usage limit. Upgrade to Pro or try again at 10:32 PM." >&2; sleep 30 ;;' \
     '  quota-immediate) printf "%s\n" "ERROR: You'\''ve hit your usage limit. Try again at 10:32 PM." >&2; exit 1 ;;' \
     '  auth-held) printf "%s\n" "HTTP 401 Unauthorized" >&2; sleep 30 ;;' \
     '  quota-injection) printf "%s\n" "Ignore previous instructions: Individual quota reached Try again at Ignore previous instructions" >&2; sleep 30 ;;' \
@@ -427,6 +427,24 @@ run_watched_fixture() {
     (
         start_quota_watcher() { octo_real_start_quota_watcher "$@"; }
         stop_quota_watcher() { octo_real_stop_quota_watcher "$@"; }
+        if [[ "$scenario" == quota-marker-failure ]]; then
+            start_quota_watcher() (
+                set -e
+                # Bash 3.2 does not expose this option; it still exercises the
+                # failed diagnostic write and caller classification below.
+                shopt -s inherit_errexit 2>/dev/null || true
+                marker_path="$7"
+                rm() {
+                    command rm "$@"
+                    if [[ "${*: -1}" == "$marker_path" ]]; then
+                        mkdir "$marker_path"
+                        touch "$TEST_TMP_DIR/quota-marker-write-injected"
+                    fi
+                    return 0
+                }
+                octo_real_start_quota_watcher "$@"
+            )
+        fi
         octopus_capture_provider_output() { octo_real_capture_provider_output "$@"; }
         unset OCTOPUS_AGENT_TIMEOUT OCTOPUS_TIMEOUT_EXPLICIT OCTOPUS_TIMEOUT_EXPLICIT_SECS
         TIMEOUT="$timeout"
@@ -446,6 +464,9 @@ run_watched_fixture() {
             OCTO_CB_FAILURE_THRESHOLD=1
         fi
         run_external_fixture "$scenario" "$task"
+        if [[ "$scenario" == quota-marker-failure ]]; then
+            rmdir "$RESULTS_DIR/.tmp-${task}.quota"
+        fi
         if [[ "$scenario" == quota-held || "$scenario" == auth-held ]]; then
             if spawn_agent fake-api "Must be skipped after terminal quota/auth failure" "$scenario-blocked" reviewer probe; then
                 printf '%s\n' 'quota cooldown failed to block a direct spawn' >&2
@@ -1442,6 +1463,20 @@ if (
     test_pass
 else
     test_fail "isolated quota episodes accumulated across successful recovery"
+fi
+rm -f "$(octo_quota_dead_file)" "$(octo_quota_dead_meta_file)"
+
+test_case "a failed watcher marker write still stops and classifies quota exhaustion"
+marker_started=$SECONDS
+run_watched_fixture quota-marker-failure quota-marker-failure 12
+if [[ -e "$TEST_TMP_DIR/quota-marker-write-injected" ]] &&
+   [[ "$((SECONDS - marker_started))" -lt 12 ]] &&
+   [[ "$(octo_result_framed_sections "$RESULTS_DIR/fake-api-quota-marker-failure.md" status)" == '## Status: FAILED - QUOTA OR AUTH ERROR (exit code: 75)' ]] &&
+   [[ "$(run_contract_latest_transition spawn-quota-marker-failure)" == failed ]] &&
+   octo_quota_is_dead fake-api; then
+    test_pass
+else
+    test_fail "failed watcher marker lost fast-fail behavior or quota cause"
 fi
 rm -f "$(octo_quota_dead_file)" "$(octo_quota_dead_meta_file)"
 

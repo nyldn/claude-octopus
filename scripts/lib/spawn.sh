@@ -1682,9 +1682,15 @@ ${heuristic_ctx}"
             cp "$raw_output" "$temp_output" 2>/dev/null || : > "$temp_output"
 
             stop_quota_watcher "$_quota_watcher_pid"
-            if [[ $exit_code -ne 0 && -s "$quota_fired_file" ]]; then
+            if [[ $exit_code -ne 0 && -f "$quota_fired_file" && -s "$quota_fired_file" ]]; then
                 _quota_fast_fail_line="$(<"$quota_fired_file")"
                 exit_code=75
+            elif [[ $exit_code -eq 143 ]] && octo_quota_is_dead "$_provider_prefix"; then
+                # If the watcher cannot persist its diagnostic, its shared dead
+                # marker and captured terminal line still establish the cause.
+                # An external SIGTERM alone must keep its termination status.
+                _quota_fast_fail_line="$(quota_watcher_match_line "$temp_errors" "$raw_output")" || _quota_fast_fail_line=""
+                [[ -z "$_quota_fast_fail_line" ]] || exit_code=75
             elif [[ $exit_code -ne 0 && $exit_code -ne 124 && $exit_code -ne 143 && $exit_code -ne 76 ]]; then
                 # A provider can exit before the polling watcher observes its
                 # terminal error. Use the same matcher before considering retry.

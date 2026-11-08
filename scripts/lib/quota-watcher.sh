@@ -279,7 +279,11 @@ start_quota_watcher() {
                 # This lets provider CLIs with their own backoff (e.g. Gemini free-tier
                 # burst 429s) complete their retry before we act on the first match.
                 if [[ $_consecutive -ge 2 ]]; then
-                    [[ -z "$fired_file" ]] || quota_watcher_match_line "$temp_err" "$temp_out" > "$fired_file"
+                    # Diagnostic persistence must not prevent the terminal stop,
+                    # including when command substitutions inherit errexit.
+                    if [[ -n "$fired_file" ]]; then
+                        quota_watcher_match_line "$temp_err" "$temp_out" > "$fired_file" 2>/dev/null || true
+                    fi
                     log "WARN" "$warning_message"
                     octo_quota_mark_dead "$provider"
                     "$kill_callback" "$target_pid"
