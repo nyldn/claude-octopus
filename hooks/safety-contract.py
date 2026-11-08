@@ -234,6 +234,33 @@ def unwrap_safety_command(args):
     return args
 
 
+def protect_literal_globs(command):
+    """Keep quoted and escaped glob characters distinguishable after shlex."""
+    command = string(command)  # NUL is reserved for internal literal markers.
+    marked, quote, escaped = [], None, False
+    for char in command:
+        if char in "*?[]{}" and (quote or escaped):
+            marked.append("\0")
+        marked.append(char)
+        if escaped:
+            escaped = False
+        elif char == "\\" and quote != "'":
+            escaped = True
+        elif quote:
+            if char == quote:
+                quote = None
+        elif char in "'\"":
+            quote = char
+    return "".join(marked)
+
+
+def executable_glob(word):
+    """Detect executable expansion while preserving the literal [ command."""
+    pattern = re.sub("\0.", "", word)
+    brackets = pattern[:-1] if Path(pattern).name == "[" else pattern
+    return any(char in pattern for char in "*?{}") or "[" in brackets
+
+
 def unsafe_recursive_delete(command, cwd=None):
     """Require review for unsafe deletion or unclassified executable input."""
     safe_names = {"node_modules", "dist", ".next", "__pycache__", "build", "coverage", ".turbo"}
@@ -263,7 +290,7 @@ def unsafe_recursive_delete(command, cwd=None):
             elif char in "'\"":
                 quote = char
     try:
-        lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()\n")
+        lexer = shlex.shlex(protect_literal_globs(command), posix=True, punctuation_chars=";&|()\n")
         lexer.whitespace = " \t\r"
         lexer.whitespace_split = True
         # shlex treats a midword # as a comment, unlike the shell. Keeping #
@@ -290,7 +317,8 @@ def unsafe_recursive_delete(command, cwd=None):
         args = unwrap_safety_command(original_args)
         if args is None:
             if mentions_rm or piped_input or any(
-                    char in arg for arg in original_args for char in ("$", "`")):
+                    char in arg for arg in original_args for char in ("$", "`")) or any(
+                    executable_glob(arg) for arg in original_args):
                 return True
             continue
         if not args:
@@ -298,6 +326,9 @@ def unsafe_recursive_delete(command, cwd=None):
         # A computed executable can be rm even when its name is never literal.
         if any(char in args[0] for char in ("$", "`")):
             return True
+        if executable_glob(args[0]):
+            return True
+        args = [arg.replace("\0", "") for arg in args]
         executable = args[0] if args[0] == "." else Path(args[0]).name
         if executable in ("cd", "pushd", "popd"):
             working_directory = None

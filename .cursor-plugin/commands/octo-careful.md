@@ -30,7 +30,7 @@ Careful mode adds a PreToolUse safety net on Bash commands. Before any destructi
 
 **Detected patterns:**
 - `rm -rf` (except targets resolved below the working directory inside node_modules, dist, .next, __pycache__, build, coverage, or .turbo)
-- Dynamically selected executables, opaque dynamic wrappers, and command input
+- Executables selected by variables or shell patterns, opaque dynamic wrappers, and command input
   piped into an interpreter require review even when the executable name is
   hidden. Ordinary argument text is not an executable.
 - `DROP TABLE`, `DROP DATABASE`, `TRUNCATE`
