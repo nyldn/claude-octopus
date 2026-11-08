@@ -128,9 +128,15 @@ in [release.sh](../scripts/release.sh) and
 must first be separated from the existing one-shot publisher through tested
 stage interfaces. **Do not invoke `release.sh` merely to prepare a batch.** It
 currently also pushes, merges, tags, publishes and syncs another repository.
-[validate-release.sh](../scripts/validate-release.sh) is read-only. Auditors can
-use it to check consistency; missing tags or releases produce warnings and never
-trigger publication.
+[validate-release.sh](../scripts/validate-release.sh) checks consistency without
+publishing. Auditors must disable runtime smoke explicitly:
+
+```bash
+OCTOPUS_RELEASE_RUNTIME_SMOKE=0 bash scripts/validate-release.sh
+```
+
+This overrides an inherited runtime-smoke setting that could start live Claude
+sessions. Missing tags or releases produce warnings and never trigger publication.
 
 Run `make sync`, repeat it to prove an unchanged result, and run
 `make sync-check`. Review generated metadata, current README/PRODUCT facts and
