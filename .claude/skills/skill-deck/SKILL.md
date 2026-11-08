@@ -159,14 +159,14 @@ flag, run it against the draft skeleton before requesting approval or rendering:
    For Claude SDK seats, scope `OCTOPUS_FABLE5_NO_RETRY=1` to prevent a
    Fable refusal or empty response from invoking a different model without
    renewed consent. Keep the explicit model choice and report the failed seat.
-   For OpenAI-compatible seats, scope `OPENAI_COMPAT_MAX_RETRIES=1` to
-   prevent transport retries, and `OCTOPUS_REASONING_POLICY=strict` so an
-   unsupported explicit effort cannot trigger a second request without it.
-   Verify the resolved command carries `--reasoning-policy strict` when effort
-   is selected. A higher-priority phase, role or provider policy can override
-   that environment default. If it resolves to `best_effort`, stop before
-   launch and obtain a compatible configuration or renewed consent; do not
-   silently override the user's policy or drop their effort choice.
+   Exclude OpenAI-compatible helper transports from this pass, including
+   `openai-compatible`, `atlascloud-agent`, `cheaperinference-agent`,
+   `api-route-agent` and `litellm-agent`, until they can bound every request.
+   Transport retry switches do not stop their empty-answer follow-up loop.
+   Check aliases against the resolved command and exclude any route using
+   `openai-compatible-agent.py`. Preserve explicit choices: report the
+   unsupported transport and offer another allowed provider or continuation
+   without red teaming. Do not substitute a provider without consent.
    No extra calls or retries are authorized by this pass.
    Use at least two seats from different providers; never simulate a
    multi-provider review inside the host model. Fewer than two eligible providers
@@ -207,6 +207,12 @@ flag, run it against the draft skeleton before requesting approval or rendering:
 
    <!-- deck-seat-collection:start -->
    ```bash
+   case "${ADVISOR_ID%%:*}" in
+       openai-compatible*|openai-tools*|atlascloud*|cheaperinference*|api-route*|litellm*)
+           printf 'Seat incomplete: transport cannot bound request count\n' >&2
+           exit 1
+           ;;
+   esac
    source "$PLUGIN_ROOT/scripts/lib/consultative-advisors.sh"
    OPENAI_COMPAT_MAX_RETRIES=1 OCTOPUS_REASONING_POLICY=strict \
    OCTOPUS_OVERSIZE_STRATEGY=fail OCTOPUS_FABLE5_NO_RETRY=1 \

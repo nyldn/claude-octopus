@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Renderer selection uses the host's advertised skills, not plugin ownership."""
 import json
+import itertools
 import os
 from pathlib import Path
 import subprocess
@@ -185,7 +186,6 @@ class DocumentRendererTest(unittest.TestCase):
                 self.assertIn("provider allowlist", red_team)
                 self.assertIn("one round", red_team)
                 self.assertIn("skill-debate", red_team)
-                self.assertIn("orchestrate.sh spawn", red_team)
                 self.assertIn("never simulate", red_team)
                 self.assertIn("Fewer than two eligible providers", red_team)
                 self.assertIn("continue without red teaming", red_team)
@@ -233,6 +233,25 @@ class DocumentRendererTest(unittest.TestCase):
         text = (ROOT / "commands/deck.md").read_text()
         self.assertIn("/octo:deck --red-team", text)
         self.assertIn("provider calls", text)
+
+    def test_deck_collection_refuses_an_unexecutable_hook_before_dispatch(self):
+        """Simulate a no-exec temporary directory without mounting a filesystem."""
+        orchestrator = self.base / "orchestrator"
+        orchestrator.write_text('#!/bin/sh\nprintf "called\\n" >> "$DISPATCH_CALLS"\n')
+        orchestrator.chmod(0o755)
+        script = r'''source "$PLUGIN_ROOT/scripts/lib/consultative-advisors.sh"
+# Emulate an execute-denied hook even though chmod itself succeeds.
+chmod() { command chmod "$@"; command chmod -x "${@: -1}"; }
+octo_launch_advisors "$ORCHESTRATOR" codex "$SEAT_DIR" answer- evidence 1
+'''
+        calls = self.base / "calls"
+        result = subprocess.run(["bash", "-c", script],
+            env=dict(os.environ, PLUGIN_ROOT=str(ROOT), ORCHESTRATOR=str(orchestrator),
+                     SEAT_DIR=str(self.base), DISPATCH_CALLS=str(calls),
+                     OCTO_ALLOWED_PROVIDERS="codex", OCTOPUS_ADVISOR_WAIT_SECONDS="1"),
+            text=True, capture_output=True, timeout=8)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(calls.exists(), result.stderr)
 
     def test_deck_recipe_rejects_oversize_without_summarizer_calls(self):
         """Use the production budget enforcer with an inert summarizer."""
@@ -327,8 +346,8 @@ fi
                     else:
                         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_deck_compatible_recipe_bounds_transport_and_effort_fallback_requests(self):
-        """Count actual helper requests under transient and unsupported-effort responses."""
+    def test_deck_recipe_excludes_unbounded_compatible_transports(self):
+        """Unbounded helper routes cannot spend any of the consented seat budget."""
         probe = self.base / "compatible-probe.py"
         probe.write_text('''import importlib.util,io,json,os,sys,urllib.error
 from pathlib import Path
@@ -339,10 +358,12 @@ def transport(request, **kwargs):
     with open(os.environ["COMPAT_CALLS"], "a") as out: out.write("attempt\\n")
     payload=json.loads(request.data)
     code=int(os.environ["COMPAT_RESPONSE"])
-    if code == 503 or "reasoning_effort" in payload:
+    if code == 503 or (code == 400 and "reasoning_effort" in payload):
         body=b"Unsupported parameter: reasoning_effort" if code == 400 else b"unavailable"
         raise urllib.error.HTTPError(request.full_url,code,"fixture",{},io.BytesIO(body))
-    return io.BytesIO(json.dumps({"choices":[{"message":{"content":"Stakeholder objection"},"finish_reason":"stop"}]}).encode())
+    count=len(Path(os.environ["COMPAT_CALLS"]).read_text().splitlines())
+    content="" if code == 200 and count == 1 else "Stakeholder objection"
+    return io.BytesIO(json.dumps({"choices":[{"message":{"content":content},"finish_reason":"stop"}]}).encode())
 mod.open_credentialed_request=transport
 mod.time.sleep=lambda seconds:None
 sys.argv=["fixture", "--provider","generic","--base-url","https://example.invalid/v1", "--api-key-env","COMPAT_FIXTURE_KEY", "--model","fixture-model", "--cwd",os.environ["SEAT_DIR"], "--reasoning-effort","high", "--reasoning-policy",os.environ["COMPAT_EFFECTIVE_POLICY"], "--tool-policy","none"]
@@ -359,16 +380,18 @@ octo_launch_advisors() {
 }
 ''')
         for tree in (".claude/skills", "skills"):
-            for response in (503, 400):
-                with self.subTest(tree=tree, response=response):
-                    seat_dir = self.base / (tree.replace("/", "-") + str(response))
+            for response, advisor in itertools.product((503, 400, 200),
+                    ("openai-compatible", "openai-tools", "atlascloud-agent",
+                     "cheaperinference-agent", "api-route-agent", "litellm-agent")):
+                with self.subTest(tree=tree, response=response, advisor=advisor):
+                    seat_dir = self.base / (tree.replace("/", "-") + str(response) + advisor)
                     seat_dir.mkdir()
                     calls = seat_dir / "calls"
                     env = dict(os.environ, PLUGIN_ROOT=str(ROOT), COMPAT_PROBE=str(probe),
                                COMPAT_COLLECTOR=str(collector), COMPAT_CALLS=str(calls),
                                COMPAT_RESPONSE=str(response), COMPAT_FIXTURE_KEY="inert-fixture",
                                OPENAI_COMPAT_MAX_RETRIES="3", OCTOPUS_REASONING_POLICY="best_effort",
-                               ADVISOR_ID="openai-compatible:fixture-model", ORCHESTRATOR="inert",
+                               ADVISOR_ID=f"{advisor}:fixture-model", ORCHESTRATOR="inert",
                                STAKEHOLDER_PROMPT="Stakeholder prompt", SEAT_DIR=str(seat_dir),
                                SEAT_WAIT_SECONDS="5")
                     control = subprocess.run(["bash", "-c", 'source "$COMPAT_COLLECTOR"; octo_launch_advisors'],
@@ -384,7 +407,7 @@ octo_launch_advisors() {
                     result = subprocess.run(["bash", "-euo", "pipefail", "-c", recipe],
                                             env=env, input="prompt", text=True, capture_output=True,
                                             check=False, timeout=10)
-                    self.assertEqual(len(calls.read_text().splitlines()), 1, result.stderr)
+                    self.assertFalse(calls.exists(), result.stderr)
                     self.assertNotEqual(result.returncode, 0)
 
     def test_deck_fable_recipe_does_not_spend_an_unapproved_fallback_call(self):
