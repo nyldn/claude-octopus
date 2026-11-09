@@ -177,6 +177,10 @@ preflight_check true
                 ] if connected else [])
                 result = self.shell(script)
                 self.assertEqual(result.returncode == 0, connected, result.stdout + result.stderr)
+                if not connected and roster:
+                    self.assertIn("health-failed", result.stdout)
+                    self.assertIn("Run the provider's authentication or service check", result.stdout)
+                    self.assertNotIn("run an explicit live readiness check", result.stdout)
                 self.assertTrue(self.marker.exists(), "admission never checked login")
                 self.env["OCTOPUS_SKIP_PROVIDER_PROBES"] = "true"
                 self.marker.unlink(missing_ok=True)

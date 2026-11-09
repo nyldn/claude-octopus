@@ -66,7 +66,7 @@ Map the answer to an intensity value:
 
 **✓ CORRECT - Read the explicit workflow source:**
 ```
-Read `${HOME}/.claude-octopus/plugin/.claude/skills/skill-deep-research/SKILL.md`, then execute it with `[breadth=light|standard|exhaustive] [intensity=quick|standard|deep] <user's arguments without routing flags>`.
+Read `${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/.claude/skills/skill-deep-research/SKILL.md`, then execute it with `[breadth=light|standard|exhaustive] [intensity=quick|standard|deep] <user's arguments without routing flags>`.
 ```
 
 Examples:

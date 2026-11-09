@@ -379,7 +379,7 @@ get_agent_command() {
                 model="$(octo_frontier_maybe_escalate codex "$model" "$role" "$agent_type" "$phase" "$prompt_bytes")"
             fi
             local reasoning_level reasoning_policy reasoning_fragment
-            reasoning_level="$(octopus_resolve_reasoning_level codex "$phase" "$role")" || return 1
+            reasoning_level="$(octopus_resolve_reasoning_level codex "$phase" "$role" "$agent_type" "$model")" || return 1
             reasoning_policy="$(octopus_resolve_reasoning_policy codex "$phase" "$role")" || return 1
             reasoning_fragment="$(octopus_reasoning_cli_fragment codex "$reasoning_level" "$reasoning_policy")" || return 1
             _build_codex_exec_command "$model" "$sandbox_flag" "$reasoning_fragment"
@@ -416,26 +416,26 @@ get_agent_command() {
             ;;
         claude)
             local reasoning_level reasoning_policy reasoning_fragment
-            reasoning_level="$(octopus_resolve_reasoning_level claude "$phase" "$role")" || return 1
-            reasoning_policy="$(octopus_resolve_reasoning_policy claude "$phase" "$role")" || return 1
-            reasoning_fragment="$(_octopus_claude_reasoning_fragment "$reasoning_level" "$reasoning_policy")" || return 1
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                 return 1
             fi
             _octopus_validate_exact_claude_dispatch_model "$model" "$role" "$agent_type" "$phase" "$prompt_bytes" || return 1
             model="$(_octopus_apply_nonexact_fable_input_gate "$model" "$agent_type" "$prompt_bytes")" || return 1
+            reasoning_level="$(octopus_resolve_reasoning_level claude "$phase" "$role" "$agent_type" "$model")" || return 1
+            reasoning_policy="$(octopus_resolve_reasoning_policy claude "$phase" "$role")" || return 1
+            reasoning_fragment="$(_octopus_claude_reasoning_fragment "$reasoning_level" "$reasoning_policy")" || return 1
             [[ "$agent_type" == *:* ]] || model="${model//./-}"
             echo "${_claude_bin}${_BARE_OPT} --print --model ${model} ${reasoning_fragment} ${claude_perm}" ;;
         claude-sonnet)
             local reasoning_level reasoning_policy reasoning_fragment
-            reasoning_level="$(octopus_resolve_reasoning_level claude "$phase" "$role")" || return 1
-            reasoning_policy="$(octopus_resolve_reasoning_policy claude "$phase" "$role")" || return 1
-            reasoning_fragment="$(_octopus_claude_reasoning_fragment "$reasoning_level" "$reasoning_policy")" || return 1
             if ! model=$(get_agent_model "$agent_type" "$phase" "$role"); then
                 return 1
             fi
             _octopus_validate_exact_claude_dispatch_model "$model" "$role" "$agent_type" "$phase" "$prompt_bytes" || return 1
             model="$(_octopus_apply_nonexact_fable_input_gate "$model" "$agent_type" "$prompt_bytes")" || return 1
+            reasoning_level="$(octopus_resolve_reasoning_level claude "$phase" "$role" "$agent_type" "$model")" || return 1
+            reasoning_policy="$(octopus_resolve_reasoning_policy claude "$phase" "$role")" || return 1
+            reasoning_fragment="$(_octopus_claude_reasoning_fragment "$reasoning_level" "$reasoning_policy")" || return 1
             [[ "$agent_type" == *:* ]] || model="${model//./-}"
             echo "${_claude_bin}${_BARE_OPT} --print --model ${model} ${reasoning_fragment} ${claude_perm}" ;;
         claude-opus|claude-opus-fast)
@@ -554,7 +554,7 @@ get_agent_command() {
                 return 1
             fi
             local reasoning_level reasoning_policy reasoning_fragment runtime_config base_url api_key_env tool_fragment=""
-            reasoning_level="$(octopus_resolve_reasoning_level openai-compatible-agent "$phase" "$role")" || return 1
+            reasoning_level="$(octopus_resolve_reasoning_level openai-compatible-agent "$phase" "$role" "$agent_type" "$model" "$(octo_provider_canonical "$agent_executor")")" || return 1
             reasoning_policy="$(octopus_resolve_reasoning_policy openai-compatible-agent "$phase" "$role")" || return 1
             reasoning_fragment="$(octopus_reasoning_cli_fragment openai-compatible-agent "$reasoning_level" "$reasoning_policy")" || return 1
             runtime_config="$(_octopus_openai_compatible_runtime_config "$agent_type")" || return 1
@@ -802,13 +802,13 @@ get_agent_command() {
             esac
             model="$(get_agent_model "$agent_type" "$phase" "$role")" || return 1
             local api_effort api_thinking
-            api_effort="$(octopus_resolve_reasoning_level anthropic-api "$phase" "$role")" || return 1
-            api_effort="${api_effort:-high}"
+            api_effort="$(octopus_resolve_reasoning_level anthropic-api "$phase" "$role" "$agent_type" "$model" anthropic-api high)" || return 1
+            api_effort="${api_effort:-auto}"
             api_thinking="${OCTOPUS_ANTHROPIC_API_THINKING:-auto}"
             case "$model" in claude-sonnet-5-5|claude-opus-5-5) ;; *) log ERROR "anthropic-api requires Sonnet 5.5 or Opus 5.5"; return 1 ;; esac
-            case "$api_effort" in low|medium|high|xhigh|max) ;; *) log ERROR "anthropic-api requires low, medium, high, xhigh, or max effort"; return 1 ;; esac
+            case "$api_effort" in auto|low|medium|high|xhigh|max) ;; *) log ERROR "anthropic-api requires auto, low, medium, high, xhigh, or max effort"; return 1 ;; esac
             case "$api_thinking" in auto|adaptive|between_tools) ;; *) log ERROR "Invalid anthropic-api thinking mode"; return 1 ;; esac
-            if [[ "$api_thinking" == between_tools && ( "$model" != claude-sonnet-5-5 || "$api_effort" == xhigh || "$api_effort" == max ) ]]; then
+            if [[ "$api_thinking" == between_tools && ( "$model" != claude-sonnet-5-5 || "$api_effort" == auto || "$api_effort" == xhigh || "$api_effort" == max ) ]]; then
                 log ERROR "between_tools requires Sonnet 5.5 at low, medium, or high effort"
                 return 1
             fi
@@ -1703,7 +1703,7 @@ apply_tool_policy() {
 
     # Disabled by env var
     if [[ "${OCTOPUS_TOOL_POLICIES}" != "true" ]]; then
-        echo "$prompt"
+        printf '%s\n' "$prompt"
         return
     fi
 
@@ -1712,7 +1712,7 @@ apply_tool_policy() {
         local is_readonly
         is_readonly=$(get_agent_readonly "$agent_name")
         if [[ "$is_readonly" == "true" ]]; then
-            echo "TOOL POLICY (readonly: true): You MUST NOT use Write, Edit, or Bash for modifications. Only Read, Glob, Grep, WebSearch, and WebFetch are permitted.
+            printf '%s\n' "TOOL POLICY (readonly: true): You MUST NOT use Write, Edit, or Bash for modifications. Only Read, Glob, Grep, WebSearch, and WebFetch are permitted.
 
 ${prompt}"
             return
@@ -1735,17 +1735,17 @@ ${prompt}"
             ;;
         full)
             # No restrictions
-            echo "$prompt"
+            printf '%s\n' "$prompt"
             return
             ;;
     esac
 
     if [[ -n "$restriction" ]]; then
-        echo "${restriction}
+        printf '%s\n' "${restriction}
 
 ${prompt}"
     else
-        echo "$prompt"
+        printf '%s\n' "$prompt"
     fi
 }
 
@@ -1779,7 +1779,7 @@ apply_persona() {
 
     # Allow opt-out for backward compatibility
     if [[ "$skip_persona" == "true" || "$DISABLE_PERSONAS" == "true" ]]; then
-        echo "$prompt"
+        printf '%s\n' "$prompt"
         return
     fi
 
@@ -1788,7 +1788,7 @@ apply_persona() {
     persona=$(get_persona_instruction "$persona_role")
 
     if [[ -z "$persona" ]]; then
-        echo "$prompt"
+        printf '%s\n' "$prompt"
         return
     fi
 
@@ -1807,7 +1807,7 @@ EOF
     # v8.19.0: Apply tool policy RBAC (v8.53.0: pass agent_name for readonly check)
     combined=$(apply_tool_policy "$persona_role" "$combined" "$agent_name")
 
-    echo "$combined"
+    printf '%s\n' "$combined"
 }
 
 # v8.53.0: Get readonly flag from agent persona frontmatter

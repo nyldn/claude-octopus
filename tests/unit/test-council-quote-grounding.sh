@@ -823,6 +823,260 @@ printf '# Plan\n\n- const base = await fetchCabinPrice(cabin.id, { cache: true }
 r="$(COUNCIL_CONTEXT_FILES=("$ctx_plan"); _report "$fab")"
 if jq -e '.fabricated == true and .diff_sources == []' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
+# A seat's own arithmetic is a computed value, not a quote of the payload
+# (sail-cruisey #3246 CP1: codex disputed a size estimate with its own sum and
+# was marked fabricated on it).
+test_case "#3246: a seat's own arithmetic in backticks is not a quote"
+sum_resp="$(_resp 'src/pricing.ts:2 keeps the fallback. The estimate `8 + 10 + 0.5 = 18.5 KB` adds up.
+VERDICT: APPROVE')"
+r="$(_report "$sum_resp")"
+if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: arithmetic in scientific notation is a computed value"
+r="$(_report "$(_resp 'src/pricing.ts:2 keeps the fallback. The estimate `1.5e6 + 2.5E+6 = 4.0e6 tokens` adds up.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: an identifier beside scientific notation is still a code quote"
+r="$(_report "$(_resp 'src/pricing.ts:2 computes `const total = 1.5e6 + base * 2e3;` before returning.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: arithmetic with digit-group underscores is a computed value"
+r="$(_report "$(_resp 'src/pricing.ts:2 keeps the fallback. The estimate `1_000_000 * 3 = 3_000_000 rows` adds up.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: an underscore identifier beside a grouped number is still a code quote"
+r="$(_report "$(_resp 'src/pricing.ts:2 computes `const cap = max_rows * 1_000;` before returning.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: arithmetic a citation computes is still checked"
+r="$(_report "$(_resp 'src/pricing.ts:2 computes `1024 * 1024 * 1024 * 10 x` for the cap.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: arithmetic with variables is still a code quote"
+var_resp="$(_resp 'src/pricing.ts:2 computes `const total = base + taxes * 2;` before returning.
+VERDICT: APPROVE')"
+r="$(_report "$var_resp")"
+if jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: a long unit word after a number still makes arithmetic a computed value"
+r="$(_report "$(_resp 'src/pricing.ts:2 keeps the fallback. The estimate `8 + 10 + 0.5 = 18.5 kilobytes` adds up.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: modulo arithmetic is a computed value"
+r="$(_report "$(_resp 'src/pricing.ts:2 keeps the fallback. Check: `100000 % 1000 % 100 % 10` is zero.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: a conditional expression is not taken for numbers with units"
+r="$(_report "$(_resp 'src/pricing.ts:2 keeps the fallback. Elsewhere it computes `100 if 1000 > 500 else 1` first.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: arithmetic a seat says a cited file contains is still verified"
+r="$(_report "$(_resp 'src/pricing.ts:2 reads `1024 * 1024 * 1024 * 10`.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 1 and .quotes_attributed == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: arithmetic followed by its citation is still verified"
+r="$(_report "$(_resp 'The cap is `1024 * 1024 * 1024 * 10` (src/pricing.ts:2).
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+for source_verb in computes is reads; do
+    test_case "#3246: first-person estimate ends the $source_verb source clause"
+    r="$(_report "$(_resp "src/pricing.ts:2 $source_verb the baseline and I estimate \`8 + 10 + 0.5 = 18.5 KB\`.
+VERDICT: APPROVE")")"
+    if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+
+test_case "#3246: arithmetic followed by a backtick-formatted citation is still verified"
+r="$(_report "$(_resp 'The cap is `1024 * 1024 * 1024 * 10` (`src/pricing.ts:2`).
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+for negative_compute in 'does not compute' "doesn't compute" 'did not compute'; do
+    test_case "#3246: negated compute claim is not positive source evidence: $negative_compute"
+    r="$(_report "$(_resp "src/pricing.ts:2 $negative_compute \`1024 * 1024 * 1024 * 10\`.
+VERDICT: APPROVE")")"
+    if jq -e '.quotes_checked == 1 and .quotes_verified == 0 and .quotes_unverifiable == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+
+for reader in 'I read' 'we read' 'We read'; do
+    test_case "#3246: first-person source reader preserves arithmetic verification: $reader"
+    r="$(_report "$(_resp "src/pricing.ts:2 $reader \`1024 * 1024 * 1024 * 10\`.
+VERDICT: APPROVE")")"
+    if jq -e '.quotes_checked == 1 and .quotes_attributed == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+
+for estimator in 'I estimate' 'we estimate' 'We estimate'; do
+    test_case "#3246: $estimator before a later is remains the seat's arithmetic"
+    r="$(_report "$(_resp "src/pricing.ts:2 $estimator the cap is \`8 + 10 + 0.5 = 18.5 KB\`.
+VERDICT: APPROVE")")"
+    if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+done
+
+for reader in 'I read the cap is' 'we read the cap is'; do
+    test_case "#3246: $reader still makes an explicit arithmetic source claim"
+    r="$(_report "$(_resp "src/pricing.ts:2 $reader \`1024 * 1024 * 1024 * 10\`.
+VERDICT: APPROVE")")"
+    if jq -e '.quotes_checked == 1 and .quotes_attributed == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+done
+
+for estimator in we We; do
+    test_case "#3246: $estimator estimate ends the preceding compute claim"
+    r="$(_report "$(_resp "src/pricing.ts:2 computes the baseline and $estimator estimate \`8 + 10 + 0.5 = 18.5 KB\`.
+VERDICT: APPROVE")")"
+    if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+
+test_case "#3246: inline arithmetic claimed removed remains eligible for diff matching"
+compute_removal_diff="$TEST_TMP_DIR/compute-removal.diff"
+printf 'diff --git a/src/pricing.ts b/src/pricing.ts\n--- a/src/pricing.ts\n+++ b/src/pricing.ts\n@@ -1 +1 @@\n-1024 * 1024 * 1024 * 10\n+const cap = 10;\n' > "$compute_removal_diff"
+r="$(COUNCIL_CONTEXT_FILES=("$compute_removal_diff"); _report "$(_resp 'At src/pricing.ts:2 the code `1024 * 1024 * 1024 * 10` was removed.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 1 and .quotes_verified_in_diff_removed == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: an inline removal without diff evidence is still checked"
+r="$(_report "$(_resp 'At src/pricing.ts:2 the code `1024 * 1024 * 1024 * 10` was removed.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 1 and .quotes_unverifiable_claimed_removed == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: a removal in another sentence does not turn an estimate into source"
+r="$(_report "$(_resp 'src/pricing.ts:2 no longer caches. I estimate `8 + 10 + 0.5 = 18.5 KB`.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# Current-head PR #1231 review regressions.
+arithmetic_original_root="$ROOT"
+ROOT="$(mktemp -d "$TEST_TMP_DIR/arithmetic-root.XXXXXX")"
+mkdir -p "$ROOT/src"
+cp "$arithmetic_original_root/src/pricing.ts" "$ROOT/src/pricing.ts"
+git -C "$ROOT" init -q
+git -C "$ROOT" add src/pricing.ts
+git -C "$ROOT" -c user.name=Test -c user.email=test@example.invalid \
+    -c core.hooksPath=/dev/null commit -qm baseline
+printf '\n// unrelated change\n' >> "$ROOT/src/pricing.ts"
+test_case "#3246: never computes is an absence claim, not invented source"
+r="$(_report "$(_resp 'src/pricing.ts:2 never computes `1024 * 1024 * 1024 * 10`.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 1 and .quotes_unverifiable == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+for estimator in 'I compute' 'we compute' 'We compute the cap is'; do
+    test_case "#3246: $estimator remains the seat's computation"
+    r="$(_report "$(_resp "src/pricing.ts:2 $estimator \`8 + 10 + 0.5 = 18.5 KB\`.
+VERDICT: APPROVE")")"
+    if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+
+for calculator in I we; do
+    test_case "#3246: a new $calculator calculate clause ends the preceding source claim"
+    r="$(_report "$(_resp "src/pricing.ts:2 computes the baseline and $calculator calculate \`8 + 10 + 0.5 = 18.5 KB\`.
+VERDICT: APPROVE")")"
+    if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+
+for source_claim in 'reads the expression we use:' 'contains the calculation I use:' 'reads the expression we compute:' 'reads the expression we calculate:' 'reads the expression we estimate:' 'contains the calculation I estimate:'; do
+    test_case "#3246: $source_claim remains a source claim"
+    r="$(_report "$(_resp "src/pricing.ts:2 $source_claim \`1024 * 1024 * 1024 * 10\`.
+VERDICT: APPROVE")")"
+    if jq -e '.quotes_checked == 1 and .quotes_attributed == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+
+for estimator in 'while we estimate' 'while I estimate' 'and we estimate' 'but I estimate' 'so we estimate'; do
+    test_case "#3246: a separate $estimator clause remains the seat's arithmetic"
+    r="$(_report "$(_resp "src/pricing.ts:2 computes the baseline $estimator \`8 + 10 + 0.5 = 18.5 KB\`.
+VERDICT: APPROVE")")"
+    if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+
+for estimate in 'the old cache was removed, so I estimate' 'I estimate the sum after removing the old cache is'; do
+    test_case "#3246: unrelated removal before $estimate does not claim the sum was removed"
+    r="$(COUNCIL_CONTEXT_FILES=("$compute_removal_diff"); _report "$(_resp "src/pricing.ts:2 $estimate \`8 + 10 + 0.5 = 18.5 KB\`.
+VERDICT: APPROVE")")"
+    if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+
+test_case "#3246: unrelated removal after an estimate does not claim the sum was removed"
+r="$(COUNCIL_CONTEXT_FILES=("$compute_removal_diff"); _report "$(_resp 'src/pricing.ts:2 I estimate `8 + 10 + 0.5 = 18.5 KB` after the old cache was removed.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+for removal in 'removed the expression' 'deleted the code'; do
+    test_case "#3246: $removal directly before arithmetic preserves diff verification"
+    r="$(COUNCIL_CONTEXT_FILES=("$compute_removal_diff"); _report "$(_resp "src/pricing.ts:2 $removal \`1024 * 1024 * 1024 * 10\`.
+VERDICT: APPROVE")")"
+    if jq -e '.quotes_checked == 1 and .quotes_verified_in_diff_removed == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+
+test_case "#3246: a long nonmatching citation gap cannot exhaust verification"
+long_gap_response="$TEST_TMP_DIR/computed-citation-gap.md"
+python3 - "$long_gap_response" <<'PY'
+import sys
+from pathlib import Path
+Path(sys.argv[1]).write_text('src/pricing.ts:2 keeps the fallback. I estimate '
+    '`8 + 10 + 0.5 = 18.5 KB`' + ' ' * 200_000 +
+    'outside (src/pricing.ts:2).\nVERDICT: APPROVE\n')
+PY
+r="$(_report "$long_gap_response")"
+if jq -e '.verification_failed == false and .citations == 2 and .quotes_checked == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+ROOT="$arithmetic_original_root"
+
+test_case "#3246: repeated citation lookups do not copy every response suffix"
+if python3 - "$PROJECT_ROOT/scripts/lib/council.sh" <<'PY'
+import re
+import sys
+from bisect import bisect_left
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text()
+start = source.index("token_starts = [t[0] for t in tokens]")
+end = source.index("\ncheckable_units =", start)
+
+class CountedResponse(str):
+    copied = 0
+
+    def __getitem__(self, key):
+        result = super().__getitem__(key)
+        if isinstance(key, slice):
+            self.copied += len(result)
+        return result
+
+span = "`1024 * 1024 * 1024 * 1` "
+count = 42000
+resp = CountedResponse(span * count + "(src/pricing.ts:2)")
+tokens = [(len(span) * count, 0)]
+namespace = dict(re=re, bisect_left=bisect_left, resp=resp, tokens=tokens)
+exec(source[start:end], namespace)
+matches = [namespace["cited_after"]((i + 1) * len(span) - 1) for i in range(count)]
+assert sum(matches) == 1, sum(matches)
+assert resp.copied <= len(resp), f"copied {resp.copied} bytes for {len(resp)} response bytes"
+PY
+then test_pass; else test_fail "citation lookup copied repeated suffixes or lost its final citation"; fi
+
+test_case "#3246: an arithmetic line in a fence does not lower the fence's match threshold"
+r="$(_report "$(_resp "src/pricing.ts:2 keeps the fallback. The block:
+\`\`\`ts
+${REAL_NEAR}
+1024 * 1024 * 1024 * 10
+\`\`\`
+VERDICT: APPROVE")")"
+if jq -e '.quotes_checked == 1 and .quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3246: an arithmetic line claimed as a diff removal is still checked"
+r="$(_report "$(_resp 'src/pricing.ts:2 keeps the fallback. The change:
+```diff
+-1024 * 1024 * 1024 * 10
+```
+VERDICT: APPROVE')")"
+if jq -e '.quotes_checked == 1' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 # An `octopus-policy-findings` block is the feature workflow's structured
 # findings format (checked by digest in feature-workflow.py), not a code quote.
 # sail-cruisey #3244 CP1: codex's only "quote" was this block, so it was

@@ -45,8 +45,8 @@ cat > "$TEST_REVIEW_MD" <<'EOF'
 - Prefer early returns over nested conditionals
 
 ## Skip
-- Generated files under src/gen/
-- Formatting-only changes in *.lock files
+- src/gen/
+- *.lock
 EOF
 
 assert_contains "$(grep -A1 'Always check' "$TEST_REVIEW_MD")" \

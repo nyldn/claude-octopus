@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Run workflow skill shell blocks against an inert report-writing engine."""
 import os
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -21,6 +22,8 @@ class WorkflowResultTest(unittest.TestCase):
         self.results.mkdir(parents=True)
         plugin = self.home / '.claude-octopus/plugin'
         (plugin / 'scripts/helpers').mkdir(parents=True)
+        (plugin / 'scripts/helpers/discovery-handoff.py').symlink_to(ROOT / 'scripts/helpers/discovery-handoff.py')
+        (plugin / 'scripts/helpers/discovery-project-complete.sh').symlink_to(ROOT / 'scripts/helpers/discovery-project-complete.sh')
         (plugin / 'scripts/helpers/workflow-result.sh').symlink_to(
             ROOT / 'scripts/helpers/workflow-result.sh')
         # The validator resolves its own root, so copy the source-safe libraries
@@ -30,10 +33,19 @@ class WorkflowResultTest(unittest.TestCase):
         (plugin / 'scripts/helpers/ensure-plugin-root.sh').write_text(
             (ROOT / 'scripts/helpers/ensure-plugin-root.sh').read_text())
         self.engine = plugin / 'scripts/orchestrate.sh'
-        self.engine.write_text(f'#!{sys.executable} -I\n' + '''import os
+        self.engine.write_text(f'#!{sys.executable} -I\n' + '''import os,json
 from pathlib import Path
 import sys
 phase = sys.argv[1]
+if phase == "define" and os.environ.get("FIXTURE_RESEARCH_CAPTURE"):
+    research = sys.argv[3] if len(sys.argv) > 3 else ""
+    source = os.environ.get("FIXTURE_RESEARCH_MUTATE")
+    if source:
+        if os.environ.get("FIXTURE_RESEARCH_DELETE"):
+            Path(source).unlink()
+        else:
+            Path(source).write_text("unverified replacement")
+    Path(os.environ["FIXTURE_RESEARCH_CAPTURE"]).write_text(json.dumps({"path": research, "content": Path(research).read_text() if research else ""}))
 prefix = {"define":"grasp-consensus", "develop":"tangle-validation", "deliver":"delivery", "ink":"delivery"}[phase]
 directory = Path(os.environ["FIXTURE_RESULTS"])
 mode = os.environ.get("FIXTURE_MODE", "complete")
@@ -54,6 +66,9 @@ sys.exit(1 if mode == "failed" else 0)
         self.engine.chmod(0o755)
         self.env = {k: v for k, v in os.environ.items()
                     if not k.startswith(('CLAUDE_', 'CODEX_', 'DROID_'))}
+        self.env.pop('OCTOPUS_STATE_PROJECT_ROOT', None)
+        self.env.pop('OCTOPUS_WORKFLOW_STATE_DIR', None)
+        self.env.pop('OCTOPUS_PROJECT_PERSISTENCE', None)
         self.env.update(HOME=str(self.home), CLAUDE_PLUGIN_DATA=str(self.workspace),
                         CLAUDE_CODE_SESSION_ID='session-a', FIXTURE_RESULTS=str(self.results),
                         TMPDIR=str(self.home), OCTOPUS_WORKFLOW_INVOCATION_ID='marker')
@@ -82,6 +97,462 @@ sys.exit(1 if mode == "failed" else 0)
                 result = self.run_skill(phase)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn('-current.md', result.stdout)
+
+    def state_command(self, *args):
+        """Use the real project-scoped host state without live providers."""
+        return subprocess.run([str(self.engine.parent / 'state-manager.sh'), *args],
+                              cwd=self.home, env=self.env, check=True, capture_output=True, text=True)
+
+    def handoff_command(self, operation, *args, check=True):
+        """Use the project-scoped handoff CLI with no live provider calls."""
+        state_file = self.state_command('handoff_path').stdout.strip()
+        return subprocess.run([sys.executable, str(ROOT / 'scripts/helpers/discovery-handoff.py'),
+                               operation, state_file, *map(str, args)], cwd=self.home,
+                              env=self.env, check=check, capture_output=True, text=True)
+
+    def bind_discovery(self, artifact, run_id='discovery-a'):
+        """Begin and publish completed research through the production CLI."""
+        self.state_command('init_state')
+        self.state_command('set_current_workflow', 'flow-discover', 'discover')
+        self.handoff_command('begin', run_id)
+        self.handoff_command('publish', run_id, artifact)
+
+    def complete_discovery(self, artifact, run_id, extra=None):
+        """Execute the exact terminal block, including presentation and persistence."""
+        text = (ROOT / 'skills/flow-discover/references/complete.md').read_text()
+        block = re.search(r'```bash\n(.*?)\n```', text, re.S).group(1)
+        env = dict(self.env, OCTO_ROOT=str(self.engine.parents[1]), RUN_ID=run_id,
+                   SYNTHESIS_FILE=str(artifact), OCTOPUS_PROJECT_PERSISTENCE='false')
+        env.update(extra or {})
+        return subprocess.run(['bash', '-c', block], cwd=self.home, env=env,
+                              text=True, capture_output=True, timeout=15)
+
+    def test_define_recovers_the_complete_saved_discovery(self):
+        """Use bound research after restart, including sources beyond the preview."""
+        summary = self.home / '.octo/phases/phase-1-summary.md'
+        summary.parent.mkdir(parents=True)
+        content = '# Research\n\n' + 'finding\n' * 40 + '\n## Sources\nlate source\n'
+        summary.write_text(content)
+        self.bind_discovery(summary)
+        capture = self.home / 'research-capture.json'
+        self.env['FIXTURE_RESEARCH_CAPTURE'] = str(capture)
+        for generated in (False, True):
+            with self.subTest(generated=generated):
+                result = self.run_skill('define', generated=generated)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                research = json.loads(capture.read_text())
+                self.assertNotEqual(Path(research['path']).resolve(), summary.resolve())
+                self.assertFalse(Path(research['path']).exists(), 'snapshot leaked after Define')
+                self.assertEqual(research['content'], content)
+        summary.write_text('changed after binding')
+        capture.unlink()
+        self.assert_rejected(self.run_skill('define'), 'Discovery handoff rejected')
+        self.assertFalse(capture.exists())
+        summary.write_text('')
+        self.assert_rejected(self.run_skill('define'), 'Discovery handoff rejected')
+        self.assertFalse(capture.exists())
+
+    def test_new_nonpersistent_discovery_cannot_reuse_old_project_summary(self):
+        """A newer host-only run replaces A, and an incomplete run cannot reuse A."""
+        summary = self.home / '.octo/phases/phase-1-summary.md'
+        summary.parent.mkdir(parents=True)
+        summary.write_text('old research A')
+        state = str(ROOT / 'scripts/octo-state.sh')
+        subprocess.run([state, 'init_project'], cwd=self.home, env=self.env, check=True, capture_output=True)
+        subprocess.run([state, 'update_state', '--phase', '1', '--status', 'complete'], cwd=self.home, env=self.env, check=True, capture_output=True)
+        self.bind_discovery(summary)
+        capture = self.home / 'research-capture.json'
+        self.env['FIXTURE_RESEARCH_CAPTURE'] = str(capture)
+        self.handoff_command('begin', 'discovery-b')
+        self.assert_rejected(self.run_skill('define'), 'discovery is incomplete')
+        artifact = self.home / '.claude-octopus/results/probe-synthesis-discovery-b.md'
+        artifact.parent.mkdir(parents=True)
+        artifact.write_text('new research B with sources')
+        self.bind_discovery(artifact, 'discovery-b')
+        for generated in (False, True):
+            result = self.run_skill('define', generated=generated)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(capture.read_text())['content'], artifact.read_text())
+        self.assertEqual(summary.read_text(), 'old research A')
+
+    def test_discovery_records_the_verified_host_artifact_for_define(self):
+        """Only the terminal completion block makes research available to Define."""
+        self.state_command('init_state')
+        run_id = 'discovery-host-only'
+        self.handoff_command('begin', run_id)
+        artifact = self.home / ('.claude-octopus/results/probe-synthesis-' + run_id + '.md')
+        artifact.parent.mkdir(parents=True)
+        artifact.write_text('# Research\n## Key Findings\nCurrent research\n## Sources\nCurrent sources\n')
+        text = (ROOT / 'skills/flow-discover/references/synthesize.md').read_text()
+        block = next(b for b in re.findall(r'```bash\n(.*?)\n```', text, re.S) if 'key_findings=' in b)
+        env = dict(self.env, OCTO_ROOT=str(self.engine.parents[1]), RUN_ID=run_id,
+                   SYNTHESIS_FILE=str(artifact), FLEET_OUTPUT='')
+        synthesized = subprocess.run(['bash', '-e', '-c', block], cwd=self.home,
+                                     env=env, text=True, capture_output=True, timeout=15)
+        self.assertEqual(synthesized.returncode, 0, synthesized.stderr)
+        capture = self.home / 'research-capture.json'
+        self.env['FIXTURE_RESEARCH_CAPTURE'] = str(capture)
+        self.assert_rejected(self.run_skill('define'), 'discovery is incomplete')
+        completed = self.complete_discovery(artifact, run_id)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        result = self.run_skill('define')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(capture.read_text())['content'], artifact.read_text())
+        self.assertFalse((self.home / '.octo').exists())
+
+    def test_define_rejects_foreign_or_corrupt_bindings(self):
+        """A foreign project or malformed current record cannot supply research."""
+        summary = self.home / '.octo/phases/phase-1-summary.md'
+        summary.parent.mkdir(parents=True)
+        summary.write_text('research A')
+        self.bind_discovery(summary)
+        state_file = Path(self.state_command('handoff_path').stdout.strip())
+        handoff = state_file.parent / 'discovery-handoff.json'
+        capture = self.home / 'research-capture.json'
+        self.env['FIXTURE_RESEARCH_CAPTURE'] = str(capture)
+        record = json.loads(handoff.read_text())
+        record['project'] = str(self.home / 'another-project')
+        handoff.write_text(json.dumps(record))
+        self.assert_rejected(self.run_skill('define'), 'Discovery handoff rejected')
+        self.assertFalse(capture.exists())
+        handoff.write_text('broken json')
+        self.assert_rejected(self.run_skill('define'), 'Discovery handoff rejected')
+        self.handoff_command('discard')
+        self.assertEqual(self.run_skill('define').returncode, 0)
+
+    def test_failed_presentation_or_persistence_never_publishes_research(self):
+        """Both terminal failure paths leave the current discovery unbound."""
+        run_id = 'discovery-terminal'
+        artifact = self.home / ('.claude-octopus/results/probe-synthesis-' + run_id + '.md')
+        artifact.parent.mkdir(parents=True)
+        artifact.write_text('current findings with sources')
+        (self.engine.parent / 'octo-state.sh').symlink_to(ROOT / 'scripts/octo-state.sh')
+        subprocess.run([str(ROOT / 'scripts/octo-state.sh'), 'init_project'], cwd=self.home,
+                       env=self.env, check=True, capture_output=True)
+        self.state_command('init_state')
+        for failed_tool in ('cat', 'cp'):
+            with self.subTest(failed_tool=failed_tool):
+                self.handoff_command('begin', run_id)
+                self.handoff_command('prepare', run_id)
+                shim = self.home / ('fail-' + failed_tool)
+                shim.mkdir()
+                executable = shim / failed_tool
+                executable.write_text('#!/bin/sh\nexit 42\n')
+                executable.chmod(0o755)
+                result = self.complete_discovery(artifact, run_id, {
+                    'PATH': str(shim) + os.pathsep + self.env['PATH'],
+                    'OCTOPUS_PROJECT_PERSISTENCE': 'true'})
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                handoff = Path(self.state_command('handoff_path').stdout.strip()).parent / 'discovery-handoff.json'
+                self.assertIsNone(json.loads(handoff.read_text())['artifact'])
+
+    def test_superseded_publisher_cannot_overwrite_the_current_discovery(self):
+        """Competing publishers serialize and preserve the newer run's research."""
+        import fcntl
+        artifacts = {}
+        for run_id in ('discovery-a', 'discovery-b'):
+            artifact = self.home / ('.claude-octopus/results/probe-synthesis-' + run_id + '.md')
+            artifact.parent.mkdir(parents=True, exist_ok=True)
+            artifact.write_text(run_id + ' sources')
+            artifacts[run_id] = artifact
+        self.state_command('init_state')
+        self.handoff_command('begin', 'discovery-a')
+        self.handoff_command('begin', 'discovery-b')
+        state_file = Path(self.state_command('handoff_path').stdout.strip())
+        with (state_file.parent / 'discovery-handoff.lock').open('r+') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            children = [subprocess.Popen([sys.executable, str(ROOT / 'scripts/helpers/discovery-handoff.py'),
+                        'publish', str(state_file), run_id, str(artifacts[run_id])], cwd=self.home,
+                        env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                        for run_id in ('discovery-a', 'discovery-b')]
+            fcntl.flock(lock, fcntl.LOCK_UN)
+        old, current = children
+        old.communicate(timeout=15)
+        _, error = current.communicate(timeout=15)
+        self.assertNotEqual(old.returncode, 0)
+        self.assertEqual(current.returncode, 0, error)
+        handoff = state_file.parent / 'discovery-handoff.json'
+        before = handoff.read_bytes()
+        rejected = self.handoff_command('publish', 'discovery-a', artifacts['discovery-a'], check=False)
+        self.assertNotEqual(rejected.returncode, 0)
+        self.assertEqual(handoff.read_bytes(), before)
+        self.state_command('update_context', 'discover', 'unrelated context writer')
+        self.assertEqual(handoff.read_bytes(), before)
+        capture = self.home / 'research-capture.json'
+        self.env['FIXTURE_RESEARCH_CAPTURE'] = str(capture)
+        result = self.run_skill('define')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(capture.read_text())['content'], artifacts['discovery-b'].read_text())
+
+    def test_define_rejects_symlinked_research_before_dispatch(self):
+        """Reject a bound summary or either checkout parent replaced by a link."""
+        for component in ('phase-1-summary.md', 'phases', '.octo'):
+            for generated in (False, True):
+                with self.subTest(component=component, generated=generated):
+                    summary = self.home / '.octo/phases/phase-1-summary.md'
+                    summary.parent.mkdir(parents=True, exist_ok=True)
+                    summary.write_text('research with sources')
+                    self.bind_discovery(summary)
+                    part = next(p for p in [summary, *summary.parents] if p.name == component)
+                    outside = self.home / ('outside-' + component)
+                    part.rename(outside)
+                    part.symlink_to(outside, target_is_directory=outside.is_dir())
+                    capture = self.home / 'research-capture.json'
+                    capture.unlink(missing_ok=True)
+                    self.env['FIXTURE_RESEARCH_CAPTURE'] = str(capture)
+                    self.assert_rejected(self.run_skill('define', generated=generated), 'Discovery handoff rejected')
+                    self.assertFalse(capture.exists())
+                    part.unlink()
+                    outside.rename(part)
+
+    def test_define_uses_verified_bytes_if_original_changes_during_cost_review(self):
+        """Provider input remains the selected bytes after the source changes."""
+        summary = self.home / '.octo/phases/phase-1-summary.md'
+        summary.parent.mkdir(parents=True)
+        capture = self.home / 'research-capture.json'
+        self.env['FIXTURE_RESEARCH_CAPTURE'] = str(capture)
+        for delete in (False, True):
+            summary.write_text('verified research and sources')
+            self.bind_discovery(summary)
+            self.env['FIXTURE_RESEARCH_MUTATE'] = str(summary)
+            if delete:
+                self.env['FIXTURE_RESEARCH_DELETE'] = '1'
+            result = self.run_skill('define')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            research = json.loads(capture.read_text())
+            self.assertEqual(research['content'], 'verified research and sources')
+            self.assertFalse(Path(research['path']).exists(), 'private snapshot leaked')
+
+    def test_define_uses_the_explicit_project_root_from_a_subdirectory(self):
+        """State and research share OCTOPUS_STATE_PROJECT_ROOT identity."""
+        summary = self.home / '.octo/phases/phase-1-summary.md'
+        summary.parent.mkdir(parents=True)
+        summary.write_text('root project research')
+        self.env['OCTOPUS_STATE_PROJECT_ROOT'] = str(self.home)
+        self.bind_discovery(summary)
+        child = self.home / 'src'
+        child.mkdir()
+        capture = self.home / 'research-capture.json'
+        self.env['FIXTURE_RESEARCH_CAPTURE'] = str(capture)
+        for generated in (False, True):
+            result = subprocess.run(['bash', '-c', self.skill_command('define', generated)],
+                                    cwd=child, env=self.env, text=True, capture_output=True, timeout=15)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(capture.read_text())['content'], summary.read_text())
+
+    def test_missing_discovery_rejects_until_explicit_discard(self):
+        """A standalone request can recover without silently dropping research."""
+        summary = self.home / '.octo/phases/phase-1-summary.md'
+        summary.parent.mkdir(parents=True)
+        summary.write_text('research')
+        self.bind_discovery(summary)
+        summary.unlink()
+        self.assert_rejected(self.run_skill('define'), 'Discovery handoff rejected')
+        text = (ROOT / '.claude/skills/flow-define/SKILL.md').read_text()
+        block = next(b for b in re.findall(r'```bash\n(.*?)\n```', text, re.S) if 'discovery-handoff.py\" discard' in b)
+        env = dict(self.env)
+        env.pop('OCTO_ROOT', None)
+        discarded = subprocess.run(['bash', '-c', block], cwd=self.home, env=env,
+                                   text=True, capture_output=True)
+        self.assertEqual(discarded.returncode, 0, discarded.stderr)
+        capture = self.home / 'research-capture.json'
+        self.env['FIXTURE_RESEARCH_CAPTURE'] = str(capture)
+        for generated in (False, True):
+            result = self.run_skill('define', generated=generated)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(capture.read_text())['path'], '')
+
+    def test_bootstrap_identity_survives_separate_completion(self):
+        """Printed identity is restored in a fresh completion shell without guessing."""
+        text = (ROOT / 'skills/flow-discover/SKILL.md').read_text()
+        bootstrap = next(b for b in re.findall(r'```bash\n(.*?)\n```', text, re.S) if 'discovery-handoff.py" begin' in b)
+        env = dict(self.env, OCTO_ROOT=str(self.engine.parents[1]))
+        begun = subprocess.run(['bash', '-c', bootstrap], cwd=self.home, env=env,
+                               text=True, capture_output=True, timeout=15)
+        self.assertEqual(begun.returncode, 0, begun.stderr)
+        assignments = dict(line.split('=', 1) for line in begun.stdout.splitlines())
+        self.assertRegex(assignments['RUN_ID'], r'^flow-[0-9]+-[0-9a-f]{32}$')
+        self.assertTrue(assignments['RUN_ID'].endswith(assignments['RUN_NONCE']))
+        artifact = self.home / ('.claude-octopus/results/probe-synthesis-' + assignments['RUN_ID'] + '.md')
+        artifact.parent.mkdir(parents=True)
+        artifact.write_text('research from the printed run with sources')
+        completed = self.complete_discovery(artifact, assignments['RUN_ID'])
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        sidecar = Path(self.state_command('handoff_path').stdout.strip()).parent / 'discovery-handoff.json'
+        self.assertEqual(json.loads(sidecar.read_text())['run_id'], assignments['RUN_ID'])
+
+    def test_begin_invalidates_research_before_opt_in_preparation_failure(self):
+        """A failed project write cannot leave the preceding research selectable."""
+        artifact = self.home / '.claude-octopus/results/probe-synthesis-discovery-a.md'
+        artifact.parent.mkdir(parents=True)
+        artifact.write_text('old research')
+        self.bind_discovery(artifact)
+        text = (ROOT / 'skills/flow-discover/SKILL.md').read_text()
+        bootstrap = next(b for b in re.findall(r'```bash\n(.*?)\n```', text, re.S) if 'discovery-handoff.py" begin' in b)
+        env = dict(self.env, OCTO_ROOT=str(self.engine.parents[1]))
+        begun = subprocess.run(['bash', '-c', bootstrap], cwd=self.home, env=env, text=True, capture_output=True)
+        self.assertEqual(begun.returncode, 0, begun.stderr)
+        env.update(dict(line.split('=', 1) for line in begun.stdout.splitlines()))
+        state = self.engine.parent / 'octo-state.sh'
+        state.write_text('#!/bin/sh\nexit 42\n')
+        state.chmod(0o755)
+        prepare = (ROOT / 'skills/flow-discover/references/prepare.md').read_text()
+        block = re.search(r'```bash\n(.*?)\n```', prepare, re.S).group(1)
+        env['OCTOPUS_PROJECT_PERSISTENCE'] = 'true'
+        prepared = subprocess.run(['bash', '-c', block], cwd=self.home, env=env, text=True, capture_output=True)
+        self.assertNotEqual(prepared.returncode, 0)
+        self.assert_rejected(self.run_skill('define'), 'discovery is incomplete')
+
+    def test_superseded_completion_preserves_the_newer_project_files(self):
+        """Reject A before any project write after B has completed."""
+        self.state_command('init_state')
+        (self.engine.parent / 'octo-state.sh').symlink_to(ROOT / 'scripts/octo-state.sh')
+        self.env['OCTOPUS_PROJECT_PERSISTENCE'] = 'true'
+        artifacts = {}
+        for run_id in ('discovery-a', 'discovery-b'):
+            artifact = self.home / ('.claude-octopus/results/probe-synthesis-' + run_id + '.md')
+            artifact.parent.mkdir(parents=True, exist_ok=True)
+            artifact.write_text(run_id + ' findings and sources')
+            artifacts[run_id] = artifact
+            self.handoff_command('begin', run_id)
+            self.handoff_command('prepare', run_id)
+        completed = self.complete_discovery(artifacts['discovery-b'], 'discovery-b', {'OCTOPUS_PROJECT_PERSISTENCE': 'true'})
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        files = [self.home / p for p in ('.octo/STATE.md', '.octo/phases/phase-1-summary.md', '.octo/PROJECT.md')]
+        before = [p.read_bytes() for p in files]
+        rejected = self.complete_discovery(artifacts['discovery-a'], 'discovery-a', {'OCTOPUS_PROJECT_PERSISTENCE': 'true'})
+        self.assertNotEqual(rejected.returncode, 0)
+        self.assertEqual([p.read_bytes() for p in files], before)
+        rejected = self.handoff_command('prepare', 'discovery-a', check=False)
+        self.assertNotEqual(rejected.returncode, 0)
+        self.assertEqual([p.read_bytes() for p in files], before)
+
+    def test_publication_failure_and_crash_restore_incomplete_project_state(self):
+        """Rollback a failed final commit and recover its journal after process death."""
+        self.state_command('init_state')
+        self.env['OCTOPUS_PROJECT_PERSISTENCE'] = 'true'
+        artifact = self.home / '.claude-octopus/results/probe-synthesis-discovery-a.md'
+        artifact.parent.mkdir(parents=True)
+        artifact.write_text('new research and sources')
+        for crash in (False, True):
+            with self.subTest(crash=crash):
+                self.handoff_command('begin', 'discovery-a')
+                self.handoff_command('prepare', 'discovery-a')
+                state_file = Path(self.state_command('handoff_path').stdout.strip())
+                summary = self.home / '.octo/phases/phase-1-summary.md'
+                summary.write_text('previous summary retained on failure')
+                project_state = self.home / '.octo/STATE.md'
+                before = [project_state.read_bytes(), summary.read_bytes()]
+                script = """import importlib.util,os,sys
+spec=importlib.util.spec_from_file_location('handoff',sys.argv[1])
+m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+original=m.save
+def fail_final(path,state):
+    if state.get('status')=='complete':
+        if sys.argv[4]=='crash': os._exit(99)
+        raise OSError('injected final publication failure')
+    original(path,state)
+m.save=fail_final
+m.publish(sys.argv[2],'discovery-a',sys.argv[3])
+"""
+                failed = subprocess.run([sys.executable, '-c', script, str(ROOT / 'scripts/helpers/discovery-handoff.py'),
+                                         str(state_file), str(artifact), 'crash' if crash else 'error'],
+                                        cwd=self.home, env=self.env, text=True, capture_output=True, timeout=15)
+                self.assertNotEqual(failed.returncode, 0)
+                self.assert_rejected(self.run_skill('define'), 'discovery is incomplete')
+                self.assertEqual([project_state.read_bytes(), summary.read_bytes()], before)
+                record = json.loads((state_file.parent / 'discovery-handoff.json').read_text())
+                self.assertEqual(record['status'], 'failed')
+                self.assertNotIn('transaction', record)
+
+    def test_handoff_survives_adding_and_changing_the_git_remote(self):
+        """The stable handoff identity is independent of remote.origin.url."""
+        subprocess.run(['git', 'init', '-q'], cwd=self.home, check=True, capture_output=True)
+        artifact = self.home / '.claude-octopus/results/probe-synthesis-discovery-a.md'
+        artifact.parent.mkdir(parents=True)
+        artifact.write_text('research remains available after remote changes')
+        self.bind_discovery(artifact)
+        stable = self.state_command('handoff_path').stdout.strip()
+        original_workflow_path = self.state_command('state_path').stdout.strip()
+        capture = self.home / 'research-capture.json'
+        self.env['FIXTURE_RESEARCH_CAPTURE'] = str(capture)
+        for operation in ('add', 'set-url'):
+            subprocess.run(['git', 'remote', operation, 'origin', 'https://example.invalid/' + operation + '.git'],
+                           cwd=self.home, check=True, capture_output=True)
+            self.assertEqual(self.state_command('handoff_path').stdout.strip(), stable)
+            self.assertNotEqual(self.state_command('state_path').stdout.strip(), original_workflow_path)
+            for generated in (False, True):
+                result = self.run_skill('define', generated=generated)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(json.loads(capture.read_text())['content'], artifact.read_text())
+
+    def test_legacy_handoff_is_adopted_without_moving_its_lock_or_journal(self):
+        """Find the prior remote-keyed record and retain its exact bytes in place."""
+        subprocess.run(['git', 'init', '-q'], cwd=self.home, check=True, capture_output=True)
+        self.state_command('init_state')
+        legacy = Path(self.state_command('state_path').stdout.strip())
+        artifact = self.home / '.claude-octopus/results/probe-synthesis-discovery-a.md'
+        artifact.parent.mkdir(parents=True)
+        artifact.write_text('legacy research with full sources')
+        for args in [('begin', str(legacy), 'discovery-a'), ('publish', str(legacy), 'discovery-a', str(artifact))]:
+            subprocess.run([sys.executable, str(ROOT / 'scripts/helpers/discovery-handoff.py'), *args],
+                           cwd=self.home, env=self.env, check=True, capture_output=True)
+        record = legacy.parent / 'discovery-handoff.json'
+        before = record.read_bytes()
+        lock_inode = (legacy.parent / 'discovery-handoff.lock').stat().st_ino
+        subprocess.run(['git', 'remote', 'add', 'origin', 'https://example.invalid/new.git'],
+                       cwd=self.home, check=True, capture_output=True)
+        selected = Path(self.state_command('handoff_path').stdout.strip())
+        self.assertEqual(selected.resolve(), record.resolve())
+        self.assertEqual(record.read_bytes(), before)
+        self.assertEqual((legacy.parent / 'discovery-handoff.lock').stat().st_ino, lock_inode)
+        capture = self.home / 'research-capture.json'
+        self.env['FIXTURE_RESEARCH_CAPTURE'] = str(capture)
+        result = self.run_skill('define')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(capture.read_text())['content'], artifact.read_text())
+
+    def test_explicit_handoff_directory_remains_authoritative(self):
+        """An explicit state directory retains its location and project guard."""
+        self.env['OCTOPUS_WORKFLOW_STATE_DIR'] = str(self.home / 'explicit-state')
+        expected = self.home / 'explicit-state/discovery-handoff.json'
+        self.assertEqual(Path(self.state_command('handoff_path').stdout.strip()), expected)
+
+    def test_publication_error_survives_a_failed_rollback(self):
+        """Report both errors, preserve the journal, and recover it on the next call."""
+        self.state_command('init_state')
+        self.env['OCTOPUS_PROJECT_PERSISTENCE'] = 'true'
+        self.handoff_command('begin', 'discovery-a')
+        self.handoff_command('prepare', 'discovery-a')
+        state = self.home / '.octo/STATE.md'
+        summary = self.home / '.octo/phases/phase-1-summary.md'
+        summary.write_text('prior summary')
+        before = [state.read_bytes(), summary.read_bytes()]
+        artifact = self.home / '.claude-octopus/results/probe-synthesis-discovery-a.md'
+        artifact.parent.mkdir(parents=True)
+        artifact.write_text('completed research')
+        handoff = Path(self.state_command('handoff_path').stdout.strip())
+        script = """import importlib.util,sys
+spec=importlib.util.spec_from_file_location('handoff',sys.argv[1]);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+original=m.save
+def fail_final(path,state):
+    if state.get('status')=='complete': raise OSError('original publication error')
+    original(path,state)
+def fail_restore(*args):
+    raise OSError('secondary restore error')
+m.save=fail_final;m.restore_project=fail_restore
+sys.argv=['handoff','publish',sys.argv[2],'discovery-a',sys.argv[3]]
+sys.exit(m.main())
+"""
+        failed = subprocess.run([sys.executable, '-c', script, str(ROOT / 'scripts/helpers/discovery-handoff.py'),
+                                 str(handoff), str(artifact)], cwd=self.home, env=self.env,
+                                text=True, capture_output=True, timeout=15)
+        self.assertNotEqual(failed.returncode, 0)
+        self.assertIn('Discovery rollback incomplete; journal retained: secondary restore error', failed.stderr)
+        self.assertIn('Discovery handoff rejected: original publication error', failed.stderr)
+        self.assertIn('transaction', json.loads(handoff.read_text()))
+        self.assert_rejected(self.run_skill('define'), 'discovery is incomplete')
+        self.assertEqual([state.read_bytes(), summary.read_bytes()], before)
 
     def test_generated_skills_find_engine_reports(self):
         for phase in ('define', 'develop', 'deliver', 'ink'):
@@ -115,6 +586,7 @@ sys.exit(1 if mode == "failed" else 0)
                     self.assertEqual(stable.resolve(), loaded.resolve())
 
     def test_inferred_checkout_runs_without_redirecting_another_install(self):
+        """Keep another installation pinned while validating an inferred checkout."""
         stable = self.home / '.claude-octopus/plugin'
         loaded = self.home / 'loaded-checkout'
         stable.rename(loaded)
@@ -126,7 +598,7 @@ sys.exit(1 if mode == "failed" else 0)
             for phase in ('define', 'develop', 'deliver', 'ink'):
                 with self.subTest(phase=phase, generated=generated):
                     command = self.skill_command(phase, generated).replace(
-                        '${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}', str(loaded))
+                        '${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}', str(loaded))
                     self.env['FIXTURE_MODE'] = 'complete'
                     result = subprocess.run(['bash', '-c', command], env=self.env,
                                             cwd=self.home, text=True, capture_output=True, timeout=15)

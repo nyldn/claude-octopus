@@ -33,7 +33,7 @@ Validates the implementation against the intent contract.
 ### Step 1: Load Intent Contract
 
 ```bash
-PLAN_STORAGE="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}/scripts/plan-storage.sh"
+PLAN_STORAGE="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/plan-storage.sh"
 OCTO_PLAN_DIR="$("$PLAN_STORAGE" current "$PWD" 2>/dev/null || true)"
 INTENT_FILE="${OCTO_PLAN_DIR:+${OCTO_PLAN_DIR}/session-intent.md}"
 if [[ -f "$INTENT_FILE" ]]; then
@@ -186,7 +186,7 @@ command -v agy >/dev/null 2>&1 && providers+=(agy)
 
 for provider in "${providers[@]}"; do
   safe_provider=$(printf '%s' "$provider" | tr -c '[:alnum:]_-' '_')
-  "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" spawn "$provider" \
+  "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn "$provider" \
     "Review this code diff for LOGIC, CORRECTNESS, and SECURITY issues. Focus on:
 1. Logic bugs and off-by-one errors
 2. Unhandled error paths
@@ -318,7 +318,7 @@ if [[ -n "$PR_NUM" ]]; then
 ${COMBINED_REPORT}
 
 *Staged review by Claude Octopus (/octo:staged-review)*"
-    if ! "${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}/scripts/safe-gh-comment.sh" \
+    if ! "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/safe-gh-comment.sh" \
             --repo "$REPO_SLUG" pr-comment "$PR_NUM" - <<< "$COMMENT_BODY"; then
         echo "GitHub write state is unknown; check for the staged review comment before retrying:" >&2
         gh pr view "$PR_NUM" --repo "$REPO_SLUG" --comments || true

@@ -4,6 +4,7 @@
 
 _octopus_spawn_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_octopus_spawn_lib_dir}/engineering-methods.sh"
+source "${_octopus_spawn_lib_dir}/provider-failure.sh"
 source "${_octopus_spawn_lib_dir}/pid-ledger.sh"
 source "${_octopus_spawn_lib_dir}/agent-spec.sh" 2>/dev/null || true
 source "${_octopus_spawn_lib_dir}/dispatch-plan.sh" 2>/dev/null || true
@@ -1303,7 +1304,11 @@ ${heuristic_ctx}"
     case "$agent_type" in
         cursor-agent*|copilot*|qwen*) _plan_append_empty_prompt=true ;;
     esac
-    build_provider_env "$agent_type"
+    if ! build_provider_env "$agent_type"; then
+        octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
+            "Provider environment construction failed" 74 "" >/dev/null 2>&1 || true
+        return 74
+    fi
     octo_dispatch_plan_bind_model_env "$agent_type" "$model"
     local _plan_failure=""
     if ! dispatch_argv_json="$(octo_dispatch_command_argv_json "$cmd")"; then
@@ -1674,12 +1679,7 @@ ${heuristic_ctx}"
                [[ $auth_attempt -lt $max_auth_retries ]]; then
                 local stderr_content=""
                 [[ -s "$temp_errors" ]] && stderr_content=$(<"$temp_errors")
-                if [[ "$stderr_content" == *"unauthorized"* ]] || \
-                   [[ "$stderr_content" == *"401"* ]] || \
-                   [[ "$stderr_content" == *"auth"* ]] || \
-                   [[ "$stderr_content" == *"credential"* ]] || \
-                   [[ "$stderr_content" == *"token expired"* ]] || \
-                   [[ "$stderr_content" == *"refresh"* ]]; then
+                if octopus_provider_failure_retryable "$agent_type" "$stderr_content"; then
                     ((auth_attempt++)) || true
                     local backoff=$((auth_attempt * 5))
                     if [[ "$_timeout_deadline" -gt 0 ]]; then

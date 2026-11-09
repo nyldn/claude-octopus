@@ -15,7 +15,7 @@ When the user invokes this command (e.g., `/octo:spec <arguments>`):
 
 **CORRECT - Read the explicit workflow source:**
 ```
-Read ${HOME}/.claude-octopus/plugin/.claude/skills/flow-spec/SKILL.md, then execute it with <user's arguments>
+Read ${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/.claude/skills/flow-spec/SKILL.md, then execute it with <user's arguments>
 ```
 
 **INCORRECT:**

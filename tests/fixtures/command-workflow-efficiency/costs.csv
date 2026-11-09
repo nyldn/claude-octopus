@@ -1,0 +1,7 @@
+group,name,queries,tokens_in,tokens_out,est_cost_usd
+provider,codex,1000,300000000,100000,6007.5000
+provider,agy,1000,1000,0,0.0000
+provider,claude,1,0,0,0.0000
+skill,test,1001,300000000,100000,6007.5000
+mcp,fixture,1000,300000000,100000,6007.5000
+total,,2001,300001000,100000,6007.5000

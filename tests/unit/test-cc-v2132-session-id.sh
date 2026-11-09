@@ -20,6 +20,7 @@ SESSION_LIB="$PROJECT_ROOT/scripts/lib/session-id.sh"
 pass() { test_case "$1"; test_pass; }
 fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
+# assert_contains: Record whether the selected source contains the required session contract.
 assert_contains() {
     local file="$1"
     local pattern="$2"
@@ -67,7 +68,7 @@ else
     fail "Claude host prefers CLAUDE_CODE_SESSION_ID over legacy env"
 fi
 
-if bash -lc 'source scripts/lib/session-id.sh; unset CLAUDE_CODE_SESSION_ID CLAUDE_SESSION_ID; OCTOPUS_HOST=claude; payload='\''{"session_id":"hook-json"}'\''; [[ "$(octo_resolve_session_id fallback "$payload")" == "hook-json" ]]'; then
+if bash -lc 'source scripts/lib/session-id.sh; unset CLAUDE_CODE_SESSION_ID CLAUDE_SESSION_ID CLAUDE_CODE_SESSION; OCTOPUS_HOST=claude; payload='\''{"session_id":"hook-json"}'\''; [[ "$(octo_resolve_session_id fallback "$payload")" == "hook-json" ]]'; then
     pass "session helper falls back to hook JSON session_id"
 else
     fail "session helper falls back to hook JSON session_id"
@@ -95,8 +96,11 @@ assert_contains "$PROJECT_ROOT/hooks/strategy-rotation.sh" 'octo_resolve_session
 for cmd in .cursor-plugin/commands/octo-careful.md .cursor-plugin/commands/octo-freeze.md .cursor-plugin/commands/octo-guard.md .cursor-plugin/commands/octo-unfreeze.md \
            commands/careful.md commands/freeze.md commands/guard.md commands/unfreeze.md \
            .claude/skills/skill-debug/SKILL.md skills/skill-debug/SKILL.md; do
-    assert_contains "$PROJECT_ROOT/$cmd" 'CLAUDE_CODE_SESSION_ID' \
-        "$cmd writes state with Claude Code Bash session id"
+    if grep -qE 'guard-state.sh|octo_resolve_session_id' "$PROJECT_ROOT/$cmd"; then
+        pass "$cmd delegates stable identity to the shared resolver"
+    else
+        fail "$cmd delegates stable identity to the shared resolver" "guard entrypoint bypasses the session contract"
+    fi
 done
 
 # A state file keyed on CLAUDE_SESSION_ID alone falls back to the shell PID under

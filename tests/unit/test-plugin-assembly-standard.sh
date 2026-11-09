@@ -127,4 +127,43 @@ else
     fi
 fi
 
+test_case "registered hook commands execute from a plugin path containing spaces"
+if python3 - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PYHOOKS'
+from pathlib import Path
+import json
+import os
+import re
+import shlex
+import subprocess
+import sys
+
+source = Path(sys.argv[1])
+fixture = Path(sys.argv[2]) / "plugin root with spaces"
+fixture.mkdir()
+manifest = json.loads((source / "hooks/hooks.json").read_text())
+checked = 0
+for groups in manifest["hooks"].values():
+    for group in groups:
+        for hook in group.get("hooks", []):
+            if hook.get("type") != "command":
+                continue
+            command = hook["command"]
+            match = re.search(r'\$\{CLAUDE_PLUGIN_ROOT\}(/[^"\s]+)', command)
+            assert match, command
+            relative = match.group(1).lstrip("/")
+            assert (source / relative).is_file(), relative
+            script = fixture / relative
+            script.parent.mkdir(parents=True, exist_ok=True)
+            script.write_text("#!" + sys.executable + "\nimport json,sys\nprint(json.dumps(sys.argv[1:]))\n")
+            script.chmod(0o700)
+            result = subprocess.run(["bash", "-c", command], env=dict(os.environ,
+                CLAUDE_PLUGIN_ROOT=str(fixture)), capture_output=True, text=True)
+            assert result.returncode == 0, (command, result.stderr)
+            assert json.loads(result.stdout) == shlex.split(command)[1:], command
+            checked += 1
+assert checked > 0
+print(f"Validated {checked} registered hook commands with inert executables")
+PYHOOKS
+then test_pass; else test_fail "registered hook path split into shell words"; fi
+
 test_summary

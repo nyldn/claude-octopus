@@ -236,7 +236,7 @@ If user selects "Let me describe it", follow up with a text prompt for their cus
 Resolve a unique run directory, then use the Write tool to create its `session-intent.md`:
 
 ```bash
-PLAN_STORAGE="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}/scripts/plan-storage.sh"
+PLAN_STORAGE="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/plan-storage.sh"
 OCTO_PLAN_DIR="$("$PLAN_STORAGE" current "$PWD" 2>/dev/null || "$PLAN_STORAGE" create "$PWD")"
 cat > "${OCTO_PLAN_DIR}/session-intent.md" <<EOF
 # Intent Contract
