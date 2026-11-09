@@ -20,9 +20,7 @@ def block_path(block):
     middle = len(header) // 2
     # --no-prefix repeats the complete path, even for binary/mode-only changes.
     # Comparing byte halves preserves spaces and Git's C-quoted token boundary.
-    if header[middle:middle + 1] == b" " and header[:middle] == header[middle + 1:]:
-        return git_path(header[:middle])
-    original = None
+    original = destination = None
     for line in block.splitlines()[1:]:
         if line.startswith((b"@@", b"GIT binary patch", b"Binary files ")):
             break
@@ -32,10 +30,14 @@ def block_path(block):
             original = line[4:].split(b"\t", 1)[0]
         if line.startswith(b"+++ "):
             destination = line[4:].split(b"\t", 1)[0]
-            value = original if destination == b"/dev/null" else destination
-            if value:
-                path = git_path(value)
-                return path[2:] if path.startswith(("a/", "b/")) else None
+    # Rename/copy destinations above take precedence: a standard header can
+    # coincidentally have equal halves for a path containing " a/" or " b/".
+    if header[middle:middle + 1] == b" " and header[:middle] == header[middle + 1:]:
+        return git_path(header[:middle])
+    value = original if destination == b"/dev/null" else destination
+    if value:
+        path = git_path(value)
+        return path[2:] if path.startswith(("a/", "b/")) else None
     # Binary and mode-only changes have no +++ header. Unquoted Git paths
     # may contain spaces; identical old/new names disambiguate those headers.
     quoted = re.fullmatch(rb'("(?:\\.|[^"\\])*") (.+)', header)

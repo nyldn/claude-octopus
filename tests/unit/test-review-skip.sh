@@ -94,6 +94,30 @@ for quote_path in ("true", "false"):
                 assert actual == (b"" if "/gen/" in name else patch), (pattern, name)
 custom = git("diff", "--cached", "--src-prefix=before/", "--dst-prefix=after/", "--", "app.ts")
 assert subprocess.check_output(["python3", os.environ["SKIP_FILTER"], "*"], input=custom) == custom
+# Standard rename/copy headers can accidentally have identical byte halves.
+# Destination metadata must win over the no-prefix shortcut.
+for change in ("rename", "copy"):
+    root = Path(os.environ["SKIP_TEST_ROOT"]) / (change + "-repo")
+    root.mkdir()
+    git("init", "-q")
+    git("config", "user.email", "test@example.com")
+    git("config", "user.name", "Octopus Test")
+    (root / "foo").write_text("source content\n")
+    git("add", ".")
+    git("commit", "-qm", "fixture")
+    destination = root / "bar a/foo b/bar"
+    destination.parent.mkdir(parents=True)
+    if change == "rename":
+        (root / "foo").rename(destination)
+    else:
+        destination.write_bytes((root / "foo").read_bytes())
+    git("add", "-A")
+    for no_prefix in ([], ["--no-prefix"]):
+        patch = git("diff", "--cached", "--find-renames", "--find-copies-harder", *no_prefix)
+        assert (change + " to bar a/foo b/bar").encode() in patch, patch
+        for pattern in ("a/", "foo"):
+            assert subprocess.check_output(["python3", os.environ["SKIP_FILTER"], pattern], input=patch) == patch
+        assert subprocess.check_output(["python3", os.environ["SKIP_FILTER"], "bar a/"], input=patch) == b""
 usage = subprocess.run(["python3", os.environ["SKIP_FILTER"]], capture_output=True)
 assert usage.returncode != 0 and b"Usage:" in usage.stderr and b"Traceback" not in usage.stderr
 PY
