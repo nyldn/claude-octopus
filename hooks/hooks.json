@@ -7,6 +7,7 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/provider-routing-validator.sh\"",
+            "onFailure": "block",
             "commandWindows": "cmd /d /c exit 0",
             "if": "Bash(*orchestrate.sh*)",
             "additionalContext": "Session: ${CLAUDE_SESSION_ID}, Workflow: ${OCTOPUS_WORKFLOW_PHASE:-unknown}",
@@ -31,6 +32,7 @@
       {
         "type": "command",
         "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/codex-exec-guard.sh\"",
+        "onFailure": "block",
         "commandWindows": "cmd /d /c exit 0",
         "if": "Bash(codex *)",
         "timeout": 5
@@ -38,6 +40,7 @@
       {
         "type": "command",
         "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/codex-exec-guard.sh\"",
+        "onFailure": "block",
         "commandWindows": "cmd /d /c exit 0",
         "if": "Bash(qwen *)",
         "timeout": 5
@@ -45,6 +48,7 @@
       {
         "type": "command",
         "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/codex-exec-guard.sh\"",
+        "onFailure": "block",
         "commandWindows": "cmd /d /c exit 0",
         "if": "Bash(gemini *)",
         "timeout": 5
@@ -57,6 +61,7 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/scheduler-security-gate.sh\"",
+            "onFailure": "block",
             "commandWindows": "cmd /d /c exit 0",
             "additionalContext": "Scheduler job: ${OCTOPUS_JOB_ID:-none}",
             "timeout": 10
@@ -80,6 +85,7 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/careful-check.sh\"",
+            "onFailure": "block",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 5
           }
@@ -91,6 +97,7 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/freeze-check.sh\"",
+            "onFailure": "block",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 5
           }
