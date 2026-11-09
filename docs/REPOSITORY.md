@@ -48,6 +48,12 @@ the source basename. For example,
 `.claude/skills/skill-architecture/SKILL.md` declares `name: octopus-architecture`
 and generates `skills/octopus-architecture/`.
 
+The builder also adds compatibility aliases through `compat_alias_for`. It maps
+`skill-verification-gate` to `skill-verify`, so
+`.claude/skills/skill-verification-gate/SKILL.md` generates both
+`skills/skill-verification-gate/` and `skills/skill-verify/`. Edit that source
+entry to update either generated copy.
+
 `scripts/build-codex-skills.sh` owns portable skill generation and the two
 Claude mirrors. `scripts/build-factory-skills.sh` calls it as part of
 `make sync`. The legacy `scripts/gen-skill-docs.sh` command delegates to that
