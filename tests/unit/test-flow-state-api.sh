@@ -149,8 +149,9 @@ rc=0
 "$STATE" update_roadmap --from-synthesis "$TEST_TMP_DIR/synthesis.md" >/dev/null 2>&1 || rc=$?
 if [[ "$rc" -ne 0 ]] && cmp -s .octo/ROADMAP.md "$TEST_TMP_DIR/malformed-roadmap"; then test_pass; else test_fail "malformed roadmap was overwritten"; fi
 
-test_case "the actual Discover lifecycle blocks work with the real state dispatcher"
-python3 - "$PROJECT_ROOT/.claude/skills/flow-discover/SKILL.md" "$STATE" "$TEST_TMP_DIR" <<'PY'
+test_case "Discover replaces its phase summary without changing the project vision"
+read_claude_skill_contract flow-discover > "$TEST_TMP_DIR/discover-contract.md"
+python3 - "$TEST_TMP_DIR/discover-contract.md" "$STATE" "$TEST_TMP_DIR" <<'PY'
 from pathlib import Path
 import re
 import sys
@@ -159,18 +160,73 @@ for name, title in (("pre", "Pre-Discovery: Optional Project Persistence"), ("po
     section = text.split("## " + title, 1)[1].split("\n## ", 1)[0]
     block = re.search(r"```bash\n(.*?)\n```", section, re.S).group(1)
     block = block.replace('"${HOME}/.claude-octopus/plugin/scripts/octo-state.sh"', '"' + sys.argv[2] + '"')
+    block = block.replace('"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh"', '"' + sys.argv[2] + '"')
+    block = block.replace('"${OCTO_ROOT:?}/scripts/octo-state.sh"', '"' + sys.argv[2] + '"')
     Path(sys.argv[3], name + ".sh").write_text(block)
 PY
+DISCOVERY_FIXTURE_HOME="$TEST_TMP_DIR/discovery-home"
+DISCOVERY_SYNTHESIS_FILE="$DISCOVERY_FIXTURE_HOME/.claude-octopus/results/probe-synthesis-discovery-lifecycle.md"
+mkdir -p "$(dirname "$DISCOVERY_SYNTHESIS_FILE")"
 mkdir -p "$TEST_TMP_DIR/discover-project"
 if (
     cd "$TEST_TMP_DIR/discover-project"
-    export OCTOPUS_PROJECT_PERSISTENCE=true
-    export SYNTHESIS_FILE="$TEST_TMP_DIR/synthesis.md"
+    # Each lifecycle fixture owns its environment in this subshell.
+    # shellcheck disable=SC2030
+    export OCTOPUS_PROJECT_PERSISTENCE=true OCTO_ROOT="$PROJECT_ROOT" RUN_ID=discovery-lifecycle
+    # shellcheck disable=SC2030
+    export HOME="$DISCOVERY_FIXTURE_HOME" CLAUDE_PLUGIN_DATA="$TEST_TMP_DIR/discovery-host"
+    export SYNTHESIS_FILE="$DISCOVERY_SYNTHESIS_FILE"
+    unset OCTOPUS_STATE_PROJECT_ROOT OCTOPUS_WORKFLOW_STATE_DIR
+    HANDOFF_STATE_FILE=$("$PROJECT_ROOT/scripts/state-manager.sh" state_path)
+    python3 "$PROJECT_ROOT/scripts/helpers/discovery-handoff.py" begin "$HANDOFF_STATE_FILE" "$RUN_ID"
+    "$STATE" init_project >/dev/null
+    printf '# Project\n\n## Vision\n\nKeep the original goals.\n\n## Requirements\n\nKeep these requirements.\n' > .octo/PROJECT.md
+    cp .octo/PROJECT.md "$TEST_TMP_DIR/discovery-project-before.md"
+    printf '# Research\n\n## Key Findings\n\nFirst discovery.\n\n## Sources\n\nOld source.\n' > "$SYNTHESIS_FILE"
     bash "$TEST_TMP_DIR/pre.sh" >/dev/null &&
     bash "$TEST_TMP_DIR/post.sh" >/dev/null &&
     [[ "$("$STATE" get_phase_status 1)" == complete ]] &&
-    grep -q 'Revised synthesis.' .octo/PROJECT.md
-); then test_pass; else test_fail "real lifecycle snippets failed against the real state script"; fi
+    cmp -s .octo/PROJECT.md "$TEST_TMP_DIR/discovery-project-before.md" &&
+    cmp -s .octo/phases/phase-1-summary.md "$SYNTHESIS_FILE" &&
+    printf '# Research\n\n## Key Findings\n\nLatest discovery.\n\n## Sources\n\nNew source.\n' > "$SYNTHESIS_FILE" &&
+    python3 "$PROJECT_ROOT/scripts/helpers/discovery-handoff.py" begin "$HANDOFF_STATE_FILE" "$RUN_ID" &&
+    bash "$TEST_TMP_DIR/pre.sh" >/dev/null &&
+    bash "$TEST_TMP_DIR/post.sh" >/dev/null &&
+    cmp -s .octo/PROJECT.md "$TEST_TMP_DIR/discovery-project-before.md" &&
+    cmp -s .octo/phases/phase-1-summary.md "$SYNTHESIS_FILE" &&
+    "$STATE" get_context_tier execution | grep -c 'Latest discovery.' >/dev/null
+); then test_pass; else test_fail "discovery overwrote project goals, retained old findings, or lost its summary"; fi
+
+test_case "a failed discovery copy preserves the previous summary and leaves the phase incomplete"
+mkdir -p "$TEST_TMP_DIR/copy-fail-bin"
+cat > "$TEST_TMP_DIR/copy-fail-bin/cp" <<'EOF'
+#!/usr/bin/env bash
+printf 'partial copy\n' > "$2"
+exit 42
+EOF
+chmod +x "$TEST_TMP_DIR/copy-fail-bin/cp"
+if (
+    cd "$TEST_TMP_DIR/discover-project"
+    # Set a fresh fixture environment; no export from the earlier subshell is used.
+    # shellcheck disable=SC2031
+    export OCTO_ROOT="$PROJECT_ROOT" RUN_ID=discovery-lifecycle
+    # shellcheck disable=SC2031
+    export HOME="$DISCOVERY_FIXTURE_HOME" CLAUDE_PLUGIN_DATA="$TEST_TMP_DIR/discovery-host"
+    unset OCTOPUS_STATE_PROJECT_ROOT OCTOPUS_WORKFLOW_STATE_DIR
+    HANDOFF_STATE_FILE=$("$PROJECT_ROOT/scripts/state-manager.sh" state_path)
+    python3 "$PROJECT_ROOT/scripts/helpers/discovery-handoff.py" begin "$HANDOFF_STATE_FILE" "$RUN_ID"
+    cp .octo/phases/phase-1-summary.md "$TEST_TMP_DIR/discovery-summary-before.md"
+    env OCTOPUS_PROJECT_PERSISTENCE=true SYNTHESIS_FILE="$DISCOVERY_SYNTHESIS_FILE" \
+        bash "$TEST_TMP_DIR/pre.sh" >/dev/null || exit 1
+    rc=0
+    env PATH="$TEST_TMP_DIR/copy-fail-bin:$PATH" OCTOPUS_PROJECT_PERSISTENCE=true \
+        SYNTHESIS_FILE="$DISCOVERY_SYNTHESIS_FILE" \
+        bash "$TEST_TMP_DIR/post.sh" >/dev/null 2>&1 || rc=$?
+    [[ "$rc" -ne 0 && "$("$STATE" get_phase_status 1)" == in_progress ]] &&
+    cmp -s .octo/PROJECT.md "$TEST_TMP_DIR/discovery-project-before.md" &&
+    cmp -s .octo/phases/phase-1-summary.md "$TEST_TMP_DIR/discovery-summary-before.md" &&
+    [[ -z "$(find .octo/phases -name 'phase-1-summary.md.tmp.*' -print)" ]]
+); then test_pass; else test_fail "failed discovery persistence changed prior artifacts or recorded completion"; fi
 
 test_case "TERM to the public CLI PID cancels roadmap publication and cleans its temporary file"
 if python3 - "$STATE" "$TEST_TMP_DIR" <<'PY'

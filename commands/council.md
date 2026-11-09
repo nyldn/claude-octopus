@@ -17,7 +17,7 @@ Run the real Octopus runner by default. Your council execution action must resol
 "$CLAUDE_PLUGIN_ROOT/scripts/orchestrate.sh" council $ARGUMENTS
 ```
 
-If `CLAUDE_PLUGIN_ROOT` is unset, use `${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh`.
+If `CLAUDE_PLUGIN_ROOT` is unset, use `"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh"`.
 
 PROHIBITED: Do not simulate a council, role-play multiple personas inside one model, or answer directly unless the user explicitly passes `--simulate` or `--single-model`. If simulation is requested, label it as `single-model simulation` in the response and preserve the runner's `summary.json` path.
 

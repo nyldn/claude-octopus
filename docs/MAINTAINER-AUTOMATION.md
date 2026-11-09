@@ -128,9 +128,15 @@ in [release.sh](../scripts/release.sh) and
 must first be separated from the existing one-shot publisher through tested
 stage interfaces. **Do not invoke `release.sh` merely to prepare a batch.** It
 currently also pushes, merges, tags, publishes and syncs another repository.
-Likewise, [validate-release.sh](../scripts/validate-release.sh) can create release
-artifacts on clean `main`; it requires a pure check-only interface before an
-auditor may use it.
+[validate-release.sh](../scripts/validate-release.sh) checks consistency without
+publishing. Auditors must disable runtime smoke explicitly:
+
+```bash
+OCTOPUS_RELEASE_RUNTIME_SMOKE=0 bash scripts/validate-release.sh
+```
+
+This overrides an inherited runtime-smoke setting that could start live Claude
+sessions. Missing tags or releases produce warnings and never trigger publication.
 
 Run `make sync`, repeat it to prove an unchanged result, and run
 `make sync-check`. Review generated metadata, current README/PRODUCT facts and
@@ -151,7 +157,7 @@ acceptance even if an older approval exists.
 | Gate | Required evidence | Blocking condition |
 | --- | --- | --- |
 | Constituent admission | Independent current-head approval; full thread/comment inspection; all required CI; local focused repair controls | Changed head, unresolved finding, missing/pending/failing check or unproved fix |
-| Aggregate local acceptance | Full `make ci-local`; package assembly and focused negative controls; scoped Gitleaks/Semgrep; Trivy where relevant; pre-commit/evals when configured | Failed gate, unexplained fixture mutation, unsupported security assumption or unacknowledged quality debt |
+| Aggregate local acceptance | Exact-commit hosted required gates, package assembly, and focused negative controls; `make ci-local` when hosted evidence is unavailable; scoped security checks where relevant | Failed gate, unexplained fixture mutation, unsupported security assumption or unacknowledged quality debt |
 | Aggregate hosted acceptance | Independent exact-head approval; automated reviewers finished; all paginated threads resolved; required and applicable additional/platform/package checks successful | Stale approval, unknown/duplicate contradictory check result, skipped required coverage or pending review |
 | Merge | Re-fetch candidate and base; pin merge to candidate SHA; verify merged PR head equals approved candidate SHA and squash-main tree equals approved candidate tree; record actual squash SHA separately | Any pre-merge identity drift, merged-head mismatch or squash-tree mismatch |
 | Post-merge CI | Actual full Test Suite execution for the exact squash-main SHA, including platform/package checks and truthful skips | Merely green documentation/version fast-path aggregates, different SHA or failed run |
@@ -162,8 +168,9 @@ Checks must identify the current applicable run and attempt, not select the firs
 matching name from historical results. Reuse the bounded timeout, merge-head
 comparison and paginated thread helper in
 [release-ci.sh](../scripts/lib/release-ci.sh), extending their tests for exact
-review identity and all gate results. The documentation/version CI fast path is
-useful for normal development; it does not replace the full release gate.
+review identity and all gate results. Focused PR coverage replaces the previous
+documentation/version fast path. Main still runs the full unit tier before
+publication.
 Recheck executable modes after tests and restore only verified unchanged-byte
 fixture mode effects. Record necessary accepted quality tradeoffs and scan
 limitations explicitly rather than suppressing or relabeling a failure.
@@ -200,7 +207,7 @@ stateDiagram-v2
     Repairing --> Ready: exact repair PR gates pass
     Audited --> Ready: existing PR gates pass
     Ready --> Candidate: daily batch
-    Candidate --> Verified: full local proof
+    Candidate --> Verified: exact-commit acceptance proof
     Verified --> Waiting: aggregate PR
     Waiting --> Approved: exact approval and hosted gates
     Approved --> Merged: pinned squash merge

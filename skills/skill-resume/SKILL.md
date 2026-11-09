@@ -70,7 +70,7 @@ is no longer updated and can be deleted from the project.
 Before looking for a transcript or machine-local `.octo` state, inspect portable feature artifacts:
 
 ```bash
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 python3 "$OCTO_ROOT/scripts/helpers/feature-contract.py" resume --root "$(pwd -P)" --explicit "<feature directory or spec path, empty when omitted>"
 ```
 

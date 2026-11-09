@@ -83,7 +83,7 @@ else
 fi
 
 test_case "installed dispatcher subscribes to the tools it compresses"
-if jq -e '.hooks.PostToolUse[] | select(any(.hooks[]; .command | endswith("/post-tool-dispatch.sh"))) |
+if jq -e '.hooks.PostToolUse[] | select(any(.hooks[]; .command == "\"${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-dispatch.sh\"")) |
     .matcher | split("|") | index("Read") != null and index("WebFetch") != null and index("Grep") != null' \
     "$PROJECT_ROOT/hooks/hooks.json" >/dev/null; then test_pass; else test_fail "manifest omits supported tools"; fi
 

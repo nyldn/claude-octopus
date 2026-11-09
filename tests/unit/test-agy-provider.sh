@@ -1426,7 +1426,7 @@ test_agy_slash_command_visibility() {
        grep -q 'Antigravity (agy)' "$PROJECT_ROOT/commands/model-config.md" && \
        grep -q 'claude,codex,agy' "$PROJECT_ROOT/commands/council.md" && \
        grep -q 'Antigravity CLI' "$PROJECT_ROOT/commands/debate.md" && \
-       grep -q 'Antigravity CLI' "$PROJECT_ROOT/.claude/skills/flow-discover/SKILL.md" && \
+       grep -c 'Antigravity CLI' <<< "$(read_claude_skill_contract flow-discover)" >/dev/null && \
        grep -q 'Antigravity CLI' "$PROJECT_ROOT/.claude/skills/flow-develop/SKILL.md" && \
        grep -q 'Antigravity CLI' "$PROJECT_ROOT/.claude/skills/flow-define/SKILL.md" && \
        grep -q 'Antigravity CLI' "$PROJECT_ROOT/.claude/skills/flow-deliver/SKILL.md" && \

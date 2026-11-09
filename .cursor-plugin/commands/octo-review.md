@@ -196,7 +196,7 @@ If the user includes `fresh` in the command text, do not treat it as a file path
 ## Step 2.5: Ensure plugin root is resolvable (run via Bash tool)
 
 ```bash
-OCTO_ROOT="${HOME}/.claude-octopus/plugin"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 if [[ ! -x "$OCTO_ROOT/scripts/orchestrate.sh" ]]; then
   helper="$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh"
   if [[ ! -x "$helper" ]]; then
@@ -214,7 +214,7 @@ If the output is `plugin-root:missing`, stop and ask the user to run `/octo:setu
 Run via Bash tool:
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh code-review '<profile-json>'
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" code-review '<profile-json>'
 ```
 
 Where `<profile-json>` is the JSON profile built in Step 2.
@@ -251,5 +251,16 @@ Drop-in compatible with Claude Code's managed Code Review service.
 - Prefer early returns over nested conditionals
 
 ## Skip
-- Generated files under src/gen/
+- src/gen/
+- *.lock
 ```
+
+Skip entries are case-sensitive paths or globs relative to the repository root.
+A trailing `/` skips that directory and its descendants. `*` matches any
+characters, including `/`; `?` and `[abc]` are also supported. Entries may be
+wrapped in backticks. Matching removes the whole file diff, including its
+headers and hunks. Renames match the destination path; deletions match the
+original path. Unrecognized diff formats are retained for review.
+Standard Git `a/` and `b/` prefixes and `--no-prefix` are supported, including
+quoted paths and binary or mode-only changes. Blocks with custom prefixes may
+be retained even when their paths match.

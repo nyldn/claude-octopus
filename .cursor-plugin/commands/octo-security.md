@@ -23,7 +23,7 @@ Scheduled security runs must be read-only unless the user explicitly asks for re
 
 ### MANDATORY COMPLIANCE — DO NOT SKIP
 
-**When the user explicitly invokes `/octo:security`, you MUST execute the structured security audit workflow below.** You are PROHIBITED from doing a quick check directly, skipping the clarifying questions, or deciding the task is "too simple" for this workflow. The user chose this command deliberately — respect that choice.
+**When the user explicitly invokes `/octo:security`, you MUST execute the structured security audit workflow below.** You are PROHIBITED from doing a quick check directly, ignoring material unresolved scope, or deciding the task is "too simple" for this workflow. The user chose this command deliberately — respect that choice.
 
 ### EXECUTION MECHANISM — NON-NEGOTIABLE
 
@@ -40,9 +40,9 @@ When the user invokes this command (e.g., `/octo:security <arguments>`):
 
 ### Step 1: Ask Clarifying Questions
 
-**CRITICAL: Before starting the security audit, use the AskUserQuestion tool to gather context:**
+Before starting, read the supplied threat model, compliance needs, risk tolerance, and validation/provider choices. Reuse explicit information. Use AskUserQuestion only for material unresolved or contradictory fields. When these are clear, proceed to the audit.
 
-Ask 3 clarifying questions to ensure targeted security assessment:
+The following is a checklist, not a required questionnaire. Ask only unresolved fields and omit answered fields. An answer about audit context does not authorize implementation, publication, provider spending, or approval decisions. Preserve those decisions separately.
 
 ```javascript
 AskUserQuestion({
@@ -100,7 +100,7 @@ AskUserQuestion({
 ### Step 2: Execute Security Audit
 
 Read and follow the full skill instructions from:
-`${HOME}/.claude-octopus/plugin/.claude/skills/skill-security-framing/SKILL.md`
+`${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/.claude/skills/skill-security-framing/SKILL.md`
 
 Apply the user's answers from Step 1 as the audit scope and severity thresholds.
 
