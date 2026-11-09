@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "11.20.0"
+    "version": "11.21.0"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v11.20.0 - Faster workflows, clearer presentation outlines and optional web research. 31 personas, 56 commands, 64 skills. Run /octo:setup.",
-      "version": "11.20.0",
+      "description": "v11.21.0 - Optional Claude advisors and explicit artifact refinement. 31 personas, 56 commands, 64 skills. Run /octo:setup.",
+      "version": "11.21.0",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"

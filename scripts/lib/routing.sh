@@ -104,17 +104,35 @@ agent_display_label_upper() {
 #   knowledge-advise, knowledge-synthesize, diamond-discover, diamond-define,
 #   diamond-develop, diamond-deliver, optimize-*, review, copywriting, design,
 #   research, coding, general
-# Usage: classify_task <prompt>
+# Usage: classify_task <prompt> [--skip-refine]
+# --skip-refine preserves the underlying task type for direct-spawn roles.
 classify_task() {
     local prompt="$1"
     local prompt_lower
     prompt_lower=$(echo "$prompt" | tr '[:upper:]' '[:lower:]')
 
+    # Identify requests to refine an existing artifact before image routing.
+    # The bounded judging workflow requires affirmative rubric/scoring intent.
+    local refine_prefix='^[[:space:]]*(please[[:space:]]+)?((can|could|would)[[:space:]]+you[[:space:]]+)?(please[[:space:]]+)?'
+    local refine_optout='(^|[[:space:][:punct:]])(without[[:space:]]+((using|applying|following)[[:space:]]+)?((a|the|any)[[:space:]]+)?rubric|without[[:space:]]+(rubric[[:space:]]+)?scoring|((do[[:space:]]+not|don.t|never)[[:space:]]+(use|apply|follow)|avoid[[:space:]]+(using|applying|following))[[:space:]]+((a|the|any)[[:space:]]+)?rubric)'
+    local refine_rubric='(against|using|with)[[:space:]]+(a[[:space:]]+|the[[:space:]]+|this[[:space:]]+)?rubric'
+    local refine_score='(to[[:space:]]+(a[[:space:]]+score[[:space:]]+of[[:space:]]+)?[0-9]+[[:space:]]*/[[:space:]]*100|score[[:space:]]+target|target[[:space:]]+score)'
+    local refine_request=false
+    if [[ "${2:-}" != --skip-refine && ! "$prompt_lower" =~ $refine_optout ]] &&
+       { [[ "$prompt_lower" =~ ${refine_prefix}(refine|iteratively[[:space:]]+improve)[[:space:]] ]] ||
+         { [[ "$prompt_lower" =~ ${refine_prefix}(improve|refine|iterate)[[:space:]] ]] &&
+           { [[ "$prompt_lower" =~ $refine_rubric ]] ||
+             { [[ "$prompt_lower" =~ $refine_score ]] &&
+               [[ ! "$prompt_lower" =~ (^|[^[:alnum:]_])(lighthouse|pagespeed)([^[:alnum:]_]|$) ]]; }; }; }; }; then
+        refine_request=true
+    fi
+
     # ═══════════════════════════════════════════════════════════════════════════
-    # IMAGE GENERATION (highest priority - checked before Double Diamond)
+    # IMAGE GENERATION (before general workflow selection)
     # v3.0: Enhanced to detect app icons, favicons, diagrams, social media banners
     # ═══════════════════════════════════════════════════════════════════════════
-    if [[ "$prompt_lower" =~ (generate|create|make|draw|render).*(image|picture|photo|illustration|graphic|icon|logo|banner|visual|artwork|favicon|avatar) ]] || \
+    if [[ "$refine_request" == false ]] && {
+       [[ "$prompt_lower" =~ (generate|create|make|draw|render).*(image|picture|photo|illustration|graphic|icon|logo|banner|visual|artwork|favicon|avatar) ]] || \
        [[ "$prompt_lower" =~ (image|picture|photo|illustration|graphic|icon|logo|banner|favicon|avatar).*generat ]] || \
        [[ "$prompt_lower" =~ (visualize|depict|illustrate|sketch) ]] || \
        [[ "$prompt_lower" =~ (dall-?e|midjourney|stable.?diffusion|imagen|text.?to.?image) ]] || \
@@ -122,7 +140,7 @@ classify_task() {
        [[ "$prompt_lower" =~ (hero.?image|header.?image|cover.?image|thumbnail) ]] || \
        [[ "$prompt_lower" =~ (diagram|flowchart|architecture.?diagram|sequence.?diagram|infographic) ]] || \
        [[ "$prompt_lower" =~ (twitter|linkedin|facebook|instagram).*(image|graphic|banner|post) ]] || \
-       [[ "$prompt_lower" =~ (marketing|promotional).*(image|graphic|visual) ]]; then
+       [[ "$prompt_lower" =~ (marketing|promotional).*(image|graphic|visual) ]]; }; then
         echo "image"
         return
     fi
@@ -149,6 +167,12 @@ classify_task() {
     # assign those concerns to its work packages without a hidden peer call.
     if [[ "$prompt_lower" =~ (parallel|team of teams|work packages|split into|decompose) ]]; then
         echo "parallel"
+        return
+    fi
+    # Opt into the existing bounded judging workflow only on explicit requests.
+    # "Improve this plan" alone remains an ordinary edit, without new judges.
+    if [[ "$refine_request" == true ]]; then
+        echo "native-refine"
         return
     fi
     if [[ "$prompt_lower" =~ (engineering[[:space:]]+)?(prototype|proof[[:space:]]+of[[:space:]]+concept|spike).*(feasibility|throughput|compatibility|technical|performance|measure|experiment|assumption) ]]; then
