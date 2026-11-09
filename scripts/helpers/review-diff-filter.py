@@ -60,8 +60,8 @@ def main():
     for block in re.split(rb"(?m)(?=^diff --git )", sys.stdin.buffer.read()):
         path = block_path(block) if block.startswith(b"diff --git ") else None
         if path is not None and any(
-            fnmatch.fnmatchcase(path, pattern) or
-            (pattern.endswith("/") and path.startswith(pattern)) for pattern in patterns
+            fnmatch.fnmatchcase(path, pattern + "*" if pattern.endswith("/") else pattern)
+            for pattern in patterns
         ):
             continue
         sys.stdout.buffer.write(block)

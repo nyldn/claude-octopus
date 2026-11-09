@@ -77,6 +77,21 @@ for quote_path in ("true", "false"):
         assert unprefixed, ("missing no-prefix fixture", name)
         assert subprocess.check_output(["python3", os.environ["SKIP_FILTER"], name], input=unprefixed) == b"", name
         assert subprocess.check_output(["python3", os.environ["SKIP_FILTER"], "absent/*"], input=unprefixed) == unprefixed
+directory_cases = ["packages/client/gen/client.ts", "packages/server/gen/deep/client.ts",
+                   "packages/client/gen/quoted\tfile.bin", "packages/client/app.ts",
+                   "packages/client/genesis/keep.ts"]
+for name in directory_cases:
+    (root / name).parent.mkdir(parents=True, exist_ok=True)
+    (root / name).write_bytes(b"\0generated\n" if name.endswith(".bin") else b"new file\n")
+git("add", "-A")
+for quote_path in ("true", "false"):
+    git("config", "core.quotePath", quote_path)
+    for no_prefix in ([], ["--no-prefix"]):
+        for name in directory_cases:
+            patch = git("diff", "--cached", "--binary", *no_prefix, "--", name)
+            for pattern in ("packages/*/gen/", "packages/[cs]*/g?n/"):
+                actual = subprocess.check_output(["python3", os.environ["SKIP_FILTER"], pattern], input=patch)
+                assert actual == (b"" if "/gen/" in name else patch), (pattern, name)
 custom = git("diff", "--cached", "--src-prefix=before/", "--dst-prefix=after/", "--", "app.ts")
 assert subprocess.check_output(["python3", os.environ["SKIP_FILTER"], "*"], input=custom) == custom
 usage = subprocess.run(["python3", os.environ["SKIP_FILTER"]], capture_output=True)
