@@ -124,6 +124,28 @@ for prompt in 'improve this plan' 'improve this plan without rubric scoring' 'de
     if [[ "$(classify_task "$prompt")" != native-refine ]]; then test_pass; else test_fail 'unwanted judging workflow'; fi
 done
 
+for prompt in 'Could you refine this flowchart against a rubric?' 'refine this architecture diagram' 'improve this flowchart using a rubric' 'refine this plan using a rubric without changing the rubric'; do
+    test_case "refinement of existing artifacts: $prompt"
+    if [[ "$(classify_task "$prompt")" == native-refine ]]; then test_pass; else test_fail "$(classify_task "$prompt")"; fi
+done
+for prompt in 'Can you improve this plan without using a rubric?' 'Please refine this plan without a rubric.' 'Improve this plan without applying a rubric.' 'Refine this plan, but do not use a rubric.' 'Refine this plan without scoring it.'; do
+    test_case "refinement scoring opt-out: $prompt"
+    if [[ "$(classify_task "$prompt")" != native-refine ]]; then test_pass; else test_fail 'ignored scoring opt-out'; fi
+done
+for prompt in 'Create a flowchart for this process' 'Generate an image of an octopus'; do
+    test_case "image creation keeps its route: $prompt"
+    if [[ "$(classify_task "$prompt")" == image ]]; then test_pass; else test_fail "$(classify_task "$prompt")"; fi
+done
+for route in native-multi native-security parallel; do
+    case "$route" in
+        native-multi) prompt='refine this flowchart with all providers' ;;
+        native-security) prompt='refine this flowchart with a security audit' ;;
+        parallel) prompt='refine this flowchart in parallel' ;;
+    esac
+    test_case "visual refinement preserves explicit $route priority"
+    if [[ "$(classify_task "$prompt")" == "$route" ]]; then test_pass; else test_fail "$(classify_task "$prompt")"; fi
+done
+
 test_case 'incidental iterate and score terms preserve debugging intent'
 if [[ "$(classify_task 'Fix the bug in the iterate loop when the target score is 5')" == native-debug ]]; then test_pass; else test_fail 'debug request entered refinement'; fi
 

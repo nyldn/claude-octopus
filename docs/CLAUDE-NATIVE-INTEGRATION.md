@@ -57,6 +57,9 @@ such as "Can you refine this plan against a rubric?" Generic "improve this plan"
 requests stay ordinary editing. Multi-provider, security and parallel intents
 retain their routing priority.
 
+Explicit refinement of a flowchart or diagram also uses this workflow. Requests
+such as "improve this plan without using a rubric" stay outside refinement.
+
 Refinement freezes its rubric, uses real independent Claude and Codex judges,
 and validates the accepted candidate. Its normal limits remain 95/100, five
 improvement rounds, 30 minutes and 14 external calls. A request to improve a
