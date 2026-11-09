@@ -151,6 +151,14 @@ classify_task() {
         echo "parallel"
         return
     fi
+    # Opt into the existing bounded judging workflow only on explicit requests.
+    # "Improve this plan" alone remains an ordinary edit, without new judges.
+    if [[ "$prompt_lower" =~ ^[[:space:]]*(refine|iteratively[[:space:]]+improve)[[:space:]] ]] ||
+       { [[ "$prompt_lower" =~ (improve|refine|iterate) ]] &&
+         [[ "$prompt_lower" =~ ((against|using|with)[[:space:]]+(a[[:space:]]+|the[[:space:]]+|this[[:space:]]+)?rubric|to[[:space:]]+[0-9]+[[:space:]]*/[[:space:]]*100|score[[:space:]]+target|target[[:space:]]+score) ]]; }; then
+        echo "native-refine"
+        return
+    fi
     if [[ "$prompt_lower" =~ (engineering[[:space:]]+)?(prototype|proof[[:space:]]+of[[:space:]]+concept|spike).*(feasibility|throughput|compatibility|technical|performance|measure|experiment|assumption) ]]; then
         echo "native-plan"
         return

@@ -416,6 +416,7 @@ for adapter in ("mcp-server",):
 
 for required in (
     "scripts/orchestrate.sh",
+    "scripts/lib/claude-native.sh",
     "scripts/helpers/readiness-contract.py",
     "hooks/hooks.json",
     "config/model-pricing.tsv",
@@ -426,10 +427,17 @@ for required in (
     "skills/blocks/domain-modeling.md",
     "data/evals/workflow-skill-cases.json",
     "data/evals/workflow-test-consolidation.json",
+    "docs/CLAUDE-NATIVE-INTEGRATION.md",
+    "evals/refine-missing-input/prompt.md",
+    "evals/refine-missing-input/graders/skill-fired.md",
+    "evals/unrelated-request/prompt.md",
+    "evals/unrelated-request/graders/no-skill.md",
 ):
     path = root / required
     if not path.exists():
         missing.append(required)
+if (root / "evals/results").exists():
+    missing.append("private native eval reports were included in package")
 license_text = (root / "licenses/mattpocock-skills-MIT.txt").read_text()
 notices_text = (root / "THIRD_PARTY_NOTICES.md").read_text()
 if "Copyright (c) 2026 Matt Pocock" not in license_text or "Permission is hereby granted" not in license_text:

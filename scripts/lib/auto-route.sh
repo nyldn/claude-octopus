@@ -84,7 +84,7 @@ _auto_route_wait_for_pids() {
 
 auto_route_validate_workflow() {
     case "${1:-}" in
-        embrace|multi|parallel|spec|security|tdd|debug|design-ui-ux|prd|brainstorm|deck|docs|discover|review|debate|develop|plan|quick)
+        embrace|multi|parallel|spec|security|tdd|debug|design-ui-ux|prd|brainstorm|deck|docs|discover|review|debate|develop|plan|quick|refine)
             printf '%s\n' "$1"
             return 0
             ;;

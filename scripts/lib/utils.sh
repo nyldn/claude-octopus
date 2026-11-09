@@ -409,7 +409,7 @@ _validate_claude_agent_command() {
         i=$((i + 1))
     done
 
-    local saw_print=false saw_model=false saw_effort=false
+    local saw_print=false saw_model=false saw_effort=false saw_advisor=false
     local saw_permission=false saw_tools=false saw_bare=false saw_settings=false
     while [[ $i -lt ${#parts[@]} ]]; do
         local flag="${parts[$i]}"
@@ -443,6 +443,16 @@ _validate_claude_agent_command() {
                     *) return 1 ;;
                 esac
                 saw_effort=true
+                i=$((i + 2))
+                ;;
+            --advisor)
+                [[ "$saw_advisor" == false && $((i + 1)) -lt ${#parts[@]} ]] || return 1
+                case "${parts[$((i + 1))]}" in
+                    off|opus|sonnet|fable) ;;
+                    claude-*) [[ "${parts[$((i + 1))]}" =~ ^claude-[a-zA-Z0-9][a-zA-Z0-9._-]*$ ]] || return 1 ;;
+                    *) return 1 ;;
+                esac
+                saw_advisor=true
                 i=$((i + 2))
                 ;;
             --permission-mode)

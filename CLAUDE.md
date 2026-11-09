@@ -297,6 +297,10 @@ specific supported model.
 
 ### Dynamic Workflows (Claude Code v2.1.154+)
 
+Read [Claude native integrations](docs/CLAUDE-NATIVE-INTEGRATION.md) for opt-in
+worker advisors, subagent context and effort controls, hook failure behavior,
+plugin evals and explicit workflow handoffs.
+
 Claude Code dynamic workflows are the right native path for huge single-Claude codebase migrations. Use Octopus when the job needs multi-provider disagreement, council deliberation, adversarial review, external model validation, or provider-specific blind-spot checks. Do not wrap a native dynamic workflow inside Octopus unless the handoff boundary is explicit.
 
 ---

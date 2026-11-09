@@ -43,6 +43,7 @@
     "mcp-server/tsconfig.json",
     "managed-settings.d/",
     "data/evals/",
+    "evals/",
     "licenses/",
     "THIRD_PARTY_NOTICES.md",
     "README.md",

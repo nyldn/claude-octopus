@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### Added
+
+- Opt-in Claude worker advisors through `OCTOPUS_CLAUDE_ADVISOR`, with version
+  checks, validated launch arguments and fixed refinement judge isolation.
+- Explicit refinement requests route to the existing bounded `/octo:refine`
+  workflow. Ordinary plan editing does not add independent judges.
+- Native Claude plugin eval cases and a bounded `make test-native-evals` target.
+- Guidance for advisor accounting, subagent effort and context, native dynamic
+  workflow handoffs, and the separate implementation needed for Mods and MCP tasks.
+
+### Changed
+
+- Critical synchronous pre-action hooks block on hook failures on Claude Code
+  v2.1.295 or later.
+
 ## [11.20.0] - 2026-11-09
 
 ### Added

@@ -5,6 +5,7 @@ source "${_profile_lib_dir}/provider-registry.sh" || { echo "dispatch: failed to
 source "${_profile_lib_dir}/cheaperinference.sh" || return 1
 source "${_profile_lib_dir}/api-route.sh" || return 1
 source "${_profile_lib_dir}/litellm.sh" || return 1
+source "${_profile_lib_dir}/claude-native.sh" || return 1
 if ! declare -f get_model_capability >/dev/null 2>&1; then
     source "${_profile_lib_dir}/models.sh" 2>/dev/null || true
 fi
@@ -365,6 +366,14 @@ get_agent_command() {
     case "$role" in
         implementer|developer)
             claude_perm="--permission-mode acceptEdits --allowed-tools Read,Glob,Grep,Edit,Write"
+            ;;
+    esac
+
+    case "$agent_executor" in
+        claude|claude-sonnet|claude-opus|claude-opus-fast|claude-opus-legacy)
+            local advisor_fragment
+            advisor_fragment="$(octo_claude_advisor_fragment "$agent_type")" || return 1
+            claude_perm="${claude_perm}${advisor_fragment:+ ${advisor_fragment}}"
             ;;
     esac
 
