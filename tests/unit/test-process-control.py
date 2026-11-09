@@ -374,6 +374,22 @@ class ProcessControlTests(unittest.TestCase):
         with mock.patch.object(subprocess, "run", side_effect=FileNotFoundError("ps")):
             self.assertEqual(control.terminate(root.pid, frozen=True, owned_groups=True), "terminated")
 
+    @unittest.skipUnless(sys.platform.startswith("linux"), "Linux complete snapshot retries")
+    def test_incomplete_group_snapshot_retries_before_exposing_candidates(self):
+        """Discard partial rows and bound retry while retaining a complete next scan."""
+        def partial():
+            yield 4343, [b"S", b"1", b"4242"]
+            raise control.StaleProcess("vanished record")
+
+        complete = [(4444, [b"S", b"1", b"4242"])]
+        with mock.patch.object(control, "_linux_proc_records", side_effect=[partial(), complete]) as scan:
+            self.assertEqual(list(control._process_groups()), [(4444, 4242)])
+            self.assertEqual(scan.call_count, 2)
+        with mock.patch.object(control, "_linux_proc_records", side_effect=control.StaleProcess()) as scan:
+            with self.assertRaises(control.StaleProcess):
+                list(control._process_groups())
+            self.assertEqual(scan.call_count, 5)
+
     def test_linux_zombie_identity_requires_dead_state_and_owned_group(self):
         """Only an atomic dead-state, group and birth record can be remembered."""
         for state, pgid, expected in ((b"Z", b"4242", (4343, b"123")),
@@ -532,7 +548,7 @@ class ProcessControlTests(unittest.TestCase):
                 self.assertEqual(control._linux_proc_children(4242), [4444])
             with self.subTest(error=type(error).__name__, complete=True), \
                  mock.patch.object(control.os, "scandir", return_value=scan), \
-                 mock.patch.object(Path, "read_bytes", side_effect=[b"1 (self) R 0", error]):
+                 mock.patch.object(Path, "read_bytes", side_effect=[b"1 (self) R 0", error] * 5):
                 with self.assertRaisesRegex(control.StaleProcess, "during group enumeration"):
                     list(control._process_groups())
         with mock.patch.object(control.os, "scandir", return_value=scan), \

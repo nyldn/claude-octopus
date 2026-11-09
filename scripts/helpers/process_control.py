@@ -307,9 +307,18 @@ def _wait(handles, seconds):
 def _process_groups():
     """Enumerate groups without discarding evidence of a member exit."""
     if sys.platform.startswith("linux"):
-        for pid, fields in _linux_proc_records(require_complete=True):
-            # Keep zombies: admission must rescan or refuse before teardown.
-            yield pid, int(fields[2])
+        # Retry an incomplete snapshot before exposing any of its candidates.
+        # The owner stays stopped; a missing record may have forked a newborn.
+        for attempt in range(5):
+            try:
+                groups = [(pid, int(fields[2])) for pid, fields in
+                          _linux_proc_records(require_complete=True)]
+                break
+            except StaleProcess:
+                if attempt == 4:
+                    raise
+        # Keep zombies: admission must rescan or refuse before teardown.
+        yield from groups
         return
     # macOS supplies this numeric PID/group view. Failure is not an empty group.
     result = subprocess.run(["/bin/ps", "-axo", "pid=,pgid=,stat="], check=True,

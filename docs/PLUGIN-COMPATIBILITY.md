@@ -33,8 +33,9 @@ query, binds each member to its native identity, and rescans after freezing
 new members. A member that exits before identity capture requests another scan
 while verified processes remain stopped. A newly exited member observed during group enumeration also requests a rescan;
 an unchanged, confirmed zombie birth identity does not repeat that request.
-A vanished Linux stat record refuses the incomplete snapshot because its former
-group is unknown. The watcher retries that refusal while the owner remains alive.
+A vanished Linux stat record discards the incomplete snapshot because its former
+group is unknown. Up to five internal snapshot attempts keep the owner stopped;
+persistent churn refuses cleanup, and the watcher can retry that refusal.
 Five unstable scans, a missing leader,
 changed membership or failed enumeration refuses cleanup; it never sends a
 signal to a numeric group ID. The quota
