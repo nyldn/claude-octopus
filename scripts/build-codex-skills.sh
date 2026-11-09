@@ -447,6 +447,18 @@ main() {
     local skipped=0
     local errors=0
 
+    # Check source ownership before preparing or deleting generated outputs.
+    local canonical
+    for canonical in skill-refine flow-discover; do
+        if [[ ! -e "$OUTPUT_DIR/$canonical" && ! -e "$SKILLS_DIR/$canonical" ]]; then
+            continue
+        fi
+        if [[ ! -f "$OUTPUT_DIR/$canonical/SKILL.md" ]]; then
+            printf 'Missing canonical skill entry: %s\n' "$OUTPUT_DIR/$canonical/SKILL.md" >&2
+            return 1
+        fi
+    done
+
     if $CHECK_MODE; then
         local tmp_dir
         tmp_dir=$(mktemp -d)
@@ -462,7 +474,6 @@ main() {
 
     # Both hosts load phase resources from root skills/. Only the entry copy
     # lives under .claude; do not delete or adapt the canonical phase files.
-    local canonical
     for canonical in skill-refine flow-discover; do
         # A partial source fixture may contain neither canonical skill. If either
         # side exists, require the canonical root copy rather than losing it.

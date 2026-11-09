@@ -330,6 +330,10 @@ Skills use the **Validation Gate Pattern** to ensure multi-LLM dispatch actually
 
 ## Repo Orientation for Agents (read before editing)
 
+Use `docs/REPOSITORY.md` for authored sources, generated adapters and the
+generation pipeline. `scripts/README.md` indexes script entry points. Flow
+`.tmpl` files are retired.
+
 The rules below encode failures that have already cost real CI rounds. Every one is enforced by a CI check; none of them is guesswork.
 
 ### Derived artifacts (never hand-edit)

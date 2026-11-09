@@ -798,11 +798,10 @@ Join [r/ClaudeOctopus](https://www.reddit.com/r/ClaudeOctopus/) for help, workfl
 
 ### Contributing
 
-1. [Report issues](https://github.com/nyldn/claude-octopus/issues)
-2. Submit PRs following existing code style
-3. `git clone https://github.com/nyldn/claude-octopus.git && make test`
-
-See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for details.
+Follow the [contributor guide](docs/CONTRIBUTING.md) for setup, checks and PRs.
+The [repository map](docs/REPOSITORY.md) identifies authored sources and generated
+files. [Report issues](https://github.com/nyldn/claude-octopus/issues) with steps
+to reproduce the problem.
 
 ---
 
@@ -815,6 +814,7 @@ See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for details.
 - [Agents & Personas](docs/AGENTS.md) — All 31 personas
 - [Provider Wiring Map](docs/PROVIDERS.md) — How a provider is wired (contributors)
 - [Developer Guide](docs/DEVELOPER.md) — Modular config, E2E testing, enforcement patterns
+- [Repository map](docs/REPOSITORY.md) and [script index](scripts/README.md) for contributors
 - [Scheduler](docs/SCHEDULER.md) — Scheduled workflow runner
 - [Privacy](docs/PRIVACY.md) — What leaves your machine and when
 - [Security Policy](SECURITY.md) — Threat model and trust boundaries
