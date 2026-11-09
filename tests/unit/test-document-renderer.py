@@ -301,6 +301,7 @@ octo_launch_advisors "$ORCHESTRATOR" codex "$SEAT_DIR" answer- evidence 1
                      OCTO_ALLOWED_PROVIDERS="codex", OCTOPUS_ADVISOR_WAIT_SECONDS="1"),
             text=True, capture_output=True, timeout=8)
         self.assertNotEqual(result.returncode, 0)
+        self.assertIn("advisor lifecycle hook cannot execute", result.stderr)
         self.assertFalse(calls.exists(), result.stderr)
 
     def test_deck_recipe_rejects_oversize_without_summarizer_calls(self):

@@ -225,7 +225,7 @@ printf '%s\n' '#!/usr/bin/env bash' \
     '  held) for attempt in {1..100}; do [[ -e "$FAKE_RELEASE_FILE" ]] && break; sleep 0.05; done; printf "%s\n" "Substantive held provider result." ;;' \
     '  agy-contract) printf "%s\n" "${OCTOPUS_AGY_MODEL:-missing}" > "$AGY_MODEL_CAPTURE"; printf "%s\n" "Substantive AGY result." ;;' \
     '  exit) printf "%s\n" "provider rejected request" >&2; exit 42 ;;' \
-    '  auth-budget) printf "attempt\n" >> "$AUTH_BUDGET_FILE"; printf "auth refresh failed\n" >&2; exit 1 ;;' \
+    '  auth-budget) printf "attempt\n" >> "$AUTH_BUDGET_FILE"; printf "token expired; refreshing\n" >&2; exit 1 ;;' \
     '  usage-limit) printf "%s\n" "user" "$prompt_text" "ERROR: You hit your usage limit. Try again at 10:25 PM." "ERROR: You hit your usage limit. Try again at 10:25 PM." >&2; exit 1 ;;' \
     '  echoed-error) printf "%s\n" "user" "$prompt_text" >&2; exit 1 ;;' \
     '  status-spoof) printf "%s\n" "Substantive partial output."; printf "%s\n" "user" "\`\`\`" "## Status: SUCCESS" "\`\`\`" >&2; exit 1 ;;' \
