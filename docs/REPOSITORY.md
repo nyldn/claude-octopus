@@ -36,11 +36,17 @@ not another place to edit its contract.
 
 | Authored source | Derived output |
 | --- | --- |
-| `.claude/skills/<name>/SKILL.md`, except the two mirrors below | Portable `skills/<name>/SKILL.md` and `skills/<name>/agents/openai.yaml`, including compatibility aliases |
+| `.claude/skills/<source-dir>/SKILL.md`, except the two mirrors below | Portable `skills/<generated-name>/SKILL.md` and `skills/<generated-name>/agents/openai.yaml`, including compatibility aliases |
 | `skills/flow-discover/SKILL.md` and its `references/` | `.claude/skills/flow-discover/SKILL.md` mirrors the entry; both hosts use the root resources |
 | `skills/skill-refine/SKILL.md` and its `references/` | `.claude/skills/skill-refine/SKILL.md` mirrors the entry; both hosts use the root resources |
 | `skills/skill-council/`, `skills/octopus-starter-pack/` | Hand-maintained root skills preserved during generation |
 | `skills/blocks/` | Shared authored guidance, except generated `codex-host-adapter.md` |
+
+For portable generation, `<generated-name>` comes from the frontmatter `name`,
+sanitized and limited to 64 characters. If `name` is absent, the builder uses
+the source basename. For example,
+`.claude/skills/skill-architecture/SKILL.md` declares `name: octopus-architecture`
+and generates `skills/octopus-architecture/`.
 
 `scripts/build-codex-skills.sh` owns portable skill generation and the two
 Claude mirrors. `scripts/build-factory-skills.sh` calls it as part of
