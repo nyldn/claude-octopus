@@ -184,6 +184,8 @@ is_provider_available() (
     local now
     now=$(date +%s)
     local elapsed=$((now - 10#$cooldown_start))
+    # Clock rollback or corrupt future state must not extend the configured wait.
+    [[ $elapsed -ge 0 ]] || elapsed=$OCTO_CB_COOLDOWN_SECS
 
     if [[ $elapsed -ge $OCTO_CB_COOLDOWN_SECS ]]; then
         # Cooldown expired → half-open state (allow probe)
@@ -233,6 +235,7 @@ get_circuit_breaker_status() {
             cooldown_start=$(cat "$cooldown_file" 2>/dev/null) || continue
             [[ "$cooldown_start" =~ ^[0-9]{1,18}$ ]] || continue
             local elapsed=$((now - 10#$cooldown_start))
+            [[ $elapsed -ge 0 ]] || elapsed=$OCTO_CB_COOLDOWN_SECS
             if [[ $elapsed -lt $OCTO_CB_COOLDOWN_SECS ]]; then
                 state="OPEN"
                 local remaining=$((OCTO_CB_COOLDOWN_SECS - elapsed))

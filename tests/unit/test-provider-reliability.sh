@@ -37,6 +37,26 @@ for timestamp in '' invalid '1+1' 999999999999999999999999; do
         fail "invalid cooldown '$timestamp' uses the available-provider fallback"
     fi
 done
+for timestamp in "$(( $(date +%s) + 60 ))" 999999999999999999; do
+    test_case "future cooldown '$timestamp' is half-open in doctor status"
+    printf '%s\n' "$timestamp" > "$_PROVIDER_STATE_DIR/codex.cooldown"
+    if [[ "$(get_circuit_breaker_status)" == *'codex: half-open (cooldown expired, probing)'* ]]; then
+        test_pass
+    else
+        test_fail "doctor reported an unbounded future cooldown"
+    fi
+    for lock_status in 0 75; do
+        test_case "future cooldown '$timestamp' permits a probe with lock status $lock_status"
+        if (
+            _octo_event_lock() { return "$lock_status"; }
+            _octo_event_unlock() { :; }
+            printf '%s\n' "$timestamp" > "$_PROVIDER_STATE_DIR/codex.cooldown"
+            is_provider_available codex &&
+                { [[ "$lock_status" -eq 0 && ! -e "$_PROVIDER_STATE_DIR/codex.cooldown" ]] ||
+                  [[ "$lock_status" -eq 75 && "$(cat "$_PROVIDER_STATE_DIR/codex.cooldown")" == "$timestamp" ]]; }
+        ); then test_pass; else test_fail "future cooldown blocked a probe or mutated unowned state"; fi
+    done
+done
 printf '08\n' > "$_PROVIDER_STATE_DIR/codex.cooldown"
 if (is_provider_available codex) 2>/dev/null; then
     pass "numeric cooldown timestamps use decimal arithmetic"

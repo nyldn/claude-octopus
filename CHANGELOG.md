@@ -57,7 +57,8 @@
   to the current attempt even when its diagnostic cannot be written.
 - Quota fast-fails preserve a provider's own temporary-failure status and auth
   retry behavior. Quota stops update the provider circuit breaker, and persisted
-  cooldown timestamps correctly block repeat dispatch until their deadline.
+  cooldown timestamps correctly block repeat dispatch until their deadline. Future timestamps
+  from clock rollback or corrupt state allow a probe instead of an unbounded wait.
   Successful recovery clears that failure history so separate quota episodes
   do not count as consecutive failures. Parallel quota failures update the
   breaker together, and an unwritable diagnostic marker cannot prevent worker
