@@ -463,8 +463,11 @@ run_watched_fixture() {
             )
         fi
         octopus_capture_provider_output() {
-            local capture_rc=0
+            local capture_rc=0 capture_started=$SECONDS
             octo_real_capture_provider_output "$@" || capture_rc=$?
+            # Match the execution deadline's boundary, excluding spawn setup
+            # and terminal persistence, which can be slow on loaded hosts.
+            printf '%s\n' "$((SECONDS - capture_started))" > "$TEST_TMP_DIR/$task.capture-seconds"
             # A peer can fail after this seat has already been admitted.
             [[ "$task" != peer-termination ]] || octo_quota_mark_dead fake-api
             return "$capture_rc"
@@ -1543,10 +1546,10 @@ fi
 rm -f "$(octo_quota_dead_file)" "$(octo_quota_dead_meta_file)"
 
 test_case "a failed watcher marker write still stops and classifies quota exhaustion"
-marker_started=$SECONDS
 run_watched_fixture quota-marker-failure quota-marker-failure 12
+marker_elapsed="$(cat "$TEST_TMP_DIR/quota-marker-failure.capture-seconds")"
 if [[ -e "$TEST_TMP_DIR/quota-marker-write-injected" ]] &&
-   [[ "$((SECONDS - marker_started))" -lt 12 ]] &&
+   [[ "$marker_elapsed" =~ ^[0-9]+$ && "$marker_elapsed" -lt 12 ]] &&
    [[ "$(octo_result_framed_sections "$RESULTS_DIR/fake-api-quota-marker-failure.md" status)" == '## Status: FAILED - QUOTA OR AUTH ERROR (exit code: 75)' ]] &&
    [[ "$(run_contract_latest_transition spawn-quota-marker-failure)" == failed ]] &&
    [[ "$(cat "$TEST_TMP_DIR/marker-worker.exit")" == 75 ]] &&
