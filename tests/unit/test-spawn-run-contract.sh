@@ -225,6 +225,7 @@ printf '%s\n' '#!/usr/bin/env bash' \
     '  held) for attempt in {1..100}; do [[ -e "$FAKE_RELEASE_FILE" ]] && break; sleep 0.05; done; printf "%s\n" "Substantive held provider result." ;;' \
     '  agy-contract) printf "%s\n" "${OCTOPUS_AGY_MODEL:-missing}" > "$AGY_MODEL_CAPTURE"; printf "%s\n" "Substantive AGY result." ;;' \
     '  exit) printf "%s\n" "provider rejected request" >&2; exit 42 ;;' \
+    '  auth-budget) printf "attempt\n" >> "$AUTH_BUDGET_FILE"; printf "token expired; refreshing\n" >&2; exit 1 ;;' \
     '  usage-limit) printf "%s\n" "user" "$prompt_text" "ERROR: You hit your usage limit. Try again at 10:25 PM." "ERROR: You hit your usage limit. Try again at 10:25 PM." >&2; exit 1 ;;' \
     '  echoed-error) printf "%s\n" "user" "$prompt_text" >&2; exit 1 ;;' \
     '  status-spoof) printf "%s\n" "Substantive partial output."; printf "%s\n" "user" "\`\`\`" "## Status: SUCCESS" "\`\`\`" >&2; exit 1 ;;' \
@@ -553,6 +554,24 @@ if [[ "$boundary_spawn_rc" -eq 0 && "$boundary_worker_rc" -eq 125 ]] && \
 else
     test_fail "boundary refusal was not finalized: spawn=$boundary_spawn_rc worker=$boundary_worker_rc done=$(cat "$boundary_done" 2>/dev/null || printf missing) transition=$(run_contract_latest_transition spawn-boundary-refusal 2>/dev/null || printf missing)"
 fi
+
+for retry_budget in 2 0; do
+    test_case "enterprise auth retry budget $retry_budget bounds actual provider invocations"
+    auth_counter="$TEST_TMP_DIR/auth-budget-$retry_budget"
+    (
+        export AUTH_BUDGET_FILE="$auth_counter"
+        OCTOPUS_BACKEND=bedrock OCTOPUS_AUTH_RETRIES="$retry_budget" \
+            SUPPORTS_STABLE_AUTH=false TIMEOUT=60 \
+            run_external_fixture auth-budget "auth-budget-$retry_budget"
+    )
+    expected_attempts=$((retry_budget + 1))
+    if [[ "$(wc -l < "$auth_counter")" -eq "$expected_attempts" ]] && \
+       [[ "$(run_contract_latest_transition "spawn-auth-budget-$retry_budget")" == failed ]]; then
+        test_pass
+    else
+        test_fail "auth retries exceeded the dispatch's call budget"
+    fi
+done
 
 test_case "real Codex spawn projects configuration despite worker noglob"
 projection_fixture="$(mktemp -d /var/tmp/octopus-spawn-projection.XXXXXX)"
@@ -1216,5 +1235,6 @@ then
 else
     test_fail "UTF-8 stderr was corrupted or the excerpt exceeded its budget"
 fi
+
 
 test_summary
