@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.20.0",
-  "description": "v11.20.0 \u2014 Faster workflows, clearer presentation outlines and optional web research. Run /octo:setup.",
+  "version": "11.21.0",
+  "description": "v11.21.0 \u2014 Optional Claude advisors and explicit artifact refinement. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
