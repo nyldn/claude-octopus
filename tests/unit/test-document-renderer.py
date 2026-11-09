@@ -304,6 +304,21 @@ octo_launch_advisors "$ORCHESTRATOR" codex "$SEAT_DIR" answer- evidence 1
         self.assertIn("advisor lifecycle hook cannot execute", result.stderr)
         self.assertFalse(calls.exists(), result.stderr)
 
+    def _seat_recipe(self, tree, source_replacement=None):
+        """Read the shipped Bash collection recipe with clear marker failures."""
+        text = (ROOT / tree / "skill-deck/SKILL.md").read_text()
+        start, end = "<!-- deck-seat-collection:start -->", "<!-- deck-seat-collection:end -->"
+        self.assertIn(start, text, f"{tree}: missing seat-recipe start marker")
+        section = text.split(start, 1)[1]
+        self.assertIn(end, section, f"{tree}: missing seat-recipe end marker")
+        section = section.split(end, 1)[0]
+        self.assertIn("```bash\n", section, f"{tree}: missing Bash recipe fence")
+        recipe = textwrap.dedent(section.split("```bash\n", 1)[1].split("```", 1)[0])
+        if source_replacement is not None:
+            recipe = recipe.replace('source "$PLUGIN_ROOT/scripts/lib/consultative-advisors.sh"',
+                                    source_replacement)
+        return recipe
+
     def test_deck_recipe_rejects_oversize_without_summarizer_calls(self):
         """Use the production budget enforcer with an inert summarizer."""
         stub = self.base / "budget-collector"
@@ -329,11 +344,7 @@ octo_launch_advisors() { enforce_context_budget "$STAKEHOLDER_PROMPT" "" codex r
                 self.assertTrue(calls.exists(), control.stderr)
                 self.assertEqual(calls.read_text(), "attempt\n", control.stderr)
                 calls.unlink()
-                text = (ROOT / tree / "skill-deck/SKILL.md").read_text()
-                recipe = textwrap.dedent(text.split("<!-- deck-seat-collection:start -->", 1)[1].split(
-                    "<!-- deck-seat-collection:end -->", 1)[0].split("```bash\n", 1)[1].split("```", 1)[0])
-                recipe = recipe.replace('source "$PLUGIN_ROOT/scripts/lib/consultative-advisors.sh"',
-                                        'source "$BUDGET_STUB"')
+                recipe = self._seat_recipe(tree, 'source "$BUDGET_STUB"')
                 result = subprocess.run(["bash", "-euo", "pipefail", "-c", recipe],
                                         env=env, text=True, capture_output=True, timeout=10)
                 self.assertNotEqual(result.returncode, 0, result.stdout)
@@ -363,11 +374,7 @@ fi
         has_pty = subprocess.run(["bash", "-c", "command -v script"],
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
         for tree in (".claude/skills", "skills"):
-            text = (ROOT / tree / "skill-deck/SKILL.md").read_text()
-            recipe = textwrap.dedent(text.split("<!-- deck-seat-collection:start -->", 1)[1].split(
-                "<!-- deck-seat-collection:end -->", 1)[0].split("```bash\n", 1)[1].split("```", 1)[0])
-            recipe = recipe.replace('source "$PLUGIN_ROOT/scripts/lib/consultative-advisors.sh"',
-                                    'source "$ADAPTER_COLLECTOR_STUB"')
+            recipe = self._seat_recipe(tree, 'source "$ADAPTER_COLLECTOR_STUB"')
             for failure in ("empty", "tty"):
                 with self.subTest(tree=tree, failure=failure):
                     seat_dir = self.base / (tree.replace("/", "-") + failure)
@@ -450,11 +457,7 @@ octo_launch_advisors() {
                                              check=False, timeout=10)
                     self.assertEqual(len(calls.read_text().splitlines()), 3 if response == 503 else 2, control.stderr)
                     calls.unlink()
-                    text = (ROOT / tree / "skill-deck/SKILL.md").read_text()
-                    recipe = textwrap.dedent(text.split("<!-- deck-seat-collection:start -->", 1)[1].split(
-                        "<!-- deck-seat-collection:end -->", 1)[0].split("```bash\n", 1)[1].split("```", 1)[0])
-                    recipe = recipe.replace('source "$PLUGIN_ROOT/scripts/lib/consultative-advisors.sh"',
-                                            'source "$COMPAT_COLLECTOR"')
+                    recipe = self._seat_recipe(tree, 'source "$COMPAT_COLLECTOR"')
                     result = subprocess.run(["bash", "-euo", "pipefail", "-c", recipe],
                                             env=env, input="prompt", text=True, capture_output=True,
                                             check=False, timeout=10)
@@ -499,11 +502,7 @@ printf 'Stakeholder objection\\n'
                 self.assertEqual(control.returncode, 0, control.stderr)
                 self.assertEqual(calls.read_text().splitlines(), ["claude-fable-5-1", "claude-opus-5"])
                 calls.unlink()
-                text = (ROOT / tree / "skill-deck/SKILL.md").read_text()
-                recipe = textwrap.dedent(text.split("<!-- deck-seat-collection:start -->", 1)[1].split(
-                    "<!-- deck-seat-collection:end -->", 1)[0].split("```bash\n", 1)[1].split("```", 1)[0])
-                recipe = recipe.replace('source "$PLUGIN_ROOT/scripts/lib/consultative-advisors.sh"',
-                                        'source "$SDK_COLLECTOR"')
+                recipe = self._seat_recipe(tree, 'source "$SDK_COLLECTOR"')
                 result = subprocess.run(["bash", "-euo", "pipefail", "-c", recipe],
                                         env=env, text=True, capture_output=True, timeout=10, check=False)
                 self.assertEqual(calls.read_text().splitlines(), ["claude-fable-5-1"], result.stderr)
@@ -538,10 +537,7 @@ printf 'Provider launch log\\n%s\\n' "$worker"
         bash_env = self.base / "portable-bash-env"
         bash_env.write_text("unset BASHPID\n")
         for tree in (".claude/skills", "skills"):
-            text = (ROOT / tree / "skill-deck/SKILL.md").read_text()
-            recipe = text.split("<!-- deck-seat-collection:start -->", 1)[1].split(
-                "<!-- deck-seat-collection:end -->", 1)[0].split("```bash\n", 1)[1].split("```", 1)[0]
-            recipe = textwrap.dedent(recipe)
+            recipe = self._seat_recipe(tree)
             for status in ("completed", "failed"):
                 with self.subTest(tree=tree, status=status):
                     seat_dir = self.base / tree.replace("/", "-") / status
