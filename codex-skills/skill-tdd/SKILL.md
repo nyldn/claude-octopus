@@ -12,7 +12,7 @@ disable-model-invocation: true
 
 # Test-driven development
 
-Read `skills/blocks/engineering-method-selection.md` from the installed plugin
+Read `codex-skills/blocks/engineering-method-selection.md` from the installed plugin
 for review admission. Natural-language requests and `--peer-review` share that
 policy. Honor host-only requests; risk alone does not authorize paid usage.
 

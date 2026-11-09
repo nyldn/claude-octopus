@@ -22,8 +22,8 @@ authorized. Reuse existing artifacts and reviews. Do not start nested Octopus
 workflows or spawn additional reviewers from a provider seat.
 
 When file access exists, load only the applicable reference from the installed
-plugin: skills/blocks/debug-feedback-loop.md,
-skills/blocks/architecture-simplification.md, skills/blocks/domain-modeling.md,
+plugin: codex-skills/blocks/debug-feedback-loop.md,
+codex-skills/blocks/architecture-simplification.md, codex-skills/blocks/domain-modeling.md,
 or the corresponding .claude/skills/skill-tdd, skill-coverage-audit,
 skill-writing-plans, skill-work-slicing, skill-pressure-test, skill-prototype
 or skill-authoring SKILL.md. Use the actual plugin root supplied by the host,

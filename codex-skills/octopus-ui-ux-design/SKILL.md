@@ -102,7 +102,7 @@ missing, non-numeric, or outside 1-10, stop and obtain a valid value rather than
 **MANDATORY: You MUST use the native shell command tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
 
 ```bash
-bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh"
+bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/check-providers.sh"
 ```
 
 **Use the ACTUAL results below. PROHIBITED: Showing only "🔵 Claude: Available ✓" without listing all providers.**
@@ -133,7 +133,7 @@ Tools:
 ### STEP 3: Check Design Intelligence
 
 ```bash
-SEARCH_PY="${HOME}/.claude-octopus/plugin/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py"
+SEARCH_PY="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py"
 if [ -f "$SEARCH_PY" ]; then
     python3 -c "import csv, re, math" 2>/dev/null && echo "READY" || echo "MISSING_PYTHON"
 else
@@ -152,7 +152,7 @@ continue to Step 4 when preflight returns `READY`.
 **You MUST execute at least 3 of these searches. This is NOT optional.**
 
 ```bash
-SEARCH_PY="${HOME}/.claude-octopus/plugin/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py"
+SEARCH_PY="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py"
 
 # 1. Product type search — what design patterns fit this product?
 python3 "$SEARCH_PY" "<user's product description>" --domain product
@@ -207,7 +207,7 @@ Produce:
 
 Be distinctive — take a clear position rather than playing it safe.
 
-Hard constraints (see skills/blocks/design-taste.md): do NOT produce any of the three
+Hard constraints (see codex-skills/blocks/design-taste.md): do NOT produce any of the three
 AI-slop looks (cream+serif+terracotta, near-black+acid accent, purple-violet gradients),
 and do not default to Inter, Roboto, Space Grotesk, Fraunces, or Instrument Serif
 without a brief-tied reason.
@@ -269,7 +269,7 @@ Synthesize search results (and chosen variant if shotgun mode) into a design dir
 3. **Typography** — heading + body font pairing with Google Fonts import
 4. **Layout approach** — grid system, spacing scale, responsive strategy
 5. **Design principles** — 3-5 guiding principles derived from UX search results
-6. **Taste compliance** — one line confirming the direction passes `skills/blocks/design-taste.md` (not one of the three banned looks; no unjustified banned-default fonts; boldness spent in one place)
+6. **Taste compliance** — one line confirming the direction passes `codex-skills/blocks/design-taste.md` (not one of the three banned looks; no unjustified banned-default fonts; boldness spent in one place)
 
 **Output: Write the design direction as a structured section you can reference in the next step.**
 
@@ -288,7 +288,7 @@ Critique dimensions:
 2. PRACTICALITY — Does this typography actually render well on the stated tech stack? Are the fonts available and performant (file size, loading)? Does the spacing scale work with the layout system?
 3. FIT — Does the visual style actually match the product type and audience? Would a user of [product type] feel comfortable with this aesthetic?
 4. GAPS — What did the research miss? Are there common UX patterns for this product type that aren't addressed? Are there competitive norms being ignored?
-5. SLOP — Run the checklist in skills/blocks/design-taste.md. Is this one of the three AI-slop looks (cream+serif+terracotta, near-black+acid, purple gradients)? Banned default fonts without a stated reason? Would another model given the same brief land on the same palette and fonts? Two or more checklist misses fail the direction.
+5. SLOP — Run the checklist in codex-skills/blocks/design-taste.md. Is this one of the three AI-slop looks (cream+serif+terracotta, near-black+acid, purple gradients)? Banned default fonts without a stated reason? Would another model given the same brief land on the same palette and fonts? Two or more checklist misses fail the direction.
 
 For each issue found, state: what's wrong, why it matters, and what to do instead.
 ```
@@ -303,7 +303,7 @@ command -v agy >/dev/null 2>&1 && providers+=(agy)
 
 for provider in "${providers[@]}"; do
     safe_provider=$(printf '%s' "$provider" | tr -c '[:alnum:]_-' '_')
-    "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" spawn "$provider" \
+    "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn "$provider" \
       "<critique prompt>" > "/tmp/design-critique-${safe_provider}.md" &
 done
 
@@ -376,13 +376,13 @@ mcp__shadcn__search_items_in_registries({ query: "<component name>" })
 1. **Accessibility audit — run the checker, do not eyeball.** Every text/background pair in the token set goes through the contrast validator:
 
 ```bash
-python3 "${HOME}/.claude-octopus/plugin/scripts/helpers/contrast-check.py" \
+python3 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/contrast-check.py" \
   '<text-hex>:<bg-hex>' '<heading-hex>:<bg-hex>:large' '<muted-hex>:<bg-hex>' ...
 ```
 
 Exit 1 means at least one pair fails WCAG AA — fix the palette and re-run before delivering. Include the checker output in the final document as evidence.
 
-1. **Slop check** — run the pre-ship checklist in `skills/blocks/design-taste.md`; two or more misses means revise before delivering
+1. **Slop check** — run the pre-ship checklist in `codex-skills/blocks/design-taste.md`; two or more misses means revise before delivering
 1. **Completeness check** — verify all requested deliverables are present
 1. **Implementation readiness** — confirm specs are detailed enough for frontend-developer
 1. **Figma push-back** (if connected) — offer to push design tokens to Figma

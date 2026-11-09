@@ -25,7 +25,10 @@ Both Claude `disable-model-invocation: true` and generated Codex
 Skills carry reusable method, domain rules, and workflow discipline. Commands
 and agents may reference skills, but should not duplicate long skill logic.
 
-Native Claude Code sources live under `.claude/skills/`. The skill generator
+Most native Claude Code sources live under `.claude/skills/`. Discovery and
+refinement keep their canonical entries and phase resources under root `skills/`;
+the generator refreshes their `.claude/skills/` entry copies from that native
+source before generating Codex adaptations. The skill generator
 copies their native instructions into the automatically discovered `skills/`
 tree, including the verification alias. It writes Codex adaptations separately
 to `codex-skills/`. Council and starter-pack sources remain in `skills/` and

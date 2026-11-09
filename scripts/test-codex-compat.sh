@@ -125,7 +125,7 @@ test_cmd "codex-skills/ directory exists" \
 
 test_output "50+ skill directories created" \
     "find '$PLUGIN_ROOT/codex-skills' -mindepth 2 -maxdepth 2 -name SKILL.md | wc -l | tr -d ' '" \
-    "^5[0-9]$"
+    "^([5-9][0-9]|[1-9][0-9]{2,})$"
 
 test_cmd "each skill dir has SKILL.md" \
     "cd '$PLUGIN_ROOT' && for d in codex-skills/*/; do [[ \"\${d}\" == \"codex-skills/blocks/\" || \"\${d}\" == \"codex-skills/octopus-starter-pack/\" ]] && continue; [[ -f \"\${d}SKILL.md\" ]] || exit 1; done"

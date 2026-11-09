@@ -19,7 +19,7 @@ Astra.
   Opus cost. Haiku 4.5 is the budget Claude seat.
 - **Fable 5.1 is an opt-in escalation, not a default.** Use it for judgment-class
   work only when the expected gain justifies its $10/$50 per-MTok price. Apply
-  `skills/blocks/fable5-prompting.md` and never count Fable plus Opus as
+  `codex-skills/blocks/fable5-prompting.md` and never count Fable plus Opus as
   provider diversity.
 - **GPT-6 Astra is an explicit-only OpenAI escalation.** Use it for one bounded,
   high-value pass after GPT-5.6 Sol fails a hard acceptance test. Do not use it

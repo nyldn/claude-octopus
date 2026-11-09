@@ -80,7 +80,7 @@ AskUserQuestion({
 **Check provider availability:**
 
 ```bash
-provider_status="$(bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh")"
+provider_status="$(bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/check-providers.sh")"
 [[ $'\n'"$provider_status"$'\n' == *$'\ncodex:available\n'* ]] && codex_status="Available ✓" || codex_status="Not installed ✗"
 [[ $'\n'"$provider_status"$'\n' == *$'\nagy:available\n'* ]] && agy_status="Available ✓" || agy_status="Not installed ✗"
 ```
@@ -120,7 +120,7 @@ Research Parameters:
 **You MUST execute this command via the native shell command tool:**
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh --intensity=<quick|standard|deep> probe \
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" --intensity=<quick|standard|deep> probe \
   "<user's research question> (focus: ${focus_choice}; output: ${format_choice})"
 ```
 

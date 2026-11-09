@@ -22,7 +22,7 @@ for source in native:
     assert (root / 'skills' / name / 'SKILL.md').read_text() == source.read_text(), f'native body changed: {source}'
     assert not re.search(r'^agent: (Explore|Plan)$', source.read_text().split('---', 2)[1], re.M), f'read-only agent cannot execute native workflow: {source}'
 assert set(registered) == {'./' + str(f.parent.relative_to(root)) for f in (root / 'skills').rglob('SKILL.md')}, 'automatic and explicit discovery differ'
-assert len(registered) == 63, 'existing skill registration count changed'
+assert len(registered) == 64, 'existing skill registration count changed'
 assert any(re.search(r'^name: skill-verify$', text, re.M) for text in registered.values()), 'verification alias lost'
 assert sum('/octopus-starter-pack/' in path for path in registered) == 4, 'starter pack lost'
 assert json.loads((root / '.codex-plugin/plugin.json').read_text())['skills'] == './codex-skills/'
@@ -219,5 +219,71 @@ npm() { printf 'npm %s\n' "$*" >> "$CALLS"; }
 print('15 menu/reference/example recipes passed across source, native and Codex trees')
 PY_CHOICES
 then test_pass; else test_fail "finish-branch execution contradicts the selected menu action"; fi
+
+test_case "generator keeps canonical native sources and adapts new Codex entries"
+if python3 - "$PROJECT_ROOT" <<'PY_CANONICAL'
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+root = Path(sys.argv[1])
+with tempfile.TemporaryDirectory() as directory:
+    fixture = Path(directory)
+    (fixture / 'scripts').mkdir()
+    for script in ('build-codex-skills.sh', 'build-factory-skills.sh'):
+        shutil.copy2(root / 'scripts' / script, fixture / 'scripts' / script)
+    canonical = {}
+    for name in ('skill-refine', 'flow-discover', 'demo'):
+        source = fixture / '.claude/skills' / name / 'SKILL.md'
+        source.parent.mkdir(parents=True)
+        body = ('---\nname: ' + name + '\ndescription: Fixture skill\n'
+                'disable-model-invocation: true\n---\nUse the Bash tool and '
+                '`skills/blocks/method.md`.\n')
+        source.write_text(body)
+        if name != 'demo':
+            native = fixture / 'skills' / name
+            (native / 'references').mkdir(parents=True)
+            (native / 'SKILL.md').write_text(body + 'Canonical phase entry.\n')
+            (native / 'references/phase.md').write_text('Shared phase instructions.\n')
+            canonical[name] = (native / 'SKILL.md').read_bytes()
+    blocks = fixture / 'skills/blocks'
+    blocks.mkdir()
+    (blocks / 'method.md').write_text('See `skills/blocks/other.md`.\n')
+    generator = ['bash', str(fixture / 'scripts/build-codex-skills.sh')]
+    def run(*arguments):
+        return subprocess.run([*generator, *arguments], capture_output=True, text=True, timeout=30)
+    result = run()
+    assert result.returncode == 0, result.stderr
+    for name, body in canonical.items():
+        assert (fixture / '.claude/skills' / name / 'SKILL.md').read_bytes() == body
+        assert (fixture / 'skills' / name / 'SKILL.md').read_bytes() == body
+        adapted = (fixture / 'codex-skills' / name / 'SKILL.md').read_text()
+        assert 'Host: Codex CLI' in adapted and 'native shell command tool' in adapted
+        assert '`codex-skills/blocks/method.md`' in adapted
+        assert (fixture / 'codex-skills' / name / 'references/phase.md').is_file()
+    assert 'codex-skills/blocks/other.md' in (fixture / 'codex-skills/blocks/method.md').read_text()
+    assert 'codex-skills' not in (fixture / 'skills/blocks/method.md').read_text()
+    def snapshot():
+        return {str(p.relative_to(fixture)): p.read_bytes() for p in fixture.rglob('*') if p.is_file()}
+    before = snapshot()
+    result = run('--check')
+    assert result.returncode == 0, result.stderr
+    assert snapshot() == before, 'check mode mutated source or output'
+    clean = subprocess.run(['bash', str(fixture / 'scripts/build-factory-skills.sh'), '--clean'],
+                           capture_output=True, text=True, timeout=30)
+    assert clean.returncode == 0, clean.stderr
+    result = run()
+    assert result.returncode == 0, result.stderr
+    assert (fixture / 'skills/demo/SKILL.md').read_bytes() == (fixture / '.claude/skills/demo/SKILL.md').read_bytes()
+    (fixture / 'skills/skill-refine/SKILL.md').unlink()
+    before = snapshot()
+    result = run()
+    assert result.returncode != 0, 'missing canonical native input was accepted'
+    assert snapshot() == before, 'failed generation removed output or changed sources'
+print('Canonical preservation, new-entry adaptation, block paths, read-only check, clean/rebuild and missing-input checks passed')
+PY_CANONICAL
+then test_pass; else test_fail "generator damaged canonical ownership or host-specific references"; fi
 
 test_summary

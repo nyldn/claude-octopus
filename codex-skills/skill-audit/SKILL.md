@@ -12,7 +12,7 @@ disable-model-invocation: true
 
 # Systematic Audit Process
 
-Load `skills/blocks/engineering-method-selection.md` from the installed plugin
+Load `codex-skills/blocks/engineering-method-selection.md` from the installed plugin
 and apply only the methods relevant to this task. Preserve this entry point's
 execution contract and output format. Read referenced skills as instructions;
 do not invoke the current command recursively or add provider calls from a seat.
@@ -24,7 +24,7 @@ Comprehensive, methodical auditing to find issues, inconsistencies, and broken f
 **Core principle:** Define scope → Create checklist → Execute systematically → Report findings → Prioritize fixes.
 
 For architecture simplification, load
-`skills/blocks/architecture-simplification.md`. Pin the revision, inspect recent
+`codex-skills/blocks/architecture-simplification.md`. Pin the revision, inspect recent
 churn and representative callers, then apply the deletion test. Do not recommend
 removing a small wrapper when it centralizes a security, cleanup, precedence, or
 failure invariant. A `simplify` verdict needs source evidence, a concrete caller,

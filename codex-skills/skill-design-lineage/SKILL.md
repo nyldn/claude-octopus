@@ -13,7 +13,7 @@ disable-model-invocation: true
 # Design Document Lineage
 
 When a design introduces or changes domain terms, load
-`skills/blocks/domain-modeling.md`. Record each definition in the existing design
+`codex-skills/blocks/domain-modeling.md`. Record each definition in the existing design
 lineage artifact with its evidence source, checked time, and scope. A changed
 definition invalidates dependent decisions. Link and reopen them instead of
 leaving stale implementation guidance marked current.

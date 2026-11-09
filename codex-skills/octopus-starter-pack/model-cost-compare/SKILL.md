@@ -24,5 +24,5 @@ The user describes a task (bulk refactor, deep review, quick lookup, long-contex
 ## Guardrails
 
 - Never recommend Fable 5.1, Astra, or fast-mode Opus by default; these premium seats are opt-in only.
-- Never recommend Fable 5.1 for security audits; its safety classifiers can refuse offensive-security phrasing. Security review goes to Opus 5 (see `skills/blocks/fable5-prompting.md`).
+- Never recommend Fable 5.1 for security audits; its safety classifiers can refuse offensive-security phrasing. Security review goes to Opus 5 (see `codex-skills/blocks/fable5-prompting.md`).
 - If the estimate exceeds 1 USD, say so explicitly before any dispatch happens.

@@ -12,7 +12,7 @@ disable-model-invocation: true
 
 # Architecture review
 
-Load `skills/blocks/engineering-method-selection.md` from the installed plugin
+Load `codex-skills/blocks/engineering-method-selection.md` from the installed plugin
 and apply only the methods relevant to this task. Preserve this entry point's
 execution contract and output format. Read referenced skills as instructions;
 do not invoke the current command recursively or add provider calls from a seat.
@@ -25,7 +25,7 @@ read the source or does not return a grounded contribution.
 
 ## Method
 
-Read and apply `skills/blocks/architecture-simplification.md` from the installed
+Read and apply `codex-skills/blocks/architecture-simplification.md` from the installed
 plugin root. Pin the source revision and inspect implementation, callers, tests,
 recent churn, and failure behavior before recommending a boundary.
 

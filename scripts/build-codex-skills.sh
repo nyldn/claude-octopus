@@ -298,13 +298,17 @@ This generated Codex skill preserves an enforced workflow contract from the sour
 EOF
 }
 
+adapt_shared_paths_for_codex() {
+    sed -E 's@(^|[^[:alnum:]_.-])skills/blocks/@\1codex-skills/blocks/@g'
+}
+
 adapt_body_for_codex() {
     local file="$1"
     if source_has_enforced_execution "$file" && ! body_has_enforcement "$file"; then
         generated_enforcement_block
     fi
 
-    extract_body "$file" | sed -E \
+    extract_body "$file" | adapt_shared_paths_for_codex | sed -E \
         -e 's/Bash tool/native shell command tool/g' \
         -e 's/Agent tool/host subagent tool/g' \
         -e 's/Task tool/host subagent tool/g' \
@@ -419,7 +423,7 @@ _preserve_find_args() {
 }
 
 prepare_target_dir() {
-    local target_dir="$1" d
+    local target_dir="$1" d host="${2:-codex}"
     if [[ "$target_dir" == "$NATIVE_OUTPUT_DIR" ]]; then
         mkdir -p "$target_dir"
         local -a keep=()
@@ -435,6 +439,14 @@ prepare_target_dir() {
                 cp -R "$NATIVE_OUTPUT_DIR/$d/." "$target_dir/$d/"
             fi
         done
+        # Copied shared blocks and resource files also belong to this host tree.
+        if [[ "$host" == codex ]]; then
+            local file
+            while IFS= read -r file; do
+                adapt_shared_paths_for_codex < "$file" > "$file.tmp"
+                mv "$file.tmp" "$file"
+            done < <(find "$target_dir" -type f -name '*.md')
+        fi
     fi
 }
 
@@ -452,6 +464,17 @@ main() {
     local skipped=0
     local errors=0
 
+    # Validate canonical inputs before cleaning either generated output tree.
+    local canonical
+    for canonical in skill-refine flow-discover; do
+        if [[ -e "$NATIVE_OUTPUT_DIR/$canonical" || -e "$SKILLS_DIR/$canonical" ]]; then
+            [[ -f "$NATIVE_OUTPUT_DIR/$canonical/SKILL.md" ]] || {
+                echo "Missing canonical native skill: skills/$canonical/SKILL.md" >&2
+                return 1
+            }
+        fi
+    done
+
     if $CHECK_MODE; then
         local tmp_dir
         tmp_dir=$(mktemp -d)
@@ -467,26 +490,25 @@ main() {
     fi
 
     prepare_target_dir "$target_dir"
-    prepare_target_dir "$native_target"
+    prepare_target_dir "$native_target" native
     write_codex_adapter_block "$target_dir"
 
-    # Both hosts load phase resources from root skills/. Only the entry copy
-    # lives under .claude; do not delete or adapt the canonical phase files.
-    local canonical
+    # Canonical root entries own their native bytes and phase resources.
+    # Refresh the source entry before generating the separate Codex adaptation.
     for canonical in skill-refine flow-discover; do
         # A partial source fixture may contain neither canonical skill. If either
         # side exists, require the canonical root copy rather than losing it.
-        if [[ ! -e "$OUTPUT_DIR/$canonical" && ! -e "$SKILLS_DIR/$canonical" ]]; then
+        if [[ ! -e "$NATIVE_OUTPUT_DIR/$canonical" && ! -e "$SKILLS_DIR/$canonical" ]]; then
             continue
         fi
         if $CHECK_MODE; then
-            cmp -s "$OUTPUT_DIR/$canonical/SKILL.md" "$SKILLS_DIR/$canonical/SKILL.md" || {
+            cmp -s "$NATIVE_OUTPUT_DIR/$canonical/SKILL.md" "$SKILLS_DIR/$canonical/SKILL.md" || {
                 echo "CHECK: .claude/skills/$canonical is stale; run skill sync" >&2
                 return 1
             }
         else
             mkdir -p "$SKILLS_DIR/$canonical"
-            cp "$OUTPUT_DIR/$canonical/SKILL.md" "$SKILLS_DIR/$canonical/SKILL.md"
+            cp "$NATIVE_OUTPUT_DIR/$canonical/SKILL.md" "$SKILLS_DIR/$canonical/SKILL.md"
         fi
     done
 
@@ -495,9 +517,6 @@ main() {
 
         local basename
         basename=$(source_skill_basename "$file")
-
-        # These skills are canonical under root skills/, including phase resources.
-        case "$basename" in skill-refine|skill-refine.md|flow-discover|flow-discover.md) continue ;; esac
 
         # Skip templates
         for pattern in $SKIP_PATTERNS; do

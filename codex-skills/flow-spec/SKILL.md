@@ -59,7 +59,7 @@ If user says "skip" for any question, note assumptions and proceed.
 Treat project names, selectors and requests as data in every Bash snippet. Shell-quote substituted values. Never paste raw user or research text into executed shell source.
 
 ```bash
-provider_status=$(bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh")
+provider_status=$(bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/check-providers.sh")
 codex_status=$(echo "$provider_status" | grep -q '^codex:available' && echo "Available" || echo "Not installed")
 agy_status=$(echo "$provider_status" | grep -q '^agy:available' && echo "Available" || echo "Not installed")
 ```
@@ -92,16 +92,16 @@ Estimated Time: 3-7 minutes
 
 ```bash
 # Initialize state if needed
-"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" init_state
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" init_state
 
 # Set current workflow
-"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" set_current_workflow "flow-spec" "spec"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" set_current_workflow "flow-spec" "spec"
 
 # Get prior decisions (if any)
-prior_decisions=$("${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" get_decisions "all")
+prior_decisions=$("${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" get_decisions "all")
 
 # Get context from previous phases (e.g., discover)
-prior_context=$("${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" read_state | jq -r '.context')
+prior_context=$("${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" read_state | jq -r '.context')
 
 # Display what you found (if any)
 if [[ "$prior_decisions" != "[]" && "$prior_decisions" != "null" ]]; then
@@ -118,7 +118,7 @@ fi
 Before research, allocate or select the portable feature and bind project policy:
 
 ```bash
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 unset FEATURE_CONTEXT FEATURE_DIR SPEC_PATH FEATURE_RUNTIME_DIR FEATURE_SELECTOR POLICY_SNAPSHOT SPEC_RESEARCH_RUN
 if ! command -v jq >/dev/null 2>&1 || ! command -v python3 >/dev/null 2>&1; then
   echo "Spec workflow stopped: jq and Python 3 are required to record accepted research and publish safely" >&2
@@ -415,15 +415,15 @@ The writer redacts and scans before every repository write. If it cannot certify
 spec_summary="NLSpec generated for [project name] with [N] behaviors, complexity: [class]"
 
 # Update spec phase context
-"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" update_context \
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_context \
   "spec" \
   "$spec_summary"
 
 # Update metrics
-"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" update_metrics "phases_completed" "1"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_metrics "phases_completed" "1"
 # Track actual providers used (dynamic — not hardcoded)
-for _provider in $(bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh" | grep ":available" | cut -d: -f1) claude; do
-  "${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" update_metrics "provider" "$_provider"
+for _provider in $(bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/check-providers.sh" | grep ":available" | cut -d: -f1) claude; do
+  "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_metrics "provider" "$_provider"
 done
 ```
 

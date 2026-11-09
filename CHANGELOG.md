@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Native discovery and refinement keep their canonical phase resources when
+  generating separate Codex skills. Codex shared-block references use their own
+  tree, and missing canonical inputs stop generation before output is removed.
+
 - The branch-finishing workflow executes the action shown in its menu.
   Choosing Create PR preserves the branch for review; choosing Merge locally
   runs the local merge recipe. The menu, quick reference, integration example and cleanup rules agree

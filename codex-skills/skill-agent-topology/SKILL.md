@@ -39,7 +39,7 @@ task context usable across an agent boundary.
   by intent, or `skill-decision-support` for a general option comparison.
 - To decide whether to delegate a task to agents at all. That is the allocation
   step in `skill-intent-contract`.
-- To choose between providers or models. See `skills/blocks/frontier-model-routing.md`.
+- To choose between providers or models. See `codex-skills/blocks/frontier-model-routing.md`.
 - For a single-agent task. There are no boundaries to count.
 
 ## Inputs
@@ -93,7 +93,7 @@ A boundary is earned only by a gain that a single agent could not produce:
 - **Parallelism** — real wall-clock reduction on independent work.
 - **Cross-vendor diversity** — different training data and different blind
   spots. Note that same-family agreement is not this; see
-  `skills/blocks/frontier-model-routing.md`.
+  `codex-skills/blocks/frontier-model-routing.md`.
 - **Adversarial review** — a seat whose job is to disagree, where disagreement
   is the product.
 

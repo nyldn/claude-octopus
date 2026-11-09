@@ -12,14 +12,14 @@ disable-model-invocation: true
 
 # Skill Authoring
 
-Load `skills/blocks/engineering-method-selection.md` from the installed plugin
+Load `codex-skills/blocks/engineering-method-selection.md` from the installed plugin
 and apply only the methods relevant to this task. Preserve this entry point's
 execution contract and output format. Read referenced skills as instructions;
 do not invoke the current command recursively or add provider calls from a seat.
 
 ## Domain language
 
-Load `skills/blocks/domain-modeling.md` when a skill discusses providers, models,
+Load `codex-skills/blocks/domain-modeling.md` when a skill discusses providers, models,
 access, billing, reviewers, or votes. Reuse the shared definitions instead of
 inventing local synonyms. State the source and time of observations. Never infer
 authentication, entitlement, billing mode, quota, or model-family independence
@@ -65,8 +65,8 @@ an `/octo:*` command. This is a hard platform gate, not a prose reminder.
 
 Command bodies that need reusable instructions load the entire source file
 directly from
-`${HOME}/.claude-octopus/plugin/.claude/skills/<name>/SKILL.md`; they do not call
-the Skill tool. `${HOME}/.claude-octopus/plugin` is the stable, self-healed path
+`${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/.claude/skills/<name>/SKILL.md`; they do not call
+the Skill tool. `${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}` is the stable, self-healed path
 available to model tool calls; `CLAUDE_PLUGIN_ROOT` is a hook/runtime variable
 and may be absent from that context. The command must treat the loaded body as
 the active instructions in the current conversation, follow its steps in order,
@@ -105,7 +105,7 @@ rung it belongs:
 2. **In-skill reference** — consulted while working. A flat set of peer rules is
    a legitimate shape, not a smell.
 3. **External reference** — pushed into a sibling file and reached by a pointer,
-   loaded only when the pointer fires. `skills/blocks/` is where shared ones live.
+   loaded only when the pointer fires. `codex-skills/blocks/` is where shared ones live.
 
 Push too little down and the top bloats; push too much and the agent never finds
 what it needs. Branching is the cleanest test: inline what every run needs, push

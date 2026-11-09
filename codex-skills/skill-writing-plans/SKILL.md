@@ -12,7 +12,7 @@ disable-model-invocation: true
 
 # Writing Plans
 
-Load `skills/blocks/engineering-method-selection.md` from the installed plugin
+Load `codex-skills/blocks/engineering-method-selection.md` from the installed plugin
 and apply only the methods relevant to this task. Preserve this entry point's
 execution contract and output format. Read referenced skills as instructions;
 do not invoke the current command recursively or add provider calls from a seat.
@@ -254,13 +254,13 @@ Execute tasks one by one with verification between each.
 **2. Parallel (octopus tangle)**
 Use Claude Octopus to parallelize independent tasks:
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh tangle "Execute implementation plan for [feature]"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" tangle "Execute implementation plan for [feature]"
 ```
 
 **3. Full workflow (octopus embrace)**
 Research → Define → Implement → Deliver:
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh embrace "Implement [feature] per plan"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" embrace "Implement [feature] per plan"
 ```
 ```
 
