@@ -20,6 +20,7 @@ Use [Architecture](ARCHITECTURE.md) for execution flow and
 | [docs/](./) | User guides, runtime contracts and contributor documentation |
 | [tests/](../tests/) | Hermetic checks, fixtures and separately opt-in live tests |
 | [data/evals/](../data/evals/) | Shipped evaluation scenarios |
+| [evals/](../evals/) | Opt-in native Claude plugin evals; see [Claude native integrations](CLAUDE-NATIVE-INTEGRATION.md) |
 | [vendors/](../vendors/), [licenses/](../licenses/) | Vendored material and third-party license files |
 | [.claude-plugin/](../.claude-plugin/), [.codex-plugin/](../.codex-plugin/), [.cursor-plugin/](../.cursor-plugin/), [.factory-plugin/](../.factory-plugin/) | Host manifests and generated adapter files |
 

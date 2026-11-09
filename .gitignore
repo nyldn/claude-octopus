@@ -147,3 +147,5 @@ coverage-report.html
 .dolt/
 *.db
 .beads-credential-key
+# Native Claude plugin eval reports contain prompts and model transcripts.
+evals/results/

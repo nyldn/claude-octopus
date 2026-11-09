@@ -14,6 +14,10 @@ do not invoke the current command recursively or add provider calls from a seat.
 
 ## Key Behavior
 
+After a draft, use `/octo:refine` only when independent rubric scoring or
+bounded iteration is requested. Ordinary plan edits do not add judges. See
+`docs/CLAUDE-NATIVE-INTEGRATION.md` for advisor and native workflow choices.
+
 - **Creates plans** - Captures intent, analyzes requirements, generates weighted execution strategy
 - **Saves to files** - Stores each plan and intent contract in a unique run directory under the project-owned `.octo/plans/` namespace, or under octo-owned session storage when there is no project
 - **Doesn't execute** - Plans are saved for review; execution requires user confirmation
