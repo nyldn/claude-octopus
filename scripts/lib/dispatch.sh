@@ -318,6 +318,10 @@ octo_kimi_role_is_write_capable() {
     esac
 }
 
+# Build the provider launch command for a seat without starting its worker.
+# Arguments: agent type, optional phase, optional role, optional prompt bytes.
+# Print the command for the caller's argv parser. Return nonzero when model,
+# provider, reasoning, advisor, or other launch-policy validation rejects it.
 get_agent_command() {
     local agent_type="$1"
     local phase="${2:-}"

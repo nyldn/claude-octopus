@@ -86,6 +86,9 @@ _auto_route_wait_for_pids() {
     return 1
 }
 
+# Validate one canonical workflow name supplied to the automatic router.
+# Argument: workflow name. Print the accepted name unchanged and return 0,
+# or return 1 without output when the name is missing or unsupported.
 auto_route_validate_workflow() {
     case "${1:-}" in
         embrace|multi|parallel|spec|security|tdd|debug|design-ui-ux|prd|brainstorm|deck|docs|discover|review|debate|develop|plan|quick|refine)

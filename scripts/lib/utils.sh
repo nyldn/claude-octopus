@@ -370,6 +370,10 @@ _validate_openai_compatible_agent_command() {
     [[ -n "$provider" && -n "$model" && -n "$cwd" ]]
 }
 
+# Validate one Claude launch-command string without executing the worker.
+# Require the configured launcher prefix, --print, --model, and --allowed-tools.
+# Reject unsupported options, invalid values, and duplicate launch flags,
+# including --advisor. Return 0 for an accepted command and 1 on rejection.
 _validate_claude_agent_command() {
     local cmd="$1"
     local configured_bin="${OCTOPUS_CLAUDE_BIN:-claude}"

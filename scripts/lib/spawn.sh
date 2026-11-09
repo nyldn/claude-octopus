@@ -814,6 +814,11 @@ octopus_tangle_apply_execution_boundary() {
     cmd_array=("${boundary_cmd[@]}" "${cmd_array[@]}")
 }
 
+# Resolve the agent's role and start it through its configured execution path.
+# Arguments: agent type, prompt, optional task ID, role, phase, and fork flag.
+# Direct refinement spawns use the underlying task type for roles and rules.
+# Subprocess launches print their PID after worker registration; dry runs only
+# log the proposed command. Rejected launches return a nonzero status.
 spawn_agent() {
     local agent_type="$1"
     if [[ "$agent_type" == "claude-opus-fast" ]]; then
