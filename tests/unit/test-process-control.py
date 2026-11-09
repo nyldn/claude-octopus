@@ -213,6 +213,15 @@ class ProcessControlTests(unittest.TestCase):
                 self.assertTrue((directory / "parent").exists())
                 parent = int((directory / "parent").read_text())
                 triggered = []
+                group_scan = []
+                real_groups = control._process_groups
+
+                def owned_group_scan():
+                    group_scan.append(True)
+                    try:
+                        yield from real_groups()
+                    finally:
+                        group_scan.pop()
 
                 def captured_directory(path):
                     # Freeze this directory iteration before allowing the fork.
@@ -224,7 +233,7 @@ class ProcessControlTests(unittest.TestCase):
                     return result
 
                 def fork_before_read(path):
-                    if str(path) == f"/proc/{parent}/stat" and not triggered:
+                    if group_scan and str(path) == f"/proc/{parent}/stat" and not triggered:
                         triggered.append(control.snapshot(root.pid).stopped)
                         (directory / "fork").touch()
                         deadline = time.monotonic() + 3
@@ -247,6 +256,7 @@ class ProcessControlTests(unittest.TestCase):
                 refused = False
                 try:
                     with mock.patch.object(os, "scandir", captured_directory), \
+                         mock.patch.object(control, "_process_groups", owned_group_scan), \
                          mock.patch.object(Path, "read_bytes", fork_before_read):
                         try:
                             result = control.terminate(root.pid, frozen=True, owned_groups=True)
