@@ -28,6 +28,9 @@
 
 ### Fixed
 
+- A peer seat's quota marker no longer relabels an externally terminated call
+  or adds a false circuit-breaker failure. Quota stop attribution stays local
+  to the current attempt even when its diagnostic cannot be written.
 - Quota fast-fails preserve a provider's own temporary-failure status and auth
   retry behavior. Quota stops update the provider circuit breaker, and persisted
   cooldown timestamps correctly block repeat dispatch until their deadline.

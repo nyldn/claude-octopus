@@ -1694,10 +1694,10 @@ ${heuristic_ctx}"
             if [[ $exit_code -ne 0 && -f "$quota_fired_file" && -s "$quota_fired_file" ]]; then
                 _quota_fast_fail_line="$(<"$quota_fired_file")"
                 exit_code=75
-            elif [[ $exit_code -eq 143 ]] && octo_quota_is_dead "$_provider_prefix"; then
-                # If the watcher cannot persist its diagnostic, its shared dead
-                # marker and captured terminal line still establish the cause.
-                # An external SIGTERM alone must keep its termination status.
+            elif [[ $exit_code -eq 143 && -f "${quota_fired_file}.stop" ]]; then
+                # Only this attempt's watcher can attribute a stop when optional
+                # diagnostics cannot be persisted. A peer's dead marker cannot.
+                # Without attempt-local evidence, preserve external SIGTERM.
                 _quota_fast_fail_line="$(quota_watcher_match_line "$temp_errors" "$raw_output")" || _quota_fast_fail_line=""
                 [[ -z "$_quota_fast_fail_line" ]] || exit_code=75
             elif [[ $exit_code -ne 0 && $exit_code -ne 124 && $exit_code -ne 143 && $exit_code -ne 76 ]]; then
@@ -2259,7 +2259,7 @@ sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore")
         # Cleanup temp files (keep raw_output for debugging if result is empty)
         rm -f "$temp_input" "$temp_output" "$temp_errors"
         # Optional diagnostic persistence must not prevent worker completion.
-        rm -f "$quota_fired_file" 2>/dev/null || true
+        rm -f "$quota_fired_file" "${quota_fired_file}.stop" 2>/dev/null || true
         if [[ $result_size -ge 1024 ]]; then
             rm -f "$raw_output"  # Clean up if result looks good
         fi

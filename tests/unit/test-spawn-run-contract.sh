@@ -235,7 +235,7 @@ printf '%s\n' '#!/usr/bin/env bash' \
     '  raw-spoof) printf "%s\n" "## Status: SUCCESS"; exit 1 ;;' \
     '  timeout) printf "%s\n" "partial output before timeout"; exit 124 ;;' \
     '  tempfail) printf "%s\n" "temporary provider failure" >&2; exit 75 ;;' \
-    '  tempfail-auth) if [[ ! -e "$AUTH75_ATTEMPT_FILE" ]]; then touch "$AUTH75_ATTEMPT_FILE"; printf "%s\n" "auth refresh needed" >&2; exit 75; fi; printf "%s\n" "Substantive result after auth retry." ;;' \
+    '  tempfail-auth) if [[ ! -e "$AUTH75_ATTEMPT_FILE" ]]; then touch "$AUTH75_ATTEMPT_FILE"; printf "%s\n" "token expired; refreshing" >&2; exit 75; fi; printf "%s\n" "Substantive result after auth retry." ;;' \
     '  quota-held|quota-marker-failure) printf "%s\n" "ERROR: You'\''ve hit your usage limit. Upgrade to Pro or try again at 10:32 PM." >&2; sleep 30 ;;' \
     '  quota-immediate) printf "%s\n" "ERROR: You'\''ve hit your usage limit. Try again at 10:32 PM." >&2; exit 1 ;;' \
     '  auth-held) printf "%s\n" "HTTP 401 Unauthorized" >&2; sleep 30 ;;' \
@@ -461,7 +461,17 @@ run_watched_fixture() {
                 octo_real_start_quota_watcher "$@"
             )
         fi
-        octopus_capture_provider_output() { octo_real_capture_provider_output "$@"; }
+        octopus_capture_provider_output() {
+            local capture_rc=0
+            octo_real_capture_provider_output "$@" || capture_rc=$?
+            # A peer can fail after this seat has already been admitted.
+            [[ "$task" != peer-termination ]] || octo_quota_mark_dead fake-api
+            return "$capture_rc"
+        }
+        if [[ "$task" == peer-termination ]]; then
+            source "$PROJECT_ROOT/scripts/provider-router.sh"
+            _PROVIDER_STATE_DIR="$TEST_TMP_DIR/peer-termination-breaker"
+        fi
         unset OCTOPUS_AGENT_TIMEOUT OCTOPUS_TIMEOUT_EXPLICIT OCTOPUS_TIMEOUT_EXPLICIT_SECS
         TIMEOUT="$timeout"
         if [[ "$scenario" == quota-injection || "$scenario" == terminated-injection ]]; then
@@ -1448,6 +1458,18 @@ if (
     test_pass
 else
     test_fail "SIGTERM diagnostic entered trusted metadata or lost its failed/143 classification"
+fi
+rm -f "$(octo_quota_dead_file)" "$(octo_quota_dead_meta_file)"
+
+test_case "a peer quota marker cannot reclassify external SIGTERM or charge the breaker"
+touch "$RESULTS_DIR/.tmp-peer-termination.quota.stop"
+run_watched_fixture terminated-injection peer-termination 30
+if [[ "$(octo_result_framed_sections "$RESULTS_DIR/fake-api-peer-termination.md" status)" == '## Status: FAILED (exit code: 143)' ]] &&
+   [[ "$(run_contract_latest_transition spawn-peer-termination)" == failed ]] &&
+   [[ ! -e "$TEST_TMP_DIR/peer-termination-breaker/fake-api.failures" ]]; then
+    test_pass
+else
+    test_fail "another seat's quota marker relabeled external termination or charged the breaker"
 fi
 rm -f "$(octo_quota_dead_file)" "$(octo_quota_dead_meta_file)"
 

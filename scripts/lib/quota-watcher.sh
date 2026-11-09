@@ -267,7 +267,10 @@ start_quota_watcher() {
 
     : > "$temp_err"
     : > "$temp_out"
-    [[ -z "$fired_file" ]] || rm -f "$fired_file"
+    if [[ -n "$fired_file" ]]; then
+        rm -f "${fired_file}.stop" || return 1
+        rm -f "$fired_file"
+    fi
 
     (
         _consecutive=0
@@ -283,6 +286,8 @@ start_quota_watcher() {
                     if [[ $_kill_attempts -eq 0 ]]; then
                         # Diagnostic persistence must not prevent the terminal stop.
                         if [[ -n "$fired_file" ]]; then
+                            # Keep stop attribution independent of optional diagnostics.
+                            : > "${fired_file}.stop" 2>/dev/null || true
                             quota_watcher_match_line "$temp_err" "$temp_out" > "$fired_file" 2>/dev/null || true
                         fi
                         log "WARN" "$warning_message"
