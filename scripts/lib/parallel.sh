@@ -320,6 +320,12 @@ parallel_execute() {
         fi
         [[ -n "$owner_python" ]] || return 1
         owner_lock=$(mktemp "$RESULTS_DIR/.parallel-owner.XXXXXX" 2>/dev/null) || { owner_lock=""; return 1; }
+        # The Python claim record uses an absolute path, including when the
+        # caller selected a relative results directory.
+        case "$owner_lock" in
+            /*) ;;
+            *) owner_lock="$(pwd -P)/$owner_lock" ;;
+        esac
         if ! { exec 7>"$owner_lock"; } 2>/dev/null || \
            ! "$owner_python" "$_parallel_claim_helper" hold 7 </dev/null; then
             exec 7>&-
@@ -822,15 +828,14 @@ parallel_execute() {
         # A durable seat cannot re-enter planned in the same run. Reject that
         # retry before deleting its saved answer, even if its output claim and
         # status ledger are terminal. Use a new task ID for a new attempt.
-        local contract_ledger="" contract_seat="spawn-$task_id"
+        local contract_seat="spawn-$task_id" contract_available=true
         if declare -F octo_run_contract_ledger_path >/dev/null 2>&1; then
-            contract_ledger="$(octo_run_contract_ledger_path)"
             if declare -F octo_spawn_contract_seat_id >/dev/null 2>&1; then
                 contract_seat="$(octo_spawn_contract_seat_id "$task_id")"
             fi
+            run_contract_seat_available "$contract_seat" || contract_available=false
         fi
-        if [[ -s "$contract_ledger" ]] && ! jq -es --arg seat "$contract_seat" \
-            'all(.seat_id != $seat)' "$contract_ledger" >/dev/null 2>&1; then
+        if [[ "$contract_available" != true ]]; then
             log ERROR "Cannot reuse durable seat $contract_seat; select a new task ID"
             _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" true \
                 failed contract-seat-unavailable ""

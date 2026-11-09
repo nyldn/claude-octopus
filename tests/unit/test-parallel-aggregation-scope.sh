@@ -325,7 +325,17 @@ for concurrency in 1 2; do
     else test_fail "dead workers blocked same-run retries"; fi
 done
 
-test_case "TERM after claim publication cannot strand an unregistered claim"
+for path_form in absolute relative; do
+test_case "TERM after $path_form claim publication cannot strand an unregistered claim"
+if (
+    trap - EXIT
+    export OCTOPUS_RUN_ID="claim-publication-$path_form"
+    if [[ "$path_form" == relative ]]; then
+        cd "$TEST_TMP_DIR"
+        RESULTS_DIR=relative-results
+        mkdir -p "$RESULTS_DIR"
+    fi
+    rm -f "$TEST_TMP_DIR/interrupted-spawn" "$TEST_TMP_DIR/publication-retry"
 claim_python="$TEST_TMP_DIR/claim-python"
 cat > "$claim_python" <<'SHIM'
 #!/usr/bin/env python3
@@ -355,10 +365,11 @@ if (
 spawn_agent_capture_pid() { touch "$TEST_TMP_DIR/publication-retry"; return 1; }
 AVAILABLE_AGENTS=codex
 parallel_execute "$TEST_TMP_DIR/tasks.json" > "$TEST_TMP_DIR/publication-retry.log" 2>&1 || true
-if [[ "$rc" == 143 && ! -e "$TEST_TMP_DIR/interrupted-spawn" && -e "$TEST_TMP_DIR/publication-retry" ]] &&
-   [[ ! -e "$RESULTS_DIR/.codex-publish-interrupt.claim" ]]; then
-    test_pass
-else test_fail "interrupted publication blocked retry, rc=$rc"; fi
+[[ "$rc" == 143 && ! -e "$TEST_TMP_DIR/interrupted-spawn" && -e "$TEST_TMP_DIR/publication-retry" ]] &&
+   [[ ! -e "$RESULTS_DIR/.codex-publish-interrupt.claim" ]]
+); then test_pass
+else test_fail "interrupted publication blocked retry for $path_form results"; fi
+done
 
 for damaged_ledger in truncated trailing; do
     test_case "a $damaged_ledger ownership ledger preserves output and blocks dispatch"
@@ -445,5 +456,70 @@ if (
     jq -e '.results[0].reason == "contract-seat-unavailable"' "$WORKSPACE_DIR/state/parallel-report.json" >/dev/null
 ); then test_pass
 else test_fail "rejected durable retry deleted saved artifacts or dispatched a provider"; fi
+
+test_case "parallel admission recovers an interrupted first contract append"
+if (
+    source "$PROJECT_ROOT/scripts/lib/spawn.sh"
+    export OCTOPUS_RUN_ID=recovery-admission
+    ledger="$(octo_run_contract_ledger_path)"
+    mkdir -p "$(dirname "$ledger")"
+    backup="${ledger}.rollback.fixture"
+    : > "$backup"
+    printf 'false\t%s\n' "$backup" > "${ledger}.recovery"
+    printf '{"seat_id":' > "$ledger"
+    mkdir -p "$RESULTS_DIR"
+    saved="$RESULTS_DIR/codex-fresh.md"
+    printf 'stale answer\n' > "$saved"
+    rm -f "$TEST_TMP_DIR/recovered-spawn"
+    spawn_agent_capture_pid() {
+        # The real contract writer must see the same recovered state.
+        octo_spawn_contract_plan "$3" "$1" '' '' parallel implementer || return 74
+        touch "$TEST_TMP_DIR/recovered-spawn"
+        return 74
+    }
+    AVAILABLE_AGENTS=codex
+    printf '{"tasks":[{"id":"fresh","agent":"codex","prompt":"inert"}]}' > "$TEST_TMP_DIR/tasks.json"
+    parallel_execute "$TEST_TMP_DIR/tasks.json" > "$TEST_TMP_DIR/recovery-admission.log" 2>&1 && exit 1
+    [[ -e "$TEST_TMP_DIR/recovered-spawn" && ! -e "${ledger}.recovery" && ! -e "$saved" ]] &&
+    jq -e '.results[0].reason == "failed-spawn"' "$WORKSPACE_DIR/state/parallel-report.json" >/dev/null &&
+    jq -e '.seat_id == "spawn-fresh" and .transition == "planned"' "$ledger" >/dev/null
+); then test_pass
+else test_fail "recoverable contract append blocked fresh admission"; fi
+
+for recovery_case in existing missing-backup malformed; do
+    test_case "contract admission preserves artifacts for $recovery_case state"
+    if (
+        source "$PROJECT_ROOT/scripts/lib/spawn.sh"
+        export OCTOPUS_RUN_ID="recovery-preserve-$recovery_case"
+        ledger="$(octo_run_contract_ledger_path)"
+        mkdir -p "$(dirname "$ledger")" "$RESULTS_DIR" "$WORKSPACE_DIR/.octo/agents"
+        saved="$RESULTS_DIR/codex-recover.md"
+        marker="$WORKSPACE_DIR/.octo/agents/recover.done"
+        printf 'saved answer\n' > "$saved"
+        printf '74\n' > "$marker"
+        case "$recovery_case" in
+            existing)
+                octo_spawn_contract_plan recover codex '' '' parallel implementer || exit 1
+                backup="${ledger}.rollback.fixture"
+                cp "$ledger" "$backup"
+                printf 'true\t%s\n' "$backup" > "${ledger}.recovery"
+                printf '{"seat_id":' >> "$ledger"
+                ;;
+            missing-backup)
+                printf 'true\t%s\n' "${ledger}.rollback.missing" > "${ledger}.recovery"
+                ;;
+            malformed) printf '{"seat_id":' > "$ledger" ;;
+        esac
+        rm -f "$TEST_TMP_DIR/unsafe-recovery-spawn"
+        spawn_agent_capture_pid() { touch "$TEST_TMP_DIR/unsafe-recovery-spawn"; return 74; }
+        AVAILABLE_AGENTS=codex
+        printf '{"tasks":[{"id":"recover","agent":"codex","prompt":"inert"}]}' > "$TEST_TMP_DIR/tasks.json"
+        parallel_execute "$TEST_TMP_DIR/tasks.json" > "$TEST_TMP_DIR/preserve-$recovery_case.log" 2>&1 && exit 1
+        [[ ! -e "$TEST_TMP_DIR/unsafe-recovery-spawn" && "$(cat "$saved")" == 'saved answer' &&
+           "$(cat "$marker")" == 74 ]] &&
+        jq -e '.results[0].reason == "contract-seat-unavailable"' "$WORKSPACE_DIR/state/parallel-report.json" >/dev/null
+    ); then test_pass
+    else test_fail "contract admission lost artifacts or dispatched for $recovery_case"; fi
+done
 
 test_summary

@@ -445,6 +445,21 @@ _octo_run_contract_snapshot_unlocked() {
     cat "$manifest"
 }
 
+# Check a candidate seat against committed state. This does not reserve the
+# seat; the subsequent planned transition still enforces admission atomically.
+run_contract_seat_available() (
+    local seat_id="${1:-}" ledger lock_target
+    [[ "$seat_id" =~ ^[A-Za-z0-9][A-Za-z0-9_.:-]*$ ]] || return 2
+    ledger="$(octo_run_contract_ledger_path)"
+    mkdir -p "$(dirname "$ledger")" 2>/dev/null || return 1
+    lock_target="$(octo_run_contract_lock_path)"
+    _octo_run_contract_lock "$lock_target" || return 1
+    trap '_octo_event_unlock "$lock_target"' EXIT
+    _octo_run_contract_recover_unlocked || return 1
+    [[ -e "$ledger" ]] || return 0
+    jq -es --arg seat "$seat_id" 'all(.seat_id != $seat)' "$ledger" >/dev/null 2>&1
+)
+
 run_contract_snapshot() (
     local ledger events_ledger lock_target output
     ledger="$(octo_run_contract_ledger_path)"

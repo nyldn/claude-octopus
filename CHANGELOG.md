@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- Parallel dispatch recovers interrupted contract writes before checking a new
+  seat, and interruption cleanup releases claims with relative result paths.
+  Unrecoverable ledgers and reused seats keep their saved outputs intact.
 - Parallel dispatch preserves saved results and completion markers when a
   repeated task ID cannot be admitted by its durable run contract. Use a new
   task ID for a new attempt in the same run.
