@@ -8,6 +8,9 @@
   owner record names, including seats inherited through an interrupted reclaim.
   A different task ID that maps to the same result file is no longer blocked by
   the exited owner's seat. Probe status rows use the canonical spawn seat ID.
+  An abnormal controller exit stops its workers before releasing their claims,
+  and a results path through a symlink and `..` addresses the same claim
+  directory as the shell.
 - Parallel dispatch recovers interrupted contract writes before checking a new
   seat, and interruption cleanup releases claims with relative result paths.
   Unrecoverable ledgers and reused seats keep their saved outputs intact.

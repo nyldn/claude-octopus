@@ -284,6 +284,22 @@ parallel_execute "$TASKS"
         """A failed unregistered release retains enough state for reclamation."""
         self.exercise(True, "rename")
 
+    def test_symlinked_parent_with_dotdot_resolves_physically(self):
+        """A link followed by .. addresses the directory the shell writes to."""
+        with tempfile.TemporaryDirectory(prefix="claim-physical-") as directory:
+            root = Path(directory)
+            (root / "physical" / "nested").mkdir(parents=True)
+            results = root / "physical" / "results"
+            results.mkdir()
+            (root / "link").symlink_to(root / "physical" / "nested")
+            owner = results / ".parallel-owner.physical"
+            owner.touch()
+            claim = f"{root}/link/../results/.answer.claim"
+            self.assertEqual(claims.acquire(claim, str(owner)), claims.ACQUIRED)
+            self.assertTrue((results / ".answer.claim" / "owner").is_file())
+            self.assertEqual(claims.release(claim, str(owner)), claims.ACQUIRED)
+            self.assertFalse((results / ".answer.claim").exists())
+
     def test_release_cannot_retire_another_owner(self):
         """An old controller must not delete a replacement owner's claim."""
         with tempfile.TemporaryDirectory(prefix="claim-owner-check-") as directory:

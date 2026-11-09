@@ -48,6 +48,16 @@ def recorded_seats(lines):
             and " " in line and valid_seat(line.split(" ", 1)[1])]
 
 
+def absolute_path(path):
+    """Make a path absolute without collapsing its parent segments.
+
+    os.path.abspath would turn "link/../results" into "results" before the
+    link resolves, so the helper could address a different directory than the
+    shell. Leaving ".." in place lets the kernel resolve it as the shell does.
+    """
+    return path if os.path.isabs(path) else os.path.join(os.getcwd(), path)
+
+
 def recorded_owner_lock(claim):
     """Read a validated sibling owner-lock path without following a symlink."""
     lines = read_record(claim)
@@ -96,17 +106,20 @@ def record_owner(claim, owner_lock, seat="", output="", reconcile=()):
 
 def acquire(claim, owner_lock, seat="", output=""):
     """Publish a complete claim, replacing only an exited owner's record."""
-    claim = os.path.abspath(claim)
-    owner_lock = os.path.abspath(owner_lock)
+    claim = absolute_path(claim)
+    owner_lock = absolute_path(owner_lock)
+    # tempfile returns lexically normalized names, so give it, and the guard,
+    # the directory the kernel resolves for this claim.
+    directory = os.path.realpath(os.path.dirname(claim))
     if seat and not valid_seat(seat):
         raise ValueError(f"invalid seat ID: {seat!r}")
     if "\n" in output or "\r" in output:
         raise ValueError("output path must be a single line")
-    with open(os.path.join(os.path.dirname(claim), GUARD), "a", encoding="utf-8") as guard:
+    with open(os.path.join(directory, GUARD), "a", encoding="utf-8") as guard:
         fcntl.flock(guard, fcntl.LOCK_EX)
         # Publish only a complete owner record. A killed preparer can leave a
         # private directory, but cannot strand an ownerless claim at this path.
-        with tempfile.TemporaryDirectory(prefix=".output-claim.", dir=os.path.dirname(claim)) as prepared:
+        with tempfile.TemporaryDirectory(prefix=".output-claim.", dir=directory) as prepared:
             stale = os.path.lexists(claim)
             stale_seats = []
             if stale:
@@ -126,7 +139,7 @@ def acquire(claim, owner_lock, seat="", output=""):
                     # A crash or cleanup error must never leave an ownerless
                     # public claim that all later acquisitions treat as live.
                     with tempfile.TemporaryDirectory(prefix=".retired-claim.",
-                                                     dir=os.path.dirname(claim)) as retired:
+                                                     dir=directory) as retired:
                         os.rename(claim, retired)
                 except OSError:
                     return OWNED
@@ -140,9 +153,12 @@ def acquire(claim, owner_lock, seat="", output=""):
 
 def release(claim, owner_lock):
     """Retire a claim under the acquisition guard without losing its owner."""
-    claim = os.path.abspath(claim)
-    owner_lock = os.path.abspath(owner_lock)
-    with open(os.path.join(os.path.dirname(claim), GUARD), "a", encoding="utf-8") as guard:
+    claim = absolute_path(claim)
+    owner_lock = absolute_path(owner_lock)
+    # tempfile returns lexically normalized names, so give it, and the guard,
+    # the directory the kernel resolves for this claim.
+    directory = os.path.realpath(os.path.dirname(claim))
+    with open(os.path.join(directory, GUARD), "a", encoding="utf-8") as guard:
         fcntl.flock(guard, fcntl.LOCK_EX)
         if not os.path.lexists(claim):
             return ACQUIRED
@@ -150,7 +166,7 @@ def release(claim, owner_lock):
             return OWNED
         try:
             with tempfile.TemporaryDirectory(prefix=".retired-claim.",
-                                             dir=os.path.dirname(claim)) as retired:
+                                             dir=directory) as retired:
                 os.rename(claim, retired)
         except OSError:
             return OWNED
