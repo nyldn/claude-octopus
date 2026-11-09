@@ -528,6 +528,55 @@ def terminate(pid, grace=1, frozen=False, descendants=False, expected=None, owne
                 signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
 
 
+def handoff_to_children(pid, expected=None):
+    """Ask bound supervision children to clean up, without killing their handlers."""
+    if pid == os.getpid():
+        raise ValueError("refusing to freeze self for supervisor handoff")
+    excluded = _ancestors()
+    with Process(pid, expected=expected) as root:
+        handles = []
+        stopped = False
+        try:
+            if not root.info.stopped:
+                # Freeze only the caller, not the supervision children whose
+                # TERM handlers own private groups, including orphaned helpers.
+                stopped = True
+                if not root.send(signal.SIGSTOP):
+                    raise StaleProcess("caller exited before supervisor handoff")
+                deadline = time.monotonic() + 1
+                while not snapshot(pid).stopped:
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError("caller did not stop before supervisor handoff")
+                    time.sleep(0.01)
+            for child in children(pid):
+                if child in excluded:
+                    continue
+                if len(handles) >= 4096:
+                    raise OSError(errno.EOVERFLOW, "supervision children exceed cancellation limit")
+                try:
+                    handle = Process(child, parent=pid)
+                except ProcessLookupError:
+                    continue
+                handles.append(handle)
+            if not root.running() or not handles:
+                raise StaleProcess("no live supervision child could be bound")
+            for handle in handles:
+                handle.send(signal.SIGTERM)
+            # Never escalate to KILL: the child may still own group cleanup.
+            return "terminated" if _wait(handles, 5) else "survived"
+        finally:
+            previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT, signal.SIGTERM})
+            try:
+                if stopped:
+                    root.send(signal.SIGCONT)
+            finally:
+                try:
+                    for handle in handles:
+                        handle.close()
+                finally:
+                    signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
+
+
 def main():
     """Expose native cleanup and report incomplete ownership verification."""
     def interrupted(signum, _frame):
@@ -542,11 +591,17 @@ def main():
     parser.add_argument("--frozen", action="store_true")
     parser.add_argument("--descendants", action="store_true")
     parser.add_argument("--owned-groups", action="store_true")
+    parser.add_argument("--supervisor-handoff", action="store_true")
     args = parser.parse_args()
     if not 0 <= args.grace <= 60:
         parser.error("grace must be between 0 and 60 seconds")
     try:
-        result = terminate(args.pid, args.grace, args.frozen, args.descendants, args.identity, args.owned_groups)
+        if args.supervisor_handoff:
+            if args.frozen or args.descendants or args.owned_groups:
+                parser.error("supervisor handoff cannot be combined with tree teardown")
+            result = handoff_to_children(args.pid, args.identity)
+        else:
+            result = terminate(args.pid, args.grace, args.frozen, args.descendants, args.identity, args.owned_groups)
         print(result)
         return int(result == "survived")
     except (OSError, StaleProcess, UnsupportedPlatform, ValueError, subprocess.SubprocessError) as error:

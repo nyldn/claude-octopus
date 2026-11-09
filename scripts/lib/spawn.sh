@@ -23,10 +23,11 @@ fi
 
 quota_watcher_kill_spawn_children() {
     local spawn_pid="$1"
-    # Bind the whole owned tree before stopping its supervisor. Killing only
-    # that direct child can orphan provider/timer groups and their descriptors.
+    # The timeout supervisor already owns its private groups. Deliver TERM by
+    # native identity and let its handler finish, even if the provider leader
+    # has been reaped or a global process snapshot cannot stabilize.
     if ! _octo_pid_python_run "${_octopus_spawn_lib_dir}/../helpers/process_control.py" \
-        "$spawn_pid" --frozen --descendants --owned-groups >/dev/null; then
+        "$spawn_pid" --supervisor-handoff >/dev/null; then
         log "ERROR" "Quota cleanup refused: owned descendants could not be verified" 2>/dev/null || true
         return 1
     fi

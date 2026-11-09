@@ -323,54 +323,76 @@ while not (root / "helper.pid").exists():
 print("ERROR: Individual quota reached.", file=sys.stderr, flush=True)
 time.sleep(30)
 PROVIDER
-        if [[ "$admission_mode" != stable ]]; then
-            cat > "$QUOTA_ORPHAN_FIXTURE/admission.py" <<'ADMISSION'
+        if [[ "$admission_mode" == reaped ]]; then
+            eval "$(declare -f _octo_timeout_job_is_running |
+                sed '1s/_octo_timeout_job_is_running/real_job_is_running/')"
+            _octo_timeout_job_is_running() {
+                local status=0
+                real_job_is_running "$@" || status=$?
+                if [[ "$1" == "${provider_pid:-}" && "$status" == 0 &&
+                      -e "$QUOTA_ORPHAN_FIXTURE/helper.pid" &&
+                      ! -e "$QUOTA_ORPHAN_FIXTURE/reaped" ]]; then
+                    # The supervisor owns this unreaped job. Reap it after the
+                    # real running check, then hold its pending group cleanup.
+                    kill -KILL "$provider_pid"
+                    wait "$provider_pid" 2>/dev/null || true
+                    touch "$QUOTA_ORPHAN_FIXTURE/reaped"
+                    while :; do /bin/sleep 0.02; done
+                fi
+                return "$status"
+            }
+        elif [[ "$admission_mode" == churn ]]; then
+            cat > "$QUOTA_ORPHAN_FIXTURE/churn.py" <<'CHURN'
+from contextlib import contextmanager
 import importlib.util
 import os
 from pathlib import Path
-import signal
+import subprocess
 import sys
-import time
 
 spec = importlib.util.spec_from_file_location("process_control", sys.argv.pop(1))
 control = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(control)
 root = Path(os.environ["QUOTA_ORPHAN_FIXTURE"])
-original_init = control.Process.__init__
-original_send = control.Process.send
-mode = os.environ["QUOTA_ADMISSION_MODE"]
+original_scandir = os.scandir
+original_read = Path.read_bytes
+pending = {}
 
-def exit_leader(pid, parent):
-    assert control.snapshot(parent).stopped
-    with control.Process(pid) as leader:
-        leader.send(signal.SIGKILL)
-        deadline = time.monotonic() + 2
-        while leader.running() and time.monotonic() < deadline:
-            time.sleep(0.005)
-        assert not leader.running(), "leader did not exit at the barrier"
-    (root / "barrier").touch()
+@contextmanager
+def scandir(path):
+    if str(path) != "/proc":
+        with original_scandir(path) as entries:
+            yield entries
+        return
+    # Each real procfs snapshot contains an unrelated process that exits just
+    # before its stat read. Complete global scans therefore never stabilize.
+    with subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"]) as child:
+        pending[str(Path("/proc", str(child.pid), "stat"))] = child
+        try:
+            with original_scandir(path) as entries:
+                yield iter(list(entries))
+        finally:
+            child.kill()
+            child.wait()
+            pending.clear()
 
-def bind(self, pid, **kwargs):
-    if mode == "exiting" and kwargs.get("parent") and pid == int((root / "provider.pid").read_text()):
-        exit_leader(pid, kwargs["parent"])
-    original_init(self, pid, **kwargs)
-    self.test_parent = kwargs.get("parent")
+def read(path):
+    child = pending.get(str(path))
+    if child is not None:
+        child.kill()
+        child.wait()
+        with (root / "churn").open("a") as record:
+            record.write("exit\n")
+    return original_read(path)
 
-def send(self, signum):
-    if mode == "stopping" and signum == signal.SIGSTOP and self.info.pid == int((root / "provider.pid").read_text()):
-        exit_leader(self.info.pid, self.test_parent)
-    return original_send(self, signum)
-
-control.Process.__init__ = bind
-control.Process.send = send
-rc = control.main()
-(root / "cleanup-status").write_text(str(rc))
-sys.exit(rc)
-ADMISSION
+os.scandir = scandir
+Path.read_bytes = read
+sys.exit(control.main())
+CHURN
             eval "$(declare -f _octo_pid_python_run | sed '1s/_octo_pid_python_run/real_pid_python_run/')"
             _octo_pid_python_run() {
-                if [[ "$1" == */process_control.py && " $* " == *' --owned-groups '* ]]; then
-                    real_pid_python_run "$QUOTA_ORPHAN_FIXTURE/admission.py" "$@"
+                if [[ "$1" == */process_control.py ]]; then
+                    real_pid_python_run "$QUOTA_ORPHAN_FIXTURE/churn.py" "$@"
                 else
                     real_pid_python_run "$@"
                 fi
@@ -386,7 +408,7 @@ ADMISSION
                     quota_watcher_kill_spawn_children quota orphan-fixture \
                     "$QUOTA_ORPHAN_FIXTURE/fired")
                 capture_rc=0
-                octopus_capture_provider_output question 60 "$QUOTA_ORPHAN_FIXTURE/in" \
+                octopus_capture_provider_output question 16 "$QUOTA_ORPHAN_FIXTURE/in" \
                     "$QUOTA_ORPHAN_FIXTURE/out" "$QUOTA_ORPHAN_FIXTURE/err" \
                     python3 "$QUOTA_ORPHAN_FIXTURE/provider.py" || capture_rc=$?
                 printf '%s\n' "$capture_rc" > "$QUOTA_ORPHAN_FIXTURE/status"
@@ -403,9 +425,8 @@ ADMISSION
         [[ "$worker" =~ ^[0-9]+$ && "$elapsed" -lt 15 && \
            -s "$QUOTA_ORPHAN_FIXTURE/fired" ]] || exit 1
         [[ "$(cat "$QUOTA_ORPHAN_FIXTURE/status")" =~ ^(137|143)$ ]] || exit 1
-        if [[ "$admission_mode" != stable ]]; then
-            [[ -e "$QUOTA_ORPHAN_FIXTURE/barrier" &&
-               "$(cat "$QUOTA_ORPHAN_FIXTURE/cleanup-status")" == 1 ]] || exit 1
+        if [[ "$admission_mode" == reaped ]]; then
+            [[ -e "$QUOTA_ORPHAN_FIXTURE/reaped" ]] || exit 1
         fi
         [[ -z "$helper_state" || "$helper_state" == *Z* ]]
     ); then test_pass
@@ -485,8 +506,8 @@ test_quota_dead_mark_expires
 test_check_providers_applies_dead_marker_to_every_provider
 test_quota_cleanup_preserves_supervisor_owned_groups
 test_quota_cleanup_stops_reparented_group_member
-test_quota_cleanup_stops_reparented_group_member exiting
-test_quota_cleanup_stops_reparented_group_member stopping
+test_quota_cleanup_stops_reparented_group_member reaped
+test_quota_cleanup_stops_reparented_group_member churn
 test_quota_cleanup_retries_refusal
 test_quota_cleanup_refuses_unverified_processes
 

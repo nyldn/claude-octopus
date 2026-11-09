@@ -26,26 +26,21 @@ an `unverified` result. This helper never falls back to numeric PID or process-g
 signals. An exited group leader alone is not proof that its former group still
 belongs to Octopus. Cancellation can clean descendants it captured while the
 original worker was alive, but cannot safely recover an already-orphaned group
-from its numeric group ID alone. Quota cleanup can also capture reparented
-members of a private group while its original leader remains a verified,
-stopped descendant. It enumerates group membership from Linux procfs or a bounded macOS `/bin/ps`
-query, binds each member to its native identity, and rescans after freezing
-new members. A member that exits before identity capture requests another scan
-while verified processes remain stopped. A newly exited member observed during group enumeration also requests a rescan;
-an unchanged, confirmed zombie birth identity does not repeat that request.
-A vanished Linux stat record discards the incomplete snapshot because its former
-group is unknown. Up to five internal snapshot attempts keep the owner stopped;
-persistent churn refuses cleanup, and the watcher can retry that refusal.
-Five unstable scans, a missing leader,
-changed membership or failed enumeration refuses cleanup; it never sends a
-signal to a numeric group ID. The quota
-watcher retries refused cleanup up to five times while the worker remains alive,
-then reports that provider work may still be running.
+from its numeric group ID alone. The optional owned-group tree cleanup path can
+bind reparented members while their original private leader is still a verified,
+stopped descendant. Incomplete enumeration refuses cleanup and resumes processes
+it stopped. It never signals a numeric group ID.
 
-If a listed descendant disappears before its identity is bound or while it is frozen, owned-group
-cleanup refuses before killing the timeout supervisor and resumes stopped
-processes. The supervisor retains its own process-group cleanup responsibility.
-On macOS, confirmed zombie identities use XNU's explicit zombie lookup.
+Quota cleanup uses the timeout supervisor's existing ownership instead of
+reconstructing its groups. It freezes the worker, binds its direct supervision
+children by native identity and parent relationship, and delivers TERM. Their
+handlers clean up the private provider and timer groups, including reparented
+helpers whose original leader has already exited. The native handoff waits at
+most five seconds and never escalates to KILL, which could interrupt a pending
+cleanup handler. It resumes only a worker it stopped. A missing child, failed
+identity check, permission error or surviving supervisor reports refusal; the
+quota watcher retries up to five times and then reports that work may remain.
+This path does not require a complete global process snapshot.
 
 Worker registration checks native cancellation support before provider dispatch.
 If cleanup later fails, workflow cancellation retains the worker ledger for retry

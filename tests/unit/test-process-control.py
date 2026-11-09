@@ -59,6 +59,52 @@ class ProcessControlTests(unittest.TestCase):
         self.assertEqual(first.token, second.token)
         self.assertEqual(first.ppid, os.getpid())
 
+    def test_handoff_enumeration_failure_resumes_the_caller(self):
+        root = self._private_group_leader()
+        with mock.patch.object(control, "children", side_effect=PermissionError("denied")):
+            with self.assertRaises(PermissionError):
+                control.handoff_to_children(root.pid)
+        self.assertFalse(control.snapshot(root.pid).stopped)
+        self.assertIsNone(root.poll())
+
+    def test_handoff_rejects_a_changed_caller_identity_without_signalling(self):
+        root = self._private_group_leader()
+        with mock.patch.object(control.Process, "send") as send:
+            with self.assertRaises(control.StaleProcess):
+                control.handoff_to_children(root.pid, "wrong-birth")
+            send.assert_not_called()
+
+    def test_handoff_cannot_freeze_its_own_process(self):
+        with mock.patch.object(control.Process, "send") as send:
+            with self.assertRaises(ValueError):
+                control.handoff_to_children(os.getpid())
+            send.assert_not_called()
+
+    def test_handoff_does_not_kill_a_supervisor_that_still_owns_cleanup(self):
+        with tempfile.TemporaryDirectory(prefix="octo-handoff-test-") as temporary:
+            marker = Path(temporary) / "child"
+            child_code = ("import os,pathlib,signal,time; "
+                          "signal.signal(signal.SIGTERM,signal.SIG_IGN); "
+                          f"pathlib.Path({str(marker)!r}).write_text(str(os.getpid())); "
+                          "time.sleep(30)")
+            root = self.child(
+                "import subprocess,sys,time; "
+                f"p=subprocess.Popen([sys.executable,'-c',{child_code!r}]); "
+                "time.sleep(30)"
+            )
+            deadline = time.monotonic() + 3
+            while not marker.exists() and time.monotonic() < deadline:
+                time.sleep(0.01)
+            self.assertTrue(marker.exists())
+            with control.Process(int(marker.read_text())) as child:
+                try:
+                    with mock.patch.object(control, "_wait", return_value=False):
+                        self.assertEqual(control.handoff_to_children(root.pid), "survived")
+                    self.assertTrue(child.running())
+                    self.assertFalse(control.snapshot(root.pid).stopped)
+                finally:
+                    child.send(signal.SIGKILL)
+
     def test_expected_identity_is_required_before_binding(self):
         child = self.child()
         with self.assertRaises(control.StaleProcess):

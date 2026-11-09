@@ -49,9 +49,11 @@
 
 ### Fixed
 
-- Quota cleanup preserves the timeout supervisor when a listed private leader
-  exits before identity admission or freezing, so the supervisor can finish group cleanup.
-  macOS zombie admission uses explicit native zombie lookup.
+- Quota cleanup delivers an identity-bound TERM to the timeout supervisor and
+  lets its handler finish. Reparented helpers are cleaned up even when the
+  provider leader has been reaped, and unrelated process exits cannot exhaust
+  global-snapshot retries. The handoff never forcibly kills a pending handler.
+  macOS zombie admission in optional owned-group cleanup uses native zombie lookup.
 - A peer seat's quota marker no longer relabels an externally terminated call
   or adds a false circuit-breaker failure. Quota stop attribution stays local
   to the current attempt even when its diagnostic cannot be written.
@@ -66,14 +68,8 @@
   Lock contention does not turn an expired cooldown into an open circuit, and
   failure-log trimming uses private temporary files without following stale links.
   Quota stops also clean up owned provider and timer processes, so a stopped
-  call does not wait for a leftover timeout before returning. Helpers already
-  reparented within a still-owned private group are captured by native identity
-  before the timeout supervisor stops. A member that exits before identity capture
-  requests a bounded rescan without resuming verified processes. Persistent
-  churn refuses cleanup instead of hiding an unseen child. Group enumeration
-  retains zombie members and refuses vanished stat records so a concurrent fork
-  cannot hide a newborn before identity admission. Refused cleanup is
-  retried up to five times, with a visible error if ownership cannot be verified.
+  call does not wait for a leftover timeout before returning. Refused handoffs
+  are retried up to five times, with a visible error if cleanup cannot finish.
 - Direct spawns respect terminal quota and auth markers even when no transient
   cooldown is active. Provider reset hints remain inside untrusted result frames.
 - Quota and termination status summaries use launcher-authored reasons so provider diagnostics
