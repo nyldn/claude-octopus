@@ -918,7 +918,19 @@ get_agent_command() {
                     log ERROR "OpenCode version unavailable; cannot select a safe server mode"
                     return 1
                 }
-                [[ "$oc_major" != 2 ]] || oc_standalone="--standalone "
+                if [[ "$oc_major" == 2 ]]; then
+                    # The private server shares SQLite credentials and session
+                    # state. The bounded filesystem has no safe writable
+                    # projection for that store yet; never select a shared
+                    # server or hide saved logins behind an empty database.
+                    if [[ "$phase" == tangle ]] &&
+                       [[ "${OCTOPUS_TANGLE_EXECUTION_BOUNDARY:-false}" == true ||
+                          "${OCTOPUS_TANGLE_WRITE_SCOPE_MODE:-strict}" == adaptive ]]; then
+                        log ERROR "OpenCode 2.x bounded Tangle requires saved-login-preserving session storage; this dispatch is unavailable"
+                        return 125
+                    fi
+                    oc_standalone="--standalone "
+                fi
             fi
             echo "env OPENCODE_PURE=1 opencode run ${oc_standalone}${oc_model_flag}"
             ;;

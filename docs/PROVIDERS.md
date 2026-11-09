@@ -504,10 +504,14 @@ OpenCode seats.
 
 Background version detection and login checks run from the worker's project
 directory, so relative executable paths and directory-sensitive shims select
-the same CLI generation as execution. Standalone 2.x session creation inside
-the bounded Tangle filesystem still requires host acceptance. Its default
-SQLite state is outside the writable worktree. Do not switch to the shared
-server or broaden writable host mounts to work around that limitation.
+the same CLI generation as execution. OpenCode 2.x bounded Tangle dispatch is
+unavailable: its private server needs writable session state in the same SQLite
+store as saved credentials, outside the writable worktree. Command construction
+refuses this path before starting a model task, including adaptive write scope.
+Other workflows retain standalone dispatch. Supporting bounded Tangle still
+requires a saved-login-preserving state design and session-creation acceptance
+on a capable host. Do not switch to the shared server or broaden writable host
+mounts to work around that limitation.
 
 Live checks use bounded version and login commands. OpenCode 1.x must report a
 positive credential or environment-variable count. OpenCode 2.x checks

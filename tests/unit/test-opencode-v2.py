@@ -88,6 +88,28 @@ fi
         result = self.shell('source scripts/lib/dispatch.sh; get_agent_model() { echo vendor/model; }; get_agent_command opencode')
         self.assertNotEqual(result.returncode, 0)
 
+    def test_bounded_v2_refuses_before_launch_without_changing_saved_login(self):
+        """A private server must not start with unwritable session storage."""
+        self.env["CLI_VERSION"] = "2.0.23"
+        database = self.data / "opencode.db"
+        database.write_bytes(b"saved-login-fixture")
+        script = ('source scripts/lib/dispatch.sh; log() { printf "%s\\n" "$2" >&2; }; '
+                  'get_agent_model() { echo vendor/model; }; get_agent_command opencode tangle')
+        for boundary, scope, refused in (("true", "strict", True), ("false", "adaptive", True),
+                                          ("false", "strict", False)):
+            with self.subTest(boundary=boundary, scope=scope):
+                self.env.update(OCTOPUS_TANGLE_EXECUTION_BOUNDARY=boundary,
+                                OCTOPUS_TANGLE_WRITE_SCOPE_MODE=scope)
+                result = self.shell(script)
+                if refused:
+                    self.assertEqual(result.returncode, 125, result.stderr)
+                    self.assertEqual(result.stdout, "")
+                    self.assertIn("saved-login-preserving session storage", result.stderr)
+                else:
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn("run --standalone", result.stdout)
+                self.assertEqual(database.read_bytes(), b"saved-login-fixture")
+
     def test_health_failure_uses_the_callers_logger(self):
         self.env.update(CLI_VERSION="2.0.23", AUTH_JSON="[]")
         result = self.shell('source scripts/lib/providers.sh; '
