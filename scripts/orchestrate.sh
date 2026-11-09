@@ -56,6 +56,16 @@ fi
 if [[ "${BASH_SOURCE[0]}" == "${0}" && "$_octo_early_index" -eq 0 ]]; then
     _octo_early_tail=("${_octo_early_args[@]:1}")
     case "$_octo_early_command" in
+        help|-h|--help)
+            source "${SCRIPT_DIR}/lib/usage-help.sh"
+            octopus_help_colors
+            octopus_help_defaults
+            if [[ "$_octo_early_command" == help ]]; then
+                usage "${_octo_early_tail[@]}"
+            else
+                usage "$@"
+            fi
+            ;;
         guide) exec python3 "${SCRIPT_DIR}/guide.py" "${_octo_early_tail[@]}" ;;
         auto)
             if [[ "${#_octo_early_tail[@]}" -eq 1 ]]; then
@@ -268,6 +278,7 @@ source "${SCRIPT_DIR}/lib/smoke.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/config-display.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/yaml-workflow.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/quality.sh" 2>/dev/null || true
+octopus_help_defaults
 source "${SCRIPT_DIR}/lib/agent-utils.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/memory.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/session.sh" 2>/dev/null || true
@@ -698,17 +709,7 @@ trap 'octopus_orchestrator_handle_signal TERM' TERM
 PREFLIGHT_CACHE_FILE="${WORKSPACE_DIR}/.preflight-cache"
 PREFLIGHT_CACHE_TTL=3600  # 1 hour in seconds
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-MAGENTA='\033[0;35m'
-PURPLE='\033[0;35m'  # Alias for MAGENTA — used by setup_wizard banner
-DIM='\033[2m'
-BOLD='\033[1m'
-NC='\033[0m' # No Color
+octopus_help_colors
 
 # Box-drawing separator variables (v9.4.2 — avoids repeating long literals in echo lines)
 # Only the 59-char-wide variants; wider boxes (63/38-char) remain inline.
@@ -991,42 +992,7 @@ SKILLEOF
 # v4.0 FEATURE: SIMPLIFIED CLI WITH PROGRESSIVE DISCLOSURE
 # ═══════════════════════════════════════════════════════════════════════════
 
-# Simple help for beginners (default)
-usage_simple() {
-    cat << EOF
-${MAGENTA}
-   ___  ___ _____  ___  ____  _   _ ___
-  / _ \/ __|_   _|/ _ \|  _ \| | | / __|
- | (_) |__ \ | | | (_) | |_) | |_| \__ \\
-  \___/|___/ |_|  \___/|____/ \___/|___/
-${NC}
-${CYAN}Claude Octopus${NC} - Multi-agent AI orchestration made simple.
-
-${YELLOW}Quick Start:${NC}
-  ${GREEN}auto${NC} <prompt>           Let AI choose the best approach ${GREEN}(recommended)${NC}
-  ${GREEN}embrace${NC} <prompt>        Full 4-phase workflow (research → define → develop → deliver)
-  ${GREEN}setup${NC}                   Configure everything (run this first!)
-
-${YELLOW}Examples:${NC}
-  $(basename "$0") auto "build a login form with validation"
-  $(basename "$0") auto "research best practices for caching"
-  $(basename "$0") embrace "implement user authentication system"
-
-${YELLOW}Common Options:${NC}
-  -v, --verbose           Show detailed progress
-  --debug                 Enable debug logging (very verbose)
-  -n, --dry-run           Preview without executing
-  -Q, --quick             Use faster/cheaper models
-  -P, --premium           Use most capable models
-
-${YELLOW}Learn More:${NC}
-  $(basename "$0") help --full        Show all commands and options
-  $(basename "$0") help <command>     Get help for specific command
-
-${CYAN}https://github.com/nyldn/claude-octopus${NC}
-EOF
-    exit 0
-}
+# Help renderers live in lib/usage-help.sh.
 
 # Command-specific help
 # [EXTRACTED to lib/usage-help.sh]
@@ -1086,29 +1052,6 @@ list_available_skills() {
     echo "  ./scripts/orchestrate.sh spawn <agent> \"prompt\""
     echo "  ./scripts/orchestrate.sh auto \"prompt\"  # Smart routing"
     echo ""
-}
-
-# Main usage router
-usage() {
-    local show_full=false
-    local help_cmd=""
-
-    # Check for --full flag or command argument
-    for arg in "$@"; do
-        case "$arg" in
-            --full|-f) show_full=true ;;
-            -*) ;; # ignore other flags
-            *) help_cmd="$arg" ;;
-        esac
-    done
-
-    if [[ -n "$help_cmd" ]]; then
-        usage_command "$help_cmd"
-    elif [[ "$show_full" == "true" ]]; then
-        usage_full
-    else
-        usage_simple
-    fi
 }
 
 _LOG_TS=""

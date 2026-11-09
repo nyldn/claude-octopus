@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "11.18.0"
+    "version": "11.19.0"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v11.18.0 - Rubric-guided refinement, bounded improvement loops, and safer guard and review workflows. 31 personas, 56 commands, 64 skills. Run /octo:setup.",
-      "version": "11.18.0",
+      "description": "v11.19.0 - Verified decks and configurable reasoning effort. 31 personas, 56 commands, 64 skills. Run /octo:setup.",
+      "version": "11.19.0",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"
