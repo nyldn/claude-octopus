@@ -103,8 +103,16 @@ requests. Deterministic shell tests separately cover routing and command
 validation. These small cases measure preconditions and accidental activation;
 they do not establish judge quality or successful multi-provider execution.
 
-On Claude Code v2.1.269 or later, run `make test-native-evals` for one bounded
-pass. Each case uses at most six turns and 90 seconds. The command limits the
+On Claude Code v2.1.269 or later, run `make test-native-evals` from a source
+checkout for one bounded pass. From an extracted package, run this equivalent
+command in the plugin directory:
+
+```bash
+claude plugin eval . --runs 1 --ablation none --model opus --concurrency 1 \
+  --max-cost-usd 3 --no-publish --trust-plugin
+```
+
+Each case uses at most six turns and 90 seconds. The command limits the
 list-price estimate to $3 and runs one case at a time, with local reports and
 no shell, write, network or live MCP grants. The estimate is checked between
 runs, so an in-flight run can exceed it. Reports contain prompts and model
