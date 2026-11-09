@@ -47,7 +47,8 @@ resolver = 'source "$1/scripts/lib/heartbeat.sh"; source "$1/scripts/lib/agent-s
 effective = subprocess.check_output(['bash', '-c', resolver, 'test', os.environ['REFINE_TEST_ROOT'], sys.argv[2]],
     env=dict(os.environ, OCTOPUS_TIMEOUT_EXPLICIT='1', OCTOPUS_TIMEOUT_EXPLICIT_SECS=sys.argv[2]), text=True).strip()
 print(json.dumps({"argv":sys.argv[1:], "judge":os.environ["OCTOPUS_REFINEMENT_JUDGE"], "retry":os.environ["OCTOPUS_AUTH_RETRIES"],
- "sandbox":os.environ["OCTOPUS_CODEX_SANDBOX"], "claude":os.environ["OCTOPUS_CLAUDE_BIN"], "effective_timeout":effective}))
+ "sandbox":os.environ["OCTOPUS_CODEX_SANDBOX"], "claude":os.environ["OCTOPUS_CLAUDE_BIN"], "effective_timeout":effective,
+ "advisor_disabled":os.environ["CLAUDE_CODE_DISABLE_ADVISOR_TOOL"], "advisor":os.environ["OCTOPUS_CLAUDE_ADVISOR"]}))
 ''')
     runner.chmod(0o755)
     prompt = fixture / "prompt with spaces"
@@ -58,6 +59,7 @@ print(json.dumps({"argv":sys.argv[1:], "judge":os.environ["OCTOPUS_REFINEMENT_JU
     result = subprocess.run(args, env=environment, capture_output=True, text=True, check=True)
     data = json.loads(result.stdout)
     assert data["judge"] == "true", data
+    assert data["advisor_disabled"] == "1" and data["advisor"] == "off", data
     assert data["retry"] == "0" and data["sandbox"] == "read-only", data
     assert data["claude"] == "custom-claude --setting-sources project,local --tools Read,Glob,Grep --strict-mcp-config", data
     assert data["argv"] == ["--timeout", "8", "probe-single", "codex:exact-model",
