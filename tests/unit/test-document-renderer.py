@@ -172,12 +172,17 @@ class DocumentRendererTest(unittest.TestCase):
             self.assertIn("document-renderer.py", text)
             self.assertIn("advertised", text)
 
-    def test_board_outline_carries_decision_materials_before_approval(self):
-        """The shipped board example must not fall back to an agenda-first deck."""
+    def _board_outlines(self):
+        """Read the outline contract from each shipped host tree."""
         for tree in (".claude/skills", "skills"):
+            deck = (ROOT / tree / "skill-deck/SKILL.md").read_text()
+            outline = deck.split("### Step 3: Generate Outline", 1)[1].split("### Step 4:", 1)[0]
+            yield tree, deck, outline
+
+    def test_board_outline_carries_decision_materials_before_approval(self):
+        """Decision slides include the recommendation, alternatives and sourced proof."""
+        for tree, deck, outline_step in self._board_outlines():
             with self.subTest(tree=tree):
-                deck = (ROOT / tree / "skill-deck/SKILL.md").read_text()
-                outline_step = deck.split("### Step 3: Generate Outline", 1)[1].split("### Step 4:", 1)[0]
                 board = outline_step.split("#### Executive and board outline", 1)[1].split("#### Board outline check", 1)[0]
                 slides = dict(re.findall(r"^## Slide (\d+): (.*?)(?=^## Slide |^```)",
                                          board, re.MULTILINE | re.DOTALL))
@@ -194,6 +199,11 @@ class DocumentRendererTest(unittest.TestCase):
                     self.assertIn(requirement, slides["5"])
                 self.assertIn("Appendix", slides["6"])
                 self.assertIn("expected question", slides["6"])
+
+    def test_board_outline_requests_missing_material_before_approval(self):
+        """Readiness requires missing material and explicit user approval."""
+        for tree, deck, outline_step in self._board_outlines():
+            with self.subTest(tree=tree):
                 gate = outline_step.split("#### Board outline check", 1)[1]
                 self.assertIn("before asking for outline approval", gate)
                 self.assertIn("Do not invent", gate)
@@ -202,6 +212,10 @@ class DocumentRendererTest(unittest.TestCase):
                 self.assertIn("one backup slide per expected question", gate)
                 self.assertIn("MUST approve", gate)
 
+    def test_board_outline_preserves_informational_purpose_and_target(self):
+        """Informational briefs and selected slide targets retain their scope."""
+        for tree, deck, outline_step in self._board_outlines():
+            with self.subTest(tree=tree):
                 purpose = outline_step.split("#### Executive and board outline", 1)[0]
                 self.assertIn("informational", purpose)
                 self.assertIn("Q1 results", purpose)
@@ -217,6 +231,11 @@ class DocumentRendererTest(unittest.TestCase):
                 sizing = " ".join(sizing.split())
                 self.assertRegex(sizing, r"If the user selects a five-slide target, combine")
                 self.assertIn("Preserve the selected slide range for longer targets", sizing)
+
+    def test_board_audience_and_closing_rules_preserve_purpose(self):
+        """Audience and closing rules keep actions conditional and before the appendix."""
+        for tree, deck, outline_step in self._board_outlines():
+            with self.subTest(tree=tree):
                 rules = deck.split("## Slide Structure Best Practices", 1)[1].split("### By Audience Type", 1)[0]
                 cta_rule = next(line for line in rules.splitlines() if "**Next steps / CTA**" in line)
                 self.assertIn("last main-deck slide", cta_rule)
@@ -232,8 +251,6 @@ class DocumentRendererTest(unittest.TestCase):
                 self.assertIn("decision or informational purpose in Step 3", " ".join(audience.split()))
                 self.assertIn("only when a decision is requested", " ".join(audience.split()))
                 self.assertIn("Include financial implications only when relevant and supported by sources", " ".join(audience.split()))
-
-
 
     def test_deck_completion_requires_rendered_slide_evidence(self):
         """Saving an artifact alone cannot satisfy the deck completion gate."""

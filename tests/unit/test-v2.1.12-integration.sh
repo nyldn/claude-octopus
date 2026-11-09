@@ -195,8 +195,15 @@ test_flow_skill_frontmatter() {
             return 1
         fi
 
-        # Check for agent field
-        if grep -q "^agent:" "$skill_path"; then
+        # Discovery orchestrates other agents and writes its synthesis from the
+        # main conversation. An Explore fork cannot provide that tool contract.
+        if [[ "$skill" == flow-discover ]]; then
+            if grep -cE '^(agent|context):' "$skill_path" >/dev/null; then
+                log_fail "Discovery must retain its main-conversation tools and context"
+                return 1
+            fi
+            log_pass "Discovery retains main-conversation tools and context"
+        elif grep -q "^agent:" "$skill_path"; then
             log_pass "Skill $skill has agent field"
         else
             log_fail "Skill $skill missing agent field"

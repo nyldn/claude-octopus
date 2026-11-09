@@ -46,27 +46,36 @@ assert "bad.md" in result.stderr, result.stderr
 PY
 then test_pass; else test_fail "one damaged entry disabled the guide"; fi
 
-test_case "refine shares host root precedence and defines its standalone fallback"
+test_case "guide, doctor and refine preserve explicit host root precedence"
 if python3 - "$PROJECT_ROOT" <<'PY'
 from pathlib import Path
 import os
 import re
 import subprocess
 import sys
+import tempfile
 root = Path(sys.argv[1])
 for relative in ("commands/guide.md", "skills/skill-doctor/SKILL.md", "skills/skill-refine/SKILL.md"):
     match = re.search(r'^OCTO_(?:PLUGIN_)?ROOT=(.+)$', (root / relative).read_text(), re.MULTILINE)
     assert match, relative
-    clean = {k: v for k, v in os.environ.items() if k not in ("CLAUDE_PLUGIN_ROOT", "CODEX_PLUGIN_ROOT")}
+    clean = {k: v for k, v in os.environ.items() if k not in ("CLAUDE_PLUGIN_ROOT", "CODEX_PLUGIN_ROOT", "OCTO_ROOT", "OCTO_SKILL_FILE")}
     cases = [({"CLAUDE_PLUGIN_ROOT": "/claude", "CODEX_PLUGIN_ROOT": "/codex"}, "/claude"),
              ({"CODEX_PLUGIN_ROOT": "/codex"}, "/codex")]
     if relative == "skills/skill-refine/SKILL.md":
-        cases.append(({}, str(Path.home() / ".claude-octopus/plugin")))
+        cases.extend([({"OCTO_ROOT": "/explicit"}, "/explicit"), ({}, "")])
     for pins, expected in cases:
         result = subprocess.run(["bash", "-c", 'selected=' + match.group(1) + '; printf "%s" "$selected"'], env={**clean, **pins}, capture_output=True, text=True, check=True)
         assert result.stdout == expected, (relative, pins, result.stdout)
+    if relative == "skills/skill-refine/SKILL.md":
+        block = re.search(r'```bash\n(.*?)\n```', (root / relative).read_text(), re.S)
+        assert block, f"{relative}: no root-resolution block"
+        with tempfile.TemporaryDirectory() as home:
+            unresolved = subprocess.run(["bash", "-eu", "-c", block.group(1)],
+                env={**clean, "HOME": home}, capture_output=True, text=True)
+            assert unresolved.returncode != 0, "unresolved refinement used another installation"
+            assert "Cannot resolve this installed Octopus skill" in unresolved.stderr, unresolved.stderr
 PY
-then test_pass; else test_fail "host root precedence differs"; fi
+then test_pass; else test_fail "host root precedence or unresolved-root handling differs"; fi
 
 test_case "unknown CLI commands return a usage error"
 rc=0

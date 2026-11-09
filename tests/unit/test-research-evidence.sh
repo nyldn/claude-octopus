@@ -290,10 +290,10 @@ fi
 
 test_case "flow discovery keeps one run ID and stops when verification fails"
 skill_gate_status=0
+read_claude_skill_contract flow-discover > "$TEST_TMP_DIR/discover-contract.md"
 for skill_file in \
-    "$PROJECT_ROOT/.claude/skills/flow-discover/SKILL.md" \
-    "$PROJECT_ROOT/.claude/skills/flow-discover/flow-discover.tmpl" \
-    "$PROJECT_ROOT/skills/flow-discover/SKILL.md"; do
+    "$TEST_TMP_DIR/discover-contract.md" \
+    "$PROJECT_ROOT/.claude/skills/flow-discover/flow-discover.tmpl"; do
     skill_content=$(<"$skill_file")
     skill_gate_block=$(sed -n '/Before presenting the synthesis/,/If verification reports/p' "$skill_file")
     if [[ "$skill_content" != *'RUN_TIMESTAMP="$(date +%s)"'* \
