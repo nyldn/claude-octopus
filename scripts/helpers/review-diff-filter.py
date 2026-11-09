@@ -33,6 +33,10 @@ def block_path(block):
     # Binary and mode-only changes have no +++ header. Unquoted Git paths
     # may contain spaces; identical old/new names disambiguate those headers.
     header = block.split(b"\n", 1)[0].removeprefix(b"diff --git ").rstrip(b"\r")
+    quoted = re.fullmatch(rb'("(?:\\.|[^"\\])*") (.+)', header)
+    if quoted:
+        left, right = (git_path(value) for value in quoted.groups())
+        return right[2:] if left.startswith("a/") and right.startswith("b/") else None
     candidates = []
     for separator in re.finditer(rb' (?=b/|")', header):
         left, right = git_path(header[:separator.start()]), git_path(header[separator.end():])
@@ -44,6 +48,8 @@ def block_path(block):
 
 
 def main():
+    if len(sys.argv) != 2:
+        raise SystemExit("Usage: review-diff-filter.py SKIP_PATTERNS < DIFF")
     patterns = [line.strip().strip("`") for line in sys.argv[1].splitlines() if line.strip()]
     # Keep line endings and hunk bytes intact. Unknown formats remain reviewable.
     for block in re.split(rb"(?m)(?=^diff --git )", sys.stdin.buffer.read()):

@@ -262,3 +262,5 @@ characters, including `/`; `?` and `[abc]` are also supported. Entries may be
 wrapped in backticks. Matching removes the whole file diff, including its
 headers and hunks. Renames match the destination path; deletions match the
 original path. Unrecognized diff formats are retained for review.
+Use standard Git `a/` and `b/` prefixes for consistent matching. Blocks with
+custom prefixes or `--no-prefix` may be retained even when their paths match.

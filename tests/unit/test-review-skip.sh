@@ -28,7 +28,8 @@ git("config", "user.email", "test@example.com")
 git("config", "user.name", "Octopus Test")
 files = ["app.ts", "src/gen/client.ts", "src/gen/deleted.ts", "src/gen/binary file.bin",
          "src/gen/café\tfile.ts", "old.ts", "src/gen/leaving.ts", "nested/package.lock",
-         "src/gen/mode.sh", "retained binary.bin"]
+         "src/gen/mode.sh", "retained binary.bin", 'src/gen/" b/file.bin',
+         'src/gen/" b/mode.sh']
 for name in files:
     path = root / name
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -36,7 +37,7 @@ for name in files:
 git("add", ".")
 git("commit", "-qm", "fixture")
 for name in files:
-    if name in ("old.ts", "src/gen/leaving.ts", "src/gen/mode.sh"):
+    if name in ("old.ts", "src/gen/leaving.ts", "src/gen/mode.sh", 'src/gen/" b/mode.sh'):
         continue
     (root / name).write_bytes(b"\0new\n" if name.endswith(".bin") else b"new\n")
 (root / "app.ts").write_text('import "src/gen/client";\nconst lock = "package.lock";\n')
@@ -44,6 +45,7 @@ for name in files:
 (root / "old.ts").rename(root / "src/gen/arrived.ts")
 (root / "src/gen/leaving.ts").rename(root / "retained.ts")
 (root / "src/gen/mode.sh").chmod(0o755)
+(root / 'src/gen/" b/mode.sh').chmod(0o755)
 git("add", "-A")
 for quote_path in ("true", "false"):
     git("config", "core.quotePath", quote_path)
@@ -61,6 +63,10 @@ for quote_path in ("true", "false"):
     assert subprocess.check_output(["python3", os.environ["SKIP_FILTER"], "absent/*"], input=patch) == patch
 plain = b"--- other\n+++ other\n@@ -1 +1 @@\n-old\n+new\n"
 assert subprocess.check_output(["python3", os.environ["SKIP_FILTER"], "*"], input=plain) == plain
+unprefixed = git("diff", "--cached", "--no-prefix", "--", "app.ts")
+assert subprocess.check_output(["python3", os.environ["SKIP_FILTER"], "*"], input=unprefixed) == unprefixed
+usage = subprocess.run(["python3", os.environ["SKIP_FILTER"]], capture_output=True)
+assert usage.returncode != 0 and b"Usage:" in usage.stderr and b"Traceback" not in usage.stderr
 PY
 then test_pass; else test_fail "filtered patch lost retained bytes or kept skipped blocks"; fi
 test_summary
