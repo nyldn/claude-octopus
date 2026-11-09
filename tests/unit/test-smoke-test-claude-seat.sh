@@ -32,8 +32,13 @@ source "$PROJECT_ROOT/scripts/lib/smoke.sh"
 
 secure_tempfile() { mktemp "$TEST_TMP_DIR/${1:-tmp}.XXXXXX"; }
 run_with_timeout() {
-    printf '%s|%s\n' "$1" "$2" >> "$TEST_TMP_DIR/timeout-calls"
+    local timeout="$1" arg
     shift
+    for arg in "$@"; do
+        if [[ "$arg" == "$FAKE_BIN_DIR/claude" ]]; then
+            printf '%s|%s\n' "$timeout" "$arg" >> "$TEST_TMP_DIR/timeout-calls"
+        fi
+    done
     "$@"
 }
 cache_status() { sed -n '3p' "$SMOKE_TEST_CACHE_FILE" 2>/dev/null; }

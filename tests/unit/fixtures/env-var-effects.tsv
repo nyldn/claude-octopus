@@ -142,3 +142,4 @@ OCTOPUS_COUNCIL_PROVIDER_MAX_PARALLEL	covered-by	test-council-workers.sh
 OCTOPUS_PREFLIGHT_PROVIDERS	covered-by	test-refinement-efficiency.py
 OCTOPUS_PREFLIGHT_REPORT	covered-by	test-refinement-efficiency.py
 OCTOPUS_PREFLIGHT_RUN_ID	covered-by	test-refinement-efficiency.py
+OCTOPUS_RESEARCH_WEB_SEARCH	covered-by	test-probe-web-research-allowlist.sh

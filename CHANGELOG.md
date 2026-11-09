@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- Research can optionally share one Keenable web search across its perspectives.
+  Set `OCTOPUS_RESEARCH_WEB_SEARCH=keenable` and include `keenable` in any active
+  provider allowlist. Search suggestions remain untrusted, and lookup failures
+  keep the original research prompts. No API key is required for the public
+  endpoint. Addresses [#1261](https://github.com/nyldn/claude-octopus/issues/1261).
+
 ### Improved
 
 - Leading CLI help skips workflow initialization. Complete, valid reviews with
@@ -17,6 +25,16 @@
   terminal authentication failures from recoverable refresh or transport failures.
 - Worktree metadata sampling, usage reports, context lookup and convergence
   checks avoid repeated subprocesses, whole-log buffering or unchanged file reads.
+
+### Fixed
+
+- Provider smoke tests explain environment construction failures instead of
+  failing silently. Search-credential rejection uses the routing error logger,
+  with a stderr fallback for standalone callers.
+- Optional search skips interpreters without total-deadline support and warns
+  when a lookup fails or returns no suggestions, while research continues.
+- Codex subscription probes exclude search credentials and skip execution if
+  provider environment construction fails.
 
 ## [11.19.0] - 2026-11-08
 

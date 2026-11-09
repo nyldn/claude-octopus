@@ -1298,7 +1298,11 @@ ${heuristic_ctx}"
     case "$agent_type" in
         cursor-agent*|copilot*|qwen*) _plan_append_empty_prompt=true ;;
     esac
-    build_provider_env "$agent_type"
+    if ! build_provider_env "$agent_type"; then
+        octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
+            "Provider environment construction failed" 74 "" >/dev/null 2>&1 || true
+        return 74
+    fi
     octo_dispatch_plan_bind_model_env "$agent_type" "$model"
     local _plan_failure=""
     if ! dispatch_argv_json="$(octo_dispatch_command_argv_json "$cmd")"; then
