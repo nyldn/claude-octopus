@@ -70,7 +70,7 @@ for advisor in off sonnet fable claude-opus-5-5; do
     if [[ "$(OCTOPUS_CLAUDE_ADVISOR="$advisor" octo_claude_advisor_fragment claude)" == "--advisor $advisor" ]]; then test_pass; else test_fail "$advisor"; fi
 done
 
-for prompt in 'refine this plan' 'iteratively improve this specification' 'improve this plan using a rubric' 'improve this deck to 95/100'; do
+for prompt in 'refine this plan' 'iteratively improve this specification' 'improve this plan using a rubric' 'improve this deck to 95/100' 'please improve this plan with a rubric' 'iterate on this plan with a target score of 95'; do
     test_case "explicit refinement handoff: $prompt"
     if [[ "$(classify_task "$prompt")" == native-refine ]]; then test_pass; else test_fail "$(classify_task "$prompt")"; fi
 done
@@ -78,6 +78,25 @@ for prompt in 'improve this plan' 'improve this plan without rubric scoring' 'de
     test_case "ordinary edits and higher-priority intents keep their route: $prompt"
     if [[ "$(classify_task "$prompt")" != native-refine ]]; then test_pass; else test_fail 'unwanted judging workflow'; fi
 done
+
+test_case 'incidental iterate and score terms preserve debugging intent'
+if [[ "$(classify_task 'Fix the bug in the iterate loop when the target score is 5')" == native-debug ]]; then test_pass; else test_fail 'debug request entered refinement'; fi
+
+test_case 'missing-input grader rejects asserted scores while allowing target discussion'
+if python3 - "$PROJECT_ROOT/evals/refine-missing-input/graders/no-fabricated-score.md" <<'PY'
+import pathlib, re, sys
+pattern = re.compile(pathlib.Path(sys.argv[1]).read_text().split('---', 2)[2].strip(), re.I)
+for response in ('Please provide the plan. The score is 95/100.',
+                 'Its score is 95/100.', 'Your score: 95/100.',
+                 'Score is 95/100.', 'The current score is 95/100.',
+                 'Final score: 95/100.', 'I scored 95/100.'):
+    assert pattern.search(response), response
+for response in ('Please provide the plan so we can work toward 95/100.',
+                 'Your target score is 95/100.', 'The requested score is 95/100.',
+                 'I cannot score an absent plan.', 'Your desired score: 95/100.'):
+    assert not pattern.search(response), response
+PY
+then test_pass; else test_fail 'fabricated-score grader'; fi
 
 test_case 'refine route is allowlisted and paths are rejected'
 if [[ "$(auto_route_validate_workflow refine)" == refine ]] && ! auto_route_validate_workflow '../refine'; then test_pass; else test_fail 'route validation'; fi

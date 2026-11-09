@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
 # Claude Code launch policy. Source-safe; no provider calls or settings writes.
 
+if ! declare -f octo_version_ok >/dev/null 2>&1; then
+    source "${BASH_SOURCE[0]%/*}/provider-versions.sh" || return 1
+fi
+
+# Print validated advisor arguments for the seat; reject unsupported opt-ins.
 octo_claude_advisor_fragment() {
     local seat="${1:-}" requested="${OCTOPUS_CLAUDE_ADVISOR:-}" supported=false
     # This deliberately uses a documented version floor, not --help: Claude
     # hides --advisor from help. A version gate does not prove account access.
     if [[ "${CLAUDE_CODE_VERSION:-}" =~ ^2\.[0-9]+\.[0-9]+$ ]] &&
-       declare -f version_compare >/dev/null 2>&1 &&
-       version_compare "$CLAUDE_CODE_VERSION" 2.1.260 '>='; then
+       octo_version_ok "$CLAUDE_CODE_VERSION" 2.1.260; then
         supported=true
     fi
     # Exact-model seats and fixed judges must not acquire additional model

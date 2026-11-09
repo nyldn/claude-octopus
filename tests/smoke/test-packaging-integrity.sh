@@ -329,7 +329,7 @@ test_orchestrate_can_source_deps() {
 
 test_extracted_archive_contract() {
     test_case "npm archive contains every declared component and adapter entrypoint"
-    local required_tool pack_json tarball extract_dir package_root result npm_error
+    local required_tool pack_json tarball extract_dir package_root result npm_error pack_source
     for required_tool in npm jq tar python3; do
         if ! command -v "$required_tool" >/dev/null 2>&1; then
             test_skip "$required_tool is required for npm archive validation"
@@ -343,8 +343,33 @@ test_extracted_archive_contract() {
     fi
     npm_error="$PACKAGING_FIXTURE_DIR/npm-pack.stderr"
     extract_dir="$PACKAGING_FIXTURE_DIR/extracted"
+    pack_source="$PACKAGING_FIXTURE_DIR/source"
     mkdir -p "$extract_dir" "$PACKAGING_FIXTURE_DIR/npm-home" "$PACKAGING_FIXTURE_DIR/npm-cache"
-    if ! pack_json=$(cd "$PROJECT_ROOT" && env -i \
+    # Exercise exclusion with an actual report, without touching local eval data.
+    if ! python3 - "$PROJECT_ROOT" "$pack_source" <<'PYFIXTURE'
+import json, shutil, sys
+from pathlib import Path
+
+source, target = map(Path, sys.argv[1:])
+metadata = json.loads((source / 'package.json').read_text())
+for relative in ['package.json', '.npmignore', '.gitignore', *metadata['files']]:
+    original, copied = source / relative, target / relative
+    if original.is_dir():
+        shutil.copytree(original, copied, dirs_exist_ok=True, symlinks=True,
+                        ignore=shutil.ignore_patterns('.git', 'node_modules'))
+    elif original.is_file():
+        copied.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(original, copied)
+reports = target / 'evals/results'
+reports.mkdir(parents=True, exist_ok=True)
+(reports / 'private-report-fixture.json').write_text('{"private": true}\n')
+PYFIXTURE
+    then
+        cleanup_packaging_fixture
+        test_fail "unable to prepare isolated package source"
+        return 1
+    fi
+    if ! pack_json=$(cd "$pack_source" && env -i \
         HOME="$PACKAGING_FIXTURE_DIR/npm-home" PATH="$PATH" \
         TMPDIR="$PACKAGING_FIXTURE_DIR/npm-home" \
         NPM_CONFIG_CACHE="$PACKAGING_FIXTURE_DIR/npm-cache" NPM_CONFIG_USERCONFIG=/dev/null \
@@ -430,8 +455,11 @@ for required in (
     "docs/CLAUDE-NATIVE-INTEGRATION.md",
     "evals/refine-missing-input/prompt.md",
     "evals/refine-missing-input/graders/skill-fired.md",
+    "evals/refine-missing-input/graders/requests-artifact.md",
+    "evals/refine-missing-input/graders/no-fabricated-score.md",
     "evals/unrelated-request/prompt.md",
     "evals/unrelated-request/graders/no-skill.md",
+    "evals/unrelated-request/graders/answer.md",
 ):
     path = root / required
     if not path.exists():
