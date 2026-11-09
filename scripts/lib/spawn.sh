@@ -853,16 +853,23 @@ spawn_agent() {
         log "DEBUG" "Worktree hooks available — Octopus env vars will propagate via WorktreeCreate"
     fi
 
+    # Native refinement is an auto handoff. Direct spawns still need the
+    # underlying coding/design/etc. type for persona and task-type rules.
+    local task_type role_task_type
+    task_type=$(classify_task "$prompt")
+    role_task_type="$task_type"
+    if [[ "$task_type" == native-refine ]]; then
+        role_task_type=$(classify_task "$prompt" --skip-refine)
+    fi
+
     # Determine role if not provided
     if [[ -z "$role" ]]; then
-        local task_type
-        task_type=$(classify_task "$prompt")
-        role=$(get_role_for_context "$agent_type" "$task_type" "$phase")
+        role=$(get_role_for_context "$agent_type" "$role_task_type" "$phase")
     fi
 
     # v8.19.0: Check routing rules for role override
     local routed_role
-    routed_role=$(match_routing_rule "$(classify_task "$prompt" 2>/dev/null)" "$prompt" 2>/dev/null) || true
+    routed_role=$(match_routing_rule "$task_type" "$prompt" "$role_task_type" 2>/dev/null) || true
     if [[ -n "$routed_role" ]]; then
         log DEBUG "Routing rules override: $role -> $routed_role"
         role="$routed_role"

@@ -149,6 +149,40 @@ done
 test_case 'incidental iterate and score terms preserve debugging intent'
 if [[ "$(classify_task 'Fix the bug in the iterate loop when the target score is 5')" == native-debug ]]; then test_pass; else test_fail 'debug request entered refinement'; fi
 
+for benchmark in Lighthouse 'PageSpeed Insights'; do
+    test_case "measured $benchmark targets preserve performance optimization"
+    route="$(classify_task "Improve this site; optimize performance to a score of 95/100 on $benchmark")"
+    if [[ "$route" == optimize-performance ]]; then test_pass; else test_fail "$route"; fi
+done
+test_case 'a rubric request can still refine a Lighthouse rollout plan'
+if [[ "$(classify_task 'Improve this Lighthouse rollout plan using a rubric')" == native-refine ]]; then test_pass; else test_fail 'rubric intent lost'; fi
+
+for scenario in default-design coding-rule design-rule native-rule rule-order keyword-order explicit-role; do
+    test_case "direct refinement spawn preserves roles and rule order: $scenario"
+    if (
+        source "$PROJECT_ROOT/scripts/lib/spawn.sh"
+        DRY_RUN=true SUPPORTS_FORK_CONTEXT=false SUPPORTS_WORKTREE_HOOKS=false
+        WORKSPACE_DIR="$TEST_TMP_DIR/spawn-$scenario"
+        mkdir -p "$WORKSPACE_DIR/.octo"
+        prompt='refine this layout'
+        explicit_role=''
+        case "$scenario" in
+            default-design) rules='[]'; expected=frontend-architect ;;
+            coding-rule) prompt='refine this function'; rules='[{"match":{"task_type":"coding"},"prefer":"reviewer"}]'; expected=reviewer ;;
+            design-rule) rules='[{"match":{"task_type":"design"},"prefer":"researcher"}]'; expected=researcher ;;
+            native-rule) rules='[{"match":{"task_type":"native-refine"},"prefer":"reviewer"}]'; expected=reviewer ;;
+            rule-order) rules='[{"match":{"task_type":"design"},"prefer":"reviewer"},{"match":{"task_type":"native-refine"},"prefer":"implementer"}]'; expected=reviewer ;;
+            keyword-order) rules='[{"match":{"keywords":"layout"},"prefer":"reviewer"},{"match":{"task_type":"design"},"prefer":"implementer"}]'; expected=reviewer ;;
+            explicit-role) rules='[]'; explicit_role=reviewer; expected=reviewer ;;
+        esac
+        printf '{"rules":%s}\n' "$rules" > "$WORKSPACE_DIR/.octo/routing-rules.json"
+        log() { printf '%s\n' "$*"; }
+        get_agent_command() { printf '%s\n' fixture-command; }
+        output="$(spawn_agent codex "$prompt" fixture "$explicit_role")"
+        [[ "$output" == *"[DRY-RUN] Would execute: fixture-command with role=$expected"* ]]
+    ); then test_pass; else test_fail "$scenario"; fi
+done
+
 test_case 'missing-input grader rejects asserted scores while allowing target discussion'
 if python3 - "$PROJECT_ROOT/evals/refine-missing-input/graders/no-fabricated-score.md" <<'PY'
 import pathlib, re, sys

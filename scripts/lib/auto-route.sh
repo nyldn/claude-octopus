@@ -6,9 +6,13 @@ source "${_agent_spec_lib_dir}/agent-spec.sh" 2>/dev/null || true
 # lib/auto-route.sh — Auto-routing and routing rule matching
 # Extracted from orchestrate.sh
 
+# Return the first configured role matching a task type or prompt keyword.
+# An optional underlying task type keeps direct-spawn rules eligible alongside
+# native workflow rules, in the same configured first-match order.
 match_routing_rule() {
     local task_type="$1"
     local prompt="$2"
+    local underlying_task_type="${3:-}"
 
     local rules_json
     rules_json=$(load_routing_rules 2>/dev/null) || return 1
@@ -33,7 +37,7 @@ match_routing_rule() {
         local matched=false
 
         # Match by task_type
-        if [[ -n "$match_type" && "$task_type" == "$match_type" ]]; then
+        if [[ -n "$match_type" && ( "$task_type" == "$match_type" || "$underlying_task_type" == "$match_type" ) ]]; then
             matched=true
         fi
 

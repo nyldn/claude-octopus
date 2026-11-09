@@ -37,6 +37,10 @@ consultative multi-provider advisors are separate workers and use their existing
 contracts. The `claude-agent` SDK and `anthropic-api` adapters do not acquire the
 new CLI option.
 
+When worker version detection fails, exact-model seats omit the version-specific
+flag. Saved-advisor behavior in that case remains unverified. Fixed refinement
+judges also set `CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1` independently of the flag.
+
 Plugins cannot enable this by putting `advisorModel` in their manifest's settings.
 Only the documented plugin settings keys take effect. Octopus never writes the
 user's advisor settings or accepts model billing consent for them.
@@ -59,6 +63,11 @@ retain their routing priority.
 
 Explicit refinement of a flowchart or diagram also uses this workflow. Requests
 such as "improve this plan without using a rubric" stay outside refinement.
+For ordinary improvement requests, Lighthouse and PageSpeed score targets retain
+task routing, such as performance optimization. A request to use a rubric still
+selects refinement.
+Direct provider spawns retain the underlying coding or design role and task-type
+rules. Their rules can also match `native-refine`, in configured first-match order.
 
 Refinement freezes its rubric, uses real independent Claude and Codex judges,
 and validates the accepted candidate. Its normal limits remain 95/100, five

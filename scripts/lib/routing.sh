@@ -104,7 +104,8 @@ agent_display_label_upper() {
 #   knowledge-advise, knowledge-synthesize, diamond-discover, diamond-define,
 #   diamond-develop, diamond-deliver, optimize-*, review, copywriting, design,
 #   research, coding, general
-# Usage: classify_task <prompt>
+# Usage: classify_task <prompt> [--skip-refine]
+# --skip-refine preserves the underlying task type for direct-spawn roles.
 classify_task() {
     local prompt="$1"
     local prompt_lower
@@ -114,11 +115,15 @@ classify_task() {
     # The bounded judging workflow requires affirmative rubric/scoring intent.
     local refine_prefix='^[[:space:]]*(please[[:space:]]+)?((can|could|would)[[:space:]]+you[[:space:]]+)?(please[[:space:]]+)?'
     local refine_optout='(^|[[:space:][:punct:]])(without[[:space:]]+((using|applying|following)[[:space:]]+)?((a|the|any)[[:space:]]+)?rubric|without[[:space:]]+(rubric[[:space:]]+)?scoring|((do[[:space:]]+not|don.t|never)[[:space:]]+(use|apply|follow)|avoid[[:space:]]+(using|applying|following))[[:space:]]+((a|the|any)[[:space:]]+)?rubric)'
+    local refine_rubric='(against|using|with)[[:space:]]+(a[[:space:]]+|the[[:space:]]+|this[[:space:]]+)?rubric'
+    local refine_score='(to[[:space:]]+(a[[:space:]]+score[[:space:]]+of[[:space:]]+)?[0-9]+[[:space:]]*/[[:space:]]*100|score[[:space:]]+target|target[[:space:]]+score)'
     local refine_request=false
-    if [[ ! "$prompt_lower" =~ $refine_optout ]] &&
+    if [[ "${2:-}" != --skip-refine && ! "$prompt_lower" =~ $refine_optout ]] &&
        { [[ "$prompt_lower" =~ ${refine_prefix}(refine|iteratively[[:space:]]+improve)[[:space:]] ]] ||
          { [[ "$prompt_lower" =~ ${refine_prefix}(improve|refine|iterate)[[:space:]] ]] &&
-           [[ "$prompt_lower" =~ ((against|using|with)[[:space:]]+(a[[:space:]]+|the[[:space:]]+|this[[:space:]]+)?rubric|to[[:space:]]+(a[[:space:]]+score[[:space:]]+of[[:space:]]+)?[0-9]+[[:space:]]*/[[:space:]]*100|score[[:space:]]+target|target[[:space:]]+score) ]]; }; }; then
+           { [[ "$prompt_lower" =~ $refine_rubric ]] ||
+             { [[ "$prompt_lower" =~ $refine_score ]] &&
+               [[ ! "$prompt_lower" =~ (^|[^[:alnum:]_])(lighthouse|pagespeed)([^[:alnum:]_]|$) ]]; }; }; }; }; then
         refine_request=true
     fi
 
