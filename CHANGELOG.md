@@ -4,6 +4,12 @@
 
 ### Added
 
+- Deck outlines now start with a confirmed governing question, a brief
+  situation/complication/question opener and an answer supported by two to four
+  pillars. Slide titles form a sentence skeleton that must carry the argument
+  in a titles-only read before the user approves rendering. Informational decks
+  retain their own purpose. Addresses #1215.
+
 - Executive and board decision decks put the recommendation, context, supporting
   pillars and explicit ask on slide 2. Their outline compares doing nothing
   with a real alternative, ties data-slide highlights to one proof point,
