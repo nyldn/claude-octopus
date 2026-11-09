@@ -297,7 +297,7 @@ parallel_execute() {
     local task_agents=()
     local task_sequences=()
     local output_claims=()
-    local owner_lock="" owner_python="" owner_directory=""
+    local owner_lock="" owner_python="" owner_directory="" claim_stale_seats=""
     local _parallel_claim_helper="${_parallel_lib_dir}/../helpers/output-claim.py"
     _parallel_cleanup_cron() {
         if [[ "$_parallel_cron_disabled" == "true" ]]; then
@@ -334,10 +334,17 @@ parallel_execute() {
     }
     # Returns 0 when acquired, 3 when reclaimed from an exited owner, and 1
     # while another invocation, or any process it started, may still own it.
+    # A reclaim prints the exited owner's dispatched and inherited seats into
+    # claim_stale_seats; the new record also keeps them until reconciled.
     _parallel_claim_output() {
-        local claim="$1" claim_status=0
+        local claim="$1" seat="$2" output="$3" claim_status=0
+        claim_stale_seats=""
         if _parallel_open_owner_lock; then
-            "$owner_python" "$_parallel_claim_helper" acquire "$claim" "$owner_lock" </dev/null || claim_status=$?
+            # Run the helper directly, not in a command substitution, so a
+            # signal during publication reaches this controller's handler.
+            "$owner_python" "$_parallel_claim_helper" acquire "$claim" "$owner_lock" \
+                "$seat" "$output" </dev/null >"$outcome_dir/claim-stale-seats" || claim_status=$?
+            claim_stale_seats=$(cat "$outcome_dir/claim-stale-seats" 2>/dev/null) || claim_stale_seats=""
             case "$claim_status" in
                 0) return 0 ;;
                 11) return 3 ;;
@@ -352,7 +359,21 @@ parallel_execute() {
         (set -o noclobber; printf '%s\n' fallback > "$claim/owner") 2>/dev/null
     }
     _parallel_cancel_orphaned_seat() {
-        local task_id="$1" output="$2" ledger agent seat role
+        _parallel_cancel_seat_output "spawn-$1" "$2"
+    }
+    # Cancel the record's inherited seats before its claim stops proving that
+    # their owner has exited.
+    _parallel_reconcile_claim() {
+        local claim="$1" output stale_seat
+        [[ -f "$claim/owner" ]] || return 0
+        output=$(sed -n 's/^output //p' "$claim/owner" 2>/dev/null | head -n 1)
+        [[ -n "$output" ]] || return 0
+        while IFS= read -r stale_seat; do
+            [[ -z "$stale_seat" ]] || _parallel_cancel_seat_output "$stale_seat" "$output"
+        done < <(sed -n 's/^reconcile //p' "$claim/owner" 2>/dev/null)
+    }
+    _parallel_cancel_seat_output() {
+        local seat_id="$1" output="$2" ledger agent seat role
         declare -F write_agent_status >/dev/null || return 0
         declare -F octo_run_dir >/dev/null || return 0
         ledger="$(octo_run_dir)/agents.jsonl"
@@ -360,7 +381,7 @@ parallel_execute() {
         while IFS=$'\t' read -r agent seat role; do
             write_agent_status "$agent" cancelled 0 0 "Seat owner exited before recording a terminal status" \
                 0 "$output" "$role" "$seat" || true
-        done < <(jq -rs --arg seat "spawn-$task_id" --arg file "$output" \
+        done < <(jq -rs --arg seat "$seat_id" --arg file "$output" \
             "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
             latest_per_seat | .[] |
             select(.status == "running" and .seat_id == $seat and .output_file == $file) |
@@ -386,6 +407,7 @@ parallel_execute() {
         local claim keep_owner_lock=false
         if [[ ${#output_claims[@]} -gt 0 ]]; then
             for claim in "${output_claims[@]}"; do
+                _parallel_reconcile_claim "$claim"
                 _parallel_release_output "$claim" 2>/dev/null || keep_owner_lock=true
             done
         fi
@@ -396,7 +418,8 @@ parallel_execute() {
             # unlinking its lock, or that unregistered claim cannot be reclaimed.
             for claim in "$RESULTS_DIR"/.*.claim; do
                 [[ -f "$claim/owner" ]] || continue
-                [[ "$(cat "$claim/owner" 2>/dev/null)" == "$owner_lock" ]] || continue
+                [[ "$(head -n 1 "$claim/owner" 2>/dev/null)" == "$owner_lock" ]] || continue
+                _parallel_reconcile_claim "$claim"
                 _parallel_release_output "$claim" 2>/dev/null || keep_owner_lock=true
             done
             exec 7>&-
@@ -794,7 +817,7 @@ parallel_execute() {
         # results directory cannot unlink or dispatch into each other's file.
         local claim="$RESULTS_DIR/.$result_slug-$task_id.claim" claim_status=0
         mkdir -p "$RESULTS_DIR"
-        _parallel_claim_output "$claim" || claim_status=$?
+        _parallel_claim_output "$claim" "spawn-$task_id" "$RESULTS_DIR/$result_slug-$task_id.md" || claim_status=$?
         if [[ "$claim_status" -ne 0 && "$claim_status" -ne 3 ]]; then
             log ERROR "Output path is already claimed for task $task_id"
             _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" true \
@@ -805,6 +828,13 @@ parallel_execute() {
         output_claims+=("$claim")
         if [[ "$claim_status" -eq 3 ]]; then
             log WARN "Reclaimed the output of task $task_id from an invocation that has exited"
+            # Another task ID can share this filename, so cancel the seats the
+            # exited owner recorded, not only this task's seat.
+            local stale_seat
+            while IFS= read -r stale_seat; do
+                [[ -z "$stale_seat" ]] || \
+                    _parallel_cancel_seat_output "$stale_seat" "$RESULTS_DIR/$result_slug-$task_id.md"
+            done <<< "$claim_stale_seats"
             _parallel_cancel_orphaned_seat "$task_id" "$RESULTS_DIR/$result_slug-$task_id.md"
         fi
         # Preserve active outputs from older dispatchers without claim support.

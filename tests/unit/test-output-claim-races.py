@@ -259,7 +259,7 @@ parallel_execute "$TASKS"
             claim = results / ".codex-race.claim"
             if failure == "rename":
                 self.assertTrue((claim / "owner").is_file(), "failed retirement destroyed the owner record")
-                self.assertTrue(Path((claim / "owner").read_text().strip()).is_file(), "failed release unlinked the owner lock")
+                self.assertTrue(Path((claim / "owner").read_text().splitlines()[0]).is_file(), "failed release unlinked the owner lock")
             else:
                 deadline = time.monotonic() + 5
                 while not finished.exists() and time.monotonic() < deadline:

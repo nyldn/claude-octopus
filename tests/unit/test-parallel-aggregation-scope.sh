@@ -249,6 +249,76 @@ else
     test_fail "the executor replaced or closed the caller's descriptor 7"
 fi
 
+_stale_claim() {
+    local claim="$RESULTS_DIR/$1" output="$2" seat="$3" stale_lock="$RESULTS_DIR/.parallel-owner.stale$1"
+    shift 3
+    : > "$stale_lock"
+    mkdir "$claim"
+    {
+        printf '%s\n' "$stale_lock" "seat $seat" "output $output"
+        [[ $# -eq 0 ]] || printf 'reconcile %s\n' "$@"
+    } > "$claim/owner"
+}
+
+test_case "a reclaim cancels the exited owner's seat when another task ID shares its output"
+export OCTOPUS_RUN_ID=alias-reclaim
+alias_output="$RESULTS_DIR/codex-standard-build.md"
+rm -f "$TEST_TMP_DIR/alias-spawn" "$alias_output"
+write_agent_status codex running 1 0 '' 0 "$alias_output" researcher spawn-standard-build
+_stale_claim .codex-standard-build.claim "$alias_output" spawn-standard-build
+spawn_agent_capture_pid() { touch "$TEST_TMP_DIR/alias-spawn"; return 1; }
+printf '{"tasks":[{"id":"build","agent":"codex-standard","prompt":"implement"}]}' > "$TEST_TMP_DIR/tasks.json"
+AVAILABLE_AGENTS='codex codex-standard'
+parallel_execute "$TEST_TMP_DIR/tasks.json" > "$TEST_TMP_DIR/parallel-alias.log" 2>&1 && rc=0 || rc=$?
+if [[ "$rc" == 1 && -e "$TEST_TMP_DIR/alias-spawn" && ! -e "$RESULTS_DIR/.codex-standard-build.claim" ]] &&
+   jq -e '.results[0].reason == "failed-spawn"' "$WORKSPACE_DIR/state/parallel-report.json" >/dev/null &&
+   jq -e --arg file "$alias_output" '.agents | any(.seat_id == "spawn-standard-build" and
+       .status == "cancelled" and .output_file == $file)' \
+       "$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID/agents.json" >/dev/null; then
+    test_pass
+else
+    test_fail "the exited owner's seat for a shared output stayed running, exit=$rc"
+fi
+
+test_case "a reclaim cancels stale seats inherited by an owner that was killed before reconciling"
+export OCTOPUS_RUN_ID=inherited-reclaim
+inherited_output="$RESULTS_DIR/codex-carry.md"
+rm -f "$TEST_TMP_DIR/carry-spawn"
+write_agent_status codex running 1 0 '' 0 "$inherited_output" researcher spawn-original
+_stale_claim .codex-carry.claim "$inherited_output" spawn-killed-reclaimer spawn-original
+spawn_agent_capture_pid() { touch "$TEST_TMP_DIR/carry-spawn"; return 1; }
+printf '{"tasks":[{"id":"carry","agent":"codex","prompt":"implement"}]}' > "$TEST_TMP_DIR/tasks.json"
+AVAILABLE_AGENTS=codex
+parallel_execute "$TEST_TMP_DIR/tasks.json" > "$TEST_TMP_DIR/parallel-carry.log" 2>&1 && rc=0 || rc=$?
+if [[ "$rc" == 1 && -e "$TEST_TMP_DIR/carry-spawn" ]] &&
+   jq -e '.agents | any(.seat_id == "spawn-original" and .status == "cancelled")' \
+       "$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID/agents.json" >/dev/null; then
+    test_pass
+else
+    test_fail "an inherited stale seat stayed running after reclaim, exit=$rc"
+fi
+
+test_case "TERM between reclaim and seat reconciliation still cancels the stale seat"
+export OCTOPUS_RUN_ID=interrupted-reclaim
+termed_output="$RESULTS_DIR/codex-termed.md"
+write_agent_status codex running 1 0 '' 0 "$termed_output" researcher spawn-old-termed
+_stale_claim .codex-termed.claim "$termed_output" spawn-old-termed
+printf '{"tasks":[{"id":"termed","agent":"codex","prompt":"implement"}]}' > "$TEST_TMP_DIR/tasks.json"
+(
+    trap - EXIT
+    log() {
+        [[ "${2:-}" != Reclaimed* ]] || kill -TERM "$(sh -c 'printf "%s" "$PPID"')"
+    }
+    parallel_execute "$TEST_TMP_DIR/tasks.json" > "$TEST_TMP_DIR/parallel-termed.log" 2>&1
+) && rc=0 || rc=$?
+if [[ "$rc" == 143 && ! -e "$RESULTS_DIR/.codex-termed.claim" ]] &&
+   jq -e '.agents | any(.seat_id == "spawn-old-termed" and .status == "cancelled")' \
+       "$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID/agents.json" >/dev/null; then
+    test_pass
+else
+    test_fail "an interrupted reclaim left the stale seat running or kept its claim, exit=$rc"
+fi
+
 test_case "an admitted retry clears its old marker before dispatch"
 mkdir -p "$WORKSPACE_DIR/.octo/agents"
 printf '0\n' > "$WORKSPACE_DIR/.octo/agents/retry.done"
