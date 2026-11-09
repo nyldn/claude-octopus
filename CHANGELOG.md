@@ -58,6 +58,8 @@
   without excusing code attributed to someone else. An explicit later source
   subject such as "but the file reads" or "but the file itself reads" restarts
   the source claim even in the same sentence.
+  Mixed diff fences skip added-side refinement when their kept source code
+  already matches completely, preserving time for required evidence checks.
 
 - Code review skips complete file diffs using REVIEW.md path globs. Generated
   hunks no longer appear under another file's header, and retained code that

@@ -93,4 +93,35 @@ for control in added-only partial-removed; do
     fi
 done
 
+# A mixed fence has real kept lines in the source and a separate removal.
+# Instrument the actual wrapper so fast hosts still detect redundant scans.
+python3 - "$TEST_TMP_DIR" "$evidence/src/kept.ts" <<'PY_MIXED'
+import sys
+from pathlib import Path
+root = Path(sys.argv[1])
+kept = [f"const keptValue{i:05d} = 1;" for i in range(30000)]
+old = "const oldValue = loadPreviousValue(input);"
+Path(sys.argv[2]).write_text("\n".join(kept) + "\n")
+header = "diff --git a/src/kept.ts b/src/kept.ts\n--- a/src/kept.ts\n+++ b/src/kept.ts\n"
+(root / "mixed.diff").write_text(header + "@@ -1 +1 @@\n-" + old + "\n+" + "unrelated " * 140000 + "\n")
+(root / "mixed.md").write_text("src/kept.ts:1 reads:\n```diff\n-" + old + "\n" +
+    "\n".join(" " + line for line in kept) + "\n```\nVERDICT: REVISE\n")
+PY_MIXED
+
+test_case "complete kept code in a mixed fence skips added-side refinement"
+rm -f "$TEST_TMP_DIR/sides.log"
+report="$(export OCTO_TEST_PYTHON="$real_python" OCTO_TEST_PROFILE="$TEST_TMP_DIR/profile.py"
+    export OCTO_TEST_TRACE="$TEST_TMP_DIR/sides.log"
+    PATH="$TEST_TMP_DIR/profile-bin:$PATH"
+    COUNCIL_CONTEXT_FILES=("$TEST_TMP_DIR/mixed.diff")
+    council_response_quote_verification_json "$TEST_TMP_DIR/mixed.md" "$evidence")"
+if jq -e '.verification_failed == false and .quotes_verified == 1
+    and .quotes_verified_in_diff_removed == 1 and .quotes_partial == 0
+    and .fabricated == false' <<< "$report" >/dev/null &&
+    [[ "$(wc -l < "$TEST_TMP_DIR/sides.log" | tr -d '[:space:]')" == 1 ]]; then
+    test_pass
+else
+    test_fail "complete kept code triggered redundant diff matching: $report"
+fi
+
 test_summary

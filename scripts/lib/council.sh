@@ -4114,7 +4114,8 @@ for start, end, kind, block, removed_block, info in units:
                                        removed_misses, short_lines(removed_block))
             # Each portion is partial on its own side. A kept portion partial in
             # the cited file but exact on the added side is not partial.
-            kept_on_added = bool(block) and in_diff_side(wholes, line_variants, added_side, kept_misses, short)
+            kept_on_added = (bool(block) and (not verified or partial)
+                             and in_diff_side(wholes, line_variants, added_side, kept_misses, short))
             kept_hit = verified or not block or kept_on_added
             if kept_on_added:
                 kept_partial = any(kept_misses) and (partial or not verified)
