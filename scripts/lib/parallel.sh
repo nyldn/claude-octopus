@@ -576,6 +576,11 @@ parallel_execute() {
     _parallel_handle_exit() {
         local exit_status=$?
         local saved_trap="$_parallel_previous_exit_trap"
+        # Both return paths restore the traps first, so this runs only when the
+        # shell exits mid-run, for example on an untrapped SIGHUP. Stop the
+        # workers before releasing claims they would otherwise keep writing to.
+        _parallel_terminate_tracked_processes
+        _parallel_cancel_running_seats
         _parallel_cleanup_resources
         if [[ -n "$_parallel_previous_int_trap" ]]; then
             eval "$_parallel_previous_int_trap"

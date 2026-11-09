@@ -319,6 +319,30 @@ else
     test_fail "an interrupted reclaim left the stale seat running or kept its claim, exit=$rc"
 fi
 
+test_case "an abnormal controller exit stops live workers before releasing their claims"
+export OCTOPUS_RUN_ID=abnormal-exit
+rm -f "$TEST_TMP_DIR/exit-worker.pid"
+printf '{"tasks":[{"id":"exit-worker","agent":"codex","prompt":"implement"}]}' > "$TEST_TMP_DIR/tasks.json"
+(
+    trap - EXIT
+    log() { [[ "${2:-}" != Progress:* ]] || exit 3; }
+    spawn_agent_capture_pid() {
+        sleep 30 &
+        printf '%s\n' "$!" > "$TEST_TMP_DIR/exit-worker.pid"
+        printf '%s\n' "$!"
+    }
+    parallel_execute "$TEST_TMP_DIR/tasks.json" > "$TEST_TMP_DIR/parallel-exit.log" 2>&1
+) && rc=0 || rc=$?
+exit_worker="$(cat "$TEST_TMP_DIR/exit-worker.pid" 2>/dev/null || true)"
+worker_alive=false
+[[ -n "$exit_worker" ]] && kill -0 "$exit_worker" 2>/dev/null && worker_alive=true
+if [[ "$rc" == 3 && -n "$exit_worker" && "$worker_alive" == false && ! -e "$RESULTS_DIR/.codex-exit-worker.claim" ]]; then
+    test_pass
+else
+    test_fail "abnormal exit released a claim while its worker ran, exit=$rc worker_alive=$worker_alive"
+fi
+[[ "$worker_alive" == false ]] || kill "$exit_worker" 2>/dev/null || true
+
 test_case "an admitted retry clears its old marker before dispatch"
 mkdir -p "$WORKSPACE_DIR/.octo/agents"
 printf '0\n' > "$WORKSPACE_DIR/.octo/agents/retry.done"
