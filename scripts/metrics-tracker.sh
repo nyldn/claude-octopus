@@ -3,6 +3,15 @@
 # Tracks resource usage (tokens, duration, costs) for multi-AI operations
 # Supports native Task tool metrics from Claude Code v2.1.30+ (token_count, tool_uses, duration_ms)
 
+# Load shared tariffs before defining the metrics-session handlers. Loading
+# cost.sh later would replace record_agent_complete with its usage-ledger writer.
+if ! declare -f get_model_pricing >/dev/null 2>&1; then
+    _octo_metrics_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    source "${_octo_metrics_script_dir}/lib/models.sh"
+    WORKSPACE_DIR="${WORKSPACE_DIR:-${METRICS_BASE:-${HOME}/.claude-octopus}}" \
+        source "${_octo_metrics_script_dir}/lib/cost.sh"
+fi
+
 # Get metrics base directory (evaluate dynamically to support testing)
 get_metrics_base() {
     echo "${METRICS_BASE:-${WORKSPACE_DIR:-${HOME}/.claude-octopus}}"
@@ -218,6 +227,7 @@ get_model_cost() {
         claude-sonnet-5|claude-sonnet-5-5) echo "2.00" ;;
         claude-sonnet-4.6|claude-sonnet-4.5|claude-sonnet-4-6|claude-sonnet-4-5) echo "3.00" ;;
         claude-sonnet-4)        echo "3.00" ;;
+        claude-haiku-5-5)       echo "0.10" ;;    # base rate; request tariff is in model-pricing.tsv
         claude-haiku-*)         echo "0.25" ;;
 
         # OpenAI/Codex models (rough estimates)
@@ -525,6 +535,16 @@ display_per_phase_cost_table() {
 }
 
 # Export functions
+# Child Bash writers need the same canonical IDs and request tariffs as the
+# sourcing process. Keep the metrics-session writer instead of sourcing cost.sh
+# in the child, which would replace it with the usage-ledger implementation.
+for _octo_metrics_pricing_function in get_model_pricing octo_effective_model_pricing octo_model_canonical_id _octo_get_model_catalog_raw; do
+    if declare -f "$_octo_metrics_pricing_function" >/dev/null 2>&1; then
+        export -f "${_octo_metrics_pricing_function?}"
+    fi
+done
+unset _octo_metrics_pricing_function
+export OCTOPUS_MODEL_PRICING_FILE
 export -f get_metrics_base
 export -f init_metrics_tracking
 export -f record_agent_start

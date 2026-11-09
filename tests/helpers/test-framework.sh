@@ -35,7 +35,15 @@ FAILED_TESTS=()
 SKIPPED_TESTS=()
 
 # Temporary directories
-TEST_TMP_DIR="${TEST_TMP_DIR:-/tmp/octopus-tests-$$}"
+if [[ -z "${TEST_TMP_DIR:-}" ]]; then
+    _octopus_test_temp_base="${TMPDIR:-/tmp}"
+    case "$_octopus_test_temp_base" in
+        /*) ;;
+        *) _octopus_test_temp_base="$(pwd -P)/$_octopus_test_temp_base" ;;
+    esac
+    TEST_TMP_DIR="${_octopus_test_temp_base%/}/octopus-tests-$$"
+    unset _octopus_test_temp_base
+fi
 MOCK_BIN_DIR="$TEST_TMP_DIR/mock-bin"
 
 # Hooks
@@ -61,6 +69,24 @@ resolve_claude_skill_path() {
     else
         printf '%s\n' "$root/.claude/skills/${name}/SKILL.md"
     fi
+}
+
+# Static contract checks include only phase resources named by the entry.
+# This reads shipped files without executing their fenced examples.
+read_skill_contract() {
+    local entry="$1" root="${PROJECT_ROOT:-$(pwd)}" name reference
+    name="$(claude_skill_slug "$entry")"
+    cat "$entry" || return 1
+    printf '\n'
+    while IFS= read -r reference; do
+        [[ -f "$root/$reference" ]] || return 1
+        cat "$root/$reference" || return 1
+        printf '\n'
+    done < <(grep -Eo "skills/${name}/references/[a-zA-Z0-9_.-]+\.md" "$entry" | awk '!seen[$0]++')
+}
+
+read_claude_skill_contract() {
+    read_skill_contract "$(resolve_claude_skill_path "$1")"
 }
 
 claude_skill_slug() {

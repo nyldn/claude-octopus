@@ -121,9 +121,10 @@ test_freeze_hook_valid_syntax() {
 
 # ── Careful hook: destructive pattern coverage ───────────────────────
 
+# test_careful_rm_rf_pattern: Check that recursive forced deletion delegates to the safety helper.
 test_careful_rm_rf_pattern() {
     test_case "careful-check.sh detects rm -rf"
-    if grep -c 'rm.*-[a-zA-Z]*r[a-zA-Z]*f' "$CAREFUL_HOOK" >/dev/null 2>&1; then
+    if grep -c 'careful-rm' "$CAREFUL_HOOK" >/dev/null 2>&1; then
         test_pass
     else
         test_fail "rm -rf pattern not found"
@@ -228,6 +229,7 @@ test_careful_returns_ask_decision() {
     fi
 }
 
+# test_careful_statement_shape_not_substring: Exercise destructive statements and harmless literal text through the hook.
 test_careful_statement_shape_not_substring() {
     test_case "careful-check.sh gates on executable context and command boundaries"
     # Activate careful mode for a pinned session so the hook and this test resolve the
@@ -242,7 +244,7 @@ test_careful_statement_shape_not_substring() {
     _cc_decides() {
         local out rc=0
         out=$(jq -cn --arg c "$1" '{tool_name:"Bash",tool_input:{command:$c}}' \
-            | env OCTOPUS_HOST=claude "CLAUDE_CODE_SESSION_ID=${sid}" bash "$CAREFUL_HOOK" 2>/dev/null) || rc=$?
+            | env CLAUDE_PLUGIN_ROOT="$PROJECT_ROOT" OCTOPUS_HOST=claude "CLAUDE_CODE_SESSION_ID=${sid}" bash "$CAREFUL_HOOK" 2>/dev/null) || rc=$?
         if (( rc != 0 )); then echo "error:$rc"; return 0; fi
         [[ "$out" == *'"permissionDecision":"ask"'* ]] && echo fire || echo quiet
     }
@@ -406,13 +408,14 @@ test_debug_skill_autofreeze() {
     fi
 }
 
+# activate_safety_hook_fixture: Create only the synthetic state needed by this hook test.
 activate_safety_hook_fixture() {
     local work="$1" block="$2" sid="$3" sf="$4" pid pid_sf rc
     # Hold the owned child before activation, then admit its actual PID path.
     # exec preserves $! so the historical PID-fallback mutant stays removable.
     mkfifo "$work/activate" || { return 1; }
     (cd "$work" && read -r _activate < "$work/activate" &&
-        exec env -u CLAUDE_SESSION_ID OCTOPUS_HOST=claude "CLAUDE_CODE_SESSION_ID=$sid" bash -c "$block") &
+        exec env -u CLAUDE_SESSION_ID CLAUDE_PLUGIN_ROOT="$PROJECT_ROOT" OCTOPUS_HOST=claude "CLAUDE_CODE_SESSION_ID=$sid" bash -c "$block") &
     pid=$!
     pid_sf="/tmp/octopus-freeze-${pid}.txt"
     if [[ -e "$pid_sf" || -L "$pid_sf" ]]; then
@@ -439,6 +442,7 @@ activate_safety_hook_fixture() {
     return "$rc"
 }
 
+# test_debug_skill_autofreeze_reaches_hook: Check that debug freeze activation reaches the real write boundary hook.
 test_debug_skill_autofreeze_reaches_hook() {
     test_case "skill-debug auto-freeze writes the state file freeze-check.sh and /octo:unfreeze use, and keeps an existing freeze"
     # Run each skill copy's freeze block the way a Claude Code Bash tool call runs it:
@@ -484,20 +488,20 @@ test_debug_skill_autofreeze_reaches_hook() {
         record_safety_hook_state "$sf" "$work/module" || { test_fail "session fixture ownership failed"; return; }
         [[ "$(_freeze_decides "$work/outside/x.txt")" == deny ]] || fails+=" $label:outside-edit-not-denied"
         [[ "$(_freeze_decides "$work/module/x.txt")" == allow ]] || fails+=" $label:inside-edit-not-allowed"
-        (cd "$work" && env -u CLAUDE_SESSION_ID OCTOPUS_HOST=claude "CLAUDE_CODE_SESSION_ID=$sid" bash -c "$unfreeze_block")
+        (cd "$work" && env -u CLAUDE_SESSION_ID CLAUDE_PLUGIN_ROOT="$PROJECT_ROOT" OCTOPUS_HOST=claude "CLAUDE_CODE_SESSION_ID=$sid" bash -c "$unfreeze_block")
         [[ ! -f "$sf" ]] || fails+=" $label:unfreeze-left-state"
         cleanup_safety_hook_state "$sf"
 
         # A freeze the user already set (here, on another directory) must survive.
         (set -C; printf '%s\n' "$work/outside" > "$sf") || { test_fail "existing-state fixture creation failed"; return; }
         record_safety_hook_state "$sf" "$work/outside" || { test_fail "existing-state fixture ownership failed"; return; }
-        (cd "$work" && env -u CLAUDE_SESSION_ID OCTOPUS_HOST=claude "CLAUDE_CODE_SESSION_ID=$sid" bash -c "$block") >/dev/null
+        (cd "$work" && env -u CLAUDE_SESSION_ID CLAUDE_PLUGIN_ROOT="$PROJECT_ROOT" OCTOPUS_HOST=claude "CLAUDE_CODE_SESSION_ID=$sid" bash -c "$block") >/dev/null
         [[ "$(cat "$sf" 2>/dev/null)" == "$work/outside" ]] || fails+=" $label:replaced-existing-freeze"
 
         # Empty state is refused for inspection, with the hook still failing closed.
         : > "$sf"
         rc=0
-        (cd "$work" && env -u CLAUDE_SESSION_ID OCTOPUS_HOST=claude "CLAUDE_CODE_SESSION_ID=$sid" bash -c "$block") >/dev/null 2>&1 || rc=$?
+        (cd "$work" && env -u CLAUDE_SESSION_ID CLAUDE_PLUGIN_ROOT="$PROJECT_ROOT" OCTOPUS_HOST=claude "CLAUDE_CODE_SESSION_ID=$sid" bash -c "$block") >/dev/null 2>&1 || rc=$?
         (( rc != 0 )) || fails+=" $label:admitted-empty-state"
         [[ -f "$sf" && ! -s "$sf" ]] || fails+=" $label:changed-empty-state"
         [[ "$(_freeze_decides "$work/outside/x.txt")" == deny ]] || fails+=" $label:empty-state-outside-edit-not-denied"

@@ -114,6 +114,7 @@ fi
 test_case "format-only recovery parses a wrapped reformatted document without the python fallback"
 recovery_document='{"findings":[{"file":"package.json","line":7,"severity":"normal","category":"correctness","title":"Recovered","detail":"same finding","confidence":0.9}]}'
 original_sync="$(declare -f review_run_agent_sync_progress)"
+# review_run_agent_sync_progress: Return inert provider fixtures or the requested verifier failure.
 review_run_agent_sync_progress() { OCTOPUS_SECURITY_V870=true wrap_cli_output "$1" "$recovery_document"; }
 python3() { return 127; }
 recovered="$(review_recover_malformed_findings codex implementation-logic-reviewer '{findings:[{severity:normal,title:"Recovered"}]}' test-recovery 2>/dev/null || true)"
@@ -184,7 +185,9 @@ review_run_agent_sync_progress() {
     local provider_output
     printf 'SYNC %s %s\n' "$1" "$3" >> "$HARNESS_LOG"
     case "$3" in
-        implementation-verifier) provider_output="$VERIFIER_OUTPUT" ;;
+        implementation-verifier)
+            [[ "${VERIFIER_FAIL:-false}" != true ]] || return "${VERIFIER_EXIT:-1}"
+            provider_output="$VERIFIER_OUTPUT" ;;
         implementation-synthesizer)
             provider_output="$(printf '%s\n' "$2" | sed -n 's/^Findings: //p' | jq -c '{findings: map(. + {synthesized: true})}')" ;;
         *) return 1 ;;
@@ -193,8 +196,11 @@ review_run_agent_sync_progress() {
 }
 render_terminal_report() { :; }
 print_provider_report() { :; }
-gh() { return 1; }
-review_run '{"target":"staged","debate":"off","publish":"never"}'
+# gh: Expose only a synthetic PR when publication is explicitly enabled.
+gh() { [[ "${PUBLICATION_FIXTURE:-false}" == true ]] || return 1; echo 999; }
+post_inline_comments() { echo PUBLISHED >> "$HARNESS_LOG"; }
+review_pr_metadata() { echo '{"number":999,"headRefOid":"fixture"}'; }
+review_run '{"target":"staged","debate":"off","publish":"auto"}'
 HARNESS
 
 e2e_round1_output='{"findings":[{"file":"src/app.ts","line":3,"severity":"normal","category":"correctness","title":"Kept","detail":"Null dereference on empty input","confidence":0.9},{"file":"src/app.ts","line":8,"severity":"normal","category":"correctness","title":"Dismissed","detail":"Guarded by the caller","confidence":0.6}]}'
@@ -220,6 +226,7 @@ review_harness_findings() {
     jq -c '[.findings[] | {title, verdict, synthesized}]' "$findings_file"
 }
 
+# review_harness_diagnostics: Summarize the isolated review result when a behavioral assertion fails.
 review_harness_diagnostics() {
     printf 'rc=%s findings=%s log=[%s] output=[%s]' "$2" \
         "$(review_harness_findings "$1" 2>/dev/null || printf 'missing')" \
@@ -254,5 +261,76 @@ if [[ "$single_rc" -eq 0 ]] &&
 else
     test_fail "$(review_harness_diagnostics "$single_run" "$single_rc")"
 fi
+
+
+for failure in quota timeout malformed copilot partial empty duplicate unverified; do
+    test_case "verifier $failure preserves uncertainty through synthesis"
+    failure_run="$TEST_TMP_DIR/failed-$failure"
+    old_verifier="$e2e_verifier_output"
+    e2e_verifier_output='not valid JSON'
+    case "$failure" in
+        partial) e2e_verifier_output="$(printf '%s' "$old_verifier" | jq '{findings:[.findings[0]]}')" ;;
+        empty) e2e_verifier_output='{"findings":[]}' ;;
+        unverified) e2e_verifier_output="$(printf '%s' "$old_verifier" | jq '.findings[0].verdict="unverified"')" ;;
+        duplicate) e2e_verifier_output="$(printf '%s' "$old_verifier" | jq '{findings:[.findings[0],.findings[0]]}')" ;;
+    esac
+    failure_rc=0
+    if [[ "$failure" == malformed || "$failure" == partial || "$failure" == empty || "$failure" == duplicate || "$failure" == unverified ]]; then
+        run_review_harness "$failure_run" PUBLICATION_FIXTURE=true || failure_rc=$?
+    else
+        if [[ "$failure" == copilot ]]; then
+            run_review_harness "$failure_run" PUBLICATION_FIXTURE=true VERIFIER_FAIL=true OCTOPUS_REVIEW_SINGLE_PROVIDER=copilot || failure_rc=$?
+        else
+            verifier_exit=1; [[ "$failure" != timeout ]] || verifier_exit=124
+            run_review_harness "$failure_run" PUBLICATION_FIXTURE=true VERIFIER_FAIL=true VERIFIER_EXIT="$verifier_exit" || failure_rc=$?
+        fi
+    fi
+    e2e_verifier_output="$old_verifier"
+    result_file="$(find "$failure_run/results" -name 'review-findings-*.json' -type f | head -1)"
+    if [[ "$failure_rc" -eq 0 && -n "$result_file" ]] && jq -e '
+        .verification_status == "incomplete" and (.warning | contains("unverified")) and
+        (.findings | length == 2) and all(.findings[]; .verdict == "unverified")
+    ' "$result_file" >/dev/null && ! grep -q PUBLISHED "$failure_run/log"; then
+        test_pass
+    else
+        test_fail "$(review_harness_diagnostics "$failure_run" "$failure_rc")"
+    fi
+done
+
+test_case "verified high-confidence review can still publish in the inert harness"
+positive_run="$TEST_TMP_DIR/publish-positive"
+positive_rc=0
+run_review_harness "$positive_run" PUBLICATION_FIXTURE=true || positive_rc=$?
+if [[ "$positive_rc" == 0 ]] && grep -q '^PUBLISHED$' "$positive_run/log"; then test_pass; else test_fail "positive publication fixture did not publish"; fi
+
+for kind in identical distinct-verdicts; do
+    test_case "complete duplicate-location verification retains each verdict: $kind"
+    saved_round1="$e2e_round1_output"; saved_verifier="$e2e_verifier_output"
+    if [[ "$kind" == identical ]]; then
+        e2e_round1_output="$(printf '%s' "$saved_round1" | jq '{findings:[.findings[0],.findings[0]]}')"
+        e2e_verifier_output="$(printf '%s' "$e2e_round1_output" | jq '.findings |= map(. + {verdict:"confirmed"})')"
+    else
+        e2e_round1_output="$(printf '%s' "$saved_round1" | jq '{findings:[.findings[0],(.findings[0] + {detail:"Distinct second provider evidence"})]}')"
+        e2e_verifier_output="$(printf '%s' "$e2e_round1_output" | jq '.findings[0].verdict="false-positive" | .findings[1].verdict="confirmed"')"
+    fi
+    duplicate_run="$TEST_TMP_DIR/complete-duplicate-$kind"; duplicate_rc=0
+    run_review_harness "$duplicate_run" PUBLICATION_FIXTURE=true || duplicate_rc=$?
+    e2e_round1_output="$saved_round1";e2e_verifier_output="$saved_verifier"
+    findings="$(find "$duplicate_run/results" -name 'review-findings-*.json' -type f | head -1)"
+    if [[ "$duplicate_rc" == 0 && -n "$findings" ]] && jq -e '
+        .verification_status != "incomplete" and (.findings|length == 1) and .findings[0].verdict == "confirmed"
+    ' "$findings" >/dev/null && grep -q '^PUBLISHED$' "$duplicate_run/log"; then
+        if [[ "$kind" == distinct-verdicts ]] && ! jq -e '.findings[0].detail == "Distinct second provider evidence"' "$findings" >/dev/null; then
+            test_fail "a false positive displaced the independently confirmed finding"
+        else test_pass; fi
+    else test_fail "$(review_harness_diagnostics "$duplicate_run" "$duplicate_rc")"; fi
+done
+
+
+test_case "nonempty terminal report exposes incomplete verification and publication block"
+warning_file="$TEST_TMP_DIR/incomplete-findings.json"
+printf '%s' "$e2e_round1_output" | jq '. + {verification_status:"incomplete", warning:"Verifier output was invalid"}' > "$warning_file"
+terminal_output="$(render_terminal_report "$warning_file")"
+if [[ "$terminal_output" == *"Verifier output was invalid"* && "$terminal_output" == *"Findings remain unverified and publication is disabled"* && "$terminal_output" == *"Kept"* ]]; then test_pass; else test_fail "terminal hid incomplete verification: $terminal_output"; fi
 
 test_summary

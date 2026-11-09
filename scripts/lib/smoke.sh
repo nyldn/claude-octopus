@@ -411,8 +411,20 @@ detect_tier_openai() {
     # Attempt API detection with minimal test call
     if command -v codex &>/dev/null; then
         local test_response
+        local -a PROVIDER_ENV_ARRAY=()
+        if ! { declare -F build_provider_env >/dev/null || source "${_smoke_policy_dir}/provider-routing.sh"; } ||
+           ! build_provider_env codex; then
+            if declare -F log >/dev/null; then
+                log WARN "Codex tier probe skipped: provider environment construction failed" >&2
+            else
+                printf '%s\n' 'Codex tier probe skipped: provider environment construction failed' >&2
+            fi
+            tier_cache_write "codex" "$fallback_tier"
+            echo "$fallback_tier"
+            return 0
+        fi
         # Use 5-second timeout for minimal "ok" prompt (3 tokens)
-        test_response=$(run_with_timeout 5 codex exec --skip-git-repo-check "ok" 2>&1 || echo "")
+        test_response=$(run_with_timeout 5 ${PROVIDER_ENV_ARRAY[@]+"${PROVIDER_ENV_ARRAY[@]}"} codex exec --skip-git-repo-check "ok" 2>&1 || echo "")
 
         # Check for tier indicators in response
         # o3-mini/gpt-4 access suggests plus tier
@@ -977,6 +989,10 @@ _display_smoke_test_error() {
             echo -e "  ${YELLOW}⚠${NC} ${provider}: Requires a git repository (configuration issue, not a provider failure)"
             echo -e "    ${DIM}Fix: Run from a git repo or use 'codex exec --skip-git-repo-check'${NC}"
             ;;
+        ERROR)
+            echo -e "  ${RED}✗${NC} ${provider}: Provider environment construction failed"
+            echo -e "    ${DIM}Fix: check the selected provider credentials and environment allowlist${NC}"
+            ;;
         UNKNOWN)
             echo -e "  ${RED}✗${NC} ${provider}: Smoke test failed (unknown error)"
             echo -e "    ${DIM}Run with VERBOSE=true for details${NC}"
@@ -1015,6 +1031,16 @@ _smoke_test_provider() {
         return 0
     fi
 
+    # Readiness calls use the same credential boundary as task dispatch.
+    # Fail before launch if isolation cannot be constructed.
+    local -a PROVIDER_ENV_ARRAY=()
+    if ! { declare -F build_provider_env >/dev/null || source "${_smoke_policy_dir}/provider-routing.sh"; } ||
+       ! build_provider_env "$agent_type"; then
+        echo "ERROR:${model}" > "$result_file"
+        rm -f "$stderr_file" 2>/dev/null || true
+        return 0
+    fi
+
     # Send trivial prompt with timeout
     local smoke_exit=0
     if [[ "$provider" == "codex" ]]; then
@@ -1034,7 +1060,7 @@ _smoke_test_provider() {
         fi
         # codex cmd_str ends with `-` (stdin prompt); arg form is rejected.
         echo "Reply with exactly: ok" | run_with_timeout "$smoke_timeout" \
-            $cmd_str \
+            ${PROVIDER_ENV_ARRAY[@]+"${PROVIDER_ENV_ARRAY[@]}"} $cmd_str \
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
         popd >/dev/null 2>&1 || cd "$OLDPWD" 2>/dev/null || true
         rm -rf "$smoke_dir" 2>/dev/null
@@ -1042,7 +1068,7 @@ _smoke_test_provider() {
         # cmd_str already carries --trust, --output-format text, --mode and
         # --model from dispatch; only the stdin headless trigger is appended.
         echo "Reply with exactly: ok" | run_with_timeout "$smoke_timeout" \
-            $cmd_str -p "" \
+            ${PROVIDER_ENV_ARRAY[@]+"${PROVIDER_ENV_ARRAY[@]}"} $cmd_str -p "" \
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
     elif [[ "$provider" == "agy" ]]; then
         # agy-exec.sh is a stdin adapter that builds its own argv and execs agy
@@ -1052,17 +1078,17 @@ _smoke_test_provider() {
         # web-search tool call, which hangs with no sandbox network permission.
         echo "Reply with exactly: ok. Answer from your own knowledge only — do not use web search or any tools." \
             | run_with_timeout "$smoke_timeout" \
-            $cmd_str \
+            ${PROVIDER_ENV_ARRAY[@]+"${PROVIDER_ENV_ARRAY[@]}"} $cmd_str \
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
     elif [[ "$provider" == "claude" ]]; then
         # claude --print reports auth failures ("Failed to authenticate: OAuth
         # session expired ...") on stdout, so both streams feed the classifier.
         echo "Reply with exactly: ok" | run_with_timeout "$smoke_timeout" \
-            $cmd_str \
+            ${PROVIDER_ENV_ARRAY[@]+"${PROVIDER_ENV_ARRAY[@]}"} $cmd_str \
             >"$stderr_file" 2>&1 || smoke_exit=$?
     else
         run_with_timeout "$smoke_timeout" \
-            $cmd_str -p "Reply with exactly: ok" \
+            ${PROVIDER_ENV_ARRAY[@]+"${PROVIDER_ENV_ARRAY[@]}"} $cmd_str -p "Reply with exactly: ok" \
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
     fi
 

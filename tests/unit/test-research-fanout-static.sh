@@ -28,17 +28,32 @@ test_case "research skill forwards the routed intensity as an orchestrate.sh fla
 research_skill="$(<"$(resolve_claude_skill_path "skill-deep-research")")"
 if [[ "$research_skill" == *'[intensity=quick|standard|deep]` token from the skill args'* \
    && "$research_skill" == *'`light → quick`, `exhaustive → deep`; `quick`, `standard` and `deep` pass through unchanged'* \
-   && "$research_skill" == *'orchestrate.sh --intensity=<quick|standard|deep> probe'* \
    && "$research_skill" != *'--depth "${depth_choice}"'* \
    && "$research_skill" != *'--focus "${focus_choice}"'* \
-   && "$research_skill" != *'--format "${format_choice}"'* ]]; then
+   && "$research_skill" != *'--format "${format_choice}"'* ]] &&
+   python3 - "$(resolve_claude_skill_path "skill-deep-research")" <<'PY'
+from pathlib import Path
+import shlex
+import sys
+
+for line in Path(sys.argv[1]).read_text().splitlines():
+    if ' --intensity=' not in line:
+        continue
+    words = shlex.split(line.rstrip(' \\'))
+    if (words and words[0].endswith('/scripts/orchestrate.sh')
+            and words[1:3] == ['--intensity=<quick|standard|deep>', 'probe']):
+        break
+else:
+    raise AssertionError('intensity must precede probe in the shell arguments')
+PY
+then
     test_pass
 else
     test_fail "expected the research skill to pass --intensity= before probe and no unparsed flags"
 fi
 
 test_case "discover skill requires dynamic multi-provider fleet"
-discover_skill="$(<"$(resolve_claude_skill_path "flow-discover")")"
+discover_skill="$(read_claude_skill_contract flow-discover)"
 if [[ "$discover_skill" == *"build-fleet.sh"* && "$discover_skill" == *"codex, agy, copilot, qwen, opencode"* ]]; then
     test_pass
 else

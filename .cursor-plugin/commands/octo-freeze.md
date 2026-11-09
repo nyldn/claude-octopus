@@ -11,17 +11,18 @@ When the user invokes `/octo:freeze <directory>`, activate freeze mode to restri
 
 ### Activation
 
-1. Resolve the directory argument to an absolute path
-2. Ensure trailing `/` for safe prefix matching
-3. Write the boundary to the state file:
+Resolve the active installation and use its session-state helper. Replace
+`<directory>` with the supplied directory as one quoted argument. For `guard-on`,
+omit that argument when only careful mode was requested.
 
 ```bash
-# Resolve to absolute path
-freeze_dir="$(cd "${1}" 2>/dev/null && pwd)" || freeze_dir="${1}"
-# Write state
-_OCTO_SESSION_ID="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-$$}}"
-echo "${freeze_dir}" > "/tmp/octopus-freeze-${_OCTO_SESSION_ID}.txt"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+bash "$OCTO_ROOT/scripts/helpers/guard-state.sh" freeze-on "<directory>"
 ```
+
+A nonzero result means protection was not activated or changed. Do not announce
+success. The helper requires a stable host session ID; a shell PID is not a
+session identity. A missing directory fails before activation changes.
 
 ### What It Does
 

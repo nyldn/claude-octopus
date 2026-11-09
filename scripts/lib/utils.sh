@@ -388,6 +388,13 @@ _validate_claude_agent_command() {
         if [[ $configured_index -gt 0 ]]; then
             case "$configured_token" in
                 --strict-mcp-config) ;;
+                --tools)
+                    [[ $((configured_index + 1)) -lt ${#configured_parts[@]} ]] || return 1
+                    [[ "${configured_parts[$((configured_index + 1))]}" == "Read,Glob,Grep" ]] || return 1
+                    configured_index=$((configured_index + 1))
+                    i=$((i + 1))
+                    [[ $i -lt ${#parts[@]} && "${parts[$i]}" == "Read,Glob,Grep" ]] || return 1
+                    ;;
                 --setting-sources)
                     [[ $((configured_index + 1)) -lt ${#configured_parts[@]} ]] || return 1
                     [[ "${configured_parts[$((configured_index + 1))]}" == "project,local" ]] || return 1
@@ -482,7 +489,7 @@ validate_agent_command() {
         [[ "${#api_parts[@]}" -eq 7 && "${api_parts[0]}" == "${trusted_plugin_root}/scripts/helpers/anthropic-api-exec.sh" ]] || return 1
         [[ "${api_parts[1]}" == --model && "${api_parts[3]}" == --effort && "${api_parts[5]}" == --thinking ]] || return 1
         case "${api_parts[2]}" in claude-sonnet-5-5|claude-opus-5-5) ;; *) return 1 ;; esac
-        case "${api_parts[4]}" in low|medium|high|xhigh|max) ;; *) return 1 ;; esac
+        case "${api_parts[4]}" in auto|low|medium|high|xhigh|max) ;; *) return 1 ;; esac
         case "${api_parts[6]}" in auto|adaptive|between_tools) ;; *) return 1 ;; esac
         return 0
     fi

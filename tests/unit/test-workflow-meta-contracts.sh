@@ -12,7 +12,8 @@ test_suite "Workflow Meta Contracts"
 
 DELIVER="$PROJECT_ROOT/skills/flow-deliver/SKILL.md"
 DEVELOP="$PROJECT_ROOT/skills/flow-develop/SKILL.md"
-DISCOVER="$PROJECT_ROOT/skills/flow-discover/SKILL.md"
+DISCOVER="$TEST_TMP_DIR/discover-contract.md"
+read_claude_skill_contract flow-discover > "$DISCOVER"
 DOCTOR="$PROJECT_ROOT/skills/skill-doctor/SKILL.md"
 SECURITY_AUDIT="$PROJECT_ROOT/skills/octopus-security-audit/SKILL.md"
 UI_UX_DESIGN="$PROJECT_ROOT/skills/octopus-ui-ux-design/SKILL.md"
@@ -60,29 +61,21 @@ extract_bash_fence() {
         inside { print }
     '
 }
-synthesis_line=$(grep -n 'if \[\[ ! -s' <<< "$discover_block" | head -1 | cut -d: -f1 || true)
-exit_line=$(grep -n '^[[:space:]]*exit 1$' <<< "$discover_block" | head -1 | cut -d: -f1 || true)
-present_line=$(grep -nF 'cat "$SYNTHESIS_FILE"' <<< "$discover_block" | head -1 | cut -d: -f1 || true)
-project_line=$(grep -n 'update_project' <<< "$discover_block" | head -1 | cut -d: -f1 || true)
-complete_line=$(grep -n 'update_state' <<< "$discover_block" | head -1 | cut -d: -f1 || true)
-opt_in_line=$(grep -n 'OCTOPUS_PROJECT_PERSISTENCE' <<< "$discover_block" | head -1 | cut -d: -f1 || true)
-
-test_case "Discovery verifies and presents before optional project persistence"
-if [[ -n "$synthesis_line" && -n "$exit_line" && -n "$present_line" && -n "$opt_in_line" && -n "$project_line" && -n "$complete_line" ]] &&
-   (( synthesis_line < exit_line && exit_line < present_line && present_line < opt_in_line && opt_in_line < project_line && project_line < complete_line )) &&
-   grep -Fq 'cat "$SYNTHESIS_FILE"' <<< "$discover_block" &&
-   grep -Fq -- '--content-file "$SYNTHESIS_FILE"' <<< "$discover_block" &&
-   ! grep -q -- '--content ' <<< "$discover_block" &&
-   ! grep -Eq 'head -100|sed -n .1,100p.|See synthesis file' <<< "$discover_block" &&
-   grep -q 'if ! .*update_project' <<< "$(tr '\n' ' ' <<< "$discover_block")"; then
+test_case "Discovery delegates terminal writes to the recoverable run transaction"
+discover_post_code=$(extract_bash_fence <<< "$discover_block")
+if grep -Fq 'discovery-handoff.py" publish' <<< "$discover_post_code" &&
+   grep -Fq 'Restore the discovery run ID' <<< "$discover_post_code" &&
+   ! grep -q 'scripts/octo-state.sh\|cp \|mv ' <<< "$discover_post_code" &&
+   grep -q 'restores them on failure' <<< "$(tr '\n' ' ' <<< "$discover_block")"; then
     test_pass
 else
-    test_fail "Post-Discovery must present the complete synthesis and gate project persistence explicitly"
+    test_fail "Discover terminal writes bypass the locked, recoverable handoff"
 fi
 
-test_case "Discovery terminal state makes PROJECT.md persistence explicit opt-in"
+test_case "Discovery terminal state requires an opted-in phase summary and preserves project goals"
 discover_terminal=$(sed -n '/^## Terminal State/,/^\*\*Ready to research!/p' "$DISCOVER")
-if grep -q '\.octo/PROJECT\.md' <<< "$discover_terminal" &&
+if grep -q '\.octo/phases/phase-1-summary\.md' <<< "$discover_terminal" &&
+   grep -q 'Preserve .*\.octo/PROJECT\.md' <<< "$discover_terminal" &&
    grep -q 'OCTOPUS_PROJECT_PERSISTENCE=true' <<< "$discover_terminal"; then
     test_pass
 else
@@ -95,8 +88,11 @@ discover_pre_code=$(extract_bash_fence <<< "$discover_pre")
 discover_post_code=$(extract_bash_fence <<< "$discover_block")
 persistence_home="$TEST_TMP_DIR/persistence-home"
 persistence_project="$TEST_TMP_DIR/persistence-project"
-persistence_synthesis="$TEST_TMP_DIR/persistence-synthesis.md"
-mkdir -p "$persistence_home/.claude-octopus/plugin/scripts" "$persistence_project"
+persistence_synthesis="$persistence_home/.claude-octopus/results/probe-synthesis-persistence-fixture.md"
+mkdir -p "$persistence_home/.claude-octopus/plugin/scripts/helpers" "$persistence_project" "$(dirname "$persistence_synthesis")"
+ln -s "$PROJECT_ROOT/scripts/state-manager.sh" "$persistence_home/.claude-octopus/plugin/scripts/state-manager.sh"
+ln -s "$PROJECT_ROOT/scripts/helpers/discovery-handoff.py" "$persistence_home/.claude-octopus/plugin/scripts/helpers/discovery-handoff.py"
+ln -s "$PROJECT_ROOT/scripts/helpers/discovery-project-complete.sh" "$persistence_home/.claude-octopus/plugin/scripts/helpers/discovery-project-complete.sh"
 printf '%s\n' fixture > "$persistence_synthesis"
 cat > "$persistence_home/.claude-octopus/plugin/scripts/octo-state.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -104,16 +100,30 @@ cat > "$persistence_home/.claude-octopus/plugin/scripts/octo-state.sh" <<'EOF'
 exit 0
 EOF
 chmod +x "$persistence_home/.claude-octopus/plugin/scripts/octo-state.sh"
+cat > "$persistence_home/.claude-octopus/plugin/scripts/cp" <<'EOF'
+#!/usr/bin/env bash
+[[ "${OCTOPUS_TEST_FAIL_COMMAND:-}" == persist_summary ]] && exit 42
+exec /bin/cp "$@"
+EOF
+chmod +x "$persistence_home/.claude-octopus/plugin/scripts/cp"
 
 persistence_baseline_ok=true
 for lifecycle_code in "$discover_pre_code" "$discover_post_code"; do
+    fixture_stage=pre
+    [[ "$lifecycle_code" != "$discover_post_code" ]] || fixture_stage=post
     if ! (
         cd "$persistence_project"
         rm -rf .octo
         HOME="$persistence_home" \
+        PATH="$persistence_home/.claude-octopus/plugin/scripts:$PATH" \
+        OCTO_ROOT="$persistence_home/.claude-octopus/plugin" \
         OCTOPUS_PROJECT_PERSISTENCE=true \
         SYNTHESIS_FILE="$persistence_synthesis" \
-        bash -c "$lifecycle_code"
+        PERSISTENCE_STAGE="$fixture_stage" \
+        RUN_ID=persistence-fixture \
+        CLAUDE_PLUGIN_DATA="$persistence_home/workspace" \
+        OCTOPUS_WORKFLOW_STATE_DIR="$persistence_home/workflow-state" \
+        bash -c 'python3 "$OCTO_ROOT/scripts/helpers/discovery-handoff.py" begin "$OCTOPUS_WORKFLOW_STATE_DIR/state.json" "$RUN_ID" || exit 1; if [[ "$PERSISTENCE_STAGE" == post ]]; then OCTOPUS_TEST_FAIL_COMMAND= python3 "$OCTO_ROOT/scripts/helpers/discovery-handoff.py" prepare "$OCTOPUS_WORKFLOW_STATE_DIR/state.json" "$RUN_ID" || exit 1; fi; bash -c "$1"' _ "$lifecycle_code"
     ) >/dev/null 2>&1; then
         persistence_baseline_ok=false
         break
@@ -121,21 +131,29 @@ for lifecycle_code in "$discover_pre_code" "$discover_post_code"; do
 done
 
 persistence_failed_closed=true
-for lifecycle_case in init_project pre_update_state update_project post_update_state; do
+for lifecycle_case in init_project pre_update_state persist_summary post_update_state; do
     case "$lifecycle_case" in
         init_project) failure_command=init_project; lifecycle_code="$discover_pre_code" ;;
         pre_update_state) failure_command=update_state; lifecycle_code="$discover_pre_code" ;;
-        update_project) failure_command=update_project; lifecycle_code="$discover_post_code" ;;
+        persist_summary) failure_command=persist_summary; lifecycle_code="$discover_post_code" ;;
         post_update_state) failure_command=update_state; lifecycle_code="$discover_post_code" ;;
     esac
+    fixture_stage=pre
+    [[ "$lifecycle_code" != "$discover_post_code" ]] || fixture_stage=post
     if (
         cd "$persistence_project"
         rm -rf .octo
         HOME="$persistence_home" \
+        PATH="$persistence_home/.claude-octopus/plugin/scripts:$PATH" \
+        OCTO_ROOT="$persistence_home/.claude-octopus/plugin" \
         OCTOPUS_PROJECT_PERSISTENCE=true \
         OCTOPUS_TEST_FAIL_COMMAND="$failure_command" \
         SYNTHESIS_FILE="$persistence_synthesis" \
-        bash -c "$lifecycle_code"
+        PERSISTENCE_STAGE="$fixture_stage" \
+        RUN_ID=persistence-fixture \
+        CLAUDE_PLUGIN_DATA="$persistence_home/workspace" \
+        OCTOPUS_WORKFLOW_STATE_DIR="$persistence_home/workflow-state" \
+        bash -c 'python3 "$OCTO_ROOT/scripts/helpers/discovery-handoff.py" begin "$OCTOPUS_WORKFLOW_STATE_DIR/state.json" "$RUN_ID" || exit 1; if [[ "$PERSISTENCE_STAGE" == post ]]; then OCTOPUS_TEST_FAIL_COMMAND= python3 "$OCTO_ROOT/scripts/helpers/discovery-handoff.py" prepare "$OCTOPUS_WORKFLOW_STATE_DIR/state.json" "$RUN_ID" || exit 1; fi; bash -c "$1"' _ "$lifecycle_code"
     ) >/dev/null 2>&1; then
         persistence_failed_closed=false
         break

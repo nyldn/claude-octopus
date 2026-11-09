@@ -43,7 +43,7 @@ with tempfile.TemporaryDirectory(prefix="octo-debug-freeze-test-") as tmp:
         section = text.split("## Scoped freeze guard", 1)[1]
         code = re.search(r"```bash\n(.*?)\n```", section, re.S).group(1)
         for case in ["missing-id", "empty-ids", "legacy-only-id",
-                     "empty-current-legacy-id", "absent", "valid-existing", "opaque-existing", "empty-regular",
+                     "empty-current-legacy-id", "codex-session", "codex-task", "absent", "valid-existing", "opaque-existing", "empty-regular",
                      "filled-symlink", "empty-symlink", "dangling-symlink",
                      "directory", "fifo", "race-regular", "race-symlink",
                      "race-fifo", "race-symlink-fifo", "missing-python"]:
@@ -53,8 +53,16 @@ with tempfile.TemporaryDirectory(prefix="octo-debug-freeze-test-") as tmp:
             legacy = Path("/tmp/octopus-freeze-" + legacy_sid + ".txt")
             target = root / uuid.uuid4().hex
             marker = "SYNTHETIC_NONSECRET_" + sid
-            env = dict(os.environ, CLAUDE_CODE_SESSION_ID=sid,
+            env = dict(os.environ, CLAUDE_PLUGIN_ROOT=str(source), CLAUDE_CODE_SESSION_ID=sid,
                        CLAUDE_SESSION_ID=legacy_sid, OCTOPUS_HOST="claude")
+            env.pop("CLAUDE_CODE_SESSION", None)
+            for key in ("CODEX_SESSION_ID", "CODEX_TASK_ID", "CODEX_PLUGIN_ROOT", "CODEX_SANDBOX", "CODEX_HOME", "PLUGIN_ROOT"):
+                env.pop(key, None)
+            if case in ("codex-session", "codex-task"):
+                for key in ("OCTOPUS_HOST", "CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID", "CLAUDE_PLUGIN_ROOT"):
+                    env.pop(key, None)
+                env["CODEX_PLUGIN_ROOT"] = str(source)
+                env["CODEX_SESSION_ID" if case == "codex-session" else "CODEX_TASK_ID"] = sid
             missing_id = case in ("missing-id", "empty-ids")
             if missing_id:
                 env.pop("CLAUDE_CODE_SESSION_ID", None)
@@ -136,16 +144,16 @@ with tempfile.TemporaryDirectory(prefix="octo-debug-freeze-test-") as tmp:
                 assert not legacy.exists(), "legacy ID overrode current Claude session ID"
                 if missing_id:
                     assert proc.returncode != 0, "missing shared ID admitted"
-                    assert "requires a shared Claude session ID" in proc.stderr
+                    assert "requires a stable host session ID" in proc.stderr
                     assert trace.read_text() == "", "state path selected without shared ID"
                     assert not state.exists() and not pid_state.exists(), "unenforced state created"
-                elif case in ("absent", "legacy-only-id", "empty-current-legacy-id"):
+                elif case in ("absent", "legacy-only-id", "empty-current-legacy-id", "codex-session", "codex-task"):
                     assert proc.returncode == 0, proc.stderr
                     assert state.read_text() == str(module) + "\n", (
                         "synthetic expected=" + repr(str(module) + "\n")
                         + " actual=" + repr(state.read_text()))
                     assert state.stat().st_mode & 0o777 == 0o600
-                    payload = json.dumps({"tool_name": "Edit", "tool_input": {
+                    payload = json.dumps({"session_id": sid, "tool_name": "Edit", "tool_input": {
                         "file_path": str(other / "outside.py")}, "cwd": str(root)})
                     enforced = subprocess.run([bash, str(hook)], input=payload,
                         env=env, capture_output=True, text=True, timeout=5)

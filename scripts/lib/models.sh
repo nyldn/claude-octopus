@@ -46,6 +46,7 @@ _octo_get_model_catalog_raw() {
         # provider-aware so the cursor-agent route still bills as subscription.
         auto)                      echo "128|yes|no|no|copilot|standard|active" ;;
         # Claude
+        claude-haiku-5-5)      echo "1000|yes|yes|yes|claude|budget|active" ;;
         claude-haiku-4.5)      echo "200|yes|yes|yes|claude|budget|active" ;;
         claude-sonnet-5-5)     echo "1000|yes|yes|yes|claude|standard|active" ;;
         claude-sonnet-5)       echo "1000|yes|yes|yes|claude|standard|active" ;;
@@ -296,6 +297,7 @@ o3-pro
 o3-mini
 agy/default
 auto
+claude-haiku-5-5
 claude-haiku-4.5
 claude-sonnet-5-5
 claude-sonnet-5

@@ -44,13 +44,13 @@ Invokes the security-auditor persona for thorough security analysis during the `
 
 ```bash
 # Quick scan via security-auditor persona
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh spawn security-auditor "Scan for SQL injection vulnerabilities"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn security-auditor "Scan for SQL injection vulnerabilities"
 
 # Adversarial red team via squeeze workflow
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh squeeze "Security audit the authentication module"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" squeeze "Security audit the authentication module"
 
 # Via auto-routing (detects security intent)
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh auto "security audit the payment processing module"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" auto "security audit the payment processing module"
 ```
 
 ## Modes (Auto-Detected)
@@ -169,7 +169,7 @@ For comprehensive security testing, use the squeeze workflow which runs a 4-phas
 4. **Validation** (Verify): Antigravity re-tests, confirms fixes or fails
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh squeeze "[user's security request]"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" squeeze "[user's security request]"
 ```
 
 ### OWASP Top 10 Coverage
@@ -197,10 +197,10 @@ ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh squeeze "[user's security 
 
 ```bash
 # Focus on specific vulnerabilities
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh squeeze "Audit for auth bypass only"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" squeeze "Audit for auth bypass only"
 
 # Report every finding, however minor
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh squeeze "Zero tolerance audit: report every vulnerability, however minor"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" squeeze "Zero tolerance audit: report every vulnerability, however minor"
 ```
 
 ### When to Use Adversarial Mode

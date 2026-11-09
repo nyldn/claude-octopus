@@ -134,3 +134,12 @@ OCTOPUS_FEATURE	covered-by	test-feature-workflow.py
 OCTOPUS_FEATURE_LAYOUT	covered-by	test-feature-workflow.py
 OCTOPUS_PROJECT_POLICY	covered-by	test-feature-workflow.py
 OCTOPUS_SKIP_PROVIDER_PROBES	covered-by	test-vibe-keyring.py
+OCTOPUS_STATE_DIR	covered-by	test-feature-disclosure.sh
+OCTOPUS_COUNCIL_MAX_PARALLEL	covered-by	test-council-workers.sh
+OCTOPUS_COUNCIL_MAX_PARALLEL_	placeholder	template prefix for a provider-specific council concurrency limit
+OCTOPUS_COUNCIL_MAX_PARALLEL_CODEX	covered-by	test-council-workers.sh
+OCTOPUS_COUNCIL_PROVIDER_MAX_PARALLEL	covered-by	test-council-workers.sh
+OCTOPUS_PREFLIGHT_PROVIDERS	covered-by	test-refinement-efficiency.py
+OCTOPUS_PREFLIGHT_REPORT	covered-by	test-refinement-efficiency.py
+OCTOPUS_PREFLIGHT_RUN_ID	covered-by	test-refinement-efficiency.py
+OCTOPUS_RESEARCH_WEB_SEARCH	covered-by	test-probe-web-research-allowlist.sh

@@ -23,7 +23,12 @@ You get:    A structured comparison with three independent viewpoints,
             scored for agreement. Disagreements are flagged, not hidden.
 ```
 
-Octopus includes research, escalated code review, debugging, TDD, security audits, UI design, PRDs, and full build-to-ship workflows: 54 commands, 63 skills, 31 specialized personas.
+Octopus includes research, escalated code review, debugging, TDD, security audits, UI design, PRDs, and full build-to-ship workflows: 56 commands, 64 skills, 31 specialized personas.
+
+Use `/octo:refine plan.md --max-rounds 3` to score and improve an existing
+artifact with a frozen rubric and independent Claude and Codex scoring.
+`/octo:ladder` is an alias. The [refinement guide](../docs/REFINEMENT.md) covers
+review-only mode and limits on rounds, elapsed time, and model calls.
 
 ### Engineering methods
 
@@ -105,7 +110,7 @@ Octopus orchestrates — it doesn't replace domain knowledge. If three models co
 ## Learn More
 
 - [**Full README**](../README.md) — feature deep-dive, provider grid, architecture, star history
-- [**Command Reference**](../docs/COMMAND-REFERENCE.md) — all 54 commands with triggers
+- [**Command Reference**](../docs/COMMAND-REFERENCE.md) — all 56 commands with triggers
 - [**Persona Guide**](../docs/AGENTS.md) — 31 specialized agents
 - [**Changelog**](../CHANGELOG.md) — release history
 - [**Issues**](https://github.com/nyldn/claude-octopus/issues) — bugs and feature requests

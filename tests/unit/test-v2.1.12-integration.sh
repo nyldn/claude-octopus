@@ -195,8 +195,12 @@ test_flow_skill_frontmatter() {
             return 1
         fi
 
-        # Writable workflows may run in the main context. Read-only defaults
-        # cannot produce their required artifacts or invoke orchestration.
+        # Discovery must retain its main-conversation tools; other writable
+        # workflows also cannot default to read-only Explore/Plan agents.
+        if [[ "$skill" == flow-discover ]] && grep -qE '^(agent|context):' "$skill_path"; then
+            log_fail "Discovery must retain its main-conversation tools and context"
+            return 1
+        fi
         if grep -qE '^agent: (Explore|Plan)$' "$skill_path"; then
             log_fail "Skill $skill defaults to a read-only agent"
             return 1

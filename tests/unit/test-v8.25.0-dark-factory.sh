@@ -161,7 +161,7 @@ else
 fi
 
 # Test 3.4: References orchestrate.sh factory
-if grep -q 'orchestrate.sh factory' "$COMMAND_FILE"; then
+if grep -qE 'orchestrate[.]sh"?[[:space:]]+factory' "$COMMAND_FILE"; then
     pass "Command references orchestrate.sh factory"
 else
     fail "Command missing orchestrate.sh factory reference"
@@ -233,7 +233,7 @@ else
 fi
 
 # Test 4.6: References orchestrate.sh factory
-if grep -q 'orchestrate.sh factory' "$SKILL_FILE"; then
+if grep -qE 'orchestrate[.]sh"?[[:space:]]+factory' "$SKILL_FILE"; then
     pass "Skill references orchestrate.sh factory"
 else
     fail "Skill missing orchestrate.sh factory reference"
