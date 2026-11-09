@@ -276,7 +276,8 @@ done
 
 # ── flow-discover.md references probe-single ─────────────────────────────────
 
-FLOW_DISCOVER="$(resolve_claude_skill_path "flow-discover")"
+FLOW_DISCOVER="$TEST_TMP_DIR/discover-contract.md"
+read_claude_skill_contract flow-discover > "$FLOW_DISCOVER"
 assert_contains "$(grep -c 'probe-single' "$FLOW_DISCOVER" 2>/dev/null || echo 0)" \
   "[1-9]" "flow-discover.md: references probe-single command"
 

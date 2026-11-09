@@ -3,6 +3,42 @@
 Claude Octopus research keeps a small, local run record so a long discovery
 session can be inspected or resumed without repeating provider calls.
 
+## Optional web search suggestions
+
+Set `OCTOPUS_RESEARCH_WEB_SEARCH=keenable` to run one search for the research
+question before `probe_discover` dispatches its perspectives. When a provider
+allowlist is active, it must include `keenable` as well as the model providers.
+This source adds no seat and works at quick, standard and deep intensity.
+Default runs, dry runs, cache hits and resumed runs perform no lookup.
+
+Each perspective receives up to five titles, URLs and 500-character excerpts,
+wrapped as untrusted content. These are leads for the existing evidence pipeline,
+not verified claims. Seats must inspect and cite the linked pages. Existing
+source-fetch restrictions and citation verification still apply. Failed, empty,
+oversized or malformed searches leave the original prompts unchanged. One lookup
+has a 15-second deadline and does not retry or follow redirects. Interpreters
+without the signal alarm APIs skip the optional lookup so the total deadline
+is preserved. Failed or empty lookups emit one fixed warning without provider
+output or credentials, then research continues with its original prompts.
+
+Python 3's standard library handles the request; no SDK or CLI installation is
+needed. The question is sent to Keenable only when this option and the allowlist
+permit it. With no key, the helper uses `/v1/search/public` and identifies Claude
+Octopus with `X-Keenable-Title`. An optional `KEENABLE_API_KEY` selects `/v1/search`
+with `X-API-Key`; it is excluded from model-child environments, subscription
+tier probes and prompts.
+The helper normalizes title and snippet whitespace and bounds their lengths.
+The resulting formatted suggestions are preserved literally inside their
+untrusted boundaries; they are not exact quotations of the source fields.
+Keyless limits are shared by egress IP. Authenticated usage follows the account's
+credits and rate limits.
+No live search or model request is required by the offline tests.
+
+HTTP contract checked on 2026-11-08 against the official
+[search reference](https://docs.keenable.ai/api-reference/search),
+[quickstart](https://docs.keenable.ai/) and
+[authentication documentation](https://docs.keenable.ai/authentication).
+
 ## Choose the depth
 
 Research uses one of three intensity levels:

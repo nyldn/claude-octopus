@@ -95,36 +95,37 @@ with open(pricing_file, encoding="utf-8") as pricing:
         elif kind == "provider":
             RATES[ident.lower()] = rate
 
-records = []
-for path in sorted(glob.glob(os.path.join(usage_dir, "*.jsonl"))):
-    try:
-        with open(path) as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    records.append(json.loads(line))
-                except Exception:
-                    continue
-    except Exception:
-        continue
+def records():
+    """Yield valid rows while retaining open-file append and rotation behavior."""
+    for path in sorted(glob.glob(os.path.join(usage_dir, "*.jsonl"))):
+        try:
+            with open(path) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        yield json.loads(line)
+                    except Exception:
+                        continue
+        except Exception:
+            continue
 
-# Fold in council/workflow summary.json artifacts (queries only, no tokens)
-for path in sorted(glob.glob(os.path.join(results_dir, "**", "summary.json"),
-                             recursive=True)):
-    try:
-        d = json.load(open(path))
-    except Exception:
-        continue
-    for seat in d.get("roster", d.get("seats", [])) or []:
-        prov = (seat.get("provider") or "").lower()
-        if prov:
-            records.append({"provider": prov,
-                            "model": (seat.get("model") or "").lower(),
-                            "skill": d.get("workflow", ""),
-                            "est_tokens_in": 0, "est_tokens_out": 0,
-                            "source": "results-summary"})
+    # Fold in council/workflow summary.json artifacts (queries only, no tokens)
+    for path in sorted(glob.glob(os.path.join(results_dir, "**", "summary.json"),
+                                 recursive=True)):
+        try:
+            d = json.load(open(path))
+        except Exception:
+            continue
+        for seat in d.get("roster", d.get("seats", [])) or []:
+            prov = (seat.get("provider") or "").lower()
+            if prov:
+                yield {"provider": prov,
+                                "model": (seat.get("model") or "").lower(),
+                                "skill": d.get("workflow", ""),
+                                "est_tokens_in": 0, "est_tokens_out": 0,
+                                "source": "results-summary"}
 
 def bucket():
     return {"queries": 0, "tokens_in": 0, "tokens_out": 0, "est_cost_usd": 0.0}
@@ -168,7 +169,7 @@ by_skill = defaultdict(bucket)
 by_mcp = defaultdict(bucket)
 totals = bucket()
 
-for r in records:
+for r in records():
     prov = (r.get("provider") or "unknown").lower()
     price_prov = pricing_provider(prov)
     model = (r.get("model") or "").lower()
@@ -240,7 +241,7 @@ def table(title, items):
               f"{it['tokens_out']:>10}{'$%.2f' % it['est_cost_usd']:>10}")
     print("-" * 64)
 
-if not records:
+if not totals["queries"]:
     print("No usage records found in", usage_dir)
     sys.exit(0)
 

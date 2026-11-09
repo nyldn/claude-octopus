@@ -371,7 +371,7 @@ fi
 test_start "Flow skills read prior state"
 flow_with_state=0
 for skill in "${flow_skills[@]}"; do
-    if grep -q "state-manager.sh.*read_state\|get_context\|get_decisions" "$(resolve_claude_skill_path "$skill")"; then
+    if grep -q "state-manager.sh.*read_state\|get_context\|get_decisions" <<< "$(read_claude_skill_contract "$skill")"; then
         flow_with_state=$((flow_with_state + 1))
     fi
 done
@@ -385,7 +385,7 @@ fi
 test_start "Flow skills update state"
 flow_with_updates=0
 for skill in "${flow_skills[@]}"; do
-    if grep -q "update_context\|write_decision\|update_metrics" "$(resolve_claude_skill_path "$skill")"; then
+    if grep -q "update_context\|write_decision\|update_metrics" <<< "$(read_claude_skill_contract "$skill")"; then
         flow_with_updates=$((flow_with_updates + 1))
     fi
 done

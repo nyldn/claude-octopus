@@ -9,13 +9,13 @@ disable-model-invocation: true
 
 ### MANDATORY COMPLIANCE — DO NOT SKIP
 
-**When the user invokes `/octo:brainstorm`, you MUST ask the mode selection question below BEFORE starting the session.** Do NOT default to Solo mode. Do NOT skip the question. The user must choose.
+When the user invokes `/octo:brainstorm`, reuse an explicitly supplied Solo or Multi-AI mode. Ask the mode question only when that choice is missing or contradictory. Do not infer provider spending approval from an unrelated answer.
 
 ---
 
-## Step 1: Ask Mode (MANDATORY)
+## Step 1: Resolve mode
 
-You MUST use AskUserQuestion to ask this BEFORE doing anything else:
+Read the supplied topic, mode, constraints, and desired output first. Reuse clear answers. Use AskUserQuestion for a material unresolved or contradictory field; when mode is unresolved, ask:
 
 ```javascript
 AskUserQuestion({
@@ -301,7 +301,7 @@ AskUserQuestion({
 
 ## Validation Gates
 
-- Mode question was asked via AskUserQuestion (not assumed)
+- Mode came from an explicit user choice or a targeted clarification
 - User's choice was respected
 - If Team mode: visual indicator banner was displayed
 - If Team mode: at least 2 providers were queried via external CLI calls or Agent tool
@@ -313,7 +313,7 @@ AskUserQuestion({
 ### Prohibited Actions
 
 - Defaulting to Solo mode without asking
-- Skipping the mode selection question
+- Assuming mode when the user has not selected one
 - In Team mode: only using Claude (must dispatch to external providers)
 - In Team mode: skipping the visual indicator banner
 - In Team mode: presenting ideas without provider attribution

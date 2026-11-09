@@ -2,6 +2,30 @@
 
 ## [Unreleased]
 
+### Added
+
+- Research can optionally share one Keenable web search across its perspectives.
+  Set `OCTOPUS_RESEARCH_WEB_SEARCH=keenable` and include `keenable` in any active
+  provider allowlist. Search suggestions remain untrusted, and lookup failures
+  keep the original research prompts. No API key is required for the public
+  endpoint. Addresses [#1261](https://github.com/nyldn/claude-octopus/issues/1261).
+
+### Improved
+
+- Leading CLI help skips workflow initialization. Complete, valid reviews with
+  no findings skip verifier and synthesis calls after confirming the diff is unchanged.
+- Council advice, critique and revision use bounded concurrency with ordered
+  usage reservations. Refinement can overlap its two pinned, independent judges
+  under one call budget and deadline.
+- Preparation can check an explicit provider panel and validate a short-lived
+  readiness receipt. Fresh dispatch authorization remains required.
+- Discovery and refinement load phase instructions as needed. Brainstorm, PRD
+  and security workflows reuse supplied answers and ask about material gaps.
+- Correction loops detect completed workers sooner. Provider retries distinguish
+  terminal authentication failures from recoverable refresh or transport failures.
+- Worktree metadata sampling, usage reports, context lookup and convergence
+  checks avoid repeated subprocesses, whole-log buffering or unchanged file reads.
+
 ### Fixed
 
 - Quota fast-fails preserve a provider's own temporary-failure status and auth
@@ -29,6 +53,13 @@
   claiming the provider exceeded its timeout.
   Synchronous dispatch also records a failed termination in status and usage
   rather than a timeout, with a launcher-authored reason.
+- Provider smoke tests explain environment construction failures instead of
+  failing silently. Search-credential rejection uses the routing error logger,
+  with a stderr fallback for standalone callers.
+- Optional search skips interpreters without total-deadline support and warns
+  when a lookup fails or returns no suggestions, while research continues.
+- Codex subscription probes exclude search credentials and skip execution if
+  provider environment construction fails.
 
 ## [11.19.0] - 2026-11-08
 

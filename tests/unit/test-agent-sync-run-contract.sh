@@ -148,7 +148,10 @@ get_agent_command() {
     fi
     printf '%s\n' "$fixture_provider --model $command_model"
 }
-build_provider_env() { PROVIDER_ENV_ARRAY=(); }
+build_provider_env() {
+    PROVIDER_ENV_ARRAY=()
+    [[ "${FIXTURE_SCENARIO:-}" != environment-fail ]]
+}
 run_with_timeout() { printf '%s\n' "$1" > "$FIXTURE_ROOT/timeout-seconds"; shift; "$@"; }
 date() {
     # These fixtures check override precedence, not elapsed preparation time.
@@ -274,6 +277,9 @@ else
 fi
 unset -f compute_dynamic_timeout
 
+assert_scenario environment-fail 74 0 \
+    planned,starting,authenticated,failed \
+    failed none 'Provider environment construction failed'
 assert_scenario success 0 1 \
     planned,starting,authenticated,running,output_received,validated,contributed \
     contributed eligible ''
