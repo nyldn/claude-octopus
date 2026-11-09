@@ -320,7 +320,8 @@ class ProcessControlTests(unittest.TestCase):
                  mock.patch.object(subprocess, "run", return_value=result), \
                  mock.patch.object(control, "_linux_proc_records", return_value=records), \
                  mock.patch.object(os, "getpgid", return_value=4242), \
-                 mock.patch.object(control, "Process", side_effect=ProcessLookupError()):
+                 mock.patch.object(control, "Process", side_effect=ProcessLookupError()), \
+                 mock.patch.object(control, "_zombie_group_identity", return_value=None):
                 self.assertEqual(control._admit_owned_group_members([leader], [], set(), set()),
                                  ([], True))
 
@@ -372,6 +373,61 @@ class ProcessControlTests(unittest.TestCase):
         root = self._private_group_leader()
         with mock.patch.object(subprocess, "run", side_effect=FileNotFoundError("ps")):
             self.assertEqual(control.terminate(root.pid, frozen=True, owned_groups=True), "terminated")
+
+    def test_linux_zombie_identity_requires_dead_state_and_owned_group(self):
+        """Only an atomic dead-state, group and birth record can be remembered."""
+        for state, pgid, expected in ((b"Z", b"4242", (4343, b"123")),
+                                      (b"S", b"4242", None), (b"Z", b"4444", None)):
+            fields = [state, b"1", pgid] + [b"0"] * 16 + [b"123"]
+            with mock.patch.object(sys, "platform", "linux"), \
+                 mock.patch.object(Path, "read_bytes", return_value=b"4343 (helper) " + b" ".join(fields)):
+                self.assertEqual(control._zombie_group_identity(4343, 4242), expected)
+        with mock.patch.object(sys, "platform", "linux"), \
+             mock.patch.object(Path, "read_bytes", side_effect=PermissionError()):
+            with self.assertRaises(PermissionError):
+                control._zombie_group_identity(4343, 4242)
+
+    def test_darwin_zombie_identity_requires_stable_birth_and_owned_group(self):
+        """A reused PID or live native record cannot authorize skipping an exit."""
+        for status, pgid, birth, expected in ((5, 4242, 100, (4343, 100)),
+                                             (2, 4242, 100, None),
+                                             (5, 4444, 100, None), (5, 4242, 101, None)):
+            with mock.patch.object(sys, "platform", "darwin"), \
+                 mock.patch.object(control, "_darwin_info", side_effect=[
+                     mock.Mock(unique=100), mock.Mock(status=status, pgid=pgid), mock.Mock(unique=birth)]):
+                self.assertEqual(control._zombie_group_identity(4343, 4242), expected)
+
+    def test_confirmed_persistent_zombie_allows_cleanup_after_rescan(self):
+        """An unchanged zombie cannot fork again and must not starve teardown."""
+        root = self._private_group_leader()
+        scans = []
+
+        def groups():
+            scans.append(control.snapshot(root.pid).stopped)
+            yield 2**30, root.pid
+
+        with mock.patch.object(control, "_process_groups", groups), \
+             mock.patch.object(control, "_zombie_group_identity", return_value=(2**30, "same-birth"), create=True):
+            self.assertEqual(control.terminate(root.pid, frozen=True, owned_groups=True), "terminated")
+        self.assertEqual(scans, [True, True])
+        root.wait(timeout=3)
+
+    def test_changed_zombie_identity_still_requires_bounded_rescans(self):
+        """PID reuse or successive exits cannot borrow an earlier dead identity."""
+        root = self._private_group_leader()
+        scans = []
+
+        def groups():
+            scans.append(control.snapshot(root.pid).stopped)
+            yield 2**30, root.pid
+
+        with mock.patch.object(control, "_process_groups", groups), \
+             mock.patch.object(control, "_zombie_group_identity",
+                               side_effect=[(2**30, birth) for birth in range(5)], create=True):
+            with self.assertRaisesRegex(control.StaleProcess, "kept changing"):
+                control.terminate(root.pid, frozen=True, owned_groups=True)
+        self.assertEqual(scans, [True] * 5)
+        self.assertIsNone(root.poll())
 
     def test_owned_group_scan_failure_resumes_bound_leader(self):
         """Unavailable group metadata refuses cleanup without stranding STOP."""

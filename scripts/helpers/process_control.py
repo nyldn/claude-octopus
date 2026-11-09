@@ -334,10 +334,30 @@ def _owned_group_candidates(leaders):
             yield pid, active[pgid]
 
 
-def _admit_owned_group_members(leaders, handles, seen, excluded):
+def _zombie_group_identity(pid, pgid):
+    """Return a birth identity only for a confirmed zombie in the owned group."""
+    try:
+        if sys.platform.startswith("linux"):
+            fields = Path(f"/proc/{pid}/stat").read_bytes().rsplit(b")", 1)[1].split()
+            if fields[0] in (b"Z", b"X") and int(fields[2]) == pgid:
+                return pid, fields[19]
+        else:
+            before = _darwin_info(pid, 17, _UniqueInfo)
+            short = _darwin_info(pid, 13, _ShortInfo)
+            after = _darwin_info(pid, 17, _UniqueInfo)
+            if before.unique == after.unique and short.status == 5 and short.pgid == pgid:
+                return pid, after.unique
+    except (FileNotFoundError, ProcessLookupError):
+        pass
+    return None
+
+
+def _admit_owned_group_members(leaders, handles, seen, excluded, exited=None):
     """Return newly bound members and whether exits require another scan."""
     admitted = []
     rescan = False
+    if exited is None:
+        exited = set()
     for child, leader in _owned_group_candidates(leaders):
         if child in seen or child in excluded:
             continue
@@ -348,7 +368,11 @@ def _admit_owned_group_members(leaders, handles, seen, excluded):
         except (ProcessLookupError, StaleProcess):
             # A forked child keeps this PGID. Rescan before leader teardown,
             # retaining already stopped processes instead of restarting them.
-            rescan = True
+            zombie = _zombie_group_identity(child, leader.info.pid)
+            if zombie is None or zombie not in exited:
+                rescan = True
+            if zombie is not None:
+                exited.add(zombie)
             continue
         handles.append(member)
         try:
@@ -380,11 +404,12 @@ def terminate(pid, grace=1, frozen=False, descendants=False, expected=None, owne
         pending = [None, (root, not descendants)] if owned_groups else [(root, not descendants)]
         group_leaders = []
         group_rescans = 0
+        exited = set()
         seen = {pid}
         while pending:
             entry = pending.pop()
             if entry is None:
-                admitted, rescan = _admit_owned_group_members(group_leaders, handles, seen, excluded)
+                admitted, rescan = _admit_owned_group_members(group_leaders, handles, seen, excluded, exited)
                 if rescan:
                     group_rescans += 1
                     if group_rescans >= 5:

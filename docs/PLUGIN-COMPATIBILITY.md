@@ -31,8 +31,9 @@ members of a private group while its original leader remains a verified,
 stopped descendant. It enumerates group membership from Linux procfs or a bounded macOS `/bin/ps`
 query, binds each member to its native identity, and rescans after freezing
 new members. A member that exits before identity capture requests another scan
-while verified processes remain stopped. An exited member observed during group enumeration also requests a rescan;
-a vanished Linux stat record refuses the incomplete snapshot because its former
+while verified processes remain stopped. A newly exited member observed during group enumeration also requests a rescan;
+an unchanged, confirmed zombie birth identity does not repeat that request.
+A vanished Linux stat record refuses the incomplete snapshot because its former
 group is unknown. The watcher retries that refusal while the owner remains alive.
 Five unstable scans, a missing leader,
 changed membership or failed enumeration refuses cleanup; it never sends a
