@@ -2,7 +2,55 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Parallel dispatch preserves saved results and completion markers when a
+  repeated task ID cannot be admitted by its durable run contract. Use a new
+  task ID for a new attempt in the same run.
+- Large parallel task batches retain their scoped results without exceeding
+  command-line argument limits, and invalid scopes report an aggregation error.
+  A spawn that fails after recording a running seat marks that seat cancelled
+  in the status ledger. Interrupted shell-only claims report their manual
+  recovery procedure.
+- The agent run summary no longer reports a provider's successful seat as
+  failed when another of its seats times out. The status ledger kept the
+  latest row per agent name, so a probe with two Claude seats printed "2 of 2
+  agents failed or timed out" after one seat's 603-second timeout replaced the
+  other seat's completed result. The same lookup left that result out of the
+  outputs offered to synthesis. Rows are now kept per seat, by seat ID or else
+  by result file, in the summary, the `agents.json` snapshot and the output
+  list. Probe and aggregate summaries count only their own seats, because the
+  ledger spans every command in a session.
+- Output claims publish their owner atomically, so an interrupted claim
+  preparation cannot permanently block retries. Live owners keep their outputs.
+  Workers that fail without recording a terminal status are marked cancelled.
+  When a durable execution contract exists, another attempt requires a new task
+  ID in the same run.
+
+## [11.20.0] - 2026-11-09
+
 ### Added
+
+- `/octo:deck --red-team` can review a draft outline through stakeholder seats
+  before approval, map decision-blocking objections to the main deck, and prepare
+  draft answers and appendix backup slides for Q&A. The pass is opt-in and uses
+  the existing debate provider and cost controls. Transports with unbounded
+  follow-up requests are excluded from the pass.
+
+- Deck outlines now start with a confirmed governing question, a brief
+  situation/complication/question opener and an answer supported by two to four
+  pillars. Slide titles form a sentence skeleton that must carry the argument
+  in a titles-only read before the user approves rendering. Informational decks
+  retain their own purpose. Addresses #1215.
+
+- Executive and board decision decks put the recommendation, context, supporting
+  pillars and explicit ask on slide 2. Their outline compares doing nothing
+  with a real alternative, ties data-slide highlights to one proof point,
+  and includes an appendix for expected questions. Missing decision material
+  is identified before outline approval rather than invented. Informational
+  updates keep their own purpose, and short decks can combine evidence and
+  decision slides within the approved target. The action closes the main deck,
+  before appendix backup slides. Addresses #1216.
 
 - Research can optionally share one Keenable web search across its perspectives.
   Set `OCTOPUS_RESEARCH_WEB_SEARCH=keenable` and include `keenable` in any active
@@ -28,28 +76,9 @@
 
 ### Fixed
 
-- Parallel dispatch preserves saved results and completion markers when a
-  repeated task ID cannot be admitted by its durable run contract. Use a new
-  task ID for a new attempt in the same run.
-- Large parallel task batches retain their scoped results without exceeding
-  command-line argument limits, and invalid scopes report an aggregation error.
-  A spawn that fails after recording a running seat marks that seat cancelled
-  in the status ledger. Interrupted shell-only claims report their manual
-  recovery procedure.
-- The agent run summary no longer reports a provider's successful seat as
-  failed when another of its seats times out. The status ledger kept the
-  latest row per agent name, so a probe with two Claude seats printed "2 of 2
-  agents failed or timed out" after one seat's 603-second timeout replaced the
-  other seat's completed result. The same lookup left that result out of the
-  outputs offered to synthesis. Rows are now kept per seat, by seat ID or else
-  by result file, in the summary, the `agents.json` snapshot and the output
-  list. Probe and aggregate summaries count only their own seats, because the
-  ledger spans every command in a session.
-- Output claims publish their owner atomically, so an interrupted claim
-  preparation cannot permanently block retries. Live owners keep their outputs.
-  Workers that fail without recording a terminal status are marked cancelled.
-  When a durable execution contract exists, another attempt requires a new task
-  ID in the same run.
+- Worktree progress fingerprints preserve stat compatibility for timestamps before
+  1970, including fractional seconds. The batch sampler and shell fallback produce
+  the same digest while ordinary files keep the batch sampling path.
 
 - Code review skips complete file diffs using REVIEW.md path globs. Generated
   hunks no longer appear under another file's header, and retained code that
@@ -79,6 +108,11 @@
   selects the model; explicit model routes and effort overrides keep precedence.
 
 ### Fixed
+
+- Haiku 5.5 can be saved as a Claude budget pin. Its estimates use the published
+  base rate through 100K input tokens and the whole-request tariff above that
+  boundary. Existing model defaults are unchanged.
+  Fixes [#1250](https://github.com/nyldn/claude-octopus/issues/1250).
 
 - Research verification no longer fails a synthesis for referring to its own
   numbered points. A synthesis line such as "See point 2." or "Corrected in
