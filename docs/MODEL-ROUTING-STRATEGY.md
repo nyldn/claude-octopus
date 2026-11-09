@@ -145,12 +145,48 @@ and [Agent SDK thinking types](https://code.claude.com/docs/en/agent-sdk/python#
 | Claude Sonnet 5.5 | standard Claude orchestration and synthesis on supported clients | $2 / $10 |
 | Claude Sonnet 5 | standard Claude fallback on older clients | $2 / $10 |
 | Claude Haiku 4.5 | budget Claude work | $1 / $5 |
+| Claude Haiku 5.5 | opt-in budget pin for classification, extraction and short tool tasks | $0.10 / $0.50 through 100K input; $0.50 / $2.50 above 100K |
 | Claude Fable 5.1 | opt-in judgment-class escalation, at most one automatic escalation per run | $10 / $50 |
 | GPT-6 Astra | opt-in OpenAI-family escalation after Sol fails a hard acceptance test | $10 / $50 |
 
 Opus 5 and Fable 5.1 are both Anthropic-family models. GPT-5.6 and Astra are
 both OpenAI-family models. Agreement within either pair does not count as
 independent provider diversity.
+
+### Haiku 5.5 saved pins
+
+`/octo:model-config set claude.budget claude-haiku-5-5` selects Haiku 5.5 for
+the existing budget capability. The shipped budget default stays on Haiku 4.5.
+Select budget routing with `/octo:model-config cost-mode budget` to use that
+capability. New configurations use the `standard` cost mode.
+An explicit `OCTOPUS_CLAUDE_MODEL` or native `CLAUDE_MODEL` session choice takes
+precedence over the saved budget pin. Removing that override restores the pin.
+Use Claude Code v2.1.293 or later and confirm account access separately. This
+catalog addition does not extend the `anthropic-api` adapter's model allowlist.
+
+Haiku 5.5 accepts text and images, tools and structured output with 1M context
+and 128K maximum output. It supports adaptive thinking and `low`, `medium`,
+`high`, `xhigh` and `max` effort. Its API and Claude Code default is `medium`;
+an explicit Octopus effort still applies. Disabled thinking is accepted at low,
+medium or high effort; xhigh and max require adaptive thinking. Changing effort
+mid-conversation also requires adaptive thinking. Start with medium for bounded agent
+tasks. Use low for short tasks whose results can be checked; the provider warns
+that low effort can skip searches or verification in long agent prompts. Raise
+effort or use the existing stronger-model route when acceptance checks fail,
+with a bounded retry. No local capability or latency benchmark is claimed.
+
+Prices are USD per million tokens. Above 100,000 input tokens, both input and
+output use the higher tariff for the whole request. Cache reads are $0.01/$0.05,
+five-minute writes $0.125/$0.625 and one-hour writes $0.20/$1 for the two prompt
+sizes. Batch input/output has a 50% discount. The standard estimates do not
+model cache or batch discounts, gateway surcharges or subscription allowances.
+Thinking counts toward output. The newer tokenizer can increase token counts,
+so compare total task cost, including retries, rather than price alone.
+
+Sources rechecked 2026-11-08: [model specifications and tariff](https://platform.claude.com/docs/en/models/haiku-5-5/overview),
+[effort guidance](https://platform.claude.com/docs/en/build-with-claude/effort),
+[migration constraints](https://platform.claude.com/docs/en/models/haiku-5-5/migration-guide),
+and [Claude Code version and model selection](https://code.claude.com/docs/en/model-config).
 
 ### Expensive-model admission
 

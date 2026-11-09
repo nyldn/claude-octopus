@@ -576,7 +576,7 @@ done
 # Session ID in flow banners
 for skill in flow-discover flow-define flow-develop flow-deliver; do
     skill_path="$(resolve_claude_skill_path "$skill")"
-    if [[ -f "$skill_path" ]] && grep -q 'Session: \${CLAUDE_SESSION_ID}' "$skill_path"; then
+    if [[ -f "$skill_path" ]] && grep -c 'Session: \${CLAUDE_SESSION_ID}' <<< "$(read_claude_skill_contract "$skill")" >/dev/null; then
         pass "$skill.md has session ID in banner"
     else
         fail "$skill.md session ID" "missing Session: \${CLAUDE_SESSION_ID}"
@@ -584,7 +584,7 @@ for skill in flow-discover flow-define flow-develop flow-deliver; do
 done
 
 # Native background tasks docs
-if grep -q 'Native Background Tasks' "$(resolve_claude_skill_path "flow-discover")"; then
+if grep -c 'Native Background Tasks' <<< "$(read_claude_skill_contract flow-discover)" >/dev/null; then
     pass "flow-discover.md has native background tasks documentation"
 else
     fail "flow-discover.md background tasks" "missing Native Background Tasks section"

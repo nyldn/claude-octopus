@@ -187,3 +187,75 @@ The host builds this view from `trajectory.json`, derived from the saved score
 reports and iteration ledger. Each entry includes its round, conservative score,
 per-model scores, decision, target result, rubric and artifact hashes, and score
 report path. The report also states elapsed time, budget used, and stop reason.
+
+## Paired dispatch and readiness evidence
+
+The host resolves explicit Claude and Codex models and efforts, inspects inputs
+for secrets, freezes one blind request, and runs guards before scoring. It calls
+`scripts/refinement-pair.py` with the private run directory, unique pair ID,
+prompt path, candidate path, rubric path, absolute run deadline, total call limit,
+Claude `executor:model`, Claude effort, Codex `executor:model`, and Codex effort.
+The helper reserves both calls in `calls.jsonl` and saves the pair manifest before
+launch. Both seats run through the mandatory `refinement-judge.sh` adapter.
+
+Reserve other external calls in the same ledger under `.dispatch-lock`, recording
+`pair_id`, `calls`, `deadline`, and `max_calls`. Preserve the deadline and total
+budget on resume. Failed and interrupted reservations remain spent. A pair ID
+cannot dispatch twice. A stale lock requires inspection of its saved evidence.
+The pair helper waits for both seats under one deadline and cancels only its own
+process groups. It produces raw responses, never valid-score claims. The host
+must inspect both result identities, assemble the assessment, and run the score
+validator. One successful seat cannot become a passing pair.
+
+A material rubric correction uses the same run and ledger. Append
+`--rubric-correction PREVIOUS_SHA256 REASON` to the first pair command under
+the corrected rubric, with the latest rubric hash and a specific reason of at
+most 2,000 characters. That pair must rescore the original candidate. The helper
+records the new `rubric_version`, both hashes and the reason before dispatch.
+Rescore the best candidate next under that version with a new pair ID. Keep
+the fixed models, efforts, deadline and total call limit; both pairs consume
+the remaining budget. Silent changes and stale hashes fail. Restoring historical
+rubric bytes also creates a new version rather than reusing earlier assessments.
+Retain earlier assessments and compare scores only within a rubric version.
+
+Use `scripts/helpers/preflight.sh --providers claude,codex --json` for this fixed
+panel. The public dashboard still checks all detectable providers when neither
+a panel nor council roster is pinned. A panel does not change the council roster.
+Optional version/model diagnostics check the selected providers only.
+
+To preserve selection evidence, add `--run-id RUN --report-out PRIVATE_PATH`.
+Reuse it with the same panel and run ID using `--report-in PRIVATE_PATH` within
+120 seconds. Reports refuse changed scope, schema version, configuration metadata,
+binary metadata, quota/policy metadata, or readiness status/reason/check kind.
+They contain no credential values. Every reuse performs fresh readiness checks.
+Pass it through preparation with `OCTOPUS_PREFLIGHT_PROVIDERS=claude,codex`,
+`OCTOPUS_PREFLIGHT_REPORT=PRIVATE_PATH`, and `OCTOPUS_PREFLIGHT_RUN_ID=RUN`.
+These reports are selection evidence only. They cannot authorize dispatch or skip
+current per-seat credential, quota, and policy checks.
+
+## Phase resources and delivery checks
+
+`skills/skill-refine/SKILL.md` and `skills/flow-discover/SKILL.md` are canonical
+always-loaded contracts. Their nested `references/` files contain ordered phase
+instructions. Hosts resolve these resources under the installed plugin root.
+Skill sync preserves both canonical directories and generates their Claude entry
+copies under `.claude/skills/`. Both hosts use the same root phase files.
+Do not edit those generated Claude copies. Native plugin packaging retains the
+root resources; standalone entry-file copies alone are insufficient.
+
+Run these focused offline checks before integration:
+
+```bash
+python3 tests/unit/test-refinement-efficiency.py
+bash tests/unit/test-provider-readiness-contract.sh
+bash tests/unit/test-preflight-roster.sh
+bash tests/unit/test-refinement-judge.sh
+bash tests/unit/test-refinement-score.sh
+bash -n scripts/lib/preflight.sh scripts/helpers/preflight.sh scripts/helpers/check-versions.sh scripts/build-codex-skills.sh
+```
+
+The efficiency suite tests packaging in a disposable fixture, including repeated
+sync, resource discovery, inert judge overlap, reservation rejection, failure,
+deadline and cancellation. It invokes no live models. Root integration runs
+`make sync`, `make ci-quick`, and exact-head hosted checks. Local tests do not
+establish installed-host acceptance or authorize publishing a release.

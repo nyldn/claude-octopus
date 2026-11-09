@@ -367,7 +367,10 @@ check_provider_health() {
     fi
     [[ "${FAKE_SCENARIO:-}" != health-fail ]]
 }
-build_provider_env() { PROVIDER_ENV_ARRAY=(); }
+build_provider_env() {
+    PROVIDER_ENV_ARRAY=()
+    [[ "${FAKE_SCENARIO:-}" != environment-fail ]]
+}
 start_quota_watcher() { :; }
 stop_quota_watcher() { :; }
 append_provider_history() { :; }
@@ -410,6 +413,20 @@ run_external_fixture() {
     pid="$(spawn_agent "$agent_type" "External $scenario fixture" "$task" "$role" "$phase")" || return $?
     wait "$pid" 2>/dev/null || true
 }
+
+test_case "environment failure terminates the seat before provider launch"
+if run_external_fixture environment-fail environment-fail; then
+    test_fail "spawn ignored failed environment construction"
+else
+    environment_rc=$?
+    if [[ "$environment_rc" == 74 &&
+          "$(transitions_for spawn-environment-fail)" == planned,starting,authenticated,failed &&
+          ! -e "$RESULTS_DIR/fake-api-environment-fail.md" ]]; then
+        test_pass
+    else
+        test_fail "environment failure did not terminate before provider execution"
+    fi
+fi
 
 test_case "spawn waits for registration before returning a cancellable worker"
 saved_register_impl="$(declare -f octopus_pid_register)"

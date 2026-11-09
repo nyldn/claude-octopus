@@ -92,24 +92,131 @@ This step is OPTIONAL. Many decks are built from the user's own knowledge or exi
 
 ### Step 3: Generate Outline
 
-Build a slide-by-slide outline in markdown format. Structure:
+Build the outline as an answer-first storyline before choosing slide layouts.
+Keep the brief's audience, purpose and approved slide-count target.
+
+1. Define one **governing question** from the brief. For a decision deck, state
+   the decision, the threshold for yes and an out-of-scope list. For an
+   informational brief, state the question the audience needs answered and
+   what would count as a useful answer. Do not invent a decision or approval
+   ask for an informational update. Confirm the governing question with the user before
+   building the skeleton, using **AskUserQuestion**. Reuse an already explicit
+   confirmation of that exact question; an unanswered question is not approval.
+2. Write an **SCQA opener** with the situation, complication and question.
+   The question must match the confirmed governing question. Keep the opener
+   brief and use supplied or sourced facts; mark evidence gaps rather than
+   inventing context.
+3. Write a **working hypothesis**: a one-sentence answer with two to four pillars
+   that must be true. For executive and board decision briefs, use two or three
+   pillars so the hypothesis matches the executive summary. Tie each pillar
+   to available evidence or label it as an
+   assumption to validate. An informational deck's answer can be a conclusion
+   about results rather than a recommendation to approve something.
+4. Build the **sentence skeleton** with one declarative sentence per storyline slide,
+   in order. Exclude the cover slide from this skeleton; keep its presentation
+   name, subtitle, date and presenter as metadata. The cover still counts toward
+   the approved slide-count target. Each storyline title must make a claim that
+   advances the answer. Under each claim, record its supporting evidence and
+   intended visual. Keep unverified claims marked as assumptions; do not turn
+   them into asserted facts.
+
+For example, a decision storyline could use this shape. Replace bracketed
+material with supported claims before presenting it as ready for approval:
 
 ```markdown
-## Slide 1: [Title Slide]
-- Presentation title
-- Subtitle / Date / Author
+## Governing question
+Should we [action] by [date], given [decision threshold]?
+- Out of scope: [excluded topics]
 
-## Slide 2: [Agenda / Overview]
-- Key topics to cover
+## SCQA opener
+- Situation: [established context]
+- Complication: [change that makes the question matter]
+- Question: [the confirmed governing question]
 
-## Slide 3: [First Content Section]
-- Bullet point 1
-- Bullet point 2
-- Bullet point 3
+## Working hypothesis
+[One-sentence answer], because [two to four evidence-backed pillars].
 
-## Slide N: [Summary / Next Steps]
-- Key takeaways
-- Call to action
+## Slide 1: [Presentation name]
+- Cover: [subtitle, date and presenter]
+- Visual: [cover layout]
+
+## Slide 2: [The recommendation meets the agreed decision threshold]
+- Supporting pillars and the specific ask
+- Evidence: [source showing how the recommendation meets the threshold]
+- Visual: [comparison of the recommendation with the agreed threshold]
+
+## Slide 3: [A specific proof point supports the first pillar]
+- Evidence: [source for the proof point and its link to the pillar]
+- Visual: [chart or diagram showing the proof point]
+
+## Slide N: [The requested action unlocks a specific outcome]
+- Ask, owner and next step
+- Evidence: [source linking the action to the expected outcome]
+- Visual: [action, owner and next-step timeline]
+```
+
+For Executives / Board, apply the same confirmed question, hypothesis and
+sentence skeleton to the purpose-specific outline below. For executive and
+board decision briefs, the board content check and the titles-only read must
+both pass before outline approval.
+For an informational brief such as a Q1 results update, do not require a decision or approval ask.
+Put an executive summary on slide 2 covering key findings and implications,
+including results when applicable, followed by supporting evidence. Include
+follow-up only when the brief calls for it. Do not invent a decision.
+
+#### Executive and board outline
+
+For executive and board decision briefs, put the decision on slide 2. Use
+these content requirements within the sentence skeleton, with supported
+declarative titles in place of bracketed placeholders. Keep the question,
+opener and hypothesis above the slides in the approved outline. Expand evidence slides as needed;
+agree the main-deck and appendix slide counts within the user's target.
+If the user selects a five-slide target, combine the evidence and decision
+slides, keeping the executive summary on slide 2 and an appendix. Preserve
+the selected slide range for longer targets. If the required material,
+including one backup slide per expected question, cannot fit, ask the user to
+approve a larger target before expanding it. The six-slide example is not a
+minimum slide count.
+
+```markdown
+## Slide 1: [Decision topic]
+- Presentation title, date and presenter
+
+## Slide 2: Executive summary: [The recommendation meets the decision threshold]
+- One recommendation sentence with a by-when
+- One line of context
+- Two or three supporting pillars
+- The specific ask and what approval unlocks
+- Evidence: [sources supporting the recommendation and pillars]
+- Visual: [recommendation, pillars and ask]
+
+## Slide 3: [The recommended option delivers more value than doing nothing]
+- Recommended option: benefit, cost and trade-offs
+- Do nothing: cost and consequences over the same time horizon
+- At least one real alternative: benefit, cost and trade-offs
+- Evidence: [sources for the common-horizon costs and consequences]
+- Visual: [comparison of the options]
+
+## Slide 4: [The evidence supports a specific conclusion]
+- One sourced proof point supporting the conclusion, qualitative when no
+  relevant numerical proof is available
+- For numerical data: highlight the single figure supporting the title in the
+  chart, table or other data display
+- Evidence: [source for the proof point]
+- Visual: [qualitative evidence, or a data display with the claimed figure highlighted]
+
+## Slide 5: [The requested approval unlocks the outcome by the decision date]
+- Repeat the same recommendation and by-when
+- Explicit ask: the approval, amount or named resource the audience can grant
+- What approval unlocks and who owns the next action
+- Evidence: [basis for the requested amount, resource and deadline]
+- Visual: [action, owner and next-step timeline]
+
+## Slide 6: Appendix: [The backup evidence answers an expected question]
+- Expected question: [the question this backup answers]
+- Backup evidence answering this expected question
+- Evidence: [source answering the expected question]
+- Visual: [backup chart or diagram]
 ```
 
 #### Optional stakeholder red team
@@ -231,7 +338,7 @@ flag, run it against the draft skeleton before requesting approval or rendering:
    detail or verification. Informational briefs need no invented decision or ask.
 4. Return an objection list with draft answers and a backup-slide checklist. Map
    each pre-empt objection to a main-deck slide and each Q&A objection to a backup
-   slide in the appendix. Revise the skeleton before the user approves it. Keep
+   slide in the appendix. Revise the skeleton, then repeat the board content check when applicable and the titles-only read before the user approves it. Keep
    unresolved evidence gaps visible in the outline.
 
 Report participating providers/models and artifact paths. A failed dispatch or
@@ -239,15 +346,59 @@ missing seat output means the red team is not completed; report the gap and let
 the user choose whether to retry or continue without it. Do not silently claim
 success or add rounds. A later revision needs renewed outline approval.
 
-Present the revised outline and, when requested, the objection list to the user
-for approval using **AskUserQuestion**:
+#### Board outline check
 
-- "Looks good, render the deck" — Proceed to Step 4 with the selected renderer
-- "Add more slides" — Expand specific sections
-- "Change focus" — Restructure around different themes
-- "Start over" — Return to Step 1
+For decision briefs, check the following before asking for outline approval:
 
-This is the **wireframe gate** — the user MUST approve the outline structure before PPTX generation.
+- Could the audience make the requested decision from slide 2 alone? It must
+  lead with one recommendation, then context, two or three pillars, the ask
+  and what approval unlocks. Keep the same recommendation and deadline
+  throughout the deck.
+- Does the options comparison include doing nothing, its cost and at least
+  one real alternative? Use a common time horizon and cite cost estimates.
+- Is the ask something this audience can grant, such as a specific approval,
+  amount or named resource, with a by-when? "Support" alone is insufficient.
+- Does every data slide have one sourced proof point tied to its title? For
+  numerical evidence, highlight the single figure in the chart, table or other
+  data display. Include the source and intended highlight in the outline
+  passed to the renderer.
+- Is there one backup slide per expected question in the appendix? Name the
+  questions and include the appendix in the outline submitted for approval.
+
+Do not invent costs, evidence, deadlines or approval authority. If decision
+material is missing, identify the gap and ask for it before presenting the
+outline as ready for approval. This check covers outline content; it does not
+claim that rendered slides have been visually inspected.
+
+#### Storyline gate: titles-only read
+
+Read only the slide-title sentences, top to bottom. Exclude the cover slide
+from this titles-only read. Exclude appendix backup slides from the main-deck
+argument read. Check appendix titles separately against their expected
+questions and evidence. The main-deck storyline titles must carry the
+argument from the governing question to the ask without relying on body
+bullets. For informational decks, read from the question to the supported
+conclusion instead, with follow-up only when the brief calls for it.
+Label titles fail: "Market overview",
+"Financials" and "Next steps" name topics without saying what the audience
+should understand. Rewrite them as supported declarative claims. If the
+argument skips a pillar, contradicts the hypothesis or ends without answering
+the question, revise the skeleton and repeat the titles-only read before
+asking for outline approval. A passing titles-only read does not establish
+that the evidence is true or that rendered slides have been inspected.
+
+Present the confirmed question, opener, hypothesis and sentence skeleton with
+its evidence notes and, when requested, the objection list for approval using **AskUserQuestion**:
+
+- "Looks good, render the deck" - Proceed to Step 4 with the selected renderer
+- "Add more slides" - Expand specific parts, then repeat the titles-only read
+- "Change focus" - Revise the question if needed, confirm it and rebuild the storyline
+- "Start over" - Return to Step 1
+
+This is the **wireframe gate**. The user MUST approve the sentence skeleton before PPTX generation.
+Changing the governing question or slide claims after approval returns to
+this gate. Preserve the approved cover title and pass the approved sentences
+to the renderer as the storyline slide titles.
 
 ### Step 4: Render the approved deck
 
@@ -281,7 +432,7 @@ renderer and the session's available viewing tools.
 2. Read the rendered titles in slide order and repeat the titles-only read.
    Compare them with the approved outline. Flag truncation, reflow that hides a
    claim, missing slides and changes that break the argument from question to
-   ask. Preserve approved label titles unless the user approves a storyline
+   ask, or to the supported conclusion for informational decks. Preserve approved label titles unless the user approves a storyline
    change; verification does not authorize rewriting the approved outline.
 3. For each data slide, confirm one highlighted proof point supports its title.
    Compare the displayed value, units, period and chart emphasis with the source
@@ -318,19 +469,24 @@ verification access without authorization.
 Apply these when generating outlines:
 
 - **Title slide**: Presentation name, subtitle, date, presenter
-- **Agenda slide**: 3-5 key topics (for decks > 7 slides)
+- **Storyline**: Slide titles carry the argument in the approved sentence order
 - **One idea per slide**: Keep slides focused
 - **5-7 bullets max**: Per slide for readability
-- **Summary slide**: Key takeaways at the end
-- **Next steps / CTA**: Final slide with clear actions
+- **Summary slide**: State the supported answer to the governing question; Executives / Board briefs put the executive summary on slide 2 as required in Step 3
+- **Next steps / CTA**: When the brief calls for action, put clear actions on the last main-deck slide, before any appendix slides; otherwise end the main deck with a supported conclusion
 
 ### By Audience Type
 
 **Executives / Board:**
-- Lead with business impact and metrics
-- Use "So what?" framing for every slide
-- Include financial implications
-- End with decisions needed
+- Match the brief's decision or informational purpose in Step 3. Apply the
+  decision outline and its check only when a decision is requested.
+- Lead with the brief's business impact. Include financial implications only
+  when relevant and supported by sources.
+- Keep the main deck focused on the brief's purpose; put expected-question evidence
+  in the approved appendix.
+- For decision briefs, end with the specific decision needed. For informational
+  briefs, end with the supported conclusion; include follow-up only when the
+  brief calls for it.
 
 **Engineers / Technical:**
 - Include architecture diagrams (describe for slides)
@@ -339,10 +495,15 @@ Apply these when generating outlines:
 - Reference technical specifications
 
 **Investors / Fundraising:**
-- Problem → Solution → Market → Traction → Team → Ask
-- Include market size (TAM/SAM/SOM)
-- Show growth metrics and projections
-- Clear funding ask and use of funds
+- For decision briefs, follow the confirmed question, approved pillars and out-of-scope list.
+- Treat this fundraising example as optional: Problem → Solution → Market → Traction → Team → Ask.
+  Choose or omit topics to support the confirmed question. In a fundraising
+  decision brief, include a funding ask and use of funds when they answer that question.
+- Include market size (TAM/SAM/SOM), growth metrics and projections when they
+  support the confirmed question.
+- For informational briefs, end with the supported conclusion; include follow-up
+  only when the brief calls for it.
+  Do not add a funding ask to an informational update.
 
 **General / Mixed:**
 - Balance detail with accessibility
@@ -366,7 +527,7 @@ This skill works well in combination with:
 User: "Create a 10-slide deck about our Q1 results"
 → Step 1: Clarify audience (executives)
 → Step 2: Skip (user has the data)
-→ Step 3: Generate outline, get approval
+→ Step 3: Confirm the question, check the sentence skeleton, get approval
 → Step 4: Render PPTX
 → Step 5: Inspect every rendered slide and report verification
 ```
@@ -376,7 +537,7 @@ User: "Create a 10-slide deck about our Q1 results"
 User: "Build a presentation about AI trends in healthcare"
 → Step 1: Clarify audience and scope
 → Step 2: Research using Task agents
-→ Step 3: Generate outline from research, get approval
+→ Step 3: Confirm the question, build a sourced sentence skeleton, get approval
 → Step 4: Render PPTX
 → Step 5: Inspect every rendered slide and report verification
 ```

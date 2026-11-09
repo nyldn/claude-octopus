@@ -225,3 +225,33 @@ make validate-plugin-assembly
 
 Run `make ci-changed` before pushing and `make ci-local` before merging.
 The hosted branch checks must pass against the PR's current commit.
+
+## Recover a discovery handoff
+
+Define stops before provider dispatch if discovery is incomplete or its saved
+research is missing, changed or unsafe to read. Restore the original artifact to keep using that research.
+To proceed without it, explicitly discard the handoff binding and retry
+`/octo:define`. Standalone Define requests use the same recovery.
+
+Use the absolute installed plugin root for `OCTO_ROOT`, then run:
+
+```bash
+WORKFLOW_STATE_FILE=$("${OCTO_ROOT:?Set OCTO_ROOT to the installed plugin root}/scripts/state-manager.sh" handoff_path)
+python3 "$OCTO_ROOT/scripts/helpers/discovery-handoff.py" discard "$WORKFLOW_STATE_FILE"
+```
+
+Discarding clears only the current project's handoff record. It preserves
+research files, project documents, decisions and provider settings. A new
+discovery also invalidates the prior binding. Completed research becomes
+available to Define only after presentation and requested persistence succeed.
+
+Discovery completion holds the current-run lock while saving an opted-in
+project summary and completion status. It records rollback data before those
+writes. If publication fails or the process stops, the next handoff operation
+restores the previous summary and incomplete state before proceeding. A
+superseded run cannot change the current project's completion files.
+
+The discovery handoff uses the physical project path as its identity, so adding
+or changing a Git remote does not hide completed research. Existing records
+are adopted in place through a stable index. Their locks and recovery journals
+stay in their original location. The general workflow state remains separate.
