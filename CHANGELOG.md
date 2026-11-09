@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.21.0] - 2026-11-09
+
 ### Added
 
 - Opt-in Claude worker advisors through `OCTOPUS_CLAUDE_ADVISOR`, with version
