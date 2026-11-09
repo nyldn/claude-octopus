@@ -16,9 +16,10 @@ cd claude-octopus
 git switch -c fix/short-description
 ```
 
-Local checks need Bash 3.2 or newer, Python 3.9 or newer, and `jq`. MCP adapter
-checks also need Node.js and npm; see [plugin compatibility](PLUGIN-COMPATIBILITY.md) for
-host requirements. Install the test dependencies once per clean checkout:
+This contributor workflow requires Git, Make, Bash 3.2 or newer, Python 3.9 or
+newer, `jq`, Node.js 18 or newer, and npm. See
+[plugin compatibility](PLUGIN-COMPATIBILITY.md) for host requirements. Install
+the test dependencies once per clean checkout:
 
 ```bash
 make test-deps
