@@ -42,6 +42,12 @@
 
 ### Fixed
 
+- Code review skips complete file diffs using REVIEW.md path globs. Generated
+  hunks no longer appear under another file's header, and retained code that
+  mentions a skipped path stays intact. Fully skipped diffs launch no reviewers.
+  Standard and no-prefix Git diffs are supported, including quoted, binary
+  and mode-only paths.
+  Fixes [#1279](https://github.com/nyldn/claude-octopus/issues/1279).
 - Provider smoke tests explain environment construction failures instead of
   failing silently. Search-credential rejection uses the routing error logger,
   with a stderr fallback for standalone callers.
@@ -105,6 +111,18 @@
 
 ### Fixed
 
+- A council seat is no longer marked fabricated for its own arithmetic. An
+  inline code span made only of numbers (`1.5e6` and `1_000` included), known
+  units right after a number (`KB`, `kilobytes`, `ms`, `%`, `tokens`, ...),
+  and operators including `%`, such as `8 + 10 + 0.5 = 18.5 KB`, is a value
+  the seat computed, not a quote of the code. The verifier found it in no
+  file, and when it was the only quote the seat was dropped as blind. Any
+  identifier or keyword, as in `base + taxes * 2` or
+  `100 if 1000 > 500 else 1`, still makes it a checked code quote. Arithmetic
+  a citation claims, before or right after the span, is still verified against
+  cited evidence. The exemption never covers a code fence or a diff removal: their
+  arithmetic lines go through the usual checks, so a specific enough line is
+  still verified.
 - Vibe setup and readiness now recognize a key stored by `vibe --setup` in
   the OS keyring when Vibe is explicitly selected for a provider check. The
   local presence check is silent, read-only and bounded, and receives a

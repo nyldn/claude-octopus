@@ -1465,6 +1465,15 @@ review_collect_diff() {
     printf '%s' "$diff_content"
 }
 
+# REVIEW.md skip entries select whole file blocks, never individual hunk lines.
+review_filter_diff() {
+    if [[ -z "${REVIEW_SKIP_PATTERNS:-}" ]]; then
+        cat
+        return
+    fi
+    python3 "${_agent_spec_lib_dir}/../helpers/review-diff-filter.py" "$REVIEW_SKIP_PATTERNS"
+}
+
 # review_run: canonical 3-round multi-LLM code review pipeline
 # WHY: replaces the single-model "codex exec review" dispatch with a
 # v9.0: Provider report card — prints post-run summary of provider status
@@ -1952,6 +1961,11 @@ Use this context as the requested behavior and constraints. Flag severity=normal
     # ── Collect diff ─────────────────────────────────────────────────────────
     local diff_content=""
     diff_content=$(review_collect_diff "$target")
+    local review_input_diff="$diff_content"
+    if ! diff_content=$(printf '%s' "$diff_content" | review_filter_diff); then
+        review_fail_closed "$findings_file" "$proof_dir" "$provider_status_file" "Could not apply REVIEW.md skip patterns"
+        return 1
+    fi
 
     if [[ -z "$diff_content" ]]; then
         log WARN "review_run: no diff found for target=$target"
@@ -1966,16 +1980,6 @@ Use this context as the requested behavior and constraints. Flag severity=normal
         rm -f "$provider_status_file"
         render_terminal_report "$findings_file"
         return 1
-    fi
-
-    local review_input_diff="$diff_content"
-
-    # Apply skip patterns from REVIEW.md (pre-filter before spending tokens)
-    if [[ -n "$REVIEW_SKIP_PATTERNS" ]]; then
-        while IFS= read -r pattern; do
-            [[ -z "$pattern" ]] && continue
-            diff_content=$(echo "$diff_content" | grep -v "$pattern" || true)
-        done <<< "$REVIEW_SKIP_PATTERNS"
     fi
 
     # ── Round-aware PR review state (#322) ───────────────────────────────────

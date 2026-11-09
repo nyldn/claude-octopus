@@ -11,10 +11,36 @@ log() { :; }
 check_codex_auth_freshness() { return 0; }
 # Settings are consumed by the sourced review pipeline.
 # shellcheck disable=SC2034
-parse_review_md() { REVIEW_ALWAYS_CHECK=""; REVIEW_STYLE_RULES=""; REVIEW_SKIP_PATTERNS=""; }
+parse_review_md() {
+    REVIEW_ALWAYS_CHECK=""; REVIEW_STYLE_RULES=""; REVIEW_SKIP_PATTERNS=""
+    case "$CASE" in
+        skip-scoped|skip-error) REVIEW_SKIP_PATTERNS='src/gen/' ;;
+        skip-all) REVIEW_SKIP_PATTERNS='*' ;;
+    esac
+}
+eval "$(declare -f review_filter_diff | sed '1s/review_filter_diff/real_review_filter_diff/')"
+review_filter_diff() {
+    [[ "$CASE" != skip-error ]] || return 42
+    real_review_filter_diff
+}
+cat > "$TMP/skip.diff" <<'DIFF'
+diff --git a/app.ts b/app.ts
+--- a/app.ts
++++ b/app.ts
+@@ -1 +1 @@
+-old
++import "src/gen/client";
+diff --git a/src/gen/client.ts b/src/gen/client.ts
+--- a/src/gen/client.ts
++++ b/src/gen/client.ts
+@@ -1 +1 @@
+-old
++GENERATED_PAYLOAD
+DIFF
 # The caller owns the snapshot through Bash dynamic scope.
 # shellcheck disable=SC2154
 review_collect_diff() {
+    if [[ "$CASE" == skip-* ]]; then cat "$TMP/skip.diff"; return; fi
     if [[ -e "$TMP/dispatched" ]]; then
         [[ "$CASE" != diff-error ]] || return 42
         if [[ "$CASE" == changed ]]; then echo changed; return; fi
@@ -34,6 +60,7 @@ fleet_dispatch_end() { :; }
 review_supervise_round1() { :; }
 review_wait_for_result_status() { :; }
 spawn_agent_capture_pid() {
+    printf '%s\n' "$2" >> "$TMP/prompts"
     touch "$TMP/dispatched"
     echo "$1/$4" >> "$TMP/round1-calls"
     [[ "$CASE" != missing || "$4" != security ]] || return 1
@@ -96,11 +123,12 @@ post_inline_comments() { touch "$TMP/publication-attempt"; return 1; }
 git() { return 1; }
 export HOME="$TMP/home" TMPDIR="$TMP"
 mkdir -p "$HOME"
-for CASE in clean missing timeout failed malformed prose finding changed diff-error snapshot-bad zero publication finding-publication allfailed statusless multi warning error proof-artifact proof-claim proof-status proof-finalize proof-artifact-finalize; do
+for CASE in clean skip-scoped skip-all skip-error missing timeout failed malformed prose finding changed diff-error snapshot-bad zero publication finding-publication allfailed statusless multi warning error proof-artifact proof-claim proof-status proof-finalize proof-artifact-finalize; do
     test_case "$CASE dispatches downstream stages or fails closed"
     RESULTS_DIR="$TMP/$CASE"; mkdir -p "$RESULTS_DIR"
     rm -f "$TMP/dispatched" "$TMP/calls" "$TMP/round1-calls" "$TMP/verdict" "$TMP/provider-status" "$TMP/provider-state-path" "$TMP/publication-attempt"
     rm -f "$TMP/findings-before-proof" "$TMP/finalize-attempts" "$TMP/provider-report-path" "$TMP/reported-status"
+    rm -f "$TMP/prompts"
     rc=0
     profile='{"publish":"never","history":"fresh","debate":"off"}'
     [[ "$CASE" != publication && "$CASE" != finding-publication ]] || profile='{"publish":"ask","history":"fresh","debate":"off"}'
@@ -109,6 +137,18 @@ for CASE in clean missing timeout failed malformed prose finding changed diff-er
     verdict=""; [[ ! -f "$TMP/verdict" ]] || verdict="$(cat "$TMP/verdict")"
     calls=""; [[ ! -f "$TMP/calls" ]] || calls="$(cat "$TMP/calls")"
     case "$CASE" in
+        skip-scoped)
+            if [[ "$rc" == 0 && "$count" == 0 && "$verdict" == pass ]] &&
+               grep -Fq 'import "src/gen/client";' "$TMP/prompts" &&
+               ! grep -Fq GENERATED_PAYLOAD "$TMP/prompts"; then test_pass
+            else test_fail "skip filtering corrupted retained lines or dispatched generated content"; fi ;;
+        skip-all)
+            if [[ "$rc" == 1 && "$verdict" == no_changes && ! -e "$TMP/round1-calls" && ! -e "$TMP/calls" ]]; then test_pass
+            else test_fail "fully skipped diff dispatched a provider or claimed a completed review"; fi ;;
+        skip-error)
+            if [[ "$rc" == 1 && "$verdict" == fail && ! -e "$TMP/round1-calls" ]] &&
+               jq -e '.warning == "Could not apply REVIEW.md skip patterns"' "$RESULTS_DIR"/review-findings-*.json >/dev/null; then test_pass
+            else test_fail "filter failure did not fail closed before dispatch"; fi ;;
         proof-*)
             if [[ "$rc" == 1 && "$count" == 0 && -s "$TMP/reported-status" && -f "$TMP/provider-report-path" ]] &&
                grep -c '^fail$' "$TMP/finalize-attempts" >/dev/null &&
