@@ -70,17 +70,28 @@ octo_claude_model_version_ok() {
   octo_version_ok "$installed" "$OCTO_CLAUDE_FABLE_MIN_VERSION"
 }
 
+# Read the selected worker's version within five seconds, or print unknown.
 octo_claude_installed_version() {
+  source "${BASH_SOURCE[0]%/*}/command-argv.sh" || return 1
+  source "${BASH_SOURCE[0]%/*}/bounded-probe.sh" || return 1
   local configured_bin="${OCTOPUS_CLAUDE_BIN:-claude}"
+  local -a OCTO_COMMAND_ARGV
   local -a configured_argv
-  read -r -a configured_argv <<< "$configured_bin"
-  if [[ "${#configured_argv[@]}" -eq 0 ]] ||
-     ! command -v "${configured_argv[0]}" >/dev/null 2>&1; then
+  if ! octo_dispatch_command_to_argv "$configured_bin"; then
     printf '%s\n' "unknown"
     return 0
   fi
-  local version
-  version="$("${configured_argv[@]}" --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)"
+  configured_argv=("${OCTO_COMMAND_ARGV[@]}")
+  if ! command -v "${configured_argv[0]}" >/dev/null 2>&1; then
+    printf '%s\n' "unknown"
+    return 0
+  fi
+  local version output
+  if ! output="$(_octo_run_bare_probe_with_timeout 5 3 2 "${configured_argv[@]}" --version </dev/null 2>/dev/null)"; then
+    printf '%s\n' "unknown"
+    return 0
+  fi
+  version="$(head -1 <<< "$output" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)"
   printf '%s\n' "${version:-unknown}"
 }
 

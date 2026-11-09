@@ -14,7 +14,9 @@ consult it. A skill can recommend a consultation but cannot guarantee a call.
 For Octopus CLI workers, explicitly set `OCTOPUS_CLAUDE_ADVISOR=opus`. Supported
 values are `off`, `opus`, `sonnet`, `fable`, and full `claude-*` model IDs. This
 adds the documented `--advisor` launch argument to Claude Code seats only. It
-requires a detected Claude Code v2.1.260 or later. A custom
+requires a detected Claude Code worker v2.1.260 or later. Octopus checks the
+selected worker's `--version` with a five-second timeout, independently of the
+outer host. This also works when Octopus runs under Codex. A custom
 `OCTOPUS_CLAUDE_BIN` must implement that CLI contract. Octopus rejects malformed
 values and unsupported or unknown versions rather than silently dropping the
 request. Unset the variable to preserve the worker's existing configuration.
@@ -29,7 +31,7 @@ workflow that requires a fixed number of model calls. Existing worker deadlines
 still apply.
 
 Fixed refinement judges disable the advisor, including a saved advisor default.
-Exact-model CLI seats also launch with `--advisor off` on supported hosts. This
+Exact-model CLI seats also launch with `--advisor off` on supported workers. This
 keeps additional consultations out of the declared judging panel. Octopus's
 consultative multi-provider advisors are separate workers and use their existing
 contracts. The `claude-agent` SDK and `anthropic-api` adapters do not acquire the
@@ -50,7 +52,8 @@ do not provide a conversation-wide budget without client accounting.
 Use `/octo:refine` after drafting a plan, specification, document or deck when
 you want independent scoring and bounded revisions. `/octo:auto refine this
 plan` and explicit requests to improve an artifact against a rubric or score
-target hand off to the same installed command. Generic "improve this plan"
+target hand off to the same installed command, including conversational requests
+such as "Can you refine this plan against a rubric?" Generic "improve this plan"
 requests stay ordinary editing. Multi-provider, security and parallel intents
 retain their routing priority.
 

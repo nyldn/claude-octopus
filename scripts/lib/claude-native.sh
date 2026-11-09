@@ -1,17 +1,25 @@
 #!/usr/bin/env bash
-# Claude Code launch policy. Source-safe; no provider calls or settings writes.
+# Claude Code launch policy. Source-safe; no model calls or settings writes.
 
-if ! declare -f octo_version_ok >/dev/null 2>&1; then
+if ! declare -f octo_version_ok >/dev/null 2>&1 ||
+   ! declare -f octo_claude_installed_version >/dev/null 2>&1; then
     source "${BASH_SOURCE[0]%/*}/provider-versions.sh" || return 1
 fi
 
 # Print validated advisor arguments for the seat; reject unsupported opt-ins.
 octo_claude_advisor_fragment() {
-    local seat="${1:-}" requested="${OCTOPUS_CLAUDE_ADVISOR:-}" supported=false
+    local seat="${1:-}" requested="${OCTOPUS_CLAUDE_ADVISOR:-}" supported=false worker_version
+    # Ordinary unconfigured workers keep their existing launch path, including
+    # when no Claude executable is installed in a dispatch-preview environment.
+    if [[ -z "$requested" && "${OCTOPUS_REFINEMENT_JUDGE:-false}" != true && "$seat" != *:* ]]; then
+        return 0
+    fi
     # This deliberately uses a documented version floor, not --help: Claude
-    # hides --advisor from help. A version gate does not prove account access.
-    if [[ "${CLAUDE_CODE_VERSION:-}" =~ ^2\.[0-9]+\.[0-9]+$ ]] &&
-       octo_version_ok "$CLAUDE_CODE_VERSION" 2.1.260; then
+    # hides --advisor from help. Probe the selected worker, which may differ
+    # from the outer host. A version gate does not prove account access.
+    worker_version="$(octo_claude_installed_version)" || worker_version=''
+    if [[ "$worker_version" =~ ^2\.[0-9]+\.[0-9]+$ ]] &&
+       octo_version_ok "$worker_version" 2.1.260; then
         supported=true
     fi
     # Exact-model seats and fixed judges must not acquire additional model

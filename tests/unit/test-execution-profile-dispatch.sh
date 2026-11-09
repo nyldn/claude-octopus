@@ -106,7 +106,14 @@ assert_contains "$cmd" "--reasoning-effort high"
 unset OCTOPUS_OPENAI_COMPATIBLE_AGENT_REASONING
 unset OCTOPUS_REASONING_POLICY
 # Standalone dispatch does not source providers.sh or its version_compare helper.
-export CLAUDE_CODE_VERSION=2.1.260 OCTOPUS_CLAUDE_ADVISOR=opus
+mkdir -p "$TEST_TMP_DIR/bin"
+cat > "$TEST_TMP_DIR/bin/claude" <<'FIXTURE'
+#!/usr/bin/env bash
+printf '2.1.260 (Claude Code)\n'
+FIXTURE
+chmod +x "$TEST_TMP_DIR/bin/claude"
+export PATH="$TEST_TMP_DIR/bin:$PATH" OCTOPUS_CLAUDE_ADVISOR=opus
+unset CLAUDE_CODE_VERSION
 cmd=$(get_agent_command claude-sonnet review code-reviewer)
 assert_contains "$cmd" "--advisor opus"
 cmd=$(OCTOPUS_REFINEMENT_JUDGE=true get_agent_command claude-sonnet review code-reviewer)
