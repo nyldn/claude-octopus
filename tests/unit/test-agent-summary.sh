@@ -290,6 +290,42 @@ summary="$(render_agent_summary '-probe-budget-2')"
 if [[ "$probe_rc" == 78 && "$summary" == *'1 of 1 agents failed'* ]]; then test_pass
 else test_fail "probe rejection disappeared: $summary, rc=$probe_rc"; fi
 
+test_case "probe status rows use the canonical spawn seat ID"
+eval "$(sed -n '/^octo_spawn_contract_seat_id() {$/,/^}$/p' "$PROJECT_ROOT/scripts/lib/spawn.sh")"
+export OCTOPUS_RUN_ID=probe-canonical-seat
+probe_rc=0
+probe_single_agent codex perspective 'probe-budget@3' original >/dev/null || probe_rc=$?
+if [[ "$probe_rc" == 78 ]] && jq -e --arg seat "$(octo_spawn_contract_seat_id 'probe-budget@3')" \
+    '.agents | length == 1 and .[0].seat_id == $seat and $seat == "spawn-probe-budget_3"' \
+    "$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID/agents.json" >/dev/null; then
+    test_pass
+else
+    test_fail "probe wrote a seat ID other than the contract seat, rc=$probe_rc"
+fi
+
+test_case "a probe environment failure records the canonical spawn seat ID"
+export OCTOPUS_RUN_ID=probe-env-seat
+probe_rc=0
+(
+    enforce_context_budget() { printf '%s' "$1"; }
+    get_agent_model() { printf '%s' gpt-test; }
+    get_agent_command() { printf '%s' 'codex exec'; }
+    validate_agent_command() { :; }
+    record_agent_call() { :; }
+    update_metrics() { :; }
+    bridge_register_task() { :; }
+    update_agent_status() { :; }
+    build_provider_env() { return 1; }
+    probe_single_agent codex perspective 'probe-env@4' original >/dev/null 2>&1
+) || probe_rc=$?
+if [[ "$probe_rc" == 1 ]] && jq -e '.agents | length == 1 and .[0].seat_id == "spawn-probe-env_4" and
+    .[0].reason == "Provider environment construction failed"' \
+    "$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID/agents.json" >/dev/null; then
+    test_pass
+else
+    test_fail "probe environment failure lost its seat ID, rc=$probe_rc"
+fi
+
 test_case "a rejected synchronous call records one failed seat"
 source "$PROJECT_ROOT/scripts/lib/agent-sync.sh"
 load_earned_skills() { :; }
