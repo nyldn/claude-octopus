@@ -254,7 +254,14 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     # Build command array with credential isolation
     local -a cmd_array
     local -a inner_cmd_array
-    build_provider_env "$agent_type"
+    if ! build_provider_env "$agent_type"; then
+        log ERROR "Provider environment construction failed for $agent_type"
+        update_agent_status "$agent_type" "failed" 0 "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
+        type write_agent_status >/dev/null 2>&1 && write_agent_status \
+            "$agent_type" "failed" "$tokens_in" 0 "Provider environment construction failed" \
+            0 "$result_file" "$role" || true
+        return 1
+    fi
     octo_dispatch_command_to_argv "$cmd" || return 1
     inner_cmd_array=("${OCTO_COMMAND_ARGV[@]}")
     if [[ ${#PROVIDER_ENV_ARRAY[@]} -gt 0 ]]; then
@@ -1006,6 +1013,19 @@ ${_blind_spot_checklist}"
         log INFO "Perplexity API key detected - adding web-grounded research agent"
     elif [[ "$research_intensity" == "deep" && -n "${PERPLEXITY_API_KEY:-}" ]]; then
         log INFO "Perplexity web research seat skipped: disabled by provider allowlist"
+    fi
+
+    # One optional lookup shared by all perspectives, after admission/cost/cache
+    # gates and before provider dispatch. A failed lookup leaves prompts intact.
+    local web_search_context="" perspective_index
+    if [[ "${OCTOPUS_RESEARCH_WEB_SEARCH:-}" == keenable ]] &&
+       source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/keenable.sh" &&
+       web_search_context=$(probe_keenable_search_context "$prompt"); then
+        for perspective_index in "${!perspectives[@]}"; do
+            perspectives[$perspective_index]="${perspectives[$perspective_index]}
+
+$web_search_context"
+        done
     fi
 
     # Initialize progress tracking with actual agent count (dynamic, may be 5, 6, or 7)
