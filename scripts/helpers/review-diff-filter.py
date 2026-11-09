@@ -16,6 +16,12 @@ def git_path(value):
 
 def block_path(block):
     """Prefer destination metadata; deleted files use their original path."""
+    header = block.split(b"\n", 1)[0].removeprefix(b"diff --git ").rstrip(b"\r")
+    middle = len(header) // 2
+    # --no-prefix repeats the complete path, even for binary/mode-only changes.
+    # Comparing byte halves preserves spaces and Git's C-quoted token boundary.
+    if header[middle:middle + 1] == b" " and header[:middle] == header[middle + 1:]:
+        return git_path(header[:middle])
     original = None
     for line in block.splitlines()[1:]:
         if line.startswith((b"@@", b"GIT binary patch", b"Binary files ")):
@@ -32,7 +38,6 @@ def block_path(block):
                 return path[2:] if path.startswith(("a/", "b/")) else None
     # Binary and mode-only changes have no +++ header. Unquoted Git paths
     # may contain spaces; identical old/new names disambiguate those headers.
-    header = block.split(b"\n", 1)[0].removeprefix(b"diff --git ").rstrip(b"\r")
     quoted = re.fullmatch(rb'("(?:\\.|[^"\\])*") (.+)', header)
     if quoted:
         left, right = (git_path(value) for value in quoted.groups())

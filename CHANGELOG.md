@@ -31,6 +31,8 @@
 - Code review skips complete file diffs using REVIEW.md path globs. Generated
   hunks no longer appear under another file's header, and retained code that
   mentions a skipped path stays intact. Fully skipped diffs launch no reviewers.
+  Standard and no-prefix Git diffs are supported, including quoted, binary
+  and mode-only paths.
   Fixes [#1279](https://github.com/nyldn/claude-octopus/issues/1279).
 - Provider smoke tests explain environment construction failures instead of
   failing silently. Search-credential rejection uses the routing error logger,

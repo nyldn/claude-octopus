@@ -63,8 +63,22 @@ for quote_path in ("true", "false"):
     assert subprocess.check_output(["python3", os.environ["SKIP_FILTER"], "absent/*"], input=patch) == patch
 plain = b"--- other\n+++ other\n@@ -1 +1 @@\n-old\n+new\n"
 assert subprocess.check_output(["python3", os.environ["SKIP_FILTER"], "*"], input=plain) == plain
-unprefixed = git("diff", "--cached", "--no-prefix", "--", "app.ts")
-assert subprocess.check_output(["python3", os.environ["SKIP_FILTER"], "*"], input=unprefixed) == unprefixed
+# No-prefix paths can themselves begin with a/ or b/. Additions, deletions,
+# binary/mode-only records and C-quoted names must keep their actual paths.
+added = ["added.ts", "a/actual.ts", "b/actual.ts"]
+for name in added:
+    (root / name).parent.mkdir(parents=True, exist_ok=True)
+    (root / name).write_text("new file\n")
+git("add", "-A")
+for quote_path in ("true", "false"):
+    git("config", "core.quotePath", quote_path)
+    for name in files + added + ["src/gen/arrived.ts", "retained.ts"]:
+        unprefixed = git("diff", "--cached", "--binary", "--no-prefix", "--", name)
+        assert unprefixed, ("missing no-prefix fixture", name)
+        assert subprocess.check_output(["python3", os.environ["SKIP_FILTER"], name], input=unprefixed) == b"", name
+        assert subprocess.check_output(["python3", os.environ["SKIP_FILTER"], "absent/*"], input=unprefixed) == unprefixed
+custom = git("diff", "--cached", "--src-prefix=before/", "--dst-prefix=after/", "--", "app.ts")
+assert subprocess.check_output(["python3", os.environ["SKIP_FILTER"], "*"], input=custom) == custom
 usage = subprocess.run(["python3", os.environ["SKIP_FILTER"]], capture_output=True)
 assert usage.returncode != 0 and b"Usage:" in usage.stderr and b"Traceback" not in usage.stderr
 PY
