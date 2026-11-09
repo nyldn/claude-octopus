@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.20.0] - 2026-11-09
+
 ### Added
 
 - `/octo:deck --red-team` can review a draft outline through stakeholder seats
