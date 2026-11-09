@@ -374,17 +374,26 @@ parallel_execute() {
     }
     _parallel_cancel_seat_output() {
         local seat_id="$1" output="$2" ledger agent seat role
+        local reason="${3:-Seat owner exited before recording a terminal status}"
         declare -F write_agent_status >/dev/null || return 0
         declare -F octo_run_dir >/dev/null || return 0
         ledger="$(octo_run_dir)/agents.jsonl"
         [[ -s "$ledger" ]] || return 0
         while IFS=$'\t' read -r agent seat role; do
-            write_agent_status "$agent" cancelled 0 0 "Seat owner exited before recording a terminal status" \
+            # Native teammates have no cancellation handle. Their controller's
+            # exit does not establish that the teammate has stopped.
+            if declare -F octo_run_contract_finish_background >/dev/null &&
+               run_contract_latest_transition "$seat" >/dev/null 2>&1; then
+                octo_run_contract_finish_background "$seat" cancelled "$output" "" \
+                    "$reason" 143 "" already-exited >/dev/null 2>&1 || true
+            fi
+            write_agent_status "$agent" cancelled 0 0 "$reason" \
                 0 "$output" "$role" "$seat" || true
         done < <(jq -rs --arg seat "$seat_id" --arg file "$output" \
             "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
             latest_per_seat | .[] |
-            select(.status == "running" and .seat_id == $seat and .output_file == $file) |
+            select(.status == "running" and .seat_id == $seat and .output_file == $file and
+                .reason != "Dispatched via Agent Teams") |
             [.agent, .seat_id, (.role // "")] | @tsv' "$ledger")
     }
     _parallel_release_output() {
@@ -538,12 +547,11 @@ parallel_execute() {
         # Include a seat whose PID is still being handed back by spawn.
         declare -F write_agent_status >/dev/null || return 0
         declare -F octo_run_dir >/dev/null || return 0
-        local ledger agent seat output role
+        local ledger seat output
         ledger="$(octo_run_dir)/agents.jsonl"
         [[ -s "$ledger" ]] || return 0
-        while IFS=$'\t' read -r agent seat output role; do
-            write_agent_status "$agent" cancelled 0 0 "Parallel execution interrupted" \
-                0 "$output" "$role" "$seat" || true
+        while IFS=$'\t' read -r seat output; do
+            _parallel_cancel_seat_output "$seat" "$output" "Parallel execution interrupted"
         done < <(jq -rs --rawfile tasks /dev/stdin \
             "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
             ($tasks | fromjson) as $tasks |
@@ -551,7 +559,7 @@ parallel_execute() {
             select(. as $row | any($tasks[];
                 $row.seat_id == ("spawn-" + .id) and
                 $row.output_file == .output_file)) |
-            [.agent, .seat_id, .output_file, (.role // "")] | @tsv' "$ledger" <<< "${aggregate_task_scope:-[]}")
+            [.seat_id, .output_file] | @tsv' "$ledger" <<< "${aggregate_task_scope:-[]}")
     }
     _parallel_handle_signal() {
         local signal="$1" signal_status=143 saved_trap current_pid

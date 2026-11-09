@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Parallel cleanup finishes a stopped worker's durable execution contract as
+  cancelled, so run status no longer reports that worker as still running.
+  Native Agent Teams seats remain running until their own completion is known.
+
 - Reclaiming an exited invocation's output claim cancels the running seats its
   owner record names, including seats inherited through an interrupted reclaim.
   A different task ID that maps to the same result file is no longer blocked by
