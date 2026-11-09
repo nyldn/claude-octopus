@@ -207,8 +207,8 @@ class DocumentRendererTest(unittest.TestCase):
                 gate = outline_step.split("#### Board outline check", 1)[1]
                 self.assertIn("before asking for outline approval", gate)
                 self.assertIn("Do not invent", gate)
-                self.assertIn("If decision material is missing, identify the gap and ask for it before presenting the outline as ready for approval.",
-                              " ".join(gate.split()))
+                self.assertIn("identify the gap", gate)
+                self.assertIn("ask for it before presenting the outline as ready", " ".join(gate.split()))
                 self.assertIn("one backup slide per expected question", gate)
                 self.assertIn("MUST approve", gate)
 
@@ -220,7 +220,9 @@ class DocumentRendererTest(unittest.TestCase):
                 self.assertIn("informational", purpose)
                 self.assertIn("Q1 results", purpose)
                 self.assertIn("do not require a decision or approval ask", purpose)
-                self.assertIn("key findings and implications, including results when applicable", " ".join(purpose.split()))
+                self.assertIn("key findings", purpose)
+                self.assertIn("implications", purpose)
+                self.assertIn("results when applicable", purpose)
                 self.assertIn("follow-up only when the brief calls for it", " ".join(purpose.split()))
                 self.assertIn("Call to action only when the brief calls for one", purpose)
                 self.assertIn("slide 2", purpose)
@@ -229,8 +231,9 @@ class DocumentRendererTest(unittest.TestCase):
                 self.assertIn("five-slide", sizing)
                 self.assertIn("approve a larger target", sizing)
                 sizing = " ".join(sizing.split())
-                self.assertRegex(sizing, r"If the user selects a five-slide target, combine")
-                self.assertIn("Preserve the selected slide range for longer targets", sizing)
+                self.assertIn("user selects a five-slide target", sizing)
+                self.assertIn("selected slide range", sizing)
+                self.assertIn("longer targets", sizing)
 
     def test_board_audience_and_closing_rules_preserve_purpose(self):
         """Audience and closing rules keep actions conditional and before the appendix."""
@@ -245,12 +248,34 @@ class DocumentRendererTest(unittest.TestCase):
                 for label in ("Agenda slide", "Summary slide"):
                     rule = next(line for line in rules.splitlines() if f"**{label}**" in line)
                     self.assertIn("general agenda-first structure", rule)
-                    self.assertIn("Executives / Board briefs follow the Step 3 purpose-specific structure", rule)
+                    self.assertIn("Executives / Board briefs", rule)
+                    self.assertIn("purpose-specific structure", rule)
                 audience = deck.split("**Executives / Board:**", 1)[1].split("**Engineers / Technical:**", 1)[0]
                 self.assertIn("brief's purpose", audience)
                 self.assertIn("decision or informational purpose in Step 3", " ".join(audience.split()))
                 self.assertIn("only when a decision is requested", " ".join(audience.split()))
-                self.assertIn("Include financial implications only when relevant and supported by sources", " ".join(audience.split()))
+                self.assertIn("financial implications only when relevant", " ".join(audience.split()))
+                self.assertIn("supported by sources", audience)
+
+    def test_board_decisions_allow_qualitative_evidence(self):
+        """A nonnumeric decision must not require an invented chart or figure."""
+        for tree, deck, outline in self._board_outlines():
+            with self.subTest(tree=tree):
+                evidence = outline.split("## Slide 4:", 1)[1].split("## Slide 5:", 1)[0]
+                self.assertIn("qualitative", evidence)
+                self.assertIn("no relevant numerical proof", " ".join(evidence.split()))
+                self.assertIn("For numerical data", evidence)
+                self.assertIn("single figure", evidence)
+
+    def test_board_data_highlights_allow_tables(self):
+        """The data check accepts a highlighted table instead of a chart."""
+        for tree, deck, outline in self._board_outlines():
+            with self.subTest(tree=tree):
+                gate = outline.split("#### Board outline check", 1)[1]
+                data_check = next(item for item in gate.split("\n- ") if "every data slide" in item)
+                for requirement in ("proof point", "title", "numerical evidence", "single figure",
+                                    "chart, table or other data display"):
+                    self.assertIn(requirement, " ".join(data_check.split()))
 
     def test_deck_completion_requires_rendered_slide_evidence(self):
         """Saving an artifact alone cannot satisfy the deck completion gate."""

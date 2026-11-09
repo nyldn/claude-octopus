@@ -140,8 +140,10 @@ minimum slide count.
 - At least one real alternative: benefit, cost and trade-offs
 
 ## Slide 4: [The evidence supports a specific conclusion]
-- One proof point for this data slide, with its source
-- Chart highlight: the single figure that supports the title
+- One sourced proof point supporting the conclusion, qualitative when no
+  relevant numerical proof is available
+- For numerical data: highlight the single figure supporting the title in the
+  chart, table or other data display
 
 ## Slide 5: [Approve the specific next action by the decision date]
 - Repeat the same recommendation and by-when
@@ -164,9 +166,10 @@ For decision briefs, check the following before asking for outline approval:
   one real alternative? Use a common time horizon and cite cost estimates.
 - Is the ask something this audience can grant, such as a specific approval,
   amount or named resource, with a by-when? "Support" alone is insufficient.
-- Does every data slide have one proof point and a chart highlight tied to
-  the single figure claimed by its title? Include the source and the intended
-  highlight in the outline passed to the renderer.
+- Does every data slide have one sourced proof point tied to its title? For
+  numerical evidence, highlight the single figure in the chart, table or other
+  data display. Include the source and intended highlight in the outline
+  passed to the renderer.
 - Is there one backup slide per expected question in the appendix? Name the
   questions and include the appendix in the outline submitted for approval.
 
