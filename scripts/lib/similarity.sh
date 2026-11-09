@@ -46,24 +46,36 @@ jaccard_similarity() {
 # Check if parallel agent results are converging
 # Uses heading extraction + jaccard similarity
 check_convergence() {
-    local result_pattern="$1"
+    local signature="${OCTOPUS_CONVERGENCE_THRESHOLD:-0.8}" f part
 
     [[ "${OCTOPUS_CONVERGENCE_ENABLED:-false}" != "true" ]] && return 1
 
     local files=()
-    for f in $result_pattern; do
-        [[ -f "$f" ]] && files+=("$f")
+    for f in "$@"; do
+        [[ -f "$f" ]] || continue
+        files+=("$f")
+        part=$(cksum < "$f" 2>/dev/null) || return 1
+        signature+="${#f}:$f:$part;"
     done
 
     [[ ${#files[@]} -lt 2 ]] && return 1
 
+    if [[ "${_OCTO_CONVERGENCE_SIGNATURE:-}" == "$signature" ]]; then
+        return "${_OCTO_CONVERGENCE_RC:-1}"
+    fi
+    _OCTO_CONVERGENCE_SIGNATURE="$signature"
+    _OCTO_CONVERGENCE_RC=1
+    local headings=()
+    for f in "${files[@]}"; do
+        headings+=("$(extract_headings "$f")")
+    done
     local converged=0
     local i j
     for (( i=0; i < ${#files[@]}; i++ )); do
         for (( j=i+1; j < ${#files[@]}; j++ )); do
             local headings_a headings_b sim
-            headings_a=$(extract_headings "${files[$i]}")
-            headings_b=$(extract_headings "${files[$j]}")
+            headings_a="${headings[$i]}"
+            headings_b="${headings[$j]}"
             sim=$(jaccard_similarity "$headings_a" "$headings_b")
             if awk -v s="$sim" -v t="${OCTOPUS_CONVERGENCE_THRESHOLD:-0.8}" 'BEGIN { exit !(s >= t) }'; then
                 converged=$((converged + 1))
@@ -71,7 +83,10 @@ check_convergence() {
         done
     done
 
-    [[ $converged -ge 1 ]] && return 0
+    if [[ $converged -ge 1 ]]; then
+        _OCTO_CONVERGENCE_RC=0
+        return 0
+    fi
     return 1
 }
 

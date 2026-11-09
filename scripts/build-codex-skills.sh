@@ -407,7 +407,8 @@ write_skill() {
 #                        counterpart, registered in plugin.json
 #   skill-council        has never had a source (no delete recorded in git
 #                        history); generating without this exclusion removes it
-PRESERVED_SKILL_DIRS=(blocks octopus-starter-pack skill-council)
+#   skill-refine and flow-discover are canonical root skills with phase resources
+PRESERVED_SKILL_DIRS=(blocks octopus-starter-pack skill-council skill-refine flow-discover)
 
 _preserve_find_args() {
     local d
@@ -459,11 +460,34 @@ main() {
 
     prepare_target_dir "$target_dir"
 
+    # Both hosts load phase resources from root skills/. Only the entry copy
+    # lives under .claude; do not delete or adapt the canonical phase files.
+    local canonical
+    for canonical in skill-refine flow-discover; do
+        # A partial source fixture may contain neither canonical skill. If either
+        # side exists, require the canonical root copy rather than losing it.
+        if [[ ! -e "$OUTPUT_DIR/$canonical" && ! -e "$SKILLS_DIR/$canonical" ]]; then
+            continue
+        fi
+        if $CHECK_MODE; then
+            cmp -s "$OUTPUT_DIR/$canonical/SKILL.md" "$SKILLS_DIR/$canonical/SKILL.md" || {
+                echo "CHECK: .claude/skills/$canonical is stale; run skill sync" >&2
+                return 1
+            }
+        else
+            mkdir -p "$SKILLS_DIR/$canonical"
+            cp "$OUTPUT_DIR/$canonical/SKILL.md" "$SKILLS_DIR/$canonical/SKILL.md"
+        fi
+    done
+
     while IFS= read -r file; do
         [[ -f "$file" ]] || continue
 
         local basename
         basename=$(source_skill_basename "$file")
+
+        # These skills are canonical under root skills/, including phase resources.
+        case "$basename" in skill-refine|skill-refine.md|flow-discover|flow-discover.md) continue ;; esac
 
         # Skip templates
         for pattern in $SKIP_PATTERNS; do

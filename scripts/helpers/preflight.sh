@@ -14,14 +14,26 @@ source "${SCRIPT_DIR}/../lib/preflight.sh"
 
 CHECK_KIND="static"
 OUTPUT_MODE="human"
-for arg in "$@"; do
-    case "$arg" in
+PANEL="${OCTOPUS_PREFLIGHT_PROVIDERS:-}" REPORT_IN="" REPORT_OUT="" RUN_ID=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
         --live) CHECK_KIND="live" ;;
         --json) OUTPUT_MODE="json" ;;
         --exit-code) OUTPUT_MODE="exit-code" ;;
-        *) echo "Unknown preflight option: $arg" >&2; exit 2 ;;
+        --providers|--report-in|--report-out|--run-id)
+            [[ $# -ge 2 && -n "$2" ]] || { echo "ERROR: $1 requires a value" >&2; exit 2; }
+            case "$1" in
+                --providers) PANEL="$2" ;;
+                --report-in) REPORT_IN="$2" ;;
+                --report-out) REPORT_OUT="$2" ;;
+                --run-id) RUN_ID="$2" ;;
+            esac
+            shift ;;
+        *) echo "Unknown preflight option: $1" >&2; exit 2 ;;
     esac
+    shift
 done
+[[ -z "$REPORT_IN$REPORT_OUT" || -n "$RUN_ID" ]] || { echo 'ERROR: receipts require --run-id' >&2; exit 2; }
 
 if ! command -v jq >/dev/null 2>&1; then
     echo "ERROR: /octo:preflight requires jq. Install jq and retry." >&2
@@ -31,7 +43,9 @@ fi
 # A pinned council roster (OCTOPUS_COUNCIL_DEFAULT_PROVIDERS) is checked
 # instead of every registered provider.
 roster="" roster_rc=0 sandbox=""
-if declare -F octo_preflight_roster >/dev/null 2>&1; then
+if [[ -n "$PANEL" ]]; then
+    roster="$(octo_preflight_panel "$PANEL")" || exit 2
+elif declare -F octo_preflight_roster >/dev/null 2>&1; then
     roster="$(octo_preflight_roster)" || roster_rc=$?
 fi
 if [[ "$roster_rc" -ne 0 ]]; then
@@ -67,17 +81,22 @@ fi
 providers_ready="$(jq '[.[] | select(.status == "available")] | length' <<<"$results_json")"
 providers_degraded="$(jq '[.[] | select(.status != "available")] | length' <<<"$results_json")"
 
+if [[ -n "$REPORT_IN$REPORT_OUT" ]]; then
+    results_json="$(printf '%s' "$results_json" | python3 "$SCRIPT_DIR/readiness-receipt.py" \
+        "$RUN_ID" "$CHECK_KIND" "$roster_json" "$REPORT_IN" "$REPORT_OUT")" || exit 2
+fi
 if [[ "$OUTPUT_MODE" == "exit-code" ]]; then
-    exit 0
+    [[ -z "$PANEL" || "$providers_degraded" -eq 0 ]]
+    exit $?
 fi
 
 versions_json='{"any_below_floor":false,"results":[]}'
 if [[ -f "$CHECK_VERSIONS" ]]; then
-    versions_json="$(bash "$CHECK_VERSIONS" --json 2>/dev/null || printf '%s' '{"any_below_floor":false,"results":[]}')"
+    versions_json="$(OCTOPUS_PREFLIGHT_DIAGNOSTIC_PROVIDERS="$roster" bash "$CHECK_VERSIONS" --json 2>/dev/null || printf '%s' '{"any_below_floor":false,"results":[]}')"
 fi
 
 ollama_json='{"reachable":false,"models":[],"check_kind":"static"}'
-if [[ "$CHECK_KIND" == "live" && -f "$CHECK_OLLAMA_MODELS" ]]; then
+if [[ "$CHECK_KIND" == "live" && -f "$CHECK_OLLAMA_MODELS" && ( -z "$roster" || " $roster " == *ollama* ) ]]; then
     ollama_json="$(bash "$CHECK_OLLAMA_MODELS" --json 2>/dev/null || printf '%s' '{"reachable":false,"models":[],"check_kind":"live"}')"
 fi
 
@@ -108,7 +127,11 @@ echo ""
 echo "🐙 Octopus Provider Readiness (${CHECK_KIND})"
 echo "────────────────────────────────────"
 if [[ -n "$roster" ]]; then
-    echo "  Council roster (OCTOPUS_COUNCIL_DEFAULT_PROVIDERS): ${roster//$'\n'/ }"
+    if [[ -n "$PANEL" ]]; then
+        echo "  Required provider panel: ${roster//$'\n'/ }"
+    else
+        echo "  Council roster (OCTOPUS_COUNCIL_DEFAULT_PROVIDERS): ${roster//$'\n'/ }"
+    fi
 fi
 while IFS=$'\t' read -r provider status reason; do
     case "$status" in
@@ -146,9 +169,9 @@ if [[ "$providers_degraded" -gt 0 && -n "$sandbox" ]]; then
 fi
 
 if [[ -f "$CHECK_VERSIONS" ]]; then
-    bash "$CHECK_VERSIONS" 2>/dev/null || true
+    OCTOPUS_PREFLIGHT_DIAGNOSTIC_PROVIDERS="$roster" bash "$CHECK_VERSIONS" 2>/dev/null || true
 fi
-if [[ "$CHECK_KIND" == "live" && -f "$CHECK_OLLAMA_MODELS" ]]; then
+if [[ "$CHECK_KIND" == "live" && -f "$CHECK_OLLAMA_MODELS" && ( -z "$roster" || " $roster " == *ollama* ) ]]; then
     bash "$CHECK_OLLAMA_MODELS" 2>/dev/null || true
 fi
 

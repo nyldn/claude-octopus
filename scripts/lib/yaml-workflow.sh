@@ -525,6 +525,7 @@ $previous_output"
             # Convergence-aware: poll results while waiting
             local wait_start=$SECONDS
             local max_wait=${TIMEOUT:-600}
+            local convergence_reported=false
             while [[ $(( SECONDS - wait_start )) -lt $max_wait ]]; do
                 local all_done=true
                 for pid in "${pids[@]}"; do
@@ -536,13 +537,16 @@ $previous_output"
                 [[ "$all_done" == "true" ]] && break
 
                 # Check convergence on available results
-                if check_convergence "$RESULTS_DIR"/*-${phase_name}-${task_group}-*.md; then
-                    log "INFO" "CONVERGENCE: Early termination - agents converged in phase $phase_name"
-                    break
+                if [[ "$convergence_reported" == false ]] &&
+                   check_convergence "$RESULTS_DIR"/*-"${phase_name}"-"${task_group}"-*.md; then
+                    log "INFO" "CONVERGENCE: Similar result headings in phase $phase_name; waiting for all required agents"
+                    convergence_reported=true
                 fi
                 sleep 2
             done
-            _yaml_wait_for_pids "$max_wait" "${pids[@]}"
+            local remaining_wait=$((max_wait - (SECONDS - wait_start)))
+            (( remaining_wait < 0 )) && remaining_wait=0
+            _yaml_wait_for_pids "$remaining_wait" "${pids[@]}"
         else
             _yaml_wait_for_pids "${TIMEOUT:-600}" "${pids[@]}"
         fi

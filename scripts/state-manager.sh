@@ -470,6 +470,14 @@ main() {
         state_path)
             printf '%s\n' "$STATE_FILE"
             ;;
+        handoff_path)
+            if [[ -n "${OCTOPUS_WORKFLOW_STATE_DIR:-}" ]]; then
+                # An explicit directory is already stable and remains authoritative.
+                printf '%s\n' "$STATE_DIR/discovery-handoff.json"
+            else
+                python3 "$(dirname "${BASH_SOURCE[0]}")/helpers/discovery-handoff.py" locate "$(resolve_octopus_workspace)" "$STATE_FILE"
+            fi
+            ;;
         get_current_phase)
             get_current_phase
             ;;
@@ -520,6 +528,7 @@ Commands:
   read_state                                  Display current state (JSON)
   state_path                                  Display the resolved state file path
   get_current_phase                           Get current phase
+  handoff_path                                Resolve stable discovery state, adopting legacy records
   get_current_workflow                        Get current workflow
   set_current_workflow <workflow> [phase]     Set current workflow and phase
   write_decision <phase> <decision> <rationale> [commit]

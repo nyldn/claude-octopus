@@ -24,7 +24,7 @@ This command is already executing. The feature to document is: **$ARGUMENTS.feat
 
 ## PHASE 0: CLARIFICATION (MANDATORY - DO THIS FIRST)
 
-Before writing ANY PRD content, ask the user:
+Read the supplied target users, problem, success criteria, constraints, and existing context. Reuse explicit answers. Ask only material unresolved or contradictory fields from this checklist, omitting answered fields:
 
 ```
 I'll create a PRD for: **$ARGUMENTS.feature**
@@ -40,7 +40,7 @@ To make this PRD highly targeted, please answer briefly:
 (Type "skip" to proceed with assumptions, or answer inline)
 ```
 
-**WAIT for user response before proceeding.**
+Wait only for material missing or contradictory answers. When the supplied information is clear, proceed directly to research. Record minor assumptions. Clarification does not authorize implementation, publication, additional provider spending, or approval decisions; preserve the user's existing boundaries.
 
 ---
 
@@ -167,4 +167,4 @@ Write to user-specified filename or generate one.
 
 ---
 
-**BEGIN PHASE 0 - ASK CLARIFICATION QUESTIONS FOR: $ARGUMENTS.feature**
+**BEGIN PHASE 0 FOR: $ARGUMENTS.feature. Reuse supplied information and ask only about material gaps or contradictions.**
