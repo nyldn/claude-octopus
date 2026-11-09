@@ -18,6 +18,7 @@
   updates keep their own purpose, and short decks can combine evidence and
   decision slides within the approved target. The action closes the main deck,
   before appendix backup slides. Addresses #1216.
+
 - Research can optionally share one Keenable web search across its perspectives.
   Set `OCTOPUS_RESEARCH_WEB_SEARCH=keenable` and include `keenable` in any active
   provider allowlist. Search suggestions remain untrusted, and lookup failures
