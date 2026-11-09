@@ -2,6 +2,30 @@
 
 ## [Unreleased]
 
+### Added
+
+- Research can optionally share one Keenable web search across its perspectives.
+  Set `OCTOPUS_RESEARCH_WEB_SEARCH=keenable` and include `keenable` in any active
+  provider allowlist. Search suggestions remain untrusted, and lookup failures
+  keep the original research prompts. No API key is required for the public
+  endpoint. Addresses [#1261](https://github.com/nyldn/claude-octopus/issues/1261).
+
+### Improved
+
+- Leading CLI help skips workflow initialization. Complete, valid reviews with
+  no findings skip verifier and synthesis calls after confirming the diff is unchanged.
+- Council advice, critique and revision use bounded concurrency with ordered
+  usage reservations. Refinement can overlap its two pinned, independent judges
+  under one call budget and deadline.
+- Preparation can check an explicit provider panel and validate a short-lived
+  readiness receipt. Fresh dispatch authorization remains required.
+- Discovery and refinement load phase instructions as needed. Brainstorm, PRD
+  and security workflows reuse supplied answers and ask about material gaps.
+- Correction loops detect completed workers sooner. Provider retries distinguish
+  terminal authentication failures from recoverable refresh or transport failures.
+- Worktree metadata sampling, usage reports, context lookup and convergence
+  checks avoid repeated subprocesses, whole-log buffering or unchanged file reads.
+
 ### Fixed
 
 - Parallel dispatch preserves saved results and completion markers when a
@@ -9,8 +33,8 @@
   task ID for a new attempt in the same run.
 - Large parallel task batches retain their scoped results without exceeding
   command-line argument limits, and invalid scopes report an aggregation error.
-  A spawn that fails after recording a running seat cancels that seat so a later
-  attempt can proceed. Interrupted shell-only claims report their manual
+  A spawn that fails after recording a running seat marks that seat cancelled
+  in the status ledger. Interrupted shell-only claims report their manual
   recovery procedure.
 - The agent run summary no longer reports a provider's successful seat as
   failed when another of its seats times out. The status ledger kept the
@@ -23,8 +47,68 @@
   ledger spans every command in a session.
 - Output claims publish their owner atomically, so an interrupted claim
   preparation cannot permanently block retries. Live owners keep their outputs.
-  Workers that exit without recording a terminal status no longer block retries
-  in the same run.
+  Workers that fail without recording a terminal status are marked cancelled.
+  When a durable execution contract exists, another attempt requires a new task
+  ID in the same run.
+
+- Provider smoke tests explain environment construction failures instead of
+  failing silently. Search-credential rejection uses the routing error logger,
+  with a stderr fallback for standalone callers.
+- Optional search skips interpreters without total-deadline support and warns
+  when a lookup fails or returns no suggestions, while research continues.
+- Codex subscription probes exclude search credentials and skip execution if
+  provider environment construction fails.
+
+## [11.19.0] - 2026-11-08
+
+### Added
+
+- Deck generation verifies rendered slides before reporting completion. It
+  checks thumbnails, rendered titles and highlighted data claims, then reports
+  each slide's result. Artifacts with missing evidence remain drafts.
+  Addresses [#1219](https://github.com/nyldn/claude-octopus/issues/1219).
+- Cost tiers can now pair a model or capability with reasoning effort in
+  `providers.json`, such as `{"capability":"default","reasoning":"low"}`.
+  Existing string targets still work. Tier effort applies only when that tier
+  selects the model; explicit model routes and effort overrides keep precedence.
+
+### Fixed
+
+- Research verification no longer fails a synthesis for referring to its own
+  numbered points. A synthesis line such as "See point 2." or "Corrected in
+  point 2: ..." next to a workspace citation failed with `number_mismatch`,
+  because the cited file did not contain a standalone 2. A whole number after
+  `point`, `points`, `item` or `items`, or continuing such a list with a comma,
+  "and" or "or", is now skipped when no other word follows it. Numbers with a
+  unit, including formatted units such as `5 **MiB**`, and section numbers are
+  still checked. Compact lists such as `points 2,3` are also recognized, while
+  decimals and thousands-formatted numeric claims remain checked. Scores and
+  counts introduced by a colon, both endpoints of hyphen and Unicode
+  dash ranges, and quantities with either Unicode micro-unit prefix also remain checked.
+  Nested emphasis and whitespace before a percent sign cannot hide quantities.
+  Literal destination backticks and emphasis before attached units also retain
+  unsupported quantities for evidence checks.
+
+## [11.18.0] - 2026-11-07
+
+### Added
+
+- `/octo:refine`, with `/octo:ladder` as an alias, improves artifacts through a frozen rubric, independent Claude/Codex scoring, and bounded rounds. Reports retain each attempted round and the best verified result.
+
+### Fixed
+
+- Guard modes now check forced recursive removal targets, require review of unclassified executable input, and share stable session identity across activation, hooks, and deactivation.
+- Metric-loop instructions direct the host to preserve existing edits and the staged index through isolated candidates, finite iteration/time/call budgets, and resume accounting. These steps depend on host compliance; they are not an executable supervisor.
+- Failed or malformed independent review verification leaves findings unverified and disables publication.
+- Commands, skills, and registered hooks use the current host installation with quoted executable paths, including sessions using different versions or installation paths containing spaces.
+- Budget, standard, and premium shortcuts remain supported; removed the obsolete v11 removal notice.
+
+### Development
+
+- Run affected PR tests on both supported systems and shard full unit coverage into four weighted lanes per system. Run integration beside units and use targeted symlink regressions on every event.
+- Remove duplicate local sync/smoke runs, standalone packaging jobs, repeated full local release requirements, and automatic advisory model reviews unless explicitly enabled. Required CI and approval remain intact.
+- Keep release validation read-only and publish through the gated release process. Reject unknown test-runner flags before execution.
+- Bound full unit steps and retain their output before the job deadline so stalled tests produce actionable diagnostics.
 
 ## [11.17.1] - 2026-11-05
 

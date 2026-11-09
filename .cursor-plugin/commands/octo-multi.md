@@ -68,7 +68,7 @@ Use the Bash tool to run the shared live readiness check. This command asks for
 multiple providers, so its provider probe is explicit and bounded:
 
 ```bash
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 provider_helper="$OCTO_ROOT/scripts/helpers/check-providers.sh"
 if [[ ! -x "$provider_helper" ]]; then
   echo "ERROR: Claude Octopus provider readiness helper is unavailable. Run /octo:setup." >&2

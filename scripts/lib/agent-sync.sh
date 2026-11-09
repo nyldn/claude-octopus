@@ -1598,7 +1598,11 @@ ${provider_ctx}"
     case "$agent_type" in
         copilot*|qwen*|cursor-agent*) _plan_append_empty_prompt=true ;;
     esac
-    build_provider_env "$agent_type"
+    if ! build_provider_env "$agent_type"; then
+        run_contract_transition "$_sync_seat_id" failed \
+            "reason=Provider environment construction failed" >/dev/null 2>&1 || true
+        return 74
+    fi
     octo_dispatch_plan_bind_model_env "$agent_type" "$model"
     local _plan_failure=""
     if ! dispatch_argv_json="$(octo_dispatch_command_argv_json "$cmd")"; then

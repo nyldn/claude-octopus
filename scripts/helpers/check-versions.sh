@@ -36,9 +36,15 @@ declare -a CHECK_LINES
 declare -a CHECK_STATUSES
 ANY_BELOW_FLOOR=0
 
+# Record a version-floor diagnostic for an installed CLI in the selected panel.
+# Unknown versions stay informational; below-floor versions set the shared flag.
 check_version() {
-  local name="$1" cmd="$2" min="$3" flag="${4:---version}"
+  local name="$1" cmd="$2" min="$3" flag="${4:---version}" provider="$1"
 
+  if [[ -n "${OCTOPUS_PREFLIGHT_DIAGNOSTIC_PROVIDERS:-}" ]]; then
+    [[ "$name" != gh ]] || provider=copilot
+    case " ${OCTOPUS_PREFLIGHT_DIAGNOSTIC_PROVIDERS//$'\n'/ } " in *" $provider "*|*" $name "*) ;; *) return 0 ;; esac
+  fi
   # Skip if CLI not installed — version check only applies to present providers.
   command -v "${cmd}" &>/dev/null || return 0
 

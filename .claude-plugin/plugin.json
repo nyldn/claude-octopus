@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.17.1",
-  "description": "v11.17.1 \u2014 Recognize Vibe logins and verify current workflow reports. Run /octo:setup.",
+  "version": "11.19.0",
+  "description": "v11.19.0 \u2014 Verified decks and configurable reasoning effort. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
@@ -67,6 +67,7 @@
     "./skills/skill-prd",
     "./skills/skill-pressure-test",
     "./skills/skill-prototype",
+    "./skills/skill-refine",
     "./skills/skill-resume",
     "./skills/skill-review-response",
     "./skills/skill-rollback",
@@ -105,6 +106,8 @@
     "./commands/debug.md",
     "./commands/tdd.md",
     "./commands/loop.md",
+    "./commands/refine.md",
+    "./commands/ladder.md",
     "./commands/docs.md",
     "./commands/embrace.md",
     "./commands/discover.md",

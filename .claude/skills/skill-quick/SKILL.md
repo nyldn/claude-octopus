@@ -154,13 +154,13 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 
 ```bash
 # Update state with quick task execution
-"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" write_decision \
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" write_decision \
   "quick" \
   "$(git log -1 --pretty=%s)" \
   "Ad-hoc task executed in quick mode"
 
 # Update metrics
-"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" update_metrics \
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_metrics \
   "execution_time" \
   "1"  # Estimated in minutes
 ```

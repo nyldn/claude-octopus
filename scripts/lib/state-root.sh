@@ -57,7 +57,7 @@ octopus_run_provider_without_persistence() {
     local -a inner_cmd_array
 
     octopus_persistence_diagnostic
-    build_provider_env "$agent_type"
+    build_provider_env "$agent_type" || return 1
     octo_dispatch_command_to_argv "$cmd" || return 1
     inner_cmd_array=("${OCTO_COMMAND_ARGV[@]}")
     if [[ ${#PROVIDER_ENV_ARRAY[@]} -gt 0 ]]; then

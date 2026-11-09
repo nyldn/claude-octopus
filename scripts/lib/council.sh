@@ -86,6 +86,7 @@ if ! declare -f octo_api_key_provider_is_available >/dev/null 2>&1; then
 fi
 source "${_council_lib_dir}/agent-sync.sh" 2>/dev/null || true
 source "${_council_lib_dir}/features.sh" 2>/dev/null || true
+source "${_council_lib_dir}/council-workers.sh"
 unset _council_lib_dir
 
 council_usage() {
@@ -1868,20 +1869,11 @@ _council_cancel_tree() {
     kill -KILL "$pid" 2>/dev/null || true
 }
 
+# Run one roster member with bounded detached output, or use the inline fixture
+# path; publish the seat PID so the phase scheduler can collect it later.
 council_dispatch_member_detached() {
-    # Serial-but-detached seat dispatch (sail-cruisey #2077). A council seat used to
-    # run inline in the council's own process group: a SIGHUP/SIGINT/SIGTERM to the
-    # council (a Claude Code tool timeout, a user Ctrl-C, an orchestrator-level signal)
-    # propagated to the in-flight provider child, killing it mid-write and leaving a
-    # torn response file — the council then hung or reported a false provider
-    # shortage. This wrapper runs the seat in a signal-isolated, disowned background
-    # subshell that writes to a .partial file and atomically renames it into place on
-    # completion, dropping a .done sentinel carrying the exit code. The seat's write
-    # is thus decoupled from the parent's process group: an interrupted parent can no
-    # longer kill a seat mid-write or leave a half-written file, and reaping is
-    # authoritative via the .done sentinel rather than a synchronous return that a
-    # racing signal could truncate. Seats still run one at a time (serial ordering
-    # preserved) — this is a reliability change, not a concurrency change.
+    # Signal-isolated dispatch with atomic output and completion records. The
+    # phase scheduler can launch this seat now and reap it after other seats.
     #
     # setsid is deliberately NOT used: it is absent on macOS (util-linux only). The
     # portable equivalent — `disown` plus `trap '' HUP INT TERM` inside the subshell —
@@ -1922,6 +1914,10 @@ council_dispatch_member_detached() {
     (
         trap '' HUP INT TERM
         trap 'exit 143' USR1
+        if [[ "${_COUNCIL_POOL_LAUNCH:-0}" == 1 ]] && declare -f record_agent_call >/dev/null 2>&1; then
+            # Preparation stays parallel; the scheduler owns usage reservations.
+            record_agent_call() { council_pool_request_reservation "$output_path" "$@" || exit 74; }
+        fi
         rc=0
         council_dispatch_member "$member_json" "$phase" > "$partial" || rc=$?
         # A swallowed mv failure would let the wrapper report success (rc unchanged)
@@ -1944,6 +1940,19 @@ council_dispatch_member_detached() {
     # the bare form (most-recent job) if the shell has already reaped it.
     disown "$seat_pid" 2>/dev/null || disown 2>/dev/null || true
 
+    if [[ "${_COUNCIL_POOL_LAUNCH:-0}" == 1 ]]; then
+        COUNCIL_ASYNC_PID="$seat_pid"
+        COUNCIL_ASYNC_TIMEOUT="$timeout_secs"
+        return 0
+    fi
+    council_reap_member_detached "$output_path" "$seat_pid" "$timeout_secs"
+}
+
+# Collect a detached seat's completion status within its timeout and reap grace.
+# Kill an overdue process tree before discarding output that could publish late.
+council_reap_member_detached() {
+    local output_path="$1" seat_pid="$2" timeout_secs="$3"
+    local partial="${output_path}.partial" done_file="${output_path}.done"
     # Bounded reap. run_agent_sync already enforces the per-seat provider timeout, so
     # the subshell terminates on its own; this poll is a safety net keyed to the same
     # timeout plus a grace margin for the mv+sentinel write. Poll the .done sentinel
@@ -1953,7 +1962,7 @@ council_dispatch_member_detached() {
     # shared resolver so this consumer and the aggregate-budget clamp normalize the
     # value identically (a raw "08" would break this arithmetic as invalid octal).
     local grace_secs; grace_secs="$(council_deadline_reap_grace)"
-    local max_ms=$(( (timeout_secs + grace_secs) * 1000 )) waited_ms=0
+    local max_ms=$(( (timeout_secs + grace_secs) * 1000 )) waited_ms=${4:-0}
     while (( waited_ms < max_ms )); do
         [[ -f "$done_file" ]] && break
         if ! kill -0 "$seat_pid" 2>/dev/null; then
@@ -1989,7 +1998,9 @@ council_dispatch_member_detached() {
         fi
         rm -f "$output_path"
     fi
-    rm -f "$done_file" "${done_file}.tmp" "$partial"
+    rm -f "$done_file" "${done_file}.tmp"
+    # Retain unfinished provider output for diagnosis after watchdog cancellation.
+    [[ "$rc" != 0 && -s "$partial" ]] || rm -f "$partial"
     if council_deadline_exceeded; then COUNCIL_DEADLINE_HIT="true"; fi
     return "$rc"
 }
@@ -4330,6 +4341,8 @@ council_chair_is_host_native() {
     [[ "$status" == "host-native" ]]
 }
 
+# Collect independent advice and build seat, quorum and dissent records from
+# completed outputs, retaining failures and deadline omissions in the evidence.
 council_run_advice_phase() {
     COUNCIL_RESPONSES_RECEIVED="0"
     COUNCIL_CHAIR_RESPONSE_RECEIVED="false"
@@ -4349,14 +4362,10 @@ council_run_advice_phase() {
     artifact_digest="$(council_artifact_digest "$evidence_root" "${COUNCIL_TASK:-}")" || artifact_digest="unavailable"
     COUNCIL_ARTIFACT_DIGEST="$artifact_digest"
     COUNCIL_DEADLINE_HIT="false"; COUNCIL_SEATS_DISPATCHED=0; COUNCIL_SEATS_SKIPPED=0
+    council_run_seat_pool independent-advice responses || return $?
     while IFS= read -r member; do
-        persona="$(jq -r '.persona' <<< "$member")"
-        seat="$(jq -r '.seat' <<< "$member")"
-        mprovider_spec="$(jq -r '.agent_spec // .provider' <<< "$member")"
+        council_read_seat_fields "$member"
         mprovider="$(octo_agent_spec_provider "$mprovider_spec")"
-        seat_org="$(jq -r '.provider_org // ""' <<< "$member")"
-        seat_model="$(jq -r '.model // ""' <<< "$member")"
-        seat_model_family="$(jq -r '.model_family // ""' <<< "$member")"
         [[ -n "$seat_model_family" ]] || seat_model_family="$(council_model_family "$mprovider" "$seat_model")"
         slug="$(council_slug "$persona")"
         output_path="${COUNCIL_RUN_DIR}/responses/$(printf '%02d' "$index")-${slug}.md"
@@ -4368,7 +4377,7 @@ council_run_advice_phase() {
         # remaining seat as skipped-for-deadline (honest tally), then let quorum be
         # recomputed below from the seats that actually completed — a reported
         # quorum-fail beats being SIGTERM-reaped mid-seat with no summary.json.
-        if council_deadline_exceeded; then
+        if [[ "${COUNCIL_POOL_PHASE:-}" != independent-advice || ! -f "${output_path}.pool-result" ]] && council_deadline_exceeded; then
             COUNCIL_DEADLINE_HIT="true"
             COUNCIL_SEATS_SKIPPED=$((COUNCIL_SEATS_SKIPPED + 1))
             seat_status="skipped-deadline"
@@ -4391,9 +4400,9 @@ council_run_advice_phase() {
         # The detached seat's stderr reaches no one; a seat that exits non-zero
         # leaves its provider stderr here.
         local stderr_file="${COUNCIL_RUN_DIR}/stderr/$(basename "$output_path" .md).log" failure="" failure_rc=0
-        rm -f "$stderr_file" 2>/dev/null
+        [[ "${COUNCIL_POOL_PHASE:-}" == independent-advice && -f "${output_path}.pool-result" ]] || rm -f "$stderr_file" 2>/dev/null
         _OCTOPUS_SEAT_STDERR_FILE="$stderr_file" \
-            council_dispatch_member_detached "$member" "independent-advice" "$output_path" || dispatch_rc=$?
+            council_collect_seat "$member" "independent-advice" "$output_path" || dispatch_rc=$?
         dispatch_timeout_provenance="$COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE"
         # Admit the serialized contribution before changing any response or vote
         # counters. A refreshed report can reject evidence that passed earlier
@@ -4721,38 +4730,42 @@ council_run_chair_fallback() {
     return 1
 }
 
+# Collect cross-critiques after the advice barrier, except at quick depth.
+# Discard failed critique outputs while retaining completed pooled seats.
 council_run_critique_phase() {
     if [[ "$COUNCIL_DEPTH" == "quick" ]]; then
         return 0
     fi
 
     local index=0 member persona slug output_path
+    council_run_seat_pool cross-critique critiques || return $?
     while IFS= read -r member; do
         # Stop enriching once the aggregate budget is spent (#2918); the run
         # finalizes a partial before synthesis. Critiques are best-effort, so a
-        # break here simply omits the rest — no partial file is left behind.
-        if council_deadline_exceeded; then COUNCIL_DEADLINE_HIT="true"; break; fi
+        # unlaunched seats stay absent; completed pooled seats are still collected.
         persona="$(jq -r '.persona' <<< "$member")"
         slug="$(council_slug "$persona")"
         output_path="${COUNCIL_RUN_DIR}/critiques/$(printf '%02d' "$index")-${slug}.md"
-        council_dispatch_member_detached "$member" "cross-critique" "$output_path" || rm -f "$output_path"
+        council_collect_seat "$member" "cross-critique" "$output_path" || rm -f "$output_path"
         index=$((index + 1))
     done < <(jq -c '.[]' <<< "$COUNCIL_ROSTER_JSON")
 }
 
+# At deep depth, collect each member's revision after all critiques complete.
+# Failed or unlaunched seats do not contribute a revision artifact.
 council_run_revision_phase() {
     if [[ "$COUNCIL_DEPTH" != "deep" ]]; then
         return 0
     fi
 
     local index=0 member persona slug output_path
+    council_run_seat_pool revision-after-critique revisions || return $?
     while IFS= read -r member; do
         # Stop once the aggregate budget is spent (#2918); revisions are best-effort.
-        if council_deadline_exceeded; then COUNCIL_DEADLINE_HIT="true"; break; fi
         persona="$(jq -r '.persona' <<< "$member")"
         slug="$(council_slug "$persona")"
         output_path="${COUNCIL_RUN_DIR}/revisions/$(printf '%02d' "$index")-${slug}.md"
-        if council_dispatch_member_detached "$member" "revision-after-critique" "$output_path"; then
+        if council_collect_seat "$member" "revision-after-critique" "$output_path"; then
             :
         else
             rm -f "$output_path"
@@ -5782,7 +5795,7 @@ _council_run_impl() {
 
     council_preflight_context_guard || return $?
 
-    council_run_advice_phase
+    council_run_advice_phase || return $?
 
     # Two distinct stop-before-synthesis conditions:
     #   1. The vote failed (quorum.met=false) — nothing was approved.
@@ -5822,14 +5835,14 @@ _council_run_impl() {
         [[ "$COUNCIL_ABORTED_FOR_COST" == "true" ]] && return 0
         return 1
     fi
-    council_run_critique_phase
+    council_run_critique_phase || return $?
     if council_check_cost_cap "revision" "revision"; then
         :
     else
         [[ "$COUNCIL_ABORTED_FOR_COST" == "true" ]] && return 0
         return 1
     fi
-    council_run_revision_phase
+    council_run_revision_phase || return $?
     # Critique/revision consume wall-clock too — re-check before the chair synthesis
     # dispatch so a run that crossed the deadline during those phases finalizes a
     # partial instead of launching one more (budget-overrunning) synthesis (#2918).
