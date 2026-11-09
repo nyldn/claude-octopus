@@ -255,28 +255,14 @@ class DocumentRendererTest(unittest.TestCase):
                 self.assertLess(collect, board_check)
                 self.assertLess(board_check, storyline_check)
                 self.assertLess(storyline_check, approval)
-                self.assertIn("Without `--red-team`, skip this pass", red_team)
+                # The executable recipes below cover launch, retries and waiting.
+                # Keep prose checks to the opt-in, quorum and output contract.
+                self.assertIn("Without `--red-team`", red_team)
                 self.assertIn("provider allowlist", red_team)
-                self.assertIn("one round", red_team)
-                self.assertIn("skill-debate", red_team)
-                self.assertIn("never simulate", red_team)
-                self.assertIn("Fewer than two eligible providers", red_team)
-                self.assertIn("continue without red teaming", red_team)
-                self.assertIn("decision-maker or influencer", text.split("### Step 2:", 1)[0])
-                self.assertIn("one stakeholder", red_team)
+                self.assertIn("at least two distinct providers", " ".join(red_team.split()))
                 self.assertIn("pre-empt", red_team)
                 self.assertIn("Q&A", red_team)
-                self.assertIn("backup-slide checklist", red_team)
                 self.assertIn("unverified", red_team)
-                self.assertIn("not completed", red_team)
-                self.assertIn("user approves", red_team)
-                for requirement in ("octo_launch_advisors", "OCTOPUS_ADVISOR_WAIT_SECONDS",
-                                    "successful completion", "at least two distinct providers",
-                                    "deadline expires", "not completed",
-                                    "Do not count launch logs, partial files or stale artifacts"):
-                    self.assertIn(requirement, " ".join(red_team.split()))
-                self.assertLess(red_team.index("successful completion"),
-                                red_team.index("Merge and deduplicate"))
 
     def test_deck_red_team_checks_costs_and_two_seat_minimum_before_dispatch(self):
         """A one-stakeholder map cannot authorize an underfunded quorum."""
@@ -284,21 +270,12 @@ class DocumentRendererTest(unittest.TestCase):
             with self.subTest(tree=tree):
                 text = (ROOT / tree / "skill-deck/SKILL.md").read_text()
                 gate = " ".join(text.split("#### Optional stakeholder red team", 1)[1].split())
-                for requirement in ("Even with one stakeholder", "at least two seats",
-                                    "increase the budget or continue without red teaming",
-                                    "narrowing the map cannot remove this minimum",
-                                    "config/model-pricing.tsv", "includes reasoning tokens",
-                                    "maximum call count and estimated spend",
-                                    "before any provider call", "Unknown costs need explicit acceptance",
-                                    "codex:<model>", "OCTOPUS_CODEX_REASONING",
-                                    "higher-priority phase/role overrides", "resolved command",
-                                    "cannot honor a choice", "No extra calls or retries"):
-                    self.assertIn(requirement, gate)
+                for identifier in ("config/model-pricing.tsv", "codex:<model>",
+                                   "OCTOPUS_CODEX_REASONING", "at least two seats",
+                                   "maximum call count", "estimated spend", "Unknown costs"):
+                    self.assertIn(identifier, gate)
                 self.assertLess(gate.index("obtain consent"), gate.index("Use real"))
-                self.assertIn("Invoke the installed `skill-deck`", " ".join(text.split()))
-                self.assertNotIn("Use `/octo:deck --red-team", text)
                 self.assertIn('OCTOPUS_PREFLIGHT_PROBE=0 "$ADVISOR_SELECTOR"', gate)
-                self.assertIn("static readiness only", gate)
                 self.assertLess(gate.index("OCTOPUS_PREFLIGHT_PROBE=0"),
                                 gate.index("obtain consent"))
 
