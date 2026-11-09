@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Maintenance
+
+- Skill generation uses the authored entries directly through the existing sync
+  pipeline. Retired flow templates no longer provide competing source copies.
+  Contributor guidance now links the repository map, script index and test tiers.
+
 ## [11.21.0] - 2026-11-09
 
 ### Added
