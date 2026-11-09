@@ -152,21 +152,24 @@ if (
     done
     (
         unset -f tail
-        touch "$TEST_TMP_DIR/second-failure-started"
+        sleep() {
+            touch "$TEST_TMP_DIR/second-failure-contended"
+            command sleep "$@"
+        }
         record_provider_failure codex 75 'temporary limit'
     ) > "$TEST_TMP_DIR/second-failure" &
     second=$!
     for attempt in {1..250}; do
-        [[ ! -e "$TEST_TMP_DIR/second-failure-started" ]] || break
+        [[ ! -e "$TEST_TMP_DIR/second-failure-contended" ]] || break
         sleep 0.02
     done
-    sleep 0.2
     before=$(wc -l < "$_PROVIDER_STATE_DIR/codex.failures")
     touch "$TEST_TMP_DIR/release-snapshot"
     first_rc=0 second_rc=0
     wait "$first" || first_rc=$?
     wait "$second" || second_rc=$?
-    if [[ "$before" -eq 1 && "$first_rc" -eq 0 && "$second_rc" -eq 0 ]] &&
+    if [[ -e "$TEST_TMP_DIR/second-failure-contended" &&
+          "$before" -eq 1 && "$first_rc" -eq 0 && "$second_rc" -eq 0 ]] &&
        [[ "$(wc -l < "$_PROVIDER_STATE_DIR/codex.failures")" -eq 2 ]] &&
        ! is_provider_available codex; then
         exit 0

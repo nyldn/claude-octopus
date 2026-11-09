@@ -297,6 +297,7 @@ test_quota_cleanup_stops_reparented_group_member() {
         source "$PROJECT_ROOT/scripts/lib/heartbeat.sh"
         source "$PROJECT_ROOT/scripts/lib/spawn.sh"
         export QUOTA_ORPHAN_FIXTURE="$FIXTURE/orphan-$admission_mode"
+        export QUOTA_ADMISSION_MODE="$admission_mode"
         mkdir -p "$QUOTA_ORPHAN_FIXTURE"
         cat > "$QUOTA_ORPHAN_FIXTURE/provider.py" <<'PROVIDER'
 import os
@@ -322,7 +323,7 @@ while not (root / "helper.pid").exists():
 print("ERROR: Individual quota reached.", file=sys.stderr, flush=True)
 time.sleep(30)
 PROVIDER
-        if [[ "$admission_mode" == exiting ]]; then
+        if [[ "$admission_mode" != stable ]]; then
             cat > "$QUOTA_ORPHAN_FIXTURE/admission.py" <<'ADMISSION'
 import importlib.util
 import os
@@ -336,21 +337,32 @@ control = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(control)
 root = Path(os.environ["QUOTA_ORPHAN_FIXTURE"])
 original_init = control.Process.__init__
+original_send = control.Process.send
+mode = os.environ["QUOTA_ADMISSION_MODE"]
+
+def exit_leader(pid, parent):
+    assert control.snapshot(parent).stopped
+    with control.Process(pid) as leader:
+        leader.send(signal.SIGKILL)
+        deadline = time.monotonic() + 2
+        while leader.running() and time.monotonic() < deadline:
+            time.sleep(0.005)
+        assert not leader.running(), "leader did not exit at the barrier"
+    (root / "barrier").touch()
 
 def bind(self, pid, **kwargs):
-    if kwargs.get("parent") and pid == int((root / "provider.pid").read_text()):
-        # This is the real leader-binding boundary, after its supervisor stops.
-        assert control.snapshot(kwargs["parent"]).stopped
-        with control.Process(pid) as leader:
-            leader.send(signal.SIGKILL)
-            deadline = time.monotonic() + 2
-            while leader.running() and time.monotonic() < deadline:
-                time.sleep(0.005)
-            assert not leader.running(), "leader did not exit at the barrier"
-        (root / "barrier").touch()
+    if mode == "exiting" and kwargs.get("parent") and pid == int((root / "provider.pid").read_text()):
+        exit_leader(pid, kwargs["parent"])
     original_init(self, pid, **kwargs)
+    self.test_parent = kwargs.get("parent")
+
+def send(self, signum):
+    if mode == "stopping" and signum == signal.SIGSTOP and self.info.pid == int((root / "provider.pid").read_text()):
+        exit_leader(self.info.pid, self.test_parent)
+    return original_send(self, signum)
 
 control.Process.__init__ = bind
+control.Process.send = send
 rc = control.main()
 (root / "cleanup-status").write_text(str(rc))
 sys.exit(rc)
@@ -391,7 +403,7 @@ ADMISSION
         [[ "$worker" =~ ^[0-9]+$ && "$elapsed" -lt 15 && \
            -s "$QUOTA_ORPHAN_FIXTURE/fired" ]] || exit 1
         [[ "$(cat "$QUOTA_ORPHAN_FIXTURE/status")" =~ ^(137|143)$ ]] || exit 1
-        if [[ "$admission_mode" == exiting ]]; then
+        if [[ "$admission_mode" != stable ]]; then
             [[ -e "$QUOTA_ORPHAN_FIXTURE/barrier" &&
                "$(cat "$QUOTA_ORPHAN_FIXTURE/cleanup-status")" == 1 ]] || exit 1
         fi
@@ -474,6 +486,7 @@ test_check_providers_applies_dead_marker_to_every_provider
 test_quota_cleanup_preserves_supervisor_owned_groups
 test_quota_cleanup_stops_reparented_group_member
 test_quota_cleanup_stops_reparented_group_member exiting
+test_quota_cleanup_stops_reparented_group_member stopping
 test_quota_cleanup_retries_refusal
 test_quota_cleanup_refuses_unverified_processes
 

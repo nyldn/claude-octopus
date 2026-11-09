@@ -42,7 +42,7 @@ signal to a numeric group ID. The quota
 watcher retries refused cleanup up to five times while the worker remains alive,
 then reports that provider work may still be running.
 
-If a listed descendant disappears before its identity is bound, owned-group
+If a listed descendant disappears before its identity is bound or while it is frozen, owned-group
 cleanup refuses before killing the timeout supervisor and resumes stopped
 processes. The supervisor retains its own process-group cleanup responsibility.
 On macOS, confirmed zombie identities use XNU's explicit zombie lookup.

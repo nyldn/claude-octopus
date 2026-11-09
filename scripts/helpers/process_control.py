@@ -436,6 +436,8 @@ def terminate(pid, grace=1, frozen=False, descendants=False, expected=None, owne
                 if not handle.info.stopped:
                     stopped.append(handle)
                 if not handle.send(signal.SIGSTOP):
+                    if owned_groups:
+                        raise StaleProcess("descendant exited before freezing; cleanup incomplete")
                     continue
                 # STOP delivery is asynchronous. Enumerate only once it cannot fork.
                 # XNU queues psignal asynchronously even when the identity-
@@ -467,8 +469,12 @@ def terminate(pid, grace=1, frozen=False, descendants=False, expected=None, owne
                         retry_at = now + 0.25
                     time.sleep(0.01)
                 if disappeared:
+                    if owned_groups:
+                        raise StaleProcess("descendant exited during freezing; cleanup incomplete")
                     continue
             if not handle.running():
+                if owned_groups:
+                    raise StaleProcess("descendant exited before enumeration; cleanup incomplete")
                 continue
             if owned_groups and freeze and os.getpgid(handle.info.pid) == handle.info.pid:
                 group_leaders.append(handle)
