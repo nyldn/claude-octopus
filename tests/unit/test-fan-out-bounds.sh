@@ -424,10 +424,12 @@ else
 fi
 
 test_case "an interrupted task can be admitted again in the same run"
+rm -f "$TEST_TMP_DIR/interrupted-retry-admitted"
 if (
     trap - EXIT
     source "$PROJECT_ROOT/scripts/lib/error-tracking.sh"
     export OCTOPUS_RUN_ID=parallel-interrupt
+    RESULTS_DIR="$WORKSPACE_DIR/results"
     spawn_agent_capture_pid() { touch "$TEST_TMP_DIR/interrupted-retry-admitted"; return 1; }
     parallel_execute "$interrupt_tasks" >/dev/null 2>&1 || true
     [[ -f "$TEST_TMP_DIR/interrupted-retry-admitted" ]]
