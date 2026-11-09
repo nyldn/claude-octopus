@@ -115,11 +115,11 @@ for advisor in off sonnet fable claude-opus-5-5; do
     if [[ "$(OCTOPUS_CLAUDE_ADVISOR="$advisor" octo_claude_advisor_fragment claude)" == "--advisor $advisor" ]]; then test_pass; else test_fail "$advisor"; fi
 done
 
-for prompt in 'refine this plan' 'iteratively improve this specification' 'improve this plan using a rubric' 'improve this deck to 95/100' 'please improve this plan with a rubric' 'iterate on this plan with a target score of 95' 'Can you refine this plan against a rubric?' 'Can you please improve this plan using a rubric?' 'Could you iteratively improve this plan?' 'Please can you refine this plan?'; do
+for prompt in 'refine this plan' 'iteratively improve this specification' 'improve this plan using a rubric' 'improve this deck to 95/100' 'Improve this plan to a score of 95/100' 'Can you improve this deck to a score of 90 / 100?' 'please improve this plan with a rubric' 'iterate on this plan with a target score of 95' 'Can you refine this plan against a rubric?' 'Can you please improve this plan using a rubric?' 'Could you iteratively improve this plan?' 'Please can you refine this plan?'; do
     test_case "explicit refinement handoff: $prompt"
     if [[ "$(classify_task "$prompt")" == native-refine ]]; then test_pass; else test_fail "$(classify_task "$prompt")"; fi
 done
-for prompt in 'improve this plan' 'improve this plan without rubric scoring' 'define the refine variable' 'improve this plan with a security audit' 'refine this plan with all providers' 'refine this plan in parallel' 'Can you improve this plan?' 'Can you explain the refine variable and target score?'; do
+for prompt in 'improve this plan' 'improve this plan without rubric scoring' 'define the refine variable' 'improve this plan with a security audit' 'refine this plan with all providers' 'refine this plan in parallel' 'Can you improve this plan?' 'Can you explain the refine variable and target score?' 'Can you explain a score of 95/100?'; do
     test_case "ordinary edits and higher-priority intents keep their route: $prompt"
     if [[ "$(classify_task "$prompt")" != native-refine ]]; then test_pass; else test_fail 'unwanted judging workflow'; fi
 done
@@ -128,7 +128,7 @@ for prompt in 'Could you refine this flowchart against a rubric?' 'refine this a
     test_case "refinement of existing artifacts: $prompt"
     if [[ "$(classify_task "$prompt")" == native-refine ]]; then test_pass; else test_fail "$(classify_task "$prompt")"; fi
 done
-for prompt in 'Can you improve this plan without using a rubric?' 'Please refine this plan without a rubric.' 'Improve this plan without applying a rubric.' 'Refine this plan, but do not use a rubric.' 'Refine this plan without scoring it.'; do
+for prompt in 'Can you improve this plan without using a rubric?' 'Please refine this plan without a rubric.' 'Improve this plan without applying a rubric.' 'Refine this plan, but do not use a rubric.' 'Refine this plan without scoring it.' 'Improve this plan to a score of 95/100 without using a rubric.'; do
     test_case "refinement scoring opt-out: $prompt"
     if [[ "$(classify_task "$prompt")" != native-refine ]]; then test_pass; else test_fail 'ignored scoring opt-out'; fi
 done

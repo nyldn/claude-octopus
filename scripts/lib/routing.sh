@@ -118,7 +118,7 @@ classify_task() {
     if [[ ! "$prompt_lower" =~ $refine_optout ]] &&
        { [[ "$prompt_lower" =~ ${refine_prefix}(refine|iteratively[[:space:]]+improve)[[:space:]] ]] ||
          { [[ "$prompt_lower" =~ ${refine_prefix}(improve|refine|iterate)[[:space:]] ]] &&
-           [[ "$prompt_lower" =~ ((against|using|with)[[:space:]]+(a[[:space:]]+|the[[:space:]]+|this[[:space:]]+)?rubric|to[[:space:]]+[0-9]+[[:space:]]*/[[:space:]]*100|score[[:space:]]+target|target[[:space:]]+score) ]]; }; }; then
+           [[ "$prompt_lower" =~ ((against|using|with)[[:space:]]+(a[[:space:]]+|the[[:space:]]+|this[[:space:]]+)?rubric|to[[:space:]]+(a[[:space:]]+score[[:space:]]+of[[:space:]]+)?[0-9]+[[:space:]]*/[[:space:]]*100|score[[:space:]]+target|target[[:space:]]+score) ]]; }; }; then
         refine_request=true
     fi
 
