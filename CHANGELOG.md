@@ -49,6 +49,10 @@
 
 ### Fixed
 
+- Worktree progress fingerprints preserve stat compatibility for timestamps before
+  1970, including fractional seconds. The batch sampler and shell fallback produce
+  the same digest while ordinary files keep the batch sampling path.
+
 - Code review skips complete file diffs using REVIEW.md path globs. Generated
   hunks no longer appear under another file's header, and retained code that
   mentions a skipped path stays intact. Fully skipped diffs launch no reviewers.
