@@ -193,6 +193,55 @@ _octo_capture_worktree_fingerprint "{repo}"
             (repo / ".octo/runtime").write_text("runtime changed")
             self.assertEqual(after, shell(f'source "{LIB}/heartbeat.sh"; _octo_capture_worktree_fingerprint "{repo}"'))
 
+    def test_fractional_pre_epoch_metadata_matches_stat_and_shell_fallback(self):
+        """Keep batch, original and no-Python digests equal across the epoch."""
+        reference = ROOT / "tests/fixtures/command-workflow-efficiency/metadata-reference.sh"
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            subprocess.run(["git", "init", "-q", tmp], check=True)
+            artifact = repo / "space 雪\nchanged"
+            artifact.write_text("before")
+            subprocess.run(["git", "-C", tmp, "add", "."], check=True)
+            artifact.write_text("after and longer")
+            (repo / "link").symlink_to(artifact.name)
+            (repo / "broken").symlink_to("missing")
+            (repo / ".octo").mkdir()
+            (repo / ".octo/runtime").write_text("ignored")
+            for ns in (-1_500_000_001, -1_000_000_000, -500_000_000, -1,
+                       0, 500_000_000, 1_500_000_001):
+                with self.subTest(mtime_ns=ns):
+                    os.utime(artifact, ns=(ns, ns))
+                    script = f'''source "{reference}"
+_octo_capture_worktree_fingerprint "{repo}"
+source "{LIB}/heartbeat.sh"
+_octo_capture_worktree_fingerprint "{repo}"
+command() {{
+    [[ "$*" != "-v python3" ]] || return 1
+    builtin command "$@"
+}}
+_octo_capture_worktree_fingerprint "{repo}"
+'''
+                    original, batch, fallback = shell(script).splitlines()
+                    self.assertEqual(batch, original)
+                    self.assertEqual(fallback, original)
+
+    def test_ordinary_metadata_does_not_launch_stat(self):
+        """Keep whole seconds and post-epoch fractions on the batch fast path."""
+        with tempfile.TemporaryDirectory() as tmp:
+            artifact = Path(tmp, "artifact")
+            artifact.write_text("data")
+            for ns in (-1_000_000_000, 0, 500_000_000):
+                with self.subTest(mtime_ns=ns):
+                    os.utime(artifact, ns=(ns, ns))
+                    code = f'''import io, runpy, sys, unittest.mock as m
+sys.argv = ["sampler", {tmp!r}]
+sys.stdin = m.Mock(buffer=io.BytesIO(b"artifact\\0"))
+with m.patch("subprocess.run", side_effect=AssertionError("unexpected stat subprocess")):
+ runpy.run_path({str(LIB / "worktree-metadata.py")!r}, run_name="__main__")
+'''
+                    expected = f"path=artifact;4:{artifact.lstat().st_mtime_ns // 1_000_000_000}\n"
+                    self.assertEqual(subprocess.check_output(["python3", "-c", code]).decode(), expected)
+
     def test_context_snapshot_is_per_call(self):
         """Reuse one tracked-file snapshot without hiding later index changes."""
         with tempfile.TemporaryDirectory() as tmp:
