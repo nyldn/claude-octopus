@@ -297,7 +297,7 @@ parallel_execute() {
     local task_agents=()
     local task_sequences=()
     local output_claims=()
-    local owner_lock="" owner_python=""
+    local owner_lock="" owner_python="" owner_directory=""
     local _parallel_claim_helper="${_parallel_lib_dir}/../helpers/output-claim.py"
     _parallel_cleanup_cron() {
         if [[ "$_parallel_cron_disabled" == "true" ]]; then
@@ -322,10 +322,8 @@ parallel_execute() {
         owner_lock=$(mktemp "$RESULTS_DIR/.parallel-owner.XXXXXX" 2>/dev/null) || { owner_lock=""; return 1; }
         # The Python claim record uses an absolute path, including when the
         # caller selected a relative results directory.
-        case "$owner_lock" in
-            /*) ;;
-            *) owner_lock="$(pwd -P)/$owner_lock" ;;
-        esac
+        owner_directory=$(cd "$(dirname "$owner_lock")" && pwd -P) || return 1
+        owner_lock="$owner_directory/${owner_lock##*/}"
         if ! { exec 7>"$owner_lock"; } 2>/dev/null || \
            ! "$owner_python" "$_parallel_claim_helper" hold 7 </dev/null; then
             exec 7>&-

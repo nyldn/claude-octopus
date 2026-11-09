@@ -325,15 +325,16 @@ for concurrency in 1 2; do
     else test_fail "dead workers blocked same-run retries"; fi
 done
 
-for path_form in absolute relative; do
+for path_form in absolute relative dotted; do
 test_case "TERM after $path_form claim publication cannot strand an unregistered claim"
 if (
     trap - EXIT
     export OCTOPUS_RUN_ID="claim-publication-$path_form"
-    if [[ "$path_form" == relative ]]; then
+    if [[ "$path_form" != absolute ]]; then
         cd "$TEST_TMP_DIR"
         RESULTS_DIR=relative-results
         mkdir -p "$RESULTS_DIR"
+        if [[ "$path_form" == dotted ]]; then RESULTS_DIR=relative-results/../relative-results; fi
     fi
     rm -f "$TEST_TMP_DIR/interrupted-spawn" "$TEST_TMP_DIR/publication-retry"
 claim_python="$TEST_TMP_DIR/claim-python"
