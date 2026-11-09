@@ -4,6 +4,12 @@
 
 ### Added
 
+- `/octo:deck --red-team` can review a draft outline through stakeholder seats
+  before approval, map decision-blocking objections to the main deck, and prepare
+  draft answers and appendix backup slides for Q&A. The pass is opt-in and uses
+  the existing debate provider and cost controls. Transports with unbounded
+  follow-up requests are excluded from the pass.
+
 - Deck outlines now start with a confirmed governing question, a brief
   situation/complication/question opener and an answer supported by two to four
   pillars. Slide titles form a sentence skeleton that must carry the argument

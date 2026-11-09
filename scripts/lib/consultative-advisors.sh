@@ -246,6 +246,15 @@ octo_launch_advisors() {
         '    exec "$OCTO_ADVISOR_PREV_HOOK" "$@"' \
         'fi' > "$hook"
     chmod +x "$hook"
+    # A no-exec temporary filesystem must fail before any provider is billed.
+    if ! OCTO_ADVISOR_EVENT_LOG="${aux_dir}/hook-probe.events" \
+         OCTO_ADVISOR_PREV_HOOK="" "$hook" preflight ||
+       [[ ! -s "${aux_dir}/hook-probe.events" ]]; then
+        rm -rf "$aux_dir"
+        printf 'ERROR: advisor lifecycle hook cannot execute; no advisors launched\n' >&2
+        return 1
+    fi
+    rm -f "${aux_dir}/hook-probe.events"
 
     IFS=',' read -r -a advisor_list <<< "$advisors_csv"
     for advisor in "${advisor_list[@]}"; do
