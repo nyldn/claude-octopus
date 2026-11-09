@@ -152,7 +152,7 @@ def _linux_proc_records():
                 continue
             try:
                 fields = Path(entry.path, "stat").read_bytes().rsplit(b")", 1)[1].split()
-            except FileNotFoundError:
+            except (FileNotFoundError, ProcessLookupError):
                 continue
             yield int(entry.name), fields
 

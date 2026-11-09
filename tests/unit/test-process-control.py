@@ -349,6 +349,28 @@ class ProcessControlTests(unittest.TestCase):
             with self.assertRaises(PermissionError):
                 control.children(4242)
 
+    @unittest.skipUnless(sys.platform.startswith("linux"), "Linux procfs enumeration")
+    def test_linux_proc_scan_skips_only_disappeared_records(self):
+        """Both procfs disappearance errors are local; permission failures refuse."""
+        gone = mock.Mock()
+        gone.name, gone.path = "4343", "/proc/4343"
+        live = mock.Mock()
+        live.name, live.path = "4444", "/proc/4444"
+        scan = mock.MagicMock()
+        scan.__enter__.return_value = [gone, live]
+        for error in (FileNotFoundError(), ProcessLookupError()):
+            for reader, expected in ((lambda: control._linux_proc_children(4242), [4444]),
+                                     (lambda: list(control._process_groups()), [(4444, 4242)])):
+                with self.subTest(error=type(error).__name__, expected=expected), \
+                     mock.patch.object(control.os, "scandir", return_value=scan), \
+                     mock.patch.object(Path, "read_bytes", side_effect=[
+                         b"1 (self) R 0", error, b"4444 (live) S 4242 4242"]):
+                    self.assertEqual(reader(), expected)
+        with mock.patch.object(control.os, "scandir", return_value=scan), \
+             mock.patch.object(Path, "read_bytes", side_effect=[b"1 (self) R 0", PermissionError()]):
+            with self.assertRaises(PermissionError):
+                list(control._linux_proc_records())
+
     def test_linux_handle_is_closed_if_post_open_identity_changes(self):
         info = control.ProcessInfo(4242, 20, "before", 0, False)
         replacement = control.ProcessInfo(4242, 20, "after", 0, False)
