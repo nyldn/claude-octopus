@@ -76,7 +76,15 @@ This step is OPTIONAL. Many decks are built from the user's own knowledge or exi
 
 ### Step 3: Generate Outline
 
-Build a slide-by-slide outline in markdown format. Structure:
+Build a slide-by-slide outline in Markdown format. For Executives / Board,
+infer the purpose from the brief. When it calls for a decision, use the
+executive and board outline below. For an informational brief such as a
+Q1 results update, do not require a decision or approval ask. Use the general
+structure with an executive summary on slide 2 covering key findings and
+implications, including results when applicable, then evidence. Include
+follow-up only when the brief calls for it. Do not invent a decision to
+fit the template. If the purpose is unclear, clarify it before outlining.
+For other audiences, use this general structure:
 
 ```markdown
 ## Slide 1: [Title Slide]
@@ -93,8 +101,74 @@ Build a slide-by-slide outline in markdown format. Structure:
 
 ## Slide N: [Summary / Next Steps]
 - Key takeaways
-- Call to action
+- Call to action only when the brief calls for one
 ```
+
+#### Executive and board outline
+
+For decision briefs, put the decision on slide 2. Use this structure instead of the agenda-first
+template or a summary saved for the end. Expand evidence slides as needed;
+agree the main-deck and appendix slide counts within the user's target.
+If the user selects a five-slide target, combine the evidence and decision
+slides, keeping the executive summary on slide 2 and an appendix. Preserve
+the selected slide range for longer targets. If the required material,
+including one backup slide per expected question, cannot fit, ask the user to
+approve a larger target before expanding it. The six-slide example is not a
+minimum slide count.
+
+```markdown
+## Slide 1: [Decision topic]
+- Presentation title, date and presenter
+
+## Slide 2: Executive summary: [recommendation]
+- One recommendation sentence with a by-when
+- One line of context
+- Two or three supporting pillars
+- The specific ask and what approval unlocks
+
+## Slide 3: [Why the recommended option beats the alternatives]
+- Recommended option: benefit, cost and trade-offs
+- Do nothing: cost and consequences over the same time horizon
+- At least one real alternative: benefit, cost and trade-offs
+
+## Slide 4: [The evidence supports a specific conclusion]
+- One sourced proof point supporting the conclusion, qualitative when no
+  relevant numerical proof is available
+- For numerical data: highlight the single figure supporting the title in the
+  chart, table or other data display
+
+## Slide 5: [Approve the specific next action by the decision date]
+- Repeat the same recommendation and by-when
+- Explicit ask: the approval, amount or named resource the audience can grant
+- What approval unlocks and who owns the next action
+
+## Slide 6: Appendix: [Expected question]
+- Backup evidence answering this expected question
+```
+
+#### Board outline check
+
+For decision briefs, check the following before asking for outline approval:
+
+- Could the audience make the requested decision from slide 2 alone? It must
+  lead with one recommendation, then context, two or three pillars, the ask
+  and what approval unlocks. Keep the same recommendation and deadline
+  throughout the deck.
+- Does the options comparison include doing nothing, its cost and at least
+  one real alternative? Use a common time horizon and cite cost estimates.
+- Is the ask something this audience can grant, such as a specific approval,
+  amount or named resource, with a by-when? "Support" alone is insufficient.
+- Does every data slide have one sourced proof point tied to its title? For
+  numerical evidence, highlight the single figure in the chart, table or other
+  data display. Include the source and intended highlight in the outline
+  passed to the renderer.
+- Is there one backup slide per expected question in the appendix? Name the
+  questions and include the appendix in the outline submitted for approval.
+
+Do not invent costs, evidence, deadlines or approval authority. If decision
+material is missing, identify the gap and ask for it before presenting the
+outline as ready for approval. This check covers outline content; it does not
+claim that rendered slides have been visually inspected.
 
 **IMPORTANT:** Present the outline to the user for approval using **AskUserQuestion**:
 
@@ -137,7 +211,7 @@ renderer and the session's available viewing tools.
 2. Read the rendered titles in slide order and repeat the titles-only read.
    Compare them with the approved outline. Flag truncation, reflow that hides a
    claim, missing slides and changes that break the argument from question to
-   ask. Preserve approved label titles unless the user approves a storyline
+   ask, or to the supported conclusion for informational decks. Preserve approved label titles unless the user approves a storyline
    change; verification does not authorize rewriting the approved outline.
 3. For each data slide, confirm one highlighted proof point supports its title.
    Compare the displayed value, units, period and chart emphasis with the source
@@ -174,19 +248,21 @@ verification access without authorization.
 Apply these when generating outlines:
 
 - **Title slide**: Presentation name, subtitle, date, presenter
-- **Agenda slide**: 3-5 key topics (for decks > 7 slides)
+- **Agenda slide**: 3-5 key topics for decks using the general agenda-first structure and exceeding 7 slides; Executives / Board briefs follow the Step 3 purpose-specific structure
 - **One idea per slide**: Keep slides focused
 - **5-7 bullets max**: Per slide for readability
-- **Summary slide**: Key takeaways at the end
-- **Next steps / CTA**: Final slide with clear actions
+- **Summary slide**: Key takeaways at the end for decks using the general agenda-first structure; Executives / Board briefs follow the Step 3 purpose-specific structure
+- **Next steps / CTA**: When the brief calls for action, put clear actions on the last main-deck slide, before any appendix slides; otherwise end the main deck with a supported conclusion
 
 ### By Audience Type
 
 **Executives / Board:**
-- Lead with business impact and metrics
-- Use "So what?" framing for every slide
-- Include financial implications
-- End with decisions needed
+- Match the brief's decision or informational purpose in Step 3. Apply the
+  decision outline and its check only when a decision is requested.
+- Lead with the brief's business impact. Include financial implications only
+  when relevant and supported by sources.
+- Keep the main deck focused on the brief's purpose; put expected-question evidence
+  in the approved appendix.
 
 **Engineers / Technical:**
 - Include architecture diagrams (describe for slides)
