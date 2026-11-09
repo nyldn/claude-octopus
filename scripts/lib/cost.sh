@@ -161,7 +161,7 @@ parse_task_metrics() {
     _PARSED_CACHED_INPUT_TOKENS="" ; _PARSED_CACHE_WRITE_TOKENS=""
     _PARSED_REASONING_TOKENS=""
     _PARSED_TOOL_USES="" ; _PARSED_DURATION_MS="" ; _PARSED_SPEED=""
-    [[ "$SUPPORTS_NATIVE_TASK_METRICS" != "true" ]] && return 0
+    [[ "${SUPPORTS_NATIVE_TASK_METRICS:-false}" != "true" ]] && return 0
 
     local usage_block
     usage_block=$(echo "$output" | sed -n '/<usage>/,/<\/usage>/p' 2>/dev/null || true)
@@ -176,7 +176,7 @@ parse_task_metrics() {
         [[ "$usage_block" =~ tool_uses:[[:space:]]*([0-9]+) ]] && _PARSED_TOOL_USES="${BASH_REMATCH[1]}" || _PARSED_TOOL_USES=""
         [[ "$usage_block" =~ duration_ms:[[:space:]]*([0-9]+) ]] && _PARSED_DURATION_MS="${BASH_REMATCH[1]}" || _PARSED_DURATION_MS=""
         # v8.8: Parse OTel speed attribute (fast|standard) when available
-        if [[ "$SUPPORTS_OTEL_SPEED" == "true" ]]; then
+        if [[ "${SUPPORTS_OTEL_SPEED:-false}" == "true" ]]; then
             [[ "$usage_block" =~ speed:[[:space:]]*(fast|standard) ]] && _PARSED_SPEED="${BASH_REMATCH[1]}" || _PARSED_SPEED=""
         fi
     fi
@@ -405,6 +405,7 @@ display_workflow_cost_estimate() {
         *:claude-sonnet-5)    claude_model_label="Sonnet 5" ;;
         *:claude-sonnet-4.6)  claude_model_label="Sonnet 4.6" ;;
         *:claude-haiku-4.5)   claude_model_label="Haiku 4.5" ;;
+        *:claude-haiku-5-5)   claude_model_label="Haiku 5.5" ;;
     esac
     echo -e "  ${BLUE}🔵 Claude${NC} ($claude_model_label): ${DIM}Included in Claude Code subscription${NC}"
     if [[ "$perplexity_is_api" == "true" ]]; then

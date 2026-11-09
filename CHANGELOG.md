@@ -4,6 +4,21 @@
 
 ### Added
 
+- Deck outlines now start with a confirmed governing question, a brief
+  situation/complication/question opener and an answer supported by two to four
+  pillars. Slide titles form a sentence skeleton that must carry the argument
+  in a titles-only read before the user approves rendering. Informational decks
+  retain their own purpose. Addresses #1215.
+
+- Executive and board decision decks put the recommendation, context, supporting
+  pillars and explicit ask on slide 2. Their outline compares doing nothing
+  with a real alternative, ties data-slide highlights to one proof point,
+  and includes an appendix for expected questions. Missing decision material
+  is identified before outline approval rather than invented. Informational
+  updates keep their own purpose, and short decks can combine evidence and
+  decision slides within the approved target. The action closes the main deck,
+  before appendix backup slides. Addresses #1216.
+
 - Research can optionally share one Keenable web search across its perspectives.
   Set `OCTOPUS_RESEARCH_WEB_SEARCH=keenable` and include `keenable` in any active
   provider allowlist. Search suggestions remain untrusted, and lookup failures
@@ -61,6 +76,12 @@
   claiming the provider exceeded its timeout.
   Synchronous dispatch also records a failed termination in status and usage
   rather than a timeout, with a launcher-authored reason.
+- Code review skips complete file diffs using REVIEW.md path globs. Generated
+  hunks no longer appear under another file's header, and retained code that
+  mentions a skipped path stays intact. Fully skipped diffs launch no reviewers.
+  Standard and no-prefix Git diffs are supported, including quoted, binary
+  and mode-only paths.
+  Fixes [#1279](https://github.com/nyldn/claude-octopus/issues/1279).
 - Provider smoke tests explain environment construction failures instead of
   failing silently. Search-credential rejection uses the routing error logger,
   with a stderr fallback for standalone callers.
@@ -83,6 +104,11 @@
   selects the model; explicit model routes and effort overrides keep precedence.
 
 ### Fixed
+
+- Haiku 5.5 can be saved as a Claude budget pin. Its estimates use the published
+  base rate through 100K input tokens and the whole-request tariff above that
+  boundary. Existing model defaults are unchanged.
+  Fixes [#1250](https://github.com/nyldn/claude-octopus/issues/1250).
 
 - Research verification no longer fails a synthesis for referring to its own
   numbered points. A synthesis line such as "See point 2." or "Corrected in
@@ -124,6 +150,18 @@
 
 ### Fixed
 
+- A council seat is no longer marked fabricated for its own arithmetic. An
+  inline code span made only of numbers (`1.5e6` and `1_000` included), known
+  units right after a number (`KB`, `kilobytes`, `ms`, `%`, `tokens`, ...),
+  and operators including `%`, such as `8 + 10 + 0.5 = 18.5 KB`, is a value
+  the seat computed, not a quote of the code. The verifier found it in no
+  file, and when it was the only quote the seat was dropped as blind. Any
+  identifier or keyword, as in `base + taxes * 2` or
+  `100 if 1000 > 500 else 1`, still makes it a checked code quote. Arithmetic
+  a citation claims, before or right after the span, is still verified against
+  cited evidence. The exemption never covers a code fence or a diff removal: their
+  arithmetic lines go through the usual checks, so a specific enough line is
+  still verified.
 - Vibe setup and readiness now recognize a key stored by `vibe --setup` in
   the OS keyring when Vibe is explicitly selected for a provider check. The
   local presence check is silent, read-only and bounded, and receives a
