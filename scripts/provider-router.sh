@@ -96,14 +96,14 @@ record_provider_failure() (
     local error_text="${3:-}"
 
     mkdir -p "$_PROVIDER_STATE_DIR" || return 1
+    local error_class
+    error_class=$(classify_provider_error "$exit_code" "$error_text")
     # All writers share one bounded, portable lock per provider. Atomic rename
     # alone cannot protect the preceding append/trim/count transaction.
     local state_key="${_PROVIDER_STATE_DIR}/${provider}.breaker"
     _octo_event_lock "$state_key" || return $?
     trap '_octo_event_unlock "$state_key"' EXIT
 
-    local error_class
-    error_class=$(classify_provider_error "$exit_code" "$error_text")
     local timestamp
     timestamp=$(date +%s)
 

@@ -291,11 +291,12 @@ PROVIDER
 }
 
 test_quota_cleanup_stops_reparented_group_member() {
-    test_case "quota cleanup stops a helper already reparented inside an owned group"
+    local admission_mode="${1:-stable}"
+    test_case "quota cleanup stops a reparented helper with $admission_mode leader admission"
     if (
         source "$PROJECT_ROOT/scripts/lib/heartbeat.sh"
         source "$PROJECT_ROOT/scripts/lib/spawn.sh"
-        export QUOTA_ORPHAN_FIXTURE="$FIXTURE/orphan"
+        export QUOTA_ORPHAN_FIXTURE="$FIXTURE/orphan-$admission_mode"
         mkdir -p "$QUOTA_ORPHAN_FIXTURE"
         cat > "$QUOTA_ORPHAN_FIXTURE/provider.py" <<'PROVIDER'
 import os
@@ -306,6 +307,7 @@ import time
 
 root = Path(os.environ["QUOTA_ORPHAN_FIXTURE"])
 sys.stdin.read()
+(root / "provider.pid").write_text(str(os.getpid()))
 intermediate = os.fork()
 if intermediate == 0:
     if os.fork() != 0:
@@ -320,6 +322,48 @@ while not (root / "helper.pid").exists():
 print("ERROR: Individual quota reached.", file=sys.stderr, flush=True)
 time.sleep(30)
 PROVIDER
+        if [[ "$admission_mode" == exiting ]]; then
+            cat > "$QUOTA_ORPHAN_FIXTURE/admission.py" <<'ADMISSION'
+import importlib.util
+import os
+from pathlib import Path
+import signal
+import sys
+import time
+
+spec = importlib.util.spec_from_file_location("process_control", sys.argv.pop(1))
+control = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(control)
+root = Path(os.environ["QUOTA_ORPHAN_FIXTURE"])
+original_init = control.Process.__init__
+
+def bind(self, pid, **kwargs):
+    if kwargs.get("parent") and pid == int((root / "provider.pid").read_text()):
+        # This is the real leader-binding boundary, after its supervisor stops.
+        assert control.snapshot(kwargs["parent"]).stopped
+        with control.Process(pid) as leader:
+            leader.send(signal.SIGKILL)
+            deadline = time.monotonic() + 2
+            while leader.running() and time.monotonic() < deadline:
+                time.sleep(0.005)
+            assert not leader.running(), "leader did not exit at the barrier"
+        (root / "barrier").touch()
+    original_init(self, pid, **kwargs)
+
+control.Process.__init__ = bind
+rc = control.main()
+(root / "cleanup-status").write_text(str(rc))
+sys.exit(rc)
+ADMISSION
+            eval "$(declare -f _octo_pid_python_run | sed '1s/_octo_pid_python_run/real_pid_python_run/')"
+            _octo_pid_python_run() {
+                if [[ "$1" == */process_control.py && " $* " == *' --owned-groups '* ]]; then
+                    real_pid_python_run "$QUOTA_ORPHAN_FIXTURE/admission.py" "$@"
+                else
+                    real_pid_python_run "$@"
+                fi
+            }
+        fi
         quota_start=$SECONDS
         worker=$(
             set -m
@@ -347,6 +391,10 @@ PROVIDER
         [[ "$worker" =~ ^[0-9]+$ && "$elapsed" -lt 15 && \
            -s "$QUOTA_ORPHAN_FIXTURE/fired" ]] || exit 1
         [[ "$(cat "$QUOTA_ORPHAN_FIXTURE/status")" =~ ^(137|143)$ ]] || exit 1
+        if [[ "$admission_mode" == exiting ]]; then
+            [[ -e "$QUOTA_ORPHAN_FIXTURE/barrier" &&
+               "$(cat "$QUOTA_ORPHAN_FIXTURE/cleanup-status")" == 1 ]] || exit 1
+        fi
         [[ -z "$helper_state" || "$helper_state" == *Z* ]]
     ); then test_pass
     else test_fail "quota cleanup left an already-reparented group member alive"; fi
@@ -425,6 +473,7 @@ test_quota_dead_mark_expires
 test_check_providers_applies_dead_marker_to_every_provider
 test_quota_cleanup_preserves_supervisor_owned_groups
 test_quota_cleanup_stops_reparented_group_member
+test_quota_cleanup_stops_reparented_group_member exiting
 test_quota_cleanup_retries_refusal
 test_quota_cleanup_refuses_unverified_processes
 

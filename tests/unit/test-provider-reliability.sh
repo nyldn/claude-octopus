@@ -20,6 +20,15 @@ OCTO_CB_FAILURE_THRESHOLD=1
 log() { :; }
 
 mkdir -p "$_PROVIDER_STATE_DIR"
+test_case "failure classification does not hold the shared breaker lock"
+if (
+    classify_provider_error() {
+        [[ ! -d "$_PROVIDER_STATE_DIR/codex.breaker.lock" ]] || return 1
+        printf 'transient\n'
+    }
+    [[ "$(record_provider_failure codex 75 'temporary limit')" == transient ]]
+); then test_pass; else test_fail "classification held the breaker transaction lock"; fi
+rm -f "$_PROVIDER_STATE_DIR/codex.failures" "$_PROVIDER_STATE_DIR/codex.cooldown"
 for timestamp in '' invalid '1+1' 999999999999999999999999; do
     printf '%s\n' "$timestamp" > "$_PROVIDER_STATE_DIR/codex.cooldown"
     if (is_provider_available codex) 2>/dev/null; then

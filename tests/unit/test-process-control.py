@@ -301,6 +301,45 @@ class ProcessControlTests(unittest.TestCase):
                     list(control._owned_group_candidates([leader]))
                 scan.assert_not_called()
 
+    def test_descendant_exit_before_binding_refuses_owned_group_teardown(self):
+        """A vanished private leader must not let its supervisor be killed."""
+        root = self._private_group_leader()
+        real_process = control.Process
+        with mock.patch.object(control, "children", return_value=[2**30]), \
+             mock.patch.object(control, "Process", side_effect=lambda pid, **kw:
+                               real_process(pid, **kw)), \
+             mock.patch.object(os, "kill") as kill, mock.patch.object(os, "killpg") as killpg:
+            with self.assertRaisesRegex(control.StaleProcess, "descendant.*admission"):
+                control.terminate(root.pid, frozen=True, owned_groups=True)
+            kill.assert_not_called()
+            killpg.assert_not_called()
+        self.assertIsNone(root.poll())
+        deadline = time.monotonic() + 1
+        while control.snapshot(root.pid).stopped and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.assertFalse(control.snapshot(root.pid).stopped)
+
+    def test_darwin_zombie_lookup_is_explicit(self):
+        lib = mock.Mock()
+        lib.proc_pidinfo.side_effect = lambda pid, flavor, arg, info, size: size
+        with mock.patch.object(control, "_darwin", return_value=lib):
+            control._darwin_info(4242, 13, control._ShortInfo)
+            self.assertEqual(lib.proc_pidinfo.call_args.args[2], 0)
+            control._darwin_info(4242, 13, control._ShortInfo, include_zombies=True)
+            self.assertEqual(lib.proc_pidinfo.call_args.args[2], 1)
+
+    @unittest.skipUnless(sys.platform == "darwin", "native macOS zombie lookup")
+    def test_darwin_persistent_zombie_identity(self):
+        root = self.child("import os,time; os.setsid(); time.sleep(0.1)")
+        # Do not poll/wait: the direct child must remain an unreaped zombie.
+        deadline = time.monotonic() + 3
+        identity = None
+        while identity is None and time.monotonic() < deadline:
+            identity = control._zombie_group_identity(root.pid, root.pid)
+            time.sleep(0.01)
+        self.assertIsNotNone(identity)
+        self.assertEqual(control._zombie_group_identity(root.pid, root.pid), identity)
+
     def test_owned_group_member_must_still_belong_to_bound_leader(self):
         """Membership races refuse admission before any signal is delivered."""
         leader, member = mock.Mock(), mock.Mock()

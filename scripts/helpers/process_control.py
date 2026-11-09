@@ -72,10 +72,10 @@ def _boot_id():
     return buffer.value.decode("ascii")
 
 
-def _darwin_info(pid, flavor, kind):
+def _darwin_info(pid, flavor, kind, include_zombies=False):
     info = kind()
     size = ctypes.sizeof(info)
-    copied = _darwin().proc_pidinfo(pid, flavor, 0, ctypes.byref(info), size)
+    copied = _darwin().proc_pidinfo(pid, flavor, int(include_zombies), ctypes.byref(info), size)
     if copied != size:
         code = ctypes.get_errno() if copied <= 0 else errno.EIO
         raise OSError(code or errno.ESRCH, "cannot read process identity")
@@ -351,9 +351,10 @@ def _zombie_group_identity(pid, pgid):
             if fields[0] in (b"Z", b"X") and int(fields[2]) == pgid:
                 return pid, fields[19]
         else:
-            before = _darwin_info(pid, 17, _UniqueInfo)
-            short = _darwin_info(pid, 13, _ShortInfo)
-            after = _darwin_info(pid, 17, _UniqueInfo)
+            # XNU only searches its zombie list when proc_pidinfo's arg is 1.
+            before = _darwin_info(pid, 17, _UniqueInfo, include_zombies=True)
+            short = _darwin_info(pid, 13, _ShortInfo, include_zombies=True)
+            after = _darwin_info(pid, 17, _UniqueInfo, include_zombies=True)
             if before.unique == after.unique and short.status == 5 and short.pgid == pgid:
                 return pid, after.unique
     except (FileNotFoundError, ProcessLookupError):
@@ -479,7 +480,11 @@ def terminate(pid, grace=1, frozen=False, descendants=False, expected=None, owne
                     raise OSError(errno.EOVERFLOW, "process tree exceeds cancellation limit")
                 try:
                     member = Process(child, parent=handle.info.pid)
-                except (ProcessLookupError, StaleProcess):
+                except (ProcessLookupError, StaleProcess) as error:
+                    if owned_groups:
+                        # An unbound private leader may leave reparented helpers.
+                        # Keep its supervisor alive to perform its own cleanup.
+                        raise StaleProcess("descendant exited during admission; cleanup incomplete") from error
                     continue
                 if not handle.running():
                     member.close()

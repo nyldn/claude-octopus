@@ -28,6 +28,9 @@
 
 ### Fixed
 
+- Quota cleanup preserves the timeout supervisor when a listed private leader
+  exits before identity admission, so the supervisor can finish group cleanup.
+  macOS zombie admission uses explicit native zombie lookup.
 - A peer seat's quota marker no longer relabels an externally terminated call
   or adds a false circuit-breaker failure. Quota stop attribution stays local
   to the current attempt even when its diagnostic cannot be written.
