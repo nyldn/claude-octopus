@@ -185,6 +185,100 @@ class ProcessControlTests(unittest.TestCase):
                 finally:
                     orphan.send(signal.SIGKILL)
 
+    @unittest.skipUnless(sys.platform.startswith("linux"), "Linux procfs scheduling barrier")
+    def test_owned_group_fork_exit_during_stat_read_cannot_hide_newborn(self):
+        """A real fork after directory capture cannot yield false cleanup success."""
+        unrelated = self.child()
+        real_read = Path.read_bytes
+        real_scan = os.scandir
+        for state in ("zombie", "reaped"):
+            with self.subTest(state=state), tempfile.TemporaryDirectory(prefix="octo-scan-race-") as temporary:
+                directory = Path(temporary)
+                root = self.child(
+                    "import os,pathlib,signal,time; os.setsid(); p=os.fork()"
+                    "\nif p == 0:"
+                    "\n if os.fork() != 0: os._exit(0)"
+                    f"\n d=pathlib.Path({temporary!r})"
+                    "\n (d/'parent').write_text(str(os.getpid()))"
+                    "\n while not (d/'fork').exists(): time.sleep(0.005)"
+                    "\n if os.fork() != 0: os._exit(0)"
+                    "\n signal.signal(signal.SIGTERM,signal.SIG_IGN)"
+                    "\n (d/'newborn').write_text(str(os.getpid()))"
+                    "\n while True: time.sleep(1)"
+                    "\nos.waitpid(p,0); time.sleep(30)"
+                )
+                deadline = time.monotonic() + 3
+                while not (directory / "parent").exists() and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertTrue((directory / "parent").exists())
+                parent = int((directory / "parent").read_text())
+                triggered = []
+
+                def captured_directory(path):
+                    # Freeze this directory iteration before allowing the fork.
+                    # A newborn need not appear in a scan already in progress.
+                    with real_scan(path) as entries:
+                        captured = list(entries)
+                    result = mock.MagicMock()
+                    result.__enter__.return_value = captured
+                    return result
+
+                def fork_before_read(path):
+                    if str(path) == f"/proc/{parent}/stat" and not triggered:
+                        triggered.append(control.snapshot(root.pid).stopped)
+                        (directory / "fork").touch()
+                        deadline = time.monotonic() + 3
+                        while time.monotonic() < deadline:
+                            try:
+                                fields = real_read(path).rsplit(b")", 1)[1].split()
+                                exited = fields[0] in (b"Z", b"X")
+                            except FileNotFoundError:
+                                exited = True
+                            if exited and (directory / "newborn").exists():
+                                break
+                            time.sleep(0.005)
+                        else:
+                            self.fail("fork/exit barrier did not complete")
+                        if state == "reaped":
+                            # A reaped stat read has no remaining PGID evidence.
+                            raise FileNotFoundError("enumerated member reaped")
+                    return real_read(path)
+
+                refused = False
+                try:
+                    with mock.patch.object(os, "scandir", captured_directory), \
+                         mock.patch.object(Path, "read_bytes", fork_before_read):
+                        try:
+                            result = control.terminate(root.pid, frozen=True, owned_groups=True)
+                            self.assertEqual(result, "terminated")
+                        except control.StaleProcess:
+                            refused = True
+                    self.assertEqual(triggered, [True], "leader must stay stopped at the barrier")
+                    try:
+                        with control.Process(int((directory / "newborn").read_text())) as newborn:
+                            try:
+                                self.assertTrue(refused or not newborn.running(),
+                                                "cleanup succeeded while the unseen newborn survived")
+                            finally:
+                                newborn.send(signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass  # A complete rescan is also allowed to cancel the newborn.
+                    if refused:
+                        deadline = time.monotonic() + 1
+                        while control.snapshot(root.pid).stopped and time.monotonic() < deadline:
+                            time.sleep(0.01)
+                        self.assertFalse(control.snapshot(root.pid).stopped)
+                    self.assertIsNone(unrelated.poll())
+                finally:
+                    # Also clean the orphan if a test assertion failed early.
+                    for marker in ("newborn", "parent"):
+                        if (directory / marker).exists():
+                            try:
+                                with control.Process(int((directory / marker).read_text())) as remaining:
+                                    remaining.send(signal.SIGKILL)
+                            except ProcessLookupError:
+                                pass
+
     def test_owned_group_requires_live_original_leader_before_enumeration(self):
         """An exited or changed leader cannot authorize numeric group recovery."""
         leader = mock.Mock()
@@ -213,6 +307,22 @@ class ProcessControlTests(unittest.TestCase):
             kill.assert_not_called()
             killpg.assert_not_called()
         self.assertEqual(handles, [member], "caller retains the handle for final cleanup")
+
+    def test_group_scan_preserves_exited_members_for_rescan(self):
+        """A zombie snapshot row must not disappear before group admission."""
+        leader = mock.Mock()
+        leader.info.pid = 4242
+        result = subprocess.CompletedProcess([], 0, stdout=b"4343 4242 Z\n4444 4444 S\n")
+        records = [(4343, [b"Z", b"1", b"4242"]), (4444, [b"S", b"1", b"4444"])]
+        for platform in ("linux", "darwin"):
+            with self.subTest(platform=platform), \
+                 mock.patch.object(sys, "platform", platform), \
+                 mock.patch.object(subprocess, "run", return_value=result), \
+                 mock.patch.object(control, "_linux_proc_records", return_value=records), \
+                 mock.patch.object(os, "getpgid", return_value=4242), \
+                 mock.patch.object(control, "Process", side_effect=ProcessLookupError()):
+                self.assertEqual(control._admit_owned_group_members([leader], [], set(), set()),
+                                 ([], True))
 
     def test_group_member_disappearance_cannot_report_successful_admission(self):
         """A listed process may leave a child behind before its identity binds."""
@@ -351,7 +461,7 @@ class ProcessControlTests(unittest.TestCase):
 
     @unittest.skipUnless(sys.platform.startswith("linux"), "Linux procfs enumeration")
     def test_linux_proc_scan_skips_only_disappeared_records(self):
-        """Both procfs disappearance errors are local; permission failures refuse."""
+        """Child scans skip exits; complete group scans cannot discard unknown PGIDs."""
         gone = mock.Mock()
         gone.name, gone.path = "4343", "/proc/4343"
         live = mock.Mock()
@@ -359,13 +469,16 @@ class ProcessControlTests(unittest.TestCase):
         scan = mock.MagicMock()
         scan.__enter__.return_value = [gone, live]
         for error in (FileNotFoundError(), ProcessLookupError()):
-            for reader, expected in ((lambda: control._linux_proc_children(4242), [4444]),
-                                     (lambda: list(control._process_groups()), [(4444, 4242)])):
-                with self.subTest(error=type(error).__name__, expected=expected), \
-                     mock.patch.object(control.os, "scandir", return_value=scan), \
-                     mock.patch.object(Path, "read_bytes", side_effect=[
-                         b"1 (self) R 0", error, b"4444 (live) S 4242 4242"]):
-                    self.assertEqual(reader(), expected)
+            with self.subTest(error=type(error).__name__), \
+                 mock.patch.object(control.os, "scandir", return_value=scan), \
+                 mock.patch.object(Path, "read_bytes", side_effect=[
+                     b"1 (self) R 0", error, b"4444 (live) S 4242 4242"]):
+                self.assertEqual(control._linux_proc_children(4242), [4444])
+            with self.subTest(error=type(error).__name__, complete=True), \
+                 mock.patch.object(control.os, "scandir", return_value=scan), \
+                 mock.patch.object(Path, "read_bytes", side_effect=[b"1 (self) R 0", error]):
+                with self.assertRaisesRegex(control.StaleProcess, "during group enumeration"):
+                    list(control._process_groups())
         with mock.patch.object(control.os, "scandir", return_value=scan), \
              mock.patch.object(Path, "read_bytes", side_effect=[b"1 (self) R 0", PermissionError()]):
             with self.assertRaises(PermissionError):

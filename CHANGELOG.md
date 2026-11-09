@@ -45,7 +45,9 @@
   reparented within a still-owned private group are captured by native identity
   before the timeout supervisor stops. A member that exits before identity capture
   requests a bounded rescan without resuming verified processes. Persistent
-  churn refuses cleanup instead of hiding an unseen child. Refused cleanup is
+  churn refuses cleanup instead of hiding an unseen child. Group enumeration
+  retains zombie members and refuses vanished stat records so a concurrent fork
+  cannot hide a newborn before identity admission. Refused cleanup is
   retried up to five times, with a visible error if ownership cannot be verified.
 - Direct spawns respect terminal quota and auth markers even when no transient
   cooldown is active. Provider reset hints remain inside untrusted result frames.

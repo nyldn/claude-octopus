@@ -143,8 +143,8 @@ def snapshot(pid):
     return ProcessInfo(pid, parent, token, version, stopped)
 
 
-def _linux_proc_records():
-    """Yield PID/stat fields; disappeared records alone are safe to skip."""
+def _linux_proc_records(require_complete=False):
+    """Yield stat records, refusing incomplete snapshots when ownership needs them."""
     Path("/proc/self/stat").read_bytes()
     with os.scandir("/proc") as entries:
         for entry in entries:
@@ -152,7 +152,11 @@ def _linux_proc_records():
                 continue
             try:
                 fields = Path(entry.path, "stat").read_bytes().rsplit(b")", 1)[1].split()
-            except (FileNotFoundError, ProcessLookupError):
+            except (FileNotFoundError, ProcessLookupError) as error:
+                if require_complete:
+                    # It may have forked into a private group after scandir.
+                    # With its stat gone, even the former PGID is unknown.
+                    raise StaleProcess("process exited during group enumeration") from error
                 continue
             yield int(entry.name), fields
 
@@ -301,19 +305,18 @@ def _wait(handles, seconds):
 
 
 def _process_groups():
-    """Enumerate live process groups without adding a Linux binary dependency."""
+    """Enumerate groups without discarding evidence of a member exit."""
     if sys.platform.startswith("linux"):
-        for pid, fields in _linux_proc_records():
-            if fields[0] not in (b"Z", b"X"):
-                yield pid, int(fields[2])
+        for pid, fields in _linux_proc_records(require_complete=True):
+            # Keep zombies: admission must rescan or refuse before teardown.
+            yield pid, int(fields[2])
         return
     # macOS supplies this numeric PID/group view. Failure is not an empty group.
     result = subprocess.run(["/bin/ps", "-axo", "pid=,pgid=,stat="], check=True,
                             stdout=subprocess.PIPE, timeout=2)
     for row in result.stdout.splitlines():
-        pid, pgid, state = row.split()
-        if not state.startswith((b"Z", b"X")):
-            yield int(pid), int(pgid)
+        pid, pgid, _state = row.split()
+        yield int(pid), int(pgid)
 
 
 def _owned_group_candidates(leaders):
