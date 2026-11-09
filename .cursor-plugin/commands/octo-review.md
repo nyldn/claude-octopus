@@ -251,5 +251,13 @@ Drop-in compatible with Claude Code's managed Code Review service.
 - Prefer early returns over nested conditionals
 
 ## Skip
-- Generated files under src/gen/
+- src/gen/
+- *.lock
 ```
+
+Skip entries are case-sensitive paths or globs relative to the repository root.
+A trailing `/` skips that directory and its descendants. `*` matches any
+characters, including `/`; `?` and `[abc]` are also supported. Entries may be
+wrapped in backticks. Matching removes the whole file diff, including its
+headers and hunks. Renames match the destination path; deletions match the
+original path. Unrecognized diff formats are retained for review.
