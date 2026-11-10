@@ -5,6 +5,10 @@ disable-model-invocation: true
 
 # Octopus debug
 
+For long Claude investigations, follow the subagent context and effort guidance
+in `docs/CLAUDE-NATIVE-INTEGRATION.md`. An advisor requires explicit activation
+and adds usage beyond the current worker. Preserve host-only and budget limits.
+
 Load `skills/blocks/engineering-method-selection.md` from the installed plugin
 and apply only the methods relevant to this task. Preserve this entry point's
 execution contract and output format. Read referenced skills as instructions;

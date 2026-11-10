@@ -1,122 +1,87 @@
 # Contributing to Claude Octopus
 
-Thanks for your interest in contributing to Claude Octopus! This document provides guidelines for contributing.
+Use the [repository map](REPOSITORY.md) to locate authored sources and generated
+files. The [script index](../scripts/README.md) groups runtime and maintainer
+entry points. Read [AGENTS.md](../AGENTS.md) and [CLAUDE.md](../CLAUDE.md) before
+editing; detailed workflow contracts are in [DEVELOPER.md](DEVELOPER.md).
 
-## Getting Started
+## Set up a checkout
 
-1. **Fork the repository** on GitHub
-2. **Clone your fork** locally:
-   ```bash
-   git clone https://github.com/YOUR_USERNAME/claude-octopus.git
-   cd claude-octopus
-   ```
-3. **Make scripts executable**:
-   ```bash
-   chmod +x scripts/*.sh scripts/*.py
-   ```
-
-## Development Setup
-
-### Prerequisites
-
-- Bash 3.2+ (bash 3.x compatible — no associative arrays)
-- jq (for JSON processing)
-- Codex CLI, Antigravity CLI (`agy`), Copilot CLI, Ollama (all optional — for multi-provider testing)
-
-### Validate Your Changes
+Fork the repository, clone your fork, and create a branch from current `main`.
+For example:
 
 ```bash
-# Regenerate shipped plugin artifacts
-bash scripts/build-factory-skills.sh
-
-# Validate plugin against the local Claude CLI
-claude plugin validate .claude-plugin/plugin.json
-
-# Check shell script syntax
-bash -n scripts/orchestrate.sh
-bash -n scripts/lib/*.sh
-
-# Run test suite
-bash tests/unit/test-adapter-flags.sh
-
-# Run full pre-push suite
-bash tests/run-all-tests.sh
+git clone https://github.com/YOUR_USERNAME/claude-octopus.git
+cd claude-octopus
+git switch -c fix/short-description
 ```
 
-## Making Changes
+This contributor workflow requires Git, Make, Bash 3.2 or newer, Python 3.9 or
+newer, `jq`, Node.js 18 or newer, and npm. See
+[plugin compatibility](PLUGIN-COMPATIBILITY.md) for host requirements. Install
+the test dependencies once per clean checkout:
 
-### Branch Naming
-
-- `feature/` - New features
-- `fix/` - Bug fixes
-- `docs/` - Documentation updates
-- `refactor/` - Code refactoring
-
-Example: `feature/add-new-agent-type`
-
-### Commit Messages
-
-Follow conventional commits:
-
-```
-type: short description
-
-Longer description if needed.
+```bash
+make test-deps
 ```
 
-Types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`
+This setup uses npm registry access. Ordinary smoke, unit and integration tests
+then use local fixtures and inert providers. They do not require provider logins
+or live model calls. Preserve the executable modes stored by Git; do not apply
+blanket `chmod` commands to the checkout.
 
-### Code Style
+## Edit the source
 
-**Bash:**
-- Use `[[ ]]` for conditionals
-- Quote variables: `"$var"`
-- Use functions for reusable logic
-- Add comments for complex sections
+- Add or change slash commands in `commands/`.
+- Follow the [skill source table](REPOSITORY.md#skill-sources) before editing a
+  skill. Flow `.tmpl` files are retired. Most Claude entries are authored under
+  `.claude/skills/`; phase-loaded discovery and refinement are authored under
+  root `skills/`.
+- Follow [the provider wiring checklist](PROVIDERS.md) for provider changes.
+- Keep generated adapters, catalogs and release facts in sync through their
+  generators. Do not patch generated output to hide a source mismatch.
+- Keep Bash compatible with 3.2, quote variable expansions and use `[[ ]]` for
+  conditionals. Add behavioral regressions for changed runtime contracts.
 
-## Pull Request Process
+## Validate the change
 
-1. **Create a feature branch** from `main`
-2. **Make your changes** with clear commits
-3. **Test thoroughly** with dry-run mode
-4. **Update documentation** if needed
-5. **Submit a PR** with a clear description
+Run affected suites while editing. After changing source files or plugin
+metadata, regenerate and inspect the outputs:
 
-### PR Checklist
+```bash
+make sync
+make ci-quick
+scripts/ci-changed.sh --list
+```
 
-- [ ] Shell scripts pass `bash -n` check
-- [ ] Tests pass: `bash tests/run-all-tests.sh`
-- [ ] Generated plugin-root skills/commands refreshed and `claude plugin validate .claude-plugin/plugin.json` passes
-- [ ] Documentation updated (if applicable)
-- [ ] CHANGELOG.md updated (for features/fixes)
-- [ ] Commit messages follow conventions
+When the selector reports focused coverage, run `make ci-changed`. For a shared
+or unmapped change, use affected regressions and the required hosted matrix;
+`make ci-local` remains the complete offline fallback. Do not repeat a completed
+hosted matrix locally. The [test guide](../tests/README.md) owns the test tiers,
+fixture rules and live-test boundary.
 
-## Reporting Issues
+Inspect `git diff --check` and `git diff --summary`. Shell scripts and Python
+helpers must retain their executable bits. Local tests can alter fixture modes,
+so review mode changes after running them. Packaging or installation changes
+also require the native/artifact checks in [RELEASING.md](../RELEASING.md).
 
-When reporting issues, please include:
+## Submit a PR
 
-1. **Description** - What happened?
-2. **Expected behavior** - What should happen?
-3. **Steps to reproduce** - How can we recreate it?
-4. **Environment** - OS, Bash version, etc.
-5. **Logs** - Run with `-v` for verbose output
+Use a focused branch and a conventional commit, such as `fix: preserve review
+paths` or `docs: explain setup recovery`. Describe the problem, resulting behavior
+and relevant validation. Update public documentation and the changelog when the
+change affects their contracts.
 
-## Feature Requests
+Before merge, the exact PR commit must have successful `Smoke Tests`, `Unit
+Tests` and `Integration Tests`, an independent approved review, zero unresolved
+review threads and an up-to-date base. A changed commit needs fresh evidence.
+Publication has the additional gates in [RELEASING.md](../RELEASING.md).
 
-For feature requests:
+## Report a problem or propose a feature
 
-1. **Check existing issues** first
-2. **Describe the use case** - Why is this needed?
-3. **Propose a solution** - How might it work?
+Open a GitHub issue with the observed behavior, expected result, reproduction
+steps, relevant environment details and bounded logs. Check existing issues
+before proposing a feature, then explain the use case and expected benefit.
+Keep credentials and private project content out of public reports.
 
-## Code of Conduct
-
-Be respectful and constructive. We're all here to build something useful together.
-
-## Questions?
-
-Open an issue with the `question` label or reach out to the maintainers.
-
----
-
-*"Eight tentacles working together build better software."* 🐙
+Follow the [code of conduct](CODE_OF_CONDUCT.md) in issues and reviews.

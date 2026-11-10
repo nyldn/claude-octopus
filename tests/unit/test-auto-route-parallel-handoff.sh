@@ -51,4 +51,23 @@ else
     test_fail "classified and confirmed parallel routes diverged (rc=$confirmed_rc)"
 fi
 
+test_case "an explicit refinement request hands off to the existing bounded workflow"
+refine_rc=0
+refine_output="$(run_auto 'improve this plan using a rubric')" || refine_rc=$?
+if [[ "$refine_rc" -eq 0 ]] &&
+   grep -Fq 'Native workflow requested: /octo:refine. No external provider was started.' <<< "$refine_output"; then
+    test_pass
+else
+    test_fail "expected refinement handoff (rc=$refine_rc): $(tail -n 3 <<< "$refine_output")"
+fi
+
+test_case "a confirmed refine workflow uses the same handoff"
+refine_confirmed_rc=0
+refine_confirmed="$(run_auto --workflow refine 'improve this plan')" || refine_confirmed_rc=$?
+if [[ "$refine_confirmed_rc" -eq 0 && "$(handoff_lines "$refine_output")" == "$(handoff_lines "$refine_confirmed")" ]]; then
+    test_pass
+else
+    test_fail 'refinement routes diverged'
+fi
+
 test_summary

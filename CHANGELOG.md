@@ -2,30 +2,6 @@
 
 ## [Unreleased]
 
-### Added
-
-- Research can optionally share one Keenable web search across its perspectives.
-  Set `OCTOPUS_RESEARCH_WEB_SEARCH=keenable` and include `keenable` in any active
-  provider allowlist. Search suggestions remain untrusted, and lookup failures
-  keep the original research prompts. No API key is required for the public
-  endpoint. Addresses [#1261](https://github.com/nyldn/claude-octopus/issues/1261).
-
-### Improved
-
-- Leading CLI help skips workflow initialization. Complete, valid reviews with
-  no findings skip verifier and synthesis calls after confirming the diff is unchanged.
-- Council advice, critique and revision use bounded concurrency with ordered
-  usage reservations. Refinement can overlap its two pinned, independent judges
-  under one call budget and deadline.
-- Preparation can check an explicit provider panel and validate a short-lived
-  readiness receipt. Fresh dispatch authorization remains required.
-- Discovery and refinement load phase instructions as needed. Brainstorm, PRD
-  and security workflows reuse supplied answers and ask about material gaps.
-- Correction loops detect completed workers sooner. Provider retries distinguish
-  terminal authentication failures from recoverable refresh or transport failures.
-- Worktree metadata sampling, usage reports, context lookup and convergence
-  checks avoid repeated subprocesses, whole-log buffering or unchanged file reads.
-
 ### Fixed
 
 - A council seat is no longer marked fabricated for a test input it built
@@ -60,6 +36,85 @@
   the source claim even in the same sentence.
   Mixed diff fences skip added-side refinement when their kept source code
   already matches completely, preserving time for required evidence checks.
+  Later sentences require an explicit source subject before attributing a quote,
+  preserving reviewer-owned calculations and reproduction code.
+
+
+### Maintenance
+
+- Skill generation uses the authored entries directly through the existing sync
+  pipeline. Retired flow templates no longer provide competing source copies.
+  Contributor guidance now links the repository map, script index and test tiers.
+
+## [11.21.0] - 2026-11-09
+
+### Added
+
+- Opt-in Claude worker advisors through `OCTOPUS_CLAUDE_ADVISOR`, with version
+  checks, validated launch arguments and fixed refinement judge isolation.
+- Explicit refinement requests route to the existing bounded `/octo:refine`
+  workflow. Ordinary plan editing does not add independent judges.
+- Native Claude plugin eval cases and a bounded `make test-native-evals` target.
+- Guidance for advisor accounting, subagent effort and context, native dynamic
+  workflow handoffs, and the separate implementation needed for Mods and MCP tasks.
+
+### Changed
+
+- Critical synchronous pre-action hooks block on hook failures on Claude Code
+  v2.1.295 or later.
+
+## [11.20.0] - 2026-11-09
+
+### Added
+
+- `/octo:deck --red-team` can review a draft outline through stakeholder seats
+  before approval, map decision-blocking objections to the main deck, and prepare
+  draft answers and appendix backup slides for Q&A. The pass is opt-in and uses
+  the existing debate provider and cost controls. Transports with unbounded
+  follow-up requests are excluded from the pass.
+
+- Deck outlines now start with a confirmed governing question, a brief
+  situation/complication/question opener and an answer supported by two to four
+  pillars. Slide titles form a sentence skeleton that must carry the argument
+  in a titles-only read before the user approves rendering. Informational decks
+  retain their own purpose. Addresses #1215.
+
+- Executive and board decision decks put the recommendation, context, supporting
+  pillars and explicit ask on slide 2. Their outline compares doing nothing
+  with a real alternative, ties data-slide highlights to one proof point,
+  and includes an appendix for expected questions. Missing decision material
+  is identified before outline approval rather than invented. Informational
+  updates keep their own purpose, and short decks can combine evidence and
+  decision slides within the approved target. The action closes the main deck,
+  before appendix backup slides. Addresses #1216.
+
+- Research can optionally share one Keenable web search across its perspectives.
+  Set `OCTOPUS_RESEARCH_WEB_SEARCH=keenable` and include `keenable` in any active
+  provider allowlist. Search suggestions remain untrusted, and lookup failures
+  keep the original research prompts. No API key is required for the public
+  endpoint. Addresses [#1261](https://github.com/nyldn/claude-octopus/issues/1261).
+
+### Improved
+
+- Leading CLI help skips workflow initialization. Complete, valid reviews with
+  no findings skip verifier and synthesis calls after confirming the diff is unchanged.
+- Council advice, critique and revision use bounded concurrency with ordered
+  usage reservations. Refinement can overlap its two pinned, independent judges
+  under one call budget and deadline.
+- Preparation can check an explicit provider panel and validate a short-lived
+  readiness receipt. Fresh dispatch authorization remains required.
+- Discovery and refinement load phase instructions as needed. Brainstorm, PRD
+  and security workflows reuse supplied answers and ask about material gaps.
+- Correction loops detect completed workers sooner. Provider retries distinguish
+  terminal authentication failures from recoverable refresh or transport failures.
+- Worktree metadata sampling, usage reports, context lookup and convergence
+  checks avoid repeated subprocesses, whole-log buffering or unchanged file reads.
+
+### Fixed
+
+- Worktree progress fingerprints preserve stat compatibility for timestamps before
+  1970, including fractional seconds. The batch sampler and shell fallback produce
+  the same digest while ordinary files keep the batch sampling path.
 
 - Code review skips complete file diffs using REVIEW.md path globs. Generated
   hunks no longer appear under another file's header, and retained code that
@@ -89,6 +144,11 @@
   selects the model; explicit model routes and effort overrides keep precedence.
 
 ### Fixed
+
+- Haiku 5.5 can be saved as a Claude budget pin. Its estimates use the published
+  base rate through 100K input tokens and the whole-request tariff above that
+  boundary. Existing model defaults are unchanged.
+  Fixes [#1250](https://github.com/nyldn/claude-octopus/issues/1250).
 
 - Research verification no longer fails a synthesis for referring to its own
   numbered points. A synthesis line such as "See point 2." or "Corrected in

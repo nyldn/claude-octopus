@@ -3839,10 +3839,12 @@ FIRST_PERSON_SUBJECT = re.compile(
     r"explicitly|locally|manually|originally|previously)\s+)*$", re.I)
 # An explicit source subject restarts attribution even in the same sentence,
 # after a reviewer describes a proposed input or replacement.
-EXPLICIT_SOURCE_CLAIM = re.compile(
-    r"\b(?:but|however|whereas|and)\s+(?:(?:the|this|that|current|actual|cited)\s+)+"
+SOURCE_SUBJECT = re.compile(
+    r"\b(?:(?:the|this|that|current|actual|cited)\s+)+"
     r"(?:file|source|code)\s+(?:itself\s+)?"
     r"(?:(?:now|currently|actually)\s+)?" + SOURCE_VERB.pattern, re.I)
+EXPLICIT_SOURCE_CLAIM = re.compile(
+    r"\b(?:but|however|whereas|and)\s+" + SOURCE_SUBJECT.pattern, re.I)
 DOTTED_ABBREVIATION = re.compile(r"\b(?:[A-Za-z]\.){2,}")
 CLAUSE_BOUNDARY = re.compile(r"[.!?;](?:\s|$)")
 def clause_start(text, end):
@@ -3915,7 +3917,8 @@ def attribution(token, gap):
         return None
     # A source verb in this bounded clause still attributes the quote when
     # ordinary modifiers follow it. A new sentence or a proposal ends that claim.
-    source_clause = (SOURCE_VERB.search(gap, clause_start(gap, len(gap)))
+    start = clause_start(gap, len(gap))
+    source_clause = ((SOURCE_SUBJECT.search(gap, start) if start else SOURCE_VERB.search(gap))
                      and not re.search(r"(?:^|[,;:]|\b(?:and|but|so|while)\b)\s*(?:I|we)\s+(?:estimate|compute|calculate)\b", gap, re.I))
     if proposes(gap) or (not source_clause and any(
             word.lower() not in GAP_WORDS for word in re.findall(r"[A-Za-z]+", gap))):
