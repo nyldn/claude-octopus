@@ -295,12 +295,18 @@ class ProcessControlTests(unittest.TestCase):
                     "\n (d/'newborn.tmp').write_text(str(os.getpid()))"
                     "\n (d/'newborn.tmp').replace(d/'newborn')"
                     "\n while True: time.sleep(1)"
-                    "\nos.waitpid(p,0); time.sleep(30)"
+                    # An unreaped intermediate child refuses admission before
+                    # the barrier. Publish readiness only after reaping it.
+                    "\ntime.sleep(0.25); os.waitpid(p,0)"
+                    f"\npathlib.Path({temporary!r}, 'ready').touch()"
+                    "\ntime.sleep(30)"
                 )
                 deadline = time.monotonic() + 3
-                while not (directory / "parent").exists() and time.monotonic() < deadline:
+                while not ((directory / "parent").exists() and (directory / "ready").exists()) \
+                        and time.monotonic() < deadline:
                     time.sleep(0.01)
                 self.assertTrue((directory / "parent").exists())
+                self.assertTrue((directory / "ready").exists(), "fixture parent did not finish reaping")
                 parent = int((directory / "parent").read_text())
                 triggered = []
                 group_scan = []
