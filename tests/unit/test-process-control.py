@@ -225,6 +225,7 @@ class ProcessControlTests(unittest.TestCase):
         unrelated = self.child()
         with tempfile.TemporaryDirectory(prefix="octo-group-test-") as temporary:
             marker = Path(temporary) / "helper"
+            ready = Path(temporary) / "ready"
             root = self.child(
                 "import os,pathlib,signal,time; os.setsid(); p=os.fork(); "
                 "\nif p == 0:"
@@ -233,12 +234,17 @@ class ProcessControlTests(unittest.TestCase):
                 f"\n pathlib.Path({str(marker) + '.tmp'!r}).write_text(str(os.getpid()))"
                 f"\n pathlib.Path({str(marker) + '.tmp'!r}).replace({str(marker)!r})"
                 "\n while True: time.sleep(1)"
-                "\nos.waitpid(p,0); time.sleep(30)"
+                # Force the helper to publish before its parent reaps the
+                # intermediate child. Its PID alone is not fixture readiness.
+                "\ntime.sleep(0.25); os.waitpid(p,0)"
+                f"\npathlib.Path({str(ready)!r}).touch()"
+                "\ntime.sleep(30)"
             )
             deadline = time.monotonic() + 3
-            while not marker.exists() and time.monotonic() < deadline:
+            while not (marker.exists() and ready.exists()) and time.monotonic() < deadline:
                 time.sleep(0.01)
             self.assertTrue(marker.exists())
+            self.assertTrue(ready.exists(), "fixture parent did not finish reaping")
             with control.Process(int(marker.read_text())) as orphan:
                 try:
                     self.assertNotEqual(orphan.info.ppid, root.pid)
