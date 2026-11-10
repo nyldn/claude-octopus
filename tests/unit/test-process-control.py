@@ -516,8 +516,12 @@ class ProcessControlTests(unittest.TestCase):
     def test_owned_group_cleanup_on_linux_does_not_require_ps(self):
         """Minimal Linux hosts need only the existing readable procfs contract."""
         root = self._private_group_leader()
-        with mock.patch.object(subprocess, "run", side_effect=FileNotFoundError("ps")):
+        # Global procfs churn is covered by separate scan tests.
+        records = [(root.pid, [b"T", str(os.getpid()).encode(), str(root.pid).encode()])]
+        with mock.patch.object(subprocess, "run", side_effect=FileNotFoundError("ps")), \
+             mock.patch.object(control, "_linux_proc_records", side_effect=lambda **_: iter(records)) as scan:
             self.assertEqual(control.terminate(root.pid, frozen=True, owned_groups=True), "terminated")
+        scan.assert_called_with(require_complete=True)
 
     @unittest.skipUnless(sys.platform.startswith("linux"), "Linux complete snapshot retries")
     def test_incomplete_group_snapshot_retries_before_exposing_candidates(self):
