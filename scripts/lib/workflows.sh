@@ -220,8 +220,8 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     # Resolve the registered handler rather than duplicating credential checks.
     if [[ "$agent_type" == opencode* ]]; then
         local health_handler health_diag
-        health_handler="$(octo_provider_health_handler opencode)" || return 1
-        if [[ "$health_handler" == none ]] || ! declare -F "$health_handler" >/dev/null 2>&1; then
+        if ! health_handler="$(octo_provider_health_handler opencode)" ||
+           [[ "$health_handler" == none ]] || ! declare -F "$health_handler" >/dev/null 2>&1; then
             log ERROR "OpenCode health handler unavailable"
             if declare -F research_probe_single_record >/dev/null 2>&1; then
                 research_probe_single_record "$task_id" "$agent_type" failed || true

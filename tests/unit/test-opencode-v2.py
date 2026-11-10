@@ -120,12 +120,27 @@ fi
         self.assertIn("logged:ERROR:opencode: no confirmed login", result.stderr)
 
     def test_standalone_health_failure_keeps_its_diagnostic(self):
+        """Use stderr with or without a platform log executable on PATH."""
         self.env.update(CLI_VERSION="2.0.23", AUTH_JSON="[]")
-        result = self.shell('source scripts/lib/providers.sh; check_provider_health opencode')
-        self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(result.stdout, "")
-        self.assertIn("[ERROR] opencode: no confirmed login", result.stderr)
-        self.assertNotIn("command not found", result.stderr)
+        external_log = self.bin / "log"
+        for installed in (False, True):
+            with self.subTest(external_logger=installed):
+                if installed:
+                    external_log.write_text('#!/bin/sh\necho external-system-logger >&2\nexit 64\n')
+                    external_log.chmod(0o755)
+                result = self.shell('source scripts/lib/providers.sh; check_provider_health opencode')
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, "")
+                self.assertIn("[ERROR] opencode: no confirmed login", result.stderr)
+                self.assertNotIn("command not found", result.stderr)
+                self.assertNotIn("external-system-logger", result.stderr)
+
+    def test_failed_live_login_keeps_the_login_command(self):
+        """Live rejection must retain an actionable command in readiness JSON."""
+        self.env.update(CLI_VERSION="2.0.23", AUTH_JSON="[]")
+        readiness = self.readiness("live")
+        self.assertEqual(readiness["reason_code"], "health-failed")
+        self.assertIn("opencode auth login", readiness["remediation"])
 
     def test_probe_single_checks_login_before_constructing_command(self):
         self.env.update(CLI_VERSION="2.0.23", DISPATCH_MARKER=str(self.base / "dispatch"))
@@ -201,7 +216,7 @@ preflight_check true
                 self.assertEqual(result.returncode == 0, connected, result.stdout + result.stderr)
                 if not connected and roster:
                     self.assertIn("health-failed", result.stdout)
-                    self.assertIn("Run the provider's authentication or service check", result.stdout)
+                    self.assertIn("opencode auth login", result.stdout)
                     self.assertNotIn("run an explicit live readiness check", result.stdout)
                 self.assertTrue(self.marker.exists(), "admission never checked login")
                 self.env["OCTOPUS_SKIP_PROVIDER_PROBES"] = "true"
@@ -300,6 +315,7 @@ probe_single_agent "$PREVIEW_PROVIDER" perspective preview-task
         self.assertEqual(self.readiness('live')['status'], 'degraded')
 
     def test_failed_direct_probe_completes_its_durable_seat(self):
+        """Health lookup, missing handlers and rejected dispatch all close the seat."""
         self.env.update(CLI_VERSION='2.0.23', AUTH_JSON='[]')
         script = r'''
 source scripts/lib/workflows.sh
@@ -318,12 +334,17 @@ RESULTS_DIR="$HOME/results" LOGS_DIR="$HOME/logs"
 SUPPORTS_AGENT_TYPE_ROUTING=false OCTOPUS_PERSONA_PACKS=off
 probe_single_agent opencode perspective probe-123-0 'Check compatibility'
 '''
-        for connected in (False, True):
-            with self.subTest(failure="command" if connected else "health"):
+        for failure, task in (("health", 123), ("command", 124), ("lookup", 125), ("missing", 126)):
+            with self.subTest(failure=failure):
                 self.env['AUTH_JSON'] = ('[{"id":"openai","connections":[{"type":"credential"}]}]'
-                                         if connected else '[]')
-                task = 124 if connected else 123
-                result = self.shell(script.replace('probe-123-0', f'probe-{task}-0'))
+                                         if failure != "health" else '[]')
+                attempt = script.replace('probe-123-0', f'probe-{task}-0')
+                if failure in ("lookup", "missing"):
+                    handler = 'return 77' if failure == "lookup" else 'echo none'
+                    attempt = attempt.replace('probe_single_agent opencode perspective',
+                                              'octo_provider_health_handler() { ' + handler + '; };\n'
+                                              'probe_single_agent opencode perspective')
+                result = self.shell(attempt)
                 self.assertNotEqual(result.returncode, 0)
                 events = self.base / f'home/results/research-runs/flow-{task}/events.jsonl'
                 records = [json.loads(line) for line in events.read_text().splitlines()]

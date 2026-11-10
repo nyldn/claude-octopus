@@ -594,7 +594,11 @@ EOF
         if [[ "$live_rc" -ne 0 && "$reason_code" != "quota" && "$reason_code" != "auth-invalid" ]]; then
             status="degraded"
             reason_code="health-failed"
-            remediation="Run the provider's authentication or service check, then retry the live preflight."
+            if [[ "$provider" == opencode ]]; then
+                remediation="Run: opencode auth login, or set a supported provider environment credential, then retry the live preflight."
+            else
+                remediation="Run the provider's authentication or service check, then retry the live preflight."
+            fi
         fi
         if [[ "$live_rc" -ne 0 ]]; then
             printf 'provider live check failed: %s (exit %s)\n' "$provider" "$live_rc" >&2

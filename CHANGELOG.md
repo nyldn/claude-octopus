@@ -34,6 +34,9 @@
   OpenCode 2.x bounded Tangle refuses model tasks with unwritable session storage.
   Saved logins and filesystem boundaries remain
   intact; support for that execution path still requires a safe state projection.
+  Failed live checks retain `opencode auth login` guidance. Health diagnostics
+  use the application logger or stderr, including on macOS, and a failed health
+  handler lookup closes the direct probe's durable research-seat event.
   Addresses [#1172](https://github.com/nyldn/claude-octopus/issues/1172).
 
 ### Maintenance

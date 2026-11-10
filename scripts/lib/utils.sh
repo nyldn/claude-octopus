@@ -12,7 +12,7 @@ source "${_utils_lib_dir}/command-argv.sh" || { echo "utils: failed to load comm
 
 # Internal log helper — uses orchestrate.sh's log() if available, falls back to stderr
 _utils_log() {
-    if type log &>/dev/null 2>&1; then
+    if declare -F log >/dev/null 2>&1; then
         log "$@"
     else
         echo "[$1] ${*:2}" >&2
