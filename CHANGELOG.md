@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+
+- UberLLM as an OpenAI-compatible agent provider. `uberllm-agent` uses the
+  shared tool-loop helper with `UBERLLM_API_KEY` and an explicit
+  `UBERLLM_MODEL`, `OCTOPUS_UBERLLM_MODEL` or `providers.uberllm.default`
+  model. It is excluded from Council, like the other gateway agents.
+
 ### Maintenance
 
 - Skill generation uses the authored entries directly through the existing sync

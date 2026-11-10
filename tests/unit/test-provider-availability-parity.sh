@@ -229,6 +229,22 @@ else
     test_fail "Cheaper Inference did not map to cheaperinference-agent: $cheaperinference_fleet"
 fi
 
+test_case "fleet maps configured UberLLM to its executable agent type"
+uberllm_fleet=$(
+    env \
+        "HOME=$FAKE_HOME" \
+        "PATH=$FAKE_BIN:/usr/bin:/bin" \
+        "OCTO_ALLOWED_PROVIDERS=uberllm" \
+        "UBERLLM_API_KEY=fixture-key" \
+        "UBERLLM_MODEL=deepseek/deepseek-v4-flash" \
+        "$BUILD_FLEET" research quick fixture 2>/dev/null
+)
+if grep -q '^uberllm-agent|' <<<"$uberllm_fleet"; then
+    test_pass
+else
+    test_fail "UberLLM did not map to uberllm-agent: $uberllm_fleet"
+fi
+
 test_case "fleet maps configured API Route to its executable agent type"
 api_route_fleet=$(
     env \

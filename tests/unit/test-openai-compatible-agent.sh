@@ -159,6 +159,21 @@ else
     test_pass
 fi
 
+test_case "UberLLM review dispatch disables model tools"
+cmd=$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="ull-review-no-tools" PWD="/tmp/octo-cwd" UBERLLM_MODEL="deepseek/deepseek-v4-flash" get_agent_command uberllm-agent review code-reviewer 2>/dev/null)
+if assert_contains "$cmd" "--provider uberllm" "UberLLM provider" &&
+   assert_contains "$cmd" "--model deepseek/deepseek-v4-flash" "UberLLM model" &&
+   assert_contains "$cmd" "--tool-policy none" "UberLLM review tool policy"; then
+    test_pass
+fi
+
+test_case "UberLLM dispatch fails closed without a model"
+if HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="ull-no-model" PWD="/tmp/octo-cwd" UBERLLM_MODEL="" OCTOPUS_UBERLLM_MODEL="" OPENAI_COMPAT_MODEL="" get_agent_command uberllm-agent implementation implementer >/dev/null 2>&1; then
+    test_fail "expected uberllm-agent without a model to be rejected"
+else
+    test_pass
+fi
+
 test_case "write-capable tool-loop roles retain tools"
 generic_cmd=$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="compat-write-tools" PWD="/tmp/octo-cwd" OPENAI_COMPAT_MODEL="vendor/model-fast" get_agent_command openai-compatible-agent implementation implementer 2>/dev/null)
 atlas_cmd=$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="atlas-write-tools" PWD="/tmp/octo-cwd" ATLASCLOUD_MODEL="qwen/model" get_agent_command atlascloud-agent implementation implementer 2>/dev/null)

@@ -3,6 +3,7 @@ _profile_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_profile_lib_dir}/agent-spec.sh" 2>/dev/null || true
 source "${_profile_lib_dir}/provider-registry.sh" || { echo "dispatch: failed to load provider-registry.sh" >&2; return 1 2>/dev/null || exit 1; }
 source "${_profile_lib_dir}/cheaperinference.sh" || return 1
+source "${_profile_lib_dir}/uberllm.sh" || return 1
 source "${_profile_lib_dir}/api-route.sh" || return 1
 source "${_profile_lib_dir}/litellm.sh" || return 1
 source "${_profile_lib_dir}/claude-native.sh" || return 1
@@ -653,6 +654,44 @@ get_agent_command() {
             local ci_tool_fragment=""
             octo_tool_loop_requires_no_tools "$phase" "$role" && ci_tool_fragment="--tool-policy none"
             echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider cheaperinference --model ${model} ${ci_tool_fragment} --cwd ${PWD}"
+            ;;
+        uberllm-agent)  # UberLLM via the OpenAI-compatible tool-loop agent
+            if [[ "$agent_type" == *:* ]]; then
+                model="$(get_agent_model "$agent_type" "$phase" "$role")" || return 1
+            else
+                if ! model="$(octo_uberllm_model)"; then
+                    log ERROR "UBERLLM_MODEL, OCTOPUS_UBERLLM_MODEL, OPENAI_COMPAT_MODEL, or providers.json uberllm.default is required"
+                    return 1
+                fi
+            fi
+            if ! octo_uberllm_model "$model" >/dev/null; then
+                log ERROR "Invalid UberLLM model name: ${model}"
+                return 1
+            fi
+            local ull_fallback
+            ull_fallback=$(validate_model_allowed "uberllm" "$model")
+            if [[ $? -ne 0 ]]; then
+                if [[ -n "$ull_fallback" ]]; then
+                    if ! octo_uberllm_model "$ull_fallback" >/dev/null; then
+                        log ERROR "Invalid UberLLM fallback model name"
+                        return 1
+                    fi
+                    if ! octo_model_automatic_target_allowed "$ull_fallback" uberllm; then
+                        log ERROR "UberLLM fallback requires an explicit model pin"
+                        return 1
+                    fi
+                    model="$ull_fallback"
+                else
+                    return 1
+                fi
+            fi
+            if ! _octopus_is_safe_openai_compatible_dispatch_value "${PWD}"; then
+                log ERROR "Invalid UberLLM cwd: ${PWD}"
+                return 1
+            fi
+            local ull_tool_fragment=""
+            octo_tool_loop_requires_no_tools "$phase" "$role" && ull_tool_fragment="--tool-policy none"
+            echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider uberllm --model ${model} ${ull_tool_fragment} --cwd ${PWD}"
             ;;
         api-route-agent)  # API Route via the OpenAI-compatible tool-loop agent
             if [[ "$agent_type" == *:* ]]; then
@@ -1638,6 +1677,11 @@ get_agent_model() {
             if [[ "$provider" == cheaperinference ]] &&
                ! octo_cheaperinference_model "$fallback" >/dev/null; then
                 log ERROR "Invalid Cheaper Inference fallback model name"
+                return 1
+            fi
+            if [[ "$provider" == uberllm ]] &&
+               ! octo_uberllm_model "$fallback" >/dev/null; then
+                log ERROR "Invalid UberLLM fallback model name"
                 return 1
             fi
             if [[ "$provider" == api-route ]] &&

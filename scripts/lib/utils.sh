@@ -312,7 +312,7 @@ _validate_openai_compatible_agent_command() {
             --provider)
                 [[ -z "$provider" ]] || return 1
                 case "$value" in
-                    generic|atlascloud|cheaperinference|api-route|litellm) provider="$value" ;;
+                    generic|atlascloud|cheaperinference|uberllm|api-route|litellm) provider="$value" ;;
                     *) return 1 ;;
                 esac
                 ;;

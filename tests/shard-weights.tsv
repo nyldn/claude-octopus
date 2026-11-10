@@ -18,6 +18,7 @@ unit/test-feature-workflow.sh	60
 unit/test-vibe-keyring.sh	51
 unit/test-council-aggregate-deadline.sh	47
 unit/test-cheaperinference-config-parity.sh	45
+unit/test-uberllm-config-parity.sh	45
 unit/test-octo-events.sh	42
 unit/test-setup-first-success.sh	41
 unit/test-routing.sh	38

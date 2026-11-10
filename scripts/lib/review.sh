@@ -208,6 +208,7 @@ review_single_provider_override() {
     case "$canonical" in
         atlascloud) executor="atlascloud-agent" ;;
         cheaperinference) executor="cheaperinference-agent" ;;
+        uberllm) executor="uberllm-agent" ;;
         api-route) executor="api-route-agent" ;;
         litellm) executor="litellm-agent" ;;
         *) executor="$canonical" ;;

@@ -41,6 +41,7 @@ octo_agent_spec_provider() {
         openai-compatible|openai-compatible-*) echo openai-compatible ;;
         atlascloud|atlascloud-*) echo atlascloud ;;
         cheaperinference|cheaperinference-*) echo cheaperinference ;;
+        uberllm|uberllm-*) echo uberllm ;;
         api-route|api-route-*) echo api-route ;;
         litellm|litellm-*) echo litellm ;;
         qwen|qwen-*) echo qwen ;;
@@ -125,6 +126,7 @@ octo_agent_spec_canonicalize_exact() {
     case "$provider" in
         atlascloud) canonical_executor="atlascloud-agent" ;;
         cheaperinference) canonical_executor="cheaperinference-agent" ;;
+        uberllm) canonical_executor="uberllm-agent" ;;
         api-route) canonical_executor="api-route-agent" ;;
         litellm) canonical_executor="litellm-agent" ;;
         *) canonical_executor="$provider" ;;
@@ -161,6 +163,7 @@ octo_provider_model_allowlist_var() {
         orcarouter) echo "OCTOPUS_ORCAROUTER_ALLOWED_MODELS" ;;
         atlascloud|atlascloud-agent) echo "ATLASCLOUD_ALLOWED_MODELS" ;;
         cheaperinference|cheaperinference-agent) echo "CHEAPER_INFERENCE_ALLOWED_MODELS" ;;
+        uberllm|uberllm-agent) echo "UBERLLM_ALLOWED_MODELS" ;;
         api-route|api-route-agent) echo "API_ROUTE_ALLOWED_MODELS" ;;
         litellm|litellm-agent) echo "LITELLM_ALLOWED_MODELS" ;;
         openai-compatible|openai-tools|openai-compatible-agent) echo "OPENAI_COMPAT_ALLOWED_MODELS" ;;
@@ -280,7 +283,7 @@ octo_agent_spec_model_family() {
         kimi|kimi-*) echo moonshot ;;
         perplexity|perplexity-*) echo perplexity ;;
         copilot|copilot-*) echo microsoft ;;
-        commandcode|commandcode-*|openrouter|openrouter-*|opencode|opencode-*|openai-compatible|openai-compatible-*|atlascloud|atlascloud-*|cheaperinference|cheaperinference-*) echo multi ;;
+        commandcode|commandcode-*|openrouter|openrouter-*|opencode|opencode-*|openai-compatible|openai-compatible-*|atlascloud|atlascloud-*|cheaperinference|cheaperinference-*|uberllm|uberllm-*) echo multi ;;
         ollama|ollama-*) echo local ;;
         *) echo unknown ;;
     esac
