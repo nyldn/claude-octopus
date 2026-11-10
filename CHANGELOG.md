@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- The finish-branch local merge recipe stops when checkout, update, merge, or
+  merged-result tests fail,
+  preserving the feature branch and worktree for recovery.
+
 - Rollback starts from the repository root, so invoking it from a subdirectory
   restores the complete tracked snapshot and preserves current lessons.
   Safety-checkpoint recovery explains how to preserve the staged rollback

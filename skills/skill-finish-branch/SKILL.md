@@ -201,23 +201,25 @@ Branch preserved for review process.
 FEATURE_BRANCH=$(git branch --show-current)
 BASE_BRANCH="main"  # or detected base
 
-# Switch to base branch
-git checkout $BASE_BRANCH
+# Stop if checkout, update, or merge fails; preserve recovery work.
+if ! git checkout "$BASE_BRANCH" ||
+   ! git pull origin "$BASE_BRANCH" ||
+   ! git merge "$FEATURE_BRANCH"; then
+  echo "Local merge failed; preserve $FEATURE_BRANCH and stop before cleanup or success reporting." >&2
+  return 1 2>/dev/null || exit 1
+fi
 
-# Pull latest
-git pull origin $BASE_BRANCH
+# Verify tests on merged result with the appropriate test command.
+if ! npm test; then
+  echo "Merged-result tests failed; preserve $FEATURE_BRANCH and stop before cleanup or success reporting." >&2
+  return 1 2>/dev/null || exit 1
+fi
 
-# Merge feature branch
-git merge $FEATURE_BRANCH
-
-# Verify tests on merged result
-npm test  # or appropriate test command
-
-# If tests pass, delete feature branch
+# Delete the feature branch only after the merged-result tests pass.
 git branch -d $FEATURE_BRANCH
 ```
 
-**Report:**
+**Report only after the recipe succeeds. On failure, preserve the branch and worktree and report the failed check:**
 ```
 ✅ Merged $FEATURE_BRANCH into $BASE_BRANCH
 ✅ Tests pass on merged result

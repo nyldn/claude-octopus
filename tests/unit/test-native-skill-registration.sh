@@ -224,6 +224,47 @@ print('15 menu/reference/example recipes passed across source, native and Codex 
 PY_CHOICES
 then test_pass; else test_fail "finish-branch execution contradicts the selected menu action"; fi
 
+test_case "failed merge steps preserve the feature branch without shell error-exit mode"
+if python3 - "$PROJECT_ROOT" <<'PY_FAILURE'
+import os
+import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+root = Path(sys.argv[1])
+for tree in ('.claude/skills', 'skills', 'codex-skills'):
+    text = (root / tree / 'skill-finish-branch/SKILL.md').read_text()
+    section = text.split('#### Option 2: Merge Locally', 1)[1].split('#### Option 3:', 1)[0]
+    command = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+    for failure in ('checkout', 'pull', 'merge', 'test'):
+        with tempfile.TemporaryDirectory() as temporary:
+            calls = Path(temporary) / 'calls'
+            stubs = r"""
+git() {
+    printf 'git %s\n' "$*" >> "$CALLS"
+    if [[ "$*" == 'branch --show-current' ]]; then printf 'feature\n'; fi
+    if [[ "$1" == "$FAILURE" ]]; then return 23; fi
+    return 0
+}
+npm() { printf 'npm %s\n' "$*" >> "$CALLS"; [[ "$FAILURE" != test ]]; }
+"""
+            result = subprocess.run(['bash', '-uo', 'pipefail', '-c',
+                                     stubs + command + '\nprintf "continued after failure\n"'],
+                                    env=dict(os.environ, CALLS=str(calls), FAILURE=failure), capture_output=True, text=True)
+            actions = calls.read_text().splitlines()
+            expected = ['git branch --show-current', 'git checkout main', 'git pull origin main',
+                        'git merge feature', 'npm test']
+            failed_at = {'checkout': 1, 'pull': 2, 'merge': 3, 'test': 4}[failure]
+            assert actions == expected[:failed_at + 1], (tree, failure, 'continued after failed step', actions)
+            assert result.returncode != 0, (tree, 'merge failure reported success', result.stdout)
+            assert 'git branch -d feature' not in actions, (tree, 'deleted recovery branch', actions)
+            assert 'continued after failure' not in result.stdout, (tree, 'continued to cleanup/report')
+print('12 failed merge-step recipes preserve recovery branches without relying on bash -e')
+PY_FAILURE
+then test_pass; else test_fail "failed merged-result tests can delete the recovery branch"; fi
+
 test_case "generator keeps canonical native sources and adapts new Codex entries"
 if python3 - "$PROJECT_ROOT" <<'PY_CANONICAL'
 import os
