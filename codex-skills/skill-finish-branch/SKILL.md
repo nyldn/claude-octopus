@@ -347,7 +347,7 @@ After completing octopus workflows, use this skill:
 | Offering options before testing | Always verify tests FIRST |
 | Auto-merging without asking | Present 4 options, let user choose |
 | Deleting without confirmation | Require typed "discard" |
-| Cleaning up worktree on "keep" | Only cleanup for options 1, 2, 4 |
+| Cleaning up worktree on "keep" | Only cleanup for options 2, 4 |
 
 
 ## The Bottom Line

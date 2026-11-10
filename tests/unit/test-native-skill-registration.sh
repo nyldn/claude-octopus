@@ -172,6 +172,10 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
     rows = re.findall(r'^\| (\d+)\. [^|]+\|([^\n]+)', text, re.M)
     advertised_cleanup = {choice for choice, columns in rows if columns.split('|')[-2].strip() == '✓'}
     assert cleanup_choices == advertised_cleanup, (tree, 'cleanup contradicts reference')
+    mistakes = text.split('## Common Mistakes', 1)[1]
+    cleanup_advice = re.search(r'Only cleanup for options ([\d, ]+)', mistakes)
+    assert cleanup_advice, (tree, 'missing common-mistake cleanup policy')
+    assert set(re.findall(r'\d+', cleanup_advice[1])) == cleanup_choices, (tree, 'common mistakes contradict cleanup policy')
     cases = [(choice, menu[choice], 'menu') for choice in ('1', '2')]
     cases += [(choice, action.strip(), 'quick reference') for choice, action in references
               if action.strip().lower() in ('create pr', 'merge locally')]
