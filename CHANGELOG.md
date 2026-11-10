@@ -4,6 +4,11 @@
 
 ### Fixed
 
+- Checkpoint rollback removes tracked files added after the checkpoint and
+  restores deleted files while retaining current lessons and commit history.
+
+### Fixed
+
 - Native discovery and refinement keep their canonical phase resources when
   generating separate Codex skills. Codex shared-block references use their own
   tree, and missing canonical inputs stop generation before output is removed.

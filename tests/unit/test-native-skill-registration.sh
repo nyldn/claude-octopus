@@ -290,4 +290,60 @@ print('Canonical preservation, new-entry adaptation, block paths, read-only chec
 PY_CANONICAL
 then test_pass; else test_fail "generator damaged canonical ownership or host-specific references"; fi
 
+test_case "rollback restores the complete tracked snapshot and preserves lessons"
+if python3 - "$PROJECT_ROOT" <<'PY_SNAPSHOT'
+import os
+import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+root = Path(sys.argv[1])
+env = dict(os.environ, GIT_AUTHOR_NAME='Test', GIT_AUTHOR_EMAIL='test@example.invalid',
+           GIT_COMMITTER_NAME='Test', GIT_COMMITTER_EMAIL='test@example.invalid',
+           CLAUDE_PLUGIN_ROOT=str(root), LESSONS_PRESERVED='false')
+for tree in ('.claude/skills', 'skills', 'codex-skills'):
+    text = (root / tree / 'skill-rollback/SKILL.md').read_text()
+    section = text.split('### Step 6:', 1)[1].split('### Step 7:', 1)[0]
+    command = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+    for shape in ('file', 'directory', 'symlink'):
+        with tempfile.TemporaryDirectory() as temporary:
+            repo = Path(temporary)
+            def git(*args):
+                return subprocess.check_output(['git', *args], cwd=repo, env=env)
+            git('init', '-q')
+            (repo / '.octo').mkdir()
+            (repo / '.octo/LESSONS.md').write_text('old lessons\n')
+            (repo / 'work.txt').write_text('checkpoint content\n')
+            (repo / 'restored.txt').write_text('restore this deleted file\n')
+            git('add', '.')
+            git('commit', '-qm', 'checkpoint')
+            git('tag', 'target')
+            git('rm', '-q', 'restored.txt')
+            (repo / '.octo/LESSONS.md').write_text('keep current lessons\n')
+            (repo / 'work.txt').write_text('new implementation\n')
+            added = repo / 'post-checkpoint'
+            if shape == 'directory':
+                added.mkdir()
+                (added / 'implementation.txt').write_text('later code\n')
+            elif shape == 'symlink':
+                added.symlink_to('work.txt')
+            else:
+                added.write_text('later code\n')
+            git('add', '.')
+            git('commit', '-qm', 'later implementation')
+            before = git('rev-parse', 'HEAD')
+            result = subprocess.run(['bash', '-euo', 'pipefail', '-c', command], cwd=repo,
+                                    env=dict(env, CHECKPOINT_TAG='target'), capture_output=True)
+            assert result.returncode == 0, (tree, shape, result.stderr)
+            assert not added.exists() and not added.is_symlink(), (tree, shape, 'post-checkpoint path survived')
+            assert (repo / 'work.txt').read_text() == 'checkpoint content\n'
+            assert (repo / 'restored.txt').read_text() == 'restore this deleted file\n'
+            assert (repo / '.octo/LESSONS.md').read_text() == 'keep current lessons\n'
+            assert git('rev-parse', 'HEAD') == before, 'rollback moved HEAD'
+            assert git('diff', '--cached', 'target', '--', '.', ':(exclude).octo/LESSONS.md') == b''
+print('9 complete-snapshot rollbacks passed across source, native and Codex trees')
+PY_SNAPSHOT
+then test_pass; else test_fail "rollback left post-checkpoint code or lost protected lessons"; fi
+
 test_summary

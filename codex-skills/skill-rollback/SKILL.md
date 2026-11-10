@@ -149,13 +149,9 @@ You can return to current state with:
 
 ### Step 5: Preserve LESSONS.md
 
-```bash
-# Save current LESSONS.md if it exists
-if [ -f ".octo/LESSONS.md" ]; then
-  cp .octo/LESSONS.md /tmp/LESSONS_PRESERVED.md
-  LESSONS_PRESERVED=true
-fi
-```
+Exclude `.octo/LESSONS.md` from the tracked restore. Its current bytes and index
+entry stay in place, even when the checkpoint has older lessons or no lessons
+file. No shared temporary backup is needed.
 
 ### Step 6: Execute Rollback
 
@@ -164,20 +160,15 @@ fi
 OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
 python3 "$OCTO_ROOT/scripts/helpers/rollback-preflight.py" "$CHECKPOINT_TAG" || exit 1
 
-# Restore files from checkpoint (does NOT move HEAD)
-git checkout "$CHECKPOINT_TAG" -- .
-
-# Restore preserved LESSONS.md
-if [ "$LESSONS_PRESERVED" = "true" ]; then
-  cp /tmp/LESSONS_PRESERVED.md .octo/LESSONS.md
-fi
+# Restore the full tracked snapshot, including removal of post-checkpoint files.
+# Keep current lessons and do not move HEAD or change branches.
+git restore --source="$CHECKPOINT_TAG" --staged --worktree -- . ':(exclude).octo/LESSONS.md' || exit 1
 ```
 
-**Important:** This uses `git checkout <tag> -- .` which:
-- Restores all files to checkpoint state
-- Does NOT move HEAD or change branch
-- Preserves current commit history
-- Allows immediate commit of the restored state
+This restores the checkpoint's tracked files and deletes tracked paths added
+since it. The index records the rollback for review and a later commit. HEAD,
+commit history and `.octo/LESSONS.md` stay unchanged. Ignored local files remain
+subject to the collision checks above.
 
 ### Step 7: Update STATE.md (If Exists)
 
@@ -224,10 +215,10 @@ Rollback Complete
 |---------|----------------|
 | **Always create safety checkpoint** | Pre-rollback tag created BEFORE any file changes |
 | **Preserve ignored local files** | Check checkpoint path collisions before tagging and immediately before restore |
-| **Preserve LESSONS.md** | Copy before rollback, restore after |
+| **Preserve LESSONS.md** | Exclude from index and worktree restoration |
 | **Require explicit confirmation** | Must type "ROLLBACK" exactly |
 | **Show affected files first** | Preview before confirmation |
-| **No history modification** | Uses checkout, not reset |
+| **No history modification** | Restores the tracked snapshot without moving HEAD |
 
 
 ## Red Flags - Never Do
