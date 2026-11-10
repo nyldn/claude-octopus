@@ -40,6 +40,8 @@
   preserving reviewer-owned calculations and reproduction code.
   Patch-only lead-ins such as "I recommend this patch. Apply it as follows:"
   preserve the preceding proposal without excusing a later current-source claim.
+  Inline code punctuation and proposal words no longer alter the surrounding
+  prose's ownership or sentence boundaries.
   Partial-fence refinement in unrelated cited files has its own 64 KiB
   per-quote budget. If the next complete file exceeds that budget, reporting
   retains the verified partial result without searching further unbound files.

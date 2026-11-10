@@ -56,4 +56,35 @@ for lead in 'I recommend this patch. Apply it as follows:' 'We should fix this. 
         fi
     done
 done
+# Clause punctuation and ownership words inside an earlier code span are data.
+# Use the production parser, including equal-width Markdown delimiters.
+for snippet in '`old(); old();`' '`a! b? c. d; e`' '``old(); `old`; next``'; do
+    for continuation in proposal source-claim; do
+        test_case "$snippet preserves $continuation after quoted punctuation"
+        lead="I recommend replacing $snippet with"
+        assertion='.quotes_unverifiable_proposed == 1 and .quotes_unverified == 0 and .fabricated == false'
+        if [[ "$continuation" == source-claim ]]; then
+            lead="$lead a replacement. The file contains"
+            assertion='.quotes_unverified == 1 and .quotes_unverifiable_proposed == 0 and .fabricated == true'
+        fi
+        printf 'src/pricing.ts:1: %s `%s`.\nVERDICT: REVISE\n' \
+            "$lead" "$fake" > "$response"
+        report="$(council_response_quote_verification_json "$response" "$evidence")"
+        if jq -e ".verification_failed == false and ($assertion)" <<< "$report" >/dev/null; then
+            test_pass
+        else
+            test_fail "quoted punctuation changed ownership: $report"
+        fi
+    done
+done
+test_case "a proposal word only inside code cannot excuse a later invented quote"
+printf 'src/pricing.ts:1: `recommend();` followed by `%s`.\nsrc/pricing.ts:1 reads `%s`.\n' \
+    "$fake" "$real" > "$response"
+report="$(council_response_quote_verification_json "$response" "$evidence")"
+if jq -e '.verification_failed == false and .quotes_unverifiable_proposed == 0
+    and .quotes_unverified == 1' <<< "$report" >/dev/null; then
+    test_pass
+else
+    test_fail "code-only proposal word escaped verification: $report"
+fi
 test_summary

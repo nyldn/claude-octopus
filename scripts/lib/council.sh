@@ -3281,6 +3281,7 @@ for backtick_index in range(len(backticks) - 1, -1, -1):
     next_backtick[backtick_index] = last_backtick.get(width)
     last_backtick[width] = backtick_index
 backtick_index = 0
+prose_parts, prose_cursor = [], 0
 while backtick_index < len(backticks):
     opening = backticks[backtick_index]
     closing_index = next_backtick[backtick_index]
@@ -3295,7 +3296,13 @@ while backtick_index < len(backticks):
     # Markdown code spans replace embedded line endings with spaces.
     body = re.sub(r"\r\n?|\n", " ", resp[opening.end():closing.start()])
     units.append((opening.start(), closing.end(), "inline", [body.strip()], [], ""))
+    # Reuse parsed Markdown spans for ownership prose. Preserve offsets and
+    # line boundaries while excluding code punctuation and proposal words.
+    prose_parts.extend((resp[prose_cursor:opening.start()],
+                        re.sub(r"[^\r\n]", " ", resp[opening.start():closing.end()])))
+    prose_cursor = closing.end()
     backtick_index = closing_index + 1
+prose_resp = "".join(prose_parts) + resp[prose_cursor:]
 # The "path:line" list shape: a line holding only a citation, followed by the
 # quoted source line with no markup. These can only add verified evidence; an
 # unmatched bare line may be prose, so it is never counted against the seat.
@@ -3931,7 +3938,7 @@ def attribution(token, gap):
             word.lower() not in GAP_WORDS for word in re.findall(r"[A-Za-z]+", gap))):
         return None
     line_start = resp.rfind("\n", 0, token[0]) + 1
-    prefix = CITATION.sub("", LINK_TARGET.sub("", resp[line_start:token[0]]))
+    prefix = CITATION.sub("", LINK_TARGET.sub("", prose_resp[line_start:token[0]]))
     # Here terminal punctuation closes an earlier sentence; it is not the
     # standalone proposed fence lead-in that proposes() otherwise preserves.
     if proposes(prefix[clause_start(prefix, len(prefix)) :]):
@@ -3943,9 +3950,9 @@ def proposed(start):
     # suggestion, not a claim about what a file contains today. Blank lines do
     # not sever that lead-in; other nonempty lines still end its scope.
     line_start = resp.rfind("\n", 0, start) + 1
-    prose = resp[line_start:start]
+    prose = prose_resp[line_start:start]
     if prose.strip(" \t>`") == "":
-        preceding = resp[:line_start].rstrip()
+        preceding = prose_resp[:line_start].rstrip()
         prose = preceding[preceding.rfind("\n") + 1:]
     # A source filename such as example.ts is not proposal language.
     prose = CITATION.sub("", LINK_TARGET.sub("", prose))
