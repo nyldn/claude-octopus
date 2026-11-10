@@ -774,7 +774,7 @@ probe-single)
 
 class PluginRootInstructionAcceptance(unittest.TestCase):
     SOURCES = [('.claude/skills/flow-develop/SKILL.md', '## Portable feature boundary'),
-               ('.claude/skills/flow-develop/flow-develop.tmpl', '## Portable feature boundary'),
+               ('skills/flow-develop/SKILL.md', '## Portable feature boundary'),
                ('.claude/skills/skill-resume/SKILL.md', '## Repository feature recovery'),
                ('commands/resume.md', '## Repository feature recovery')]
 

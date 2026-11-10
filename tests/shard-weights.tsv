@@ -206,7 +206,7 @@ unit/test-review-debate-gate.sh	2
 unit/test-routing-rules.sh	2
 unit/test-shared-marketplace-sync.sh	2
 unit/test-shipped-state-model-resolution.sh	2
-unit/test-skill-templates.sh	2
+unit/test-skill-sources.sh	2
 unit/test-smoke-quota-cache.sh	2
 unit/test-structured-decisions.sh	2
 unit/test-tangle-contextual-read-scope.sh	2

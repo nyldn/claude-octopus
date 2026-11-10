@@ -28,6 +28,7 @@ if [[ "${OCTOPUS_CLAUDE_BIN:-}" == *--mcp-config* ]]; then
 fi
 claude_bin="${OCTOPUS_CLAUDE_BIN:-claude} --tools Read,Glob,Grep --strict-mcp-config"
 exec env OCTOPUS_REFINEMENT_JUDGE=true OCTOPUS_AUTH_RETRIES=0 OCTOPUS_CODEX_SANDBOX=read-only \
+    CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1 OCTOPUS_CLAUDE_ADVISOR=off \
     OCTOPUS_AGENT_TIMEOUT="$((10#$2))" \
     OCTOPUS_CLAUDE_BIN="$claude_bin" \
     "$SCRIPT_DIR/orchestrate.sh" --timeout "$((10#$2))" \

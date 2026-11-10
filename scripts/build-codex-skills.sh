@@ -469,7 +469,7 @@ main() {
     for canonical in skill-refine flow-discover; do
         if [[ -e "$NATIVE_OUTPUT_DIR/$canonical" || -e "$SKILLS_DIR/$canonical" ]]; then
             [[ -f "$NATIVE_OUTPUT_DIR/$canonical/SKILL.md" ]] || {
-                echo "Missing canonical native skill: skills/$canonical/SKILL.md" >&2
+                printf 'Missing canonical skill entry: %s\n' "$NATIVE_OUTPUT_DIR/$canonical/SKILL.md" >&2
                 return 1
             }
         fi

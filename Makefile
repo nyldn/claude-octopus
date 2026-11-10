@@ -3,6 +3,11 @@
 # Default: smoke + unit (fast feedback)
 test: test-smoke test-unit
 
+# Real model calls. Explicit target; never part of the default CI tiers.
+.PHONY: test-native-evals
+test-native-evals:
+	claude plugin eval . --runs 1 --ablation none --model opus --concurrency 1 --max-cost-usd 3 --no-publish --trust-plugin
+
 # Explicit bootstrap: ordinary tests remain offline after dependency setup.
 test-deps:
 	@npm --prefix mcp-server install --ignore-scripts --no-audit --no-fund --package-lock=false
