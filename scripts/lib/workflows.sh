@@ -6229,15 +6229,23 @@ $sonnet_review
 Compact source context to synthesize:
 $all_results"
 
-    local delivery
-    if octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then
-        if ! delivery=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="ink-delivery-watchdog" run_agent_sync "agy" "$synthesis_prompt" 0 "synthesizer" "ink") || \
+    local delivery synth_agent=""
+    if ! declare -F octo_provider_allowed >/dev/null 2>&1; then
+        log WARN "Synthesis authorization unavailable; using bounded fallback synthesis"
+    elif declare -F _aggregate_pick_synth_agent >/dev/null 2>&1; then
+        synth_agent=$(_aggregate_pick_synth_agent)
+    elif octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then
+        synth_agent="agy"
+    fi
+    if [[ -n "$synth_agent" ]]; then
+        log INFO "Step 2b: Synthesizing delivery via ${synth_agent}..."
+        if ! delivery=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="ink-delivery-watchdog" run_agent_sync "$synth_agent" "$synthesis_prompt" 0 "synthesizer" "ink") || \
             [[ ! "$delivery" =~ [^[:space:]] ]]; then
-            log WARN "Antigravity (agy) returned no usable delivery; using bounded fallback synthesis"
+            log WARN "Synthesizer ${synth_agent} returned no usable delivery; using bounded fallback synthesis"
             delivery=$(build_ink_fallback_delivery "$prompt" "$sonnet_review" "$all_results")
         fi
     else
-        log WARN "Antigravity (agy) unavailable or not allowed, using fallback delivery synthesis"
+        log WARN "No synthesis provider is available or allowed; using fallback delivery synthesis"
         delivery=$(build_ink_fallback_delivery "$prompt" "$sonnet_review" "$all_results")
     fi
 
