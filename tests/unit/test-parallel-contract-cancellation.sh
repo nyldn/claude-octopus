@@ -26,6 +26,9 @@ render_agent_summary() { :; }
 is_provider_available() { return 0; }
 octo_quota_is_dead() { return 1; }
 
+# Bash 3.2 has no BASHPID. Exercise that contract on newer shells too.
+unset BASHPID
+
 # Exercise real contract persistence; only provider dispatch is inert.
 spawn_agent_capture_pid() {
     local seat="spawn-$3" output="$RESULTS_DIR/$1-$3.md"
@@ -53,7 +56,7 @@ spawn_agent_capture_pid() {
     write_agent_status "$1" running 1 0 '' 0 "$output" researcher "$seat"
     if [[ "$OCTOPUS_RUN_ID" == signal ]]; then
         # Signal during PID handoff, after the durable running record exists.
-        kill -TERM "$BASHPID"
+        kill -TERM "$(sh -c 'printf "%s\n" "$PPID"')"
     fi
     (exit 74) &
     printf '%s\n' "$!"

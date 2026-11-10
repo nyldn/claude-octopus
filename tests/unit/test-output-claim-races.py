@@ -259,7 +259,9 @@ set -euo pipefail
 source "$PROJECT_ROOT/scripts/lib/agent-spec.sh"
 source "$PROJECT_ROOT/scripts/lib/error-tracking.sh"
 source "$PROJECT_ROOT/scripts/lib/parallel.sh"
-export CONTROLLER_PID=$BASHPID
+# The runner is a top-level bash -c shell; $$ remains available on Bash 3.2.
+unset BASHPID
+export CONTROLLER_PID=$$
 octopus_pid_python_resolve() { printf '%s\n' "$PYTHON_WRAPPER"; }
 log() { :; }
 aggregate_results() { :; }
@@ -268,7 +270,7 @@ rm() {
     command rm "$@" || return
     if [[ "$*" == *'.codex-race.claim/owner'* ]]; then
         touch "$INJECTED"
-        [[ "$FAILURE" != kill ]] || kill -KILL "$BASHPID"
+        [[ "$FAILURE" != kill ]] || kill -KILL "$CONTROLLER_PID"
     fi
 }
 rmdir() {
