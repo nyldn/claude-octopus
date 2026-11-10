@@ -445,6 +445,15 @@ _octo_run_contract_snapshot_unlocked() {
     cat "$manifest"
 }
 
+# A killed dispatcher stays a zombie until its parent reaps it, and kill -0
+# still succeeds for a zombie. Unavailable process state cannot prove an exit.
+_octo_run_contract_holder_running() {
+    local pid="$1" state=""
+    kill -0 "$pid" 2>/dev/null || return 1
+    state="$(ps -o stat= -p "$pid" 2>/dev/null | awk 'NR == 1 { print $1 }')" || state=""
+    [[ "$state" != Z* ]]
+}
+
 # Reserve a seat that no committed record names for one dispatcher process
 # until its planner has run. The planned transition still enforces admission;
 # the reservation lets a concurrent dispatcher of the same seat back off before
@@ -462,9 +471,9 @@ run_contract_reserve_seat() (
     if [[ -e "$ledger" ]]; then
         jq -es --arg seat "$seat_id" 'all(.seat_id != $seat)' "$ledger" >/dev/null 2>&1 || return 1
     fi
-    if IFS= read -r current < "$reservation" 2>/dev/null &&
+    if { IFS= read -r current < "$reservation"; } 2>/dev/null &&
        [[ "$current" != "$holder" && "$current" =~ ^[1-9][0-9]*$ ]] &&
-       kill -0 "$current" 2>/dev/null; then
+       _octo_run_contract_holder_running "$current"; then
         return 1
     fi
     printf '%s\n' "$holder" > "$reservation.$holder" 2>/dev/null &&
@@ -478,7 +487,7 @@ run_contract_release_seat() (
     lock_target="$(octo_run_contract_lock_path)"
     _octo_run_contract_lock "$lock_target" || return 1
     trap '_octo_event_unlock "$lock_target"' EXIT
-    IFS= read -r current < "$reservation" 2>/dev/null || return 0
+    { IFS= read -r current < "$reservation"; } 2>/dev/null || return 0
     [[ "$current" != "$holder" ]] || rm -f -- "$reservation"
 )
 
