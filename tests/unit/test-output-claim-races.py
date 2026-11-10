@@ -316,5 +316,78 @@ parallel_execute "$TASKS"
             self.assertFalse(claim.exists())
 
 
+class TransientOwnerSetup(unittest.TestCase):
+    """A fallback claim must survive a later successful owner-lock setup."""
+
+    def exercise(self, failure):
+        """Fail the first owner setup and inspect the next task's live lock."""
+        with tempfile.TemporaryDirectory(prefix="claim-owner-setup-") as directory:
+            root = Path(directory)
+            workspace, results = root / "workspace", root / "results"
+            workspace.mkdir()
+            results.mkdir()
+            tasks = root / "tasks.json"
+            tasks.write_text(json.dumps({"tasks": [
+                {"id": name, "agent": "codex", "prompt": "inert"}
+                for name in ("first", "second")]}))
+            runner = r'''
+set -euo pipefail
+source "$PROJECT_ROOT/scripts/lib/error-tracking.sh"
+source "$PROJECT_ROOT/scripts/lib/parallel.sh"
+log() { :; }
+aggregate_results() { :; }
+octopus_pid_python_resolve() { command -v python3; }
+mktemp() {
+    if [[ "$FAILURE" == mktemp && "$1" == "$RESULTS_DIR/.parallel-owner.XXXXXX" && ! -e "$WORKSPACE_DIR/injected" ]]; then
+        touch "$WORKSPACE_DIR/injected"
+        return 1
+    fi
+    command mktemp "$@"
+}
+pwd() {
+    if [[ "$FAILURE" == normalize && "${1:-}" == -P && "$PWD" == "$RESULTS_DIR" && ! -e "$WORKSPACE_DIR/injected" ]]; then
+        touch "$WORKSPACE_DIR/injected"
+        return 1
+    fi
+    command pwd "$@"
+}
+spawn_agent_capture_pid() {
+    printf '%s\n' "$3" >> "$WORKSPACE_DIR/attempts"
+    if [[ "$3" == second ]]; then
+        python3 - "$PROJECT_ROOT/scripts/helpers/output-claim.py" "$RESULTS_DIR/.codex-second.claim" "$WORKSPACE_DIR/lock-state" <<'PY'
+import importlib.util, pathlib, sys
+spec = importlib.util.spec_from_file_location("claims", sys.argv[1])
+claims = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(claims)
+owner = claims.recorded_owner_lock(sys.argv[2])
+pathlib.Path(sys.argv[3]).write_text("held" if owner and not claims.owner_has_exited(owner) else "unlocked")
+PY
+    fi
+    return 1
+}
+AVAILABLE_AGENTS=codex MAX_PARALLEL=1 SUPPORTS_DISABLE_CRON_ENV=false DRY_RUN=false
+parallel_execute "$TASKS"
+'''
+            env = dict(os.environ, PROJECT_ROOT=str(ROOT), WORKSPACE_DIR=str(workspace),
+                       RESULTS_DIR=str(results), TASKS=str(tasks), FAILURE=failure,
+                       OCTOPUS_RUN_ID="owner-setup", OCTOPUS_SKIP_PROVIDER_PROBES="true")
+            completed = subprocess.run(["bash", "-c", runner], env=env, capture_output=True,
+                                       text=True, timeout=15)
+            self.assertEqual(completed.returncode, 1, completed.stderr)
+            self.assertTrue((workspace / "injected").exists())
+            self.assertEqual((workspace / "attempts").read_text().splitlines(), ["first", "second"])
+            self.assertEqual((workspace / "lock-state").read_text(), "held")
+            self.assertEqual(list(results.glob(".*.claim")), [], "cleanup stranded a fallback claim")
+            self.assertEqual(list(results.glob(".parallel-owner.*")), [], "cleanup leaked an owner lock")
+
+    def test_transient_mktemp_failure_releases_mixed_claims(self):
+        """Retire a shell fallback after a later task acquires a Python lock."""
+        self.exercise("mktemp")
+
+    def test_transient_normalization_failure_retries_lock_setup(self):
+        """A failed canonicalization must not admit a claim with no held lock."""
+        self.exercise("normalize")
+
+
 if __name__ == "__main__":
     unittest.main()

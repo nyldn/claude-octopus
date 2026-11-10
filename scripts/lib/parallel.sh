@@ -322,7 +322,11 @@ parallel_execute() {
         owner_lock=$(mktemp "$RESULTS_DIR/.parallel-owner.XXXXXX" 2>/dev/null) || { owner_lock=""; return 1; }
         # The Python claim record uses an absolute path, including when the
         # caller selected a relative results directory.
-        owner_directory=$(cd "$(dirname "$owner_lock")" && pwd -P) || return 1
+        if ! owner_directory=$(cd "$(dirname "$owner_lock")" && pwd -P); then
+            rm -f -- "$owner_lock" 2>/dev/null || true
+            owner_lock=""
+            return 1
+        fi
         owner_lock="$owner_directory/${owner_lock##*/}"
         if ! { exec 7>"$owner_lock"; } 2>/dev/null || \
            ! "$owner_python" "$_parallel_claim_helper" hold 7 </dev/null; then
@@ -398,7 +402,7 @@ parallel_execute() {
     }
     _parallel_release_output() {
         local claim="$1" retired
-        if [[ -n "$owner_lock" ]]; then
+        if [[ -n "$owner_lock" && "$(cat "$claim/owner" 2>/dev/null)" != fallback ]]; then
             "$owner_python" "$_parallel_claim_helper" release "$claim" "$owner_lock" </dev/null
             return $?
         fi
