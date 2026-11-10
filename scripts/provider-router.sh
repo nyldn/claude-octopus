@@ -163,6 +163,18 @@ record_provider_success() (
     fi
 )
 
+# Print the seconds elapsed in a cooldown; fail when its timestamp is unusable.
+_provider_cooldown_elapsed() {
+    local cooldown_start now elapsed
+    cooldown_start=$(cat "$1" 2>/dev/null) || return 1
+    [[ "$cooldown_start" =~ ^[0-9]{1,18}$ ]] || return 1
+    now=$(date +%s)
+    elapsed=$((now - 10#$cooldown_start))
+    # Clock rollback or corrupt future state must not extend the configured wait.
+    [[ $elapsed -ge 0 ]] || elapsed=$OCTO_CB_COOLDOWN_SECS
+    printf '%s\n' "$elapsed"
+}
+
 # Check if a provider is available (not in cooldown)
 # Args: provider
 # Returns: 0 if available, 1 if in cooldown
@@ -171,25 +183,22 @@ is_provider_available() (
     local cooldown_file="${_PROVIDER_STATE_DIR}/${provider}.cooldown"
 
     [[ ! -f "$cooldown_file" ]] && return 0
-    # Expiry must not remove a new cooldown published by a concurrent failure.
-    local state_key="${_PROVIDER_STATE_DIR}/${provider}.breaker" state_locked=0
-    if _octo_event_lock "$state_key"; then
-        state_locked=1
-        trap '_octo_event_unlock "$state_key"' EXIT
-    else
-        # Contention or an unwritable lock is not an open circuit. Inspect the
-        # current deadline without deleting state owned by another writer.
-        log "DEBUG" "Provider $provider breaker lock unavailable; checking cooldown read-only" 2>/dev/null || true
+    local elapsed state_locked=0
+    elapsed=$(_provider_cooldown_elapsed "$cooldown_file") || return 0
+    # Only expiry changes shared state, so an active cooldown needs no lock.
+    if [[ $elapsed -ge $OCTO_CB_COOLDOWN_SECS ]]; then
+        # Expiry must not remove a new cooldown published by a concurrent failure.
+        local state_key="${_PROVIDER_STATE_DIR}/${provider}.breaker"
+        if _octo_event_lock "$state_key"; then
+            state_locked=1
+            trap '_octo_event_unlock "$state_key"' EXIT
+        else
+            # Contention or an unwritable lock is not an open circuit. Inspect the
+            # current deadline without deleting state owned by another writer.
+            log "DEBUG" "Provider $provider breaker lock unavailable; checking cooldown read-only" 2>/dev/null || true
+        fi
+        elapsed=$(_provider_cooldown_elapsed "$cooldown_file") || return 0
     fi
-
-    local cooldown_start
-    cooldown_start=$(cat "$cooldown_file" 2>/dev/null) || return 0
-    [[ "$cooldown_start" =~ ^[0-9]{1,18}$ ]] || return 0
-    local now
-    now=$(date +%s)
-    local elapsed=$((now - 10#$cooldown_start))
-    # Clock rollback or corrupt future state must not extend the configured wait.
-    [[ $elapsed -ge 0 ]] || elapsed=$OCTO_CB_COOLDOWN_SECS
 
     if [[ $elapsed -ge $OCTO_CB_COOLDOWN_SECS ]]; then
         # Cooldown expired → half-open state (allow probe)

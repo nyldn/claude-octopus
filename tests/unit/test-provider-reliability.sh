@@ -114,6 +114,14 @@ for lock_status in 1 75; do
     ); then test_pass; else test_fail "lock fallback bypassed an active cooldown"; fi
 done
 
+test_case "an active cooldown is reported without taking the breaker lock"
+if (
+    _octo_event_lock() { touch "$TEST_TMP_DIR/active-cooldown-lock"; return 1; }
+    date +%s > "$_PROVIDER_STATE_DIR/codex.cooldown"
+    ! is_provider_available codex &&
+        [[ ! -e "$TEST_TMP_DIR/active-cooldown-lock" ]]
+); then test_pass; else test_fail "an active cooldown contended for the breaker lock"; fi
+
 test_case "a cooldown replaced while acquiring the lock is checked again"
 if (
     eval "$(declare -f _octo_event_lock | sed '1s/_octo_event_lock/real_event_lock/')"
