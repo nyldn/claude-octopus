@@ -298,6 +298,7 @@ parallel_execute() {
     local task_sequences=()
     local output_claims=()
     local owner_lock="" owner_python="" owner_directory="" claim_stale_seats=""
+    local reserved_seat="" reservation_holder=""
     local _parallel_claim_helper="${_parallel_lib_dir}/../helpers/output-claim.py"
     # Claim records name the run whose ledgers hold each seat, so a reclaimer
     # from another run sharing these results reconciles the owner's ledgers.
@@ -448,8 +449,14 @@ parallel_execute() {
         fi
         rm -rf -- "$retired"
     }
+    _parallel_release_seat() {
+        [[ -n "$reserved_seat" ]] || return 0
+        run_contract_release_seat "$reserved_seat" "$reservation_holder" >/dev/null 2>&1 || true
+        reserved_seat=""
+    }
     _parallel_cleanup_resources() {
         local claim keep_owner_lock=false
+        _parallel_release_seat
         if [[ ${#output_claims[@]} -gt 0 ]]; then
             for claim in "${output_claims[@]}"; do
                 _parallel_reconcile_claim "$claim"
@@ -903,12 +910,20 @@ parallel_execute() {
         # A durable seat cannot re-enter planned in the same run. Reject that
         # retry before deleting its saved answer, even if its output claim and
         # status ledger are terminal. Use a new task ID for a new attempt.
+        # The reservation also turns away a concurrent dispatcher of this seat,
+        # whose different agent gives it a different output claim, until this
+        # dispatcher's planner has run.
         local contract_seat="spawn-$task_id" contract_available=true
         if declare -F octo_run_contract_ledger_path >/dev/null 2>&1; then
             if declare -F octo_spawn_contract_seat_id >/dev/null 2>&1; then
                 contract_seat="$(octo_spawn_contract_seat_id "$task_id")"
             fi
-            run_contract_seat_available "$contract_seat" || contract_available=false
+            [[ -n "$reservation_holder" ]] || reservation_holder="$(sh -c 'printf "%s\n" "$PPID"')"
+            if run_contract_reserve_seat "$contract_seat" "$reservation_holder"; then
+                reserved_seat="$contract_seat"
+            else
+                contract_available=false
+            fi
         fi
         if [[ "$contract_available" != true ]]; then
             log ERROR "Cannot reuse durable seat $contract_seat; select a new task ID"
@@ -922,6 +937,7 @@ parallel_execute() {
         if ! rm -f -- "$RESULTS_DIR/$result_slug-$task_id.md" \
             "${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents/${task_id}.done"; then
             log ERROR "Cannot remove previous output or completion marker for task $task_id"
+            _parallel_release_seat
             _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" true \
                 "failed" "stale-output-removal" ""
             type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent" failed 0 0 \
@@ -969,6 +985,8 @@ parallel_execute() {
         [[ -z "$spawn_pid_handoff" ]] || rm -f "$spawn_pid_handoff"
         spawn_output=""
         spawn_pid_handoff=""
+        # The planner has run, so the durable ledger now decides admission.
+        _parallel_release_seat
 
         if [[ "$spawn_status" -ne 0 ]]; then
             log WARN "Skipping task $task_id: failed to spawn agent '$agent'"

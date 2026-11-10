@@ -1464,6 +1464,8 @@ cancellation passes the seats on to the next owner.
 If the task already has a durable execution contract in the same run, use a new
 task ID for the next attempt. Reusing that seat reports
 `contract-seat-unavailable` and preserves its saved result and completion marker.
+A concurrent dispatch of the same task ID with another agent reports the same
+reason while the first dispatcher is still admitting the seat.
 
 ---
 

@@ -445,19 +445,41 @@ _octo_run_contract_snapshot_unlocked() {
     cat "$manifest"
 }
 
-# Check a candidate seat against committed state. This does not reserve the
-# seat; the subsequent planned transition still enforces admission atomically.
-run_contract_seat_available() (
-    local seat_id="${1:-}" ledger lock_target
-    [[ "$seat_id" =~ ^[A-Za-z0-9][A-Za-z0-9_.:-]*$ ]] || return 2
+# Reserve a seat that no committed record names for one dispatcher process
+# until its planner has run. The planned transition still enforces admission;
+# the reservation lets a concurrent dispatcher of the same seat back off before
+# it retires any artifact. A reservation whose holder has exited is stale.
+run_contract_reserve_seat() (
+    local seat_id="${1:-}" holder="${2:-}" ledger lock_target reservation current
+    [[ "$seat_id" =~ ^[A-Za-z0-9][A-Za-z0-9_.:-]*$ && "$holder" =~ ^[1-9][0-9]*$ ]] || return 2
     ledger="$(octo_run_contract_ledger_path)"
-    mkdir -p "$(dirname "$ledger")" 2>/dev/null || return 1
+    reservation="$(octo_run_contract_dir)/reservations/$seat_id"
+    mkdir -p "$(dirname "$reservation")" 2>/dev/null || return 1
     lock_target="$(octo_run_contract_lock_path)"
     _octo_run_contract_lock "$lock_target" || return 1
     trap '_octo_event_unlock "$lock_target"' EXIT
     _octo_run_contract_recover_unlocked || return 1
-    [[ -e "$ledger" ]] || return 0
-    jq -es --arg seat "$seat_id" 'all(.seat_id != $seat)' "$ledger" >/dev/null 2>&1
+    if [[ -e "$ledger" ]]; then
+        jq -es --arg seat "$seat_id" 'all(.seat_id != $seat)' "$ledger" >/dev/null 2>&1 || return 1
+    fi
+    if IFS= read -r current < "$reservation" 2>/dev/null &&
+       [[ "$current" != "$holder" && "$current" =~ ^[1-9][0-9]*$ ]] &&
+       kill -0 "$current" 2>/dev/null; then
+        return 1
+    fi
+    printf '%s\n' "$holder" > "$reservation.$holder" 2>/dev/null &&
+        mv -f -- "$reservation.$holder" "$reservation" 2>/dev/null
+)
+
+run_contract_release_seat() (
+    local seat_id="${1:-}" holder="${2:-}" lock_target reservation current
+    reservation="$(octo_run_contract_dir)/reservations/$seat_id"
+    [[ -n "$seat_id" && -f "$reservation" ]] || return 0
+    lock_target="$(octo_run_contract_lock_path)"
+    _octo_run_contract_lock "$lock_target" || return 1
+    trap '_octo_event_unlock "$lock_target"' EXIT
+    IFS= read -r current < "$reservation" 2>/dev/null || return 0
+    [[ "$current" != "$holder" ]] || rm -f -- "$reservation"
 )
 
 # Read a seat's latest record under the contract lock. An append interrupted

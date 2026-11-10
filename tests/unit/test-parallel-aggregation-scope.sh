@@ -623,6 +623,58 @@ if (
 ); then test_pass
 else test_fail "rejected durable retry deleted saved artifacts or dispatched a provider"; fi
 
+test_case "concurrent dispatchers of one durable seat retire artifacts only after winning admission"
+if (
+    trap - EXIT
+    source "$PROJECT_ROOT/scripts/lib/spawn.sh"
+    export OCTOPUS_RUN_ID=concurrent-admission
+    AVAILABLE_AGENTS='codex claude'
+    mkdir -p "$RESULTS_DIR"
+    for agent in codex claude; do
+        printf 'saved %s answer\n' "$agent" > "$RESULTS_DIR/$agent-shared.md"
+        printf '{"tasks":[{"id":"shared","agent":"%s","prompt":"inert"}]}' "$agent" > "$TEST_TMP_DIR/$agent-shared.json"
+    done
+    # Hold the first dispatcher where it retires its saved answer, so the
+    # second checks admission before either has planned the shared seat.
+    rm() {
+        if [[ "${PAUSE_RETIREMENT:-}" == 1 && " $* " == *" $RESULTS_DIR/claude-shared.md "* ]]; then
+            : > "$TEST_TMP_DIR/retirement-paused"
+            while [[ ! -e "$TEST_TMP_DIR/retirement-resume" ]]; do sleep 0.05; done
+        fi
+        command rm "$@"
+    }
+    spawn_agent_capture_pid() {
+        octo_spawn_contract_plan "$3" "$1" '' '' parallel implementer || return 74
+        : > "$TEST_TMP_DIR/admitted-$1"
+        return 74
+    }
+    (
+        trap - EXIT
+        PAUSE_RETIREMENT=1
+        parallel_execute "$TEST_TMP_DIR/claude-shared.json"
+    ) > "$TEST_TMP_DIR/first-admission.log" 2>&1 &
+    first=$!
+    for _ in $(seq 1 200); do [[ -e "$TEST_TMP_DIR/retirement-paused" ]] && break; sleep 0.05; done
+    paused=false
+    [[ -e "$TEST_TMP_DIR/retirement-paused" ]] && paused=true
+    parallel_execute "$TEST_TMP_DIR/codex-shared.json" > "$TEST_TMP_DIR/second-admission.log" 2>&1 || true
+    : > "$TEST_TMP_DIR/retirement-resume"
+    wait "$first" || true
+    admitted=0 lost=""
+    for agent in codex claude; do
+        if [[ -e "$TEST_TMP_DIR/admitted-$agent" ]]; then
+            admitted=$((admitted + 1))
+        elif [[ "$(cat "$RESULTS_DIR/$agent-shared.md" 2>/dev/null)" != "saved $agent answer" ]]; then
+            lost="$lost $agent"
+        fi
+    done
+    [[ "$paused" == true && "$admitted" == 1 && -z "$lost" ]] || {
+        echo "paused=$paused admitted=$admitted lost=${lost:-none}" >&2
+        exit 1
+    }
+); then test_pass
+else test_fail "a concurrent dispatcher deleted its saved answer before its seat was rejected"; fi
+
 test_case "parallel admission recovers an interrupted first contract append"
 if (
     source "$PROJECT_ROOT/scripts/lib/spawn.sh"
