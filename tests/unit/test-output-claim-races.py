@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Exercise both claim publication interleavings with the actual executor."""
+import contextlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -47,55 +49,86 @@ parallel_execute "$TASKS"
 class StaleClaimRetirement(unittest.TestCase):
     """Retiring an exited owner's claim must preserve future retry admission."""
 
-    def test_killed_stale_retirement_does_not_strand_public_claim(self):
-        """A crash while deleting retired metadata cannot strand a public claim."""
-        with tempfile.TemporaryDirectory(prefix="claim-retirement-") as directory:
-            root = Path(directory)
-            claim = root / ".answer.claim"
-            claim.mkdir()
-            old_owner = root / ".parallel-owner.old"
-            new_owner = root / ".parallel-owner.new"
-            old_owner.touch()
-            new_owner.touch()
-            (claim / "owner").write_text(str(old_owner) + "\n")
-            code = r'''
+    def stale_claim(self, root):
+        """Publish a claim whose owner has exited after dispatching spawn-old."""
+        claim, output = root / ".answer.claim", root / "answer.md"
+        old_owner = root / ".parallel-owner.old"
+        old_owner.touch()
+        self.assertEqual(claims.acquire(str(claim), str(old_owner), "spawn-old", str(output)),
+                         claims.ACQUIRED)
+        return claim, output
+
+    def reclaim_by_retry(self, root, claim, output):
+        """Reclaim with the real helper and return the exited seats it reports."""
+        retry_owner = root / ".parallel-owner.retry"
+        retry_owner.touch()
+        retry = subprocess.run(["python3", str(ROOT / "scripts/helpers/output-claim.py"), "acquire",
+                                str(claim), str(retry_owner), "spawn-retry", str(output)],
+                               capture_output=True, text=True, timeout=5)
+        self.assertEqual(retry.returncode, claims.RECLAIMED, retry.stderr)
+        return retry.stdout
+
+    def test_killed_reclamation_preserves_stale_seat_provenance(self):
+        """A crash at any reclamation step still lets the next owner cancel spawn-old."""
+        code = r'''
 import importlib.util, os, signal, sys
 spec = importlib.util.spec_from_file_location("claims", sys.argv[1])
 claims = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(claims)
-original = os.unlink
-def interrupt(path, *args, **kwargs):
-    original(path, *args, **kwargs)
-    if os.path.basename(path) == "owner":
+operation, timing = sys.argv[5], sys.argv[6]
+original = getattr(os, operation)
+def interrupt(*args, **kwargs):
+    if timing == "before":
         os.kill(os.getpid(), signal.SIGKILL)
-claims.os.unlink = interrupt
-claims.acquire(sys.argv[2], sys.argv[3])
+    result = original(*args, **kwargs)
+    os.kill(os.getpid(), signal.SIGKILL)
+    return result
+setattr(claims.os, operation, interrupt)
+claims.acquire(sys.argv[2], sys.argv[3], "spawn-new", sys.argv[4])
 '''
-            killed = subprocess.run(["python3", "-c", code, str(ROOT / "scripts/helpers/output-claim.py"),
-                                     str(claim), str(new_owner)], timeout=5)
-            self.assertEqual(killed.returncode, -signal.SIGKILL)
-            self.assertIn(claims.acquire(str(claim), str(new_owner)),
-                          (claims.ACQUIRED, claims.RECLAIMED))
-            self.assertEqual((claim / "owner").read_text().strip(), str(new_owner))
+        for operation in ("rename", "unlink", "rmdir"):
+            for timing in ("before", "after"):
+                with self.subTest(operation=operation, timing=timing), \
+                        tempfile.TemporaryDirectory(prefix="claim-retirement-") as directory:
+                    root = Path(directory)
+                    claim, output = self.stale_claim(root)
+                    new_owner = root / ".parallel-owner.new"
+                    new_owner.touch()
+                    subprocess.run(["python3", "-c", code, str(ROOT / "scripts/helpers/output-claim.py"),
+                                    str(claim), str(new_owner), str(output), operation, timing],
+                                   timeout=5)
+                    self.assertIn("spawn-old", self.reclaim_by_retry(root, claim, output))
 
-    def test_failed_retirement_preserves_owner_and_retry(self):
-        """A failed retirement rename leaves the old record available for retry."""
+    def test_failed_publication_preserves_owner_and_retry(self):
+        """A failed publication rename leaves the old record available for retry."""
         with tempfile.TemporaryDirectory(prefix="claim-removal-") as directory:
             root = Path(directory)
-            claim = root / ".answer.claim"
-            claim.mkdir()
-            old_owner = root / ".parallel-owner.old"
+            claim, output = self.stale_claim(root)
+            old_record = (claim / "owner").read_text()
             new_owner = root / ".parallel-owner.new"
-            old_owner.touch()
             new_owner.touch()
-            (claim / "owner").write_text(str(old_owner) + "\n")
-            with patch.object(claims.os, "rename", side_effect=OSError("injected retirement failure")) as retire:
-                self.assertEqual(claims.acquire(str(claim), str(new_owner)), claims.OWNED)
-                retire.assert_called_once()
-                self.assertEqual(Path(retire.call_args.args[0]), claim)
-                self.assertEqual((claim / "owner").read_text().strip(), str(old_owner))
-            self.assertEqual(claims.acquire(str(claim), str(new_owner)), claims.RECLAIMED)
-            self.assertEqual((claim / "owner").read_text().strip(), str(new_owner))
+            with patch.object(claims.os, "rename", side_effect=OSError("injected publication failure")) as publish:
+                self.assertEqual(claims.acquire(str(claim), str(new_owner), "spawn-new", str(output)),
+                                 claims.OWNED)
+                publish.assert_called_once()
+                self.assertEqual((claim / "owner").read_text(), old_record)
+            self.assertIn("spawn-old", self.reclaim_by_retry(root, claim, output))
+
+    def test_cleanup_error_after_publication_keeps_reclaimed_claim(self):
+        """Failing to remove reclamation scratch state does not unpublish the claim."""
+        with tempfile.TemporaryDirectory(prefix="claim-cleanup-") as directory:
+            root = Path(directory)
+            claim, output = self.stale_claim(root)
+            new_owner = root / ".parallel-owner.new"
+            new_owner.touch()
+            reported = io.StringIO()
+            with patch.object(claims.os, "rmdir", side_effect=OSError("injected cleanup failure")), \
+                    contextlib.redirect_stdout(reported):
+                self.assertEqual(claims.acquire(str(claim), str(new_owner), "spawn-new", str(output)),
+                                 claims.RECLAIMED)
+            self.assertIn("spawn-old", reported.getvalue())
+            self.assertEqual((claim / "owner").read_text().splitlines()[0], str(new_owner))
+            self.assertIn("spawn-old", self.reclaim_by_retry(root, claim, output))
 
 
 class ClaimRaces(unittest.TestCase):

@@ -10,6 +10,7 @@ descendants have exited. A claim whose owner lock can be taken is stale.
 import fcntl
 import os
 import re
+import shutil
 import sys
 import tempfile
 
@@ -119,12 +120,15 @@ def acquire(claim, owner_lock, seat="", output=""):
         fcntl.flock(guard, fcntl.LOCK_EX)
         # Publish only a complete owner record. A killed preparer can leave a
         # private directory, but cannot strand an ownerless claim at this path.
-        with tempfile.TemporaryDirectory(prefix=".output-claim.", dir=directory) as prepared:
+        prepared = tempfile.mkdtemp(prefix=".output-claim.", dir=directory)
+        published = False
+        try:
             stale = os.path.lexists(claim)
             stale_seats = []
             if stale:
                 stale_lock = recorded_owner_lock(claim)
-                if stale_lock is None or not owner_has_exited(stale_lock):
+                if (os.path.islink(claim) or stale_lock is None
+                        or not owner_has_exited(stale_lock)):
                     return OWNED
                 try:
                     if os.listdir(claim) != [OWNER_RECORD]:
@@ -134,21 +138,31 @@ def acquire(claim, owner_lock, seat="", output=""):
                 stale_seats = list(dict.fromkeys(recorded_seats(read_record(claim))))
             record_owner(prepared, owner_lock, seat, output, stale_seats)
             if stale:
+                # Replace the exited owner's record in one rename. The public
+                # claim then always holds a complete record naming every stale
+                # seat, so a crash at any point leaves them reconcilable.
                 try:
-                    # Retire the complete record atomically before deleting it.
-                    # A crash or cleanup error must never leave an ownerless
-                    # public claim that all later acquisitions treat as live.
-                    with tempfile.TemporaryDirectory(prefix=".retired-claim.",
-                                                     dir=directory) as retired:
-                        os.rename(claim, retired)
+                    os.rename(os.path.join(prepared, OWNER_RECORD),
+                              os.path.join(claim, OWNER_RECORD))
                 except OSError:
                     return OWNED
-            os.rename(prepared, claim)
+            else:
+                os.rename(prepared, claim)
+            published = True
             if stale:
                 for stale_seat in stale_seats:
                     print(stale_seat)
                 return RECLAIMED
             return ACQUIRED
+        finally:
+            try:
+                shutil.rmtree(prepared)
+            except FileNotFoundError:
+                pass
+            except OSError:
+                # The published claim no longer needs this scratch directory.
+                if not published:
+                    raise
 
 
 def release(claim, owner_lock):
