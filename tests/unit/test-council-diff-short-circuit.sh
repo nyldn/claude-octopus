@@ -57,6 +57,14 @@ def count_sides(frame, event, arg):
     if event == "call" and frame.f_code.co_name == "in_diff_side":
         with open(os.environ["OCTO_TEST_TRACE"], "a") as trace:
             trace.write("side\n")
+    if (event == "call" and frame.f_code.co_name == "match_unit"
+            and frame.f_back.f_code.co_name == "<module>"
+            and os.environ.get("OCTO_TEST_REFINEMENT_TRACE")):
+        caller = frame.f_back.f_locals
+        if (caller.get("verified") and caller.get("partial")
+                and caller["path"] not in caller["bound_paths"]):
+            with open(os.environ["OCTO_TEST_REFINEMENT_TRACE"], "a") as trace:
+                trace.write(str(len(frame.f_locals["entry"][0].encode("utf-8"))) + "\n")
 
 sys.argv[0] = "-"
 sys.setprofile(count_sides)
@@ -122,6 +130,56 @@ if jq -e '.verification_failed == false and .quotes_verified == 1
     test_pass
 else
     test_fail "complete kept code triggered redundant diff matching: $report"
+fi
+
+# A partial fence already verifies. Searching unrelated large cited files only
+# refines its report and must leave time for the remaining quotes.
+test_case "partial fences keep later unbound-file refinement bounded"
+python3 - "$TEST_TMP_DIR" <<'PY_PARTIAL_FILES'
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+evidence = root / "evidence"
+first = "const actualPrice = calculateActualPrice(input);"
+last = "return applyActualTaxes(price, sailing);"
+quotes = []
+for index in range(100):
+    (evidence / f"file{index}.ts").write_text(first + "\n" + last + "\n" + "x" * 1400000)
+    quotes.append(f"file{index}.ts:1 reads:\n```ts\n{first}\nreturn missing_{index};\n{last}\n```\n")
+(root / "partial-files.md").write_text("\n".join(quotes) + "\nVERDICT: APPROVE\n")
+PY_PARTIAL_FILES
+report="$(export OCTO_TEST_PYTHON="$real_python" OCTO_TEST_PROFILE="$TEST_TMP_DIR/profile.py"
+    export OCTO_TEST_TRACE="$TEST_TMP_DIR/sides.log" OCTO_TEST_REFINEMENT_TRACE="$TEST_TMP_DIR/refinement.log"
+    PATH="$TEST_TMP_DIR/profile-bin:$PATH"
+    council_response_quote_verification_json "$TEST_TMP_DIR/partial-files.md" "$evidence")"
+refinement_bytes="$(awk '{total += $1} END {print total+0}' "$TEST_TMP_DIR/refinement.log" 2>/dev/null || printf 0)"
+if jq -e '.verification_failed == false and .quotes_verified == 100
+    and .quotes_partial == 100 and .fabricated == false' <<< "$report" >/dev/null &&
+    (( refinement_bytes <= 100 * 65536 )); then
+    test_pass
+else
+    test_fail "unbound partial refinement scanned $refinement_bytes bytes: $report"
+fi
+
+test_case "a complete small unbound file still refines a partial fence"
+first='const actualPrice = calculateActualPrice(input);'
+last='return applyActualTaxes(price, sailing);'
+printf '%s\n' "$first" "$last" > "$evidence/src/partial.ts"
+printf '%s\n' "$first" 'return actual;' "$last" 'const marker = loadMarker(input);' > "$evidence/src/complete.ts"
+printf 'src/partial.ts:1 reads:\n```ts\n%s\nreturn actual;\n%s\n```\n\nsrc/complete.ts:4 reads `const marker = loadMarker(input);`.\n' \
+    "$first" "$last" > "$TEST_TMP_DIR/partial-small.md"
+rm -f "$TEST_TMP_DIR/refinement.log"
+report="$(export OCTO_TEST_PYTHON="$real_python" OCTO_TEST_PROFILE="$TEST_TMP_DIR/profile.py"
+    export OCTO_TEST_TRACE="$TEST_TMP_DIR/sides.log" OCTO_TEST_REFINEMENT_TRACE="$TEST_TMP_DIR/refinement.log"
+    PATH="$TEST_TMP_DIR/profile-bin:$PATH"
+    council_response_quote_verification_json "$TEST_TMP_DIR/partial-small.md" "$evidence")"
+if jq -e '.verification_failed == false and .quotes_verified == 2
+    and .quotes_partial == 0 and .fabricated == false' <<< "$report" >/dev/null &&
+    [[ -s "$TEST_TMP_DIR/refinement.log" ]]; then
+    test_pass
+else
+    test_fail "bounded refinement lost a small complete source match: $report"
 fi
 
 test_summary

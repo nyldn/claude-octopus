@@ -4029,6 +4029,7 @@ for start, end, kind, block, removed_block, info in units:
     readable = True
     verified = near = partial = False
     near_budget = 65536
+    partial_budget = 65536
     for path in bound_paths + [p for p in all_cited if p not in bound_paths]:
         # Once complete, only later bound files can improve near-line reporting.
         if verified and not partial and path not in bound_paths:
@@ -4038,6 +4039,14 @@ for start, end, kind, block, removed_block, info in units:
             if path in bound_paths:
                 readable = False
             continue
+        if verified and partial and path not in bound_paths:
+            # Unbound files only refine an already verified fence's report.
+            # Keep the partial result if a complete entry exceeds this budget;
+            # slicing it could mistake a truncated source for complete evidence.
+            entry_bytes = len(entry[0].encode("utf-8"))
+            if entry_bytes > partial_budget:
+                break
+            partial_budget -= entry_bytes
         cited_lines = [line for p, line in bound if p == path]
         if verified and not partial:
             # Near-line counts are supplemental: cap refinement after complete

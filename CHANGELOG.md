@@ -38,6 +38,9 @@
   already matches completely, preserving time for required evidence checks.
   Later sentences require an explicit source subject before attributing a quote,
   preserving reviewer-owned calculations and reproduction code.
+  Partial-fence refinement in unrelated cited files has its own 64 KiB
+  per-quote budget. If the next complete file exceeds that budget, reporting
+  retains the verified partial result without searching further unbound files.
 
 
 ### Maintenance
