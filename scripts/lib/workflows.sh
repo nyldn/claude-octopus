@@ -149,7 +149,12 @@ probe_single_agent() {
 
     local seat_timeout="${TIMEOUT:-0}"
     if declare -F octopus_effective_agent_timeout >/dev/null 2>&1; then
-        seat_timeout="$(octopus_effective_agent_timeout "$seat_timeout" "$phase" "$role")" || return 2
+        if ! seat_timeout="$(octopus_effective_agent_timeout "$seat_timeout" "$phase" "$role")"; then
+            if declare -F research_probe_single_record >/dev/null 2>&1; then
+                research_probe_single_record "$task_id" "$agent_type" failed || true
+            fi
+            return 2
+        fi
     fi
 
     # v8.53.0: Pre-compute curated_name for readonly frontmatter check
@@ -194,10 +199,13 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     local tokens_in _budget_original_chars _budget_final_chars _budget_compression
     _budget_original_chars=${#enhanced_prompt}
     tokens_in=$(( _budget_original_chars / 4 ))
-    enhanced_prompt=$(enforce_context_budget "$enhanced_prompt" "$role" "$agent_type" "$phase")
-    local _budget_rc=$?
+    local _budget_rc=0
+    enhanced_prompt=$(enforce_context_budget "$enhanced_prompt" "$role" "$agent_type" "$phase") || _budget_rc=$?
     if [[ $_budget_rc -ne 0 ]]; then
         type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" 0 "Prompt exceeded context budget" 0 "" "$role" || true
+        if declare -F research_probe_single_record >/dev/null 2>&1; then
+            research_probe_single_record "$task_id" "$agent_type" failed || true
+        fi
         return "$_budget_rc"
     fi
     _budget_final_chars=${#enhanced_prompt}
@@ -251,6 +259,9 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
 
     if ! validate_agent_command "$cmd"; then
         log ERROR "Invalid agent command: $cmd"
+        if declare -F research_probe_single_record >/dev/null 2>&1; then
+            research_probe_single_record "$task_id" "$agent_type" failed || true
+        fi
         return 1
     fi
 
@@ -292,9 +303,17 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         type write_agent_status >/dev/null 2>&1 && write_agent_status \
             "$agent_type" "failed" "$tokens_in" 0 "Provider environment construction failed" \
             0 "$result_file" "$role" || true
+        if declare -F research_probe_single_record >/dev/null 2>&1; then
+            research_probe_single_record "$task_id" "$agent_type" failed || true
+        fi
         return 1
     fi
-    octo_dispatch_command_to_argv "$cmd" || return 1
+    if ! octo_dispatch_command_to_argv "$cmd"; then
+        if declare -F research_probe_single_record >/dev/null 2>&1; then
+            research_probe_single_record "$task_id" "$agent_type" failed || true
+        fi
+        return 1
+    fi
     inner_cmd_array=("${OCTO_COMMAND_ARGV[@]}")
     if [[ ${#PROVIDER_ENV_ARRAY[@]} -gt 0 ]]; then
         cmd_array=("${PROVIDER_ENV_ARRAY[@]}" "${inner_cmd_array[@]}")
@@ -319,6 +338,9 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         type write_agent_status >/dev/null 2>&1 && write_agent_status \
             "$agent_type" "failed" "$tokens_in" 0 "Failed to persist dispatched prompt" \
             0 "$result_file" "$role" || true
+        if declare -F research_probe_single_record >/dev/null 2>&1; then
+            research_probe_single_record "$task_id" "$agent_type" failed || true
+        fi
         return 74
     fi
     echo "# Started: $(date)" >> "$result_file"
@@ -331,6 +353,9 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         type write_agent_status >/dev/null 2>&1 && write_agent_status \
             "$agent_type" "failed" "$tokens_in" 0 "Unable to generate result nonce" \
             0 "$result_file" "$role" || true
+        if declare -F research_probe_single_record >/dev/null 2>&1; then
+            research_probe_single_record "$task_id" "$agent_type" failed || true
+        fi
         return 74
     fi
     echo "<!-- BEGIN-UNTRUSTED:provider=${agent_type}:nonce=${_probe_nonce} -->" >> "$result_file"

@@ -37,6 +37,9 @@
   Failed live checks retain `opencode auth login` guidance. Health diagnostics
   use the application logger or stderr, including on macOS, and a failed health
   handler lookup closes the direct probe's durable research-seat event.
+  Rejected timeout settings, context budgets, command validation, environment
+  setup and result preparation also close the seat, including under shell
+  error-exit mode, so rejected work does not remain marked as running.
   Addresses [#1172](https://github.com/nyldn/claude-octopus/issues/1172).
 
 ### Maintenance

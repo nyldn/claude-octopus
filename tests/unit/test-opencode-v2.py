@@ -315,7 +315,7 @@ probe_single_agent "$PREVIEW_PROVIDER" perspective preview-task
         self.assertEqual(self.readiness('live')['status'], 'degraded')
 
     def test_failed_direct_probe_completes_its_durable_seat(self):
-        """Health lookup, missing handlers and rejected dispatch all close the seat."""
+        """Every pre-dispatch rejection closes the durable seat without launching."""
         self.env.update(CLI_VERSION='2.0.23', AUTH_JSON='[]')
         script = r'''
 source scripts/lib/workflows.sh
@@ -329,23 +329,43 @@ apply_persona() { printf '%s' "$2"; }
 enforce_context_budget() { printf '%s' "$1"; }
 octo_routing_policy() { echo off; }
 get_agent_model() { echo vendor/model; }
-get_agent_command() { return 1; }
+get_agent_command() { echo /bin/true; }
+validate_agent_command() { :; }
+record_agent_call() { :; }
+update_metrics() { :; }
+bridge_register_task() { :; }
+update_agent_status() { :; }
+build_provider_env() { PROVIDER_ENV_ARRAY=(); }
+octo_dispatch_command_to_argv() { OCTO_COMMAND_ARGV=(/bin/true); }
+write_agent_result_prompt() { :; }
+octopus_capture_provider_output() { touch "$HOME/launched"; return 1; }
 RESULTS_DIR="$HOME/results" LOGS_DIR="$HOME/logs"
 SUPPORTS_AGENT_TYPE_ROUTING=false OCTOPUS_PERSONA_PACKS=off
 probe_single_agent opencode perspective probe-123-0 'Check compatibility'
 '''
-        for failure, task in (("health", 123), ("command", 124), ("lookup", 125), ("missing", 126)):
+        failures = (
+            ("health", "", 1),
+            ("command", "get_agent_command() { return 1; }", 1),
+            ("lookup", "octo_provider_health_handler() { return 77; }", 1),
+            ("missing", "octo_provider_health_handler() { echo none; }", 1),
+            ("budget", "enforce_context_budget() { return 7; }", 7),
+            ("validation", "validate_agent_command() { return 1; }", 1),
+            ("environment", "build_provider_env() { return 1; }", 1),
+            ("argv", "octo_dispatch_command_to_argv() { return 1; }", 1),
+            ("timeout", "octopus_effective_agent_timeout() { return 2; }", 2),
+            ("prompt", "write_agent_result_prompt() { return 1; }", 74),
+            ("nonce", "od() { return 1; }", 74),
+        )
+        for task, (failure, override, expected_rc) in enumerate(failures, 123):
             with self.subTest(failure=failure):
                 self.env['AUTH_JSON'] = ('[{"id":"openai","connections":[{"type":"credential"}]}]'
                                          if failure != "health" else '[]')
                 attempt = script.replace('probe-123-0', f'probe-{task}-0')
-                if failure in ("lookup", "missing"):
-                    handler = 'return 77' if failure == "lookup" else 'echo none'
-                    attempt = attempt.replace('probe_single_agent opencode perspective',
-                                              'octo_provider_health_handler() { ' + handler + '; };\n'
-                                              'probe_single_agent opencode perspective')
+                attempt = attempt.replace('probe_single_agent opencode perspective',
+                                          override + '\nset -e\nprobe_single_agent opencode perspective')
                 result = self.shell(attempt)
-                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.returncode, expected_rc, result.stderr)
+                self.assertFalse((Path(self.env['HOME']) / 'launched').exists())
                 events = self.base / f'home/results/research-runs/flow-{task}/events.jsonl'
                 records = [json.loads(line) for line in events.read_text().splitlines()]
                 self.assertEqual([r['event'] for r in records if r['event'].startswith('provider.')],
@@ -441,6 +461,20 @@ console.log(JSON.stringify(providerEnvironment(loadProviderEnvAllowlist(process.
         self.assertEqual(self.readiness("static")["reason_code"], "auth-missing")
         self.assertFalse(self.marker.exists())
         self.assertEqual(self.readiness("live")["status"], "available")
+        self.cli.write_text(self.cli.read_text().replace(
+            'if [ "$1" = run ]; then\n',
+            'if [ "$1" = run ]; then\n    [ "${MISTRAL_API_KEY:-}" = fixture ] || exit 68\n'))
+        child = self.shell('''source scripts/lib/provider-routing.sh
+source scripts/lib/dispatch.sh
+source scripts/lib/utils.sh
+get_agent_model() { echo vendor/model; }
+cmd=$(get_agent_command opencode) || exit
+octo_dispatch_command_to_argv "$cmd" || exit
+build_provider_env opencode || exit
+"${PROVIDER_ENV_ARRAY[@]}" "${OCTO_COMMAND_ARGV[@]}"
+''')
+        self.assertEqual(child.returncode, 0, child.stderr)
+        self.assertEqual(child.stdout.strip(), "run --standalone -m vendor/model")
         isolated = self.shell('''source scripts/lib/provider-routing.sh; build_provider_env codex
 "${PROVIDER_ENV_ARRAY[@]}" bash -c '[[ -z "${MISTRAL_API_KEY+x}" ]]'
 ''')
