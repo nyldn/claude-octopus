@@ -151,8 +151,8 @@ Report:
 ```
 Created safety checkpoint: octo-checkpoint-pre-rollback-$TIMESTAMP
 
-You can return to current state with:
-  /octo:rollback octo-checkpoint-pre-rollback-$TIMESTAMP
+To return to this state, follow "Recover from the safety checkpoint" below.
+First commit or stash the rollback and any subsequent edits.
 ```
 
 ### Step 5: Preserve LESSONS.md
@@ -214,11 +214,31 @@ Rollback Complete
    ```bash
    git add -A && git commit -m "chore: rollback to $CHECKPOINT_TAG"
    ```
-3. Or return to previous state:
-   ```bash
-   /octo:rollback octo-checkpoint-pre-rollback-$TIMESTAMP
-   ```
+3. To return to the previous state, follow the recovery instructions below.
 ```
+
+### Recover from the safety checkpoint
+
+The rollback leaves staged changes, and Step 7 can also leave an unstaged
+STATE.md update. A second `/octo:rollback` refuses this non-clean tree. First
+commit or stash the restored state and any subsequent edits, including
+untracked files. Choose how to preserve that work with the user before recovery.
+Keep the saved commit or stash until recovery has been reviewed.
+
+Use the exact safety tag reported in Step 4. If starting a new shell, set
+`TIMESTAMP` to that tag's timestamp before running this recipe. The preflight
+still refuses dirty work, hidden index entries and ignored-file collisions.
+
+```bash
+cd -- "$(git rev-parse --show-toplevel)" || exit 1
+SAFETY_TAG="octo-checkpoint-pre-rollback-$TIMESTAMP"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+python3 "$OCTO_ROOT/scripts/helpers/rollback-preflight.py" "$SAFETY_TAG" || exit 1
+git restore --source="$SAFETY_TAG" --staged --worktree -- . ':(exclude).octo/LESSONS.md' || exit 1
+```
+
+Review the restored files before committing. Recovery preserves the current
+lessons file and its index entry, and leaves HEAD, branches and tags in place.
 
 ---
 

@@ -412,4 +412,86 @@ print('24 hidden-edit/ancestor-conflict refusals passed across all three skill t
 PY_HIDDEN
 then test_pass; else test_fail "rollback can erase hidden edits or protected lessons"; fi
 
+test_case "documented safety recovery preserves rollback work and current lessons"
+if python3 - "$PROJECT_ROOT" <<'PY_RECOVERY'
+import os
+import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+root = Path(sys.argv[1])
+env = dict(os.environ, GIT_AUTHOR_NAME='Test', GIT_AUTHOR_EMAIL='test@example.invalid',
+           GIT_COMMITTER_NAME='Test', GIT_COMMITTER_EMAIL='test@example.invalid',
+           CLAUDE_PLUGIN_ROOT=str(root), TIMESTAMP='20261110-111700')
+for tree in ('.claude/skills', 'skills', 'codex-skills'):
+    text = (root / tree / 'skill-rollback/SKILL.md').read_text()
+    restore_section = text.split('### Step 6:', 1)[1].split('### Step 7:', 1)[0]
+    restore = re.search(r'```bash\n(.*?)\n```', restore_section, re.S)[1]
+    recovery_section = text.split('### Recover from the safety checkpoint', 1)[1]
+    recovery = re.search(r'```bash\n(.*?)\n```', recovery_section, re.S)[1]
+    for preservation in ('commit', 'stash'):
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            def git(*args):
+                return subprocess.check_output(['git', *args], cwd=repo, env=env)
+            git('init', '-q')
+            (repo / '.octo').mkdir()
+            (repo / '.octo/LESSONS.md').write_text('old lessons\n')
+            (repo / '.octo/STATE.md').write_text('old state\n')
+            (repo / 'work.txt').write_text('checkpoint\n')
+            (repo / 'old-only.txt').write_text('checkpoint-only file\n')
+            git('add', '.')
+            git('commit', '-qm', 'checkpoint')
+            git('tag', 'target')
+            git('rm', '-q', 'old-only.txt')
+            (repo / 'work.txt').write_text('current implementation\n')
+            (repo / 'new-only.txt').write_text('current-only file\n')
+            (repo / '.octo/LESSONS.md').write_text('keep current lessons\n')
+            git('add', '.')
+            git('commit', '-qm', 'current')
+            safety = 'octo-checkpoint-pre-rollback-' + env['TIMESTAMP']
+            git('tag', safety)
+            before = git('rev-parse', 'HEAD')
+            result = subprocess.run(['bash', '-eu', '-c', restore], cwd=repo,
+                env=dict(env, CHECKPOINT_TAG='target'), capture_output=True)
+            assert result.returncode == 0, result.stderr
+            (repo / '.octo/STATE.md').write_text('rollback history update\n')
+            (repo / 'local.txt').write_text('keep subsequent local work\n')
+            dirty_index = git('diff', '--cached', '--binary')
+            result = subprocess.run(['bash', '-eu', '-c', recovery], cwd=repo / '.octo',
+                                    env=env, capture_output=True)
+            assert result.returncode != 0, 'dirty recovery must refuse before preservation'
+            assert git('diff', '--cached', '--binary') == dirty_index
+            assert (repo / 'local.txt').read_text() == 'keep subsequent local work\n'
+            if preservation == 'commit':
+                git('add', '.')
+                git('commit', '-qm', 'preserved rollback')
+                saved = git('rev-parse', 'HEAD').decode().strip()
+            else:
+                git('stash', 'push', '--include-untracked', '-qm', 'preserved rollback')
+                saved = git('rev-parse', 'stash@{0}').decode().strip()
+                assert git('rev-parse', 'HEAD') == before
+                assert git('show', saved + '^3:local.txt') == b'keep subsequent local work\n'
+            assert git('show', saved + ':work.txt') == b'checkpoint\n'
+            assert git('show', saved + ':.octo/STATE.md') == b'rollback history update\n'
+            head = git('rev-parse', 'HEAD')
+            lessons_index = git('show', ':.octo/LESSONS.md')
+            result = subprocess.run(['bash', '-eu', '-c', recovery], cwd=repo / '.octo',
+                                    env=env, capture_output=True)
+            assert result.returncode == 0, (tree, preservation, result.stderr)
+            assert git('rev-parse', 'HEAD') == head
+            assert git('rev-parse', safety) == before
+            assert (repo / 'work.txt').read_text() == 'current implementation\n'
+            assert (repo / 'new-only.txt').read_text() == 'current-only file\n'
+            assert not (repo / 'old-only.txt').exists()
+            assert (repo / '.octo/LESSONS.md').read_text() == 'keep current lessons\n'
+            assert git('show', ':.octo/LESSONS.md') == lessons_index
+            assert git('diff', '--cached', safety, '--', '.', ':(exclude).octo/LESSONS.md') == b''
+            assert git('cat-file', '-t', saved).strip() == b'commit'
+print('6 dirty-refusal and commit/stash recovery scenarios passed across all three trees')
+PY_RECOVERY
+then test_pass; else test_fail "documented recovery cannot safely restore the safety checkpoint"; fi
+
 test_summary

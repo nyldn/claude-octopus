@@ -6,6 +6,8 @@
 
 - Rollback starts from the repository root, so invoking it from a subdirectory
   restores the complete tracked snapshot and preserves current lessons.
+  Safety-checkpoint recovery explains how to preserve the staged rollback
+  before restoring, and rechecks local work while retaining current lessons.
 
 - Checkpoint rollback removes tracked files added after the checkpoint and
   restores deleted files while retaining current lessons and commit history.
