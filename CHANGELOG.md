@@ -88,7 +88,7 @@
   failure-log trimming uses private temporary files without following stale links.
   Quota stops also clean up owned provider and timer processes, so a stopped
   call does not wait for a leftover timeout before returning. Refused handoffs
-  are retried up to five times, with a visible error if cleanup cannot finish.
+  allow at most five attempts, with a visible error if cleanup cannot finish.
 - Direct spawns respect terminal quota and auth markers even when no transient
   cooldown is active. Provider reset hints remain inside untrusted result frames.
 - Quota and termination status summaries use launcher-authored reasons so provider diagnostics

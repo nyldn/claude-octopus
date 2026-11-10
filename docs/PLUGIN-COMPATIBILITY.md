@@ -40,7 +40,7 @@ helpers whose original leader has already exited. The native handoff waits at
 most five seconds and never escalates to KILL, which could interrupt a pending
 cleanup handler. It resumes only a worker it stopped. A missing child, failed
 identity check, permission error or surviving supervisor reports refusal; the
-quota watcher retries up to five times and then reports that work may remain.
+quota watcher makes at most five attempts and then reports that work may remain.
 This path does not require a complete global process snapshot.
 
 Worker registration checks native cancellation support before provider dispatch.

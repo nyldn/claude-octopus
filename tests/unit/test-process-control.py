@@ -98,11 +98,14 @@ class ProcessControlTests(unittest.TestCase):
                     try:
                         result = subprocess.run(
                             ["bash", "-c", 'source "$1/scripts/lib/spawn.sh"; '
-                             'log() { :; }; quota_watcher_kill_spawn_children "$2" "$3"',
+                             'log() { printf "%s\\n" "$2"; }; quota_watcher_kill_spawn_children "$2" "$3"',
                              "_", str(HELPER.parents[2]), str(root.pid), expected],
                             capture_output=True, text=True, timeout=10,
                         )
                         self.assertNotEqual(result.returncode, 0, result.stderr)
+                        refusal = ("worker identity no longer matches registration" if expected
+                                   else "worker registration identity is missing")
+                        self.assertIn(refusal, result.stderr if expected else result.stdout)
                         self.assertTrue(child.running(), "unregistered child's process was signalled")
                         self.assertFalse(control.snapshot(root.pid).stopped)
                     finally:
