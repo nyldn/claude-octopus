@@ -309,6 +309,11 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         return 1
     fi
     if ! octo_dispatch_command_to_argv "$cmd"; then
+        log ERROR "Provider command argument conversion failed for $agent_type"
+        update_agent_status "$agent_type" "failed" 0 "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
+        type write_agent_status >/dev/null 2>&1 && write_agent_status \
+            "$agent_type" "failed" "$tokens_in" 0 "Provider command argument conversion failed" \
+            0 "$result_file" "$role" || true
         if declare -F research_probe_single_record >/dev/null 2>&1; then
             research_probe_single_record "$task_id" "$agent_type" failed || true
         fi

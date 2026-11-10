@@ -321,6 +321,7 @@ probe_single_agent "$PREVIEW_PROVIDER" perspective preview-task
 source scripts/lib/workflows.sh
 source scripts/lib/providers.sh
 source scripts/lib/research-evidence.sh
+source scripts/lib/error-tracking.sh
 log() { :; }
 preflight_check() { :; }
 classify_task() { echo research; }
@@ -334,7 +335,7 @@ validate_agent_command() { :; }
 record_agent_call() { :; }
 update_metrics() { :; }
 bridge_register_task() { :; }
-update_agent_status() { :; }
+update_agent_status() { printf '%s\n' "$2" >> "$HOME/status-updates"; }
 build_provider_env() { PROVIDER_ENV_ARRAY=(); }
 octo_dispatch_command_to_argv() { OCTO_COMMAND_ARGV=(/bin/true); }
 write_agent_result_prompt() { :; }
@@ -358,6 +359,9 @@ probe_single_agent opencode perspective probe-123-0 'Check compatibility'
         )
         for task, (failure, override, expected_rc) in enumerate(failures, 123):
             with self.subTest(failure=failure):
+                status_updates = Path(self.env['HOME']) / 'status-updates'
+                status_updates.unlink(missing_ok=True)
+                self.env.update(WORKSPACE_DIR=self.env['HOME'], OCTOPUS_RUN_ID=f'failure-{task}')
                 self.env['AUTH_JSON'] = ('[{"id":"openai","connections":[{"type":"credential"}]}]'
                                          if failure != "health" else '[]')
                 attempt = script.replace('probe-123-0', f'probe-{task}-0')
@@ -366,11 +370,19 @@ probe_single_agent opencode perspective probe-123-0 'Check compatibility'
                 result = self.shell(attempt)
                 self.assertEqual(result.returncode, expected_rc, result.stderr)
                 self.assertFalse((Path(self.env['HOME']) / 'launched').exists())
-                events = self.base / f'home/results/research-runs/flow-{task}/events.jsonl'
+                events = self.base / f'home/research-runs/flow-{task}/events.jsonl'
                 records = [json.loads(line) for line in events.read_text().splitlines()]
                 self.assertEqual([r['event'] for r in records if r['event'].startswith('provider.')],
                                  ['provider.started', 'provider.completed'])
                 self.assertIn('status=failed', records[-1]['detail'])
+                if failure == 'argv':
+                    self.assertEqual(status_updates.read_text().splitlines(), ['running', 'failed'])
+                    snapshot = Path(self.env['HOME']) / f'runs/failure-{task}/agents.json'
+                    agents = json.loads(snapshot.read_text())['agents']
+                    self.assertEqual(len(agents), 1)
+                    self.assertEqual(agents[0]['status'], 'failed')
+                    self.assertEqual(agents[0]['reason'], 'Provider command argument conversion failed')
+                    self.assertTrue(agents[0]['output_file'].endswith(f'opencode-probe-{task}-0.md'))
 
     def test_legacy_environment_only_login_is_accepted(self):
         self.env.update(AUTH_LIST="└  0 credentials\n┌ Environment\n└  1 environment variable", OPENROUTER_API_KEY="fixture")
@@ -394,13 +406,23 @@ probe_single_agent opencode perspective probe-123-0 'Check compatibility'
             "env OPENCODE_PURE=1 opencode run -m vendor/model;touch /tmp/probe",
             "env OPENCODE_PURE=1 opencode run -m $(id)",
             "env OPENCODE_PURE=1 opencode run -m --help",
+            "env OPENCODE_PURE=1 opencode run --standalone --standalone",
+            "env OPENCODE_PURE=1 opencode run --standalone extra",
+            "env OPENCODE_PURE=1 opencode run -m vendor/model --standalone",
+            "env OPENCODE_PURE=1 opencode run --standalone -m --help",
+            "env OPENCODE_PURE=1 opencode run --standalone -m /tmp/model",
         ):
             with self.subTest(command=command):
                 self.env["CANDIDATE_COMMAND"] = command
                 result = self.shell('source scripts/lib/utils.sh; validate_agent_command "$CANDIDATE_COMMAND"')
                 self.assertNotEqual(result.returncode, 0)
-        result = self.shell('source scripts/lib/utils.sh; validate_agent_command "env OPENCODE_PURE=1 opencode run"')
-        self.assertEqual(result.returncode, 0, result.stderr)
+        for command in ("env OPENCODE_PURE=1 opencode run",
+                        "env OPENCODE_PURE=1 opencode run --standalone",
+                        "env OPENCODE_PURE=1 opencode run --standalone -m vendor/model"):
+            with self.subTest(command=command):
+                self.env["CANDIDATE_COMMAND"] = command
+                result = self.shell('source scripts/lib/utils.sh; validate_agent_command "$CANDIDATE_COMMAND"')
+                self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_v2_long_account_labels_remain_valid(self):
         (self.data / "opencode.db").touch()
