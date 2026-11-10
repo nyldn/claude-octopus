@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- MCP OpenCode calls preserve custom SQLite login paths selected with
+  `OPENCODE_DB` and `XDG_DATA_HOME`, so saved logins remain discoverable.
+
 - OpenCode 2.x dispatch no longer passes the removed `--pure` flag. OpenCode
   1.x keeps its external-plugin hang protection through `OPENCODE_PURE=1`.
   Discovery recognizes SQLite login storage without launching OpenCode. An

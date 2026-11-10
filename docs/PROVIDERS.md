@@ -487,6 +487,10 @@ acceptance on the target host.
 Static discovery recognizes `auth.json`, `opencode.db` and channel-specific
 `opencode-*.db` files under `${XDG_DATA_HOME:-~/.local/share}/opencode`, plus
 `OPENCODE_DB` overrides. A relative override resolves under that data directory.
+The MCP adapter preserves `OPENCODE_DB` and `XDG_DATA_HOME` so its OpenCode
+child discovers the same login store. Isolated Codex children do not receive
+these OpenCode storage settings.
+
 Store presence is configuration evidence only. A SQLite-only installation
 needs explicit live confirmation. Workflow admission performs that bounded
 confirmation when SQLite storage is the only login evidence or static discovery
