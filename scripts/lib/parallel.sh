@@ -556,9 +556,9 @@ parallel_execute() {
         [[ -s "$ledger" ]] || return 0
         while IFS=$'\t' read -r seat output; do
             _parallel_cancel_seat_output "$seat" "$output" "Parallel execution interrupted"
-        done < <(jq -rs --rawfile tasks /dev/stdin \
+        done < <(jq -rs --slurpfile tasks /dev/stdin \
             "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
-            ($tasks | fromjson) as $tasks |
+            (if ($tasks | length) == 1 then $tasks[0] else error("invalid task scope") end) as $tasks |
             latest_per_seat | .[] | select(.status == "running") |
             select(. as $row | any($tasks[];
                 $row.seat_id == ("spawn-" + .id) and

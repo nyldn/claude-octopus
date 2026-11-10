@@ -542,8 +542,8 @@ agent_status_output_files() {
     [[ -s "$jsonl" ]] || return 0
     command -v jq >/dev/null 2>&1 || return 0
 
-    jq -rs --arg filter "$filter" --rawfile task_scope /dev/stdin "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
-        ($task_scope | fromjson) as $task_scope |
+    jq -rs --arg filter "$filter" --slurpfile task_scope /dev/stdin "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
+        (if ($task_scope | length) == 1 then $task_scope[0] else error("invalid task scope") end) as $task_scope |
         latest_per_seat
         | .[]
         | select(in_scope($filter; $task_scope))
@@ -594,8 +594,8 @@ render_agent_summary() {
     local rows ok degraded failed timeout cancelled total selected_rows
     # Process substitutions hide jq's exit status from the loop. Parse first
     # so a damaged ledger cannot turn a required failed seat into an empty table.
-    if ! selected_rows=$(jq -rs --arg filter "$filter" --rawfile task_scope /dev/stdin "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
-        ($task_scope | fromjson) as $task_scope |
+    if ! selected_rows=$(jq -rs --arg filter "$filter" --slurpfile task_scope /dev/stdin "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
+        (if ($task_scope | length) == 1 then $task_scope[0] else error("invalid task scope") end) as $task_scope |
         latest_per_seat
         | .[]
         | select(in_scope($filter; $task_scope))

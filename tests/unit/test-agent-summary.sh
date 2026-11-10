@@ -380,4 +380,35 @@ for damaged_ledger in truncated trailing; do
     fi
 done
 
+# Exercise the CLI option contract of the installer's minimum jq version.
+# The installed jq evaluates filters; this shim rejects the post-1.5 option.
+test_case "scoped ledger readers work without jq's newer rawfile option"
+if (
+    jq() {
+        local arg
+        for arg in "$@"; do
+            [[ "$arg" != --rawfile ]] || return 2
+        done
+        command jq "$@"
+    }
+    export OCTOPUS_RUN_ID=jq-minimum-options
+    output="$WORKSPACE_DIR/results/minimum-jq.md"
+    printf 'complete answer\n' > "$output"
+    write_agent_status codex ok 1 1 '' 0 "$output" researcher spawn-minimum
+    scope="$(command jq -nc --arg file "$output" '[{id:"minimum",output_file:$file}]')"
+    [[ "$(agent_status_output_files '' "$scope")" == "$output" ]] &&
+    [[ "$(render_agent_summary '' "$scope")" == *codex* ]]
+); then test_pass
+else test_fail "supported jq option set lost the scoped seat or its output"; fi
+
+for invalid_scope in '[' 'null []'; do
+    test_case "ledger readers reject an invalid or multi-value task scope: $invalid_scope"
+    export OCTOPUS_RUN_ID=jq-minimum-options
+    selector_rc=0 summary_rc=0
+    agent_status_output_files '' "$invalid_scope" >/dev/null 2>&1 || selector_rc=$?
+    OCTOPUS_REQUIRE_ALL=true render_agent_summary '' "$invalid_scope" >/dev/null 2>&1 || summary_rc=$?
+    if [[ "$selector_rc" -gt 1 && "$summary_rc" == 78 ]]; then test_pass
+    else test_fail "invalid scope accepted: selector=$selector_rc summary=$summary_rc"; fi
+done
+
 test_summary

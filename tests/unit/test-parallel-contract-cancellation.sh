@@ -12,6 +12,14 @@ export WORKSPACE_DIR="$TEST_TMP_DIR/workspace"
 RESULTS_DIR="$WORKSPACE_DIR/results"
 mkdir -p "$RESULTS_DIR"
 AVAILABLE_AGENTS=codex MAX_PARALLEL=1 SUPPORTS_DISABLE_CRON_ENV=false DRY_RUN=false
+# jq 1.5 supports slurpfile, but rejects rawfile. Retain real filter execution.
+jq() {
+    local arg
+    for arg in "$@"; do
+        [[ "$arg" != --rawfile ]] || return 2
+    done
+    command jq "$@"
+}
 log() { :; }
 aggregate_results() { :; }
 render_agent_summary() { :; }
