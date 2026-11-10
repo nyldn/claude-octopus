@@ -202,6 +202,29 @@ else
     test_fail "concurrent writers lost history or skipped the cooldown"
 fi
 
+test_case "success without breaker state does not contend for the lock"
+if (
+    _PROVIDER_STATE_DIR="$TEST_TMP_DIR/success-fast-path-state"
+    _octo_event_lock() { touch "$TEST_TMP_DIR/success-fast-path-locked"; return 75; }
+    record_provider_success codex &&
+        [[ ! -e "$TEST_TMP_DIR/success-fast-path-locked" ]]
+); then test_pass; else test_fail "a success with nothing to clear waited for the breaker lock"; fi
+
+for state in failures cooldown; do
+    test_case "success with a $state file clears it only under the breaker lock"
+    if (
+        _PROVIDER_STATE_DIR="$TEST_TMP_DIR/success-$state-state"
+        mkdir -p "$_PROVIDER_STATE_DIR"
+        printf '1\n' > "$_PROVIDER_STATE_DIR/codex.$state"
+        (
+            _octo_event_lock() { return 75; }
+            ! record_provider_success codex
+        ) && [[ -e "$_PROVIDER_STATE_DIR/codex.$state" ]] &&
+            record_provider_success codex &&
+            [[ ! -e "$_PROVIDER_STATE_DIR/codex.$state" && ! -d "$_PROVIDER_STATE_DIR/codex.breaker.lock" ]]
+    ); then test_pass; else test_fail "success cleared $state state without holding the breaker lock"; fi
+done
+
 if [[ -f "$ROUTER" ]]; then
     pass "provider-router.sh exists"
 else

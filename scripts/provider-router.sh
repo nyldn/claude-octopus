@@ -144,6 +144,10 @@ record_provider_failure() (
 # Args: provider
 record_provider_success() (
     local provider="$1"
+    # Nothing to clear: a failure recorded after this check is ordered after
+    # this success, so parallel seats need not contend for the lock.
+    [[ -e "${_PROVIDER_STATE_DIR}/${provider}.failures" ||
+       -e "${_PROVIDER_STATE_DIR}/${provider}.cooldown" ]] || return 0
     mkdir -p "$_PROVIDER_STATE_DIR" || return 1
     local state_key="${_PROVIDER_STATE_DIR}/${provider}.breaker"
     _octo_event_lock "$state_key" || return $?
