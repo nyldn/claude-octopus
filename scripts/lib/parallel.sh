@@ -299,6 +299,13 @@ parallel_execute() {
     local output_claims=()
     local owner_lock="" owner_python="" owner_directory="" claim_stale_seats=""
     local _parallel_claim_helper="${_parallel_lib_dir}/../helpers/output-claim.py"
+    # Claim records name the run whose ledgers hold each seat, so a reclaimer
+    # from another run sharing these results reconciles the owner's ledgers.
+    local claim_run="" claim_workspace="${WORKSPACE_DIR:-}"
+    if declare -F octo_current_run_id >/dev/null 2>&1; then
+        claim_run="$(octo_current_run_id)"
+    fi
+    [[ -z "$claim_workspace" || "$claim_workspace" == /* ]] || claim_workspace="$PWD/$claim_workspace"
     _parallel_cleanup_cron() {
         if [[ "$_parallel_cron_disabled" == "true" ]]; then
             unset CLAUDE_CODE_DISABLE_CRON 2>/dev/null || true
@@ -338,8 +345,8 @@ parallel_execute() {
     }
     # Returns 0 when acquired, 3 when reclaimed from an exited owner, and 1
     # while another invocation, or any process it started, may still own it.
-    # A reclaim prints the exited owner's dispatched and inherited seats into
-    # claim_stale_seats; the new record also keeps them until reconciled.
+    # A reclaim prints the exited owner's dispatched and inherited seat
+    # entries into claim_stale_seats; the new record keeps them until reconciled.
     _parallel_claim_output() {
         local claim="$1" seat="$2" output="$3" claim_status=0
         claim_stale_seats=""
@@ -347,7 +354,8 @@ parallel_execute() {
             # Run the helper directly, not in a command substitution, so a
             # signal during publication reaches this controller's handler.
             "$owner_python" "$_parallel_claim_helper" acquire "$claim" "$owner_lock" \
-                "$seat" "$output" </dev/null >"$outcome_dir/claim-stale-seats" || claim_status=$?
+                "$seat" "$output" "$claim_run" "$claim_workspace" \
+                </dev/null >"$outcome_dir/claim-stale-seats" || claim_status=$?
             claim_stale_seats=$(cat "$outcome_dir/claim-stale-seats" 2>/dev/null) || claim_stale_seats=""
             case "$claim_status" in
                 0) return 0 ;;
@@ -365,15 +373,26 @@ parallel_execute() {
     _parallel_cancel_orphaned_seat() {
         _parallel_cancel_seat_output "spawn-$1" "$2"
     }
+    # Cancel a seat entry from a claim record in the run that recorded it,
+    # matching that run's spelling of the output path. The current run's
+    # same-named seats, and other spellings of the path, stay untouched.
+    _parallel_reconcile_seat_entry() {
+        local fields
+        fields=$(jq -r '[.seat, .output, .run, .workspace] | @sh' <<< "$1" 2>/dev/null) || return 0
+        eval "set -- $fields"
+        [[ $# -eq 4 && -n "$1" && -n "$2" && -n "$3" ]] || return 0
+        (
+            export OCTOPUS_RUN_ID="$3" WORKSPACE_DIR="$4"
+            _parallel_cancel_seat_output "$1" "$2"
+        )
+    }
     # Cancel the record's inherited seats before its claim stops proving that
     # their owner has exited.
     _parallel_reconcile_claim() {
-        local claim="$1" output stale_seat
+        local claim="$1" stale_seat
         [[ -f "$claim/owner" ]] || return 0
-        output=$(sed -n 's/^output //p' "$claim/owner" 2>/dev/null | head -n 1)
-        [[ -n "$output" ]] || return 0
         while IFS= read -r stale_seat; do
-            [[ -z "$stale_seat" ]] || _parallel_cancel_seat_output "$stale_seat" "$output"
+            [[ -z "$stale_seat" ]] || _parallel_reconcile_seat_entry "$stale_seat"
         done < <(sed -n 's/^reconcile //p' "$claim/owner" 2>/dev/null)
     }
     _parallel_cancel_seat_output() {
@@ -845,14 +864,12 @@ parallel_execute() {
         output_claims+=("$claim")
         if [[ "$claim_status" -eq 3 ]]; then
             log WARN "Reclaimed the output of task $task_id from an invocation that has exited"
-            # Another task ID can share this filename, so cancel the seats the
-            # exited owner recorded, not only this task's seat.
+            # Another task ID or run can share this filename, so cancel the
+            # seats the exited owner recorded, in the run that recorded them.
             local stale_seat
             while IFS= read -r stale_seat; do
-                [[ -z "$stale_seat" ]] || \
-                    _parallel_cancel_seat_output "$stale_seat" "$RESULTS_DIR/$result_slug-$task_id.md"
+                [[ -z "$stale_seat" ]] || _parallel_reconcile_seat_entry "$stale_seat"
             done <<< "$claim_stale_seats"
-            _parallel_cancel_orphaned_seat "$task_id" "$RESULTS_DIR/$result_slug-$task_id.md"
         fi
         # Preserve active outputs from older dispatchers without claim support.
         local ledger=""

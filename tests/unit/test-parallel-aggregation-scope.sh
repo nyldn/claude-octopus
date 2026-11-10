@@ -198,8 +198,8 @@ orphan_claim="$RESULTS_DIR/.codex-orphan.claim"
 orphan_lock="$RESULTS_DIR/.parallel-owner.orphan"
 printf 'orphaned partial output\n' > "$orphan_output"
 write_agent_status codex running 1 0 '' 0 "$orphan_output" researcher spawn-orphan
-mkdir "$orphan_claim"
-printf '%s\n' "$orphan_lock" > "$orphan_claim/owner"
+python3 "${AGGREGATION_LIB_ROOT:-$PROJECT_ROOT}/scripts/helpers/output-claim.py" acquire \
+    "$orphan_claim" "$orphan_lock" spawn-orphan "$orphan_output" "$OCTOPUS_RUN_ID" "$WORKSPACE_DIR"
 (
     exec 7>"$orphan_lock"
     python3 "${AGGREGATION_LIB_ROOT:-$PROJECT_ROOT}/scripts/helpers/output-claim.py" hold 7 </dev/null || exit 1
@@ -249,15 +249,17 @@ else
     test_fail "the executor replaced or closed the caller's descriptor 7"
 fi
 
+# Publish the claim of an exited owner that dispatched the last seat, after
+# reclaiming in turn from exited owners of each earlier seat.
 _stale_claim() {
-    local claim="$RESULTS_DIR/$1" output="$2" seat="$3" stale_lock="$RESULTS_DIR/.parallel-owner.stale$1"
-    shift 3
-    : > "$stale_lock"
-    mkdir "$claim"
-    {
-        printf '%s\n' "$stale_lock" "seat $seat" "output $output"
-        [[ $# -eq 0 ]] || printf 'reconcile %s\n' "$@"
-    } > "$claim/owner"
+    local claim="$RESULTS_DIR/$1" output="$2" seat stale_lock
+    shift 2
+    for seat in "$@"; do
+        stale_lock="$RESULTS_DIR/.parallel-owner.stale-$seat"
+        : > "$stale_lock"
+        python3 "${AGGREGATION_LIB_ROOT:-$PROJECT_ROOT}/scripts/helpers/output-claim.py" acquire \
+            "$claim" "$stale_lock" "$seat" "$output" "$OCTOPUS_RUN_ID" "$WORKSPACE_DIR" >/dev/null || true
+    done
 }
 
 test_case "a reclaim cancels the exited owner's seat when another task ID shares its output"
@@ -285,7 +287,7 @@ export OCTOPUS_RUN_ID=inherited-reclaim
 inherited_output="$RESULTS_DIR/codex-carry.md"
 rm -f "$TEST_TMP_DIR/carry-spawn"
 write_agent_status codex running 1 0 '' 0 "$inherited_output" researcher spawn-original
-_stale_claim .codex-carry.claim "$inherited_output" spawn-killed-reclaimer spawn-original
+_stale_claim .codex-carry.claim "$inherited_output" spawn-original spawn-killed-reclaimer
 spawn_agent_capture_pid() { touch "$TEST_TMP_DIR/carry-spawn"; return 1; }
 printf '{"tasks":[{"id":"carry","agent":"codex","prompt":"implement"}]}' > "$TEST_TMP_DIR/tasks.json"
 AVAILABLE_AGENTS=codex
@@ -317,6 +319,75 @@ if [[ "$rc" == 143 && ! -e "$RESULTS_DIR/.codex-termed.claim" ]] &&
     test_pass
 else
     test_fail "an interrupted reclaim left the stale seat running or kept its claim, exit=$rc"
+fi
+
+# Leave the claim a real executor published when SIGKILL ends it right after
+# its worker recorded a running seat, as an abandoned owner leaves it.
+_killed_owner() {
+    local run="$1" directory="$2" results="$3" agent="$4" task="$5"
+    {
+        (
+            trap - EXIT
+            cd "$directory"
+            export OCTOPUS_RUN_ID="$run"
+            RESULTS_DIR="$results" AVAILABLE_AGENTS="$agent"
+            spawn_agent_capture_pid() {
+                write_agent_status "$1" running 1 0 '' 0 "$RESULTS_DIR/$1-$3.md" researcher "spawn-$3"
+                kill -KILL "$(sh -c 'printf "%s\n" "$PPID"')"
+            }
+            jq -n --arg id "$task" --arg agent "$agent" '{tasks:[{id:$id,agent:$agent,prompt:"inert"}]}' \
+                > "$TEST_TMP_DIR/killed-owner.json"
+            parallel_execute "$TEST_TMP_DIR/killed-owner.json"
+        )
+    } >/dev/null 2>&1 || true
+}
+
+test_case "a reclaim cancels the exited owner's seat under the result path spelling it recorded"
+export OCTOPUS_RUN_ID=spelling-reclaim
+mkdir -p "$TEST_TMP_DIR/spelling-results"
+rm -f "$TEST_TMP_DIR/spelling-spawn"
+_killed_owner spelling-reclaim "$TEST_TMP_DIR" spelling-results codex standard-build
+spawn_agent_capture_pid() { printf '%s\n' "$3" >> "$TEST_TMP_DIR/spelling-spawn"; return 1; }
+AVAILABLE_AGENTS='codex codex-standard'
+printf '{"tasks":[{"id":"build","agent":"codex-standard","prompt":"implement"}]}' > "$TEST_TMP_DIR/tasks.json"
+(trap - EXIT; RESULTS_DIR="$TEST_TMP_DIR/spelling-results"; parallel_execute "$TEST_TMP_DIR/tasks.json") \
+    > "$TEST_TMP_DIR/parallel-spelling.log" 2>&1 || true
+printf '{"tasks":[{"id":"standard-build","agent":"codex","prompt":"implement"}]}' > "$TEST_TMP_DIR/tasks.json"
+(trap - EXIT; cd "$TEST_TMP_DIR" && RESULTS_DIR=spelling-results && parallel_execute "$TEST_TMP_DIR/tasks.json") \
+    > "$TEST_TMP_DIR/parallel-spelling-retry.log" 2>&1 || true
+if [[ "$(cat "$TEST_TMP_DIR/spelling-spawn" 2>/dev/null)" == $'build\nstandard-build' ]] &&
+   jq -e '.agents | any(.seat_id == "spawn-standard-build" and .status == "cancelled" and
+       .output_file == "spelling-results/codex-standard-build.md")' \
+       "$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID/agents.json" >/dev/null; then
+    test_pass
+else
+    test_fail "a different spelling of the results directory left the exited owner's seat running"
+fi
+
+test_case "a reclaim leaves another run's live seat on the same result path alone"
+crossrun_output="$RESULTS_DIR/codex-crossrun.md"
+rm -f "$TEST_TMP_DIR/crossrun-spawn"
+_killed_owner crossrun-exited "$TEST_TMP_DIR" "$RESULTS_DIR" codex crossrun
+export OCTOPUS_RUN_ID=crossrun-live
+run_contract_transition spawn-crossrun planned requested_provider=codex
+run_contract_transition spawn-crossrun starting resolved_provider=codex resolved_model=fixture
+run_contract_transition spawn-crossrun authenticated
+run_contract_transition spawn-crossrun running "output_file=$crossrun_output"
+write_agent_status codex running 1 0 '' 0 "$crossrun_output" researcher spawn-crossrun
+spawn_agent_capture_pid() { touch "$TEST_TMP_DIR/crossrun-spawn"; return 1; }
+AVAILABLE_AGENTS=codex
+printf '{"tasks":[{"id":"crossrun","agent":"codex","prompt":"implement"}]}' > "$TEST_TMP_DIR/tasks.json"
+parallel_execute "$TEST_TMP_DIR/tasks.json" > "$TEST_TMP_DIR/parallel-crossrun.log" 2>&1 && rc=0 || rc=$?
+if [[ "$rc" == 1 && ! -e "$TEST_TMP_DIR/crossrun-spawn" ]] &&
+   [[ "$(run_contract_latest_transition spawn-crossrun)" == running ]] &&
+   jq -e '.results[0].reason == "output-path-owned"' "$WORKSPACE_DIR/state/parallel-report.json" >/dev/null &&
+   jq -e '.agents | any(.seat_id == "spawn-crossrun" and .status == "running")' \
+       "$WORKSPACE_DIR/runs/crossrun-live/agents.json" >/dev/null &&
+   jq -e '.agents | any(.seat_id == "spawn-crossrun" and .status == "cancelled")' \
+       "$WORKSPACE_DIR/runs/crossrun-exited/agents.json" >/dev/null; then
+    test_pass
+else
+    test_fail "reclaiming another run's claim finalized the current run's live seat, exit=$rc"
 fi
 
 test_case "an abnormal controller exit stops live workers before releasing their claims"

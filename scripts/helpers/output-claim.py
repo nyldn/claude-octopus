@@ -8,6 +8,7 @@ descendants have exited. A claim whose owner lock can be taken is stale.
 """
 
 import fcntl
+import json
 import os
 import re
 import shutil
@@ -19,6 +20,7 @@ OWNER_LOCK_PREFIX = ".parallel-owner."
 GUARD = ".output-claims.lock"
 ACQUIRED, OWNED, RECLAIMED = 0, 10, 11
 SEAT_PATTERN = re.compile(r"[A-Za-z0-9_.:-]{1,256}")
+ENTRY_FIELDS = ("seat", "output", "run", "workspace")
 
 
 def hold(descriptor):
@@ -42,11 +44,36 @@ def valid_seat(seat):
     return bool(SEAT_PATTERN.fullmatch(seat))
 
 
+def seat_entry(seat, output, run, workspace):
+    """Name a seat by the run that recorded it and that run's output spelling.
+
+    Runs can share a results directory, and each can spell it differently, so
+    only these fields identify the status row a reclaimer must reconcile.
+    """
+    return {"seat": seat, "output": output, "run": run, "workspace": workspace}
+
+
 def recorded_seats(lines):
-    """Seats the record's owner dispatched or inherited for its output path."""
-    return [line.split(" ", 1)[1] for line in lines[1:]
-            if line.split(" ", 1)[0] in ("seat", "reconcile")
-            and " " in line and valid_seat(line.split(" ", 1)[1])]
+    """Seat entries the record's owner dispatched or inherited."""
+    entries = []
+    for line in lines[1:]:
+        kind, _, value = line.partition(" ")
+        if kind not in ("seat", "reconcile"):
+            continue
+        try:
+            entry = json.loads(value)
+        except ValueError:
+            continue
+        if (isinstance(entry, dict) and set(entry) == set(ENTRY_FIELDS)
+                and all(isinstance(entry[field], str) for field in ENTRY_FIELDS)
+                and valid_seat(entry["seat"]) and entry["output"]):
+            entries.append(entry)
+    return entries
+
+
+def unique_entries(entries):
+    """Drop repeated entries while keeping their first-recorded order."""
+    return list({json.dumps(entry, sort_keys=True): entry for entry in entries}.values())
 
 
 def absolute_path(path):
@@ -88,7 +115,7 @@ def owner_has_exited(owner_lock):
     return True
 
 
-def record_owner(claim, owner_lock, seat="", output="", reconcile=()):
+def record_owner(claim, owner_lock, entry=None, reconcile=()):
     """Create an exclusive owner record inside a private prepared claim.
 
     The record names the seat dispatched for the output and every stale seat
@@ -96,16 +123,17 @@ def record_owner(claim, owner_lock, seat="", output="", reconcile=()):
     can still cancel those seats after an interruption.
     """
     lines = [owner_lock]
-    if seat and output:
-        lines += ["seat " + seat, "output " + output]
-        lines += ["reconcile " + stale for stale in reconcile if stale != seat]
+    if entry:
+        lines.append("seat " + json.dumps(entry, sort_keys=True))
+    lines += ["reconcile " + json.dumps(stale, sort_keys=True)
+              for stale in reconcile if stale != entry]
     descriptor = os.open(os.path.join(claim, OWNER_RECORD),
                          os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     with os.fdopen(descriptor, "w", encoding="utf-8") as record:
         record.write("\n".join(lines) + "\n")
 
 
-def acquire(claim, owner_lock, seat="", output=""):
+def acquire(claim, owner_lock, seat="", output="", run="", workspace=""):
     """Publish a complete claim, replacing only an exited owner's record."""
     claim = absolute_path(claim)
     owner_lock = absolute_path(owner_lock)
@@ -135,8 +163,9 @@ def acquire(claim, owner_lock, seat="", output=""):
                         return OWNED
                 except OSError:
                     return OWNED
-                stale_seats = list(dict.fromkeys(recorded_seats(read_record(claim))))
-            record_owner(prepared, owner_lock, seat, output, stale_seats)
+                stale_seats = unique_entries(recorded_seats(read_record(claim)))
+            entry = seat_entry(seat, output, run, workspace) if seat and output else None
+            record_owner(prepared, owner_lock, entry, stale_seats)
             if stale:
                 # Replace the exited owner's record in one rename. The public
                 # claim then always holds a complete record naming every stale
@@ -151,7 +180,7 @@ def acquire(claim, owner_lock, seat="", output=""):
             published = True
             if stale:
                 for stale_seat in stale_seats:
-                    print(stale_seat)
+                    print(json.dumps(stale_seat, sort_keys=True))
                 return RECLAIMED
             return ACQUIRED
         finally:
@@ -191,11 +220,11 @@ def main():
     """Dispatch lock acquisition and claim operations for the shell executor."""
     if len(sys.argv) == 3 and sys.argv[1] == "hold":
         return hold(sys.argv[2])
-    if len(sys.argv) in (4, 6) and sys.argv[1] == "acquire":
+    if len(sys.argv) in (4, 6, 8) and sys.argv[1] == "acquire":
         return acquire(*sys.argv[2:])
     if len(sys.argv) == 4 and sys.argv[1] == "release":
         return release(sys.argv[2], sys.argv[3])
-    print("usage: output-claim.py hold FD | acquire CLAIM OWNER_LOCK [SEAT OUTPUT] | release CLAIM OWNER_LOCK", file=sys.stderr)
+    print("usage: output-claim.py hold FD | acquire CLAIM OWNER_LOCK [SEAT OUTPUT [RUN WORKSPACE]] | release CLAIM OWNER_LOCK", file=sys.stderr)
     return 2
 
 

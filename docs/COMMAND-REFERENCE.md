@@ -1455,9 +1455,11 @@ only the empty directory with `rmdir`, after the same process-exit checks.
 Normal Python-backed cleanup retires the complete claim atomically. If retiring
 it fails, its owner record and owner lock remain available for a later retry.
 A Python-backed owner record also names the seat dispatched for its result file
-and any stale seats inherited from exited owners. Reclaiming the claim cancels
-those seats' `running` status, so a task ID that maps to the same result file is
-not blocked by an exited owner's seat. A reclaim interrupted before that
+and any stale seats inherited from exited owners, each with the run and the
+result path spelling that dispatched it. Reclaiming the claim cancels those
+seats' `running` status in that run, so a task ID that maps to the same result
+file is not blocked by an exited owner's seat, and another run sharing the
+results directory keeps its own seats. A reclaim interrupted before that
 cancellation passes the seats on to the next owner.
 If the task already has a durable execution contract in the same run, use a new
 task ID for the next attempt. Reusing that seat reports
