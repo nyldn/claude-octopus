@@ -38,6 +38,17 @@ spawn_agent_capture_pid() {
         native)
             write_agent_status "$1" running 1 0 "Dispatched via Agent Teams" 0 "$output" researcher "$seat"
             return 1 ;;
+        committed)
+            # The worker commits its answer, then dies before its status row.
+            printf '## Output\ncommitted answer\n## Status: SUCCESS\n' > "$output"
+            octo_run_contract_finish_background "$seat" success "$output" "" "" 0 1 "" ;;
+        recovery)
+            # The worker is stopped mid-append, leaving a valid recovery marker.
+            local ledger
+            ledger="$(octo_run_contract_ledger_path)"
+            cp "$ledger" "$ledger.rollback.fixture"
+            printf 'true\t%s\n' "$ledger.rollback.fixture" > "$(octo_run_contract_recovery_path)"
+            printf '{"seat_id":' >> "$ledger" ;;
     esac
     write_agent_status "$1" running 1 0 '' 0 "$output" researcher "$seat"
     if [[ "$OCTOPUS_RUN_ID" == signal ]]; then
@@ -49,22 +60,32 @@ spawn_agent_capture_pid() {
 }
 printf '{"tasks":[{"id":"stopped","agent":"codex","prompt":"inert"}]}' > "$TEST_TMP_DIR/tasks.json"
 
-for scenario in worker signal terminal native; do
+for scenario in worker signal terminal native committed recovery; do
     test_case "$scenario cleanup preserves durable execution truth"
     export OCTOPUS_RUN_ID="$scenario"
     if (trap - EXIT; parallel_execute "$TEST_TMP_DIR/tasks.json") > "$TEST_TMP_DIR/$scenario.log" 2>&1; then rc=0; else rc=$?; fi
-    transition="$(run_contract_latest_transition spawn-stopped)"
+    # Read after a locked operation recovers any interrupted append.
+    run_contract_snapshot >/dev/null 2>&1 || true
+    transition="$(run_contract_latest_transition spawn-stopped)" || transition=unreadable
     status="$(jq -r '.agents[0].status' "$WORKSPACE_DIR/runs/$scenario/agents.json")"
     case "$scenario" in
         worker) expected=cancelled; expected_status=cancelled; expected_rc=1 ;;
         signal) expected=cancelled; expected_status=cancelled; expected_rc=143 ;;
-        terminal) expected=failed; expected_status=cancelled; expected_rc=1 ;;
+        terminal) expected=failed; expected_status=failed; expected_rc=1 ;;
         native) expected=running; expected_status=running; expected_rc=1 ;;
+        committed) expected=contributed; expected_status=ok; expected_rc=1 ;;
+        recovery) expected=cancelled; expected_status=cancelled; expected_rc=1 ;;
     esac
-    if [[ "$transition" == "$expected" && "$status" == "$expected_status" && "$rc" == "$expected_rc" ]]; then
+    # Only a committed contribution remains an output offered to synthesis.
+    offered="$(agent_status_output_files '' "$(jq -nc --arg file "$RESULTS_DIR/codex-stopped.md" \
+        '[{id:"stopped",output_file:$file}]')")"
+    expected_offered=""
+    [[ "$scenario" != committed ]] || expected_offered="$RESULTS_DIR/codex-stopped.md"
+    if [[ "$transition" == "$expected" && "$status" == "$expected_status" && "$rc" == "$expected_rc" &&
+          "$offered" == "$expected_offered" ]]; then
         test_pass
     else
-        test_fail "durable=$transition summary=$status exit=$rc; expected $expected/$expected_status/$expected_rc"
+        test_fail "durable=$transition summary=$status exit=$rc offered=${offered:-none}; expected $expected/$expected_status/$expected_rc"
     fi
 done
 test_summary

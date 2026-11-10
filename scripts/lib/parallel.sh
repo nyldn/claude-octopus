@@ -396,7 +396,8 @@ parallel_execute() {
         done < <(sed -n 's/^reconcile //p' "$claim/owner" 2>/dev/null)
     }
     _parallel_cancel_seat_output() {
-        local seat_id="$1" output="$2" ledger agent seat role
+        local seat_id="$1" output="$2" ledger agent seat role record
+        local status transition contribution seat_reason
         local reason="${3:-Seat owner exited before recording a terminal status}"
         declare -F write_agent_status >/dev/null || return 0
         declare -F octo_run_dir >/dev/null || return 0
@@ -405,13 +406,25 @@ parallel_execute() {
         while IFS=$'\t' read -r agent seat role; do
             # Native teammates have no cancellation handle. Their controller's
             # exit does not establish that the teammate has stopped.
+            status=cancelled transition="" contribution="" seat_reason="$reason"
+            # The finalizer takes the contract lock and first recovers an append
+            # the stopped worker interrupted. A seat that already reached a
+            # terminal state keeps it, so the summary projects that outcome,
+            # including a contribution committed just before the worker died.
             if declare -F octo_run_contract_finish_background >/dev/null &&
-               run_contract_latest_transition "$seat" >/dev/null 2>&1; then
-                octo_run_contract_finish_background "$seat" cancelled "$output" "" \
-                    "$reason" 143 "" already-exited >/dev/null 2>&1 || true
+               ! octo_run_contract_finish_background "$seat" cancelled "$output" "" \
+                   "$reason" 143 "" already-exited >/dev/null 2>&1 &&
+               record="$(run_contract_seat_record "$seat" 2>/dev/null)"; then
+                IFS=$'\t' read -r transition contribution seat_reason < <(jq -r \
+                    '[.transition, (.contribution // "none"), (.reason // "")] | @tsv' <<< "$record" 2>/dev/null)
+                case "$transition" in
+                    contributed) status=ok ;;
+                    degraded|skipped|failed|timeout|cancelled) status="$transition" ;;
+                    *) transition="" contribution="" seat_reason="$reason" ;;
+                esac
             fi
-            write_agent_status "$agent" cancelled 0 0 "$reason" \
-                0 "$output" "$role" "$seat" || true
+            write_agent_status "$agent" "$status" 0 0 "$seat_reason" \
+                0 "$output" "$role" "$seat" "$transition" "$contribution" || true
         done < <(jq -rs --arg seat "$seat_id" --arg file "$output" \
             "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
             latest_per_seat | .[] |

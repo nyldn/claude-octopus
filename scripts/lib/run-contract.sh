@@ -460,6 +460,18 @@ run_contract_seat_available() (
     jq -es --arg seat "$seat_id" 'all(.seat_id != $seat)' "$ledger" >/dev/null 2>&1
 )
 
+# Read a seat's latest record under the contract lock. An append interrupted
+# by a stopped writer is recovered first, instead of reading as no record.
+run_contract_seat_record() (
+    local lock_target
+    [[ -e "$(octo_run_contract_ledger_path)" || -e "$(octo_run_contract_recovery_path)" ]] || return 1
+    lock_target="$(octo_run_contract_lock_path)"
+    _octo_run_contract_lock "$lock_target" || return 1
+    trap '_octo_event_unlock "$lock_target"' EXIT
+    _octo_run_contract_recover_unlocked || return 1
+    _octo_run_latest_record "${1:-}"
+)
+
 run_contract_snapshot() (
     local ledger events_ledger lock_target output
     ledger="$(octo_run_contract_ledger_path)"
