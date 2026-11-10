@@ -1201,6 +1201,17 @@ aggregate_results() {
     local aggregate_file="${RESULTS_DIR}/aggregate-${_ts}.md"
     local raw_concat="${RESULTS_DIR}/.raw-concat-$$.md"
 
+    # Validate one complete scope before ranking, including when no files exist.
+    if [[ "$task_scope" != null ]] && ! task_scope=$(jq -cs '
+        if length == 1 and (.[0] == null or
+            (.[0] | type == "array" and all(.[];
+                type == "object" and (.id | type == "string") and
+                (.output_file | type == "string"))))
+        then .[0] else error("invalid task scope") end' <<< "$task_scope"); then
+        log ERROR "Cannot read aggregation task scope"
+        return 2
+    fi
+
     log INFO "Aggregating results..."
 
     # Phase 1: Collect results ranked by quality signals (v8.49.0)

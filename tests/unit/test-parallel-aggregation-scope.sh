@@ -64,6 +64,28 @@ for implementation in parallel heuristics; do
     else
         test_fail "invalid scope was silently accepted, exit=$rc"
     fi
+    for scope_results in present empty; do
+        for invalid_scope in '[' 'null []' '{} []' '{}' '[{}]'; do
+            test_case "$implementation rejects $invalid_scope before selecting $scope_results results"
+            if (
+                RESULTS_DIR="$TEST_TMP_DIR/scope-validation-$implementation-$scope_results"
+                mkdir -p "$RESULTS_DIR"
+                rank_results_by_signals() { :; }
+                if [[ "$scope_results" == present ]]; then
+                    cp "$current" "$RESULTS_DIR/current.md"
+                fi
+                log() { printf '%s: %s\n' "$1" "$2" >&2; }
+                aggregate_results '' '' "$invalid_scope"
+            ) > "$TEST_TMP_DIR/scope-validation.log" 2>&1; then rc=0; else rc=$?; fi
+            if [[ "$rc" -gt 1 ]] &&
+               grep -q 'Cannot read aggregation task scope' "$TEST_TMP_DIR/scope-validation.log" &&
+               [[ -z "$(find "$TEST_TMP_DIR/scope-validation-$implementation-$scope_results" -name 'aggregate-*.md' -print)" ]]; then
+                test_pass
+            else
+                test_fail "invalid scope reached aggregation with $scope_results results, exit=$rc"
+            fi
+        done
+    done
 done
 
 test_case "parallel executor passes attempted task identities even when spawning fails"
