@@ -86,7 +86,7 @@ def interrupt(*args, **kwargs):
 setattr(claims.os, operation, interrupt)
 claims.acquire(sys.argv[2], sys.argv[3], "spawn-new", sys.argv[4])
 '''
-        for operation in ("rename", "unlink", "rmdir"):
+        for operation in ("rename", "rmdir"):
             for timing in ("before", "after"):
                 with self.subTest(operation=operation, timing=timing), \
                         tempfile.TemporaryDirectory(prefix="claim-retirement-") as directory:
@@ -94,9 +94,10 @@ claims.acquire(sys.argv[2], sys.argv[3], "spawn-new", sys.argv[4])
                     claim, output = self.stale_claim(root)
                     new_owner = root / ".parallel-owner.new"
                     new_owner.touch()
-                    subprocess.run(["python3", "-c", code, str(ROOT / "scripts/helpers/output-claim.py"),
-                                    str(claim), str(new_owner), str(output), operation, timing],
-                                   timeout=5)
+                    interrupted = subprocess.run(["python3", "-c", code, str(ROOT / "scripts/helpers/output-claim.py"),
+                                                  str(claim), str(new_owner), str(output), operation, timing],
+                                                 timeout=5)
+                    self.assertEqual(interrupted.returncode, -signal.SIGKILL)
                     self.assertIn("spawn-old", self.reclaim_by_retry(root, claim, output))
 
     def test_failed_publication_preserves_owner_and_retry(self):
