@@ -3865,6 +3865,13 @@ def proposes(text):
     # Keep terminal punctuation on a standalone fence lead-in in its clause.
     end = len(text.rstrip(" \t\r\n.!?;"))
     start = clause_start(text, end)
+    # A patch-only lead-in continues the immediately preceding proposal. Do
+    # not carry it through an arbitrary later sentence or a source assertion.
+    if re.fullmatch(r"\s*(?:here is the patch|apply it as follows)\s*:\s*", text[start:], re.I):
+        previous_end = len(text[:start].rstrip(" \t\r\n.!?;"))
+        previous_start = clause_start(text, previous_end)
+        if PROPOSAL.search(text, previous_start, previous_end):
+            start = previous_start
     for claim in EXPLICIT_SOURCE_CLAIM.finditer(text, start):
         start = claim.start()
     verbs = CONTENT_VERB.finditer(text, start)

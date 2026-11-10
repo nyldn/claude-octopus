@@ -34,4 +34,26 @@ for boundary in '.' ';' '?'; do
         done
     done
 done
+# A patch-introduction sentence continues the preceding recommendation, while
+# a later current-source assertion must still verify its own quoted code.
+for lead in 'I recommend this patch. Apply it as follows:' 'We should fix this. Here is the patch:'; do
+    for continuation in proposal source-claim; do
+        test_case "$lead retains $continuation ownership"
+        response="$TEST_TMP_DIR/response.md"
+        introduction="$lead"
+        assertion='.quotes_unverifiable_proposed == 1 and .quotes_unverified == 0 and .fabricated == false'
+        if [[ "$continuation" == source-claim ]]; then
+            introduction="$lead The file contains:"
+            assertion='.quotes_attributed_unverified == 1 and .quotes_unverifiable_proposed == 0 and .fabricated == true'
+        fi
+        printf 'src/pricing.ts:1: %s\n```ts\n%s\n```\nsrc/pricing.ts:1 reads `%s`.\nVERDICT: REVISE\n' \
+            "$introduction" "$fake" "$real" > "$response"
+        report="$(council_response_quote_verification_json "$response" "$evidence")"
+        if jq -e ".verification_failed == false and ($assertion)" <<< "$report" >/dev/null; then
+            test_pass
+        else
+            test_fail "patch lead-in ownership changed: $report"
+        fi
+    done
+done
 test_summary
