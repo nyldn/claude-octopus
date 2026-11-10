@@ -427,11 +427,14 @@ env = dict(os.environ, GIT_AUTHOR_NAME='Test', GIT_AUTHOR_EMAIL='test@example.in
            CLAUDE_PLUGIN_ROOT=str(root), TIMESTAMP='20261110-111700')
 for tree in ('.claude/skills', 'skills', 'codex-skills'):
     text = (root / tree / 'skill-rollback/SKILL.md').read_text()
+    safety_section = text.split('### Step 4:', 1)[1].split('### Step 5:', 1)[0]
+    safety_command = re.search(r'```bash\n(.*?)\n```', safety_section, re.S)[1]
     restore_section = text.split('### Step 6:', 1)[1].split('### Step 7:', 1)[0]
     restore = re.search(r'```bash\n(.*?)\n```', restore_section, re.S)[1]
     recovery_section = text.split('### Recover from the safety checkpoint', 1)[1]
     recovery = re.search(r'```bash\n(.*?)\n```', recovery_section, re.S)[1]
-    for preservation in ('commit', 'stash'):
+    for preservation, installation in ((p, i) for p in ('commit', 'stash')
+                                       for i in ('installed', 'local-checkout')):
         with tempfile.TemporaryDirectory() as directory:
             repo = Path(directory)
             def git(*args):
@@ -445,23 +448,34 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
             git('add', '.')
             git('commit', '-qm', 'checkpoint')
             git('tag', 'target')
+            if installation == 'local-checkout':
+                helper = repo / 'scripts/helpers/rollback-preflight.py'
+                helper.parent.mkdir(parents=True)
+                helper.write_bytes((root / 'scripts/helpers/rollback-preflight.py').read_bytes())
             git('rm', '-q', 'old-only.txt')
             (repo / 'work.txt').write_text('current implementation\n')
             (repo / 'new-only.txt').write_text('current-only file\n')
             (repo / '.octo/LESSONS.md').write_text('keep current lessons\n')
             git('add', '.')
             git('commit', '-qm', 'current')
-            safety = 'octo-checkpoint-pre-rollback-' + env['TIMESTAMP']
-            git('tag', safety)
+            run_env = dict(env, CLAUDE_PLUGIN_ROOT=str(repo if installation == 'local-checkout' else root),
+                           CHECKPOINT_TAG='target')
+            result = subprocess.run(['bash', '-eu', '-c', safety_command], cwd=repo,
+                                    env=run_env, capture_output=True)
+            assert result.returncode == 0, result.stderr
+            safety = git('tag', '--list', 'octo-checkpoint-pre-rollback-*').decode().strip()
+            run_env['TIMESTAMP'] = safety.removeprefix('octo-checkpoint-pre-rollback-')
             before = git('rev-parse', 'HEAD')
             result = subprocess.run(['bash', '-eu', '-c', restore], cwd=repo,
-                env=dict(env, CHECKPOINT_TAG='target'), capture_output=True)
+                                    env=run_env, capture_output=True)
             assert result.returncode == 0, result.stderr
+            if installation == 'local-checkout':
+                assert not helper.exists(), 'old checkpoint must remove the plugin helper'
             (repo / '.octo/STATE.md').write_text('rollback history update\n')
             (repo / 'local.txt').write_text('keep subsequent local work\n')
             dirty_index = git('diff', '--cached', '--binary')
             result = subprocess.run(['bash', '-eu', '-c', recovery], cwd=repo / '.octo',
-                                    env=env, capture_output=True)
+                                    env=run_env, capture_output=True)
             assert result.returncode != 0, 'dirty recovery must refuse before preservation'
             assert git('diff', '--cached', '--binary') == dirty_index
             assert (repo / 'local.txt').read_text() == 'keep subsequent local work\n'
@@ -478,11 +492,23 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
             assert git('show', saved + ':.octo/STATE.md') == b'rollback history update\n'
             head = git('rev-parse', 'HEAD')
             lessons_index = git('show', ':.octo/LESSONS.md')
+            checker = repo / os.fsdecode(git('rev-parse', '--git-path',
+                'octo-rollback-preflight-' + run_env['TIMESTAMP'] + '.py')).strip()
+            assert checker.stat().st_mode & 0o777 == 0o600, 'preflight copy must be private'
+            saved_checker = checker.with_suffix('.saved')
+            checker.rename(saved_checker)
+            clean_index = git('diff', '--cached', '--binary')
             result = subprocess.run(['bash', '-eu', '-c', recovery], cwd=repo / '.octo',
-                                    env=env, capture_output=True)
-            assert result.returncode == 0, (tree, preservation, result.stderr)
+                                    env=run_env, capture_output=True)
+            assert result.returncode != 0, 'missing recovery preflight must fail closed'
+            assert git('diff', '--cached', '--binary') == clean_index
+            assert git('status', '--porcelain=v1', '--untracked-files=all') == b''
+            saved_checker.rename(checker)
+            result = subprocess.run(['bash', '-eu', '-c', recovery], cwd=repo / '.octo',
+                                    env=run_env, capture_output=True)
+            assert result.returncode == 0, (tree, preservation, installation, result.stderr)
             assert git('rev-parse', 'HEAD') == head
-            assert git('rev-parse', safety) == before
+            assert git('rev-parse', safety + '^{commit}') == before
             assert (repo / 'work.txt').read_text() == 'current implementation\n'
             assert (repo / 'new-only.txt').read_text() == 'current-only file\n'
             assert not (repo / 'old-only.txt').exists()
@@ -490,7 +516,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
             assert git('show', ':.octo/LESSONS.md') == lessons_index
             assert git('diff', '--cached', safety, '--', '.', ':(exclude).octo/LESSONS.md') == b''
             assert git('cat-file', '-t', saved).strip() == b'commit'
-print('6 dirty-refusal and commit/stash recovery scenarios passed across all three trees')
+print('12 installed/local-checkout dirty-refusal and commit/stash recovery scenarios passed across all three trees')
 PY_RECOVERY
 then test_pass; else test_fail "documented recovery cannot safely restore the safety checkpoint"; fi
 

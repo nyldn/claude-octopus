@@ -141,7 +141,12 @@ python3 "$OCTO_ROOT/scripts/helpers/rollback-preflight.py" "$CHECKPOINT_TAG" || 
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 
 # Create safety checkpoint
-git tag -a "octo-checkpoint-pre-rollback-$TIMESTAMP" -m "Safety checkpoint before rollback to $CHECKPOINT_TAG"
+git tag -a "octo-checkpoint-pre-rollback-$TIMESTAMP" -m "Safety checkpoint before rollback to $CHECKPOINT_TAG" || exit 1
+
+# Keep the loaded preflight outside tracked files. A local-development rollback
+# can delete the plugin helper when restoring a checkpoint older than the helper.
+PREFLIGHT_COPY=$(git rev-parse --git-path "octo-rollback-preflight-$TIMESTAMP.py") || exit 1
+(umask 077; set -C; cat "$OCTO_ROOT/scripts/helpers/rollback-preflight.py" > "$PREFLIGHT_COPY") || exit 1
 ```
 
 Report:
@@ -150,6 +155,7 @@ Created safety checkpoint: octo-checkpoint-pre-rollback-$TIMESTAMP
 
 To return to this state, follow "Recover from the safety checkpoint" below.
 First commit or stash the rollback and any subsequent edits.
+Recovery preflight saved in Git metadata: $PREFLIGHT_COPY
 ```
 
 ### Step 5: Preserve LESSONS.md
@@ -225,12 +231,15 @@ Keep the saved commit or stash until recovery has been reviewed.
 Use the exact safety tag reported in Step 4. If starting a new shell, set
 `TIMESTAMP` to that tag's timestamp before running this recipe. The preflight
 still refuses dirty work, hidden index entries and ignored-file collisions.
+Step 4 keeps a private copy of the loaded preflight in Git metadata, which
+tracked restoration cannot remove. Keep that copy until recovery is reviewed.
+If it is missing or unreadable, stop; do not skip the preflight.
 
 ```bash
 cd -- "$(git rev-parse --show-toplevel)" || exit 1
 SAFETY_TAG="octo-checkpoint-pre-rollback-$TIMESTAMP"
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
-python3 "$OCTO_ROOT/scripts/helpers/rollback-preflight.py" "$SAFETY_TAG" || exit 1
+PREFLIGHT_COPY=$(git rev-parse --git-path "octo-rollback-preflight-$TIMESTAMP.py") || exit 1
+python3 "$PREFLIGHT_COPY" "$SAFETY_TAG" || exit 1
 git restore --source="$SAFETY_TAG" --staged --worktree -- . ':(exclude).octo/LESSONS.md' || exit 1
 ```
 
