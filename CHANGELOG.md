@@ -2,6 +2,39 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Quota cleanup delivers an identity-bound TERM to the timeout supervisor and
+  lets its handler finish. Reparented helpers are cleaned up even when the
+  provider leader has been reaped, and unrelated process exits cannot exhaust
+  global-snapshot retries. The handoff never forcibly kills a pending handler.
+  macOS zombie admission in optional owned-group cleanup uses native zombie lookup.
+- A peer seat's quota marker no longer relabels an externally terminated call
+  or adds a false circuit-breaker failure. Quota stop attribution stays local
+  to the current attempt even when its diagnostic cannot be written.
+- Quota fast-fails preserve a provider's own temporary-failure status and auth
+  retry behavior. Quota stops update the provider circuit breaker, and persisted
+  cooldown timestamps correctly block repeat dispatch until their deadline. Future timestamps
+  from clock rollback or corrupt state allow a probe instead of an unbounded wait.
+  Successful recovery clears that failure history so separate quota episodes
+  do not count as consecutive failures. Parallel quota failures update the
+  breaker together, and an unwritable diagnostic marker cannot prevent worker
+  completion after a quota stop.
+  Lock contention does not turn an expired cooldown into an open circuit, and
+  failure-log trimming uses private temporary files without following stale links.
+  Quota stops also clean up owned provider and timer processes, so a stopped
+  call does not wait for a leftover timeout before returning. Refused handoffs
+  allow at most five attempts, with a visible error if cleanup cannot finish.
+- Direct spawns respect terminal quota and auth markers even when no transient
+  cooldown is active. Provider reset hints remain inside untrusted result frames.
+- Quota and termination status summaries use launcher-authored reasons so provider diagnostics
+  cannot enter synthesis instructions through trusted failure metadata.
+- Run-local smoke failures keep their health-failure reason. External SIGTERM
+  preserves exit 143 through spawn results and lifecycle events instead of
+  claiming the provider exceeded its timeout.
+  Synchronous dispatch also records a failed termination in status and usage
+  rather than a timeout, with a launcher-authored reason.
+
 ### Maintenance
 
 - Skill generation uses the authored entries directly through the existing sync
@@ -73,37 +106,6 @@
   checks avoid repeated subprocesses, whole-log buffering or unchanged file reads.
 
 ### Fixed
-
-- Quota cleanup delivers an identity-bound TERM to the timeout supervisor and
-  lets its handler finish. Reparented helpers are cleaned up even when the
-  provider leader has been reaped, and unrelated process exits cannot exhaust
-  global-snapshot retries. The handoff never forcibly kills a pending handler.
-  macOS zombie admission in optional owned-group cleanup uses native zombie lookup.
-- A peer seat's quota marker no longer relabels an externally terminated call
-  or adds a false circuit-breaker failure. Quota stop attribution stays local
-  to the current attempt even when its diagnostic cannot be written.
-- Quota fast-fails preserve a provider's own temporary-failure status and auth
-  retry behavior. Quota stops update the provider circuit breaker, and persisted
-  cooldown timestamps correctly block repeat dispatch until their deadline. Future timestamps
-  from clock rollback or corrupt state allow a probe instead of an unbounded wait.
-  Successful recovery clears that failure history so separate quota episodes
-  do not count as consecutive failures. Parallel quota failures update the
-  breaker together, and an unwritable diagnostic marker cannot prevent worker
-  completion after a quota stop.
-  Lock contention does not turn an expired cooldown into an open circuit, and
-  failure-log trimming uses private temporary files without following stale links.
-  Quota stops also clean up owned provider and timer processes, so a stopped
-  call does not wait for a leftover timeout before returning. Refused handoffs
-  allow at most five attempts, with a visible error if cleanup cannot finish.
-- Direct spawns respect terminal quota and auth markers even when no transient
-  cooldown is active. Provider reset hints remain inside untrusted result frames.
-- Quota and termination status summaries use launcher-authored reasons so provider diagnostics
-  cannot enter synthesis instructions through trusted failure metadata.
-- Run-local smoke failures keep their health-failure reason. External SIGTERM
-  preserves exit 143 through spawn results and lifecycle events instead of
-  claiming the provider exceeded its timeout.
-  Synchronous dispatch also records a failed termination in status and usage
-  rather than a timeout, with a launcher-authored reason.
 
 - Worktree progress fingerprints preserve stat compatibility for timestamps before
   1970, including fractional seconds. The batch sampler and shell fallback produce

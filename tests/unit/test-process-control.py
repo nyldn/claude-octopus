@@ -88,7 +88,8 @@ class ProcessControlTests(unittest.TestCase):
                 root = self.child(
                     "import pathlib,subprocess,sys,time; "
                     "p=subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)']); "
-                    f"pathlib.Path({str(marker)!r}).write_text(str(p.pid)); time.sleep(30)"
+                    f"pathlib.Path({str(marker) + '.tmp'!r}).write_text(str(p.pid)); "
+                    f"pathlib.Path({str(marker) + '.tmp'!r}).replace({str(marker)!r}); time.sleep(30)"
                 )
                 deadline = time.monotonic() + 3
                 while not marker.exists() and time.monotonic() < deadline:
@@ -116,7 +117,8 @@ class ProcessControlTests(unittest.TestCase):
             marker = Path(temporary) / "child"
             child_code = ("import os,pathlib,signal,time; "
                           "signal.signal(signal.SIGTERM,signal.SIG_IGN); "
-                          f"pathlib.Path({str(marker)!r}).write_text(str(os.getpid())); "
+                          f"pathlib.Path({str(marker) + '.tmp'!r}).write_text(str(os.getpid())); "
+                          f"pathlib.Path({str(marker) + '.tmp'!r}).replace({str(marker)!r}); "
                           "time.sleep(30)")
             root = self.child(
                 "import subprocess,sys,time; "
@@ -228,7 +230,8 @@ class ProcessControlTests(unittest.TestCase):
                 "\nif p == 0:"
                 "\n if os.fork() != 0: os._exit(0)"
                 "\n signal.signal(signal.SIGTERM,signal.SIG_IGN)"
-                f"\n pathlib.Path({str(marker)!r}).write_text(str(os.getpid()))"
+                f"\n pathlib.Path({str(marker) + '.tmp'!r}).write_text(str(os.getpid()))"
+                f"\n pathlib.Path({str(marker) + '.tmp'!r}).replace({str(marker)!r})"
                 "\n while True: time.sleep(1)"
                 "\nos.waitpid(p,0); time.sleep(30)"
             )
@@ -240,14 +243,16 @@ class ProcessControlTests(unittest.TestCase):
                 try:
                     self.assertNotEqual(orphan.info.ppid, root.pid)
                     self.assertEqual(os.getpgid(orphan.info.pid), root.pid)
-                    real_groups = control._process_groups
                     scans = []
 
                     def changing_groups():
                         scans.append(control.snapshot(root.pid).stopped)
                         if len(scans) == 1:
                             yield 2**30, root.pid
-                        yield from real_groups()
+                        # This fixture tests native admission and signalling.
+                        # Global procfs churn is covered by separate scan tests.
+                        yield root.pid, root.pid
+                        yield orphan.info.pid, root.pid
 
                     with mock.patch.object(os, "kill") as kill, \
                          mock.patch.object(os, "killpg") as killpg, \
@@ -276,11 +281,13 @@ class ProcessControlTests(unittest.TestCase):
                     "\nif p == 0:"
                     "\n if os.fork() != 0: os._exit(0)"
                     f"\n d=pathlib.Path({temporary!r})"
-                    "\n (d/'parent').write_text(str(os.getpid()))"
+                    "\n (d/'parent.tmp').write_text(str(os.getpid()))"
+                    "\n (d/'parent.tmp').replace(d/'parent')"
                     "\n while not (d/'fork').exists(): time.sleep(0.005)"
                     "\n if os.fork() != 0: os._exit(0)"
                     "\n signal.signal(signal.SIGTERM,signal.SIG_IGN)"
-                    "\n (d/'newborn').write_text(str(os.getpid()))"
+                    "\n (d/'newborn.tmp').write_text(str(os.getpid()))"
+                    "\n (d/'newborn.tmp').replace(d/'newborn')"
                     "\n while True: time.sleep(1)"
                     "\nos.waitpid(p,0); time.sleep(30)"
                 )

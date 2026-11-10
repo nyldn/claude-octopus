@@ -484,14 +484,15 @@ test_quota_cleanup_refuses_unverified_processes() {
     test_case "refused native quota cleanup never falls back to numeric signals"
     if (
         source "$PROJECT_ROOT/scripts/lib/spawn.sh"
-        _octo_pid_python_run() { return 1; }
+        _octo_pid_python_run() { touch "$FIXTURE/native-refusal-reached"; return 1; }
         kill() { touch "$FIXTURE/unsafe-signal"; }
         pkill() { touch "$FIXTURE/unsafe-signal"; }
         log() { printf '%s\n' "$2" > "$FIXTURE/cleanup-refusal"; }
         cleanup_rc=0
-        quota_watcher_kill_spawn_children 999999 || cleanup_rc=$?
-        [[ "$cleanup_rc" != 0 && ! -e "$FIXTURE/unsafe-signal" ]] &&
-            grep -Fq 'Quota cleanup refused' "$FIXTURE/cleanup-refusal"
+        quota_watcher_kill_spawn_children 999999 fixture-identity || cleanup_rc=$?
+        [[ "$cleanup_rc" != 0 && ! -e "$FIXTURE/unsafe-signal" &&
+           -e "$FIXTURE/native-refusal-reached" ]] &&
+            grep -Fq 'owned descendants could not be verified' "$FIXTURE/cleanup-refusal"
     ); then test_pass
     else test_fail "unverified cleanup signalled a numeric PID or claimed success"; fi
 }
