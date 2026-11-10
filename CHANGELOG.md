@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- OpenCode checks and private servers launched through MCP retain an explicit
+  `OPENCODE_CONFIG_DIR`, preserving custom configuration alongside SQLite login
+  storage. Other providers retain their existing environment isolation.
+
 - MCP OpenCode calls preserve custom SQLite login paths selected with
   `OPENCODE_DB` and `XDG_DATA_HOME`, so saved logins remain discoverable.
 

@@ -484,10 +484,19 @@ build_provider_env opencode || exit
         """The adapter and private server must discover the same login store."""
         database = self.data / "saved-login.db"
         database.write_bytes(b"inert-login-store")
+        config = self.base / "custom-config"
+        config.mkdir()
+        config_file = config / "opencode.json"
+        config_file.write_text('{"fixture":true}')
+        self.cli.write_text(self.cli.read_text().replace(
+            'printf called >>',
+            '[ -f "${OPENCODE_CONFIG_DIR}/opencode.json" ] || exit 69\nprintf called >>', 1))
         for override in ("saved-login.db", str(database)):
             with self.subTest(database=override):
+                self.marker.unlink(missing_ok=True)
                 settings = {"XDG_DATA_HOME": self.env["XDG_DATA_HOME"],
                             "OPENCODE_DB": override,
+                            "OPENCODE_CONFIG_DIR": str(config),
                             "UNRELATED_PRIVATE_VALUE": "excluded"}
                 script = """import {loadProviderEnvAllowlist, providerEnvironment} from './shared/adapter-runtime.mjs';
 console.log(JSON.stringify(providerEnvironment(loadProviderEnvAllowlist(process.cwd()),
@@ -497,26 +506,29 @@ console.log(JSON.stringify(providerEnvironment(loadProviderEnvAllowlist(process.
                                          text=True, check=False)
                 self.assertEqual(adapter.returncode, 0, adapter.stderr)
                 forwarded = json.loads(adapter.stdout)
-                self.assertEqual(forwarded, {key: settings[key] for key in
-                                            ("XDG_DATA_HOME", "OPENCODE_DB")})
                 self.env.update(forwarded, CLI_VERSION="2.0.23")
                 self.assertEqual(self.readiness("static")["reason_code"], "live-check-required")
                 self.assertFalse(self.marker.exists(), "static storage discovery launched the CLI")
+                self.assertEqual(self.readiness("live")["status"], "available")
+                self.assertEqual(forwarded, {key: settings[key] for key in
+                                            ("XDG_DATA_HOME", "OPENCODE_DB", "OPENCODE_CONFIG_DIR")})
                 # Exercise the actual dispatch environment, not only the JS map.
                 child = self.shell('''source scripts/lib/provider-routing.sh
 build_provider_env opencode || exit
 "${PROVIDER_ENV_ARRAY[@]}" sh -c \'case "$OPENCODE_DB" in
     /*) store=$OPENCODE_DB ;; *) store=$XDG_DATA_HOME/opencode/$OPENCODE_DB ;;
 esac
-test -f "$store"\'
+test -f "$store" && test -f "$OPENCODE_CONFIG_DIR/opencode.json" && opencode --version\'
 ''')
                 self.assertEqual(child.returncode, 0, child.stderr)
+                self.assertEqual(child.stdout.strip(), "2.0.23")
                 isolated = self.shell('''source scripts/lib/provider-routing.sh
 build_provider_env codex || exit
-"${PROVIDER_ENV_ARRAY[@]}" sh -c \'test -z "${OPENCODE_DB+x}" && test -z "${XDG_DATA_HOME+x}"\'
+"${PROVIDER_ENV_ARRAY[@]}" sh -c \'test -z "${OPENCODE_DB+x}" && test -z "${XDG_DATA_HOME+x}" && test -z "${OPENCODE_CONFIG_DIR+x}"\'
 ''')
                 self.assertEqual(isolated.returncode, 0, "OpenCode store selection reached Codex")
                 self.assertEqual(database.read_bytes(), b"inert-login-store")
+                self.assertEqual(config_file.read_text(), '{"fixture":true}')
 
     def test_v2_empty_malformed_or_unknown_connections_are_rejected(self):
         (self.data / "opencode.db").touch()
