@@ -346,4 +346,64 @@ print('9 complete-snapshot rollbacks passed across source, native and Codex tree
 PY_SNAPSHOT
 then test_pass; else test_fail "rollback left post-checkpoint code or lost protected lessons"; fi
 
+test_case "rollback refuses hidden edits and protected lessons ancestor conflicts"
+if python3 - "$PROJECT_ROOT" <<'PY_HIDDEN'
+import os
+import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+root = Path(sys.argv[1])
+env = dict(os.environ, GIT_AUTHOR_NAME='Test', GIT_AUTHOR_EMAIL='test@example.invalid',
+           GIT_COMMITTER_NAME='Test', GIT_COMMITTER_EMAIL='test@example.invalid',
+           CLAUDE_PLUGIN_ROOT=str(root))
+for tree in ('.claude/skills', 'skills', 'codex-skills'):
+    text = (root / tree / 'skill-rollback/SKILL.md').read_text()
+    commands = {}
+    for step in (4, 6):
+        section = text.split(f'### Step {step}:', 1)[1].split(f'### Step {step + 1}:', 1)[0]
+        commands[step] = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+    for state in ('assume-unchanged', 'skip-worktree', 'ancestor-file', 'ancestor-symlink'):
+        for step in (4, 6):
+            with tempfile.TemporaryDirectory() as temporary:
+                repo = Path(temporary)
+                def git(*args):
+                    return subprocess.check_output(['git', *args], cwd=repo, env=env)
+                git('init', '-q')
+                (repo / 'work.txt').write_text('checkpoint content\n')
+                if state == 'ancestor-file':
+                    (repo / '.octo').write_text('old file\n')
+                elif state == 'ancestor-symlink':
+                    (repo / '.octo').symlink_to('work.txt')
+                git('add', '.')
+                git('commit', '-qm', 'checkpoint')
+                git('tag', 'target')
+                if state.startswith('ancestor-'):
+                    git('rm', '-q', '.octo')
+                (repo / '.octo').mkdir()
+                (repo / '.octo/LESSONS.md').write_text('keep current lessons\n')
+                git('add', '.')
+                git('commit', '-qm', 'current lessons')
+                if state in ('assume-unchanged', 'skip-worktree'):
+                    git('update-index', '--' + state, 'work.txt')
+                    (repo / 'work.txt').write_text('hidden private edits\n')
+                assert git('status', '--porcelain=v1', '--untracked-files=all') == b''
+                before_index = (repo / '.git/index').read_bytes()
+                before_flags = git('ls-files', '-v', '-z')
+                before_tree = {str(p.relative_to(repo)): p.read_bytes() for p in repo.rglob('*')
+                               if p.is_file() and '.git' not in p.relative_to(repo).parts}
+                result = subprocess.run(['bash', '-euo', 'pipefail', '-c', commands[step]], cwd=repo,
+                                        env=dict(env, CHECKPOINT_TAG='target'), capture_output=True)
+                assert result.returncode != 0, (tree, state, step, 'unsafe restore allowed')
+                after_tree = {str(p.relative_to(repo)): p.read_bytes() for p in repo.rglob('*')
+                              if p.is_file() and '.git' not in p.relative_to(repo).parts}
+                assert after_tree == before_tree, (tree, state, step, 'worktree changed')
+                assert (repo / '.git/index').read_bytes() == before_index, 'index changed'
+                assert git('ls-files', '-v', '-z') == before_flags, 'index flags changed'
+                assert not git('tag', '--list', 'octo-checkpoint-pre-rollback-*'), 'unsafe safety tag created'
+print('24 hidden-edit/ancestor-conflict refusals passed across all three skill trees')
+PY_HIDDEN
+then test_pass; else test_fail "rollback can erase hidden edits or protected lessons"; fi
+
 test_summary

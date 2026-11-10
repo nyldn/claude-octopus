@@ -6,6 +6,8 @@
 
 - Checkpoint rollback removes tracked files added after the checkpoint and
   restores deleted files while retaining current lessons and commit history.
+  It refuses hidden index entries and checkpoint paths that would replace the
+  protected lessons directory.
 
 ### Fixed
 

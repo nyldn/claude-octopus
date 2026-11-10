@@ -121,7 +121,9 @@ Any other input will cancel.
 ### Step 4: Create Safety Checkpoint
 
 Before any rollback, require a clean index and working tree, including untracked
-files. Check ignored files against the selected checkpoint too, including file
+files. Reject assume-unchanged and skip-worktree entries without changing their
+flags. Reject a checkpoint that would replace the `.octo` directory containing
+protected lessons with a file or symlink. Check ignored files against the selected checkpoint too, including file
 and directory collisions. A Git tag records committed files only. If either
 check fails, stop and let the user preserve their work before starting again.
 Use the plugin installation that loaded this skill. If `CLAUDE_PLUGIN_ROOT` is
