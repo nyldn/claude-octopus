@@ -1,6 +1,6 @@
-### STEP 6: Synthesize In-Conversation (MANDATORY - Claude Synthesizes)
+### STEP 6: Synthesize In-Conversation (MANDATORY - Host Synthesizes)
 
-**You (Claude) synthesize the collected results directly in conversation.** This replaces the previous direct-provider synthesis call that frequently timed out.
+**You (the host model) synthesize the collected results directly in conversation.** This replaces the previous direct-provider synthesis call that frequently timed out.
 
 **Use this exact structure** (structured research report format):
 

@@ -473,7 +473,7 @@ Providers:
 The orchestrate.sh script will:
 1. Call **Codex CLI** with the implementation task
 2. Call **Antigravity CLI** with the implementation task
-3. You (Claude) contribute implementation analysis
+3. You (the host model) contribute implementation analysis
 4. Synthesize approaches and recommend best path
 
 ### Step 3: Review Quality Gates

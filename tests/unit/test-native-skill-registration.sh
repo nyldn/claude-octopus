@@ -226,6 +226,7 @@ then test_pass; else test_fail "finish-branch execution contradicts the selected
 
 test_case "generator keeps canonical native sources and adapts new Codex entries"
 if python3 - "$PROJECT_ROOT" <<'PY_CANONICAL'
+import os
 import shutil
 import subprocess
 import sys
@@ -250,7 +251,13 @@ with tempfile.TemporaryDirectory() as directory:
             native = fixture / 'skills' / name
             (native / 'references').mkdir(parents=True)
             (native / 'SKILL.md').write_text(body + 'Canonical phase entry.\n')
-            (native / 'references/phase.md').write_text('Shared phase instructions.\n')
+            (native / 'references/phase.md').write_text(
+                'Use the Bash tool and Agent tool. You (Claude) synthesize.\n'
+                'Claude Code example: Agent(run_in_background: true).\n'
+                '```bash\n'
+                'if [[ -n "${PLAN_MODE_ACTIVE}" ]] || claude-code plan status 2>/dev/null | grep -q "active"; then\n'
+                '  echo plan-active\n'
+                'fi\n```\n')
             canonical[name] = (native / 'SKILL.md').read_bytes()
     blocks = fixture / 'skills/blocks'
     blocks.mkdir()
@@ -266,7 +273,25 @@ with tempfile.TemporaryDirectory() as directory:
         adapted = (fixture / 'codex-skills' / name / 'SKILL.md').read_text()
         assert 'Host: Codex CLI' in adapted and 'native shell command tool' in adapted
         assert '`codex-skills/blocks/method.md`' in adapted
-        assert (fixture / 'codex-skills' / name / 'references/phase.md').is_file()
+        resource = (fixture / 'codex-skills' / name / 'references/phase.md').read_text()
+        native_resource = (fixture / 'skills' / name / 'references/phase.md').read_text()
+        assert 'native shell command tool' in resource and 'host subagent tool' in resource
+        assert 'You (the host model) synthesize.' in resource
+        assert 'Agent(run_in_background: true)' in resource, 'labelled native call was corrupted'
+        assert 'claude-code plan status' not in resource
+        assert 'You (Claude)' in native_resource and 'Bash tool' in native_resource
+        assert 'claude-code plan status' in native_resource, 'native resource was adapted'
+        command = resource.split('```bash\n', 1)[1].split('\n```', 1)[0]
+        for active, expected in ((None, ''), ('', ''), ('1', 'plan-active\n')):
+            env = dict(os.environ)
+            env.pop('PLAN_MODE_ACTIVE', None)
+            if active is not None:
+                env['PLAN_MODE_ACTIVE'] = active
+            result = subprocess.run(['bash', '-euo', 'pipefail', '-c',
+                'claude-code() { echo unexpected-probe >&2; return 99; }; ' + command],
+                env=env,
+                capture_output=True, text=True, timeout=5)
+            assert result.returncode == 0 and result.stdout == expected and not result.stderr, result
     assert 'codex-skills/blocks/other.md' in (fixture / 'codex-skills/blocks/method.md').read_text()
     assert 'codex-skills' not in (fixture / 'skills/blocks/method.md').read_text()
     def snapshot():

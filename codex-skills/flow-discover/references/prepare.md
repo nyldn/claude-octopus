@@ -23,7 +23,7 @@ Check if native plan mode is active:
 
 ```bash
 # Check for native plan mode markers
-if [[ -n "${PLAN_MODE_ACTIVE}" ]] || claude-code plan status 2>/dev/null | grep -q "active"; then
+if [[ -n "${PLAN_MODE_ACTIVE:-}" ]]; then
     echo "⚠️  Native plan mode detected"
     echo ""
     echo "   Resolve Claude Octopus workflow state with: octopus state-path"

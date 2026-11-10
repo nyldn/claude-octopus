@@ -475,7 +475,7 @@ Providers:
 The orchestrate.sh script will:
 1. Call **Codex CLI** for code quality analysis
 2. Call **Antigravity CLI** for security and edge case review
-3. You (Claude) synthesize findings into validation report
+3. You (the host model) synthesize findings into validation report
 4. Generate quality scores and recommendations
 
 ### Step 3: Quality Gates (Automatic)

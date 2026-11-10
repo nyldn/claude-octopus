@@ -471,7 +471,7 @@ The orchestrate.sh script will:
 1. Call **Codex CLI** for technical requirement analysis
 2. Call **Antigravity CLI** for business/user need analysis
 3. Call **Antigravity CLI** for additional external-model challenge
-4. You (Claude) synthesize into clear problem definition
+4. You (the host model) synthesize into clear problem definition
 5. Identify gaps and missing requirements
 
 ### Stage C: Read Results

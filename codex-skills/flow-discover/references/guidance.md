@@ -133,7 +133,7 @@ Providers:
 The orchestrate.sh script will:
 1. Call **Codex CLI** with the research question
 2. Call **Antigravity CLI** with the research question
-3. You (Claude) contribute your analysis
+3. You (the host model) contribute your analysis
 4. Synthesize all perspectives into recommendations
 
 ### Step 2a: Native Background Tasks (Claude Code 2.1.14+)

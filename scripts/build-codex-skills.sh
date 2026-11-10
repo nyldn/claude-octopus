@@ -302,17 +302,26 @@ adapt_shared_paths_for_codex() {
     sed -E 's@(^|[^[:alnum:]_.-])skills/blocks/@\1codex-skills/blocks/@g'
 }
 
+# Adapt narrator/tool references while preserving explicitly labelled native
+# call examples, whose argument names must remain valid for their own host.
+adapt_host_context_for_codex() {
+    adapt_shared_paths_for_codex | sed -E \
+        -e 's/Bash tool/native shell command tool/g' \
+        -e 's/Agent tool/host subagent tool/g' \
+        -e 's/Task tool/host subagent tool/g' \
+        -e 's/TodoWrite/task plan tool/g' \
+        -e 's/You \(Claude\)/You (the host model)/g' \
+        -e 's/Claude Synthesizes/Host Synthesizes/g' \
+        -e 's/if \[\[ -n "\$\{PLAN_MODE_ACTIVE\}" \]\] \|\| claude-code plan status 2>\/dev\/null \| grep -q "active"; then/if [[ -n "${PLAN_MODE_ACTIVE:-}" ]]; then/g'
+}
+
 adapt_body_for_codex() {
     local file="$1"
     if source_has_enforced_execution "$file" && ! body_has_enforcement "$file"; then
         generated_enforcement_block
     fi
 
-    extract_body "$file" | adapt_shared_paths_for_codex | sed -E \
-        -e 's/Bash tool/native shell command tool/g' \
-        -e 's/Agent tool/host subagent tool/g' \
-        -e 's/Task tool/host subagent tool/g' \
-        -e 's/TodoWrite/task plan tool/g' \
+    extract_body "$file" | adapt_host_context_for_codex | sed -E \
         -e 's/run_in_background/background execution/g' \
         -e 's/codex exec --skip-git-repo-check --full-auto/codex exec --skip-git-repo-check/g' \
         -e 's/codex exec --full-auto/codex exec --skip-git-repo-check/g' \
@@ -443,7 +452,7 @@ prepare_target_dir() {
         if [[ "$host" == codex ]]; then
             local file
             while IFS= read -r file; do
-                adapt_shared_paths_for_codex < "$file" > "$file.tmp"
+                adapt_host_context_for_codex < "$file" > "$file.tmp"
                 mv "$file.tmp" "$file"
             done < <(find "$target_dir" -type f -name '*.md')
         fi
