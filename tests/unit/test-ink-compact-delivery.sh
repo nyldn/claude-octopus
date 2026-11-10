@@ -38,6 +38,12 @@ reset_results() {
     mkdir -p "$RESULTS_DIR"
 }
 
+only_delivery_file() {
+    local files=("$RESULTS_DIR"/delivery-*.md)
+    [[ ${#files[@]} -eq 1 && -f "${files[0]}" ]] || return 1
+    printf '%s\n' "${files[0]}"
+}
+
 reset_results
 probe_file="$RESULTS_DIR/probe-synthesis-test.md"
 grasp_file="$RESULTS_DIR/grasp-consensus-test.md"
@@ -197,7 +203,8 @@ test_case "ink's real picker honors the allowlist and selects Claude"
 rm -f "$RESULTS_DIR"/delivery-*.md "$TEST_ROOT/synthesis-calls"
 if ink_deliver "Implement the requested feature" "$tangle_file" >/dev/null 2>&1 && \
    [[ "$(cat "$TEST_ROOT/synthesis-calls")" == "claude-sonnet" ]] && \
-   grep -q 'SONNET_SYNTHESIS_MARKER' "$RESULTS_DIR"/delivery-*.md; then
+   delivery_file="$(only_delivery_file)" && \
+   grep -q 'SONNET_SYNTHESIS_MARKER' "$delivery_file"; then
     test_pass
 else
     test_fail "real picker did not use the allowed Claude synthesizer"
@@ -210,7 +217,8 @@ for picker_state in loaded absent; do
     rm -f "$RESULTS_DIR"/delivery-*.md "$TEST_ROOT/synthesis-calls"
     if ink_deliver "Implement the requested feature" "$tangle_file" >/dev/null 2>&1 && \
        [[ ! -s "$TEST_ROOT/synthesis-calls" ]] && \
-       grep -q 'Automated synthesis unavailable.' "$RESULTS_DIR"/delivery-*.md; then
+       delivery_file="$(only_delivery_file)" && \
+       grep -q 'Automated synthesis unavailable.' "$delivery_file"; then
         test_pass
     else
         test_fail "ink attempted synthesis without an authorization helper"
