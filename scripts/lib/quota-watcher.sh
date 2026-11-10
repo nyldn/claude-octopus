@@ -264,6 +264,7 @@ start_quota_watcher() {
     local warning_message="${5:-Quota exhaustion detected - fast-failing}"
     local provider="${6:-}"   # optional: marked quota-dead for the session on match
     local fired_file="${7:-}"
+    local target_identity="${8:-}" # registration snapshot for identity-bound callbacks
 
     : > "$temp_err"
     : > "$temp_out"
@@ -294,7 +295,7 @@ start_quota_watcher() {
                         octo_quota_mark_dead "$provider"
                     fi
                     _kill_attempts=$((_kill_attempts + 1))
-                    if "$kill_callback" "$target_pid"; then
+                    if "$kill_callback" "$target_pid" "$target_identity"; then
                         break
                     fi
                     if [[ $_kill_attempts -ge 5 ]]; then

@@ -266,10 +266,12 @@ PROVIDER
             set -m
             (
                 octo_capture_current_shell_pid || exit 1
+                PID_FILE="$QUOTA_SUPERVISION_FIXTURE/pids"
+                worker_identity=$(octopus_pid_register "$OCTO_CAPTURED_SHELL_PID" fixture quota) || exit 1
                 watcher=$(start_quota_watcher "$OCTO_CAPTURED_SHELL_PID" \
                     "$QUOTA_SUPERVISION_FIXTURE/err" "$QUOTA_SUPERVISION_FIXTURE/out" \
                     quota_watcher_kill_spawn_children quota supervision-fixture \
-                    "$QUOTA_SUPERVISION_FIXTURE/fired")
+                    "$QUOTA_SUPERVISION_FIXTURE/fired" "$worker_identity")
                 capture_rc=0
                 octopus_capture_provider_output question 60 "$QUOTA_SUPERVISION_FIXTURE/in" \
                     "$QUOTA_SUPERVISION_FIXTURE/out" "$QUOTA_SUPERVISION_FIXTURE/err" \
@@ -403,10 +405,12 @@ CHURN
             set -m
             (
                 octo_capture_current_shell_pid || exit 1
+                PID_FILE="$QUOTA_ORPHAN_FIXTURE/pids"
+                worker_identity=$(octopus_pid_register "$OCTO_CAPTURED_SHELL_PID" fixture quota) || exit 1
                 watcher=$(start_quota_watcher "$OCTO_CAPTURED_SHELL_PID" \
                     "$QUOTA_ORPHAN_FIXTURE/err" "$QUOTA_ORPHAN_FIXTURE/out" \
                     quota_watcher_kill_spawn_children quota orphan-fixture \
-                    "$QUOTA_ORPHAN_FIXTURE/fired")
+                    "$QUOTA_ORPHAN_FIXTURE/fired" "$worker_identity")
                 capture_rc=0
                 octopus_capture_provider_output question 16 "$QUOTA_ORPHAN_FIXTURE/in" \
                     "$QUOTA_ORPHAN_FIXTURE/out" "$QUOTA_ORPHAN_FIXTURE/err" \
@@ -442,6 +446,7 @@ test_quota_cleanup_retries_refusal() {
             retry_dir="$FIXTURE/retry-$mode"
             mkdir -p "$retry_dir"
             _retry_stop() {
+                [[ "${2:-}" == registered-worker ]] || return 1
                 printf 'attempt\n' >> "$retry_dir/attempts"
                 [[ "$mode" == recover && "$(wc -l < "$retry_dir/attempts")" -ge 3 ]] || return 1
                 kill "$1"
@@ -451,7 +456,7 @@ test_quota_cleanup_retries_refusal() {
             command sleep 30 &
             target=$!
             watcher=$(start_quota_watcher "$target" "$retry_dir/err" "$retry_dir/out" \
-                _retry_stop retry retry-fixture "$retry_dir/fired")
+                _retry_stop retry retry-fixture "$retry_dir/fired" registered-worker)
             printf 'ERROR: Individual quota reached.\n' > "$retry_dir/err"
             for attempt in {1..250}; do
                 count=$(wc -l < "$retry_dir/attempts" 2>/dev/null || printf 0)

@@ -80,6 +80,34 @@ class ProcessControlTests(unittest.TestCase):
                 control.handoff_to_children(os.getpid())
             send.assert_not_called()
 
+    def test_quota_callback_requires_the_registered_worker_identity(self):
+        """A delayed watcher must not signal a replacement worker or its child."""
+        for expected in ("wrong-birth", ""):
+            with self.subTest(expected=expected), tempfile.TemporaryDirectory() as temporary:
+                marker = Path(temporary) / "child"
+                root = self.child(
+                    "import pathlib,subprocess,sys,time; "
+                    "p=subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)']); "
+                    f"pathlib.Path({str(marker)!r}).write_text(str(p.pid)); time.sleep(30)"
+                )
+                deadline = time.monotonic() + 3
+                while not marker.exists() and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertTrue(marker.exists())
+                with control.Process(int(marker.read_text())) as child:
+                    try:
+                        result = subprocess.run(
+                            ["bash", "-c", 'source "$1/scripts/lib/spawn.sh"; '
+                             'log() { :; }; quota_watcher_kill_spawn_children "$2" "$3"',
+                             "_", str(HELPER.parents[2]), str(root.pid), expected],
+                            capture_output=True, text=True, timeout=10,
+                        )
+                        self.assertNotEqual(result.returncode, 0, result.stderr)
+                        self.assertTrue(child.running(), "unregistered child's process was signalled")
+                        self.assertFalse(control.snapshot(root.pid).stopped)
+                    finally:
+                        child.send(signal.SIGKILL)
+
     def test_handoff_does_not_kill_a_supervisor_that_still_owns_cleanup(self):
         with tempfile.TemporaryDirectory(prefix="octo-handoff-test-") as temporary:
             marker = Path(temporary) / "child"

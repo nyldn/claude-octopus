@@ -22,12 +22,16 @@ if ! type write_agent_result_prompt >/dev/null 2>&1; then
 fi
 
 quota_watcher_kill_spawn_children() {
-    local spawn_pid="$1"
+    local spawn_pid="$1" worker_identity="${2:-}"
+    if [[ -z "$worker_identity" ]]; then
+        log "ERROR" "Quota cleanup refused: worker registration identity is missing" 2>/dev/null || true
+        return 1
+    fi
     # The timeout supervisor already owns its private groups. Deliver TERM by
     # native identity and let its handler finish, even if the provider leader
     # has been reaped or a global process snapshot cannot stabilize.
     if ! _octo_pid_python_run "${_octopus_spawn_lib_dir}/../helpers/process_control.py" \
-        "$spawn_pid" --supervisor-handoff >/dev/null; then
+        "$spawn_pid" --identity "$worker_identity" --supervisor-handoff >/dev/null; then
         log "ERROR" "Quota cleanup refused: owned descendants could not be verified" 2>/dev/null || true
         return 1
     fi
@@ -1671,7 +1675,7 @@ ${heuristic_ctx}"
                 quota_watcher_kill_spawn_children \
                 "[$agent_type] Quota/terminal error detected - fast-failing (saves ~${_eff_timeout}s wait)" \
                 "$_provider_prefix" \
-                "$quota_fired_file")
+                "$quota_fired_file" "$_worker_identity")
 
             # v9.2.2: All agents use stdin-based prompt delivery to avoid ARG_MAX
             # limits. File-backed capture avoids waiting for EOF from a provider

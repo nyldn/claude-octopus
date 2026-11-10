@@ -32,7 +32,8 @@ stopped descendant. Incomplete enumeration refuses cleanup and resumes processes
 it stopped. It never signals a numeric group ID.
 
 Quota cleanup uses the timeout supervisor's existing ownership instead of
-reconstructing its groups. It freezes the worker, binds its direct supervision
+reconstructing its groups. It verifies the worker's registered birth identity
+before freezing it, binds its direct supervision
 children by native identity and parent relationship, and delivers TERM. Their
 handlers clean up the private provider and timer groups, including reparented
 helpers whose original leader has already exited. The native handoff waits at
