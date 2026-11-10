@@ -740,4 +740,42 @@ for recovery_case in existing missing-backup malformed; do
     else test_fail "contract admission lost artifacts or dispatched for $recovery_case"; fi
 done
 
+holder_root="$(mktemp -d)"
+printf '{"tasks":[{"id":"holder","agent":"codex","prompt":"inert"}]}' > "$holder_root/holder-tasks.json"
+for nesting in direct subshell; do
+    test_case "a seat reservation names the $nesting dispatcher's process"
+    rm -f "$holder_root/holder-recorded" "$holder_root/holder-expected"
+    bash -c '
+        lib_root="$1" tmp="$2" nesting="$3"
+        source "$lib_root/scripts/lib/agent-spec.sh"
+        source "$lib_root/scripts/lib/error-tracking.sh"
+        source "$lib_root/scripts/lib/parallel.sh"
+        source "$lib_root/scripts/lib/run-contract.sh"
+        log() { :; }
+        aggregate_results() { :; }
+        run_contract_reserve_seat() { printf "%s\n" "$2" > "$tmp/holder-recorded"; return 1; }
+        export OCTOPUS_RUN_ID="holder-$nesting" WORKSPACE_DIR="$tmp/workspace"
+        RESULTS_DIR="$tmp/results" AVAILABLE_AGENTS=codex MAX_PARALLEL=1
+        SUPPORTS_DISABLE_CRON_ENV=false DRY_RUN=false TIMEOUT=1 GREEN="" NC=""
+        if [[ "$nesting" == subshell ]]; then
+            ( parallel_execute "$tmp/holder-tasks.json" ) &
+            printf "%s\n" "$!" > "$tmp/holder-expected"
+            wait "$!"
+        else
+            parallel_execute "$tmp/holder-tasks.json"
+        fi
+    ' _ "${AGGREGATION_LIB_ROOT:-$PROJECT_ROOT}" "$holder_root" "$nesting" \
+        > "$holder_root/holder-$nesting.log" 2>&1 &
+    dispatcher=$!
+    [[ "$nesting" == subshell ]] || printf '%s\n' "$dispatcher" > "$holder_root/holder-expected"
+    wait "$dispatcher" || true
+    if [[ -s "$holder_root/holder-recorded" &&
+          "$(cat "$holder_root/holder-recorded")" == "$(cat "$holder_root/holder-expected")" ]]; then
+        test_pass
+    else
+        test_fail "holder $(cat "$holder_root/holder-recorded" 2>/dev/null) is not dispatcher $(cat "$holder_root/holder-expected")"
+    fi
+done
+rm -rf "$holder_root"
+
 test_summary

@@ -918,7 +918,9 @@ parallel_execute() {
             if declare -F octo_spawn_contract_seat_id >/dev/null 2>&1; then
                 contract_seat="$(octo_spawn_contract_seat_id "$task_id")"
             fi
-            [[ -n "$reservation_holder" ]] || reservation_holder="$(sh -c 'printf "%s\n" "$PPID"')"
+            # Bash 3.2 forks again inside $(...) without exec, naming a process
+            # that exits at once and would make this reservation look stale.
+            [[ -n "$reservation_holder" ]] || reservation_holder="$(exec sh -c 'printf "%s\n" "$PPID"')"
             if run_contract_reserve_seat "$contract_seat" "$reservation_holder"; then
                 reserved_seat="$contract_seat"
             else
