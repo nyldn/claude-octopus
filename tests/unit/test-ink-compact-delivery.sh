@@ -97,8 +97,13 @@ octo_provider_allowed() { return 0; }
 agy() { :; }
 run_agent_sync() {
     local provider="$1"
+    local role="${4:-}"
     local phase="${5:-}"
     if [[ "$provider" == "agy" && "$AGY_EMPTY_SUCCESS" == "true" ]]; then
+        return 0
+    fi
+    if [[ "$provider" == "claude-sonnet" && "$role" == "synthesizer" && "$phase" == "ink" ]]; then
+        printf '%s\n' "SONNET_SYNTHESIS_MARKER"
         return 0
     fi
     if [[ "$provider" == "claude-sonnet" && "$phase" == "ink" ]]; then
@@ -142,6 +147,39 @@ if ink_deliver "Implement the requested feature" "$tangle_file" >/dev/null 2>&1;
     fi
 else
     test_fail "ink_deliver returned non-zero for empty successful agy synthesis"
+fi
+
+AGY_EMPTY_SUCCESS=false
+_aggregate_pick_synth_agent() { echo "claude-sonnet"; }
+
+test_case "ink synthesizes with the shared picker's claude-sonnet when agy is not chosen"
+if ink_deliver "Implement the requested feature" "$tangle_file" >/dev/null 2>&1; then
+    delivery_file="$(ls -t "$RESULTS_DIR"/delivery-*.md 2>/dev/null | head -1)"
+    delivery_content="$(cat "$delivery_file")"
+    if [[ "$delivery_content" == *"SONNET_SYNTHESIS_MARKER"* ]] && \
+       [[ "$delivery_content" != *"Automated synthesis unavailable."* ]]; then
+        test_pass
+    else
+        test_fail "ink ignored the shared synthesis picker and used the fallback stub"
+    fi
+else
+    test_fail "ink_deliver returned non-zero with a claude-sonnet synthesizer"
+fi
+
+_aggregate_pick_synth_agent() { echo ""; }
+
+test_case "ink falls back when the shared picker finds no synthesizer"
+if ink_deliver "Implement the requested feature" "$tangle_file" >/dev/null 2>&1; then
+    delivery_file="$(ls -t "$RESULTS_DIR"/delivery-*.md 2>/dev/null | head -1)"
+    delivery_content="$(cat "$delivery_file")"
+    if [[ "$delivery_content" == *"Automated synthesis unavailable."* ]] && \
+       [[ "$delivery_content" != *"SONNET_SYNTHESIS_MARKER"* ]]; then
+        test_pass
+    else
+        test_fail "ink synthesized although the shared picker found no synthesizer"
+    fi
+else
+    test_fail "ink_deliver returned non-zero when no synthesizer is available"
 fi
 
 test_summary
