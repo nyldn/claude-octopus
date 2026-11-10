@@ -717,6 +717,7 @@ research_numeric_claims() {
         # including Markdown list items, and explicit references are exempt.
         # "and"/"or" continues a reference list only after a skipped reference
         # or a section number, so "points: 50 and items: 10" stays a claim.
+        if (number ~ /^[0-9]+$/ && tolower(before) ~ /(^|[(;.!?|]|(^|[^0-9a-z_])see[ \t])[ \t]*([-*+][ \t]+)?[*_]*(findings?|risks?|probes?|conflicts?|decisions?|gaps?)[*_]*[ \t]+$/) return 1
         if (tolower(before) ~ ("(^|[^0-9a-z_])" label) &&
             tolower(before) !~ ("(^|[;.!?|])[ \\t]*([-*+][ \\t]+)?" label) &&
             !list_reference &&

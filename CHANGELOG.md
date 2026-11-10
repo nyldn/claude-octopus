@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Research verification no longer checks a synthesis's own section labels as
+  numeric claims. "(Finding 4)", "(Risk 3)" and "See conflicts 1 and 2" are
+  references, while "Risk 3 of the services" still needs evidence.
+
 ### Maintenance
 
 - Skill generation uses the authored entries directly through the existing sync

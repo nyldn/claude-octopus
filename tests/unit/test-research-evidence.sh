@@ -864,6 +864,18 @@ for quantity_text in 'Score in **points**: 50' 'Total **items:** 50' '**Points:*
     if [[ "$quantity_claims" == 50 ]]; then test_pass; else test_fail "quantity escaped: $quantity_claims"; fi
 done
 
+for reference_text in '(Finding 4, as above)' '(Risk 3)' '(probe 3, under the unrelated-fixes rule)' 'See Finding 4.' 'See conflicts 1 and 2.' '- **Decision** 7'; do
+    test_case "synthesis section label is a self-reference: $reference_text"
+    reference_claims=$(research_extract_numbers "$reference_text")
+    if [[ -z "$reference_claims" ]]; then test_pass; else test_fail "section label became a claim: $reference_claims"; fi
+done
+
+for quantity_text in 'Risk 3 of the services fail.' 'The top risk 3' '(Findings 3 in total)' '3 risks'; do
+    test_case "quantity beside a section label requires evidence: $quantity_text"
+    quantity_claims=$(research_extract_numbers "$quantity_text")
+    if [[ "$quantity_claims" == 3 ]]; then test_pass; else test_fail "quantity escaped: $quantity_claims"; fi
+done
+
 test_case "an ordinal self-reference needs no evidence while units beside it still do"
 ordinal_draft="$RESEARCH_RUN_DIR/local-ordinals.md"
 {
