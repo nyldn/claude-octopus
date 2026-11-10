@@ -6176,7 +6176,9 @@ Compact source context to synthesize:
 $all_results"
 
     local delivery synth_agent=""
-    if declare -F _aggregate_pick_synth_agent >/dev/null 2>&1; then
+    if ! declare -F octo_provider_allowed >/dev/null 2>&1; then
+        log WARN "Synthesis authorization unavailable; using bounded fallback synthesis"
+    elif declare -F _aggregate_pick_synth_agent >/dev/null 2>&1; then
         synth_agent=$(_aggregate_pick_synth_agent)
     elif octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then
         synth_agent="agy"

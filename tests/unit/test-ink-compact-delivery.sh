@@ -99,6 +99,9 @@ run_agent_sync() {
     local provider="$1"
     local role="${4:-}"
     local phase="${5:-}"
+    if [[ "$role" == "synthesizer" ]]; then
+        printf '%s\n' "$provider" >> "$TEST_ROOT/synthesis-calls"
+    fi
     if [[ "$provider" == "agy" && "$AGY_EMPTY_SUCCESS" == "true" ]]; then
         return 0
     fi
@@ -181,5 +184,37 @@ if ink_deliver "Implement the requested feature" "$tangle_file" >/dev/null 2>&1;
 else
     test_fail "ink_deliver returned non-zero when no synthesizer is available"
 fi
+
+# Exercise the real picker with an installed but disallowed provider.
+# shellcheck source=/dev/null
+source "$PROJECT_ROOT/scripts/lib/parallel.sh"
+# shellcheck source=/dev/null
+source "$PROJECT_ROOT/scripts/lib/provider-allowlist.sh"
+OCTO_ALLOWED_PROVIDERS="codex claude"
+claude() { :; }
+
+test_case "ink's real picker honors the allowlist and selects Claude"
+rm -f "$RESULTS_DIR"/delivery-*.md "$TEST_ROOT/synthesis-calls"
+if ink_deliver "Implement the requested feature" "$tangle_file" >/dev/null 2>&1 && \
+   [[ "$(cat "$TEST_ROOT/synthesis-calls")" == "claude-sonnet" ]] && \
+   grep -q 'SONNET_SYNTHESIS_MARKER' "$RESULTS_DIR"/delivery-*.md; then
+    test_pass
+else
+    test_fail "real picker did not use the allowed Claude synthesizer"
+fi
+
+unset -f octo_provider_allowed
+for picker_state in loaded absent; do
+    [[ "$picker_state" == loaded ]] || unset -f _aggregate_pick_synth_agent
+    test_case "ink skips synthesis without authorization, picker $picker_state"
+    rm -f "$RESULTS_DIR"/delivery-*.md "$TEST_ROOT/synthesis-calls"
+    if ink_deliver "Implement the requested feature" "$tangle_file" >/dev/null 2>&1 && \
+       [[ ! -s "$TEST_ROOT/synthesis-calls" ]] && \
+       grep -q 'Automated synthesis unavailable.' "$RESULTS_DIR"/delivery-*.md; then
+        test_pass
+    else
+        test_fail "ink attempted synthesis without an authorization helper"
+    fi
+done
 
 test_summary
