@@ -85,13 +85,15 @@ with tempfile.TemporaryDirectory(prefix='release-readonly-', dir=sys.argv[2]) as
     root.mkdir()
     (root / 'scripts/helpers').mkdir(parents=True)
     shutil.copyfile(source, root / 'scripts/validate-release.sh')
+    shutil.copyfile(source.with_name('validate-plugin-assembly.py'),
+                    root / 'scripts/validate-plugin-assembly.py')
     audit = root / 'scripts/helpers/audit-provider-contracts.sh'
     audit.write_text('#!/usr/bin/env bash\nprintf "SUMMARY fixture audit passed\\n"\n')
     audit.chmod(0o755)
     for directory in ['.claude-plugin', '.codex-plugin', '.cursor-plugin', '.factory-plugin', 'commands', 'skills/flow-fixture']:
         (root / directory).mkdir(parents=True)
     version = '99.1.0'
-    plugin = {'name': 'octo', 'version': version, 'commands': ['./commands/fixture.md'],
+    plugin = {'name': 'octo', 'description': 'Native fixture plugin', 'version': version, 'commands': ['./commands/fixture.md'],
               'skills': ['./skills/flow-fixture']}
     (root / '.claude-plugin/plugin.json').write_text(json.dumps(plugin, indent=2))
     (root / '.claude-plugin/marketplace.json').write_text(json.dumps({'plugins': [

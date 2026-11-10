@@ -133,6 +133,9 @@ Use the plugin installation that loaded this skill. If `CLAUDE_PLUGIN_ROOT` is
 absent, replace the fallback below with that installation's absolute path.
 
 ```bash
+# Run the remaining rollback steps from the repository root.
+cd -- "$(git rev-parse --show-toplevel)" || exit 1
+
 # Refuse work that the safety tag cannot recover. Fail closed on Git errors.
 OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
 python3 "$OCTO_ROOT/scripts/helpers/rollback-preflight.py" "$CHECKPOINT_TAG" || exit 1
@@ -161,6 +164,9 @@ file. No shared temporary backup is needed.
 ### Step 6: Execute Rollback
 
 ```bash
+# Resolve the root again if this step starts in a new shell or subdirectory.
+cd -- "$(git rev-parse --show-toplevel)" || exit 1
+
 # Recheck immediately before restoring in case work changed after confirmation.
 OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
 python3 "$OCTO_ROOT/scripts/helpers/rollback-preflight.py" "$CHECKPOINT_TAG" || exit 1
@@ -170,8 +176,9 @@ python3 "$OCTO_ROOT/scripts/helpers/rollback-preflight.py" "$CHECKPOINT_TAG" || 
 git restore --source="$CHECKPOINT_TAG" --staged --worktree -- . ':(exclude).octo/LESSONS.md' || exit 1
 ```
 
-This restores the checkpoint's tracked files and deletes tracked paths added
-since it. The index records the rollback for review and a later commit. HEAD,
+This restores the checkpoint's tracked files across the whole repository and
+deletes tracked paths added since it, even when invoked from a subdirectory.
+The index records the rollback for review and a later commit. HEAD,
 commit history and `.octo/LESSONS.md` stay unchanged. Ignored local files remain
 subject to the collision checks above.
 

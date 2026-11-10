@@ -4,12 +4,14 @@
 
 ### Fixed
 
+- Rollback starts from the repository root, so invoking it from a subdirectory
+  restores the complete tracked snapshot and preserves current lessons.
+
 - Checkpoint rollback removes tracked files added after the checkpoint and
   restores deleted files while retaining current lessons and commit history.
   It refuses hidden index entries and checkpoint paths that would replace the
   protected lessons directory.
 
-### Fixed
 
 - Native discovery and refinement keep their canonical phase resources when
   generating separate Codex skills. Codex shared-block references use their own
