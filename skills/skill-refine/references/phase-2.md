@@ -33,6 +33,27 @@ the previous pair's frozen rubric and assessments. Reserve enough remaining
 time and at least four calls to rescore the original and best candidate. If
 that budget is unavailable, stop and report the correction as unscored.
 
+### Initialize persisted run control
+
+After selecting a provisional profile and guards, initialize the run before
+external research or judging. The candidate argument is the exact original
+file or deterministic manifest. Select the fixed explicit panel first.
+
+```bash
+python3 "$OCTO_ROOT/scripts/refinement-run.py" init "$RUN_DIR" \
+  "$ORIGINAL_SNAPSHOT" "$RUN_DIR/rubric.json" \
+  --deadline "$RUN_DEADLINE_UNIX" --max-calls "$MAX_CALLS" \
+  --max-rounds "$MAX_ROUNDS" --claude "$CLAUDE_SPEC" \
+  --claude-effort "$CLAUDE_EFFORT" --codex "$CODEX_SPEC" \
+  --codex-effort "$CODEX_EFFORT"
+```
+
+Use `reserve RUN_DIR UNIQUE_CALL_ID COUNT` before other external calls. It
+leaves capacity for the scoring pair. Finalize and freeze the rubric before
+baseline preparation. After the first pair, rubric changes require the explicit
+correction below. The controller and call ledger share one dispatch lock.
+Never replace its iteration journal, reset its deadline, or reinitialize it.
+
 For the first pair under the corrected rubric, use the original candidate
 snapshot and append these arguments to the mandatory phase 3 pair command:
 
@@ -49,3 +70,14 @@ candidate with another unique pair ID and the same corrected rubric, without
 the correction flag.
 Preserve the ledger, fixed panel, absolute deadline and total call limit.
 Compare scores only within the same rubric version.
+
+A rubric correction recalibrates the original, including any known failed
+baseline guards, before rescoring the retained best. Success remains pending
+until both distinct artifacts have been rescored. If the retained best is the
+original itself, the original pair covers both; do not score identical bytes
+again. A correction preserves stalled-round counts and needs capacity for both
+rescores before it starts.
+
+If correction stops before both rescores finish, retain the previously accepted
+artifact and label its score with the previous rubric. Report the correction as
+incomplete and do not claim target success under the corrected rubric.

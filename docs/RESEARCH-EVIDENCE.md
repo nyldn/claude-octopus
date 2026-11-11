@@ -92,6 +92,18 @@ Relative, fragment and reference-style linked units still require numeric
 evidence. Nested emphasis around an ordered-list label does not turn that label
 into a numeric claim.
 
+The same reference rules apply to standalone `Finding`, `Risk`, `Probe`,
+`Conflict`, `Decision` and `Gap` labels and their plurals. `(Finding 4)` and
+`See conflicts 1 & 2` refer to sections. `Risk 3 of the services` still states
+a quantity that needs evidence.
+
+In totals, numbers written separately are checked individually.
+`Findings: 3 or 4 in total`, `Findings: 3 or 4, in total` and
+`Findings: 3, 4 in total` each keep `3` and `4` for evidence checks.
+Without a space, `3,4` is one numeric token. Write `3, 4` to check them
+separately. Thresholds such as `Risk 3 or higher` and `Risk 3 & above`
+also remain numeric claims.
+
 When a probe synthesis fails verification, its synthesizer gets one repair
 pass with the findings, evidence catalog and numbered draft. Missing citations,
 unresolved workspace paths, unknown source IDs, unsupported consensus, number

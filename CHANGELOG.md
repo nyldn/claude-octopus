@@ -5,6 +5,47 @@
 ### Fixed
 
 - Managed Tangle output coverage checks declared artifacts rather than requiring model responses to repeat read-only context references. Missing outputs and unavailable coverage evidence remain blocking.
+- Explicit GPT-5.4 Mini API usage uses the documented $0.75 input and $4.50
+  output rates per million tokens. Capability checks now recognize its image
+  input and reasoning support. Model defaults and saved choices are preserved.
+
+## [11.22.1] - 2026-11-11
+
+### Fixed
+
+- Research verification recognizes section labels such as "(Finding 4)" and
+  references such as "See conflicts 1 & 2". Quantities and thresholds still
+  need evidence. Numbers written separately in totals remain checked,
+  including lists with a comma before "in total".
+
+### Maintenance
+
+- Council deadline tests measure prompt preparation separately from worker
+  startup, preventing false timing failures on busy runners. The watchdog
+  limit and checks for cancelled children and late output are preserved.
+- Focused unit CI retains timeout logs and cleans up owned processes before
+  the job deadline, matching the full unit lane. Interrupted steps preserve
+  collected output alongside the cancellation message.
+- Full unit shard weights include hosted macOS timings to spread process-heavy
+  suites across the four shards.
+
+## [11.22.0] - 2026-11-10
+
+### Added
+
+- GPT-6.1 Terra and Claude Fable 5.2 in the model catalog, with current API
+  pricing, Terra long-context billing and gateway restrictions, and Fable
+  dispatch guards. Existing routing defaults and saved pins are preserved.
+
+### Fixed
+
+- Refinement runs enforce round and stall limits through persisted state, retain
+  the best accepted candidate, and refuse unprepared or stopped dispatches.
+- Input snapshots match the bytes validated and scored. Interrupted rubric
+  corrections retain the prior best and score, preserve stalls, and keep the
+  original stop reason.
+- Successful structured judge answers can discuss context limits without being
+  misclassified as oversized-prompt errors. Genuine provider failures still stop.
 
 ### Maintenance
 

@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-11-09
+last_reviewed: 2026-11-11
 ---
 
 # PRODUCT.md
@@ -77,11 +77,11 @@ Frontier AI models will remain individually overconfident for the foreseeable fu
 
 ## Evidence
 
-**Traction (as of 2026-11-09):**
+**Traction (as of 2026-11-11):**
 - GitHub stars: 4,411
 - GitHub forks: 415
 - Local CI parity: `make ci-local` runs the same smoke, unit, and integration suites as CI
-- Version: 11.21.0 (active release cadence)
+- Version: 11.22.1 (active release cadence)
 - Runtimes supported: Claude Code, Codex CLI, Command Code CLI, Cursor (MCP), Antigravity CLI
 
 **Measured Impact:**
