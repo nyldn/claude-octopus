@@ -81,7 +81,52 @@ fi
         result = self.shell('source scripts/lib/dispatch.sh; source scripts/lib/utils.sh; get_agent_model() { echo vendor/model; }; cmd=$(get_agent_command opencode); validate_agent_command "$cmd" || exit; echo "$cmd"')
         self.assertEqual(result.returncode, 0, result.stderr)
         run = subprocess.run(shlex.split(result.stdout), env=self.env, capture_output=True, text=True, timeout=3)
+        self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout.strip(), "run --standalone -m vendor/model")
+
+    def test_commandcode_probe_excludes_forwarded_mistral_key(self):
+        """OpenCode's forwarded credential must not reach an unrelated health CLI."""
+        commandcode = self.bin / "command-code"
+        commandcode.write_text('#!/bin/sh\n[ "$*" = \'status --json\' ] || exit 70\n[ -z "${MISTRAL_API_KEY+x}" ] || { touch "$PROBE_MARKER"; exit 71; }\n[ "$UNRELATED_SETTING" = preserved ] || exit 72\nexit 0\n')
+        commandcode.chmod(0o755)
+        self.env.update(MISTRAL_API_KEY="fixture", UNRELATED_SETTING="preserved",
+                        OCTO_ALLOWED_PROVIDERS="commandcode")
+        result = self.shell('source scripts/lib/providers.sh; check_provider_health commandcode; '
+                            'rc=$?; [[ "$MISTRAL_API_KEY" == fixture ]] || exit 73; exit "$rc"')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertFalse(self.marker.exists(), "Mistral credential reached CommandCode")
+
+    def test_selected_admission_failure_preserves_broad_cache(self):
+        """Neither login nor smoke failure can replace unrelated discovery evidence."""
+        self.env.update(CLI_VERSION="2.0.23", OPENROUTER_API_KEY="fixture")
+        script = r'''
+source scripts/lib/preflight.sh
+source scripts/lib/config-display.sh
+log() { :; }
+_preflight_provider_candidates() { echo opencode; }
+detect_enterprise_backend() { :; }
+provider_smoke_test() { [[ "${SMOKE_FAILURE:-false}" != true ]]; }
+WORKSPACE_DIR="$HOME"; PREFLIGHT_CACHE_FILE="$HOME/preflight-cache"
+preflight_check true >/dev/null || exit 71
+cp "$PREFLIGHT_CACHE_FILE" "$HOME/cache-before" || exit 72
+if [[ "$FAILURE_KIND" == login ]]; then
+    AUTH_JSON='[]'; export AUTH_JSON
+else
+    SMOKE_FAILURE=true
+fi
+rc=0
+preflight_check true "$SELECTED_SEAT" dispatch >/dev/null || rc=$?
+[[ "$rc" == 1 ]] || exit 73
+cmp -s "$PREFLIGHT_CACHE_FILE" "$HOME/cache-before"
+'''
+        for failure, seat in product(("login", "smoke"),
+                                     ("opencode", "opencode-fast", "opencode-research",
+                                      "opencode:vendor/model", "")):
+            with self.subTest(failure=failure, seat=seat):
+                self.env.update(FAILURE_KIND=failure, SELECTED_SEAT=seat,
+                                OCTOPUS_COUNCIL_DEFAULT_PROVIDERS="opencode" if not seat else "")
+                result = self.shell(script)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_unknown_generation_refuses_dispatch(self):
         self.env["CLI_VERSION"] = "unknown"

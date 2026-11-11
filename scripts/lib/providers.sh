@@ -805,7 +805,9 @@ _commandcode_auth_mode() {
         printf '%s\n' "api-key"
         return 0
     fi
-    if "$cc_bin" status --json >/dev/null 2>&1; then
+    # OpenCode's MCP transport may forward this key. Health probes run before
+    # dispatch filtering, so isolate the unrelated CLI without changing the parent.
+    if (unset MISTRAL_API_KEY && "$cc_bin" status --json) >/dev/null 2>&1; then
         printf '%s\n' "cli"
         return 0
     fi

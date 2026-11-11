@@ -759,6 +759,11 @@ preflight_check() {
         opencode_admission=true
     fi
 
+    local broad_cache=true
+    if [[ "$selected_provider" == vibe || "$opencode_admission" == true ]]; then
+        broad_cache=false
+    fi
+
     # Fixed panels never consume or populate the broad discovery cache.
     if [[ -n "${OCTOPUS_PREFLIGHT_PROVIDERS:-}" ]]; then
         local panel_report panel_args=(--json --providers "$OCTOPUS_PREFLIGHT_PROVIDERS")
@@ -810,7 +815,7 @@ preflight_check() {
     roster="$(octo_preflight_roster)" || roster_rc=$?
     if [[ "$roster_rc" -ne 0 ]]; then
         log ERROR "OCTOPUS_COUNCIL_DEFAULT_PROVIDERS is not a valid council roster: ${OCTOPUS_COUNCIL_DEFAULT_PROVIDERS}"
-        preflight_cache_write "1"
+        preflight_cache_write "1" "$broad_cache"
         return 1
     fi
     if [[ -n "$roster" ]]; then
@@ -883,7 +888,7 @@ preflight_check() {
             echo ""
             echo -e "${YELLOW}Council roster seat(s) not ready: ${roster_unready}${NC}"
             octo_preflight_sandbox_note
-            preflight_cache_write "1"
+            preflight_cache_write "1" "$broad_cache"
             return 1
         fi
     fi
@@ -911,7 +916,7 @@ preflight_check() {
         echo ""
         echo -e "Run ${GREEN}/octo:setup${NC} to configure these or another supported provider."
         echo ""
-        preflight_cache_write "1"
+        preflight_cache_write "1" "$broad_cache"
         return 1
     fi
 
@@ -933,7 +938,7 @@ preflight_check() {
         octo_preflight_sandbox_note
         echo -e "Run ${GREEN}/octo:setup${NC} for guided configuration."
         echo ""
-        preflight_cache_write "1"
+        preflight_cache_write "1" "$broad_cache"
         return 1
     fi
 
@@ -950,7 +955,7 @@ preflight_check() {
                 echo ""
                 echo -e "${YELLOW}Council roster seat(s) not ready: codex (OAuth token expired; run: codex login)${NC}"
                 octo_preflight_sandbox_note
-                preflight_cache_write "1"
+                preflight_cache_write "1" "$broad_cache"
                 return 1
             fi
             # Token expired but another authenticated provider may still work — degrade gracefully
@@ -958,7 +963,7 @@ preflight_check() {
                 log WARN "Codex OAuth expired; continuing with other ready providers: $other_ready_providers"
             else
                 log ERROR "Codex OAuth expired and no other authenticated provider"
-                preflight_cache_write "1"
+                preflight_cache_write "1" "$broad_cache"
                 return 1
             fi
         fi
@@ -1012,7 +1017,7 @@ preflight_check() {
 
     if [[ $errors -gt 0 ]]; then
         log ERROR "$errors pre-flight check(s) failed"
-        preflight_cache_write "1"  # Cache failure
+        preflight_cache_write "1" "$broad_cache"
         return 1
     fi
 
@@ -1026,7 +1031,7 @@ preflight_check() {
     # v8.19: Provider smoke test (Issue #34)
     if ! provider_smoke_test "$force_check"; then
         log ERROR "Provider smoke test failed"
-        preflight_cache_write "1"
+        preflight_cache_write "1" "$broad_cache"
         return 1
     fi
 
@@ -1036,9 +1041,9 @@ preflight_check() {
     # A provider that failed inconclusively is excluded only in this process, so
     # do not cache a pass that would let the next run skip checking it again.
     if declare -f octo_quota_needs_recheck >/dev/null 2>&1 && octo_quota_needs_recheck; then
-        preflight_cache_write "1"
+        preflight_cache_write "1" "$broad_cache"
     else
-        preflight_cache_write "0"  # Cache success
+        preflight_cache_write "0" "$broad_cache"  # Cache success
     fi
     return 0
 }

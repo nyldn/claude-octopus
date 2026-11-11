@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- CommandCode health checks exclude the Mistral credential forwarded for
+  OpenCode. Failed selected OpenCode admission preserves the broad discovery
+  cache, including login and provider smoke failures.
+
 - Fixed-panel OpenCode dispatch confirms SQLite-only and environment logins
   before admitting work. Panel inspection stays static, and unrelated panel
   providers retain their existing readiness checks.

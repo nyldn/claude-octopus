@@ -502,7 +502,7 @@ readiness dashboards remain static. Selecting an OpenCode seat for dispatch
 performs bounded login confirmation, including SQLite-only and environment-only
 logins. A running workflow also confirms OpenCode when the user pins it in the
 council roster. A broad discovery cache cannot replace those checks, and dispatch
-confirmation does not populate the broad cache. Explicit live readiness checks
+confirmation does not populate the broad cache or replace it on failure. Explicit live readiness checks
 remain available without dispatching a model task.
 Single-agent probes also supply dispatch context, so a pinned OpenCode roster
 confirms SQLite or environment logins even when the selected seat uses another
@@ -515,7 +515,8 @@ connections as well. A configured key still needs a successful private-server
 login check; forwarding it alone does not establish account or model access.
 Unrelated provider children exclude this Mistral credential while retaining
 their own authentication, including CLI and shell-function routes. OpenCode
-and Vibe retain access to it. Explicit credential selection in isolated provider
+and Vibe retain access to it. CommandCode's login health probe also excludes the
+ambient Mistral key before dispatch filtering. Explicit credential selection in isolated provider
 configuration remains effective.
 OpenCode dispatch admission also confirms statically available seats.
 Both admission checks resolve OpenCode from the worker's project directory.
