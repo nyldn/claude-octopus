@@ -83,7 +83,7 @@ out="$(run_preflight)" && rc=0 || rc=$?
 calls=" $(awk '$2 == "static" {print $1}' "$READY_KINDS" | tr '\n' ' ')"
 live_calls="$(awk '$2 == "live" {print $1}' "$READY_KINDS" | tr '\n' ' ')"
 expected=" $(_preflight_provider_candidates | tr '\n' ' ')"
-if [[ "$rc" -eq 0 && "$calls" == "$expected" && "$live_calls" == "opencode " && "$calls" != *" claude "* && "$out" != *"council roster"* ]]; then test_pass
+if [[ "$rc" -eq 0 && "$calls" == "$expected" && -z "$live_calls" && "$calls" != *" claude "* && "$out" != *"council roster"* ]]; then test_pass
 else test_fail "rc=$rc static='$calls' expected='$expected' live='$live_calls'"; fi
 
 for blocked_status in missing degraded; do

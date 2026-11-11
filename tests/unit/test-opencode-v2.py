@@ -192,7 +192,7 @@ _preflight_provider_candidates() { echo opencode; }
 detect_enterprise_backend() { :; }
 provider_smoke_test() { :; }
 WORKSPACE_DIR="$HOME"; PREFLIGHT_CACHE_FILE="$HOME/preflight-cache"
-preflight_check true
+preflight_check true opencode
 '''
         for relative_path, storage, roster, connected in product(
                 (False, True), ("sqlite", "environment", "known-environment"), ("", "opencode"), (False, True)):
@@ -208,12 +208,16 @@ preflight_check true
                 self.env["OPENROUTER_API_KEY" if storage == "known-environment" else "OPENAI_API_KEY"] = "fixture"
             with self.subTest(relative_path=relative_path, storage=storage, roster=roster, connected=connected):
                 self.marker.unlink(missing_ok=True)
+                cache = Path(self.env["HOME"]) / "preflight-cache"
+                cache.unlink(missing_ok=True)
                 self.env["OCTOPUS_COUNCIL_DEFAULT_PROVIDERS"] = roster
                 self.env["AUTH_JSON"] = json.dumps([
                     {"id": "openai", "connections": [{"type": "credential" if storage == "sqlite" else "environment"}]}
                 ] if connected else [])
                 result = self.shell(script)
                 self.assertEqual(result.returncode == 0, connected, result.stdout + result.stderr)
+                if connected:
+                    self.assertFalse(cache.exists(), "selected admission populated the broad cache")
                 if not connected and roster:
                     self.assertIn("health-failed", result.stdout)
                     self.assertIn("opencode auth login", result.stdout)
@@ -224,6 +228,61 @@ preflight_check true
                 self.assertNotEqual(self.shell(script).returncode, 0)
                 self.assertFalse(self.marker.exists())
             self.env["OCTOPUS_SKIP_PROVIDER_PROBES"] = "false"
+
+    def test_broad_preflight_does_not_probe_unselected_opencode(self):
+        """Broad discovery and roster inspection must remain static."""
+        self.env["CLI_VERSION"] = "2.0.23"
+        script = r'''
+source scripts/lib/preflight.sh
+source scripts/lib/config-display.sh
+log() { :; }
+_preflight_provider_candidates() { echo opencode; }
+detect_enterprise_backend() { :; }
+provider_smoke_test() { :; }
+WORKSPACE_DIR="$HOME"; PREFLIGHT_CACHE_FILE="$HOME/preflight-cache"
+preflight_check true "$REQUESTED_PROVIDER"
+'''
+        for storage, roster, selected in product(
+                ("sqlite", "none", "environment"), ("", "opencode"), ("", "codex")):
+            with self.subTest(storage=storage, roster=roster, selected=selected):
+                database = self.data / "opencode.db"
+                database.unlink(missing_ok=True)
+                self.env.pop("OPENROUTER_API_KEY", None)
+                if storage == "sqlite":
+                    database.touch()
+                elif storage == "environment":
+                    self.env["OPENROUTER_API_KEY"] = "fixture"
+                self.env.update(OCTOPUS_COUNCIL_DEFAULT_PROVIDERS=roster,
+                                REQUESTED_PROVIDER=selected)
+                self.marker.unlink(missing_ok=True)
+                result = self.shell(script)
+                self.assertFalse(self.marker.exists(), result.stdout + result.stderr)
+                self.assertEqual(result.returncode == 0, storage == "environment",
+                                 result.stdout + result.stderr)
+
+    def test_selected_opencode_checks_login_despite_broad_cached_success(self):
+        """A static cache cannot authorize a selected seat's login."""
+        self.env.update(CLI_VERSION="2.0.23", OPENROUTER_API_KEY="fixture", AUTH_JSON="[]")
+        script = r'''
+source scripts/lib/preflight.sh
+source scripts/lib/config-display.sh
+log() { :; }
+_preflight_provider_candidates() { echo opencode; }
+detect_enterprise_backend() { :; }
+provider_smoke_test() { :; }
+WORKSPACE_DIR="$HOME"; PREFLIGHT_CACHE_FILE="$HOME/preflight-cache"
+preflight_check true >/dev/null || exit 71
+PREFLIGHT_CACHE_TTL=3600
+preflight_cache_valid && [[ "$(preflight_cache_read)" == 0 ]] || exit 72
+preflight_check false "$SELECTED_SEAT"
+'''
+        for seat in ("opencode", "opencode-fast", "opencode-research", "opencode:vendor/model"):
+            with self.subTest(seat=seat):
+                self.env["SELECTED_SEAT"] = seat
+                self.marker.unlink(missing_ok=True)
+                result = self.shell(script)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertTrue(self.marker.exists(), "cached broad success bypassed selected login")
 
     def test_background_version_detection_uses_the_worker_directory(self):
         caller = self.base / "caller"

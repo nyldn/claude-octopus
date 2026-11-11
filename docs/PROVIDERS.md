@@ -493,11 +493,12 @@ so the login check and private server use the caller's custom configuration.
 Isolated Codex children do not receive these OpenCode settings.
 
 Store presence is configuration evidence only. A SQLite-only installation
-needs explicit live confirmation. Workflow admission performs that bounded
-confirmation when SQLite storage is the only login evidence or static discovery
-finds no store, including pinned council rosters. This lets supported environment
-credentials reach the same login check. Static discovery and readiness dashboards
-remain probe-free.
+needs explicit live confirmation. Broad preflight scans, roster inspection and
+readiness dashboards remain static. Selecting an OpenCode seat for dispatch
+performs bounded login confirmation, including SQLite-only and environment-only
+logins. A broad discovery cache cannot replace that check, and selected-seat
+confirmation does not populate the broad cache. Explicit live readiness checks
+remain available without dispatching a model task.
 The MCP adapter forwards `MISTRAL_API_KEY` for environment-only OpenCode
 connections as well. A configured key still needs a successful private-server
 login check; forwarding it alone does not establish account or model access.
@@ -505,7 +506,7 @@ Unrelated provider children exclude this Mistral credential while retaining
 their own authentication, including CLI and shell-function routes. OpenCode
 and Vibe retain access to it. Explicit credential selection in isolated provider
 configuration remains effective.
-Explicit workflow admission also confirms statically available OpenCode seats.
+Selected OpenCode dispatch also confirms statically available seats.
 Both admission checks resolve OpenCode from the worker's project directory.
 Synchronous, background and direct `probe-single` dispatch check health before
 launching a model task. Direct probes include the standard, fast and research

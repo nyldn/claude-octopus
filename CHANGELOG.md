@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Broad preflight scans and roster inspection no longer launch OpenCode version
+  or login probes. Selected OpenCode dispatch still confirms login and cannot
+  reuse or populate the broad discovery cache.
+
 - OpenCode checks and private servers launched through MCP retain an explicit
   `OPENCODE_CONFIG_DIR`, preserving custom configuration alongside SQLite login
   storage. Other providers retain their existing environment isolation.
