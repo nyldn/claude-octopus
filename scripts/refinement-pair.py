@@ -9,6 +9,7 @@ Before any other external call, append a reservation with its calls to calls.jso
 under the same .dispatch-lock. Reservations count even after failure/cancellation.
 """
 import hashlib
+import importlib.util
 import json
 import math
 import os
@@ -100,9 +101,14 @@ def main():
     if ce not in ("low", "medium", "high", "xhigh", "max") or xe not in ("low", "medium", "high", "xhigh", "max"):
         raise ValueError("explicit supported efforts required")
     frozen = {"prompt": digest(prompt), "candidate": digest(candidate), "rubric": digest(rubric)}
+    control_spec = importlib.util.spec_from_file_location("refinement_run", Path(__file__).with_name("refinement-run.py"))
+    control = importlib.util.module_from_spec(control_spec)
+    control_spec.loader.exec_module(control)
     lock = run / ".dispatch-lock"
     lock.mkdir()  # Concurrent reservations fail closed; stale locks need inspection.
     try:
+        seats = [dict(provider=claude, effort=ce), dict(provider=codex, effort=xe)]
+        run_state = control.admit(run, pair, frozen, deadline, budget, seats, correction)
         ledger = run / "calls.jsonl"
         entries = [json.loads(line) for line in ledger.read_text().splitlines()] if ledger.exists() else []
         if any(e["pair_id"] == pair for e in entries):
@@ -138,6 +144,7 @@ def main():
             stream.flush()
             os.fsync(stream.fileno())
         save(output / "manifest.json", manifest)
+        control.dispatched(run, run_state, manifest)
     finally:
         lock.rmdir()
     children, streams, statuses = [], [], []
@@ -201,6 +208,8 @@ def main():
             for stream in streams:
                 stream.close()
             save(output / "manifest.json", manifest)
+            if manifest["state"] == "failed":
+                control.abort(run, "required provider failure or cancellation")
     print(output / "manifest.json")
 
 

@@ -146,6 +146,26 @@ else
   test_fail "unsafe exact Fable 5.1 security pin was dispatched rc=$fable51_security_rc out=[$fable51_security_out]"
 fi
 
+test_case "Fable 5.2 pins retain security, input, effort and exact SDK guards"
+fable52_ok=true
+for executor in claude claude-opus claude-sdk; do
+  if get_agent_command "$executor:claude-fable-5-2" review implementation-security-reviewer >/dev/null 2>&1 ||
+     OCTOPUS_FABLE5_MAX_INPUT_BYTES=1 get_agent_command "$executor:claude-fable-5-2" review implementation-logic-reviewer 2 >/dev/null 2>&1; then
+    fable52_ok=false
+  fi
+done
+fable52_cmd="$(get_agent_command 'claude-sdk:claude-fable-5-2' review implementation-logic-reviewer 2>/dev/null || true)"
+fable52_fallback="$(OCTOPUS_CLAUDE_MODEL=claude-fable-5-2 get_agent_command claude review implementation-security-reviewer 2>/dev/null || true)"
+if [[ "$fable52_ok" == true && "$fable52_fallback" == *'--model claude-opus-5'* &&
+      "$fable52_cmd" == "env OCTOPUS_CLAUDE_SDK_MODEL=claude-fable-5-2 OCTOPUS_FABLE5_NO_RETRY=1 $PROJECT_ROOT/scripts/helpers/claude-sdk-exec.sh" &&
+      "$(fable5_clamp_effort_for_model max claude-fable-5-2)" == high &&
+      "$(OCTOPUS_FABLE5_FALLBACK_MODEL=claude-fable-5-2 fable5_fallback_model)" == claude-opus-5 ]] &&
+   validate_agent_command "$fable52_cmd"; then
+  test_pass
+else
+  test_fail "Fable 5.2 bypassed a dispatch guard or lost its exact model pin"
+fi
+
 test_case "ordinary Claude env pins cannot bypass Fable security rerouting"
 fable_env_security="$(OCTOPUS_CLAUDE_MODEL=claude-fable-5-1 get_agent_command claude review implementation-security-reviewer 2>/dev/null || true)"
 if [[ "$fable_env_security" == *'--model claude-opus-5'* ]] && [[ "$fable_env_security" != *'claude-fable-5-1'* ]]; then

@@ -13,7 +13,10 @@ of the latter when the provider does not expose it.
 
 ### Show the score trajectory
 
-Create `trajectory.json` from the saved validator reports and iteration ledger.
+Use the controller-generated `trajectory.json`, derived from its saved decisions.
+Run `refinement-run.py status RUN_DIR` and preserve any unfinished attempt with
+`refinement-run.py stop RUN_DIR REASON` before delivery. Do not reconstruct
+acceptance decisions or edit the generated trajectory by hand.
 Include the original and every attempted round in order, with its conservative
 score, per-model scores, accepted/rejected decision, `target_met`, rubric hash,
 artifact hash, and score report path. Use null for a round without a valid

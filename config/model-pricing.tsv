@@ -6,6 +6,8 @@
 # when the same model name can be used by both.
 model	gpt-6-astra	10.00	50.00	OpenAI explicit-only frontier
 request-rule	gpt-6-astra	272000	2.00	1.50	Whole-request multiplier when input exceeds threshold
+model	gpt-6.1-terra	1.00	5.00	OpenAI visual reasoning and writing
+request-rule	gpt-6.1-terra	272000	2.00	1.50	Whole-request multiplier when input exceeds threshold
 model	gpt-6.1-sol	2.00	10.00	OpenAI current Sol
 request-rule	gpt-6.1-sol	272000	2.00	1.50	Whole-request multiplier when input exceeds threshold
 model	gpt-6-sol	2.00	10.00	OpenAI previous Sol
@@ -41,6 +43,7 @@ model	claude-sonnet-5-5	2.00	10.00	Anthropic current Sonnet
 model	claude-sonnet-5	2.00	10.00	Anthropic
 model	claude-sonnet-4.5	3.00	15.00	Anthropic legacy
 model	claude-sonnet-4.6	3.00	15.00	Anthropic
+model	claude-fable-5-2	8.00	40.00	Anthropic explicit-only frontier
 model	claude-fable-5-1	10.00	50.00	Anthropic explicit-only frontier
 model	claude-fable-5	10.00	50.00	Anthropic opt-in
 model	claude-opus-5-5	4.00	20.00	Anthropic
