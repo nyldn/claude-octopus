@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.22.0] - 2026-11-10
+
 ### Added
 
 - GPT-6.1 Terra and Claude Fable 5.2 in the model catalog, with current API
