@@ -92,6 +92,11 @@ hosted coverage is available. `make ci-local` remains the complete offline
 fallback. `make test-unit` keeps its historical core selection; the hosted full
 tier and `make test-unit-deep` include council as part of the ordinary inventory.
 
+The shard timing profile includes completed macOS suite measurements because
+process-heavy tests can cost more there than on Linux. Unobserved suites retain
+their previous weights. The profile changes shard membership; every unit suite
+still runs once per OS.
+
 Integration runs alongside unit tests because it consumes no unit artifacts.
 The symlink lane runs the explicit path-behavior set on every event. Packaging
 already runs in smoke on both platforms, so there is no third standalone pack

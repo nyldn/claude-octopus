@@ -19,6 +19,8 @@
 - Focused unit CI retains timeout logs and cleans up owned processes before
   the job deadline, matching the full unit lane. Interrupted steps preserve
   collected output alongside the cancellation message.
+- Full unit shard weights include hosted macOS timings to spread process-heavy
+  suites across the four shards.
 
 ## [11.22.0] - 2026-11-10
 
