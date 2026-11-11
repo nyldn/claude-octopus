@@ -208,4 +208,38 @@ TANGLE_REQUIRED_OUTPUT_SCOPES=README.md
 if [[ -z "$(check_explicit_file_coverage '' '')" ]]; then test_pass; else test_fail "intentional tracked deletion was rejected"; fi
 unset TANGLE_REQUIRED_OUTPUT_SCOPES TANGLE_REQUIRED_OUTPUT_BASELINE PROJECT_ROOT
 
+test_case "managed scopes resolve from the Git root when launched in a package"
+PROJECT_ROOT="$TEST_TMP_DIR/deletion-repo"
+mkdir -p "$PROJECT_ROOT/pkg" "$PROJECT_ROOT/src/obsolete"
+git -C "$PROJECT_ROOT" init -q
+printf 'old\n' > "$PROJECT_ROOT/src/old.ts"
+printf 'obsolete\n' > "$PROJECT_ROOT/src/obsolete/index.ts"
+git -C "$PROJECT_ROOT" add src
+git -C "$PROJECT_ROOT" -c user.name=Test -c user.email=test@example.com commit -qm baseline
+TANGLE_REQUIRED_OUTPUT_BASELINE=$(git -C "$PROJECT_ROOT" rev-parse HEAD)
+printf 'new\n' > "$PROJECT_ROOT/pkg/a.txt"
+PROJECT_ROOT="$PROJECT_ROOT/pkg"
+TANGLE_REQUIRED_OUTPUT_SCOPES=pkg/a.txt
+if [[ -z "$(check_explicit_file_coverage '' '')" ]]; then test_pass; else test_fail "package root was duplicated in the output path"; fi
+PROJECT_ROOT="${PROJECT_ROOT%/pkg}"
+
+test_case "staged renames satisfy both removed and created scopes"
+git -C "$PROJECT_ROOT" mv src/old.ts src/new.ts
+TANGLE_REQUIRED_OUTPUT_SCOPES=$'src/old.ts\nsrc/new.ts'
+if [[ -z "$(check_explicit_file_coverage '' '')" ]]; then test_pass; else test_fail "rename source was not recognized as removed"; fi
+
+test_case "an intentionally emptied tracked directory satisfies its removal scope"
+rm "$PROJECT_ROOT/src/obsolete/index.ts"
+TANGLE_REQUIRED_OUTPUT_SCOPES=src/obsolete/
+if [[ -z "$(check_explicit_file_coverage '' '')" ]]; then test_pass; else test_fail "tracked directory removal was rejected"; fi
+
+test_case "a fully removed tracked directory satisfies its removal scope"
+rmdir "$PROJECT_ROOT/src/obsolete"
+if [[ -z "$(check_explicit_file_coverage '' '')" ]]; then test_pass; else test_fail "absent removed directory was rejected"; fi
+
+test_case "an uncreated directory has no baseline deletion evidence"
+TANGLE_REQUIRED_OUTPUT_SCOPES=src/missing/
+if [[ "$(check_explicit_file_coverage '' '')" == src/missing/ ]]; then test_pass; else test_fail "a new missing output passed as a deletion"; fi
+unset TANGLE_REQUIRED_OUTPUT_SCOPES TANGLE_REQUIRED_OUTPUT_BASELINE PROJECT_ROOT
+
 test_summary
