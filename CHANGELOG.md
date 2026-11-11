@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Explicit GPT-5.4 Mini API usage uses the documented $0.75 input and $4.50
+  output rates per million tokens. Capability checks now recognize its image
+  input and reasoning support. Model defaults and saved choices are preserved.
+
 - Review verification sends complete findings in bounded batches with relevant
   patch evidence. Final admission rejects oversized verifier requests instead of
   clipping their tails. Incomplete verification returns failure with recovery
