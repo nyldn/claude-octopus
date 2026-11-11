@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+
+- GPT-6.1 Terra and Claude Fable 5.2 in the model catalog, with current API
+  pricing, Terra long-context billing and gateway restrictions, and Fable
+  dispatch guards. Existing routing defaults and saved pins are preserved.
+
 ### Fixed
 
 - Refinement runs enforce round and stall limits through persisted state, retain

@@ -663,6 +663,18 @@ v9.50.0 aligns the plugin with Claude Code's 2026 native capabilities. Each piec
 
 ---
 
+## Model catalog update
+
+The catalog includes GPT-6.1 Terra ($1/$5 per million input/output tokens) and
+Claude Fable 5.2 ($8/$40). Terra supports visual reasoning and writing; tool
+calls require Responses. Fable 5.2 requires an explicit pin, retains the Fable
+dispatch guards, and needs Claude Code v2.1.321 or newer on the CLI path.
+Its provider requires 30-day retention.
+
+Release defaults, saved model pins and the Fable 5.1 escalation target remain
+unchanged. See the [catalog limits, compatibility rules and sources](docs/MODEL-ROUTING-STRATEGY.md#catalog-refresh-2026-11-10),
+or list choices with `/octo:model-config models`.
+
 ## GPT-6 Astra Support
 
 GPT-6 Astra is cataloged as an explicit-only premium model at $10/$50 per MTok. Use `OCTOPUS_CODEX_MODEL=gpt-6-astra` or an exact `codex:gpt-6-astra` seat for a direct pin. To keep the default Sol route and allow one bounded architecture or strategy escalation per run, use `/octo:model-config tier premium codex gpt-6-astra`, select Premium mode, and set an `OCTOPUS_MAX_COST_USD` ceiling that covers the projected list-price usage for the prompt. Astra is never selected for implementation, review, security, councils, review fleets, or fallback chains, and Astra plus GPT-5.6 does not provide vendor diversity.
