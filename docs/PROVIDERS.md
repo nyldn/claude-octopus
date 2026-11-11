@@ -500,6 +500,9 @@ logins. A running workflow also confirms OpenCode when the user pins it in the
 council roster. A broad discovery cache cannot replace those checks, and dispatch
 confirmation does not populate the broad cache. Explicit live readiness checks
 remain available without dispatching a model task.
+Single-agent probes also supply dispatch context, so a pinned OpenCode roster
+confirms SQLite or environment logins even when the selected seat uses another
+provider. Standalone roster inspection remains static.
 The MCP adapter forwards `MISTRAL_API_KEY` for environment-only OpenCode
 connections as well. A configured key still needs a successful private-server
 login check; forwarding it alone does not establish account or model access.

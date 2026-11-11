@@ -7,7 +7,8 @@
 - Broad preflight scans and roster inspection no longer launch OpenCode version
   or login probes. Selected OpenCode dispatch and workflows with a pinned
   OpenCode roster still confirm login and cannot
-  reuse or populate the broad discovery cache.
+  reuse or populate the broad discovery cache. Single-agent probes confirm a
+  pinned OpenCode roster even when another provider handles the selected seat.
 
 - OpenCode checks and private servers launched through MCP retain an explicit
   `OPENCODE_CONFIG_DIR`, preserving custom configuration alongside SQLite login

@@ -231,6 +231,49 @@ preflight_check true opencode
                 self.assertFalse(self.marker.exists())
             self.env["OCTOPUS_SKIP_PROVIDER_PROBES"] = "false"
 
+    def test_single_probe_admits_a_pinned_opencode_roster(self):
+        """A real single-agent dispatch confirms the pinned roster before work."""
+        project = self.base / "single-probe-project"
+        project.mkdir()
+        admitted = self.base / "admitted"
+        self.env.update(CLI_VERSION="2.0.23", PROJECT_ROOT=str(project),
+                        OCTOPUS_COUNCIL_DEFAULT_PROVIDERS="opencode",
+                        ADMITTED_MARKER=str(admitted))
+        script = r'''
+source scripts/lib/workflows.sh
+source scripts/lib/providers.sh
+source scripts/lib/preflight.sh
+source scripts/lib/config-display.sh
+log() { :; }
+detect_enterprise_backend() { :; }
+provider_smoke_test() { :; }
+research_probe_single_begin() { touch "$ADMITTED_MARKER"; return 77; }
+WORKSPACE_DIR="$HOME" PREFLIGHT_CACHE_FILE="$HOME/preflight-cache"
+RESULTS_DIR="$HOME/results" LOGS_DIR="$HOME/logs"
+probe_single_agent "$REQUESTED_PROVIDER" perspective probe-admission
+'''
+        for provider, storage, connected, skip in product(
+                ("codex", "claude-sonnet"), ("sqlite", "environment"),
+                (False, True), (False, True)):
+            with self.subTest(provider=provider, storage=storage, connected=connected, skip=skip):
+                admitted.unlink(missing_ok=True)
+                self.marker.unlink(missing_ok=True)
+                database = self.data / "opencode.db"
+                database.unlink(missing_ok=True)
+                if storage == "sqlite":
+                    database.touch()
+                self.env.update(REQUESTED_PROVIDER=provider,
+                                OCTOPUS_SKIP_PROVIDER_PROBES="true" if skip else "false",
+                                AUTH_JSON=json.dumps([{"id": "openai", "connections": [
+                                    {"type": "credential" if storage == "sqlite" else "environment"}]
+                                }] if connected else []))
+                result = self.shell(script)
+                self.assertNotEqual(result.returncode, 0)  # Stop at the admission marker.
+                self.assertEqual(admitted.exists(), connected and not skip,
+                                 result.stdout + result.stderr)
+                self.assertEqual(self.marker.exists(), not skip,
+                                 "single-probe admission did not honor its live/skip contract")
+
     def test_broad_preflight_does_not_probe_unselected_opencode(self):
         """Broad discovery and roster inspection must remain static."""
         self.env["CLI_VERSION"] = "2.0.23"
