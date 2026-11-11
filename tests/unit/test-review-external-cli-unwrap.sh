@@ -189,7 +189,7 @@ review_run_agent_sync_progress() {
             [[ "${VERIFIER_FAIL:-false}" != true ]] || return "${VERIFIER_EXIT:-1}"
             provider_output="$VERIFIER_OUTPUT" ;;
         implementation-synthesizer)
-            provider_output="$(printf '%s\n' "$2" | sed -n 's/^Findings: //p' | jq -c '{findings: map(. + {synthesized: true})}')" ;;
+            provider_output="$(printf '%s\n' "$2" | sed -n 's/^Findings: //p' | jq -c --arg reverse "${SYNTHESIS_REVERSE:-false}" '{findings:(if $reverse == "true" then reverse else . end)}')" ;;
         *) return 1 ;;
     esac
     OCTOPUS_SECURITY_V870=true wrap_cli_output "$1" "$provider_output"
@@ -205,7 +205,7 @@ HARNESS
 
 e2e_round1_output='{"findings":[{"file":"src/app.ts","line":3,"severity":"normal","category":"correctness","title":"Kept","detail":"Null dereference on empty input","confidence":0.9},{"file":"src/app.ts","line":8,"severity":"normal","category":"correctness","title":"Dismissed","detail":"Guarded by the caller","confidence":0.6}]}'
 e2e_verifier_output='{"findings":[{"file":"src/app.ts","line":3,"severity":"normal","category":"correctness","title":"Kept","detail":"Null dereference on empty input","confidence":0.9,"verdict":"confirmed"},{"file":"src/app.ts","line":8,"severity":"normal","category":"correctness","title":"Dismissed","detail":"Guarded by the caller","confidence":0.6,"verdict":"false-positive"}]}'
-e2e_expected_findings='[{"title":"Kept","verdict":"confirmed","synthesized":true}]'
+e2e_expected_findings='[{"title":"Kept","verdict":"confirmed"}]'
 
 run_review_harness() {
     local run_dir="$1"
@@ -223,7 +223,7 @@ review_harness_findings() {
     local findings_file
     findings_file="$(find "$1/results" -name 'review-findings-*.json' -type f | head -n 1)"
     [[ -n "$findings_file" ]] || return 1
-    jq -c '[.findings[] | {title, verdict, synthesized}]' "$findings_file"
+    jq -c '[.findings[] | {title, verdict}]' "$findings_file"
 }
 
 # review_harness_diagnostics: Summarize the isolated review result when a behavioral assertion fails.
@@ -287,7 +287,7 @@ for failure in quota timeout malformed copilot partial empty duplicate unverifie
     fi
     e2e_verifier_output="$old_verifier"
     result_file="$(find "$failure_run/results" -name 'review-findings-*.json' -type f | head -1)"
-    if [[ "$failure_rc" -eq 0 && -n "$result_file" ]] && jq -e '
+    if [[ "$failure_rc" -eq 1 && -n "$result_file" ]] && jq -e '
         .verification_status == "incomplete" and (.warning | contains("unverified")) and
         (.findings | length == 2) and all(.findings[]; .verdict == "unverified")
     ' "$result_file" >/dev/null && ! grep -q PUBLISHED "$failure_run/log"; then
@@ -317,8 +317,9 @@ for kind in identical distinct-verdicts; do
     run_review_harness "$duplicate_run" PUBLICATION_FIXTURE=true || duplicate_rc=$?
     e2e_round1_output="$saved_round1";e2e_verifier_output="$saved_verifier"
     findings="$(find "$duplicate_run/results" -name 'review-findings-*.json' -type f | head -1)"
-    if [[ "$duplicate_rc" == 0 && -n "$findings" ]] && jq -e '
-        .verification_status != "incomplete" and (.findings|length == 1) and .findings[0].verdict == "confirmed"
+    expected_count=1; [[ "$kind" != identical ]] || expected_count=2
+    if [[ "$duplicate_rc" == 0 && -n "$findings" ]] && jq -e --argjson count "$expected_count" '
+        .verification_status != "incomplete" and (.findings|length == $count) and .findings[0].verdict == "confirmed"
     ' "$findings" >/dev/null && grep -q '^PUBLISHED$' "$duplicate_run/log"; then
         if [[ "$kind" == distinct-verdicts ]] && ! jq -e '.findings[0].detail == "Distinct second provider evidence"' "$findings" >/dev/null; then
             test_fail "a false positive displaced the independently confirmed finding"
@@ -332,5 +333,18 @@ warning_file="$TEST_TMP_DIR/incomplete-findings.json"
 printf '%s' "$e2e_round1_output" | jq '. + {verification_status:"incomplete", warning:"Verifier output was invalid"}' > "$warning_file"
 terminal_output="$(render_terminal_report "$warning_file")"
 if [[ "$terminal_output" == *"Verifier output was invalid"* && "$terminal_output" == *"Findings remain unverified and publication is disabled"* && "$terminal_output" == *"Kept"* ]]; then test_pass; else test_fail "terminal hid incomplete verification: $terminal_output"; fi
+
+test_case "valid synthesis ordering survives without changing any verified finding"
+saved_verifier="$e2e_verifier_output"
+e2e_verifier_output="$(printf '%s' "$e2e_verifier_output" | jq '.findings |= map(.verdict="confirmed")')"
+ordered_run="$TEST_TMP_DIR/ordered-synthesis"; ordered_rc=0
+run_review_harness "$ordered_run" SYNTHESIS_REVERSE=true || ordered_rc=$?
+e2e_verifier_output="$saved_verifier"
+ordered_file="$(find "$ordered_run/results" -name 'review-findings-*.json' -type f | head -1)"
+if [[ "$ordered_rc" == 0 && -n "$ordered_file" ]] &&
+   jq -e '[.findings[].title] == ["Dismissed","Kept"] and all(.findings[]; .verdict == "confirmed")' "$ordered_file" >/dev/null &&
+   ! grep -q 'synthesis changed verified findings' "$ordered_run/log"; then
+    test_pass
+else test_fail "$(review_harness_diagnostics "$ordered_run" "$ordered_rc")"; fi
 
 test_summary

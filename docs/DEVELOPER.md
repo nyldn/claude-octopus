@@ -307,3 +307,8 @@ Other nonzero review results cannot authorize corrections, even when a verified
 findings file survived a proof or publication failure. A complete retry clears
 both markers. Patch excerpts bound adjacent removal context separately and label
 unmatched short patches as unrelated context requiring repository inspection.
+
+Verifier input directories use private permissions and subprocess-scoped cleanup
+for normal exits, interrupts and termination. Caller traps remain intact. Valid
+synthesis ordering is retained within each severity tier; a changed finding
+multiset still uses the complete deterministic fallback.

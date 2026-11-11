@@ -415,4 +415,71 @@ assert "No matching patch block" in prompt and "UNRELATED_OPERATION" not in prom
 PYTEST
 then test_pass; else test_fail "unrelated evidence prevented complete finding admission"; fi
 
+test_case "verifier interruption removes primary and fallback inputs without changing caller traps"
+if python3 - "$ROOT/scripts/lib/review.sh" "$TEST_TMP_DIR" <<'PYTEST'
+import os, subprocess, sys, tempfile
+from pathlib import Path
+program = r'''
+source "$REVIEW_LIB"
+log() { :; }
+review_verifier_input_budget() { echo 6000; }
+inputs="$CASE_DIR/inputs"; mkdir -p "$inputs"
+printf 'diff' > "$inputs/diff"; printf 'context' > "$inputs/context"
+printf '[{"file":"a","line":1,"title":"bug"}]' > "$inputs/findings"
+trap 'touch "$CASE_DIR/parent-exit"' EXIT
+trap 'touch "$CASE_DIR/parent-term"' TERM
+trap 'touch "$CASE_DIR/parent-int"' INT
+before=$(trap -p EXIT INT TERM)
+python3() {
+    local previous='' argument
+    for argument in "$@"; do
+        if [[ "$previous" == --output ]]; then printf '%s' "$argument" > "$CASE_DIR/created"; fi
+        previous="$argument"
+    done
+    local owner
+    owner=$(exec sh -c 'echo "$PPID"')
+    printf '%s' "$owner" > "$CASE_DIR/owner"
+    if [[ "$INTERRUPT_POINT" == build ]]; then
+        kill -s "$TEST_SIGNAL" "$owner"
+        return 99
+    fi
+    command python3 "$@"
+}
+review_run_agent_sync_progress() {
+    kill -s "$TEST_SIGNAL" "$(cat "$CASE_DIR/owner")"
+    return 99
+}
+rc=0
+if [[ "$MODE" == fallback ]]; then
+    review_verifier_fallback "$inputs" "$inputs/findings" claude-sonnet "$inputs/statuses" >/dev/null || rc=$?
+else
+    review_verify_findings diff "$(cat "$inputs/findings")" context "$inputs/statuses" >/dev/null || rc=$?
+fi
+[[ "$before" == "$(trap -p EXIT INT TERM)" ]] || exit 98
+[[ ! -e "$CASE_DIR/parent-term" && ! -e "$CASE_DIR/parent-int" ]] || exit 97
+exit "$rc"
+'''
+for mode, point in [('fallback', 'build'), ('primary', 'build'), ('fallback', 'dispatch'), ('primary', 'dispatch')]:
+    for signal, expected in [('TERM', 143), ('INT', 130)]:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = subprocess.run(['bash', '-c', program], env={**os.environ, 'REVIEW_LIB':sys.argv[1], 'CASE_DIR':directory, 'TMPDIR':directory, 'MODE':mode, 'TEST_SIGNAL':signal, 'INTERRUPT_POINT':point}, capture_output=True, text=True, timeout=10)
+            assert run.returncode == expected, (mode, point, signal, run.returncode, run.stderr)
+            assert (root/'created').is_file(), (mode, 'builder not reached')
+            created = Path((root/'created').read_text())
+            assert not created.exists(), (mode, signal, 'private inputs survived', str(created))
+            assert (root/'parent-exit').exists(), (mode, 'caller EXIT trap lost')
+            assert not (root/'parent-term').exists() and not (root/'parent-int').exists(), (mode, 'caller signal trap invoked')
+PYTEST
+then test_pass; else test_fail "interrupted verification leaked inputs or replaced caller traps"; fi
+
+test_case "failed empty verifier admission retains its incomplete status"
+if (
+    source "$ROOT/scripts/lib/review.sh"
+    log() { :; }
+    review_verifier_input_budget() { return 1; }
+    result=$(review_verify_findings diff '[]' context "$TEST_TMP_DIR/statuses") || exit 1
+    printf '%s' "$result" | jq -e '.verification_status == "incomplete" and .findings == []' >/dev/null
+); then test_pass; else test_fail "empty findings hid failed verifier admission"; fi
+
 test_summary
