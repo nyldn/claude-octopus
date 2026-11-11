@@ -622,7 +622,7 @@ research_extract_numbers() {
 
 # A synthesis that numbers its findings refers back to them: "See point 2.",
 # "points 2 and 3", "item 4:". A whole number after point(s) or item(s), or
-# continuing such a list with a comma, "and" or "or", is not a numeric claim
+# continuing such a list with a comma, "and", "or" or "&", is not a numeric claim
 # when no other word follows it. "2 retries", "point 40 requests" and
 # "section 2" are still checked.
 research_numeric_claims() {
@@ -695,8 +695,11 @@ research_numeric_claims() {
         }
         return result substr(text, piece)
     }
-    function ordinal_reference(before, after, start, number,    gap, label, list_reference, section_reference) {
-        label = "[*_]*(points?|items?|findings?|risks?|probes?|conflicts?|decisions?|gaps?)[*_]*([ \\t]+|[ \\t]*:[*_]*[ \\t]*)$"
+    function ordinal_reference(before, after, start, number,    gap, label, label_prefix, list_join, list_number, list_reference, section_reference) {
+        label_prefix = "[*_]*(points?|items?|findings?|risks?|probes?|conflicts?|decisions?|gaps?)[*_]*([ \\t]+|[ \\t]*:[*_]*[ \\t]*)"
+        label = label_prefix "$"
+        list_join = "([ \\t]*,[ \\t]*|[ \\t]*,?[ \\t]*((and|or)[ \\t]+|&[ \\t]*))"
+        list_number = "(" label_prefix ")?[*_]*[0-9]+([.,][0-9]+)*[*_]*"
         section_reference = (tolower(before) ~ /(^|[(;.!?|]|(^|[^0-9a-z_])see[ \t])[ \t]*([-*+][ \t]+)?[*_]*(findings?|risks?|probes?|conflicts?|decisions?|gaps?)[*_]*([ \t]+|[ \t]*:[*_]*[ \t]*)$/)
         # Commas without spaces can join references, but keep thousands groups
         # and decimal values as claims even beside point/item labels.
@@ -706,9 +709,12 @@ research_numeric_claims() {
         }
         # Quantities, including range endpoints and fraction numerators,
         # remain substantive before any label/list exemptions.
+        # A trailing total describes quantities throughout the list.
+        if (tolower(after) ~ ("^(" list_join list_number ")*[ \\t]+in[ \\t]+total([^0-9a-z_]|$)")) return 0
         if (after ~ /^[ \t]*(-|\342\200\223|\342\200\224|\342\210\222|\/)[ \t]*[*_]*[0-9]/) return 0
         if (after ~ /^[ \t]*%/) return 0
-        if (after ~ /^[ \t]*(\+|&)/) return 0
+        if (after ~ /^[ \t]*\+/) return 0
+        if (after ~ /^[ \t]*&/ && tolower(after) !~ ("^[ \\t]*&[ \\t]*" list_number)) return 0
         # Link labels, including relative, fragment and reference links, can
         # name units. Keep the quantity even for a shortcut reference label.
         if (after ~ /^[ \t]*\[[^]]+\]/) return 0
@@ -718,7 +724,7 @@ research_numeric_claims() {
         if (tolower(after) ~ /^[ \t]+(and|or)[ \t]/ &&
             tolower(after) !~ /^[ \t]+(and|or)[ \t]+([*_]*(points?|items?|findings?|risks?|probes?|conflicts?|decisions?|gaps?)[*_]*([ \t]+|[ \t]*:[*_]*[ \t]*))?[*_]*[0-9]/) return 0
         gap = tolower(substr(line, ord_end, start - ord_end))
-        list_reference = (ord_end > 0 && gap ~ ("^([ \\t]*,[ \\t]*|[ \\t]*,?[ \\t]*(and|or)[ \\t]+)" label))
+        list_reference = (ord_end > 0 && gap ~ ("^" list_join label))
         # A label may describe a score or count. Only standalone labels,
         # including Markdown list items, and explicit references are exempt.
         # "and"/"or" continues a reference list only after a skipped reference
@@ -729,7 +735,7 @@ research_numeric_claims() {
             !list_reference &&
             tolower(before) !~ ("(^|[^0-9a-z_])(see|sections?[ \\t]+[0-9]+[ \\t]*,?[ \\t]*(and|or)|refer[ \\t]+to|(corrected|covered|described|discussed|explained|listed|shown|noted|mentioned|addressed|detailed)[ \\t]+in)[ \\t]+" label)) return 0
         if (tolower(before) ~ ("(^|[^0-9a-z_])" label)) return 1
-        return (ord_end > 0 && gap ~ /^(,[ \t]*|[ \t]*,?[ \t]*(and|or)[ \t]+)$/)
+        return (ord_end > 0 && gap ~ ("^" list_join "$"))
     }
     {
         line = $0
