@@ -71,40 +71,97 @@ elif case == "selfsignal":
     assert result.stdout == log.read_bytes() == b"before-group-signal\n"
     assert os.getpgrp() == caller_group
     os.killpg(caller_group, 0)
-elif case in ("tree", "interrupt"):
+elif case in ("tree", "interrupt", "cleanup-interrupt"):
     pidfile = work / "pids"
+    output_ready = work / "output-ready"
+    cleanup_marker = work / "cleanup-started"
+    cleanup_release = work / "cleanup-release"
     fixture = """import os,signal,subprocess,sys,time
 from pathlib import Path
 signal.signal(signal.SIGTERM, signal.SIG_IGN)
 child = subprocess.Popen([sys.executable, '-c', 'import signal,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(30)'])
-print('tree-started', flush=True)
-if sys.argv[2] == 'interrupt':
-    # Exceed pipe capacity before publishing PIDs so the supervisor has read output.
-    print('output-before-interrupt ' * 100000, flush=True)
 Path(sys.argv[1]).write_text(f'{os.getpid()} {child.pid}')
+print('tree-started', flush=True)
+if sys.argv[2] != 'tree':
+    # Exceed both pipe capacity and the retained-output limit before signalling.
+    print('x' * (17 * 1024 * 1024), flush=True)
+Path(sys.argv[3]).touch()
 time.sleep(30)
 """
     caller_group = os.getpgrp()
     command = base.copy()
     if case == "interrupt":
         command[command.index("--timeout") + 1] = "5"
-    process = subprocess.Popen(command + [sys.executable, "-c", fixture, str(pidfile), case],
+    elif case == "cleanup-interrupt":
+        launcher = r'''
+import importlib.util
+from pathlib import Path
+import sys
+
+helper, marker, release = sys.argv[1:4]
+spec = importlib.util.spec_from_file_location("ci_cleanup_interrupt", helper)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+original_load = module.load_supervisor
+
+def synchronized_load():
+    """Pause the real terminator at its first cleanup wait."""
+    run = original_load()
+    original_terminate = run.__globals__["_terminate_process_tree"]
+    clock = run.__globals__["time"]
+    original_sleep = clock.sleep
+    cleaning = False
+
+    def terminate(*args):
+        """Track the real cleanup call without replacing its signals or waits."""
+        nonlocal cleaning
+        cleaning = True
+        try:
+            return original_terminate(*args)
+        finally:
+            cleaning = False
+
+    def cleanup_sleep(seconds):
+        """Let the harness deliver its first signal during the cleanup wait."""
+        if cleaning and not Path(marker).exists():
+            Path(marker).touch()
+            while not Path(release).exists():
+                original_sleep(.01)
+        original_sleep(seconds)
+
+    run.__globals__["_terminate_process_tree"] = terminate
+    clock.sleep = cleanup_sleep
+    return run
+
+module.load_supervisor = synchronized_load
+sys.argv = [helper, *sys.argv[4:]]
+raise SystemExit(module.main())
+'''
+        command = [sys.executable, "-c", launcher, str(helper), str(cleanup_marker),
+                   str(cleanup_release), *base[2:]]
+    process = subprocess.Popen(command + [sys.executable, "-c", fixture, str(pidfile), case, str(output_ready)],
                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     try:
         deadline = time.monotonic() + 5
-        while not pidfile.exists() and process.poll() is None and time.monotonic() < deadline:
+        while not output_ready.exists() and process.poll() is None and time.monotonic() < deadline:
             time.sleep(.01)
-        assert pidfile.exists(), "fixture did not publish its PIDs before timeout"
-        if case == "interrupt":
+        assert pidfile.exists() and output_ready.exists(), "fixture did not finish emitting before timeout"
+        if case == "cleanup-interrupt":
+            deadline = time.monotonic() + 5
+            while not cleanup_marker.exists() and process.poll() is None and time.monotonic() < deadline:
+                time.sleep(.01)
+            assert cleanup_marker.exists(), "fixture did not enter its cleanup wait"
+        if case != "tree":
             process.send_signal(signal.SIGTERM)
+            cleanup_release.touch()
         output, _ = process.communicate(timeout=8)
-        assert process.returncode == (143 if case == "interrupt" else 124), output
-        if case == "interrupt":
-            assert b"interrupted by signal 15" in output
-            assert output.startswith(b"tree-started\noutput-before-interrupt output-before-interrupt "), \
-                "interruption dropped captured output"
+        assert process.returncode == (124 if case == "tree" else 143), output
+        if case != "tree":
+            emitted, separator, diagnostic = output.partition(b"\nCI step interrupted by signal 15: ")
+            assert separator and emitted.startswith(b"x" * 1024), "interruption dropped captured output"
+            assert emitted == b"x" * len(emitted), "retained output is not the emitted tail"
             assert output == log.read_bytes()
-            assert len(output) <= 16 * 1024 * 1024
+            assert len(output) == 16 * 1024 * 1024
     finally:
         if process.poll() is None:
             process.terminate()
@@ -150,7 +207,7 @@ else:
 PY
 }
 
-for scenario in success nonzero timeout selfsignal tree interrupt invalid tail; do
+for scenario in success nonzero timeout selfsignal tree interrupt cleanup-interrupt invalid tail; do
     test_case "CI step $scenario"
     if check_ci_step "$scenario"; then test_pass; else test_fail "$scenario contract failed"; fi
 done

@@ -104,8 +104,9 @@ def _collect_posix_process(
     output_limit: int,
     kill_grace: float,
     strict_output: bool,
+    captured: bytearray,
 ) -> Tuple[int, str]:
-    captured = bytearray()
+    """Collect bounded POSIX output into the caller's buffer and reap the group."""
     deadline = time.monotonic() + timeout
     drain_deadline = None
     timed_out = False
@@ -151,9 +152,6 @@ def _collect_posix_process(
                     break
             if overflowed:
                 break
-    except BaseException as error:
-        error.output = _decode(captured, False)
-        raise
     finally:
         selector.close()
         stream.close()
@@ -197,19 +195,28 @@ def run_bounded_process(
     elif os.name == "nt":
         popen_options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
 
+    captured = bytearray()
     process = subprocess.Popen(command, **popen_options)
     if os.name == "posix":
-        return _collect_posix_process(
-            process,
-            command,
-            timeout,
-            output_limit,
-            kill_grace,
-            strict_output,
-        )
+        try:
+            return _collect_posix_process(
+                process,
+                command,
+                timeout,
+                output_limit,
+                kill_grace,
+                strict_output,
+                captured,
+            )
+        except BaseException as error:
+            if not isinstance(error, Exception) and (
+                process.poll() is None or _process_group_exists(process.pid)
+            ):
+                _terminate_process_tree(process, process.pid, 0)
+            error.output = _decode(captured, False)
+            raise
 
     process_group = None
-    captured = bytearray()
     capture_lock = threading.Lock()
     overflowed = threading.Event()
 
