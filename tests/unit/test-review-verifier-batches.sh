@@ -155,7 +155,7 @@ if (
         }
         tangle_apply_review_corrections() {
             correction_calls=$((correction_calls + 1))
-            TANGLE_CORRECTION_STATUS=done TANGLE_CORRECTION_CHANGED=1
+            TANGLE_CORRECTION_STATUS="done" TANGLE_CORRECTION_CHANGED=1
         }
         rc=0
         tangle_contextual_review_gate fixture prompt context subtasks validation before || rc=$?
