@@ -46,7 +46,7 @@
   OpenCode, while isolated model children keep their own credential boundary.
   Unrelated CLI and shell-function provider children omit that unselected Mistral
   credential while preserving their own authentication and the parent environment.
-  OpenCode 2.x bounded Tangle refuses model tasks with unwritable session storage.
+  OpenCode 2.x bounded Tangle refuses model tasks regardless of storage writability.
   Saved logins and filesystem boundaries remain
   intact; support for that execution path still requires a safe state projection.
   Failed live checks retain `opencode auth login` guidance. Health diagnostics
