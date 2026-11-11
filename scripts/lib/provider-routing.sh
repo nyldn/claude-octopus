@@ -175,6 +175,11 @@ _octo_run_model_without_search_key() (
     "$@"
 )
 
+_octo_run_model_without_mistral_key() (
+    unset MISTRAL_API_KEY || return 1
+    "$@"
+)
+
 build_provider_env() {
     local _rc=0
     _octo_build_provider_env_impl "$@" || _rc=$?
@@ -209,6 +214,24 @@ build_provider_env() {
             # such as Tangle's bwrap. env also interprets model assignments.
             PROVIDER_ENV_ARRAY=(env -u KEENABLE_API_KEY ${PROVIDER_ENV_ARRAY[@]+"${PROVIDER_ENV_ARRAY[@]}"})
         fi
+    fi
+    # MCP forwards Mistral for OpenCode and Vibe. Inheriting CLI and shell
+    # routes must not expose it to other providers. Explicit env assignments
+    # inside an isolated route still select that route's configured credential.
+    if [[ "${OCTOPUS_SECURITY_V870:-true}" == true && -n "${MISTRAL_API_KEY+x}" ]]; then
+        local mistral_provider="${1:-}"
+        mistral_provider="$(octo_provider_canonical "${mistral_provider%%:*}" 2>/dev/null || printf '%s' "${mistral_provider%%:*}")"
+        case "$mistral_provider" in
+            opencode|vibe) ;;
+            perplexity|openrouter|orcarouter)
+                PROVIDER_ENV_ARRAY=(_octo_run_model_without_mistral_key ${PROVIDER_ENV_ARRAY[@]+"${PROVIDER_ENV_ARRAY[@]}"}) ;;
+            *)
+                if [[ "${PROVIDER_ENV_ARRAY[0]:-}" == env ]]; then
+                    PROVIDER_ENV_ARRAY=(env -u MISTRAL_API_KEY "${PROVIDER_ENV_ARRAY[@]:1}")
+                else
+                    PROVIDER_ENV_ARRAY=(env -u MISTRAL_API_KEY ${PROVIDER_ENV_ARRAY[@]+"${PROVIDER_ENV_ARRAY[@]}"})
+                fi ;;
+        esac
     fi
     return "$_rc"
 }

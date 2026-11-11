@@ -522,6 +522,51 @@ build_provider_env vibe || exit
 ''')
         self.assertEqual(vibe.returncode, 0, "Mistral key no longer reaches Vibe")
 
+    def test_forwarded_mistral_key_is_absent_from_unrelated_children(self):
+        """Default CLI and shell-function routes must enforce the same boundary."""
+        self.env.update(MISTRAL_API_KEY="mistral-fixture", QWEN_API_KEY="qwen-fixture",
+                        PERPLEXITY_API_KEY="perplexity-fixture",
+                        OPENROUTER_API_KEY="openrouter-fixture",
+                        ORCAROUTER_API_KEY="orcarouter-fixture",
+                        KEENABLE_API_KEY="search-fixture")
+        for provider in ("qwen", "qwen:vendor/model", "copilot", "ollama",
+                         "perplexity", "openrouter", "orcarouter"):
+            with self.subTest(provider=provider):
+                result = self.shell(f'''source scripts/lib/provider-routing.sh
+build_provider_env {provider} || exit
+assert_child_env() {{
+    [[ -z "${{MISTRAL_API_KEY+x}}" && -z "${{KEENABLE_API_KEY+x}}" ]] &&
+    [[ "$QWEN_API_KEY" == qwen-fixture ]]
+}}
+case {provider} in
+    perplexity|openrouter|orcarouter) "${{PROVIDER_ENV_ARRAY[@]}}" assert_child_env ;;
+    *) "${{PROVIDER_ENV_ARRAY[@]}}" bash -c '
+        [[ -z "${{MISTRAL_API_KEY+x}}" && -z "${{KEENABLE_API_KEY+x}}" ]] &&
+        [[ "$QWEN_API_KEY" == qwen-fixture ]]' ;;
+esac
+child_rc=$?
+[[ "$MISTRAL_API_KEY" == mistral-fixture && "$KEENABLE_API_KEY" == search-fixture ]] || exit 69
+exit "$child_rc"
+''')
+                self.assertEqual(result.returncode, 0, f"Mistral key leaked into {provider}")
+
+    def test_explicit_mistral_credential_selection_remains_usable(self):
+        """Removing an ambient key must preserve an operator-selected key."""
+        self.env.update(MISTRAL_API_KEY="selected-fixture",
+                        OPENAI_COMPAT_API_KEY_ENV="MISTRAL_API_KEY")
+        config = Path(self.env["HOME"]) / ".codex"
+        config.mkdir()
+        (config / "config.toml").write_text(
+            'model_provider = "mistral"\n[model_providers.mistral]\n'
+            'env_key = "MISTRAL_API_KEY"\n')
+        for provider in ("codex", "openai-compatible-agent"):
+            with self.subTest(provider=provider):
+                result = self.shell(f'''source scripts/lib/provider-routing.sh
+build_provider_env {provider} || exit
+"${{PROVIDER_ENV_ARRAY[@]}}" bash -c '[[ "$MISTRAL_API_KEY" == selected-fixture ]]'
+''')
+                self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_mcp_preserves_sqlite_login_storage_selection(self):
         """The adapter and private server must discover the same login store."""
         database = self.data / "saved-login.db"

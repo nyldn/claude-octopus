@@ -38,7 +38,8 @@
   construction closes its durable research-seat event.
   MCP research also forwards the optional Mistral environment credential to
   OpenCode, while isolated model children keep their own credential boundary.
-  Claude CLI and Agent SDK children omit that unselected Mistral credential.
+  Unrelated CLI and shell-function provider children omit that unselected Mistral
+  credential while preserving their own authentication and the parent environment.
   OpenCode 2.x bounded Tangle refuses model tasks with unwritable session storage.
   Saved logins and filesystem boundaries remain
   intact; support for that execution path still requires a safe state projection.
