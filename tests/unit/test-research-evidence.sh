@@ -888,6 +888,12 @@ for quantity_text in 'Findings: 3 or 4 in total' '(Findings 3 and 4 in total)' '
     if [[ "$quantity_claims" == "3 4 " ]]; then test_pass; else test_fail "total list lost a quantity: $quantity_claims"; fi
 done
 
+for quantity_text in 'Findings: 3 or 4, in total' 'Risks 3 & 4, in total' '- **Findings:** **3** or **4**, in total'; do
+    test_case "a comma before in total keeps every quantity: $quantity_text"
+    quantity_claims=$(research_extract_numbers "$quantity_text" | LC_ALL=C sort | tr '\n' ' ')
+    if [[ "$quantity_claims" == "3 4 " ]]; then test_pass; else test_fail "punctuated total lost a quantity: $quantity_claims"; fi
+done
+
 test_case "comma-separated total lists keep every member"
 quantity_claims=$(research_extract_numbers 'Risks 3, 4 and 5 in total.' | LC_ALL=C sort | tr '\n' ' ')
 if [[ "$quantity_claims" == "3 4 5 " ]]; then test_pass; else test_fail "total list lost a quantity: $quantity_claims"; fi
@@ -929,6 +935,17 @@ if [[ "$threshold_status" -ne 0 && "$threshold_kinds" == "number_mismatch:3 numb
     test_pass
 else
     test_fail "total-list verification lost a quantity: $threshold_status $threshold_kinds"
+fi
+
+test_case "a comma before in total cannot bypass numeric evidence"
+printf '%s\n' '- Findings: 3 or 4, in total (`src/handler.ts:4`).' > "$threshold_draft"
+threshold_status=0
+research_verify_synthesis "$threshold_draft" || threshold_status=$?
+threshold_kinds=$(jq -r '.checks[] | "\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$threshold_status" -ne 0 && "$threshold_kinds" == "number_mismatch:3 number_mismatch:4 " ]]; then
+    test_pass
+else
+    test_fail "punctuated total bypassed verification: $threshold_status $threshold_kinds"
 fi
 
 test_case "an ordinal self-reference needs no evidence while units beside it still do"

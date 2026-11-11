@@ -710,7 +710,7 @@ research_numeric_claims() {
         # Quantities, including range endpoints and fraction numerators,
         # remain substantive before any label/list exemptions.
         # A trailing total describes quantities throughout the list.
-        if (tolower(after) ~ ("^(" list_join list_number ")*[ \\t]+in[ \\t]+total([^0-9a-z_]|$)")) return 0
+        if (tolower(after) ~ ("^(" list_join list_number ")*[ \\t]*,?[ \\t]+in[ \\t]+total([^0-9a-z_]|$)")) return 0
         if (after ~ /^[ \t]*(-|\342\200\223|\342\200\224|\342\210\222|\/)[ \t]*[*_]*[0-9]/) return 0
         if (after ~ /^[ \t]*%/) return 0
         if (after ~ /^[ \t]*\+/) return 0
