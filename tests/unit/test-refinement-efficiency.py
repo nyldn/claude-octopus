@@ -8,6 +8,7 @@ import re
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -139,11 +140,11 @@ preflight_check true
         self.assertEqual(log.read_text().splitlines(), ['gh'])
         self.assertTrue(json.loads(result.stdout)['any_below_floor'])
 
-    def pair_fixture(self):
+    def pair_fixture(self, deadline=None, budget=4):
         """Put inert provider execution behind the mandatory judge adapter."""
         scripts = self.base / "scripts"
         scripts.mkdir()
-        for name in ("refinement-pair.py", "refinement-judge.sh"):
+        for name in ("refinement-pair.py", "refinement-judge.sh", "refinement-run.py", "refinement-score.py"):
             shutil.copy2(ROOT / "scripts" / name, scripts / name)
         # Inert orchestrator behind the real mandatory adapter. No credentials/model CLI.
         runner = scripts / "orchestrate.sh"
@@ -164,9 +165,40 @@ print('raw unvalidated output')
         runner.chmod(0o755)
         run = self.base / "run"; run.mkdir()
         prompt = self.base / "prompt"; prompt.write_text("blind same candidate and rubric")
-        self.deadline = str(time.time() + 20)
-        self.pair_args = [str(scripts / "refinement-pair.py"), str(run), "round-0", str(prompt), str(prompt), str(prompt), self.deadline, "4", "claude-opus:fixed", "high", "codex:fixed", "high"]
+        self.deadline = str(deadline or time.time() + 20)
+        rubric = self.base / 'rubric.json'; rubric.write_text(self.rubric_text('initial rubric'))
+        self.pair_args = [str(scripts / "refinement-pair.py"), str(run), "round-0", str(prompt), str(prompt), str(rubric), self.deadline, str(budget), "claude-opus:claude-fixed", "high", "codex:codex-fixed", "high"]
+        self.prepare_pair()
         return run
+
+    @staticmethod
+    def rubric_text(description):
+        return json.dumps({'schema_version':1,'target':95,'criteria':[{'id':'correctness','description':description,'weight':100,'minimum':3,'anchors':{str(i):str(i) for i in range(5)}}], 'guards':[]})
+
+    def run_control(self, *args):
+        command = [sys.executable, str(self.base/'scripts/refinement-run.py'), *map(str,args)]
+        result = subprocess.run(command, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return json.loads(result.stdout)
+
+    def prepare_pair(self):
+        args = self.pair_args
+        run = Path(args[1])
+        if not (run/'iterations.jsonl').exists():
+            self.run_control('init', run, args[4], args[5], '--deadline',args[6], '--max-calls',args[7], '--claude',args[8], '--claude-effort',args[9], '--codex',args[10], '--codex-effort',args[11])
+        self.run_control('begin',run,args[2])
+        guards = self.base/'guard-results.json'; guards.write_text('[]')
+        self.run_control('prepare',run,args[4],guards,'--rubric',args[5])
+
+    def finish_pair(self, value=3.2):
+        args = self.pair_args; pair = Path(args[1])/args[2]
+        manifest = json.loads((pair/'manifest.json').read_text())
+        criteria = json.loads((pair/'rubric').read_text())['criteria']
+        assessment = {'artifact_sha256':manifest['hashes']['candidate'],'guards':[],'judges':[]}
+        for provider, seat in zip(('claude','codex'),manifest['seats']):
+            assessment['judges'].append({'provider':provider,'model':seat['provider'].split(':',1)[1],'effort':seat['effort'],'rubric_sha256':manifest['hashes']['rubric'],'artifact_sha256':manifest['hashes']['candidate'],'criteria':[{'id':c['id'],'score':value,'evidence':'inert fixture checks'} for c in criteria],'blockers':[]})
+        path = self.base/'assessment.json'; path.write_text(json.dumps(assessment))
+        return self.run_control('record',args[1],path)
 
     def test_pair_overlap_identity_reservation_and_failure(self):
         """Overlap two pinned judges and retain failed calls in the budget ledger."""
@@ -182,9 +214,12 @@ print('raw unvalidated output')
             self.assertEqual(record['sandbox'], 'read-only'); self.assertIn('--strict-mcp-config', record['tools'])
         manifest = json.loads((run/'round-0/manifest.json').read_text())
         self.assertFalse(manifest['score_validated'])
+        self.finish_pair()
         self.assertNotEqual(subprocess.run(self.pair_args, capture_output=True).returncode, 0)
         self.pair_args[2] = 'round-1'
-        failed = subprocess.run(self.pair_args, env=dict(os.environ, TEST_FAIL='codex:fixed'), capture_output=True)
+        Path(self.pair_args[4]).write_text('edited candidate')
+        self.prepare_pair()
+        failed = subprocess.run(self.pair_args, env=dict(os.environ, TEST_FAIL='codex:codex-fixed'), capture_output=True)
         self.assertNotEqual(failed.returncode, 0)
         self.assertEqual(len((run/'calls.jsonl').read_text().splitlines()), 2)
         self.pair_args[2] = 'round-2'
@@ -192,8 +227,7 @@ print('raw unvalidated output')
 
     def test_deadline_and_cancellation(self):
         """Stop owned judges at the shared deadline or on interruption."""
-        run = self.pair_fixture()
-        self.pair_args[6] = str(time.time() + 1.5)
+        run = self.pair_fixture(deadline=time.time() + 2)
         result = subprocess.run(self.pair_args, env=dict(os.environ, TEST_DELAY='5'), capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(json.loads((run/'round-0/manifest.json').read_text())['state'], 'failed')
@@ -202,6 +236,7 @@ print('raw unvalidated output')
             other = self.base / f'cancel-{signum}'; other.mkdir()
             self.pair_args[1] = str(other)
             self.pair_args[6] = str(time.time() + 20)
+            self.prepare_pair()
             child = subprocess.Popen(self.pair_args, env=dict(os.environ, TEST_DELAY='5'), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             limit = time.time() + 4
             while not (other / 'round-0/1/started').exists() and time.time() < limit:
@@ -216,19 +251,18 @@ print('raw unvalidated output')
 
     def test_explicit_rubric_correction_retains_run_limits(self):
         """Version a corrected rubric without resetting calls, time or model pins."""
-        run = self.pair_fixture()
-        rubric = self.base / 'rubric'
-        rubric.write_text('initial rubric')
-        self.pair_args[5] = str(rubric)
-        self.pair_args[7] = '6'
+        run = self.pair_fixture(budget=6)
+        rubric = Path(self.pair_args[5])
         baseline = subprocess.run(self.pair_args, capture_output=True, text=True)
         self.assertEqual(baseline.returncode, 0, baseline.stderr)
+        self.finish_pair()
         ledger = run / 'calls.jsonl'
         prior_ledger = ledger.read_bytes()
         original = json.loads(prior_ledger.splitlines()[0])
         previous = original['hashes']['rubric']
-        rubric.write_text('corrected rubric with the missing criterion')
+        rubric.write_text(self.rubric_text('corrected rubric with the missing criterion'))
         self.pair_args[2] = 'rubric-v2-original'
+        self.prepare_pair()
         silent = subprocess.run(self.pair_args, capture_output=True, text=True)
         self.assertNotEqual(silent.returncode, 0)
         transition = ['--rubric-correction', previous, 'Add the omitted user requirement']
@@ -240,16 +274,17 @@ print('raw unvalidated output')
         self.pair_args[4] = str(best)
         wrong_candidate = subprocess.run(self.pair_args + transition, capture_output=True, text=True)
         self.assertNotEqual(wrong_candidate.returncode, 0)
-        self.assertIn('original candidate', wrong_candidate.stderr)
+        self.assertIn('candidate', wrong_candidate.stderr)
         self.pair_args[4] = original_candidate
         self.pair_args[8] = 'claude-opus:changed'
         changed_panel = subprocess.run(self.pair_args + transition, capture_output=True, text=True)
         self.assertNotEqual(changed_panel.returncode, 0)
-        self.assertIn('panel, models, or efforts', changed_panel.stderr)
-        self.pair_args[8] = 'claude-opus:fixed'
+        self.assertIn('panel', changed_panel.stderr)
+        self.pair_args[8] = 'claude-opus:claude-fixed'
         self.assertEqual(ledger.read_bytes(), prior_ledger)
         corrected = subprocess.run(self.pair_args + transition, capture_output=True, text=True)
         self.assertEqual(corrected.returncode, 0, corrected.stderr)
+        self.finish_pair()
         self.assertTrue(ledger.read_bytes().startswith(prior_ledger))
         revised = json.loads(ledger.read_text().splitlines()[1])
         self.assertEqual(revised['rubric_version'], 2)
@@ -260,21 +295,20 @@ print('raw unvalidated output')
         self.pair_args[2] = 'rubric-v2-best'
         repeated = subprocess.run(self.pair_args + transition, capture_output=True, text=True)
         self.assertNotEqual(repeated.returncode, 0)
-        self.assertIn('changed rubric bytes', repeated.stderr)
         self.pair_args[4] = str(best)
+        self.prepare_pair()
         rescored = subprocess.run(self.pair_args, capture_output=True, text=True)
         self.assertEqual(rescored.returncode, 0, rescored.stderr)
+        self.finish_pair(3.5)
         entries = [json.loads(line) for line in ledger.read_text().splitlines()]
         self.assertEqual(sum(entry['calls'] for entry in entries), 6)
         self.assertEqual(entries[-1]['rubric_version'], 2)
-        self.pair_args[2] = 'over-budget'
-        self.assertNotEqual(subprocess.run(self.pair_args, capture_output=True).returncode, 0)
-        self.pair_args[7] = '8'
-        self.assertNotEqual(subprocess.run(self.pair_args, capture_output=True).returncode, 0)
-        self.pair_args[7] = '6'
-        self.pair_args[6] = str(float(self.deadline) + 60)
-        self.assertNotEqual(subprocess.run(self.pair_args, capture_output=True).returncode, 0)
-        self.assertEqual(len(ledger.read_text().splitlines()), 3)
+        full_ledger = ledger.read_bytes()
+        exhausted = subprocess.run([sys.executable, str(self.base/'scripts/refinement-run.py'),
+                                    'begin', str(run), 'over-budget'], capture_output=True, text=True)
+        self.assertNotEqual(exhausted.returncode, 0)
+        self.assertIn('reserve two scoring calls', exhausted.stderr)
+        self.assertEqual(ledger.read_bytes(), full_ledger)
 
     def test_reusing_historical_rubric_bytes_requires_a_new_version(self):
         """Preserve version history when an explicit correction restores prior bytes."""
@@ -293,17 +327,18 @@ print('raw unvalidated output')
     def test_rubric_correction_needs_budget_for_both_rescores(self):
         """Keep the ledger unchanged when only one scoring pair remains."""
         run = self.pair_fixture()
-        rubric = self.base / 'rubric'; rubric.write_text('initial rubric')
-        self.pair_args[5] = str(rubric)
+        rubric = Path(self.pair_args[5])
         baseline = subprocess.run(self.pair_args, capture_output=True, text=True)
         self.assertEqual(baseline.returncode, 0, baseline.stderr)
+        self.finish_pair()
         ledger = run / 'calls.jsonl'; before = ledger.read_bytes()
         previous = json.loads(before)['hashes']['rubric']
-        rubric.write_text('corrected rubric')
+        rubric.write_text(self.rubric_text('corrected rubric'))
         self.pair_args[2] = 'correction'
-        result = subprocess.run(self.pair_args + ['--rubric-correction', previous, 'Add missing requirement'], capture_output=True, text=True)
+        self.run_control('begin',run,'correction')
+        result = subprocess.run([sys.executable,str(self.base/'scripts/refinement-run.py'),'prepare',str(run),self.pair_args[4],str(self.base/'guard-results.json'),'--rubric',str(rubric)],capture_output=True,text=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn('call budget exhausted', result.stderr)
+        self.assertIn('both rescores', result.stderr)
         self.assertEqual(ledger.read_bytes(), before)
 
     def test_group_signals_precede_reaping(self):

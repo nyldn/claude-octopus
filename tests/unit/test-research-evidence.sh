@@ -864,6 +864,90 @@ for quantity_text in 'Score in **points**: 50' 'Total **items:** 50' '**Points:*
     if [[ "$quantity_claims" == 50 ]]; then test_pass; else test_fail "quantity escaped: $quantity_claims"; fi
 done
 
+for reference_text in '(Finding 4, as above)' '(Risk 3)' '(probe 3, under the unrelated-fixes rule)' 'See Finding 4.' 'See conflicts 1 and 2.' 'See risks 3 or 4.' 'See conflicts 1,2.' '(Risks 3,4)' 'See gap 3,4 or 5.' '(Findings 3 and 4)' '- **Decision** 7' 'Risk 3 and Risk 4' 'See risks 3 or Risk 4.' 'Finding: 4' 'See risks: 3' 'See Risk: 3 and Risk: 4'; do
+    test_case "synthesis section label is a self-reference: $reference_text"
+    reference_claims=$(research_extract_numbers "$reference_text")
+    if [[ -z "$reference_claims" ]]; then test_pass; else test_fail "section label became a claim: $reference_claims"; fi
+done
+
+for quantity_text in 'Risk 3 of the services fail.' 'The top risk 3' '(Findings 3 in total)' '3 risks' 'Risk 3 or higher requires approval.' 'Risk 3 and above requires approval.' '(Finding 3 or more)' 'See gap 3 and higher.' 'Risk 3+ requires approval.' 'Risk 3 & above requires approval.'; do
+    test_case "quantity beside a section label requires evidence: $quantity_text"
+    quantity_claims=$(research_extract_numbers "$quantity_text")
+    if [[ "$quantity_claims" == 3 ]]; then test_pass; else test_fail "quantity escaped: $quantity_claims"; fi
+done
+
+for threshold in 'Risk 3 and 4 or higher requires approval.' 'See gaps 3 or 4 and above.' 'See points 3 and 4 or higher.' 'See conflicts 2,3 and 4 or more.'; do
+    test_case "threshold after a later reference-list member requires evidence: $threshold"
+    threshold_claims=$(research_extract_numbers "$threshold")
+    if [[ "$threshold_claims" == 4 ]]; then test_pass; else test_fail "threshold escaped: $threshold_claims"; fi
+done
+
+for quantity_text in 'Findings: 3 or 4 in total' '(Findings 3 and 4 in total)' '- **Findings:** **3** or **4** in total' 'Risks 3 & 4 in total' 'Findings 3 or Finding 4 in total'; do
+    test_case "every number in a total remains a quantity: $quantity_text"
+    quantity_claims=$(research_extract_numbers "$quantity_text" | LC_ALL=C sort | tr '\n' ' ')
+    if [[ "$quantity_claims" == "3 4 " ]]; then test_pass; else test_fail "total list lost a quantity: $quantity_claims"; fi
+done
+
+for quantity_text in 'Findings: 3 or 4, in total' 'Risks 3 & 4, in total' '- **Findings:** **3** or **4**, in total'; do
+    test_case "a comma before in total keeps every quantity: $quantity_text"
+    quantity_claims=$(research_extract_numbers "$quantity_text" | LC_ALL=C sort | tr '\n' ' ')
+    if [[ "$quantity_claims" == "3 4 " ]]; then test_pass; else test_fail "punctuated total lost a quantity: $quantity_claims"; fi
+done
+
+test_case "comma-separated total lists keep every member"
+quantity_claims=$(research_extract_numbers 'Risks 3, 4 and 5 in total.' | LC_ALL=C sort | tr '\n' ' ')
+if [[ "$quantity_claims" == "3 4 5 " ]]; then test_pass; else test_fail "total list lost a quantity: $quantity_claims"; fi
+
+for reference_text in 'See risks 3 & 4.' 'See risks 3&4.' 'See risks 3 & Risk 4.' 'See risks 3,4 & 5.' '(Risks 3 & 4)'; do
+    test_case "ampersands separate explicit references: $reference_text"
+    reference_claims=$(research_extract_numbers "$reference_text")
+    if [[ -z "$reference_claims" ]]; then test_pass; else test_fail "ampersand reference became a claim: $reference_claims"; fi
+done
+
+test_case "a threshold following ampersand references still needs evidence"
+threshold_claims=$(research_extract_numbers 'See risks 3 & 4 or higher requires approval.')
+if [[ "$threshold_claims" == 4 ]]; then test_pass; else test_fail "ampersand threshold was misclassified: $threshold_claims"; fi
+
+for quantity in '1,000' '3.14' '1,000,000'; do
+    test_case "section labels preserve decimal and thousands quantities: $quantity"
+    quantity_claims=$(research_extract_numbers "See risks $quantity.")
+    if [[ "$quantity_claims" == "$quantity" ]]; then test_pass; else test_fail "quantity escaped: $quantity_claims"; fi
+done
+
+test_case "a threshold after a reference-list member still needs cited numeric evidence"
+threshold_draft="$RESEARCH_RUN_DIR/list-threshold.md"
+printf '%s\n' '- Risk 3 and 4 or higher requires approval (`src/handler.ts:4`).' > "$threshold_draft"
+threshold_status=0
+research_verify_synthesis "$threshold_draft" || threshold_status=$?
+threshold_kinds=$(jq -r '.checks[] | "\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$threshold_status" -ne 0 && "$threshold_kinds" == "number_mismatch:4 " ]]; then
+    test_pass
+else
+    test_fail "threshold verification escaped: $threshold_status $threshold_kinds"
+fi
+
+test_case "both quantities in a total require cited evidence"
+printf '%s\n' '- Findings: 3 or 4 in total (`src/handler.ts:4`).' > "$threshold_draft"
+threshold_status=0
+research_verify_synthesis "$threshold_draft" || threshold_status=$?
+threshold_kinds=$(jq -r '.checks[] | "\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$threshold_status" -ne 0 && "$threshold_kinds" == "number_mismatch:3 number_mismatch:4 " ]]; then
+    test_pass
+else
+    test_fail "total-list verification lost a quantity: $threshold_status $threshold_kinds"
+fi
+
+test_case "a comma before in total cannot bypass numeric evidence"
+printf '%s\n' '- Findings: 3 or 4, in total (`src/handler.ts:4`).' > "$threshold_draft"
+threshold_status=0
+research_verify_synthesis "$threshold_draft" || threshold_status=$?
+threshold_kinds=$(jq -r '.checks[] | "\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$threshold_status" -ne 0 && "$threshold_kinds" == "number_mismatch:3 number_mismatch:4 " ]]; then
+    test_pass
+else
+    test_fail "punctuated total bypassed verification: $threshold_status $threshold_kinds"
+fi
+
 test_case "an ordinal self-reference needs no evidence while units beside it still do"
 ordinal_draft="$RESEARCH_RUN_DIR/local-ordinals.md"
 {

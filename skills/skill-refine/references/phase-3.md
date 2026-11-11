@@ -23,6 +23,20 @@ the requested numeric target, prior scores, or author identity. Omit `target`
 from their rubric view while retaining the hash of the full frozen rubric in
 the response envelope. Do not show revision history in scoring prompts.
 
+Before the baseline pair, run these commands with the declared guard results
+as a JSON array. Baseline and rubric-correction calibration failures may be recorded; new
+improvement guards must pass.
+
+```bash
+python3 "$OCTO_ROOT/scripts/refinement-run.py" begin "$RUN_DIR" "$PAIR_ID"
+python3 "$OCTO_ROOT/scripts/refinement-run.py" prepare "$RUN_DIR" \
+  "$CANDIDATE_SNAPSHOT" "$GUARDS_FILE" --rubric "$RUN_DIR/rubric.json"
+```
+
+Check the returned state. Dispatch only when `pending.phase` is `prepared`.
+A failed improvement guard or unchanged candidate closes the attempt and counts
+as no progress. Do not overwrite its evidence or create another pair ID for it.
+
 Dispatch the two seats together through `scripts/refinement-pair.py`. It always
 uses `scripts/refinement-judge.sh`; never bypass that adapter. The adapter disables
 hidden auth retries, restricts Claude to Read/Glob/Grep without ambient MCP, and
@@ -39,9 +53,9 @@ python3 "$OCTO_ROOT/scripts/refinement-pair.py" "$RUN_DIR" "$PAIR_ID" \
 ```
 
 Use the same absolute run deadline and total budget on every round and resume.
-Reserve all research, edits, retries, and other external calls in `calls.jsonl`
-under `.dispatch-lock` before launch, recording `pair_id`, `calls`, `deadline`,
-and `max_calls`. Import earlier calls before the first pair. The helper reserves
+Use `refinement-run.py reserve` for research, model-assisted edits, retries,
+and other external calls. Preserve the deadline and total budget on resume.
+The helper reserves
 two calls and writes the manifest before either launch. Failed, interrupted, or
 reserved calls remain spent. Never reuse a pair ID or retry a failed pair outside
 the remaining budget. A stale lock requires inspection, never automatic deletion.
@@ -75,14 +89,16 @@ actual dispatch evidence. Never copy a provider label from the model's answer,
 infer it from a model name, or use `claude-opus` as a second provider identity.
 
 Bind each judge to the frozen rubric hash and exact candidate hash. Include the
-preceding guard results as pass/fail/unverified with evidence, then run:
+prepared guard results unchanged, then record the assessment:
 
 ```bash
-python3 "$OCTO_ROOT/scripts/refinement-score.py" \
-  "$RUN_DIR/rubric.json" "$CANDIDATE_SNAPSHOT" "$ASSESSMENT_FILE"
+python3 "$OCTO_ROOT/scripts/refinement-run.py" record "$RUN_DIR" "$ASSESSMENT_FILE"
 ```
 
-The validator computes a conservative score using the lower of the two judge
+The controller checks the completed pair and fixed identities, reruns the score
+validator against its frozen inputs, retains the assessment, and appends exactly
+one decision. Do not start another round until this succeeds. The validator
+computes a conservative score using the lower of the two judge
 totals. It requires each criterion's minimum, no blocking findings, passing
 guards, and no total-score disagreement above 10 points before target success.
 Never average away a failing test or unsupported requirement. Verify model
