@@ -186,6 +186,28 @@ if missing=$(check_explicit_file_coverage $'Read\n./SPEC.md\nUpdate\nsrc/main.ts
 test_case "read context after a write instruction stays outside output coverage"
 if missing=$(check_explicit_file_coverage 'Update src/main.ts. Read ./SPEC.md.' 'Implemented src/main.ts.') && [[ -z "$missing" ]]; then test_pass; else test_fail "following read context became a required output"; fi
 
+for instruction in \
+    'Implement read support in src/parser.ts' \
+    'Update context handling in src/parser.ts' \
+    'Fix input parsing in src/parser.ts' \
+    'Add review output to src/parser.ts'; do
+    test_case "write instruction retains its target: $instruction"
+    if missing=$(check_explicit_file_coverage "$instruction" 'done') && [[ "$missing" == src/parser.ts ]]; then
+        test_pass
+    else
+        test_fail "write instruction lost its target: $instruction"
+    fi
+done
+
+test_case "bulleted read context stays separate from a write containing a context word"
+if missing=$(check_explicit_file_coverage $'- Read ./SPEC.md\n- Implement read support in src/parser.ts' 'done') && [[ "$missing" == src/parser.ts ]]; then test_pass; else test_fail "bullet boundaries lost the target or required context"; fi
+
+test_case "numbered and polite instructions preserve the read boundary"
+if missing=$(check_explicit_file_coverage $'1. Please update context handling in src/parser.ts\n2. Read ./SPEC.md' 'done') && [[ "$missing" == src/parser.ts ]]; then test_pass; else test_fail "numbered instruction boundaries changed coverage"; fi
+
+test_case "semicolon separates read context from a write target"
+if missing=$(check_explicit_file_coverage 'Update src/parser.ts; read ./SPEC.md' 'done') && [[ "$missing" == src/parser.ts ]]; then test_pass; else test_fail "semicolon boundary changed coverage"; fi
+
 test_case "managed coverage uses files rather than textual echoes"
 mkdir -p "$TEST_TMP_DIR/repo/src"
 printf 'implementation\n' > "$TEST_TMP_DIR/repo/src/main.ts"

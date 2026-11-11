@@ -169,9 +169,9 @@ check_explicit_file_coverage() {
     done <<< "$(extract_explicit_file_refs "$(printf '%s\n' "$original_prompt" | python3 -I -c '
 import re,sys
 text=sys.stdin.read()
-# Instruction boundaries can span lines; read/context segments remain inputs.
+# Only instruction starts open segments; words inside a write remain content.
 writes={"add","update","create","edit","modify","delete","remove","refactor","fix","write","implement"}
-events=list(re.finditer(r"\b(add|update|create|edit|modify|delete|remove|refactor|fix|write|implement|read|review|inspect|consult|context|inputs?|references?)\b(?=[:\s]|$)",text,re.I))
+events=list(re.finditer(r"(?:^|[.!?;]\s+)[ \t]*(?:[-*]\s+|\d+[.)]\s+)?(?:please\s+)?(add|update|create|edit|modify|delete|remove|refactor|fix|write|implement|read|review|inspect|consult|context|inputs?|references?)\b(?=[:\s]|$)",text,re.I|re.M))
 for index,event in enumerate(events):
     if event.group(1).lower() in writes:
         end=events[index+1].start() if index+1<len(events) else len(text)
