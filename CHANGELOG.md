@@ -5,7 +5,8 @@
 ### Fixed
 
 - Broad preflight scans and roster inspection no longer launch OpenCode version
-  or login probes. Selected OpenCode dispatch still confirms login and cannot
+  or login probes. Selected OpenCode dispatch and workflows with a pinned
+  OpenCode roster still confirm login and cannot
   reuse or populate the broad discovery cache.
 
 - OpenCode checks and private servers launched through MCP retain an explicit

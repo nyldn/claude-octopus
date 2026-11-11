@@ -1135,7 +1135,7 @@ squeeze_test() {
     fi
 
     # Pre-flight validation
-    preflight_check || return 1
+    preflight_check false "" dispatch || return 1
 
     mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
 

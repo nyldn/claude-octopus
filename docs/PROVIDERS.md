@@ -496,7 +496,8 @@ Store presence is configuration evidence only. A SQLite-only installation
 needs explicit live confirmation. Broad preflight scans, roster inspection and
 readiness dashboards remain static. Selecting an OpenCode seat for dispatch
 performs bounded login confirmation, including SQLite-only and environment-only
-logins. A broad discovery cache cannot replace that check, and selected-seat
+logins. A running workflow also confirms OpenCode when the user pins it in the
+council roster. A broad discovery cache cannot replace those checks, and dispatch
 confirmation does not populate the broad cache. Explicit live readiness checks
 remain available without dispatching a model task.
 The MCP adapter forwards `MISTRAL_API_KEY` for environment-only OpenCode
@@ -506,7 +507,7 @@ Unrelated provider children exclude this Mistral credential while retaining
 their own authentication, including CLI and shell-function routes. OpenCode
 and Vibe retain access to it. Explicit credential selection in isolated provider
 configuration remains effective.
-Selected OpenCode dispatch also confirms statically available seats.
+OpenCode dispatch admission also confirms statically available seats.
 Both admission checks resolve OpenCode from the worker's project directory.
 Synchronous, background and direct `probe-single` dispatch check health before
 launching a model task. Direct probes include the standard, fast and research

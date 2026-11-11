@@ -214,7 +214,9 @@ preflight_check true opencode
                 self.env["AUTH_JSON"] = json.dumps([
                     {"id": "openai", "connections": [{"type": "credential" if storage == "sqlite" else "environment"}]}
                 ] if connected else [])
-                result = self.shell(script)
+                admission = (script.replace('preflight_check true opencode',
+                                            'preflight_check true "" dispatch') if roster else script)
+                result = self.shell(admission)
                 self.assertEqual(result.returncode == 0, connected, result.stdout + result.stderr)
                 if connected:
                     self.assertFalse(cache.exists(), "selected admission populated the broad cache")
@@ -225,7 +227,7 @@ preflight_check true opencode
                 self.assertTrue(self.marker.exists(), "admission never checked login")
                 self.env["OCTOPUS_SKIP_PROVIDER_PROBES"] = "true"
                 self.marker.unlink(missing_ok=True)
-                self.assertNotEqual(self.shell(script).returncode, 0)
+                self.assertNotEqual(self.shell(admission).returncode, 0)
                 self.assertFalse(self.marker.exists())
             self.env["OCTOPUS_SKIP_PROVIDER_PROBES"] = "false"
 
@@ -240,11 +242,13 @@ _preflight_provider_candidates() { echo opencode; }
 detect_enterprise_backend() { :; }
 provider_smoke_test() { :; }
 WORKSPACE_DIR="$HOME"; PREFLIGHT_CACHE_FILE="$HOME/preflight-cache"
-preflight_check true "$REQUESTED_PROVIDER"
+preflight_check true "$REQUESTED_PROVIDER" "$CHECK_CONTEXT"
 '''
-        for storage, roster, selected in product(
-                ("sqlite", "none", "environment"), ("", "opencode"), ("", "codex")):
-            with self.subTest(storage=storage, roster=roster, selected=selected):
+        for storage, roster, selected, context in product(
+                ("sqlite", "none", "environment"), ("", "opencode"), ("", "codex"), ("static", "dispatch")):
+            if context == "dispatch" and roster:
+                continue  # Covered by the workflow admission matrix.
+            with self.subTest(storage=storage, roster=roster, selected=selected, context=context):
                 database = self.data / "opencode.db"
                 database.unlink(missing_ok=True)
                 self.env.pop("OPENROUTER_API_KEY", None)
@@ -253,7 +257,7 @@ preflight_check true "$REQUESTED_PROVIDER"
                 elif storage == "environment":
                     self.env["OPENROUTER_API_KEY"] = "fixture"
                 self.env.update(OCTOPUS_COUNCIL_DEFAULT_PROVIDERS=roster,
-                                REQUESTED_PROVIDER=selected)
+                                REQUESTED_PROVIDER=selected, CHECK_CONTEXT=context)
                 self.marker.unlink(missing_ok=True)
                 result = self.shell(script)
                 self.assertFalse(self.marker.exists(), result.stdout + result.stderr)
@@ -276,11 +280,14 @@ PREFLIGHT_CACHE_TTL=3600
 preflight_cache_valid && [[ "$(preflight_cache_read)" == 0 ]] || exit 72
 preflight_check false "$SELECTED_SEAT"
 '''
-        for seat in ("opencode", "opencode-fast", "opencode-research", "opencode:vendor/model"):
+        for seat in ("opencode", "opencode-fast", "opencode-research", "opencode:vendor/model", "roster"):
             with self.subTest(seat=seat):
                 self.env["SELECTED_SEAT"] = seat
+                self.env["OCTOPUS_COUNCIL_DEFAULT_PROVIDERS"] = "opencode" if seat == "roster" else ""
                 self.marker.unlink(missing_ok=True)
-                result = self.shell(script)
+                attempt = (script.replace('preflight_check false "$SELECTED_SEAT"',
+                                          'preflight_check false "" dispatch') if seat == "roster" else script)
+                result = self.shell(attempt)
                 self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
                 self.assertTrue(self.marker.exists(), "cached broad success bypassed selected login")
 

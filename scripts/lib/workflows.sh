@@ -943,7 +943,7 @@ probe_discover() {
     fi
 
     # Pre-flight validation
-    preflight_check || return 1
+    preflight_check false "" dispatch || return 1
 
     if [[ "${OCTOPUS_RESEARCH_EVIDENCE:-true}" == "true" ]] \
        && declare -F research_run_begin >/dev/null 2>&1; then
@@ -6708,7 +6708,7 @@ ${obs_ctx}"
     export OCTOPUS_SKIP_PHASE_COST_PROMPT="true"
 
     # Pre-flight validation
-    if ! preflight_check; then
+    if ! preflight_check false "" dispatch; then
         log ERROR "Pre-flight check failed. Aborting workflow."
         return 1
     fi

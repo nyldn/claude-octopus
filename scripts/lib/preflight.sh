@@ -745,11 +745,19 @@ _preflight_provider_candidates() {
 preflight_check() {
     local force_check="${1:-false}"
     local selected_provider="${2:-}"
+    local check_context="${3:-static}"
     local _octo_vibe_check_context=automatic
     local selected_opencode=false
     case "${selected_provider%%:*}" in
         opencode|opencode-fast|opencode-research) selected_opencode=true ;;
     esac
+    local opencode_admission="$selected_opencode"
+    # A running workflow can confirm the user's pinned roster. Inspection of
+    # that same roster does not authorize login probes.
+    if [[ "$check_context" == dispatch && -n "${OCTOPUS_COUNCIL_DEFAULT_PROVIDERS:-}" &&
+          "${OCTOPUS_COUNCIL_DEFAULT_PROVIDERS:-}" != auto ]] && octo_preflight_in_roster opencode; then
+        opencode_admission=true
+    fi
 
     # Fixed panels never consume or populate the broad discovery cache.
     if [[ -n "${OCTOPUS_PREFLIGHT_PROVIDERS:-}" ]]; then
@@ -768,7 +776,7 @@ preflight_check() {
 
     # Performance: Return cached result if valid (unless forced)
     # Selected Vibe checks inspect the keyring that automatic scans defer.
-    if [[ "$force_check" != "true" && "$selected_provider" != vibe && "$selected_opencode" != true ]] && preflight_cache_valid; then
+    if [[ "$force_check" != "true" && "$selected_provider" != vibe && "$opencode_admission" != true ]] && preflight_cache_valid; then
         local cached_status
         cached_status=$(preflight_cache_read)
         if [[ "$cached_status" == "0" ]]; then
@@ -818,9 +826,9 @@ preflight_check() {
             readiness="$(octo_provider_readiness_result "$provider" static)"
         fi
         { IFS= read -r -d '' status; IFS= read -r -d '' reason; IFS= read -r -d '' remediation; } < <(_octo_readiness_json_fields "$readiness" status reason_code remediation)
-        # Only an OpenCode seat selected for dispatch can confirm its login.
-        # Broad preflight and roster inspection remain static.
-        if [[ "$provider" == opencode && "$selected_opencode" == true ]] &&
+        # Only an OpenCode seat selected for dispatch, individually or through
+        # a workflow's pinned roster, can confirm its login.
+        if [[ "$provider" == opencode && "$opencode_admission" == true ]] &&
            [[ "$status" == available || "$reason" == live-check-required || "$reason" == auth-missing ]]; then
             readiness="$(cd "${PROJECT_ROOT:-$PWD}" && octo_provider_readiness_result "$provider" live)"
             { IFS= read -r -d '' status; IFS= read -r -d '' reason; IFS= read -r -d '' remediation; } < <(_octo_readiness_json_fields "$readiness" status reason_code remediation)
@@ -1011,7 +1019,7 @@ preflight_check() {
     fi
 
     # A selected-only result cannot replace the general discovery cache.
-    [[ "$selected_provider" != vibe && "$selected_opencode" != true ]] || return 0
+    [[ "$selected_provider" != vibe && "$opencode_admission" != true ]] || return 0
 
     # A provider that failed inconclusively is excluded only in this process, so
     # do not cache a pass that would let the next run skip checking it again.
