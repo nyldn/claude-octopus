@@ -156,27 +156,29 @@ check_explicit_file_coverage() {
     local output_corpus="$2"
     local missing=""
     local output_refs=""
+    local write_instructions=""
     local ref
 
-    output_refs="$(extract_explicit_file_refs "$output_corpus")"
+    write_instructions=$(printf '%s\n' "$original_prompt" | python3 -I -c '
+import re,sys
+text=sys.stdin.read()
+# Only instruction starts open segments; words inside a write remain content.
+writes={"add","update","create","edit","modify","delete","remove","refactor","fix","write","implement","rename","move"}
+events=list(re.finditer(r"(?:^|[.!?;]\s+|,\s*then\s+|\band\s+then\s+)[ \t]*(?:[-*]\s+|\d+[.)]\s+)?(?:please\s+)?(add|update|create|edit|modify|delete|remove|refactor|fix|write|implement|rename|move|read|review|inspect|consult|context|inputs?|references?)\b(?=[:\s]|$)",text,re.I|re.M))
+for index,event in enumerate(events):
+    if event.group(1).lower() in writes:
+        end=events[index+1].start() if index+1<len(events) else len(text)
+        print(text[event.end():end])
+') || return 1
 
+    output_refs="$(extract_explicit_file_refs "$output_corpus")"
     while IFS= read -r ref; do
         [[ -z "$ref" ]] && continue
         case $'\n'"$output_refs"$'\n' in
             *$'\n'"$ref"$'\n'*) ;;
             *) missing+="${ref}"$'\n' ;;
         esac
-    done <<< "$(extract_explicit_file_refs "$(printf '%s\n' "$original_prompt" | python3 -I -c '
-import re,sys
-text=sys.stdin.read()
-# Only instruction starts open segments; words inside a write remain content.
-writes={"add","update","create","edit","modify","delete","remove","refactor","fix","write","implement"}
-events=list(re.finditer(r"(?:^|[.!?;]\s+)[ \t]*(?:[-*]\s+|\d+[.)]\s+)?(?:please\s+)?(add|update|create|edit|modify|delete|remove|refactor|fix|write|implement|read|review|inspect|consult|context|inputs?|references?)\b(?=[:\s]|$)",text,re.I|re.M))
-for index,event in enumerate(events):
-    if event.group(1).lower() in writes:
-        end=events[index+1].start() if index+1<len(events) else len(text)
-        print(text[event.end():end])
-')")"
+    done <<< "$(extract_explicit_file_refs "$write_instructions")"
 
     printf '%s' "$missing"
 }

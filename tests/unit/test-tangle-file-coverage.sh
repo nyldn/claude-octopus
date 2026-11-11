@@ -208,6 +208,34 @@ if missing=$(check_explicit_file_coverage $'1. Please update context handling in
 test_case "semicolon separates read context from a write target"
 if missing=$(check_explicit_file_coverage 'Update src/parser.ts; read ./SPEC.md' 'done') && [[ "$missing" == src/parser.ts ]]; then test_pass; else test_fail "semicolon boundary changed coverage"; fi
 
+for instruction in \
+    'Read ./SPEC.md, then update src/main.ts.' \
+    'Read ./SPEC.md and then implement read support in src/main.ts.'; do
+    test_case "coordinated instruction requires its output: $instruction"
+    if missing=$(check_explicit_file_coverage "$instruction" 'done') && [[ "$missing" == src/main.ts ]]; then
+        test_pass
+    else
+        test_fail "coordinated instruction lost its target: $instruction"
+    fi
+done
+
+for action in Rename Move; do
+    test_case "$action requires source and destination references"
+    if missing=$(check_explicit_file_coverage "$action src/old.ts to src/new.ts" 'done') &&
+       [[ "$missing" == $'src/new.ts\nsrc/old.ts' ]]; then
+        test_pass
+    else
+        test_fail "$action lost its output obligations"
+    fi
+done
+
+test_case "standalone parser failure cannot pass as empty coverage"
+if (python3() { return 73; }; check_explicit_file_coverage 'Update src/main.ts' 'done') >/dev/null 2>&1; then
+    test_fail "unavailable instruction parser passed coverage"
+else
+    test_pass
+fi
+
 test_case "managed coverage uses files rather than textual echoes"
 mkdir -p "$TEST_TMP_DIR/repo/src"
 printf 'implementation\n' > "$TEST_TMP_DIR/repo/src/main.ts"
