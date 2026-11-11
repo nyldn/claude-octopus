@@ -712,19 +712,17 @@ research_numeric_claims() {
         # name units. Keep the quantity even for a shortcut reference label.
         if (after ~ /^[ \t]*\[[^]]+\]/) return 0
         if (after ~ /^[ \t]*[*_`(]*([0-9A-Za-z]|\302\260|\302\265|\316\274)/ && tolower(after) !~ /^[ \t]+(and|or)[ \t]/) return 0
+        # Check every list member before exemptions, including its final number.
+        # Conjunctions continue references only before a number or numbered label.
+        if (tolower(after) ~ /^[ \t]+(and|or)[ \t]/ &&
+            tolower(after) !~ /^[ \t]+(and|or)[ \t]+([*_]*(points?|items?|findings?|risks?|probes?|conflicts?|decisions?|gaps?)[*_]*([ \t]+|[ \t]*:[*_]*[ \t]*))?[*_]*[0-9]/) return 0
         gap = tolower(substr(line, ord_end, start - ord_end))
         list_reference = (ord_end > 0 && gap ~ ("^([ \\t]*,[ \\t]*|[ \\t]*,?[ \\t]*(and|or)[ \\t]+)" label))
         # A label may describe a score or count. Only standalone labels,
         # including Markdown list items, and explicit references are exempt.
         # "and"/"or" continues a reference list only after a skipped reference
         # or a section number, so "points: 50 and items: 10" stays a claim.
-        if (section_reference) {
-            # A conjunction introduces another reference only before a number.
-            # "Risk 3 or higher" still asserts a quantity requiring evidence.
-            if (tolower(after) ~ /^[ \t]+(and|or)[ \t]/ &&
-                tolower(after) !~ /^[ \t]+(and|or)[ \t]+[*_]*[0-9]/) return 0
-            return 1
-        }
+        if (section_reference) return 1
         if (tolower(before) ~ ("(^|[^0-9a-z_])" label) &&
             tolower(before) !~ ("(^|[;.!?|])[ \\t]*([-*+][ \\t]+)?" label) &&
             !list_reference &&

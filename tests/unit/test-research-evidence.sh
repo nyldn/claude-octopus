@@ -876,11 +876,29 @@ for quantity_text in 'Risk 3 of the services fail.' 'The top risk 3' '(Findings 
     if [[ "$quantity_claims" == 3 ]]; then test_pass; else test_fail "quantity escaped: $quantity_claims"; fi
 done
 
+for threshold in 'Risk 3 and 4 or higher requires approval.' 'See gaps 3 or 4 and above.' 'See points 3 and 4 or higher.' 'See conflicts 2,3 and 4 or more.'; do
+    test_case "threshold after a later reference-list member requires evidence: $threshold"
+    threshold_claims=$(research_extract_numbers "$threshold")
+    if [[ "$threshold_claims" == 4 ]]; then test_pass; else test_fail "threshold escaped: $threshold_claims"; fi
+done
+
 for quantity in '1,000' '3.14' '1,000,000'; do
     test_case "section labels preserve decimal and thousands quantities: $quantity"
     quantity_claims=$(research_extract_numbers "See risks $quantity.")
     if [[ "$quantity_claims" == "$quantity" ]]; then test_pass; else test_fail "quantity escaped: $quantity_claims"; fi
 done
+
+test_case "a threshold after a reference-list member still needs cited numeric evidence"
+threshold_draft="$RESEARCH_RUN_DIR/list-threshold.md"
+printf '%s\n' '- Risk 3 and 4 or higher requires approval (`src/handler.ts:4`).' > "$threshold_draft"
+threshold_status=0
+research_verify_synthesis "$threshold_draft" || threshold_status=$?
+threshold_kinds=$(jq -r '.checks[] | "\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$threshold_status" -ne 0 && "$threshold_kinds" == "number_mismatch:4 " ]]; then
+    test_pass
+else
+    test_fail "threshold verification escaped: $threshold_status $threshold_kinds"
+fi
 
 test_case "an ordinal self-reference needs no evidence while units beside it still do"
 ordinal_draft="$RESEARCH_RUN_DIR/local-ordinals.md"
