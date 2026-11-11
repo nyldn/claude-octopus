@@ -5692,11 +5692,11 @@ tangle_contextual_review_gate() {
         return "$validation_rc"
     fi
 
+    tangle_record_review_verification "$task_group" "" pending || return 2
     local review_context_file
     review_context_file=$(tangle_build_develop_review_context "$task_group" "$resolved_prompt" "$context" "$subtasks" "$validation_file" "$worktree_before_file" "initial")
 
     local review_rc=0
-    tangle_record_review_verification "$task_group" "" pending || return 2
     tangle_run_context_code_review "$task_group" "$review_context_file" "initial" || review_rc=$?
     local findings_file="$TANGLE_REVIEW_FINDINGS_FILE"
     if ! tangle_review_findings_valid "$findings_file"; then

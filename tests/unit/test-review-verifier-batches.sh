@@ -166,4 +166,23 @@ if (
     done
 ); then test_pass; else test_fail "scope findings hid fleet failure or dispatched speculative corrections"; fi
 
+test_case "a direct retry marks verification pending before context setup"
+retry_results="$TEST_TMP_DIR/context-setup-failure"
+mkdir -p "$retry_results"
+printf '%s\n' '{"reviewVerification":"complete"}' > "$retry_results/.tangle-fixture-git.json"
+rc=0
+OCTOPUS_TANGLE_CODE_REVIEW=true bash -e -c '
+    source "$1/scripts/lib/testing.sh"
+    source "$1/scripts/lib/workflows.sh"
+    RESULTS_DIR="$2"
+    log() { :; }
+    tangle_build_develop_review_context() { return 73; }
+    tangle_run_context_code_review() { touch "$RESULTS_DIR/review-called"; }
+    tangle_contextual_review_gate fixture prompt context subtasks validation before
+' _ "$ROOT" "$retry_results" || rc=$?
+if [[ "$rc" -eq 73 && ! -e "$retry_results/review-called" ]] &&
+   jq -e '.reviewVerification == "pending" and .reviewFindings == ""' "$retry_results/.tangle-fixture-git.json" >/dev/null; then
+    test_pass
+else test_fail "context setup failure preserved an earlier completed review"; fi
+
 test_summary
