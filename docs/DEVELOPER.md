@@ -297,3 +297,11 @@ Incomplete verification returns failure after saving findings and proof artifact
 Final synthesis compares the full verified finding multiset before any display
 normalization. Distinct records at the same location remain in the saved artifact,
 ranked with blockers first. Deleted-file excerpts use the cited old-file line.
+
+A completed review with partial fleet coverage returns status 3 from the
+contextual wrapper only after the underlying review succeeds. Its manifest
+keeps `reviewVerification: incomplete` and records `reviewOutcome: partial-verified`.
+Other nonzero review results cannot authorize corrections, even when a verified
+findings file survived a proof or publication failure. A complete retry clears
+both markers. Patch excerpts bound adjacent removal context separately and label
+unmatched short patches as unrelated context requiring repository inspection.

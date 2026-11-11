@@ -294,7 +294,7 @@ if (
     tangle_run_context_code_review() {
         TANGLE_REVIEW_FINDINGS_FILE="$RESULTS_DIR/findings.json"
         printf '%s\n' '{"warning":"Partial reviewer fleet","findings":[{"file":"app.py","line":1,"title":"blocker","severity":"normal","verdict":"confirmed"}]}' > "$TANGLE_REVIEW_FINDINGS_FILE"
-        return 1
+        return 3
     }
     tangle_apply_review_corrections() { touch "$RESULTS_DIR/correction-called"; return 77; }
     rc=0
@@ -303,12 +303,12 @@ if (
     tangle_run_context_code_review() {
         TANGLE_REVIEW_FINDINGS_FILE="$RESULTS_DIR/findings.json"
         printf '%s\n' '{"warning":"Partial reviewer fleet","findings":[{"file":"app.py","line":1,"title":"note","severity":"nit","verdict":"confirmed"}]}' > "$TANGLE_REVIEW_FINDINGS_FILE"
-        return 1
+        return 3
     }
     rm -f "$RESULTS_DIR/correction-called"
     rc=0
     tangle_contextual_review_gate fixture prompt context subtasks validation before || rc=$?
-    [[ "$rc" -eq 1 && ! -e "$RESULTS_DIR/correction-called" ]] || exit 1
+    [[ "$rc" -eq 3 && ! -e "$RESULTS_DIR/correction-called" ]] || exit 1
     jq -e '.reviewVerification == "incomplete"' "$RESULTS_DIR/.tangle-fixture-git.json" >/dev/null
 ); then test_pass; else test_fail "partial findings blocked verified correction or recorded a complete review"; fi
 
@@ -322,5 +322,83 @@ assert "old=250 new=0 -removed_250" in evidence, evidence
 assert "No patch lines" not in evidence
 PYTEST
 then test_pass; else test_fail "deleted-file evidence was missing at the cited old line"; fi
+
+
+test_case "failed review infrastructure cannot authorize correction or completion"
+if (
+    source "$ROOT/scripts/lib/testing.sh"
+    source "$ROOT/scripts/lib/workflows.sh"
+    log() { :; }
+    export OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE=bounded
+    export OCTOPUS_TANGLE_REVIEW_CORRECTION_ROUNDS=2
+    tangle_build_develop_review_context() { echo context; }
+    tangle_validate_results_with_scope_contract() { return 0; }
+    for failed_round in 1 2; do
+        RESULTS_DIR="$TEST_TMP_DIR/failed-proof-$failed_round"; mkdir -p "$RESULTS_DIR"
+        printf '%s\n' '{}' > "$RESULTS_DIR/.tangle-fixture-git.json"
+        review_calls=0 correction_calls=0
+        tangle_run_context_code_review() {
+            review_calls=$((review_calls + 1))
+            TANGLE_REVIEW_FINDINGS_FILE="$RESULTS_DIR/findings.json"
+            printf '%s\n' '{"findings":[{"file":"app.py","line":1,"severity":"normal","verdict":"confirmed"}]}' > "$TANGLE_REVIEW_FINDINGS_FILE"
+            [[ "$review_calls" -ne "$failed_round" ]]
+        }
+        tangle_apply_review_corrections() { correction_calls=$((correction_calls + 1)); TANGLE_CORRECTION_STATUS=done; TANGLE_CORRECTION_CHANGED=1; }
+        rc=0
+        tangle_contextual_review_gate fixture prompt context subtasks validation before || rc=$?
+        [[ "$rc" -eq 1 && "$correction_calls" -eq $((failed_round - 1)) ]] || exit 1
+        jq -e '.reviewVerification == "incomplete"' "$RESULTS_DIR/.tangle-fixture-git.json" >/dev/null || exit 1
+    done
+); then test_pass; else test_fail "a failed review with saved verdicts authorized corrections"; fi
+
+test_case "long removal runs shrink while retaining the cited new line"
+if python3 - "$ROOT/scripts/helpers/review-verification-batches.py" <<'PYTEST'
+import runpy, sys
+m = runpy.run_path(sys.argv[1])
+diff = "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1,500 +1 @@\n" + "".join("-removed_%d %s\n" % (i, "x"*180) for i in range(500)) + "+TARGET_OPERATION\n"
+finding = dict(file="app.py", line=1, title="target")
+rows, prompt = m["build_batches"](diff, [finding], "Required context", 6000)[0]
+assert rows == [finding] and len(prompt.encode()) <= 6000
+assert "TARGET_OPERATION" in prompt and "removed_499" in prompt
+PYTEST
+then test_pass; else test_fail "adjacent removal context prevented a bounded verifier request"; fi
+
+test_case "unmatched short patches carry an explicit inspection warning"
+if python3 - "$ROOT/scripts/helpers/review-verification-batches.py" <<'PYTEST'
+import runpy, sys
+excerpts = runpy.run_path(sys.argv[1])["excerpts"]
+diff = "diff --git a/other.py b/other.py\n--- a/other.py\n+++ b/other.py\n@@ -1 +1 @@\n-old\n+UNRELATED_CODE\n"
+evidence = excerpts(diff, dict(file="app.py", line=1), 6000)
+assert "No matching patch block" in evidence and "do not confirm without code evidence" in evidence
+assert "UNRELATED_CODE" in evidence
+PYTEST
+then test_pass; else test_fail "unrelated short patch was presented as matching evidence"; fi
+
+
+test_case "context wrapper distinguishes completed partial reviews from infrastructure failure"
+if (
+    source "$ROOT/scripts/lib/workflows.sh"
+    source "$ROOT/scripts/lib/review.sh"
+    log() { :; }
+    RESULTS_DIR="$TEST_TMP_DIR/wrapper-partial"; mkdir -p "$RESULTS_DIR"
+    export OCTOPUS_TANGLE_REVIEW_TARGET="$RESULTS_DIR/input.diff"
+    printf 'diff --git a/app.py b/app.py\n' > "$OCTOPUS_TANGLE_REVIEW_TARGET"
+    for underlying_rc in 0 1 3 42; do
+        review_run() {
+            local id
+            id=$(printf '%s' "$1" | jq -r .artifactId)
+            printf '%s\n' '{"warning":"Partial reviewer fleet","findings":[{"file":"app.py","line":1,"severity":"normal","verdict":"confirmed"}]}' > "$RESULTS_DIR/review-findings-fixture-${id}.json"
+            return "$underlying_rc"
+        }
+        rc=0
+        tangle_run_context_code_review fixture context initial || rc=$?
+        if [[ "$underlying_rc" -eq 0 ]]; then
+            [[ "$rc" -eq 3 ]] || exit 1
+            tangle_review_verification_complete "$TANGLE_REVIEW_FINDINGS_FILE" "$rc" || exit 1
+        else
+            if tangle_review_verification_complete "$TANGLE_REVIEW_FINDINGS_FILE" "$rc"; then exit 1; fi
+        fi
+    done
+); then test_pass; else test_fail "saved findings hid a failed underlying review"; fi
 
 test_summary

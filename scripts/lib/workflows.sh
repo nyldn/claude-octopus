@@ -4145,9 +4145,15 @@ tangle_run_context_code_review() {
     normal_count=$(tangle_review_blocking_count "$findings_file")
     review_warning=$(tangle_review_warning_text "$findings_file")
     log INFO "Contextual code review findings: $findings_file (normal=${normal_count})"
+    # Keep status 3 exclusive to completed partial reviews from this wrapper.
+    [[ "$review_rc" -ne 3 ]] || review_rc=1
     if [[ -n "$review_warning" ]]; then
         log WARN "Contextual code review warning: ${review_warning}"
-        return 1
+        # Status 3 is reserved for a successfully finished review with partial
+        # fleet coverage. Proof, transport and publication failures keep their
+        # failure status even when a verified findings file survived.
+        [[ "$review_rc" -eq 0 ]] || return "$review_rc"
+        return 3
     fi
     return "$review_rc"
 }
@@ -5646,22 +5652,26 @@ tangle_should_attempt_contextual_review() {
 # unit-testable with stubbed review/correction functions
 # (tests/unit/test-tangle-correction-loop-behavior.sh).
 tangle_review_verification_complete() {
-    if [[ "${2:-0}" -ne 0 ]] && jq -e '.findings | length == 0' "$1" >/dev/null 2>&1; then
-        return 1
-    fi
+    local review_rc="${2:-0}"
+    case "$review_rc" in
+        0) ;;
+        3) jq -e '(.warning // "") != ""' "$1" >/dev/null 2>&1 || return 1 ;;
+        *) return 1 ;;
+    esac
     jq -e '(.verification_status // "") != "incomplete" and (.error // "") == "" and ((.findings | length) > 0 or (.warning // "") == "") and all(.findings[]?; .verdict == "confirmed" or .verdict == "false-positive" or .verdict == "needs-debate")' "$1" >/dev/null 2>&1
 }
 
 tangle_record_review_verification() {
     local task_group="$1" findings_file="$2" state="$3"
     local metadata="${RESULTS_DIR:-${HOME}/.claude-octopus/results}/.tangle-${task_group}-git.json"
-    local tmp
+    local tmp outcome="$state"
     if [[ "$state" == complete ]] && ! jq -e '(.warning // "") == ""' "$findings_file" >/dev/null 2>&1; then
         state=incomplete
+        outcome=partial-verified
     fi
     if [[ -f "$metadata" ]]; then
         tmp=$(mktemp "${metadata}.XXXXXX") || return 1
-        if jq --arg findings "$findings_file" --arg state "$state" '. + {reviewVerification:$state,reviewFindings:$findings}' "$metadata" > "$tmp"; then
+        if jq --arg findings "$findings_file" --arg state "$state" --arg outcome "$outcome" '. + {reviewVerification:$state,reviewFindings:$findings,reviewOutcome:$outcome}' "$metadata" > "$tmp"; then
             mv "$tmp" "$metadata" || { rm -f "$tmp"; return 1; }
         else rm -f "$tmp"; return 1; fi
     fi

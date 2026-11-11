@@ -156,7 +156,7 @@ else
 fi
 
 test_case "partial review warning with actionable blockers continues correction loop"
-out=$(REVIEW_RC_SEQUENCE="0 1 0" run_gate "2 1 0")
+out=$(REVIEW_RC_SEQUENCE="0 3 0" run_gate "2 1 0")
 if [[ "$out" == "rounds=2 rc=0" ]]; then
     test_pass
 else

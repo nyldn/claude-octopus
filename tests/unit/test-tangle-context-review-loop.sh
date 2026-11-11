@@ -172,7 +172,7 @@ fi
 test_case "warning with a real blocker can recover after one bounded correction"
 out=$(run_warning_review_gate \
     warning-with-blocker \
-    '{"findings":[{"severity":"normal","title":"real blocker","verdict":"confirmed","file":"src/app.sh","line":1}],"warning":"Round 1 was partial"}' 1 \
+    '{"findings":[{"severity":"normal","title":"real blocker","verdict":"confirmed","file":"src/app.sh","line":1}],"warning":"Round 1 was partial"}' 3 \
     '{"findings":[]}' 0)
 if [[ "$out" == "rc=0 corrections=1 reviews=2" ]]; then
     test_pass

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build complete, bounded verifier requests without clipping findings."""
 import argparse
+from collections import deque
 import hashlib
 import json
 from pathlib import Path
@@ -25,9 +26,10 @@ def excerpts(diff, finding, max_bytes, radius=25):
         return "\n\n".join(excerpts(block, finding, max_bytes, radius) for block in matches)
     block = matches[0] if matches else ""
     if not block:
+        notice = "No matching patch block. Inspect the cited repository location; do not confirm without code evidence."
         if len(diff.encode()) < max_bytes // 4:
-            return diff
-        return "No matching patch block. Inspect the cited repository location; do not confirm without code evidence."
+            return notice + "\nOther patch context (not the cited file):\n" + diff
+        return notice
     if radius == 25 and len(block.encode()) <= max_bytes // 4:
         return block
     try:
@@ -38,7 +40,13 @@ def excerpts(diff, finding, max_bytes, radius=25):
     in_hunk = False
     deleted_file = False
     selected = []
+    # Removals share the next new-file coordinate. Keep only their nearest
+    # tail so shrinking the radius also shrinks a large replacement hunk.
+    removals = deque(maxlen=max(1, radius + 1))
     for line in block.splitlines():
+        if not line.startswith("-"):
+            selected.extend(removals)
+            removals.clear()
         header = re.match(r"@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@", line)
         if header:
             old, new = map(int, header.groups())
@@ -54,11 +62,13 @@ def excerpts(diff, finding, max_bytes, radius=25):
         # the next new line. Deleted-file findings instead cite the old file.
         coordinate = old if deleted_file else new
         if (location and abs(coordinate - location) <= radius) or (not location and len(selected) < max(1, radius * 2)):
-            selected.append(f"old={old} new={new} {line}")
+            target = removals if line.startswith("-") and not deleted_file else selected
+            target.append(f"old={old} new={new} {line}")
         if not line.startswith("+"):
             old += 1
         if not line.startswith("-"):
             new += 1
+    selected.extend(removals)
     if not selected:
         return "No patch lines near the cited location. Inspect the cited repository location; do not confirm without code evidence."
     return f"Selected patch lines for {wanted} (other lines omitted):\n" + "\n".join(selected)
