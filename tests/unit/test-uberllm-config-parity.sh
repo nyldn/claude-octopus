@@ -20,6 +20,7 @@ PLUGIN_DIR="$root"
 PROVIDER_CODEX_INSTALLED=false
 case "$action" in
  available) is_agent_available_v2 "${PROBE_AGENT:-uberllm-agent}" ;;
+ available-standalone) unset -f validate_model_allowed; is_agent_available_v2 "${PROBE_AGENT:-uberllm-agent}" ;;
  health) check_provider_health uberllm ;;
  health-qualified) check_provider_health uberllm "${PROBE_MODEL:-vendor/pinned}" ;;
  detection) detect_providers | grep -q 'uberllm:api-key' ;;
@@ -173,4 +174,13 @@ if [[ "$(probe resolved UBERLLM_MODEL=gpt-6-astra)" == gpt-6-astra ]] &&
 else
     test_fail "explicit user pin rejected"
 fi
+for action in available available-standalone; do
+    test_case "qualified $action enforces its allowlist without replacing the pin"
+    if probe "$action" PROBE_AGENT=uberllm-agent:vendor/blocked UBERLLM_ALLOWED_MODELS=vendor/allowed >/dev/null 2>&1 ||
+       ! probe "$action" PROBE_AGENT=uberllm-agent:vendor/allowed UBERLLM_ALLOWED_MODELS=vendor/allowed >/dev/null 2>&1; then
+        test_fail "qualified availability bypassed its model policy or rejected an allowed pin"
+    else
+        test_pass
+    fi
+done
 test_summary

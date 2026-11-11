@@ -1073,6 +1073,7 @@ is_agent_available_v2() {
             fi
             [[ "${UBERLLM_API_KEY:-}" =~ [^[:space:]] ]] || return 1
             if [[ "$agent" == *:* ]]; then
+                octo_agent_spec_exact_model_allowed "$agent" || return 1
                 octo_uberllm_model "${agent#*:}" >/dev/null
             else
                 octo_uberllm_model >/dev/null

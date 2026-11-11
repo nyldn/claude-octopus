@@ -85,6 +85,51 @@ test_mcp_uses_shared_runtime_security_helpers() {
     fi
 }
 
+test_uberllm_model_policy_survives_adapter() {
+    test_case "MCP preserves UberLLM model selection and rejects a blocked exact seat"
+    if node --input-type=module - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'JS'
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
+const [root, home] = process.argv.slice(2);
+const { loadProviderEnvAllowlist, providerEnvironment } = await import(
+    pathToFileURL(`${root}/shared/adapter-runtime.mjs`));
+const settings = {
+    UBERLLM_API_KEY: 'inert-fixture',
+    UBERLLM_MODEL: 'vendor/allowed',
+    UBERLLM_ALLOWED_MODELS: 'vendor/allowed',
+};
+const filtered = providerEnvironment(loadProviderEnvAllowlist(root), {
+    ...settings, UNRELATED_ADAPTER_SENTINEL: 'must-not-cross',
+});
+assert.deepEqual(filtered, settings);
+const script = `
+    log() { :; }
+    source "$1/scripts/lib/model-resolver.sh" || exit 90
+    source "$1/scripts/lib/dispatch.sh" || exit 91
+    PLUGIN_DIR="$1"
+    get_agent_command "$2" review code-reviewer
+`;
+const run = (seat) => spawnSync('bash', ['-c', script, '_', root, seat], {
+    env: { PATH: process.env.PATH, HOME: home, OCTO_ALLOWED_PROVIDERS: 'uberllm', ...filtered },
+    encoding: 'utf8', timeout: 10000,
+});
+const allowed = run('uberllm-agent');
+assert.ifError(allowed.error);
+assert.equal(allowed.status, 0, allowed.stderr);
+assert.match(allowed.stdout, /--model vendor\/allowed(?:\s|$)/);
+const blocked = run('uberllm-agent:vendor/blocked');
+assert.ifError(blocked.error);
+assert.equal(blocked.status, 1, blocked.stderr);
+assert.equal(blocked.stdout, '');
+JS
+    then
+        test_pass
+    else
+        test_fail "adapter lost UberLLM model policy or admitted a forbidden pin"
+    fi
+}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Council Adapter Wiring
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -163,6 +208,7 @@ test_mcp_forwards_quality_threshold
 test_shared_env_allowlist_contract
 test_mcp_loads_shared_env_allowlist
 test_mcp_uses_shared_runtime_security_helpers
+test_uberllm_model_policy_survives_adapter
 
 # Council adapters
 test_mcp_exposes_council_tool
