@@ -280,3 +280,8 @@ window; this does not restrict the initial provider or alter pinned review seats
 
 `tests/unit/test-review-verifier-batches.sh` exercises large Unicode finding
 sets, relevant evidence, admission refusal and preservation without corrections.
+Patch windows retain adjacent removals at the finding's new-file coordinates
+and shrink before rejecting a complete finding. Verification may add a verdict
+and the newly-reachable flag, but cannot change original fields such as confidence.
+Missing or invalid final verdicts keep Tangle verification incomplete. A failed
+manifest replacement stops the gate instead of reporting a successful update.

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-source "$ROOT/tests/helpers/test-framework.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "lossless verifier inputs"
 
 test_case "large diffs retain every finding in complete byte-bounded requests"
@@ -184,5 +185,70 @@ if [[ "$rc" -eq 73 && ! -e "$retry_results/review-called" ]] &&
    jq -e '.reviewVerification == "pending" and .reviewFindings == ""' "$retry_results/.tangle-fixture-git.json" >/dev/null; then
     test_pass
 else test_fail "context setup failure preserved an earlier completed review"; fi
+
+test_case "verifier responses preserve original fields and allow only verification additions"
+if (
+    source "$ROOT/scripts/lib/review.sh"
+    originals="$TEST_TMP_DIR/original-findings.json"
+    printf '%s\n' '[{"file":"app.py","line":1,"title":"bug","detail":"bad","category":"logic","severity":"normal","confidence":0.2,"extra":{"b":2,"a":1}}]' > "$originals"
+    valid='{"findings":[{"extra":{"a":1,"b":2},"confidence":0.2,"severity":"normal","category":"logic","detail":"bad","title":"bug","line":1,"file":"app.py","verdict":"confirmed","pre_existing_newly_reachable":true}]}'
+    printf '%s' "$valid" | review_validate_verdicts "$originals" >/dev/null || exit 1
+    for mutation in '.findings[0].confidence = 0.99' 'del(.findings[0].extra)' '.findings[0].extra.a = 9' '.findings[0].invented = true'; do
+        if printf '%s' "$valid" | jq "$mutation" | review_validate_verdicts "$originals" >/dev/null 2>&1; then exit 1; fi
+    done
+); then test_pass; else test_fail "verifier changed original fields or rejected equivalent JSON"; fi
+
+test_case "missing and invalid final verdicts cannot authorize Tangle corrections"
+if (
+    source "$ROOT/scripts/lib/testing.sh"
+    source "$ROOT/scripts/lib/workflows.sh"
+    log() { :; }
+    RESULTS_DIR="$TEST_TMP_DIR/missing-verdict"; mkdir -p "$RESULTS_DIR"
+    printf '%s\n' '{}' > "$RESULTS_DIR/.tangle-fixture-git.json"
+    tangle_build_develop_review_context() { echo fixture; }
+    tangle_run_context_code_review() { TANGLE_REVIEW_FINDINGS_FILE="$RESULTS_DIR/findings.json"; }
+    tangle_apply_review_corrections() { touch "$RESULTS_DIR/corrections-called"; return 77; }
+    for verdict in null '""' '"unverified"' '"invented"'; do
+        jq -n --argjson verdict "$verdict" '{findings:[{file:"app.py",line:1,title:"bug",severity:"normal",verdict:$verdict}]}' > "$RESULTS_DIR/findings.json"
+        rc=0
+        tangle_contextual_review_gate fixture prompt context subtasks validation before || rc=$?
+        [[ "$rc" -eq 2 && ! -e "$RESULTS_DIR/corrections-called" ]] || exit 1
+        jq -e '.reviewVerification == "incomplete"' "$RESULTS_DIR/.tangle-fixture-git.json" >/dev/null || exit 1
+    done
+    for verdict in confirmed needs-debate false-positive; do
+        jq -n --arg verdict "$verdict" '{findings:[{verdict:$verdict}]}' > "$RESULTS_DIR/findings.json"
+        tangle_review_verification_complete "$RESULTS_DIR/findings.json" || exit 1
+    done
+); then test_pass; else test_fail "an absent or invalid verdict authorized corrections"; fi
+
+test_case "manifest rename failure is reported and its temporary file is removed"
+if (
+    source "$ROOT/scripts/lib/workflows.sh"
+    log() { :; }
+    RESULTS_DIR="$TEST_TMP_DIR/manifest-rename"; mkdir -p "$RESULTS_DIR"
+    metadata="$RESULTS_DIR/.tangle-fixture-git.json"
+    printf '%s\n' '{"reviewVerification":"complete"}' > "$metadata"
+    mv() { return 73; }
+    rc=0
+    tangle_record_review_verification fixture findings incomplete || rc=$?
+    [[ "$rc" -ne 0 ]] || exit 1
+    jq -e '.reviewVerification == "complete"' "$metadata" >/dev/null || exit 1
+    [[ "$(find "$RESULTS_DIR" -type f | wc -l)" -eq 1 ]]
+); then test_pass; else test_fail "failed manifest replacement returned success or retained temporary state"; fi
+
+test_case "patch windows keep adjacent removals and shrink before rejecting complete findings"
+if python3 - "$ROOT/scripts/helpers/review-verification-batches.py" <<'PY'
+import runpy, sys
+module = runpy.run_path(sys.argv[1])
+diff = "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1,101 +501,101 @@\n-OLD_GUARD\n+NEW_GUARD\n" + "".join(" context " + "x" * 180 + "\n" for _ in range(100))
+finding = dict(file="app.py", line=501, title="guard", detail="Retain the original guard")
+prompt = module["build_batches"](diff, [finding], "Required context", 6000)[0][1]
+assert "OLD_GUARD" in prompt and "NEW_GUARD" in prompt
+finding["line"] = 551
+rows, prompt = module["build_batches"](diff, [finding], "Required context", 6000)[0]
+assert len(prompt.encode()) <= 6000 and rows == [finding]
+assert "new=551 " in prompt and "Required context" in prompt
+PY
+then test_pass; else test_fail "patch admission lost adjacent code or refused a reducible window"; fi
 
 test_summary

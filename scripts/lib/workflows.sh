@@ -5649,7 +5649,7 @@ tangle_review_verification_complete() {
     if [[ "${2:-0}" -ne 0 ]] && jq -e '.findings | length == 0' "$1" >/dev/null 2>&1; then
         return 1
     fi
-    jq -e '(.verification_status // "") != "incomplete" and (.error // "") == "" and ((.findings | length) > 0 or (.warning // "") == "") and all(.findings[]?; .verdict != "unverified")' "$1" >/dev/null 2>&1
+    jq -e '(.verification_status // "") != "incomplete" and (.error // "") == "" and ((.findings | length) > 0 or (.warning // "") == "") and all(.findings[]?; .verdict == "confirmed" or .verdict == "false-positive" or .verdict == "needs-debate")' "$1" >/dev/null 2>&1
 }
 
 tangle_record_review_verification() {
@@ -5659,7 +5659,7 @@ tangle_record_review_verification() {
     if [[ -f "$metadata" ]]; then
         tmp=$(mktemp "${metadata}.XXXXXX") || return 1
         if jq --arg findings "$findings_file" --arg state "$state" '. + {reviewVerification:$state,reviewFindings:$findings}' "$metadata" > "$tmp"; then
-            mv "$tmp" "$metadata"
+            mv "$tmp" "$metadata" || { rm -f "$tmp"; return 1; }
         else rm -f "$tmp"; return 1; fi
     fi
     if [[ "$state" == incomplete ]]; then

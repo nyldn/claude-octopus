@@ -1773,9 +1773,9 @@ review_validate_verdicts() {
             else error("expected one verifier findings document") end') || return 1
     [[ -n "$normalized" ]] || return 1
     printf '%s' "$normalized" | jq -e --slurpfile original "$originals" '
-            def identity: [.file, .line, .title, .detail, .category, .severity] | tojson;
+            def original_fields: del(.verdict, .pre_existing_newly_reachable);
             if all(.findings[]; .verdict == "confirmed" or .verdict == "false-positive" or .verdict == "needs-debate") and
-               ([.findings[] | identity] | sort) == ([$original[0][] | identity] | sort)
+               ([.findings[] | original_fields] | sort) == ([$original[0][] | original_fields] | sort)
             then . else error("incomplete or invalid verifier verdicts") end'
 }
 
