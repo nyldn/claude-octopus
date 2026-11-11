@@ -14,34 +14,29 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "Provider rejection classification"
+
 # shellcheck source=/dev/null
 source "$REPO_ROOT/scripts/lib/error-tracking.sh" 2>/dev/null || {
     echo "FAIL: could not source error-tracking.sh"
     exit 1
 }
 
-TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
-
-pass=0
-fail=0
+TMP="$TEST_TMP_DIR/provider-rejection"
+mkdir -p "$TMP"
 
 check() {
     local label="$1" expected="$2" actual="$3"
+    test_case "$label"
     if [[ "$actual" == "$expected" ]]; then
-        echo "  ok: $label"
-        pass=$((pass + 1))
+        test_pass
     else
-        echo "  FAIL: $label"
-        echo "        expected: $expected"
-        echo "        actual:   $actual"
-        fail=$((fail + 1))
+        test_fail "expected: $expected; actual: $actual"
     fi
 }
 
 status_of() { printf '%s' "${1%%:*}"; }
-
-echo "test-provider-rejection-classification"
 
 # 1. The real regression: a long findings document mentioning "verify-context limit".
 long_findings="$TMP/long-findings.md"
@@ -106,6 +101,24 @@ printf '%s\n' "Error: Prompt is too long: 412000 tokens > maximum context length
 result="$(classify_agent_output "$short_rejection" 0 codex-standard "$empty_err")"
 check "short stdout-only oversize rejection is still failed" \
     "failed" "$(status_of "$result")"
+
+context_rejection="$TMP/context-rejection.out"
+for kind in length limit window; do
+    printf 'Error: context %s reached\n' "$kind" > "$context_rejection"
+    check "explicit context $kind reached diagnostic with exit zero is rejected" \
+        "failed:Prompt rejected by provider (oversize)" \
+        "$(classify_agent_output "$context_rejection" 0 codex-standard "$empty_err")"
+done
+printf '%s\n' 'Error: context limit reached' > "$context_rejection"
+check "context limit reached on stderr rejects a long answer" \
+    "failed:Prompt rejected by provider (oversize)" \
+    "$(classify_agent_output "$long_findings" 0 codex-standard "$context_rejection")"
+printf '%s\n' 'The context limit reached 80 percent during the test.' > "$TMP/discussion"
+check "ordinary discussion of a reached context limit remains answer data" \
+    "ok" "$(status_of "$(classify_agent_output "$TMP/discussion" 0 codex "$empty_err")")"
+printf '%s\n' 'The fixture contains this diagnostic:' '```text' 'Error: context limit reached' '```' 'The test passed.' > "$fenced_answer"
+check "a fenced context-limit diagnostic remains answer data" \
+    "ok" "$(status_of "$(classify_agent_output "$fenced_answer" 0 codex "$empty_err")")"
 
 # 3. A rejection on the error channel is caught even when stdout holds a long result.
 err_rejection="$TMP/rejection.err"
@@ -191,9 +204,4 @@ check "provider text cannot impersonate launcher rejection" \
 check "ranking retains long valid results that discuss context limits" \
     "$artifact" "$(rank_results_by_signals "$TMP/results")"
 
-echo
-if ((fail > 0)); then
-    echo "FAILED: $fail failing, $pass passing"
-    exit 1
-fi
-echo "PASSED: $pass checks"
+test_summary

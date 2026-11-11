@@ -308,7 +308,7 @@ octo_file_has_provider_error() {
         }
         END { if (fenced) for (i = 1; i <= count; i++) print pending[i] }
     ' "$file" |
-        LC_ALL=C grep -iE '^[[:space:]]*((error|invalid_request_error|badrequesterror)[[:space:]]*:[[:space:]]*)?(prompt is too long|request entity too large|input is too large|too many tokens|tokens exceeded|maximum context (length|window).*exceed|context (length|limit|window).*exceed)|^[[:space:]]*agy-exec[.]sh:[[:space:]]+prompt input is too large' >/dev/null
+        LC_ALL=C grep -iE '^[[:space:]]*((error|invalid_request_error|badrequesterror)[[:space:]]*:[[:space:]]*)?(prompt is too long|request entity too large|input is too large|too many tokens|tokens exceeded|maximum context (length|window).*exceed|context (length|limit|window).*exceed)|^[[:space:]]*error[[:space:]]*:[[:space:]]*context (length|limit|window)[[:space:]]+reached([[:space:][:punct:]]|$)|^[[:space:]]*agy-exec[.]sh:[[:space:]]+prompt input is too large' >/dev/null
 }
 
 octo_output_is_structured_result() {
