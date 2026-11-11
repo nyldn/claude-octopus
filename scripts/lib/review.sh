@@ -2587,11 +2587,17 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
 
     # v9.3.1: Strip markdown fences from synthesis result (#188)
     final_json=$(echo "$final_json" | review_strip_external_cli_wrapper | sed '/^```json$/d; /^```JSON$/d; /^```$/d')
-    local normalized_final_json
+    local normalized_final_json expected_final_json
+    expected_final_json=$(review_local_synthesis_json "$confirmed_findings" "")
     if ! normalized_final_json=$(printf '%s' "$final_json" | review_normalize_findings_json 2>/dev/null); then
         log WARN "review_run: synthesis returned invalid or multi-document findings JSON, using local fallback"
         final_json=$(review_local_synthesis_json "$confirmed_findings" "$round1_warning")
         synth_ok="false"
+    elif ! printf '%s\n%s\n' "$normalized_final_json" "$expected_final_json" |
+        jq -es '(.[0].findings | sort) == (.[1].findings | sort)' >/dev/null; then
+        log WARN "review_run: synthesis changed verified findings, using local fallback"
+        final_json="$expected_final_json"
+        synth_ok=false
     else
         final_json="$normalized_final_json"
     fi
@@ -2731,7 +2737,7 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
 
     # v9.0: Print provider report card — always last, impossible to miss
     print_provider_report "$provider_status_file" || return $?
-    [[ "$publication_failed" != true ]]
+    [[ "$publication_failed" != true && "$verification_incomplete" != true ]]
 }
 
 # review_post_safe_body: stream generated text to the shared helper, which

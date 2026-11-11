@@ -265,8 +265,9 @@ batches before dispatch, so a finding that cannot fit fails admission before any
 verifier calls. Final dispatch uses `OCTOPUS_OVERSIZE_STRATEGY=fail` to account for
 method and persona additions without silently clipping required input.
 
-The contextual Tangle gate does not dispatch corrections from an incomplete
-verification. It preserves the worktree and records `reviewVerification` and
+The contextual Tangle gate never dispatches corrections for unverified findings.
+Verified findings from a partial reviewer fleet may receive corrections while
+validation remains incomplete. The gate records `reviewVerification` and
 `reviewFindings` in the existing attempt manifest. A complete retry updates the
 same marker. Consumers must treat an incomplete review as unfinished validation,
 not as a list of confirmed product defects. No provider retry policy is changed.
@@ -288,3 +289,7 @@ manifest replacement stops the gate instead of reporting a successful update.
 Context setup failures stop both initial and retry review even when a caller
 handles the gate's exit status. Verified findings from a partial fleet can still
 receive corrections, while the manifest remains incomplete until a full review.
+
+Synthesis may reorder verified findings, but cannot remove them, invent findings,
+or change their fields. A changed set uses deterministic local synthesis instead.
+Incomplete verification returns failure after saving findings and proof artifacts.
