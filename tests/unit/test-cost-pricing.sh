@@ -64,8 +64,8 @@ else
 fi
 
 test_case "GPT-5.4 Mini exposes vision and reasoning to capability selection"
-if [[ "$(get_model_capability gpt-5.4-mini images)" == yes &&
-      "$(get_model_capability gpt-5.4-mini reasoning)" == yes ]]; then
+mini_candidates="$(list_models codex --tools --images --reasoning --tier budget)"
+if awk '$1 == "gpt-5.4-mini" && /\$0.75\/\$4.50 MTok/ { found=1 } END { exit !found }' <<<"$mini_candidates"; then
   test_pass
 else
   test_fail "GPT-5.4 Mini was excluded from vision or reasoning work"
