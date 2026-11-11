@@ -695,13 +695,14 @@ research_numeric_claims() {
         }
         return result substr(text, piece)
     }
-    function ordinal_reference(before, after, start, number,    gap, label, list_reference) {
+    function ordinal_reference(before, after, start, number,    gap, label, list_reference, section_reference) {
         label = "[*_]*(points?|items?)[*_]*([ \\t]+|[ \\t]*:[*_]*[ \\t]*)$"
+        section_reference = (tolower(before) ~ /(^|[(;.!?|]|(^|[^0-9a-z_])see[ \t])[ \t]*([-*+][ \t]+)?[*_]*(findings?|risks?|probes?|conflicts?|decisions?|gaps?)[*_]*[ \t]+$/)
         # Commas without spaces can join references, but keep thousands groups
         # and decimal values as claims even beside point/item labels.
         if (number !~ /^[0-9]+$/) {
             if (number !~ /^[0-9]+(,[0-9]+)+$/ || number ~ /^[0-9][0-9]?[0-9]?(,[0-9][0-9][0-9])+$/) return 0
-            if (tolower(before) !~ ("(^|[^0-9a-z_])" label) && ord_end == 0) return 0
+            if (tolower(before) !~ ("(^|[^0-9a-z_])" label) && !section_reference && ord_end == 0) return 0
         }
         # Quantities, including range endpoints and fraction numerators,
         # remain substantive before any label/list exemptions.
@@ -717,7 +718,13 @@ research_numeric_claims() {
         # including Markdown list items, and explicit references are exempt.
         # "and"/"or" continues a reference list only after a skipped reference
         # or a section number, so "points: 50 and items: 10" stays a claim.
-        if (number ~ /^[0-9]+$/ && tolower(before) ~ /(^|[(;.!?|]|(^|[^0-9a-z_])see[ \t])[ \t]*([-*+][ \t]+)?[*_]*(findings?|risks?|probes?|conflicts?|decisions?|gaps?)[*_]*[ \t]+$/) return 1
+        if (section_reference) {
+            # A conjunction introduces another reference only before a number.
+            # "Risk 3 or higher" still asserts a quantity requiring evidence.
+            if (tolower(after) ~ /^[ \t]+(and|or)[ \t]/ &&
+                tolower(after) !~ /^[ \t]+(and|or)[ \t]+[*_]*[0-9]/) return 0
+            return 1
+        }
         if (tolower(before) ~ ("(^|[^0-9a-z_])" label) &&
             tolower(before) !~ ("(^|[;.!?|])[ \\t]*([-*+][ \\t]+)?" label) &&
             !list_reference &&
