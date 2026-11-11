@@ -558,3 +558,13 @@ Compatibility sources checked on 2026-11-03:
 [2.0.23 login listing](https://github.com/anomalyco/opencode/blob/v2.0.23/packages/cli/src/commands/handlers/auth/list.ts),
 [private-server commands](https://dev.opencode.ai/v2/docs/cli/commands/),
 and [provider storage](https://github.com/anomalyco/opencode/blob/v2.0.23/services/www/src/docs/content/cli/providers.mdx).
+
+MCP also preserves `XDG_CONFIG_HOME`, `XDG_CACHE_HOME` and `XDG_STATE_HOME`,
+matching the [OpenCode 2.0.23 global roots](https://github.com/anomalyco/opencode/blob/v2.0.23/packages/util/src/global-roots.ts)
+(checked 2026-11-11). Login checks and workers keep these custom roots; isolated
+Codex workers exclude them. GitHub authentication discovery excludes the ambient
+Mistral key. OpenCode workers explicitly using OpenAI, Anthropic, Google,
+OpenCode or OpenRouter model namespaces exclude it. Mistral workers, default
+models and custom provider aliases retain it. This does not isolate
+credential-bearing login probes from project plugins or establish the safety
+of bounded OpenCode execution.

@@ -1316,7 +1316,7 @@ ${heuristic_ctx}"
     case "$agent_type" in
         cursor-agent*|copilot*|qwen*) _plan_append_empty_prompt=true ;;
     esac
-    if ! build_provider_env "$agent_type"; then
+    if ! build_provider_env "$agent_type" "$model"; then
         octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
             "Provider environment construction failed" 74 "" >/dev/null 2>&1 || true
         return 74

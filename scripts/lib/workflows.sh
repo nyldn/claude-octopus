@@ -303,7 +303,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     # Build command array with credential isolation
     local -a cmd_array
     local -a inner_cmd_array
-    if ! build_provider_env "$agent_type"; then
+    if ! build_provider_env "$agent_type" "$model"; then
         log ERROR "Provider environment construction failed for $agent_type"
         update_agent_status "$agent_type" "failed" 0 "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
         type write_agent_status >/dev/null 2>&1 && write_agent_status \

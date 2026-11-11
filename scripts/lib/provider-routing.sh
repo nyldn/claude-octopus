@@ -221,17 +221,32 @@ build_provider_env() {
     if [[ "${OCTOPUS_SECURITY_V870:-true}" == true && -n "${MISTRAL_API_KEY+x}" ]]; then
         local mistral_provider="${1:-}"
         mistral_provider="$(octo_provider_canonical "${mistral_provider%%:*}" 2>/dev/null || printf '%s' "${mistral_provider%%:*}")"
+        local retain_mistral=false
         case "$mistral_provider" in
-            opencode|vibe) ;;
-            perplexity|openrouter|orcarouter)
-                PROVIDER_ENV_ARRAY=(_octo_run_model_without_mistral_key ${PROVIDER_ENV_ARRAY[@]+"${PROVIDER_ENV_ARRAY[@]}"}) ;;
-            *)
-                if [[ "${PROVIDER_ENV_ARRAY[0]:-}" == env ]]; then
-                    PROVIDER_ENV_ARRAY=(env -u MISTRAL_API_KEY "${PROVIDER_ENV_ARRAY[@]:1}")
-                else
-                    PROVIDER_ENV_ARRAY=(env -u MISTRAL_API_KEY ${PROVIDER_ENV_ARRAY[@]+"${PROVIDER_ENV_ARRAY[@]}"})
-                fi ;;
+            vibe) retain_mistral=true ;;
+            opencode)
+                # Callers supply the model parsed from the final command. Older
+                # one-argument callers can still provide an explicit seat/pin.
+                local mistral_model="${2:-${OCTOPUS_OPENCODE_MODEL:-default}}"
+                if [[ -z "${2:-}" && "${1:-}" == *:* ]]; then mistral_model="${1#*:}"; fi
+                case "$mistral_model" in
+                    openai/*|anthropic/*|google/*|opencode/*|openrouter/*) ;;
+                    *) retain_mistral=true ;;  # Mistral and custom/default aliases may need it.
+                esac
+                ;;
         esac
+        if [[ "$retain_mistral" != true ]]; then
+            case "$mistral_provider" in
+                perplexity|openrouter|orcarouter)
+                    PROVIDER_ENV_ARRAY=(_octo_run_model_without_mistral_key ${PROVIDER_ENV_ARRAY[@]+"${PROVIDER_ENV_ARRAY[@]}"}) ;;
+                *)
+                    if [[ "${PROVIDER_ENV_ARRAY[0]:-}" == env ]]; then
+                        PROVIDER_ENV_ARRAY=(env -u MISTRAL_API_KEY "${PROVIDER_ENV_ARRAY[@]:1}")
+                    else
+                        PROVIDER_ENV_ARRAY=(env -u MISTRAL_API_KEY ${PROVIDER_ENV_ARRAY[@]+"${PROVIDER_ENV_ARRAY[@]}"})
+                    fi ;;
+            esac
+        fi
     fi
     return "$_rc"
 }

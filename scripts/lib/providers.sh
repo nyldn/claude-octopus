@@ -1439,7 +1439,7 @@ detect_providers() {
             copilot_auth="env-token"
         elif [[ -f "${HOME}/.copilot/config.json" ]]; then
             copilot_auth="keychain"
-        elif command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
+        elif command -v gh &>/dev/null && (unset MISTRAL_API_KEY && gh auth status) &>/dev/null 2>&1; then
             copilot_auth="gh-cli"
         fi
         result="${result}copilot:${copilot_auth} "

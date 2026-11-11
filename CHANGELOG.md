@@ -4,6 +4,11 @@
 
 ### Fixed
 
+- MCP preserves OpenCode's custom XDG configuration, cache and state roots.
+  GitHub authentication checks and OpenCode workers explicitly using known
+  non-Mistral provider namespaces exclude the unrelated Mistral key. Mistral,
+  custom providers and configured default models retain their credential.
+
 - Explicit GPT-5.4 Mini API usage uses the documented $0.75 input and $4.50
   output rates per million tokens. Capability checks now recognize its image
   input and reasoning support. Model defaults and saved choices are preserved.

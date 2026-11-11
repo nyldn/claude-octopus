@@ -1598,7 +1598,7 @@ ${provider_ctx}"
     case "$agent_type" in
         copilot*|qwen*|cursor-agent*) _plan_append_empty_prompt=true ;;
     esac
-    if ! build_provider_env "$agent_type"; then
+    if ! build_provider_env "$agent_type" "$model"; then
         run_contract_transition "$_sync_seat_id" failed \
             "reason=Provider environment construction failed" >/dev/null 2>&1 || true
         return 74

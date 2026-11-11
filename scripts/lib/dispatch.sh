@@ -256,11 +256,14 @@ _octopus_allowed_model_or_fallback() {
 }
 
 # Extract the concrete model serialized by a generated provider command. The
-# fallback preserves providers whose command shape does not carry --model.
+# OpenCode commands use -m; other command shapes retain their fallback model.
 octo_dispatch_command_model() {
-    local command="${1:-}" fallback="${2:-}" resolved
-    resolved="$(printf '%s\n' "$command" | awk '
-      { for (i = 1; i <= NF; i++) if ($i == "--model" && i < NF) { print $(i + 1); exit } }
+    local command="${1:-}" fallback="${2:-}" resolved short_model_flag=""
+    case "$command" in
+        opencode\ *|env\ OPENCODE_PURE=1\ opencode\ *) short_model_flag=-m ;;
+    esac
+    resolved="$(printf '%s\n' "$command" | awk -v short_flag="$short_model_flag" '
+      { for (i = 1; i <= NF; i++) if (($i == "--model" || (short_flag != "" && $i == short_flag)) && i < NF) { print $(i + 1); exit } }
     ')"
     printf '%s\n' "${resolved:-$fallback}"
 }

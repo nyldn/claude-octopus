@@ -59,9 +59,9 @@ fi
         }
         Path(self.env["HOME"]).mkdir()
 
-    def shell(self, script, *, root=ROOT):
+    def shell(self, script, *, root=ROOT, timeout=8):
         return subprocess.run(["bash", "-c", script], env=self.env, cwd=root,
-                              text=True, capture_output=True, timeout=8)
+                              text=True, capture_output=True, timeout=timeout)
 
     def readiness(self, kind):
         result = self.shell(f'source scripts/lib/preflight.sh; octo_provider_readiness_result opencode {kind}')
@@ -83,6 +83,127 @@ fi
         run = subprocess.run(shlex.split(result.stdout), env=self.env, capture_output=True, text=True, timeout=3)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout.strip(), "run --standalone -m vendor/model")
+
+    def test_github_auth_probe_excludes_forwarded_mistral_key(self):
+        """Discovery may confirm GitHub login without exposing another provider key."""
+        gh = self.bin / "gh"
+        gh.write_text("""#!/bin/sh
+[ "$*" = 'auth status' ] || exit 70
+[ -z "${MISTRAL_API_KEY+x}" ] || { touch "$PROBE_MARKER"; exit 71; }
+[ "$UNRELATED_SETTING" = preserved ] || exit 72
+touch "$GITHUB_PROBE_CALLED"
+""")
+        gh.chmod(0o755)
+        copilot = self.bin / "copilot"
+        copilot.write_text("#!/bin/sh\nexit 0\n")
+        copilot.chmod(0o755)
+        called = self.base / "github-probe-called"
+        self.env.update(MISTRAL_API_KEY="fixture", UNRELATED_SETTING="preserved",
+                        OCTO_ALLOWED_PROVIDERS="copilot", GITHUB_PROBE_CALLED=str(called))
+        result = self.shell('source scripts/lib/providers.sh; detected=$(detect_providers); '
+                            '[[ "$MISTRAL_API_KEY" == fixture && "$UNRELATED_SETTING" == preserved ]] '
+                            '|| exit 74; [[ "$detected" == *copilot:gh-cli* ]]')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue(called.exists(), "GitHub authentication fixture was not reached")
+        self.assertFalse(self.marker.exists(), "OpenCode credential reached GitHub authentication")
+
+    def test_mcp_preserves_opencode_xdg_roots_through_login_and_dispatch(self):
+        """Run the real adapter filter and child environment with custom XDG roots."""
+        settings = {name: str(self.base / name.lower()) for name in
+                    ("XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME")}
+        for directory in settings.values():
+            Path(directory).mkdir()
+        script = """import {loadProviderEnvAllowlist, providerEnvironment} from './shared/adapter-runtime.mjs';
+console.log(JSON.stringify(providerEnvironment(loadProviderEnvAllowlist(process.cwd()),
+    JSON.parse(process.argv[1]))));"""
+        adapter = subprocess.run(["node", "--input-type=module", "-e", script,
+                                  json.dumps(settings)], cwd=ROOT, capture_output=True, text=True)
+        self.assertEqual(adapter.returncode, 0, adapter.stderr)
+        forwarded = json.loads(adapter.stdout)
+        self.assertEqual(forwarded, settings, "MCP dropped OpenCode's custom XDG roots")
+        self.env.update(forwarded, CLI_VERSION="2.0.23")
+        for name, value in settings.items():
+            self.env["EXPECTED_" + name] = value
+        self.cli.write_text(self.cli.read_text().replace('printf called >>',
+            '[ "$XDG_CONFIG_HOME" = "$EXPECTED_XDG_CONFIG_HOME" ] && '
+            '[ "$XDG_CACHE_HOME" = "$EXPECTED_XDG_CACHE_HOME" ] && '
+            '[ "$XDG_STATE_HOME" = "$EXPECTED_XDG_STATE_HOME" ] || exit 69\nprintf called >>', 1))
+        self.assertEqual(self.readiness("live")["status"], "available")
+        child = self.shell("""source scripts/lib/provider-routing.sh
+source scripts/lib/dispatch.sh
+source scripts/lib/utils.sh
+get_agent_model() { echo vendor/model; }
+cmd=$(get_agent_command opencode) || exit
+octo_dispatch_command_to_argv "$cmd" || exit
+build_provider_env opencode vendor/model || exit
+"${PROVIDER_ENV_ARRAY[@]}" "${OCTO_COMMAND_ARGV[@]}"
+""")
+        self.assertEqual(child.returncode, 0, child.stderr)
+        self.assertEqual(child.stdout.strip(), "run --standalone -m vendor/model")
+        isolated = self.shell("""source scripts/lib/provider-routing.sh
+build_provider_env codex || exit
+"${PROVIDER_ENV_ARRAY[@]}" sh -c '
+    test -z "${XDG_CONFIG_HOME+x}" && test -z "${XDG_CACHE_HOME+x}" && test -z "${XDG_STATE_HOME+x}"'
+""")
+        self.assertEqual(isolated.returncode, 0, "OpenCode roots reached isolated Codex")
+
+    def test_opencode_workers_receive_mistral_only_when_the_selected_model_needs_it(self):
+        """Explicit other-provider seats omit the ambient key; defaults retain it."""
+        self.env.update(MISTRAL_API_KEY="fixture", UNRELATED_SETTING="preserved")
+        for seat, model, retained in (
+                ("opencode", "openai/gpt-fixture", False),
+                ("opencode", "opencode/free-fixture", False),
+                ("opencode", "mistral/model-fixture", True),
+                ("opencode:mistral/model-fixture", "", True),
+                ("opencode:google/model-fixture", "", False),
+                ("opencode", "default", True), ("opencode", "configured-alias", True),
+                ("opencode", "custom-provider/model-fixture", True),
+                ("opencode:mistral/model-fixture", "openai/actual-command-model", False),
+                ("opencode:openai/model-fixture", "mistral/actual-command-model", True),
+                ("opencode", "", True)):
+            with self.subTest(seat=seat, model=model):
+                self.env.update(TEST_SEAT=seat, TEST_MODEL=model,
+                                EXPECT_MISTRAL="yes" if retained else "no")
+                result = self.shell("""source scripts/lib/provider-routing.sh
+build_provider_env "$TEST_SEAT" "$TEST_MODEL" || exit
+"${PROVIDER_ENV_ARRAY[@]}" bash -c '
+    [[ "$UNRELATED_SETTING" == preserved ]] || exit 70
+    if [[ "$EXPECT_MISTRAL" == yes ]]; then [[ "$MISTRAL_API_KEY" == fixture ]]
+    else [[ -z "${MISTRAL_API_KEY+x}" ]]; fi'
+child_rc=$?
+[[ "$MISTRAL_API_KEY" == fixture ]] || exit 71
+exit "$child_rc"
+""")
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_background_dispatch_uses_the_final_command_model_for_environment_filtering(self):
+        """The environment boundary must follow command overrides, not a display model."""
+        marker = self.base / "environment-model"
+        self.env.update(ENV_MODEL_MARKER=str(marker))
+        result = self.shell(r'''
+source scripts/lib/spawn.sh
+source scripts/lib/dispatch.sh
+for helper in log match_routing_rule load_agent_checkpoint load_earned_skills build_provider_context octo_spawn_contract_plan octo_spawn_contract_resolve octo_spawn_contract_authenticated octo_spawn_contract_finish; do
+    eval "$helper() { :; }"
+done
+check_provider_health() { :; }
+octo_spawn_contract_seat_id() { echo spawn-fixture; }
+classify_task() { echo standard; }
+apply_persona() { printf %s "$2"; }
+octo_with_engineering_methods() { printf %s "$2"; }
+enforce_context_budget() { printf %s "$1"; }
+octopus_effective_agent_timeout() { echo 0; }
+get_agent_model() { echo mistral/display-model; }
+get_agent_command() { echo 'opencode run --standalone -m google/actual-command-model'; }
+validate_agent_command() { :; }
+build_provider_env() { printf '%s\n' "$1" "${2:-}" > "$ENV_MODEL_MARKER"; return 1; }
+RESULTS_DIR="$HOME/results" LOGS_DIR="$HOME/logs"
+spawn_agent opencode fixture fixture reviewer probe
+''')
+        self.assertEqual(result.returncode, 74, result.stdout + result.stderr)
+        self.assertTrue(marker.exists(), result.stdout + result.stderr)
+        self.assertEqual(marker.read_text().splitlines(),
+                         ["opencode", "google/actual-command-model"])
 
     def test_cursor_probes_exclude_forwarded_mistral_key(self):
         """MCP discovery must keep OpenCode's credential out of Cursor startup."""
@@ -768,7 +889,9 @@ probe_single_agent opencode perspective probe-123-0 'Check compatibility'
         self.assertEqual(self.readiness("live")["status"], "degraded")
 
     def test_registry_declares_the_implemented_health_contract(self):
-        result = self.shell('source scripts/lib/provider-registry.sh; octo_provider_validate_contracts && octo_provider_has_capability opencode health && test "$(octo_provider_health_handler opencode)" = check_provider_health')
+        # This structural validator scans the registry; it makes no provider
+        # call. It exceeds eight seconds on the unchanged published tree too.
+        result = self.shell('source scripts/lib/provider-registry.sh; octo_provider_validate_contracts && octo_provider_has_capability opencode health && test "$(octo_provider_health_handler opencode)" = check_provider_health', timeout=60)
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_dispatch_validator_rejects_other_environment_and_injection(self):
