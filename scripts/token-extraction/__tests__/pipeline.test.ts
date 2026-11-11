@@ -105,7 +105,7 @@ describe('Token Extraction Pipeline', () => {
   });
 
   describe('Output Generation', () => {
-    const outputDir = path.join(__dirname, 'test-output');
+    const outputDir = path.join(testProjectPath, 'test-output');
 
     beforeEach(() => {
       if (!fs.existsSync(outputDir)) {
