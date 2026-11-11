@@ -2,11 +2,14 @@
 
 ## [Unreleased]
 
+## [11.22.1] - 2026-11-11
+
 ### Fixed
 
-- Research verification no longer checks a synthesis's own section labels as
-  numeric claims. "(Finding 4)", "(Risk 3)" and "See conflicts 1 and 2" are
-  references, while "Risk 3 of the services" still needs evidence.
+- Research verification recognizes section labels such as "(Finding 4)" and
+  references such as "See conflicts 1 & 2". Quantities and thresholds still
+  need evidence. Numbers written separately in totals remain checked,
+  including lists with a comma before "in total".
 
 ## [11.22.0] - 2026-11-10
 
