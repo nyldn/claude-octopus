@@ -766,6 +766,18 @@ preflight_check() {
             panel_args+=(--report-in "$OCTOPUS_PREFLIGHT_REPORT" --run-id "${OCTOPUS_PREFLIGHT_RUN_ID:-}")
         fi
         panel_report="$(WORKSPACE_DIR="$WORKSPACE_DIR" bash "${_preflight_registry_dir}/../helpers/preflight.sh" "${panel_args[@]}")" || return 1
+        # Panel inspection stays static. Actual dispatch must confirm only its
+        # selected OpenCode seat before accepting or rejecting static evidence.
+        if [[ "$check_context" == dispatch || "$selected_opencode" == true ]] &&
+           jq -e '.results | any(.provider == "opencode")' <<< "$panel_report" >/dev/null; then
+            local panel_opencode
+            panel_opencode="$(cd "${PROJECT_ROOT:-$PWD}" && octo_provider_readiness_result opencode live)" || return 1
+            panel_report="$(jq --argjson readiness "$panel_opencode" '
+                .results |= map(if .provider == "opencode" then $readiness else . end) |
+                .providers_ready = ([.results[] | select(.status == "available")] | length) |
+                .providers_degraded = ([.results[] | select(.status != "available")] | length)
+            ' <<< "$panel_report")" || return 1
+        fi
         jq -e '.providers_degraded == 0' <<< "$panel_report" >/dev/null || { log ERROR "Required provider panel is not ready"; return 1; }
         if [[ ",$OCTOPUS_PREFLIGHT_PROVIDERS," == *,codex,* ]]; then
             check_codex_auth_freshness || return 1

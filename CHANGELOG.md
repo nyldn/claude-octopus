@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Fixed-panel OpenCode dispatch confirms SQLite-only and environment logins
+  before admitting work. Panel inspection stays static, and unrelated panel
+  providers retain their existing readiness checks.
+
 - Automatic OpenCode routing displays its model without launching a version
   probe. Compatibility helpers still load when their libraries were sourced by
   bare filename before the working directory changed.

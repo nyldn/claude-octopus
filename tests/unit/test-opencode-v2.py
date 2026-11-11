@@ -284,6 +284,60 @@ preflight_check true opencode
                 self.assertFalse(self.marker.exists())
             self.env["OCTOPUS_SKIP_PROVIDER_PROBES"] = "false"
 
+    def test_fixed_panel_confirms_only_dispatch_selected_opencode(self):
+        """Static panel receipts never authorize a selected SQLite login."""
+        auth_marker = self.base / "auth-called"
+        self.env.update(CLI_VERSION="2.0.23", PROJECT_ROOT=str(ROOT),
+                        OCTOPUS_PREFLIGHT_PROVIDERS="opencode", AUTH_MARKER=str(auth_marker))
+        self.cli.write_text(self.cli.read_text().replace(
+            '    sleep "${AUTH_DELAY:-0}"', '    touch "$AUTH_MARKER"\n    sleep "${AUTH_DELAY:-0}"'))
+        script = r'''
+source scripts/lib/preflight.sh
+log() { :; }
+WORKSPACE_DIR="$HOME"
+preflight_check true "" "$CHECK_CONTEXT"
+'''
+        for storage, connected, context in product(
+                ("sqlite", "environment"), (False, True), ("static", "dispatch")):
+            with self.subTest(storage=storage, connected=connected, context=context):
+                database = self.data / "opencode.db"
+                database.unlink(missing_ok=True)
+                self.env.pop("OPENROUTER_API_KEY", None)
+                if storage == "sqlite":
+                    database.touch()
+                else:
+                    self.env["OPENROUTER_API_KEY"] = "fixture"
+                auth_marker.unlink(missing_ok=True)
+                self.env.update(CHECK_CONTEXT=context, AUTH_JSON=json.dumps([
+                    {"id": "openai", "connections": [{"type": "credential"}]}]
+                    if connected else []))
+                self.marker.unlink(missing_ok=True)
+                result = self.shell(script)
+                expected = connected if context == "dispatch" else storage == "environment"
+                self.assertEqual(result.returncode == 0, expected, result.stdout + result.stderr)
+                self.assertEqual(auth_marker.exists(), context == "dispatch",
+                                 "fixed panel violated static/dispatch login confirmation")
+
+    def test_fixed_panel_leaves_other_providers_static(self):
+        """Confirming one login must not launch another panel seat's health probe."""
+        other_marker = self.base / "copilot-called"
+        copilot = self.bin / "copilot"
+        copilot.write_text('#!/bin/sh\ntouch "$OTHER_MARKER"\nexit 0\n')
+        copilot.chmod(0o755)
+        (self.data / "opencode.db").touch()
+        self.env.update(CLI_VERSION="2.0.23", PROJECT_ROOT=str(ROOT),
+                        OCTOPUS_PREFLIGHT_PROVIDERS="opencode,copilot",
+                        OCTO_ALLOWED_PROVIDERS="opencode,copilot",
+                        COPILOT_GITHUB_TOKEN="fixture", OTHER_MARKER=str(other_marker))
+        result = self.shell(r'''
+source scripts/lib/preflight.sh
+log() { :; }
+WORKSPACE_DIR="$HOME"
+preflight_check true "" dispatch
+''')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertFalse(other_marker.exists(), "unselected provider received a live check")
+
     def test_single_probe_admits_a_pinned_opencode_roster(self):
         """A real single-agent dispatch confirms the pinned roster before work."""
         project = self.base / "single-probe-project"
