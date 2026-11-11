@@ -11,6 +11,17 @@
   need evidence. Numbers written separately in totals remain checked,
   including lists with a comma before "in total".
 
+### Maintenance
+
+- Council deadline tests measure prompt preparation separately from worker
+  startup, preventing false timing failures on busy runners. The watchdog
+  limit and checks for cancelled children and late output are preserved.
+- Focused unit CI retains timeout logs and cleans up owned processes before
+  the job deadline, matching the full unit lane. Interrupted steps preserve
+  collected output alongside the cancellation message.
+- Full unit shard weights include hosted macOS timings to spread process-heavy
+  suites across the four shards.
+
 ## [11.22.0] - 2026-11-10
 
 ### Added
