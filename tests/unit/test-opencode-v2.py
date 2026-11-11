@@ -88,6 +88,59 @@ fi
         result = self.shell('source scripts/lib/dispatch.sh; get_agent_model() { echo vendor/model; }; get_agent_command opencode')
         self.assertNotEqual(result.returncode, 0)
 
+    def test_auto_route_display_does_not_probe_before_actual_dispatch(self):
+        """The display must reach dispatch even when CLI probes are disabled."""
+        self.env.update(CLI_VERSION="2.0.23", OCTOPUS_SKIP_PROVIDER_PROBES="true")
+        script = r'''
+set -eo pipefail
+source scripts/lib/dispatch.sh
+source scripts/lib/auto-route.sh
+log() { :; }
+classify_task() { echo coding; }
+estimate_complexity() { echo 2; }
+get_tier_name() { echo standard; }
+evaluate_branch_condition() { echo standard; }
+get_branch_display() { echo standard; }
+detect_context() { echo dev:fixture; }
+get_context_display() { echo fixture; }
+classify_cynefin() { echo clear; }
+detect_response_mode() { echo standard; }
+get_tiered_agent() { echo "$DISPLAY_SEAT"; }
+get_agent_model() { echo vendor/model; }
+spawn_agent() {
+    [[ "$1" == "$DISPLAY_SEAT" && "$2" == 'implement fixture' ]] || return 78
+    [[ "${OCTOPUS_SKIP_PROVIDER_PROBES:-}" == true && "${OCTOPUS_MODEL_READ_ONLY:-false}" == false ]] || return 79
+    touch "$HOME/reached-dispatch"
+    return 77
+}
+auto_route 'implement fixture'
+'''
+        for seat in ("opencode", "opencode-fast", "opencode-research", "opencode:vendor/model"):
+            with self.subTest(seat=seat):
+                marker = Path(self.env["HOME"]) / "reached-dispatch"
+                marker.unlink(missing_ok=True)
+                self.marker.unlink(missing_ok=True)
+                self.env["DISPLAY_SEAT"] = seat
+                result = self.shell(script)
+                self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+                self.assertTrue(marker.exists())
+                self.assertIn("vendor/model", result.stdout)
+                self.assertFalse(self.marker.exists(), "model display launched the CLI")
+
+    def test_bare_filename_sources_resolve_helpers_after_directory_changes(self):
+        """Lazy helper loads use the source directory, not the later cwd."""
+        self.env["CLI_VERSION"] = "2.0.23"
+        for library, action in (("auth.sh", "_octo_opencode_has_saved_login"),
+                                ("dispatch.sh", "get_agent_command opencode")):
+            with self.subTest(library=library):
+                self.marker.unlink(missing_ok=True)
+                script = ('set -e; cd scripts/lib; source ' + library + '; '
+                          'cd "$HOME"; unset -f _octo_run_bare_probe_with_timeout; '
+                          'get_agent_model() { echo vendor/model; }; ' + action)
+                result = self.shell(script)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertTrue(self.marker.exists(), "the real bounded probe did not run")
+
     def test_bounded_v2_refuses_before_launch_without_changing_saved_login(self):
         """A private server must not start with unwritable session storage."""
         self.env["CLI_VERSION"] = "2.0.23"

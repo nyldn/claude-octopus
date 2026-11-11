@@ -5,6 +5,8 @@
 # Extracted from orchestrate.sh
 # ═══════════════════════════════════════════════════════════════════════════════
 
+_auth_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Shared credential-value parsing. Provider admission surfaces must not trust a
 # file merely because an assignment exists: blank and quoted-empty values are
 # unauthenticated, while a # inside a quoted credential is data, not a comment.
@@ -320,7 +322,7 @@ _octo_opencode_cli_major() {
     local version
     case "${OCTOPUS_SKIP_PROVIDER_PROBES:-false}" in true|1) return 1 ;; esac
     if ! declare -f _octo_run_bare_probe_with_timeout >/dev/null 2>&1; then
-        source "${BASH_SOURCE[0]%/*}/bounded-probe.sh" 2>/dev/null || return 1
+        source "${_auth_lib_dir}/bounded-probe.sh" 2>/dev/null || return 1
     fi
     version="$(_octo_run_bare_probe_with_timeout 3 2 1 opencode --version </dev/null 2>/dev/null)" || return 1
     if [[ "$version" =~ ^(opencode[[:space:]]+)?v?([12])\.[0-9]+\.[0-9]+([+-][[:alnum:].-]+)?$ ]]; then
@@ -334,7 +336,7 @@ _octo_opencode_cli_major() {
 # same private-server environment used by dispatch, never the shared service.
 _octo_opencode_has_saved_login() {
     local listing major
-    declare -f _octo_run_bare_probe_with_timeout >/dev/null 2>&1 || source "${BASH_SOURCE[0]%/*}/bounded-probe.sh" || return 1
+    declare -f _octo_run_bare_probe_with_timeout >/dev/null 2>&1 || source "${_auth_lib_dir}/bounded-probe.sh" || return 1
     major="$(_octo_opencode_cli_major)" || return 1
     if [[ "$major" == 2 ]]; then
         listing="$(_octo_run_bare_probe_with_timeout 3 2 1 opencode auth list --standalone --format json </dev/null 2>/dev/null)" || return 1

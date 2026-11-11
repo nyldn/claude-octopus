@@ -31,7 +31,7 @@ fi
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # shellcheck source=scripts/lib/json-contract.sh
-source "${BASH_SOURCE[0]%/*}/json-contract.sh" || return 1
+source "${_profile_lib_dir}/json-contract.sh" || return 1
 
 #                    gpt-5.2-codex, gpt-5.4-mini (budget), gpt-5 (standard), gpt-5.2, gpt-5.1
 # - OpenAI Reasoning: o3, o3-pro (API-key only), o3 (API-key only), o3-mini (API-key only)
@@ -913,7 +913,7 @@ get_agent_command() {
             # passing the removed global flag to OpenCode 2.x (#1172).
             local oc_major oc_standalone=""
             if [[ "${DRY_RUN:-false}" != true ]]; then
-                declare -f _octo_opencode_cli_major >/dev/null 2>&1 || source "${BASH_SOURCE[0]%/*}/auth.sh" || return 1
+                declare -f _octo_opencode_cli_major >/dev/null 2>&1 || source "${_profile_lib_dir}/auth.sh" || return 1
                 oc_major="$(_octo_opencode_cli_major)" || {
                     log ERROR "OpenCode version unavailable; cannot select a safe server mode"
                     return 1

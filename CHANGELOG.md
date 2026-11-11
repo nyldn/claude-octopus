@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Automatic OpenCode routing displays its model without launching a version
+  probe. Compatibility helpers still load when their libraries were sourced by
+  bare filename before the working directory changed.
+
 - Broad preflight scans and roster inspection no longer launch OpenCode version
   or login probes. Selected OpenCode dispatch and workflows with a pinned
   OpenCode roster still confirm login and cannot

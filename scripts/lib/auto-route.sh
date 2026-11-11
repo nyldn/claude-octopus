@@ -786,7 +786,7 @@ Then provide specific optimization recommendations."
     local agent
     agent=$(get_tiered_agent "$task_type" "$agent_complexity")
     local model_name
-    model_name=$(get_agent_command "$agent" | awk '{print $NF}')
+    model_name=$(OCTOPUS_MODEL_READ_ONLY=true OCTOPUS_DISPATCH_PREVIEW=true get_agent_model "$agent")
     echo -e "  Selected Agent: ${GREEN}$agent${NC} → ${CYAN}$model_name${NC}"
     echo ""
 

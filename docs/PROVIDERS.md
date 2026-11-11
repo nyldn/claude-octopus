@@ -483,6 +483,10 @@ process boundary. Unknown versions and disabled probes refuse real dispatch;
 dry-run previews launch no CLI. No equivalent 2.x plugin-disable guarantee is
 claimed. Authenticated tool execution and cancellation still require live
 acceptance on the target host.
+Automatic routing displays the resolved model without constructing a dispatch
+command or probing the CLI. Actual dispatch still performs its version and
+login checks. Lazy compatibility helpers resolve from their library directory,
+including when a library was sourced by bare filename before changing directory.
 
 Static discovery recognizes `auth.json`, `opencode.db` and channel-specific
 `opencode-*.db` files under `${XDG_DATA_HOME:-~/.local/share}/opencode`, plus
