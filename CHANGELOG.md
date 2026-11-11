@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Refinement runs enforce round and stall limits through persisted state, retain
+  the best accepted candidate, and refuse unprepared or stopped dispatches.
+- Successful structured judge answers can discuss context limits without being
+  misclassified as oversized-prompt errors. Genuine provider failures still stop.
+
 ### Maintenance
 
 - Skill generation uses the authored entries directly through the existing sync

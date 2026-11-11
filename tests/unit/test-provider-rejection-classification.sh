@@ -59,6 +59,32 @@ result="$(classify_agent_output "$long_findings" 0 codex-standard "$empty_err")"
 check "long valid result mentioning a context limit is not a rejection" \
     "ok" "$(status_of "$result")"
 
+# Structured judge answers and quoted tool diagnostics are task data.
+judge_answer="$TMP/judge.json"
+printf '%s\n' '{"criteria":[{"id":"reliability","score":3.5,"evidence":"The configured context limit is enforced."}],"blockers":[]}' > "$judge_answer"
+check "short structured judge answer may discuss context limits" \
+    "ok" "$(status_of "$(classify_agent_output "$judge_answer" 0 codex "$empty_err")")"
+quoted_error="$TMP/quoted.err"
+printf '%s\n' 'tool read from test fixture: Error: Prompt is too long' > "$quoted_error"
+check "quoted tool diagnostic does not reject a valid answer" \
+    "ok" "$(status_of "$(classify_agent_output "$long_findings" 0 codex "$quoted_error")")"
+structured_rejection="$TMP/provider-error.json"
+printf '%s\n' '{"error":{"code":"context_length_exceeded","message":"maximum context length exceeded"}}' > "$structured_rejection"
+check "structured provider context error remains rejected" \
+    "failed" "$(status_of "$(classify_agent_output "$structured_rejection" 0 codex "$empty_err")")"
+
+check "explicit structured stderr error still rejects a structured answer" \
+    "failed" "$(status_of "$(classify_agent_output "$judge_answer" 0 codex "$structured_rejection")")"
+long_error="$TMP/long-error.json"
+{ printf '%s' '{"error":{"code":"context_length_exceeded","message":"'; head -c 5000 /dev/zero | tr '\0' x; printf '%s\n' '"}}'; } > "$long_error"
+check "large provider error envelope is not mistaken for substantive work" \
+    "failed" "$(status_of "$(classify_agent_output "$long_error" 0 codex "$empty_err")")"
+
+fenced_answer="$TMP/fenced-answer.md"
+printf '%s\n' 'The fixture contains this diagnostic:' '```text' 'Error: Prompt is too long' '```' 'The test passed.' > "$fenced_answer"
+check "fenced diagnostic quotation is answer data" \
+    "ok" "$(status_of "$(classify_agent_output "$fenced_answer" 0 codex "$empty_err")")"
+
 # 2. A genuine short stdout-only rejection is still caught.
 short_rejection="$TMP/short-rejection.out"
 printf '%s\n' "Error: Prompt is too long: 412000 tokens > maximum context length" > "$short_rejection"
