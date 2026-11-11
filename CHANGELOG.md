@@ -11,6 +11,12 @@
   need evidence. Numbers written separately in totals remain checked,
   including lists with a comma before "in total".
 
+### Maintenance
+
+- Council deadline tests measure prompt preparation separately from worker
+  startup, preventing false timing failures on busy runners. The watchdog
+  limit and checks for cancelled children and late output are preserved.
+
 ## [11.22.0] - 2026-11-10
 
 ### Added
