@@ -52,4 +52,23 @@ else
   test_fail "native usage components were not parsed independently"
 fi
 
+test_case "explicit GPT-5.4 Mini usage uses its API tariff"
+mini_id="$(record_agent_start codex-api gpt-5.4-mini x pricing)"
+record_agent_call codex-api gpt-5.4-mini x pricing reviewer 0 "$mini_id"
+record_agent_complete "$mini_id" codex-api gpt-5.4-mini "" pricing 3000 0 1 1000 2000
+report="$(generate_usage_json)"
+if jq -e --arg id "$mini_id" '.calls[] | select(.call_id == $id) | .cost_usd == 0.00975' >/dev/null <<<"$report"; then
+  test_pass
+else
+  test_fail "GPT-5.4 Mini usage did not use the verified input/output tariff"
+fi
+
+test_case "GPT-5.4 Mini exposes vision and reasoning to capability selection"
+if [[ "$(get_model_capability gpt-5.4-mini images)" == yes &&
+      "$(get_model_capability gpt-5.4-mini reasoning)" == yes ]]; then
+  test_pass
+else
+  test_fail "GPT-5.4 Mini was excluded from vision or reasoning work"
+fi
+
 test_summary

@@ -34,7 +34,7 @@ _octo_get_model_catalog_raw() {
         gpt-5.3-codex)          echo "400|yes|yes|no|codex|standard|active" ;;
         gpt-5.3-codex-spark)    echo "128|yes|no|no|codex|standard|active" ;;
         gpt-5.2-codex)          echo "400|yes|yes|no|codex|standard|active" ;;
-        gpt-5.4-mini)           echo "400|yes|no|no|codex|budget|active" ;;
+        gpt-5.4-mini)           echo "400|yes|yes|yes|codex|budget|active" ;;
         gpt-5.1-codex-max)      echo "400|yes|yes|no|codex|standard|active" ;;
         # Reasoning models
         o3)                     echo "200|yes|no|yes|codex|premium|active" ;;

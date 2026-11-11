@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Explicit GPT-5.4 Mini API usage uses the documented $0.75 input and $4.50
+  output rates per million tokens. Capability checks now recognize its image
+  input and reasoning support. Model defaults and saved choices are preserved.
+
 ## [11.22.1] - 2026-11-11
 
 ### Fixed
