@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Review verification sends complete findings in bounded batches with relevant
+  patch evidence. Final admission rejects oversized verifier requests instead of
+  clipping their tails. An incomplete verification preserves the worktree and
+  records a review infrastructure failure without applying unverified findings.
+
 ### Maintenance
 
 - Skill generation uses the authored entries directly through the existing sync

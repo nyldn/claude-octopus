@@ -5645,6 +5645,26 @@ tangle_should_attempt_contextual_review() {
 # round accounting, the convergence guard, and the absolute round ceiling are
 # unit-testable with stubbed review/correction functions
 # (tests/unit/test-tangle-correction-loop-behavior.sh).
+tangle_review_verification_complete() {
+    jq -e '(.verification_status // "") != "incomplete" and all(.findings[]?; .verdict != "unverified")' "$1" >/dev/null 2>&1
+}
+
+tangle_record_review_verification() {
+    local task_group="$1" findings_file="$2" state="$3"
+    local metadata="${RESULTS_DIR:-${HOME}/.claude-octopus/results}/.tangle-${task_group}-git.json"
+    local tmp
+    if [[ -f "$metadata" ]]; then
+        tmp=$(mktemp "${metadata}.XXXXXX") || return 1
+        if jq --arg findings "$findings_file" --arg state "$state" '. + {reviewVerification:$state,reviewFindings:$findings}' "$metadata" > "$tmp"; then
+            mv "$tmp" "$metadata"
+        else rm -f "$tmp"; return 1; fi
+    fi
+    if [[ "$state" == incomplete ]]; then
+        log ERROR "Contextual review infrastructure incomplete; preserving worktree without applying unverified findings: $findings_file"
+    fi
+    return 0
+}
+
 tangle_contextual_review_gate() {
     local task_group="$1"
     local resolved_prompt="$2"
@@ -5680,6 +5700,11 @@ tangle_contextual_review_gate() {
         log ERROR "Contextual code review produced an invalid findings document: ${findings_file}"
         return 1
     fi
+    if ! tangle_review_verification_complete "$findings_file"; then
+        tangle_record_review_verification "$task_group" "$findings_file" incomplete || return 2
+        return 2
+    fi
+    tangle_record_review_verification "$task_group" "$findings_file" complete || return 2
     local normal_count
     normal_count=$(tangle_review_blocking_count "$findings_file")
 
@@ -5771,6 +5796,11 @@ tangle_contextual_review_gate() {
             log ERROR "Contextual code review produced an invalid findings document after correction round ${correction_round}: ${findings_file}"
             return 1
         fi
+        if ! tangle_review_verification_complete "$findings_file"; then
+            tangle_record_review_verification "$task_group" "$findings_file" incomplete || return 2
+            return 2
+        fi
+        tangle_record_review_verification "$task_group" "$findings_file" complete || return 2
         normal_count=$(tangle_review_blocking_count "$findings_file")
         local current_signature
         current_signature=$(tangle_findings_signature "$findings_file")

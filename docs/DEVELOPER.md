@@ -255,3 +255,21 @@ preservation of the index and existing edits, concurrent-edit checks, bounded
 subprocesses and persistent budgets. Static tests do not prove a host complied
 with that contract; retain the run's snapshots, hashes, checks, and ledger when
 validating an actual experiment. A missing capability stops the run.
+
+## Complete review verification
+
+Round 2 builds byte-bounded requests from complete findings and the matching
+patches or numbered excerpts. Every batch preserves finding identity; a missing,
+duplicate or invalid verdict leaves that batch unverified. The builder plans all
+batches before dispatch, so a finding that cannot fit fails admission before any
+verifier calls. Final dispatch uses `OCTOPUS_OVERSIZE_STRATEGY=fail` to account for
+method and persona additions without silently clipping required input.
+
+The contextual Tangle gate does not dispatch corrections from an incomplete
+verification. It preserves the worktree and records `reviewVerification` and
+`reviewFindings` in the existing attempt manifest. A complete retry updates the
+same marker. Consumers must treat an incomplete review as unfinished validation,
+not as a list of confirmed product defects. No provider retry policy is changed.
+
+`tests/unit/test-review-verifier-batches.sh` exercises large Unicode finding
+sets, relevant evidence, admission refusal and preservation without corrections.
