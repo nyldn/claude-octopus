@@ -1200,6 +1200,10 @@ review_local_synthesis_json() {
     local findings_json="$1"
     local warning="${2:-}"
     local sort_filter='def severity_rank: if .severity == "normal" then 0 elif .severity == "nit" then 1 elif .severity == "pre-existing" then 2 else 3 end; if all(.[]; type == "object") then to_entries | reduce .[] as $entry ({seen:{}, ordered:[]}; ($entry.value | [(.file // ""), ((.line // 0) | tostring), (.category // ""), (.title // .message // "")] | @json) as $key | if .seen[$key] then . else .seen[$key] = true | .ordered += [$entry] end) | .ordered | sort_by([(.value | severity_rank), .key]) | map(.value) else error("expected object findings entries") end'
+    # Verified records retain every original entry, even at a shared location.
+    if [[ "${3:-false}" == true ]]; then
+        sort_filter='def severity_rank: if .severity == "normal" then 0 elif .severity == "nit" then 1 elif .severity == "pre-existing" then 2 else 3 end; if all(.[]; type == "object") then sort_by(severity_rank) else error("expected object findings entries") end'
+    fi
     if [[ -n "$warning" ]]; then
         printf '%s' "$findings_json" | jq -c --arg warning "$warning" "{findings:(. // [] | ${sort_filter}), warning:\$warning}" 2>/dev/null \
             || printf '{"findings":[],"warning":%s}\n' "$(printf '%s' "$warning" | jq -R .)"
@@ -2582,16 +2586,19 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
         synth_ok="false"
         log WARN "review_run: ${synthesis_provider} synthesis failed, using retained findings sorted as-is"
         review_append_provider_status "$provider_status_file" "$synthesis_provider" implementation-synthesizer fallback "Round 3 synthesis failed; using local deterministic fallback"
-        final_json="$(review_local_synthesis_json "$confirmed_findings" "$round1_warning")"
+        final_json="$(review_local_synthesis_json "$confirmed_findings" "$round1_warning" true)"
     }
 
     # v9.3.1: Strip markdown fences from synthesis result (#188)
     final_json=$(echo "$final_json" | review_strip_external_cli_wrapper | sed '/^```json$/d; /^```JSON$/d; /^```$/d')
     local normalized_final_json expected_final_json
-    expected_final_json=$(review_local_synthesis_json "$confirmed_findings" "")
-    if ! normalized_final_json=$(printf '%s' "$final_json" | review_normalize_findings_json 2>/dev/null); then
+    expected_final_json=$(review_local_synthesis_json "$confirmed_findings" "" true)
+    if ! normalized_final_json=$(printf '%s' "$final_json" | review_slurp_provider_json '
+        if length == 1 and (.[0] | type == "object") and (.[0].findings | type == "array")
+           and all(.[0].findings[]; type == "object") then .[0]
+        else error("expected one synthesis findings document") end' 2>/dev/null); then
         log WARN "review_run: synthesis returned invalid or multi-document findings JSON, using local fallback"
-        final_json=$(review_local_synthesis_json "$confirmed_findings" "$round1_warning")
+        final_json=$(review_local_synthesis_json "$confirmed_findings" "$round1_warning" true)
         synth_ok="false"
     elif ! printf '%s\n%s\n' "$normalized_final_json" "$expected_final_json" |
         jq -es '(.[0].findings | sort) == (.[1].findings | sort)' >/dev/null; then
@@ -2599,7 +2606,8 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
         final_json="$expected_final_json"
         synth_ok=false
     else
-        final_json="$normalized_final_json"
+        # Keep the complete verified multiset ranked with blockers first.
+        final_json="$expected_final_json"
     fi
     if [[ -n "$round1_warning" ]]; then
         local warned_final_json
@@ -2607,14 +2615,14 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
             jq -c --arg warning "$round1_warning" '. + {warning:$warning}' 2>/dev/null); then
             final_json="$warned_final_json"
         else
-            final_json=$(review_local_synthesis_json "$confirmed_findings" "$round1_warning")
+            final_json=$(review_local_synthesis_json "$confirmed_findings" "$round1_warning" true)
             synth_ok="false"
         fi
     fi
 
     # Synthesis cannot upgrade findings when the independent verifier failed.
     if [[ "$verification_incomplete" == true ]]; then
-        final_json="$(review_local_synthesis_json "$confirmed_findings" "$round1_warning")"
+        final_json="$(review_local_synthesis_json "$confirmed_findings" "$round1_warning" true)"
         final_json=$(printf '%s' "$final_json" | jq '. + {verification_status:"incomplete"}')
         synth_ok=false
     fi

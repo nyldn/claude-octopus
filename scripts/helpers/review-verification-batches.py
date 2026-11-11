@@ -36,6 +36,7 @@ def excerpts(diff, finding, max_bytes, radius=25):
         location = 0
     old = new = 0
     in_hunk = False
+    deleted_file = False
     selected = []
     for line in block.splitlines():
         header = re.match(r"@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@", line)
@@ -44,12 +45,15 @@ def excerpts(diff, finding, max_bytes, radius=25):
             in_hunk = True
             continue
         if not in_hunk:
+            if line.split("\t", 1)[0] == "+++ /dev/null":
+                deleted_file = True
             continue
         if not line.startswith(("+", "-", " ")):
             continue
-        # Findings cite the new file. A removal is anchored to the following
-        # new line even when earlier changes shifted the old coordinates.
-        if (location and abs(new - location) <= radius) or (not location and len(selected) < max(1, radius * 2)):
+        # Existing-file findings use new coordinates, anchoring removals to
+        # the next new line. Deleted-file findings instead cite the old file.
+        coordinate = old if deleted_file else new
+        if (location and abs(coordinate - location) <= radius) or (not location and len(selected) < max(1, radius * 2)):
             selected.append(f"old={old} new={new} {line}")
         if not line.startswith("+"):
             old += 1

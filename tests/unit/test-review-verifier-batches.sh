@@ -312,4 +312,15 @@ if (
     jq -e '.reviewVerification == "incomplete"' "$RESULTS_DIR/.tangle-fixture-git.json" >/dev/null
 ); then test_pass; else test_fail "partial findings blocked verified correction or recorded a complete review"; fi
 
+test_case "large deleted-file findings use old-file coordinates"
+if python3 - "$ROOT/scripts/helpers/review-verification-batches.py" <<'PYTEST'
+import runpy, sys
+excerpts = runpy.run_path(sys.argv[1])["excerpts"]
+diff = "diff --git a/gone.py b/gone.py\n--- a/gone.py\n+++ /dev/null\n@@ -1,500 +0,0 @@\n" + "".join(f"-removed_{i}\n" for i in range(1,501))
+evidence = excerpts(diff, dict(file="gone.py", line=250), 6000)
+assert "old=250 new=0 -removed_250" in evidence, evidence
+assert "No patch lines" not in evidence
+PYTEST
+then test_pass; else test_fail "deleted-file evidence was missing at the cited old line"; fi
+
 test_summary

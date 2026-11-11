@@ -293,3 +293,7 @@ receive corrections, while the manifest remains incomplete until a full review.
 Synthesis may reorder verified findings, but cannot remove them, invent findings,
 or change their fields. A changed set uses deterministic local synthesis instead.
 Incomplete verification returns failure after saving findings and proof artifacts.
+
+Final synthesis compares the full verified finding multiset before any display
+normalization. Distinct records at the same location remain in the saved artifact,
+ranked with blockers first. Deleted-file excerpts use the cited old-file line.
