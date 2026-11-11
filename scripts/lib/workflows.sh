@@ -5671,7 +5671,10 @@ tangle_record_review_verification() {
     fi
     if [[ -f "$metadata" ]]; then
         tmp=$(mktemp "${metadata}.XXXXXX") || return 1
-        if jq --arg findings "$findings_file" --arg state "$state" --arg outcome "$outcome" '. + {reviewVerification:$state,reviewFindings:$findings,reviewOutcome:$outcome}' "$metadata" > "$tmp"; then
+        if jq --arg findings "$findings_file" --arg state "$state" --arg outcome "$outcome" '
+            if $state == "pending" and .reviewVerification == "incomplete" then
+                if $findings == "" then . else .reviewFindings = $findings end
+            else . + {reviewVerification:$state,reviewFindings:$findings,reviewOutcome:$outcome} end' "$metadata" > "$tmp"; then
             mv "$tmp" "$metadata" || { rm -f "$tmp"; return 1; }
         else rm -f "$tmp"; return 1; fi
     fi

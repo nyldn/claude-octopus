@@ -272,7 +272,9 @@ validation remains incomplete. The gate records `reviewVerification` and
 same marker. Consumers must treat an incomplete review as unfinished validation,
 not as a list of confirmed product defects. No provider retry policy is changed.
 
-New review/correction work marks verification pending. Failed fleet or malformed
+New review/correction work marks verification pending unless an earlier review
+remains incomplete. Pending attempts preserve incomplete and partial-verified
+markers until a completed review replaces them. Failed fleet or malformed
 review artifacts keep it incomplete until a genuinely completed review replaces
 them. Completion is checked before local scope findings are added, so a scope
 violation cannot authorize corrections after the reviewer fleet fails.

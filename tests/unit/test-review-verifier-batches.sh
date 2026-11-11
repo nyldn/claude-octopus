@@ -300,6 +300,7 @@ if (
     rc=0
     tangle_contextual_review_gate fixture prompt context subtasks validation before || rc=$?
     [[ "$rc" -eq 77 && -f "$RESULTS_DIR/correction-called" ]] || exit 1
+    jq -e '.reviewVerification == "incomplete" and .reviewOutcome == "partial-verified"' "$RESULTS_DIR/.tangle-fixture-git.json" >/dev/null || exit 1
     tangle_run_context_code_review() {
         TANGLE_REVIEW_FINDINGS_FILE="$RESULTS_DIR/findings.json"
         printf '%s\n' '{"warning":"Partial reviewer fleet","findings":[{"file":"app.py","line":1,"title":"note","severity":"nit","verdict":"confirmed"}]}' > "$TANGLE_REVIEW_FINDINGS_FILE"
@@ -400,5 +401,18 @@ if (
         fi
     done
 ); then test_pass; else test_fail "saved findings hid a failed underlying review"; fi
+
+
+test_case "unmatched findings can shed unrelated patch context before refusal"
+if python3 - "$ROOT/scripts/helpers/review-verification-batches.py" <<'PYTEST'
+import runpy, sys
+build = runpy.run_path(sys.argv[1])["build_batches"]
+diff = "diff --git a/other.py b/other.py\n--- a/other.py\n+++ b/other.py\n@@ -1 +1 @@\n-old\n+UNRELATED_OPERATION" + "x"*1200 + "\n"
+finding = dict(file="app.py",line=1,title="missing patch")
+rows, prompt = build(diff,[finding],"c"*4000,6000)[0]
+assert rows == [finding] and len(prompt.encode()) <= 6000
+assert "No matching patch block" in prompt and "UNRELATED_OPERATION" not in prompt
+PYTEST
+then test_pass; else test_fail "unrelated evidence prevented complete finding admission"; fi
 
 test_summary

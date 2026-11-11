@@ -27,7 +27,7 @@ def excerpts(diff, finding, max_bytes, radius=25):
     block = matches[0] if matches else ""
     if not block:
         notice = "No matching patch block. Inspect the cited repository location; do not confirm without code evidence."
-        if len(diff.encode()) < max_bytes // 4:
+        if radius == 25 and len(diff.encode()) < max_bytes // 4:
             return notice + "\nOther patch context (not the cited file):\n" + diff
         return notice
     if radius == 25 and len(block.encode()) <= max_bytes // 4:
