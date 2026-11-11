@@ -180,9 +180,10 @@ GPT-6.1 Terra tools require Responses; the Chat Completions adapter accepts it
 only with `--tool-policy none`. It supports `none` reasoning, unlike GPT-6.1 Sol.
 
 `claude-fable-5-2` is available through an explicit model-qualified Claude or
-Claude SDK seat, or a session environment pin. It costs $8/$40 per MTok, needs
-Claude Code v2.1.321 or newer on the CLI path, and retains the Fable security,
-input-size, effort and retry guards. It requires 30-day provider retention.
+Claude SDK seat, or a session environment pin. It costs USD 8 per million input
+tokens and USD 40 per million output tokens, needs Claude Code v2.1.321 or newer
+on the CLI path, and retains the Fable security, input-size, effort and retry
+guards. It requires 30-day provider retention.
 It does not replace the existing Fable 5.1 escalation target.
 `gpt-6-sol`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, and `o3`
 remain available through Custom. The release default remains GPT-5.6 Sol.
