@@ -84,6 +84,51 @@ fi
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout.strip(), "run --standalone -m vendor/model")
 
+    def test_cursor_probes_exclude_forwarded_mistral_key(self):
+        """MCP discovery must keep OpenCode's credential out of Cursor startup."""
+        agent = self.bin / "agent"
+        agent.write_text("""#!/bin/sh
+[ -z "${MISTRAL_API_KEY+x}" ] || touch "$PROBE_MARKER"
+[ "$UNRELATED_SETTING" = preserved ] || exit 72
+printf '%s\\n' "$*" >> "$CURSOR_CALLS"
+case "$*" in
+    --version) echo 2026.11.11-fixture ;;
+    'status --format json') echo '{"isAuthenticated":true}' ;;
+    *) exit 73 ;;
+esac
+""")
+        agent.chmod(0o755)
+        script = """import {loadProviderEnvAllowlist, providerEnvironment} from './shared/adapter-runtime.mjs';
+console.log(JSON.stringify(providerEnvironment(loadProviderEnvAllowlist(process.cwd()),
+    JSON.parse(process.argv[1]))));"""
+        adapter = subprocess.run(["node", "--input-type=module", "-e", script,
+                                  json.dumps({"MISTRAL_API_KEY":"fixture"})], cwd=ROOT,
+                                 capture_output=True, text=True, check=False)
+        self.assertEqual(adapter.returncode, 0, adapter.stderr)
+        self.env.update(json.loads(adapter.stdout), UNRELATED_SETTING="preserved",
+                        OCTO_ALLOWED_PROVIDERS="cursor-agent",
+                        OCTOPUS_CURSOR_AGENT_AUTH_CACHE_TTL="0",
+                        CURSOR_CALLS=str(self.base / "cursor-calls"))
+        actions = (
+            'source scripts/lib/cursor-agent.sh; _is_cursor_agent_binary',
+            'source scripts/lib/cursor-agent.sh; cursor_agent_session_authenticated verified',
+            'source scripts/lib/preflight.sh; octo_provider_readiness_result cursor-agent static | '
+            'jq -e \' .status == "available" \'',
+            'source scripts/lib/providers.sh; check_provider_health cursor-agent',
+            'source scripts/lib/providers.sh; detect_providers | grep -F cursor-agent:cursor-session',
+        )
+        for action in actions:
+            with self.subTest(action=action):
+                self.marker.unlink(missing_ok=True)
+                calls = Path(self.env["CURSOR_CALLS"])
+                calls.unlink(missing_ok=True)
+                result = self.shell(action + '; rc=$?; '
+                                    '[[ "$MISTRAL_API_KEY" == fixture && "$UNRELATED_SETTING" == preserved ]] '
+                                    '|| exit 74; exit "$rc"')
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertTrue(calls.exists(), "Cursor startup fixture was not reached")
+                self.assertFalse(self.marker.exists(), "Mistral credential reached a Cursor probe")
+
     def test_commandcode_probe_excludes_forwarded_mistral_key(self):
         """OpenCode's forwarded credential must not reach an unrelated health CLI."""
         commandcode = self.bin / "command-code"
@@ -114,12 +159,19 @@ esac
         self.env.update(MISTRAL_API_KEY="fixture", UNRELATED_SETTING="preserved",
                         OCTOPUS_HOST="claude", OCTOPUS_CLAUDE_BIN="claude",
                         OCTO_ALLOWED_PROVIDERS="claude")
+        # Source a real file: the previous process-substitution fixture left
+        # check_claude_version undefined on the exact-head macOS CI run.
+        version_function = (ROOT / "scripts/orchestrate.sh").read_text().split(
+            "check_claude_version() {\n", 1)[1].split("\n}", 1)[0]
+        version_fixture = self.base / "check-claude-version.sh"
+        version_fixture.write_text("check_claude_version() {\n" + version_function + "\n}\n")
+        self.env["CLAUDE_VERSION_FIXTURE"] = str(version_fixture)
         actions = (
             'source scripts/lib/providers.sh; _octo_host_version_output claude',
             'source scripts/lib/providers.sh; detect_claude_code_version; '
             '[[ "$SUPPORTS_EFFORT_CLI_FLAG" == true ]]',
             'source scripts/lib/providers.sh; '
-            "source <(sed -n '/^check_claude_version() {/,/^}/p' scripts/orchestrate.sh); "
+            'source "$CLAUDE_VERSION_FIXTURE"; '
             'check_claude_version | grep -Fx "CLAUDE_CODE_VERSION=2.1.219"',
             'source scripts/lib/providers.sh; _octo_bare_auth_probe',
             'source scripts/lib/providers.sh; SUPPORTS_AUTH_CLI=true; detect_enterprise_backend',

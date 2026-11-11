@@ -8,6 +8,10 @@
   output rates per million tokens. Capability checks now recognize its image
   input and reasoning support. Model defaults and saved choices are preserved.
 
+- Cursor version and session-status probes exclude the Mistral credential
+  forwarded for OpenCode, while preserving Cursor session authentication and
+  the parent environment.
+
 - Claude startup version, status and capability checks exclude the Mistral
   credential forwarded for OpenCode, while preserving parent authentication.
   MCP also preserves the explicit `OPENCODE_CONFIG` file selector so custom

@@ -520,7 +520,9 @@ their own authentication, including CLI and shell-function routes. OpenCode
 and Vibe retain access to it. CommandCode's login health probe also excludes the
 ambient Mistral key before dispatch filtering. Claude host version, status and
 capability-help and authentication probes also exclude it while preserving the
-parent environment. OpenCode version probes omit both Mistral and search
+parent environment. Cursor version and session-status probes also exclude the
+forwarded Mistral key, preserving Cursor authentication and the parent shell.
+OpenCode version probes omit both Mistral and search
 credentials. OpenCode login probes retain Mistral for environment-only login and
 omit the unrelated search credential. This filtering does not establish
 executable provenance or isolate project plugins. Explicit credential selection in isolated provider
