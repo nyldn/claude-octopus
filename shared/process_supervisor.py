@@ -151,6 +151,9 @@ def _collect_posix_process(
                     break
             if overflowed:
                 break
+    except BaseException as error:
+        error.output = _decode(captured, False)
+        raise
     finally:
         selector.close()
         stream.close()
@@ -177,7 +180,7 @@ def run_bounded_process(
     kill_grace: float = 0.5,
     strict_output: bool = False,
 ) -> Tuple[int, str]:
-    """Run one owned process group and bound its combined output."""
+    """Run one owned process group; collection exceptions retain bounded output."""
     if output_limit < 1:
         raise ValueError("output_limit must be positive")
     popen_options = {
@@ -241,8 +244,10 @@ def run_bounded_process(
             time.sleep(min(0.02, remaining))
         if timed_out or overflowed.is_set():
             _terminate_process_tree(process, process_group, kill_grace)
-    except BaseException:
+    except BaseException as error:
         _terminate_process_tree(process, process_group, kill_grace)
+        with capture_lock:
+            error.output = _decode(captured, False)
         raise
 
     remaining = max(0.0, deadline - time.monotonic())

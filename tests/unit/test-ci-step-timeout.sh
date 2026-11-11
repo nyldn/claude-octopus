@@ -77,15 +77,18 @@ elif case in ("tree", "interrupt"):
 from pathlib import Path
 signal.signal(signal.SIGTERM, signal.SIG_IGN)
 child = subprocess.Popen([sys.executable, '-c', 'import signal,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(30)'])
-Path(sys.argv[1]).write_text(f'{os.getpid()} {child.pid}')
 print('tree-started', flush=True)
+if sys.argv[2] == 'interrupt':
+    # Exceed pipe capacity before publishing PIDs so the supervisor has read output.
+    print('output-before-interrupt ' * 100000, flush=True)
+Path(sys.argv[1]).write_text(f'{os.getpid()} {child.pid}')
 time.sleep(30)
 """
     caller_group = os.getpgrp()
     command = base.copy()
     if case == "interrupt":
         command[command.index("--timeout") + 1] = "5"
-    process = subprocess.Popen(command + [sys.executable, "-c", fixture, str(pidfile)],
+    process = subprocess.Popen(command + [sys.executable, "-c", fixture, str(pidfile), case],
                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     try:
         deadline = time.monotonic() + 5
@@ -98,6 +101,10 @@ time.sleep(30)
         assert process.returncode == (143 if case == "interrupt" else 124), output
         if case == "interrupt":
             assert b"interrupted by signal 15" in output
+            assert output.startswith(b"tree-started\noutput-before-interrupt output-before-interrupt "), \
+                "interruption dropped captured output"
+            assert output == log.read_bytes()
+            assert len(output) <= 16 * 1024 * 1024
     finally:
         if process.poll() is None:
             process.terminate()

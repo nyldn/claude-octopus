@@ -100,8 +100,8 @@ an isolated passing rerun does not rewrite the earlier full-run result.
 
 Focused and full unit steps run in an owned process group with a 20-minute
 budget inside the 30-minute job. A timeout retains a bounded output tail and
-fails the unit gate. External cancellation records its signal and cleans up
-owned children.
+fails the unit gate. External cancellation retains collected output, records
+its signal, and cleans up owned children.
 Failed or cancelled jobs upload the step log; the last named suite and test in
 timeout output guide the repair.
 
