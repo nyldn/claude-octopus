@@ -18,12 +18,32 @@ for rows, prompt in batches:
     assert json.loads(prompt.split("Findings to verify:\n",1)[1].split("\nReturn ONLY",1)[0]) == rows
     assert "Diff evidence" in prompt and "new=" in prompt
     for row in rows: assert "new=%d "%row["line"] in prompt
+excerpt = runpy.run_path(sys.argv[1])["excerpts"]
+headers_in_hunks = "diff --git a/app.sql b/app.sql\n--- a/app.sql\n+++ b/app.sql\n@@ -1,70 +1,1000 @@\n" + "\n".join(["--- comment"]*70 + ["+++counter%d;"%i for i in range(1000)])
+assert "old=71 new=30 +++counter29;" in excerpt(headers_in_hunks, dict(file="app.sql", line=30), 6000)
+no_prefix = "diff --git app.py app.py\n--- app.py\n+++ app.py\n@@ -1 +1 @@\n-old\n+TARGET_OPERATION\n" + diff
+assert "TARGET_OPERATION" in build(no_prefix, [dict(file="app.py", line=1, title="target")], "context", 6000)[0][1]
 try:
     build(diff, [dict(file="src/app.ts", line=1, detail="x"*20000)], "context", 2048)
 except ValueError: pass
 else: raise AssertionError("An oversized complete finding was silently clipped")
 PY
 then test_pass; else test_fail "findings or relevant evidence were lost"; fi
+
+test_case "batch files retain Unicode in an ASCII locale and tolerate source byte decoding"
+if python3 - "$ROOT/scripts/helpers/review-verification-batches.py" <<'PY'
+import json, os, subprocess, sys, tempfile
+from pathlib import Path
+with tempfile.TemporaryDirectory() as directory:
+    root = Path(directory)
+    (root/"diff").write_bytes(b"diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-old\n+caf\xe9\n")
+    (root/"findings").write_text(json.dumps([dict(file="app.py",line=1,title="λ")],ensure_ascii=False),encoding="utf-8")
+    (root/"context").write_text("review",encoding="utf-8")
+    subprocess.run([sys.executable,"-X","utf8=0","-I",sys.argv[1],"--diff",str(root/"diff"),"--findings",str(root/"findings"),"--context",str(root/"context"),"--output",directory,"--max-bytes","6000"],env={**os.environ,"LC_ALL":"C","PYTHONCOERCECLOCALE":"0"},check=True)
+    assert json.loads((root/"batch-00000.json").read_text(encoding="utf-8"))[0]["title"] == "λ"
+    assert "caf�" in (root/"batch-00000.prompt").read_text(encoding="utf-8")
+PY
+then test_pass; else test_fail "locale corrupted a complete batch"; fi
 
 test_case "incomplete verification preserves progress without dispatching corrections"
 if (
@@ -38,7 +58,7 @@ if (
     tangle_apply_review_corrections() { touch "$RESULTS_DIR/corrections-called"; }
     rc=0
     tangle_contextual_review_gate fixture prompt context subtasks validation before || rc=$?
-    [[ "$rc" -eq 2 && ! -e "$RESULTS_DIR/corrections-called" ]]
+    [[ "$rc" -eq 2 && ! -e "$RESULTS_DIR/corrections-called" ]] || exit 1
     jq -e '.reviewVerification == "incomplete"' "$RESULTS_DIR/.tangle-fixture-git.json" >/dev/null
 ); then test_pass; else test_fail "invalid review caused speculative corrections or lost recovery metadata"; fi
 

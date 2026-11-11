@@ -2381,9 +2381,11 @@ ${round1_prompts[$retry_idx]}"
         log WARN "review_run: complete verifier input cannot fit; preserving unverified findings without provider calls"
     fi
     if [[ "$verifier_inputs_ok" == true ]]; then
-        local verifier_batch
+        local verifier_batch verifier_transport_failed actual_verifier_provider
         for verifier_batch in "$verifier_dir"/batch-*.prompt; do
             [[ -f "$verifier_batch" ]] || continue
+            verifier_transport_failed=false
+            actual_verifier_provider="$verifier_provider"
             verifier_prompt=$(cat "$verifier_batch")
             batch_findings=$(cat "${verifier_batch%.prompt}.json")
             if [[ -n "${OCTOPUS_REVIEW_SINGLE_PROVIDER:-}" || -n "${OCTOPUS_REVIEW_VERIFIER_AGENT:-}" ]]; then
@@ -2391,11 +2393,9 @@ ${round1_prompts[$retry_idx]}"
                     review_append_provider_status "$provider_status_file" "$verifier_provider" implementation-verifier ok "Round 2 verification"
                 } || {
                     log WARN "review_run: ${verifier_provider} verification failed, preserving unverified findings"
-                    verification_incomplete=true
+                    verifier_transport_failed=true
                     review_append_provider_status "$provider_status_file" "$verifier_provider" implementation-verifier fallback "Round 2 verification failed; preserving Round 1 findings"
-                    verified_findings=$(printf '{"findings":%s}' "$(
-                        echo "$batch_findings" | jq 'map(. + {"verdict":"unverified"})' 2>/dev/null || echo "[]"
-                    )")
+
                 }
             else
                 verified_findings=$(OCTOPUS_OVERSIZE_STRATEGY=fail review_run_agent_sync_progress "codex" "$verifier_prompt" "implementation-verifier" "review" "verifier-codex") && {
@@ -2404,40 +2404,44 @@ ${round1_prompts[$retry_idx]}"
                     log WARN "review_run: codex verifier failed, falling back to claude-sonnet"
                     log "USER" "⚠ Round 2: Codex unavailable → claude-sonnet (fallback). Codex API usage will NOT change."
                     review_append_provider_status "$provider_status_file" codex implementation-verifier fallback "Round 2 → claude-sonnet"
-                    verified_findings=$(OCTOPUS_OVERSIZE_STRATEGY=fail review_run_agent_sync_progress "claude-sonnet" "$verifier_prompt" "implementation-verifier" "review" "verifier-claude-sonnet") || {
+                    actual_verifier_provider=claude-sonnet
+                    verified_findings=$(OCTOPUS_OVERSIZE_STRATEGY=fail review_run_agent_sync_progress "claude-sonnet" "$verifier_prompt" "implementation-verifier" "review" "verifier-claude-sonnet") && {
+                        review_append_provider_status "$provider_status_file" claude-sonnet implementation-verifier ok "Round 2 verification"
+                    } || {
                         log WARN "review_run: verification failed entirely, preserving unverified findings"
-                        verification_incomplete=true
-                        verified_findings=$(printf '{"findings":%s}' "$(
-                            echo "$batch_findings" | jq 'map(. + {"verdict":"unverified"})' 2>/dev/null || echo "[]"
-                        )")
+                        verifier_transport_failed=true
+                        review_append_provider_status "$provider_status_file" claude-sonnet implementation-verifier fallback "Round 2 verification failed; preserving Round 1 findings"
                     }
                 }
             fi
-            # v9.3.1: Strip markdown fences that LLMs wrap around JSON responses (#188)
-            verified_findings=$(echo "$verified_findings" | review_strip_external_cli_wrapper | sed '/^```json$/d; /^```JSON$/d; /^```$/d')
-            local normalized_verified_findings
-            # Preserve every verifier entry until coverage and each verdict are checked.
-            # The display normalizer deduplicates by location/title and can erase a
-            # separate provider finding, or its distinct verdict, before validation.
-            if normalized_verified_findings=$(printf '%s' "$verified_findings" | review_slurp_provider_json '
-                   if length == 1 and (.[0] | type == "object")
-                      and (.[0].findings | type == "array")
-                      and all(.[0].findings[]; type == "object")
-                   then .[0] else error("expected one verifier findings document") end
-               ' 2>/dev/null) &&
-               printf '%s' "$normalized_verified_findings" | jq -e --argjson original "$batch_findings" '
-                   def identity: [.file, .line, .title, .detail, .category, .severity] | tojson;
-                   all(.findings[]; .verdict == "confirmed" or .verdict == "false-positive" or .verdict == "needs-debate") and
-                   ([.findings[] | identity] | sort) == ([$original[] | identity] | sort)
-               ' >/dev/null; then
-                verified_findings="$normalized_verified_findings"
-            else
-                log WARN "review_run: verification returned invalid or multi-document findings JSON; preserving Round 1 findings"
-                review_append_provider_status "$provider_status_file" "$verifier_provider" implementation-verifier fallback "Verification response incomplete or invalid"
+            if [[ "$verifier_transport_failed" == false ]]; then
+                # v9.3.1: Strip markdown fences that LLMs wrap around JSON responses (#188)
+                verified_findings=$(echo "$verified_findings" | review_strip_external_cli_wrapper | sed '/^```json$/d; /^```JSON$/d; /^```$/d')
+                local normalized_verified_findings
+                # Preserve every verifier entry until coverage and each verdict are checked.
+                # The display normalizer deduplicates by location/title and can erase a
+                # separate provider finding, or its distinct verdict, before validation.
+                if normalized_verified_findings=$(printf '%s' "$verified_findings" | review_slurp_provider_json '
+                       if length == 1 and (.[0] | type == "object")
+                          and (.[0].findings | type == "array")
+                          and all(.[0].findings[]; type == "object")
+                       then .[0] else error("expected one verifier findings document") end
+                   ' 2>/dev/null) &&
+                   printf '%s' "$normalized_verified_findings" | jq -e --argjson original "$batch_findings" '
+                       def identity: [.file, .line, .title, .detail, .category, .severity] | tojson;
+                       all(.findings[]; .verdict == "confirmed" or .verdict == "false-positive" or .verdict == "needs-debate") and
+                       ([.findings[] | identity] | sort) == ([$original[] | identity] | sort)
+                   ' >/dev/null; then
+                    verified_findings="$normalized_verified_findings"
+                else
+                    log WARN "review_run: verification returned invalid or multi-document findings JSON; preserving Round 1 findings"
+                    review_append_provider_status "$provider_status_file" "$actual_verifier_provider" implementation-verifier fallback "Verification response incomplete or invalid"
+                    verifier_transport_failed=true
+                fi
+            fi
+            if [[ "$verifier_transport_failed" == true ]]; then
                 verification_incomplete=true
-                verified_findings=$(printf '{"findings":%s}' "$(
-                    echo "$batch_findings" | jq 'map(. + {"verdict":"unverified"})' 2>/dev/null || echo "[]"
-                )")
+                verified_findings=$(printf '{"findings":%s}' "$(echo "$batch_findings" | jq 'map(. + {"verdict":"unverified"})')")
             fi
 
             combined_verified=$(printf '%s\n%s\n' "$combined_verified" "$verified_findings" | jq -s '.[0] + .[1].findings') || { rm -rf "$verifier_dir"; return 1; }
