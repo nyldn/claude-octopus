@@ -1786,7 +1786,10 @@ review_verifier_fallback() (
     umask 077
     dir=$(mktemp -d "$inputs/fallback.XXXXXX") || return 1
     # Capture the private path before Bash 3.2 unwinds function locals on exit.
-    trap "$(printf 'rm -rf -- %q' "$dir")" EXIT
+    local cleanup_command
+    printf -v cleanup_command 'rm -rf -- %q' "$dir"
+    # shellcheck disable=SC2064
+    trap "$cleanup_command" EXIT
     trap 'exit 130' INT
     trap 'exit 143' TERM
     if ! python3 -I "${_agent_spec_lib_dir}/../helpers/review-verification-batches.py" \
@@ -1819,7 +1822,10 @@ review_verify_findings() (
     umask 077
     verifier_dir=$(mktemp -d "${TMPDIR:-/tmp}/octopus-verifier-input.XXXXXX") || return 1
     # The EXIT handler must not depend on function-local lifetime (Bash 3.2).
-    trap "$(printf 'rm -rf -- %q' "$verifier_dir")" EXIT
+    local cleanup_command
+    printf -v cleanup_command 'rm -rf -- %q' "$verifier_dir"
+    # shellcheck disable=SC2064
+    trap "$cleanup_command" EXIT
     trap 'exit 130' INT
     trap 'exit 143' TERM
     printf '%s' "$diff_content" > "$verifier_dir/diff" || return 1
