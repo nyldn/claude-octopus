@@ -14,6 +14,9 @@
 
 - Refinement runs enforce round and stall limits through persisted state, retain
   the best accepted candidate, and refuse unprepared or stopped dispatches.
+- Input snapshots match the bytes validated and scored. Interrupted rubric
+  corrections retain the prior best and score, preserve stalls, and keep the
+  original stop reason.
 - Successful structured judge answers can discuss context limits without being
   misclassified as oversized-prompt errors. Genuine provider failures still stop.
 

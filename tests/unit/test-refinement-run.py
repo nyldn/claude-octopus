@@ -20,7 +20,7 @@ class RunControlTest(unittest.TestCase):
         self.assertTrue((ROOT/'scripts/refinement-run.py').is_file(), 'persisted refinement controller is missing')
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.base = Path(self.temp.name)
+        self.base = Path(self.temp.name).resolve()
         self.scripts = self.base/'scripts'; self.scripts.mkdir()
         for name in ('refinement-run.py','refinement-pair.py','refinement-judge.sh','refinement-score.py'):
             shutil.copy2(ROOT/'scripts'/name, self.scripts/name)
@@ -42,6 +42,11 @@ class RunControlTest(unittest.TestCase):
         if ok: self.assertEqual(p.returncode,0,p.stderr)
         else: self.assertNotEqual(p.returncode,0,p.stdout)
         return json.loads(p.stdout) if p.returncode == 0 else p
+
+    def controller(self):
+        spec = importlib.util.spec_from_file_location('refinement_run_control', self.scripts/'refinement-run.py')
+        module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        return module
 
     def pair(self, name, candidate, correction=None, **env):
         return subprocess.run([sys.executable,str(self.scripts/'refinement-pair.py'),str(self.run),name,str(self.prompt),str(candidate),str(self.rubric),str(self.deadline),'14','claude:claude-fixed','high','codex:codex-fixed','high'] + (['--rubric-correction',correction,'repair an omitted criterion'] if correction else []),env=dict(os.environ,**env),capture_output=True,text=True)
@@ -104,6 +109,46 @@ class RunControlTest(unittest.TestCase):
         trajectory = json.loads((self.run/'trajectory.json').read_text())
         self.assertEqual([r['decision'] for r in trajectory],['baseline retained','accepted','rejected'])
 
+    def test_initialization_hashes_the_bytes_it_snapshots(self):
+        module = self.controller()
+        run = self.base/'racy-init'; run.mkdir()
+        original_bytes = self.original.read_bytes()
+        real_read = Path.read_bytes
+        reads = []
+        def read_once(path):
+            data = real_read(path)
+            if path == self.original:
+                reads.append(path)
+                path.write_text('changed after the read')
+            return data
+        with patch.object(Path, 'read_bytes', read_once):
+            module.initialize(run, self.original, self.rubric, self.deadline, 14, 5,
+                              module.load(self.run)['seats'])
+        state = module.load(run)
+        self.assertEqual(len(reads), 1)
+        self.assertEqual((run/'original.snapshot').read_bytes(), original_bytes)
+        self.assertEqual(state['original_sha256'], hashlib.sha256(original_bytes).hexdigest())
+
+    def test_preparation_validates_and_freezes_one_read_of_each_input(self):
+        module = self.controller()
+        self.cli('begin', self.run, 'baseline')
+        inputs = {p:p.read_bytes() for p in [self.original, self.guards, self.rubric]}
+        counts = {p:0 for p in inputs}
+        real_read = Path.read_bytes
+        def read_once(path):
+            data = real_read(path)
+            if path in inputs:
+                counts[path] += 1
+                path.write_text('changed after validation')
+            return data
+        with patch.object(Path, 'read_bytes', read_once):
+            state = module.prepare(self.run, module.load(self.run), self.original, self.guards)
+        self.assertEqual(list(counts.values()), [1,1,1])
+        directory = self.run/'candidates/baseline'
+        for name, path in [('candidate',self.original),('guards',self.guards),('rubric',self.rubric)]:
+            self.assertEqual((directory/name).read_bytes(), inputs[path])
+        self.assertEqual(state['pending']['candidate_hash'], hashlib.sha256(inputs[self.original]).hexdigest())
+
     def test_round_limit_and_no_reinitialization(self):
         self.score('baseline')
         self.candidate.write_text('better one'); self.score('one',3.3)
@@ -143,6 +188,56 @@ class RunControlTest(unittest.TestCase):
         self.assertIsNone(final['correction'])
         self.assertEqual(len((self.run/'calls.jsonl').read_text().splitlines()),4)
 
+    def correction_with_retained_best(self, original_score=3.0, stall=False):
+        self.score('baseline',3.0)
+        self.candidate.write_text('retained best'); self.score('better',3.5)
+        best = self.cli('status',self.run)['best']
+        if stall:
+            self.candidate.write_text('rejected candidate'); self.score('rejected',3.1)
+            self.candidate.write_text('retained best')
+        previous = hashlib.sha256(self.rubric.read_bytes()).hexdigest()
+        data = json.loads(self.rubric.read_text()); data['criteria'][0]['description'] = 'Corrected requirement'
+        self.rubric.write_text(json.dumps(data))
+        self.score('corrected-original',original_score,artifact=self.original,correction=previous)
+        return best
+
+    def test_accepted_correction_best_preserves_stall_count(self):
+        self.correction_with_retained_best(stall=True)
+        status = self.score('corrected-best',3.5)
+        self.assertTrue(status['rounds'][-1]['accepted'])
+        self.assertEqual(status['stalls'],1)
+        self.assertIsNone(status['stop_reason'])
+
+    def test_rejected_correction_best_preserves_stall_count(self):
+        self.correction_with_retained_best(original_score=3.6,stall=True)
+        status = self.score('corrected-best',3.5)
+        self.assertFalse(status['rounds'][-1]['accepted'])
+        self.assertEqual(status['stalls'],1)
+        self.assertIsNone(status['stop_reason'])
+
+    def test_stopped_correction_retains_the_previous_best_and_rubric(self):
+        best = self.correction_with_retained_best()
+        status = self.cli('stop',self.run,'host stopped')
+        self.assertEqual(status['best'],best)
+        self.assertTrue(status['correction']['incomplete'])
+        self.assertFalse(status['best']['target_met'])
+
+    def test_expired_correction_status_persists_the_previous_best(self):
+        import contextlib, io
+        best = self.correction_with_retained_best()
+        module = self.controller()
+        with patch.object(module.time,'time',return_value=self.deadline+1), contextlib.redirect_stdout(io.StringIO()):
+            module.main(['status',str(self.run)])
+        status = self.cli('status',self.run)
+        self.assertEqual(status['stop_reason'],'elapsed time limit')
+        self.assertEqual(status['best'],best)
+        self.assertTrue(status['correction']['incomplete'])
+
+    def test_delivery_stop_keeps_the_first_terminal_reason(self):
+        self.score('baseline',4)
+        status = self.cli('stop',self.run,'delivery complete')
+        self.assertEqual(status['stop_reason'],'target reached')
+
     def test_late_correction_best_does_not_promote_provisional_success(self):
         self.score('baseline',3.0)
         self.candidate.write_text('retained best');self.score('better',3.5)
@@ -153,6 +248,9 @@ class RunControlTest(unittest.TestCase):
         status = self.score('corrected-best',3.9,late=True)
         self.assertEqual(status['stop_reason'],'elapsed time limit')
         self.assertFalse(status['best']['target_met'])
+        self.assertEqual(status['best']['score'],87.5)
+        self.assertEqual(status['best']['rubric_sha256'],previous)
+        self.assertTrue(status['correction']['incomplete'])
 
     def test_resume_after_retaining_assessment_before_journal_commit(self):
         status = self.score('baseline',interrupted=True)

@@ -85,6 +85,21 @@ printf '%s\n' 'The fixture contains this diagnostic:' '```text' 'Error: Prompt i
 check "fenced diagnostic quotation is answer data" \
     "ok" "$(status_of "$(classify_agent_output "$fenced_answer" 0 codex "$empty_err")")"
 
+printf '%s\n' '```text' '~~~' 'Error: Prompt is too long' '```' 'The test passed.' > "$fenced_answer"
+check "a different marker does not close a quoted code fence" \
+    "ok" "$(status_of "$(classify_agent_output "$fenced_answer" 0 codex "$empty_err")")"
+printf '%s\n' '````text' '```' 'Error: Prompt is too long' '````' 'The test passed.' > "$fenced_answer"
+check "a shorter marker does not close a quoted code fence" \
+    "ok" "$(status_of "$(classify_agent_output "$fenced_answer" 0 codex "$empty_err")")"
+printf '%s\n' '```text' 'unfinished provider output' 'Error: Prompt is too long' > "$fenced_answer"
+check "an unclosed fence cannot hide a provider rejection" \
+    "failed" "$(status_of "$(classify_agent_output "$fenced_answer" 0 codex "$empty_err")")"
+
+wrapper_error="$TMP/agy-wrapper.err"
+printf '%s\n' 'agy-exec.sh: prompt input is too large (100 bytes > OCTOPUS_AGY_MAX_PAYLOAD_BYTES=32); refusing to dispatch to avoid exhausting agy memory' > "$wrapper_error"
+check "the launcher payload guard retains its oversize reason" \
+    "failed:Prompt rejected by provider (oversize)" "$(classify_agent_output "$empty_err" 0 agy "$wrapper_error")"
+
 # 2. A genuine short stdout-only rejection is still caught.
 short_rejection="$TMP/short-rejection.out"
 printf '%s\n' "Error: Prompt is too long: 412000 tokens > maximum context length" > "$short_rejection"
@@ -155,8 +170,10 @@ for format in legacy framed; do
     check "$format explicit rejection is not usable" \
         "1" "$(probe_result_file_is_usable "$artifact" && echo 0 || echo 1)"
 done
-check "ranking excludes long explicitly rejected artifacts" \
-    "" "$(rank_results_by_signals "$TMP/results")"
+ranking_rc=0
+ranked_results=$(rank_results_by_signals "$TMP/results") || ranking_rc=$?
+check "ranking an all-rejected set returns success" "0" "$ranking_rc"
+check "ranking excludes long explicitly rejected artifacts" "" "$ranked_results"
 
 # A quoted status inside provider output must not overrule the launcher status.
 artifact="$TMP/results/codex-probe-valid.md"

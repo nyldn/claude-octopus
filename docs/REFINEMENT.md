@@ -319,3 +319,8 @@ until both distinct artifacts have been rescored. If the retained best is the
 original itself, the original pair covers both; do not score identical bytes
 again. A correction preserves stalled-round counts and needs capacity for both
 rescores before it starts.
+
+If correction stops before both rescores finish, the controller retains the
+previously accepted artifact and its score under the previous rubric. It marks
+the correction incomplete and clears target success. Delivery preserves the
+first recorded stop reason.

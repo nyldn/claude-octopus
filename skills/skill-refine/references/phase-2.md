@@ -77,3 +77,7 @@ until both distinct artifacts have been rescored. If the retained best is the
 original itself, the original pair covers both; do not score identical bytes
 again. A correction preserves stalled-round counts and needs capacity for both
 rescores before it starts.
+
+If correction stops before both rescores finish, retain the previously accepted
+artifact and label its score with the previous rubric. Report the correction as
+incomplete and do not claim target success under the corrected rubric.

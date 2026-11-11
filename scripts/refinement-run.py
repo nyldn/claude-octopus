@@ -17,6 +17,21 @@ def digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def apply_stop(state, reason):
+    reason = state["stop_reason"] or reason
+    if reason is None:
+        return False
+    changed = state["stop_reason"] != reason
+    state["stop_reason"] = reason
+    correction = state.get("correction")
+    if correction:
+        retained = dict(correction["best"], target_met=False)
+        changed = changed or not correction.get("incomplete") or state["best"] != retained
+        correction["incomplete"] = True
+        state["best"] = retained
+    return changed
+
+
 def scoring():
     spec = importlib.util.spec_from_file_location("refinement_score", Path(__file__).with_name("refinement-score.py"))
     module = importlib.util.module_from_spec(spec)
@@ -129,13 +144,14 @@ def initialize(run, original, rubric, deadline, max_calls, max_rounds, seats):
         require(re.fullmatch(pattern, seat["provider"]) and seat["effort"] in ("low", "medium", "high", "xhigh", "max"),
                 "explicit supported Claude and Codex model pins and efforts required")
     engine = scoring()
+    original_bytes = Path(original).read_bytes()
     rb = Path(rubric).read_bytes()
     data = engine.load_json(rb)
     validate_rubric(data)
-    snapshot(run / "original.snapshot", Path(original).read_bytes())
+    snapshot(run / "original.snapshot", original_bytes)
     snapshot(run / "rubric.snapshot", rb)
     state = dict(schema_version=1, started_at=time.time(), deadline=deadline, max_calls=max_calls,
-                 max_rounds=max_rounds, seats=seats, original_sha256=digest(original),
+                 max_rounds=max_rounds, seats=seats, original_sha256=hashlib.sha256(original_bytes).hexdigest(),
                  rubric_path=str(Path(rubric).resolve()), next_round=0, pending=None,
                  rounds=[], best=None, stalls=0, stop_reason=None, correction=None)
     persist(run, state, "initialized")
@@ -167,21 +183,22 @@ def close(run, state, decision, result=None, accepted=False, baseline=False):
         state["best"] = dict(round=pending["round"], score=result["score"], artifact=pending["candidate"],
                              artifact_sha256=pending["candidate_hash"], rubric_sha256=pending["rubric_hash"],
                              target_met=bool(result["target_met"] and time.time() < state["deadline"]))
-    if accepted:
-        state["stalls"] = 0
-    elif not baseline and pending["round"] > 0:
-        state["stalls"] += 1
+    if pending.get("purpose") != "correction-best":
+        if accepted:
+            state["stalls"] = 0
+        elif not baseline and pending["round"] > 0:
+            state["stalls"] += 1
     if time.time() >= state["deadline"]:
-        if state["stop_reason"] is None:
-            state["stop_reason"] = "elapsed time limit"
+        apply_stop(state, "elapsed time limit")
         if state["best"]:
             state["best"]["target_met"] = False
     if not state.get("correction") and state["best"] and state["best"].get("target_met"):
-        state["stop_reason"] = "target reached"
+        apply_stop(state, "target reached")
         for prior in state["rounds"]:
             if prior["round"] == state["best"]["round"]:
                 prior["target_met"] = True
     state["pending"] = None
+    apply_stop(state, stop_reason(state))
     persist(run, state, decision)
     return state
 
@@ -191,14 +208,18 @@ def prepare(run, state, candidate, guards, rubric=None):
     pending = state["pending"]
     require(pending and pending["phase"] == "editing", "begin one round before preparing its candidate")
     rubric = Path(rubric or state["rubric_path"])
-    parsed = scoring().load_json(rubric.read_bytes())
+    candidate_bytes = Path(candidate).read_bytes()
+    guard_bytes = Path(guards).read_bytes()
+    rubric_bytes = rubric.read_bytes()
+    engine = scoring()
+    parsed = engine.load_json(rubric_bytes)
     validate_rubric(parsed)
-    rows = scoring().load_json(Path(guards).read_bytes())
+    rows = engine.load_json(guard_bytes)
     require(isinstance(rows, list) and len(rows) == len(parsed["guards"]) and
             {g["id"] for g in rows} == {g["id"] for g in parsed["guards"]} and
             all(g.get("status") in ("pass", "fail", "unverified") and isinstance(g.get("evidence"), str) and g["evidence"].strip() for g in rows),
             "complete guard results and evidence required")
-    candidate_hash, rubric_hash = digest(candidate), digest(rubric)
+    candidate_hash, rubric_hash = hashlib.sha256(candidate_bytes).hexdigest(), hashlib.sha256(rubric_bytes).hexdigest()
     scored = [e for e in calls(run, state) if e.get("hashes", {}).get("rubric")]
     correction = state.get("correction")
     correcting_original = bool(scored and not correction and candidate_hash == state["original_sha256"] and rubric_hash != scored[-1]["hashes"]["rubric"])
@@ -214,10 +235,10 @@ def prepare(run, state, candidate, guards, rubric=None):
     directory = run / "candidates" / pending["pair_id"]
     directory.mkdir(parents=True, mode=0o700, exist_ok=True)
     require({p.name for p in directory.iterdir()} <= {"candidate", "guards", "rubric"}, "unexpected files in pending snapshot")
-    for name, data in (("candidate", Path(candidate).read_bytes()), ("guards", Path(guards).read_bytes()), ("rubric", rubric.read_bytes())):
+    for name, data in (("candidate", candidate_bytes), ("guards", guard_bytes), ("rubric", rubric_bytes)):
         snapshot(directory / name, data, resume=True)
-    pending.update(phase="prepared", candidate=str(directory / "candidate"), candidate_hash=digest(directory / "candidate"),
-                   guards=str(directory / "guards"), rubric_hash=digest(directory / "rubric"))
+    pending.update(phase="prepared", candidate=str(directory / "candidate"), candidate_hash=candidate_hash,
+                   guards=str(directory / "guards"), rubric_hash=rubric_hash)
     if not historical and any(g["status"] != "pass" for g in rows):
         return close(run, state, "guard failure")
     elif not historical and any(r["artifact_sha256"] == pending["candidate_hash"] and r["rubric_sha256"] == pending["rubric_hash"] for r in state["rounds"]):
@@ -248,9 +269,9 @@ def dispatched(run, state, manifest):
 def abort(run, reason):
     with locked(run):
         state = load(run)
-        state["stop_reason"] = reason
+        apply_stop(state, stop_reason(state) or reason)
         if state["pending"]:
-            close(run, state, reason)
+            close(run, state, state["stop_reason"])
         else:
             persist(run, state, reason)
 
@@ -261,16 +282,19 @@ def record(run, state, assessment):
     pair = run / pending["pair_id"]
     manifest = json.loads((pair / "manifest.json").read_text())
     require(manifest["state"] == "raw-results" and manifest["exit_codes"] == [0, 0], "both required judges must finish successfully")
-    require(digest(pair / "candidate") == pending["candidate_hash"] and digest(pair / "rubric") == pending["rubric_hash"], "frozen pair inputs changed")
+    candidate_bytes = (pair / "candidate").read_bytes()
+    rubric_bytes = (pair / "rubric").read_bytes()
+    require(hashlib.sha256(candidate_bytes).hexdigest() == pending["candidate_hash"] and hashlib.sha256(rubric_bytes).hexdigest() == pending["rubric_hash"], "frozen pair inputs changed")
     engine = scoring()
-    data = engine.load_json(Path(assessment).read_bytes())
+    assessment_bytes = Path(assessment).read_bytes()
+    data = engine.load_json(assessment_bytes)
     require(data["guards"] == engine.load_json(Path(pending["guards"]).read_bytes()), "assessment guards differ from the prepared evidence")
     for judge, seat in zip(sorted(data["judges"], key=lambda j: j["provider"]), state["seats"]):
         require(judge["provider"] == ("claude" if seat["provider"].startswith("claude") else "codex") and
                 judge["model"] == seat["provider"].split(":", 1)[1] and judge["effort"] == seat["effort"], "assessment identity differs from the fixed dispatch")
-    result = engine.evaluate(engine.load_json((pair / "rubric").read_bytes()), data, pending["rubric_hash"], pending["candidate_hash"])
+    result = engine.evaluate(engine.load_json(rubric_bytes), data, pending["rubric_hash"], pending["candidate_hash"])
     # Copy assessments so later host edits cannot rewrite the retained decision.
-    snapshot(pair / "validated-assessment.json", Path(assessment).read_bytes(), resume=True)
+    snapshot(pair / "validated-assessment.json", assessment_bytes, resume=True)
     report = pair / "score.json"
     report.write_text(json.dumps(result, indent=2) + "\n")
     pending["score_report"] = str(report)
@@ -278,7 +302,9 @@ def record(run, state, assessment):
     baseline = pending["round"] == 0 or bool(manifest.get("rubric_correction"))
     eligible = not result["criterion_failures"] and not result["blockers"] and not result["failed_guards"] and result["disagreement"] <= 10
     accepted = not baseline and eligible and best is not None and best["rubric_sha256"] == pending["rubric_hash"] and result["score"] > best["score"] and time.time() < state["deadline"]
-    if manifest.get("rubric_correction"):
+    if state.get("correction") and stop_reason(state):
+        apply_stop(state, stop_reason(state))
+    elif manifest.get("rubric_correction"):
         # The original calibrates the new rubric; success waits for the retained
         # best too. If best is original, this pair already assessed both.
         if state["correction"]["best"]["artifact_sha256"] == state["original_sha256"]:
@@ -321,9 +347,9 @@ def main(argv=None):
             elif args.command == "status": write_trajectory(run, state)
             elif args.command == "stop":
                 require(bool(args.reason.strip()), "stop reason is required")
-                state["stop_reason"] = args.reason
+                apply_stop(state, stop_reason(state) or args.reason)
                 if state["pending"]:
-                    close(run, state, args.reason)
+                    close(run, state, state["stop_reason"])
                 else:
                     persist(run, state, "stopped")
             elif args.command == "reserve":
@@ -335,7 +361,8 @@ def main(argv=None):
                     stream.write(json.dumps(dict(pair_id=args.call_id, calls=args.count, deadline=state["deadline"], max_calls=state["max_calls"], kind="external")) + "\n")
                     stream.flush(); os.fsync(stream.fileno())
                 persist(run, state, "external-call-reserved")
-        state["stop_reason"] = stop_reason(state)
+        if apply_stop(state, stop_reason(state)):
+            persist(run, state, "stopped")
         print(json.dumps(state, allow_nan=False))
     return 0
 
