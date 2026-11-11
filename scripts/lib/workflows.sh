@@ -221,8 +221,14 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     fi
 
     # Resolve model and command
-    local model
-    model=$(get_agent_model "$agent_type" "$phase" "$role")
+    local model model_rc=0
+    model=$(get_agent_model "$agent_type" "$phase" "$role") || model_rc=$?
+    if [[ "$model_rc" -ne 0 ]]; then
+        if declare -F research_probe_single_record >/dev/null 2>&1; then
+            research_probe_single_record "$task_id" "$agent_type" failed || true
+        fi
+        return "$model_rc"
+    fi
 
     # OpenCode's direct probe path must confirm login just like normal dispatch.
     # Resolve the registered handler rather than duplicating credential checks.

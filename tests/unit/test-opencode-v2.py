@@ -465,6 +465,9 @@ probe_single_agent opencode perspective probe-123-0 'Check compatibility'
             ("timeout", "octopus_effective_agent_timeout() { return 2; }", 2),
             ("prompt", "write_agent_result_prompt() { return 1; }", 74),
             ("nonce", "od() { return 1; }", 74),
+            ("model", "get_agent_model() { return 2; }", 2),
+            ("model-no-errexit", "get_agent_model() { return 2; }", 2),
+            ("model-invalid", 'source "$PLUGIN_DIR/scripts/lib/dispatch.sh"', 1),
         )
         for task, (failure, override, expected_rc) in enumerate(failures, 123):
             with self.subTest(failure=failure):
@@ -476,6 +479,11 @@ probe_single_agent opencode perspective probe-123-0 'Check compatibility'
                 attempt = script.replace('probe-123-0', f'probe-{task}-0')
                 attempt = attempt.replace('probe_single_agent opencode perspective',
                                           override + '\nset -e\nprobe_single_agent opencode perspective')
+                if failure == 'model-no-errexit':
+                    attempt = attempt.replace('\nset -e\nprobe_single_agent', '\nset +e\nprobe_single_agent')
+                elif failure == 'model-invalid':
+                    attempt = attempt.replace('probe_single_agent opencode perspective',
+                                              "probe_single_agent 'opencode:invalid;model' perspective")
                 result = self.shell(attempt)
                 self.assertEqual(result.returncode, expected_rc, result.stderr)
                 self.assertFalse((Path(self.env['HOME']) / 'launched').exists())

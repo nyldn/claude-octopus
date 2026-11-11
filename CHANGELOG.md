@@ -55,6 +55,8 @@
   Rejected timeout settings, context budgets, command validation, environment
   setup and result preparation also close the seat, including under shell
   error-exit mode, so rejected work does not remain marked as running.
+  Rejected explicit models also close the research seat and preserve the
+  resolver's failure status, whether or not shell error-exit mode is enabled.
   Addresses [#1172](https://github.com/nyldn/claude-octopus/issues/1172).
 
 
