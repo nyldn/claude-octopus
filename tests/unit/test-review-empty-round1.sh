@@ -75,7 +75,7 @@ spawn_agent_capture_pid() {
         failed:security) status=FAILED ;;
         malformed:security) body='{"findings":"bad"}' ;;
         prose:security) body='No issues.' ;;
-        finding:security|finding-publication:security) body='{"findings":[{"file":"a","line":1,"title":"bug","detail":"bad","category":"logic","severity":"normal","confidence":0.9}]}' ;;
+        finding:security|finding-publication:security|budget:security) body='{"findings":[{"file":"a","line":1,"title":"bug","detail":"bad","category":"logic","severity":"normal","confidence":0.9}]}' ;;
     esac
     printf '## Output\n%s\n## Status: %s\n' "$body" "$status" > "$RESULTS_DIR/$(octo_agent_spec_slug "$1")-$3.md"
     echo 999999
@@ -92,6 +92,7 @@ review_run_agent_sync_progress() {
     esac
 }
 review_phase_provider() { echo "$1"; }
+get_provider_context_limit() { [[ "$CASE" != budget ]] || return 2; echo 200000; }
 review_resolve_history_context() { :; }
 octo_proof_enabled() { return 0; }
 octo_proof_init() { echo "$TMP/proof"; }
@@ -123,7 +124,7 @@ post_inline_comments() { touch "$TMP/publication-attempt"; return 1; }
 git() { return 1; }
 export HOME="$TMP/home" TMPDIR="$TMP"
 mkdir -p "$HOME"
-for CASE in clean skip-scoped skip-all skip-error missing timeout failed malformed prose finding changed diff-error snapshot-bad zero publication finding-publication allfailed statusless multi warning error proof-artifact proof-claim proof-status proof-finalize proof-artifact-finalize; do
+for CASE in clean skip-scoped skip-all skip-error missing timeout failed malformed prose finding budget changed diff-error snapshot-bad zero publication finding-publication allfailed statusless multi warning error proof-artifact proof-claim proof-status proof-finalize proof-artifact-finalize; do
     test_case "$CASE dispatches downstream stages or fails closed"
     RESULTS_DIR="$TMP/$CASE"; mkdir -p "$RESULTS_DIR"
     rm -f "$TMP/dispatched" "$TMP/calls" "$TMP/round1-calls" "$TMP/verdict" "$TMP/provider-status" "$TMP/provider-state-path" "$TMP/publication-attempt"
@@ -178,6 +179,10 @@ for CASE in clean skip-scoped skip-all skip-error missing timeout failed malform
             [[ "$rc" == 1 && "$count" == 0 && "$verdict" == fail ]] && test_pass || test_fail "empty publication failure returned success" ;;
         finding-publication)
             [[ "$rc" == 1 && "$calls" == $'implementation-verifier\nimplementation-synthesizer' && "$verdict" == fail && -f "$TMP/publication-attempt" ]] && test_pass || test_fail "nonempty publication failure: rc=$rc calls=$calls verdict=$verdict $(cat "$TMP/output")" ;;
+        budget)
+            if [[ "$rc" == 0 && "$calls" == implementation-synthesizer && "$verdict" == fail ]] &&
+               jq -e '.verification_status == "incomplete" and (.findings | length == 1) and all(.findings[]; .verdict == "unverified")' "$RESULTS_DIR"/review-findings-*.json >/dev/null; then test_pass
+            else test_fail "budget admission lost findings or dispatched a verifier: rc=$rc calls=$calls $(cat "$TMP/output")"; fi ;;
         *)
             if [[ "$calls" == $'implementation-verifier\nimplementation-synthesizer' && "$rc" == 0 && -n "$verdict" ]]; then
                 test_pass

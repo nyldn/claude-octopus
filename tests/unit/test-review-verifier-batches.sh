@@ -21,6 +21,7 @@ for rows, prompt in batches:
 excerpt = runpy.run_path(sys.argv[1])["excerpts"]
 headers_in_hunks = "diff --git a/app.sql b/app.sql\n--- a/app.sql\n+++ b/app.sql\n@@ -1,70 +1,1000 @@\n" + "\n".join(["--- comment"]*70 + ["+++counter%d;"%i for i in range(1000)])
 assert "old=71 new=30 +++counter29;" in excerpt(headers_in_hunks, dict(file="app.sql", line=30), 6000)
+assert "do not confirm without code evidence" in excerpt(headers_in_hunks, dict(file="app.sql",line=100000),6000)
 no_prefix = "diff --git app.py app.py\n--- app.py\n+++ app.py\n@@ -1 +1 @@\n-old\n+TARGET_OPERATION\n" + diff
 assert "TARGET_OPERATION" in build(no_prefix, [dict(file="app.py", line=1, title="target")], "context", 6000)[0][1]
 repeated = "diff --git a/app.py b/app.py\n--- a/app.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-REMOVED_VERSION\n" + no_prefix
@@ -115,6 +116,7 @@ print(json.dumps({"findings":[dict(row,verdict="confirmed") for row in rows]}))'
     response=$(review_verifier_fallback "$inputs" "$inputs/findings" claude-sonnet "$inputs/statuses") || exit 1
     [[ "$(wc -l < "$inputs/calls")" -gt 1 ]] || exit 1
     printf '%s' "$response" | jq -e '.findings | length == 90' >/dev/null || exit 1
+    printf '%s' "$response" | jq -e 'all(.findings[]; .verdict == "confirmed")' >/dev/null || exit 1
     printf '%s' "$response" | jq -e '[.findings[].title] | unique | length == 90' >/dev/null || exit 1
     : > "$inputs/calls"
     python3 - "$inputs/findings" <<'PY'

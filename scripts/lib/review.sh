@@ -2414,14 +2414,14 @@ ${round1_prompts[$retry_idx]}"
     local verifier_prompt verified_findings verifier_provider batch_findings
     local verifier_dir verifier_budget verifier_inputs_ok=true combined_verified='[]'
     verifier_provider="$(review_phase_provider "codex" "implementation-verifier")" || return 1
-    verifier_budget=$(review_verifier_input_budget "$verifier_provider") || return 1
     verifier_dir=$(mktemp -d "${TMPDIR:-/tmp}/octopus-verifier-input.XXXXXX") || return 1
     printf '%s' "$diff_content" > "$verifier_dir/diff"
     printf '%s' "$all_findings" > "$verifier_dir/findings"
     printf '%s' "$review_contract_context" > "$verifier_dir/context"
     # Leave half the effective token window for method/persona/transport inputs.
     # Dispatch uses fail admission: no mandatory verifier input may be truncated.
-    if ! python3 -I "${_agent_spec_lib_dir}/../helpers/review-verification-batches.py" \
+    if ! verifier_budget=$(review_verifier_input_budget "$verifier_provider") ||
+       ! python3 -I "${_agent_spec_lib_dir}/../helpers/review-verification-batches.py" \
         --diff "$verifier_dir/diff" --findings "$verifier_dir/findings" \
         --context "$verifier_dir/context" --output "$verifier_dir" --max-bytes "$verifier_budget"; then
         verifier_inputs_ok=false

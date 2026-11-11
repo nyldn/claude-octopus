@@ -54,6 +54,8 @@ def excerpts(diff, finding, max_bytes):
             old += 1
         if not line.startswith("-"):
             new += 1
+    if not selected:
+        return "No patch lines near the cited location. Inspect the cited repository location; do not confirm without code evidence."
     return f"Selected patch lines for {wanted} (other lines omitted):\n" + "\n".join(selected)
 
 
