@@ -317,3 +317,7 @@ Accepted synthesis contributes only findings. Document-level warnings and
 verification status come from local review state. Reports and publication
 preserve distinct verified records at the same location and collapse only
 fully identical verified records.
+
+An incomplete retry that produces no findings file retains the previous
+`reviewFindings` path for recovery. A new findings file replaces that path, and
+a complete retry records its own artifact and clears the incomplete state.

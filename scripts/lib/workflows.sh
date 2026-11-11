@@ -5674,7 +5674,10 @@ tangle_record_review_verification() {
         if jq --arg findings "$findings_file" --arg state "$state" --arg outcome "$outcome" '
             if $state == "pending" and .reviewVerification == "incomplete" then
                 if $findings == "" then . else .reviewFindings = $findings end
-            else . + {reviewVerification:$state,reviewFindings:$findings,reviewOutcome:$outcome} end' "$metadata" > "$tmp"; then
+            else
+                . + {reviewVerification:$state,reviewOutcome:$outcome} |
+                if $state == "incomplete" and $findings == "" then . else .reviewFindings = $findings end
+            end' "$metadata" > "$tmp"; then
             mv "$tmp" "$metadata" || { rm -f "$tmp"; return 1; }
         else rm -f "$tmp"; return 1; fi
     fi

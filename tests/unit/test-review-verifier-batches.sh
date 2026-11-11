@@ -77,6 +77,35 @@ if (
     jq -e '.reviewVerification == "complete"' "$RESULTS_DIR/.tangle-fixture-git.json" >/dev/null
 ); then test_pass; else test_fail "invalid review caused speculative corrections or lost recovery metadata"; fi
 
+test_case "retry without a new artifact preserves the earlier recovery findings path"
+if (
+    source "$ROOT/scripts/lib/testing.sh"
+    source "$ROOT/scripts/lib/workflows.sh"
+    log() { :; }
+    RESULTS_DIR="$TEST_TMP_DIR/retry-without-artifact"; mkdir -p "$RESULTS_DIR"
+    metadata="$RESULTS_DIR/.tangle-fixture-git.json"
+    previous="$RESULTS_DIR/earlier-findings.json"
+    printf '%s\n' '{"verification_status":"incomplete","findings":[]}' > "$previous"
+    jq -n --arg findings "$previous" '{reviewVerification:"incomplete",reviewFindings:$findings,reviewOutcome:"incomplete"}' > "$metadata"
+    tangle_build_develop_review_context() { echo context; }
+    tangle_run_context_code_review() { TANGLE_REVIEW_FINDINGS_FILE=""; return 73; }
+    tangle_apply_review_corrections() { touch "$RESULTS_DIR/corrections-called"; }
+    rc=0
+    tangle_contextual_review_gate fixture prompt context subtasks validation before || rc=$?
+    [[ "$rc" -ne 0 && ! -e "$RESULTS_DIR/corrections-called" && -f "$previous" ]] || exit 1
+    jq -e --arg findings "$previous" '.reviewVerification == "incomplete" and .reviewOutcome == "incomplete" and .reviewFindings == $findings' "$metadata" >/dev/null || exit 1
+    replacement="$RESULTS_DIR/new-findings.json"
+    printf '%s\n' '{"verification_status":"incomplete","findings":[]}' > "$replacement"
+    tangle_record_review_verification fixture "$replacement" incomplete || exit 1
+    jq -e --arg findings "$replacement" '.reviewFindings == $findings' "$metadata" >/dev/null || exit 1
+    tangle_record_review_verification fixture "" incomplete || exit 1
+    jq -e --arg findings "$replacement" '.reviewFindings == $findings' "$metadata" >/dev/null || exit 1
+    printf '%s\n' '{"findings":[]}' > "$replacement"
+    tangle_run_context_code_review() { TANGLE_REVIEW_FINDINGS_FILE="$replacement"; }
+    tangle_contextual_review_gate fixture prompt context subtasks validation before || exit 1
+    jq -e --arg findings "$replacement" '.reviewVerification == "complete" and .reviewFindings == $findings and .reviewOutcome == "complete"' "$metadata" >/dev/null
+); then test_pass; else test_fail "failed retry erased recovery evidence or prevented a complete retry"; fi
+
 test_case "mandatory verifier input is never prefix-truncated by final admission"
 if (
     log() { :; }
@@ -431,7 +460,7 @@ trap 'touch "$CASE_DIR/parent-term"' TERM
 trap 'touch "$CASE_DIR/parent-int"' INT
 before=$(trap -p EXIT INT TERM)
 python3() {
-    local previous='' argument
+    local previous='' argument dir='' verifier_dir=''
     for argument in "$@"; do
         if [[ "$previous" == --output ]]; then printf '%s' "$argument" > "$CASE_DIR/created"; fi
         previous="$argument"
@@ -446,6 +475,7 @@ python3() {
     command python3 "$@"
 }
 review_run_agent_sync_progress() {
+    local dir='' verifier_dir=''
     kill -s "$TEST_SIGNAL" "$(cat "$CASE_DIR/owner")"
     return 99
 }

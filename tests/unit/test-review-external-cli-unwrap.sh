@@ -364,7 +364,11 @@ printf '%s' "$findings_document" | jq '{findings:[(.findings[0] + {detail:"first
 verified_normalized="$(review_normalize_findings_json < "$verified_file")"
 verified_terminal="$(render_terminal_report "$verified_file")"
 verified_publication="$(
-    gh() { case "$1 $2" in 'repo view') echo fixture/repo ;; 'pr view') echo 0123456789012345678901234567890123456789 ;; *) return 1 ;; esac; }
+    gh() {
+        if [[ "$1 $2" == 'repo view' ]]; then echo fixture/repo
+        elif [[ "$1 $2" == 'pr view' ]]; then echo 0123456789012345678901234567890123456789
+        else return 1; fi
+    }
     review_post_safe_body() { [[ "$3" != review-line ]] || printf 'INLINE:%s\n' "$2"; return 0; }
     post_inline_comments 999 "$verified_file"
 )"
