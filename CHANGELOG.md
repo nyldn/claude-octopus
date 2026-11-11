@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Managed Tangle output coverage checks declared artifacts rather than requiring model responses to repeat read-only context references. Missing outputs and unavailable coverage evidence remain blocking.
+
 ### Maintenance
 
 - Skill generation uses the authored entries directly through the existing sync

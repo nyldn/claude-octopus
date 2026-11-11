@@ -174,4 +174,38 @@ else
     test_fail "partial filename matches were treated as exact coverage"
 fi
 
+test_case "read context is not a required output"
+if [[ -z "$(check_explicit_file_coverage 'Read ./SPEC.md. Implement src/main.ts.' 'Implemented src/main.ts.')" ]]; then test_pass; else test_fail "read context became an output obligation"; fi
+
+test_case "managed coverage uses files rather than textual echoes"
+mkdir -p "$TEST_TMP_DIR/repo/src"
+printf 'implementation\n' > "$TEST_TMP_DIR/repo/src/main.ts"
+printf 'documentation\n' > "$TEST_TMP_DIR/repo/README.md"
+PROJECT_ROOT="$TEST_TMP_DIR/repo"
+TANGLE_REQUIRED_OUTPUT_SCOPES=$'src/main.ts\n./README.md'
+if [[ -z "$(check_explicit_file_coverage 'Read ../outside/guide.md' 'done')" ]]; then test_pass; else test_fail "existing outputs needed textual echoes or external context"; fi
+
+test_case "a missing declared output still fails despite a model claiming it exists"
+TANGLE_REQUIRED_OUTPUT_SCOPES=$'src/main.ts\ntests/missing.test.ts'
+if [[ "$(check_explicit_file_coverage '' 'Created tests/missing.test.ts')" == 'tests/missing.test.ts' ]]; then test_pass; else test_fail "missing required artifact passed"; fi
+
+test_case "symlinks cannot satisfy output coverage"
+ln -s "$TEST_TMP_DIR/repo/src/main.ts" "$TEST_TMP_DIR/repo/link.ts"
+TANGLE_REQUIRED_OUTPUT_SCOPES=link.ts
+if [[ "$(check_explicit_file_coverage '' '')" == 'link.ts' ]]; then test_pass; else test_fail "symbolic output was accepted"; fi
+test_case "empty output directories remain incomplete"
+mkdir -p "$TEST_TMP_DIR/repo/empty"
+TANGLE_REQUIRED_OUTPUT_SCOPES=empty
+if [[ "$(check_explicit_file_coverage '' '')" == 'empty' ]]; then test_pass; else test_fail "empty output directory passed"; fi
+
+test_case "tracked deletions can satisfy a declared edit scope"
+git -C "$PROJECT_ROOT" init -q
+git -C "$PROJECT_ROOT" -c user.name=Test -c user.email=test@example.com add README.md
+git -C "$PROJECT_ROOT" -c user.name=Test -c user.email=test@example.com commit -qm baseline
+TANGLE_REQUIRED_OUTPUT_BASELINE=$(git -C "$PROJECT_ROOT" rev-parse HEAD)
+rm "$PROJECT_ROOT/README.md"
+TANGLE_REQUIRED_OUTPUT_SCOPES=README.md
+if [[ -z "$(check_explicit_file_coverage '' '')" ]]; then test_pass; else test_fail "intentional tracked deletion was rejected"; fi
+unset TANGLE_REQUIRED_OUTPUT_SCOPES TANGLE_REQUIRED_OUTPUT_BASELINE PROJECT_ROOT
+
 test_summary

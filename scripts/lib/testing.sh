@@ -146,6 +146,12 @@ tangle_result_has_blocker_output() {
 }
 
 check_explicit_file_coverage() {
+    # Managed workflows supply parent-owned Files:/Creates: paths. They are
+    # checked on disk, not inferred from quoted read context or model wording.
+    if [[ "${TANGLE_REQUIRED_OUTPUT_SCOPES+x}" == x ]]; then
+        printf '%s\n' "$TANGLE_REQUIRED_OUTPUT_SCOPES" | python3 -I "${BASH_SOURCE[0]%/*}/../helpers/required-output-coverage.py" "${PROJECT_ROOT:-$PWD}" "${TANGLE_REQUIRED_OUTPUT_BASELINE:-}"
+        return $?
+    fi
     local original_prompt="$1"
     local output_corpus="$2"
     local missing=""
@@ -160,7 +166,14 @@ check_explicit_file_coverage() {
             *$'\n'"$ref"$'\n'*) ;;
             *) missing+="${ref}"$'\n' ;;
         esac
-    done <<< "$(extract_explicit_file_refs "$original_prompt")"
+    done <<< "$(extract_explicit_file_refs "$(printf '%s\n' "$original_prompt" | python3 -I -c '
+import re,sys
+text=sys.stdin.read()
+# Read/context references preceding a write instruction are not outputs.
+for line in text.splitlines():
+    m=re.search(r"\b(?:update|create|edit|modify|delete|remove|refactor|fix|write|implement)\s+", line, re.I)
+    if m: print(line[m.end():])
+')")"
 
     printf '%s' "$missing"
 }
@@ -790,7 +803,10 @@ $(<"$correction_file")
         fi
 
         local missing_explicit_files
-        missing_explicit_files=$(check_explicit_file_coverage "$original_prompt" "$result_outputs")
+        if ! missing_explicit_files=$(check_explicit_file_coverage "$original_prompt" "$result_outputs"); then
+            log ERROR "Unable to verify declared output coverage; refusing the quality gate"
+            return 1
+        fi
 
         # Quality gate check (using configurable per-phase threshold - v8.19.0)
         local total=$((success_count + fail_count))
