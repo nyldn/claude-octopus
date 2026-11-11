@@ -102,14 +102,17 @@ indexes = re.search(r'^        shard_index: \[(.+)\]', job, re.M)[1].split(', ')
 command = re.search(r'^        run: (python3 tests/helpers/run-ci-step.py .+)$', job, re.M)[1]
 assert re.search(r'^          SHARD_INDEX: \$\{\{ matrix.shard_index \}\}$', job, re.M)
 assert '${{' not in command, 'pass workflow expressions through the environment'
-parts = shlex.split(command.replace('$SHARD_INDEX', '0'))
-timeout = int(next(part.split('=', 1)[1] for part in parts if part.startswith('--timeout=')))
-job_timeout = int(re.search(r'^    timeout-minutes: (\d+)$', job, re.M)[1]) * 60
-assert 0 < timeout < job_timeout - 60, (timeout, job_timeout)
-log_path = parts[parts.index('--log') + 1]
-assert log_path.startswith('$RUNNER_TEMP/'), log_path
-artifact_path = '${{ runner.temp }}/' + log_path[len('$RUNNER_TEMP/'):]
-assert artifact_path in job and 'if: failure() || cancelled()' in job
+for lane in ('unit-focused', 'unit-full'):
+    lane_job = re.search(r'^  ' + lane + r':\n(.*?)(?=^  [\w-]+:|\Z)', workflow, re.M | re.S)[1]
+    lane_command = re.search(r'^        run: (python3 tests/helpers/run-ci-step.py .+)$', lane_job, re.M)[1]
+    lane_parts = shlex.split(lane_command)
+    timeout = int(next(part.split('=', 1)[1] for part in lane_parts if part.startswith('--timeout=')))
+    job_timeout = int(re.search(r'^    timeout-minutes: (\d+)$', lane_job, re.M)[1]) * 60
+    assert 0 < timeout < job_timeout - 60, (lane, timeout, job_timeout)
+    log_path = lane_parts[lane_parts.index('--log') + 1]
+    assert log_path.startswith('$RUNNER_TEMP/'), (lane, log_path)
+    artifact_path = '${{ runner.temp }}/' + log_path[len('$RUNNER_TEMP/'):]
+    assert artifact_path in lane_job and 'if: failure() || cancelled()' in lane_job, lane
 
 def suites(args):
     """List the real runner's selected suites without starting providers."""

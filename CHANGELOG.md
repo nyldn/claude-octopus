@@ -16,6 +16,8 @@
 - Council deadline tests measure prompt preparation separately from worker
   startup, preventing false timing failures on busy runners. The watchdog
   limit and checks for cancelled children and late output are preserved.
+- Focused unit CI retains timeout logs and cleans up owned processes before
+  the job deadline, matching the full unit lane.
 
 ## [11.22.0] - 2026-11-10
 
