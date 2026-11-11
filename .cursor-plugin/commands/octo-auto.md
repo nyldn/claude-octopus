@@ -45,7 +45,7 @@ For every non-meta request, pass the complete original query to the shared
 automatic runtime before doing any local intent matching:
 
 ```bash
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 bash "${OCTO_ROOT}/scripts/orchestrate.sh" auto "<full original query>"
 ```
 
@@ -91,6 +91,7 @@ context; for an ambiguous "prototype" ask which outcome is intended.
 
 | Intent | Trigger Keywords | Routes To |
 |--------|-----------------|-----------|
+| Refinement | explicit refine or iteratively improve request; improve an artifact against a rubric or score target | `octo:refine` |
 | Lifecycle | end-to-end, complete lifecycle, full workflow, entire project, whole system | `octo:embrace` |
 | Multi-LLM | multi, multi-llm, multi-provider, all providers, force multi, cross-model | `octo:multi` |
 | Parallel | parallel, team of teams, decompose, work packages, split into | `octo:parallel` |
@@ -153,7 +154,7 @@ No intent keywords matched
 
 Before loading any route, validate it against this closed allowlist: `embrace`,
 `multi`, `parallel`, `spec`, `security`, `tdd`, `debug`, `design-ui-ux`, `prd`,
-`brainstorm`, `deck`, `docs`, `discover`, `review`, `debate`, `develop`, `plan`, `quick`.
+`brainstorm`, `deck`, `docs`, `discover`, `review`, `debate`, `develop`, `plan`, `quick`, `refine`.
 The token is control data, never user input: do not derive it from the query or
 accept a user-supplied path. Reject `..`, `/`, `\\`, or non-allowlisted values.
 The full query is passed only as workflow arguments. Both high-confidence
@@ -174,7 +175,7 @@ on the same workflow-root path as direct `orchestrate.sh auto` calls, including
 the Premium automatic peer gate:
 
 ```bash
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 bash "${OCTO_ROOT}/scripts/orchestrate.sh" auto "<full original query>"
 ```
 
@@ -197,7 +198,7 @@ Wait for user confirmation. After confirmation, pass the confirmed allowlisted
 workflow token to the shared automatic router with the full original query:
 
 ```bash
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 bash "${OCTO_ROOT}/scripts/orchestrate.sh" auto --workflow "<confirmed token>" "<full original query>"
 ```
 

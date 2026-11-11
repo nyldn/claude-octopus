@@ -1,5 +1,40 @@
 # Council evidence
 
+## Check your roster
+
+Run `/octo:preflight` before a council to check the providers you configured.
+When the council provider roster is pinned, preflight checks those seats,
+including Claude, and names any seat that is not ready. An unset roster or
+`auto` keeps the usual detection behavior. See the
+[preflight configuration](../commands/preflight.md). A seat without local
+provider detection is reported as not checked.
+
+A sandbox can hide a valid keychain login, network access or files outside
+the workspace. Preflight now reports this limitation. Re-run it outside the
+sandbox before treating the provider as unauthenticated. A successful local
+check still does not prove account entitlement or remaining quota.
+
+## Concurrent seats
+
+Advice, critique and revision phases run up to two seats at once, with one call
+per provider. The scheduler scans the roster for an eligible provider when a
+slot opens. Usage reservations follow admission order before dispatch; queued
+seats consume no calls. Seats for the same provider retain roster order. Each
+phase still waits for every selected seat before applying its existing quorum,
+grounding and dissent checks.
+
+| Environment variable | Default | Effect |
+| --- | --- | --- |
+| `OCTOPUS_COUNCIL_MAX_PARALLEL` | `2` | Maximum concurrent seats, also capped by the global `MAX_PARALLEL` setting |
+| `OCTOPUS_COUNCIL_PROVIDER_MAX_PARALLEL` | `1` | Maximum concurrent calls to each provider |
+| `OCTOPUS_COUNCIL_MAX_PARALLEL_<PROVIDER>` | Inherits provider limit | Override for one provider, for example `OCTOPUS_COUNCIL_MAX_PARALLEL_CODEX=2` |
+
+Set `OCTOPUS_COUNCIL_MAX_PARALLEL=1` for serial dispatch. Existing projected-cost
+limits and the aggregate deadline apply across workers. Partial responses and
+failed-seat diagnostics remain in the run directory after cancellation.
+
+## Provide review evidence
+
 Council file access depends on the provider and dispatch transport. Consultative
 CLI seats run in a disposable working-tree copy and can inspect project files
 present there. A tracked relative path such as `./src/service.ts` can therefore

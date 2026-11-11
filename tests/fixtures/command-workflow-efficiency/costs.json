@@ -1,0 +1,51 @@
+{
+  "schema": "claude-code/usage-v1",
+  "view": "costs",
+  "totals": {
+    "queries": 2001,
+    "tokens_in": 300001000,
+    "tokens_out": 100000,
+    "est_cost_usd": 6007.5
+  },
+  "byProvider": [
+    {
+      "name": "codex",
+      "queries": 1000,
+      "tokens_in": 300000000,
+      "tokens_out": 100000,
+      "est_cost_usd": 6007.5
+    },
+    {
+      "name": "agy",
+      "queries": 1000,
+      "tokens_in": 1000,
+      "tokens_out": 0,
+      "est_cost_usd": 0.0
+    },
+    {
+      "name": "claude",
+      "queries": 1,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "est_cost_usd": 0.0
+    }
+  ],
+  "bySkill": [
+    {
+      "name": "test",
+      "queries": 1001,
+      "tokens_in": 300000000,
+      "tokens_out": 100000,
+      "est_cost_usd": 6007.5
+    }
+  ],
+  "byMcpServer": [
+    {
+      "name": "fixture",
+      "queries": 1000,
+      "tokens_in": 300000000,
+      "tokens_out": 100000,
+      "est_cost_usd": 6007.5
+    }
+  ]
+}

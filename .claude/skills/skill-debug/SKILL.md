@@ -73,9 +73,14 @@ When the symptom is localized to one user-approved module, resolve that module
 to a physical directory before editing and activate the existing freeze guard:
 
 ```bash
-_OCTO_SESSION_ID="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-}}"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+source "$OCTO_ROOT/scripts/lib/session-id.sh"
+if [[ -z "${OCTOPUS_HOST:-}" && -z "${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-${CLAUDE_CODE_SESSION:-}}}" && -n "${CODEX_PLUGIN_ROOT:-${CODEX_SESSION_ID:-${CODEX_TASK_ID:-}}}" ]]; then
+    export OCTOPUS_HOST=codex
+fi
+_OCTO_SESSION_ID="$(octo_resolve_session_id "" 2>/dev/null || true)"
 if [[ -z "$_OCTO_SESSION_ID" ]]; then
-    printf 'Freeze activation requires a shared Claude session ID; stop before editing.\n' >&2
+    printf 'Freeze activation requires a stable host session ID; stop before editing.\n' >&2
     exit 1
 fi
 freeze_dir="$(cd "<module-directory>" 2>/dev/null && pwd -P)" || exit 1
@@ -104,7 +109,7 @@ PYFREEZE
 fi
 ```
 
-Activation requires a nonempty `CLAUDE_CODE_SESSION_ID` or `CLAUDE_SESSION_ID`.
+Activation uses the shared host session resolver and requires a stable session ID.
 Both activation and freeze enforcement require Python 3. Existing empty,
 symlinked or nonregular state is refused for manual inspection; active state
 contents are never read or printed by this activation check. Exclusive creation

@@ -12,7 +12,7 @@ execution contract and output format. Read referenced skills as instructions;
 do not invoke the current command recursively or add provider calls from a seat.
 
 Load and follow
-`${HOME}/.claude-octopus/plugin/.claude/skills/skill-tdd/SKILL.md`.
+`${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/.claude/skills/skill-tdd/SKILL.md`.
 
 Treat `--peer-review` as an instruction to request one bounded independent test
 design review through existing Octopus routing. Do not pass the token or the

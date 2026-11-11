@@ -4,6 +4,7 @@
 
 _octopus_spawn_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_octopus_spawn_lib_dir}/engineering-methods.sh"
+source "${_octopus_spawn_lib_dir}/provider-failure.sh"
 source "${_octopus_spawn_lib_dir}/pid-ledger.sh"
 source "${_octopus_spawn_lib_dir}/agent-spec.sh" 2>/dev/null || true
 source "${_octopus_spawn_lib_dir}/dispatch-plan.sh" 2>/dev/null || true
@@ -813,6 +814,11 @@ octopus_tangle_apply_execution_boundary() {
     cmd_array=("${boundary_cmd[@]}" "${cmd_array[@]}")
 }
 
+# Resolve the agent's role and start it through its configured execution path.
+# Arguments: agent type, prompt, optional task ID, role, phase, and fork flag.
+# Direct refinement spawns use the underlying task type for roles and rules.
+# Subprocess launches print their PID after worker registration; dry runs only
+# log the proposed command. Rejected launches return a nonzero status.
 spawn_agent() {
     local agent_type="$1"
     if [[ "$agent_type" == "claude-opus-fast" ]]; then
@@ -852,16 +858,23 @@ spawn_agent() {
         log "DEBUG" "Worktree hooks available — Octopus env vars will propagate via WorktreeCreate"
     fi
 
+    # Native refinement is an auto handoff. Direct spawns still need the
+    # underlying coding/design/etc. type for persona and task-type rules.
+    local task_type role_task_type
+    task_type=$(classify_task "$prompt")
+    role_task_type="$task_type"
+    if [[ "$task_type" == native-refine ]]; then
+        role_task_type=$(classify_task "$prompt" --skip-refine)
+    fi
+
     # Determine role if not provided
     if [[ -z "$role" ]]; then
-        local task_type
-        task_type=$(classify_task "$prompt")
-        role=$(get_role_for_context "$agent_type" "$task_type" "$phase")
+        role=$(get_role_for_context "$agent_type" "$role_task_type" "$phase")
     fi
 
     # v8.19.0: Check routing rules for role override
     local routed_role
-    routed_role=$(match_routing_rule "$(classify_task "$prompt" 2>/dev/null)" "$prompt" 2>/dev/null) || true
+    routed_role=$(match_routing_rule "$task_type" "$prompt" "$role_task_type" 2>/dev/null) || true
     if [[ -n "$routed_role" ]]; then
         log DEBUG "Routing rules override: $role -> $routed_role"
         role="$routed_role"
@@ -1297,7 +1310,11 @@ ${heuristic_ctx}"
     case "$agent_type" in
         cursor-agent*|copilot*|qwen*) _plan_append_empty_prompt=true ;;
     esac
-    build_provider_env "$agent_type"
+    if ! build_provider_env "$agent_type"; then
+        octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
+            "Provider environment construction failed" 74 "" >/dev/null 2>&1 || true
+        return 74
+    fi
     octo_dispatch_plan_bind_model_env "$agent_type" "$model"
     local _plan_failure=""
     if ! dispatch_argv_json="$(octo_dispatch_command_argv_json "$cmd")"; then
@@ -1668,12 +1685,7 @@ ${heuristic_ctx}"
                [[ $auth_attempt -lt $max_auth_retries ]]; then
                 local stderr_content=""
                 [[ -s "$temp_errors" ]] && stderr_content=$(<"$temp_errors")
-                if [[ "$stderr_content" == *"unauthorized"* ]] || \
-                   [[ "$stderr_content" == *"401"* ]] || \
-                   [[ "$stderr_content" == *"auth"* ]] || \
-                   [[ "$stderr_content" == *"credential"* ]] || \
-                   [[ "$stderr_content" == *"token expired"* ]] || \
-                   [[ "$stderr_content" == *"refresh"* ]]; then
+                if octopus_provider_failure_retryable "$agent_type" "$stderr_content"; then
                     ((auth_attempt++)) || true
                     local backoff=$((auth_attempt * 5))
                     if [[ "$_timeout_deadline" -gt 0 ]]; then

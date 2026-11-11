@@ -53,6 +53,20 @@ class AnthropicAPI(unittest.TestCase):
         _, requests = self.invoke(model="claude-opus-5-5")
         self.assertEqual(json.loads(requests[0][0].data)["thinking"], {"type": "adaptive"})
 
+    def test_automatic_effort_leaves_the_api_parameter_unset(self):
+        for model in api.MODELS:
+            with self.subTest(model=model):
+                _, requests = self.invoke(model=model, effort="auto")
+                payload = json.loads(requests[0][0].data)
+                self.assertNotIn("output_config", payload)
+                self.assertEqual(payload["thinking"], {"type": "adaptive"})
+
+    def test_automatic_effort_rejects_explicit_between_tools_before_transport(self):
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "inert-fixture"}, clear=True), patch.object(api, "urlopen") as transport:
+            with self.assertRaises(ValueError):
+                api.execute("prompt", effort="auto", thinking="between_tools")
+            transport.assert_not_called()
+
     def test_invalid_configuration_never_contacts_transport(self):
         for config in ({"effort": "max", "thinking": "between_tools"}, {"effort": "xhigh", "thinking": "between_tools"}, {"model": "claude-opus-5-5", "thinking": "between_tools"}, {"thinking": "disabled"}, {"model": "claude-sonnet-5"}, {"effort": "bogus"}):
             with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "inert-fixture"}, clear=True), patch.object(api, "urlopen") as transport:

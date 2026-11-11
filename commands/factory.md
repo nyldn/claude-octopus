@@ -31,7 +31,7 @@ After receiving answers: validate spec path exists, set overrides, proceed.
 ### Step 1.5: Ensure plugin root is resolvable (run via Bash tool)
 
 ```bash
-OCTO_ROOT="${HOME}/.claude-octopus/plugin"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 if [[ ! -x "$OCTO_ROOT/scripts/orchestrate.sh" ]]; then
   helper="$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh"
   if [[ ! -x "$helper" ]]; then
@@ -146,7 +146,7 @@ Before committing to the expensive embrace phase, verify scenario coverage by di
 ### Step 4: Execute Factory Pipeline
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh factory --spec "<spec-path>"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" factory --spec "<spec-path>"
 ```
 
 With optional flags:

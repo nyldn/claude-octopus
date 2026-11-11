@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/result-file.sh"
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/feature-scheduler.sh"
+_octopus_workflows_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_octopus_workflows_lib_dir/result-file.sh"
+source "$_octopus_workflows_lib_dir/feature-scheduler.sh"
 
 # Double Diamond workflow phases
 # Extracted from orchestrate.sh to reduce file size
 # Functions: probe_single_agent, probe_discover, grasp_define, tangle_develop, ink_deliver
 
 # shellcheck source=scripts/lib/json-contract.sh
-source "${BASH_SOURCE[0]%/*}/json-contract.sh" || return 1
+source "$_octopus_workflows_lib_dir/json-contract.sh" || return 1
+source "$_octopus_workflows_lib_dir/provider-failure.sh" || return 1
+unset _octopus_workflows_lib_dir
 
 if ! type probe_result_file_status >/dev/null 2>&1; then
     _octo_probe_results_lib="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/probe-results.sh"
@@ -110,7 +113,7 @@ probe_single_agent() {
     fi
 
     # Pre-flight validation
-    preflight_check || return 1
+    preflight_check false "$agent_type" || return 1
 
     mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
 
@@ -254,7 +257,14 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     # Build command array with credential isolation
     local -a cmd_array
     local -a inner_cmd_array
-    build_provider_env "$agent_type"
+    if ! build_provider_env "$agent_type"; then
+        log ERROR "Provider environment construction failed for $agent_type"
+        update_agent_status "$agent_type" "failed" 0 "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
+        type write_agent_status >/dev/null 2>&1 && write_agent_status \
+            "$agent_type" "failed" "$tokens_in" 0 "Provider environment construction failed" \
+            0 "$result_file" "$role" || true
+        return 1
+    fi
     octo_dispatch_command_to_argv "$cmd" || return 1
     inner_cmd_array=("${OCTO_COMMAND_ARGV[@]}")
     if [[ ${#PROVIDER_ENV_ARRAY[@]} -gt 0 ]]; then
@@ -319,12 +329,18 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     local start_time_ms
     start_time_ms=$(( $(date +%s) * 1000 ))
 
+    local auth_deadline=0 attempt_timeout="$seat_timeout"
+    [[ "$seat_timeout" -gt 0 ]] && auth_deadline=$((SECONDS + seat_timeout))
     while true; do
+        if [[ "$auth_deadline" -gt 0 ]]; then
+            attempt_timeout=$((auth_deadline - SECONDS))
+            [[ "$attempt_timeout" -gt 0 ]] || { exit_code=124; break; }
+        fi
         exit_code=0
         # v9.2.2: All agents use stdin to avoid ARG_MAX. File-backed capture is
         # portable to Git Bash and cannot be held open by provider descendants.
         if octopus_capture_provider_output \
-            "$enhanced_prompt" "$seat_timeout" "$temp_input" \
+            "$enhanced_prompt" "$attempt_timeout" "$temp_input" \
             "$raw_output" "$temp_errors" "${cmd_array[@]}"; then
             exit_code=0
         else
@@ -335,14 +351,14 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         if [[ $exit_code -ne 0 ]] && [[ $auth_attempt -lt $max_auth_retries ]]; then
             local stderr_content=""
             [[ -s "$temp_errors" ]] && stderr_content=$(<"$temp_errors")
-            if [[ "$stderr_content" == *"unauthorized"* ]] || \
-               [[ "$stderr_content" == *"401"* ]] || \
-               [[ "$stderr_content" == *"auth"* ]] || \
-               [[ "$stderr_content" == *"credential"* ]] || \
-               [[ "$stderr_content" == *"token expired"* ]] || \
-               [[ "$stderr_content" == *"refresh"* ]]; then
+            if [[ "$exit_code" != 76 && "$exit_code" != 124 && "$exit_code" != 143 ]] && \
+               octopus_provider_failure_retryable "$agent_type" "$stderr_content"; then
                 ((auth_attempt++)) || true
                 local backoff=$((auth_attempt * 5))
+                if [[ "$auth_deadline" -gt 0 && $((auth_deadline - SECONDS)) -le "$backoff" ]]; then
+                    exit_code=124
+                    break
+                fi
                 log "WARN" "Auth failure (attempt $auth_attempt/$max_auth_retries), retrying in ${backoff}s..."
                 sleep "$backoff"
                 : > "$temp_output"; : > "$temp_errors"; : > "$raw_output"
@@ -1008,6 +1024,19 @@ ${_blind_spot_checklist}"
         log INFO "Perplexity web research seat skipped: disabled by provider allowlist"
     fi
 
+    # One optional lookup shared by all perspectives, after admission/cost/cache
+    # gates and before provider dispatch. A failed lookup leaves prompts intact.
+    local web_search_context="" perspective_index
+    if [[ "${OCTOPUS_RESEARCH_WEB_SEARCH:-}" == keenable ]] &&
+       source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/keenable.sh" &&
+       web_search_context=$(probe_keenable_search_context "$prompt"); then
+        for perspective_index in "${!perspectives[@]}"; do
+            perspectives[$perspective_index]="${perspectives[$perspective_index]}
+
+$web_search_context"
+        done
+    fi
+
     # Initialize progress tracking with actual agent count (dynamic, may be 5, 6, or 7)
     init_progress_tracking "discover" "${#perspectives[@]}"
 
@@ -1380,6 +1409,7 @@ Constraints: $def3"
 
     cat > "$consensus_file" << EOF
 # GRASP Phase - Problem Definition Consensus
+<!-- octopus-workflow-invocation: ${OCTOPUS_WORKFLOW_INVOCATION_ID:-} -->
 ## Task: $prompt
 ## Generated: $(date)
 
@@ -1685,6 +1715,8 @@ tangle_resolve_repo_root() {
     printf '%s\n' "$resolved_root"
 }
 
+# Resolve concrete task paths against a supplied tracked-file snapshot, or take
+# one snapshot when omitted; bound basename matches and the final file count.
 tangle_resolve_repo_context_files() {
     local text="$1"
     local max_files="${OCTOPUS_TANGLE_CONTEXT_MAX_FILES:-16}"
@@ -1694,6 +1726,10 @@ tangle_resolve_repo_context_files() {
     repo_root=$(tangle_resolve_repo_root) || return 0
     git -C "$repo_root" rev-parse --show-toplevel >/dev/null 2>&1 || return 0
 
+    local tracked_paths="${2-}"
+    [[ $# -ge 2 ]] || tracked_paths=$(git -C "$repo_root" ls-files)
+    local basename_index
+    basename_index=$(printf '%s\n' "$tracked_paths" | awk '{n=split($0,a,"/"); b=a[n]; if (++count[b]<=4) print b "\t" $0}')
     local files=()
     local token full basename
 
@@ -1708,7 +1744,7 @@ tangle_resolve_repo_context_files() {
             if [[ "$basename" == *.* ]]; then
                 while IFS= read -r full; do
                     [[ -n "$full" ]] && files+=("$full")
-                done < <(git -C "$repo_root" ls-files | awk -v b="$basename" 'BEGIN{n=0} {split($0,a,"/"); if (a[length(a)]==b && n<4) {print; n++}}')
+                done < <(printf '%s\n' "$basename_index" | awk -F "\t" -v b="$basename" '$1==b {sub(/^[^\t]*\t/, ""); print}')
             fi
         fi
     done < <(printf '%s\n' "$text" | grep -Eo '[A-Za-z0-9_./-]+\.(js|ts|json|md|yml|yaml|toml|py|sh)' | sort -u)
@@ -1810,12 +1846,15 @@ tangle_require_execution_boundary() {
     export OCTOPUS_TANGLE_EXECUTION_BOUNDARY=true
 }
 
+# Build task context from one tracked-file snapshot and the active write policy,
+# keeping path resolution and the displayed repository inventory consistent.
 tangle_build_repo_context_block() {
     local assigned_subtask="$1"
     local repo_root
     repo_root=$(tangle_resolve_repo_root) || return 0
-    local resolved
-    resolved=$(tangle_resolve_repo_context_files "$assigned_subtask")
+    local resolved tracked_paths
+    tracked_paths=$(git -C "$repo_root" ls-files 2>/dev/null)
+    resolved=$(tangle_resolve_repo_context_files "$assigned_subtask" "$tracked_paths")
     local scope_mode scope_guidance
     scope_mode=$(tangle_write_scope_mode)
     if [[ "$scope_mode" == "adaptive" ]]; then
@@ -1834,7 +1873,7 @@ Repository context for this subtask:
 ${scope_guidance}
 
 Tracked files, first 200:
-$(git -C "$repo_root" ls-files 2>/dev/null | sed -n '1,200p')
+$(printf '%s\n' "$tracked_paths" | sed -n '1,200p')
 
 Resolved relevant files to inspect/edit for this subtask:
 ${resolved:-<none resolved>}
@@ -4122,6 +4161,8 @@ tangle_correction_identity_message() {
     printf '%s\n' "Step 5: Applying contextual review corrections (round=${round_num}, role=implementer, strategy=${correction_strategy}, stall_window=${stall_window}s, executor_alias=${correction_agent}, configured_provider=$(octo_provider_identity_from_agent_type "${correction_agent}"), configured_model=${correction_model}, runtime_provider=unknown, runtime_model=unknown)..."
 }
 
+# Apply verified normal findings within the correction budget. Track worktree
+# progress and completion separately so progress reporting cannot delay reaping.
 tangle_apply_review_corrections() {
     local resolved_prompt="$1"
     local context_file="$2"
@@ -4197,13 +4238,19 @@ ${normal_findings}
     ) &
     local correction_pid=$!
     local stalled="false"
+    local next_probe=$((last_progress + poll_secs))
 
     while true; do
         [[ -f "$rc_file" ]] && break
         if ! tangle_process_is_active_non_zombie "$correction_pid"; then
             break
         fi
-        sleep "$poll_secs"
+        sleep 1
+        [[ -f "$rc_file" ]] && break
+        tangle_process_is_active_non_zombie "$correction_pid" || break
+        now=$(date +%s)
+        [[ "$now" -ge "$next_probe" || ( "$stall_window" -gt 0 && $((now - last_progress)) -ge "$stall_window" ) ]] || continue
+        next_probe=$((now + poll_secs))
         local current_fp current_size
         current_fp=$(tangle_worktree_fingerprint)
         current_size=$(stat -c '%s' "$correction_file" 2>/dev/null || stat -f '%z' "$correction_file" 2>/dev/null || echo 0)
@@ -4215,6 +4262,8 @@ ${normal_findings}
         fi
         now=$(date +%s)
         if [[ "$stall_window" -gt 0 && $((now - last_progress)) -ge "$stall_window" ]]; then
+            [[ -f "$rc_file" ]] && break
+            tangle_process_is_active_non_zombie "$correction_pid" || break
             stalled="true"
             log WARN "Correction round ${round_num}: no observable progress for ${stall_window}s — stopping agent and preserving partial writes"
             pkill -TERM -P "$correction_pid" 2>/dev/null || true
@@ -6126,23 +6175,35 @@ $sonnet_review
 Compact source context to synthesize:
 $all_results"
 
-    local delivery
-    if octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then
-        if ! delivery=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="ink-delivery-watchdog" run_agent_sync "agy" "$synthesis_prompt" 0 "synthesizer" "ink") || \
+    local delivery synth_agent=""
+    if ! declare -F octo_provider_allowed >/dev/null 2>&1; then
+        log WARN "Synthesis authorization unavailable; using bounded fallback synthesis"
+    elif declare -F _aggregate_pick_synth_agent >/dev/null 2>&1; then
+        synth_agent=$(_aggregate_pick_synth_agent)
+    elif octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then
+        synth_agent="agy"
+    fi
+    if [[ -n "$synth_agent" ]]; then
+        log INFO "Step 2b: Synthesizing delivery via ${synth_agent}..."
+        if ! delivery=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="ink-delivery-watchdog" run_agent_sync "$synth_agent" "$synthesis_prompt" 0 "synthesizer" "ink") || \
             [[ ! "$delivery" =~ [^[:space:]] ]]; then
-            log WARN "Antigravity (agy) returned no usable delivery; using bounded fallback synthesis"
+            log WARN "Synthesizer ${synth_agent} returned no usable delivery; using bounded fallback synthesis"
             delivery=$(build_ink_fallback_delivery "$prompt" "$sonnet_review" "$all_results")
         fi
     else
-        log WARN "Antigravity (agy) unavailable or not allowed, using fallback delivery synthesis"
+        log WARN "No synthesis provider is available or allowed; using fallback delivery synthesis"
         delivery=$(build_ink_fallback_delivery "$prompt" "$sonnet_review" "$all_results")
     fi
 
     # Step 3: Generate final document
     local delivery_file="${RESULTS_DIR}/delivery-${task_group}.md"
 
+    local delivery_task_bytes
+    delivery_task_bytes=$(LC_ALL=C printf '%s' "$prompt" | wc -c | tr -d '[:space:]')
     cat > "$delivery_file" << EOF
 # DELIVERY DOCUMENT
+<!-- octopus-workflow-invocation: ${OCTOPUS_WORKFLOW_INVOCATION_ID:-} -->
+<!-- octopus-task-bytes: ${delivery_task_bytes} -->
 ## Task: $prompt
 ## Generated: $(date)
 ## Status: $([[ "$checks_passed" == "true" ]] && echo "COMPLETE" || echo "PARTIAL - Review Required")

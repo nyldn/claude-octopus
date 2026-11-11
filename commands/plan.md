@@ -18,6 +18,10 @@ do not invoke the current command recursively or add provider calls from a seat.
 
 ## Key Behavior
 
+After a draft, use `/octo:refine` only when independent rubric scoring or
+bounded iteration is requested. Ordinary plan edits do not add judges. See
+`docs/CLAUDE-NATIVE-INTEGRATION.md` for advisor and native workflow choices.
+
 - **Creates plans** - Captures intent, analyzes requirements, generates weighted execution strategy
 - **Saves to files** - Stores each plan and intent contract in a unique run directory under the project-owned `.octo/plans/` namespace, or under octo-owned session storage when there is no project
 - **Doesn't execute** - Plans are saved for review; execution requires user confirmation
@@ -88,7 +92,7 @@ reads or writes `${OCTO_PLAN_DIR}/session-intent.md` and
 `.claude/session-intent.md` or `.claude/session-plan.md` literal:**
 
 ```bash
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 PLAN_STORAGE="$OCTO_ROOT/scripts/plan-storage.sh"
 FEATURE_CONTEXT=$(bash "$OCTO_ROOT/scripts/helpers/feature-workflow.sh" prepare plan "<feature name>" "${OCTOPUS_FEATURE:-}")
 if jq -e '.ambiguous == true' <<< "$FEATURE_CONTEXT" >/dev/null; then
@@ -125,7 +129,7 @@ Before launching any Codex or other provider-backed planning seat, capture one
 authoritative status snapshot and retain it for the later visualization:
 
 ```bash
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 provider_helper="$OCTO_ROOT/scripts/helpers/check-providers.sh"
 if [[ ! -x "$provider_helper" ]]; then
   echo "Claude Octopus provider readiness helper is unavailable; planning in Claude-only mode." >&2
@@ -514,12 +518,12 @@ AskUserQuestion({
 - Return to Step 6 (ask again what to do)
 
 **If "Execute now":**
-- Read `${HOME}/.claude-octopus/plugin/commands/embrace.md` and execute it with the user's goal
+- Read `${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/commands/embrace.md` and execute it with the user's goal
 - Pass the intent contract and phase weights
 - Let embrace workflow handle execution
 
 **If "Multi-LLM debate the plan first":**
-- Read `${HOME}/.claude-octopus/plugin/commands/debate.md` and execute it with the plan as context (Claude plus available providers deliberate):
+- Read `${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/commands/debate.md` and execute it with the plan as context (Claude plus available providers deliberate):
   - Topic: "Should we proceed with this plan? What are the risks and blind spots?"
   - `--rounds 2 --debate-style adversarial --context-file "${OCTO_PLAN_DIR}/session-plan.md"`
 - After the Multi-LLM debate completes, present the synthesis and return to Step 6

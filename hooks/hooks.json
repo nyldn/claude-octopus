@@ -6,7 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/provider-routing-validator.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/provider-routing-validator.sh\"",
+            "onFailure": "block",
             "commandWindows": "cmd /d /c exit 0",
             "if": "Bash(*orchestrate.sh*)",
             "additionalContext": "Session: ${CLAUDE_SESSION_ID}, Workflow: ${OCTOPUS_WORKFLOW_PHASE:-unknown}",
@@ -19,7 +20,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/task-dependency-validator.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/task-dependency-validator.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 10
           }
@@ -30,21 +31,24 @@
         "hooks": [
       {
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/codex-exec-guard.sh",
+        "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/codex-exec-guard.sh\"",
+        "onFailure": "block",
         "commandWindows": "cmd /d /c exit 0",
         "if": "Bash(codex *)",
         "timeout": 5
       },
       {
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/codex-exec-guard.sh",
+        "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/codex-exec-guard.sh\"",
+        "onFailure": "block",
         "commandWindows": "cmd /d /c exit 0",
         "if": "Bash(qwen *)",
         "timeout": 5
       },
       {
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/codex-exec-guard.sh",
+        "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/codex-exec-guard.sh\"",
+        "onFailure": "block",
         "commandWindows": "cmd /d /c exit 0",
         "if": "Bash(gemini *)",
         "timeout": 5
@@ -56,7 +60,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scheduler-security-gate.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/scheduler-security-gate.sh\"",
+            "onFailure": "block",
             "commandWindows": "cmd /d /c exit 0",
             "additionalContext": "Scheduler job: ${OCTOPUS_JOB_ID:-none}",
             "timeout": 10
@@ -68,7 +73,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/plan-mode-interceptor.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/plan-mode-interceptor.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 15
           }
@@ -79,7 +84,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/careful-check.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/careful-check.sh\"",
+            "onFailure": "block",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 5
           }
@@ -90,7 +96,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/freeze-check.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/freeze-check.sh\"",
+            "onFailure": "block",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 5
           }
@@ -103,7 +110,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-dispatch.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-dispatch.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 10
           }
@@ -114,7 +121,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/quality-gate.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/quality-gate.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "if": "Bash(*orchestrate.sh*)",
             "timeout": 60
@@ -126,7 +133,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/task-completion-checkpoint.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/task-completion-checkpoint.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 30
           }
@@ -137,7 +144,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/telemetry-webhook.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/telemetry-webhook.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 10
           }
@@ -149,52 +156,52 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/helpers/ensure-plugin-root.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/helpers/ensure-plugin-root.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 5
           },
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/context-reinforcement.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/context-reinforcement.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 30
           },
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/auto-router-inject.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/auto-router-inject.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 3
           },
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-start-memory.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/session-start-memory.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "additionalContext": "Restore persisted user preferences and session sync from auto-memory",
             "timeout": 30
           },
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/statusline-auto-repair.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/statusline-auto-repair.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 5
           },
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/version-advisory.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/version-advisory.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "additionalContext": "One-line advisory when plugin version changes between sessions",
             "timeout": 5
           },
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/plugin-update-advisory.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/plugin-update-advisory.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "additionalContext": "Local-only plugin update health advisory; never runs an updater or network request",
             "timeout": 5
           },
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/fable5-inject.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/fable5-inject.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "additionalContext": "Inject Fable dispatch guards and prompt hygiene when a Fable 5 or 5.1 pin is detected",
             "timeout": 3
@@ -205,7 +212,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/discipline-inject.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/discipline-inject.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 3
           }
@@ -217,7 +224,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/teammate-idle-dispatch.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/teammate-idle-dispatch.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "additionalContext": "Octopus workflow: ${OCTOPUS_WORKFLOW_PHASE:-unknown}, Session: ${CLAUDE_SESSION_ID}",
             "timeout": 30
@@ -230,7 +237,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/task-completed-transition.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/task-completed-transition.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "additionalContext": "Octopus workflow: ${OCTOPUS_WORKFLOW_PHASE:-unknown}, Session: ${CLAUDE_SESSION_ID}",
             "timeout": 30
@@ -243,7 +250,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/config-change-handler.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/config-change-handler.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "additionalContext": "Session: ${CLAUDE_SESSION_ID}, Workflow: ${OCTOPUS_WORKFLOW_PHASE:-unknown}",
             "timeout": 30
@@ -256,7 +263,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/subagent-result-capture.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/subagent-result-capture.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 10
           }
@@ -266,7 +273,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/subagent-stop-gate.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/subagent-stop-gate.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 10
           }
@@ -278,7 +285,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/instructions-loaded.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/instructions-loaded.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 5
           }
@@ -290,7 +297,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pre-compact.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/pre-compact.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 10
           }
@@ -302,7 +309,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-end.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/session-end.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 3
           }
@@ -312,7 +319,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/workflow-verification.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/workflow-verification.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 3
           }
@@ -324,7 +331,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/user-prompt-submit.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/user-prompt-submit.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 5
           }
@@ -334,7 +341,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/done-criteria.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/done-criteria.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 5
           }
@@ -344,7 +351,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/github-work-queue-watch.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/github-work-queue-watch.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "additionalContext": "Periodically surface open nyldn/claude-octopus issues and PRs while working in this repo.",
             "timeout": 8
@@ -357,7 +364,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/stop-failure-log.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/stop-failure-log.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 5
           }
@@ -369,7 +376,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/cwd-changed.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/cwd-changed.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 3
           }
@@ -381,13 +388,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/discipline-task-gate.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/discipline-task-gate.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 3
           },
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/task-dependency-validator.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/task-dependency-validator.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 10
           }
@@ -399,7 +406,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/post-compact.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/post-compact.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 10
           }
@@ -411,7 +418,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/elicitation-handler.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/elicitation-handler.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 5
           }
@@ -423,7 +430,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/elicitation-handler.sh result",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/elicitation-handler.sh\" result",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 5
           }
@@ -435,7 +442,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/permission-denied-log.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/permission-denied-log.sh\"",
             "commandWindows": "cmd /d /c exit 0",
             "timeout": 5
           }

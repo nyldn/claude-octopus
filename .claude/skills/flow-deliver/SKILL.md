@@ -52,14 +52,14 @@ Before starting delivery:
 ```bash
 # Verify Develop phase is complete
 if [[ -f ".octo/STATE.md" ]]; then
-  develop_status=$("${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" get_phase_status 3)
+  develop_status=$("${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" get_phase_status 3)
   if [[ "$develop_status" != "complete" ]]; then
     echo "⚠️ Warning: Develop phase not marked complete. Consider completing development first."
   fi
 fi
 
 # Update state for Delivery phase
-"${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_state \
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_state \
   --phase 4 \
   --position "Delivery" \
   --status "in_progress"
@@ -114,7 +114,7 @@ orchestrate.sh deliver "<user prompt>\n\nDomain-specific validation criteria:\n<
 **MANDATORY: You MUST use the Bash tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
 
 ```bash
-bash "${HOME}/.claude-octopus/plugin/scripts/helpers/check-providers.sh"
+bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/check-providers.sh"
 ```
 
 **Use the ACTUAL results below. PROHIBITED: Showing only "🔵 Claude: Available ✓" without listing all providers.**
@@ -164,18 +164,18 @@ Provider Availability:
 
 ```bash
 # Initialize state if needed
-"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" init_state
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" init_state
 
 # Set current workflow
-"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" set_current_workflow "flow-deliver" "deliver"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" set_current_workflow "flow-deliver" "deliver"
 
 # Get all prior decisions (critical for validation)
-prior_decisions=$("${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" get_decisions "all")
+prior_decisions=$("${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" get_decisions "all")
 
 # Get context from all prior phases
-discover_context=$("${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" get_context "discover")
-define_context=$("${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" get_context "define")
-develop_context=$("${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" get_context "develop")
+discover_context=$("${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" get_context "discover")
+define_context=$("${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" get_context "define")
+develop_context=$("${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" get_context "develop")
 
 # Display what you found (validation needs full context)
 echo "📋 Validation Context Summary:"
@@ -213,8 +213,26 @@ fi
 
 **You MUST execute this command via the Bash tool:**
 
+Use the installation that loaded this skill for both execution and validation.
+If `CLAUDE_PLUGIN_ROOT` is absent, replace the `OCTO_ROOT` fallback below with
+the absolute plugin root derived from this loaded skill's path. Do not infer it
+from the project directory or an existing stable link. The root helper refreshes
+installed copies while preserving another session's working root when called
+from an inferred development checkout.
+
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh deliver "<user's validation request>"
+# Keep execution and report validation in the same shell invocation.
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+bash "$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh" || exit 1
+RUN_MARKER=$(mktemp) || exit 1
+RUN_STATUS=0
+OCTOPUS_WORKFLOW_INVOCATION_ID="${RUN_MARKER##*/}" "$OCTO_ROOT/scripts/orchestrate.sh" deliver "<user's validation request>" || RUN_STATUS=$?
+REPORT_STATUS=0
+VALIDATION_FILE=$("$OCTO_ROOT/scripts/helpers/workflow-result.sh" deliver "$RUN_MARKER" "$RUN_STATUS") || REPORT_STATUS=$?
+rm -f "$RUN_MARKER"
+[[ "$REPORT_STATUS" == 0 ]] || exit "$REPORT_STATUS"
+echo "VALIDATION PASSED: $VALIDATION_FILE"
+cat "$VALIDATION_FILE"
 ```
 
 **CRITICAL: You are PROHIBITED from:**
@@ -246,19 +264,14 @@ These spinner verb updates happen automatically - orchestrate.sh calls `update_t
 
 **After orchestrate.sh completes, verify it succeeded:**
 
-```bash
-# Find the latest validation file (created within last 10 minutes)
-VALIDATION_FILE=$(find ~/.claude-octopus/results -name "ink-validation-*.md" -mmin -10 2>/dev/null | head -n1)
+Step 4 checks the workflow exit status and validates a fresh
+`delivery-*.md` report in this host's current session results directory.
+It rejects missing reports and failed or unknown completion states. The validator
+honors `CLAUDE_PLUGIN_DATA` and `CLAUDE_OCTOPUS_WORKSPACE`.
 
-if [[ -z "$VALIDATION_FILE" ]]; then
-  echo "❌ VALIDATION FAILED: No validation file found"
-  echo "orchestrate.sh did not execute properly"
-  exit 1
-fi
-
-echo "✅ VALIDATION PASSED: $VALIDATION_FILE"
-cat "$VALIDATION_FILE"
-```
+Use the validated path printed by Step 4. If a later tool call starts a new shell,
+set `VALIDATION_FILE` to that exact path. Do not search for a different report
+or rerun the workflow to recover a shell variable.
 
 **If validation fails:**
 1. Report error to user
@@ -276,17 +289,17 @@ cat "$VALIDATION_FILE"
 # Update deliver phase context with validation summary
 validation_summary=$(head -30 "$VALIDATION_FILE" | grep -A 2 "## Summary\|Pass\|Fail" | tail -2 | tr '\n' ' ')
 
-"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" update_context \
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_context \
   "deliver" \
   "$validation_summary"
 
 # Update final metrics (completion of full workflow)
-"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" update_metrics "phases_completed" "1"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_metrics "phases_completed" "1"
 
 # Display final state summary
 echo ""
 echo "📊 Session Complete - Final Metrics:"
-"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" show_summary
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" show_summary
 ```
 
 **DO NOT PROCEED TO STEP 7 until state updated.**
@@ -340,7 +353,7 @@ ${REVIEW_SUMMARY}
 ___
 *Multi-AI validation by Claude Octopus (/octo:deliver)*
 *Providers: available external providers + 🔵 Claude*"
-    if ! "${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}/scripts/safe-gh-comment.sh" \
+    if ! "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/safe-gh-comment.sh" \
             --repo "$REPO_SLUG" pr-comment "$PR_NUM" - <<< "$COMMENT_BODY"; then
         echo "GitHub write state is unknown; check for the validation report before retrying:" >&2
         gh pr view "$PR_NUM" --repo "$REPO_SLUG" --comments || true
@@ -350,7 +363,7 @@ ___
     echo "Validation report posted to PR #${PR_NUM}"
 
     # Update agent registry
-    REGISTRY="${HOME}/.claude-octopus/plugin/scripts/agent-registry.sh"
+    REGISTRY="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/agent-registry.sh"
     if [[ -x "$REGISTRY" ]]; then
         AGENT_ID="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
         "$REGISTRY" update "$AGENT_ID" --pr "$PR_NUM" 2>/dev/null || true
@@ -495,7 +508,7 @@ Providers:
 ### Step 1: Invoke Ink Phase
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh deliver "<user's validation request>"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" deliver "<user's validation request>"
 ```
 
 ### Step 2: Multi-Provider Validation
@@ -518,7 +531,7 @@ The ink phase includes automatic quality validation via PostToolUse hook:
 
 Results are saved to:
 ```
-~/.claude-octopus/results/${SESSION_ID}/ink-validation-<timestamp>.md
+~/.claude-octopus/results/${SESSION_ID}/delivery-<timestamp>.md
 ```
 
 ### Step 5: Present Validation Report
@@ -638,7 +651,7 @@ Claude:
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider validation
 ✅ Deliver Phase: Reviewing authentication implementation
 
-[Executes: ${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh deliver "Review authentication implementation in src/auth/"]
+[Executes: "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" deliver "Review authentication implementation in src/auth/"]
 
 [After completion, reads validation and presents:]
 
@@ -758,7 +771,7 @@ const JWT_SECRET = 'my-secret-key-123'; // Should be process.env.JWT_SECRET
    - Implement "remember me" functionality
    - Add comprehensive logging and monitoring
 
-Full validation report saved to: ~/.claude-octopus/results/abc-123/ink-validation-20250118-145600.md
+Full validation report saved to: ~/.claude-octopus/results/abc-123/delivery-20250118-145600.md
 ```
 
 ### Example 2: Validate API Endpoints
@@ -854,7 +867,7 @@ After validation passes (go decision), run documentation synchronization to keep
 
 **Load the doc-sync source after delivery has been explicitly requested:**
 ```
-Read ${HOME}/.claude-octopus/plugin/.claude/skills/skill-doc-sync/SKILL.md and execute it for "sync docs for the changes on this branch"
+Read ${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/.claude/skills/skill-doc-sync/SKILL.md and execute it for "sync docs for the changes on this branch"
 ```
 
 The doc-sync skill will:
@@ -886,7 +899,7 @@ request:
 
 ```bash
 # Run this block only when the user explicitly requested shipping.
-"${HOME}/.claude-octopus/plugin/scripts/octo-state.sh" update_state \
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_state \
   --status "complete" \
   --history "All phases complete, ready to ship"
 
@@ -906,7 +919,7 @@ echo "📦 **Project ready! Run \`/octo:ship\` to finalize and archive.**"
 After that block succeeds, perform the requested finalization immediately:
 
 ```text
-Read ${HOME}/.claude-octopus/plugin/.claude/skills/skill-ship/SKILL.md and execute it for "finalize and archive the validated project"
+Read ${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/.claude/skills/skill-ship/SKILL.md and execute it for "finalize and archive the validated project"
 ```
 
 Do not stop after displaying the command. The ship-requested branch is incomplete until

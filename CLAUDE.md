@@ -244,6 +244,10 @@ Always be mindful that external CLIs cost money:
 - 🧭 Antigravity CLI (`agy`): Included with the user's Antigravity access/subscription; backend cost depends on selected `OCTOPUS_AGY_MODEL`. Because Antigravity's model list is service-owned, explicit pins should use labels returned by `agy models` (for example `Gemini 3.5 Flash (Low)`) or `default`/`agy/default` to use the CLI default.
 - 🟣 Perplexity: ~$0.01-0.05 per query (Sonar Pro $3/$15 MTok, Sonar $1/$1 MTok)
 - 🔵 Claude (Sonnet 5.5, default on Claude Code v2.1.284+): Standard Claude seat, $2/$10 per MTok; Sonnet 5 and legacy fallbacks remain available. Included where the user's Claude Code subscription covers it
+- Claude Haiku 5.5 is available as an opt-in saved budget pin on Claude Code
+  v2.1.293+. API estimates are $0.10/$0.50 per MTok input/output through 100K
+  input tokens, and $0.50/$2.50 above 100K for the whole request. The budget
+  default remains Haiku 4.5. Account entitlement is separate from catalog admission.
 - 🔵 Claude (Fable 5.1, Mythos-class, opt-in via `OCTOPUS_OPUS_MODEL=claude-fable-5-1`): **$10/$50 per MTok**. 1M context, 128K output. Never auto-selected. The preserved `claude-fable-5` ID remains supported. Note: Anthropic retains prompts/outputs up to 30 days for safety classifiers. When pinned, apply the dispatch profile in `skills/blocks/fable5-prompting.md` (prompt anti-patterns, effort discipline, refusal fallback, judgment routing).
 - 🔵 Claude (Opus 5.5, default when `SUPPORTS_OPUS_5_5=true`, Claude Code v2.1.280+): $4/$20 per MTok input/output. 1M context, 128K output. Thinking is always on; the API default effort is `medium`.
 - 🔵 Claude (Opus 5, default when `SUPPORTS_OPUS_5=true` and Opus 5.5 is unavailable): $5/$25 per MTok input/output. 1M context, 128K output. Use `high` effort by default; raise it only for a bounded capability-sensitive step.
@@ -293,6 +297,10 @@ specific supported model.
 
 ### Dynamic Workflows (Claude Code v2.1.154+)
 
+Read [Claude native integrations](docs/CLAUDE-NATIVE-INTEGRATION.md) for opt-in
+worker advisors, subagent context and effort controls, hook failure behavior,
+plugin evals and explicit workflow handoffs.
+
 Claude Code dynamic workflows are the right native path for huge single-Claude codebase migrations. Use Octopus when the job needs multi-provider disagreement, council deliberation, adversarial review, external model validation, or provider-specific blind-spot checks. Do not wrap a native dynamic workflow inside Octopus unless the handoff boundary is explicit.
 
 ---
@@ -326,22 +334,26 @@ Skills use the **Validation Gate Pattern** to ensure multi-LLM dispatch actually
 
 ## Repo Orientation for Agents (read before editing)
 
+Use `docs/REPOSITORY.md` for authored sources, generated adapters and the
+generation pipeline. `scripts/README.md` indexes script entry points. Flow
+`.tmpl` files are retired.
+
 The rules below encode failures that have already cost real CI rounds. Every one is enforced by a CI check; none of them is guesswork.
 
 ### Derived artifacts (never hand-edit)
 
 | Generated file | Regenerate with | CI check that fails if stale |
 |----------------|-----------------|------------------------------|
-| `.claude-plugin/marketplace.json` (octo description + counts) | `./scripts/sync-marketplace.sh` | Smoke job "Verify marketplace.json is up to date" |
+| `.claude-plugin/marketplace.json` (octo description + counts) | `./scripts/sync-marketplace.sh` | Smoke job "Verify generated artifacts" (`make sync-check`) |
 | `README.md`, `.claude-plugin/README.md`, and `PRODUCT.md` current facts | `./scripts/sync-readme.py` (included in `make sync`) | `tests/unit/test-readme-release-sync.sh` |
 
 After changing commands, skills, agents, plugin metadata, release notes, models,
 providers, or public facts: run `make sync`. During development, run focused
-suites. Before an ordinary branch push, run `make ci-changed`; its checked-in
-manifest always runs sync, smoke, packaging, and reachability checks and fails
-closed to the full matrix for shared or unmapped changes. Before merge and
-release, run `make ci-local` for sync-check plus the local smoke, unit, and
-integration suites. Run the separate portability and symlink jobs in hosted CI.
+suites. Before push, run `make ci-quick` and the affected regressions; use
+`make ci-changed` when its mapping is focused. Require exact-commit hosted Smoke Tests, Unit Tests, and Integration
+Tests plus approval before merge/release. Do not repeat completed hosted
+coverage locally. `make ci-local` is the complete offline fallback. See
+`tests/README.md` for tiers.
 
 ### Hard rules (each one has broken a real PR)
 

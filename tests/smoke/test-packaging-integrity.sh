@@ -329,7 +329,7 @@ test_orchestrate_can_source_deps() {
 
 test_extracted_archive_contract() {
     test_case "npm archive contains every declared component and adapter entrypoint"
-    local required_tool pack_json tarball extract_dir package_root result npm_error
+    local required_tool pack_json tarball extract_dir package_root result npm_error pack_source
     for required_tool in npm jq tar python3; do
         if ! command -v "$required_tool" >/dev/null 2>&1; then
             test_skip "$required_tool is required for npm archive validation"
@@ -343,8 +343,33 @@ test_extracted_archive_contract() {
     fi
     npm_error="$PACKAGING_FIXTURE_DIR/npm-pack.stderr"
     extract_dir="$PACKAGING_FIXTURE_DIR/extracted"
+    pack_source="$PACKAGING_FIXTURE_DIR/source"
     mkdir -p "$extract_dir" "$PACKAGING_FIXTURE_DIR/npm-home" "$PACKAGING_FIXTURE_DIR/npm-cache"
-    if ! pack_json=$(cd "$PROJECT_ROOT" && env -i \
+    # Exercise exclusion with an actual report, without touching local eval data.
+    if ! python3 - "$PROJECT_ROOT" "$pack_source" <<'PYFIXTURE'
+import json, shutil, sys
+from pathlib import Path
+
+source, target = map(Path, sys.argv[1:])
+metadata = json.loads((source / 'package.json').read_text())
+for relative in ['package.json', '.npmignore', '.gitignore', *metadata['files']]:
+    original, copied = source / relative, target / relative
+    if original.is_dir():
+        shutil.copytree(original, copied, dirs_exist_ok=True, symlinks=True,
+                        ignore=shutil.ignore_patterns('.git', 'node_modules'))
+    elif original.is_file():
+        copied.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(original, copied)
+reports = target / 'evals/results'
+reports.mkdir(parents=True, exist_ok=True)
+(reports / 'private-report-fixture.json').write_text('{"private": true}\n')
+PYFIXTURE
+    then
+        cleanup_packaging_fixture
+        test_fail "unable to prepare isolated package source"
+        return 1
+    fi
+    if ! pack_json=$(cd "$pack_source" && env -i \
         HOME="$PACKAGING_FIXTURE_DIR/npm-home" PATH="$PATH" \
         TMPDIR="$PACKAGING_FIXTURE_DIR/npm-home" \
         NPM_CONFIG_CACHE="$PACKAGING_FIXTURE_DIR/npm-cache" NPM_CONFIG_USERCONFIG=/dev/null \
@@ -416,6 +441,7 @@ for adapter in ("mcp-server",):
 
 for required in (
     "scripts/orchestrate.sh",
+    "scripts/lib/claude-native.sh",
     "scripts/helpers/readiness-contract.py",
     "hooks/hooks.json",
     "config/model-pricing.tsv",
@@ -426,10 +452,20 @@ for required in (
     "skills/blocks/domain-modeling.md",
     "data/evals/workflow-skill-cases.json",
     "data/evals/workflow-test-consolidation.json",
+    "docs/CLAUDE-NATIVE-INTEGRATION.md",
+    "evals/refine-missing-input/prompt.md",
+    "evals/refine-missing-input/graders/skill-fired.md",
+    "evals/refine-missing-input/graders/requests-artifact.md",
+    "evals/refine-missing-input/graders/no-fabricated-score.md",
+    "evals/unrelated-request/prompt.md",
+    "evals/unrelated-request/graders/no-skill.md",
+    "evals/unrelated-request/graders/answer.md",
 ):
     path = root / required
     if not path.exists():
         missing.append(required)
+if (root / "evals/results").exists():
+    missing.append("private native eval reports were included in package")
 license_text = (root / "licenses/mattpocock-skills-MIT.txt").read_text()
 notices_text = (root / "THIRD_PARTY_NOTICES.md").read_text()
 if "Copyright (c) 2026 Matt Pocock" not in license_text or "Permission is hereby granted" not in license_text:
@@ -464,47 +500,32 @@ PYTEST
     fi
 }
 
+# Keep archive validation reachable through unconditional smoke coverage.
 test_metadata_fast_path_validates_archive() {
-    test_case "metadata-only CI runs extracted archive validation"
-    local workflow="$PROJECT_ROOT/.github/workflows/test.yml"
-    if grep -q '^  package-integrity:' "$workflow" &&
-       grep -q 'tests/smoke/test-packaging-integrity.sh' "$workflow"; then
+    test_case "every CI event runs extracted archive validation through smoke"
+    local smoke_job
+    smoke_job=$(sed -n '/^  smoke:/,/^  unit-focused:/p' "$PROJECT_ROOT/.github/workflows/test.yml")
+    if grep -q 'make test-smoke' <<< "$smoke_job" &&
+       ! grep -q '^    if:' <<< "$smoke_job"; then
         test_pass
     else
-        test_fail "metadata fast path can skip package archive validation"
+        test_fail "CI can skip package archive validation"
         return 1
     fi
 }
 
+# Require a pinned packaging checkout without persisted Git credentials.
 test_package_integrity_checkout_is_hardened() {
     test_case "package integrity pins checkout and does not persist credentials"
     local workflow="$PROJECT_ROOT/.github/workflows/test.yml"
     local package_job package_checkout
-    package_job=$(sed -n '/^  package-integrity:/,/^  portability-lint:/p' "$workflow")
+    package_job=$(sed -n '/^  smoke:/,/^  unit-focused:/p' "$workflow")
     package_checkout=$(grep -A3 -F 'uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1' <<< "$package_job" || true)
     if grep -Fq 'uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1' <<< "$package_job" &&
        grep -Fq 'persist-credentials: false' <<< "$package_checkout"; then
         test_pass
     else
         test_fail "package integrity checkout is mutable or persists credentials"
-        return 1
-    fi
-}
-
-test_summary_propagates_package_integrity_failure() {
-    test_case "test summary reports and fails on package integrity failure"
-    local workflow="$PROJECT_ROOT/.github/workflows/test.yml"
-    local summary_job package_status_check
-    summary_job=$(sed -n '/^  test-summary:/,$p' "$workflow")
-    # shellcheck disable=SC2016 # Match literal GitHub expressions in the workflow.
-    package_status_check=$(grep -A3 -F 'if [[ "${{ needs.package-integrity.result }}" != "success" ]]; then' <<< "$summary_job" || true)
-    # shellcheck disable=SC2016 # Match literal GitHub expressions in the workflow.
-    if grep -Fq '| Package | ${{ needs.package-integrity.result }} |' <<< "$summary_job" &&
-       grep -Fq 'if [[ "${{ needs.package-integrity.result }}" != "success" ]]; then' <<< "$summary_job" &&
-       grep -Fq 'exit 1' <<< "$package_status_check"; then
-        test_pass
-    else
-        test_fail "test summary does not propagate package integrity failure"
         return 1
     fi
 }
@@ -518,7 +539,6 @@ test_hook_scripts_exist
 test_orchestrate_can_source_deps
 test_extracted_archive_contract
 test_metadata_fast_path_validates_archive
-test_summary_propagates_package_integrity_failure
 test_package_integrity_checkout_is_hardened
 
 test_summary

@@ -1,7 +1,12 @@
-.PHONY: test test-deps test-smoke test-unit test-unit-deep test-symlink-sensitive test-integration test-live test-root test-coverage test-all test-plugin-name validate-plugin-assembly clean-tests help sync sync-check ci-changed ci-local
+.PHONY: test test-deps test-smoke test-unit test-unit-deep test-symlink-sensitive test-integration test-live test-root test-coverage test-all test-plugin-name validate-plugin-assembly clean-tests help sync sync-check ci-quick ci-changed ci-local
 
 # Default: smoke + unit (fast feedback)
 test: test-smoke test-unit
+
+# Real model calls. Explicit target; never part of the default CI tiers.
+.PHONY: test-native-evals
+test-native-evals:
+	claude plugin eval . --runs 1 --ablation none --model opus --concurrency 1 --max-cost-usd 3 --no-publish --trust-plugin
 
 # Explicit bootstrap: ordinary tests remain offline after dependency setup.
 test-deps:
@@ -20,13 +25,14 @@ sync-check:
 	@./scripts/sync-marketplace.sh --check
 	@./scripts/build-factory-skills.sh --check
 
-# Complete local smoke/unit/integration matrix. CI-only portability, package,
-# and symlink-path lanes remain separate and are run explicitly before release.
+# Cheap offline feedback before push. Exact-head hosted gates own merge/release.
+ci-quick: sync-check test-smoke
+
+# Optional complete local diagnosis, or fallback when hosted CI is unavailable.
 ci-local: sync-check test-smoke test-unit-deep test-integration
 	@echo "ci-local complete: smoke, full unit, and integration gates passed"
 
-# Proportional pre-push gate. The selector always runs sync/smoke coverage and
-# fails closed to ci-local for shared, generated, manifest, or unmapped changes.
+# Changed-path coverage; shared or unknown changes fail closed to ci-local.
 ci-changed:
 	@./scripts/ci-changed.sh
 
@@ -107,8 +113,9 @@ help:
 	@echo "  make test-unit         - Run the core unit suite (fast feedback)"
 	@echo "  make test-unit-deep    - Run the complete unit suite, including council"
 	@echo "  make test-integration  - Run hermetic integration tests"
+	@echo "  make ci-quick          - Check generated artifacts and smoke before push"
 	@echo "  make ci-changed        - Run fail-closed tests selected from changed files"
-	@echo "  make ci-local          - Run local smoke, full unit, and integration gates"
+	@echo "  make ci-local          - Run optional complete local smoke, unit, and integration diagnosis"
 	@echo "  make test-live         - Run live tests (real Claude sessions, real API cost)"
 	@echo "  make test-root         - Run tests/ root suites (not in CI, see #741)"
 	@echo "  make test-coverage     - Generate coverage report"
