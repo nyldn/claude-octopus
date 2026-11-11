@@ -234,6 +234,8 @@ test_fallback_reuses_completed_response_after_deadline() {
     if [[ "$result" == "true:strategy-analyst" ]]; then test_pass; else test_fail "reuse=$result"; fi
 }
 
+# Verify that each later phase cancels slow preparation within its watchdog
+# budget, reaps its children, and prevents output from appearing after return.
 test_later_phases_bound_preparation_and_cancel_children() {
     test_case "critique, revision and synthesis bound preparation and cancel the full tree"
     local phase
