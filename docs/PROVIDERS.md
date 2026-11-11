@@ -501,6 +501,8 @@ remain probe-free.
 The MCP adapter forwards `MISTRAL_API_KEY` for environment-only OpenCode
 connections as well. A configured key still needs a successful private-server
 login check; forwarding it alone does not establish account or model access.
+Claude CLI and Agent SDK children exclude this Mistral credential while retaining
+their existing Claude authentication. OpenCode and Vibe retain access to it.
 Explicit workflow admission also confirms statically available OpenCode seats.
 Both admission checks resolve OpenCode from the worker's project directory.
 Synchronous, background and direct `probe-single` dispatch check health before

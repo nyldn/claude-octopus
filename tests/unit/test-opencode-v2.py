@@ -501,6 +501,26 @@ build_provider_env opencode || exit
 "${PROVIDER_ENV_ARRAY[@]}" bash -c '[[ -z "${MISTRAL_API_KEY+x}" ]]'
 ''')
         self.assertEqual(isolated.returncode, 0, "Mistral key reached the isolated Codex child")
+        self.env.update(ANTHROPIC_API_KEY="claude-fixture", CLAUDE_SDK_API_KEY="sdk-fixture")
+        for provider in ("claude", "claude-opus", "claude-sonnet", "claude-sdk", "claude-agent"):
+            with self.subTest(provider=provider):
+                isolated = self.shell(f'''source scripts/lib/provider-routing.sh
+build_provider_env {provider} || exit
+"${{PROVIDER_ENV_ARRAY[@]}}" bash -c '
+    [[ -z "${{MISTRAL_API_KEY+x}}" ]] &&
+    [[ "$ANTHROPIC_API_KEY" == claude-fixture ]] &&
+    [[ "$CLAUDE_SDK_API_KEY" == sdk-fixture ]]'
+child_rc=$?
+[[ "$MISTRAL_API_KEY" == fixture ]] || exit 69
+exit "$child_rc"
+''')
+                self.assertEqual(isolated.returncode, 0,
+                                 f"Mistral isolation or Claude authentication changed for {provider}")
+        vibe = self.shell('''source scripts/lib/provider-routing.sh
+build_provider_env vibe || exit
+"${PROVIDER_ENV_ARRAY[@]}" bash -c '[[ "$MISTRAL_API_KEY" == fixture ]]'
+''')
+        self.assertEqual(vibe.returncode, 0, "Mistral key no longer reaches Vibe")
 
     def test_mcp_preserves_sqlite_login_storage_selection(self):
         """The adapter and private server must discover the same login store."""
