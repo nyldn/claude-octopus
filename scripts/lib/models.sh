@@ -86,7 +86,7 @@ _octo_get_model_catalog_raw() {
         # OpenCode (multi-provider router — models use opencode/<model> namespace)
         opencode/deepseek-v4-flash-free) echo "128|yes|no|no|opencode|budget|active" ;;
         opencode/gpt-5.4)       echo "400|yes|yes|no|opencode|premium|active" ;;
-        opencode/gpt-5.4-mini)  echo "400|yes|no|no|opencode|budget|active" ;;
+        opencode/gpt-5.4-mini)  echo "400|yes|yes|yes|opencode|budget|active" ;;
         opencode/glm-5.1)       echo "203|yes|no|no|opencode|standard|active" ;;
         # Perplexity
         sonar-pro)              echo "128|no|no|no|perplexity|standard|active" ;;

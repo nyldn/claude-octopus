@@ -71,4 +71,12 @@ else
   test_fail "GPT-5.4 Mini was excluded from vision or reasoning work"
 fi
 
+test_case "OpenCode GPT-5.4 Mini exposes vision and reasoning to capability selection"
+mini_candidates="$(list_models opencode --tools --images --reasoning --tier budget)"
+if awk '$1 == "opencode/gpt-5.4-mini" { found=1 } END { exit !found }' <<<"$mini_candidates"; then
+  test_pass
+else
+  test_fail "qualified GPT-5.4 Mini was excluded from OpenCode vision or reasoning work"
+fi
+
 test_summary
