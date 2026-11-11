@@ -510,7 +510,11 @@ Single-agent probes also supply dispatch context, so a pinned OpenCode roster
 confirms SQLite or environment logins even when the selected seat uses another
 provider. Standalone roster inspection remains static. Fixed-panel dispatch
 confirms its selected OpenCode login after static panel inspection, before deciding panel
-readiness. Other panel providers retain their static readiness results; a static
+readiness. An explicitly selected OpenCode seat is checked even when it is absent
+from the panel, and a failed login blocks admission. Static discovery reports
+supported environment credentials as configured, matching static readiness;
+this remains configuration evidence rather than a confirmed login.
+Other panel providers retain their static readiness results; a static
 panel receipt cannot replace OpenCode login confirmation at dispatch.
 The MCP adapter forwards `MISTRAL_API_KEY` for environment-only OpenCode
 connections as well. A configured key still needs a successful private-server

@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Selected OpenCode seats receive login confirmation even when a fixed provider
+  panel omits them. Static discovery recognizes the same supported environment
+  credentials as readiness checks without launching the CLI.
+
 - MCP preserves OpenCode's custom XDG configuration, cache and state roots.
   GitHub authentication checks and OpenCode workers explicitly using known
   non-Mistral provider namespaces exclude the unrelated Mistral key. Mistral,

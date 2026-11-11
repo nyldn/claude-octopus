@@ -773,12 +773,15 @@ preflight_check() {
         panel_report="$(WORKSPACE_DIR="$WORKSPACE_DIR" bash "${_preflight_registry_dir}/../helpers/preflight.sh" "${panel_args[@]}")" || return 1
         # Panel inspection stays static. Actual dispatch must confirm only its
         # selected OpenCode seat before accepting or rejecting static evidence.
-        if [[ "$check_context" == dispatch || "$selected_opencode" == true ]] &&
-           jq -e '.results | any(.provider == "opencode")' <<< "$panel_report" >/dev/null; then
+        if [[ "$selected_opencode" == true ]] ||
+           { [[ "$check_context" == dispatch ]] &&
+             jq -e '.results | any(.provider == "opencode")' <<< "$panel_report" >/dev/null; }; then
             local panel_opencode
             panel_opencode="$(cd "${PROJECT_ROOT:-$PWD}" && octo_provider_readiness_result opencode live)" || return 1
             panel_report="$(jq --argjson readiness "$panel_opencode" '
-                .results |= map(if .provider == "opencode" then $readiness else . end) |
+                .results |= (if any(.[]; .provider == "opencode")
+                    then map(if .provider == "opencode" then $readiness else . end)
+                    else . + [$readiness] end) |
                 .providers_ready = ([.results[] | select(.status == "available")] | length) |
                 .providers_degraded = ([.results[] | select(.status != "available")] | length)
             ' <<< "$panel_report")" || return 1

@@ -1521,7 +1521,8 @@ detect_providers() {
     # Detect OpenCode CLI (v9.11.0 — multi-provider router)
     if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed opencode; } && command -v opencode &>/dev/null; then
         local opencode_auth="none"
-        if _octo_opencode_auth_store_present; then
+        if _octo_opencode_auth_store_present ||
+           _octo_value_has_nonwhitespace "${GITHUB_TOKEN:-${OPENROUTER_API_KEY:-${Z_AI_API_KEY:-${MINIMAX_API_KEY:-}}}}"; then
             # Discovery is local-only. A live readiness check confirms whether
             # either CLI generation actually has a usable configured login.
             opencode_auth="configured"

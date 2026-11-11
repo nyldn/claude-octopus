@@ -589,6 +589,55 @@ preflight_check true "" "$CHECK_CONTEXT"
                 self.assertEqual(auth_marker.exists(), context == "dispatch",
                                  "fixed panel violated static/dispatch login confirmation")
 
+    def test_fixed_panel_checks_selected_opencode_missing_from_panel(self):
+        """A ready Codex panel cannot authorize an unchecked OpenCode login."""
+        codex = self.bin / "codex"
+        codex.write_text('#!/bin/sh\nexit 70\n')
+        codex.chmod(0o755)
+        self.env.update(CLI_VERSION="2.0.23", PROJECT_ROOT=str(ROOT),
+                        OCTOPUS_PREFLIGHT_PROVIDERS="codex",
+                        OCTO_ALLOWED_PROVIDERS="codex,opencode", OPENAI_API_KEY="fixture")
+        script = r'''
+source scripts/lib/preflight.sh
+log() { :; }
+check_codex_auth_freshness() { :; }
+WORKSPACE_DIR="$HOME"
+preflight_check false "$SELECTED_SEAT" "$CHECK_CONTEXT"
+'''
+        for seat, connected, context in product(
+                ("opencode", "opencode-fast", "opencode-research", "opencode:vendor/model"),
+                (False, True), ("static", "dispatch")):
+            with self.subTest(seat=seat, connected=connected, context=context):
+                self.marker.unlink(missing_ok=True)
+                self.env.update(SELECTED_SEAT=seat, CHECK_CONTEXT=context,
+                                AUTH_JSON=json.dumps([{"id": "openai", "connections": [
+                                    {"type": "environment"}]}] if connected else []))
+                result = self.shell(script)
+                self.assertEqual(result.returncode == 0, connected, result.stdout + result.stderr)
+                self.assertTrue(self.marker.exists(), "selected login was never checked")
+        self.marker.unlink(missing_ok=True)
+        self.env.update(SELECTED_SEAT="codex", CHECK_CONTEXT="dispatch", AUTH_JSON="[]")
+        result = self.shell(script)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertFalse(self.marker.exists(), "unselected OpenCode was probed")
+
+    def test_static_discovery_recognizes_supported_environment_auth_without_probes(self):
+        """Discovery and readiness share the established static key evidence."""
+        for name, value in product(
+                ("GITHUB_TOKEN", "OPENROUTER_API_KEY", "Z_AI_API_KEY", "MINIMAX_API_KEY"),
+                ("fixture", " \t")):
+            with self.subTest(name=name, configured=bool(value.strip())):
+                self.env[name] = value
+                self.marker.unlink(missing_ok=True)
+                result = self.shell('log() { :; }; source scripts/lib/providers.sh; detect_providers')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                expected = "configured" if value.strip() else "none"
+                self.assertIn("opencode:" + expected, result.stdout)
+                readiness = self.readiness("static")
+                self.assertEqual(readiness["status"] == "available", bool(value.strip()))
+                self.assertFalse(self.marker.exists(), "static auth launched OpenCode")
+                self.env.pop(name)
+
     def test_fixed_panel_leaves_other_providers_static(self):
         """Confirming one login must not launch another panel seat's health probe."""
         other_marker = self.base / "copilot-called"
