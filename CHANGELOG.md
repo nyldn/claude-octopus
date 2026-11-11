@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+## [11.22.0] - 2026-11-10
+
+### Added
+
+- GPT-6.1 Terra and Claude Fable 5.2 in the model catalog, with current API
+  pricing, Terra long-context billing and gateway restrictions, and Fable
+  dispatch guards. Existing routing defaults and saved pins are preserved.
+
+### Fixed
+
+- Refinement runs enforce round and stall limits through persisted state, retain
+  the best accepted candidate, and refuse unprepared or stopped dispatches.
+- Input snapshots match the bytes validated and scored. Interrupted rubric
+  corrections retain the prior best and score, preserve stalls, and keep the
+  original stop reason.
+- Successful structured judge answers can discuss context limits without being
+  misclassified as oversized-prompt errors. Genuine provider failures still stop.
+
 ### Maintenance
 
 - Skill generation uses the authored entries directly through the existing sync

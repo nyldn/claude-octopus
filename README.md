@@ -13,7 +13,7 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 <p align="center">
   <a href="https://claude.ai"><img src="https://img.shields.io/badge/Claude-Built_with_AI-c96442?logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTEyIDJhMTAgMTAgMCAxIDAgMCAyMCAxMCAxMCAwIDAgMCAwLTIwbTAgMS44YTEuMiAxLjIgMCAwIDEgLjg1LjM1bDEuNSA0LjVhLjYuNiAwIDAgMCAuMzUuMzVsNC41IDEuNWExLjIgMS4yIDAgMCAxIDAgMi4yN2wtNC41IDEuNWEuNi42IDAgMCAwLS4zNS4zNWwtMS41IDQuNWExLjIgMS4yIDAgMCAxLTIuMjcgMGwtMS41LTQuNWEuNi42IDAgMCAwLS4zNS0uMzVsLTQuNS0xLjVhMS4yIDEuMiAwIDAgMSAwLTIuMjdsNC41LTEuNWEuNi42IDAgMCAwIC4zNS0uMzVsMS41LTQuNUExLjIgMS4yIDAgMCAxIDEyIDMuOCIvPjwvc3ZnPg==&labelColor=333" alt="Built with Claude"></a>
   <a href="https://github.com/nyldn/claude-octopus/actions/workflows/test.yml"><img src="https://github.com/nyldn/claude-octopus/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
-  <img src="https://img.shields.io/badge/Version-11.21.0-blue" alt="Version 11.21.0">
+  <img src="https://img.shields.io/badge/Version-11.22.0-blue" alt="Version 11.22.0">
   <img src="https://img.shields.io/badge/Claude_Code-v2.1.14+_required-blueviolet" alt="Requires Claude Code v2.1.14+">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
 </p>
@@ -52,7 +52,7 @@ unfetched sources leave numbers unverified, and claims marked `[inference]`
 can pass without citations. See [research evidence](docs/RESEARCH-EVIDENCE.md).
 
 <!-- BEGIN CURRENT RELEASE -->
-> 🆕 **v11.21.0 — Optional Claude advisors and explicit artifact refinement.**
+> 🆕 **v11.22.0 — Refinement runs keep their limits and best candidate, with GPT-6.1 Terra and Claude Fable 5.2 available in the model catalog.**
 >
 > **Default roster:** Claude Opus 5.5 leads architecture, planning, security reasoning, and final judgment; GPT-5.6 Sol is the independent implementation/review peer; Claude Sonnet 5.5 is the standard Claude seat; Fable 5.1 remains an opt-in judgment escalation. Existing model pins and provider configuration still win. See [the routing strategy](docs/MODEL-ROUTING-STRATEGY.md).
 <!-- END CURRENT RELEASE -->
@@ -75,7 +75,7 @@ can pass without citations. See [research evidence](docs/RESEARCH-EVIDENCE.md).
 
 | Version | Best Features |
 |---------|--------------|
-| **v11.21.0** (new) | Optional Claude advisors and explicit artifact refinement. |
+| **v11.22.0** (new) | Refinement runs keep their limits and best candidate, with GPT-6.1 Terra and Claude Fable 5.2 available in the model catalog. |
 | **v9.50** | **Claude Code 2026 compatibility layer** — routines manifest (schedule + GitHub-event automations), SubagentStop quality/cost gate, `/octo:usage` cost attribution, `worktree.bgIsolation` opt-out, Claude Agent SDK seat (introduced with Opus 4.8 and now following the current Opus 5 default), starter skills pack, `/plugin browse` manifest with projected context cost. |
 | **v9.41** | **`/octo:council`** promoted to first-class workflow — structured multi-LLM deliberation with goal modes, adversarial/red-team styles, benchmark-aware persona routing, quorum and critical-veto gates, budget preflight, and gated worktree handoff for approved implementation plans. |
 | **v9** | Up to 10 external provider integrations (Codex, Antigravity CLI, Copilot, Qwen, Ollama, Perplexity, OpenRouter, OrcaRouter, OpenCode, and Grok) alongside the Claude Code host. Structured provider debates and configurable multi-LLM councils. Explicit-only activation by default, with an optional smart router. Agent summary tables show which providers actually contributed. Provider-aware prompt preflight prevents silent oversize failures. Research breadth modes fan out light, standard, or exhaustive investigations. Setup aliases and fuzzy `/octo:*` corrections reduce command friction. Opt-in discipline gates and token compression. Two-stage review. Circuit breakers with automatic provider recovery inside active workflows. Cursor + OpenCode + Codex cross-compatibility. `bin/octopus` CLI. 182 Claude Code capability flags through v2.1.219, including Opus 5, Sonnet 5, and dynamic workflow awareness. |
@@ -662,6 +662,18 @@ v9.50.0 aligns the plugin with Claude Code's 2026 native capabilities. Each piec
 | `OCTOPUS_SUBAGENT_MIN_QUALITY` | `0` | Quality floor (0-100) enforced by the gate in strict mode; `0` disables |
 
 ---
+
+## Model catalog update
+
+The catalog includes GPT-6.1 Terra ($1/$5 per million input/output tokens) and
+Claude Fable 5.2 ($8/$40). Terra supports visual reasoning and writing; tool
+calls require Responses. Fable 5.2 requires an explicit pin, retains the Fable
+dispatch guards, and needs Claude Code v2.1.321 or newer on the CLI path.
+Its provider requires 30-day retention.
+
+Release defaults, saved model pins and the Fable 5.1 escalation target remain
+unchanged. See the [catalog limits, compatibility rules and sources](docs/MODEL-ROUTING-STRATEGY.md#catalog-refresh-2026-11-10),
+or list choices with `/octo:model-config models`.
 
 ## GPT-6 Astra Support
 
