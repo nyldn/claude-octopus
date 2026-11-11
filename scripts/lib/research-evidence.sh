@@ -696,8 +696,8 @@ research_numeric_claims() {
         return result substr(text, piece)
     }
     function ordinal_reference(before, after, start, number,    gap, label, list_reference, section_reference) {
-        label = "[*_]*(points?|items?)[*_]*([ \\t]+|[ \\t]*:[*_]*[ \\t]*)$"
-        section_reference = (tolower(before) ~ /(^|[(;.!?|]|(^|[^0-9a-z_])see[ \t])[ \t]*([-*+][ \t]+)?[*_]*(findings?|risks?|probes?|conflicts?|decisions?|gaps?)[*_]*[ \t]+$/)
+        label = "[*_]*(points?|items?|findings?|risks?|probes?|conflicts?|decisions?|gaps?)[*_]*([ \\t]+|[ \\t]*:[*_]*[ \\t]*)$"
+        section_reference = (tolower(before) ~ /(^|[(;.!?|]|(^|[^0-9a-z_])see[ \t])[ \t]*([-*+][ \t]+)?[*_]*(findings?|risks?|probes?|conflicts?|decisions?|gaps?)[*_]*([ \t]+|[ \t]*:[*_]*[ \t]*)$/)
         # Commas without spaces can join references, but keep thousands groups
         # and decimal values as claims even beside point/item labels.
         if (number !~ /^[0-9]+$/) {
@@ -708,6 +708,7 @@ research_numeric_claims() {
         # remain substantive before any label/list exemptions.
         if (after ~ /^[ \t]*(-|\342\200\223|\342\200\224|\342\210\222|\/)[ \t]*[*_]*[0-9]/) return 0
         if (after ~ /^[ \t]*%/) return 0
+        if (after ~ /^[ \t]*(\+|&)/) return 0
         # Link labels, including relative, fragment and reference links, can
         # name units. Keep the quantity even for a shortcut reference label.
         if (after ~ /^[ \t]*\[[^]]+\]/) return 0
