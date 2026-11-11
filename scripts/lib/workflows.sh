@@ -5656,6 +5656,9 @@ tangle_record_review_verification() {
     local task_group="$1" findings_file="$2" state="$3"
     local metadata="${RESULTS_DIR:-${HOME}/.claude-octopus/results}/.tangle-${task_group}-git.json"
     local tmp
+    if [[ "$state" == complete ]] && ! jq -e '(.warning // "") == ""' "$findings_file" >/dev/null 2>&1; then
+        state=incomplete
+    fi
     if [[ -f "$metadata" ]]; then
         tmp=$(mktemp "${metadata}.XXXXXX") || return 1
         if jq --arg findings "$findings_file" --arg state "$state" '. + {reviewVerification:$state,reviewFindings:$findings}' "$metadata" > "$tmp"; then
@@ -5694,7 +5697,7 @@ tangle_contextual_review_gate() {
 
     tangle_record_review_verification "$task_group" "" pending || return 2
     local review_context_file
-    review_context_file=$(tangle_build_develop_review_context "$task_group" "$resolved_prompt" "$context" "$subtasks" "$validation_file" "$worktree_before_file" "initial")
+    review_context_file=$(tangle_build_develop_review_context "$task_group" "$resolved_prompt" "$context" "$subtasks" "$validation_file" "$worktree_before_file" "initial") || return $?
 
     local review_rc=0
     tangle_run_context_code_review "$task_group" "$review_context_file" "initial" || review_rc=$?
@@ -5795,7 +5798,7 @@ tangle_contextual_review_gate() {
             log ERROR "Tangle retry supervision failed after correction; stopping before further review or delivery"
             return "$validation_rc"
         fi
-        review_context_file=$(tangle_build_develop_review_context "$task_group" "$resolved_prompt" "$context" "$subtasks" "$validation_file" "$worktree_before_file" "correction-${correction_round}")
+        review_context_file=$(tangle_build_develop_review_context "$task_group" "$resolved_prompt" "$context" "$subtasks" "$validation_file" "$worktree_before_file" "correction-${correction_round}") || return $?
         review_rc=0
         tangle_run_context_code_review "$task_group" "$review_context_file" "correction-${correction_round}" || review_rc=$?
         findings_file="$TANGLE_REVIEW_FINDINGS_FILE"

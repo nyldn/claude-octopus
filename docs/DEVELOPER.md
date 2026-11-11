@@ -285,3 +285,6 @@ and shrink before rejecting a complete finding. Verification may add a verdict
 and the newly-reachable flag, but cannot change original fields such as confidence.
 Missing or invalid final verdicts keep Tangle verification incomplete. A failed
 manifest replacement stops the gate instead of reporting a successful update.
+Context setup failures stop both initial and retry review even when a caller
+handles the gate's exit status. Verified findings from a partial fleet can still
+receive corrections, while the manifest remains incomplete until a full review.

@@ -64,7 +64,7 @@ if (
     rc=0
     tangle_contextual_review_gate fixture prompt context subtasks validation before || rc=$?
     [[ "$rc" -eq 2 && ! -e "$RESULTS_DIR/corrections-called" ]] || exit 1
-    jq -e '.reviewVerification == "incomplete"' "$RESULTS_DIR/.tangle-fixture-git.json" >/dev/null
+    jq -e '.reviewVerification == "incomplete"' "$RESULTS_DIR/.tangle-fixture-git.json" >/dev/null || exit 1
     printf '%s\n' '{"findings":[],"warning":"No providers returned a review"}' > "$RESULTS_DIR/findings.json"
     tangle_run_context_code_review() { TANGLE_REVIEW_FINDINGS_FILE="$RESULTS_DIR/findings.json"; return 1; }
     rc=0
@@ -250,5 +250,66 @@ assert len(prompt.encode()) <= 6000 and rows == [finding]
 assert "new=551 " in prompt and "Required context" in prompt
 PY
 then test_pass; else test_fail "patch admission lost adjacent code or refused a reducible window"; fi
+
+test_case "conditional callers stop on initial and retry context failures"
+if (
+    source "$ROOT/scripts/lib/testing.sh"
+    source "$ROOT/scripts/lib/workflows.sh"
+    log() { :; }
+    export OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE=bounded
+    export OCTOPUS_TANGLE_REVIEW_CORRECTION_ROUNDS=2
+    for failed_round in initial correction-1; do
+        RESULTS_DIR="$TEST_TMP_DIR/conditional-context-$failed_round"; mkdir -p "$RESULTS_DIR"
+        printf '%s\n' '{}' > "$RESULTS_DIR/.tangle-fixture-git.json"
+        tangle_build_develop_review_context() { [[ "$7" != "$failed_round" ]] || return 73; echo context; }
+        tangle_run_context_code_review() {
+            printf '%s\n' "$3" >> "$RESULTS_DIR/review-calls"
+            TANGLE_REVIEW_FINDINGS_FILE="$RESULTS_DIR/findings.json"
+            printf '%s\n' '{"findings":[{"file":"app.py","line":1,"title":"blocker","severity":"normal","verdict":"confirmed"}]}' > "$TANGLE_REVIEW_FINDINGS_FILE"
+        }
+        tangle_apply_review_corrections() { TANGLE_CORRECTION_STATUS="done" TANGLE_CORRECTION_CHANGED=1; }
+        tangle_validate_results_with_scope_contract() { return 0; }
+        rc=0
+        if tangle_contextual_review_gate fixture prompt context subtasks validation before; then rc=0; else rc=$?; fi
+        [[ "$rc" -eq 73 ]] || exit 1
+        jq -e '.reviewVerification == "pending"' "$RESULTS_DIR/.tangle-fixture-git.json" >/dev/null || exit 1
+        if [[ "$failed_round" == initial ]]; then
+            [[ ! -e "$RESULTS_DIR/review-calls" ]] || exit 1
+        else
+            [[ "$(cat "$RESULTS_DIR/review-calls")" == initial ]] || exit 1
+        fi
+    done
+); then test_pass; else test_fail "conditional gate reviewed without its context or cleared pending state"; fi
+
+test_case "partial verified findings permit correction without claiming a complete review"
+if (
+    source "$ROOT/scripts/lib/testing.sh"
+    source "$ROOT/scripts/lib/workflows.sh"
+    log() { :; }
+    RESULTS_DIR="$TEST_TMP_DIR/partial-verification"; mkdir -p "$RESULTS_DIR"
+    printf '%s\n' '{}' > "$RESULTS_DIR/.tangle-fixture-git.json"
+    export OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE=bounded
+    export OCTOPUS_TANGLE_REVIEW_CORRECTION_ROUNDS=2
+    tangle_build_develop_review_context() { echo context; }
+    tangle_run_context_code_review() {
+        TANGLE_REVIEW_FINDINGS_FILE="$RESULTS_DIR/findings.json"
+        printf '%s\n' '{"warning":"Partial reviewer fleet","findings":[{"file":"app.py","line":1,"title":"blocker","severity":"normal","verdict":"confirmed"}]}' > "$TANGLE_REVIEW_FINDINGS_FILE"
+        return 1
+    }
+    tangle_apply_review_corrections() { touch "$RESULTS_DIR/correction-called"; return 77; }
+    rc=0
+    tangle_contextual_review_gate fixture prompt context subtasks validation before || rc=$?
+    [[ "$rc" -eq 77 && -f "$RESULTS_DIR/correction-called" ]] || exit 1
+    tangle_run_context_code_review() {
+        TANGLE_REVIEW_FINDINGS_FILE="$RESULTS_DIR/findings.json"
+        printf '%s\n' '{"warning":"Partial reviewer fleet","findings":[{"file":"app.py","line":1,"title":"note","severity":"nit","verdict":"confirmed"}]}' > "$TANGLE_REVIEW_FINDINGS_FILE"
+        return 1
+    }
+    rm -f "$RESULTS_DIR/correction-called"
+    rc=0
+    tangle_contextual_review_gate fixture prompt context subtasks validation before || rc=$?
+    [[ "$rc" -eq 1 && ! -e "$RESULTS_DIR/correction-called" ]] || exit 1
+    jq -e '.reviewVerification == "incomplete"' "$RESULTS_DIR/.tangle-fixture-git.json" >/dev/null
+); then test_pass; else test_fail "partial findings blocked verified correction or recorded a complete review"; fi
 
 test_summary
