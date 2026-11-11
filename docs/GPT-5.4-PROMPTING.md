@@ -81,12 +81,31 @@ When updating a plan mid-conversation, state scope (what's replaced), override (
 
 ## 7. `gpt-5.4-mini` (Budget Tier)
 
-Mini is ~10x cheaper ($0.25/$2 MTok) but brittle to implicit instructions:
+GPT-5.4 Mini's standard API rates are $0.75 per million input tokens,
+$0.075 per million cached input tokens, and $4.50 per million output tokens.
+It accepts text and images, supports tools and structured output, and has a
+400,000-token context window with up to 128,000 output tokens. Its reasoning
+efforts are `none` by default, `low`, `medium`, `high`, and `xhigh`.
+These facts were checked on 2026-11-11 against the
+[official model page](https://developers.openai.com/api/docs/models/gpt-5.4-mini).
+API rates do not establish account access or subscription usage charges.
+GPT-5.4 Mini retired from Codex with ChatGPT sign-in on August 31, 2026;
+API-key sessions were unaffected. See the
+[Codex model availability guide](https://learn.chatgpt.com/docs/models).
+The usage ledger leaves cached usage unpriced when its tariff is not represented.
+
+For explicit Mini selections:
 
 - Put critical rules first, before context.
 - Use numbered steps for tool-use workflows.
 - Specify edge cases and ambiguity behavior explicitly.
 - Prefer structural scaffolding ("Step 1: …  Step 2: …") over narrative prose.
+
+Start well-specified tasks at the lowest effort that passes their acceptance
+checks. A rejected or incomplete result may justify one bounded retry at a
+higher supported effort or a user-authorized stronger model. Preserve explicit
+model pins and allowlists. This catalog correction does not select a new
+default or make frontier models eligible for automatic fallback.
 
 ## 8. Octopus-Specific Notes
 
