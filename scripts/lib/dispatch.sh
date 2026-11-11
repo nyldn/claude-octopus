@@ -691,7 +691,7 @@ get_agent_command() {
             fi
             local ull_tool_fragment=""
             octo_tool_loop_requires_no_tools "$phase" "$role" && ull_tool_fragment="--tool-policy none"
-            echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider uberllm --model ${model} ${ull_tool_fragment} --cwd ${PWD}"
+            echo "${PLUGIN_DIR}/scripts/helpers/openai-compatible-agent.py --provider uberllm --base-url https://api.uberllm.dev/v1 --api-key-env UBERLLM_API_KEY --model ${model} ${ull_tool_fragment} --cwd ${PWD}"
             ;;
         api-route-agent)  # API Route via the OpenAI-compatible tool-loop agent
             if [[ "$agent_type" == *:* ]]; then
