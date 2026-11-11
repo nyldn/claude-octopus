@@ -5646,7 +5646,10 @@ tangle_should_attempt_contextual_review() {
 # unit-testable with stubbed review/correction functions
 # (tests/unit/test-tangle-correction-loop-behavior.sh).
 tangle_review_verification_complete() {
-    jq -e '(.verification_status // "") != "incomplete" and all(.findings[]?; .verdict != "unverified")' "$1" >/dev/null 2>&1
+    if [[ "${2:-0}" -ne 0 ]] && jq -e '.findings | length == 0' "$1" >/dev/null 2>&1; then
+        return 1
+    fi
+    jq -e '(.verification_status // "") != "incomplete" and (.error // "") == "" and ((.findings | length) > 0 or (.warning // "") == "") and all(.findings[]?; .verdict != "unverified")' "$1" >/dev/null 2>&1
 }
 
 tangle_record_review_verification() {
@@ -5693,15 +5696,18 @@ tangle_contextual_review_gate() {
     review_context_file=$(tangle_build_develop_review_context "$task_group" "$resolved_prompt" "$context" "$subtasks" "$validation_file" "$worktree_before_file" "initial")
 
     local review_rc=0
+    tangle_record_review_verification "$task_group" "" pending || return 2
     tangle_run_context_code_review "$task_group" "$review_context_file" "initial" || review_rc=$?
     local findings_file="$TANGLE_REVIEW_FINDINGS_FILE"
     tangle_ensure_scope_contract_finding "$findings_file" "${TANGLE_SCOPE_CONTRACT_VIOLATIONS:-}" || return 1
     if ! tangle_review_findings_valid "$findings_file"; then
+        tangle_record_review_verification "$task_group" "$findings_file" incomplete || return 2
         log ERROR "Contextual code review produced an invalid findings document: ${findings_file}"
         return 1
     fi
-    if ! tangle_review_verification_complete "$findings_file"; then
+    if ! tangle_review_verification_complete "$findings_file" "$review_rc"; then
         tangle_record_review_verification "$task_group" "$findings_file" incomplete || return 2
+        if [[ "$review_rc" -ne 0 ]]; then return "$review_rc"; fi
         return 2
     fi
     tangle_record_review_verification "$task_group" "$findings_file" complete || return 2
@@ -5750,6 +5756,7 @@ tangle_contextual_review_gate() {
         fi
 
         local correction_rc=0
+        tangle_record_review_verification "$task_group" "$findings_file" pending || return 2
         tangle_apply_review_corrections "$resolved_prompt" "$review_context_file" "$findings_file" "$correction_round" "$tangle_coding_agent" "$correction_strategy" || correction_rc=$?
         if [[ "$correction_rc" -ne 0 ]]; then
             if [[ "${TANGLE_CORRECTION_STATUS:-}" == "failed-no-progress" && "${TANGLE_CORRECTION_CHANGED:-0}" != "1" ]]; then
@@ -5793,11 +5800,13 @@ tangle_contextual_review_gate() {
         findings_file="$TANGLE_REVIEW_FINDINGS_FILE"
         tangle_ensure_scope_contract_finding "$findings_file" "${TANGLE_SCOPE_CONTRACT_VIOLATIONS:-}" || return 1
         if ! tangle_review_findings_valid "$findings_file"; then
+            tangle_record_review_verification "$task_group" "$findings_file" incomplete || return 2
             log ERROR "Contextual code review produced an invalid findings document after correction round ${correction_round}: ${findings_file}"
             return 1
         fi
-        if ! tangle_review_verification_complete "$findings_file"; then
+        if ! tangle_review_verification_complete "$findings_file" "$review_rc"; then
             tangle_record_review_verification "$task_group" "$findings_file" incomplete || return 2
+            if [[ "$review_rc" -ne 0 ]]; then return "$review_rc"; fi
             return 2
         fi
         tangle_record_review_verification "$task_group" "$findings_file" complete || return 2

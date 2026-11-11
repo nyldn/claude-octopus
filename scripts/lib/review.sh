@@ -1751,6 +1751,62 @@ review_next_run_id() {
     printf '%s-%s\n' "$(date +%s)" "${reservation##*/}"
 }
 
+review_verifier_input_budget() {
+    local provider="$1" budget="${OCTOPUS_CONTEXT_BUDGET:-200000}" proportion=100
+    if declare -F get_provider_context_limit >/dev/null 2>&1; then
+        budget=$(get_provider_context_limit "$provider" review implementation-verifier) || return 1
+    fi
+    if declare -F get_role_budget_proportion >/dev/null 2>&1; then
+        proportion=$(get_role_budget_proportion implementation-verifier) || return 1
+    fi
+    [[ "$budget" =~ ^[0-9]+$ && "$proportion" =~ ^[0-9]+$ ]] || return 1
+    # Half the effective token window remains for method/persona additions.
+    printf '%s\n' "$((10#$budget * 10#$proportion / 100 * 2))"
+}
+
+review_validate_verdicts() {
+    local originals="$1" normalized
+    normalized=$(review_strip_external_cli_wrapper | sed '/^```json$/d; /^```JSON$/d; /^```$/d' |
+        review_slurp_provider_json '
+            if length == 1 and (.[0] | type == "object") and (.[0].findings | type == "array")
+               and all(.[0].findings[]; type == "object") then .[0]
+            else error("expected one verifier findings document") end') || return 1
+    [[ -n "$normalized" ]] || return 1
+    printf '%s' "$normalized" | jq -e --slurpfile original "$originals" '
+            def identity: [.file, .line, .title, .detail, .category, .severity] | tojson;
+            if all(.findings[]; .verdict == "confirmed" or .verdict == "false-positive" or .verdict == "needs-debate") and
+               ([.findings[] | identity] | sort) == ([$original[0][] | identity] | sort)
+            then . else error("incomplete or invalid verifier verdicts") end'
+}
+
+# Only the existing unmanaged fallback uses this path. Its smaller context
+# limit must not restrict the initial provider or clip its failed batch.
+review_verifier_fallback() {
+    local inputs="$1" originals="$2" provider="$3" statuses="$4"
+    local dir budget batch response rows combined='[]'
+    budget=$(review_verifier_input_budget "$provider") || return 1
+    dir=$(mktemp -d "$inputs/fallback.XXXXXX") || return 1
+    if ! python3 -I "${_agent_spec_lib_dir}/../helpers/review-verification-batches.py" \
+        --diff "$inputs/diff" --context "$inputs/context" --findings "$originals" \
+        --output "$dir" --max-bytes "$budget"; then
+        review_append_provider_status "$statuses" "$provider" implementation-verifier fallback "Complete fallback input cannot fit"
+        rm -rf "$dir"
+        return 1
+    fi
+    for batch in "$dir"/batch-*.prompt; do
+        if response=$(OCTOPUS_OVERSIZE_STRATEGY=fail review_run_agent_sync_progress "$provider" "$(cat "$batch")" implementation-verifier review "fallback-verifier-$(octo_agent_spec_slug "$provider")") &&
+           rows=$(printf '%s' "$response" | review_validate_verdicts "${batch%.prompt}.json" 2>/dev/null); then
+            review_append_provider_status "$statuses" "$provider" implementation-verifier ok "Round 2 fallback verification"
+        else
+            review_append_provider_status "$statuses" "$provider" implementation-verifier fallback "Round 2 fallback unavailable or invalid; preserving findings"
+            rows=$(jq '{findings:map(. + {verdict:"unverified"})}' "${batch%.prompt}.json")
+        fi
+        combined=$(printf '%s\n%s\n' "$combined" "$rows" | jq -s '.[0] + .[1].findings') || { rm -rf "$dir"; return 1; }
+    done
+    rm -rf "$dir"
+    printf '{"findings":%s}\n' "$combined"
+}
+
 # parallel fleet (Round 1) + verification (Round 2) + synthesis (Round 3)
 # that competes with CC Code Review's managed service.
 #
@@ -2356,17 +2412,9 @@ ${round1_prompts[$retry_idx]}"
     # ── ROUND 2: Verification ─────────────────────────────────────────────────
     log INFO "review_run: Round 2 — verification"
     local verifier_prompt verified_findings verifier_provider batch_findings
-    local verifier_dir verifier_budget verifier_proportion=100 verifier_inputs_ok=true combined_verified='[]'
+    local verifier_dir verifier_budget verifier_inputs_ok=true combined_verified='[]'
     verifier_provider="$(review_phase_provider "codex" "implementation-verifier")" || return 1
-    verifier_budget="${OCTOPUS_CONTEXT_BUDGET:-200000}"
-    if declare -F get_provider_context_limit >/dev/null 2>&1; then
-        verifier_budget=$(get_provider_context_limit "$verifier_provider" review implementation-verifier) || return 1
-    fi
-    if declare -F get_role_budget_proportion >/dev/null 2>&1; then
-        verifier_proportion=$(get_role_budget_proportion implementation-verifier) || return 1
-    fi
-    [[ "$verifier_budget" =~ ^[0-9]+$ && "$verifier_proportion" =~ ^[0-9]+$ ]] || return 1
-    verifier_budget=$((10#$verifier_budget * 10#$verifier_proportion / 100))
+    verifier_budget=$(review_verifier_input_budget "$verifier_provider") || return 1
     verifier_dir=$(mktemp -d "${TMPDIR:-/tmp}/octopus-verifier-input.XXXXXX") || return 1
     printf '%s' "$diff_content" > "$verifier_dir/diff"
     printf '%s' "$all_findings" > "$verifier_dir/findings"
@@ -2375,16 +2423,17 @@ ${round1_prompts[$retry_idx]}"
     # Dispatch uses fail admission: no mandatory verifier input may be truncated.
     if ! python3 -I "${_agent_spec_lib_dir}/../helpers/review-verification-batches.py" \
         --diff "$verifier_dir/diff" --findings "$verifier_dir/findings" \
-        --context "$verifier_dir/context" --output "$verifier_dir" --max-bytes "$((verifier_budget * 2))"; then
+        --context "$verifier_dir/context" --output "$verifier_dir" --max-bytes "$verifier_budget"; then
         verifier_inputs_ok=false
         verification_incomplete=true
         log WARN "review_run: complete verifier input cannot fit; preserving unverified findings without provider calls"
     fi
     if [[ "$verifier_inputs_ok" == true ]]; then
-        local verifier_batch verifier_transport_failed actual_verifier_provider
+        local verifier_batch verifier_transport_failed verifier_response_validated actual_verifier_provider
         for verifier_batch in "$verifier_dir"/batch-*.prompt; do
             [[ -f "$verifier_batch" ]] || continue
             verifier_transport_failed=false
+            verifier_response_validated=false
             actual_verifier_provider="$verifier_provider"
             verifier_prompt=$(cat "$verifier_batch")
             batch_findings=$(cat "${verifier_batch%.prompt}.json")
@@ -2405,33 +2454,17 @@ ${round1_prompts[$retry_idx]}"
                     log "USER" "⚠ Round 2: Codex unavailable → claude-sonnet (fallback). Codex API usage will NOT change."
                     review_append_provider_status "$provider_status_file" codex implementation-verifier fallback "Round 2 → claude-sonnet"
                     actual_verifier_provider=claude-sonnet
-                    verified_findings=$(OCTOPUS_OVERSIZE_STRATEGY=fail review_run_agent_sync_progress "claude-sonnet" "$verifier_prompt" "implementation-verifier" "review" "verifier-claude-sonnet") && {
-                        review_append_provider_status "$provider_status_file" claude-sonnet implementation-verifier ok "Round 2 verification"
+                    verified_findings=$(review_verifier_fallback "$verifier_dir" "${verifier_batch%.prompt}.json" claude-sonnet "$provider_status_file") && {
+                        verifier_response_validated=true
                     } || {
                         log WARN "review_run: verification failed entirely, preserving unverified findings"
                         verifier_transport_failed=true
-                        review_append_provider_status "$provider_status_file" claude-sonnet implementation-verifier fallback "Round 2 verification failed; preserving Round 1 findings"
                     }
                 }
             fi
-            if [[ "$verifier_transport_failed" == false ]]; then
-                # v9.3.1: Strip markdown fences that LLMs wrap around JSON responses (#188)
-                verified_findings=$(echo "$verified_findings" | review_strip_external_cli_wrapper | sed '/^```json$/d; /^```JSON$/d; /^```$/d')
+            if [[ "$verifier_transport_failed" == false && "$verifier_response_validated" == false ]]; then
                 local normalized_verified_findings
-                # Preserve every verifier entry until coverage and each verdict are checked.
-                # The display normalizer deduplicates by location/title and can erase a
-                # separate provider finding, or its distinct verdict, before validation.
-                if normalized_verified_findings=$(printf '%s' "$verified_findings" | review_slurp_provider_json '
-                       if length == 1 and (.[0] | type == "object")
-                          and (.[0].findings | type == "array")
-                          and all(.[0].findings[]; type == "object")
-                       then .[0] else error("expected one verifier findings document") end
-                   ' 2>/dev/null) &&
-                   printf '%s' "$normalized_verified_findings" | jq -e --argjson original "$batch_findings" '
-                       def identity: [.file, .line, .title, .detail, .category, .severity] | tojson;
-                       all(.findings[]; .verdict == "confirmed" or .verdict == "false-positive" or .verdict == "needs-debate") and
-                       ([.findings[] | identity] | sort) == ([$original[] | identity] | sort)
-                   ' >/dev/null; then
+                if normalized_verified_findings=$(printf '%s' "$verified_findings" | review_validate_verdicts "${verifier_batch%.prompt}.json" 2>/dev/null); then
                     verified_findings="$normalized_verified_findings"
                 else
                     log WARN "review_run: verification returned invalid or multi-document findings JSON; preserving Round 1 findings"

@@ -271,5 +271,10 @@ verification. It preserves the worktree and records `reviewVerification` and
 same marker. Consumers must treat an incomplete review as unfinished validation,
 not as a list of confirmed product defects. No provider retry policy is changed.
 
+New review/correction work marks verification pending. Failed fleet or malformed
+review artifacts keep it incomplete until a genuinely completed review replaces
+them. The existing unmanaged fallback replans a failed batch for its own context
+window; this does not restrict the initial provider or alter pinned review seats.
+
 `tests/unit/test-review-verifier-batches.sh` exercises large Unicode finding
 sets, relevant evidence, admission refusal and preservation without corrections.

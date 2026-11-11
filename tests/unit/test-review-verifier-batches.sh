@@ -23,6 +23,9 @@ headers_in_hunks = "diff --git a/app.sql b/app.sql\n--- a/app.sql\n+++ b/app.sql
 assert "old=71 new=30 +++counter29;" in excerpt(headers_in_hunks, dict(file="app.sql", line=30), 6000)
 no_prefix = "diff --git app.py app.py\n--- app.py\n+++ app.py\n@@ -1 +1 @@\n-old\n+TARGET_OPERATION\n" + diff
 assert "TARGET_OPERATION" in build(no_prefix, [dict(file="app.py", line=1, title="target")], "context", 6000)[0][1]
+repeated = "diff --git a/app.py b/app.py\n--- a/app.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-REMOVED_VERSION\n" + no_prefix
+both = build(repeated, [dict(file="app.py",line=1,title="target")], "context", 6000)[0][1]
+assert "REMOVED_VERSION" in both and "TARGET_OPERATION" in both
 try:
     build(diff, [dict(file="src/app.ts", line=1, detail="x"*20000)], "context", 2048)
 except ValueError: pass
@@ -60,6 +63,16 @@ if (
     tangle_contextual_review_gate fixture prompt context subtasks validation before || rc=$?
     [[ "$rc" -eq 2 && ! -e "$RESULTS_DIR/corrections-called" ]] || exit 1
     jq -e '.reviewVerification == "incomplete"' "$RESULTS_DIR/.tangle-fixture-git.json" >/dev/null
+    printf '%s\n' '{"findings":[],"warning":"No providers returned a review"}' > "$RESULTS_DIR/findings.json"
+    tangle_run_context_code_review() { TANGLE_REVIEW_FINDINGS_FILE="$RESULTS_DIR/findings.json"; return 1; }
+    rc=0
+    tangle_contextual_review_gate fixture prompt context subtasks validation before || rc=$?
+    [[ "$rc" -eq 1 && ! -e "$RESULTS_DIR/corrections-called" ]] || exit 1
+    jq -e '.reviewVerification == "incomplete"' "$RESULTS_DIR/.tangle-fixture-git.json" >/dev/null || exit 1
+    printf '%s\n' '{"findings":[]}' > "$RESULTS_DIR/findings.json"
+    tangle_run_context_code_review() { TANGLE_REVIEW_FINDINGS_FILE="$RESULTS_DIR/findings.json"; }
+    tangle_contextual_review_gate fixture prompt context subtasks validation before || exit 1
+    jq -e '.reviewVerification == "complete"' "$RESULTS_DIR/.tangle-fixture-git.json" >/dev/null
 ); then test_pass; else test_fail "invalid review caused speculative corrections or lost recovery metadata"; fi
 
 test_case "mandatory verifier input is never prefix-truncated by final admission"
@@ -74,5 +87,44 @@ if (
     OCTOPUS_OVERSIZE_STRATEGY=fail enforce_context_budget "$payload" implementation-verifier fixture review > "$TEST_TMP_DIR/admitted" || rc=$?
     [[ "$rc" -eq 78 && ! -s "$TEST_TMP_DIR/admitted" ]]
 ); then test_pass; else test_fail "admission clipped mandatory findings instead of rejecting before dispatch"; fi
+
+test_case "unmanaged fallback replans complete findings for its own smaller window"
+if (
+    source "$ROOT/scripts/lib/review.sh"
+    log() { :; }
+    inputs="$TEST_TMP_DIR/fallback"; mkdir -p "$inputs"
+    printf '%s\n' 'diff --git a/app.py b/app.py' '--- a/app.py' '+++ b/app.py' '@@ -1 +1 @@' '-old' '+new' > "$inputs/diff"
+    printf 'context' > "$inputs/context"
+    printf '[]' > "$inputs/statuses"
+    python3 - "$inputs/findings" <<'PY'
+import json, sys
+with open(sys.argv[1],"w") as stream:
+    json.dump([dict(file="app.py",line=1,title="finding-%d"%i,detail="x"*140) for i in range(90)],stream)
+PY
+    get_provider_context_limit() { echo 3000; }
+    get_role_budget_proportion() { echo 100; }
+    review_run_agent_sync_progress() {
+        printf 'call\n' >> "$inputs/calls"
+        printf '%s' "$2" | python3 -c '
+import json,sys
+prompt=sys.stdin.read()
+assert len(prompt.encode()) <= 6000
+rows=json.JSONDecoder().raw_decode(prompt.split("Findings to verify:\n",1)[1])[0]
+print(json.dumps({"findings":[dict(row,verdict="confirmed") for row in rows]}))'
+    }
+    response=$(review_verifier_fallback "$inputs" "$inputs/findings" claude-sonnet "$inputs/statuses") || exit 1
+    [[ "$(wc -l < "$inputs/calls")" -gt 1 ]] || exit 1
+    printf '%s' "$response" | jq -e '.findings | length == 90' >/dev/null || exit 1
+    printf '%s' "$response" | jq -e '[.findings[].title] | unique | length == 90' >/dev/null || exit 1
+    : > "$inputs/calls"
+    python3 - "$inputs/findings" <<'PY'
+import json,sys
+with open(sys.argv[1],"w") as stream:
+    json.dump([dict(file="app.py",line=1,title="too big",detail="x"*10000)],stream)
+PY
+    rc=0
+    review_verifier_fallback "$inputs" "$inputs/findings" claude-sonnet "$inputs/statuses" >/dev/null 2>&1 || rc=$?
+    [[ "$rc" -ne 0 && ! -s "$inputs/calls" ]]
+); then test_pass; else test_fail "fallback clipped inputs, lost findings or skipped its own limit"; fi
 
 test_summary

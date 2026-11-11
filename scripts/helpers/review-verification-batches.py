@@ -20,7 +20,10 @@ def excerpts(diff, finding, max_bytes):
     """Keep the cited patch or a correctly numbered window of its hunk lines."""
     blocks = re.split(r"(?=^diff --git )", diff, flags=re.M)
     wanted = str(finding.get("file", "")).removeprefix("./")
-    block = next((b for b in blocks if block_path(b.encode("utf-8")) == wanted), "")
+    matches = [b for b in blocks if block_path(b.encode("utf-8")) == wanted]
+    if len(matches) > 1:
+        return "\n\n".join(excerpts(block, finding, max_bytes) for block in matches)
+    block = matches[0] if matches else ""
     if not block:
         if len(diff.encode()) < max_bytes // 4:
             return diff
