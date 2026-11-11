@@ -18,6 +18,7 @@ def digest(path):
 
 
 def apply_stop(state, reason):
+    """Preserve the first stop reason and restore the best saved before recalibration."""
     reason = state["stop_reason"] or reason
     if reason is None:
         return False
@@ -33,6 +34,7 @@ def apply_stop(state, reason):
 
 
 def scoring():
+    """Load the scorer beside this controller, independent of project imports."""
     spec = importlib.util.spec_from_file_location("refinement_score", Path(__file__).with_name("refinement-score.py"))
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -40,12 +42,14 @@ def scoring():
 
 
 def require(condition, message):
+    """Reject invalid evidence or transitions before persisting state."""
     if not condition:
         raise ValueError(message)
 
 
 @contextmanager
 def locked(run):
+    """Serialize admission and journal changes with the pair dispatch lock."""
     lock = run / ".dispatch-lock"
     lock.mkdir()
     try:
@@ -55,6 +59,7 @@ def locked(run):
 
 
 def calls(run, state):
+    """Validate recorded spending against the run's frozen deadline and budget."""
     path = run / "calls.jsonl"
     entries = [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
     require(all(type(e.get("calls")) is int and e["calls"] > 0 and
@@ -64,6 +69,7 @@ def calls(run, state):
 
 
 def load(run):
+    """Rebuild managed state from the journal and verify the preserved original."""
     path = run / "iterations.jsonl"
     require(path.is_file(), "initialize a managed refinement run before dispatch; legacy evidence stays unchanged")
     records = [json.loads(line) for line in path.read_text().splitlines()]
@@ -80,12 +86,14 @@ def load(run):
 
 
 def write_trajectory(run, state):
+    """Replace the derived round view without changing the authoritative journal."""
     temporary = run / "trajectory.json.tmp"
     temporary.write_text(json.dumps(state["rounds"], indent=2) + "\n")
     temporary.replace(run / "trajectory.json")
 
 
 def persist(run, state, event):
+    """Fsync one state transition before refreshing its derived trajectory."""
     path = run / "iterations.jsonl"
     sequence = len(path.read_text().splitlines()) if path.exists() else 0
     record = dict(event=event, sequence=sequence, time=time.time(), state=state)
@@ -98,6 +106,7 @@ def persist(run, state, event):
 
 
 def validate_rubric(data):
+    """Apply scorer schema checks without consuming a judge call."""
     engine = scoring()
     dummy = {"artifact_sha256": "schema", "judges": [], "guards": []}
     for provider in ("claude", "codex"):
@@ -112,6 +121,7 @@ def validate_rubric(data):
 
 
 def stop_reason(state):
+    """Evaluate persisted and current stop conditions without changing state."""
     if state["stop_reason"]:
         return state["stop_reason"]
     if time.time() >= state["deadline"]:
@@ -128,6 +138,7 @@ def available(state):
 
 
 def snapshot(path, data, resume=False):
+    """Retain read-only evidence; interrupted retries must reproduce its bytes."""
     if path.exists():
         require(resume and path.read_bytes() == data, "snapshot already exists with different or uncommitted inputs")
         return
@@ -136,6 +147,7 @@ def snapshot(path, data, resume=False):
 
 
 def initialize(run, original, rubric, deadline, max_calls, max_rounds, seats):
+    """Freeze a new run's inputs and limits while refusing existing evidence."""
     require(not (run / "iterations.jsonl").exists() and not (run / "calls.jsonl").exists(),
             "existing run evidence cannot be reinitialized or assigned a new budget")
     require(math.isfinite(deadline) and deadline > time.time(), "future finite deadline required")
@@ -159,6 +171,7 @@ def initialize(run, original, rubric, deadline, max_calls, max_rounds, seats):
 
 
 def begin(run, state, pair):
+    """Open one editing round only when both judge calls still fit."""
     available(state)
     require(state["pending"] is None, "close the pending round before starting another")
     require(re.fullmatch(r"[A-Za-z0-9_-]+", pair), "safe unique pair ID required")
@@ -171,6 +184,7 @@ def begin(run, state, pair):
 
 
 def close(run, state, decision, result=None, accepted=False, baseline=False):
+    """Retain the decision and best candidate without charging correction stalls."""
     pending = state["pending"]
     row = dict(round=pending["round"], pair_id=pending["pair_id"], decision=decision,
                accepted=accepted, score=result["score"] if result else None,
@@ -204,6 +218,7 @@ def close(run, state, decision, result=None, accepted=False, baseline=False):
 
 
 def prepare(run, state, candidate, guards, rubric=None):
+    """Validate captured bytes before freezing a candidate and guard evidence."""
     available(state)
     pending = state["pending"]
     require(pending and pending["phase"] == "editing", "begin one round before preparing its candidate")
@@ -260,6 +275,7 @@ def admit(run, pair, frozen, deadline, budget, seats, correction=None):
 
 
 def dispatched(run, state, manifest):
+    """Journal the reservation and retain the prior best during recalibration."""
     if manifest.get("rubric_correction"):
         state["correction"] = dict(phase="original", best=state["best"].copy(), rubric_hash=manifest["hashes"]["rubric"])
     state["pending"]["phase"] = "judging"
@@ -267,6 +283,7 @@ def dispatched(run, state, manifest):
 
 
 def abort(run, reason):
+    """End a failed pair while preserving the run's first stop reason."""
     with locked(run):
         state = load(run)
         apply_stop(state, stop_reason(state) or reason)
@@ -277,6 +294,7 @@ def abort(run, reason):
 
 
 def record(run, state, assessment):
+    """Validate both judges against frozen inputs before retaining a decision."""
     pending = state["pending"]
     require(pending and pending["phase"] == "judging", "no completed pair is awaiting assessment")
     pair = run / pending["pair_id"]
@@ -317,6 +335,7 @@ def record(run, state, assessment):
 
 
 def main(argv=None):
+    """Apply one CLI transition under the run lock and print journal-backed state."""
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
     init = sub.add_parser("init")

@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 class RunControlTest(unittest.TestCase):
     def setUp(self):
+        """Build an isolated installation with credential-free judge adapters."""
         self.assertTrue((ROOT/'scripts/refinement-run.py').is_file(), 'persisted refinement controller is missing')
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -38,20 +39,24 @@ class RunControlTest(unittest.TestCase):
         self.cli('init', self.run, self.original, self.rubric, '--deadline',self.deadline,'--max-calls',14,'--max-rounds',5,'--claude','claude:claude-fixed','--codex','codex:codex-fixed')
 
     def cli(self, *args, ok=True):
+        """Check the exit status and decode successful journal-backed output."""
         p = subprocess.run([sys.executable,str(self.scripts/'refinement-run.py'),*map(str,args)],text=True,capture_output=True)
         if ok: self.assertEqual(p.returncode,0,p.stderr)
         else: self.assertNotEqual(p.returncode,0,p.stdout)
         return json.loads(p.stdout) if p.returncode == 0 else p
 
     def controller(self):
+        """Import the controller from this test's isolated installation."""
         spec = importlib.util.spec_from_file_location('refinement_run_control', self.scripts/'refinement-run.py')
         module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
         return module
 
     def pair(self, name, candidate, correction=None, **env):
+        """Dispatch inert judges with fixed identities and optional correction metadata."""
         return subprocess.run([sys.executable,str(self.scripts/'refinement-pair.py'),str(self.run),name,str(self.prompt),str(candidate),str(self.rubric),str(self.deadline),'14','claude:claude-fixed','high','codex:codex-fixed','high'] + (['--rubric-correction',correction,'repair an omitted criterion'] if correction else []),env=dict(os.environ,**env),capture_output=True,text=True)
 
     def score(self, name, value=3.2, blockers=None, artifact=None, correction=None, late=False, interrupted=False):
+        """Exercise ordinary, expired or interrupted recording of one inert pair."""
         artifact = artifact or (self.original if name == 'baseline' else self.candidate)
         self.cli('begin',self.run,name)
         self.cli('prepare',self.run,artifact,self.guards)
@@ -96,6 +101,7 @@ class RunControlTest(unittest.TestCase):
         self.assertFalse((other/'calls.jsonl').exists())
 
     def test_best_candidate_and_trajectory_survive_restart(self):
+        """Reload a lost trajectory without promoting a later rejected edit."""
         self.score('baseline',3.0)
         self.candidate.write_text('improved')
         self.score('round-1',3.5)
@@ -110,12 +116,14 @@ class RunControlTest(unittest.TestCase):
         self.assertEqual([r['decision'] for r in trajectory],['baseline retained','accepted','rejected'])
 
     def test_initialization_hashes_the_bytes_it_snapshots(self):
+        """Edit the live original after capture to expose a second-read hash race."""
         module = self.controller()
         run = self.base/'racy-init'; run.mkdir()
         original_bytes = self.original.read_bytes()
         real_read = Path.read_bytes
         reads = []
         def read_once(path):
+            """Change only the source file after returning its initial bytes."""
             data = real_read(path)
             if path == self.original:
                 reads.append(path)
@@ -130,12 +138,14 @@ class RunControlTest(unittest.TestCase):
         self.assertEqual(state['original_sha256'], hashlib.sha256(original_bytes).hexdigest())
 
     def test_preparation_validates_and_freezes_one_read_of_each_input(self):
+        """Mutate each live input after capture and compare the retained evidence."""
         module = self.controller()
         self.cli('begin', self.run, 'baseline')
         inputs = {p:p.read_bytes() for p in [self.original, self.guards, self.rubric]}
         counts = {p:0 for p in inputs}
         real_read = Path.read_bytes
         def read_once(path):
+            """Count live reads while simulating edits immediately after capture."""
             data = real_read(path)
             if path in inputs:
                 counts[path] += 1
@@ -150,6 +160,7 @@ class RunControlTest(unittest.TestCase):
         self.assertEqual(state['pending']['candidate_hash'], hashlib.sha256(inputs[self.original]).hexdigest())
 
     def test_round_limit_and_no_reinitialization(self):
+        """Spend every improvement round before attempting a sixth and a reset."""
         self.score('baseline')
         self.candidate.write_text('better one'); self.score('one',3.3)
         for i in range(2,6):
@@ -162,6 +173,25 @@ class RunControlTest(unittest.TestCase):
         self.deadline += 60
         result = self.pair('baseline',self.original)
         self.assertNotEqual(result.returncode,0)
+        self.assertIn('dispatch differs from frozen run limits or panel',result.stderr)
+        self.assertFalse((self.run/'calls.jsonl').exists())
+
+    def test_prepared_admission_enforces_frozen_budget_and_deadline(self):
+        """Start from admissible prepared state so missing preparation cannot mask a limit bypass."""
+        self.cli('begin',self.run,'baseline')
+        self.cli('prepare',self.run,self.original,self.guards)
+        module = self.controller()
+        state = module.load(self.run)
+        frozen = {'candidate':state['pending']['candidate_hash'], 'rubric':state['pending']['rubric_hash']}
+        before = (self.run/'iterations.jsonl').read_bytes()
+        with module.locked(self.run):
+            admitted = module.admit(self.run,'baseline',frozen,self.deadline,14,state['seats'])
+            self.assertEqual(admitted['pending']['phase'],'prepared')
+            for deadline, budget in [(self.deadline,13),(self.deadline,16),(self.deadline+60,14)]:
+                with self.subTest(deadline=deadline,budget=budget):
+                    with self.assertRaisesRegex(ValueError,'dispatch differs from frozen run limits or panel'):
+                        module.admit(self.run,'baseline',frozen,deadline,budget,state['seats'])
+        self.assertEqual((self.run/'iterations.jsonl').read_bytes(),before)
         self.assertFalse((self.run/'calls.jsonl').exists())
 
     def test_rubric_correction_can_rescore_an_original_with_failed_guards(self):
@@ -189,6 +219,7 @@ class RunControlTest(unittest.TestCase):
         self.assertEqual(len((self.run/'calls.jsonl').read_text().splitlines()),4)
 
     def correction_with_retained_best(self, original_score=3.0, stall=False):
+        """Stage recalibration after an accepted candidate and an optional stalled edit."""
         self.score('baseline',3.0)
         self.candidate.write_text('retained best'); self.score('better',3.5)
         best = self.cli('status',self.run)['best']
@@ -223,6 +254,7 @@ class RunControlTest(unittest.TestCase):
         self.assertFalse(status['best']['target_met'])
 
     def test_expired_correction_status_persists_the_previous_best(self):
+        """Expire unfinished recalibration, then reload it after restoring the clock."""
         import contextlib, io
         best = self.correction_with_retained_best()
         module = self.controller()
@@ -253,11 +285,13 @@ class RunControlTest(unittest.TestCase):
         self.assertTrue(status['correction']['incomplete'])
 
     def test_resume_after_retaining_assessment_before_journal_commit(self):
+        """Recover retained assessment bytes without reserving another judge pair."""
         status = self.score('baseline',interrupted=True)
         self.assertEqual(len(status['rounds']),1)
         self.assertEqual(len((self.run/'calls.jsonl').read_text().splitlines()),1)
 
     def test_resume_after_freezing_inputs_before_journal_commit(self):
+        """Reuse matching frozen inputs after an interrupted preparation checkpoint."""
         self.cli('begin',self.run,'baseline')
         spec = importlib.util.spec_from_file_location('interrupted_prepare',self.scripts/'refinement-run.py')
         module = importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
@@ -288,6 +322,7 @@ class RunControlTest(unittest.TestCase):
         self.assertEqual((self.run/'calls.jsonl').read_bytes(),before)
 
     def test_expired_assessment_cannot_claim_target_success(self):
+        """Record completed judge results after expiry without reporting target success."""
         self.run = self.base/'short-run'; self.run.mkdir()
         self.deadline = time.time()+2.5
         self.cli('init',self.run,self.original,self.rubric,'--deadline',self.deadline,'--claude','claude:claude-fixed','--codex','codex:codex-fixed')

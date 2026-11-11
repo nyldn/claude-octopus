@@ -303,14 +303,12 @@ print('raw unvalidated output')
         entries = [json.loads(line) for line in ledger.read_text().splitlines()]
         self.assertEqual(sum(entry['calls'] for entry in entries), 6)
         self.assertEqual(entries[-1]['rubric_version'], 2)
-        self.pair_args[2] = 'over-budget'
-        self.assertNotEqual(subprocess.run(self.pair_args, capture_output=True).returncode, 0)
-        self.pair_args[7] = '8'
-        self.assertNotEqual(subprocess.run(self.pair_args, capture_output=True).returncode, 0)
-        self.pair_args[7] = '6'
-        self.pair_args[6] = str(float(self.deadline) + 60)
-        self.assertNotEqual(subprocess.run(self.pair_args, capture_output=True).returncode, 0)
-        self.assertEqual(len(ledger.read_text().splitlines()), 3)
+        full_ledger = ledger.read_bytes()
+        exhausted = subprocess.run([sys.executable, str(self.base/'scripts/refinement-run.py'),
+                                    'begin', str(run), 'over-budget'], capture_output=True, text=True)
+        self.assertNotEqual(exhausted.returncode, 0)
+        self.assertIn('reserve two scoring calls', exhausted.stderr)
+        self.assertEqual(ledger.read_bytes(), full_ledger)
 
     def test_reusing_historical_rubric_bytes_requires_a_new_version(self):
         """Preserve version history when an explicit correction restores prior bytes."""
