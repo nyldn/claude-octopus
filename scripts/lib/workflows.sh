@@ -5699,7 +5699,6 @@ tangle_contextual_review_gate() {
     tangle_record_review_verification "$task_group" "" pending || return 2
     tangle_run_context_code_review "$task_group" "$review_context_file" "initial" || review_rc=$?
     local findings_file="$TANGLE_REVIEW_FINDINGS_FILE"
-    tangle_ensure_scope_contract_finding "$findings_file" "${TANGLE_SCOPE_CONTRACT_VIOLATIONS:-}" || return 1
     if ! tangle_review_findings_valid "$findings_file"; then
         tangle_record_review_verification "$task_group" "$findings_file" incomplete || return 2
         log ERROR "Contextual code review produced an invalid findings document: ${findings_file}"
@@ -5710,6 +5709,8 @@ tangle_contextual_review_gate() {
         if [[ "$review_rc" -ne 0 ]]; then return "$review_rc"; fi
         return 2
     fi
+    # Local scope evidence cannot establish that the reviewer fleet completed.
+    tangle_ensure_scope_contract_finding "$findings_file" "${TANGLE_SCOPE_CONTRACT_VIOLATIONS:-}" || return 1
     tangle_record_review_verification "$task_group" "$findings_file" complete || return 2
     local normal_count
     normal_count=$(tangle_review_blocking_count "$findings_file")
@@ -5798,7 +5799,6 @@ tangle_contextual_review_gate() {
         review_rc=0
         tangle_run_context_code_review "$task_group" "$review_context_file" "correction-${correction_round}" || review_rc=$?
         findings_file="$TANGLE_REVIEW_FINDINGS_FILE"
-        tangle_ensure_scope_contract_finding "$findings_file" "${TANGLE_SCOPE_CONTRACT_VIOLATIONS:-}" || return 1
         if ! tangle_review_findings_valid "$findings_file"; then
             tangle_record_review_verification "$task_group" "$findings_file" incomplete || return 2
             log ERROR "Contextual code review produced an invalid findings document after correction round ${correction_round}: ${findings_file}"
@@ -5809,6 +5809,7 @@ tangle_contextual_review_gate() {
             if [[ "$review_rc" -ne 0 ]]; then return "$review_rc"; fi
             return 2
         fi
+        tangle_ensure_scope_contract_finding "$findings_file" "${TANGLE_SCOPE_CONTRACT_VIOLATIONS:-}" || return 1
         tangle_record_review_verification "$task_group" "$findings_file" complete || return 2
         normal_count=$(tangle_review_blocking_count "$findings_file")
         local current_signature

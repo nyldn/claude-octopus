@@ -129,4 +129,41 @@ PY
     [[ "$rc" -ne 0 && ! -s "$inputs/calls" ]]
 ); then test_pass; else test_fail "fallback clipped inputs, lost findings or skipped its own limit"; fi
 
+test_case "scope recovery cannot turn a failed fleet into a completed review"
+if (
+    source "$ROOT/scripts/lib/testing.sh"
+    source "$ROOT/scripts/lib/workflows.sh"
+    log() { :; }
+    tangle_build_develop_review_context() { echo fixture; }
+    tangle_validate_results_with_scope_contract() { return 0; }
+    export OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE=bounded
+    export OCTOPUS_TANGLE_REVIEW_CORRECTION_ROUNDS=2
+    for failed_round in 1 2; do
+        RESULTS_DIR="$TEST_TMP_DIR/scope-fleet-$failed_round"
+        mkdir -p "$RESULTS_DIR"
+        printf '%s\n' '{}' > "$RESULTS_DIR/.tangle-fixture-git.json"
+        TANGLE_SCOPE_CONTRACT_VIOLATIONS=src/outside.ts
+        review_calls=0 correction_calls=0
+        tangle_run_context_code_review() {
+            review_calls=$((review_calls + 1))
+            TANGLE_REVIEW_FINDINGS_FILE="$RESULTS_DIR/findings-$review_calls.json"
+            if [[ "$review_calls" -eq "$failed_round" ]]; then
+                printf '%s\n' '{"findings":[],"warning":"No providers returned a review"}' > "$TANGLE_REVIEW_FINDINGS_FILE"
+                return 1
+            fi
+            printf '%s\n' '{"findings":[{"file":"app.ts","line":1,"title":"real blocker","severity":"normal","verdict":"confirmed"}]}' > "$TANGLE_REVIEW_FINDINGS_FILE"
+        }
+        tangle_apply_review_corrections() {
+            correction_calls=$((correction_calls + 1))
+            TANGLE_CORRECTION_STATUS=done TANGLE_CORRECTION_CHANGED=1
+        }
+        rc=0
+        tangle_contextual_review_gate fixture prompt context subtasks validation before || rc=$?
+        [[ "$rc" -eq 1 && "$correction_calls" -eq $((failed_round - 1)) ]] || exit 1
+        jq -e '.reviewVerification == "incomplete"' "$RESULTS_DIR/.tangle-fixture-git.json" >/dev/null || exit 1
+        # Keep the failed evidence intact for a subsequent retry.
+        jq -e '.warning == "No providers returned a review" and (.findings | length == 0)' "$TANGLE_REVIEW_FINDINGS_FILE" >/dev/null || exit 1
+    done
+); then test_pass; else test_fail "scope findings hid fleet failure or dispatched speculative corrections"; fi
+
 test_summary
