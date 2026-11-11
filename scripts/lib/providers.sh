@@ -44,7 +44,8 @@ fi
 # command when the CLI is waiting on auth, Keychain, or a broken hook. The
 # dedicated runner keeps its termination grace inside the configured total cap
 # whether providers.sh is loaded by the orchestrator or sourced on its own.
-_octo_bare_auth_probe() {
+_octo_bare_auth_probe() (
+    unset MISTRAL_API_KEY || return 1
     local probe_timeout term_timeout kill_grace
     read -r probe_timeout term_timeout kill_grace <<< \
         "$(_octo_bare_probe_budget "${OCTOPUS_BARE_PROBE_TIMEOUT:-5}")"
@@ -56,7 +57,7 @@ _octo_bare_auth_probe() {
     printf 'x\n' | _octo_run_bare_probe_with_timeout \
         "$probe_timeout" "$term_timeout" "$kill_grace" \
         claude --bare --print --model claude-haiku-4-5-20251001
-}
+)
 
 # Version comparison utility
 version_compare() {
@@ -87,13 +88,15 @@ version_compare() {
     return 1
 }
 
-_octo_host_version_output() {
+_octo_host_version_output() (
+    # Host metadata probes do not use the credential forwarded for OpenCode.
+    unset MISTRAL_API_KEY || return 1
     local total_timeout term_timeout kill_grace
     read -r total_timeout term_timeout kill_grace <<< \
         "$(_octo_bare_probe_budget "${OCTOPUS_VERSION_PROBE_TIMEOUT:-5}")"
     _octo_run_bare_probe_with_timeout \
         "$total_timeout" "$term_timeout" "$kill_grace" "$1" --version </dev/null
-}
+)
 
 detect_claude_code_version() {
     _octo_host_version_probe_attempted=false
@@ -164,7 +167,8 @@ detect_claude_code_version() {
        "${#_claude_capability_cmd[@]}" -gt 0 ]] &&
        command -v "${_claude_capability_cmd[0]}" >/dev/null 2>&1; then
         _claude_capability_timeout="$(_octo_bare_probe_timeout "${OCTOPUS_BARE_PROBE_TIMEOUT:-5}")"
-        _claude_capability_help="$(_octo_run_bare_probe_with_timeout \
+        _claude_capability_help="$(unset MISTRAL_API_KEY || exit 1
+            _octo_run_bare_probe_with_timeout \
             "$_claude_capability_timeout" "$_claude_capability_timeout" 0 \
             "${_claude_capability_cmd[@]}" --help 2>/dev/null || true)"
         if grep -c -- '--effort' <<< "$_claude_capability_help" >/dev/null 2>&1; then
@@ -726,7 +730,8 @@ detect_enterprise_backend() {
     # Auth CLI detection (v2.1.41+): parse `claude auth status` output
     if [[ "$SUPPORTS_AUTH_CLI" == "true" ]]; then
         local auth_output
-        auth_output=$(claude auth status 2>/dev/null || true)
+        auth_output=$(unset MISTRAL_API_KEY || exit 1
+            claude auth status 2>/dev/null || true)
         if [[ "$auth_output" == *"bedrock"* || "$auth_output" == *"Bedrock"* ]]; then
             OCTOPUS_BACKEND="bedrock"
             OCTOPUS_AUTH_REFRESH_INTERVAL="${OCTOPUS_AUTH_REFRESH_INTERVAL:-150}"
@@ -1344,7 +1349,7 @@ detect_providers() {
         local claude_auth="oauth"
         # v8.8: Use claude auth status for reliable auth verification
         if [[ "$SUPPORTS_AUTH_CLI" == "true" ]]; then
-            if claude auth status &>/dev/null; then
+            if (unset MISTRAL_API_KEY && claude auth status) &>/dev/null; then
                 claude_auth="verified"
             else
                 claude_auth="oauth"  # Fallback: assume oauth in Claude Code context

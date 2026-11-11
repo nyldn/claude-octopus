@@ -318,7 +318,9 @@ _octo_opencode_auth_store_present() {
 
 # Runtime-only, bounded version detection. Unknown generations cannot safely
 # select private-server flags, so real dispatch fails closed.
-_octo_opencode_cli_major() {
+_octo_opencode_cli_major() (
+    # Version metadata needs neither model nor search credentials.
+    unset MISTRAL_API_KEY KEENABLE_API_KEY || return 1
     local version
     case "${OCTOPUS_SKIP_PROVIDER_PROBES:-false}" in true|1) return 1 ;; esac
     if ! declare -f _octo_run_bare_probe_with_timeout >/dev/null 2>&1; then
@@ -330,11 +332,13 @@ _octo_opencode_cli_major() {
     else
         return 1
     fi
-}
+)
 
 # Explicit live check only. Keep all account metadata private. V2 checks the
 # same private-server environment used by dispatch, never the shared service.
-_octo_opencode_has_saved_login() {
+_octo_opencode_has_saved_login() (
+    # Environment-only login still needs Mistral; search credentials never do.
+    unset KEENABLE_API_KEY || return 1
     local listing major
     declare -f _octo_run_bare_probe_with_timeout >/dev/null 2>&1 || source "${_auth_lib_dir}/bounded-probe.sh" || return 1
     major="$(_octo_opencode_cli_major)" || return 1
@@ -373,4 +377,4 @@ sys.exit(0 if valid else 1)
         listing="$(printf '%s\n' "$listing" | sed $'s/\033\\[[0-9;]*m//g')"
         printf '%s\n' "$listing" | grep -Ec '^[[:space:]│└]*[1-9][0-9]* (credentials?|environment variables?)[[:space:]]*$' >/dev/null
     fi
-}
+)

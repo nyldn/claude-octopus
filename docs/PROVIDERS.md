@@ -494,6 +494,8 @@ Static discovery recognizes `auth.json`, `opencode.db` and channel-specific
 The MCP adapter preserves `OPENCODE_DB` and `XDG_DATA_HOME` so its OpenCode
 child discovers the same login store. It also preserves `OPENCODE_CONFIG_DIR`
 so the login check and private server use the caller's custom configuration.
+The explicit `OPENCODE_CONFIG` file selector is forwarded as well. This preserves
+custom provider files supported by the [upstream configuration loader](https://github.com/anomalyco/opencode/blob/v1.18.34/packages/opencode/src/config/config.ts).
 Isolated Codex children do not receive these OpenCode settings.
 
 Store presence is configuration evidence only. A SQLite-only installation
@@ -516,7 +518,12 @@ login check; forwarding it alone does not establish account or model access.
 Unrelated provider children exclude this Mistral credential while retaining
 their own authentication, including CLI and shell-function routes. OpenCode
 and Vibe retain access to it. CommandCode's login health probe also excludes the
-ambient Mistral key before dispatch filtering. Explicit credential selection in isolated provider
+ambient Mistral key before dispatch filtering. Claude host version, status and
+capability-help and authentication probes also exclude it while preserving the
+parent environment. OpenCode version probes omit both Mistral and search
+credentials. OpenCode login probes retain Mistral for environment-only login and
+omit the unrelated search credential. This filtering does not establish
+executable provenance or isolate project plugins. Explicit credential selection in isolated provider
 configuration remains effective.
 OpenCode dispatch admission also confirms statically available seats.
 Both admission checks resolve OpenCode from the worker's project directory.

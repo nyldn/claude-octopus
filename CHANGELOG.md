@@ -8,6 +8,13 @@
   output rates per million tokens. Capability checks now recognize its image
   input and reasoning support. Model defaults and saved choices are preserved.
 
+- Claude startup version, status and capability checks exclude the Mistral
+  credential forwarded for OpenCode, while preserving parent authentication.
+  MCP also preserves the explicit `OPENCODE_CONFIG` file selector so custom
+  OpenCode provider settings reach login checks and dispatch. OpenCode version
+  probes omit Mistral and search credentials, while login checks retain the
+  required Mistral credential and omit the unrelated search key.
+
 - CommandCode health checks exclude the Mistral credential forwarded for
   OpenCode. Failed selected OpenCode admission preserves the broad discovery
   cache, including login and provider smoke failures.

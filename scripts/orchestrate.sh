@@ -1394,11 +1394,11 @@ check_claude_version() {
     # Try to get version from claude command
     if command -v claude &>/dev/null; then
         # Try different version flag formats
-        current_version=$(claude --version 2>/dev/null | grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+')
+        current_version=$( (unset MISTRAL_API_KEY && claude --version) 2>/dev/null | grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+')
 
         if [[ -z "$current_version" ]]; then
             # Try alternative: claude version
-            current_version=$(claude version 2>/dev/null | grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+')
+            current_version=$( (unset MISTRAL_API_KEY && claude version) 2>/dev/null | grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+')
         fi
 
         if [[ -z "$current_version" ]]; then
