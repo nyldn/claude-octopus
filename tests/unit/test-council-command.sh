@@ -2102,6 +2102,114 @@ test_council_degenerate_chair_keeps_vote_and_flags_synthesis() {
     fi
 }
 
+test_council_records_agy_fallback_model() {
+    test_case "an agy seat that fell back after a no-capacity 503 records the model that answered"
+    load_council_lib || return 1
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/council-agy-fallback.XXXXXX")"; mkdir -p "$d/responses"
+    COUNCIL_RUN_DIR="$d"
+    COUNCIL_DEPTH="standard"
+    COUNCIL_FIXTURE=""
+    COUNCIL_CHAIR_FALLBACK_USED="false"; COUNCIL_CHAIR_FALLBACK_PERSONA=""
+    COUNCIL_ROSTER_JSON='[
+      {"persona":"strategy-analyst","seat":"chair","provider":"claude","provider_org":"anthropic","model":"claude"},
+      {"persona":"security-auditor","seat":"member","provider":"codex","provider_org":"openai","model":"gpt"},
+      {"persona":"backend-architect","seat":"member","provider":"agy","provider_org":"google","model":"Gemini 3.8 Flash (High)"}
+    ]'
+    council_dispatch_member_detached() {
+        local mj="$1" out="$3"
+        if [[ "$(jq -r '.persona' <<< "$mj")" == "backend-architect" ]]; then
+            # agy-exec writes the model that answered, then the busy one.
+            mkdir -p "$(dirname "$_OCTOPUS_AGY_MODEL_USED_FILE")"
+            printf '%s\n%s\n' "Gemini 4 Carbon (High)" "gemini-3.8-flash-high" > "$_OCTOPUS_AGY_MODEL_USED_FILE"
+        fi
+        printf '## Review\n\nsrc/app.ts:42 correctly guards the nil case; tests cover it.\n\nVERDICT: APPROVE\n' > "$out"
+        return 0
+    }
+
+    COUNCIL_PROVIDER_STATUS_JSON='{"claude":"available","codex":"available","agy":"available"}' \
+        council_run_advice_phase >/dev/null 2>&1 || true
+    unset -f council_dispatch_member_detached
+
+    local seat roster other
+    seat="$(jq -c 'map(select(.persona == "backend-architect"))[0] | {model, model_family, model_fallback}' <<< "$COUNCIL_SEAT_RECORDS_JSON" 2>/dev/null)"
+    roster="$(jq -c 'map(select(.persona == "backend-architect"))[0] | {model, model_used, model_fallback_from}' <<< "$COUNCIL_ROSTER_JSON" 2>/dev/null)"
+    other="$(jq -c 'map(select(.persona == "security-auditor"))[0] | [.model, (.model_fallback // null)]' <<< "$COUNCIL_SEAT_RECORDS_JSON" 2>/dev/null)"
+    if [[ "$seat" == '{"model":"Gemini 4 Carbon (High)","model_family":"google","model_fallback":{"from":"gemini-3.8-flash-high","reason":"no-capacity-503"}}' \
+          && "$roster" == '{"model":"Gemini 3.8 Flash (High)","model_used":"Gemini 4 Carbon (High)","model_fallback_from":"gemini-3.8-flash-high"}' \
+          && "$other" == '["gpt",null]' ]]; then
+        test_pass
+    else
+        test_fail "seat=$seat roster=$roster other=$other"
+        return 1
+    fi
+}
+
+test_council_phase_context_allowance() {
+    test_case "critique/chair prompts get an allowance for council-added peer context; advice gets none"
+    load_council_lib || return 1
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/council-allowance.XXXXXX")"; mkdir -p "$d/responses" "$d/critiques" "$d/revisions"
+    COUNCIL_RUN_DIR="$d"
+    COUNCIL_TASK="Review the change"
+    COUNCIL_ROSTER_JSON='[{"persona":"strategy-analyst","seat":"chair","provider":"claude"},{"persona":"security-auditor","seat":"member","provider":"codex"}]'
+    printf '%s\n' "$(printf 'peer finding line %.0s' $(seq 1 400))" > "$d/responses/01-strategy-analyst.md"
+    printf '%s\n' "$(printf 'peer finding line %.0s' $(seq 1 400))" > "$d/responses/02-security-auditor.md"
+    source "$PROJECT_ROOT/scripts/lib/dispatch.sh" 2>/dev/null || true
+    local advice chair advice_prompt chair_prompt
+    advice_prompt="$(council_prompt_for_member security-auditor independent-advice)"
+    chair_prompt="$(council_prompt_for_member strategy-analyst chair-synthesis)"
+    advice="$(council_phase_context_allowance security-auditor independent-advice "$advice_prompt")"
+    chair="$(council_phase_context_allowance strategy-analyst chair-synthesis "$chair_prompt")"
+    # The chair prompt carries both ~7.2K-char responses (~3.6K tokens).
+    if [[ "$advice" == 0 && "$chair" =~ ^[0-9]+$ && "$chair" -ge 3000 ]]; then
+        test_pass
+    else
+        test_fail "advice=$advice chair=$chair"
+        return 1
+    fi
+}
+
+test_council_prompt_template_is_ascii() {
+    test_case "council phase prompts built from ASCII inputs stay ASCII, so admission counts 4 chars per token"
+    load_council_lib || return 1
+    source "$PROJECT_ROOT/scripts/lib/dispatch.sh" 2>/dev/null || true
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/council-ascii.XXXXXX")"; mkdir -p "$d/responses" "$d/critiques" "$d/revisions"
+    COUNCIL_RUN_DIR="$d"
+    COUNCIL_TASK="Review the change"; COUNCIL_GOAL="review"; COUNCIL_DOMAIN="software"
+    COUNCIL_STYLE="balanced"; COUNCIL_DEPTH="standard"
+    printf 'diff --git a/app.ts b/app.ts\n+guard nil\n' > "$d/change.diff"
+    COUNCIL_CONTEXT_FILES=("$d/change.diff")
+    printf 'peer review\nVERDICT: APPROVE\n' > "$d/responses/01-strategy-analyst.md"
+    printf 'critique\n' > "$d/critiques/01-strategy-analyst.md"
+    printf 'revision\n' > "$d/revisions/01-strategy-analyst.md"
+    COUNCIL_ROSTER_JSON='[{"persona":"strategy-analyst","seat":"chair","provider":"claude"},{"persona":"security-auditor","seat":"member","provider":"codex"}]'
+    # Until the estimator summed ASCII and non-ASCII text separately, one em-dash
+    # in Octopus's own template made every council prompt count at 3 UTF-8 bytes
+    # per token, 3/4 of its budget (sail-cruisey #3011). Keep the template ASCII
+    # so the 4-chars-per-token figure the caller sizes against stays exact.
+    local phase prompt bad="" rendered="" LC_ALL=C
+    for phase in independent-advice cross-critique revision-after-critique chair-synthesis; do
+        prompt="$(council_prompt_for_member security-auditor "$phase")"
+        # Prove the context-file and peer-artifact wrappers were rendered too.
+        [[ "$prompt" == *"guard nil"* ]] && rendered="$rendered ctx"
+        [[ "$phase" == chair-synthesis && "$prompt" == *"peer review"* ]] && rendered="$rendered peers"
+        if [[ "$prompt" == *[$'\x80'-$'\xff']* ]]; then
+            local line first=""
+            while IFS= read -r line; do
+                [[ "$line" == *[$'\x80'-$'\xff']* ]] && { first="${line:0:80}"; break; }
+            done <<< "$prompt"
+            bad="$bad $phase:[$first]"
+        elif [[ "$(octo_estimate_prompt_tokens "$prompt")" != "$(( (${#prompt} + 3) / 4 ))" ]]; then
+            bad="$bad $phase:estimate-not-4-chars-per-token"
+        fi
+    done
+    if [[ -z "$bad" && "$rendered" == " ctx ctx ctx ctx peers" ]]; then
+        test_pass
+    else
+        test_fail "non-ASCII council template text:$bad (rendered:$rendered)"
+        return 1
+    fi
+}
+
 test_council_one_vote_per_vendor_opt_in() {
     test_case "OCTOPUS_COUNCIL_ONE_VOTE_PER_VENDOR=1 keeps one voting seat per model family; default leaves the roster intact"
     load_council_lib || return 1
@@ -2221,6 +2329,7 @@ test_council_failed_dispatched_synthesis_is_partial
 test_council_synthesis_warning_uses_logger_and_stays_capturable
 test_council_quorum_met_with_host_native_chair
 test_council_degenerate_chair_keeps_vote_and_flags_synthesis
+test_council_records_agy_fallback_model
 test_council_one_vote_per_vendor_opt_in
 test_council_defaults_are_depth_aware
 test_council_rejects_non_usd_budget

@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 # Antigravity CLI stdin-to-argument adapter.
 #
-# This intentionally stays a thin, env-driven adapter. It does NOT implement a
-# model-fallback chain or an error classifier the way the Gemini adapter does:
-# agy's model catalog and error strings are not verified here (agy may be
-# unauthenticated on a given box), and forcing a specific --model pushes agy onto
-# an exhaustible quota group. The only added robustness is provider-agnostic — a
-# single replay-from-cached-stdin retry on a silent-empty success.
+# This intentionally stays a thin, env-driven adapter. Forcing a specific --model
+# pushes agy onto an exhaustible quota group, so it falls back to another model
+# only when the caller lists them (OCTOPUS_AGY_FALLBACK_MODELS) and agy reports a
+# retryable no-capacity 503. Otherwise the only added robustness is
+# provider-agnostic: a single replay-from-cached-stdin retry on a silent-empty success.
 #
 # Prompt delivery: current agy takes the prompt as --print's ARGUMENT VALUE and
 # ignores stdin in print mode; with `--print` placed before other flags, agy
@@ -79,11 +78,14 @@ fi
 cmd+=(--dangerously-skip-permissions --print-timeout "$print_timeout")
 
 # Model-pin guard adopted from #555: query-free, treats agy/default as "no pin".
+# The --model flag is added when the command runs (agy_command), so a
+# no-capacity fallback can swap it.
+model_args=()
 case "$model" in
     ""|default|agy/default)
         ;;
     *)
-        cmd+=(--model "$model")
+        model_args=(--model "$model")
         ;;
 esac
 
@@ -222,10 +224,20 @@ else
     cmd+=(--print "${AGY_INLINE_DIRECTIVE}${prompt_content}")
 fi
 
+# agy reads the flag after --print as the message, so --model goes before the
+# --print pair at the end of cmd.
+agy_command() {
+    local n=${#cmd[@]}
+    run_cmd=("${cmd[@]:0:n-2}")
+    (( ${#model_args[@]} )) && run_cmd+=("${model_args[@]}")
+    run_cmd+=("${cmd[@]:n-2}")
+}
+
 run_agy() {
+    agy_command
     : > "$stdout_file"
     : > "$stderr_file"
-    "${cmd[@]}" > "$stdout_file" 2> "$stderr_file" < /dev/null
+    "${run_cmd[@]}" > "$stdout_file" 2> "$stderr_file" < /dev/null
 }
 
 # agy is a bubbletea TUI app. In --print mode it is headless, but when it must render
@@ -242,6 +254,19 @@ _agy_quota_error() {
     # provider dead directly, the same way lib/perplexity.sh handles its 401.
     LC_ALL=C grep -ciE 'individual quota reached|quota reached\.|upgrade your subscription' \
         "$stderr_file" "$stdout_file" >/dev/null 2>&1
+}
+
+_agy_no_capacity() {
+    # agy prints a structured line for this error:
+    # AGY_ERROR: {"short_error":"UNAVAILABLE (code 503): No capacity available for model ...","error_code":503,"retryable":true,...}
+    LC_ALL=C grep -ciE '"error_code":[[:space:]]*503[,}].*"retryable":[[:space:]]*true|"retryable":[[:space:]]*true.*"error_code":[[:space:]]*503[,}]|no capacity available for model' \
+        "$stderr_file" "$stdout_file" >/dev/null 2>&1
+}
+
+# The model named in agy's no-capacity error, so the fallback skips it.
+_agy_busy_model() {
+    LC_ALL=C grep -hoiE 'no capacity available for model [^ "]+' "$stderr_file" "$stdout_file" 2>/dev/null \
+        | head -1 | sed -E 's/.* model //'
 }
 
 _agy_quota_reset_window() {
@@ -291,14 +316,14 @@ run_agy_pty() {
     : > "$stderr_file"
     if [[ "$(uname -s 2>/dev/null)" == Darwin* || "$(uname -s 2>/dev/null)" == *BSD ]]; then
         # BSD script: trailing command args preserve argv (safe for a large --print value).
-        script -q /dev/null "${cmd[@]}" > "$stdout_file" 2> "$stderr_file" < /dev/null
+        script -q /dev/null "${run_cmd[@]}" > "$stdout_file" 2> "$stderr_file" < /dev/null
     else
         # util-linux script: the command must be one -c string and may be
         # interpreted by /bin/sh rather than Bash. Quote every argument with
         # POSIX single-quote syntax; Bash printf %q can emit $'...' for
         # multiline values, which is not portable to /bin/sh.
         local _q="" _a _escaped
-        for _a in "${cmd[@]}"; do
+        for _a in "${run_cmd[@]}"; do
             _escaped="${_a//\'/\'\\\'\'}"
             _q+="'${_escaped}' "
         done
@@ -336,6 +361,40 @@ if [[ "${OCTOPUS_AGY_NO_PTY_FALLBACK:-}" != "1" ]] && (( rc != 0 )) \
     echo "agy-exec.sh: agy demanded a TTY; retrying once under a pseudo-terminal (disable with OCTOPUS_AGY_NO_PTY_FALLBACK=1)" >&2
     run_agy_pty
     rc=$?
+fi
+
+# A 503 "No capacity available for model X" is the backend saying that one model
+# is busy right now, and agy marks it retryable. The account itself is fine, so
+# try the same prompt on the next model in OCTOPUS_AGY_FALLBACK_MODELS (a comma
+# list of `agy models` IDs or labels). Only Gemini models are accepted: the agy
+# seat must stay a Google vendor, distinct from the Claude lead and Codex.
+if (( rc != 0 )) && [[ -n "${OCTOPUS_AGY_FALLBACK_MODELS:-}" ]] && _agy_no_capacity; then
+    _agy_busy="$(_agy_busy_model)"; [[ -n "$_agy_busy" ]] || _agy_busy="$model"
+    IFS=',' read -r -a _agy_fallbacks <<< "$OCTOPUS_AGY_FALLBACK_MODELS"
+    for _agy_next in "${_agy_fallbacks[@]}"; do
+        _agy_next="$(printf '%s' "$_agy_next" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+        [[ -n "$_agy_next" ]] || continue
+        case "$_agy_next" in
+            [Gg][Ee][Mm][Ii][Nn][Ii][-\ ]*) ;;
+            *)
+                echo "agy-exec.sh: skipping fallback model '$_agy_next': only Gemini models keep the agy seat a distinct vendor" >&2
+                continue
+                ;;
+        esac
+        _agy_lower_next="$(printf '%s' "$_agy_next" | tr '[:upper:]' '[:lower:]')"
+        [[ "$_agy_lower_next" == "$(printf '%s' "$_agy_busy" | tr '[:upper:]' '[:lower:]')" ]] && continue
+        [[ "$_agy_lower_next" == "$(printf '%s' "$model" | tr '[:upper:]' '[:lower:]')" ]] && continue
+        echo "agy-exec.sh: model ${_agy_busy:-default} has no capacity (503); retrying on '$_agy_next'" >&2
+        model_args=(--model "$_agy_next")
+        run_agy
+        rc=$?
+        if [[ -n "${_OCTOPUS_AGY_MODEL_USED_FILE:-}" ]]; then
+            mkdir -p "$(dirname "$_OCTOPUS_AGY_MODEL_USED_FILE")" 2>/dev/null
+            printf '%s\n%s\n' "$_agy_next" "${_agy_busy:-default}" > "$_OCTOPUS_AGY_MODEL_USED_FILE" 2>/dev/null
+        fi
+        (( rc != 0 )) && _agy_no_capacity && { _agy_busy="$_agy_next"; continue; }
+        break
+    done
 fi
 set -e
 

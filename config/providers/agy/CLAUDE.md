@@ -40,6 +40,13 @@ names with spaces are passed as a single argv element.
 Set `OCTOPUS_AGY_MODEL=default` to omit `--model` and use the Antigravity CLI
 default. Set `OCTOPUS_AGY_PRINT_TIMEOUT` to override the print-mode wait time.
 
+Set `OCTOPUS_AGY_FALLBACK_MODELS` to a comma list of `agy models` IDs or labels
+(for example `Gemini 4 Carbon (High),Gemini 4 Argon (High)`) to retry a prompt
+that agy rejects with a retryable 503 "No capacity available for model". Each
+model is tried in order until one answers. Only Gemini models are used, so the
+seat stays a Google vendor. A council records the model that answered as the
+seat's `model` in `summary.json`, with `model_fallback.from` naming the busy one.
+
 When `OCTOPUS_AGY_MODEL` is non-empty and not `default`, Octopus adds:
 
 ```bash

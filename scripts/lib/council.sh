@@ -5052,9 +5052,21 @@ council_run_advice_phase() {
         # The detached seat's stderr reaches no one; a seat that exits non-zero
         # leaves its provider stderr here.
         local stderr_file="${COUNCIL_RUN_DIR}/stderr/$(basename "$output_path" .md).log" failure="" failure_rc=0
-        [[ "${COUNCIL_POOL_PHASE:-}" == independent-advice && -f "${output_path}.pool-result" ]] || rm -f "$stderr_file" 2>/dev/null
-        _OCTOPUS_SEAT_STDERR_FILE="$stderr_file" \
+        # agy-exec names the model it fell back to after a no-capacity 503 here.
+        local model_used_file="${COUNCIL_RUN_DIR}/models/$(basename "$output_path" .md).txt" model_used="" model_busy=""
+        [[ "${COUNCIL_POOL_PHASE:-}" == independent-advice && -f "${output_path}.pool-result" ]] \
+            || rm -f "$stderr_file" "$model_used_file" 2>/dev/null
+        _OCTOPUS_SEAT_STDERR_FILE="$stderr_file" _OCTOPUS_AGY_MODEL_USED_FILE="$model_used_file" \
             council_collect_seat "$member" "independent-advice" "$output_path" || dispatch_rc=$?
+        if [[ -s "$model_used_file" ]]; then
+            { IFS= read -r model_used; IFS= read -r model_busy; } < "$model_used_file" || true
+            if [[ -n "$model_used" ]]; then
+                seat_model="$model_used"
+                seat_model_family="$(council_model_family "$mprovider" "$seat_model")"
+                COUNCIL_ROSTER_JSON="$(jq -c --argjson i "$index" --arg m "$model_used" --arg b "$model_busy" \
+                    '.[$i].model_used = $m | .[$i].model_fallback_from = $b' <<< "$COUNCIL_ROSTER_JSON")"
+            fi
+        fi
         dispatch_timeout_provenance="$COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE"
         # Admit the serialized contribution before changing any response or vote
         # counters. A refreshed report can reject evidence that passed earlier
@@ -5166,6 +5178,8 @@ council_run_advice_phase() {
               grounding:($contribution.grounding // null),
               timeout_provenance:(if $timeout_provenance=="" then null else $timeout_provenance end),
               counted_as_approver:false}')"
+        [[ -n "$model_used" ]] && seat_rec="$(jq -c --arg b "$model_busy" \
+            '.model_fallback = {from:$b, reason:"no-capacity-503"}' <<< "$seat_rec")"
         [[ -n "$failure" ]] && seat_rec="$(jq -c --argjson rc "$failure_rc" --arg d "$failure" --arg f "$stderr_file" \
             '.failure = {exit_code:$rc, detail:$d, stderr_file:$f}' <<< "$seat_rec")"
         COUNCIL_SEAT_RECORDS_JSON="$(jq -c ". + [$seat_rec]" <<< "$COUNCIL_SEAT_RECORDS_JSON")"

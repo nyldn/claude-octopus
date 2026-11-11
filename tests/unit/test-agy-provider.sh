@@ -849,6 +849,8 @@ test_agy_isolated_env_forwards_adapter_controls() {
         OCTOPUS_AGY_NO_RETRY='1' \
         OCTOPUS_AGY_SANDBOX='off' \
         OCTOPUS_AGY_INCLUDE_DIRS='/tmp/one,/tmp/two' \
+        OCTOPUS_AGY_FALLBACK_MODELS='Gemini 4 Carbon (High),gemini-4-argon-high' \
+        _OCTOPUS_AGY_MODEL_USED_FILE='/tmp/models/00-seat.txt' \
         bash -c '
             source "$1/scripts/lib/provider-routing.sh"
             build_provider_env agy
@@ -864,7 +866,9 @@ test_agy_isolated_env_forwards_adapter_controls() {
         'OCTOPUS_AGY_NO_PTY_FALLBACK=1' \
         'OCTOPUS_AGY_NO_RETRY=1' \
         'OCTOPUS_AGY_SANDBOX=off' \
-        'OCTOPUS_AGY_INCLUDE_DIRS=/tmp/one,/tmp/two'; do
+        'OCTOPUS_AGY_INCLUDE_DIRS=/tmp/one,/tmp/two' \
+        'OCTOPUS_AGY_FALLBACK_MODELS=Gemini 4 Carbon (High),gemini-4-argon-high' \
+        '_OCTOPUS_AGY_MODEL_USED_FILE=/tmp/models/00-seat.txt'; do
         grep -Fqx "$var" <<< "$output" || missing+=" $var"
     done
 
@@ -872,6 +876,83 @@ test_agy_isolated_env_forwards_adapter_controls() {
         test_pass
     else
         test_fail "agy adapter controls missing from isolated env:$missing"
+    fi
+}
+
+# The mock answers 503 "no capacity" for every model named in AGY_BUSY_MODELS
+# ("default" = no --model flag) and logs the --model each call used.
+_agy_capacity_mock() {
+    local tmp_bin="$1"
+    mkdir -p "$tmp_bin"
+    cat > "$tmp_bin/agy" <<'MOCK_AGY'
+#!/usr/bin/env bash
+model=default
+while (( $# )); do
+    case "$1" in
+        --model) model="$2"; shift 2 ;;
+        --print) shift 2 ;;
+        *) shift ;;
+    esac
+done
+printf '%s\n' "$model" >> "${AGY_CALLS:?}"
+case ",${AGY_BUSY_MODELS:-}," in
+    *",$model,"*)
+        echo "error: Our servers are experiencing high traffic right now, please try again in a minute. (UNAVAILABLE (code 503): No capacity available for model gemini-3.8-flash-high on the server)" >&2
+        echo 'AGY_ERROR: {"short_error":"UNAVAILABLE (code 503): No capacity available for model gemini-3.8-flash-high on the server","status":"UNAVAILABLE","error_code":503,"code_kind":"http","retryable":true}' >&2
+        exit 3
+        ;;
+esac
+echo "answer from $model"
+MOCK_AGY
+    chmod +x "$tmp_bin/agy"
+}
+
+test_agy_no_capacity_falls_back_to_listed_gemini_model() {
+    local tmp_bin="$TEST_TMP_DIR/agy-capacity-bin" calls="$TEST_TMP_DIR/agy-capacity-calls.txt"
+    local used="$TEST_TMP_DIR/agy-capacity-models/00-seat.txt" out rc
+    _agy_capacity_mock "$tmp_bin"
+
+    test_case "agy-exec retries a no-capacity 503 on the next listed Gemini model, skipping non-Gemini entries"
+    : > "$calls"; rm -f "$used"
+    out="$(printf 'review this' | PATH="$tmp_bin:$PATH" AGY_CALLS="$calls" AGY_BUSY_MODELS='default,Gemini 4 Carbon (High)' \
+        OCTOPUS_AGY_MODEL=default OCTOPUS_AGY_NO_PTY_FALLBACK=1 _OCTOPUS_AGY_MODEL_USED_FILE="$used" \
+        OCTOPUS_AGY_FALLBACK_MODELS=' Gemini 4 Carbon (High), Claude Opus 5.5 (High) ,gpt-oss-120b-medium, gemini-4-argon-high' \
+        bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" 2>"$TEST_TMP_DIR/agy-capacity-err.txt")" && rc=0 || rc=$?
+    if (( rc == 0 )) && [[ "$out" == "answer from gemini-4-argon-high" ]] \
+            && [[ "$(tr '\n' '|' < "$calls")" == 'default|Gemini 4 Carbon (High)|gemini-4-argon-high|' ]] \
+            && [[ "$(tr '\n' '|' < "$used")" == 'gemini-4-argon-high|Gemini 4 Carbon (High)|' ]] \
+            && grep -q "skipping fallback model 'Claude Opus 5.5 (High)'" "$TEST_TMP_DIR/agy-capacity-err.txt"; then
+        test_pass
+    else
+        test_fail "rc=$rc out=$out calls=$(tr '\n' '|' < "$calls") used=$(tr '\n' '|' < "$used" 2>/dev/null)"
+    fi
+
+    test_case "agy-exec does not fall back without OCTOPUS_AGY_FALLBACK_MODELS"
+    : > "$calls"; rm -f "$used"
+    printf 'review this' | PATH="$tmp_bin:$PATH" AGY_CALLS="$calls" AGY_BUSY_MODELS='default' \
+        OCTOPUS_AGY_MODEL=default OCTOPUS_AGY_NO_PTY_FALLBACK=1 _OCTOPUS_AGY_MODEL_USED_FILE="$used" \
+        bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" >/dev/null 2>&1 && rc=0 || rc=$?
+    if (( rc == 3 )) && [[ "$(tr '\n' '|' < "$calls")" == 'default|' ]] && [[ ! -e "$used" ]]; then
+        test_pass
+    else
+        test_fail "rc=$rc calls=$(tr '\n' '|' < "$calls")"
+    fi
+
+    test_case "agy-exec does not fall back on a failure that is not a no-capacity 503"
+    cat > "$tmp_bin/agy" <<'MOCK_AGY'
+#!/usr/bin/env bash
+echo x >> "${AGY_CALLS:?}"
+echo 'AGY_ERROR: {"short_error":"INVALID_ARGUMENT (code 400): bad request","error_code":400,"retryable":false}' >&2
+exit 3
+MOCK_AGY
+    : > "$calls"
+    printf 'review this' | PATH="$tmp_bin:$PATH" AGY_CALLS="$calls" OCTOPUS_AGY_NO_PTY_FALLBACK=1 \
+        OCTOPUS_AGY_FALLBACK_MODELS='gemini-4-argon-high' \
+        bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" >/dev/null 2>&1 && rc=0 || rc=$?
+    if (( rc == 3 )) && [[ "$(wc -l < "$calls" | tr -d ' ')" == 1 ]]; then
+        test_pass
+    else
+        test_fail "rc=$rc calls=$(wc -l < "$calls")"
     fi
 }
 
@@ -1739,5 +1820,6 @@ test_provider_aware_commands_show_core_provider_status
 test_review_command_generates_antigravity_banner
 test_provider_aware_commands_generate_antigravity_banners
 test_provider_workflow_review_regressions
+test_agy_no_capacity_falls_back_to_listed_gemini_model
 
 test_summary

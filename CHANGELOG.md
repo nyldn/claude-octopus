@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+
+- `OCTOPUS_AGY_FALLBACK_MODELS` lists Gemini models for agy to retry, in
+  order, when the backend answers 503 "No capacity available for model". The
+  council seat records the model that answered, with `model_fallback.from`, so
+  a busy model no longer stops the council. Non-Gemini entries are skipped.
+
 ### Fixed
 
 - A council seat is no longer marked fabricated for a test input it built
