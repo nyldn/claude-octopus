@@ -258,7 +258,7 @@ _validate_claude_sdk_env_command() {
             ;;
         4)
             case "$model" in
-                claude-fable-5|claude-fable-5-1) ;;
+                claude-fable-5|claude-fable-5-1|claude-fable-5-2) ;;
                 *) return 1 ;;
             esac
             [[ "${parts[2]}" == OCTOPUS_FABLE5_NO_RETRY=1 ]] || return 1

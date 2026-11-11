@@ -127,6 +127,28 @@ else
     test_fail "set_provider_model allowed an explicit-only model into providers.json"
 fi
 
+test_case "Fable 5.2 remains explicit-only without changing the escalation target"
+if is_known_model claude-fable-5-2 &&
+   [[ "$(get_model_policy anthropic/claude-fable-5-2)" == "explicit|no|0|0|general" ]] &&
+   ! octo_model_automatic_target_allowed claude:claude-fable-5-2 claude &&
+   ! HOME="$config_home" bash "$PROJECT_ROOT/scripts/helpers/octo-model-config.sh" set claude claude-fable-5-2 >/dev/null 2>&1 &&
+   [[ "$(bash -c 'source "$1/scripts/lib/fable5.sh"; printf "%s" "$FABLE5_MODEL_ID"' _ "$PROJECT_ROOT")" == claude-fable-5-1 ]]; then
+    test_pass
+else
+    test_fail "Fable 5.2 became an automatic target or replaced the saved escalation identity"
+fi
+
+test_case "Fable 5.2 client support starts at Claude Code 2.1.321"
+if ! octo_claude_model_version_ok 2.1.320 claude-fable-5-2 &&
+   ! octo_claude_model_version_ok unknown claude-fable-5-2 &&
+   octo_claude_model_version_ok 2.1.321 claude:claude-fable-5-2 &&
+   octo_claude_model_version_ok 2.1.322 claude-fable-5-2 &&
+   octo_claude_model_version_ok 2.1.255 claude-fable-5-1; then
+    test_pass
+else
+    test_fail "Fable 5.2 CLI floor is missing or changed Fable 5.1 support"
+fi
+
 test_case "legacy Fable remains explicit-only"
 if [[ "$(get_model_policy claude-fable-5)" == "explicit|no|0|0|general" ]] &&
    ! octo_model_auto_eligible claude-fable-5; then
