@@ -8,8 +8,8 @@
 
 - Research verification recognizes section labels such as "(Finding 4)" and
   references such as "See conflicts 1 & 2". Quantities and thresholds still
-  need evidence. Every number in a total remains checked, including lists
-  with a comma before "in total".
+  need evidence. Numbers written separately in totals remain checked,
+  including lists with a comma before "in total".
 
 ## [11.22.0] - 2026-11-10
 
