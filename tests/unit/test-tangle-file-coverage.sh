@@ -180,6 +180,12 @@ if missing=$(check_explicit_file_coverage 'Read ./SPEC.md. Implement src/main.ts
 test_case "standalone add instructions still require their declared output"
 if missing=$(check_explicit_file_coverage 'Add src/new.ts' 'done') && [[ "$missing" == src/new.ts ]]; then test_pass; else test_fail "add instruction lost its output obligation"; fi
 
+test_case "standalone write targets on the next line remain required"
+if missing=$(check_explicit_file_coverage $'Read\n./SPEC.md\nUpdate\nsrc/main.ts' 'done') && [[ "$missing" == src/main.ts ]]; then test_pass; else test_fail "multiline instruction lost its target or required the read input"; fi
+
+test_case "read context after a write instruction stays outside output coverage"
+if missing=$(check_explicit_file_coverage 'Update src/main.ts. Read ./SPEC.md.' 'Implemented src/main.ts.') && [[ -z "$missing" ]]; then test_pass; else test_fail "following read context became a required output"; fi
+
 test_case "managed coverage uses files rather than textual echoes"
 mkdir -p "$TEST_TMP_DIR/repo/src"
 printf 'implementation\n' > "$TEST_TMP_DIR/repo/src/main.ts"

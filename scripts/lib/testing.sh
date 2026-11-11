@@ -169,10 +169,13 @@ check_explicit_file_coverage() {
     done <<< "$(extract_explicit_file_refs "$(printf '%s\n' "$original_prompt" | python3 -I -c '
 import re,sys
 text=sys.stdin.read()
-# Read/context references preceding a write instruction are not outputs.
-for line in text.splitlines():
-    m=re.search(r"\b(?:add|update|create|edit|modify|delete|remove|refactor|fix|write|implement)\s+", line, re.I)
-    if m: print(line[m.end():])
+# Instruction boundaries can span lines; read/context segments remain inputs.
+writes={"add","update","create","edit","modify","delete","remove","refactor","fix","write","implement"}
+events=list(re.finditer(r"\b(add|update|create|edit|modify|delete|remove|refactor|fix|write|implement|read|review|inspect|consult|context|inputs?|references?)\b(?=[:\s]|$)",text,re.I))
+for index,event in enumerate(events):
+    if event.group(1).lower() in writes:
+        end=events[index+1].start() if index+1<len(events) else len(text)
+        print(text[event.end():end])
 ')")"
 
     printf '%s' "$missing"
