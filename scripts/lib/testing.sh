@@ -171,7 +171,7 @@ import re,sys
 text=sys.stdin.read()
 # Read/context references preceding a write instruction are not outputs.
 for line in text.splitlines():
-    m=re.search(r"\b(?:update|create|edit|modify|delete|remove|refactor|fix|write|implement)\s+", line, re.I)
+    m=re.search(r"\b(?:add|update|create|edit|modify|delete|remove|refactor|fix|write|implement)\s+", line, re.I)
     if m: print(line[m.end():])
 ')")"
 
