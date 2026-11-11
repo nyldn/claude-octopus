@@ -312,3 +312,8 @@ Verifier input directories use private permissions and subprocess-scoped cleanup
 for normal exits, interrupts and termination. Caller traps remain intact. Valid
 synthesis ordering is retained within each severity tier; a changed finding
 multiset still uses the complete deterministic fallback.
+
+Accepted synthesis contributes only findings. Document-level warnings and
+verification status come from local review state. Reports and publication
+preserve distinct verified records at the same location and collapse only
+fully identical verified records.

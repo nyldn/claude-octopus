@@ -1119,7 +1119,8 @@ review_slurp_provider_json() (
 # Provider output is untrusted and may contain multiple top-level JSON values.
 # Canonicalize exactly one findings document before any arithmetic, rendering,
 # or persistence. Multiple documents are rejected rather than concatenated,
-# and exact duplicate findings collapse to one deterministic entry.
+# and exact duplicate findings collapse to one deterministic entry. Verified
+# records use every field as identity; Round 1 retains its location-based key.
 review_normalize_findings_json() {
     review_slurp_provider_json '
         if length == 1
@@ -1128,19 +1129,12 @@ review_normalize_findings_json() {
            and all(.[0].findings[]; type == "object")
         then .[0]
              | .findings |= (
-                 reduce .[] as $finding
-                   ({seen:{}, ordered:[]};
-                    ($finding | [
-                      (.file // ""),
-                      ((.line // 0) | tostring),
-                      (.category // ""),
-                      (.title // .message // "")
-                    ] | @json) as $key
-                    | if .seen[$key]
-                      then .
-                      else .seen[$key] = true | .ordered += [$finding]
-                      end)
-                 | .ordered
+                 to_entries
+                 | group_by(.value | if has("verdict") then . else [
+                     (.file // ""), ((.line // 0) | tostring),
+                     (.category // ""), (.title // .message // "")
+                   ] end)
+                 | map(min_by(.key)) | sort_by(.key) | map(.value)
                )
         else error("expected exactly one object with a findings array")
         end
@@ -2632,7 +2626,7 @@ Return ONLY JSON: {\"findings\": [...ranked, unchanged findings...]}"
     else
         # The comparison permits ordering changes only, retaining every record.
         final_json=$(printf '%s' "$normalized_final_json" | jq -c '
-            .findings |= sort_by(if .severity == "normal" then 0 elif .severity == "nit" then 1 elif .severity == "pre-existing" then 2 else 3 end)')
+            {findings:(.findings | sort_by(if .severity == "normal" then 0 elif .severity == "nit" then 1 elif .severity == "pre-existing" then 2 else 3 end))}')
     fi
     if [[ -n "$round1_warning" ]]; then
         local warned_final_json

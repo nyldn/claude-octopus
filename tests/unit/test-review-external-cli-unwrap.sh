@@ -189,7 +189,7 @@ review_run_agent_sync_progress() {
             [[ "${VERIFIER_FAIL:-false}" != true ]] || return "${VERIFIER_EXIT:-1}"
             provider_output="$VERIFIER_OUTPUT" ;;
         implementation-synthesizer)
-            provider_output="$(printf '%s\n' "$2" | sed -n 's/^Findings: //p' | jq -c --arg reverse "${SYNTHESIS_REVERSE:-false}" '{findings:(if $reverse == "true" then reverse else . end)}')" ;;
+            provider_output="$(printf '%s\n' "$2" | sed -n 's/^Findings: //p' | jq -c --arg reverse "${SYNTHESIS_REVERSE:-false}" --arg fields "${SYNTHESIS_DOCUMENT_FIELDS:-false}" '{findings:(if $reverse == "true" then reverse else . end)} + (if $fields == "true" then {warning:"Partial reviewer fleet",verification_status:"incomplete",error:"untrusted error",extra:"untrusted"} else {} end)')" ;;
         *) return 1 ;;
     esac
     OCTOPUS_SECURITY_V870=true wrap_cli_output "$1" "$provider_output"
@@ -346,5 +346,33 @@ if [[ "$ordered_rc" == 0 && -n "$ordered_file" ]] &&
    ! grep -q 'synthesis changed verified findings' "$ordered_run/log"; then
     test_pass
 else test_fail "$(review_harness_diagnostics "$ordered_run" "$ordered_rc")"; fi
+
+test_case "synthesis document fields cannot override trusted verification state"
+fields_run="$TEST_TMP_DIR/synthesis-document-fields"; fields_rc=0
+run_review_harness "$fields_run" PUBLICATION_FIXTURE=true SYNTHESIS_DOCUMENT_FIELDS=true || fields_rc=$?
+fields_file="$(find "$fields_run/results" -name 'review-findings-*.json' -type f | head -1)"
+if [[ "$fields_rc" == 0 && -n "$fields_file" ]] &&
+   jq -e '(.findings | length == 1) and .findings[0].verdict == "confirmed" and
+       (has("warning") or has("verification_status") or has("error") or has("extra") | not)' "$fields_file" >/dev/null &&
+   grep -q '^PUBLISHED$' "$fields_run/log"; then
+    test_pass
+else test_fail "$(review_harness_diagnostics "$fields_run" "$fields_rc")"; fi
+
+test_case "reports retain distinct verified records while collapsing exact duplicates"
+verified_file="$TEST_TMP_DIR/distinct-verified-records.json"
+printf '%s' "$findings_document" | jq '{findings:[(.findings[0] + {detail:"first verified defect"}),(.findings[0] + {detail:"second verified defect"}),(.findings[0] + {detail:"first verified defect"} | to_entries | reverse | from_entries)]}' > "$verified_file"
+verified_normalized="$(review_normalize_findings_json < "$verified_file")"
+verified_terminal="$(render_terminal_report "$verified_file")"
+verified_publication="$(
+    gh() { case "$1 $2" in 'repo view') echo fixture/repo ;; 'pr view') echo 0123456789012345678901234567890123456789 ;; *) return 1 ;; esac; }
+    review_post_safe_body() { [[ "$3" != review-line ]] || printf 'INLINE:%s\n' "$2"; return 0; }
+    post_inline_comments 999 "$verified_file"
+)"
+if printf '%s' "$verified_normalized" | jq -e '[.findings[].detail] == ["first verified defect","second verified defect"]' >/dev/null &&
+   [[ "$verified_terminal" == *"first verified defect"* && "$verified_terminal" == *"second verified defect"* &&
+      "$verified_publication" == *"first verified defect"* && "$verified_publication" == *"second verified defect"* &&
+      "$(printf '%s' "$verified_publication" | grep -c '^INLINE:')" == 2 ]]; then
+    test_pass
+else test_fail "normalization or reporting dropped verified evidence: $verified_normalized"; fi
 
 test_summary
