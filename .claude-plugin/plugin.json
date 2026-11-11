@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.22.0",
-  "description": "v11.22.0 \u2014 Refinement runs keep their limits and best candidate, with GPT-6.1 Terra and Claude Fable 5.2 available in the model catalog. Run /octo:setup.",
+  "version": "11.22.1",
+  "description": "v11.22.1 \u2014 Research verification distinguishes section references from quantities while keeping numeric claims tied to evidence. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
