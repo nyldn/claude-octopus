@@ -96,11 +96,13 @@ import sys
 root = Path(sys.argv[1])
 workflow = (root / '.github/workflows/test.yml').read_text()
 job = re.search(r'^  unit-full:\n(.*?)(?=^  [\w-]+:|\Z)', workflow, re.M | re.S)[1]
-oses = re.search(r'^        os: \[(.+)\]', job, re.M)[1].split(', ')
-assert set(oses) == {'ubuntu-latest', 'macos-latest'}
-indexes = re.search(r'^        shard_index: \[(.+)\]', job, re.M)[1].split(', ')
+lanes = re.findall(r'^          - os: (\S+)\n            shard_index: (\d+)\n            shard_count: (\d+)$', job, re.M)
+assert lanes, 'missing full-unit matrix entries'
+oses = {lane[0] for lane in lanes}
+assert oses == {'ubuntu-latest', 'macos-latest'}
 command = re.search(r'^        run: (python3 tests/helpers/run-ci-step.py .+)$', job, re.M)[1]
 assert re.search(r'^          SHARD_INDEX: \$\{\{ matrix.shard_index \}\}$', job, re.M)
+assert re.search(r'^          SHARD_COUNT: \$\{\{ matrix.shard_count \}\}$', job, re.M)
 assert '${{' not in command, 'pass workflow expressions through the environment'
 for lane in ('unit-focused', 'unit-full'):
     lane_job = re.search(r'^  ' + lane + r':\n(.*?)(?=^  [\w-]+:|\Z)', workflow, re.M | re.S)[1]
@@ -123,9 +125,14 @@ def suites(args):
 expected = suites(['unit'])
 assert 'unit/test-council-command.sh' in expected
 for os_name in oses:
+    os_lanes = [(int(index), int(count)) for name, index, count in lanes if name == os_name]
+    counts = {count for _, count in os_lanes}
+    assert len(counts) == 1 and next(iter(counts)) > 0, (os_name, counts)
+    count = next(iter(counts))
+    assert sorted(index for index, _ in os_lanes) == list(range(count)), (os_name, os_lanes)
     selected = []
-    for index in indexes:
-        parts = shlex.split(command.replace('$SHARD_INDEX', index))
+    for index, count in os_lanes:
+        parts = shlex.split(command.replace('$SHARD_INDEX', str(index)).replace('$SHARD_COUNT', str(count)))
         runner_command = parts[parts.index('--') + 1:]
         assert runner_command[:2] == ['./tests/run-all.sh', 'unit'], runner_command
         args = runner_command[1:]

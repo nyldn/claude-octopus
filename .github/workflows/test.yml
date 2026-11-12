@@ -270,14 +270,45 @@ jobs:
     runs-on: ${{ matrix.os }}
     # Run every unit suite once per OS. Weighted shards shorten the longest
     # lane without dropping slow lifecycle contracts or duplicating council.
+    # Six macOS lanes leave room for observed suite durations within the
+    # 1200-second step budget. Linux retains four lanes.
     timeout-minutes: 30
     needs: [classify-changes, smoke, portability-lint]
     if: github.event_name != 'pull_request' || needs.classify-changes.outputs.full_unit == 'true'
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        shard_index: [0, 1, 2, 3]
+        include:
+          - os: ubuntu-latest
+            shard_index: 0
+            shard_count: 4
+          - os: ubuntu-latest
+            shard_index: 1
+            shard_count: 4
+          - os: ubuntu-latest
+            shard_index: 2
+            shard_count: 4
+          - os: ubuntu-latest
+            shard_index: 3
+            shard_count: 4
+          - os: macos-latest
+            shard_index: 0
+            shard_count: 6
+          - os: macos-latest
+            shard_index: 1
+            shard_count: 6
+          - os: macos-latest
+            shard_index: 2
+            shard_count: 6
+          - os: macos-latest
+            shard_index: 3
+            shard_count: 6
+          - os: macos-latest
+            shard_index: 4
+            shard_count: 6
+          - os: macos-latest
+            shard_index: 5
+            shard_count: 6
 
     steps:
       - name: Checkout code
@@ -289,7 +320,8 @@ jobs:
       - name: Run full unit shard
         env:
           SHARD_INDEX: ${{ matrix.shard_index }}
-        run: python3 tests/helpers/run-ci-step.py --timeout=1200 --log "$RUNNER_TEMP/octopus-ci-output/unit.log" -- ./tests/run-all.sh unit --shard-index="$SHARD_INDEX" --shard-count=4
+          SHARD_COUNT: ${{ matrix.shard_count }}
+        run: python3 tests/helpers/run-ci-step.py --timeout=1200 --log "$RUNNER_TEMP/octopus-ci-output/unit.log" -- ./tests/run-all.sh unit --shard-index="$SHARD_INDEX" --shard-count="$SHARD_COUNT"
 
       - name: Upload test results
         if: always()

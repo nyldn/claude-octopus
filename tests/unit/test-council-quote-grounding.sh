@@ -715,7 +715,7 @@ VERDICT: APPROVE")"
                     test_fail "one real $diff_side line verified a $quote_kind block: $r"
                     continue
                 fi
-            elif ! jq -e --arg field "quotes_verified_in_diff_$diff_side" '.quotes_verified == 1 and .[$field] == 1 and .fabricated == false' <<< "$r" >/dev/null; then
+            elif ! jq -e --arg field "quotes_verified_in_diff_$diff_side" '.quotes_verified == 1 and .[$field] == 1 and .quotes_partial == 1 and .fabricated == false' <<< "$r" >/dev/null; then
                 test_fail "two real $diff_side lines failed to verify a $quote_kind block: $r"
                 continue
             fi
@@ -723,6 +723,24 @@ VERDICT: APPROVE")"
         done
     done
 done
+
+# A fence partial on the removed side but exact on the added side is not
+# partial; the removed side still decides where it verified.
+test_case "#3247: a fence exact on the added side is not partial"
+both_sides="$TEST_TMP_DIR/both-sides.diff"
+window='const refundWindow = sailing.refundWindowDays ?? 14;'
+printf 'diff --git a/src/book.ts b/src/book.ts\n--- a/src/book.ts\n+++ b/src/book.ts\n@@ -1,2 +1,3 @@\n-%s\n-%s\n+%s\n+%s\n+%s\n' \
+    "$GUARD" 'const closedBookings = sailing.closedBookings ?? [];' \
+    "$GUARD" 'const closedBookings = sailing.closedBookings ?? [];' "$window" > "$both_sides"
+f="$(_resp "src/book.ts:2 reads:
+\`\`\`ts
+$GUARD
+const closedBookings = sailing.closedBookings ?? [];
+$window
+\`\`\`
+VERDICT: APPROVE")"
+r="$(COUNCIL_CONTEXT_FILES=("$both_sides"); _greport "$f")"
+if jq -e '.quotes_verified == 1 and .quotes_verified_in_diff_removed == 1 and .quotes_partial == 0' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
 test_case "an oversized response reports the limit and cannot count as grounded"
 oversized="$TEST_TMP_DIR/oversized-response.md"
@@ -822,6 +840,141 @@ ctx_plan="$TEST_TMP_DIR/plan.md"
 printf '# Plan\n\n- const base = await fetchCabinPrice(cabin.id, { cache: true });\n' > "$ctx_plan"
 r="$(COUNCIL_CONTEXT_FILES=("$ctx_plan"); _report "$fab")"
 if jq -e '.fabricated == true and .diff_sources == []' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# sail-cruisey #3247 chunk A: a seat describing a test input it built is not
+# quoting the file it cites. Its only checked quote failed, so the seat was
+# fabricated and blind despite eight real citations.
+test_case "#3247: an input the seat constructed is its own, not a quote"
+r="$(_report "$(_resp 'At src/pricing.ts:2, a 360-character row constructed as `"Order total $5.00".padEnd(80, " ") + "invalid".repeat(40)` becomes a valid total.
+VERDICT: REVISE')")"
+if jq -e '.quotes_unverifiable_proposed == 1 and .quotes_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3247: an invented quote the citation reads is still fabricated"
+r="$(_report "$(_resp "src/pricing.ts:2 reads \`$FAKE\` and the row is constructed later.
+VERDICT: REVISE")")"
+if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# sail-cruisey #3247 chunk C: a fence of mostly real lines verifies at the
+# two-thirds threshold even when one line is invented. The report now counts
+# such a fence as partial, without changing the verdict.
+test_case "#3247: a fence that verifies with an invented line is counted as partial"
+r="$(_report "$(_resp "src/pricing.ts:1 reads:
+
+\`\`\`ts
+export function priceFor(cabin, sailing) {
+  const base = cabin.basePrice ?? sailing.defaultPrice;
+  if (!base) return null;
+  $FAKE
+  return applyTaxes(base, sailing.portFees);
+\`\`\`
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_verified == 1 and .quotes_partial == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3247: an exact fence is not partial"
+r="$(_report "$(_resp "src/pricing.ts:1 reads:
+
+\`\`\`ts
+export function priceFor(cabin, sailing) {
+  const base = cabin.basePrice ?? sailing.defaultPrice;
+  if (!base) return null;
+  return applyTaxes(base, sailing.portFees);
+\`\`\`
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_verified == 1 and .quotes_partial == 0' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# A content verb before the proposal wording keeps the citation's claim: the
+# seat says the file holds this code. A first-person subject between them
+# still marks the seat's own input.
+test_case "#3247: a citation that contains code built as an invented quote is fabricated"
+r="$(_report "$(_resp "src/pricing.ts:2 contains the code built as \`$FAKE\` today.
+VERDICT: REVISE")")"
+if jq -e '.quotes_attributed_unverified == 1 and .quotes_unverifiable_proposed == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3247: an input the seat itself built after a content verb stays its own"
+r="$(_report "$(_resp 'src/pricing.ts:2 reads the base price from a row I constructed as `"Order total $5.00".padEnd(80, " ") + "invalid".repeat(40)` for this test.
+VERDICT: REVISE')")"
+if jq -e '.quotes_unverifiable_proposed == 1 and .quotes_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3247: an invented short line in a fence that verifies is counted as partial"
+r="$(_report "$(_resp "src/pricing.ts:1 reads:
+
+\`\`\`ts
+  const base = cabin.basePrice ?? sailing.defaultPrice;
+  return true;
+  return applyTaxes(base, sailing.portFees);
+\`\`\`
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_verified == 1 and .quotes_partial == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3247: a real short line in a fence that verifies is not partial"
+r="$(_report "$(_resp "src/pricing.ts:1 reads:
+
+\`\`\`ts
+  const base = cabin.basePrice ?? sailing.defaultPrice;
+  return applyTaxes(base, sailing.portFees);
+}
+\`\`\`
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_verified == 1 and .quotes_partial == 0' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3247: an invented short line between elision markers is counted as partial"
+r="$(_report "$(_resp "src/pricing.ts:1 reads:
+
+\`\`\`ts
+  const base = cabin.basePrice ?? sailing.defaultPrice;
+  ...
+  return true;
+  ...
+  return applyTaxes(base, sailing.portFees);
+\`\`\`
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_verified == 1 and .quotes_partial == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3247: an elided fence of real lines is not partial"
+r="$(_report "$(_resp "src/pricing.ts:1 reads:
+
+\`\`\`ts
+  const base = cabin.basePrice ?? sailing.defaultPrice;
+  ...
+  return applyTaxes(base, sailing.portFees);
+}
+\`\`\`
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_verified == 1 and .quotes_partial == 0' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3247: a blockquote with an unmatched line is not a partial fence"
+r="$(_report "$(_resp "src/pricing.ts:1 reads:
+
+> const base = cabin.basePrice ?? sailing.defaultPrice;
+> const invented = fetchUnknownReservations(sailing);
+> return applyTaxes(base, sailing.portFees);
+
+VERDICT: APPROVE")")"
+if jq -e '.quotes_verified == 1 and .quotes_partial == 0' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3247: a fence complete in a later cited file is not partial"
+PROOT="$(mktemp -d "${TEST_TMP_DIR:-/tmp}/quote-partial.XXXXXX")"
+mkdir -p "$PROOT/src"
+printf '%s\n' 'export function priceFor(cabin, sailing) {' '  const base = cabin.basePrice ?? sailing.defaultPrice;' \
+    '  return applyTaxes(base, sailing.portFees);' '}' > "$PROOT/src/a.ts"
+printf '%s\n' 'export function priceFor(cabin, sailing) {' '  const base = cabin.basePrice ?? sailing.defaultPrice;' \
+    '  const fees = sailing.portFees.filter(Boolean);' '  return applyTaxes(base, sailing.portFees);' '}' > "$PROOT/src/b.ts"
+r="$(council_response_quote_verification_json "$(_resp "src/a.ts:1 and src/b.ts:1 read:
+
+\`\`\`ts
+  const base = cabin.basePrice ?? sailing.defaultPrice;
+  const fees = sailing.portFees.filter(Boolean);
+  return applyTaxes(base, sailing.portFees);
+\`\`\`
+
+VERDICT: APPROVE")" "$PROOT")"
+if jq -e '.quotes_verified == 1 and .quotes_partial == 0' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
 # A seat's own arithmetic is a computed value, not a quote of the payload
 # (sail-cruisey #3246 CP1: codex disputed a size estimate with its own sum and
@@ -2736,6 +2889,37 @@ VERDICT: APPROVE")"
         test_fail "mixed diff was admitted or rejected incorrectly: $record"
     fi
 done
+# A mixed fence makes claims about both versions. A kept portion that is
+# partial in the cited file but exact on the added side is not partial; a
+# partial removed portion still is.
+extra_new='const extraState = loadExtraState(input);'
+extra_diff="$TEST_TMP_DIR/extra-added.diff"
+printf 'diff --git a/src/demo.ts b/src/demo.ts\n--- a/src/demo.ts\n+++ b/src/demo.ts\n@@ -1,2 +1,3 @@\n-%s\n-%s\n+%s\n+%s\n+%s\n' \
+    "$old_a" "$old_b" "$new_a" "$new_b" "$extra_new" > "$extra_diff"
+for partial_case in kept-exact-on-added removed-partial; do
+    test_case "#3247: mixed fence partial counts each portion on its own side: $partial_case"
+    removed_text="$old_a"; expected_partial=0
+    if [[ "$partial_case" == removed-partial ]]; then
+        removed_text="$old_a
+-$old_b
+-$not_source"; expected_partial=1
+    fi
+    mixed_response="$(_resp "src/demo.ts:1 reads:
+\`\`\`diff
+-$removed_text
++$new_a
++$new_b
++$extra_new
+\`\`\`
+VERDICT: APPROVE")"
+    r="$(COUNCIL_CONTEXT_FILES=("$extra_diff"); council_response_quote_verification_json "$mixed_response" "$struct_root")"
+    if jq -e --argjson p "$expected_partial" '.quotes_verified == 1 and .quotes_verified_in_diff_removed == 1
+        and .quotes_partial == $p and .fabricated == false' <<< "$r" >/dev/null; then
+        test_pass
+    else
+        test_fail "report: $r"
+    fi
+done
 for structure_case in rule file-header git-header malformed-hunk after-hunk unified hunk-only markdown-diff crlf; do
     test_case "attached context imports only unified hunk lines: $structure_case"
     plan_file="$TEST_TMP_DIR/structure-$structure_case.md"
@@ -3262,5 +3446,611 @@ for admission_flow in advice fresh-chair retained-chair; do
     done
 done
 # End contribution report admission controls.
+
+# PR #1237: an unrelated first-person pronoun does not own a construction.
+for builder in "I reviewed that my teammate built as" "my teammate's code built as" "we reviewed code crafted as" "the row from my.module built as" "the row (important!) built as" "I just reviewed code my teammate built as" "we have reviewed code crafted as"; do
+    test_case "construction ownership requires the builder as subject: $builder"
+    r="$(_report "$(_resp "src/pricing.ts:2 contains code $builder \`$FAKE\` today.
+VERDICT: REVISE")")"
+    if jq -e '.quotes_attributed_unverified == 1 and .quotes_unverifiable_proposed == 0 and .fabricated == true' <<< "$r" >/dev/null; then
+        test_pass
+    else
+        test_fail "invented source quote bypassed verification: $r"
+    fi
+done
+
+for own_input in 'the current code. An input built as' 'the current code; an input built as' 'a row I constructed as' 'a row we built as' 'a row I just built as' 'a row we have crafted as' 'a row I had carefully constructed as'; do
+    test_case "new clauses and direct builders retain proposed input: $own_input"
+    r="$(_report "$(_resp "src/pricing.ts:2 contains $own_input \`$FAKE\` for this test.
+VERDICT: REVISE")")"
+    if jq -e '.quotes_unverifiable_proposed == 1 and .quotes_attributed == 0 and .fabricated == false' <<< "$r" >/dev/null; then
+        test_pass
+    else
+        test_fail "own input incorrectly treated as source: $r"
+    fi
+done
+
+for copula_subject in 'the code my teammate' 'a row I just'; do
+    test_case "construction attribution after is: $copula_subject"
+    r="$(_report "$(_resp "src/pricing.ts:2 is $copula_subject built as \`$FAKE\` today.
+VERDICT: REVISE")")"
+    if [[ "$copula_subject" == 'a row I just' ]]; then
+        assertion='.quotes_unverifiable_proposed == 1 and .fabricated == false'
+    else
+        assertion='.quotes_attributed_unverified == 1 and .fabricated == true'
+    fi
+    if jq -e "$assertion" <<< "$r" >/dev/null; then test_pass; else test_fail "copula lost builder ownership: $r"; fi
+done
+
+for earlier_proposal in 'A test input I built as a long row exercises the parser.' 'I suggest checking a long input.'; do
+    test_case "earlier proposal sentences cannot hide a current source claim: $earlier_proposal"
+    r="$(_report "$(_resp "src/pricing.ts:2: $earlier_proposal The file contains \`$FAKE\` today.
+VERDICT: REVISE")")"
+    if jq -e '.quotes_attributed_unverified == 1 and .quotes_unverifiable_proposed == 0 and .fabricated == true' <<< "$r" >/dev/null; then
+        test_pass
+    else
+        test_fail "earlier proposal hid a current source claim: $r"
+    fi
+done
+
+test_case "a standalone proposed fence lead-in may end with a period"
+r="$(_report "$(_resp "src/pricing.ts:2. I propose this replacement.
+\`\`\`ts
+$FAKE
+\`\`\`
+VERDICT: REVISE")")"
+if jq -e '.quotes_unverifiable_proposed == 1 and .fabricated == false' <<< "$r" >/dev/null; then
+    test_pass
+else
+    test_fail "terminal punctuation lost the proposal lead-in: $r"
+fi
+
+# Contracted auxiliaries still identify reviewer-owned construction. Keep a
+# later source-claim control so an earlier builder cannot excuse fabricated code.
+for builder in "I've" "we've" "I'd" "we'd" 'I’ve' 'we’ve' 'I’d' 'we’d'; do
+    for claim in own later-source same-sentence-source same-sentence-own; do
+        test_case "contracted builder $builder preserves $claim attribution"
+        introduction="a row $builder carefully built as"
+        if [[ "$claim" == later-source ]]; then
+            introduction="a row $builder built as a test. The file contains"
+        elif [[ "$claim" == same-sentence-source ]]; then
+            introduction="a fixture $builder built as a test, but the file reads"
+        elif [[ "$claim" == same-sentence-own ]]; then
+            introduction="a fixture $builder built as a test, but the file reads a row $builder carefully built as"
+        fi
+        r="$(_report "$(_resp "src/pricing.ts:2 reads $introduction \`$FAKE\`.
+VERDICT: REVISE")")"
+        if jq -e --arg claim "$claim" '.verification_failed == false and
+            (if ($claim == "own" or $claim == "same-sentence-own") then .quotes_unverifiable_proposed == 1
+                and .quotes_attributed == 0 and .fabricated == false
+             else .quotes_unverifiable_proposed == 0
+                and .quotes_attributed_unverified == 1 and .fabricated == true end)' <<< "$r" >/dev/null; then
+            test_pass
+        else
+            test_fail "contracted builder changed quote ownership: $r"
+        fi
+    done
+done
+
+# Complete evidence on either diff side clears only partial reporting.
+for exact_side in removed added; do
+    test_case "a partial source fence complete in the $exact_side diff is not partial"
+    complete_diff="$TEST_TMP_DIR/complete-$exact_side.diff"
+    diff_prefix=+
+    [[ "$exact_side" == removed ]] && diff_prefix=-
+    {
+        printf 'diff --git a/src/pricing.ts b/src/pricing.ts\n--- a/src/pricing.ts\n+++ b/src/pricing.ts\n'
+        if [[ "$exact_side" == removed ]]; then printf '@@ -1,3 +0,0 @@\n'; else printf '@@ -0,0 +1,3 @@\n'; fi
+        printf '%s%s\n' "$diff_prefix" "$REAL_NEAR" "$diff_prefix" "$FAKE" "$diff_prefix" 'return applyTaxes(base, sailing.portFees);'
+    } > "$complete_diff"
+    r="$(COUNCIL_CONTEXT_FILES=("$complete_diff"); _report "$(_resp "src/pricing.ts:2 reads:
+\`\`\`ts
+$REAL_NEAR
+$FAKE
+return applyTaxes(base, sailing.portFees);
+\`\`\`
+VERDICT: APPROVE")")"
+    if jq -e '.quotes_verified == 1 and .quotes_partial == 0 and .quotes_verified_in_diff_removed == 0
+        and .quotes_verified_in_diff_added == 0 and .fabricated == false' <<< "$r" >/dev/null; then
+        test_pass
+    else
+        test_fail "complete diff failed to clear source partial: $r"
+    fi
+done
+
+# Dotted abbreviations belong to their surrounding proposal clause.
+for abbreviation in 'e.g.' 'i.e.'; do
+    test_case "dotted abbreviation preserves a proposed replacement: $abbreviation"
+    r="$(_report "$(_resp "src/pricing.ts:2 should use $abbreviation the following code: \`$FAKE\`.
+VERDICT: REVISE")")"
+    if jq -e '.quotes_unverifiable_proposed == 1 and .quotes_attributed == 0 and .fabricated == false' <<< "$r" >/dev/null; then
+        test_pass
+    else
+        test_fail "abbreviation split a proposal clause: $r"
+    fi
+done
+
+test_case "long abbreviation-heavy proposals stay within the verifier budget"
+long_proposal="$TEST_TMP_DIR/long-proposal.md"
+python3 - "$long_proposal" "$FAKE" <<'PY_LONG_PROPOSAL'
+import sys
+from pathlib import Path
+Path(sys.argv[1]).write_text("We should use " + "e.g. " * 40000 + "src/pricing.ts:2: `" + sys.argv[2] + "`\nVERDICT: REVISE\n")
+PY_LONG_PROPOSAL
+r="$(_report "$long_proposal")"
+if jq -e '.verification_failed == false and .quotes_unverifiable_proposed == 1 and .fabricated == false' <<< "$r" >/dev/null; then
+    test_pass
+else
+    test_fail "long proposal exhausted verification: $r"
+fi
+
+test_case "gutter-only blank fence lines do not make a complete quote partial"
+r="$(_report "$(_resp "src/pricing.ts:1 reads:
+\`\`\`ts
+1 | export function priceFor(cabin, sailing) {
+2 | $REAL_NEAR
+3 |
+4 | return applyTaxes(base, sailing.portFees);
+5 | }
+\`\`\`
+VERDICT: APPROVE")")"
+if jq -e '.quotes_verified == 1 and .quotes_partial == 0' <<< "$r" >/dev/null; then test_pass; else test_fail "blank gutter counted as missing: $r"; fi
+
+test_case "an earlier construction sentence cannot hide a later attributed fabricated quote"
+r="$(_report "$(_resp "The service is built as a singleton. src/pricing.ts:2 contains \`$FAKE\`.
+src/pricing.ts:2 reads \`$REAL_NEAR\`.
+VERDICT: APPROVE")")"
+if jq -e '.quotes_verified == 1 and .quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "earlier prefix hid source attribution: $r"; fi
+
+partial_quote_bin="$TEST_TMP_DIR/partial-quote-bin"
+partial_quote_marker="$TEST_TMP_DIR/partial-quote-git-called"
+mkdir -p "$partial_quote_bin"
+cat > "$partial_quote_bin/git" <<'GIT_PARTIAL_QUOTE'
+#!/usr/bin/env bash
+printf called > "$OCTO_TEST_PARTIAL_GIT_MARKER"
+exit 1
+GIT_PARTIAL_QUOTE
+chmod +x "$partial_quote_bin/git"
+test_case "the partial-fence Git shim runs as a positive control"
+partial_fence_response="$(_resp "src/pricing.ts:2 reads:
+\`\`\`ts
+$REAL_NEAR
+$FAKE
+return applyTaxes(base, sailing.portFees);
+\`\`\`
+VERDICT: APPROVE")"
+r="$(OCTO_TEST_PARTIAL_GIT_MARKER="$partial_quote_marker" PATH="$partial_quote_bin:$PATH" _report "$partial_fence_response")"
+if [[ -e "$partial_quote_marker" ]] && jq -e '.verification_failed == false and .quotes_verified == 1 and .quotes_partial == 1' <<< "$r" >/dev/null; then test_pass; else test_fail "partial fence did not reach the Git shim: $r"; fi
+rm -f "$partial_quote_marker"
+test_case "a verified partial blockquote does not look up a Git diff"
+partial_quote_response="$(_resp "src/pricing.ts:2 reads:
+> $REAL_NEAR
+> $FAKE
+> return applyTaxes(base, sailing.portFees);
+VERDICT: APPROVE")"
+r="$(OCTO_TEST_PARTIAL_GIT_MARKER="$partial_quote_marker" PATH="$partial_quote_bin:$PATH" _report "$partial_quote_response")"
+if [[ ! -e "$partial_quote_marker" ]] && jq -e '.verification_failed == false and .quotes_verified == 1 and .quotes_partial == 0' <<< "$r" >/dev/null; then test_pass; else test_fail "verified blockquote consulted Git: $r"; fi
+
+# PR #1237 follow-up: short inline elisions obey the same matching contract
+# as specific lines, including failure when a retained fragment is invented.
+printf '%s\n' "$REAL_NEAR" 'if (x) { return result; }' 'foo(actualArgument);' \
+    'if (isReady) { return result; }' \
+    'return applyTaxes(base, sailing.portFees);' > "$ROOT/src/elision.ts"
+for short_elision in 'if (x) { ... }' 'foo(...);' 'foo(…);' 'bar(...);' 'if (isReady) { ... }' 'if (isWrong) { ... }'; do
+    test_case "short inline elision reports only missing fragments: $short_elision"
+    expected_partial=0
+    case "$short_elision" in 'bar(...);'|'if (isWrong) { ... }') expected_partial=1 ;; esac
+    r="$(_report "$(_resp "src/elision.ts:1 reads:
+\`\`\`ts
+$REAL_NEAR
+$short_elision
+return applyTaxes(base, sailing.portFees);
+\`\`\`
+VERDICT: APPROVE")")"
+    if jq -e --argjson partial "$expected_partial" '.verification_failed == false and .quotes_verified == 1
+        and .quotes_partial == $partial and .fabricated == false' <<< "$r" >/dev/null; then
+        test_pass
+    else
+        test_fail "short elision lost its fragment classification: $r"
+    fi
+done
+
+for repeated_prefix in 'has built as ' 'has built as built as ' 'built as '; do
+    test_case "repeated construction wording stays within the verifier budget: $repeated_prefix"
+    repeated_proposal="$TEST_TMP_DIR/repeated-construction.md"
+    python3 - "$repeated_proposal" "$repeated_prefix" "$REAL_NEAR" <<'PY_REPEATED_CONSTRUCTION'
+import sys
+from pathlib import Path
+Path(sys.argv[1]).write_text("has " + sys.argv[2] * 40000 + "src/pricing.ts:2 contains `" + sys.argv[3] + "`\nVERDICT: REVISE\n")
+PY_REPEATED_CONSTRUCTION
+    r="$(_report "$repeated_proposal")"
+    if jq -e '.verification_failed == false and .quotes_attributed == 1 and .quotes_verified == 1
+        and .quotes_unverifiable_proposed == 0 and .fabricated == false' <<< "$r" >/dev/null; then
+        test_pass
+    else
+        test_fail "repeated construction wording exhausted verification: $r"
+    fi
+done
+
+for short_pattern in repeated distinct present-reversed embedded-reversed; do
+test_case "$short_pattern short fence lines do not multiply full-file partial scans"
+large_partial_response="$TEST_TMP_DIR/large-partial.md"
+python3 - "$ROOT/src/large-partial.ts" "$large_partial_response" "$REAL_NEAR" "$short_pattern" <<'PY_LARGE_PARTIAL'
+import sys
+from pathlib import Path
+first = sys.argv[3]
+last = 'return applyTaxes(base, sailing.portFees);'
+short = ('return true;\n' * 60000 if sys.argv[4] == 'repeated' else
+         ''.join('return a%05d;\n' % i for i in range(60000)))
+source_short = short if sys.argv[4] == 'present-reversed' else (short.replace('\n', ' ') if sys.argv[4] == 'embedded-reversed' else '')
+source = first + '\n' + source_short + last + '\n'
+Path(sys.argv[1]).write_text(source + 'x' * (1400097 - len(source)))
+if sys.argv[4] in {'present-reversed', 'embedded-reversed'}:
+    short = '\n'.join(reversed(short.splitlines())) + '\n'
+Path(sys.argv[2]).write_text('src/large-partial.ts:1 reads:\n```ts\n' + first + '\n' +
+                            short + last + '\n```\nVERDICT: APPROVE\n')
+PY_LARGE_PARTIAL
+r="$(_report "$large_partial_response")"
+expected_partial=1
+[[ "$short_pattern" == *reversed ]] && expected_partial=0
+if jq -e --argjson partial "$expected_partial" '.verification_failed == false and .quotes_verified == 1 and .quotes_partial == $partial
+    and .fabricated == false' <<< "$r" >/dev/null; then
+    test_pass
+else
+    test_fail "$short_pattern short lines exhausted partial accounting: $r"
+fi
+done
+
+# Optional diff lookup must not exhaust source-verified report generation.
+slow_partial_bin="$TEST_TMP_DIR/slow-partial-bin"
+mkdir -p "$slow_partial_bin"
+python3 - "$slow_partial_bin/git" <<'PY_SLOW_PARTIAL'
+import os
+import sys
+from pathlib import Path
+Path(sys.argv[1]).write_text('#!' + sys.executable + '\nimport sys, time\ntime.sleep(7)\nsys.exit(1)\n')
+os.chmod(sys.argv[1], 0o755)
+PY_SLOW_PARTIAL
+for later_missing in no yes; do
+    test_case "slow optional diff preserves source evidence and later uncertainty: $later_missing"
+    slow_partial_text="src/pricing.ts:2 reads:
+\`\`\`ts
+$REAL_NEAR
+$FAKE
+return applyTaxes(base, sailing.portFees);
+\`\`\`"
+    expected_uncertain=0
+    if [[ "$later_missing" == yes ]]; then
+        slow_partial_text="$slow_partial_text
+src/pricing.ts:2 reads \`const unknown = loadInventedCustomerRecords();\`."
+        expected_uncertain=1
+    fi
+    r="$(PATH="$slow_partial_bin:$PATH" _report "$(_resp "$slow_partial_text
+VERDICT: APPROVE")")"
+    if jq -e --argjson uncertain "$expected_uncertain" '.verification_failed == false
+        and .quotes_verified == 1 and .quotes_partial == 1 and .diff_unavailable == ($uncertain == 1)
+        and .quotes_unverifiable_diff_incomplete == $uncertain and .fabricated == false' <<< "$r" >/dev/null; then
+        test_pass
+    else
+        test_fail "optional diff lost source evidence or uncertainty: $r"
+    fi
+done
+
+# Optional timeouts cannot decide a later quote that requires diff evidence.
+retry_diff_bin="$TEST_TMP_DIR/retry-diff-bin"
+retry_diff_calls="$TEST_TMP_DIR/retry-diff-calls"
+mkdir -p "$retry_diff_bin"
+python3 - "$retry_diff_bin/git" <<'PY_RETRY_DIFF'
+import os
+import sys
+from pathlib import Path
+Path(sys.argv[1]).write_text('#!' + sys.executable + '''
+import os, sys, time
+with open(os.environ["OCTO_TEST_DIFF_CALLS"], "a") as log:
+    log.write(("config" if "config" in sys.argv else "diff") + "\\n")
+if "config" in sys.argv:
+    time.sleep(1.3)
+else:
+    print("diff --git a/src/pricing.ts b/src/pricing.ts")
+    print("--- a/src/pricing.ts\\n+++ b/src/pricing.ts\\n@@ -1 +0,0 @@")
+    print("-const previousPrice = loadPreviousCabinPrice(cabin);")
+''')
+os.chmod(sys.argv[1], 0o755)
+PY_RETRY_DIFF
+for later_claim in removed invented; do
+    test_case "a required $later_claim quote retries after an optional timeout"
+    rm -f "$retry_diff_calls"
+    later_text='src/pricing.ts:2 reads `const previousPrice = loadPreviousCabinPrice(cabin);`.'
+    [[ "$later_claim" == invented ]] && later_text='src/pricing.ts:2 reads `const unknown = loadInventedCustomerRecords();`.'
+    retry_response="$(_resp "$(cat "$partial_fence_response")
+$later_text")"
+    r="$(OCTO_TEST_DIFF_CALLS="$retry_diff_calls" PATH="$retry_diff_bin:$PATH" _report "$retry_response")"
+    if [[ "$(cat "$retry_diff_calls")" == $'config\nconfig\ndiff' ]] &&
+       jq -e --arg claim "$later_claim" '.verification_failed == false and .diff_unavailable == false
+           and .quotes_partial == 1 and .quotes_unverifiable_diff_incomplete == 0
+           and (if $claim == "removed" then .quotes_verified == 2 and .quotes_verified_in_diff_removed == 1
+                and .fabricated == false else .quotes_verified == 1 and .quotes_attributed_unverified == 1
+                and .fabricated == true end)' <<< "$r" >/dev/null; then
+        test_pass
+    else
+        test_fail "optional timeout suppressed required evidence: $r; calls: $(cat "$retry_diff_calls")"
+    fi
+done
+
+# Compare the batch index to literal substring membership, including nested
+# suffix patterns and absent patterns amid highly repeated evidence.
+test_case "batched literal presence preserves substring and suffix matches"
+if python3 - "$PROJECT_ROOT/scripts/lib/council.sh" <<'PY_BATCH_PRESENCE'
+import random
+import sys
+from pathlib import Path
+source = Path(sys.argv[1]).read_text()
+function = 'def plain_line_present(' + source.split('\ndef plain_line_present(', 1)[1].split('\n# Presence is independent', 1)[0]
+rng = random.Random(1260)
+needles = {'a' * size for size in range(1, 65)} | {'absent-pattern', 'he', 'she', 'hers', 'his', '|', 'μg'}
+needles.update(''.join(rng.choices('abcd', k=8)) for _ in range(80))
+scope = dict(plain_needles=needles, plain_automaton=None, plain_hits={}, plain_batches=None, plain_batch_ids={}, plain_queries={})
+exec(compile(function, str(sys.argv[1]), 'exec'), scope)
+for hay in ['ushers his μg | ' + 'a' * 100000, ''.join(rng.choices('abcd', k=10000)), 'nothing matches']:
+    for needle in needles:
+        assert scope['plain_line_present'](needle, hay) == (needle in hay), (needle, hay[:80])
+assert scope['plain_line_present']('not indexed', 'anything') is None
+# Distinct long patterns share few edges. The active index must stay bounded
+# even when uncited units supply most of the response's literal patterns.
+needles = {''.join(rng.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=64)) for _ in range(12000)}
+scope.update(plain_needles=needles, plain_automaton=None, plain_hits={}, plain_batches=None, plain_batch_ids={}, plain_queries={})
+ordered = sorted(needles)
+# Revisit the same evidence after switching batches, including absent patterns.
+hay = ordered[0] + ' ' + ordered[len(ordered) // 2] + ' ' + ordered[-1]
+# Sparse per-file queries should not scan the entire pattern set in Python.
+for needle in ordered[:1024]:
+    assert scope['plain_line_present'](needle, hay) == (needle in hay)
+assert scope['plain_automaton'] is None
+assert scope['plain_batches'] is None
+# Promote dense queries, then revisit evidence across pattern batches.
+assert scope['plain_line_present'](ordered[1024], hay) == (ordered[1024] in hay)
+for needle in [ordered[i] for i in (0, len(ordered) // 2, -1, 1, -2, 0)]:
+    assert scope['plain_line_present'](needle, hay) == (needle in hay)
+    automaton = scope['plain_automaton']
+    # The repair stores the active batch ID before the existing trie arrays.
+    edges = automaton[1] if isinstance(automaton[0], int) else automaton[0]
+    assert len(edges) <= 65537, len(edges)
+
+PY_BATCH_PRESENCE
+then test_pass; else test_fail "batch index changed literal substring matching"; fi
+
+# A verified literal must not scan unrelated batch needles in that evidence file.
+test_case "verified literal variants reuse their match before batch presence scans"
+if python3 - "$PROJECT_ROOT/scripts/lib/council.sh" <<'PY_LITERAL_CACHE'
+import re
+import sys
+from pathlib import Path
+source = Path(sys.argv[1]).read_text()
+function = 'def match_unit(' + source.split('\ndef match_unit(', 1)[1].split('\nall_cited =', 1)[0]
+known = 'const actual = loadActualPrice(input);'
+def batch_presence(needle, hay):
+    raise AssertionError('already matched literal triggered a full evidence scan')
+scope = dict(match_variant=lambda variant, entry: [1] if variant in entry[0] else [],
+             plain_line_present=batch_presence, partial_presence={},
+             norm=lambda text: ' '.join(text.split()), ELLIPSIS=re.compile(r'\.\.\.|…'))
+exec(compile(function, sys.argv[1], 'exec'), scope)
+misses = []
+assert scope['match_unit']([], [[known]], (known + ' ' + 'x' * 1400000, [0], [1]), misses) == [1]
+assert misses == [0], misses
+PY_LITERAL_CACHE
+then test_pass; else test_fail "verified literal performed report-only batch work"; fi
+
+# Count scans rather than relying on host timing for the non-fence hot path.
+test_case "partial matching reuses plain-variant scans without weakening elisions"
+if python3 - "$PROJECT_ROOT/scripts/lib/council.sh" <<'PY_MATCH_CACHE'
+import collections
+import re
+import sys
+from pathlib import Path
+source = Path(sys.argv[1]).read_text()
+function = 'def match_unit(' + source.split('\ndef match_unit(', 1)[1].split('\nall_cited =', 1)[0]
+calls = collections.Counter()
+fragment_scans = []
+def match_variant(variant, entry):
+    calls[variant] += 1
+    # The verdict may admit an elision at its specificity floor.
+    return [1] if variant in entry[0] or '...' in variant else []
+def find_lines(hay, starts, numbers, first, following):
+    fragment_scans.append(first)
+    end = 0
+    for piece in [first] + list(following):
+        at = hay.find(piece, end)
+        if at < 0:
+            return []
+        end = at + len(piece)
+    return [1]
+scope = dict(match_variant=match_variant, find_lines=find_lines, partial_presence={},
+             plain_line_present=lambda needle, hay: None,
+             norm=lambda text: ' '.join(text.split()), ELLIPSIS=re.compile(r'\.\.\.|…'))
+exec(compile(function, str(sys.argv[1]), 'exec'), scope)
+known = 'const actual = loadActualPrice(input);'
+missing = 'const invented = loadInventedPrice(input);'
+entry = (known, [0], [1])
+misses = []
+assert scope['match_unit']([], [[known], [known], [missing]], entry, misses) == [1]
+assert misses == [1], misses
+assert calls == {known: 1, missing: 1}, calls
+assert not fragment_scans, fragment_scans
+# Short retained fragments must still all match, in order, below the floor.
+for variant, expected in [('const ...Price(input);', 0), ('wrong ...Price(input);', 1)]:
+    misses = []
+    assert scope['match_unit']([variant], [[variant]], entry, misses) == [1]
+    assert misses == [expected], (variant, misses)
+assert len(fragment_scans) == 2, fragment_scans
+# Repeated non-fence units reuse presence checks, retaining partial status.
+for variant, expected in [('const ...Price(input);', 0), ('wrong ...Price(input);', 1)]:
+    misses = []
+    assert scope['match_unit']([variant], [[variant]], entry, misses) == [1]
+    assert misses == [expected], (variant, misses)
+assert len(fragment_scans) == 2, fragment_scans
+# A boolean partial result must stop at the first distinct missing short line.
+misses = []
+assert scope['match_unit']([], [[known], [known]], entry, misses,
+    [[missing], ['return another;']]) == [1]
+assert misses == [1], misses
+assert 'return another;' not in calls, calls
+PY_MATCH_CACHE
+then test_pass; else test_fail "matching rescanned plain variants or skipped retained fragments"; fi
+
+# A paragraph break keeps this quote unattributed, so both citations stay
+# in source order. An adjacent label would bind it only to b.ts.
+test_case "a partial blockquote retains a later cited file's near-line match"
+near_root="$TEST_TMP_DIR/later-near"
+mkdir -p "$near_root"
+{
+    for i in $(seq 1 50); do printf '// distant filler %s\n' "$i"; done
+    printf '%s\n' "$REAL_NEAR" 'return applyTaxes(base, sailing.portFees);'
+} > "$near_root/a.ts"
+printf '%s\n' "$REAL_NEAR" 'return applyTaxes(base, sailing.portFees);' > "$near_root/b.ts"
+r="$(council_response_quote_verification_json "$(_resp "a.ts:1 and b.ts:1
+
+> $REAL_NEAR
+> $FAKE
+> return applyTaxes(base, sailing.portFees);
+VERDICT: APPROVE")" "$near_root")"
+if jq -e '.quotes_verified == 1 and .quotes_near_line == 1 and .quotes_partial == 0
+    and .fabricated == false' <<< "$r" >/dev/null; then
+    test_pass
+else
+    test_fail "non-fence optimization lost later near-line accounting: $r"
+fi
+
+# Report-only partial accounting must not rescan unrelated short patterns for
+# non-fence units. Exercise the production wrapper and its normal deadline.
+test_case "threshold blockquotes across large files stay within the verifier budget"
+nonfence_root="$TEST_TMP_DIR/nonfence-budget"
+nonfence_response="$TEST_TMP_DIR/nonfence-budget.md"
+mkdir -p "$nonfence_root"
+python3 - "$nonfence_root" "$nonfence_response" <<'PY_NONFENCE_BUDGET'
+import sys
+from pathlib import Path
+root = Path(sys.argv[1])
+quotes = []
+for index in range(100):
+    first = f'const first_{index} = loadActualPrice(input);'
+    last = f'return applyActualTaxes_{index}(price, sailing);'
+    (root / f'file{index}.ts').write_text(first + '\n' + last + '\n' + 'x' * 1400000)
+    quotes.append(f'file{index}.ts:1 reads:\n> {first}\n> return missing_{index};\n> {last}\n')
+Path(sys.argv[2]).write_text('\n'.join(quotes) + '\nVERDICT: APPROVE\n')
+PY_NONFENCE_BUDGET
+r="$(council_response_quote_verification_json "$nonfence_response" "$nonfence_root")"
+if jq -e '.verification_failed == false and .quotes_verified == 100
+    and .quotes_partial == 0 and .fabricated == false' <<< "$r" >/dev/null; then
+    test_pass
+else
+    test_fail "report-only non-fence accounting exhausted verification: $r"
+fi
+
+for fence_shape in missing present-reversed; do
+test_case "$fence_shape threshold fences across large files stay within the verifier budget"
+python3 - "$nonfence_root" "$nonfence_response" "$fence_shape" <<'PY_FENCE_BUDGET'
+import sys
+from pathlib import Path
+root = Path(sys.argv[1])
+quotes = []
+for index in range(100):
+    first = f'const first_{index} = loadActualPrice(input);'
+    last = f'return applyActualTaxes_{index}(price, sailing);'
+    short = [f'return missing_{index};']
+    if sys.argv[3] == 'present-reversed':
+        short = [f'return value_{index}_{line};' for line in range(65)]
+        (root / f'file{index}.ts').write_text(first + '\n' + '\n'.join(short) + '\n' + last + '\n' + 'x' * 1400000)
+        short.reverse()
+    quotes.append(f'file{index}.ts:1 reads:\n```ts\n{first}\n' + '\n'.join(short) + f'\n{last}\n```\n')
+Path(sys.argv[2]).write_text('\n'.join(quotes) + '\nVERDICT: APPROVE\n')
+PY_FENCE_BUDGET
+r="$(council_response_quote_verification_json "$nonfence_response" "$nonfence_root")"
+expected_partial=100
+[[ "$fence_shape" == present-reversed ]] && expected_partial=0
+if jq -e --argjson partial "$expected_partial" '.verification_failed == false and .quotes_verified == 100
+    and .quotes_partial == $partial and .fabricated == false' <<< "$r" >/dev/null; then
+    test_pass
+else
+    test_fail "sparse per-file partial accounting exhausted verification: $r"
+fi
+done
+
+test_case "complete far quotes keep supplemental near-line work bounded"
+python3 - "$nonfence_root" "$nonfence_response" <<'PY_COMPLETE_BUDGET'
+import sys
+from pathlib import Path
+root = Path(sys.argv[1])
+quotes = [f'const verified_{index} = loadActualPrice(input);' for index in range(256)]
+(root / 'a.ts').write_text('// distant filler\n' * 100 + '\n'.join(quotes))
+citations = 'a.ts:1 ' + ' '.join(f'file{index}.ts:1' for index in range(100))
+Path(sys.argv[2]).write_text('\n\n'.join(citations + '\n\n`' + quote + '`' for quote in quotes)
+                            + '\nVERDICT: APPROVE\n')
+PY_COMPLETE_BUDGET
+r="$(council_response_quote_verification_json "$nonfence_response" "$nonfence_root")"
+if jq -e '.verification_failed == false and .quotes_verified == 256
+    and .fabricated == false' <<< "$r" >/dev/null; then
+    test_pass
+else
+    test_fail "supplemental near-line work rejected complete quotes: $r"
+fi
+
+# A complete far match must not hide a later bound near-line match either.
+test_case "a complete blockquote retains a later cited file's near-line match"
+r="$(council_response_quote_verification_json "$(_resp "a.ts:1 and b.ts:1
+
+> $REAL_NEAR
+> return applyTaxes(base, sailing.portFees);
+VERDICT: APPROVE")" "$near_root")"
+if jq -e '.quotes_verified == 1 and .quotes_near_line == 1 and .quotes_partial == 0
+    and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "complete match lost later near-line evidence: $r"; fi
+
+replacement_root="$TEST_TMP_DIR/replacement-claims"
+mkdir -p "$replacement_root/src"
+replacement_real='const actualPrice = loadActualPrice(input);'
+replacement_fake='const inventedPrice = fetchInventedPrice(input);'
+printf '%s\n' "$replacement_real" > "$replacement_root/src/pricing.ts"
+git -C "$replacement_root" init -q
+git -C "$replacement_root" add src/pricing.ts
+git -C "$replacement_root" -c user.name=Fixture -c user.email=fixture@example.invalid \
+    -c core.hooksPath=/dev/null commit -qm baseline
+for lead in 'is wrong; our fixed version is' \
+    ': I recommend a replacement, and the code is' \
+    ': I suggest this patch, and this code is' \
+    ': I recommend a replacement, but the code is' \
+    ': I recommend a replacement, and the current code is' \
+    ': I recommend a replacement, and the file reads'; do
+    test_case "replacement ownership preserves explicit source claims: $lead"
+    response="$(_resp "src/pricing.ts:1 reads \`$replacement_real\`.
+
+src/pricing.ts:1 $lead \`$replacement_fake\`.
+VERDICT: APPROVE")"
+    expected_proposal=true
+    case "$lead" in *'but the code'*|*'the current code'*|*'the file reads'*) expected_proposal=false ;; esac
+    r="$(council_response_quote_verification_json "$response" "$replacement_root")"
+    if jq -e --argjson proposal "$expected_proposal" '.verification_failed == false
+        and .quotes_verified == 1 and .fabricated == ($proposal | not)
+        and .quotes_unverifiable_proposed == (if $proposal then 1 else 0 end)
+        and .quotes_attributed_unverified == (if $proposal then 0 else 1 end)' <<< "$r" >/dev/null; then
+        test_pass
+    else
+        test_fail "replacement ownership changed current-source checks: $r"
+    fi
+done
+
+test_case "a replacement fence after an owned colon lead-in remains proposed without another real quote"
+response="$(_resp 'src/pricing.ts:1 is wrong; our fixed version is:
+```ts
+const nextPrice = fetchUpdatedPrice(input);
+```
+VERDICT: APPROVE')"
+r="$(council_response_quote_verification_json "$response" "$replacement_root")"
+if jq -e '.verification_failed == false and .quotes_verified == 0
+    and .quotes_unverifiable_proposed == 1 and .quotes_unverified == 0
+    and .fabricated == false' <<< "$r" >/dev/null &&
+    ! council_response_is_blind "$response" "$replacement_root"; then
+    test_pass
+else
+    test_fail "colon replacement was rejected without a genuine comparison quote: $r"
+fi
 
 test_summary
