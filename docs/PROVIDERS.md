@@ -1,5 +1,10 @@
 # Provider Wiring Map
 
+Named OpenAI-compatible presets use their own endpoint and credential name.
+The generic slot's `OPENAI_COMPAT_BASE_URL` and `OPENAI_COMPAT_API_KEY_ENV`
+do not override them, including when the helper is invoked directly. Explicit
+`--base-url` and `--api-key-env` arguments still override a preset.
+
 Provider Registry 2.0 owns shared identity and runtime policy. Adding or
 modifying a provider starts with two parity-enforced rows in
 `scripts/lib/provider-registry.sh`; provider-specific command, model, auth, and
