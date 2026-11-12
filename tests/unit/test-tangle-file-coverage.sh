@@ -236,6 +236,50 @@ else
     test_pass
 fi
 
+for instruction in \
+    'Read ./SPEC.md and update src/main.ts.' \
+    'Read ./SPEC.md, update src/main.ts' \
+    'You should update src/main.ts.' \
+    'After reading ./SPEC.md, implement src/main.ts' \
+    'Implement parser and read support in src/main.ts'; do
+    test_case "ordinary write wording retains its output: $instruction"
+    if missing=$(check_explicit_file_coverage "$instruction" 'done') && [[ "$missing" == src/main.ts ]]; then
+        test_pass
+    else
+        test_fail "unexpected required outputs: [$missing]"
+    fi
+done
+
+test_case "unavailable coverage replaces an earlier successful report"
+if (
+    check_explicit_file_coverage() { return 73; }
+    printf '### Quality Gate: PASSED\n' > "$RESULTS_DIR/tangle-validation-coverage.md"
+    if validate_tangle_results coverage 'Update src/main.ts' >/dev/null 2>&1; then exit 1; fi
+    grep -q 'Quality Gate: FAILED' "$RESULTS_DIR/tangle-validation-coverage.md" &&
+        grep -q 'Unable to verify declared output coverage' "$RESULTS_DIR/tangle-validation-coverage.md" &&
+        ! grep -q 'Quality Gate: PASSED' "$RESULTS_DIR/tangle-validation-coverage.md"
+); then test_pass; else test_fail "coverage failure left an absent or stale report"; fi
+
+for inherited in absent populated; do
+    test_case "empty managed scopes use textual coverage with $inherited inherited scopes"
+    if (
+        source "$PROJECT_ROOT/scripts/lib/workflows.sh"
+        tangle_authorized_write_scopes() { :; }
+        tangle_authorized_read_scopes() { :; }
+        tangle_changed_paths_outside_write_scopes() { :; }
+        tangle_append_write_scope_contract_report() { :; }
+        validate_tangle_results() {
+            local missing
+            missing=$(check_explicit_file_coverage "$2" 'done') || return 1
+            [[ "$missing" == src/main.ts && "${TANGLE_REQUIRED_OUTPUT_SCOPES+x}" != x ]]
+        }
+        unset TANGLE_REQUIRED_OUTPUT_SCOPES
+        if [[ "$inherited" == populated ]]; then TANGLE_REQUIRED_OUTPUT_SCOPES=ignored; fi
+        tangle_validate_results_with_scope_contract coverage 'Update src/main.ts' '' '1. [CODING] Update the implementation' || exit 1
+        if [[ "$inherited" == populated ]]; then [[ "$TANGLE_REQUIRED_OUTPUT_SCOPES" == ignored ]]; fi
+    ); then test_pass; else test_fail "empty scopes bypassed coverage or changed caller state"; fi
+done
+
 test_case "managed coverage uses files rather than textual echoes"
 mkdir -p "$TEST_TMP_DIR/repo/src"
 printf 'implementation\n' > "$TEST_TMP_DIR/repo/src/main.ts"

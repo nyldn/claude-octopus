@@ -162,13 +162,15 @@ check_explicit_file_coverage() {
     write_instructions=$(printf '%s\n' "$original_prompt" | python3 -I -c '
 import re,sys
 text=sys.stdin.read()
-# Only instruction starts open segments; words inside a write remain content.
-writes={"add","update","create","edit","modify","delete","remove","refactor","fix","write","implement","rename","move"}
-events=list(re.finditer(r"(?:^|[.!?;]\s+|,\s*then\s+|\band\s+then\s+)[ \t]*(?:[-*]\s+|\d+[.)]\s+)?(?:please\s+)?(add|update|create|edit|modify|delete|remove|refactor|fix|write|implement|rename|move|read|review|inspect|consult|context|inputs?|references?)\b(?=[:\s]|$)",text,re.I|re.M))
-for index,event in enumerate(events):
-    if event.group(1).lower() in writes:
-        end=events[index+1].start() if index+1<len(events) else len(text)
-        print(text[event.end():end])
+# Keep every reference unless a recognizable read-only clause excludes it.
+# Read words inside write instructions must not open a read-only clause.
+starts=re.compile(r"(?:^|[.!?;]\s+|,\s*then\s+|\band\s+then\s+)[ \t]*(?:[-*]\s+|\d+[.)]\s+)?(?:please\s+)?(?:after\s+reading|read|review|inspect|consult|context|inputs?|references?)\b(?=[:\s]|$)[:\s]*",re.I|re.M)
+ends=re.compile(r"[.!?;]\s+|\n|,|\b(?:and\s+)?then\b|\band\s+(?:add|update|create|edit|modify|delete|remove|refactor|fix|write|implement|rename|move)\b",re.I)
+for event in reversed(list(starts.finditer(text))):
+    boundary=ends.search(text,event.end())
+    end=boundary.start() if boundary else len(text)
+    text=text[:event.end()]+" "+text[end:]
+print(text)
 ') || return 1
 
     output_refs="$(extract_explicit_file_refs "$output_corpus")"
@@ -810,6 +812,14 @@ $(<"$correction_file")
         local missing_explicit_files
         if ! missing_explicit_files=$(check_explicit_file_coverage "$original_prompt" "$result_outputs"); then
             log ERROR "Unable to verify declared output coverage; refusing the quality gate"
+            cat > "$validation_file" << EOF
+# TANGLE Phase Validation Report
+<!-- octopus-workflow-invocation: ${OCTOPUS_WORKFLOW_INVOCATION_ID:-} -->
+## Task: $original_prompt
+### Quality Gate: FAILED
+### Explicit File Coverage
+Unable to verify declared output coverage; refusing the quality gate.
+EOF
             return 1
         fi
 
