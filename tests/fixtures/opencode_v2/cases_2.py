@@ -244,6 +244,7 @@ DRY_RUN=false
                 with self.subTest(entry=entry, seats=seats):
                     config.write_text(json.dumps({"routing": {"features": {"debate": seats}}}))
                     self.env["ENTRY"] = entry
+                    Path(self.env["CONTEXT_FILE"]).unlink(missing_ok=True)
                     result = self.shell(script)
                     self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
                     self.assertEqual(Path(self.env["CONTEXT_FILE"]).read_text().strip(), expected)

@@ -307,8 +307,14 @@ _octo_opencode_has_saved_login
 
     def test_stalled_login_list_is_bounded(self):
             (self.data / "opencode.db").touch()
-            self.cli.write_text("#!/bin/sh\nsleep 20\n")
+            self.env["AUTH_DELAY"] = "20"
+            trace = self.base / "login-probe-trace"
+            self.cli.write_text(self.cli.read_text().replace(
+                'printf called >> "$PROBE_MARKER"',
+                'printf \'%s\\n\' "$*" >> ' + shlex.quote(str(trace))))
             self.assertEqual(self.readiness("live")["status"], "degraded")
+            self.assertIn("--version", trace.read_text().splitlines())
+            self.assertIn("auth list", trace.read_text().splitlines())
 
     def test_provider_allowlist_prevents_live_probe(self):
             (self.data / "opencode.db").touch()
