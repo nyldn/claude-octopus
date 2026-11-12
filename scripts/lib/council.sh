@@ -4183,10 +4183,6 @@ def clause_start(text, end):
     return last
 
 def proposes(text):
-    # Presenting an example is not asserting that the cited file contains it.
-    # Preserve offsets for clause and first-person-subject checks below.
-    original = text
-    text = re.sub(r"\b(?:here|there)\s+is\b", lambda m: " " * len(m.group()), text, flags=re.I)
     # A proposal in an earlier sentence cannot excuse a current source claim.
     # Keep terminal punctuation on a standalone fence lead-in in its clause.
     end = len(text.rstrip(" \t\r\n.!?;"))
@@ -4195,11 +4191,14 @@ def proposes(text):
         return True
     # A patch-only lead-in continues the immediately preceding proposal. Do
     # not carry it through an arbitrary later sentence or a source assertion.
-    if re.fullmatch(r"\s*(?:here is the patch|apply it as follows)\s*:\s*", original[start:], re.I):
+    if re.fullmatch(r"\s*(?:here is the patch|apply it as follows)\s*:\s*", text[start:], re.I):
         previous_end = len(text[:start].rstrip(" \t\r\n.!?;"))
         previous_start = clause_start(text, previous_end)
         if PROPOSAL.search(text, previous_start, previous_end):
             start = previous_start
+    # Classify patch lead-ins before masking presentational source verbs.
+    # Preserve offsets for the remaining source and first-person checks.
+    text = re.sub(r"\b(?:here|there)\s+is\b", lambda m: " " * len(m.group()), text, flags=re.I)
     for claim in EXPLICIT_SOURCE_CLAIM.finditer(text, start):
         # A nearby proposed replacement can own this ambiguous continuation.
         if (re.fullmatch(r"and\s+(?:the|this)\s+code\s+is", claim.group(), re.I)
