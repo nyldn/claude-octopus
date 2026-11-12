@@ -436,6 +436,7 @@ esac
             project.mkdir()
             (project / "opencode.json").write_text('{"plugin":["./project-plugin.js"]}')
             self.env.update(CLI_VERSION="2.0.23", PROJECT_ROOT=str(project), MISTRAL_API_KEY="fixture")
+            login_marker = self.base / "isolated-login-ran"
             self.cli.write_text(self.cli.read_text().replace(
                 'printf called >>',
                 'if [ "$1 $2" = "auth list" ]; then\n'
@@ -443,6 +444,8 @@ esac
                 '  [ "$OPENCODE_CONFIG_PROJECT_DISABLE" = 1 ] || exit 80\n'
                 '  [ "$OPENCODE_DISABLE_PROJECT_CONFIG" = 1 ] || exit 81\n'
                 '  [ "$MISTRAL_API_KEY" = fixture ] || exit 82\n'
+                '  touch ' + shlex.quote(str(login_marker)) + '\n'
                 'fi\nprintf called >>', 1))
             result = self.shell('source "$PLUGIN_DIR/scripts/lib/auth.sh"; _octo_opencode_has_saved_login', root=project)
             self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(login_marker.exists(), "login boundary checks were never reached")

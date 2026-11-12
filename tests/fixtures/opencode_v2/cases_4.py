@@ -443,12 +443,13 @@ probe_single_agent opencode perspective probe-123-0 'Check compatibility'
             self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_dispatch_validator_rejects_other_environment_and_injection(self):
+            injection_marker = self.base / "injection-ran"
             for command in (
                 "env OPENCODE_PURE=0 opencode run",
                 "env OPENCODE_PURE=1 OTHER=1 opencode run",
                 "env OPENCODE_PURE=1 sh run",
                 "env OPENCODE_PURE=1 opencode auth list",
-                "env OPENCODE_PURE=1 opencode run -m vendor/model;touch /tmp/probe",
+                "env OPENCODE_PURE=1 opencode run -m vendor/model;touch " + shlex.quote(str(injection_marker)),
                 "env OPENCODE_PURE=1 opencode run -m $(id)",
                 "env OPENCODE_PURE=1 opencode run -m --help",
                 "env OPENCODE_PURE=1 opencode run --standalone --standalone",
@@ -458,9 +459,11 @@ probe_single_agent opencode perspective probe-123-0 'Check compatibility'
                 "env OPENCODE_PURE=1 opencode run --standalone -m /tmp/model",
             ):
                 with self.subTest(command=command):
+                    injection_marker.unlink(missing_ok=True)
                     self.env["CANDIDATE_COMMAND"] = command
                     result = self.shell('source scripts/lib/utils.sh; validate_agent_command "$CANDIDATE_COMMAND"')
                     self.assertNotEqual(result.returncode, 0)
+                    self.assertFalse(injection_marker.exists(), "validation executed the rejected command")
             for command in ("env OPENCODE_PURE=1 opencode run",
                             "env OPENCODE_PURE=1 opencode run --standalone",
                             "env OPENCODE_PURE=1 opencode run --standalone -m vendor/model"):

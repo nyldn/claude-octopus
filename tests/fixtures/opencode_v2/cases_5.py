@@ -312,9 +312,15 @@ _octo_opencode_has_saved_login
             self.cli.write_text(self.cli.read_text().replace(
                 'printf called >> "$PROBE_MARKER"',
                 'printf \'%s\\n\' "$*" >> ' + shlex.quote(str(trace))))
-            self.assertEqual(self.readiness("live")["status"], "degraded")
-            self.assertIn("--version", trace.read_text().splitlines())
-            self.assertIn("auth list", trace.read_text().splitlines())
+            for version, listing in (("1.18.34", "auth list"),
+                                     ("2.0.23", "auth list --standalone --format json")):
+                with self.subTest(version=version):
+                    trace.unlink(missing_ok=True)
+                    self.env["CLI_VERSION"] = version
+                    self.assertEqual(self.readiness("live")["status"], "degraded")
+                    calls = trace.read_text().splitlines()
+                    self.assertIn("--version", calls)
+                    self.assertIn(listing, calls)
 
     def test_provider_allowlist_prevents_live_probe(self):
             (self.data / "opencode.db").touch()
