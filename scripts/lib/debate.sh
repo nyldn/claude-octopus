@@ -183,7 +183,11 @@ grapple_debate() {
     fi
 
     # Pre-flight validation
-    preflight_check false "" dispatch || return 1
+    local _debate_preflight_context=non-roster-dispatch _debate_seat
+    for _debate_seat in "$agent_a" "$agent_b" "$agent_c"; do
+        [[ "$_debate_seat" != opencode* ]] || _debate_preflight_context=dispatch
+    done
+    preflight_check false "" "$_debate_preflight_context" || return 1
 
     mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
 

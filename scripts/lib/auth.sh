@@ -339,6 +339,7 @@ _octo_opencode_auth_store_present() {
 # Check the helper interpreter's location before running even its capability
 # probe. A project-local Python must not receive login credentials either.
 _octo_opencode_probe_python() (
+    declare -f _octo_pid_python_capable >/dev/null 2>&1 || source "${_auth_lib_dir}/pid-ledger.sh" || return 125
     local candidate="${OCTOPUS_PYTHON:-${_OCTO_PID_LEDGER_PYTHON:-python3}}"
     local directory target project current count
     if [[ "$candidate" != */* ]]; then
@@ -439,37 +440,20 @@ _octo_opencode_has_saved_login() (
             return 125
         fi
         listing="$(_octo_opencode_run_probe login auth list --standalone --format json)" || return $?
-        if command -v jq >/dev/null 2>&1; then
-            printf '%s\n' "$listing" | jq -e '
-            type == "array" and any(.[];
-                (.id | type == "string" and length > 0) and
-                (.connections | type == "array" and any(.[];
-                    .type == "credential" or .type == "environment")))' >/dev/null 2>&1
-        elif command -v python3 >/dev/null 2>&1; then
-            printf '%s\n' "$listing" | python3 -I -c '
-import json
-import sys
 
-try:
-    providers = json.load(sys.stdin)
-    valid = isinstance(providers, list) and any(
-        isinstance(provider, dict)
-        and isinstance(provider.get("id"), str) and bool(provider["id"])
-        and isinstance(provider.get("connections"), list)
-        and any(isinstance(connection, dict)
-                and connection.get("type") in ("credential", "environment")
-                for connection in provider["connections"])
-        for provider in providers)
-except (ValueError, TypeError, RecursionError):
-    valid = False
-sys.exit(0 if valid else 1)
-' >/dev/null 2>&1
-        else
-            return 1
-        fi
     else
         listing="$(_octo_opencode_run_probe login auth list)" || return $?
-        listing="$(printf '%s\n' "$listing" | sed $'s/\033\\[[0-9;]*m//g')"
-        printf '%s\n' "$listing" | grep -Ec '^[[:space:]│└]*[1-9][0-9]* (credentials?|environment variables?)[[:space:]]*$' >/dev/null
     fi
+    # The provider needed credentials to list environment logins. Parsing does
+    # not. Strip them before resolving or checking the parser interpreter.
+    local name python
+    unset NODE_OPTIONS NODE_PATH BUN_OPTIONS PYTHONPATH LD_PRELOAD \
+        DYLD_INSERT_LIBRARIES DYLD_LIBRARY_PATH || return 125
+    while IFS= read -r name; do
+        case "$name" in
+            *API_KEY*|*_TOKEN|*_TOKEN_*|*SECRET*|*PASSWORD*|*CREDENTIAL*) unset "$name" || return 125 ;;
+        esac
+    done < <(compgen -e)
+    python="$(_octo_opencode_probe_python)" || return 125
+    printf '%s\n' "$listing" | "$python" -I "${_auth_lib_dir}/../helpers/opencode-probe.py" parse-login "$major"
 )

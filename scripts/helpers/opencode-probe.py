@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Run OpenCode admission without loading credential-bearing project code."""
+import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -17,8 +19,33 @@ def refuse(reason):
     return 125
 
 
+def parse_login(major):
+    listing = sys.stdin.read()
+    if major == "1":
+        listing = re.sub(r"\x1b\[[0-9;]*m", "", listing)
+        return 0 if re.search(r"^[\s│└]*[1-9][0-9]* (credentials?|environment variables?)\s*$",
+                              listing, re.MULTILINE) else 1
+    if major != "2":
+        return 1
+    try:
+        providers = json.loads(listing)
+    except (ValueError, RecursionError):
+        return 1
+    valid = isinstance(providers, list) and any(
+        isinstance(provider, dict)
+        and isinstance(provider.get("id"), str) and bool(provider["id"])
+        and isinstance(provider.get("connections"), list)
+        and any(isinstance(connection, dict)
+                and connection.get("type") in ("credential", "environment")
+                for connection in provider["connections"])
+        for provider in providers)
+    return 0 if valid else 1
+
+
 def main():
     mode, project, *args = sys.argv[1:]
+    if mode == "parse-login":
+        return parse_login(project)
     roots = {Path(project).resolve()}
     if Path.cwd().resolve() != Path.home().resolve():
         roots.add(Path.cwd().resolve())

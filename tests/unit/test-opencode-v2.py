@@ -5,6 +5,7 @@ import os
 from itertools import product
 from pathlib import Path
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -46,9 +47,13 @@ else
 fi
 """)
         self.cli.chmod(0o755)
+        jq = shutil.which("jq")
+        if jq:
+            (self.bin / "jq").symlink_to(jq)
         self.env = {
             "PATH": f"{self.bin}:{Path(sys.executable).parent}:/usr/bin:/bin",
             "HOME": str(self.base / "home"),
+            "TMPDIR": str(self.base),
             "XDG_DATA_HOME": str(self.base / "data"),
             "PLUGIN_DIR": str(ROOT),
             "PROBE_MARKER": str(self.marker),
@@ -500,6 +505,60 @@ esac
         self.assertTrue(shim_marker.exists())
         self.assertTrue(self.marker.exists())
 
+    def test_login_parsers_ignore_project_executables_and_clear_credentials(self):
+        project = self.base / "project"
+        bindir = project / "bin"
+        bindir.mkdir(parents=True)
+        parser_marker = self.base / "parser-ran"
+        for name in ("jq", "sed", "grep"):
+            parser = bindir / name
+            parser.write_text('#!/bin/sh\ntouch "$PARSER_MARKER"\nexit 0\n')
+            parser.chmod(0o755)
+        self.env.update(PROJECT_ROOT=str(project), PARSER_MARKER=str(parser_marker),
+                        OPENROUTER_API_KEY="fixture", GITHUB_TOKEN="fixture",
+                        Z_AI_API_KEY="fixture", MINIMAX_API_KEY="fixture",
+                        MISTRAL_API_KEY="fixture",
+                        PATH=f"{bindir}:{self.env['PATH']}")
+        # Stub the transport only. Execute the real post-probe parsing path.
+        script = r'''
+source "$PLUGIN_DIR/scripts/lib/auth.sh"
+source "$PLUGIN_DIR/scripts/lib/pid-ledger.sh"
+_octo_opencode_cli_major() { echo "$PARSER_MAJOR"; }
+_octo_opencode_run_probe() { printf '%s\n' "$PARSER_LISTING"; }
+_octo_opencode_has_saved_login
+rc=$?
+[[ "$MISTRAL_API_KEY" == fixture && "$GITHUB_TOKEN" == fixture ]] || exit 74
+exit "$rc"
+'''
+        for major, listing, expected in (("1", "└  2 credentials", 0),
+                                          ("1", "└  0 credentials", 1),
+                                          ("2", self.env["AUTH_JSON"], 0),
+                                          ("2", "[]", 1)):
+            with self.subTest(major=major, listing=listing):
+                self.env.update(PARSER_MAJOR=major, PARSER_LISTING=listing)
+                result = self.shell(script, root=project)
+                self.assertEqual(result.returncode, expected, result.stderr)
+                self.assertFalse(parser_marker.exists(), "project parser ran")
+
+    def test_login_parser_interpreter_receives_no_credentials(self):
+        shim = self.bin / "parser-python"
+        parser_marker = self.base / "parser-python-ran"
+        shim.write_text('#!/bin/sh\n'
+                        '[ -z "${MISTRAL_API_KEY+x}${OPENROUTER_API_KEY+x}${GITHUB_TOKEN+x}${Z_AI_API_KEY+x}${MINIMAX_API_KEY+x}" ] || exit 79\n'
+                        'touch "$PARSER_MARKER"\n'
+                        'exec ' + shlex.quote(sys.executable) + ' "$@"\n')
+        shim.chmod(0o755)
+        self.env.update(OCTOPUS_PYTHON=str(shim), MISTRAL_API_KEY="fixture",
+                        OPENROUTER_API_KEY="fixture", GITHUB_TOKEN="fixture",
+                        Z_AI_API_KEY="fixture", MINIMAX_API_KEY="fixture",
+                        PARSER_MARKER=str(parser_marker))
+        result = self.shell('source scripts/lib/auth.sh; source scripts/lib/pid-ledger.sh; '
+                            '_octo_opencode_cli_major() { echo 2; }; '
+                            '_octo_opencode_run_probe() { printf "%s\\n" "$AUTH_JSON"; }; '
+                            '_octo_opencode_has_saved_login')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(parser_marker.exists())
+
     def test_bounded_probes_apply_boundary_before_selected_executable(self):
         self.env.update(CLI_VERSION="2.0.23", OCTOPUS_TANGLE_EXECUTION_BOUNDARY="true")
         for action in ("_octo_opencode_cli_major", "_octo_opencode_has_saved_login"):
@@ -568,6 +627,68 @@ RESULTS_DIR="$HOME/results" WORKSPACE_DIR="$HOME" PREFLIGHT_CACHE_FILE="$HOME/pr
                             'preflight_check true "" non-roster-dispatch')
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertTrue(self.marker.exists())
+
+    def test_selected_opencode_is_checked_alongside_a_different_roster(self):
+        self.env.update(OCTOPUS_COUNCIL_DEFAULT_PROVIDERS="codex",
+                        READY_TRACE=str(self.base / "ready-trace"))
+        result = self.shell(r'''
+source scripts/lib/preflight.sh
+source scripts/lib/config-display.sh
+log() { :; }
+octo_provider_readiness_result() {
+    printf '%s:%s\n' "$1" "$2" >> "$READY_TRACE"
+    if [[ "$1" == codex ]]; then
+        echo '{"status":"available","reason_code":"ready","remediation":""}'
+    else
+        echo '{"status":"degraded","reason_code":"auth-missing","remediation":"fixture"}'
+    fi
+}
+WORKSPACE_DIR="$HOME" PREFLIGHT_CACHE_FILE="$HOME/preflight-cache"
+preflight_check true opencode dispatch
+''')
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        trace = Path(self.env["READY_TRACE"]).read_text().splitlines()
+        self.assertIn("codex:static", trace)
+        self.assertIn("opencode:live", trace)
+
+    def test_review_and_security_include_the_admitted_single_opencode(self):
+        for workflow in ("review", "security"):
+            with self.subTest(workflow=workflow):
+                self.env["WORKFLOW"] = workflow
+                result = self.shell('source scripts/lib/embrace.sh; '
+                                    '_gds_provider_allowed() { [[ "$1" == opencode ]]; }; '
+                                    '_octo_opencode_research_ready=true; '
+                                    'get_dispatch_strategy fixture "$WORKFLOW"')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.strip(), "2:opencode,claude-sonnet:medium")
+
+    def test_fixed_seat_workflows_ignore_roster_until_opencode_is_selected(self):
+        script = r'''
+source scripts/lib/sentinel.sh
+source scripts/lib/testing.sh
+source scripts/lib/debate.sh
+log() { :; }
+resolve_provider_to_agent() { echo "$1"; }
+agent_display_label() { echo "$1"; }
+agent_display_label_upper() { echo "$1"; }
+preflight_check() { printf '%s\n' "$3" > "$CONTEXT_FILE"; return 78; }
+DRY_RUN=false
+"$ENTRY" fixture
+'''
+        self.env["CONTEXT_FILE"] = str(self.base / "context")
+        config = Path(self.env["HOME"]) / ".claude-octopus/config/providers.json"
+        config.parent.mkdir(parents=True)
+        for entry, seats, expected in (
+                ("advise_strategy", [], "non-roster-dispatch"),
+                ("squeeze_test", [], "non-roster-dispatch"),
+                ("grapple_debate", [], "non-roster-dispatch"),
+                ("grapple_debate", ["opencode", "agy", "claude-sonnet"], "dispatch")):
+            with self.subTest(entry=entry, seats=seats):
+                config.write_text(json.dumps({"routing": {"features": {"debate": seats}}}))
+                self.env["ENTRY"] = entry
+                result = self.shell(script)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertEqual(Path(self.env["CONTEXT_FILE"]).read_text().strip(), expected)
 
     def test_live_readiness_distinguishes_execution_refusal_from_login_failure(self):
         self.env["OPENROUTER_API_KEY"] = "fixture"

@@ -881,6 +881,10 @@ preflight_check() {
     else
         candidates="$(_preflight_provider_candidates)"
     fi
+    if [[ "$selected_opencode" == true ]] &&
+       [[ " ${candidates//$'\n'/ } " != *" opencode "* ]]; then
+        candidates="${candidates}${candidates:+$'\n'}opencode"
+    fi
 
     local roster_unchecked=""
     for provider in $candidates; do

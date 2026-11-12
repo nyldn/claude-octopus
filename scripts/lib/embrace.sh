@@ -123,6 +123,7 @@ get_dispatch_strategy() {
             elif [[ "$has_agy" == true ]]; then echo "2:agy,claude-sonnet:high"
             elif [[ "$has_codex" == true ]]; then echo "2:codex,claude-sonnet:high"
             elif [[ "$has_qwen" == true ]]; then echo "2:qwen,claude-sonnet:medium"
+            elif [[ "$has_opencode" == true ]]; then echo "2:opencode,claude-sonnet:medium"
             else echo "1:claude-sonnet:medium"; fi ;;
         architecture)
             # Maximize training bias diversity
