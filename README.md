@@ -36,25 +36,20 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
-Large file-backed `probe-single` requests validate promptly while preserving
-their text. Code reviews verify complete findings in bounded requests and keep
-unfinished work available when verification cannot complete. Review synthesis
-preserves every verified finding. See [review verification](docs/DEVELOPER.md#complete-review-verification).
+UberLLM can now run as its own OpenAI-compatible provider seat with an explicit
+model choice. Gateway seats remain outside Council voting. Named presets keep
+their own endpoint and credential settings when the generic slot is configured.
+See [provider setup](docs/PROVIDERS.md#uberllm-setup).
 
-Deck generation checks rendered slides before reporting completion. It compares
-titles with the approved outline, checks highlighted data claims against their
-source data, and reviews slide thumbnails. Missing evidence leaves the deck as a
-draft. See [document renderers](docs/DOCUMENT-RENDERERS.md).
+Managed Tangle checks the output artifacts a task declares without requiring
+read-only context files to appear again in the response. Research summaries keep
+each seat's result when another seat times out, and quota or authentication
+failures retain their cause instead of appearing as timeouts.
 
-Cost tiers can pair a model with reasoning effort, so a budget task can use a
-lighter setting while a difficult task uses a deeper one. Explicit model and
-effort choices keep precedence. See [model routing](docs/MODEL-ROUTING-STRATEGY.md).
-
-Research verification recognizes references to a synthesis's own numbered
-points without treating them as unsupported measurements. Numeric claims with
-units, percentages, scores and ranges keep the existing verification rules:
-unfetched sources leave numbers unverified, and claims marked `[inference]`
-can pass without citations. See [research evidence](docs/RESEARCH-EVIDENCE.md).
+Council reviews distinguish a reviewer's proposed test inputs from source
+quotations. Quote verification bounds optional refinement while preserving the
+source checks that determine whether a review can count toward quorum.
+See [Council grounding](docs/COUNCIL.md).
 
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.22.2 — Complete review verification, faster large prompt validation and corrected GPT-5.4 Mini usage estimates.**
