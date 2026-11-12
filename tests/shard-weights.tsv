@@ -241,7 +241,7 @@ unit/test-fable5-escalation.sh	3
 unit/test-fable5-mode.sh	2
 unit/test-factory-command-generation.sh	2
 unit/test-fan-out-dry-run.sh	2
-unit/test-flow-parallel-worktree-isolation.sh	3
+unit/test-flow-parallel-worktree-isolation.sh	33
 unit/test-gate-thresholds.sh	2
 unit/test-handoff.sh	2
 unit/test-heartbeat-timeout.sh	3

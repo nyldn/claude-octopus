@@ -3,67 +3,29 @@ description: "[advanced] Team of Teams - Decompose compound tasks across indepen
 disable-model-invocation: true
 ---
 
-# Parallel - Team of Teams
+# Parallel work packages
 
-When dispatching native Claude agents, use only context and effort fields exposed
-by the current Agent tool schema. Keep repository instructions in each brief.
-See `docs/CLAUDE-NATIVE-INTEGRATION.md` for compatible controls and the handoff to
-native dynamic workflows for large Claude-only work.
+## MANDATORY COMPLIANCE
 
-## INSTRUCTIONS FOR CLAUDE
+When the user invokes `/octo:parallel`, you MUST load and follow
+`skills/flow-parallel/SKILL.md` from the verified plugin root in the current
+conversation. Pass through the user's task, constraints, and supplied options.
+Do not invoke this command or its skill recursively.
 
-When the user invokes this command (e.g., `/octo:parallel <arguments>`):
+### EXECUTION MECHANISM
 
-**CORRECT - Read the explicit workflow source:**
-```
-Read ${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/.claude/skills/flow-parallel/SKILL.md, then execute it with <user's arguments>
-```
+Resolve the root from the command entry that was actually loaded. Verify the
+plugin manifest and native skill entry there. Read that complete `SKILL.md` as
+instructions and execute its seven-step contract. Stop if the root or entry is
+unavailable; do not guess a fallback checkout.
 
-**INCORRECT:**
-```
-Skill(skill: "flow-parallel", ...)  ❌ Wrong! Octopus skills are model-invocation disabled
-Task(subagent_type: "octo:parallel", ...)  ❌ Wrong! This is a skill, not an agent type
-```
+**PROHIBITED:** Simulating workers, skipping required gates, fabricating provider
+or test output, discarding user changes, or claiming package commits are already
+integrated into the caller's branch.
 
----
+The workflow decomposes a compound task into scoped packages, reviews their
+dependencies when authorized, and runs independent Claude CLI workers with the
+plugin loaded explicitly. Each run owns separate state, branches, and worktrees.
+Timeouts and failed prerequisites stop dependent work while preserving evidence.
 
-**Auto-loads the parallel skill for Team of Teams orchestration.**
-
-## Quick Usage
-
-Describe the compound task you want decomposed:
-```
-"Build a full authentication system with OAuth, RBAC, and audit logging"
-"Create a complete e-commerce platform with payments, inventory, and shipping"
-"Implement CI/CD pipeline with testing, linting, and deployment stages"
-```
-
-## What Is Parallel?
-
-**Team of Teams** orchestration — decomposes compound tasks into independent work packages and delegates each to a separate `claude -p` process. Each process loads the full Octopus plugin, giving every work package its own Double Diamond, agents, and quality gates.
-
-Key architectural distinction: Task tool subagents don't load plugins. Independent `claude -p` processes do.
-
-## What You Get
-
-- Work Breakdown Structure (WBS) decomposition
-- Adversarial WBS cross-check to catch missed dependencies and scope overlaps before agents launch
-- Independent `claude -p` processes per work package
-- Full plugin capabilities in each worker
-- Parallel execution with staggered launch
-- Aggregated results with exit code verification
-
-## When To Use
-
-- Compound tasks with 3+ independent components
-- Tasks that would benefit from parallel execution
-- Projects where each component needs full AI capabilities
-- When you want isolated, non-interfering work streams
-
-## Natural Language Examples
-
-```
-"Parallel build auth system with OAuth, sessions, and RBAC"
-"Team up on building a dashboard with charts, filters, and export"
-"Decompose and parallelize the API migration across 5 services"
-```
+Example: `/octo:parallel "Build OAuth login, permissions, and audit logging"`.
