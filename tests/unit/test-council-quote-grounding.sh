@@ -739,7 +739,7 @@ export function book(sailing, cabin) {
   return reserve(sailing, cabin);
 \`\`\`
 VERDICT: REVISE")")"
-if jq -e '.quotes_verified == 1 and .quotes_verified_in_diff_removed == 0 and .quotes_partial == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+if jq -e '.quotes_verified == 1 and .quotes_verified_in_diff_removed == 0 and .quotes_verified_in_diff_added == 0 and .quotes_partial == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
 test_case "#3247: a fence exact on the added side is not partial"
 both_sides="$TEST_TMP_DIR/both-sides.diff"

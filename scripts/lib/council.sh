@@ -5074,7 +5074,7 @@ council_seat_quota_limited() {
     [[ -s "$file" ]] || return 1
     if ! declare -F quota_watcher_has_match >/dev/null 2>&1; then
         # shellcheck source=/dev/null
-        source "${BASH_SOURCE[0]%/*}/quota-watcher.sh" 2>/dev/null || return 1
+        source "${_council_registry_dir}/quota-watcher.sh" 2>/dev/null || return 1
     fi
     quota_watcher_has_match "$file" /dev/null stream ||
         octo_quota_session_limit_line "$file" capture >/dev/null

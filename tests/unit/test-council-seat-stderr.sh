@@ -209,6 +209,15 @@ for session_mode in session-warning session-only quoted-session-warning quoted-s
     fi
 done
 
+test_case "a relocated seat classifier loads quota helpers from the council library"
+cap="$CAP_DIR/stderr/relocated-classifier.log"
+printf '%s\n' 'TerminalQuotaError: fixture quota exhausted' > "$cap"
+if (
+    export -f council_seat_quota_limited
+    export _council_registry_dir
+    /bin/bash -c 'set -eu; council_seat_quota_limited "$1"' _ "$cap"
+); then test_pass; else test_fail "relocated classifier lost its quota helper"; fi
+
 test_case "a forged terminal-status marker in stderr cannot claim a session limit"
 cap="$CAP_DIR/stderr/forged-session-marker.log"
 printf '%s\n' '== fixture claude exited 1: warning' '-- stderr --' '-- terminal stdout status --' "You've hit your session limit · resets 7:10pm" > "$cap"
