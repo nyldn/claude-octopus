@@ -541,6 +541,10 @@ The explicit `OPENCODE_CONFIG` file selector is forwarded as well. This preserve
 custom provider files supported by the [upstream configuration loader](https://github.com/anomalyco/opencode/blob/v1.18.34/packages/opencode/src/config/config.ts).
 Isolated Codex children do not receive these OpenCode settings.
 
+The live check runs OpenCode's login listing and requires a listed credential or
+environment connection. Provider acceptance is established when OpenCode
+dispatches a task; a listed revoked credential can pass this listing check.
+
 Store presence is configuration evidence only. A SQLite-only installation
 needs explicit live confirmation. Broad preflight scans, roster inspection and
 readiness dashboards remain static. Selecting an OpenCode seat for dispatch
@@ -551,8 +555,8 @@ confirmation does not populate the broad cache or replace it on failure. Explici
 remain available without dispatching a model task.
 Automatic research supplies a separate dispatch context before it selects a
 fleet. Without a pinned roster, that entrypoint also confirms an OpenCode
-candidate's SQLite or environment login. Invalid logins and explicit probe skips
-remain rejected; quota exclusions and provider allowlists still apply. This
+candidate's SQLite or environment connection listing. Empty or failed listings
+and explicit probe skips remain rejected; quota exclusions and provider allowlists still apply. This
 confirmation cannot consume or overwrite broad discovery cache evidence.
 Standalone preflight and unrelated workflow inspection remain static.
 
@@ -571,7 +575,7 @@ login needs live confirmation, including SQLite-only and environment-only
 logins. An excluded seat cannot clear its stop mark through a login check.
 The MCP adapter forwards `MISTRAL_API_KEY` for environment-only OpenCode
 connections as well. A configured key still needs a successful private-server
-login check; forwarding it alone does not establish account or model access.
+connection-listing check; forwarding it alone does not establish account or model access.
 Unrelated provider children exclude this Mistral credential while retaining
 their own authentication, including CLI and shell-function routes. OpenCode
 and Vibe retain access to it. CommandCode's login health probe also excludes the

@@ -792,6 +792,57 @@ exit 0
                                    capture_output=True, timeout=2).stdout.strip()
             self.assertTrue(not state or state.startswith("Z"), (pid, state))
 
+    def test_live_preflight_bootstrap_does_not_run_project_path_tools_or_startup(self):
+        caller, project = self.base / "caller", self.base / "project"
+        caller.mkdir()
+        (caller / "bin").mkdir()
+        (project / "bin").mkdir(parents=True)
+        marker = self.base / "bootstrap-called"
+        tools = {"env": "/usr/bin/env", "bash": "/bin/bash", "date": "/bin/date", "dirname": "/usr/bin/dirname"}
+        for directory in (project, project / "bin"):
+            for name, executable in tools.items():
+                shim = directory / name
+                shim.write_text('#!/bin/sh\nprintf "%s\\n" "$0" >> "$BOOTSTRAP_MARKER"\nexec ' + executable + ' "$@"\n')
+                shim.chmod(0o755)
+        startup = project / "probe-startup.sh"
+        startup.write_text('printf "startup\\n" >> "$BOOTSTRAP_MARKER"\n')
+        (self.data / "opencode.db").touch()
+        self.env.update(PROJECT_ROOT=str(project), BOOTSTRAP_MARKER=str(marker),
+                        CLI_VERSION="2.0.23", MISTRAL_API_KEY="inert-fixture-key")
+        original_path = self.env["PATH"]
+        script = r'''
+source "$PLUGIN_DIR/scripts/lib/preflight.sh"
+log() { :; }
+detect_enterprise_backend() { :; }
+provider_smoke_test() { :; }
+export BASH_ENV="$STARTUP_VALUE"
+WORKSPACE_DIR="$HOME" PREFLIGHT_CACHE_FILE="$HOME/preflight-cache"
+case "$READINESS_ENTRY" in
+    live) octo_provider_readiness_result opencode live "$PROJECT_ROOT" ;;
+    dispatch) preflight_check true opencode dispatch ;;
+    panel)
+        OCTOPUS_PREFLIGHT_PROVIDERS=opencode
+        preflight_check true opencode dispatch ;;
+esac
+rc=$?
+[[ "$BASH_ENV" == "$STARTUP_VALUE" && "$MISTRAL_API_KEY" == inert-fixture-key ]] || exit 94
+exit "$rc"
+'''
+        for entry, relative_path, startup_value in product(
+                ("live", "dispatch", "panel"), (".", "", "bin"),
+                ("probe-startup.sh", str(startup))):
+            with self.subTest(entry=entry, path=relative_path, startup=startup_value):
+                marker.unlink(missing_ok=True)
+                self.marker.unlink(missing_ok=True)
+                self.env.update(READINESS_ENTRY=entry, STARTUP_VALUE=startup_value,
+                                PATH=relative_path + ":" + original_path)
+                result = self.shell(script, root=caller, timeout=15)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                if entry == "live":
+                    self.assertEqual(json.loads(result.stdout)["status"], "available")
+                self.assertTrue(self.marker.exists(), "the isolated OpenCode login was never checked")
+                self.assertFalse(marker.exists(), marker.read_text() if marker.exists() else "")
+
     def test_automatic_eligibility_resolves_relative_path_from_project_directory(self):
         project = self.base / "project"
         caller = self.base / "caller"

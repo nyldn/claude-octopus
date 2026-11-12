@@ -15,6 +15,19 @@ if ! declare -f _is_cursor_agent_binary >/dev/null 2>&1; then
     source "${_preflight_lib_dir}/cursor-agent.sh" 2>/dev/null || true
 fi
 
+# Bootstrap utilities must not change identity when a probe enters the project.
+_octo_preflight_system_tool() {
+    local candidate
+    case "$1" in env|bash|date) ;; *) return 1 ;; esac
+    for candidate in "/usr/bin/$1" "/bin/$1"; do
+        if [[ -x "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
 # The council roster a session has pinned, if any. A Codex-led session sets
 # OCTOPUS_COUNCIL_DEFAULT_PROVIDERS=claude,agy because Codex is the lead, not a
 # seat, so preflight must check exactly those seats rather than every
@@ -482,7 +495,7 @@ _octo_provider_static_readiness() {
             ;;
         opencode)
             remediation="Install OpenCode, then run: opencode auth login"
-            if command -v opencode >/dev/null 2>&1; then
+            if (cd -- "${2:-$PWD}" && command -v opencode >/dev/null 2>&1); then
                 if [[ -f "${XDG_DATA_HOME:-${HOME}/.local/share}/opencode/auth.json" ]] ||
                    _octo_opencode_environment_auth_present; then
                     status="available"; reason_code="ready"; remediation=""
@@ -533,26 +546,35 @@ octo_provider_readiness_result() {
     local requested="${1:-}" check_kind="${2:-static}" provider=""
     local auth_mode health_handler detect_handler static_state status reason_code remediation
     local checked_at started_at finished_at duration_ms=0 live_timeout live_rc=0
+    local readiness_date readiness_env readiness_bash readiness_workdir="$PWD"
+    readiness_date="$(_octo_preflight_system_tool date)" || return 1
+    readiness_env="$(_octo_preflight_system_tool env)" || return 1
+    readiness_bash="$(_octo_preflight_system_tool bash)" || return 1
 
     provider="$(octo_provider_canonical "$requested" 2>/dev/null || true)"
     if [[ -z "$provider" ]]; then
         _octo_provider_readiness_emit "${requested:-unknown}" "missing" "unsupported" "$check_kind" \
-            "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" 0 "Use a provider registered in Provider Registry 2.0."
+            "$("$readiness_date" -u '+%Y-%m-%dT%H:%M:%SZ')" 0 "Use a provider registered in Provider Registry 2.0."
         return 0
     fi
     case "$check_kind" in static|live) ;; *) check_kind="static" ;; esac
+    if [[ "$provider" == opencode ]]; then
+        readiness_workdir="${3:-${PROJECT_ROOT:-$PWD}}"
+        [[ -d "$readiness_workdir" ]] || readiness_workdir="$PWD"
+        readiness_workdir="$(cd -- "$readiness_workdir" && pwd -P)" || return 1
+    fi
 
     # These lookups are the authority for readiness participation and live-probe routing.
     auth_mode="$(octo_provider_auth_mode "$provider" 2>/dev/null || printf 'none')"
     health_handler="$(octo_provider_health_handler "$provider" 2>/dev/null || printf 'none')"
     detect_handler="$(octo_provider_detect_handler "$provider" 2>/dev/null || printf 'none')"
-    checked_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-    started_at="$(date +%s)"
+    checked_at="$("$readiness_date" -u '+%Y-%m-%dT%H:%M:%SZ')"
+    started_at="$("$readiness_date" +%s)"
 
     if [[ "$detect_handler" == "none" ]] || ! octo_provider_has_capability "$provider" detect; then
         status="missing"; reason_code="not-detectable"; remediation="This provider is not exposed by provider detection."
     else
-        static_state="$(_octo_provider_static_readiness "$provider")"
+        static_state="$(_octo_provider_static_readiness "$provider" "$readiness_workdir")"
         IFS='|' read -r status reason_code remediation <<EOF
 $static_state
 EOF
@@ -576,9 +598,21 @@ EOF
         (( live_timeout < 1 )) && live_timeout=1
         if declare -f _octo_run_bare_probe_with_timeout >/dev/null 2>&1; then
             _octo_run_bare_probe_with_timeout "$live_timeout" "$live_timeout" 0 \
-                env "_octo_vibe_check_context=${_octo_vibe_check_context:-selected}" \
-                bash -c 'source "$1" 2>/dev/null; "$2" "$3"' _ \
-                "${_preflight_registry_dir}/providers.sh" "$health_handler" "$provider" \
+                "$readiness_env" -u BASH_ENV "_octo_vibe_check_context=${_octo_vibe_check_context:-selected}" \
+                "$readiness_bash" -c '
+                    source "$1" 2>/dev/null || exit 125
+                    if [[ "$3" == opencode ]]; then
+                        # Load bootstrap dependencies before changing relative PATH meaning.
+                        source "${1%/*}/pid-ledger.sh" 2>/dev/null || exit 125
+                        if [[ "${OCTOPUS_TANGLE_EXECUTION_BOUNDARY:-false}" == true ||
+                              "${OCTOPUS_TANGLE_WRITE_SCOPE_MODE:-strict}" == adaptive ]]; then
+                            source "${1%/*}/spawn.sh" 2>/dev/null || exit 125
+                        fi
+                        cd -- "$4" || exit 125
+                        export PROJECT_ROOT="$PWD"
+                    fi
+                    "$2" "$3"
+                ' _ "${_preflight_registry_dir}/providers.sh" "$health_handler" "$provider" "$readiness_workdir" \
                 >/dev/null || live_rc=$?
         else
             live_rc=125
@@ -590,7 +624,7 @@ EOF
             case "$provider" in
                 perplexity|openrouter|orcarouter|litellm)
                     _octo_run_bare_probe_with_timeout "$live_timeout" "$live_timeout" 0 \
-                        bash -c 'source "$1" 2>/dev/null; octo_provider_probe "$2"' _ \
+                        "$readiness_env" -u BASH_ENV "$readiness_bash" -c 'source "$1" 2>/dev/null; octo_provider_probe "$2"' _ \
                         "${_preflight_registry_dir}/quota-watcher.sh" "$provider" \
                         >/dev/null || live_rc=$?
                     if [[ "$live_rc" -eq 2 ]]; then
@@ -627,7 +661,7 @@ EOF
 
     # auth_mode is intentionally consulted even though credentials never enter output.
     : "$auth_mode"
-    finished_at="$(date +%s)"
+    finished_at="$("$readiness_date" +%s)"
     duration_ms=$(( (finished_at - started_at) * 1000 ))
     _octo_provider_readiness_emit "$provider" "$status" "$reason_code" "$check_kind" \
         "$checked_at" "$duration_ms" "$remediation"
@@ -773,6 +807,9 @@ preflight_check() {
         # their broad cache separate from evidence for a pinned council roster.
         local OCTOPUS_COUNCIL_DEFAULT_PROVIDERS=""
     fi
+    local preflight_env preflight_bash
+    preflight_env="$(_octo_preflight_system_tool env)" || return 1
+    preflight_bash="$(_octo_preflight_system_tool bash)" || return 1
     local opencode_workdir="${PROJECT_ROOT:-$PWD}"
     [[ -d "$opencode_workdir" ]] || opencode_workdir="$PWD"
     local _octo_vibe_check_context=automatic
@@ -795,7 +832,7 @@ preflight_check() {
           "${OCTOPUS_COUNCIL_DEFAULT_PROVIDERS:-auto}" == auto ]] &&
        (cd "$opencode_workdir" && command -v opencode >/dev/null 2>&1); then
         local oc_status oc_reason oc_remediation
-        IFS='|' read -r oc_status oc_reason oc_remediation < <(cd "$opencode_workdir" && _octo_provider_static_readiness opencode)
+        IFS='|' read -r oc_status oc_reason oc_remediation < <(_octo_provider_static_readiness opencode "$opencode_workdir")
         if [[ "$oc_status" != missing ]]; then
             case "$oc_reason" in
                 ready|live-check-required|auth-missing) opencode_admission=true ;;
@@ -814,14 +851,14 @@ preflight_check() {
         if [[ -n "${OCTOPUS_PREFLIGHT_REPORT:-}" ]]; then
             panel_args+=(--report-in "$OCTOPUS_PREFLIGHT_REPORT" --run-id "${OCTOPUS_PREFLIGHT_RUN_ID:-}")
         fi
-        panel_report="$(WORKSPACE_DIR="$WORKSPACE_DIR" bash "${_preflight_registry_dir}/../helpers/preflight.sh" "${panel_args[@]}")" || return 1
+        panel_report="$("$preflight_env" -u BASH_ENV "WORKSPACE_DIR=$WORKSPACE_DIR" "$preflight_bash" "${_preflight_registry_dir}/../helpers/preflight.sh" "${panel_args[@]}")" || return 1
         # Panel inspection stays static. Actual dispatch must confirm only its
         # selected OpenCode seat before accepting or rejecting static evidence.
         if [[ "$selected_opencode" == true ]] ||
            { [[ "$workflow_dispatch" == true ]] &&
              jq -e '.results | any(.provider == "opencode")' <<< "$panel_report" >/dev/null; }; then
             local panel_opencode
-            panel_opencode="$(cd "$opencode_workdir" && octo_provider_readiness_result opencode live)" || return 1
+            panel_opencode="$(octo_provider_readiness_result opencode live "$opencode_workdir")" || return 1
             panel_report="$(jq --argjson readiness "$panel_opencode" '
                 .results |= (if any(.[]; .provider == "opencode")
                     then map(if .provider == "opencode" then $readiness else . end)
@@ -893,7 +930,7 @@ preflight_check() {
             continue
         fi
         if [[ "$provider" == opencode ]]; then
-            readiness="$(cd "$opencode_workdir" && octo_provider_readiness_result "$provider" static)"
+            readiness="$(octo_provider_readiness_result "$provider" static "$opencode_workdir")"
         else
             readiness="$(octo_provider_readiness_result "$provider" static)"
         fi
@@ -902,7 +939,7 @@ preflight_check() {
         # a workflow's pinned roster, can confirm its login.
         if [[ "$provider" == opencode && "$opencode_admission" == true ]] &&
            [[ "$status" == available || "$reason" == live-check-required || "$reason" == auth-missing ]]; then
-            readiness="$(cd "$opencode_workdir" && octo_provider_readiness_result "$provider" live)"
+            readiness="$(octo_provider_readiness_result "$provider" live "$opencode_workdir")"
             { IFS= read -r -d '' status; IFS= read -r -d '' reason; IFS= read -r -d '' remediation; } < <(_octo_readiness_json_fields "$readiness" status reason_code remediation)
         fi
         candidate_ids+=("$provider")

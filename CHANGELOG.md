@@ -14,6 +14,10 @@
 
 ### Fixed
 
+- OpenCode readiness pins its bootstrap tools and clears `BASH_ENV` before
+  starting probe shells. Dependency loading stays outside the project directory,
+  while the guarded login check retains project-relative CLI selection.
+
 - OpenCode debate and fan-out seats appear in the production agent inventory.
   Interpreter supervision uses system cleanup timers when a project changes
   `PATH`, and cancellation tests retain real waits for supervisor children.
