@@ -11,6 +11,9 @@
 
 ### Fixed
 
+- Abbreviated council quotes must match whole identifiers, so a longer name or
+  string token cannot make invented source evidence pass verification.
+
 - Unit shards include newer hosted macOS suite timings in their duration
   weights. The full suite and 20-minute per-shard timeout remain in place.
 

@@ -3751,7 +3751,11 @@ def elided_lines(entry, needle):
         return []
     # The file text is one space-joined string, so test each source line alone,
     # and bound the span so a joined diff side cannot carry it either.
-    pattern = re.compile(r".*?".join(re.escape(t) for t in tokens_in))
+    # A whole name must survive abbreviation: endsWith is not neverendsWith
+    # or endsWithExtra. Include $ alongside Unicode word characters for JS names.
+    pattern = re.compile(r".*?".join(
+        r"(?<![\w$])" + re.escape(t) + r"(?![\w$])" if re.fullmatch(r"\w+", t)
+        else re.escape(t) for t in tokens_in))
     hay, starts, line_numbers = entry
     limit = 2 * len(needle) + 40
     found = []

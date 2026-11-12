@@ -2848,6 +2848,14 @@ test_case "#3389: an elided quote with a changed token is still fabricated"
 r="$(_preport '`src/rbac.test.ts:2`: `!== "GET" || !endsWith(...)` reads awkwardly.')"
 if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
+for changed_token in 'POSTER|endsWith' 'POST|neverendsWith' 'POST|endsWithExtra' 'POST|$endsWith' 'POST|endsWithé'; do
+    test_case "an abbreviated quote cannot match part of a longer token: $changed_token"
+    printf 'if (row.method !== "%s" || !row.path.%s("sync")) {\n' \
+        "${changed_token%%|*}" "${changed_token#*|}" > "$PROOT/src/token-boundaries.ts"
+    r="$(_preport 'src/token-boundaries.ts:1 reads `!== "POST" || !endsWith(...)`.')"
+    if jq -e '.quotes_verified == 0 and .quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+
 # sail-cruisey #3390: two files share a basename. A seat that cites one by its
 # full path and then by basename means that one, not "unresolved".
 AROOT="$(mktemp -d "${TEST_TMP_DIR:-/tmp}/quote-ambiguous.XXXXXX")"
