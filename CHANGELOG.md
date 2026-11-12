@@ -45,6 +45,9 @@
   Partial-fence refinement in unrelated cited files has its own 64 KiB
   per-quote budget. If the next complete file exceeds that budget, reporting
   retains the verified partial result without searching further unbound files.
+  Report-only elision and diff-side scans share a fixed work budget. Exhaustion
+  retains source verification and conservative partial status; required evidence
+  matching keeps its normal checks.
 - Quota cleanup delivers an identity-bound TERM to the timeout supervisor and
   lets its handler finish. Reparented helpers are cleaned up even when the
   provider leader has been reaped, and unrelated process exits cannot exhaust

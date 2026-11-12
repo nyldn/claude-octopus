@@ -4004,4 +4004,37 @@ VERDICT: APPROVE")" "$near_root")"
 if jq -e '.quotes_verified == 1 and .quotes_near_line == 1 and .quotes_partial == 0
     and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "complete match lost later near-line evidence: $r"; fi
 
+replacement_root="$TEST_TMP_DIR/replacement-claims"
+mkdir -p "$replacement_root/src"
+replacement_real='const actualPrice = loadActualPrice(input);'
+replacement_fake='const inventedPrice = fetchInventedPrice(input);'
+printf '%s\n' "$replacement_real" > "$replacement_root/src/pricing.ts"
+git -C "$replacement_root" init -q
+git -C "$replacement_root" add src/pricing.ts
+git -C "$replacement_root" -c user.name=Fixture -c user.email=fixture@example.invalid \
+    -c core.hooksPath=/dev/null commit -qm baseline
+for lead in 'is wrong; our fixed version is' \
+    ': I recommend a replacement, and the code is' \
+    ': I suggest this patch, and this code is' \
+    ': I recommend a replacement, but the code is' \
+    ': I recommend a replacement, and the current code is' \
+    ': I recommend a replacement, and the file reads'; do
+    test_case "replacement ownership preserves explicit source claims: $lead"
+    response="$(_resp "src/pricing.ts:1 reads \`$replacement_real\`.
+
+src/pricing.ts:1 $lead \`$replacement_fake\`.
+VERDICT: APPROVE")"
+    expected_proposal=true
+    case "$lead" in *'but the code'*|*'the current code'*|*'the file reads'*) expected_proposal=false ;; esac
+    r="$(council_response_quote_verification_json "$response" "$replacement_root")"
+    if jq -e --argjson proposal "$expected_proposal" '.verification_failed == false
+        and .quotes_verified == 1 and .fabricated == ($proposal | not)
+        and .quotes_unverifiable_proposed == (if $proposal then 1 else 0 end)
+        and .quotes_attributed_unverified == (if $proposal then 0 else 1 end)' <<< "$r" >/dev/null; then
+        test_pass
+    else
+        test_fail "replacement ownership changed current-source checks: $r"
+    fi
+done
+
 test_summary
