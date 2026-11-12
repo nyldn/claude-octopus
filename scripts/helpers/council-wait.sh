@@ -188,6 +188,13 @@ _eligible() {
     fi
 }
 
+_is_running() {
+    local rd="$1" st="$1/run-status.json" identity_dir rid
+    identity_dir="$(cd -- "$rd" 2>/dev/null && pwd -P)" || return 1
+    rid="${identity_dir##*/}"
+    [[ -f "$st" ]] && jq -e -s --arg rid "$rid" 'length == 1 and (.[0] | type) == "object" and .[0].state == "running" and .[0].run_id == $rid' "$st" >/dev/null 2>&1
+}
+
 _is_finished() {
     local rd="$1" st="$1/run-status.json" identity_dir rid
     identity_dir="$(cd -- "$rd" 2>/dev/null && pwd -P)" || return 1
@@ -226,7 +233,7 @@ while :; do
             printf '%s/summary.json\n' "$run_dir"
             exit 0
         fi
-    elif [[ -n "$run_dir" ]]; then
+    elif [[ -n "$run_dir" ]] && _is_running "$run_dir"; then
         seen_running="$run_dir"
     fi
     remaining=$(( deadline - SECONDS ))

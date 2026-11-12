@@ -19,6 +19,9 @@
 
 ### Fixed
 
+- Council waits retain the settle hold when a finished round's torn summary is
+  repaired. Early completion requires an observed, matching running beacon.
+
 - Council quote checks preserve template delimiters and escaped pipes inside
   regexes and strings. Model fallback requires a complete capacity diagnostic
   from one stream, so quoted output cannot supply a missing error cause.
