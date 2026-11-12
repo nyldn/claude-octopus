@@ -11,6 +11,13 @@
 
 ### Fixed
 
+- Shipping binds audit evidence to the reviewed commit and identifies ignored
+  auxiliary state excluded from a checkpoint. Documentation sync handles new
+  files, full branch references and ownership checks from subdirectories.
+
+- Parallel workers use per-process edit and Git permissions with exact optional
+  package commands. Unapproved commands do not wait for an interactive prompt.
+
 - Advisor launches read large review prompts from private files instead of
   process arguments. Factory runs retain their recovery path before waiting,
   try the next allowed reviewer after transport failure, and propagate report

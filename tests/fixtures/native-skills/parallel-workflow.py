@@ -28,7 +28,15 @@ plan = json.loads(os.environ['OCTO_TEST_PLAN']).get(name, {})
 prompt = sys.stdin.read()
 trace = Path(os.environ['OCTO_TEST_TRACE'])
 with trace.open('a') as f: f.write(name + '\n')
-if sys.argv[1:] != ['--plugin-dir', os.environ['OCTO_TEST_PLUGIN'], '-p']: raise SystemExit(91)
+expected = ['--plugin-dir', os.environ['OCTO_TEST_PLUGIN'], '--permission-mode', 'acceptEdits',
+            '--permission-prompts', 'none', '--allowed-tools', 'Bash(git status *)',
+            'Bash(git diff *)', 'Bash(git add *)', 'Bash(git commit *)',
+            *['Bash(' + value + ')' for value in plan.get('allowed_commands', [])],
+            '--disallowed-tools', 'Bash(git push *)', '-p']
+if sys.argv[1:] != expected: raise SystemExit(91)
+if plan.get('action') == 'permission-denied':
+    print('Required command denied; checks were not run.', file=sys.stderr)
+    raise SystemExit(77)
 if any(key in os.environ for key in plan.get('absent_env', [])): raise SystemExit(94)
 if any(os.environ.get(key) != value for key, value in plan.get('present_env', {}).items()): raise SystemExit(95)
 if plan.get('needs'):
@@ -145,6 +153,36 @@ class ParallelWorkflow(unittest.TestCase):
         self.assertEqual(self.git('rev-parse', 'HEAD').stdout.strip(), self.original)
         self.assertEqual(self.git('status', '--porcelain=v1', '--untracked-files=all').stdout, '')
         self.assertFalse((self.repo / 'NEVER').exists())
+
+    def test_explicit_commands_are_passed_only_to_the_selected_package(self):
+        proposal = self.proposal(('WP-1', 'WP-2'))
+        proposal['work_packages'][0]['allowed_commands'] = ['npm test', 'python3 -m pytest tests/unit']
+        run = self.prepare(proposal)
+        result, state = self.run_workers(run, {'WP-1': {'allowed_commands': proposal['work_packages'][0]['allowed_commands']}})
+        self.assertEqual(state['status'], 'success')
+        self.assert_canonical_preserved()
+
+    def test_wildcard_or_multiline_permission_commands_are_rejected(self):
+        for command in ('*', 'npm test *', 'npm test\ngit push', '', 'test\x00command'):
+            proposal = self.proposal()
+            proposal['work_packages'][0]['allowed_commands'] = [command]
+            path = self.base / ('invalid-policy-' + str(time.monotonic_ns()) + '.json')
+            path.write_text(json.dumps(proposal))
+            result = self.call('prepare', '--project', self.repo, '--wbs', path, check=False)
+            self.assertNotEqual(result.returncode, 0, command)
+            self.assertIn('Allowed commands', result.stderr)
+        self.assertFalse(Path(self.env['OCTO_TEST_TRACE']).exists())
+        self.assert_canonical_preserved()
+
+    def test_permission_denial_fails_package_and_preserves_evidence(self):
+        run = self.prepare()
+        result, state = self.run_workers(run, {'WP-1': {'action': 'permission-denied'}}, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(state['packages']['WP-1']['exit_code'], 77)
+        self.assertEqual(state['packages']['WP-1']['status'], 'failed')
+        self.assertTrue(Path(state['packages']['WP-1']['worktree']).exists())
+        self.assertIn('Required command denied', (run / 'WP-1/agent.log').read_text())
+        self.assert_canonical_preserved()
 
     def test_success_loads_plugin_and_preserves_the_canonical_worktree(self):
         run = self.prepare()

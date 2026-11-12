@@ -513,7 +513,8 @@ printf 'Stakeholder objection\\n'
         orchestrator = self.base / "orchestrator"
         orchestrator.write_text('''#!/usr/bin/env bash
 set -euo pipefail
-[[ "$1" == spawn && "$2" == codex:fixture && "$3" == "$STAKEHOLDER_PROMPT" ]]
+[[ "$1" == spawn && "$2" == codex:fixture && "$3" == --prompt-file && -r "$4" ]]
+printf '%s' "$STAKEHOLDER_PROMPT" | cmp - "$4"
 [[ "${OCTOPUS_AUTH_RETRIES:-missing}" == 0 ]]
 (
     sleep 0.2

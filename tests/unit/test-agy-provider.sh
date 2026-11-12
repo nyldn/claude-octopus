@@ -1078,7 +1078,7 @@ test_agy_spawn_cli_uses_sync_dispatch() {
     test_case "orchestrate spawn routes direct and persona-resolved agy through sync dispatch"
 
     if grep -q 'Antigravity CLI print mode does not emit output from background jobs' "$PROJECT_ROOT/scripts/orchestrate.sh" && \
-       grep -q 'run_agent_sync "\$_spawn_target" "\$2" "\$TIMEOUT" "\${_spawn_role:-none}" "spawn"' "$PROJECT_ROOT/scripts/orchestrate.sh"; then
+       grep -q 'run_agent_sync "\$_spawn_target" "\$_spawn_prompt" "\$TIMEOUT" "\${_spawn_role:-none}" "spawn"' "$PROJECT_ROOT/scripts/orchestrate.sh"; then
         test_pass
     else
         test_fail "orchestrate.sh spawn should run agy synchronously"

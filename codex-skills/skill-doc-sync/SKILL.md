@@ -65,7 +65,9 @@ if [[ -z "${DOC_SYNC_BASE_REF:-}" ]]; then
   }
 fi
 git rev-parse --verify "${DOC_SYNC_BASE_REF}^{commit}" >/dev/null || exit 1
-if [[ "$DOC_SYNC_BRANCH" == "${DOC_SYNC_BASE_REF#origin/}" ]]; then
+DOC_SYNC_BASE_BRANCH="$(git rev-parse --abbrev-ref "$DOC_SYNC_BASE_REF")" || exit 1
+if [[ "$DOC_SYNC_BASE_BRANCH" == "$DOC_SYNC_BRANCH" ||
+      "$DOC_SYNC_BASE_BRANCH" == "origin/$DOC_SYNC_BRANCH" ]]; then
   DOC_SYNC_DIFF_BASE="$(git rev-parse --verify HEAD^)" || exit 1
 else
   DOC_SYNC_DIFF_BASE="$(git merge-base HEAD "$DOC_SYNC_BASE_REF")" || exit 1
@@ -98,6 +100,7 @@ changes; handle an overlapping edit only under separate explicit authorization.
 if ! declare -p DOC_SYNC_PATHS >/dev/null 2>&1 || [[ ${#DOC_SYNC_PATHS[@]} == 0 ]]; then
   echo "Record the exact documentation paths before editing." >&2; exit 1
 fi
+cd -- "$DOC_SYNC_ROOT" || exit 1
 DOC_SYNC_HEAD="$(git rev-parse HEAD)" || exit 1
 python3 - "${DOC_SYNC_PATHS[@]}" <<'PY_PATHS'
 from pathlib import Path
@@ -278,7 +281,8 @@ cd -- "$DOC_SYNC_ROOT" || exit 1
    "$(git symbolic-ref --quiet --short HEAD)" == "$DOC_SYNC_BRANCH" ]] || {
   echo "The checkout changed during doc-sync; inspect it before committing." >&2; exit 1;
 }
-if git --literal-pathspecs diff --quiet HEAD -- "${DOC_SYNC_PATHS[@]}"; then
+DOC_SYNC_UNTRACKED="$(git --literal-pathspecs ls-files --others --exclude-standard -- "${DOC_SYNC_PATHS[@]}")" || exit 1
+if git --literal-pathspecs diff --quiet HEAD -- "${DOC_SYNC_PATHS[@]}" && [[ -z "$DOC_SYNC_UNTRACKED" ]]; then
   echo "No changes in the recorded documentation paths."
 else
   DOC_SYNC_DIFF_STATUS=$?

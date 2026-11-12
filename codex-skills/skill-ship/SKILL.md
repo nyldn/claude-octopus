@@ -84,15 +84,24 @@ clean-commit or tag checks below.
 **EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)**
 
 Use the installation root established above for execution and result
-validation. Run `orchestrate.sh ink` and require a fresh validated report with
-launcher status `COMPLETE`. Do not substitute a single-provider review or an
+validation. Run `orchestrate.sh ink` through `workflow-result.sh`, the mandatory
+report adapter. It accepts only a fresh report owned by this invocation and
+rejects ambiguous reports. Do not substitute a single-provider review or an
 older report. If critical issues remain, stop shipping until the user resolves
 them and reruns `flow-deliver`.
+
+The audit covers the clean committed source at `SHIP_AUDITED_HEAD`. Commit any
+source changes before this step. If the source commit changes later, rerun this
+audit against the new clean commit before tagging. This audit does not repeat
+the readiness check from step 1.
 
 ```bash
 # Restore the loaded root when this step starts in a fresh shell.
 OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${DROID_PLUGIN_ROOT:-${OCTO_ROOT:-${HOME}/.claude-octopus/plugin}}}}"
 bash "$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh" || exit 1
+SHIP_AUDITED_HEAD=$(git rev-parse HEAD) || exit 1
+SHIP_AUDIT_STATUS=$(git status --porcelain) || exit 1
+[[ -z "$SHIP_AUDIT_STATUS" ]] || { echo "Commit or preserve source changes before auditing." >&2; exit 1; }
 RUN_MARKER=$(mktemp) || exit 1
 RUN_STATUS=0
 OCTOPUS_WORKFLOW_INVOCATION_ID="${RUN_MARKER##*/}" \
@@ -103,7 +112,11 @@ VALIDATION_FILE=$("$OCTO_ROOT/scripts/helpers/workflow-result.sh" ink \
     "$RUN_MARKER" "$RUN_STATUS") || REPORT_STATUS=$?
 rm -f "$RUN_MARKER"
 [[ "$REPORT_STATUS" == 0 ]] || exit "$REPORT_STATUS"
-echo "AUDIT COMPLETE: $VALIDATION_FILE"
+SHIP_AUDIT_CURRENT_HEAD=$(git rev-parse HEAD) || exit 1
+[[ "$SHIP_AUDIT_CURRENT_HEAD" == "$SHIP_AUDITED_HEAD" ]] || { echo "Source changed during audit; rerun the audit against the current clean commit." >&2; exit 1; }
+SHIP_AUDIT_STATUS=$(git status --porcelain) || exit 1
+[[ -z "$SHIP_AUDIT_STATUS" ]] || { echo "Source changed during audit; preserve the changes and rerun against a clean commit." >&2; exit 1; }
+echo "AUDIT COMPLETE: $VALIDATION_FILE (source $SHIP_AUDITED_HEAD)"
 ```
 
 Read the validated report and summarize its result, quality score, critical
@@ -156,11 +169,13 @@ If that scope is missing, stop before staging or committing. Preserve ignored st
 the committed source and excludes that local state. Preserve the local archive
 separately; do not advertise the tag as a complete state backup.
 
-Record the reviewed source commit as `SHIP_REVIEWED_HEAD`. Resume at the
-checkpoint step with that commit clean and unchanged, while retaining the
-already checked delivery and audit evidence. Do not rerun the readiness gate
-against the now-shipped status. If the evidence was lost, stop and recover the
-recorded handoff; `shipped` alone does not prove delivery passed.
+Record the reviewed source commit as `SHIP_REVIEWED_HEAD`. It must equal
+`SHIP_AUDITED_HEAD`; otherwise stop, commit the final source, and rerun only the
+audit before returning to this checkpoint. Resume at the checkpoint step with
+that commit clean and unchanged, while retaining the already checked delivery
+and audit evidence. Do not rerun the readiness gate against the now-shipped
+status. If the evidence was lost, stop and recover the recorded handoff;
+`shipped` alone does not prove delivery passed.
 
 ```bash
 git status --short
@@ -176,6 +191,8 @@ request. Check the command result and the tag object before reporting success.
 : "${ARCHIVE:?Restore the recorded archive path}"
 : "${ARCHIVE_TIMESTAMP:?Restore the recorded archive timestamp}"
 : "${SHIP_REVIEWED_HEAD:?Restore the reviewed delivered-source commit}"
+: "${SHIP_AUDITED_HEAD:?Restore the audited source commit}"
+[[ "$SHIP_AUDITED_HEAD" == "$SHIP_REVIEWED_HEAD" ]] || { echo "Cannot tag: reviewed source differs from audited source; rerun the audit." >&2; exit 1; }
 [[ "$ARCHIVE" == ".octo/archive/$ARCHIVE_TIMESTAMP" && -d "$ARCHIVE" && -f "$ARCHIVE/STATE.md" ]] || { echo "Archive is incomplete." >&2; exit 1; }
 SHIP_CURRENT_HEAD="$(git rev-parse HEAD)" || exit 1
 SHIP_WORKTREE_STATUS="$(git status --porcelain)" || exit 1
@@ -183,21 +200,26 @@ SHIP_WORKTREE_STATUS="$(git status --porcelain)" || exit 1
     echo "Cannot tag: preserve or commit intended changes, then review the current commit." >&2; exit 1;
 }
 SHIP_LOCAL_STATE=0
-for state_path in .octo/STATE.md "$ARCHIVE/STATE.md"; do
-    if git check-ignore -q -- "$state_path"; then
-        SHIP_LOCAL_STATE=1
-    else
-        IGNORE_STATUS=$?
-        [[ "$IGNORE_STATUS" == 1 ]] || exit "$IGNORE_STATUS"
-        git ls-files --error-unmatch -- "$state_path" >/dev/null 2>&1 || {
-            echo "Cannot tag: non-ignored state is absent from the reviewed commit." >&2; exit 1;
-        }
-    fi
+SHIP_EXCLUDED_STATE_FILES=()
+for name in STATE.md PROJECT.md ROADMAP.md ISSUES.md; do
+    for state_path in ".octo/$name" "$ARCHIVE/$name"; do
+        [[ -f "$state_path" ]] || continue
+        if git check-ignore -q -- "$state_path"; then
+            SHIP_LOCAL_STATE=1
+            SHIP_EXCLUDED_STATE_FILES+=("$state_path")
+        else
+            IGNORE_STATUS=$?
+            [[ "$IGNORE_STATUS" == 1 ]] || exit "$IGNORE_STATUS"
+            git ls-files --error-unmatch -- "$state_path" >/dev/null 2>&1 || {
+                echo "Cannot tag: non-ignored state is absent from the reviewed commit: $state_path" >&2; exit 1;
+            }
+        fi
+    done
 done
 SHIP_CURRENT_STATE="$("$STATE_TOOL" read_state)" || exit 1
 printf '%s\n' "$SHIP_CURRENT_STATE" | grep -qx 'status=shipped' || exit 1
 if [[ "$SHIP_LOCAL_STATE" == 1 ]]; then
-    echo "Checkpoint scope: committed source only; ignored state and archive remain local."
+    printf 'Checkpoint scope: committed source only; local-only state excluded: %s\n' "${SHIP_EXCLUDED_STATE_FILES[*]}"
 else
     SHIP_COMMITTED_STATE="$(git show HEAD:.octo/STATE.md)" || exit 1
     printf '%s\n' "$SHIP_COMMITTED_STATE" | grep -qx '\*\*Status:\*\* shipped' || exit 1

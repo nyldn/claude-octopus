@@ -126,6 +126,38 @@ class DocSyncRecipes(unittest.TestCase):
             self.assertIn('DOC_SYNC_BASE_REF', result.stderr)
             result = self.run_block(tree, '## Step 2:', DOC_SYNC_BASE_REF='trunk')
             self.assertEqual(result.returncode, 0, result.stderr)
+            self.git('checkout', '-q', 'trunk')
+            (self.repo / 'trunk-change.py').write_text('pass\n')
+            self.git('add', 'trunk-change.py')
+            self.git('commit', '-qm', 'trunk change')
+            self.head = self.git('rev-parse', 'HEAD')
+            result = self.run_block(tree, '## Step 2:', DOC_SYNC_BASE_REF='refs/heads/trunk')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('trunk-change.py', result.stdout)
+
+    def test_step3_checks_owned_paths_from_repository_root(self):
+        for tree in TREES:
+            with self.subTest(tree=tree):
+                self.repository()
+                (self.repo / 'README.md').write_text('Existing user edit\n')
+                before = self.git('status', '--porcelain')
+                subdir = self.repo / 'nested'
+                subdir.mkdir()
+                result = self.run_block(tree, '## Step 3:', ('README.md',), directory=subdir)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(self.git('status', '--porcelain'), before)
+                self.assertEqual((self.repo / 'README.md').read_text(), 'Existing user edit\n')
+
+    def test_new_selected_markdown_is_committed_without_other_doc_edits(self):
+        for tree in TREES:
+            with self.subTest(tree=tree):
+                self.repository()
+                path = 'new-only.md'
+                (self.repo / path).write_text('New documentation\n')
+                result = self.run_block(tree, '## Step 9:', (path,))
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(self.git('show', f'HEAD:{path}'), 'New documentation')
+                self.assertEqual(self.git('diff', '--cached', '--binary'), '')
 
     def test_symlink_escape_is_rejected(self):
         for tree in TREES:

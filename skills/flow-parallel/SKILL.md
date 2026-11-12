@@ -67,6 +67,28 @@ status line. Describe the selected worker count and budget. The workers receive
 success from installation alone. A worker authentication failure stops the run;
 do not retry sign-in or silently switch clients.
 
+Workers use the [Claude Code permission policy](https://code.claude.com/docs/en/permissions):
+`acceptEdits` and noninteractive permission denial for this process.
+The coordinator allows Git status, diff, add and commit, and denies ordinary
+`git push` calls. This is a CLI permission policy, not a sandbox. Managed denies
+and the existing host settings still apply; the coordinator does not change
+account or saved permissions. A CLI that rejects these flags fails the package
+and retains its diagnostics. Do not retry with a permission-bypass mode.
+
+When a package needs build, generation or test commands, add `allowed_commands`
+to that package in the reviewed WBS. Each entry is one exact command string,
+such as `"npm test"` or `"python3 -m pytest tests/unit"`. Wildcards and control
+characters are rejected rather than broadened into permission patterns. Put
+commands that require shell globs in a reviewed project script and allow its
+exact invocation. Keep these commands within the authorized implementation and
+test scope. Permission rules match command text; use the recorded spelling.
+
+A worker may use host permissions that were already saved. Otherwise a command
+requiring additional approval is denied without waiting for a prompt. Read its
+retained diagnostics and distinguish denied or unperformed checks from passing
+checks. A scoped commit does not prove its tests passed; Step 7 still requires
+independent project validation before integration.
+
 ### STEP 3: Read current project context
 
 Read repository instructions, the current task branch, and relevant prior
