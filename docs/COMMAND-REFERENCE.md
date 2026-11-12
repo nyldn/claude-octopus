@@ -1428,13 +1428,44 @@ octopus summary
 ```
 
 **What it shows:**
-- Provider/agent name
-- Status: `ok`, `degraded`, `failed`, or `timeout`
+- Provider/agent name, one row per seat: a provider with several seats in a run, such as probe perspectives, gets a row for each
+- Status: `ok`, `degraded`, `failed`, `timeout`, or `cancelled`
 - Output token count and duration
 - Failure or degradation reason, including oversize prompt handling
 - Whether synthesis will continue or abort when `OCTOPUS_REQUIRE_ALL=true`
 
 Multi-provider commands call this automatically before synthesis when a run ledger is available.
+
+---
+
+### Parallel dispatch output claim recovery
+
+Parallel dispatch normally uses Python-backed output claims that can detect
+exited owners. When Python locking is unavailable or the caller already owns
+descriptor 7, the executor warns that it is using a shell claim. An interrupted
+shell claim stays reserved because the fallback cannot prove its owner exited.
+Before recovering it, stop the owning invocation and verify all its workers and
+provider processes have exited. Inspect the exact claim directory named in the
+warning and confirm its `owner` file contains only `fallback`. Remove that one
+`owner` file, then remove its now-empty claim directory with `rmdir`. Preserve
+the result file; a newly admitted retry clears stale output itself. Never remove
+claims belonging to a live or unknown owner, or use a wildcard to clear claims.
+If interruption left that exact directory empty with no `owner` file, remove
+only the empty directory with `rmdir`, after the same process-exit checks.
+Normal Python-backed cleanup retires the complete claim atomically. If retiring
+it fails, its owner record and owner lock remain available for a later retry.
+A Python-backed owner record also names the seat dispatched for its result file
+and any stale seats inherited from exited owners, each with the run and the
+result path spelling that dispatched it. Reclaiming the claim cancels those
+seats' `running` status in that run, so a task ID that maps to the same result
+file is not blocked by an exited owner's seat, and another run sharing the
+results directory keeps its own seats. A reclaim interrupted before that
+cancellation passes the seats on to the next owner.
+If the task already has a durable execution contract in the same run, use a new
+task ID for the next attempt. Reusing that seat reports
+`contract-seat-unavailable` and preserves its saved result and completion marker.
+A concurrent dispatch of the same task ID with another agent reports the same
+reason while the first dispatcher is still admitting the seat.
 
 ---
 
