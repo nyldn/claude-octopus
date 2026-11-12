@@ -71,6 +71,17 @@ If invoked with arguments (e.g., `/octo:staged-review src/auth/`), use that path
 
 ## Step 2: Execute Staged Review
 
+Carry the selected scope into the skill and restore it in the shell call:
+
+| Selected scope | Snapshot arguments |
+| --- | --- |
+| Staged changes | `REVIEW_SCOPE=staged` |
+| Recent commit | `REVIEW_SCOPE=commit` |
+| Working tree or an authorized governed run | `REVIEW_SCOPE=working` |
+| Specific path or a supplied path argument | `REVIEW_SCOPE=files` and the exact quoted `REVIEW_PATH` |
+
+Use the user's existing scope choice when it is already clear. Do not replace an explicit empty staged scope with the previous commit. Record a supplied commit range as `REVIEW_BASE` and `REVIEW_HEAD`.
+
 Read and follow the full skill instructions from:
 `${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/.claude/skills/skill-staged-review/SKILL.md`
 

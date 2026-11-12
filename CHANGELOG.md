@@ -14,6 +14,10 @@
 
 ### Fixed
 
+- Staged review captures the selected Git or file scope in private artifacts,
+  scans the same staged or committed file bytes, and waits for actual provider
+  answers. Posting requires an authorized destination and the completed report.
+
 - Codex entries load their adapted phase resources and preserve native API
   examples. Develop keeps the confirmed request in the main conversation.
   Rollback refuses changed submodules before mutation, and security-audit

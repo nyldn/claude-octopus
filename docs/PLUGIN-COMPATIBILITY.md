@@ -114,11 +114,13 @@ from Claude's frontmatter. Explicit skill mentions still work. See
 
 The earlier root `skills/` layout was verified with Codex CLI 0.153.4 through
 an isolated local marketplace and native `skills/list`, without a model request.
-It loaded 63 skills and 20 converted command entries. Those results do not
-establish runtime acceptance of the new `codex-skills/` layout. Package and
-manifest checks pass for the separate tree, but current offline runtime
-discovery remains unverified: Codex 0.166 did not initialize within a bounded
-retry. No model request or account change was made.
+For the separate `codex-skills/` layout, Codex CLI 0.167.1 initialized and read
+all 64 skills from an extracted npm package through native `plugin/read` on
+2026-11-12. Every returned skill path belonged to `codex-skills/`. The test used
+a private catalog following OpenAI's [local marketplace contract](https://developers.openai.com/plugins/build/plugins),
+without installing into the user's profile or issuing thread or model requests.
+This proves packaged catalog discovery. Installed `skills/list`, skill invocation,
+hooks and provider execution remain separate acceptance checks.
 
 The bundled OpenAI plugin-creator ingestion validator rejects the shared
 Claude frontmatter's explicit-invocation flag and the nested starter/block
