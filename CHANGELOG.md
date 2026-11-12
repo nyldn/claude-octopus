@@ -14,6 +14,11 @@
 
 ### Fixed
 
+- Named OpenAI-compatible presets keep their own endpoint and credential
+  selection when the generic provider slot is configured. Direct helper calls
+  no longer inherit that slot's URL or credential name. Explicit flags still
+  take priority.
+
 - Unit shards include newer hosted macOS suite timings in their duration
   weights. The full suite and 20-minute per-shard timeout remain in place.
 
