@@ -10,17 +10,28 @@ disable-model-invocation: true
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
 
+## Execution Contract (MANDATORY - CANNOT SKIP)
+
+This generated Codex skill preserves an enforced workflow contract from the source skill.
+
+**PROHIBITED:**
+- Do not summarize, simulate, or skip the referenced workflow command when this skill requires execution.
+- Do not claim provider output or validation artifacts exist without checking the actual files or command output.
+- Do not continue silently when a required provider, command, or host capability is unavailable; report the unavailable dependency and use a supported fallback.
+
+
 # Claude Octopus - Multi-Tentacled Orchestrator
 
-## MANDATORY COMPLIANCE — DO NOT SKIP
+## Scope and execution contract
 
-**When this skill is invoked, you MUST dispatch work to multiple providers in parallel. You are PROHIBITED from:**
-- Running tasks sequentially with a single model instead of parallel multi-provider dispatch
-- Skipping orchestrate.sh and doing the work directly
-- Deciding the task is "simple enough" for a single provider
-- Substituting serial Claude-only execution for multi-LLM parallel execution
+Use `$skill-parallel-agents` for explicitly requested analysis, implementation or review
+that needs parallel provider perspectives. Routine file operations, git commands,
+code navigation and basic terminal tasks stay with the host's direct tools.
+Those operations do not require provider dispatch.
 
-**This skill exists specifically for multi-provider parallel work. If you catch yourself thinking "I'll just do this myself" — STOP.**
+For work within this skill's scope, dispatch through `orchestrate.sh` and retain
+its output artifacts. Do not replace requested parallel analysis with serial
+single-provider work or describe one provider's output as consensus.
 
 
 **Multi-tentacled orchestrator for Claude Code** - using Double Diamond methodology for comprehensive problem exploration, consensus building, and validated delivery.
@@ -39,34 +50,48 @@ disable-model-invocation: true
     converge          problem          solutions        delivery
 ```
 
+## Resolve the loaded installation
+
+Run this block in the same shell as each example below. Repeat it when starting
+a fresh shell. If the host supplies no plugin root, set `OCTO_ROOT` to the
+verified installation that loaded this skill.
+
+```bash
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${DROID_PLUGIN_ROOT:-${OCTO_ROOT:-}}}}"
+: "${OCTO_ROOT:?Set the verified installation that loaded this skill}"
+OCTO_ROOT="$(cd -- "$OCTO_ROOT" && pwd -P)" || exit 1
+for required in scripts/orchestrate.sh scripts/helpers/workflow-result.sh scripts/lib/host-runtime.sh scripts/lib/provider-registry.sh; do
+  [[ -r "$OCTO_ROOT/$required" ]] || { echo "Incomplete Octopus installation: $OCTO_ROOT/$required" >&2; exit 1; }
+done
+[[ -x "$OCTO_ROOT/scripts/orchestrate.sh" && -x "$OCTO_ROOT/scripts/helpers/workflow-result.sh" ]] || exit 1
+export OCTO_ROOT
+```
+
 ## Quick Start
 
-> **Note for Claude Code users:** You don't need to run these commands! Just talk naturally to Claude:
-> - "Research OAuth authentication patterns"
-> - "Build a user authentication system"
-> - "Review this code for security issues"
->
-> The commands below are for direct CLI usage or automation.
+Run `$skill-parallel-agents "<task>"` to request multi-provider work. The default router
+stays silent for ordinary conversation; natural language alone does not activate
+this skill. The following examples are for direct CLI use or automation.
 
 ```bash
 # Full Double Diamond workflow (all 4 phases)
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" embrace "Build a user authentication system"
+"$OCTO_ROOT/scripts/orchestrate.sh" embrace "Build a user authentication system"
 
 # Individual phases
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" probe "Research authentication best practices"
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" grasp "Define auth requirements"
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" tangle "Implement auth feature"
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" ink "Validate and deliver auth implementation"
+"$OCTO_ROOT/scripts/orchestrate.sh" probe "Research authentication best practices"
+"$OCTO_ROOT/scripts/orchestrate.sh" grasp "Define auth requirements"
+"$OCTO_ROOT/scripts/orchestrate.sh" tangle "Implement auth feature"
+"$OCTO_ROOT/scripts/orchestrate.sh" ink "Validate and deliver auth implementation"
 
 # Crossfire: Adversarial cross-model review
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" grapple "implement password reset API"
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" grapple --principles security "implement JWT auth"
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" squeeze "review auth.ts for vulnerabilities"
+"$OCTO_ROOT/scripts/orchestrate.sh" grapple "implement password reset API"
+"$OCTO_ROOT/scripts/orchestrate.sh" grapple --principles security "implement JWT auth"
+"$OCTO_ROOT/scripts/orchestrate.sh" squeeze "review auth.ts for vulnerabilities"
 
 # Smart auto-routing (detects intent automatically)
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" auto "research OAuth patterns"           # -> probe
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" auto "build user login"                  # -> tangle + ink
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" auto "review the auth code"              # -> ink
+"$OCTO_ROOT/scripts/orchestrate.sh" auto "research OAuth patterns"           # -> probe
+"$OCTO_ROOT/scripts/orchestrate.sh" auto "build user login"                  # -> tangle + ink
+"$OCTO_ROOT/scripts/orchestrate.sh" auto "review the auth code"              # -> ink
 ```
 
 ## IMPORTANT: When NOT to Use This Skill
@@ -104,25 +129,25 @@ Claude Octopus uses **visual indicators** so you always know which AI is respond
 | 🐙 | **Parallel Mode** | Multiple CLIs orchestrated via orchestrate.sh |
 | 🔴 | **Codex CLI** | OpenAI Codex (your OPENAI_API_KEY) |
 | 🧭 | **Antigravity CLI** | Google Antigravity (your authenticated seat) |
-| 🔵 | **Claude Subagent** | Claude Code host subagent tool (built-in) |
+| 🔵 | **Host tools** | Local file, git and shell operations |
 
-### What Triggers External CLIs vs Subagents
+### External provider work and local tools
 
 **External CLIs execute when:**
 - Using `/parallel-agents` command explicitly
 - Using `$skill-debate` command (AI Debate Hub)
 - Running orchestrate.sh workflows (probe, grasp, tangle, ink, embrace, grapple, squeeze)
 - Knowledge mode deliberation (when Knowledge Mode is ON)
-- Natural language that triggers this skill (research, build, review tasks)
+- Explicit invocation of this skill for research, implementation or review
 
-**Claude Subagents execute when:**
+**Use the host's direct tools for:**
 - Simple file operations (read, write, edit)
 - Git commands and bash operations
 - Code reading and navigation
 - Tasks that don't need multiple perspectives
 - Built-in Claude Code capabilities are sufficient
 
-**Why this matters:** External CLIs use your OpenAI/Google API quotas and incur costs. Claude subagents are included with Claude Code at no additional charge.
+External provider calls can use provider quotas or incur charges. Local file and git operations use the host's direct tools.
 
 When you see 🐙 **CLAUDE OCTOPUS ACTIVATED**, external CLI providers such as Codex, Antigravity, and others will be invoked for multi-perspective analysis.
 
@@ -142,16 +167,16 @@ $skill-parallel-agents "Review this simple function"
 $skill-parallel-agents "Should we use TypeScript?"
 ```
 
-### Natural Language Triggers
+### Explicit task requests
 
-You can also force multi-provider mode with natural language:
+Put a request for multiple providers inside `$skill-parallel-agents`, for example:
 
 ```
-"Run this with all providers: What is JWT?"
-"I want multiple AI models to look at our architecture"
-"Get multiple perspectives on this design decision"
-"Use all providers for explaining caching strategies"
-"Force multi-provider analysis of our API design"
+$skill-parallel-agents "What is JWT?"
+$skill-parallel-agents "Review our architecture from multiple perspectives"
+$skill-parallel-agents "Compare perspectives on this design decision"
+$skill-parallel-agents "Explain caching strategies"
+$skill-parallel-agents "Analyze our API design"
 ```
 
 ### When to Force Parallel Mode
@@ -164,7 +189,7 @@ You can also force multi-provider mode with natural language:
 - **Automatic routing underestimates complexity** - task appears simple but has nuance
 
 **Don't force parallel mode when:**
-- Task already auto-triggers workflows (`octo research`, `octo build`, `octo review`)
+- A specific Octopus command already selects the workflow you need
 - Simple factual questions Claude can answer reliably
 - Cost efficiency is important (see cost awareness below)
 - File operations or code navigation (use built-in tools)
@@ -181,7 +206,7 @@ Forcing parallel mode uses external CLIs for every task, which incurs API costs:
 
 **Total cost per forced query: ~0.02-0.08 USD**
 
-Use forced parallel mode judiciously for tasks where multiple perspectives genuinely add value. For routine work, let automatic routing decide when multi-provider analysis is beneficial.
+Use parallel mode for tasks that benefit from multiple perspectives. Handle routine file and terminal work with direct tools; invoke Octopus explicitly when its workflows are needed.
 
 ### Visual Indicator
 
@@ -205,8 +230,35 @@ Followed by results from each provider marked with their indicators (for example
 Once this skill activates, run the local provider check:
 
 ```bash
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
-"$OCTO_ROOT/scripts/orchestrate.sh" detect-providers
+source "$OCTO_ROOT/scripts/lib/host-runtime.sh" || exit 1
+source "$OCTO_ROOT/scripts/lib/provider-registry.sh" || exit 1
+HOST_RUNTIME="$(octo_detect_host_runtime "$OCTO_ROOT")" || exit 1
+case "$HOST_RUNTIME" in
+  claude|codex) HOST_PROVIDER="$HOST_RUNTIME" ;;
+  *) HOST_PROVIDER="$(octo_provider_canonical "${OCTOPUS_HOST:-}")" || {
+       echo "Set OCTOPUS_HOST to this host's configured provider before counting additional providers." >&2
+       exit 1
+     } ;;
+esac
+PROVIDER_REPORT="$("$OCTO_ROOT/scripts/orchestrate.sh" detect-providers)" || exit 1
+printf '%s\n' "$PROVIDER_REPORT"
+if [[ "$HOST_RUNTIME" == claude ]] && grep -qx 'CLAUDE_CODE_STATUS=outdated' <<< "$PROVIDER_REPORT"; then
+  echo "Update the active Claude Code host before continuing." >&2
+  exit 1
+fi
+ADDITIONAL_PROVIDER=""
+while IFS='=' read -r name status; do
+  [[ "$status" == ok && "$name" == *_STATUS && "$name" != CLAUDE_CODE_STATUS ]] || continue
+  provider="$(printf '%s' "${name%_STATUS}" | tr '[:upper:]_' '[:lower:]-')"
+  provider="$(octo_provider_canonical "$provider")" || continue
+  [[ "$provider" == "$HOST_PROVIDER" ]] && continue
+  ADDITIONAL_PROVIDER="$provider"
+  break
+done <<< "$PROVIDER_REPORT"
+[[ -n "$ADDITIONAL_PROVIDER" ]] || {
+  echo "No additional provider is ready. Run /octo:setup before parallel work." >&2
+  exit 1
+}
 ```
 
 This check reads local commands, credentials, and the one-hour cache. It does not call provider APIs. Current output includes the Claude Code version contract and one status per provider:
@@ -226,7 +278,7 @@ Provider values are `ok`, `unauthenticated`, `quota`, `not-installed`, or a spec
 
 ### Route based on the result
 
-If Claude Code is outdated, stop and show the version and update instructions reported by the command:
+When Claude Code is the active host, an outdated version stops the workflow. On Codex, that version is diagnostic and does not block ready providers:
 
 ```text
 CLAUDE_CODE_VERSION=2.1.13
@@ -234,7 +286,7 @@ CLAUDE_CODE_STATUS=outdated
 CLAUDE_CODE_MINIMUM=2.1.14
 ```
 
-If one non-Claude provider reports `ok`, use it. Parallel execution needs at least one ready non-Claude provider, but ordinary Claude-only commands still work without one. If none reports `ok`, stop the parallel workflow, direct the user to `$sys-configure`, and do not simulate provider agreement by running one provider repeatedly. One ready provider can supply an additional perspective, but it is not multi-provider consensus.
+Count ready provider identities other than the active host. The host cannot satisfy the requirement for an additional perspective; version metadata is not a provider. If none is ready, stop this parallel workflow and direct the user to `$sys-configure`. Ordinary Claude-only commands remain available. An additional provider supplies another perspective, not proof of consensus.
 
 The command writes `~/.claude-octopus/.provider-cache`. Reuse it for up to one hour; after that, run detection again.
 
@@ -250,7 +302,7 @@ Parallel research from 4 perspectives:
 - Technical feasibility (prerequisites, dependencies)
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" probe "What are the best approaches for real-time notifications?"
+"$OCTO_ROOT/scripts/orchestrate.sh" probe "What are the best approaches for real-time notifications?"
 ```
 
 ### Phase 2: GRASP (Define)
@@ -265,7 +317,7 @@ Multi-tentacled problem definition:
 # Optional second argument: no phase sets this variable; copy the path the probe
 # phase printed after "Probe synthesis saved to:"
 PROBE_SYNTHESIS="<printed probe-synthesis-*.md path>"
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" grasp "Define requirements for notification system" "$PROBE_SYNTHESIS"
+"$OCTO_ROOT/scripts/orchestrate.sh" grasp "Define requirements for notification system" "$PROBE_SYNTHESIS"
 ```
 
 ### Phase 3: TANGLE (Develop)
@@ -280,7 +332,7 @@ Enhanced map-reduce with validation:
 # Optional second argument: no phase sets this variable; copy the path the grasp
 # phase printed after "Problem definition saved to:"
 GRASP_CONSENSUS="<printed grasp-consensus-*.md path>"
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" tangle "Implement notification service" "$GRASP_CONSENSUS"
+"$OCTO_ROOT/scripts/orchestrate.sh" tangle "Implement notification service" "$GRASP_CONSENSUS"
 ```
 
 ### Phase 4: INK (Deliver)
@@ -295,14 +347,14 @@ Pre-delivery validation:
 # Optional second argument: no phase sets this variable; copy the path the tangle
 # phase printed after "Validation complete:"
 TANGLE_VALIDATION="<printed tangle-validation-*.md path>"
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" ink "Deliver notification system" "$TANGLE_VALIDATION"
+"$OCTO_ROOT/scripts/orchestrate.sh" ink "Deliver notification system" "$TANGLE_VALIDATION"
 ```
 
 ### Full Workflow: EMBRACE
 Run all 4 phases sequentially with automatic context passing:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" embrace "Create a complete user dashboard feature"
+"$OCTO_ROOT/scripts/orchestrate.sh" embrace "Create a complete user dashboard feature"
 ```
 
 ## Crossfire: Adversarial Cross-Model Review
@@ -342,13 +394,13 @@ Available providers each propose solutions, then critique each other's work. A s
 
 ```bash
 # Basic grapple
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" grapple "implement password reset API"
+"$OCTO_ROOT/scripts/orchestrate.sh" grapple "implement password reset API"
 
 # Grapple with security principles
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" grapple --principles security "implement JWT authentication"
+"$OCTO_ROOT/scripts/orchestrate.sh" grapple --principles security "implement JWT authentication"
 
 # Grapple with performance principles
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" grapple --principles performance "optimize database queries"
+"$OCTO_ROOT/scripts/orchestrate.sh" grapple --principles performance "optimize database queries"
 ```
 
 ### SQUEEZE - Red Team Security Review
@@ -365,8 +417,8 @@ Phase 4: Validation verifies all fixed
 ```
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" squeeze "implement user login form"
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" squeeze "review auth.ts for vulnerabilities"
+"$OCTO_ROOT/scripts/orchestrate.sh" squeeze "implement user login form"
+"$OCTO_ROOT/scripts/orchestrate.sh" squeeze "review auth.ts for vulnerabilities"
 ```
 
 ### Constitutional Principles
@@ -381,9 +433,9 @@ Grapple supports domain-specific critique principles:
 | `maintainability` | Clean code, testability | Refactoring, code reviews |
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" grapple --principles security "implement password reset"
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" grapple --principles performance "optimize search API"
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" grapple --principles maintainability "refactor user service"
+"$OCTO_ROOT/scripts/orchestrate.sh" grapple --principles security "implement password reset"
+"$OCTO_ROOT/scripts/orchestrate.sh" grapple --principles performance "optimize search API"
+"$OCTO_ROOT/scripts/orchestrate.sh" grapple --principles maintainability "refactor user service"
 ```
 
 ## Smart Auto-Routing
@@ -402,12 +454,12 @@ The `auto` command detects intent keywords and routes to the appropriate workflo
 
 **Examples:**
 ```bash
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" auto "research best practices for caching"     # -> probe
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" auto "build the caching layer"                 # -> tangle + ink
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" auto "review the cache implementation"         # -> ink
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" auto "security audit the auth module"          # -> squeeze
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" auto "have both models debate the API design"  # -> grapple
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" auto "fix the cache invalidation bug"          # -> codex
+"$OCTO_ROOT/scripts/orchestrate.sh" auto "research best practices for caching"     # -> probe
+"$OCTO_ROOT/scripts/orchestrate.sh" auto "build the caching layer"                 # -> tangle + ink
+"$OCTO_ROOT/scripts/orchestrate.sh" auto "review the cache implementation"         # -> ink
+"$OCTO_ROOT/scripts/orchestrate.sh" auto "security audit the auth module"          # -> squeeze
+"$OCTO_ROOT/scripts/orchestrate.sh" auto "have both models debate the API design"  # -> grapple
+"$OCTO_ROOT/scripts/orchestrate.sh" auto "fix the cache invalidation bug"          # -> codex
 ```
 
 ## Quality Gates
@@ -506,17 +558,17 @@ Claude Octopus now intelligently routes tasks based on your subscription tiers a
 
 ```bash
 # Force a specific provider
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" --provider agy auto "analyze code structure"
+"$OCTO_ROOT/scripts/orchestrate.sh" --provider agy auto "analyze code structure"
 
 # Prefer cheapest option
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" --cost-first auto "research best practices"
+"$OCTO_ROOT/scripts/orchestrate.sh" --cost-first auto "research best practices"
 
 # Prefer highest quality
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" --quality-first auto "complex refactoring task"
+"$OCTO_ROOT/scripts/orchestrate.sh" --quality-first auto "complex refactoring task"
 
 # OpenRouter routing variants
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" --openrouter-nitro auto "quick task"  # Fastest
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" --openrouter-floor auto "bulk task"   # Cheapest
+"$OCTO_ROOT/scripts/orchestrate.sh" --openrouter-nitro auto "quick task"  # Fastest
+"$OCTO_ROOT/scripts/orchestrate.sh" --openrouter-floor auto "bulk task"   # Cheapest
 ```
 
 ### Configuration
@@ -525,10 +577,10 @@ Provider tiers are configured during `setup` or via the providers config file:
 
 ```bash
 # Run setup wizard (includes provider tier steps)
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" setup
+"$OCTO_ROOT/scripts/orchestrate.sh" setup
 
 # View current provider status
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" status
+"$OCTO_ROOT/scripts/orchestrate.sh" status
 ```
 
 Configuration file: `~/.claude-octopus/.providers-config`
@@ -568,7 +620,7 @@ OpenRouter provides 400+ models as a universal fallback when direct external CLI
 export OPENROUTER_API_KEY="sk-or-..."
 
 # Re-run setup to configure
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" setup
+"$OCTO_ROOT/scripts/orchestrate.sh" setup
 ```
 
 ### OrcaRouter Fallback
@@ -580,7 +632,7 @@ OrcaRouter provides a single gateway to many models as a universal fallback when
 export ORCAROUTER_API_KEY="sk-orca-..."
 
 # Re-run setup to configure
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" setup
+"$OCTO_ROOT/scripts/orchestrate.sh" setup
 ```
 
 ## Workspace Structure
@@ -602,30 +654,36 @@ export ORCAROUTER_API_KEY="sk-orca-..."
 ### Research-First Development
 ```bash
 # 1. Explore the problem space
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" probe "Authentication patterns for microservices"
+"$OCTO_ROOT/scripts/orchestrate.sh" probe "Authentication patterns for microservices"
 
 # 2. Define the approach (with the path step 1 printed after "Probe synthesis saved to:")
 PROBE_SYNTHESIS="<printed probe-synthesis-*.md path>"
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" grasp "OAuth2 with JWT for our API" \
+"$OCTO_ROOT/scripts/orchestrate.sh" grasp "OAuth2 with JWT for our API" \
   "$PROBE_SYNTHESIS"
 
-# 3. Implement with validation
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" tangle "Implement OAuth2 authentication"
+# 3. Implement and validate the report from this invocation.
+RUN_MARKER=$(mktemp) || exit 1
+TANGLE_STATUS=0
+OCTOPUS_WORKFLOW_INVOCATION_ID="${RUN_MARKER##*/}" "$OCTO_ROOT/scripts/orchestrate.sh" tangle "Implement OAuth2 authentication" || TANGLE_STATUS=$?
+REPORT_STATUS=0
+TANGLE_VALIDATION=$("$OCTO_ROOT/scripts/helpers/workflow-result.sh" develop "$RUN_MARKER" "$TANGLE_STATUS") || REPORT_STATUS=$?
+rm -f "$RUN_MARKER"
+[[ "$REPORT_STATUS" == 0 ]] || exit "$REPORT_STATUS"
 
-# 4. Deliver with quality checks
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" ink "Finalize auth implementation"
+# 4. Deliver with that validation report as context.
+"$OCTO_ROOT/scripts/orchestrate.sh" ink "Finalize auth implementation" "$TANGLE_VALIDATION" || exit 1
 ```
 
 ### Quick Build (Auto-Routed)
 ```bash
 # Auto-detects "build" intent -> runs tangle + ink
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" auto "build a rate limiting middleware"
+"$OCTO_ROOT/scripts/orchestrate.sh" auto "build a rate limiting middleware"
 ```
 
 ### Full Feature Development
 ```bash
 # All 4 phases in one command
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" embrace "Create a user notification system with email and push support"
+"$OCTO_ROOT/scripts/orchestrate.sh" embrace "Create a user notification system with email and push support"
 ```
 
 ## Best Practices
@@ -641,18 +699,18 @@ PROBE_SYNTHESIS="<printed probe-synthesis-*.md path>"
 
 ### Pre-flight check fails
 ```bash
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" preflight
+"$OCTO_ROOT/scripts/orchestrate.sh" preflight
 # Verify: codex CLI, agy CLI, and task-relevant provider credentials
 ```
 
 ### Quality gate failures
 Tangle phase requires 75% success rate. If failing:
 - Break task into smaller subtasks
-- Increase timeout with `-t 600`
+- Increase the 600-second default with `-t 900`
 - Check individual agent logs in `~/.claude-octopus/logs/`
 
 ### Reset workspace
 ```bash
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" clean
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" init
+"$OCTO_ROOT/scripts/orchestrate.sh" clean
+"$OCTO_ROOT/scripts/orchestrate.sh" init
 ```

@@ -997,5 +997,96 @@ sys.exit(m.main())
         self.assert_rejected(result, 'failed, missing or unknown completion status')
 
 
+
+    def parallel_text(self, tree):
+        return (ROOT / tree / 'skill-parallel-agents/SKILL.md').read_text()
+
+    def parallel_block(self, tree, section):
+        selected = self.parallel_text(tree).split(section, 1)
+        self.assertEqual(len(selected), 2, 'parallel skill is missing ' + section)
+        return re.search(r'```bash\n(.*?)\n```', selected[1], re.S)[1]
+
+    def test_parallel_examples_resolve_the_loaded_installation(self):
+        active = self.home / 'active install'
+        (active / 'scripts/helpers').mkdir(parents=True)
+        (active / 'scripts/lib').symlink_to(ROOT / 'scripts/lib')
+        (active / 'scripts/orchestrate.sh').symlink_to(self.engine)
+        validator = active / 'scripts/helpers/workflow-result.sh'
+        validator.symlink_to(ROOT / 'scripts/helpers/workflow-result.sh')
+        for tree in ('.claude/skills', 'skills', 'codex-skills'):
+            for host in ('CLAUDE_PLUGIN_ROOT', 'CODEX_PLUGIN_ROOT'):
+                with self.subTest(tree=tree, host=host):
+                    env = {k: v for k, v in self.env.items()
+                           if not k.startswith(('CLAUDE_', 'CODEX_', 'DROID_'))}
+                    env.update({host: str(active), 'OCTO_ROOT': str(self.engine.parent.parent)})
+                    command = self.parallel_block(tree, '## Resolve the loaded installation')
+                    result = subprocess.run(['bash', '-c', command + '\nprintf "%s\\n" "$OCTO_ROOT"'],
+                                            env=env, cwd=self.home, text=True, capture_output=True, timeout=10)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout.strip(), str(active.resolve()))
+                    validator.unlink()
+                    result = subprocess.run(['bash', '-c', command + '\necho dispatched'],
+                                            env=env, cwd=self.home, text=True, capture_output=True, timeout=10)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertNotIn('dispatched', result.stdout)
+                    validator.symlink_to(ROOT / 'scripts/helpers/workflow-result.sh')
+
+    def test_parallel_readiness_excludes_host_and_scopes_claude_version_gate(self):
+        self.engine.write_text(f'#!{sys.executable} -I\n' +
+                               'import os,sys\nassert sys.argv[1:] == ["detect-providers"]\n'
+                               'print(os.environ["PROVIDER_REPORT"])\n')
+        plugin = self.engine.parent.parent
+        cases = (
+            ('claude', 'outdated', 'CODEX_STATUS=ok', False),
+            ('codex', 'outdated', 'CODEX_STATUS=ok\nAGY_STATUS=ok', True),
+            ('codex', 'ok', 'CODEX_STATUS=ok', False),
+            ('claude', 'ok', 'CLAUDE_STATUS=ok', False),
+            ('codex', 'ok', 'DEBUG_STATUS=ok', False),
+            ('codex', 'outdated', 'CLAUDE_STATUS=ok', True),
+            ('factory', 'ok', 'OPENCODE_STATUS=ok', False),
+            ('factory', 'ok', 'OPENCODE_STATUS=ok\nAGY_STATUS=ok', True),
+        )
+        for tree in ('.claude/skills', 'skills', 'codex-skills'):
+            for host, version, providers, accepted in cases:
+                with self.subTest(tree=tree, host=host, providers=providers, version=version):
+                    env = {k: v for k, v in self.env.items()
+                           if not k.startswith(('CLAUDE_', 'CODEX_', 'DROID_'))}
+                    marker = {'claude': 'CLAUDE_PLUGIN_ROOT', 'codex': 'CODEX_PLUGIN_ROOT',
+                              'factory': 'DROID_PLUGIN_ROOT'}[host]
+                    env.update({marker: str(plugin), 'OCTO_ROOT': str(plugin),
+                                'OCTOPUS_HOST': 'opencode' if host == 'factory' else host,
+                                'PROVIDER_REPORT': 'CLAUDE_CODE_STATUS=' + version + '\n' + providers})
+                    result = subprocess.run(['bash', '-c', self.parallel_block(tree, '## Prerequisites check')],
+                                            env=env, cwd=self.home, text=True, capture_output=True, timeout=10)
+                    self.assertEqual(result.returncode == 0, accepted, result.stdout + result.stderr)
+
+    def test_parallel_delivery_requires_the_current_tangle_validation(self):
+        capture = self.home / 'ink-arguments.json'
+        replacement = ('phase = sys.argv[1]\nif phase == "ink":\n'
+                       '    Path(os.environ["INK_ARGUMENTS"]).write_text(json.dumps(sys.argv[1:]))\n'
+                       'if phase == "tangle":\n    phase = "develop"')
+        self.engine.write_text(self.engine.read_text().replace('phase = sys.argv[1]', replacement))
+        self.env.update(OCTO_ROOT=str(self.engine.parent.parent), INK_ARGUMENTS=str(capture))
+        for tree in ('.claude/skills', 'skills', 'codex-skills'):
+            for mode in ('failed', 'invalid', 'foreign', 'missing', 'complete'):
+                with self.subTest(tree=tree, mode=mode):
+                    for report in self.results.iterdir():
+                        report.unlink()
+                    capture.unlink(missing_ok=True)
+                    self.env['FIXTURE_MODE'] = mode
+                    command = self.parallel_block(tree, '### Research-First Development')
+                    command = '# 3.' + command.split('# 3.', 1)[1]
+                    result = subprocess.run(['bash', '-c', command], env=self.env, cwd=self.home,
+                                            text=True, capture_output=True, timeout=15)
+                    self.assertEqual(result.returncode == 0, mode == 'complete', result.stdout + result.stderr)
+                    self.assertEqual(capture.exists(), mode == 'complete')
+                    if mode == 'complete':
+                        args = json.loads(capture.read_text())
+                        self.assertEqual(args[:2], ['ink', 'Finalize auth implementation'])
+                        self.assertEqual(len(args), 3)
+                        self.assertEqual(args[2], str((self.results / 'tangle-validation-current.md').resolve()))
+                        self.assertIn('### Quality Gate: PASSED', Path(args[2]).read_text())
+
+
 if __name__ == '__main__':
     unittest.main()

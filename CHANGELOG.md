@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Parallel-workflow guidance requires explicit invocation, uses the loaded
+  installation, and counts ready providers outside the active host. The
+  research-first example validates its own Tangle report before delivery.
+
 - Rollback resolves the loaded Codex plugin root, requires the saved recovery
   timestamp, and includes reviewed state history with the restored snapshot.
   Ignored protected lessons remain untouched; other ignored-path collisions
