@@ -14,6 +14,10 @@
 
 ### Fixed
 
+- The six-worker feature-task fixture resets its eight-second join deadline
+  after each worker starts. Staggered launches retain the concurrency
+  check, while serial waves and stalled workers still fail.
+
 - OpenCode admission applies bounded Tangle isolation before executing probes.
   Version checks omit forwarded credentials; login checks disable project
   configuration and reject project-owned executables or configuration paths.

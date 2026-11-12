@@ -142,11 +142,16 @@ def rendezvous():
             fcntl.flock(lock,fcntl.LOCK_EX)
             state=json.loads(state_path.read_text()) if state_path.exists() else {
                 "participants":[], "deadline":time.monotonic()+8, "released":False, "failed":False}
+            now=time.monotonic()
+            if not state["released"] and now >= state["deadline"]:
+                state["failed"]=True
             if not joined:
                 state["participants"].append({"id":task_id, "pid":os.getpid()})
                 joined=True
-            if not state["released"] and time.monotonic() >= state["deadline"]:
-                state["failed"]=True
+                # Bound the gap between joins, so slow healthy launches may
+                # take more than eight seconds in total. Expiry stays final.
+                if not state["failed"] and not state["released"]:
+                    state["deadline"]=now+8
             if not state["failed"] and len(state["participants"]) == expected:
                 state["released"]=True
             state_path.write_text(json.dumps(state))
@@ -888,10 +893,12 @@ printf 'inactive-safe\\n'
     def test_actual_generic_parallel_uses_the_same_six_task_validator(self):
         contract = self.contract(*(self.task(index) for index in range(1, 7)))
         result, runtime, events = self.run_dispatcher(
-            contract, mode="parallel", FIXTURE_EXPECTED_CONCURRENCY="6", FIXTURE_LAUNCH_DELAY="0.45")
+            contract, mode="parallel", FIXTURE_EXPECTED_CONCURRENCY="6", FIXTURE_LAUNCH_DELAY="1.8")
         self.assertEqual(result.returncode, 0, (result.stdout + result.stderr).decode())
         self.assertEqual(self.concurrent_max(events), 6)
-        self.assertEqual(len([event for event in events if event["event"] == "start"]), 6)
+        starts = [event for event in events if event["event"] == "start"]
+        self.assertEqual(len(starts), 6)
+        self.assertGreaterEqual(max(event["time"] for event in starts) - min(event["time"] for event in starts), 8)
         self.assertIn("validation", (runtime / "gates").read_text())
 
     def assert_six_worker_rendezvous_rejects(self, **changes):
