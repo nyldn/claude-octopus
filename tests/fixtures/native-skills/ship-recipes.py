@@ -31,6 +31,8 @@ class ShipRecipes(unittest.TestCase):
         self.plugin = self.base / 'plugin'
         (self.plugin / 'scripts').mkdir(parents=True)
         (self.plugin / 'scripts/octo-state.sh').symlink_to(ROOT / 'scripts/octo-state.sh')
+        (self.plugin / 'scripts/state-manager.sh').symlink_to(ROOT / 'scripts/state-manager.sh')
+        (self.plugin / 'scripts/lib').symlink_to(ROOT / 'scripts/lib', target_is_directory=True)
         (self.plugin / 'scripts/orchestrate.sh').symlink_to(ROOT / 'scripts/orchestrate.sh')
         (self.plugin / 'scripts/helpers').symlink_to(ROOT / 'scripts/helpers', target_is_directory=True)
         self.env = {k: v for k, v in os.environ.items() if not k.startswith(('GIT_', 'CLAUDE_', 'CODEX_', 'DROID_')) and k != 'OCTO_ROOT'}
