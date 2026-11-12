@@ -134,12 +134,18 @@ another file. Detection, health, readiness and dispatch share this resolution.
 An exact seat such as `api-route-agent:deepseek-v4.1-flash` uses its model pin
 without requiring a default. `API_ROUTE_ALLOWED_MODELS` restricts dispatch
 models; missing models, unsafe pins and invalid fallbacks fail closed.
+Bare selections may use the first allowed model when their configured model is
+excluded. Exact seat pins are never replaced. Fleet diversity uses the family
+of the model that will run, including any permitted fallback.
 
 Read-only roles disable local tools. The isolated child receives only
 `API_ROUTE_API_KEY` and the helper's approved runtime settings. This provider
 is excluded from Council, and gateway identity does not establish independent
 model-family diversity. Local readiness does not prove entitlement, quota,
 tool support or billed cost.
+Cost reports use shared model estimates. DeepSeek Flash uses its published
+[peak, uncached input and output rates](https://api-docs.deepseek.com/quick_start/pricing/)
+as a fallback; UberLLM's live price can differ.
 
 ## LiteLLM setup
 

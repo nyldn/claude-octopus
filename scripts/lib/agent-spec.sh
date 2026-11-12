@@ -247,6 +247,22 @@ octo_agent_spec_model_family() {
             octo_model_family "$model"
             return
             ;;
+        uberllm|uberllm-*)
+            if [[ -z "$effective_model" ]]; then
+                if ! declare -f octo_uberllm_effective_model >/dev/null 2>&1; then
+                    source "${_octo_agent_spec_lib_dir}/uberllm.sh" || { echo unknown; return; }
+                fi
+                if [[ -n "$model" ]]; then
+                    local pinned_model="$model"
+                    model="$(octo_uberllm_effective_model "$pinned_model")" || model=""
+                    [[ "$model" == "$pinned_model" ]] || model=""
+                else
+                    model="$(octo_uberllm_effective_model)" || model=""
+                fi
+            fi
+            octo_model_family "$model"
+            return
+            ;;
         litellm|litellm-*)
             if [[ -z "$effective_model" ]]; then
                 if ! declare -f octo_litellm_effective_model >/dev/null 2>&1; then
@@ -283,7 +299,7 @@ octo_agent_spec_model_family() {
         kimi|kimi-*) echo moonshot ;;
         perplexity|perplexity-*) echo perplexity ;;
         copilot|copilot-*) echo microsoft ;;
-        commandcode|commandcode-*|openrouter|openrouter-*|opencode|opencode-*|openai-compatible|openai-compatible-*|atlascloud|atlascloud-*|cheaperinference|cheaperinference-*|uberllm|uberllm-*) echo multi ;;
+        commandcode|commandcode-*|openrouter|openrouter-*|opencode|opencode-*|openai-compatible|openai-compatible-*|atlascloud|atlascloud-*|cheaperinference|cheaperinference-*) echo multi ;;
         ollama|ollama-*) echo local ;;
         *) echo unknown ;;
     esac

@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 # Share the explicit model pin across dispatch and local provider checks.
+_octo_uberllm_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if ! declare -f octo_model_automatic_target_allowed >/dev/null 2>&1; then
+    source "${_octo_uberllm_lib_dir}/models.sh" || return 1
+fi
+
 octo_uberllm_model() {
     local model config_file
     if [[ $# -gt 0 ]]; then
@@ -16,9 +21,21 @@ octo_uberllm_model() {
     fi
     [[ -n "$model" && "$model" != /* ]] || return 1
     [[ "$model" =~ [[:cntrl:]] ]] && return 1
-    # Match the dispatch model-name grammar without loading the model resolver.
+    # Commas delimit allowlist entries; one model must remain one token.
     case "$model" in
-        *[[:space:]]*|*\\*|*';'*|*'|'*|*'&'*|*'$'*|*'`'*|*"'"*|*'"'*|*'('*|*')'*|*'<'*|*'>'*|*'!'*|*'*'*|*'?'*|*'['*|*']'*|*'{'*|*'}'*) return 1 ;;
+        *[[:space:]]*|*','*|*\\*|*';'*|*'|'*|*'&'*|*'$'*|*'`'*|*"'"*|*'"'*|*'('*|*')'*|*'<'*|*'>'*|*'!'*|*'*'*|*'?'*|*'['*|*']'*|*'{'*|*'}'*) return 1 ;;
     esac
+    printf '%s\n' "$model"
+}
+
+octo_uberllm_effective_model() {
+    local model fallback allowlist="${UBERLLM_ALLOWED_MODELS:-}"
+    model="$(octo_uberllm_model "$@")" || return 1
+    if [[ -n "$allowlist" && ",$allowlist," != *",$model,"* ]]; then
+        fallback="${allowlist%%,*}"
+        octo_uberllm_model "$fallback" >/dev/null || return 1
+        octo_model_automatic_target_allowed "$fallback" uberllm || return 1
+        model="$fallback"
+    fi
     printf '%s\n' "$model"
 }

@@ -333,7 +333,7 @@ _octo_provider_static_readiness() {
         uberllm)
             remediation="Set UBERLLM_API_KEY and UBERLLM_MODEL."
             if _octo_value_has_nonwhitespace "${UBERLLM_API_KEY:-}"; then
-                if octo_uberllm_model >/dev/null; then
+                if octo_uberllm_effective_model >/dev/null; then
                     status="available"; reason_code="ready"; remediation=""
                 else
                     status="degraded"; reason_code="model-missing"; remediation="Set UBERLLM_MODEL, OCTOPUS_UBERLLM_MODEL, or providers.json uberllm.default."

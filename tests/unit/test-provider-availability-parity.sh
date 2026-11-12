@@ -278,4 +278,20 @@ else
     test_fail "LiteLLM did not map to litellm-agent: $litellm_fleet"
 fi
 
+for model in openai/gpt-5.6-sol vendor/blocked; do
+    test_case "fleet skips an UberLLM OpenAI-family duplicate after resolving $model"
+    fleet="$(env -i "PATH=$FAKE_BIN:/usr/bin:/bin" "HOME=$FAKE_HOME" \
+        "OCTO_ALLOWED_PROVIDERS=codex,uberllm,api-route" "OPENAI_API_KEY=fixture-key" \
+        "UBERLLM_API_KEY=fixture-key" "UBERLLM_MODEL=$model" \
+        "UBERLLM_ALLOWED_MODELS=openai/gpt-5.6-sol" \
+        "API_ROUTE_API_KEY=fixture-key" "API_ROUTE_MODEL=google/gemini-4-argon" \
+        "$BUILD_FLEET" research quick fixture 2>/dev/null)"
+    if grep -q '^codex' <<< "$fleet" && grep -q '^api-route-agent|' <<< "$fleet" &&
+       ! grep -q '^uberllm-agent|' <<< "$fleet"; then
+        test_pass
+    else
+        test_fail "fleet selected duplicate model families: $fleet"
+    fi
+done
+
 test_summary

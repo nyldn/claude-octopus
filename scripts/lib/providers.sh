@@ -934,8 +934,13 @@ check_provider_health() {
                 return 1
             fi
             local ull_health_model="$resolved_model"
-            [[ -n "$ull_health_model" ]] || ull_health_model="$(octo_uberllm_model 2>/dev/null || true)"
-            if ! octo_uberllm_model "$ull_health_model" >/dev/null; then
+            if [[ -n "$resolved_model" ]]; then
+                ull_health_model="$(octo_uberllm_effective_model "$resolved_model" 2>/dev/null || true)"
+                [[ "$ull_health_model" == "$resolved_model" ]] || ull_health_model=""
+            else
+                ull_health_model="$(octo_uberllm_effective_model 2>/dev/null || true)"
+            fi
+            if [[ -z "$ull_health_model" ]]; then
                 echo "uberllm: set a valid UBERLLM_MODEL, OCTOPUS_UBERLLM_MODEL, or providers.json uberllm.default before dispatch" >&2
                 return 1
             fi
@@ -1404,7 +1409,7 @@ detect_providers() {
         if [[ -z "${UBERLLM_API_KEY:-}" ]]; then
             resolve_provider_env "UBERLLM_API_KEY" 2>/dev/null
         fi
-        if [[ "${UBERLLM_API_KEY:-}" =~ [^[:space:]] ]] && octo_uberllm_model >/dev/null; then
+        if [[ "${UBERLLM_API_KEY:-}" =~ [^[:space:]] ]] && octo_uberllm_effective_model >/dev/null; then
             result="${result}uberllm:api-key "
         fi
     fi

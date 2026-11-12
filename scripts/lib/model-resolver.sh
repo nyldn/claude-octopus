@@ -25,6 +25,9 @@ source "${_model_resolver_lib_dir}/cheaperinference.sh" || return 1
 source "${_model_resolver_lib_dir}/uberllm.sh" || return 1
 source "${_model_resolver_lib_dir}/api-route.sh" || return 1
 source "${_model_resolver_lib_dir}/litellm.sh" || return 1
+if ! declare -f octo_agent_spec_exact_model_allowed >/dev/null 2>&1; then
+    source "${_model_resolver_lib_dir}/agent-spec.sh" || return 1
+fi
 source "${_model_resolver_lib_dir}/kimi-model-name.sh" || { _model_resolver_load_error "failed to load kimi-model-name.sh"; return 1 2>/dev/null || exit 1; }
 if ! declare -f octo_model_cache_file >/dev/null 2>&1; then
     source "${_model_resolver_lib_dir}/model-cache-path.sh" 2>/dev/null || true
@@ -417,7 +420,7 @@ resolve_octopus_model() {
         return $?
     fi
     if [[ "$canonical_provider" == uberllm ]]; then
-        octo_uberllm_model
+        octo_uberllm_effective_model
         return $?
     fi
     if [[ "$canonical_provider" == api-route ]]; then
@@ -1076,7 +1079,7 @@ is_agent_available_v2() {
                 octo_agent_spec_exact_model_allowed "$agent" || return 1
                 octo_uberllm_model "${agent#*:}" >/dev/null
             else
-                octo_uberllm_model >/dev/null
+                octo_uberllm_effective_model >/dev/null
             fi
             ;;
         api-route|api-route-*)

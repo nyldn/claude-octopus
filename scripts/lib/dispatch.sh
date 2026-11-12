@@ -658,30 +658,12 @@ get_agent_command() {
         uberllm-agent)  # UberLLM via the OpenAI-compatible tool-loop agent
             if [[ "$agent_type" == *:* ]]; then
                 model="$(get_agent_model "$agent_type" "$phase" "$role")" || return 1
+                local ull_exact_model="$model"
+                model="$(octo_uberllm_effective_model "$ull_exact_model")" || return 1
+                [[ "$model" == "$ull_exact_model" ]] || return 1
             else
-                if ! model="$(octo_uberllm_model)"; then
+                if ! model="$(octo_uberllm_effective_model)"; then
                     log ERROR "UBERLLM_MODEL, OCTOPUS_UBERLLM_MODEL, OPENAI_COMPAT_MODEL, or providers.json uberllm.default is required"
-                    return 1
-                fi
-            fi
-            if ! octo_uberllm_model "$model" >/dev/null; then
-                log ERROR "Invalid UberLLM model name: ${model}"
-                return 1
-            fi
-            local ull_fallback
-            ull_fallback=$(validate_model_allowed "uberllm" "$model")
-            if [[ $? -ne 0 ]]; then
-                if [[ -n "$ull_fallback" ]]; then
-                    if ! octo_uberllm_model "$ull_fallback" >/dev/null; then
-                        log ERROR "Invalid UberLLM fallback model name"
-                        return 1
-                    fi
-                    if ! octo_model_automatic_target_allowed "$ull_fallback" uberllm; then
-                        log ERROR "UberLLM fallback requires an explicit model pin"
-                        return 1
-                    fi
-                    model="$ull_fallback"
-                else
                     return 1
                 fi
             fi

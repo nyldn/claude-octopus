@@ -13,7 +13,14 @@ cat > "$PROBE" <<'PROBE'
 set -u
 root="$1"; action="$2"
 log() { :; }
+if [[ "$action" == available-bounded-first ]]; then
+    source "$root/scripts/lib/bounded-probe.sh"
+fi
 source "$root/scripts/lib/model-resolver.sh"
+if [[ "$action" == available-bounded-first ]]; then
+    is_agent_available_v2 "${PROBE_AGENT:-uberllm-agent}"
+    exit $?
+fi
 source "$root/scripts/lib/dispatch.sh"
 source "$root/scripts/lib/preflight.sh"
 PLUGIN_DIR="$root"
@@ -21,6 +28,7 @@ PROVIDER_CODEX_INSTALLED=false
 case "$action" in
  available) is_agent_available_v2 "${PROBE_AGENT:-uberllm-agent}" ;;
  available-standalone) unset -f validate_model_allowed; is_agent_available_v2 "${PROBE_AGENT:-uberllm-agent}" ;;
+ available-bounded-first) is_agent_available_v2 "${PROBE_AGENT:-uberllm-agent}" ;;
  health) check_provider_health uberllm ;;
  health-qualified) check_provider_health uberllm "${PROBE_MODEL:-vendor/pinned}" ;;
  detection) detect_providers | grep -q 'uberllm:api-key' ;;
@@ -29,6 +37,7 @@ case "$action" in
  qualified) get_agent_command "${PROBE_AGENT:-uberllm-agent:vendor/pinned}" review code-reviewer ;;
  resolved) get_agent_model "${PROBE_AGENT:-uberllm-agent}" review code-reviewer ;;
  model) octo_uberllm_model ;;
+ family) octo_agent_spec_model_family "${PROBE_AGENT:-uberllm-agent}" ;;
 esac
 PROBE
 probe() {
@@ -183,4 +192,69 @@ for action in available available-standalone; do
         test_pass
     fi
 done
+for action in available health detection readiness; do
+    test_case "$action rejects a fallback requiring an explicit pin"
+    if probe "$action" UBERLLM_MODEL=vendor/blocked UBERLLM_ALLOWED_MODELS=gpt-6-astra >/dev/null 2>&1; then
+        test_fail "undispatchable fallback advertised by $action"
+    else
+        test_pass
+    fi
+    test_case "$action accepts a dispatchable allowlist fallback"
+    if probe "$action" UBERLLM_MODEL=vendor/blocked UBERLLM_ALLOWED_MODELS=vendor/allowed >/dev/null 2>&1; then
+        test_pass
+    else
+        test_fail "valid fallback rejected by $action"
+    fi
+done
+test_case "bounded-probe source order preserves allowed exact-model admission"
+if probe available-bounded-first PROBE_AGENT=uberllm-agent:vendor/allowed UBERLLM_ALLOWED_MODELS=vendor/allowed >/dev/null 2>&1 &&
+   ! probe available-bounded-first PROBE_AGENT=uberllm-agent:vendor/blocked UBERLLM_ALLOWED_MODELS=vendor/allowed >/dev/null 2>&1; then
+    test_pass
+else
+    test_fail "source order changed exact-model admission"
+fi
+test_case "effective model determines family for environment and fallback pins"
+if [[ "$(probe family UBERLLM_MODEL=openai/gpt-5.6-sol)" == openai ]] &&
+   [[ "$(probe family UBERLLM_MODEL=vendor/blocked UBERLLM_ALLOWED_MODELS=google/gemini-4-argon)" == google ]] &&
+   [[ "$(probe family PROBE_AGENT=uberllm-agent:vendor/blocked UBERLLM_ALLOWED_MODELS=openai/gpt-5.6-sol)" == unknown ]]; then
+    test_pass
+else
+    test_fail "gateway transport was mistaken for model-family independence"
+fi
+for value in 'bad model' 'bad,model' 'bad\\model' 'bad;model' 'bad|model' 'bad&model' 'bad$model' \
+    'bad`model' "bad'model" 'bad"model' 'bad(model' 'bad)model' 'bad<model' 'bad>model' \
+    'bad!model' 'bad*model' 'bad?model' 'bad[model' 'bad]model' 'bad{model' 'bad}model'; do
+    test_case "unsafe model token fails the Bash 3.2 grammar: $value"
+    if probe model "UBERLLM_MODEL=$value" >/dev/null 2>&1; then
+        test_fail "unsafe token admitted"
+    else
+        test_pass
+    fi
+done
+test_case "MCP environment retains model policy and refuses blocked exact pins"
+if node --input-type=module - "$PROJECT_ROOT" "$PROBE" "$FAKE_HOME" <<'JS_MCP'
+import assert from 'node:assert/strict';
+import { pathToFileURL } from 'node:url';
+import { spawnSync } from 'node:child_process';
+const [root, probe, home] = process.argv.slice(2);
+const { loadProviderEnvAllowlist, providerEnvironment } = await import(pathToFileURL(`${root}/shared/adapter-runtime.mjs`));
+const filtered = providerEnvironment(loadProviderEnvAllowlist(root), {
+  UBERLLM_API_KEY: 'fixture-key', UBERLLM_MODEL: 'vendor/allowed',
+  UBERLLM_ALLOWED_MODELS: 'vendor/allowed', UNAPPROVED_API_KEY: 'fixture-other',
+});
+assert.equal(filtered.UBERLLM_MODEL, 'vendor/allowed');
+assert.equal(filtered.UBERLLM_ALLOWED_MODELS, 'vendor/allowed');
+assert.equal(filtered.UNAPPROVED_API_KEY, undefined);
+for (const action of ['available', 'qualified']) {
+  for (const [model, allowed] of [['vendor/allowed', true], ['vendor/blocked', false]]) {
+    const child = spawnSync('/bin/bash', [probe, root, action], {
+      env: { ...filtered, PATH: process.env.PATH, HOME: home,
+        OCTO_ALLOWED_PROVIDERS: 'uberllm', PROBE_AGENT: `uberllm-agent:${model}` },
+      encoding: 'utf8', timeout: 15000,
+    });
+    assert.equal(child.status === 0, allowed, `${action}: ${model}`);
+  }
+}
+JS_MCP
+then test_pass; else test_fail "MCP filtering lost or bypassed UberLLM policy"; fi
 test_summary
