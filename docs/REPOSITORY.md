@@ -10,6 +10,7 @@ Use [Architecture](ARCHITECTURE.md) for execution flow and
 | --- | --- |
 | [commands/](../commands/) | Public slash-command definitions |
 | [skills/](../skills/) and [.claude/skills/](../.claude/skills/) | Skill entries and shared phase resources; source ownership is listed below |
+| [codex-skills/](../codex-skills/) | Generated Codex skill adaptations and interface metadata |
 | [scripts/](../scripts/) | CLI entry points, runtime libraries, helpers, generators and release tools |
 | [hooks/](../hooks/) | Host lifecycle and safety hooks |
 | [config/](../config/) | Provider, model, workflow and project templates |
@@ -36,13 +37,13 @@ not another place to edit its contract.
 
 | Authored source | Derived output |
 | --- | --- |
-| `.claude/skills/<source-dir>/SKILL.md`, except the two mirrors below | Portable `skills/<generated-name>/SKILL.md` and `skills/<generated-name>/agents/openai.yaml`, including compatibility aliases |
-| `skills/flow-discover/SKILL.md` and its `references/` | `.claude/skills/flow-discover/SKILL.md` mirrors the entry; both hosts use the root resources |
-| `skills/skill-refine/SKILL.md` and its `references/` | `.claude/skills/skill-refine/SKILL.md` mirrors the entry; both hosts use the root resources |
-| `skills/skill-council/`, `skills/octopus-starter-pack/` | Hand-maintained root skills preserved during generation |
-| `skills/blocks/` | Shared authored guidance, except generated `codex-host-adapter.md` |
+| `.claude/skills/<source-dir>/SKILL.md`, except the two mirrors below | Native `skills/<generated-name>/SKILL.md`, plus adapted `codex-skills/<generated-name>/SKILL.md` and `agents/openai.yaml`, including compatibility aliases |
+| `skills/flow-discover/SKILL.md` and its `references/` | `.claude/skills/flow-discover/SKILL.md` mirrors the entry; native resources remain here; Codex receives adapted entries and resources under `codex-skills/` |
+| `skills/skill-refine/SKILL.md` and its `references/` | `.claude/skills/skill-refine/SKILL.md` mirrors the entry; native resources remain here; Codex receives adapted entries and resources under `codex-skills/` |
+| `skills/skill-council/`, `skills/octopus-starter-pack/` | Hand-maintained native skills preserved during generation and copied with host adaptation to `codex-skills/` |
+| `skills/blocks/` | Shared authored guidance; Codex copies and its generated `codex-host-adapter.md` live under `codex-skills/blocks/` |
 
-For portable generation, `<generated-name>` comes from the frontmatter `name`,
+For generation, `<generated-name>` comes from the frontmatter `name`,
 sanitized and limited to 64 characters. If `name` is absent, the builder uses
 the source basename. For example,
 `.claude/skills/skill-architecture/SKILL.md` declares `name: octopus-architecture`
@@ -54,7 +55,7 @@ The builder also adds compatibility aliases through `compat_alias_for`. It maps
 `skills/skill-verification-gate/` and `skills/skill-verify/`. Edit that source
 entry to update either generated copy.
 
-`scripts/build-codex-skills.sh` owns portable skill generation and the two
+`scripts/build-codex-skills.sh` owns both host output trees and the two
 Claude mirrors. `scripts/build-factory-skills.sh` calls it as part of
 `make sync`. The legacy `scripts/gen-skill-docs.sh` command delegates to that
 same builder; its `--dry-run` flag is a read-only check. Flow `.tmpl` files

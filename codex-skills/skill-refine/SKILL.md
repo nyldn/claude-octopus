@@ -31,7 +31,7 @@ if [[ -n "${OCTO_SKILL_FILE:-}" ]]; then
     OCTO_ROOT="$(dirname "$OCTO_ROOT")"
   done
 fi
-[[ -n "$OCTO_ROOT" && -f "$OCTO_ROOT/scripts/refinement-judge.sh" && -f "$OCTO_ROOT/scripts/refinement-score.py" && -f "$OCTO_ROOT/skills/skill-refine/SKILL.md" ]] || {
+[[ -n "$OCTO_ROOT" && -f "$OCTO_ROOT/scripts/refinement-judge.sh" && -f "$OCTO_ROOT/scripts/refinement-score.py" && -f "$OCTO_ROOT/scripts/refinement-run.py" && -f "$OCTO_ROOT/codex-skills/skill-refine/SKILL.md" ]] || {
   printf '%s\n' 'Cannot resolve this installed Octopus skill' >&2
   exit 1
 }
@@ -83,7 +83,8 @@ Create a unique run directory in the user's project under
 project's ignore rules before writing sensitive content there. If it is not
 ignored, use a private directory outside the repository and report its path.
 Keep the original, best candidate, rubric, model responses, score reports, and
-an append-only `iterations.jsonl`. Record hashes, actual model IDs and effort,
+an append-only `iterations.jsonl` owned by `scripts/refinement-run.py`. Never
+append hand-written iteration decisions. Record hashes, actual model IDs and effort,
 calls, elapsed time, available usage/cost data, changes, and reasons for keeping
 or rejecting candidates. Unknown monetary cost stays unknown.
 
@@ -105,10 +106,10 @@ for both Claude and Codex installations. Stop if a resource is missing. Load onl
 the next phase, and reload its resource after compaction before resuming it:
 
 1. Scope, secret inspection, candidate preservation, and budgets are above.
-2. Load `skills/skill-refine/references/phase-2.md` to select and freeze the rubric.
-3. Load `skills/skill-refine/references/phase-3.md` before independent scoring.
-4. Load `skills/skill-refine/references/phase-4.md` before edits and rescoring.
-5. Load `skills/skill-refine/references/phase-5.md` before delivery and trajectory.
+2. Load `codex-skills/skill-refine/references/phase-2.md` to select and freeze the rubric.
+3. Load `codex-skills/skill-refine/references/phase-3.md` before independent scoring.
+4. Load `codex-skills/skill-refine/references/phase-4.md` before edits and rescoring.
+5. Load `codex-skills/skill-refine/references/phase-5.md` before delivery and trajectory.
 
 Before external research or judging, inspect candidate, evidence and accessible
 context for secrets as required above. Run declared guards before model review.
@@ -120,6 +121,11 @@ policy checks remain mandatory, including when credentials change after selectio
 
 Both independent read-only judges must receive the same frozen candidate, blind
 rubric, and guard evidence. Hide target, prior scores, author and other judges.
+Initialize the managed run through `refinement-run.py` as described in phase 2.
+Its `begin`, `prepare`, and `record` commands enforce round admission, guard
+failures, acceptance and two-round stalls. A stopped run cannot be reinitialized
+or moved to another directory to reset its limits. Keep legacy runs read-only
+until their evidence has been reconciled; never invent controller state for them.
 Always use `refinement-pair.py` through its mandatory single-judge adapter.
 Reserve both calls before launch and count failures, cancellation, research,
 retries, and resume against the same total budget and absolute deadline. Never

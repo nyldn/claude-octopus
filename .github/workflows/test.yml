@@ -233,7 +233,7 @@ jobs:
   unit-focused:
     name: Unit Tests (focused, ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     needs: [classify-changes, smoke, portability-lint]
     if: github.event_name == 'pull_request' && needs.classify-changes.outputs.full_unit != 'true'
     strategy:
@@ -253,14 +253,16 @@ jobs:
       - name: Run changed-surface unit tests
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: ./scripts/ci-changed.sh --base "$BASE_SHA" --unit-only --skip-smoke --committed-only
+        run: python3 tests/helpers/run-ci-step.py --timeout=1200 --log "$RUNNER_TEMP/octopus-ci-output/unit.log" -- ./scripts/ci-changed.sh --base "$BASE_SHA" --unit-only --skip-smoke --committed-only
 
       - name: Upload logs on failure
-        if: failure()
+        if: failure() || cancelled()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: focused-unit-test-logs-${{ matrix.os }}
-          path: /tmp/test_*.log
+          path: |
+            ${{ runner.temp }}/octopus-ci-output/unit.log
+            /tmp/test_*.log
           retention-days: 7
 
   unit-full:

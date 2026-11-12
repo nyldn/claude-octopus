@@ -83,6 +83,15 @@ By default, do not dispatch security-audit passes to Claude Fable 5.1 or the pre
 - Security configuration review
 
 ### Secrets Archaeology (Deep mode)
+Only run history scans that can expose deleted credentials when the user has
+explicitly authorized that scope. A deep audit alone does not authorize reading
+personal plugin state under `~/.claude`. Confirm that separate scope first.
+Existing explicit authorization counts; do not ask again for an approved scope.
+Keep raw matches local, redact credential values before displaying output, and
+send only redacted evidence to providers or reports. If the available scanner
+cannot redact before tool output is captured, stop and use a local scanner that
+can. The raw commands below illustrate the searches, not safe report output.
+
 Scan git history for leaked credentials that may have been "deleted" but remain in commits:
 
 ```bash
@@ -161,7 +170,12 @@ This skill wraps the `security-auditor` persona defined in:
 
 ## Adversarial Mode (squeeze workflow)
 
-For comprehensive security testing, use the squeeze workflow which runs a 4-phase adversarial cycle:
+Use `squeeze` only when the user has also authorized remediation in the target
+workspace. It patches files during Phase 3. For an audit-only request, use the
+read-only reviewer path and report findings; obtain remediation authorization
+before starting `squeeze`. Existing permission to fix the findings is sufficient.
+
+The squeeze workflow runs a four-phase adversarial cycle:
 
 1. **Blue Team** (Defense): Codex reviews code, identifies attack surface, proposes defenses
 2. **Red Team** (Attack): Antigravity attempts to break defenses, generates exploit PoCs

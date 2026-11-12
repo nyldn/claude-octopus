@@ -299,7 +299,11 @@ EOF
 }
 
 adapt_shared_paths_for_codex() {
-    sed -E 's@(^|[^[:alnum:]_.-])skills/blocks/@\1codex-skills/blocks/@g'
+    # Keep .claude/skills source paths intact while routing loaded entries and
+    # phase resources to this host's generated tree.
+    sed -E \
+        -e 's@(^|[^[:alnum:]_.:/-])skills/@\1codex-skills/@g' \
+        -e 's@(\$\{?OCTO_ROOT\}?)/skills/@\1/codex-skills/@g'
 }
 
 # Adapt narrator/tool references while preserving explicitly labelled native
@@ -322,7 +326,6 @@ adapt_body_for_codex() {
     fi
 
     extract_body "$file" | adapt_host_context_for_codex | sed -E \
-        -e 's/run_in_background/background execution/g' \
         -e 's/codex exec --skip-git-repo-check --full-auto/codex exec --skip-git-repo-check/g' \
         -e 's/codex exec --full-auto/codex exec --skip-git-repo-check/g' \
         -e 's/, or deprecated `--full-auto`//g' \
@@ -366,6 +369,8 @@ When a generated skill references a host tool, use the active Codex equivalent:
 | native shell command tool | use the available Codex shell execution tool |
 | host subagent tool | use `spawn_agent`, `wait_agent`, and `close_agent` only when those tools are available and the user has authorized delegation |
 | task plan tool | use Codex task planning/status tools when present |
+| `AskUserQuestion` | use the active host question tool, or ask in the conversation and wait for the answer |
+| Claude-native call examples such as `Agent(run_in_background: true)` | translate the call to the available host tool and its documented arguments; never invent a Codex argument with the same spelling |
 | `/octo:*` command examples | use the installed skill name or run `scripts/orchestrate.sh` directly |
 
 Provider and model availability must be checked at runtime. If `OCTO_ALLOWED_PROVIDERS` is set, treat providers outside that list as unavailable even when installed. If a skill names a provider that is missing or disallowed in the current Codex session, mark it unavailable and continue only with available providers.

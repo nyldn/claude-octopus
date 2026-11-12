@@ -1,11 +1,6 @@
 ---
 name: skill-tdd
 disable-model-invocation: true
-paths:
-  - "**/*.test.*"
-  - "**/*.spec.*"
-  - "**/tests/**"
-  - "**/__tests__/**"
 aliases:
   - tdd
   - test-driven-development

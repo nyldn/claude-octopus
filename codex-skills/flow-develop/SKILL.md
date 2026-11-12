@@ -720,7 +720,7 @@ Before writing code, ensure:
 Agent(
   model: "sonnet",
   subagent_type: "feature-dev:code-reviewer",
-  background execution: true,
+  run_in_background: true,
   description: "Code review: post-develop",
   prompt: "Review the code changes from this development session. Focus on:
 1. Bugs, logic errors, security vulnerabilities
@@ -736,7 +736,7 @@ Check git diff for the changed files. Report only high-confidence issues."
 ```
 Agent(
   model: "sonnet",
-  background execution: true,
+  run_in_background: true,
   description: "E2E test: post-develop",
   prompt: "Run end-to-end verification of the development changes:
 1. Run the project's test suite (detect from package.json scripts, Makefile, or pyproject.toml)

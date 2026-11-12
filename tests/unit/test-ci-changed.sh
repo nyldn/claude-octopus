@@ -335,7 +335,7 @@ fi
 test_case "GitHub CI exposes the focused and full unit tiers"
 if grep -Fq 'unit-focused:' "$PROJECT_ROOT/.github/workflows/test.yml" &&
    grep -Fq 'unit-full:' "$PROJECT_ROOT/.github/workflows/test.yml" &&
-   grep -Fq 'run: ./scripts/ci-changed.sh --base "$BASE_SHA" --unit-only --skip-smoke --committed-only' "$PROJECT_ROOT/.github/workflows/test.yml"; then
+   grep -Fq './scripts/ci-changed.sh --base "$BASE_SHA" --unit-only --skip-smoke --committed-only' "$PROJECT_ROOT/.github/workflows/test.yml"; then
     test_pass
 else
     test_fail "GitHub CI no longer uses the shared selector"

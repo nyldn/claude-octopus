@@ -424,7 +424,7 @@ def preview_workflow(request, temp_root):
     if preference_source == "not-supplied" and request["role"] in {"reviewer", "code-reviewer"}:
         limitations.append("persisted-reviewer-choice-not-supplied")
     configured_model = decision.get("configured_model")
-    if configured_model in {"gpt-6-astra", "claude-fable-5-1"}:
+    if configured_model in {"gpt-6-astra", "claude-fable-5-1", "claude-fable-5-2"}:
         limitations.extend(["explicit-only-policy-not-checked", "security-admission-not-checked"])
     provider = decision.get("provider", "unknown")
     return {

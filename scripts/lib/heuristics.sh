@@ -116,6 +116,7 @@ rank_results_by_signals() {
     done
 
     # Sort descending by score, output paths only
+    [[ -n "${scored[0]+set}" ]] || return 0
     printf '%s\n' "${scored[@]}" | sort -t'|' -k1 -rn | cut -d'|' -f2
 }
 
@@ -364,9 +365,21 @@ EOF
 aggregate_results() {
     local _ts; _ts=$(date +%s)
     local filter="${1:-}"
+    local task_scope="${3:-null}"
     local user_query="${2:-}"  # v8.49.0: Optional user query for relevance-aware synthesis
     local aggregate_file="${RESULTS_DIR}/aggregate-${_ts}.md"
     local raw_concat="${RESULTS_DIR}/.raw-concat-$$.md"
+
+    # Validate one complete scope before ranking, including when no files exist.
+    if [[ "$task_scope" != null ]] && ! task_scope=$(jq -cs '
+        if length == 1 and (.[0] == null or
+            (.[0] | type == "array" and all(.[];
+                type == "object" and (.id | type == "string") and
+                (.output_file | type == "string"))))
+        then .[0] else error("invalid task scope") end' <<< "$task_scope"); then
+        log ERROR "Cannot read aggregation task scope"
+        return 2
+    fi
 
     log INFO "Aggregating results..."
 
@@ -376,7 +389,7 @@ aggregate_results() {
     : > "$raw_concat"
     local ranked_files=""
     if type agent_status_output_files >/dev/null 2>&1; then
-        ranked_files=$(agent_status_output_files "$filter" 2>/dev/null || true)
+        ranked_files=$(agent_status_output_files "$filter" "$task_scope" || true)
     fi
     [[ -z "$ranked_files" ]] && ranked_files=$(rank_results_by_signals "$RESULTS_DIR" "$filter")
 
@@ -395,11 +408,22 @@ aggregate_results() {
 
     local agent_summary=""
     if type render_agent_summary >/dev/null 2>&1; then
-        agent_summary=$(render_agent_summary 2>/dev/null || true)
+        agent_summary=$(render_agent_summary "$filter" "$task_scope" || true)
     fi
 
     while IFS= read -r result; do
         [[ -z "$result" ]] && continue
+        if [[ "$task_scope" != null ]]; then
+            local scope_status=0
+            jq -e --arg file "$result" 'any(.output_file == $file)' \
+                <<< "$task_scope" >/dev/null || scope_status=$?
+            if [[ "$scope_status" -ne 0 ]]; then
+                [[ "$scope_status" -ne 1 ]] || continue
+                log ERROR "Cannot read aggregation task scope (jq exit $scope_status)"
+                rm -f -- "$raw_concat"
+                return "$scope_status"
+            fi
+        fi
         [[ ! -f "$result" ]] && continue
         probe_result_file_is_usable "$result" || continue
         type octo_seat_was_rejected >/dev/null 2>&1 && octo_seat_was_rejected "$result" && continue
@@ -571,7 +595,7 @@ synthesize_probe_results() {
         evidence_catalog=$(research_source_catalog 2>/dev/null || true)
     fi
     local agent_status
-    agent_status=$(type render_agent_summary >/dev/null 2>&1 && render_agent_summary 2>/dev/null || echo "No agent status ledger available")
+    agent_status=$(type render_agent_summary >/dev/null 2>&1 && render_agent_summary "-probe-${task_group}-" null probe 2>/dev/null || echo "No agent status ledger available")
     local local_evidence_root="${RESEARCH_PROJECT_ROOT:-${PROJECT_ROOT:-$PWD}}"
 
     local synth_agent="" synthesis=""

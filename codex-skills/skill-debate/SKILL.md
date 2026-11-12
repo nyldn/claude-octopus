@@ -427,7 +427,7 @@ EOF
 
 For each round, iterate the runtime advisor list and dispatch through Octopus. The launch
 waits for every advisor to finish, often several minutes, so run the block with
-`background execution: true`; a foreground 600000 ms timeout stops it after 10 minutes, while
+`run_in_background: true`; a foreground 600000 ms timeout stops it after 10 minutes, while
 the launcher waits up to `OCTOPUS_ADVISOR_WAIT_SECONDS` (default 3600 s). Each answer lands in
 `${DEBATE_DIR}/rounds/r001_<advisor>.md`, with any character other than a letter, digit,
 `_` or `-` in the advisor name replaced by `_` (`codex:model` gives `r001_codex_model.md`).
@@ -460,7 +460,7 @@ advisor calls.
 ```
 Agent(
   model: "sonnet",
-  background execution: true,
+  run_in_background: true,
   description: "Sonnet: debate round 1",
   prompt: "You are a PRAGMATIC IMPLEMENTER participating in a structured AI debate.
 YOUR ROLE: You are the person who would actually have to BUILD this. You care about what ships, what works, and what you'll be debugging at 2am. Ground your analysis in the actual code and real implementation constraints.
@@ -612,7 +612,7 @@ Claude:
 1. Creates debate folder at ~/.claude-octopus/debates/${SESSION_ID}/042-redis-vs-memcached/
 2. Writes context.md with question
 3. Round 1:
-   - Launches Sonnet via Agent(model: sonnet, background execution: true) when the provider allowlist permits it
+   - Launches Sonnet via Agent(model: sonnet, run_in_background: true) when the provider allowlist permits it
    - Calls orchestrate.sh spawn for each runtime advisor selected by build-fleet.sh, such as codex and agy
    - Waits for Sonnet completion
    - Writes own analysis (Opus) considering all advisor perspectives

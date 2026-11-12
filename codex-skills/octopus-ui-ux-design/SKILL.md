@@ -189,7 +189,7 @@ python3 "$SEARCH_PY" "<user's product description>" --design-system \
 
 Dispatch the same design brief to multiple providers in parallel. Each provider generates an independent design direction without seeing the others' work.
 
-**Launch 3+ variant agents in parallel using the host subagent tool with `background execution: true`:**
+**Launch 3+ variant agents in parallel using the host subagent tool with `run_in_background: true`:**
 
 Each agent receives:
 ```

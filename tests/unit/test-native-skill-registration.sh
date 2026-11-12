@@ -291,7 +291,7 @@ with tempfile.TemporaryDirectory() as directory:
         if name != 'demo':
             native = fixture / 'skills' / name
             (native / 'references').mkdir(parents=True)
-            (native / 'SKILL.md').write_text(body + 'Canonical phase entry.\n')
+            (native / 'SKILL.md').write_text(body + 'Read `skills/' + name + '/references/phase.md`.\n')
             (native / 'references/phase.md').write_text(
                 'Use the Bash tool and Agent tool. You (Claude) synthesize.\n'
                 'Claude Code example: Agent(run_in_background: true).\n'
@@ -314,6 +314,7 @@ with tempfile.TemporaryDirectory() as directory:
         adapted = (fixture / 'codex-skills' / name / 'SKILL.md').read_text()
         assert 'Host: Codex CLI' in adapted and 'native shell command tool' in adapted
         assert '`codex-skills/blocks/method.md`' in adapted
+        assert '`codex-skills/' + name + '/references/phase.md`' in adapted, 'Codex entry loads native phase resources'
         resource = (fixture / 'codex-skills' / name / 'references/phase.md').read_text()
         native_resource = (fixture / 'skills' / name / 'references/phase.md').read_text()
         assert 'native shell command tool' in resource and 'host subagent tool' in resource
@@ -585,5 +586,66 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
 print('12 installed/local-checkout dirty-refusal and commit/stash recovery scenarios passed across all three trees')
 PY_RECOVERY
 then test_pass; else test_fail "documented recovery cannot safely restore the safety checkpoint"; fi
+
+
+test_case "rollback refuses checkpoint submodule changes before mutation"
+if python3 - "$PROJECT_ROOT" <<'PY_SUBMODULE'
+import os
+import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+root = Path(sys.argv[1])
+env = dict(os.environ, GIT_AUTHOR_NAME='Test', GIT_AUTHOR_EMAIL='test@example.invalid',
+           GIT_COMMITTER_NAME='Test', GIT_COMMITTER_EMAIL='test@example.invalid', CLAUDE_PLUGIN_ROOT=str(root))
+for tree in ('.claude/skills', 'skills', 'codex-skills'):
+    text = (root / tree / 'skill-rollback/SKILL.md').read_text()
+    command = re.search(r'```bash\n(.*?)\n```', text.split('### Step 4:', 1)[1].split('### Step 5:', 1)[0], re.S)[1]
+    for transition in ('changed', 'added', 'removed'):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            repo = base / 'parent'
+            donor = base / 'donor'
+            repo.mkdir()
+            donor.mkdir()
+            def git(*args, directory=repo):
+                return subprocess.check_output(['git', *args], cwd=directory, env=env, stderr=subprocess.DEVNULL)
+            git('init', '-q', directory=donor)
+            (donor / 'file').write_text('first\n')
+            git('add', '.', directory=donor)
+            git('commit', '-qm', 'first', directory=donor)
+            first = git('rev-parse', 'HEAD', directory=donor).decode().strip()
+            (donor / 'file').write_text('second\n')
+            git('commit', '-qam', 'second', directory=donor)
+            git('init', '-q')
+            (repo / 'work.txt').write_text('parent\n')
+            git('add', '.')
+            git('commit', '-qm', 'parent')
+            if transition != 'added':
+                git('-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', str(donor), 'module')
+                git('checkout', '-q', first, directory=repo / 'module')
+                git('add', '.')
+            git('commit', '--allow-empty', '-qm', 'checkpoint')
+            git('tag', 'target')
+            if transition == 'removed':
+                git('rm', '-qf', 'module')
+            elif transition == 'added':
+                git('-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', str(donor), 'module')
+            else:
+                git('checkout', '-q', git('rev-parse', 'HEAD', directory=donor).decode().strip(), directory=repo / 'module')
+            git('add', '.')
+            git('commit', '-qm', 'current')
+            assert git('status', '--porcelain=v1', '--untracked-files=all') == b''
+            before = git('diff', '--cached', '--binary')
+            result = subprocess.run(['bash', '-eu', '-c', command], cwd=repo,
+                                    env=dict(env, CHECKPOINT_TAG='target'), capture_output=True)
+            assert result.returncode != 0, (tree, transition, 'unsafe checkpoint accepted')
+            assert b'submodule' in result.stderr.lower(), result.stderr
+            assert not git('tag', '--list', 'octo-checkpoint-pre-rollback-*')
+            assert git('diff', '--cached', '--binary') == before
+print('9 submodule transitions refused before checkpoint creation')
+PY_SUBMODULE
+then test_pass; else test_fail "rollback can report a complete snapshot with stale submodule worktrees"; fi
 
 test_summary

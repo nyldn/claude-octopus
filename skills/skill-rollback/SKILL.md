@@ -67,7 +67,7 @@ To create a manual checkpoint:
 
 ```bash
 # Check if tag exists
-git tag -l "$CHECKPOINT_TAG" | grep -q . || echo "TAG_NOT_FOUND"
+git rev-parse --verify --end-of-options "refs/tags/$CHECKPOINT_TAG^{commit}" >/dev/null || exit 1
 ```
 
 **If tag not found:**
@@ -84,7 +84,7 @@ Available checkpoints:
 
 ```bash
 # Get list of files that will be changed
-git diff --name-status HEAD $CHECKPOINT_TAG
+git diff --name-status HEAD "$CHECKPOINT_TAG" --
 ```
 
 Present clearly:
@@ -125,7 +125,8 @@ Any other input will cancel.
 
 Before any rollback, require a clean index and working tree, including untracked
 files. Reject assume-unchanged and skip-worktree entries without changing their
-flags. Reject a checkpoint that would replace the `.octo` directory containing
+flags. Stop if the checkpoint adds, removes or changes a submodule gitlink;
+its worktree needs a separate, reviewed restoration. Reject a checkpoint that would replace the `.octo` directory containing
 protected lessons with a file or symlink. Check ignored files against the selected checkpoint too, including file
 and directory collisions. A Git tag records committed files only. If either
 check fails, stop and let the user preserve their work before starting again.
@@ -169,7 +170,14 @@ file. No shared temporary backup is needed.
 
 ### Step 6: Execute Rollback
 
+Retain the exact selected `CHECKPOINT_TAG` and reported `TIMESTAMP` in the run
+record. If this step starts a new shell, initialize both from that record before
+running it. Never infer the latest checkpoint or generate a new timestamp.
+
 ```bash
+# Supply the saved checkpoint in this shell; an unset value stops restoration.
+: "${CHECKPOINT_TAG:?Set the selected checkpoint from Step 4}"
+
 # Resolve the root again if this step starts in a new shell or subdirectory.
 cd -- "$(git rev-parse --show-toplevel)" || exit 1
 
@@ -179,7 +187,7 @@ python3 "$OCTO_ROOT/scripts/helpers/rollback-preflight.py" "$CHECKPOINT_TAG" || 
 
 # Restore the full tracked snapshot, including removal of post-checkpoint files.
 # Keep current lessons and do not move HEAD or change branches.
-git restore --source="$CHECKPOINT_TAG" --staged --worktree -- . ':(exclude).octo/LESSONS.md' || exit 1
+git restore --no-recurse-submodules --source="$CHECKPOINT_TAG" --staged --worktree -- . ':(exclude).octo/LESSONS.md' || exit 1
 ```
 
 This restores the checkpoint's tracked files across the whole repository and
@@ -204,7 +212,7 @@ fi
 
 ### Step 8: Report Success
 
-```markdown
+````markdown
 Rollback Complete
 
 **Restored to:** `$CHECKPOINT_TAG`
@@ -218,10 +226,12 @@ Rollback Complete
 1. Review the restored files
 2. Commit the rollback if satisfied:
    ```bash
-   git add -A && git commit -m "chore: rollback to $CHECKPOINT_TAG"
+   git diff --cached
+    # The restore already staged its changes. Review any STATE.md edit separately.
+    git commit -m "chore: rollback to $CHECKPOINT_TAG"
    ```
 3. To return to the previous state, follow the recovery instructions below.
-```
+````
 
 ### Recover from the safety checkpoint
 
@@ -243,7 +253,7 @@ cd -- "$(git rev-parse --show-toplevel)" || exit 1
 SAFETY_TAG="octo-checkpoint-pre-rollback-$TIMESTAMP"
 PREFLIGHT_COPY=$(git rev-parse --git-path "octo-rollback-preflight-$TIMESTAMP.py") || exit 1
 python3 "$PREFLIGHT_COPY" "$SAFETY_TAG" || exit 1
-git restore --source="$SAFETY_TAG" --staged --worktree -- . ':(exclude).octo/LESSONS.md' || exit 1
+git restore --no-recurse-submodules --source="$SAFETY_TAG" --staged --worktree -- . ':(exclude).octo/LESSONS.md' || exit 1
 ```
 
 Review the restored files before committing. Recovery preserves the current

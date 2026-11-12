@@ -75,8 +75,15 @@ spawn_agent_capture_pid() {
         failed:security) status=FAILED ;;
         malformed:security) body='{"findings":"bad"}' ;;
         prose:security) body='No issues.' ;;
-        finding:security|finding-publication:security) body='{"findings":[{"file":"a","line":1,"title":"bug","detail":"bad","category":"logic","severity":"normal","confidence":0.9}]}' ;;
+        finding:security|finding-publication:security|budget:security|synthesis-*:security) body='{"findings":[{"file":"a","line":1,"title":"bug","detail":"bad","category":"logic","severity":"normal","confidence":0.9}]}' ;;
     esac
+    if [[ "$CASE" == synthesis-distinct-* ]]; then
+        if [[ "$4" == logic ]]; then
+            body='{"findings":[{"file":"a","line":1,"title":"bug","detail":"minor","category":"logic","severity":"nit","confidence":0.9}]}'
+        else
+            body='{"findings":[{"file":"a","line":1,"title":"bug","detail":"blocker","category":"logic","severity":"normal","confidence":0.9}]}'
+        fi
+    fi
     printf '## Output\n%s\n## Status: %s\n' "$body" "$status" > "$RESULTS_DIR/$(octo_agent_spec_slug "$1")-$3.md"
     echo 999999
 }
@@ -85,13 +92,24 @@ review_run_agent_sync_progress() {
     echo "$3" >> "$TMP/calls"
     case "$3" in
         implementation-verifier)
-            if [[ "$CASE" == finding-publication ]]; then
+            if [[ "$CASE" == synthesis-distinct-* ]]; then
+                printf '%s' "$2" | python3 -c 'import json,sys; rows=json.JSONDecoder().raw_decode(sys.stdin.read().split("Findings to verify:\n",1)[1])[0]; print(json.dumps({"findings":[dict(row,verdict="confirmed") for row in rows]}))'
+            elif [[ "$CASE" == finding-publication || "$CASE" == synthesis-* ]]; then
                 echo '{"findings":[{"file":"a","line":1,"title":"bug","detail":"bad","category":"logic","severity":"normal","confidence":0.9,"verdict":"confirmed"}]}'
             else echo '{"findings":[]}'; fi ;;
-        *) echo '{"findings":[]}' ;;
+        *)
+            case "$CASE" in
+                synthesis-distinct-drop) echo '{"findings":[{"file":"a","line":1,"title":"bug","detail":"minor","category":"logic","severity":"nit","confidence":0.9,"verdict":"confirmed"}]}' ;;
+                synthesis-distinct-valid) echo '{"findings":[{"file":"a","line":1,"title":"bug","detail":"minor","category":"logic","severity":"nit","confidence":0.9,"verdict":"confirmed"},{"file":"a","line":1,"title":"bug","detail":"blocker","category":"logic","severity":"normal","confidence":0.9,"verdict":"confirmed"}]}' ;;
+                synthesis-invent) echo '{"findings":[{"file":"other","line":1,"title":"invented","detail":"bad","category":"logic","severity":"normal","confidence":0.9,"verdict":"confirmed"}]}' ;;
+                synthesis-mutate) echo '{"findings":[{"file":"a","line":1,"title":"bug","detail":"bad","category":"logic","severity":"nit","confidence":0.9,"verdict":"confirmed"}]}' ;;
+                synthesis-valid) echo '{"findings":[{"verdict":"confirmed","confidence":0.9,"severity":"normal","category":"logic","detail":"bad","title":"bug","line":1,"file":"a"}]}' ;;
+                *) echo '{"findings":[]}' ;;
+            esac ;;
     esac
 }
 review_phase_provider() { echo "$1"; }
+get_provider_context_limit() { [[ "$CASE" != budget ]] || return 2; echo 200000; }
 review_resolve_history_context() { :; }
 octo_proof_enabled() { return 0; }
 octo_proof_init() { echo "$TMP/proof"; }
@@ -123,7 +141,7 @@ post_inline_comments() { touch "$TMP/publication-attempt"; return 1; }
 git() { return 1; }
 export HOME="$TMP/home" TMPDIR="$TMP"
 mkdir -p "$HOME"
-for CASE in clean skip-scoped skip-all skip-error missing timeout failed malformed prose finding changed diff-error snapshot-bad zero publication finding-publication allfailed statusless multi warning error proof-artifact proof-claim proof-status proof-finalize proof-artifact-finalize; do
+for CASE in clean skip-scoped skip-all skip-error missing timeout failed malformed prose finding budget synthesis-drop synthesis-invent synthesis-mutate synthesis-valid synthesis-distinct-drop synthesis-distinct-valid changed diff-error snapshot-bad zero publication finding-publication allfailed statusless multi warning error proof-artifact proof-claim proof-status proof-finalize proof-artifact-finalize; do
     test_case "$CASE dispatches downstream stages or fails closed"
     RESULTS_DIR="$TMP/$CASE"; mkdir -p "$RESULTS_DIR"
     rm -f "$TMP/dispatched" "$TMP/calls" "$TMP/round1-calls" "$TMP/verdict" "$TMP/provider-status" "$TMP/provider-state-path" "$TMP/publication-attempt"
@@ -178,6 +196,20 @@ for CASE in clean skip-scoped skip-all skip-error missing timeout failed malform
             [[ "$rc" == 1 && "$count" == 0 && "$verdict" == fail ]] && test_pass || test_fail "empty publication failure returned success" ;;
         finding-publication)
             [[ "$rc" == 1 && "$calls" == $'implementation-verifier\nimplementation-synthesizer' && "$verdict" == fail && -f "$TMP/publication-attempt" ]] && test_pass || test_fail "nonempty publication failure: rc=$rc calls=$calls verdict=$verdict $(cat "$TMP/output")" ;;
+        finding|budget)
+            expected_calls=$'implementation-verifier\nimplementation-synthesizer'
+            [[ "$CASE" != budget ]] || expected_calls=implementation-synthesizer
+            if [[ "$rc" == 1 && "$calls" == "$expected_calls" && "$verdict" == fail ]] &&
+               jq -e '.verification_status == "incomplete" and (.findings | length == 1) and all(.findings[]; .verdict == "unverified")' "$RESULTS_DIR"/review-findings-*.json >/dev/null; then test_pass
+            else test_fail "budget admission lost findings or dispatched a verifier: rc=$rc calls=$calls $(cat "$TMP/output")"; fi ;;
+        synthesis-distinct-*)
+            if [[ "$rc" == 0 && "$verdict" == findings ]] &&
+               jq -e '(.findings | length == 2) and .findings[0].severity == "normal" and .findings[0].detail == "blocker" and .findings[1].detail == "minor" and all(.findings[]; .verdict == "confirmed")' "$RESULTS_DIR"/review-findings-*.json >/dev/null; then test_pass
+            else test_fail "distinct verified blocker was lost: rc=$rc $(cat "$TMP/output")"; fi ;;
+        synthesis-*)
+            if [[ "$rc" == 0 && "$calls" == $'implementation-verifier\nimplementation-synthesizer' && "$verdict" == findings ]] &&
+               jq -e '.findings == [{file:"a",line:1,title:"bug",detail:"bad",category:"logic",severity:"normal",confidence:0.9,verdict:"confirmed"}]' "$RESULTS_DIR"/review-findings-*.json >/dev/null; then test_pass
+            else test_fail "synthesis changed verified findings: rc=$rc $(cat "$TMP/output")"; fi ;;
         *)
             if [[ "$calls" == $'implementation-verifier\nimplementation-synthesizer' && "$rc" == 0 && -n "$verdict" ]]; then
                 test_pass

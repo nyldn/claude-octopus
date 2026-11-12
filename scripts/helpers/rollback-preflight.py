@@ -22,6 +22,18 @@ def check_tree(checkpoint):
         if entry and (entry[:1].islower() or entry[:1] == b"S"):
             raise ValueError("preserve work and clear assume-unchanged/skip-worktree flags before rollback")
     commit = git("rev-parse", "--verify", "--end-of-options", checkpoint + "^{commit}").strip().decode("ascii")
+    checkpoint_entries = git("ls-tree", "-rz", commit).split(b"\0")
+    target_modules = {
+        entry.split(b"\t", 1)[1]: entry.split(b"\t", 1)[0].split()[2]
+        for entry in checkpoint_entries if entry.startswith(b"160000 ")
+    }
+    index_modules = {
+        entry.split(b"\t", 1)[1]: entry.split(b"\t", 1)[0].split()[1]
+        for entry in git("ls-files", "--stage", "-z").split(b"\0")
+        if entry.startswith(b"160000 ")
+    }
+    if target_modules != index_modules:
+        raise ValueError("checkpoint changes submodules; preserve and restore those worktrees separately")
     paths = {os.fsdecode(path) for path in git("ls-tree", "-rz", "--name-only", commit).split(b"\0") if path}
     # Excluding a child path cannot stop restore from replacing its directory.
     # A historical file/symlink at .octo would destroy current protected lessons.

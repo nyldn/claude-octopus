@@ -14,8 +14,10 @@ benefit.
 
 Shared method references live in `skills/blocks/`. Source skills under
 `.claude/skills/` may load a literal block path from the installed plugin root.
-The generator preserves blocks and generates individual `skills/*/SKILL.md`
-adapters. Never repair a generated skill by hand.
+The generator preserves native blocks under `skills/blocks/`, copies their
+Codex adaptations to `codex-skills/blocks/`, and writes native entries under
+`skills/` and Codex entries under `codex-skills/`. Never repair a generated
+skill by hand.
 
 Advisory, host-native methods must not name the provider orchestrator merely to
 say they do not use it. Provider-backed methods retain their execution contract.
