@@ -300,6 +300,15 @@ handle_auth_command() {
     esac
 }
 
+# Test each supported token separately; blank values do not mask later keys.
+_octo_opencode_environment_auth_present() {
+    local name
+    for name in GITHUB_TOKEN OPENROUTER_API_KEY Z_AI_API_KEY MINIMAX_API_KEY; do
+        _octo_value_has_nonwhitespace "${!name:-}" && return 0
+    done
+    return 1
+}
+
 # OpenCode v2 migrated local credentials into SQLite. Store presence is only
 # configuration evidence; static discovery must not launch the CLI or open it.
 _octo_opencode_auth_store_present() {

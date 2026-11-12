@@ -473,7 +473,7 @@ _octo_provider_static_readiness() {
             remediation="Install OpenCode, then run: opencode auth login"
             if command -v opencode >/dev/null 2>&1; then
                 if [[ -f "${XDG_DATA_HOME:-${HOME}/.local/share}/opencode/auth.json" ]] ||
-                   _octo_value_has_nonwhitespace "${GITHUB_TOKEN:-${OPENROUTER_API_KEY:-${Z_AI_API_KEY:-${MINIMAX_API_KEY:-}}}}"; then
+                   _octo_opencode_environment_auth_present; then
                     status="available"; reason_code="ready"; remediation=""
                 elif _octo_opencode_auth_store_present; then
                     status="degraded"; reason_code="live-check-required"
@@ -746,6 +746,8 @@ preflight_check() {
     local force_check="${1:-false}"
     local selected_provider="${2:-}"
     local check_context="${3:-static}"
+    local opencode_workdir="${PROJECT_ROOT:-$PWD}"
+    [[ -d "$opencode_workdir" ]] || opencode_workdir="$PWD"
     local _octo_vibe_check_context=automatic
     local selected_opencode=false
     case "${selected_provider%%:*}" in
@@ -777,7 +779,7 @@ preflight_check() {
            { [[ "$check_context" == dispatch ]] &&
              jq -e '.results | any(.provider == "opencode")' <<< "$panel_report" >/dev/null; }; then
             local panel_opencode
-            panel_opencode="$(cd "${PROJECT_ROOT:-$PWD}" && octo_provider_readiness_result opencode live)" || return 1
+            panel_opencode="$(cd "$opencode_workdir" && octo_provider_readiness_result opencode live)" || return 1
             panel_report="$(jq --argjson readiness "$panel_opencode" '
                 .results |= (if any(.[]; .provider == "opencode")
                     then map(if .provider == "opencode" then $readiness else . end)
@@ -841,7 +843,7 @@ preflight_check() {
             continue
         fi
         if [[ "$provider" == opencode ]]; then
-            readiness="$(cd "${PROJECT_ROOT:-$PWD}" && octo_provider_readiness_result "$provider" static)"
+            readiness="$(cd "$opencode_workdir" && octo_provider_readiness_result "$provider" static)"
         else
             readiness="$(octo_provider_readiness_result "$provider" static)"
         fi
@@ -850,7 +852,7 @@ preflight_check() {
         # a workflow's pinned roster, can confirm its login.
         if [[ "$provider" == opencode && "$opencode_admission" == true ]] &&
            [[ "$status" == available || "$reason" == live-check-required || "$reason" == auth-missing ]]; then
-            readiness="$(cd "${PROJECT_ROOT:-$PWD}" && octo_provider_readiness_result "$provider" live)"
+            readiness="$(cd "$opencode_workdir" && octo_provider_readiness_result "$provider" live)"
             { IFS= read -r -d '' status; IFS= read -r -d '' reason; IFS= read -r -d '' remediation; } < <(_octo_readiness_json_fields "$readiness" status reason_code remediation)
         fi
         candidate_ids+=("$provider")

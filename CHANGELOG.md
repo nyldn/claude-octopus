@@ -4,6 +4,11 @@
 
 ### Fixed
 
+- OpenCode discovery and readiness check each supported environment token
+  independently, so a blank token cannot hide another configured login.
+  Preflight uses the current directory when the configured project root is
+  absent, matching direct-probe directory selection.
+
 - Selected OpenCode seats receive login confirmation even when a fixed provider
   panel omits them. Static discovery recognizes the same supported environment
   credentials as readiness checks without launching the CLI.

@@ -638,6 +638,49 @@ preflight_check false "$SELECTED_SEAT" "$CHECK_CONTEXT"
                 self.assertFalse(self.marker.exists(), "static auth launched OpenCode")
                 self.env.pop(name)
 
+    def test_blank_tokens_do_not_mask_another_supported_environment_login(self):
+        """One blank credential must not hide a later supported token."""
+        names = ("GITHUB_TOKEN", "OPENROUTER_API_KEY", "Z_AI_API_KEY", "MINIMAX_API_KEY")
+        for selected in names:
+            with self.subTest(selected=selected):
+                self.env.update({name: " \t\n" for name in names})
+                self.env[selected] = "fixture"
+                self.marker.unlink(missing_ok=True)
+                result = self.shell('log() { :; }; source scripts/lib/providers.sh; detect_providers')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("opencode:configured", result.stdout)
+                self.assertEqual(self.readiness("static")["status"], "available")
+                self.assertFalse(self.marker.exists(), "static checks launched OpenCode")
+        self.env.update({name: " \t\n" for name in names})
+        self.assertEqual(self.readiness("static")["reason_code"], "auth-missing")
+
+    def test_preflight_missing_project_root_uses_current_directory(self):
+        """Admission and direct probes must agree about absent project roots."""
+        self.env.update(CLI_VERSION="2.0.23", OPENROUTER_API_KEY="fixture",
+                        PROJECT_ROOT=str(self.base / "missing-project"), EXPECTED_CWD=str(ROOT))
+        self.cli.write_text(self.cli.read_text().replace('printf called >>',
+            '[ "$PWD" = "$EXPECTED_CWD" ] || exit 69\nprintf called >>', 1))
+        script = r'''
+source scripts/lib/preflight.sh
+source scripts/lib/config-display.sh
+log() { :; }
+_preflight_provider_candidates() { echo opencode; }
+detect_enterprise_backend() { :; }
+provider_smoke_test() { :; }
+WORKSPACE_DIR="$HOME"; PREFLIGHT_CACHE_FILE="$HOME/preflight-cache"
+preflight_check true "$SELECTED_SEAT" "$CHECK_CONTEXT"
+'''
+        for panel, selected, context in (("", "", "static"),
+                                         ("", "opencode", "dispatch"),
+                                         ("opencode", "opencode", "dispatch")):
+            with self.subTest(panel=panel, selected=selected, context=context):
+                self.marker.unlink(missing_ok=True)
+                self.env.update(OCTOPUS_PREFLIGHT_PROVIDERS=panel,
+                                SELECTED_SEAT=selected, CHECK_CONTEXT=context)
+                result = self.shell(script)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(self.marker.exists(), context == "dispatch")
+
     def test_fixed_panel_leaves_other_providers_static(self):
         """Confirming one login must not launch another panel seat's health probe."""
         other_marker = self.base / "copilot-called"
