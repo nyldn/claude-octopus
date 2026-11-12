@@ -15,7 +15,7 @@ _ROUTER_STATS_FILE="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.provider-stats.js
 
 # Opt-in lifecycle event stream (oco-aek) — no-op unless OCTO_EVENT_LOG is set.
 # Sourced guarded; emits below are also declare-f guarded.
-if ! declare -f octo_event_emit >/dev/null 2>&1; then
+if ! declare -f _octo_event_lock >/dev/null 2>&1; then
     _octo_pr_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
     # shellcheck source=/dev/null
     source "${_octo_pr_lib_dir}/lib/events.sh" 2>/dev/null || true
@@ -90,24 +90,34 @@ extract_retry_after() {
 
 # Record a provider failure for circuit breaker tracking
 # Args: provider exit_code error_text
-record_provider_failure() {
+record_provider_failure() (
     local provider="$1"
     local exit_code="${2:-1}"
     local error_text="${3:-}"
 
-    mkdir -p "$_PROVIDER_STATE_DIR"
-
+    mkdir -p "$_PROVIDER_STATE_DIR" || return 1
     local error_class
     error_class=$(classify_provider_error "$exit_code" "$error_text")
+    # All writers share one bounded, portable lock per provider. Atomic rename
+    # alone cannot protect the preceding append/trim/count transaction.
+    local state_key="${_PROVIDER_STATE_DIR}/${provider}.breaker"
+    _octo_event_lock "$state_key" || return $?
+    trap '_octo_event_unlock "$state_key"' EXIT
+
     local timestamp
     timestamp=$(date +%s)
 
     # Append failure to provider's failure log (keep last 20 entries)
     local failure_file="${_PROVIDER_STATE_DIR}/${provider}.failures"
-    echo "${timestamp}:${error_class}:${exit_code}" >> "$failure_file"
+    echo "${timestamp}:${error_class}:${exit_code}" >> "$failure_file" || return 1
     # Trim to last 20 entries
     if [[ -f "$failure_file" ]]; then
-        tail -20 "$failure_file" > "${failure_file}.tmp" && mv "${failure_file}.tmp" "$failure_file"
+        local failure_tmp
+        failure_tmp=$(mktemp "${failure_file}.XXXXXX") || return 1
+        if ! tail -20 "$failure_file" > "$failure_tmp" || ! mv "$failure_tmp" "$failure_file"; then
+            rm -f "$failure_tmp" || true
+            return 1
+        fi
     fi
 
     # Check if circuit should open (only on transient — permanent errors don't trigger breaker)
@@ -116,19 +126,32 @@ record_provider_failure() {
         recent_failures=$(grep -c ":transient:" "$failure_file" 2>/dev/null) || recent_failures=0
         if [[ $recent_failures -ge $OCTO_CB_FAILURE_THRESHOLD ]]; then
             # Open the circuit breaker
-            echo "$timestamp" > "${_PROVIDER_STATE_DIR}/${provider}.cooldown"
+            local cooldown_file="${_PROVIDER_STATE_DIR}/${provider}.cooldown" cooldown_tmp
+            cooldown_tmp=$(mktemp "${cooldown_file}.XXXXXX") || return 1
+            if ! printf '%s\n' "$timestamp" > "$cooldown_tmp" || ! mv "$cooldown_tmp" "$cooldown_file"; then
+                rm -f "$cooldown_tmp"
+                return 1
+            fi
             log "WARN" "Circuit breaker OPEN for $provider — $recent_failures consecutive failures, cooling down ${OCTO_CB_COOLDOWN_SECS}s" 2>/dev/null || true
             declare -f octo_event_emit >/dev/null 2>&1 && octo_event_emit "circuit-breaker.open" provider="$provider" failures="$recent_failures" cooldown="$OCTO_CB_COOLDOWN_SECS" || true
         fi
     fi
 
     echo "$error_class"
-}
+)
 
 # Record a provider success (clears failure state)
 # Args: provider
-record_provider_success() {
+record_provider_success() (
     local provider="$1"
+    # Nothing to clear: a failure recorded after this check is ordered after
+    # this success, so parallel seats need not contend for the lock.
+    [[ -e "${_PROVIDER_STATE_DIR}/${provider}.failures" ||
+       -e "${_PROVIDER_STATE_DIR}/${provider}.cooldown" ]] || return 0
+    mkdir -p "$_PROVIDER_STATE_DIR" || return 1
+    local state_key="${_PROVIDER_STATE_DIR}/${provider}.breaker"
+    _octo_event_lock "$state_key" || return $?
+    trap '_octo_event_unlock "$state_key"' EXIT
 
     # Clear failure log and cooldown on success
     local _was_open=0
@@ -138,26 +161,48 @@ record_provider_success() {
     if [[ "$_was_open" == "1" ]] && declare -f octo_event_emit >/dev/null 2>&1; then
         octo_event_emit "circuit-breaker.closed" provider="$provider" || true
     fi
+)
+
+# Print the seconds elapsed in a cooldown; fail when its timestamp is unusable.
+_provider_cooldown_elapsed() {
+    local cooldown_start now elapsed
+    cooldown_start=$(cat "$1" 2>/dev/null) || return 1
+    [[ "$cooldown_start" =~ ^[0-9]{1,18}$ ]] || return 1
+    now=$(date +%s)
+    elapsed=$((now - 10#$cooldown_start))
+    # Clock rollback or corrupt future state must not extend the configured wait.
+    [[ $elapsed -ge 0 ]] || elapsed=$OCTO_CB_COOLDOWN_SECS
+    printf '%s\n' "$elapsed"
 }
 
 # Check if a provider is available (not in cooldown)
 # Args: provider
 # Returns: 0 if available, 1 if in cooldown
-is_provider_available() {
+is_provider_available() (
     local provider="$1"
     local cooldown_file="${_PROVIDER_STATE_DIR}/${provider}.cooldown"
 
     [[ ! -f "$cooldown_file" ]] && return 0
-
-    local cooldown_start
-    cooldown_start=$(<"$cooldown_file" 2>/dev/null) || return 0
-    local now
-    now=$(date +%s)
-    local elapsed=$((now - cooldown_start))
+    local elapsed state_locked=0
+    elapsed=$(_provider_cooldown_elapsed "$cooldown_file") || return 0
+    # Only expiry changes shared state, so an active cooldown needs no lock.
+    if [[ $elapsed -ge $OCTO_CB_COOLDOWN_SECS ]]; then
+        # Expiry must not remove a new cooldown published by a concurrent failure.
+        local state_key="${_PROVIDER_STATE_DIR}/${provider}.breaker"
+        if _octo_event_lock "$state_key"; then
+            state_locked=1
+            trap '_octo_event_unlock "$state_key"' EXIT
+        else
+            # Contention or an unwritable lock is not an open circuit. Inspect the
+            # current deadline without deleting state owned by another writer.
+            log "DEBUG" "Provider $provider breaker lock unavailable; checking cooldown read-only" 2>/dev/null || true
+        fi
+        elapsed=$(_provider_cooldown_elapsed "$cooldown_file") || return 0
+    fi
 
     if [[ $elapsed -ge $OCTO_CB_COOLDOWN_SECS ]]; then
         # Cooldown expired → half-open state (allow probe)
-        rm -f "$cooldown_file"
+        [[ "$state_locked" -eq 0 ]] || rm -f "$cooldown_file"
         log "INFO" "Circuit breaker HALF-OPEN for $provider — allowing probe after ${elapsed}s cooldown" 2>/dev/null || true
         declare -f octo_event_emit >/dev/null 2>&1 && octo_event_emit "circuit-breaker.half-open" provider="$provider" cooldown_elapsed="$elapsed" || true
         return 0
@@ -166,7 +211,7 @@ is_provider_available() {
     local remaining=$((OCTO_CB_COOLDOWN_SECS - elapsed))
     log "DEBUG" "Provider $provider in cooldown (${remaining}s remaining)" 2>/dev/null || true
     return 1
-}
+)
 
 # Filter candidate providers, removing those in cooldown
 # Args: candidate1 candidate2 ...
@@ -200,8 +245,10 @@ get_circuit_breaker_status() {
 
         if [[ -f "$cooldown_file" ]]; then
             local cooldown_start
-            cooldown_start=$(<"$cooldown_file" 2>/dev/null) || continue
-            local elapsed=$((now - cooldown_start))
+            cooldown_start=$(cat "$cooldown_file" 2>/dev/null) || continue
+            [[ "$cooldown_start" =~ ^[0-9]{1,18}$ ]] || continue
+            local elapsed=$((now - 10#$cooldown_start))
+            [[ $elapsed -ge 0 ]] || elapsed=$OCTO_CB_COOLDOWN_SECS
             if [[ $elapsed -lt $OCTO_CB_COOLDOWN_SECS ]]; then
                 state="OPEN"
                 local remaining=$((OCTO_CB_COOLDOWN_SECS - elapsed))
