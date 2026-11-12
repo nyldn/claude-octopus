@@ -63,7 +63,7 @@ fi
 test_case "model environment precedence preserves explicit pins"
 if [[ "$(probe model CHEAPER_INFERENCE_MODEL=vendor/primary OCTOPUS_CHEAPERINFERENCE_MODEL=vendor/octopus OPENAI_COMPAT_MODEL=vendor/generic)" == vendor/primary ]] &&
    [[ "$(probe model OCTOPUS_CHEAPERINFERENCE_MODEL=vendor/octopus OPENAI_COMPAT_MODEL=vendor/generic)" == vendor/octopus ]] &&
-   [[ "$(probe model OPENAI_COMPAT_MODEL=vendor/generic)" == vendor/generic ]]; then
+   [[ "$(probe model OPENAI_COMPAT_MODEL=vendor/generic)" == vendor/config-model ]]; then
     test_pass
 else
     test_fail "model precedence changed"
@@ -136,7 +136,7 @@ done
 if [[ "$admitted" == false ]]; then test_pass; else test_fail "blank key admitted"; fi
 test_case "native model resolution shares every documented environment pin and precedence"
 if [[ "$(probe resolved CHEAPER_INFERENCE_MODEL=vendor/primary)" == vendor/primary ]] &&
-   [[ "$(probe resolved OPENAI_COMPAT_MODEL=vendor/generic)" == vendor/generic ]] &&
+   ! probe resolved OPENAI_COMPAT_MODEL=vendor/generic >/dev/null 2>&1 &&
    [[ "$(probe resolved CHEAPER_INFERENCE_MODEL=vendor/primary OCTOPUS_CHEAPERINFERENCE_MODEL=vendor/secondary)" == vendor/primary ]]; then
     test_pass
 else

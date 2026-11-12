@@ -11,10 +11,16 @@
 
 ### Fixed
 
-- Named OpenAI-compatible presets retain their own endpoint and credential
-  settings when the generic slot is configured. Direct helper calls no longer
-  send a preset's credential to the generic slot's host. Explicit flags keep
-  precedence. See [#1300](https://github.com/nyldn/claude-octopus/pull/1300).
+- Named OpenAI-compatible presets retain their own endpoint, credential and
+  model settings when the generic slot is configured. Direct helper calls no
+  longer send a preset's credential to the generic slot's host or inherit its
+  model. Atlas Cloud admission and dispatch share configured defaults and exact
+  model pins. Explicit flags keep precedence. Set the preset-specific model
+  variable or provider default if you previously used `OPENAI_COMPAT_MODEL`.
+  See [#1300](https://github.com/nyldn/claude-octopus/pull/1300) and
+  [#1302](https://github.com/nyldn/claude-octopus/pull/1302), addressing the
+  isolation reports in [#1299](https://github.com/nyldn/claude-octopus/issues/1299).
+  Custom-provider registration remains a separate open enhancement.
 - Managed Tangle validates declared output artifacts separately from read-only
   context references. Missing outputs and unavailable coverage evidence remain
   blocking. See [#1289](https://github.com/nyldn/claude-octopus/pull/1289).

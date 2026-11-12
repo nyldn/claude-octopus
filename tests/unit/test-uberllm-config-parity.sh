@@ -73,7 +73,7 @@ fi
 test_case "model environment precedence preserves explicit pins"
 if [[ "$(probe model UBERLLM_MODEL=vendor/primary OCTOPUS_UBERLLM_MODEL=vendor/octopus OPENAI_COMPAT_MODEL=vendor/generic)" == vendor/primary ]] &&
    [[ "$(probe model OCTOPUS_UBERLLM_MODEL=vendor/octopus OPENAI_COMPAT_MODEL=vendor/generic)" == vendor/octopus ]] &&
-   [[ "$(probe model OPENAI_COMPAT_MODEL=vendor/generic)" == vendor/generic ]]; then
+   [[ "$(probe model OPENAI_COMPAT_MODEL=vendor/generic)" == vendor/config-model ]]; then
     test_pass
 else
     test_fail "model precedence changed"
@@ -146,7 +146,7 @@ done
 if [[ "$admitted" == false ]]; then test_pass; else test_fail "blank key admitted"; fi
 test_case "native model resolution shares every documented environment pin and precedence"
 if [[ "$(probe resolved UBERLLM_MODEL=vendor/primary)" == vendor/primary ]] &&
-   [[ "$(probe resolved OPENAI_COMPAT_MODEL=vendor/generic)" == vendor/generic ]] &&
+   ! probe resolved OPENAI_COMPAT_MODEL=vendor/generic >/dev/null 2>&1 &&
    [[ "$(probe resolved UBERLLM_MODEL=vendor/primary OCTOPUS_UBERLLM_MODEL=vendor/secondary)" == vendor/primary ]]; then
     test_pass
 else

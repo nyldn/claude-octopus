@@ -38,7 +38,7 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 UberLLM can now run as its own OpenAI-compatible provider seat with an explicit
 model choice. Gateway seats remain outside Council voting. Named presets keep
-their own endpoint and credential settings when the generic slot is configured.
+their own endpoint, credential and model settings when the generic slot is configured.
 See [provider setup](docs/PROVIDERS.md#uberllm-setup).
 
 Managed Tangle checks the output artifacts a task declares without requiring
