@@ -19,9 +19,10 @@
   Rollback refuses changed submodules before mutation, and security-audit
   guidance requires scoped authorization and redaction for sensitive scans.
 
-- The finish-branch local merge recipe stops when checkout, update, merge, or
-  merged-result tests fail,
-  preserving the feature branch and worktree for recovery.
+- Branch completion retains the selected base and project test command through
+  review, PR creation and local merge. It uses an existing base checkout when
+  present, stops after failed operations, and preserves recovery branches and
+  useful local files until cleanup checks pass.
 
 - Rollback starts from the repository root, so invoking it from a subdirectory
   restores the complete tracked snapshot and preserves current lessons.
@@ -38,10 +39,9 @@
   generating separate Codex skills. Codex shared-block references use their own
   tree, and missing canonical inputs stop generation before output is removed.
 
-- The branch-finishing workflow executes the action shown in its menu.
-  Choosing Create PR preserves the branch for review; choosing Merge locally
-  runs the local merge recipe. The menu, quick reference, integration example and cleanup rules agree
-  across source, Claude and Codex instructions.
+- Branch completion follows the action selected by the user and reports only
+  recorded validation results. PR descriptions no longer claim manual checks
+  from a template, and PR creation stops after a failed push.
 
 - Claude Code now loads the native skill instructions instead of the Codex
   adaptations. Codex keeps its generated skills, and the verification alias

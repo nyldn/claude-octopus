@@ -16,7 +16,7 @@ Usage:
   safe-gh-comment.sh --repo OWNER/REPO pr-comment PR BODY_SOURCE
   safe-gh-comment.sh --repo OWNER/REPO pr-edit PR BODY_SOURCE
   safe-gh-comment.sh --repo OWNER/REPO pr-review PR BODY_SOURCE
-  safe-gh-comment.sh --repo OWNER/REPO pr-create TITLE HEAD BODY_SOURCE
+  safe-gh-comment.sh --repo OWNER/REPO pr-create TITLE HEAD BODY_SOURCE [BASE]
   safe-gh-comment.sh --repo OWNER/REPO issue-comment ISSUE BODY_SOURCE
   safe-gh-comment.sh --repo OWNER/REPO issue-create TITLE BODY_SOURCE
   safe-gh-comment.sh --repo OWNER/REPO review-reply PR COMMENT_ID BODY_SOURCE
@@ -249,12 +249,17 @@ case "$operation" in
         valid_positive_integer "$target_number" || usage
         ;;
     pr-create)
-        [[ $# -eq 3 ]] || usage
+        [[ $# -eq 3 || $# -eq 4 ]] || usage
         create_title="$1"
         create_head="$2"
         body_source="$3"
+        create_base="${4:-}"
         [[ -n "$create_title" && ${#create_title} -le 256 && "$create_title" != *$'\n'* ]] || usage
         valid_pr_head "$create_head" || usage
+        if [[ $# -eq 4 ]]; then
+            [[ -n "$create_base" && "$create_base" != *$'\n'* ]] || usage
+            git check-ref-format --branch "$create_base" >/dev/null 2>&1 || usage
+        fi
         ;;
     issue-create)
         [[ $# -eq 2 ]] || usage
@@ -366,8 +371,13 @@ case "$operation" in
         ;;
     pr-create)
         output_file="$snapshot_dir/post-output.txt"
-        run_command gh pr create --repo "$repo" --head "$create_head" \
-            --title "$create_title" --body-file "$snapshot_file" > "$output_file"
+        if [[ -n "$create_base" ]]; then
+            run_command gh pr create --repo "$repo" --head "$create_head" --base "$create_base" \
+                --title "$create_title" --body-file "$snapshot_file" > "$output_file"
+        else
+            run_command gh pr create --repo "$repo" --head "$create_head" \
+                --title "$create_title" --body-file "$snapshot_file" > "$output_file"
+        fi
         post_output=$(<"$output_file")
         ;;
     issue-comment)

@@ -749,6 +749,41 @@ fi
 : > "$GH_ARGS_LOG"
 set +e
 PATH="$MOCK_BIN_DIR:$PATH" "$SAFE_POST" \
+    --repo octopus/example pr-create "fix: selected base" feature/safe-posting "$safe_body" release/next \
+    > "$TEST_TMP_DIR/pr-base-output.log" 2>&1
+pr_base_rc=$?
+set -e
+if [[ "$pr_base_rc" -eq 0 ]] && grep -Fxq -- '--base' "$GH_ARGS_LOG" && \
+        grep -Fxq -- 'release/next' "$GH_ARGS_LOG" && cmp -s "$safe_body" "$GH_BODY_LOG"; then
+    pass "PR creation forwards the selected base and validated body"
+else
+    fail "PR creation forwards the selected base and validated body" \
+        "selected base or body was lost"
+fi
+
+invalid_base_count=0
+for invalid_base in '' '--help' 'bad..ref' 'owner:branch' $'trunk\nother'; do
+    : > "$GH_ARGS_LOG"
+    set +e
+    PATH="$MOCK_BIN_DIR:$PATH" "$SAFE_POST" \
+        --repo octopus/example pr-create "fix: invalid base" feature/safe-posting "$safe_body" "$invalid_base" \
+        > "$TEST_TMP_DIR/invalid-base-output.log" 2>&1
+    invalid_base_rc=$?
+    set -e
+    if [[ "$invalid_base_rc" -eq 64 && ! -s "$GH_ARGS_LOG" ]]; then
+        invalid_base_count=$((invalid_base_count + 1))
+    fi
+done
+if [[ "$invalid_base_count" -eq 5 ]]; then
+    pass "invalid PR bases stop before GitHub writes"
+else
+    fail "invalid PR bases stop before GitHub writes" \
+        "only $invalid_base_count of 5 invalid bases were rejected"
+fi
+
+: > "$GH_ARGS_LOG"
+set +e
+PATH="$MOCK_BIN_DIR:$PATH" "$SAFE_POST" \
     --repo octopus/example issue-create "security: safe posting" "$safe_body" \
     > "$TEST_TMP_DIR/issue-create-output.log" 2>&1
 issue_create_rc=$?

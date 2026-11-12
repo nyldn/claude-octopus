@@ -20,343 +20,262 @@ This generated Codex skill preserves an enforced workflow contract from the sour
 - Do not continue silently when a required provider, command, or host capability is unavailable; report the unavailable dependency and use a supported fallback.
 
 
-# Finishing a Development Branch
+# Finishing a development branch
 
 **Your first output line MUST be:** `🐙 **CLAUDE OCTOPUS ACTIVATED** - Branch Completion`
 
-## Overview
+Run the project's checks, review the committed changes, then carry out the user's chosen Git operation. Reuse an explicit choice already made in this conversation. Ask only for a missing decision.
 
-Full ship pipeline: tests → multi-provider review → version bump → changelog → commit → push → PR.
+## The process
 
-**Core principle:** Verify tests → Review diff → Bump version → Update changelog → Present options → Execute choice → Clean up.
+### Step 1: Record the branch, base and test command
 
+Read the project's `AGENTS.md`, delivery contract and CI configuration. Identify the intended changes and commit only their reviewed paths when the user has authorized committing. Preserve unrelated changes and stop if they prevent a clean test or review.
 
-## The Process
-
-### Step 1: Verify Tests Pass
-
-**Before anything else, verify tests pass:**
+Resolve the base before reading the diff. Use the user's requested base when supplied. Otherwise use the remote's recorded default branch; do not silently assume `main`.
 
 ```bash
-# Detect and run project's test suite
-if [[ -f "package.json" ]]; then npm test
-elif [[ -f "pytest.ini" ]] || [[ -f "pyproject.toml" ]]; then pytest
-elif [[ -f "Cargo.toml" ]]; then cargo test
-elif [[ -f "go.mod" ]]; then go test ./...
-elif [[ -f "Makefile" ]] && grep -q '^test:' Makefile; then make test
+if ! FEATURE_ROOT=$(git rev-parse --show-toplevel) ||
+   ! FEATURE_BRANCH=$(git branch --show-current) || [[ -z "$FEATURE_BRANCH" ]]; then
+  echo "A named feature branch is required." >&2
+  return 1 2>/dev/null || exit 1
+fi
+if [[ -z "${BASE_BRANCH:-}" ]]; then
+  if ! BASE_REF=$(git symbolic-ref --quiet refs/remotes/origin/HEAD); then
+    echo "Select the intended base branch before continuing." >&2
+    return 1 2>/dev/null || exit 1
+  fi
+  BASE_BRANCH=${BASE_REF#refs/remotes/origin/}
+fi
+if ! git check-ref-format --branch "$BASE_BRANCH" >/dev/null ||
+   [[ "$FEATURE_BRANCH" == "$BASE_BRANCH" ]]; then
+  echo "Select a valid base different from the feature branch." >&2
+  return 1 2>/dev/null || exit 1
+fi
+if git show-ref --verify --quiet "refs/remotes/origin/$BASE_BRANCH"; then
+  BASE_REF="refs/remotes/origin/$BASE_BRANCH"
+elif git show-ref --verify --quiet "refs/heads/$BASE_BRANCH"; then
+  BASE_REF="refs/heads/$BASE_BRANCH"
+else
+  echo "Base branch is unavailable locally; fetch the intended base first." >&2
+  return 1 2>/dev/null || exit 1
+fi
+if ! WORKTREE_STATUS=$(git status --porcelain) || [[ -n "$WORKTREE_STATUS" ]]; then
+  echo "Preserve or commit the intended changes before testing and review." >&2
+  return 1 2>/dev/null || exit 1
 fi
 ```
 
-**If tests fail:** STOP. Show failures. Do not proceed.
-
-**If tests pass:** Continue to Step 2.
-
-
-### Step 2: Multi-Provider Diff Review
-
-**Run a quick multi-provider review of the changes before shipping.** This catches issues before they reach PR reviewers.
+Use the documented project test command. Store its arguments in a Bash array, for example `TEST_COMMAND=(make ci-quick)` or `TEST_COMMAND=(python3 -m pytest)`. Do not execute a command string with `eval`. If the project has no documented command, determine the appropriate checks from its build and CI files. If no applicable check can be identified, stop and report that tests have not run.
 
 ```bash
-# Get the diff summary
-DIFF_STAT=$(git diff --stat $(git merge-base HEAD main)..HEAD)
-DIFF_FILES=$(git diff --name-only $(git merge-base HEAD main)..HEAD)
+if [[ ${#TEST_COMMAND[@]} -eq 0 ]] || ! "${TEST_COMMAND[@]}"; then
+  echo "Project tests did not pass; stop before push, merge or cleanup." >&2
+  return 1 2>/dev/null || exit 1
+fi
+if ! REVIEWED_HEAD=$(git rev-parse HEAD); then
+  return 1 2>/dev/null || exit 1
+fi
 ```
 
-**Always run a quick review — this is automatic, not optional:**
+Record `FEATURE_ROOT`, `FEATURE_BRANCH`, `BASE_BRANCH`, `BASE_REF`, `REVIEWED_HEAD`, the test arguments and the actual results in the task context. Shell variables do not survive separate tool calls. Restore these recorded values in each later shell call; do not infer the feature branch after switching to the base checkout.
+
+### Step 2: Review the committed diff
 
 ```bash
-# Quick review via orchestrate.sh (uses available providers)
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn reviewer "Review this diff for bugs, security issues, and code quality problems. Be concise — only flag real issues, not style preferences.
-
-$(git diff $(git merge-base HEAD main)..HEAD | head -500)"
+if ! DIFF_BASE=$(git merge-base "$REVIEWED_HEAD" "$BASE_REF") ||
+   ! git diff --stat "$DIFF_BASE..$REVIEWED_HEAD" ||
+   ! git diff --name-only "$DIFF_BASE..$REVIEWED_HEAD"; then
+  return 1 2>/dev/null || exit 1
+fi
 ```
 
-**If critical issues found:** Present them and ask whether to fix or ship anyway.
-**If clean:** Continue to Step 3. Show a brief `✓ Review clean — no issues found`.
+Read the complete `codex-skills/skill-code-review/SKILL.md` from the installed plugin root and apply its provider-backed review contract in this conversation. Pass the recorded base and commit. Its required `scripts/orchestrate.sh` dispatch must run, and its review artifact must exist and be read before reporting success. An existing independent review may satisfy this step when its evidence covers this exact revision and scope.
 
+Give the reviewer the complete changed-file list and access to the diff. A truncated diff or a successful dispatch alone does not prove a clean review. Read the review output, verify findings and repair confirmed problems. After a repair, repeat the relevant checks and review for the new revision.
 
-### Step 3: Determine Base Branch & Version
+For a public PR merge, inspect required hosted checks, independent approval and unresolved threads on the current commit. Local tests do not replace those gates.
+
+### Step 3: Determine version files
 
 ```bash
-# Identify the base branch
-BASE_BRANCH=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | awk '{print $NF}')
-[[ -z "$BASE_BRANCH" ]] && BASE_BRANCH="main"
-
-# Check for VERSION file
 VERSION_FILE=""
 for f in VERSION version.txt package.json; do
-  [[ -f "$f" ]] && VERSION_FILE="$f" && break
+  if [[ -f "$f" ]]; then VERSION_FILE="$f"; break; fi
 done
 ```
 
+### Step 4: Update the version and changelog when requested
 
-### Step 4: Version Bump & Changelog (Optional)
+Apply the user's requested version change. If a release is requested and the version policy leaves a material choice unresolved, ask for that choice. Use the repository's release tooling and update its required version files together.
 
-**If a VERSION file or package.json exists**, offer to bump:
-
-```javascript
-AskUserQuestion({
-  questions: [{
-    question: "Version bump?",
-    header: "Version",
-    multiSelect: false,
-    options: [
-      {label: "Patch (Recommended)", description: "Bug fixes, minor changes (1.2.3 → 1.2.4)"},
-      {label: "Minor", description: "New features, backward compatible (1.2.3 → 1.3.0)"},
-      {label: "Major", description: "Breaking changes (1.2.3 → 2.0.0)"},
-      {label: "Skip", description: "Don't bump version"}
-    ]
-  }]
-})
-```
-
-**If bumping:** Update the version file and prepend a changelog entry summarizing the diff:
+Summarize the changes relative to the recorded base:
 
 ```bash
-# Generate changelog entry from commits
-COMMITS=$(git log --oneline $(git merge-base HEAD $BASE_BRANCH)..HEAD)
-# Prepend to CHANGELOG.md if it exists
+git log --oneline "$DIFF_BASE..HEAD"
 ```
 
+Review and commit the approved version and changelog paths. Repeat the affected checks and review, then record the new `REVIEWED_HEAD`. Do not push an older commit while leaving the release edits uncommitted.
 
-### Step 5: Present Options
+### Step 5: Select the action
 
-Present exactly these 4 options:
-
-```markdown
-✅ Ship ready. Tests passing. Review clean. What would you like to do?
+If the user already asked for one of these actions, carry it out after verification. Otherwise present these choices:
 
 1. **Create PR** (Recommended) - Push and create a Pull Request for review
-2. **Merge locally** - Merge back to <base-branch> on this machine
-3. **Keep as-is** - Leave the branch, I'll handle it later
-4. **Discard** - Delete this work permanently
+2. **Merge locally** - Merge back to the selected base on this machine
+3. **Keep as-is** - Preserve the branch and checkout for later
+4. **Discard** - Delete the specifically confirmed work
 
-Which option? (1-4)
-```
+### Step 6: Execute the selected action
 
-**Keep options concise.** Don't add explanations unless asked.
-
-
-### Step 4: Execute Choice
+Restore the recorded values from Step 1 before running a recipe. Stop if the branch, commit or worktree has changed since verification. Preserve the evidence and recovery branch on every failure.
 
 #### Option 1: Create PR
 
 ```bash
-# Get branch info
-FEATURE_BRANCH=$(git branch --show-current)
-
-# Push branch
-git push -u origin $FEATURE_BRANCH
-
-# Create PR with a validated description file
-REPO_SLUG=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
-PR_TITLE=${PR_TITLE:?Complete PR_TITLE before creating the pull request}
-CHANGE_SUMMARY=${CHANGE_SUMMARY:?Complete CHANGE_SUMMARY before creating the pull request}
-CHANGE_REASON=${CHANGE_REASON:?Complete CHANGE_REASON before creating the pull request}
+: "${FEATURE_ROOT:?Restore the recorded feature checkout}"
+: "${FEATURE_BRANCH:?Restore the recorded feature branch}"
+: "${BASE_BRANCH:?Restore the selected base branch}"
+: "${REVIEWED_HEAD:?Restore the verified commit}"
+if ! CURRENT_BRANCH=$(git -C "$FEATURE_ROOT" branch --show-current) ||
+   ! CURRENT_HEAD=$(git -C "$FEATURE_ROOT" rev-parse HEAD) ||
+   ! WORKTREE_STATUS=$(git -C "$FEATURE_ROOT" status --porcelain) ||
+   [[ "$CURRENT_BRANCH" != "$FEATURE_BRANCH" || "$CURRENT_HEAD" != "$REVIEWED_HEAD" || -n "$WORKTREE_STATUS" ]]; then
+  echo "The feature checkout changed; repeat checks and review before pushing." >&2
+  return 1 2>/dev/null || exit 1
+fi
+if ! cd "$FEATURE_ROOT"; then
+  return 1 2>/dev/null || exit 1
+fi
+if ! git -C "$FEATURE_ROOT" push -u origin "$FEATURE_BRANCH"; then
+  echo "Push failed; stop before creating a pull request." >&2
+  return 1 2>/dev/null || exit 1
+fi
+if ! REPO_SLUG=$(gh repo view --json nameWithOwner --jq .nameWithOwner); then
+  return 1 2>/dev/null || exit 1
+fi
+PR_TITLE=${PR_TITLE:?Complete the pull request title}
+CHANGE_SUMMARY=${CHANGE_SUMMARY:?Describe the resulting behavior}
+CHANGE_REASON=${CHANGE_REASON:?Explain why the change is needed}
+VALIDATION_SUMMARY=${VALIDATION_SUMMARY:?Record the actual checks and their results}
 PR_BODY=$(cat <<EOF
 ## Summary
-- ${CHANGE_SUMMARY}
-- ${CHANGE_REASON}
+${CHANGE_SUMMARY}
 
-## Test Plan
-- [x] Unit tests pass
-- [x] Manual verification done
-- [ ] Code review needed
+${CHANGE_REASON}
+
+## Validation
+${VALIDATION_SUMMARY}
 EOF
 )
 if ! "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/safe-gh-comment.sh" \
-    --repo "$REPO_SLUG" pr-create "$PR_TITLE" "$FEATURE_BRANCH" - <<< "$PR_BODY"; then
-  echo "GitHub write state is unknown; check for an existing pull request before retrying:" >&2
+    --repo "$REPO_SLUG" pr-create "$PR_TITLE" "$FEATURE_BRANCH" - "$BASE_BRANCH" <<< "$PR_BODY"; then
+  echo "GitHub write state is unknown; check for an existing pull request before retrying." >&2
   gh pr list --repo "$REPO_SLUG" --head "$FEATURE_BRANCH" --state all --json number,state,url || true
   return 1 2>/dev/null || exit 1
 fi
 ```
 
-**Report:**
-```
-✅ Branch pushed to origin/$FEATURE_BRANCH
-✅ PR created: https://github.com/owner/repo/pull/123
-
-Branch preserved for review process.
-```
-
+Report the verified pushed commit and PR URL. Include only checks that actually ran. Mention manual verification only when it was performed. Keep the branch and worktree for review.
 
 #### Option 2: Merge Locally
 
+Inspect `git worktree list --porcelain` and select the existing checkout of the base branch as `BASE_WORKTREE`. Preserve paths containing spaces. If that branch has no checkout, use the feature checkout and let the guarded checkout below switch it to the local base. Record the selected path in the task context. Do not try to check out a branch that is already active in another worktree.
+
+Restore the same `TEST_COMMAND` array used in Step 1. For example, a Python project must run its Python checks after the merge too.
+
 ```bash
-# Get current branch name
-FEATURE_BRANCH=$(git branch --show-current)
-BASE_BRANCH="main"  # or detected base
-
-# Stop if checkout, update, or merge fails; preserve recovery work.
-if ! git checkout "$BASE_BRANCH" ||
-   ! git pull origin "$BASE_BRANCH" ||
-   ! git merge "$FEATURE_BRANCH"; then
-  echo "Local merge failed; preserve $FEATURE_BRANCH and stop before cleanup or success reporting." >&2
+: "${FEATURE_ROOT:?Restore the recorded feature checkout}"
+: "${FEATURE_BRANCH:?Restore the recorded feature branch}"
+: "${BASE_BRANCH:?Restore the selected base branch}"
+: "${BASE_WORKTREE:?Select the base checkout from the worktree inventory}"
+: "${REVIEWED_HEAD:?Restore the verified commit}"
+if [[ ${#TEST_COMMAND[@]} -eq 0 ]]; then
+  echo "Restore the project test arguments before merging." >&2
   return 1 2>/dev/null || exit 1
 fi
-
-# Verify tests on merged result with the appropriate test command.
-if ! npm test; then
-  echo "Merged-result tests failed; preserve $FEATURE_BRANCH and stop before cleanup or success reporting." >&2
+if ! CURRENT_BRANCH=$(git -C "$FEATURE_ROOT" branch --show-current) ||
+   ! CURRENT_HEAD=$(git -C "$FEATURE_ROOT" rev-parse HEAD) ||
+   ! WORKTREE_STATUS=$(git -C "$FEATURE_ROOT" status --porcelain) ||
+   [[ "$CURRENT_BRANCH" != "$FEATURE_BRANCH" || "$CURRENT_HEAD" != "$REVIEWED_HEAD" || -n "$WORKTREE_STATUS" ]]; then
+  echo "The feature checkout changed; repeat checks and review before merging." >&2
   return 1 2>/dev/null || exit 1
 fi
-
-# Delete the feature branch only after the merged-result tests pass.
-git branch -d $FEATURE_BRANCH
+if ! WORKTREE_STATUS=$(git -C "$BASE_WORKTREE" status --porcelain) || [[ -n "$WORKTREE_STATUS" ]]; then
+  echo "Preserve changes in the base checkout before merging." >&2
+  return 1 2>/dev/null || exit 1
+fi
+if [[ "$BASE_WORKTREE" == "$FEATURE_ROOT" ]]; then
+  if ! git -C "$BASE_WORKTREE" checkout --no-overwrite-ignore "$BASE_BRANCH"; then
+    echo "Checkout failed; preserve local and ignored work." >&2
+    return 1 2>/dev/null || exit 1
+  fi
+fi
+if ! CURRENT_BRANCH=$(git -C "$BASE_WORKTREE" branch --show-current) || [[ "$CURRENT_BRANCH" != "$BASE_BRANCH" ]]; then
+  echo "The selected checkout is not on the intended base." >&2
+  return 1 2>/dev/null || exit 1
+fi
+if ! git -C "$BASE_WORKTREE" pull --ff-only origin "$BASE_BRANCH" ||
+   ! git -C "$BASE_WORKTREE" merge "$REVIEWED_HEAD"; then
+  echo "Local merge failed; preserve the branch and both checkouts for recovery." >&2
+  return 1 2>/dev/null || exit 1
+fi
+if ! (cd "$BASE_WORKTREE" && "${TEST_COMMAND[@]}"); then
+  echo "Merged-result tests failed; preserve the recovery branch and stop before cleanup." >&2
+  return 1 2>/dev/null || exit 1
+fi
+if ! TESTED_MERGE=$(git -C "$BASE_WORKTREE" rev-parse HEAD); then
+  return 1 2>/dev/null || exit 1
+fi
 ```
 
-**Report only after the recipe succeeds. On failure, preserve the branch and worktree and report the failed check:**
-```
-✅ Merged $FEATURE_BRANCH into $BASE_BRANCH
-✅ Tests pass on merged result
-✅ Feature branch deleted
-
-Ready to push when you want: git push origin $BASE_BRANCH
-```
-
+Record the tested merge commit. Report the local merge and actual test results. Keep the feature branch until the cleanup checks below pass. A local merge does not authorize pushing the base or bypassing a repository's PR-only merge policy.
 
 #### Option 3: Keep As-Is
 
-```
-✅ Keeping branch $FEATURE_BRANCH as-is.
-
-Current state:
-- Branch: $FEATURE_BRANCH
-- Commits ahead of $BASE_BRANCH: N
-- Tests: Passing
-
-When ready, you can:
-- Merge: git checkout main && git merge $FEATURE_BRANCH
-- PR: git push -u origin $FEATURE_BRANCH && gh pr create
-- Discard: git branch -D $FEATURE_BRANCH
-```
-
-**Do NOT clean up anything.**
-
+Report the preserved branch, checkout, commits ahead of the selected base and checks actually performed. Do not push, delete a branch or remove a worktree.
 
 #### Option 4: Discard
 
-**Confirm first (REQUIRED):**
+List the exact branch, checkout, commits and any local files that would be lost. Require the user's explicit confirmation for that concrete deletion. Reuse an already supplied confirmation only if it covers these same objects and state.
 
-```
-⚠️ This will PERMANENTLY delete:
-- Branch: $FEATURE_BRANCH
-- All commits:
-  - abc1234 feat: add user validation
-  - def5678 fix: handle edge case
-  - ghi9012 test: add integration tests
+First preserve unrelated, untracked and useful ignored files. Select the base checkout using the worktree inventory. If switching within the feature checkout is necessary, use `git checkout --no-overwrite-ignore "$BASE_BRANCH"` and stop if it fails. If a linked checkout still holds the feature branch, apply Step 7 before deleting that branch. Never remove the primary checkout.
 
-Type 'discard' to confirm, or anything else to cancel.
-```
+Delete only the confirmed local branch with a quoted branch argument. Delete a remote branch only when that separate deletion was explicitly authorized; inspect its result and report failures. Do not suppress a failed deletion or claim remote success when no deletion ran.
 
-**Wait for exact confirmation: `discard`**
+### Step 7: Cleanup
 
-If confirmed:
-```bash
-# Switch to base branch first
-git checkout $BASE_BRANCH
+**For Options 2, 4:** Remove a linked feature worktree only after verifying all of these conditions:
 
-# Force delete the feature branch
-git branch -D $FEATURE_BRANCH
+- The path belongs to this task and appears as a linked checkout in `git worktree list --porcelain`. Compare its Git directory with the shared common Git directory; the primary checkout must remain.
+- The checkout is clean, no process or active agent session uses it, and no useful ignored files would be lost. Inspect ignored state separately from `git status --porcelain`.
+- For Option 2, the recorded feature commit is an ancestor of `TESTED_MERGE`, the base still points to that tested commit, and the merged-result checks passed. On a failed check, preserve the branch and both checkouts.
+- For Option 4, the explicit discard authorization covers the exact objects being deleted.
 
-# If remote exists, delete it too (with confirmation)
-git push origin --delete $FEATURE_BRANCH 2>/dev/null || true
-```
+Change to a retained checkout before running `git worktree remove "$FEATURE_ROOT"`. Do not use `--force`. Stop on failure. Delete a merged feature branch with `git branch -d "$FEATURE_BRANCH"` only after it is no longer checked out anywhere and the merge checks above still hold. If the feature checkout is the primary checkout, preserve it and switch branches safely instead of removing it. Report any retained branch or worktree accurately.
 
-**Report:**
-```
-✅ Branch $FEATURE_BRANCH deleted locally
-✅ Remote branch deleted (if existed)
-
-Work has been permanently discarded.
-```
-
-
-### Step 5: Cleanup (If Using Worktrees)
-
-**For Options 2, 4:** Check if in a worktree and clean up:
-
-```bash
-# Check if current directory is a worktree
-if git worktree list | grep -q "$(pwd)"; then
-  # Get worktree path
-  WORKTREE_PATH=$(pwd)
-
-  # Switch to main worktree
-  cd $(git worktree list | head -1 | awk '{print $(1)}')
-
-  # Remove the worktree
-  git worktree remove "$WORKTREE_PATH"
-
-  echo "✅ Worktree cleaned up"
-fi
-```
-
-**For Options 1, 3:** Keep worktree intact.
-
+**For Options 1, 3:** Keep the branch and worktree intact.
 
 ## Quick Reference
 
 | Option | Merge | Push | Keep Branch | Cleanup |
 |--------|-------|------|-------------|---------|
-| 1. Create PR | - | ✓ | Keep | - |
-| 2. Merge locally | ✓ | - | Delete | ✓ |
-| 3. Keep as-is | - | - | Keep | - |
-| 4. Discard | - | - | Delete | ✓ |
-
+| 1. Create PR | - | Yes | Yes | - |
+| 2. Merge locally | Yes | - | Until cleanup checks pass | Conditional |
+| 3. Keep as-is | - | - | Yes | - |
+| 4. Discard | - | Only confirmed remote deletion | Until discard checks pass | Conditional |
 
 ## Integration with Claude Octopus
 
-After completing octopus workflows, use this skill:
-
-```bash
-# After tangle (develop) phase completes successfully
-# After ink (deliver) phase validates the work
-
-# User says: "I'm done, create a PR"
-# → Invoke finishing-branch skill
-# → Verify tests
-# → Present options
-# → Execute Option 1 (Create PR)
-```
-
-### With Octopus Validation
-
-```bash
-# Run octopus validation before finishing
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" ink "Validate before merge"
-
-# If validation passes, proceed with finishing-branch
-```
-
-
-## Red Flags - Never Do
-
-| Action | Why It's Dangerous |
-|--------|-------------------|
-| Merge without testing | Ships broken code |
-| Skip confirmation for discard | Loses work permanently |
-| Force-push without asking | Destroys history |
-| Delete remote branch silently | Affects collaborators |
-| Proceed when tests fail | Corrupts main branch |
-
+After the develop and deliver phases, a request to create a PR selects Option 1. Verify tests and review, then Execute Option 1 (Create PR). A request to merge locally selects Option 2. Existing authorization remains valid throughout the task.
 
 ## Common Mistakes
 
 | Mistake | Fix |
 |---------|-----|
-| Offering options before testing | Always verify tests FIRST |
-| Auto-merging without asking | Present 4 options, let user choose |
-| Deleting without confirmation | Require typed "discard" |
-| Cleaning up worktree on "keep" | Only cleanup for options 2, 4 |
-
-
-## The Bottom Line
-
-```
-Finishing branch → Tests verified AND user chose option
-Otherwise → Not complete
-```
-
-**Verify tests. Present options. Execute safely. Clean up appropriately.**
+| Reviewing against an assumed main branch | Resolve the selected base before reading the diff |
+| Reporting tests passed when none ran | Select and run applicable project checks, or stop |
+| Publishing while release edits remain local | Commit approved paths and verify the new revision |
+| Claiming manual verification from a template | Report only recorded evidence |
+| Deleting recovery work after a failed merge | Stop before cleanup and preserve both checkouts |
+| Cleaning up a primary checkout or a kept branch | Only consider cleanup for options 2, 4 after Step 7 |

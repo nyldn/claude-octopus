@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
 test_suite "Native skill registration"
 test_case "Claude registrations preserve native bodies, names, alias and starter pack"
 if python3 - "$PROJECT_ROOT" <<'PY'
@@ -148,122 +149,19 @@ print('36 ignored-file rollback scenarios passed across all three skill trees')
 PY_IGNORED
 then test_pass; else test_fail "rollback can overwrite ignored local work"; fi
 
-test_case "finish-branch choices execute the action displayed to the user"
-if python3 - "$PROJECT_ROOT" <<'PY_CHOICES'
-import os
-import re
-import subprocess
-import sys
-import tempfile
-from pathlib import Path
+test_case "finish-branch choices preserve the selected action, base and test evidence"
+if python3 "$PROJECT_ROOT/tests/fixtures/native-skills/finish-branch-recipes.py" "$PROJECT_ROOT" choices; then
+    test_pass
+else
+    test_fail "finish-branch execution contradicts the selected action or evidence"
+fi
 
-root = Path(sys.argv[1])
-for tree in ('.claude/skills', 'skills', 'codex-skills'):
-    text = (root / tree / 'skill-finish-branch/SKILL.md').read_text()
-    menu = dict(re.findall(r'^(\d+)\. \*\*([^*]+)\*\*', text, re.M))
-    references = re.findall(r'^\| (\d+)\. ([^|]+)\|', text, re.M)
-    examples = re.findall(r'Execute Option (\d+) \((Create PR|Merge locally)\)', text)
-    assert len(references) == len(menu) and examples, (tree, 'missing choice references')
-    cleanup = text.split('### Step 5: Cleanup', 1)[1].split('## Quick Reference', 1)[0]
-    policies = re.findall(r'For Options ([\d, ]+):', cleanup)
-    assert len(policies) == 2, (tree, 'missing cleanup/preservation policy')
-    cleanup_choices, preserve_choices = (set(re.findall(r'\d+', policy)) for policy in policies)
-    assert preserve_choices == set(menu) - cleanup_choices, (tree, 'worktree preservation incomplete')
-    rows = re.findall(r'^\| (\d+)\. [^|]+\|([^\n]+)', text, re.M)
-    advertised_cleanup = {choice for choice, columns in rows if columns.split('|')[-2].strip() == '✓'}
-    assert cleanup_choices == advertised_cleanup, (tree, 'cleanup contradicts reference')
-    mistakes = text.split('## Common Mistakes', 1)[1]
-    cleanup_advice = re.search(r'Only cleanup for options ([\d, ]+)', mistakes)
-    assert cleanup_advice, (tree, 'missing common-mistake cleanup policy')
-    assert set(re.findall(r'\d+', cleanup_advice[1])) == cleanup_choices, (tree, 'common mistakes contradict cleanup policy')
-    cases = [(choice, menu[choice], 'menu') for choice in ('1', '2')]
-    cases += [(choice, action.strip(), 'quick reference') for choice, action in references
-              if action.strip().lower() in ('create pr', 'merge locally')]
-    cases += [(choice, action, 'integration example') for choice, action in examples]
-    for choice, action, origin in cases:
-        section = re.search(r'^#### Option ' + choice + r':[^\n]*\n(.*?)(?=^#### Option |\Z)',
-                            text, re.M | re.S)[1]
-        command = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
-        with tempfile.TemporaryDirectory() as temporary:
-            base = Path(temporary)
-            calls = base / 'calls'
-            helper = base / 'scripts/safe-gh-comment.sh'
-            helper.parent.mkdir()
-            helper.write_text('#!/bin/bash\nprintf "safe-helper %s\\n" "$*" >> "$CALLS"\ncat >/dev/null\n')
-            helper.chmod(0o755)
-            # Functions replace only commands executed by this recipe. No real
-            # remote, branch mutation, package manager or GitHub call can run.
-            stubs = r"""
-git() {
-    printf 'git %s\n' "$*" >> "$CALLS"
-    if [[ "$*" == 'branch --show-current' ]]; then printf 'feature\n'; fi
-}
-gh() { printf 'gh %s\n' "$*" >> "$CALLS"; printf 'fixture/repository\n'; }
-npm() { printf 'npm %s\n' "$*" >> "$CALLS"; }
-"""
-            env = dict(os.environ, CALLS=str(calls), CLAUDE_PLUGIN_ROOT=str(base),
-                       PR_TITLE='Fixture title', CHANGE_SUMMARY='Fixture summary',
-                       CHANGE_REASON='Fixture reason')
-            result = subprocess.run(['bash', '-euo', 'pipefail', '-c', stubs + command],
-                                    env=env, capture_output=True, text=True, check=False)
-            assert result.returncode == 0, (tree, choice, result.stderr)
-            actions = calls.read_text().splitlines()
-            if action.lower() == 'create pr':
-                assert 'git push -u origin feature' in actions, (tree, choice, actions)
-                assert any(a.startswith('safe-helper ') and ' pr-create ' in a for a in actions), actions
-                assert not any(a.startswith(('git checkout ', 'git pull ', 'git merge ', 'git branch -d '))
-                               for a in actions), (tree, choice, 'unexpected local merge', actions)
-            elif action.lower() == 'merge locally':
-                for action in ('git checkout main', 'git pull origin main', 'git merge feature',
-                               'npm test', 'git branch -d feature'):
-                    assert action in actions, (tree, choice, actions)
-                assert not any(a.startswith(('git push ', 'safe-helper ')) for a in actions), actions
-            else:
-                raise AssertionError((tree, choice, 'unknown displayed choice', action))
-print('15 menu/reference/example recipes passed across source, native and Codex trees')
-PY_CHOICES
-then test_pass; else test_fail "finish-branch execution contradicts the selected menu action"; fi
-
-test_case "failed merge steps preserve the feature branch without shell error-exit mode"
-if python3 - "$PROJECT_ROOT" <<'PY_FAILURE'
-import os
-import re
-import subprocess
-import sys
-import tempfile
-from pathlib import Path
-
-root = Path(sys.argv[1])
-for tree in ('.claude/skills', 'skills', 'codex-skills'):
-    text = (root / tree / 'skill-finish-branch/SKILL.md').read_text()
-    section = text.split('#### Option 2: Merge Locally', 1)[1].split('#### Option 3:', 1)[0]
-    command = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
-    for failure in ('checkout', 'pull', 'merge', 'test'):
-        with tempfile.TemporaryDirectory() as temporary:
-            calls = Path(temporary) / 'calls'
-            stubs = r"""
-git() {
-    printf 'git %s\n' "$*" >> "$CALLS"
-    if [[ "$*" == 'branch --show-current' ]]; then printf 'feature\n'; fi
-    if [[ "$1" == "$FAILURE" ]]; then return 23; fi
-    return 0
-}
-npm() { printf 'npm %s\n' "$*" >> "$CALLS"; [[ "$FAILURE" != test ]]; }
-"""
-            result = subprocess.run(['bash', '-uo', 'pipefail', '-c',
-                                     stubs + command + '\nprintf "continued after failure\n"'],
-                                    env=dict(os.environ, CALLS=str(calls), FAILURE=failure), capture_output=True, text=True)
-            actions = calls.read_text().splitlines()
-            expected = ['git branch --show-current', 'git checkout main', 'git pull origin main',
-                        'git merge feature', 'npm test']
-            failed_at = {'checkout': 1, 'pull': 2, 'merge': 3, 'test': 4}[failure]
-            assert actions == expected[:failed_at + 1], (tree, failure, 'continued after failed step', actions)
-            assert result.returncode != 0, (tree, 'merge failure reported success', result.stdout)
-            assert 'git branch -d feature' not in actions, (tree, 'deleted recovery branch', actions)
-            assert 'continued after failure' not in result.stdout, (tree, 'continued to cleanup/report')
-print('12 failed merge-step recipes preserve recovery branches without relying on bash -e')
-PY_FAILURE
-then test_pass; else test_fail "failed merged-result tests can delete the recovery branch"; fi
+test_case "failed branch operations preserve recovery work without shell error-exit mode"
+if python3 "$PROJECT_ROOT/tests/fixtures/native-skills/finish-branch-recipes.py" "$PROJECT_ROOT" failures; then
+    test_pass
+else
+    test_fail "failed finish-branch operation lost recovery work or continued"
+fi
 
 test_case "generator keeps canonical native sources and adapts new Codex entries"
 if python3 - "$PROJECT_ROOT" <<'PY_CANONICAL'
