@@ -5,7 +5,7 @@
 # Extracted from orchestrate.sh
 # ═══════════════════════════════════════════════════════════════════════════════
 
-_auth_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_auth_lib_dir="$(cd "$(/usr/bin/dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Remote startup skips discovery probes unless the user opts in. Selected
 # OpenCode admission checks only the explicit setting, not this startup default.

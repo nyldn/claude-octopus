@@ -7,6 +7,8 @@
 - Fresh Embrace runs confirm an unpinned OpenCode login before rejecting
   readiness. Resumed workflows keep the existing admission
   path; skipped probes and provider exclusions remain enforced.
+- Authentication-library initialization uses the system `dirname`, so a
+  project-selected utility cannot run before OpenCode admission guards.
 
 
 - OpenCode readiness pins its bootstrap tools and clears `BASH_ENV` before

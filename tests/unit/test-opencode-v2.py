@@ -87,6 +87,15 @@ fi
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout.strip(), "run -m vendor/model")
 
+    def test_auth_initialization_does_not_run_project_dirname(self):
+        self.env["MISTRAL_API_KEY"] = "fixture-login"
+        dirname = self.bin / "dirname"
+        dirname.write_text('#!/bin/sh\nprintf called > "$PROBE_MARKER"\nexec /usr/bin/dirname "$@"\n')
+        dirname.chmod(0o755)
+        result = self.shell('source scripts/lib/auth.sh; [[ "$_auth_lib_dir" == "$PLUGIN_DIR/scripts/lib" ]]')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(self.marker.exists(), "auth initialization executed a project-selected utility")
+
     def test_v2_dispatch_uses_a_private_server(self):
         self.env["CLI_VERSION"] = "2.0.23"
         result = self.shell('source scripts/lib/dispatch.sh; source scripts/lib/utils.sh; get_agent_model() { echo vendor/model; }; cmd=$(get_agent_command opencode); validate_agent_command "$cmd" || exit; echo "$cmd"')
