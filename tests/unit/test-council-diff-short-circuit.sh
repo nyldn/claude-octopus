@@ -50,6 +50,7 @@ exec "$OCTO_TEST_PYTHON" "$@"
 SH
 chmod +x "$TEST_TMP_DIR/profile-bin/python3"
 cat > "$TEST_TMP_DIR/profile.py" <<'PY'
+import ast
 import os
 import sys
 
@@ -57,18 +58,40 @@ def count_sides(frame, event, arg):
     if event == "call" and frame.f_code.co_name == "in_diff_side":
         with open(os.environ["OCTO_TEST_TRACE"], "a") as trace:
             trace.write("side\n")
-    if (event == "call" and frame.f_code.co_name == "match_unit"
-            and frame.f_back.f_code.co_name == "<module>"
-            and os.environ.get("OCTO_TEST_REFINEMENT_TRACE")):
-        caller = frame.f_back.f_locals
-        if (caller.get("verified") and caller.get("partial")
-                and caller["path"] not in caller["bound_paths"]):
-            with open(os.environ["OCTO_TEST_REFINEMENT_TRACE"], "a") as trace:
-                trace.write(str(len(frame.f_locals["entry"][0].encode("utf-8"))) + "\n")
+
+def trace_match_unit(verified, partial, path, bound_paths, *args, **kwargs):
+    trace_path = os.environ.get("OCTO_TEST_REFINEMENT_TRACE")
+    if trace_path and verified and partial and path not in bound_paths:
+        with open(trace_path, "a") as trace:
+            trace.write(str(len(args[2][0].encode("utf-8"))) + "\n")
+    return match_unit(*args, **kwargs)
+
+
+class TraceRefinement(ast.NodeTransformer):
+    """Pass loop state explicitly instead of inspecting another frame's locals."""
+
+    replacements = 0
+
+    def visit_FunctionDef(self, node):
+        return node
+
+    def visit_Call(self, node):
+        self.generic_visit(node)
+        if isinstance(node.func, ast.Name) and node.func.id == "match_unit":
+            self.replacements += 1
+            node.func.id = "trace_match_unit"
+            node.args[:0] = [ast.Name(id=name, ctx=ast.Load())
+                            for name in ("verified", "partial", "path", "bound_paths")]
+        return node
 
 sys.argv[0] = "-"
+tree = ast.parse(sys.stdin.read(), "<stdin>")
+instrument = TraceRefinement()
+tree = instrument.visit(tree)
+if instrument.replacements != 1:
+    raise RuntimeError("expected one source-file matching call to instrument")
 sys.setprofile(count_sides)
-exec(compile(sys.stdin.read(), "<stdin>", "exec"))
+exec(compile(ast.fix_missing_locations(tree), "<stdin>", "exec"))
 PY
 
 test_case "a complete large removed-side quote verifies within the production deadline"
