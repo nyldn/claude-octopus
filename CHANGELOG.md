@@ -25,6 +25,50 @@
   CSS token names no longer shadow source-path handling, and TypeScript output
   options no longer shadow the constants generator. The tool's Node.js range
   now matches its dependencies.
+- A council seat is no longer marked fabricated for a test input it built
+  itself (sail-cruisey #3247). A span introduced as "constructed as", "built
+  as" or "crafted as" is the seat's own proposal, like one introduced by
+  "such as", so a seat whose only checked quote was such an input is no longer
+  dropped as blind beside real citations. After a content verb, as in
+  "x.ts:2 contains the code built as", the span is still the file's code and is
+  checked, unless "I" or "we" built it. Quote reports also gain
+  `quotes_partial`, which counts fences that verify through a whole-fence
+  elision or the two-thirds specific-line threshold in a cited file or diff side,
+  but lack a complete match in any checked source, short lines included. Short
+  lines do not count toward that threshold; a whole-fence elision match does
+  not require it. Lines can match separately and out of
+  order. Mixed diff fences check the removed portion against the removed side
+  and the kept portion against a cited file or the added side. A complete
+  match clears partial status for that portion. An optional diff lookup may
+  time out, so partial status does not prove a line is absent from all evidence.
+  It does not change the verdict. Optional diff refinement no longer
+  prevents a later quote from receiving the normal required lookup after a
+  timeout. Partial accounting stops at its first missing line, batches short
+  literal matches into bounded index batches after sparse per-file substring
+  searches, and reuses retained-fragment checks across quotes. Non-fence quotes
+  skip report-only partial scans in source files and diff sides, while later
+  bound files can still supply near-line evidence after a complete match,
+  within a 64 KiB per-quote refinement budget. Exhausting that supplemental
+  budget can undercount near-line matches but does not reject a verified quote.
+  First-person builders also recognize modifiers such as "I just built as"
+  and contracted subjects such as "I've built as" and "we'd built as",
+  without excusing code attributed to someone else. An explicit later source
+  subject such as "but the file reads" or "but the file itself reads" restarts
+  the source claim even in the same sentence.
+  Mixed diff fences skip added-side refinement when their kept source code
+  already matches completely, preserving time for required evidence checks.
+  Later sentences require an explicit source subject before attributing a quote,
+  preserving reviewer-owned calculations and reproduction code.
+  Patch-only lead-ins such as "I recommend this patch. Apply it as follows:"
+  preserve the preceding proposal without excusing a later current-source claim.
+  Inline code punctuation and proposal words no longer alter the surrounding
+  prose's ownership or sentence boundaries.
+  Partial-fence refinement in unrelated cited files has its own 64 KiB
+  per-quote budget. If the next complete file exceeds that budget, reporting
+  retains the verified partial result without searching further unbound files.
+  Report-only elision and diff-side scans share a fixed work budget. Exhaustion
+  retains source verification and conservative partial status; required evidence
+  matching keeps its normal checks.
 - Parallel cleanup finishes a stopped worker's durable execution contract as
   cancelled, so run status no longer reports that worker as still running.
   Native Agent Teams seats remain running until their own completion is known.
