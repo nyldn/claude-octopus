@@ -10,19 +10,9 @@ disable-model-invocation: true
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
 
-## Execution Contract (MANDATORY - CANNOT SKIP)
-
-This generated Codex skill preserves an enforced workflow contract from the source skill.
-
-**PROHIBITED:**
-- Do not summarize, simulate, or skip the referenced workflow command when this skill requires execution.
-- Do not claim provider output or validation artifacts exist without checking the actual files or command output.
-- Do not continue silently when a required provider, command, or host capability is unavailable; report the unavailable dependency and use a supported fallback.
-
-
 # Factory
 
-## Execution contract (8-step sequence)
+## EXECUTION CONTRACT (MANDATORY, 8-step sequence)
 
 ### STEP 1: Confirm specification, target and authorization
 
@@ -44,8 +34,22 @@ derive it from this loaded skill's absolute path. Verify that both
 `scripts/orchestrate.sh` and `scripts/helpers/factory-run.py` exist there.
 A stable link is unnecessary; untrusted hooks must not block this lookup.
 
-Run that installation's `scripts/helpers/check-providers.sh` and display its
-actual results. Respect `OCTO_ALLOWED_PROVIDERS`. Explain reduced review diversity
+Generate the banner from that installation's shared readiness results:
+
+```bash
+: "${OCTO_ROOT:?Restore the verified loaded plugin root}"
+if ! PROVIDER_STATUS=$(bash "$OCTO_ROOT/scripts/helpers/check-providers.sh"); then
+  echo "Provider readiness could not be checked; stop here." >&2
+  return 1 2>/dev/null || exit 1
+fi
+printf '%s\n' 'CLAUDE OCTOPUS ACTIVATED - Factory'
+printf '%s\n' "$PROVIDER_STATUS"
+```
+
+Include every `provider:status` line. Preserve provider names exactly,
+including `agy` for the Antigravity CLI and any additional registered provider.
+Do not hand-write or summarize this banner. Respect `OCTO_ALLOWED_PROVIDERS`.
+Explain reduced review diversity
 when no allowed external provider is available. Do not label an installed CLI
 as authenticated or live-tested based only on discovery.
 
@@ -139,7 +143,9 @@ the installed spec workflow by its skill name when refinement is needed.
 
 ## Prohibited actions
 
+<HARD-GATE>
 - CANNOT skip orchestrate.sh factory execution or bypass a failed gate.
 - Do not simulate holdout testing, scoring or review contributions.
 - Do not dispatch after a refusal or treat skipped questions as cost approval.
 - Do not create run artifacts in the plugin installation.
+</HARD-GATE>

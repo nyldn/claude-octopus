@@ -5,12 +5,17 @@ disable-model-invocation: true
 
 # Factory
 
-## Instructions for Claude
+## MANDATORY COMPLIANCE
 
 When the user explicitly invokes factory or one of its aliases, load
 `skills/skill-factory/SKILL.md` from the active plugin installation and execute
-its eight-step contract. Preserve the supplied `--spec`, inline specification,
+its eight-step contract. You MUST execute that workflow. Preserve the supplied `--spec`, inline specification,
 target, holdout ratio, retry limit, fast-mode choice and prior authorization.
+
+### EXECUTION MECHANISM
+
+PROHIBITED: replacing the factory pipeline with direct implementation,
+bypassing its approval or evidence gates, or inventing provider results.
 
 The skill owns the `orchestrate.sh factory` pipeline and its run artifacts.
 It validates the spec, reviews generated scenarios before implementation, runs

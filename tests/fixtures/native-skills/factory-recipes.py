@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import re
 import shlex
 import subprocess
 import sys
@@ -52,6 +53,21 @@ if os.environ.get('OMIT_REPORT')!='1':(run/'factory-report.md').write_text('This
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assertEqual(json.loads(result.stdout)["status"], "declined")
         self.assertFalse((self.project / ".octo").exists())
+
+    def test_banner_retains_every_shared_provider_status(self):
+        text = (ROOT / ".claude/skills/skill-factory/SKILL.md").read_text()
+        step = text.split("### STEP 2:", 1)[1].split("### STEP 3:", 1)[0]
+        fence = chr(96) * 3
+        block = re.search(fence + r"bash\n(.*?)\n" + fence, step, re.S)[1]
+        helper = self.plugin / "scripts/helpers/check-providers.sh"
+        helper.parent.mkdir()
+        rows = "PROVIDER_CHECK_START\ncodex:available\nagy:missing\nperplexity:missing\ncustom-seat:degraded\nPROVIDER_CHECK_END\n"
+        helper.write_text("#!/bin/bash\nprintf '%s' " + shlex.quote(rows) + "\n")
+        result = subprocess.run(["/bin/bash", "-c", block], text=True, capture_output=True,
+                                env=dict(os.environ, OCTO_ROOT=str(self.plugin)))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("CLAUDE OCTOPUS ACTIVATED - Factory", result.stdout)
+        self.assertIn(rows, result.stdout)
 
     def test_inline_target_and_exact_run_artifacts(self):
         result = self.invoke("--inline", "--target", "0.88", approval="ci")

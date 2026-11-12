@@ -1418,7 +1418,7 @@ test_agy_slash_command_visibility() {
     if grep -q 'Codex and Antigravity' "$PROJECT_ROOT/commands/security.md" && \
        grep -q 'scripts/helpers/check-providers.sh' "$PROJECT_ROOT/commands/plan.md" && \
        grep -q 'command -v agy' "$PROJECT_ROOT/commands/review.md" && \
-       grep -q 'command -v agy' "$PROJECT_ROOT/commands/factory.md" && \
+       grep -q 'scripts/helpers/check-providers.sh' "$PROJECT_ROOT/skills/skill-factory/SKILL.md" && \
        grep -q 'command -v agy' "$PROJECT_ROOT/commands/auto.md" && \
        grep -q 'scripts/helpers/check-providers.sh' "$PROJECT_ROOT/commands/multi.md" && \
        grep -Fq '$(1) !~ /^claude($|-)/ && $(2) == "available"' "$PROJECT_ROOT/commands/multi.md" && \
@@ -1530,7 +1530,14 @@ test_provider_aware_commands_show_core_provider_status() {
                 continue
             fi
 
-            if [[ "$command" == "plan" ]]; then
+            if [[ "$command" == factory ]]; then
+                grep -Fq 'skills/skill-factory/SKILL.md' "$file" || {
+                    missing+="${file}: missing canonical factory entry"$'\n'
+                    continue
+                }
+                file="$PROJECT_ROOT/skills/skill-factory/SKILL.md"
+            fi
+            if [[ "$command" == "plan" || "$command" == factory ]]; then
                 grep -q 'PROVIDER_STATUS' "$file" || missing+="${file}: missing retained readiness snapshot"$'\n'
                 grep -q 'Include every `provider:status` line' "$file" || missing+="${file}: missing all-provider rendering contract"$'\n'
                 grep -q 'Preserve provider names exactly' "$file" || missing+="${file}: missing registry-driven provider labels"$'\n'
@@ -1590,7 +1597,14 @@ test_provider_aware_commands_generate_antigravity_banners() {
         local claude_file="$PROJECT_ROOT/commands/${command}.md"
         local cursor_file="$PROJECT_ROOT/.cursor-plugin/commands/octo-${command}.md"
         for file in "$claude_file" "$cursor_file"; do
-            if [[ "$command" == "plan" ]]; then
+            if [[ "$command" == factory ]]; then
+                grep -Fq 'skills/skill-factory/SKILL.md' "$file" || {
+                    missing+="${file}: missing canonical factory entry"$'\n'
+                    continue
+                }
+                file="$PROJECT_ROOT/skills/skill-factory/SKILL.md"
+            fi
+            if [[ "$command" == "plan" || "$command" == factory ]]; then
                 grep -q 'PROVIDER_STATUS' "$file" || missing+="${file}: missing retained readiness snapshot"$'\n'
                 grep -q 'scripts/helpers/check-providers.sh' "$file" || missing+="${file}: missing shared readiness helper"$'\n'
                 grep -q 'Preserve provider names exactly' "$file" || missing+="${file}: missing dynamic provider renderer"$'\n'
