@@ -3890,7 +3890,7 @@ def proposes(text):
     # Keep terminal punctuation on a standalone fence lead-in in its clause.
     end = len(text.rstrip(" \t\r\n.!?;"))
     start = clause_start(text, end)
-    if re.fullmatch(r"\s*(?:my|our)\s+(?:fixed|replacement)\s+(?:version|code)\s+is\s*", text[start:], re.I):
+    if re.fullmatch(r"\s*(?:my|our)\s+(?:fixed|replacement)\s+(?:version|code)\s+is\s*:?\s*", text[start:end], re.I):
         return True
     # A patch-only lead-in continues the immediately preceding proposal. Do
     # not carry it through an arbitrary later sentence or a source assertion.

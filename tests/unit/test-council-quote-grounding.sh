@@ -4037,4 +4037,20 @@ VERDICT: APPROVE")"
     fi
 done
 
+test_case "a replacement fence after an owned colon lead-in remains proposed without another real quote"
+response="$(_resp 'src/pricing.ts:1 is wrong; our fixed version is:
+```ts
+const nextPrice = fetchUpdatedPrice(input);
+```
+VERDICT: APPROVE')"
+r="$(council_response_quote_verification_json "$response" "$replacement_root")"
+if jq -e '.verification_failed == false and .quotes_verified == 0
+    and .quotes_unverifiable_proposed == 1 and .quotes_unverified == 0
+    and .fabricated == false' <<< "$r" >/dev/null &&
+    ! council_response_is_blind "$response" "$replacement_root"; then
+    test_pass
+else
+    test_fail "colon replacement was rejected without a genuine comparison quote: $r"
+fi
+
 test_summary
