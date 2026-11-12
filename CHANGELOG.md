@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Token-extraction CLI startup uses its TypeScript runner and checked options.
+  CSS token names no longer shadow source-path handling, and TypeScript output
+  options no longer shadow the constants generator. The tool's Node.js range
+  now matches its dependencies.
+
 ## [11.22.2] - 2026-11-11
 
 ### Fixed
