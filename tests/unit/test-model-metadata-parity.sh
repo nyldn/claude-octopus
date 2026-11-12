@@ -74,12 +74,16 @@ else
     test_fail "DeepSeek V4 Pro pricing is missing or stale"
 fi
 
-test_case "current Sol, Luna, and Sonnet appear with canonical capabilities and prices"
+test_case "current Sol, Terra, Luna, and Claude models retain capabilities and prices"
 if [[ "$(get_model_catalog gpt-6.1-sol)" == "1050|yes|yes|yes|codex|standard|active" &&
+      "$(get_model_catalog gpt-6.1-terra)" == "1050|yes|yes|yes|codex|standard|active" &&
+      "$(get_model_catalog claude-fable-5-2)" == "1000|yes|yes|yes|claude|premium|active" &&
       "$(get_model_catalog gpt-6-sol)" == "1050|yes|yes|yes|codex|standard|active" &&
       "$(get_model_catalog gpt-6-luna)" == "1050|yes|yes|yes|codex|budget|active" &&
       "$(get_model_catalog claude-sonnet-5-5)" == "1000|yes|yes|yes|claude|standard|active" &&
       "$(get_model_pricing openai/gpt-6.1-sol:nitro)" == "2.00:10.00" &&
+      "$(get_model_pricing openai/gpt-6.1-terra:nitro)" == "1.00:5.00" &&
+      "$(get_model_pricing anthropic/claude-fable-5-2)" == "8.00:40.00" &&
       "$(get_model_pricing gpt-6-sol)" == "2.00:10.00" &&
       "$(get_model_pricing gpt-6-luna)" == "0.10:0.50" &&
       "$(get_model_pricing claude-sonnet-5-5)" == "2.00:10.00" ]]; then
@@ -92,7 +96,7 @@ test_case "GPT-6 long-context pricing changes only above 272000 input tokens"
 if PRICING_FILE="$pricing_file" python3 - <<'PY'
 import os, subprocess
 root = os.path.dirname(os.path.dirname(os.environ["PRICING_FILE"]))
-for model, input_rate, output_rate in [("gpt-6.1-sol", 2, 10), ("gpt-6-sol", 2, 10), ("gpt-6-luna", .1, .5)]:
+for model, input_rate, output_rate in [("gpt-6.1-terra", 1, 5), ("gpt-6.1-sol", 2, 10), ("gpt-6-sol", 2, 10), ("gpt-6-luna", .1, .5)]:
     for input_tokens in (271999, 272000, 272001):
         # Exercise the billing function, including canonical namespace handling.
         command = 'source "$1/scripts/lib/models.sh"; source "$1/scripts/lib/cost.sh"; is_api_based_provider() { return 0; }; estimate_tokens() { printf "%s" "$test_input_tokens"; }; test_input_tokens="$3"; estimate_agent_call_cost codex-api "$2" ignored'

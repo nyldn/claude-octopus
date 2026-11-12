@@ -76,7 +76,7 @@ probe_single_cli() {
             printf '%s\n' 'Error: --perspective-file could not be read' >&2
             return 1
         }
-        [[ -n "${perspective//[[:space:]]/}" ]] || { printf '%s\n' 'Error: --perspective-file contains no perspective text' >&2; return 1; }
+        [[ "$perspective" =~ [^[:space:]] ]] || { printf '%s\n' 'Error: --perspective-file contains no perspective text' >&2; return 1; }
         agent_type="$1"; task_id="$2"; original_prompt="${3:-}"
         perspective_mode="file"
     else
@@ -485,7 +485,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
                 type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "ok" "$tokens_in" "$tokens_out" "" "$elapsed_ms" "$result_file" "$role" || true
                 ;;
         esac
-    elif [[ $exit_code -eq 124 ]] || [[ $exit_code -eq 143 ]]; then
+    elif [[ $exit_code -eq 124 ]]; then
         # Timeout — preserve partial output
         if [[ -s "$temp_output" ]]; then
             if [[ $(grep -c '^--------$' "$temp_output" 2>/dev/null || true) -gt 0 ]]; then
@@ -540,8 +540,11 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         tokens_out=$(octo_estimate_tokens_for_file "$temp_output" 2>/dev/null || echo 0)
         update_agent_status "$agent_type" "failed" "$elapsed_ms" "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
         local failure_reason="Exit code $exit_code"
-        declare -F octo_failure_reason >/dev/null 2>&1 && \
+        if [[ $exit_code -eq 143 ]]; then
+            failure_reason="Provider terminated by SIGTERM"
+        elif declare -F octo_failure_reason >/dev/null 2>&1; then
             failure_reason=$(octo_failure_reason "$exit_code" "$enhanced_prompt" "$temp_errors" "$temp_output")
+        fi
         type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "$failure_reason" "$elapsed_ms" "$result_file" "$role" || true
         final_rc=$exit_code
     fi
@@ -4145,9 +4148,15 @@ tangle_run_context_code_review() {
     normal_count=$(tangle_review_blocking_count "$findings_file")
     review_warning=$(tangle_review_warning_text "$findings_file")
     log INFO "Contextual code review findings: $findings_file (normal=${normal_count})"
+    # Keep status 3 exclusive to completed partial reviews from this wrapper.
+    [[ "$review_rc" -ne 3 ]] || review_rc=1
     if [[ -n "$review_warning" ]]; then
         log WARN "Contextual code review warning: ${review_warning}"
-        return 1
+        # Status 3 is reserved for a successfully finished review with partial
+        # fleet coverage. Proof, transport and publication failures keep their
+        # failure status even when a verified findings file survived.
+        [[ "$review_rc" -eq 0 ]] || return "$review_rc"
+        return 3
     fi
     return "$review_rc"
 }
@@ -5645,6 +5654,42 @@ tangle_should_attempt_contextual_review() {
 # round accounting, the convergence guard, and the absolute round ceiling are
 # unit-testable with stubbed review/correction functions
 # (tests/unit/test-tangle-correction-loop-behavior.sh).
+tangle_review_verification_complete() {
+    local review_rc="${2:-0}"
+    case "$review_rc" in
+        0) ;;
+        3) jq -e '(.warning // "") != ""' "$1" >/dev/null 2>&1 || return 1 ;;
+        *) return 1 ;;
+    esac
+    jq -e '(.verification_status // "") != "incomplete" and (.error // "") == "" and ((.findings | length) > 0 or (.warning // "") == "") and all(.findings[]?; .verdict == "confirmed" or .verdict == "false-positive" or .verdict == "needs-debate")' "$1" >/dev/null 2>&1
+}
+
+tangle_record_review_verification() {
+    local task_group="$1" findings_file="$2" state="$3"
+    local metadata="${RESULTS_DIR:-${HOME}/.claude-octopus/results}/.tangle-${task_group}-git.json"
+    local tmp outcome="$state"
+    if [[ "$state" == complete ]] && ! jq -e '(.warning // "") == ""' "$findings_file" >/dev/null 2>&1; then
+        state=incomplete
+        outcome=partial-verified
+    fi
+    if [[ -f "$metadata" ]]; then
+        tmp=$(mktemp "${metadata}.XXXXXX") || return 1
+        if jq --arg findings "$findings_file" --arg state "$state" --arg outcome "$outcome" '
+            if $state == "pending" and .reviewVerification == "incomplete" then
+                if $findings == "" then . else .reviewFindings = $findings end
+            else
+                . + {reviewVerification:$state,reviewOutcome:$outcome} |
+                if $state == "incomplete" and $findings == "" then . else .reviewFindings = $findings end
+            end' "$metadata" > "$tmp"; then
+            mv "$tmp" "$metadata" || { rm -f "$tmp"; return 1; }
+        else rm -f "$tmp"; return 1; fi
+    fi
+    if [[ "$state" == incomplete ]]; then
+        log ERROR "Contextual review infrastructure incomplete; preserving worktree without applying unverified findings: $findings_file"
+    fi
+    return 0
+}
+
 tangle_contextual_review_gate() {
     local task_group="$1"
     local resolved_prompt="$2"
@@ -5669,17 +5714,26 @@ tangle_contextual_review_gate() {
         return "$validation_rc"
     fi
 
+    tangle_record_review_verification "$task_group" "" pending || return 2
     local review_context_file
-    review_context_file=$(tangle_build_develop_review_context "$task_group" "$resolved_prompt" "$context" "$subtasks" "$validation_file" "$worktree_before_file" "initial")
+    review_context_file=$(tangle_build_develop_review_context "$task_group" "$resolved_prompt" "$context" "$subtasks" "$validation_file" "$worktree_before_file" "initial") || return $?
 
     local review_rc=0
     tangle_run_context_code_review "$task_group" "$review_context_file" "initial" || review_rc=$?
     local findings_file="$TANGLE_REVIEW_FINDINGS_FILE"
-    tangle_ensure_scope_contract_finding "$findings_file" "${TANGLE_SCOPE_CONTRACT_VIOLATIONS:-}" || return 1
     if ! tangle_review_findings_valid "$findings_file"; then
+        tangle_record_review_verification "$task_group" "$findings_file" incomplete || return 2
         log ERROR "Contextual code review produced an invalid findings document: ${findings_file}"
         return 1
     fi
+    if ! tangle_review_verification_complete "$findings_file" "$review_rc"; then
+        tangle_record_review_verification "$task_group" "$findings_file" incomplete || return 2
+        if [[ "$review_rc" -ne 0 ]]; then return "$review_rc"; fi
+        return 2
+    fi
+    # Local scope evidence cannot establish that the reviewer fleet completed.
+    tangle_ensure_scope_contract_finding "$findings_file" "${TANGLE_SCOPE_CONTRACT_VIOLATIONS:-}" || return 1
+    tangle_record_review_verification "$task_group" "$findings_file" complete || return 2
     local normal_count
     normal_count=$(tangle_review_blocking_count "$findings_file")
 
@@ -5725,6 +5779,7 @@ tangle_contextual_review_gate() {
         fi
 
         local correction_rc=0
+        tangle_record_review_verification "$task_group" "$findings_file" pending || return 2
         tangle_apply_review_corrections "$resolved_prompt" "$review_context_file" "$findings_file" "$correction_round" "$tangle_coding_agent" "$correction_strategy" || correction_rc=$?
         if [[ "$correction_rc" -ne 0 ]]; then
             if [[ "${TANGLE_CORRECTION_STATUS:-}" == "failed-no-progress" && "${TANGLE_CORRECTION_CHANGED:-0}" != "1" ]]; then
@@ -5762,15 +5817,22 @@ tangle_contextual_review_gate() {
             log ERROR "Tangle retry supervision failed after correction; stopping before further review or delivery"
             return "$validation_rc"
         fi
-        review_context_file=$(tangle_build_develop_review_context "$task_group" "$resolved_prompt" "$context" "$subtasks" "$validation_file" "$worktree_before_file" "correction-${correction_round}")
+        review_context_file=$(tangle_build_develop_review_context "$task_group" "$resolved_prompt" "$context" "$subtasks" "$validation_file" "$worktree_before_file" "correction-${correction_round}") || return $?
         review_rc=0
         tangle_run_context_code_review "$task_group" "$review_context_file" "correction-${correction_round}" || review_rc=$?
         findings_file="$TANGLE_REVIEW_FINDINGS_FILE"
-        tangle_ensure_scope_contract_finding "$findings_file" "${TANGLE_SCOPE_CONTRACT_VIOLATIONS:-}" || return 1
         if ! tangle_review_findings_valid "$findings_file"; then
+            tangle_record_review_verification "$task_group" "$findings_file" incomplete || return 2
             log ERROR "Contextual code review produced an invalid findings document after correction round ${correction_round}: ${findings_file}"
             return 1
         fi
+        if ! tangle_review_verification_complete "$findings_file" "$review_rc"; then
+            tangle_record_review_verification "$task_group" "$findings_file" incomplete || return 2
+            if [[ "$review_rc" -ne 0 ]]; then return "$review_rc"; fi
+            return 2
+        fi
+        tangle_ensure_scope_contract_finding "$findings_file" "${TANGLE_SCOPE_CONTRACT_VIOLATIONS:-}" || return 1
+        tangle_record_review_verification "$task_group" "$findings_file" complete || return 2
         normal_count=$(tangle_review_blocking_count "$findings_file")
         local current_signature
         current_signature=$(tangle_findings_signature "$findings_file")
@@ -6175,15 +6237,23 @@ $sonnet_review
 Compact source context to synthesize:
 $all_results"
 
-    local delivery
-    if octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then
-        if ! delivery=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="ink-delivery-watchdog" run_agent_sync "agy" "$synthesis_prompt" 0 "synthesizer" "ink") || \
+    local delivery synth_agent=""
+    if ! declare -F octo_provider_allowed >/dev/null 2>&1; then
+        log WARN "Synthesis authorization unavailable; using bounded fallback synthesis"
+    elif declare -F _aggregate_pick_synth_agent >/dev/null 2>&1; then
+        synth_agent=$(_aggregate_pick_synth_agent)
+    elif octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then
+        synth_agent="agy"
+    fi
+    if [[ -n "$synth_agent" ]]; then
+        log INFO "Step 2b: Synthesizing delivery via ${synth_agent}..."
+        if ! delivery=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="ink-delivery-watchdog" run_agent_sync "$synth_agent" "$synthesis_prompt" 0 "synthesizer" "ink") || \
             [[ ! "$delivery" =~ [^[:space:]] ]]; then
-            log WARN "Antigravity (agy) returned no usable delivery; using bounded fallback synthesis"
+            log WARN "Synthesizer ${synth_agent} returned no usable delivery; using bounded fallback synthesis"
             delivery=$(build_ink_fallback_delivery "$prompt" "$sonnet_review" "$all_results")
         fi
     else
-        log WARN "Antigravity (agy) unavailable or not allowed, using fallback delivery synthesis"
+        log WARN "No synthesis provider is available or allowed; using fallback delivery synthesis"
         delivery=$(build_ink_fallback_delivery "$prompt" "$sonnet_review" "$all_results")
     fi
 

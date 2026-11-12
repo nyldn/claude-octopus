@@ -203,7 +203,7 @@ octo_agent_spec_exact_role_allowed() {
     case "$provider" in
         claude|claude-sdk)
             case "$model" in
-                claude-fable-5|claude-fable-5-1)
+                claude-fable-5|claude-fable-5-1|claude-fable-5-2)
                     octo_agent_spec_is_security_dispatch "$role" "$spec" "$phase" && return 1
                     ;;
             esac

@@ -399,6 +399,21 @@ for model in ("gpt-6-sol", "gpt-6-luna"):
         assert seen[-1]["temperature"] == 0, seen[-1]
         call(transport, None, "none")
         assert "temperature" not in seen[-1] and "reasoning_effort" not in seen[-1], seen[-1]
+for transport in ("gpt-6.1-terra", "openai/gpt-6.1-terra", "openrouter:openai/gpt-6.1-terra:floor", "gpt-6.1-terra:nitro"):
+    for effort in (None, "none", "low", "medium", "high", "xhigh", "max"):
+        before = len(seen)
+        try: call(transport, effort, "auto")
+        except ValueError: pass
+        else: raise AssertionError((transport, effort, "Terra tools admitted"))
+        assert len(seen) == before
+        call(transport, effort, "none")
+        assert "tools" not in seen[-1], seen[-1]
+        assert ("temperature" in seen[-1]) == (effort == "none"), seen[-1]
+    before = len(seen)
+    try: call(transport, "minimal", "none")
+    except ValueError: pass
+    else: raise AssertionError((transport, "minimal effort admitted"))
+    assert len(seen) == before
 call("gpt-6.1-sol-preview", None, "auto")
 assert seen[-1]["temperature"] == 0 and seen[-1]["tools"], seen[-1]
 PYTEST

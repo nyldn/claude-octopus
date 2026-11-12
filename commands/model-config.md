@@ -161,9 +161,8 @@ AskUserQuestion({
     multiSelect: false,
     options: [
       {label: "gpt-6.1-sol", description: "Current Sol for complex coding, 2/10 USD per MTok input/output; requires model access in your Codex client"},
-      {label: "gpt-6-sol", description: "Previous Sol, 2/10 USD per MTok input/output; preserve an existing pin if preferred"},
+      {label: "gpt-6.1-terra", description: "Visual reasoning and writing, 1/5 USD per MTok input/output; confirm access in your Codex client"},
       {label: "gpt-6-luna", description: "Focused tasks and budget checks, 0.10/0.50 USD per MTok input/output"},
-      {label: "gpt-5.6-sol", description: "Current Octopus release default, 4/20 USD per MTok input/output; retained for existing configurations"},
       {label: "Custom", description: "Enter a custom model name"}
     ]
   }]
@@ -177,7 +176,17 @@ cost 2x input and 1.5x output for the whole request. The catalog also includes
 v2.1.284 and newer. Older clients retain their supported Sonnet default. Saved
 pins remain unchanged; catalogue presence does not confirm account access. Catalog
 specifications and sources are in `docs/MODEL-ROUTING-STRATEGY.md`.
-`gpt-5.6-terra`, `gpt-5.6-luna`, and `o3` remain available through Custom.
+GPT-6.1 Terra tools require Responses; the Chat Completions adapter accepts it
+only with `--tool-policy none`. It supports `none` reasoning, unlike GPT-6.1 Sol.
+
+`claude-fable-5-2` is available through an explicit model-qualified Claude or
+Claude SDK seat, or a session environment pin. It costs USD 8 per million input
+tokens and USD 40 per million output tokens, needs Claude Code v2.1.321 or newer
+on the CLI path, and retains the Fable security, input-size, effort and retry
+guards. It requires 30-day provider retention.
+It does not replace the existing Fable 5.1 escalation target.
+`gpt-6-sol`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, and `o3`
+remain available through Custom. The release default remains GPT-5.6 Sol.
 
 `gpt-6-astra` is intentionally absent from persistent provider defaults. For a
 bounded Premium evaluation after Sol fails a hard acceptance test, configure

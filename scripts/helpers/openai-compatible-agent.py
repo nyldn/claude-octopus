@@ -212,16 +212,18 @@ def canonical_model_id(model):
     colon, slash = model.find(":"), model.find("/")
     if colon >= 0 and (slash < 0 or colon < slash):
         prefix, remainder = model.split(":", 1)
-        if prefix not in {"gpt-6-astra", "gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna"}:
+        if prefix not in {"gpt-6-astra", "gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-sol", "gpt-6-luna"}:
             transport_model = remainder
     return transport_model.rsplit("/", 1)[-1].split(":", 1)[0]
 
 
 def validate_chat_model(model, reasoning_effort, tool_policy):
     model_id = canonical_model_id(model)
+    if model_id in {"gpt-6-astra", "gpt-6.1-sol", "gpt-6.1-terra"} and tool_policy == "auto":
+        raise ValueError(f"{model_id} tools require the Responses API; use Codex CLI or --tool-policy none")
+    if model_id == "gpt-6.1-terra" and reasoning_effort == "minimal":
+        raise ValueError(f"{model_id} does not support reasoning effort minimal; use none or low or higher")
     if model_id in {"gpt-6-astra", "gpt-6.1-sol"}:
-        if tool_policy == "auto":
-            raise ValueError(f"{model_id} tools require the Responses API; use Codex CLI or --tool-policy none")
         if reasoning_effort in {"none", "minimal"}:
             raise ValueError(f"{model_id} does not support reasoning effort {reasoning_effort}; use low or higher")
     if model_id in {"gpt-6-sol", "gpt-6-luna"} and tool_policy == "auto" and reasoning_effort != "none":
@@ -273,7 +275,7 @@ def api_call(base_url, key, model, headers_extra, messages, max_tokens=0, reques
     validate_chat_model(model, reasoning_effort, tool_policy)
     payload = {"model": model, "messages": messages}
     model_id = canonical_model_id(model)
-    if model_id not in {"gpt-6-astra", "gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna"} or reasoning_effort == "none":
+    if model_id not in {"gpt-6-astra", "gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-sol", "gpt-6-luna"} or reasoning_effort == "none":
         payload["temperature"] = 0
     if tool_policy == "auto":
         payload["tools"] = TOOLS
