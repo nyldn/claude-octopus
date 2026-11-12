@@ -8,7 +8,11 @@ import sys
 
 
 def check_tree(checkpoint):
-    """Allow ignored files only when checkpoint restoration cannot touch them."""
+    """Allow ignored paths only when restoration cannot touch them.
+
+    Git's ignored-file listing omits empty directories, including one exactly
+    matching a checkpoint path. This scan does not detect those collisions.
+    """
     root = subprocess.check_output(["git", "rev-parse", "--show-toplevel"]).rstrip(b"\n")
 
     def git(*arguments):
@@ -39,6 +43,9 @@ def check_tree(checkpoint):
     # A historical file/symlink at .octo would destroy current protected lessons.
     if ".octo" in paths and os.path.lexists(os.path.join(os.fsdecode(root), ".octo", "LESSONS.md")):
         raise ValueError("checkpoint replaces .octo and would remove protected LESSONS.md")
+    # Restore excludes this exact protected path from both index and worktree.
+    # Keep ancestor and descendant collisions subject to the existing checks.
+    paths.discard(".octo/LESSONS.md")
     directories = {str(parent) for path in paths for parent in PurePosixPath(path).parents}
     ignored = git("ls-files", "-z", "--others", "--ignored", "--exclude-standard")
     for raw_path in ignored.split(b"\0"):

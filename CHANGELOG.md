@@ -4,6 +4,11 @@
 
 ### Fixed
 
+- Rollback resolves the loaded Codex plugin root, requires the saved recovery
+  timestamp, and includes reviewed state history with the restored snapshot.
+  Ignored protected lessons remain untouched; other ignored-path collisions
+  still stop restoration. Recovery guidance preserves untracked files.
+
 - Branch completion supports pushing without creating a PR. Local merges can
   use a local base, protect ignored files during synchronization, and abort
   conflicts while retaining both checkouts. A checkout switched to the base

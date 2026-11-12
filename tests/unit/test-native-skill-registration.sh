@@ -486,6 +486,13 @@ PY_RECOVERY
 then test_pass; else test_fail "documented recovery cannot safely restore the safety checkpoint"; fi
 
 
+test_case "rollback recipes preserve host roots, recovery guards, history and ignored lessons"
+if python3 "$PROJECT_ROOT/tests/fixtures/native-skills/rollback-recipes.py" "$PROJECT_ROOT"; then
+    test_pass
+else
+    test_fail "rollback recipe violated its restoration or recovery contract"
+fi
+
 test_case "rollback refuses checkpoint submodule changes before mutation"
 if python3 - "$PROJECT_ROOT" <<'PY_SUBMODULE'
 import os

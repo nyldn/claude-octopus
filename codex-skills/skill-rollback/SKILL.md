@@ -127,15 +127,16 @@ its worktree needs a separate, reviewed restoration. Reject a checkpoint that wo
 protected lessons with a file or symlink. Check ignored files against the selected checkpoint too, including file
 and directory collisions. A Git tag records committed files only. If either
 check fails, stop and let the user preserve their work before starting again.
-Use the plugin installation that loaded this skill. If `CLAUDE_PLUGIN_ROOT` is
-absent, replace the fallback below with that installation's absolute path.
+Use the plugin installation that loaded this skill. Check `CLAUDE_PLUGIN_ROOT`,
+then `CODEX_PLUGIN_ROOT`. If neither is set, replace the fallback below with the
+verified installation's absolute path.
 
 ```bash
 # Run the remaining rollback steps from the repository root.
 cd -- "$(git rev-parse --show-toplevel)" || exit 1
 
 # Refuse work that the safety tag cannot recover. Fail closed on Git errors.
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 python3 "$OCTO_ROOT/scripts/helpers/rollback-preflight.py" "$CHECKPOINT_TAG" || exit 1
 
 # Generate timestamp
@@ -179,7 +180,7 @@ running it. Never infer the latest checkpoint or generate a new timestamp.
 cd -- "$(git rev-parse --show-toplevel)" || exit 1
 
 # Recheck immediately before restoring in case work changed after confirmation.
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 python3 "$OCTO_ROOT/scripts/helpers/rollback-preflight.py" "$CHECKPOINT_TAG" || exit 1
 
 # Restore the full tracked snapshot, including removal of post-checkpoint files.
@@ -207,6 +208,15 @@ if [ -f ".octo/STATE.md" ]; then
 fi
 ```
 
+Review the appended history with `git diff -- .octo/STATE.md`. After reviewing
+it, stage that file if it exists. Keep the restore's already-staged changes:
+
+```bash
+if [ -f ".octo/STATE.md" ]; then
+  git add -- .octo/STATE.md || exit 1
+fi
+```
+
 ### Step 8: Report Success
 
 ````markdown
@@ -224,7 +234,7 @@ Rollback Complete
 2. Commit the rollback if satisfied:
    ```bash
    git diff --cached
-    # The restore already staged its changes. Review any STATE.md edit separately.
+    # The restore and reviewed STATE.md history are already staged.
     git commit -m "chore: rollback to $CHECKPOINT_TAG"
    ```
 3. To return to the previous state, follow the recovery instructions below.
@@ -232,10 +242,11 @@ Rollback Complete
 
 ### Recover from the safety checkpoint
 
-The rollback leaves staged changes, and Step 7 can also leave an unstaged
-STATE.md update. A second `$skill-rollback` refuses this non-clean tree. First
-commit or stash the restored state and any subsequent edits, including
-untracked files. Choose how to preserve that work with the user before recovery.
+The rollback leaves staged changes, including the reviewed STATE.md history.
+A second `$skill-rollback` refuses this non-clean tree. First commit the restored
+state and subsequent edits, or preserve them with
+`git stash push --include-untracked`. Choose how to preserve that work with the
+user before recovery.
 Keep the saved commit or stash until recovery has been reviewed.
 
 Use the exact safety tag reported in Step 4. If starting a new shell, set
@@ -247,6 +258,7 @@ If it is missing or unreadable, stop; do not skip the preflight.
 
 ```bash
 cd -- "$(git rev-parse --show-toplevel)" || exit 1
+: "${TIMESTAMP:?Set the safety checkpoint timestamp saved in Step 4}"
 SAFETY_TAG="octo-checkpoint-pre-rollback-$TIMESTAMP"
 PREFLIGHT_COPY=$(git rev-parse --git-path "octo-rollback-preflight-$TIMESTAMP.py") || exit 1
 python3 "$PREFLIGHT_COPY" "$SAFETY_TAG" || exit 1
