@@ -107,6 +107,60 @@ touch "$GITHUB_PROBE_CALLED"
         self.assertTrue(called.exists(), "GitHub authentication fixture was not reached")
         self.assertFalse(self.marker.exists(), "OpenCode credential reached GitHub authentication")
 
+    def test_copilot_availability_probes_exclude_forwarded_mistral_key(self):
+        """Capability and auth fallback probes must not inherit OpenCode's key."""
+        self.env.update(MISTRAL_API_KEY="fixture", UNRELATED_SETTING="preserved")
+        for name, arguments, output in (
+                ("copilot", "--help", "--prompt --model --silent --no-ask-user --disable-builtin-mcps"),
+                ("gh", "auth status", "")):
+            cli = self.bin / name
+            cli.write_text('#!/bin/sh\n'
+                           f'[ "$*" = {shlex.quote(arguments)} ] || exit 70\n'
+                           '[ -z "${MISTRAL_API_KEY+x}" ] || exit 71\n'
+                           '[ "$UNRELATED_SETTING" = preserved ] || exit 72\n'
+                           f'printf "%s\\n" {shlex.quote(name)} >> "$PROBE_MARKER"\n'
+                           f'printf "%s\\n" {shlex.quote(output)}\n')
+            cli.chmod(0o755)
+        for action, expected in (("copilot_is_available", "copilot\ngh\n"),
+                                 ("copilot_auth_method", "gh\n")):
+            with self.subTest(action=action):
+                self.marker.unlink(missing_ok=True)
+                result = self.shell('source scripts/lib/copilot.sh; ' + action + '; rc=$?; '
+                                    '[[ "$MISTRAL_API_KEY" == fixture && "$UNRELATED_SETTING" == preserved ]] '
+                                    '|| exit 73; exit "$rc"')
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(self.marker.read_text(), expected)
+                if action == "copilot_auth_method":
+                    self.assertEqual(result.stdout.strip(), "gh-cli")
+
+    def test_opencode_login_storage_cannot_bypass_quota_exclusions(self):
+        """SQLite and undiscovered environment logins obey the same stop marks."""
+        self.env["CLI_VERSION"] = "2.0.23"
+        script = r'''
+source scripts/lib/preflight.sh
+octo_quota_failed_this_run() { [[ "$QUOTA_KIND" == health-failed ]]; }
+octo_quota_is_dead() { [[ "$QUOTA_KIND" == quota ]]; }
+octo_provider_readiness_result opencode "$CHECK_KIND"
+'''
+        for storage, quota, kind in product(("sqlite", "legacy", "environment", "none"),
+                                            ("quota", "health-failed"), ("static", "live")):
+            with self.subTest(storage=storage, quota=quota, kind=kind):
+                for name in ("opencode.db", "auth.json"):
+                    (self.data / name).unlink(missing_ok=True)
+                self.env.pop("OPENROUTER_API_KEY", None)
+                if storage in ("sqlite", "legacy"):
+                    (self.data / ("opencode.db" if storage == "sqlite" else "auth.json")).touch()
+                elif storage == "environment":
+                    self.env["OPENROUTER_API_KEY"] = "fixture"
+                self.env.update(QUOTA_KIND=quota, CHECK_KIND=kind)
+                self.marker.unlink(missing_ok=True)
+                result = self.shell(script)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                readiness = json.loads(result.stdout)
+                self.assertEqual(readiness["status"], "degraded")
+                self.assertEqual(readiness["reason_code"], quota)
+                self.assertFalse(self.marker.exists(), "excluded provider was probed")
+
     def test_mcp_preserves_opencode_xdg_roots_through_login_and_dispatch(self):
         """Run the real adapter filter and child environment with custom XDG roots."""
         settings = {name: str(self.base / name.lower()) for name in

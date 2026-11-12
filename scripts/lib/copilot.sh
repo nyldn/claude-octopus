@@ -10,7 +10,7 @@
 # version floor and remains correct if GitHub backports or changes versions.
 copilot_has_required_capabilities() {
     local help_text="" required=""
-    if ! help_text="$(copilot --help </dev/null 2>/dev/null)" || [[ -z "$help_text" ]]; then
+    if ! help_text="$(unset MISTRAL_API_KEY && copilot --help </dev/null 2>/dev/null)" || [[ -z "$help_text" ]]; then
         return 1
     fi
     for required in --prompt --model --silent --no-ask-user --disable-builtin-mcps; do
@@ -37,7 +37,7 @@ copilot_is_available() {
         return 0
     fi
     # Check gh CLI fallback
-    if command -v gh &>/dev/null && gh auth status &>/dev/null; then
+    if command -v gh &>/dev/null && (unset MISTRAL_API_KEY && gh auth status) &>/dev/null; then
         return 0
     fi
     return 1
@@ -55,7 +55,7 @@ copilot_auth_method() {
         echo "env:GITHUB_TOKEN"
     elif [[ -f "${HOME}/.copilot/config.json" ]]; then
         echo "keychain"
-    elif command -v gh &>/dev/null && gh auth status &>/dev/null; then
+    elif command -v gh &>/dev/null && (unset MISTRAL_API_KEY && gh auth status) &>/dev/null; then
         echo "gh-cli"
     else
         echo "none"

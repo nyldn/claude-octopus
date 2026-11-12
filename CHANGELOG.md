@@ -4,6 +4,11 @@
 
 ### Fixed
 
+- SQLite-only and environment-only OpenCode logins retain existing quota and
+  run-local health exclusions. Excluded seats are not probed or readmitted.
+  Copilot capability and GitHub authentication probes omit the unrelated
+  Mistral credential forwarded for OpenCode while preserving parent settings.
+
 - OpenCode discovery and readiness check each supported environment token
   independently, so a blank token cannot hide another configured login.
   Preflight uses the current directory when the configured project root is

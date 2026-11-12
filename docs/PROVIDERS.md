@@ -516,6 +516,9 @@ supported environment credentials as configured, matching static readiness;
 this remains configuration evidence rather than a confirmed login.
 Other panel providers retain their static readiness results; a static
 panel receipt cannot replace OpenCode login confirmation at dispatch.
+Existing quota and run-local health exclusions also apply when an OpenCode
+login needs live confirmation, including SQLite-only and environment-only
+logins. An excluded seat cannot clear its stop mark through a login check.
 The MCP adapter forwards `MISTRAL_API_KEY` for environment-only OpenCode
 connections as well. A configured key still needs a successful private-server
 login check; forwarding it alone does not establish account or model access.
@@ -526,6 +529,8 @@ ambient Mistral key before dispatch filtering. Claude host version, status and
 capability-help and authentication probes also exclude it while preserving the
 parent environment. Cursor version and session-status probes also exclude the
 forwarded Mistral key, preserving Cursor authentication and the parent shell.
+Copilot capability checks and its GitHub authentication fallback exclude that
+key as well, including authentication-method reporting.
 OpenCode version probes omit both Mistral and search
 credentials. OpenCode login probes retain Mistral for environment-only login and
 omit the unrelated search credential. This filtering does not establish

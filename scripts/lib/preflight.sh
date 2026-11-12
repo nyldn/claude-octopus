@@ -488,13 +488,17 @@ _octo_provider_static_readiness() {
             ;;
     esac
 
-    if [[ "$status" == "available" ]] && declare -f octo_quota_failed_this_run >/dev/null 2>&1 &&
+    # OpenCode can confirm SQLite or environment logins only in live mode.
+    # Pending authentication must not bypass an existing run/quota exclusion.
+    if [[ "$status" == available || ( "$provider" == opencode && "$status" == degraded ) ]] &&
+       declare -f octo_quota_failed_this_run >/dev/null 2>&1 &&
        octo_quota_failed_this_run "$provider"; then
         # An inconclusive smoke failure in this run: excluded for now, not cached.
         status="degraded"
         reason_code="health-failed"
         remediation="Failed this run's smoke test (not cached); excluded for the rest of this run."
-    elif [[ "$status" == "available" ]] && declare -f octo_quota_is_dead >/dev/null 2>&1 && octo_quota_is_dead "$provider"; then
+    elif [[ "$status" == available || ( "$provider" == opencode && "$status" == degraded ) ]] &&
+         declare -f octo_quota_is_dead >/dev/null 2>&1 && octo_quota_is_dead "$provider"; then
         status="degraded"
         reason_code="quota"
         remediation="Wait for the provider quota window to reset or choose another provider."
