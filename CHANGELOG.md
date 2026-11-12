@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Automatic research confirms SQLite-only and environment-only OpenCode logins
+  before choosing its fleet, including without a pinned council roster. Static
+  preflight inspection, probe skips and existing provider exclusions are preserved.
+
 - SQLite-only and environment-only OpenCode logins retain existing quota and
   run-local health exclusions. Excluded seats are not probed or readmitted.
   Copilot capability and GitHub authentication probes omit the unrelated

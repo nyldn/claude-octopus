@@ -956,7 +956,7 @@ probe_discover() {
     fi
 
     # Pre-flight validation
-    preflight_check false "" dispatch || return 1
+    preflight_check false "" auto-dispatch || return 1
 
     if [[ "${OCTOPUS_RESEARCH_EVIDENCE:-true}" == "true" ]] \
        && declare -F research_run_begin >/dev/null 2>&1; then

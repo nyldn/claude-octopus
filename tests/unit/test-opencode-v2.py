@@ -609,6 +609,79 @@ preflight_check true opencode
                 self.assertFalse(self.marker.exists())
             self.env["OCTOPUS_SKIP_PROVIDER_PROBES"] = "false"
 
+    def test_automatic_research_admission_confirms_unpinned_opencode(self):
+        """Only an actual automatic research dispatch can confirm an unpinned seat."""
+        self.env.update(CLI_VERSION="2.0.23", CHECK_CONTEXT="auto-dispatch")
+        script = r'''
+source scripts/lib/preflight.sh
+source scripts/lib/config-display.sh
+log() { :; }
+_preflight_provider_candidates() { echo opencode; }
+detect_enterprise_backend() { :; }
+provider_smoke_test() { :; }
+WORKSPACE_DIR="$HOME"; PREFLIGHT_CACHE_FILE="$HOME/preflight-cache"
+preflight_check false "" "$CHECK_CONTEXT"
+'''
+        for storage, connected, skip in product(("sqlite", "environment"), (False, True), (False, True)):
+            with self.subTest(storage=storage, connected=connected, skip=skip):
+                database = self.data / "opencode.db"
+                database.unlink(missing_ok=True)
+                self.env.pop("OPENROUTER_API_KEY", None)
+                if storage == "sqlite":
+                    database.touch()
+                else:
+                    self.env["OPENROUTER_API_KEY"] = "fixture"
+                cache = Path(self.env["HOME"]) / "preflight-cache"
+                cache.write_text("9999999999\n0\n")
+                cache_before = cache.read_bytes()
+                self.env.update(OCTOPUS_SKIP_PROVIDER_PROBES="true" if skip else "false",
+                                AUTH_JSON=json.dumps([{"id": "openai", "connections": [
+                                    {"type": "credential" if storage == "sqlite" else "environment"}]}]
+                                    if connected else []))
+                self.marker.unlink(missing_ok=True)
+                result = self.shell(script)
+                self.assertEqual(result.returncode == 0, connected and not skip,
+                                 result.stdout + result.stderr)
+                self.assertEqual(self.marker.exists(), not skip)
+                self.assertEqual(cache.read_bytes(), cache_before,
+                                 "dispatch replaced broad discovery evidence")
+
+    def test_automatic_research_admission_honors_exclusions_without_probes(self):
+        """A selected automatic workflow must still obey admission ceilings."""
+        self.env.update(CLI_VERSION="2.0.23")
+        (self.data / "opencode.db").touch()
+        script = r'''
+source scripts/lib/preflight.sh
+source scripts/lib/config-display.sh
+log() { :; }
+_preflight_provider_candidates() { echo opencode; }
+detect_enterprise_backend() { :; }
+provider_smoke_test() { :; }
+octo_quota_is_dead() { [[ "$EXCLUSION" == quota ]]; }
+octo_quota_failed_this_run() { [[ "$EXCLUSION" == health ]]; }
+WORKSPACE_DIR="$HOME"; PREFLIGHT_CACHE_FILE="$HOME/preflight-cache"
+preflight_check false "" auto-dispatch
+'''
+        for exclusion in ("quota", "health", "allowlist"):
+            with self.subTest(exclusion=exclusion):
+                self.marker.unlink(missing_ok=True)
+                self.env.update(EXCLUSION=exclusion,
+                                OCTO_ALLOWED_PROVIDERS="codex" if exclusion == "allowlist" else "opencode")
+                result = self.shell(script)
+                self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertFalse(self.marker.exists(), "excluded OpenCode was probed")
+
+    def test_research_entrypoint_selects_automatic_dispatch_context(self):
+        """The real research entrypoint distinguishes dispatch from inspection."""
+        result = self.shell(r'''
+source scripts/lib/workflows.sh
+log() { :; }
+preflight_check() { printf 'preflight:%s|%s|%s\n' "$1" "$2" "$3"; return 77; }
+probe_discover fixture
+''')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("preflight:false||auto-dispatch", result.stdout)
+
     def test_fixed_panel_confirms_only_dispatch_selected_opencode(self):
         """Static panel receipts never authorize a selected SQLite login."""
         auth_marker = self.base / "auth-called"

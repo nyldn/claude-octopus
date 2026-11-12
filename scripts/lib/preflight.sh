@@ -750,6 +750,8 @@ preflight_check() {
     local force_check="${1:-false}"
     local selected_provider="${2:-}"
     local check_context="${3:-static}"
+    local workflow_dispatch=false
+    case "$check_context" in dispatch|auto-dispatch) workflow_dispatch=true ;; esac
     local opencode_workdir="${PROJECT_ROOT:-$PWD}"
     [[ -d "$opencode_workdir" ]] || opencode_workdir="$PWD"
     local _octo_vibe_check_context=automatic
@@ -760,8 +762,15 @@ preflight_check() {
     local opencode_admission="$selected_opencode"
     # A running workflow can confirm the user's pinned roster. Inspection of
     # that same roster does not authorize login probes.
-    if [[ "$check_context" == dispatch && -n "${OCTOPUS_COUNCIL_DEFAULT_PROVIDERS:-}" &&
+    if [[ "$workflow_dispatch" == true && -n "${OCTOPUS_COUNCIL_DEFAULT_PROVIDERS:-}" &&
           "${OCTOPUS_COUNCIL_DEFAULT_PROVIDERS:-}" != auto ]] && octo_preflight_in_roster opencode; then
+        opencode_admission=true
+    fi
+
+    # Automatic research selects its fleet after admission. Confirm an
+    # unpinned OpenCode candidate there, never during broad inspection.
+    if [[ "$check_context" == auto-dispatch && -z "$selected_provider" &&
+          "${OCTOPUS_COUNCIL_DEFAULT_PROVIDERS:-auto}" == auto ]]; then
         opencode_admission=true
     fi
 
@@ -780,7 +789,7 @@ preflight_check() {
         # Panel inspection stays static. Actual dispatch must confirm only its
         # selected OpenCode seat before accepting or rejecting static evidence.
         if [[ "$selected_opencode" == true ]] ||
-           { [[ "$check_context" == dispatch ]] &&
+           { [[ "$workflow_dispatch" == true ]] &&
              jq -e '.results | any(.provider == "opencode")' <<< "$panel_report" >/dev/null; }; then
             local panel_opencode
             panel_opencode="$(cd "$opencode_workdir" && octo_provider_readiness_result opencode live)" || return 1

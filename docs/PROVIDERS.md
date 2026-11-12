@@ -506,6 +506,13 @@ logins. A running workflow also confirms OpenCode when the user pins it in the
 council roster. A broad discovery cache cannot replace those checks, and dispatch
 confirmation does not populate the broad cache or replace it on failure. Explicit live readiness checks
 remain available without dispatching a model task.
+Automatic research supplies a separate dispatch context before it selects a
+fleet. Without a pinned roster, that entrypoint also confirms an OpenCode
+candidate's SQLite or environment login. Invalid logins and explicit probe skips
+remain rejected; quota exclusions and provider allowlists still apply. This
+confirmation cannot consume or overwrite broad discovery cache evidence.
+Standalone preflight and unrelated workflow inspection remain static.
+
 Single-agent probes also supply dispatch context, so a pinned OpenCode roster
 confirms SQLite or environment logins even when the selected seat uses another
 provider. Standalone roster inspection remains static. Fixed-panel dispatch
