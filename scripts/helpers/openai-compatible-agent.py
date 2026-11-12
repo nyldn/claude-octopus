@@ -361,26 +361,26 @@ def main() -> int:
     base_url = args.base_url or (os.environ.get("OPENAI_COMPAT_BASE_URL") if generic else None) or cfg["base_url"]
     key_env = args.api_key_env or (os.environ.get("OPENAI_COMPAT_API_KEY_ENV") if generic else None) or cfg["api_key_env"]
     if args.provider == "atlascloud":
-        model = args.model or os.environ.get("ATLASCLOUD_MODEL") or os.environ.get("OCTOPUS_ATLASCLOUD_MODEL") or os.environ.get("OPENAI_COMPAT_MODEL") or cfg["model"]
+        model = args.model or os.environ.get("ATLASCLOUD_MODEL") or os.environ.get("OCTOPUS_ATLASCLOUD_MODEL") or cfg["model"]
     elif args.provider == "cheaperinference":
-        model = args.model or os.environ.get("CHEAPER_INFERENCE_MODEL") or os.environ.get("OCTOPUS_CHEAPERINFERENCE_MODEL") or os.environ.get("OPENAI_COMPAT_MODEL") or cfg["model"]
+        model = args.model or os.environ.get("CHEAPER_INFERENCE_MODEL") or os.environ.get("OCTOPUS_CHEAPERINFERENCE_MODEL") or cfg["model"]
     elif args.provider == "uberllm":
-        model = args.model or os.environ.get("UBERLLM_MODEL") or os.environ.get("OCTOPUS_UBERLLM_MODEL") or os.environ.get("OPENAI_COMPAT_MODEL") or cfg["model"]
+        model = args.model or os.environ.get("UBERLLM_MODEL") or os.environ.get("OCTOPUS_UBERLLM_MODEL") or cfg["model"]
     elif args.provider == "api-route":
-        model = args.model or os.environ.get("API_ROUTE_MODEL") or os.environ.get("OCTOPUS_API_ROUTE_MODEL") or os.environ.get("OPENAI_COMPAT_MODEL") or cfg["model"]
+        model = args.model or os.environ.get("API_ROUTE_MODEL") or os.environ.get("OCTOPUS_API_ROUTE_MODEL") or cfg["model"]
     elif args.provider == "litellm":
         model = args.model or os.environ.get("LITELLM_MODEL") or os.environ.get("OCTOPUS_LITELLM_MODEL") or cfg["model"]
     else:
         model = args.model or os.environ.get("OPENAI_COMPAT_MODEL") or cfg["model"]
     if not model:
         if args.provider == "atlascloud":
-            model_hint = "ATLASCLOUD_MODEL, OCTOPUS_ATLASCLOUD_MODEL, OPENAI_COMPAT_MODEL, or --model"
+            model_hint = "ATLASCLOUD_MODEL, OCTOPUS_ATLASCLOUD_MODEL, or --model"
         elif args.provider == "cheaperinference":
-            model_hint = "CHEAPER_INFERENCE_MODEL, OCTOPUS_CHEAPERINFERENCE_MODEL, OPENAI_COMPAT_MODEL, or --model"
+            model_hint = "CHEAPER_INFERENCE_MODEL, OCTOPUS_CHEAPERINFERENCE_MODEL, or --model"
         elif args.provider == "uberllm":
-            model_hint = "UBERLLM_MODEL, OCTOPUS_UBERLLM_MODEL, OPENAI_COMPAT_MODEL, or --model"
+            model_hint = "UBERLLM_MODEL, OCTOPUS_UBERLLM_MODEL, or --model"
         elif args.provider == "api-route":
-            model_hint = "API_ROUTE_MODEL, OCTOPUS_API_ROUTE_MODEL, OPENAI_COMPAT_MODEL, or --model"
+            model_hint = "API_ROUTE_MODEL, OCTOPUS_API_ROUTE_MODEL, or --model"
         elif args.provider == "litellm":
             model_hint = "LITELLM_MODEL, OCTOPUS_LITELLM_MODEL, or --model"
         else:

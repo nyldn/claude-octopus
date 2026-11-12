@@ -313,7 +313,7 @@ _octo_provider_static_readiness() {
         atlascloud)
             remediation="Set ATLASCLOUD_API_KEY and ATLASCLOUD_MODEL."
             if _octo_value_has_nonwhitespace "${ATLASCLOUD_API_KEY:-}"; then
-                if _octo_value_has_nonwhitespace "${ATLASCLOUD_MODEL:-${OCTOPUS_ATLASCLOUD_MODEL:-${OPENAI_COMPAT_MODEL:-}}}"; then
+                if _octo_value_has_nonwhitespace "${ATLASCLOUD_MODEL:-${OCTOPUS_ATLASCLOUD_MODEL:-}}"; then
                     status="available"; reason_code="ready"; remediation=""
                 else
                     status="degraded"; reason_code="model-missing"; remediation="Set ATLASCLOUD_MODEL or OCTOPUS_ATLASCLOUD_MODEL."

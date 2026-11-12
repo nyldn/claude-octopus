@@ -1057,7 +1057,7 @@ is_agent_available_v2() {
                 resolve_provider_env "ATLASCLOUD_API_KEY" 2>/dev/null || true
             fi
             [[ -n "${ATLASCLOUD_API_KEY:-}" ]] && \
-                { [[ -n "${ATLASCLOUD_MODEL:-}" ]] || [[ -n "${OCTOPUS_ATLASCLOUD_MODEL:-}" ]] || [[ -n "${OPENAI_COMPAT_MODEL:-}" ]]; }
+                { [[ -n "${ATLASCLOUD_MODEL:-}" ]] || [[ -n "${OCTOPUS_ATLASCLOUD_MODEL:-}" ]]; }
             ;;
         cheaperinference|cheaperinference-*)
             if [[ -z "${CHEAPER_INFERENCE_API_KEY:-}" ]] && declare -f resolve_provider_env >/dev/null 2>&1; then

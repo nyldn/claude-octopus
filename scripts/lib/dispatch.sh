@@ -583,12 +583,12 @@ get_agent_command() {
             if [[ "$agent_type" == *:* ]]; then
                 model="$(get_agent_model "$agent_type" "$phase" "$role")" || return 1
             else
-                model="${ATLASCLOUD_MODEL:-${OCTOPUS_ATLASCLOUD_MODEL:-${OPENAI_COMPAT_MODEL:-}}}"
+                model="${ATLASCLOUD_MODEL:-${OCTOPUS_ATLASCLOUD_MODEL:-}}"
                 if [[ -z "$model" && -f "${HOME}/.claude-octopus/config/providers.json" ]] && command -v jq &>/dev/null; then
                     model="$(jq -r '.providers.atlascloud.default // empty' "${HOME}/.claude-octopus/config/providers.json" 2>/dev/null || true)"
                 fi
                 if [[ -z "$model" ]]; then
-                    log ERROR "ATLASCLOUD_MODEL, OCTOPUS_ATLASCLOUD_MODEL, OPENAI_COMPAT_MODEL, or providers.json atlascloud.default is required"
+                    log ERROR "ATLASCLOUD_MODEL, OCTOPUS_ATLASCLOUD_MODEL, or providers.json atlascloud.default is required"
                     return 1
                 fi
             fi
@@ -622,7 +622,7 @@ get_agent_command() {
                 model="$(get_agent_model "$agent_type" "$phase" "$role")" || return 1
             else
                 if ! model="$(octo_cheaperinference_model)"; then
-                    log ERROR "CHEAPER_INFERENCE_MODEL, OCTOPUS_CHEAPERINFERENCE_MODEL, OPENAI_COMPAT_MODEL, or providers.json cheaperinference.default is required"
+                    log ERROR "CHEAPER_INFERENCE_MODEL, OCTOPUS_CHEAPERINFERENCE_MODEL, or providers.json cheaperinference.default is required"
                     return 1
                 fi
             fi
@@ -663,7 +663,7 @@ get_agent_command() {
                 [[ "$model" == "$ull_exact_model" ]] || return 1
             else
                 if ! model="$(octo_uberllm_effective_model)"; then
-                    log ERROR "UBERLLM_MODEL, OCTOPUS_UBERLLM_MODEL, OPENAI_COMPAT_MODEL, or providers.json uberllm.default is required"
+                    log ERROR "UBERLLM_MODEL, OCTOPUS_UBERLLM_MODEL, or providers.json uberllm.default is required"
                     return 1
                 fi
             fi
@@ -680,7 +680,7 @@ get_agent_command() {
                 model="$(get_agent_model "$agent_type" "$phase" "$role")" || return 1
             else
                 if ! model="$(octo_api_route_model)"; then
-                    log ERROR "API_ROUTE_MODEL, OCTOPUS_API_ROUTE_MODEL, OPENAI_COMPAT_MODEL, or providers.json api-route.default is required"
+                    log ERROR "API_ROUTE_MODEL, OCTOPUS_API_ROUTE_MODEL, or providers.json api-route.default is required"
                     return 1
                 fi
             fi

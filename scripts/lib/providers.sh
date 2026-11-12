@@ -905,7 +905,7 @@ check_provider_health() {
                 echo "atlascloud: ATLASCLOUD_API_KEY not set" >&2
                 return 1
             fi
-            if [[ -z "${ATLASCLOUD_MODEL:-}" && -z "${OCTOPUS_ATLASCLOUD_MODEL:-}" && -z "${OPENAI_COMPAT_MODEL:-}" ]]; then
+            if [[ -z "${ATLASCLOUD_MODEL:-}" && -z "${OCTOPUS_ATLASCLOUD_MODEL:-}" ]]; then
                 echo "atlascloud: set ATLASCLOUD_MODEL or OCTOPUS_ATLASCLOUD_MODEL before dispatch" >&2
                 return 1
             fi
@@ -1389,7 +1389,7 @@ detect_providers() {
         if [[ -z "${ATLASCLOUD_API_KEY:-}" ]]; then
             resolve_provider_env "ATLASCLOUD_API_KEY" 2>/dev/null
         fi
-        if [[ -n "${ATLASCLOUD_API_KEY:-}" ]] && { [[ -n "${ATLASCLOUD_MODEL:-}" ]] || [[ -n "${OCTOPUS_ATLASCLOUD_MODEL:-}" ]] || [[ -n "${OPENAI_COMPAT_MODEL:-}" ]]; }; then
+        if [[ -n "${ATLASCLOUD_API_KEY:-}" ]] && { [[ -n "${ATLASCLOUD_MODEL:-}" ]] || [[ -n "${OCTOPUS_ATLASCLOUD_MODEL:-}" ]]; }; then
             result="${result}atlascloud:api-key "
         fi
     fi
