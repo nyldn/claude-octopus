@@ -117,7 +117,7 @@ class Choices(Fixture):
                              'selected file.txt')
             self.assertEqual(self.git('diff', '--cached', '--name-only', cwd=self.feature), 'unrelated.txt')
             self.git('reset', '--hard', self.head, cwd=self.feature)
-            (self.feature / 'unrelated.txt').unlink()
+            (self.feature / 'unrelated.txt').unlink(missing_ok=True)
 
     def test_pr_target_comes_from_single_github_push_url(self):
         for tree in TREES:
@@ -157,7 +157,8 @@ class Choices(Fixture):
     def test_non_main_base_resolved_before_review(self):
         for tree in TREES:
             text = (ROOT / tree / 'skill-finish-branch/SKILL.md').read_text()
-            setup = re.search(r'```bash\n(.*?)\n```', text, re.S)[1]
+            setup_section = text.split('### Step 1:', 1)[1].split('### Step 2:', 1)[0]
+            setup = re.search(r'```bash\n(.*?)\n```', setup_section, re.S)[1]
             env = dict(self.env)
             env.pop('BASE_BRANCH')
             result = subprocess.run([BASH, '-uo', 'pipefail', '-c', setup +
@@ -247,7 +248,8 @@ class Failures(Fixture):
         self.git('symbolic-ref', '--delete', 'refs/remotes/origin/HEAD')
         for tree in TREES:
             text = (ROOT / tree / 'skill-finish-branch/SKILL.md').read_text()
-            setup = re.search(r'```bash\n(.*?)\n```', text, re.S)[1]
+            setup_section = text.split('### Step 1:', 1)[1].split('### Step 2:', 1)[0]
+            setup = re.search(r'```bash\n(.*?)\n```', setup_section, re.S)[1]
             env = dict(self.env)
             env.pop('BASE_BRANCH')
             result = subprocess.run([BASH, '-uo', 'pipefail', '-c', setup + '\necho CONTINUED'],
