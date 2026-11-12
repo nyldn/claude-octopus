@@ -550,7 +550,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
                 type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "ok" "$tokens_in" "$tokens_out" "" "$elapsed_ms" "$result_file" "$role" || true
                 ;;
         esac
-    elif [[ $exit_code -eq 124 ]] || [[ $exit_code -eq 143 ]]; then
+    elif [[ $exit_code -eq 124 ]]; then
         # Timeout — preserve partial output
         if [[ -s "$temp_output" ]]; then
             if [[ $(grep -c '^--------$' "$temp_output" 2>/dev/null || true) -gt 0 ]]; then
@@ -605,8 +605,11 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         tokens_out=$(octo_estimate_tokens_for_file "$temp_output" 2>/dev/null || echo 0)
         update_agent_status "$agent_type" "failed" "$elapsed_ms" "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
         local failure_reason="Exit code $exit_code"
-        declare -F octo_failure_reason >/dev/null 2>&1 && \
+        if [[ $exit_code -eq 143 ]]; then
+            failure_reason="Provider terminated by SIGTERM"
+        elif declare -F octo_failure_reason >/dev/null 2>&1; then
             failure_reason=$(octo_failure_reason "$exit_code" "$enhanced_prompt" "$temp_errors" "$temp_output")
+        fi
         type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "$failure_reason" "$elapsed_ms" "$result_file" "$role" || true
         final_rc=$exit_code
     fi

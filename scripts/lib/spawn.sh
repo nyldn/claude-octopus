@@ -22,10 +22,19 @@ if ! type write_agent_result_prompt >/dev/null 2>&1; then
 fi
 
 quota_watcher_kill_spawn_children() {
-    local spawn_pid="$1"
-    pkill -TERM -P "$spawn_pid" 2>/dev/null || true
-    sleep 1
-    pkill -KILL -P "$spawn_pid" 2>/dev/null || true
+    local spawn_pid="$1" worker_identity="${2:-}"
+    if [[ -z "$worker_identity" ]]; then
+        log "ERROR" "Quota cleanup refused: worker registration identity is missing" 2>/dev/null || true
+        return 1
+    fi
+    # The timeout supervisor already owns its private groups. Deliver TERM by
+    # native identity and let its handler finish, even if the provider leader
+    # has been reaped or a global process snapshot cannot stabilize.
+    if ! _octo_pid_python_run "${_octopus_spawn_lib_dir}/../helpers/process_control.py" \
+        "$spawn_pid" --identity "$worker_identity" --supervisor-handoff >/dev/null; then
+        log "ERROR" "Quota cleanup refused: owned descendants could not be verified" 2>/dev/null || true
+        return 1
+    fi
 }
 
 # Background execution contract helpers. Native Agent Teams dispatch and the
@@ -1161,6 +1170,23 @@ ${heuristic_ctx}"
         return 1
     fi
 
+    # Terminal auth errors do not open the transient circuit breaker. Honor
+    # the watcher's shared marker on direct spawns as well as workflow routes.
+    local quota_provider
+    quota_provider="$(octo_provider_canonical "$provider_prefix" 2>/dev/null || printf '%s' "$provider_prefix")"
+    if declare -f octo_quota_is_dead >/dev/null 2>&1 && octo_quota_is_dead "$quota_provider"; then
+        local skip_kind="quota_dead" skip_reason="Provider is quota or auth dead"
+        if declare -f octo_quota_failed_this_run >/dev/null 2>&1 && octo_quota_failed_this_run "$quota_provider"; then
+            skip_kind="health-failed"
+            skip_reason="Provider failed this run's smoke test"
+        fi
+        log "WARN" "$skip_reason: $quota_provider; skipping $agent_type"
+        record_outcome "$provider_prefix" "$agent_type" "skipped" "${phase:-unknown}" "$skip_kind" "0" 2>/dev/null || true
+        octo_spawn_contract_finish "$_contract_seat_id" skipped "" "" \
+            "$skip_reason" 1 "" >/dev/null 2>&1 || true
+        return 1
+    fi
+
     # oco-aek: provider selected for dispatch (circuit closed). Opt-in event.
     declare -f octo_event_emit >/dev/null 2>&1 && octo_event_emit "provider.selected" provider="$provider_prefix" provider_label_kind="legacy-alias" executor_alias="$agent_type" configured_provider="$(octo_provider_identity_from_agent_type "${agent_type:-unknown}")" configured_model="$(get_agent_model "$agent_type" "${phase:-}" "${role:-}" 2>/dev/null || echo unresolved)" runtime_provider="unknown" runtime_model="unknown" agent_type="$agent_type" role="${role:-none}" phase="${phase:-unknown}" || true
 
@@ -1577,6 +1603,8 @@ ${heuristic_ctx}"
         local temp_errors="${RESULTS_DIR}/.tmp-${task_id}.err"
         local temp_input="${RESULTS_DIR}/.tmp-${task_id}.in"
         local raw_output="${RESULTS_DIR}/.raw-${task_id}.out"  # Backup of unfiltered output
+        local quota_fired_file="${RESULTS_DIR}/.tmp-${task_id}.quota"
+        local _quota_fast_fail_line=""
 
         # Update task progress with context-aware spinner verb (v7.16.0 Feature 1)
         if [[ -n "$CLAUDE_TASK_ID" ]]; then
@@ -1652,7 +1680,8 @@ ${heuristic_ctx}"
                 "$raw_output" \
                 quota_watcher_kill_spawn_children \
                 "[$agent_type] Quota/terminal error detected - fast-failing (saves ~${_eff_timeout}s wait)" \
-                "$_provider_prefix")
+                "$_provider_prefix" \
+                "$quota_fired_file" "$_worker_identity")
 
             # v9.2.2: All agents use stdin-based prompt delivery to avoid ARG_MAX
             # limits. File-backed capture avoids waiting for EOF from a provider
@@ -1685,9 +1714,27 @@ ${heuristic_ctx}"
             cp "$raw_output" "$temp_output" 2>/dev/null || : > "$temp_output"
 
             stop_quota_watcher "$_quota_watcher_pid"
+            if [[ $exit_code -ne 0 && -f "$quota_fired_file" && -s "$quota_fired_file" ]]; then
+                _quota_fast_fail_line="$(<"$quota_fired_file")"
+                exit_code=75
+            elif [[ $exit_code -eq 143 && -f "${quota_fired_file}.stop" ]]; then
+                # Only this attempt's watcher can attribute a stop when optional
+                # diagnostics cannot be persisted. A peer's dead marker cannot.
+                # Without attempt-local evidence, preserve external SIGTERM.
+                _quota_fast_fail_line="$(quota_watcher_match_line "$temp_errors" "$raw_output")" || _quota_fast_fail_line=""
+                [[ -z "$_quota_fast_fail_line" ]] || exit_code=75
+            elif [[ $exit_code -ne 0 && $exit_code -ne 124 && $exit_code -ne 143 && $exit_code -ne 76 ]]; then
+                # A provider can exit before the polling watcher observes its
+                # terminal error. Use the same matcher before considering retry.
+                _quota_fast_fail_line="$(quota_watcher_match_line "$temp_errors" "$raw_output")" || _quota_fast_fail_line=""
+                if [[ -n "$_quota_fast_fail_line" ]]; then
+                    octo_quota_mark_dead "$_provider_prefix"
+                    exit_code=75
+                fi
+            fi
 
             # v8.16: Check if failure is auth-related and retryable
-            if [[ $exit_code -ne 0 ]] && [[ $exit_code -ne 76 ]] && [[ $exit_code -ne 124 ]] && [[ $exit_code -ne 143 ]] && \
+            if [[ $exit_code -ne 0 ]] && [[ -z "$_quota_fast_fail_line" ]] && [[ $exit_code -ne 76 ]] && [[ $exit_code -ne 124 ]] && [[ $exit_code -ne 143 ]] && \
                [[ $auth_attempt -lt $max_auth_retries ]]; then
                 local stderr_content=""
                 [[ -s "$temp_errors" ]] && stderr_content=$(<"$temp_errors")
@@ -1909,6 +1956,7 @@ sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore")
                 record_outcome "$agent_type" "$agent_type" "${task_type:-unknown}" "${phase:-unknown}" "success" "$elapsed_ms" 2>/dev/null || true
                 # v9.13: Reset circuit breaker on success
                 type record_success &>/dev/null && record_success "$provider_prefix" 2>/dev/null || true
+                type record_provider_success &>/dev/null && record_provider_success "$provider_prefix" 2>/dev/null || true
                 # v9.3.0: Record file co-occurrence pattern for heuristic learning
                 record_run_pattern "$agent_type" "${enhanced_prompt:-$prompt}" "$result_file" 2>/dev/null || true
                 # v8.20.1: Record task duration metric
@@ -1963,7 +2011,70 @@ sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore")
             fi
             record_outcome "$agent_type" "$agent_type" "${task_type:-unknown}" "${phase:-unknown}" "stalled" "$elapsed_ms" 2>/dev/null || true
             type record_failure &>/dev/null && record_failure "$provider_prefix" "transient" 2>/dev/null || true
-        elif [[ $exit_code -eq 124 ]] || [[ $exit_code -eq 143 ]]; then
+        elif [[ $exit_code -eq 75 && -n "$_quota_fast_fail_line" ]]; then
+            if [[ -s "$temp_output" ]]; then
+                cat "$temp_output" >> "$result_file"
+            elif [[ -s "$raw_output" ]]; then
+                cat "$raw_output" >> "$result_file"
+            else
+                echo "(no output captured before the provider's quota or auth error)" >> "$result_file"
+            fi
+            echo '```' >> "$result_file"
+            if [[ -n "$_untrusted_nonce" ]]; then
+                echo "<!-- END-UNTRUSTED:provider=${agent_type}:nonce=${_untrusted_nonce} -->" >> "$result_file"
+            fi
+
+            local end_time_ms elapsed_ms tokens_out _quota_reset _quota_reason
+            end_time_ms=$(( $(date +%s) * 1000 ))
+            elapsed_ms=$((end_time_ms - start_time_ms))
+            _quota_reset="$(octo_quota_reset_hint "$_quota_fast_fail_line")"
+            # Status reasons enter synthesis without provider trust framing.
+            # Keep raw diagnostics in the untrusted result/error frames above.
+            _quota_reason="Provider reported a terminal quota or auth error"
+            echo "" >> "$result_file"
+            echo "## Status: FAILED - QUOTA OR AUTH ERROR (exit code: 75)" >> "$result_file"
+            echo "" >> "$result_file"
+            echo "Stopped after $((elapsed_ms / 1000))s: the provider reported a terminal quota or auth error." >> "$result_file"
+            echo "" >> "$result_file"
+            echo "**Recommendations**:" >> "$result_file"
+            echo "- Retry after the provider's quota resets, or route this task to another provider" >> "$result_file"
+            echo "- If the provider reported an auth failure, check its login and plan" >> "$result_file"
+            if [[ -s "$temp_errors" || -n "$_quota_reset" ]]; then
+                echo "" >> "$result_file"
+                echo "## Error Log" >> "$result_file"
+                if [[ -n "$_untrusted_nonce" ]]; then
+                    echo "<!-- BEGIN-UNTRUSTED:provider=${agent_type}:stream=stderr:nonce=${_untrusted_nonce} -->" >> "$result_file"
+                fi
+                echo '```' >> "$result_file"
+                [[ ! -s "$temp_errors" ]] || cat "$temp_errors" >> "$result_file"
+                # Reset hints are provider text, including when sanitized for
+                # display. Keep them within the nonce-bound untrusted frame.
+                if [[ -n "$_quota_reset" ]]; then
+                    printf '\nThe provider reports its quota resets %s.\n' "$_quota_reset" >> "$result_file"
+                fi
+                echo '```' >> "$result_file"
+                if [[ -n "$_untrusted_nonce" ]]; then
+                    echo "<!-- END-UNTRUSTED:provider=${agent_type}:stream=stderr:nonce=${_untrusted_nonce} -->" >> "$result_file"
+                fi
+            fi
+
+            record_error "$agent_type" "$prompt" "$_quota_reason" "75" "spawn_agent quota fast-fail" 2>/dev/null || true
+            local quota_partial=""
+            [[ -s "$temp_output" ]] && quota_partial=$(<"$temp_output")
+            [[ -z "$quota_partial" && -s "$raw_output" ]] && quota_partial=$(<"$raw_output")
+            save_agent_checkpoint "$task_id" "$agent_type" "${phase:-unknown}" "$quota_partial" 2>/dev/null || true
+
+            tokens_out=$(octo_estimate_tokens_for_file "$raw_output" 2>/dev/null || echo 0)
+            update_agent_status "$agent_type" "failed" "$elapsed_ms" "$_estimated_cost" "$_eff_timeout" "$task_id" "${phase:-unknown}" "$result_file"
+            type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "$_quota_reason" "$elapsed_ms" "$result_file" "${role:-none}" || true
+            if ! octo_spawn_contract_finish "$_contract_seat_id" failed "$result_file" "$temp_errors" \
+                "$_quota_reason" "$exit_code" "$elapsed_ms" >/dev/null 2>&1; then
+                exit_code=74
+                echo "## Contract Status: FAILED (persistence error)" >> "$result_file"
+            fi
+            record_outcome "$agent_type" "$agent_type" "${task_type:-unknown}" "${phase:-unknown}" "fail" "$elapsed_ms" 2>/dev/null || true
+            type record_provider_failure &>/dev/null && record_provider_failure "$provider_prefix" "$exit_code" "$_quota_fast_fail_line" >/dev/null 2>&1 || true
+        elif [[ $exit_code -eq 124 ]]; then
             # v7.19.0 P0.2: TIMEOUT - Preserve partial output
             # Process whatever output exists (may be significant partial work)
             if [[ -s "$temp_output" ]]; then
@@ -2109,8 +2220,13 @@ sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore")
             update_agent_status "$agent_type" "failed" "$elapsed_ms" "$_estimated_cost" "$_eff_timeout" "$task_id" "${phase:-unknown}" "$result_file"
             local tokens_out _failure_reason="Exit code $exit_code"
             tokens_out=$(octo_estimate_tokens_for_file "$temp_output" 2>/dev/null || echo 0)
-            declare -F octo_failure_reason >/dev/null 2>&1 && \
+            if [[ "$exit_code" -eq 143 ]]; then
+                # Termination diagnostics remain untrusted provider text. This
+                # path formerly used fixed timeout metadata before preserving 143.
+                _failure_reason="Provider terminated by SIGTERM"
+            elif declare -F octo_failure_reason >/dev/null 2>&1; then
                 _failure_reason=$(octo_failure_reason "$exit_code" "$enhanced_prompt" "$temp_errors" "$raw_output")
+            fi
             type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "$_failure_reason" "$elapsed_ms" "$result_file" "${role:-none}" || true
             if ! octo_spawn_contract_finish "$_contract_seat_id" failed "$result_file" "$temp_errors" \
                 "$_failure_reason" "$exit_code" "$elapsed_ms" >/dev/null 2>&1; then
@@ -2142,7 +2258,7 @@ sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore")
                     "$_PARSED_REASONING_TOKENS" 2>/dev/null || true
             else
                 local _usage_failure_state=failed
-                [[ "$exit_code" -eq 124 || "$exit_code" -eq 143 ]] && _usage_failure_state=timeout
+                [[ "$exit_code" -eq 124 ]] && _usage_failure_state=timeout
                 record_agent_failure "$metrics_id" "${elapsed_ms:-0}" \
                     "${_octo_success_reason:-Provider exited with code $exit_code}" \
                     "$_usage_failure_state" 2>/dev/null || true
@@ -2165,6 +2281,8 @@ sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore")
 
         # Cleanup temp files (keep raw_output for debugging if result is empty)
         rm -f "$temp_input" "$temp_output" "$temp_errors"
+        # Optional diagnostic persistence must not prevent worker completion.
+        rm -f "$quota_fired_file" "${quota_fired_file}.stop" 2>/dev/null || true
         if [[ $result_size -ge 1024 ]]; then
             rm -f "$raw_output"  # Clean up if result looks good
         fi
@@ -2189,7 +2307,7 @@ sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore")
             else
                 _hook_final_status="completed"
             fi
-        elif [[ "${_spawn_exit:-0}" -eq 124 || "${_spawn_exit:-0}" -eq 143 ]]; then
+        elif [[ "${_spawn_exit:-0}" -eq 124 ]]; then
             _hook_final_status="timeout"
         fi
         _octopus_agent_lifecycle_event "completed" "$agent_type" "$task_id" "$role" "$phase" "$OCTO_CAPTURED_SHELL_PID" "$result_file" "$_spawn_exit" "$_hook_final_status"

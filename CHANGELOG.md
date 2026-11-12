@@ -102,6 +102,75 @@
   resolver's failure status, whether or not shell error-exit mode is enabled.
   Addresses [#1172](https://github.com/nyldn/claude-octopus/issues/1172).
 
+### Fixed
+
+- Parallel cleanup finishes a stopped worker's durable execution contract as
+  cancelled, so run status no longer reports that worker as still running.
+  Native Agent Teams seats remain running until their own completion is known.
+
+- Reclaiming an exited invocation's output claim cancels the running seats its
+  owner record names, including seats inherited through an interrupted reclaim.
+  A different task ID that maps to the same result file is no longer blocked by
+  the exited owner's seat. Probe status rows use the canonical spawn seat ID.
+  An abnormal controller exit stops its workers before releasing their claims,
+  and a results path through a symlink and `..` addresses the same claim
+  directory as the shell.
+- Parallel dispatch recovers interrupted contract writes before checking a new
+  seat, and interruption cleanup releases claims with relative result paths.
+  Unrecoverable ledgers and reused seats keep their saved outputs intact.
+- Parallel dispatch preserves saved results and completion markers when a
+  repeated task ID cannot be admitted by its durable run contract. Use a new
+  task ID for a new attempt in the same run.
+- Large parallel task batches retain their scoped results without exceeding
+  command-line argument limits, and invalid scopes report an aggregation error.
+  A spawn that fails after recording a running seat marks that seat cancelled
+  in the status ledger. Interrupted shell-only claims report their manual
+  recovery procedure.
+- The agent run summary no longer reports a provider's successful seat as
+  failed when another of its seats times out. The status ledger kept the
+  latest row per agent name, so a probe with two Claude seats printed "2 of 2
+  agents failed or timed out" after one seat's 603-second timeout replaced the
+  other seat's completed result. The same lookup left that result out of the
+  outputs offered to synthesis. Rows are now kept per seat, by seat ID or else
+  by result file, in the summary, the `agents.json` snapshot and the output
+  list. Probe and aggregate summaries count only their own seats, because the
+  ledger spans every command in a session.
+- Output claims publish their owner atomically, so an interrupted claim
+  preparation cannot permanently block retries. Live owners keep their outputs.
+  Workers that fail without recording a terminal status are marked cancelled.
+  When a durable execution contract exists, another attempt requires a new task
+  ID in the same run.
+- Quota cleanup delivers an identity-bound TERM to the timeout supervisor and
+  lets its handler finish. Reparented helpers are cleaned up even when the
+  provider leader has been reaped, and unrelated process exits cannot exhaust
+  global-snapshot retries. The handoff never forcibly kills a pending handler.
+  macOS zombie admission in optional owned-group cleanup uses native zombie lookup.
+- A peer seat's quota marker no longer relabels an externally terminated call
+  or adds a false circuit-breaker failure. Quota stop attribution stays local
+  to the current attempt even when its diagnostic cannot be written.
+- Quota fast-fails preserve a provider's own temporary-failure status and auth
+  retry behavior. Quota stops update the provider circuit breaker, and persisted
+  cooldown timestamps correctly block repeat dispatch until their deadline. Future timestamps
+  from clock rollback or corrupt state allow a probe instead of an unbounded wait.
+  Successful recovery clears that failure history so separate quota episodes
+  do not count as consecutive failures. Parallel quota failures update the
+  breaker together, and an unwritable diagnostic marker cannot prevent worker
+  completion after a quota stop.
+  Lock contention does not turn an expired cooldown into an open circuit, and
+  failure-log trimming uses private temporary files without following stale links.
+  Quota stops also clean up owned provider and timer processes, so a stopped
+  call does not wait for a leftover timeout before returning. Refused handoffs
+  allow at most five attempts, with a visible error if cleanup cannot finish.
+- Direct spawns respect terminal quota and auth markers even when no transient
+  cooldown is active. Provider reset hints remain inside untrusted result frames.
+- Quota and termination status summaries use launcher-authored reasons so provider diagnostics
+  cannot enter synthesis instructions through trusted failure metadata.
+- Run-local smoke failures keep their health-failure reason. External SIGTERM
+  preserves exit 143 through spawn results and lifecycle events instead of
+  claiming the provider exceeded its timeout.
+  Synchronous dispatch also records a failed termination in status and usage
+  rather than a timeout, with a launcher-authored reason.
+
 ## [11.22.2] - 2026-11-11
 
 ### Fixed
