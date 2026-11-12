@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/result-file.sh"
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/secure.sh"
+# Resolve helpers at load time for Bash 3.2 command substitutions.
+_octopus_testing_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_octopus_testing_lib_dir/result-file.sh"
+source "$_octopus_testing_lib_dir/secure.sh"
 
 # testing.sh — Extracted from orchestrate.sh
 # Contains: validate_tangle_results, squeeze_test
@@ -146,21 +148,42 @@ tangle_result_has_blocker_output() {
 }
 
 check_explicit_file_coverage() {
+    # Managed workflows supply parent-owned Files:/Creates: paths. They are
+    # checked on disk, not inferred from quoted read context or model wording.
+    if [[ "${TANGLE_REQUIRED_OUTPUT_SCOPES+x}" == x ]]; then
+        printf '%s\n' "$TANGLE_REQUIRED_OUTPUT_SCOPES" | python3 -I "$_octopus_testing_lib_dir/../helpers/required-output-coverage.py" "${PROJECT_ROOT:-$PWD}" "${TANGLE_REQUIRED_OUTPUT_BASELINE:-}"
+        return $?
+    fi
     local original_prompt="$1"
     local output_corpus="$2"
     local missing=""
     local output_refs=""
+    local write_instructions=""
     local ref
 
-    output_refs="$(extract_explicit_file_refs "$output_corpus")"
+    write_instructions=$(printf '%s\n' "$original_prompt" | python3 -I -c '
+import re,sys
+text=sys.stdin.read()
+# Keep every reference unless a recognizable read-only clause excludes it.
+# Read words inside write instructions must not open a read-only clause.
+starts=re.compile(r"(?:^|[.!?]\s+|;\s*|,\s*then\s+|\band\s+then\s+)[ \t]*(?:[-*]\s+|\d+[.)]\s+)?(?:(?:first|next|then|finally)\s+)?(?:please\s+)?(?:after\s+reading|read|review|inspect|consult|context|inputs?|references?)\b(?=[:\s]|$)[:\s]*",re.I|re.M)
+writes=r"(?:add|update|create|edit|modify|delete|remove|refactor|fix|write|implement|rename|move)"
+ends=re.compile(r"[.!?]\s+|;|\n|,(?=\s*"+writes+r"\b)|\b(?:and\s+)?then\b|\b(?:and|to)\s+"+writes+r"\b",re.I)
+for event in reversed(list(starts.finditer(text))):
+    boundary=ends.search(text,event.end())
+    end=boundary.start() if boundary else len(text)
+    text=text[:event.end()]+" "+text[end:]
+print(text)
+') || return 1
 
+    output_refs="$(extract_explicit_file_refs "$output_corpus")"
     while IFS= read -r ref; do
         [[ -z "$ref" ]] && continue
         case $'\n'"$output_refs"$'\n' in
             *$'\n'"$ref"$'\n'*) ;;
             *) missing+="${ref}"$'\n' ;;
         esac
-    done <<< "$(extract_explicit_file_refs "$original_prompt")"
+    done <<< "$(extract_explicit_file_refs "$write_instructions")"
 
     printf '%s' "$missing"
 }
@@ -790,7 +813,18 @@ $(<"$correction_file")
         fi
 
         local missing_explicit_files
-        missing_explicit_files=$(check_explicit_file_coverage "$original_prompt" "$result_outputs")
+        if ! missing_explicit_files=$(check_explicit_file_coverage "$original_prompt" "$result_outputs"); then
+            log ERROR "Unable to verify declared output coverage; refusing the quality gate"
+            cat > "$validation_file" << EOF
+# TANGLE Phase Validation Report
+<!-- octopus-workflow-invocation: ${OCTOPUS_WORKFLOW_INVOCATION_ID:-} -->
+## Task: $original_prompt
+### Quality Gate: FAILED
+### Explicit File Coverage
+Unable to verify declared output coverage; refusing the quality gate.
+EOF
+            return 1
+        fi
 
         # Quality gate check (using configurable per-phase threshold - v8.19.0)
         local total=$((success_count + fail_count))
