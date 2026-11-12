@@ -9,12 +9,24 @@
   council seat records the model that answered, with `model_fallback.from`, so
   a busy model no longer stops the council. Non-Gemini entries are skipped.
 
+- UberLLM as an OpenAI-compatible agent provider. `uberllm-agent` uses the
+  shared tool-loop helper with `UBERLLM_API_KEY` and an explicit
+  `UBERLLM_MODEL`, `OCTOPUS_UBERLLM_MODEL` or `providers.uberllm.default`
+  model. It is excluded from Council, like the other gateway agents.
+  Readiness and fleet selection use the dispatched model and its allowlist
+  fallback. Exact seats keep their model pins, and MCP preserves model policy.
+  DeepSeek Flash estimates use its published peak, uncached fallback rates.
+
 ### Fixed
 
 - Abbreviated council quotes must match whole identifiers, so a longer name or
   string token cannot make invented source evidence pass verification.
 - Runtime diagnostics in plain-text fences do not count as invented source.
   Runtime-error quotes beside an adjacent source citation still need verification.
+
+- Full unit coverage uses six weighted macOS lanes and four Linux lanes. This
+  leaves more room for longer hosted macOS suite durations while retaining
+  every suite and the existing 20-minute step limit.
 
 - Unit shards include newer hosted macOS suite timings in their duration
   weights. The full suite and 20-minute per-shard timeout remain in place.

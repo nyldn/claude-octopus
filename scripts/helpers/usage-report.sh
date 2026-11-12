@@ -143,6 +143,7 @@ def pricing_provider(provider):
         ("openai-compatible", "openai-compatible-agent"),
         ("atlascloud", "atlascloud"),
         ("cheaperinference", "cheaperinference"),
+        ("uberllm", "uberllm"),
         ("api-route", "api-route"),
         ("litellm", "litellm"),
         ("perplexity", "perplexity"),

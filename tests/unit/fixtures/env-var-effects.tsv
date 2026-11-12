@@ -32,6 +32,7 @@ OCTOPUS_API_ROUTE_MODEL	covered-by	test-api-route-provider.sh
 OCTOPUS_AUTO_TITLE	skip	sets the Claude Code session title; observable only in the host UI
 OCTOPUS_AUTO_ROUTER_MODE	covered-by	test-explicit-activation.sh
 OCTOPUS_CHEAPERINFERENCE_MODEL	covered-by	test-cheaperinference-config-parity.sh
+OCTOPUS_UBERLLM_MODEL	covered-by	test-uberllm-config-parity.sh
 OCTOPUS_CLAUDE_ADVISOR	covered-by	test-claude-native-integrations.sh
 OCTOPUS_CLAUDE_BIN	covered-by	test-agent-command-validation.sh
 OCTOPUS_CLAUDE_CONTEXT_BUDGET	covered-by	test-probe-compact-synthesis.sh

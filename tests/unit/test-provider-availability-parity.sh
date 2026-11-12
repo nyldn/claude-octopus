@@ -229,6 +229,22 @@ else
     test_fail "Cheaper Inference did not map to cheaperinference-agent: $cheaperinference_fleet"
 fi
 
+test_case "fleet maps configured UberLLM to its executable agent type"
+uberllm_fleet=$(
+    env \
+        "HOME=$FAKE_HOME" \
+        "PATH=$FAKE_BIN:/usr/bin:/bin" \
+        "OCTO_ALLOWED_PROVIDERS=uberllm" \
+        "UBERLLM_API_KEY=fixture-key" \
+        "UBERLLM_MODEL=deepseek/deepseek-v4-flash" \
+        "$BUILD_FLEET" research quick fixture 2>/dev/null
+)
+if grep -q '^uberllm-agent|' <<<"$uberllm_fleet"; then
+    test_pass
+else
+    test_fail "UberLLM did not map to uberllm-agent: $uberllm_fleet"
+fi
+
 test_case "fleet maps configured API Route to its executable agent type"
 api_route_fleet=$(
     env \
@@ -261,5 +277,21 @@ if grep -q '^litellm-agent|' <<<"$litellm_fleet"; then
 else
     test_fail "LiteLLM did not map to litellm-agent: $litellm_fleet"
 fi
+
+for model in openai/gpt-5.6-sol vendor/blocked; do
+    test_case "fleet skips an UberLLM OpenAI-family duplicate after resolving $model"
+    fleet="$(env -i "PATH=$FAKE_BIN:/usr/bin:/bin" "HOME=$FAKE_HOME" \
+        "OCTO_ALLOWED_PROVIDERS=codex,uberllm,api-route" "OPENAI_API_KEY=fixture-key" \
+        "UBERLLM_API_KEY=fixture-key" "UBERLLM_MODEL=$model" \
+        "UBERLLM_ALLOWED_MODELS=openai/gpt-5.6-sol" \
+        "API_ROUTE_API_KEY=fixture-key" "API_ROUTE_MODEL=google/gemini-4-argon" \
+        "$BUILD_FLEET" research quick fixture 2>/dev/null)"
+    if grep -q '^codex' <<< "$fleet" && grep -q '^api-route-agent|' <<< "$fleet" &&
+       ! grep -q '^uberllm-agent|' <<< "$fleet"; then
+        test_pass
+    else
+        test_fail "fleet selected duplicate model families: $fleet"
+    fi
+done
 
 test_summary
