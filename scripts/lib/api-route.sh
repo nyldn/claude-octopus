@@ -10,7 +10,7 @@ octo_api_route_model() {
     if [[ $# -gt 0 ]]; then
         model="$1"
     else
-        model="${API_ROUTE_MODEL:-${OCTOPUS_API_ROUTE_MODEL:-${OPENAI_COMPAT_MODEL:-}}}"
+        model="${API_ROUTE_MODEL:-${OCTOPUS_API_ROUTE_MODEL:-}}"
     fi
     config_file="${OCTOPUS_PROVIDERS_CONFIG:-${HOME}/.claude-octopus/config/providers.json}"
     if [[ $# -eq 0 && -z "$model" && -f "$config_file" ]]; then

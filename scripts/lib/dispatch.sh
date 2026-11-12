@@ -2,6 +2,7 @@
 _profile_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_profile_lib_dir}/agent-spec.sh" 2>/dev/null || true
 source "${_profile_lib_dir}/provider-registry.sh" || { echo "dispatch: failed to load provider-registry.sh" >&2; return 1 2>/dev/null || exit 1; }
+source "${_profile_lib_dir}/atlascloud.sh" || return 1
 source "${_profile_lib_dir}/cheaperinference.sh" || return 1
 source "${_profile_lib_dir}/uberllm.sh" || return 1
 source "${_profile_lib_dir}/api-route.sh" || return 1
@@ -583,16 +584,12 @@ get_agent_command() {
             if [[ "$agent_type" == *:* ]]; then
                 model="$(get_agent_model "$agent_type" "$phase" "$role")" || return 1
             else
-                model="${ATLASCLOUD_MODEL:-${OCTOPUS_ATLASCLOUD_MODEL:-${OPENAI_COMPAT_MODEL:-}}}"
-                if [[ -z "$model" && -f "${HOME}/.claude-octopus/config/providers.json" ]] && command -v jq &>/dev/null; then
-                    model="$(jq -r '.providers.atlascloud.default // empty' "${HOME}/.claude-octopus/config/providers.json" 2>/dev/null || true)"
-                fi
-                if [[ -z "$model" ]]; then
-                    log ERROR "ATLASCLOUD_MODEL, OCTOPUS_ATLASCLOUD_MODEL, OPENAI_COMPAT_MODEL, or providers.json atlascloud.default is required"
+                model="$(octo_atlascloud_model)" || {
+                    log ERROR "Set ATLASCLOUD_MODEL, OCTOPUS_ATLASCLOUD_MODEL, or providers.json atlascloud.default"
                     return 1
-                fi
+                }
             fi
-            if ! validate_model_name "$model"; then
+            if ! octo_atlascloud_model "$model" >/dev/null; then
                 log ERROR "Invalid Atlas Cloud model name: ${model}"
                 return 1
             fi
@@ -600,7 +597,8 @@ get_agent_command() {
             fallback=$(validate_model_allowed "atlascloud" "$model")
             if [[ $? -ne 0 ]]; then
                 if [[ -n "$fallback" ]]; then
-                    if ! validate_model_name "$fallback"; then
+                    if ! octo_atlascloud_model "$fallback" >/dev/null ||
+                       ! octo_model_automatic_target_allowed "$fallback" atlascloud; then
                         log ERROR "Invalid Atlas Cloud fallback model name"
                         return 1
                     fi
@@ -622,7 +620,7 @@ get_agent_command() {
                 model="$(get_agent_model "$agent_type" "$phase" "$role")" || return 1
             else
                 if ! model="$(octo_cheaperinference_model)"; then
-                    log ERROR "CHEAPER_INFERENCE_MODEL, OCTOPUS_CHEAPERINFERENCE_MODEL, OPENAI_COMPAT_MODEL, or providers.json cheaperinference.default is required"
+                    log ERROR "CHEAPER_INFERENCE_MODEL, OCTOPUS_CHEAPERINFERENCE_MODEL, or providers.json cheaperinference.default is required"
                     return 1
                 fi
             fi
@@ -663,7 +661,7 @@ get_agent_command() {
                 [[ "$model" == "$ull_exact_model" ]] || return 1
             else
                 if ! model="$(octo_uberllm_effective_model)"; then
-                    log ERROR "UBERLLM_MODEL, OCTOPUS_UBERLLM_MODEL, OPENAI_COMPAT_MODEL, or providers.json uberllm.default is required"
+                    log ERROR "UBERLLM_MODEL, OCTOPUS_UBERLLM_MODEL, or providers.json uberllm.default is required"
                     return 1
                 fi
             fi
@@ -680,7 +678,7 @@ get_agent_command() {
                 model="$(get_agent_model "$agent_type" "$phase" "$role")" || return 1
             else
                 if ! model="$(octo_api_route_model)"; then
-                    log ERROR "API_ROUTE_MODEL, OCTOPUS_API_ROUTE_MODEL, OPENAI_COMPAT_MODEL, or providers.json api-route.default is required"
+                    log ERROR "API_ROUTE_MODEL, OCTOPUS_API_ROUTE_MODEL, or providers.json api-route.default is required"
                     return 1
                 fi
             fi
@@ -1655,6 +1653,11 @@ get_agent_model() {
         elif [[ -n "$fallback" ]]; then
             if ! validate_model_name "$fallback"; then
                 log ERROR "Invalid fallback model name for $provider"
+                return 1
+            fi
+            if [[ "$provider" == atlascloud ]] &&
+               ! octo_atlascloud_model "$fallback" >/dev/null; then
+                log ERROR "Invalid Atlas Cloud fallback model name"
                 return 1
             fi
             if [[ "$provider" == cheaperinference ]] &&

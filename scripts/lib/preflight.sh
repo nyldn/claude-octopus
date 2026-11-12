@@ -5,7 +5,7 @@
 _preflight_registry_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_preflight_registry_dir}/provider-registry.sh" 2>/dev/null || true
 
-for _preflight_dependency in provider-allowlist auth provider-routing cheaperinference uberllm api-route litellm qwen openai-compatible grok kimi copilot quota-watcher events; do
+for _preflight_dependency in provider-allowlist auth provider-routing atlascloud cheaperinference uberllm api-route litellm qwen openai-compatible grok kimi copilot quota-watcher events; do
     # shellcheck source=/dev/null
     source "${_preflight_registry_dir}/${_preflight_dependency}.sh" 2>/dev/null || true
 done
@@ -313,7 +313,7 @@ _octo_provider_static_readiness() {
         atlascloud)
             remediation="Set ATLASCLOUD_API_KEY and ATLASCLOUD_MODEL."
             if _octo_value_has_nonwhitespace "${ATLASCLOUD_API_KEY:-}"; then
-                if _octo_value_has_nonwhitespace "${ATLASCLOUD_MODEL:-${OCTOPUS_ATLASCLOUD_MODEL:-${OPENAI_COMPAT_MODEL:-}}}"; then
+                if octo_atlascloud_model >/dev/null; then
                     status="available"; reason_code="ready"; remediation=""
                 else
                     status="degraded"; reason_code="model-missing"; remediation="Set ATLASCLOUD_MODEL or OCTOPUS_ATLASCLOUD_MODEL."

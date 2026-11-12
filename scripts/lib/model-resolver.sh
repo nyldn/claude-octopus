@@ -21,6 +21,7 @@ _model_resolver_load_error() {
     fi
 }
 source "${_model_resolver_lib_dir}/provider-registry.sh" || { _model_resolver_load_error "failed to load provider-registry.sh"; return 1 2>/dev/null || exit 1; }
+source "${_model_resolver_lib_dir}/atlascloud.sh" || return 1
 source "${_model_resolver_lib_dir}/cheaperinference.sh" || return 1
 source "${_model_resolver_lib_dir}/uberllm.sh" || return 1
 source "${_model_resolver_lib_dir}/api-route.sh" || return 1
@@ -253,6 +254,9 @@ validate_model_name_for_provider() {
         anthropic-api)
             case "$model" in claude-sonnet-5-5|claude-opus-5-5) return 0 ;; *) return 1 ;; esac
             ;;
+        atlascloud)
+            octo_atlascloud_model "$model" >/dev/null
+            ;;
         cheaperinference)
             octo_cheaperinference_model "$model" >/dev/null
             ;;
@@ -438,6 +442,7 @@ resolve_octopus_model() {
         env_var="OCTOPUS_$(echo "$canonical_provider" | tr '[:lower:]' '[:upper:]' | tr '-' '_')_MODEL"
     fi
     local env_model="${!env_var:-}"
+    [[ "$canonical_provider" != atlascloud ]] || env_model="${ATLASCLOUD_MODEL:-$env_model}"
     if [[ -z "$env_model" && "$canonical_provider" == "claude" && -n "${CLAUDE_MODEL:-}" ]]; then
         env_var="CLAUDE_MODEL"
         env_model="$CLAUDE_MODEL"
@@ -825,7 +830,11 @@ resolve_octopus_model() {
 
         # 5. Global Defaults
         if [[ -z "$resolved_model" || "$resolved_model" == "null" ]]; then
-            resolved_model=$(echo "$config_data" | jq -r --arg p "$canonical_provider" '.providers[$p].default // .providers[$p].model // empty' 2>/dev/null)
+            if [[ "$canonical_provider" == atlascloud ]]; then
+                resolved_model="$(octo_atlascloud_model)" || return 1
+            else
+                resolved_model=$(echo "$config_data" | jq -r --arg p "$canonical_provider" '.providers[$p].default // .providers[$p].model // empty' 2>/dev/null)
+            fi
             if [[ -n "$resolved_model" && "$resolved_model" != "null" ]] && ! _octo_automatic_model_allowed "$resolved_model" "$canonical_provider"; then
                 [[ -n "$_trace" ]] && echo "[model-trace] Tier 6 (config default): REJECTED explicit-only model $resolved_model" >&2
                 resolved_model=""
@@ -1056,8 +1065,13 @@ is_agent_available_v2() {
             if [[ -z "${ATLASCLOUD_API_KEY:-}" ]] && declare -f resolve_provider_env >/dev/null 2>&1; then
                 resolve_provider_env "ATLASCLOUD_API_KEY" 2>/dev/null || true
             fi
-            [[ -n "${ATLASCLOUD_API_KEY:-}" ]] && \
-                { [[ -n "${ATLASCLOUD_MODEL:-}" ]] || [[ -n "${OCTOPUS_ATLASCLOUD_MODEL:-}" ]] || [[ -n "${OPENAI_COMPAT_MODEL:-}" ]]; }
+            [[ "${ATLASCLOUD_API_KEY:-}" =~ [^[:space:]] ]] || return 1
+            if [[ "$agent" == *:* ]]; then
+                octo_agent_spec_exact_model_allowed "$agent" || return 1
+                octo_atlascloud_model "${agent#*:}" >/dev/null
+            else
+                octo_atlascloud_model >/dev/null
+            fi
             ;;
         cheaperinference|cheaperinference-*)
             if [[ -z "${CHEAPER_INFERENCE_API_KEY:-}" ]] && declare -f resolve_provider_env >/dev/null 2>&1; then

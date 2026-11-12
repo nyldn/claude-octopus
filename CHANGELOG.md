@@ -14,6 +14,11 @@
 
 ### Fixed
 
+- Named OpenAI-compatible presets no longer inherit `OPENAI_COMPAT_MODEL`
+  from another vendor. Set the preset-specific model variable or provider
+  default instead. Atlas Cloud admission and dispatch share configured defaults
+  and explicit model pins. The generic slot keeps working.
+
 - Named OpenAI-compatible presets keep their own endpoint and credential
   selection when the generic provider slot is configured. Direct helper calls
   no longer inherit that slot's URL or credential name. Explicit flags still
