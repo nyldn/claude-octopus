@@ -58,6 +58,11 @@
   the selected checkpoint would overwrite. Release validation accepts
   the same scalar, leaf and container skill registrations as assembly validation.
   Fixes #1214.
+- Named OpenAI-compatible presets keep their own endpoint and credential
+  selection when the generic provider slot is configured. Direct helper calls
+  no longer inherit that slot's URL or credential name. Explicit flags still
+  take priority.
+
 - Full unit coverage uses six weighted macOS lanes and four Linux lanes. This
   leaves more room for longer hosted macOS suite durations while retaining
   every suite and the existing 20-minute step limit.
