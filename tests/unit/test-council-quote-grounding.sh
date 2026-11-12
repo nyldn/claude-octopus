@@ -2905,6 +2905,10 @@ test_case "#3390: an ambiguous basename the seat never disambiguated stays unres
 r="$(_areport 'The pass at sentry.ts:2 reads `return v.replace(BACKEND_TOKEN, "[REDACTED]");`.')"
 if jq -e '.citations == 0 and .citations_unresolved == 1' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
+test_case "a basename stays unresolved when both same-named files are cited in full"
+r="$(_areport 'Reviewed functions/_lib/sentry.ts:1 and src/lib/sentry.ts:1. The pass at sentry.ts:2 reads `return v.replace(BACKEND_TOKEN, "[REDACTED]");`.')"
+if jq -e '.citations == 2 and .citations_unresolved == 1 and .quotes_verified == 0 and .quotes_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
 # sail-cruisey #3390: a citation's sentence ends at its bullet. The next
 # bullet's span is not attributed to it.
 test_case "#3390: a span on the next bullet after a finished sentence is not attributed"
@@ -4463,6 +4467,12 @@ for spacing_case in command operator; do
     test_case "layout normalization preserves $spacing_case semantics"
     r="$(_report "$(_resp "src/$spacing_file:1 reads \`$spacing_quote\`.")")"
     if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+
+for source_phrase in 'shows a condition like' 'contains an expression like'; do
+    test_case "an explicit source claim stays attributed before '$source_phrase'"
+    r="$(_report "$(_resp "src/pricing.ts:2 $source_phrase \`$FAKE\`.")")"
+    if jq -e '.quotes_attributed_unverified == 1 and .quotes_unverifiable_proposed == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 done
 
 test_summary

@@ -424,6 +424,8 @@ if (( rc != 0 )) && [[ -n "${OCTOPUS_AGY_FALLBACK_MODELS:-}" ]] && _agy_no_capac
             printf '%s\n' "$_agy_capacity_diagnostic" >> "$stderr_file"
             printf '%s\n' "agy-exec.sh: fallback '$_agy_next' returned no answer" >> "$stderr_file"
             rc="$_agy_capacity_rc"
+            # An empty answer did not establish that this model was busy.
+            continue
         fi
         (( rc != 0 )) && _agy_no_capacity && { _agy_busy="$_agy_next"; continue; }
         # Name the answering model only when it answered; a failed attempt must

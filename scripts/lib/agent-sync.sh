@@ -1310,10 +1310,12 @@ octo_safe_diagnostic_tail() {
 # Council seats run detached, so a failed provider's stderr reaches no one and
 # summary.json could only say "no-response". When the caller names a capture
 # file, append this failed attempt there: the exit code and reason, the
-# provider's stderr, or the tail of its stdout when stderr is empty (some CLIs
-# print their error there). Secrets are scrubbed and the file is private.
+# provider's stderr, or the tail of its stdout when stderr is empty. A validated
+# terminal stdout session status is retained even with stderr warnings.
+# Secrets are scrubbed and the file is private.
 octo_capture_seat_failure() {
     local file="${_OCTOPUS_SEAT_STDERR_FILE:-}" agent="$1" rc="$2" reason="$3" err="$4" out="$5" body="" record=""
+    local terminal_status=""
     local section="-- no stderr or stdout --"
     local scanner="${BASH_SOURCE[0]%/*}/../helpers/artifact-safety.py"
     [[ -n "$file" ]] || return 0
@@ -1325,12 +1327,19 @@ octo_capture_seat_failure() {
     if [[ -s "$err" ]]; then
         body="$(octo_safe_diagnostic_tail "$err" 16384)" || return 0
         section="-- stderr --"
+        if [[ "$rc" != 0 ]] && declare -F octo_quota_session_limit_line >/dev/null &&
+           octo_quota_session_limit_line "$out" >/dev/null; then
+            terminal_status="$(octo_safe_diagnostic_tail "$out" 4096)" || return 0
+        fi
     elif [[ -s "$out" ]]; then
         body="$(octo_safe_diagnostic_tail "$out" 4096)" || return 0
         section="-- stdout tail (stderr was empty) --"
     fi
     record="$(
         printf '== %s %s exited %s: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$agent" "$rc" "$reason"
+        if [[ -n "$terminal_status" ]]; then
+            printf '%s\n%s\n' '-- terminal stdout status --' "$terminal_status"
+        fi
         printf '%s\n' "$section" "$body"
     )"
     # The reason can contain provider output too. Clean controls before

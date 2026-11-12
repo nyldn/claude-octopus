@@ -4192,14 +4192,16 @@ def proposes(text):
     verb_end = None
     previous_end = start
     for match in PROPOSAL.finditer(text, start):
-        if OWN_INPUT.fullmatch(match.group(0)):
+        own_input = OWN_INPUT.fullmatch(match.group(0))
+        example_like = match.group(0).lower().endswith(" like")
+        if own_input or example_like:
             # Advance through verbs once. A direct I/we subject cannot contain
             # an earlier proposal, so its search need not rescan that prefix.
             while verb is not None and verb.end() <= match.start():
                 verb_end = verb.end()
                 verb = next(verbs, None)
-            if verb_end is not None and not FIRST_PERSON_SUBJECT.search(
-                    text, max(verb_end, previous_end), match.start()):
+            if verb_end is not None and (example_like or not FIRST_PERSON_SUBJECT.search(
+                    text, max(verb_end, previous_end), match.start())):
                 previous_end = match.end()
                 continue
         return True
@@ -5449,8 +5451,10 @@ council_run_chair_fallback() {
             return 0
         fi
         local fallback_stderr="${COUNCIL_RUN_DIR}/stderr/$(basename "$output_path" .md).log"
-        rm -f "$fallback_stderr" 2>/dev/null
-        _OCTOPUS_SEAT_STDERR_FILE="$fallback_stderr" \
+        local fallback_model_file="${COUNCIL_RUN_DIR}/models/$(basename "$output_path" .md).txt"
+        local fallback_model_used="" fallback_model_busy=""
+        rm -f "$fallback_stderr" "$fallback_model_file" 2>/dev/null
+        _OCTOPUS_SEAT_STDERR_FILE="$fallback_stderr" _OCTOPUS_AGY_MODEL_USED_FILE="$fallback_model_file" \
             council_dispatch_member_detached "$member_json" "independent-advice" "$output_path" || dispatch_rc=$?
         dispatch_timeout_provenance="$COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE"
         contribution_json="$(council_contribution_record_json "$output_path" "$evidence_root" "$artifact_digest")" \
@@ -5467,6 +5471,13 @@ council_run_chair_fallback() {
             seat_org="$(jq -r '.provider_org // ""' <<< "$member_json")"
             seat_model="$(jq -r '.model // ""' <<< "$member_json")"
             seat_model_family="$(jq -r '.model_family // ""' <<< "$member_json")"
+            if [[ -s "$fallback_model_file" ]]; then
+                { IFS= read -r fallback_model_used; IFS= read -r fallback_model_busy; } < "$fallback_model_file" || true
+                if [[ -n "$fallback_model_used" ]]; then
+                    seat_model="$fallback_model_used"
+                    seat_model_family="$(council_model_family "$provider" "$seat_model")"
+                fi
+            fi
             [[ -n "$seat_model_family" ]] || seat_model_family="$(council_model_family "$seat_agent_spec" "$seat_model")"
             resp_bytes="$(wc -c < "$output_path" 2>/dev/null | tr -d '[:space:]')"
             [[ -z "$resp_bytes" ]] && resp_bytes=0
@@ -5495,6 +5506,8 @@ council_run_chair_fallback() {
                   grounding:($contribution.grounding // null),
                   timeout_provenance:(if $timeout_provenance=="" then null else $timeout_provenance end),
                   counted_as_approver:false}')"
+            [[ -z "$fallback_model_used" ]] || seat_rec="$(jq -c --arg b "$fallback_model_busy" \
+                '.model_fallback = {from:$b, reason:"no-capacity-503"}' <<< "$seat_rec")"
             COUNCIL_SEAT_RECORDS_JSON="$(jq -c ". + [$seat_rec]" <<< "${COUNCIL_SEAT_RECORDS_JSON:-[]}")"
             [[ "$seat_status" != "responded" ]] || return 0
             # Keep completed output and its rejected record for diagnosis while

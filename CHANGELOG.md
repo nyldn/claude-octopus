@@ -19,6 +19,10 @@
 
 ### Fixed
 
+- Council fallback records keep the model that answered and the last model
+  proven capacity-limited. Session limits remain visible beside stderr warnings,
+  and explicit source claims stay checked when they introduce an example.
+
 - Council quote layout matching preserves spaces inside quoted literals and
   requires an explicit ellipsis wherever source text is omitted. An unpunctuated
   list item ends the previous item's citation scope; a colon still introduces

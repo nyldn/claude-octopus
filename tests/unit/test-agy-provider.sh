@@ -1022,13 +1022,14 @@ MOCK_AGY
 
 test_agy_stdout_capacity_survives_empty_fallback() {
     local tmp_bin="$TEST_TMP_DIR/agy-stdout-capacity-bin" calls="$TEST_TMP_DIR/agy-stdout-capacity.calls"
-    local out rc fallback_models
+    local out rc fallback_models used="$TEST_TMP_DIR/agy-stdout-capacity.model"
     _agy_capacity_mock "$tmp_bin"
     for fallback_models in gemini-empty gemini-empty,gemini-answer; do
         test_case "stdout capacity evidence survives an empty fallback: $fallback_models"
-        : > "$calls"
+        : > "$calls"; rm -f "$used"
         out="$(printf 'inert fixture' | PATH="$tmp_bin:$PATH" AGY_CALLS="$calls" AGY_BUSY_MODELS=default \
             AGY_CAPACITY_STDOUT=1 AGY_ALWAYS_EMPTY=gemini-empty OCTOPUS_AGY_MODEL=default \
+            _OCTOPUS_AGY_MODEL_USED_FILE="$used" \
             OCTOPUS_AGY_NO_PTY_FALLBACK=1 OCTOPUS_AGY_FORCE_INLINE=0 \
             OCTOPUS_AGY_FALLBACK_MODELS="$fallback_models" \
             bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" 2>"${calls}.err")" && rc=0 || rc=$?
@@ -1039,7 +1040,8 @@ test_agy_stdout_capacity_survives_empty_fallback() {
                 test_fail "empty fallback lost stdout capacity evidence: rc=$rc out=$out"
             fi
         elif (( rc == 0 )) && [[ "$out" == 'answer from gemini-answer' ]] \
-                && [[ "$(tr '\n' '|' < "$calls")" == 'default|gemini-empty|gemini-empty|gemini-answer|' ]]; then
+                && [[ "$(tr '\n' '|' < "$calls")" == 'default|gemini-empty|gemini-empty|gemini-answer|' ]] \
+                && [[ "$(tr '\n' '|' < "$used")" == 'gemini-answer|gemini-3.8-flash-high|' ]]; then
             test_pass
         else
             test_fail "later fallback was not reached: rc=$rc out=$out"

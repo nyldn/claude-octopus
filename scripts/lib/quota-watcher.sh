@@ -225,15 +225,18 @@ octo_quota_is_dead() {
 
 octo_quota_session_limit_line() {
     local file="$1" format="${2:-raw}"
-    # Capture mode accepts only the writer's header and stdout section marker.
-    # Every nonblank output line then counts, including fences and quote context.
+    # A terminal status before stderr is emitted only after stdout validation.
+    # Never interpret markers inside stderr or quoted stdout as writer metadata.
     LC_ALL=C awk -v format="$format" '
         BEGIN { body = format != "capture" }
         !body {
             if (!header && /^== /) { header = 1; next }
             if ($0 == "-- stdout tail (stderr was empty) --") { body = 1; next }
+            if ($0 == "-- terminal stdout status --") { body = 1; terminal = 1; next }
             invalid = 1; exit 1
         }
+        terminal && $0 == "-- stderr --" { trailing = 1; next }
+        trailing { next }
         NF { count++; line = $0 }
         END {
             if (!invalid && body && count == 1 &&
