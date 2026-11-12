@@ -619,8 +619,12 @@ test_case "fallback and Python claim publication cannot admit two owners"
 if python3 "$PROJECT_ROOT/tests/unit/test-output-claim-races.py"; then test_pass
 else test_fail "controlled claim publication interleavings admitted two owners"; fi
 
+parent_fixture="$TEST_TMP_DIR/parent-admission-fixture"
+printf 'parent-owned fixture\n' > "$parent_fixture"
+
 test_case "real spawn admission rejects a reused durable seat without deleting its artifacts"
 if (
+    trap - EXIT
     source "$PROJECT_ROOT/scripts/lib/spawn.sh"
     export OCTOPUS_RUN_ID=durable-retry-artifacts
     SUPPORTS_WORKTREE_HOOKS=false SUPPORTS_FORK_CONTEXT=false
@@ -703,6 +707,7 @@ else test_fail "a concurrent dispatcher deleted its saved answer before its seat
 
 test_case "parallel admission recovers an interrupted first contract append"
 if (
+    trap - EXIT
     source "$PROJECT_ROOT/scripts/lib/spawn.sh"
     export OCTOPUS_RUN_ID=recovery-admission
     ledger="$(octo_run_contract_ledger_path)"
@@ -733,6 +738,7 @@ else test_fail "recoverable contract append blocked fresh admission"; fi
 for recovery_case in existing missing-backup malformed; do
     test_case "contract admission preserves artifacts for $recovery_case state"
     if (
+        trap - EXIT
         source "$PROJECT_ROOT/scripts/lib/spawn.sh"
         export OCTOPUS_RUN_ID="recovery-preserve-$recovery_case"
         ledger="$(octo_run_contract_ledger_path)"
@@ -765,6 +771,14 @@ for recovery_case in existing missing-backup malformed; do
     ); then test_pass
     else test_fail "contract admission lost artifacts or dispatched for $recovery_case"; fi
 done
+
+test_case "admission subshells preserve the parent test workspace"
+if [[ -f "$parent_fixture" ]]; then
+    test_pass
+else
+    test_fail "an admission subshell removed the parent-owned fixture"
+    mkdir -p "$TEST_TMP_DIR"
+fi
 
 holder_root="$(mktemp -d "$TEST_TMP_DIR/holder.XXXXXX")"
 printf '{"tasks":[{"id":"holder","agent":"codex","prompt":"inert"}]}' > "$holder_root/holder-tasks.json"
