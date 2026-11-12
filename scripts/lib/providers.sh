@@ -50,7 +50,7 @@ _octo_bare_auth_probe() (
     read -r probe_timeout term_timeout kill_grace <<< \
         "$(_octo_bare_probe_budget "${OCTOPUS_BARE_PROBE_TIMEOUT:-5}")"
 
-    if [[ "${OCTOPUS_SKIP_PROVIDER_PROBES:-false}" == "true" ]]; then
+    if _octo_skip_discovery_probes; then
         return 125
     fi
 
@@ -163,8 +163,8 @@ detect_claude_code_version() {
     local -a _claude_capability_cmd
     local _claude_capability_help="" _claude_capability_timeout
     read -r -a _claude_capability_cmd <<< "${OCTOPUS_CLAUDE_BIN:-claude}"
-    if [[ "${OCTOPUS_SKIP_PROVIDER_PROBES:-false}" != "true" &&
-       "${#_claude_capability_cmd[@]}" -gt 0 ]] &&
+    if ! _octo_skip_discovery_probes &&
+       [[ "${#_claude_capability_cmd[@]}" -gt 0 ]] &&
        command -v "${_claude_capability_cmd[0]}" >/dev/null 2>&1; then
         _claude_capability_timeout="$(_octo_bare_probe_timeout "${OCTOPUS_BARE_PROBE_TIMEOUT:-5}")"
         _claude_capability_help="$(unset MISTRAL_API_KEY || exit 1

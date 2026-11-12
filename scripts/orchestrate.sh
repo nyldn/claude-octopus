@@ -135,7 +135,8 @@ if [[ "${CLAUDE_CODE_REMOTE:-}" == "true" || "${CLAUDE_CODE_WEB:-}" == "true" ||
     export CLAUDE_OCTOPUS_AUTONOMY="${CLAUDE_OCTOPUS_AUTONOMY:-${OCTOPUS_AUTONOMY:-autonomous}}"
     export OCTOPUS_AUTONOMY="${OCTOPUS_AUTONOMY:-$CLAUDE_OCTOPUS_AUTONOMY}"
     export OCTOPUS_REMOTE_STATUSLINE="${OCTOPUS_REMOTE_STATUSLINE:-minimal}"
-    export OCTOPUS_SKIP_PROVIDER_PROBES="${OCTOPUS_SKIP_PROVIDER_PROBES:-true}"
+    # Discovery applies its remote default without disabling selected dispatch.
+    # Preserve the user's explicit probe setting, including an explicit skip.
 fi
 
 # Keep debug flag defined even when nounset is enabled by sourced scripts.

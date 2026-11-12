@@ -760,6 +760,7 @@ preflight_check() {
         opencode|opencode-fast|opencode-research) selected_opencode=true ;;
     esac
     local opencode_admission="$selected_opencode"
+    [[ "$check_context" != auto-dispatch ]] || _octo_opencode_research_ready=false
     # A running workflow can confirm the user's pinned roster. Inspection of
     # that same roster does not authorize login probes.
     if [[ "$workflow_dispatch" == true && -n "${OCTOPUS_COUNCIL_DEFAULT_PROVIDERS:-}" &&
@@ -770,8 +771,15 @@ preflight_check() {
     # Automatic research selects its fleet after admission. Confirm an
     # unpinned OpenCode candidate there, never during broad inspection.
     if [[ "$check_context" == auto-dispatch && -z "$selected_provider" &&
-          "${OCTOPUS_COUNCIL_DEFAULT_PROVIDERS:-auto}" == auto ]]; then
-        opencode_admission=true
+          "${OCTOPUS_COUNCIL_DEFAULT_PROVIDERS:-auto}" == auto ]] &&
+       command -v opencode >/dev/null 2>&1; then
+        local oc_status oc_reason oc_remediation
+        IFS='|' read -r oc_status oc_reason oc_remediation < <(_octo_provider_static_readiness opencode)
+        if [[ "$oc_status" != missing ]]; then
+            case "$oc_reason" in
+                ready|live-check-required|auth-missing) opencode_admission=true ;;
+            esac
+        fi
     fi
 
     local broad_cache=true
@@ -802,6 +810,10 @@ preflight_check() {
             ' <<< "$panel_report")" || return 1
         fi
         jq -e '.providers_degraded == 0' <<< "$panel_report" >/dev/null || { log ERROR "Required provider panel is not ready"; return 1; }
+        if [[ "$check_context" == auto-dispatch ]] &&
+           jq -e '.results | any(.provider == "opencode" and .status == "available")' <<< "$panel_report" >/dev/null; then
+            _octo_opencode_research_ready=true
+        fi
         if [[ ",$OCTOPUS_PREFLIGHT_PROVIDERS," == *,codex,* ]]; then
             check_codex_auth_freshness || return 1
         fi
@@ -876,6 +888,10 @@ preflight_check() {
             ((providers_found++)) || true
         fi
         if [[ "$status" == "available" ]]; then
+            if [[ "$provider" == opencode && "$opencode_admission" == true &&
+                  "$check_context" == auto-dispatch ]]; then
+                _octo_opencode_research_ready=true
+            fi
             ((ready_provider_count++)) || true
             available_providers="${available_providers}${available_providers:+ }${provider}"
             if [[ "$provider" == "codex" ]]; then

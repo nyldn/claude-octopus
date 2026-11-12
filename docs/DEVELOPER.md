@@ -256,6 +256,12 @@ subprocesses and persistent budgets. Static tests do not prove a host complied
 with that contract; retain the run's snapshots, hashes, checks, and ledger when
 validating an actual experiment. A missing capability stops the run.
 
+### Tangle output coverage
+
+Managed Tangle validation checks the parent-owned `Files:` / `Creates:` scopes against the integration checkout. Existing regular files, nonempty output directories and tracked deletions from the immutable baseline can supply artifact evidence; model prose cannot create that evidence. Read-only input references, linked plans and shared documentation are not output obligations. Symlink aliases and paths outside the checkout cannot satisfy coverage. A missing declared output still fails, and an unavailable coverage check fails closed.
+
+The unstructured `check_explicit_file_coverage` compatibility path remains textual for standalone callers and considers direct write instructions rather than preceding read context. Managed workflows supply the explicit scope contract and do not depend on textual echoes. Scope authorization, mechanical tests and independent quality review remain separate gates; existence is coverage evidence, not proof of correctness.
+
 ## Complete review verification
 
 Round 2 builds byte-bounded requests from complete findings and the matching

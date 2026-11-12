@@ -36,6 +36,12 @@ get_dispatch_strategy() {
     local prompt="$1"
     local workflow="${2:-auto}"
     local strategy="${OCTOPUS_DISPATCH_STRATEGY:-smart}"
+    local has_opencode=false
+    if [[ "${_octo_opencode_research_ready:-false}" == true ]] &&
+       _gds_provider_allowed opencode && _gds_not_quota_dead opencode &&
+       command -v opencode >/dev/null 2>&1; then
+        has_opencode=true
+    fi
 
     case "$strategy" in
         full)
@@ -43,6 +49,7 @@ get_dispatch_strategy() {
             _gds_provider_allowed codex && _gds_not_quota_dead codex && command -v codex >/dev/null 2>&1 && all_p="codex,${all_p}"
             # Antigravity (agy) is the Google seat since the Gemini CLI sunset (#524)
             _gds_provider_allowed agy && _gds_not_quota_dead agy && command -v agy >/dev/null 2>&1 && all_p="agy,${all_p}"
+            [[ "$has_opencode" != true ]] || all_p="opencode,${all_p}"
             local _full_count; _full_count=$(awk -F, '{print NF}' <<< "$all_p")
             echo "${_full_count}:${all_p}:high"
             return 0 ;;
@@ -50,6 +57,7 @@ get_dispatch_strategy() {
             # AGY is the sole Google seat.
             if _gds_provider_allowed agy && _gds_not_quota_dead agy && command -v agy >/dev/null 2>&1; then echo "2:agy,claude-sonnet:high"
             elif _gds_provider_allowed codex && _gds_not_quota_dead codex && command -v codex >/dev/null 2>&1; then echo "2:codex,claude-sonnet:high"
+            elif [[ "$has_opencode" == true ]]; then echo "2:opencode,claude-sonnet:high"
             else echo "1:claude-sonnet:high"; fi
             return 0 ;;
     esac
@@ -102,6 +110,7 @@ get_dispatch_strategy() {
     [[ "$has_copilot" == true ]] && cli_providers+=(copilot)
     [[ "$has_qwen" == true ]] && cli_providers+=(qwen)
     [[ "$has_cursor_agent" == true ]] && cli_providers+=(cursor-agent)
+    [[ "$has_opencode" == true ]] && cli_providers+=(opencode)
     local cli_count=${#cli_providers[@]}
 
     case "$workflow" in
@@ -134,6 +143,7 @@ get_dispatch_strategy() {
             elif [[ "$has_codex" == true ]]; then echo "2:codex,claude-sonnet:medium"
             elif [[ "$has_qwen" == true ]]; then echo "2:qwen,claude-sonnet:medium"
             elif [[ "$has_copilot" == true ]]; then echo "2:copilot,claude-sonnet:medium"
+            elif [[ "$has_opencode" == true ]]; then echo "2:opencode,claude-sonnet:medium"
             else echo "1:claude-sonnet:medium"; fi ;;
     esac
 }

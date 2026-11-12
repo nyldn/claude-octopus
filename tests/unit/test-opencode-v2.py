@@ -84,6 +84,73 @@ fi
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout.strip(), "run --standalone -m vendor/model")
 
+    def test_remote_automatic_defaults_allow_real_opencode_admission(self):
+        """Remote discovery defaults must not disable selected OpenCode work."""
+        self.env.pop("OCTOPUS_SKIP_PROVIDER_PROBES", None)
+        self.env.update(CLAUDE_CODE_REMOTE="true", CLI_VERSION="2.0.23")
+        orchestrator = (ROOT / "scripts/orchestrate.sh").read_text()
+        defaults = orchestrator.split('# Claude Code web/remote sessions', 1)[1].split('# Keep debug flag', 1)[0]
+        script = ('# Claude Code web/remote sessions' + defaults +
+                  '\nsource scripts/lib/auth.sh; source scripts/lib/dispatch.sh; '
+                  'log() { :; }; get_agent_model() { echo vendor/model; }; '
+                  '_octo_opencode_has_saved_login && get_agent_command opencode')
+        result = self.shell(script)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('run --standalone', result.stdout)
+        self.assertTrue(self.marker.exists())
+
+    def test_automatic_research_keeps_the_cache_without_an_opencode_candidate(self):
+        """An absent or disallowed candidate must not disable broad cache reuse."""
+        self.cli.rename(self.bin / 'disabled-opencode')
+        self.env['OCTO_ALLOWED_PROVIDERS'] = 'codex'
+        cache = Path(self.env['HOME']) / 'preflight-cache'
+        cache.write_text('9999999999\n0\n')
+        result = self.shell(r'''
+source scripts/lib/preflight.sh
+source scripts/lib/config-display.sh
+log() { :; }
+_preflight_provider_candidates() { echo codex; }
+octo_provider_readiness_result() { printf '%s\n' '{"provider":"codex","status":"available","reason_code":"ready","remediation":""}'; }
+detect_enterprise_backend() { :; }
+provider_smoke_test() { touch "$PROBE_MARKER"; }
+WORKSPACE_DIR="$HOME"; PREFLIGHT_CACHE_FILE="$HOME/preflight-cache"
+preflight_check false "" auto-dispatch
+''')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertFalse(self.marker.exists(), 'automatic admission bypassed a valid broad cache')
+
+    def test_automatic_research_seats_the_opencode_login_it_confirmed(self):
+        """The actual research entrypoint must use its admitted OpenCode seat."""
+        self.env.update(CLI_VERSION='2.0.23', DRY_RUN='false',
+                        OCTOPUS_RESEARCH_EVIDENCE='false', OCTOPUS_RESEARCH_INTENSITY='quick')
+        (self.data / 'opencode.db').touch()
+        selected = self.base / 'selected-agent'
+        self.env['SELECTED_AGENT_FILE'] = str(selected)
+        result = self.shell(r'''
+source scripts/lib/workflows.sh
+source scripts/lib/embrace.sh
+source scripts/lib/preflight.sh
+source scripts/lib/config-display.sh
+log() { :; }
+_preflight_provider_candidates() { echo opencode; }
+detect_enterprise_backend() { :; }
+provider_smoke_test() { :; }
+display_workflow_cost_estimate() { return 0; }
+get_cache_key() { echo fixture; }
+check_cache() { return 1; }
+load_blind_spot_checklist() { :; }
+WORKSPACE_DIR="$HOME"; PREFLIGHT_CACHE_FILE="$HOME/preflight-cache"
+RESULTS_DIR="$HOME/results"; LOGS_DIR="$HOME/logs"; TMUX_MODE=false
+for helper in octopus_phase_banner cleanup_cache init_progress_tracking fleet_dispatch_begin fleet_dispatch_end; do
+    eval "$helper() { :; }"
+done
+# Stop at the first actual seat, after the real preflight and fleet selector.
+spawn_agent_capture_pid() { printf '%s\n' "$1" > "$SELECTED_AGENT_FILE"; return 77; }
+probe_discover fixture
+''')
+        self.assertTrue(selected.exists(), result.stdout + result.stderr)
+        self.assertEqual(selected.read_text().strip(), 'opencode')
+
     def test_github_auth_probe_excludes_forwarded_mistral_key(self):
         """Discovery may confirm GitHub login without exposing another provider key."""
         gh = self.bin / "gh"

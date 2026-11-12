@@ -956,6 +956,7 @@ probe_discover() {
     fi
 
     # Pre-flight validation
+    local _octo_opencode_research_ready=false
     preflight_check false "" auto-dispatch || return 1
 
     if [[ "${OCTOPUS_RESEARCH_EVIDENCE:-true}" == "true" ]] \
@@ -5662,6 +5663,12 @@ tangle_validate_results_with_scope_contract() {
         fi
         return 1
     fi
+    local TANGLE_REQUIRED_OUTPUT_SCOPES
+    unset TANGLE_REQUIRED_OUTPUT_SCOPES
+    if [[ -n "$authorized" ]]; then
+        TANGLE_REQUIRED_OUTPUT_SCOPES="$authorized"
+    fi
+    local TANGLE_REQUIRED_OUTPUT_BASELINE="$baseline_head"
     validate_tangle_results "$task_group" "$original_prompt" "$worktree_before_file" "$baseline_head" "$worktree_before_state_file" "$expected_task_ids" || base_rc=$?
     tangle_append_write_scope_contract_report "$validation_file" "$authorized" "$read_only" "$violations" "$baseline_head"
     if [[ -n "$adaptive_scope_evidence" ]]; then

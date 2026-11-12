@@ -7,6 +7,17 @@
 
 _auth_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Remote startup skips discovery probes unless the user opts in. Selected
+# OpenCode admission checks only the explicit setting, not this startup default.
+_octo_skip_discovery_probes() {
+    case "${OCTOPUS_SKIP_PROVIDER_PROBES:-}" in
+        true|1) return 0 ;;
+        false|0) return 1 ;;
+    esac
+    [[ "${CLAUDE_CODE_REMOTE:-}" == true || "${CLAUDE_CODE_WEB:-}" == true ||
+       "${OCTOPUS_REMOTE_SESSION:-false}" == true ]]
+}
+
 # Shared credential-value parsing. Provider admission surfaces must not trust a
 # file merely because an assignment exists: blank and quoted-empty values are
 # unauthenticated, while a # inside a quoted credential is data, not a comment.
@@ -61,7 +72,7 @@ _octo_assignment_has_nonempty_value() {
 # Never launch its interactive CLI, print a secret or migrate keyring entries.
 _octo_vibe_keyring_has_key() {
     [[ "${1:-}" == selected ]] || return 1
-    case "${OCTOPUS_SKIP_PROVIDER_PROBES:-false}" in true|1) return 1 ;; esac
+    _octo_skip_discovery_probes && return 1
     local binary shebang interpreter extra lib_dir name
     local -a probe_env
     binary="$(command -v vibe 2>/dev/null)" || return 1

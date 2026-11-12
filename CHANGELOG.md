@@ -177,6 +177,8 @@
 
 ### Fixed
 
+- Managed Tangle output coverage checks declared artifacts rather than requiring model responses to repeat read-only context references. Missing outputs and unavailable coverage evidence remain blocking.
+
 - Large `probe-single --perspective-file` prompts pass startup validation
   promptly without rewriting their content. Empty and whitespace-only files
   are still rejected before provider dispatch. Fixes [#1295](https://github.com/nyldn/claude-octopus/issues/1295)
