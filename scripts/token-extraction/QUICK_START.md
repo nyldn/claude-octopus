@@ -48,7 +48,7 @@ npm run extract -- --formats json --project /path/to/your/project
 ### Custom Output Directory
 
 ```bash
-npm run extract -- --output ./design-tokens --project /path/to/your/project
+npm run extract -- --output /path/to/your/project/design-tokens --project /path/to/your/project
 ```
 
 ### Handle Conflicts Manually
@@ -335,7 +335,7 @@ Run from `scripts/token-extraction`:
 npm run extract -- --project /path/to/project
 npm run extract -- --project /path/to/project --include-sources tailwind.config
 npm run extract -- --project /path/to/project --formats json
-npm run extract -- --project /path/to/project --output ./my-tokens
+npm run extract -- --project /path/to/project --output /path/to/project/my-tokens
 ```
 
 ## Supported Token Types

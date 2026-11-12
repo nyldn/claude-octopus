@@ -49,7 +49,7 @@ npm run extract -- --project /path/to/your/project --include-sources tailwind.co
 npm run extract -- --project /path/to/your/project --formats json
 
 # Choose an output directory
-npm run extract -- --project /path/to/your/project --output ./tokens
+npm run extract -- --project /path/to/your/project --output /path/to/your/project/tokens
 ```
 
 ### Programmatic Usage

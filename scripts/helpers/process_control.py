@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import select
 import signal
+import subprocess
 import sys
 import time
 
@@ -71,10 +72,10 @@ def _boot_id():
     return buffer.value.decode("ascii")
 
 
-def _darwin_info(pid, flavor, kind):
+def _darwin_info(pid, flavor, kind, include_zombies=False):
     info = kind()
     size = ctypes.sizeof(info)
-    copied = _darwin().proc_pidinfo(pid, flavor, 0, ctypes.byref(info), size)
+    copied = _darwin().proc_pidinfo(pid, flavor, int(include_zombies), ctypes.byref(info), size)
     if copied != size:
         code = ctypes.get_errno() if copied <= 0 else errno.EIO
         raise OSError(code or errno.ESRCH, "cannot read process identity")
@@ -142,11 +143,8 @@ def snapshot(pid):
     return ProcessInfo(pid, parent, token, version, stopped)
 
 
-def _linux_proc_children(pid):
-    """Enumerate direct children from mandatory process stat records."""
-    result = []
-    # Reading our own record verifies that procfs supports the stat view before
-    # an empty scan can be interpreted as "no children".
+def _linux_proc_records(require_complete=False):
+    """Yield stat records, refusing incomplete snapshots when ownership needs them."""
     Path("/proc/self/stat").read_bytes()
     with os.scandir("/proc") as entries:
         for entry in entries:
@@ -154,12 +152,18 @@ def _linux_proc_children(pid):
                 continue
             try:
                 fields = Path(entry.path, "stat").read_bytes().rsplit(b")", 1)[1].split()
-            except FileNotFoundError:
-                # Processes may exit while /proc is being scanned.
+            except (FileNotFoundError, ProcessLookupError) as error:
+                if require_complete:
+                    # It may have forked into a private group after scandir.
+                    # With its stat gone, even the former PGID is unknown.
+                    raise StaleProcess("process exited during group enumeration") from error
                 continue
-            if int(fields[1]) == pid:
-                result.append(int(entry.name))
-    return sorted(result)
+            yield int(entry.name), fields
+
+
+def _linux_proc_children(pid):
+    """Enumerate direct children from mandatory process stat records."""
+    return sorted(child for child, fields in _linux_proc_records() if int(fields[1]) == pid)
 
 
 def children(pid):
@@ -300,7 +304,102 @@ def _wait(handles, seconds):
     return True
 
 
-def terminate(pid, grace=1, frozen=False, descendants=False, expected=None):
+def _process_groups():
+    """Enumerate groups without discarding evidence of a member exit."""
+    if sys.platform.startswith("linux"):
+        # Retry an incomplete snapshot before exposing any of its candidates.
+        # The owner stays stopped; a missing record may have forked a newborn.
+        for attempt in range(5):
+            try:
+                groups = [(pid, int(fields[2])) for pid, fields in
+                          _linux_proc_records(require_complete=True)]
+                break
+            except StaleProcess:
+                if attempt == 4:
+                    raise
+        # Keep zombies: admission must rescan or refuse before teardown.
+        yield from groups
+        return
+    # macOS supplies this numeric PID/group view. Failure is not an empty group.
+    result = subprocess.run(["/bin/ps", "-axo", "pid=,pgid=,stat="], check=True,
+                            stdout=subprocess.PIPE, timeout=2)
+    for row in result.stdout.splitlines():
+        pid, pgid, _state = row.split()
+        yield int(pid), int(pgid)
+
+
+def _owned_group_candidates(leaders):
+    """Enumerate members only while a bound, stopped private leader is alive."""
+    if not leaders:
+        return
+    active = {}
+    for leader in leaders:
+        pid = leader.info.pid
+        if not leader.running() or os.getpgid(pid) != pid:
+            raise StaleProcess("private group leader exited during group admission")
+        active[pid] = leader
+    for pid, pgid in _process_groups():
+        if pgid in active:
+            yield pid, active[pgid]
+
+
+def _zombie_group_identity(pid, pgid):
+    """Return a birth identity only for a confirmed zombie in the owned group."""
+    try:
+        if sys.platform.startswith("linux"):
+            fields = Path(f"/proc/{pid}/stat").read_bytes().rsplit(b")", 1)[1].split()
+            if fields[0] in (b"Z", b"X") and int(fields[2]) == pgid:
+                return pid, fields[19]
+        else:
+            # XNU only searches its zombie list when proc_pidinfo's arg is 1.
+            before = _darwin_info(pid, 17, _UniqueInfo, include_zombies=True)
+            short = _darwin_info(pid, 13, _ShortInfo, include_zombies=True)
+            after = _darwin_info(pid, 17, _UniqueInfo, include_zombies=True)
+            if before.unique == after.unique and short.status == 5 and short.pgid == pgid:
+                return pid, after.unique
+    except (FileNotFoundError, ProcessLookupError):
+        pass
+    return None
+
+
+def _admit_owned_group_members(leaders, handles, seen, excluded, exited=None):
+    """Return newly bound members and whether exits require another scan."""
+    admitted = []
+    rescan = False
+    if exited is None:
+        exited = set()
+    for child, leader in _owned_group_candidates(leaders):
+        if child in seen or child in excluded:
+            continue
+        if len(handles) >= 4096:
+            raise OSError(errno.EOVERFLOW, "process tree exceeds cancellation limit")
+        try:
+            member = Process(child)
+        except (ProcessLookupError, StaleProcess):
+            # A forked child keeps this PGID. Rescan before leader teardown,
+            # retaining already stopped processes instead of restarting them.
+            zombie = _zombie_group_identity(child, leader.info.pid)
+            if zombie is None or zombie not in exited:
+                rescan = True
+            if zombie is not None:
+                exited.add(zombie)
+            continue
+        handles.append(member)
+        try:
+            same_group = os.getpgid(child) == leader.info.pid
+        except ProcessLookupError as error:
+            raise StaleProcess("group member exited before membership verification") from error
+        if not member.running():
+            raise StaleProcess("group member exited before freezing")
+        if not same_group or not leader.running():
+            raise StaleProcess("private group changed during member admission")
+        seen.add(child)
+        admitted.append((member, True))
+    return admitted, rescan
+
+
+def terminate(pid, grace=1, frozen=False, descendants=False, expected=None, owned_groups=False):
+    """Cancel bound processes, including still-owned private groups when requested."""
     _validate_pid(pid)
     excluded = _ancestors()
     if pid in excluded and not descendants:
@@ -312,16 +411,33 @@ def terminate(pid, grace=1, frozen=False, descendants=False, expected=None):
         except ProcessLookupError:
             return "already-exited"
         handles.append(root)
-        pending = [(root, not descendants)]
+        pending = [None, (root, not descendants)] if owned_groups else [(root, not descendants)]
+        group_leaders = []
+        group_rescans = 0
+        exited = set()
         seen = {pid}
         while pending:
-            handle, freeze = pending.pop()
+            entry = pending.pop()
+            if entry is None:
+                admitted, rescan = _admit_owned_group_members(group_leaders, handles, seen, excluded, exited)
+                if rescan:
+                    group_rescans += 1
+                    if group_rescans >= 5:
+                        raise StaleProcess("owned group kept changing during admission")
+                # Members can fork before STOP. Rescan after freezing every new
+                # member, until the still-owned groups contain no unseen process.
+                if admitted or rescan:
+                    pending.extend([None, *admitted])
+                continue
+            handle, freeze = entry
             if freeze:
                 # Record responsibility before delivery: a signal handler can
                 # interrupt Python immediately after the native STOP succeeds.
                 if not handle.info.stopped:
                     stopped.append(handle)
                 if not handle.send(signal.SIGSTOP):
+                    if owned_groups:
+                        raise StaleProcess("descendant exited before freezing; cleanup incomplete")
                     continue
                 # STOP delivery is asynchronous. Enumerate only once it cannot fork.
                 # XNU queues psignal asynchronously even when the identity-
@@ -353,9 +469,15 @@ def terminate(pid, grace=1, frozen=False, descendants=False, expected=None):
                         retry_at = now + 0.25
                     time.sleep(0.01)
                 if disappeared:
+                    if owned_groups:
+                        raise StaleProcess("descendant exited during freezing; cleanup incomplete")
                     continue
             if not handle.running():
+                if owned_groups:
+                    raise StaleProcess("descendant exited before enumeration; cleanup incomplete")
                 continue
+            if owned_groups and freeze and os.getpgid(handle.info.pid) == handle.info.pid:
+                group_leaders.append(handle)
             for child in children(handle.info.pid):
                 if child in seen or child in excluded:
                     continue
@@ -364,7 +486,11 @@ def terminate(pid, grace=1, frozen=False, descendants=False, expected=None):
                     raise OSError(errno.EOVERFLOW, "process tree exceeds cancellation limit")
                 try:
                     member = Process(child, parent=handle.info.pid)
-                except (ProcessLookupError, StaleProcess):
+                except (ProcessLookupError, StaleProcess) as error:
+                    if owned_groups:
+                        # An unbound private leader may leave reparented helpers.
+                        # Keep its supervisor alive to perform its own cleanup.
+                        raise StaleProcess("descendant exited during admission; cleanup incomplete") from error
                     continue
                 if not handle.running():
                     member.close()
@@ -402,7 +528,57 @@ def terminate(pid, grace=1, frozen=False, descendants=False, expected=None):
                 signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
 
 
+def handoff_to_children(pid, expected=None):
+    """Ask bound supervision children to clean up, without killing their handlers."""
+    if pid == os.getpid():
+        raise ValueError("refusing to freeze self for supervisor handoff")
+    excluded = _ancestors()
+    with Process(pid, expected=expected) as root:
+        handles = []
+        stopped = False
+        try:
+            if not root.info.stopped:
+                # Freeze only the caller, not the supervision children whose
+                # TERM handlers own private groups, including orphaned helpers.
+                stopped = True
+                if not root.send(signal.SIGSTOP):
+                    raise StaleProcess("caller exited before supervisor handoff")
+                deadline = time.monotonic() + 1
+                while not snapshot(pid).stopped:
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError("caller did not stop before supervisor handoff")
+                    time.sleep(0.01)
+            for child in children(pid):
+                if child in excluded:
+                    continue
+                if len(handles) >= 4096:
+                    raise OSError(errno.EOVERFLOW, "supervision children exceed cancellation limit")
+                try:
+                    handle = Process(child, parent=pid)
+                except ProcessLookupError:
+                    continue
+                handles.append(handle)
+            if not root.running() or not handles:
+                raise StaleProcess("no live supervision child could be bound")
+            for handle in handles:
+                handle.send(signal.SIGTERM)
+            # Never escalate to KILL: the child may still own group cleanup.
+            return "terminated" if _wait(handles, 5) else "survived"
+        finally:
+            previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT, signal.SIGTERM})
+            try:
+                if stopped:
+                    root.send(signal.SIGCONT)
+            finally:
+                try:
+                    for handle in handles:
+                        handle.close()
+                finally:
+                    signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
+
+
 def main():
+    """Expose native cleanup and report incomplete ownership verification."""
     def interrupted(signum, _frame):
         raise InterruptedError(f"cleanup interrupted by signal {signum}")
 
@@ -414,14 +590,21 @@ def main():
     parser.add_argument("--grace", type=float, default=1)
     parser.add_argument("--frozen", action="store_true")
     parser.add_argument("--descendants", action="store_true")
+    parser.add_argument("--owned-groups", action="store_true")
+    parser.add_argument("--supervisor-handoff", action="store_true")
     args = parser.parse_args()
     if not 0 <= args.grace <= 60:
         parser.error("grace must be between 0 and 60 seconds")
     try:
-        result = terminate(args.pid, args.grace, args.frozen, args.descendants, args.identity)
+        if args.supervisor_handoff:
+            if args.frozen or args.descendants or args.owned_groups:
+                parser.error("supervisor handoff cannot be combined with tree teardown")
+            result = handoff_to_children(args.pid, args.identity)
+        else:
+            result = terminate(args.pid, args.grace, args.frozen, args.descendants, args.identity, args.owned_groups)
         print(result)
         return int(result == "survived")
-    except (OSError, StaleProcess, UnsupportedPlatform, ValueError) as error:
+    except (OSError, StaleProcess, UnsupportedPlatform, ValueError, subprocess.SubprocessError) as error:
         print(f"Process cleanup refused: {error}", file=sys.stderr)
         print("unverified")
         return 1
