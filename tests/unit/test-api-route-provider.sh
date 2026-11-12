@@ -32,7 +32,7 @@ test_case "model pins preserve resolution precedence"
 if [[ "$(API_ROUTE_MODEL=primary OCTOPUS_API_ROUTE_MODEL=secondary OPENAI_COMPAT_MODEL=generic octo_api_route_model)" == primary ]] &&
    [[ "$(OCTOPUS_API_ROUTE_MODEL=secondary OPENAI_COMPAT_MODEL=generic octo_api_route_model)" == secondary ]] &&
    [[ "$(PWD=/tmp/octo-cwd OCTOPUS_API_ROUTE_MODEL=secondary get_agent_command api-route-agent review code-reviewer)" == *'--model secondary '* ]] &&
-   [[ "$(OPENAI_COMPAT_MODEL=generic octo_api_route_model)" == generic ]]; then
+   ! OPENAI_COMPAT_MODEL=generic octo_api_route_model >/dev/null; then
     test_pass
 else
     test_fail "model precedence drifted"
