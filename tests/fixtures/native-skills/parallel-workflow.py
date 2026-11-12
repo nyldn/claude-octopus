@@ -29,6 +29,8 @@ prompt = sys.stdin.read()
 trace = Path(os.environ['OCTO_TEST_TRACE'])
 with trace.open('a') as f: f.write(name + '\n')
 if sys.argv[1:] != ['--plugin-dir', os.environ['OCTO_TEST_PLUGIN'], '-p']: raise SystemExit(91)
+if any(key in os.environ for key in plan.get('absent_env', [])): raise SystemExit(94)
+if any(os.environ.get(key) != value for key, value in plan.get('present_env', {}).items()): raise SystemExit(95)
 if plan.get('needs'):
     for needed in plan['needs']:
         if not Path(needed).is_file(): raise SystemExit(92)
@@ -168,6 +170,20 @@ class ParallelWorkflow(unittest.TestCase):
         for name in ('WP-1', 'WP-2'):
             self.git('merge-base', '--is-ancestor', state['packages'][name]['commit'], final)
         self.assertEqual(state['status'], 'success')
+        self.assert_canonical_preserved()
+
+    def test_native_workers_strip_provider_credentials_and_keep_runtime_context(self):
+        private = {key: 'fixture-only-' + key for key in (
+            'CLAUDECODE', 'OPENAI_API_KEY', 'AGY_AUTH_TOKEN', 'ANTIGRAVITY_API_KEY',
+            'OPENROUTER_API_KEY', 'PERPLEXITY_API_KEY')}
+        self.env.update(private)
+        self.env['OCTO_TEST_ALLOWED_CONTEXT'] = 'retained'
+        run = self.prepare()
+        self.run_workers(run, {'WP-1': {
+            'absent_env': list(private),
+            'present_env': {'OCTO_TEST_ALLOWED_CONTEXT': 'retained'}}})
+        for key, value in private.items():
+            self.assertEqual(self.env[key], value)
         self.assert_canonical_preserved()
 
     def test_dirty_or_missing_own_commits_are_not_successful(self):

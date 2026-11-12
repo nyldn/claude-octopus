@@ -9,7 +9,7 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 
 test_suite "Dependency-Aware Parallel WBS"
 
-TEST_WORKSPACE="/tmp/octopus-test-wbs-$$"
+TEST_WORKSPACE="$TEST_TMP_DIR/wbs"
 
 setup_wbs_env() {
     rm -rf "$TEST_WORKSPACE"
@@ -237,15 +237,14 @@ test_wave_assignment_written_to_file() {
     cleanup_wbs_env
 }
 
-test_skill_file_updated() {
-    test_case "flow-parallel.md contains wave-based execution"
+test_shipped_coordinator_executes_dependencies() {
+    test_case "the shipped parallel coordinator provides prerequisite commits"
 
-    if grep -q "wave" "$(resolve_claude_skill_path "flow-parallel")" && \
-       grep -q "Wave" "$(resolve_claude_skill_path "flow-parallel")" && \
-       grep -q "STEP 4.5" "$(resolve_claude_skill_path "flow-parallel")"; then
+    if TMPDIR="$TEST_TMP_DIR" python3 "$PROJECT_ROOT/tests/fixtures/native-skills/parallel-workflow.py" \
+        "$PROJECT_ROOT" ParallelWorkflow.test_dependent_package_receives_both_prerequisite_commits; then
         test_pass
     else
-        test_fail "flow-parallel.md missing wave/dependency content"
+        test_fail "parallel dependency execution failed"
     fi
 }
 
@@ -282,7 +281,7 @@ test_diamond_dependencies
 test_cycle_detection
 test_missing_reference
 test_wave_assignment_written_to_file
-test_skill_file_updated
+test_shipped_coordinator_executes_dependencies
 test_backward_compat
 
 test_summary

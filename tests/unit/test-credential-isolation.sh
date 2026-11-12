@@ -467,29 +467,16 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────
-# Suite 3: /octo:parallel launch.sh credential stripping
+# Suite 3: /octo:parallel worker credential isolation
 # ─────────────────────────────────────────────────────────────────────
 suite "3. Parallel Work Package Isolation"
 
-PARALLEL_SKILL="$(resolve_claude_skill_path "flow-parallel")"
-
-# 3.1 launch.sh template strips provider keys
-if grep -q 'unset OPENAI_API_KEY' "$PARALLEL_SKILL"; then
-  pass "launch.sh template strips OPENAI_API_KEY"
+test_case "parallel workers strip provider keys and preserve runtime context"
+if TMPDIR="$TEST_TMP_DIR" python3 "$PLUGIN_DIR/tests/fixtures/native-skills/parallel-workflow.py" \
+    "$PLUGIN_DIR" ParallelWorkflow.test_native_workers_strip_provider_credentials_and_keep_runtime_context; then
+  test_pass
 else
-  fail "launch.sh template does NOT strip OPENAI_API_KEY"
-fi
-
-if grep -q 'unset.*AGY_AUTH_TOKEN.*ANTIGRAVITY_API_KEY' "$PARALLEL_SKILL"; then
-  pass "launch.sh template strips AGY credentials"
-else
-  fail "launch.sh template does NOT strip AGY credentials"
-fi
-
-if grep -q 'unset.*PERPLEXITY_API_KEY' "$PARALLEL_SKILL"; then
-  pass "launch.sh template strips PERPLEXITY_API_KEY"
-else
-  fail "launch.sh template does NOT strip PERPLEXITY_API_KEY"
+  test_fail "parallel worker credential isolation failed"
 fi
 
 # ─────────────────────────────────────────────────────────────────────
