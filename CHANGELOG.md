@@ -11,6 +11,13 @@
   output rates per million tokens. Capability checks now recognize its image
   input and reasoning support. Model defaults and saved choices are preserved.
 
+- Review verification sends complete findings in bounded batches with relevant
+  patch evidence. Final admission rejects oversized verifier requests instead of
+  clipping their tails. Incomplete verification returns failure with recovery
+  artifacts and never applies unverified findings. Verified findings from a
+  partial reviewer fleet can still receive corrections. Synthesis cannot drop,
+  invent or change verified findings.
+
 ## [11.22.1] - 2026-11-11
 
 ### Fixed
