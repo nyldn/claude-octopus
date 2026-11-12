@@ -25,6 +25,12 @@ PROVIDERS = {
         "model": "",
         "headers": {},
     },
+    "uberllm": {
+        "base_url": "https://api.uberllm.dev/v1",
+        "api_key_env": "UBERLLM_API_KEY",
+        "model": "",
+        "headers": {},
+    },
     "api-route": {
         "base_url": "https://global.api-route.com/v1",
         "api_key_env": "API_ROUTE_API_KEY",
@@ -355,6 +361,8 @@ def main() -> int:
         model = args.model or os.environ.get("ATLASCLOUD_MODEL") or os.environ.get("OCTOPUS_ATLASCLOUD_MODEL") or os.environ.get("OPENAI_COMPAT_MODEL") or cfg["model"]
     elif args.provider == "cheaperinference":
         model = args.model or os.environ.get("CHEAPER_INFERENCE_MODEL") or os.environ.get("OCTOPUS_CHEAPERINFERENCE_MODEL") or os.environ.get("OPENAI_COMPAT_MODEL") or cfg["model"]
+    elif args.provider == "uberllm":
+        model = args.model or os.environ.get("UBERLLM_MODEL") or os.environ.get("OCTOPUS_UBERLLM_MODEL") or os.environ.get("OPENAI_COMPAT_MODEL") or cfg["model"]
     elif args.provider == "api-route":
         model = args.model or os.environ.get("API_ROUTE_MODEL") or os.environ.get("OCTOPUS_API_ROUTE_MODEL") or os.environ.get("OPENAI_COMPAT_MODEL") or cfg["model"]
     elif args.provider == "litellm":
@@ -366,6 +374,8 @@ def main() -> int:
             model_hint = "ATLASCLOUD_MODEL, OCTOPUS_ATLASCLOUD_MODEL, OPENAI_COMPAT_MODEL, or --model"
         elif args.provider == "cheaperinference":
             model_hint = "CHEAPER_INFERENCE_MODEL, OCTOPUS_CHEAPERINFERENCE_MODEL, OPENAI_COMPAT_MODEL, or --model"
+        elif args.provider == "uberllm":
+            model_hint = "UBERLLM_MODEL, OCTOPUS_UBERLLM_MODEL, OPENAI_COMPAT_MODEL, or --model"
         elif args.provider == "api-route":
             model_hint = "API_ROUTE_MODEL, OCTOPUS_API_ROUTE_MODEL, OPENAI_COMPAT_MODEL, or --model"
         elif args.provider == "litellm":

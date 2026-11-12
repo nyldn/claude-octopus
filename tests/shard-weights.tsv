@@ -32,6 +32,7 @@ unit/test-agent-sync-run-contract.sh	54
 unit/test-council-grounding-citations.sh	54
 unit/test-feature-delivery.sh	54
 unit/test-agy-provider.sh	52
+unit/test-uberllm-config-parity.sh	45
 unit/test-setup-first-success.sh	43
 unit/test-kimi-provider.sh	42
 unit/test-workflow-result.sh	40

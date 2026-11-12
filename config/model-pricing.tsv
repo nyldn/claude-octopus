@@ -66,6 +66,7 @@ model	gemini-3.7-flash-high	0.00	0.00	Cursor subscription route
 model	z-ai/glm-5	0.80	2.56	OpenRouter
 model	moonshotai/kimi-k2.5	0.45	2.25	OpenRouter
 model	deepseek/deepseek-v4-pro	0.435	0.87	OpenRouter current DeepSeek route
+model	deepseek/deepseek-v4-flash	0.30	1.20	DeepSeek Flash peak uncached fallback; legacy alias now serves V4.1 Flash; verified 2026-11-12 https://api-docs.deepseek.com/quick_start/pricing/; gateway billing varies
 model	deepseek/deepseek-r1-0528	0.70	2.50	OpenRouter legacy DeepSeek route
 model	opencode/deepseek-v4-flash-free	0.00	0.00	OpenCode free model
 model	opencode/gpt-5.4	0.00	0.00	OpenCode provider accounting

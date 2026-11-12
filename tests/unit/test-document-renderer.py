@@ -440,7 +440,7 @@ octo_launch_advisors() {
         for tree in (".claude/skills", "skills"):
             for response, advisor in itertools.product((503, 400, 200),
                     ("openai-compatible", "openai-tools", "atlascloud-agent",
-                     "cheaperinference-agent", "api-route-agent", "litellm-agent")):
+                     "cheaperinference-agent", "uberllm-agent", "api-route-agent", "litellm-agent")):
                 with self.subTest(tree=tree, response=response, advisor=advisor):
                     seat_dir = self.base / (tree.replace("/", "-") + str(response) + advisor)
                     seat_dir.mkdir()
