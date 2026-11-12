@@ -19,6 +19,11 @@
 
 ### Fixed
 
+- Council quota classification requires a terminal marker validated against
+  complete stdout. A truncated diagnostic tail cannot establish a session
+  limit. Quote checks retain patch-introduction ownership and reuse elision
+  fragments across source lines.
+
 - Council waits retain the settle hold when a finished round's torn summary is
   repaired. Early completion requires an observed, matching running beacon.
 

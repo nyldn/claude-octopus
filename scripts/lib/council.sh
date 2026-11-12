@@ -3825,10 +3825,11 @@ def elided_lines(entry, needle):
         return []
     hay, starts, line_numbers = tight_entry(entry)
     found = []
+    following = pieces[1:]
     for i, line_start in enumerate(starts):
         line_end = starts[i + 1] if i + 1 < len(starts) else len(hay)
         if find_lines(hay[line_start:line_end], [], [], pieces[0],
-                      following=pieces[1:], word_bounds=True):
+                      following=following, word_bounds=True):
             found.append(line_numbers[i])
     return found
 
@@ -4184,6 +4185,7 @@ def clause_start(text, end):
 def proposes(text):
     # Presenting an example is not asserting that the cited file contains it.
     # Preserve offsets for clause and first-person-subject checks below.
+    original = text
     text = re.sub(r"\b(?:here|there)\s+is\b", lambda m: " " * len(m.group()), text, flags=re.I)
     # A proposal in an earlier sentence cannot excuse a current source claim.
     # Keep terminal punctuation on a standalone fence lead-in in its clause.
@@ -4193,7 +4195,7 @@ def proposes(text):
         return True
     # A patch-only lead-in continues the immediately preceding proposal. Do
     # not carry it through an arbitrary later sentence or a source assertion.
-    if re.fullmatch(r"\s*(?:here is the patch|apply it as follows)\s*:\s*", text[start:], re.I):
+    if re.fullmatch(r"\s*(?:here is the patch|apply it as follows)\s*:\s*", original[start:], re.I):
         previous_end = len(text[:start].rstrip(" \t\r\n.!?;"))
         previous_start = clause_start(text, previous_end)
         if PROPOSAL.search(text, previous_start, previous_end):

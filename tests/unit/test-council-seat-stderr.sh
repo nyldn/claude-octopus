@@ -36,6 +36,12 @@ case "$mode" in
     session-warning)
         printf 'warning: optional integration unavailable\n' >&2
         printf "You've hit your session limit · resets 7:10pm\n" ;;
+    session-only)
+        printf "You've hit your session limit · resets 7:10pm\n" ;;
+    quoted-session-tail)
+        printf '%s\n' 'The probe printed:'
+        printf '%4096s' '' | tr ' ' '\n'
+        printf "You've hit your session limit · resets 7:10pm\n" ;;
     quoted-session-warning)
         printf 'warning: optional integration unavailable\n' >&2
         printf '%s\n' 'The probe printed:' "You've hit your session limit · resets 7:10pm" ;;
@@ -183,15 +189,18 @@ fi
 # shellcheck source=/dev/null
 source "$PROJECT_ROOT/scripts/lib/council.sh" 2>/dev/null
 
-for session_mode in session-warning quoted-session-warning; do
-    test_case "terminal stdout session status with stderr warnings: $session_mode"
+for session_mode in session-warning session-only quoted-session-warning quoted-session-tail; do
+    test_case "complete stdout determines terminal status: $session_mode"
     cap="$CAP_DIR/stderr/$session_mode.log"
     run_failing_seat "$session_mode" "$session_mode" "$cap" || true
     quota=no
     council_seat_quota_limited "$cap" && quota=yes
-    if grep -q 'warning: optional integration unavailable' "$cap" &&
-       { [[ "$session_mode" == session-warning && "$quota" == yes ]] ||
-         [[ "$session_mode" == quoted-session-warning && "$quota" == no ]]; }; then
+    if [[ "$session_mode" == *warning ]] && ! grep -q 'warning: optional integration unavailable' "$cap"; then
+        test_fail "stderr warning missing: $session_mode"
+        continue
+    fi
+    if { [[ "$session_mode" == session-warning || "$session_mode" == session-only ]] && [[ "$quota" == yes ]]; } ||
+       { [[ "$session_mode" == quoted-session-warning || "$session_mode" == quoted-session-tail ]] && [[ "$quota" == no ]]; }; then
         test_pass
     else
         test_fail "session_mode=$session_mode quota=$quota"

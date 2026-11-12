@@ -1324,13 +1324,13 @@ octo_capture_seat_failure() {
     # Redact the stream first: a raw byte tail can remove a credential prefix.
     # Certify before truncation too: a tail can remove an opaque key's field name.
     # Keep pipefail local so a failed sanitizer or gate cannot publish partial output.
+    if [[ "$rc" != 0 ]] && declare -F octo_quota_session_limit_line >/dev/null &&
+       octo_quota_session_limit_line "$out" >/dev/null; then
+        terminal_status="$(octo_safe_diagnostic_tail "$out" 4096)" || return 0
+    fi
     if [[ -s "$err" ]]; then
         body="$(octo_safe_diagnostic_tail "$err" 16384)" || return 0
         section="-- stderr --"
-        if [[ "$rc" != 0 ]] && declare -F octo_quota_session_limit_line >/dev/null &&
-           octo_quota_session_limit_line "$out" >/dev/null; then
-            terminal_status="$(octo_safe_diagnostic_tail "$out" 4096)" || return 0
-        fi
     elif [[ -s "$out" ]]; then
         body="$(octo_safe_diagnostic_tail "$out" 4096)" || return 0
         section="-- stdout tail (stderr was empty) --"
