@@ -31,6 +31,10 @@
 - Unit shards include newer hosted macOS suite timings in their duration
   weights. The full suite and 20-minute per-shard timeout remain in place.
 
+- Token-extraction CLI startup uses its TypeScript runner and checked options.
+  CSS token names no longer shadow source-path handling, and TypeScript output
+  options no longer shadow the constants generator. The tool's Node.js range
+  now matches its dependencies.
 - A council seat is no longer marked fabricated for a test input it built
   itself (sail-cruisey #3247). A span introduced as "constructed as", "built
   as" or "crafted as" is the seat's own proposal, like one introduced by
