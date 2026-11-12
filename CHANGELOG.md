@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- Unit shards include newer hosted macOS suite timings in their duration
+  weights. The full suite and 20-minute per-shard timeout remain in place.
+
 - Token-extraction CLI startup uses its TypeScript runner and checked options.
   CSS token names no longer shadow source-path handling, and TypeScript output
   options no longer shadow the constants generator. The tool's Node.js range
