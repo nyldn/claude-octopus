@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.23.0] - 2026-11-12
+
 ### Added
 
 - UberLLM is available as its own OpenAI-compatible provider seat. Select a
