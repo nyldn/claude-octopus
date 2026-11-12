@@ -234,6 +234,8 @@ test_fallback_reuses_completed_response_after_deadline() {
     if [[ "$result" == "true:strategy-analyst" ]]; then test_pass; else test_fail "reuse=$result"; fi
 }
 
+# Verify that each later phase cancels slow preparation within its watchdog
+# budget, reaps its children, and prevents output from appearing after return.
 test_later_phases_bound_preparation_and_cancel_children() {
     test_case "critique, revision and synthesis bound preparation and cancel the full tree"
     local phase
@@ -267,6 +269,10 @@ test_later_phases_bound_preparation_and_cancel_children() {
             OCTOPUS_COUNCIL_SYNTHESIS_TIMEOUT=1
             unset OCTOPUS_COUNCIL_DETACH
             council_prompt_for_member() {
+                # Measure preparation itself. Roster decoding and worker startup
+                # can vary on busy runners before this one-second watchdog test.
+                python3 -c 'import sys,time; open(sys.argv[1], "w").write(str(time.monotonic()))' \
+                    "$COUNCIL_RUN_DIR/preparation.started"
                 (sleep 3; touch "$COUNCIL_RUN_DIR/child-finished") &
                 printf '%s\n' "$!" > "$COUNCIL_RUN_DIR/child.pid"
                 sh -c 'echo "$PPID"' > "$COUNCIL_RUN_DIR/preparation.pid"
@@ -274,14 +280,14 @@ test_later_phases_bound_preparation_and_cancel_children() {
                 printf 'prepared prompt'
             }
             council_live_response() { printf '# late provider answer\n'; }
-            start="$(python3 -c 'import time; print(time.monotonic())')"
             case "$phase" in
                 cross-critique) council_run_critique_phase ;;
                 revision-after-critique) council_run_revision_phase ;;
                 chair-synthesis) council_write_synthesis || true ;;
             esac
-            elapsed="$(python3 -c 'import sys,time; print(time.monotonic()-float(sys.argv[1]))' "$start")"
-            python3 -c 'import sys; assert float(sys.argv[1]) < 2.5' "$elapsed" || exit 1
+            elapsed="$(python3 -c 'import sys,time; print(time.monotonic()-float(open(sys.argv[1]).read()))' \
+                "$COUNCIL_RUN_DIR/preparation.started")"
+            python3 -c 'import sys; elapsed=float(sys.argv[1]); assert elapsed < 2.5, f"preparation and cleanup took {elapsed:.3f}s"' "$elapsed" || exit 1
             [[ "$COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE" == internal-watchdog && "$COUNCIL_DEADLINE_HIT" == true ]] || exit 1
             sleep 3.2
             [[ ! -e "$COUNCIL_RUN_DIR/child-finished" ]] || exit 1

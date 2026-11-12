@@ -41,7 +41,7 @@ fi
 
 fable5_is_model() {
     case "${1:-}" in
-        "$FABLE5_MODEL_ID"|"$FABLE5_LEGACY_MODEL_ID") return 0 ;;
+        "$FABLE5_MODEL_ID"|"$FABLE5_LEGACY_MODEL_ID"|claude-fable-5-2) return 0 ;;
     esac
     return 1
 }

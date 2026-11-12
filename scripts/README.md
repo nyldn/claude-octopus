@@ -11,7 +11,7 @@ outputs. This index groups the existing script paths by their role.
 | [`doctor.sh`](doctor.sh), [`repair.sh`](repair.sh) | Installation and environment diagnosis or repair |
 | [`provider-router.sh`](provider-router.sh) | Provider routing interface |
 | [`octo-state.sh`](octo-state.sh), [`state-manager.sh`](state-manager.sh) | Project and workflow state interfaces |
-| [`refinement-judge.sh`](refinement-judge.sh), [`refinement-pair.py`](refinement-pair.py), [`refinement-score.py`](refinement-score.py) | Refinement dispatch, paired judging and scoring |
+| [`refinement-run.py`](refinement-run.py), [`refinement-judge.sh`](refinement-judge.sh), [`refinement-pair.py`](refinement-pair.py), [`refinement-score.py`](refinement-score.py) | Persisted refinement control, paired judging and scoring |
 | [`scheduler/`](scheduler/) | Scheduled workflow runner |
 
 ## Runtime implementation
