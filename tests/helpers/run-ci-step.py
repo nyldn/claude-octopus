@@ -117,9 +117,11 @@ def main() -> int:
             status = 124
             message = f"CI step timed out after {args.timeout:g}s: {label}\n"
         except Interrupted as error:
+            output = getattr(error, "output", "")
             status = 128 + error.signum
             message = f"CI step interrupted by signal {error.signum}: {label}\n"
         except Exception as error:
+            output = getattr(error, "output", "")
             status = 125
             message = f"CI step failed: {error}: {label}\n"
         payload = (output + ("\n" if output and not output.endswith("\n") else "") + message)

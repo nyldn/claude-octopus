@@ -58,9 +58,10 @@ run_gate() {
             calls=$(cat "$REVIEW_CALLS_FILE")
             echo $((calls + 1)) > "$REVIEW_CALLS_FILE"
             TANGLE_REVIEW_FINDINGS_FILE="$RESULTS_DIR/findings-$3.json"
-            echo "{\"findings\":[]}" > "$TANGLE_REVIEW_FINDINGS_FILE"
             ridx=$(cat "$REVIEW_IDX_FILE")
             rc="${REVIEW_RCS[$ridx]:-0}"
+            jq -n --argjson count "${COUNTS[$ridx]:-0}" --argjson rc "$rc" \
+                "{findings:[range(\$count) | {file:\"app.ts\",line:(.+1),title:\"blocking finding\",severity:\"normal\",verdict:\"confirmed\"}],warning:(if \$rc == 0 then \"\" else \"Partial review warning\" end)}" > "$TANGLE_REVIEW_FINDINGS_FILE"
             echo $((ridx + 1)) > "$REVIEW_IDX_FILE"
             return "$rc"
         }
@@ -155,7 +156,7 @@ else
 fi
 
 test_case "partial review warning with actionable blockers continues correction loop"
-out=$(REVIEW_RC_SEQUENCE="0 1 0" run_gate "2 1 0")
+out=$(REVIEW_RC_SEQUENCE="0 3 0" run_gate "2 1 0")
 if [[ "$out" == "rounds=2 rc=0" ]]; then
     test_pass
 else

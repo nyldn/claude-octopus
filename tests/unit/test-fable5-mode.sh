@@ -50,6 +50,14 @@ else
     test_fail "Fable 5.1 opus pin not detected"
 fi
 
+test_case "Fable 5.2 pins activate runtime and SessionStart guidance"
+if OCTOPUS_OPUS_MODEL=claude-fable-5-2 fable5_mode_active &&
+   OCTOPUS_OPUS_MODEL=claude-fable-5-2 bash "$PROJECT_ROOT/hooks/fable5-inject.sh" | grep -q 'FABLE 5 MODE ACTIVE'; then
+    test_pass
+else
+    test_fail "Fable 5.2 did not activate guards and host guidance"
+fi
+
 test_case "OCTOPUS_FABLE5_MODE=off disables despite pin"
 if ! env "OCTOPUS_FABLE5_MODE=off" "OCTOPUS_OPUS_MODEL=claude-fable-5" \
     bash -c 'log(){ :; }; source "$1/scripts/lib/fable5.sh"; fable5_mode_active' _ "$PROJECT_ROOT"; then

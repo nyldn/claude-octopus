@@ -104,8 +104,9 @@ def _collect_posix_process(
     output_limit: int,
     kill_grace: float,
     strict_output: bool,
+    captured: bytearray,
 ) -> Tuple[int, str]:
-    captured = bytearray()
+    """Collect bounded POSIX output into the caller's buffer and reap the group."""
     deadline = time.monotonic() + timeout
     drain_deadline = None
     timed_out = False
@@ -177,7 +178,7 @@ def run_bounded_process(
     kill_grace: float = 0.5,
     strict_output: bool = False,
 ) -> Tuple[int, str]:
-    """Run one owned process group and bound its combined output."""
+    """Run one owned process group; collection exceptions retain bounded output."""
     if output_limit < 1:
         raise ValueError("output_limit must be positive")
     popen_options = {
@@ -194,19 +195,28 @@ def run_bounded_process(
     elif os.name == "nt":
         popen_options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
 
+    captured = bytearray()
     process = subprocess.Popen(command, **popen_options)
     if os.name == "posix":
-        return _collect_posix_process(
-            process,
-            command,
-            timeout,
-            output_limit,
-            kill_grace,
-            strict_output,
-        )
+        try:
+            return _collect_posix_process(
+                process,
+                command,
+                timeout,
+                output_limit,
+                kill_grace,
+                strict_output,
+                captured,
+            )
+        except BaseException as error:
+            if not isinstance(error, Exception) and (
+                process.poll() is None or _process_group_exists(process.pid)
+            ):
+                _terminate_process_tree(process, process.pid, 0)
+            error.output = _decode(captured, False)
+            raise
 
     process_group = None
-    captured = bytearray()
     capture_lock = threading.Lock()
     overflowed = threading.Event()
 
@@ -241,8 +251,10 @@ def run_bounded_process(
             time.sleep(min(0.02, remaining))
         if timed_out or overflowed.is_set():
             _terminate_process_tree(process, process_group, kill_grace)
-    except BaseException:
+    except BaseException as error:
         _terminate_process_tree(process, process_group, kill_grace)
+        with capture_lock:
+            error.output = _decode(captured, False)
         raise
 
     remaining = max(0.0, deadline - time.monotonic())
