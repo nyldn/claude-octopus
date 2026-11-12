@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Added
+
+- UberLLM as an OpenAI-compatible agent provider. `uberllm-agent` uses the
+  shared tool-loop helper with `UBERLLM_API_KEY` and an explicit
+  `UBERLLM_MODEL`, `OCTOPUS_UBERLLM_MODEL` or `providers.uberllm.default`
+  model. It is excluded from Council, like the other gateway agents.
+  Readiness and fleet selection use the dispatched model and its allowlist
+  fallback. Exact seats keep their model pins, and MCP preserves model policy.
+  DeepSeek Flash estimates use its published peak, uncached fallback rates.
+
 ### Fixed
 
 - Codex entries load their adapted phase resources and preserve native API
@@ -40,6 +50,10 @@
   the selected checkpoint would overwrite. Release validation accepts
   the same scalar, leaf and container skill registrations as assembly validation.
   Fixes #1214.
+
+- Unit shards include newer hosted macOS suite timings in their duration
+  weights. The full suite and 20-minute per-shard timeout remain in place.
+
 - Parallel cleanup finishes a stopped worker's durable execution contract as
   cancelled, so run status no longer reports that worker as still running.
   Native Agent Teams seats remain running until their own completion is known.

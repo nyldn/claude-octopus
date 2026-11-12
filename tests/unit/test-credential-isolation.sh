@@ -427,6 +427,26 @@ else
   test_fail "Cheaper Inference helper inherited ambient credentials or lost CHEAPER_INFERENCE_API_KEY"
 fi
 
+test_case "UberLLM tool-loop env excludes ambient secrets"
+if OCTOPUS_AUDIT_SENTINEL="must-not-cross" \
+   OPENAI_API_KEY="unrelated-openai-key" \
+   UBERLLM_API_KEY="ull-test-key" \
+   bash -c '
+      set -eo pipefail
+      source "$1/scripts/lib/provider-routing.sh"
+      build_provider_env "uberllm-agent:deepseek/deepseek-v4-flash"
+      "${PROVIDER_ENV_ARRAY[@]}" bash -c '\''
+        set -e
+        test -z "${OCTOPUS_AUDIT_SENTINEL:-}"
+        test -z "${OPENAI_API_KEY:-}"
+        test "${UBERLLM_API_KEY:-}" = "ull-test-key"
+      '\''
+    ' _ "$PLUGIN_DIR"; then
+  test_pass
+else
+  test_fail "UberLLM helper inherited ambient credentials or lost UBERLLM_API_KEY"
+fi
+
 # ─────────────────────────────────────────────────────────────────────
 # Suite 2: build_provider_env() is wired into spawn_agent()
 # ─────────────────────────────────────────────────────────────────────

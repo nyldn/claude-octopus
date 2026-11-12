@@ -260,7 +260,7 @@ flag, run it against the draft skeleton before requesting approval or rendering:
    renewed consent. Keep the explicit model choice and report the failed seat.
    Exclude OpenAI-compatible helper transports from this pass, including
    `openai-compatible`, `atlascloud-agent`, `cheaperinference-agent`,
-   `api-route-agent` and `litellm-agent`, until they can bound every request.
+   `uberllm-agent`, `api-route-agent` and `litellm-agent`, until they can bound every request.
    Transport retry switches do not stop their empty-answer follow-up loop.
    Check aliases against the resolved command and exclude any route using
    `openai-compatible-agent.py`. Preserve explicit choices: report the
@@ -307,7 +307,7 @@ flag, run it against the draft skeleton before requesting approval or rendering:
    <!-- deck-seat-collection:start -->
    ```bash
    case "${ADVISOR_ID%%:*}" in
-       openai-compatible*|openai-tools*|atlascloud*|cheaperinference*|api-route*|litellm*)
+       openai-compatible*|openai-tools*|atlascloud*|cheaperinference*|uberllm*|api-route*|litellm*)
            printf 'Seat incomplete: transport cannot bound request count\n' >&2
            exit 1
            ;;
