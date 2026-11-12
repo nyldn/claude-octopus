@@ -2,7 +2,7 @@
 
 Status: accepted and implemented
 Decision date: 2026-07-27
-Last reviewed: 2026-10-01
+Last reviewed: 2026-11-10
 
 ## Reasoning effort by cost tier
 
@@ -54,6 +54,43 @@ fallback.
 Fresh configurations adopt the new roster. Existing environment pins, session
 overrides, and `providers.json` settings retain precedence and are not silently
 rewritten.
+
+## Catalog refresh, 2026-11-10
+
+| Model ID | API context limit | Standard USD per MTok, input/output |
+|---|---:|---:|
+| `gpt-6.1-terra` | 1,050,000 | $1 / $5 |
+| `claude-fable-5-2` | 1,000,000 | $8 / $40 |
+
+Both models accept images and text, produce text, and support up to 128,000
+output tokens. Catalog limits describe the API; each client has its own
+context ceiling and account access requirements.
+
+GPT-6.1 Terra supports `none`, `low`, `medium`, `high`, `xhigh`, and `max`
+reasoning. Tool calls require Responses even at `none` effort. The Chat
+Completions adapter therefore requires `--tool-policy none`. Above 272,000
+input tokens, its whole-request prices become $2 input and $7.50 output per
+MTok. At the threshold, standard prices apply.
+
+Fable 5.2 is explicit-only: use a model-qualified `claude` or `claude-sdk`
+seat, or an environment pin such as `OCTOPUS_OPUS_MODEL=claude-fable-5-2`.
+Claude Code added this model in v2.1.321. Always-on adaptive thinking, forced
+tool-choice restrictions and 30-day provider retention apply. The existing
+Fable security reroute, exact-seat rejection, input ceiling, effort cap and
+SDK refusal recovery also apply to 5.2. Exact SDK seats keep retries disabled.
+Fable 5.1 remains the opt-in escalation target; 5.2 is not admitted to tier
+escalation by this refresh.
+
+This refresh adds choices and cost estimates. It does not rewrite saved pins,
+change release defaults, or assert access to a model through a gateway. Cursor,
+Copilot, OpenCode and Antigravity retain their provider-owned model lists.
+
+Sources checked on 2026-11-10: [GPT-6.1 Terra](https://developers.openai.com/api/docs/models/gpt-6.1-terra),
+[OpenAI pricing](https://developers.openai.com/api/docs/pricing),
+[GPT-6 compatibility](https://developers.openai.com/api/docs/guides/latest-model),
+[Fable 5.2](https://platform.claude.com/docs/en/models/fable-5-2/overview),
+[Fable migration constraints](https://platform.claude.com/docs/en/models/fable-5-2/migration-guide),
+and [Claude Code v2.1.321](https://github.com/anthropics/claude-code/releases/tag/v2.1.321).
 
 ## Catalog refresh, 2026-09-30
 

@@ -279,17 +279,60 @@ octo_output_is_substantive() {
     ((10#$bytes > 10#$threshold))
 }
 
-# Trust the rejection signature on the error channel unconditionally; inside the
-# provider's own answer trust it only while that answer is too short to be a
-# result. Keeps a genuine stdout-only rejection detectable without discarding a
-# long, valid result that merely mentions a context limit.
+# Provider errors have an error envelope or a diagnostic line. Quoted fixture
+# text and successful structured assessments are answer data, even when short.
+octo_file_has_structured_provider_error() {
+    local file="${1:-}" detail=""
+    [[ -f "$file" && -s "$file" ]] && command -v jq >/dev/null 2>&1 || return 1
+    detail=$(jq -er 'select(type == "object") |
+        select(.error != null or .type == "error") | (.error // .) | tostring' "$file" 2>/dev/null) || detail=""
+    [[ -n "$detail" ]] && printf '%s\n' "$detail" | grep -iE "$(octo_provider_rejection_pattern)|context_length_exceeded" >/dev/null
+}
+
+octo_file_has_provider_error() {
+    local file="${1:-}"
+    [[ -f "$file" && -s "$file" ]] || return 1
+    octo_file_has_structured_provider_error "$file" && return 0
+    LC_ALL=C awk '
+        {
+            marker = $0; sub(/^[[:space:]]*/, "", marker)
+            if (match(marker, /^```+|^~~~+/)) {
+                kind = substr(marker, 1, 1); width = RLENGTH
+                if (!fenced) { fenced = kind; opening = width; next }
+                if (kind == fenced && width >= opening && substr(marker, width + 1) ~ /^[[:space:]]*$/) {
+                    fenced = ""; for (i in pending) delete pending[i]; count = 0; next
+                }
+            }
+            if (fenced) pending[++count] = $0
+            else print
+        }
+        END { if (fenced) for (i = 1; i <= count; i++) print pending[i] }
+    ' "$file" |
+        LC_ALL=C grep -iE '^[[:space:]]*((error|invalid_request_error|badrequesterror)[[:space:]]*:[[:space:]]*)?(prompt is too long|request entity too large|input is too large|too many tokens|tokens exceeded|maximum context (length|window).*exceed|context (length|limit|window).*exceed)|^[[:space:]]*error[[:space:]]*:[[:space:]]*context (length|limit|window)[[:space:]]+reached([[:space:][:punct:]]|$)|^[[:space:]]*agy-exec[.]sh:[[:space:]]+prompt input is too large' >/dev/null
+}
+
+octo_output_is_structured_result() {
+    local file="${1:-}"
+    [[ -s "$file" ]] && command -v jq >/dev/null 2>&1 || return 1
+    jq -e -s 'length == 1 and (.[0] | type == "object" and .error == null and
+        (((.criteria | type) == "array" and (.blockers | type) == "array") or
+         (.findings | type) == "array"))' "$file" >/dev/null 2>&1
+}
+
 octo_seat_was_rejected() {
     local output_file="${1:-}" stderr_file="${2:-}"
-    if [[ -n "$stderr_file" ]] && octo_file_has_provider_rejection "$stderr_file"; then
+    if octo_file_has_structured_provider_error "$output_file" ||
+       octo_file_has_structured_provider_error "$stderr_file"; then
+        return 0
+    fi
+    # A fresh structured final answer with exit zero is not a provider refusal.
+    # Its schema and evidence still require the caller's own validation.
+    octo_output_is_structured_result "$output_file" && return 1
+    if [[ -n "$stderr_file" ]] && octo_file_has_provider_error "$stderr_file"; then
         return 0
     fi
     octo_output_is_substantive "$output_file" && return 1
-    octo_file_has_provider_rejection "$output_file"
+    octo_file_has_provider_error "$output_file"
 }
 
 octo_file_has_codex_stdin_closed() {
