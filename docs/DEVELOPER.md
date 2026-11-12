@@ -261,3 +261,69 @@ validating an actual experiment. A missing capability stops the run.
 Managed Tangle validation checks the parent-owned `Files:` / `Creates:` scopes against the integration checkout. Existing regular files, nonempty output directories and tracked deletions from the immutable baseline can supply artifact evidence; model prose cannot create that evidence. Read-only input references, linked plans and shared documentation are not output obligations. Symlink aliases and paths outside the checkout cannot satisfy coverage. A missing declared output still fails, and an unavailable coverage check fails closed.
 
 The unstructured `check_explicit_file_coverage` compatibility path remains textual for standalone callers and considers direct write instructions rather than preceding read context. Managed workflows supply the explicit scope contract and do not depend on textual echoes. Scope authorization, mechanical tests and independent quality review remain separate gates; existence is coverage evidence, not proof of correctness.
+
+## Complete review verification
+
+Round 2 builds byte-bounded requests from complete findings and the matching
+patches or numbered excerpts. Every batch preserves finding identity; a missing,
+duplicate or invalid verdict leaves that batch unverified. The builder plans all
+batches before dispatch, so a finding that cannot fit fails admission before any
+verifier calls. Final dispatch uses `OCTOPUS_OVERSIZE_STRATEGY=fail` to account for
+method and persona additions without silently clipping required input.
+
+The contextual Tangle gate never dispatches corrections for unverified findings.
+Verified findings from a partial reviewer fleet may receive corrections while
+validation remains incomplete. The gate records `reviewVerification` and
+`reviewFindings` in the existing attempt manifest. A complete retry updates the
+same marker. Consumers must treat an incomplete review as unfinished validation,
+not as a list of confirmed product defects. No provider retry policy is changed.
+
+New review/correction work marks verification pending unless an earlier review
+remains incomplete. Pending attempts preserve incomplete and partial-verified
+markers until a completed review replaces them. Failed fleet or malformed
+review artifacts keep it incomplete until a genuinely completed review replaces
+them. Completion is checked before local scope findings are added, so a scope
+violation cannot authorize corrections after the reviewer fleet fails.
+The existing unmanaged fallback replans a failed batch for its own context
+window; this does not restrict the initial provider or alter pinned review seats.
+
+`tests/unit/test-review-verifier-batches.sh` exercises large Unicode finding
+sets, relevant evidence, admission refusal and preservation without corrections.
+Patch windows retain adjacent removals at the finding's new-file coordinates
+and shrink before rejecting a complete finding. Verification may add a verdict
+and the newly-reachable flag, but cannot change original fields such as confidence.
+Missing or invalid final verdicts keep Tangle verification incomplete. A failed
+manifest replacement stops the gate instead of reporting a successful update.
+Context setup failures stop both initial and retry review even when a caller
+handles the gate's exit status. Verified findings from a partial fleet can still
+receive corrections, while the manifest remains incomplete until a full review.
+
+Synthesis may reorder verified findings, but cannot remove them, invent findings,
+or change their fields. A changed set uses deterministic local synthesis instead.
+Incomplete verification returns failure after saving findings and proof artifacts.
+
+Final synthesis compares the full verified finding multiset before any display
+normalization. Distinct records at the same location remain in the saved artifact,
+ranked with blockers first. Deleted-file excerpts use the cited old-file line.
+
+A completed review with partial fleet coverage returns status 3 from the
+contextual wrapper only after the underlying review succeeds. Its manifest
+keeps `reviewVerification: incomplete` and records `reviewOutcome: partial-verified`.
+Other nonzero review results cannot authorize corrections, even when a verified
+findings file survived a proof or publication failure. A complete retry clears
+both markers. Patch excerpts bound adjacent removal context separately and label
+unmatched short patches as unrelated context requiring repository inspection.
+
+Verifier input directories use private permissions and subprocess-scoped cleanup
+for normal exits, interrupts and termination. Caller traps remain intact. Valid
+synthesis ordering is retained within each severity tier; a changed finding
+multiset still uses the complete deterministic fallback.
+
+Accepted synthesis contributes only findings. Document-level warnings and
+verification status come from local review state. Reports and publication
+preserve distinct verified records at the same location and collapse only
+fully identical verified records.
+
+An incomplete retry that produces no findings file retains the previous
+`reviewFindings` path for recovery. A new findings file replaces that path, and
+a complete retry records its own artifact and clears the incomplete state.
