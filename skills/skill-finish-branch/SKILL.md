@@ -131,6 +131,7 @@ If the user already asked for one of these actions, carry it out after verificat
 2. **Merge locally** - Merge back to the selected base on this machine
 3. **Keep as-is** - Preserve the branch and checkout for later
 4. **Discard** - Delete the specifically confirmed work
+5. **Push only** - Push the verified branch and keep its checkout
 
 ### Step 6: Execute the selected action
 
@@ -153,8 +154,10 @@ fi
 if ! cd "$FEATURE_ROOT"; then
   return 1 2>/dev/null || exit 1
 fi
-if ! git -C "$FEATURE_ROOT" push -u origin "$FEATURE_BRANCH"; then
-  echo "Push failed; stop before creating a pull request." >&2
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+SAFE_GH_HELPER="$OCTO_ROOT/scripts/safe-gh-comment.sh"
+if [[ ! -x "$SAFE_GH_HELPER" ]]; then
+  echo "Locate the installed safe-gh-comment.sh helper before pushing for PR creation." >&2
   return 1 2>/dev/null || exit 1
 fi
 if ! REPO_SLUG=$(gh repo view --json nameWithOwner --jq .nameWithOwner); then
@@ -174,7 +177,11 @@ ${CHANGE_REASON}
 ${VALIDATION_SUMMARY}
 EOF
 )
-if ! "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/safe-gh-comment.sh" \
+if ! git -C "$FEATURE_ROOT" push -u origin "$FEATURE_BRANCH"; then
+  echo "Push failed; stop before creating a pull request." >&2
+  return 1 2>/dev/null || exit 1
+fi
+if ! "$SAFE_GH_HELPER" \
     --repo "$REPO_SLUG" pr-create "$PR_TITLE" "$FEATURE_BRANCH" - "$BASE_BRANCH" <<< "$PR_BODY"; then
   echo "GitHub write state is unknown; check for an existing pull request before retrying." >&2
   gh pr list --repo "$REPO_SLUG" --head "$FEATURE_BRANCH" --state all --json number,state,url || true
@@ -211,19 +218,51 @@ if ! WORKTREE_STATUS=$(git -C "$BASE_WORKTREE" status --porcelain) || [[ -n "$WO
   echo "Preserve changes in the base checkout before merging." >&2
   return 1 2>/dev/null || exit 1
 fi
+if git -C "$BASE_WORKTREE" rev-parse --verify --quiet MERGE_HEAD >/dev/null; then
+  echo "The base checkout has an existing merge; preserve it before continuing." >&2
+  return 1 2>/dev/null || exit 1
+fi
+FEATURE_SWITCHED_TO_BASE=false
 if [[ "$BASE_WORKTREE" == "$FEATURE_ROOT" ]]; then
   if ! git -C "$BASE_WORKTREE" checkout --no-overwrite-ignore "$BASE_BRANCH"; then
     echo "Checkout failed; preserve local and ignored work." >&2
     return 1 2>/dev/null || exit 1
   fi
+  FEATURE_SWITCHED_TO_BASE=true
 fi
 if ! CURRENT_BRANCH=$(git -C "$BASE_WORKTREE" branch --show-current) || [[ "$CURRENT_BRANCH" != "$BASE_BRANCH" ]]; then
   echo "The selected checkout is not on the intended base." >&2
   return 1 2>/dev/null || exit 1
 fi
-if ! git -C "$BASE_WORKTREE" pull --ff-only origin "$BASE_BRANCH" ||
-   ! git -C "$BASE_WORKTREE" merge "$REVIEWED_HEAD"; then
+REMOTE_BASE_AVAILABLE=false
+if git -C "$BASE_WORKTREE" config --get remote.origin.url >/dev/null; then
+  if git -C "$BASE_WORKTREE" ls-remote --exit-code --heads origin "refs/heads/$BASE_BRANCH" >/dev/null; then
+    REMOTE_BASE_AVAILABLE=true
+  else
+    REMOTE_LOOKUP_STATUS=$?
+    if [[ "$REMOTE_LOOKUP_STATUS" != 2 ]]; then
+      echo "Could not check the configured origin; stop before merging." >&2
+      return 1 2>/dev/null || exit 1
+    fi
+  fi
+fi
+finish_merge_failed() {
+  if git -C "$BASE_WORKTREE" rev-parse --verify --quiet MERGE_HEAD >/dev/null; then
+    if ! git -C "$BASE_WORKTREE" merge --abort; then
+      echo "Merge abort failed; retain both checkouts for recovery." >&2
+    fi
+  fi
   echo "Local merge failed; preserve the branch and both checkouts for recovery." >&2
+}
+if [[ "$REMOTE_BASE_AVAILABLE" == true ]]; then
+  if ! git -C "$BASE_WORKTREE" fetch --no-tags origin "refs/heads/$BASE_BRANCH" ||
+     ! git -C "$BASE_WORKTREE" merge --ff-only --no-overwrite-ignore FETCH_HEAD; then
+    finish_merge_failed
+    return 1 2>/dev/null || exit 1
+  fi
+fi
+if ! git -C "$BASE_WORKTREE" merge --no-overwrite-ignore "$REVIEWED_HEAD"; then
+  finish_merge_failed
   return 1 2>/dev/null || exit 1
 fi
 if ! (cd "$BASE_WORKTREE" && "${TEST_COMMAND[@]}"); then
@@ -235,7 +274,9 @@ if ! TESTED_MERGE=$(git -C "$BASE_WORKTREE" rev-parse HEAD); then
 fi
 ```
 
-Record the tested merge commit. Report the local merge and actual test results. Keep the feature branch until the cleanup checks below pass. A local merge does not authorize pushing the base or bypassing a repository's PR-only merge policy.
+Record `FEATURE_SWITCHED_TO_BASE`, including after a failed merge, and the tested merge commit. Keep a checkout that was switched to the base branch. A missing origin or remote base uses the validated local base; a failed check of a configured origin stops the run. Remote synchronization remains fast-forward-only. Both synchronization and the feature merge check ignored-file collisions through `--no-overwrite-ignore` before updating files.
+
+Report the local merge and actual test results. Keep the feature branch until the cleanup checks below pass. A local merge does not authorize pushing the base or bypassing a repository's PR-only merge policy.
 
 #### Option 3: Keep As-Is
 
@@ -249,10 +290,32 @@ First preserve unrelated, untracked and useful ignored files. Select the base ch
 
 Delete only the confirmed local branch with a quoted branch argument. Delete a remote branch only when that separate deletion was explicitly authorized; inspect its result and report failures. Do not suppress a failed deletion or claim remote success when no deletion ran.
 
+#### Option 5: Push only
+
+```bash
+: "${FEATURE_ROOT:?Restore the recorded feature checkout}"
+: "${FEATURE_BRANCH:?Restore the recorded feature branch}"
+: "${REVIEWED_HEAD:?Restore the verified commit}"
+if ! CURRENT_BRANCH=$(git -C "$FEATURE_ROOT" branch --show-current) ||
+   ! CURRENT_HEAD=$(git -C "$FEATURE_ROOT" rev-parse HEAD) ||
+   ! WORKTREE_STATUS=$(git -C "$FEATURE_ROOT" status --porcelain) ||
+   [[ "$CURRENT_BRANCH" != "$FEATURE_BRANCH" || "$CURRENT_HEAD" != "$REVIEWED_HEAD" || -n "$WORKTREE_STATUS" ]]; then
+  echo "The feature checkout changed; repeat checks and review before pushing." >&2
+  return 1 2>/dev/null || exit 1
+fi
+if ! git -C "$FEATURE_ROOT" push -u origin "$FEATURE_BRANCH"; then
+  echo "Push failed; retain the branch and checkout for recovery." >&2
+  return 1 2>/dev/null || exit 1
+fi
+```
+
+Report the pushed commit. Keep the branch and checkout; this action creates no PR.
+
 ### Step 7: Cleanup
 
 **For Options 2, 4:** Remove a linked feature worktree only after verifying all of these conditions:
 
+- `FEATURE_SWITCHED_TO_BASE` is false and the checkout is not now on `BASE_BRANCH`. If it was switched to the base, skip `git worktree remove "$FEATURE_ROOT"`, retain it and report its current role. A linked checkout can now be the base checkout too.
 - The path belongs to this task and appears as a linked checkout in `git worktree list --porcelain`. Compare its Git directory with the shared common Git directory; the primary checkout must remain.
 - The checkout is clean, no process or active agent session uses it, and no useful ignored files would be lost. Inspect ignored state separately from `git status --porcelain`.
 - For Option 2, the recorded feature commit is an ancestor of `TESTED_MERGE`, the base still points to that tested commit, and the merged-result checks passed. On a failed check, preserve the branch and both checkouts.
@@ -260,7 +323,7 @@ Delete only the confirmed local branch with a quoted branch argument. Delete a r
 
 Change to a retained checkout before running `git worktree remove "$FEATURE_ROOT"`. Do not use `--force`. Stop on failure. Delete a merged feature branch with `git branch -d "$FEATURE_BRANCH"` only after it is no longer checked out anywhere and the merge checks above still hold. If the feature checkout is the primary checkout, preserve it and switch branches safely instead of removing it. Report any retained branch or worktree accurately.
 
-**For Options 1, 3:** Keep the branch and worktree intact.
+**For Options 1, 3, 5:** Keep the branch and worktree intact.
 
 ## Quick Reference
 
@@ -270,10 +333,11 @@ Change to a retained checkout before running `git worktree remove "$FEATURE_ROOT
 | 2. Merge locally | Yes | - | Until cleanup checks pass | Conditional |
 | 3. Keep as-is | - | - | Yes | - |
 | 4. Discard | - | Only confirmed remote deletion | Until discard checks pass | Conditional |
+| 5. Push only | - | Yes | Yes | - |
 
 ## Integration with Claude Octopus
 
-After the develop and deliver phases, a request to create a PR selects Option 1. Verify tests and review, then Execute Option 1 (Create PR). A request to merge locally selects Option 2. Existing authorization remains valid throughout the task.
+After the develop and deliver phases, a request to create a PR selects Option 1. Verify tests and review, then execute Option 1 (Create PR). A request to merge locally selects Option 2. A request to commit and push selects Option 5. Existing authorization remains valid throughout the task.
 
 ## Common Mistakes
 

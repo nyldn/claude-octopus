@@ -4,6 +4,11 @@
 
 ### Fixed
 
+- Branch completion supports pushing without creating a PR. Local merges can
+  use a local base, protect ignored files during synchronization, and abort
+  conflicts while retaining both checkouts. A checkout switched to the base
+  is retained, and PR preparation completes before the branch is pushed.
+
 - Parallel work packages use a bounded coordinator with separate branches and
   worktrees. Dependents receive prerequisite commits, and failed or expired
   runs retain evidence and stop later waves. Git warnings stay separate from

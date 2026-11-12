@@ -35,6 +35,17 @@ class Fixture(unittest.TestCase):
         self.env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM='1',
                         GIT_TEMPLATE_DIR=str(hooks), GIT_CONFIG_COUNT='1',
                         GIT_CONFIG_KEY_0='core.hooksPath', GIT_CONFIG_VALUE_0=str(hooks))
+        home = self.root / 'home'
+        home.mkdir()
+        self.plugin = self.root / 'plugin'
+        self.helper = self.plugin / 'scripts/safe-gh-comment.sh'
+        self.helper.parent.mkdir(parents=True)
+        self.helper.write_text('#!/bin/bash\nprintf "%s\\0" "$@" > "$ARGS_FILE"\ncat > "$BODY_FILE"\n')
+        self.helper.chmod(0o755)
+        self.env.update(HOME=str(home), CLAUDE_PLUGIN_ROOT=str(self.plugin), CODEX_PLUGIN_ROOT='',
+                        ARGS_FILE=str(self.root / 'args'), BODY_FILE=str(self.root / 'body'),
+                        PR_TITLE='Fix fixture', CHANGE_SUMMARY='Keep the feature.',
+                        CHANGE_REASON='Verify the recipe.', VALIDATION_SUMMARY='Project checks passed.')
         self.git('init', '--bare', '--quiet', str(self.remote), cwd=self.root)
         self.git('init', '--quiet', '-b', 'trunk', str(self.base), cwd=self.root)
         self.git('config', 'user.name', 'Fixture')
@@ -70,8 +81,10 @@ class Fixture(unittest.TestCase):
         return result.stdout.strip()
 
     def run_recipe(self, tree, option, prefix='', **env):
+        for path in (self.marker, self.root / 'args', self.root / 'body'):
+            path.unlink(missing_ok=True)
         return subprocess.run([BASH, '-uo', 'pipefail', '-c', self.prefix + prefix +
-                               recipe(tree, option) + '\nprintf "RECIPE_FINISHED\\n"'],
+                               recipe(tree, option) + '\nprintf "FEATURE_SWITCHED_TO_BASE=%s\\n" "${FEATURE_SWITCHED_TO_BASE:-false}"\nprintf "RECIPE_FINISHED\\n"'],
                               cwd=self.feature, env=dict(self.env, **env), capture_output=True, text=True)
 
     def preserved(self):
@@ -84,13 +97,14 @@ class Choices(Fixture):
         for tree in TREES:
             text = (ROOT / tree / 'skill-finish-branch/SKILL.md').read_text()
             menu = dict(re.findall(r'^(\d+)\. \*\*([^*]+)\*\*', text, re.M))
-            self.assertEqual(menu, {'1': 'Create PR', '2': 'Merge locally', '3': 'Keep as-is', '4': 'Discard'})
+            self.assertEqual(menu, {'1': 'Create PR', '2': 'Merge locally', '3': 'Keep as-is', '4': 'Discard', '5': 'Push only'})
             rows = dict(re.findall(r'^\| (\d+)\. ([^|]+)\|', text, re.M))
             self.assertEqual({k: v.strip() for k, v in rows.items()}, menu)
             self.assertEqual(re.findall(r'^### Step (\d+):', text, re.M), list('1234567'))
             cleanup = text.split('### Step 7: Cleanup', 1)[1].split('## Quick Reference', 1)[0]
             self.assertIn('For Options 2, 4:', cleanup)
-            self.assertIn('For Options 1, 3:', cleanup)
+            self.assertIn('For Options 1, 3, 5:', cleanup)
+            self.assertIn('FEATURE_SWITCHED_TO_BASE', cleanup)
             self.assertIn('primary checkout must remain', cleanup)
             self.assertIn('no useful ignored files', cleanup)
 
@@ -119,17 +133,12 @@ class Choices(Fixture):
             self.preserved()
 
     def test_pr_forwards_base_and_actual_evidence(self):
-        plugin = self.root / 'plugin'
-        helper = plugin / 'scripts/safe-gh-comment.sh'
-        helper.parent.mkdir(parents=True)
-        helper.write_text('#!/bin/bash\nprintf "%s\\0" "$@" > "$ARGS_FILE"\ncat > "$BODY_FILE"\n')
-        helper.chmod(0o755)
         for tree in TREES:
             args = self.root / 'args'
             body = self.root / 'body'
             result = self.run_recipe(tree, '1',
                                      prefix='gh() { printf "fixture/repository\\n"; }\n',
-                                     CLAUDE_PLUGIN_ROOT=str(plugin), ARGS_FILE=str(args), BODY_FILE=str(body),
+                                     CLAUDE_PLUGIN_ROOT=str(self.plugin), ARGS_FILE=str(args), BODY_FILE=str(body),
                                      PR_TITLE='Fix fixture', CHANGE_SUMMARY='Keep the feature.',
                                      CHANGE_REASON='Verify the recipe.',
                                      VALIDATION_SUMMARY='Python project checks passed on the reviewed commit.')
@@ -139,6 +148,51 @@ class Choices(Fixture):
             self.assertIn('Python project checks passed', body.read_text())
             self.assertNotIn('Manual verification done', body.read_text())
             self.assertEqual(self.git('rev-parse', 'refs/heads/topic', cwd=self.remote), self.head)
+            self.preserved()
+
+    def test_push_only_needs_no_pr_helper_and_creates_no_pr(self):
+        for tree in TREES:
+            self.git('update-ref', '-d', 'refs/heads/topic', cwd=self.remote)
+            result = self.run_recipe(tree, '5', prefix='gh() { echo UNEXPECTED_GITHUB_CALL; return 99; }\n',
+                                     CLAUDE_PLUGIN_ROOT=str(self.root / 'missing plugin'))
+            self.assertEqual(result.returncode, 0, (tree, result.stderr))
+            self.assertNotIn('UNEXPECTED_GITHUB_CALL', result.stdout)
+            self.assertFalse((self.root / 'args').exists())
+            self.assertEqual(self.git('rev-parse', 'refs/heads/topic', cwd=self.remote), self.head)
+            self.preserved()
+
+    def test_codex_root_resolves_the_pr_helper_before_push(self):
+        for tree in TREES:
+            result = self.run_recipe(tree, '1', prefix='gh() { echo fixture/repository; }\n',
+                                     CLAUDE_PLUGIN_ROOT='', CODEX_PLUGIN_ROOT=str(self.plugin))
+            self.assertEqual(result.returncode, 0, (tree, result.stderr))
+            self.assertTrue((self.root / 'args').is_file())
+
+    def test_local_merge_without_origin_or_remote_base(self):
+        before = self.git('rev-parse', 'HEAD')
+        self.git('update-ref', '-d', 'refs/heads/trunk', cwd=self.remote)
+        for origin in (True, False):
+            if not origin:
+                self.git('remote', 'remove', 'origin')
+            for tree in TREES:
+                self.git('reset', '--hard', before)
+                result = self.run_recipe(tree, '2')
+                self.assertEqual(result.returncode, 0, (origin, tree, result.stderr))
+                self.assertEqual(self.git('rev-parse', 'HEAD'), self.head)
+                self.assertTrue(self.marker.exists())
+                self.preserved()
+
+    def test_switching_the_feature_checkout_records_its_new_base_role(self):
+        before = self.git('rev-parse', 'HEAD')
+        self.git('checkout', '--quiet', '--detach')
+        for tree in TREES:
+            self.git('checkout', '--quiet', 'topic', cwd=self.feature)
+            self.git('branch', '-f', 'trunk', before)
+            result = self.run_recipe(tree, '2', BASE_WORKTREE=str(self.feature))
+            self.assertEqual(result.returncode, 0, (tree, result.stderr))
+            self.assertIn('FEATURE_SWITCHED_TO_BASE=true', result.stdout)
+            self.assertEqual(self.git('branch', '--show-current', cwd=self.feature), 'trunk')
+            self.assertEqual(Path(self.marker.read_text()), self.feature)
             self.preserved()
 
 
@@ -193,7 +247,7 @@ class Failures(Fixture):
             self.assertEqual(self.git('rev-parse', 'HEAD'), before)
             self.preserved()
 
-    def test_conflicted_merge_preserves_branch_and_conflict(self):
+    def test_conflicted_merge_preserves_branch_and_restores_the_base(self):
         (self.base / 'file').write_text('base conflict\n')
         self.git('commit', '--quiet', '-am', 'base conflict')
         self.git('push', '--quiet', 'origin', 'trunk')
@@ -203,7 +257,78 @@ class Failures(Fixture):
             result = self.run_recipe(tree, '2')
             self.assertNotEqual(result.returncode, 0)
             self.assertNotIn('RECIPE_FINISHED', result.stdout)
-            self.assertIn('UU file', self.git('status', '--porcelain'))
+            self.assertEqual(self.git('status', '--porcelain'), '')
+            self.assertEqual(self.git('rev-parse', 'HEAD'), base_head)
+            self.assertEqual(self.git('rev-parse', '--verify', '--quiet', 'MERGE_HEAD', check=False), '')
+            self.preserved()
+
+    def test_missing_pr_helper_stops_before_push(self):
+        self.helper.chmod(0o644)
+        for plugin in (self.root / 'missing plugin', self.plugin):
+            for tree in TREES:
+                result = self.run_recipe(tree, '1', prefix='gh() { echo UNEXPECTED_GITHUB_CALL; }\n',
+                                         CLAUDE_PLUGIN_ROOT=str(plugin))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn('UNEXPECTED_GITHUB_CALL', result.stdout)
+                self.assertEqual(self.git('show-ref', '--verify', 'refs/heads/topic', cwd=self.remote, check=False), '')
+                self.preserved()
+
+    def test_missing_pr_metadata_stops_before_push(self):
+        for tree in TREES:
+            result = self.run_recipe(tree, '1', prefix='gh() { echo fixture/repository; }\n', PR_TITLE='')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse((self.root / 'args').exists())
+            self.assertEqual(self.git('show-ref', '--verify', 'refs/heads/topic', cwd=self.remote, check=False), '')
+            self.preserved()
+
+    def test_existing_merge_state_is_preserved(self):
+        before = self.git('rev-parse', 'HEAD')
+        self.git('merge', '--no-ff', '--no-commit', self.head)
+        self.git('read-tree', '--reset', '-u', 'HEAD')
+        self.assertEqual(self.git('status', '--porcelain'), '')
+        pending = self.git('rev-parse', 'MERGE_HEAD')
+        for tree in TREES:
+            result = self.run_recipe(tree, '2')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(self.git('rev-parse', 'MERGE_HEAD'), pending)
+            self.assertEqual(self.git('rev-parse', 'HEAD'), before)
+            self.preserved()
+
+    def test_feature_merge_preserves_ignored_collisions(self):
+        before = self.git('rev-parse', 'HEAD')
+        exclude = self.base / self.git('rev-parse', '--git-path', 'info/exclude')
+        exclude.parent.mkdir(parents=True, exist_ok=True)
+        exclude.write_text('ignored-result\n')
+        (self.feature / 'ignored-result').write_text('reviewed feature\n')
+        self.git('add', '-f', 'ignored-result', cwd=self.feature)
+        self.git('commit', '--quiet', '-m', 'tracked feature result', cwd=self.feature)
+        self.head = self.git('rev-parse', 'HEAD', cwd=self.feature)
+        self.env['REVIEWED_HEAD'] = self.head
+        (self.base / 'ignored-result').write_text('useful local file\n')
+        for tree in TREES:
+            result = self.run_recipe(tree, '2')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(self.git('rev-parse', 'HEAD'), before)
+            self.assertEqual((self.base / 'ignored-result').read_text(), 'useful local file\n')
+            self.preserved()
+
+    def test_remote_fast_forward_preserves_ignored_collisions(self):
+        before = self.git('rev-parse', 'HEAD')
+        writer = self.root / 'remote writer'
+        self.git('worktree', 'add', '--quiet', '-b', 'remote-update', str(writer))
+        (writer / 'remote-result').write_text('remote work\n')
+        self.git('add', 'remote-result', cwd=writer)
+        self.git('commit', '--quiet', '-m', 'remote addition', cwd=writer)
+        self.git('push', '--quiet', 'origin', 'HEAD:trunk', cwd=writer)
+        exclude = self.base / self.git('rev-parse', '--git-path', 'info/exclude')
+        exclude.parent.mkdir(parents=True, exist_ok=True)
+        exclude.write_text('remote-result\n')
+        (self.base / 'remote-result').write_text('useful local file\n')
+        for tree in TREES:
+            result = self.run_recipe(tree, '2')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(self.git('rev-parse', 'HEAD'), before)
+            self.assertEqual((self.base / 'remote-result').read_text(), 'useful local file\n')
             self.preserved()
 
     def test_checkout_preserves_ignored_collision(self):
@@ -222,15 +347,18 @@ class Failures(Fixture):
 
     def test_failed_push_stops_before_github_write(self):
         for tree in TREES:
+            trace = self.root / 'push-attempt'
+            trace.unlink(missing_ok=True)
             result = self.run_recipe(tree, '1', prefix=r"""
 git() {
-  if [[ "${3:-}" == push ]]; then return 23; fi
+  if [[ "${3:-}" == push ]]; then printf called > "$PUSH_TRACE"; return 23; fi
   command git "$@"
 }
-gh() { echo UNEXPECTED_GITHUB_CALL; return 99; }
-""")
+gh() { echo fixture/repository; }
+""", PUSH_TRACE=str(trace))
             self.assertNotEqual(result.returncode, 0)
-            self.assertNotIn('UNEXPECTED_GITHUB_CALL', result.stdout)
+            self.assertTrue(trace.exists())
+            self.assertFalse((self.root / 'args').exists())
             self.assertNotIn('RECIPE_FINISHED', result.stdout)
             self.preserved()
 
