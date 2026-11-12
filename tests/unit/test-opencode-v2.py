@@ -26,7 +26,7 @@ class OpenCodeCompatibility(unittest.TestCase):
         self.bin.mkdir()
         # Private wrappers keep fixture overwrites away from host executables.
         for name in (
-                "awk", "base64", "basename", "bash", "cat", "chmod", "cp", "cut",
+                "awk", "base64", "basename", "bash", "cat", "chmod", "cmp", "cp", "cut",
                 "date", "dirname", "env", "expr", "false", "file", "find", "getconf",
                 "git", "gtimeout", "grep", "head", "hostname", "id", "jq", "kill",
                 "ln", "mkdir", "mktemp", "mv", "od", "openssl", "pgrep", "pkill",
