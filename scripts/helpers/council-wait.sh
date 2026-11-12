@@ -4,9 +4,9 @@
 # to determine that result; exit 0 means the artifacts are ready.
 #
 # Usage:
-#   council-wait.sh --pool DIR [--since EPOCH] [--supersede-key KEY]
-#                   [--interval SECONDS] [--timeout SECONDS]
-#   council-wait.sh --run-dir DIR [--interval SECONDS] [--timeout SECONDS]
+#   council-wait.sh --pool DIR [--since EPOCH] [--supersede-key KEY [--settle SECONDS]]
+#                   [--interval SECONDS] [--timeout SECONDS | --background]
+#   council-wait.sh --run-dir DIR [--interval SECONDS] [--timeout SECONDS | --background]
 #
 # Pool selection uses the creation counter, with run names for legacy ties.
 # --pool also searches the runner's per-session sub-pools (POOL/session-*/),
@@ -16,14 +16,25 @@
 # --since filters immutable UTC creation timestamps in run names.
 # --supersede-key waits only for matching current rounds and follows a newer
 # matching pointer during the wait. Invalid pointers cannot select another pool.
+# A new round's run dir appears only after orchestrate.sh starts up, so a keyed
+# wait started right after a dispatch can first see the previous round, already
+# finished. A keyed round that is finished at first sight is held for --settle
+# seconds (default 60) while a newer same-key round may appear; one seen running
+# returns as soon as it finishes. --since with the epoch taken before the
+# dispatch filters at one-second resolution and skips the hold. A round created
+# in the same second as --since is still eligible. Use --run-dir for an exact run.
 # The interval defaults to 2 seconds and is floored at 1. The timeout defaults
-# to 570 seconds; sleeping never extends it. Time values accept decimal integers.
+# to 570 seconds, under the Bash tool's 600-second foreground cap; sleeping never
+# extends it. A Council round often runs longer, so a timeout means "still
+# running", not failure: re-run the same command. --background removes the bound
+# for a caller that runs the wait as a background task and is notified once on
+# exit. Time values accept decimal integers.
 # A finished beacon and one valid summary object are required before success.
 # Exit 0 prints the path, 2 reports timeout, and 64 reports invalid arguments.
 
 set -euo pipefail
 
-POOL="" RUN_DIR="" INTERVAL=2 TIMEOUT=570 SINCE="" KEY=""
+POOL="" RUN_DIR="" INTERVAL=2 TIMEOUT=570 SINCE="" KEY="" SETTLE=60 BACKGROUND=0 TIMEOUT_SET=0
 
 die_usage() { printf '%s\n' "$1" >&2; printf 'See: council-wait.sh --help\n' >&2; exit 64; }
 
@@ -34,7 +45,9 @@ while [[ $# -gt 0 ]]; do
         --supersede-key) [[ $# -ge 2 ]] || die_usage "--supersede-key requires a value"; KEY="$2"; shift 2 ;;
         --since)         [[ $# -ge 2 ]] || die_usage "--since requires a value"; SINCE="$2"; shift 2 ;;
         --interval)      [[ $# -ge 2 ]] || die_usage "--interval requires a value"; INTERVAL="$2"; shift 2 ;;
-        --timeout)       [[ $# -ge 2 ]] || die_usage "--timeout requires a value"; TIMEOUT="$2"; shift 2 ;;
+        --timeout)       [[ $# -ge 2 ]] || die_usage "--timeout requires a value"; TIMEOUT="$2"; TIMEOUT_SET=1; shift 2 ;;
+        --settle)        [[ $# -ge 2 ]] || die_usage "--settle requires a value"; SETTLE="$2"; shift 2 ;;
+        --background)    BACKGROUND=1; shift ;;
         --help|-h)       awk 'NR == 1 {next} /^#/ {sub(/^# ?/, ""); print; next} {exit}' "$0"; exit 0 ;;
         *)               die_usage "unknown argument: $1" ;;
     esac
@@ -50,6 +63,8 @@ _integer() {
 }
 INTERVAL="$(_integer "$INTERVAL" --interval)" || exit 64
 TIMEOUT="$(_integer "$TIMEOUT" --timeout)" || exit 64
+SETTLE="$(_integer "$SETTLE" --settle)" || exit 64
+(( BACKGROUND == 0 || TIMEOUT_SET == 0 )) || die_usage "pass only one of --timeout / --background"
 if [[ -n "$SINCE" ]]; then SINCE="$(_integer "$SINCE" --since)" || exit 64; fi
 (( INTERVAL < 1 )) && INTERVAL=1
 command -v jq >/dev/null 2>&1 || die_usage "jq is required"
@@ -173,6 +188,13 @@ _eligible() {
     fi
 }
 
+_is_running() {
+    local rd="$1" st="$1/run-status.json" identity_dir rid
+    identity_dir="$(cd -- "$rd" 2>/dev/null && pwd -P)" || return 1
+    rid="${identity_dir##*/}"
+    [[ -f "$st" ]] && jq -e -s --arg rid "$rid" 'length == 1 and (.[0] | type) == "object" and .[0].state == "running" and .[0].run_id == $rid' "$st" >/dev/null 2>&1
+}
+
 _is_finished() {
     local rd="$1" st="$1/run-status.json" identity_dir rid
     identity_dir="$(cd -- "$rd" 2>/dev/null && pwd -P)" || return 1
@@ -185,8 +207,14 @@ _is_finished() {
     [[ -s "$summary" ]] && jq -e -s --arg rid "$rid" 'length == 1 and (.[0] | type) == "object" and (.[0].status | type) == "string" and (.[0].status | length) > 0 and (.[0].run_id == null or .[0].run_id == $rid)' "$summary" >/dev/null 2>&1
 }
 
-deadline=$(( SECONDS + TIMEOUT ))
-run_dir="" resolution_rc=0
+started=$SECONDS
+if (( BACKGROUND )); then deadline=$(( SECONDS + 4611686018427387903 )); else deadline=$(( SECONDS + TIMEOUT )); fi
+# Hold a keyed round that is finished at first sight; leave one poll before the
+# deadline so the held round is still returned instead of timing out.
+settle_end=$(( started + SETTLE ))
+(( settle_end <= deadline - INTERVAL )) || settle_end=$(( deadline - INTERVAL ))
+[[ -n "$KEY" && -z "$SINCE" ]] || settle_end=$started
+run_dir="" resolution_rc=0 seen_running=""
 while :; do
     if [[ -z "$run_dir" || -n "$KEY" ]]; then
         resolution_rc=0
@@ -198,11 +226,15 @@ while :; do
         if [[ -n "$KEY" ]]; then latest_dir="$(_resolve_run_dir)" || latest_rc=$?; fi
         if [[ "$latest_dir" != "$run_dir" || "$latest_rc" -ne 0 ]]; then
             run_dir=""; resolution_rc="$latest_rc"
+        elif [[ "$run_dir" != "$seen_running" ]] && (( SECONDS < settle_end )); then
+            :   # Possibly the previous round; a newer dispatch may not have published yet.
         else
             (( SECONDS <= deadline )) || break
             printf '%s/summary.json\n' "$run_dir"
             exit 0
         fi
+    elif [[ -n "$run_dir" ]] && _is_running "$run_dir"; then
+        seen_running="$run_dir"
     fi
     remaining=$(( deadline - SECONDS ))
     (( remaining > 0 )) || break
@@ -216,4 +248,5 @@ if (( resolution_rc == 3 )); then
 fi
 
 printf 'council-wait: timed out after %ss (run: %s)\n' "$TIMEOUT" "${run_dir:-pending}" >&2
+printf '%s\n' 'council-wait: the round may still be running; re-run the same command, or run it with --background as a background task' >&2
 exit 2

@@ -45,6 +45,23 @@ else
     test_pass
 fi
 
+test_case "quota_watcher_has_match detects the claude session-limit line (sail-cruisey council 2026-11-05)"
+printf '%s\n' "You've hit your session limit · resets 7:10pm (America/New_York)" > "$out_file"
+: > "$err_file"
+if quota_watcher_has_match "$err_file" "$out_file"; then
+    test_pass
+else
+    test_fail "claude session-limit line was not detected"
+fi
+
+test_case "quota_watcher_has_match ignores the claude message quoted mid-line"
+printf '%s\n' "The seat wrote: You've hit your session limit, so I stopped." > "$out_file"
+if quota_watcher_has_match "$err_file" "$out_file"; then
+    test_fail "a quoted session-limit message matched as a live quota error"
+else
+    test_pass
+fi
+
 test_case "quota_watcher_mark_after_exit marks a provider that failed on a quota error"
 export WORKSPACE_DIR="$tmp_dir/workspace"
 printf '%s\n' "ERROR: You've hit your usage limit. Try again at 10:25 PM." > "$err_file"
@@ -73,6 +90,33 @@ if octo_quota_is_dead codex; then
 else
     test_pass
 fi
+unset WORKSPACE_DIR
+
+test_case "streaming session-limit text cannot stop a provider before it exits"
+printf '%s\n' "You've hit your session limit · resets 7:10pm" > "$out_file"
+: > "$err_file"
+if quota_watcher_has_match "$err_file" "$out_file" stream; then
+    test_fail "an incomplete stdout reply was treated as a terminal CLI status"
+else
+    test_pass
+fi
+
+test_case "a failed standalone session-limit status marks Claude unavailable"
+export WORKSPACE_DIR="$tmp_dir/session-status"
+quota_watcher_mark_after_exit 1 "$err_file" "$out_file" claude
+if octo_quota_is_dead claude; then test_pass; else test_fail "standalone failed CLI status was ignored"; fi
+
+for quote_style in fence context; do
+    test_case "a session-limit line inside $quote_style reply text leaves the provider available"
+    octo_quota_clear_dead claude
+    if [[ "$quote_style" == fence ]]; then
+        printf '%s\n' '```text' "You've hit your session limit · resets 7:10pm" '```' > "$out_file"
+    else
+        printf '%s\n' 'The fixture printed this diagnostic:' "You've hit your session limit · resets 7:10pm" > "$out_file"
+    fi
+    quota_watcher_mark_after_exit 1 "$err_file" "$out_file" claude
+    if octo_quota_is_dead claude; then test_fail "quoted status marked a healthy provider dead"; else test_pass; fi
+done
 unset WORKSPACE_DIR
 
 test_case "start_quota_watcher invokes callback and stops target"

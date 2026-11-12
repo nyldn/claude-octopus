@@ -58,6 +58,7 @@ OCTOPUS_COST_MODE	covered-by	test-cost-mode-toggle.sh
 OCTOPUS_COUNCIL_CONTENT_MATCH_PROXIMITY_CHARS	covered-by	test-council-content-match-proximity.sh
 OCTOPUS_COUNCIL_DIFF_BASE	covered-by	test-council-quote-grounding.sh
 OCTOPUS_COUNCIL_QUOTE_VERIFY	covered-by	test-council-quote-grounding.sh
+OCTOPUS_COUNCIL_REQUIRE_GROUNDED_APPROVE	covered-by	test-council-grounding-citations.sh
 OCTOPUS_COUNCIL_REQUIRE_CONTEXT	covered-by	test-council-context-guard.sh
 OCTOPUS_COUNCIL_TIMEOUT_	placeholder	doc template fragment for OCTOPUS_COUNCIL_TIMEOUT_<PROVIDER>, not a real variable
 OCTOPUS_CREDENTIAL_ENV_NAMES	covered-by	test-mcp-server.sh

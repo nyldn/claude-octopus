@@ -2,6 +2,85 @@
 
 ## [Unreleased]
 
+### Added
+
+- `OCTOPUS_AGY_FALLBACK_MODELS` lists Gemini models for agy to retry, in
+  order, when the backend answers 503 "No capacity available for model". The
+  council seat records the model that answered, with `model_fallback.from`, so
+  a busy model no longer stops the council. Non-Gemini entries are skipped.
+
+### Fixed
+
+- Council quota classification requires a terminal marker validated against
+  complete stdout. A truncated diagnostic tail cannot establish a session
+  limit. Quote checks retain patch-introduction ownership and reuse elision
+  fragments across source lines.
+
+- Council waits retain the settle hold when a finished round's torn summary is
+  repaired. Early completion requires an observed, matching running beacon.
+
+- Council quote checks preserve template delimiters and escaped pipes inside
+  regexes and strings. Model fallback requires a complete capacity diagnostic
+  from one stream, so quoted output cannot supply a missing error cause.
+
+- Council fallback records keep the model that answered and the last model
+  proven capacity-limited. Session limits remain visible beside stderr warnings,
+  and explicit source claims stay checked when they introduce an example.
+
+- Council quote layout matching preserves spaces inside quoted literals and
+  requires an explicit ellipsis wherever source text is omitted. An unpunctuated
+  list item ends the previous item's citation scope; a colon still introduces
+  attributed bullets. Empty Antigravity fallbacks return the original capacity
+  failure and retain diagnostics from stdout and stderr. Command arguments and
+  operator spacing remain significant when verifying quoted source.
+
+- Antigravity changes models only for retryable capacity errors and applies
+  TTY recovery to fallback attempts. Crash-retry diagnostics remain separate
+  from terminal quota classification. Standalone failed session-limit statuses
+  remain detectable while quoted or streaming reply text leaves seats available.
+- Missing extensionless file claims retain their citation position. Result
+  wording alone no longer exempts a current-source claim from verification.
+
+- Council seats with real citations are no longer marked fabricated for
+  quotes the verifier misread (sail-cruisey #3316, #3338, #3339, #3340). A
+  multi-line condition written on one line verifies when only layout around
+  punctuation outside literals differs. A code span stays inside one paragraph, a backtick
+  opened in link text is literal, and paired `` \` `` inside a span are
+  literal backticks. Citations of files with no extension, such as
+  `.githooks/pre-commit:48`, bind their quotes. The inputs a seat says it fed
+  to the code under review, and code it says the file avoids, are its own
+  words, not quotes of a file. After a content verb, "built as" marks the
+  seat's own input only when "I" or "we" built it. A fence partial in a cited
+  file but complete in the reviewed diff is not counted as partial.
+
+- Council seats with real citations are no longer marked fabricated for
+  quoting the error a probe threw (`RangeError: Maximum call stack size
+  exceeded`), for an example they made up ("a template like `...`"), or for
+  a quote that drops the file's inner backticks, which a single-backtick span
+  cannot hold (sail-cruisey #3386). A runtime error attributed to a cited
+  file is still checked.
+
+- A quote with `$n` for a numbered placeholder, or abbreviated with `...`
+  (`!== "POST" || ! ... endsWith(...)`), verifies when its retained fragments match one line of the
+  cited file (sail-cruisey #3389). A basename that two files share, such as
+  `sentry.ts:169`, now resolves to the one the seat also cited by full path,
+  so its quotes are checked instead of left unresolved (sail-cruisey #3390).
+  A span on a new list item is no longer attributed to the previous item's
+  citation.
+
+- `council-wait.sh --pool --supersede-key` no longer returns the previous
+  round when the wait starts before the new round's run dir exists
+  (sail-cruisey #3364). A keyed round already finished at first sight is held
+  for `--settle` seconds (default 60) while a newer same-key round may appear;
+  `--since` skips the hold. `--background` drops the 570-second bound for a
+  wait run as a background task, and a timeout now says the round may still
+  be running and how to re-arm.
+
+- Abbreviated council quotes must match whole identifiers, so a longer name or
+  string token cannot make invented source evidence pass verification.
+- Runtime diagnostics in plain-text fences do not count as invented source.
+  Runtime-error quotes beside an adjacent source citation still need verification.
+
 ## [11.23.0] - 2026-11-12
 
 ### Added

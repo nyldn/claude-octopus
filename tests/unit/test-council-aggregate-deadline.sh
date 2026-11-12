@@ -244,6 +244,20 @@ test_later_phases_bound_preparation_and_cancel_children() {
             council_reset_defaults
             COUNCIL_RUN_DIR="$TEST_TMP_DIR/preparation-$phase"
             mkdir -p "$COUNCIL_RUN_DIR/responses" "$COUNCIL_RUN_DIR/critiques" "$COUNCIL_RUN_DIR/revisions"
+            # Start the observer before the measured work. Signals avoid adding
+            # interpreter startup after the phase returns to its elapsed time.
+            python3 "$PROJECT_ROOT/tests/fixtures/council-preparation-clock.py" "$COUNCIL_RUN_DIR" &
+            clock_pid=$!
+            printf '%s\n' "$clock_pid" > "$COUNCIL_RUN_DIR/clock.pid"
+            # This trap belongs to the per-phase subshell; the parent keeps
+            # the test framework's suite cleanup trap.
+            trap 'if [[ -n "$clock_pid" ]]; then kill "$clock_pid" 2>/dev/null || true; wait "$clock_pid" 2>/dev/null || true; fi' EXIT
+            for ((clock_attempt=0; clock_attempt<100; clock_attempt++)); do
+                [[ -s "$COUNCIL_RUN_DIR/clock.ready" ]] && break
+                kill -0 "$clock_pid" 2>/dev/null || exit 1
+                sleep 0.02
+            done
+            [[ -s "$COUNCIL_RUN_DIR/clock.ready" ]] || exit 1
             COUNCIL_ROSTER_JSON='[{"persona":"strategy-analyst","provider":"codex","agent_spec":"codex","seat":"chair"}]'
             COUNCIL_DEPTH=deep
             # Keep the coarse aggregate clock at its start until preparation
@@ -271,8 +285,9 @@ test_later_phases_bound_preparation_and_cancel_children() {
             council_prompt_for_member() {
                 # Measure preparation itself. Roster decoding and worker startup
                 # can vary on busy runners before this one-second watchdog test.
-                python3 -c 'import sys,time; open(sys.argv[1], "w").write(str(time.monotonic()))' \
-                    "$COUNCIL_RUN_DIR/preparation.started"
+                local preparation_clock_pid
+                IFS= read -r preparation_clock_pid < "$COUNCIL_RUN_DIR/clock.pid"
+                kill -USR1 "$preparation_clock_pid" || return 1
                 (sleep 3; touch "$COUNCIL_RUN_DIR/child-finished") &
                 printf '%s\n' "$!" > "$COUNCIL_RUN_DIR/child.pid"
                 sh -c 'echo "$PPID"' > "$COUNCIL_RUN_DIR/preparation.pid"
@@ -285,8 +300,10 @@ test_later_phases_bound_preparation_and_cancel_children() {
                 revision-after-critique) council_run_revision_phase ;;
                 chair-synthesis) council_write_synthesis || true ;;
             esac
-            elapsed="$(python3 -c 'import sys,time; print(time.monotonic()-float(open(sys.argv[1]).read()))' \
-                "$COUNCIL_RUN_DIR/preparation.started")"
+            kill -USR2 "$clock_pid" || exit 1
+            wait "$clock_pid" || exit 1
+            clock_pid=""
+            IFS= read -r elapsed < "$COUNCIL_RUN_DIR/preparation.elapsed"
             python3 -c 'import sys; elapsed=float(sys.argv[1]); assert elapsed < 2.5, f"preparation and cleanup took {elapsed:.3f}s"' "$elapsed" || exit 1
             [[ "$COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE" == internal-watchdog && "$COUNCIL_DEADLINE_HIT" == true ]] || exit 1
             sleep 3.2

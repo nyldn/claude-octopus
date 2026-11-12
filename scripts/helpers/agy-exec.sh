@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 # Antigravity CLI stdin-to-argument adapter.
 #
-# This intentionally stays a thin, env-driven adapter. It does NOT implement a
-# model-fallback chain or an error classifier the way the Gemini adapter does:
-# agy's model catalog and error strings are not verified here (agy may be
-# unauthenticated on a given box), and forcing a specific --model pushes agy onto
-# an exhaustible quota group. The only added robustness is provider-agnostic — a
-# single replay-from-cached-stdin retry on a silent-empty success.
+# This intentionally stays a thin, env-driven adapter. Forcing a specific --model
+# pushes agy onto an exhaustible quota group, so it falls back to another model
+# only when the caller lists them (OCTOPUS_AGY_FALLBACK_MODELS) and agy reports a
+# retryable no-capacity 503. Otherwise the only added robustness is
+# provider-agnostic: a single replay-from-cached-stdin retry on a silent-empty success.
 #
 # Prompt delivery: current agy takes the prompt as --print's ARGUMENT VALUE and
 # ignores stdin in print mode; with `--print` placed before other flags, agy
@@ -79,11 +78,14 @@ fi
 cmd+=(--dangerously-skip-permissions --print-timeout "$print_timeout")
 
 # Model-pin guard adopted from #555: query-free, treats agy/default as "no pin".
+# The --model flag is added when the command runs (agy_command), so a
+# no-capacity fallback can swap it.
+model_args=()
 case "$model" in
     ""|default|agy/default)
         ;;
     *)
-        cmd+=(--model "$model")
+        model_args=(--model "$model")
         ;;
 esac
 
@@ -136,14 +138,15 @@ fi
 # cannot prompt for. Either way the council seat is silently empty, and the
 # silent-empty retry below cannot help because it reproduces the same behaviour.
 # This directive pins the full answer to the stdout response so the seat is captured.
-AGY_INLINE_DIRECTIVE="CRITICAL OUTPUT RULES: Respond with your COMPLETE answer directly inline as plain text in THIS response. Do NOT create files. Do NOT write artifacts or brain documents. Do NOT use terminal, command, or file tools. Do NOT say 'see the artifact' or reference any external document. Write the full answer here now, from your own expertise.
+# Reading stays allowed: told to avoid file tools and answer "from your own
+# expertise", agy reviewed a plan against source it never opened and wrote the
+# cited lines from memory, so every quote failed grounding (sail-cruisey #3396).
+AGY_INLINE_DIRECTIVE="CRITICAL OUTPUT RULES: Respond with your COMPLETE answer directly inline as plain text in THIS response. You may read files in the workspace to check claims and quote them verbatim; do NOT create, edit or delete files, do NOT write artifacts or brain documents, and do NOT use terminal or command tools. Do NOT say 'see the artifact' or reference any external document. Write the full answer here now.
 
 "
 # Oversized prompts are handed over as a file path (see the size ceiling below), so
-# that branch needs a directive that permits reading exactly that one file. Reusing
-# the blanket no-file-tools wording above would contradict its own instruction to
-# read the prompt file.
-AGY_INLINE_DIRECTIVE_FILE="CRITICAL OUTPUT RULES: Respond with your COMPLETE answer directly inline as plain text in THIS response. You may read ONLY the prompt file named below. Apart from reading that one file, do NOT create files, do NOT write artifacts or brain documents, and do NOT use terminal or command tools. Do NOT say 'see the artifact' or reference any external document. Write the full answer here now.
+# that branch's directive also names the prompt file to read first.
+AGY_INLINE_DIRECTIVE_FILE="CRITICAL OUTPUT RULES: Respond with your COMPLETE answer directly inline as plain text in THIS response. Read the prompt file named below. You may read files in the workspace to check claims and quote them verbatim; do NOT create, edit or delete files, do NOT write artifacts or brain documents, and do NOT use terminal or command tools. Do NOT say 'see the artifact' or reference any external document. Write the full answer here now.
 
 "
 if [[ "${OCTOPUS_AGY_FORCE_INLINE:-1}" != "1" ]]; then
@@ -195,6 +198,7 @@ case "$max_payload_bytes" in
     ''|*[!0-9]*) max_payload_bytes=1048576 ;;
     *)
         _mpb="${max_payload_bytes#"${max_payload_bytes%%[!0]*}"}"; [[ -n "$_mpb" ]] || _mpb=0
+        # shellcheck disable=SC2071 # Equal-width digit strings avoid arithmetic overflow.
         if (( ${#_mpb} > 19 )) || { (( ${#_mpb} == 19 )) && [[ "$_mpb" > "9223372036854775807" ]]; }; then
             max_payload_bytes=1048576
         else
@@ -221,10 +225,20 @@ else
     cmd+=(--print "${AGY_INLINE_DIRECTIVE}${prompt_content}")
 fi
 
+# agy reads the flag after --print as the message, so --model goes before the
+# --print pair at the end of cmd.
+agy_command() {
+    local n=${#cmd[@]}
+    run_cmd=("${cmd[@]:0:n-2}")
+    (( ${#model_args[@]} )) && run_cmd+=("${model_args[@]}")
+    run_cmd+=("${cmd[@]:n-2}")
+}
+
 run_agy() {
+    agy_command
     : > "$stdout_file"
     : > "$stderr_file"
-    "${cmd[@]}" > "$stdout_file" 2> "$stderr_file" < /dev/null
+    "${run_cmd[@]}" > "$stdout_file" 2> "$stderr_file" < /dev/null
 }
 
 # agy is a bubbletea TUI app. In --print mode it is headless, but when it must render
@@ -241,6 +255,44 @@ _agy_quota_error() {
     # provider dead directly, the same way lib/perplexity.sh handles its 401.
     LC_ALL=C grep -ciE 'individual quota reached|quota reached\.|upgrade your subscription' \
         "$stderr_file" "$stdout_file" >/dev/null 2>&1
+}
+
+_agy_no_capacity() {
+    # Check the structured code, capacity attribution and retry policy together.
+    python3 - "$stderr_file" "$stdout_file" <<'CAPACITY'
+import json
+import re
+import sys
+try:
+    streams = [open(path).read() for path in sys.argv[1:]]
+    text = "\n".join(streams)
+    records = [json.loads(line.strip().split("AGY_ERROR:", 1)[1])
+               for line in text.splitlines() if line.lstrip().startswith("AGY_ERROR:")]
+    if records:
+        allowed = (not any(isinstance(item, dict) and item.get("retryable") is False for item in records)
+                   and any(isinstance(item, dict) and item.get("error_code") == 503
+                           and item.get("retryable") is True
+                           and "no capacity available for model" in str(item.get("short_error", "")).lower()
+                           for item in records))
+    else:
+        # A complete provider diagnostic must carry its own status and cause.
+        # Do not combine quoted stdout with an unrelated stderr status.
+        capacity_line = re.compile(
+            r"^(?:error:\s*)?(?:(?:Our servers are experiencing high traffic right now, "
+            r"please try again in a minute\.\s*)?\(?UNAVAILABLE\s*\((?:code|HTTP)\s+503\)\s*:\s*"
+            r"|(?:code|HTTP)\s+503\s*:\s*)No capacity available for model\s+[^`\r\n]+$", re.I)
+        allowed = (any(capacity_line.match(line.strip()) for stream in streams for line in stream.splitlines())
+                   and not re.search(r'"retryable"\s*:\s*false', text, re.I))
+    sys.exit(0 if allowed else 1)
+except (OSError, ValueError, RecursionError):
+    sys.exit(1)
+CAPACITY
+}
+
+# The model named in agy's no-capacity error, so the fallback skips it.
+_agy_busy_model() {
+    LC_ALL=C grep -hoiE 'no capacity available for model [^ "]+' "$stderr_file" "$stdout_file" 2>/dev/null \
+        | head -1 | sed -E 's/.* model //'
 }
 
 _agy_quota_reset_window() {
@@ -290,14 +342,14 @@ run_agy_pty() {
     : > "$stderr_file"
     if [[ "$(uname -s 2>/dev/null)" == Darwin* || "$(uname -s 2>/dev/null)" == *BSD ]]; then
         # BSD script: trailing command args preserve argv (safe for a large --print value).
-        script -q /dev/null "${cmd[@]}" > "$stdout_file" 2> "$stderr_file" < /dev/null
+        script -q /dev/null "${run_cmd[@]}" > "$stdout_file" 2> "$stderr_file" < /dev/null
     else
         # util-linux script: the command must be one -c string and may be
         # interpreted by /bin/sh rather than Bash. Quote every argument with
         # POSIX single-quote syntax; Bash printf %q can emit $'...' for
         # multiline values, which is not portable to /bin/sh.
         local _q="" _a _escaped
-        for _a in "${cmd[@]}"; do
+        for _a in "${run_cmd[@]}"; do
             _escaped="${_a//\'/\'\\\'\'}"
             _q+="'${_escaped}' "
         done
@@ -335,6 +387,61 @@ if [[ "${OCTOPUS_AGY_NO_PTY_FALLBACK:-}" != "1" ]] && (( rc != 0 )) \
     echo "agy-exec.sh: agy demanded a TTY; retrying once under a pseudo-terminal (disable with OCTOPUS_AGY_NO_PTY_FALLBACK=1)" >&2
     run_agy_pty
     rc=$?
+fi
+
+# A 503 "No capacity available for model X" is the backend saying that one model
+# is busy right now, and agy marks it retryable. The account itself is fine, so
+# try the same prompt on the next model in OCTOPUS_AGY_FALLBACK_MODELS (a comma
+# list of `agy models` IDs or labels). Only Gemini models are accepted: the agy
+# seat must stay a Google vendor, distinct from the Claude lead and Codex.
+if (( rc != 0 )) && [[ -n "${OCTOPUS_AGY_FALLBACK_MODELS:-}" ]] && _agy_no_capacity; then
+    _agy_capacity_rc="$rc"
+    _agy_capacity_diagnostic="$(printf '%s\n%s' "$(<"$stderr_file")" "$(<"$stdout_file")")"
+    _agy_busy="$(_agy_busy_model)"; [[ -n "$_agy_busy" ]] || _agy_busy="$model"
+    IFS=',' read -r -a _agy_fallbacks <<< "$OCTOPUS_AGY_FALLBACK_MODELS"
+    for _agy_next in "${_agy_fallbacks[@]}"; do
+        _agy_next="$(printf '%s' "$_agy_next" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+        [[ -n "$_agy_next" ]] || continue
+        case "$_agy_next" in
+            [Gg][Ee][Mm][Ii][Nn][Ii][-\ ]*) ;;
+            *)
+                echo "agy-exec.sh: skipping fallback model '$_agy_next': only Gemini models keep the agy seat a distinct vendor" >&2
+                continue
+                ;;
+        esac
+        _agy_lower_next="$(printf '%s' "$_agy_next" | tr '[:upper:]' '[:lower:]')"
+        [[ "$_agy_lower_next" == "$(printf '%s' "$_agy_busy" | tr '[:upper:]' '[:lower:]')" ]] && continue
+        [[ "$_agy_lower_next" == "$(printf '%s' "$model" | tr '[:upper:]' '[:lower:]')" ]] && continue
+        echo "agy-exec.sh: model ${_agy_busy:-default} has no capacity (503); retrying on '$_agy_next'" >&2
+        model_args=(--model "$_agy_next")
+        run_agy
+        rc=$?
+        # Same bounded silent-empty replay as the first attempt.
+        if [[ $rc -eq 0 && ! "$(<"$stdout_file")" =~ [^[:space:]] && -n "$prompt_file" && "${OCTOPUS_AGY_NO_RETRY:-}" != "1" ]]; then
+            run_agy
+            rc=$?
+        fi
+        if (( rc != 0 )) && [[ "${OCTOPUS_AGY_NO_PTY_FALLBACK:-}" != "1" ]] \
+                && command -v script >/dev/null 2>&1 && _agy_tty_error; then
+            run_agy_pty
+            rc=$?
+        fi
+        if (( rc == 0 )) && [[ ! "$(<"$stdout_file")" =~ [^[:space:]] ]]; then
+            printf '%s\n' "$_agy_capacity_diagnostic" >> "$stderr_file"
+            printf '%s\n' "agy-exec.sh: fallback '$_agy_next' returned no answer" >> "$stderr_file"
+            rc="$_agy_capacity_rc"
+            # An empty answer did not establish that this model was busy.
+            continue
+        fi
+        (( rc != 0 )) && _agy_no_capacity && { _agy_busy="$_agy_next"; continue; }
+        # Name the answering model only when it answered; a failed attempt must
+        # not replace the seat's reported model.
+        if (( rc == 0 )) && [[ "$(<"$stdout_file")" =~ [^[:space:]] && -n "${_OCTOPUS_AGY_MODEL_USED_FILE:-}" ]]; then
+            mkdir -p "$(dirname "$_OCTOPUS_AGY_MODEL_USED_FILE")" 2>/dev/null
+            printf '%s\n%s\n' "$_agy_next" "${_agy_busy:-default}" > "$_OCTOPUS_AGY_MODEL_USED_FILE" 2>/dev/null
+        fi
+        break
+    done
 fi
 set -e
 

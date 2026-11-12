@@ -1310,15 +1310,23 @@ octo_safe_diagnostic_tail() {
 # Council seats run detached, so a failed provider's stderr reaches no one and
 # summary.json could only say "no-response". When the caller names a capture
 # file, append this failed attempt there: the exit code and reason, the
-# provider's stderr, or the tail of its stdout when stderr is empty (some CLIs
-# print their error there). Secrets are scrubbed and the file is private.
+# provider's stderr, or the tail of its stdout when stderr is empty. A validated
+# terminal stdout session status is retained even with stderr warnings.
+# Secrets are scrubbed and the file is private.
 octo_capture_seat_failure() {
     local file="${_OCTOPUS_SEAT_STDERR_FILE:-}" agent="$1" rc="$2" reason="$3" err="$4" out="$5" body="" record=""
+    local terminal_status=""
     local section="-- no stderr or stdout --"
     local scanner="${BASH_SOURCE[0]%/*}/../helpers/artifact-safety.py"
     [[ -n "$file" ]] || return 0
     declare -F sanitize_secrets >/dev/null 2>&1 || return 0
     command -v python3 >/dev/null 2>&1 && [[ -f "$scanner" ]] || return 0
+    # Only the complete stdout can establish a standalone terminal status.
+    # A bounded diagnostic tail may have discarded an earlier quotation lead-in.
+    if [[ "$rc" != 0 ]] && declare -F octo_quota_session_limit_line >/dev/null &&
+       octo_quota_session_limit_line "$out" >/dev/null; then
+        terminal_status="$(octo_safe_diagnostic_tail "$out" 4096)" || return 0
+    fi
     # Redact the stream first: a raw byte tail can remove a credential prefix.
     # Certify before truncation too: a tail can remove an opaque key's field name.
     # Keep pipefail local so a failed sanitizer or gate cannot publish partial output.
@@ -1331,6 +1339,9 @@ octo_capture_seat_failure() {
     fi
     record="$(
         printf '== %s %s exited %s: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$agent" "$rc" "$reason"
+        if [[ -n "$terminal_status" ]]; then
+            printf '%s\n%s\n' '-- terminal stdout status --' "$terminal_status"
+        fi
         printf '%s\n' "$section" "$body"
     )"
     # The reason can contain provider output too. Clean controls before
@@ -1724,8 +1735,12 @@ ${provider_ctx}"
         if [[ "$exit_code" -eq 139 && "$_sync_retry_count" -lt "$_sync_sigsegv_retries" ]]; then
             _sync_retry_count=$((_sync_retry_count + 1))
             log WARN "Agent $agent_type exited 139 (SIGSEGV); retrying once within the original ${timeout_secs}s budget (stderr: ${_sync_signal_artifact:-unavailable})"
-            # Record this attempt before its output is cleared for the retry.
-            octo_capture_seat_failure "$agent_type" "$exit_code" "SIGSEGV; retrying once" "$temp_err" "$temp_out"
+            # Keep the retried attempt separate from the terminal failure used
+            # for quota classification. Its diagnostic remains available.
+            if [[ -n "${_OCTOPUS_SEAT_STDERR_FILE:-}" ]]; then
+                _OCTOPUS_SEAT_STDERR_FILE="${_OCTOPUS_SEAT_STDERR_FILE}.attempt-${_sync_retry_count}" \
+                    octo_capture_seat_failure "$agent_type" "$exit_code" "SIGSEGV; retrying once" "$temp_err" "$temp_out"
+            fi
             : > "$temp_err"
             : > "$temp_out"
             continue

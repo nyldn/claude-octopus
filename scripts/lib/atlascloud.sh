@@ -30,4 +30,3 @@ octo_atlascloud_model() {
     [[ "$from_config" != true ]] || octo_model_automatic_target_allowed "$model" atlascloud || return 1
     printf '%s\n' "$model"
 }
-
