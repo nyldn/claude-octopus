@@ -73,7 +73,7 @@ PROVIDER_PREFIXES = [
     ("codex", "codex"), ("gemini", "agy"), ("agy", "agy"),
     ("antigravity", "agy"), ("claude-sdk", "claude-sdk"),
     ("claude", "claude"), ("openrouter", "openrouter"),
-    ("atlascloud", "atlascloud"), ("cheaperinference", "cheaperinference"), ("api-route", "api-route"), ("litellm", "litellm"),
+    ("atlascloud", "atlascloud"), ("cheaperinference", "cheaperinference"), ("uberllm", "uberllm"), ("api-route", "api-route"), ("litellm", "litellm"),
     ("openai-", "openai-compatible-agent"),
     ("perplexity", "perplexity"), ("qwen", "qwen"),
     ("cursor-agent", "cursor-agent"), ("grok", "grok"),
