@@ -1730,15 +1730,40 @@ probe_single_agent "$PREVIEW_PROVIDER" perspective preview-task
         result = self.shell('set -o pipefail; source scripts/lib/auth.sh; _octo_opencode_has_saved_login')
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_live_deadline_includes_shell_startup_and_both_probes(self):
+    def test_live_deadline_includes_startup_and_both_probes(self):
         (self.data / 'auth.json').touch()
-        startup = self.base / 'startup.sh'
-        startup.write_text('case "${1:-}" in */providers.sh) sleep 4.5 ;; esac\n')
-        self.env.update(BASH_ENV=str(startup), VERSION_DELAY='0.5', AUTH_DELAY='0.5')
-        self.assertEqual(self.readiness('live')['status'], 'available')
-        # An explicit short user deadline still takes precedence.
-        self.env['OCTOPUS_PROVIDER_LIVE_TIMEOUT'] = '1'
-        self.assertEqual(self.readiness('live')['status'], 'degraded')
+        startup = self.base / 'slow-bash'
+        startup.write_text('#!/bin/sh\nprintf started >> "$LIVE_STARTUP_MARKER"\n'
+                           'sleep 3\nexec ' + shlex.quote(shutil.which('bash')) + ' "$@"\n')
+        startup.chmod(0o755)
+        self.env.update(LIVE_STARTUP_BASH=str(startup),
+                        LIVE_STARTUP_MARKER=str(self.base / 'startup-called'),
+                        LIVE_DATE_TOOL=shutil.which('date'), LIVE_ENV_TOOL=shutil.which('env'),
+                        VERSION_DELAY='1.25', AUTH_DELAY='1.25')
+        # Delay the interpreter selected for the live child, inside its deadline.
+        # CLI calls remain below their two-second soft / three-second hard bounds.
+        script = r'''
+source scripts/lib/preflight.sh
+_octo_preflight_system_tool() {
+    case "$1" in
+        bash) printf '%s\n' "$LIVE_STARTUP_BASH" ;;
+        date) printf '%s\n' "$LIVE_DATE_TOOL" ;;
+        env) printf '%s\n' "$LIVE_ENV_TOOL" ;;
+        *) return 1 ;;
+    esac
+}
+octo_provider_readiness_result opencode live
+'''
+        for deadline, status in ((None, 'available'), ('5', 'degraded')):
+            with self.subTest(deadline=deadline):
+                if deadline is None:
+                    self.env.pop('OCTOPUS_PROVIDER_LIVE_TIMEOUT', None)
+                else:
+                    self.env['OCTOPUS_PROVIDER_LIVE_TIMEOUT'] = deadline
+                result = self.shell(script, timeout=20)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(json.loads(result.stdout)['status'], status)
+        self.assertEqual(Path(self.env['LIVE_STARTUP_MARKER']).read_text(), 'startedstarted')
 
     def test_failed_direct_probe_completes_its_durable_seat(self):
         """Every pre-dispatch rejection closes the durable seat without launching."""
