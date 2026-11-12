@@ -147,6 +147,9 @@ export interface ExtractionOptions {
     enabled?: boolean;
     rounds?: number;
     consensusThreshold?: number;
+    providers?: string[];
+    autoApply?: boolean;
+    minConfidence?: number;
   };
   validation?: {
     enabled?: boolean;

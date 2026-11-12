@@ -6,9 +6,25 @@ import { runTokenExtraction } from '../pipeline';
 import { TokenExtractionConfig, TokenCategory } from '../types';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 
 describe('Token Extraction Pipeline', () => {
-  const testProjectPath = path.join(__dirname, '../test-fixtures');
+  const fixtureSource = path.join(__dirname, '../test-fixtures');
+  let testProjectPath: string;
+  let testRoot: string;
+
+  beforeEach(() => {
+    testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'octopus-token-pipeline-'));
+    testProjectPath = path.join(testRoot, 'project');
+    fs.cpSync(fixtureSource, testProjectPath, {
+      recursive: true,
+      filter: source => !['design-tokens', 'test-output'].includes(path.basename(source)),
+    });
+  });
+
+  afterEach(() => {
+    fs.rmSync(testRoot, { recursive: true, force: true });
+  });
 
   describe('runTokenExtraction', () => {
     // TODO: Create proper test fixtures with token data
@@ -37,13 +53,14 @@ describe('Token Extraction Pipeline', () => {
       expect(categories.has(TokenCategory.Typography)).toBe(true);
     });
 
-    it('should assign confidence scores', async () => {
+    it('should preserve token provenance and priority', async () => {
       const result = await runTokenExtraction(testProjectPath);
 
+      expect(result.tokens.length).toBeGreaterThan(0);
       result.tokens.forEach(token => {
-        expect(token.confidence).toBeDefined();
-        expect(token.confidence).toBeGreaterThan(0);
-        expect(token.confidence).toBeLessThanOrEqual(1);
+        expect(token.source).toBeTruthy();
+        expect(token.priority).toBeTypeOf('number');
+        expect(token.path.length).toBeGreaterThan(0);
       });
     });
 
@@ -75,20 +92,28 @@ describe('Token Extraction Pipeline', () => {
       }).rejects.toThrow();
     });
 
-    it('should extract W3C-compliant tokens', async () => {
-      const result = await runTokenExtraction(testProjectPath, {
-        outputFormats: ['json'],
-      });
-
-      result.tokens.forEach(token => {
-        expect(token).toHaveProperty('$type');
-        expect(token).toHaveProperty('$value');
-      });
+    it('should write W3C-compliant tokens to the JSON artifact', async () => {
+      const outputDir = fs.mkdtempSync(path.join(testProjectPath, 'w3c-output-'));
+      try {
+        const result = await runTokenExtraction(testProjectPath, {
+          outputFormats: ['json'],
+          outputDir,
+        });
+        const artifact = JSON.parse(fs.readFileSync(path.join(outputDir, 'tokens.json'), 'utf8'));
+        expect(result.tokens.length).toBeGreaterThan(0);
+        result.tokens.forEach(token => {
+          const serialized = token.path.reduce((group, key) => group[key], artifact);
+          expect(serialized).toHaveProperty('$type', token.type);
+          expect(serialized).toHaveProperty('$value', token.value);
+        });
+      } finally {
+        fs.rmSync(outputDir, { recursive: true, force: true });
+      }
     });
 
     // TODO: Fix test - expects 0 tokens but may have validation errors
     it.skip('should handle empty project', async () => {
-      const emptyPath = path.join(__dirname, 'empty-fixtures');
+      const emptyPath = path.join(testRoot, 'empty-fixtures');
 
       if (!fs.existsSync(emptyPath)) {
         fs.mkdirSync(emptyPath, { recursive: true });
@@ -105,9 +130,10 @@ describe('Token Extraction Pipeline', () => {
   });
 
   describe('Output Generation', () => {
-    const outputDir = path.join(__dirname, 'test-output');
+    let outputDir: string;
 
     beforeEach(() => {
+      outputDir = path.join(testProjectPath, 'test-output');
       if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
       }

@@ -198,7 +198,7 @@ export async function generateTypeScriptOutput(
   const {
     outputPath,
     generateTypes = true,
-    generateConstants = true,
+    generateConstants: shouldGenerateConstants = true,
     exportType = 'both',
     indent = 2,
   } = options;
@@ -241,7 +241,7 @@ export async function generateTypeScriptOutput(
   }
 
   // Generate constants file (.ts)
-  if (generateConstants) {
+  if (shouldGenerateConstants) {
     const constantsLines: string[] = [];
 
     constantsLines.push('/**');

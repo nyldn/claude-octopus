@@ -31,7 +31,7 @@
   "license": "MIT",
   "dependencies": {
     "@types/tinycolor2": "^1.4.6",
-    "glob": "^10.3.10",
+    "glob": "^14.0.3",
     "tinycolor2": "^1.6.0"
   },
   "devDependencies": {
@@ -42,6 +42,6 @@
     "vitest": "^4.0.18"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": "^20.19.0 || ^22.12.0 || >=24.0.0"
   }
 }
