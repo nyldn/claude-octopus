@@ -245,7 +245,7 @@ fi
 
 test_case "parallel skill resolves readiness from the active plugin root"
 canonical_parallel_skill="$PROJECT_ROOT/.claude/skills/skill-parallel-agents/SKILL.md"
-if grep -Fq 'OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"' \
+if grep -Fq 'OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${DROID_PLUGIN_ROOT:-${OCTO_ROOT:-${HOME}/.claude-octopus/plugin}}}}"' \
        "$canonical_parallel_skill" &&
    grep -Fq '"$OCTO_ROOT/scripts/orchestrate.sh" detect-providers' \
        "$canonical_parallel_skill"; then

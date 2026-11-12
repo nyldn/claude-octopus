@@ -24,6 +24,23 @@ import re
 import shlex
 import sys
 
+def split_shell_command(command):
+    """Recognize unquoted terminal handlers before discarding quote context."""
+    lexer = shlex.shlex(command, posix=False, punctuation_chars="|&")
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    tokens = list(lexer)
+    handlers = (
+        ("||", "TANGLE_STATUS=$?"),
+        ("||", "exit", "1"),
+        ("&&", "exit", "1"),
+    )
+    for suffix in handlers:
+        if len(tokens) >= len(suffix) and tuple(tokens[-len(suffix):]) == suffix:
+            command = command.rsplit(suffix[0], 1)[0]
+            break
+    return shlex.split(command)
+
 commands = sys.argv[1]
 call = re.compile(r"orchestrate\.sh\"?\s+((?:" + commands + r")\b.*)")
 for path in sys.argv[2:]:
@@ -42,7 +59,7 @@ for path in sys.argv[2:]:
             if not match:
                 continue
             try:
-                args = shlex.split(match.group(1))
+                args = split_shell_command(match.group(1))
             except ValueError:
                 args = ["!unparsable", match.group(1)]
             print("\x1f".join([f"{path}:{start + 1}"] + args))
@@ -193,6 +210,43 @@ check_phase_examples() {
         fi
     done
 }
+
+
+# Parser controls: preserve quoted operator text, strip only known trailing shell
+# handlers, and leave a real third phase argument visible for the validator.
+phase_parser_fixture="$TEST_TMP_DIR/phase-parser-controls.md"
+cat > "$phase_parser_fixture" <<'EOF'
+`"$OCTO_ROOT/scripts/orchestrate.sh" tangle "Keep || and && in this prompt" "$TANGLE_INPUT" || TANGLE_STATUS=$?`
+`"$OCTO_ROOT/scripts/orchestrate.sh" grasp "Keep || in this prompt" "$PROBE_INPUT" || exit 1`
+`"$OCTO_ROOT/scripts/orchestrate.sh" ink "Keep && in this prompt" "$TANGLE_INPUT" && exit 1`
+`"$OCTO_ROOT/scripts/orchestrate.sh" tangle "Prompt" "$GRASP_INPUT" extra-argument`
+`"$OCTO_ROOT/scripts/orchestrate.sh" tangle "Prompt" "$GRASP_INPUT" "||" "exit" "1"`
+EOF
+phase_parser_records="$(extract_examples 'grasp|tangle|ink|define|develop|deliver' "$phase_parser_fixture")"
+test_case "phase parser strips known shell handlers and preserves quoted operators and extra arguments"
+if python3 - "$phase_parser_records" <<'PY'
+import sys
+records = [line.split("\x1f") for line in sys.argv[1].splitlines()]
+expected = [
+    ["tangle", "Keep || and && in this prompt", "$TANGLE_INPUT"],
+    ["grasp", "Keep || in this prompt", "$PROBE_INPUT"],
+    ["ink", "Keep && in this prompt", "$TANGLE_INPUT"],
+    ["tangle", "Prompt", "$GRASP_INPUT", "extra-argument"],
+    ["tangle", "Prompt", "$GRASP_INPUT", "||", "exit", "1"],
+]
+if len(records) != len(expected):
+    raise SystemExit(f"expected {len(expected)} records, got {len(records)}")
+for record, wanted in zip(records, expected):
+    if record[1:] != wanted:
+        raise SystemExit(f"expected {wanted!r}, got {record[1:]!r}")
+if any(len(record) <= 4 for record in records[-2:]):
+    raise SystemExit("actual extra positional arguments would evade the phase validator")
+PY
+then
+    test_pass
+else
+    test_fail "shell handlers must not become args, and quoted prompt operators or actual extra args must remain"
+fi
 
 check_phase_examples "skill-parallel-agents" "$PARALLEL_SKILL"
 check_phase_examples "generated skill-parallel-agents" "$GENERATED_PARALLEL_SKILL"

@@ -78,6 +78,8 @@ clean-commit or tag checks below.
 
 ## 2. Run the delivery audit
 
+**EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)**
+
 Use the installation root established above for execution and result
 validation. Run `orchestrate.sh ink` and require a fresh validated report with
 launcher status `COMPLETE`. Do not substitute a single-provider review or an

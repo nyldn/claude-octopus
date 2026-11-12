@@ -19,7 +19,7 @@ validation_gates:
 
 # Claude Octopus - Multi-Tentacled Orchestrator
 
-## Scope and execution contract
+## EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)
 
 Use `/octo:multi` for explicitly requested analysis, implementation or review
 that needs parallel provider perspectives. Routine file operations, git commands,

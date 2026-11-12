@@ -111,10 +111,12 @@ fi
 test_case "authoring: records the native explicit-invocation contract"
 if [[ -f "$AU" ]] \
     && grep -q "disable-model-invocation: true" "$AU" \
-    && grep -q 'native path registered in `\.claude-plugin/plugin\.json`' "$AU" \
-    && grep -q 'codex-skills/<registered-name>/SKILL\.md' "$AU" \
-    && grep -q 'derive the plugin root from the loaded' "$AU" \
-    && grep -q 'Load the complete host-specific' "$AU"; then
+    && grep -Fq 'Claude Code: read `.claude-plugin/plugin.json`' "$AU" \
+    && grep -Fq 'codex-skills/<registered-name>/SKILL.md' "$AU" \
+    && grep -q 'absolute entry path supplied by the host' "$AU" \
+    && grep -q 'Accept exactly one matching ancestor as the plugin root' "$AU" \
+    && grep -q 'Load the complete' "$AU" \
+    && grep -q 'host-specific.*SKILL.md' "$AU"; then
     test_pass
 else
     test_fail "must require explicit invocation and load the verified host-specific entry"

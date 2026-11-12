@@ -60,7 +60,7 @@ The Codex generator also writes `policy.allow_implicit_invocation: false` to eac
 skill's `agents/openai.yaml`; Codex users invoke the installed `$skill-name`.
 Do not depend on automatic activation for either host.
 
-Resolve reusable instructions from the absolute entry path supplied by the host.
+Use the absolute entry path supplied by the host to derive the plugin root.
 Resolve symlinks first, then walk upward from that file's directory. At each
 ancestor containing the selected host's plugin manifest, check its registration:
 
@@ -77,7 +77,11 @@ ancestor containing the selected host's plugin manifest, check its registration:
    the current directory, a cache name, or an unrelated environment variable.
 
 Before loading another skill, construct its host-registered path under that
-verified root and confirm its complete `SKILL.md` exists. Load the full file.
+verified root and confirm its complete `SKILL.md` exists. Load the complete
+host-specific `SKILL.md` entry. For this repository's current Codex manifest,
+the registered path pattern is `codex-skills/<registered-name>/SKILL.md`, such
+as `codex-skills/skill-authoring/SKILL.md`; derive the directory from the
+manifest rather than assuming this package layout elsewhere.
 
 Treat the loaded body as instructions in the current conversation. Follow its
 steps in order and pass the user's text as workflow arguments, never executable

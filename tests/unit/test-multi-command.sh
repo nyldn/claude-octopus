@@ -86,50 +86,57 @@ else
     pass "Old command removed from plugin.json"
 fi
 
-# Test 7: Skill file has priority triggers
+# Test 7: Skill contract is explicitly scoped to requested parallel work
 echo ""
-echo "Test 7: Validating skill priority triggers..."
+echo "Test 7: Validating explicit parallel-work scope..."
 SKILL_FILE="$(resolve_claude_skill_path "skill-parallel-agents")"
-if grep -q 'PRIORITY TRIGGERS' "$SKILL_FILE"; then
-    pass "PRIORITY TRIGGERS section exists in skill file"
+if grep -q '^## EXECUTION CONTRACT' "$SKILL_FILE" &&
+   grep -q 'Use `/octo:multi` for explicitly requested' "$SKILL_FILE" &&
+   grep -q 'Routine file operations, git commands' "$SKILL_FILE"; then
+    pass "Skill keeps parallel dispatch explicitly scoped"
 else
-    fail "Missing PRIORITY TRIGGERS" "skill-parallel-agents.md should have priority triggers"
+    fail "Missing explicit scope contract" "skill must route requested parallel work and leave routine tasks with host tools"
 fi
 
-# Test 8: Priority triggers include /octo:multi
+# Test 8: Multi remains a manual command; no skill autoactivation triggers
 echo ""
-echo "Test 8: Checking /octo:multi in priority triggers..."
-if grep -A 5 'PRIORITY TRIGGERS' "$SKILL_FILE" | grep -q '/octo:multi'; then
-    pass "/octo:multi found in priority triggers"
+echo "Test 8: Checking explicit invocation and retired trigger removal..."
+if grep -q '^disable-model-invocation: true$' "$COMMAND_FILE" &&
+   ! grep -q 'PRIORITY TRIGGERS' "$SKILL_FILE" &&
+   ! grep -qi 'run this with all providers' "$SKILL_FILE"; then
+    pass "Multi invocation is manual and generic triggers stay retired"
 else
-    fail "/octo:multi not in triggers" "Priority triggers should include /octo:multi"
+    fail "Invocation policy drifted" "keep /octo:multi explicit and do not restore broad skill triggers"
 fi
 
-# Test 9: Old command aliases removed from triggers
+# Test 9: Retired slash aliases do not become frontmatter triggers again
+frontmatter="$(awk 'NR == 1 { next } /^---$/ { exit } { print }' "$SKILL_FILE")"
 echo ""
-echo "Test 9: Checking old aliases removed from triggers..."
-if grep -A 5 'PRIORITY TRIGGERS' "$SKILL_FILE" | grep -qE '(parallel-agents|all-providers)'; then
-    fail "Old aliases still in triggers" "parallel-agents and all-providers should be removed"
+echo "Test 9: Checking retired slash aliases..."
+if printf '%s\n' "$frontmatter" | grep -qE '/octo:(parallel-agents|all-providers)'; then
+    fail "Retired aliases found in skill triggers" "keep the registered multi entry instead"
 else
-    pass "Old command aliases removed from triggers"
+    pass "Retired slash aliases remain outside skill triggers"
 fi
 
-# Test 10: Force Multi-Provider Mode section exists
+# Test 10: Force Multi-Provider Mode remains documented for explicit requests
 echo ""
-echo "Test 10: Checking Force Multi-Provider Mode section..."
+echo "Test 10: Checking explicit multi-provider guidance..."
 if grep -q '## Force Multi-Provider Mode' "$SKILL_FILE"; then
-    pass "Force Multi-Provider Mode section exists"
+    pass "Force Multi-Provider Mode guidance exists"
 else
-    fail "Missing section" "Skill should have Force Multi-Provider Mode section"
+    fail "Missing section" "Skill should retain explicit multi-provider guidance"
 fi
 
-# Test 11: Natural language triggers preserved
+# Test 11: Routine work stays with direct host tools under the manual skill policy
 echo ""
-echo "Test 11: Checking natural language triggers..."
-if grep -A 5 'PRIORITY TRIGGERS' "$SKILL_FILE" | grep -q 'run this with all providers'; then
-    pass "Natural language triggers preserved"
+echo "Test 11: Checking routine-task exemption..."
+if grep -q '^disable-model-invocation: true$' "$SKILL_FILE" &&
+   grep -q 'Those operations do not require provider dispatch' "$SKILL_FILE" &&
+   grep -q "basic terminal tasks stay with the host's direct tools" "$SKILL_FILE"; then
+    pass "Routine tasks retain the host-tool exemption"
 else
-    fail "Natural language triggers missing" "Triggers should include 'run this with all providers'"
+    fail "Routine tasks require unnecessary dispatch" "manual parallel work must not capture ordinary host operations"
 fi
 
 # Test 12: COMMAND-REFERENCE.md documentation updated
