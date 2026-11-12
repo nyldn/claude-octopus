@@ -336,17 +336,84 @@ _octo_opencode_auth_store_present() {
     return 1
 }
 
+# Check the helper interpreter's location before running even its capability
+# probe. A project-local Python must not receive login credentials either.
+_octo_opencode_probe_python() (
+    local candidate="${OCTOPUS_PYTHON:-${_OCTO_PID_LEDGER_PYTHON:-python3}}"
+    local directory target project current count
+    if [[ "$candidate" != */* ]]; then
+        candidate="$(type -P "$candidate")" || return 125
+    fi
+    [[ "$candidate" == /* ]] || candidate="$PWD/$candidate"
+    for count in {1..16}; do
+        directory="$(cd "${candidate%/*}" 2>/dev/null && pwd -P)" || return 125
+        candidate="$directory/${candidate##*/}"
+        [[ -L "$candidate" ]] || break
+        target="$(/usr/bin/readlink "$candidate")" || return 125
+        if [[ "$target" == /* ]]; then candidate="$target"; else candidate="$directory/$target"; fi
+    done
+    [[ -x "$candidate" && ! -L "$candidate" ]] || return 125
+    current="$(pwd -P)"
+    project="$(cd "${PROJECT_ROOT:-$PWD}" 2>/dev/null && pwd -P)" || project="$current"
+    case "$candidate" in
+        "$project"|"$project"/*) return 125 ;;
+    esac
+    if [[ "$current" != "$(cd "$HOME" 2>/dev/null && pwd -P)" ]]; then
+        case "$candidate" in "$current"|"$current"/*) return 125 ;; esac
+    fi
+    _octo_pid_python_capable "$candidate" || return 125
+    printf '%s\n' "$candidate"
+)
+
+# Metadata and login probes use the same filesystem boundary as a bounded seat.
+_octo_opencode_run_probe() (
+    local mode="$1" name python
+    shift
+    unset KEENABLE_API_KEY NODE_OPTIONS NODE_PATH BUN_OPTIONS PYTHONPATH LD_PRELOAD \
+        DYLD_INSERT_LIBRARIES DYLD_LIBRARY_PATH || return 125
+    if [[ "$mode" != login ]]; then
+        while IFS= read -r name; do
+            case "$name" in
+                *API_KEY*|*_TOKEN|*_TOKEN_*|*SECRET*|*PASSWORD*|*CREDENTIAL*) unset "$name" || return 125 ;;
+            esac
+        done < <(compgen -e)
+    fi
+    declare -f _octo_run_bare_probe_with_timeout >/dev/null 2>&1 || source "${_auth_lib_dir}/bounded-probe.sh" || return 1
+    declare -f octopus_pid_python_resolve >/dev/null 2>&1 || source "${_auth_lib_dir}/pid-ledger.sh" || return 1
+    python="$(_octo_opencode_probe_python)" || {
+        printf '%s\n' 'OpenCode admission refused: a capable Python interpreter outside the project is required' >&2
+        return 125
+    }
+    local -a cmd_array=("$python" -I "${_auth_lib_dir}/../helpers/opencode-probe.py" "$mode" "${PROJECT_ROOT:-$PWD}" "$@")
+    if [[ "${OCTOPUS_TANGLE_EXECUTION_BOUNDARY:-false}" == true ||
+          "${OCTOPUS_TANGLE_WRITE_SCOPE_MODE:-strict}" == adaptive ]]; then
+        declare -f octopus_tangle_apply_execution_boundary >/dev/null 2>&1 || source "${_auth_lib_dir}/spawn.sh" || return 125
+        if ! declare -f log >/dev/null 2>&1; then
+            log() { printf '[%s] %s\n' "$1" "${*:2}" >&2; }
+        fi
+        # The shared boundary reads this caller's scope and command array.
+        # shellcheck disable=SC2034
+        local phase=tangle role=reviewer agent_type=opencode
+        if ! octopus_tangle_apply_execution_boundary; then
+            printf '%s\n' 'OpenCode admission refused: no enforceable Tangle probe boundary' >&2
+            return 125
+        fi
+    fi
+    _octo_run_bare_probe_with_timeout 3 2 1 "${cmd_array[@]}" </dev/null
+)
+
 # Runtime-only, bounded version detection. Unknown generations cannot safely
 # select private-server flags, so real dispatch fails closed.
 _octo_opencode_cli_major() (
     # Version metadata needs neither model nor search credentials.
     unset MISTRAL_API_KEY KEENABLE_API_KEY || return 1
-    local version
+    local version rc=0 mode="${1:-version}"
     case "${OCTOPUS_SKIP_PROVIDER_PROBES:-false}" in true|1) return 1 ;; esac
     if ! declare -f _octo_run_bare_probe_with_timeout >/dev/null 2>&1; then
         source "${_auth_lib_dir}/bounded-probe.sh" 2>/dev/null || return 1
     fi
-    version="$(_octo_run_bare_probe_with_timeout 3 2 1 opencode --version </dev/null 2>/dev/null)" || return 1
+    version="$(_octo_opencode_run_probe "$mode" --version)" || rc=$?
+    [[ "$rc" -eq 0 ]] || return "$rc"
     if [[ "$version" =~ ^(opencode[[:space:]]+)?v?([12])\.[0-9]+\.[0-9]+([+-][[:alnum:].-]+)?$ ]]; then
         printf '%s\n' "${BASH_REMATCH[2]}"
     else
@@ -359,11 +426,17 @@ _octo_opencode_cli_major() (
 _octo_opencode_has_saved_login() (
     # Environment-only login still needs Mistral; search credentials never do.
     unset KEENABLE_API_KEY || return 1
-    local listing major
+    local listing major rc=0
     declare -f _octo_run_bare_probe_with_timeout >/dev/null 2>&1 || source "${_auth_lib_dir}/bounded-probe.sh" || return 1
-    major="$(_octo_opencode_cli_major)" || return 1
+    major="$(_octo_opencode_cli_major login-version)" || rc=$?
+    [[ "$rc" -eq 0 ]] || return "$rc"
     if [[ "$major" == 2 ]]; then
-        listing="$(_octo_run_bare_probe_with_timeout 3 2 1 opencode auth list --standalone --format json </dev/null 2>/dev/null)" || return 1
+        if [[ "${OCTOPUS_TANGLE_EXECUTION_BOUNDARY:-false}" == true ||
+              "${OCTOPUS_TANGLE_WRITE_SCOPE_MODE:-strict}" == adaptive ]]; then
+            printf '%s\n' 'OpenCode 2.x bounded Tangle requires saved-login-preserving session storage; this dispatch is unavailable' >&2
+            return 125
+        fi
+        listing="$(_octo_opencode_run_probe login auth list --standalone --format json)" || return $?
         if command -v jq >/dev/null 2>&1; then
             printf '%s\n' "$listing" | jq -e '
             type == "array" and any(.[];
@@ -393,7 +466,7 @@ sys.exit(0 if valid else 1)
             return 1
         fi
     else
-        listing="$(_octo_run_bare_probe_with_timeout 3 2 1 opencode auth list </dev/null 2>/dev/null)" || return 1
+        listing="$(_octo_opencode_run_probe login auth list)" || return $?
         listing="$(printf '%s\n' "$listing" | sed $'s/\033\\[[0-9;]*m//g')"
         printf '%s\n' "$listing" | grep -Ec '^[[:space:]│└]*[1-9][0-9]* (credentials?|environment variables?)[[:space:]]*$' >/dev/null
     fi

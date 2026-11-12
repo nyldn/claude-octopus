@@ -246,23 +246,31 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
             fi
             return 1
         fi
-        if ! health_diag=$("$health_handler" opencode "$model" 2>&1); then
+        local health_rc=0
+        health_diag=$("$health_handler" opencode "$model" 2>&1) || health_rc=$?
+        if [[ "$health_rc" -ne 0 ]]; then
             log WARN "OpenCode health check failed: $health_diag"
             if declare -F research_probe_single_record >/dev/null 2>&1; then
                 research_probe_single_record "$task_id" "$agent_type" failed || true
             fi
-            return 1
+            return "$health_rc"
         fi
     fi
 
-    local cmd
-    if ! cmd=$(get_agent_command "$agent_type" "$phase" "$role" "$(octo_prompt_byte_length "$enhanced_prompt")"); then
-        log ERROR "Unknown agent type: $agent_type"
+    local cmd OCTO_RESOLVED_COMMAND="" OCTO_COMMAND_DIAGNOSTIC="" command_rc=0
+    octo_resolve_agent_command "$PWD" "$agent_type" "$phase" "$role" "$(octo_prompt_byte_length "$enhanced_prompt")" || command_rc=$?
+    if [[ "$command_rc" -ne 0 ]]; then
+        if [[ "$command_rc" -eq 125 ]]; then
+            log WARN "Provider command refused for $agent_type: ${OCTO_COMMAND_DIAGNOSTIC:-no launcher diagnostic}"
+        else
+            log ERROR "Unknown agent type: $agent_type"
+        fi
         if declare -F research_probe_single_record >/dev/null 2>&1; then
             research_probe_single_record "$task_id" "$agent_type" failed || true
         fi
-        return 1
+        return "$command_rc"
     fi
+    cmd="$OCTO_RESOLVED_COMMAND"
     if declare -f octo_dispatch_command_model >/dev/null 2>&1; then
         model="$(octo_dispatch_command_model "$cmd" "$model")"
     fi

@@ -25,7 +25,7 @@ empathize_research() {
         return 0
     fi
 
-    preflight_check false "" dispatch || return 1
+    preflight_check false "" non-roster-dispatch || return 1
     mkdir -p "$RESULTS_DIR"
 
     echo -e "${CYAN}🦑 Phase 1/4: Synthesizing research data...${NC}"
@@ -176,7 +176,7 @@ synthesize_research() {
         return 0
     fi
 
-    preflight_check false "" dispatch || return 1
+    preflight_check false "" non-roster-dispatch || return 1
     mkdir -p "$RESULTS_DIR"
 
     echo -e "${CYAN}🦑 Phase 1/4: Gathering and categorizing sources...${NC}"

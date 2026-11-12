@@ -787,6 +787,16 @@ Then provide specific optimization recommendations."
     agent=$(get_tiered_agent "$task_type" "$agent_complexity")
     local model_name
     model_name=$(OCTOPUS_MODEL_READ_ONLY=true OCTOPUS_DISPATCH_PREVIEW=true get_agent_model "$agent")
+    case "$agent" in
+        claude-opus|claude-opus-fast)
+            local display_command
+            if display_command=$(DRY_RUN=true OCTOPUS_MODEL_READ_ONLY=true OCTOPUS_DISPATCH_PREVIEW=true get_agent_command "$agent"); then
+                model_name="$(octo_dispatch_command_model "$display_command" "$model_name")"
+            else
+                model_name=unavailable
+            fi
+            ;;
+    esac
     echo -e "  Selected Agent: ${GREEN}$agent${NC} → ${CYAN}$model_name${NC}"
     echo ""
 

@@ -170,7 +170,7 @@ assert_contains "$PROBE_SINGLE_SRC" \
 # ── probe_single_agent calls get_agent_command ───────────────────────────────
 
 assert_contains "$PROBE_SINGLE_SRC" \
-  "get_agent_command" "probe_single_agent: calls get_agent_command()"
+  "octo_resolve_agent_command" "probe_single_agent: resolves the provider command and diagnostic"
 
 # ── probe_single_agent has auth retry logic ──────────────────────────────────
 

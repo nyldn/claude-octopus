@@ -538,23 +538,33 @@ parent environment. Cursor version and session-status probes also exclude the
 forwarded Mistral key, preserving Cursor authentication and the parent shell.
 Copilot capability checks and its GitHub authentication fallback exclude that
 key as well, including authentication-method reporting.
-OpenCode version probes omit both Mistral and search
-credentials. OpenCode login probes retain Mistral for environment-only login and
-omit the unrelated search credential. This filtering does not establish
-executable provenance or isolate project plugins. Explicit credential selection in isolated provider
-configuration remains effective.
+OpenCode version probes omit forwarded API keys, tokens, passwords and secrets.
+Login probes retain credentials for environment-only login and omit the unrelated
+search credential. They resolve the selected executable before entering a private
+directory and disable project configuration. A project-owned executable, including
+a symlink target, or a project-owned configuration selector refuses admission.
+Custom configuration and saved-login paths outside the project remain effective.
+Inline configuration is omitted during admission because it can name project
+plugins. These restrictions apply to admission, not the eventual model task.
 OpenCode dispatch admission also confirms statically available seats.
-Both admission checks resolve OpenCode from the worker's project directory.
+Both admission checks select OpenCode from the worker's project directory.
 Synchronous, background and direct `probe-single` dispatch check health before
 launching a model task. Direct probes include the standard, fast and research
 OpenCode seats.
+`empathize` and `synthesize` choose their own seats and ignore the council roster
+during admission. An explicit preflight panel still applies to those workflows.
 
-Background version detection and login checks run from the worker's project
-directory, so relative executable paths and directory-sensitive shims select
-the same CLI generation as execution. OpenCode 2.x bounded Tangle dispatch is
+Version detection for command construction runs in the worker's project directory.
+Login checks resolve that executable there, then run outside project configuration.
+Relative paths to an installed executable outside the project remain supported.
+Bounded Tangle applies its filesystem boundary before running either probe and
+refuses admission if that boundary is unavailable. OpenCode 1.x retains bounded
+dispatch. OpenCode 2.x bounded Tangle dispatch is
 unavailable: its private server needs writable session state in the same SQLite
 store as saved credentials, outside the writable worktree. Command construction
-refuses this path before starting a model task, including adaptive write scope.
+refuses this path before starting a private login server or model task, including
+adaptive write scope. Refusals retain exit 125 and the launcher diagnostic in
+background execution records; direct probes also retain the failure status.
 Other workflows retain standalone dispatch. Supporting bounded Tangle still
 requires a saved-login-preserving state design and session-creation acceptance
 on a capable host. Do not switch to the shared server or broaden writable host

@@ -429,6 +429,250 @@ esac
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertFalse(self.marker.exists(), "Mistral key reached Claude startup")
 
+    def test_version_probe_excludes_all_forwarded_credentials(self):
+        self.env.update(CLI_VERSION="2.0.23", OPENAI_API_KEY="inert-openai",
+                        ANTHROPIC_API_KEY="inert-anthropic", GH_TOKEN="inert-github")
+        self.cli.write_text(self.cli.read_text().replace(
+            'printf called >>',
+            '[ -z "${OPENAI_API_KEY+x}${ANTHROPIC_API_KEY+x}${GH_TOKEN+x}" ] || exit 78\nprintf called >>', 1))
+        result = self.shell('source scripts/lib/auth.sh; _octo_opencode_cli_major')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "2")
+
+    def test_login_probe_disables_project_plugins_and_uses_private_directory(self):
+        project = self.base / "project"
+        project.mkdir()
+        (project / "opencode.json").write_text('{"plugin":["./project-plugin.js"]}')
+        self.env.update(CLI_VERSION="2.0.23", PROJECT_ROOT=str(project), MISTRAL_API_KEY="fixture")
+        self.cli.write_text(self.cli.read_text().replace(
+            'printf called >>',
+            'if [ "$1 $2" = "auth list" ]; then\n'
+            '  [ "$PWD" != "$PROJECT_ROOT" ] || exit 79\n'
+            '  [ "$OPENCODE_CONFIG_PROJECT_DISABLE" = 1 ] || exit 80\n'
+            '  [ "$OPENCODE_DISABLE_PROJECT_CONFIG" = 1 ] || exit 81\n'
+            '  [ "$MISTRAL_API_KEY" = fixture ] || exit 82\n'
+            'fi\nprintf called >>', 1))
+        result = self.shell('source "$PLUGIN_DIR/scripts/lib/auth.sh"; _octo_opencode_has_saved_login', root=project)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_login_probe_rejects_project_executable_before_running_it(self):
+        project = self.base / "project"
+        bindir = project / "bin"
+        bindir.mkdir(parents=True)
+        cli = bindir / "opencode"
+        cli.write_text(self.cli.read_text())
+        cli.chmod(0o755)
+        self.env.update(PROJECT_ROOT=str(project), MISTRAL_API_KEY="fixture",
+                        PATH=f"bin:{Path(sys.executable).parent}:/usr/bin:/bin")
+        result = self.shell('source "$PLUGIN_DIR/scripts/lib/auth.sh"; _octo_opencode_has_saved_login', root=project)
+        self.assertEqual(result.returncode, 125, result.stderr)
+        self.assertFalse(self.marker.exists(), "project executable ran during login admission")
+
+    def test_login_launcher_rejects_project_python_before_executing_it(self):
+        project = self.base / "project"
+        bindir = project / "bin"
+        bindir.mkdir(parents=True)
+        shim = bindir / "python3"
+        shim_marker = self.base / "python-shim-ran"
+        shim.write_text('#!/bin/sh\nprintf called > "$PYTHON_SHIM_MARKER"\nexec '
+                        + shlex.quote(sys.executable) + ' "$@"\n')
+        shim.chmod(0o755)
+        self.env.update(PROJECT_ROOT=str(project), CLI_VERSION="2.0.23", MISTRAL_API_KEY="fixture",
+                        PYTHON_SHIM_MARKER=str(shim_marker),
+                        PATH=f"bin:{self.bin}:{Path(sys.executable).parent}:/usr/bin:/bin")
+        result = self.shell('source "$PLUGIN_DIR/scripts/lib/auth.sh"; _octo_opencode_has_saved_login', root=project)
+        self.assertEqual(result.returncode, 125, result.stderr)
+        self.assertFalse(shim_marker.exists(), "project Python ran before probe isolation")
+        self.assertFalse(self.marker.exists())
+
+    def test_login_launcher_preserves_an_external_python_pin(self):
+        shim = self.bin / "selected-python"
+        shim_marker = self.base / "external-python-ran"
+        shim.write_text('#!/bin/sh\nprintf called > "$PYTHON_SHIM_MARKER"\nexec '
+                        + shlex.quote(sys.executable) + ' "$@"\n')
+        shim.chmod(0o755)
+        self.env.update(OCTOPUS_PYTHON=str(shim), PYTHON_SHIM_MARKER=str(shim_marker), CLI_VERSION="2.0.23")
+        result = self.shell('source scripts/lib/auth.sh; _octo_opencode_has_saved_login')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(shim_marker.exists())
+        self.assertTrue(self.marker.exists())
+
+    def test_bounded_probes_apply_boundary_before_selected_executable(self):
+        self.env.update(CLI_VERSION="2.0.23", OCTOPUS_TANGLE_EXECUTION_BOUNDARY="true")
+        for action in ("_octo_opencode_cli_major", "_octo_opencode_has_saved_login"):
+            with self.subTest(action=action):
+                self.marker.unlink(missing_ok=True)
+                result = self.shell('source scripts/lib/auth.sh; '
+                                    'octopus_tangle_apply_execution_boundary() { return 125; }; ' + action)
+                self.assertEqual(result.returncode, 125, result.stderr)
+                self.assertFalse(self.marker.exists(), "provider ran before its boundary")
+
+    def test_health_preserves_admission_refusal(self):
+        result = self.shell('source scripts/lib/providers.sh; '
+                            '_octo_opencode_has_saved_login() { return 125; }; '
+                            'check_provider_health opencode vendor/model')
+        self.assertEqual(result.returncode, 125, result.stderr)
+        self.assertNotIn("no confirmed login", result.stderr)
+
+    def test_non_council_research_does_not_admit_an_unrelated_council_roster(self):
+        self.env.update(OCTOPUS_COUNCIL_DEFAULT_PROVIDERS="opencode",
+                        ENTRY_MARKER=str(self.base / "research-entry"),
+                        READY_TRACE=str(self.base / "ready-trace"))
+        script = r'''
+set -e
+source scripts/lib/preflight.sh
+source scripts/lib/config-display.sh
+source scripts/lib/research.sh
+log() { :; }
+_preflight_provider_candidates() { printf 'agy\nopencode\n'; }
+octo_provider_readiness_result() {
+    printf '%s:%s\n' "$1" "$2" >> "$READY_TRACE"
+    if [[ "$1" == agy ]]; then
+        printf '{"status":"available","reason_code":"ready","remediation":""}\n'
+    else
+        printf '{"status":"degraded","reason_code":"live-check-required","remediation":"fixture login missing"}\n'
+    fi
+}
+provider_smoke_test() { :; }
+detect_enterprise_backend() { :; }
+mkdir() {
+    if [[ "$*" == "-p $RESULTS_DIR" ]]; then
+        touch "$ENTRY_MARKER"
+        exit 77
+    fi
+    command mkdir "$@"
+}
+RESULTS_DIR="$HOME/results" WORKSPACE_DIR="$HOME" PREFLIGHT_CACHE_FILE="$HOME/preflight-cache" DRY_RUN=false
+"$RESEARCH_ENTRY" fixture
+'''
+        for entry in ("empathize_research", "synthesize_research"):
+            with self.subTest(entry=entry):
+                self.env["RESEARCH_ENTRY"] = entry
+                Path(self.env["ENTRY_MARKER"]).unlink(missing_ok=True)
+                Path(self.env["READY_TRACE"]).unlink(missing_ok=True)
+                result = self.shell(script)
+                self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+                self.assertTrue(Path(self.env["ENTRY_MARKER"]).exists())
+                self.assertNotIn("opencode:live", Path(self.env["READY_TRACE"]).read_text())
+
+    def test_non_council_context_still_confirms_an_explicit_opencode_panel(self):
+        (self.data / "opencode.db").touch()
+        self.env.update(CLI_VERSION="2.0.23", OCTOPUS_PREFLIGHT_PROVIDERS="opencode",
+                        OCTOPUS_COUNCIL_DEFAULT_PROVIDERS="codex")
+        result = self.shell('source scripts/lib/preflight.sh; source scripts/lib/config-display.sh; '
+                            'log() { :; }; WORKSPACE_DIR="$HOME"; '
+                            'PREFLIGHT_CACHE_FILE="$HOME/preflight-cache"; '
+                            'preflight_check true "" non-roster-dispatch')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue(self.marker.exists())
+
+    def test_live_readiness_distinguishes_execution_refusal_from_login_failure(self):
+        self.env["OPENROUTER_API_KEY"] = "fixture"
+        result = self.shell('source scripts/lib/preflight.sh; '
+                            '_octo_run_bare_probe_with_timeout() { return 125; }; '
+                            'octo_provider_readiness_result opencode live')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        report = json.loads(result.stdout)
+        self.assertEqual(report["reason_code"], "execution-refused")
+        self.assertNotIn("auth login", report["remediation"])
+
+    def test_opencode_dry_run_labels_unchecked_server_mode(self):
+        result = self.shell(r'''
+source scripts/lib/spawn.sh
+source scripts/lib/dispatch.sh
+log() { printf '%s\n' "$2"; }
+classify_task() { echo standard; }
+match_routing_rule() { return 1; }
+get_agent_model() { echo vendor/model; }
+DRY_RUN=true
+spawn_agent opencode fixture fixture implementer tangle
+''')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("server mode and bounded Tangle availability are unchecked", result.stdout)
+        self.assertFalse(self.marker.exists())
+
+    def test_opus_display_matches_dispatch_despite_generic_claude_override(self):
+        source = (ROOT / "scripts/lib/auto-route.sh").read_text()
+        start = source.index("    local agent\n", source.index('auto_route()'))
+        end = source.index('    case "$task_type" in', start)
+        display = source[start:end]
+        self.env.update(OCTOPUS_CLAUDE_MODEL="claude-sonnet-5-5", SUPPORTS_OPUS_5_5="true")
+        for seat in ("claude-opus", "claude-opus-fast"):
+            with self.subTest(seat=seat):
+                self.env["DISPLAY_SEAT"] = seat
+                result = self.shell('source scripts/lib/model-resolver.sh; '
+                                    'source scripts/lib/dispatch.sh; source scripts/lib/utils.sh; '
+                                    'log() { :; }; '
+                                    'get_tiered_agent() { echo "$DISPLAY_SEAT"; }; '
+                                    'display() { local task_type=coding agent_complexity=3; ' + display + ' }; '
+                                    'display; cmd=$(DRY_RUN=true OCTOPUS_MODEL_READ_ONLY=true '
+                                    'OCTOPUS_DISPATCH_PREVIEW=true get_agent_command "$DISPLAY_SEAT") || exit; '
+                                    'printf "WIRE=%s\\n" "$(octo_dispatch_command_model "$cmd" "")"')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                shown = result.stdout.split("→", 1)[1].splitlines()[0].strip()
+                wire = result.stdout.rsplit("WIRE=", 1)[1].strip()
+                self.assertEqual(wire, "claude-opus-5-5", result.stdout)
+                self.assertEqual(shown, wire, result.stdout)
+
+    def test_login_rejects_project_config_and_symlinked_executable(self):
+        project = self.base / "project"
+        project.mkdir()
+        config = project / "opencode.json"
+        config.write_text('{"plugin":["./project-plugin.js"]}')
+        self.env.update(PROJECT_ROOT=str(project), OPENCODE_CONFIG=str(config))
+        result = self.shell('source scripts/lib/auth.sh; _octo_opencode_has_saved_login')
+        self.assertEqual(result.returncode, 125, result.stderr)
+        self.assertFalse(self.marker.exists())
+        self.env.pop("OPENCODE_CONFIG")
+        project_cli = project / "opencode"
+        project_cli.write_text(self.cli.read_text())
+        project_cli.chmod(0o755)
+        self.cli.unlink()
+        self.cli.symlink_to(project_cli)
+        result = self.shell('source scripts/lib/auth.sh; _octo_opencode_has_saved_login')
+        self.assertEqual(result.returncode, 125, result.stderr)
+        self.assertFalse(self.marker.exists())
+
+    def test_bounded_legacy_login_and_command_use_the_probe_boundary(self):
+        self.env.update(CLI_VERSION="1.18.34", OCTOPUS_TANGLE_EXECUTION_BOUNDARY="true")
+        self.cli.write_text(self.cli.read_text().replace(
+            'printf called >>', '[ "$BOUNDARY_ACTIVE" = 1 ] || exit 83\nprintf called >>', 1))
+        result = self.shell(r'''
+source scripts/lib/dispatch.sh
+source scripts/lib/auth.sh
+log() { :; }
+octopus_tangle_apply_execution_boundary() { cmd_array=(env BOUNDARY_ACTIVE=1 "${cmd_array[@]}"); }
+get_agent_model() { echo vendor/model; }
+_octo_opencode_has_saved_login && get_agent_command opencode tangle
+''')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("opencode run", result.stdout)
+        self.assertNotIn("--standalone", result.stdout)
+
+    def test_background_command_refusal_keeps_status_and_contract_reason(self):
+        self.env["CONTRACT_CAPTURE"] = str(self.base / "contract")
+        result = self.shell(r'''
+source scripts/lib/spawn.sh
+for helper in log match_routing_rule load_agent_checkpoint load_earned_skills build_provider_context octo_spawn_contract_plan octo_spawn_contract_resolve octo_spawn_contract_authenticated; do
+    eval "$helper() { :; }"
+done
+check_provider_health() { :; }
+octo_spawn_contract_finish() { printf '%s\n' "$@" > "$CONTRACT_CAPTURE"; }
+octo_spawn_contract_seat_id() { echo spawn-fixture; }
+classify_task() { echo standard; }
+apply_persona() { printf %s "$2"; }
+octo_with_engineering_methods() { printf %s "$2"; }
+enforce_context_budget() { printf %s "$1"; }
+octopus_effective_agent_timeout() { echo 0; }
+get_agent_model() { echo vendor/model; }
+get_agent_command() { printf 'OpenCode requires saved-login-preserving session storage\n' >&2; return 125; }
+RESULTS_DIR="$HOME/results" LOGS_DIR="$HOME/logs"
+spawn_agent opencode fixture fixture implementer tangle
+''')
+        self.assertEqual(result.returncode, 125, result.stderr)
+        fields = Path(self.env["CONTRACT_CAPTURE"]).read_text().splitlines()
+        self.assertEqual(fields[4:6], ["OpenCode requires saved-login-preserving session storage", "125"])
+
     def test_opencode_probes_preserve_only_their_required_credentials(self):
         """Metadata needs no Mistral key; login needs it but never the search key."""
         self.env.update(CLI_VERSION="2.0.23", MISTRAL_API_KEY="fixture", KEENABLE_API_KEY="search-fixture")
@@ -521,7 +765,7 @@ auto_route 'implement fixture'
 
     def test_bare_filename_sources_resolve_helpers_after_directory_changes(self):
         """Lazy helper loads use the source directory, not the later cwd."""
-        self.env["CLI_VERSION"] = "2.0.23"
+        self.env.update(CLI_VERSION="2.0.23", PROJECT_ROOT=str(ROOT))
         for library, action in (("auth.sh", "_octo_opencode_has_saved_login"),
                                 ("dispatch.sh", "get_agent_command opencode")):
             with self.subTest(library=library):
@@ -539,6 +783,8 @@ auto_route 'implement fixture'
         database = self.data / "opencode.db"
         database.write_bytes(b"saved-login-fixture")
         script = ('source scripts/lib/dispatch.sh; log() { printf "%s\\n" "$2" >&2; }; '
+                  # Storage refusal is independent of the host's sandbox support.
+                  'octopus_tangle_apply_execution_boundary() { :; }; '
                   'get_agent_model() { echo vendor/model; }; get_agent_command opencode tangle')
         for boundary, scope, refused in (("true", "strict", True), ("false", "adaptive", True),
                                           ("false", "strict", False)):
@@ -623,9 +869,10 @@ probe_single_agent opencode perspective login-test
         project.mkdir()
         self.env.update(CLI_VERSION="2.0.23", PROJECT_ROOT=str(project))
         self.cli.write_text(self.cli.read_text().replace(
-            'printf called >>', '[ "$PWD" = "$PROJECT_ROOT" ] || exit 67\nprintf called >>', 1))
-        project_bin = project / "bin"
-        project_bin.mkdir()
+            'printf called >>',
+            '[ "$OPENCODE_CONFIG_PROJECT_DISABLE" = 1 ] || exit 67\nprintf called >>', 1))
+        project_bin = self.base / "trusted" / "bin"
+        project_bin.mkdir(parents=True)
         project_cli = project_bin / "opencode"
         project_cli.write_text(self.cli.read_text())
         project_cli.chmod(0o755)
@@ -641,7 +888,7 @@ preflight_check true opencode
 '''
         for relative_path, storage, roster, connected in product(
                 (False, True), ("sqlite", "environment", "known-environment"), ("", "opencode"), (False, True)):
-            self.env["PATH"] = (f"bin:{Path(sys.executable).parent}:/usr/bin:/bin" if relative_path
+            self.env["PATH"] = (f"../trusted/bin:{Path(sys.executable).parent}:/usr/bin:/bin" if relative_path
                                 else f"{self.bin}:{Path(sys.executable).parent}:/usr/bin:/bin")
             self.env.pop("OPENAI_API_KEY", None)
             self.env.pop("OPENROUTER_API_KEY", None)
@@ -848,12 +1095,12 @@ preflight_check false "$SELECTED_SEAT" "$CHECK_CONTEXT"
         self.env.update({name: " \t\n" for name in names})
         self.assertEqual(self.readiness("static")["reason_code"], "auth-missing")
 
-    def test_preflight_missing_project_root_uses_current_directory(self):
-        """Admission and direct probes must agree about absent project roots."""
+    def test_preflight_missing_project_root_still_permits_isolated_login(self):
+        """A missing project path cannot prevent a valid isolated login check."""
         self.env.update(CLI_VERSION="2.0.23", OPENROUTER_API_KEY="fixture",
                         PROJECT_ROOT=str(self.base / "missing-project"), EXPECTED_CWD=str(ROOT))
         self.cli.write_text(self.cli.read_text().replace('printf called >>',
-            '[ "$PWD" = "$EXPECTED_CWD" ] || exit 69\nprintf called >>', 1))
+            '[ "$OPENCODE_CONFIG_PROJECT_DISABLE" = 1 ] || exit 69\nprintf called >>', 1))
         script = r'''
 source scripts/lib/preflight.sh
 source scripts/lib/config-display.sh
@@ -1120,6 +1367,7 @@ probe_single_agent opencode perspective probe-123-0 'Check compatibility'
         failures = (
             ("health", "", 1),
             ("command", "get_agent_command() { return 1; }", 1),
+            ("command-refused", "get_agent_command() { printf 'OpenCode command refused\\n' >&2; return 125; }", 125),
             ("lookup", "octo_provider_health_handler() { return 77; }", 1),
             ("missing", "octo_provider_health_handler() { echo none; }", 1),
             ("budget", "enforce_context_budget() { return 7; }", 7),

@@ -4,6 +4,15 @@
 
 ### Fixed
 
+- OpenCode admission applies bounded Tangle isolation before executing probes.
+  Version checks omit forwarded credentials; login checks disable project
+  configuration and reject project-owned executables or configuration paths.
+  Saved logins, external custom configuration and environment-only login remain
+  available. Command refusals preserve exit 125 and their launcher diagnostic.
+- Non-council research ignores unrelated council roster admission while honoring
+  explicit preflight panels. Opus selection displays the command's model, and
+  OpenCode dry runs identify unchecked server mode and bounded availability.
+
 - Automatic research confirms SQLite-only and environment-only OpenCode logins
   before choosing its fleet, including without a pinned council roster. Static
   preflight inspection, probe skips and existing provider exclusions are preserved.

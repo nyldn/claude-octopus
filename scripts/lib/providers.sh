@@ -1102,7 +1102,13 @@ check_provider_health() {
             fi
             ;;
         opencode)
-            if ! command -v opencode >/dev/null 2>&1 || ! _octo_opencode_has_saved_login; then
+            local opencode_health_rc=0
+            command -v opencode >/dev/null 2>&1 || opencode_health_rc=1
+            if [[ "$opencode_health_rc" -eq 0 ]]; then
+                _octo_opencode_has_saved_login || opencode_health_rc=$?
+            fi
+            [[ "$opencode_health_rc" -ne 125 ]] || return 125
+            if [[ "$opencode_health_rc" -ne 0 ]]; then
                 declare -f _utils_log >/dev/null 2>&1 || source "${_providers_lib_dir}/utils.sh" || return 1
                 _utils_log ERROR "opencode: no confirmed login (run: opencode auth login)"
                 return 1

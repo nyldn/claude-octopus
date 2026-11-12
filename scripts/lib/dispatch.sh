@@ -918,8 +918,10 @@ get_agent_command() {
             if [[ "${DRY_RUN:-false}" != true ]]; then
                 declare -f _octo_opencode_cli_major >/dev/null 2>&1 || source "${_profile_lib_dir}/auth.sh" || return 1
                 oc_major="$(_octo_opencode_cli_major)" || {
+                    local oc_version_rc=$?
+                    [[ "$oc_version_rc" -ne 125 ]] || return 125
                     log ERROR "OpenCode version unavailable; cannot select a safe server mode"
-                    return 1
+                    return "$oc_version_rc"
                 }
                 if [[ "$oc_major" == 2 ]]; then
                     # The private server shares SQLite credentials and session

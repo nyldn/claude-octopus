@@ -599,7 +599,12 @@ EOF
             status="degraded"
             reason_code="health-failed"
             if [[ "$provider" == opencode ]]; then
-                remediation="Run: opencode auth login, or set a supported provider environment credential, then retry the live preflight."
+                if [[ "$live_rc" -eq 125 ]]; then
+                    reason_code="execution-refused"
+                    remediation="Inspect the OpenCode admission diagnostic. Use an installed executable and configuration outside the project; OpenCode 2.x bounded Tangle remains unavailable."
+                else
+                    remediation="Run: opencode auth login, or set a supported provider environment credential, then retry the live preflight."
+                fi
             else
                 remediation="Run the provider's authentication or service check, then retry the live preflight."
             fi
@@ -751,7 +756,12 @@ preflight_check() {
     local selected_provider="${2:-}"
     local check_context="${3:-static}"
     local workflow_dispatch=false
-    case "$check_context" in dispatch|auto-dispatch) workflow_dispatch=true ;; esac
+    case "$check_context" in dispatch|auto-dispatch|non-roster-dispatch) workflow_dispatch=true ;; esac
+    if [[ "$check_context" == non-roster-dispatch ]]; then
+        # These workflows select their own seats. The local value also keeps
+        # their broad cache separate from evidence for a pinned council roster.
+        local OCTOPUS_COUNCIL_DEFAULT_PROVIDERS=""
+    fi
     local opencode_workdir="${PROJECT_ROOT:-$PWD}"
     [[ -d "$opencode_workdir" ]] || opencode_workdir="$PWD"
     local _octo_vibe_check_context=automatic
