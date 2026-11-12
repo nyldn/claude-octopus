@@ -8,6 +8,42 @@
   CSS token names no longer shadow source-path handling, and TypeScript output
   options no longer shadow the constants generator. The tool's Node.js range
   now matches its dependencies.
+- Parallel cleanup finishes a stopped worker's durable execution contract as
+  cancelled, so run status no longer reports that worker as still running.
+  Native Agent Teams seats remain running until their own completion is known.
+
+- Reclaiming an exited invocation's output claim cancels the running seats its
+  owner record names, including seats inherited through an interrupted reclaim.
+  A different task ID that maps to the same result file is no longer blocked by
+  the exited owner's seat. Probe status rows use the canonical spawn seat ID.
+  An abnormal controller exit stops its workers before releasing their claims,
+  and a results path through a symlink and `..` addresses the same claim
+  directory as the shell.
+- Parallel dispatch recovers interrupted contract writes before checking a new
+  seat, and interruption cleanup releases claims with relative result paths.
+  Unrecoverable ledgers and reused seats keep their saved outputs intact.
+- Parallel dispatch preserves saved results and completion markers when a
+  repeated task ID cannot be admitted by its durable run contract. Use a new
+  task ID for a new attempt in the same run.
+- Large parallel task batches retain their scoped results without exceeding
+  command-line argument limits, and invalid scopes report an aggregation error.
+  A spawn that fails after recording a running seat marks that seat cancelled
+  in the status ledger. Interrupted shell-only claims report their manual
+  recovery procedure.
+- The agent run summary no longer reports a provider's successful seat as
+  failed when another of its seats times out. The status ledger kept the
+  latest row per agent name, so a probe with two Claude seats printed "2 of 2
+  agents failed or timed out" after one seat's 603-second timeout replaced the
+  other seat's completed result. The same lookup left that result out of the
+  outputs offered to synthesis. Rows are now kept per seat, by seat ID or else
+  by result file, in the summary, the `agents.json` snapshot and the output
+  list. Probe and aggregate summaries count only their own seats, because the
+  ledger spans every command in a session.
+- Output claims publish their owner atomically, so an interrupted claim
+  preparation cannot permanently block retries. Live owners keep their outputs.
+  Workers that fail without recording a terminal status are marked cancelled.
+  When a durable execution contract exists, another attempt requires a new task
+  ID in the same run.
 - Quota cleanup delivers an identity-bound TERM to the timeout supervisor and
   lets its handler finish. Reparented helpers are cleaned up even when the
   provider leader has been reaped, and unrelated process exits cannot exhaust

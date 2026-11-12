@@ -1121,12 +1121,12 @@ ${heuristic_ctx}"
     local tokens_in _budget_original_chars _budget_final_chars _budget_compression
     _budget_original_chars=${#enhanced_prompt}
     tokens_in=$(( _budget_original_chars / 4 ))
-    enhanced_prompt=$(enforce_context_budget "$enhanced_prompt" "${role:-}" "$agent_type" "${phase:-}")
+    enhanced_prompt=$(enforce_context_budget "$enhanced_prompt" "${role:-}" "$agent_type" "${phase:-}" "$_contract_seat_id")
     local _budget_rc=$?
     if [[ $_budget_rc -ne 0 ]]; then
         octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
             "Prompt exceeded context budget" "$_budget_rc" "" >/dev/null 2>&1 || true
-        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" 0 "Prompt exceeded context budget" 0 "" "${role:-}" || true
+        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" 0 "Prompt exceeded context budget" 0 "" "${role:-}" "$_contract_seat_id" || true
         return "$_budget_rc"
     fi
     _budget_final_chars=${#enhanced_prompt}
@@ -1616,7 +1616,7 @@ ${heuristic_ctx}"
             _timeout_deadline=$((start_time_secs + _eff_timeout))
         fi
         update_agent_status "$agent_type" "running" 0 "$_estimated_cost" "$_eff_timeout" "$task_id" "${phase:-unknown}" "$result_file"
-        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "running" "$tokens_in" 0 "" 0 "$result_file" "${role:-none}" || true
+        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "running" "$tokens_in" 0 "" 0 "$result_file" "${role:-none}" "$_contract_seat_id" || true
 
         # v7.19.0 P0.1: Use tee to stream output to both temp file and raw backup
         # v8.16: Auth-aware retry for enterprise backends
@@ -1937,7 +1937,7 @@ sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore")
                 update_agent_status "$agent_type" "failed" "$elapsed_ms" "$_estimated_cost" "$_eff_timeout" "$task_id" "${phase:-unknown}" "$result_file"
                 record_outcome "$agent_type" "$agent_type" "${task_type:-unknown}" "${phase:-unknown}" "fail" "$elapsed_ms" 2>/dev/null || true
                 type record_failure &>/dev/null && record_failure "$provider_prefix" "provider_rejection" 2>/dev/null || true
-                type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$_octo_tokens_out" "${_octo_success_reason:-unusable output}" "$elapsed_ms" "$result_file" "${role:-none}" || true
+                type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$_octo_tokens_out" "${_octo_success_reason:-unusable output}" "$elapsed_ms" "$result_file" "${role:-none}" "$_contract_seat_id" || true
                 octo_spawn_contract_finish "$_contract_seat_id" failed "$result_file" "$temp_errors" \
                     "${_octo_success_reason:-Provider returned unusable output}" "$exit_code" "$elapsed_ms" >/dev/null 2>&1 || true
             else
@@ -1955,7 +1955,7 @@ sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore")
                 record_run_pattern "$agent_type" "${enhanced_prompt:-$prompt}" "$result_file" 2>/dev/null || true
                 # v8.20.1: Record task duration metric
                 record_task_metric "task_duration_ms" "$elapsed_ms" 2>/dev/null || true
-                type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "$_octo_success_status" "$tokens_in" "$_octo_tokens_out" "$_octo_success_reason" "$elapsed_ms" "$result_file" "${role:-none}" || true
+                type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "$_octo_success_status" "$tokens_in" "$_octo_tokens_out" "$_octo_success_reason" "$elapsed_ms" "$result_file" "${role:-none}" "$_contract_seat_id" || true
                 # v8.21.0: Anti-drift checkpoint (non-blocking)
                 if type run_drift_check &>/dev/null 2>&1; then
                     run_drift_check "${enhanced_prompt:-$prompt}" "$(cat "$result_file" 2>/dev/null)" "$agent_type" "${phase:-unknown}" 2>/dev/null || true
@@ -1995,12 +1995,12 @@ sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore")
             elapsed_ms=$((end_time_ms - start_time_ms))
             tokens_out=$(octo_estimate_tokens_for_file "$raw_output" 2>/dev/null || echo 0)
             update_agent_status "$agent_type" "stalled" "$elapsed_ms" "$_estimated_cost" "$_eff_timeout" "$task_id" "${phase:-unknown}" "$result_file"
-            type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "stalled" "$tokens_in" "$tokens_out" "No observable progress within stall window" "$elapsed_ms" "$result_file" "${role:-none}" || true
+            type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "stalled" "$tokens_in" "$tokens_out" "No observable progress within stall window" "$elapsed_ms" "$result_file" "${role:-none}" "$_contract_seat_id" || true
             if ! octo_spawn_contract_finish "$_contract_seat_id" failed "$result_file" "$temp_errors" \
                 "Provider stalled without observable progress" "$exit_code" "$elapsed_ms" >/dev/null 2>&1; then
                 exit_code=74
                 update_agent_status "$agent_type" "failed" "$elapsed_ms" "$_estimated_cost" "$_eff_timeout" "$task_id" "${phase:-unknown}" "$result_file"
-                type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "Execution contract persistence failed" "$elapsed_ms" "$result_file" "${role:-none}" || true
+                type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "Execution contract persistence failed" "$elapsed_ms" "$result_file" "${role:-none}" "$_contract_seat_id" || true
                 echo "## Contract Status: FAILED (persistence error)" >> "$result_file"
             fi
             record_outcome "$agent_type" "$agent_type" "${task_type:-unknown}" "${phase:-unknown}" "stalled" "$elapsed_ms" 2>/dev/null || true
@@ -2153,12 +2153,12 @@ sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore")
             [[ "$_ros_size" -gt "$_tos_size" ]] && _tokens_out_source="$raw_output"
             local tokens_out
             tokens_out=$(octo_estimate_tokens_for_file "$_tokens_out_source" 2>/dev/null || echo 0)
-            type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "timeout" "$tokens_in" "$tokens_out" "Timed out before completion" "$elapsed_ms" "$result_file" "${role:-none}" || true
+            type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "timeout" "$tokens_in" "$tokens_out" "Timed out before completion" "$elapsed_ms" "$result_file" "${role:-none}" "$_contract_seat_id" || true
             if ! octo_spawn_contract_finish "$_contract_seat_id" timeout "$result_file" "$temp_errors" \
                 "Timed out before completion" "$exit_code" "$elapsed_ms" >/dev/null 2>&1; then
                 exit_code=74
                 update_agent_status "$agent_type" "failed" "$elapsed_ms" "$_estimated_cost" "$_eff_timeout" "$task_id" "${phase:-unknown}" "$result_file"
-                type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "Execution contract persistence failed" "$elapsed_ms" "$result_file" "${role:-none}" || true
+                type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "Execution contract persistence failed" "$elapsed_ms" "$result_file" "${role:-none}" "$_contract_seat_id" || true
                 echo "## Contract Status: FAILED (persistence error)" >> "$result_file"
             fi
             # v8.20.0: Record timeout for provider intelligence
@@ -2221,7 +2221,7 @@ sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore")
             elif declare -F octo_failure_reason >/dev/null 2>&1; then
                 _failure_reason=$(octo_failure_reason "$exit_code" "$enhanced_prompt" "$temp_errors" "$raw_output")
             fi
-            type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "$_failure_reason" "$elapsed_ms" "$result_file" "${role:-none}" || true
+            type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "$_failure_reason" "$elapsed_ms" "$result_file" "${role:-none}" "$_contract_seat_id" || true
             if ! octo_spawn_contract_finish "$_contract_seat_id" failed "$result_file" "$temp_errors" \
                 "$_failure_reason" "$exit_code" "$elapsed_ms" >/dev/null 2>&1; then
                 exit_code=74
