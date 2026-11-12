@@ -14,7 +14,224 @@ ROUTER="$PROJECT_ROOT/scripts/provider-router.sh"
 pass() { test_case "$1"; test_pass; }
 fail() { test_case "$1"; test_fail "${2:-$1}"; }
 
+source "$ROUTER"
+_PROVIDER_STATE_DIR="$TEST_TMP_DIR/provider-state"
+OCTO_CB_FAILURE_THRESHOLD=1
+log() { :; }
+
+mkdir -p "$_PROVIDER_STATE_DIR"
+test_case "failure classification does not hold the shared breaker lock"
+if (
+    classify_provider_error() {
+        [[ ! -d "$_PROVIDER_STATE_DIR/codex.breaker.lock" ]] || return 1
+        printf 'transient\n'
+    }
+    [[ "$(record_provider_failure codex 75 'temporary limit')" == transient ]]
+); then test_pass; else test_fail "classification held the breaker transaction lock"; fi
+rm -f "$_PROVIDER_STATE_DIR/codex.failures" "$_PROVIDER_STATE_DIR/codex.cooldown"
+for timestamp in '' invalid '1+1' 999999999999999999999999; do
+    printf '%s\n' "$timestamp" > "$_PROVIDER_STATE_DIR/codex.cooldown"
+    if (is_provider_available codex) 2>/dev/null; then
+        pass "invalid cooldown '$timestamp' uses the available-provider fallback"
+    else
+        fail "invalid cooldown '$timestamp' uses the available-provider fallback"
+    fi
+done
+for timestamp in "$(( $(date +%s) + 60 ))" 999999999999999999; do
+    test_case "future cooldown '$timestamp' is half-open in doctor status"
+    printf '%s\n' "$timestamp" > "$_PROVIDER_STATE_DIR/codex.cooldown"
+    if [[ "$(get_circuit_breaker_status)" == *'codex: half-open (cooldown expired, probing)'* ]]; then
+        test_pass
+    else
+        test_fail "doctor reported an unbounded future cooldown"
+    fi
+    for lock_status in 0 75; do
+        test_case "future cooldown '$timestamp' permits a probe with lock status $lock_status"
+        if (
+            _octo_event_lock() { return "$lock_status"; }
+            _octo_event_unlock() { :; }
+            printf '%s\n' "$timestamp" > "$_PROVIDER_STATE_DIR/codex.cooldown"
+            is_provider_available codex &&
+                { [[ "$lock_status" -eq 0 && ! -e "$_PROVIDER_STATE_DIR/codex.cooldown" ]] ||
+                  [[ "$lock_status" -eq 75 && "$(cat "$_PROVIDER_STATE_DIR/codex.cooldown")" == "$timestamp" ]]; }
+        ); then test_pass; else test_fail "future cooldown blocked a probe or mutated unowned state"; fi
+    done
+done
+printf '08\n' > "$_PROVIDER_STATE_DIR/codex.cooldown"
+if (is_provider_available codex) 2>/dev/null; then
+    pass "numeric cooldown timestamps use decimal arithmetic"
+else
+    fail "numeric cooldown timestamps use decimal arithmetic"
+fi
+
+printf '1\n' > "$_PROVIDER_STATE_DIR/codex.cooldown"
+mv() {
+    if [[ "$2" == "$_PROVIDER_STATE_DIR/codex.cooldown" ]]; then
+        [[ "$(cat "$2")" == 1 && "$(cat "$1")" =~ ^[0-9]+$ ]] || return 1
+        touch "$TEST_TMP_DIR/atomic-cooldown"
+    fi
+    command mv "$@"
+}
+record_provider_failure codex 75 'temporary usage limit' >/dev/null
+unset -f mv
+if [[ -e "$TEST_TMP_DIR/atomic-cooldown" ]]; then
+    pass "cooldown publication replaces a complete timestamp atomically"
+else
+    fail "cooldown publication replaces a complete timestamp atomically"
+fi
+if ! is_provider_available codex && [[ -s "$_PROVIDER_STATE_DIR/codex.cooldown" ]]; then
+    pass "persisted cooldown blocks another request before its deadline"
+else
+    fail "persisted cooldown blocks another request before its deadline"
+fi
+
+printf '%s\n' 1 > "$_PROVIDER_STATE_DIR/codex.cooldown"
+if is_provider_available codex && [[ ! -e "$_PROVIDER_STATE_DIR/codex.cooldown" ]]; then
+    pass "expired cooldown permits a half-open request"
+else
+    fail "expired cooldown permits a half-open request"
+fi
+
 # ── File existence and syntax ─────────────────────────────────────────────────
+
+for lock_status in 1 75; do
+    test_case "lock failure $lock_status permits an expired probe without changing shared state"
+    if (
+        _octo_event_lock() { return "$lock_status"; }
+        _octo_event_unlock() { touch "$TEST_TMP_DIR/unowned-unlock"; }
+        printf '1\n' > "$_PROVIDER_STATE_DIR/codex.cooldown"
+        [[ "$(filter_available_providers codex)" == codex ]] &&
+            [[ "$(cat "$_PROVIDER_STATE_DIR/codex.cooldown")" == 1 ]] &&
+            [[ ! -e "$TEST_TMP_DIR/unowned-unlock" ]]
+    ); then test_pass; else test_fail "lock failure was treated as an open circuit"; fi
+
+    test_case "lock failure $lock_status preserves an active cooldown"
+    if (
+        _octo_event_lock() { return "$lock_status"; }
+        date +%s > "$_PROVIDER_STATE_DIR/codex.cooldown"
+        [[ -z "$(filter_available_providers codex)" ]] &&
+            [[ -s "$_PROVIDER_STATE_DIR/codex.cooldown" ]]
+    ); then test_pass; else test_fail "lock fallback bypassed an active cooldown"; fi
+done
+
+test_case "an active cooldown is reported without taking the breaker lock"
+if (
+    _octo_event_lock() { touch "$TEST_TMP_DIR/active-cooldown-lock"; return 1; }
+    date +%s > "$_PROVIDER_STATE_DIR/codex.cooldown"
+    ! is_provider_available codex &&
+        [[ ! -e "$TEST_TMP_DIR/active-cooldown-lock" ]]
+); then test_pass; else test_fail "an active cooldown contended for the breaker lock"; fi
+
+test_case "a cooldown replaced while acquiring the lock is checked again"
+if (
+    eval "$(declare -f _octo_event_lock | sed '1s/_octo_event_lock/real_event_lock/')"
+    _octo_event_lock() {
+        real_event_lock "$@" || return $?
+        date +%s > "$_PROVIDER_STATE_DIR/codex.cooldown"
+    }
+    printf '1\n' > "$_PROVIDER_STATE_DIR/codex.cooldown"
+    ! is_provider_available codex && [[ -s "$_PROVIDER_STATE_DIR/codex.cooldown" ]]
+); then test_pass; else test_fail "a renewed cooldown was removed"; fi
+
+test_case "failure-log trimming does not follow a predictable temporary symlink"
+if (
+    _PROVIDER_STATE_DIR="$TEST_TMP_DIR/symlink-state"
+    mkdir -p "$_PROVIDER_STATE_DIR"
+    printf 'preserve me\n' > "$TEST_TMP_DIR/symlink-target"
+    ln -s "$TEST_TMP_DIR/symlink-target" "$_PROVIDER_STATE_DIR/codex.failures.tmp"
+    record_provider_failure codex 75 'temporary limit' >/dev/null &&
+        [[ "$(cat "$TEST_TMP_DIR/symlink-target")" == 'preserve me' ]] &&
+        [[ "$(wc -l < "$_PROVIDER_STATE_DIR/codex.failures")" -eq 1 ]]
+); then test_pass; else test_fail "failure-log trim overwrote a symlink target"; fi
+
+for failed_command in tail mv; do
+    test_case "failure-log $failed_command failure cleans up its temporary file and lock"
+    if (
+        _PROVIDER_STATE_DIR="$TEST_TMP_DIR/failed-$failed_command-state"
+        mkdir -p "$_PROVIDER_STATE_DIR"
+        if [[ "$failed_command" == tail ]]; then tail() { return 1; }
+        else mv() { return 1; }; fi
+        if record_provider_failure codex 75 'temporary limit' >/dev/null; then exit 1; fi
+        shopt -s nullglob
+        leftovers=("$_PROVIDER_STATE_DIR"/codex.failures.*)
+        [[ "${#leftovers[@]}" -eq 0 && ! -d "$_PROVIDER_STATE_DIR/codex.breaker.lock" ]]
+    ); then test_pass; else test_fail "failure left temporary state or returned success"; fi
+done
+
+test_case "concurrent failures serialize the complete circuit-breaker transaction"
+if (
+    _PROVIDER_STATE_DIR="$TEST_TMP_DIR/concurrent-state"
+    OCTO_CB_FAILURE_THRESHOLD=2
+    mkdir -p "$_PROVIDER_STATE_DIR"
+    tail() {
+        command tail "$@"
+        touch "$TEST_TMP_DIR/failure-snapshot"
+        for attempt in {1..250}; do
+            [[ ! -e "$TEST_TMP_DIR/release-snapshot" ]] || return 0
+            sleep 0.02
+        done
+        return 1
+    }
+    record_provider_failure codex 75 'temporary limit' > "$TEST_TMP_DIR/first-failure" &
+    first=$!
+    for attempt in {1..250}; do
+        [[ ! -e "$TEST_TMP_DIR/failure-snapshot" ]] || break
+        sleep 0.02
+    done
+    (
+        unset -f tail
+        sleep() {
+            touch "$TEST_TMP_DIR/second-failure-contended"
+            command sleep "$@"
+        }
+        record_provider_failure codex 75 'temporary limit'
+    ) > "$TEST_TMP_DIR/second-failure" &
+    second=$!
+    for attempt in {1..250}; do
+        [[ ! -e "$TEST_TMP_DIR/second-failure-contended" ]] || break
+        sleep 0.02
+    done
+    before=$(wc -l < "$_PROVIDER_STATE_DIR/codex.failures")
+    touch "$TEST_TMP_DIR/release-snapshot"
+    first_rc=0 second_rc=0
+    wait "$first" || first_rc=$?
+    wait "$second" || second_rc=$?
+    if [[ -e "$TEST_TMP_DIR/second-failure-contended" &&
+          "$before" -eq 1 && "$first_rc" -eq 0 && "$second_rc" -eq 0 ]] &&
+       [[ "$(wc -l < "$_PROVIDER_STATE_DIR/codex.failures")" -eq 2 ]] &&
+       ! is_provider_available codex; then
+        exit 0
+    else
+        exit 1
+    fi
+); then
+    test_pass
+else
+    test_fail "concurrent writers lost history or skipped the cooldown"
+fi
+
+test_case "success without breaker state does not contend for the lock"
+if (
+    _PROVIDER_STATE_DIR="$TEST_TMP_DIR/success-fast-path-state"
+    _octo_event_lock() { touch "$TEST_TMP_DIR/success-fast-path-locked"; return 75; }
+    record_provider_success codex &&
+        [[ ! -e "$TEST_TMP_DIR/success-fast-path-locked" ]]
+); then test_pass; else test_fail "a success with nothing to clear waited for the breaker lock"; fi
+
+for state in failures cooldown; do
+    test_case "success with a $state file clears it only under the breaker lock"
+    if (
+        _PROVIDER_STATE_DIR="$TEST_TMP_DIR/success-$state-state"
+        mkdir -p "$_PROVIDER_STATE_DIR"
+        printf '1\n' > "$_PROVIDER_STATE_DIR/codex.$state"
+        (
+            _octo_event_lock() { return 75; }
+            ! record_provider_success codex
+        ) && [[ -e "$_PROVIDER_STATE_DIR/codex.$state" ]] &&
+            record_provider_success codex &&
+            [[ ! -e "$_PROVIDER_STATE_DIR/codex.$state" && ! -d "$_PROVIDER_STATE_DIR/codex.breaker.lock" ]]
+    ); then test_pass; else test_fail "success cleared $state state without holding the breaker lock"; fi
+done
 
 if [[ -f "$ROUTER" ]]; then
     pass "provider-router.sh exists"

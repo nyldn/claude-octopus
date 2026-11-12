@@ -26,7 +26,22 @@ an `unverified` result. This helper never falls back to numeric PID or process-g
 signals. An exited group leader alone is not proof that its former group still
 belongs to Octopus. Cancellation can clean descendants it captured while the
 original worker was alive, but cannot safely recover an already-orphaned group
-from its numeric group ID alone.
+from its numeric group ID alone. The optional owned-group tree cleanup path can
+bind reparented members while their original private leader is still a verified,
+stopped descendant. Incomplete enumeration refuses cleanup and resumes processes
+it stopped. It never signals a numeric group ID.
+
+Quota cleanup uses the timeout supervisor's existing ownership instead of
+reconstructing its groups. It verifies the worker's registered birth identity
+before freezing it, binds its direct supervision
+children by native identity and parent relationship, and delivers TERM. Their
+handlers clean up the private provider and timer groups, including reparented
+helpers whose original leader has already exited. The native handoff waits at
+most five seconds and never escalates to KILL, which could interrupt a pending
+cleanup handler. It resumes only a worker it stopped. A missing child, failed
+identity check, permission error or surviving supervisor reports refusal; the
+quota watcher makes at most five attempts and then reports that work may remain.
+This path does not require a complete global process snapshot.
 
 Worker registration checks native cancellation support before provider dispatch.
 If cleanup later fails, workflow cancellation retains the worker ledger for retry
