@@ -145,7 +145,8 @@ first = "const actualPrice = calculateActualPrice(input);"
 last = "return applyActualTaxes(price, sailing);"
 quotes = []
 for index in range(100):
-    (evidence / f"file{index}.ts").write_text(first + "\n" + last + "\n" + "x" * 1400000)
+    padding = "x" * 1400000 if index else ""
+    (evidence / f"file{index}.ts").write_text(first + "\n" + last + "\n" + padding)
     quotes.append(f"file{index}.ts:1 reads:\n```ts\n{first}\nreturn missing_{index};\n{last}\n```\n")
 (root / "partial-files.md").write_text("\n".join(quotes) + "\nVERDICT: APPROVE\n")
 PY_PARTIAL_FILES
@@ -156,6 +157,7 @@ report="$(export OCTO_TEST_PYTHON="$real_python" OCTO_TEST_PROFILE="$TEST_TMP_DI
 refinement_bytes="$(awk '{total += $1} END {print total+0}' "$TEST_TMP_DIR/refinement.log" 2>/dev/null || printf 0)"
 if jq -e '.verification_failed == false and .quotes_verified == 100
     and .quotes_partial == 100 and .fabricated == false' <<< "$report" >/dev/null &&
+    [[ -s "$TEST_TMP_DIR/refinement.log" ]] &&
     (( refinement_bytes <= 100 * 65536 )); then
     test_pass
 else
@@ -180,6 +182,70 @@ if jq -e '.verification_failed == false and .quotes_verified == 2
     test_pass
 else
     test_fail "bounded refinement lost a small complete source match: $report"
+fi
+
+test_case "large optional diff scans preserve an already verified partial fence"
+python3 - "$TEST_TMP_DIR" "$evidence" <<'PY_OPTIONAL_DIFF'
+import sys
+from pathlib import Path
+root, evidence = map(Path, sys.argv[1:])
+lines = [f"const actualValue{i:05d} = 1;" for i in range(18000)]
+(evidence / "src/optional.ts").write_text("\n".join(lines) + "\n")
+(root / "optional.md").write_text("src/optional.ts:1 reads:\n```ts\n" +
+    "\n".join(lines) + "\nreturn fake;\n```\nVERDICT: APPROVE\n")
+(root / "optional.diff").write_text(
+    "diff --git a/src/optional.ts b/src/optional.ts\n--- a/src/optional.ts\n"
+    "+++ b/src/optional.ts\n@@ -1,2 +1 @@\n-" + "unrelated " * 700000 +
+    "\n-const previousPrice = loadPreviousPrice(input);\n+changed\n")
+for name, quote in [("removed", "const previousPrice = loadPreviousPrice(input);"),
+                    ("invented", "const inventedPrice = fetchInventedPrice(input);")]:
+    prefix = (root / "optional.md").read_text().replace("VERDICT: APPROVE\n", "")
+    (root / f"required-{name}.md").write_text(prefix +
+        f"\nsrc/optional.ts:1 reads `{quote}`.\nVERDICT: APPROVE\n")
+PY_OPTIONAL_DIFF
+report="$(COUNCIL_CONTEXT_FILES=("$TEST_TMP_DIR/optional.diff");
+    council_response_quote_verification_json "$TEST_TMP_DIR/optional.md" "$evidence")"
+if jq -e '.verification_failed == false and .quotes_verified == 1
+    and .quotes_partial == 1 and .fabricated == false' <<< "$report" >/dev/null; then
+    test_pass
+else
+    test_fail "optional diff matching discarded verified evidence: $report"
+fi
+
+for claim in removed invented; do
+    test_case "exhausted optional work preserves required $claim matching"
+    report="$(COUNCIL_CONTEXT_FILES=("$TEST_TMP_DIR/optional.diff");
+        council_response_quote_verification_json "$TEST_TMP_DIR/required-$claim.md" "$evidence")"
+    if jq -e --arg claim "$claim" '.verification_failed == false and .diff_unavailable == false
+        and .quotes_partial == 1
+        and (if $claim == "removed" then .quotes_verified == 2
+            and .quotes_verified_in_diff_removed == 1 and .fabricated == false
+            else .quotes_verified == 1 and .quotes_attributed_unverified == 1
+            and .fabricated == true end)' <<< "$report" >/dev/null; then
+        test_pass
+    else
+        test_fail "optional budget changed required evidence matching: $report"
+    fi
+done
+
+test_case "distinct short elisions cannot exhaust source verification"
+python3 - "$TEST_TMP_DIR" "$evidence" <<'PY_SHORT_ELISIONS'
+import sys
+from pathlib import Path
+root, evidence = map(Path, sys.argv[1:])
+first = "const firstValue = loadActualPrice(input);"
+last = "return applyActualTaxes(price, sailing);"
+source = first + "\n" + "".join(f"r{i:05d} retained;\n" for i in range(60000)) + last + "\n"
+(evidence / "src/elisions.ts").write_text(source + "x" * (1350085 - len(source)))
+(root / "elisions.md").write_text("src/elisions.ts:1 reads:\n```ts\n" + first + "\n" +
+    "".join(f"r{i:05d}...;\n" for i in reversed(range(60000))) + last + "\n```\nVERDICT: APPROVE\n")
+PY_SHORT_ELISIONS
+report="$(council_response_quote_verification_json "$TEST_TMP_DIR/elisions.md" "$evidence")"
+if jq -e '.verification_failed == false and .quotes_verified == 1
+    and .quotes_partial == 1 and .fabricated == false' <<< "$report" >/dev/null; then
+    test_pass
+else
+    test_fail "report-only elision matching discarded verified evidence: $report"
 fi
 
 test_summary

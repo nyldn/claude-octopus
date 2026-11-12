@@ -76,7 +76,7 @@ probe_single_cli() {
             printf '%s\n' 'Error: --perspective-file could not be read' >&2
             return 1
         }
-        [[ -n "${perspective//[[:space:]]/}" ]] || { printf '%s\n' 'Error: --perspective-file contains no perspective text' >&2; return 1; }
+        [[ "$perspective" =~ [^[:space:]] ]] || { printf '%s\n' 'Error: --perspective-file contains no perspective text' >&2; return 1; }
         agent_type="$1"; task_id="$2"; original_prompt="${3:-}"
         perspective_mode="file"
     else
@@ -104,6 +104,10 @@ probe_single_agent() {
     local perspective="$2"
     local task_id="$3"
     local original_prompt="${4:-}"
+    local probe_seat_id="spawn-$task_id"
+    if declare -F octo_spawn_contract_seat_id >/dev/null 2>&1; then
+        probe_seat_id="$(octo_spawn_contract_seat_id "$task_id")"
+    fi
 
     log "INFO" "probe_single_agent: agent=$agent_type task=$task_id"
     if [[ "${5:-positional}" == file ]]; then
@@ -189,10 +193,10 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     local tokens_in _budget_original_chars _budget_final_chars _budget_compression
     _budget_original_chars=${#enhanced_prompt}
     tokens_in=$(( _budget_original_chars / 4 ))
-    enhanced_prompt=$(enforce_context_budget "$enhanced_prompt" "$role" "$agent_type" "$phase")
+    enhanced_prompt=$(enforce_context_budget "$enhanced_prompt" "$role" "$agent_type" "$phase" "$probe_seat_id")
     local _budget_rc=$?
     if [[ $_budget_rc -ne 0 ]]; then
-        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" 0 "Prompt exceeded context budget" 0 "" "$role" || true
+        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" 0 "Prompt exceeded context budget" 0 "" "$role" "$probe_seat_id" || true
         return "$_budget_rc"
     fi
     _budget_final_chars=${#enhanced_prompt}
@@ -262,7 +266,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         update_agent_status "$agent_type" "failed" 0 "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
         type write_agent_status >/dev/null 2>&1 && write_agent_status \
             "$agent_type" "failed" "$tokens_in" 0 "Provider environment construction failed" \
-            0 "$result_file" "$role" || true
+            0 "$result_file" "$role" "$probe_seat_id" || true
         return 1
     fi
     octo_dispatch_command_to_argv "$cmd" || return 1
@@ -289,7 +293,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         update_agent_status "$agent_type" "failed" 0 "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
         type write_agent_status >/dev/null 2>&1 && write_agent_status \
             "$agent_type" "failed" "$tokens_in" 0 "Failed to persist dispatched prompt" \
-            0 "$result_file" "$role" || true
+            0 "$result_file" "$role" "$probe_seat_id" || true
         return 74
     fi
     echo "# Started: $(date)" >> "$result_file"
@@ -301,7 +305,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         update_agent_status "$agent_type" "failed" 0 "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
         type write_agent_status >/dev/null 2>&1 && write_agent_status \
             "$agent_type" "failed" "$tokens_in" 0 "Unable to generate result nonce" \
-            0 "$result_file" "$role" || true
+            0 "$result_file" "$role" "$probe_seat_id" || true
         return 74
     fi
     echo "<!-- BEGIN-UNTRUSTED:provider=${agent_type}:nonce=${_probe_nonce} -->" >> "$result_file"
@@ -466,7 +470,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
                 fi
                 update_agent_status "$agent_type" "failed" "$elapsed_ms" "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
                 record_outcome "$agent_type" "$agent_type" "research" "$phase" "fail" "$elapsed_ms" 2>/dev/null || true
-                type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "${reason:-unusable output}" "$elapsed_ms" "$result_file" "$role" || true
+                type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "${reason:-unusable output}" "$elapsed_ms" "$result_file" "$role" "$probe_seat_id" || true
                 final_rc=1
                 ;;
             degraded)
@@ -474,7 +478,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
                 update_agent_status "$agent_type" "degraded" "$elapsed_ms" "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
                 record_outcome "$agent_type" "$agent_type" "research" "$phase" "success" "$elapsed_ms" 2>/dev/null || true
                 record_run_pattern "$agent_type" "${enhanced_prompt:-$original_prompt}" "$result_file" 2>/dev/null || true
-                type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "degraded" "$tokens_in" "$tokens_out" "${reason:-partial output}" "$elapsed_ms" "$result_file" "$role" || true
+                type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "degraded" "$tokens_in" "$tokens_out" "${reason:-partial output}" "$elapsed_ms" "$result_file" "$role" "$probe_seat_id" || true
                 ;;
             *)
                 echo "## Status: SUCCESS" >> "$result_file"
@@ -482,10 +486,10 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
                 record_outcome "$agent_type" "$agent_type" "research" "$phase" "success" "$elapsed_ms" 2>/dev/null || true
                 # v9.3.0: Record file co-occurrence pattern for heuristic learning
                 record_run_pattern "$agent_type" "${enhanced_prompt:-$original_prompt}" "$result_file" 2>/dev/null || true
-                type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "ok" "$tokens_in" "$tokens_out" "" "$elapsed_ms" "$result_file" "$role" || true
+                type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "ok" "$tokens_in" "$tokens_out" "" "$elapsed_ms" "$result_file" "$role" "$probe_seat_id" || true
                 ;;
         esac
-    elif [[ $exit_code -eq 124 ]] || [[ $exit_code -eq 143 ]]; then
+    elif [[ $exit_code -eq 124 ]]; then
         # Timeout — preserve partial output
         if [[ -s "$temp_output" ]]; then
             if [[ $(grep -c '^--------$' "$temp_output" 2>/dev/null || true) -gt 0 ]]; then
@@ -513,7 +517,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         elapsed_ms=$((end_time_ms - start_time_ms))
         tokens_out=$(octo_estimate_tokens_for_file "$temp_output" 2>/dev/null || echo 0)
         update_agent_status "$agent_type" "timeout" "$elapsed_ms" "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
-        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "timeout" "$tokens_in" "$tokens_out" "Timed out before completion" "$elapsed_ms" "$result_file" "$role" || true
+        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "timeout" "$tokens_in" "$tokens_out" "Timed out before completion" "$elapsed_ms" "$result_file" "$role" "$probe_seat_id" || true
         final_rc=$exit_code
     else
         # Failure
@@ -540,9 +544,12 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         tokens_out=$(octo_estimate_tokens_for_file "$temp_output" 2>/dev/null || echo 0)
         update_agent_status "$agent_type" "failed" "$elapsed_ms" "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
         local failure_reason="Exit code $exit_code"
-        declare -F octo_failure_reason >/dev/null 2>&1 && \
+        if [[ $exit_code -eq 143 ]]; then
+            failure_reason="Provider terminated by SIGTERM"
+        elif declare -F octo_failure_reason >/dev/null 2>&1; then
             failure_reason=$(octo_failure_reason "$exit_code" "$enhanced_prompt" "$temp_errors" "$temp_output")
-        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "$failure_reason" "$elapsed_ms" "$result_file" "$role" || true
+        fi
+        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "$failure_reason" "$elapsed_ms" "$result_file" "$role" "$probe_seat_id" || true
         final_rc=$exit_code
     fi
 
@@ -1230,7 +1237,7 @@ $web_search_context"
     # are required.
     if type render_agent_summary >/dev/null 2>&1; then
         local summary_status=0
-        render_agent_summary || summary_status=$?
+        render_agent_summary "-probe-${task_group}-" null probe || summary_status=$?
         if [[ "$summary_status" -ne 0 ]]; then
             if [[ -n "$synthesis_monitor_pid" ]]; then
                 kill "$synthesis_monitor_pid" 2>/dev/null || true
@@ -4145,9 +4152,15 @@ tangle_run_context_code_review() {
     normal_count=$(tangle_review_blocking_count "$findings_file")
     review_warning=$(tangle_review_warning_text "$findings_file")
     log INFO "Contextual code review findings: $findings_file (normal=${normal_count})"
+    # Keep status 3 exclusive to completed partial reviews from this wrapper.
+    [[ "$review_rc" -ne 3 ]] || review_rc=1
     if [[ -n "$review_warning" ]]; then
         log WARN "Contextual code review warning: ${review_warning}"
-        return 1
+        # Status 3 is reserved for a successfully finished review with partial
+        # fleet coverage. Proof, transport and publication failures keep their
+        # failure status even when a verified findings file survived.
+        [[ "$review_rc" -eq 0 ]] || return "$review_rc"
+        return 3
     fi
     return "$review_rc"
 }
@@ -5584,6 +5597,12 @@ tangle_validate_results_with_scope_contract() {
         fi
         return 1
     fi
+    local TANGLE_REQUIRED_OUTPUT_SCOPES
+    unset TANGLE_REQUIRED_OUTPUT_SCOPES
+    if [[ -n "$authorized" ]]; then
+        TANGLE_REQUIRED_OUTPUT_SCOPES="$authorized"
+    fi
+    local TANGLE_REQUIRED_OUTPUT_BASELINE="$baseline_head"
     validate_tangle_results "$task_group" "$original_prompt" "$worktree_before_file" "$baseline_head" "$worktree_before_state_file" "$expected_task_ids" || base_rc=$?
     tangle_append_write_scope_contract_report "$validation_file" "$authorized" "$read_only" "$violations" "$baseline_head"
     if [[ -n "$adaptive_scope_evidence" ]]; then
@@ -5645,6 +5664,42 @@ tangle_should_attempt_contextual_review() {
 # round accounting, the convergence guard, and the absolute round ceiling are
 # unit-testable with stubbed review/correction functions
 # (tests/unit/test-tangle-correction-loop-behavior.sh).
+tangle_review_verification_complete() {
+    local review_rc="${2:-0}"
+    case "$review_rc" in
+        0) ;;
+        3) jq -e '(.warning // "") != ""' "$1" >/dev/null 2>&1 || return 1 ;;
+        *) return 1 ;;
+    esac
+    jq -e '(.verification_status // "") != "incomplete" and (.error // "") == "" and ((.findings | length) > 0 or (.warning // "") == "") and all(.findings[]?; .verdict == "confirmed" or .verdict == "false-positive" or .verdict == "needs-debate")' "$1" >/dev/null 2>&1
+}
+
+tangle_record_review_verification() {
+    local task_group="$1" findings_file="$2" state="$3"
+    local metadata="${RESULTS_DIR:-${HOME}/.claude-octopus/results}/.tangle-${task_group}-git.json"
+    local tmp outcome="$state"
+    if [[ "$state" == complete ]] && ! jq -e '(.warning // "") == ""' "$findings_file" >/dev/null 2>&1; then
+        state=incomplete
+        outcome=partial-verified
+    fi
+    if [[ -f "$metadata" ]]; then
+        tmp=$(mktemp "${metadata}.XXXXXX") || return 1
+        if jq --arg findings "$findings_file" --arg state "$state" --arg outcome "$outcome" '
+            if $state == "pending" and .reviewVerification == "incomplete" then
+                if $findings == "" then . else .reviewFindings = $findings end
+            else
+                . + {reviewVerification:$state,reviewOutcome:$outcome} |
+                if $state == "incomplete" and $findings == "" then . else .reviewFindings = $findings end
+            end' "$metadata" > "$tmp"; then
+            mv "$tmp" "$metadata" || { rm -f "$tmp"; return 1; }
+        else rm -f "$tmp"; return 1; fi
+    fi
+    if [[ "$state" == incomplete ]]; then
+        log ERROR "Contextual review infrastructure incomplete; preserving worktree without applying unverified findings: $findings_file"
+    fi
+    return 0
+}
+
 tangle_contextual_review_gate() {
     local task_group="$1"
     local resolved_prompt="$2"
@@ -5669,17 +5724,26 @@ tangle_contextual_review_gate() {
         return "$validation_rc"
     fi
 
+    tangle_record_review_verification "$task_group" "" pending || return 2
     local review_context_file
-    review_context_file=$(tangle_build_develop_review_context "$task_group" "$resolved_prompt" "$context" "$subtasks" "$validation_file" "$worktree_before_file" "initial")
+    review_context_file=$(tangle_build_develop_review_context "$task_group" "$resolved_prompt" "$context" "$subtasks" "$validation_file" "$worktree_before_file" "initial") || return $?
 
     local review_rc=0
     tangle_run_context_code_review "$task_group" "$review_context_file" "initial" || review_rc=$?
     local findings_file="$TANGLE_REVIEW_FINDINGS_FILE"
-    tangle_ensure_scope_contract_finding "$findings_file" "${TANGLE_SCOPE_CONTRACT_VIOLATIONS:-}" || return 1
     if ! tangle_review_findings_valid "$findings_file"; then
+        tangle_record_review_verification "$task_group" "$findings_file" incomplete || return 2
         log ERROR "Contextual code review produced an invalid findings document: ${findings_file}"
         return 1
     fi
+    if ! tangle_review_verification_complete "$findings_file" "$review_rc"; then
+        tangle_record_review_verification "$task_group" "$findings_file" incomplete || return 2
+        if [[ "$review_rc" -ne 0 ]]; then return "$review_rc"; fi
+        return 2
+    fi
+    # Local scope evidence cannot establish that the reviewer fleet completed.
+    tangle_ensure_scope_contract_finding "$findings_file" "${TANGLE_SCOPE_CONTRACT_VIOLATIONS:-}" || return 1
+    tangle_record_review_verification "$task_group" "$findings_file" complete || return 2
     local normal_count
     normal_count=$(tangle_review_blocking_count "$findings_file")
 
@@ -5725,6 +5789,7 @@ tangle_contextual_review_gate() {
         fi
 
         local correction_rc=0
+        tangle_record_review_verification "$task_group" "$findings_file" pending || return 2
         tangle_apply_review_corrections "$resolved_prompt" "$review_context_file" "$findings_file" "$correction_round" "$tangle_coding_agent" "$correction_strategy" || correction_rc=$?
         if [[ "$correction_rc" -ne 0 ]]; then
             if [[ "${TANGLE_CORRECTION_STATUS:-}" == "failed-no-progress" && "${TANGLE_CORRECTION_CHANGED:-0}" != "1" ]]; then
@@ -5762,15 +5827,22 @@ tangle_contextual_review_gate() {
             log ERROR "Tangle retry supervision failed after correction; stopping before further review or delivery"
             return "$validation_rc"
         fi
-        review_context_file=$(tangle_build_develop_review_context "$task_group" "$resolved_prompt" "$context" "$subtasks" "$validation_file" "$worktree_before_file" "correction-${correction_round}")
+        review_context_file=$(tangle_build_develop_review_context "$task_group" "$resolved_prompt" "$context" "$subtasks" "$validation_file" "$worktree_before_file" "correction-${correction_round}") || return $?
         review_rc=0
         tangle_run_context_code_review "$task_group" "$review_context_file" "correction-${correction_round}" || review_rc=$?
         findings_file="$TANGLE_REVIEW_FINDINGS_FILE"
-        tangle_ensure_scope_contract_finding "$findings_file" "${TANGLE_SCOPE_CONTRACT_VIOLATIONS:-}" || return 1
         if ! tangle_review_findings_valid "$findings_file"; then
+            tangle_record_review_verification "$task_group" "$findings_file" incomplete || return 2
             log ERROR "Contextual code review produced an invalid findings document after correction round ${correction_round}: ${findings_file}"
             return 1
         fi
+        if ! tangle_review_verification_complete "$findings_file" "$review_rc"; then
+            tangle_record_review_verification "$task_group" "$findings_file" incomplete || return 2
+            if [[ "$review_rc" -ne 0 ]]; then return "$review_rc"; fi
+            return 2
+        fi
+        tangle_ensure_scope_contract_finding "$findings_file" "${TANGLE_SCOPE_CONTRACT_VIOLATIONS:-}" || return 1
+        tangle_record_review_verification "$task_group" "$findings_file" complete || return 2
         normal_count=$(tangle_review_blocking_count "$findings_file")
         local current_signature
         current_signature=$(tangle_findings_signature "$findings_file")

@@ -198,6 +198,7 @@ case "$max_payload_bytes" in
     ''|*[!0-9]*) max_payload_bytes=1048576 ;;
     *)
         _mpb="${max_payload_bytes#"${max_payload_bytes%%[!0]*}"}"; [[ -n "$_mpb" ]] || _mpb=0
+        # shellcheck disable=SC2071 # Equal-width digit strings avoid arithmetic overflow.
         if (( ${#_mpb} > 19 )) || { (( ${#_mpb} == 19 )) && [[ "$_mpb" > "9223372036854775807" ]]; }; then
             max_payload_bytes=1048576
         else

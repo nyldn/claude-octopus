@@ -15,6 +15,26 @@ test_suite "council-wait"
 out=""; rc=0
 _runwait() { rc=0; out="$(bash "$WAIT" "$@" 2>/dev/null)" || rc=$?; }
 
+# The waiter's sleep occurs only after it has inspected the selected run. Keep
+# this observation hook in the fixture PATH so production code needs no test flag.
+_observe_waiter() {
+    local bin="$1/wait-bin"
+    mkdir -p "$bin"
+    cat > "$bin/sleep" <<'SH'
+#!/bin/bash
+: > "${COUNCIL_WAIT_OBSERVED:?}"
+exec /bin/sleep "$@"
+SH
+    chmod +x "$bin/sleep"
+}
+_await_observation() {
+    local marker="$1" deadline=$((SECONDS + 10))
+    until [[ -f "$marker" ]]; do
+        (( SECONDS < deadline )) || return 1
+        /bin/sleep 0.05
+    done
+}
+
 _mkrun() { # _mkrun <pool> <run_id> <state> [valid_summary]
     local pool="$1" rid="$2" state="$3" valid="${4:-yes}" rd="$1/$2"
     mkdir -p "$rd"
@@ -421,16 +441,19 @@ test_case "a keyed wait started before the next round publishes returns that rou
 pool="$(mktemp -d "$TEST_TMP_DIR/settle-next.XXXXXX")"
 prev="$(_mkrun "$pool" 20260101-172823-00aaaa finished yes "$key" 1)"
 printf '%s\n' 20260101-172823-00aaaa > "$pool/latest-$slug"
-( sleep 2
+_observe_waiter "$pool"
+observed="$pool/observed"
+( observation_rc=0; _await_observation "$observed" || observation_rc=$?
   next="$(_mkrun "$pool" 20260101-173700-00bbbb running yes "$key" 2)"
   printf '%s\n' 20260101-173700-00bbbb > "$pool/latest-$slug"
   sleep 2
   printf '{"status":"completed"}\n' > "$next/summary.json"
-  printf '{"state":"finished","run_id":"20260101-173700-00bbbb","supersede_key":"%s"}\n' "$key" > "$next/run-status.json" ) &
+  printf '{"state":"finished","run_id":"20260101-173700-00bbbb","supersede_key":"%s"}\n' "$key" > "$next/run-status.json"
+  exit "$observation_rc" ) &
 next_pid=$!
-_runwait --pool "$pool" --supersede-key "$key" --interval 1 --timeout 30
-wait "$next_pid" 2>/dev/null || true
-if [[ $rc -eq 0 && "$out" == "$pool/20260101-173700-00bbbb/summary.json" ]]; then test_pass; else test_fail "rc=$rc out=$out (previous round: $prev)"; fi
+PATH="$pool/wait-bin:$PATH" COUNCIL_WAIT_OBSERVED="$observed"     _runwait --pool "$pool" --supersede-key "$key" --interval 1 --timeout 30
+publish_rc=0; wait "$next_pid" 2>/dev/null || publish_rc=$?
+if [[ "$publish_rc" -eq 0 && -f "$observed" && $rc -eq 0 && "$out" == "$pool/20260101-173700-00bbbb/summary.json" ]]; then test_pass; else test_fail "rc=$rc out=$out (previous round: $prev)"; fi
 
 test_case "a keyed round finished at first sight returns after the settle window"
 pool="$(mktemp -d "$TEST_TMP_DIR/settle-only.XXXXXX")"
@@ -453,14 +476,18 @@ if [[ $rc -eq 0 && "$out" == "$rd/summary.json" && $elapsed -lt 2 ]]; then test_
 test_case "--background waits past the default bound's role and rejects --timeout"
 pool="$(mktemp -d "$TEST_TMP_DIR/background.XXXXXX")"
 rd="$(_mkrun "$pool" 20260101-020000-00eeee running)"
-( sleep 2; printf '{"status":"completed"}\n' > "$rd/summary.json"
-  printf '{"state":"finished","run_id":"20260101-020000-00eeee"}\n' > "$rd/run-status.json" ) &
+_observe_waiter "$pool"
+observed="$pool/observed"
+( observation_rc=0; _await_observation "$observed" || observation_rc=$?
+  printf '{"status":"completed"}\n' > "$rd/summary.json"
+  printf '{"state":"finished","run_id":"20260101-020000-00eeee"}\n' > "$rd/run-status.json"
+  exit "$observation_rc" ) &
 flip_pid=$!
-_runwait --pool "$pool" --interval 1 --background
+PATH="$pool/wait-bin:$PATH" COUNCIL_WAIT_OBSERVED="$observed"     _runwait --pool "$pool" --interval 1 --background
 bg_rc=$rc bg_out=$out
-wait "$flip_pid" 2>/dev/null || true
+publish_rc=0; wait "$flip_pid" 2>/dev/null || publish_rc=$?
 _runwait --pool "$pool" --background --timeout 5
-if [[ $bg_rc -eq 0 && "$bg_out" == "$rd/summary.json" && $rc -eq 64 ]]; then test_pass; else test_fail "bg_rc=$bg_rc bg_out=$bg_out conflict_rc=$rc"; fi
+if [[ "$publish_rc" -eq 0 && -f "$observed" && $bg_rc -eq 0 && "$bg_out" == "$rd/summary.json" && $rc -eq 64 ]]; then test_pass; else test_fail "bg_rc=$bg_rc bg_out=$bg_out conflict_rc=$rc"; fi
 
 test_case "a timeout says the round may still be running and how to re-arm"
 pool="$(mktemp -d "$TEST_TMP_DIR/timeout-hint.XXXXXX")"

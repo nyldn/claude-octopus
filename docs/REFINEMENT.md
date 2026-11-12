@@ -188,6 +188,57 @@ reports and iteration ledger. Each entry includes its round, conservative score,
 per-model scores, decision, target result, rubric and artifact hashes, and score
 report path. The report also states elapsed time, budget used, and stop reason.
 
+## Persisted run control
+
+`scripts/refinement-run.py` owns the iteration journal and derived trajectory.
+It performs no model calls and never modifies the supplied source repository.
+Initialize it with the original file or deterministic manifest, provisional
+rubric, fixed panel and absolute limits before external research or judging:
+
+```bash
+python3 "$OCTO_ROOT/scripts/refinement-run.py" init "$RUN_DIR" \
+  "$ORIGINAL_SNAPSHOT" "$RUBRIC_FILE" --deadline "$DEADLINE" \
+  --max-calls 14 --max-rounds 5 --claude claude-opus:claude-opus-5-5 \
+  --codex codex:gpt-6.1-sol --claude-effort high --codex-effort high
+python3 "$OCTO_ROOT/scripts/refinement-run.py" begin "$RUN_DIR" baseline
+python3 "$OCTO_ROOT/scripts/refinement-run.py" prepare "$RUN_DIR" \
+  "$ORIGINAL_SNAPSHOT" "$GUARDS_FILE"
+# Run the mandatory paired dispatch below, then assemble its assessment.
+python3 "$OCTO_ROOT/scripts/refinement-run.py" record "$RUN_DIR" "$ASSESSMENT_FILE"
+```
+
+Each improvement starts with `begin` before editing and ends with `prepare`
+and `record`. Guard results are a JSON array using the score contract. Failed
+or unverified improvement guards close the round without model calls. Rejected,
+unchanged and guard-failed candidates count toward the two-round stall limit.
+The baseline is round zero and does not consume an improvement round. Pending
+rounds must be closed before another begins. Target success, elapsed time,
+round limits, stalls and required provider failures stop further admission.
+
+`record` verifies both successful pair exits, input hashes, fixed identities and
+prepared guards. It recomputes the score from the assessment. Improvements need
+a higher conservative score, passing guards and criterion minima, no blockers,
+and disagreement of at most 10 points. Valid improvements below the target can
+be retained. The best snapshot stays separate from later rejected attempts.
+Rubric corrections retain the existing explicit transition and rescore the
+original first; counters and call limits are preserved.
+
+Use `reserve RUN_DIR UNIQUE_ID COUNT` before research or model-assisted edits.
+It protects capacity for two scoring calls. All calls share `calls.jsonl` and
+`.dispatch-lock`. Use `status RUN_DIR` after interruption and `stop RUN_DIR
+REASON` when ending an incomplete run. `iterations.jsonl` is authoritative;
+`trajectory.json` is a derived view. Never hand-write decisions in either file.
+Existing unmanaged runs are preserved as read-only evidence. Initialization
+refuses an existing call or iteration ledger. Do not move a stopped run to a
+new directory to bypass a limit.
+
+The host still verifies secret inspection, declared guard evidence, original
+source preservation and manifest backing files. The controller cannot prove a
+model judgment, a visual inspection, account access or a native application
+result. The generic classifier treats successful structured assessments as
+answer data, so quoted context-limit text does not become a provider refusal.
+Nonzero exits and actual provider error envelopes still fail.
+
 ## Paired dispatch and readiness evidence
 
 The host resolves explicit Claude and Codex models and efforts, inspects inputs
@@ -198,8 +249,8 @@ Claude `executor:model`, Claude effort, Codex `executor:model`, and Codex effort
 The helper reserves both calls in `calls.jsonl` and saves the pair manifest before
 launch. Both seats run through the mandatory `refinement-judge.sh` adapter.
 
-Reserve other external calls in the same ledger under `.dispatch-lock`, recording
-`pair_id`, `calls`, `deadline`, and `max_calls`. Preserve the deadline and total
+Reserve other external calls with `refinement-run.py reserve`. It records
+`pair_id`, `calls`, `deadline`, and `max_calls` under `.dispatch-lock`. Preserve the deadline and total
 budget on resume. Failed and interrupted reservations remain spent. A pair ID
 cannot dispatch twice. A stale lock requires inspection of its saved evidence.
 The pair helper waits for both seats under one deadline and cancels only its own
@@ -251,6 +302,8 @@ bash tests/unit/test-provider-readiness-contract.sh
 bash tests/unit/test-preflight-roster.sh
 bash tests/unit/test-refinement-judge.sh
 bash tests/unit/test-refinement-score.sh
+python3 tests/unit/test-refinement-run.py
+bash tests/unit/test-provider-rejection-classification.sh
 bash -n scripts/lib/preflight.sh scripts/helpers/preflight.sh scripts/helpers/check-versions.sh scripts/build-codex-skills.sh
 ```
 
@@ -259,3 +312,15 @@ sync, resource discovery, inert judge overlap, reservation rejection, failure,
 deadline and cancellation. It invokes no live models. Root integration runs
 `make sync`, `make ci-quick`, and exact-head hosted checks. Local tests do not
 establish installed-host acceptance or authorize publishing a release.
+
+A rubric correction recalibrates the original, including any known failed
+baseline guards, before rescoring the retained best. Success remains pending
+until both distinct artifacts have been rescored. If the retained best is the
+original itself, the original pair covers both; do not score identical bytes
+again. A correction preserves stalled-round counts and needs capacity for both
+rescores before it starts.
+
+If correction stops before both rescores finish, the controller retains the
+previously accepted artifact and its score under the previous rubric. It marks
+the correction incomplete and clears target success. Delivery preserves the
+first recorded stop reason.

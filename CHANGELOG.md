@@ -11,6 +11,9 @@
 
 ### Fixed
 
+- Unit shards include newer hosted macOS suite timings in their duration
+  weights. The full suite and 20-minute per-shard timeout remain in place.
+
 - A council seat is no longer marked fabricated for a test input it built
   itself (sail-cruisey #3247). A span introduced as "constructed as", "built
   as" or "crafted as" is the seat's own proposal, like one introduced by
@@ -52,7 +55,135 @@
   Partial-fence refinement in unrelated cited files has its own 64 KiB
   per-quote budget. If the next complete file exceeds that budget, reporting
   retains the verified partial result without searching further unbound files.
+  Report-only elision and diff-side scans share a fixed work budget. Exhaustion
+  retains source verification and conservative partial status; required evidence
+  matching keeps its normal checks.
+- Parallel cleanup finishes a stopped worker's durable execution contract as
+  cancelled, so run status no longer reports that worker as still running.
+  Native Agent Teams seats remain running until their own completion is known.
 
+- Reclaiming an exited invocation's output claim cancels the running seats its
+  owner record names, including seats inherited through an interrupted reclaim.
+  A different task ID that maps to the same result file is no longer blocked by
+  the exited owner's seat. Probe status rows use the canonical spawn seat ID.
+  An abnormal controller exit stops its workers before releasing their claims,
+  and a results path through a symlink and `..` addresses the same claim
+  directory as the shell.
+- Parallel dispatch recovers interrupted contract writes before checking a new
+  seat, and interruption cleanup releases claims with relative result paths.
+  Unrecoverable ledgers and reused seats keep their saved outputs intact.
+- Parallel dispatch preserves saved results and completion markers when a
+  repeated task ID cannot be admitted by its durable run contract. Use a new
+  task ID for a new attempt in the same run.
+- Large parallel task batches retain their scoped results without exceeding
+  command-line argument limits, and invalid scopes report an aggregation error.
+  A spawn that fails after recording a running seat marks that seat cancelled
+  in the status ledger. Interrupted shell-only claims report their manual
+  recovery procedure.
+- The agent run summary no longer reports a provider's successful seat as
+  failed when another of its seats times out. The status ledger kept the
+  latest row per agent name, so a probe with two Claude seats printed "2 of 2
+  agents failed or timed out" after one seat's 603-second timeout replaced the
+  other seat's completed result. The same lookup left that result out of the
+  outputs offered to synthesis. Rows are now kept per seat, by seat ID or else
+  by result file, in the summary, the `agents.json` snapshot and the output
+  list. Probe and aggregate summaries count only their own seats, because the
+  ledger spans every command in a session.
+- Output claims publish their owner atomically, so an interrupted claim
+  preparation cannot permanently block retries. Live owners keep their outputs.
+  Workers that fail without recording a terminal status are marked cancelled.
+  When a durable execution contract exists, another attempt requires a new task
+  ID in the same run.
+- Quota cleanup delivers an identity-bound TERM to the timeout supervisor and
+  lets its handler finish. Reparented helpers are cleaned up even when the
+  provider leader has been reaped, and unrelated process exits cannot exhaust
+  global-snapshot retries. The handoff never forcibly kills a pending handler.
+  macOS zombie admission in optional owned-group cleanup uses native zombie lookup.
+- A peer seat's quota marker no longer relabels an externally terminated call
+  or adds a false circuit-breaker failure. Quota stop attribution stays local
+  to the current attempt even when its diagnostic cannot be written.
+- Quota fast-fails preserve a provider's own temporary-failure status and auth
+  retry behavior. Quota stops update the provider circuit breaker, and persisted
+  cooldown timestamps correctly block repeat dispatch until their deadline. Future timestamps
+  from clock rollback or corrupt state allow a probe instead of an unbounded wait.
+  Successful recovery clears that failure history so separate quota episodes
+  do not count as consecutive failures. Parallel quota failures update the
+  breaker together, and an unwritable diagnostic marker cannot prevent worker
+  completion after a quota stop.
+  Lock contention does not turn an expired cooldown into an open circuit, and
+  failure-log trimming uses private temporary files without following stale links.
+  Quota stops also clean up owned provider and timer processes, so a stopped
+  call does not wait for a leftover timeout before returning. Refused handoffs
+  allow at most five attempts, with a visible error if cleanup cannot finish.
+- Direct spawns respect terminal quota and auth markers even when no transient
+  cooldown is active. Provider reset hints remain inside untrusted result frames.
+- Quota and termination status summaries use launcher-authored reasons so provider diagnostics
+  cannot enter synthesis instructions through trusted failure metadata.
+- Run-local smoke failures keep their health-failure reason. External SIGTERM
+  preserves exit 143 through spawn results and lifecycle events instead of
+  claiming the provider exceeded its timeout.
+  Synchronous dispatch also records a failed termination in status and usage
+  rather than a timeout, with a launcher-authored reason.
+
+## [11.22.2] - 2026-11-11
+
+### Fixed
+
+- Managed Tangle output coverage checks declared artifacts rather than requiring model responses to repeat read-only context references. Missing outputs and unavailable coverage evidence remain blocking.
+
+- Large `probe-single --perspective-file` prompts pass startup validation
+  promptly without rewriting their content. Empty and whitespace-only files
+  are still rejected before provider dispatch. Fixes [#1295](https://github.com/nyldn/claude-octopus/issues/1295)
+  through [#1296](https://github.com/nyldn/claude-octopus/pull/1296).
+- Explicit GPT-5.4 Mini API usage uses the documented $0.75 input and $4.50
+  output rates per million tokens. Capability checks now recognize its image
+  input and reasoning support. Model defaults and saved choices are preserved.
+  See [#1294](https://github.com/nyldn/claude-octopus/pull/1294).
+
+- Review verification sends complete findings in bounded batches with relevant
+  patch evidence. Final admission rejects oversized verifier requests instead of
+  clipping their tails. Incomplete verification returns failure with recovery
+  artifacts and never applies unverified findings. Verified findings from a
+  partial reviewer fleet can still receive corrections. Synthesis cannot drop,
+  invent or change verified findings. See [#1290](https://github.com/nyldn/claude-octopus/pull/1290).
+
+## [11.22.1] - 2026-11-11
+
+### Fixed
+
+- Research verification recognizes section labels such as "(Finding 4)" and
+  references such as "See conflicts 1 & 2". Quantities and thresholds still
+  need evidence. Numbers written separately in totals remain checked,
+  including lists with a comma before "in total".
+
+### Maintenance
+
+- Council deadline tests measure prompt preparation separately from worker
+  startup, preventing false timing failures on busy runners. The watchdog
+  limit and checks for cancelled children and late output are preserved.
+- Focused unit CI retains timeout logs and cleans up owned processes before
+  the job deadline, matching the full unit lane. Interrupted steps preserve
+  collected output alongside the cancellation message.
+- Full unit shard weights include hosted macOS timings to spread process-heavy
+  suites across the four shards.
+
+## [11.22.0] - 2026-11-10
+
+### Added
+
+- GPT-6.1 Terra and Claude Fable 5.2 in the model catalog, with current API
+  pricing, Terra long-context billing and gateway restrictions, and Fable
+  dispatch guards. Existing routing defaults and saved pins are preserved.
+
+### Fixed
+
+- Refinement runs enforce round and stall limits through persisted state, retain
+  the best accepted candidate, and refuse unprepared or stopped dispatches.
+- Input snapshots match the bytes validated and scored. Interrupted rubric
+  corrections retain the prior best and score, preserve stalls, and keep the
+  original stop reason.
+- Successful structured judge answers can discuss context limits without being
+  misclassified as oversized-prompt errors. Genuine provider failures still stop.
 
 ### Maintenance
 

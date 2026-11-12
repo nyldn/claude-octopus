@@ -68,6 +68,16 @@ spawn_agent_capture_pid() {
     update_active_count 1
     (
         (
+            # Wait for a peer so setup work cannot consume the overlap window.
+            if [[ "$agent" == codex ]] && (( MAX_PARALLEL > 1 )); then
+                for fixture_wait in {1..250}; do
+                    fixture_peak=$(<"$MAX_ACTIVE_FILE")
+                    if [[ "$fixture_peak" =~ ^[0-9]+$ ]] && (( fixture_peak >= 2 )); then
+                        break
+                    fi
+                    sleep 0.02
+                done
+            fi
             sleep "$delay"
             update_active_count -1
             mkdir -p "$WORKSPACE_DIR/.octo/agents"
@@ -342,12 +352,17 @@ cat > "$interrupt_runner" <<'RUNNER'
 set -euo pipefail
 source "$PROJECT_ROOT/scripts/lib/agent-spec.sh"
 source "$PROJECT_ROOT/scripts/lib/parallel.sh"
+source "$PROJECT_ROOT/scripts/lib/error-tracking.sh"
+export OCTOPUS_RUN_ID=parallel-interrupt
 log() { :; }
 render_agent_summary() { :; }
 aggregate_results() { :; }
 is_provider_available() { return 0; }
 octo_quota_is_dead() { return 1; }
 spawn_agent_capture_pid() {
+    write_agent_status agy running 1 0 '' 0 "$RESULTS_DIR/agy-interrupt.md" researcher spawn-interrupt
+    write_agent_status codex running 1 0 '' 0 "$RESULTS_DIR/codex-unrelated.md" researcher spawn-unrelated
+    write_agent_status agy ok 1 1 '' 0 "$RESULTS_DIR/agy-complete.md" researcher spawn-complete
     (
         sleep 30 &
         printf '%s\n' "$!" > "$INTERRUPT_CHILD"
@@ -364,6 +379,7 @@ trap 'printf previous > "$INTERRUPT_MARKER"; exit 143' TERM
 AVAILABLE_AGENTS=agy
 MAX_PARALLEL=1
 SUPPORTS_DISABLE_CRON_ENV=false
+RESULTS_DIR="$WORKSPACE_DIR/results"
 parallel_execute "$INTERRUPT_TASKS"
 RUNNER
 chmod +x "$interrupt_runner"
@@ -396,6 +412,41 @@ if [[ "$interrupt_rc" -eq 143 && -f "$interrupt_marker" && \
     test_pass
 else
     test_fail "TERM cleanup rc=$interrupt_rc prior_handler=$([[ -f "$interrupt_marker" ]] && echo yes || echo no) child_dead=$interrupt_child_dead leftovers=$leftovers"
+fi
+
+test_case "TERM records cancellation with the interrupted seat's exact identity and path"
+if jq -e --arg file "$WORKSPACE_DIR/results/agy-interrupt.md" '
+    .agents | any(.seat_id == "spawn-interrupt" and .status == "cancelled" and
+        .transition == "cancelled" and .output_file == $file and .role == "researcher")
+    ' "$WORKSPACE_DIR/runs/parallel-interrupt/agents.json" >/dev/null; then
+    test_pass
+else
+    test_fail "interrupted seat retained its running ledger row"
+fi
+
+test_case "TERM leaves unrelated running and completed seats unchanged"
+if jq -e '.agents | any(.seat_id == "spawn-unrelated" and .status == "running") and
+    any(.seat_id == "spawn-complete" and .status == "ok")' \
+    "$WORKSPACE_DIR/runs/parallel-interrupt/agents.json" >/dev/null; then
+    test_pass
+else
+    test_fail "cleanup changed a seat it did not interrupt"
+fi
+
+test_case "an interrupted task can be admitted again in the same run"
+rm -f "$TEST_TMP_DIR/interrupted-retry-admitted"
+if (
+    trap - EXIT
+    source "$PROJECT_ROOT/scripts/lib/error-tracking.sh"
+    export OCTOPUS_RUN_ID=parallel-interrupt
+    RESULTS_DIR="$WORKSPACE_DIR/results"
+    spawn_agent_capture_pid() { touch "$TEST_TMP_DIR/interrupted-retry-admitted"; return 1; }
+    parallel_execute "$interrupt_tasks" >/dev/null 2>&1 || true
+    [[ -f "$TEST_TMP_DIR/interrupted-retry-admitted" ]]
+); then
+    test_pass
+else
+    test_fail "the cancelled task's stale running status still blocks its retry"
 fi
 
 test_case "TERM before the first tracked PID is set-u safe"

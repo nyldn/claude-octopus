@@ -3878,8 +3878,12 @@ def match_unit(wholes, line_variants, entry, misses=None, short=()):
                                if variant in variant_matches and not ELLIPSIS.search(norm(variant))
                                else plain_line_present(norm(variant), hay))
                     if present is None:
-                        present = (match(variant) if not ELLIPSIS.search(norm(variant)) else
-                                   pieces and find_lines(hay, [], [], pieces[0], following=pieces[1:]))
+                        if ELLIPSIS.search(norm(variant)):
+                            if not reserve_optional_scan((len(hay) + len(variant)) * max(1, len(pieces))):
+                                return 1
+                            present = pieces and find_lines(hay, [], [], pieces[0], following=pieces[1:])
+                        else:
+                            present = match(variant)
                     if present:
                         partial_presence[key] = False
                         break
@@ -3909,6 +3913,15 @@ def match_unit(wholes, line_variants, entry, misses=None, short=()):
             misses.append(missing())
         return found[0]
     return []
+
+# Exhaustion keeps partial reporting conservative without changing a verified quote.
+optional_scan_work = 8 * 1024 * 1024
+def reserve_optional_scan(work):
+    global optional_scan_work
+    if work > optional_scan_work:
+        return False
+    optional_scan_work -= work
+    return True
 
 all_cited = []
 for _, _, path, _ in citations:
@@ -4036,8 +4049,13 @@ def load_diff_sides(git_timeout=10):
     # Joined so a multi-line quote of consecutive diff lines still matches.
     return (" ".join(removed), " ".join(added))
 
-def in_diff_side(wholes, line_variants, side, misses=None, short=()):
+def in_diff_side(wholes, line_variants, side, misses=None, short=(), report_only=False):
     # Reuse the source-file threshold, including elision and gutter handling.
+    if report_only:
+        patterns = list(wholes) + [v for variants in line_variants + list(short) for v in variants]
+        work = (len(side) + sum(len(v) for v in patterns)) * max(1, len(patterns))
+        if not reserve_optional_scan(work):
+            return False
     return bool(side and match_unit(wholes, line_variants, (side, [0], [1]), misses, short))
 
 REMOVAL_WORDS = re.compile(r"\b(remov(?:e|ed|es|ing|al)|delet(?:e|ed|es|ing|ion)|drop(?:ped|s)?|no longer|was gone|got rid of)\b", re.I)
@@ -4066,7 +4084,7 @@ SOURCE_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|is|defines?|de
 # seat's own input ("x.ts:2 reads a row I constructed as `...`"). Another
 # first-person word does not: "reads what my teammate built as" is a claim.
 OWN_INPUT = re.compile(r"(?:constructed|built|crafted) as", re.I)
-CONTENT_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|is|defines?|defined|declares?|declared|computes?)\b", re.I)
+CONTENT_VERB = SOURCE_VERB
 FIRST_PERSON_SUBJECT = re.compile(
     r"\b(?:I|we)(?:['’](?:ve|d))?\s+(?:(?:have|had|just|recently|already|carefully|deliberately|"
     r"explicitly|locally|manually|originally|previously)\s+)*$", re.I)
@@ -4098,6 +4116,8 @@ def proposes(text):
     # Keep terminal punctuation on a standalone fence lead-in in its clause.
     end = len(text.rstrip(" \t\r\n.!?;"))
     start = clause_start(text, end)
+    if re.fullmatch(r"\s*(?:my|our)\s+(?:fixed|replacement)\s+(?:version|code)\s+is\s*:?\s*", text[start:end], re.I):
+        return True
     # A patch-only lead-in continues the immediately preceding proposal. Do
     # not carry it through an arbitrary later sentence or a source assertion.
     if re.fullmatch(r"\s*(?:here is the patch|apply it as follows)\s*:\s*", text[start:], re.I):
@@ -4106,6 +4126,12 @@ def proposes(text):
         if PROPOSAL.search(text, previous_start, previous_end):
             start = previous_start
     for claim in EXPLICIT_SOURCE_CLAIM.finditer(text, start):
+        # A nearby proposed replacement can own this ambiguous continuation.
+        if (re.fullmatch(r"and\s+(?:the|this)\s+code\s+is", claim.group(), re.I)
+                and re.search(r"\b(?:recommend\w*|suggest\w*|propos\w*|consider)\s+"
+                              r"(?:a|the|this)\s+(?:replacement|fix|patch)\s*,?\s*$",
+                              text[max(start, claim.start() - 160):claim.start()], re.I)):
+            continue
         start = claim.start()
     verbs = CONTENT_VERB.finditer(text, start)
     verb = next(verbs, None)
@@ -4417,7 +4443,7 @@ for start, end, kind, block, removed_block, info in units:
                 diff_sides = optional_diff_sides
         for side in diff_sides if diff_sides is not None else optional_diff_sides:
             side_misses = []
-            if in_diff_side(wholes, line_variants, side, side_misses, short) and not any(side_misses):
+            if in_diff_side(wholes, line_variants, side, side_misses, short, report_only=True) and not any(side_misses):
                 partial = False
                 break
     if not verified or removed_block:
@@ -4434,7 +4460,8 @@ for start, end, kind, block, removed_block, info in units:
             # Each portion is partial on its own side. A kept portion partial in
             # the cited file but exact on the added side is not partial.
             kept_on_added = (bool(block) and (not verified or partial)
-                             and in_diff_side(wholes, line_variants, added_side, kept_misses, short))
+                             and in_diff_side(wholes, line_variants, added_side, kept_misses, short,
+                                              report_only=verified))
             kept_hit = verified or not block or kept_on_added
             if kept_on_added:
                 kept_partial = any(kept_misses) and (partial or not verified)
@@ -4452,7 +4479,7 @@ for start, end, kind, block, removed_block, info in units:
             for side_name, side, side_misses in (
                     ("removed", removed_side, removed_misses), ("added", added_side, added_misses)):
                 if in_diff_side(wholes, line_variants, side,
-                                side_misses if kind == "fence" else None, short):
+                                side_misses if kind == "fence" else None, short, report_only=bool(hits)):
                     hits.append((side_name, side_misses))
                     if not any(side_misses):
                         break
