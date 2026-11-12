@@ -2803,6 +2803,37 @@ r="$(_report "$(_resp 'src/pricing.ts:3 reads `RangeError: invalid cabin price`.
 VERDICT: APPROVE')")"
 if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
+test_case "a runtime-error quote with an adjacent trailing citation is checked"
+r="$(_report "$(_resp '`ValueError: something went terribly wrong` (src/pricing.ts:2).
+VERDICT: APPROVE')")"
+if jq -e '.quotes_verified == 0 and .quotes_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "genuine source does not excuse a runtime error with a trailing citation"
+r="$(_report "$(_resp 'src/pricing.ts:2 reads `cabin.basePrice ?? sailing.defaultPrice`.
+`ValueError: something went terribly wrong` (src/pricing.ts:2).
+VERDICT: APPROVE')")"
+if jq -e '.quotes_verified == 1 and .quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "an unattributed plain-text runtime diagnostic is not a source quote"
+r="$(_report "$(_resp 'I exercised src/pricing.ts:2.
+
+The probe returned this diagnostic:
+
+```text
+ValueError: invalid response from fixture
+```
+
+VERDICT: REVISE')")"
+if jq -e '.quotes_unverified == 0 and .quotes_unverifiable_command == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "a plain-text runtime diagnostic attributed to source is still checked"
+r="$(_report "$(_resp 'src/pricing.ts:2 reads:
+```text
+ValueError: invalid response from fixture
+```
+VERDICT: APPROVE')")"
+if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
 test_case "#3386: an example the seat makes up (\"a template like\") is not a fabricated quote"
 r="$(_report "$(_resp 'The new branch at src/pricing.ts:3 fires on any colon. So a template like `Request to https://api.example failed: %s` now ships whole as `[REDACTED]`.
 VERDICT: APPROVE')")"

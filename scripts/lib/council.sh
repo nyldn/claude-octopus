@@ -4306,6 +4306,12 @@ for start, end, kind, block, removed_block, info in units:
         continue
     associated, gap = association(start)
     attributed = attribution(associated, gap)
+    runtime_diagnostic = ((kind == "inline" or (kind == "fence" and info in ("", "text", "plaintext")))
+                          and block and RUNTIME_ERROR.match(norm(block[0])))
+    if attributed is None and runtime_diagnostic and cited_after(end):
+        # A citation immediately after a diagnostic claims source evidence,
+        # including when other quotes in the response are genuine.
+        associated = attributed = tokens[bisect_left(token_starts, end)]
     # A seat's own arithmetic in an inline span is a value it computed, unless a
     # citation claims it: then it is a claim about the cited file to verify.
     if kind == "inline" and attributed is None and computed(block[0]) and not cited_after(end):
@@ -4509,7 +4515,7 @@ for start, end, kind, block, removed_block, info in units:
         result["quotes_unverifiable_claimed_removed"] += 1
     elif attributed is None and (info in SHELL_FENCES or (
             block and all(COMMAND.match(norm(l) + " ") for l in block)) or (
-            kind == "inline" and block and RUNTIME_ERROR.match(norm(block[0])))):
+            runtime_diagnostic)):
         result["quotes_unverifiable"] += 1
         result["quotes_unverifiable_command"] += 1
     elif proposed(start) or (kind == "inline" and attributed is None and probe_input(start, end)):

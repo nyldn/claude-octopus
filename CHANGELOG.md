@@ -13,6 +13,8 @@
 
 - Abbreviated council quotes must match whole identifiers, so a longer name or
   string token cannot make invented source evidence pass verification.
+- Runtime diagnostics in plain-text fences do not count as invented source.
+  Runtime-error quotes beside an adjacent source citation still need verification.
 
 - Unit shards include newer hosted macOS suite timings in their duration
   weights. The full suite and 20-minute per-shard timeout remain in place.
