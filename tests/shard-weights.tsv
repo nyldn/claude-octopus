@@ -17,31 +17,35 @@
 # Refresh: completed PASS suites from all four macOS lanes of hosted run
 # 43187985203 on 2026-11-12, head 4ba6b6e980c96c1f122303f79df3260046e2cd9d.
 # Shard 1 reached its deadline; its unfinished suite contributes no duration.
-unit/test-council-command.sh	463
+# Refresh: completed PASS suites from macOS lanes 0 and 3 in hosted run
+# 43197893369 on 2026-11-12, head 5562336a56177b89c640b9f8add6976ef2b8ce1b.
+# Both lanes reached 1200 seconds; unfinished suites contribute no duration.
+# This partial timing sample does not establish passing release evidence.
+unit/test-council-command.sh	625
 unit/test-spawn-run-contract.sh	274
 unit/test-council-quote-grounding.sh	209
-unit/test-feature-tasks.sh	190
+unit/test-feature-tasks.sh	201
 unit/test-council-supersede-key.sh	155
 unit/test-doctor-early-dispatch.sh	130
 unit/test-octo-events.sh	100
 unit/test-feature-workflow.sh	98
-unit/test-provider-availability-parity.sh	90
+unit/test-provider-availability-parity.sh	108
 unit/test-council-aggregate-deadline.sh	74
-unit/test-vibe-keyring.sh	71
+unit/test-vibe-keyring.sh	83
 unit/test-cheaperinference-config-parity.sh	64
 unit/test-consultative-advisor-launch.sh	64
-unit/test-tangle-decomposition-adequacy.sh	55
+unit/test-tangle-decomposition-adequacy.sh	56
 unit/test-agent-sync-run-contract.sh	54
 unit/test-council-grounding-citations.sh	54
 unit/test-feature-delivery.sh	54
 unit/test-agy-provider.sh	52
 unit/test-uberllm-config-parity.sh	45
-unit/test-setup-first-success.sh	48
+unit/test-setup-first-success.sh	59
 unit/test-kimi-provider.sh	48
 unit/test-workflow-result.sh	40
 unit/test-consultative-workspace-gitignore.sh	40
 unit/test-council-workers.sh	43
-unit/test-parallel-aggregation-scope.sh	40
+unit/test-parallel-aggregation-scope.sh	42
 unit/test-routing.sh	38
 unit/test-council-seat-stderr.sh	37
 unit/test-quota-fast-fail.sh	37
@@ -54,7 +58,7 @@ unit/test-provider-stall-watchdog.sh	32
 unit/test-event-lock-admission.sh	33
 unit/test-council-wait.sh	31
 unit/test-documented-orchestrate-examples.sh	34
-unit/test-agent-lifecycle-events.sh	28
+unit/test-agent-lifecycle-events.sh	29
 unit/test-install-root-safety.sh	29
 unit/test-provider-auth-validity.sh	28
 unit/test-research-evidence.sh	30
@@ -68,15 +72,15 @@ unit/test-provider-allowlist.sh	21
 unit/test-runner-sharding.sh	21
 unit/test-feature-analysis-runtime.sh	20
 unit/test-issue-947-pid-wait-window.sh	28
-unit/test-refinement-efficiency.sh	20
+unit/test-refinement-efficiency.sh	22
 unit/test-safe-github-comments.sh	20
 unit/test-ci-tiers.sh	19
 unit/test-configurable-fallback-chains.sh	20
 unit/test-develop-md-file-resolution.sh	19
-unit/test-feature-artifacts.sh	18
+unit/test-feature-artifacts.sh	20
 unit/test-review-empty-round1.sh	18
 unit/test-ceremonies.sh	18
-unit/test-command-safety-regressions.sh	17
+unit/test-command-safety-regressions.sh	19
 unit/test-heartbeat-timeout-fallback.sh	18
 unit/test-provider-health-fleet.sh	20
 unit/test-provider-readiness-contract.sh	16
@@ -87,17 +91,17 @@ unit/test-provider-health-probe.sh	19
 unit/test-runtime-provider-labels.sh	16
 unit/test-document-renderer.sh	14
 unit/test-fan-out-bounds.sh	14
-unit/test-review-aggregation-robustness.sh	14
+unit/test-review-aggregation-robustness.sh	15
 unit/test-mode-switching.sh	13
-unit/test-orcarouter-provider.sh	17
+unit/test-orcarouter-provider.sh	20
 unit/test-provider-history-toggle.sh	13
-unit/test-provider-registry-governance.sh	15
+unit/test-provider-registry-governance.sh	16
 unit/test-ci-step-timeout.sh	13
 unit/test-codex-safety-contract.sh	12
 unit/test-contextual-review-fleet-cli.sh	12
 unit/test-preflight-roster.sh	15
 unit/test-setup-state.sh	12
-unit/test-tangle-write-scope-safety.sh	12
+unit/test-tangle-write-scope-safety.sh	13
 unit/test-tier-reasoning.sh	14
 unit/test-claude-native-integrations.sh	11
 unit/test-pid-ledger-python.sh	11
@@ -105,7 +109,7 @@ unit/test-resolve-model.sh	11
 unit/test-stable-root-self-heal.sh	11
 unit/test-tangle-memory-keeper-decomposition.sh	12
 unit/test-command-workflow-efficiency.sh	10
-unit/test-grok-provider.sh	10
+unit/test-grok-provider.sh	11
 unit/test-litellm-provider.sh	11
 unit/test-tangle-challenge-evidence.sh	10
 unit/test-tangle-context-review-loop.sh	10
@@ -129,7 +133,7 @@ unit/test-tangle-cancellation-cleanup.sh	8
 unit/test-v8.40.0-cc-feature-sync.sh	8
 unit/test-agent-timeout-budget.sh	7
 unit/test-bare-auth-probe-timeout.sh	7
-unit/test-commandcode-harness.sh	7
+unit/test-commandcode-harness.sh	8
 unit/test-debug-mode-simple.sh	7
 unit/test-probe-compact-synthesis.sh	8
 unit/test-sentinel.sh	7
@@ -161,13 +165,13 @@ unit/test-probe-seat-timeout.sh	5
 unit/test-reported-issue-pattern-coverage.sh	6
 unit/test-review-skip.sh	6
 unit/test-run-observability-v10.sh	5
-unit/test-tangle-file-coverage.sh	6
+unit/test-tangle-file-coverage.sh	8
 unit/test-tangle-overlap-consolidation.sh	5
 unit/test-v8.25.0-dark-factory.sh	5
-unit/test-api-route-provider.sh	4
+unit/test-api-route-provider.sh	7
 unit/test-contextual-review-seat-overrides.sh	4
 unit/test-env-var-effects.sh	4
-unit/test-feature-clarifications.sh	4
+unit/test-feature-clarifications.sh	5
 unit/test-help-early.sh	4
 unit/test-hook-err-traps.sh	4
 unit/test-lifecycle-lock-admission.sh	6
@@ -175,8 +179,8 @@ unit/test-mandatory-compliance.sh	4
 unit/test-perplexity-agent-api.sh	4
 unit/test-probe-single.sh	4
 unit/test-progress-tracking-consistency.sh	6
-unit/test-skill-doctor-stable-link.sh	5
-unit/test-tangle-post-execution-scope-contract.sh	4
+unit/test-skill-doctor-stable-link.sh	7
+unit/test-tangle-post-execution-scope-contract.sh	5
 unit/test-tangle-retry-propagation.sh	4
 unit/test-validate-release-skill-registration.sh	4
 unit/test-anomaly-truncation.sh	3
@@ -212,7 +216,7 @@ unit/test-tangle-execution-boundary.sh	3
 unit/test-tangle-reconsideration-json-v1.sh	3
 unit/test-tangle-retry-supervision.sh	5
 unit/test-tangle-validation-abort.sh	3
-unit/test-tangle-worktree-evidence.sh	3
+unit/test-tangle-worktree-evidence.sh	4
 unit/test-agent-command-validation.sh	2
 unit/test-agy-parallel-decompose.sh	2
 unit/test-agy-research-defaults.sh	3
@@ -260,7 +264,7 @@ unit/test-release-sh-worktree-flow.sh	3
 unit/test-response-mode.sh	2
 unit/test-review-debate-gate.sh	2
 unit/test-routing-rules.sh	2
-unit/test-shipped-state-model-resolution.sh	2
+unit/test-shipped-state-model-resolution.sh	3
 unit/test-skill-sources.sh	2
 unit/test-smoke-quota-cache.sh	2
 unit/test-sonnet-55-routing.sh	2
@@ -286,3 +290,5 @@ unit/test-validate-release-tag-scope.sh	3
 # Initial OpenCode compatibility weight: completed local macOS run of all 81
 # cases on 2026-11-12, 117.13 seconds. Hosted timing remains to be established.
 unit/test-opencode-v2.sh	118
+unit/test-council-diff-short-circuit.sh	28
+unit/test-council-source-claim-modifiers.sh	7

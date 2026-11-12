@@ -124,6 +124,9 @@
   Rejected explicit models also close the research seat and preserve the
   resolver's failure status, whether or not shell error-exit mode is enabled.
   Addresses [#1172](https://github.com/nyldn/claude-octopus/issues/1172).
+- Full unit coverage uses six weighted macOS lanes and four Linux lanes. This
+  leaves more room for longer hosted macOS suite durations while retaining
+  every suite and the existing 20-minute step limit.
 
 - Unit shards include newer hosted macOS suite timings in their duration
   weights. The full suite and 20-minute per-shard timeout remain in place.
