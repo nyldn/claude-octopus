@@ -3683,12 +3683,24 @@ def load(path):
     return entry
 
 ELLIPSIS = re.compile(r"\s*(?:\.\.\.|…)\s*")
-def find_lines(hay, starts, line_numbers, needle, limit=50, following=()):
+def fragment_boundary(hay, at, piece):
+    def identifier(ch):
+        return ch.isalnum() or ch in "_$"
+    end = at + len(piece)
+    return not ((identifier(piece[0]) and at > 0 and identifier(hay[at - 1]))
+                or (identifier(piece[-1]) and end < len(hay) and identifier(hay[end])))
+
+def find_lines(hay, starts, line_numbers, needle, limit=50, following=(), word_bounds=False):
     found, at = [], hay.find(needle)
     while at >= 0 and len(found) < limit:
+        if word_bounds and not fragment_boundary(hay, at, needle):
+            at = hay.find(needle, at + 1)
+            continue
         end = at + len(needle)
         for piece in following:
             pos = hay.find(piece, end)
+            while pos >= 0 and word_bounds and not fragment_boundary(hay, pos, piece):
+                pos = hay.find(piece, pos + 1)
             if pos < 0:
                 return found  # Later starts cannot complete this sequence either.
             end = pos + len(piece)
@@ -3697,10 +3709,37 @@ def find_lines(hay, starts, line_numbers, needle, limit=50, following=()):
     return found
 
 # sail-cruisey #3316: a seat joins "if (" / "a &&" / "b" / ") {" onto one line
-# as "if (a && b)". A space next to punctuation is layout, not content, so a
-# quote that misses only on that verifies. A space between two words still
-# counts: "await limit" is never "awaitlimit".
+# as "if (a && b)". Ignore punctuation-adjacent layout outside literals.
+# Ambiguous slash/hash syntax and unmatched quotes retain their whitespace.
 LAYOUT_SPACE = re.compile(r" (?=[^\w ])|(?<=[^\w ]) ")
+QUOTED_LITERAL = re.compile(r"""'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\])*`""")
+def layout_removed(text):
+    literals = list(QUOTED_LITERAL.finditer(text))
+    cursor = 0
+    for literal in literals:
+        if any(c in text[cursor:literal.start()] for c in "'\"`/#"):
+            return []
+        cursor = literal.end()
+    if any(c in text[cursor:] for c in "'\"`/#"):
+        return []
+    removed, index = [], 0
+    for match in LAYOUT_SPACE.finditer(text):
+        while index < len(literals) and literals[index].end() <= match.start():
+            index += 1
+        if index == len(literals) or match.start() < literals[index].start():
+            removed.append(match.start())
+    return removed
+
+def without_positions(text, removed):
+    chunks, cursor = [], 0
+    for at in removed:
+        chunks.append(text[cursor:at])
+        cursor = at + 1
+    chunks.append(text[cursor:])
+    return "".join(chunks)
+
+def tight_text(text):
+    return without_positions(text, layout_removed(text))
 # sail-cruisey #3386: a single-backtick span cannot hold a backtick, so a seat
 # quoting `describe("... `map`")` drops the file's inner backticks.
 BACKTICK = re.compile(r"`")
@@ -3714,7 +3753,16 @@ def stripped_entry(entry, pattern):
         stripped_cache[(hay, pattern)] = got
     return got
 def tight_entry(entry):
-    return stripped_entry(entry, LAYOUT_SPACE)
+    hay, starts, line_numbers = entry
+    key = (hay, "literal-safe-layout")
+    if key not in stripped_cache:
+        removed = []
+        for i, start in enumerate(starts):
+            end = starts[i + 1] if i + 1 < len(starts) else len(hay)
+            removed.extend(start + at for at in layout_removed(hay[start:end]))
+        stripped_cache[key] = (without_positions(hay, removed),
+                               [s - bisect_left(removed, s) for s in starts], line_numbers)
+    return stripped_cache[key]
 
 def match_variant(text, entry):
     hay, starts, line_numbers = entry
@@ -3723,12 +3771,12 @@ def match_variant(text, entry):
     if lines:
         return lines
     # Elided fragments must occur in source order without reusing characters.
-    pieces = [p for p in ELLIPSIS.split(needle) if specific(p)]
+    pieces = [p for p in ELLIPSIS.split(needle) if p]
     if len(pieces) > 1 or (pieces and pieces[0] != needle):
-        lines = find_lines(hay, starts, line_numbers, pieces[0], following=pieces[1:])
+        lines = find_lines(hay, starts, line_numbers, pieces[0], following=pieces[1:], word_bounds=True)
         return lines or elided_lines(entry, needle)
     if specific(needle):
-        lines = find_lines(*tight_entry(entry), LAYOUT_SPACE.sub("", needle))
+        lines = find_lines(*tight_entry(entry), tight_text(needle))
         if not lines and "`" not in needle and "`" in hay:
             lines = find_lines(*stripped_entry(entry, BACKTICK), needle)
         if not lines and PLACEHOLDER.search(needle):
@@ -3746,28 +3794,22 @@ def pattern_lines(entry, pattern):
     return [line_numbers[bisect_right(starts, m.start()) - 1] if starts else 1
             for m in re.finditer(pattern, hay)]
 
-# sail-cruisey #3389: "`!== "POST" || !endsWith(...)`" marks itself abbreviated.
-# It verifies when its tokens appear in order on one source line, with at
-# least two names and every token the file's.
+# Explicit ellipses may skip source, but each retained fragment stays contiguous.
+# Formatting changes cannot hide an unmarked operator or identifier qualifier.
 TOKEN = re.compile(r"\w+|[^\w\s]")
 def elided_lines(entry, needle):
     tokens_in = TOKEN.findall(ELLIPSIS.sub(" ", needle))
     if len(tokens_in) < 4 or sum(1 for t in tokens_in if len(t) >= 3 and t[0].isalpha()) < 2:
         return []
-    # The file text is one space-joined string, so test each source line alone,
-    # and bound the span so a joined diff side cannot carry it either.
-    # A whole name must survive abbreviation: endsWith is not neverendsWith
-    # or endsWithExtra. Include $ alongside Unicode word characters for JS names.
-    pattern = re.compile(r".*?".join(
-        r"(?<![\w$])" + re.escape(t) + r"(?![\w$])" if re.fullmatch(r"\w+", t)
-        else re.escape(t) for t in tokens_in))
-    hay, starts, line_numbers = entry
-    limit = 2 * len(needle) + 40
+    pieces = [tight_text(p) for p in ELLIPSIS.split(needle) if p]
+    if not pieces:
+        return []
+    hay, starts, line_numbers = tight_entry(entry)
     found = []
     for i, line_start in enumerate(starts):
         line_end = starts[i + 1] if i + 1 < len(starts) else len(hay)
-        match = pattern.search(hay, line_start, line_end)
-        if match and match.end() - match.start() <= limit:
+        if find_lines(hay[line_start:line_end], [], [], pieces[0],
+                      following=pieces[1:], word_bounds=True):
             found.append(line_numbers[i])
     return found
 
@@ -4190,7 +4232,7 @@ def association(start):
 
 # sail-cruisey #3390: "... (`x.ts:375`).\n- `GET https://h/p?q=a b=c` ships"
 # starts a new claim. A citation's sentence ends at a new list item.
-NEXT_ITEM = re.compile(r"[.!?][)\]`*_]*[ \t]*\n[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]")
+NEXT_ITEM = re.compile(r"(?:[.!?][)\]`*_]*|[^:\s])[ \t]*\n[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]")
 def attribution(token, gap):
     if token is None or len(gap) > 200 or gap.count("\n") > 2 or NEXT_ITEM.search(gap):
         return None

@@ -2869,21 +2869,21 @@ if jq -e '.quotes_verified == 1 and .quotes_unverified == 0 and .fabricated == f
 test_case "#3389: \$n does not excuse other changed code"
 r="$(_preport 'PUT still matches rows with `household_id = ALL($n)` (`src/credits.ts:2`). Keep it.')"
 if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
-test_case "#3389: an elided quote verifies when its tokens are in order on one line"
-r="$(_preport '`src/rbac.test.ts:2`: `!== "POST" || !endsWith(...)` reads awkwardly.')"
+test_case "#3389: an elided quote marks its omitted qualifier and arguments"
+r="$(_preport '`src/rbac.test.ts:2`: `!== "POST" || ! ... endsWith(...)` reads awkwardly.')"
 if jq -e '.quotes_verified == 1 and .quotes_attributed_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 test_case "#3389: an elided quote's tokens must be on one line, not spread across the file"
 r="$(_preport '`src/rbac.test.ts:2`: `row !== "POST" ... toBe(true)` reads awkwardly.')"
 if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 test_case "#3389: an elided quote with a changed token is still fabricated"
-r="$(_preport '`src/rbac.test.ts:2`: `!== "GET" || !endsWith(...)` reads awkwardly.')"
+r="$(_preport '`src/rbac.test.ts:2`: `!== "GET" || ! ... endsWith(...)` reads awkwardly.')"
 if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
 for changed_token in 'POSTER|endsWith' 'POST|neverendsWith' 'POST|endsWithExtra' 'POST|$endsWith' 'POST|endsWithé'; do
     test_case "an abbreviated quote cannot match part of a longer token: $changed_token"
     printf 'if (row.method !== "%s" || !row.path.%s("sync")) {\n' \
         "${changed_token%%|*}" "${changed_token#*|}" > "$PROOT/src/token-boundaries.ts"
-    r="$(_preport 'src/token-boundaries.ts:1 reads `!== "POST" || !endsWith(...)`.')"
+    r="$(_preport 'src/token-boundaries.ts:1 reads `!== "POST" || ! ... endsWith(...)`.')"
     if jq -e '.quotes_verified == 0 and .quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 done
 
@@ -4403,5 +4403,50 @@ if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >
 test_case "an explicitly supplied input retains its result wording"
 r="$(_xreport 'I tested input `return fetch_user(user_id) + 1` returns an invalid value. References: scripts/entry.mjs:2.')"
 if jq -e '.quotes_attributed_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+review_root="$(mktemp -d "$TEST_TMP_DIR/review-quotes.XXXXXX")"
+mkdir -p "$review_root/src"
+for literal_case in double single template regex; do
+    case "$literal_case" in
+        double) real='export const label = "price: $5";'; changed='export const label = "price:$5";' ;;
+        single) real="export const label = 'price: 5';"; changed="export const label = 'price:5';" ;;
+        template) real='export const label = `price: $5`;'; changed='export const label = `price:$5`;' ;;
+        regex) real='export const label = /price: 5/;'; changed='export const label = /price:5/;' ;;
+    esac
+    printf '%s\n' "$real" > "$review_root/src/literal.ts"
+    test_case "layout normalization preserves $literal_case literal whitespace"
+    quote_response="$(_resp "src/literal.ts:1 reads:
+~~~ts
+$changed
+~~~")"
+    r="$(council_response_quote_verification_json "$quote_response" "$review_root")"
+    if jq -e '.quotes_verified == 0 and .quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "literal changed: $r"; fi
+done
+printf '%s\n' 'if (!isAuthorized && isValid) { acceptRequest(); }' > "$review_root/src/auth.ts"
+for abbreviation_case in unmarked-negation unmarked-operator explicit-gap; do
+    want_verified=0
+    case "$abbreviation_case" in
+        unmarked-negation) quote='if (isAuthorized && ... isValid)' ;;
+        unmarked-operator) quote='if (!isAuthorized ... isValid) { acceptRequest() }' ;;
+        explicit-gap) quote='if (... isAuthorized && isValid) { acceptRequest(); }'; want_verified=1 ;;
+    esac
+    test_case "abbreviation gaps occur only at explicit markers: $abbreviation_case"
+    quote_response="$(_resp "src/auth.ts:1 reads:
+~~~ts
+$quote
+~~~")"
+    r="$(council_response_quote_verification_json "$quote_response" "$review_root")"
+    if jq -e --argjson v "$want_verified" '.quotes_verified == $v and .fabricated == ($v == 0)' <<< "$r" >/dev/null; then test_pass; else test_fail "unmarked omission: $r"; fi
+done
+for bullet_prefix in '-' '1.'; do
+    test_case "an unpunctuated citation cannot own the next $bullet_prefix list item"
+    printf -v quote_response '%s\n%s %s' '- `src/pricing.ts:3` shows the retry loop' "$bullet_prefix" '`npm install --ignore-scripts --dry-run`'
+    r="$(_report "$(_resp "$quote_response")")"
+    if jq -e '.quotes_unverifiable_command == 1 and .quotes_attributed_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "list attribution leaked: $r"; fi
+done
+test_case "a citation ending in a colon still attributes its following bullet"
+printf -v quote_response 'src/pricing.ts:3 shows:\n- `%s`' "$FAKE"
+r="$(_report "$(_resp "$quote_response")")"
+if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "colon lost attribution: $r"; fi
 
 test_summary

@@ -887,14 +887,16 @@ _agy_capacity_mock() {
     cat > "$tmp_bin/agy" <<'MOCK_AGY'
 #!/usr/bin/env bash
 model=default
+prompt=''
 while (( $# )); do
     case "$1" in
         --model) model="$2"; shift 2 ;;
-        --print) shift 2 ;;
+        --print) prompt="$2"; shift 2 ;;
         *) shift ;;
     esac
 done
 printf '%s\n' "$model" >> "${AGY_CALLS:?}"
+printf '%s\0' "$prompt" >> "${AGY_CALLS}.prompts"
 if [[ "$model" == default && -n "${AGY_CUSTOM_ERROR:-}" ]]; then
     printf '%s\n' "$AGY_CUSTOM_ERROR" >&2
     exit 3
@@ -906,6 +908,10 @@ case ",${AGY_TTY_MODELS:-}," in
 esac
 if [[ "$model" == "${AGY_EMPTY_ONCE:-}" && ! -e "${AGY_CALLS}.empty" ]]; then
     : > "${AGY_CALLS}.empty"
+    exit 0
+fi
+if [[ "$model" == "${AGY_ALWAYS_EMPTY:-}" ]]; then
+    printf ' \n\t'
     exit 0
 fi
 case ",${AGY_BUSY_MODELS:-}," in
@@ -964,19 +970,36 @@ test_agy_no_capacity_falls_back_to_listed_gemini_model() {
     fi
 
     test_case "agy-exec replays the prompt once when a fallback model answers empty"
-    : > "$calls"; rm -f "$used" "${calls}.empty"
-    out="$(printf 'review this' | PATH="$tmp_bin:$PATH" AGY_CALLS="$calls" AGY_BUSY_MODELS='default' \
-        AGY_EMPTY_ONCE='gemini-4-argon-high' OCTOPUS_AGY_MODEL=default OCTOPUS_AGY_NO_PTY_FALLBACK=1 \
+    local prompt=$'review this\npreserve "quotes", $variables and trailing whitespace  '
+    : > "$calls"; rm -f "$used" "${calls}.empty" "${calls}.prompts"
+    out="$(printf '%s' "$prompt" | PATH="$tmp_bin:$PATH" AGY_CALLS="$calls" AGY_BUSY_MODELS='default' \
+        AGY_EMPTY_ONCE='gemini-4-argon-high' OCTOPUS_AGY_MODEL=default OCTOPUS_AGY_NO_PTY_FALLBACK=1 OCTOPUS_AGY_FORCE_INLINE=0 \
         _OCTOPUS_AGY_MODEL_USED_FILE="$used" OCTOPUS_AGY_FALLBACK_MODELS='gemini-4-argon-high' \
         bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" 2>/dev/null)" && rc=0 || rc=$?
     if (( rc == 0 )) && [[ "$out" == "answer from gemini-4-argon-high" ]] \
             && [[ "$(tr '\n' '|' < "$calls")" == 'default|gemini-4-argon-high|gemini-4-argon-high|' ]] \
-            && [[ "$(tr '\n' '|' < "$used")" == 'gemini-4-argon-high|gemini-3.8-flash-high|' ]]; then
+            && [[ "$(tr '\n' '|' < "$used")" == 'gemini-4-argon-high|gemini-3.8-flash-high|' ]] \
+            && python3 -c 'import pathlib,sys; assert pathlib.Path(sys.argv[1]).read_bytes().split(b"\0") == [sys.argv[2].encode()] * 3 + [b""]' "${calls}.prompts" "$prompt"; then
         test_pass
     else
         test_fail "rc=$rc out=$out calls=$(tr '\n' '|' < "$calls") used=$(tr '\n' '|' < "$used" 2>/dev/null)"
     fi
     rm -f "${calls}.empty"
+
+    test_case "agy-exec rejects a whitespace-only fallback and preserves its capacity failure"
+    : > "$calls"; rm -f "$used" "${calls}.prompts"
+    out="$(printf '%s' "$prompt" | PATH="$tmp_bin:$PATH" AGY_CALLS="$calls" AGY_BUSY_MODELS='default' \
+        AGY_ALWAYS_EMPTY='gemini-4-argon-high' OCTOPUS_AGY_MODEL=default OCTOPUS_AGY_NO_PTY_FALLBACK=1 OCTOPUS_AGY_FORCE_INLINE=0 \
+        _OCTOPUS_AGY_MODEL_USED_FILE="$used" OCTOPUS_AGY_FALLBACK_MODELS='gemini-4-argon-high' \
+        bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" 2>"$TEST_TMP_DIR/agy-empty-fallback.err")" && rc=0 || rc=$?
+    if (( rc == 3 )) && [[ ! "$out" =~ [^[:space:]] && ! -e "$used" ]] \
+            && [[ "$(tr '\n' '|' < "$calls")" == 'default|gemini-4-argon-high|gemini-4-argon-high|' ]] \
+            && grep -q 'No capacity available' "$TEST_TMP_DIR/agy-empty-fallback.err" \
+            && python3 -c 'import pathlib,sys; assert pathlib.Path(sys.argv[1]).read_bytes().split(b"\0") == [sys.argv[2].encode()] * 3 + [b""]' "${calls}.prompts" "$prompt"; then
+        test_pass
+    else
+        test_fail "rc=$rc out=$out calls=$(tr '\n' '|' < "$calls")"
+    fi
 
     test_case "agy-exec does not fall back on a failure that is not a no-capacity 503"
     cat > "$tmp_bin/agy" <<'MOCK_AGY'

@@ -19,6 +19,12 @@
 
 ### Fixed
 
+- Council quote layout matching preserves spaces inside quoted literals and
+  requires an explicit ellipsis wherever source text is omitted. An unpunctuated
+  list item ends the previous item's citation scope; a colon still introduces
+  attributed bullets. Empty Antigravity fallbacks return the original capacity
+  failure and retain its diagnostic.
+
 - Antigravity changes models only for retryable capacity errors and applies
   TTY recovery to fallback attempts. Crash-retry diagnostics remain separate
   from terminal quota classification. Standalone failed session-limit statuses
@@ -28,8 +34,8 @@
 
 - Council seats with real citations are no longer marked fabricated for
   quotes the verifier misread (sail-cruisey #3316, #3338, #3339, #3340). A
-  multi-line condition written on one line verifies, because a space next to
-  punctuation is layout. A code span stays inside one paragraph, a backtick
+  multi-line condition written on one line verifies when only layout around
+  punctuation outside literals differs. A code span stays inside one paragraph, a backtick
   opened in link text is literal, and paired `` \` `` inside a span are
   literal backticks. Citations of files with no extension, such as
   `.githooks/pre-commit:48`, bind their quotes. The inputs a seat says it fed
@@ -46,7 +52,7 @@
   file is still checked.
 
 - A quote with `$n` for a numbered placeholder, or abbreviated with `...`
-  (`!== "POST" || !endsWith(...)`), verifies when it matches one line of the
+  (`!== "POST" || ! ... endsWith(...)`), verifies when its retained fragments match one line of the
   cited file (sail-cruisey #3389). A basename that two files share, such as
   `sentry.ts:169`, now resolves to the one the seat also cited by full path,
   so its quotes are checked instead of left unresolved (sail-cruisey #3390).
