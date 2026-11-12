@@ -68,6 +68,16 @@ spawn_agent_capture_pid() {
     update_active_count 1
     (
         (
+            # Wait for a peer so setup work cannot consume the overlap window.
+            if [[ "$agent" == codex ]] && (( MAX_PARALLEL > 1 )); then
+                for fixture_wait in {1..250}; do
+                    fixture_peak=$(<"$MAX_ACTIVE_FILE")
+                    if [[ "$fixture_peak" =~ ^[0-9]+$ ]] && (( fixture_peak >= 2 )); then
+                        break
+                    fi
+                    sleep 0.02
+                done
+            fi
             sleep "$delay"
             update_active_count -1
             mkdir -p "$WORKSPACE_DIR/.octo/agents"

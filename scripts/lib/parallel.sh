@@ -862,8 +862,7 @@ parallel_execute() {
             log ERROR "Output path collision for task $task_id"
             _parallel_write_outcome "$outcome_dir" "$current_sequence" "$task_id" true "$agent" true \
                 "failed" "output-path-collision" ""
-            type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent" failed 0 0 \
-                output-path-collision 0 "" "" "spawn-$task_id" || true
+            # A rejected contender must not replace an earlier seat projection.
             aggregate_task_scope=$(jq -c --arg id "$task_id" \
                 '. + [{id: $id, output_file: ""}]' <<< "$aggregate_task_scope")
             ((failed++)) || true

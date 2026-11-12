@@ -145,9 +145,13 @@ fi
 test_case "distinct tasks cannot delete or overwrite a completed task's result"
 if (
     trap - EXIT
-    AVAILABLE_AGENTS='codex codex-standard claude claude-opus-fast'
+    AVAILABLE_AGENTS='codex codex-standard claude claude-opus-fast agy'
     for pair in 'codex standard-build codex-standard build' 'claude opus-build claude-opus-fast build'; do
         read -r first_agent first_id second_agent second_id <<< "$pair"
+        export OCTOPUS_RUN_ID="collision-terminal-$first_agent"
+        saved="$RESULTS_DIR/agy-$second_id.md"
+        printf 'earlier completed answer\n' > "$saved"
+        write_agent_status agy ok 1 10 '' 0 "$saved" researcher "spawn-$second_id"
         collision_file="$RESULTS_DIR/$first_agent-$first_id.md"
         rm -f "$TEST_TMP_DIR/colliding-spawn"
         spawn_agent_capture_pid() {
@@ -171,10 +175,10 @@ if (
         jq -e '.status == "degraded" and .counts.completed == 1 and .counts.failed == 1 and
             .results[1].reason == "output-path-collision"' \
             "$WORKSPACE_DIR/state/parallel-report.json" >/dev/null || exit 1
-        summary="$(render_agent_summary '' "$(cat "$TEST_TMP_DIR/aggregation-tasks.json")")"
-        [[ "$summary" == *'failed'* ]] || exit 1
-        jq -e '.agents | any(.reason == "output-path-collision" and .output_file == "")' \
+        jq -e --arg file "$saved" --arg seat "spawn-$second_id" \
+            '.agents | any(.seat_id == $seat and .agent == "agy" and .status == "ok" and .output_file == $file)' \
             "$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID/agents.json" >/dev/null || exit 1
+        agent_status_output_files | grep -Fx -- "$saved" >/dev/null || exit 1
         jq -e 'length == 2' "$TEST_TMP_DIR/aggregation-tasks.json" >/dev/null || exit 1
     done
 ); then
@@ -762,7 +766,7 @@ for recovery_case in existing missing-backup malformed; do
     else test_fail "contract admission lost artifacts or dispatched for $recovery_case"; fi
 done
 
-holder_root="$(mktemp -d)"
+holder_root="$(mktemp -d "$TEST_TMP_DIR/holder.XXXXXX")"
 printf '{"tasks":[{"id":"holder","agent":"codex","prompt":"inert"}]}' > "$holder_root/holder-tasks.json"
 for nesting in direct subshell; do
     test_case "a seat reservation names the $nesting dispatcher's process"
