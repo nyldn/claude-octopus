@@ -257,4 +257,29 @@ for (const action of ['available', 'qualified']) {
 }
 JS_MCP
 then test_pass; else test_fail "MCP filtering lost or bypassed UberLLM policy"; fi
+printf '%s\n' '{"providers":{"uberllm":{"default":"gpt-6-astra"}}}' > "$CONFIG"
+for action in available health detection readiness resolved dispatch; do
+    test_case "$action rejects an explicit-only model from configured defaults"
+    if probe "$action" >/dev/null 2>&1; then
+        test_fail "configured default bypassed automatic-target admission in $action"
+    else
+        test_pass
+    fi
+done
+test_case "configured defaults do not block explicit environment or qualified pins"
+if [[ "$(probe resolved UBERLLM_MODEL=gpt-6-astra)" == gpt-6-astra ]] &&
+   probe dispatch UBERLLM_MODEL=gpt-6-astra >/dev/null 2>&1 &&
+   probe qualified PROBE_AGENT=uberllm-agent:gpt-6-astra >/dev/null 2>&1; then
+    test_pass
+else
+    test_fail "automatic-target policy rejected an explicit user pin"
+fi
+test_case "a configured default may fall back to an allowed automatic model"
+if command_text="$(probe dispatch UBERLLM_ALLOWED_MODELS=vendor/allowed 2>/dev/null)" &&
+   [[ "$command_text" == *'--model vendor/allowed'* ]] &&
+   [[ "$(probe resolved UBERLLM_ALLOWED_MODELS=vendor/allowed)" == vendor/allowed ]]; then
+    test_pass
+else
+    test_fail "configured default could not select a safe allowlist fallback"
+fi
 test_summary

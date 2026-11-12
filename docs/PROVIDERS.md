@@ -137,6 +137,8 @@ models; missing models, unsafe pins and invalid fallbacks fail closed.
 Bare selections may use the first allowed model when their configured model is
 excluded. Exact seat pins are never replaced. Fleet diversity uses the family
 of the model that will run, including any permitted fallback.
+Configured defaults and automatic fallbacks reject explicit-only models. Select
+those models with an environment override or a qualified seat pin.
 
 Read-only roles disable local tools. The isolated child receives only
 `API_ROUTE_API_KEY` and the helper's approved runtime settings. This provider

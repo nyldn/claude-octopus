@@ -37,5 +37,8 @@ octo_uberllm_effective_model() {
         octo_model_automatic_target_allowed "$fallback" uberllm || return 1
         model="$fallback"
     fi
+    if [[ $# -eq 0 && -z "${UBERLLM_MODEL:-${OCTOPUS_UBERLLM_MODEL:-${OPENAI_COMPAT_MODEL:-}}}" ]]; then
+        octo_model_automatic_target_allowed "$model" uberllm || return 1
+    fi
     printf '%s\n' "$model"
 }
