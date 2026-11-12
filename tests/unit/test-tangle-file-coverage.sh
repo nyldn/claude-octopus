@@ -287,6 +287,14 @@ else
     test_fail "read-only list became required output: [$missing]"
 fi
 
+test_case "sequenced read context does not become an output obligation"
+if missing=$(check_explicit_file_coverage 'First read ./SPEC.md, then update src/main.ts' 'Updated src/main.ts') && [[ -z "$missing" ]]; then test_pass; else test_fail "sequenced read context became required: [$missing]"; fi
+
+for instruction in 'Read ./SPEC.md to update src/main.ts' 'Read ./SPEC.md;update src/main.ts'; do
+    test_case "read-purpose or adjacent sequencing retains the write target: $instruction"
+    if missing=$(check_explicit_file_coverage "$instruction" 'done') && [[ "$missing" == src/main.ts ]]; then test_pass; else test_fail "write target was omitted: [$missing]"; fi
+done
+
 test_case "managed coverage uses files rather than textual echoes"
 mkdir -p "$TEST_TMP_DIR/repo/src"
 printf 'implementation\n' > "$TEST_TMP_DIR/repo/src/main.ts"

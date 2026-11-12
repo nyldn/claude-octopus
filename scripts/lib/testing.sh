@@ -164,9 +164,9 @@ import re,sys
 text=sys.stdin.read()
 # Keep every reference unless a recognizable read-only clause excludes it.
 # Read words inside write instructions must not open a read-only clause.
-starts=re.compile(r"(?:^|[.!?;]\s+|,\s*then\s+|\band\s+then\s+)[ \t]*(?:[-*]\s+|\d+[.)]\s+)?(?:please\s+)?(?:after\s+reading|read|review|inspect|consult|context|inputs?|references?)\b(?=[:\s]|$)[:\s]*",re.I|re.M)
+starts=re.compile(r"(?:^|[.!?;]\s+|,\s*then\s+|\band\s+then\s+)[ \t]*(?:[-*]\s+|\d+[.)]\s+)?(?:(?:first|next|then|finally)\s+)?(?:please\s+)?(?:after\s+reading|read|review|inspect|consult|context|inputs?|references?)\b(?=[:\s]|$)[:\s]*",re.I|re.M)
 writes=r"(?:add|update|create|edit|modify|delete|remove|refactor|fix|write|implement|rename|move)"
-ends=re.compile(r"[.!?;]\s+|\n|,(?=\s*"+writes+r"\b)|\b(?:and\s+)?then\b|\band\s+"+writes+r"\b",re.I)
+ends=re.compile(r"[.!?]\s+|;|\n|,(?=\s*"+writes+r"\b)|\b(?:and\s+)?then\b|\b(?:and|to)\s+"+writes+r"\b",re.I)
 for event in reversed(list(starts.finditer(text))):
     boundary=ends.search(text,event.end())
     end=boundary.start() if boundary else len(text)
