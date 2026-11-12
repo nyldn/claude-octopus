@@ -76,7 +76,7 @@ probe_single_cli() {
             printf '%s\n' 'Error: --perspective-file could not be read' >&2
             return 1
         }
-        [[ -n "${perspective//[[:space:]]/}" ]] || { printf '%s\n' 'Error: --perspective-file contains no perspective text' >&2; return 1; }
+        [[ "$perspective" =~ [^[:space:]] ]] || { printf '%s\n' 'Error: --perspective-file contains no perspective text' >&2; return 1; }
         agent_type="$1"; task_id="$2"; original_prompt="${3:-}"
         perspective_mode="file"
     else
