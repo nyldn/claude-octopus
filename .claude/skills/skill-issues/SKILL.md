@@ -297,12 +297,16 @@ Use `/octo:issues list` to see all open issues.
 # Create .octo directory if needed
 mkdir -p .octo
 
-# Copy template
-cp ${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/config/templates/ISSUES.md.template .octo/ISSUES.md
-
-# Replace {{PROJECT_NAME}} with actual project name
-PROJECT_NAME=$(basename $(pwd))
-sed -i '' "s/{{PROJECT_NAME}}/$PROJECT_NAME/g" .octo/ISSUES.md
+# Render the template portably and preserve any existing issue file.
+ISSUES_TEMPLATE="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/config/templates/ISSUES.md.template"
+python3 - "$ISSUES_TEMPLATE" "$PWD" <<'PY_ISSUES'
+from pathlib import Path
+import sys
+template = Path(sys.argv[1]).read_text(encoding='utf-8')
+project = Path(sys.argv[2]).name
+with Path('.octo/ISSUES.md').open('x', encoding='utf-8') as stream:
+    stream.write(template.replace('{{PROJECT_NAME}}', project))
+PY_ISSUES
 ```
 
 ### Preserve Existing Issues

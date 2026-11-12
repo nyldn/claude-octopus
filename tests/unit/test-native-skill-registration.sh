@@ -579,4 +579,11 @@ else
     test_fail "review or planning guard failed"
 fi
 
+test_case "persistence recipes preserve runs, literal text and allocation decisions"
+if python3 "$SCRIPT_DIR/../fixtures/native-skills/persistence-recipes.py" "$PROJECT_ROOT"; then
+    test_pass
+else
+    test_fail "persistence recipe lost run evidence, literal data or allocation decisions"
+fi
+
 test_summary

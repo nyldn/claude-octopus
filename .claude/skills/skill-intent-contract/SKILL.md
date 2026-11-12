@@ -68,7 +68,7 @@ What this should NOT be:
 **AI role**: [none | executor | collaborator | challenger]
 **Execution disposition**: [AI-assisted | human-only | pending-user-decision]
 **Escalation decision**: [not-needed | pending | user's recorded resolution]
-**Resolved AUTONOMY_MODE**: [supervised | semi-autonomous | loop-until-approved | autonomous | not-applicable (contract-only sentinel)]
+**Resolved AUTONOMY_MODE**: [supervised | semi-autonomous | loop-until-approved | autonomous | not-applicable | pending-user-decision, last two are contract-only sentinels]
 
 ## Validation Checklist
 - [ ] Meets "good enough" criteria
@@ -235,6 +235,15 @@ If user selects "Let me describe it", follow up with a text prompt for their cus
 
 Resolve a unique run directory, then use the Write tool to create its `session-intent.md`:
 
+Carry the Step 0 decisions into `ALLOCATION_RISK`, `ALLOCATION_INITIATIVE`,
+`ALLOCATION_CONTROL`, `ALLOCATION_DECISION_RIGHTS`, `ALLOCATION_AI_ROLE`,
+`ALLOCATION_DISPOSITION`, `ALLOCATION_ESCALATION`, and `ALLOCATION_MODE`.
+The last field records the resolved mode, including the contract-only sentinel
+for human-only work. Use the contract-only `pending-user-decision` sentinel
+while the allocation is unresolved; do not invent an
+allocation to fill the template. Pending and human-only contracts do not permit
+AI execution.
+
 ```bash
 PLAN_STORAGE="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/plan-storage.sh"
 if ! OCTO_PLAN_DIR=$("$PLAN_STORAGE" current "$PWD" 2>/dev/null); then
@@ -247,6 +256,14 @@ if [[ -z "$OCTO_PLAN_DIR" || ! -d "$OCTO_PLAN_DIR" ]]; then
   echo "Plan storage returned no valid directory; no intent file was written." >&2
   return 1 2>/dev/null || exit 1
 fi
+for allocation_field in ALLOCATION_RISK ALLOCATION_INITIATIVE ALLOCATION_CONTROL \
+  ALLOCATION_DECISION_RIGHTS ALLOCATION_AI_ROLE ALLOCATION_DISPOSITION \
+  ALLOCATION_ESCALATION ALLOCATION_MODE; do
+  if [[ -z "${!allocation_field:-}" ]]; then
+    echo "Missing Task Allocation field: $allocation_field; no intent file was written." >&2
+    return 1 2>/dev/null || exit 1
+  fi
+done
 cat > "${OCTO_PLAN_DIR}/session-intent.md" <<EOF
 # Intent Contract
 
@@ -276,6 +293,16 @@ ${BOUNDARIES}
 
 ## Clarifying Context
 ${THREE_QUESTION_ANSWERS}
+
+## Task Allocation
+**Risk**: ${ALLOCATION_RISK}
+**Initiative**: ${ALLOCATION_INITIATIVE}
+**Control**: ${ALLOCATION_CONTROL}
+**Decision rights**: ${ALLOCATION_DECISION_RIGHTS}
+**AI role**: ${ALLOCATION_AI_ROLE}
+**Execution disposition**: ${ALLOCATION_DISPOSITION}
+**Escalation decision**: ${ALLOCATION_ESCALATION}
+**Resolved AUTONOMY_MODE**: ${ALLOCATION_MODE}
 
 ## Validation Checklist
 - [ ] Meets "good enough" criteria

@@ -50,7 +50,11 @@ class Guards(unittest.TestCase):
             plugin = Path(directory)
             helper = plugin / 'scripts/plan-storage.sh'
             helper.parent.mkdir()
-            env = dict(os.environ, CLAUDE_PLUGIN_ROOT=str(plugin))
+            env = dict(os.environ, CLAUDE_PLUGIN_ROOT=str(plugin),
+                       ALLOCATION_RISK='low', ALLOCATION_INITIATIVE='AI',
+                       ALLOCATION_CONTROL='AI', ALLOCATION_DECISION_RIGHTS='AI',
+                       ALLOCATION_AI_ROLE='executor', ALLOCATION_DISPOSITION='AI-assisted',
+                       ALLOCATION_ESCALATION='not-needed', ALLOCATION_MODE='autonomous')
             for tree in TREES:
                 block = next(b for b in blocks(tree, 'skill-intent-contract') if 'PLAN_STORAGE=' in b)
                 guard = block.split('cat >', 1)[0] + '\nprintf reached-write'

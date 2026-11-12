@@ -45,25 +45,22 @@ mkdir -p "$DESIGNS_DIR"
 Design documents follow a strict naming convention:
 
 ```
-{user}-{branch}-design-{datetime}.md
+{user}-{branch}-design-{datetime}-{unique}.md
 ```
 
 Where:
 - `{user}` -- the current OS username (`$USER` or `whoami`)
 - `{branch}` -- the current git branch, sanitized (slashes replaced with dashes)
 - `{datetime}` -- ISO 8601 compact timestamp (`YYYYMMDD-HHmmss`)
+- `{unique}` -- suffix reserved by `tempfile.mkstemp` to prevent collisions
 
 Example:
 ```
-chris-feature-auth-refactor-design-20260321-143022.md
+chris-feature-auth-refactor-design-20260321-143022-a8x2k9qr.md
 ```
 
-Resolution:
-```bash
-BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '-' || echo "no-branch")
-DATETIME=$(date -u +"%Y%m%d-%H%M%S")
-FILENAME="${USER}-${BRANCH}-design-${DATETIME}.md"
-```
+Step 1 reserves the complete path before writing. The timestamp describes when
+the design was saved; the reserved suffix keeps simultaneous saves distinct.
 
 
 ## Design Document Template
@@ -126,8 +123,16 @@ mkdir -p "$DESIGNS_DIR"
 
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '-' || echo "no-branch")
 DATETIME=$(date -u +"%Y%m%d-%H%M%S")
-FILENAME="${USER}-${BRANCH}-design-${DATETIME}.md"
-FILEPATH="${DESIGNS_DIR}/${FILENAME}"
+FILEPATH=$(python3 - "$DESIGNS_DIR" "${USER}-${BRANCH}-design-${DATETIME}-" <<'PY_DESIGN_PATH'
+import os
+import sys
+import tempfile
+descriptor, path = tempfile.mkstemp(prefix=sys.argv[2], suffix='.md', dir=sys.argv[1])
+os.close(descriptor)
+print(path)
+PY_DESIGN_PATH
+) || exit 1
+FILENAME=${FILEPATH##*/}
 
 cat > "$FILEPATH" <<EOF
 branch: $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "no-branch")

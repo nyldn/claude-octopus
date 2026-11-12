@@ -373,10 +373,20 @@ fi
 
 ### Step 4: Setup Debate Folder
 ```bash
-# Create debate directory structure
-DEBATE_BASE_DIR="${HOME}/.claude-octopus/debates/${CLAUDE_CODE_SESSION:-./debates}"
-DEBATE_ID="042-redis-vs-memcached"
-DEBATE_DIR="${DEBATE_BASE_DIR}/${DEBATE_ID}"
+# Reserve a new topic-specific directory for this run.
+DEBATE_BASE_DIR="${HOME}/.claude-octopus/debates"
+DEBATE_DIR=$(python3 - "$DEBATE_BASE_DIR" "$QUESTION" <<'PY_DEBATE_DIR'
+from pathlib import Path
+import re
+import sys
+import tempfile
+base = Path(sys.argv[1])
+base.mkdir(parents=True, exist_ok=True)
+slug = re.sub(r'[^a-z0-9]+', '-', sys.argv[2].lower()).strip('-')[:64] or 'debate'
+print(tempfile.mkdtemp(prefix=slug + '-', dir=base))
+PY_DEBATE_DIR
+) || exit 1
+DEBATE_ID=${DEBATE_DIR##*/}
 
 mkdir -p "${DEBATE_DIR}/rounds"
 
@@ -404,23 +414,29 @@ ${QUESTION}
 [If claude-mem is installed, search for past debates or decisions on this topic using its MCP tools]
 EOF
 
-# Initialize state.json
-cat > "${DEBATE_DIR}/state.json" <<EOF
-{
-  "debate_id": "${DEBATE_ID}",
-  "question": "${QUESTION}",
-  "rounds_total": ${ROUNDS},
-  "rounds_completed": 0,
-  "advisors": [$(echo "$ADVISORS" | sed 's/,/", "/g' | sed 's/^/"/' | sed 's/$/"/')],
-  "user_context": {
-    "goal": "${USER_GOAL}",
-    "priority": "${USER_PRIORITY}",
-    "constraints": "${USER_CONSTRAINTS}"
-  },
-  "status": "active",
-  "created_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+# Encode user text as JSON data rather than shell-generated JSON syntax.
+python3 - "$DEBATE_DIR/state.json" "$DEBATE_ID" "$QUESTION" "$ROUNDS" \
+  "$ADVISORS" "$USER_GOAL" "$USER_PRIORITY" "$USER_CONSTRAINTS" <<'PY_DEBATE_STATE'
+from datetime import datetime, timezone
+from pathlib import Path
+import json
+import sys
+path, run_id, question, rounds, advisors, goal, priority, constraints = sys.argv[1:]
+rounds = int(rounds)
+if rounds < 1:
+    raise SystemExit('Debate rounds must be positive')
+state = {
+    'debate_id': run_id, 'question': question,
+    'rounds_total': rounds, 'rounds_completed': 0,
+    'advisors': [seat.strip() for seat in advisors.split(',') if seat.strip()],
+    'user_context': {'goal': goal, 'priority': priority, 'constraints': constraints},
+    'status': 'active',
+    'created_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
 }
-EOF
+with Path(path).open('x', encoding='utf-8') as stream:
+    json.dump(state, stream, ensure_ascii=False, indent=2)
+    stream.write('\n')
+PY_DEBATE_STATE
 ```
 
 ### Step 5: Conduct Rounds
