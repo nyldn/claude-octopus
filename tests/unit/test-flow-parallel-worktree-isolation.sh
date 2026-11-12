@@ -24,6 +24,7 @@ test_suite "flow-parallel worktree isolation"
 SKILL_FILES=(
     "$(resolve_claude_skill_path flow-parallel)"
     "$PROJECT_ROOT/skills/flow-parallel/SKILL.md"
+    "$PROJECT_ROOT/codex-skills/flow-parallel/SKILL.md"
 )
 
 # The launch template lives in a fenced heredoc inside the skill. Render it the
@@ -64,19 +65,23 @@ for f in "${SKILL_FILES[@]}"; do
 done
 if [[ -z "$bad" ]]; then test_pass; else test_fail "session-branch reuse:$bad"; fi
 
-test_case "neither copy aborts before recording exit-code and .done"
+test_case "every launch template parses under strict Bash error handling"
 bad=""
 for f in "${SKILL_FILES[@]}"; do
     tpl="$(extract_launch_template "$f")"
-    grep -qE '^set -e' <<< "$tpl" && bad="$bad ${f#"$PROJECT_ROOT"/}(set -e)"
+    if ! grep -q '^set -euo pipefail$' <<< "$tpl" || ! bash -n <<< "$tpl"; then
+        bad="$bad ${f#"$PROJECT_ROOT"/}"
+    fi
 done
-if [[ -z "$bad" ]]; then test_pass; else test_fail "agent failure can skip the markers:$bad"; fi
+if [[ -z "$bad" ]]; then test_pass; else test_fail "launcher syntax or strict mode missing:$bad"; fi
 
 # --- behavioural cases, against a throwaway repo and a stub agent -------------
 
 FIXTURE="$TEST_TMP_DIR/repo"
 STUB_BIN="$TEST_TMP_DIR/bin"
-mkdir -p "$FIXTURE" "$STUB_BIN"
+STUB_PLUGIN="$TEST_TMP_DIR/plugin root 'quoted'"
+mkdir -p "$FIXTURE" "$STUB_BIN" "$STUB_PLUGIN/.claude-plugin"
+printf '%s\n' '{}' > "$STUB_PLUGIN/.claude-plugin/plugin.json"
 
 git -C "$FIXTURE" init --quiet -b main
 git -C "$FIXTURE" config user.email octo@example.com
@@ -91,6 +96,7 @@ make_stub() {
     # Replace the billed agent with deterministic fixture behavior.
     cat > "$STUB_BIN/claude" <<SH
 #!/usr/bin/env bash
+printf '%s\0' "\$@" > "\$PARALLEL_ARG_CAPTURE"
 cat > /dev/null
 $1
 SH
@@ -102,8 +108,14 @@ run_package() {
     local wp_id="$1" branch="$2" dir="$TEST_TMP_DIR/$1" root="${3:-$FIXTURE}"
     mkdir -p "$dir"
     printf 'do the thing\n' > "$dir/instructions.md"
+    printf '%s\n' "$STUB_PLUGIN" > "$dir/plugin-root"
     render_launch "${SKILL_FILES[0]}" "$root" "$wp_id" "$branch" main "$dir/launch.sh"
-    ( PATH="$STUB_BIN:$PATH" HOME="$TEST_TMP_DIR/home" bash "$dir/launch.sh" ) >/dev/null 2>&1 || true
+    if ( PATH="$STUB_BIN:$PATH" HOME="$TEST_TMP_DIR/home" \
+         PARALLEL_ARG_CAPTURE="$dir/argv" bash "$dir/launch.sh" ) >/dev/null 2>&1; then
+        PARALLEL_LAST_STATUS=0
+    else
+        PARALLEL_LAST_STATUS=$?
+    fi
 }
 
 test_case "two packages each get their own worktree and branch"
@@ -133,11 +145,30 @@ else
     test_fail "commits=$commits; committed package worktree or registration was not reclaimed"
 fi
 
+test_case "completed package artifacts identify its surviving branch and commit"
+expected_sha="$(git -C "$FIXTURE" rev-parse octo/wp-clean)"
+if [[ "$(cat "$TEST_TMP_DIR/WP-CLEAN/branch")" == "octo/wp-clean" &&
+      "$(cat "$TEST_TMP_DIR/WP-CLEAN/commit-sha")" == "$expected_sha" ]]; then
+    test_pass
+else
+    test_fail "completed branch and commit are missing after worktree cleanup"
+fi
+
+test_case "the worker receives the verified plugin root as a single argument"
+if python3 - "$TEST_TMP_DIR/WP-CLEAN/argv" "$STUB_PLUGIN" <<'PY_ARGV'
+from pathlib import Path
+import sys
+args = Path(sys.argv[1]).read_bytes().split(b'\0')[:-1]
+assert args == [b'--plugin-dir', sys.argv[2].encode(), b'-p'], args
+PY_ARGV
+then test_pass; else test_fail "worker plugin loading arguments changed"; fi
+
 test_case "uncommitted work is kept, not force-removed"
 make_stub 'printf "unsaved\n" > stranded.txt; echo done'
 run_package WP-3 octo/wp-3
 kept_dir="$FIXTURE/../.octo-worktree-repo-WP-3"
-if [[ -f "$kept_dir/stranded.txt" ]]; then
+if [[ -f "$kept_dir/stranded.txt" && "$PARALLEL_LAST_STATUS" -eq 65 &&
+      "$(cat "$TEST_TMP_DIR/WP-3/exit-code")" == "65" ]]; then
     test_pass
 else
     test_fail "the worktree was discarded with uncommitted work in it"
@@ -148,7 +179,7 @@ test_case "a failing agent still records exit-code and .done"
 make_stub 'exit 42'
 run_package WP-4 octo/wp-4
 code="$(cat "$TEST_TMP_DIR/WP-4/exit-code" 2>/dev/null || echo missing)"
-if [[ -f "$TEST_TMP_DIR/WP-4/.done" && "$code" == "42" ]]; then
+if [[ -f "$TEST_TMP_DIR/WP-4/.done" && "$code" == "42" && "$PARALLEL_LAST_STATUS" -eq 42 ]]; then
     test_pass
 else
     test_fail "exit-code=$code done=$([[ -f "$TEST_TMP_DIR/WP-4/.done" ]] && echo yes || echo no)"
@@ -202,7 +233,7 @@ export MARKER_DIR
 # shellcheck disable=SC2016
 make_stub '[[ ! -e "$MARKER_DIR/.done" && ! -e "$MARKER_DIR/exit-code" ]] || exit 91; echo fresh retry'
 run_package WP-RETRY octo/wp-retry
-if [[ "$(cat "$MARKER_DIR/exit-code")" == "0" && -f "$MARKER_DIR/.done" ]] &&
+if [[ "$(cat "$MARKER_DIR/exit-code")" == "66" && "$PARALLEL_LAST_STATUS" -eq 66 && -f "$MARKER_DIR/.done" ]] &&
     grep -q 'fresh retry' "$MARKER_DIR/output.md"; then
     test_pass
 else
@@ -235,6 +266,59 @@ if [[ "$(cat "$TEST_TMP_DIR/WP-STATUSFAIL/exit-code")" == "1" &&
     test_pass
 else
     test_fail "a failed status check was treated as a clean worktree"
+fi
+
+
+# Remove only this fixture Git wrapper before the fault-injection cases.
+rm -f "$STUB_BIN/git"
+
+test_case "a missing plugin root fails before creating a worktree or invoking the worker"
+missing_dir="$TEST_TMP_DIR/WP-MISSING-PLUGIN"
+mkdir -p "$missing_dir"
+printf 'task\n' > "$missing_dir/instructions.md"
+printf '%s\n' "$TEST_TMP_DIR/not-installed" > "$missing_dir/plugin-root"
+render_launch "${SKILL_FILES[0]}" "$FIXTURE" WP-MISSING-PLUGIN octo/missing-plugin main "$missing_dir/launch.sh"
+missing_status=0
+PATH="$STUB_BIN:$PATH" HOME="$TEST_TMP_DIR/home" PARALLEL_ARG_CAPTURE="$missing_dir/argv" \
+    bash "$missing_dir/launch.sh" >/dev/null 2>&1 || missing_status=$?
+if [[ "$missing_status" -ne 0 && "$(cat "$missing_dir/exit-code")" != 0 &&
+      -f "$missing_dir/.done" && ! -e "$missing_dir/argv" ]] &&
+    ! git -C "$FIXTURE" show-ref --verify --quiet refs/heads/octo/missing-plugin; then
+    test_pass
+else
+    test_fail "worker dispatch proceeded without a verified plugin root"
+fi
+
+test_case "an unexpected strict-mode error records a nonzero completion marker"
+fault_dir="$TEST_TMP_DIR/WP-FAULT"
+mkdir -p "$fault_dir"
+printf 'task\n' > "$fault_dir/instructions.md"
+printf '%s\n' "$STUB_PLUGIN" > "$fault_dir/plugin-root"
+render_launch "${SKILL_FILES[0]}" "$FIXTURE" WP-FAULT octo/fault main "$fault_dir/launch.sh"
+python3 - "$fault_dir/launch.sh" <<'PY_FAULT'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text()
+needle = 'REGISTRY="$PLUGIN_ROOT/scripts/agent-registry.sh"\n'
+assert text.count(needle) == 1
+path.write_text(text.replace(needle, needle + 'false\n'))
+PY_FAULT
+fault_status=0
+PATH="$STUB_BIN:$PATH" HOME="$TEST_TMP_DIR/home" PARALLEL_ARG_CAPTURE="$fault_dir/argv" \
+    bash "$fault_dir/launch.sh" >/dev/null 2>&1 || fault_status=$?
+if [[ "$fault_status" -ne 0 && "$(cat "$fault_dir/exit-code")" != 0 &&
+      -f "$fault_dir/.done" && ! -e "$fault_dir/argv" ]]; then
+    test_pass
+else
+    test_fail "strict-mode failure omitted its completion evidence"
+fi
+
+test_case "aggregation reads actual WBS IDs in a fresh shell and rejects incomplete success"
+if python3 "$PROJECT_ROOT/tests/fixtures/native-skills/parallel-aggregation.py" "$PROJECT_ROOT"; then
+    test_pass
+else
+    test_fail "parallel result aggregation lost or overstated work-package results"
 fi
 
 test_summary

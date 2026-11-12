@@ -298,7 +298,10 @@ DEPEOF
 
 ### STEP 5: Generate Instruction Files (MANDATORY)
 
-For each work package in the WBS, create an instructions file and a launch script.
+For each work package in the WBS, create an instructions file, a launch script,
+and a `plugin-root` data file. Resolve the plugin root from the loaded entry and
+verify its `.claude-plugin/plugin.json`. Write that absolute path as one UTF-8
+line to each package's `plugin-root`; do not substitute it into shell source.
 
 **For each WP-N, create:**
 
@@ -335,9 +338,12 @@ cat > ".octo/parallel/WP-N/instructions.md" << 'INSTREOF'
 - Verify your changes work by running or testing them before completing
 - If you break existing tests, fix them — do not delete or skip them
 
-## Committing (MANDATORY if you changed any file)
-- Commit your work to this package's own branch before you finish. The worktree is removed once
-  your commit exists and the tree is clean. Uncommitted work is retained for recovery.
+## Committing (MANDATORY)
+- Each package must produce a new commit on its own branch and leave the tree
+  clean. Scope a report to an explicit repository path for a documentation or
+  research package. Do not create an empty commit to satisfy this gate.
+- A successful, committed package's worktree is removed. Failed or uncommitted
+  work is retained for recovery.
 - Stage explicit paths. Never `git add -A` or `git add .` — the coordination directory and other
   packages' stray files must not enter your commit.
 
@@ -356,12 +362,25 @@ INSTREOF
 ```bash
 cat > ".octo/parallel/WP-N/launch.sh" << 'LAUNCHEOF'
 #!/bin/bash
+set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${0}")" && pwd)"
 PROJECT_ROOT="<absolute-project-root-path>"
 WP_ID="WP-N"
 WP_BRANCH="<wp-branch-name>"
 BASE_REF="<base-ref>"
-REGISTRY="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/agent-registry.sh"
+REGISTRY=""
+
+record_unfinished_exit() {
+    local status=$?
+    trap - EXIT
+    if [[ ! -f "$SCRIPT_DIR/.done" ]]; then
+        [[ "$status" -ne 0 ]] || status=1
+        printf '%s\n' "$status" > "$SCRIPT_DIR/exit-code" || true
+        touch "$SCRIPT_DIR/.done" || true
+    fi
+    exit "$status"
+}
+trap record_unfinished_exit EXIT
 
 # Every exit path must leave exit-code and .done behind, or the orchestrator's
 # monitor loop waits for a marker that never arrives and only the wave timeout
@@ -377,7 +396,12 @@ fail() {
 }
 
 # A retry must not inherit the previous run's completion status.
-rm -f "$SCRIPT_DIR/.done" "$SCRIPT_DIR/exit-code" || fail "ERROR: cannot clear completion markers"
+rm -f "$SCRIPT_DIR/.done" "$SCRIPT_DIR/exit-code" "$SCRIPT_DIR/branch" \
+    "$SCRIPT_DIR/commit-sha" || fail "ERROR: cannot clear completion markers"
+PLUGIN_ROOT="$(cat "$SCRIPT_DIR/plugin-root")" || fail "ERROR: missing verified plugin root"
+[[ "$PLUGIN_ROOT" == /* && -f "$PLUGIN_ROOT/.claude-plugin/plugin.json" ]] || \
+    fail "ERROR: plugin-root does not identify an installed plugin"
+REGISTRY="$PLUGIN_ROOT/scripts/agent-registry.sh"
 # Hook environments can otherwise redirect Git away from PROJECT_ROOT.
 while IFS= read -r git_var; do unset "$git_var"; done < <(git rev-parse --local-env-vars)
 
@@ -422,11 +446,14 @@ cd "$WORKTREE_DIR" || fail "ERROR: cannot enter $WORKTREE_DIR"
 unset CLAUDECODE
 # v8.32.0: Credential isolation — work packages don't need provider keys
 unset OPENAI_API_KEY AGY_AUTH_TOKEN ANTIGRAVITY_API_KEY OPENROUTER_API_KEY PERPLEXITY_API_KEY
-# No `set -e` around this call: a non-zero claude -p must still record its exit
-# code and .done rather than abort the script before either is written.
-claude -p < "$SCRIPT_DIR/instructions.md" > "$SCRIPT_DIR/output.md" 2>"$SCRIPT_DIR/agent.log"
-EXIT_CODE=$?
-echo $EXIT_CODE > "$SCRIPT_DIR/exit-code"
+# Capture provider failure explicitly so strict mode still records its status.
+if claude --plugin-dir "$PLUGIN_ROOT" -p < "$SCRIPT_DIR/instructions.md" \
+    > "$SCRIPT_DIR/output.md" 2>"$SCRIPT_DIR/agent.log"; then
+    EXIT_CODE=0
+else
+    EXIT_CODE=$?
+fi
+printf '%s\n' "$EXIT_CODE" > "$SCRIPT_DIR/exit-code"
 
 # Update agent registry with completion status
 if [[ -x "$REGISTRY" ]]; then
@@ -446,18 +473,27 @@ UNCOMMITTED="$(git -C "$WORKTREE_DIR" status --porcelain 2>/dev/null)" ||
 COMMITS="$(git -C "$WORKTREE_DIR" rev-list --count "$BASE_REF..HEAD" 2>/dev/null)" ||
     fail "ERROR: cannot inspect worktree commits; retained $WORKTREE_DIR"
 echo "$COMMITS" > "$SCRIPT_DIR/commit-count"
-cd "$PROJECT_ROOT"
-if [[ -z "$UNCOMMITTED" && "$COMMITS" -gt 0 ]]; then
+COMMIT_SHA="$(git -C "$WORKTREE_DIR" rev-parse --verify HEAD)" ||
+    fail "ERROR: cannot identify the package commit; retained $WORKTREE_DIR"
+printf '%s\n' "$WP_BRANCH" > "$SCRIPT_DIR/branch"
+printf '%s\n' "$COMMIT_SHA" > "$SCRIPT_DIR/commit-sha"
+cd "$PROJECT_ROOT" || fail "ERROR: cannot return to project root"
+if [[ "$EXIT_CODE" -ne 0 ]]; then
+    echo "KEPT $WORKTREE_DIR: agent exited $EXIT_CODE on $WP_BRANCH" >> "$SCRIPT_DIR/agent.log"
+elif [[ -z "$UNCOMMITTED" && "$COMMITS" -gt 0 ]]; then
     git worktree remove "$WORKTREE_DIR" 2>/dev/null ||
         fail "ERROR: cannot remove worktree; retained $WORKTREE_DIR"
 elif [[ -n "$UNCOMMITTED" ]]; then
     echo "KEPT $WORKTREE_DIR: uncommitted work present on $WP_BRANCH" \
         >> "$SCRIPT_DIR/agent.log"
+    fail "ERROR: package left uncommitted work; retained $WORKTREE_DIR" 65
 else
     echo "KEPT $WORKTREE_DIR: no commits beyond $BASE_REF on $WP_BRANCH" \
         >> "$SCRIPT_DIR/agent.log"
+    fail "ERROR: package produced no new commit; retained $WORKTREE_DIR" 66
 fi
 touch "$SCRIPT_DIR/.done"
+exit "$EXIT_CODE"
 LAUNCHEOF
 
 chmod +x ".octo/parallel/WP-N/launch.sh"
@@ -476,26 +512,36 @@ reason is appended to `agent.log`.
 **Validation gate: `instructions_written`** — Verify all instruction files exist:
 
 ```bash
-# Count WPs from wbs.json
-wp_count=$(python3 -c "import json; print(len(json.load(open('.octo/parallel/wbs.json'))['work_packages']))")
-
-# Verify each WP has instructions.md and launch.sh
+if ! WP_IDS=$(python3 - <<'PY_WP_IDS'
+import json
+import re
+with open('.octo/parallel/wbs.json') as stream:
+    ids = [package['id'] for package in json.load(stream)['work_packages']]
+if not ids or any(not isinstance(value, str) or not re.fullmatch(r'WP-[0-9]+', value) for value in ids):
+    raise SystemExit('Invalid work-package inventory')
+if len(ids) != len(set(ids)):
+    raise SystemExit('Duplicate work-package IDs')
+print(' '.join(ids))
+PY_WP_IDS
+); then
+  echo "Cannot validate an invalid WBS." >&2
+  return 1 2>/dev/null || exit 1
+fi
+WP_COUNT=$(printf '%s\n' "$WP_IDS" | wc -w | tr -d ' ')
 missing=0
-for i in $(seq 1 "$wp_count"); do
-  if [[ ! -f ".octo/parallel/WP-$i/instructions.md" ]]; then
-    echo "MISSING: .octo/parallel/WP-$i/instructions.md"
-    missing=$((missing + 1))
-  fi
-  if [[ ! -f ".octo/parallel/WP-$i/launch.sh" ]]; then
-    echo "MISSING: .octo/parallel/WP-$i/launch.sh"
-    missing=$((missing + 1))
-  fi
+for WP_ID in $WP_IDS; do
+  for artifact in instructions.md launch.sh plugin-root; do
+    if [[ ! -s ".octo/parallel/$WP_ID/$artifact" ]]; then
+      printf 'MISSING: .octo/parallel/%s/%s\n' "$WP_ID" "$artifact"
+      missing=$((missing + 1))
+    fi
+  done
 done
-
 if [[ "$missing" -eq 0 ]]; then
-  echo "Instruction files validation: PASSED ($wp_count work packages)"
+  echo "Instruction files validation: PASSED ($WP_COUNT work packages)"
 else
-  echo "Instruction files validation: FAILED ($missing files missing)"
+  echo "Instruction files validation: FAILED ($missing files missing)" >&2
+  return 1 2>/dev/null || exit 1
 fi
 ```
 
@@ -629,48 +675,60 @@ echo "All waves executed."
 
 ### STEP 7: Aggregate & Present (MANDATORY)
 
-After all work packages complete (or timeout), aggregate results.
+After all work packages complete (or timeout), aggregate results. Report each
+package's branch and commit even when its worktree has been removed. These
+commits remain on their package branches; do not describe them as integrated
+into the current branch. Present the integration order and obtain approval
+before merging them unless the user already authorized that integration.
 
 **Read all outputs and exit codes:**
 
 ```bash
+# Read the inventory again: each tool call may start in a fresh shell.
+if ! WP_IDS=$(python3 - <<'PY_WP_IDS'
+import json
+import re
+with open('.octo/parallel/wbs.json') as stream:
+    packages = json.load(stream)['work_packages']
+ids = [package['id'] for package in packages]
+if not ids or any(not isinstance(value, str) or not re.fullmatch(r'WP-[0-9]+', value) for value in ids):
+    raise SystemExit('Invalid work-package inventory')
+if len(ids) != len(set(ids)):
+    raise SystemExit('Duplicate work-package IDs')
+print(' '.join(ids))
+PY_WP_IDS
+); then
+  echo "Cannot aggregate an invalid WBS." >&2
+  return 1 2>/dev/null || exit 1
+fi
+WP_COUNT=$(printf '%s\n' "$WP_IDS" | wc -w | tr -d ' ')
 echo "=== WORK PACKAGE RESULTS ==="
-echo ""
-
 FAILED=0
 SUCCEEDED=0
-
-for i in $(seq 1 "$WP_COUNT"); do
-  WP_DIR=".octo/parallel/WP-$i"
-
-  if [[ -f "$WP_DIR/exit-code" ]]; then
-    EXIT_CODE=$(cat "$WP_DIR/exit-code")
-  else
-    EXIT_CODE="N/A (not completed)"
-  fi
-
-  if [[ "$EXIT_CODE" == "0" ]]; then
+for WP_ID in $WP_IDS; do
+  WP_DIR=".octo/parallel/$WP_ID"
+  EXIT_CODE=$(cat "$WP_DIR/exit-code" 2>/dev/null) || EXIT_CODE="missing"
+  BRANCH=$(cat "$WP_DIR/branch" 2>/dev/null) || BRANCH=""
+  COMMIT_SHA=$(cat "$WP_DIR/commit-sha" 2>/dev/null) || COMMIT_SHA=""
+  if [[ -f "$WP_DIR/.done" && "$EXIT_CODE" == "0" && -n "$BRANCH" && -n "$COMMIT_SHA" ]]; then
     STATUS="SUCCESS"
     SUCCEEDED=$((SUCCEEDED + 1))
   else
-    STATUS="FAILED (exit code: $EXIT_CODE)"
+    STATUS="FAILED (exit code: $EXIT_CODE; a committed result is required)"
     FAILED=$((FAILED + 1))
   fi
-
-  echo "WP-$i: $STATUS"
-
+  printf '%s: %s\n' "$WP_ID" "$STATUS"
+  printf '  Branch: %s\n  Commit: %s\n' "${BRANCH:-unavailable}" "${COMMIT_SHA:-unavailable}"
   if [[ -f "$WP_DIR/output.md" ]]; then
     OUTPUT_SIZE=$(wc -c < "$WP_DIR/output.md" | tr -d ' ')
-    echo "  Output: $OUTPUT_SIZE bytes"
+    printf '  Output: %s bytes\n' "$OUTPUT_SIZE"
   else
     echo "  Output: MISSING"
   fi
-
-  echo ""
 done
-
 echo "=== SUMMARY ==="
 echo "Total: $WP_COUNT | Succeeded: $SUCCEEDED | Failed: $FAILED"
+[[ "$FAILED" -eq 0 ]]
 ```
 
 **Then read each output.md** using the Read tool and **review quality before declaring success:**
