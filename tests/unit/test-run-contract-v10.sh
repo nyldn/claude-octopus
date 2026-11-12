@@ -413,4 +413,61 @@ while read -r from terminal; do
         "$edge_seat" "$terminal" "reason=duplicate"
 done <<< "$terminal_edges"
 
+reservation_dir="$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID/reservations"
+
+test_case "a first seat reservation writes nothing to stderr"
+reserve_stderr="$TEST_TMP_DIR/reserve-first.stderr"
+reserve_rc=0
+run_contract_reserve_seat reserve-first 4242 2>"$reserve_stderr" || reserve_rc=$?
+if [[ "$reserve_rc" -eq 0 && ! -s "$reserve_stderr" && "$(cat "$reservation_dir/reserve-first")" == 4242 ]]; then
+    test_pass
+else
+    test_fail "expected a silent first reservation, got rc=$reserve_rc: $(cat "$reserve_stderr")"
+fi
+
+zombie_pid_file="$TEST_TMP_DIR/zombie.pid"
+python3 -c 'import os, time
+child = os.fork()
+if child == 0:
+    os._exit(0)
+print(child, flush=True)
+time.sleep(60)' > "$zombie_pid_file" &
+zombie_parent=$!
+zombie_pid=""
+zombie_state=""
+for _ in $(seq 1 200); do
+    zombie_pid="$(cat "$zombie_pid_file")"
+    zombie_state="$(ps -o stat= -p "${zombie_pid:-0}" 2>/dev/null | awk 'NR == 1 { print $1 }')" || true
+    [[ "$zombie_state" == Z* ]] && break
+    sleep 0.05
+done
+
+test_case "a zombie holder does not keep a seat reservation"
+reserve_rc=0
+printf '%s\n' "$zombie_pid" > "$reservation_dir/reserve-zombie"
+run_contract_reserve_seat reserve-zombie 4343 || reserve_rc=$?
+if [[ "$zombie_state" != Z* ]]; then
+    test_fail "fixture never produced a zombie, state: ${zombie_state:-none}"
+elif [[ "$reserve_rc" -eq 0 && "$(cat "$reservation_dir/reserve-zombie")" == 4343 ]]; then
+    test_pass
+else
+    test_fail "zombie holder $zombie_pid kept the reservation, rc=$reserve_rc"
+fi
+kill "$zombie_parent" 2>/dev/null || true
+wait "$zombie_parent" 2>/dev/null || true
+
+test_case "a running holder keeps its seat reservation"
+sleep 60 &
+live_holder=$!
+reserve_rc=0
+printf '%s\n' "$live_holder" > "$reservation_dir/reserve-live"
+run_contract_reserve_seat reserve-live 4444 || reserve_rc=$?
+if [[ "$reserve_rc" -eq 1 && "$(cat "$reservation_dir/reserve-live")" == "$live_holder" ]]; then
+    test_pass
+else
+    test_fail "running holder lost the reservation, rc=$reserve_rc"
+fi
+kill "$live_holder" 2>/dev/null || true
+wait "$live_holder" 2>/dev/null || true
+
 test_summary
