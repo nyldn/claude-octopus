@@ -82,7 +82,7 @@ export class CSSVariablesExtractor {
       const variables = this.parseCSSVariables(content);
 
       for (const variable of variables) {
-        const path = parseCSSVariableName(variable.name);
+        const tokenPath = parseCSSVariableName(variable.name);
 
         tokens.push({
           name: variable.name,
@@ -91,7 +91,7 @@ export class CSSVariablesExtractor {
           category: this.categorizeVariable(variable.name),
           source: TokenSource.CSS_VARIABLES,
           priority: 6, // Medium priority
-          path: createTokenPath(path),
+          path: createTokenPath(tokenPath),
           originalKey: variable.name,
           metadata: {
             selector: variable.selector,

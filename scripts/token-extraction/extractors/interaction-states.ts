@@ -337,7 +337,7 @@ export class InteractionStatesExtractor {
   private getMockStateStyles(selector: string, state: string): Record<string, string> {
     const base = this.getMockBaseStyles(selector);
 
-    const stateChanges: Record<string, Partial<Record<string, string>>> = {
+    const stateChanges: Record<string, Record<string, string>> = {
       hover: {
         backgroundColor: '#e5e7eb',
         borderColor: '#9ca3af',

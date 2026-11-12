@@ -20,31 +20,36 @@ A comprehensive TypeScript pipeline for extracting design tokens from multiple s
 
 ## Installation
 
-```bash
-# Install dependencies
-npm install glob
-npm install --save-dev @types/node
+Use Node.js 20.19 or later in the 20.x line, 22.12 or later in the 22.x line,
+or Node.js 24 and later.
 
-# Make CLI executable
-chmod +x scripts/token-extraction/cli.ts
+From the repository root:
+
+```bash
+cd scripts/token-extraction
+npm install --ignore-scripts --engine-strict
+npm run extract -- --help
 ```
 
 ## Quick Start
 
 ### CLI Usage
 
+Run these commands from `scripts/token-extraction`. Pass the project directory
+explicitly because npm runs the command inside the tool's package directory.
+
 ```bash
-# Extract all tokens from current project
-node scripts/token-extraction/cli.ts
+# Extract tokens from your project
+npm run extract -- --project /path/to/your/project
 
 # Extract only Tailwind and CSS variables
-node scripts/token-extraction/cli.ts --include-sources tailwind.config,css-variables
+npm run extract -- --project /path/to/your/project --include-sources tailwind.config,css-variables
 
 # Generate only JSON output
-node scripts/token-extraction/cli.ts --formats json
+npm run extract -- --project /path/to/your/project --formats json
 
-# Custom output directory
-node scripts/token-extraction/cli.ts --output ./tokens
+# Choose an output directory
+npm run extract -- --project /path/to/your/project --output /path/to/your/project/tokens
 ```
 
 ### Programmatic Usage
@@ -67,6 +72,11 @@ const result = await runTokenExtraction('/path/to/project', {
   validateTokens: true,
 });
 ```
+
+## Development checks
+
+Run `npm test` from this package. The CLI tests compile the entry point and
+extract CSS values into a JSON artifact without calling a provider.
 
 ## Architecture
 

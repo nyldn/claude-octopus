@@ -99,7 +99,7 @@ echo "Test 3: Checking init_project --dry-run..."
 setup
 
 output=$("$OCTO_STATE" init_project --dry-run 2>&1)
-if echo "$output" | grep -q "DRY RUN"; then
+if grep -q "DRY RUN" <<< "$output"; then
     pass "init_project --dry-run shows dry run message"
 else
     fail "init_project --dry-run failed" "Did not show DRY RUN message"
@@ -119,7 +119,7 @@ echo ""
 echo "Test 4: Checking init_project..."
 
 output=$("$OCTO_STATE" init_project 2>&1)
-if echo "$output" | grep -q "SUCCESS"; then
+if grep -q "SUCCESS" <<< "$output"; then
     pass "init_project succeeds"
 else
     fail "init_project failed" "$output"
@@ -188,7 +188,7 @@ echo ""
 echo "Test 5: Checking init_project idempotency..."
 
 output=$("$OCTO_STATE" init_project 2>&1)
-if echo "$output" | grep -q "already exists"; then
+if grep -q "already exists" <<< "$output"; then
     pass "init_project is idempotent (warns on existing)"
 else
     fail "init_project not idempotent" "Should warn when .octo/ exists"
@@ -202,19 +202,19 @@ echo ""
 echo "Test 6: Checking read_state..."
 
 output=$("$OCTO_STATE" read_state 2>&1)
-if echo "$output" | grep -q "schema="; then
+if grep -q "schema=" <<< "$output"; then
     pass "read_state returns schema"
 else
     fail "read_state missing schema" "Should return schema=value"
 fi
 
-if echo "$output" | grep -q "current_phase=1"; then
+if grep -q "current_phase=1" <<< "$output"; then
     pass "read_state returns current_phase=1"
 else
     fail "read_state wrong phase" "Should return current_phase=1"
 fi
 
-if echo "$output" | grep -q "status=ready"; then
+if grep -q "status=ready" <<< "$output"; then
     pass "read_state returns status=ready"
 else
     fail "read_state wrong status" "Should return status=ready"
@@ -230,19 +230,19 @@ echo "Test 7: Checking write_state..."
 "$OCTO_STATE" write_state --phase 2 --status planning --position "Planning phase 2" 2>&1
 output=$("$OCTO_STATE" read_state 2>&1)
 
-if echo "$output" | grep -q "current_phase=2"; then
+if grep -q "current_phase=2" <<< "$output"; then
     pass "write_state updates phase"
 else
     fail "write_state did not update phase" "Expected current_phase=2"
 fi
 
-if echo "$output" | grep -q "status=planning"; then
+if grep -q "status=planning" <<< "$output"; then
     pass "write_state updates status"
 else
     fail "write_state did not update status" "Expected status=planning"
 fi
 
-if echo "$output" | grep -q "current_position=Planning phase 2"; then
+if grep -q "current_position=Planning phase 2" <<< "$output"; then
     pass "write_state updates position"
 else
     fail "write_state did not update position" "Expected position='Planning phase 2'"
@@ -273,13 +273,13 @@ echo "Test 9: Checking update_phase shorthand..."
 "$OCTO_STATE" update_phase 3 "Building auth module" building 2>&1
 output=$("$OCTO_STATE" read_state 2>&1)
 
-if echo "$output" | grep -q "current_phase=3"; then
+if grep -q "current_phase=3" <<< "$output"; then
     pass "update_phase updates phase"
 else
     fail "update_phase did not update phase" "Expected current_phase=3"
 fi
 
-if echo "$output" | grep -q "status=building"; then
+if grep -q "status=building" <<< "$output"; then
     pass "update_phase updates status"
 else
     fail "update_phase did not update status" "Expected status=building"
@@ -325,13 +325,13 @@ echo ""
 echo "Test 12: Checking get_context_tier minimal..."
 
 output=$("$OCTO_STATE" get_context_tier minimal 2>&1)
-if echo "$output" | grep -q "Context Tier: minimal"; then
+if grep -q "Context Tier: minimal" <<< "$output"; then
     pass "get_context_tier minimal works"
 else
     fail "get_context_tier minimal failed" "Did not show tier name"
 fi
 
-if echo "$output" | grep -q "STATE.md"; then
+if grep -q "STATE.md" <<< "$output"; then
     pass "get_context_tier minimal includes STATE.md"
 else
     fail "get_context_tier minimal missing STATE.md" "Should include STATE.md"
@@ -345,13 +345,13 @@ echo ""
 echo "Test 13: Checking get_context_tier planning..."
 
 output=$("$OCTO_STATE" get_context_tier planning 2>&1)
-if echo "$output" | grep -q "PROJECT.md"; then
+if grep -q "PROJECT.md" <<< "$output"; then
     pass "get_context_tier planning includes PROJECT.md"
 else
     fail "get_context_tier planning missing PROJECT.md" "Should include PROJECT.md"
 fi
 
-if echo "$output" | grep -q "ROADMAP.md"; then
+if grep -q "ROADMAP.md" <<< "$output"; then
     pass "get_context_tier planning includes ROADMAP.md"
 else
     fail "get_context_tier planning missing ROADMAP.md" "Should include ROADMAP.md"
@@ -368,7 +368,7 @@ echo "Test 14: Checking get_context_tier auto..."
 "$OCTO_STATE" write_state --status building 2>&1
 output=$("$OCTO_STATE" get_context_tier auto 2>&1)
 
-if echo "$output" | grep -q "Context Tier: execution"; then
+if grep -q "Context Tier: execution" <<< "$output"; then
     pass "get_context_tier auto detects execution tier for building status"
 else
     fail "get_context_tier auto failed" "Should detect execution tier for building status"
