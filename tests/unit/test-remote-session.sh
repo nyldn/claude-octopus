@@ -42,10 +42,10 @@ if (
     unset OCTOPUS_SKIP_PROVIDER_PROBES OCTOPUS_REMOTE_SESSION CLAUDE_CODE_WEB \
         CLAUDE_OCTOPUS_AUTONOMY OCTOPUS_AUTONOMY
     export CLAUDE_CODE_REMOTE=true
-    source "$remote_defaults"
-    source "$PROJECT_ROOT/scripts/lib/auth.sh"
-    [[ "$CLAUDE_OCTOPUS_AUTONOMY" == autonomous && "$OCTOPUS_AUTONOMY" == autonomous ]]
-    [[ -z "${OCTOPUS_SKIP_PROVIDER_PROBES+x}" ]]
+    source "$remote_defaults" || exit 1
+    source "$PROJECT_ROOT/scripts/lib/auth.sh" || exit 1
+    [[ "$CLAUDE_OCTOPUS_AUTONOMY" == autonomous && "$OCTOPUS_AUTONOMY" == autonomous ]] || exit 1
+    [[ -z "${OCTOPUS_SKIP_PROVIDER_PROBES+x}" ]] || exit 1
     _octo_skip_discovery_probes
 ); then
     pass "remote sessions default to autonomous mode and skip discovery probes"
@@ -56,9 +56,9 @@ fi
 for probe_setting in true false; do
     if (
         export CLAUDE_CODE_REMOTE=true OCTOPUS_SKIP_PROVIDER_PROBES="$probe_setting"
-        source "$remote_defaults"
-        source "$PROJECT_ROOT/scripts/lib/auth.sh"
-        [[ "$OCTOPUS_SKIP_PROVIDER_PROBES" == "$probe_setting" ]]
+        source "$remote_defaults" || exit 1
+        source "$PROJECT_ROOT/scripts/lib/auth.sh" || exit 1
+        [[ "$OCTOPUS_SKIP_PROVIDER_PROBES" == "$probe_setting" ]] || exit 1
         if [[ "$probe_setting" == true ]]; then _octo_skip_discovery_probes; else ! _octo_skip_discovery_probes; fi
     ); then
         pass "remote sessions preserve explicit probe setting $probe_setting"
