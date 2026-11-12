@@ -2934,7 +2934,27 @@ case "$COMMAND" in
         }
         ;;
     spawn)
-        [[ $# -lt 2 ]] && { log ERROR "Usage: spawn <agent> <prompt>"; exit 1; }
+        [[ $# -lt 2 ]] && { log ERROR "Usage: spawn <agent> <prompt> | spawn <agent> --prompt-file <path>"; exit 1; }
+        _spawn_prompt="$2"
+        if [[ "$2" == "--prompt-file" ]]; then
+            [[ $# -eq 3 && -f "$3" && -r "$3" ]] || {
+                log ERROR "Usage: spawn <agent> --prompt-file <readable-file>"
+                exit 1
+            }
+            # Read prompt bytes as data. Never evaluate file contents as shell
+            # syntax; legacy positional prompts remain supported below.
+            # File input has a 16 MiB limit; cap the read even if the file grows.
+            _spawn_prompt="$(head -c 16777217 -- "$3" && printf '\001')" || {
+                log ERROR "Cannot read spawn prompt file"
+                exit 1
+            }
+            _spawn_prompt="${_spawn_prompt%$'\001'}"
+            _spawn_bytes="$(printf '%s' "$_spawn_prompt" | wc -c)"
+            if [[ "$_spawn_bytes" -gt 16777216 ]]; then
+                log ERROR "Spawn prompt file exceeds the 16 MiB limit"
+                exit 1
+            fi
+        fi
         _spawn_target="$1"
         _spawn_role=""
         _spawn_provider="$(resolve_persona_spawn_target "$_spawn_target" 2>/dev/null || true)"
@@ -2945,21 +2965,21 @@ case "$COMMAND" in
         case "$_spawn_target" in
             agy|agy-*|antigravity)
                 if [[ "$DRY_RUN" == "true" ]]; then
-                    spawn_agent "$_spawn_target" "$2" "" "${_spawn_role:-none}" "spawn"
+                    spawn_agent "$_spawn_target" "$_spawn_prompt" "" "${_spawn_role:-none}" "spawn"
                 else
                     log INFO "Running $_spawn_target synchronously because Antigravity CLI print mode does not emit output from background jobs"
-                    run_agent_sync "$_spawn_target" "$2" "$TIMEOUT" "${_spawn_role:-none}" "spawn"
+                    run_agent_sync "$_spawn_target" "$_spawn_prompt" "$TIMEOUT" "${_spawn_role:-none}" "spawn"
                 fi
                 ;;
             *)
                 if [[ -n "$_spawn_role" ]]; then
-                    spawn_agent "$_spawn_target" "$2" "" "$_spawn_role" "spawn"
+                    spawn_agent "$_spawn_target" "$_spawn_prompt" "" "$_spawn_role" "spawn"
                 else
-                    spawn_agent "$1" "$2"
+                    spawn_agent "$1" "$_spawn_prompt"
                 fi
                 ;;
         esac
-        _spawn_exit=$?; unset _spawn_target _spawn_role _spawn_provider
+        _spawn_exit=$?; unset _spawn_target _spawn_role _spawn_provider _spawn_prompt _spawn_bytes
         [[ "$_spawn_exit" -eq 0 ]] || exit "$_spawn_exit"
         ;;
     auto)

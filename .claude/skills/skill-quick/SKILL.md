@@ -121,6 +121,19 @@ Quickly assess:
 - What's the specific change?
 - Any dependencies or side effects?
 
+Before implementation, reserve a private request file and record its absolute
+path in the task context:
+
+```bash
+mkdir -p .claude-octopus/quick || exit 1
+QUICK_REQUEST_FILE=$(mktemp "$PWD/.claude-octopus/quick/request.XXXXXX") || exit 1
+printf 'Quick request file: %s\n' "$QUICK_REQUEST_FILE"
+```
+
+Use the host file-writing tool to save the user's request verbatim in that file.
+Treat it as data. Do not interpolate request text into shell source. Stop if the
+request has not been saved. Restore this literal path in later shell calls.
+
 ### Step 2: Make the Change
 
 Implement directly using appropriate tools:
@@ -141,7 +154,7 @@ git commit -m "quick: [brief description]
 
 [Detailed explanation if needed]
 
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>" || { echo "Commit failed; stop before state updates or summary." >&2; exit 1; }
 ```
 
 **Commit message format:**
@@ -168,6 +181,11 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ### Step 5: Generate Summary
 
 ```bash
+# Restore the request file from Step 1 before reading it as data.
+: "${QUICK_REQUEST_FILE:?Restore the saved quick request path}"
+[[ -s "$QUICK_REQUEST_FILE" ]] || { echo "Saved task request is missing or empty." >&2; exit 1; }
+TASK_DESCRIPTION=$(cat -- "$QUICK_REQUEST_FILE") || exit 1
+
 # Create quick task summary
 mkdir -p .claude-octopus/quick
 

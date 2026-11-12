@@ -70,8 +70,8 @@ this skill. The following examples are for direct CLI use or automation.
 "$OCTO_ROOT/scripts/orchestrate.sh" embrace "Build a user authentication system"
 
 # Individual phases
-"$OCTO_ROOT/scripts/orchestrate.sh" probe "Research authentication best practices"
-"$OCTO_ROOT/scripts/orchestrate.sh" grasp "Define auth requirements"
+"$OCTO_ROOT/scripts/orchestrate.sh" probe "Research authentication best practices" || exit 1
+"$OCTO_ROOT/scripts/orchestrate.sh" grasp "Define auth requirements" || exit 1
 "$OCTO_ROOT/scripts/orchestrate.sh" tangle "Implement auth feature"
 "$OCTO_ROOT/scripts/orchestrate.sh" ink "Validate and deliver auth implementation"
 
@@ -298,7 +298,7 @@ Parallel research from 4 perspectives:
 - Technical feasibility (prerequisites, dependencies)
 
 ```bash
-"$OCTO_ROOT/scripts/orchestrate.sh" probe "What are the best approaches for real-time notifications?"
+"$OCTO_ROOT/scripts/orchestrate.sh" probe "What are the best approaches for real-time notifications?" || exit 1
 ```
 
 ### Phase 2: GRASP (Define)
@@ -313,7 +313,7 @@ Multi-tentacled problem definition:
 # Optional second argument: no phase sets this variable; copy the path the probe
 # phase printed after "Probe synthesis saved to:"
 PROBE_SYNTHESIS="<printed probe-synthesis-*.md path>"
-"$OCTO_ROOT/scripts/orchestrate.sh" grasp "Define requirements for notification system" "$PROBE_SYNTHESIS"
+"$OCTO_ROOT/scripts/orchestrate.sh" grasp "Define requirements for notification system" "$PROBE_SYNTHESIS" || exit 1
 ```
 
 ### Phase 3: TANGLE (Develop)
@@ -653,12 +653,12 @@ export ORCAROUTER_API_KEY="sk-orca-..."
 ORIGINAL_WORKTREE="$(git rev-parse --show-toplevel)" || exit 1
 
 # 1. Explore the problem space
-"$OCTO_ROOT/scripts/orchestrate.sh" probe "Authentication patterns for microservices"
+"$OCTO_ROOT/scripts/orchestrate.sh" probe "Authentication patterns for microservices" || exit 1
 
 # 2. Define the approach (with the path step 1 printed after "Probe synthesis saved to:")
 PROBE_SYNTHESIS="<printed probe-synthesis-*.md path>"
 "$OCTO_ROOT/scripts/orchestrate.sh" grasp "OAuth2 with JWT for our API" \
-  "$PROBE_SYNTHESIS"
+  "$PROBE_SYNTHESIS" || exit 1
 
 # 3. Implement and validate the report from this invocation.
 RUN_MARKER=$(mktemp) || exit 1

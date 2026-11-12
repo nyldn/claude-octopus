@@ -189,14 +189,14 @@ factory_review_scenario_coverage() {
     if ! declare -f octo_launch_advisors >/dev/null 2>&1; then
         source "$factory_root/scripts/lib/consultative-advisors.sh" || return 1
     fi
-    local provider="" candidate
+    local provider candidate
+    local -a candidates=()
     for candidate in codex agy; do
         if command -v "$candidate" >/dev/null 2>&1 && octo_provider_allowed "$candidate"; then
-            provider="$candidate"
-            break
+            candidates+=("$candidate")
         fi
     done
-    if [[ -z "$provider" ]]; then
+    if [[ ${#candidates[@]} -eq 0 ]]; then
         log WARN "No allowed external provider is installed; scenario coverage is unreviewed"
         python3 -I "$helper" coverage --run-dir "$run_dir" --skipped skipped-unavailable
         return $?
@@ -216,14 +216,20 @@ $specification
 GENERATED SCENARIOS:
 $scenarios"
     mkdir -p "$run_dir/coverage-review" || return 1
-    if ! collected="$(octo_launch_advisors "$factory_root/scripts/orchestrate.sh" \
-            "$provider" "$run_dir/coverage-review" coverage- "$prompt" 1)" ||
-       [[ "$collected" != 1 ]]; then
-        log ERROR "Scenario coverage review did not complete; implementation stopped"
-        return 1
-    fi
-    python3 -I "$helper" coverage --run-dir "$run_dir" \
-        --response "$run_dir/coverage-review/coverage-$provider.md"
+    for provider in "${candidates[@]}"; do
+        if ! collected="$(octo_launch_advisors "$factory_root/scripts/orchestrate.sh" \
+                "$provider" "$run_dir/coverage-review" coverage- "$prompt" 1)" ||
+           [[ "$collected" != 1 ]]; then
+            log WARN "Scenario coverage reviewer $provider did not complete; trying the next allowed provider"
+            continue
+        fi
+        # A completed review is decisive, including invalid output or critical gaps.
+        python3 -I "$helper" coverage --run-dir "$run_dir" \
+            --response "$run_dir/coverage-review/coverage-$provider.md"
+        return $?
+    done
+    log ERROR "Scenario coverage review did not complete; implementation stopped"
+    return 1
 }
 
 factory_run() {

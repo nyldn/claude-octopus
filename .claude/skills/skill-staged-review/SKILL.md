@@ -104,6 +104,7 @@ For each boundary in the intent contract:
 |--------|--------|
 | All criteria PASS + all boundaries RESPECTED | Proceed to Stage 2 |
 | Any criterion FAIL | Report failures. Ask user: fix now or proceed anyway? |
+| Any criterion PARTIAL | Record the unmet scope and mark Stage 1 incomplete. Complete it and recheck, or obtain an explicit user override before Stage 2. Never count PARTIAL as PASS. |
 | Any boundary VIOLATED | Report violations. Ask user: fix now or proceed anyway? |
 
 **If user chooses to fix:** Stop review, list specific fixes needed.

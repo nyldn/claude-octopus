@@ -84,8 +84,15 @@ Multiply the average cost per step by the number of remaining steps.
 
 ```bash
 remaining_steps=$((total_steps - completed_count))
+if (( remaining_steps < 0 )); then
+  remaining_steps=0
+fi
 projected_remaining=$(echo "$avg_cost * $remaining_steps" | bc -l)
-projected_total=$(echo "$total_spent + $projected_remaining" | bc -l)
+if (( remaining_steps == 0 )); then
+  projected_total=$total_spent
+else
+  projected_total=$(echo "$total_spent + $projected_remaining" | bc -l)
+fi
 ```
 
 **Formula:**

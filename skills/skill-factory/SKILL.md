@@ -82,7 +82,9 @@ if [[ -n "${FACTORY_TARGET:-}" ]]; then FACTORY_ARGS+=(--target "$FACTORY_TARGET
 if [[ -n "${FACTORY_HOLDOUT_RATIO:-}" ]]; then FACTORY_ARGS+=(--holdout-ratio "$FACTORY_HOLDOUT_RATIO"); fi
 if [[ -n "${FACTORY_MAX_RETRIES:-}" ]]; then FACTORY_ARGS+=(--max-retries "$FACTORY_MAX_RETRIES"); fi
 if [[ "${FACTORY_FAST:-0}" == 1 ]]; then FACTORY_ARGS+=(--fast); fi
-if ! FACTORY_RESULT=$(python3 -I "$OCTO_ROOT/scripts/helpers/factory-run.py" "${FACTORY_ARGS[@]}"); then
+FACTORY_LAUNCH_LOG=$(mktemp "${TMPDIR:-/tmp}/octo-factory-launch.XXXXXX") || exit 1
+printf 'Factory launch log: %s\n' "$FACTORY_LAUNCH_LOG" >&2
+if ! FACTORY_RESULT=$(python3 -I "$OCTO_ROOT/scripts/helpers/factory-run.py" "${FACTORY_ARGS[@]}" 2>"$FACTORY_LAUNCH_LOG"); then
   printf '%s\n' "$FACTORY_RESULT"
   echo "Factory did not complete. Read the named request evidence; stop here." >&2
   return 1 2>/dev/null || exit 1
@@ -108,16 +110,23 @@ The review receives the actual specification and generated scenarios. It selects
 an installed, allowed Codex or Antigravity provider, waits for completion, and
 retains the response under this run's `coverage-review/` directory.
 
-`CRITICAL-GAPS`, a failed selected reviewer or an invalid response stops before
-implementation. `GAPS-FOUND` records the gaps and proceeds with that limitation.
+A failed transport tries the next installed, allowed provider. If all eligible
+reviewers fail, implementation stops. A completed review with `CRITICAL-GAPS`
+or an invalid response also stops before implementation. `GAPS-FOUND` records the gaps and proceeds with that limitation.
 `--fast` records `skipped-fast`; no eligible provider records
 `skipped-unavailable` and a warning. Neither skip is a successful review.
 Do not substitute a separate pre-run prompt for this pipeline gate.
 
 ### STEP 6: Verify this run's report and scores
 
-Record the returned `run_id`, `run_dir`, `request_dir` and request `result.json`
-path in the conversation. Read `factory-report.md` and
+Record the printed launch-log path before waiting for the runner. The runner
+writes `Factory evidence: <request/result.json>` into that private log as soon
+as it creates the request, before any provider dispatch. If the host call yields,
+read that exact log and record its evidence path. Keep observing that request;
+do not launch another run.
+
+On completion, record the returned `run_id`, `run_dir`, `request_dir` and request
+`result.json` path in the conversation. Read `factory-report.md` and
 `satisfaction-scores.json` only from that exact `run_dir`. Never select reports
 with a recent-file search or a global latest pointer.
 
@@ -133,7 +142,9 @@ The private request `result.json` records completion or failure and points to
 the captured `factory.log`. Preserve it and the run artifacts after a timeout,
 interruption or failed gate. Report the actual failure and recovery location.
 Do not start another paid run merely because the previous observation timed out.
-Restore the literal recorded request path before reading it in a fresh shell.
+Restore the literal recorded launch-log or request path before reading it in a
+fresh shell. If stdout has not returned, recover the request path from the
+recorded launch log rather than searching for a recent run.
 
 ### STEP 8: Present the result
 

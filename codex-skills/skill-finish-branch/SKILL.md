@@ -28,6 +28,32 @@ Run the project's checks, review the committed changes, then carry out the user'
 
 ## The process
 
+### Prepare an explicitly authorized commit
+
+When the user asks to commit and push uncommitted changes, prepare that commit
+before Step 1. Inspect staged, unstaged and untracked changes. Record the exact
+authorized paths in `COMMIT_PATHS` and the message in `COMMIT_MESSAGE`. If an
+unrelated hunk shares a selected file, separate it for review or stop and report
+the overlap. Do not stage every file or commit the whole index.
+
+Run this block only for that explicit commit request, after recording the
+selected paths. Restore the recorded array and message in this shell call:
+
+```bash
+: "${COMMIT_MESSAGE:?Restore the approved commit message}"
+if ! declare -p COMMIT_PATHS >/dev/null 2>&1 || [[ ${#COMMIT_PATHS[@]} -eq 0 ]]; then
+  echo "Restore the reviewed list of authorized commit paths." >&2
+  return 1 2>/dev/null || exit 1
+fi
+git --literal-pathspecs add -- "${COMMIT_PATHS[@]}" || exit 1
+git --literal-pathspecs commit --only -m "$COMMIT_MESSAGE" -- "${COMMIT_PATHS[@]}" || exit 1
+```
+
+The scoped commit preserves unrelated staged work. If any unrelated changes
+remain, preserve them outside the validation checkout before Step 1, or stop
+with their locations recorded. Run tests and review on the resulting clean
+commit before push. A failed commit stops this workflow.
+
 ### Step 1: Record the branch, base and test command
 
 Read the project's `AGENTS.md`, delivery contract and CI configuration. Identify the intended changes and commit only their reviewed paths when the user has authorized committing. Preserve unrelated changes and stop if they prevent a clean test or review.
@@ -154,7 +180,26 @@ if [[ ! -x "$SAFE_GH_HELPER" ]]; then
   echo "Locate the installed safe-gh-comment.sh helper before pushing for PR creation." >&2
   return 1 2>/dev/null || exit 1
 fi
-if ! REPO_SLUG=$(gh repo view --json nameWithOwner --jq .nameWithOwner); then
+if ! PUSH_URLS=$(git -C "$FEATURE_ROOT" remote get-url --push --all origin); then
+  echo "Cannot resolve the origin push URL; stop before pushing." >&2
+  return 1 2>/dev/null || exit 1
+fi
+if [[ "$PUSH_URLS" == *$'\n'* ]]; then
+  echo "Origin has multiple push URLs; select one repository before continuing." >&2
+  return 1 2>/dev/null || exit 1
+fi
+if [[ "$PUSH_URLS" =~ ^https://github\.com/([A-Za-z0-9-]+)/([A-Za-z0-9_.-]+)(\.git)?$ ||
+      "$PUSH_URLS" =~ ^ssh://git@github\.com/([A-Za-z0-9-]+)/([A-Za-z0-9_.-]+)(\.git)?$ ||
+      "$PUSH_URLS" =~ ^git@github\.com:([A-Za-z0-9-]+)/([A-Za-z0-9_.-]+)(\.git)?$ ]]; then
+  REPO_OWNER="${BASH_REMATCH[1]}"
+  REPO_NAME="${BASH_REMATCH[2]%.git}"
+  if [[ ! "$REPO_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then
+    echo "Origin push URL has an invalid GitHub repository name." >&2
+    return 1 2>/dev/null || exit 1
+  fi
+  REPO_SLUG="${REPO_OWNER}/${REPO_NAME}"
+else
+  echo "Origin push URL must name one owner/repository on github.com; stop before pushing." >&2
   return 1 2>/dev/null || exit 1
 fi
 PR_TITLE=${PR_TITLE:?Complete the pull request title}

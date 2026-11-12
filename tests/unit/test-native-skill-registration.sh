@@ -572,4 +572,11 @@ for native_tree in .claude/skills skills codex-skills; do
 done
 if $ship_recipes_passed; then test_pass; else test_fail "shipping state or checkpoint contract failed"; fi
 
+test_case "review filenames, intent storage and cost projections preserve their boundaries"
+if python3 "$SCRIPT_DIR/../fixtures/native-skills/review-safety-recipes.py" "$PROJECT_ROOT"; then
+    test_pass
+else
+    test_fail "review or planning guard failed"
+fi
+
 test_summary

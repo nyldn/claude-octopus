@@ -8,6 +8,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -199,7 +200,7 @@ factory_run "$spec" 0.20 0 true
         self.assertIn("'quoted'", metadata["spec_path"])
         self.assertEqual(data["scores"]["composite"], .9)
 
-    def coverage(self, verdict):
+    def coverage(self, verdict, fallback=False):
         run = self.project / ("coverage-" + verdict);run.mkdir()
         (run / "scenarios-all.md").write_text("SCENARIO_SENTINEL")
         spec = run / "spec.md";spec.write_text("SPEC_SENTINEL")
@@ -211,6 +212,8 @@ source "$1/scripts/lib/factory.sh"
 source "$1/scripts/lib/consultative-advisors.sh"
 log() { :; }
 octo_launch_advisors() {
+  printf '%s\n' "$2" >> "$3/attempts"
+  if [[ "${FAIL_FIRST_REVIEWER:-0}" == 1 && "$2" == codex ]]; then return 1; fi
   printf '%s' "$2" > "$3/selected"
   printf '%s' "$5" > "$3/prompt"
   printf '{"verdict":"%s","gaps":[]}' "$COVERAGE_VERDICT" > "$3/$4$2.md"
@@ -221,7 +224,8 @@ factory_review_scenario_coverage "$2" "$3"
         result = subprocess.run(["/bin/bash", "-c", script, "fixture", str(ROOT), str(spec), str(run)],
                                 text=True, capture_output=True,
                                 env=dict(os.environ, PATH=str(binary)+os.pathsep+os.environ["PATH"],
-                                         OCTO_ALLOWED_PROVIDERS="agy", COVERAGE_VERDICT=verdict))
+                                         OCTO_ALLOWED_PROVIDERS="codex,agy" if fallback else "agy", COVERAGE_VERDICT=verdict,
+                                          FAIL_FIRST_REVIEWER="1" if fallback else "0"))
         return result, run
 
     def test_coverage_reviews_generated_content_with_allowed_provider(self):
@@ -232,6 +236,75 @@ factory_review_scenario_coverage "$2" "$3"
         prompt = (review / "prompt").read_text()
         self.assertIn("SPEC_SENTINEL", prompt)
         self.assertIn("SCENARIO_SENTINEL", prompt)
+
+    def test_coverage_tries_next_allowed_reviewer_after_transport_failure(self):
+        result, run = self.coverage("SUFFICIENT", fallback=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        review = run / "coverage-review"
+        self.assertEqual((review / "attempts").read_text().splitlines(), ["codex", "agy"])
+        self.assertEqual((review / "selected").read_text(), "agy")
+
+    def test_report_write_and_metadata_failure_propagate_from_guarded_call(self):
+        for failure in ("none", "report", "metadata"):
+            with self.subTest(failure=failure):
+                run = self.project / ("report-" + failure)
+                run.mkdir()
+                session = run / "session.json"
+                session.write_text("invalid" if failure == "metadata" else '{"started_at":"fixture"}')
+                (run / "satisfaction-scores.json").write_text(json.dumps(dict(
+                    composite=.9, verdict="PASS", behavior_coverage=.9,
+                    constraint_adherence=.9, holdout_pass_rate=.9, quality=.9)))
+                if failure == "report":
+                    (run / "factory-report.md").mkdir()
+                script = 'source "$1/scripts/lib/factory-spec.sh"; log() { :; }; generate_factory_report "$2" .85 || exit 7; printf completed'
+                result = subprocess.run(["/bin/bash", "-c", script, "fixture", str(ROOT), str(run)],
+                                        text=True, capture_output=True)
+                self.assertEqual(result.returncode, 0 if failure == "none" else 7, result.stderr)
+                self.assertEqual("completed" in result.stdout, failure == "none")
+                if failure == "none":
+                    self.assertEqual(json.loads(session.read_text())["status"], "completed")
+
+    def test_launch_receipt_is_recoverable_before_stdout_returns(self):
+        source = (ROOT / ".claude/skills/skill-factory/SKILL.md").read_text()
+        step = source.split("### STEP 4:", 1)[1].split("### STEP 5:", 1)[0]
+        block = re.search(r"```bash\n(.*?)\n```", step, re.S)[1]
+        helper = self.plugin / "scripts/helpers/factory-run.py"
+        helper.parent.mkdir()
+        evidence = self.project / "request-result.json"
+        release = self.project / "release"
+        helper.write_text("import sys,time\nfrom pathlib import Path\n"
+                          + "p=Path(" + repr(str(evidence)) + ");p.write_text('{\"status\":\"running\"}')\n"
+                          + "print('Factory evidence: '+str(p),file=sys.stderr,flush=True)\n"
+                          + "release=Path(" + repr(str(release)) + ");deadline=time.monotonic()+6\n"
+                          + "while not release.exists() and time.monotonic()<deadline: time.sleep(.01)\n"
+                          + "print('{\"status\":\"completed\"}')\n")
+        spec = self.project / "spec.md"
+        spec.write_text("spec")
+        process = subprocess.Popen(["/bin/bash", "-c", block], cwd=self.project,
+                                   text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                   env=dict(os.environ, OCTO_ROOT=str(self.plugin), SPEC_PATH=str(spec),
+                                            FACTORY_APPROVAL="approve"))
+        launch = None
+        try:
+            line = process.stderr.readline()
+            self.assertTrue(line.startswith("Factory launch log: "), line)
+            launch = Path(line.removeprefix("Factory launch log: ").strip())
+            deadline = time.monotonic() + 1.5
+            while "Factory evidence:" not in launch.read_text() and time.monotonic() < deadline:
+                time.sleep(.01)
+            self.assertIn("Factory evidence: " + str(evidence), launch.read_text())
+            self.assertEqual(json.loads(evidence.read_text())["status"], "running")
+            self.assertIsNone(process.poll())
+            release.touch()
+            stdout, stderr = process.communicate(timeout=5)
+            self.assertEqual(process.returncode, 0, stderr)
+            self.assertEqual(json.loads(stdout)["status"], "completed")
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.communicate()
+            if launch is not None:
+                launch.unlink(missing_ok=True)
 
     def test_critical_coverage_gaps_stop_the_pipeline(self):
         result, run = self.coverage("CRITICAL-GAPS")

@@ -49,7 +49,7 @@ Palette rules:
 ## 5. Content tells
 
 - No placeholder personas: "Jane Doe", "John Smith", "Acme Corp", "Sarah Chen"
-- No fake-perfect stats (99.99%, 10x, "trusted by 10,000+ teams"); use organic numbers (47.2%) or none
+- Use statistics only when a verified source supports them. If no source is available, omit the statistic. Do not invent realistic-looking numbers.
 - No em dashes in UI copy; commas, semicolons, parentheses, or sentence breaks instead
 - Buttons name the action ("Save changes", not "Submit"); state persists through the flow
   ("Publish" button leads to a "Published" toast); errors state the fix, never apologize

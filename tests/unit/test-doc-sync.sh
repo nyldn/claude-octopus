@@ -36,19 +36,25 @@ else
   fail "frontmatter: has name field" "missing or wrong name"
 fi
 
-# aliases field
-if echo "$FRONTMATTER" | grep -q "^aliases:"; then
-  pass "frontmatter: has aliases field"
+# Skill registration and explicit invocation
+if echo "$FRONTMATTER" | grep -q "^disable-model-invocation: true$"; then
+  pass "frontmatter: requires manual invocation"
 else
-  fail "frontmatter: has aliases field" "missing aliases"
+  fail "frontmatter: requires manual invocation" "missing disable-model-invocation: true"
 fi
 
-# Check specific aliases
-for alias in "doc-sync" "sync-docs" "document-release"; do
-  if echo "$FRONTMATTER" | grep -q "$alias"; then
-    pass "frontmatter: alias '$alias' present"
+PLUGIN_MANIFEST="$PROJECT_ROOT/.claude-plugin/plugin.json"
+if grep -Fq '"./skills/skill-doc-sync"' "$PLUGIN_MANIFEST"; then
+  pass "plugin manifest registers skill-doc-sync"
+else
+  fail "plugin manifest registers skill-doc-sync" "canonical skill path missing"
+fi
+
+for invocation in '/octo:skill-doc-sync' '$skill-doc-sync'; do
+  if grep -Fq "$invocation" <<< "$CONTENT"; then
+    pass "documents registered manual invocation '$invocation'"
   else
-    fail "frontmatter: alias '$alias' present" "missing alias: $alias"
+    fail "documents registered manual invocation '$invocation'" "missing invocation: $invocation"
   fi
 done
 

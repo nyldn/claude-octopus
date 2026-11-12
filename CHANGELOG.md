@@ -11,6 +11,12 @@
 
 ### Fixed
 
+- Advisor launches read large review prompts from private files instead of
+  process arguments. Factory runs retain their recovery path before waiting,
+  try the next allowed reviewer after transport failure, and propagate report
+  write failures. Quote verification groups citation paths without changing
+  its evidence limits or deadline.
+
 - Shipping reads canonical delivery state, reserves archives exclusively, and
   verifies checkpoint creation against the reviewed source commit. Ignored
   project state stays local, with its exclusion from the Git tag reported.
@@ -27,7 +33,8 @@
 - Parallel examples validate the stable fallback, show host-specific setup
   guidance, and require reviewed Tangle integration before delivery. Rollback
   keeps ignored state history local. Push-only completion identifies uncommitted
-  changes and stops for a reviewed commit instead of silently omitting them.
+  changes and prepares an explicitly authorized scoped commit before checks
+  and review. Unrelated staged work stays outside that commit.
 
 - Parallel-workflow guidance requires explicit invocation, uses the loaded
   installation, and counts ready providers outside the active host. The

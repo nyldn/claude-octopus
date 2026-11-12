@@ -411,7 +411,7 @@ generate_factory_report() {
         started_at=$(jq -r '.started_at' "$run_dir/session.json" 2>/dev/null || echo "")
     fi
 
-    cat > "$run_dir/factory-report.md" << REPORTEOF
+    cat > "$run_dir/factory-report.md" << REPORTEOF || return 1
 # Dark Factory Report
 
 **Run ID:** $run_id
@@ -463,7 +463,7 @@ REPORTEOF
         jq --arg v "$verdict" --arg c "$composite" \
             '.status = "completed" | .verdict = $v | .composite_score = ($c | tonumber) | .completed_at = (now | todate)' \
             "$run_dir/session.json" > "$run_dir/session.json.tmp" && \
-            mv "$run_dir/session.json.tmp" "$run_dir/session.json"
+            mv "$run_dir/session.json.tmp" "$run_dir/session.json" || return 1
     fi
 
     log INFO "Factory report generated: $run_dir/factory-report.md"

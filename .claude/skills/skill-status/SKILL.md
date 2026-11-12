@@ -43,6 +43,10 @@ Display current project status, roadmap progress, blockers, and intelligent next
 
 ## The Process
 
+For an explicit recent-work summary request, go directly to Phase 6 before the
+initialization gate. Use Git history, tags and branches even without `.octo/`.
+Include project state only when it exists.
+
 ### Phase 1: Check Project Initialization
 
 #### Step 1: Verify .octo/ Directory Exists

@@ -3994,10 +3994,7 @@ def reserve_optional_scan(work):
     optional_scan_work -= work
     return True
 
-all_cited = []
-for _, _, path, _ in citations:
-    if path not in all_cited:
-        all_cited.append(path)
+all_cited = list(dict.fromkeys(path for _, _, path, _ in citations))
 
 # Removed/added sides of the reviewed diff. Reviewers routinely quote deleted
 # code ("this guard was removed"); that code is in no working-tree file, so it
@@ -4450,26 +4447,27 @@ for start, end, kind, block, removed_block, info in units:
         result["quotes_checked"] += 1
         result["quotes_unverifiable"] += 1
         continue
-    bound_paths = []
-    for path, _ in bound:
-        if path not in bound_paths:
-            bound_paths.append(path)
+    # Preserve citation order and repeated line numbers while grouping once.
+    bound_lines = {}
+    for path, line in bound:
+        bound_lines.setdefault(path, []).append(line)
+    bound_paths = list(bound_lines)
     # A miss is only checkable when every file the quote is bound to loaded; a
     # readable neighbor cannot stand in for an oversized or unreadable bound file.
     readable = True
     verified = near = partial = False
     near_budget = 65536
     partial_budget = 65536
-    for path in bound_paths + [p for p in all_cited if p not in bound_paths]:
+    for path in bound_paths + [p for p in all_cited if p not in bound_lines]:
         # Once complete, only later bound files can improve near-line reporting.
-        if verified and not partial and path not in bound_paths:
+        if verified and not partial and path not in bound_lines:
             break
         entry = load(path)
         if entry is None:
-            if path in bound_paths:
+            if path in bound_lines:
                 readable = False
             continue
-        if verified and partial and path not in bound_paths:
+        if verified and partial and path not in bound_lines:
             # Unbound files only refine an already verified fence's report.
             # Keep the partial result if a complete entry exceeds this budget;
             # slicing it could mistake a truncated source for complete evidence.
@@ -4477,7 +4475,7 @@ for start, end, kind, block, removed_block, info in units:
             if entry_bytes > partial_budget:
                 break
             partial_budget -= entry_bytes
-        cited_lines = [line for p, line in bound if p == path]
+        cited_lines = bound_lines.get(path, [])
         if verified and not partial:
             # Near-line counts are supplemental: cap refinement after complete
             # verification so large later files cannot exhaust the verdict's

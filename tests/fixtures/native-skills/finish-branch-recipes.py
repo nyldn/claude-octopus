@@ -83,7 +83,15 @@ class Fixture(unittest.TestCase):
     def run_recipe(self, tree, option, prefix='', **env):
         for path in (self.marker, self.root / 'args', self.root / 'body'):
             path.unlink(missing_ok=True)
-        return subprocess.run([BASH, '-uo', 'pipefail', '-c', self.prefix + prefix +
+        remote_fixture = """git() {
+  if [[ "${3:-}" == remote && "${4:-}" == get-url ]]; then
+    printf '%s\\n' 'https://github.com/fixture/repository.git'
+  else
+    command git "$@"
+  fi
+}
+""" if str(option) == '1' and 'git()' not in prefix else ''
+        return subprocess.run([BASH, '-uo', 'pipefail', '-c', self.prefix + remote_fixture + prefix +
                                recipe(tree, option) + '\nprintf "FEATURE_SWITCHED_TO_BASE=%s\\n" "${FEATURE_SWITCHED_TO_BASE:-false}"\nprintf "RECIPE_FINISHED\\n"'],
                               cwd=self.feature, env=dict(self.env, **env), capture_output=True, text=True)
 
@@ -93,6 +101,44 @@ class Fixture(unittest.TestCase):
 
 
 class Choices(Fixture):
+    def test_authorized_commit_excludes_unrelated_staged_paths(self):
+        for tree in TREES:
+            text = (ROOT / tree / 'skill-finish-branch/SKILL.md').read_text()
+            section = text.split('### Prepare an explicitly authorized commit', 1)[1].split('### Step 1:', 1)[0]
+            block = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+            (self.feature / 'selected file.txt').write_text('authorized change')
+            (self.feature / 'unrelated.txt').write_text('preserve staged work')
+            self.git('add', 'unrelated.txt', cwd=self.feature)
+            result = subprocess.run([BASH, '-u', '-c',
+                                     'COMMIT_PATHS=("selected file.txt"); COMMIT_MESSAGE="Scoped change"\n' + block],
+                                    cwd=self.feature, env=self.env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(self.git('diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD', cwd=self.feature),
+                             'selected file.txt')
+            self.assertEqual(self.git('diff', '--cached', '--name-only', cwd=self.feature), 'unrelated.txt')
+            self.git('reset', '--hard', self.head, cwd=self.feature)
+            (self.feature / 'unrelated.txt').unlink()
+
+    def test_pr_target_comes_from_single_github_push_url(self):
+        for tree in TREES:
+            block = recipe(tree, '1')
+            block = 'if ! PUSH_URLS=' + block.split('if ! PUSH_URLS=', 1)[1].split('PR_TITLE=', 1)[0]
+            for url, expected in [('https://github.com/owner/repo.git', 'owner/repo'),
+                                  ('git@github.com:owner/repo.git', 'owner/repo'),
+                                  ('ssh://git@github.com/owner/repo.git', 'owner/repo'),
+                                  ('https://github.com/owner/repo', 'owner/repo'),
+                                  ('https://elsewhere.invalid/owner/repo', None),
+                                  ('https://github.com/owner/repo.git\nhttps://github.com/other/repo.git', None)]:
+                result = subprocess.run([BASH, '-u', '-c',
+                    'git() { printf "%s\\n" "$PUSH_URL_TEST"; }; gh() { exit 99; };\n' + block +
+                    '\nprintf "%s" "$REPO_SLUG"'], env=dict(self.env, PUSH_URL_TEST=url),
+                    text=True, capture_output=True)
+                if expected is None:
+                    self.assertNotEqual(result.returncode, 0, (tree, url))
+                else:
+                    self.assertEqual(result.returncode, 0, (tree, url, result.stderr))
+                    self.assertEqual(result.stdout, expected)
+
     def test_menu_and_cleanup_agree(self):
         for tree in TREES:
             text = (ROOT / tree / 'skill-finish-branch/SKILL.md').read_text()
@@ -351,6 +397,7 @@ class Failures(Fixture):
             trace.unlink(missing_ok=True)
             result = self.run_recipe(tree, '1', prefix=r"""
 git() {
+  if [[ "${3:-}" == remote && "${4:-}" == get-url ]]; then printf '%s\n' 'https://github.com/fixture/repository.git'; return; fi
   if [[ "${3:-}" == push ]]; then printf called > "$PUSH_TRACE"; return 23; fi
   command git "$@"
 }

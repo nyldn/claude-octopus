@@ -133,6 +133,10 @@ List every provider the check reports, not only Claude. A banner showing one sea
 If `OCTO_ALLOWED_PROVIDERS` is set, treat it as the source of truth for which providers may participate. Providers filtered out by that allowlist are intentionally reported as unavailable; do not invoke or recommend them in the workflow.
 
 
+Name the synthesis host from the active conversation, such as Claude Code or
+Codex. The host row does not claim an external Claude provider is available.
+Use the readiness results for external rows and the same host name in attribution.
+
 **Display this banner BEFORE orchestrate.sh execution:**
 
 ```
@@ -143,7 +147,7 @@ If `OCTO_ALLOWED_PROVIDERS` is set, treat it as the source of truth for which pr
 
 Provider Availability:
 ${provider_availability}
-🔵 Claude: Available ✓ - Consensus building and synthesis
+🧠 [active host]: Host synthesis
 
 💰 Estimated Cost: 0.01-0.05 USD
 ⏱️  Estimated Time: 2-5 minutes
@@ -409,11 +413,11 @@ fi
   "define" \
   "$key_definition"
 
-# Update metrics
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_metrics "phases_completed" "1"
+# Completion is recorded only after scope approval in Step 7.
 ```
 
-**DO NOT PROCEED TO STEP 7 until state updated.**
+Update the decision and context before Step 7. Leave the completion metric
+unchanged until the user approves the presented scope.
 
 ---
 
@@ -433,9 +437,20 @@ Read the synthesis file and present:
 ```
 ---
 *Multi-AI Problem Definition powered by Claude Octopus*
-*Providers: available external providers + 🔵 Claude*
+*Providers: the external seats reported by the readiness check*
+*Synthesis: [active host]*
 *Full problem definition: $SYNTHESIS_FILE*
 ```
+
+After presenting the scope, reuse an explicit approval already given for that
+scope, or ask for the missing decision. Only after approval, run:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_metrics "phases_completed" "1" || exit 1
+```
+
+If approval is absent or the scope is rejected, keep Define in progress and
+leave the completion metric unchanged.
 
 ---
 
@@ -450,7 +465,7 @@ The **define** phase clarifies and scopes problems using external CLI providers:
 1. **🔴 Codex CLI** - Technical requirements analysis, edge cases, constraints
 2. **🟡 Antigravity CLI** - User needs, business requirements, context understanding
 3. **🧭 Antigravity CLI** - Additional external-model challenge
-4. **🔵 Claude (You)** - Problem synthesis and requirement definition
+4. **Current host assistant** - Problem synthesis and requirement definition
 
 This is the **convergent** phase after discovery - we narrow down from broad research to specific problem definition.
 
@@ -488,7 +503,7 @@ Provider Availability:
 🟢 codex: Available ✓
 🧭 agy: Degraded ⚠
 🔴 agy: Missing/unavailable ✗
-🔵 Claude: Available ✓ - Consensus building and synthesis
+🧠 [active host]: Host synthesis
 ```
 
 ---

@@ -206,7 +206,7 @@ _octo_advisor_wait_spawn() {
 octo_launch_advisors() {
     local orchestrator="$1" advisors_csv="$2" output_dir="$3"
     local filename_prefix="$4" prompt_template="$5" required_successes="$6"
-    local advisor safe_advisor prompt response_file pid index successful_count=0
+    local advisor safe_advisor prompt prompt_file response_file pid index successful_count=0
     local advisor_list=() advisor_pids=() advisor_files=() advisor_events=() advisor_spawn_out=()
     local aux_dir hook event_log spawn_out deadline worker_pid keep_aux=0
     local wait_seconds="${OCTOPUS_ADVISOR_WAIT_SECONDS:-3600}"
@@ -269,10 +269,18 @@ octo_launch_advisors() {
         index=${#advisor_pids[@]}
         event_log="${aux_dir}/${index}-${safe_advisor}.events"
         spawn_out="${aux_dir}/${index}-${safe_advisor}.spawn"
+        prompt_file="${aux_dir}/${index}-${safe_advisor}.prompt"
+        # Each provider gets its own rendered prompt file. The private mktemp
+        # directory keeps the review snapshot out of argv and out of other
+        # advisors' prompt files.
+        if ! printf '%s' "$prompt" > "$prompt_file"; then
+            printf 'ERROR: cannot write prompt for advisor %s\n' "$advisor" >&2
+            continue
+        fi
         : > "$event_log"
         OCTOPUS_AGENT_LIFECYCLE_HOOK="$hook" OCTO_ADVISOR_EVENT_LOG="$event_log" \
             OCTO_ADVISOR_PREV_HOOK="$prev_hook" \
-            "$orchestrator" spawn "$advisor" "$prompt" > "$spawn_out" &
+            "$orchestrator" spawn "$advisor" --prompt-file "$prompt_file" > "$spawn_out" &
         advisor_pids[$index]=$!
         advisor_files[$index]="$response_file"
         advisor_events[$index]="$event_log"

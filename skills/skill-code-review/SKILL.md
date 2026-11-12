@@ -129,23 +129,29 @@ After the code-reviewer persona completes, run stub detection to verify implemen
 **Step 1: Get changed files**
 
 ```bash
-# Get files changed in the commit/PR
-if [ -n "$COMMIT_RANGE" ]; then
-    changed_files=$(git diff --name-only "$COMMIT_RANGE")
-else
-    changed_files=$(git diff --name-only HEAD~1..HEAD)
+# Collect source paths with NUL delimiters so spaces and newlines stay intact.
+source_files=()
+stub_paths=$(mktemp "${TMPDIR:-/tmp}/octo-review-paths.XXXXXX") || exit 1
+if ! git diff --no-renames --name-only -z "${COMMIT_RANGE:-HEAD~1..HEAD}" -- > "$stub_paths"; then
+    rm -f "$stub_paths"
+    echo "Cannot collect the review paths; stop stub detection." >&2
+    exit 1
 fi
-
-# Filter for source code files
-source_files=$(echo "$changed_files" | grep -E "\.(ts|tsx|js|jsx|py|go)$")
+while IFS= read -r -d '' file; do
+    case "$file" in
+        *.ts|*.tsx|*.js|*.jsx|*.py|*.go) source_files+=("$file") ;;
+    esac
+done < "$stub_paths"
+rm -f "$stub_paths"
 ```
 
 **Step 2: Check for stub patterns**
 
-For each changed file, check for common stub indicators:
+Run the collection and scan blocks in the same shell call so the filename array
+remains available. For each changed file, check for common stub indicators:
 
 ```bash
-for file in $source_files; do
+for file in "${source_files[@]}"; do
     echo "Checking $file for stubs..."
 
     # Check 1: Comment-based stubs

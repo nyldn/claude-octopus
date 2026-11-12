@@ -66,7 +66,7 @@ if [[ "\${1:-}" == "--version" ]]; then
     printf '%s\n' 'codex-cli 0.155.1'
     exit 0
 fi
-cat >/dev/null
+cat > "$TEST_TMP_DIR/captured-large-prompt"
 # Answer only after spawn has printed its worker PID and returned.
 sleep 3
 printf '%s\n' 'stub codex progress note on stderr' >&2
@@ -126,6 +126,37 @@ if [[ "$rc" -eq 0 && "$count" == 1 && -f "$response" &&
 else
     test_fail "rc=$rc count='$count' response: $(head -c 600 "$response" 2>/dev/null | tr '\n' '|')"
 fi
+
+test_case "large rendered advisor prompts cross spawn through a file, not argv"
+large_body="$(python3 -c 'print("x" * 140000)')"
+large_prompt="BEGIN-{{advisor}}-literal-\$HOME-\$(touch SHOULD_NOT_RUN) ${large_body} END"
+captured_prompt="$TEST_TMP_DIR/captured-large-prompt"
+out="$TEST_TMP_DIR/large-prompt-out"
+mkdir -p "$out"
+rc=0
+rm -f "$captured_prompt"
+count="$(OCTOPUS_CONTEXT_BUDGET=1000000 \
+    in_stub_env octo_launch_advisors "$ORCH" codex "$out" large- \
+    "$large_prompt" 1 2>"$TEST_TMP_DIR/large-prompt.err")" || rc=$?
+if [[ "$rc" -eq 0 && "$count" == 1 && -s "$captured_prompt" ]] &&
+   grep -Fq 'BEGIN-codex-literal-$HOME-$(touch SHOULD_NOT_RUN)' "$captured_prompt" &&
+   [[ "$(wc -c < "$captured_prompt" | tr -d '[:space:]')" -gt 131072 ]] &&
+   [[ ! -e "$E2E/project/SHOULD_NOT_RUN" ]]; then
+    test_pass
+else
+    test_fail "rc=$rc count='$count' captured_bytes=$(wc -c < "$captured_prompt" 2>/dev/null || printf 0)"
+fi
+
+test_case "spawn rejects a missing or oversized prompt file before provider launch"
+invalid_prompt="$TEST_TMP_DIR/oversized-prompt"
+python3 -c 'import sys; open(sys.argv[1], "wb").write(b"x" * 16777217)' "$invalid_prompt"
+invalid_ok=true
+for prompt_path in "$invalid_prompt" "$TEST_TMP_DIR/missing-prompt"; do
+    if in_stub_env "$ORCH" spawn codex --prompt-file "$prompt_path" >"$TEST_TMP_DIR/invalid-prompt.out" 2>"$TEST_TMP_DIR/invalid-prompt.err"; then
+        invalid_ok=false
+    fi
+done
+if $invalid_ok; then test_pass; else test_fail "invalid prompt file was accepted"; fi
 
 test_case "the collected answer holds no worker PID, spawn status line or stderr transcript"
 if [[ -f "$response" ]] &&

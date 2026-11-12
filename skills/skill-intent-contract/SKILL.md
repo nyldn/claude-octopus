@@ -237,7 +237,16 @@ Resolve a unique run directory, then use the Write tool to create its `session-i
 
 ```bash
 PLAN_STORAGE="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/plan-storage.sh"
-OCTO_PLAN_DIR="$("$PLAN_STORAGE" current "$PWD" 2>/dev/null || "$PLAN_STORAGE" create "$PWD")"
+if ! OCTO_PLAN_DIR=$("$PLAN_STORAGE" current "$PWD" 2>/dev/null); then
+  if ! OCTO_PLAN_DIR=$("$PLAN_STORAGE" create "$PWD"); then
+    echo "Could not resolve or create the plan directory; no intent file was written." >&2
+    return 1 2>/dev/null || exit 1
+  fi
+fi
+if [[ -z "$OCTO_PLAN_DIR" || ! -d "$OCTO_PLAN_DIR" ]]; then
+  echo "Plan storage returned no valid directory; no intent file was written." >&2
+  return 1 2>/dev/null || exit 1
+fi
 cat > "${OCTO_PLAN_DIR}/session-intent.md" <<EOF
 # Intent Contract
 
