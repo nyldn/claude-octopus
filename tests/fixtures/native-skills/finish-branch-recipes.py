@@ -365,11 +365,16 @@ gh() { echo fixture/repository; }
     def test_changed_feature_stops_before_push(self):
         (self.feature / 'file').write_text('unreviewed edit\n')
         for tree in TREES:
-            result = self.run_recipe(tree, '1', prefix='gh() { echo UNEXPECTED_GITHUB_CALL; }\n')
-            self.assertNotEqual(result.returncode, 0)
-            self.assertNotIn('UNEXPECTED_GITHUB_CALL', result.stdout)
-            self.assertNotIn('RECIPE_FINISHED', result.stdout)
-            self.preserved()
+            for option in ('1', '5'):
+                result = self.run_recipe(tree, option, prefix='gh() { echo UNEXPECTED_GITHUB_CALL; }\n')
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn('UNEXPECTED_GITHUB_CALL', result.stdout)
+                self.assertNotIn('RECIPE_FINISHED', result.stdout)
+                if option == '5':
+                    self.assertIn('uncommitted changes', result.stderr)
+                    self.assertIn('Commit the intended changes', result.stderr)
+                self.assertEqual(self.git('rev-parse', 'HEAD', cwd=self.feature), self.head)
+                self.preserved()
 
 
 suite = unittest.defaultTestLoader.loadTestsFromTestCase({'choices': Choices, 'failures': Failures}[MODE])

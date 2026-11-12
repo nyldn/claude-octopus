@@ -92,7 +92,7 @@ instead of inventing stakeholder positions.
 
 If the topic needs external research or context gathering:
 
-- Use the **Task tool** with `Explore` or `general-purpose` subagent to gather relevant information
+- Use the **Agent tool** with an `Explore` or `general-purpose` subagent to gather relevant information
 - For deeper multi-AI research, suggest: "For comprehensive multi-provider research, run `/octo:discover [topic]` first, then `/octo:deck` to build slides from the results"
 - If the user provides their own content, notes, or a research file, skip this step entirely
 

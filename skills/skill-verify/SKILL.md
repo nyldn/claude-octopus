@@ -10,12 +10,12 @@ trigger: |
   - Before committing, creating PRs, or marking tasks done
   - After subagent reports success (verify independently)
   - Before moving to next task in a workflow
-paths:
-  - "**/test*"
-  - "**/*.test.*"
 ---
 
 # Verification Gate
+
+This gate applies to source, configuration, documentation and packaging work,
+as well as tests. Keep the existing explicit-invocation policy.
 
 ## Portable feature evidence
 

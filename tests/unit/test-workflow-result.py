@@ -1011,25 +1011,35 @@ sys.exit(m.main())
         (active / 'scripts/helpers').mkdir(parents=True)
         (active / 'scripts/lib').symlink_to(ROOT / 'scripts/lib')
         (active / 'scripts/orchestrate.sh').symlink_to(self.engine)
-        validator = active / 'scripts/helpers/workflow-result.sh'
-        validator.symlink_to(ROOT / 'scripts/helpers/workflow-result.sh')
+        (active / 'scripts/helpers/workflow-result.sh').symlink_to(ROOT / 'scripts/helpers/workflow-result.sh')
+        stable = self.engine.parent.parent
+        choices = (({'CLAUDE_PLUGIN_ROOT': str(active)}, active),
+                   ({'CODEX_PLUGIN_ROOT': str(active)}, active),
+                   ({'DROID_PLUGIN_ROOT': str(active)}, active),
+                   ({'OCTO_ROOT': str(active)}, active), ({}, stable))
         for tree in ('.claude/skills', 'skills', 'codex-skills'):
-            for host in ('CLAUDE_PLUGIN_ROOT', 'CODEX_PLUGIN_ROOT'):
-                with self.subTest(tree=tree, host=host):
+            for selection, expected in choices:
+                with self.subTest(tree=tree, selection=selection):
                     env = {k: v for k, v in self.env.items()
-                           if not k.startswith(('CLAUDE_', 'CODEX_', 'DROID_'))}
-                    env.update({host: str(active), 'OCTO_ROOT': str(self.engine.parent.parent)})
+                           if not k.startswith(('CLAUDE_', 'CODEX_', 'DROID_')) and k != 'OCTO_ROOT'}
+                    env.update(selection)
                     command = self.parallel_block(tree, '## Resolve the loaded installation')
                     result = subprocess.run(['bash', '-c', command + '\nprintf "%s\\n" "$OCTO_ROOT"'],
                                             env=env, cwd=self.home, text=True, capture_output=True, timeout=10)
                     self.assertEqual(result.returncode, 0, result.stderr)
-                    self.assertEqual(result.stdout.strip(), str(active.resolve()))
+                    self.assertEqual(result.stdout.strip(), str(expected.resolve()))
+                    validator = expected / 'scripts/helpers/workflow-result.sh'
                     validator.unlink()
                     result = subprocess.run(['bash', '-c', command + '\necho dispatched'],
                                             env=env, cwd=self.home, text=True, capture_output=True, timeout=10)
                     self.assertNotEqual(result.returncode, 0)
                     self.assertNotIn('dispatched', result.stdout)
                     validator.symlink_to(ROOT / 'scripts/helpers/workflow-result.sh')
+            # An explicit but invalid root must not silently select a valid fallback.
+            env.update(OCTO_ROOT=str(self.home / 'missing-install'))
+            result = subprocess.run(['bash', '-c', command], env=env, cwd=self.home,
+                                    text=True, capture_output=True, timeout=10)
+            self.assertNotEqual(result.returncode, 0)
 
     def test_parallel_readiness_excludes_host_and_scopes_claude_version_gate(self):
         self.engine.write_text(f'#!{sys.executable} -I\n' +
@@ -1059,6 +1069,9 @@ sys.exit(m.main())
                     result = subprocess.run(['bash', '-c', self.parallel_block(tree, '## Prerequisites check')],
                                             env=env, cwd=self.home, text=True, capture_output=True, timeout=10)
                     self.assertEqual(result.returncode == 0, accepted, result.stdout + result.stderr)
+                    if host == 'codex' and not accepted:
+                        self.assertIn('$sys-configure', result.stderr)
+                        self.assertNotIn('/octo:setup', result.stderr)
 
     def test_parallel_delivery_requires_the_current_tangle_validation(self):
         capture = self.home / 'ink-arguments.json'
@@ -1067,6 +1080,10 @@ sys.exit(m.main())
                        'if phase == "tangle":\n    phase = "develop"')
         self.engine.write_text(self.engine.read_text().replace('phase = sys.argv[1]', replacement))
         self.env.update(OCTO_ROOT=str(self.engine.parent.parent), INK_ARGUMENTS=str(capture))
+        subprocess.run(['git', 'init', '-q', str(self.home)], env=self.env, check=True,
+                       capture_output=True)
+        branch = subprocess.check_output(['git', '-C', str(self.home), 'branch', '--show-current'],
+                                         env=self.env, text=True).strip()
         for tree in ('.claude/skills', 'skills', 'codex-skills'):
             for mode in ('failed', 'invalid', 'foreign', 'missing', 'complete'):
                 with self.subTest(tree=tree, mode=mode):
@@ -1074,13 +1091,28 @@ sys.exit(m.main())
                         report.unlink()
                     capture.unlink(missing_ok=True)
                     self.env['FIXTURE_MODE'] = mode
+                    self.env.pop('TANGLE_INTEGRATED', None)
                     command = self.parallel_block(tree, '### Research-First Development')
                     command = '# 3.' + command.split('# 3.', 1)[1]
                     result = subprocess.run(['bash', '-c', command], env=self.env, cwd=self.home,
                                             text=True, capture_output=True, timeout=15)
                     self.assertEqual(result.returncode == 0, mode == 'complete', result.stdout + result.stderr)
-                    self.assertEqual(capture.exists(), mode == 'complete')
+                    self.assertFalse(capture.exists(), 'Tangle completion dispatched delivery before integration')
                     if mode == 'complete':
+                        report = next(line.split(': ', 1)[1] for line in result.stdout.splitlines()
+                                      if line.startswith('Tangle validation report: '))
+                        delivery = self.parallel_block(tree, '#### Deliver after integration')
+                        self.env.update(ORIGINAL_WORKTREE=str(self.home), TANGLE_WORKTREE=str(self.home),
+                                        TANGLE_BRANCH=branch, TANGLE_VALIDATION=report)
+                        self.env.pop('TANGLE_INTEGRATED', None)
+                        blocked = subprocess.run(['bash', '-c', delivery], env=self.env, cwd=self.home,
+                                                 text=True, capture_output=True, timeout=10)
+                        self.assertNotEqual(blocked.returncode, 0)
+                        self.assertFalse(capture.exists())
+                        self.env['TANGLE_INTEGRATED'] = 'yes'
+                        delivered = subprocess.run(['bash', '-c', delivery], env=self.env, cwd=self.home,
+                                                   text=True, capture_output=True, timeout=10)
+                        self.assertEqual(delivered.returncode, 0, delivered.stderr)
                         args = json.loads(capture.read_text())
                         self.assertEqual(args[:2], ['ink', 'Finalize auth implementation'])
                         self.assertEqual(len(args), 3)

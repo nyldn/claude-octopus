@@ -53,11 +53,13 @@ single-provider work or describe one provider's output as consensus.
 ## Resolve the loaded installation
 
 Run this block in the same shell as each example below. Repeat it when starting
-a fresh shell. If the host supplies no plugin root, set `OCTO_ROOT` to the
-verified installation that loaded this skill.
+a fresh shell. Prefer the host-provided root, then an explicit `OCTO_ROOT`.
+When neither is available, validate the stable installation under
+`~/.claude-octopus/plugin`. An unresolved or incomplete installation stops the
+example; set `OCTO_ROOT` to the verified loaded installation before retrying.
 
 ```bash
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${DROID_PLUGIN_ROOT:-${OCTO_ROOT:-}}}}"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${DROID_PLUGIN_ROOT:-${OCTO_ROOT:-${HOME}/.claude-octopus/plugin}}}}"
 : "${OCTO_ROOT:?Set the verified installation that loaded this skill}"
 OCTO_ROOT="$(cd -- "$OCTO_ROOT" && pwd -P)" || exit 1
 for required in scripts/orchestrate.sh scripts/helpers/workflow-result.sh scripts/lib/host-runtime.sh scripts/lib/provider-registry.sh; do
@@ -256,7 +258,11 @@ while IFS='=' read -r name status; do
   break
 done <<< "$PROVIDER_REPORT"
 [[ -n "$ADDITIONAL_PROVIDER" ]] || {
-  echo "No additional provider is ready. Run /octo:setup before parallel work." >&2
+  if [[ "$HOST_RUNTIME" == codex ]]; then
+    echo 'No additional provider is ready. Run $sys-configure before parallel work.' >&2
+  else
+    echo "No additional provider is ready. Run /octo:setup before parallel work." >&2
+  fi
   exit 1
 }
 ```
@@ -653,6 +659,9 @@ export ORCAROUTER_API_KEY="sk-orca-..."
 
 ### Research-First Development
 ```bash
+# Record the original checkout before Tangle creates an isolated worktree.
+ORIGINAL_WORKTREE="$(git rev-parse --show-toplevel)" || exit 1
+
 # 1. Explore the problem space
 "$OCTO_ROOT/scripts/orchestrate.sh" probe "Authentication patterns for microservices"
 
@@ -670,7 +679,40 @@ TANGLE_VALIDATION=$("$OCTO_ROOT/scripts/helpers/workflow-result.sh" develop "$RU
 rm -f "$RUN_MARKER"
 [[ "$REPORT_STATUS" == 0 ]] || exit "$REPORT_STATUS"
 
-# 4. Deliver with that validation report as context.
+printf 'Tangle validation report: %s\n' "$TANGLE_VALIDATION"
+```
+
+#### Review and integrate Tangle's work
+
+Stop before delivery. A passing validation report can describe changes that are
+still in Tangle's isolated worktree, while the original checkout is unchanged.
+Record the exact worktree and branch printed by this invocation. Its matching
+`.tangle-<task-group>-git.json` beside the validation report also records
+`sourceRepository`, `sourceCommit`, `runWorktree` and `runBranch`. Use that run's
+record; do not select the newest unrelated worktree or metadata file.
+
+Present a handoff containing `ORIGINAL_WORKTREE`, `TANGLE_WORKTREE`,
+`TANGLE_BRANCH` and `TANGLE_VALIDATION`. Check the run worktree and branch with
+Git, review its diff against the recorded source commit, and explicitly integrate
+that reviewed work into the original checkout using an authorized method. Run
+the relevant checks against the integrated source. Preserve the run branch and
+worktree until review, integration and delivery are verified. In-place runs
+record the shared checkout and verify its changes before this handoff.
+
+Only after verifying integration set `TANGLE_INTEGRATED=yes`. If a new shell is
+used, restore the exact recorded values before the next block. A validation
+report alone is not evidence that integration happened.
+
+#### Deliver after integration
+
+```bash
+: "${ORIGINAL_WORKTREE:?Restore the original checkout from the handoff}"
+: "${TANGLE_WORKTREE:?Restore the run worktree from the handoff}"
+: "${TANGLE_BRANCH:?Restore the run branch from the handoff}"
+: "${TANGLE_VALIDATION:?Restore the run validation report from the handoff}"
+[[ "${TANGLE_INTEGRATED:-}" == yes ]] || { echo "Review and integrate Tangle's work before delivery." >&2; exit 1; }
+[[ "$(git -C "$TANGLE_WORKTREE" branch --show-current)" == "$TANGLE_BRANCH" ]] || exit 1
+cd -- "$ORIGINAL_WORKTREE" || exit 1
 "$OCTO_ROOT/scripts/orchestrate.sh" ink "Finalize auth implementation" "$TANGLE_VALIDATION" || exit 1
 ```
 

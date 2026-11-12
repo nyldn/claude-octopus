@@ -65,11 +65,24 @@ The Codex generator also writes `policy.allow_implicit_invocation: false` to eac
 skill's `agents/openai.yaml`; Codex users invoke the installed `$skill-name`.
 Do not depend on automatic activation for either host.
 
-When composing reusable instructions, derive the plugin root from the loaded
-entry and verify it. Load the complete host-specific `SKILL.md`:
+Resolve reusable instructions from the absolute entry path supplied by the host.
+Resolve symlinks first, then walk upward from that file's directory. At each
+ancestor containing the selected host's plugin manifest, check its registration:
 
-- Claude Code: the native path registered in `.claude-plugin/plugin.json`.
-- Codex: `codex-skills/<registered-name>/SKILL.md` under that root.
+1. Claude Code: read `.claude-plugin/plugin.json`. Expand each declared `skills`
+   path beneath that ancestor and append `SKILL.md`. Require the resolved loaded
+   entry to equal one of those existing registered files.
+2. Codex: read `.codex-plugin/plugin.json`. Expand the declared `skills` directory
+   beneath that ancestor. Require the loaded entry to be the existing
+   `<skills-directory>/<registered-name>/SKILL.md`, with the skill directory an
+   immediate child of that declared directory.
+3. Accept exactly one matching ancestor as the plugin root. Reject paths outside
+   the root, missing registered entries, and zero or ambiguous matches. Stop if
+   the host does not expose the loaded entry's absolute path; do not guess from
+   the current directory, a cache name, or an unrelated environment variable.
+
+Before loading another skill, construct its host-registered path under that
+verified root and confirm its complete `SKILL.md` exists. Load the full file.
 
 Treat the loaded body as instructions in the current conversation. Follow its
 steps in order and pass the user's text as workflow arguments, never executable

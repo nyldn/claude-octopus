@@ -2,11 +2,13 @@
 name: skill-ship
 disable-model-invocation: true
 user-invocable: true
-description: "Package and finalize completed work for delivery — use when a feature is done and ready to ship"
+description: "Package and finalize an initialized project — invoke manually when asked to ship, finalize, or deliver the project"
 trigger: |
-  EXPLICITLY USE when user mentions:
-  - "ship" or "deliver" or "finalize"
-  - "done" or "complete the project"
+  EXPLICITLY USE when user asks to:
+  - "ship the project" or "ship this project"
+  - "finalize the project" or "finalize this project"
+  - "deliver the project" or "deliver this project"
+  - "mark the project as shipped"
 ---
 
 # Ship Project - Multi-AI Delivery Validation
@@ -19,11 +21,11 @@ Finalize and deliver completed work with Multi-AI security audit, lessons captur
 
 ## When to Use
 
-**Use this skill when user asks:**
-- "Ship the project" or "We're done"
-- "Finalize this" or "Let's deliver"
-- "Complete the project" or "Ready to ship"
-- "Mark as shipped" or "Time to deliver"
+**Invoke this skill manually when the user asks to ship, finalize, or deliver an initialized project:**
+- "Ship the project" or "Ship this project"
+- "Finalize the project" or "Finalize this project"
+- "Deliver the project" or "Deliver this project"
+- "Mark the project as shipped"
 
 **Do NOT use for:**
 - Code review (use /octo:review or flow-deliver)

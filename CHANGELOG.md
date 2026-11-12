@@ -11,6 +11,16 @@
 
 ### Fixed
 
+- Native skill guidance redacts credential-history evidence before tool capture,
+  verifies authored skill roots against the loaded registration, and applies
+  completion checks beyond test files. Shipping cues distinguish project
+  completion from phase delivery, and deck guidance names the Agent tool.
+
+- Parallel examples validate the stable fallback, show host-specific setup
+  guidance, and require reviewed Tangle integration before delivery. Rollback
+  keeps ignored state history local. Push-only completion identifies uncommitted
+  changes and stops for a reviewed commit instead of silently omitting them.
+
 - Parallel-workflow guidance requires explicit invocation, uses the loaded
   installation, and counts ready providers outside the active host. The
   research-first example validates its own Tangle report before delivery.

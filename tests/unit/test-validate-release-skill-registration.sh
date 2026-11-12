@@ -62,7 +62,7 @@ else
 fi
 
 test_case "release registration accepts the same leaf, scalar and container forms as assembly"
-if python3 - "$PROJECT_ROOT" <<'PY_REGISTRATION_FORMS'
+if python3 - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_REGISTRATION_FORMS'
 import json
 import shutil
 import subprocess
@@ -70,9 +70,10 @@ import sys
 import tempfile
 from pathlib import Path
 root = Path(sys.argv[1])
+temp_root = sys.argv[2]
 source = (root / 'scripts/validate-release.sh').read_text()
 section = source[source.index('find_skill_md_files()'):source.index('# 7. SKILL FRONTMATTER FORMAT CHECK')]
-with tempfile.TemporaryDirectory() as temporary:
+with tempfile.TemporaryDirectory(dir=temp_root) as temporary:
     fixture = Path(temporary)
     (fixture / '.claude-plugin').mkdir()
     (fixture / 'scripts').mkdir()

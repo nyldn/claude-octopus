@@ -298,9 +298,16 @@ Delete only the confirmed local branch with a quoted branch argument. Delete a r
 : "${REVIEWED_HEAD:?Restore the verified commit}"
 if ! CURRENT_BRANCH=$(git -C "$FEATURE_ROOT" branch --show-current) ||
    ! CURRENT_HEAD=$(git -C "$FEATURE_ROOT" rev-parse HEAD) ||
-   ! WORKTREE_STATUS=$(git -C "$FEATURE_ROOT" status --porcelain) ||
-   [[ "$CURRENT_BRANCH" != "$FEATURE_BRANCH" || "$CURRENT_HEAD" != "$REVIEWED_HEAD" || -n "$WORKTREE_STATUS" ]]; then
-  echo "The feature checkout changed; repeat checks and review before pushing." >&2
+   ! WORKTREE_STATUS=$(git -C "$FEATURE_ROOT" status --porcelain); then
+  echo "Cannot inspect the recorded feature checkout; stop before pushing." >&2
+  return 1 2>/dev/null || exit 1
+fi
+if [[ -n "$WORKTREE_STATUS" ]]; then
+  echo "The feature checkout has uncommitted changes. Commit the intended changes, then repeat checks and review before pushing." >&2
+  return 1 2>/dev/null || exit 1
+fi
+if [[ "$CURRENT_BRANCH" != "$FEATURE_BRANCH" || "$CURRENT_HEAD" != "$REVIEWED_HEAD" ]]; then
+  echo "The feature branch or commit changed; repeat checks and review before pushing." >&2
   return 1 2>/dev/null || exit 1
 fi
 if ! git -C "$FEATURE_ROOT" push -u origin "$FEATURE_BRANCH"; then
@@ -337,7 +344,7 @@ Change to a retained checkout before running `git worktree remove "$FEATURE_ROOT
 
 ## Integration with Claude Octopus
 
-After the develop and deliver phases, a request to create a PR selects Option 1. Verify tests and review, then execute Option 1 (Create PR). A request to merge locally selects Option 2. A request to commit and push selects Option 5. Existing authorization remains valid throughout the task.
+After the develop and deliver phases, a request to create a PR selects Option 1. Verify tests and review, then execute Option 1 (Create PR). A request to merge locally selects Option 2. A request to commit and push selects Option 5 only after the intended changes have been committed and that commit has passed checks and review. If the checkout has uncommitted changes, stop and identify them; this skill does not commit them automatically. Existing authorization remains valid throughout the task.
 
 ## Common Mistakes
 

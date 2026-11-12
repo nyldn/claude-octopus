@@ -12,6 +12,9 @@ disable-model-invocation: true
 
 # Verification Gate
 
+This gate applies to source, configuration, documentation and packaging work,
+as well as tests. Keep the existing explicit-invocation policy.
+
 ## Portable feature evidence
 
 Load the selected feature's policy provenance and open-marker count through the existing boundary adapter. Cite the exact policy passage and conflicting plan action for any verified policy violation. Report unresolved decisions and which tasks depend on them. Stable task completion needs parent verification tied to the current task-contract digest; a checkbox, model claim or historical manifest alone cannot prove completion. Retain result-to-task mappings through correction, cancellation and resume.

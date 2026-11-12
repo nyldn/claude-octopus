@@ -110,15 +110,16 @@ class RollbackRecipes(unittest.TestCase):
 
     def test_reviewed_history_is_committed_with_the_restored_snapshot(self):
         for tree in TREES:
-            for state_exists in (True, False):
-                with self.subTest(tree=tree, state_exists=state_exists), tempfile.TemporaryDirectory() as tmp:
+            for state_kind in ("tracked", "tracked-with-ignore-rule", "untracked", "ignored", "absent"):
+                state_exists = state_kind != "absent"
+                with self.subTest(tree=tree, state_kind=state_kind), tempfile.TemporaryDirectory() as tmp:
                     original_repo = self.repo
                     self.repo = Path(tmp)
                     try:
                         self.git("init", "-q")
                         (self.repo / "work.txt").write_text("checkpoint\n")
                         state = self.repo / ".octo/STATE.md"
-                        if state_exists:
+                        if state_kind.startswith("tracked"):
                             state.parent.mkdir()
                             state.write_text("checkpoint history\n")
                         self.commit("checkpoint")
@@ -128,12 +129,17 @@ class RollbackRecipes(unittest.TestCase):
                         text = self.text(tree)
                         result = self.run_recipe(self.step(text, 6)[0])
                         self.assertEqual(result.returncode, 0, result.stderr)
+                        if state_kind in ("untracked", "ignored"):
+                            state.parent.mkdir(exist_ok=True)
+                            state.write_text("local history\n")
+                        if state_kind in ("ignored", "tracked-with-ignore-rule"):
+                            (self.repo / ".git/info/exclude").write_text(".octo/STATE.md\n")
                         history = self.step(text, 7)
                         result = self.run_recipe(history[0])
                         self.assertEqual(result.returncode, 0, result.stderr)
                         # Read the actual history diff before executing its staging recipe.
                         reviewed = self.git("diff", "--", ".octo/STATE.md")
-                        if state_exists:
+                        if state_kind.startswith("tracked"):
                             self.assertIn(b"Rollback", reviewed)
                         for command in history[1:]:
                             result = self.run_recipe(command)
@@ -143,7 +149,10 @@ class RollbackRecipes(unittest.TestCase):
                         self.assertEqual(result.returncode, 0, result.stderr)
                         self.assertEqual(self.git("show", "HEAD:work.txt"), b"checkpoint\n")
                         self.assertEqual(self.git("status", "--porcelain"), b"")
-                        if state_exists:
+                        if state_kind == "ignored":
+                            self.assertEqual(self.git("ls-files", "--", ".octo/STATE.md"), b"")
+                            self.assertIn("**Target:** target", state.read_text())
+                        elif state_exists:
                             committed = self.git("show", "HEAD:.octo/STATE.md")
                             self.assertIn(b"**Target:** target", committed)
                             self.assertIn(b"octo-checkpoint-pre-rollback-20261112-150000", committed)

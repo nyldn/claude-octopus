@@ -209,11 +209,18 @@ fi
 ```
 
 Review the appended history with `git diff -- .octo/STATE.md`. After reviewing
-it, stage that file if it exists. Keep the restore's already-staged changes:
+it, stage that file if it exists and Git does not ignore it. Keep the restore's
+already-staged changes:
 
 ```bash
 if [ -f ".octo/STATE.md" ]; then
-  git add -- .octo/STATE.md || exit 1
+  if git check-ignore -q -- .octo/STATE.md; then
+    echo "STATE.md is ignored; its history remains local and unstaged." >&2
+  else
+    IGNORE_STATUS=$?
+    [[ "$IGNORE_STATUS" == 1 ]] || exit "$IGNORE_STATUS"
+    git add -- .octo/STATE.md || exit 1
+  fi
 fi
 ```
 
@@ -234,7 +241,7 @@ Rollback Complete
 2. Commit the rollback if satisfied:
    ```bash
    git diff --cached
-    # The restore and reviewed STATE.md history are already staged.
+    # The restore and eligible reviewed STATE.md history are already staged.
     git commit -m "chore: rollback to $CHECKPOINT_TAG"
    ```
 3. To return to the previous state, follow the recovery instructions below.
@@ -242,7 +249,10 @@ Rollback Complete
 
 ### Recover from the safety checkpoint
 
-The rollback leaves staged changes, including the reviewed STATE.md history.
+The rollback leaves staged changes, including reviewed STATE.md history when
+Git tracks or permits that file. Ignored history stays local and unstaged;
+preserve it separately before recovery because `--include-untracked` does not
+include ignored files.
 A second `$skill-rollback` refuses this non-clean tree. First commit the restored
 state and subsequent edits, or preserve them with
 `git stash push --include-untracked`. Choose how to preserve that work with the

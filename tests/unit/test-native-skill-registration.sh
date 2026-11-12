@@ -6,6 +6,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
 test_suite "Native skill registration"
+export TMPDIR="$TEST_TMP_DIR"
 test_case "Claude registrations preserve native bodies, names, alias and starter pack"
 if python3 - "$PROJECT_ROOT" <<'PY'
 import json

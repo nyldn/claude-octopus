@@ -90,18 +90,17 @@ Existing explicit authorization counts; do not ask again for an approved scope.
 Keep raw matches local, redact credential values before displaying output, and
 send only redacted evidence to providers or reports. If the available scanner
 cannot redact before tool output is captured, stop and use a local scanner that
-can. The raw commands below illustrate the searches, not safe report output.
+can.
 
-Scan git history for leaked credentials that may have been "deleted" but remain in commits:
+Use a local history scanner that redacts credential values before emitting
+stdout, stderr, or a report that the agent can read. Scan all refs for deleted
+`.env`, key and PEM files, plus AWS keys, API keys, GitHub tokens and passwords.
+Capture only the commit SHA, file path, finding type and redacted evidence.
 
-```bash
-# Search git history for common secret patterns
-git log --all -p --diff-filter=D -- '*.env' '*.key' '*.pem' 2>/dev/null | head -200
-git log --all -p -S 'AKIA' --pickaxe-regex 2>/dev/null | head -100  # AWS keys
-git log --all -p -S 'sk-[a-zA-Z0-9]{20,}' --pickaxe-regex 2>/dev/null | head -100  # API keys
-git log --all -p -S 'ghp_|gho_|github_pat_' --pickaxe-regex 2>/dev/null | head -100  # GitHub tokens
-git log --all -p -S 'password\s*[:=]' --pickaxe-regex 2>/dev/null | head -100  # Passwords
-```
+Do not run raw `git log` patch or pickaxe searches through an agent tool. Piping
+patches to `head` truncates output but still exposes credential values. If
+pre-capture redaction is unavailable, stop the automated scan and use a local
+scanner whose raw results stay outside tool output and provider context.
 
 Report any findings with the commit SHA, file, and recommendation to rotate the credential.
 
