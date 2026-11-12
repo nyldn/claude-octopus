@@ -14,6 +14,10 @@
 
 ### Fixed
 
+- The six-worker feature-task fixture resets its eight-second join deadline
+  after each worker starts. Staggered launches retain the concurrency
+  check, while serial waves and stalled workers still fail.
+
 - Staged review captures the selected Git or file scope in private artifacts,
   scans the same staged or committed file bytes, and waits for actual provider
   answers. Posting requires an authorized destination and the completed report.
