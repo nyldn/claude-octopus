@@ -306,10 +306,93 @@ adapt_shared_paths_for_codex() {
         -e 's@(\$\{?OCTO_ROOT\}?)/skills/@\1/codex-skills/@g'
 }
 
+# Translate only commands with an installed skill equivalent. Keep unknown
+# commands, URLs, file paths, and executable examples literal. A chat skill
+# invocation is not a shell command or a replacement for a program string.
+adapt_skill_references_for_codex() {
+    awk '
+        BEGIN {
+            skill["parallel"] = "flow-parallel"
+            skill["discover"] = "flow-discover"
+            skill["define"] = "flow-define"
+            skill["develop"] = "flow-develop"
+            skill["deliver"] = "flow-deliver"
+            skill["spec"] = "flow-spec"
+            skill["quick"] = "octopus-quick"
+            skill["research"] = "octopus-research"
+            skill["security"] = "octopus-security-audit"
+            skill["design-ui-ux"] = "octopus-ui-ux-design"
+            skill["setup"] = "sys-configure"
+            skill["review"] = "skill-code-review"
+            skill["debate"] = "skill-debate"
+            skill["docs"] = "skill-doc-delivery"
+            skill["deck"] = "skill-deck"
+            skill["prd"] = "skill-prd"
+            skill["brainstorm"] = "skill-thought-partner"
+            skill["km"] = "skill-knowledge-work"
+            skill["debug"] = "skill-debug"
+            skill["tdd"] = "skill-tdd"
+            skill["factory"] = "skill-factory"
+            skill["refine"] = "skill-refine"
+            skill["resume"] = "skill-resume"
+            skill["staged-review"] = "skill-staged-review"
+            skill["status"] = "skill-status"
+            skill["issues"] = "skill-issues"
+            skill["ship"] = "skill-ship"
+            skill["rollback"] = "skill-rollback"
+            skill["extract"] = "skill-extract"
+            skill["council"] = "skill-council"
+            skill["multi"] = "skill-parallel-agents"
+            skill["skill-doctor"] = "skill-doctor"
+        }
+        {
+            marker = $0
+            sub(/^[ \t]*/, "", marker)
+            if (marker ~ /^```/ || marker ~ /^~~~/) {
+                char = substr(marker, 1, 1)
+                run = 0
+                while (substr(marker, run + 1, 1) == char) run++
+                language = substr(marker, run + 1)
+                sub(/[ \t]*$/, "", language)
+                if (!fenced) {
+                    fenced = 1
+                    fence_char = char
+                    fence_length = run
+                    prose_fence = language == "" || language == "text" || language == "markdown"
+                } else if (char == fence_char && run >= fence_length && language == "") {
+                    fenced = 0
+                }
+                print
+                next
+            }
+            if (fenced && !prose_fence) {
+                print
+                next
+            }
+            rest = $0
+            out = ""
+            while (match(rest, /\/octo:[a-z][a-z0-9-]*/)) {
+                prefix = substr(rest, 1, RSTART - 1)
+                command = substr(rest, RSTART, RLENGTH)
+                tail = substr(rest, RSTART + RLENGTH)
+                name = substr(command, 7)
+                before = substr(prefix, length(prefix), 1)
+                after = substr(tail, 1, 1)
+                if (name in skill && before !~ /[[:alnum:]_.\/:~-]/ && after !~ /[[:alnum:]_.\/:~-]/) {
+                    command = "$" skill[name]
+                }
+                out = out prefix command
+                rest = tail
+            }
+            print out rest
+        }
+    '
+}
+
 # Adapt narrator/tool references while preserving explicitly labelled native
 # call examples, whose argument names must remain valid for their own host.
 adapt_host_context_for_codex() {
-    adapt_shared_paths_for_codex | sed -E \
+    adapt_shared_paths_for_codex | adapt_skill_references_for_codex | sed -E \
         -e 's/Bash tool/native shell command tool/g' \
         -e 's/Agent tool/host subagent tool/g' \
         -e 's/Task tool/host subagent tool/g' \
@@ -347,7 +430,7 @@ host_preamble() {
     cat <<'PREAMBLE'
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
+> Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 

@@ -5,7 +5,7 @@ disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
+> Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
@@ -178,11 +178,11 @@ Use this routing table:
 | Status | Suggestion |
 |--------|-----------|
 | `ready` | "Run `/octo:embrace [description]` to start the workflow" |
-| `planning` | "Continue planning in current phase. Use `/octo:define` to refine requirements." |
-| `building` | "Continue implementation. Use `/octo:develop` to build features." |
+| `planning` | "Continue planning in current phase. Use `$flow-define` to refine requirements." |
+| `building` | "Continue implementation. Use `$flow-develop` to build features." |
 | `in_progress` | "Continue with current phase. Check .octo/phases/phase{N}/ for details." |
-| `blocked` | "Review blockers above. Use `/octo:issues` to track and resolve issues." |
-| `complete` | "Phase complete. Proceed to next phase or run `/octo:ship` to finalize." |
+| `blocked` | "Review blockers above. Use `$skill-issues` to track and resolve issues." |
+| `complete` | "Phase complete. Proceed to next phase or run `$skill-ship` to finalize." |
 | `complete_with_gaps` | "Phase complete with known gaps. Review .octo/ISSUES.md before proceeding." |
 | `shipped` | "Project delivered! Review .octo/LESSONS.md for retrospective." |
 | `paused` | "Project paused. Resume with `/octo:embrace` or check .octo/STATE.md for context." |
@@ -194,31 +194,31 @@ If `status=in_progress`, provide phase-specific guidance:
 **Phase 1 (Discover):**
 ```
 Continue research and exploration.
-- Use `/octo:research [topic]` for multi-AI research
-- Use `/octo:debate [question]` for decision support
+- Use `$octopus-research [topic]` for multi-AI research
+- Use `$skill-debate [question]` for decision support
 ```
 
 **Phase 2 (Define):**
 ```
 Continue requirements clarification.
-- Use `/octo:prd` to write product requirements
-- Use `/octo:define` to refine scope
+- Use `$skill-prd` to write product requirements
+- Use `$flow-define` to refine scope
 ```
 
 **Phase 3 (Develop):**
 ```
 Continue implementation.
-- Use `/octo:develop` to build features
-- Use `/octo:tdd` for test-driven development
-- Use `/octo:review` for code quality checks
+- Use `$flow-develop` to build features
+- Use `$skill-tdd` for test-driven development
+- Use `$skill-code-review` for code quality checks
 ```
 
 **Phase 4 (Deliver):**
 ```
 Continue validation and delivery.
-- Use `/octo:deliver` for final review
-- Use `/octo:security` for security audit
-- Use `/octo:ship` to finalize delivery
+- Use `$flow-deliver` for final review
+- Use `$octopus-security-audit` for security audit
+- Use `$skill-ship` to finalize delivery
 ```
 
 
@@ -275,8 +275,8 @@ None
 ### Suggested Next Action
 
 Continue requirements clarification.
-- Use `/octo:prd` to write product requirements
-- Use `/octo:define` to refine scope
+- Use `$skill-prd` to write product requirements
+- Use `$flow-define` to refine scope
 - Check `.octo/phases/phase2/` for detailed plans
 ```
 
@@ -313,11 +313,11 @@ Continue requirements clarification.
 
 ### Suggested Next Action
 
-Review blockers above. Use `/octo:issues` to track and resolve issues.
+Review blockers above. Use `$skill-issues` to track and resolve issues.
 
 **To unblock:**
 1. Configure OAuth credentials in .env
-2. Finalize database schema with `/octo:define`
+2. Finalize database schema with `$flow-define`
 3. Set up rate limiting configuration
 ```
 
@@ -386,7 +386,7 @@ Based on recent activity, consider adding:
 ```
 User asks "what's next?"
 → skill-status shows current phase
-→ User runs /octo:develop to continue
+→ User runs $flow-develop to continue
 ```
 
 ### With skill-task-management
@@ -441,7 +441,7 @@ grep "Current Phase" .octo/STATE.md
 
 **Good:**
 ```
-Continue with `/octo:develop` to implement features.
+Continue with `$flow-develop` to implement features.
 Check `.octo/phases/phase3/` for implementation plan.
 ```
 

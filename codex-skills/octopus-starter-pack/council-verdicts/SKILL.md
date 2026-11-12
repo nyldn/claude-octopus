@@ -10,7 +10,7 @@ Read a completed council run's artifacts and explain what the verdicts actually 
 
 ## When to use
 
-A `/octo:council` run has finished and the user asks "so what did the council decide?" or pastes a summary.json path.
+A `$skill-council` run has finished and the user asks "so what did the council decide?" or pastes a summary.json path.
 
 ## Steps
 

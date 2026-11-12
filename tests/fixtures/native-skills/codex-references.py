@@ -1,0 +1,125 @@
+#!/usr/bin/env python3
+"""Exercise generated host routes without invoking a model or changing logins."""
+import re
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(sys.argv.pop(1)).resolve()
+GENERATOR = ROOT / "scripts/build-codex-skills.sh"
+
+
+def adapt(text):
+    return subprocess.check_output([
+        "/bin/bash", "-eu", "-c",
+        'source "$1"; adapt_skill_references_for_codex', "fixture", str(GENERATOR)
+    ], input=text, text=True)
+
+
+class CodexReferences(unittest.TestCase):
+    def test_user_routes_reach_installed_skills(self):
+        routes = {
+            "parallel": "flow-parallel", "quick": "octopus-quick",
+            "discover": "flow-discover", "define": "flow-define",
+            "develop": "flow-develop", "deliver": "flow-deliver",
+            "debate": "skill-debate", "docs": "skill-doc-delivery",
+            "deck": "skill-deck", "prd": "skill-prd",
+            "brainstorm": "skill-thought-partner", "setup": "sys-configure",
+            "status": "skill-status", "debug": "skill-debug",
+            "security": "octopus-security-audit", "skill-doctor": "skill-doctor",
+        }
+        source = "\n".join("Use `/octo:" + n + " topic` next." for n in routes) + "\n"
+        expected = "\n".join("Use `$" + n + " topic` next." for n in routes.values()) + "\n"
+        self.assertEqual(adapt(source), expected)
+        for name in routes.values():
+            entry = ROOT / "codex-skills" / name / "SKILL.md"
+            self.assertRegex(entry.read_text(), r"(?m)^name: " + re.escape(name) + r"$")
+
+    def test_multiple_routes_and_start_of_line(self):
+        self.assertEqual(adapt('/octo:review then `/octo:tdd` or "/octo:research"\n'),
+                         '$skill-code-review then `$skill-tdd` or "$octopus-research"\n')
+
+    def test_executable_snippets_keep_command_literals_without_shell_expansion(self):
+        shell = '```bash\necho "Run /octo:setup and /octo:ship"\n```\n'
+        program = '```javascript\nconst command = "/octo:review";\n```\n'
+        self.assertEqual(adapt(shell + program), shell + program)
+        self.assertEqual(adapt('```text\n/octo:quick "task"\n```\n'),
+                         '```text\n$octopus-quick "task"\n```\n')
+
+    def test_unknown_commands_urls_paths_and_longer_names_stay_literal(self):
+        source = "\n".join([
+            "/octo:does-not-exist", "/octo:review-extra", "/octo:review.md",
+            "https://example.invalid/octo:review", "docs/octo:review.md",
+            "/docs/octo:review", "/octo:review/file", "/octo:*",
+            "historical /octo:doctor", "/octo:embrace", "octo:review",
+        ]) + "\n"
+        self.assertEqual(adapt(source), source)
+
+    def test_generation_keeps_native_bytes_and_adapts_alias_and_shared_resource(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source/skill-verification-gate/SKILL.md"
+            source.parent.mkdir(parents=True)
+            text = ('---\nname: skill-verification-gate\ndescription: "Verify evidence"\n'
+                    'disable-model-invocation: true\n---\n\nUse `/octo:review` before `/octo:deliver`.\n')
+            source.write_text(text)
+            block = root / "native/blocks/routes.md"
+            block.parent.mkdir(parents=True)
+            block.write_text('Use `/octo:debate` and `skills/blocks/evidence.md`.\n')
+            subprocess.run([
+                "/bin/bash", "-eu", "-c",
+                'source "$1"; SKILLS_DIR="$2/source"; OUTPUT_DIR="$2/codex"; '
+                'NATIVE_OUTPUT_DIR="$2/native"; main >/dev/null',
+                "fixture", str(GENERATOR), str(root)
+            ], check=True, capture_output=True)
+            self.assertEqual((root / "native/skill-verification-gate/SKILL.md").read_text(), text)
+            for name in ("skill-verification-gate", "skill-verify"):
+                generated = (root / "codex" / name / "SKILL.md").read_text()
+                self.assertIn('Use `$skill-code-review` before `$flow-deliver`.', generated)
+                self.assertRegex(generated, r"(?m)^name: " + name + r"$")
+                self.assertIn('allow_implicit_invocation: false',
+                              (root / "codex" / name / "agents/openai.yaml").read_text())
+            self.assertEqual((root / "codex/blocks/routes.md").read_text(),
+                             'Use `$skill-debate` and `codex-skills/blocks/evidence.md`.\n')
+            self.assertEqual(block.read_text(), 'Use `/octo:debate` and `skills/blocks/evidence.md`.\n')
+
+    def test_packaged_examples_use_available_host_routes(self):
+        for name, obsolete in {
+            "flow-parallel": ("parallel", "batch"),
+            "octopus-quick": ("quick", "discover", "define", "develop", "deliver"),
+            "skill-deck": ("discover", "deck", "docs", "prd", "brainstorm"),
+            "skill-doctor": ("setup", "status", "debug", "skill-doctor"),
+            "skill-work-slicing": ("parallel",),
+            "octopus-ui-ux-design": ("debate", "embrace"),
+        }.items():
+            text = (ROOT / "codex-skills" / name / "SKILL.md").read_text()
+            for command in obsolete:
+                self.assertNotRegex(text, r"/octo:" + re.escape(command) + r"(?![a-z0-9-])", name)
+
+    def test_authoring_checks_both_hosts_and_verification_alias_uses_registered_names(self):
+        authoring = (ROOT / "codex-skills/skill-authoring/SKILL.md").read_text()
+        for required in (".codex-plugin/plugin.json", "policy.allow_implicit_invocation: false",
+                         "codex-skills/<registered-name>/SKILL.md", "derive the plugin root",
+                         "test-codex-manifest.sh", "test-native-skill-registration.sh"):
+            self.assertIn(required, authoring)
+        for name in ("skill-verification-gate", "skill-verify"):
+            text = (ROOT / "codex-skills" / name / "SKILL.md").read_text()
+            for other in ("flow-develop", "flow-deliver", "skill-code-review", "skill-tdd", "skill-factory"):
+                self.assertIn("`" + other + "`", text)
+                self.assertNotIn("`" + other + ".md`", text)
+        audit = (ROOT / "codex-skills/skill-audit/SKILL.md").read_text()
+        self.assertIn("octopus-security-audit", audit)
+        self.assertNotIn("skill-security-audit", audit)
+
+    def test_loaded_block_paths_belong_to_the_codex_tree(self):
+        for name in ("skill-authoring", "skill-audit", "skill-meta-prompt"):
+            text = (ROOT / "codex-skills" / name / "SKILL.md").read_text()
+            self.assertNotRegex(text, r"(?<![a-z/.-])skills/blocks/")
+            for relative in re.findall(r"`(codex-skills/blocks/[a-z0-9-]+\.md)`", text):
+                self.assertTrue((ROOT / relative).is_file(), relative)
+
+
+if __name__ == "__main__":
+    unittest.main()

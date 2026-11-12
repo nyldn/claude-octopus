@@ -5,7 +5,7 @@ disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
+> Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
@@ -86,8 +86,8 @@ User Request → Direct Implementation → Atomic Commit → Summary
 
 ### Via Command
 
-```bash
-/octo:quick "add dark mode toggle to settings"
+```text
+$octopus-quick "add dark mode toggle to settings"
 ```
 
 ### Via Skill Invocation
@@ -100,10 +100,10 @@ Task: "fix typo in README.md line 42"
 ### Examples
 
 ```
-/octo:quick "update Next.js to v15"
-/octo:quick "fix the broken import in auth.ts"
-/octo:quick "add error handling to login function"
-/octo:quick "remove console.log statements"
+$octopus-quick "update Next.js to v15"
+$octopus-quick "fix the broken import in auth.ts"
+$octopus-quick "add error handling to login function"
+$octopus-quick "remove console.log statements"
 ```
 
 
@@ -197,7 +197,7 @@ echo "📝 Summary saved to: $summary_file"
 
 **User Request:**
 ```
-/octo:quick "fix typo in README - change 'recieve' to 'receive'"
+$octopus-quick "fix typo in README - change 'recieve' to 'receive'"
 ```
 
 **Execution:**
@@ -274,10 +274,10 @@ If during execution you realize the task is more complex than expected:
 This task is more complex than anticipated. I recommend using the full
 workflow instead:
 
-- For research: /octo:discover "research authentication patterns"
-- For planning: /octo:define "define auth requirements"
-- For building: /octo:develop "implement auth system"
-- For validation: /octo:deliver "validate auth implementation"
+- For research: $flow-discover "research authentication patterns"
+- For planning: $flow-define "define auth requirements"
+- For building: $flow-develop "implement auth system"
+- For validation: $flow-deliver "validate auth implementation"
 
 Would you like me to switch to a full workflow?
 ```
@@ -351,10 +351,10 @@ Each summary includes:
 → Quick mode assumes simple, safe changes. Use full workflow for risky changes.
 
 ### "Need to research best approach"
-→ Quick mode is for known solutions only. Use /octo:discover for research.
+→ Quick mode is for known solutions only. Use $flow-discover for research.
 
 ### "Multiple files need changes"
-→ Consider /octo:develop for coordinated multi-file changes.
+→ Consider $flow-develop for coordinated multi-file changes.
 
 
 ## Summary

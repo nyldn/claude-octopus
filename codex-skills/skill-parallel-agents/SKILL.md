@@ -5,7 +5,7 @@ disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
+> Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
@@ -110,7 +110,7 @@ Claude Octopus uses **visual indicators** so you always know which AI is respond
 
 **External CLIs execute when:**
 - Using `/parallel-agents` command explicitly
-- Using `/octo:debate` command (AI Debate Hub)
+- Using `$skill-debate` command (AI Debate Hub)
 - Running orchestrate.sh workflows (probe, grasp, tangle, ink, embrace, grapple, squeeze)
 - Knowledge mode deliberation (when Knowledge Mode is ON)
 - Natural language that triggers this skill (research, build, review tasks)
@@ -133,13 +133,13 @@ Sometimes you want multi-provider analysis even for simple tasks that wouldn't n
 
 ### Explicit Command
 
-Force multi-provider execution using the `/octo:multi` command:
+Force multi-provider execution using the `$skill-parallel-agents` command:
 
 ```
-/octo:multi "Explain how Redis works"
-/octo:multi "What is OAuth?"
-/octo:multi "Review this simple function"
-/octo:multi "Should we use TypeScript?"
+$skill-parallel-agents "Explain how Redis works"
+$skill-parallel-agents "What is OAuth?"
+$skill-parallel-agents "Review this simple function"
+$skill-parallel-agents "Should we use TypeScript?"
 ```
 
 ### Natural Language Triggers
@@ -234,7 +234,7 @@ CLAUDE_CODE_STATUS=outdated
 CLAUDE_CODE_MINIMUM=2.1.14
 ```
 
-If one non-Claude provider reports `ok`, use it. Parallel execution needs at least one ready non-Claude provider, but ordinary Claude-only commands still work without one. If none reports `ok`, stop the parallel workflow, direct the user to `/octo:setup`, and do not simulate provider agreement by running one provider repeatedly. One ready provider can supply an additional perspective, but it is not multi-provider consensus.
+If one non-Claude provider reports `ok`, use it. Parallel execution needs at least one ready non-Claude provider, but ordinary Claude-only commands still work without one. If none reports `ok`, stop the parallel workflow, direct the user to `$sys-configure`, and do not simulate provider agreement by running one provider repeatedly. One ready provider can supply an additional perspective, but it is not multi-provider consensus.
 
 The command writes `~/.claude-octopus/.provider-cache`. Reuse it for up to one hour; after that, run detection again.
 

@@ -5,7 +5,7 @@ disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
+> Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
@@ -45,7 +45,7 @@ AskUserQuestion with these questions:
    - Complex (emergent behavior, unknowns)
 ```
 
-If user provided a description inline with the command (e.g., `/octo:spec user authentication system`), use that as the project description but STILL ask remaining questions (actors, constraints, complexity).
+If user provided a description inline with the command (e.g., `$flow-spec user authentication system`), use that as the project description but STILL ask remaining questions (actors, constraints, complexity).
 
 If user says "skip" for any question, note assumptions and proceed.
 
@@ -80,7 +80,7 @@ Estimated Time: 3-7 minutes
 ```
 
 **Validation:**
-- If no external providers are available -> STOP, suggest: `/octo:setup`
+- If no external providers are available -> STOP, suggest: `$sys-configure`
 - If one or more external providers are available -> Continue with available provider(s)
 
 **DO NOT PROCEED TO STEP 3 until banner displayed.**
@@ -111,7 +111,7 @@ fi
 ```
 
 **This provides context from:**
-- Prior discover phases (if user ran `/octo:discover` first)
+- Prior discover phases (if user ran `$flow-discover` first)
 - Architectural decisions already made
 - User vision captured in earlier phases
 
@@ -406,7 +406,7 @@ bash "$OCTO_ROOT/scripts/helpers/feature-workflow.sh" save spec \
 # Publish distilled decisions through save decisions with the same selector.
 ```
 
-The writer redacts and scans before every repository write. If it cannot certify content, the artifact remains in runtime and the repository receives only a safe run/artifact pointer. Raw provider transcripts remain in runtime. Pass an empty challenge argument if the challenge was skipped. On a fresh clone, `/octo:resume <feature directory>` recovers the repository artifacts without the old runtime files.
+The writer redacts and scans before every repository write. If it cannot certify content, the artifact remains in runtime and the repository receives only a safe run/artifact pointer. Raw provider transcripts remain in runtime. Pass an empty challenge argument if the challenge was skipped. On a fresh clone, `$skill-resume <feature directory>` recovers the repository artifacts without the old runtime files.
 
 **Update state with spec context:**
 
@@ -440,7 +440,7 @@ Satisfaction target: [0.XX]
 
 Next steps:
 - Review and refine the spec manually
-- Use /octo:develop to implement from this spec
+- Use $flow-develop to implement from this spec
 - Use /octo:embrace for full lifecycle from spec
 ```
 
@@ -455,7 +455,7 @@ Providers: Codex | Antigravity | Claude
 
 If any step fails:
 - **Step 1 (Questions)**: If user declines all questions, proceed with best-effort assumptions and note them
-- **Step 2 (Providers)**: If all external providers are unavailable, suggest `/octo:setup` and STOP
+- **Step 2 (Providers)**: If all external providers are unavailable, suggest `$sys-configure` and STOP
 - **Step 3 (State)**: If state-manager.sh fails, continue without prior state (warn user)
 - **Step 4 (orchestrate.sh)**: Show bash error, check logs, report to user. DO NOT substitute with direct research
 - **Step 5 (Validation)**: If synthesis missing, show orchestrate.sh logs, DO NOT proceed

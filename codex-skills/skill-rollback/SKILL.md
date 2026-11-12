@@ -5,7 +5,7 @@ disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
+> Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
@@ -46,7 +46,7 @@ git tag -l "octo-checkpoint-*" --sort=-creatordate --format='%(refname:short)|%(
 | octo-checkpoint-post-discover-20260203-143022 | 2026-02-03 | After Discover phase |
 | octo-checkpoint-post-define-20260203-150145 | 2026-02-03 | After Define phase |
 
-Usage: `/octo:rollback <tag-name>`
+Usage: `$skill-rollback <tag-name>`
 ```
 
 **If no checkpoints found:**
@@ -233,7 +233,7 @@ Rollback Complete
 ### Recover from the safety checkpoint
 
 The rollback leaves staged changes, and Step 7 can also leave an unstaged
-STATE.md update. A second `/octo:rollback` refuses this non-clean tree. First
+STATE.md update. A second `$skill-rollback` refuses this non-clean tree. First
 commit or stash the restored state and any subsequent edits, including
 untracked files. Choose how to preserve that work with the user before recovery.
 Keep the saved commit or stash until recovery has been reviewed.
@@ -304,9 +304,9 @@ Examples:
 
 | Command | Action |
 |---------|--------|
-| `/octo:rollback` | List available checkpoints |
-| `/octo:rollback list` | List available checkpoints |
-| `/octo:rollback <tag>` | Rollback to specific checkpoint |
+| `$skill-rollback` | List available checkpoints |
+| `$skill-rollback list` | List available checkpoints |
+| `$skill-rollback <tag>` | Rollback to specific checkpoint |
 
 
 ## The Bottom Line

@@ -5,7 +5,7 @@ disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
+> Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
@@ -38,7 +38,7 @@ Cross-session issue tracking for persistent problem management. Issues are store
 
 ### 1. List Issues (Default)
 
-**Trigger:** `/octo:issues` or `/octo:issues list`
+**Trigger:** `$skill-issues` or `$skill-issues list`
 
 Show all open issues in table format:
 
@@ -65,7 +65,7 @@ Show all open issues in table format:
 
 ### 2. Add Issue
 
-**Trigger:** `/octo:issues add <description>`
+**Trigger:** `$skill-issues add <description>`
 
 Add new issue with auto-generated ID.
 
@@ -154,13 +154,13 @@ Add new row to Open Issues table:
 **Created:** 2026-02-03
 **Phase:** Develop
 
-View with: /octo:issues show ISS-20260203-003
+View with: $skill-issues show ISS-20260203-003
 ```
 
 
 ### 3. Resolve Issue
 
-**Trigger:** `/octo:issues resolve <id>`
+**Trigger:** `$skill-issues resolve <id>`
 
 Mark issue as resolved and move to Resolved section.
 
@@ -178,7 +178,7 @@ If not found, show error:
 ```markdown
 ❌ Issue ISS-20260203-001 not found in open issues.
 
-Use `/octo:issues list` to see all open issues.
+Use `$skill-issues list` to see all open issues.
 ```
 
 #### Step 2: Ask for Resolution Notes
@@ -211,13 +211,13 @@ Please provide resolution notes:
 **Resolution date:** 2026-02-04
 **Resolution notes:** Fixed OAuth token refresh
 
-View with: /octo:issues show ISS-20260203-001
+View with: $skill-issues show ISS-20260203-001
 ```
 
 
 ### 4. Show Issue Details
 
-**Trigger:** `/octo:issues show <id>`
+**Trigger:** `$skill-issues show <id>`
 
 Display full details of specific issue.
 
@@ -242,7 +242,7 @@ Search both Open and Resolved sections for issue ID.
 **Phase:** Develop
 
 **Actions:**
-- Resolve: `/octo:issues resolve ISS-20260203-001`
+- Resolve: `$skill-issues resolve ISS-20260203-001`
 ```
 
 **For resolved issue:**
@@ -264,7 +264,7 @@ Search both Open and Resolved sections for issue ID.
 ```markdown
 ❌ Issue ISS-20260203-001 not found.
 
-Use `/octo:issues list` to see all open issues.
+Use `$skill-issues list` to see all open issues.
 ```
 
 

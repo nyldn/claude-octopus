@@ -6,11 +6,11 @@ description: "Run a configurable multi-LLM council with personas, budget caps, s
 
 # Council
 
-Use this skill for `/octo:council` and council-style requests.
+Use this skill for `$skill-council` and council-style requests.
 
 ## EXECUTION CONTRACT: MANDATORY
 
-`/octo:council` is a runner-backed workflow. Execute the real shell runner by default:
+`$skill-council` is a runner-backed workflow. Execute the real shell runner by default:
 
 ```bash
 "${CLAUDE_PLUGIN_ROOT:-$HOME/.claude-octopus/plugin}/scripts/orchestrate.sh" council <user arguments>
@@ -32,7 +32,7 @@ Do not simulate a council, role-play all members inside the current model, or an
 
 ## Phase 0A: Interactive Clarification
 
-If the user invokes `/octo:council` with an ambiguous task, missing goal/depth intent, uncertain implementation permission, or unclear research/corpus expectations, use `AskUserQuestion` before running the council runner. If the prompt already includes clear flags and a clear task, skip this phase and execute immediately.
+If the user invokes `$skill-council` with an ambiguous task, missing goal/depth intent, uncertain implementation permission, or unclear research/corpus expectations, use `AskUserQuestion` before running the council runner. If the prompt already includes clear flags and a clear task, skip this phase and execute immediately.
 
 Use 2-4 mutually exclusive choices per question, put the recommended option first, and map the answers to runner flags before execution. Do not end with a free-form question or a set of questions; present the choice interaction and wait for the answer.
 

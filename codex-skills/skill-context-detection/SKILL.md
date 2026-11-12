@@ -5,7 +5,7 @@ disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
+> Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
@@ -14,7 +14,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-This skill provides **automatic context detection** to determine whether the user is working in a **Development context** (code-focused) or **Knowledge context** (research/strategy-focused). This replaces the manual `/octo:km` toggle with intelligent auto-detection.
+This skill provides **automatic context detection** to determine whether the user is working in a **Development context** (code-focused) or **Knowledge context** (research/strategy-focused). This replaces the manual `$skill-knowledge-work` toggle with intelligent auto-detection.
 
 ## Detection Algorithm
 
@@ -22,7 +22,7 @@ When a workflow skill activates, detect context using these signals:
 
 ### Step 1: Check for Explicit Override
 
-If user has explicitly set mode via `/octo:km on` or `/octo:km off`, respect that setting.
+If user has explicitly set mode via `$skill-knowledge-work on` or `$skill-knowledge-work off`, respect that setting.
 
 ```bash
 # Check if knowledge mode is explicitly set
@@ -193,15 +193,15 @@ When this skill activates:
 
 Users can still explicitly set context when auto-detection is wrong:
 
-```bash
+```text
 # Force knowledge mode
-/octo:km on
+$skill-knowledge-work on
 
 # Force dev mode
-/octo:km off
+$skill-knowledge-work off
 
 # Return to auto-detection
-/octo:km auto
+$skill-knowledge-work auto
 ```
 
 When explicit override is set, context detection respects it until user resets to "auto".
@@ -214,7 +214,7 @@ When explicit override is set, context detection respects it until user resets t
 - **Low**: Ambiguous signals, using fallback default
 
 When confidence is "low", consider briefly mentioning the detected context to user:
-> "I detected this as a [dev/knowledge] task. If that's wrong, you can use `/octo:km` to override."
+> "I detected this as a [dev/knowledge] task. If that's wrong, you can use `$skill-knowledge-work` to override."
 
 
 ## Testing Context Detection
@@ -223,7 +223,7 @@ To verify context detection is working:
 
 1. In a code repository, ask "octo research caching patterns" → Should detect **Dev Context**
 2. In same repo, ask "octo research market opportunities" → Should detect **Knowledge Context**
-3. With `/octo:km on` set, ask "octo research API patterns" → Should use **Knowledge Context** (explicit override)
+3. With `$skill-knowledge-work on` set, ask "octo research API patterns" → Should use **Knowledge Context** (explicit override)
 
 
 ## Proactive Skill Suggestions
@@ -232,21 +232,21 @@ When detecting the user's work stage, surface relevant command suggestions:
 
 | Detected Context | Suggestion |
 |-----------------|------------|
-| Brainstorming / exploring ideas | Consider `/octo:brainstorm` for structured ideation |
+| Brainstorming / exploring ideas | Consider `$skill-thought-partner` for structured ideation |
 | Reviewing a plan or strategy | Consider `/octo:plan` for strategic planning |
-| Debugging errors or failures | Consider `/octo:debug` for systematic investigation |
-| Writing or running tests | Consider `/octo:tdd` for test-driven development |
-| Code review before merge | Use Claude-native `/review` for ordinary review; suggest `/octo:review` for multi-AI escalation |
-| Ready to deploy or ship | Consider `/octo:deliver` for quality-gated delivery |
-| Researching a topic | Consider `/octo:research` for multi-source synthesis |
-| Working on security | Use Claude-native `/security-review` for ordinary security review; suggest `/octo:security` for escalated OWASP or adversarial audit |
+| Debugging errors or failures | Consider `$skill-debug` for systematic investigation |
+| Writing or running tests | Consider `$skill-tdd` for test-driven development |
+| Code review before merge | Use Claude-native `/review` for ordinary review; suggest `$skill-code-review` for multi-AI escalation |
+| Ready to deploy or ship | Consider `$flow-deliver` for quality-gated delivery |
+| Researching a topic | Consider `$octopus-research` for multi-source synthesis |
+| Working on security | Use Claude-native `/security-review` for ordinary security review; suggest `$octopus-security-audit` for escalated OWASP or adversarial audit |
 
 ### Suggestion Format
 
 Suggestions should be non-intrusive, appended as a brief note:
 
 ```
-💡 Tip: You appear to be debugging — `/octo:debug` provides systematic investigation with multi-AI support.
+💡 Tip: You appear to be debugging — `$skill-debug` provides systematic investigation with multi-AI support.
 ```
 
 ### Persistent Opt-Out

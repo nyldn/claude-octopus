@@ -1,7 +1,7 @@
 ---
 name: debate-kickoff
 disable-model-invocation: true
-description: "Starter: frame a decision as a multi-model debate — picks sides, seats providers, and launches /octo:debate with a well-formed motion"
+description: "Starter: frame a decision as a multi-model debate — picks sides, seats providers, and launches $skill-debate with a well-formed motion"
 ---
 
 # Debate Kickoff (Starter Pack)
@@ -17,7 +17,7 @@ The user has a two-or-more-sided technical decision and wants adversarial perspe
 1. **Extract the motion.** Restate the user's question as a single debatable proposition (for example: "This project should use Redis over Memcached for session storage"). Confirm silently from context; do not interrogate the user.
 2. **Check seats.** Run `${CLAUDE_PLUGIN_ROOT}/scripts/helpers/check-providers.sh` and note which providers are available. A debate needs at least two seatable non-Claude providers for cross-lab disagreement; if only Claude is available, say so and offer a single-model pro/con instead.
 3. **Assign sides.** Give each available provider an explicit stance (affirmative, negative, or skeptic). Prefer cross-lab pairings (for example Codex affirmative, Antigravity negative) so disagreement is structural, not stylistic.
-4. **Launch.** Invoke `/octo:debate` with the motion and the side assignments. Display the standard Octopus banner with provider indicators before dispatch.
+4. **Launch.** Invoke `$skill-debate` with the motion and the side assignments. Display the standard Octopus banner with provider indicators before dispatch.
 5. **Synthesize.** After rounds complete, summarize where the models converged, where they genuinely disagreed, and give one recommendation with the strongest surviving argument.
 
 ## Guardrails

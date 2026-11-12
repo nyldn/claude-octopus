@@ -5,7 +5,7 @@ disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
+> Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
@@ -310,7 +310,7 @@ done
 wait
 ```
 
-**🔵 Claude (Sonnet) — independent design critique.** You MUST also write your own adversarial critique. Do NOT just summarize what external providers said. Approach the design direction as if you didn't create it — actively look for problems across all five dimensions. This is your independent synthesis perspective, same as in `/octo:debate`.
+**🔵 Claude (Sonnet) — independent design critique.** You MUST also write your own adversarial critique. Do NOT just summarize what external providers said. Approach the design direction as if you didn't create it — actively look for problems across all five dimensions. This is your independent synthesis perspective, same as in `$skill-debate`.
 
 **Display all critiques with provider indicators:**
 ```
@@ -599,4 +599,6 @@ the prior document.
 **Offer next steps:**
 - "Want me to implement these specs?" → hand off to frontend-developer persona
 - "Want to refine the palette?" → re-run color search with adjusted query
-- "Want a full embrace workflow?" → transition to `/octo:embrace`
+- "Want the full Double Diamond workflow?" → follow `flow-discover`,
+  `flow-define`, `flow-develop`, and `flow-deliver` in order, respecting each
+  phase's gates and the user's authorization.

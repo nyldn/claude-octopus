@@ -5,7 +5,7 @@ disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
+> Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
@@ -32,7 +32,7 @@ You MUST gather these inputs from the user — without scope, count, and depende
 AskUserQuestion with these questions:
 
 1. **Compound task**: What compound task should be decomposed?
-   - Use inline args if provided (e.g., /octo:parallel "build auth system")
+   - Use inline args if provided (e.g., $flow-parallel "build auth system")
    - If no args: ask "What compound task should I decompose into parallel work packages?"
 
 2. **Work package count**: How many work packages?
@@ -45,7 +45,7 @@ AskUserQuestion with these questions:
    - "Sequential dependencies - packages must complete in order"
 ```
 
-If user provided a description inline with the command (e.g., `/octo:parallel build a full auth system with OAuth, RBAC, and audit logging`), use that as the task description but STILL ask remaining questions (count, dependencies).
+If user provided a description inline with the command (e.g., `$flow-parallel build a full auth system with OAuth, RBAC, and audit logging`), use that as the task description but STILL ask remaining questions (count, dependencies).
 
 If user says "skip" for any question, use defaults: 3 work packages, fully independent.
 
@@ -786,7 +786,7 @@ Created and managed by this skill:
 ### Example: Authentication System
 
 ```
-User: /octo:parallel build a full authentication system with OAuth, RBAC, and audit logging
+User: $flow-parallel build a full authentication system with OAuth, RBAC, and audit logging
 
 Decomposition:
   WP-1: OAuth Integration
@@ -814,7 +814,7 @@ Results aggregated after all complete.
 ### Example: Migration (batch-style)
 
 ```
-User: /octo:batch migrate all components in src/components/ from class components to functional React with hooks
+User: $flow-parallel migrate all components in src/components/ from class components to functional React with hooks
 
 Decomposition:
   WP-1: Form components (src/components/forms/)
@@ -829,7 +829,7 @@ No overlapping files — safe to merge all results.
 ### Example: Fix multiple issues in parallel
 
 ```
-User: /octo:parallel fix issue #12, issue #15, and issue #22
+User: $flow-parallel fix issue #12, issue #15, and issue #22
 
 Decomposition (after reading each issue):
   WP-1: Fix #12 — login redirect loop (src/auth/login.ts)
@@ -843,7 +843,7 @@ Each WP runs related tests before marking complete.
 ### Example: Build independent tools in parallel
 
 ```
-User: /octo:parallel build a confluence scraper in go, a markdown-to-obsidian converter, a qdrant vectorizer, and a CLI search tool
+User: $flow-parallel build a confluence scraper in go, a markdown-to-obsidian converter, a qdrant vectorizer, and a CLI search tool
 
 Decomposition:
   WP-1: Confluence scraper (cmd/scraper/) — Wave 1

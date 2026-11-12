@@ -5,7 +5,7 @@ disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
+> Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
@@ -31,26 +31,26 @@ disable-model-invocation: true
 ## Override Commands
 
 ### Force Knowledge Context
-```bash
-/octo:km on
+```text
+$skill-knowledge-work on
 ```
 All subsequent workflows will use Knowledge Context until reset.
 
 ### Force Dev Context
-```bash
-/octo:km off
+```text
+$skill-knowledge-work off
 ```
 All subsequent workflows will use Dev Context until reset.
 
 ### Return to Auto-Detection
-```bash
-/octo:km auto
+```text
+$skill-knowledge-work auto
 ```
 Context detection returns to automatic mode.
 
 ### Check Current Status
-```bash
-/octo:km
+```text
+$skill-knowledge-work
 ```
 Shows current mode (auto, knowledge, or dev).
 
@@ -66,7 +66,7 @@ When you use any `octo` workflow, context is detected by analyzing:
    - Has `package.json`, `Cargo.toml`, `go.mod` → Dev Context
    - Mostly `.md`, `.docx`, `.pdf` files → Knowledge Context
 
-3. **Explicit Override** (if set via `/octo:km`):
+3. **Explicit Override** (if set via `$skill-knowledge-work`):
    - Overrides all auto-detection until reset to "auto"
 
 ## Visual Indicator Shows Context
@@ -119,8 +119,8 @@ When workflows run, you'll see the detected context in the banner:
 **User:** "Actually, this is for a presentation. Force knowledge mode."
 
 **Claude:** "Setting context override to Knowledge Mode."
-```bash
-/octo:km on
+```text
+$skill-knowledge-work on
 ```
 
 **User:** "octo research React patterns"
@@ -135,8 +135,8 @@ When workflows run, you'll see the detected context in the banner:
 Current mode: Auto-detection (no override set)
 Last detected context: Dev (based on project having package.json)
 
-To override: /octo:km on (force Knowledge) or /octo:km off (force Dev)
-To return to auto: /octo:km auto
+To override: $skill-knowledge-work on (force Knowledge) or $skill-knowledge-work off (force Dev)
+To return to auto: $skill-knowledge-work auto
 ```
 
 ## What Changes Per Context
@@ -170,10 +170,10 @@ Just say: "Export this to Word" or "Create a PowerPoint presentation"
 
 | Command | Description |
 |---------|-------------|
-| `/octo:km` | Show current status (auto, on, or off) |
-| `/octo:km on` | Force Knowledge Context for all workflows |
-| `/octo:km off` | Force Dev Context for all workflows |
-| `/octo:km auto` | Return to auto-detection (default) |
+| `$skill-knowledge-work` | Show current status (auto, on, or off) |
+| `$skill-knowledge-work on` | Force Knowledge Context for all workflows |
+| `$skill-knowledge-work off` | Force Dev Context for all workflows |
+| `$skill-knowledge-work auto` | Return to auto-detection (default) |
 
 ## When NOT to Use Override
 
@@ -224,7 +224,7 @@ At session start, check for relevant learnings:
 
 ## Related Skills
 
-- `/octo:discover` - Research workflow (auto-detects context)
-- `/octo:develop` - Build workflow (auto-detects context)
-- `/octo:deliver` - Review workflow (auto-detects context)
-- `/octo:docs` - Document export (works in both contexts)
+- `$flow-discover` - Research workflow (auto-detects context)
+- `$flow-develop` - Build workflow (auto-detects context)
+- `$flow-deliver` - Review workflow (auto-detects context)
+- `$skill-doc-delivery` - Document export (works in both contexts)

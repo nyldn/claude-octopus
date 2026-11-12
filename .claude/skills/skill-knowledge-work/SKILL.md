@@ -32,25 +32,25 @@ triggerPatterns:
 ## Override Commands
 
 ### Force Knowledge Context
-```bash
+```text
 /octo:km on
 ```
 All subsequent workflows will use Knowledge Context until reset.
 
 ### Force Dev Context
-```bash
+```text
 /octo:km off
 ```
 All subsequent workflows will use Dev Context until reset.
 
 ### Return to Auto-Detection
-```bash
+```text
 /octo:km auto
 ```
 Context detection returns to automatic mode.
 
 ### Check Current Status
-```bash
+```text
 /octo:km
 ```
 Shows current mode (auto, knowledge, or dev).
@@ -120,7 +120,7 @@ When workflows run, you'll see the detected context in the banner:
 **User:** "Actually, this is for a presentation. Force knowledge mode."
 
 **Claude:** "Setting context override to Knowledge Mode."
-```bash
+```text
 /octo:km on
 ```
 

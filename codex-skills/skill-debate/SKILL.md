@@ -5,7 +5,7 @@ disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
+> Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
@@ -89,30 +89,30 @@ Users invoke this skill explicitly from the slash menu. Parse the supplied inten
 
 ### Basic Invocation
 ```
-/octo:debate <question or task>
+$skill-debate <question or task>
 ```
 
 ### With Flags
 ```
-/octo:debate -r 3 -d thorough <question>
-/octo:debate --rounds 2 --debate-style adversarial <question>
-/octo:debate --path debates/009-new-topic <question>
+$skill-debate -r 3 -d thorough <question>
+$skill-debate --rounds 2 --debate-style adversarial <question>
+$skill-debate --path debates/009-new-topic <question>
 ```
 
 ### With File References
 Users can mention files naturally - you resolve them to full paths:
 ```
-/octo:debate Is our CLAUDE.md accurate?
+$skill-debate Is our CLAUDE.md accurate?
 -> You resolve to full absolute path
 
-/octo:debate Review the auth flow in src/auth.ts
+$skill-debate Review the auth flow in src/auth.ts
 -> You find src/auth.ts relative to cwd and pass full path to advisors
 ```
 
 ### Examples Users Might Say
-- `/octo:debate Should we use Redis or in-memory cache?`
-- `/octo:debate -r 3 Review the whatsappbot codebase for issues`
-- `/octo:debate on whether our error handling in api.ts is sufficient`
+- `$skill-debate Should we use Redis or in-memory cache?`
+- `$skill-debate -r 3 Review the whatsappbot codebase for issues`
+- `$skill-debate on whether our error handling in api.ts is sufficient`
 - `Run a debate about the database schema design`
 - `I want Antigravity and Codex to review this PR`
 
@@ -253,7 +253,7 @@ Export debates to professional formats via the document-delivery skill:
 
 ## Implementation Steps
 
-When the user invokes `/octo:debate`:
+When the user invokes `$skill-debate`:
 
 ### Step 1: Check Provider Availability & Display Banner
 
@@ -283,7 +283,7 @@ Provider Availability:
 > **🧭 Antigravity availability:** Antigravity CLI = the `agy` binary; judge availability only via `command -v agy` (as `check-providers.sh` does), never from the `antigravity` desktop shortcut.
 
 **If providers are missing:**
-- If all external providers are unavailable: Inform user that debate requires at least one external provider and suggest running `/octo:setup` to configure them
+- If all external providers are unavailable: Inform user that debate requires at least one external provider and suggest running `$sys-configure` to configure them
 - If one or more providers are unavailable: Note which providers are missing and proceed with available provider(s) and Claude
 
 ### Step 2: Ask Clarifying Questions
@@ -606,7 +606,7 @@ IMPORTANT: The deliverable is a PROPOSAL. Never auto-apply changes without user 
 
 ### Example 1: Quick Debate
 ```
-User: /octo:debate Should we use Redis or in-memory cache?
+User: $skill-debate Should we use Redis or in-memory cache?
 
 Claude:
 1. Creates debate folder at ~/.claude-octopus/debates/${SESSION_ID}/042-redis-vs-memcached/
@@ -622,7 +622,7 @@ Claude:
 
 ### Example 2: Thorough Adversarial Debate
 ```
-User: /octo:debate -r 3 -d adversarial Review our authentication implementation in src/auth.ts
+User: $skill-debate -r 3 -d adversarial Review our authentication implementation in src/auth.ts
 
 Claude:
 1. Reads src/auth.ts to understand context
@@ -667,7 +667,7 @@ After debate completes:
 ### Knowledge Mode
 Debates can be used in knowledge mode workflows:
 ```
-Knowledge mode "deliberate" phase → Run /octo:debate to get multiple perspectives
+Knowledge mode "deliberate" phase → Run $skill-debate to get multiple perspectives
 → Use synthesis for final decision
 ```
 
@@ -710,4 +710,4 @@ After debate completes, export results via document-delivery skill:
 - **Enhancements**: Claude-Octopus integration (session-aware storage, quality gates, cost tracking, document export, provider debate with Sonnet)
 
 
-**Ready to debate!** Users can invoke with `/octo:debate <question>` or natural language.
+**Ready to debate!** Users can invoke with `$skill-debate <question>` or natural language.

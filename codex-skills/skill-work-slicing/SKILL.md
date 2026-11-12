@@ -5,7 +5,7 @@ disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
+> Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
@@ -41,7 +41,7 @@ this repo's trackers.
   reopened. Use `skill-pressure-test`.
 - The work fits one session. File one ticket, or none.
 - You want parallel *execution* across agents right now, with worktrees and
-  waves. That is `/octo:parallel`, which decomposes into work packages it then
+  waves. That is `$flow-parallel`, which decomposes into work packages it then
   runs. This produces tracker state for humans and future sessions.
 
 ## Inputs

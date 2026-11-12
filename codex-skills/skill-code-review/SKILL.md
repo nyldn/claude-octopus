@@ -5,7 +5,7 @@ disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
+> Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
@@ -110,7 +110,7 @@ Add a short section to the review synthesis when autonomy or TDD is in scope:
 - Provenance: Human-authored | AI-assisted | Autonomous / Dark Factory | Unknown
 - TDD evidence: Confirmed | Partial | Unknown
 - Autonomous risk signals: None | Minor | Significant
-- Recommendation: Ship | Fix before merge | Re-run with /octo:tdd or tighter supervision
+- Recommendation: Ship | Fix before merge | Re-run with $skill-tdd or tighter supervision
 ```
 
 
@@ -296,8 +296,8 @@ fi
 
 ### When to Auto-Post vs Ask
 
-- **Auto-post:** When invoked as part of `/octo:deliver`, `/octo:factory`, or `/octo:embrace` (automated workflows)
-- **Ask first:** When invoked standalone via `/octo:review` — use AskUserQuestion:
+- **Auto-post:** When invoked as part of `$flow-deliver`, `$skill-factory`, or `/octo:embrace` (automated workflows)
+- **Ask first:** When invoked standalone via `$skill-code-review` — use AskUserQuestion:
   ```
   "PR #N found. Post review findings as a PR comment?"
   Options: "Yes, post to PR", "No, terminal only"

@@ -138,22 +138,22 @@ Automated validation ensures extraction quality:
 ## Usage Patterns
 
 ### Basic Extraction
-```bash
+```text
 /octo:extract ./my-app
 ```
 
 ### Design-Only Extraction
-```bash
+```text
 /octo:extract ./my-app --mode design --storybook true
 ```
 
 ### Deep Analysis with Multi-AI
-```bash
+```text
 /octo:extract ./my-app --depth deep --multi-ai force
 ```
 
 ### URL Extraction
-```bash
+```text
 /octo:extract https://example.com --mode design --depth quick
 ```
 

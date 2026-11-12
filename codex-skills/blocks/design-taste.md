@@ -71,6 +71,6 @@ Palette rules:
 - [ ] Eyebrow count ≤ ceil(sections / 3); no third consecutive zigzag
 - [ ] Focus states, reduced-motion, and 360px responsiveness verified
 
-When any design output is critiqued (Step 5b of `octopus-ui-ux-design`, `/octo:review` on
+When any design output is critiqued (Step 5b of `octopus-ui-ux-design`, `$skill-code-review` on
 frontend diffs), SLOP is a first-class critique dimension: reviewers check this list and
 fail the direction if two or more items miss.

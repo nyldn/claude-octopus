@@ -621,4 +621,6 @@ the prior document.
 **Offer next steps:**
 - "Want me to implement these specs?" → hand off to frontend-developer persona
 - "Want to refine the palette?" → re-run color search with adjusted query
-- "Want a full embrace workflow?" → transition to `/octo:embrace`
+- "Want the full Double Diamond workflow?" → follow `flow-discover`,
+  `flow-define`, `flow-develop`, and `flow-deliver` in order, respecting each
+  phase's gates and the user's authorization.

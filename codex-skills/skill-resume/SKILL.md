@@ -5,7 +5,7 @@ disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
+> Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
@@ -30,7 +30,7 @@ Restore context from a previous session and seamlessly continue the workflow whe
 
 **Do NOT use for:**
 - Starting new projects (use /octo:embrace)
-- Checking current status only (use /octo:status)
+- Checking current status only (use $skill-status)
 - Modifying state directly (use octo-state.sh)
 
 
@@ -246,12 +246,12 @@ head -n 5 .octo/PROJECT.md | grep "^# " | head -1 | sed 's/^# //'
 | Status | Action | Message |
 |--------|--------|---------|
 | `in_progress` | Continue current phase | "Continue with current phase. Context loaded." |
-| `blocked` | Review blockers | "Review blockers first: `/octo:issues`" |
-| `complete` | Ready for next phase | "Phase complete. Ready for `/octo:ship`" |
+| `blocked` | Review blockers | "Review blockers first: `$skill-issues`" |
+| `complete` | Ready for next phase | "Phase complete. Ready for `$skill-ship`" |
 | `paused` | Resume project | "Project paused. Resume with `/octo:embrace`" |
 | `ready` | Begin workflow | "Ready to begin. Run `/octo:embrace` to start." |
-| `planning` | Continue planning | "Continue planning. Use `/octo:define` to refine." |
-| `building` | Continue building | "Continue implementation. Use `/octo:develop`." |
+| `planning` | Continue planning | "Continue planning. Use `$flow-define` to refine." |
+| `building` | Continue building | "Continue implementation. Use `$flow-develop`." |
 | `shipped` | Project delivered | "Project delivered! Review lessons in LESSONS.md." |
 | `complete_with_gaps` | Review gaps | "Phase complete with gaps. Review ISSUES.md before proceeding." |
 
@@ -260,33 +260,33 @@ head -n 5 .octo/PROJECT.md | grep "^# " | head -1 | sed 's/^# //'
 **Phase 1 (Discover):**
 ```
 Continue research and exploration.
-- Use `/octo:research [topic]` for multi-AI research
-- Use `/octo:debate [question]` for decision support
+- Use `$octopus-research [topic]` for multi-AI research
+- Use `$skill-debate [question]` for decision support
 - Check `.octo/phases/phase1/` for research notes
 ```
 
 **Phase 2 (Define):**
 ```
 Continue requirements clarification.
-- Use `/octo:prd` to write product requirements
-- Use `/octo:define` to refine scope
+- Use `$skill-prd` to write product requirements
+- Use `$flow-define` to refine scope
 - Check `.octo/phases/phase2/` for requirements docs
 ```
 
 **Phase 3 (Develop):**
 ```
 Continue implementation.
-- Use `/octo:develop` to build features
-- Use `/octo:tdd` for test-driven development
+- Use `$flow-develop` to build features
+- Use `$skill-tdd` for test-driven development
 - Check `.octo/phases/phase3/` for implementation plan
 ```
 
 **Phase 4 (Deliver):**
 ```
 Continue validation and delivery.
-- Use `/octo:deliver` for final review
-- Use `/octo:security` for security audit
-- Use `/octo:ship` to finalize delivery
+- Use `$flow-deliver` for final review
+- Use `$octopus-security-audit` for security audit
+- Use `$skill-ship` to finalize delivery
 ```
 
 
@@ -333,8 +333,8 @@ None
 Continue with current phase. Context loaded.
 
 Continue requirements clarification.
-- Use `/octo:prd` to write product requirements
-- Use `/octo:define` to refine scope
+- Use `$skill-prd` to write product requirements
+- Use `$flow-define` to refine scope
 - Check `.octo/phases/phase2/` for requirements docs
 ```
 
@@ -364,7 +364,7 @@ Continue requirements clarification.
 
 ### Ready to Continue
 
-Review blockers first: `/octo:issues`
+Review blockers first: `$skill-issues`
 
 **To unblock:**
 1. Configure Stripe API credentials in environment
@@ -438,7 +438,7 @@ grep "Current Phase" .octo/STATE.md
 
 **Good:**
 ```
-Status: blocked → "Review blockers first: /octo:issues"
+Status: blocked → "Review blockers first: $skill-issues"
 ```
 
 **Poor:**
@@ -460,26 +460,26 @@ Status: blocked → "Continue working"
 
 ## Integration with Other Skills
 
-### With /octo:status
+### With $skill-status
 
 ```
-/octo:resume → Full restoration with context
-/octo:status → Quick dashboard without restoration
+$skill-resume → Full restoration with context
+$skill-status → Quick dashboard without restoration
 ```
 
 ### With /octo:embrace
 
 ```
-No .octo/ exists → /octo:resume suggests /octo:embrace
-.octo/ exists but paused → /octo:resume suggests resuming with /octo:embrace
+No .octo/ exists → $skill-resume suggests /octo:embrace
+.octo/ exists but paused → $skill-resume suggests resuming with /octo:embrace
 ```
 
 ### With flow-* skills
 
 ```
-User runs /octo:resume
+User runs $skill-resume
 → Context restored
-→ User continues with /octo:develop (or appropriate phase skill)
+→ User continues with $flow-develop (or appropriate phase skill)
 ```
 
 

@@ -5,7 +5,7 @@ disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
+> Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
@@ -85,7 +85,7 @@ instead of inventing stakeholder positions.
 If the topic needs external research or context gathering:
 
 - Use the **host subagent tool** with `Explore` or `general-purpose` subagent to gather relevant information
-- For deeper multi-AI research, suggest: "For comprehensive multi-provider research, run `/octo:discover [topic]` first, then `/octo:deck` to build slides from the results"
+- For deeper multi-AI research, suggest: "For comprehensive multi-provider research, run `$flow-discover [topic]` first, then `$skill-deck` to build slides from the results"
 - If the user provides their own content, notes, or a research file, skip this step entirely
 
 This step is OPTIONAL. Many decks are built from the user's own knowledge or existing documents.
@@ -515,10 +515,10 @@ Apply these when generating outlines:
 
 This skill works well in combination with:
 
-- `/octo:discover [topic]` — Research first, then build deck from findings
-- `/octo:docs` — For converting existing markdown to other formats
-- `/octo:prd` — Generate a PRD, then create a presentation summarizing it
-- `/octo:brainstorm` — Brainstorm ideas, then structure into a deck
+- `$flow-discover [topic]` — Research first, then build deck from findings
+- `$skill-doc-delivery` — For converting existing markdown to other formats
+- `$skill-prd` — Generate a PRD, then create a presentation summarizing it
+- `$skill-thought-partner` — Brainstorm ideas, then structure into a deck
 
 ## Example Workflows
 
@@ -545,8 +545,8 @@ User: "Build a presentation about AI trends in healthcare"
 ### Deep Research + Deck
 ```
 User: "I need a comprehensive investor deck about the autonomous vehicles market"
-→ Suggest: "/octo:discover autonomous vehicles market" first
-→ Then: "/octo:deck" using the research synthesis
+→ Suggest: "$flow-discover autonomous vehicles market" first
+→ Then: "$skill-deck" using the research synthesis
 ```
 
 

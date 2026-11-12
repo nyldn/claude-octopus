@@ -5,7 +5,7 @@ disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
+> Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
@@ -33,9 +33,9 @@ correctly.
 - Verifying scheduler, hooks, or skills are correctly configured
 
 **Do NOT use for:**
-- First-time setup (use `/octo:setup` — it guides configuration)
-- Project workflow status (use `/octo:status`)
-- Debugging application code (use `/octo:debug`)
+- First-time setup (use `$sys-configure` — it guides configuration)
+- Project workflow status (use `$skill-status`)
+- Debugging application code (use `$skill-debug`)
 
 
 ## The Process
@@ -318,10 +318,10 @@ All checks pass — no action needed.
 
 | Scenario | Route |
 |----------|-------|
-| Doctor finds missing provider | Suggest `/octo:setup` to configure |
-| Doctor finds stale project state | Suggest `/octo:status` to review |
+| Doctor finds missing provider | Suggest `$sys-configure` to configure |
+| Doctor finds stale project state | Suggest `$skill-status` to review |
 | Doctor finds hook errors | Guide user to fix hooks.json |
-| All checks pass, user still has issues | Suggest `/octo:debug` for deeper investigation |
+| All checks pass, user still has issues | Suggest `$skill-debug` for deeper investigation |
 
 
 ## Context and intensity profiles
@@ -397,7 +397,7 @@ If `CLAUDE_CODE_REMOTE=true` or `OCTOPUS_REMOTE_SESSION=true`, report:
 - full HUD disabled unless `OCTOPUS_REMOTE_STATUSLINE=full`
 - provider CLIs may need to be installed in the cloud setup script
 
-Suggest `/octo:setup` only for configuration guidance; do not recommend interactive provider logins inside the remote session.
+Suggest `$sys-configure` only for configuration guidance; do not recommend interactive provider logins inside the remote session.
 
 
 ## Runtime Context
@@ -422,7 +422,7 @@ Invoke this manual skill explicitly, or run the CLI directly:
 
 | What to say / run | Action |
 |-------------------|--------|
-| `/octo:skill-doctor` | Run all 15 categories inside Claude Code |
+| `$skill-doctor` | Run all 15 categories inside Claude Code |
 | `octopus doctor providers` | Check provider installation only |
 | `octopus doctor auth --verbose` | Detailed auth status |
 | `octopus doctor --json` | Machine-readable output |

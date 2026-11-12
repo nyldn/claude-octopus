@@ -5,7 +5,7 @@ disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
+> Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
@@ -41,7 +41,7 @@ and migration and rollback steps.
 - Identify inconsistencies across codebase
 
 **Do NOT use for:**
-- Security vulnerability scanning (use skill-security-audit)
+- Security vulnerability scanning (use octopus-security-audit)
 - Code quality review (use skill-code-review)
 - Single file searches (use Grep/Glob directly)
 - Performance profiling
@@ -407,11 +407,11 @@ Large audit with many items?
 → Loop through sections of the app
 ```
 
-### With skill-security-audit
+### With octopus-security-audit
 
 ```
 Audit includes security concerns?
-→ Delegate security-specific checks to skill-security-audit
+→ Delegate security-specific checks to octopus-security-audit
 → Use skill-audit for functional checks
 ```
 

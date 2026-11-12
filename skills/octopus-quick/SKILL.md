@@ -90,7 +90,7 @@ User Request → Direct Implementation → Atomic Commit → Summary
 
 ### Via Command
 
-```bash
+```text
 /octo:quick "add dark mode toggle to settings"
 ```
 

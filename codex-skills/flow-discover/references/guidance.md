@@ -205,7 +205,7 @@ TaskUpdate({taskId: "...", status: "completed"})
 
 If any step fails:
 - **Step 1 (Context)**: Default to Dev Context if ambiguous
-- **Step 2 (Providers)**: If all external providers are unavailable, suggest `/octo:setup` and STOP
+- **Step 2 (Providers)**: If all external providers are unavailable, suggest `$sys-configure` and STOP
 - **Step 4 (Agent launch)**: If an agent fails, continue with remaining agents (graceful degradation)
 - **Step 5 (Collection)**: If fewer than 2 results, report error and let user decide
 - **Step 6 (Synthesis)**: If synthesis fails, present raw agent results without synthesis

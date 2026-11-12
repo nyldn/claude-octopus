@@ -5,7 +5,7 @@ disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
+> Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
@@ -26,9 +26,9 @@ Finalize and deliver completed work with Multi-AI security audit, lessons captur
 - "Mark as shipped" or "Time to deliver"
 
 **Do NOT use for:**
-- Code review (use /octo:review or flow-deliver)
-- Implementation (use /octo:develop)
-- Research (use /octo:research)
+- Code review (use $skill-code-review or flow-deliver)
+- Implementation (use $flow-develop)
+- Research (use $octopus-research)
 
 
 ## The Process
@@ -93,10 +93,10 @@ echo "Current Phase: $CURRENT_PHASE"
 ### To prepare for shipping:
 
 1. Complete remaining phases:
-   - [ ] Phase 1: Discover - Use `/octo:discover`
-   - [ ] Phase 2: Define - Use `/octo:define`
-   - [ ] Phase 3: Develop - Use `/octo:develop`
-   - [ ] Phase 4: Deliver - Use `/octo:deliver`
+   - [ ] Phase 1: Discover - Use `$flow-discover`
+   - [ ] Phase 2: Define - Use `$flow-define`
+   - [ ] Phase 3: Develop - Use `$flow-develop`
+   - [ ] Phase 4: Deliver - Use `$flow-deliver`
 
 2. Or override with: "ship anyway" (not recommended)
 ```
@@ -185,7 +185,7 @@ Critical issues must be resolved before shipping:
 1. [Issue 1 from validation]
 2. [Issue 2 from validation]
 
-Resolve issues and run `/octo:ship` again.
+Resolve issues and run `$skill-ship` again.
 ```
 
 **STOP if critical issues found.**
@@ -375,7 +375,7 @@ Contents:
 
 Tag: `{CHECKPOINT_TAG}`
 
-Restore with: `/octo:rollback {CHECKPOINT_TAG}`
+Restore with: `$skill-rollback {CHECKPOINT_TAG}`
 
 
 **To start a new project:** `/octo:embrace`
@@ -409,23 +409,23 @@ Restore with: `/octo:rollback {CHECKPOINT_TAG}`
 
 ## Integration with Other Skills
 
-### With /octo:deliver
+### With $flow-deliver
 
 ```
-User runs /octo:deliver to validate
+User runs $flow-deliver to validate
 → Deliver phase complete
-→ User runs /octo:ship to finalize
+→ User runs $skill-ship to finalize
 ```
 
-### With /octo:rollback
+### With $skill-rollback
 
 ```
 User ships project
 → Checkpoint created
-→ Later: /octo:rollback octo-checkpoint-shipped-*
+→ Later: $skill-rollback octo-checkpoint-shipped-*
 ```
 
-### With /octo:status
+### With $skill-status
 
 ```
 After ship: status shows "shipped"

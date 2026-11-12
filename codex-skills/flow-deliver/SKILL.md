@@ -5,7 +5,7 @@ disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
+> Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
@@ -336,8 +336,8 @@ fi
 ```
 
 **Behavior:**
-- Auto-posts when running inside `/octo:embrace` or `/octo:factory`
-- When running standalone via `/octo:deliver`, asks user first:
+- Auto-posts when running inside `/octo:embrace` or `$skill-factory`
+- When running standalone via `$flow-deliver`, asks user first:
   ```
   "PR #N found. Post validation report as a PR comment?"
   Options: "Yes, post to PR", "No, terminal only"
@@ -533,7 +533,7 @@ TaskUpdate({taskId: "...", status: "completed"})
 
 If any step fails:
 - **Step 1 (Context)**: Default to Dev Context if ambiguous
-- **Step 2 (Providers)**: If all external providers are unavailable, suggest `/octo:setup` and STOP
+- **Step 2 (Providers)**: If all external providers are unavailable, suggest `$sys-configure` and STOP
 - **Step 3 (orchestrate.sh)**: Show bash error, check logs, report to user
 - **Step 4 (Validation)**: If validation file missing, show orchestrate.sh logs, DO NOT substitute with direct review
 

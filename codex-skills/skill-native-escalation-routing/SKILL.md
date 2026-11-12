@@ -5,7 +5,7 @@ disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
+> Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
@@ -24,10 +24,10 @@ Claude-native first:
 
 Octopus for escalation:
 
-- `/octo:review`
-- `/octo:security`
-- `/octo:debate`
-- `/octo:multi`
+- `$skill-code-review`
+- `$octopus-security-audit`
+- `$skill-debate`
+- `$skill-parallel-agents`
 
 ## Route to Claude-Native First
 
@@ -65,7 +65,7 @@ Examples:
 ## Execution Guidance
 
 - If Claude-native is sufficient, do not wrap the task in Octopus unnecessarily.
-- If the user explicitly invokes `/octo:review` or `/octo:security`, treat that as an escalation request.
+- If the user explicitly invokes `$skill-code-review` or `$octopus-security-audit`, treat that as an escalation request.
 - If the request is ambiguous, prefer Claude-native first and mention Octopus as the escalation path.
 
 ## Suggested User Framing

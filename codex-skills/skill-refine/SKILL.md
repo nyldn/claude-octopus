@@ -5,14 +5,14 @@ disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
+> Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
 
 # Rubric-guided refinement
 
-Execute the workflow below when invoked through `/octo:refine` or
+Execute the workflow below when invoked through `$skill-refine` or
 `/octo:ladder`. This is a host-managed workflow using real provider calls.
 Never role-play other models or invent their scores. The score validator checks
 structure and arithmetic; it does not verify the truth of a model's judgments.

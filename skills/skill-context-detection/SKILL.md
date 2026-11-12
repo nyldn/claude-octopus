@@ -193,7 +193,7 @@ When this skill activates:
 
 Users can still explicitly set context when auto-detection is wrong:
 
-```bash
+```text
 # Force knowledge mode
 /octo:km on
 

@@ -5,7 +5,7 @@ disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
+> Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
@@ -135,8 +135,8 @@ I've implemented the feature. It should work now. The tests should pass.
 ## Integration with Other Skills
 
 This skill is referenced by:
-- `flow-develop.md` — verification gate after implementation
-- `flow-deliver.md` — verification gate before delivery
-- `skill-code-review.md` — verify review findings before reporting
-- `skill-tdd.md` — red-green cycle requires evidence at each step
-- `skill-factory.md` — autonomous pipeline must verify at every phase
+- `flow-develop` — verification gate after implementation
+- `flow-deliver` — verification gate before delivery
+- `skill-code-review` — verify review findings before reporting
+- `skill-tdd` — red-green cycle requires evidence at each step
+- `skill-factory` — autonomous pipeline must verify at every phase

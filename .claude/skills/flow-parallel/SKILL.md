@@ -835,7 +835,7 @@ Results aggregated after all complete.
 ### Example: Migration (batch-style)
 
 ```
-User: /octo:batch migrate all components in src/components/ from class components to functional React with hooks
+User: /octo:parallel migrate all components in src/components/ from class components to functional React with hooks
 
 Decomposition:
   WP-1: Form components (src/components/forms/)

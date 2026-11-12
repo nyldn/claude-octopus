@@ -5,7 +5,7 @@ disable-model-invocation: true
 ---
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
+> Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
@@ -89,7 +89,7 @@ What this should NOT be:
 ### When to Create Intent Contract
 
 Create an intent contract when:
-- User invokes a major workflow (`/octo:embrace`, `/octo:discover`, `/octo:plan`)
+- User invokes a major workflow (`/octo:embrace`, `$flow-discover`, `/octo:plan`)
 - User explicitly asks to "plan" or "set goals" for a task
 - A workflow requires multiple phases and validation
 
