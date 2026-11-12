@@ -34,11 +34,38 @@ else
     fail "orchestrate.sh detects Claude Code remote sessions" "remote env guard missing"
 fi
 
-if grep -q 'OCTOPUS_SKIP_PROVIDER_PROBES' "$ORCHESTRATE" && grep -q 'CLAUDE_OCTOPUS_AUTONOMY.*autonomous' "$ORCHESTRATE"; then
-    pass "remote sessions default to autonomous mode and skip probes"
+remote_defaults="$TEST_TMP_DIR/remote-defaults.sh"
+awk '/^# Claude Code web\/remote sessions/ { copying=1 }
+     /^# Keep debug flag/ { copying=0 }
+     copying { print }' "$ORCHESTRATE" > "$remote_defaults"
+if (
+    unset OCTOPUS_SKIP_PROVIDER_PROBES OCTOPUS_REMOTE_SESSION CLAUDE_CODE_WEB \
+        CLAUDE_OCTOPUS_AUTONOMY OCTOPUS_AUTONOMY
+    export CLAUDE_CODE_REMOTE=true
+    source "$remote_defaults"
+    source "$PROJECT_ROOT/scripts/lib/auth.sh"
+    [[ "$CLAUDE_OCTOPUS_AUTONOMY" == autonomous && "$OCTOPUS_AUTONOMY" == autonomous ]]
+    [[ -z "${OCTOPUS_SKIP_PROVIDER_PROBES+x}" ]]
+    _octo_skip_discovery_probes
+); then
+    pass "remote sessions default to autonomous mode and skip discovery probes"
 else
-    fail "remote sessions default to autonomous mode and skip probes" "missing remote defaults"
+    fail "remote sessions default to autonomous mode and skip discovery probes" "remote defaults or discovery policy changed"
 fi
+
+for probe_setting in true false; do
+    if (
+        export CLAUDE_CODE_REMOTE=true OCTOPUS_SKIP_PROVIDER_PROBES="$probe_setting"
+        source "$remote_defaults"
+        source "$PROJECT_ROOT/scripts/lib/auth.sh"
+        [[ "$OCTOPUS_SKIP_PROVIDER_PROBES" == "$probe_setting" ]]
+        if [[ "$probe_setting" == true ]]; then _octo_skip_discovery_probes; else ! _octo_skip_discovery_probes; fi
+    ); then
+        pass "remote sessions preserve explicit probe setting $probe_setting"
+    else
+        fail "remote sessions preserve explicit probe setting $probe_setting"
+    fi
+done
 
 if grep -q 'OCTOPUS_SKIP_PROVIDER_PROBES' "$SMOKE" && grep -q 'Smoke test: skipped for remote session' "$SMOKE"; then
     pass "provider smoke tests are skipped in remote sessions"
