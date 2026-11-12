@@ -36,6 +36,9 @@ class OpenCodeCases1(OpenCodeFixture):
             with mock.patch.object(sys, "executable", str(host_python)):
                 nested.setUp()
             nested.env["OCTO_ALLOWED_PROVIDERS"] = "claude,opencode"
+            utility = nested.shell("printf '%s\\n' fixture-utility | xargs echo")
+            self.assertEqual(utility.returncode, 0, utility.stderr)
+            self.assertEqual(utility.stdout.strip(), "fixture-utility")
             script = 'source scripts/lib/preflight.sh; octo_provider_readiness_result claude static'
             result = nested.shell(script)
             self.assertEqual(result.returncode, 0, result.stderr)
