@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- Large `probe-single --perspective-file` prompts pass startup validation
+  promptly without rewriting their content. Empty and whitespace-only files
+  are still rejected before provider dispatch.
 - Explicit GPT-5.4 Mini API usage uses the documented $0.75 input and $4.50
   output rates per million tokens. Capability checks now recognize its image
   input and reasoning support. Model defaults and saved choices are preserved.
