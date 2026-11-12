@@ -464,9 +464,12 @@ esac
         cli.chmod(0o755)
         self.env.update(PROJECT_ROOT=str(project), MISTRAL_API_KEY="fixture",
                         PATH=f"bin:{Path(sys.executable).parent}:/usr/bin:/bin")
-        result = self.shell('source "$PLUGIN_DIR/scripts/lib/auth.sh"; _octo_opencode_has_saved_login', root=project)
-        self.assertEqual(result.returncode, 125, result.stderr)
-        self.assertFalse(self.marker.exists(), "project executable ran during login admission")
+        for action in ("_octo_opencode_cli_major", "_octo_opencode_has_saved_login"):
+            with self.subTest(action=action):
+                self.marker.unlink(missing_ok=True)
+                result = self.shell('source "$PLUGIN_DIR/scripts/lib/auth.sh"; ' + action, root=project)
+                self.assertEqual(result.returncode, 125, result.stderr)
+                self.assertFalse(self.marker.exists(), "project executable ran during admission")
 
     def test_login_launcher_rejects_project_python_before_executing_it(self):
         project = self.base / "project"
@@ -1246,10 +1249,10 @@ preflight_check false "$SELECTED_SEAT"
                 self.assertTrue(self.marker.exists(), "cached broad success bypassed selected login")
 
     def test_background_version_detection_uses_the_worker_directory(self):
-        caller = self.base / "caller"
-        project = self.base / "project"
-        caller.mkdir()
-        project.mkdir()
+        caller = self.base / "caller" / "workspace"
+        project = self.base / "project" / "workspace"
+        caller.mkdir(parents=True)
+        project.mkdir(parents=True)
         self.env.update(PROJECT_ROOT=str(project), COMMAND_FILE=str(self.base / "command"),
                         HEALTH_DIRECTORY=str(self.base / "health-directory"))
         script = r'''
@@ -1280,12 +1283,12 @@ spawn_agent opencode fixture fixture reviewer probe
                 self.cli.write_text('#!/bin/sh\nif [ "$PWD" = "$PROJECT_ROOT" ]; then echo "$TARGET_VERSION"; else echo "$CALLER_VERSION"; fi\n')
                 if relative_path:
                     for directory, version in ((caller, caller_version), (project, target_version)):
-                        bindir = directory / "bin"
+                        bindir = directory.parent / "bin"
                         bindir.mkdir(exist_ok=True)
                         cli = bindir / "opencode"
                         cli.write_text(f"#!/bin/sh\necho {version}\n")
                         cli.chmod(0o755)
-                    self.env["PATH"] = f"bin:{Path(sys.executable).parent}:/usr/bin:/bin"
+                    self.env["PATH"] = f"../bin:{Path(sys.executable).parent}:/usr/bin:/bin"
                 result = self.shell(script, root=caller)
                 self.assertNotEqual(result.returncode, 0)
                 command_file = Path(self.env["COMMAND_FILE"])

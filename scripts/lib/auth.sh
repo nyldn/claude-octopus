@@ -345,6 +345,8 @@ _octo_opencode_probe_python() (
         candidate="$(type -P "$candidate")" || return 125
     fi
     [[ "$candidate" == /* ]] || candidate="$PWD/$candidate"
+    # Resolve at most 16 symlink hops; the iteration number is not otherwise used.
+    # shellcheck disable=SC2034
     for count in {1..16}; do
         directory="$(cd "${candidate%/*}" 2>/dev/null && pwd -P)" || return 125
         candidate="$directory/${candidate##*/}"

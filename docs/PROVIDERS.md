@@ -572,9 +572,11 @@ Copilot capability checks and its GitHub authentication fallback exclude that
 key as well, including authentication-method reporting.
 OpenCode version probes omit forwarded API keys, tokens, passwords and secrets.
 Login probes retain credentials for environment-only login and omit the unrelated
-search credential. They resolve the selected executable before entering a private
-directory and disable project configuration. A project-owned executable, including
-a symlink target, or a project-owned configuration selector refuses admission.
+search credential. Both probes require the selected executable and helper Python
+to resolve outside the project and disable project configuration. Login probes
+enter a private directory after resolving the executable. A project-owned
+executable, including a symlink target, or a project-owned configuration selector
+refuses admission. An external `OCTOPUS_PYTHON` pin remains effective.
 Custom configuration and saved-login paths outside the project remain effective.
 Inline configuration is omitted during admission because it can name project
 plugins. These restrictions apply to admission, not the eventual model task.

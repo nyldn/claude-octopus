@@ -26,6 +26,8 @@ def main():
     if selected is None:
         return 1
     executable = Path(selected).resolve()
+    if any(within(executable, root) for root in roots):
+        return refuse("the selected executable is inside the project")
     env = dict(os.environ)
     env.update(OPENCODE_PURE="1", OPENCODE_CONFIG_PROJECT_DISABLE="1",
                OPENCODE_DISABLE_PROJECT_CONFIG="1")
@@ -34,21 +36,19 @@ def main():
         for name in list(env):
             if any(part in name for part in ("API_KEY", "SECRET", "PASSWORD", "CREDENTIAL")) or "_TOKEN" in name:
                 del env[name]
+    for name in ("HOME", "XDG_CONFIG_HOME", "OPENCODE_CONFIG_DIR", "OPENCODE_CONFIG"):
+        if env.get(name):
+            path = Path(env[name]).resolve()
+            if any(within(path, root) for root in roots):
+                return refuse("a selected configuration path is inside the project")
+            env[name] = os.path.abspath(env[name])
+    # Inline configuration can name project plugins without a path selector.
+    env.pop("OPENCODE_CONFIG_CONTENT", None)
+    env["PATH"] = os.pathsep.join(
+        str(path) for entry in env.get("PATH", "").split(os.pathsep)
+        for path in [Path(entry or ".").resolve()]
+        if not any(within(path, root) for root in roots))
     if mode.startswith("login"):
-        if any(within(executable, root) for root in roots):
-            return refuse("the selected executable is inside the project")
-        for name in ("HOME", "XDG_CONFIG_HOME", "OPENCODE_CONFIG_DIR", "OPENCODE_CONFIG"):
-            if env.get(name):
-                path = Path(env[name]).resolve()
-                if any(within(path, root) for root in roots):
-                    return refuse("a selected configuration path is inside the project")
-                env[name] = os.path.abspath(env[name])
-        # Inline configuration can name project plugins without a path selector.
-        env.pop("OPENCODE_CONFIG_CONTENT", None)
-        env["PATH"] = os.pathsep.join(
-            str(path) for entry in env.get("PATH", "").split(os.pathsep)
-            for path in [Path(entry or ".").resolve()]
-            if not any(within(path, root) for root in roots))
         with tempfile.TemporaryDirectory(prefix="octopus-opencode-probe-", dir="/tmp") as directory:
             completed = subprocess.run([str(executable), *args], env=env, cwd=directory,
                                        stdin=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
