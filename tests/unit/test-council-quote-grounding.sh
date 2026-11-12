@@ -1476,6 +1476,19 @@ VERDICT: APPROVE")"
 r="$(_report "$list_escaped")"
 if jq -e '.quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
+for regex_source in '/alpha||beta/' '"alpha || beta"'; do
+    test_case "escaped double pipes preserve regex and string meaning: $regex_source"
+    printf 'export const pattern = %s;\n' "$regex_source" > "$ROOT/src/regex-double.ts"
+    if [[ "$regex_source" == /* ]]; then
+        pipe_quote='export const pattern = /alpha\|\|beta/;'
+    else
+        pipe_quote='export const pattern = "alpha \|\| beta";'
+    fi
+    r="$(_report "$(_resp "src/regex-double.ts:1 reads \`$pipe_quote\`.
+VERDICT: APPROVE")")"
+    if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "changed literal verified: $r"; fi
+done
+
 test_case "#3425 placebo: an escaped '\\|\\|' quote that differs from the file is still fabricated"
 list_fab="$(_resp "- src/tier-3125.ts:2 reads \`const tier = member.tier \\|\\| member.vipTier \\|\\| DEFAULT_TIER;\`.
 VERDICT: APPROVE")"
@@ -2854,6 +2867,14 @@ r="$(council_response_quote_verification_json "$(_resp 'Approval at src/sentry.t
   `describe("#3386 box 5: span links with a caller-controlled filter", () => {`
 VERDICT: APPROVE')" "$BROOT")"
 if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+for template_tag in '' tag; do
+    test_case "template literal delimiters remain source evidence: ${template_tag:-untagged}"
+    printf 'const value = %s`literal`;\n' "$template_tag" > "$BROOT/src/template.ts"
+    r="$(council_response_quote_verification_json "$(_resp "src/template.ts:1 reads \`const value = ${template_tag}literal;\`.
+VERDICT: APPROVE")" "$BROOT")"
+    if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "template expression changed: $r"; fi
+done
 
 # sail-cruisey #3389: a seat writes `$n` for the numbered placeholder that
 # differs per call site, and elides an argument list as `(...)`.

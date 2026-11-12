@@ -3595,17 +3595,28 @@ def in_table(start, end):
     i = bisect_right(table_starts, start) - 1
     return i >= 0 and end <= table_ranges[i][1]
 
+def operator_unescaped(text):
+    # Only unambiguous, spaced operators outside literals may lose Markdown escapes.
+    literals = list(QUOTED_LITERAL.finditer(text))
+    chunks, cursor = [], 0
+    for literal in literals:
+        gap = text[cursor:literal.start()]
+        if any(char in gap for char in "'\"`/#"):
+            return text
+        chunks.append(re.sub(r"(?<=\s)\\\|\\\|(?=\s)", "||", gap))
+        chunks.append(literal.group())
+        cursor = literal.end()
+    tail = text[cursor:]
+    if any(char in tail for char in "'\"`/#"):
+        return text
+    chunks.append(re.sub(r"(?<=\s)\\\|\\\|(?=\s)", "||", tail))
+    return "".join(chunks)
+
 def unescaped(variants, table):
-    # "\|" is how a seat writes "|" inside a Markdown table cell (sail-cruisey
-    # #3125: `a \|\| b` for `a || b`). Only in a table cell: elsewhere "\|" is
-    # literal and can change a regular expression. Quote side only, after the
-    # literal variant: source text keeps its backslashes, so a quote that drops
-    # a source line's own "\|" still does not match it.
+    # Table-cell pipes are Markdown escapes. Elsewhere regexes, strings and
+    # ambiguous syntax keep their backslashes; only clear || operators vary.
     if not table:
-        # sail-cruisey #3425: a doubled "\|\|" outside a table is the || operator
-        # escaped out of habit; a regular expression rarely holds it. A single
-        # "\|" stays literal.
-        return variants + [v.replace("\\|\\|", "||") for v in variants if "\\|\\|" in v]
+        return variants + [operator_unescaped(v) for v in variants if "\\|\\|" in v]
     return variants + [v.replace("\\|", "|") for v in variants if "\\|" in v]
 
 # A seat that writes a quoted source line as a string literal ("…", with \"
@@ -3740,17 +3751,22 @@ def without_positions(text, removed):
 
 def tight_text(text):
     return without_positions(text, layout_removed(text))
-# sail-cruisey #3386: a single-backtick span cannot hold a backtick, so a seat
-# quoting `describe("... `map`")` drops the file's inner backticks.
-BACKTICK = re.compile(r"`")
+# A seat may omit paired presentation backticks inside an ordinary string.
+# Backticks delimiting a template literal remain part of the source expression.
 stripped_cache = {}
-def stripped_entry(entry, pattern):
+def presentation_entry(entry):
     hay, starts, line_numbers = entry
-    got = stripped_cache.get((hay, pattern))
+    key = (hay, "string-presentation-backticks")
+    got = stripped_cache.get(key)
     if got is None:
-        removed = [m.start() for m in pattern.finditer(hay)]
-        got = (pattern.sub("", hay), [s - bisect_left(removed, s) for s in starts], line_numbers)
-        stripped_cache[(hay, pattern)] = got
+        removed = []
+        for literal in QUOTED_LITERAL.finditer(hay):
+            body = literal.group()
+            if body[0] in "'\"" and body.count("`") >= 2 and body.count("`") % 2 == 0:
+                removed.extend(literal.start() + m.start() for m in re.finditer("`", body))
+        got = (without_positions(hay, removed),
+               [s - bisect_left(removed, s) for s in starts], line_numbers)
+        stripped_cache[key] = got
     return got
 def tight_entry(entry):
     hay, starts, line_numbers = entry
@@ -3781,7 +3797,7 @@ def match_variant(text, entry):
     if specific(needle):
         lines = find_lines(*tight_entry(entry), tight_text(needle))
         if not lines and "`" not in needle and "`" in hay:
-            lines = find_lines(*stripped_entry(entry, BACKTICK), needle)
+            lines = find_lines(*presentation_entry(entry), needle)
         if not lines and PLACEHOLDER.search(needle):
             lines = pattern_lines(entry, r"\$\d+".join(re.escape(part) for part in PLACEHOLDER.split(needle)))
         if not lines and ELLIPSIS.search(needle):

@@ -264,7 +264,8 @@ import json
 import re
 import sys
 try:
-    text = "\n".join(open(path).read() for path in sys.argv[1:])
+    streams = [open(path).read() for path in sys.argv[1:]]
+    text = "\n".join(streams)
     records = [json.loads(line.strip().split("AGY_ERROR:", 1)[1])
                for line in text.splitlines() if line.lstrip().startswith("AGY_ERROR:")]
     if records:
@@ -274,8 +275,13 @@ try:
                            and "no capacity available for model" in str(item.get("short_error", "")).lower()
                            for item in records))
     else:
-        allowed = (bool(re.search(r"\b(?:code|HTTP)\s+503\b", text, re.I))
-                   and "no capacity available for model" in text.lower()
+        # A complete provider diagnostic must carry its own status and cause.
+        # Do not combine quoted stdout with an unrelated stderr status.
+        capacity_line = re.compile(
+            r"^(?:error:\s*)?(?:(?:Our servers are experiencing high traffic right now, "
+            r"please try again in a minute\.\s*)?\(?UNAVAILABLE\s*\((?:code|HTTP)\s+503\)\s*:\s*"
+            r"|(?:code|HTTP)\s+503\s*:\s*)No capacity available for model\s+[^`\r\n]+$", re.I)
+        allowed = (any(capacity_line.match(line.strip()) for stream in streams for line in stream.splitlines())
                    and not re.search(r'"retryable"\s*:\s*false', text, re.I))
     sys.exit(0 if allowed else 1)
 except (OSError, ValueError, RecursionError):

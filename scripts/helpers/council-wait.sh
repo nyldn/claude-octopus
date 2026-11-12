@@ -21,7 +21,8 @@
 # finished. A keyed round that is finished at first sight is held for --settle
 # seconds (default 60) while a newer same-key round may appear; one seen running
 # returns as soon as it finishes. --since with the epoch taken before the
-# dispatch excludes older rounds exactly and skips the hold.
+# dispatch filters at one-second resolution and skips the hold. A round created
+# in the same second as --since is still eligible. Use --run-dir for an exact run.
 # The interval defaults to 2 seconds and is floored at 1. The timeout defaults
 # to 570 seconds, under the Bash tool's 600-second foreground cap; sleeping never
 # extends it. A Council round often runs longer, so a timeout means "still

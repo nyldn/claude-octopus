@@ -19,6 +19,10 @@
 
 ### Fixed
 
+- Council quote checks preserve template delimiters and escaped pipes inside
+  regexes and strings. Model fallback requires a complete capacity diagnostic
+  from one stream, so quoted output cannot supply a missing error cause.
+
 - Council fallback records keep the model that answered and the last model
   proven capacity-limited. Session limits remain visible beside stderr warnings,
   and explicit source claims stay checked when they introduce an example.

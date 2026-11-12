@@ -898,6 +898,7 @@ done
 printf '%s\n' "$model" >> "${AGY_CALLS:?}"
 printf '%s\0' "$prompt" >> "${AGY_CALLS}.prompts"
 if [[ "$model" == default && -n "${AGY_CUSTOM_ERROR:-}" ]]; then
+    [[ -z "${AGY_CUSTOM_STDOUT:-}" ]] || printf '%s\n' "$AGY_CUSTOM_STDOUT"
     printf '%s\n' "$AGY_CUSTOM_ERROR" >&2
     exit 3
 fi
@@ -918,7 +919,7 @@ case ",${AGY_BUSY_MODELS:-}," in
     *",$model,"*)
         [[ "${AGY_CAPACITY_STDOUT:-0}" != 1 ]] || exec 2>&1
         echo "error: Our servers are experiencing high traffic right now, please try again in a minute. (UNAVAILABLE (code 503): No capacity available for model gemini-3.8-flash-high on the server)" >&2
-        echo 'AGY_ERROR: {"short_error":"UNAVAILABLE (code 503): No capacity available for model gemini-3.8-flash-high on the server","status":"UNAVAILABLE","error_code":503,"code_kind":"http","retryable":true}' >&2
+        [[ "${AGY_CAPACITY_NO_RECORD:-0}" == 1 ]] || echo 'AGY_ERROR: {"short_error":"UNAVAILABLE (code 503): No capacity available for model gemini-3.8-flash-high on the server","status":"UNAVAILABLE","error_code":503,"code_kind":"http","retryable":true}' >&2
         exit 3
         ;;
 esac
@@ -1932,6 +1933,33 @@ for capacity_error in \
     fi
 done
 [[ "$rc" == 3 && "$(wc -l < "$calls" | tr -d ' ')" == 1 ]] && test_pass
+
+for diagnostic_case in split reverse quoted; do
+    test_case "unstructured capacity needs a complete provider diagnostic: $diagnostic_case"
+    calls="$TEST_TMP_DIR/agy-capacity-unstructured.calls"; : > "$calls"
+    case "$diagnostic_case" in
+        split) custom_stdout='Quoted example: No capacity available for model gemini-test'; custom_stderr='HTTP 503: unrelated failure' ;;
+        reverse) custom_stdout='HTTP 503: unrelated failure'; custom_stderr='Quoted example: No capacity available for model gemini-test' ;;
+        quoted) custom_stdout='The example says HTTP 503: No capacity available for model gemini-test'; custom_stderr='unrelated validation error' ;;
+    esac
+    rc=0
+    printf review | PATH="$capacity_bin:$PATH" AGY_CALLS="$calls" \
+        AGY_CUSTOM_STDOUT="$custom_stdout" AGY_CUSTOM_ERROR="$custom_stderr" \
+        OCTOPUS_AGY_NO_PTY_FALLBACK=1 OCTOPUS_AGY_FALLBACK_MODELS=gemini-next \
+        bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" >/dev/null 2>&1 || rc=$?
+    if [[ "$rc" == 3 && "$(wc -l < "$calls" | tr -d ' ')" == 1 ]]; then test_pass; else test_fail "quoted capacity switched models: rc=$rc calls=$(cat "$calls")"; fi
+done
+
+for capacity_stdout in 0 1; do
+    test_case "complete unstructured capacity diagnostic remains usable on stdout=$capacity_stdout"
+    calls="$TEST_TMP_DIR/agy-capacity-complete.calls"; : > "$calls"
+    rc=0
+    out="$(printf review | PATH="$capacity_bin:$PATH" AGY_CALLS="$calls" AGY_BUSY_MODELS=default \
+        AGY_CAPACITY_NO_RECORD=1 AGY_CAPACITY_STDOUT="$capacity_stdout" \
+        OCTOPUS_AGY_NO_PTY_FALLBACK=1 OCTOPUS_AGY_FALLBACK_MODELS=gemini-next \
+        bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" 2>/dev/null)" || rc=$?
+    if [[ "$rc" == 0 && "$out" == 'answer from gemini-next' && "$(tr '\n' '|' < "$calls")" == 'default|gemini-next|' ]]; then test_pass; else test_fail "real capacity rejected: rc=$rc out=$out calls=$(cat "$calls")"; fi
+done
 
 for tty_models in gemini-4-argon-high default,gemini-4-argon-high; do
     test_case "capacity fallback recovers a TTY failure for $tty_models"
