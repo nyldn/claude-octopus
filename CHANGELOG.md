@@ -2,9 +2,17 @@
 
 ## [Unreleased]
 
+### Added
+
+- `OCTOPUS_AGY_FALLBACK_MODELS` lists Gemini models to retry in order after a
+  retryable capacity error. Council records the model that answered and the
+  last model confirmed busy.
+
 ### Fixed
 
 
+- Council session-limit detection validates complete stdout before retaining a
+  terminal status, so truncation cannot turn quoted output into a quota error.
 - Council waits retain the settle hold when a finished round's torn summary is
   repaired. Early completion requires an observed, matching running beacon.
 

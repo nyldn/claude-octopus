@@ -231,11 +231,10 @@ octo_quota_session_limit_line() {
         BEGIN { body = format != "capture" }
         !body {
             if (!header && /^== /) { header = 1; next }
-            if ($0 == "-- stdout tail (stderr was empty) --") { body = 1; next }
             if ($0 == "-- terminal stdout status --") { body = 1; terminal = 1; next }
             invalid = 1; exit 1
         }
-        terminal && $0 == "-- stderr --" { trailing = 1; next }
+        terminal && ($0 == "-- stderr --" || $0 == "-- stdout tail (stderr was empty) --") { trailing = 1; next }
         trailing { next }
         NF { count++; line = $0 }
         END {

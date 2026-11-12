@@ -73,7 +73,7 @@ _runwait --pool "$pool" --interval 1 --timeout 2
 if [[ $rc -eq 2 ]]; then test_pass; else test_fail "reported complete on invalid summary (rc=$rc)"; fi
 
 test_case "repairing an old summary preserves the keyed settle hold"
-if python3 "$PROJECT_ROOT/tests/fixtures/council-wait-settle.py" "$WAIT"; then
+if TMPDIR="$TEST_TMP_DIR" python3 "$PROJECT_ROOT/tests/fixtures/council-wait-settle.py" "$WAIT"; then
     test_pass
 else
     test_fail "an invalid summary or unknown beacon impersonated a running round"

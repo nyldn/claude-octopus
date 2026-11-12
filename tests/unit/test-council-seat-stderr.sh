@@ -39,6 +39,9 @@ case "$mode" in
     quoted-session-warning)
         printf 'warning: optional integration unavailable\n' >&2
         printf '%s\n' 'The probe printed:' "You've hit your session limit · resets 7:10pm" ;;
+    session-stdout) printf "You've hit your session limit · resets 7:10pm\n" ;;
+    quoted-session-tail)
+        printf 'The probe printed:\n%4096s\n' ''; printf "You've hit your session limit · resets 7:10pm\n" ;;
     stderr-cut) printf 'sk-abcdefghijklmnopqrstuvwxyz0123%16352s' '' >&2 ;;
     stdout-cut) printf 'sk-abcdefghijklmnopqrstuvwxyz0123%4064s' '' ;;
     stderr-basic) printf 'Authorization: Basic Zml4dHVyZS11c2VyOmZpeHR1cmUtcGFzcw==\n' >&2 ;;
@@ -192,6 +195,20 @@ for session_mode in session-warning quoted-session-warning; do
     if grep -q 'warning: optional integration unavailable' "$cap" &&
        { [[ "$session_mode" == session-warning && "$quota" == yes ]] ||
          [[ "$session_mode" == quoted-session-warning && "$quota" == no ]]; }; then
+        test_pass
+    else
+        test_fail "session_mode=$session_mode quota=$quota"
+    fi
+done
+
+for session_mode in session-stdout quoted-session-tail; do
+    test_case "stdout truncation cannot certify a quoted session limit: $session_mode"
+    cap="$CAP_DIR/stderr/$session_mode.log"
+    run_failing_seat "$session_mode" "$session_mode" "$cap" || true
+    quota=no
+    council_seat_quota_limited "$cap" && quota=yes
+    if { [[ "$session_mode" == session-stdout && "$quota" == yes ]] ||
+         [[ "$session_mode" == quoted-session-tail && "$quota" == no ]]; }; then
         test_pass
     else
         test_fail "session_mode=$session_mode quota=$quota"
