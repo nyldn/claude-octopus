@@ -172,6 +172,13 @@ def run(args):
         manifest = json.loads(read_text(run_dir / "session.json"))
         scores = json.loads(read_text(run_dir / "satisfaction-scores.json"))
         report = read_text(run_dir / "factory-report.md")
+        review = json.loads(read_text(run_dir / "coverage-review.json"))
+        if (not isinstance(review, dict)
+                or review.get("status") not in ("reviewed", "skipped-fast", "skipped-unavailable")
+                or (review["status"] == "reviewed"
+                    and review.get("verdict") not in ("SUFFICIENT", "GAPS-FOUND"))
+                or (review["status"] == "skipped-fast" and not args.fast)):
+            raise ValueError("Factory coverage evidence is missing or inconsistent")
         if manifest.get("run_id") != run_id or not report.strip():
             raise ValueError("Factory artifacts do not identify this run")
         if (run_dir / "spec.md").read_bytes() != specification:
@@ -183,7 +190,7 @@ def run(args):
                 or (target is not None and scores["satisfaction_target"] != target)):
             raise ValueError("Factory verdict or target is inconsistent")
         context.update(status="completed", report=str(run_dir / "factory-report.md"),
-                       scores=scores)
+                       scores=scores, coverage_review=review)
     except BaseException as error:
         if hasattr(error, "output"):
             (request / "factory.log").write_text(error.output)

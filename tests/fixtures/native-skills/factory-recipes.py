@@ -33,6 +33,7 @@ target=float(os.environ.get('OCTOPUS_FACTORY_SATISFACTION_TARGET','0.85'))
 (run/'session.json').write_text(json.dumps({'run_id':run.name,'satisfaction_target':target}))
 scores=dict(behavior_coverage=.9,constraint_adherence=.9,quality=.9,holdout_pass_rate=.9,composite=.9,satisfaction_target=target,verdict='PASS')
 (run/'satisfaction-scores.json').write_text(json.dumps(scores))
+if os.environ.get('OMIT_COVERAGE')!='1':(run/'coverage-review.json').write_text(json.dumps({'status':'reviewed','verdict':'SUFFICIENT','gaps':[]}))
 if os.environ.get('OMIT_REPORT')!='1':(run/'factory-report.md').write_text('This run report')
 (root/'factory-zzzz-decoy').mkdir(exist_ok=True)
 (root/'factory-zzzz-decoy/factory-report.md').write_text('Wrong concurrent run')
@@ -85,6 +86,11 @@ if os.environ.get('OMIT_REPORT')!='1':(run/'factory-report.md').write_text('This
                 result = self.invoke("--inline", "--target", value)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertFalse((self.project / ".octo").exists())
+
+    def test_missing_coverage_evidence_cannot_complete_a_run(self):
+        result = self.invoke("--inline", env={"OMIT_COVERAGE": "1"})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(json.loads(result.stdout)["status"], "failed")
 
     def score(self, response, holdout="Score: 0.90", exit_code="0"):
         run = self.project / "evaluation";run.mkdir(exist_ok=True)
@@ -148,7 +154,7 @@ generate_factory_scenarios() {
   printf '### Scenario 1: One\\nGiven input\\nThen output\\n### Scenario 2: Two\\nGiven input\\nThen output\\n### Scenario 3: Three\\nGiven input\\nThen output\\n' > "$2/scenarios-all.md"
   printf generated
 }
-factory_review_scenario_coverage() { printf '{"status":"fixture-reviewed"}' > "$2/coverage-review.json"; }
+factory_review_scenario_coverage() { printf '{"status":"reviewed","verdict":"SUFFICIENT","gaps":[]}' > "$2/coverage-review.json"; }
 embrace_full_workflow() { :; }
 run_agent_sync() {
   if [[ "$2" == *"Scoring Dimensions"* ]]; then
