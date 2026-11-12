@@ -65,6 +65,10 @@
   string token cannot make invented source evidence pass verification.
 - Runtime diagnostics in plain-text fences do not count as invented source.
   Runtime-error quotes beside an adjacent source citation still need verification.
+- Named OpenAI-compatible presets keep their own endpoint and credential
+  selection when the generic provider slot is configured. Direct helper calls
+  no longer inherit that slot's URL or credential name. Explicit flags still
+  take priority.
 
 - Full unit coverage uses six weighted macOS lanes and four Linux lanes. This
   leaves more room for longer hosted macOS suite durations while retaining
