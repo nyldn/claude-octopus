@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise generated host routes without invoking a model or changing logins."""
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -19,6 +20,32 @@ def adapt(text):
 
 
 class CodexReferences(unittest.TestCase):
+    def test_check_reports_only_the_missing_generated_tree_without_writing(self):
+        for missing in (('codex',), ('native',), ('codex', 'native')):
+            with self.subTest(missing=missing), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                source = root / 'source/demo/SKILL.md'
+                source.parent.mkdir(parents=True)
+                source.write_text('---\nname: demo\ndescription: fixture\n'
+                                  'disable-model-invocation: true\n---\nBody.\n')
+                command = ('source "$1"; SKILLS_DIR="$2/source"; OUTPUT_DIR="$2/codex"; '
+                           'NATIVE_OUTPUT_DIR="$2/native"; ')
+                result = subprocess.run(['/bin/bash', '-eu', '-c', command + 'main',
+                                         'fixture', str(GENERATOR), str(root)],
+                                        capture_output=True, text=True, timeout=15)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                for name in missing:
+                    shutil.rmtree(root / name)
+                before = {str(p.relative_to(root)): p.read_bytes() for p in root.rglob('*') if p.is_file()}
+                result = subprocess.run(['/bin/bash', '-eu', '-c', command + 'CHECK_MODE=true; main',
+                                         'fixture', str(GENERATOR), str(root)],
+                                        capture_output=True, text=True, timeout=15)
+                self.assertNotEqual(result.returncode, 0)
+                for name, label in [('codex', 'Codex'), ('native', 'native')]:
+                    self.assertEqual(label + ' skill tree does not exist:' in result.stderr, name in missing)
+                after = {str(p.relative_to(root)): p.read_bytes() for p in root.rglob('*') if p.is_file()}
+                self.assertEqual(after, before)
+
     def test_source_directory_names_stay_distinct_from_loaded_resource_paths(self):
         source = ('Enumerate `.claude/skills/`, `skills/`, and `codex-skills/`.\n'
                   'Read `skills/blocks/evidence.md` and `$OCTO_ROOT/skills/$SKILL/SKILL.md`.\n'

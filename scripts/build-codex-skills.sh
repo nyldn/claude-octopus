@@ -684,17 +684,22 @@ main() {
     echo "build-codex-skills: $count skills generated, $skipped skipped, $errors errors"
 
     if $CHECK_MODE; then
-        if [[ -d "$OUTPUT_DIR" ]]; then
-            if diff -rq "$check_output" "$OUTPUT_DIR" >/dev/null 2>&1 &&
-               diff -rq "$native_target" "$NATIVE_OUTPUT_DIR" >/dev/null 2>&1; then
-                echo "CHECK: native and Codex skills/ is up to date"
-                return 0
-            else
-                echo "CHECK: native and Codex skills/ is out of date — run scripts/build-codex-skills.sh" >&2
-                return 1
-            fi
+        local missing_tree=false
+        if [[ ! -d "$OUTPUT_DIR" ]]; then
+            printf 'CHECK: Codex skill tree does not exist: %s\n' "$OUTPUT_DIR" >&2
+            missing_tree=true
+        fi
+        if [[ ! -d "$NATIVE_OUTPUT_DIR" ]]; then
+            printf 'CHECK: native skill tree does not exist: %s\n' "$NATIVE_OUTPUT_DIR" >&2
+            missing_tree=true
+        fi
+        $missing_tree && return 1
+        if diff -rq "$check_output" "$OUTPUT_DIR" >/dev/null 2>&1 &&
+           diff -rq "$native_target" "$NATIVE_OUTPUT_DIR" >/dev/null 2>&1; then
+            echo "CHECK: native and Codex skills/ is up to date"
+            return 0
         else
-            echo "CHECK: native and Codex skills/ does not exist — run scripts/build-codex-skills.sh" >&2
+            echo "CHECK: native and Codex skills/ is out of date — run scripts/build-codex-skills.sh" >&2
             return 1
         fi
     fi

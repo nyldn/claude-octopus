@@ -37,6 +37,11 @@ to `codex-skills/`. Council and starter-pack sources remain in `skills/` and
 are copied into the Codex package. Never put Codex-adapted bodies in Claude's
 automatically scanned root `skills/` tree.
 
+Assembly validation checks frontmatter for every registered Claude skill,
+including custom registration paths outside the standard trees. A package with
+`.codex-plugin/plugin.json` must retain its generated `codex-skills/` directory.
+The authored `.claude/skills/` directory can be absent from an installed package.
+
 Each skill must include YAML frontmatter with:
 
 - `name`: kebab-case, stable, and aligned with the skill directory or legacy

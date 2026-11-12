@@ -144,12 +144,19 @@ def validate_plugin_manifest(root: Path, errors: list[str]) -> None:
         for skill in files:
             if not skill.resolve().is_relative_to(root) or not skill.is_file():
                 errors.append(f"{rel(root, manifest)}: missing or unsafe skill file: {rel(root, skill)}")
-            elif "Host: Codex CLI" in skill.read_text(encoding="utf-8"):
+                continue
+            require_frontmatter(
+                root, skill, ("name", "description"), errors,
+                validate_name=True,
+                expected={"disable-model-invocation": "true"},
+            )
+            if "Host: Codex CLI" in skill.read_text(encoding="utf-8"):
                 errors.append(f"{rel(root, manifest)}: Claude Code registers a Codex-adapted skill: {path}")
 
 
 def validate_json_files(root: Path, errors: list[str]) -> None:
     candidates = [
+        root / ".codex-plugin" / "plugin.json",
         root / ".claude-plugin" / "marketplace.json",
         root / ".claude-plugin" / "hooks.json",
         root / ".mcp.json",
@@ -163,6 +170,11 @@ def validate_json_files(root: Path, errors: list[str]) -> None:
 
 def validate_skills(root: Path, errors: list[str]) -> int:
     checked = 0
+    if (root / ".codex-plugin" / "plugin.json").is_file():
+        codex = root / "codex-skills"
+        if not codex.is_dir() or not codex.resolve().is_relative_to(root):
+            errors.append("codex-skills/: missing or unsafe required generated skill directory")
+            return checked
     for file in sorted((root / "skills").rglob("SKILL.md")):
         require_frontmatter(
             root, file, ("name", "description"), errors,

@@ -147,16 +147,16 @@ git add [changed-files]
 # Create commit with clear message
 git commit -m "quick: [brief description]
 
-[Detailed explanation if needed]
-
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>" || { echo "Commit failed; stop before state updates or summary." >&2; exit 1; }
+[Detailed explanation if needed]" || { echo "Commit failed; stop before state updates or summary." >&2; exit 1; }
 ```
 
 **Commit message format:**
 - Prefix with `quick:` to indicate quick mode
 - Brief description in present tense
 - Optional detailed explanation
-- Co-authored tag
+- Follow the repository's attribution policy. Add a coauthor only when the named
+  contributor actually participated. Do not infer a contributor from this skill
+  or its example model names.
 
 ### Step 4: Record in State
 
@@ -233,9 +233,7 @@ $octopus-quick "fix typo in README - change 'recieve' to 'receive'"
 3. **Commit atomically**
    ```bash
    git add README.md
-   git commit -m "quick: fix typo in README (recieve → receive)
-
-   Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+    git commit -m "quick: fix typo in README (recieve → receive)"
    ```
 
 4. **Record in state**
