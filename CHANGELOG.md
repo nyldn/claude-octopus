@@ -2,22 +2,8 @@
 
 ## [Unreleased]
 
-### Added
-
-- `OCTOPUS_AGY_FALLBACK_MODELS` lists Gemini models for agy to retry, in
-  order, when the backend answers 503 "No capacity available for model". The
-  council seat records the model that answered, with `model_fallback.from`, so
-  a busy model no longer stops the council. Non-Gemini entries are skipped.
-
-- UberLLM as an OpenAI-compatible agent provider. `uberllm-agent` uses the
-  shared tool-loop helper with `UBERLLM_API_KEY` and an explicit
-  `UBERLLM_MODEL`, `OCTOPUS_UBERLLM_MODEL` or `providers.uberllm.default`
-  model. It is excluded from Council, like the other gateway agents.
-  Readiness and fleet selection use the dispatched model and its allowlist
-  fallback. Exact seats keep their model pins, and MCP preserves model policy.
-  DeepSeek Flash estimates use its published peak, uncached fallback rates.
-
 ### Fixed
+
 
 - Council waits retain the settle hold when a finished round's torn summary is
   repaired. Early completion requires an observed, matching running beacon.
@@ -83,143 +69,59 @@
   string token cannot make invented source evidence pass verification.
 - Runtime diagnostics in plain-text fences do not count as invented source.
   Runtime-error quotes beside an adjacent source citation still need verification.
-- Named OpenAI-compatible presets no longer inherit `OPENAI_COMPAT_MODEL`
-  from another vendor. Set the preset-specific model variable or provider
-  default instead. Atlas Cloud admission and dispatch share configured defaults
-  and explicit model pins. The generic slot keeps working.
 
-- Named OpenAI-compatible presets keep their own endpoint and credential
-  selection when the generic provider slot is configured. Direct helper calls
-  no longer inherit that slot's URL or credential name. Explicit flags still
-  take priority.
+## [11.23.0] - 2026-11-12
 
-- Full unit coverage uses six weighted macOS lanes and four Linux lanes. This
-  leaves more room for longer hosted macOS suite durations while retaining
-  every suite and the existing 20-minute step limit.
+### Added
 
-- Unit shards include newer hosted macOS suite timings in their duration
-  weights. The full suite and 20-minute per-shard timeout remain in place.
+- UberLLM is available as its own OpenAI-compatible provider seat. Select a
+  model explicitly through its environment variables or `providers.json`.
+  Readiness, fleet selection and MCP honor that model and its allowlist.
+  Gateway seats remain outside Council voting. See [#1288](https://github.com/nyldn/claude-octopus/pull/1288).
 
-- Token-extraction CLI startup uses its TypeScript runner and checked options.
-  CSS token names no longer shadow source-path handling, and TypeScript output
-  options no longer shadow the constants generator. The tool's Node.js range
-  now matches its dependencies.
-- A council seat is no longer marked fabricated for a test input it built
-  itself (sail-cruisey #3247). A span introduced as "constructed as", "built
-  as" or "crafted as" is the seat's own proposal, like one introduced by
-  "such as", so a seat whose only checked quote was such an input is no longer
-  dropped as blind beside real citations. After a content verb, as in
-  "x.ts:2 contains the code built as", the span is still the file's code and is
-  checked, unless "I" or "we" built it. Quote reports also gain
-  `quotes_partial`, which counts fences that verify through a whole-fence
-  elision or the two-thirds specific-line threshold in a cited file or diff side,
-  but lack a complete match in any checked source, short lines included. Short
-  lines do not count toward that threshold; a whole-fence elision match does
-  not require it. Lines can match separately and out of
-  order. Mixed diff fences check the removed portion against the removed side
-  and the kept portion against a cited file or the added side. A complete
-  match clears partial status for that portion. An optional diff lookup may
-  time out, so partial status does not prove a line is absent from all evidence.
-  It does not change the verdict. Optional diff refinement no longer
-  prevents a later quote from receiving the normal required lookup after a
-  timeout. Partial accounting stops at its first missing line, batches short
-  literal matches into bounded index batches after sparse per-file substring
-  searches, and reuses retained-fragment checks across quotes. Non-fence quotes
-  skip report-only partial scans in source files and diff sides, while later
-  bound files can still supply near-line evidence after a complete match,
-  within a 64 KiB per-quote refinement budget. Exhausting that supplemental
-  budget can undercount near-line matches but does not reject a verified quote.
-  First-person builders also recognize modifiers such as "I just built as"
-  and contracted subjects such as "I've built as" and "we'd built as",
-  without excusing code attributed to someone else. An explicit later source
-  subject such as "but the file reads" or "but the file itself reads" restarts
-  the source claim even in the same sentence.
-  Mixed diff fences skip added-side refinement when their kept source code
-  already matches completely, preserving time for required evidence checks.
-  Later sentences require an explicit source subject before attributing a quote,
-  preserving reviewer-owned calculations and reproduction code.
-  Patch-only lead-ins such as "I recommend this patch. Apply it as follows:"
-  preserve the preceding proposal without excusing a later current-source claim.
-  Inline code punctuation and proposal words no longer alter the surrounding
-  prose's ownership or sentence boundaries.
-  Partial-fence refinement in unrelated cited files has its own 64 KiB
-  per-quote budget. If the next complete file exceeds that budget, reporting
-  retains the verified partial result without searching further unbound files.
-  Report-only elision and diff-side scans share a fixed work budget. Exhaustion
-  retains source verification and conservative partial status; required evidence
-  matching keeps its normal checks.
-- Parallel cleanup finishes a stopped worker's durable execution contract as
-  cancelled, so run status no longer reports that worker as still running.
-  Native Agent Teams seats remain running until their own completion is known.
+### Fixed
 
-- Reclaiming an exited invocation's output claim cancels the running seats its
-  owner record names, including seats inherited through an interrupted reclaim.
-  A different task ID that maps to the same result file is no longer blocked by
-  the exited owner's seat. Probe status rows use the canonical spawn seat ID.
-  An abnormal controller exit stops its workers before releasing their claims,
-  and a results path through a symlink and `..` addresses the same claim
-  directory as the shell.
-- Parallel dispatch recovers interrupted contract writes before checking a new
-  seat, and interruption cleanup releases claims with relative result paths.
-  Unrecoverable ledgers and reused seats keep their saved outputs intact.
-- Parallel dispatch preserves saved results and completion markers when a
-  repeated task ID cannot be admitted by its durable run contract. Use a new
-  task ID for a new attempt in the same run.
-- Large parallel task batches retain their scoped results without exceeding
-  command-line argument limits, and invalid scopes report an aggregation error.
-  A spawn that fails after recording a running seat marks that seat cancelled
-  in the status ledger. Interrupted shell-only claims report their manual
-  recovery procedure.
-- The agent run summary no longer reports a provider's successful seat as
-  failed when another of its seats times out. The status ledger kept the
-  latest row per agent name, so a probe with two Claude seats printed "2 of 2
-  agents failed or timed out" after one seat's 603-second timeout replaced the
-  other seat's completed result. The same lookup left that result out of the
-  outputs offered to synthesis. Rows are now kept per seat, by seat ID or else
-  by result file, in the summary, the `agents.json` snapshot and the output
-  list. Probe and aggregate summaries count only their own seats, because the
-  ledger spans every command in a session.
-- Output claims publish their owner atomically, so an interrupted claim
-  preparation cannot permanently block retries. Live owners keep their outputs.
-  Workers that fail without recording a terminal status are marked cancelled.
-  When a durable execution contract exists, another attempt requires a new task
-  ID in the same run.
-- Quota cleanup delivers an identity-bound TERM to the timeout supervisor and
-  lets its handler finish. Reparented helpers are cleaned up even when the
-  provider leader has been reaped, and unrelated process exits cannot exhaust
-  global-snapshot retries. The handoff never forcibly kills a pending handler.
-  macOS zombie admission in optional owned-group cleanup uses native zombie lookup.
-- A peer seat's quota marker no longer relabels an externally terminated call
-  or adds a false circuit-breaker failure. Quota stop attribution stays local
-  to the current attempt even when its diagnostic cannot be written.
-- Quota fast-fails preserve a provider's own temporary-failure status and auth
-  retry behavior. Quota stops update the provider circuit breaker, and persisted
-  cooldown timestamps correctly block repeat dispatch until their deadline. Future timestamps
-  from clock rollback or corrupt state allow a probe instead of an unbounded wait.
-  Successful recovery clears that failure history so separate quota episodes
-  do not count as consecutive failures. Parallel quota failures update the
-  breaker together, and an unwritable diagnostic marker cannot prevent worker
-  completion after a quota stop.
-  Lock contention does not turn an expired cooldown into an open circuit, and
-  failure-log trimming uses private temporary files without following stale links.
-  Quota stops also clean up owned provider and timer processes, so a stopped
-  call does not wait for a leftover timeout before returning. Refused handoffs
-  allow at most five attempts, with a visible error if cleanup cannot finish.
-- Direct spawns respect terminal quota and auth markers even when no transient
-  cooldown is active. Provider reset hints remain inside untrusted result frames.
-- Quota and termination status summaries use launcher-authored reasons so provider diagnostics
-  cannot enter synthesis instructions through trusted failure metadata.
-- Run-local smoke failures keep their health-failure reason. External SIGTERM
-  preserves exit 143 through spawn results and lifecycle events instead of
-  claiming the provider exceeded its timeout.
-  Synchronous dispatch also records a failed termination in status and usage
-  rather than a timeout, with a launcher-authored reason.
+- Named OpenAI-compatible presets retain their own endpoint, credential and
+  model settings when the generic slot is configured. Direct helper calls no
+  longer send a preset's credential to the generic slot's host or inherit its
+  model. Atlas Cloud admission and dispatch share configured defaults and exact
+  model pins. Explicit flags keep precedence. Set the preset-specific model
+  variable or provider default if you previously used `OPENAI_COMPAT_MODEL`.
+  See [#1300](https://github.com/nyldn/claude-octopus/pull/1300) and
+  [#1302](https://github.com/nyldn/claude-octopus/pull/1302), addressing the
+  isolation reports in [#1299](https://github.com/nyldn/claude-octopus/issues/1299).
+  Custom-provider registration remains a separate open enhancement.
+- Managed Tangle validates declared output artifacts separately from read-only
+  context references. Missing outputs and unavailable coverage evidence remain
+  blocking. See [#1289](https://github.com/nyldn/claude-octopus/pull/1289).
+- Council reviews no longer reject reviewer-created test inputs as fabricated
+  source quotations. Explicit source claims remain checked. Optional partial
+  quote refinement has bounded work budgets and cannot prevent required
+  evidence checks. See [#1260](https://github.com/nyldn/claude-octopus/pull/1260).
+- Research summaries track each seat separately, so one seat's timeout cannot
+  hide another seat's successful output. Interrupted workers and reclaimed
+  output claims keep accurate status and preserve saved results. See
+  [#1243](https://github.com/nyldn/claude-octopus/pull/1243).
+- Quota and authentication failures retain their cause and retry behavior.
+  Cleanup stops owned processes, preserves external termination status and
+  leaves other seats' status intact. Circuit breakers recover without turning
+  an expired cooldown into an indefinite block. See [#1266](https://github.com/nyldn/claude-octopus/pull/1266).
+- The token-extraction CLI starts through its TypeScript runner, uses checked
+  options and handles CSS names and TypeScript output generation correctly.
+  Its Node.js requirement matches its dependencies. See [#1298](https://github.com/nyldn/claude-octopus/pull/1298).
+
+### Documentation and maintenance
+
+- Dispatch documentation explains fallback selection and fail-loud behavior
+  consistently. See [#1227](https://github.com/nyldn/claude-octopus/pull/1227).
+- Full unit coverage retains every suite and its timeout while using measured
+  timings across six macOS shards and four Linux shards.
+- The Tangle fix is listed here because it landed after the published
+  `11.22.2` tag, despite its earlier changelog placement.
 
 ## [11.22.2] - 2026-11-11
 
 ### Fixed
-
-- Managed Tangle output coverage checks declared artifacts rather than requiring model responses to repeat read-only context references. Missing outputs and unavailable coverage evidence remain blocking.
 
 - Large `probe-single --perspective-file` prompts pass startup validation
   promptly without rewriting their content. Empty and whitespace-only files

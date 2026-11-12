@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.22.2",
-  "description": "v11.22.2 \u2014 Complete review verification, faster large prompt validation and corrected GPT-5.4 Mini usage estimates. Run /octo:setup.",
+  "version": "11.23.0",
+  "description": "v11.23.0 \u2014 UberLLM seats, isolated presets and accurate run results. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
