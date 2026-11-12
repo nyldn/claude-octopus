@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.22.2] - 2026-11-11
+
 ### Fixed
 
 - Large `probe-single --perspective-file` prompts pass startup validation
