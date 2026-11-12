@@ -3,9 +3,10 @@
 #
 # Council seats run detached, so when a Claude seat exited non-zero the only
 # trace was "Agent claude failed with exit code 1" in the caller's log and
-# "no-response" in summary.json. run_agent_sync now appends each failed attempt
-# (exit code, provider stderr, or the stdout tail when stderr is empty) to the
-# file named by _OCTOPUS_SEAT_STDERR_FILE, and the advice phase records it.
+# "no-response" in summary.json. run_agent_sync records the terminal failure in
+# _OCTOPUS_SEAT_STDERR_FILE. Retried crashes keep separate diagnostic files so
+# their quota text cannot classify a later failure. The advice phase reads the
+# terminal capture.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,6 +39,13 @@ case "$mode" in
     stdout-basic) printf 'aUtHoRiZaTiOn: bAsIc Zml4dHVyZS11c2VyOmZpeHR1cmUtcGFzcw==\n' ;;
     silent) : ;;
     segv) printf 'agy native crash\n' >&2; exit 139 ;;
+    segv-quota)
+        if [[ ! -f "$fixture_root/first-crash" ]]; then
+            touch "$fixture_root/first-crash"
+            printf 'TerminalQuotaError before native crash\n' >&2
+            exit 139
+        fi
+        printf 'ordinary terminal failure\n' >&2 ;;
 esac
 exit 1
 EOF
@@ -154,11 +162,12 @@ run_failing_seat no-capture stderr "" || true
 after="$(find "$CAP_DIR" -type f | wc -l | tr -d ' ')"
 if [[ "$before" == "$after" ]]; then test_pass; else test_fail "files before=$before after=$after"; fi
 
-test_case "an AGY SIGSEGV retry records both failed attempts, not just the last"
+test_case "an AGY SIGSEGV retry retains each attempt in its own capture"
 cap="$CAP_DIR/stderr/agy-segv.log"
 run_failing_seat agy-segv segv "$cap" agy || true
-if [[ "$(grep -c '^== .* agy exited 139: ' "$cap")" == 2 ]] && grep -q 'SIGSEGV; retrying once' "$cap" &&
-   [[ "$(grep -c 'agy native crash' "$cap")" == 2 ]]; then
+if [[ "$(grep -c '^== .* agy exited 139: ' "$cap")" == 1 ]] &&
+   grep -q 'SIGSEGV; retrying once' "${cap}.attempt-1" &&
+   grep -q 'agy native crash' "$cap" && grep -q 'agy native crash' "${cap}.attempt-1"; then
     test_pass
 else
     test_fail "capture=$(tr '\n' '|' < "$cap" 2>/dev/null)"
@@ -459,6 +468,18 @@ if [[ "$COUNCIL_CHAIR_RESPONSE_RECEIVED" == true && -z "$COUNCIL_TIMEOUT_WARNING
     test_pass
 else
     test_fail "accepted chair retained diagnostic state: $COUNCIL_SEAT_RECORDS_JSON warns=[$COUNCIL_TIMEOUT_WARNINGS]"
+fi
+
+test_case "quota text from a retried crash cannot classify the terminal failure"
+cap="$CAP_DIR/stderr/agy-stale-quota.log"
+run_failing_seat agy-stale-quota segv-quota "$cap" agy || true
+if grep -q 'ordinary terminal failure' "$cap" &&
+   ! grep -q 'TerminalQuotaError' "$cap" &&
+   grep -q 'TerminalQuotaError' "${cap}.attempt-1" &&
+   ! council_seat_quota_limited "$cap"; then
+    test_pass
+else
+    test_fail "retry quota leaked into terminal classification"
 fi
 
 test_summary

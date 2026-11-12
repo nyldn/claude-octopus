@@ -4386,4 +4386,22 @@ else
     test_fail "colon replacement was rejected without a genuine comparison quote: $r"
 fi
 
+test_case "an unresolved extensionless citation cannot reuse earlier source attribution"
+r="$(_xreport 'scripts/entry.mjs:2 reads:
+missing/path:1 reads `return fetch_user(user_id) + 1`.
+VERDICT: REVISE')"
+if jq -e '.citations == 1 and .citations_unresolved == 1 and .quotes_attributed_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "a bare hostname and port do not become an extensionless file citation"
+r="$(_xreport 'The endpoint host/path:80 is unavailable. VERDICT: REVISE')"
+if jq -e '.citations == 0 and .citations_unresolved == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "result wording alone does not turn current implementation into a probe input"
+r="$(_xreport 'The current implementation `return fetch_user(user_id) + 1` returns an invalid value (scripts/entry.mjs:2).')"
+if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "an explicitly supplied input retains its result wording"
+r="$(_xreport 'I tested input `return fetch_user(user_id) + 1` returns an invalid value. References: scripts/entry.mjs:2.')"
+if jq -e '.quotes_attributed_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
 test_summary

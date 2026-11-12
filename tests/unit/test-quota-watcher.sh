@@ -92,6 +92,33 @@ else
 fi
 unset WORKSPACE_DIR
 
+test_case "streaming session-limit text cannot stop a provider before it exits"
+printf '%s\n' "You've hit your session limit · resets 7:10pm" > "$out_file"
+: > "$err_file"
+if quota_watcher_has_match "$err_file" "$out_file" stream; then
+    test_fail "an incomplete stdout reply was treated as a terminal CLI status"
+else
+    test_pass
+fi
+
+test_case "a failed standalone session-limit status marks Claude unavailable"
+export WORKSPACE_DIR="$tmp_dir/session-status"
+quota_watcher_mark_after_exit 1 "$err_file" "$out_file" claude
+if octo_quota_is_dead claude; then test_pass; else test_fail "standalone failed CLI status was ignored"; fi
+
+for quote_style in fence context; do
+    test_case "a session-limit line inside $quote_style reply text leaves the provider available"
+    octo_quota_clear_dead claude
+    if [[ "$quote_style" == fence ]]; then
+        printf '%s\n' '```text' "You've hit your session limit · resets 7:10pm" '```' > "$out_file"
+    else
+        printf '%s\n' 'The fixture printed this diagnostic:' "You've hit your session limit · resets 7:10pm" > "$out_file"
+    fi
+    quota_watcher_mark_after_exit 1 "$err_file" "$out_file" claude
+    if octo_quota_is_dead claude; then test_fail "quoted status marked a healthy provider dead"; else test_pass; fi
+done
+unset WORKSPACE_DIR
+
 test_case "start_quota_watcher invokes callback and stops target"
 flag_file="$tmp_dir/callback.flag"
 test_quota_callback() {

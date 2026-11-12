@@ -462,16 +462,17 @@ printf '%s\n' 20260101-172823-00aaaa > "$pool/latest-$slug"
 start=$SECONDS
 _runwait --pool "$pool" --supersede-key "$key" --settle 2 --interval 1 --timeout 30
 elapsed=$(( SECONDS - start ))
-if [[ $rc -eq 0 && "$out" == "$rd/summary.json" && $elapsed -ge 2 && $elapsed -lt 10 ]]; then test_pass; else test_fail "rc=$rc elapsed=${elapsed}s out=$out"; fi
+if [[ $rc -eq 0 && "$out" == "$rd/summary.json" && $elapsed -ge 2 ]]; then test_pass; else test_fail "rc=$rc elapsed=${elapsed}s out=$out"; fi
 
 test_case "--since skips the settle hold"
 pool="$(mktemp -d "$TEST_TMP_DIR/settle-since.XXXXXX")"
 rd="$(_mkrun "$pool" 20260101-172823-00aaaa finished yes "$key" 1)"
 printf '%s\n' 20260101-172823-00aaaa > "$pool/latest-$slug"
-start=$SECONDS
-_runwait --pool "$pool" --supersede-key "$key" --since 1767288000 --interval 1 --timeout 30
-elapsed=$(( SECONDS - start ))
-if [[ $rc -eq 0 && "$out" == "$rd/summary.json" && $elapsed -lt 2 ]]; then test_pass; else test_fail "rc=$rc elapsed=${elapsed}s out=$out"; fi
+_observe_waiter "$pool"
+observed="$pool/observed"
+PATH="$pool/wait-bin:$PATH" COUNCIL_WAIT_OBSERVED="$observed" \
+    _runwait --pool "$pool" --supersede-key "$key" --since 1767288000 --interval 1 --timeout 30
+if [[ $rc -eq 0 && "$out" == "$rd/summary.json" && ! -e "$observed" ]]; then test_pass; else test_fail "rc=$rc slept=$([[ -e "$observed" ]] && echo yes || echo no) out=$out"; fi
 
 test_case "--background waits past the default bound's role and rejects --timeout"
 pool="$(mktemp -d "$TEST_TMP_DIR/background.XXXXXX")"

@@ -3164,8 +3164,8 @@ for match in citation_matches:
     if candidate is not None:
         citations.append(token)
 # sail-cruisey #3338: a file with no extension (".githooks/pre-commit:48",
-# "Makefile:12") is a citation only when it names a file under the root as
-# written; otherwise "host/path:80" shapes would count.
+# "Makefile:12") resolves under the root. Explicit file-claim wording also
+# retains missing paths as unresolved tokens, without counting bare host/ports.
 EXTENSIONLESS = re.compile(r"(?<![A-Za-z0-9_./:-])((?:[A-Za-z0-9_.-]+/)+[A-Za-z0-9_-]+|Makefile|Dockerfile|Gemfile|Rakefile|Procfile|Jenkinsfile|Brewfile)"
                            r"\s*:\s*([0-9]+)(?:-([0-9]+))?(?![A-Za-z0-9_/-]|\.[A-Za-z0-9_/-])")
 for match in EXTENSIONLESS.finditer(resp):
@@ -3177,10 +3177,15 @@ for match in EXTENSIONLESS.finditer(resp):
             resolved[raw] = candidate if ".." not in relative.parts and contained(candidate) and candidate.is_file() else None
         except (OSError, RuntimeError):
             resolved[raw] = None
-    if resolved[raw] is not None:
+    tail = resp[match.end():match.end() + 120]
+    explicit_file = (re.match(r"[`*_]*\s*(?::\s*)?(?:reads?|shows?|contains?|has|defines?|declares?|says?)\b",
+                              tail, re.I)
+                     or (match.start() > 0 and resp[match.start() - 1] == "`" and tail.startswith("`")))
+    if resolved[raw] is not None or explicit_file:
         token = (match.start(), match.end(), resolved[raw], int(match.group(2)))
         tokens.append(token)
-        citations.append(token)
+        if resolved[raw] is not None:
+            citations.append(token)
 tokens.sort()
 citations.sort()
 result["citations"] = len(citations)
@@ -4232,6 +4237,10 @@ PROBE_AFTER = re.compile(r"^\s*(?:(?:all|both|each|also|still|then|now) )?(?:ret
                          r"|execut(?:es?|ed)|miss(?:es|ed)?|evad(?:es?|ed)|bypass(?:es|ed)?|slips?|leaks?"
                          r"|(?:is|are) (?:not )?(?:flagged|rejected|accepted|ignored|detected|caught|blocked|missed|allowed)"
                          r"|becomes? an?)\b", re.I)
+PROBE_CONTEXT = re.compile(r"\b(?:inputs?|probes?|payloads?|tests?|tested|testing|commands?|invocations?|"
+                           r"wrappers?|redirections?|arguments?|execut\w*|bypass\w*|detect\w*|flagged|caught|blocked)\b", re.I)
+CURRENT_SOURCE = re.compile(r"\b(?:(?:the|this|that|current|actual|cited)\s+)+"
+                            r"(?:implementation|code|source|function|method|file)\s*$", re.I)
 NEGATED = re.compile(r"\b(?:avoids?|avoiding|never|(?:does|do|did)(?: not|n'?t)|without)(?: \w+ing| \w+s?)?\s*$", re.I)
 INPUT_HEADER = re.compile(r"^\s*(?:inputs?|commands?|cases?|probes?|payloads?|samples?|strings?)\s*$", re.I)
 TABLE_DELIMITER = re.compile(r"^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$")
@@ -4278,7 +4287,9 @@ def probe_input(start, end):
     line_end = resp.find("\n", inline_spans[last][1])
     before = resp[max(line_start, inline_spans[first][0] - 200):inline_spans[first][0]]
     after = resp[inline_spans[last][1]:line_end if line_end >= 0 else len(resp)]
-    return bool(PROBE_BEFORE.search(before) or PROBE_AFTER.match(after) or NEGATED.search(before)
+    return bool(PROBE_BEFORE.search(before)
+                or (PROBE_AFTER.match(after) and PROBE_CONTEXT.search(before + after))
+                or NEGATED.search(before)
                 or input_cell(start))
 
 token_starts = [t[0] for t in tokens]
@@ -4306,6 +4317,15 @@ for start, end, kind, block, removed_block, info in units:
         continue
     associated, gap = association(start)
     attributed = attribution(associated, gap)
+    if attributed is None and kind == "inline":
+        # A current-source subject plus its same-clause trailing citation is a
+        # source claim. Result wording does not make it a supplied probe input.
+        prefix = resp[max(resp.rfind("\n", 0, start) + 1, start - 200):start]
+        index = bisect_left(token_starts, end)
+        if CURRENT_SOURCE.search(prefix) and index < len(tokens):
+            trailing = resp[end:tokens[index][0]]
+            if len(trailing) <= 200 and not re.search(r"`|\n|[.!?](?:\s|$)", trailing):
+                associated = attributed = tokens[index]
     runtime_diagnostic = ((kind == "inline" or (kind == "fence" and info in ("", "text", "plaintext")))
                           and block and RUNTIME_ERROR.match(norm(block[0])))
     if attributed is None and runtime_diagnostic and cited_after(end):
@@ -4989,7 +5009,8 @@ council_seat_quota_limited() {
         # shellcheck source=/dev/null
         source "${BASH_SOURCE[0]%/*}/quota-watcher.sh" 2>/dev/null || return 1
     fi
-    quota_watcher_has_match "$file" /dev/null
+    quota_watcher_has_match "$file" /dev/null stream ||
+        octo_quota_session_limit_line "$file" capture >/dev/null
 }
 
 council_note_seat_quota_limited() {

@@ -895,6 +895,15 @@ while (( $# )); do
     esac
 done
 printf '%s\n' "$model" >> "${AGY_CALLS:?}"
+if [[ "$model" == default && -n "${AGY_CUSTOM_ERROR:-}" ]]; then
+    printf '%s\n' "$AGY_CUSTOM_ERROR" >&2
+    exit 3
+fi
+case ",${AGY_TTY_MODELS:-}," in
+    *",$model,"*)
+        if [[ ! -t 1 ]]; then echo 'bubbletea: could not open TTY' >&2; exit 2; fi
+        ;;
+esac
 if [[ "$model" == "${AGY_EMPTY_ONCE:-}" && ! -e "${AGY_CALLS}.empty" ]]; then
     : > "${AGY_CALLS}.empty"
     exit 0
@@ -1852,5 +1861,42 @@ test_review_command_generates_antigravity_banner
 test_provider_aware_commands_generate_antigravity_banners
 test_provider_workflow_review_regressions
 test_agy_no_capacity_falls_back_to_listed_gemini_model
+
+test_case "capacity fallback rejects unrelated 503s and explicit non-retryability"
+capacity_bin="$TEST_TMP_DIR/agy-capacity-admission-bin"
+_agy_capacity_mock "$capacity_bin"
+for capacity_error in \
+    'AGY_ERROR: {"short_error":"UNAVAILABLE (code 503): server maintenance","error_code":503,"retryable":true}' \
+    'AGY_ERROR: {"short_error":"UNAVAILABLE (code 503): No capacity available for model gemini-test","error_code":503,"retryable":false}' \
+    'AGY_ERROR: {"short_error":"No capacity available for model gemini-test","error_code":400,"retryable":true}'; do
+    calls="$TEST_TMP_DIR/agy-capacity-admission.calls"; : > "$calls"
+    rc=0
+    printf review | PATH="$capacity_bin:$PATH" AGY_CALLS="$calls" AGY_CUSTOM_ERROR="$capacity_error" \
+        OCTOPUS_AGY_NO_PTY_FALLBACK=1 OCTOPUS_AGY_FALLBACK_MODELS=gemini-4-argon-high \
+        bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" >/dev/null 2>&1 || rc=$?
+    if [[ "$rc" != 3 || "$(wc -l < "$calls" | tr -d ' ')" != 1 ]]; then
+        test_fail "unsupported retry: rc=$rc calls=$(cat "$calls")"; break
+    fi
+done
+[[ "$rc" == 3 && "$(wc -l < "$calls" | tr -d ' ')" == 1 ]] && test_pass
+
+for tty_models in gemini-4-argon-high default,gemini-4-argon-high; do
+    test_case "capacity fallback recovers a TTY failure for $tty_models"
+    if ! command -v script >/dev/null 2>&1; then test_skip "script is unavailable"; continue; fi
+    calls="$TEST_TMP_DIR/agy-capacity-pty.calls"; : > "$calls"
+    rc=0
+    out="$(printf review | PATH="$capacity_bin:$PATH" AGY_CALLS="$calls" AGY_BUSY_MODELS=default \
+        AGY_TTY_MODELS="$tty_models" OCTOPUS_AGY_NO_PTY_FALLBACK=0 \
+        OCTOPUS_AGY_FALLBACK_MODELS=gemini-4-argon-high \
+        bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" 2>/dev/null)" || rc=$?
+    expected_calls='default|gemini-4-argon-high|gemini-4-argon-high|'
+    [[ "$tty_models" != default,* ]] || expected_calls='default|default|gemini-4-argon-high|gemini-4-argon-high|'
+    if [[ "$rc" == 0 && "$out" == *"answer from gemini-4-argon-high"* &&
+          "$(tr '\n' '|' < "$calls")" == "$expected_calls" ]]; then
+        test_pass
+    else
+        test_fail "fallback TTY recovery failed: rc=$rc out=$out"
+    fi
+done
 
 test_summary

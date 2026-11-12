@@ -258,10 +258,29 @@ _agy_quota_error() {
 }
 
 _agy_no_capacity() {
-    # agy prints a structured line for this error:
-    # AGY_ERROR: {"short_error":"UNAVAILABLE (code 503): No capacity available for model ...","error_code":503,"retryable":true,...}
-    LC_ALL=C grep -ciE '"error_code":[[:space:]]*503[,}].*"retryable":[[:space:]]*true|"retryable":[[:space:]]*true.*"error_code":[[:space:]]*503[,}]|no capacity available for model' \
-        "$stderr_file" "$stdout_file" >/dev/null 2>&1
+    # Check the structured code, capacity attribution and retry policy together.
+    python3 - "$stderr_file" "$stdout_file" <<'CAPACITY'
+import json
+import re
+import sys
+try:
+    text = "\n".join(open(path).read() for path in sys.argv[1:])
+    records = [json.loads(line.strip().split("AGY_ERROR:", 1)[1])
+               for line in text.splitlines() if line.lstrip().startswith("AGY_ERROR:")]
+    if records:
+        allowed = (not any(isinstance(item, dict) and item.get("retryable") is False for item in records)
+                   and any(isinstance(item, dict) and item.get("error_code") == 503
+                           and item.get("retryable") is True
+                           and "no capacity available for model" in str(item.get("short_error", "")).lower()
+                           for item in records))
+    else:
+        allowed = (bool(re.search(r"\b(?:code|HTTP)\s+503\b", text, re.I))
+                   and "no capacity available for model" in text.lower()
+                   and not re.search(r'"retryable"\s*:\s*false', text, re.I))
+    sys.exit(0 if allowed else 1)
+except (OSError, ValueError, RecursionError):
+    sys.exit(1)
+CAPACITY
 }
 
 # The model named in agy's no-capacity error, so the fallback skips it.
@@ -392,6 +411,11 @@ if (( rc != 0 )) && [[ -n "${OCTOPUS_AGY_FALLBACK_MODELS:-}" ]] && _agy_no_capac
         # Same bounded silent-empty replay as the first attempt.
         if [[ $rc -eq 0 && ! "$(<"$stdout_file")" =~ [^[:space:]] && -n "$prompt_file" && "${OCTOPUS_AGY_NO_RETRY:-}" != "1" ]]; then
             run_agy
+            rc=$?
+        fi
+        if (( rc != 0 )) && [[ "${OCTOPUS_AGY_NO_PTY_FALLBACK:-}" != "1" ]] \
+                && command -v script >/dev/null 2>&1 && _agy_tty_error; then
+            run_agy_pty
             rc=$?
         fi
         (( rc != 0 )) && _agy_no_capacity && { _agy_busy="$_agy_next"; continue; }
