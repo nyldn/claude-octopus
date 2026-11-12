@@ -103,7 +103,8 @@ done
 [[ "$failed" == true ]] || test_pass
 
 test_case "Production routing cannot invoke the Gemini executable"
-if grep -Ern \
+# Installed dependencies do not define Octopus provider routing.
+if grep -Ern --exclude-dir=node_modules \
     'gemini-exec\.sh|command[[:space:]]+-v[[:space:]]+gemini|(run_agent(_sync)?|spawn_agent(_capture_pid)?)[[:space:]]+"gemini"|cmd=\(gemini|agent_type="gemini"|check_version[[:space:]]+"gemini"|cli:[[:space:]]+gemini(-fast)?([[:space:]]|$)' \
     "$PROJECT_ROOT/scripts" "$PROJECT_ROOT/hooks" "$PROJECT_ROOT/agents" \
     "$PROJECT_ROOT/.claude/hooks" >/dev/null; then
