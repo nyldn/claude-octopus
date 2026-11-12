@@ -1090,6 +1090,33 @@ test_case "#3244: the flag leaves a terse ungrounded REVISE alone"
 if ! ( OCTOPUS_COUNCIL_REQUIRE_GROUNDED_APPROVE=1; council_response_is_blind "$TERSE_REVISE" "$ROOT" ); then test_pass
 else test_fail "the flag blinded a REVISE"; fi
 
+# CodeRabbit on #1245: source scope needs code evidence, so a quote from a
+# project doc, an unsupported scan, or a missing extensionless citation must not
+# decide the gate the wrong way.
+printf '# Guide\n\nconst total = items.reduce((sum, item) => sum + item.price, 0);\n' > "$ROOT/GUIDE.md"
+printf 'all:\n\tnpm test\n\nlint:\n\tnpm run lint\n' > "$ROOT/Makefile"
+DOC_QUOTE_APPROVE="$(_mk doc-quote-approve.md 'The totals stay correct: `const total = items.reduce((sum, item) => sum + item.price, 0);`' "" "VERDICT: APPROVE")"
+MAKEFILE_APPROVE="$(_mk makefile-approve.md "The lint target at Makefile:5 still runs the linter." "" "VERDICT: APPROVE")"
+
+test_case "#3244: with the flag, an APPROVE whose only quote comes from a documentation file is blind"
+if ( OCTOPUS_COUNCIL_REQUIRE_GROUNDED_APPROVE=1; council_response_is_blind "$DOC_QUOTE_APPROVE" "$ROOT" ); then test_pass
+else test_fail "a quote from GUIDE.md grounded the APPROVE"; fi
+
+test_case "#3244: with the flag, an APPROVE citing Makefile:5 stays grounded"
+if ! ( OCTOPUS_COUNCIL_REQUIRE_GROUNDED_APPROVE=1; council_response_is_blind "$MAKEFILE_APPROVE" "$ROOT" ); then test_pass
+else test_fail "an extensionless citation did not ground the APPROVE"; fi
+
+test_case "#3244: with the flag, an unsupported content scan does not ground a terse APPROVE"
+if ( OCTOPUS_COUNCIL_REQUIRE_GROUNDED_APPROVE=1
+     council_response_content_match_count() { printf '0\n'; return 2; }
+     council_response_is_blind "$TERSE_APPROVE" "$ROOT" ); then test_pass
+else test_fail "scan status 2 counted as grounding in source scope"; fi
+
+test_case "an unsupported content scan still keeps the default grounding fallback"
+if ( council_response_content_match_count() { printf '0\n'; return 2; }
+     council_response_has_grounding "$TERSE_APPROVE" "$ROOT" ); then test_pass
+else test_fail "scan status 2 no longer falls back in the default scope"; fi
+
 test_case "#3244: the flag does not apply in fixture mode"
 if ! ( OCTOPUS_COUNCIL_REQUIRE_GROUNDED_APPROVE=1 COUNCIL_FIXTURE=1; council_response_is_blind "$TERSE_APPROVE" "$ROOT" ); then test_pass
 else test_fail "the flag applied in fixture mode"; fi

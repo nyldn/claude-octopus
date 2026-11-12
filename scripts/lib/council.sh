@@ -2126,7 +2126,8 @@ council_response_content_match_count() {
     # tokens (`toBeUndefined()`), bare paths, and prose never match. Bounded scan:
     # source extensions only; response, fragment, file, aggregate-byte, entry and
     # depth caps; no symlink traversal, response aliases or private/tool-state reads.
-    local response_path="$1" evidence_root="$2" run_dir="${3:-${COUNCIL_RUN_DIR:-}}"
+    # Optional $4 "source" leaves documentation files out of the scan.
+    local response_path="$1" evidence_root="$2" run_dir="${3:-${COUNCIL_RUN_DIR:-}}" scope="${4:-any}"
     [[ -f "$response_path" && -d "$evidence_root" ]] || { printf '0\n'; return 0; }
     command -v python3 >/dev/null 2>&1 || { printf '0\n'; return 0; }
     # Opt-in named-file proximity (default 0 = off = quote-sufficiency, the shipped
@@ -2137,7 +2138,7 @@ council_response_content_match_count() {
     local proximity_chars="${OCTOPUS_COUNCIL_CONTENT_MATCH_PROXIMITY_CHARS:-0}"
     [[ "$proximity_chars" =~ ^[0-9]+$ ]] || proximity_chars=0
     # Source evidence is data; never import project-local Python modules.
-    python3 -I - "$response_path" "$evidence_root" "$run_dir" "$proximity_chars" <<'PY'
+    python3 -I - "$response_path" "$evidence_root" "$run_dir" "$proximity_chars" "$scope" <<'PY'
 import os
 import re
 import stat
@@ -2250,6 +2251,8 @@ SRC_EXT = {".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".css", ".scss", ".sass
            ".proto", ".graphql", ".gql", ".ini", ".cfg", ".conf", ".gradle", ".md",
            ".mdx", ".php", ".pl", ".lua", ".ex", ".exs", ".scala", ".dart", ".m", ".mm",
            ".jl", ".tf", ".r"}
+if len(sys.argv) > 5 and sys.argv[5] == "source":
+    SRC_EXT -= {".md", ".mdx"}
 SKIP = {"node_modules", "dist", "build", "coverage", "vendor", "__pycache__", "private"}
 # Agent-instruction / governing-law boilerplate is injected into every seat's
 # prompt context, so a seat can echo its verbatim prose without reading any
@@ -2425,8 +2428,9 @@ council_response_has_grounding() {
     # (a distinctive quoted fragment that appears verbatim in a source file). This is
     # the single gate the quorum tally and the §4 raw-body rule share.
     # With scope "source", a citation of a documentation file (.md, .mdx,
-    # .markdown, .txt, .rst) does not count: citing a rules file is not evidence
-    # the seat read the code under review.
+    # .markdown, .txt, .rst) does not count, and neither does a quote found only
+    # in one: citing or echoing a rules file is not evidence the seat read the
+    # code under review.
     local f="$1" evidence_root="${2:-}" scope="${3:-any}"
     [[ -f "$f" ]] || return 1
     [[ -n "$evidence_root" && -d "$evidence_root" ]] || return 0
@@ -2436,10 +2440,11 @@ council_response_has_grounding() {
     validated="$(council_response_evidence_paths_json "$f" "$evidence_root")" || validated='[]'
     [[ "$(jq "$filter | length" <<< "$validated" 2>/dev/null || printf 0)" -gt 0 ]] && return 0
     local matches scan_rc=0
-    matches="$(council_response_content_match_count "$f" "$evidence_root")" || scan_rc=$?
+    matches="$(council_response_content_match_count "$f" "$evidence_root" "" "$scope")" || scan_rc=$?
     # Preserve the prose fallback when safe descriptor reads are unsupported.
-    # This is availability, not validated evidence or a comprehension claim.
-    (( scan_rc == 2 )) && return 0
+    # This is availability, not validated evidence or a comprehension claim, so
+    # source scope (the opt-in grounded APPROVE) still needs positive evidence.
+    (( scan_rc == 2 )) && [[ "$scope" != source ]] && return 0
     [[ "$matches" =~ ^[0-9]+$ ]] && (( matches > 0 )) && return 0
     return 1
 }
@@ -2808,7 +2813,14 @@ def unique_suffix(relative):
     hits = [p for p in index if p.endswith(tail)][:2]
     return Path(hits[0][1:]) if len(hits) == 1 else None
 
-for raw_path, raw_start, raw_end in pattern.findall(response.read_text(encoding="utf-8", errors="replace")):
+# Same grammar as the quote verifier (sail-cruisey #3338): a file with no
+# extension ("Makefile:12") counts only when it exists under the root as written.
+extensionless = re.compile(r"(?<![A-Za-z0-9_./:-])((?:[A-Za-z0-9_.-]+/)+[A-Za-z0-9_-]+|Makefile|Dockerfile|Gemfile|Rakefile|Procfile|Jenkinsfile|Brewfile)"
+                           r"\s*:\s*([0-9]+)(?:-([0-9]+))?(?![A-Za-z0-9_/-]|\.[A-Za-z0-9_/-])")
+text = response.read_text(encoding="utf-8", errors="replace")
+citations = [(*match, True) for match in pattern.findall(text)]
+citations += [(*match, False) for match in extensionless.findall(text)]
+for raw_path, raw_start, raw_end, allow_suffix in citations:
     relative = Path(raw_path.strip())
     if relative.is_absolute() or ".." in relative.parts:
         continue
@@ -2824,6 +2836,8 @@ for raw_path, raw_start, raw_end in pattern.findall(response.read_text(encoding=
     except (OSError, RuntimeError, ValueError):
         continue
     if candidate is None:
+        if not allow_suffix:
+            continue
         relative = unique_suffix(relative)
         if relative is None:
             continue
@@ -6158,7 +6172,10 @@ council_write_summary_json() {
     local received_non_chair
 
     council_estimate_cost
-    council_build_roster
+    # Report the roster that was dispatched. A rebuild here would re-pick seats
+    # against the provider status as it is now (a quota-limited provider drops
+    # out) and lose the model_used annotations the advice phase added.
+    [[ -n "${COUNCIL_ROSTER_JSON:-}" && "$COUNCIL_ROSTER_JSON" != '[]' ]] || council_build_roster
     council_scan_veto_artifacts
     received_non_chair="$(council_received_non_chair)"
 

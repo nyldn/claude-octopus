@@ -895,6 +895,10 @@ while (( $# )); do
     esac
 done
 printf '%s\n' "$model" >> "${AGY_CALLS:?}"
+if [[ "$model" == "${AGY_EMPTY_ONCE:-}" && ! -e "${AGY_CALLS}.empty" ]]; then
+    : > "${AGY_CALLS}.empty"
+    exit 0
+fi
 case ",${AGY_BUSY_MODELS:-}," in
     *",$model,"*)
         echo "error: Our servers are experiencing high traffic right now, please try again in a minute. (UNAVAILABLE (code 503): No capacity available for model gemini-3.8-flash-high on the server)" >&2
@@ -937,6 +941,33 @@ test_agy_no_capacity_falls_back_to_listed_gemini_model() {
     else
         test_fail "rc=$rc calls=$(tr '\n' '|' < "$calls")"
     fi
+
+    test_case "agy-exec records no answering model when every fallback is also busy"
+    : > "$calls"; rm -f "$used"
+    printf 'review this' | PATH="$tmp_bin:$PATH" AGY_CALLS="$calls" AGY_BUSY_MODELS='default,gemini-4-argon-high' \
+        OCTOPUS_AGY_MODEL=default OCTOPUS_AGY_NO_PTY_FALLBACK=1 _OCTOPUS_AGY_MODEL_USED_FILE="$used" \
+        OCTOPUS_AGY_FALLBACK_MODELS='gemini-4-argon-high' \
+        bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" >/dev/null 2>&1 && rc=0 || rc=$?
+    if (( rc == 3 )) && [[ "$(tr '\n' '|' < "$calls")" == 'default|gemini-4-argon-high|' ]] && [[ ! -e "$used" ]]; then
+        test_pass
+    else
+        test_fail "rc=$rc calls=$(tr '\n' '|' < "$calls") used=$(tr '\n' '|' < "$used" 2>/dev/null)"
+    fi
+
+    test_case "agy-exec replays the prompt once when a fallback model answers empty"
+    : > "$calls"; rm -f "$used" "${calls}.empty"
+    out="$(printf 'review this' | PATH="$tmp_bin:$PATH" AGY_CALLS="$calls" AGY_BUSY_MODELS='default' \
+        AGY_EMPTY_ONCE='gemini-4-argon-high' OCTOPUS_AGY_MODEL=default OCTOPUS_AGY_NO_PTY_FALLBACK=1 \
+        _OCTOPUS_AGY_MODEL_USED_FILE="$used" OCTOPUS_AGY_FALLBACK_MODELS='gemini-4-argon-high' \
+        bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" 2>/dev/null)" && rc=0 || rc=$?
+    if (( rc == 0 )) && [[ "$out" == "answer from gemini-4-argon-high" ]] \
+            && [[ "$(tr '\n' '|' < "$calls")" == 'default|gemini-4-argon-high|gemini-4-argon-high|' ]] \
+            && [[ "$(tr '\n' '|' < "$used")" == 'gemini-4-argon-high|gemini-3.8-flash-high|' ]]; then
+        test_pass
+    else
+        test_fail "rc=$rc out=$out calls=$(tr '\n' '|' < "$calls") used=$(tr '\n' '|' < "$used" 2>/dev/null)"
+    fi
+    rm -f "${calls}.empty"
 
     test_case "agy-exec does not fall back on a failure that is not a no-capacity 503"
     cat > "$tmp_bin/agy" <<'MOCK_AGY'

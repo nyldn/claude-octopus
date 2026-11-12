@@ -388,11 +388,18 @@ if (( rc != 0 )) && [[ -n "${OCTOPUS_AGY_FALLBACK_MODELS:-}" ]] && _agy_no_capac
         model_args=(--model "$_agy_next")
         run_agy
         rc=$?
-        if [[ -n "${_OCTOPUS_AGY_MODEL_USED_FILE:-}" ]]; then
+        # Same bounded silent-empty replay as the first attempt.
+        if [[ $rc -eq 0 && ! "$(<"$stdout_file")" =~ [^[:space:]] && -n "$prompt_file" && "${OCTOPUS_AGY_NO_RETRY:-}" != "1" ]]; then
+            run_agy
+            rc=$?
+        fi
+        (( rc != 0 )) && _agy_no_capacity && { _agy_busy="$_agy_next"; continue; }
+        # Name the answering model only when it answered; a failed attempt must
+        # not replace the seat's reported model.
+        if (( rc == 0 )) && [[ "$(<"$stdout_file")" =~ [^[:space:]] && -n "${_OCTOPUS_AGY_MODEL_USED_FILE:-}" ]]; then
             mkdir -p "$(dirname "$_OCTOPUS_AGY_MODEL_USED_FILE")" 2>/dev/null
             printf '%s\n%s\n' "$_agy_next" "${_agy_busy:-default}" > "$_OCTOPUS_AGY_MODEL_USED_FILE" 2>/dev/null
         fi
-        (( rc != 0 )) && _agy_no_capacity && { _agy_busy="$_agy_next"; continue; }
         break
     done
 fi
