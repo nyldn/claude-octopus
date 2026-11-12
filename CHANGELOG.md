@@ -14,6 +14,9 @@
 
 ### Fixed
 
+- Unit shards include newer hosted macOS suite timings in their duration
+  weights. The full suite and 20-minute per-shard timeout remain in place.
+
 - Parallel cleanup finishes a stopped worker's durable execution contract as
   cancelled, so run status no longer reports that worker as still running.
   Native Agent Teams seats remain running until their own completion is known.
