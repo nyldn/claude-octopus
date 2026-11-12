@@ -187,6 +187,18 @@ grapple_debate() {
     for _debate_seat in "$agent_a" "$agent_b" "$agent_c"; do
         [[ "$_debate_seat" != opencode* ]] || _debate_preflight_context=dispatch
     done
+    if [[ "$_debate_preflight_context" == dispatch ]]; then
+        # Debate owns its seats. A council roster cannot authorize or reject
+        # them; include the actual participants in a separate fixed panel.
+        local OCTOPUS_PREFLIGHT_PROVIDERS="${OCTOPUS_PREFLIGHT_PROVIDERS:-}" _debate_provider
+        for _debate_seat in "$agent_a" "$agent_b" "$agent_c"; do
+            _debate_provider="$(octo_provider_canonical "${_debate_seat%%:*}")" || return 1
+            if [[ ",${OCTOPUS_PREFLIGHT_PROVIDERS}," != *",${_debate_provider},"* ]]; then
+                OCTOPUS_PREFLIGHT_PROVIDERS="${OCTOPUS_PREFLIGHT_PROVIDERS}${OCTOPUS_PREFLIGHT_PROVIDERS:+,}${_debate_provider}"
+            fi
+        done
+    fi
+    _debate_preflight_context=non-roster-dispatch
     preflight_check false "" "$_debate_preflight_context" || return 1
 
     mkdir -p "$RESULTS_DIR" "$LOGS_DIR"

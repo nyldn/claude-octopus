@@ -314,7 +314,7 @@ handle_auth_command() {
 # Test each supported token separately; blank values do not mask later keys.
 _octo_opencode_environment_auth_present() {
     local name
-    for name in GITHUB_TOKEN OPENROUTER_API_KEY Z_AI_API_KEY MINIMAX_API_KEY; do
+    for name in GITHUB_TOKEN OPENROUTER_API_KEY Z_AI_API_KEY MINIMAX_API_KEY MISTRAL_API_KEY; do
         _octo_value_has_nonwhitespace "${!name:-}" && return 0
     done
     return 1

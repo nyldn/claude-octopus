@@ -587,6 +587,8 @@ launching a model task. Direct probes include the standard, fast and research
 OpenCode seats.
 `empathize` and `synthesize` choose their own seats and ignore the council roster
 during admission. An explicit preflight panel still applies to those workflows.
+Debates with OpenCode admit their resolved participants through a separate panel,
+alongside any explicit preflight panel. They do not use the council roster.
 
 Version detection for command construction runs in the worker's project directory.
 Login checks resolve that executable there, then run outside project configuration.

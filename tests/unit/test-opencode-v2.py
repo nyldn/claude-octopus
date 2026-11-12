@@ -664,6 +664,7 @@ preflight_check true opencode dispatch
 
     def test_fixed_seat_workflows_ignore_roster_until_opencode_is_selected(self):
         script = r'''
+source scripts/lib/preflight.sh
 source scripts/lib/sentinel.sh
 source scripts/lib/testing.sh
 source scripts/lib/debate.sh
@@ -682,13 +683,78 @@ DRY_RUN=false
                 ("advise_strategy", [], "non-roster-dispatch"),
                 ("squeeze_test", [], "non-roster-dispatch"),
                 ("grapple_debate", [], "non-roster-dispatch"),
-                ("grapple_debate", ["opencode", "agy", "claude-sonnet"], "dispatch")):
+                ("grapple_debate", ["opencode", "agy", "claude-sonnet"], "non-roster-dispatch")):
             with self.subTest(entry=entry, seats=seats):
                 config.write_text(json.dumps({"routing": {"features": {"debate": seats}}}))
                 self.env["ENTRY"] = entry
                 result = self.shell(script)
                 self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
                 self.assertEqual(Path(self.env["CONTEXT_FILE"]).read_text().strip(), expected)
+
+    def test_debate_admits_its_actual_opencode_seats_independent_of_roster(self):
+        config = Path(self.env["HOME"]) / ".claude-octopus/config/providers.json"
+        config.parent.mkdir(parents=True)
+        config.write_text(json.dumps({"routing": {"features": {"debate":
+                              ["opencode", "opencode-fast", "opencode-research"]}}}))
+        self.env.update(CLI_VERSION="2.0.23", OCTOPUS_COUNCIL_DEFAULT_PROVIDERS="codex",
+                        ENTRY_MARKER=str(self.base / "debate-entered"))
+        (self.data / "opencode.db").touch()
+        script = r'''
+source scripts/lib/preflight.sh
+source scripts/lib/config-display.sh
+source scripts/lib/debate.sh
+log() { :; }
+resolve_provider_to_agent() { echo "$1"; }
+agent_display_label() { echo "$1"; }
+agent_display_label_upper() { echo "$1"; }
+mkdir() {
+    if [[ "$*" == "-p $RESULTS_DIR $LOGS_DIR" ]]; then
+        touch "$ENTRY_MARKER"
+        exit 77
+    fi
+    command mkdir "$@"
+}
+WORKSPACE_DIR="$HOME" RESULTS_DIR="$HOME/results" LOGS_DIR="$HOME/logs" DRY_RUN=false
+grapple_debate fixture
+'''
+        for connected in (False, True):
+            with self.subTest(connected=connected):
+                marker = Path(self.env["ENTRY_MARKER"])
+                marker.unlink(missing_ok=True)
+                self.env["AUTH_JSON"] = json.dumps([{"id":"openai","connections":[
+                    {"type":"credential"}]}] if connected else [])
+                result = self.shell(script)
+                self.assertEqual(result.returncode, 77 if connected else 1, result.stdout + result.stderr)
+                self.assertEqual(marker.exists(), connected)
+
+    def test_automatic_eligibility_resolves_relative_path_from_project_directory(self):
+        project = self.base / "project"
+        caller = self.base / "caller"
+        project.mkdir()
+        caller.mkdir()
+        (project / "bin").symlink_to(self.bin, target_is_directory=True)
+        self.env.update(PROJECT_ROOT=str(project), CLI_VERSION="2.0.23",
+                        PATH=f"bin:{Path(sys.executable).parent}:/usr/bin:/bin")
+        (self.data / "opencode.db").touch()
+        result = self.shell(r'''
+source "$PLUGIN_DIR/scripts/lib/preflight.sh"
+source "$PLUGIN_DIR/scripts/lib/config-display.sh"
+log() { :; }
+_preflight_provider_candidates() { echo opencode; }
+detect_enterprise_backend() { :; }
+provider_smoke_test() { :; }
+WORKSPACE_DIR="$HOME" PREFLIGHT_CACHE_FILE="$HOME/preflight-cache"
+preflight_check true "" auto-dispatch || exit
+source "$PLUGIN_DIR/scripts/lib/embrace.sh"
+get_dispatch_strategy fixture research
+''', root=caller)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("opencode,claude-sonnet", result.stdout)
+
+    def test_static_mistral_only_login_is_recognized_without_a_probe(self):
+        self.env["MISTRAL_API_KEY"] = "fixture"
+        self.assertEqual(self.readiness("static")["status"], "available")
+        self.assertFalse(self.marker.exists())
 
     def test_live_readiness_distinguishes_execution_refusal_from_login_failure(self):
         self.env["OPENROUTER_API_KEY"] = "fixture"
@@ -1635,7 +1701,7 @@ console.log(JSON.stringify(providerEnvironment(loadProviderEnvAllowlist(process.
             'sleep "${AUTH_DELAY:-0}"',
             '[ "$MISTRAL_API_KEY" = fixture ] || { printf "[]\\n"; exit 0; }\n'
             '    sleep "${AUTH_DELAY:-0}"'))
-        self.assertEqual(self.readiness("static")["reason_code"], "auth-missing")
+        self.assertEqual(self.readiness("static")["reason_code"], "ready")
         self.assertFalse(self.marker.exists())
         self.assertEqual(self.readiness("live")["status"], "available")
         self.cli.write_text(self.cli.read_text().replace(

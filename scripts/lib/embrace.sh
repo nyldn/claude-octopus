@@ -39,7 +39,7 @@ get_dispatch_strategy() {
     local has_opencode=false
     if [[ "${_octo_opencode_research_ready:-false}" == true ]] &&
        _gds_provider_allowed opencode && _gds_not_quota_dead opencode &&
-       command -v opencode >/dev/null 2>&1; then
+       (cd "${PROJECT_ROOT:-$PWD}" 2>/dev/null || cd "$PWD"; command -v opencode >/dev/null 2>&1); then
         has_opencode=true
     fi
 

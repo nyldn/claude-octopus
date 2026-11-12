@@ -793,9 +793,9 @@ preflight_check() {
     # unpinned OpenCode candidate there, never during broad inspection.
     if [[ "$check_context" == auto-dispatch && -z "$selected_provider" &&
           "${OCTOPUS_COUNCIL_DEFAULT_PROVIDERS:-auto}" == auto ]] &&
-       command -v opencode >/dev/null 2>&1; then
+       (cd "$opencode_workdir" && command -v opencode >/dev/null 2>&1); then
         local oc_status oc_reason oc_remediation
-        IFS='|' read -r oc_status oc_reason oc_remediation < <(_octo_provider_static_readiness opencode)
+        IFS='|' read -r oc_status oc_reason oc_remediation < <(cd "$opencode_workdir" && _octo_provider_static_readiness opencode)
         if [[ "$oc_status" != missing ]]; then
             case "$oc_reason" in
                 ready|live-check-required|auth-missing) opencode_admission=true ;;
