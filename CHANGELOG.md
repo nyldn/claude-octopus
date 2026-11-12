@@ -14,6 +14,10 @@
 
 ### Fixed
 
+- OpenCode debate and fan-out seats appear in the production agent inventory.
+  Interpreter supervision uses system cleanup timers when a project changes
+  `PATH`, and cancellation tests retain real waits for supervisor children.
+
 - The six-worker feature-task fixture resets its eight-second join deadline
   after each worker starts. Staggered launches retain the concurrency
   check, while serial waves and stalled workers still fail.

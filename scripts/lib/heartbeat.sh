@@ -194,12 +194,12 @@ _octo_timeout_stop_process_group() {
         grace_deadline=$((SECONDS + kill_grace))
         while (( SECONDS < grace_deadline )); do
             _octo_timeout_process_group_exists "$process_group" || break
-            sleep 0.1
+            /bin/sleep 0.1
         done
     else
         # An interrupted caller is already unwinding. Give ordinary handlers a
         # scheduling turn, then force out the remaining provider process group.
-        sleep 0.1
+        /bin/sleep 0.1
     fi
     kill -KILL -- "-$process_group" 2>/dev/null || true
 }

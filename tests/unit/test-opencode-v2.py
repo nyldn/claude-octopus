@@ -70,6 +70,10 @@ fi
         return subprocess.run(["bash", "-c", script], env=self.env, cwd=root,
                               text=True, capture_output=True, timeout=timeout)
 
+    def production_inventory(self):
+        return next(line for line in (ROOT / "scripts/orchestrate.sh").read_text().splitlines()
+                    if line.startswith("AVAILABLE_AGENTS=")) + "\n"
+
     def readiness(self, kind):
         result = self.shell(f'source scripts/lib/preflight.sh; octo_provider_readiness_result opencode {kind}')
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -665,13 +669,12 @@ preflight_check true opencode dispatch
                 self.assertEqual(result.stdout.strip(), "2:opencode,claude-sonnet:medium")
 
     def test_fixed_seat_workflows_ignore_roster_until_opencode_is_selected(self):
-        script = r'''
+        script = self.production_inventory() + r'''
 source scripts/lib/preflight.sh
 source scripts/lib/sentinel.sh
 source scripts/lib/testing.sh
 source scripts/lib/debate.sh
 source scripts/lib/routing.sh
-AVAILABLE_AGENTS="claude-sonnet claude-opus codex agy opencode opencode-fast opencode-research"
 log() { :; }
 preflight_check() { printf '%s\n' "$3" > "$CONTEXT_FILE"; return 78; }
 DRY_RUN=false
@@ -700,12 +703,11 @@ DRY_RUN=false
         self.env.update(CLI_VERSION="2.0.23", OCTOPUS_COUNCIL_DEFAULT_PROVIDERS="codex",
                         ENTRY_MARKER=str(self.base / "debate-entered"))
         (self.data / "opencode.db").touch()
-        script = r'''
+        script = self.production_inventory() + r'''
 source scripts/lib/preflight.sh
 source scripts/lib/config-display.sh
 source scripts/lib/debate.sh
 source scripts/lib/routing.sh
-AVAILABLE_AGENTS="claude-sonnet claude-opus codex agy opencode opencode-fast opencode-research"
 log() { :; }
 mkdir() {
     if [[ "$*" == "-p $RESULTS_DIR $LOGS_DIR" ]]; then
@@ -733,9 +735,8 @@ grapple_debate fixture
                     self.assertEqual(marker.exists(), connected)
 
     def test_shared_routing_resolves_and_labels_each_registered_opencode_variant(self):
-        result = self.shell(r"""
+        result = self.shell(self.production_inventory() + r"""
 source scripts/lib/routing.sh
-AVAILABLE_AGENTS="opencode opencode-fast opencode-research"
 for variant in opencode opencode-fast opencode-research; do
     resolve_provider_to_agent "$variant" || exit
     agent_display_label "$variant" || exit
@@ -759,7 +760,18 @@ exit 0
         override.write_text('#!/bin/sh\ntrap "" TERM\nsleep 30 &\n'
                             'printf "%s %s\\n" "$$" "$!" > "$CAPABILITY_PIDS"\nwait\n')
         override.chmod(0o755)
-        self.env.update(OCTOPUS_PYTHON=str(override), CAPABILITY_PIDS=str(pids))
+        project = self.base / "project"
+        project.mkdir()
+        project_bin = project / "bin"
+        project_bin.mkdir()
+        sleep_marker = self.base / "project-sleep-called"
+        fake_sleep = project_bin / "sleep"
+        fake_sleep.write_text('#!/bin/sh\nif [ "$1" = 0.1 ]; then printf touched > "$SLEEP_MARKER"; fi\nexec /bin/sleep "$@"\n')
+        fake_sleep.chmod(0o755)
+        self.env.update(OCTOPUS_PYTHON=str(override), CAPABILITY_PIDS=str(pids),
+                        OCTOPUS_PROJECT_ROOT=str(project), SLEEP_MARKER=str(sleep_marker),
+                        MISTRAL_API_KEY="inert-fixture-key")
+        self.env["PATH"] = str(project_bin) + ":" + self.env["PATH"]
         process = subprocess.Popen(["bash", "-c", 'source scripts/lib/auth.sh; _octo_opencode_probe_python'],
                                    cwd=ROOT, env=self.env, text=True, stdout=subprocess.PIPE,
                                    stderr=subprocess.PIPE, start_new_session=True)
@@ -773,6 +785,7 @@ exit 0
         self.assertEqual(process.returncode, 125, stdout + stderr)
         self.assertLess(time.monotonic() - started, 7)
         self.assertFalse(self.marker.exists())
+        self.assertFalse(sleep_marker.exists(), "cleanup executed a project-owned sleep")
         self.assertTrue(pids.exists())
         for pid in pids.read_text().split():
             state = subprocess.run(["ps", "-o", "stat=", "-p", pid], text=True,

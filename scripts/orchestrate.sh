@@ -763,7 +763,7 @@ CODEX_SUBAGENT_PREAMBLE="You are running as a non-interactive subagent dispatche
 
 "
 
-AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general codex-spark codex-reasoning codex-large-context agy agy-research antigravity codex-review claude claude-sonnet claude-opus claude-opus-fast openrouter openrouter-glm5 openrouter-kimi openrouter-deepseek orcarouter openai-compatible openai-tools openai-compatible-agent perplexity perplexity-fast ollama copilot copilot-research qwen qwen-research kimi kimi-research cursor-agent vibe vibe-research"
+AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general codex-spark codex-reasoning codex-large-context agy agy-research antigravity codex-review claude claude-sonnet claude-opus claude-opus-fast openrouter openrouter-glm5 openrouter-kimi openrouter-deepseek orcarouter openai-compatible openai-tools openai-compatible-agent perplexity perplexity-fast ollama copilot copilot-research qwen qwen-research kimi kimi-research cursor-agent vibe vibe-research opencode opencode-fast opencode-research"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # USAGE TRACKING & COST REPORTING (v4.1)
