@@ -2,6 +2,8 @@
 """Exercise both OpenCode generations without auth, installs, or model calls."""
 import json
 import os
+import signal
+import time
 from itertools import product
 from pathlib import Path
 import shlex
@@ -668,10 +670,9 @@ source scripts/lib/preflight.sh
 source scripts/lib/sentinel.sh
 source scripts/lib/testing.sh
 source scripts/lib/debate.sh
+source scripts/lib/routing.sh
+AVAILABLE_AGENTS="claude-sonnet claude-opus codex agy opencode opencode-fast opencode-research"
 log() { :; }
-resolve_provider_to_agent() { echo "$1"; }
-agent_display_label() { echo "$1"; }
-agent_display_label_upper() { echo "$1"; }
 preflight_check() { printf '%s\n' "$3" > "$CONTEXT_FILE"; return 78; }
 DRY_RUN=false
 "$ENTRY" fixture
@@ -703,10 +704,9 @@ DRY_RUN=false
 source scripts/lib/preflight.sh
 source scripts/lib/config-display.sh
 source scripts/lib/debate.sh
+source scripts/lib/routing.sh
+AVAILABLE_AGENTS="claude-sonnet claude-opus codex agy opencode opencode-fast opencode-research"
 log() { :; }
-resolve_provider_to_agent() { echo "$1"; }
-agent_display_label() { echo "$1"; }
-agent_display_label_upper() { echo "$1"; }
 mkdir() {
     if [[ "$*" == "-p $RESULTS_DIR $LOGS_DIR" ]]; then
         touch "$ENTRY_MARKER"
@@ -717,15 +717,67 @@ mkdir() {
 WORKSPACE_DIR="$HOME" RESULTS_DIR="$HOME/results" LOGS_DIR="$HOME/logs" DRY_RUN=false
 grapple_debate fixture
 '''
-        for connected in (False, True):
-            with self.subTest(connected=connected):
-                marker = Path(self.env["ENTRY_MARKER"])
-                marker.unlink(missing_ok=True)
-                self.env["AUTH_JSON"] = json.dumps([{"id":"openai","connections":[
-                    {"type":"credential"}]}] if connected else [])
-                result = self.shell(script)
-                self.assertEqual(result.returncode, 77 if connected else 1, result.stdout + result.stderr)
-                self.assertEqual(marker.exists(), connected)
+        for variant in ("opencode", "opencode-fast", "opencode-research"):
+            # Keep every seat on the allowed provider so unrelated missing
+            # credentials cannot mask the OpenCode admission result.
+            config.write_text(json.dumps({"routing": {"features": {"debate":
+                                  [variant, variant, variant]}}}))
+            for connected in (False, True):
+                with self.subTest(variant=variant, connected=connected):
+                    marker = Path(self.env["ENTRY_MARKER"])
+                    marker.unlink(missing_ok=True)
+                    self.env["AUTH_JSON"] = json.dumps([{"id":"openai","connections":[
+                        {"type":"credential"}]}] if connected else [])
+                    result = self.shell(script)
+                    self.assertEqual(result.returncode, 77 if connected else 1, result.stdout + result.stderr)
+                    self.assertEqual(marker.exists(), connected)
+
+    def test_shared_routing_resolves_and_labels_each_registered_opencode_variant(self):
+        result = self.shell(r"""
+source scripts/lib/routing.sh
+AVAILABLE_AGENTS="opencode opencode-fast opencode-research"
+for variant in opencode opencode-fast opencode-research; do
+    resolve_provider_to_agent "$variant" || exit
+    agent_display_label "$variant" || exit
+    agent_display_label_upper "$variant" || exit
+done
+resolve_provider_to_agent opencode-unknown && exit 91
+agent_display_label opencode-unknown && exit 92
+AVAILABLE_AGENTS="opencode"
+resolve_provider_to_agent opencode-fast && exit 93
+exit 0
+""")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout.splitlines(), [
+            "opencode", "OpenCode", "OPENCODE", "opencode-fast", "OpenCode", "OPENCODE",
+            "opencode-research", "OpenCode", "OPENCODE"])
+        self.assertFalse(self.marker.exists())
+
+    def test_external_python_capability_probe_has_a_deadline_and_reaps_its_group(self):
+        override = self.base / "python-stalling"
+        pids = self.base / "capability-pids"
+        override.write_text('#!/bin/sh\ntrap "" TERM\nsleep 30 &\n'
+                            'printf "%s %s\\n" "$$" "$!" > "$CAPABILITY_PIDS"\nwait\n')
+        override.chmod(0o755)
+        self.env.update(OCTOPUS_PYTHON=str(override), CAPABILITY_PIDS=str(pids))
+        process = subprocess.Popen(["bash", "-c", 'source scripts/lib/auth.sh; _octo_opencode_probe_python'],
+                                   cwd=ROOT, env=self.env, text=True, stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, start_new_session=True)
+        started = time.monotonic()
+        try:
+            stdout, stderr = process.communicate(timeout=7)
+        finally:
+            if process.poll() is None:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.communicate()
+        self.assertEqual(process.returncode, 125, stdout + stderr)
+        self.assertLess(time.monotonic() - started, 7)
+        self.assertFalse(self.marker.exists())
+        self.assertTrue(pids.exists())
+        for pid in pids.read_text().split():
+            state = subprocess.run(["ps", "-o", "stat=", "-p", pid], text=True,
+                                   capture_output=True, timeout=2).stdout.strip()
+            self.assertTrue(not state or state.startswith("Z"), (pid, state))
 
     def test_automatic_eligibility_resolves_relative_path_from_project_directory(self):
         project = self.base / "project"

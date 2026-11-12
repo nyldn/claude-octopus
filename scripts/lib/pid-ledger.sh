@@ -19,9 +19,18 @@ _octo_pid_python_path() {
     fi
 }
 
-_octo_pid_python_capable() {
-    "$1" "$_OCTO_PID_LEDGER_HELPER" capability >/dev/null 2>&1
-}
+_octo_pid_python_capable() (
+    # Bootstrap with the Bash supervisor; the candidate Python is not trusted
+    # to provide a timer before its process capabilities have been checked.
+    declare -f run_with_timeout >/dev/null 2>&1 || \
+        source "${_OCTO_PID_LEDGER_HELPER%/helpers/*}/lib/heartbeat.sh" || return 1
+    # Capability checks are not provider dispatches and must not publish a peer
+    # dispatch acknowledgement inherited from their caller.
+    unset OCTOPUS_AUTO_PEER_DISPATCH_MARKER OCTO_EVENT_LOG || return 1
+    OCTOPUS_TIMEOUT_KILL_GRACE=2 \
+        run_with_timeout --portable-supervisor 1 "$1" "$_OCTO_PID_LEDGER_HELPER" capability \
+        </dev/null >/dev/null 2>&1
+)
 
 octopus_pid_python_resolve() {
     local candidate="" resolved="" seen=""

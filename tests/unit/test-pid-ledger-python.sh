@@ -243,4 +243,16 @@ else
 fi
 unset OCTOPUS_PYTHON
 
+test_case "capability validation does not publish a provider receipt or event"
+peer_marker="$TEST_TMP_DIR/capability-peer-marker"
+event_marker="$TEST_TMP_DIR/capability-events"
+capable=0
+OCTOPUS_AUTO_PEER_DISPATCH_MARKER="$peer_marker" OCTO_EVENT_LOG="$event_marker" \
+    _octo_pid_python_capable "$good_python" || capable=$?
+if [[ "$capable" -eq 0 && ! -e "$peer_marker" && ! -e "$event_marker" ]]; then
+    test_pass
+else
+    test_fail "capability validation was attributed to a provider dispatch"
+fi
+
 test_summary
