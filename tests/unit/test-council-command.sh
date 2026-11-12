@@ -2697,7 +2697,7 @@ test_council_advice_marks_quota_limited_seat() {
     COUNCIL_QUOTA_LIMITED_SEATS=""
     # The 2026-11-05 case: claude exits 1 and prints the limit on stdout.
     council_dispatch_member_detached() {
-        printf '== 2026-11-05T20:48:18Z claude exited 1: Exit code 1\n-- stdout tail (stderr was empty) --\nYou%sve hit your session limit · resets 7:10pm (America/New_York)\n' "'" \
+        printf '== 2026-11-05T20:48:18Z claude exited 1: Exit code 1\n-- terminal stdout status --\nYou%sve hit your session limit · resets 7:10pm (America/New_York)\n' "'" \
             >> "$_OCTOPUS_SEAT_STDERR_FILE"
         return 1
     }
@@ -2734,7 +2734,7 @@ test_council_chair_fallback_stops_on_quota_limited_provider() {
     }
     council_dispatch_member_detached() {
         printf '%s' "$(( $(cat "$COUNCIL_RUN_DIR/calls") + 1 ))" > "$COUNCIL_RUN_DIR/calls"
-        printf -- '-- stdout tail (stderr was empty) --\nYou%sve hit your session limit · resets 7:10pm (America/New_York)\n' "'" >> "$_OCTOPUS_SEAT_STDERR_FILE"
+        printf -- '-- terminal stdout status --\nYou%sve hit your session limit · resets 7:10pm (America/New_York)\n' "'" >> "$_OCTOPUS_SEAT_STDERR_FILE"
         return 1
     }
     council_run_chair_fallback || rc=$?

@@ -45,6 +45,8 @@ case "$mode" in
     quoted-session-warning)
         printf 'warning: optional integration unavailable\n' >&2
         printf '%s\n' 'The probe printed:' "You've hit your session limit · resets 7:10pm" ;;
+    quoted-session-space-tail)
+        printf 'The probe printed:\n%4096s\n' ''; printf "You've hit your session limit · resets 7:10pm\n" ;;
     stderr-cut) printf 'sk-abcdefghijklmnopqrstuvwxyz0123%16352s' '' >&2 ;;
     stdout-cut) printf 'sk-abcdefghijklmnopqrstuvwxyz0123%4064s' '' ;;
     stderr-basic) printf 'Authorization: Basic Zml4dHVyZS11c2VyOmZpeHR1cmUtcGFzcw==\n' >&2 ;;
@@ -189,7 +191,7 @@ fi
 # shellcheck source=/dev/null
 source "$PROJECT_ROOT/scripts/lib/council.sh" 2>/dev/null
 
-for session_mode in session-warning session-only quoted-session-warning quoted-session-tail; do
+for session_mode in session-warning session-only quoted-session-warning quoted-session-tail quoted-session-space-tail; do
     test_case "complete stdout determines terminal status: $session_mode"
     cap="$CAP_DIR/stderr/$session_mode.log"
     run_failing_seat "$session_mode" "$session_mode" "$cap" || true
@@ -200,7 +202,7 @@ for session_mode in session-warning session-only quoted-session-warning quoted-s
         continue
     fi
     if { [[ "$session_mode" == session-warning || "$session_mode" == session-only ]] && [[ "$quota" == yes ]]; } ||
-       { [[ "$session_mode" == quoted-session-warning || "$session_mode" == quoted-session-tail ]] && [[ "$quota" == no ]]; }; then
+       { [[ "$session_mode" == quoted-session-* ]] && [[ "$quota" == no ]]; }; then
         test_pass
     else
         test_fail "session_mode=$session_mode quota=$quota"
