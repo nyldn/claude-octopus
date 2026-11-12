@@ -102,6 +102,12 @@ Plus, usually:
 - Unit test in `tests/unit/test-<provider>-provider.sh`
 - `docs/DEVELOPER.md` / README provider tables
 
+Named presets use their own model variables and configured defaults.
+`OPENAI_COMPAT_MODEL` configures only the generic OpenAI-compatible slot.
+If you previously used that variable for a preset, set the preset's model
+variable or its `providers.json` default instead. Explicit model pins keep
+their existing precedence.
+
 ## Cheaper Inference setup
 
 `cheaperinference-agent` uses the OpenAI-compatible tool-loop helper at
@@ -109,7 +115,7 @@ Plus, usually:
 choose a model supported by that gateway. No model is selected by default.
 
 Model selection uses `CHEAPER_INFERENCE_MODEL`, then
-`OCTOPUS_CHEAPERINFERENCE_MODEL`, then `OPENAI_COMPAT_MODEL`, then the string
+`OCTOPUS_CHEAPERINFERENCE_MODEL`, then the string
 `providers.cheaperinference.default` in
 `~/.claude-octopus/config/providers.json`. `OCTOPUS_PROVIDERS_CONFIG` can select
 another file. Native model resolution, dispatch, health, detection and
@@ -133,7 +139,7 @@ model available to your account (for example `deepseek-v4.1-flash`). No model
 is selected automatically.
 
 Model selection uses `API_ROUTE_MODEL`, then `OCTOPUS_API_ROUTE_MODEL`, then
-`OPENAI_COMPAT_MODEL`, then the string `providers["api-route"].default` in
+the string `providers["api-route"].default` in
 `~/.claude-octopus/config/providers.json`. `OCTOPUS_PROVIDERS_CONFIG` can select
 another file. Detection, health, readiness and dispatch share this resolution.
 An exact seat such as `api-route-agent:deepseek-v4.1-flash` uses its model pin
@@ -199,7 +205,7 @@ readiness does not prove entitlement, quota, tool support or billed cost.
 prices are listed at [uberllm.dev/models](https://uberllm.dev/models).
 
 Model selection uses `UBERLLM_MODEL`, then `OCTOPUS_UBERLLM_MODEL`, then
-`OPENAI_COMPAT_MODEL`, then the string `providers.uberllm.default` in
+the string `providers.uberllm.default` in
 `~/.claude-octopus/config/providers.json`. `OCTOPUS_PROVIDERS_CONFIG` can select
 another file. Detection, health, readiness and dispatch share this resolution.
 An exact seat such as `uberllm-agent:deepseek/deepseek-v4-flash` uses its model

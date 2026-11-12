@@ -13,6 +13,7 @@ if ! declare -f _is_cursor_agent_binary >/dev/null 2>&1; then
 fi
 source "${_providers_lib_dir}/provider-allowlist.sh" 2>/dev/null || true
 source "${_providers_lib_dir}/provider-registry.sh" 2>/dev/null || true
+source "${_providers_lib_dir}/atlascloud.sh" || return 1
 source "${_providers_lib_dir}/cheaperinference.sh" || return 1
 source "${_providers_lib_dir}/uberllm.sh" || return 1
 source "${_providers_lib_dir}/api-route.sh" || return 1
@@ -908,11 +909,13 @@ check_provider_health() {
             if [[ -z "${ATLASCLOUD_API_KEY:-}" ]]; then
                 resolve_provider_env "ATLASCLOUD_API_KEY" 2>/dev/null
             fi
-            if [[ -z "${ATLASCLOUD_API_KEY:-}" ]]; then
+            if [[ ! "${ATLASCLOUD_API_KEY:-}" =~ [^[:space:]] ]]; then
                 echo "atlascloud: ATLASCLOUD_API_KEY not set" >&2
                 return 1
             fi
-            if [[ -z "${ATLASCLOUD_MODEL:-}" && -z "${OCTOPUS_ATLASCLOUD_MODEL:-}" && -z "${OPENAI_COMPAT_MODEL:-}" ]]; then
+            local atlas_health_model="$resolved_model"
+            [[ -n "$atlas_health_model" ]] || atlas_health_model="$(octo_atlascloud_model 2>/dev/null || true)"
+            if ! octo_atlascloud_model "$atlas_health_model" >/dev/null; then
                 echo "atlascloud: set ATLASCLOUD_MODEL or OCTOPUS_ATLASCLOUD_MODEL before dispatch" >&2
                 return 1
             fi
@@ -1409,7 +1412,7 @@ detect_providers() {
         if [[ -z "${ATLASCLOUD_API_KEY:-}" ]]; then
             resolve_provider_env "ATLASCLOUD_API_KEY" 2>/dev/null
         fi
-        if [[ -n "${ATLASCLOUD_API_KEY:-}" ]] && { [[ -n "${ATLASCLOUD_MODEL:-}" ]] || [[ -n "${OCTOPUS_ATLASCLOUD_MODEL:-}" ]] || [[ -n "${OPENAI_COMPAT_MODEL:-}" ]]; }; then
+        if [[ "${ATLASCLOUD_API_KEY:-}" =~ [^[:space:]] ]] && octo_atlascloud_model >/dev/null; then
             result="${result}atlascloud:api-key "
         fi
     fi
