@@ -40,7 +40,9 @@ automatically scanned root `skills/` tree.
 Assembly validation checks frontmatter for every registered Claude skill,
 including custom registration paths outside the standard trees. A package with
 `.codex-plugin/plugin.json` must retain its generated `codex-skills/` directory.
-The authored `.claude/skills/` directory can be absent from an installed package.
+Installed Octopus packages must also retain `.claude/skills/`. Commands and
+manual composition load their instructions from that authored catalog.
+The extracted npm archive check verifies literal command-to-skill load paths.
 
 Each skill must include YAML frontmatter with:
 

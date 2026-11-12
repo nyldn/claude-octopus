@@ -119,6 +119,12 @@ def validate_plugin_manifest(root: Path, errors: list[str]) -> None:
         if not data.get(field):
             errors.append(f"{rel(root, manifest)}: missing required field: {field}")
 
+    if data.get("name") == "claude-octopus":
+        authored = root / ".claude" / "skills"
+        if (not authored.is_dir() or not authored.resolve().is_relative_to(root)
+                or not any(authored.rglob("SKILL.md"))):
+            errors.append(".claude/skills/: missing or unsafe required Octopus command catalog")
+
     skills = data.get("skills", [])
     if isinstance(skills, str):
         skills = [skills]
@@ -175,15 +181,10 @@ def validate_skills(root: Path, errors: list[str]) -> int:
         if not codex.is_dir() or not codex.resolve().is_relative_to(root):
             errors.append("codex-skills/: missing or unsafe required generated skill directory")
             return checked
-    for file in sorted((root / "skills").rglob("SKILL.md")):
-        require_frontmatter(
-            root, file, ("name", "description"), errors,
-            validate_name=True,
-            expected={"disable-model-invocation": "true"},
-        )
-        checked += 1
-
-    for directory in (root / ".claude" / "skills", root / "codex-skills"):
+    for directory in (root / "skills", root / ".claude" / "skills", root / "codex-skills"):
+        if not directory.resolve().is_relative_to(root):
+            errors.append(f"{rel(root, directory)}: unsafe skill directory")
+            continue
         for file in sorted(directory.rglob("SKILL.md")):
             require_frontmatter(
                 root, file, ("name", "description"), errors,

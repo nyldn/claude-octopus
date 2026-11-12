@@ -285,10 +285,18 @@ ISSUES_TEMPLATE="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octo
 python3 - "$ISSUES_TEMPLATE" "$PWD" <<'PY_ISSUES'
 from pathlib import Path
 import sys
-template = Path(sys.argv[1]).read_text(encoding='utf-8')
-project = Path(sys.argv[2]).name
-with Path('.octo/ISSUES.md').open('x', encoding='utf-8') as stream:
-    stream.write(template.replace('{{PROJECT_NAME}}', project))
+destination = Path('.octo/ISSUES.md')
+if destination.is_symlink() or (destination.exists() and not destination.is_file()):
+    raise SystemExit('Existing issue path is not a regular file; stop before updating it.')
+if not destination.is_file():
+    template = Path(sys.argv[1]).read_text(encoding='utf-8')
+    project = Path(sys.argv[2]).name
+    try:
+        with destination.open('x', encoding='utf-8') as stream:
+            stream.write(template.replace('{{PROJECT_NAME}}', project))
+    except FileExistsError:
+        if destination.is_symlink() or not destination.is_file():
+            raise SystemExit('Existing issue path is not a regular file; stop before updating it.')
 PY_ISSUES
 ```
 

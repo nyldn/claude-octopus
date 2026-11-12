@@ -392,6 +392,7 @@ PYFIXTURE
     if result=$(python3 - "$package_root" <<'PYTEST'
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -415,6 +416,11 @@ for command in claude.get("commands", []):
     path = resolve(command, "Claude command")
     if path is not None and not path.is_file():
         missing.append(str(command))
+    elif path is not None:
+        for source in re.findall(r"\.claude/skills/[A-Za-z0-9_./-]+/SKILL\.md", path.read_text()):
+            source_path = resolve(source, "command skill source")
+            if source_path is not None and not source_path.is_file():
+                missing.append(f"{command} loads missing {source}")
 for skill in claude.get("skills", []):
     path = resolve(skill, "Claude skill")
     if path is not None and not (path / "SKILL.md").is_file():

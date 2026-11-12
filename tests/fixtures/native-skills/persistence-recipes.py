@@ -158,9 +158,33 @@ class PersistenceRecipes(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 expected = template.replace('{{PROJECT_NAME}}', self.project.name)
                 self.assertEqual(path.read_text(), expected)
+                saved = expected + '\nExisting issue: preserve this decision.\n'
+                path.write_text(saved)
+                result = self.run_block(source)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(path.read_text(), saved)
+                result = self.run_block(source, {'CLAUDE_PLUGIN_ROOT': str(self.base / 'missing plugin')})
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(path.read_text(), saved)
+
+    def test_issue_initialization_rejects_nonregular_existing_paths(self):
+        for tree in TREES:
+            with self.subTest(tree=tree):
+                path = self.project / '.octo/ISSUES.md'
+                path.parent.mkdir(exist_ok=True)
+                source = block(tree, 'skill-issues', 'mkdir -p .octo')
+                path.mkdir()
                 result = self.run_block(source)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertEqual(path.read_text(), expected)
+                self.assertTrue(path.is_dir())
+                path.rmdir()
+                outside = self.base / 'preserved issues.md'
+                outside.write_text('preserve outside data')
+                path.symlink_to(outside)
+                result = self.run_block(source)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(outside.read_text(), 'preserve outside data')
+                path.unlink()
 
 
 if __name__ == '__main__':
