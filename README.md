@@ -36,6 +36,11 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
+Large file-backed `probe-single` requests validate promptly while preserving
+their text. Code reviews verify complete findings in bounded requests and keep
+unfinished work available when verification cannot complete. Review synthesis
+preserves every verified finding. See [review verification](docs/DEVELOPER.md#complete-review-verification).
+
 Deck generation checks rendered slides before reporting completion. It compares
 titles with the approved outline, checks highlighted data claims against their
 source data, and reviews slide thumbnails. Missing evidence leaves the deck as a
