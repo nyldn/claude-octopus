@@ -104,6 +104,10 @@ probe_single_agent() {
     local perspective="$2"
     local task_id="$3"
     local original_prompt="${4:-}"
+    local probe_seat_id="spawn-$task_id"
+    if declare -F octo_spawn_contract_seat_id >/dev/null 2>&1; then
+        probe_seat_id="$(octo_spawn_contract_seat_id "$task_id")"
+    fi
 
     log "INFO" "probe_single_agent: agent=$agent_type task=$task_id"
     if [[ "${5:-positional}" == file ]]; then
@@ -200,9 +204,9 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     _budget_original_chars=${#enhanced_prompt}
     tokens_in=$(( _budget_original_chars / 4 ))
     local _budget_rc=0
-    enhanced_prompt=$(enforce_context_budget "$enhanced_prompt" "$role" "$agent_type" "$phase") || _budget_rc=$?
+    enhanced_prompt=$(enforce_context_budget "$enhanced_prompt" "$role" "$agent_type" "$phase" "$probe_seat_id") || _budget_rc=$?
     if [[ $_budget_rc -ne 0 ]]; then
-        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" 0 "Prompt exceeded context budget" 0 "" "$role" || true
+        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" 0 "Prompt exceeded context budget" 0 "" "$role" "$probe_seat_id" || true
         if declare -F research_probe_single_record >/dev/null 2>&1; then
             research_probe_single_record "$task_id" "$agent_type" failed || true
         fi
@@ -308,7 +312,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         update_agent_status "$agent_type" "failed" 0 "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
         type write_agent_status >/dev/null 2>&1 && write_agent_status \
             "$agent_type" "failed" "$tokens_in" 0 "Provider environment construction failed" \
-            0 "$result_file" "$role" || true
+            0 "$result_file" "$role" "$probe_seat_id" || true
         if declare -F research_probe_single_record >/dev/null 2>&1; then
             research_probe_single_record "$task_id" "$agent_type" failed || true
         fi
@@ -319,7 +323,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         update_agent_status "$agent_type" "failed" 0 "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
         type write_agent_status >/dev/null 2>&1 && write_agent_status \
             "$agent_type" "failed" "$tokens_in" 0 "Provider command argument conversion failed" \
-            0 "$result_file" "$role" || true
+            0 "$result_file" "$role" "$probe_seat_id" || true
         if declare -F research_probe_single_record >/dev/null 2>&1; then
             research_probe_single_record "$task_id" "$agent_type" failed || true
         fi
@@ -348,7 +352,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         update_agent_status "$agent_type" "failed" 0 "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
         type write_agent_status >/dev/null 2>&1 && write_agent_status \
             "$agent_type" "failed" "$tokens_in" 0 "Failed to persist dispatched prompt" \
-            0 "$result_file" "$role" || true
+            0 "$result_file" "$role" "$probe_seat_id" || true
         if declare -F research_probe_single_record >/dev/null 2>&1; then
             research_probe_single_record "$task_id" "$agent_type" failed || true
         fi
@@ -363,7 +367,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         update_agent_status "$agent_type" "failed" 0 "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
         type write_agent_status >/dev/null 2>&1 && write_agent_status \
             "$agent_type" "failed" "$tokens_in" 0 "Unable to generate result nonce" \
-            0 "$result_file" "$role" || true
+            0 "$result_file" "$role" "$probe_seat_id" || true
         if declare -F research_probe_single_record >/dev/null 2>&1; then
             research_probe_single_record "$task_id" "$agent_type" failed || true
         fi
@@ -531,7 +535,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
                 fi
                 update_agent_status "$agent_type" "failed" "$elapsed_ms" "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
                 record_outcome "$agent_type" "$agent_type" "research" "$phase" "fail" "$elapsed_ms" 2>/dev/null || true
-                type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "${reason:-unusable output}" "$elapsed_ms" "$result_file" "$role" || true
+                type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "${reason:-unusable output}" "$elapsed_ms" "$result_file" "$role" "$probe_seat_id" || true
                 final_rc=1
                 ;;
             degraded)
@@ -539,7 +543,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
                 update_agent_status "$agent_type" "degraded" "$elapsed_ms" "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
                 record_outcome "$agent_type" "$agent_type" "research" "$phase" "success" "$elapsed_ms" 2>/dev/null || true
                 record_run_pattern "$agent_type" "${enhanced_prompt:-$original_prompt}" "$result_file" 2>/dev/null || true
-                type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "degraded" "$tokens_in" "$tokens_out" "${reason:-partial output}" "$elapsed_ms" "$result_file" "$role" || true
+                type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "degraded" "$tokens_in" "$tokens_out" "${reason:-partial output}" "$elapsed_ms" "$result_file" "$role" "$probe_seat_id" || true
                 ;;
             *)
                 echo "## Status: SUCCESS" >> "$result_file"
@@ -547,7 +551,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
                 record_outcome "$agent_type" "$agent_type" "research" "$phase" "success" "$elapsed_ms" 2>/dev/null || true
                 # v9.3.0: Record file co-occurrence pattern for heuristic learning
                 record_run_pattern "$agent_type" "${enhanced_prompt:-$original_prompt}" "$result_file" 2>/dev/null || true
-                type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "ok" "$tokens_in" "$tokens_out" "" "$elapsed_ms" "$result_file" "$role" || true
+                type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "ok" "$tokens_in" "$tokens_out" "" "$elapsed_ms" "$result_file" "$role" "$probe_seat_id" || true
                 ;;
         esac
     elif [[ $exit_code -eq 124 ]]; then
@@ -578,7 +582,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         elapsed_ms=$((end_time_ms - start_time_ms))
         tokens_out=$(octo_estimate_tokens_for_file "$temp_output" 2>/dev/null || echo 0)
         update_agent_status "$agent_type" "timeout" "$elapsed_ms" "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
-        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "timeout" "$tokens_in" "$tokens_out" "Timed out before completion" "$elapsed_ms" "$result_file" "$role" || true
+        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "timeout" "$tokens_in" "$tokens_out" "Timed out before completion" "$elapsed_ms" "$result_file" "$role" "$probe_seat_id" || true
         final_rc=$exit_code
     else
         # Failure
@@ -610,7 +614,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         elif declare -F octo_failure_reason >/dev/null 2>&1; then
             failure_reason=$(octo_failure_reason "$exit_code" "$enhanced_prompt" "$temp_errors" "$temp_output")
         fi
-        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "$failure_reason" "$elapsed_ms" "$result_file" "$role" || true
+        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "$failure_reason" "$elapsed_ms" "$result_file" "$role" "$probe_seat_id" || true
         final_rc=$exit_code
     fi
 
@@ -1298,7 +1302,7 @@ $web_search_context"
     # are required.
     if type render_agent_summary >/dev/null 2>&1; then
         local summary_status=0
-        render_agent_summary || summary_status=$?
+        render_agent_summary "-probe-${task_group}-" null probe || summary_status=$?
         if [[ "$summary_status" -ne 0 ]]; then
             if [[ -n "$synthesis_monitor_pid" ]]; then
                 kill "$synthesis_monitor_pid" 2>/dev/null || true

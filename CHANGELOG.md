@@ -102,8 +102,6 @@
   resolver's failure status, whether or not shell error-exit mode is enabled.
   Addresses [#1172](https://github.com/nyldn/claude-octopus/issues/1172).
 
-### Fixed
-
 - Parallel cleanup finishes a stopped worker's durable execution contract as
   cancelled, so run status no longer reports that worker as still running.
   Native Agent Teams seats remain running until their own completion is known.
