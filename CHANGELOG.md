@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Added
+
+- UberLLM as an OpenAI-compatible agent provider. `uberllm-agent` uses the
+  shared tool-loop helper with `UBERLLM_API_KEY` and an explicit
+  `UBERLLM_MODEL`, `OCTOPUS_UBERLLM_MODEL` or `providers.uberllm.default`
+  model. It is excluded from Council, like the other gateway agents.
+  Readiness and fleet selection use the dispatched model and its allowlist
+  fallback. Exact seats keep their model pins, and MCP preserves model policy.
+  DeepSeek Flash estimates use its published peak, uncached fallback rates.
+
 ### Fixed
 
 - Unit shards include newer hosted macOS suite timings in their duration

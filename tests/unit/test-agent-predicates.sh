@@ -191,6 +191,29 @@ else
     test_fail "Cheaper Inference was rejected despite API key and model"
 fi
 
+uberllm_fixture_available() (
+    resolve_provider_env() { return 1; }
+    unset UBERLLM_API_KEY UBERLLM_MODEL OCTOPUS_UBERLLM_MODEL OPENAI_COMPAT_MODEL
+    octo_fixture_value="fixture-value"
+    export "UBERLLM_API_KEY=${octo_fixture_value}"
+    [[ "${1:-missing}" == "configured" ]] && export OCTOPUS_UBERLLM_MODEL="deepseek/deepseek-v4-flash"
+    is_agent_available_v2 "uberllm"
+)
+
+test_case "is_agent_available_v2 rejects UberLLM without a model"
+if ! uberllm_fixture_available; then
+    test_pass
+else
+    test_fail "UberLLM was accepted without a dispatchable model"
+fi
+
+test_case "is_agent_available_v2 accepts UberLLM with API key and model"
+if uberllm_fixture_available "configured"; then
+    test_pass
+else
+    test_fail "UberLLM was rejected despite API key and model"
+fi
+
 test_case "standalone resolver availability does not invoke an undefined loader"
 octo_fixture_value="fixture-value"
 standalone_rc=0
