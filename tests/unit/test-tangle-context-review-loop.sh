@@ -56,7 +56,7 @@ fi
 
 test_case "review warning preserves the count of real actionable blockers"
 warning_with_blocker="$TEST_TMP_DIR/review-warning-with-blocker.json"
-printf '%s\n' '{"findings":[{"severity":"normal","title":"real blocker"}],"warning":"Round 1 was partial"}' > "$warning_with_blocker"
+printf '%s\n' '{"findings":[{"severity":"normal","title":"real blocker","verdict":"confirmed"}],"warning":"Round 1 was partial"}' > "$warning_with_blocker"
 if [[ "$(tangle_review_blocking_count "$warning_with_blocker")" == "1" ]]; then
     test_pass
 else
@@ -172,7 +172,7 @@ fi
 test_case "warning with a real blocker can recover after one bounded correction"
 out=$(run_warning_review_gate \
     warning-with-blocker \
-    '{"findings":[{"severity":"normal","title":"real blocker","file":"src/app.sh","line":1}],"warning":"Round 1 was partial"}' 1 \
+    '{"findings":[{"severity":"normal","title":"real blocker","verdict":"confirmed","file":"src/app.sh","line":1}],"warning":"Round 1 was partial"}' 3 \
     '{"findings":[]}' 0)
 if [[ "$out" == "rc=0 corrections=1 reviews=2" ]]; then
     test_pass

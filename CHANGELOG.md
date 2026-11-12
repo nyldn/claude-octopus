@@ -18,6 +18,10 @@
   non-Mistral provider namespaces exclude the unrelated Mistral key. Mistral,
   custom providers and configured default models retain their credential.
 
+
+- Large `probe-single --perspective-file` prompts pass startup validation
+  promptly without rewriting their content. Empty and whitespace-only files
+  are still rejected before provider dispatch.
 - Explicit GPT-5.4 Mini API usage uses the documented $0.75 input and $4.50
   output rates per million tokens. Capability checks now recognize its image
   input and reasoning support. Model defaults and saved choices are preserved.
@@ -100,6 +104,13 @@
   resolver's failure status, whether or not shell error-exit mode is enabled.
   Addresses [#1172](https://github.com/nyldn/claude-octopus/issues/1172).
 
+
+- Review verification sends complete findings in bounded batches with relevant
+  patch evidence. Final admission rejects oversized verifier requests instead of
+  clipping their tails. Incomplete verification returns failure with recovery
+  artifacts and never applies unverified findings. Verified findings from a
+  partial reviewer fleet can still receive corrections. Synthesis cannot drop,
+  invent or change verified findings.
 
 ## [11.22.1] - 2026-11-11
 
