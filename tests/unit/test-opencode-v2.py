@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(os.environ.get("OCTO_TEST_ROOT", Path(__file__).resolve().parents[2]))
 
@@ -23,6 +24,24 @@ class OpenCodeCompatibility(unittest.TestCase):
         self.base = Path(self.tmp.name)
         self.bin = self.base / "bin"
         self.bin.mkdir()
+        # Private wrappers keep fixture overwrites away from host executables.
+        for name in (
+                "awk", "base64", "basename", "bash", "cat", "chmod", "cp", "cut",
+                "date", "dirname", "env", "expr", "false", "file", "find", "getconf",
+                "git", "gtimeout", "grep", "head", "hostname", "id", "jq", "kill",
+                "ln", "mkdir", "mktemp", "mv", "od", "openssl", "pgrep", "pkill",
+                "printf", "ps", "readlink", "realpath", "rm", "rmdir", "sed", "setsid",
+                "sh", "sha256sum", "shasum", "sleep", "sort", "stat", "tail", "tee",
+                "timeout", "touch", "tr", "true", "uname", "uniq", "wc", "which",
+                "whoami", "xargs"):
+            executable = shutil.which(name)
+            if executable:
+                private_copy = self.bin / name
+                private_copy.write_text("#!/bin/sh\nexec " + shlex.quote(executable) + ' "$@"\n')
+                private_copy.chmod(0o755)
+        python = self.bin / "python3"
+        python.write_text("#!/bin/sh\nexec " + shlex.quote(sys.executable) + ' "$@"\n')
+        python.chmod(0o755)
         self.data = self.base / "data" / "opencode"
         self.data.mkdir(parents=True)
         self.marker = self.base / "called"
@@ -49,11 +68,8 @@ else
 fi
 """)
         self.cli.chmod(0o755)
-        jq = shutil.which("jq")
-        if jq:
-            (self.bin / "jq").symlink_to(jq)
         self.env = {
-            "PATH": f"{self.bin}:{Path(sys.executable).parent}:/usr/bin:/bin",
+            "PATH": str(self.bin),
             "HOME": str(self.base / "home"),
             "TMPDIR": str(self.base),
             "XDG_DATA_HOME": str(self.base / "data"),
@@ -65,6 +81,35 @@ fi
             "OCTOPUS_SKIP_PROVIDER_PROBES": "false",
         }
         Path(self.env["HOME"]).mkdir()
+
+    def test_host_path_claude_cannot_satisfy_missing_provider(self):
+        host_bin = self.base / "host-bin"
+        host_bin.mkdir()
+        host_marker = self.base / "host-provider-called"
+        hostile = host_bin / "claude"
+        hostile.write_text('#!/bin/sh\nprintf called > ' + shlex.quote(str(host_marker)) + '\n')
+        hostile.chmod(0o755)
+        host_python = host_bin / "python3"
+        host_python.write_text('#!/bin/sh\nexec ' + shlex.quote(sys.executable) + ' "$@"\n')
+        host_python.chmod(0o755)
+        nested = type(self)("test_host_path_claude_cannot_satisfy_missing_provider")
+        self.addCleanup(nested.doCleanups)
+        # Model an installed provider beside the interpreter, without writing
+        # into the real host installation or invoking that provider.
+        with mock.patch.object(sys, "executable", str(host_python)):
+            nested.setUp()
+        nested.env["OCTO_ALLOWED_PROVIDERS"] = "claude,opencode"
+        script = 'source scripts/lib/preflight.sh; octo_provider_readiness_result claude static'
+        result = nested.shell(script)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["status"], "missing")
+        fixture = nested.bin / "claude"
+        fixture.write_text('#!/bin/sh\nexit 0\n')
+        fixture.chmod(0o755)
+        result = nested.shell(script)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["status"], "available")
+        self.assertFalse(host_marker.exists())
 
     def shell(self, script, *, root=ROOT, timeout=8):
         return subprocess.run(["bash", "-c", script], env=self.env, cwd=root,
@@ -483,7 +528,7 @@ esac
         cli.write_text(self.cli.read_text())
         cli.chmod(0o755)
         self.env.update(PROJECT_ROOT=str(project), MISTRAL_API_KEY="fixture",
-                        PATH=f"bin:{Path(sys.executable).parent}:/usr/bin:/bin")
+                        PATH=f"bin:{self.bin}")
         for action in ("_octo_opencode_cli_major", "_octo_opencode_has_saved_login"):
             with self.subTest(action=action):
                 self.marker.unlink(missing_ok=True)
@@ -502,7 +547,7 @@ esac
         shim.chmod(0o755)
         self.env.update(PROJECT_ROOT=str(project), CLI_VERSION="2.0.23", MISTRAL_API_KEY="fixture",
                         PYTHON_SHIM_MARKER=str(shim_marker),
-                        PATH=f"bin:{self.bin}:{Path(sys.executable).parent}:/usr/bin:/bin")
+                        PATH=f"bin:{self.bin}")
         result = self.shell('source "$PLUGIN_DIR/scripts/lib/auth.sh"; _octo_opencode_has_saved_login', root=project)
         self.assertEqual(result.returncode, 125, result.stderr)
         self.assertFalse(shim_marker.exists(), "project Python ran before probe isolation")
@@ -859,7 +904,7 @@ exit "$rc"
         caller.mkdir()
         (project / "bin").symlink_to(self.bin, target_is_directory=True)
         self.env.update(PROJECT_ROOT=str(project), CLI_VERSION="2.0.23",
-                        PATH=f"bin:{Path(sys.executable).parent}:/usr/bin:/bin")
+                        PATH=f"bin:{self.bin}")
         (self.data / "opencode.db").touch()
         result = self.shell(r'''
 source "$PLUGIN_DIR/scripts/lib/preflight.sh"
@@ -1203,8 +1248,7 @@ preflight_check true opencode
 '''
         for relative_path, storage, roster, connected in product(
                 (False, True), ("sqlite", "environment", "known-environment"), ("", "opencode"), (False, True)):
-            self.env["PATH"] = (f"../trusted/bin:{Path(sys.executable).parent}:/usr/bin:/bin" if relative_path
-                                else f"{self.bin}:{Path(sys.executable).parent}:/usr/bin:/bin")
+            self.env["PATH"] = (f"../trusted/bin:{self.bin}" if relative_path else str(self.bin))
             self.env.pop("OPENAI_API_KEY", None)
             self.env.pop("OPENROUTER_API_KEY", None)
             database = self.data / "opencode.db"
@@ -1637,7 +1681,7 @@ spawn_agent opencode fixture fixture reviewer probe
             with self.subTest(relative_path=relative_path, target_version=target_version):
                 caller_version = "1.18.34" if target_version.startswith("2.") else "2.0.23"
                 self.env.update(TARGET_VERSION=target_version, CALLER_VERSION=caller_version)
-                self.env["PATH"] = f"{self.bin}:{Path(sys.executable).parent}:/usr/bin:/bin"
+                self.env["PATH"] = str(self.bin)
                 Path(self.env["COMMAND_FILE"]).unlink(missing_ok=True)
                 self.cli.write_text('#!/bin/sh\nif [ "$PWD" = "$PROJECT_ROOT" ]; then echo "$TARGET_VERSION"; else echo "$CALLER_VERSION"; fi\n')
                 if relative_path:
@@ -1647,7 +1691,7 @@ spawn_agent opencode fixture fixture reviewer probe
                         cli = bindir / "opencode"
                         cli.write_text(f"#!/bin/sh\necho {version}\n")
                         cli.chmod(0o755)
-                    self.env["PATH"] = f"../bin:{Path(sys.executable).parent}:/usr/bin:/bin"
+                    self.env["PATH"] = f"../bin:{self.bin}"
                 result = self.shell(script, root=caller)
                 self.assertNotEqual(result.returncode, 0)
                 command_file = Path(self.env["COMMAND_FILE"])
