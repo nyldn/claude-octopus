@@ -23,7 +23,8 @@
   requires an explicit ellipsis wherever source text is omitted. An unpunctuated
   list item ends the previous item's citation scope; a colon still introduces
   attributed bullets. Empty Antigravity fallbacks return the original capacity
-  failure and retain its diagnostic.
+  failure and retain diagnostics from stdout and stderr. Command arguments and
+  operator spacing remain significant when verifying quoted source.
 
 - Antigravity changes models only for retryable capacity errors and applies
   TTY recovery to fallback attempts. Crash-retry diagnostics remain separate

@@ -4449,4 +4449,20 @@ printf -v quote_response 'src/pricing.ts:3 shows:\n- `%s`' "$FAKE"
 r="$(_report "$(_resp "$quote_response")")"
 if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "colon lost attribution: $r"; fi
 
+# Punctuation-adjacent spaces can change a command argument or operator token.
+printf '%s\n' 'npm run build - prod target' > "$ROOT/src/command-layout.sh"
+printf '%s\n' 'const result = value + ++offset;' > "$ROOT/src/operator-layout.ts"
+for spacing_case in command operator; do
+    if [[ "$spacing_case" == command ]]; then
+        spacing_file=command-layout.sh
+        spacing_quote='npm run build-prod target'
+    else
+        spacing_file=operator-layout.ts
+        spacing_quote='const result = value+++offset;'
+    fi
+    test_case "layout normalization preserves $spacing_case semantics"
+    r="$(_report "$(_resp "src/$spacing_file:1 reads \`$spacing_quote\`.")")"
+    if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+
 test_summary

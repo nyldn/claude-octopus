@@ -390,7 +390,7 @@ fi
 # seat must stay a Google vendor, distinct from the Claude lead and Codex.
 if (( rc != 0 )) && [[ -n "${OCTOPUS_AGY_FALLBACK_MODELS:-}" ]] && _agy_no_capacity; then
     _agy_capacity_rc="$rc"
-    _agy_capacity_stderr="$(<"$stderr_file")"
+    _agy_capacity_diagnostic="$(printf '%s\n%s' "$(<"$stderr_file")" "$(<"$stdout_file")")"
     _agy_busy="$(_agy_busy_model)"; [[ -n "$_agy_busy" ]] || _agy_busy="$model"
     IFS=',' read -r -a _agy_fallbacks <<< "$OCTOPUS_AGY_FALLBACK_MODELS"
     for _agy_next in "${_agy_fallbacks[@]}"; do
@@ -421,7 +421,7 @@ if (( rc != 0 )) && [[ -n "${OCTOPUS_AGY_FALLBACK_MODELS:-}" ]] && _agy_no_capac
             rc=$?
         fi
         if (( rc == 0 )) && [[ ! "$(<"$stdout_file")" =~ [^[:space:]] ]]; then
-            printf '%s\n' "$_agy_capacity_stderr" >> "$stderr_file"
+            printf '%s\n' "$_agy_capacity_diagnostic" >> "$stderr_file"
             printf '%s\n' "agy-exec.sh: fallback '$_agy_next' returned no answer" >> "$stderr_file"
             rc="$_agy_capacity_rc"
         fi

@@ -3709,9 +3709,9 @@ def find_lines(hay, starts, line_numbers, needle, limit=50, following=(), word_b
     return found
 
 # sail-cruisey #3316: a seat joins "if (" / "a &&" / "b" / ") {" onto one line
-# as "if (a && b)". Ignore punctuation-adjacent layout outside literals.
+# as "if (a && b)". Ignore only parenthesis padding outside literals.
 # Ambiguous slash/hash syntax and unmatched quotes retain their whitespace.
-LAYOUT_SPACE = re.compile(r" (?=[^\w ])|(?<=[^\w ]) ")
+LAYOUT_SPACE = re.compile(r"(?<=\() | (?=\))")
 QUOTED_LITERAL = re.compile(r"""'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\])*`""")
 def layout_removed(text):
     literals = list(QUOTED_LITERAL.finditer(text))
@@ -3759,7 +3759,10 @@ def tight_entry(entry):
         removed = []
         for i, start in enumerate(starts):
             end = starts[i + 1] if i + 1 < len(starts) else len(hay)
-            removed.extend(start + at for at in layout_removed(hay[start:end]))
+            # Include a next-line closing parenthesis so its preceding newline
+            # space is padding, while literal and ambiguous-syntax guards apply.
+            scan_end = end + int(end < len(hay) and hay[end] == ")")
+            removed.extend(start + at for at in layout_removed(hay[start:scan_end]))
         stripped_cache[key] = (without_positions(hay, removed),
                                [s - bisect_left(removed, s) for s in starts], line_numbers)
     return stripped_cache[key]

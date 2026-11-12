@@ -916,6 +916,7 @@ if [[ "$model" == "${AGY_ALWAYS_EMPTY:-}" ]]; then
 fi
 case ",${AGY_BUSY_MODELS:-}," in
     *",$model,"*)
+        [[ "${AGY_CAPACITY_STDOUT:-0}" != 1 ]] || exec 2>&1
         echo "error: Our servers are experiencing high traffic right now, please try again in a minute. (UNAVAILABLE (code 503): No capacity available for model gemini-3.8-flash-high on the server)" >&2
         echo 'AGY_ERROR: {"short_error":"UNAVAILABLE (code 503): No capacity available for model gemini-3.8-flash-high on the server","status":"UNAVAILABLE","error_code":503,"code_kind":"http","retryable":true}' >&2
         exit 3
@@ -1017,6 +1018,33 @@ MOCK_AGY
     else
         test_fail "rc=$rc calls=$(wc -l < "$calls")"
     fi
+}
+
+test_agy_stdout_capacity_survives_empty_fallback() {
+    local tmp_bin="$TEST_TMP_DIR/agy-stdout-capacity-bin" calls="$TEST_TMP_DIR/agy-stdout-capacity.calls"
+    local out rc fallback_models
+    _agy_capacity_mock "$tmp_bin"
+    for fallback_models in gemini-empty gemini-empty,gemini-answer; do
+        test_case "stdout capacity evidence survives an empty fallback: $fallback_models"
+        : > "$calls"
+        out="$(printf 'inert fixture' | PATH="$tmp_bin:$PATH" AGY_CALLS="$calls" AGY_BUSY_MODELS=default \
+            AGY_CAPACITY_STDOUT=1 AGY_ALWAYS_EMPTY=gemini-empty OCTOPUS_AGY_MODEL=default \
+            OCTOPUS_AGY_NO_PTY_FALLBACK=1 OCTOPUS_AGY_FORCE_INLINE=0 \
+            OCTOPUS_AGY_FALLBACK_MODELS="$fallback_models" \
+            bash "$PROJECT_ROOT/scripts/helpers/agy-exec.sh" 2>"${calls}.err")" && rc=0 || rc=$?
+        if [[ "$fallback_models" == gemini-empty ]]; then
+            if (( rc == 3 )) && [[ ! "$out" =~ [^[:space:]] ]] && grep -q 'No capacity available' "${calls}.err"; then
+                test_pass
+            else
+                test_fail "empty fallback lost stdout capacity evidence: rc=$rc out=$out"
+            fi
+        elif (( rc == 0 )) && [[ "$out" == 'answer from gemini-answer' ]] \
+                && [[ "$(tr '\n' '|' < "$calls")" == 'default|gemini-empty|gemini-empty|gemini-answer|' ]]; then
+            test_pass
+        else
+            test_fail "later fallback was not reached: rc=$rc out=$out"
+        fi
+    done
 }
 
 test_agy_spawn_bypasses_timeout_wrapper() {
@@ -1921,5 +1949,7 @@ for tty_models in gemini-4-argon-high default,gemini-4-argon-high; do
         test_fail "fallback TTY recovery failed: rc=$rc out=$out"
     fi
 done
+
+test_agy_stdout_capacity_survives_empty_fallback
 
 test_summary
