@@ -4166,6 +4166,9 @@ def clause_start(text, end):
     return last
 
 def proposes(text):
+    # Presenting an example is not asserting that the cited file contains it.
+    # Preserve offsets for clause and first-person-subject checks below.
+    text = re.sub(r"\b(?:here|there)\s+is\b", lambda m: " " * len(m.group()), text, flags=re.I)
     # A proposal in an earlier sentence cannot excuse a current source claim.
     # Keep terminal punctuation on a standalone fence lead-in in its clause.
     end = len(text.rstrip(" \t\r\n.!?;"))

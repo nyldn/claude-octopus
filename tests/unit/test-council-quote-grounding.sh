@@ -4469,6 +4469,12 @@ for spacing_case in command operator; do
     if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 done
 
+for presentation in 'Here is an example like' 'Here  is an example like' 'There is a template like'; do
+    test_case "presentational wording keeps an example reviewer-owned: $presentation"
+    r="$(_report "$(_resp "src/pricing.ts:2: $presentation \`$FAKE\`.")")"
+    if jq -e '.quotes_attributed_unverified == 0 and .quotes_unverifiable_proposed == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+
 for source_phrase in 'shows a condition like' 'contains an expression like'; do
     test_case "an explicit source claim stays attributed before '$source_phrase'"
     r="$(_report "$(_resp "src/pricing.ts:2 $source_phrase \`$FAKE\`.")")"
