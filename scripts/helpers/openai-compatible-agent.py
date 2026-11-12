@@ -355,8 +355,11 @@ def main() -> int:
     ap.add_argument("--reasoning-policy", choices=["strict", "best_effort"], default="best_effort")
     ap.add_argument("--tool-policy", choices=["auto", "none"], default="auto")
     args = ap.parse_args(); cfg = PROVIDERS[args.provider]
-    base_url = args.base_url or os.environ.get("OPENAI_COMPAT_BASE_URL") or cfg["base_url"]
-    key_env = args.api_key_env or os.environ.get("OPENAI_COMPAT_API_KEY_ENV") or cfg["api_key_env"]
+    # Generic-slot configuration must not redirect a named preset or select
+    # another vendor's credential. Explicit command arguments still take priority.
+    generic = args.provider == "generic"
+    base_url = args.base_url or (os.environ.get("OPENAI_COMPAT_BASE_URL") if generic else None) or cfg["base_url"]
+    key_env = args.api_key_env or (os.environ.get("OPENAI_COMPAT_API_KEY_ENV") if generic else None) or cfg["api_key_env"]
     if args.provider == "atlascloud":
         model = args.model or os.environ.get("ATLASCLOUD_MODEL") or os.environ.get("OCTOPUS_ATLASCLOUD_MODEL") or os.environ.get("OPENAI_COMPAT_MODEL") or cfg["model"]
     elif args.provider == "cheaperinference":
